@@ -7,11 +7,11 @@ from campus_agent.config import CampusAgentSettings
 
 
 CAMPUS_RAG_HEADER_MAPPING = {
-    "x-actor-user-id": "x-rag-user-id",
-    "x-actor-roles": "x-rag-roles",
-    "x-actor-departments": "x-rag-departments",
-    "x-actor-groups": "x-rag-groups",
-    "x-campus-scope": "x-rag-campus-scope",
+    "x-actor-user-id": "x-actor-user-id",
+    "x-actor-roles": "x-actor-roles",
+    "x-actor-departments": "x-actor-departments",
+    "x-actor-groups": "x-actor-groups",
+    "x-campus-scope": "x-campus-scope",
 }
 
 
@@ -62,20 +62,19 @@ class CanonicalHeaders:
         headers = {
             "X-Request-ID": self.tool_call_id,
             "x-caller-service": self.caller_service,
-            "x-rag-authenticated": "true" if self.actor_user_id else "false",
         }
         if self.authorization:
             headers["Authorization"] = self.authorization
         if self.actor_user_id:
-            headers["x-rag-user-id"] = self.actor_user_id
+            headers["x-actor-user-id"] = self.actor_user_id
         if self.actor_roles:
-            headers["x-rag-roles"] = ",".join(self.actor_roles)
+            headers["x-actor-roles"] = ",".join(self.actor_roles)
         if self.actor_departments:
-            headers["x-rag-departments"] = ",".join(self.actor_departments)
+            headers["x-actor-departments"] = ",".join(self.actor_departments)
         if self.actor_groups:
-            headers["x-rag-groups"] = ",".join(self.actor_groups)
+            headers["x-actor-groups"] = ",".join(self.actor_groups)
         if self.campus_scope:
-            headers["x-rag-campus-scope"] = self.campus_scope
+            headers["x-campus-scope"] = self.campus_scope
 
         headers.update(self.canonical_trace_headers())
         return headers
@@ -277,12 +276,11 @@ class CampusRagAdapter:
                     "headers": {
                         "X-Request-ID": "<x-tool-call-id>",
                         "Authorization": "Bearer <token>",
-                        "x-rag-user-id": "<x-actor-user-id>",
-                        "x-rag-roles": "<csv roles>",
-                        "x-rag-departments": "<csv departments>",
-                        "x-rag-groups": "<csv groups>",
-                        "x-rag-campus-scope": "<x-campus-scope>",
-                        "x-rag-authenticated": "<derived boolean>",
+                        "x-actor-user-id": "<actor_user_id>",
+                        "x-actor-roles": "<csv roles>",
+                        "x-actor-departments": "<csv departments>",
+                        "x-actor-groups": "<csv groups>",
+                        "x-campus-scope": "<campus_scope>",
                     },
                 },
                 "campus_rag_answer": {
@@ -290,12 +288,11 @@ class CampusRagAdapter:
                     "headers": {
                         "X-Request-ID": "<x-tool-call-id>",
                         "Authorization": "Bearer <token>",
-                        "x-rag-user-id": "<x-actor-user-id>",
-                        "x-rag-roles": "<csv roles>",
-                        "x-rag-departments": "<csv departments>",
-                        "x-rag-groups": "<csv groups>",
-                        "x-rag-campus-scope": "<x-campus-scope>",
-                        "x-rag-authenticated": "<derived boolean>",
+                        "x-actor-user-id": "<actor_user_id>",
+                        "x-actor-roles": "<csv roles>",
+                        "x-actor-departments": "<csv departments>",
+                        "x-actor-groups": "<csv groups>",
+                        "x-campus-scope": "<campus_scope>",
                     },
                 },
             },

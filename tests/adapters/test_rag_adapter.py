@@ -23,8 +23,8 @@ class CampusRagAdapterTest(unittest.TestCase):
         runtime_request = runtime.requests[-1]
         self.assertEqual(runtime_request["path"], "/api/search")
         self.assertEqual(runtime_request["headers"]["X-Request-ID"], "tool-call-001")
-        self.assertEqual(runtime_request["headers"]["x-rag-user-id"], "user-123")
-        self.assertEqual(runtime_request["headers"]["x-rag-authenticated"], "true")
+        self.assertEqual(runtime_request["headers"]["x-actor-user-id"], "user-123")
+        self.assertNotIn("x-rag-authenticated", runtime_request["headers"])
         self.assertEqual(
             runtime_request["canonical_trace_headers"]["x-trace-id"],
             "trace-001",
@@ -45,7 +45,7 @@ class CampusRagAdapterTest(unittest.TestCase):
         self.assertIn("adapter_call_shapes", materials)
         self.assertEqual(
             materials["header_mapping"]["x-actor-user-id"],
-            "x-rag-user-id",
+            "x-actor-user-id",
         )
         self.assertEqual(
             materials["adapter_call_shapes"]["campus_rag_answer"]["path"],
