@@ -138,6 +138,93 @@ class CampusWorkflowTest(unittest.TestCase):
         )
         self.assertFalse(state.hitl_context["requires_side_effect_confirmation"])
 
+    def test_resume_returns_paused_directory_state_unchanged(self) -> None:
+        workflow = self._build_workflow()
+
+        paused = workflow.run(
+            conversation_id="conv-004a",
+            workflow_run_id="wf-004a",
+            user_query="directory: registrar office",
+            trace=WorkflowTraceContext(
+                trace_id="trace-004a",
+                parent_run_id="run-parent-004a",
+                tool_call_id="tool-call-004a",
+            ),
+            actor_context=self._actor_context(campus_scope="main-campus"),
+        )
+
+        resumed = workflow.resume("wf-004a")
+
+        self.assertEqual(resumed.to_dict(), paused.to_dict())
+        self.assertEqual(workflow.state_store.load("wf-004a").to_dict(), paused.to_dict())
+
+    def test_directory_apply_select_candidate_sets_selected_entry_without_new_tool_call(self) -> None:
+        workflow = self._build_workflow()
+
+        paused = workflow.run(
+            conversation_id="conv-004b",
+            workflow_run_id="wf-004b",
+            user_query="directory: registrar office",
+            trace=WorkflowTraceContext(
+                trace_id="trace-004b",
+                parent_run_id="run-parent-004b",
+                tool_call_id="tool-call-004b",
+            ),
+            actor_context=self._actor_context(campus_scope="main-campus"),
+        )
+
+        updated = workflow.apply_user_choice(
+            workflow_run_id="wf-004b",
+            action="select_candidate",
+            candidate_index=0,
+            trace=WorkflowTraceContext(
+                trace_id="trace-004b-choice",
+                parent_run_id="run-parent-004b-choice",
+                tool_call_id="tool-call-004b-choice",
+            ),
+        )
+
+        self.assertEqual(updated.selected_directory_entry, paused.directory_candidates[0])
+        self.assertFalse(updated.pending_confirmation)
+        self.assertEqual(updated.hitl_context, {})
+        self.assertEqual(updated.tool_results, paused.tool_results)
+        self.assertEqual(
+            updated.final_answer,
+            f"{paused.directory_candidates[0]['label']}: {paused.directory_candidates[0]['value']}",
+        )
+
+    def test_directory_apply_cancel_clears_pending_state_without_new_tool_call(self) -> None:
+        workflow = self._build_workflow()
+
+        paused = workflow.run(
+            conversation_id="conv-004c",
+            workflow_run_id="wf-004c",
+            user_query="directory: registrar office",
+            trace=WorkflowTraceContext(
+                trace_id="trace-004c",
+                parent_run_id="run-parent-004c",
+                tool_call_id="tool-call-004c",
+            ),
+            actor_context=self._actor_context(campus_scope="main-campus"),
+        )
+
+        updated = workflow.apply_user_choice(
+            workflow_run_id="wf-004c",
+            action="cancel",
+            candidate_index=None,
+            trace=WorkflowTraceContext(
+                trace_id="trace-004c-cancel",
+                parent_run_id="run-parent-004c-cancel",
+                tool_call_id="tool-call-004c-cancel",
+            ),
+        )
+
+        self.assertIsNone(updated.selected_directory_entry)
+        self.assertFalse(updated.pending_confirmation)
+        self.assertEqual(updated.hitl_context, {})
+        self.assertEqual(updated.tool_results, paused.tool_results)
+        self.assertEqual(updated.final_answer, "Directory selection canceled.")
+
     def test_directory_scope_filter_is_request_only_and_does_not_leak_into_entries(self) -> None:
         workflow = self._build_workflow()
 
@@ -246,8 +333,38 @@ class CampusWorkflowTest(unittest.TestCase):
         self.assertTrue(state.hitl_context["requires_side_effect_confirmation"])
         self.assertEqual(state.tool_results[0].tool_name, "campus_map_resolve")
         self.assertEqual(state.tool_results[1].tool_name, "campus_navigation_plan")
+        self.assertNotIn(
+            "navigation_plan_response",
+            state.tool_results[0].response["data"],
+        )
         self.assertEqual(state.tool_results[0].response["request_id"], "tool-call-008")
         self.assertEqual(state.tool_results[1].response["trace_id"], "trace-008")
+
+    def test_map_response_contract_stays_free_of_navigation_payload_details(self) -> None:
+        workflow = self._build_workflow()
+
+        state = workflow.run(
+            conversation_id="conv-008b",
+            workflow_run_id="wf-008b",
+            user_query="map: student center",
+            trace=WorkflowTraceContext(
+                trace_id="trace-008b",
+                parent_run_id="run-parent-008b",
+                tool_call_id="tool-call-008b",
+            ),
+            actor_context=self._actor_context(campus_scope="north-campus"),
+        )
+
+        map_response = state.tool_results[0].response
+        navigation_response = state.tool_results[1].response
+
+        self.assertEqual(map_response["data"]["status"], "resolved")
+        self.assertNotIn("navigation_plan_response", map_response["data"])
+        self.assertEqual(
+            navigation_response["data"]["navigation_plan"]["target"]["poi_id"],
+            "north-campus-student-center",
+        )
+        self.assertTrue(navigation_response["data"]["requires_confirmation"])
 
     def test_map_campus_ambiguous_path_persists_candidates_and_hitl(self) -> None:
         workflow = self._build_workflow()
@@ -277,6 +394,75 @@ class CampusWorkflowTest(unittest.TestCase):
         self.assertEqual(state.hitl_context["resume_step"], "await_campus_selection")
         self.assertFalse(state.hitl_context["requires_side_effect_confirmation"])
 
+    def test_campus_apply_select_candidate_recalls_map_with_chosen_campus_scope(self) -> None:
+        workflow = self._build_workflow()
+
+        paused = workflow.run(
+            conversation_id="conv-009a",
+            workflow_run_id="wf-009a",
+            user_query="map: student center",
+            trace=WorkflowTraceContext(
+                trace_id="trace-009a",
+                parent_run_id="run-parent-009a",
+                tool_call_id="tool-call-009a",
+            ),
+            actor_context=self._actor_context(campus_scope=None),
+        )
+
+        updated = workflow.apply_user_choice(
+            workflow_run_id="wf-009a",
+            action="select_candidate",
+            candidate_index=0,
+            trace=WorkflowTraceContext(
+                trace_id="trace-009a-choice",
+                parent_run_id="run-parent-009a-choice",
+                tool_call_id="tool-call-009a-choice",
+            ),
+        )
+
+        self.assertEqual(len(updated.tool_results), 3)
+        self.assertEqual(updated.tool_results[1].tool_name, "campus_map_resolve")
+        self.assertEqual(updated.tool_results[1].request["campus_scope"], "north-campus")
+        self.assertEqual(updated.tool_results[1].response["request_id"], "tool-call-009a-choice")
+        self.assertEqual(updated.tool_results[2].tool_name, "campus_navigation_plan")
+        self.assertEqual(updated.selected_tool, "campus_navigation_plan")
+        self.assertEqual(updated.selected_campus["campus_id"], "north-campus")
+        self.assertEqual(updated.selected_poi["poi_id"], "north-campus-student-center")
+        self.assertTrue(updated.pending_confirmation)
+        self.assertEqual(updated.hitl_context["kind"], "navigation_confirmation")
+
+    def test_campus_apply_cancel_clears_pending_state_without_new_tool_call(self) -> None:
+        workflow = self._build_workflow()
+
+        paused = workflow.run(
+            conversation_id="conv-009b",
+            workflow_run_id="wf-009b",
+            user_query="map: student center",
+            trace=WorkflowTraceContext(
+                trace_id="trace-009b",
+                parent_run_id="run-parent-009b",
+                tool_call_id="tool-call-009b",
+            ),
+            actor_context=self._actor_context(campus_scope=None),
+        )
+
+        updated = workflow.apply_user_choice(
+            workflow_run_id="wf-009b",
+            action="cancel",
+            candidate_index=None,
+            trace=WorkflowTraceContext(
+                trace_id="trace-009b-cancel",
+                parent_run_id="run-parent-009b-cancel",
+                tool_call_id="tool-call-009b-cancel",
+            ),
+        )
+
+        self.assertFalse(updated.pending_confirmation)
+        self.assertEqual(updated.hitl_context, {})
+        self.assertIsNone(updated.selected_campus)
+        self.assertEqual(updated.tool_results, paused.tool_results)
+        self.assertEqual(updated.final_answer, "Campus selection canceled.")
+
     def test_map_poi_ambiguous_path_persists_selected_campus_and_hitl(self) -> None:
         workflow = self._build_workflow()
 
@@ -303,6 +489,76 @@ class CampusWorkflowTest(unittest.TestCase):
         self.assertEqual(state.hitl_context["allowed_actions"], ["select_candidate", "cancel"])
         self.assertEqual(state.hitl_context["resume_step"], "await_poi_selection")
         self.assertFalse(state.hitl_context["requires_side_effect_confirmation"])
+
+    def test_poi_apply_select_candidate_calls_navigation_without_recalling_map(self) -> None:
+        workflow = self._build_workflow()
+
+        paused = workflow.run(
+            conversation_id="conv-010a",
+            workflow_run_id="wf-010a",
+            user_query="map: main campus library",
+            trace=WorkflowTraceContext(
+                trace_id="trace-010a",
+                parent_run_id="run-parent-010a",
+                tool_call_id="tool-call-010a",
+            ),
+            actor_context=self._actor_context(campus_scope=None),
+        )
+
+        updated = workflow.apply_user_choice(
+            workflow_run_id="wf-010a",
+            action="select_candidate",
+            candidate_index=0,
+            trace=WorkflowTraceContext(
+                trace_id="trace-010a-choice",
+                parent_run_id="run-parent-010a-choice",
+                tool_call_id="tool-call-010a-choice",
+            ),
+        )
+
+        chosen = paused.poi_candidates[0]
+        self.assertEqual(len(updated.tool_results), 2)
+        self.assertEqual(updated.tool_results[1].tool_name, "campus_navigation_plan")
+        self.assertEqual(updated.tool_results[1].response["request_id"], "tool-call-010a-choice")
+        self.assertEqual(updated.selected_poi, chosen)
+        self.assertEqual(updated.target_coordinate, chosen["coordinate"])
+        self.assertEqual(updated.selected_tool, "campus_navigation_plan")
+        self.assertEqual(updated.hitl_context["kind"], "navigation_confirmation")
+        self.assertTrue(updated.pending_confirmation)
+
+    def test_poi_apply_cancel_clears_pending_state_without_new_tool_call(self) -> None:
+        workflow = self._build_workflow()
+
+        paused = workflow.run(
+            conversation_id="conv-010b",
+            workflow_run_id="wf-010b",
+            user_query="map: main campus library",
+            trace=WorkflowTraceContext(
+                trace_id="trace-010b",
+                parent_run_id="run-parent-010b",
+                tool_call_id="tool-call-010b",
+            ),
+            actor_context=self._actor_context(campus_scope=None),
+        )
+
+        updated = workflow.apply_user_choice(
+            workflow_run_id="wf-010b",
+            action="cancel",
+            candidate_index=None,
+            trace=WorkflowTraceContext(
+                trace_id="trace-010b-cancel",
+                parent_run_id="run-parent-010b-cancel",
+                tool_call_id="tool-call-010b-cancel",
+            ),
+        )
+
+        self.assertEqual(updated.selected_campus, paused.selected_campus)
+        self.assertIsNone(updated.selected_poi)
+        self.assertIsNone(updated.target_coordinate)
+        self.assertFalse(updated.pending_confirmation)
+        self.assertEqual(updated.hitl_context, {})
+        self.assertEqual(updated.tool_results, paused.tool_results)
+        self.assertEqual(updated.final_answer, "POI selection canceled.")
 
     def test_map_no_match_clears_resolution_state_without_confirmation(self) -> None:
         workflow = self._build_workflow()
@@ -375,6 +631,231 @@ class CampusWorkflowTest(unittest.TestCase):
             response["data"]["tool_request_id"].startswith("fixture-navigation-"),
         )
 
+    def test_navigation_apply_confirm_clears_pending_state_without_provider_execution(self) -> None:
+        workflow = self._build_workflow()
+
+        paused = workflow.run(
+            conversation_id="conv-013a",
+            workflow_run_id="wf-013a",
+            user_query="map: student center",
+            trace=WorkflowTraceContext(
+                trace_id="trace-013a",
+                parent_run_id="run-parent-013a",
+                tool_call_id="tool-call-013a",
+            ),
+            actor_context=self._actor_context(campus_scope="north-campus"),
+        )
+
+        updated = workflow.apply_user_choice(
+            workflow_run_id="wf-013a",
+            action="confirm",
+            candidate_index=None,
+            trace=WorkflowTraceContext(
+                trace_id="trace-013a-confirm",
+                parent_run_id="run-parent-013a-confirm",
+                tool_call_id="tool-call-013a-confirm",
+            ),
+        )
+
+        self.assertFalse(updated.pending_confirmation)
+        self.assertEqual(updated.hitl_context, {})
+        self.assertEqual(len(updated.tool_results), len(paused.tool_results))
+        self.assertEqual(updated.selected_poi, paused.selected_poi)
+        self.assertEqual(updated.final_answer, "Navigation confirmed for North Campus Student Center.")
+
+    def test_navigation_apply_cancel_clears_pending_state_without_provider_execution(self) -> None:
+        workflow = self._build_workflow()
+
+        paused = workflow.run(
+            conversation_id="conv-013b",
+            workflow_run_id="wf-013b",
+            user_query="map: student center",
+            trace=WorkflowTraceContext(
+                trace_id="trace-013b",
+                parent_run_id="run-parent-013b",
+                tool_call_id="tool-call-013b",
+            ),
+            actor_context=self._actor_context(campus_scope="north-campus"),
+        )
+
+        updated = workflow.apply_user_choice(
+            workflow_run_id="wf-013b",
+            action="cancel",
+            candidate_index=None,
+            trace=WorkflowTraceContext(
+                trace_id="trace-013b-cancel",
+                parent_run_id="run-parent-013b-cancel",
+                tool_call_id="tool-call-013b-cancel",
+            ),
+        )
+
+        self.assertFalse(updated.pending_confirmation)
+        self.assertEqual(updated.hitl_context, {})
+        self.assertEqual(len(updated.tool_results), len(paused.tool_results))
+        self.assertEqual(updated.selected_poi, paused.selected_poi)
+        self.assertEqual(updated.final_answer, "Navigation canceled.")
+
+    def test_apply_user_choice_rejects_invalid_action_without_state_mutation(self) -> None:
+        workflow = self._build_workflow()
+
+        workflow.run(
+            conversation_id="conv-014",
+            workflow_run_id="wf-014",
+            user_query="directory: registrar office",
+            trace=WorkflowTraceContext(
+                trace_id="trace-014",
+                parent_run_id="run-parent-014",
+                tool_call_id="tool-call-014",
+            ),
+            actor_context=self._actor_context(campus_scope="main-campus"),
+        )
+        before = workflow.state_store.load("wf-014").to_dict()
+
+        with self.assertRaises(ValueError):
+            workflow.apply_user_choice(
+                workflow_run_id="wf-014",
+                action="confirm",
+                candidate_index=None,
+                trace=WorkflowTraceContext(
+                    trace_id="trace-014-invalid",
+                    parent_run_id="run-parent-014-invalid",
+                    tool_call_id="tool-call-014-invalid",
+                ),
+            )
+
+        self.assertEqual(workflow.state_store.load("wf-014").to_dict(), before)
+
+    def test_apply_user_choice_rejects_missing_candidate_index_without_state_mutation(self) -> None:
+        workflow = self._build_workflow()
+
+        workflow.run(
+            conversation_id="conv-015",
+            workflow_run_id="wf-015",
+            user_query="directory: registrar office",
+            trace=WorkflowTraceContext(
+                trace_id="trace-015",
+                parent_run_id="run-parent-015",
+                tool_call_id="tool-call-015",
+            ),
+            actor_context=self._actor_context(campus_scope="main-campus"),
+        )
+        before = workflow.state_store.load("wf-015").to_dict()
+
+        with self.assertRaises(ValueError):
+            workflow.apply_user_choice(
+                workflow_run_id="wf-015",
+                action="select_candidate",
+                candidate_index=None,
+                trace=WorkflowTraceContext(
+                    trace_id="trace-015-invalid",
+                    parent_run_id="run-parent-015-invalid",
+                    tool_call_id="tool-call-015-invalid",
+                ),
+            )
+
+        self.assertEqual(workflow.state_store.load("wf-015").to_dict(), before)
+
+    def test_apply_user_choice_rejects_out_of_range_candidate_index_without_state_mutation(self) -> None:
+        workflow = self._build_workflow()
+
+        workflow.run(
+            conversation_id="conv-016",
+            workflow_run_id="wf-016",
+            user_query="directory: registrar office",
+            trace=WorkflowTraceContext(
+                trace_id="trace-016",
+                parent_run_id="run-parent-016",
+                tool_call_id="tool-call-016",
+            ),
+            actor_context=self._actor_context(campus_scope="main-campus"),
+        )
+        before = workflow.state_store.load("wf-016").to_dict()
+
+        with self.assertRaises(ValueError):
+            workflow.apply_user_choice(
+                workflow_run_id="wf-016",
+                action="select_candidate",
+                candidate_index=99,
+                trace=WorkflowTraceContext(
+                    trace_id="trace-016-invalid",
+                    parent_run_id="run-parent-016-invalid",
+                    tool_call_id="tool-call-016-invalid",
+                ),
+            )
+
+        self.assertEqual(workflow.state_store.load("wf-016").to_dict(), before)
+
+    def test_apply_user_choice_rejects_when_pending_confirmation_is_false(self) -> None:
+        workflow = self._build_workflow()
+
+        workflow.run(
+            conversation_id="conv-017",
+            workflow_run_id="wf-017",
+            user_query="directory: graduate admissions email",
+            trace=WorkflowTraceContext(
+                trace_id="trace-017",
+                parent_run_id="run-parent-017",
+                tool_call_id="tool-call-017",
+            ),
+            actor_context=self._actor_context(),
+        )
+        before = workflow.state_store.load("wf-017").to_dict()
+
+        with self.assertRaises(ValueError):
+            workflow.apply_user_choice(
+                workflow_run_id="wf-017",
+                action="cancel",
+                candidate_index=None,
+                trace=WorkflowTraceContext(
+                    trace_id="trace-017-invalid",
+                    parent_run_id="run-parent-017-invalid",
+                    tool_call_id="tool-call-017-invalid",
+                ),
+            )
+
+        self.assertEqual(workflow.state_store.load("wf-017").to_dict(), before)
+
+    def test_apply_user_choice_rejects_repeated_apply_after_first_success(self) -> None:
+        workflow = self._build_workflow()
+
+        workflow.run(
+            conversation_id="conv-018",
+            workflow_run_id="wf-018",
+            user_query="directory: registrar office",
+            trace=WorkflowTraceContext(
+                trace_id="trace-018",
+                parent_run_id="run-parent-018",
+                tool_call_id="tool-call-018",
+            ),
+            actor_context=self._actor_context(campus_scope="main-campus"),
+        )
+
+        workflow.apply_user_choice(
+            workflow_run_id="wf-018",
+            action="select_candidate",
+            candidate_index=0,
+            trace=WorkflowTraceContext(
+                trace_id="trace-018-choice",
+                parent_run_id="run-parent-018-choice",
+                tool_call_id="tool-call-018-choice",
+            ),
+        )
+        after_first = workflow.state_store.load("wf-018").to_dict()
+
+        with self.assertRaises(ValueError):
+            workflow.apply_user_choice(
+                workflow_run_id="wf-018",
+                action="cancel",
+                candidate_index=None,
+                trace=WorkflowTraceContext(
+                    trace_id="trace-018-repeat",
+                    parent_run_id="run-parent-018-repeat",
+                    tool_call_id="tool-call-018-repeat",
+                ),
+            )
+
+        self.assertEqual(workflow.state_store.load("wf-018").to_dict(), after_first)
+
     def test_registry_keeps_directory_and_map_tools_as_unimplemented_boundaries(self) -> None:
         workflow = self._build_workflow()
 
@@ -385,6 +866,115 @@ class CampusWorkflowTest(unittest.TestCase):
         self.assertTrue(registry["campus_directory_lookup"].implemented)
         self.assertTrue(registry["campus_map_resolve"].implemented)
         self.assertTrue(registry["campus_navigation_plan"].implemented)
+
+    def test_navigation_mode_defaults_to_walking_when_not_specified(self) -> None:
+        workflow = self._build_workflow()
+
+        state = workflow.run(
+            conversation_id="conv-nav-default",
+            workflow_run_id="wf-nav-default",
+            user_query="map: student center",
+            trace=WorkflowTraceContext(
+                trace_id="trace-nav-default",
+                parent_run_id="run-parent-nav-default",
+                tool_call_id="tool-call-nav-default",
+            ),
+            actor_context=self._actor_context(campus_scope="north-campus"),
+        )
+
+        self.assertEqual(state.navigation_mode, "walking")
+        nav_request = state.tool_results[1].request
+        self.assertEqual(nav_request["navigation_mode"], "walking")
+
+    def test_navigation_mode_accessible_propagates_to_navigation_tool_call(self) -> None:
+        workflow = self._build_workflow()
+
+        state = workflow.run(
+            conversation_id="conv-nav-accessible",
+            workflow_run_id="wf-nav-accessible",
+            user_query="map: student center",
+            trace=WorkflowTraceContext(
+                trace_id="trace-nav-accessible",
+                parent_run_id="run-parent-nav-accessible",
+                tool_call_id="tool-call-nav-accessible",
+            ),
+            actor_context=self._actor_context(campus_scope="north-campus"),
+            navigation_mode="accessible",
+        )
+
+        self.assertEqual(state.navigation_mode, "accessible")
+        nav_request = state.tool_results[1].request
+        self.assertEqual(nav_request["navigation_mode"], "accessible")
+        nav_plan = state.tool_results[1].response["data"]["navigation_plan"]
+        self.assertEqual(nav_plan["navigation_mode"], "accessible")
+
+    def test_navigation_mode_preserved_through_campus_disambiguation_to_poi_selection(self) -> None:
+        workflow = self._build_workflow()
+
+        paused = workflow.run(
+            conversation_id="conv-nav-chain",
+            workflow_run_id="wf-nav-chain",
+            user_query="map: student center",
+            trace=WorkflowTraceContext(
+                trace_id="trace-nav-chain",
+                parent_run_id="run-parent-nav-chain",
+                tool_call_id="tool-call-nav-chain",
+            ),
+            actor_context=self._actor_context(campus_scope=None),
+            navigation_mode="accessible",
+        )
+
+        self.assertEqual(paused.navigation_mode, "accessible")
+
+        updated = workflow.apply_user_choice(
+            workflow_run_id="wf-nav-chain",
+            action="select_candidate",
+            candidate_index=0,
+            trace=WorkflowTraceContext(
+                trace_id="trace-nav-chain-choice",
+                parent_run_id="run-parent-nav-chain-choice",
+                tool_call_id="tool-call-nav-chain-choice",
+            ),
+        )
+
+        nav_request = updated.tool_results[2].request
+        self.assertEqual(nav_request["navigation_mode"], "accessible")
+        nav_plan = updated.tool_results[2].response["data"]["navigation_plan"]
+        self.assertEqual(nav_plan["navigation_mode"], "accessible")
+
+    def test_navigation_mode_preserved_through_poi_disambiguation(self) -> None:
+        workflow = self._build_workflow()
+
+        paused = workflow.run(
+            conversation_id="conv-nav-poi",
+            workflow_run_id="wf-nav-poi",
+            user_query="map: main campus library",
+            trace=WorkflowTraceContext(
+                trace_id="trace-nav-poi",
+                parent_run_id="run-parent-nav-poi",
+                tool_call_id="tool-call-nav-poi",
+            ),
+            actor_context=self._actor_context(campus_scope=None),
+            navigation_mode="accessible",
+        )
+
+        self.assertEqual(paused.navigation_mode, "accessible")
+
+        updated = workflow.apply_user_choice(
+            workflow_run_id="wf-nav-poi",
+            action="select_candidate",
+            candidate_index=0,
+            trace=WorkflowTraceContext(
+                trace_id="trace-nav-poi-choice",
+                parent_run_id="run-parent-nav-poi-choice",
+                tool_call_id="tool-call-nav-poi-choice",
+            ),
+        )
+
+        nav_request = updated.tool_results[1].request
+        self.assertEqual(nav_request["navigation_mode"], "accessible")
+        nav_plan = updated.tool_results[1].response["data"]["navigation_plan"]
+        self.assertEqual(nav_plan["navigation_mode"], "accessible")
 
     def _build_workflow(self) -> CampusWorkflow:
         return CampusWorkflow(

@@ -88,6 +88,84 @@ class WorkflowStateStoreTest(unittest.TestCase):
         self.assertEqual(loaded.hitl_context["candidate_source"], "directory_candidates")
         self.assertFalse(loaded.hitl_context["requires_side_effect_confirmation"])
 
+    def test_round_trip_preserves_post_choice_extension_state_and_cleared_hitl(self) -> None:
+        state = WorkflowState(
+            conversation_id="conv-002",
+            workflow_run_id="wf-002",
+            user_query="directory: registrar office",
+            intent="directory_lookup",
+            selected_tool="campus_directory_lookup",
+            tool_results=[
+                ToolExecutionRecord(
+                    tool_name="campus_directory_lookup",
+                    tool_call_id="tool-call-002",
+                    request={"query": "registrar office"},
+                    response={"ok": True, "data": {"entries": []}},
+                    status="completed",
+                )
+            ],
+            final_answer="Directory selection canceled.",
+            directory_query="registrar office",
+            directory_candidates=[
+                {"entry_type": "phone", "label": "Registrar Office", "value": "010-12345678"}
+            ],
+            selected_directory_entry=None,
+            campus_candidates=[],
+            selected_campus=None,
+            poi_candidates=[],
+            selected_poi=None,
+            target_coordinate=None,
+            navigation_mode="walking",
+            pending_confirmation=False,
+            trace=WorkflowTraceContext(
+                trace_id="trace-002",
+                parent_run_id="run-parent-002",
+                tool_call_id="tool-call-002",
+            ),
+            actor_context=WorkflowActorContext(
+                user_id="user-456",
+                roles=("student",),
+                campus_scope="main-campus",
+            ),
+            actor_snapshot={
+                "actor_user_id": "user-456",
+                "actor_roles": ["student"],
+                "actor_departments": [],
+                "actor_groups": [],
+                "campus_scope": "main-campus",
+                "is_authenticated": True,
+            },
+            status="completed",
+            last_completed_step="cancel_directory_selection",
+            resume_token="resume-002",
+            error_code=None,
+            retry_count=0,
+            hitl_context={},
+            extension_state={
+                "workflow_engine": "agno_workflow_first",
+                "phase2a_last_user_action": {
+                    "kind": "directory_selection",
+                    "action": "cancel",
+                },
+            },
+        )
+
+        store = InMemoryWorkflowStateStore()
+        store.save(state)
+        loaded = store.load("wf-002")
+
+        self.assertFalse(loaded.pending_confirmation)
+        self.assertEqual(loaded.hitl_context, {})
+        self.assertEqual(loaded.navigation_mode, "walking")
+        self.assertEqual(
+            loaded.extension_state["phase2a_last_user_action"]["kind"],
+            "directory_selection",
+        )
+        self.assertEqual(
+            loaded.extension_state["phase2a_last_user_action"]["action"],
+            "cancel",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

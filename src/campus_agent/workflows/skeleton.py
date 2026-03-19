@@ -89,6 +89,7 @@ class CampusWorkflow:
         user_query: str,
         trace: WorkflowTraceContext,
         actor_context: WorkflowActorContext,
+        navigation_mode: str = "walking",
     ) -> WorkflowState:
         routed = self._route_query(user_query)
         state = WorkflowState(
@@ -108,31 +109,19 @@ class CampusWorkflow:
             },
             hitl_context={},
         )
+        state.navigation_mode = navigation_mode
         self.state_store.save(state)
 
-        headers = CanonicalHeaders(
-            trace_id=trace.trace_id,
-            parent_run_id=trace.parent_run_id,
-            tool_call_id=trace.tool_call_id,
-            caller_service=self.settings.app_name,
-            actor_user_id=actor_context.user_id,
-            actor_roles=actor_context.roles,
-            actor_departments=actor_context.departments,
-            actor_groups=actor_context.groups,
-            campus_scope=actor_context.campus_scope,
-            actor_snapshot=actor_context.snapshot,
-        )
+        headers = self._build_headers(trace=trace, actor_context=actor_context)
         payload = self._build_tool_payload(routed, actor_context)
         response = self._invoke_selected_tool(routed["tool_name"], payload, headers, trace)
 
-        state.tool_results.append(
-            ToolExecutionRecord(
-                tool_name=routed["tool_name"],
-                tool_call_id=trace.tool_call_id,
-                request=payload,
-                response=response,
-                status="completed" if response["ok"] else "failed",
-            )
+        self._append_tool_result(
+            state=state,
+            tool_name=str(routed["tool_name"]),
+            request=payload,
+            response=response,
+            trace=trace,
         )
         self._apply_tool_response(state, routed, response)
         state.status = "completed" if response["ok"] else "failed"
@@ -143,6 +132,50 @@ class CampusWorkflow:
         )
         state.final_answer = self._compose_final_answer(routed["tool_name"], response)
         state.error_code = None if response["ok"] else str(response["error"]["code"])
+        self.state_store.save(state)
+        return state
+
+    def resume(self, workflow_run_id: str) -> WorkflowState:
+        return self.state_store.load(workflow_run_id)
+
+    def apply_user_choice(
+        self,
+        *,
+        workflow_run_id: str,
+        action: str,
+        candidate_index: int | None,
+        trace: WorkflowTraceContext,
+    ) -> WorkflowState:
+        state = self._load_pending_state(workflow_run_id)
+        hitl_context = dict(state.hitl_context)
+        allowed_actions = [str(item) for item in list(hitl_context.get("allowed_actions") or [])]
+        if action not in allowed_actions:
+            raise ValueError("Action is not allowed for the current workflow state")
+
+        candidate = None
+        if action == "select_candidate":
+            candidate = self._select_candidate(
+                state=state,
+                candidate_index=candidate_index,
+                candidate_source=str(hitl_context.get("candidate_source") or ""),
+            )
+
+        state.trace = trace
+        state.error_code = None
+        state.status = "completed"
+
+        kind = str(hitl_context.get("kind") or "")
+        if kind == "directory_selection":
+            self._apply_directory_choice(state, action=action, candidate=candidate)
+        elif kind == "campus_disambiguation":
+            self._apply_campus_choice(state, action=action, candidate=candidate, trace=trace)
+        elif kind == "poi_disambiguation":
+            self._apply_poi_choice(state, action=action, candidate=candidate, trace=trace)
+        elif kind == "navigation_confirmation":
+            self._apply_navigation_confirmation_choice(state, action=action)
+        else:
+            raise ValueError("Unsupported HITL context kind")
+
         self.state_store.save(state)
         return state
 
@@ -224,20 +257,57 @@ class CampusWorkflow:
             if self.map_tool is None:
                 raise NotImplementedError("Map tool is not configured")
             raw_response = self.map_tool.resolve(payload)
-            wrapped_map = self._wrap_tool_response(
+            return self._wrap_tool_response(
                 raw_response=raw_response,
                 trace=trace,
             )
-            map_data = dict(wrapped_map.get("data") or {})
-            if map_data.get("status") == "resolved":
-                nav_response = self._prepare_navigation(
-                    map_response=wrapped_map,
-                    trace=trace,
-                )
-                map_data["navigation_plan_response"] = nav_response
-                wrapped_map["data"] = map_data
-            return wrapped_map
+        if tool_name == "campus_navigation_plan":
+            if self.navigation_tool is None:
+                raise NotImplementedError("Navigation tool is not configured")
+            raw_response = self.navigation_tool.plan(payload)
+            return self._wrap_tool_response(
+                raw_response=raw_response,
+                trace=trace,
+            )
         raise NotImplementedError(f"Tool not implemented in bootstrap: {tool_name}")
+
+    def _build_headers(
+        self,
+        *,
+        trace: WorkflowTraceContext,
+        actor_context: WorkflowActorContext,
+    ) -> CanonicalHeaders:
+        return CanonicalHeaders(
+            trace_id=trace.trace_id,
+            parent_run_id=trace.parent_run_id,
+            tool_call_id=trace.tool_call_id,
+            caller_service=self.settings.app_name,
+            actor_user_id=actor_context.user_id,
+            actor_roles=actor_context.roles,
+            actor_departments=actor_context.departments,
+            actor_groups=actor_context.groups,
+            campus_scope=actor_context.campus_scope,
+            actor_snapshot=actor_context.snapshot,
+        )
+
+    def _append_tool_result(
+        self,
+        *,
+        state: WorkflowState,
+        tool_name: str,
+        request: JsonDict,
+        response: JsonDict,
+        trace: WorkflowTraceContext,
+    ) -> None:
+        state.tool_results.append(
+            ToolExecutionRecord(
+                tool_name=tool_name,
+                tool_call_id=trace.tool_call_id,
+                request=request,
+                response=response,
+                status="completed" if response["ok"] else "failed",
+            )
+        )
 
     def _wrap_directory_tool_response(
         self,
@@ -266,20 +336,26 @@ class CampusWorkflow:
     def _prepare_navigation(
         self,
         *,
-        map_response: JsonDict,
+        selected_campus: JsonDict,
+        selected_poi: JsonDict,
+        target_coordinate: JsonDict,
+        navigation_mode: str,
+        actor_context: WorkflowActorContext,
         trace: WorkflowTraceContext,
-    ) -> JsonDict:
-        if self.navigation_tool is None:
-            raise NotImplementedError("Navigation tool is not configured")
-        data = dict(map_response["data"])
+    ) -> tuple[JsonDict, JsonDict]:
         navigation_request = {
-            "selected_campus": dict(data["selected_campus"]),
-            "selected_poi": dict(data["selected_poi"]),
-            "target_coordinate": dict(data["target_coordinate"]),
-            "navigation_mode": "walking",
+            "selected_campus": dict(selected_campus),
+            "selected_poi": dict(selected_poi),
+            "target_coordinate": dict(target_coordinate),
+            "navigation_mode": navigation_mode,
         }
-        raw_navigation = self.navigation_tool.plan(navigation_request)
-        return self._wrap_tool_response(raw_response=raw_navigation, trace=trace)
+        response = self._invoke_selected_tool(
+            "campus_navigation_plan",
+            navigation_request,
+            self._build_headers(trace=trace, actor_context=actor_context),
+            trace=trace,
+        )
+        return navigation_request, response
 
     def _apply_tool_response(
         self,
@@ -368,40 +444,206 @@ class CampusWorkflow:
             }
             return
         if status == "resolved":
-            nav_response = data.get("navigation_plan_response")
-            if isinstance(nav_response, dict):
-                state.tool_results.append(
-                    ToolExecutionRecord(
-                        tool_name="campus_navigation_plan",
-                        tool_call_id=state.trace.tool_call_id if state.trace else "",
-                        request={
-                            "selected_campus": dict(state.selected_campus or {}),
-                            "selected_poi": dict(state.selected_poi or {}),
-                            "target_coordinate": dict(state.target_coordinate or {}),
-                            "navigation_mode": "walking",
-                        },
-                        response=dict(nav_response),
-                        status="completed",
-                    )
-                )
-                state.selected_tool = "campus_navigation_plan"
-                nav_data = dict(nav_response.get("data") or {})
-                state.navigation_mode = str(
-                    dict(nav_data.get("navigation_plan") or {}).get("navigation_mode")
-                    or "walking"
-                )
-                state.pending_confirmation = bool(nav_data.get("requires_confirmation"))
-                state.hitl_context = {
-                    "kind": "navigation_confirmation",
-                    "candidate_source": "none",
-                    "allowed_actions": ["confirm", "cancel"],
-                    "resume_step": "await_navigation_confirmation",
-                    "requires_side_effect_confirmation": True,
-                }
-                return
+            if state.trace is None:
+                raise RuntimeError("Workflow trace context is required for navigation planning")
+            navigation_request, nav_response = self._prepare_navigation(
+                selected_campus=dict(state.selected_campus or {}),
+                selected_poi=dict(state.selected_poi or {}),
+                target_coordinate=dict(state.target_coordinate or {}),
+                navigation_mode=state.navigation_mode or "walking",
+                actor_context=state.actor_context,
+                trace=state.trace,
+            )
+            self._append_tool_result(
+                state=state,
+                tool_name="campus_navigation_plan",
+                request=navigation_request,
+                response=nav_response,
+                trace=state.trace,
+            )
+            state.selected_tool = "campus_navigation_plan"
+            nav_data = dict(nav_response.get("data") or {})
+            state.navigation_mode = str(
+                dict(nav_data.get("navigation_plan") or {}).get("navigation_mode")
+                or "walking"
+            )
+            state.pending_confirmation = bool(nav_data.get("requires_confirmation"))
+            state.hitl_context = {
+                "kind": "navigation_confirmation",
+                "candidate_source": "none",
+                "allowed_actions": ["confirm", "cancel"],
+                "resume_step": "await_navigation_confirmation",
+                "requires_side_effect_confirmation": True,
+            }
+            return
         state.navigation_mode = None
         state.pending_confirmation = False
         state.hitl_context = {}
+
+    def _load_pending_state(self, workflow_run_id: str) -> WorkflowState:
+        state = self.state_store.load(workflow_run_id)
+        if not state.pending_confirmation:
+            raise ValueError("Workflow is not awaiting user confirmation")
+        return state
+
+    def _select_candidate(
+        self,
+        *,
+        state: WorkflowState,
+        candidate_index: int | None,
+        candidate_source: str,
+    ) -> JsonDict:
+        if candidate_index is None:
+            raise ValueError("candidate_index is required for select_candidate")
+        candidates = getattr(state, candidate_source, None)
+        if not isinstance(candidates, list):
+            raise ValueError("candidate_source does not point to a candidate list")
+        if candidate_index < 0 or candidate_index >= len(candidates):
+            raise ValueError("candidate_index is out of range")
+        return dict(candidates[candidate_index])
+
+    def _apply_directory_choice(
+        self,
+        state: WorkflowState,
+        *,
+        action: str,
+        candidate: JsonDict | None,
+    ) -> None:
+        if action == "select_candidate":
+            state.selected_directory_entry = dict(candidate or {})
+            state.final_answer = (
+                f"{state.selected_directory_entry['label']}: "
+                f"{state.selected_directory_entry['value']}"
+            )
+            state.last_completed_step = "apply_directory_selection"
+        else:
+            state.selected_directory_entry = None
+            state.final_answer = "Directory selection canceled."
+            state.last_completed_step = "cancel_directory_selection"
+        state.pending_confirmation = False
+        state.hitl_context = {}
+
+    def _apply_campus_choice(
+        self,
+        state: WorkflowState,
+        *,
+        action: str,
+        candidate: JsonDict | None,
+        trace: WorkflowTraceContext,
+    ) -> None:
+        if action == "cancel":
+            state.pending_confirmation = False
+            state.hitl_context = {}
+            state.selected_campus = None
+            state.final_answer = "Campus selection canceled."
+            state.last_completed_step = "cancel_campus_selection"
+            return
+
+        chosen_campus = dict(candidate or {})
+        routed = self._route_query(state.user_query)
+        payload = {"query": routed["clean_query"], "campus_scope": chosen_campus["campus_id"]}
+        response = self._invoke_selected_tool(
+            "campus_map_resolve",
+            payload,
+            self._build_headers(trace=trace, actor_context=state.actor_context),
+            trace,
+        )
+        self._append_tool_result(
+            state=state,
+            tool_name="campus_map_resolve",
+            request=payload,
+            response=response,
+            trace=trace,
+        )
+        state.selected_tool = "campus_map_resolve"
+        self._apply_tool_response(state, routed, response)
+        state.status = "completed" if response["ok"] else "failed"
+        state.last_completed_step = self._resolve_last_completed_step(
+            "campus_map_resolve",
+            response,
+            state,
+        )
+        state.final_answer = self._compose_final_answer("campus_map_resolve", response)
+        state.error_code = None if response["ok"] else str(response["error"]["code"])
+
+    def _apply_poi_choice(
+        self,
+        state: WorkflowState,
+        *,
+        action: str,
+        candidate: JsonDict | None,
+        trace: WorkflowTraceContext,
+    ) -> None:
+        if action == "cancel":
+            state.pending_confirmation = False
+            state.hitl_context = {}
+            state.selected_poi = None
+            state.target_coordinate = None
+            state.final_answer = "POI selection canceled."
+            state.last_completed_step = "cancel_poi_selection"
+            return
+
+        chosen_poi = dict(candidate or {})
+        coordinate = chosen_poi.get("coordinate")
+        if not isinstance(coordinate, dict):
+            raise ValueError("Selected POI candidate is missing coordinate")
+
+        state.selected_poi = chosen_poi
+        state.target_coordinate = dict(coordinate)
+        navigation_mode = state.navigation_mode or "walking"
+        navigation_request, nav_response = self._prepare_navigation(
+            selected_campus=dict(state.selected_campus or {}),
+            selected_poi=chosen_poi,
+            target_coordinate=dict(state.target_coordinate),
+            navigation_mode=navigation_mode,
+            actor_context=state.actor_context,
+            trace=trace,
+        )
+        self._append_tool_result(
+            state=state,
+            tool_name="campus_navigation_plan",
+            request=navigation_request,
+            response=nav_response,
+            trace=trace,
+        )
+        self._apply_navigation_response(state, nav_response)
+        state.final_answer = f"Ready to confirm navigation to {chosen_poi.get('label', 'selected destination')}."
+        state.last_completed_step = "await_navigation_confirmation"
+
+    def _apply_navigation_response(
+        self,
+        state: WorkflowState,
+        response: JsonDict,
+    ) -> None:
+        state.selected_tool = "campus_navigation_plan"
+        nav_data = dict(response.get("data") or {})
+        state.navigation_mode = str(
+            dict(nav_data.get("navigation_plan") or {}).get("navigation_mode") or "walking"
+        )
+        state.pending_confirmation = bool(nav_data.get("requires_confirmation"))
+        state.hitl_context = {
+            "kind": "navigation_confirmation",
+            "candidate_source": "none",
+            "allowed_actions": ["confirm", "cancel"],
+            "resume_step": "await_navigation_confirmation",
+            "requires_side_effect_confirmation": True,
+        }
+
+    def _apply_navigation_confirmation_choice(
+        self,
+        state: WorkflowState,
+        *,
+        action: str,
+    ) -> None:
+        state.pending_confirmation = False
+        state.hitl_context = {}
+        label = dict(state.selected_poi or {}).get("label", "selected destination")
+        if action == "confirm":
+            state.final_answer = f"Navigation confirmed for {label}."
+            state.last_completed_step = "confirm_navigation"
+            return
+        state.final_answer = "Navigation canceled."
+        state.last_completed_step = "cancel_navigation"
 
     def _resolve_last_completed_step(
         self,
