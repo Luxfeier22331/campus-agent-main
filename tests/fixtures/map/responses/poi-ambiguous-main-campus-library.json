@@ -1,0 +1,51 @@
+{
+  "ok": true,
+  "tool_name": "campus_map_resolve",
+  "contract_version": "v1",
+  "request_id": "fixture-map-main-campus-library",
+  "trace_id": "trace-fixture-campus-map-resolve",
+  "data": {
+    "status": "poi_ambiguous",
+    "campus_candidates": [],
+    "poi_candidates": [
+      {
+        "poi_id": "main-campus-library-east-entrance",
+        "poi_name": "Library East Entrance",
+        "label": "Main Campus Library East Entrance",
+        "campus_id": "main-campus",
+        "building": "Library",
+        "floor": "1",
+        "room": "East Entrance",
+        "coordinate": {
+          "lat": 39.9051,
+          "lng": 116.4081
+        },
+        "match_reason": "Matched POI name or alias"
+      },
+      {
+        "poi_id": "main-campus-library-west-entrance",
+        "poi_name": "Library West Entrance",
+        "label": "Main Campus Library West Entrance",
+        "campus_id": "main-campus",
+        "building": "Library",
+        "floor": "1",
+        "room": "West Entrance",
+        "coordinate": {
+          "lat": 39.90508,
+          "lng": 116.4072
+        },
+        "match_reason": "Matched POI name or alias"
+      }
+    ],
+    "selected_campus": {
+      "campus_id": "main-campus",
+      "campus_name": "Main Campus",
+      "label": "Main Campus",
+      "match_reason": "Query matched a POI on this campus",
+      "coordinate": {
+        "lat": 39.9042,
+        "lng": 116.4074
+      }
+    }
+  }
+}

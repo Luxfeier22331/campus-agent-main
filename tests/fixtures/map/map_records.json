@@ -1,0 +1,114 @@
+{
+  "campuses": [
+    {
+      "campus_id": "main-campus",
+      "campus_name": "Main Campus",
+      "label": "Main Campus",
+      "coordinate": {
+        "lat": 39.9042,
+        "lng": 116.4074
+      },
+      "match_terms": [
+        "main campus",
+        "central campus"
+      ]
+    },
+    {
+      "campus_id": "north-campus",
+      "campus_name": "North Campus",
+      "label": "North Campus",
+      "coordinate": {
+        "lat": 39.912,
+        "lng": 116.421
+      },
+      "match_terms": [
+        "north campus"
+      ]
+    },
+    {
+      "campus_id": "west-campus",
+      "campus_name": "West Campus",
+      "label": "West Campus",
+      "coordinate": {
+        "lat": 39.9001,
+        "lng": 116.3902
+      },
+      "match_terms": [
+        "west campus"
+      ]
+    }
+  ],
+  "pois": [
+    {
+      "poi_id": "main-campus-library-east-entrance",
+      "poi_name": "Library East Entrance",
+      "label": "Main Campus Library East Entrance",
+      "campus_id": "main-campus",
+      "building": "Library",
+      "floor": "1",
+      "room": "East Entrance",
+      "coordinate": {
+        "lat": 39.9051,
+        "lng": 116.4081
+      },
+      "match_terms": [
+        "library east entrance",
+        "east library entrance",
+        "main campus library"
+      ]
+    },
+    {
+      "poi_id": "main-campus-library-west-entrance",
+      "poi_name": "Library West Entrance",
+      "label": "Main Campus Library West Entrance",
+      "campus_id": "main-campus",
+      "building": "Library",
+      "floor": "1",
+      "room": "West Entrance",
+      "coordinate": {
+        "lat": 39.90508,
+        "lng": 116.4072
+      },
+      "match_terms": [
+        "library west entrance",
+        "west library entrance",
+        "main campus library"
+      ]
+    },
+    {
+      "poi_id": "north-campus-student-center",
+      "poi_name": "Student Center",
+      "label": "North Campus Student Center",
+      "campus_id": "north-campus",
+      "building": "Student Center",
+      "floor": "1",
+      "room": "Lobby",
+      "coordinate": {
+        "lat": 39.9125,
+        "lng": 116.4215
+      },
+      "match_terms": [
+        "student center",
+        "student union"
+      ]
+    },
+    {
+      "poi_id": "west-campus-student-center",
+      "poi_name": "Student Center",
+      "label": "West Campus Student Center",
+      "campus_id": "west-campus",
+      "building": "Student Center",
+      "floor": "1",
+      "room": "Lobby",
+      "coordinate": {
+        "lat": 39.9005,
+        "lng": 116.3908
+      },
+      "match_terms": [
+        "student center",
+        "student union"
+      ]
+    }
+  ]
+}
+

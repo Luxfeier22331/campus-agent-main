@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "tool_name": "campus_map_resolve",
+  "contract_version": "v1",
+  "request_id": "fixture-map-quantum-garden",
+  "trace_id": "trace-fixture-campus-map-resolve",
+  "data": {
+    "status": "no_match",
+    "campus_candidates": [],
+    "poi_candidates": []
+  }
+}
+

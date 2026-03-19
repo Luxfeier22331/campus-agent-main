@@ -1,0 +1,34 @@
+{
+  "ok": true,
+  "tool_name": "campus_map_resolve",
+  "contract_version": "v1",
+  "request_id": "fixture-map-student-center",
+  "trace_id": "trace-fixture-campus-map-resolve",
+  "data": {
+    "status": "campus_ambiguous",
+    "campus_candidates": [
+      {
+        "campus_id": "north-campus",
+        "campus_name": "North Campus",
+        "label": "North Campus",
+        "match_reason": "Query matched a POI on this campus",
+        "coordinate": {
+          "lat": 39.912,
+          "lng": 116.421
+        }
+      },
+      {
+        "campus_id": "west-campus",
+        "campus_name": "West Campus",
+        "label": "West Campus",
+        "match_reason": "Query matched a POI on this campus",
+        "coordinate": {
+          "lat": 39.9001,
+          "lng": 116.3902
+        }
+      }
+    ],
+    "poi_candidates": []
+  }
+}
+
