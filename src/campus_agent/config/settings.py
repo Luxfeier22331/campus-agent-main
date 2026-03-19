@@ -15,6 +15,7 @@ class CampusAgentSettings:
     rag_answer_path: str = "/api/answer"
     rag_service_name: str = "campusRag"
     workflow_state_backend: str = "in_memory"
+    postgres_conninfo: str | None = None
     default_corpora: tuple[str, ...] = field(
         default_factory=lambda: ("student_handbook",)
     )
@@ -36,6 +37,7 @@ class CampusAgentSettings:
                 "CAMPUS_AGENT_WORKFLOW_STATE_BACKEND",
                 "in_memory",
             ),
+            postgres_conninfo=os.getenv("CAMPUS_AGENT_POSTGRES_CONNINFO"),
             default_corpora=tuple(
                 item.strip()
                 for item in corpora.split(",")
