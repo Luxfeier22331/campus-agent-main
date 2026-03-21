@@ -16,6 +16,8 @@ class CampusAgentSettings:
     rag_service_name: str = "campusRag"
     workflow_state_backend: str = "in_memory"
     postgres_conninfo: str | None = None
+    request_context_candidate_memory_limit: int = 10
+    request_context_emit_memory_limit: int = 3
     default_corpora: tuple[str, ...] = field(
         default_factory=lambda: ("student_handbook",)
     )
@@ -38,6 +40,14 @@ class CampusAgentSettings:
                 "in_memory",
             ),
             postgres_conninfo=os.getenv("CAMPUS_AGENT_POSTGRES_CONNINFO"),
+            request_context_candidate_memory_limit=max(
+                1,
+                int(os.getenv("CAMPUS_AGENT_REQUEST_CONTEXT_CANDIDATE_MEMORY_LIMIT", "10")),
+            ),
+            request_context_emit_memory_limit=max(
+                1,
+                int(os.getenv("CAMPUS_AGENT_REQUEST_CONTEXT_EMIT_MEMORY_LIMIT", "3")),
+            ),
             default_corpora=tuple(
                 item.strip()
                 for item in corpora.split(",")

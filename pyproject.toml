@@ -1,22 +1,26 @@
-[build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
-
 [project]
-name = "campus-agent"
+name = "campus-agent-workspace"
 version = "0.1.0"
-description = "Workflow-first bootstrap scaffold for the campus platform entry agent"
+description = "Monorepo for campus-agent v2."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []
 
-[project.optional-dependencies]
-dev = ["pytest>=8.0"]
-postgres = ["psycopg>=3.1"]
+[dependency-groups]
+dev = [
+  "pytest>=8.0.0",
+]
 
-[tool.setuptools]
-package-dir = {"" = "src"}
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.uv]
+package = false
 
+[tool.uv.workspace]
+members = ["apps/*", "packages/*"]
+
+[build-system]
+requires = ["hatchling>=1.24.0"]
+build-backend = "hatchling.build"

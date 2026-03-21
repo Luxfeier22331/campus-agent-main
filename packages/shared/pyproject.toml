@@ -1,0 +1,20 @@
+[project]
+name = "campus-shared"
+version = "0.1.0"
+description = "Shared constants and helpers for campus-agent v2."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.uv]
+package = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/campus_shared"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/campus_shared", "pyproject.toml", "README.md"]
+
+[build-system]
+requires = ["hatchling>=1.24.0"]
+build-backend = "hatchling.build"

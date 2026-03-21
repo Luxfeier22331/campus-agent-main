@@ -216,16 +216,22 @@ class PostgresSettingsTest(unittest.TestCase):
         settings = CampusAgentSettings()
         self.assertEqual(settings.workflow_state_backend, "in_memory")
         self.assertIsNone(settings.postgres_conninfo)
+        self.assertEqual(settings.request_context_candidate_memory_limit, 10)
+        self.assertEqual(settings.request_context_emit_memory_limit, 3)
 
     def test_settings_from_env_reads_postgres_config(self) -> None:
         env = {
             "CAMPUS_AGENT_WORKFLOW_STATE_BACKEND": "postgres",
             "CAMPUS_AGENT_POSTGRES_CONNINFO": "postgresql://user:pass@db:5432/campus",
+            "CAMPUS_AGENT_REQUEST_CONTEXT_CANDIDATE_MEMORY_LIMIT": "12",
+            "CAMPUS_AGENT_REQUEST_CONTEXT_EMIT_MEMORY_LIMIT": "4",
         }
         with patch.dict("os.environ", env, clear=False):
             settings = CampusAgentSettings.from_env()
         self.assertEqual(settings.workflow_state_backend, "postgres")
         self.assertEqual(settings.postgres_conninfo, "postgresql://user:pass@db:5432/campus")
+        self.assertEqual(settings.request_context_candidate_memory_limit, 12)
+        self.assertEqual(settings.request_context_emit_memory_limit, 4)
 
     def test_settings_from_env_defaults_conninfo_to_none(self) -> None:
         with patch.dict("os.environ", {}, clear=False):

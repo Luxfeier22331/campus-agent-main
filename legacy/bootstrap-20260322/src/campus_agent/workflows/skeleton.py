@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from campus_agent.adapters import CanonicalHeaders, CampusRagAdapter
 from campus_agent.config import CampusAgentSettings
+from campus_agent.context import ContextAssembler, PreConversationContext
 from campus_agent.state import (
     InMemoryWorkflowStateStore,
     ToolExecutionRecord,
@@ -36,6 +37,7 @@ class CampusWorkflow:
         settings: CampusAgentSettings | None = None,
         state_store: InMemoryWorkflowStateStore | None = None,
         rag_adapter: CampusRagAdapter,
+        context_assembler: ContextAssembler | None = None,
         directory_tool: FixtureBackedCampusDirectoryLookupTool | None = None,
         map_tool: FixtureBackedCampusMapResolveTool | None = None,
         navigation_tool: FixtureBackedCampusNavigationPlanTool | None = None,
@@ -43,6 +45,10 @@ class CampusWorkflow:
         self.settings = settings or CampusAgentSettings()
         self.state_store = state_store or InMemoryWorkflowStateStore()
         self.rag_adapter = rag_adapter
+        self.context_assembler = context_assembler or ContextAssembler(
+            memory_limit=int(self.settings.request_context_emit_memory_limit),
+            memory_candidate_limit=int(self.settings.request_context_candidate_memory_limit),
+        )
         self.directory_tool = directory_tool
         self.map_tool = map_tool
         self.navigation_tool = navigation_tool
@@ -92,6 +98,17 @@ class CampusWorkflow:
         navigation_mode: str = "walking",
     ) -> WorkflowState:
         routed = self._route_query(user_query)
+        pre_context = self.context_assembler.assemble(
+            conversation_id=conversation_id,
+            user_query=user_query,
+            actor_context=actor_context,
+        )
+        extension_state = {
+            "workflow_engine": self.settings.workflow_engine,
+        }
+        context_refs = pre_context.to_context_refs()
+        if context_refs:
+            extension_state["context_refs"] = context_refs
         state = WorkflowState(
             conversation_id=conversation_id,
             workflow_run_id=workflow_run_id,
@@ -104,16 +121,14 @@ class CampusWorkflow:
             status="in_progress",
             last_completed_step="route_query",
             resume_token=workflow_run_id,
-            extension_state={
-                "workflow_engine": self.settings.workflow_engine,
-            },
+            extension_state=extension_state,
             hitl_context={},
         )
         state.navigation_mode = navigation_mode
         self.state_store.save(state)
 
         headers = self._build_headers(trace=trace, actor_context=actor_context)
-        payload = self._build_tool_payload(routed, actor_context)
+        payload = self._build_tool_payload(routed, actor_context, pre_context)
         response = self._invoke_selected_tool(routed["tool_name"], payload, headers, trace)
 
         self._append_tool_result(
@@ -209,6 +224,7 @@ class CampusWorkflow:
         self,
         routed: JsonDict,
         actor_context: WorkflowActorContext,
+        pre_context: PreConversationContext | None = None,
     ) -> JsonDict:
         if routed["tool_name"] == "campus_map_resolve":
             payload = {"query": routed["clean_query"]}
@@ -220,22 +236,28 @@ class CampusWorkflow:
             if actor_context.campus_scope:
                 payload["campus_scope"] = actor_context.campus_scope
             return payload
-        return self._build_rag_payload(routed["clean_query"], actor_context)
+        return self._build_rag_payload(routed["clean_query"], actor_context, pre_context)
 
     def _build_rag_payload(
         self,
         query: str,
         actor_context: WorkflowActorContext,
+        pre_context: PreConversationContext | None = None,
     ) -> JsonDict:
         filters: JsonDict = {}
         if actor_context.campus_scope:
             filters["campus_scope"] = actor_context.campus_scope
-        return {
+        payload: JsonDict = {
             "query": query,
             "corpora": list(self.settings.default_corpora),
             "filters": filters,
             "debug": False,
         }
+        if pre_context is not None:
+            request_context = pre_context.to_request_context()
+            if request_context:
+                payload["request_context"] = request_context
+        return payload
 
     def _invoke_selected_tool(
         self,

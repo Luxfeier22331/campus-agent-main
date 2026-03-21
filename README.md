@@ -1,23 +1,37 @@
-# campus-agent
+# campus-agent v2
 
-Workflow-first bootstrap scaffold for the campus entry agent.
+新一代 campus 入口 agent 的 monorepo。
 
-## Scope of this bootstrap
+## 先定架构
 
-- repo scaffold for a standalone `campus-agent` package
-- explicit workflow state model with in-memory persistence skeleton
-- mock RAG adapter that preserves the canonical v1 contract while mapping to the current `campusRag` runtime shape
-- workflow skeleton with clear extension boundaries for directory, map, and navigation tools
+这个仓库正在围绕长期的 supervisor + specialist 架构重建。
 
-## Current constraints
+- 长期架构文档：`docs/architecture/2026-03-22-long-term-architecture.md`
+- 第一阶段决策记录：`docs/decisions/2026-03-22-phase1-architecture-decisions.md`
+- `apps/supervisor-api` 表示对外 serving boundary，不代表已经选定 FastAPI 或其他 runtime
+- runtime 选择要放在 contract 和 package 边界稳定之后
 
-- `campus_rag_search` and `campus_rag_answer` are the only implemented tool paths in this bootstrap.
-- `campus_directory_lookup`, `campus_map_resolve`, and `campus_navigation_plan` remain declared but intentionally unimplemented until their contracts freeze.
-- `P-003` is still open, so actor snapshot and HITL payload persistence are kept as structured extension points instead of a frozen schema.
+## 仓库范围
 
-## Local verification
+- `apps/supervisor-api`: 入口 / supervisor 的对外服务边界
+- `packages/supervisor-core`: user goal 路由、委派和最终响应组装
+- `packages/rag-specialist`: 知识域 specialist 入口
+- `packages/retrieval-core`: retrieval 抽象和 evidence 获取引导层
+- `packages/contracts`: 共享请求 / 响应和 handoff schema
+- `packages/evals`: 评测辅助和 smoke 场景
+- `packages/shared`: 轻量共享常量和工具
+
+## 当前状态
+
+仓库已经重置为 v2 架构基线。
+
+- 旧 bootstrap 实现保存在 `legacy/bootstrap-20260322/`
+- 当前主路径是 `supervisor-api -> supervisor-core -> rag-specialist -> retrieval-core`
+- 架构目标是 supervisor-led multi-agent orchestration，而不是 `RAG as a tool`
+- 当前仍是初始化骨架，不是完整产品实现
+
+## 本地验证
 
 ```bash
-python3 -m unittest discover -s tests -t . -p 'test_*.py'
+python3 -m unittest discover -s tests -t .
 ```
-
