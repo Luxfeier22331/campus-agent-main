@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Callable
 
 from campus_contracts import DelegateToRagAgentRequest, DelegateToRagAgentResponse, ErrorInfo
-from campus_retrieval_core import RetrievalBackendError, retrieve_sources
+from campus_retrieval_core import CorpusQueryDisabledError, RetrievalBackendError, retrieve_sources
 
 from campus_rag_specialist.agent import RagSpecialistAgent
 from campus_rag_specialist.confidence import derive_confidence
@@ -30,6 +30,12 @@ def delegate_to_rag_agent(
             corpus=request.corpora[0],
             campus_scope=request.actor.campus_scope,
             acl_groups=request.actor.groups,
+        )
+    except CorpusQueryDisabledError as exc:
+        return DelegateToRagAgentResponse(
+            status="error",
+            confidence="low",
+            error=ErrorInfo(code="corpus_not_query_enabled", message=str(exc), retryable=False),
         )
     except RetrievalBackendError as exc:
         return DelegateToRagAgentResponse(

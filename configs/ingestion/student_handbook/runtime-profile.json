@@ -1,0 +1,9 @@
+{
+  "corpus": "student_handbook",
+  "phase1_stage": "query_serving",
+  "allowed_artifact_modes": ["normalized", "provider_only"],
+  "split_manifest_required": false,
+  "cleaning_policy_version": "student_handbook_cleaning_v1",
+  "retrieval_enabled": true,
+  "default_query_enabled": true
+}

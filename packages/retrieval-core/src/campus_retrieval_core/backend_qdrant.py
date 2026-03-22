@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Sequence
 
 from campus_contracts import EvidenceBundle, EvidenceSource
+from campus_ingestion_core.corpus_profiles import load_corpus_runtime_profile
 from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
 from campus_ingestion_core.registry import (
     DocumentRegistry,
@@ -20,6 +21,10 @@ from campus_retrieval_core.settings import RetrievalSettings
 
 
 class RetrievalBackendError(RuntimeError):
+    pass
+
+
+class CorpusQueryDisabledError(RetrievalBackendError):
     pass
 
 
@@ -51,6 +56,9 @@ class QdrantRetrievalBackend:
             self._vector_store._detect_vector_format(self.settings.qdrant_collection)
 
     def retrieve(self, request: RetrievalRequest) -> EvidenceBundle:
+        profile = load_corpus_runtime_profile(request.corpus)
+        if not profile.retrieval_enabled:
+            raise CorpusQueryDisabledError(f"{request.corpus} retrieval is disabled in phase-1")
         query_text = request.query_text.strip()
         if not query_text:
             return EvidenceBundle(query_text=request.query_text, corpus=request.corpus)

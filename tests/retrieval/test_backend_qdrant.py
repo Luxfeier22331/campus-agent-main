@@ -11,7 +11,11 @@ from campus_ingestion_core.embed import MockEmbeddingSettings, build_mock_embedd
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import build_indexable_chunks_from_jsonl, index_chunks_to_qdrant
 from campus_ingestion_core.registry import FileDocumentRegistry
-from campus_retrieval_core.backend_qdrant import QdrantRetrievalBackend, RetrievalBackendError
+from campus_retrieval_core.backend_qdrant import (
+    CorpusQueryDisabledError,
+    QdrantRetrievalBackend,
+    RetrievalBackendError,
+)
 from campus_retrieval_core.models import RetrievalRequest
 from campus_retrieval_core.settings import RetrievalSettings
 from qdrant_client import QdrantClient
@@ -51,10 +55,20 @@ def _make_structured_jsonl(*, document_id: str, version_id: str, text: str) -> b
 
 
 class BackendQdrantTest(unittest.TestCase):
-    def test_retrieval_request_supports_curriculum_plan(self) -> None:
-        request = RetrievalRequest(query_text="培养方案要求", corpus="curriculum_plan")
+    def test_backend_rejects_query_disabled_corpus(self) -> None:
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                qdrant_collection="student_handbook_test",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=FileDocumentRegistry(Path(TemporaryDirectory().name) / "registry.json"),
+            qdrant_client=QdrantClient(location=":memory:"),
+            embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+        )
 
-        self.assertEqual(request.corpus, "curriculum_plan")
+        with self.assertRaisesRegex(CorpusQueryDisabledError, "curriculum_plan"):
+            backend.retrieve(RetrievalRequest(query_text="培养方案要求", corpus="curriculum_plan"))
 
     def test_retrieval_settings_from_env_reads_registry_database_url(self) -> None:
         settings = RetrievalSettings.from_env(

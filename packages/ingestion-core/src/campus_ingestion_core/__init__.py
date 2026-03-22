@@ -17,6 +17,11 @@ from campus_ingestion_core.chunking import (
     chunk_structured_unit,
     clean_structured_text,
 )
+from campus_ingestion_core.corpus_profiles import (
+    CorpusRuntimeProfile,
+    default_query_corpora,
+    load_corpus_runtime_profile,
+)
 from campus_ingestion_core.embed import (
     EmbeddingSettings,
     MockEmbeddingSettings,
@@ -65,6 +70,7 @@ __all__ = [
     "DEFAULT_MAX_CHUNK_SIZE",
     "DEFAULT_MIN_CHUNK_SIZE",
     "ChunkProfile",
+    "CorpusRuntimeProfile",
     "DocumentRegistry",
     "DocumentRegistryRecord",
     "EmbeddingSettings",
@@ -90,6 +96,7 @@ __all__ = [
     "build_raw_asset_key",
     "chunk_structured_unit",
     "clean_structured_text",
+    "default_query_corpora",
     "ObjectStoreSettings",
     "build_mock_embedding_model",
     "index_chunks_to_qdrant",
@@ -103,4 +110,5 @@ __all__ = [
     "SplitManifest",
     "SplitManifestDocument",
     "load_split_manifest",
+    "load_corpus_runtime_profile",
 ]

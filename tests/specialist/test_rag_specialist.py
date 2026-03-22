@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 
 from campus_contracts import ActorContext, DelegateToRagAgentRequest, EvidenceBundle, EvidenceSource
-from campus_retrieval_core import RetrievalBackendError
+from campus_retrieval_core import CorpusQueryDisabledError, RetrievalBackendError
 from campus_rag_specialist.confidence import derive_confidence
 from campus_rag_specialist.service import delegate_to_rag_agent
 
@@ -51,6 +51,20 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.confidence, "low")
         self.assertEqual(response.error.code, "retrieval_failed")
         self.assertIn("qdrant unavailable", response.error.message)
+
+    def test_query_disabled_corpus_maps_to_explicit_error_response(self) -> None:
+        def raising_retriever(*args: object, **kwargs: object) -> EvidenceBundle:
+            raise CorpusQueryDisabledError("curriculum_plan retrieval is disabled in phase-1")
+
+        response = delegate_to_rag_agent(
+            DelegateToRagAgentRequest(user_goal="培养方案要求", corpora=("curriculum_plan",)),
+            retriever=raising_retriever,
+        )
+
+        self.assertEqual(response.status, "error")
+        self.assertEqual(response.confidence, "low")
+        self.assertEqual(response.error.code, "corpus_not_query_enabled")
+        self.assertIn("curriculum_plan", response.error.message)
 
     def test_no_evidence_maps_to_no_answer(self) -> None:
         response = delegate_to_rag_agent(

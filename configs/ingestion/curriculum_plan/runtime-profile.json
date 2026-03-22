@@ -1,0 +1,9 @@
+{
+  "corpus": "curriculum_plan",
+  "phase1_stage": "cleaned_ingestion",
+  "allowed_artifact_modes": ["normalized"],
+  "split_manifest_required": true,
+  "cleaning_policy_version": "curriculum_plan_cleaning_v1",
+  "retrieval_enabled": false,
+  "default_query_enabled": false
+}
