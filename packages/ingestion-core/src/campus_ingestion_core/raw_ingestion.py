@@ -8,6 +8,7 @@ from pathlib import Path
 import time
 from typing import Protocol
 
+from campus_contracts import ALLOWED_CORPORA
 from campus_ingestion_core.campusrag_ingestion_support import (
     DocumentImportInput,
     ImportReport,
@@ -15,8 +16,10 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     S3ObjectStoreWriter,
     load_metadata_from_bytes,
     persist_import_documents,
+    resolved_raw_asset,
     utc_now,
 )
+from campus_ingestion_core.object_store import build_processed_asset_artifact_key
 from campus_ingestion_core.registry import (
     DocumentRegistry,
     RawAssetRegistry,
@@ -24,12 +27,14 @@ from campus_ingestion_core.registry import (
     build_raw_asset_registry_from_env,
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
+from campus_ingestion_core.split_manifest import SplitManifest, SplitManifestDocument, load_split_manifest
 
 
 DEFAULT_ONLINE_OCR_MODEL = "PaddleOCR-VL-1.5"
 DEFAULT_ONLINE_OCR_POLL_SECONDS = 5
 DEFAULT_ONLINE_OCR_TIMEOUT_SECONDS = 300
 DEFAULT_RAW_ONLINE_OCR_PARSER_VERSION = "paddleocr-vl-1.5"
+DEFAULT_INGESTION_CORPUS = "student_handbook"
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,20 +147,26 @@ class PaddleOcrAsyncClient:
 
 @dataclass(frozen=True, slots=True)
 class RawIngestionSubmitSettings:
-    raw_root: Path
+    raw_root: Path | None
+    source_paths: tuple[Path, ...]
     job_dir: Path
     report_dir: Path
+    corpus: str
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> "RawIngestionSubmitSettings":
         source = env if env is not None else os.environ
         raw_root_value = (source.get("CAMPUSRAG_RAW_ROOT") or "").strip()
-        if not raw_root_value:
-            raise ValueError("CAMPUSRAG_RAW_ROOT is required")
+        source_paths = _read_raw_ingestion_source_paths(source)
+        if not raw_root_value and not source_paths:
+            raise ValueError("CAMPUSRAG_RAW_ROOT or RAW_INGESTION_SOURCE_PATHS is required")
+        corpus = _read_ingestion_corpus(source)
         return cls(
-            raw_root=Path(raw_root_value),
+            raw_root=Path(raw_root_value) if raw_root_value else None,
+            source_paths=source_paths,
             job_dir=Path((source.get("RAW_INGESTION_JOB_DIR") or "./var/ingestion-jobs").strip()),
             report_dir=Path((source.get("IMPORT_REPORT_DIR") or "./var/import-reports").strip()),
+            corpus=corpus,
         )
 
 
@@ -173,7 +184,10 @@ class RawIngestionSubmissionReport:
 class RawIngestionProcessSettings:
     raw_root: Path | None
     job_path: Path | None
+    source_paths: tuple[Path, ...]
     report_dir: Path
+    corpus: str
+    split_manifest_path: Path | None
     parser_version: str
     embedding_model: str
     default_campus_scope: str | None
@@ -185,15 +199,23 @@ class RawIngestionProcessSettings:
         source = env if env is not None else os.environ
         raw_root_value = (source.get("CAMPUSRAG_RAW_ROOT") or "").strip()
         job_path_value = (source.get("RAW_INGESTION_JOB_PATH") or "").strip()
-        if not raw_root_value and not job_path_value:
-            raise ValueError("CAMPUSRAG_RAW_ROOT or RAW_INGESTION_JOB_PATH is required")
+        source_paths = _read_raw_ingestion_source_paths(source)
+        if not raw_root_value and not job_path_value and not source_paths:
+            raise ValueError("CAMPUSRAG_RAW_ROOT, RAW_INGESTION_JOB_PATH, or RAW_INGESTION_SOURCE_PATHS is required")
+        corpus = _read_ingestion_corpus(source)
+        split_manifest_path_value = (source.get("INGESTION_SPLIT_MANIFEST_PATH") or "").strip()
         online_ocr = OnlineOcrSettings.from_env(source, required=True)
         if online_ocr is None:
             raise ValueError("OCR_BASE_URL and OCR_API_KEY must be configured together")
+        if corpus == "curriculum_plan" and not split_manifest_path_value:
+            raise ValueError("INGESTION_SPLIT_MANIFEST_PATH is required for curriculum_plan raw ingestion")
         return cls(
             raw_root=Path(raw_root_value) if raw_root_value else None,
             job_path=Path(job_path_value) if job_path_value else None,
+            source_paths=source_paths,
             report_dir=Path((source.get("IMPORT_REPORT_DIR") or "./var/import-reports").strip()),
+            corpus=corpus,
+            split_manifest_path=Path(split_manifest_path_value) if split_manifest_path_value else None,
             parser_version=DEFAULT_RAW_ONLINE_OCR_PARSER_VERSION,
             embedding_model=(source.get("INGESTION_EMBEDDING_MODEL") or source.get("EMBEDDING_MODEL") or "").strip(),
             default_campus_scope=(source.get("INGESTION_DEFAULT_CAMPUS_SCOPE") or "").strip() or None,
@@ -207,11 +229,7 @@ def submit_raw_ingestion_job(
     env: dict[str, str] | None = None,
 ) -> RawIngestionSubmissionReport:
     settings = RawIngestionSubmitSettings.from_env(env)
-    pdf_paths = tuple(
-        str(path)
-        for path in sorted(settings.raw_root.iterdir())
-        if path.is_file() and path.suffix.lower() == ".pdf"
-    )
+    pdf_paths = tuple(str(path) for path in _collect_submit_pdf_paths(settings))
     timestamp = utc_now()
     safe_timestamp = timestamp.replace(":", "").replace("+", "_plus_")
     digest = hashlib.sha256("\n".join(pdf_paths).encode("utf-8")).hexdigest()[:12]
@@ -220,8 +238,8 @@ def submit_raw_ingestion_job(
     job_payload = {
         "job_id": job_id,
         "status": "queued_placeholder",
-        "corpus": "student_handbook",
-        "raw_root": str(settings.raw_root),
+        "corpus": settings.corpus,
+        "raw_root": str(settings.raw_root) if settings.raw_root is not None else None,
         "pdf_paths": list(pdf_paths),
         "submitted_at": timestamp,
     }
@@ -268,27 +286,49 @@ def process_raw_ingestion_job(
     raw_asset_registry = raw_asset_registry or build_raw_asset_registry_from_env(env)
     writer = object_store or S3ObjectStoreWriter(settings.object_store)
     ocr_client = online_ocr or PaddleOcrAsyncClient(settings.online_ocr)
+    split_manifest = (
+        load_split_manifest(settings.split_manifest_path, expected_corpus=settings.corpus)
+        if settings.split_manifest_path is not None
+        else None
+    )
 
     documents: list[DocumentImportInput] = []
     errors: list[str] = []
-    for pdf_path in _collect_job_pdf_paths(settings):
+    pdf_paths = _collect_job_pdf_paths(settings)
+    if split_manifest is not None and len(pdf_paths) != 1:
+        raise ValueError("split manifest ingestion currently expects exactly one source PDF")
+    for pdf_path in pdf_paths:
         try:
             parse_result = ocr_client.parse_pdf(pdf_path)
-            metadata = load_metadata_from_bytes(parse_result.structured_result_bytes)
+            if split_manifest is None:
+                metadata = load_metadata_from_bytes(parse_result.structured_result_bytes)
+                documents.append(
+                    DocumentImportInput(
+                        source_label=str(pdf_path),
+                        structured_result_bytes=parse_result.structured_result_bytes,
+                        provider_result_bytes=parse_result.provider_result_bytes,
+                        metadata=metadata,
+                        import_source="raw_online_ocr",
+                        corpus=settings.corpus,
+                        raw_path=pdf_path,
+                        raw_source_uri=f"file://{pdf_path.resolve()}",
+                    )
+                )
+                continue
+
+            documents.extend(
+                _build_split_manifest_documents(
+                    pdf_path=pdf_path,
+                    parse_result=parse_result,
+                    split_manifest=split_manifest,
+                    writer=writer,
+                    object_store=settings.object_store,
+                    default_campus_scope=settings.default_campus_scope,
+                    corpus=settings.corpus,
+                )
+            )
         except Exception as exc:
             errors.append(f"{pdf_path}: {exc}")
-            continue
-        documents.append(
-            DocumentImportInput(
-                source_label=str(pdf_path),
-                structured_result_bytes=parse_result.structured_result_bytes,
-                provider_result_bytes=parse_result.provider_result_bytes,
-                metadata=metadata,
-                import_source="raw_online_ocr",
-                raw_path=pdf_path,
-                raw_source_uri=f"file://{pdf_path.resolve()}",
-            )
-        )
 
     return persist_import_documents(
         documents=documents,
@@ -304,6 +344,256 @@ def process_raw_ingestion_job(
         report_prefix="process-raw-ingestion-job",
         initial_errors=errors,
     )
+
+
+def _build_split_manifest_documents(
+    *,
+    pdf_path: Path,
+    parse_result: OnlineOcrParseResult,
+    split_manifest: SplitManifest,
+    writer: ObjectStoreWriter,
+    object_store: ObjectStoreSettings,
+    default_campus_scope: str | None,
+    corpus: str,
+) -> list[DocumentImportInput]:
+    raw_source_uri = f"file://{pdf_path.resolve()}"
+    raw_asset = resolved_raw_asset(
+        raw_path=pdf_path,
+        raw_source_uri=raw_source_uri,
+        corpus=corpus,
+        raw_asset_id_override=split_manifest.raw_asset_id,
+    )
+    if raw_asset is None:
+        raise ValueError(f"unable to resolve raw asset for {pdf_path}")
+    provider_result_key, structured_full_key = _write_processed_asset_artifacts(
+        writer=writer,
+        object_store=object_store,
+        corpus=corpus,
+        raw_asset_id=raw_asset.raw_asset_id,
+        raw_version_id=raw_asset.raw_version_id,
+        provider_result_bytes=parse_result.provider_result_bytes,
+        structured_result_bytes=parse_result.structured_result_bytes,
+    )
+    structured_rows = _load_structured_rows(parse_result.structured_result_bytes)
+    return [
+        _build_split_manifest_document_input(
+            pdf_path=pdf_path,
+            raw_source_uri=raw_source_uri,
+            raw_asset_id=raw_asset.raw_asset_id,
+            raw_version_id=raw_asset.raw_version_id,
+            manifest_version=split_manifest.manifest_version,
+            manifest_document=document,
+            structured_rows=structured_rows,
+            provider_result_key=provider_result_key,
+            structured_full_key=structured_full_key,
+            default_campus_scope=default_campus_scope,
+            corpus=corpus,
+        )
+        for document in split_manifest.documents
+    ]
+
+
+def _write_processed_asset_artifacts(
+    *,
+    writer: ObjectStoreWriter,
+    object_store: ObjectStoreSettings,
+    corpus: str,
+    raw_asset_id: str,
+    raw_version_id: str,
+    provider_result_bytes: bytes,
+    structured_result_bytes: bytes,
+) -> tuple[str, str]:
+    provider_result_key = build_processed_asset_artifact_key(
+        corpus=corpus,
+        raw_asset_id=raw_asset_id,
+        raw_version_id=raw_version_id,
+        filename="provider-result.jsonl",
+    )
+    structured_full_key = build_processed_asset_artifact_key(
+        corpus=corpus,
+        raw_asset_id=raw_asset_id,
+        raw_version_id=raw_version_id,
+        filename="structured-full.jsonl",
+    )
+    writer.put_bytes(
+        bucket=object_store.bucket_processed,
+        key=provider_result_key,
+        data=provider_result_bytes,
+        content_type="application/x-ndjson",
+    )
+    writer.put_bytes(
+        bucket=object_store.bucket_processed,
+        key=structured_full_key,
+        data=structured_result_bytes,
+        content_type="application/x-ndjson",
+    )
+    return provider_result_key, structured_full_key
+
+
+def _build_split_manifest_document_input(
+    *,
+    pdf_path: Path,
+    raw_source_uri: str,
+    raw_asset_id: str,
+    raw_version_id: str,
+    manifest_version: str,
+    manifest_document: SplitManifestDocument,
+    structured_rows: list[dict[str, object]],
+    provider_result_key: str,
+    structured_full_key: str,
+    default_campus_scope: str | None,
+    corpus: str,
+) -> DocumentImportInput:
+    version_id = _build_split_version_id(
+        raw_version_id=raw_version_id,
+        manifest_version=manifest_version,
+        manifest_document=manifest_document,
+    )
+    split_rows = _slice_structured_rows_for_manifest_document(
+        structured_rows=structured_rows,
+        manifest_document=manifest_document,
+        document_id=manifest_document.document_id,
+        version_id=version_id,
+        source_pdf=pdf_path.name,
+    )
+    structured_result_bytes = _serialize_rows(split_rows)
+    metadata = load_metadata_from_bytes(structured_result_bytes)
+    metadata["campus_scope"] = manifest_document.campus_scope or default_campus_scope
+    metadata["status"] = manifest_document.status
+    return DocumentImportInput(
+        source_label=f"{pdf_path}#{manifest_document.document_id}",
+        structured_result_bytes=structured_result_bytes,
+        provider_result_bytes=None,
+        metadata=metadata,
+        import_source="raw_online_ocr",
+        corpus=corpus,
+        campus_scope=manifest_document.campus_scope or default_campus_scope,
+        status=manifest_document.status,
+        raw_path=pdf_path,
+        raw_source_uri=raw_source_uri,
+        raw_asset_id=raw_asset_id,
+        provider_result_object_key=provider_result_key,
+        additional_processed_object_keys=(structured_full_key,),
+    )
+
+
+def _build_split_version_id(
+    *,
+    raw_version_id: str,
+    manifest_version: str,
+    manifest_document: SplitManifestDocument,
+) -> str:
+    digest = hashlib.sha256(
+        "|".join(
+            [
+                raw_version_id,
+                manifest_version,
+                manifest_document.document_id,
+                str(manifest_document.page_start),
+                str(manifest_document.page_end),
+            ]
+        ).encode("utf-8")
+    ).hexdigest()[:12]
+    return f"{raw_version_id}:split:{_split_document_slug(manifest_document.document_id)}:{digest}"
+
+
+def _split_document_slug(document_id: str) -> str:
+    parts = [part.strip() for part in document_id.split(":") if part.strip()]
+    if not parts:
+        raise ValueError("document_id is required")
+    return parts[-1]
+
+
+def _load_structured_rows(structured_result_bytes: bytes) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for line in structured_result_bytes.decode("utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        payload = json.loads(stripped)
+        if not isinstance(payload, dict):
+            raise ValueError("structured OCR row must be a JSON object")
+        rows.append(payload)
+    if not rows:
+        raise ValueError("structured OCR result is empty")
+    return rows
+
+
+def _slice_structured_rows_for_manifest_document(
+    *,
+    structured_rows: list[dict[str, object]],
+    manifest_document: SplitManifestDocument,
+    document_id: str,
+    version_id: str,
+    source_pdf: str,
+) -> list[dict[str, object]]:
+    selected_rows = [
+        row
+        for row in structured_rows
+        if _row_belongs_to_page_range(
+            row=row,
+            page_start=manifest_document.page_start,
+            page_end=manifest_document.page_end,
+        )
+    ]
+    if not selected_rows:
+        raise ValueError(
+            f"split manifest document {manifest_document.document_id} does not match any OCR pages"
+        )
+
+    transformed_rows = [
+        _transform_split_row(
+            row=row,
+            document_id=document_id,
+            version_id=version_id,
+            source_pdf=source_pdf,
+            source_uri=manifest_document.source_uri,
+            acl_groups=manifest_document.acl_groups,
+        )
+        for row in selected_rows
+    ]
+    summary_row = dict(transformed_rows[0])
+    summary_row["chunk_id"] = "document-0000"
+    summary_row["clean_text"] = "\n\n".join(
+        text for text in (str(row.get("clean_text") or "").strip() for row in transformed_rows) if text
+    )
+    summary_row["page_start"] = manifest_document.page_start
+    summary_row["page_end"] = manifest_document.page_end
+    return [summary_row, *transformed_rows]
+
+
+def _row_belongs_to_page_range(*, row: dict[str, object], page_start: int, page_end: int) -> bool:
+    if str(row.get("chunk_id") or "") == "document-0000":
+        return False
+    row_page_start = row.get("page_start")
+    row_page_end = row.get("page_end")
+    if not isinstance(row_page_start, int) or not isinstance(row_page_end, int):
+        return False
+    return row_page_start >= page_start and row_page_end <= page_end
+
+
+def _transform_split_row(
+    *,
+    row: dict[str, object],
+    document_id: str,
+    version_id: str,
+    source_pdf: str,
+    source_uri: str,
+    acl_groups: tuple[str, ...],
+) -> dict[str, object]:
+    transformed = dict(row)
+    transformed["doc_id"] = document_id
+    transformed["version_id"] = version_id
+    transformed["source_pdf"] = source_pdf
+    transformed["source_url"] = source_uri
+    transformed["source_md"] = None
+    transformed["source"] = {"id": source_uri}
+    transformed["acl"] = {"level": "public", "allow_groups": list(acl_groups)}
+    return transformed
+
+
+def _serialize_rows(rows: list[dict[str, object]]) -> bytes:
+    return ("\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n").encode("utf-8")
 
 
 def build_online_ocr_parse_result(
@@ -387,9 +677,23 @@ def slugify_filename(filename: str) -> str:
     return slug or "document"
 
 
+def _read_ingestion_corpus(source: dict[str, str]) -> str:
+    corpus = (source.get("INGESTION_CORPUS") or DEFAULT_INGESTION_CORPUS).strip() or DEFAULT_INGESTION_CORPUS
+    if corpus not in ALLOWED_CORPORA:
+        raise ValueError(f"unsupported corpus: {corpus}")
+    return corpus
+
+
 def _collect_job_pdf_paths(settings: RawIngestionProcessSettings) -> tuple[Path, ...]:
+    if settings.source_paths:
+        return settings.source_paths
     if settings.job_path is not None:
         payload = json.loads(settings.job_path.read_text(encoding="utf-8"))
+        payload_corpus = str(payload.get("corpus") or "").strip()
+        if payload_corpus and payload_corpus != settings.corpus:
+            raise ValueError(
+                f"raw ingestion job corpus mismatch: expected {settings.corpus}, got {payload_corpus}"
+            )
         pdf_paths = tuple(Path(value) for value in payload.get("pdf_paths") or [])
         if pdf_paths:
             return pdf_paths
@@ -400,3 +704,31 @@ def _collect_job_pdf_paths(settings: RawIngestionProcessSettings) -> tuple[Path,
         for path in sorted(settings.raw_root.iterdir())
         if path.is_file() and path.suffix.lower() == ".pdf"
     )
+
+
+def _collect_submit_pdf_paths(settings: RawIngestionSubmitSettings) -> tuple[Path, ...]:
+    if settings.source_paths:
+        return settings.source_paths
+    if settings.raw_root is None:
+        return ()
+    return tuple(
+        path
+        for path in sorted(settings.raw_root.iterdir())
+        if path.is_file() and path.suffix.lower() == ".pdf"
+    )
+
+
+def _read_raw_ingestion_source_paths(source: dict[str, str]) -> tuple[Path, ...]:
+    raw = (source.get("RAW_INGESTION_SOURCE_PATHS") or "").strip()
+    if not raw:
+        return ()
+    paths: list[Path] = []
+    for part in raw.split(","):
+        normalized = part.strip()
+        if not normalized:
+            continue
+        path = Path(normalized)
+        if not path.is_absolute():
+            raise ValueError("RAW_INGESTION_SOURCE_PATHS entries must be absolute paths")
+        paths.append(path)
+    return tuple(paths)

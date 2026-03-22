@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from campus_contracts import ALLOWED_CORPORA
+
 
 @dataclass(frozen=True, slots=True)
 class RetrievalRequest:
@@ -12,7 +14,7 @@ class RetrievalRequest:
     top_k: int = 3
 
     def __post_init__(self) -> None:
-        if self.corpus != "student_handbook":
+        if self.corpus not in ALLOWED_CORPORA:
             raise ValueError(f"unsupported corpus: {self.corpus}")
         if self.top_k <= 0:
             raise ValueError("top_k must be greater than zero")

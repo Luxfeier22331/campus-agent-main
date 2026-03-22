@@ -1,4 +1,5 @@
 from campus_contracts.models import (
+    ALLOWED_CORPORA,
     ActorContext,
     DocumentRef,
     ErrorInfo,
@@ -11,6 +12,7 @@ from campus_contracts.models import (
 
 __all__ = [
     "ActorContext",
+    "ALLOWED_CORPORA",
     "DocumentRef",
     "ErrorInfo",
     "EvidenceBundle",

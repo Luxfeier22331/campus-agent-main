@@ -144,6 +144,61 @@ class RegistryModelsTest(unittest.TestCase):
             self.assertEqual(records, (v1, v2))
             self.assertEqual(latest, (v2,))
 
+    def test_file_document_registry_delete_by_corpus_removes_only_matching_records(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "registry.json"
+            registry = FileDocumentRegistry(path)
+            handbook_record = DocumentRegistryRecord(
+                document_id="handbook:test-001",
+                version_id="v1:test-001",
+                source_uri="campusrag://canonical/student_handbook/docs/test-001.md",
+                content_hash="sha256:test-001",
+                corpus="student_handbook",
+                acl_groups=(),
+                campus_scope=None,
+                status="active",
+                ingestion_timestamp="2026-03-22T10:00:00+00:00",
+                parser_version="campusrag-import-v1",
+                embedding_model="text-embedding-3-large",
+                raw_asset=None,
+                structured_object_key="student_handbook/documents/handbook/test-001/v1/test-001/structured.jsonl",
+                provider_result_object_key=None,
+                processed_object_keys=("student_handbook/documents/handbook/test-001/v1/test-001/structured.jsonl",),
+                import_source="campusrag_existing_ocr",
+            )
+            curriculum_record = DocumentRegistryRecord(
+                document_id="curriculum:plan-001",
+                version_id="sha256:raw-001:split:plan-001:abcd1234",
+                source_uri="https://campus.example/curriculum/plan-001",
+                content_hash="sha256:doc-001",
+                corpus="curriculum_plan",
+                acl_groups=(),
+                campus_scope="main",
+                status="active",
+                ingestion_timestamp="2026-03-22T10:00:00+00:00",
+                parser_version="curriculum-plan-ocr-v1",
+                embedding_model="text-embedding-3-large",
+                raw_asset=None,
+                structured_object_key=(
+                    "curriculum_plan/documents/curriculum/plan-001/sha256/raw-001/split/plan-001/abcd1234/structured.jsonl"
+                ),
+                provider_result_object_key=None,
+                processed_object_keys=(
+                    "curriculum_plan/documents/curriculum/plan-001/sha256/raw-001/split/plan-001/abcd1234/structured.jsonl",
+                ),
+                import_source="raw_online_ocr",
+            )
+            registry.upsert(handbook_record)
+            registry.upsert(curriculum_record)
+
+            registry.delete_by_corpus("student_handbook")
+
+            self.assertIsNone(registry.get("handbook:test-001", "v1:test-001"))
+            self.assertEqual(
+                registry.get("curriculum:plan-001", "sha256:raw-001:split:plan-001:abcd1234"),
+                curriculum_record,
+            )
+
     def test_file_document_registry_backfills_explicit_processed_keys_from_legacy_payload(self) -> None:
         with TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "registry.json"
@@ -206,6 +261,43 @@ class RegistryModelsTest(unittest.TestCase):
             self.assertEqual(
                 registry.get("asset:student-handbook-pdf", "sha256:raw-001"),
                 record,
+            )
+
+    def test_file_raw_asset_registry_delete_by_corpus_removes_only_matching_records(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "raw-assets.json"
+            registry = FileRawAssetRegistry(path)
+            handbook_record = RawAssetRecord(
+                raw_asset_id="asset:student-handbook-pdf",
+                raw_version_id="sha256:raw-001",
+                corpus="student_handbook",
+                raw_source_uri="campusrag://raw/student_handbook/student-handbook.pdf",
+                content_hash="raw-001",
+                source_filename="student-handbook.pdf",
+                object_key="student_handbook/assets/student-handbook-pdf/sha256/raw-001/student-handbook.pdf",
+                ingestion_timestamp="2026-03-22T10:00:00+00:00",
+                import_source="campusrag_existing_ocr",
+            )
+            curriculum_record = RawAssetRecord(
+                raw_asset_id="asset:curriculum-plan-master-pdf",
+                raw_version_id="sha256:raw-002",
+                corpus="curriculum_plan",
+                raw_source_uri="https://campus.example/curriculum/master.pdf",
+                content_hash="raw-002",
+                source_filename="curriculum-plan.pdf",
+                object_key="curriculum_plan/assets/curriculum-plan-master-pdf/sha256/raw-002/curriculum-plan.pdf",
+                ingestion_timestamp="2026-03-22T10:00:00+00:00",
+                import_source="raw_online_ocr",
+            )
+            registry.upsert(handbook_record)
+            registry.upsert(curriculum_record)
+
+            registry.delete_by_corpus("student_handbook")
+
+            self.assertIsNone(registry.get("asset:student-handbook-pdf", "sha256:raw-001"))
+            self.assertEqual(
+                registry.get("asset:curriculum-plan-master-pdf", "sha256:raw-002"),
+                curriculum_record,
             )
 
     def test_curriculum_plan_records_are_supported(self) -> None:

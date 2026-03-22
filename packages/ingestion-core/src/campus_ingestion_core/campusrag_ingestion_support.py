@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -34,8 +34,14 @@ class DocumentImportInput:
     provider_result_bytes: bytes | None
     metadata: dict[str, object]
     import_source: str
+    corpus: str = "student_handbook"
+    campus_scope: str | None = None
+    status: str = "active"
     raw_path: Path | None = None
     raw_source_uri: str | None = None
+    raw_asset_id: str | None = None
+    provider_result_object_key: str | None = None
+    additional_processed_object_keys: tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,7 +133,7 @@ def bind_existing_ocr_raw_provenance(
             replace(
                 document,
                 raw_path=raw_path,
-                raw_source_uri=f"campusrag://raw/student_handbook/{raw_path.name}",
+                raw_source_uri=f"campusrag://raw/{document.corpus}/{raw_path.name}",
             )
         )
     return bound, tuple(sorted(set(unresolved)))
@@ -165,10 +171,11 @@ def persist_import_documents(
         try:
             document_id = str(metadata["document_id"])
             version_id = str(metadata["version_id"])
-            _validate_phase1_document_identity(document_id=document_id, version_id=version_id)
             raw_asset = resolved_raw_asset(
                 raw_path=document.raw_path,
                 raw_source_uri=document.raw_source_uri,
+                corpus=document.corpus,
+                raw_asset_id_override=document.raw_asset_id,
             )
             if raw_asset is not None:
                 raw_asset_key = (raw_asset.raw_asset_id, raw_asset.raw_version_id)
@@ -186,7 +193,7 @@ def persist_import_documents(
                         RawAssetRecord(
                             raw_asset_id=raw_asset.raw_asset_id,
                             raw_version_id=raw_asset.raw_version_id,
-                            corpus="student_handbook",
+                            corpus=document.corpus,
                             raw_source_uri=raw_asset.raw_source_uri,
                             content_hash=raw_asset.content_hash,
                             source_filename=raw_asset.source_filename,
@@ -200,19 +207,15 @@ def persist_import_documents(
 
             structured_bytes = document.structured_result_bytes
             content_hash = hashlib.sha256(structured_bytes).hexdigest()
-            existing = registry.get(str(metadata["document_id"]), str(metadata["version_id"]))
-            if existing is not None and existing.content_hash == content_hash:
-                skipped_count += 1
-                continue
-
-            provider_result_key = None
-            if document.provider_result_bytes is not None:
+            provider_result_key = document.provider_result_object_key
+            if document.provider_result_bytes is not None and provider_result_key is None:
                 provider_result_key = build_processed_artifact_key(
-                    corpus="student_handbook",
+                    corpus=document.corpus,
                     document_id=document_id,
                     version_id=version_id,
                     filename="provider-result.jsonl",
                 )
+            if document.provider_result_bytes is not None and provider_result_key is not None:
                 writer.put_bytes(
                     bucket=object_store.bucket_processed,
                     key=provider_result_key,
@@ -221,47 +224,71 @@ def persist_import_documents(
                 )
 
             structured_key = build_processed_artifact_key(
-                corpus="student_handbook",
+                corpus=document.corpus,
                 document_id=document_id,
                 version_id=version_id,
                 filename="structured.jsonl",
             )
+            processed_object_keys = tuple(
+                dict.fromkeys(
+                    key
+                    for key in (
+                        provider_result_key,
+                        structured_key,
+                        *document.additional_processed_object_keys,
+                    )
+                    if key is not None
+                )
+            )
+            existing = registry.get(document_id, version_id)
+            if existing is not None and existing.content_hash == content_hash:
+                if _registry_record_needs_refresh(
+                    existing=existing,
+                    structured_key=structured_key,
+                    provider_result_key=provider_result_key,
+                    processed_object_keys=processed_object_keys,
+                ):
+                    registry.upsert(
+                        _build_registry_record(
+                            document_id=document_id,
+                            version_id=version_id,
+                            metadata=metadata,
+                            content_hash=content_hash,
+                            document=document,
+                            default_campus_scope=default_campus_scope,
+                            parser_version=parser_version,
+                            embedding_model=embedding_model,
+                            raw_asset=raw_asset,
+                            structured_key=structured_key,
+                            provider_result_key=provider_result_key,
+                            processed_object_keys=processed_object_keys,
+                            timestamp=timestamp,
+                        )
+                    )
+                skipped_count += 1
+                continue
+
             writer.put_bytes(
                 bucket=object_store.bucket_processed,
                 key=structured_key,
                 data=structured_bytes,
                 content_type="application/x-ndjson",
             )
-            processed_object_keys = tuple(
-                key for key in (provider_result_key, structured_key) if key is not None
-            )
             registry.upsert(
-                DocumentRegistryRecord(
+                _build_registry_record(
                     document_id=document_id,
                     version_id=version_id,
-                    source_uri=derive_source_uri(metadata),
+                    metadata=metadata,
                     content_hash=content_hash,
-                    corpus="student_handbook",
-                    acl_groups=tuple(str(item) for item in metadata["acl_groups"]),
-                    campus_scope=default_campus_scope,
-                    status="active",
-                    ingestion_timestamp=timestamp,
+                    document=document,
+                    default_campus_scope=default_campus_scope,
                     parser_version=parser_version,
                     embedding_model=embedding_model,
-                    raw_asset=(
-                        RawAssetRef(
-                            raw_asset_id=raw_asset.raw_asset_id,
-                            raw_version_id=raw_asset.raw_version_id,
-                            page_start=metadata.get("raw_page_start"),
-                            page_end=metadata.get("raw_page_end"),
-                        )
-                        if raw_asset is not None
-                        else None
-                    ),
-                    structured_object_key=structured_key,
-                    provider_result_object_key=provider_result_key,
+                    raw_asset=raw_asset,
+                    structured_key=structured_key,
+                    provider_result_key=provider_result_key,
                     processed_object_keys=processed_object_keys,
-                    import_source=document.import_source,
+                    timestamp=timestamp,
                 )
             )
             success_count += 1
@@ -290,14 +317,16 @@ def resolved_raw_asset(
     *,
     raw_path: Path | None,
     raw_source_uri: str | None,
+    corpus: str,
+    raw_asset_id_override: str | None = None,
 ) -> ResolvedRawAsset | None:
     if raw_path is None:
         return None
     raw_hash = hashlib.sha256(raw_path.read_bytes()).hexdigest()
-    raw_asset_id = build_raw_asset_id(raw_path.name)
+    raw_asset_id = raw_asset_id_override or build_raw_asset_id(raw_path.name)
     raw_version_id = f"sha256:{raw_hash}"
     object_key = build_raw_asset_key(
-        corpus="student_handbook",
+        corpus=corpus,
         raw_asset_id=raw_asset_id,
         raw_version_id=raw_version_id,
         filename=raw_path.name,
@@ -356,6 +385,69 @@ def derive_source_uri(metadata: dict[str, object]) -> str:
     return f"campusrag://import/{metadata['document_id']}/{metadata['version_id']}"
 
 
+def _build_registry_record(
+    *,
+    document_id: str,
+    version_id: str,
+    metadata: dict[str, object],
+    content_hash: str,
+    document: DocumentImportInput,
+    default_campus_scope: str | None,
+    parser_version: str,
+    embedding_model: str,
+    raw_asset: ResolvedRawAsset | None,
+    structured_key: str,
+    provider_result_key: str | None,
+    processed_object_keys: tuple[str, ...],
+    timestamp: str,
+) -> DocumentRegistryRecord:
+    return DocumentRegistryRecord(
+        document_id=document_id,
+        version_id=version_id,
+        source_uri=derive_source_uri(metadata),
+        content_hash=content_hash,
+        corpus=document.corpus,
+        acl_groups=tuple(str(item) for item in metadata["acl_groups"]),
+        campus_scope=_resolve_campus_scope(
+            metadata=metadata,
+            document=document,
+            default_campus_scope=default_campus_scope,
+        ),
+        status=_resolve_status(metadata=metadata, document=document),
+        ingestion_timestamp=timestamp,
+        parser_version=parser_version,
+        embedding_model=embedding_model,
+        raw_asset=(
+            RawAssetRef(
+                raw_asset_id=raw_asset.raw_asset_id,
+                raw_version_id=raw_asset.raw_version_id,
+                page_start=metadata.get("raw_page_start"),
+                page_end=metadata.get("raw_page_end"),
+            )
+            if raw_asset is not None
+            else None
+        ),
+        structured_object_key=structured_key,
+        provider_result_object_key=provider_result_key,
+        processed_object_keys=processed_object_keys,
+        import_source=document.import_source,
+    )
+
+
+def _registry_record_needs_refresh(
+    *,
+    existing: DocumentRegistryRecord,
+    structured_key: str,
+    provider_result_key: str | None,
+    processed_object_keys: tuple[str, ...],
+) -> bool:
+    if existing.structured_object_key != structured_key:
+        return True
+    if existing.provider_result_object_key != provider_result_key:
+        return True
+    return tuple(existing.processed_object_keys) != processed_object_keys
+
+
 def normalize_optional_text(value: object) -> str | None:
     if not isinstance(value, str):
         return None
@@ -363,11 +455,25 @@ def normalize_optional_text(value: object) -> str | None:
     return normalized or None
 
 
-def _validate_phase1_document_identity(*, document_id: str, version_id: str) -> None:
-    if not document_id.startswith("handbook:"):
-        raise ValueError(f"phase-1 only supports handbook document ids: {document_id}")
-    if not version_id:
-        raise ValueError("version_id is required")
+def _resolve_campus_scope(
+    *,
+    metadata: dict[str, object],
+    document: DocumentImportInput,
+    default_campus_scope: str | None,
+) -> str | None:
+    metadata_scope = normalize_optional_text(metadata.get("campus_scope"))
+    if metadata_scope is not None:
+        return metadata_scope
+    if document.campus_scope is not None:
+        return document.campus_scope
+    return default_campus_scope
+
+
+def _resolve_status(*, metadata: dict[str, object], document: DocumentImportInput) -> str:
+    metadata_status = normalize_optional_text(metadata.get("status"))
+    if metadata_status is not None:
+        return metadata_status
+    return document.status
 
 
 def normalize_optional_int(value: object) -> int | None:

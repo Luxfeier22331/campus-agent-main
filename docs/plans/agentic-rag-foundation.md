@@ -31,7 +31,8 @@ updated: 2026-03-22
 
 实施范围固定为：
 
-- 只支持 `student_handbook`
+- 查询链路只支持 `student_handbook`
+- storage/data-plane 可增量支持 `curriculum_plan`
 - `crawler job` 和 `queue` 只保留占位符，不做真实分布式调度
 - 当前对象存储只做本机 `MinIO`
 - 不保留旧 RAG API 兼容层
@@ -305,7 +306,8 @@ updated: 2026-03-22
   - `process_raw_ingestion_job`
     表达未来正式链路中的 worker 边界；对 raw PDF 做在线 OCR，写 raw/processed/registry
 - `crawler job` 和 `queue` 在这一步只保留 placeholder 结构，不实现真实分布式调度。
-- `student_handbook` 作为唯一 corpus。
+- `student_handbook` 作为默认查询 corpus。
+- `curriculum_plan` 允许通过 split manifest 进入 storage/registry，但不在本阶段放开 retrieval。
 - 如果仅存在 OCR 文本或 OCR JSON，则只允许写入 `processed` bucket，不允许伪造 raw layer。
 - 如果 OCR 来自在线供应商：
   - `processed/` 下至少同时保存 `provider-result.jsonl` 和 `structured.jsonl`

@@ -1,6 +1,7 @@
 from campus_ingestion_core.object_store import (
     S3ObjectStoreClientFactory,
     build_processed_artifact_key,
+    build_processed_asset_artifact_key,
     build_raw_asset_key,
 )
 from campus_ingestion_core.campusrag_ingestion_support import ImportReport
@@ -52,6 +53,7 @@ from campus_ingestion_core.settings import (
     DEFAULT_BUCKET_RAW,
     ObjectStoreSettings,
 )
+from campus_ingestion_core.split_manifest import SplitManifest, SplitManifestDocument, load_split_manifest
 
 __all__ = [
     "DEFAULT_BUCKET_PROCESSED",
@@ -83,6 +85,7 @@ __all__ = [
     "build_document_registry_from_env",
     "build_indexable_chunks_from_jsonl",
     "build_processed_artifact_key",
+    "build_processed_asset_artifact_key",
     "build_raw_asset_registry_from_env",
     "build_raw_asset_key",
     "chunk_structured_unit",
@@ -97,4 +100,7 @@ __all__ = [
     "S3ObjectStoreClientFactory",
     "StructuredUnitChunkInput",
     "submit_raw_ingestion_job",
+    "SplitManifest",
+    "SplitManifestDocument",
+    "load_split_manifest",
 ]

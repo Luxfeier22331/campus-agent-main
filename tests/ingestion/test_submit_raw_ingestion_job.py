@@ -43,11 +43,54 @@ class SubmitRawIngestionJobTest(unittest.TestCase):
                 [str(raw_root / "student-handbook.pdf"), str(raw_root / "student-rules.pdf")],
             )
 
-    def test_submit_raw_ingestion_job_requires_raw_root(self) -> None:
+    def test_submit_raw_ingestion_job_uses_configured_corpus(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            raw_root = root / "raw"
+            raw_root.mkdir(parents=True)
+            (raw_root / "curriculum-plan.pdf").write_bytes(b"%PDF-1.4 curriculum")
+
+            report = submit_raw_ingestion_job(
+                env={
+                    "CAMPUSRAG_RAW_ROOT": str(raw_root),
+                    "INGESTION_CORPUS": "curriculum_plan",
+                    "RAW_INGESTION_JOB_DIR": str(root / "jobs"),
+                    "IMPORT_REPORT_DIR": str(root / "reports"),
+                }
+            )
+
+            payload = json.loads(Path(report.job_path).read_text(encoding="utf-8"))
+
+            self.assertEqual(payload["corpus"], "curriculum_plan")
+
+    def test_submit_raw_ingestion_job_prefers_explicit_source_paths(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            raw_root = root / "raw"
+            raw_root.mkdir(parents=True)
+            selected_path = raw_root / "curriculum-plan.pdf"
+            selected_path.write_bytes(b"%PDF-1.4 curriculum")
+            ignored_path = raw_root / "ignored.pdf"
+            ignored_path.write_bytes(b"%PDF-1.4 ignored")
+
+            report = submit_raw_ingestion_job(
+                env={
+                    "RAW_INGESTION_SOURCE_PATHS": str(selected_path),
+                    "RAW_INGESTION_JOB_DIR": str(root / "jobs"),
+                    "IMPORT_REPORT_DIR": str(root / "reports"),
+                }
+            )
+
+            payload = json.loads(Path(report.job_path).read_text(encoding="utf-8"))
+
+            self.assertEqual(payload["raw_root"], None)
+            self.assertEqual(payload["pdf_paths"], [str(selected_path)])
+
+    def test_submit_raw_ingestion_job_requires_raw_root_or_source_paths(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
 
-            with self.assertRaisesRegex(ValueError, "CAMPUSRAG_RAW_ROOT"):
+            with self.assertRaisesRegex(ValueError, "RAW_INGESTION_SOURCE_PATHS"):
                 submit_raw_ingestion_job(
                     env={
                         "RAW_INGESTION_JOB_DIR": str(root / "jobs"),

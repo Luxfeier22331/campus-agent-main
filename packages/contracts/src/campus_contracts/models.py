@@ -4,11 +4,12 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 
-AllowedCorpus = Literal["student_handbook"]
+AllowedCorpus = Literal["student_handbook", "curriculum_plan"]
 DelegateStatus = Literal["completed", "needs_clarification", "no_answer", "error"]
 ConfidenceLevel = Literal["high", "medium", "low"]
 
-ALLOWED_CORPORA = ("student_handbook",)
+ALLOWED_CORPORA = ("student_handbook", "curriculum_plan")
+DEFAULT_REQUEST_CORPORA = ("student_handbook",)
 ALLOWED_DELEGATE_STATUSES = ("completed", "needs_clarification", "no_answer", "error")
 ALLOWED_CONFIDENCE_LEVELS = ("high", "medium", "low")
 
@@ -79,7 +80,7 @@ class DelegateToRagAgentRequest:
     request_id: str = ""
     trace: TraceContext = field(default_factory=TraceContext)
     actor: ActorContext = field(default_factory=ActorContext)
-    corpora: tuple[AllowedCorpus, ...] = field(default_factory=lambda: ALLOWED_CORPORA)
+    corpora: tuple[AllowedCorpus, ...] = field(default_factory=lambda: DEFAULT_REQUEST_CORPORA)
 
     def __post_init__(self) -> None:
         if not self.corpora:

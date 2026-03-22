@@ -26,6 +26,8 @@ class DocumentRegistry(Protocol):
 
     def latest_versions(self, document_id: str) -> tuple[DocumentRegistryRecord, ...]: ...
 
+    def delete_by_corpus(self, corpus: str) -> None: ...
+
 
 class RawAssetRegistry(Protocol):
     def get(self, raw_asset_id: str, raw_version_id: str) -> RawAssetRecord | None: ...
@@ -33,6 +35,8 @@ class RawAssetRegistry(Protocol):
     def upsert(self, record: RawAssetRecord) -> None: ...
 
     def list_by_corpus(self, corpus: str) -> tuple[RawAssetRecord, ...]: ...
+
+    def delete_by_corpus(self, corpus: str) -> None: ...
 
 
 class FileDocumentRegistry:
@@ -70,12 +74,24 @@ class FileDocumentRegistry:
         latest = max(records, key=lambda record: record.ingestion_timestamp)
         return (latest,)
 
+    def delete_by_corpus(self, corpus: str) -> None:
+        payload = {
+            key: value
+            for key, value in self._load().items()
+            if isinstance(value, dict) and value.get("corpus") != corpus
+        }
+        self._store(payload)
+
     def _load(self) -> dict[str, dict[str, object]]:
         if not self.path.exists():
             return {}
         return json.loads(self.path.read_text(encoding="utf-8"))
 
     def _store(self, payload: dict[str, dict[str, object]]) -> None:
+        if not payload:
+            if self.path.exists():
+                self.path.unlink()
+            return
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with NamedTemporaryFile(
             "w",
@@ -121,12 +137,24 @@ class FileRawAssetRegistry:
         ]
         return tuple(sorted(records, key=lambda record: (record.raw_asset_id, record.raw_version_id)))
 
+    def delete_by_corpus(self, corpus: str) -> None:
+        payload = {
+            key: value
+            for key, value in self._load().items()
+            if isinstance(value, dict) and value.get("corpus") != corpus
+        }
+        self._store(payload)
+
     def _load(self) -> dict[str, dict[str, object]]:
         if not self.path.exists():
             return {}
         return json.loads(self.path.read_text(encoding="utf-8"))
 
     def _store(self, payload: dict[str, dict[str, object]]) -> None:
+        if not payload:
+            if self.path.exists():
+                self.path.unlink()
+            return
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with NamedTemporaryFile(
             "w",
@@ -205,6 +233,10 @@ class PostgresDocumentRegistry:
         if row is None:
             return ()
         return (_document_record_from_dict(_coerce_json_payload(row[0])),)
+
+    def delete_by_corpus(self, corpus: str) -> None:
+        query = f"delete from {self.table_name} where corpus = %s"
+        self._execute(query, (corpus,))
 
     def _ensure_schema(self) -> None:
         cache_key = (self.database_url, self.table_name)
@@ -308,6 +340,10 @@ class PostgresRawAssetRegistry:
         )
         rows = self._fetchall(query, (corpus,))
         return tuple(_raw_asset_record_from_dict(_coerce_json_payload(row[0])) for row in rows)
+
+    def delete_by_corpus(self, corpus: str) -> None:
+        query = f"delete from {self.table_name} where corpus = %s"
+        self._execute(query, (corpus,))
 
     def _ensure_schema(self) -> None:
         cache_key = (self.database_url, self.table_name)

@@ -1,0 +1,10 @@
+{
+  "corpus": "curriculum_plan",
+  "chunk_profile_version": "curriculum_plan_semantic_v1",
+  "cleaning_policy_version": "curriculum_plan_cleaning_v1",
+  "notes": [
+    "Use split-manifest logical documents as the pre-chunking boundary.",
+    "Treat tables and requirement lists as structure-first units.",
+    "Keep this profile aligned with ingestion-core runtime truth before enabling online retrieval."
+  ]
+}

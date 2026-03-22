@@ -67,7 +67,8 @@ updated: 2026-03-22
 - LlamaIndex 继续作为第一版 retrieval 实现
 - 但它只能存在于 `packages/retrieval-core` 和 `packages/ingestion-core` 背后
 - 第一阶段不从 day 1 设计多 backend 并行
-- 第一阶段只支持 `student_handbook`
+- 第一阶段 retrieval 只支持 `student_handbook`
+- 第一阶段 storage/data-plane 可增量支持 `curriculum_plan`，但不自动放开查询链路
 - 第一阶段直连共享 Qdrant
 
 原因：

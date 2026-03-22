@@ -53,6 +53,29 @@ def build_processed_artifact_key(
     )
 
 
+def build_processed_asset_artifact_key(
+    *,
+    corpus: str,
+    raw_asset_id: str,
+    raw_version_id: str,
+    filename: str,
+) -> str:
+    _validate_corpus_and_filename(corpus=corpus, filename=filename)
+    if not raw_asset_id:
+        raise ValueError("raw_asset_id is required")
+    if not raw_version_id:
+        raise ValueError("raw_version_id is required")
+    return "/".join(
+        [
+            corpus,
+            "assets",
+            *_raw_asset_segments(raw_asset_id),
+            *_identity_segments(raw_version_id),
+            filename,
+        ]
+    )
+
+
 def _validate_corpus_and_filename(*, corpus: str, filename: str) -> None:
     if corpus not in ALLOWED_CORPORA:
         raise ValueError(f"unsupported corpus: {corpus}")

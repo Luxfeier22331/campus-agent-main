@@ -42,13 +42,16 @@ updated: 2026-03-22
 
 第一阶段 object key 采用稳定层级：
 
-- raw bucket: `student_handbook/assets/{raw_asset_kind}/{raw_asset_slug}/{hash_algorithm}/{hash_value}/{original_filename}`
-- processed bucket: `student_handbook/documents/{document_kind}/{document_slug}/{version_kind}/{version_slug}/{artifact_filename}`
+- raw bucket: `{corpus}/assets/{raw_asset_kind}/{raw_asset_slug}/{hash_algorithm}/{hash_value}/{original_filename}`
+- processed bucket: `{corpus}/documents/{document_kind}/{document_slug}/{version_kind}/{version_slug}/{artifact_filename}`
 
 在线 OCR 的 processed artifact 约定：
 
-- `student_handbook/documents/{document_kind}/{document_slug}/{version_kind}/{version_slug}/provider-result.jsonl`
-- `student_handbook/documents/{document_kind}/{document_slug}/{version_kind}/{version_slug}/structured.jsonl`
+- `{corpus}/documents/{document_kind}/{document_slug}/{version_kind}/{version_slug}/provider-result.jsonl`
+- `{corpus}/documents/{document_kind}/{document_slug}/{version_kind}/{version_slug}/structured.jsonl`
+- 当一个 raw asset 需要 fan-out 成多个逻辑文档时，允许保留 asset 级 processed artifact：
+  `{corpus}/assets/{raw_asset_kind}/{raw_asset_slug}/{hash_algorithm}/{hash_value}/provider-result.jsonl`
+  `{corpus}/assets/{raw_asset_kind}/{raw_asset_slug}/{hash_algorithm}/{hash_value}/structured-full.jsonl`
 
 说明：
 

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 
+from campus_contracts import ALLOWED_CORPORA
 from campus_ingestion_core.campusrag_ingestion_support import (
     DocumentImportInput,
     ImportReport,
@@ -32,6 +33,7 @@ class ExistingOcrImportSettings:
     ocr_root: Path
     raw_root: Path | None
     report_dir: Path
+    corpus: str
     parser_version: str
     embedding_model: str
     default_campus_scope: str | None
@@ -44,10 +46,14 @@ class ExistingOcrImportSettings:
         if not ocr_root_value:
             raise ValueError("CAMPUSRAG_OCR_ROOT is required")
         raw_root_value = (source.get("CAMPUSRAG_RAW_ROOT") or "").strip()
+        corpus = (source.get("INGESTION_CORPUS") or "student_handbook").strip() or "student_handbook"
+        if corpus not in ALLOWED_CORPORA:
+            raise ValueError(f"unsupported corpus: {corpus}")
         return cls(
             ocr_root=Path(ocr_root_value),
             raw_root=Path(raw_root_value) if raw_root_value else None,
             report_dir=Path((source.get("IMPORT_REPORT_DIR") or "./var/import-reports").strip()),
+            corpus=corpus,
             parser_version=DEFAULT_EXISTING_OCR_PARSER_VERSION,
             embedding_model=(source.get("INGESTION_EMBEDDING_MODEL") or source.get("EMBEDDING_MODEL") or "").strip(),
             default_campus_scope=(source.get("INGESTION_DEFAULT_CAMPUS_SCOPE") or "").strip() or None,
@@ -83,6 +89,7 @@ def import_campusrag_existing_ocr(
                 provider_result_bytes=None,
                 metadata=metadata,
                 import_source="campusrag_existing_ocr",
+                corpus=settings.corpus,
             )
         )
 

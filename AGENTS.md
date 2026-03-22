@@ -50,7 +50,7 @@
 - 不要把 online query path 和 offline ingestion/data plane 混在同一层
 - 不要把本机目录语义提升成长期对象存储真相源；当前阶段对象存储虽然可本机部署，但架构语义上仍是 `S3-compatible object storage`
 - 任何实现都应先尊重已冻结的 contract 和 package 边界，再考虑 runtime 或框架便利性
-- 第一阶段默认语料是 `student_handbook`；不要在未更新决策/计划文档前擅自扩大 corpus 范围
+- 第一阶段查询默认语料是 `student_handbook`；如需新增 data-plane corpus，必须同步更新决策/计划文档并保持 retrieval 范围显式不变
 
 ## Working Rules
 

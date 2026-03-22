@@ -1,0 +1,19 @@
+{
+  "manifest_version": "curriculum_plan_split_manifest_v1",
+  "corpus": "curriculum_plan",
+  "raw_asset_id": "asset:curriculum-plan-master-pdf",
+  "documents": [
+    {
+      "document_id": "curriculum:replace-with-real-plan-id",
+      "title": "Replace With Real Plan Title",
+      "page_start": 1,
+      "page_end": 1,
+      "source_uri": "https://campus.example/curriculum/replace-with-real-plan-id",
+      "acl_groups": [
+        "students"
+      ],
+      "campus_scope": "main",
+      "status": "active"
+    }
+  ]
+}
