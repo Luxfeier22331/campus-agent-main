@@ -24,15 +24,26 @@
 
 ## 当前状态
 
-仓库已经重置为 v2 架构基线。
+仓库已经从纯 bootstrap 进入 phase-1 主链路收口阶段。
 
 - 旧 bootstrap 已从工作树移除；如需追溯请查看 git 历史
 - 当前主路径是 `supervisor-api -> supervisor-core -> rag-specialist -> retrieval-core`
 - 架构目标是 supervisor-led multi-agent orchestration，而不是 `RAG as a tool`
-- 当前仍是初始化骨架，不是完整产品实现
+- ingestion/object-store/registry/retrieval 地基已落地
+- `rag-specialist`、`supervisor-core`、`supervisor-api`、`evals` 已有可测试的 phase-1 入口
+
+## 实现入口
+
+- phase-1 实施文档：`docs/plans/agentic-rag-foundation.md`
+- ingestion/data plane：`apps/ingestion-worker`、`packages/ingestion-core`
+- retrieval kernel：`packages/retrieval-core`
+- specialist / supervisor：`packages/rag-specialist`、`packages/supervisor-core`
+- API shell：`apps/supervisor-api`
+- baseline / smoke：`packages/evals`、`tests/`
 
 ## 本地验证
 
 ```bash
+pytest tests/specialist/test_rag_specialist.py tests/supervisor/test_supervisor_core.py tests/api/test_supervisor_api.py tests/evals/test_student_handbook_baseline.py -q
 python3 -m unittest discover -s tests -t .
 ```

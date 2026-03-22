@@ -163,3 +163,10 @@ updated: 2026-03-22
 4. 在 `packages/rag-specialist` 中实现委派和置信度返回
 5. 在 `apps/supervisor-api` 中接入 AgentOS runtime 和外部 API 壳
 6. 在 `packages/evals` 中建立第一批 query + ingestion 基线场景
+
+当前 phase-1 实现入口：
+
+- `packages/rag-specialist/src/campus_rag_specialist/service.py`
+- `packages/supervisor-core/src/campus_supervisor_core/__init__.py`
+- `apps/supervisor-api/src/campus_supervisor_api/app.py`
+- `packages/evals/src/campus_evals/runner.py`

@@ -1,11 +1,29 @@
 from __future__ import annotations
 
+from typing import Callable
+
 from campus_contracts import DelegateToRagAgentRequest, DelegateToRagAgentResponse
-from campus_rag_specialist import delegate_to_rag_agent
+
+from campus_supervisor_core.agent import SpecialistDelegate, SupervisorAgent
+from campus_supervisor_core.audit import SupervisorAuditRecord, build_audit_record
 
 
-def handle_user_goal(user_goal: str) -> DelegateToRagAgentResponse:
-    return delegate_to_rag_agent(DelegateToRagAgentRequest(user_goal=user_goal))
+AuditSink = Callable[[SupervisorAuditRecord], None]
 
 
-__all__ = ["handle_user_goal"]
+def handle_request(
+    request: DelegateToRagAgentRequest,
+    *,
+    specialist_delegate: SpecialistDelegate | None = None,
+    audit_sink: AuditSink | None = None,
+) -> DelegateToRagAgentResponse:
+    agent = SupervisorAgent()
+    if specialist_delegate is not None:
+        agent.specialist_delegate = specialist_delegate
+    response = agent.handle(request)
+    if audit_sink is not None:
+        audit_sink(build_audit_record(request, response))
+    return response
+
+
+__all__ = ["SupervisorAgent", "SupervisorAuditRecord", "handle_request"]
