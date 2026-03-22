@@ -19,11 +19,12 @@ updated: 2026-03-22
 本 ADR 不冻结以下内容：
 
 - `student_handbook` 第一批具体题目或样本数量
+- 具体指标家族与 split 门禁指标组合
 - 某次迭代的 CI 分数阈值或 release gate 数值
 - 某个 scorer、评测服务或第三方框架的接入步骤
 - 当前阶段的文件布局、runner 命令或样本生成流水线
 
-这些内容应分别进入实施计划或后续实现文档，而不是写入长期治理规则。
+这些内容应分别进入指标 ADR、实施计划或后续实现文档，而不是写入长期治理规则。
 
 ## 决策 1：Golden Dataset 的角色
 
@@ -93,6 +94,7 @@ split 的职责边界在长期上固定，但每个 split 的样本数、命中�
 
 治理规则固定如下：
 
+- 允许以 synthetic-heavy 的方式生成 candidate cases，但 canonical golden dataset 仍必须经过人工或规则审核收口
 - `regression_locked` case 默认不可静默重写
 - 如果旧 case 的 truth 有误，应显式记录修正原因
 - 如果系统行为发生合理演进，但旧 case 仍代表历史回归风险，应新增新 case，而不是覆盖旧 case
@@ -114,9 +116,11 @@ split 的职责边界在长期上固定，但每个 split 的样本数、命中�
 ## 决策 7：自动生成样本的治理边界
 
 - 自动生成样本是候选资产，不是 canonical truth
+- 长期允许采用 `synthetic-heavy but curated-final` 策略：自动生成负责提高覆盖面，人工/规则审核负责形成最终真值
 - 如果使用 `ragas` 的 `testset generator`，其职责是提高 query 覆盖面、补充改写、补充检索候选，而不是自动生成完整的 actor/ACL/trace truth
 - 对 agentic RAG 系统而言，`expected_status`、`expected_sources`、`forbidden_sources`、`trace_expectation` 仍应由仓库协议和人工/规则审核收口
 - 自动生成样本优先进入 `exploratory` 或 `synthetic_expansion` 流程；只有经审核后才可晋升到 `smoke`、`regression_locked` 或 `release_gate`
+- 如果后续真实日志、incident 数据逐步增多，应优先用它们校正 synthetic 分布，而不是让纯 synthetic 长期独占主导地位
 
 ## 决策 8：文档分层关系
 
@@ -124,7 +128,9 @@ split 的职责边界在长期上固定，但每个 split 的样本数、命中�
   只保留 `evals` 边界与可替换性原则
 - 本 ADR
   负责 golden dataset 的长期治理、不变量与边界
+- `docs/decisions/adr-0004-evaluation-metrics.md`
+  负责指标家族、指标分层与 gate 语义
 - `docs/plans/`
   负责当前阶段的落地步骤、文件布局、首批样本和验收标准
 
-换句话说，长期架构回答“为什么存在这个边界”，本 ADR 回答“这个边界长期遵守什么规则”，实施计划才回答“这轮具体怎么做”。
+换句话说，长期架构回答“为什么存在这个边界”，本 ADR 回答“这个边界长期遵守什么真值治理规则”，指标 ADR 回答“围绕这些真值评什么”，实施计划才回答“这轮具体怎么做”。
