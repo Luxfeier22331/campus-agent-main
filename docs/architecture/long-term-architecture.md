@@ -49,7 +49,7 @@ updated: 2026-03-22
 - `packages/contracts`
   handoff、evidence bundle、状态和类型化载荷的运行时契约。
 - `packages/evals`
-  回归场景、离线评测，以及未来 judge/e2e 评测入口。
+  回归场景、离线评测、grader/runner 组合，以及未来 judge/e2e 评测入口。
 - `packages/shared`
   只放少量共享常量，不承载业务逻辑。
 
@@ -149,6 +149,31 @@ ingestion boundary 是长期存在的数据摄入边界。
 - 面向用户的回答生成
 - supervisor 决策逻辑
 
+## Evals Boundary
+
+`packages/evals` 是长期存在的质量控制边界，不是某个评测框架的薄包装。
+
+它应该拥有：
+
+- baseline 场景、golden dataset 和回归用例
+- 分层评测协议
+- expectations、grader 组合、runner 和 gate
+- 面向 agent workflow 的 trace grading 与结果评测
+
+它不应该拥有：
+
+- supervisor、specialist、retrieval 或 ingestion 的正式运行时逻辑
+- 业务主链路中的在线决策权
+- 把某个第三方评测框架上升成仓库顶层架构绑定
+
+长期约束如下：
+
+- eval 的真相源优先是仓库自有的场景、期望值、trace 和评测协议，而不是某个外部库的默认数据结构
+- agent 系统评测既看最终输出，也看中间 trace；黑盒结果评测不能替代 trace grading
+- `ragas`、OpenAI graders 或其他 scorer 只应作为 `packages/evals` 边界后的可替换实现，而不是顶层架构承诺
+
+详细治理规则见：`docs/decisions/adr-0003-golden-dataset-governance.md`
+
 ## Retrieval 真相源
 
 长期“真相源”不应该按库品牌定义，而应该按分层数据模型和 evidence contract 定义。
@@ -180,11 +205,17 @@ ingestion boundary 是长期存在的数据摄入边界。
 - Processed Layer
   保存清洗文本、OCR/解析结果、供应商原始解析响应、结构化 metadata。
 - Chunk/Index Layer
-  保存 chunk 文本、chunk metadata、embeddings 和向量索引。
+  保存在线检索所需的 chunk 文本、chunk metadata、embeddings 和向量索引。
 - Document Registry
   保存 `document_id`、`version_id`、`content_hash`、`source_uri`、`corpus`、`acl_groups`、`campus_scope`、`status`、`ingestion_timestamp`。
 
 其中 `packages/ingestion-core` 主要负责把 raw/processed 输入推进成可追踪的 registry 与 chunk/index 产物，`packages/retrieval-core` 则负责消费这些产物形成 evidence bundle。
+
+额外约束：
+
+- `processed` 是 chunk 的可重建来源，不是对象存储中的 chunk 文件集合
+- 在线查询所消费的 canonical chunk store 是 `Chunk/Index Layer`，第一阶段具体为 `Qdrant`
+- 如需把 chunk 额外导出到对象存储，该副本只能用于备份、审计或离线重建，不能成为主消费路径或第二真相源
 
 第一阶段固定约束：
 
@@ -234,6 +265,7 @@ v2 真正变化的地方：
 - 优先保证仓库边界，而不是优先依赖框架能力。
 - 优先保证稳定 contract，而不是优先做方便的临时集成。
 - 优先保证 retrieval 内核可替换，而不是把某个库硬编码成顶层架构。
+- 优先把 eval protocol 设计成仓库自有边界，而不是把某个评测框架提升为顶层依赖。
 - 优先明确 ingestion/data plane 的长期边界，而不是把它混进在线查询路径。
 - 在 supervisor、specialist contract、evals 和 retrieval abstraction 仍在一起演进时，优先保持 monorepo。
 
@@ -264,4 +296,5 @@ ACL、审计和 traceability 在第一阶段按“够上线的最小闭环”建
 ## 决策索引
 
 - 第一阶段架构决策记录：`docs/decisions/adr-0001-phase1-architecture.md`
+- Golden dataset 治理规则：`docs/decisions/adr-0003-golden-dataset-governance.md`
 - 第一阶段 ingestion 与存储架构：`docs/architecture/phase1-ingestion-and-storage-architecture.md`

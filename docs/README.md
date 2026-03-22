@@ -37,4 +37,6 @@ updated: 2026-03-22
 - `architecture/phase1-ingestion-and-storage-architecture.md`
 - `decisions/adr-0001-phase1-architecture.md`
 - `decisions/adr-0002-local-minio-conventions.md`
+- `decisions/adr-0003-golden-dataset-governance.md`
 - `plans/agentic-rag-foundation.md`
+- `plans/golden-dataset-document-delivery.md`
