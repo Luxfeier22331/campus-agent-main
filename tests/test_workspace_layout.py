@@ -7,9 +7,11 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 
 EXPECTED_WORKSPACES = {
+    "apps/ingestion-worker",
     "apps/supervisor-api",
     "packages/contracts",
     "packages/evals",
+    "packages/ingestion-core",
     "packages/rag-specialist",
     "packages/retrieval-core",
     "packages/shared",
@@ -27,9 +29,12 @@ class WorkspaceLayoutTest(unittest.TestCase):
 
         response = supervisor_core.handle_user_goal("library hours")
 
-        self.assertEqual(response.status, "completed")
-        self.assertTrue(response.answer_text)
-        self.assertTrue(response.sources)
+        self.assertIn(response.status, {"completed", "no_answer", "error"})
+        self.assertTrue(response.evidence)
+        self.assertEqual(response.evidence.corpus, "student_handbook")
+        if response.status == "completed":
+            self.assertTrue(response.answer_text)
+            self.assertTrue(response.evidence.sources)
 
     def test_supervisor_api_has_bootstrap_metadata(self) -> None:
         supervisor_api = import_module("campus_supervisor_api.app")

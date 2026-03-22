@@ -4,13 +4,20 @@ version = "0.1.0"
 description = "Minimal retrieval bootstrap for campus-agent v2."
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["campus-contracts"]
+dependencies = [
+  "campus-contracts",
+  "campus-ingestion-core",
+  "llama-index-core>=0.14.18",
+  "llama-index-vector-stores-qdrant>=0.10.0",
+  "qdrant-client>=1.17.1",
+]
 
 [tool.uv]
 package = true
 
 [tool.uv.sources]
 campus-contracts = { workspace = true }
+campus-ingestion-core = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/campus_retrieval_core"]

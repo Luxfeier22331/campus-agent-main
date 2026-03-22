@@ -1,8 +1,30 @@
 from __future__ import annotations
 
+from campus_contracts import EvidenceBundle
 
-def retrieve_sources(query: str) -> tuple[str, ...]:
-    normalized = "-".join(part for part in query.strip().lower().split() if part)
-    if not normalized:
-        return ()
-    return (f"kb://student_handbook/{normalized}",)
+from campus_retrieval_core.backend_qdrant import QdrantRetrievalBackend, RetrievalBackendError
+from campus_retrieval_core.models import RetrievalRequest
+from campus_retrieval_core.settings import RetrievalSettings
+
+
+def retrieve_sources(
+    query: str,
+    *,
+    corpus: str = "student_handbook",
+    campus_scope: str | None = None,
+    acl_groups: tuple[str, ...] = (),
+    top_k: int = 3,
+    backend: QdrantRetrievalBackend | None = None,
+) -> EvidenceBundle:
+    request = RetrievalRequest(
+        query_text=query,
+        corpus=corpus,
+        campus_scope=campus_scope,
+        acl_groups=acl_groups,
+        top_k=top_k,
+    )
+    try:
+        runtime_backend = backend or QdrantRetrievalBackend(RetrievalSettings.from_env())
+    except Exception as exc:  # pragma: no cover - exercised via caller mapping
+        raise RetrievalBackendError("failed to initialize retrieval backend") from exc
+    return runtime_backend.retrieve(request)
