@@ -60,6 +60,16 @@
 - 如果变更触及长期边界、phase-1 约束或对象存储/ingestion 不变量，同步检查相关 `docs/architecture` 或 `docs/decisions` 是否需要更新
 - 不要在 repo 级 `AGENTS.md` 里写个人工作习惯、平台专属工具细则或一次性实验说明；这些内容应放到全局 agent 配置
 
+## Git Commit Title Rules
+
+- 默认使用 `Conventional Commit` 前缀加中文标题：`<type>: <中文结果描述>`
+- 常用前缀保持语义清晰：`feat`、`fix`、`docs`、`refactor`、`test`、`chore`
+- 冒号后优先写中文结果描述，直接说明这次提交完成了什么，不写空泛过程词
+- 标题优先使用动宾结构，例如：`添加`、`完成`、`修复`、`重构`、`明确`、`迁移`、`简化`、`调整`
+- 需要补充阶段、任务号或关键上下文时，放在标题末尾括号内，不要喧宾夺主
+- 默认参考仓库已有中文提交风格，例如：`feat: 完成 Phase 2A 工作流补全（resume/apply-choice + navigation_mode）`
+- 避免使用纯英文或无信息量标题，例如：`init`、`init again`、`update stuff`
+
 ## Answering Rules
 
 - 当用户在询问、评审、辨析、比较或校正时，不要默认追加下一步建议
