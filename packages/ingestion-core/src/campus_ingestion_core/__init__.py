@@ -2,6 +2,11 @@ from campus_ingestion_core.object_store import (
     S3ObjectStoreClientFactory,
     build_object_key,
 )
+from campus_ingestion_core.object_key_migration import (
+    ObjectKeyMigrationReport,
+    migrate_registry_object_keys,
+    migrate_registry_object_keys_from_env,
+)
 from campus_ingestion_core.campusrag_ingestion_support import ImportReport
 from campus_ingestion_core.chunking import (
     DEFAULT_CHUNK_OVERLAP,
@@ -56,6 +61,9 @@ __all__ = [
     "build_mock_embedding_model",
     "index_chunks_to_qdrant",
     "MockEmbeddingSettings",
+    "migrate_registry_object_keys",
+    "migrate_registry_object_keys_from_env",
+    "ObjectKeyMigrationReport",
     "process_raw_ingestion_job",
     "RawIngestionSubmissionReport",
     "S3ObjectStoreClientFactory",

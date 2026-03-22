@@ -128,7 +128,6 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
                     "DOCUMENT_REGISTRY_PATH": str(root / "registry" / "student_handbook.json"),
                     "IMPORT_REPORT_DIR": str(root / "reports"),
-                    "INGESTION_PARSER_VERSION": "paddleocr-vl-1.5",
                     "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
                 },
                 object_store=object_store,
@@ -136,10 +135,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             )
 
             raw_hash = hashlib.sha256(raw_bytes).hexdigest()
-            raw_key = (
-                "student_handbook/raw-source:student-handbook-pdf/"
-                f"sha256:{raw_hash}/raw/student-handbook.pdf"
-            )
+            raw_key = "student_handbook/handbook:remote-student-handbook/v1:remote-student-handbook/student-handbook.pdf"
 
             self.assertEqual(report.import_mode, "raw_ingestion")
             self.assertEqual(report.success_count, 1)
@@ -152,11 +148,11 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             self.assertEqual(object_store.uploads[0]["key"], raw_key)
             self.assertEqual(
                 object_store.uploads[1]["key"],
-                "student_handbook/handbook:remote-student-handbook/v1:remote-student-handbook/processed/provider-result.jsonl",
+                "student_handbook/handbook:remote-student-handbook/v1:remote-student-handbook/provider-result.jsonl",
             )
             self.assertEqual(
                 object_store.uploads[2]["key"],
-                "student_handbook/handbook:remote-student-handbook/v1:remote-student-handbook/processed/structured.jsonl",
+                "student_handbook/handbook:remote-student-handbook/v1:remote-student-handbook/structured.jsonl",
             )
             self.assertNotIn(b"provider_result", object_store.uploads[2]["data"])
             self.assertNotIn(b"provider_log_id", object_store.uploads[2]["data"])
@@ -169,20 +165,21 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             self.assertEqual(saved["raw_source_filename"], "student-handbook.pdf")
             self.assertEqual(
                 saved["provider_result_object_key"],
-                "student_handbook/handbook:remote-student-handbook/v1:remote-student-handbook/processed/provider-result.jsonl",
+                "student_handbook/handbook:remote-student-handbook/v1:remote-student-handbook/provider-result.jsonl",
             )
             self.assertEqual(
                 saved["structured_object_key"],
-                "student_handbook/handbook:remote-student-handbook/v1:remote-student-handbook/processed/structured.jsonl",
+                "student_handbook/handbook:remote-student-handbook/v1:remote-student-handbook/structured.jsonl",
             )
             self.assertEqual(
                 saved["processed_object_keys"],
                 [
-                    "student_handbook/handbook:remote-student-handbook/v1:remote-student-handbook/processed/provider-result.jsonl",
-                    "student_handbook/handbook:remote-student-handbook/v1:remote-student-handbook/processed/structured.jsonl",
+                    "student_handbook/handbook:remote-student-handbook/v1:remote-student-handbook/provider-result.jsonl",
+                    "student_handbook/handbook:remote-student-handbook/v1:remote-student-handbook/structured.jsonl",
                 ],
             )
             self.assertEqual(saved["import_source"], "raw_online_ocr")
+            self.assertEqual(saved["parser_version"], "paddleocr-vl-1.5")
 
     def test_duplicate_raw_ingestion_skips_when_provider_raw_result_changes_but_normalized_output_is_stable(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -201,7 +198,6 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                 "OBJECT_STORE_SECRET_KEY": "minioadmin",
                 "DOCUMENT_REGISTRY_PATH": str(root / "registry" / "student_handbook.json"),
                 "IMPORT_REPORT_DIR": str(root / "reports"),
-                "INGESTION_PARSER_VERSION": "paddleocr-vl-1.5",
                 "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
             }
 
@@ -228,7 +224,6 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                         "OBJECT_STORE_SECRET_KEY": "minioadmin",
                         "DOCUMENT_REGISTRY_PATH": str(root / "registry" / "student_handbook.json"),
                         "IMPORT_REPORT_DIR": str(root / "reports"),
-                        "INGESTION_PARSER_VERSION": "paddleocr-vl-1.5",
                         "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
                     },
                     object_store=_FakeObjectStore(),

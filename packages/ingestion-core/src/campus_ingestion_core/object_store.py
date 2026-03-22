@@ -1,12 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
 
 from campus_ingestion_core.settings import ObjectStoreSettings
-
-
-ObjectLayer = Literal["raw", "processed"]
 
 
 def build_object_key(
@@ -14,16 +10,13 @@ def build_object_key(
     corpus: str,
     document_id: str,
     version_id: str,
-    layer: ObjectLayer,
     filename: str,
 ) -> str:
     if corpus != "student_handbook":
         raise ValueError(f"unsupported corpus: {corpus}")
-    if layer not in {"raw", "processed"}:
-        raise ValueError(f"unsupported object layer: {layer}")
     if not filename or "/" in filename.strip("/"):
         raise ValueError("filename must be a single path segment")
-    return f"{corpus}/{document_id}/{version_id}/{layer}/{filename}"
+    return f"{corpus}/{document_id}/{version_id}/{filename}"
 
 
 @dataclass(frozen=True, slots=True)

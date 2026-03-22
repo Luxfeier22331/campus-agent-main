@@ -36,18 +36,19 @@ updated: 2026-03-22
   保存清洗文本、OCR/解析结果、供应商原始解析响应、结构化 metadata 和其他中间产物
 
 第一阶段不新增第三个专门 chunk bucket；chunk 文本和 embeddings 仍分别由 Qdrant 与 registry/index 层管理。
+如果为了备份、审计或离线重建额外导出 chunk manifest，该导出物也不能上升为 canonical chunk store。
 
 ## Object Key 规范
 
 第一阶段 object key 采用稳定层级：
 
-- `student_handbook/{document_id}/{version_id}/raw/...`
-- `student_handbook/{document_id}/{version_id}/processed/...`
+- raw bucket: `student_handbook/{document_id}/{version_id}/{original_filename}`
+- processed bucket: `student_handbook/{document_id}/{version_id}/{artifact_filename}`
 
 在线 OCR 的 processed artifact 约定：
 
-- `student_handbook/{document_id}/{version_id}/processed/provider-result.jsonl`
-- `student_handbook/{document_id}/{version_id}/processed/structured.jsonl`
+- `student_handbook/{document_id}/{version_id}/provider-result.jsonl`
+- `student_handbook/{document_id}/{version_id}/structured.jsonl`
 
 说明：
 
@@ -60,7 +61,7 @@ updated: 2026-03-22
 - 第一层固定为 `corpus`
 - 第二层固定为 `document_id`
 - 第三层固定为 `version_id`
-- `raw` / `processed` 作为层级语义而不是业务字段
+- raw / processed 层级语义由 bucket 表达，不在 key 内重复编码
 
 禁止做法：
 

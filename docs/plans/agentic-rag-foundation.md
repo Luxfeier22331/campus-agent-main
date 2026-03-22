@@ -142,7 +142,7 @@ updated: 2026-03-22
   - 两者共用同一个 `document_id`
   - 由 `version_id` 表示同一文档版本下的资产集合
 - 如果 OCR 来自在线供应商：
-  - `processed/` 下至少同时保存 `provider-result.jsonl` 和 `structured.jsonl`
+  - processed bucket 下至少同时保存 `provider-result.jsonl` 和 `structured.jsonl`
   - `provider-result.jsonl` 保留供应商原始响应
   - `structured.jsonl` 保留内部统一格式，不能直接用供应商原始响应替代
 - 不允许因为第一阶段赶进度，就把 OCR 文本直接冒充 raw layer 真相源

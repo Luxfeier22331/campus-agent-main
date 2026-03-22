@@ -21,9 +21,9 @@ def _make_registry_record() -> DocumentRegistryRecord:
         ingestion_timestamp="2026-03-22T10:00:00+00:00",
         parser_version="campusrag-import-v1",
         embedding_model="text-embedding-3-large",
-        structured_object_key="student_handbook/handbook:test-001/v1:test-001/processed/structured.jsonl",
+        structured_object_key="student_handbook/handbook:test-001/v1:test-001/structured.jsonl",
         processed_object_keys=(
-            "student_handbook/handbook:test-001/v1:test-001/processed/structured.jsonl",
+            "student_handbook/handbook:test-001/v1:test-001/structured.jsonl",
         ),
         import_source="campusrag_existing_ocr",
     )

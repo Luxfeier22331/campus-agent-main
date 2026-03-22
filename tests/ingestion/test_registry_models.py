@@ -24,14 +24,14 @@ class RegistryModelsTest(unittest.TestCase):
             ingestion_timestamp="2026-03-22T10:00:00+00:00",
             parser_version="campusrag-import-v1",
             embedding_model="text-embedding-3-large",
-            raw_object_key="student_handbook/raw-source:student-handbook-pdf/sha256:raw-001/raw/student-handbook.pdf",
+            raw_object_key="student_handbook/handbook:test-001/v1:test-001/student-handbook.pdf",
             raw_content_hash="raw-001",
             raw_source_filename="student-handbook.pdf",
             raw_page_start=10,
             raw_page_end=12,
-            structured_object_key="student_handbook/handbook:test-001/v1:test-001/processed/structured.jsonl",
-            provider_result_object_key="student_handbook/handbook:test-001/v1:test-001/processed/provider-result.jsonl",
-            processed_object_keys=("student_handbook/handbook:test-001/v1:test-001/processed/structured.jsonl",),
+            structured_object_key="student_handbook/handbook:test-001/v1:test-001/structured.jsonl",
+            provider_result_object_key="student_handbook/handbook:test-001/v1:test-001/provider-result.jsonl",
+            processed_object_keys=("student_handbook/handbook:test-001/v1:test-001/structured.jsonl",),
             import_source="campusrag_existing_ocr",
         )
 
@@ -47,11 +47,11 @@ class RegistryModelsTest(unittest.TestCase):
         self.assertEqual(payload["raw_page_end"], 12)
         self.assertEqual(
             payload["structured_object_key"],
-            "student_handbook/handbook:test-001/v1:test-001/processed/structured.jsonl",
+            "student_handbook/handbook:test-001/v1:test-001/structured.jsonl",
         )
         self.assertEqual(
             payload["provider_result_object_key"],
-            "student_handbook/handbook:test-001/v1:test-001/processed/provider-result.jsonl",
+            "student_handbook/handbook:test-001/v1:test-001/provider-result.jsonl",
         )
 
     def test_file_registry_upsert_and_get_are_stable(self) -> None:
@@ -69,14 +69,14 @@ class RegistryModelsTest(unittest.TestCase):
                 ingestion_timestamp="2026-03-22T10:00:00+00:00",
                 parser_version="campusrag-import-v1",
                 embedding_model="text-embedding-3-large",
-                raw_object_key="student_handbook/raw-source:student-handbook-pdf/sha256:raw-001/raw/student-handbook.pdf",
+                raw_object_key="student_handbook/handbook:test-001/v1:test-001/student-handbook.pdf",
                 raw_content_hash="raw-001",
                 raw_source_filename="student-handbook.pdf",
                 raw_page_start=10,
                 raw_page_end=12,
-                structured_object_key="student_handbook/handbook:test-001/v1:test-001/processed/structured.jsonl",
-                provider_result_object_key="student_handbook/handbook:test-001/v1:test-001/processed/provider-result.jsonl",
-                processed_object_keys=("student_handbook/handbook:test-001/v1:test-001/processed/structured.jsonl",),
+                structured_object_key="student_handbook/handbook:test-001/v1:test-001/structured.jsonl",
+                provider_result_object_key="student_handbook/handbook:test-001/v1:test-001/provider-result.jsonl",
+                processed_object_keys=("student_handbook/handbook:test-001/v1:test-001/structured.jsonl",),
                 import_source="campusrag_existing_ocr",
             )
 
@@ -100,14 +100,14 @@ class RegistryModelsTest(unittest.TestCase):
                 ingestion_timestamp="2026-03-22T10:00:00+00:00",
                 parser_version="campusrag-import-v1",
                 embedding_model="text-embedding-3-large",
-                raw_object_key="student_handbook/raw-source:student-handbook-pdf/sha256:raw-001/raw/student-handbook.pdf",
+                raw_object_key="student_handbook/handbook:test-001/v1:test-001/student-handbook.pdf",
                 raw_content_hash="raw-001",
                 raw_source_filename="student-handbook.pdf",
                 raw_page_start=10,
                 raw_page_end=12,
-                structured_object_key="student_handbook/handbook:test-001/v1:test-001/processed/structured.jsonl",
-                provider_result_object_key="student_handbook/handbook:test-001/v1:test-001/processed/provider-result.jsonl",
-                processed_object_keys=("student_handbook/handbook:test-001/v1:test-001/processed/structured.jsonl",),
+                structured_object_key="student_handbook/handbook:test-001/v1:test-001/structured.jsonl",
+                provider_result_object_key="student_handbook/handbook:test-001/v1:test-001/provider-result.jsonl",
+                processed_object_keys=("student_handbook/handbook:test-001/v1:test-001/structured.jsonl",),
                 import_source="campusrag_existing_ocr",
             )
             v2 = DocumentRegistryRecord(
@@ -122,14 +122,14 @@ class RegistryModelsTest(unittest.TestCase):
                 ingestion_timestamp="2026-03-23T10:00:00+00:00",
                 parser_version="campusrag-import-v1",
                 embedding_model="text-embedding-3-large",
-                raw_object_key="student_handbook/raw-source:student-handbook-pdf/sha256:raw-002/raw/student-handbook.pdf",
+                raw_object_key="student_handbook/handbook:test-001/v2:test-001/student-handbook.pdf",
                 raw_content_hash="raw-002",
                 raw_source_filename="student-handbook.pdf",
                 raw_page_start=10,
                 raw_page_end=12,
-                structured_object_key="student_handbook/handbook:test-001/v2:test-001/processed/structured.jsonl",
-                provider_result_object_key="student_handbook/handbook:test-001/v2:test-001/processed/provider-result.jsonl",
-                processed_object_keys=("student_handbook/handbook:test-001/v2:test-001/processed/structured.jsonl",),
+                structured_object_key="student_handbook/handbook:test-001/v2:test-001/structured.jsonl",
+                provider_result_object_key="student_handbook/handbook:test-001/v2:test-001/provider-result.jsonl",
+                processed_object_keys=("student_handbook/handbook:test-001/v2:test-001/structured.jsonl",),
                 import_source="campusrag_existing_ocr",
             )
 
@@ -166,8 +166,8 @@ class RegistryModelsTest(unittest.TestCase):
                             "raw_page_start": None,
                             "raw_page_end": None,
                             "processed_object_keys": [
-                                "student_handbook/handbook:test-001/v1:test-001/processed/provider-result.jsonl",
-                                "student_handbook/handbook:test-001/v1:test-001/processed/structured.jsonl",
+                                "student_handbook/handbook:test-001/v1:test-001/provider-result.jsonl",
+                                "student_handbook/handbook:test-001/v1:test-001/structured.jsonl",
                             ],
                             "import_source": "raw_online_ocr",
                         }
@@ -181,11 +181,11 @@ class RegistryModelsTest(unittest.TestCase):
 
             self.assertEqual(
                 loaded.provider_result_object_key,
-                "student_handbook/handbook:test-001/v1:test-001/processed/provider-result.jsonl",
+                "student_handbook/handbook:test-001/v1:test-001/provider-result.jsonl",
             )
             self.assertEqual(
                 loaded.structured_object_key,
-                "student_handbook/handbook:test-001/v1:test-001/processed/structured.jsonl",
+                "student_handbook/handbook:test-001/v1:test-001/structured.jsonl",
             )
 
 

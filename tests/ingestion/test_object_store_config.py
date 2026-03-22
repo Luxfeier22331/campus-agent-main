@@ -39,13 +39,12 @@ class ObjectStoreConfigTest(unittest.TestCase):
             corpus="student_handbook",
             document_id="handbook:test-001",
             version_id="v1:test-001",
-            layer="processed",
             filename="structured.jsonl",
         )
 
         self.assertEqual(
             object_key,
-            "student_handbook/handbook:test-001/v1:test-001/processed/structured.jsonl",
+            "student_handbook/handbook:test-001/v1:test-001/structured.jsonl",
         )
 
     def test_factory_exposes_s3_compatible_client_config_only(self) -> None:

@@ -158,7 +158,13 @@ def persist_import_documents(
         metadata = document.metadata
         source_label = document.source_label
         try:
-            raw_asset = resolved_raw_asset(document.raw_path)
+            document_id = str(metadata["document_id"])
+            version_id = str(metadata["version_id"])
+            raw_asset = resolved_raw_asset(
+                raw_path=document.raw_path,
+                document_id=document_id,
+                version_id=version_id,
+            )
             if raw_asset is not None:
                 if raw_asset.object_key in uploaded_raw_keys or raw_asset.object_key in existing_raw_keys:
                     raw_reused_count += 1
@@ -183,9 +189,8 @@ def persist_import_documents(
             if document.provider_result_bytes is not None:
                 provider_result_key = build_object_key(
                     corpus="student_handbook",
-                    document_id=str(metadata["document_id"]),
-                    version_id=str(metadata["version_id"]),
-                    layer="processed",
+                    document_id=document_id,
+                    version_id=version_id,
                     filename="provider-result.jsonl",
                 )
                 writer.put_bytes(
@@ -197,9 +202,8 @@ def persist_import_documents(
 
             structured_key = build_object_key(
                 corpus="student_handbook",
-                document_id=str(metadata["document_id"]),
-                version_id=str(metadata["version_id"]),
-                layer="processed",
+                document_id=document_id,
+                version_id=version_id,
                 filename="structured.jsonl",
             )
             writer.put_bytes(
@@ -213,8 +217,8 @@ def persist_import_documents(
             )
             registry.upsert(
                 DocumentRegistryRecord(
-                    document_id=str(metadata["document_id"]),
-                    version_id=str(metadata["version_id"]),
+                    document_id=document_id,
+                    version_id=version_id,
                     source_uri=derive_source_uri(metadata),
                     content_hash=content_hash,
                     corpus="student_handbook",
@@ -257,17 +261,19 @@ def persist_import_documents(
     )
 
 
-def resolved_raw_asset(raw_path: Path | None) -> ResolvedRawAsset | None:
+def resolved_raw_asset(
+    *,
+    raw_path: Path | None,
+    document_id: str,
+    version_id: str,
+) -> ResolvedRawAsset | None:
     if raw_path is None:
         return None
     raw_hash = hashlib.sha256(raw_path.read_bytes()).hexdigest()
-    raw_source_id = build_raw_source_id(raw_path.name)
-    raw_version_id = f"sha256:{raw_hash}"
     object_key = build_object_key(
         corpus="student_handbook",
-        document_id=raw_source_id,
-        version_id=raw_version_id,
-        layer="raw",
+        document_id=document_id,
+        version_id=version_id,
         filename=raw_path.name,
     )
     return ResolvedRawAsset(
@@ -296,20 +302,6 @@ def raw_filename_candidates(source_pdf: str) -> tuple[str, ...]:
     if alias is not None:
         candidates.append(alias)
     return tuple(dict.fromkeys(name for name in candidates if name))
-
-
-def build_raw_source_id(filename: str) -> str:
-    path = Path(filename)
-    stem = path.stem.strip().lower()
-    slug = "".join(ch if ch.isalnum() else "-" for ch in stem).strip("-")
-    while "--" in slug:
-        slug = slug.replace("--", "-")
-    suffix = "".join(ch if ch.isalnum() else "-" for ch in path.suffix.lstrip(".").lower()).strip("-")
-    if suffix:
-        slug = f"{slug}-{suffix}"
-    return f"raw-source:{slug}"
-
-
 def derive_source_uri(metadata: dict[str, object]) -> str:
     source_url = metadata.get("source_url")
     if isinstance(source_url, str) and source_url:

@@ -24,6 +24,7 @@ from campus_ingestion_core.settings import ObjectStoreSettings
 DEFAULT_ONLINE_OCR_MODEL = "PaddleOCR-VL-1.5"
 DEFAULT_ONLINE_OCR_POLL_SECONDS = 5
 DEFAULT_ONLINE_OCR_TIMEOUT_SECONDS = 300
+DEFAULT_RAW_ONLINE_OCR_PARSER_VERSION = "paddleocr-vl-1.5"
 
 
 @dataclass(frozen=True, slots=True)
@@ -192,7 +193,7 @@ class RawIngestionProcessSettings:
                 (source.get("DOCUMENT_REGISTRY_PATH") or "./var/registry/student_handbook.json").strip()
             ),
             report_dir=Path((source.get("IMPORT_REPORT_DIR") or "./var/import-reports").strip()),
-            parser_version=(source.get("INGESTION_PARSER_VERSION") or "paddleocr-vl-1.5").strip(),
+            parser_version=DEFAULT_RAW_ONLINE_OCR_PARSER_VERSION,
             embedding_model=(source.get("INGESTION_EMBEDDING_MODEL") or source.get("EMBEDDING_MODEL") or "").strip(),
             default_campus_scope=(source.get("DEFAULT_CAMPUS_SCOPE") or "").strip() or None,
             online_ocr=online_ocr,

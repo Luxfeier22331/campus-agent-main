@@ -66,7 +66,6 @@ class ImportCampusRagExistingOcrTest(unittest.TestCase):
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
                     "DOCUMENT_REGISTRY_PATH": str(root / "registry" / "student_handbook.json"),
                     "IMPORT_REPORT_DIR": str(root / "reports"),
-                    "INGESTION_PARSER_VERSION": "campusrag-import-v1",
                     "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
                     "DEFAULT_CAMPUS_SCOPE": "",
                 },
@@ -85,7 +84,7 @@ class ImportCampusRagExistingOcrTest(unittest.TestCase):
             self.assertEqual(object_store.uploads[0]["bucket"], "campus-rag-processed")
             self.assertEqual(
                 object_store.uploads[0]["key"],
-                "student_handbook/handbook:abc/v1:abc/processed/structured.jsonl",
+                "student_handbook/handbook:abc/v1:abc/structured.jsonl",
             )
 
             registry_payload = json.loads(
@@ -95,9 +94,10 @@ class ImportCampusRagExistingOcrTest(unittest.TestCase):
             self.assertIsNone(saved["raw_object_key"])
             self.assertEqual(
                 saved["processed_object_keys"],
-                ["student_handbook/handbook:abc/v1:abc/processed/structured.jsonl"],
+                ["student_handbook/handbook:abc/v1:abc/structured.jsonl"],
             )
             self.assertEqual(saved["import_source"], "campusrag_existing_ocr")
+            self.assertEqual(saved["parser_version"], "campusrag-import-v1")
             self.assertEqual(saved["source_uri"], "campusrag://canonical/student_handbook/docs/library-hours.md")
 
     def test_import_with_raw_root_uploads_shared_pdf_once_and_records_provenance(self) -> None:
@@ -160,40 +160,40 @@ class ImportCampusRagExistingOcrTest(unittest.TestCase):
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
                     "DOCUMENT_REGISTRY_PATH": str(root / "registry" / "student_handbook.json"),
                     "IMPORT_REPORT_DIR": str(root / "reports"),
-                    "INGESTION_PARSER_VERSION": "campusrag-import-v1",
                     "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
                 },
                 object_store=object_store,
             )
 
             raw_hash = hashlib.sha256(raw_bytes).hexdigest()
-            raw_key = (
-                "student_handbook/raw-source:student-handbook-pdf/"
-                f"sha256:{raw_hash}/raw/student-handbook.pdf"
-            )
+            raw_key_one = "student_handbook/handbook:abc/v1:abc/student-handbook.pdf"
+            raw_key_two = "student_handbook/handbook:def/v1:def/student-handbook.pdf"
 
             self.assertEqual(report.import_mode, "existing_ocr")
             self.assertEqual(report.success_count, 2)
-            self.assertEqual(report.raw_uploaded_count, 1)
-            self.assertEqual(report.raw_reused_count, 1)
-            self.assertEqual(len(object_store.uploads), 3)
+            self.assertEqual(report.raw_uploaded_count, 2)
+            self.assertEqual(report.raw_reused_count, 0)
+            self.assertEqual(len(object_store.uploads), 4)
             self.assertEqual(object_store.uploads[0]["bucket"], "campus-rag-raw")
-            self.assertEqual(object_store.uploads[0]["key"], raw_key)
+            self.assertEqual(object_store.uploads[0]["key"], raw_key_one)
+            self.assertEqual(object_store.uploads[2]["key"], raw_key_two)
 
             registry_payload = json.loads(
                 (root / "registry" / "student_handbook.json").read_text(encoding="utf-8")
             )
             saved_one = registry_payload["handbook:abc::v1:abc"]
             saved_two = registry_payload["handbook:def::v1:def"]
-            self.assertEqual(saved_one["raw_object_key"], raw_key)
+            self.assertEqual(saved_one["raw_object_key"], raw_key_one)
             self.assertEqual(saved_one["raw_content_hash"], raw_hash)
             self.assertEqual(saved_one["raw_source_filename"], "student-handbook.pdf")
             self.assertEqual(saved_one["raw_page_start"], 18)
             self.assertEqual(saved_one["raw_page_end"], 19)
-            self.assertEqual(saved_two["raw_object_key"], raw_key)
+            self.assertEqual(saved_one["parser_version"], "campusrag-import-v1")
+            self.assertEqual(saved_two["raw_object_key"], raw_key_two)
             self.assertEqual(saved_two["raw_content_hash"], raw_hash)
             self.assertEqual(saved_two["raw_page_start"], 20)
             self.assertEqual(saved_two["raw_page_end"], 24)
+            self.assertEqual(saved_two["parser_version"], "campusrag-import-v1")
 
     def test_duplicate_import_is_skipped(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -229,7 +229,6 @@ class ImportCampusRagExistingOcrTest(unittest.TestCase):
                 "OBJECT_STORE_SECRET_KEY": "minioadmin",
                 "DOCUMENT_REGISTRY_PATH": str(root / "registry" / "student_handbook.json"),
                 "IMPORT_REPORT_DIR": str(root / "reports"),
-                "INGESTION_PARSER_VERSION": "campusrag-import-v1",
                 "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
             }
             object_store = _FakeObjectStore()
@@ -260,7 +259,6 @@ class ImportCampusRagExistingOcrTest(unittest.TestCase):
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
                     "DOCUMENT_REGISTRY_PATH": str(root / "registry" / "student_handbook.json"),
                     "IMPORT_REPORT_DIR": str(root / "reports"),
-                    "INGESTION_PARSER_VERSION": "campusrag-import-v1",
                     "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
                 },
                 object_store=_FakeObjectStore(),
@@ -309,7 +307,6 @@ class ImportCampusRagExistingOcrTest(unittest.TestCase):
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
                     "DOCUMENT_REGISTRY_PATH": str(root / "registry" / "student_handbook.json"),
                     "IMPORT_REPORT_DIR": str(root / "reports"),
-                    "INGESTION_PARSER_VERSION": "campusrag-import-v1",
                     "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
                 },
                 object_store=object_store,

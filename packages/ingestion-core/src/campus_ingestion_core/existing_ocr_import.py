@@ -19,6 +19,9 @@ from campus_ingestion_core.registry import FileDocumentRegistry
 from campus_ingestion_core.settings import ObjectStoreSettings
 
 
+DEFAULT_EXISTING_OCR_PARSER_VERSION = "campusrag-import-v1"
+
+
 @dataclass(frozen=True, slots=True)
 class ExistingOcrImportSettings:
     ocr_root: Path
@@ -44,7 +47,7 @@ class ExistingOcrImportSettings:
                 (source.get("DOCUMENT_REGISTRY_PATH") or "./var/registry/student_handbook.json").strip()
             ),
             report_dir=Path((source.get("IMPORT_REPORT_DIR") or "./var/import-reports").strip()),
-            parser_version=(source.get("INGESTION_PARSER_VERSION") or "campusrag-import-v1").strip(),
+            parser_version=DEFAULT_EXISTING_OCR_PARSER_VERSION,
             embedding_model=(source.get("INGESTION_EMBEDDING_MODEL") or source.get("EMBEDDING_MODEL") or "").strip(),
             default_campus_scope=(source.get("DEFAULT_CAMPUS_SCOPE") or "").strip() or None,
             object_store=ObjectStoreSettings.from_env(source),

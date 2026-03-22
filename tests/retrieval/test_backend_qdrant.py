@@ -29,9 +29,9 @@ def _make_registry_record(*, document_id: str, version_id: str, acl_groups: tupl
         ingestion_timestamp="2026-03-22T10:00:00+00:00",
         parser_version="campusrag-import-v1",
         embedding_model="mock-embedding-8d",
-        structured_object_key=f"student_handbook/{document_id}/{version_id}/processed/structured.jsonl",
+        structured_object_key=f"student_handbook/{document_id}/{version_id}/structured.jsonl",
         processed_object_keys=(
-            f"student_handbook/{document_id}/{version_id}/processed/structured.jsonl",
+            f"student_handbook/{document_id}/{version_id}/structured.jsonl",
         ),
         import_source="campusrag_existing_ocr",
     )

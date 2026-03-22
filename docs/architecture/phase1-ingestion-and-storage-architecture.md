@@ -73,8 +73,11 @@ updated: 2026-03-22
 存储要求：
 
 - 第一阶段使用 Qdrant
+- Qdrant 是在线检索所消费的 canonical chunk/index store
 - 每个 chunk 带 stable `chunk_id`
 - 每个 chunk 必须回链到 `document_id` 和 `version_id`
+- `processed` 必须能重建 chunk，但对象存储不承载 canonical chunk 集合
+- 如果为了备份、审计或离线重建导出 chunk manifest，该导出物只能是派生副本，不能替代 Qdrant 中的在线检索数据
 
 ### Document Registry
 
@@ -181,11 +184,12 @@ updated: 2026-03-22
   - `campus-rag-raw`
   - `campus-rag-processed`
 - object key 建议采用：
-  - `student_handbook/{document_id}/{version_id}/raw/...`
-  - `student_handbook/{document_id}/{version_id}/processed/...`
+  - raw bucket: `student_handbook/{document_id}/{version_id}/{original_filename}`
+  - processed bucket: `student_handbook/{document_id}/{version_id}/{artifact_filename}`
 - 在线 OCR 接入时，`processed/` 下至少允许：
-  - `provider-result.jsonl`
-  - `structured.jsonl`
+  - `student_handbook/{document_id}/{version_id}/provider-result.jsonl`
+  - `student_handbook/{document_id}/{version_id}/structured.jsonl`
+- 不为 chunk 单独建立 canonical object storage 路径；chunk 的在线主存储保持在 `Qdrant`
 
 详细约束见：
 
@@ -194,6 +198,15 @@ updated: 2026-03-22
 实施拆分见：
 
 - `docs/plans/agentic-rag-foundation.md`
+
+当前实现入口：
+
+- `apps/ingestion-worker/src/campus_ingestion_worker/import_campusrag_existing_ocr.py`
+- `apps/ingestion-worker/src/campus_ingestion_worker/submit_raw_ingestion_job.py`
+- `apps/ingestion-worker/src/campus_ingestion_worker/process_raw_ingestion_job.py`
+- `packages/ingestion-core/src/campus_ingestion_core/registry.py`
+- `packages/ingestion-core/src/campus_ingestion_core/process.py`
+- `packages/retrieval-core/src/campus_retrieval_core/backend_qdrant.py`
 
 ## 第一阶段不做的事
 
