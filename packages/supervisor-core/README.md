@@ -1,3 +1,3 @@
 # campus-supervisor-core
 
-Supervisor logic bootstrap for campus-agent v2.
+Single-specialist, policy-driven supervisor coordinator skeleton for campus-agent v2.

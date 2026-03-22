@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+from dataclasses import asdict
 import os
 import unittest
 from unittest.mock import patch
 
-from campus_contracts import DelegateToRagAgentRequest, DelegateToRagAgentResponse, EvidenceBundle, TraceContext
+from campus_contracts import (
+    DelegateToRagAgentRequest,
+    DelegateToRagAgentResponse,
+    ErrorInfo,
+    EvidenceBundle,
+    TraceContext,
+)
 from campus_supervisor_api.api import HttpResponse
 from campus_supervisor_api.app import create_app
 from campus_supervisor_api.settings import ApiSettings
@@ -54,11 +61,49 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json_body["trace_id"], "trace-001")
         self.assertEqual(response.json_body["status"], "completed")
+        self.assertEqual(captured_requests[0].user_goal, "library hours")
+        self.assertEqual(captured_requests[0].conversation_id, "conv-001")
+        self.assertEqual(captured_requests[0].request_id, "req-001")
         self.assertEqual(captured_requests[0].trace, TraceContext(trace_id="trace-001"))
         self.assertEqual(captured_requests[0].actor.user_id, "student-001")
         self.assertEqual(captured_requests[0].actor.groups, ("students",))
         self.assertEqual(captured_requests[0].actor.roles, ("student",))
         self.assertEqual(captured_requests[0].actor.campus_scope, "north")
+
+    def test_answer_route_projects_supervisor_response_without_orchestration_logic(self) -> None:
+        def fake_supervisor(request: DelegateToRagAgentRequest) -> DelegateToRagAgentResponse:
+            return DelegateToRagAgentResponse(
+                status="error",
+                confidence="low",
+                error=ErrorInfo(code="retrieval_failed", message="retrieval backend unavailable", retryable=False),
+            )
+
+        app = create_app(
+            settings=ApiSettings(
+                auth_mode="bearer",
+                bearer_token="secret-token",
+            ),
+            supervisor_handler=fake_supervisor,
+        )
+
+        response = app.handle(
+            "POST",
+            "/api/v1/answer",
+            headers={"authorization": "Bearer secret-token", "x-trace-id": "trace-001"},
+            json_body={"user_goal": "library hours"},
+        )
+
+        expected_payload = asdict(
+            DelegateToRagAgentResponse(
+                status="error",
+                confidence="low",
+                error=ErrorInfo(code="retrieval_failed", message="retrieval backend unavailable", retryable=False),
+            )
+        )
+        expected_payload["trace_id"] = "trace-001"
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json_body, expected_payload)
 
     def test_answer_route_rejects_invalid_bearer_token(self) -> None:
         app = create_app(settings=ApiSettings(bearer_token="secret-token"))

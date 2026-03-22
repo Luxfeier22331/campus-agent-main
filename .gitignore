@@ -10,3 +10,4 @@ build/
 !.env.local-minimal.example
 tmp.md
 var/
+.worktrees/

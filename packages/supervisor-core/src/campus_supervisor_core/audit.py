@@ -4,6 +4,8 @@ from dataclasses import dataclass
 
 from campus_contracts import DelegateToRagAgentRequest, DelegateToRagAgentResponse
 
+from campus_supervisor_core.response import source_doc_ids_from_response
+
 
 @dataclass(frozen=True, slots=True)
 class SupervisorAuditRecord:
@@ -23,5 +25,5 @@ def build_audit_record(
         trace_id=request.trace.trace_id,
         user_id=request.actor.user_id,
         status=response.status,
-        source_doc_ids=tuple(source.doc_id for source in response.evidence.sources),
+        source_doc_ids=source_doc_ids_from_response(response),
     )
