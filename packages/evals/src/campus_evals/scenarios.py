@@ -1,18 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from campus_contracts import ActorContext
 
-from campus_contracts import DelegateToRagAgentRequest
-from campus_evals.expectations import StudentHandbookExpectation
-
-
-@dataclass(frozen=True, slots=True)
-class StudentHandbookScenario:
-    request: DelegateToRagAgentRequest
-    expectation: StudentHandbookExpectation
+from campus_evals.models import GoldenCase
 
 
-def high_frequency_scenarios() -> tuple[StudentHandbookScenario, ...]:
+def student_handbook_smoke_cases() -> tuple[GoldenCase, ...]:
     goals = (
         "library hours",
         "scholarship eligibility",
@@ -21,12 +14,16 @@ def high_frequency_scenarios() -> tuple[StudentHandbookScenario, ...]:
         "add/drop",
         "leave of absence",
     )
-    return (
-        *(
-            StudentHandbookScenario(
-                request=DelegateToRagAgentRequest(user_goal=goal),
-                expectation=StudentHandbookExpectation(user_goal=goal),
-            )
-            for goal in goals
-        ),
+    return tuple(
+        GoldenCase(
+            case_id=f"student-handbook-smoke-{index}",
+            split="smoke",
+            source_type="expert_authored",
+            user_goal=goal,
+            actor=ActorContext(),
+            corpora=("student_handbook",),
+            expected_status="completed",
+            expected_evidence_corpus="student_handbook",
+        )
+        for index, goal in enumerate(goals, start=1)
     )
