@@ -4,4 +4,8 @@ __pycache__/
 *.pyc
 dist/
 build/
-
+.env
+.env.*
+!.env.example
+!.env.local-minimal.example
+tmp.md
