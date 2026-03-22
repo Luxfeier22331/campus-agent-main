@@ -95,15 +95,24 @@
 
 ## Verification
 
+默认使用 `uv` 管理的 workspace 环境。
+
+环境准备命令：
+
+```bash
+uv sync --all-packages --dev
+```
+
 默认仓库级验证命令：
 
 ```bash
-python3 -m unittest discover -s tests -t .
+uv run --all-packages python -m unittest discover -s tests -t .
 ```
 
 补充约束：
 
-- 根 `pyproject.toml` 已配置 `pytest`，但仓库级基线验证以当前已存在的 `unittest discover` 命令为准
+- 默认不要直接运行裸 `python3` 或裸 `pytest`
+- 仓库级基线验证与局部测试命令默认都通过 `uv run --all-packages ...` 执行
 - 如果新增局部测试或检查命令，只记录仓库里真实存在、可重复执行的命令
 
 ## Subagent Guidance

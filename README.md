@@ -49,6 +49,7 @@
 ## 本地验证
 
 ```bash
-pytest tests/specialist/test_rag_specialist.py tests/supervisor/test_supervisor_core.py tests/api/test_supervisor_api.py tests/evals/test_student_handbook_baseline.py -q
-python3 -m unittest discover -s tests -t .
+uv sync --all-packages --dev
+uv run --all-packages python -m pytest tests/specialist/test_rag_specialist.py tests/supervisor/test_supervisor_core.py tests/api/test_supervisor_api.py tests/evals/test_golden_cases.py -q
+uv run --all-packages python -m unittest discover -s tests -t .
 ```

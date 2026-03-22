@@ -222,7 +222,7 @@ updated: 2026-03-22
 - 明确 `DocumentRef` 与 `EvidenceSource` 的最小字段集，对齐现有决策文档与 legacy source locator 语义。
 
 **Verification:**
-- `pytest tests/contracts/test_models.py -q`
+- `uv run --all-packages python -m pytest tests/contracts/test_models.py -q`
 - 断言 dataclass 字段、默认值和序列化结构稳定。
 
 ### Task 2: 建立本机 MinIO 接入配置与对象存储客户端
@@ -254,7 +254,7 @@ updated: 2026-03-22
 - bucket 创建由部署脚本或初始化步骤完成，不允许业务代码在运行期隐式兜底创建。
 
 **Verification:**
-- `pytest tests/ingestion/test_object_store_config.py -q`
+- `uv run --all-packages python -m pytest tests/ingestion/test_object_store_config.py -q`
 - 覆盖默认 bucket、endpoint、禁止本机目录 fallback 的约束。
 
 ### Task 3: 建立 document registry schema 与 storage adapter
@@ -281,7 +281,7 @@ updated: 2026-03-22
 - 所有 ingestion 和 retrieval 都通过 registry 接口读取元数据，不允许从 object key 反推真相字段。
 
 **Verification:**
-- `pytest tests/ingestion/test_registry_models.py -q`
+- `uv run --all-packages python -m pytest tests/ingestion/test_registry_models.py -q`
 
 ### Task 4: 拆分历史 OCR 补录与 raw-first ingestion runtime
 
@@ -319,9 +319,9 @@ updated: 2026-03-22
 - 如果后续路径不一致，只替换配置，不改导入 contract。
 
 **Verification:**
-- `pytest tests/ingestion/test_import_campusrag_existing_ocr.py -q`
-- `pytest tests/ingestion/test_submit_raw_ingestion_job.py -q`
-- `pytest tests/ingestion/test_process_raw_ingestion_job.py -q`
+- `uv run --all-packages python -m pytest tests/ingestion/test_import_campusrag_existing_ocr.py -q`
+- `uv run --all-packages python -m pytest tests/ingestion/test_submit_raw_ingestion_job.py -q`
+- `uv run --all-packages python -m pytest tests/ingestion/test_process_raw_ingestion_job.py -q`
 - 验证入口边界、object key 结构、registry 写入、重复导入 skip 和 placeholder job envelope。
 
 ### Task 5: 建立去重、版本推进和 stable ID 规则
@@ -343,7 +343,7 @@ updated: 2026-03-22
 - 第一阶段不做 near-duplicate。
 
 **Verification:**
-- `pytest tests/ingestion/test_dedup_and_identity.py -q`
+- `uv run --all-packages python -m pytest tests/ingestion/test_dedup_and_identity.py -q`
 
 ### Task 6: 建立 processed/chunking/embedding 流程
 
@@ -376,7 +376,7 @@ updated: 2026-03-22
   - `campus_scope`
 
 **Verification:**
-- `pytest tests/ingestion/test_processing_pipeline.py -q`
+- `uv run --all-packages python -m pytest tests/ingestion/test_processing_pipeline.py -q`
 
 ### Task 7: 建立 retrieval-core 的真实 backend
 
@@ -400,7 +400,7 @@ updated: 2026-03-22
 - retrieval 只支持 `student_handbook`
 
 **Verification:**
-- `pytest tests/retrieval/test_backend_qdrant.py -q`
+- `uv run --all-packages python -m pytest tests/retrieval/test_backend_qdrant.py -q`
 - 验证 source locator、ACL filter、no hit、error mapping。
 
 ### Task 8: 落地 rag-specialist
@@ -422,7 +422,7 @@ updated: 2026-03-22
 - `answer_text` 必须基于 evidence bundle 构造。
 
 **Verification:**
-- `pytest tests/specialist/test_rag_specialist.py -q`
+- `uv run --all-packages python -m pytest tests/specialist/test_rag_specialist.py -q`
 
 ### Task 9: 落地 supervisor-core
 
@@ -445,7 +445,7 @@ updated: 2026-03-22
   - `source_doc_ids`
 
 **Verification:**
-- `pytest tests/supervisor/test_supervisor_core.py -q`
+- `uv run --all-packages python -m pytest tests/supervisor/test_supervisor_core.py -q`
 
 ### Task 10: 落地 supervisor-api 与 AgentOS runtime
 
@@ -467,7 +467,7 @@ updated: 2026-03-22
 - auth 层把 bearer principal 映射为 `ActorContext`
 
 **Verification:**
-- `pytest tests/api/test_supervisor_api.py -q`
+- `uv run --all-packages python -m pytest tests/api/test_supervisor_api.py -q`
 
 ### Task 11: 冻结 baseline 与评测
 
@@ -475,7 +475,7 @@ updated: 2026-03-22
 - Modify: `packages/evals/src/campus_evals/scenarios.py`
 - Create: `packages/evals/src/campus_evals/expectations.py`
 - Create: `packages/evals/src/campus_evals/runner.py`
-- Create: `tests/evals/test_student_handbook_baseline.py`
+- Create: `tests/evals/test_golden_cases.py`
 
 **Implementation:**
 - 冻结第一批 `student_handbook` baseline 场景
@@ -492,7 +492,7 @@ updated: 2026-03-22
   - 更新生成新 `version_id`
 
 **Verification:**
-- `pytest tests/evals/test_student_handbook_baseline.py -q`
+- `uv run --all-packages python -m pytest tests/evals/test_golden_cases.py -q`
 
 ### Task 12: 更新骨架 smoke 与项目文档
 
@@ -508,7 +508,7 @@ updated: 2026-03-22
 - 架构/决策文档只加索引，不重复复制实施步骤
 
 **Verification:**
-- `python3 -m unittest discover -s tests -t .`
+- `uv run --all-packages python -m unittest discover -s tests -t .`
 
 ## 验收标准
 

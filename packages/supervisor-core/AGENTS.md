@@ -86,6 +86,6 @@
 优先使用这些命令验证本目录相关变更：
 
 ```bash
-pytest tests/supervisor/test_supervisor_core.py -q
-python3 -m unittest discover -s tests -t .
+uv run --all-packages python -m pytest tests/supervisor/test_supervisor_core.py -q
+uv run --all-packages python -m unittest discover -s tests -t .
 ```
