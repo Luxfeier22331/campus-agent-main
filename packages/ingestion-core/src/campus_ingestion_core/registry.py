@@ -465,6 +465,7 @@ def _document_record_from_dict(raw: dict[str, object]) -> DocumentRegistryRecord
         source_uri=str(raw["source_uri"]),
         content_hash=str(raw["content_hash"]),
         corpus=str(raw["corpus"]),
+        cleaning_policy_version=str(raw.get("cleaning_policy_version") or ""),
         acl_groups=tuple(str(item) for item in list(raw.get("acl_groups") or [])),
         campus_scope=str(raw["campus_scope"]) if raw.get("campus_scope") is not None else None,
         status=str(raw["status"]),

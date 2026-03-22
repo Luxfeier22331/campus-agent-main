@@ -145,6 +145,80 @@ class _CurriculumPlanFakeOnlineOcrClient:
 
 
 class ProcessRawIngestionJobTest(unittest.TestCase):
+    def test_process_raw_ingestion_job_provider_only_writes_raw_and_asset_level_provider_result(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            raw_root = root / "raw"
+            raw_root.mkdir(parents=True)
+            raw_path = raw_root / "student-handbook.pdf"
+            raw_bytes = b"%PDF-1.4 remote student handbook"
+            raw_path.write_bytes(raw_bytes)
+            object_store = _FakeObjectStore()
+            online_ocr = _FakeOnlineOcrClient()
+            registry = FileDocumentRegistry(root / "registry" / "student_handbook_documents.json")
+            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
+
+            report = process_raw_ingestion_job(
+                env={
+                    "CAMPUSRAG_RAW_ROOT": str(raw_root),
+                    "RAW_INGESTION_ARTIFACT_MODE": "provider_only",
+                    "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
+                    "OCR_API_KEY": "token",
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    "IMPORT_REPORT_DIR": str(root / "reports"),
+                    "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
+                },
+                object_store=object_store,
+                online_ocr=online_ocr,
+                registry=registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            raw_hash = hashlib.sha256(raw_bytes).hexdigest()
+            raw_version_id = f"sha256:{raw_hash}"
+            raw_key = f"student_handbook/assets/student-handbook-pdf/sha256/{raw_hash}/student-handbook.pdf"
+            provider_key = (
+                f"student_handbook/assets/student-handbook-pdf/sha256/{raw_hash}/provider-result.jsonl"
+            )
+
+            self.assertEqual(report.import_mode, "raw_ingestion")
+            self.assertEqual(report.success_count, 1)
+            self.assertEqual(report.skipped_count, 0)
+            self.assertEqual(report.failed_count, 0)
+            self.assertEqual(report.raw_uploaded_count, 1)
+            self.assertEqual(report.raw_reused_count, 0)
+            self.assertEqual(report.document_ids, ())
+            self.assertEqual(online_ocr.calls, [raw_path])
+            self.assertEqual(
+                [upload["key"] for upload in object_store.uploads],
+                [raw_key, provider_key],
+            )
+
+            self.assertFalse((root / "registry" / "student_handbook_documents.json").exists())
+            raw_asset_registry_payload = json.loads(
+                (root / "registry" / "student_handbook_raw_assets.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                raw_asset_registry_payload,
+                {
+                    f"asset:student-handbook-pdf::{raw_version_id}": {
+                        "content_hash": raw_hash,
+                        "corpus": "student_handbook",
+                        "import_source": "raw_online_ocr",
+                        "ingestion_timestamp": raw_asset_registry_payload[
+                            f"asset:student-handbook-pdf::{raw_version_id}"
+                        ]["ingestion_timestamp"],
+                        "object_key": raw_key,
+                        "raw_asset_id": "asset:student-handbook-pdf",
+                        "raw_source_uri": f"file://{raw_path.resolve()}",
+                        "raw_version_id": raw_version_id,
+                        "source_filename": "student-handbook.pdf",
+                    }
+                },
+            )
+
     def test_process_raw_ingestion_job_writes_raw_provider_and_structured_artifacts(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -229,6 +303,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             )
             self.assertEqual(saved["import_source"], "raw_online_ocr")
             self.assertEqual(saved["parser_version"], "paddleocr-vl-1.5")
+            self.assertEqual(saved["cleaning_policy_version"], "student_handbook_cleaning_v1")
             raw_asset_registry_payload = json.loads(
                 (root / "registry" / "student_handbook_raw_assets.json").read_text(encoding="utf-8")
             )
@@ -292,6 +367,99 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             self.assertEqual(second.raw_reused_count, 1)
             self.assertEqual(len(object_store.uploads), 4)
             self.assertEqual(object_store.uploads[-1]["key"], object_store.uploads[1]["key"])
+
+    def test_provider_only_reuses_raw_asset_but_rewrites_provider_result(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            raw_root = root / "raw"
+            raw_root.mkdir(parents=True)
+            raw_path = raw_root / "volatile.pdf"
+            raw_bytes = b"%PDF-1.4 volatile"
+            raw_path.write_bytes(raw_bytes)
+            object_store = _FakeObjectStore()
+            online_ocr = _VolatileFakeOnlineOcrClient()
+            env = {
+                "CAMPUSRAG_RAW_ROOT": str(raw_root),
+                "RAW_INGESTION_ARTIFACT_MODE": "provider_only",
+                "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
+                "OCR_API_KEY": "token",
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                "IMPORT_REPORT_DIR": str(root / "reports"),
+                "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
+            }
+            registry = FileDocumentRegistry(root / "registry" / "student_handbook_documents.json")
+            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
+
+            first = process_raw_ingestion_job(
+                env=env,
+                object_store=object_store,
+                online_ocr=online_ocr,
+                registry=registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+            second = process_raw_ingestion_job(
+                env=env,
+                object_store=object_store,
+                online_ocr=online_ocr,
+                registry=registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            raw_hash = hashlib.sha256(raw_bytes).hexdigest()
+            provider_key = f"student_handbook/assets/volatile-pdf/sha256/{raw_hash}/provider-result.jsonl"
+
+            self.assertEqual(first.success_count, 1)
+            self.assertEqual(second.success_count, 1)
+            self.assertEqual(second.skipped_count, 0)
+            self.assertEqual(second.raw_uploaded_count, 0)
+            self.assertEqual(second.raw_reused_count, 1)
+            self.assertEqual(len(object_store.uploads), 3)
+            self.assertEqual(object_store.uploads[-1]["key"], provider_key)
+
+    def test_provider_only_rejects_split_manifest(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            raw_root = root / "raw"
+            raw_root.mkdir(parents=True)
+            raw_root.joinpath("student-handbook.pdf").write_bytes(b"%PDF-1.4 remote student handbook")
+            split_manifest_path = root / "configs" / "split-manifest.v1.json"
+            split_manifest_path.parent.mkdir(parents=True)
+            split_manifest_path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "corpus": "student_handbook",
+                        "raw_asset_id": "asset:student-handbook-pdf",
+                        "documents": [],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "provider_only does not support split manifest ingestion"):
+                process_raw_ingestion_job(
+                    env={
+                        "CAMPUSRAG_RAW_ROOT": str(raw_root),
+                        "RAW_INGESTION_ARTIFACT_MODE": "provider_only",
+                        "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
+                        "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
+                        "OCR_API_KEY": "token",
+                        "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                        "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                        "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                        "IMPORT_REPORT_DIR": str(root / "reports"),
+                    },
+                    object_store=_FakeObjectStore(),
+                    online_ocr=_FakeOnlineOcrClient(),
+                    registry=FileDocumentRegistry(root / "registry" / "student_handbook_documents.json"),
+                    raw_asset_registry=FileRawAssetRegistry(
+                        root / "registry" / "student_handbook_raw_assets.json"
+                    ),
+                )
 
     def test_process_raw_ingestion_job_supports_curriculum_plan_split_manifest(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -405,6 +573,8 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                     f"curriculum_plan/assets/curriculum-plan-master-pdf/sha256/{raw_hash}/structured-full.jsonl",
                 ],
             )
+            self.assertEqual(plan_001["cleaning_policy_version"], "curriculum_plan_cleaning_v1")
+            self.assertEqual(plan_002["cleaning_policy_version"], "curriculum_plan_cleaning_v1")
             self.assertEqual(plan_002["campus_scope"], "main")
             self.assertEqual(plan_002["acl_groups"], ["students"])
 

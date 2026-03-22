@@ -24,6 +24,7 @@ class RegistryModelsTest(unittest.TestCase):
             source_uri="campusrag://canonical/student_handbook/docs/test-001.md",
             content_hash="sha256:test-001",
             corpus="student_handbook",
+            cleaning_policy_version="student_handbook_cleaning_v1",
             acl_groups=("students",),
             campus_scope=None,
             status="active",
@@ -46,6 +47,7 @@ class RegistryModelsTest(unittest.TestCase):
 
         self.assertEqual(payload["document_id"], "handbook:test-001")
         self.assertEqual(payload["corpus"], "student_handbook")
+        self.assertEqual(payload["cleaning_policy_version"], "student_handbook_cleaning_v1")
         self.assertEqual(payload["status"], "active")
         self.assertEqual(payload["import_source"], "campusrag_existing_ocr")
         self.assertEqual(payload["raw_asset"]["raw_asset_id"], "asset:student-handbook-pdf")
@@ -62,6 +64,7 @@ class RegistryModelsTest(unittest.TestCase):
                 source_uri="campusrag://canonical/student_handbook/docs/test-001.md",
                 content_hash="sha256:test-001",
                 corpus="student_handbook",
+                cleaning_policy_version="student_handbook_cleaning_v1",
                 acl_groups=("students",),
                 campus_scope=None,
                 status="active",
@@ -94,6 +97,7 @@ class RegistryModelsTest(unittest.TestCase):
                 source_uri="campusrag://canonical/student_handbook/docs/test-001.md",
                 content_hash="sha256:test-001",
                 corpus="student_handbook",
+                cleaning_policy_version="student_handbook_cleaning_v1",
                 acl_groups=("students",),
                 campus_scope=None,
                 status="active",
@@ -117,6 +121,7 @@ class RegistryModelsTest(unittest.TestCase):
                 source_uri="campusrag://canonical/student_handbook/docs/test-001.md",
                 content_hash="sha256:test-002",
                 corpus="student_handbook",
+                cleaning_policy_version="student_handbook_cleaning_v2",
                 acl_groups=("students",),
                 campus_scope=None,
                 status="active",
@@ -154,6 +159,7 @@ class RegistryModelsTest(unittest.TestCase):
                 source_uri="campusrag://canonical/student_handbook/docs/test-001.md",
                 content_hash="sha256:test-001",
                 corpus="student_handbook",
+                cleaning_policy_version="student_handbook_cleaning_v1",
                 acl_groups=(),
                 campus_scope=None,
                 status="active",
@@ -172,6 +178,7 @@ class RegistryModelsTest(unittest.TestCase):
                 source_uri="https://campus.example/curriculum/plan-001",
                 content_hash="sha256:doc-001",
                 corpus="curriculum_plan",
+                cleaning_policy_version="curriculum_plan_cleaning_v1",
                 acl_groups=(),
                 campus_scope="main",
                 status="active",
@@ -211,6 +218,7 @@ class RegistryModelsTest(unittest.TestCase):
                             "source_uri": "campusrag://canonical/student_handbook/docs/test-001.md",
                             "content_hash": "sha256:test-001",
                             "corpus": "student_handbook",
+                            "cleaning_policy_version": "student_handbook_cleaning_v1",
                             "acl_groups": ["students"],
                             "campus_scope": None,
                             "status": "active",
@@ -236,6 +244,7 @@ class RegistryModelsTest(unittest.TestCase):
                 loaded.provider_result_object_key,
                 "student_handbook/documents/handbook/test-001/v1/test-001/provider-result.jsonl",
             )
+            self.assertEqual(loaded.cleaning_policy_version, "student_handbook_cleaning_v1")
             self.assertEqual(
                 loaded.structured_object_key,
                 "student_handbook/documents/handbook/test-001/v1/test-001/structured.jsonl",

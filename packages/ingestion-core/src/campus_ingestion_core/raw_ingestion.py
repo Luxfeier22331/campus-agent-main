@@ -18,7 +18,10 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     persist_import_documents,
     resolved_raw_asset,
     utc_now,
+    write_import_report,
 )
+from campus_ingestion_core.corpus_profiles import load_corpus_runtime_profile
+from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.object_store import build_processed_asset_artifact_key
 from campus_ingestion_core.registry import (
     DocumentRegistry,
@@ -35,6 +38,8 @@ DEFAULT_ONLINE_OCR_POLL_SECONDS = 5
 DEFAULT_ONLINE_OCR_TIMEOUT_SECONDS = 300
 DEFAULT_RAW_ONLINE_OCR_PARSER_VERSION = "paddleocr-vl-1.5"
 DEFAULT_INGESTION_CORPUS = "student_handbook"
+DEFAULT_RAW_INGESTION_ARTIFACT_MODE = "normalized"
+ALLOWED_RAW_INGESTION_ARTIFACT_MODES = ("normalized", "provider_only")
 
 
 @dataclass(frozen=True, slots=True)
@@ -187,9 +192,11 @@ class RawIngestionProcessSettings:
     source_paths: tuple[Path, ...]
     report_dir: Path
     corpus: str
+    artifact_mode: str
     split_manifest_path: Path | None
     parser_version: str
     embedding_model: str
+    cleaning_policy_version: str
     default_campus_scope: str | None
     online_ocr: OnlineOcrSettings
     object_store: ObjectStoreSettings
@@ -203,21 +210,31 @@ class RawIngestionProcessSettings:
         if not raw_root_value and not job_path_value and not source_paths:
             raise ValueError("CAMPUSRAG_RAW_ROOT, RAW_INGESTION_JOB_PATH, or RAW_INGESTION_SOURCE_PATHS is required")
         corpus = _read_ingestion_corpus(source)
+        profile = load_corpus_runtime_profile(corpus)
+        artifact_mode = _read_raw_ingestion_artifact_mode(source)
         split_manifest_path_value = (source.get("INGESTION_SPLIT_MANIFEST_PATH") or "").strip()
         online_ocr = OnlineOcrSettings.from_env(source, required=True)
         if online_ocr is None:
             raise ValueError("OCR_BASE_URL and OCR_API_KEY must be configured together")
-        if corpus == "curriculum_plan" and not split_manifest_path_value:
-            raise ValueError("INGESTION_SPLIT_MANIFEST_PATH is required for curriculum_plan raw ingestion")
+        if artifact_mode not in profile.allowed_artifact_modes:
+            raise ValueError(
+                f"{corpus} does not support RAW_INGESTION_ARTIFACT_MODE={artifact_mode}"
+            )
+        if artifact_mode == "provider_only" and split_manifest_path_value:
+            raise ValueError("provider_only does not support split manifest ingestion")
+        if profile.split_manifest_required and not split_manifest_path_value:
+            raise ValueError(f"INGESTION_SPLIT_MANIFEST_PATH is required for {corpus} raw ingestion")
         return cls(
             raw_root=Path(raw_root_value) if raw_root_value else None,
             job_path=Path(job_path_value) if job_path_value else None,
             source_paths=source_paths,
             report_dir=Path((source.get("IMPORT_REPORT_DIR") or "./var/import-reports").strip()),
             corpus=corpus,
+            artifact_mode=artifact_mode,
             split_manifest_path=Path(split_manifest_path_value) if split_manifest_path_value else None,
             parser_version=DEFAULT_RAW_ONLINE_OCR_PARSER_VERSION,
             embedding_model=(source.get("INGESTION_EMBEDDING_MODEL") or source.get("EMBEDDING_MODEL") or "").strip(),
+            cleaning_policy_version=profile.cleaning_policy_version,
             default_campus_scope=(source.get("INGESTION_DEFAULT_CAMPUS_SCOPE") or "").strip() or None,
             online_ocr=online_ocr,
             object_store=ObjectStoreSettings.from_env(source),
@@ -282,10 +299,18 @@ def process_raw_ingestion_job(
     raw_asset_registry: RawAssetRegistry | None = None,
 ) -> ImportReport:
     settings = RawIngestionProcessSettings.from_env(env)
-    registry = registry or build_document_registry_from_env(env)
     raw_asset_registry = raw_asset_registry or build_raw_asset_registry_from_env(env)
     writer = object_store or S3ObjectStoreWriter(settings.object_store)
     ocr_client = online_ocr or PaddleOcrAsyncClient(settings.online_ocr)
+    if settings.artifact_mode == "provider_only":
+        return _persist_provider_only_ocr_results(
+            settings=settings,
+            writer=writer,
+            ocr_client=ocr_client,
+            raw_asset_registry=raw_asset_registry,
+        )
+
+    registry = registry or build_document_registry_from_env(env)
     split_manifest = (
         load_split_manifest(settings.split_manifest_path, expected_corpus=settings.corpus)
         if settings.split_manifest_path is not None
@@ -338,11 +363,98 @@ def process_raw_ingestion_job(
         object_store=settings.object_store,
         parser_version=settings.parser_version,
         embedding_model=settings.embedding_model,
+        cleaning_policy_version=settings.cleaning_policy_version,
         default_campus_scope=settings.default_campus_scope,
         import_mode="raw_ingestion",
         report_dir=settings.report_dir,
         report_prefix="process-raw-ingestion-job",
         initial_errors=errors,
+    )
+
+
+def _persist_provider_only_ocr_results(
+    *,
+    settings: RawIngestionProcessSettings,
+    writer: ObjectStoreWriter,
+    ocr_client: OnlineOcrClient,
+    raw_asset_registry: RawAssetRegistry,
+) -> ImportReport:
+    success_count = 0
+    failed_count = 0
+    raw_uploaded_count = 0
+    raw_reused_count = 0
+    errors: list[str] = []
+    timestamp = utc_now()
+    uploaded_raw_assets: set[tuple[str, str]] = set()
+
+    for pdf_path in _collect_job_pdf_paths(settings):
+        try:
+            parse_result = ocr_client.parse_pdf(pdf_path)
+            raw_asset = resolved_raw_asset(
+                raw_path=pdf_path,
+                raw_source_uri=f"file://{pdf_path.resolve()}",
+                corpus=settings.corpus,
+            )
+            if raw_asset is None:
+                raise ValueError(f"unable to resolve raw asset for {pdf_path}")
+
+            raw_asset_key = (raw_asset.raw_asset_id, raw_asset.raw_version_id)
+            existing_raw_record = raw_asset_registry.get(*raw_asset_key)
+            if existing_raw_record is not None or raw_asset_key in uploaded_raw_assets:
+                raw_reused_count += 1
+            else:
+                writer.put_bytes(
+                    bucket=settings.object_store.bucket_raw,
+                    key=raw_asset.object_key,
+                    data=pdf_path.read_bytes(),
+                    content_type="application/pdf",
+                )
+                raw_asset_registry.upsert(
+                    RawAssetRecord(
+                        raw_asset_id=raw_asset.raw_asset_id,
+                        raw_version_id=raw_asset.raw_version_id,
+                        corpus=settings.corpus,
+                        raw_source_uri=raw_asset.raw_source_uri,
+                        content_hash=raw_asset.content_hash,
+                        source_filename=raw_asset.source_filename,
+                        object_key=raw_asset.object_key,
+                        ingestion_timestamp=timestamp,
+                        import_source="raw_online_ocr",
+                    )
+                )
+                uploaded_raw_assets.add(raw_asset_key)
+                raw_uploaded_count += 1
+
+            provider_result_key = build_processed_asset_artifact_key(
+                corpus=settings.corpus,
+                raw_asset_id=raw_asset.raw_asset_id,
+                raw_version_id=raw_asset.raw_version_id,
+                filename="provider-result.jsonl",
+            )
+            writer.put_bytes(
+                bucket=settings.object_store.bucket_processed,
+                key=provider_result_key,
+                data=parse_result.provider_result_bytes,
+                content_type="application/x-ndjson",
+            )
+            success_count += 1
+        except Exception as exc:
+            failed_count += 1
+            errors.append(f"{pdf_path}: {exc}")
+
+    return write_import_report(
+        import_mode="raw_ingestion",
+        report_dir=settings.report_dir,
+        report_prefix="process-raw-ingestion-job",
+        success_count=success_count,
+        skipped_count=0,
+        failed_count=failed_count,
+        raw_uploaded_count=raw_uploaded_count,
+        raw_reused_count=raw_reused_count,
+        document_ids=(),
+        unresolved_source_pdfs=(),
+        errors=tuple(errors),
+        timestamp=timestamp,
     )
 
 
@@ -682,6 +794,14 @@ def _read_ingestion_corpus(source: dict[str, str]) -> str:
     if corpus not in ALLOWED_CORPORA:
         raise ValueError(f"unsupported corpus: {corpus}")
     return corpus
+
+
+def _read_raw_ingestion_artifact_mode(source: dict[str, str]) -> str:
+    mode = (source.get("RAW_INGESTION_ARTIFACT_MODE") or DEFAULT_RAW_INGESTION_ARTIFACT_MODE).strip().lower()
+    normalized_mode = mode or DEFAULT_RAW_INGESTION_ARTIFACT_MODE
+    if normalized_mode not in ALLOWED_RAW_INGESTION_ARTIFACT_MODES:
+        raise ValueError(f"unsupported RAW_INGESTION_ARTIFACT_MODE: {normalized_mode}")
+    return normalized_mode
 
 
 def _collect_job_pdf_paths(settings: RawIngestionProcessSettings) -> tuple[Path, ...]:

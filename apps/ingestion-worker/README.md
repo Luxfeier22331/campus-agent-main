@@ -8,6 +8,7 @@ Runtime shell for campus-agent v2 ingestion commands.
 
 - Query-facing default corpus remains `student_handbook`.
 - Data-plane ingestion supports `student_handbook` and `curriculum_plan`.
+- Corpus-specific phase-1 runtime truth lives in `configs/ingestion/<corpus>/runtime-profile.json`.
 
 ### `import_campusrag_existing_ocr`
 
@@ -76,7 +77,6 @@ Required env:
 - `OBJECT_STORE_ENDPOINT`
 - `OBJECT_STORE_ACCESS_KEY`
 - `OBJECT_STORE_SECRET_KEY`
-- `DOCUMENT_REGISTRY_DATABASE_URL`
 - `OCR_BASE_URL`
 - `OCR_API_KEY`
 - One of:
@@ -84,6 +84,7 @@ Required env:
 
 Optional env:
 
+- `DOCUMENT_REGISTRY_DATABASE_URL`
 - `OCR_MODEL`
 - `OCR_POLL_SECONDS`
 - `OCR_TIMEOUT_SECONDS`
@@ -92,6 +93,7 @@ Optional env:
 - `RAW_INGESTION_SOURCE_PATHS`
 - `INGESTION_CORPUS`
 - `INGESTION_SPLIT_MANIFEST_PATH`
+- `RAW_INGESTION_ARTIFACT_MODE`
 - `INGESTION_EMBEDDING_MODEL`
 - `INGESTION_DEFAULT_CAMPUS_SCOPE`
 
@@ -101,9 +103,12 @@ Behavior:
 - `RAW_INGESTION_SOURCE_PATHS` takes precedence when set.
 - Uploads raw PDFs into the raw bucket.
 - Calls the async OCR provider.
-- Stores `provider-result.jsonl` and `structured.jsonl` separately in the processed bucket.
-- When `INGESTION_CORPUS=curriculum_plan`, requires a split manifest and stores asset-level `provider-result.jsonl` / `structured-full.jsonl` plus per-document `structured.jsonl`.
-- Registers processed results in the document registry with `import_source=raw_online_ocr`.
+- Default `RAW_INGESTION_ARTIFACT_MODE=normalized` stores `provider-result.jsonl` and `structured.jsonl` separately in the processed bucket.
+- `RAW_INGESTION_ARTIFACT_MODE=provider_only` stores only the raw PDF plus asset-level `provider-result.jsonl`, and skips `structured.jsonl` and document-registry writes.
+- Runtime-profile gating decides whether the selected corpus accepts `normalized` or `provider_only`.
+- When `INGESTION_CORPUS=curriculum_plan`, the runtime profile requires a split manifest and stores asset-level `provider-result.jsonl` / `structured-full.jsonl` plus per-document `structured.jsonl`.
+- Only normalized mode registers processed results in the document registry with `import_source=raw_online_ocr`.
+- Normalized document-registry writes persist the corpus cleaning policy version for traceability.
 
 ### `rebuild_local_data`
 

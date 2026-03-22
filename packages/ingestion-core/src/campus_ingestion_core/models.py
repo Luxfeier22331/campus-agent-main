@@ -69,6 +69,7 @@ class DocumentRegistryRecord:
     source_uri: str
     content_hash: str
     corpus: str
+    cleaning_policy_version: str = ""
     acl_groups: tuple[str, ...] = field(default_factory=tuple)
     campus_scope: str | None = None
     status: str = "active"

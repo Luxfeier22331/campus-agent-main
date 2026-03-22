@@ -16,6 +16,7 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     utc_now,
     write_import_report,
 )
+from campus_ingestion_core.corpus_profiles import load_corpus_runtime_profile
 from campus_ingestion_core.registry import (
     DocumentRegistry,
     RawAssetRegistry,
@@ -36,6 +37,7 @@ class ExistingOcrImportSettings:
     corpus: str
     parser_version: str
     embedding_model: str
+    cleaning_policy_version: str
     default_campus_scope: str | None
     object_store: ObjectStoreSettings
 
@@ -49,6 +51,7 @@ class ExistingOcrImportSettings:
         corpus = (source.get("INGESTION_CORPUS") or "student_handbook").strip() or "student_handbook"
         if corpus not in ALLOWED_CORPORA:
             raise ValueError(f"unsupported corpus: {corpus}")
+        profile = load_corpus_runtime_profile(corpus)
         return cls(
             ocr_root=Path(ocr_root_value),
             raw_root=Path(raw_root_value) if raw_root_value else None,
@@ -56,6 +59,7 @@ class ExistingOcrImportSettings:
             corpus=corpus,
             parser_version=DEFAULT_EXISTING_OCR_PARSER_VERSION,
             embedding_model=(source.get("INGESTION_EMBEDDING_MODEL") or source.get("EMBEDDING_MODEL") or "").strip(),
+            cleaning_policy_version=profile.cleaning_policy_version,
             default_campus_scope=(source.get("INGESTION_DEFAULT_CAMPUS_SCOPE") or "").strip() or None,
             object_store=ObjectStoreSettings.from_env(source),
         )
@@ -130,6 +134,7 @@ def import_campusrag_existing_ocr(
         object_store=settings.object_store,
         parser_version=settings.parser_version,
         embedding_model=settings.embedding_model,
+        cleaning_policy_version=settings.cleaning_policy_version,
         default_campus_scope=settings.default_campus_scope,
         import_mode="existing_ocr",
         report_dir=settings.report_dir,
