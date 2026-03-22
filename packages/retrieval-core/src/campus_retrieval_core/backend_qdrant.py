@@ -5,7 +5,10 @@ from typing import Sequence
 
 from campus_contracts import EvidenceBundle, EvidenceSource
 from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
-from campus_ingestion_core.registry import DocumentRegistry, FileDocumentRegistry
+from campus_ingestion_core.registry import (
+    DocumentRegistry,
+    build_document_registry_from_env,
+)
 from llama_index.core.schema import MetadataMode
 from llama_index.core.vector_stores import FilterCondition, FilterOperator, MetadataFilter, MetadataFilters
 from llama_index.core.vector_stores.types import VectorStoreQuery
@@ -28,7 +31,9 @@ class QdrantRetrievalBackend:
     embedding_model: object | None = None
 
     def __post_init__(self) -> None:
-        self.registry = self.registry or FileDocumentRegistry(self.settings.document_registry_path)
+        self.registry = self.registry or build_document_registry_from_env(
+            {"DOCUMENT_REGISTRY_DATABASE_URL": self.settings.document_registry_database_url}
+        )
         self.qdrant_client = self.qdrant_client or _build_qdrant_client(self.settings)
         self.embedding_model = self.embedding_model or build_embedding_model(
             EmbeddingSettings(

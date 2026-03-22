@@ -9,3 +9,4 @@ build/
 !.env.example
 !.env.local-minimal.example
 tmp.md
+var/

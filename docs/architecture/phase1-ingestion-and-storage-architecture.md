@@ -22,6 +22,7 @@ updated: 2026-03-22
 - Ingestion Worker 负责去重、版本推进、解析、chunking 和索引写入
 - Object Storage 负责原始文档和处理中间结果
   当前阶段实现为本机部署的 `MinIO`
+- Raw Asset Registry 负责原始文件级真相元数据
 - Document Registry 负责文档级真相元数据
 - Qdrant 负责 chunk metadata payload 和向量索引
 - Retrieval Core 通过 LlamaIndex 直连 Qdrant，并结合 registry 信息返回 evidence bundle
@@ -79,6 +80,28 @@ updated: 2026-03-22
 - `processed` 必须能重建 chunk，但对象存储不承载 canonical chunk 集合
 - 如果为了备份、审计或离线重建导出 chunk manifest，该导出物只能是派生副本，不能替代 Qdrant 中的在线检索数据
 
+### `student_handbook` Chunking Runtime Truth
+
+第一阶段把 `student_handbook` 的 chunking / cleaning 策略直接冻结为 runtime truth，不通过环境变量做可变参数开关。
+
+固定参数：
+
+- `target_tokens = 240`
+- `max_tokens = 360`
+- `overlap_tokens = 48`
+- `min_tokens = 40`
+- `split_strategy = structure_first`
+- `chunk_policy_version = student_handbook_semantic_v1`
+- `cleaning_policy_version = student_handbook_cleaning_v1`
+
+固定语义：
+
+- 只支持 `article_body`、`policy_page`、`table`、`table_row` 四类 handbook 语义单元
+- `article_body` / `policy_page` 先做 cleaning，再按 token guardrail split
+- `table` / `table_row` 作为 evidence 单元保留，不在 phase-1 ingestion 内再次切分
+- parent unit 中的原始 HTML table 必须移除，并替换为表格占位文本；细粒度表格事实由 `table` / `table_row` 承担
+- oversize split 结果必须写出 `root_unit_id`、`segment_index`、`segment_total`、`split_reason`
+
 ### Document Registry
 
 存储内容：
@@ -94,6 +117,10 @@ updated: 2026-03-22
 - `ingestion_timestamp`
 - `parser_version`
 - `embedding_model`
+- `raw_asset.raw_asset_id`
+- `raw_asset.raw_version_id`
+- `raw_asset.page_start`
+- `raw_asset.page_end`
 - `structured_object_key`
 - `provider_result_object_key`
 
@@ -102,6 +129,26 @@ updated: 2026-03-22
 - 作为文档元数据真相源
 - 支撑增量更新、删除和审计
 - 支撑 retrieval 前置过滤和 evidence 回链
+- 不重复承载 raw 文件身份；raw 文件身份由 raw asset registry 独立维护
+
+### Raw Asset Registry
+
+存储内容：
+
+- `raw_asset_id`
+- `raw_version_id`
+- `raw_source_uri`
+- `content_hash`
+- `source_filename`
+- `object_key`
+- `ingestion_timestamp`
+- `import_source`
+
+作用：
+
+- 作为原始文件级真相源
+- 支撑同一份 PDF 被多个逻辑文档共享时只上传和登记一次
+- 支撑 raw layer 审计、重处理和重建
 
 ## 第一阶段固定流程
 
@@ -184,11 +231,12 @@ updated: 2026-03-22
   - `campus-rag-raw`
   - `campus-rag-processed`
 - object key 建议采用：
-  - raw bucket: `student_handbook/{document_id}/{version_id}/{original_filename}`
-  - processed bucket: `student_handbook/{document_id}/{version_id}/{artifact_filename}`
+  - raw bucket: `student_handbook/assets/{raw_asset_kind}/{raw_asset_slug}/{hash_algorithm}/{hash_value}/{original_filename}`
+  - processed bucket: `student_handbook/documents/{document_kind}/{document_slug}/{version_kind}/{version_slug}/{artifact_filename}`
 - 在线 OCR 接入时，`processed/` 下至少允许：
-  - `student_handbook/{document_id}/{version_id}/provider-result.jsonl`
-  - `student_handbook/{document_id}/{version_id}/structured.jsonl`
+  - `student_handbook/documents/{document_kind}/{document_slug}/{version_kind}/{version_slug}/provider-result.jsonl`
+  - `student_handbook/documents/{document_kind}/{document_slug}/{version_kind}/{version_slug}/structured.jsonl`
+- 逻辑 ID 本身可以继续保留 `handbook:...`、`v1:...`、`sha256:...` 语义，但 object key 必须把这些 ID 展开成不含冒号的路径层级
 - 不为 chunk 单独建立 canonical object storage 路径；chunk 的在线主存储保持在 `Qdrant`
 
 详细约束见：

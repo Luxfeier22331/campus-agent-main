@@ -2,17 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import json
-from typing import Any, Sequence
+from typing import Sequence
 import uuid
 
 from llama_index.core.base.embeddings.base import BaseEmbedding
-from llama_index.core.ingestion import IngestionPipeline
-from llama_index.core.schema import MetadataMode, NodeRelationship, RelatedNodeInfo, TextNode
+from llama_index.core.schema import NodeRelationship, RelatedNodeInfo, TextNode
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
 
-from campus_ingestion_core.chunking import ChunkProfile
+from campus_ingestion_core.chunking import ChunkProfile, StructuredUnitChunkInput, chunk_structured_unit
 from campus_ingestion_core.models import DocumentRegistryRecord
 
 
@@ -25,6 +24,8 @@ class StructuredUnit:
     source_chunk_id: str | None
     anchor: dict[str, object]
     acl_level: str
+    unit_type: str
+    root_unit_id: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,26 +90,22 @@ def build_indexable_chunks_from_jsonl(
     if not units:
         return ()
 
-    transformations: list[Any] = [(chunk_profile or ChunkProfile()).build_splitter()]
-    if embedding_model is not None:
-        transformations.append(embedding_model)
-
+    runtime_profile = chunk_profile or ChunkProfile()
     chunks: list[IndexableChunk] = []
     chunk_order = 0
     for unit in units:
-        pipeline = IngestionPipeline(transformations=transformations)
-        nodes = pipeline.run(
-            nodes=[
-                TextNode(
-                    id_=f"{record.document_id}:{unit.unit_index:04d}",
-                    text=unit.text,
-                )
-            ]
+        pieces = chunk_structured_unit(
+            unit=StructuredUnitChunkInput(
+                unit_type=unit.unit_type,
+                root_unit_id=unit.root_unit_id,
+                text=unit.text,
+            ),
+            chunk_profile=runtime_profile,
         )
-        for node in nodes:
+        for piece in pieces:
             chunk_order += 1
             chunk_id = f"{record.document_id}:{record.version_id}:chunk-{chunk_order:04d}"
-            embedding = tuple(float(item) for item in node.embedding) if node.embedding is not None else None
+            embedding = _embed_text(piece.text, embedding_model)
             chunks.append(
                 IndexableChunk(
                     document_id=record.document_id,
@@ -122,11 +119,20 @@ def build_indexable_chunks_from_jsonl(
                     source_chunk_id=unit.source_chunk_id,
                     acl_level=unit.acl_level,
                     anchor=unit.anchor,
-                    text=node.get_content(metadata_mode=MetadataMode.NONE).strip(),
+                    text=piece.text,
                     parser_version=record.parser_version,
                     embedding_model=record.embedding_model,
                     embedding=embedding,
-                    metadata={},
+                    metadata={
+                        "unit_type": piece.unit_type,
+                        "root_unit_id": piece.root_unit_id,
+                        "segment_index": piece.segment_index,
+                        "segment_total": piece.segment_total,
+                        "split_reason": piece.split_reason,
+                        "split_strategy": runtime_profile.split_strategy,
+                        "chunk_policy_version": runtime_profile.chunk_policy_version,
+                        "cleaning_policy_version": runtime_profile.cleaning_policy_version,
+                    },
                 )
             )
     return tuple(chunks)
@@ -177,6 +183,8 @@ def _load_structured_units(
                 source_chunk_id=_normalize_optional_text(raw.get("chunk_id")),
                 anchor=_normalize_anchor(raw.get("anchor")),
                 acl_level=_normalize_acl_level(raw.get("acl")),
+                unit_type=_normalize_unit_type(raw.get("unit_type")),
+                root_unit_id=_normalize_root_unit_id(raw),
             )
         )
     return tuple(units)
@@ -208,6 +216,29 @@ def _normalize_acl_level(value: object) -> str:
     if not isinstance(acl_level, str) or not acl_level.strip():
         return "public"
     return acl_level.strip()
+
+
+def _normalize_unit_type(value: object) -> str:
+    if not isinstance(value, str):
+        return "policy_page"
+    normalized = value.strip()
+    return normalized or "policy_page"
+
+
+def _normalize_root_unit_id(raw: dict[str, object]) -> str:
+    root_unit_id = raw.get("root_unit_id")
+    if isinstance(root_unit_id, str) and root_unit_id.strip():
+        return root_unit_id.strip()
+    source_chunk_id = raw.get("chunk_id")
+    if isinstance(source_chunk_id, str) and source_chunk_id.strip():
+        return source_chunk_id.strip()
+    return f"{raw.get('doc_id', '')}:{raw.get('version_id', '')}:root"
+
+
+def _embed_text(text: str, embedding_model: BaseEmbedding | None) -> tuple[float, ...] | None:
+    if embedding_model is None:
+        return None
+    return tuple(float(item) for item in embedding_model.get_text_embedding(text))
 
 
 def _ensure_payload_indexes(*, qdrant_client: QdrantClient, collection_name: str) -> None:

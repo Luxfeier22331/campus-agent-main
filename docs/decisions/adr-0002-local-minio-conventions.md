@@ -42,13 +42,13 @@ updated: 2026-03-22
 
 第一阶段 object key 采用稳定层级：
 
-- raw bucket: `student_handbook/{document_id}/{version_id}/{original_filename}`
-- processed bucket: `student_handbook/{document_id}/{version_id}/{artifact_filename}`
+- raw bucket: `student_handbook/assets/{raw_asset_kind}/{raw_asset_slug}/{hash_algorithm}/{hash_value}/{original_filename}`
+- processed bucket: `student_handbook/documents/{document_kind}/{document_slug}/{version_kind}/{version_slug}/{artifact_filename}`
 
 在线 OCR 的 processed artifact 约定：
 
-- `student_handbook/{document_id}/{version_id}/provider-result.jsonl`
-- `student_handbook/{document_id}/{version_id}/structured.jsonl`
+- `student_handbook/documents/{document_kind}/{document_slug}/{version_kind}/{version_slug}/provider-result.jsonl`
+- `student_handbook/documents/{document_kind}/{document_slug}/{version_kind}/{version_slug}/structured.jsonl`
 
 说明：
 
@@ -59,8 +59,13 @@ updated: 2026-03-22
 不变量：
 
 - 第一层固定为 `corpus`
-- 第二层固定为 `document_id`
-- 第三层固定为 `version_id`
+- raw 第二层固定为 `assets`
+- processed 第二层固定为 `documents`
+- identity segment 不直接把 `:` 放进 object key，而是按语义拆成多级路径
+- 例如 `asset:student-handbook-pdf` 展开为 `asset/student-handbook-pdf`
+- 例如 `sha256:b618...` 展开为 `sha256/b618...`
+- 例如 `handbook:00e...` 展开为 `handbook/00e...`
+- 例如 `v1:2fba...` 展开为 `v1/2fba...`
 - raw / processed 层级语义由 bucket 表达，不在 key 内重复编码
 
 禁止做法：
@@ -68,6 +73,8 @@ updated: 2026-03-22
 - 不以临时文件名作为 object key 主标识
 - 不把主机路径写进 object key
 - 不把 chunk 顺序直接当作 document identity
+- 不把 raw 文件身份绑到 `document_id/version_id`
+- 不允许同一份 raw PDF 因为多个逻辑文档而在 raw bucket 重复保存
 
 ## 元数据与 Registry 对齐
 
@@ -84,11 +91,25 @@ updated: 2026-03-22
 - `ingestion_timestamp`
 - `parser_version`
 - `embedding_model`
+- `raw_asset.raw_asset_id`
+- `raw_asset.raw_version_id`
+- `raw_asset.page_start`
+- `raw_asset.page_end`
+
+以下字段必须在 raw asset registry 中显式存在：
+
+- `raw_asset_id`
+- `raw_version_id`
+- `raw_source_uri`
+- `content_hash`
+- `source_filename`
+- `object_key`
 
 换句话说：
 
 - object storage 负责承载文件
-- document registry 负责承载真相元数据
+- raw asset registry 负责承载 raw 文件级真相元数据
+- document registry 负责承载逻辑文档级真相元数据
 - 不允许把 MinIO bucket/object 命名当成 registry 的替代品
 
 ## 部署约束
@@ -108,6 +129,7 @@ updated: 2026-03-22
 - object key 结构
 - `source_uri` 生成规则
 - document registry 字段
+- raw asset registry 字段
 - ingestion / retrieval contract
 - raw / processed 分层
 

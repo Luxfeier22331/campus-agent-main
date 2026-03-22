@@ -2,14 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import os
-from pathlib import Path
 from urllib.parse import urlparse
 
 
 DEFAULT_QDRANT_COLLECTION = "student_handbook"
 DEFAULT_QDRANT_TIMEOUT_SECONDS = 10.0
-DEFAULT_DOCUMENT_REGISTRY_BACKEND = "file"
-DEFAULT_DOCUMENT_REGISTRY_PATH = Path("./var/registry/student_handbook.json")
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,8 +15,7 @@ class RetrievalSettings:
     qdrant_collection: str = DEFAULT_QDRANT_COLLECTION
     qdrant_api_key: str | None = None
     qdrant_timeout_seconds: float = DEFAULT_QDRANT_TIMEOUT_SECONDS
-    document_registry_backend: str = DEFAULT_DOCUMENT_REGISTRY_BACKEND
-    document_registry_path: Path = DEFAULT_DOCUMENT_REGISTRY_PATH
+    document_registry_database_url: str = ""
     embedding_provider: str = "openai"
     embedding_model: str = "text-embedding-3-large"
     embedding_api_key: str = ""
@@ -34,12 +30,14 @@ class RetrievalSettings:
             raise ValueError("QDRANT_COLLECTION is required")
         if self.qdrant_timeout_seconds <= 0:
             raise ValueError("QDRANT_TIMEOUT_SECONDS must be greater than zero")
-        if self.document_registry_backend != "file":
-            raise ValueError("only file document registry backend is supported in phase 1")
         if not self.embedding_provider:
             raise ValueError("EMBEDDING_PROVIDER is required")
         if not self.embedding_model:
             raise ValueError("EMBEDDING_MODEL is required")
+        if self.document_registry_database_url:
+            parsed_registry = urlparse(self.document_registry_database_url)
+            if parsed_registry.scheme not in {"postgresql", "postgres"}:
+                raise ValueError("DOCUMENT_REGISTRY_DATABASE_URL must be a postgres URL")
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> "RetrievalSettings":
@@ -51,13 +49,9 @@ class RetrievalSettings:
             qdrant_timeout_seconds=float(
                 (source.get("QDRANT_TIMEOUT_SECONDS") or str(DEFAULT_QDRANT_TIMEOUT_SECONDS)).strip()
             ),
-            document_registry_backend=(
-                source.get("DOCUMENT_REGISTRY_BACKEND") or DEFAULT_DOCUMENT_REGISTRY_BACKEND
-            ).strip()
-            or DEFAULT_DOCUMENT_REGISTRY_BACKEND,
-            document_registry_path=Path(
-                (source.get("DOCUMENT_REGISTRY_PATH") or str(DEFAULT_DOCUMENT_REGISTRY_PATH)).strip()
-            ),
+            document_registry_database_url=(
+                source.get("DOCUMENT_REGISTRY_DATABASE_URL") or ""
+            ).strip(),
             embedding_provider=(source.get("EMBEDDING_PROVIDER") or "openai").strip() or "openai",
             embedding_model=(source.get("EMBEDDING_MODEL") or "text-embedding-3-large").strip(),
             embedding_api_key=(source.get("EMBEDDING_API_KEY") or "").strip(),

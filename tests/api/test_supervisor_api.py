@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import unittest
+from unittest.mock import patch
 
 from campus_contracts import DelegateToRagAgentRequest, DelegateToRagAgentResponse, EvidenceBundle, TraceContext
 from campus_supervisor_api.api import HttpResponse
@@ -81,6 +83,32 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(ready.json_body["status"], "ready")
         self.assertEqual(app.name, "campus-agent-v2")
         self.assertEqual(app.runtime.provider, "agno")
+
+    def test_api_settings_from_env_reads_api_boundary_defaults(self) -> None:
+        env = {
+            "CAMPUS_AGENT_APP_NAME": "campus-agent-test",
+            "API_AUTH_MODE": "bearer",
+            "API_BEARER_TOKEN": "secret-token",
+            "API_DEFAULT_ACTOR_GROUPS": "students,library",
+            "API_DEFAULT_ACTOR_ROLES": "student",
+            "API_DEFAULT_CAMPUS_SCOPE": "north",
+            "AGNO_SUPERVISOR_MODEL": "gpt-supervisor",
+            "AGNO_SPECIALIST_MODEL": "gpt-specialist",
+            "AUDIT_LOG_PATH": "./var/log/custom-audit.log",
+        }
+
+        with patch.dict(os.environ, env, clear=True):
+            settings = ApiSettings.from_env()
+
+        self.assertEqual(settings.app_name, "campus-agent-test")
+        self.assertEqual(settings.auth_mode, "bearer")
+        self.assertEqual(settings.bearer_token, "secret-token")
+        self.assertEqual(settings.default_actor_groups, ("students", "library"))
+        self.assertEqual(settings.default_actor_roles, ("student",))
+        self.assertEqual(settings.default_campus_scope, "north")
+        self.assertEqual(settings.agno_supervisor_model, "gpt-supervisor")
+        self.assertEqual(settings.agno_specialist_model, "gpt-specialist")
+        self.assertEqual(str(settings.audit_log_path), "var/log/custom-audit.log")
 
 
 if __name__ == "__main__":

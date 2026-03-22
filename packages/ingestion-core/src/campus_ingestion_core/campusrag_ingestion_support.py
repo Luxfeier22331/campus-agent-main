@@ -7,9 +7,9 @@ import json
 from pathlib import Path
 from typing import Protocol
 
-from campus_ingestion_core.models import DocumentRegistryRecord
-from campus_ingestion_core.object_store import build_object_key
-from campus_ingestion_core.registry import DocumentRegistry
+from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef
+from campus_ingestion_core.object_store import build_processed_artifact_key, build_raw_asset_key
+from campus_ingestion_core.registry import DocumentRegistry, RawAssetRegistry
 from campus_ingestion_core.settings import ObjectStoreSettings
 
 
@@ -35,12 +35,16 @@ class DocumentImportInput:
     metadata: dict[str, object]
     import_source: str
     raw_path: Path | None = None
+    raw_source_uri: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class ResolvedRawAsset:
+    raw_asset_id: str
+    raw_version_id: str
     source_filename: str
     path: Path
+    raw_source_uri: str
     content_hash: str
     object_key: str
 
@@ -119,7 +123,13 @@ def bind_existing_ocr_raw_provenance(
                 unresolved.append(source_pdf)
                 continue
             resolved_paths[source_pdf] = raw_path
-        bound.append(replace(document, raw_path=raw_path))
+        bound.append(
+            replace(
+                document,
+                raw_path=raw_path,
+                raw_source_uri=f"campusrag://raw/student_handbook/{raw_path.name}",
+            )
+        )
     return bound, tuple(sorted(set(unresolved)))
 
 
@@ -127,6 +137,7 @@ def persist_import_documents(
     *,
     documents: list[DocumentImportInput],
     registry: DocumentRegistry,
+    raw_asset_registry: RawAssetRegistry,
     writer: ObjectStoreWriter,
     object_store: ObjectStoreSettings,
     parser_version: str,
@@ -146,13 +157,7 @@ def persist_import_documents(
     document_ids: list[str] = []
     errors = list(initial_errors or [])
     timestamp = utc_now()
-
-    existing_raw_keys = {
-        record.raw_object_key
-        for record in registry.list_by_corpus("student_handbook")
-        if record.raw_object_key is not None
-    }
-    uploaded_raw_keys: set[str] = set()
+    uploaded_raw_assets: set[tuple[str, str]] = set()
 
     for document in documents:
         metadata = document.metadata
@@ -160,13 +165,15 @@ def persist_import_documents(
         try:
             document_id = str(metadata["document_id"])
             version_id = str(metadata["version_id"])
+            _validate_phase1_document_identity(document_id=document_id, version_id=version_id)
             raw_asset = resolved_raw_asset(
                 raw_path=document.raw_path,
-                document_id=document_id,
-                version_id=version_id,
+                raw_source_uri=document.raw_source_uri,
             )
             if raw_asset is not None:
-                if raw_asset.object_key in uploaded_raw_keys or raw_asset.object_key in existing_raw_keys:
+                raw_asset_key = (raw_asset.raw_asset_id, raw_asset.raw_version_id)
+                existing_raw_record = raw_asset_registry.get(*raw_asset_key)
+                if existing_raw_record is not None or raw_asset_key in uploaded_raw_assets:
                     raw_reused_count += 1
                 else:
                     writer.put_bytes(
@@ -175,7 +182,20 @@ def persist_import_documents(
                         data=document.raw_path.read_bytes(),
                         content_type="application/pdf",
                     )
-                    uploaded_raw_keys.add(raw_asset.object_key)
+                    raw_asset_registry.upsert(
+                        RawAssetRecord(
+                            raw_asset_id=raw_asset.raw_asset_id,
+                            raw_version_id=raw_asset.raw_version_id,
+                            corpus="student_handbook",
+                            raw_source_uri=raw_asset.raw_source_uri,
+                            content_hash=raw_asset.content_hash,
+                            source_filename=raw_asset.source_filename,
+                            object_key=raw_asset.object_key,
+                            ingestion_timestamp=timestamp,
+                            import_source=document.import_source,
+                        )
+                    )
+                    uploaded_raw_assets.add(raw_asset_key)
                     raw_uploaded_count += 1
 
             structured_bytes = document.structured_result_bytes
@@ -187,7 +207,7 @@ def persist_import_documents(
 
             provider_result_key = None
             if document.provider_result_bytes is not None:
-                provider_result_key = build_object_key(
+                provider_result_key = build_processed_artifact_key(
                     corpus="student_handbook",
                     document_id=document_id,
                     version_id=version_id,
@@ -200,7 +220,7 @@ def persist_import_documents(
                     content_type="application/x-ndjson",
                 )
 
-            structured_key = build_object_key(
+            structured_key = build_processed_artifact_key(
                 corpus="student_handbook",
                 document_id=document_id,
                 version_id=version_id,
@@ -228,11 +248,16 @@ def persist_import_documents(
                     ingestion_timestamp=timestamp,
                     parser_version=parser_version,
                     embedding_model=embedding_model,
-                    raw_object_key=raw_asset.object_key if raw_asset is not None else None,
-                    raw_content_hash=raw_asset.content_hash if raw_asset is not None else None,
-                    raw_source_filename=raw_asset.source_filename if raw_asset is not None else None,
-                    raw_page_start=metadata.get("raw_page_start"),
-                    raw_page_end=metadata.get("raw_page_end"),
+                    raw_asset=(
+                        RawAssetRef(
+                            raw_asset_id=raw_asset.raw_asset_id,
+                            raw_version_id=raw_asset.raw_version_id,
+                            page_start=metadata.get("raw_page_start"),
+                            page_end=metadata.get("raw_page_end"),
+                        )
+                        if raw_asset is not None
+                        else None
+                    ),
                     structured_object_key=structured_key,
                     provider_result_object_key=provider_result_key,
                     processed_object_keys=processed_object_keys,
@@ -264,21 +289,25 @@ def persist_import_documents(
 def resolved_raw_asset(
     *,
     raw_path: Path | None,
-    document_id: str,
-    version_id: str,
+    raw_source_uri: str | None,
 ) -> ResolvedRawAsset | None:
     if raw_path is None:
         return None
     raw_hash = hashlib.sha256(raw_path.read_bytes()).hexdigest()
-    object_key = build_object_key(
+    raw_asset_id = build_raw_asset_id(raw_path.name)
+    raw_version_id = f"sha256:{raw_hash}"
+    object_key = build_raw_asset_key(
         corpus="student_handbook",
-        document_id=document_id,
-        version_id=version_id,
+        raw_asset_id=raw_asset_id,
+        raw_version_id=raw_version_id,
         filename=raw_path.name,
     )
     return ResolvedRawAsset(
+        raw_asset_id=raw_asset_id,
+        raw_version_id=raw_version_id,
         source_filename=raw_path.name,
         path=raw_path,
+        raw_source_uri=raw_source_uri or f"file://{raw_path.resolve()}",
         content_hash=raw_hash,
         object_key=object_key,
     )
@@ -302,6 +331,20 @@ def raw_filename_candidates(source_pdf: str) -> tuple[str, ...]:
     if alias is not None:
         candidates.append(alias)
     return tuple(dict.fromkeys(name for name in candidates if name))
+
+
+def build_raw_asset_id(filename: str) -> str:
+    return f"asset:{slugify_label(filename)}"
+
+
+def slugify_label(value: str) -> str:
+    normalized = value.strip().lower()
+    slug = "".join(ch if ch.isalnum() else "-" for ch in normalized).strip("-")
+    while "--" in slug:
+        slug = slug.replace("--", "-")
+    return slug or "asset"
+
+
 def derive_source_uri(metadata: dict[str, object]) -> str:
     source_url = metadata.get("source_url")
     if isinstance(source_url, str) and source_url:
@@ -318,6 +361,13 @@ def normalize_optional_text(value: object) -> str | None:
         return None
     normalized = value.strip()
     return normalized or None
+
+
+def _validate_phase1_document_identity(*, document_id: str, version_id: str) -> None:
+    if not document_id.startswith("handbook:"):
+        raise ValueError(f"phase-1 only supports handbook document ids: {document_id}")
+    if not version_id:
+        raise ValueError("version_id is required")
 
 
 def normalize_optional_int(value: object) -> int | None:

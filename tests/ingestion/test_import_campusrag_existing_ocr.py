@@ -6,6 +6,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
+from campus_ingestion_core.registry import FileDocumentRegistry, FileRawAssetRegistry
 from campus_ingestion_worker.import_campusrag_existing_ocr import import_campusrag_existing_ocr
 
 
@@ -57,6 +58,8 @@ class ImportCampusRagExistingOcrTest(unittest.TestCase):
                 encoding="utf-8",
             )
             object_store = _FakeObjectStore()
+            registry = FileDocumentRegistry(root / "registry" / "student_handbook_documents.json")
+            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
 
             report = import_campusrag_existing_ocr(
                 env={
@@ -64,12 +67,13 @@ class ImportCampusRagExistingOcrTest(unittest.TestCase):
                     "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                     "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                    "DOCUMENT_REGISTRY_PATH": str(root / "registry" / "student_handbook.json"),
                     "IMPORT_REPORT_DIR": str(root / "reports"),
                     "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
-                    "DEFAULT_CAMPUS_SCOPE": "",
+                    "INGESTION_DEFAULT_CAMPUS_SCOPE": "",
                 },
                 object_store=object_store,
+                registry=registry,
+                raw_asset_registry=raw_asset_registry,
             )
 
             self.assertEqual(report.import_mode, "existing_ocr")
@@ -84,21 +88,22 @@ class ImportCampusRagExistingOcrTest(unittest.TestCase):
             self.assertEqual(object_store.uploads[0]["bucket"], "campus-rag-processed")
             self.assertEqual(
                 object_store.uploads[0]["key"],
-                "student_handbook/handbook:abc/v1:abc/structured.jsonl",
+                "student_handbook/documents/handbook/abc/v1/abc/structured.jsonl",
             )
 
             registry_payload = json.loads(
-                (root / "registry" / "student_handbook.json").read_text(encoding="utf-8")
+                (root / "registry" / "student_handbook_documents.json").read_text(encoding="utf-8")
             )
             saved = registry_payload["handbook:abc::v1:abc"]
-            self.assertIsNone(saved["raw_object_key"])
+            self.assertIsNone(saved["raw_asset"])
             self.assertEqual(
                 saved["processed_object_keys"],
-                ["student_handbook/handbook:abc/v1:abc/structured.jsonl"],
+                ["student_handbook/documents/handbook/abc/v1/abc/structured.jsonl"],
             )
             self.assertEqual(saved["import_source"], "campusrag_existing_ocr")
             self.assertEqual(saved["parser_version"], "campusrag-import-v1")
             self.assertEqual(saved["source_uri"], "campusrag://canonical/student_handbook/docs/library-hours.md")
+            self.assertFalse((root / "registry" / "student_handbook_raw_assets.json").exists())
 
     def test_import_with_raw_root_uploads_shared_pdf_once_and_records_provenance(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -151,6 +156,8 @@ class ImportCampusRagExistingOcrTest(unittest.TestCase):
             )
 
             object_store = _FakeObjectStore()
+            registry = FileDocumentRegistry(root / "registry" / "student_handbook_documents.json")
+            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
             report = import_campusrag_existing_ocr(
                 env={
                     "CAMPUSRAG_OCR_ROOT": str(root / "ocr"),
@@ -158,42 +165,77 @@ class ImportCampusRagExistingOcrTest(unittest.TestCase):
                     "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                     "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                    "DOCUMENT_REGISTRY_PATH": str(root / "registry" / "student_handbook.json"),
                     "IMPORT_REPORT_DIR": str(root / "reports"),
                     "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
                 },
                 object_store=object_store,
+                registry=registry,
+                raw_asset_registry=raw_asset_registry,
             )
 
             raw_hash = hashlib.sha256(raw_bytes).hexdigest()
-            raw_key_one = "student_handbook/handbook:abc/v1:abc/student-handbook.pdf"
-            raw_key_two = "student_handbook/handbook:def/v1:def/student-handbook.pdf"
+            raw_version_id = f"sha256:{raw_hash}"
+            raw_key = f"student_handbook/assets/student-handbook-pdf/sha256/{raw_hash}/student-handbook.pdf"
 
             self.assertEqual(report.import_mode, "existing_ocr")
             self.assertEqual(report.success_count, 2)
-            self.assertEqual(report.raw_uploaded_count, 2)
-            self.assertEqual(report.raw_reused_count, 0)
-            self.assertEqual(len(object_store.uploads), 4)
+            self.assertEqual(report.raw_uploaded_count, 1)
+            self.assertEqual(report.raw_reused_count, 1)
+            self.assertEqual(len(object_store.uploads), 3)
             self.assertEqual(object_store.uploads[0]["bucket"], "campus-rag-raw")
-            self.assertEqual(object_store.uploads[0]["key"], raw_key_one)
-            self.assertEqual(object_store.uploads[2]["key"], raw_key_two)
+            self.assertEqual(object_store.uploads[0]["key"], raw_key)
+            self.assertEqual(
+                [upload["key"] for upload in object_store.uploads[1:]],
+                [
+                    "student_handbook/documents/handbook/abc/v1/abc/structured.jsonl",
+                    "student_handbook/documents/handbook/def/v1/def/structured.jsonl",
+                ],
+            )
 
             registry_payload = json.loads(
-                (root / "registry" / "student_handbook.json").read_text(encoding="utf-8")
+                (root / "registry" / "student_handbook_documents.json").read_text(encoding="utf-8")
             )
             saved_one = registry_payload["handbook:abc::v1:abc"]
             saved_two = registry_payload["handbook:def::v1:def"]
-            self.assertEqual(saved_one["raw_object_key"], raw_key_one)
-            self.assertEqual(saved_one["raw_content_hash"], raw_hash)
-            self.assertEqual(saved_one["raw_source_filename"], "student-handbook.pdf")
-            self.assertEqual(saved_one["raw_page_start"], 18)
-            self.assertEqual(saved_one["raw_page_end"], 19)
+            self.assertEqual(
+                saved_one["raw_asset"],
+                {
+                    "raw_asset_id": "asset:student-handbook-pdf",
+                    "raw_version_id": raw_version_id,
+                    "page_start": 18,
+                    "page_end": 19,
+                },
+            )
             self.assertEqual(saved_one["parser_version"], "campusrag-import-v1")
-            self.assertEqual(saved_two["raw_object_key"], raw_key_two)
-            self.assertEqual(saved_two["raw_content_hash"], raw_hash)
-            self.assertEqual(saved_two["raw_page_start"], 20)
-            self.assertEqual(saved_two["raw_page_end"], 24)
+            self.assertEqual(
+                saved_two["raw_asset"],
+                {
+                    "raw_asset_id": "asset:student-handbook-pdf",
+                    "raw_version_id": raw_version_id,
+                    "page_start": 20,
+                    "page_end": 24,
+                },
+            )
             self.assertEqual(saved_two["parser_version"], "campusrag-import-v1")
+            raw_asset_registry_payload = json.loads(
+                (root / "registry" / "student_handbook_raw_assets.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                raw_asset_registry_payload,
+                {
+                    f"asset:student-handbook-pdf::{raw_version_id}": {
+                        "content_hash": raw_hash,
+                        "corpus": "student_handbook",
+                        "import_source": "campusrag_existing_ocr",
+                        "ingestion_timestamp": saved_one["ingestion_timestamp"],
+                        "object_key": raw_key,
+                        "raw_asset_id": "asset:student-handbook-pdf",
+                        "raw_source_uri": "campusrag://raw/student_handbook/student-handbook.pdf",
+                        "raw_version_id": raw_version_id,
+                        "source_filename": "student-handbook.pdf",
+                    }
+                },
+            )
 
     def test_duplicate_import_is_skipped(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -227,14 +269,25 @@ class ImportCampusRagExistingOcrTest(unittest.TestCase):
                 "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                 "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                 "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                "DOCUMENT_REGISTRY_PATH": str(root / "registry" / "student_handbook.json"),
                 "IMPORT_REPORT_DIR": str(root / "reports"),
                 "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
             }
             object_store = _FakeObjectStore()
+            registry = FileDocumentRegistry(root / "registry" / "student_handbook_documents.json")
+            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
 
-            first = import_campusrag_existing_ocr(env=env, object_store=object_store)
-            second = import_campusrag_existing_ocr(env=env, object_store=object_store)
+            first = import_campusrag_existing_ocr(
+                env=env,
+                object_store=object_store,
+                registry=registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+            second = import_campusrag_existing_ocr(
+                env=env,
+                object_store=object_store,
+                registry=registry,
+                raw_asset_registry=raw_asset_registry,
+            )
 
             self.assertEqual(first.success_count, 1)
             self.assertEqual(second.success_count, 0)
@@ -257,11 +310,12 @@ class ImportCampusRagExistingOcrTest(unittest.TestCase):
                     "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                     "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                    "DOCUMENT_REGISTRY_PATH": str(root / "registry" / "student_handbook.json"),
                     "IMPORT_REPORT_DIR": str(root / "reports"),
                     "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
                 },
                 object_store=_FakeObjectStore(),
+                registry=FileDocumentRegistry(root / "registry" / "student_handbook_documents.json"),
+                raw_asset_registry=FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json"),
             )
 
             self.assertEqual(report.import_mode, "existing_ocr")
@@ -305,11 +359,12 @@ class ImportCampusRagExistingOcrTest(unittest.TestCase):
                     "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                     "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                    "DOCUMENT_REGISTRY_PATH": str(root / "registry" / "student_handbook.json"),
                     "IMPORT_REPORT_DIR": str(root / "reports"),
                     "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
                 },
                 object_store=object_store,
+                registry=FileDocumentRegistry(root / "registry" / "student_handbook_documents.json"),
+                raw_asset_registry=FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json"),
             )
 
             self.assertEqual(report.import_mode, "existing_ocr")
@@ -320,7 +375,8 @@ class ImportCampusRagExistingOcrTest(unittest.TestCase):
             self.assertEqual(report.raw_reused_count, 0)
             self.assertEqual(report.unresolved_source_pdfs, ("unknown.pdf",))
             self.assertEqual(object_store.uploads, [])
-            self.assertFalse((root / "registry" / "student_handbook.json").exists())
+            self.assertFalse((root / "registry" / "student_handbook_documents.json").exists())
+            self.assertFalse((root / "registry" / "student_handbook_raw_assets.json").exists())
 
 
 if __name__ == "__main__":

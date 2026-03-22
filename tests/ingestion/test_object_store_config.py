@@ -4,7 +4,8 @@ import unittest
 
 from campus_ingestion_core.object_store import (
     S3ObjectStoreClientFactory,
-    build_object_key,
+    build_processed_artifact_key,
+    build_raw_asset_key,
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
 
@@ -34,8 +35,8 @@ class ObjectStoreConfigTest(unittest.TestCase):
                 }
             )
 
-    def test_build_object_key_uses_stable_phase1_path_shape(self) -> None:
-        object_key = build_object_key(
+    def test_build_processed_artifact_key_uses_document_namespace(self) -> None:
+        object_key = build_processed_artifact_key(
             corpus="student_handbook",
             document_id="handbook:test-001",
             version_id="v1:test-001",
@@ -44,7 +45,46 @@ class ObjectStoreConfigTest(unittest.TestCase):
 
         self.assertEqual(
             object_key,
-            "student_handbook/handbook:test-001/v1:test-001/structured.jsonl",
+            "student_handbook/documents/handbook/test-001/v1/test-001/structured.jsonl",
+        )
+
+    def test_build_raw_asset_key_uses_asset_namespace(self) -> None:
+        object_key = build_raw_asset_key(
+            corpus="student_handbook",
+            raw_asset_id="asset:student-handbook-pdf",
+            raw_version_id="sha256:raw-001",
+            filename="student-handbook.pdf",
+        )
+
+        self.assertEqual(
+            object_key,
+            "student_handbook/assets/student-handbook-pdf/sha256/raw-001/student-handbook.pdf",
+        )
+
+    def test_build_processed_artifact_key_supports_curriculum_plan(self) -> None:
+        object_key = build_processed_artifact_key(
+            corpus="curriculum_plan",
+            document_id="curriculum:plan-001",
+            version_id="sha256:raw-001:split:plan-001",
+            filename="structured.jsonl",
+        )
+
+        self.assertEqual(
+            object_key,
+            "curriculum_plan/documents/curriculum/plan-001/sha256/raw-001/split/plan-001/structured.jsonl",
+        )
+
+    def test_build_raw_asset_key_supports_curriculum_plan(self) -> None:
+        object_key = build_raw_asset_key(
+            corpus="curriculum_plan",
+            raw_asset_id="asset:curriculum-plan-master-pdf",
+            raw_version_id="sha256:raw-001",
+            filename="structured-full.jsonl",
+        )
+
+        self.assertEqual(
+            object_key,
+            "curriculum_plan/assets/curriculum-plan-master-pdf/sha256/raw-001/structured-full.jsonl",
         )
 
     def test_factory_exposes_s3_compatible_client_config_only(self) -> None:

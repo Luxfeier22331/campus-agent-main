@@ -32,7 +32,7 @@ updated: 2026-03-22
 
 长期目标摄入链路如下：
 
-`crawler/job placeholder -> queue placeholder -> ingestion boundary -> raw layer -> processed layer -> document registry -> vector index/chunk metadata`
+`crawler/job placeholder -> queue placeholder -> ingestion boundary -> raw layer + raw asset registry -> processed layer -> document registry -> vector index/chunk metadata`
 
 当前 monorepo 的目录设计围绕这条链路展开：
 
@@ -56,6 +56,7 @@ updated: 2026-03-22
 摄入侧在长期架构上至少需要以下数据层：
 
 - Raw Layer: 对象存储中的原始文档
+- Raw Asset Registry: 原始文件身份、版本和存储定位
 - Processed Layer: 清洗文本和结构化处理中间结果
 - Document Registry: 文档版本、hash、ACL、状态等元数据
 - Chunk Metadata + Vector Index: chunk 元数据和向量检索索引
@@ -173,6 +174,7 @@ ingestion boundary 是长期存在的数据摄入边界。
 - `ragas`、OpenAI graders 或其他 scorer 只应作为 `packages/evals` 边界后的可替换实现，而不是顶层架构承诺
 
 详细治理规则见：`docs/decisions/adr-0003-golden-dataset-governance.md`
+指标体系见：`docs/decisions/adr-0004-evaluation-metrics.md`
 
 ## Retrieval 真相源
 
@@ -202,12 +204,14 @@ ingestion boundary 是长期存在的数据摄入边界。
 
 - Raw Layer
   保存原始 PDF、Word、Markdown 等源文件，长期保留以支持重处理和审计。
+- Raw Asset Registry
+  保存 `raw_asset_id`、`raw_version_id`、`content_hash`、`source_filename`、`raw_source_uri`、`object_key`。它表达“这份原始文件是什么”。
 - Processed Layer
   保存清洗文本、OCR/解析结果、供应商原始解析响应、结构化 metadata。
 - Chunk/Index Layer
   保存在线检索所需的 chunk 文本、chunk metadata、embeddings 和向量索引。
 - Document Registry
-  保存 `document_id`、`version_id`、`content_hash`、`source_uri`、`corpus`、`acl_groups`、`campus_scope`、`status`、`ingestion_timestamp`。
+  保存 `document_id`、`version_id`、`content_hash`、`source_uri`、`corpus`、`acl_groups`、`campus_scope`、`status`、`ingestion_timestamp`，以及指向 raw asset 的引用。它表达“当前逻辑文档版本是什么”，不重复承载 raw 文件身份。
 
 其中 `packages/ingestion-core` 主要负责把 raw/processed 输入推进成可追踪的 registry 与 chunk/index 产物，`packages/retrieval-core` 则负责消费这些产物形成 evidence bundle。
 
@@ -297,4 +301,5 @@ ACL、审计和 traceability 在第一阶段按“够上线的最小闭环”建
 
 - 第一阶段架构决策记录：`docs/decisions/adr-0001-phase1-architecture.md`
 - Golden dataset 治理规则：`docs/decisions/adr-0003-golden-dataset-governance.md`
+- 评测指标体系：`docs/decisions/adr-0004-evaluation-metrics.md`
 - 第一阶段 ingestion 与存储架构：`docs/architecture/phase1-ingestion-and-storage-architecture.md`

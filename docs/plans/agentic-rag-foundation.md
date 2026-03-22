@@ -119,7 +119,9 @@ updated: 2026-03-22
 - 语料范围：只允许 `student_handbook`
 - 导入来源：只允许当前本机可访问的 `campusRAG` OCR 资产
 - object storage 语义：只允许 `campus-rag-raw` / `campus-rag-processed`
-- object key 结构：只允许 `student_handbook/{document_id}/{version_id}/raw|processed/...`
+- object key 结构：
+  - raw 只允许 `student_handbook/assets/{raw_asset_kind}/{raw_asset_slug}/{hash_algorithm}/{hash_value}/{original_filename}`
+  - processed 只允许 `student_handbook/documents/{document_kind}/{document_slug}/{version_kind}/{version_slug}/{artifact_filename}`
 - retrieval 实现：只允许 `LlamaIndex + Qdrant`
 - chunk profile：第一轮固定一套 chunk 大小、overlap、metadata 映射
 - embedding profile：第一轮固定一个 embedding model 标识
@@ -352,7 +354,17 @@ updated: 2026-03-22
 **Implementation:**
 - 基于导入的 OCR/processed 结果建立规范化处理流程。
 - 第一阶段允许直接消费已有 OCR 文本，不要求重新做 OCR。
-- 使用 `LlamaIndex` 的 document/node pipeline 生成 nodes/chunks。
+- 第一阶段将 `student_handbook` chunking / cleaning policy 冻结为 runtime truth，而不是开放 env 级参数调节：
+  - `target_tokens = 240`
+  - `max_tokens = 360`
+  - `overlap_tokens = 48`
+  - `min_tokens = 40`
+  - `split_strategy = structure_first`
+  - `chunk_policy_version = student_handbook_semantic_v1`
+  - `cleaning_policy_version = student_handbook_cleaning_v1`
+- handbook 结构化单元固定为 `article_body`、`policy_page`、`table`、`table_row`
+- parent unit 中的原始 HTML table 必须移除并替换为占位文本；表格证据通过 `table` / `table_row` 单元保留
+- ingestion-core 负责按冻结策略生成 chunks，并把 metadata 写入后续 `LlamaIndex/Qdrant` 检索路径
 - 每个 chunk 必须带：
   - `document_id`
   - `version_id`

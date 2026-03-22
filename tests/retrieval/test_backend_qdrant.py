@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 
 from campus_contracts import EvidenceBundle
 from campus_ingestion_core.chunking import ChunkProfile
@@ -29,9 +30,11 @@ def _make_registry_record(*, document_id: str, version_id: str, acl_groups: tupl
         ingestion_timestamp="2026-03-22T10:00:00+00:00",
         parser_version="campusrag-import-v1",
         embedding_model="mock-embedding-8d",
-        structured_object_key=f"student_handbook/{document_id}/{version_id}/structured.jsonl",
+        structured_object_key=(
+            f"student_handbook/documents/{document_id.replace(':', '/')}/{version_id.replace(':', '/')}/structured.jsonl"
+        ),
         processed_object_keys=(
-            f"student_handbook/{document_id}/{version_id}/structured.jsonl",
+            f"student_handbook/documents/{document_id.replace(':', '/')}/{version_id.replace(':', '/')}/structured.jsonl",
         ),
         import_source="campusrag_existing_ocr",
     )
@@ -48,6 +51,26 @@ def _make_structured_jsonl(*, document_id: str, version_id: str, text: str) -> b
 
 
 class BackendQdrantTest(unittest.TestCase):
+    def test_retrieval_request_supports_curriculum_plan(self) -> None:
+        request = RetrievalRequest(query_text="培养方案要求", corpus="curriculum_plan")
+
+        self.assertEqual(request.corpus, "curriculum_plan")
+
+    def test_retrieval_settings_from_env_reads_registry_database_url(self) -> None:
+        settings = RetrievalSettings.from_env(
+            {
+                "QDRANT_URL": ":memory:",
+                "DOCUMENT_REGISTRY_DATABASE_URL": "postgresql://registry.example/postgres",
+                "EMBEDDING_MODEL": "mock-embedding-8d",
+            }
+        )
+
+        self.assertEqual(settings.qdrant_url, ":memory:")
+        self.assertEqual(
+            settings.document_registry_database_url,
+            "postgresql://registry.example/postgres",
+        )
+
     def test_backend_returns_evidence_bundle_with_source_locator(self) -> None:
         with TemporaryDirectory() as temp_dir:
             registry_path = Path(temp_dir) / "registry.json"
@@ -75,7 +98,7 @@ class BackendQdrantTest(unittest.TestCase):
                 settings=RetrievalSettings(
                     qdrant_url=":memory:",
                     qdrant_collection="student_handbook_test",
-                    document_registry_path=registry_path,
+                    document_registry_database_url="postgresql://registry.example/postgres",
                 ),
                 registry=registry,
                 qdrant_client=QdrantClient(location=":memory:"),
@@ -149,7 +172,7 @@ class BackendQdrantTest(unittest.TestCase):
                 settings=RetrievalSettings(
                     qdrant_url=":memory:",
                     qdrant_collection="student_handbook_test",
-                    document_registry_path=registry_path,
+                    document_registry_database_url="postgresql://registry.example/postgres",
                 ),
                 registry=registry,
                 qdrant_client=QdrantClient(location=":memory:"),
@@ -181,7 +204,7 @@ class BackendQdrantTest(unittest.TestCase):
                 settings=RetrievalSettings(
                     qdrant_url=":memory:",
                     qdrant_collection="student_handbook_test",
-                    document_registry_path=registry_path,
+                    document_registry_database_url="postgresql://registry.example/postgres",
                 ),
                 registry=registry,
                 qdrant_client=QdrantClient(location=":memory:"),
@@ -213,7 +236,7 @@ class BackendQdrantTest(unittest.TestCase):
                 settings=RetrievalSettings(
                     qdrant_url=":memory:",
                     qdrant_collection="student_handbook_test",
-                    document_registry_path=registry_path,
+                    document_registry_database_url="postgresql://registry.example/postgres",
                 ),
                 registry=registry,
                 qdrant_client=QdrantClient(location=":memory:"),
@@ -245,6 +268,26 @@ class BackendQdrantTest(unittest.TestCase):
                         acl_groups=("students",),
                     )
                 )
+
+    def test_backend_builds_registry_from_database_url_when_not_injected(self) -> None:
+        with patch("campus_retrieval_core.backend_qdrant.build_document_registry_from_env") as builder:
+            builder.return_value = FileDocumentRegistry(Path("/tmp/unused-registry.json"))
+
+            backend = QdrantRetrievalBackend(
+                settings=RetrievalSettings(
+                    qdrant_url=":memory:",
+                    qdrant_collection="student_handbook_test",
+                    document_registry_database_url="postgresql://registry.example/postgres",
+                    embedding_model="mock-embedding-8d",
+                ),
+                qdrant_client=QdrantClient(location=":memory:"),
+                embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+            )
+
+            builder.assert_called_once_with(
+                {"DOCUMENT_REGISTRY_DATABASE_URL": "postgresql://registry.example/postgres"}
+            )
+            self.assertIsNotNone(backend.registry)
 
 
 if __name__ == "__main__":

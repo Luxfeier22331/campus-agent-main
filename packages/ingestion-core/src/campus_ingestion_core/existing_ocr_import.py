@@ -15,7 +15,12 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     utc_now,
     write_import_report,
 )
-from campus_ingestion_core.registry import FileDocumentRegistry
+from campus_ingestion_core.registry import (
+    DocumentRegistry,
+    RawAssetRegistry,
+    build_document_registry_from_env,
+    build_raw_asset_registry_from_env,
+)
 from campus_ingestion_core.settings import ObjectStoreSettings
 
 
@@ -26,7 +31,6 @@ DEFAULT_EXISTING_OCR_PARSER_VERSION = "campusrag-import-v1"
 class ExistingOcrImportSettings:
     ocr_root: Path
     raw_root: Path | None
-    registry_path: Path
     report_dir: Path
     parser_version: str
     embedding_model: str
@@ -43,13 +47,10 @@ class ExistingOcrImportSettings:
         return cls(
             ocr_root=Path(ocr_root_value),
             raw_root=Path(raw_root_value) if raw_root_value else None,
-            registry_path=Path(
-                (source.get("DOCUMENT_REGISTRY_PATH") or "./var/registry/student_handbook.json").strip()
-            ),
             report_dir=Path((source.get("IMPORT_REPORT_DIR") or "./var/import-reports").strip()),
             parser_version=DEFAULT_EXISTING_OCR_PARSER_VERSION,
             embedding_model=(source.get("INGESTION_EMBEDDING_MODEL") or source.get("EMBEDDING_MODEL") or "").strip(),
-            default_campus_scope=(source.get("DEFAULT_CAMPUS_SCOPE") or "").strip() or None,
+            default_campus_scope=(source.get("INGESTION_DEFAULT_CAMPUS_SCOPE") or "").strip() or None,
             object_store=ObjectStoreSettings.from_env(source),
         )
 
@@ -58,9 +59,12 @@ def import_campusrag_existing_ocr(
     *,
     env: dict[str, str] | None = None,
     object_store: ObjectStoreWriter | None = None,
+    registry: DocumentRegistry | None = None,
+    raw_asset_registry: RawAssetRegistry | None = None,
 ) -> ImportReport:
     settings = ExistingOcrImportSettings.from_env(env)
-    registry = FileDocumentRegistry(settings.registry_path)
+    registry = registry or build_document_registry_from_env(env)
+    raw_asset_registry = raw_asset_registry or build_raw_asset_registry_from_env(env)
     writer = object_store or S3ObjectStoreWriter(settings.object_store)
 
     documents: list[DocumentImportInput] = []
@@ -114,6 +118,7 @@ def import_campusrag_existing_ocr(
     return persist_import_documents(
         documents=documents,
         registry=registry,
+        raw_asset_registry=raw_asset_registry,
         writer=writer,
         object_store=settings.object_store,
         parser_version=settings.parser_version,
