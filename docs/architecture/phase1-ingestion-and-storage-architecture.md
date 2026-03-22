@@ -174,8 +174,8 @@ updated: 2026-03-22
 
 固定规则：
 
-- retrieval 只支持 `student_handbook`
-- storage/registry 可增量接入 `curriculum_plan`，但不改变查询面默认范围
+- query-serving 只支持 `student_handbook`
+- `curriculum_plan` 在第一阶段必须完成 raw/processed/registry 与清洗真相收口，但不改变查询面默认范围
 - retrieval 返回的 source 必须能回链到 document registry
 - retrieval 前置 ACL filter 必须基于 metadata 执行
 

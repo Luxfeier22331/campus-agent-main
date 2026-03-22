@@ -35,9 +35,12 @@ updated: 2026-03-22
 
 - `architecture/long-term-architecture.md`
 - `architecture/phase1-ingestion-and-storage-architecture.md`
+- `architecture/supervisor-architecture.md`
+- `architecture/student-handbook-ocr-normalization-strategy.md`
 - `decisions/adr-0001-phase1-architecture.md`
 - `decisions/adr-0002-local-minio-conventions.md`
 - `decisions/adr-0003-golden-dataset-governance.md`
 - `decisions/adr-0004-evaluation-metrics.md`
 - `plans/agentic-rag-foundation.md`
 - `plans/golden-dataset-document-delivery.md`
+- `plans/supervisor-current-design-implementation.md`

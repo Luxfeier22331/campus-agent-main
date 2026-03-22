@@ -63,6 +63,14 @@ updated: 2026-03-22
 - `Supervisor API -> Supervisor Core -> RAG Specialist -> Retrieval Core` 能返回带 evidence 的回答
 - 第一批 `student_handbook` baseline 已冻结，并且可重复执行
 
+## 当前实测进度（2026-03-22）
+
+- 代码基线已验证：`uv run --all-packages python -m unittest discover -s tests -t .` 通过，当前仓库基线测试为 `62` 项
+- Gate 1 已有运行态证据：本机 `MinIO` 可访问，`campus-rag-raw` / `campus-rag-processed` bucket 已存在
+- Gate 2 目前只完成对象存储侧证据：已在 bucket 中看到 `student_handbook.pdf` 和 `provider-result.jsonl`，但 registry 运行态记录尚未做独立核验
+- Gate 3 尚未通过运行态验收：配置中的 `Qdrant Cloud` endpoint 可达，但当前实例 `collections_count = 0`，`.env` 指向的 `student_handbook` collection 返回 `404`
+- Gate 4 尚未做运行态闭环验收：主链路代码、specialist、supervisor、evals 已在仓库内落地，但缺少“真实 registry + 已写入点的 Qdrant”证据
+
 ## 第一阶段实施拓扑
 
 ```text
@@ -117,12 +125,15 @@ updated: 2026-03-22
 
 在写任何正式实现之前，先冻结以下输入，不允许边做边漂移：
 
-- 语料范围：只允许 `student_handbook`
+- query-serving 默认语料：只开放 `student_handbook`
+- data-plane 增量语料：允许 `curriculum_plan` 完成 raw/processed/registry 与清洗真相收口，但不自动放开 retrieval
 - 导入来源：只允许当前本机可访问的 `campusRAG` OCR 资产
 - object storage 语义：只允许 `campus-rag-raw` / `campus-rag-processed`
 - object key 结构：
-  - raw 只允许 `student_handbook/assets/{raw_asset_kind}/{raw_asset_slug}/{hash_algorithm}/{hash_value}/{original_filename}`
-  - processed 只允许 `student_handbook/documents/{document_kind}/{document_slug}/{version_kind}/{version_slug}/{artifact_filename}`
+  - 默认 handbook 示例：
+    - raw: `student_handbook/assets/{raw_asset_kind}/{raw_asset_slug}/{hash_algorithm}/{hash_value}/{original_filename}`
+    - processed: `student_handbook/documents/{document_kind}/{document_slug}/{version_kind}/{version_slug}/{artifact_filename}`
+  - 其他 phase-1 data-plane corpus 必须沿用同一套按 corpus 分前缀的路径语义
 - retrieval 实现：只允许 `LlamaIndex + Qdrant`
 - chunk profile：第一轮固定一套 chunk 大小、overlap、metadata 映射
 - embedding profile：第一轮固定一个 embedding model 标识
@@ -165,14 +176,19 @@ updated: 2026-03-22
 
 - Gate 0: 基线冻结
   - 冻结 corpus、导入来源、chunk profile、embedding profile、baseline cases
+  - 当前状态：代码与 evals 已落地，仓库基线测试已通过
 - Gate 1: 对象存储就绪
   - 本机 `MinIO` 已部署，bucket 已初始化，应用侧只能通过 `S3-compatible` 配置访问
+  - 当前状态：已验证通过
 - Gate 2: 数据面可用
   - `campusRAG` OCR 资产已导入 object storage，registry 可记录 stable ID / version / hash
+  - 当前状态：对象存储资产已验证；registry 运行态记录仍待独立核验
 - Gate 3: 检索面可用
   - `LlamaIndex + Qdrant` 已能返回带 source locator 的 evidence bundle
+  - 当前状态：未通过，当前 Qdrant Cloud 实例无 collection，目标 `student_handbook` collection 不存在
 - Gate 4: Agentic RAG 主链路可用
   - supervisor 到 specialist 的委派跑通，baseline queries 可重复通过
+  - 当前状态：未做运行态闭环验收
 
 ## 关键接口与公共类型
 
@@ -218,7 +234,7 @@ updated: 2026-03-22
 **Implementation:**
 - 扩展现有 request/response dataclass，加入 trace、actor、evidence、error 相关模型。
 - 保持 `packages/contracts` 纯 Python schema，不引入 Agno、LlamaIndex、MinIO SDK 类型。
-- `corpora` 第一阶段默认且只允许 `("student_handbook",)`。
+- `corpora` 第一阶段默认仍为 `("student_handbook",)`，但允许显式传入已冻结的 phase-1 corpus，并由查询面在后续层做 fail-closed 控制。
 - 明确 `DocumentRef` 与 `EvidenceSource` 的最小字段集，对齐现有决策文档与 legacy source locator 语义。
 
 **Verification:**
@@ -397,7 +413,7 @@ updated: 2026-03-22
   - `acl_groups`
 - retrieval 输出必须是 `EvidenceBundle` 能直接消费的结构
 - retrieval 前置 ACL filter 基于 metadata 执行
-- retrieval 只支持 `student_handbook`
+- retrieval 读取 corpus runtime profile；phase-1 默认只开放 `student_handbook` query-serving，对未放开的 corpus 必须 fail-closed
 
 **Verification:**
 - `uv run --all-packages python -m pytest tests/retrieval/test_backend_qdrant.py -q`
@@ -472,12 +488,14 @@ updated: 2026-03-22
 ### Task 11: 冻结 baseline 与评测
 
 **Files:**
+- Create: `packages/evals/src/campus_evals/models.py`
 - Modify: `packages/evals/src/campus_evals/scenarios.py`
 - Create: `packages/evals/src/campus_evals/expectations.py`
 - Create: `packages/evals/src/campus_evals/runner.py`
 - Create: `tests/evals/test_golden_cases.py`
 
 **Implementation:**
+- 将 `packages/evals` 收口为通用 golden-case / runner / grading 边界，而不是 handbook 专用 smoke helper
 - 冻结第一批 `student_handbook` baseline 场景
 - 至少覆盖：
   - library hours
@@ -486,6 +504,7 @@ updated: 2026-03-22
   - registrar transcript
   - add/drop
   - leave of absence
+- 支持 multi-corpus request truth，但 phase-1 只对“单次请求选一个 query-enabled corpus”的路由语义做评测
 - 增加 ingestion 基线：
   - OCR 导入成功
   - 重复导入 skip
@@ -520,7 +539,8 @@ updated: 2026-03-22
 - `Qdrant + LlamaIndex` 可产出可回链 evidence bundle
 - `Supervisor API -> Supervisor Core -> RAG Specialist -> Retrieval Core` 可跑通
 - 返回结果带 `trace_id`、最小 source locator、confidence
-- baseline 场景冻结并可重复运行
+- `student_handbook` baseline 场景冻结并可重复运行
+- `curriculum_plan` 在 phase-1 完成 data-plane / cleaned-ingestion 收口，但默认不进入 query-serving
 - gate 0 到 gate 4 均有明确通过证据，而不是只停留在代码存在
 
 ## 并行策略

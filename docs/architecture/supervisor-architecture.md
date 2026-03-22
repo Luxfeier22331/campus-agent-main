@@ -1,0 +1,278 @@
+---
+doc_type: architecture
+status: active
+created: 2026-03-22
+updated: 2026-03-22
+---
+
+# Supervisor 架构设计
+
+## 目标
+
+定义 `campus-agent` 中 supervisor 的专属架构边界，并明确区分：
+
+- 长期架构：系统成熟后的稳定角色、职责和交互模型
+- 当期设计架构：phase-1 / 当前实现阶段应该采用的最小正确形态
+
+这份文档只回答 supervisor 应该如何设计，不替代全局架构文档、阶段 ADR 或实施计划。
+
+## 文档定位
+
+关系固定如下：
+
+- `docs/architecture/long-term-architecture.md`
+  定义整个仓库的长期边界、链路分层和 package 责任
+- `docs/decisions/adr-0001-phase1-architecture.md`
+  定义第一阶段的架构取舍、运行时选择和约束
+- `docs/plans/agentic-rag-foundation.md`
+  定义 phase-1 落地顺序、文件落点和验收标准
+- 本文
+  只定义 supervisor 这个边界自身的长期形态与当期设计形态
+
+## 设计原则
+
+- supervisor 是唯一入口协调层，不是知识实现层
+- supervisor 拥有全局策略与最终响应责任，但不拥有 specialist 内部推理逻辑
+- supervisor 与 specialist 的交互必须通过稳定 handoff contract 完成
+- supervisor 不直接接触 retrieval、ingestion 或基础设施细节
+- phase-1 即使只有一个 specialist，也应保留真正的 coordination 形态，而不是长期停留在透传包装
+
+## 长期架构
+
+### 角色定义
+
+长期形态中的 supervisor 是系统唯一的 entry orchestrator。
+
+它负责承接所有用户请求，并在统一策略下完成：
+
+- 请求框定
+- 路由决策
+- specialist 委派
+- 澄清 / 拒答 / 升级
+- 多 specialist 协同
+- 最终响应组装
+- 审计与 trace 投影
+
+它不是：
+
+- 一个亲自完成所有领域任务的全知 agent
+- 一个把 specialist 调用包一层就返回的薄代理
+- 一个夹带 retrieval / storage / runtime 细节的汇总层
+
+### 长期查询链路中的位置
+
+supervisor 在长期链路中的位置固定如下：
+
+`client/channel -> supervisor boundary -> supervisor core -> specialist -> downstream capability -> supervisor synthesis -> response`
+
+其中：
+
+- `supervisor boundary`
+  负责 transport、session、auth、外部协议与运行时壳
+- `supervisor core`
+  负责策略、路由、委派、升级和最终响应
+- `specialist`
+  负责本域能力执行，例如 retrieval-oriented specialist
+
+### 长期内部职责分层
+
+长期 supervisor 应拆成若干稳定责任层，而不是一个大而全的 agent 类。
+
+建议责任层如下：
+
+- `Request Framing`
+  将外部请求归一化成内部可决策输入，吸收 identity、trace、conversation、policy snapshot
+- `Intent Framing`
+  识别用户目标、问题类型、信息缺口与风险级别
+- `Routing Policy`
+  决定由哪个 specialist 承接，或是否先澄清 / 拒答 / 升级
+- `Delegation Gateway`
+  通过 `packages/contracts` 中的 handoff schema 向 specialist 发起委派
+- `Supervisor Decision Policy`
+  基于 specialist 结果判断完成、复核、追问、换路由或升级
+- `Response Assembler`
+  统一最终答复、状态、引用、follow-up 和对外口径
+- `Audit / Trace Projector`
+  输出最小审计字段与可追踪事件
+
+这些层是职责分层，不强制绑定为某种框架类或某个特定 runtime 抽象。
+
+### 长期拥有的能力
+
+- 全局路由权
+- 最终响应决定权
+- 跨 specialist 协同权
+- 统一 policy 执行权
+- 审计 / trace 统一投影权
+- 失败闭环与升级权
+
+### 长期不拥有的能力
+
+- retrieval strategy selection
+- query rewriting
+- evidence collection
+- vector store / object store / registry 访问
+- ingestion/data plane orchestration
+- transport/runtime 宿主实现
+
+这些能力分别属于 `specialist`、`retrieval-core`、`ingestion-core` 和 `apps/*` 边界。
+
+### 长期与其他边界的关系
+
+与 `apps/supervisor-api`：
+
+- API 边界只负责外部协议、鉴权、runtime 集成和入口壳
+- supervisor 不反向吸收 HTTP、auth 或 runtime host 细节
+
+与 `packages/contracts`：
+
+- supervisor 只能通过共享 contract 与 specialist 交互
+- contract 是 supervisor 多 specialist 演进的稳定边界
+
+与 `packages/rag-specialist`：
+
+- supervisor 决定是否委派给 RAG specialist
+- RAG specialist 决定 retrieval-oriented query / answer / confidence 逻辑
+
+与 `packages/retrieval-core`：
+
+- supervisor 不直接访问 retrieval-core
+- retrieval-core 只通过 specialist 间接被消费
+
+与 `packages/ingestion-core`：
+
+- supervisor 不拥有任何 ingestion/data plane 逻辑
+- online query path 与 offline ingestion path 必须长期分离
+
+### 长期演进方向
+
+当系统从单 specialist 演进到多 specialist 时，supervisor 的变化应该体现在：
+
+- 路由规则变复杂
+- 协同 workflow 变复杂
+- 结果组装逻辑变复杂
+
+而不应该体现在：
+
+- 直接侵入 specialist 内部实现
+- 在 supervisor 中堆积下游 capability 细节
+- 把 contract 退化为临时函数调用
+
+## 当期设计架构
+
+### 目标
+
+当前阶段的 supervisor 设计目标不是一步做到完整多 agent orchestration，而是在 phase-1 约束内建立最小正确骨架：
+
+- 当前只路由一个 specialist：`rag-specialist`
+- 当前默认查询语料只支持 `student_handbook`
+- 当前仍以最小可验证主链路为优先
+- 当前必须避免继续扩大“supervisor 只是透传”的错误形态
+
+### 当前架构定位
+
+当期 supervisor 应该被实现为：
+
+`single-specialist, policy-driven coordinator`
+
+这意味着：
+
+- 虽然当前只有一个 specialist，但仍然要显式保留 routing decision
+- 虽然当前结果主要来自 RAG specialist，但最终状态与对外响应仍由 supervisor 收口
+- 虽然当前 workflow 很短，但仍然要把 request framing、response assembly、audit projection 从透传逻辑中拆出来
+
+### 当前查询链路
+
+当期查询链路固定为：
+
+`supervisor-api -> supervisor-core -> rag-specialist -> retrieval-core -> evidence -> supervisor response`
+
+其中当前 supervisor-core 至少负责：
+
+- 接收已经完成 auth / trace 注入的请求
+- 做最小请求归一化
+- 选择 `rag-specialist`
+- 处理 `completed` / `needs_clarification` / `no_answer` / `error`
+- 形成统一的对外响应语义
+- 投影最小审计字段
+
+### 当前建议的内部模块骨架
+
+为了避免长期继续围绕一个 `handle()` 透传函数扩展，当期设计建议 supervisor-core 至少收敛为以下模块角色：
+
+- `agent.py`
+  只负责编排主流程，不承载所有判断细节
+- `request.py` 或 `context.py`
+  负责 supervisor 内部的请求上下文模型
+- `routing.py`
+  负责当前 specialist 选择逻辑，并为未来多 specialist 扩展保留接口
+- `policy.py`
+  负责 clarification / escalation / finalization 等决策规则
+- `response.py`
+  负责最终响应组装
+- `audit.py`
+  负责最小审计字段投影
+
+当期不要求这些模块一次做得很重，但要求职责位置先固定。
+
+### 当前最小决策流
+
+当期建议的最小决策流如下：
+
+1. API boundary 完成 auth、actor 映射和 trace 注入
+2. supervisor 归一化请求并构建内部上下文
+3. supervisor 路由到 `rag-specialist`
+4. specialist 返回 typed response
+5. supervisor 根据结果决定：
+   - 直接完成
+   - 返回澄清问题
+   - 保持 no-answer
+   - 返回错误并记录审计
+6. supervisor 输出统一响应并投影最小审计字段
+
+### 当前必须做到的边界
+
+- 不把 retrieval 细节拉回 supervisor-core
+- 不让 supervisor 越过 specialist 直连 registry、Qdrant、MinIO
+- 不把 HTTP transport、auth 或 AgentOS host 逻辑混进 supervisor-core
+- 不为“先跑通”继续扩建 pass-through 结构
+- 不把 phase-1 的单 specialist 设计写成长期架构承诺
+
+### 当前允许显式延后的能力
+
+- 多 specialist routing matrix
+- specialist 间串并行 workflow
+- supervisor 级复核 / 反思循环
+- 更细粒度的 policy engine
+- 更强的会话状态管理
+- 完整 HITL / approval flow
+
+这些能力可以后续增加，但不影响当前先把 supervisor 的正确骨架立住。
+
+## 长期架构与当期设计的关系
+
+两者的关系不是“长期先不管，当前先凑合”，而是：
+
+- 长期架构定义 supervisor 最终应成为什么
+- 当期设计定义现在先把哪些职责位置固定住
+- 当期设计允许能力裁剪，但不允许边界退化
+
+因此，当期设计即使只支持一个 `rag-specialist`，也必须保留以下长期不变量：
+
+- supervisor 是唯一入口协调层
+- supervisor 拥有最终响应责任
+- specialist 是稳定能力边界，不是 tool adapter
+- supervisor 与 specialist 之间通过稳定 contract 交互
+- supervisor 不直接吸收 retrieval / ingestion / infra 细节
+
+## 非目标
+
+本文不冻结以下内容：
+
+- 具体 runtime 选型细节
+- supervisor 内部最终类名或模块名
+- 某个框架下的 agent/team API 用法
+- phase-1 的逐任务实施顺序
+- 第二个 specialist 的具体引入方式
+
+这些内容分别由 ADR、实施计划和后续代码设计承担。

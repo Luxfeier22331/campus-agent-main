@@ -30,6 +30,8 @@ updated: 2026-03-22
 
 `client/channel -> supervisor boundary -> supervisor core -> specialist agent -> retrieval core -> evidence bundle -> supervisor synthesis -> response`
 
+在这条链路里，supervisor 既不是“全知执行者”，也不是“被动转发层”，而是以 policy-driven orchestration 为核心的协调层。
+
 长期目标摄入链路如下：
 
 `crawler/job placeholder -> queue placeholder -> ingestion boundary -> raw layer + raw asset registry -> processed layer -> document registry -> vector index/chunk metadata`
@@ -83,22 +85,37 @@ runtime 选择应该延后。未来可以接受的实现包括：
 
 ### Supervisor
 
-supervisor 是这个仓库长期存在的顶层 agent 角色。
+supervisor 是这个仓库长期存在的唯一入口协调者，也是查询链路中唯一拥有全局策略、委派决策和最终响应责任的顶层 agent 角色。
+
+它的职责不是亲自完成所有领域任务，也不是把 specialist 调用包装成一次薄透传；它的职责是在稳定 contract 之上完成请求框定、路由、升级和结果组装。
 
 它应该拥有：
 
 - 会话入口
-- 意图框定
+- 用户目标归一化与意图框定
 - 选择委派给哪个 specialist
-- 在置信度或范围不足时发起澄清
-- 组合一个或多个 specialist 的结果
-- 未来的跨域协同
+- 在信息不足、范围不清或风险过高时发起澄清、拒答或升级
+- 聚合一个或多个 specialist 的结果并形成最终对外响应
+- 统一审计、trace 和策略投影
+- 未来的跨域协同与多 specialist workflow 编排
 
 它不应该拥有：
 
+- specialist 内部的领域推理逻辑
 - 直接 retrieval 实现细节
 - index 构建细节
 - 向量数据库特定代码
+- ingestion/data plane 逻辑
+- transport/runtime 宿主细节
+- 对象存储、registry、Qdrant、MinIO 等基础设施耦合
+
+长期约束：
+
+- supervisor 是唯一的全局策略拥有者，但不是知识实现层
+- specialist 是稳定能力边界，而不是扁平 tool adapter
+- supervisor 与 specialist 的交互必须通过 `packages/contracts` 中冻结的 handoff contract 完成
+- supervisor 可以决定委派、复核、澄清、升级和最终答复，但不能越级侵入 specialist 或 retrieval 内部实现
+- 当系统增加更多 specialist 时，supervisor 负责跨域协同；单个 specialist 仍只对自己的能力边界负责
 
 ### RAG Specialist
 

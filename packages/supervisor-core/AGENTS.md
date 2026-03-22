@@ -53,8 +53,8 @@
 
 ## Phase-1 Constraints
 
-- 默认只支持 `student_handbook`
-- 不要在 supervisor 内扩大 corpus 范围
+- 默认 query-serving 只开放 `student_handbook`
+- 已冻结但未放开的 data-plane corpus 不能在 supervisor 内被静默放开为查询默认范围
 - 不要直接拼接对象存储逻辑
 - 不要越过 specialist/retrieval 层访问 registry、Qdrant 或 MinIO
 - 优先保持 `supervisor -> specialist` handoff 清晰，而不是引入快捷路径

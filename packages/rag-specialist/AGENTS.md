@@ -9,7 +9,7 @@
 - 接收来自 `supervisor-core` 的稳定 handoff，而不是继续暴露旧 `campusRAG` tool 风格接口
 - 负责 retrieval 导向的 `query rewriting`、`retrieval strategy selection`、`evidence collection`、`evidence normalization`、`confidence` 返回
 - 返回 `DelegateToRagAgentResponse`，而不是把底层 retrieval 结果原样泄漏出去
-- 第一阶段只服务 `student_handbook`
+- 第一阶段 query-serving 默认只服务 `student_handbook`
 
 当前 bootstrap 入口是 `src/campus_rag_specialist/service.py` 中的 `delegate_to_rag_agent(...)`。优先沿着这个 service 边界演进，不要把 specialist 逻辑散落到别处。
 
@@ -47,8 +47,9 @@
 
 ## Phase-1 Constraints
 
-- 第一阶段只支持 `student_handbook`
-- 不要在此目录提前引入多 corpus 分支逻辑
+- 第一阶段 query-serving 默认只开放 `student_handbook`
+- 已冻结但未放开的 corpus 应通过显式 fail-closed 路径返回，而不是在 specialist 内静默扩面
+- 不要在此目录提前引入多 corpus fan-out 或并行检索逻辑
 - 不要提前引入多 retrieval backend 并行
 - 不要把 specialist 写成 retrieval backend 的薄壳；这里负责 contract 化和结果整形
 
