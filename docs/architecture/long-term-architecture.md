@@ -1,3 +1,10 @@
+---
+doc_type: architecture
+status: active
+created: 2026-03-22
+updated: 2026-03-22
+---
+
 # campus-agent 长期架构
 
 ## 目标
@@ -171,7 +178,7 @@ ingestion boundary 是长期存在的数据摄入边界。
 - Raw Layer
   保存原始 PDF、Word、Markdown 等源文件，长期保留以支持重处理和审计。
 - Processed Layer
-  保存清洗文本、OCR/解析结果、结构化 metadata。
+  保存清洗文本、OCR/解析结果、供应商原始解析响应、结构化 metadata。
 - Chunk/Index Layer
   保存 chunk 文本、chunk metadata、embeddings 和向量索引。
 - Document Registry
@@ -256,5 +263,5 @@ ACL、审计和 traceability 在第一阶段按“够上线的最小闭环”建
 
 ## 决策索引
 
-- 第一阶段架构决策记录：`docs/decisions/2026-03-22-phase1-architecture-decisions.md`
-- 第一阶段 ingestion 与存储架构：`docs/architecture/2026-03-22-ingestion-and-storage-architecture.md`
+- 第一阶段架构决策记录：`docs/decisions/adr-0001-phase1-architecture.md`
+- 第一阶段 ingestion 与存储架构：`docs/architecture/phase1-ingestion-and-storage-architecture.md`

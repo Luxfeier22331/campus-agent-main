@@ -1,4 +1,11 @@
-# Agentic RAG Foundation Implementation Plan
+---
+doc_type: plan
+status: active
+created: 2026-03-22
+updated: 2026-03-22
+---
+
+# Agentic RAG 第一阶段地基实施文档
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
@@ -29,6 +36,140 @@
 - 当前对象存储只做本机 `MinIO`
 - 不保留旧 RAG API 兼容层
 - 硬化阶段内容不进入本轮实现
+
+## 文档定位
+
+这份文档只回答三件事：
+
+- 第一阶段到底做到哪里算“地基完成”
+- 各个基础组件应该按什么顺序落地
+- 哪些输入、配置和 baseline 必须在第一轮就冻结
+
+它不重复长期架构原则，也不替代 ADR。关系固定如下：
+
+- 长期边界、职责拆分、可替换性定义，留在 `docs/architecture/long-term-architecture.md`
+- 第一阶段架构取舍和约束，留在 `docs/decisions/adr-0001-phase1-architecture.md`
+- 本机 `MinIO` 作为本地对象存储替代实现的规则，留在 `docs/decisions/adr-0002-local-minio-conventions.md`
+- 这份文档只负责把上面三类原则拆成可实施的落地顺序、门禁、文件落点和验收标准
+
+## 完成定义
+
+这一阶段不是“代码骨架更多了”，而是以下闭环可以稳定重跑：
+
+- 本机 `MinIO` 已部署，并通过 `S3-compatible` 配置被接入
+- `campusRAG` 现有 OCR 资产已经被导入 object storage，并在 registry 中登记
+- 已能基于导入资产完成 chunking、embedding、Qdrant 建索引
+- `Supervisor API -> Supervisor Core -> RAG Specialist -> Retrieval Core` 能返回带 evidence 的回答
+- 第一批 `student_handbook` baseline 已冻结，并且可重复执行
+
+## 第一阶段实施拓扑
+
+```text
+                        +----------------------+
+                        |   supervisor-api     |
+                        | HTTP shell + AgentOS |
+                        +----------+-----------+
+                                   |
+                                   v
+                        +----------------------+
+                        |   supervisor-core    |
+                        | route / audit / trace|
+                        +----------+-----------+
+                                   |
+                                   v
+                        +----------------------+
+                        |   rag-specialist     |
+                        | query / answer / conf|
+                        +----------+-----------+
+                                   |
+                                   v
+                        +----------------------+
+                        |   retrieval-core     |
+                        | registry + qdrant    |
+                        +----+------------+----+
+                             |            |
+                             v            v
+                   +---------------+   +-----------------+
+                   | document       |   | qdrant          |
+                   | registry       |   | chunk + vector  |
+                   +-------+--------+   +-----------------+
+                           ^
+                           |
+                 +---------+----------+
+                 |   ingestion-core   |
+                 | import/process/index|
+                 +----+-----------+----+
+                      |           |
+                      v           v
+          +------------------+   +------------------------+
+          | MinIO raw bucket |   | MinIO processed bucket |
+          +------------------+   +------------------------+
+                      ^
+                      |
+          +-----------------------------+
+          | campusRAG OCR existing data |
+          | crawler/job/queue placeholder|
+          +-----------------------------+
+```
+
+## 实施前冻结项
+
+在写任何正式实现之前，先冻结以下输入，不允许边做边漂移：
+
+- 语料范围：只允许 `student_handbook`
+- 导入来源：只允许当前本机可访问的 `campusRAG` OCR 资产
+- object storage 语义：只允许 `campus-rag-raw` / `campus-rag-processed`
+- object key 结构：只允许 `student_handbook/{document_id}/{version_id}/raw|processed/...`
+- retrieval 实现：只允许 `LlamaIndex + Qdrant`
+- chunk profile：第一轮固定一套 chunk 大小、overlap、metadata 映射
+- embedding profile：第一轮固定一个 embedding model 标识
+- baseline 场景：第一轮固定 `student_handbook` 的问题集和预期 source locator
+
+## campusRAG 资产导入规则
+
+第一阶段导入的不是“重新抓取后的新文档”，而是当前已经存在的 `campusRAG` 资产。这里必须把 raw 和 processed 区分清楚，避免把历史 OCR 结果错误伪装成原始源文件。
+
+导入映射规则固定为：
+
+- 如果上游能提供原始 PDF/HTML/Markdown 等源文件：
+  - 写入 `campus-rag-raw`
+  - `source_uri` 指向原始来源
+- 如果上游只提供 OCR JSON、OCR 文本、结构化抽取结果：
+  - 写入 `campus-rag-processed`
+  - registry 中明确标记它来自 `campusRAG` 导入，而不是新抓取 raw
+- 如果原始文件和 OCR 结果同时存在：
+  - raw 和 processed 都写
+  - 两者共用同一个 `document_id`
+  - 由 `version_id` 表示同一文档版本下的资产集合
+- 如果 OCR 来自在线供应商：
+  - `processed/` 下至少同时保存 `provider-result.jsonl` 和 `structured.jsonl`
+  - `provider-result.jsonl` 保留供应商原始响应
+  - `structured.jsonl` 保留内部统一格式，不能直接用供应商原始响应替代
+- 不允许因为第一阶段赶进度，就把 OCR 文本直接冒充 raw layer 真相源
+
+第一阶段至少要冻结以下导入基线资产：
+
+- 导入源目录或 manifest 的解析规则
+- `document_id` 的生成规则
+- `version_id` 的推进规则
+- `content_hash` 的计算口径
+- campus / ACL metadata 的映射规则
+- import report 的输出格式
+
+## 阶段门禁
+
+为了避免“代码写了很多但主链路仍然不通”，第一阶段按门禁推进：
+
+- Gate 0: 基线冻结
+  - 冻结 corpus、导入来源、chunk profile、embedding profile、baseline cases
+- Gate 1: 对象存储就绪
+  - 本机 `MinIO` 已部署，bucket 已初始化，应用侧只能通过 `S3-compatible` 配置访问
+- Gate 2: 数据面可用
+  - `campusRAG` OCR 资产已导入 object storage，registry 可记录 stable ID / version / hash
+- Gate 3: 检索面可用
+  - `LlamaIndex + Qdrant` 已能返回带 source locator 的 evidence bundle
+- Gate 4: Agentic RAG 主链路可用
+  - supervisor 到 specialist 的委派跑通，baseline queries 可重复通过
 
 ## 关键接口与公共类型
 
@@ -89,10 +230,13 @@
 - Create: `packages/ingestion-core/src/campus_ingestion_core/__init__.py`
 - Create: `packages/ingestion-core/src/campus_ingestion_core/settings.py`
 - Create: `packages/ingestion-core/src/campus_ingestion_core/object_store.py`
+- Create: `infra/local/docker-compose.minio.yml`
+- Create: `infra/local/minio/create_buckets.sh`
 - Create: `tests/ingestion/test_object_store_config.py`
 
 **Implementation:**
 - 新建 `packages/ingestion-core`，统一承载数据摄入侧逻辑。
+- 增加本机 `MinIO` 的最小部署骨架，但仍保持“本地替代实现”定位，不把部署方式写进 contract。
 - 增加 MinIO/S3-compatible 配置：
   - `OBJECT_STORE_ENDPOINT`
   - `OBJECT_STORE_ACCESS_KEY`
@@ -104,6 +248,7 @@
   - `campus-rag-raw`
   - `campus-rag-processed`
 - 提供 object storage 客户端工厂，不暴露 MinIO 内部细节到 contract 层。
+- bucket 创建由部署脚本或初始化步骤完成，不允许业务代码在运行期隐式兜底创建。
 
 **Verification:**
 - `pytest tests/ingestion/test_object_store_config.py -q`
@@ -135,33 +280,45 @@
 **Verification:**
 - `pytest tests/ingestion/test_registry_models.py -q`
 
-### Task 4: 导入 campusRAG 现有 OCR 结果到对象存储
+### Task 4: 拆分历史 OCR 补录与 raw-first ingestion runtime
 
 **Files:**
 - Create: `apps/ingestion-worker/pyproject.toml`
 - Create: `apps/ingestion-worker/README.md`
 - Create: `apps/ingestion-worker/src/campus_ingestion_worker/__init__.py`
-- Create: `apps/ingestion-worker/src/campus_ingestion_worker/import_campusrag_ocr.py`
-- Create: `tests/ingestion/test_import_campusrag_ocr.py`
+- Create: `apps/ingestion-worker/src/campus_ingestion_worker/import_campusrag_existing_ocr.py`
+- Create: `apps/ingestion-worker/src/campus_ingestion_worker/submit_raw_ingestion_job.py`
+- Create: `apps/ingestion-worker/src/campus_ingestion_worker/process_raw_ingestion_job.py`
+- Create: `tests/ingestion/test_import_campusrag_existing_ocr.py`
+- Create: `tests/ingestion/test_submit_raw_ingestion_job.py`
+- Create: `tests/ingestion/test_process_raw_ingestion_job.py`
 
 **Implementation:**
 - 新建 `apps/ingestion-worker`，作为摄入运行时壳。
-- 提供 `import_campusrag_ocr` 命令式入口：
-  - 从现有 `campusRAG` OCR 产物目录读取原始 OCR 结果
-  - 计算 `content_hash`
-  - 生成稳定的 `document_id` / `version_id`
-  - 写入 raw/processed bucket
-  - 注册到 document registry
-- `crawler job` 和 `queue` 在这一步只用占位结构表示，不实现真实分布式调度。
+- 提供三个独立入口：
+  - `import_campusrag_existing_ocr`
+    只负责历史 structured OCR 补录，可选绑定 raw provenance，但绝不触发在线 OCR
+  - `submit_raw_ingestion_job`
+    表达未来正式链路中的 queue/job 边界；第一阶段只写 placeholder envelope
+  - `process_raw_ingestion_job`
+    表达未来正式链路中的 worker 边界；对 raw PDF 做在线 OCR，写 raw/processed/registry
+- `crawler job` 和 `queue` 在这一步只保留 placeholder 结构，不实现真实分布式调度。
 - `student_handbook` 作为唯一 corpus。
+- 如果仅存在 OCR 文本或 OCR JSON，则只允许写入 `processed` bucket，不允许伪造 raw layer。
+- 如果 OCR 来自在线供应商：
+  - `processed/` 下至少同时保存 `provider-result.jsonl` 和 `structured.jsonl`
+  - 两者必须分开保存，不能互相替代
+- 导入过程必须产出 import report，最少包含成功数、跳过数、失败数、产生的 `document_id` 列表。
 
 **Assumption locked for implementation:**
 - 如果 `campusRAG` OCR 结果当前是本机已有目录或本机可访问路径，导入工具直接面向那个目录。
 - 如果后续路径不一致，只替换配置，不改导入 contract。
 
 **Verification:**
-- `pytest tests/ingestion/test_import_campusrag_ocr.py -q`
-- 验证 object key 结构、registry 写入、重复导入 skip。
+- `pytest tests/ingestion/test_import_campusrag_existing_ocr.py -q`
+- `pytest tests/ingestion/test_submit_raw_ingestion_job.py -q`
+- `pytest tests/ingestion/test_process_raw_ingestion_job.py -q`
+- 验证入口边界、object key 结构、registry 写入、重复导入 skip 和 placeholder job envelope。
 
 ### Task 5: 建立去重、版本推进和 stable ID 规则
 
@@ -328,8 +485,8 @@
 **Files:**
 - Modify: `tests/test_workspace_layout.py`
 - Modify: `README.md`
-- Modify: `docs/architecture/2026-03-22-ingestion-and-storage-architecture.md` 仅补实现链接
-- Modify: `docs/decisions/2026-03-22-phase1-architecture-decisions.md` 仅补实施链接
+- Modify: `docs/architecture/phase1-ingestion-and-storage-architecture.md` 仅补实现链接
+- Modify: `docs/decisions/adr-0001-phase1-architecture.md` 仅补实施链接
 
 **Implementation:**
 - 把当前 smoke 从“骨架存在”升级为“主链路可用”
@@ -350,6 +507,7 @@
 - `Supervisor API -> Supervisor Core -> RAG Specialist -> Retrieval Core` 可跑通
 - 返回结果带 `trace_id`、最小 source locator、confidence
 - baseline 场景冻结并可重复运行
+- gate 0 到 gate 4 均有明确通过证据，而不是只停留在代码存在
 
 ## 并行策略
 
@@ -381,3 +539,11 @@
 - `crawler/job` 与 `queue` 仅保留占位结构
 - 不做云服务接入
 - 不做旧接口兼容层
+
+## 这轮不做的事
+
+- 不在第一阶段引入第二套 retrieval backend
+- 不为了未来云厂商预埋多套对象存储 key 规则
+- 不做 crawler/job/queue 的真实分布式生产化实现
+- 不做 replayable 审计账本、字段级 ACL 或完整 ABAC
+- 不为了“方便导入”把本机目录直接提升为长期真相源

@@ -1,3 +1,10 @@
+---
+doc_type: architecture
+status: active
+created: 2026-03-22
+updated: 2026-03-22
+---
+
 # campus-agent 第一阶段 Ingestion 与存储架构
 
 ## 目标
@@ -42,6 +49,7 @@
 
 - 清洗后的正文文本
 - OCR / 结构解析结果
+- 供应商原始解析响应
 - 抽取出的结构化 metadata
 - parser 版本和处理时间
 
@@ -49,6 +57,8 @@
 
 - 可放对象存储或结构化存储
 - 必须能从 raw 重建 chunk
+- 同一 `document_id + version_id` 下允许保存多个 processed artifact
+- 供应商原始响应与内部统一 `structured.jsonl` 必须分开保存，不能互相替代
 - 当前阶段优先仍放在本机 `MinIO` 中，与 raw layer 分 bucket 或分前缀管理
 
 ### Chunk / Index Layer
@@ -81,6 +91,8 @@
 - `ingestion_timestamp`
 - `parser_version`
 - `embedding_model`
+- `structured_object_key`
+- `provider_result_object_key`
 
 作用：
 
@@ -96,8 +108,10 @@
 
 固定规则：
 
+- 历史 existing OCR 补录工具与正式 raw-first ingestion worker 是两条独立 runtime shell
 - crawler 不直接把本机文件作为长期数据源
 - crawler 产物先进入对象存储和队列
+- queue 在第一阶段可以先是 placeholder envelope，但边界必须独立存在
 - ingestion worker 在早期做 hash 去重
 - 无变化文档直接 skip
 - 有变化文档生成新 `version_id`
@@ -147,7 +161,7 @@
 ## 与仓库结构的对应关系
 
 - `apps/ingestion-worker`
-  队列消费和 ingestion runtime
+  历史 OCR backfill shell、queue placeholder shell 和 raw ingestion worker shell
 - `packages/ingestion-core`
   去重、解析、chunking、embedding 写入逻辑
 - `packages/retrieval-core`
@@ -169,14 +183,17 @@
 - object key 建议采用：
   - `student_handbook/{document_id}/{version_id}/raw/...`
   - `student_handbook/{document_id}/{version_id}/processed/...`
+- 在线 OCR 接入时，`processed/` 下至少允许：
+  - `provider-result.jsonl`
+  - `structured.jsonl`
 
 详细约束见：
 
-- `docs/decisions/2026-03-22-local-minio-conventions.md`
+- `docs/decisions/adr-0002-local-minio-conventions.md`
 
 实施拆分见：
 
-- `docs/plans/2026-03-22-agentic-rag-foundation.md`
+- `docs/plans/agentic-rag-foundation.md`
 
 ## 第一阶段不做的事
 

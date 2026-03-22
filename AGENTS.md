@@ -16,11 +16,12 @@
 先看这些文件，再做结构性修改：
 
 - `README.md`
-- `docs/architecture/2026-03-22-long-term-architecture.md`
-- `docs/architecture/2026-03-22-ingestion-and-storage-architecture.md`
-- `docs/decisions/2026-03-22-phase1-architecture-decisions.md`
-- `docs/decisions/2026-03-22-local-minio-conventions.md`
-- `docs/plans/2026-03-22-agentic-rag-foundation.md`
+- `docs/README.md`
+- `docs/architecture/long-term-architecture.md`
+- `docs/architecture/phase1-ingestion-and-storage-architecture.md`
+- `docs/decisions/adr-0001-phase1-architecture.md`
+- `docs/decisions/adr-0002-local-minio-conventions.md`
+- `docs/plans/agentic-rag-foundation.md`
 
 工作规则：
 
@@ -101,7 +102,7 @@ python3 -m unittest discover -s tests -t .
 
 - 先判断是否存在独立子任务；如果可以拆开，优先按模块边界委派，而不是把所有工作串行堆给主代理
 - 优先按模块边界切分子任务，例如 `contracts`、`ingestion-core`、`retrieval-core`、`rag-specialist` / `supervisor-core`、`evals`
-- 按依赖顺序并行，不要无视 contract 和强耦合关系；`docs/plans/2026-03-22-agentic-rag-foundation.md` 里的分批策略可作为默认参考
+- 按依赖顺序并行，不要无视 contract 和强耦合关系；`docs/plans/agentic-rag-foundation.md` 里的分批策略可作为默认参考
 - 并行工作时避免共享写集；每个 subagent 应拥有明确的文件或模块责任
 - `contracts` 未冻结前，不要并行推进依赖它的接口形状；关键 contract 变更统一由主代理收口
 - 复杂任务可以并行探索或分工实现，但主代理负责最终取舍、集成和验证

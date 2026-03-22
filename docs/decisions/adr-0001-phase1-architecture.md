@@ -1,6 +1,12 @@
-# 第一阶段架构决策记录
+---
+doc_type: decision
+decision_id: ADR-0001
+status: accepted
+created: 2026-03-22
+updated: 2026-03-22
+---
 
-日期：2026-03-22
+# ADR-0001 第一阶段架构决策记录
 
 适用范围：`campus-agent` v2 第一阶段上线实现
 
@@ -126,8 +132,8 @@
 
 相关约束文档：
 
-- `docs/decisions/2026-03-22-local-minio-conventions.md`
-- `docs/plans/2026-03-22-agentic-rag-foundation.md`
+- `docs/decisions/adr-0002-local-minio-conventions.md`
+- `docs/plans/agentic-rag-foundation.md`
 
 延后到硬化阶段：
 

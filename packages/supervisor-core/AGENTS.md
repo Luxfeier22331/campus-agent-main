@@ -15,9 +15,9 @@
 修改本目录前，优先阅读：
 
 - `../../AGENTS.md`
-- `../../docs/architecture/2026-03-22-long-term-architecture.md`
-- `../../docs/decisions/2026-03-22-phase1-architecture-decisions.md`
-- `../../docs/plans/2026-03-22-agentic-rag-foundation.md`
+- `../../docs/architecture/long-term-architecture.md`
+- `../../docs/decisions/adr-0001-phase1-architecture.md`
+- `../../docs/plans/agentic-rag-foundation.md`
 - `src/campus_supervisor_core/__init__.py`
 - `README.md`
 

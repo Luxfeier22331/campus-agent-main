@@ -6,8 +6,9 @@
 
 这个仓库正在围绕长期的 supervisor + specialist 架构重建。
 
-- 长期架构文档：`docs/architecture/2026-03-22-long-term-architecture.md`
-- 第一阶段决策记录：`docs/decisions/2026-03-22-phase1-architecture-decisions.md`
+- 文档索引与标识规则：`docs/README.md`
+- 长期架构文档：`docs/architecture/long-term-architecture.md`
+- 第一阶段决策记录：`docs/decisions/adr-0001-phase1-architecture.md`
 - `apps/supervisor-api` 表示对外 serving boundary，不代表已经选定 FastAPI 或其他 runtime
 - runtime 选择要放在 contract 和 package 边界稳定之后
 

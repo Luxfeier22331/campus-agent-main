@@ -1,6 +1,12 @@
-# 本地 MinIO 约束与迁移不变量
+---
+doc_type: decision
+decision_id: ADR-0002
+status: accepted
+created: 2026-03-22
+updated: 2026-03-22
+---
 
-日期：2026-03-22
+# ADR-0002 本地 MinIO 约束与迁移不变量
 
 适用范围：`campus-agent` v2 第一阶段在暂时无法使用云对象存储时的本地替代实现
 
@@ -27,7 +33,7 @@
 - `campus-rag-raw`
   保存原始 PDF、Word、Markdown、HTML 等源文件
 - `campus-rag-processed`
-  保存清洗文本、OCR/解析结果、结构化 metadata 和其他中间产物
+  保存清洗文本、OCR/解析结果、供应商原始解析响应、结构化 metadata 和其他中间产物
 
 第一阶段不新增第三个专门 chunk bucket；chunk 文本和 embeddings 仍分别由 Qdrant 与 registry/index 层管理。
 
@@ -37,6 +43,17 @@
 
 - `student_handbook/{document_id}/{version_id}/raw/...`
 - `student_handbook/{document_id}/{version_id}/processed/...`
+
+在线 OCR 的 processed artifact 约定：
+
+- `student_handbook/{document_id}/{version_id}/processed/provider-result.jsonl`
+- `student_handbook/{document_id}/{version_id}/processed/structured.jsonl`
+
+说明：
+
+- `provider-result.jsonl` 保存供应商返回的原始响应，供审计、重放和排障使用
+- `structured.jsonl` 保存内部统一的归一化结果，供 registry、chunking 和去重使用
+- `provider-result.jsonl` 不得冒充 raw layer 真相源
 
 不变量：
 
