@@ -190,7 +190,7 @@ ingestion boundary 是长期存在的数据摄入边界。
 
 ## 从旧 bootstrap 迁移
 
-归档在 `legacy/bootstrap-20260322/` 下的实现，只保留为参考材料，不再是主路径。
+旧 bootstrap 只作为历史实现参考，现已不保留在主工作树中；如需追溯请查看 git 历史。
 
 概念上保留的内容：
 

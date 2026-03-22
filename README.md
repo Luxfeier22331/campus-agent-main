@@ -25,7 +25,7 @@
 
 仓库已经重置为 v2 架构基线。
 
-- 旧 bootstrap 实现保存在 `legacy/bootstrap-20260322/`
+- 旧 bootstrap 已从工作树移除；如需追溯请查看 git 历史
 - 当前主路径是 `supervisor-api -> supervisor-core -> rag-specialist -> retrieval-core`
 - 架构目标是 supervisor-led multi-agent orchestration，而不是 `RAG as a tool`
 - 当前仍是初始化骨架，不是完整产品实现
