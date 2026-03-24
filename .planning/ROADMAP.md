@@ -97,14 +97,14 @@ Plans:
 
 ### Phase 05.1: 研究 curriculum 的 chunking 策略 (INSERTED)
 
-**Goal:** Freeze the offline-only `curriculum_plan` chunking strategy as explicit runtime truth so Phase 6 can implement curriculum cleaning and chunk generation without ambiguity or accidental query-serving scope expansion.
+**Goal:** Freeze the evidence-backed offline-only `curriculum_plan` chunking boundary, config ownership, and sample-backed candidate semantics so Phase 6 can implement against current repo truth without accidental query-serving scope expansion or premature semantic-contract freeze.
 **Requirements**: []
 **Depends on:** Phase 5
 **Plans:** 2 plans
 
 Plans:
-- [ ] 05.1-01-PLAN.md — 冻结 curriculum_plan chunking 的 docs/config/runtime truth，并显式收口 ingestion-core 的 corpus-aware profile 选择。
-- [ ] 05.1-02-PLAN.md — 补齐 curriculum chunking 与 processing/worker 的自动化验证闭环，证明 offline-only 语义不回退。
+- [ ] 05.1-01-PLAN.md — 对齐 `curriculum/curriculum_plan` 的 docs/config/runtime boundary，明确哪些规则已冻结、哪些 chunking 语义仍是 candidate。
+- [ ] 05.1-02-PLAN.md — 基于现有 curriculum samples/tests 补齐 fail-closed、normalization 与 candidate chunking 行为的自动化验证，不把候选语义误写成最终 contract。
 
 ### Phase 6: Curriculum Offline Preparation
 **Goal**: Prepare `curriculum_plan` raw, processed, and chunk outputs as an offline data-plane path without exposing it to query-serving.
