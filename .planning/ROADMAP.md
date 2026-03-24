@@ -13,7 +13,7 @@ This roadmap stabilizes the new supervisor-led architecture before it expands sc
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Contract And Boundary Guardrails** - Freeze phase-1 supervisor/specialist contracts and corpus-policy limits. (completed 2026-03-23)
-- [ ] **Phase 2: Student Handbook Raw Ingestion** - Land stable raw ingestion identity and versioning for `student_handbook`.
+- [x] **Phase 2: Student Handbook Raw Ingestion** - Land stable raw ingestion identity and versioning for `student_handbook`. (completed 2026-03-24)
 - [ ] **Phase 3: Retrieval Corpus Preparation** - Produce processed, chunked, and indexed `student_handbook` artifacts for query-serving.
 - [ ] **Phase 4: RAG Specialist Answer Path** - Deliver grounded `student_handbook` retrieval and answer semantics inside `rag-specialist`.
 - [ ] **Phase 5: Supervisor Entry, ACL, And Audit** - Make `supervisor` the only query entrypoint with routing, identity propagation, and audit traces.
@@ -47,8 +47,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 02-01: Implement raw document registration and metadata persistence for `student_handbook`.
-- [ ] 02-02: Add validation and fixtures covering raw ingestion identity/version behavior.
+- [x] 02-01: Implement raw document registration and metadata persistence for `student_handbook`.
+- [x] 02-02: Add validation and fixtures covering raw ingestion identity/version behavior.
 
 ### Phase 3: Retrieval Corpus Preparation
 **Goal**: Transform `student_handbook` raw inputs into processed text plus chunk/index artifacts ready for retrieval query-serving.
@@ -142,7 +142,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 05.1 → 6 → 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Contract And Boundary Guardrails | 2/2 | Complete   | 2026-03-23 |
-| 2. Student Handbook Raw Ingestion | 0/2 | Not started | - |
+| 2. Student Handbook Raw Ingestion | 2/2 | Complete | 2026-03-24 |
 | 3. Retrieval Corpus Preparation | 0/2 | Not started | - |
 | 4. RAG Specialist Answer Path | 0/3 | Not started | - |
 | 5. Supervisor Entry, ACL, And Audit | 0/3 | Not started | - |
