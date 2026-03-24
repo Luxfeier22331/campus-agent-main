@@ -166,3 +166,28 @@ Example:
 ```bash
 python -m campus_ingestion_worker.process_raw_ingestion_job
 ```
+
+### `migrate_campus_services_canonical`
+
+Worker shell for offline-only `campus_services` canonical markdown backfill.
+
+Required env:
+
+- `OBJECT_STORE_ENDPOINT`
+- `OBJECT_STORE_ACCESS_KEY`
+- `OBJECT_STORE_SECRET_KEY`
+- `CAMPUSRAG_CANONICAL_ROOT`
+
+Optional env:
+
+- `OBJECT_STORE_BUCKET_PROCESSED`
+
+Behavior:
+
+- Reads canonical markdown from legacy `campusRAG/rag-data/canonical`.
+- Imports active `service_portal` documents into `campus_services/service_catalog`.
+- Imports `中央民族大学校内常用电话` into `campus_services/contact_directory`.
+- Rewrites migrated canonical metadata into `campus_services` corpus semantics.
+- Deletes stale `regulations/student_handbook` phone-directory document artifacts.
+- Only writes processed-bucket `canonical.md` artifacts and targeted cleanup.
+- Does not touch registry, Qdrant, retrieval routing, or default query scopes.

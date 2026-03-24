@@ -4,6 +4,13 @@ from campus_ingestion_core.artifacts import (
     LAYOUT_ELEMENTS_FILENAME,
     PROVIDER_RESPONSE_FILENAME,
 )
+from campus_ingestion_core.campus_services_migration import (
+    CampusServicesMigrationEntry,
+    CampusServicesMigrationPlan,
+    CampusServicesObjectStoreMigrationReport,
+    build_campus_services_migration_plan,
+    migrate_campus_services_canonical_to_object_store,
+)
 from campus_ingestion_core.object_store import (
     S3ObjectStoreClientFactory,
     build_processed_artifact_key,
@@ -88,6 +95,9 @@ __all__ = [
     "DEFAULT_BUCKET_PROCESSED",
     "DEFAULT_BUCKET_RAW",
     "CANONICAL_MARKDOWN_FILENAME",
+    "CampusServicesMigrationEntry",
+    "CampusServicesMigrationPlan",
+    "CampusServicesObjectStoreMigrationReport",
     "DEFAULT_CHUNK_POLICY_VERSION",
     "DEFAULT_CHUNK_OVERLAP",
     "DEFAULT_CHUNK_SIZE",
@@ -123,6 +133,7 @@ __all__ = [
     "RawAssetRegistry",
     "build_embedding_model",
     "build_document_registry_from_env",
+    "build_campus_services_migration_plan",
     "build_indexable_chunks_from_jsonl",
     "build_processed_artifact_key",
     "build_processed_asset_artifact_key",
@@ -139,6 +150,7 @@ __all__ = [
     "process_raw_ingestion_job",
     "PROVIDER_RESPONSE_FILENAME",
     "migrate_student_handbook_source_faithful",
+    "migrate_campus_services_canonical_to_object_store",
     "rebuild_local_data",
     "replay_provider_response_rebuild",
     "S3ObjectStoreClientFactory",
