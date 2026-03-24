@@ -61,7 +61,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 03-01: Implement processed-text and chunk-generation flow for `student_handbook`.
+- [x] 03-01: Implement processed-text and chunk-generation flow for `student_handbook`.
 - [ ] 03-02: Produce retrieval-ready indexing artifacts and metadata needed for citations.
 
 ### Phase 4: RAG Specialist Answer Path
