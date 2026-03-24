@@ -33,6 +33,30 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertFalse(profile.default_query_enabled)
         self.assertEqual(profile.cleaning_policy_version, "curriculum_plan_cleaning_v1")
 
+    def test_load_service_catalog_runtime_profile(self) -> None:
+        profile = load_runtime_profile("campus_services", "service_catalog")
+
+        self.assertEqual(profile.corpus, "campus_services")
+        self.assertEqual(profile.collection, "service_catalog")
+        self.assertEqual(profile.phase1_stage, "cleaned_ingestion")
+        self.assertEqual(profile.allowed_artifact_modes, ("normalized", "provider_only"))
+        self.assertFalse(profile.split_manifest_required)
+        self.assertFalse(profile.retrieval_enabled)
+        self.assertFalse(profile.default_query_enabled)
+        self.assertEqual(profile.cleaning_policy_version, "service_catalog_cleaning_v1")
+
+    def test_load_contact_directory_runtime_profile(self) -> None:
+        profile = load_runtime_profile("campus_services", "contact_directory")
+
+        self.assertEqual(profile.corpus, "campus_services")
+        self.assertEqual(profile.collection, "contact_directory")
+        self.assertEqual(profile.phase1_stage, "cleaned_ingestion")
+        self.assertEqual(profile.allowed_artifact_modes, ("normalized", "provider_only"))
+        self.assertFalse(profile.split_manifest_required)
+        self.assertFalse(profile.retrieval_enabled)
+        self.assertFalse(profile.default_query_enabled)
+        self.assertEqual(profile.cleaning_policy_version, "contact_directory_cleaning_v1")
+
     def test_default_query_scopes_only_include_query_enabled_profiles(self) -> None:
         self.assertEqual(default_query_scopes(), (("regulations", "student_handbook"),))
 

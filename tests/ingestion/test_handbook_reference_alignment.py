@@ -66,12 +66,6 @@ REFERENCE_DOCS = {
         "page_start": 259,
         "page_end": 260,
     },
-    "中央民族大学校内常用电话": {
-        "document_id": "handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675",
-        "handbook_section": "中央民族大学公寓及公费医疗管理规定",
-        "page_start": 261,
-        "page_end": 261,
-    },
 }
 
 REFERENCE_SECTION_COUNTS = {
@@ -80,7 +74,7 @@ REFERENCE_SECTION_COUNTS = {
     "中央民族大学学生日常管理规定": 12,
     "中央民族大学学生奖励管理规定": 8,
     "中央民族大学学生资助管理规定": 9,
-    "中央民族大学公寓及公费医疗管理规定": 5,
+    "中央民族大学公寓及公费医疗管理规定": 4,
 }
 
 
@@ -92,7 +86,7 @@ class HandbookReferenceAlignmentTest(unittest.TestCase):
             expected_collection="student_handbook",
         )
 
-        self.assertEqual(len(manifest.documents), 48)
+        self.assertEqual(len(manifest.documents), 47)
         by_title = {document.title: document for document in manifest.documents}
         self.assertEqual(set(REFERENCE_DOCS), set(REFERENCE_DOCS) & set(by_title))
         for title, expected in REFERENCE_DOCS.items():
@@ -115,7 +109,7 @@ class HandbookReferenceAlignmentTest(unittest.TestCase):
             Counter(REFERENCE_SECTION_COUNTS),
         )
         self.assertEqual(manifest.documents[0].page_start, 2)
-        self.assertEqual(manifest.documents[-1].page_end, 261)
+        self.assertEqual(manifest.documents[-1].page_end, 260)
         self.assertTrue(
             all(
                 document.source_uri == f"campus-agent://regulations/student_handbook/docs/{document.document_id}"

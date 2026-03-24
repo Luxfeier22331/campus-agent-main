@@ -49,6 +49,15 @@ class ContractModelsTest(unittest.TestCase):
                 scope=KnowledgeScope(corpus="regulations", collection="curriculum_plan"),
             )
 
+    def test_request_accepts_offline_campus_services_scope(self) -> None:
+        request = DelegateToRagAgentRequest(
+            user_goal="校园110电话是多少？",
+            scope=KnowledgeScope(corpus="campus_services", collection="contact_directory"),
+        )
+
+        self.assertEqual(request.scope.corpus, "campus_services")
+        self.assertEqual(request.scope.collection, "contact_directory")
+
     def test_response_serializes_evidence_shape(self) -> None:
         response = DelegateToRagAgentResponse(
             status="completed",
@@ -116,6 +125,30 @@ class ContractModelsTest(unittest.TestCase):
         self.assertEqual(document_ref.collection, "student_handbook")
         self.assertFalse(error.retryable)
         self.assertEqual(asdict(error)["message"], "Qdrant timeout")
+
+    def test_document_ref_accepts_campus_services_collections(self) -> None:
+        navigation_ref = DocumentRef(
+            document_id="service:catalog-001",
+            revision_track="source-faithful",
+            version_id="v1:catalog-001",
+            corpus="campus_services",
+            collection="service_catalog",
+            source_uri="https://service.muc.edu.cn/v2/site/index",
+            content_hash="sha256:catalog-001",
+        )
+        contact_ref = DocumentRef(
+            document_id="service:contact-001",
+            revision_track="source-faithful",
+            version_id="v1:contact-001",
+            corpus="campus_services",
+            collection="contact_directory",
+            source_uri="campus-agent://campus_services/contact_directory/docs/service:contact-001",
+            content_hash="sha256:contact-001",
+        )
+
+        self.assertEqual(navigation_ref.corpus, "campus_services")
+        self.assertEqual(navigation_ref.collection, "service_catalog")
+        self.assertEqual(contact_ref.collection, "contact_directory")
 
 
 if __name__ == "__main__":

@@ -32,7 +32,7 @@ updated: 2026-03-24
 实施范围固定为：
 
 - 查询链路默认开放 `regulations` corpus 中的 `student_handbook` collection
-- storage/data-plane 可增量支持其他已冻结 scope，例如 `curriculum/curriculum_plan`
+- storage/data-plane 可增量支持其他已冻结 scope，例如 `curriculum/curriculum_plan` 与 offline-only 的 `campus_services/service_catalog`、`campus_services/contact_directory`
 - 上游可以保留 `crawler job` / `queue` 概念边界，但当前 worker runtime 只消费已登记的 raw asset identity，不实现本地 placeholder queue
 - 当前对象存储只做本机 `MinIO`
 - 不保留旧 RAG API 兼容层
@@ -126,7 +126,7 @@ updated: 2026-03-24
 在写任何正式实现之前，先冻结以下输入，不允许边做边漂移：
 
 - query-serving 默认范围：开放 `regulations` corpus 中的 `student_handbook` collection
-- data-plane 增量语料：允许 `curriculum` corpus 下的 `curriculum_plan` 完成 raw/processed/registry 与清洗真相收口，但不自动放开 retrieval
+- data-plane 增量语料：允许 `curriculum` corpus 下的 `curriculum_plan` 与 `campus_services` corpus 下的服务类 collection 完成 raw/processed/registry 与清洗真相收口，但不自动放开 retrieval
 - handbook OCR 输入：只允许对象存储中的 `provider-response.jsonl` 与 repo-tracked `split-manifest.v1.json`
 - object storage 语义：只允许 `campus-rag-raw` / `campus-rag-processed`
 - object key 结构：

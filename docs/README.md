@@ -41,6 +41,7 @@ updated: 2026-03-22
 - `decisions/adr-0002-local-minio-conventions.md`
 - `decisions/adr-0003-golden-dataset-governance.md`
 - `decisions/adr-0004-evaluation-metrics.md`
+- `decisions/adr-0005-campus-services-taxonomy.md`
 - `plans/agentic-rag-foundation.md`
 - `plans/golden-dataset-document-delivery.md`
 - `plans/golden-dataset-schema-and-bootstrap.md`

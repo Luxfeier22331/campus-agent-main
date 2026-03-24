@@ -4,18 +4,20 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 
-AllowedCorpus = Literal["regulations", "curriculum"]
+AllowedCorpus = Literal["regulations", "curriculum", "campus_services"]
 RevisionTrack = Literal["source-faithful", "current-effective", "editorial"]
 SourceChannel = Literal["pdf_ocr", "official_web", "manual_curated"]
 DelegateStatus = Literal["completed", "needs_clarification", "no_answer", "error"]
 ConfidenceLevel = Literal["high", "medium", "low"]
 
-ALLOWED_CORPORA = ("regulations", "curriculum")
+ALLOWED_CORPORA = ("regulations", "curriculum", "campus_services")
 DEFAULT_CORPUS = "regulations"
 DEFAULT_COLLECTION = "student_handbook"
 KNOWN_COLLECTION_TO_CORPUS = {
     "student_handbook": "regulations",
     "curriculum_plan": "curriculum",
+    "service_catalog": "campus_services",
+    "contact_directory": "campus_services",
 }
 ALLOWED_REVISION_TRACKS = ("source-faithful", "current-effective", "editorial")
 ALLOWED_SOURCE_CHANNELS = ("pdf_ocr", "official_web", "manual_curated")

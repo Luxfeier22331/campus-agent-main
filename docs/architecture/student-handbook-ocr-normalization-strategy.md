@@ -239,9 +239,10 @@ updated: 2026-03-24
 - `regulations/sources/{source_channel}/{source_asset_slug}/{year}/{ingest_id}/...` 保留 processed source 级 `provider-response.jsonl`
 - `regulations/sources/{source_channel}/{source_asset_slug}/{year}/{ingest_id}/...` 保留 processed source 级 `layout-elements.jsonl`
 - document registry 只登记逻辑文档，不登记整本 handbook PDF 作为单一 document truth
-- `regulations/documents/student_handbook/.../document-units.jsonl` 继续作为 `packages/ingestion-core` 的 chunking 输入
+- `regulations/documents/student_handbook/.../document-units.jsonl` 继续作为 `packages/ingestion-core` 的规章导向 chunking 输入
 - 当前 query-serving 默认范围应表述为 `regulations` corpus 下的 `student_handbook` collection
 - 对外展示或清洗效果对照应优先消费 `canonical.md`，不要直接拿 chunk 文本代替
+- handbook 中的电话目录页不再保留在 `regulations/student_handbook` 的 split truth；后续应派生进入 `campus_services/contact_directory`
 
 ## Representation 规则
 
