@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-03-24T12:30:28.422Z"
+status: planning
+stopped_at: Phase 3 execution and verification complete
+last_updated: "2026-03-24T12:42:52Z"
 progress:
   total_phases: 8
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 8
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Project State
@@ -19,13 +19,14 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-03-23)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 `student_handbook` 的完整 agentic RAG 主流程证明这条架构能可靠替代高频人工答疑
-**Current focus:** Phase 03 — retrieval-corpus-preparation
+**Current focus:** Phase 03 complete — Retrieval Corpus Preparation
 
 ## Current Position
 
-Phase: 03 (retrieval-corpus-preparation) — EXECUTING
+Phase: 03 (retrieval-corpus-preparation) — COMPLETE
 Plan: 2 of 2
-Status: 03-01 complete; executing 03-02
+Status: Ready for Phase 4 discussion and planning
+Last activity: 2026-03-24 — Completed Phase 3 execution and verification
 
 ## Performance Metrics
 
@@ -73,6 +74,8 @@ Recent decisions affecting current work:
 - [Phase 01]: packages/supervisor-core documentation now treats the current module split as accepted phase-1 architecture rather than aspirational bootstrap scaffolding. — Package-local docs now serve as boundary evidence and align with the accepted supervisor-core ownership model.
 - [Phase 02]: handbook source PDFs now enter through `register_raw_asset -> process_raw_ingestion_job`, making raw bucket + raw registry the canonical onboarding path.
 - [Phase 02]: handbook normalized imports now classify `created_document_ids`, `updated_document_ids`, and `skipped_document_ids` from logical document identity plus content hash instead of only exact version tuple matches.
+- [Phase 03]: handbook chunk generation now rebuilds directly from `document_units_object_key` in the document registry instead of relying on ad hoc in-memory processing inputs.
+- [Phase 03]: ingestion writes `representation` as a Qdrant payload alias for `revision_track`, while retrieval stays contract-compatible and fail-closes on malformed or registry-missing metadata.
 
 ### Pending Todos
 
@@ -84,6 +87,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-24T12:30:28.420Z
-Stopped at: Completed 03-01-PLAN.md
-Resume file: .planning/phases/03-retrieval-corpus-preparation/03-02-PLAN.md
+Last session: 2026-03-24T12:42:52Z
+Stopped at: Phase 3 execution and verification complete
+Resume file: None

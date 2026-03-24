@@ -16,6 +16,7 @@
 - ✓ 已存在 `supervisor-api -> supervisor-core -> rag-specialist -> retrieval-core` 的主链路骨架与共享 contract 边界 — existing
 - ✓ 已存在 ingestion/data plane 基础设施骨架，可支持 `student_handbook` 与 `curriculum_plan` 的 raw / processed / chunk 路径演进 — existing
 - ✓ 已完成 `student_handbook` 的 canonical raw onboarding、稳定逻辑文档 identity/version 规则与 machine-checkable duplicate/update import reporting — Validated in Phase 2
+- ✓ 已完成 `student_handbook` 的 canonical processed artifact、chunk metadata 与 Qdrant/retrieval payload handoff 收口 — Validated in Phase 3
 
 ### Active
 
@@ -57,6 +58,8 @@
 | phase-1 先优先架构边界正确、handoff 清晰、tracing / audit / ACL 最小闭环 | 这是“符合最佳实践”的核心，也是后续扩展多 specialist 的前置条件 | — Pending |
 | handbook raw onboarding 必须先进入 raw bucket + raw asset registry，再允许 OCR normalized ingestion | Phase 2 要证明 raw/document truth 分层成立，不能退回本地文件路径兼容方案 | — Validated in Phase 2 |
 | handbook duplicate/update 判定基于 `document_id + revision_track` 的历史内容哈希，并通过 import report 显式暴露 created/updated/skipped buckets | 后续 Phase 3/4 需要稳定的版本推进与可审计回归证据 | — Validated in Phase 2 |
+| handbook chunking 必须从 registry 指向的 `document-units.jsonl` 重建，并让 ingestion/retrieval 之间共享同一套 evidence-trace metadata | Phase 3 要证明 processed truth、Qdrant payload 和 retrieval evidence shaping 已经收口 | — Validated in Phase 3 |
+| `representation` 作为 Qdrant payload alias 保留在 ingestion/retrieval 边界内，shared contract 继续使用 `revision_track` | 这样可以补齐 retrieval payload 语义，同时避免 contract 泄漏或兼容层扩散 | — Validated in Phase 3 |
 
 ## Evolution
 
@@ -76,4 +79,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state (users, feedback, metrics)
 
 ---
-*Last updated: 2026-03-24 after Phase 2 completion*
+*Last updated: 2026-03-24 after Phase 3 completion*

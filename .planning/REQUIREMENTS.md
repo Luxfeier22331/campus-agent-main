@@ -10,7 +10,7 @@ Requirements for the initial phase-1 release. Each requirement will map to exact
 ### Ingestion
 
 - [x] **ING-01**: System can ingest `student_handbook` source documents into raw storage with stable document identity and version metadata
-- [ ] **ING-02**: System can transform `student_handbook` documents into processed text and chunk/index artifacts suitable for retrieval query-serving
+- [x] **ING-02**: System can transform `student_handbook` documents into processed text and chunk/index artifacts suitable for retrieval query-serving
 - [ ] **ING-03**: System can ingest `curriculum_plan` into raw / processed / chunk outputs without exposing it to query-serving
 
 ### Query Serving
@@ -74,7 +74,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | ING-01 | Phase 2 | Complete |
-| ING-02 | Phase 3 | Pending |
+| ING-02 | Phase 3 | Complete |
 | ING-03 | Phase 6 | Pending |
 | QRY-01 | Phase 4 | Pending |
 | QRY-02 | Phase 4 | Pending |
@@ -96,4 +96,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-23*
-*Last updated: 2026-03-24 after Phase 2 completion*
+*Last updated: 2026-03-24 after Phase 3 completion*

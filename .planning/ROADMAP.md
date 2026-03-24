@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Contract And Boundary Guardrails** - Freeze phase-1 supervisor/specialist contracts and corpus-policy limits. (completed 2026-03-23)
 - [x] **Phase 2: Student Handbook Raw Ingestion** - Land stable raw ingestion identity and versioning for `student_handbook`. (completed 2026-03-24)
-- [ ] **Phase 3: Retrieval Corpus Preparation** - Produce processed, chunked, and indexed `student_handbook` artifacts for query-serving.
+- [x] **Phase 3: Retrieval Corpus Preparation** - Produce processed, chunked, and indexed `student_handbook` artifacts for query-serving. (completed 2026-03-24)
 - [ ] **Phase 4: RAG Specialist Answer Path** - Deliver grounded `student_handbook` retrieval and answer semantics inside `rag-specialist`.
 - [ ] **Phase 5: Supervisor Entry, ACL, And Audit** - Make `supervisor` the only query entrypoint with routing, identity propagation, and audit traces.
 - [ ] **Phase 6: Curriculum Offline Preparation** - Prepare `curriculum_plan` ingestion outputs without opening query-serving.
@@ -30,7 +30,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   1. `supervisor-core` and `rag-specialist` communicate only through shared contract types in `packages/contracts`.
   2. The phase-1 route policy rejects corpora outside `student_handbook`.
   3. `apps/supervisor-api` stays limited to transport/auth/runtime concerns and does not own orchestration rules.
-**Plans**: 2 plans
+**Plans**: 2/2 plans complete
 
 Plans:
 - [x] 01-01: Audit and harden the existing supervisor-specialist contract, routing, and audit invariants.
@@ -62,7 +62,7 @@ Plans:
 
 Plans:
 - [x] 03-01: Implement processed-text and chunk-generation flow for `student_handbook`.
-- [ ] 03-02: Produce retrieval-ready indexing artifacts and metadata needed for citations.
+- [x] 03-02: Produce retrieval-ready indexing artifacts and metadata needed for citations.
 
 ### Phase 4: RAG Specialist Answer Path
 **Goal**: Deliver the retrieval-oriented `rag-specialist` behavior for `student_handbook`, including grounded answers, citations, clarification, and no-answer/error handling.
@@ -143,7 +143,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 05.1 → 6 → 7
 |-------|----------------|--------|-----------|
 | 1. Contract And Boundary Guardrails | 2/2 | Complete   | 2026-03-23 |
 | 2. Student Handbook Raw Ingestion | 2/2 | Complete | 2026-03-24 |
-| 3. Retrieval Corpus Preparation | 0/2 | Not started | - |
+| 3. Retrieval Corpus Preparation | 2/2 | Complete | 2026-03-24 |
 | 4. RAG Specialist Answer Path | 0/3 | Not started | - |
 | 5. Supervisor Entry, ACL, And Audit | 0/3 | Not started | - |
 | 05.1. Curriculum Chunking Strategy | 0/2 | Not started | - |
