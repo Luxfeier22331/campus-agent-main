@@ -46,9 +46,9 @@ class SupervisorApiTest(unittest.TestCase):
             "POST",
             "/api/v1/answer",
             headers={
-                "authorization": "Bearer secret-token",
-                "x-trace-id": "trace-001",
-                "x-actor-id": "student-001",
+                "Authorization": "Bearer secret-token",
+                "X-Trace-Id": "trace-001",
+                "X-Actor-Id": "student-001",
             },
             json_body={
                 "user_goal": "library hours",
@@ -61,6 +61,7 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json_body["trace_id"], "trace-001")
         self.assertEqual(response.json_body["status"], "completed")
+        self.assertEqual(response.json_body["answer_text"], "The library is open from 08:00 to 22:00.")
         self.assertEqual(captured_requests[0].user_goal, "library hours")
         self.assertEqual(captured_requests[0].conversation_id, "conv-001")
         self.assertEqual(captured_requests[0].request_id, "req-001")
@@ -69,6 +70,7 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(captured_requests[0].actor.groups, ("students",))
         self.assertEqual(captured_requests[0].actor.roles, ("student",))
         self.assertEqual(captured_requests[0].actor.campus_scope, "north")
+        self.assertEqual(captured_requests[0].corpora, ("student_handbook",))
 
     def test_answer_route_projects_supervisor_response_without_orchestration_logic(self) -> None:
         def fake_supervisor(request: DelegateToRagAgentRequest) -> DelegateToRagAgentResponse:
@@ -104,6 +106,45 @@ class SupervisorApiTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json_body, expected_payload)
+
+    def test_create_app_dispatches_normalized_headers_only_through_supervisor_handler(self) -> None:
+        captured_requests: list[DelegateToRagAgentRequest] = []
+
+        def fake_supervisor(request: DelegateToRagAgentRequest) -> DelegateToRagAgentResponse:
+            captured_requests.append(request)
+            return DelegateToRagAgentResponse(
+                status="completed",
+                answer_text="Projected from supervisor-core.",
+                confidence="high",
+            )
+
+        app = create_app(
+            settings=ApiSettings(
+                auth_mode="bearer",
+                bearer_token="secret-token",
+                default_actor_groups=("students",),
+                default_actor_roles=("student",),
+            ),
+            supervisor_handler=fake_supervisor,
+        )
+
+        response = app.handle(
+            "post",
+            "/api/v1/answer",
+            headers={
+                "AUTHORIZATION": "Bearer secret-token",
+                "X-TRACE-ID": "trace-uppercase",
+                "X-ACTOR-ID": "student-uppercase",
+            },
+            json_body={"user_goal": "when is registration", "request_id": "req-uppercase"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json_body["trace_id"], "trace-uppercase")
+        self.assertEqual(response.json_body["answer_text"], "Projected from supervisor-core.")
+        self.assertEqual(len(captured_requests), 1)
+        self.assertEqual(captured_requests[0].trace, TraceContext(trace_id="trace-uppercase"))
+        self.assertEqual(captured_requests[0].actor.user_id, "student-uppercase")
 
     def test_answer_route_rejects_invalid_bearer_token(self) -> None:
         app = create_app(settings=ApiSettings(bearer_token="secret-token"))

@@ -221,6 +221,27 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertEqual(len(chunks), 1)
         self.assertEqual(chunks[0].text, "Raw text fallback remains indexable.")
 
+    def test_build_indexable_chunks_from_jsonl_rejects_synthetic_document_summary_row(self) -> None:
+        record = _make_registry_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "doc_id": "handbook:test-001",
+                        "version_id": "v1:test-001",
+                        "chunk_id": "document-0000",
+                        "clean_text": "Synthetic whole-document summary text.",
+                    }
+                )
+            ]
+        ).encode("utf-8")
+
+        with self.assertRaisesRegex(ValueError, "document-0000"):
+            build_indexable_chunks_from_jsonl(
+                record=record,
+                structured_jsonl_bytes=structured_payload,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

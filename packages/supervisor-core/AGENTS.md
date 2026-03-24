@@ -8,7 +8,7 @@
 
 - 负责用户目标路由、specialist 委派、结果组装、澄清升级和最小审计
 - 第一阶段只允许路由一个 specialist：`rag-specialist`
-- 当前实现仍是 bootstrap；目标是把当前的直接转调升级为真正的 coordination 层，而不是长期停留在透传包装
+- 当前接受的实现形态已经是 `single-specialist, policy-driven coordinator`，后续演进应在这个边界上继续深化，而不是退回透传包装
 
 ## Source Of Truth
 
@@ -23,11 +23,14 @@
 
 ## Owns
 
+- request framing：把共享 handoff request 投影成 supervisor 内部上下文
 - 会话入口后的意图框定
 - 选择委派给哪个 specialist
+- phase-1 corpus routing decision
+- specialist 结果 finalization policy
 - 在置信度或范围不足时发起澄清
 - 组合 specialist 结果并形成对外可消费的响应
-- 最小审计字段收集与透传
+- 最小审计字段收集与 audit projection
 
 第一阶段最小审计字段至少包括：
 
@@ -48,12 +51,14 @@
 边界规则：
 
 - `apps/supervisor-api` 负责 AgentOS/runtime 与外部 API 壳；不要把 transport/auth 设置回灌到这里
+- `apps/supervisor-api` 只负责 auth mapping、trace propagation、`DelegateToRagAgentRequest` 构造、route dispatch 和 HTTP JSON projection；不要把 routing、policy、response assembly 放回 API shell
 - `packages/rag-specialist` 负责 retrieval 导向的 specialist 逻辑；不要在这里越级实现 specialist 内部策略
 - `packages/contracts` 是唯一共享 handoff/schema 边界；不要绕过 `DelegateToRagAgentRequest` / `DelegateToRagAgentResponse` 私自发明并行接口
 
 ## Phase-1 Constraints
 
 - 默认 query-serving 只开放 `student_handbook`
+- phase-1 路由规则只允许 `student_handbook -> rag-specialist`
 - 已冻结但未放开的 data-plane corpus 不能在 supervisor 内被静默放开为查询默认范围
 - 不要直接拼接对象存储逻辑
 - 不要越过 specialist/retrieval 层访问 registry、Qdrant 或 MinIO

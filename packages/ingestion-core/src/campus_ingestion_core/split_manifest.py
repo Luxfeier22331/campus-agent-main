@@ -13,7 +13,6 @@ class SplitManifestDocument:
     title: str
     page_start: int
     page_end: int
-    source_uri: str
     acl_groups: tuple[str, ...] = field(default_factory=tuple)
     campus_scope: str | None = None
     status: str = "active"
@@ -27,8 +26,6 @@ class SplitManifestDocument:
             raise ValueError("page_start must be greater than zero")
         if self.page_end < self.page_start:
             raise ValueError("page_end must be greater than or equal to page_start")
-        if not self.source_uri:
-            raise ValueError("source_uri is required")
         if not self.status:
             raise ValueError("status is required")
 
@@ -60,7 +57,6 @@ def load_split_manifest(path: Path, *, expected_corpus: str | None = None) -> Sp
             title=str(item["title"]),
             page_start=int(item["page_start"]),
             page_end=int(item["page_end"]),
-            source_uri=str(item["source_uri"]),
             acl_groups=tuple(str(value) for value in list(item.get("acl_groups") or [])),
             campus_scope=str(item["campus_scope"]) if item.get("campus_scope") is not None else None,
             status=str(item.get("status") or "active"),

@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
 
 from campus_contracts import DelegateToRagAgentRequest
-
-
-SupervisorCorpus = Literal["student_handbook", "curriculum_plan"]
+from campus_contracts.models import AllowedCorpus
 
 
 @dataclass(frozen=True, slots=True)
@@ -16,7 +13,7 @@ class SupervisorRequestContext:
     trace_id: str
     user_id: str
     conversation_id: str
-    primary_corpus: SupervisorCorpus
+    primary_corpus: AllowedCorpus
     user_goal: str
 
     @classmethod

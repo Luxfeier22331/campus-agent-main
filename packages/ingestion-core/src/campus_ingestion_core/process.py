@@ -12,6 +12,7 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
 
 from campus_ingestion_core.chunking import ChunkProfile, StructuredUnitChunkInput, chunk_structured_unit
+from campus_ingestion_core.curriculum_chunk_units import build_curriculum_structured_units, chunk_curriculum_unit
 from campus_ingestion_core.models import DocumentRegistryRecord
 
 
@@ -26,6 +27,7 @@ class StructuredUnit:
     acl_level: str
     unit_type: str
     root_unit_id: str
+    metadata: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,22 +88,25 @@ def build_indexable_chunks_from_jsonl(
     chunk_profile: ChunkProfile | None = None,
     embedding_model: BaseEmbedding | None = None,
 ) -> tuple[IndexableChunk, ...]:
+    runtime_profile = _resolve_chunk_profile(record=record, chunk_profile=chunk_profile)
     units = _load_structured_units(record=record, structured_jsonl_bytes=structured_jsonl_bytes)
     if not units:
         return ()
 
-    runtime_profile = chunk_profile or ChunkProfile()
     chunks: list[IndexableChunk] = []
     chunk_order = 0
     for unit in units:
-        pieces = chunk_structured_unit(
-            unit=StructuredUnitChunkInput(
-                unit_type=unit.unit_type,
-                root_unit_id=unit.root_unit_id,
-                text=unit.text,
-            ),
-            chunk_profile=runtime_profile,
-        )
+        if record.corpus == "curriculum_plan":
+            pieces = chunk_curriculum_unit(unit=unit, chunk_profile=runtime_profile)
+        else:
+            pieces = chunk_structured_unit(
+                unit=StructuredUnitChunkInput(
+                    unit_type=unit.unit_type,
+                    root_unit_id=unit.root_unit_id,
+                    text=unit.text,
+                ),
+                chunk_profile=runtime_profile,
+            )
         for piece in pieces:
             chunk_order += 1
             chunk_id = f"{record.document_id}:{record.version_id}:chunk-{chunk_order:04d}"
@@ -132,6 +137,7 @@ def build_indexable_chunks_from_jsonl(
                         "split_strategy": runtime_profile.split_strategy,
                         "chunk_policy_version": runtime_profile.chunk_policy_version,
                         "cleaning_policy_version": runtime_profile.cleaning_policy_version,
+                        **unit.metadata,
                     },
                 )
             )
@@ -157,12 +163,16 @@ def _load_structured_units(
     record: DocumentRegistryRecord,
     structured_jsonl_bytes: bytes,
 ) -> tuple[StructuredUnit, ...]:
+    if record.corpus == "curriculum_plan":
+        return tuple(build_curriculum_structured_units(record=record, structured_jsonl_bytes=structured_jsonl_bytes))
     units: list[StructuredUnit] = []
     for unit_index, line in enumerate(structured_jsonl_bytes.decode("utf-8").splitlines()):
         normalized = line.strip()
         if not normalized:
             continue
         raw = json.loads(normalized)
+        if str(raw.get("chunk_id") or "").strip() == "document-0000":
+            raise ValueError("structured input must not contain synthetic document-0000 rows")
         doc_id = str(raw.get("doc_id") or "").strip()
         version_id = str(raw.get("version_id") or "").strip()
         if doc_id != record.document_id:
@@ -188,6 +198,18 @@ def _load_structured_units(
             )
         )
     return tuple(units)
+
+
+def _resolve_chunk_profile(
+    *,
+    record: DocumentRegistryRecord,
+    chunk_profile: ChunkProfile | None,
+) -> ChunkProfile:
+    if chunk_profile is not None:
+        return chunk_profile
+    if record.corpus == "curriculum_plan":
+        raise ValueError("curriculum_plan chunking requires explicit chunk_profile")
+    return ChunkProfile()
 
 
 def _resolve_structured_text(raw: dict[str, object]) -> str:

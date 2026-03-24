@@ -94,57 +94,33 @@ class _CurriculumPlanFakeOnlineOcrClient:
 
     def parse_pdf(self, pdf_path: Path) -> OnlineOcrParseResult:
         self.calls.append(pdf_path)
-        provider_payload = {"result": {"layoutParsingResults": [{"markdown": {"text": "page 1", "images": {}}}]}}
-        structured_rows = [
-            {
-                "doc_id": "curriculum:full-run",
-                "version_id": "v1:full-run",
-                "chunk_id": "document-0000",
-                "clean_text": "Plan one text\n\nPlan two text",
-                "source_pdf": pdf_path.name,
-                "source_url": None,
-                "source_md": None,
-                "source": {"id": str(pdf_path.resolve())},
-                "page_start": 1,
-                "page_end": 2,
-                "acl": {"level": "public", "allow_groups": []},
-            },
-            {
-                "doc_id": "curriculum:full-run",
-                "version_id": "v1:full-run",
-                "chunk_id": "page-0001",
-                "clean_text": "Plan one text",
-                "source_pdf": pdf_path.name,
-                "source_url": None,
-                "source_md": None,
-                "source": {"id": str(pdf_path.resolve())},
-                "page_start": 1,
-                "page_end": 1,
-                "acl": {"level": "public", "allow_groups": []},
-            },
-            {
-                "doc_id": "curriculum:full-run",
-                "version_id": "v1:full-run",
-                "chunk_id": "page-0002",
-                "clean_text": "Plan two text",
-                "source_pdf": pdf_path.name,
-                "source_url": None,
-                "source_md": None,
-                "source": {"id": str(pdf_path.resolve())},
-                "page_start": 2,
-                "page_end": 2,
-                "acl": {"level": "public", "allow_groups": []},
-            },
-        ]
+        provider_payload = {
+            "result": {
+                "layoutParsingResults": [
+                    {"markdown": {"text": "Plan one text", "images": {}}},
+                    {"markdown": {"text": "Plan two text", "images": {}}},
+                ]
+            }
+        }
         return OnlineOcrParseResult(
             provider_result_bytes=(json.dumps(provider_payload, ensure_ascii=False) + "\n").encode("utf-8"),
-            structured_result_bytes=(
-                "\n".join(json.dumps(row, ensure_ascii=False) for row in structured_rows) + "\n"
-            ).encode("utf-8"),
+            structured_result_bytes=b"",
         )
 
 
 class ProcessRawIngestionJobTest(unittest.TestCase):
+    def _build_curriculum_source_locator(
+        self,
+        *,
+        raw_hash: str,
+        page_start: int,
+        page_end: int,
+    ) -> str:
+        return (
+            "campusrag://source/curriculum_plan/"
+            f"curriculum-plan-master-pdf/sha256/{raw_hash}/pages/{page_start}-{page_end}"
+        )
+
     def test_process_raw_ingestion_job_provider_only_writes_raw_and_asset_level_provider_result(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -481,14 +457,12 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                         "title": "Plan 001",
                         "page_start": 1,
                         "page_end": 1,
-                        "source_uri": "https://campus.example/curriculum/plan-001",
                     },
                     {
                         "document_id": "curriculum:plan-002",
                         "title": "Plan 002",
                         "page_start": 2,
                         "page_end": 2,
-                        "source_uri": "https://campus.example/curriculum/plan-002",
                         "acl_groups": ["students"],
                         "campus_scope": "main",
                     },
@@ -524,6 +498,8 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
 
             raw_hash = hashlib.sha256(raw_bytes).hexdigest()
             raw_version_id = f"sha256:{raw_hash}"
+            source_uri_1 = self._build_curriculum_source_locator(raw_hash=raw_hash, page_start=1, page_end=1)
+            source_uri_2 = self._build_curriculum_source_locator(raw_hash=raw_hash, page_start=2, page_end=2)
             digest_1 = hashlib.sha256(
                 "|".join(
                     [raw_version_id, "curriculum_plan_split_manifest_v1", "curriculum:plan-001", "1", "1"]
@@ -577,6 +553,22 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             self.assertEqual(plan_002["cleaning_policy_version"], "curriculum_plan_cleaning_v1")
             self.assertEqual(plan_002["campus_scope"], "main")
             self.assertEqual(plan_002["acl_groups"], ["students"])
+            self.assertEqual(plan_001["source_uri"], source_uri_1)
+            self.assertEqual(plan_002["source_uri"], source_uri_2)
+
+            structured_plan_001 = next(
+                upload for upload in object_store.uploads if upload["key"].endswith(f"{digest_1}/structured.jsonl")
+            )
+            structured_rows_001 = [
+                json.loads(line)
+                for line in structured_plan_001["data"].decode("utf-8").splitlines()
+                if line.strip()
+            ]
+            self.assertTrue(all(row["chunk_id"] != "document-0000" for row in structured_rows_001))
+            self.assertEqual(structured_rows_001[0]["source_url"], source_uri_1)
+            self.assertEqual(structured_rows_001[0]["source"]["id"], source_uri_1)
+            self.assertEqual(structured_rows_001[0]["chunk_id"], "page-0001-block-fallback")
+            self.assertEqual(structured_rows_001[0]["clean_text"], "Plan one text")
 
     def test_process_raw_ingestion_job_rejects_split_manifest_with_mismatched_corpus(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -598,14 +590,12 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                                 "title": "Plan 001",
                                 "page_start": 1,
                                 "page_end": 1,
-                                "source_uri": "https://campus.example/curriculum/plan-001",
                             },
                             {
                                 "document_id": "curriculum:plan-002",
                                 "title": "Plan 002",
                                 "page_start": 2,
                                 "page_end": 2,
-                                "source_uri": "https://campus.example/curriculum/plan-002",
                                 "acl_groups": ["students"],
                                 "campus_scope": "main",
                             },

@@ -175,7 +175,7 @@ class RegistryModelsTest(unittest.TestCase):
             curriculum_record = DocumentRegistryRecord(
                 document_id="curriculum:plan-001",
                 version_id="sha256:raw-001:split:plan-001:abcd1234",
-                source_uri="https://campus.example/curriculum/plan-001",
+                source_uri="campusrag://source/curriculum_plan/curriculum-plan-master-pdf/sha256/raw-001/pages/1-12",
                 content_hash="sha256:doc-001",
                 corpus="curriculum_plan",
                 cleaning_policy_version="curriculum_plan_cleaning_v1",
@@ -313,7 +313,7 @@ class RegistryModelsTest(unittest.TestCase):
         document_record = DocumentRegistryRecord(
             document_id="curriculum:plan-001",
             version_id="sha256:raw-001:split:plan-001",
-            source_uri="https://campus.example/curriculum/plan-001",
+            source_uri="campusrag://source/curriculum_plan/curriculum-plan-master-pdf/sha256/raw-001/pages/1-12",
             content_hash="sha256:doc-001",
             corpus="curriculum_plan",
             acl_groups=(),

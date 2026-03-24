@@ -97,17 +97,17 @@ class SupervisorCoreTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertEqual(len(captured_requests), 1)
-        self.assertEqual(captured_requests[0], request)
+        self.assertIs(captured_requests[0], request)
         self.assertEqual(len(audit_records), 1)
         self.assertEqual(
-            audit_records[0],
-            SupervisorAuditRecord(
-                request_id="req-001",
-                trace_id="trace-001",
-                user_id="student-001",
-                status="completed",
-                source_doc_ids=("handbook:test-001",),
-            ),
+            asdict(audit_records[0]),
+            {
+                "request_id": "req-001",
+                "trace_id": "trace-001",
+                "user_id": "student-001",
+                "status": "completed",
+                "source_doc_ids": ("handbook:test-001",),
+            },
         )
 
     def test_handle_request_preserves_specialist_non_completed_status(self) -> None:
@@ -193,6 +193,10 @@ class SupervisorCoreTest(unittest.TestCase):
                 "source_doc_ids": ("handbook:test-001", "handbook:test-002"),
             },
         )
+        self.assertEqual(
+            tuple(asdict(record).keys()),
+            ("request_id", "trace_id", "user_id", "status", "source_doc_ids"),
+        )
 
     def test_build_audit_record_keeps_minimum_projection_for_error_response(self) -> None:
         request = DelegateToRagAgentRequest(
@@ -220,6 +224,10 @@ class SupervisorCoreTest(unittest.TestCase):
                 "status": "error",
                 "source_doc_ids": (),
             },
+        )
+        self.assertEqual(
+            tuple(asdict(record).keys()),
+            ("request_id", "trace_id", "user_id", "status", "source_doc_ids"),
         )
 
 

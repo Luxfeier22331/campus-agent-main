@@ -144,6 +144,12 @@ updated: 2026-03-22
 - 备份/容灾策略
 - provider-specific IAM 配置
 
+补充说明：
+
+- `source_uri` 不要求等于外部官网 URL。
+- 当正式来源只有 raw asset（例如一份 master PDF）时，`source_uri` 应表示 document registry 可稳定回链的内部 canonical locator。
+- `curriculum_plan` 的 split manifest 只提供 page range truth；其 `source_uri` 由 ingestion 基于 `raw_asset_id`、`raw_version_id`、`page_start`、`page_end` 派生。
+
 ## 第一阶段明确不做
 
 - 不支持直接从本机目录读取作为正式真相源

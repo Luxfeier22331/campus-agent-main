@@ -1,0 +1,99 @@
+# Requirements: Campus Agent
+
+**Defined:** 2026-03-23
+**Core Value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 `student_handbook` 的完整 agentic RAG 主流程证明这条架构能可靠替代高频人工答疑
+
+## v1 Requirements
+
+Requirements for the initial phase-1 release. Each requirement will map to exactly one roadmap phase.
+
+### Ingestion
+
+- [ ] **ING-01**: System can ingest `student_handbook` source documents into raw storage with stable document identity and version metadata
+- [ ] **ING-02**: System can transform `student_handbook` documents into processed text and chunk/index artifacts suitable for retrieval query-serving
+- [ ] **ING-03**: System can ingest `curriculum_plan` into raw / processed / chunk outputs without exposing it to query-serving
+
+### Query Serving
+
+- [ ] **QRY-01**: User can ask a `student_handbook` question and receive a grounded answer sourced only from the `student_handbook` corpus
+- [ ] **QRY-02**: Answer response includes source citations or equivalent source identifiers that let operators trace supporting evidence
+- [ ] **QRY-03**: System returns a `needs_clarification` response when the request is too ambiguous for a reliable `student_handbook` answer
+- [ ] **QRY-04**: System returns a `no_answer` or `error` response when retrieval cannot produce a safe grounded answer
+
+### Orchestration
+
+- [ ] **ORCH-01**: `supervisor` acts as the only query entry coordinator and routes valid phase-1 requests to `rag-specialist`
+- [x] **ORCH-02**: `supervisor` and `rag-specialist` communicate only through the shared handoff contract in `packages/contracts`
+- [x] **ORCH-03**: `supervisor-core` remains limited to request framing, routing, policy, response shaping, and audit projection without directly owning retrieval or ingestion logic
+
+### Governance
+
+- [ ] **GOV-01**: Request handling propagates caller identity and group information so retrieval can enforce ACL filtering before evidence is returned
+- [ ] **GOV-02**: Each handled request records trace and audit data sufficient to link request identity, routed path, response status, and cited sources
+- [x] **GOV-03**: Phase-1 query-serving rejects corpora outside `student_handbook`, including `curriculum_plan`
+
+### Verification
+
+- [ ] **VER-01**: Repository includes automated tests proving the `supervisor -> rag-specialist -> retrieval` path and the `completed` / `needs_clarification` / `no_answer` / `error` response semantics
+- [ ] **VER-02**: Repository includes baseline smoke or eval verification for the `student_handbook` query path and ingestion path so regressions can be detected before release
+
+## v2 Requirements
+
+Deferred to future releases. Tracked but not part of the current roadmap.
+
+### Additional Corpora
+
+- **CORP-01**: User can query `curriculum_plan` through the production supervisor path after ACL, monitoring, and policy gates are approved
+- **CORP-02**: User can query additional campus knowledge domains beyond `student_handbook`
+
+### Advanced Orchestration
+
+- **AORC-01**: Supervisor can coordinate more than one specialist in a single workflow
+- **AORC-02**: Supervisor can run reflection / review loops before finalizing answers
+
+### User Experience
+
+- **UX-01**: User can access channel-specific escalation or scheduling flows from assistant responses
+- **UX-02**: System can vary response behavior by user persona beyond retrieval ACL filtering
+- **UX-03**: System maintains durable conversation memory across sessions
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Production query access for `curriculum_plan` | Phase-1 only prepares ingestion/cleaning/chunking and must not expand query-serving scope |
+| Full corpus launch across all campus domains | Current milestone is to stabilize the `student_handbook` agentic RAG path first |
+| Fine-grained persona-specific answer behavior | v1 only needs identity/groups propagation and retrieval ACL filtering |
+| Multi-specialist parallel workflows | Phase-1 focuses on a single `rag-specialist` with clean contracts |
+| Full HITL approval flow and durable memory | Governance hardening beyond minimum tracing/audit/ACL closure is deferred |
+
+## Traceability
+
+Which phases cover which requirements. Updated during roadmap creation.
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| ING-01 | Phase 2 | Pending |
+| ING-02 | Phase 3 | Pending |
+| ING-03 | Phase 6 | Pending |
+| QRY-01 | Phase 4 | Pending |
+| QRY-02 | Phase 4 | Pending |
+| QRY-03 | Phase 4 | Pending |
+| QRY-04 | Phase 4 | Pending |
+| ORCH-01 | Phase 5 | Pending |
+| ORCH-02 | Phase 1 | Complete |
+| ORCH-03 | Phase 1 | Complete |
+| GOV-01 | Phase 5 | Pending |
+| GOV-02 | Phase 5 | Pending |
+| GOV-03 | Phase 1 | Complete |
+| VER-01 | Phase 7 | Pending |
+| VER-02 | Phase 7 | Pending |
+
+**Coverage:**
+- v1 requirements: 15 total
+- Mapped to phases: 15
+- Unmapped: 0 ✓
+
+---
+*Requirements defined: 2026-03-23*
+*Last updated: 2026-03-23 after roadmap mapping*

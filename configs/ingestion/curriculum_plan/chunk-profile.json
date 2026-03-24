@@ -4,7 +4,8 @@
   "cleaning_policy_version": "curriculum_plan_cleaning_v1",
   "notes": [
     "Use split-manifest logical documents as the pre-chunking boundary.",
-    "Treat tables and requirement lists as structure-first units.",
+    "Preserve provider tables, figure titles, and page-level layout blocks through cleaning before semantic chunking.",
+    "Treat provider labels as normalization hints instead of final curriculum semantics.",
     "Keep this profile aligned with ingestion-core runtime truth before enabling online retrieval."
   ]
 }

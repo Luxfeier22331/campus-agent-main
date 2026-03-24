@@ -22,6 +22,7 @@ from campus_ingestion_core.corpus_profiles import (
     default_query_corpora,
     load_corpus_runtime_profile,
 )
+from campus_ingestion_core.curriculum_provider_normalize import normalize_curriculum_provider_result
 from campus_ingestion_core.embed import (
     EmbeddingSettings,
     MockEmbeddingSettings,
@@ -71,6 +72,7 @@ __all__ = [
     "DEFAULT_MIN_CHUNK_SIZE",
     "ChunkProfile",
     "CorpusRuntimeProfile",
+    "normalize_curriculum_provider_result",
     "DocumentRegistry",
     "DocumentRegistryRecord",
     "EmbeddingSettings",

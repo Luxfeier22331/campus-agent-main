@@ -14,8 +14,8 @@ DEFAULT_CHUNK_POLICY_VERSION = "student_handbook_semantic_v1"
 DEFAULT_CLEANING_POLICY_VERSION = "student_handbook_cleaning_v1"
 
 TABLE_PLACEHOLDER = "[table omitted; see table evidence]"
-PARENT_UNIT_TYPES = {"article_body", "policy_page"}
-TABLE_UNIT_TYPES = {"table", "table_row"}
+PARENT_UNIT_TYPES = {"article_body", "policy_page", "section_text"}
+TABLE_UNIT_TYPES = {"table", "table_row", "table_unit"}
 
 _TABLE_HTML_RE = re.compile(r"<table\b[\s\S]*?</table>", re.IGNORECASE)
 _TOKEN_RE = re.compile(r"[\u4e00-\u9fff]|[A-Za-z0-9_]+|[^\s]")

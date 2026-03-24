@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from campus_contracts import DelegateToRagAgentRequest, DelegateToRagAgentResponse
+from campus_contracts.models import DelegateStatus
 
 from campus_supervisor_core.response import source_doc_ids_from_response
 
@@ -12,7 +13,7 @@ class SupervisorAuditRecord:
     request_id: str
     trace_id: str
     user_id: str
-    status: str
+    status: DelegateStatus
     source_doc_ids: tuple[str, ...]
 
 

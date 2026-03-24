@@ -14,7 +14,7 @@ QUERY_ENABLED_CORPUS: QueryEnabledCorpus = "student_handbook"
 @dataclass(frozen=True, slots=True)
 class RoutingDecision:
     target: SpecialistTarget
-    primary_corpus: str
+    primary_corpus: QueryEnabledCorpus
 
 
 def route_request(context: SupervisorRequestContext) -> RoutingDecision:

@@ -130,6 +130,7 @@ updated: 2026-03-22
 - 支撑增量更新、删除和审计
 - 支撑 retrieval 前置过滤和 evidence 回链
 - 不重复承载 raw 文件身份；raw 文件身份由 raw asset registry 独立维护
+- 其中 `source_uri` 表达逻辑文档版本的 canonical source locator；对于 `curriculum_plan` 这类由 master PDF 拆分出的文档，它应由 `raw_asset_id + raw_version_id + page range` 派生，而不是伪造外部详情页 URL
 
 ### Raw Asset Registry
 

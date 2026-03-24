@@ -147,7 +147,7 @@ updated: 2026-03-22
 
 - 如果上游能提供原始 PDF/HTML/Markdown 等源文件：
   - 写入 `campus-rag-raw`
-  - `source_uri` 指向原始来源
+  - `raw_source_uri` 指向原始来源
 - 如果上游只提供 OCR JSON、OCR 文本、结构化抽取结果：
   - 写入 `campus-rag-processed`
   - registry 中明确标记它来自 `campusRAG` 导入，而不是新抓取 raw

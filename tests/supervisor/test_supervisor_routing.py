@@ -29,7 +29,10 @@ class SupervisorRoutingTest(unittest.TestCase):
             corpora=("curriculum_plan",),
         )
 
-        with self.assertRaisesRegex(ValueError, "student_handbook"):
+        with self.assertRaisesRegex(
+            ValueError,
+            "phase-1 query-serving only supports student_handbook",
+        ):
             route_request(SupervisorRequestContext.from_request(request))
 
 

@@ -20,6 +20,7 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     utc_now,
     write_import_report,
 )
+from campus_ingestion_core.curriculum_provider_normalize import normalize_curriculum_provider_result
 from campus_ingestion_core.corpus_profiles import load_corpus_runtime_profile
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.object_store import build_processed_asset_artifact_key
@@ -325,6 +326,15 @@ def process_raw_ingestion_job(
     for pdf_path in pdf_paths:
         try:
             parse_result = ocr_client.parse_pdf(pdf_path)
+            if settings.corpus == "curriculum_plan":
+                parse_result = OnlineOcrParseResult(
+                    provider_result_bytes=parse_result.provider_result_bytes,
+                    structured_result_bytes=normalize_curriculum_provider_result(
+                        provider_jsonl_bytes=parse_result.provider_result_bytes,
+                        source_pdf=pdf_path.name,
+                        ocr_model=settings.online_ocr.model,
+                    ),
+                )
             if split_manifest is None:
                 metadata = load_metadata_from_bytes(parse_result.structured_result_bytes)
                 documents.append(
@@ -561,12 +571,20 @@ def _build_split_manifest_document_input(
         manifest_version=manifest_version,
         manifest_document=manifest_document,
     )
+    source_uri = _build_manifest_document_source_uri(
+        corpus=corpus,
+        raw_asset_id=raw_asset_id,
+        raw_version_id=raw_version_id,
+        page_start=manifest_document.page_start,
+        page_end=manifest_document.page_end,
+    )
     split_rows = _slice_structured_rows_for_manifest_document(
         structured_rows=structured_rows,
         manifest_document=manifest_document,
         document_id=manifest_document.document_id,
         version_id=version_id,
         source_pdf=pdf_path.name,
+        source_uri=source_uri,
     )
     structured_result_bytes = _serialize_rows(split_rows)
     metadata = load_metadata_from_bytes(structured_result_bytes)
@@ -631,6 +649,21 @@ def _load_structured_rows(structured_result_bytes: bytes) -> list[dict[str, obje
     return rows
 
 
+def _build_manifest_document_source_uri(
+    *,
+    corpus: str,
+    raw_asset_id: str,
+    raw_version_id: str,
+    page_start: int,
+    page_end: int,
+) -> str:
+    raw_asset_slug = _split_document_slug(raw_asset_id)
+    raw_version_path = "/".join(part.strip() for part in raw_version_id.split(":") if part.strip())
+    return (
+        f"campusrag://source/{corpus}/{raw_asset_slug}/{raw_version_path}/pages/{page_start}-{page_end}"
+    )
+
+
 def _slice_structured_rows_for_manifest_document(
     *,
     structured_rows: list[dict[str, object]],
@@ -638,6 +671,7 @@ def _slice_structured_rows_for_manifest_document(
     document_id: str,
     version_id: str,
     source_pdf: str,
+    source_uri: str,
 ) -> list[dict[str, object]]:
     selected_rows = [
         row
@@ -659,19 +693,12 @@ def _slice_structured_rows_for_manifest_document(
             document_id=document_id,
             version_id=version_id,
             source_pdf=source_pdf,
-            source_uri=manifest_document.source_uri,
+            source_uri=source_uri,
             acl_groups=manifest_document.acl_groups,
         )
         for row in selected_rows
     ]
-    summary_row = dict(transformed_rows[0])
-    summary_row["chunk_id"] = "document-0000"
-    summary_row["clean_text"] = "\n\n".join(
-        text for text in (str(row.get("clean_text") or "").strip() for row in transformed_rows) if text
-    )
-    summary_row["page_start"] = manifest_document.page_start
-    summary_row["page_end"] = manifest_document.page_end
-    return [summary_row, *transformed_rows]
+    return transformed_rows
 
 
 def _row_belongs_to_page_range(*, row: dict[str, object], page_start: int, page_end: int) -> bool:

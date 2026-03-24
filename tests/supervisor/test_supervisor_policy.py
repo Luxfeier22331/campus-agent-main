@@ -10,7 +10,7 @@ class SupervisorPolicyTest(unittest.TestCase):
     def test_finalize_completed_response_keeps_completed_status(self) -> None:
         response = DelegateToRagAgentResponse(status="completed", answer_text="The library is open.", confidence="high")
 
-        self.assertEqual(finalize_specialist_response(response), response)
+        self.assertIs(finalize_specialist_response(response), response)
 
     def test_finalize_needs_clarification_response_keeps_follow_up(self) -> None:
         response = DelegateToRagAgentResponse(
@@ -20,6 +20,7 @@ class SupervisorPolicyTest(unittest.TestCase):
 
         finalized = finalize_specialist_response(response)
 
+        self.assertIs(finalized, response)
         self.assertEqual(finalized.status, "needs_clarification")
         self.assertEqual(finalized.follow_up_question, "Which campus are you asking about?")
 
@@ -28,6 +29,7 @@ class SupervisorPolicyTest(unittest.TestCase):
 
         finalized = finalize_specialist_response(response)
 
+        self.assertIs(finalized, response)
         self.assertEqual(finalized.status, "no_answer")
         self.assertEqual(finalized.confidence, "low")
 
@@ -40,6 +42,7 @@ class SupervisorPolicyTest(unittest.TestCase):
 
         finalized = finalize_specialist_response(response)
 
+        self.assertIs(finalized, response)
         self.assertEqual(finalized.status, "error")
         self.assertEqual(finalized.confidence, "low")
         self.assertEqual(
