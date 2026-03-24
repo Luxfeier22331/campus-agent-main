@@ -11,7 +11,10 @@ updated: 2026-03-22
 
 **Goal:** 把 `student_handbook` 从“单个 OCR provider 结果直接对应单个 document”的错误建模，重构为“provider 原始 OCR 结果 -> 内部统一 structured -> 多逻辑文档 -> 文档内结构化 chunking”的正确清洗与 ingestion 链路。
 
-**Architecture:** 这轮 handbook 的主输入是当前 OCR 产物 `provider-result.jsonl`，而不是原始 PDF，也不是历史 `derived` 里的 `jsonl`。链路先把 provider 原始结果归一化成内部统一 page-level structured format，再按 handbook split manifest 恢复多篇制度文档边界，对每篇文档生成稳定 `doc_id` / `version_id` / canonical metadata，最后在单文档内部做 `article_body`、`policy_page`、`table`、`table_row` 的 structure-first chunking；历史 `derived` 产物只作为参考样本和验收对照。
+**Architecture:** 这轮 handbook 的主输入是当前 OCR 产物 `provider-response.jsonl`，而不是原始 PDF，也不是历史 `derived` 里的 `jsonl`。链路先把 provider 原始结果归一化成内部统一 page-level structured format，再按 handbook split manifest 恢复多篇制度文档边界，对每篇文档生成稳定 `doc_id` / `version_id` / canonical metadata，最后在单文档内部做 `article_body`、`policy_page`、`table`、`table_row` 的 structure-first chunking；历史 `derived` 产物只作为参考样本和验收对照。
+
+## Migration note
+这份计划是 `regulations` 架构形成前的手稿，仍把 `student_handbook` 作为长期 corpus 概念。当前执行准则（见最新 architecture/decisions 文档）已经把长期语义固定为 `corpus + collection`，其中 handbook scope 为 `regulations/student_handbook`。新架构下 processed bucket 路径形态收敛为 `{corpus}/sources/{source_channel}/{source_asset_slug}/{year}/{ingest_id}/...` 与 `{corpus}/documents/{collection}/{title_slug}--{docid8}/{representation}/{year}/...`，并把原先 `revision_track` 的语义改名为 `representation`。本计划所述行动仍有价值，但请在执行时以新命名和新路径为准，而不是把本计划描述的 key/path 直接当作现行真相。
 
 **Tech Stack:** Python 3.12, uv workspace, unittest/pytest, JSON, Markdown, existing `campus_ingestion_core`, current OCR provider result schema, existing `campusRAG` student handbook canonical conventions
 
@@ -21,7 +24,7 @@ updated: 2026-03-22
 
 这次 handbook 清洗重构的边界固定为：
 
-- 主输入是当前 OCR 运行产物 `provider-result.jsonl`
+- 主输入是当前 OCR 运行产物 `provider-response.jsonl`
 - 不直接处理 PDF 原始文档
 - 不直接把 provider 原始响应当最终 structured truth
 - 不直接使用历史 `derived/by_doc/*.jsonl` 或 `chunks.jsonl` 作为输入真相
@@ -31,7 +34,7 @@ updated: 2026-03-22
 
 当前已确认的 source-level OCR 产物示例路径：
 
-- `campus-rag-processed/student_handbook/assets/student-handbook-pdf/sha256/b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider-result.jsonl`
+- `campus-rag-processed/student_handbook/assets/student-handbook-pdf/sha256/b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider-response.jsonl`
 
 当前已确认的历史参考产物位于：
 
@@ -56,7 +59,7 @@ updated: 2026-03-22
 `student_handbook` 的正确分层固定为：
 
 1. `provider source`
-   - 当前 OCR 运行生成的 `provider-result.jsonl`
+   - 当前 OCR 运行生成的 `provider-response.jsonl`
    - 保留供应商原始响应，不在这里直接做长期文档建模
 2. `normalized structured source`
    - 从 provider 结果解析出的内部统一 structured rows
@@ -66,7 +69,7 @@ updated: 2026-03-22
    - 从 handbook 全量 structured source 中恢复出的多篇制度文档
    - 每篇文档有独立 `document_id`、`title`、`source_uri`、`page_start`、`page_end`
 4. `canonical cleaning output`
-   - 每篇文档落一份稳定 canonical markdown 或等价结构化中间产物
+- 每篇文档落一份稳定 `canonical.md` 或等价结构化中间产物
    - metadata 只保留长期真相字段，不混入运行态字段
 5. `structured units`
    - `article_body`
@@ -92,7 +95,7 @@ updated: 2026-03-22
 实现时以以下材料作为 handbook 清洗重构的参考：
 
 - 当前 source-level OCR 输入：
-  - processed 层 `provider-result.jsonl`
+  - processed 层 `provider-response.jsonl`
 - handbook 真相结构参考：
   - `campusRag/docs/rag/student-handbook-canonical-schema.md`
   - `campusRag/rag-data/canonical/student_handbook/docs/*.md`
@@ -116,7 +119,7 @@ updated: 2026-03-22
 
 在开始正式改动前，先冻结 handbook 的以下输入：
 
-- 清洗主输入是当前 `provider-result.jsonl`
+- 清洗主输入是当前 `provider-response.jsonl`
 - 第一步必须先把 provider 结果归一化成内部 structured rows
 - split / cleanup 只消费内部 structured rows，不直接消费 raw provider payload
 - handbook document truth 改为“多逻辑文档”
@@ -142,11 +145,11 @@ updated: 2026-03-22
 
 输入：
 
-- `provider-result.jsonl`
+- `provider-response.jsonl`
 
 输出：
 
-- `structured-full.jsonl` 或等价内部统一 structured source
+- `layout-elements.jsonl` 或等价内部统一 structured source
 
 规则：
 
@@ -165,7 +168,7 @@ updated: 2026-03-22
 
 输入：
 
-- `structured-full.jsonl`
+- `layout-elements.jsonl`
 - `split-manifest.v1.json`
 
 输出：
@@ -190,7 +193,7 @@ updated: 2026-03-22
 
 输出：
 
-- 单篇文档 canonical markdown
+- 单篇文档 `canonical.md`
 - 单篇文档 metadata
 
 规则：
@@ -248,9 +251,9 @@ updated: 2026-03-22
 ### Task 1: 冻结 handbook provider 输入与 split config
 
 **Files:**
-- Create: `configs/ingestion/student_handbook/README.md`
-- Create: `configs/ingestion/student_handbook/split-manifest.v1.json`
-- Create: `configs/ingestion/student_handbook/canonical-profile.json`
+- Create: `configs/ingestion/regulations/student_handbook/README.md`
+- Create: `configs/ingestion/regulations/student_handbook/split-manifest.v1.json`
+- Create: `configs/ingestion/regulations/student_handbook/canonical-profile.json`
 - Modify: `configs/ingestion/` 下相关 README 或索引文件（如存在）
 - Test: `tests/ingestion/test_split_manifest.py`
 
@@ -278,7 +281,7 @@ updated: 2026-03-22
   - `heading_profile = handbook_v1`
   - `primary_input = provider_result_jsonl`
 - README 里明确写：
-  - 当前主输入是 `provider-result.jsonl`
+  - 当前主输入是 `provider-response.jsonl`
   - 历史 `derived` 结果只作参考
 
 **Verification:**
@@ -291,7 +294,7 @@ updated: 2026-03-22
 - Create: `tests/ingestion/test_handbook_provider_normalize.py`
 
 **Implementation:**
-- 新增 provider 结果归一化器，专门把 `provider-result.jsonl` 转成内部统一 `structured-full.jsonl`。
+- 新增 provider 结果归一化器，专门把 `provider-response.jsonl` 转成内部统一 `layout-elements.jsonl`。
 - 内部 row schema 至少包含：
   - `source_pdf`
   - `page_start`
@@ -390,41 +393,24 @@ updated: 2026-03-22
 
 **Implementation:**
 - 去掉 handbook ingestion 的“一份 provider/source 直接生成一个 `handbook:{slug}` document”逻辑。
-- `INGESTION_CORPUS=student_handbook` 时，要求显式提供 `INGESTION_SPLIT_MANIFEST_PATH`。
+- `INGESTION_CORPUS=regulations` 且 `INGESTION_COLLECTION=student_handbook` 时，要求显式提供 `INGESTION_SPLIT_MANIFEST_PATH`。
 - handbook ingestion 主流程改为：
-  - 读取 `provider-result.jsonl`
-  - 归一化为内部 `structured-full.jsonl`
+  - 读取 `provider-response.jsonl`
+  - 归一化为内部 `layout-elements.jsonl`
   - 按 handbook split manifest 逐文档清洗
-  - 逐文档生成 `structured.jsonl`
+  - 逐文档生成 `document-units.jsonl`
   - 逐文档写 registry
 - provider 原始结果保留为 provenance
 - handbook 的 `version_id` 不再等于整份 provider/source 的 hash；document version 由 canonical body hash 或 split result hash 决定
 - `processed_object_keys` 必须至少保留：
-  - source-level `provider-result.jsonl`
-  - source-level `structured-full.jsonl`
-  - document-level `structured.jsonl`
+  - source-level `provider-response.jsonl`
+  - source-level `layout-elements.jsonl`
+  - document-level `document-units.jsonl`
 
 **Verification:**
 - `uv run --all-packages python -m pytest tests/ingestion/test_process_raw_ingestion_job.py -q`
 
-### Task 6: 对齐 existing OCR 导入与新 structured ingestion 语义
-
-**Files:**
-- Modify: `packages/ingestion-core/src/campus_ingestion_core/existing_ocr_import.py`
-- Modify: `packages/ingestion-core/src/campus_ingestion_core/campusrag_ingestion_support.py`
-- Modify: `tests/ingestion/test_import_campusrag_existing_ocr.py`
-
-**Implementation:**
-- 让 `import_campusrag_existing_ocr` 和新 structured ingestion 收敛到同一 handbook document truth。
-- 新增一致性约束：
-  - existing OCR 导入的 `doc_id`、`page_start/page_end`、`source_pdf` 必须能被 handbook manifest 或 canonical truth 解释
-  - 如果 existing OCR 的 `doc_id` 与 canonical title hash 不一致，直接报错，不隐式迁就
-- 把 handbook 专有 metadata 绑定逻辑集中到一个 builder，避免 existing/new 两条路径各自拼 metadata
-
-**Verification:**
-- `uv run --all-packages python -m pytest tests/ingestion/test_import_campusrag_existing_ocr.py -q`
-
-### Task 7: 重构 handbook chunking 前置边界
+### Task 6: 重构 handbook chunking 前置边界
 
 **Files:**
 - Modify: `packages/ingestion-core/src/campus_ingestion_core/process.py`
@@ -434,7 +420,7 @@ updated: 2026-03-22
 
 **Implementation:**
 - 保留 handbook 的 `structure_first` chunking，但明确它发生在“单篇逻辑文档”内部。
-- chunking 输入改为 handbook cleanup 后的单文档 `structured.jsonl`。
+- chunking 输入改为 handbook cleanup 后的单文档 `document-units.jsonl`。
 - 固定 handbook 结构单元：
   - `article_body`
   - `policy_page`
@@ -447,7 +433,7 @@ updated: 2026-03-22
 **Verification:**
 - `uv run --all-packages python -m pytest tests/ingestion/test_processing_pipeline.py tests/ingestion/test_handbook_chunking_pipeline.py -q`
 
-### Task 8: 建立历史参考对照测试
+### Task 7: 建立历史参考对照测试
 
 **Files:**
 - Create: `tests/ingestion/test_handbook_reference_alignment.py`
@@ -464,7 +450,7 @@ updated: 2026-03-22
 **Verification:**
 - `uv run --all-packages python -m pytest tests/ingestion/test_handbook_reference_alignment.py -q`
 
-### Task 9: 更新架构文档与 phase-1 假设
+### Task 8: 更新架构文档与 phase-1 假设
 
 **Files:**
 - Modify: `docs/architecture/phase1-ingestion-and-storage-architecture.md`
@@ -474,7 +460,7 @@ updated: 2026-03-22
 
 **Implementation:**
 - 把 handbook 从“默认单 document”修正为“provider result -> structured -> 多逻辑 document”。
-- 明确 handbook 的前置步骤是 `provider-result -> normalize -> split -> cleanup -> canonical -> chunking`。
+- 明确 handbook 的前置步骤是 `provider-response -> layout-elements -> split -> cleanup -> canonical.md + document-units -> chunking`。
 - 删除或收紧以下错误假设：
   - handbook provider 结果直接输出单 `document_id`
   - handbook 无需 split manifest
@@ -485,11 +471,10 @@ updated: 2026-03-22
 - 文档交叉引用完整
 - handbook 数据面描述与当前输入边界一致
 
-### Task 10: 跑通仓库级回归并冻结验收口径
+### Task 9: 跑通仓库级回归并冻结验收口径
 
 **Files:**
 - Modify: `tests/ingestion/test_process_raw_ingestion_job.py`
-- Modify: `tests/ingestion/test_import_campusrag_existing_ocr.py`
 - Modify: `tests/ingestion/test_processing_pipeline.py`
 - Modify: `tests/evals/test_golden_cases.py` 仅在 handbook `doc_id` 变更影响 case 时调整
 
@@ -497,14 +482,14 @@ updated: 2026-03-22
 - 先修 ingestion 与 cleaning 回归，再决定是否需要小幅调整 eval fixtures。
 - 冻结 handbook 重构后的最小验收标准：
   - handbook split truth 已显式配置
-  - 新链路主输入是 `provider-result.jsonl`
+  - 新链路主输入是 `provider-response.jsonl`
   - 历史 `derived` 只作为参考，不作为输入
   - canonical export 可人工审查
   - 单篇制度文档可独立建索引
   - chunk 不跨文档
 
 **Verification:**
-- `uv run --all-packages python -m pytest tests/ingestion/test_split_manifest.py tests/ingestion/test_handbook_provider_normalize.py tests/ingestion/test_import_campusrag_existing_ocr.py tests/ingestion/test_process_raw_ingestion_job.py tests/ingestion/test_handbook_canonical.py tests/ingestion/test_handbook_cleanup.py tests/ingestion/test_processing_pipeline.py tests/ingestion/test_handbook_chunking_pipeline.py tests/ingestion/test_handbook_reference_alignment.py -q`
+- `uv run --all-packages python -m pytest tests/ingestion/test_split_manifest.py tests/ingestion/test_handbook_provider_normalize.py tests/ingestion/test_process_raw_ingestion_job.py tests/ingestion/test_handbook_canonical.py tests/ingestion/test_handbook_cleanup.py tests/ingestion/test_processing_pipeline.py tests/ingestion/test_handbook_chunking_pipeline.py tests/ingestion/test_handbook_reference_alignment.py -q`
 - `uv run --all-packages python -m unittest discover -s tests -t .`
 
 ## 验收标准

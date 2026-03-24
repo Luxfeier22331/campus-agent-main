@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
   "campus-contracts",
   "campus-ingestion-core",
+  "httpx[socks]>=0.28.1",
   "llama-index-core>=0.14.18",
   "llama-index-vector-stores-qdrant>=0.10.0",
   "qdrant-client>=1.17.1",

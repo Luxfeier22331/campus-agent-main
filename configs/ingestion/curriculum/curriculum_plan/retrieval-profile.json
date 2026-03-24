@@ -1,5 +1,6 @@
 {
-  "corpus": "curriculum_plan",
+  "corpus": "curriculum",
+  "collection": "curriculum_plan",
   "retrieval_profile_version": "curriculum_plan_retrieval_v1",
   "notes": [
     "Keep retrieval disabled for curriculum_plan until offline ingestion quality is accepted.",

@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from campus_contracts import ALLOWED_CORPORA
+from campus_contracts import (
+    ALLOWED_CORPORA,
+    ALLOWED_REVISION_TRACKS,
+    ALLOWED_SOURCE_CHANNELS,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +38,7 @@ class RawAssetRecord:
     raw_asset_id: str
     raw_version_id: str
     corpus: str
+    collection: str
     raw_source_uri: str
     content_hash: str
     source_filename: str
@@ -44,6 +49,8 @@ class RawAssetRecord:
     def __post_init__(self) -> None:
         if self.corpus not in ALLOWED_CORPORA:
             raise ValueError(f"unsupported corpus: {self.corpus}")
+        if not self.collection:
+            raise ValueError("collection is required")
         if not self.raw_asset_id:
             raise ValueError("raw_asset_id is required")
         if not self.raw_version_id:
@@ -65,10 +72,12 @@ class RawAssetRecord:
 @dataclass(frozen=True, slots=True)
 class DocumentRegistryRecord:
     document_id: str
+    revision_track: str
     version_id: str
     source_uri: str
     content_hash: str
     corpus: str
+    collection: str
     cleaning_policy_version: str = ""
     acl_groups: tuple[str, ...] = field(default_factory=tuple)
     campus_scope: str | None = None
@@ -76,17 +85,28 @@ class DocumentRegistryRecord:
     ingestion_timestamp: str = ""
     parser_version: str = ""
     embedding_model: str = ""
+    source_channel: str = ""
+    is_current: bool = False
+    effective_date: str | None = None
+    published_date: str | None = None
+    supersedes_version_id: str | None = None
+    provenance_status: str = ""
     raw_asset: RawAssetRef | None = None
-    structured_object_key: str | None = None
-    provider_result_object_key: str | None = None
+    document_units_object_key: str | None = None
+    provider_response_object_key: str | None = None
+    canonical_markdown_object_key: str | None = None
     processed_object_keys: tuple[str, ...] = field(default_factory=tuple)
     import_source: str = ""
 
     def __post_init__(self) -> None:
         if self.corpus not in ALLOWED_CORPORA:
             raise ValueError(f"unsupported corpus: {self.corpus}")
+        if not self.collection:
+            raise ValueError("collection is required")
         if not self.document_id:
             raise ValueError("document_id is required")
+        if self.revision_track not in ALLOWED_REVISION_TRACKS:
+            raise ValueError(f"unsupported revision track: {self.revision_track}")
         if not self.version_id:
             raise ValueError("version_id is required")
         if not self.source_uri:
@@ -99,5 +119,7 @@ class DocumentRegistryRecord:
             raise ValueError("ingestion_timestamp is required")
         if not self.parser_version:
             raise ValueError("parser_version is required")
+        if self.source_channel not in ALLOWED_SOURCE_CHANNELS:
+            raise ValueError(f"unsupported source channel: {self.source_channel}")
         if not self.import_source:
             raise ValueError("import_source is required")

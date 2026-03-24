@@ -2,14 +2,14 @@
 doc_type: architecture
 status: active
 created: 2026-03-22
-updated: 2026-03-22
+updated: 2026-03-24
 ---
 
-# `student_handbook` OCR 归一化与拆分策略
+# `student_handbook` Collection OCR 归一化与拆分策略
 
 ## 目标
 
-把 `student_handbook` 的输入边界固定为 processed 层 OCR 产物 `provider-result.jsonl`，而不是原始 PDF；同时把 handbook 从“一份 source 对应一个 document”的错误建模，收敛为“asset 级 OCR 结果 -> 内部统一 structured source -> 多逻辑文档 -> 文档内 structured units / chunks”。
+把 `student_handbook` collection 的输入边界固定为 processed 层 OCR 产物 `provider-response.jsonl`，而不是原始 PDF；同时把 handbook 从“一份 source 对应一个 document”的错误建模，收敛为“asset 级 OCR 结果 -> 内部统一 structured source -> 多逻辑文档 -> 文档内 structured units / chunks”。长期知识域 corpus 采用 `regulations`，`student_handbook` 只表示该 corpus 下的一个 collection；raw asset 不按 corpus 前缀组织，因为同一份原始文件可能被多个 corpus 复用。
 
 本文回答三个问题：
 
@@ -19,9 +19,10 @@ updated: 2026-03-22
 
 ## 结论
 
-- `student_handbook` 的主输入应是 processed 层 `provider-result.jsonl`，不是 raw PDF。
-- handbook 必须保留一层 asset-level `structured-full.jsonl`，不能直接从 provider payload 进入逻辑文档拆分。
+- `student_handbook` collection 的主输入应是 processed 层 `provider-response.jsonl`，不是 raw PDF。
+- handbook 必须保留一层 asset-level `layout-elements.jsonl`，不能直接从 provider payload 进入逻辑文档拆分。
 - `doc_id`、`version_id`、canonical metadata 应在逻辑文档层生成，不应在 source-level normalization 阶段提前冻结。
+- handbook 的长期逻辑 identity 应采用 `document_id + representation + version_id`，而不是绑到某个 PDF 文件名。
 - 文档切分是 normalization 之后、chunking 之前的独立步骤。
 - `article_body`、`policy_page`、`table`、`table_row` 仍然是 handbook 的文档内结构单元，但它们属于 document-level cleaning / chunking 结果，不属于 source-level structured truth。
 
@@ -39,16 +40,16 @@ updated: 2026-03-22
 
 这类模式的核心不是“先清洗文本”，而是先把结构和 provenance 固定下来，再允许不同 corpus 在同一内部 contract 上做清洗和切分。
 
-## 为什么要保留 `structured-full.jsonl`
+## 为什么要保留 `layout-elements.jsonl`
 
-如果直接从 `provider-result.jsonl` 清洗并拆出若干子文档，会有四个长期问题：
+如果直接从 `provider-response.jsonl` 清洗并拆出若干子文档，会有四个长期问题：
 
 - 下游逻辑会直接绑定 provider 私有字段，后续更换 OCR 服务时需要整体重写。
 - split、标题校验、页码校验、回归测试都只能复用 provider payload，无法复用稳定内部 contract。
 - 无法把“source-level 结构误差”和“document-level 清洗误差”分开排查。
 - asset 级 OCR 结果无法稳定重放到不同 split manifest、不同 cleaning policy 或不同 chunk policy。
 
-因此 `structured-full.jsonl` 的职责不是“多存一份文本”，而是把 provider truth 和 document truth 隔开。
+因此 `layout-elements.jsonl` 的职责不是“多存一份文本”，而是把 provider truth 和 document truth 隔开。
 
 ## `campusRAG` 旧策略
 
@@ -72,36 +73,40 @@ updated: 2026-03-22
 旧方案的局限也很明确：
 
 - 它主要从已经拆好的 canonical markdown / clean markdown 出发。
-- 它没有把 `provider-result.jsonl -> structured-full.jsonl` 这一层正式建成 contract。
+- 它没有把 `provider-response.jsonl -> layout-elements.jsonl` 这一层正式建成 contract。
 - 它默认“source asset 已经被人工或前置流程拆成逻辑文档”，不适合作为当前 raw-first ingestion 的 source-level truth。
 
 ## `campus-agent` 的 handbook 设计
 
 当前阶段建议把 handbook 固定为下面这条链路：
 
-`provider-result.jsonl -> structured-full.jsonl -> split-manifest -> per-doc structured source -> canonical markdown / metadata -> structured.jsonl -> chunks`
+`provider-response.jsonl -> layout-elements.jsonl -> split-manifest -> per-doc source rows -> canonical.md / metadata -> document-units.jsonl -> chunks`
 
 当前 source artifact 的讨论样例可直接按 object key 理解为：
 
-`student_handbook/assets/student-handbook-pdf/sha256/b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider-result.jsonl`
+`regulations/sources/pdf_ocr/student-handbook/2018/{ingest_id}/provider-response.jsonl`
+
+对应的原始来源资产路径应位于 raw bucket：
+
+`pdf/student-handbook/2018/{raw_version_id}/{original_filename}`
 
 其中每一层的职责分别是：
 
-- `provider-result.jsonl`
+- `provider-response.jsonl`
   - 保存 provider 原始响应
   - 仅承担 provenance、审计、重放、排障
-- `structured-full.jsonl`
+- `layout-elements.jsonl`
   - 保存 asset 级、provider-agnostic 的 source rows
   - 作为 split 和 cleanup 的唯一直接输入
 - `split-manifest.v1.json`
   - 保存 handbook 多逻辑文档的页段真相
   - 不承载 OCR 文本，不承载 chunk 规则
-- per-doc structured source
+- per-doc source rows
   - 保存单篇制度文档对应的 source rows
   - 仍然保留页码、顺序、表格和标题线索
-- canonical markdown / metadata
-  - 冻结标题、文号、章条结构、`doc_id`、文档级 stable metadata
-- document-level `structured.jsonl`
+- `canonical.md` / metadata
+  - 冻结标题、文号、章条结构、`doc_id`、`representation`、文档级 stable metadata
+- document-level `document-units.jsonl`
   - 保存 `article_body`、`policy_page`、`table`、`table_row`
   - 作为 registry 和 chunking 的直接输入
 
@@ -166,9 +171,9 @@ updated: 2026-03-22
 
 只有这一层之后，才进入 chunking。
 
-## 推荐的 `structured-full.jsonl` 最小字段
+## 推荐的 `layout-elements.jsonl` 最小字段
 
-`structured-full.jsonl` 应代表 asset 级 source rows，而不是 document-level chunks。建议最小字段分成五组：
+`layout-elements.jsonl` 应代表 asset 级 source rows，而不是 document-level chunks。建议最小字段分成五组：
 
 ### A. Source Identity
 
@@ -218,21 +223,40 @@ updated: 2026-03-22
 
 在 handbook 被切成单篇制度文档后，建议固定以下规则：
 
-- `doc_id` 继续沿用 `campusRAG` 的标题哈希策略：
-  `handbook:sha1(NFKC(trim(collapse_whitespace(title))))`
+- `document_id` 继续采用稳定标题哈希策略，但不再把短期来源名编码为长期前缀；canonical object key 对外展示使用 `title_slug--{docid8}`
+- `representation` 作为语义文本表示线固定存档；第一阶段 OCR ingest / replay 默认写 `source-faithful`
 - `version_id` 由规范化后的 `title + body` 生成，不绑定 source asset 文件名或 provider job
+- `source_channel` 显式记录来源渠道；第一阶段 OCR ingest / replay 默认写 `pdf_ocr`
+- `is_current` 表示该表示线是否是当前对外生效线；source-faithful handbook 默认 `false`
 - `policy_doc_no` 仅在可稳定识别时保留
 - `page_start/page_end` 属于文档真相，不应由 chunking 事后回推
-- `structured.jsonl` 必须写 `doc_id`、`version_id`、`unit_type`、`anchor`、`clean_text`
+- `document-units.jsonl` 必须写 `doc_id`、`version_id`、`unit_type`、`anchor`、`clean_text`
 - `chunk_id`、embedding、Qdrant payload 仍然是更下游派生物，不回写 canonical markdown
 
 ## 与现有仓库边界的对应关系
 
-- processed 层保留 asset 级 `provider-result.jsonl`
-- processed 层保留 asset 级 `structured-full.jsonl`
+- raw bucket 的 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...` 保存 corpus-agnostic 的原始来源资产
+- `regulations/sources/{source_channel}/{source_asset_slug}/{year}/{ingest_id}/...` 保留 processed source 级 `provider-response.jsonl`
+- `regulations/sources/{source_channel}/{source_asset_slug}/{year}/{ingest_id}/...` 保留 processed source 级 `layout-elements.jsonl`
 - document registry 只登记逻辑文档，不登记整本 handbook PDF 作为单一 document truth
-- document-level `structured.jsonl` 继续作为 `packages/ingestion-core` 的 chunking 输入
-- 当前 `student_handbook` query-serving 默认范围不变，但其 ingestion truth 应改为多逻辑文档
+- `regulations/documents/student_handbook/.../document-units.jsonl` 继续作为 `packages/ingestion-core` 的 chunking 输入
+- 当前 query-serving 默认范围应表述为 `regulations` corpus 下的 `student_handbook` collection
+- 对外展示或清洗效果对照应优先消费 `canonical.md`，不要直接拿 chunk 文本代替
+
+## Representation 规则
+
+逻辑文档 identity 固定拆成三层：
+
+- `document_id`: 脱离 PDF / 网页载体的逻辑制度身份
+- `representation`: 并行文本表示线，例如 `source-faithful`、`current-effective`、`editorial`
+- `version_id`: 该表示线内的具体内容版本
+
+第一阶段固定约束：
+
+- handbook OCR ingest / replay 一律写入 `representation=source-faithful`
+- `source_channel` 一律写入 `pdf_ocr`
+- `is_current=false`
+- 后续如果引入官网对照更新后的制度正文，应新增 `current-effective` representation，而不是覆盖 `source-faithful`
 
 ## 参考
 

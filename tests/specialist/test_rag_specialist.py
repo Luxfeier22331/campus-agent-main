@@ -8,6 +8,7 @@ from campus_contracts import (
     DelegateToRagAgentResponse,
     EvidenceBundle,
     EvidenceSource,
+    KnowledgeScope,
 )
 from campus_retrieval_core import CorpusQueryDisabledError, RetrievalBackendError
 from campus_rag_specialist.confidence import derive_confidence
@@ -18,12 +19,16 @@ def _make_evidence(*, scores: tuple[float, ...] = (0.82, 0.77)) -> EvidenceBundl
     sources = tuple(
         EvidenceSource(
             doc_id=f"handbook:test-{index + 1}",
+            revision_track="source-faithful",
             version_id=f"v1:test-{index + 1}",
-            chunk_id=f"handbook:test-{index + 1}:v1:test-{index + 1}:chunk-0001",
+            chunk_id=f"handbook:test-{index + 1}:source-faithful:v1:test-{index + 1}:chunk-0001",
             anchor={"page_start": index + 1, "page_end": index + 1},
             acl_level="public",
             canonical_url=f"https://campus.example/handbook/test-{index + 1}",
             latest_url=f"https://campus.example/handbook/test-{index + 1}",
+            source_channel="pdf_ocr",
+            collection="student_handbook",
+            is_current=False,
             snippet=f"Evidence snippet {index + 1} about library hours and student support.",
             score=score,
         )
@@ -31,18 +36,16 @@ def _make_evidence(*, scores: tuple[float, ...] = (0.82, 0.77)) -> EvidenceBundl
     )
     return EvidenceBundle(
         query_text="library hours",
-        corpus="student_handbook",
+        corpus="regulations",
+        collection="student_handbook",
         sources=sources,
     )
 
 
 class RagSpecialistTest(unittest.TestCase):
-    def test_empty_query_needs_clarification(self) -> None:
-        response = delegate_to_rag_agent(DelegateToRagAgentRequest(user_goal="   "))
-
-        self.assertEqual(response.status, "needs_clarification")
-        self.assertFalse(response.answer_text)
-        self.assertTrue(response.follow_up_question)
+    def test_blank_user_goal_is_rejected_by_request_contract(self) -> None:
+        with self.assertRaisesRegex(ValueError, "user_goal"):
+            DelegateToRagAgentRequest(user_goal="   ")
 
     def test_retrieval_error_maps_to_error_response(self) -> None:
         def raising_retriever(*args: object, **kwargs: object) -> EvidenceBundle:
@@ -60,10 +63,13 @@ class RagSpecialistTest(unittest.TestCase):
 
     def test_query_disabled_corpus_maps_to_explicit_error_response(self) -> None:
         def raising_retriever(*args: object, **kwargs: object) -> EvidenceBundle:
-            raise CorpusQueryDisabledError("curriculum_plan retrieval is disabled in phase-1")
+            raise CorpusQueryDisabledError("curriculum/curriculum_plan retrieval is disabled in phase-1")
 
         response = delegate_to_rag_agent(
-            DelegateToRagAgentRequest(user_goal="培养方案要求", corpora=("curriculum_plan",)),
+            DelegateToRagAgentRequest(
+                user_goal="培养方案要求",
+                scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan"),
+            ),
             retriever=raising_retriever,
         )
 
@@ -78,7 +84,8 @@ class RagSpecialistTest(unittest.TestCase):
             DelegateToRagAgentRequest(user_goal="library hours"),
             retriever=lambda *args, **kwargs: EvidenceBundle(
                 query_text="library hours",
-                corpus="student_handbook",
+                corpus="regulations",
+                collection="student_handbook",
             ),
         )
 
@@ -109,6 +116,8 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertIsInstance(response, DelegateToRagAgentResponse)
         self.assertEqual(response.status, "completed")
         self.assertEqual(captured_kwargs["query"], "What are the library hours?")
+        self.assertEqual(captured_kwargs["corpus"], "regulations")
+        self.assertEqual(captured_kwargs["collection"], "student_handbook")
         self.assertEqual(captured_kwargs["acl_groups"], ("students",))
         self.assertEqual(captured_kwargs["campus_scope"], "north")
         self.assertTrue(response.answer_text)

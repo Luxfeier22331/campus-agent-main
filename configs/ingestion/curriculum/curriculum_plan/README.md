@@ -1,0 +1,26 @@
+## curriculum_plan collection config
+
+This directory holds the repo-tracked config scaffolding for the `curriculum_plan`
+collection within the `curriculum` corpus.
+
+- `runtime-profile.json`: canonical phase-1 runtime truth for ingestion/query gating
+- `split-manifest.v1.json`: static page-range truth for splitting one master PDF into logical documents
+- `split-manifest.candidate.v1.json`: review companion manifest generated from the same reviewed source
+- `split-manifest.candidate.gaps.json`: audit summary for unmatched or retired legacy canonical documents
+- `split-manifest.candidate.gap-triage.md`: triage notes for the retired legacy umbrella document
+- `chunk-profile.json`: chunking/runtime profile record for this collection
+- `retrieval-profile.json`: retrieval/runtime profile record for this collection
+- `samples/`: real document-level sample outputs for chunking and manual review
+
+`process_raw_ingestion_job` supports two phase-1 entry paths for
+`INGESTION_CORPUS=curriculum` and `INGESTION_COLLECTION=curriculum_plan`:
+
+- `RAW_INGESTION_ARTIFACT_MODE=provider_only` for pre-split onboarding. This uploads the raw PDF under `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...` and stores the processed asset-level `provider-response.jsonl` under `curriculum/sources/{source_channel}/{source_asset_slug}/{year}/{ingest_id}/...` without requiring a split manifest.
+- `RAW_INGESTION_ARTIFACT_MODE=normalized` for document-level ingestion. This requires the split manifest to be filled with the real document list and page ranges before the job is run and then writes document artifacts under `curriculum/documents/{collection}/{title_slug}--{docid8}/{representation}/{year}/...`.
+
+Notes:
+
+- `split-manifest.v1.json` is the formal repo-tracked split truth for the reviewed `asset:curriculum-plan-2022` source.
+- The formal manifest records logical document boundaries plus ACL/status metadata only. Curriculum document `source_uri` is derived during ingestion from `raw_asset_id + raw_version_id + page_start/page_end`.
+- `split-manifest.candidate.v1.json` remains as a review companion artifact and should keep the same document inventory as the formal manifest.
+- `samples/index.json` is inspection-only metadata; it should point to the moved `configs/ingestion/curriculum/curriculum_plan/samples/...` paths.

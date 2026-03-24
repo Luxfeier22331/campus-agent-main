@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-from campus_contracts import ActorContext
-from campus_contracts.models import ALLOWED_CORPORA, ALLOWED_DELEGATE_STATUSES, DelegateStatus
+from campus_contracts import ActorContext, KnowledgeScope
+from campus_contracts.models import ALLOWED_DELEGATE_STATUSES, DelegateStatus
 
 
 CaseSplit = Literal["smoke", "regression_locked", "exploratory", "release_gate"]
@@ -17,32 +17,43 @@ ALLOWED_SOURCE_TYPES = ("expert_authored", "historical_logs", "incident_backfill
 @dataclass(frozen=True, slots=True)
 class ExpectedSourceRef:
     doc_id: str
-    version_id: str
-    chunk_id: str
+    version_id: str | None = None
+    chunk_id: str | None = None
 
 
-def expected_source_ref(doc_id: str, version_id: str, chunk_id: str) -> ExpectedSourceRef:
+def expected_source_ref(
+    doc_id: str,
+    version_id: str | None = None,
+    chunk_id: str | None = None,
+) -> ExpectedSourceRef:
     return ExpectedSourceRef(doc_id=doc_id, version_id=version_id, chunk_id=chunk_id)
 
 
 @dataclass(frozen=True, slots=True)
 class TraceExpectation:
-    selected_corpus: str | None = None
+    selected_scope: KnowledgeScope | None = None
     retrieval_called: bool | None = None
     clarification_expected: bool | None = None
     error_expected: bool | None = None
+    fail_closed_expected: bool | None = None
+    expected_handoff: str | None = None
 
     def __post_init__(self) -> None:
-        if self.selected_corpus is not None and self.selected_corpus not in ALLOWED_CORPORA:
-            raise ValueError(f"unsupported trace corpus: {self.selected_corpus}")
+        if self.expected_handoff is not None and self.expected_handoff not in ("none", "rag-specialist"):
+            raise ValueError(f"unsupported expected_handoff: {self.expected_handoff}")
 
 
 @dataclass(frozen=True, slots=True)
 class GraderPolicy:
+    mode: Literal["deterministic_only", "deterministic_plus_llm", "manual_review"] = "deterministic_only"
     grade_status: bool = True
     grade_retrieval: bool = True
     grade_answer: bool = True
     grade_trace: bool = True
+
+    def __post_init__(self) -> None:
+        if self.mode not in ("deterministic_only", "deterministic_plus_llm", "manual_review"):
+            raise ValueError(f"unsupported grader mode: {self.mode}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,44 +63,39 @@ class GoldenCase:
     source_type: SourceType
     user_goal: str
     actor: ActorContext
-    corpora: tuple[str, ...]
     expected_status: DelegateStatus
-    expected_evidence_corpus: str
+    scope: KnowledgeScope = field(default_factory=KnowledgeScope)
     expected_sources: tuple[ExpectedSourceRef, ...] = field(default_factory=tuple)
     forbidden_sources: tuple[ExpectedSourceRef, ...] = field(default_factory=tuple)
     required_facts: tuple[str, ...] = field(default_factory=tuple)
     forbidden_claims: tuple[str, ...] = field(default_factory=tuple)
     trace_expectation: TraceExpectation | None = None
     grader_policy: GraderPolicy = field(default_factory=GraderPolicy)
+    generator_name: str = ""
+    generator_version: str = ""
+    generation_recipe: str = ""
+    seed_case_id: str = ""
+    tags: tuple[str, ...] = field(default_factory=tuple)
+    notes: str = ""
+    metadata: dict[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.split not in ALLOWED_CASE_SPLITS:
             raise ValueError(f"unsupported split: {self.split}")
         if self.source_type not in ALLOWED_SOURCE_TYPES:
             raise ValueError(f"unsupported source_type: {self.source_type}")
-        if not self.corpora:
-            raise ValueError("corpora must not be empty")
-        for corpus in self.corpora:
-            if corpus not in ALLOWED_CORPORA:
-                raise ValueError(f"unsupported corpus: {corpus}")
         if self.expected_status not in ALLOWED_DELEGATE_STATUSES:
             raise ValueError(f"unsupported expected_status: {self.expected_status}")
-        if self.expected_evidence_corpus not in self.corpora:
-            raise ValueError("expected_evidence_corpus must be included in corpora")
-        if self.expected_evidence_corpus not in ALLOWED_CORPORA:
-            raise ValueError(f"unsupported expected_evidence_corpus: {self.expected_evidence_corpus}")
+        if not self.user_goal.strip():
+            raise ValueError("user_goal must not be empty")
 
 
 @dataclass(frozen=True, slots=True)
 class ObservedTrace:
-    selected_corpus: str | None = None
+    selected_scope: KnowledgeScope | None = None
     retrieval_called: bool | None = None
     clarification_emitted: bool | None = None
     error_path: bool | None = None
-
-    def __post_init__(self) -> None:
-        if self.selected_corpus is not None and self.selected_corpus not in ALLOWED_CORPORA:
-            raise ValueError(f"unsupported observed trace corpus: {self.selected_corpus}")
 
 
 @dataclass(frozen=True, slots=True)

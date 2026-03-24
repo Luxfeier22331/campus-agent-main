@@ -30,10 +30,11 @@
 - 当前主路径是 `supervisor-api -> supervisor-core -> rag-specialist -> retrieval-core`
 - 架构目标是 supervisor-led multi-agent orchestration，而不是 `RAG as a tool`
 - ingestion/object-store/registry/retrieval 地基已落地
-- 查询链路当前默认只开放 `student_handbook`
-- `curriculum_plan` 已进入 data-plane / cleaned-ingestion 收口，但 phase-1 默认仍不放开 query-serving
+- 查询链路当前默认只开放 `regulations` corpus 中的 `student_handbook` collection
+- ingestion truth 统一为 `corpus + collection`：默认入口是 `regulations/student_handbook`；raw 来源资产位于 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...`，processed source artifacts 位于 `{corpus}/sources/{source_channel}/{source_asset_slug}/{year}/{ingest_id}/...`，清洗后的文档存放在 `{corpus}/documents/{collection}/{title_slug}--{docid8}/{representation}/{year}/...`
+- `curriculum/curriculum_plan` 已进入 data-plane / cleaned-ingestion 收口，但 phase-1 默认仍不放开 query-serving
 - `rag-specialist`、`supervisor-core`、`supervisor-api`、`evals` 已有可测试的 phase-1 入口
-- `uv run --all-packages python -m unittest discover -s tests -t .` 当前通过，仓库基线测试为 `62` 项
+- `uv run --all-packages python -m unittest discover -s tests -t .` 当前通过，仓库基线测试为 `85` 项
 - 运行态已确认本机 `MinIO` 可访问，`campus-rag-raw` / `campus-rag-processed` bucket 和现有 `student_handbook` 资产已存在
 - 运行态已确认配置中的 `Qdrant Cloud` endpoint 可达，但当前实例没有 collection；`.env` 指向的 `student_handbook` collection 仍不存在，因此向量上传尚未完成
 

@@ -33,10 +33,12 @@ class StructuredUnit:
 @dataclass(frozen=True, slots=True)
 class IndexableChunk:
     document_id: str
+    revision_track: str
     version_id: str
     chunk_id: str
     chunk_order: int
     corpus: str
+    collection: str
     acl_groups: tuple[str, ...]
     campus_scope: str | None
     source_uri: str
@@ -44,6 +46,8 @@ class IndexableChunk:
     acl_level: str
     anchor: dict[str, object]
     text: str
+    source_channel: str
+    is_current: bool
     parser_version: str
     embedding_model: str
     embedding: tuple[float, ...] | None = None
@@ -55,16 +59,20 @@ class IndexableChunk:
             text=self.text,
             metadata={
                 "document_id": self.document_id,
+                "revision_track": self.revision_track,
                 "version_id": self.version_id,
                 "chunk_id": self.chunk_id,
                 "chunk_order": self.chunk_order,
                 "corpus": self.corpus,
+                "collection": self.collection,
                 "acl_groups": list(self.acl_groups),
                 "campus_scope": self.campus_scope,
                 "source_uri": self.source_uri,
                 "source_chunk_id": self.source_chunk_id,
                 "acl_level": self.acl_level,
                 "anchor": self.anchor,
+                "source_channel": self.source_channel,
+                "is_current": self.is_current,
                 "parser_version": self.parser_version,
                 "embedding_model": self.embedding_model,
                 **self.metadata,
@@ -72,7 +80,11 @@ class IndexableChunk:
             relationships={
                 NodeRelationship.SOURCE: RelatedNodeInfo(
                     node_id=self.document_id,
-                    metadata={"version_id": self.version_id, "source_uri": self.source_uri},
+                    metadata={
+                        "revision_track": self.revision_track,
+                        "version_id": self.version_id,
+                        "source_uri": self.source_uri,
+                    },
                 )
             },
         )
@@ -96,7 +108,7 @@ def build_indexable_chunks_from_jsonl(
     chunks: list[IndexableChunk] = []
     chunk_order = 0
     for unit in units:
-        if record.corpus == "curriculum_plan":
+        if record.collection == "curriculum_plan":
             pieces = chunk_curriculum_unit(unit=unit, chunk_profile=runtime_profile)
         else:
             pieces = chunk_structured_unit(
@@ -109,22 +121,31 @@ def build_indexable_chunks_from_jsonl(
             )
         for piece in pieces:
             chunk_order += 1
-            chunk_id = f"{record.document_id}:{record.version_id}:chunk-{chunk_order:04d}"
+            chunk_id = (
+                f"{record.document_id}:{record.revision_track}:{record.version_id}:chunk-{chunk_order:04d}"
+            )
             embedding = _embed_text(piece.text, embedding_model)
             chunks.append(
                 IndexableChunk(
                     document_id=record.document_id,
+                    revision_track=record.revision_track,
                     version_id=record.version_id,
                     chunk_id=chunk_id,
                     chunk_order=chunk_order,
                     corpus=record.corpus,
+                    collection=record.collection,
                     acl_groups=record.acl_groups,
                     campus_scope=record.campus_scope,
                     source_uri=record.source_uri,
                     source_chunk_id=unit.source_chunk_id,
-                    acl_level=unit.acl_level,
+                    acl_level=_resolve_effective_acl_level(
+                        unit_acl_level=unit.acl_level,
+                        document_acl_groups=record.acl_groups,
+                    ),
                     anchor=unit.anchor,
                     text=piece.text,
+                    source_channel=record.source_channel,
+                    is_current=record.is_current,
                     parser_version=record.parser_version,
                     embedding_model=record.embedding_model,
                     embedding=embedding,
@@ -134,6 +155,8 @@ def build_indexable_chunks_from_jsonl(
                         "segment_index": piece.segment_index,
                         "segment_total": piece.segment_total,
                         "split_reason": piece.split_reason,
+                        "boundary_rule": piece.boundary_rule,
+                        "strategy_name": runtime_profile.strategy_name,
                         "split_strategy": runtime_profile.split_strategy,
                         "chunk_policy_version": runtime_profile.chunk_policy_version,
                         "cleaning_policy_version": runtime_profile.cleaning_policy_version,
@@ -152,7 +175,11 @@ def index_chunks_to_qdrant(
 ) -> tuple[str, ...]:
     if not chunks:
         return ()
-    vector_store = QdrantVectorStore(collection_name=collection_name, client=qdrant_client)
+    vector_store = QdrantVectorStore(
+        collection_name=collection_name,
+        client=qdrant_client,
+        index_doc_id=not _is_local_qdrant_backend(qdrant_client),
+    )
     ids = vector_store.add([chunk.to_node() for chunk in chunks])
     _ensure_payload_indexes(qdrant_client=qdrant_client, collection_name=collection_name)
     return tuple(str(item) for item in ids)
@@ -163,7 +190,7 @@ def _load_structured_units(
     record: DocumentRegistryRecord,
     structured_jsonl_bytes: bytes,
 ) -> tuple[StructuredUnit, ...]:
-    if record.corpus == "curriculum_plan":
+    if record.collection == "curriculum_plan":
         return tuple(build_curriculum_structured_units(record=record, structured_jsonl_bytes=structured_jsonl_bytes))
     units: list[StructuredUnit] = []
     for unit_index, line in enumerate(structured_jsonl_bytes.decode("utf-8").splitlines()):
@@ -207,7 +234,7 @@ def _resolve_chunk_profile(
 ) -> ChunkProfile:
     if chunk_profile is not None:
         return chunk_profile
-    if record.corpus == "curriculum_plan":
+    if record.collection == "curriculum_plan":
         raise ValueError("curriculum_plan chunking requires explicit chunk_profile")
     return ChunkProfile()
 
@@ -234,10 +261,23 @@ def _normalize_anchor(value: object) -> dict[str, object]:
 def _normalize_acl_level(value: object) -> str:
     if not isinstance(value, dict):
         return "public"
+    allow_groups = value.get("allow_groups")
+    if isinstance(allow_groups, list) and any(isinstance(item, str) and item.strip() for item in allow_groups):
+        return "restricted"
     acl_level = value.get("level")
     if not isinstance(acl_level, str) or not acl_level.strip():
         return "public"
     return acl_level.strip()
+
+
+def _resolve_effective_acl_level(
+    *,
+    unit_acl_level: str,
+    document_acl_groups: tuple[str, ...],
+) -> str:
+    if document_acl_groups and unit_acl_level == "public":
+        return "restricted"
+    return unit_acl_level
 
 
 def _normalize_unit_type(value: object) -> str:
@@ -266,10 +306,28 @@ def _embed_text(text: str, embedding_model: BaseEmbedding | None) -> tuple[float
 def _ensure_payload_indexes(*, qdrant_client: QdrantClient, collection_name: str) -> None:
     if not qdrant_client.collection_exists(collection_name):
         return
-    for field_name in ("document_id", "version_id", "corpus", "campus_scope", "acl_groups"):
+    if _is_local_qdrant_backend(qdrant_client):
+        return
+    for field_name in (
+        "document_id",
+        "revision_track",
+        "version_id",
+        "corpus",
+        "collection",
+        "campus_scope",
+        "acl_groups",
+        "acl_level",
+        "source_channel",
+        "is_current",
+    ):
         qdrant_client.create_payload_index(
             collection_name=collection_name,
             field_name=field_name,
             field_schema=qdrant_models.PayloadSchemaType.KEYWORD,
             wait=True,
         )
+
+
+def _is_local_qdrant_backend(qdrant_client: QdrantClient) -> bool:
+    client = getattr(qdrant_client, "_client", None)
+    return client is not None and type(client).__module__.startswith("qdrant_client.local.")

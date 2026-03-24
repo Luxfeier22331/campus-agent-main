@@ -30,7 +30,7 @@ updated: 2026-03-22
 本轮实施范围固定为：
 
 - phase-1 只支持 `rag-specialist`
-- phase-1 默认 query-serving 只支持 `student_handbook`
+- phase-1 默认 query-serving 只开放 `regulations` corpus 中的 `student_handbook` collection
 - 不修改 `packages/contracts` 的 schema 形状
 - 不把 retrieval / ingestion / infra 细节拉回 supervisor
 - 不把 transport/auth/runtime 逻辑回灌到 `supervisor-core`
@@ -171,7 +171,7 @@ updated: 2026-03-22
   - `RoutingDecision`
   - `route_request(context) -> RoutingDecision`
 - 当前规则固定为：
-  - query-serving 只允许 `student_handbook`
+  - query-serving 只允许 `regulations` corpus 中已开放的 collection，第一阶段默认仅 `student_handbook`
   - 所有合法请求都路由到 `rag-specialist`
 - routing 模块的价值是固定“决策位置”，不是制造多余抽象。
 

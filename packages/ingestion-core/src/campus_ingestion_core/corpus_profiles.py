@@ -12,8 +12,9 @@ ALLOWED_ARTIFACT_MODES = ("normalized", "provider_only")
 
 
 @dataclass(frozen=True, slots=True)
-class CorpusRuntimeProfile:
+class CollectionRuntimeProfile:
     corpus: str
+    collection: str
     phase1_stage: str
     allowed_artifact_modes: tuple[str, ...]
     split_manifest_required: bool
@@ -24,6 +25,8 @@ class CorpusRuntimeProfile:
     def __post_init__(self) -> None:
         if self.corpus not in ALLOWED_CORPORA:
             raise ValueError(f"unsupported corpus: {self.corpus}")
+        if not self.collection:
+            raise ValueError("collection is required")
         if self.phase1_stage not in ALLOWED_PHASE1_STAGES:
             raise ValueError(f"unsupported phase1_stage: {self.phase1_stage}")
         if not self.allowed_artifact_modes:
@@ -35,18 +38,22 @@ class CorpusRuntimeProfile:
             raise ValueError("cleaning_policy_version is required")
 
 
-def load_corpus_runtime_profile(
+def load_runtime_profile(
     corpus: str,
+    collection: str,
     *,
     config_root: Path | None = None,
-) -> CorpusRuntimeProfile:
+) -> CollectionRuntimeProfile:
     if corpus not in ALLOWED_CORPORA:
         raise ValueError(f"unsupported corpus: {corpus}")
+    if not collection:
+        raise ValueError("collection is required")
     root = Path(config_root) if config_root is not None else _default_config_root()
-    path = root / corpus / "runtime-profile.json"
+    path = root / corpus / collection / "runtime-profile.json"
     payload = json.loads(path.read_text(encoding="utf-8"))
-    return CorpusRuntimeProfile(
+    return CollectionRuntimeProfile(
         corpus=str(payload.get("corpus") or ""),
+        collection=str(payload.get("collection") or ""),
         phase1_stage=str(payload.get("phase1_stage") or ""),
         allowed_artifact_modes=tuple(str(item) for item in list(payload.get("allowed_artifact_modes") or [])),
         split_manifest_required=bool(payload.get("split_manifest_required")),
@@ -56,13 +63,19 @@ def load_corpus_runtime_profile(
     )
 
 
-def default_query_corpora(*, config_root: Path | None = None) -> tuple[str, ...]:
+def default_query_scopes(*, config_root: Path | None = None) -> tuple[tuple[str, str], ...]:
     root = Path(config_root) if config_root is not None else _default_config_root()
-    return tuple(
-        corpus
-        for corpus in ALLOWED_CORPORA
-        if load_corpus_runtime_profile(corpus, config_root=root).default_query_enabled
-    )
+    scopes: list[tuple[str, str]] = []
+    for corpus_dir in sorted(path for path in root.iterdir() if path.is_dir()):
+        corpus = corpus_dir.name
+        if corpus not in ALLOWED_CORPORA:
+            continue
+        for collection_dir in sorted(path for path in corpus_dir.iterdir() if path.is_dir()):
+            collection = collection_dir.name
+            profile = load_runtime_profile(corpus, collection, config_root=root)
+            if profile.default_query_enabled:
+                scopes.append((corpus, collection))
+    return tuple(scopes)
 
 
 def _default_config_root() -> Path:

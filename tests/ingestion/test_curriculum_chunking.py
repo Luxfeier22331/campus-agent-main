@@ -11,21 +11,27 @@ from campus_ingestion_core.process import build_indexable_chunks_from_jsonl
 def _make_curriculum_record() -> DocumentRegistryRecord:
     return DocumentRegistryRecord(
         document_id="curriculum:test-001",
+        revision_track="source-faithful",
         version_id="sha256:test-001:split:test-001:abc123",
-        source_uri="campusrag://source/curriculum_plan/curriculum-plan-2022/sha256/test/pages/20-21",
+        source_uri="campusrag://source/curriculum/curriculum-plan-2022/sha256/test/pages/20-21",
         content_hash="sha256:test-001",
-        corpus="curriculum_plan",
+        corpus="curriculum",
+        collection="curriculum_plan",
+        cleaning_policy_version="curriculum_plan_cleaning_v1",
         acl_groups=("students",),
         campus_scope="main",
         status="active",
         ingestion_timestamp="2026-03-24T10:00:00+00:00",
         parser_version="raw-online-ocr-v1",
         embedding_model="text-embedding-3-large",
-        structured_object_key="curriculum_plan/documents/curriculum/test-001/sha256/test/split/test-001/abc123/structured.jsonl",
+        source_channel="pdf_ocr",
+        document_units_object_key=(
+            "curriculum/documents/curriculum_plan/test-001--test-001/source-faithful/undated/document-units.jsonl"
+        ),
         processed_object_keys=(
-            "curriculum_plan/assets/curriculum-plan-2022/sha256/test/provider-result.jsonl",
-            "curriculum_plan/assets/curriculum-plan-2022/sha256/test/structured-full.jsonl",
-            "curriculum_plan/documents/curriculum/test-001/sha256/test/split/test-001/abc123/structured.jsonl",
+            "curriculum/sources/pdf_ocr/curriculum-plan/2022/sha256/test/provider-response.jsonl",
+            "curriculum/sources/pdf_ocr/curriculum-plan/2022/sha256/test/layout-elements.jsonl",
+            "curriculum/documents/curriculum_plan/test-001--test-001/source-faithful/undated/document-units.jsonl",
         ),
         import_source="raw_online_ocr",
     )

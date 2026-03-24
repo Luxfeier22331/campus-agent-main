@@ -1,5 +1,6 @@
 {
-  "corpus": "curriculum_plan",
+  "corpus": "curriculum",
+  "collection": "curriculum_plan",
   "chunk_profile_version": "curriculum_plan_semantic_v1",
   "cleaning_policy_version": "curriculum_plan_cleaning_v1",
   "notes": [

@@ -165,7 +165,7 @@ supervisor 在长期链路中的位置固定如下：
 当前阶段的 supervisor 设计目标不是一步做到完整多 agent orchestration，而是在 phase-1 约束内建立最小正确骨架：
 
 - 当前只路由一个 specialist：`rag-specialist`
-- 当前默认查询语料只支持 `student_handbook`
+- 当前默认查询范围只开放 `regulations` corpus 中的 `student_handbook` collection
 - 当前仍以最小可验证主链路为优先
 - 当前必须避免继续扩大“supervisor 只是透传”的错误形态
 

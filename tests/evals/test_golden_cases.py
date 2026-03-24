@@ -7,11 +7,11 @@ from campus_contracts import (
     DelegateToRagAgentResponse,
     EvidenceBundle,
     EvidenceSource,
+    KnowledgeScope,
 )
 from campus_evals import (
     ExecutionResult,
     GoldenCase,
-    GraderPolicy,
     ObservedTrace,
     TraceExpectation,
     expected_source_ref,
@@ -25,16 +25,21 @@ def _source(
     doc_id: str = "handbook:library",
     version_id: str = "v1",
     chunk_id: str = "chunk-1",
+    collection: str = "student_handbook",
     snippet: str = "Library hours are 08:00 to 22:00.",
 ) -> EvidenceSource:
     return EvidenceSource(
         doc_id=doc_id,
+        revision_track="source-faithful",
         version_id=version_id,
         chunk_id=chunk_id,
         anchor={"page": 1},
         acl_level="public",
         canonical_url="https://example.edu/handbook/library",
         latest_url="https://example.edu/handbook/library",
+        source_channel="pdf_ocr",
+        collection=collection,
+        is_current=False,
         snippet=snippet,
         score=0.91,
     )
@@ -44,48 +49,56 @@ def _response(
     *,
     status: str = "completed",
     answer_text: str = "Library hours are 08:00 to 22:00.",
-    corpus: str = "student_handbook",
+    corpus: str = "regulations",
+    collection: str = "student_handbook",
     sources: tuple[EvidenceSource, ...] = (),
 ) -> DelegateToRagAgentResponse:
     return DelegateToRagAgentResponse(
         status=status,
         answer_text=answer_text,
         confidence="high" if status == "completed" else "low",
-        evidence=EvidenceBundle(query_text="library hours", corpus=corpus, sources=sources),
+        evidence=EvidenceBundle(
+            query_text="library hours",
+            corpus=corpus,
+            collection=collection,
+            sources=sources,
+        ),
     )
 
 
 class GoldenCaseSchemaTest(unittest.TestCase):
-    def test_case_rejects_empty_corpora(self) -> None:
-        with self.assertRaisesRegex(ValueError, "corpora"):
-            GoldenCase(
-                case_id="case-1",
-                split="smoke",
-                source_type="expert_authored",
-                user_goal="library hours",
-                actor=ActorContext(),
-                corpora=(),
-                expected_status="completed",
-                expected_evidence_corpus="student_handbook",
-            )
+    def test_case_defaults_to_phase1_student_handbook_scope(self) -> None:
+        case = GoldenCase(
+            case_id="case-1",
+            split="smoke",
+            source_type="expert_authored",
+            user_goal="library hours",
+            actor=ActorContext(),
+            expected_status="completed",
+        )
 
-    def test_case_rejects_expected_corpus_not_in_request_corpora(self) -> None:
-        with self.assertRaisesRegex(ValueError, "expected_evidence_corpus"):
+        self.assertEqual(case.scope, KnowledgeScope(corpus="regulations", collection="student_handbook"))
+
+    def test_case_rejects_empty_user_goal(self) -> None:
+        with self.assertRaisesRegex(ValueError, "user_goal"):
             GoldenCase(
                 case_id="case-2",
                 split="smoke",
                 source_type="expert_authored",
-                user_goal="library hours",
+                user_goal="   ",
                 actor=ActorContext(),
-                corpora=("student_handbook",),
                 expected_status="completed",
-                expected_evidence_corpus="curriculum_plan",
             )
+
+    def test_trace_expectation_rejects_unknown_handoff(self) -> None:
+        with self.assertRaisesRegex(ValueError, "expected_handoff"):
+            TraceExpectation(expected_handoff="supervisor-direct")
 
 
 class RunCasesTest(unittest.TestCase):
     def test_student_handbook_smoke_cases_keep_phase1_queries(self) -> None:
-        goals = tuple(case.user_goal for case in student_handbook_smoke_cases())
+        cases = student_handbook_smoke_cases()
+        goals = tuple(case.user_goal for case in cases)
 
         self.assertEqual(
             goals,
@@ -98,6 +111,8 @@ class RunCasesTest(unittest.TestCase):
                 "leave of absence",
             ),
         )
+        self.assertTrue(all(case.source_type == "synthetic_expansion" for case in cases))
+        self.assertTrue(all(case.generator_name == "bootstrap-smoke-generator" for case in cases))
 
     def test_runner_filters_by_split_and_aggregates_dimensions(self) -> None:
         smoke_case = GoldenCase(
@@ -106,13 +121,12 @@ class RunCasesTest(unittest.TestCase):
             source_type="expert_authored",
             user_goal="library hours",
             actor=ActorContext(),
-            corpora=("student_handbook", "curriculum_plan"),
+            scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
             expected_status="completed",
-            expected_evidence_corpus="student_handbook",
-            expected_sources=(expected_source_ref("handbook:library", "v1", "chunk-1"),),
+            expected_sources=(expected_source_ref("handbook:library"),),
             required_facts=("08:00",),
             trace_expectation=TraceExpectation(
-                selected_corpus="student_handbook",
+                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
                 retrieval_called=True,
             ),
         )
@@ -122,16 +136,14 @@ class RunCasesTest(unittest.TestCase):
             source_type="expert_authored",
             user_goal="leave of absence",
             actor=ActorContext(),
-            corpora=("student_handbook",),
             expected_status="completed",
-            expected_evidence_corpus="student_handbook",
         )
 
         def executor(case: GoldenCase) -> ExecutionResult:
             return ExecutionResult(
                 response=_response(sources=(_source(),)),
                 observed_trace=ObservedTrace(
-                    selected_corpus="student_handbook",
+                    selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
                     retrieval_called=True,
                 ),
             )
@@ -154,15 +166,14 @@ class RunCasesTest(unittest.TestCase):
             source_type="expert_authored",
             user_goal="library hours",
             actor=ActorContext(),
-            corpora=("student_handbook", "curriculum_plan"),
+            scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
             expected_status="completed",
-            expected_evidence_corpus="student_handbook",
-            expected_sources=(expected_source_ref("handbook:library", "v1", "chunk-1"),),
-            forbidden_sources=(expected_source_ref("plan:fall", "v2", "chunk-9"),),
+            expected_sources=(expected_source_ref("handbook:library"),),
+            forbidden_sources=(expected_source_ref("plan:fall"),),
             required_facts=("08:00", "22:00"),
             forbidden_claims=("24 hours",),
             trace_expectation=TraceExpectation(
-                selected_corpus="student_handbook",
+                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
                 retrieval_called=True,
             ),
         )
@@ -172,13 +183,19 @@ class RunCasesTest(unittest.TestCase):
             executor=lambda _: ExecutionResult(
                 response=_response(
                     answer_text="Library hours are 24 hours.",
-                    corpus="curriculum_plan",
+                    corpus="curriculum",
+                    collection="curriculum_plan",
                     sources=(
-                        _source(doc_id="plan:fall", version_id="v2", chunk_id="chunk-9"),
+                        _source(
+                            doc_id="plan:fall",
+                            version_id="v2",
+                            chunk_id="chunk-9",
+                            collection="curriculum_plan",
+                        ),
                     ),
                 ),
                 observed_trace=ObservedTrace(
-                    selected_corpus="curriculum_plan",
+                    selected_scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan"),
                     retrieval_called=False,
                 ),
             ),
@@ -202,11 +219,9 @@ class RunCasesTest(unittest.TestCase):
             source_type="expert_authored",
             user_goal="library hours",
             actor=ActorContext(),
-            corpora=("student_handbook",),
             expected_status="completed",
-            expected_evidence_corpus="student_handbook",
             trace_expectation=TraceExpectation(
-                selected_corpus="student_handbook",
+                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
                 retrieval_called=True,
             ),
         )
@@ -218,6 +233,54 @@ class RunCasesTest(unittest.TestCase):
 
         self.assertFalse(report.results[0].trace_result.passed)
         self.assertIn("missing", report.results[0].trace_result.reason)
+
+    def test_doc_level_source_matching_does_not_require_chunk_id(self) -> None:
+        case = GoldenCase(
+            case_id="doc-level-1",
+            split="smoke",
+            source_type="synthetic_expansion",
+            user_goal="library hours",
+            actor=ActorContext(),
+            expected_status="completed",
+            expected_sources=(expected_source_ref("handbook:library"),),
+        )
+
+        report = run_cases(
+            (case,),
+            executor=lambda _: ExecutionResult(
+                response=_response(
+                    sources=(
+                        _source(doc_id="handbook:library", version_id="v7", chunk_id="chunk-42"),
+                    ),
+                )
+            ),
+        )
+
+        self.assertTrue(report.results[0].retrieval_result.passed)
+
+    def test_version_level_source_matching_still_works_when_provided(self) -> None:
+        case = GoldenCase(
+            case_id="version-level-1",
+            split="smoke",
+            source_type="synthetic_expansion",
+            user_goal="library hours",
+            actor=ActorContext(),
+            expected_status="completed",
+            expected_sources=(expected_source_ref("handbook:library", "v3"),),
+        )
+
+        report = run_cases(
+            (case,),
+            executor=lambda _: ExecutionResult(
+                response=_response(
+                    sources=(
+                        _source(doc_id="handbook:library", version_id="v2", chunk_id="chunk-1"),
+                    ),
+                )
+            ),
+        )
+
+        self.assertFalse(report.results[0].retrieval_result.passed)
 
 
 if __name__ == "__main__":

@@ -211,7 +211,8 @@ def _build_row(
 ) -> dict[str, object]:
     return {
         "schema_version": "curriculum_provider_rows_v1",
-        "corpus": "curriculum_plan",
+        "corpus": "curriculum",
+        "collection": "curriculum_plan",
         "source_artifact_id": f"asset:{source_slug}",
         "source_pdf": source_pdf,
         "page_start": provider_page_id,

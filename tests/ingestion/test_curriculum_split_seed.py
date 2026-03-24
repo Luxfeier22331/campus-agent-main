@@ -25,7 +25,8 @@ class CurriculumSplitSeedTest(unittest.TestCase):
             raw_asset_id="asset:curriculum-plan-2022",
         )
 
-        self.assertEqual(seed.manifest.corpus, "curriculum_plan")
+        self.assertEqual(seed.manifest.corpus, "curriculum")
+        self.assertEqual(seed.manifest.collection, "curriculum_plan")
         self.assertEqual(seed.manifest.raw_asset_id, "asset:curriculum-plan-2022")
         self.assertEqual(len(seed.manifest.documents), 66)
         self.assertEqual(len(seed.missing_documents), 0)

@@ -35,7 +35,8 @@ class WorkspaceLayoutTest(unittest.TestCase):
 
         self.assertIn(response.status, {"completed", "no_answer", "error"})
         self.assertTrue(response.evidence)
-        self.assertEqual(response.evidence.corpus, "student_handbook")
+        self.assertEqual(response.evidence.corpus, "regulations")
+        self.assertEqual(response.evidence.collection, "student_handbook")
         if response.status == "completed":
             self.assertTrue(response.answer_text)
             self.assertTrue(response.evidence.sources)

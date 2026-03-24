@@ -10,6 +10,7 @@ from campus_contracts import (
     ErrorInfo,
     EvidenceBundle,
     EvidenceSource,
+    KnowledgeScope,
     TraceContext,
 )
 from campus_supervisor_core import handle_request
@@ -24,16 +25,21 @@ def _make_completed_response() -> DelegateToRagAgentResponse:
         confidence="high",
         evidence=EvidenceBundle(
             query_text="library hours",
-            corpus="student_handbook",
+            corpus="regulations",
+            collection="student_handbook",
             sources=(
                 EvidenceSource(
                     doc_id="handbook:test-001",
+                    revision_track="source-faithful",
                     version_id="v1:test-001",
-                    chunk_id="handbook:test-001:v1:test-001:chunk-0001",
+                    chunk_id="handbook:test-001:source-faithful:v1:test-001:chunk-0001",
                     anchor={"page_start": 12, "page_end": 12},
                     acl_level="public",
                     canonical_url="https://campus.example/handbook/test-001",
                     latest_url="https://campus.example/handbook/test-001",
+                    source_channel="pdf_ocr",
+                    collection="student_handbook",
+                    is_current=False,
                     snippet="The library is open from 08:00 to 22:00.",
                     score=0.96,
                 ),
@@ -46,7 +52,7 @@ def _make_no_answer_response() -> DelegateToRagAgentResponse:
     return DelegateToRagAgentResponse(
         status="no_answer",
         confidence="low",
-        evidence=EvidenceBundle(query_text="library hours", corpus="student_handbook"),
+        evidence=EvidenceBundle(query_text="library hours", corpus="regulations", collection="student_handbook"),
     )
 
 
@@ -75,7 +81,9 @@ class SupervisorCoreTest(unittest.TestCase):
         self.assertEqual(context.trace_id, "trace-001")
         self.assertEqual(context.user_id, "student-001")
         self.assertEqual(context.conversation_id, "conv-001")
-        self.assertEqual(context.primary_corpus, "student_handbook")
+        self.assertEqual(context.primary_corpus, "regulations")
+        self.assertEqual(context.primary_collection, "student_handbook")
+        self.assertEqual(context.scope, KnowledgeScope(corpus="regulations", collection="student_handbook"))
         self.assertEqual(context.user_goal, "library hours")
 
     def test_handle_request_routes_request_and_emits_audit_record(self) -> None:

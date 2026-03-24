@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from campus_contracts import DelegateToRagAgentRequest
+from campus_contracts import DelegateToRagAgentRequest, KnowledgeScope
 from campus_contracts.models import AllowedCorpus
 
 
@@ -13,8 +13,16 @@ class SupervisorRequestContext:
     trace_id: str
     user_id: str
     conversation_id: str
-    primary_corpus: AllowedCorpus
+    scope: KnowledgeScope
     user_goal: str
+
+    @property
+    def primary_corpus(self) -> AllowedCorpus:
+        return self.scope.corpus
+
+    @property
+    def primary_collection(self) -> str:
+        return self.scope.collection
 
     @classmethod
     def from_request(cls, request: DelegateToRagAgentRequest) -> "SupervisorRequestContext":
@@ -24,6 +32,6 @@ class SupervisorRequestContext:
             trace_id=request.trace.trace_id,
             user_id=request.actor.user_id,
             conversation_id=request.conversation_id,
-            primary_corpus=request.corpora[0],
+            scope=request.scope,
             user_goal=request.user_goal,
         )

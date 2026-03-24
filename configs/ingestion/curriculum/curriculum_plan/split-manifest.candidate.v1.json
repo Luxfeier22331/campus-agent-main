@@ -1,6 +1,7 @@
 {
-  "manifest_version": "curriculum_plan_split_manifest_v1",
-  "corpus": "curriculum_plan",
+  "manifest_version": "curriculum_plan_split_manifest_candidate_v1",
+  "corpus": "curriculum",
+  "collection": "curriculum_plan",
   "raw_asset_id": "asset:curriculum-plan-2022",
   "documents": [
     {

@@ -200,7 +200,8 @@ def build_curriculum_split_manifest_seed(
     return CurriculumSplitManifestSeed(
         manifest=SplitManifest(
             manifest_version=manifest_version,
-            corpus="curriculum_plan",
+            corpus="curriculum",
+            collection="curriculum_plan",
             raw_asset_id=raw_asset_id,
             documents=tuple(documents),
         ),

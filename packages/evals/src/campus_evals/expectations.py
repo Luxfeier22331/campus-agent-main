@@ -43,20 +43,27 @@ def _grade_status(case: GoldenCase, response: DelegateToRagAgentResponse) -> Dim
 def _grade_retrieval(case: GoldenCase, response: DelegateToRagAgentResponse) -> DimensionResult:
     if not case.grader_policy.grade_retrieval:
         return DimensionResult(True, "retrieval grading disabled")
-    if response.evidence.corpus != case.expected_evidence_corpus:
-        return DimensionResult(False, f"evidence.corpus={response.evidence.corpus}")
+    if response.evidence.corpus != case.scope.corpus or response.evidence.collection != case.scope.collection:
+        return DimensionResult(
+            False,
+            f"evidence.scope={response.evidence.corpus}/{response.evidence.collection}",
+        )
 
-    actual_sources = {
-        (source.doc_id, source.version_id, source.chunk_id): source for source in response.evidence.sources
-    }
+    actual_sources = tuple(response.evidence.sources)
     for source_ref in case.expected_sources:
-        source_key = (source_ref.doc_id, source_ref.version_id, source_ref.chunk_id)
-        if source_key not in actual_sources:
-            return DimensionResult(False, f"missing expected source={source_key}")
+        if not any(_matches_source_ref(source_ref, source) for source in actual_sources):
+            return DimensionResult(
+                False,
+                "missing expected source="
+                f"{(source_ref.doc_id, source_ref.version_id, source_ref.chunk_id)}",
+            )
     for source_ref in case.forbidden_sources:
-        source_key = (source_ref.doc_id, source_ref.version_id, source_ref.chunk_id)
-        if source_key in actual_sources:
-            return DimensionResult(False, f"forbidden source present={source_key}")
+        if any(_matches_source_ref(source_ref, source) for source in actual_sources):
+            return DimensionResult(
+                False,
+                "forbidden source present="
+                f"{(source_ref.doc_id, source_ref.version_id, source_ref.chunk_id)}",
+            )
     if response.status == "completed":
         if not response.evidence.sources:
             return DimensionResult(False, "completed response missing evidence sources")
@@ -91,8 +98,13 @@ def _grade_trace(case: GoldenCase, execution: ExecutionResult) -> DimensionResul
 
     observed = execution.observed_trace
     expected = case.trace_expectation
-    if expected.selected_corpus is not None and observed.selected_corpus != expected.selected_corpus:
-        return DimensionResult(False, f"selected_corpus={observed.selected_corpus}")
+    if expected.selected_scope is not None and observed.selected_scope != expected.selected_scope:
+        selected_scope = (
+            None
+            if observed.selected_scope is None
+            else f"{observed.selected_scope.corpus}/{observed.selected_scope.collection}"
+        )
+        return DimensionResult(False, f"selected_scope={selected_scope}")
     if expected.retrieval_called is not None and observed.retrieval_called != expected.retrieval_called:
         return DimensionResult(False, f"retrieval_called={observed.retrieval_called}")
     if (
@@ -107,3 +119,13 @@ def _grade_trace(case: GoldenCase, execution: ExecutionResult) -> DimensionResul
 
 def _normalize_text(value: str) -> str:
     return " ".join(value.casefold().split())
+
+
+def _matches_source_ref(source_ref, source) -> bool:
+    if source.doc_id != source_ref.doc_id:
+        return False
+    if source_ref.version_id is not None and source.version_id != source_ref.version_id:
+        return False
+    if source_ref.chunk_id is not None and source.chunk_id != source_ref.chunk_id:
+        return False
+    return True

@@ -43,4 +43,5 @@ updated: 2026-03-22
 - `decisions/adr-0004-evaluation-metrics.md`
 - `plans/agentic-rag-foundation.md`
 - `plans/golden-dataset-document-delivery.md`
+- `plans/golden-dataset-schema-and-bootstrap.md`
 - `plans/supervisor-current-design-implementation.md`

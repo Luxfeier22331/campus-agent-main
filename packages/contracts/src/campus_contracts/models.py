@@ -4,12 +4,23 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 
-AllowedCorpus = Literal["student_handbook", "curriculum_plan"]
+AllowedCorpus = Literal["regulations", "curriculum"]
+RevisionTrack = Literal["source-faithful", "current-effective", "editorial"]
+SourceChannel = Literal["pdf_ocr", "official_web", "manual_curated"]
 DelegateStatus = Literal["completed", "needs_clarification", "no_answer", "error"]
 ConfidenceLevel = Literal["high", "medium", "low"]
 
-ALLOWED_CORPORA = ("student_handbook", "curriculum_plan")
-DEFAULT_REQUEST_CORPORA = ("student_handbook",)
+ALLOWED_CORPORA = ("regulations", "curriculum")
+DEFAULT_CORPUS = "regulations"
+DEFAULT_COLLECTION = "student_handbook"
+KNOWN_COLLECTION_TO_CORPUS = {
+    "student_handbook": "regulations",
+    "curriculum_plan": "curriculum",
+}
+ALLOWED_REVISION_TRACKS = ("source-faithful", "current-effective", "editorial")
+ALLOWED_SOURCE_CHANNELS = ("pdf_ocr", "official_web", "manual_curated")
+DEFAULT_REVISION_TRACK = "source-faithful"
+DEFAULT_SOURCE_CHANNEL = "pdf_ocr"
 ALLOWED_DELEGATE_STATUSES = ("completed", "needs_clarification", "no_answer", "error")
 ALLOWED_CONFIDENCE_LEVELS = ("high", "medium", "low")
 
@@ -32,38 +43,66 @@ class ActorContext:
 
 
 @dataclass(frozen=True, slots=True)
+class KnowledgeScope:
+    corpus: AllowedCorpus = DEFAULT_CORPUS
+    collection: str = DEFAULT_COLLECTION
+
+    def __post_init__(self) -> None:
+        _validate_corpus(self.corpus)
+        _validate_collection(self.collection)
+        _validate_collection_scope(self.corpus, self.collection)
+
+
+@dataclass(frozen=True, slots=True)
 class DocumentRef:
     document_id: str
+    revision_track: RevisionTrack
     version_id: str
     corpus: AllowedCorpus
+    collection: str
     source_uri: str
     content_hash: str
 
     def __post_init__(self) -> None:
         _validate_corpus(self.corpus)
+        _validate_collection(self.collection)
+        _validate_collection_scope(self.corpus, self.collection)
+        _validate_revision_track(self.revision_track)
 
 
 @dataclass(frozen=True, slots=True)
 class EvidenceSource:
     doc_id: str
+    revision_track: RevisionTrack
     version_id: str
     chunk_id: str
     anchor: dict[str, object]
     acl_level: str
     canonical_url: str
     latest_url: str
+    source_channel: SourceChannel
+    collection: str
+    is_current: bool
     snippet: str
     score: float
+
+    def __post_init__(self) -> None:
+        _validate_revision_track(self.revision_track)
+        _validate_source_channel(self.source_channel)
+        _validate_collection(self.collection)
 
 
 @dataclass(frozen=True, slots=True)
 class EvidenceBundle:
     query_text: str = ""
-    corpus: AllowedCorpus = "student_handbook"
+    corpus: AllowedCorpus = DEFAULT_CORPUS
+    collection: str = DEFAULT_COLLECTION
     sources: tuple[EvidenceSource, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
         _validate_corpus(self.corpus)
+        _validate_collection(self.collection)
+        _validate_collection_scope(self.corpus, self.collection)
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,13 +119,11 @@ class DelegateToRagAgentRequest:
     request_id: str = ""
     trace: TraceContext = field(default_factory=TraceContext)
     actor: ActorContext = field(default_factory=ActorContext)
-    corpora: tuple[AllowedCorpus, ...] = field(default_factory=lambda: DEFAULT_REQUEST_CORPORA)
+    scope: KnowledgeScope = field(default_factory=KnowledgeScope)
 
     def __post_init__(self) -> None:
-        if not self.corpora:
-            raise ValueError("corpora must not be empty")
-        for corpus in self.corpora:
-            _validate_corpus(corpus)
+        if not self.user_goal.strip():
+            raise ValueError("user_goal must not be empty")
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,3 +145,24 @@ class DelegateToRagAgentResponse:
 def _validate_corpus(corpus: str) -> None:
     if corpus not in ALLOWED_CORPORA:
         raise ValueError(f"unsupported corpus: {corpus}")
+
+
+def _validate_collection(collection: str) -> None:
+    if not collection or not collection.strip():
+        raise ValueError("collection is required")
+
+
+def _validate_collection_scope(corpus: str, collection: str) -> None:
+    expected_corpus = KNOWN_COLLECTION_TO_CORPUS.get(collection)
+    if expected_corpus is not None and expected_corpus != corpus:
+        raise ValueError(f"collection {collection!r} does not belong to corpus {corpus!r}")
+
+
+def _validate_revision_track(revision_track: str) -> None:
+    if revision_track not in ALLOWED_REVISION_TRACKS:
+        raise ValueError(f"unsupported revision track: {revision_track}")
+
+
+def _validate_source_channel(source_channel: str) -> None:
+    if source_channel not in ALLOWED_SOURCE_CHANNELS:
+        raise ValueError(f"unsupported source channel: {source_channel}")

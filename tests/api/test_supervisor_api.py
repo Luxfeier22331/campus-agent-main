@@ -10,6 +10,7 @@ from campus_contracts import (
     DelegateToRagAgentResponse,
     ErrorInfo,
     EvidenceBundle,
+    KnowledgeScope,
     TraceContext,
 )
 from campus_supervisor_api.api import HttpResponse
@@ -27,7 +28,11 @@ class SupervisorApiTest(unittest.TestCase):
                 status="completed",
                 answer_text="The library is open from 08:00 to 22:00.",
                 confidence="medium",
-                evidence=EvidenceBundle(query_text=request.user_goal, corpus="student_handbook"),
+                evidence=EvidenceBundle(
+                    query_text=request.user_goal,
+                    corpus="regulations",
+                    collection="student_handbook",
+                ),
             )
 
         app = create_app(
@@ -70,7 +75,10 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(captured_requests[0].actor.groups, ("students",))
         self.assertEqual(captured_requests[0].actor.roles, ("student",))
         self.assertEqual(captured_requests[0].actor.campus_scope, "north")
-        self.assertEqual(captured_requests[0].corpora, ("student_handbook",))
+        self.assertEqual(
+            captured_requests[0].scope,
+            KnowledgeScope(corpus="regulations", collection="student_handbook"),
+        )
 
     def test_answer_route_projects_supervisor_response_without_orchestration_logic(self) -> None:
         def fake_supervisor(request: DelegateToRagAgentRequest) -> DelegateToRagAgentResponse:

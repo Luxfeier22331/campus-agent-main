@@ -1,3 +1,9 @@
+from campus_ingestion_core.artifacts import (
+    CANONICAL_MARKDOWN_FILENAME,
+    DOCUMENT_UNITS_FILENAME,
+    LAYOUT_ELEMENTS_FILENAME,
+    PROVIDER_RESPONSE_FILENAME,
+)
 from campus_ingestion_core.object_store import (
     S3ObjectStoreClientFactory,
     build_processed_artifact_key,
@@ -13,14 +19,15 @@ from campus_ingestion_core.chunking import (
     DEFAULT_MAX_CHUNK_SIZE,
     DEFAULT_MIN_CHUNK_SIZE,
     ChunkProfile,
+    StudentHandbookChunkingStrategy,
     StructuredUnitChunkInput,
     chunk_structured_unit,
     clean_structured_text,
 )
 from campus_ingestion_core.corpus_profiles import (
-    CorpusRuntimeProfile,
-    default_query_corpora,
-    load_corpus_runtime_profile,
+    CollectionRuntimeProfile,
+    default_query_scopes,
+    load_runtime_profile,
 )
 from campus_ingestion_core.curriculum_provider_normalize import normalize_curriculum_provider_result
 from campus_ingestion_core.embed import (
@@ -29,8 +36,26 @@ from campus_ingestion_core.embed import (
     build_embedding_model,
     build_mock_embedding_model,
 )
-from campus_ingestion_core.existing_ocr_import import import_campusrag_existing_ocr
-from campus_ingestion_core.local_rebuild import LocalDataRebuildReport, rebuild_local_data
+from campus_ingestion_core.handbook_cleanup import (
+    HandbookCleanupResult,
+    build_handbook_doc_id,
+    build_handbook_version_id,
+    cleanup_handbook_document,
+    normalize_handbook_body_text,
+    normalize_handbook_title,
+    serialize_handbook_document_units,
+)
+from campus_ingestion_core.handbook_provider_normalize import (
+    normalize_handbook_provider_result,
+    serialize_handbook_layout_elements,
+)
+from campus_ingestion_core.local_rebuild import (
+    LocalDataRebuildReport,
+    StudentHandbookMigrationReport,
+    migrate_student_handbook_source_faithful,
+    rebuild_local_data,
+    replay_provider_response_rebuild,
+)
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef
 from campus_ingestion_core.process import (
     IndexableChunk,
@@ -39,10 +64,8 @@ from campus_ingestion_core.process import (
 )
 from campus_ingestion_core.raw_ingestion import (
     OnlineOcrClient,
-    OnlineOcrParseResult,
-    RawIngestionSubmissionReport,
+    OnlineOcrProviderResult,
     process_raw_ingestion_job,
-    submit_raw_ingestion_job,
 )
 from campus_ingestion_core.registry import (
     DocumentRegistry,
@@ -64,6 +87,7 @@ from campus_ingestion_core.split_manifest import SplitManifest, SplitManifestDoc
 __all__ = [
     "DEFAULT_BUCKET_PROCESSED",
     "DEFAULT_BUCKET_RAW",
+    "CANONICAL_MARKDOWN_FILENAME",
     "DEFAULT_CHUNK_POLICY_VERSION",
     "DEFAULT_CHUNK_OVERLAP",
     "DEFAULT_CHUNK_SIZE",
@@ -71,19 +95,27 @@ __all__ = [
     "DEFAULT_MAX_CHUNK_SIZE",
     "DEFAULT_MIN_CHUNK_SIZE",
     "ChunkProfile",
-    "CorpusRuntimeProfile",
+    "CollectionRuntimeProfile",
     "normalize_curriculum_provider_result",
     "DocumentRegistry",
     "DocumentRegistryRecord",
+    "DOCUMENT_UNITS_FILENAME",
     "EmbeddingSettings",
     "FileDocumentRegistry",
     "FileRawAssetRegistry",
+    "HandbookCleanupResult",
     "ImportReport",
     "IndexableChunk",
-    "import_campusrag_existing_ocr",
+    "StudentHandbookMigrationReport",
+    "build_handbook_doc_id",
+    "build_handbook_version_id",
+    "cleanup_handbook_document",
+    "normalize_handbook_provider_result",
+    "normalize_handbook_body_text",
+    "normalize_handbook_title",
     "LocalDataRebuildReport",
     "OnlineOcrClient",
-    "OnlineOcrParseResult",
+    "OnlineOcrProviderResult",
     "PostgresDocumentRegistry",
     "PostgresRawAssetRegistry",
     "RawAssetRecord",
@@ -98,19 +130,24 @@ __all__ = [
     "build_raw_asset_key",
     "chunk_structured_unit",
     "clean_structured_text",
-    "default_query_corpora",
+    "default_query_scopes",
     "ObjectStoreSettings",
     "build_mock_embedding_model",
     "index_chunks_to_qdrant",
+    "LAYOUT_ELEMENTS_FILENAME",
     "MockEmbeddingSettings",
     "process_raw_ingestion_job",
-    "RawIngestionSubmissionReport",
+    "PROVIDER_RESPONSE_FILENAME",
+    "migrate_student_handbook_source_faithful",
     "rebuild_local_data",
+    "replay_provider_response_rebuild",
     "S3ObjectStoreClientFactory",
+    "serialize_handbook_layout_elements",
+    "serialize_handbook_document_units",
     "StructuredUnitChunkInput",
-    "submit_raw_ingestion_job",
+    "StudentHandbookChunkingStrategy",
     "SplitManifest",
     "SplitManifestDocument",
     "load_split_manifest",
-    "load_corpus_runtime_profile",
+    "load_runtime_profile",
 ]

@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0002
 status: accepted
 created: 2026-03-22
-updated: 2026-03-22
+updated: 2026-03-24
 ---
 
 # ADR-0002 本地 MinIO 约束与迁移不变量
@@ -40,35 +40,49 @@ updated: 2026-03-22
 
 ## Object Key 规范
 
-第一阶段 object key 采用稳定层级：
+第一阶段 object key 采用稳定层级，并把“来源级产物”和“逻辑文档产物”拆到两棵前缀树中：
 
-- raw bucket: `{corpus}/assets/{raw_asset_kind}/{raw_asset_slug}/{hash_algorithm}/{hash_value}/{original_filename}`
-- processed bucket: `{corpus}/documents/{document_kind}/{document_slug}/{version_kind}/{version_slug}/{artifact_filename}`
+- raw bucket:
+  `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/{original_filename}`
+- processed bucket:
+  - source-oriented artifact:
+    `{corpus}/sources/{source_channel}/{source_asset_slug}/{year}/{ingest_id}/{artifact_filename}`
+  - document-oriented artifact:
+    `{corpus}/documents/{collection}/{title_slug}--{docid8}/{representation}/{year}/{artifact_filename}`
 
 在线 OCR 的 processed artifact 约定：
 
-- `{corpus}/documents/{document_kind}/{document_slug}/{version_kind}/{version_slug}/provider-result.jsonl`
-- `{corpus}/documents/{document_kind}/{document_slug}/{version_kind}/{version_slug}/structured.jsonl`
-- 当一个 raw asset 需要 fan-out 成多个逻辑文档时，允许保留 asset 级 processed artifact：
-  `{corpus}/assets/{raw_asset_kind}/{raw_asset_slug}/{hash_algorithm}/{hash_value}/provider-result.jsonl`
-  `{corpus}/assets/{raw_asset_kind}/{raw_asset_slug}/{hash_algorithm}/{hash_value}/structured-full.jsonl`
+- `{corpus}/sources/{source_channel}/{source_asset_slug}/{year}/{ingest_id}/provider-response.jsonl`
+- `{corpus}/sources/{source_channel}/{source_asset_slug}/{year}/{ingest_id}/layout-elements.jsonl`
+- `{corpus}/documents/{collection}/{title_slug}--{docid8}/{representation}/{year}/canonical.md`
+- `{corpus}/documents/{collection}/{title_slug}--{docid8}/{representation}/{year}/document-units.jsonl`
 
 说明：
 
-- `provider-result.jsonl` 保存供应商返回的原始响应，供审计、重放和排障使用
-- `structured.jsonl` 保存内部统一的归一化结果，供 registry、chunking 和去重使用
-- `provider-result.jsonl` 不得冒充 raw layer 真相源
+- raw layer 不按 `corpus` 组织，因为同一份 raw asset 可能服务多个 corpus；processed layer 按长期知识域 `corpus` 组织，例如 `regulations`、`curriculum`
+- `provider-response.jsonl` 保存供应商返回的原始响应，供审计、重放和排障使用
+- `layout-elements.jsonl` 保存 asset 级统一结构层，供 split、cleanup 和重放使用
+- `canonical.md` 保存单篇文档的人类可读规范化表示，供展示、对照和验收使用
+- `document-units.jsonl` 保存单篇文档的结构化清洗单元，供 registry、chunking 和去重使用
+- `provider-response.jsonl` 不得冒充 raw layer 真相源
+- `title_slug--{docid8}` 负责人工定位；`version_id` 继续留在 registry / metadata 中，不再强制单独占路径层级
 
 不变量：
 
-- 第一层固定为 `corpus`
-- raw 第二层固定为 `assets`
-- processed 第二层固定为 `documents`
-- identity segment 不直接把 `:` 放进 object key，而是按语义拆成多级路径
-- 例如 `asset:student-handbook-pdf` 展开为 `asset/student-handbook-pdf`
-- 例如 `sha256:b618...` 展开为 `sha256/b618...`
-- 例如 `handbook:00e...` 展开为 `handbook/00e...`
-- 例如 `v1:2fba...` 展开为 `v1/2fba...`
+- raw bucket 的第一层固定为 `source_channel`
+- raw bucket 的第二层固定为 `source_asset_slug`
+- raw bucket 的第三层固定为人类可读年份标签，例如 `2018`
+- processed bucket 的第一层固定为长期 corpus 根名，例如 `regulations`
+- processed 的来源级对象固定放在 `sources/`
+- processed 的逻辑文档对象固定放在 `documents/`
+- 文档目录中的第三层固定为 `collection`
+- 文档目录中的第四层固定为 `title_slug--{docid8}`
+- 文档目录中的第五层固定为 `representation`
+- processed 来源级目录中的第三层固定为 `source_channel`
+- processed 来源级目录中的第四层固定为 `source_asset_slug`
+- processed 来源级目录中的第五层固定为人类可读年份标签，例如 `2018`
+- 文档目录中的第六层固定为人类可读版本标签，例如 `2018`
+- object key 中不直接编码短期来源名、兼容层术语或一次性版本层级，例如 `tracks/`、`editions/`、`v1/`
 - raw / processed 层级语义由 bucket 表达，不在 key 内重复编码
 
 禁止做法：
@@ -84,16 +98,22 @@ updated: 2026-03-22
 以下字段不依赖 object key 推断，必须在 document registry 中显式存在：
 
 - `document_id`
+- `representation`
 - `version_id`
 - `source_uri`
 - `content_hash`
 - `corpus`
+- `collection`
 - `acl_groups`
 - `campus_scope`
 - `status`
 - `ingestion_timestamp`
 - `parser_version`
 - `embedding_model`
+- `source_channel`
+- `published_year`
+- `effective_year`
+- `is_current`
 - `raw_asset.raw_asset_id`
 - `raw_asset.raw_version_id`
 - `raw_asset.page_start`

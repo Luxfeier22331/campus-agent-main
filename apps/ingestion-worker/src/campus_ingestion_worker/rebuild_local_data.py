@@ -3,10 +3,12 @@ from __future__ import annotations
 from dataclasses import asdict
 import json
 
+from campus_ingestion_worker.env_bootstrap import load_worker_env
 from campus_ingestion_core import LocalDataRebuildReport, rebuild_local_data
 
 
 def main() -> None:
+    load_worker_env()
     report = rebuild_local_data()
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
 

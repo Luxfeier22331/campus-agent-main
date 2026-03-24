@@ -4,8 +4,64 @@ from dataclasses import dataclass
 import os
 
 from llama_index.core.base.embeddings.base import BaseEmbedding
+from llama_index.core.base.embeddings.base import Embedding
+from llama_index.core.callbacks.base import CallbackManager
 from llama_index.core.embeddings.mock_embed_model import MockEmbedding
 from llama_index.embeddings.openai import OpenAIEmbedding
+from openai import AsyncOpenAI, OpenAI
+
+
+class OpenAICompatibleEmbedding(BaseEmbedding):
+    api_key: str = ""
+    api_base: str | None = None
+    timeout_seconds: float = 60.0
+    max_retries: int = 10
+
+    def __init__(
+        self,
+        *,
+        model: str,
+        api_key: str = "",
+        api_base: str | None = None,
+        timeout_seconds: float = 60.0,
+        embed_batch_size: int = 100,
+        max_retries: int = 10,
+    ) -> None:
+        super().__init__(
+            model_name=model,
+            embed_batch_size=embed_batch_size,
+            callback_manager=CallbackManager([]),
+        )
+        self.api_key = api_key
+        self.api_base = api_base
+        self.timeout_seconds = timeout_seconds
+        self.max_retries = max_retries
+        self._client = OpenAI(
+            api_key=api_key or None,
+            base_url=api_base,
+            timeout=timeout_seconds,
+            max_retries=max_retries,
+        )
+        self._aclient = AsyncOpenAI(
+            api_key=api_key or None,
+            base_url=api_base,
+            timeout=timeout_seconds,
+            max_retries=max_retries,
+        )
+
+    def _create_embedding(self, text: str) -> Embedding:
+        response = self._client.embeddings.create(input=[text], model=self.model_name)
+        return [float(item) for item in response.data[0].embedding]
+
+    def _get_query_embedding(self, query: str) -> Embedding:
+        return self._create_embedding(query)
+
+    async def _aget_query_embedding(self, query: str) -> Embedding:
+        response = await self._aclient.embeddings.create(input=[query], model=self.model_name)
+        return [float(item) for item in response.data[0].embedding]
+
+    def _get_text_embedding(self, text: str) -> Embedding:
+        return self._create_embedding(text)
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,6 +122,14 @@ def build_embedding_model(settings: EmbeddingSettings) -> BaseEmbedding:
             timeout=settings.timeout_seconds,
             embed_batch_size=settings.embed_batch_size,
             model_name=settings.model,
+        )
+    if provider == "gitee":
+        return OpenAICompatibleEmbedding(
+            model=settings.model,
+            api_key=settings.api_key,
+            api_base=settings.api_base,
+            timeout_seconds=settings.timeout_seconds,
+            embed_batch_size=settings.embed_batch_size,
         )
     if provider == "mock":
         return MockEmbedding(embed_dim=1536, model_name=settings.model)

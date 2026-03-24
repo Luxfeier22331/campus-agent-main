@@ -1,7 +1,8 @@
 {
-  "corpus": "curriculum_plan",
+  "corpus": "curriculum",
+  "collection": "curriculum_plan",
   "phase1_stage": "cleaned_ingestion",
-  "allowed_artifact_modes": ["normalized"],
+  "allowed_artifact_modes": ["normalized", "provider_only"],
   "split_manifest_required": true,
   "cleaning_policy_version": "curriculum_plan_cleaning_v1",
   "retrieval_enabled": false,

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Sequence
 
 from campus_contracts import EvidenceBundle, EvidenceSource
-from campus_ingestion_core.corpus_profiles import load_corpus_runtime_profile
+from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
 from campus_ingestion_core.registry import (
     DocumentRegistry,
@@ -18,6 +18,8 @@ from qdrant_client import QdrantClient
 
 from campus_retrieval_core.models import RetrievalRequest
 from campus_retrieval_core.settings import RetrievalSettings
+
+DEFAULT_LATEST_REVISION_TRACKS = ("current-effective", "editorial", "source-faithful")
 
 
 class RetrievalBackendError(RuntimeError):
@@ -56,14 +58,24 @@ class QdrantRetrievalBackend:
             self._vector_store._detect_vector_format(self.settings.qdrant_collection)
 
     def retrieve(self, request: RetrievalRequest) -> EvidenceBundle:
-        profile = load_corpus_runtime_profile(request.corpus)
+        profile = load_runtime_profile(request.corpus, request.collection)
         if not profile.retrieval_enabled:
-            raise CorpusQueryDisabledError(f"{request.corpus} retrieval is disabled in phase-1")
+            raise CorpusQueryDisabledError(
+                f"{request.corpus}/{request.collection} retrieval is disabled in phase-1"
+            )
         query_text = request.query_text.strip()
         if not query_text:
-            return EvidenceBundle(query_text=request.query_text, corpus=request.corpus)
+            return EvidenceBundle(
+                query_text=request.query_text,
+                corpus=request.corpus,
+                collection=request.collection,
+            )
         if not self.qdrant_client.collection_exists(self.settings.qdrant_collection):
-            return EvidenceBundle(query_text=request.query_text, corpus=request.corpus)
+            return EvidenceBundle(
+                query_text=request.query_text,
+                corpus=request.corpus,
+                collection=request.collection,
+            )
         try:
             if self._vector_store._legacy_vector_format is None:
                 self._vector_store._detect_vector_format(self.settings.qdrant_collection)
@@ -84,21 +96,30 @@ class QdrantRetrievalBackend:
         for node, similarity in zip(nodes, similarities):
             metadata = dict(node.metadata)
             document_id = str(metadata.get("document_id") or "")
+            revision_track = str(metadata.get("revision_track") or "")
             version_id = str(metadata.get("version_id") or "")
-            if not document_id or not version_id:
+            if not document_id or not revision_track or not version_id:
                 continue
-            record = self.registry.get(document_id, version_id)
+            record = self.registry.get(document_id, revision_track, version_id)
             if record is None:
                 continue
+            latest_record = self.registry.current_version(
+                document_id,
+                preferred_revision_tracks=DEFAULT_LATEST_REVISION_TRACKS,
+            )
             sources.append(
                 EvidenceSource(
                     doc_id=document_id,
+                    revision_track=revision_track,
                     version_id=version_id,
                     chunk_id=str(metadata.get("chunk_id") or node.node_id),
                     anchor=_coerce_dict(metadata.get("anchor")),
                     acl_level=str(metadata.get("acl_level") or "public"),
                     canonical_url=record.source_uri,
-                    latest_url=record.source_uri,
+                    latest_url=(latest_record.source_uri if latest_record is not None else record.source_uri),
+                    source_channel=str(metadata.get("source_channel") or record.source_channel),
+                    collection=str(metadata.get("collection") or record.collection),
+                    is_current=bool(metadata.get("is_current", record.is_current)),
                     snippet=node.get_content(metadata_mode=MetadataMode.NONE),
                     score=float(similarity),
                 )
@@ -106,6 +127,7 @@ class QdrantRetrievalBackend:
         return EvidenceBundle(
             query_text=request.query_text,
             corpus=request.corpus,
+            collection=request.collection,
             sources=tuple(sources),
         )
 
@@ -123,11 +145,12 @@ def _build_qdrant_client(settings: RetrievalSettings) -> QdrantClient:
 def _build_metadata_filters(request: RetrievalRequest) -> MetadataFilters:
     filters: list[MetadataFilter | MetadataFilters] = [
         MetadataFilter(key="corpus", value=request.corpus),
+        MetadataFilter(key="collection", value=request.collection),
     ]
     filters.append(
         MetadataFilters(
             filters=[
-                MetadataFilter(key="acl_groups", value=None, operator=FilterOperator.IS_EMPTY),
+                MetadataFilter(key="acl_level", value="public"),
                 MetadataFilter(
                     key="acl_groups",
                     value=list(request.acl_groups),

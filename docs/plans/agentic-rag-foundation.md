@@ -2,7 +2,7 @@
 doc_type: plan
 status: active
 created: 2026-03-22
-updated: 2026-03-22
+updated: 2026-03-24
 ---
 
 # Agentic RAG 第一阶段地基实施文档
@@ -11,7 +11,7 @@ updated: 2026-03-22
 
 **Goal:** 在当前 `campus-agent` monorepo 中补齐第一阶段地基，以“符合最佳实践前提下跑通端到端 agentic RAG 流程”为验收标准。
 
-**Architecture:** 本次实施只做第一阶段可上线闭环，不保留旧 `/api/search`、`/api/answer` 兼容层。数据面按 `Raw -> Processed -> Chunk/Index` 三层分离落地，当前对象存储使用本机部署的 `MinIO`，并从现有 `campusRAG` 导入原始 OCR 结果作为第一批基线资产。查询面采用 `Supervisor API -> Supervisor Core -> RAG Specialist -> Retrieval Core`，内部 runtime 使用 AgentOS-native，检索实现使用 `LlamaIndex + Qdrant`。
+**Architecture:** 本次实施只做第一阶段可上线闭环，不保留旧 `/api/search`、`/api/answer` 兼容层。数据面按 `Raw -> Processed -> Chunk/Index` 三层分离落地，当前对象存储使用本机部署的 `MinIO`；长期 corpus 根名统一为 `regulations`，首批开放 collection 为 `student_handbook`。raw bucket 采用 corpus-agnostic 的 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...` 前缀，processed bucket 的命名空间固定拆成 `regulations/sources/...` 与 `regulations/documents/...`，其中 handbook OCR truth 固定为 `provider-response.jsonl -> layout-elements.jsonl -> split-manifest -> per-document canonical.md + document-units.jsonl`，逻辑文档以 `document_id + representation + version_id` 建模，不再依赖 `campusRAG` 作为运行时输入。查询面采用 `Supervisor API -> Supervisor Core -> RAG Specialist -> Retrieval Core`，内部 runtime 使用 AgentOS-native，检索实现使用 `LlamaIndex + Qdrant`。
 
 **Tech Stack:** Python 3.12, uv workspace, Agno AgentOS, LlamaIndex, Qdrant, MinIO (local S3-compatible), pytest/unittest
 
@@ -24,16 +24,16 @@ updated: 2026-03-22
 - 冻结 contract 和 evidence bundle
 - 建立本机 MinIO 对象存储边界
 - 增加 ingestion/data plane 基础层
-- 从 `campusRAG` 导入现有原始 OCR 结果到对象存储
+- 冻结 `regulations` corpus 中 `student_handbook` collection 的 `provider-response.jsonl` / `split-manifest.v1.json` / `document-units.jsonl` ingestion truth
 - 建立 document registry 与 Qdrant 检索链路
 - 跑通最小 agentic RAG 主链路
 - 冻结第一批 baseline 场景
 
 实施范围固定为：
 
-- 查询链路只支持 `student_handbook`
-- storage/data-plane 可增量支持 `curriculum_plan`
-- `crawler job` 和 `queue` 只保留占位符，不做真实分布式调度
+- 查询链路默认开放 `regulations` corpus 中的 `student_handbook` collection
+- storage/data-plane 可增量支持其他已冻结 scope，例如 `curriculum/curriculum_plan`
+- 上游可以保留 `crawler job` / `queue` 概念边界，但当前 worker runtime 只消费已登记的 raw asset identity，不实现本地 placeholder queue
 - 当前对象存储只做本机 `MinIO`
 - 不保留旧 RAG API 兼容层
 - 硬化阶段内容不进入本轮实现
@@ -67,7 +67,7 @@ updated: 2026-03-22
 
 - 代码基线已验证：`uv run --all-packages python -m unittest discover -s tests -t .` 通过，当前仓库基线测试为 `62` 项
 - Gate 1 已有运行态证据：本机 `MinIO` 可访问，`campus-rag-raw` / `campus-rag-processed` bucket 已存在
-- Gate 2 目前只完成对象存储侧证据：已在 bucket 中看到 `student_handbook.pdf` 和 `provider-result.jsonl`，但 registry 运行态记录尚未做独立核验
+- Gate 2 目前只完成对象存储侧证据：已在 bucket 中看到 handbook raw PDF 与 `provider-response.jsonl`，但 registry 运行态记录尚未做独立核验
 - Gate 3 尚未通过运行态验收：配置中的 `Qdrant Cloud` endpoint 可达，但当前实例 `collections_count = 0`，`.env` 指向的 `student_handbook` collection 返回 `404`
 - Gate 4 尚未做运行态闭环验收：主链路代码、specialist、supervisor、evals 已在仓库内落地，但缺少“真实 registry + 已写入点的 Qdrant”证据
 
@@ -115,33 +115,37 @@ updated: 2026-03-22
           +------------------+   +------------------------+
                       ^
                       |
-          +-----------------------------+
-          | campusRAG OCR existing data |
-          | crawler/job/queue placeholder|
-          +-----------------------------+
+          +------------------------------+
+          | upstream raw asset producer  |
+          | crawler/job/queue boundary   |
+          +------------------------------+
 ```
 
 ## 实施前冻结项
 
 在写任何正式实现之前，先冻结以下输入，不允许边做边漂移：
 
-- query-serving 默认语料：只开放 `student_handbook`
-- data-plane 增量语料：允许 `curriculum_plan` 完成 raw/processed/registry 与清洗真相收口，但不自动放开 retrieval
-- 导入来源：只允许当前本机可访问的 `campusRAG` OCR 资产
+- query-serving 默认范围：开放 `regulations` corpus 中的 `student_handbook` collection
+- data-plane 增量语料：允许 `curriculum` corpus 下的 `curriculum_plan` 完成 raw/processed/registry 与清洗真相收口，但不自动放开 retrieval
+- handbook OCR 输入：只允许对象存储中的 `provider-response.jsonl` 与 repo-tracked `split-manifest.v1.json`
 - object storage 语义：只允许 `campus-rag-raw` / `campus-rag-processed`
 - object key 结构：
-  - 默认 handbook 示例：
-    - raw: `student_handbook/assets/{raw_asset_kind}/{raw_asset_slug}/{hash_algorithm}/{hash_value}/{original_filename}`
-    - processed: `student_handbook/documents/{document_kind}/{document_slug}/{version_kind}/{version_slug}/{artifact_filename}`
-  - 其他 phase-1 data-plane corpus 必须沿用同一套按 corpus 分前缀的路径语义
+  - raw:
+    - `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/{original_filename}`
+  - processed:
+    - source artifact:
+      `{corpus}/sources/{source_channel}/{source_asset_slug}/{year}/{ingest_id}/{artifact_filename}`
+    - document artifact:
+      `{corpus}/documents/{collection}/{title_slug}--{docid8}/{representation}/{year}/{artifact_filename}`
+- 其他 phase-1 collection 必须沿用同一套 processed 侧按 corpus 分前缀的路径语义；raw 不按 corpus 分前缀
 - retrieval 实现：只允许 `LlamaIndex + Qdrant`
 - chunk profile：第一轮固定一套 chunk 大小、overlap、metadata 映射
 - embedding profile：第一轮固定一个 embedding model 标识
-- baseline 场景：第一轮固定 `student_handbook` 的问题集和预期 source locator
+- baseline 场景：第一轮固定 `student_handbook` collection 的问题集和预期 source locator
 
-## campusRAG 资产导入规则
+## OCR 资产导入规则
 
-第一阶段导入的不是“重新抓取后的新文档”，而是当前已经存在的 `campusRAG` 资产。这里必须把 raw 和 processed 区分清楚，避免把历史 OCR 结果错误伪装成原始源文件。
+第一阶段不再把 `campusRAG` 当作运行时依赖。`regulations` corpus 中 `student_handbook` collection 的 OCR truth 固定为对象存储中的 provider 原始响应与仓库内 split truth，历史 `campusRAG` 结果只保留为参考对照样本。
 
 导入映射规则固定为：
 
@@ -150,16 +154,22 @@ updated: 2026-03-22
   - `raw_source_uri` 指向原始来源
 - 如果上游只提供 OCR JSON、OCR 文本、结构化抽取结果：
   - 写入 `campus-rag-processed`
-  - registry 中明确标记它来自 `campusRAG` 导入，而不是新抓取 raw
-- 如果原始文件和 OCR 结果同时存在：
-  - raw 和 processed 都写
-  - 两者共用同一个 `document_id`
-  - 由 `version_id` 表示同一文档版本下的资产集合
+  - handbook 仅接受仓库规定的 `provider-response.jsonl` 形状，并写入 `regulations/sources/...`
 - 如果 OCR 来自在线供应商：
-  - processed bucket 下至少同时保存 `provider-result.jsonl` 和 `structured.jsonl`
-  - `provider-result.jsonl` 保留供应商原始响应
-  - `structured.jsonl` 保留内部统一格式，不能直接用供应商原始响应替代
+  - processed bucket 下至少同时保存 source-level `provider-response.jsonl`、source-level `layout-elements.jsonl` 和 per-document `document-units.jsonl`
+  - `provider-response.jsonl` 保留供应商原始响应
+  - `layout-elements.jsonl` 是 split 前唯一内部统一结构真相
+  - `document-units.jsonl` 只表示单篇逻辑文档，不表示整本 handbook source
+- `curriculum/curriculum_plan` 在 split manifest 冻结前，允许先走 `provider_only` 预接入路径，只上传 raw PDF 并保留 asset-level `provider-response.jsonl` 供切分策略设计；正式 `normalized` ingestion 仍要求 repo-tracked split manifest
+- `provider_only` 不是 file-registry 兼容模式；它仍应写入 canonical raw asset registry，只是不写 document registry
 - 不允许因为第一阶段赶进度，就把 OCR 文本直接冒充 raw layer 真相源
+- 不允许继续支持历史外部存储导入的非 `provider-response.jsonl` handbook OCR 形状
+
+feature worktree 环境规则：
+
+- ingestion worker CLI 优先读取当前 worktree 根目录 `.env`
+- 如果当前 worktree 没有 `.env`，允许显式回退到 main worktree 根目录 `.env`
+- 不允许因为 worktree 缺少 `.env` 就临时切到本地 file registry、mock OCR 或其他非 canonical backend
 
 第一阶段至少要冻结以下导入基线资产：
 
@@ -199,13 +209,13 @@ updated: 2026-03-22
 - `ActorContext`
   字段：`user_id`, `roles`, `departments`, `groups`, `campus_scope`, `snapshot`
 - `DocumentRef`
-  字段：`document_id`, `version_id`, `corpus`, `source_uri`, `content_hash`
+  字段：`document_id`, `representation`, `version_id`, `corpus`, `collection`, `source_uri`, `content_hash`
 - `EvidenceSource`
-  字段：`doc_id`, `version_id`, `chunk_id`, `anchor`, `acl_level`, `canonical_url`, `latest_url`, `snippet`, `score`
+  字段：`doc_id`, `representation`, `version_id`, `chunk_id`, `anchor`, `acl_level`, `canonical_url`, `latest_url`, `source_channel`, `collection`, `is_current`, `snippet`, `score`
 - `EvidenceBundle`
-  字段：`query_text`, `corpus`, `sources`
-- `DelegateToRagAgentRequest`
-  字段：`user_goal`, `conversation_id`, `request_id`, `trace`, `actor`, `corpora`
+  字段：`query_text`, `corpus`, `collection`, `sources`
+- `DelegateToRagAgentRequest`  
+  字段：`user_goal`, `conversation_id`, `request_id`, `trace`, `actor`, `scope`
 - `DelegateToRagAgentResponse`
   字段：`status`, `answer_text`, `follow_up_question`, `confidence`, `evidence`, `error`
 
@@ -234,7 +244,7 @@ updated: 2026-03-22
 **Implementation:**
 - 扩展现有 request/response dataclass，加入 trace、actor、evidence、error 相关模型。
 - 保持 `packages/contracts` 纯 Python schema，不引入 Agno、LlamaIndex、MinIO SDK 类型。
-- `corpora` 第一阶段默认仍为 `("student_handbook",)`，但允许显式传入已冻结的 phase-1 corpus，并由查询面在后续层做 fail-closed 控制。
+- `scope` 第一阶段默认为 `{"corpus": "regulations", "collection": "student_handbook"}`，并由查询面做 fail-closed 控制。
 - 明确 `DocumentRef` 与 `EvidenceSource` 的最小字段集，对齐现有决策文档与 legacy source locator 语义。
 
 **Verification:**
@@ -299,46 +309,29 @@ updated: 2026-03-22
 **Verification:**
 - `uv run --all-packages python -m pytest tests/ingestion/test_registry_models.py -q`
 
-### Task 4: 拆分历史 OCR 补录与 raw-first ingestion runtime
+### Task 4: 建立 raw-first ingestion runtime
 
 **Files:**
 - Create: `apps/ingestion-worker/pyproject.toml`
 - Create: `apps/ingestion-worker/README.md`
 - Create: `apps/ingestion-worker/src/campus_ingestion_worker/__init__.py`
-- Create: `apps/ingestion-worker/src/campus_ingestion_worker/import_campusrag_existing_ocr.py`
-- Create: `apps/ingestion-worker/src/campus_ingestion_worker/submit_raw_ingestion_job.py`
 - Create: `apps/ingestion-worker/src/campus_ingestion_worker/process_raw_ingestion_job.py`
-- Create: `tests/ingestion/test_import_campusrag_existing_ocr.py`
-- Create: `tests/ingestion/test_submit_raw_ingestion_job.py`
 - Create: `tests/ingestion/test_process_raw_ingestion_job.py`
 
 **Implementation:**
 - 新建 `apps/ingestion-worker`，作为摄入运行时壳。
-- 提供三个独立入口：
-  - `import_campusrag_existing_ocr`
-    只负责历史 structured OCR 补录，可选绑定 raw provenance，但绝不触发在线 OCR
-  - `submit_raw_ingestion_job`
-    表达未来正式链路中的 queue/job 边界；第一阶段只写 placeholder envelope
-  - `process_raw_ingestion_job`
-    表达未来正式链路中的 worker 边界；对 raw PDF 做在线 OCR，写 raw/processed/registry
-- `crawler job` 和 `queue` 在这一步只保留 placeholder 结构，不实现真实分布式调度。
-- `student_handbook` 作为默认查询 corpus。
+- 提供 `process_raw_ingestion_job` 入口，表达 worker 边界；对已登记到 raw asset registry 的 raw PDF 做在线 OCR，写 processed/registry。
+- worker 主路径只接受 `raw_asset_id + raw_version_id`，不接受本地 PDF 路径或本地 placeholder job envelope。
+- `regulations` 作为默认查询 corpus，`student_handbook` 作为默认开放 collection。
 - `curriculum_plan` 允许通过 split manifest 进入 storage/registry，但不在本阶段放开 retrieval。
-- 如果仅存在 OCR 文本或 OCR JSON，则只允许写入 `processed` bucket，不允许伪造 raw layer。
 - 如果 OCR 来自在线供应商：
-  - `processed/` 下至少同时保存 `provider-result.jsonl` 和 `structured.jsonl`
+  - `processed/` 下至少同时保存 `provider-response.jsonl` 和 `document-units.jsonl`
   - 两者必须分开保存，不能互相替代
 - 导入过程必须产出 import report，最少包含成功数、跳过数、失败数、产生的 `document_id` 列表。
 
-**Assumption locked for implementation:**
-- 如果 `campusRAG` OCR 结果当前是本机已有目录或本机可访问路径，导入工具直接面向那个目录。
-- 如果后续路径不一致，只替换配置，不改导入 contract。
-
 **Verification:**
-- `uv run --all-packages python -m pytest tests/ingestion/test_import_campusrag_existing_ocr.py -q`
-- `uv run --all-packages python -m pytest tests/ingestion/test_submit_raw_ingestion_job.py -q`
 - `uv run --all-packages python -m pytest tests/ingestion/test_process_raw_ingestion_job.py -q`
-- 验证入口边界、object key 结构、registry 写入、重复导入 skip 和 placeholder job envelope。
+- 验证入口边界、object key 结构、registry 写入和 raw asset registry 驱动的处理路径。
 
 ### Task 5: 建立去重、版本推进和 stable ID 规则
 
@@ -413,7 +406,7 @@ updated: 2026-03-22
   - `acl_groups`
 - retrieval 输出必须是 `EvidenceBundle` 能直接消费的结构
 - retrieval 前置 ACL filter 基于 metadata 执行
-- retrieval 读取 corpus runtime profile；phase-1 默认只开放 `student_handbook` query-serving，对未放开的 corpus 必须 fail-closed
+- retrieval 读取 corpus runtime profile；phase-1 默认只开放 `regulations` corpus 下的 `student_handbook` collection，对未放开的 collection 必须 fail-closed
 
 **Verification:**
 - `uv run --all-packages python -m pytest tests/retrieval/test_backend_qdrant.py -q`
@@ -568,9 +561,9 @@ updated: 2026-03-22
 ## 假设与默认值
 
 - 当前 `campusRAG` 原始 OCR 结果在本机可访问
-- 第一阶段只处理 `student_handbook`
+- 第一阶段只处理 `regulations` corpus 下的 `student_handbook` collection
 - MinIO 为本机部署，但 contract 一律按 S3-compatible 设计
-- `crawler/job` 与 `queue` 仅保留占位结构
+- worker 输入冻结为 `raw_asset_id + raw_version_id`
 - 不做云服务接入
 - 不做旧接口兼容层
 

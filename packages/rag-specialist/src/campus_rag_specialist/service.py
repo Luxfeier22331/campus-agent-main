@@ -27,7 +27,8 @@ def delegate_to_rag_agent(
     try:
         evidence = retriever(
             user_goal,
-            corpus=request.corpora[0],
+            corpus=request.scope.corpus,
+            collection=request.scope.collection,
             campus_scope=request.actor.campus_scope,
             acl_groups=request.actor.groups,
         )

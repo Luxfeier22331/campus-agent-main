@@ -8,6 +8,11 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Protocol
 
+from campus_ingestion_core.artifacts import (
+    CANONICAL_MARKDOWN_FILENAME,
+    DOCUMENT_UNITS_FILENAME,
+    PROVIDER_RESPONSE_FILENAME,
+)
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef
 
 
@@ -18,15 +23,38 @@ _INITIALIZED_RAW_ASSET_TABLES: set[tuple[str, str]] = set()
 
 
 class DocumentRegistry(Protocol):
-    def get(self, document_id: str, version_id: str) -> DocumentRegistryRecord | None: ...
+    def get(
+        self,
+        document_id: str,
+        revision_track: str,
+        version_id: str,
+    ) -> DocumentRegistryRecord | None: ...
 
     def upsert(self, record: DocumentRegistryRecord) -> None: ...
 
     def list_by_corpus(self, corpus: str) -> tuple[DocumentRegistryRecord, ...]: ...
 
-    def latest_versions(self, document_id: str) -> tuple[DocumentRegistryRecord, ...]: ...
+    def list_by_scope(
+        self,
+        corpus: str,
+        collection: str | None = None,
+    ) -> tuple[DocumentRegistryRecord, ...]: ...
+
+    def latest_versions(
+        self,
+        document_id: str,
+        revision_track: str | None = None,
+    ) -> tuple[DocumentRegistryRecord, ...]: ...
+
+    def current_version(
+        self,
+        document_id: str,
+        preferred_revision_tracks: tuple[str, ...] = (),
+    ) -> DocumentRegistryRecord | None: ...
 
     def delete_by_corpus(self, corpus: str) -> None: ...
+
+    def delete_by_scope(self, corpus: str, collection: str | None = None) -> None: ...
 
 
 class RawAssetRegistry(Protocol):
@@ -36,49 +64,113 @@ class RawAssetRegistry(Protocol):
 
     def list_by_corpus(self, corpus: str) -> tuple[RawAssetRecord, ...]: ...
 
+    def list_by_scope(
+        self,
+        corpus: str,
+        collection: str | None = None,
+    ) -> tuple[RawAssetRecord, ...]: ...
+
     def delete_by_corpus(self, corpus: str) -> None: ...
+
+    def delete_by_scope(self, corpus: str, collection: str | None = None) -> None: ...
 
 
 class FileDocumentRegistry:
     def __init__(self, path: Path) -> None:
         self.path = Path(path)
 
-    def get(self, document_id: str, version_id: str) -> DocumentRegistryRecord | None:
+    def get(
+        self,
+        document_id: str,
+        revision_track: str,
+        version_id: str,
+    ) -> DocumentRegistryRecord | None:
         payload = self._load()
-        raw = payload.get(self._make_key(document_id, version_id))
+        raw = payload.get(self._make_key(document_id, revision_track, version_id))
         if raw is None:
             return None
         return _document_record_from_dict(raw)
 
     def upsert(self, record: DocumentRegistryRecord) -> None:
         payload = self._load()
-        payload[self._make_key(record.document_id, record.version_id)] = asdict(record)
+        payload[self._make_key(record.document_id, record.revision_track, record.version_id)] = asdict(record)
         self._store(payload)
 
     def list_by_corpus(self, corpus: str) -> tuple[DocumentRegistryRecord, ...]:
+        records = self.list_by_scope(corpus)
+        return tuple(
+            sorted(
+                records,
+                key=lambda record: (record.document_id, record.revision_track, record.version_id),
+            )
+        )
+
+    def list_by_scope(
+        self,
+        corpus: str,
+        collection: str | None = None,
+    ) -> tuple[DocumentRegistryRecord, ...]:
         records = [
             _document_record_from_dict(raw)
             for raw in self._load().values()
-            if raw.get("corpus") == corpus
+            if raw.get("corpus") == corpus and (collection is None or raw.get("collection") == collection)
         ]
-        return tuple(sorted(records, key=lambda record: (record.document_id, record.version_id)))
+        return tuple(
+            sorted(
+                records,
+                key=lambda record: (record.document_id, record.revision_track, record.version_id),
+            )
+        )
 
-    def latest_versions(self, document_id: str) -> tuple[DocumentRegistryRecord, ...]:
+    def latest_versions(
+        self,
+        document_id: str,
+        revision_track: str | None = None,
+    ) -> tuple[DocumentRegistryRecord, ...]:
         records = [
             _document_record_from_dict(raw)
             for raw in self._load().values()
             if raw.get("document_id") == document_id
+            and (revision_track is None or raw.get("revision_track") == revision_track)
         ]
         if not records:
             return ()
         latest = max(records, key=lambda record: record.ingestion_timestamp)
         return (latest,)
 
+    def current_version(
+        self,
+        document_id: str,
+        preferred_revision_tracks: tuple[str, ...] = (),
+    ) -> DocumentRegistryRecord | None:
+        records = [
+            _document_record_from_dict(raw)
+            for raw in self._load().values()
+            if raw.get("document_id") == document_id
+        ]
+        if not records:
+            return None
+        current_records = [record for record in records if record.is_current]
+        for revision_track in preferred_revision_tracks:
+            matching = [record for record in current_records if record.revision_track == revision_track]
+            if matching:
+                return max(matching, key=lambda record: record.ingestion_timestamp)
+        if current_records:
+            return max(current_records, key=lambda record: record.ingestion_timestamp)
+        return max(records, key=lambda record: record.ingestion_timestamp)
+
     def delete_by_corpus(self, corpus: str) -> None:
+        self.delete_by_scope(corpus)
+
+    def delete_by_scope(self, corpus: str, collection: str | None = None) -> None:
         payload = {
             key: value
             for key, value in self._load().items()
-            if isinstance(value, dict) and value.get("corpus") != corpus
+            if isinstance(value, dict)
+            and (
+                value.get("corpus") != corpus
+                or (collection is not None and value.get("collection") != collection)
+            )
         }
         self._store(payload)
 
@@ -104,8 +196,8 @@ class FileDocumentRegistry:
         temp_path.replace(self.path)
 
     @staticmethod
-    def _make_key(document_id: str, version_id: str) -> str:
-        return f"{document_id}::{version_id}"
+    def _make_key(document_id: str, revision_track: str, version_id: str) -> str:
+        return f"{document_id}::{revision_track}::{version_id}"
 
 
 class FileRawAssetRegistry:
@@ -130,18 +222,33 @@ class FileRawAssetRegistry:
         self._store(payload)
 
     def list_by_corpus(self, corpus: str) -> tuple[RawAssetRecord, ...]:
+        records = self.list_by_scope(corpus)
+        return tuple(sorted(records, key=lambda record: (record.raw_asset_id, record.raw_version_id)))
+
+    def list_by_scope(
+        self,
+        corpus: str,
+        collection: str | None = None,
+    ) -> tuple[RawAssetRecord, ...]:
         records = [
             _raw_asset_record_from_dict(raw)
             for raw in self._load().values()
-            if raw.get("corpus") == corpus
+            if raw.get("corpus") == corpus and (collection is None or raw.get("collection") == collection)
         ]
         return tuple(sorted(records, key=lambda record: (record.raw_asset_id, record.raw_version_id)))
 
     def delete_by_corpus(self, corpus: str) -> None:
+        self.delete_by_scope(corpus)
+
+    def delete_by_scope(self, corpus: str, collection: str | None = None) -> None:
         payload = {
             key: value
             for key, value in self._load().items()
-            if isinstance(value, dict) and value.get("corpus") != corpus
+            if isinstance(value, dict)
+            and (
+                value.get("corpus") != corpus
+                or (collection is not None and value.get("collection") != collection)
+            )
         }
         self._store(payload)
 
@@ -184,12 +291,17 @@ class PostgresDocumentRegistry:
             raise ValueError("DOCUMENT_REGISTRY_DATABASE_URL is required")
         self._ensure_schema()
 
-    def get(self, document_id: str, version_id: str) -> DocumentRegistryRecord | None:
+    def get(
+        self,
+        document_id: str,
+        revision_track: str,
+        version_id: str,
+    ) -> DocumentRegistryRecord | None:
         query = (
             f"select record from {self.table_name} "
-            "where document_id = %s and version_id = %s"
+            "where document_id = %s and revision_track = %s and version_id = %s"
         )
-        row = self._fetchone(query, (document_id, version_id))
+        row = self._fetchone(query, (document_id, revision_track, version_id))
         if row is None:
             return None
         return _document_record_from_dict(_coerce_json_payload(row[0]))
@@ -198,10 +310,11 @@ class PostgresDocumentRegistry:
         payload = json.dumps(asdict(record), ensure_ascii=False)
         query = (
             f"insert into {self.table_name} "
-            "(document_id, version_id, corpus, ingestion_timestamp, record) "
-            "values (%s, %s, %s, %s, %s::jsonb) "
-            "on conflict (document_id, version_id) do update set "
+            "(document_id, revision_track, version_id, corpus, collection, ingestion_timestamp, record) "
+            "values (%s, %s, %s, %s, %s, %s, %s::jsonb) "
+            "on conflict (document_id, revision_track, version_id) do update set "
             "corpus = excluded.corpus, "
+            "collection = excluded.collection, "
             "ingestion_timestamp = excluded.ingestion_timestamp, "
             "record = excluded.record"
         )
@@ -209,63 +322,180 @@ class PostgresDocumentRegistry:
             query,
             (
                 record.document_id,
+                record.revision_track,
                 record.version_id,
                 record.corpus,
+                record.collection,
                 _parse_timestamp(record.ingestion_timestamp),
                 payload,
             ),
         )
 
     def list_by_corpus(self, corpus: str) -> tuple[DocumentRegistryRecord, ...]:
-        query = (
-            f"select record from {self.table_name} "
-            "where corpus = %s order by document_id asc, version_id asc"
-        )
-        rows = self._fetchall(query, (corpus,))
+        return self.list_by_scope(corpus)
+
+    def list_by_scope(
+        self,
+        corpus: str,
+        collection: str | None = None,
+    ) -> tuple[DocumentRegistryRecord, ...]:
+        if collection is None:
+            query = (
+                f"select record from {self.table_name} "
+                "where corpus = %s order by document_id asc, revision_track asc, version_id asc"
+            )
+            params: tuple[object, ...] = (corpus,)
+        else:
+            query = (
+                f"select record from {self.table_name} "
+                "where corpus = %s and collection = %s order by document_id asc, revision_track asc, version_id asc"
+            )
+            params = (corpus, collection)
+        rows = self._fetchall(query, params)
         return tuple(_document_record_from_dict(_coerce_json_payload(row[0])) for row in rows)
 
-    def latest_versions(self, document_id: str) -> tuple[DocumentRegistryRecord, ...]:
-        query = (
-            f"select record from {self.table_name} "
-            "where document_id = %s order by ingestion_timestamp desc limit 1"
-        )
-        row = self._fetchone(query, (document_id,))
+    def latest_versions(
+        self,
+        document_id: str,
+        revision_track: str | None = None,
+    ) -> tuple[DocumentRegistryRecord, ...]:
+        if revision_track is None:
+            query = (
+                f"select record from {self.table_name} "
+                "where document_id = %s order by ingestion_timestamp desc limit 1"
+            )
+            params = (document_id,)
+        else:
+            query = (
+                f"select record from {self.table_name} "
+                "where document_id = %s and revision_track = %s "
+                "order by ingestion_timestamp desc limit 1"
+            )
+            params = (document_id, revision_track)
+        row = self._fetchone(query, params)
         if row is None:
             return ()
         return (_document_record_from_dict(_coerce_json_payload(row[0])),)
 
+    def current_version(
+        self,
+        document_id: str,
+        preferred_revision_tracks: tuple[str, ...] = (),
+    ) -> DocumentRegistryRecord | None:
+        for revision_track in preferred_revision_tracks:
+            row = self._fetchone(
+                (
+                    f"select record from {self.table_name} "
+                    "where document_id = %s and revision_track = %s and (record->>'is_current')::boolean = true "
+                    "order by ingestion_timestamp desc limit 1"
+                ),
+                (document_id, revision_track),
+            )
+            if row is not None:
+                return _document_record_from_dict(_coerce_json_payload(row[0]))
+        row = self._fetchone(
+            (
+                f"select record from {self.table_name} "
+                "where document_id = %s and (record->>'is_current')::boolean = true "
+                "order by ingestion_timestamp desc limit 1"
+            ),
+            (document_id,),
+        )
+        if row is not None:
+            return _document_record_from_dict(_coerce_json_payload(row[0]))
+        latest = self.latest_versions(document_id)
+        return latest[0] if latest else None
+
     def delete_by_corpus(self, corpus: str) -> None:
-        query = f"delete from {self.table_name} where corpus = %s"
-        self._execute(query, (corpus,))
+        self.delete_by_scope(corpus)
+
+    def delete_by_scope(self, corpus: str, collection: str | None = None) -> None:
+        if collection is None:
+            query = f"delete from {self.table_name} where corpus = %s"
+            params: tuple[object, ...] = (corpus,)
+        else:
+            query = f"delete from {self.table_name} where corpus = %s and collection = %s"
+            params = (corpus, collection)
+        self._execute(query, params)
 
     def _ensure_schema(self) -> None:
         cache_key = (self.database_url, self.table_name)
         if cache_key in _INITIALIZED_DOCUMENT_TABLES:
             return
-        statements = (
-            f"""
+        create_table_statement = f"""
             create table if not exists {self.table_name} (
                 document_id text not null,
+                revision_track text not null,
                 version_id text not null,
                 corpus text not null,
+                collection text not null default '',
                 ingestion_timestamp timestamptz not null,
                 record jsonb not null,
-                primary key (document_id, version_id)
+                primary key (document_id, revision_track, version_id)
             )
-            """,
-            f"""
-            create index if not exists idx_{self.table_name}_corpus
-            on {self.table_name} (corpus, document_id, version_id)
-            """,
-            f"""
-            create index if not exists idx_{self.table_name}_latest
-            on {self.table_name} (document_id, ingestion_timestamp desc)
-            """,
-        )
+            """
         with _postgres_connection(self.database_url) as conn:
             with conn.cursor() as cursor:
-                for statement in statements:
-                    cursor.execute(statement)
+                cursor.execute(create_table_statement)
+                cursor.execute(f"alter table {self.table_name} add column if not exists revision_track text")
+                cursor.execute(f"alter table {self.table_name} add column if not exists collection text")
+                cursor.execute(
+                    f"update {self.table_name} set revision_track = 'source-faithful' "
+                    "where revision_track is null or revision_track = ''"
+                )
+                cursor.execute(
+                    f"update {self.table_name} set collection = coalesce(nullif(record->>'collection', ''), collection, '')"
+                )
+                cursor.execute(
+                    f"update {self.table_name} set collection = case corpus "
+                    "when 'regulations' then coalesce(nullif(record->>'collection', ''), 'student_handbook') "
+                    "when 'curriculum' then coalesce(nullif(record->>'collection', ''), 'curriculum_plan') "
+                    "when 'student_handbook' then 'student_handbook' "
+                    "when 'curriculum_plan' then 'curriculum_plan' "
+                    "else collection end "
+                    "where collection is null or collection = ''"
+                )
+                cursor.execute(f"alter table {self.table_name} alter column revision_track set not null")
+                cursor.execute(f"alter table {self.table_name} alter column collection set not null")
+                cursor.execute(
+                    f"""
+                    do $$
+                    declare
+                        constraint_name text;
+                    begin
+                        select conname into constraint_name
+                        from pg_constraint
+                        where conrelid = '{self.table_name}'::regclass
+                          and contype = 'p';
+                        if constraint_name is not null then
+                            execute format('alter table {self.table_name} drop constraint %I', constraint_name);
+                        end if;
+                        execute 'alter table {self.table_name} add primary key (document_id, revision_track, version_id)';
+                    exception
+                        when duplicate_object then
+                            null;
+                    end $$;
+                    """
+                )
+                cursor.execute(
+                    f"""
+                    create index if not exists idx_{self.table_name}_corpus
+                    on {self.table_name} (corpus, collection, document_id, revision_track, version_id)
+                    """
+                )
+                cursor.execute(
+                    f"""
+                    create index if not exists idx_{self.table_name}_latest
+                    on {self.table_name} (document_id, revision_track, ingestion_timestamp desc)
+                    """
+                )
+                cursor.execute(
+                    f"""
+                    create index if not exists idx_{self.table_name}_current
+                    on {self.table_name} (document_id, ingestion_timestamp desc)
+                    where (record->>'is_current')::boolean = true
+                    """
+                )
         _INITIALIZED_DOCUMENT_TABLES.add(cache_key)
 
     def _execute(self, query: str, params: tuple[object, ...]) -> None:
@@ -315,10 +545,11 @@ class PostgresRawAssetRegistry:
         payload = json.dumps(asdict(record), ensure_ascii=False)
         query = (
             f"insert into {self.table_name} "
-            "(raw_asset_id, raw_version_id, corpus, ingestion_timestamp, record) "
-            "values (%s, %s, %s, %s, %s::jsonb) "
+            "(raw_asset_id, raw_version_id, corpus, collection, ingestion_timestamp, record) "
+            "values (%s, %s, %s, %s, %s, %s::jsonb) "
             "on conflict (raw_asset_id, raw_version_id) do update set "
             "corpus = excluded.corpus, "
+            "collection = excluded.collection, "
             "ingestion_timestamp = excluded.ingestion_timestamp, "
             "record = excluded.record"
         )
@@ -328,47 +559,85 @@ class PostgresRawAssetRegistry:
                 record.raw_asset_id,
                 record.raw_version_id,
                 record.corpus,
+                record.collection,
                 _parse_timestamp(record.ingestion_timestamp),
                 payload,
             ),
         )
 
     def list_by_corpus(self, corpus: str) -> tuple[RawAssetRecord, ...]:
-        query = (
-            f"select record from {self.table_name} "
-            "where corpus = %s order by raw_asset_id asc, raw_version_id asc"
-        )
-        rows = self._fetchall(query, (corpus,))
+        return self.list_by_scope(corpus)
+
+    def list_by_scope(
+        self,
+        corpus: str,
+        collection: str | None = None,
+    ) -> tuple[RawAssetRecord, ...]:
+        if collection is None:
+            query = (
+                f"select record from {self.table_name} "
+                "where corpus = %s order by raw_asset_id asc, raw_version_id asc"
+            )
+            params: tuple[object, ...] = (corpus,)
+        else:
+            query = (
+                f"select record from {self.table_name} "
+                "where corpus = %s and collection = %s order by raw_asset_id asc, raw_version_id asc"
+            )
+            params = (corpus, collection)
+        rows = self._fetchall(query, params)
         return tuple(_raw_asset_record_from_dict(_coerce_json_payload(row[0])) for row in rows)
 
     def delete_by_corpus(self, corpus: str) -> None:
-        query = f"delete from {self.table_name} where corpus = %s"
-        self._execute(query, (corpus,))
+        self.delete_by_scope(corpus)
+
+    def delete_by_scope(self, corpus: str, collection: str | None = None) -> None:
+        if collection is None:
+            query = f"delete from {self.table_name} where corpus = %s"
+            params: tuple[object, ...] = (corpus,)
+        else:
+            query = f"delete from {self.table_name} where corpus = %s and collection = %s"
+            params = (corpus, collection)
+        self._execute(query, params)
 
     def _ensure_schema(self) -> None:
         cache_key = (self.database_url, self.table_name)
         if cache_key in _INITIALIZED_RAW_ASSET_TABLES:
             return
-        statements = (
-            f"""
+        create_table_statement = f"""
             create table if not exists {self.table_name} (
                 raw_asset_id text not null,
                 raw_version_id text not null,
                 corpus text not null,
+                collection text not null default '',
                 ingestion_timestamp timestamptz not null,
                 record jsonb not null,
                 primary key (raw_asset_id, raw_version_id)
             )
-            """,
-            f"""
-            create index if not exists idx_{self.table_name}_corpus
-            on {self.table_name} (corpus, raw_asset_id, raw_version_id)
-            """,
-        )
+            """
         with _postgres_connection(self.database_url) as conn:
             with conn.cursor() as cursor:
-                for statement in statements:
-                    cursor.execute(statement)
+                cursor.execute(create_table_statement)
+                cursor.execute(f"alter table {self.table_name} add column if not exists collection text")
+                cursor.execute(
+                    f"update {self.table_name} set collection = coalesce(nullif(record->>'collection', ''), collection, '')"
+                )
+                cursor.execute(
+                    f"update {self.table_name} set collection = case corpus "
+                    "when 'regulations' then coalesce(nullif(record->>'collection', ''), 'student_handbook') "
+                    "when 'curriculum' then coalesce(nullif(record->>'collection', ''), 'curriculum_plan') "
+                    "when 'student_handbook' then 'student_handbook' "
+                    "when 'curriculum_plan' then 'curriculum_plan' "
+                    "else collection end "
+                    "where collection is null or collection = ''"
+                )
+                cursor.execute(f"alter table {self.table_name} alter column collection set not null")
+                cursor.execute(
+                    f"""
+                    create index if not exists idx_{self.table_name}_corpus
+                    on {self.table_name} (corpus, collection, raw_asset_id, raw_version_id)
+                    """
+                )
         _INITIALIZED_RAW_ASSET_TABLES.add(cache_key)
 
     def _execute(self, query: str, params: tuple[object, ...]) -> None:
@@ -393,18 +662,28 @@ class PostgresRawAssetRegistry:
 
 def build_document_registry_from_env(env: dict[str, str] | None = None) -> DocumentRegistry:
     source = env if env is not None else os.environ
-    return PostgresDocumentRegistry(_required_database_url(source))
+    return PostgresDocumentRegistry(_required_document_registry_database_url(source))
 
 
 def build_raw_asset_registry_from_env(env: dict[str, str] | None = None) -> RawAssetRegistry:
     source = env if env is not None else os.environ
-    return PostgresRawAssetRegistry(_required_database_url(source))
+    return PostgresRawAssetRegistry(_required_raw_asset_registry_database_url(source))
 
 
-def _required_database_url(source: dict[str, str]) -> str:
+def _required_document_registry_database_url(source: dict[str, str]) -> str:
     database_url = (source.get("DOCUMENT_REGISTRY_DATABASE_URL") or "").strip()
     if not database_url:
         raise ValueError("DOCUMENT_REGISTRY_DATABASE_URL is required")
+    return database_url
+
+
+def _required_raw_asset_registry_database_url(source: dict[str, str]) -> str:
+    database_url = (
+        (source.get("RAW_ASSET_REGISTRY_DATABASE_URL") or "").strip()
+        or (source.get("DOCUMENT_REGISTRY_DATABASE_URL") or "").strip()
+    )
+    if not database_url:
+        raise ValueError("RAW_ASSET_REGISTRY_DATABASE_URL or DOCUMENT_REGISTRY_DATABASE_URL is required")
     return database_url
 
 
@@ -431,16 +710,22 @@ def _coerce_json_payload(value: object) -> dict[str, object]:
 
 
 def _document_record_from_dict(raw: dict[str, object]) -> DocumentRegistryRecord:
+    revision_track = str(raw.get("revision_track") or "source-faithful")
     processed_object_keys = tuple(str(item) for item in list(raw.get("processed_object_keys") or []))
-    provider_result_object_key = (
-        str(raw["provider_result_object_key"])
-        if raw.get("provider_result_object_key") is not None
-        else _find_processed_artifact(processed_object_keys, "provider-result.jsonl")
+    provider_response_object_key = (
+        str(raw["provider_response_object_key"])
+        if raw.get("provider_response_object_key") is not None
+        else _find_processed_artifact(processed_object_keys, PROVIDER_RESPONSE_FILENAME)
     )
-    structured_object_key = (
-        str(raw["structured_object_key"])
-        if raw.get("structured_object_key") is not None
-        else _find_processed_artifact(processed_object_keys, "structured.jsonl")
+    document_units_object_key = (
+        str(raw["document_units_object_key"])
+        if raw.get("document_units_object_key") is not None
+        else _find_processed_artifact(processed_object_keys, DOCUMENT_UNITS_FILENAME)
+    )
+    canonical_markdown_object_key = (
+        str(raw["canonical_markdown_object_key"])
+        if raw.get("canonical_markdown_object_key") is not None
+        else _find_processed_artifact(processed_object_keys, CANONICAL_MARKDOWN_FILENAME)
     )
     raw_asset_payload = raw.get("raw_asset")
     raw_asset = None
@@ -461,10 +746,15 @@ def _document_record_from_dict(raw: dict[str, object]) -> DocumentRegistryRecord
         )
     return DocumentRegistryRecord(
         document_id=str(raw["document_id"]),
+        revision_track=revision_track,
         version_id=str(raw["version_id"]),
         source_uri=str(raw["source_uri"]),
         content_hash=str(raw["content_hash"]),
-        corpus=str(raw["corpus"]),
+        corpus=_normalize_registry_corpus(str(raw["corpus"])),
+        collection=_normalize_registry_collection(
+            raw_collection=str(raw.get("collection") or ""),
+            raw_corpus=str(raw["corpus"]),
+        ),
         cleaning_policy_version=str(raw.get("cleaning_policy_version") or ""),
         acl_groups=tuple(str(item) for item in list(raw.get("acl_groups") or [])),
         campus_scope=str(raw["campus_scope"]) if raw.get("campus_scope") is not None else None,
@@ -472,9 +762,18 @@ def _document_record_from_dict(raw: dict[str, object]) -> DocumentRegistryRecord
         ingestion_timestamp=str(raw["ingestion_timestamp"]),
         parser_version=str(raw["parser_version"]),
         embedding_model=str(raw.get("embedding_model") or ""),
+        source_channel=str(raw.get("source_channel") or _infer_legacy_source_channel(raw)),
+        is_current=bool(raw.get("is_current", False)),
+        effective_date=str(raw["effective_date"]) if raw.get("effective_date") is not None else None,
+        published_date=str(raw["published_date"]) if raw.get("published_date") is not None else None,
+        supersedes_version_id=(
+            str(raw["supersedes_version_id"]) if raw.get("supersedes_version_id") is not None else None
+        ),
+        provenance_status=str(raw.get("provenance_status") or ""),
         raw_asset=raw_asset,
-        structured_object_key=structured_object_key,
-        provider_result_object_key=provider_result_object_key,
+        document_units_object_key=document_units_object_key,
+        provider_response_object_key=provider_response_object_key,
+        canonical_markdown_object_key=canonical_markdown_object_key,
         processed_object_keys=processed_object_keys,
         import_source=str(raw["import_source"]),
     )
@@ -484,7 +783,11 @@ def _raw_asset_record_from_dict(raw: dict[str, object]) -> RawAssetRecord:
     return RawAssetRecord(
         raw_asset_id=str(raw["raw_asset_id"]),
         raw_version_id=str(raw["raw_version_id"]),
-        corpus=str(raw["corpus"]),
+        corpus=_normalize_registry_corpus(str(raw["corpus"])),
+        collection=_normalize_registry_collection(
+            raw_collection=str(raw.get("collection") or ""),
+            raw_corpus=str(raw["corpus"]),
+        ),
         raw_source_uri=str(raw["raw_source_uri"]),
         content_hash=str(raw["content_hash"]),
         source_filename=str(raw["source_filename"]),
@@ -499,3 +802,30 @@ def _find_processed_artifact(processed_object_keys: tuple[str, ...], filename: s
         if key.endswith(f"/{filename}"):
             return key
     return None
+
+
+def _infer_legacy_source_channel(raw: dict[str, object]) -> str:
+    if raw.get("raw_asset") is not None:
+        return "pdf_ocr"
+    import_source = str(raw.get("import_source") or "")
+    if import_source in {"raw_online_ocr", "provider_response_replay"}:
+        return "pdf_ocr"
+    return "manual_curated"
+
+
+def _normalize_registry_corpus(raw_corpus: str) -> str:
+    if raw_corpus == "student_handbook":
+        return "regulations"
+    if raw_corpus == "curriculum_plan":
+        return "curriculum"
+    return raw_corpus
+
+
+def _normalize_registry_collection(*, raw_collection: str, raw_corpus: str) -> str:
+    if raw_collection:
+        return raw_collection
+    if raw_corpus in {"student_handbook", "regulations"}:
+        return "student_handbook"
+    if raw_corpus in {"curriculum_plan", "curriculum"}:
+        return "curriculum_plan"
+    return "unknown"

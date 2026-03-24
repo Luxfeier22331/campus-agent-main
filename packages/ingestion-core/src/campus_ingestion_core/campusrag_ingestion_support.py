@@ -1,12 +1,19 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
+import re
 from typing import Protocol
 
+from campus_contracts import DEFAULT_COLLECTION, DEFAULT_CORPUS
+from campus_ingestion_core.artifacts import (
+    CANONICAL_MARKDOWN_FILENAME,
+    DOCUMENT_UNITS_FILENAME,
+    PROVIDER_RESPONSE_FILENAME,
+)
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef
 from campus_ingestion_core.object_store import build_processed_artifact_key, build_raw_asset_key
 from campus_ingestion_core.registry import DocumentRegistry, RawAssetRegistry
@@ -28,20 +35,41 @@ class ImportReport:
 
 
 @dataclass(frozen=True, slots=True)
+class PersistImportStats:
+    success_count: int
+    skipped_count: int
+    failed_count: int
+    raw_uploaded_count: int
+    raw_reused_count: int
+    document_ids: tuple[str, ...]
+    unresolved_source_pdfs: tuple[str, ...]
+    errors: tuple[str, ...]
+    timestamp: str
+
+
+@dataclass(frozen=True, slots=True)
 class DocumentImportInput:
     source_label: str
-    structured_result_bytes: bytes
-    provider_result_bytes: bytes | None
+    document_units_bytes: bytes
+    provider_response_bytes: bytes | None
+    canonical_markdown_bytes: bytes | None
     metadata: dict[str, object]
     import_source: str
-    corpus: str = "student_handbook"
+    revision_track: str = "source-faithful"
+    source_channel: str = "pdf_ocr"
+    is_current: bool = False
+    corpus: str = DEFAULT_CORPUS
+    collection: str = DEFAULT_COLLECTION
     campus_scope: str | None = None
     status: str = "active"
     raw_path: Path | None = None
     raw_source_uri: str | None = None
     raw_asset_id: str | None = None
-    provider_result_object_key: str | None = None
+    raw_version_id: str | None = None
+    provider_response_object_key: str | None = None
     additional_processed_object_keys: tuple[str, ...] = field(default_factory=tuple)
+    title: str | None = None
+    year: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,6 +128,7 @@ def load_metadata_from_bytes(file_bytes: bytes) -> dict[str, object]:
     return {
         "document_id": document_id,
         "version_id": version_id,
+        "revision_track": str(raw.get("revision_track") or "source-faithful"),
         "source_url": raw.get("source_url"),
         "source_md": raw.get("source_md"),
         "source_id": source.get("id"),
@@ -108,35 +137,6 @@ def load_metadata_from_bytes(file_bytes: bytes) -> dict[str, object]:
         "raw_page_end": normalize_optional_int(raw.get("page_end")),
         "acl_groups": tuple(str(item) for item in list(acl.get("allow_groups") or [])),
     }
-
-
-def bind_existing_ocr_raw_provenance(
-    documents: list[DocumentImportInput],
-    raw_root: Path,
-) -> tuple[list[DocumentImportInput], tuple[str, ...]]:
-    resolved_paths: dict[str, Path] = {}
-    unresolved: list[str] = []
-    bound: list[DocumentImportInput] = []
-    for document in documents:
-        source_pdf = str(document.metadata.get("source_pdf") or "")
-        if not source_pdf:
-            unresolved.append("<missing>")
-            continue
-        raw_path = resolved_paths.get(source_pdf)
-        if raw_path is None:
-            raw_path = resolve_raw_path(raw_root, source_pdf)
-            if raw_path is None:
-                unresolved.append(source_pdf)
-                continue
-            resolved_paths[source_pdf] = raw_path
-        bound.append(
-            replace(
-                document,
-                raw_path=raw_path,
-                raw_source_uri=f"campusrag://raw/{document.corpus}/{raw_path.name}",
-            )
-        )
-    return bound, tuple(sorted(set(unresolved)))
 
 
 def persist_import_documents(
@@ -156,6 +156,49 @@ def persist_import_documents(
     unresolved_source_pdfs: tuple[str, ...] = (),
     initial_errors: list[str] | None = None,
 ) -> ImportReport:
+    stats = collect_import_document_stats(
+        documents=documents,
+        registry=registry,
+        raw_asset_registry=raw_asset_registry,
+        writer=writer,
+        object_store=object_store,
+        parser_version=parser_version,
+        embedding_model=embedding_model,
+        cleaning_policy_version=cleaning_policy_version,
+        default_campus_scope=default_campus_scope,
+        unresolved_source_pdfs=unresolved_source_pdfs,
+        initial_errors=initial_errors,
+    )
+    return write_import_report(
+        import_mode=import_mode,
+        report_dir=report_dir,
+        report_prefix=report_prefix,
+        success_count=stats.success_count,
+        skipped_count=stats.skipped_count,
+        failed_count=stats.failed_count,
+        raw_uploaded_count=stats.raw_uploaded_count,
+        raw_reused_count=stats.raw_reused_count,
+        document_ids=stats.document_ids,
+        unresolved_source_pdfs=stats.unresolved_source_pdfs,
+        errors=stats.errors,
+        timestamp=stats.timestamp,
+    )
+
+
+def collect_import_document_stats(
+    *,
+    documents: list[DocumentImportInput],
+    registry: DocumentRegistry,
+    raw_asset_registry: RawAssetRegistry,
+    writer: ObjectStoreWriter,
+    object_store: ObjectStoreSettings,
+    parser_version: str,
+    embedding_model: str,
+    cleaning_policy_version: str,
+    default_campus_scope: str | None,
+    unresolved_source_pdfs: tuple[str, ...] = (),
+    initial_errors: list[str] | None = None,
+) -> PersistImportStats:
     success_count = 0
     skipped_count = 0
     failed_count = len(initial_errors or [])
@@ -195,6 +238,7 @@ def persist_import_documents(
                             raw_asset_id=raw_asset.raw_asset_id,
                             raw_version_id=raw_asset.raw_version_id,
                             corpus=document.corpus,
+                            collection=document.collection,
                             raw_source_uri=raw_asset.raw_source_uri,
                             content_hash=raw_asset.content_hash,
                             source_filename=raw_asset.source_filename,
@@ -206,47 +250,77 @@ def persist_import_documents(
                     uploaded_raw_assets.add(raw_asset_key)
                     raw_uploaded_count += 1
 
-            structured_bytes = document.structured_result_bytes
-            content_hash = hashlib.sha256(structured_bytes).hexdigest()
-            provider_result_key = document.provider_result_object_key
-            if document.provider_result_bytes is not None and provider_result_key is None:
-                provider_result_key = build_processed_artifact_key(
+            document_units_bytes = document.document_units_bytes
+            content_hash = hashlib.sha256(document_units_bytes).hexdigest()
+            title = document.title or _derive_document_title(metadata=metadata, document_id=document_id)
+            year = document.year or _derive_document_year(metadata=metadata)
+            provider_response_key = document.provider_response_object_key
+            if document.provider_response_bytes is not None and provider_response_key is None:
+                provider_response_key = build_processed_artifact_key(
                     corpus=document.corpus,
+                    collection=document.collection,
                     document_id=document_id,
+                    revision_track=document.revision_track,
                     version_id=version_id,
-                    filename="provider-result.jsonl",
+                    filename=PROVIDER_RESPONSE_FILENAME,
+                    title=title,
+                    year=year,
                 )
-            if document.provider_result_bytes is not None and provider_result_key is not None:
+            if document.provider_response_bytes is not None and provider_response_key is not None:
                 writer.put_bytes(
                     bucket=object_store.bucket_processed,
-                    key=provider_result_key,
-                    data=document.provider_result_bytes,
+                    key=provider_response_key,
+                    data=document.provider_response_bytes,
                     content_type="application/x-ndjson",
                 )
 
-            structured_key = build_processed_artifact_key(
+            document_units_key = build_processed_artifact_key(
                 corpus=document.corpus,
+                collection=document.collection,
                 document_id=document_id,
+                revision_track=document.revision_track,
                 version_id=version_id,
-                filename="structured.jsonl",
+                filename=DOCUMENT_UNITS_FILENAME,
+                title=title,
+                year=year,
             )
+            canonical_markdown_key = None
+            if document.canonical_markdown_bytes is not None:
+                canonical_markdown_key = build_processed_artifact_key(
+                    corpus=document.corpus,
+                    collection=document.collection,
+                    document_id=document_id,
+                    revision_track=document.revision_track,
+                    version_id=version_id,
+                    filename=CANONICAL_MARKDOWN_FILENAME,
+                    title=title,
+                    year=year,
+                )
+                writer.put_bytes(
+                    bucket=object_store.bucket_processed,
+                    key=canonical_markdown_key,
+                    data=document.canonical_markdown_bytes,
+                    content_type="text/markdown; charset=utf-8",
+                )
             processed_object_keys = tuple(
                 dict.fromkeys(
                     key
                     for key in (
-                        provider_result_key,
-                        structured_key,
+                        provider_response_key,
+                        canonical_markdown_key,
+                        document_units_key,
                         *document.additional_processed_object_keys,
                     )
                     if key is not None
                 )
             )
-            existing = registry.get(document_id, version_id)
+            existing = registry.get(document_id, document.revision_track, version_id)
             if existing is not None and existing.content_hash == content_hash:
                 if _registry_record_needs_refresh(
                     existing=existing,
-                    structured_key=structured_key,
-                    provider_result_key=provider_result_key,
+                    document_units_key=document_units_key,
+                    provider_response_key=provider_response_key,
+                    canonical_markdown_key=canonical_markdown_key,
                     processed_object_keys=processed_object_keys,
                 ):
                     registry.upsert(
@@ -261,8 +335,9 @@ def persist_import_documents(
                             embedding_model=embedding_model,
                             cleaning_policy_version=cleaning_policy_version,
                             raw_asset=raw_asset,
-                            structured_key=structured_key,
-                            provider_result_key=provider_result_key,
+                            document_units_key=document_units_key,
+                            provider_response_key=provider_response_key,
+                            canonical_markdown_key=canonical_markdown_key,
                             processed_object_keys=processed_object_keys,
                             timestamp=timestamp,
                         )
@@ -272,8 +347,8 @@ def persist_import_documents(
 
             writer.put_bytes(
                 bucket=object_store.bucket_processed,
-                key=structured_key,
-                data=structured_bytes,
+                key=document_units_key,
+                data=document_units_bytes,
                 content_type="application/x-ndjson",
             )
             registry.upsert(
@@ -288,8 +363,9 @@ def persist_import_documents(
                     embedding_model=embedding_model,
                     cleaning_policy_version=cleaning_policy_version,
                     raw_asset=raw_asset,
-                    structured_key=structured_key,
-                    provider_result_key=provider_result_key,
+                    document_units_key=document_units_key,
+                    provider_response_key=provider_response_key,
+                    canonical_markdown_key=canonical_markdown_key,
                     processed_object_keys=processed_object_keys,
                     timestamp=timestamp,
                 )
@@ -300,10 +376,7 @@ def persist_import_documents(
             failed_count += 1
             errors.append(f"{source_label}: {exc}")
 
-    return write_import_report(
-        import_mode=import_mode,
-        report_dir=report_dir,
-        report_prefix=report_prefix,
+    return PersistImportStats(
         success_count=success_count,
         skipped_count=skipped_count,
         failed_count=failed_count,
@@ -313,6 +386,21 @@ def persist_import_documents(
         unresolved_source_pdfs=unresolved_source_pdfs,
         errors=tuple(errors),
         timestamp=timestamp,
+    )
+
+
+def build_registered_raw_asset_ref(
+    *,
+    raw_asset_id: str,
+    raw_version_id: str,
+    page_start: int | None = None,
+    page_end: int | None = None,
+) -> RawAssetRef:
+    return RawAssetRef(
+        raw_asset_id=raw_asset_id,
+        raw_version_id=raw_version_id,
+        page_start=page_start,
+        page_end=page_end,
     )
 
 
@@ -356,11 +444,12 @@ def resolve_raw_path(raw_root: Path, source_pdf: str) -> Path | None:
 def raw_filename_candidates(source_pdf: str) -> tuple[str, ...]:
     exact = source_pdf.strip()
     aliases = {
-        "学生手册.pdf": "student-handbook.pdf",
+        "学生手册.pdf": ("学生手册_2018.pdf", "student-handbook.pdf"),
+        "学生手册_2018.pdf": ("学生手册.pdf", "student-handbook.pdf"),
+        "student-handbook.pdf": ("学生手册_2018.pdf", "学生手册.pdf"),
     }
     candidates = [exact]
-    alias = aliases.get(exact)
-    if alias is not None:
+    for alias in aliases.get(exact, ()):
         candidates.append(alias)
     return tuple(dict.fromkeys(name for name in candidates if name))
 
@@ -400,17 +489,20 @@ def _build_registry_record(
     embedding_model: str,
     cleaning_policy_version: str,
     raw_asset: ResolvedRawAsset | None,
-    structured_key: str,
-    provider_result_key: str | None,
+    document_units_key: str,
+    provider_response_key: str | None,
+    canonical_markdown_key: str | None,
     processed_object_keys: tuple[str, ...],
     timestamp: str,
 ) -> DocumentRegistryRecord:
     return DocumentRegistryRecord(
         document_id=document_id,
+        revision_track=document.revision_track,
         version_id=version_id,
         source_uri=derive_source_uri(metadata),
         content_hash=content_hash,
         corpus=document.corpus,
+        collection=document.collection,
         cleaning_policy_version=cleaning_policy_version,
         acl_groups=tuple(str(item) for item in metadata["acl_groups"]),
         campus_scope=_resolve_campus_scope(
@@ -422,35 +514,87 @@ def _build_registry_record(
         ingestion_timestamp=timestamp,
         parser_version=parser_version,
         embedding_model=embedding_model,
-        raw_asset=(
-            RawAssetRef(
-                raw_asset_id=raw_asset.raw_asset_id,
-                raw_version_id=raw_asset.raw_version_id,
-                page_start=metadata.get("raw_page_start"),
-                page_end=metadata.get("raw_page_end"),
-            )
-            if raw_asset is not None
-            else None
+        source_channel=document.source_channel,
+        is_current=document.is_current,
+        effective_date=normalize_optional_text(metadata.get("effective_date")),
+        published_date=normalize_optional_text(metadata.get("published_date")),
+        raw_asset=_resolve_registry_raw_asset_ref(
+            raw_asset=raw_asset,
+            document=document,
+            metadata=metadata,
         ),
-        structured_object_key=structured_key,
-        provider_result_object_key=provider_result_key,
+        document_units_object_key=document_units_key,
+        provider_response_object_key=provider_response_key,
+        canonical_markdown_object_key=canonical_markdown_key,
         processed_object_keys=processed_object_keys,
         import_source=document.import_source,
     )
 
 
+def _resolve_registry_raw_asset_ref(
+    *,
+    raw_asset: ResolvedRawAsset | None,
+    document: DocumentImportInput,
+    metadata: dict[str, object],
+) -> RawAssetRef | None:
+    if raw_asset is not None:
+        return RawAssetRef(
+            raw_asset_id=raw_asset.raw_asset_id,
+            raw_version_id=raw_asset.raw_version_id,
+            page_start=metadata.get("raw_page_start"),
+            page_end=metadata.get("raw_page_end"),
+        )
+    if document.raw_asset_id and document.raw_version_id:
+        return RawAssetRef(
+            raw_asset_id=document.raw_asset_id,
+            raw_version_id=document.raw_version_id,
+            page_start=metadata.get("raw_page_start"),
+            page_end=metadata.get("raw_page_end"),
+        )
+    return None
+
+
 def _registry_record_needs_refresh(
     *,
     existing: DocumentRegistryRecord,
-    structured_key: str,
-    provider_result_key: str | None,
+    document_units_key: str,
+    provider_response_key: str | None,
+    canonical_markdown_key: str | None,
     processed_object_keys: tuple[str, ...],
 ) -> bool:
-    if existing.structured_object_key != structured_key:
+    if existing.document_units_object_key != document_units_key:
         return True
-    if existing.provider_result_object_key != provider_result_key:
+    if existing.provider_response_object_key != provider_response_key:
+        return True
+    if existing.canonical_markdown_object_key != canonical_markdown_key:
         return True
     return tuple(existing.processed_object_keys) != processed_object_keys
+
+
+def _derive_document_title(*, metadata: dict[str, object], document_id: str) -> str:
+    for key in ("title", "document_title"):
+        title = normalize_optional_text(metadata.get(key))
+        if title is not None:
+            return title
+    return document_id.split(":")[-1]
+
+
+def _derive_document_year(*, metadata: dict[str, object]) -> str | None:
+    for key in ("published_date", "effective_date", "year", "source_pdf", "source_doc", "source_label"):
+        year = _extract_year_label(metadata.get(key))
+        if year is not None:
+            return year
+    return None
+
+
+def _extract_year_label(value: object) -> str | None:
+    text = normalize_optional_text(value)
+    if text is None:
+        return None
+    match = re.search(r"(?<!\d)((?:19|20)\d{2})(?!\d)", text)
+    if match is None:
+        return None
+    return match.group(1)
 
 
 def normalize_optional_text(value: object) -> str | None:
