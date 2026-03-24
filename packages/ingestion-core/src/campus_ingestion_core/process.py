@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import json
-from typing import Sequence
+from typing import Protocol, Sequence
 import uuid
 
 from llama_index.core.base.embeddings.base import BaseEmbedding
@@ -14,6 +14,10 @@ from qdrant_client.http import models as qdrant_models
 from campus_ingestion_core.chunking import ChunkProfile, StructuredUnitChunkInput, chunk_structured_unit
 from campus_ingestion_core.curriculum_chunk_units import build_curriculum_structured_units, chunk_curriculum_unit
 from campus_ingestion_core.models import DocumentRegistryRecord
+
+
+class ProcessArtifactReader(Protocol):
+    def get_bytes(self, *, bucket: str, key: str) -> bytes: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,6 +169,26 @@ def build_indexable_chunks_from_jsonl(
                 )
             )
     return tuple(chunks)
+
+
+def build_indexable_chunks_from_record(
+    *,
+    record: DocumentRegistryRecord,
+    object_store: ProcessArtifactReader,
+    bucket: str,
+    chunk_profile: ChunkProfile | None = None,
+    embedding_model: BaseEmbedding | None = None,
+) -> tuple[IndexableChunk, ...]:
+    document_units_key = record.document_units_object_key
+    if not document_units_key:
+        raise ValueError("document_units_object_key is required to build indexable chunks")
+    structured_jsonl_bytes = object_store.get_bytes(bucket=bucket, key=document_units_key)
+    return build_indexable_chunks_from_jsonl(
+        record=record,
+        structured_jsonl_bytes=structured_jsonl_bytes,
+        chunk_profile=chunk_profile,
+        embedding_model=embedding_model,
+    )
 
 
 def index_chunks_to_qdrant(
