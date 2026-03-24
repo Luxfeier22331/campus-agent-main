@@ -96,7 +96,7 @@ class QdrantRetrievalBackend:
         for node, similarity in zip(nodes, similarities):
             metadata = dict(node.metadata)
             document_id = str(metadata.get("document_id") or "")
-            revision_track = str(metadata.get("revision_track") or "")
+            revision_track = str(metadata.get("revision_track") or metadata.get("representation") or "")
             version_id = str(metadata.get("version_id") or "")
             if not document_id or not revision_track or not version_id:
                 continue

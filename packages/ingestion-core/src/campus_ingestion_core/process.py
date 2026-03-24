@@ -64,6 +64,7 @@ class IndexableChunk:
             metadata={
                 "document_id": self.document_id,
                 "revision_track": self.revision_track,
+                "representation": self.revision_track,
                 "version_id": self.version_id,
                 "chunk_id": self.chunk_id,
                 "chunk_order": self.chunk_order,
@@ -86,6 +87,7 @@ class IndexableChunk:
                     node_id=self.document_id,
                     metadata={
                         "revision_track": self.revision_track,
+                        "representation": self.revision_track,
                         "version_id": self.version_id,
                         "source_uri": self.source_uri,
                     },
@@ -335,6 +337,7 @@ def _ensure_payload_indexes(*, qdrant_client: QdrantClient, collection_name: str
     for field_name in (
         "document_id",
         "revision_track",
+        "representation",
         "version_id",
         "corpus",
         "collection",

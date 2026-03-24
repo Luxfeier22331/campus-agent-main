@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
@@ -19,6 +20,7 @@ from campus_retrieval_core.backend_qdrant import (
 )
 from campus_retrieval_core.models import RetrievalRequest
 from campus_retrieval_core.settings import RetrievalSettings
+from llama_index.core.schema import TextNode
 from qdrant_client import QdrantClient
 
 
@@ -185,6 +187,7 @@ class BackendQdrantTest(unittest.TestCase):
             [
                 "document_id",
                 "revision_track",
+                "representation",
                 "version_id",
                 "corpus",
                 "collection",
@@ -295,6 +298,118 @@ class BackendQdrantTest(unittest.TestCase):
             self.assertEqual(source.latest_url, source.canonical_url)
             self.assertEqual(source.anchor["page_start"], 5)
             self.assertIn("08:00", source.snippet)
+
+    def test_backend_accepts_representation_payload_alias_for_revision_track(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            registry_path = Path(temp_dir) / "registry.json"
+            registry = FileDocumentRegistry(registry_path)
+            record = _make_registry_record(
+                document_id="handbook:test-alias",
+                version_id="v1:test-alias",
+                acl_groups=("students",),
+            )
+            registry.upsert(record)
+
+            node = TextNode(
+                text="Library hours remain visible through representation alias metadata.",
+                metadata={
+                    "document_id": record.document_id,
+                    "representation": record.revision_track,
+                    "version_id": record.version_id,
+                    "chunk_id": "chunk-alias-001",
+                    "anchor": {"page_start": 5, "page_end": 5},
+                    "acl_level": "public",
+                    "source_channel": "pdf_ocr",
+                    "collection": "student_handbook",
+                    "is_current": False,
+                },
+            )
+            backend = QdrantRetrievalBackend(
+                settings=RetrievalSettings(
+                    qdrant_url=":memory:",
+                    qdrant_collection="student_handbook_test",
+                    document_registry_database_url="postgresql://registry.example/postgres",
+                ),
+                registry=registry,
+                qdrant_client=QdrantClient(location=":memory:"),
+                embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+            )
+            backend.qdrant_client.collection_exists = Mock(return_value=True)  # type: ignore[method-assign]
+            backend._vector_store = SimpleNamespace(
+                _legacy_vector_format=True,
+                query=Mock(return_value=SimpleNamespace(nodes=[node], similarities=[0.91])),
+            )
+
+            result = backend.retrieve(
+                RetrievalRequest(
+                    query_text="library hours",
+                    corpus="regulations",
+                    collection="student_handbook",
+                    acl_groups=("students",),
+                )
+            )
+
+            self.assertEqual(len(result.sources), 1)
+            self.assertEqual(result.sources[0].revision_track, "source-faithful")
+
+    def test_backend_skips_sources_with_missing_registry_or_representation_metadata(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            registry_path = Path(temp_dir) / "registry.json"
+            registry = FileDocumentRegistry(registry_path)
+            record = _make_registry_record(
+                document_id="handbook:test-skip",
+                version_id="v1:test-skip",
+                acl_groups=("students",),
+            )
+            registry.upsert(record)
+
+            backend = QdrantRetrievalBackend(
+                settings=RetrievalSettings(
+                    qdrant_url=":memory:",
+                    qdrant_collection="student_handbook_test",
+                    document_registry_database_url="postgresql://registry.example/postgres",
+                ),
+                registry=registry,
+                qdrant_client=QdrantClient(location=":memory:"),
+                embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+            )
+            backend.qdrant_client.collection_exists = Mock(return_value=True)  # type: ignore[method-assign]
+            backend._vector_store = SimpleNamespace(
+                _legacy_vector_format=True,
+                query=Mock(return_value=SimpleNamespace(
+                    nodes=[
+                        TextNode(
+                            text="Missing representation metadata should be skipped.",
+                            metadata={
+                                "document_id": record.document_id,
+                                "version_id": record.version_id,
+                                "chunk_id": "chunk-missing-001",
+                            },
+                        ),
+                        TextNode(
+                            text="Unknown registry record should also be skipped.",
+                            metadata={
+                                "document_id": "handbook:missing-record",
+                                "representation": "source-faithful",
+                                "version_id": "v1:missing-record",
+                                "chunk_id": "chunk-missing-002",
+                            },
+                        ),
+                    ],
+                    similarities=[0.8, 0.7],
+                )),
+            )
+
+            result = backend.retrieve(
+                RetrievalRequest(
+                    query_text="library hours",
+                    corpus="regulations",
+                    collection="student_handbook",
+                    acl_groups=("students",),
+                )
+            )
+
+            self.assertEqual(result.sources, ())
 
     def test_backend_applies_acl_filter_before_returning_sources(self) -> None:
         with TemporaryDirectory() as temp_dir:

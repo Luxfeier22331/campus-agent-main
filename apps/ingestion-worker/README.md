@@ -93,6 +93,7 @@ Behavior:
 - `curriculum/curriculum_plan` may use `provider_only` as a pre-split onboarding path to inspect real OCR output before freezing its split manifest.
 - For `INGESTION_CORPUS=regulations` + `INGESTION_COLLECTION=student_handbook` and `INGESTION_CORPUS=curriculum` + `INGESTION_COLLECTION=curriculum_plan`, normalized mode requires a split manifest and stores asset-level `provider-response.jsonl` / `layout-elements.jsonl` plus per-document `document-units.jsonl`; handbook also exports `canonical.md`.
 - `regulations/student_handbook` normalized mode rebuilds logical documents strictly from the repo-tracked split manifest; no legacy OCR-import adapter or non-`provider-response.jsonl` handbook input is supported.
+- Handbook retrieval preparation stays ingestion-owned: persisted `document-units.jsonl` feeds chunk generation in `packages/ingestion-core`, and `index_chunks_to_qdrant()` writes the canonical online chunk/index state into Qdrant.
 - Only normalized mode registers processed results in the document registry with `import_source=raw_online_ocr`.
 - Normalized document-registry writes persist the scope cleaning policy version for traceability.
 - Phase-1 OCR ingestion defaults to `representation=source-faithful`, `source_channel=pdf_ocr`, `is_current=false`.
