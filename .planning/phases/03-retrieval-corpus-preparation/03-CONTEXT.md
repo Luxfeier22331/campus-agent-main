@@ -28,8 +28,8 @@ The phase delivers three things:
 - Phase 3 should close the processed-text path by persisting document-level artifacts through the shared object-store key builders and document registry fields that Phase 2 already stabilized.
 
 ### Chunk identity and evidence-trace metadata
-- Chunk identity remains a derived data-plane concept owned by ingestion-core, with stable IDs based on `document_id + revision_track + version_id + chunk_order`.
-- Every retrieval-ready chunk must preserve evidence back-links needed by later query phases: `document_id`, `revision_track`, `version_id`, `source_chunk_id`, `anchor`, `source_channel`, ACL metadata, and chunk-policy metadata.
+- Chunk identity remains a derived data-plane concept owned by ingestion-core, with stable IDs based on `document_id + representation + version_id + chunk_order`.
+- Every retrieval-ready chunk must preserve evidence back-links needed by later query phases: `document_id`, `representation`, `version_id`, `source_chunk_id`, `anchor`, `source_channel`, ACL metadata, and chunk-policy metadata.
 - Oversize split results must keep `root_unit_id`, `segment_index`, `segment_total`, `split_reason`, and `boundary_rule`; these are part of evidence traceability, not optional debug metadata.
 - Table evidence stays structure-preserving: `table` / `table_row` units remain atomic evidence units, while parent article text keeps placeholder text instead of embedded raw HTML tables.
 
@@ -42,7 +42,8 @@ The phase delivers three things:
 ### Version progression and rebuild semantics
 - Phase 3 should reuse Phase 2 document-registry truth for incremental processing. Processed/chunk/index outputs are derived from registered logical document versions, not from source filenames.
 - Unchanged handbook document versions should be reusable without forced re-chunking or re-indexing; changed versions must produce new processed/chunk/index outputs keyed by their new `version_id`.
-- Do not introduce new handbook representations in this phase. Retrieval-ready artifacts should continue to follow the existing document `revision_track` and registry `is_current` truth rather than inventing a parallel “latest” lane.
+- Do not introduce new handbook representations in this phase. Retrieval-ready artifacts should continue to follow the existing document `representation` and registry `is_current` truth rather than inventing a parallel “latest” lane.
+- Current code may still use the field name `revision_track` internally, but Phase 3 planning should treat it as the implementation name for the architecture-level `representation` concept.
 - Phase 3 planning should assume stale retrieval entries are reconciled through registry/version truth, not by supervisor-side filtering hacks.
 
 ### The agent's Discretion

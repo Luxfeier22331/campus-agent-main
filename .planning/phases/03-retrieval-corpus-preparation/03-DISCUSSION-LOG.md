@@ -27,7 +27,7 @@
 
 | Option | Description | Selected |
 |--------|-------------|----------|
-| Stable chunk IDs plus full evidence-trace metadata | Keep `chunk_id`, `document_id`, `revision_track`, `version_id`, `source_chunk_id`, `anchor`, split metadata, and policy metadata on every chunk. | ✓ |
+| Stable chunk IDs plus full evidence-trace metadata | Keep `chunk_id`, `document_id`, `representation`, `version_id`, `source_chunk_id`, `anchor`, split metadata, and policy metadata on every chunk. Current code may still spell the field `revision_track`, but the planning truth is `representation`. | ✓ |
 | Minimal retrieval metadata only | Keep chunk text and a document reference, but drop most split/unit metadata. | |
 | Retrieval-time enrichment | Index sparse payloads now and reconstruct anchors or unit lineage later during query serving. | |
 
