@@ -34,6 +34,7 @@ from campus_ingestion_core.curriculum_provider_normalize import normalize_curric
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.handbook_cleanup import (
     cleanup_handbook_document,
+    validate_handbook_manifest_title,
     serialize_handbook_document_units,
 )
 from campus_ingestion_core.handbook_provider_normalize import (
@@ -268,6 +269,11 @@ def process_raw_ingestion_job(
             "INGESTION_SPLIT_MANIFEST_PATH is required for "
             f"{settings.corpus}/{settings.collection} raw ingestion"
         )
+    if split_manifest.raw_asset_id != raw_asset_record.raw_asset_id:
+        raise ValueError(
+            "split manifest raw_asset_id mismatch: "
+            f"expected {raw_asset_record.raw_asset_id}, got {split_manifest.raw_asset_id}"
+        )
 
     documents: list[DocumentImportInput] = []
     errors: list[str] = []
@@ -280,19 +286,19 @@ def process_raw_ingestion_job(
         )
 
         if settings.collection == "student_handbook":
-            documents.extend(
-                _build_handbook_split_manifest_documents(
-                    raw_asset_record=raw_asset_record,
-                    provider_result=provider_result,
-                    split_manifest=split_manifest,
-                    writer=writer,
-                    object_store=settings.object_store,
-                    default_campus_scope=settings.default_campus_scope,
-                    corpus=settings.corpus,
-                    collection=settings.collection,
-                    ocr_model=settings.online_ocr.model,
-                )
+            handbook_documents, handbook_errors = _build_handbook_split_manifest_documents(
+                raw_asset_record=raw_asset_record,
+                provider_result=provider_result,
+                split_manifest=split_manifest,
+                writer=writer,
+                object_store=settings.object_store,
+                default_campus_scope=settings.default_campus_scope,
+                corpus=settings.corpus,
+                collection=settings.collection,
+                ocr_model=settings.online_ocr.model,
             )
+            documents.extend(handbook_documents)
+            errors.extend(handbook_errors)
         else:
             documents.extend(
                 _build_split_manifest_documents(
@@ -452,7 +458,7 @@ def _build_handbook_split_manifest_documents(
     corpus: str,
     collection: str,
     ocr_model: str,
-) -> list[DocumentImportInput]:
+) -> tuple[list[DocumentImportInput], list[str]]:
     structured_rows = normalize_handbook_provider_result(
         source_pdf=raw_asset_record.source_filename,
         provider_jsonl_bytes=provider_result.provider_result_bytes,
@@ -471,19 +477,25 @@ def _build_handbook_split_manifest_documents(
         provider_response_bytes=provider_result.provider_result_bytes,
         layout_elements_bytes=layout_elements_bytes,
     )
-    return [
-        _build_handbook_manifest_document_input(
-            raw_asset_record=raw_asset_record,
-            manifest_document=document,
-            structured_rows=structured_rows,
-            provider_response_key=provider_response_key,
-            layout_elements_key=layout_elements_key,
-            default_campus_scope=default_campus_scope,
-            corpus=corpus,
-            collection=collection,
-        )
-        for document in split_manifest.documents
-    ]
+    documents: list[DocumentImportInput] = []
+    errors: list[str] = []
+    for document in split_manifest.documents:
+        try:
+            documents.append(
+                _build_handbook_manifest_document_input(
+                    raw_asset_record=raw_asset_record,
+                    manifest_document=document,
+                    structured_rows=structured_rows,
+                    provider_response_key=provider_response_key,
+                    layout_elements_key=layout_elements_key,
+                    default_campus_scope=default_campus_scope,
+                    corpus=corpus,
+                    collection=collection,
+                )
+            )
+        except Exception as exc:
+            errors.append(f"{raw_asset_record.object_key}#{document.document_id}: {exc}")
+    return documents, errors
 
 
 def _write_processed_asset_artifacts(
@@ -538,6 +550,10 @@ def _build_handbook_manifest_document_input(
     corpus: str,
     collection: str,
 ) -> DocumentImportInput:
+    validate_handbook_manifest_title(
+        structured_rows=structured_rows,
+        manifest_document=manifest_document,
+    )
     cleanup_result = cleanup_handbook_document(
         structured_rows=structured_rows,
         manifest_document=manifest_document,

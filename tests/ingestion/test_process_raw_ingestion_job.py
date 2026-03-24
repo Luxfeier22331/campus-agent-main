@@ -19,6 +19,8 @@ from campus_ingestion_worker.process_raw_ingestion_job import (
     process_raw_ingestion_job,
 )
 
+FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "student_handbook"
+
 
 class _FakeObjectStore:
     def __init__(self) -> None:
@@ -217,6 +219,18 @@ class _StudentHandbookNormalizedFakeOnlineOcrClient:
         )
 
 
+class _FixtureOnlineOcrClient:
+    def __init__(self, fixture_name: str) -> None:
+        self.calls: list[Path] = []
+        self.fixture_name = fixture_name
+
+    def parse_pdf(self, pdf_path: Path) -> OnlineOcrProviderResult:
+        self.calls.append(pdf_path)
+        return OnlineOcrProviderResult(
+            provider_result_bytes=(FIXTURE_DIR / self.fixture_name).read_bytes(),
+        )
+
+
 def _handbook_raw_asset_record(
     *,
     raw_asset_id: str,
@@ -261,6 +275,25 @@ def _curriculum_raw_asset_record(
         ingestion_timestamp="2026-03-23T00:00:00+00:00",
         import_source="seed",
     )
+
+
+def _student_handbook_manifest_payload(*, title: str = "中央民族大学奖学金评定办法") -> dict[str, object]:
+    return {
+        "manifest_version": "student_handbook_split_manifest_v1",
+        "corpus": "regulations",
+        "collection": "student_handbook",
+        "raw_asset_id": "asset:student-handbook-master-pdf",
+        "documents": [
+            {
+                "document_id": "manifest:scholarship-policy",
+                "title": title,
+                "handbook_section": "中央民族大学学生奖励管理规定",
+                "page_start": 1,
+                "page_end": 1,
+                "source_uri": "https://campus.example/handbook/scholarship-policy",
+            }
+        ],
+    }
 
 
 class ProcessRawIngestionJobTest(unittest.TestCase):
@@ -525,6 +558,342 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             self.assertEqual(discipline_record["source_uri"], "https://campus.example/handbook/discipline-policy")
             self.assertEqual(discipline_record["acl_groups"], ["students"])
             self.assertEqual(discipline_record["campus_scope"], "main")
+            self.assertEqual(scholarship_record["cleaning_policy_version"], "student_handbook_cleaning_v1")
+            self.assertEqual(discipline_record["cleaning_policy_version"], "student_handbook_cleaning_v1")
+            self.assertEqual(scholarship_record["parser_version"], "paddleocr-vl-1.5")
+            self.assertEqual(discipline_record["parser_version"], "paddleocr-vl-1.5")
+            self.assertEqual(scholarship_record["embedding_model"], "text-embedding-3-large")
+            self.assertEqual(discipline_record["embedding_model"], "text-embedding-3-large")
+
+    def test_process_raw_ingestion_job_rejects_split_manifest_with_mismatched_raw_asset_id(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            raw_bytes = b"%PDF-1.4 remote student handbook"
+            raw_hash = hashlib.sha256(raw_bytes).hexdigest()
+            raw_version_id = f"sha256:{raw_hash}"
+            raw_key = f"pdf/student-handbook-master/undated/sha256/{raw_hash}/student-handbook.pdf"
+            split_manifest_path = root / "configs" / "split-manifest.v1.json"
+            split_manifest_path.parent.mkdir(parents=True)
+            split_manifest_path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "corpus": "regulations",
+                        "collection": "student_handbook",
+                        "raw_asset_id": "asset:wrong-handbook-pdf",
+                        "documents": [
+                            {
+                                "document_id": "manifest:scholarship-policy",
+                                "title": "中央民族大学奖学金评定办法",
+                                "handbook_section": "中央民族大学学生奖励管理规定",
+                                "page_start": 1,
+                                "page_end": 2,
+                                "source_uri": "https://campus.example/handbook/scholarship-policy",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            object_store = _FakeObjectStore()
+            object_store.objects[("campus-rag-raw", raw_key)] = raw_bytes
+            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
+            raw_asset_registry.upsert(
+                _handbook_raw_asset_record(
+                    raw_asset_id="asset:student-handbook-master-pdf",
+                    raw_version_id=raw_version_id,
+                    raw_source_uri="s3://campus-rag-raw/pdf/student-handbook-master/student-handbook.pdf",
+                    content_hash=raw_hash,
+                    source_filename="student-handbook.pdf",
+                    object_key=raw_key,
+                )
+            )
+
+            with self.assertRaisesRegex(ValueError, "split manifest raw_asset_id mismatch"):
+                process_raw_ingestion_job(
+                    env={
+                        "RAW_ASSET_ID": "asset:student-handbook-master-pdf",
+                        "RAW_VERSION_ID": raw_version_id,
+                        "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
+                        "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
+                        "OCR_API_KEY": "token",
+                        "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                        "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                        "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                        "IMPORT_REPORT_DIR": str(root / "reports"),
+                        "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
+                    },
+                    object_store=object_store,
+                    online_ocr=_StudentHandbookNormalizedFakeOnlineOcrClient(),
+                    registry=FileDocumentRegistry(root / "registry" / "student_handbook_documents.json"),
+                    raw_asset_registry=raw_asset_registry,
+                )
+
+    def test_process_raw_ingestion_job_records_manifest_title_mismatch_without_persisting_document(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            raw_bytes = b"%PDF-1.4 remote student handbook"
+            raw_hash = hashlib.sha256(raw_bytes).hexdigest()
+            raw_version_id = f"sha256:{raw_hash}"
+            raw_key = f"pdf/student-handbook-master/undated/sha256/{raw_hash}/student-handbook.pdf"
+            split_manifest_path = root / "configs" / "split-manifest.v1.json"
+            split_manifest_path.parent.mkdir(parents=True)
+            split_manifest_path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "corpus": "regulations",
+                        "collection": "student_handbook",
+                        "raw_asset_id": "asset:student-handbook-master-pdf",
+                        "documents": [
+                            {
+                                "document_id": "manifest:scholarship-policy",
+                                "title": "中央民族大学奖学金评定办法",
+                                "handbook_section": "中央民族大学学生奖励管理规定",
+                                "page_start": 1,
+                                "page_end": 2,
+                                "source_uri": "https://campus.example/handbook/scholarship-policy",
+                            },
+                            {
+                                "document_id": "manifest:discipline-policy",
+                                "title": "错误的标题",
+                                "handbook_section": "中央民族大学学生日常管理规定",
+                                "page_start": 3,
+                                "page_end": 3,
+                                "source_uri": "https://campus.example/handbook/discipline-policy",
+                            },
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            object_store = _FakeObjectStore()
+            object_store.objects[("campus-rag-raw", raw_key)] = raw_bytes
+            registry = FileDocumentRegistry(root / "registry" / "student_handbook_documents.json")
+            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
+            raw_asset_registry.upsert(
+                _handbook_raw_asset_record(
+                    raw_asset_id="asset:student-handbook-master-pdf",
+                    raw_version_id=raw_version_id,
+                    raw_source_uri="s3://campus-rag-raw/pdf/student-handbook-master/student-handbook.pdf",
+                    content_hash=raw_hash,
+                    source_filename="student-handbook.pdf",
+                    object_key=raw_key,
+                )
+            )
+
+            report = process_raw_ingestion_job(
+                env={
+                    "RAW_ASSET_ID": "asset:student-handbook-master-pdf",
+                    "RAW_VERSION_ID": raw_version_id,
+                    "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
+                    "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
+                    "OCR_API_KEY": "token",
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    "IMPORT_REPORT_DIR": str(root / "reports"),
+                    "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
+                },
+                object_store=object_store,
+                online_ocr=_StudentHandbookNormalizedFakeOnlineOcrClient(),
+                registry=registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            scholarship_doc_id = build_handbook_doc_id("中央民族大学奖学金评定办法")
+            self.assertEqual(report.success_count, 1)
+            self.assertEqual(report.failed_count, 1)
+            self.assertEqual(report.document_ids, (scholarship_doc_id,))
+            self.assertIn("manifest title mismatch", report.errors[0])
+            self.assertIn("manifest:discipline-policy", report.errors[0])
+
+            registry_payload = json.loads(
+                (root / "registry" / "student_handbook_documents.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(len(registry_payload), 1)
+            stored_record = next(iter(registry_payload.values()))
+            self.assertEqual(stored_record["document_id"], scholarship_doc_id)
+
+    def test_process_raw_ingestion_job_skips_unchanged_handbook_reingestion(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            raw_bytes = b"%PDF-1.4 remote student handbook stable"
+            raw_hash = hashlib.sha256(raw_bytes).hexdigest()
+            raw_version_id = f"sha256:{raw_hash}"
+            raw_key = f"pdf/student-handbook-master/undated/sha256/{raw_hash}/student-handbook.pdf"
+            split_manifest_path = root / "configs" / "split-manifest.v1.json"
+            split_manifest_path.parent.mkdir(parents=True)
+            split_manifest_path.write_text(
+                json.dumps(_student_handbook_manifest_payload(), ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            object_store = _FakeObjectStore()
+            object_store.objects[("campus-rag-raw", raw_key)] = raw_bytes
+            registry = FileDocumentRegistry(root / "registry" / "student_handbook_documents.json")
+            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
+            raw_asset_registry.upsert(
+                _handbook_raw_asset_record(
+                    raw_asset_id="asset:student-handbook-master-pdf",
+                    raw_version_id=raw_version_id,
+                    raw_source_uri="s3://campus-rag-raw/pdf/student-handbook-master/student-handbook.pdf",
+                    content_hash=raw_hash,
+                    source_filename="student-handbook.pdf",
+                    object_key=raw_key,
+                )
+            )
+            env = {
+                "RAW_ASSET_ID": "asset:student-handbook-master-pdf",
+                "RAW_VERSION_ID": raw_version_id,
+                "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
+                "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
+                "OCR_API_KEY": "token",
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                "IMPORT_REPORT_DIR": str(root / "reports"),
+                "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
+            }
+
+            first = process_raw_ingestion_job(
+                env=env,
+                object_store=object_store,
+                online_ocr=_FixtureOnlineOcrClient("provider-result-stable.jsonl"),
+                registry=registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+            second = process_raw_ingestion_job(
+                env=env,
+                object_store=object_store,
+                online_ocr=_FixtureOnlineOcrClient("provider-result-stable.jsonl"),
+                registry=registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            document_id = build_handbook_doc_id("中央民族大学奖学金评定办法")
+            self.assertEqual(first.success_count, 1)
+            self.assertEqual(first.created_document_ids, (document_id,))
+            self.assertEqual(first.updated_document_ids, ())
+            self.assertEqual(first.skipped_document_ids, ())
+            self.assertEqual(second.success_count, 0)
+            self.assertEqual(second.skipped_count, 1)
+            self.assertEqual(second.created_document_ids, ())
+            self.assertEqual(second.updated_document_ids, ())
+            self.assertEqual(second.skipped_document_ids, (document_id,))
+            self.assertEqual(second.document_ids, ())
+
+            report_payload = json.loads(Path(second.report_path).read_text(encoding="utf-8"))
+            self.assertEqual(report_payload["created_document_ids"], [])
+            self.assertEqual(report_payload["updated_document_ids"], [])
+            self.assertEqual(report_payload["skipped_document_ids"], [document_id])
+
+    def test_process_raw_ingestion_job_records_updated_document_ids_for_changed_handbook_content(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            stable_bytes = b"%PDF-1.4 remote student handbook stable"
+            updated_bytes = b"%PDF-1.4 remote student handbook updated"
+            stable_hash = hashlib.sha256(stable_bytes).hexdigest()
+            updated_hash = hashlib.sha256(updated_bytes).hexdigest()
+            stable_version_id = f"sha256:{stable_hash}"
+            updated_version_id = f"sha256:{updated_hash}"
+            stable_key = f"pdf/student-handbook-master/undated/sha256/{stable_hash}/student-handbook.pdf"
+            updated_key = f"pdf/student-handbook-master/undated/sha256/{updated_hash}/student-handbook.pdf"
+            split_manifest_path = root / "configs" / "split-manifest.v1.json"
+            split_manifest_path.parent.mkdir(parents=True)
+            split_manifest_path.write_text(
+                json.dumps(_student_handbook_manifest_payload(), ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            object_store = _FakeObjectStore()
+            object_store.objects[("campus-rag-raw", stable_key)] = stable_bytes
+            object_store.objects[("campus-rag-raw", updated_key)] = updated_bytes
+            registry = FileDocumentRegistry(root / "registry" / "student_handbook_documents.json")
+            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
+            raw_asset_registry.upsert(
+                _handbook_raw_asset_record(
+                    raw_asset_id="asset:student-handbook-master-pdf",
+                    raw_version_id=stable_version_id,
+                    raw_source_uri="s3://campus-rag-raw/pdf/student-handbook-master/student-handbook.pdf",
+                    content_hash=stable_hash,
+                    source_filename="student-handbook.pdf",
+                    object_key=stable_key,
+                )
+            )
+            raw_asset_registry.upsert(
+                _handbook_raw_asset_record(
+                    raw_asset_id="asset:student-handbook-master-pdf",
+                    raw_version_id=updated_version_id,
+                    raw_source_uri="s3://campus-rag-raw/pdf/student-handbook-master/student-handbook.pdf",
+                    content_hash=updated_hash,
+                    source_filename="student-handbook.pdf",
+                    object_key=updated_key,
+                )
+            )
+
+            first = process_raw_ingestion_job(
+                env={
+                    "RAW_ASSET_ID": "asset:student-handbook-master-pdf",
+                    "RAW_VERSION_ID": stable_version_id,
+                    "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
+                    "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
+                    "OCR_API_KEY": "token",
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    "IMPORT_REPORT_DIR": str(root / "reports"),
+                    "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
+                },
+                object_store=object_store,
+                online_ocr=_FixtureOnlineOcrClient("provider-result-stable.jsonl"),
+                registry=registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+            second = process_raw_ingestion_job(
+                env={
+                    "RAW_ASSET_ID": "asset:student-handbook-master-pdf",
+                    "RAW_VERSION_ID": updated_version_id,
+                    "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
+                    "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
+                    "OCR_API_KEY": "token",
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    "IMPORT_REPORT_DIR": str(root / "reports"),
+                    "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
+                },
+                object_store=object_store,
+                online_ocr=_FixtureOnlineOcrClient("provider-result-updated.jsonl"),
+                registry=registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            document_id = build_handbook_doc_id("中央民族大学奖学金评定办法")
+            self.assertEqual(first.created_document_ids, (document_id,))
+            self.assertEqual(second.success_count, 1)
+            self.assertEqual(second.created_document_ids, ())
+            self.assertEqual(second.updated_document_ids, (document_id,))
+            self.assertEqual(second.skipped_document_ids, ())
+            self.assertEqual(second.document_ids, (document_id,))
+
+            registry_payload = json.loads(
+                (root / "registry" / "student_handbook_documents.json").read_text(encoding="utf-8")
+            )
+            versions = [
+                payload["version_id"]
+                for payload in registry_payload.values()
+                if payload["document_id"] == document_id
+            ]
+            self.assertEqual(len(versions), 2)
+            self.assertEqual(len(set(versions)), 2)
+
+            report_payload = json.loads(Path(second.report_path).read_text(encoding="utf-8"))
+            self.assertEqual(report_payload["created_document_ids"], [])
+            self.assertEqual(report_payload["updated_document_ids"], [document_id])
+            self.assertEqual(report_payload["skipped_document_ids"], [])
 
     def test_provider_only_reuses_registered_raw_asset_but_rewrites_provider_result(self) -> None:
         with TemporaryDirectory() as temp_dir:

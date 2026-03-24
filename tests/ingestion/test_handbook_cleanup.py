@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from pathlib import Path
 import unittest
 
 from campus_ingestion_core.handbook_cleanup import cleanup_handbook_document
+from campus_ingestion_core.handbook_provider_normalize import normalize_handbook_provider_result
 from campus_ingestion_core.split_manifest import SplitManifestDocument
+
+FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "student_handbook"
 
 
 def _manifest_document(
@@ -63,6 +67,16 @@ def _source_row(
         "title_candidate_score": title_candidate_score,
         "section_hint": text if row_type == "heading" else None,
     }
+
+
+def _load_fixture_rows(fixture_name: str) -> list[dict[str, object]]:
+    return normalize_handbook_provider_result(
+        source_pdf="学生手册_2018.pdf",
+        provider_jsonl_bytes=(FIXTURE_DIR / fixture_name).read_bytes(),
+        ocr_provider="paddleocr_async",
+        ocr_model="PaddleOCR-VL-1.5",
+        source_artifact_id="asset:student-handbook-master-pdf",
+    )
 
 
 class HandbookCleanupTest(unittest.TestCase):
@@ -232,6 +246,31 @@ class HandbookCleanupTest(unittest.TestCase):
                 ["校园110", "68932220", "办公室", "68932649"],
             ],
         )
+
+    def test_cleanup_fixture_update_keeps_document_id_but_changes_version_id(self) -> None:
+        stable = cleanup_handbook_document(
+            structured_rows=_load_fixture_rows("provider-result-stable.jsonl"),
+            manifest_document=_manifest_document(
+                1,
+                1,
+                title="中央民族大学奖学金评定办法",
+                handbook_section="中央民族大学学生奖励管理规定",
+            ),
+            source_doc="学生手册_2018.pdf",
+        )
+        updated = cleanup_handbook_document(
+            structured_rows=_load_fixture_rows("provider-result-updated.jsonl"),
+            manifest_document=_manifest_document(
+                1,
+                1,
+                title="中央民族大学奖学金评定办法",
+                handbook_section="中央民族大学学生奖励管理规定",
+            ),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        self.assertEqual(stable.doc_id, updated.doc_id)
+        self.assertNotEqual(stable.version_id, updated.version_id)
 
     def test_cleanup_pads_table_rows_to_header_width(self) -> None:
         result = cleanup_handbook_document(

@@ -32,6 +32,9 @@ class ImportReport:
     unresolved_source_pdfs: tuple[str, ...]
     errors: tuple[str, ...]
     report_path: str
+    created_document_ids: tuple[str, ...] = ()
+    updated_document_ids: tuple[str, ...] = ()
+    skipped_document_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +48,9 @@ class PersistImportStats:
     unresolved_source_pdfs: tuple[str, ...]
     errors: tuple[str, ...]
     timestamp: str
+    created_document_ids: tuple[str, ...] = ()
+    updated_document_ids: tuple[str, ...] = ()
+    skipped_document_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -179,6 +185,9 @@ def persist_import_documents(
         raw_uploaded_count=stats.raw_uploaded_count,
         raw_reused_count=stats.raw_reused_count,
         document_ids=stats.document_ids,
+        created_document_ids=stats.created_document_ids,
+        updated_document_ids=stats.updated_document_ids,
+        skipped_document_ids=stats.skipped_document_ids,
         unresolved_source_pdfs=stats.unresolved_source_pdfs,
         errors=stats.errors,
         timestamp=stats.timestamp,
@@ -205,6 +214,9 @@ def collect_import_document_stats(
     raw_uploaded_count = 0
     raw_reused_count = 0
     document_ids: list[str] = []
+    created_document_ids: list[str] = []
+    updated_document_ids: list[str] = []
+    skipped_document_ids: list[str] = []
     errors = list(initial_errors or [])
     timestamp = utc_now()
     uploaded_raw_assets: set[tuple[str, str]] = set()
@@ -314,10 +326,20 @@ def collect_import_document_stats(
                     if key is not None
                 )
             )
-            existing = registry.get(document_id, document.revision_track, version_id)
-            if existing is not None and existing.content_hash == content_hash:
+            document_records = _list_document_records(
+                registry=registry,
+                corpus=document.corpus,
+                collection=document.collection,
+                document_id=document_id,
+                revision_track=document.revision_track,
+            )
+            matching_content_record = next(
+                (record for record in document_records if record.content_hash == content_hash),
+                None,
+            )
+            if matching_content_record is not None:
                 if _registry_record_needs_refresh(
-                    existing=existing,
+                    existing=matching_content_record,
                     document_units_key=document_units_key,
                     provider_response_key=provider_response_key,
                     canonical_markdown_key=canonical_markdown_key,
@@ -343,6 +365,7 @@ def collect_import_document_stats(
                         )
                     )
                 skipped_count += 1
+                skipped_document_ids.append(document_id)
                 continue
 
             writer.put_bytes(
@@ -371,7 +394,11 @@ def collect_import_document_stats(
                 )
             )
             success_count += 1
-            document_ids.append(str(metadata["document_id"]))
+            document_ids.append(document_id)
+            if document_records:
+                updated_document_ids.append(document_id)
+            else:
+                created_document_ids.append(document_id)
         except Exception as exc:
             failed_count += 1
             errors.append(f"{source_label}: {exc}")
@@ -383,6 +410,9 @@ def collect_import_document_stats(
         raw_uploaded_count=raw_uploaded_count,
         raw_reused_count=raw_reused_count,
         document_ids=tuple(document_ids),
+        created_document_ids=tuple(created_document_ids),
+        updated_document_ids=tuple(updated_document_ids),
+        skipped_document_ids=tuple(skipped_document_ids),
         unresolved_source_pdfs=unresolved_source_pdfs,
         errors=tuple(errors),
         timestamp=timestamp,
@@ -571,6 +601,21 @@ def _registry_record_needs_refresh(
     return tuple(existing.processed_object_keys) != processed_object_keys
 
 
+def _list_document_records(
+    *,
+    registry: DocumentRegistry,
+    corpus: str,
+    collection: str,
+    document_id: str,
+    revision_track: str,
+) -> tuple[DocumentRegistryRecord, ...]:
+    return tuple(
+        record
+        for record in registry.list_by_scope(corpus, collection)
+        if record.document_id == document_id and record.revision_track == revision_track
+    )
+
+
 def _derive_document_title(*, metadata: dict[str, object], document_id: str) -> str:
     for key in ("title", "document_title"):
         title = normalize_optional_text(metadata.get(key))
@@ -661,6 +706,9 @@ def write_import_report(
     unresolved_source_pdfs: tuple[str, ...],
     errors: tuple[str, ...],
     timestamp: str,
+    created_document_ids: tuple[str, ...] = (),
+    updated_document_ids: tuple[str, ...] = (),
+    skipped_document_ids: tuple[str, ...] = (),
 ) -> ImportReport:
     report_dir.mkdir(parents=True, exist_ok=True)
     safe_timestamp = timestamp.replace(":", "").replace("+", "_plus_")
@@ -673,6 +721,9 @@ def write_import_report(
         "raw_uploaded_count": raw_uploaded_count,
         "raw_reused_count": raw_reused_count,
         "document_ids": list(document_ids),
+        "created_document_ids": list(created_document_ids),
+        "updated_document_ids": list(updated_document_ids),
+        "skipped_document_ids": list(skipped_document_ids),
         "unresolved_source_pdfs": list(unresolved_source_pdfs),
         "errors": list(errors),
     }
@@ -685,9 +736,12 @@ def write_import_report(
         raw_uploaded_count=raw_uploaded_count,
         raw_reused_count=raw_reused_count,
         document_ids=document_ids,
+        report_path=str(report_path),
+        created_document_ids=created_document_ids,
+        updated_document_ids=updated_document_ids,
+        skipped_document_ids=skipped_document_ids,
         unresolved_source_pdfs=unresolved_source_pdfs,
         errors=errors,
-        report_path=str(report_path),
     )
 
 

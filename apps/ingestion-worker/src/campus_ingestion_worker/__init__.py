@@ -9,6 +9,7 @@ from campus_ingestion_worker.process_raw_ingestion_job import (
     OnlineOcrProviderResult,
     process_raw_ingestion_job,
 )
+from campus_ingestion_worker.register_raw_asset import RawAssetRegistrationResult, register_raw_asset
 from campus_ingestion_worker.rebuild_local_data import LocalDataRebuildReport, rebuild_local_data
 
 __all__ = [
@@ -16,9 +17,11 @@ __all__ = [
     "LocalDataRebuildReport",
     "OnlineOcrClient",
     "OnlineOcrProviderResult",
+    "RawAssetRegistrationResult",
     "StudentHandbookMigrationReport",
     "load_worker_env",
     "migrate_student_handbook_source_faithful",
     "process_raw_ingestion_job",
+    "register_raw_asset",
     "rebuild_local_data",
 ]

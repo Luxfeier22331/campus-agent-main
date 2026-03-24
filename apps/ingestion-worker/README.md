@@ -20,6 +20,38 @@ Env bootstrap rule:
 
 Worker shell for the production raw-first path.
 
+Phase-2 canonical flow:
+
+1. `register_raw_asset` uploads the handbook source PDF into the raw bucket and persists canonical raw-layer truth.
+2. `process_raw_ingestion_job` consumes the registered `raw_asset_id + raw_version_id` instead of any local file path.
+
+### `register_raw_asset`
+
+Worker shell for canonical raw-asset registration.
+
+Required env:
+
+- `OBJECT_STORE_ENDPOINT`
+- `OBJECT_STORE_ACCESS_KEY`
+- `OBJECT_STORE_SECRET_KEY`
+- `RAW_SOURCE_FILE`
+- `RAW_SOURCE_URI`
+- `RAW_ASSET_REGISTRY_DATABASE_URL` or `DOCUMENT_REGISTRY_DATABASE_URL`
+
+Optional env:
+
+- `RAW_ASSET_ID`
+- `INGESTION_CORPUS`
+- `INGESTION_COLLECTION`
+
+Behavior:
+
+- Computes `content_hash = sha256(file_bytes)` and `raw_version_id = sha256:<content_hash>`.
+- Defaults `raw_asset_id` to `build_raw_asset_id(source_filename)` when no override is supplied.
+- Writes the source PDF into the raw bucket under the canonical raw object key.
+- Upserts raw-layer truth in the raw asset registry before OCR processing begins.
+- Repeated registration of the same source filename and identical bytes reuses the existing raw-asset record.
+
 Required env:
 
 - `OBJECT_STORE_ENDPOINT`

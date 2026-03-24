@@ -112,6 +112,26 @@ def build_handbook_version_id(title: str, canonical_body: str) -> str:
     return "v1:" + hashlib.sha1(digest_input.encode("utf-8")).hexdigest()
 
 
+def validate_handbook_manifest_title(
+    *,
+    structured_rows: list[dict[str, object]],
+    manifest_document: SplitManifestDocument,
+) -> None:
+    candidate_title = extract_handbook_title_candidate(
+        structured_rows=structured_rows,
+        first_page=manifest_document.page_start,
+    )
+    if candidate_title is None or _is_placeholder_title(manifest_document.title):
+        return
+    if _normalize_title_for_match(candidate_title) == _normalize_title_for_match(manifest_document.title):
+        return
+    raise ValueError(
+        "manifest title mismatch for "
+        f"{manifest_document.document_id}: OCR title {normalize_handbook_title(candidate_title)!r} "
+        f"!= manifest title {normalize_handbook_title(manifest_document.title)!r}"
+    )
+
+
 def normalize_handbook_title(value: str) -> str:
     normalized = " ".join(unicodedata.normalize("NFKC", value).strip().split())
     return re.sub(r"(?<=[\u4e00-\u9fff])\s+(?=[\u4e00-\u9fff])", "", normalized)
@@ -151,8 +171,23 @@ def _select_title(
     manifest_title: str,
     first_page: int,
 ) -> str:
+    candidate_title = extract_handbook_title_candidate(structured_rows=projected_rows, first_page=first_page)
+    if candidate_title is not None:
+        if _is_placeholder_title(manifest_title):
+            return candidate_title
+        if _normalize_title_for_match(candidate_title) == _normalize_title_for_match(manifest_title):
+            return normalize_handbook_title(manifest_title)
+        return normalize_handbook_title(manifest_title)
+    return normalize_handbook_title(manifest_title)
+
+
+def extract_handbook_title_candidate(
+    *,
+    structured_rows: list[dict[str, object]],
+    first_page: int,
+) -> str | None:
     candidates: list[tuple[float, int, str]] = []
-    for row in projected_rows:
+    for row in structured_rows:
         if _coerce_int(row.get("page_start")) != first_page:
             continue
         if str(row.get("row_type") or "") != "heading":
@@ -169,15 +204,10 @@ def _select_title(
                 text,
             )
         )
-    if candidates:
-        candidates.sort(reverse=True)
-        candidate_title = candidates[0][2]
-        if _is_placeholder_title(manifest_title):
-            return candidate_title
-        if _normalize_title_for_match(candidate_title) == _normalize_title_for_match(manifest_title):
-            return normalize_handbook_title(manifest_title)
-        return normalize_handbook_title(manifest_title)
-    return normalize_handbook_title(manifest_title)
+    if not candidates:
+        return None
+    candidates.sort(reverse=True)
+    return candidates[0][2]
 
 
 def _is_placeholder_title(value: str) -> bool:
