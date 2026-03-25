@@ -7,6 +7,7 @@ import json
 import re
 import unicodedata
 
+from campus_ingestion_core.chunking import serialize_table_unit_text
 from campus_ingestion_core.handbook_structure import classify_structural_heading
 from campus_ingestion_core.split_manifest import SplitManifestDocument
 
@@ -64,6 +65,18 @@ class HandbookCleanupResult:
     metadata: dict[str, object]
     canonical_markdown: str
     document_units: tuple[dict[str, object], ...]
+
+
+@dataclass(frozen=True, slots=True)
+class NormalizedHandbookTable:
+    matrix: tuple[tuple[str, ...], ...]
+    header_rows: tuple[tuple[str, ...], ...]
+    body_rows: tuple[tuple[str, ...], ...]
+    column_paths: tuple[str, ...]
+    header_line: str
+    row_lines: tuple[str, ...]
+    caption_lines: tuple[str, ...]
+    note_lines: tuple[str, ...]
 
 
 def cleanup_handbook_document(
@@ -185,7 +198,7 @@ def _should_merge_broken_line(previous: str, current: str) -> bool:
         return False
     if _looks_like_front_matter_line(previous) or _looks_like_front_matter_line(current):
         return False
-    if _looks_like_structural_line(previous) or _looks_like_structural_line(current):
+    if _looks_like_structural_line(current):
         return False
     if _looks_like_formula_line(previous) or _looks_like_formula_line(current):
         return False
@@ -723,36 +736,54 @@ def _build_document_rows(
                 )
             )
             first_substantive_row = False
-            if isinstance(table_cells, list):
-                header_row = _table_header_row(table_cells)
-                for row_index, cell_row in enumerate(table_cells, start=1):
-                    rows.append(
-                        _build_structured_unit_row(
-                            doc_id=doc_id,
-                            version_id=version_id,
-                            chunk_id=f"{root_unit_id}-row-{row_index:04d}",
-                            root_unit_id=root_unit_id,
-                            unit_type="table_row",
-                            clean_text=_build_table_row_clean_text(cell_row=cell_row, header_row=header_row, row_index=row_index),
-                            source_pdf=source_pdf,
-                            source_url=source_url,
-                            acl_groups=acl_groups,
-                            anchor={
-                                "page_start": int(event["page_start"]),
-                                "page_end": int(event["page_end"]),
-                                "section_path": list(event.get("section_path") or ()),
-                                "article_label": event.get("article_label"),
-                                "table_context": event.get("table_context"),
-                                "table_row_index": row_index,
-                            },
-                            metadata=_build_unit_metadata(
+            table_semantics = _build_table_unit_semantics(
+                table_cells=table_cells,
+                table_context=event.get("table_context"),
+            )
+            if table_semantics is not None:
+                rows.append(
+                    _build_structured_unit_row(
+                        doc_id=doc_id,
+                        version_id=version_id,
+                        chunk_id=f"{root_unit_id}-unit",
+                        root_unit_id=root_unit_id,
+                        unit_type="table_unit",
+                        clean_text=serialize_table_unit_text(
+                            caption_lines=table_semantics.caption_lines,
+                            header_line=table_semantics.header_line,
+                            row_lines=table_semantics.row_lines,
+                            note_lines=table_semantics.note_lines,
+                        ),
+                        source_pdf=source_pdf,
+                        source_url=source_url,
+                        acl_groups=acl_groups,
+                        anchor={
+                            "page_start": int(event["page_start"]),
+                            "page_end": int(event["page_end"]),
+                            "section_path": list(event.get("section_path") or ()),
+                            "article_label": event.get("article_label"),
+                            "table_context": event.get("table_context"),
+                        },
+                        metadata={
+                            **_build_unit_metadata(
                                 title=title,
                                 policy_doc_no=policy_doc_no,
                                 preface_text=None,
                             ),
-                            table_cells=[list(str(cell) for cell in cell_row)],
-                        )
+                            "caption_lines": list(table_semantics.caption_lines),
+                            "note_lines": list(table_semantics.note_lines),
+                            "table_header_rows": [list(row) for row in table_semantics.header_rows],
+                            "table_body_rows": [list(row) for row in table_semantics.body_rows],
+                            "table_column_paths": list(table_semantics.column_paths),
+                            "table_header_line": table_semantics.header_line,
+                            "table_row_lines": list(table_semantics.row_lines),
+                            "table_header_row_count": len(table_semantics.header_rows),
+                            "table_row_count": len(table_semantics.row_lines),
+                            "table_column_count": len(table_semantics.column_paths),
+                        },
+                        table_cells=[list(row) for row in table_semantics.matrix],
                     )
+                )
     return rows
 
 
@@ -851,28 +882,83 @@ def _normalize_table_cells_matrix(table_cells: object) -> list[list[str]] | None
     return [row + [""] * (max_width - len(row)) for row in normalized_rows]
 
 
-def _table_header_row(table_matrix: list[list[str]]) -> list[str] | None:
+def _build_table_unit_semantics(
+    *,
+    table_cells: list[list[str]] | None,
+    table_context: object,
+) -> NormalizedHandbookTable | None:
+    if not table_cells:
+        return None
+    header_row_count = _detect_table_header_row_count(table_cells)
+    header_rows = tuple(tuple(row) for row in table_cells[:header_row_count])
+    body_rows = tuple(tuple(row) for row in table_cells[header_row_count:])
+    column_paths = _build_table_column_paths(header_rows or (tuple(table_cells[0]),))
+    header_line = " | ".join(column_paths)
+    row_lines = tuple(" | ".join(row) for row in body_rows if any(cell.strip() for cell in row))
+    caption_text = normalize_handbook_body_text(str(table_context)) if isinstance(table_context, str) else ""
+    caption_lines = (caption_text,) if caption_text else ()
+    return NormalizedHandbookTable(
+        matrix=tuple(tuple(row) for row in table_cells),
+        header_rows=header_rows,
+        body_rows=body_rows,
+        column_paths=column_paths,
+        header_line=header_line,
+        row_lines=row_lines,
+        caption_lines=caption_lines,
+        note_lines=(),
+    )
+
+
+def _detect_table_header_row_count(table_matrix: list[list[str]]) -> int:
     if not table_matrix:
-        return None
-    header = table_matrix[0]
-    if not any(cell.strip() for cell in header):
-        return None
-    return header
+        return 0
+    if len(table_matrix) == 1:
+        return 1
+    first_row = table_matrix[0]
+    second_row = table_matrix[1]
+    if _looks_like_header_continuation_row(first_row, second_row):
+        return 2
+    return 1
 
 
-def _build_table_row_clean_text(*, cell_row: list[str], header_row: list[str] | None, row_index: int) -> str:
-    if header_row is None or row_index == 1:
-        return " | ".join(cell_row)
-    counts: dict[str, int] = {}
-    parts: list[str] = []
-    for header, value in zip(header_row, cell_row, strict=False):
-        label = header.strip() if isinstance(header, str) else ""
-        if not label:
-            label = "列"
-        counts[label] = counts.get(label, 0) + 1
-        suffix = f"_{counts[label]}" if counts[label] > 1 else ""
-        parts.append(f"{label}{suffix}={value}")
-    return " | ".join(parts)
+def _looks_like_header_continuation_row(first_row: list[str], second_row: list[str]) -> bool:
+    first_non_empty = [cell.strip() for cell in first_row if cell.strip()]
+    second_non_empty = [cell.strip() for cell in second_row if cell.strip()]
+    if not first_non_empty or not second_non_empty:
+        return False
+    if _row_looks_like_numeric_payload(second_non_empty):
+        return False
+    first_has_duplicate_labels = len(set(first_non_empty)) < len(first_non_empty)
+    second_short_label_count = sum(1 for cell in second_non_empty if len(cell) <= 8)
+    return first_has_duplicate_labels and second_short_label_count == len(second_non_empty)
+
+
+def _row_looks_like_numeric_payload(cells: list[str]) -> bool:
+    numeric_like = 0
+    for cell in cells:
+        normalized = normalize_handbook_body_text(cell)
+        if not normalized:
+            continue
+        if LIST_ENTRY_PHONE_RE.search(normalized) or re.search(r"\d", normalized):
+            numeric_like += 1
+    return numeric_like >= max(1, len(cells) // 2)
+
+
+def _build_table_column_paths(header_rows: tuple[tuple[str, ...], ...]) -> tuple[str, ...]:
+    width = max((len(row) for row in header_rows), default=0)
+    column_paths: list[str] = []
+    for column_index in range(width):
+        parts: list[str] = []
+        for header_row in header_rows:
+            if column_index >= len(header_row):
+                continue
+            label = normalize_handbook_body_text(header_row[column_index])
+            if not label:
+                continue
+            if not parts or parts[-1] != label:
+                parts.append(label)
+        column_paths.append(" / ".join(parts) if parts else "未命名列")
+    return tuple(column_paths)
 
 
 class _HtmlTableMatrixParser(HTMLParser):

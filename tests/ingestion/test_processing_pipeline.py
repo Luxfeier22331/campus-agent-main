@@ -34,7 +34,7 @@ def _make_registry_record() -> DocumentRegistryRecord:
         status="active",
         ingestion_timestamp="2026-03-22T10:00:00+00:00",
         parser_version="campusrag-import-v1",
-        embedding_model="text-embedding-3-large",
+        embedding_model="Qwen3-Embedding-4B",
         source_channel="pdf_ocr",
         document_units_object_key=build_processed_artifact_key(
             corpus="regulations",
@@ -340,7 +340,7 @@ class ProcessingPipelineTest(unittest.TestCase):
             status="active",
             ingestion_timestamp="2026-03-23T10:00:00+00:00",
             parser_version="paddleocr-vl-1.5",
-            embedding_model="text-embedding-3-large",
+            embedding_model="Qwen3-Embedding-4B",
             source_channel="pdf_ocr",
             raw_asset=RawAssetRef(
                 raw_asset_id="asset:student-handbook-master-pdf",
@@ -379,13 +379,13 @@ class ProcessingPipelineTest(unittest.TestCase):
             embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
         )
 
-        self.assertEqual(len(chunks), 3)
+        self.assertEqual(len(chunks), 2)
         self.assertTrue(all(chunk.document_id == cleanup_result.doc_id for chunk in chunks))
         self.assertTrue(all(chunk.revision_track == "source-faithful" for chunk in chunks))
         self.assertTrue(all(chunk.version_id == cleanup_result.version_id for chunk in chunks))
         self.assertEqual(
             {chunk.metadata["unit_type"] for chunk in chunks},
-            {"article_body", "table_row"},
+            {"article_body", "table_unit"},
         )
         self.assertTrue(all(1 <= int(chunk.anchor["page_start"]) <= 2 for chunk in chunks))
 
@@ -421,7 +421,7 @@ class ProcessingPipelineTest(unittest.TestCase):
             status="active",
             ingestion_timestamp="2026-03-23T10:00:00+00:00",
             parser_version="paddleocr-vl-1.5",
-            embedding_model="text-embedding-3-large",
+            embedding_model="Qwen3-Embedding-4B",
             source_channel="pdf_ocr",
             raw_asset=RawAssetRef(
                 raw_asset_id="asset:student-handbook-master-pdf",

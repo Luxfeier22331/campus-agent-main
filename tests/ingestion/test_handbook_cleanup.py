@@ -83,6 +83,28 @@ def _load_fixture_rows(fixture_name: str) -> list[dict[str, object]]:
 
 
 class HandbookCleanupTest(unittest.TestCase):
+    def test_cleanup_merges_broken_structural_line_continuations(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(30, "heading", "中央民族大学本科学生专业奖学金评定办法", block_role="title", title_candidate_score=1.0),
+                _source_row(30, "paragraph", "第六条 所评学年有下列情况之一者,不得参评本科学生专业奖学金:"),
+                _source_row(30, "paragraph", "(二)所评学年所修各门课程有不及格或体质测试评定不合"),
+                _source_row(30, "paragraph", "格的;"),
+            ],
+            manifest_document=_manifest_document(
+                30,
+                30,
+                title="中央民族大学本科学生专业奖学金评定办法",
+                handbook_section="中央民族大学学生奖励管理规定",
+            ),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        article_units = [row for row in result.document_units if row["unit_type"] == "article_body"]
+        self.assertEqual(len(article_units), 1)
+        self.assertIn("不合格的;", article_units[0]["clean_text"])
+        self.assertNotIn("不合\n格的;", article_units[0]["clean_text"])
+
     def test_cleanup_projects_manifest_range_without_cross_document_bleed(self) -> None:
         result = cleanup_handbook_document(
             structured_rows=[
@@ -245,7 +267,7 @@ class HandbookCleanupTest(unittest.TestCase):
         self.assertNotIn("等级", article_units[0]["clean_text"])
         self.assertEqual(table_units[0]["table_cells"], [["项目", "说明"], ["等级", "一等奖"]])
 
-    def test_cleanup_normalizes_table_rows_with_rowspan_from_html(self) -> None:
+    def test_cleanup_builds_table_unit_from_rowspan_html(self) -> None:
         result = cleanup_handbook_document(
             structured_rows=[
                 _source_row(20, "heading", "中央民族大学校内常用电话", block_role="title", title_candidate_score=1.0),
@@ -272,13 +294,12 @@ class HandbookCleanupTest(unittest.TestCase):
             source_doc="学生手册_2018.pdf",
         )
 
-        table_row_units = [row for row in result.document_units if row["unit_type"] == "table_row"]
+        table_unit = next(row for row in result.document_units if row["unit_type"] == "table_unit")
         self.assertEqual(
-            [row["table_cells"][0] for row in table_row_units[:3]],
+            table_unit["metadata"]["table_row_lines"],
             [
-                ["单位名称", "电话号码", "单位名称", "电话号码"],
-                ["校园110", "68932220", "研究生院(学位办)", ""],
-                ["校园110", "68932220", "办公室", "68932649"],
+                "校园110 | 68932220 | 研究生院(学位办) | ",
+                "校园110 | 68932220 | 办公室 | 68932649",
             ],
         )
 
@@ -307,7 +328,7 @@ class HandbookCleanupTest(unittest.TestCase):
         self.assertEqual(stable.doc_id, updated.doc_id)
         self.assertNotEqual(stable.version_id, updated.version_id)
 
-    def test_cleanup_pads_table_rows_to_header_width(self) -> None:
+    def test_cleanup_pads_table_unit_rows_to_header_width(self) -> None:
         result = cleanup_handbook_document(
             structured_rows=[
                 _source_row(21, "heading", "中央民族大学校内常用电话", block_role="title", title_candidate_score=1.0),
@@ -326,37 +347,38 @@ class HandbookCleanupTest(unittest.TestCase):
             source_doc="学生手册_2018.pdf",
         )
 
-        table_row_units = [row for row in result.document_units if row["unit_type"] == "table_row"]
-        self.assertEqual(table_row_units[1]["table_cells"][0], ["学生处(学生工作部)", "保卫武装部", "", ""])
+        table_unit = next(row for row in result.document_units if row["unit_type"] == "table_unit")
         self.assertEqual(
-            table_row_units[1]["clean_text"],
-            "单位名称=学生处(学生工作部) | 电话号码=保卫武装部 | 单位名称_2= | 电话号码_2=",
+            table_unit["metadata"]["table_row_lines"],
+            ["学生处(学生工作部) | 保卫武装部 |  | "],
         )
 
-    def test_cleanup_uses_header_labels_for_table_row_clean_text_when_available(self) -> None:
+    def test_cleanup_builds_compound_header_line_for_table_unit_when_needed(self) -> None:
         result = cleanup_handbook_document(
             structured_rows=[
-                _source_row(22, "heading", "中央民族大学校内常用电话", block_role="title", title_candidate_score=1.0),
+                _source_row(22, "heading", "中央民族大学本科学生综合素质测评办法", block_role="title", title_candidate_score=1.0),
                 _source_row(
                     22,
                     "table",
                     "表格文本",
                     block_role="table",
                     table_cells=[
-                        ["单位名称", "电话号码", "单位名称", "电话号码"],
-                        ["校园110", "68932220", "研究生院(学位办)", ""],
+                        ["奖项级别", "国家级", "国家级", "省部级", "省部级"],
+                        ["奖项级别", "个人", "集体", "个人", "集体"],
+                        ["第一名(一等奖)", "1.7", "1.5", "1.1", "1.1"],
                     ],
                 ),
             ],
-            manifest_document=_manifest_document(22, 22, title="中央民族大学校内常用电话"),
+            manifest_document=_manifest_document(22, 22, title="中央民族大学本科学生综合素质测评办法"),
             source_doc="学生手册_2018.pdf",
         )
 
-        table_row_units = [row for row in result.document_units if row["unit_type"] == "table_row"]
+        table_unit = next(row for row in result.document_units if row["unit_type"] == "table_unit")
         self.assertEqual(
-            table_row_units[1]["clean_text"],
-            "单位名称=校园110 | 电话号码=68932220 | 单位名称_2=研究生院(学位办) | 电话号码_2=",
+            table_unit["metadata"]["table_header_line"],
+            "奖项级别 | 国家级 / 个人 | 国家级 / 集体 | 省部级 / 个人 | 省部级 / 集体",
         )
+        self.assertNotIn("列=", table_unit["clean_text"])
 
     def test_cleanup_attaches_table_anchor_to_current_article_context(self) -> None:
         result = cleanup_handbook_document(
@@ -391,7 +413,7 @@ class HandbookCleanupTest(unittest.TestCase):
         self.assertEqual(table_units[0]["anchor"]["section_path"], ["第三章 考核与成绩记载"])
         self.assertEqual(table_units[0]["anchor"]["table_context"], "(一)考核成绩与绩点的关系:")
 
-    def test_cleanup_attaches_table_rows_to_current_article_context(self) -> None:
+    def test_cleanup_attaches_table_unit_to_current_article_context(self) -> None:
         result = cleanup_handbook_document(
             structured_rows=[
                 _source_row(24, "heading", "中央民族大学本科学生学籍管理办法", block_role="title", title_candidate_score=1.0),
@@ -418,10 +440,9 @@ class HandbookCleanupTest(unittest.TestCase):
             source_doc="学生手册_2018.pdf",
         )
 
-        table_row_units = [row for row in result.document_units if row["unit_type"] == "table_row"]
-        self.assertGreaterEqual(len(table_row_units), 2)
-        self.assertEqual(table_row_units[1]["anchor"]["article_label"], "第十六条")
-        self.assertEqual(table_row_units[1]["anchor"]["table_context"], "(一)考核成绩与绩点的关系:")
+        table_unit = next(row for row in result.document_units if row["unit_type"] == "table_unit")
+        self.assertEqual(table_unit["anchor"]["article_label"], "第十六条")
+        self.assertEqual(table_unit["anchor"]["table_context"], "(一)考核成绩与绩点的关系:")
 
     def test_cleanup_preserves_nested_section_path_for_article_units(self) -> None:
         result = cleanup_handbook_document(
@@ -832,7 +853,7 @@ class HandbookCleanupTest(unittest.TestCase):
         self.assertEqual(policy_units[3]["anchor"]["section_path"], ["后勤产业集团"])
         self.assertIn("公寓管理部 68933547", policy_units[3]["clean_text"])
 
-    def test_cleanup_keeps_original_table_rows_when_projecting_phone_table_semantics(self) -> None:
+    def test_cleanup_keeps_original_table_unit_when_projecting_phone_table_semantics(self) -> None:
         result = cleanup_handbook_document(
             structured_rows=[
                 _source_row(261, "heading", "中央民族大学校内常用电话", block_role="title", title_candidate_score=1.0),
@@ -858,7 +879,8 @@ class HandbookCleanupTest(unittest.TestCase):
         )
 
         self.assertTrue(any(row["unit_type"] == "table" for row in result.document_units))
-        self.assertTrue(any(row["unit_type"] == "table_row" for row in result.document_units))
+        self.assertTrue(any(row["unit_type"] == "table_unit" for row in result.document_units))
+        self.assertFalse(any(row["unit_type"] == "table_row" for row in result.document_units))
 
 
 if __name__ == "__main__":

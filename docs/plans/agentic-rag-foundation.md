@@ -375,13 +375,16 @@ feature worktree 环境规则：
 - 基于导入的 OCR/processed 结果建立规范化处理流程。
 - 第一阶段允许直接消费已有 OCR 文本，不要求重新做 OCR。
 - 第一阶段将 `student_handbook` chunking / cleaning policy 冻结为 runtime truth，而不是开放 env 级参数调节：
-  - `target_tokens = 240`
-  - `max_tokens = 360`
-  - `overlap_tokens = 48`
-  - `min_tokens = 40`
+  - `target_tokens = 384`
+  - `max_tokens = 512`
+  - `overlap_tokens = 64`
+  - `min_tokens = 96`
+  - `safety_margin_tokens = 16`
   - `split_strategy = structure_first`
-  - `chunk_policy_version = student_handbook_semantic_v1`
+  - `chunk_policy_version = student_handbook_semantic_v3`
   - `cleaning_policy_version = student_handbook_cleaning_v1`
+  - 预算以最终 contextualized chunk text 为准，必须把标题/章节/条款等 header 计入同一预算
+  - `Qwen3-Embedding-4B` tokenizer 是 handbook chunk budgeting 的唯一真相源
 - handbook 结构化单元固定为 `article_body`、`policy_page`、`table`、`table_row`
 - parent unit 中的原始 HTML table 必须移除并替换为占位文本；表格证据通过 `table` / `table_row` 单元保留
 - ingestion-core 负责按冻结策略生成 chunks，并把 metadata 写入后续 `LlamaIndex/Qdrant` 检索路径

@@ -20,7 +20,7 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertTrue(profile.retrieval_enabled)
         self.assertTrue(profile.default_query_enabled)
         self.assertEqual(profile.cleaning_policy_version, "student_handbook_cleaning_v1")
-        self.assertEqual(profile.chunk_profile_version, "student_handbook_semantic_v2")
+        self.assertEqual(profile.chunk_profile_version, "student_handbook_semantic_v3")
 
     def test_load_curriculum_plan_runtime_profile(self) -> None:
         profile = load_runtime_profile("curriculum", "curriculum_plan")

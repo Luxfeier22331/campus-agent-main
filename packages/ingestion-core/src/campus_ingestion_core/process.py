@@ -13,8 +13,14 @@ from qdrant_client.http import models as qdrant_models
 
 from campus_ingestion_core.chunking import (
     ChunkProfile,
+    ChunkTextAssembly,
+    ChunkTextContextPlan,
     StructuredUnitChunkInput,
+    TABLE_UNIT_TYPES,
+    assemble_chunk_text,
     build_student_handbook_chunk_profile,
+    build_chunk_text_context,
+    chunk_table_unit,
     chunk_structured_unit,
 )
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
@@ -116,26 +122,41 @@ def build_indexable_chunks_from_jsonl(
     units = _load_structured_units(record=record, structured_jsonl_bytes=structured_jsonl_bytes)
     if not units:
         return ()
-    table_roots_with_rows = {
+    table_roots_with_semantic_units = {
         unit.root_unit_id
         for unit in units
-        if unit.unit_type == "table_row"
+        if unit.unit_type in {"table_row", "table_unit"}
     }
 
     chunks: list[IndexableChunk] = []
     chunk_order = 0
     for unit in units:
-        if unit.unit_type == "table" and unit.root_unit_id in table_roots_with_rows:
+        if unit.unit_type == "table" and unit.root_unit_id in table_roots_with_semantic_units:
             continue
+        context_plan = build_chunk_text_context(anchor=unit.anchor, metadata=unit.metadata)
         if record.collection == "curriculum_plan":
             pieces = chunk_curriculum_unit(unit=unit, chunk_profile=runtime_profile)
-        else:
-            pieces = chunk_structured_unit(
+        elif unit.unit_type == "table_unit":
+            pieces = chunk_table_unit(
                 unit=StructuredUnitChunkInput(
                     unit_type=unit.unit_type,
                     root_unit_id=unit.root_unit_id,
                     text=unit.text,
+                    anchor=unit.anchor,
+                    metadata=unit.metadata,
                 ),
+                chunk_profile=runtime_profile,
+            )
+        else:
+            chunk_input = StructuredUnitChunkInput(
+                unit_type=unit.unit_type,
+                root_unit_id=unit.root_unit_id,
+                text=unit.text,
+                anchor=unit.anchor,
+                metadata=unit.metadata,
+            )
+            pieces = chunk_structured_unit(
+                unit=chunk_input,
                 chunk_profile=runtime_profile,
             )
         for piece in pieces:
@@ -143,8 +164,21 @@ def build_indexable_chunks_from_jsonl(
             chunk_id = (
                 f"{record.document_id}:{record.revision_track}:{record.version_id}:chunk-{chunk_order:04d}"
             )
-            retrieval_text = _build_chunk_text(unit=unit, piece=piece, chunk_profile=runtime_profile)
-            embedding = _embed_text(retrieval_text, embedding_model)
+            chunk_assembly = _build_chunk_text(
+                unit=unit,
+                piece=piece,
+                chunk_profile=runtime_profile,
+                context_plan=context_plan,
+            )
+            if (
+                piece.unit_type not in TABLE_UNIT_TYPES
+                and chunk_assembly.total_token_count > runtime_profile.max_chunk_size
+            ):
+                raise ValueError(
+                    f"chunk text exceeds max_chunk_size after contextualization: "
+                    f"{chunk_assembly.total_token_count} > {runtime_profile.max_chunk_size}"
+                )
+            embedding = _embed_text(chunk_assembly.text, embedding_model)
             chunks.append(
                 IndexableChunk(
                     document_id=record.document_id,
@@ -163,7 +197,7 @@ def build_indexable_chunks_from_jsonl(
                         document_acl_groups=record.acl_groups,
                     ),
                     anchor=unit.anchor,
-                    text=retrieval_text,
+                    text=chunk_assembly.text,
                     source_channel=record.source_channel,
                     is_current=record.is_current,
                     parser_version=record.parser_version,
@@ -182,7 +216,11 @@ def build_indexable_chunks_from_jsonl(
                         "cleaning_policy_version": runtime_profile.cleaning_policy_version,
                         **unit.metadata,
                         "display_text": piece.text,
-                        "contextualized_text": retrieval_text != piece.text,
+                        "contextualized_text": chunk_assembly.header_token_count > 0,
+                        "header_mode": chunk_assembly.header_mode,
+                        "header_token_count": chunk_assembly.header_token_count,
+                        "display_token_count": chunk_assembly.display_token_count,
+                        "final_token_count": chunk_assembly.total_token_count,
                     },
                 )
             )
@@ -362,95 +400,25 @@ def _build_chunk_text(
     unit: StructuredUnit,
     piece: StructuredUnitChunkInput | object,
     chunk_profile: ChunkProfile,
-) -> str:
+    context_plan: ChunkTextContextPlan | None = None,
+) -> ChunkTextAssembly:
     display_text = getattr(piece, "text", "")
     if not isinstance(display_text, str) or not display_text.strip():
-        return ""
-
-    title = unit.metadata.get("title")
-    policy_doc_no = unit.metadata.get("policy_doc_no")
-    preface_text = unit.metadata.get("preface_text")
-    has_document_context = any(
-        isinstance(value, str) and value.strip()
-        for value in (title, policy_doc_no, preface_text)
+        return assemble_chunk_text(
+            display_text="",
+            context_plan=build_chunk_text_context(),
+            chunk_profile=chunk_profile,
+        )
+    runtime_context_plan = (
+        context_plan
+        if context_plan is not None
+        else build_chunk_text_context(anchor=unit.anchor, metadata=unit.metadata)
     )
-    if not has_document_context:
-        return display_text
-
-    section_path = unit.anchor.get("section_path")
-    normalized_section_path = (
-        [str(item).strip() for item in section_path if str(item).strip()]
-        if isinstance(section_path, list)
-        else []
+    return assemble_chunk_text(
+        display_text=display_text,
+        context_plan=runtime_context_plan,
+        chunk_profile=chunk_profile,
     )
-    article_label = unit.anchor.get("article_label")
-    provision_label = unit.anchor.get("provision_label")
-    table_context = unit.anchor.get("table_context")
-    title_text = title.strip() if isinstance(title, str) and title.strip() else None
-    doc_no_text = policy_doc_no.strip() if isinstance(policy_doc_no, str) and policy_doc_no.strip() else None
-    article_text = article_label.strip() if isinstance(article_label, str) and article_label.strip() else None
-    provision_text = provision_label.strip() if isinstance(provision_label, str) and provision_label.strip() else None
-    table_text = table_context.strip() if isinstance(table_context, str) and table_context.strip() else None
-
-    header_candidates: list[str] = []
-    full_header_parts: list[str] = []
-    if title_text:
-        full_header_parts.append(f"标题：{title_text}")
-    if normalized_section_path:
-        full_header_parts.append(f"章节：{' > '.join(normalized_section_path)}")
-    if article_text:
-        full_header_parts.append(f"条款：{article_text}")
-    elif provision_text:
-        full_header_parts.append(f"款项：{provision_text}")
-    elif table_text:
-        full_header_parts.append(f"表格：{table_text}")
-    if full_header_parts:
-        header_candidates.append(" | ".join(full_header_parts))
-
-    compact_header_parts: list[str] = []
-    if title_text:
-        compact_header_parts.append(f"标题：{title_text}")
-    if normalized_section_path:
-        compact_header_parts.append(f"章节：{normalized_section_path[-1]}")
-    if article_text:
-        compact_header_parts.append(f"条款：{article_text}")
-    elif provision_text:
-        compact_header_parts.append(f"款项：{provision_text}")
-    elif table_text:
-        compact_header_parts.append(f"表格：{table_text}")
-    compact_header = " | ".join(compact_header_parts)
-    if compact_header and compact_header not in header_candidates:
-        header_candidates.append(compact_header)
-
-    compact_identity_parts: list[str] = []
-    if title_text:
-        compact_identity_parts.append(title_text)
-    if normalized_section_path:
-        compact_identity_parts.append(normalized_section_path[-1])
-    if article_text:
-        compact_identity_parts.append(article_text)
-    elif provision_text:
-        compact_identity_parts.append(provision_text)
-    elif table_text:
-        compact_identity_parts.append(table_text)
-    compact_identity = " / ".join(compact_identity_parts)
-    if compact_identity and compact_identity not in header_candidates:
-        header_candidates.append(compact_identity)
-
-    if not normalized_section_path and title_text and title_text not in header_candidates:
-        header_candidates.append(title_text)
-
-    optional_lines = [f"文号：{doc_no_text}"] if doc_no_text else []
-    for header_line in header_candidates:
-        candidate_lines = [header_line, *optional_lines, display_text]
-        candidate_text = "\n".join(line for line in candidate_lines if line)
-        if chunk_profile.count_tokens(candidate_text) <= chunk_profile.max_chunk_size:
-            return candidate_text
-        if optional_lines:
-            fallback_text = "\n".join([header_line, display_text])
-            if chunk_profile.count_tokens(fallback_text) <= chunk_profile.max_chunk_size:
-                return fallback_text
-    return "\n".join([header_candidates[-1], display_text]) if header_candidates else display_text
 
 
 def _embed_text(text: str, embedding_model: BaseEmbedding | None) -> tuple[float, ...] | None:

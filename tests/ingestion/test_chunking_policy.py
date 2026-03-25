@@ -9,8 +9,10 @@ from campus_ingestion_core.chunking import (
     DEFAULT_CLEANING_POLICY_VERSION,
     DEFAULT_MAX_CHUNK_SIZE,
     DEFAULT_MIN_CHUNK_SIZE,
+    HANDBOOK_V3_CHUNK_POLICY_VERSION,
     TABLE_PLACEHOLDER,
     ChunkProfile,
+    RegexApproxTokenCounter,
     StructuredUnitChunkInput,
     StudentHandbookChunkingStrategy,
     StudentHandbookChunkingStrategyV2,
@@ -22,7 +24,7 @@ from campus_ingestion_core.chunking import (
 
 
 class ChunkingPolicyTest(unittest.TestCase):
-    def test_default_profile_matches_current_phase1_student_handbook_runtime_truth(self) -> None:
+    def test_default_profile_matches_legacy_v1_budget_defaults(self) -> None:
         profile = ChunkProfile()
 
         self.assertEqual(profile.chunk_size, DEFAULT_CHUNK_SIZE)
@@ -66,6 +68,22 @@ class ChunkingPolicyTest(unittest.TestCase):
         self.assertEqual(profile.chunk_policy_version, "student_handbook_semantic_v2")
         self.assertIn("Qwen3-Embedding-4B", profile.tokenizer_name)
 
+    def test_build_student_handbook_chunk_profile_v3_uses_qwen_tokenizer_and_final_text_budgeting(self) -> None:
+        profile = build_student_handbook_chunk_profile(
+            profile_version=HANDBOOK_V3_CHUNK_POLICY_VERSION,
+            model_name="Qwen3-Embedding-4B",
+        )
+
+        self.assertEqual(profile.chunk_size, 384)
+        self.assertEqual(profile.max_chunk_size, 512)
+        self.assertEqual(profile.chunk_overlap, 64)
+        self.assertEqual(profile.min_chunk_size, 96)
+        self.assertEqual(profile.chunk_policy_version, HANDBOOK_V3_CHUNK_POLICY_VERSION)
+        self.assertTrue(profile.final_text_aware)
+        self.assertEqual(profile.safety_margin, 16)
+        self.assertEqual(profile.strategy_name, "student_handbook_structure_v3")
+        self.assertEqual(profile.tokenizer_name, "hf:Qwen/Qwen3-Embedding-4B")
+
     def test_clean_structured_text_strips_parent_html_table_and_keeps_placeholder(self) -> None:
         cleaned = clean_structured_text(
             unit_type="article_body",
@@ -94,6 +112,32 @@ class ChunkingPolicyTest(unittest.TestCase):
         self.assertEqual(pieces[0].segment_index, 1)
         self.assertEqual(pieces[0].segment_total, 1)
         self.assertIsNone(pieces[0].split_reason)
+
+    def test_table_unit_splits_by_row_window_when_body_rows_exceed_budget(self) -> None:
+        unit = StructuredUnitChunkInput(
+            unit_type="table_unit",
+            root_unit_id="table-001",
+            text="表格上下文: 奖励标准\n等级 | 分数\n优 | 90-100",
+            metadata={
+                "table_header_line": "等级 | 分数",
+                "table_row_lines": [
+                    "优秀一等奖 | " + "甲" * 40,
+                    "优秀二等奖 | " + "乙" * 40,
+                    "优秀三等奖 | " + "丙" * 40,
+                ],
+                "caption_lines": ["表格上下文: 奖励标准"],
+            },
+        )
+
+        pieces = chunk_structured_unit(
+            unit=unit,
+            chunk_profile=ChunkProfile(chunk_size=50, max_chunk_size=80, chunk_overlap=8, min_chunk_size=20),
+        )
+
+        self.assertGreater(len(pieces), 1)
+        self.assertTrue(all(piece.unit_type == "table_unit" for piece in pieces))
+        self.assertTrue(all(piece.split_reason == "table_row_window" for piece in pieces))
+        self.assertTrue(all("等级 | 分数" in piece.text for piece in pieces))
 
     def test_article_body_splits_oversized_text_with_runtime_metadata(self) -> None:
         unit = StructuredUnitChunkInput(
@@ -270,6 +314,88 @@ class ChunkingPolicyTest(unittest.TestCase):
         self.assertGreater(len(pieces), 2)
         self.assertTrue(all(piece.split_reason == "token_guardrail" for piece in pieces))
         self.assertTrue(all(estimate_token_count(piece.text) <= 25 for piece in pieces))
+
+    def test_token_guardrail_restart_aligns_to_latest_boundary_within_overlap(self) -> None:
+        unit = StructuredUnitChunkInput(
+            unit_type="policy_page",
+            root_unit_id="policy-page-005",
+            text="\n".join(f"{index}. 甲乙丙丁。" for index in range(1, 9)),
+        )
+
+        pieces = chunk_structured_unit(
+            unit=unit,
+            chunk_profile=ChunkProfile(
+                chunk_size=28,
+                max_chunk_size=35,
+                chunk_overlap=15,
+                min_chunk_size=8,
+                strategy=None,
+                strategy_name="generic_token_budget",
+            ),
+        )
+
+        self.assertGreaterEqual(len(pieces), 2)
+        self.assertEqual(pieces[0].text.splitlines()[0], "1. 甲乙丙丁。")
+        self.assertTrue(pieces[1].text.startswith("5. 甲乙丙丁。"))
+
+    def test_structure_boundary_prefers_target_budget_over_max_budget_when_grouping_clauses(self) -> None:
+        lines = [f"({marker}) " + " ".join(f"甲{index}" for index in range(18)) for marker in ("一", "二", "三", "四", "五")]
+        pieces = chunk_structured_unit(
+            unit=StructuredUnitChunkInput(
+                unit_type="article_body",
+                root_unit_id="article-008",
+                text="\n".join(lines),
+            ),
+            chunk_profile=ChunkProfile(
+                chunk_size=48,
+                max_chunk_size=80,
+                chunk_overlap=8,
+                min_chunk_size=16,
+                chunk_policy_version="student_handbook_semantic_v2",
+                strategy_name="student_handbook_structure_v2",
+                strategy=StudentHandbookChunkingStrategyV2(),
+            ),
+        )
+
+        self.assertGreaterEqual(len(pieces), 3)
+        self.assertTrue(all(piece.split_reason == "structure_boundary" for piece in pieces))
+        self.assertTrue(all(piece.boundary_rule == "clause_block" for piece in pieces))
+        self.assertTrue(all(estimate_token_count(piece.text) <= 64 for piece in pieces[:-1]))
+
+    def test_final_text_aware_budget_splits_when_required_header_consumes_budget(self) -> None:
+        unit = StructuredUnitChunkInput(
+            unit_type="article_body",
+            root_unit_id="article-007",
+            text="甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉",
+            anchor={
+                "section_path": ["学生管理规定", "课堂纪律"],
+                "article_label": "第十六条",
+            },
+            metadata={
+                "title": "中央民族大学学生课堂行为规范及课堂秩序管理办法",
+                "policy_doc_no": "民大校发〔2007〕282号",
+            },
+        )
+
+        pieces = chunk_structured_unit(
+            unit=unit,
+            chunk_profile=ChunkProfile(
+                chunk_size=24,
+                max_chunk_size=48,
+                chunk_overlap=4,
+                min_chunk_size=8,
+                chunk_policy_version=HANDBOOK_V3_CHUNK_POLICY_VERSION,
+                strategy_name="student_handbook_structure_v3",
+                strategy=StudentHandbookChunkingStrategyV2(),
+                token_counter=RegexApproxTokenCounter(name="regex_test"),
+                tokenizer_name="regex_test",
+                final_text_aware=True,
+                safety_margin=4,
+            ),
+        )
+
+        self.assertGreater(len(pieces), 1)
+        self.assertTrue(all(piece.split_reason == "token_guardrail" for piece in pieces))
 
     def test_policy_page_falls_back_to_token_guardrail_when_roster_lines_exceed_max_chunk_size(self) -> None:
         lines = [

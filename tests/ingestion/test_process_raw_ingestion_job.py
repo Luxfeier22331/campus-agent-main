@@ -369,7 +369,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                     "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
                     "IMPORT_REPORT_DIR": str(root / "reports"),
-                    "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
+                    "INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 object_store=object_store,
                 online_ocr=online_ocr,
@@ -421,7 +421,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                         "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                         "OBJECT_STORE_SECRET_KEY": "minioadmin",
                         "IMPORT_REPORT_DIR": str(root / "reports"),
-                        "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
+                        "INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                     },
                     object_store=object_store,
                     online_ocr=_FakeOnlineOcrClient(),
@@ -498,7 +498,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                     "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
                     "IMPORT_REPORT_DIR": str(root / "reports"),
-                    "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
+                    "INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 object_store=object_store,
                 online_ocr=online_ocr,
@@ -563,8 +563,8 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             self.assertEqual(discipline_record["cleaning_policy_version"], "student_handbook_cleaning_v1")
             self.assertEqual(scholarship_record["parser_version"], "paddleocr-vl-1.5")
             self.assertEqual(discipline_record["parser_version"], "paddleocr-vl-1.5")
-            self.assertEqual(scholarship_record["embedding_model"], "text-embedding-3-large")
-            self.assertEqual(discipline_record["embedding_model"], "text-embedding-3-large")
+            self.assertEqual(scholarship_record["embedding_model"], "Qwen3-Embedding-4B")
+            self.assertEqual(discipline_record["embedding_model"], "Qwen3-Embedding-4B")
 
     def test_process_raw_ingestion_job_persists_handbook_document_artifact_keys_under_year_namespace(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -606,7 +606,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                     "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
                     "IMPORT_REPORT_DIR": str(root / "reports"),
-                    "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
+                    "INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 object_store=object_store,
                 online_ocr=_FixtureOnlineOcrClient("provider-result-stable.jsonl"),
@@ -682,7 +682,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                     "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
                     "IMPORT_REPORT_DIR": str(root / "reports"),
-                    "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
+                    "INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 object_store=object_store,
                 online_ocr=_FixtureOnlineOcrClient("provider-result-stable.jsonl"),
@@ -711,7 +711,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             self.assertTrue(all(chunk.metadata["root_unit_id"] for chunk in chunks))
             self.assertTrue(all(chunk.metadata["segment_index"] >= 1 for chunk in chunks))
             self.assertTrue(all(chunk.metadata["segment_total"] >= 1 for chunk in chunks))
-            self.assertTrue(all(chunk.metadata["chunk_policy_version"] == "student_handbook_semantic_v1" for chunk in chunks))
+            self.assertTrue(all(chunk.metadata["chunk_policy_version"] == "student_handbook_semantic_v3" for chunk in chunks))
             self.assertTrue(all(chunk.metadata["cleaning_policy_version"] == "student_handbook_cleaning_v1" for chunk in chunks))
 
     def test_process_raw_ingestion_job_rejects_split_manifest_with_mismatched_raw_asset_id(self) -> None:
@@ -772,7 +772,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                         "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                         "OBJECT_STORE_SECRET_KEY": "minioadmin",
                         "IMPORT_REPORT_DIR": str(root / "reports"),
-                        "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
+                        "INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                     },
                     object_store=object_store,
                     online_ocr=_StudentHandbookNormalizedFakeOnlineOcrClient(),
@@ -846,7 +846,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                     "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
                     "IMPORT_REPORT_DIR": str(root / "reports"),
-                    "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
+                    "INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 object_store=object_store,
                 online_ocr=_StudentHandbookNormalizedFakeOnlineOcrClient(),
@@ -905,7 +905,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                 "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                 "OBJECT_STORE_SECRET_KEY": "minioadmin",
                 "IMPORT_REPORT_DIR": str(root / "reports"),
-                "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
+                "INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
 
             first = process_raw_ingestion_job(
@@ -994,7 +994,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                     "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
                     "IMPORT_REPORT_DIR": str(root / "reports"),
-                    "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
+                    "INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 object_store=object_store,
                 online_ocr=_FixtureOnlineOcrClient("provider-result-stable.jsonl"),
@@ -1012,7 +1012,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                     "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
                     "IMPORT_REPORT_DIR": str(root / "reports"),
-                    "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
+                    "INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 object_store=object_store,
                 online_ocr=_FixtureOnlineOcrClient("provider-result-updated.jsonl"),
@@ -1070,7 +1070,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                 "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                 "OBJECT_STORE_SECRET_KEY": "minioadmin",
                 "IMPORT_REPORT_DIR": str(root / "reports"),
-                "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
+                "INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
             registry = FileDocumentRegistry(root / "registry" / "student_handbook_documents.json")
             raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
@@ -1229,7 +1229,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                     "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
                     "IMPORT_REPORT_DIR": str(root / "reports"),
-                    "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
+                    "INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 object_store=object_store,
                 online_ocr=online_ocr,
@@ -1543,7 +1543,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                         "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                         "OBJECT_STORE_SECRET_KEY": "minioadmin",
                         "IMPORT_REPORT_DIR": str(root / "reports"),
-                        "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
+                        "INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                     },
                     object_store=object_store,
                     online_ocr=online_ocr,
@@ -1581,7 +1581,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                         "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                         "OBJECT_STORE_SECRET_KEY": "minioadmin",
                         "IMPORT_REPORT_DIR": str(root / "reports"),
-                        "INGESTION_EMBEDDING_MODEL": "text-embedding-3-large",
+                        "INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                     },
                     object_store=object_store,
                     registry=FileDocumentRegistry(root / "registry" / "student_handbook_documents.json"),
