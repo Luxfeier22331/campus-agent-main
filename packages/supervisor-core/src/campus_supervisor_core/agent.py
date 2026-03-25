@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable
 
-from campus_contracts import DelegateToRagAgentRequest, DelegateToRagAgentResponse
+from campus_contracts import SpecialistRequest, SpecialistResponse, SpecialistTarget
 from campus_rag_specialist import delegate_to_rag_agent
 
 from campus_supervisor_core.context import SupervisorRequestContext
@@ -12,18 +12,25 @@ from campus_supervisor_core.response import assemble_response
 from campus_supervisor_core.routing import route_request
 
 
-SpecialistDelegate = Callable[[DelegateToRagAgentRequest], DelegateToRagAgentResponse]
+SpecialistDelegate = Callable[[SpecialistRequest], SpecialistResponse]
+
+
+def _default_specialist_delegates() -> dict[SpecialistTarget, SpecialistDelegate]:
+    return {"rag-specialist": delegate_to_rag_agent}
 
 
 @dataclass(slots=True)
 class SupervisorAgent:
-    specialist_delegate: SpecialistDelegate = delegate_to_rag_agent
+    specialist_delegates: dict[SpecialistTarget, SpecialistDelegate] = field(
+        default_factory=_default_specialist_delegates
+    )
 
-    def handle(self, request: DelegateToRagAgentRequest) -> DelegateToRagAgentResponse:
+    def handle(self, request: SpecialistRequest) -> SpecialistResponse:
         context = SupervisorRequestContext.from_request(request)
         decision = route_request(context)
-        if decision.target != "rag-specialist":
-            raise ValueError(f"unsupported specialist target: {decision.target}")
-        specialist_response = self.specialist_delegate(context.request)
+        delegate = self.specialist_delegates.get(decision.target)
+        if delegate is None:
+            raise ValueError(f"missing delegate for specialist target: {decision.target}")
+        specialist_response = delegate(context.request)
         finalized_response = finalize_specialist_response(specialist_response)
         return assemble_response(finalized_response)

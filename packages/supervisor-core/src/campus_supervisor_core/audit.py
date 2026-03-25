@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from campus_contracts import DelegateToRagAgentRequest, DelegateToRagAgentResponse
+from campus_contracts import SpecialistRequest, SpecialistResponse
 from campus_contracts.models import DelegateStatus
 
 from campus_supervisor_core.response import source_doc_ids_from_response
@@ -18,8 +18,8 @@ class SupervisorAuditRecord:
 
 
 def build_audit_record(
-    request: DelegateToRagAgentRequest,
-    response: DelegateToRagAgentResponse,
+    request: SpecialistRequest,
+    response: SpecialistResponse,
 ) -> SupervisorAuditRecord:
     return SupervisorAuditRecord(
         request_id=request.request_id,
