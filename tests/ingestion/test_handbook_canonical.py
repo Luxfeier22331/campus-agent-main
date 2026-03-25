@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from itertools import count
 from pathlib import Path
 import unittest
 import unicodedata
@@ -10,6 +11,7 @@ from campus_ingestion_core.handbook_provider_normalize import normalize_handbook
 from campus_ingestion_core.split_manifest import SplitManifestDocument
 
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "student_handbook"
+SOURCE_ROW_SEQUENCE = count(1)
 
 
 def _manifest_document(title: str, *, page_start: int = 20, page_end: int = 21) -> SplitManifestDocument:
@@ -24,6 +26,7 @@ def _manifest_document(title: str, *, page_start: int = 20, page_end: int = 21) 
 
 
 def _source_row(page: int, row_type: str, text: str, *, block_role: str | None = None) -> dict[str, object]:
+    sequence = next(SOURCE_ROW_SEQUENCE)
     return {
         "schema_version": "student_handbook_layout_elements_v1",
         "corpus": "regulations",
@@ -32,8 +35,8 @@ def _source_row(page: int, row_type: str, text: str, *, block_role: str | None =
         "source_pdf": "学生手册_2018.pdf",
         "page_start": page,
         "page_end": page,
-        "row_id": f"row-{page}-{row_type}",
-        "row_index": page,
+        "row_id": f"row-{page}-{sequence:04d}-{row_type}",
+        "row_index": sequence,
         "ocr_provider": "paddleocr_async",
         "ocr_model": "PaddleOCR-VL-1.5",
         "provider_page_id": page,
@@ -43,7 +46,7 @@ def _source_row(page: int, row_type: str, text: str, *, block_role: str | None =
         "row_type": row_type,
         "block_role": block_role or row_type,
         "heading_level": 1 if row_type == "heading" else None,
-        "reading_order": 1,
+        "reading_order": sequence,
         "bbox": [0.0, 0.0, 100.0, 20.0],
         "text_raw": text,
         "text_normalized": text,
@@ -169,10 +172,10 @@ class HandbookCanonicalTest(unittest.TestCase):
 
         body = result.canonical_markdown.split("---\n")[-1]
         self.assertIn("# 中央民族大学本科学生学籍管理办法", body)
-        self.assertIn("民大校发[2017]304号", body)
         self.assertIn("2017年9月1日", body)
-        self.assertLess(body.index("民大校发[2017]304号"), body.index("2017年9月1日"))
+        self.assertNotIn("民大校发[2017]304号", body)
         self.assertLess(body.index("2017年9月1日"), body.index("## 第一章 总则"))
+        self.assertIn("policy_doc_no: '民大校发[2017]304号'", result.canonical_markdown)
 
     def test_fixture_update_keeps_title_hash_identity(self) -> None:
         stable = cleanup_handbook_document(

@@ -167,6 +167,30 @@ Example:
 python -m campus_ingestion_worker.process_raw_ingestion_job
 ```
 
+### `validate_student_handbook_chunking`
+
+Read-only validation shell for the real `regulations/student_handbook` chunking inputs and outputs.
+
+Required env:
+
+- `OBJECT_STORE_ENDPOINT`
+- `OBJECT_STORE_ACCESS_KEY`
+- `OBJECT_STORE_SECRET_KEY`
+- `DOCUMENT_REGISTRY_DATABASE_URL`
+
+Optional env:
+
+- `OBJECT_STORE_BUCKET_PROCESSED`
+- `INGESTION_SPLIT_MANIFEST_PATH`
+
+Behavior:
+
+- Loads the repo-tracked handbook split manifest, or `INGESTION_SPLIT_MANIFEST_PATH` when explicitly provided.
+- Reads `regulations/student_handbook` records from the document registry and selects the current `source-faithful` version per document.
+- Verifies `document-units.jsonl` exists in the processed bucket and can be converted into indexable chunks without running embeddings.
+- Reports manifest/registry drift, stale registry entries, read failures, chunk-build failures, non-table oversize chunks, and structure-first eligibility statistics.
+- Does not write MinIO, registry, or Qdrant state.
+
 ### `migrate_campus_services_canonical`
 
 Worker shell for offline-only `campus_services` canonical markdown backfill.

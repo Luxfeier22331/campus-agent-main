@@ -20,6 +20,7 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertTrue(profile.retrieval_enabled)
         self.assertTrue(profile.default_query_enabled)
         self.assertEqual(profile.cleaning_policy_version, "student_handbook_cleaning_v1")
+        self.assertEqual(profile.chunk_profile_version, "student_handbook_semantic_v2")
 
     def test_load_curriculum_plan_runtime_profile(self) -> None:
         profile = load_runtime_profile("curriculum", "curriculum_plan")
@@ -32,6 +33,7 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertFalse(profile.retrieval_enabled)
         self.assertFalse(profile.default_query_enabled)
         self.assertEqual(profile.cleaning_policy_version, "curriculum_plan_cleaning_v1")
+        self.assertEqual(profile.chunk_profile_version, "curriculum_plan_semantic_v1")
 
     def test_load_service_catalog_runtime_profile(self) -> None:
         profile = load_runtime_profile("campus_services", "service_catalog")
@@ -44,6 +46,7 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertFalse(profile.retrieval_enabled)
         self.assertFalse(profile.default_query_enabled)
         self.assertEqual(profile.cleaning_policy_version, "service_catalog_cleaning_v1")
+        self.assertEqual(profile.chunk_profile_version, "service_catalog_semantic_v1")
 
     def test_load_contact_directory_runtime_profile(self) -> None:
         profile = load_runtime_profile("campus_services", "contact_directory")
@@ -56,6 +59,7 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertFalse(profile.retrieval_enabled)
         self.assertFalse(profile.default_query_enabled)
         self.assertEqual(profile.cleaning_policy_version, "contact_directory_cleaning_v1")
+        self.assertEqual(profile.chunk_profile_version, "contact_directory_semantic_v1")
 
     def test_default_query_scopes_only_include_query_enabled_profiles(self) -> None:
         self.assertEqual(default_query_scopes(), (("regulations", "student_handbook"),))

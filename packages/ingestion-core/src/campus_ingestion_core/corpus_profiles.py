@@ -19,6 +19,7 @@ class CollectionRuntimeProfile:
     allowed_artifact_modes: tuple[str, ...]
     split_manifest_required: bool
     cleaning_policy_version: str
+    chunk_profile_version: str
     retrieval_enabled: bool
     default_query_enabled: bool
 
@@ -36,6 +37,8 @@ class CollectionRuntimeProfile:
                 raise ValueError(f"unsupported artifact mode: {mode}")
         if not self.cleaning_policy_version:
             raise ValueError("cleaning_policy_version is required")
+        if not self.chunk_profile_version:
+            raise ValueError("chunk_profile_version is required")
 
 
 def load_runtime_profile(
@@ -58,6 +61,7 @@ def load_runtime_profile(
         allowed_artifact_modes=tuple(str(item) for item in list(payload.get("allowed_artifact_modes") or [])),
         split_manifest_required=bool(payload.get("split_manifest_required")),
         cleaning_policy_version=str(payload.get("cleaning_policy_version") or ""),
+        chunk_profile_version=str(payload.get("chunk_profile_version") or ""),
         retrieval_enabled=bool(payload.get("retrieval_enabled")),
         default_query_enabled=bool(payload.get("default_query_enabled")),
     )

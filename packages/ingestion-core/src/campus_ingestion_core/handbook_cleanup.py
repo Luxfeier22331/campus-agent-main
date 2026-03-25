@@ -7,21 +7,27 @@ import json
 import re
 import unicodedata
 
+from campus_ingestion_core.handbook_structure import classify_structural_heading
 from campus_ingestion_core.split_manifest import SplitManifestDocument
 
 
 ARTICLE_PREFIX_RE = re.compile(
     r"^(?P<label>第\s*[0-9一二三四五六七八九十百千万〇零两]+\s*条)\s*(?P<rest>.*)$"
 )
-SECTION_HEADING_RE = re.compile(
-    r"^(?:第[一二三四五六七八九十百千万〇零两]+[章节编]|总则|附则|实施细则|说明).*$"
-)
-SECTION_LABEL_RE = re.compile(r"^(?P<label>第[一二三四五六七八九十百千万〇零两]+[章节编])\s*(?P<rest>.*)$")
 POLICY_DOC_NO_RE = re.compile(r"^[^\n]{0,40}(?:〔|\[)\d{4}(?:〕|\])\d+号$")
 TITLE_VARIANT_SUFFIX_RE = re.compile(r"(?:[(（](?:修订|试行|暂行)[)）]|修订|试行|暂行)$")
 LIST_ENTRY_PHONE_RE = re.compile(r"\d{5,}")
 LIST_ENTRY_TWO_FIELD_RE = re.compile(r"^[^\s，。；：！？]{1,24}\s+[^\s，。；：！？]{1,24}$")
-LIST_SECTION_RANK = 4
+INLINE_ENUMERATED_PROVISION_RE = re.compile(r"^[一二三四五六七八九十百千万〇零两]+、.+[。；！？]$")
+INLINE_ENUMERATED_HEADING_RE = re.compile(r"^[一二三四五六七八九十百千万〇零两]+、.+$")
+INLINE_ENUMERATED_LABEL_RE = re.compile(r"^(?P<label>[一二三四五六七八九十百千万〇零两]+)、(?P<body>.+)$")
+STRUCTURAL_LINE_RE = re.compile(
+    r"^(?:第\s*[0-9一二三四五六七八九十百千万〇零两]+\s*条|第[一二三四五六七八九十百千万〇零两0-9]+部分|"
+    r"第[一二三四五六七八九十百千万〇零两]+[章节编]|[一二三四五六七八九十百千万〇零两]+、|"
+    r"[（(][一二三四五六七八九十百千万〇零两0-9]+[)）]|[0-9]+[.、])"
+)
+DATE_LINE_RE = re.compile(r"^\d{4}年\d{1,2}月\d{1,2}日$")
+LIST_SECTION_RANK = 7
 PHONE_HEADER_LABELS = {"单位名称", "电话号码"}
 PHONE_GROUP_HEADINGS = (
     "校级办公与公共服务",
@@ -33,6 +39,20 @@ PHONE_GROUP_KEYWORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("学生事务与安保服务", ("学生处", "学生管理科", "思想政治教育科", "助学服务中心", "心理健康教育与咨询中心", "保卫武装部", "治安科", "户籍科", "安全消防科", "东校门", "西校门")),
     ("就业工作处", ("就业指导", "就业信息管理", "就业市场管理")),
     ("后勤产业集团", ("公寓管理部", "餐饮服务部", "电工班", "锅炉班", "维修班", "水工班", "电梯班")),
+)
+CLOSING_SECTION_KEYWORDS = ("附则", "说明", "实施细则", "补充规定")
+TERMINAL_PROVISION_KEYWORDS = (
+    "负责解释",
+    "负责施行",
+    "自发布之日起实施",
+    "自发布之日起施行",
+    "自印发之日起实施",
+    "自印发之日起施行",
+    "自公布之日起实施",
+    "自公布之日起施行",
+    "自发布之日起执行",
+    "另行通知",
+    "同时废止",
 )
 
 
@@ -60,7 +80,7 @@ def cleanup_handbook_document(
 
     title = _select_title(projected_rows, manifest_document.title, manifest_document.page_start)
     content_rows = _filter_content_rows(projected_rows, title=title, title_page=manifest_document.page_start)
-    events, policy_doc_no = _build_document_events(content_rows)
+    events, policy_doc_no, preface_text = _build_document_events(content_rows)
 
     metadata: dict[str, object] = {
         "title": title,
@@ -72,7 +92,7 @@ def cleanup_handbook_document(
     if policy_doc_no is not None:
         metadata["policy_doc_no"] = policy_doc_no
 
-    canonical_body = _build_canonical_body(events, policy_doc_no=policy_doc_no)
+    canonical_body = _build_canonical_body(events, policy_doc_no=policy_doc_no, preface_text=preface_text)
     doc_id = build_handbook_doc_id(title)
     version_id = build_handbook_version_id(title, canonical_body)
     canonical_markdown = _build_canonical_markdown(
@@ -88,6 +108,9 @@ def cleanup_handbook_document(
         source_pdf=source_doc,
         source_url=manifest_document.source_uri,
         acl_groups=manifest_document.acl_groups,
+        title=title,
+        policy_doc_no=policy_doc_no,
+        preface_text=preface_text,
     )
     return HandbookCleanupResult(
         title=title,
@@ -140,7 +163,67 @@ def normalize_handbook_title(value: str) -> str:
 def normalize_handbook_body_text(value: str) -> str:
     normalized = unicodedata.normalize("NFKC", value.replace("\r\n", "\n").replace("\r", "\n")).strip()
     lines = [" ".join(line.split()).strip() for line in normalized.split("\n")]
-    return "\n".join(line for line in lines if line)
+    return "\n".join(_merge_broken_body_lines([line for line in lines if line]))
+
+
+def _merge_broken_body_lines(lines: list[str]) -> list[str]:
+    merged: list[str] = []
+    for line in lines:
+        if merged and _should_merge_broken_line(merged[-1], line):
+            merged[-1] = f"{merged[-1]}{line}"
+            continue
+        merged.append(line)
+    return merged
+
+
+def _should_merge_broken_line(previous: str, current: str) -> bool:
+    if not previous or not current:
+        return False
+    if previous.lstrip().startswith("#") or current.lstrip().startswith("#"):
+        return False
+    if previous.endswith(("。", "！", "？", "；", "：", ":")):
+        return False
+    if _looks_like_front_matter_line(previous) or _looks_like_front_matter_line(current):
+        return False
+    if _looks_like_structural_line(previous) or _looks_like_structural_line(current):
+        return False
+    if _looks_like_formula_line(previous) or _looks_like_formula_line(current):
+        return False
+    previous_tail = previous[-1]
+    current_head = current[0]
+    if not (_is_sentence_char(previous_tail) and _is_sentence_char(current_head)):
+        return False
+    return True
+
+
+def _looks_like_structural_line(text: str) -> bool:
+    normalized = unicodedata.normalize("NFKC", text).strip()
+    return bool(normalized and STRUCTURAL_LINE_RE.match(normalized))
+
+
+def _looks_like_front_matter_line(text: str) -> bool:
+    normalized = unicodedata.normalize("NFKC", text).strip()
+    if not normalized:
+        return False
+    return bool(DATE_LINE_RE.match(normalized) or POLICY_DOC_NO_RE.match(normalized))
+
+
+def _looks_like_formula_line(text: str) -> bool:
+    normalized = normalize_handbook_body_text(text)
+    if not normalized:
+        return False
+    if "\\sum" in normalized or "$" in normalized:
+        return True
+    if "=" not in normalized:
+        return False
+    operator_count = sum(normalized.count(marker) for marker in ("=", "×", "÷", "/", "+", "-", "<", ">"))
+    if operator_count >= 2:
+        return True
+    return False
+
+
+def _is_sentence_char(value: str) -> bool:
+    return value.isalnum() or ("\u4e00" <= value <= "\u9fff") or value in {"%", ")", "）", "》", "”", "’"}
 
 
 def _project_manifest_rows(
@@ -161,6 +244,7 @@ def _project_manifest_rows(
 def _row_sort_key(row: dict[str, object]) -> tuple[int, int, str]:
     return (
         _coerce_int(row.get("page_start")) or 0,
+        _coerce_int(row.get("reading_order")) or _coerce_int(row.get("row_index")) or 0,
         _coerce_int(row.get("row_index")) or 0,
         str(row.get("row_id") or ""),
     )
@@ -228,7 +312,7 @@ def _filter_content_rows(
 ) -> list[dict[str, object]]:
     filtered: list[dict[str, object]] = []
     title_consumed = False
-    normalized_title = normalize_handbook_title(title)
+    normalized_title = _normalize_title_for_match(title)
     for row in projected_rows:
         if bool(row.get("is_repeated_candidate")):
             continue
@@ -240,16 +324,21 @@ def _filter_content_rows(
         if (
             not title_consumed
             and _coerce_int(row.get("page_start")) == title_page
-            and str(row.get("row_type") or "") == "heading"
-            and normalize_handbook_title(text) == normalized_title
+            and _normalize_title_for_match(text) == normalized_title
         ):
             title_consumed = True
+            continue
+        if (
+            title_consumed
+            and _coerce_int(row.get("page_start")) == title_page
+            and _looks_like_title_variant_suffix_line(text)
+        ):
             continue
         filtered.append(row)
     return filtered
 
 
-def _build_document_events(content_rows: list[dict[str, object]]) -> tuple[list[dict[str, object]], str | None]:
+def _build_document_events(content_rows: list[dict[str, object]]) -> tuple[list[dict[str, object]], str | None, str | None]:
     policy_doc_no: str | None = None
     current_section_nodes: list[tuple[int, str]] = []
     preface_parts: list[str] = []
@@ -319,23 +408,53 @@ def _build_document_events(content_rows: list[dict[str, object]]) -> tuple[list[
 
         if policy_doc_no is None and _looks_like_policy_doc_no(text):
             policy_doc_no = _normalize_policy_doc_no(text)
-            preface_parts.append(policy_doc_no)
             continue
 
-        if row_type == "heading" and _is_section_heading(text):
+        structural_heading = classify_structural_heading(
+            text=text,
+            row_type=row_type,
+            next_text=next_text,
+        )
+        if (
+            structural_heading is not None
+            and current_article is not None
+            and structural_heading.kind in {"enumerated", "enumerated_subsection"}
+        ):
+            structural_heading = None
+        if structural_heading is not None:
             flush_article()
             flush_policy_page()
             active_article_context = None
             pending_table_context = None
-            normalized_heading = _normalize_section_heading(text)
-            heading_rank = _section_heading_rank(normalized_heading)
-            current_section_nodes = [node for node in current_section_nodes if node[0] < heading_rank]
-            current_section_nodes.append((heading_rank, normalized_heading))
+            current_section_nodes = [node for node in current_section_nodes if node[0] < structural_heading.rank]
+            current_section_nodes.append((structural_heading.rank, structural_heading.text))
             events.append(
                 {
                     "kind": "section",
-                    "text": normalized_heading,
+                    "text": structural_heading.text,
                     "section_path": tuple(node_text for _, node_text in current_section_nodes),
+                }
+            )
+            continue
+
+        terminal_provision = (
+            _split_inline_enumerated_provision(text)
+            if current_article is None and _looks_like_terminal_inline_enumerated_provision(text, current_section_nodes)
+            else None
+        )
+        if terminal_provision is not None:
+            provision_label, normalized_text = terminal_provision
+            flush_policy_page()
+            active_article_context = None
+            pending_table_context = None
+            events.append(
+                {
+                    "kind": "policy_page",
+                    "text": normalized_text,
+                    "page_start": page_start,
+                    "page_end": page_end,
+                    "section_path": tuple(node_text for _, node_text in current_section_nodes),
+                    "provision_label": provision_label,
                 }
             )
             continue
@@ -383,7 +502,7 @@ def _build_document_events(content_rows: list[dict[str, object]]) -> tuple[list[
             )
             continue
 
-        if current_policy_page is not None or _looks_like_list_entry(text):
+        if current_policy_page is not None or current_section_nodes or _looks_like_list_entry(text):
             if current_policy_page is None:
                 current_policy_page = {
                     "kind": "policy_page",
@@ -403,30 +522,34 @@ def _build_document_events(content_rows: list[dict[str, object]]) -> tuple[list[
 
     flush_article()
     flush_policy_page()
-    if preface_parts:
-        events.insert(
-            0,
+    preface_text = normalize_handbook_body_text("\n".join(preface_parts)) if preface_parts else None
+    if preface_text and not any(event["kind"] != "section" for event in events):
+        events.append(
             {
                 "kind": "policy_page",
-                "text": normalize_handbook_body_text("\n".join(preface_parts)),
+                "text": preface_text,
                 "page_start": _coerce_int(content_rows[0].get("page_start")) or 0,
                 "page_end": _coerce_int(content_rows[-1].get("page_end")) or 0,
                 "section_path": (),
             },
         )
+        preface_text = None
 
     substantive_events = [event for event in events if event["kind"] != "section"]
     if not substantive_events:
         raise ValueError("handbook document cleanup produced no content units")
-    return events, policy_doc_no
+    return events, policy_doc_no, preface_text
 
 
 def _build_canonical_body(
     events: list[dict[str, object]],
     *,
     policy_doc_no: str | None,
+    preface_text: str | None,
 ) -> str:
     parts: list[str] = []
+    if preface_text:
+        parts.append(preface_text)
     for event in events:
         kind = str(event["kind"])
         if kind == "section":
@@ -489,11 +612,15 @@ def _build_document_rows(
     source_pdf: str,
     source_url: str,
     acl_groups: tuple[str, ...],
+    title: str,
+    policy_doc_no: str | None,
+    preface_text: str | None,
 ) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     policy_index = 0
     article_index = 0
     table_index = 0
+    first_substantive_row = True
 
     for event in events:
         kind = str(event["kind"])
@@ -517,9 +644,20 @@ def _build_document_rows(
                         "page_start": int(event["page_start"]),
                         "page_end": int(event["page_end"]),
                         "section_path": list(event.get("section_path") or ()),
+                        **(
+                            {"provision_label": str(event["provision_label"])}
+                            if event.get("provision_label") is not None
+                            else {}
+                        ),
                     },
+                    metadata=_build_unit_metadata(
+                        title=title,
+                        policy_doc_no=policy_doc_no,
+                        preface_text=preface_text if first_substantive_row else None,
+                    ),
                 )
             )
+            first_substantive_row = False
             continue
         if kind == "article":
             article_index += 1
@@ -541,8 +679,14 @@ def _build_document_rows(
                         "section_path": list(event.get("section_path") or ()),
                         "article_label": str(event["label"]),
                     },
+                    metadata=_build_unit_metadata(
+                        title=title,
+                        policy_doc_no=policy_doc_no,
+                        preface_text=preface_text if first_substantive_row else None,
+                    ),
                 )
             )
+            first_substantive_row = False
             continue
         if kind == "table":
             table_index += 1
@@ -569,10 +713,16 @@ def _build_document_rows(
                         "article_label": event.get("article_label"),
                         "table_context": event.get("table_context"),
                     },
+                    metadata=_build_unit_metadata(
+                        title=title,
+                        policy_doc_no=policy_doc_no,
+                        preface_text=preface_text if first_substantive_row else None,
+                    ),
                     html=event.get("html"),
                     table_cells=table_cells,
                 )
             )
+            first_substantive_row = False
             if isinstance(table_cells, list):
                 header_row = _table_header_row(table_cells)
                 for row_index, cell_row in enumerate(table_cells, start=1):
@@ -595,6 +745,11 @@ def _build_document_rows(
                                 "table_context": event.get("table_context"),
                                 "table_row_index": row_index,
                             },
+                            metadata=_build_unit_metadata(
+                                title=title,
+                                policy_doc_no=policy_doc_no,
+                                preface_text=None,
+                            ),
                             table_cells=[list(str(cell) for cell in cell_row)],
                         )
                     )
@@ -613,6 +768,7 @@ def _build_structured_unit_row(
     source_url: str,
     acl_groups: tuple[str, ...],
     anchor: dict[str, object],
+    metadata: dict[str, object] | None = None,
     html: object = None,
     table_cells: object = None,
 ) -> dict[str, object]:
@@ -630,10 +786,25 @@ def _build_structured_unit_row(
         "page_start": int(anchor["page_start"]),
         "page_end": int(anchor["page_end"]),
         "anchor": anchor,
+        "metadata": metadata or {},
         "acl": _build_acl_metadata(acl_groups),
         "html": html,
         "table_cells": table_cells,
     }
+
+
+def _build_unit_metadata(
+    *,
+    title: str,
+    policy_doc_no: str | None,
+    preface_text: str | None,
+) -> dict[str, object]:
+    metadata: dict[str, object] = {"title": title}
+    if policy_doc_no:
+        metadata["policy_doc_no"] = policy_doc_no
+    if preface_text:
+        metadata["preface_text"] = preface_text
+    return metadata
 
 
 def _build_acl_metadata(acl_groups: tuple[str, ...]) -> dict[str, object]:
@@ -649,6 +820,11 @@ def _row_text(row: dict[str, object]) -> str:
         if isinstance(value, str) and value.strip():
             return normalize_handbook_body_text(value)
     return ""
+
+
+def _looks_like_title_variant_suffix_line(text: str) -> bool:
+    normalized = normalize_handbook_body_text(text)
+    return bool(normalized and TITLE_VARIANT_SUFFIX_RE.fullmatch(normalized))
 
 
 def _normalize_table_matrix(*, html: object, table_cells: object) -> list[list[str]] | None:
@@ -812,11 +988,6 @@ def _split_article_line(text: str) -> tuple[str | None, str]:
         return None, ""
     return _normalize_article_label(match.group("label")), normalize_handbook_body_text(match.group("rest"))
 
-
-def _is_section_heading(text: str) -> bool:
-    return bool(SECTION_HEADING_RE.match(text))
-
-
 def _looks_like_policy_doc_no(text: str) -> bool:
     return bool(POLICY_DOC_NO_RE.match(_normalize_policy_doc_no(text)))
 
@@ -827,28 +998,6 @@ def _normalize_policy_doc_no(text: str) -> str:
     normalized = re.sub(r"\s*([\]〕])\s*", r"\1", normalized)
     normalized = re.sub(r"(?<=[\]〕])\s+(?=\d)", "", normalized)
     return normalized
-
-
-def _normalize_section_heading(text: str) -> str:
-    normalized = normalize_handbook_body_text(text)
-    match = SECTION_LABEL_RE.match(normalized)
-    if match is None:
-        return normalized
-    label = match.group("label")
-    rest = normalize_handbook_body_text(match.group("rest"))
-    return label if not rest else f"{label} {rest}"
-
-
-def _section_heading_rank(text: str) -> int:
-    normalized = _normalize_section_heading(text)
-    if normalized.startswith("第") and normalized.endswith("编"):
-        return 1
-    if normalized.startswith("第") and "章" in normalized[:8]:
-        return 2
-    if normalized.startswith("第") and "节" in normalized[:8]:
-        return 3
-    return 2
-
 
 def _normalize_article_label(value: str) -> str:
     normalized = normalize_handbook_body_text(value)
@@ -870,9 +1019,11 @@ def _looks_like_list_section_heading(text: str, next_text: str | None) -> bool:
         return False
     if _split_article_line(normalized)[0] is not None:
         return False
-    if _is_section_heading(normalized):
+    if classify_structural_heading(text=normalized, row_type="paragraph", next_text=next_text) is not None:
         return False
     if LIST_ENTRY_PHONE_RE.search(normalized):
+        return False
+    if any(char.isspace() for char in normalized):
         return False
     if len(normalized) > 24:
         return False
@@ -898,6 +1049,44 @@ def _looks_like_table_context(text: str) -> bool:
     if normalized.endswith(("：", ":")):
         return True
     return bool(re.match(r"^[（(][一二三四五六七八九十0-9]+[)）]", normalized))
+
+
+def _split_inline_enumerated_provision(text: str) -> tuple[str, str] | None:
+    normalized = normalize_handbook_body_text(text)
+    if not normalized:
+        return None
+    if _split_article_line(normalized)[0] is not None:
+        return None
+    match = INLINE_ENUMERATED_LABEL_RE.match(normalized)
+    if match is None or not INLINE_ENUMERATED_PROVISION_RE.match(normalized):
+        return None
+    return match.group("label"), normalized
+
+
+def _looks_like_terminal_inline_enumerated_provision(
+    text: str,
+    current_section_nodes: list[tuple[int, str]],
+) -> bool:
+    provision = _split_inline_enumerated_provision(text)
+    if provision is None:
+        return False
+    _, normalized = provision
+    body = normalized.split("、", 1)[1].strip()
+    if not body:
+        return False
+    in_closing_section = any(keyword in section_text for _, section_text in current_section_nodes for keyword in CLOSING_SECTION_KEYWORDS)
+    if in_closing_section and len(body) <= 64:
+        return True
+    return len(body) <= 96 and any(keyword in body for keyword in TERMINAL_PROVISION_KEYWORDS)
+
+
+def _looks_like_inline_enumerated_heading(text: str) -> bool:
+    normalized = normalize_handbook_body_text(text)
+    if not normalized:
+        return False
+    if normalized[-1] in "。；！？":
+        return False
+    return bool(INLINE_ENUMERATED_HEADING_RE.match(normalized))
 
 
 def _project_phone_table_policy_pages(

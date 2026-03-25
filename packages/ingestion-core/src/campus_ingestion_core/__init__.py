@@ -56,6 +56,11 @@ from campus_ingestion_core.handbook_provider_normalize import (
     normalize_handbook_provider_result,
     serialize_handbook_layout_elements,
 )
+from campus_ingestion_core.handbook_chunking_validation import (
+    ChunkValidationFailure,
+    StudentHandbookChunkingValidationReport,
+    validate_student_handbook_chunking,
+)
 from campus_ingestion_core.local_rebuild import (
     LocalDataRebuildReport,
     StudentHandbookMigrationReport,
@@ -116,7 +121,9 @@ __all__ = [
     "HandbookCleanupResult",
     "ImportReport",
     "IndexableChunk",
+    "ChunkValidationFailure",
     "StudentHandbookMigrationReport",
+    "StudentHandbookChunkingValidationReport",
     "build_handbook_doc_id",
     "build_handbook_version_id",
     "cleanup_handbook_document",
@@ -162,4 +169,5 @@ __all__ = [
     "SplitManifestDocument",
     "load_split_manifest",
     "load_runtime_profile",
+    "validate_student_handbook_chunking",
 ]

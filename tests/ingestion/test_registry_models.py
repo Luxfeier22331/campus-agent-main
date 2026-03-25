@@ -11,6 +11,7 @@ from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord,
 from campus_ingestion_core.registry import (
     FileDocumentRegistry,
     FileRawAssetRegistry,
+    PostgresDocumentRegistry,
     build_document_registry_from_env,
     build_raw_asset_registry_from_env,
 )
@@ -214,6 +215,38 @@ class RegistryModelsTest(unittest.TestCase):
                 curriculum_record,
             )
 
+    def test_file_document_registry_delete_document_removes_all_versions_for_document(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "registry.json"
+            registry = FileDocumentRegistry(path)
+            handbook_v1 = _handbook_document_record(
+                version_id="v1:test-001",
+                content_hash="sha256:test-001",
+                ingestion_timestamp="2026-03-22T10:00:00+00:00",
+            )
+            handbook_v2 = _handbook_document_record(
+                version_id="v2:test-001",
+                content_hash="sha256:test-002",
+                ingestion_timestamp="2026-03-23T10:00:00+00:00",
+            )
+            curriculum_record = _curriculum_document_record()
+            registry.upsert(handbook_v1)
+            registry.upsert(handbook_v2)
+            registry.upsert(curriculum_record)
+
+            registry.delete_document("handbook:test-001")
+
+            self.assertIsNone(registry.get("handbook:test-001", "source-faithful", "v1:test-001"))
+            self.assertIsNone(registry.get("handbook:test-001", "source-faithful", "v2:test-001"))
+            self.assertEqual(
+                registry.get(
+                    "curriculum:plan-001",
+                    "source-faithful",
+                    "sha256:raw-001:split:plan-001:abcd1234",
+                ),
+                curriculum_record,
+            )
+
     def test_file_document_registry_backfills_explicit_processed_keys_from_legacy_payload(self) -> None:
         with TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "registry.json"
@@ -352,6 +385,17 @@ class RegistryModelsTest(unittest.TestCase):
 
             self.assertIs(registry, instance)
             registry_cls.assert_called_once_with("postgresql://raw-registry.example/postgres")
+
+    def test_postgres_document_registry_delete_document_targets_document_id(self) -> None:
+        with patch.object(PostgresDocumentRegistry, "_ensure_schema", return_value=None):
+            registry = PostgresDocumentRegistry("postgresql://registry.example/postgres")
+        with patch.object(registry, "_execute") as execute:
+            registry.delete_document("handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675")
+
+        execute.assert_called_once_with(
+            "delete from document_registry_records where document_id = %s",
+            ("handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675",),
+        )
 
     def test_registry_builders_require_database_url(self) -> None:
         with self.assertRaisesRegex(ValueError, "DOCUMENT_REGISTRY_DATABASE_URL"):

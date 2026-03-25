@@ -52,6 +52,8 @@ class DocumentRegistry(Protocol):
         preferred_revision_tracks: tuple[str, ...] = (),
     ) -> DocumentRegistryRecord | None: ...
 
+    def delete_document(self, document_id: str) -> None: ...
+
     def delete_by_corpus(self, corpus: str) -> None: ...
 
     def delete_by_scope(self, corpus: str, collection: str | None = None) -> None: ...
@@ -158,6 +160,14 @@ class FileDocumentRegistry:
         if current_records:
             return max(current_records, key=lambda record: record.ingestion_timestamp)
         return max(records, key=lambda record: record.ingestion_timestamp)
+
+    def delete_document(self, document_id: str) -> None:
+        payload = {
+            key: value
+            for key, value in self._load().items()
+            if not (isinstance(value, dict) and value.get("document_id") == document_id)
+        }
+        self._store(payload)
 
     def delete_by_corpus(self, corpus: str) -> None:
         self.delete_by_scope(corpus)
@@ -405,6 +415,10 @@ class PostgresDocumentRegistry:
             return _document_record_from_dict(_coerce_json_payload(row[0]))
         latest = self.latest_versions(document_id)
         return latest[0] if latest else None
+
+    def delete_document(self, document_id: str) -> None:
+        query = f"delete from {self.table_name} where document_id = %s"
+        self._execute(query, (document_id,))
 
     def delete_by_corpus(self, corpus: str) -> None:
         self.delete_by_scope(corpus)

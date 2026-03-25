@@ -13,6 +13,8 @@ from campus_ingestion_core.chunking import (
     ChunkProfile,
     StructuredUnitChunkInput,
     StudentHandbookChunkingStrategy,
+    StudentHandbookChunkingStrategyV2,
+    build_student_handbook_chunk_profile,
     chunk_structured_unit,
     clean_structured_text,
     estimate_token_count,
@@ -50,6 +52,19 @@ class ChunkingPolicyTest(unittest.TestCase):
 
         self.assertEqual(profile.strategy_name, "student_handbook_structure")
         self.assertIsInstance(profile.strategy, StudentHandbookChunkingStrategy)
+
+    def test_build_student_handbook_chunk_profile_v2_uses_current_runtime_budget(self) -> None:
+        profile = build_student_handbook_chunk_profile(
+            profile_version="student_handbook_semantic_v2",
+            model_name="Qwen3-Embedding-4B",
+        )
+
+        self.assertEqual(profile.chunk_size, 384)
+        self.assertEqual(profile.max_chunk_size, 512)
+        self.assertEqual(profile.chunk_overlap, 64)
+        self.assertEqual(profile.min_chunk_size, 96)
+        self.assertEqual(profile.chunk_policy_version, "student_handbook_semantic_v2")
+        self.assertIn("Qwen3-Embedding-4B", profile.tokenizer_name)
 
     def test_clean_structured_text_strips_parent_html_table_and_keeps_placeholder(self) -> None:
         cleaned = clean_structured_text(
@@ -118,6 +133,68 @@ class ChunkingPolicyTest(unittest.TestCase):
         self.assertTrue(all(piece.split_reason == "structure_boundary" for piece in pieces))
         self.assertTrue(all(piece.boundary_rule == "clause_line" for piece in pieces))
 
+    def test_article_body_with_preamble_prefers_clause_blocks_before_token_guardrail(self) -> None:
+        preamble = "优秀本科毕业生评选条件如下:"
+        line_one = "(一) " + " ".join(f"a{index}" for index in range(10))
+        line_two = "(二) " + " ".join(f"b{index}" for index in range(10))
+        line_three = "(三) " + " ".join(f"c{index}" for index in range(10))
+
+        pieces = chunk_structured_unit(
+            unit=StructuredUnitChunkInput(
+                unit_type="article_body",
+                root_unit_id="article-005",
+                text="\n".join([preamble, line_one, line_two, line_three]),
+            ),
+            chunk_profile=ChunkProfile(
+                chunk_size=18,
+                max_chunk_size=28,
+                chunk_overlap=4,
+                min_chunk_size=8,
+                chunk_policy_version="student_handbook_semantic_v2",
+                strategy_name="student_handbook_structure_v2",
+                strategy=StudentHandbookChunkingStrategyV2(),
+            ),
+        )
+
+        self.assertGreaterEqual(len(pieces), 2)
+        self.assertTrue(pieces[0].text.startswith(f"{preamble}\n{line_one}"))
+        self.assertIn(line_two, "\n".join(piece.text for piece in pieces))
+        self.assertIn(line_three, "\n".join(piece.text for piece in pieces))
+        self.assertTrue(all(piece.text.startswith(preamble) for piece in pieces))
+        self.assertTrue(all(piece.split_reason == "structure_boundary" for piece in pieces))
+        self.assertTrue(all(piece.boundary_rule == "clause_block" for piece in pieces))
+
+    def test_article_body_preserves_secondary_clause_group_intro_when_split(self) -> None:
+        preamble = "校级优秀本科毕业生须具备以下基本条件:"
+        base_one = "(一) " + " ".join(f"a{index}" for index in range(6))
+        base_two = "(二) " + " ".join(f"b{index}" for index in range(6))
+        secondary_intro = "同时,还须具备以下条件之一:"
+        extra_one = "(一) " + " ".join(f"c{index}" for index in range(6))
+        extra_two = "(二) " + " ".join(f"d{index}" for index in range(6))
+
+        pieces = chunk_structured_unit(
+            unit=StructuredUnitChunkInput(
+                unit_type="article_body",
+                root_unit_id="article-006",
+                text="\n".join([preamble, base_one, base_two, secondary_intro, extra_one, extra_two]),
+            ),
+            chunk_profile=ChunkProfile(
+                chunk_size=24,
+                max_chunk_size=52,
+                chunk_overlap=4,
+                min_chunk_size=8,
+                chunk_policy_version="student_handbook_semantic_v2",
+                strategy_name="student_handbook_structure_v2",
+                strategy=StudentHandbookChunkingStrategyV2(),
+            ),
+        )
+
+        joined = "\n".join(piece.text for piece in pieces)
+        self.assertIn(secondary_intro, joined)
+        self.assertTrue(any(secondary_intro in piece.text and extra_one in piece.text for piece in pieces))
+        self.assertTrue(all(piece.split_reason == "structure_boundary" for piece in pieces))
+        self.assertTrue(all(piece.boundary_rule == "clause_block" for piece in pieces))
+
     def test_policy_page_prefers_roster_line_boundaries_before_token_guardrail(self) -> None:
         lines = [
             "校园110 68932220",
@@ -143,6 +220,38 @@ class ChunkingPolicyTest(unittest.TestCase):
         self.assertEqual(pieces[1].text, "\n".join(lines[3:]))
         self.assertTrue(all(piece.split_reason == "structure_boundary" for piece in pieces))
         self.assertTrue(all(piece.boundary_rule == "roster_line" for piece in pieces))
+
+    def test_policy_page_prefers_enumerated_list_blocks_before_token_guardrail(self) -> None:
+        lines = [
+            "注册志愿者应满足以下条件:",
+            "(一) " + " ".join(f"a{index}" for index in range(8)),
+            "1. " + " ".join(f"b{index}" for index in range(8)),
+            "(二) " + " ".join(f"c{index}" for index in range(8)),
+            "1. " + " ".join(f"d{index}" for index in range(8)),
+        ]
+
+        pieces = chunk_structured_unit(
+            unit=StructuredUnitChunkInput(
+                unit_type="policy_page",
+                root_unit_id="policy-page-004",
+                text="\n".join(lines),
+            ),
+            chunk_profile=ChunkProfile(
+                chunk_size=18,
+                max_chunk_size=40,
+                chunk_overlap=4,
+                min_chunk_size=8,
+                chunk_policy_version="student_handbook_semantic_v2",
+                strategy_name="student_handbook_structure_v2",
+                strategy=StudentHandbookChunkingStrategyV2(),
+            ),
+        )
+
+        self.assertGreaterEqual(len(pieces), 2)
+        self.assertTrue(pieces[0].text.startswith(lines[0]))
+        self.assertTrue(all(piece.text.startswith(lines[0]) for piece in pieces))
+        self.assertTrue(all(piece.split_reason == "structure_boundary" for piece in pieces))
+        self.assertTrue(all(piece.boundary_rule == "enumerated_list_block" for piece in pieces))
 
     def test_article_body_falls_back_to_token_guardrail_when_clause_lines_exceed_max_chunk_size(self) -> None:
         lines = [

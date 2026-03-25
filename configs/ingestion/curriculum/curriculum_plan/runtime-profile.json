@@ -5,6 +5,7 @@
   "allowed_artifact_modes": ["normalized", "provider_only"],
   "split_manifest_required": true,
   "cleaning_policy_version": "curriculum_plan_cleaning_v1",
+  "chunk_profile_version": "curriculum_plan_semantic_v1",
   "retrieval_enabled": false,
   "default_query_enabled": false
 }
