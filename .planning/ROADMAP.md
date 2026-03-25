@@ -79,7 +79,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 03.1-01: Generalize shared contracts and supervisor routing targets for explicit non-RAG specialist delegation.
+- [x] 03.1-01: Generalize shared contracts and supervisor routing targets for explicit non-RAG specialist delegation.
 - [ ] 03.1-02: Implement the allowlisted `availability-specialist` MVP and its observation/status mapping.
 - [ ] 03.1-03: Add focused routing/tests and a minimal smoke or eval slice for the availability path.
 
@@ -163,7 +163,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 4 → 5 → 05.1 →
 | 1. Contract And Boundary Guardrails | 2/2 | Complete   | 2026-03-23 |
 | 2. Student Handbook Raw Ingestion | 2/2 | Complete | 2026-03-24 |
 | 3. Retrieval Corpus Preparation | 2/2 | Complete | 2026-03-24 |
-| 03.1. Availability Specialist 最小闭环 | 0/3 | Not started | - |
+| 03.1. Availability Specialist 最小闭环 | 1/3 | In Progress | - |
 | 4. RAG Specialist Answer Path | 0/3 | Not started | - |
 | 5. Supervisor Entry, ACL, And Audit | 0/3 | Not started | - |
 | 05.1. Curriculum Chunking Strategy | 0/2 | Not started | - |

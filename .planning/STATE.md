@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Phase 03.1 planning preparation after roadmap insertion
-last_updated: "2026-03-25T00:55:18Z"
+status: executing
+stopped_at: Completed 03.1-01-PLAN.md
+last_updated: "2026-03-25T03:19:42.936Z"
 progress:
   total_phases: 9
   completed_phases: 3
-  total_plans: 21
-  completed_plans: 6
+  total_plans: 11
+  completed_plans: 7
 ---
 
 # Project State
@@ -19,20 +19,20 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-03-25)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 `student_handbook` 的完整 agentic RAG 主流程证明这条架构能可靠替代高频人工答疑
-**Current focus:** Phase 03 complete; inserted Phase 03.1 availability-specialist planning is now the active parallel track while handbook chunk-truth validation continues on the mainline
+**Current focus:** Phase 03.1 — availability-specialist
 
 ## Current Position
 
-Phase: 03.1 (availability-specialist) — READY FOR PLANNING
-Plan: 0 of 3
-Status: Roadmap and requirements updated; phase context needs planning while handbook chunk-truth validation continues outside this inserted track
-Last activity: 2026-03-25 — Inserted Phase 03.1 and aligned current-scope planning docs for availability specialist
+Phase: 03.1 (availability-specialist) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute 03.1-02
+Last activity: 2026-03-25 — Completed 03.1-01 contract and supervisor routing generalization
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 6
+- Total plans completed: 7
 - Average duration: mixed agent-run and inline execution; see per-plan summaries
 - Total execution time: 0.2 hours + 2026-03-24 inline Phase 2/3 execution
 
@@ -46,7 +46,7 @@ Last activity: 2026-03-25 — Inserted Phase 03.1 and aligned current-scope plan
 
 **Recent Trend:**
 
-- Last 5 plans: 01-02, 02-01, 02-02, 03-01, 03-02
+- Last 5 plans: 02-01, 02-02, 03-01, 03-02, 03.1-01
 - Trend: Stable upward
 
 | Phase 01-contract-and-boundary-guardrails P01 | 4m | 2 tasks | 11 files |
@@ -55,6 +55,7 @@ Last activity: 2026-03-25 — Inserted Phase 03.1 and aligned current-scope plan
 | Phase 02 P02 | inline | 2 tasks | 6 files |
 | Phase 03 P01 | inline | 2 tasks | see summary |
 | Phase 03 P02 | inline | 2 tasks | see summary |
+| Phase 03.1 P01 | 22 min | 2 tasks | 18 files |
 
 ## Accumulated Context
 
@@ -82,19 +83,21 @@ Recent decisions affecting current work:
 - [Phase 02]: handbook normalized imports now classify `created_document_ids`, `updated_document_ids`, and `skipped_document_ids` from logical document identity plus content hash instead of only exact version tuple matches.
 - [Phase 03]: handbook chunk generation now rebuilds directly from `document_units_object_key` in the document registry instead of relying on ad hoc in-memory processing inputs.
 - [Phase 03]: ingestion writes `representation` as a Qdrant payload alias for `revision_track`, while retrieval stays contract-compatible and fail-closes on malformed or registry-missing metadata.
+- [Phase 03.1]: Shared specialist contracts now use typed envelope branches instead of rag-only top-level request/response names. — This preserves runtime-neutral contracts while allowing explicit non-RAG delegation without overloading retrieval scope.
+- [Phase 03.1]: Supervisor-core now routes by specialist target and derives source_doc_ids only from rag evidence payloads. — This keeps availability observations outside retrieval semantics while preserving minimal audit projection.
 
 ### Pending Todos
 
-- Plan Phase 03.1 into executable plan files.
+- Execute Phase 03.1 plans 02 and 03.
 - Keep handbook chunk-truth validation tracked separately so the inserted availability work does not get mistaken for the `student_handbook` mainline.
 
 ### Blockers/Concerns
 
 - Handbook chunk-truth validation remains the blocker for later `student_handbook` run-through work.
-- Phase 03.1 should generalize contracts and routing without delaying or redefining the handbook RAG requirements.
+- Phase 03.1 should land the real availability specialist package and deterministic eval coverage without delaying or redefining the handbook RAG requirements.
 
 ## Session Continuity
 
-Last session: 2026-03-25T00:55:18Z
-Stopped at: Phase 03.1 planning preparation after roadmap insertion
+Last session: 2026-03-25T03:19:42.934Z
+Stopped at: Completed 03.1-01-PLAN.md
 Resume file: None
