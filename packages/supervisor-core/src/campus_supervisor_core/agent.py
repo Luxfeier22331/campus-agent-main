@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable
 
+from campus_availability_specialist import delegate_to_availability_specialist
 from campus_contracts import SpecialistRequest, SpecialistResponse, SpecialistTarget
 from campus_rag_specialist import delegate_to_rag_agent
 
@@ -16,7 +17,10 @@ SpecialistDelegate = Callable[[SpecialistRequest], SpecialistResponse]
 
 
 def _default_specialist_delegates() -> dict[SpecialistTarget, SpecialistDelegate]:
-    return {"rag-specialist": delegate_to_rag_agent}
+    return {
+        "rag-specialist": delegate_to_rag_agent,
+        "availability-specialist": delegate_to_availability_specialist,
+    }
 
 
 @dataclass(slots=True)

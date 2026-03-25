@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 import unittest
+from unittest.mock import patch
 
 from campus_contracts import (
     ActorContext,
@@ -16,7 +17,7 @@ from campus_contracts import (
     SpecialistResponse,
     TraceContext,
 )
-from campus_supervisor_core import handle_request
+from campus_supervisor_core import SupervisorAgent, handle_request
 from campus_supervisor_core.audit import SupervisorAuditRecord, build_audit_record
 from campus_supervisor_core.context import SupervisorRequestContext
 
@@ -161,6 +162,28 @@ class SupervisorCoreTest(unittest.TestCase):
             ),
         )
         self.assertEqual(audit_records[0].source_doc_ids, ())
+
+    def test_supervisor_default_delegate_map_includes_availability_specialist(self) -> None:
+        request = SpecialistRequest(
+            target="availability-specialist",
+            user_goal="官网现在能打开吗？",
+            payload=AvailabilityCheckPayload(target_id="official-homepage"),
+        )
+        expected_response = _make_availability_completed_response()
+
+        with patch(
+            "campus_supervisor_core.agent.delegate_to_availability_specialist",
+            return_value=expected_response,
+        ) as availability_delegate:
+            with patch(
+                "campus_supervisor_core.agent.delegate_to_rag_agent",
+                side_effect=AssertionError("rag delegate should not be used"),
+            ) as rag_delegate:
+                response = SupervisorAgent().handle(request)
+
+        availability_delegate.assert_called_once_with(request)
+        rag_delegate.assert_not_called()
+        self.assertEqual(response, expected_response)
 
     def test_handle_request_preserves_needs_clarification_response(self) -> None:
         response = handle_request(

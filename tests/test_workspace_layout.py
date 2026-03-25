@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_WORKSPACES = {
     "apps/ingestion-worker",
     "apps/supervisor-api",
+    "packages/availability-specialist",
     "packages/contracts",
     "packages/evals",
     "packages/ingestion-core",
