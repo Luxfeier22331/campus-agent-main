@@ -2,12 +2,20 @@
 doc_type: plan
 status: active
 created: 2026-03-22
-updated: 2026-03-24
+updated: 2026-03-25
 ---
 
 # Agentic RAG 第一阶段地基实施文档
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+
+## 文档状态说明
+
+这份文档仍然是 `campus-agent` 第一阶段地基的 canonical 实施基线之一，但它不再承担当前 GSD 执行状态、phase 进度或待办优先级的唯一真相源角色。
+
+- 长期边界、架构方向和第一阶段 accepted implementation baseline 仍可参考这份文档
+- 当前 phase 的执行顺序、最新 pending work、讨论结论和进度状态，以 `.planning/PROJECT.md`、`.planning/ROADMAP.md`、`.planning/STATE.md` 以及对应 phase 目录下的 context / plan / validation 产物为准
+- 当这份文档中的早期 phase-1 实施叙事与 `.planning/` 中的当前执行现实不一致时，应优先更新这里的文档边界说明，并按 `.planning/` 继续推进执行，而不是把过时叙事重新提升为当前硬约束
 
 **Goal:** 在当前 `campus-agent` monorepo 中补齐第一阶段地基，以“符合最佳实践前提下跑通端到端 agentic RAG 流程”为验收标准。
 
@@ -51,7 +59,8 @@ updated: 2026-03-24
 - 长期边界、职责拆分、可替换性定义，留在 `docs/architecture/long-term-architecture.md`
 - 第一阶段架构取舍和约束，留在 `docs/decisions/adr-0001-phase1-architecture.md`
 - 本机 `MinIO` 作为本地对象存储替代实现的规则，留在 `docs/decisions/adr-0002-local-minio-conventions.md`
-- 这份文档只负责把上面三类原则拆成可实施的落地顺序、门禁、文件落点和验收标准
+- 当前阶段执行状态、phase 排序、pending work 和最新讨论结论，留在 `.planning/`
+- 这份文档只负责把上面三类原则拆成第一阶段地基的实施基线、门禁、文件落点和验收标准，不再充当当前 phase-by-phase 执行日志
 
 ## 完成定义
 

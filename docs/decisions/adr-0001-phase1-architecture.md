@@ -3,12 +3,18 @@ doc_type: decision
 decision_id: ADR-0001
 status: accepted
 created: 2026-03-22
-updated: 2026-03-22
+updated: 2026-03-25
 ---
 
 # ADR-0001 第一阶段架构决策记录
 
 适用范围：`campus-agent` v2 第一阶段上线实现
+
+说明：
+
+- 本文只记录 phase-1 当前 accepted implementation decision
+- 长期编排模式、specialist 准入与安全边界见 `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
+- 长期 runtime 是否继续沿用当前实现，不由本文冻结
 
 ## 决策 1：Agno 的集成深度
 
@@ -36,6 +42,11 @@ updated: 2026-03-22
 - 同时避免把 Agno 绑定成整个 monorepo 的底层类型系统
 - 后续无论替换 retrieval 还是拆分远程 specialist，改动面都更小
 
+后续边界说明：
+
+- 这里冻结的是 phase-1 当前对 Agno 的集成深度
+- 长期编排模式和安全规则以后续 ADR 为准，不由本文继续扩张
+
 ## 决策 2：第一版生产 runtime
 
 结论：
@@ -60,6 +71,11 @@ updated: 2026-03-22
 - 这样可以直接复用 AgentOS 提供的 session、tracing、RBAC、streaming 和 team/workflow execution
 - 同时保留产品 API 的自主定义能力
 
+后续边界说明：
+
+- `AgentOS-native` 是 phase-1 当前生产 runtime 选择，不构成长期 runtime freeze
+- 后续是否继续沿用、替换或并存其他 runtime，应以 contract / boundary 兼容性、observability、RBAC、deployment 与迁移成本为准
+
 ## 决策 3：第一版 retrieval 实现
 
 结论：
@@ -77,6 +93,11 @@ updated: 2026-03-22
 - LlamaIndex 仍然足够胜任第一版 retrieval kernel
 - 过早做多 backend 会增加中间层和评测矩阵，拖慢上线
 - 共享向量存储已经锁定为外部存储，不需要在第一阶段再抽象第二条后端路径
+
+后续边界说明：
+
+- `LlamaIndex + Qdrant` 是 phase-1 当前 retrieval backend 选择，不构成长期唯一实现承诺
+- 长期保持稳定的是 evidence contract、registry / metadata truth 和 package boundary，而不是某个具体 retrieval 库
 
 后续升级条件：
 

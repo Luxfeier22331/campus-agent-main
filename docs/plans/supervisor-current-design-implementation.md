@@ -2,7 +2,7 @@
 doc_type: plan
 status: active
 created: 2026-03-22
-updated: 2026-03-22
+updated: 2026-03-25
 ---
 
 # Supervisor 当期设计架构实施方案
@@ -11,7 +11,7 @@ updated: 2026-03-22
 
 **Goal:** 在不扩大 supervisor 边界的前提下，将当前 `packages/supervisor-core` 从薄透传升级为单 specialist 的最小协调层，并保持 `supervisor-api -> supervisor-core -> rag-specialist -> retrieval-core` 主链路稳定可测。
 
-**Architecture:** 本次实施只落地 `single-specialist, policy-driven coordinator`。`apps/supervisor-api` 继续只负责 transport/auth/runtime boundary，`packages/supervisor-core` 负责 request framing、routing、policy、response shaping 和 audit projection，`packages/rag-specialist` 继续负责 retrieval-oriented specialist 逻辑。当前阶段只支持路由到 `rag-specialist`，但必须显式保留 routing decision 和 supervisor finalization，不允许继续围绕透传函数扩建。
+**Architecture:** 本次实施只落地 `single-specialist, policy-driven coordinator`。`apps/supervisor-api` 继续只负责 transport/auth/runtime boundary，`packages/supervisor-core` 负责 request framing、routing、policy、response shaping 和 audit projection，`packages/rag-specialist` 继续负责 retrieval-oriented specialist 逻辑。当前阶段只支持路由到 `rag-specialist`，并保持 supervisor 对用户回合的持续控制，不开放用户可见 handoff；但必须显式保留 routing decision 和 supervisor finalization，不允许继续围绕透传函数扩建。
 
 **Tech Stack:** Python 3.12, uv workspace, dataclasses, Agno runtime boundary, unittest/pytest
 
@@ -45,6 +45,8 @@ updated: 2026-03-22
   定义 supervisor 的长期架构与当期设计架构
 - `docs/decisions/adr-0001-phase1-architecture.md`
   定义 phase-1 runtime 与架构约束
+- `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
+  定义长期编排模式、specialist 准入与安全边界
 - 本文
   只定义 supervisor 当期设计架构的实施顺序、文件落点和验收标准
 
@@ -55,6 +57,7 @@ updated: 2026-03-22
 - `packages/supervisor-core` 不再只由单个透传 `handle()` 支撑主流程
 - request framing、routing、policy、response assembly、audit projection 各自有明确代码落点
 - 当前依然只路由到 `rag-specialist`，但 route decision 已显式存在
+- 当前用户回合仍由 supervisor 持有，`rag-specialist` 不接管对话主导权
 - `apps/supervisor-api` 不新增核心编排逻辑
 - `tests/supervisor/` 能覆盖最小协调层行为
 - `tests/api/` 能证明 API boundary 仍旧只负责 request construction 和 response projection
@@ -65,10 +68,20 @@ updated: 2026-03-22
 
 - 第二个 specialist
 - 多 specialist 串并行 workflow
+- 用户可见 handoff
 - supervisor 直接访问 retrieval-core / registry / object store
 - 完整 session memory / HITL / approval flow
 - 改写 `packages/contracts` schema
 - 把 `apps/supervisor-api` 升级成更重的 runtime host
+
+## 后续扩展前置条件
+
+如果后续要新增 specialist、handoff 或 approval-required capability，至少需要先满足：
+
+- `docs/decisions/adr-0006-agent-orchestration-and-safety.md` 中的 specialist 准入和安全边界
+- `docs/decisions/adr-0004-evaluation-metrics.md` 中的 workflow / safety / gate 指标覆盖
+
+这些条件不属于当前实施范围，但当前设计必须为后续门禁保留正确位置。
 
 ## 当前实现盘点
 
@@ -173,6 +186,7 @@ updated: 2026-03-22
 - 当前规则固定为：
   - query-serving 只允许 `regulations` corpus 中已开放的 collection，第一阶段默认仅 `student_handbook`
   - 所有合法请求都路由到 `rag-specialist`
+- 当前 delegation 保持为 bounded subtask delegation，不开放 user-visible handoff
 - routing 模块的价值是固定“决策位置”，不是制造多余抽象。
 
 **Verification:**

@@ -2,7 +2,7 @@
 doc_type: plan
 status: active
 created: 2026-03-23
-updated: 2026-03-23
+updated: 2026-03-24
 ---
 
 # Golden Dataset Schema And Bootstrap
@@ -102,6 +102,12 @@ Recommended matching strictness:
 - when stable and valuable: `doc_id + version_id`
 - only for locked/high-risk cases: `doc_id + version_id + chunk_id`
 
+Recommended bootstrap defaults by split:
+
+- `smoke` -> `doc_id`
+- `regression_locked` -> `doc_id + version_id`
+- escalate to `doc_id + version_id + chunk_id` only for selected high-risk locked cases
+
 Rationale:
 
 - chunking policy and retrieval ranking are still evolving
@@ -138,6 +144,30 @@ Recommended usage:
 - `exploratory`: allowed but not required at bootstrap
 - `release_gate`: can initially be derived from a stable subset of `smoke` + `regression_locked`
 
+Promotion posture:
+
+- new candidate or synthetic-heavy cases should enter `exploratory` first
+- only truth-closed, stable, high-signal cases should be promoted into `smoke`
+- only risk-justified or regression-critical cases should be promoted into `regression_locked`
+- initial `release_gate` should select from already maintained stable cases rather than acting as its own early intake lane
+
+## Initial Bootstrap Inventory Shape
+
+The first query-path bootstrap inventory should stay intentionally small.
+
+- `smoke` should start with 4 high-signal cases:
+  - one grounded `completed`
+  - one `needs_clarification`
+  - one `no_answer` or fail-closed
+  - one citation/source-locator-sensitive `completed`
+- `regression_locked` should start with about 6 to 8 cases:
+  - the stable `student_handbook` topical happy paths already used as seeds
+  - plus at least one clarification case
+  - plus at least one no-answer case
+- the current all-`completed` topic seed list is better treated as a source pool or `regression_locked` candidate set than as the final smoke gate
+- initial `release_gate` should be derived from 4 to 5 already-stable cases selected from `smoke + regression_locked`
+- if table-heavy evidence later proves high-risk and stable enough to grade, add it to `regression_locked` first before promoting it into the derived gate
+
 ## Synthetic-Heavy Provenance Rules
 
 Because the project currently relies on synthetic or pseudo-labeled data, provenance must be explicit per case.
@@ -161,7 +191,7 @@ Default bootstrap mode:
 
 - `deterministic_only`
 
-Deterministic checks should cover:
+Mandatory bootstrap deterministic surface:
 
 - `status_accuracy`
 - `expected_doc_hit`
@@ -169,6 +199,18 @@ Deterministic checks should cover:
 - `required_facts`
 - `forbidden_claims`
 - `citation_completeness`
+
+Runner expectation:
+
+- bootstrap deterministic mode must support all six checks above
+- specific cases may still disable irrelevant dimensions via explicit grader policy
+
+Recommended split posture:
+
+- `smoke` should always cover `status_accuracy`, `expected_doc_hit`, and `citation_completeness`
+- `smoke` should add `required_facts` and `forbidden_claims` when answer truth is already stable
+- `regression_locked` should normally cover the full mandatory deterministic surface
+- initial derived `release_gate` should be selected from cases that already pass this surface stably
 
 Optional bootstrap checks when the signal already exists:
 
@@ -181,12 +223,36 @@ Do not make LLM grading mandatory for bootstrap readiness.
 
 The canonical schema stays repository-owned. External libraries consume adapters.
 
+### Minimal adapter seam
+
+The first adapter seam should be introduced at the runner layer, not at the golden-case storage layer.
+
+- canonical repository protocol remains `GoldenCase -> ExecutionResult -> deterministic CaseResult`
+- adapters consume a repository-owned projection derived from those objects
+- adapters may add supplemental scores or annotations
+- adapters must not redefine case fields, split semantics, or the deterministic gate contract
+- bootstrap keeps adapter invocation optional and off by default
+
+Recommended report posture once adapters are enabled:
+
+- deterministic `CaseResult` remains the primary gate result
+- adapter outputs are attached as optional per-case `supplemental_results`, not folded into the base deterministic verdict
+- each supplemental item should at least carry adapter identity, metric or rubric name, score or verdict, short rationale, gating flag, and optional metadata
+- supplemental outputs are report-only by default
+- any future promotion of a supplemental metric into gating status must be explicit and phase-scoped
+- `RunReport` should aggregate supplemental metrics separately from deterministic split and dimension summaries
+
 ### Ragas
 
 Useful for:
 
 - synthetic query generation patterns
 - evaluation samples centered on `user_input`, `reference`, `retrieved_contexts`
+- selected RAG-facing metrics such as groundedness / faithfulness and context ranking quality
+
+Recommended timing:
+
+- phase-1 can research or adopt `ragas` earlier than OpenAI graders when the question is retrieval quality or grounded answering quality
 
 Not canonical for:
 
@@ -194,6 +260,25 @@ Not canonical for:
 - ACL truth
 - trace truth
 - release-gate repository protocol
+
+### OpenAI graders
+
+Useful for:
+
+- answer correctness or rubric-style grading
+- later trace-style judging
+- supervisor-stage routing, handoff, and workflow behavior evaluation
+
+Recommended timing:
+
+- do not make OpenAI graders part of the phase-1 bootstrap gate mainline
+- preserve an adapter seam in `packages/evals` so they can be added later without reshaping repository truth
+
+Not canonical for:
+
+- golden truth storage model
+- split semantics
+- release-gate protocol
 
 ### Promptfoo
 

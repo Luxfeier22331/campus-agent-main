@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-22
-updated: 2026-03-22
+updated: 2026-03-25
 ---
 
 # Supervisor 架构设计
@@ -24,6 +24,8 @@ updated: 2026-03-22
   定义整个仓库的长期边界、链路分层和 package 责任
 - `docs/decisions/adr-0001-phase1-architecture.md`
   定义第一阶段的架构取舍、运行时选择和约束
+- `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
+  定义长期编排模式、specialist 准入与安全边界
 - `docs/plans/agentic-rag-foundation.md`
   定义 phase-1 落地顺序、文件落点和验收标准
 - 本文
@@ -33,7 +35,8 @@ updated: 2026-03-22
 
 - supervisor 是唯一入口协调层，不是知识实现层
 - supervisor 拥有全局策略与最终响应责任，但不拥有 specialist 内部推理逻辑
-- supervisor 与 specialist 的交互必须通过稳定 handoff contract 完成
+- supervisor 与 specialist 的交互必须通过稳定 delegation / handoff contract 完成
+- 长期采用 `hybrid orchestration`；deterministic gate 与安全边界优先由 code orchestration 收口
 - supervisor 不直接接触 retrieval、ingestion 或基础设施细节
 - phase-1 即使只有一个 specialist，也应保留真正的 coordination 形态，而不是长期停留在透传包装
 
@@ -74,6 +77,28 @@ supervisor 在长期链路中的位置固定如下：
 - `specialist`
   负责本域能力执行，例如 retrieval-oriented specialist
 
+### 长期编排模式
+
+supervisor 的长期工作方式不是“只允许 handoff”，而是允许两类受控交互并存：
+
+- `manager-managed specialist`
+  supervisor 保持回合控制，向 specialist 委派受限子任务；这是顶层产品路径的默认模式
+- `explicit handoff`
+  只有在 specialist 需要拥有后续回合、独立状态或独立交互上下文时，才采用显式 handoff
+
+同时，supervisor 长期采用 `hybrid orchestration`：
+
+- `code orchestration`
+  负责 auth、ACL / policy gate、tool permission、approval hook、timeout / retry、deterministic stop condition 与结构化输入输出校验
+- `LLM orchestration`
+  负责意图框定、开放式任务拆解、query rewriting、澄清措辞与结果综合
+
+长期不允许退化为：
+
+- 把 specialist 再次降级成 supervisor 内部的一组零散 tool
+- 让 specialist 在没有显式 routing 和 contract 的前提下自由串联
+- 让顶层产品路径失去 supervisor 这个全局策略拥有者
+
 ### 长期内部职责分层
 
 长期 supervisor 应拆成若干稳定责任层，而不是一个大而全的 agent 类。
@@ -87,7 +112,7 @@ supervisor 在长期链路中的位置固定如下：
 - `Routing Policy`
   决定由哪个 specialist 承接，或是否先澄清 / 拒答 / 升级
 - `Delegation Gateway`
-  通过 `packages/contracts` 中的 handoff schema 向 specialist 发起委派
+  通过 `packages/contracts` 中的 delegation / handoff schema 向 specialist 发起委派
 - `Supervisor Decision Policy`
   基于 specialist 结果判断完成、复核、追问、换路由或升级
 - `Response Assembler`
@@ -158,6 +183,14 @@ supervisor 在长期链路中的位置固定如下：
 - 在 supervisor 中堆积下游 capability 细节
 - 把 contract 退化为临时函数调用
 
+### 长期扩展门禁
+
+当系统考虑新增 specialist、handoff 路径或 approval-required capability 时，supervisor 侧至少应满足以下前置条件：
+
+- 满足 `docs/decisions/adr-0006-agent-orchestration-and-safety.md` 中的 specialist 准入规则
+- 对应 routing、delegation / handoff 和 safety gate 已在 `packages/evals` 中具备可重复验证
+- 缺少 machine-grade trace 点的设计，不应被视为“已具备长期可维护性”
+
 ## 当期设计架构
 
 ### 目标
@@ -168,6 +201,9 @@ supervisor 在长期链路中的位置固定如下：
 - 当前默认查询范围只开放 `regulations` corpus 中的 `student_handbook` collection
 - 当前仍以最小可验证主链路为优先
 - 当前必须避免继续扩大“supervisor 只是透传”的错误形态
+- 当前默认保持 supervisor 对用户回合的持续控制，不开放用户可见 handoff
+
+这里的“当前只路由一个 specialist”表示当前实现与当前默认执行范围，而不是长期架构上禁止增加第二个 specialist。
 
 ### 当前架构定位
 
@@ -180,6 +216,7 @@ supervisor 在长期链路中的位置固定如下：
 - 虽然当前只有一个 specialist，但仍然要显式保留 routing decision
 - 虽然当前结果主要来自 RAG specialist，但最终状态与对外响应仍由 supervisor 收口
 - 虽然当前 workflow 很短，但仍然要把 request framing、response assembly、audit projection 从透传逻辑中拆出来
+- 当前 delegation 仍是 bounded subtask delegation，不让 `rag-specialist` 接管用户会话
 
 ### 当前查询链路
 
@@ -195,6 +232,7 @@ supervisor 在长期链路中的位置固定如下：
 - 处理 `completed` / `needs_clarification` / `no_answer` / `error`
 - 形成统一的对外响应语义
 - 投影最小审计字段
+- 为后续 approval / escalation 留出 deterministic gate 的位置，但当前不要求一次做满
 
 ### 当前建议的内部模块骨架
 
@@ -236,7 +274,10 @@ supervisor 在长期链路中的位置固定如下：
 - 不让 supervisor 越过 specialist 直连 registry、Qdrant、MinIO
 - 不把 HTTP transport、auth 或 AgentOS host 逻辑混进 supervisor-core
 - 不为“先跑通”继续扩建 pass-through 结构
+- 当前默认由 supervisor 持续控场，不让 `rag-specialist` 接管用户回合
+- 不让 specialist 返回的自由文本直接驱动下一跳控制逻辑
 - 不把 phase-1 的单 specialist 设计写成长期架构承诺
+- 如果未来引入新的 specialist，例如 `official-web` / `availability` specialist，应通过显式 routing target 和独立 contract 接入，而不是退回成 supervisor 内联 tool bundle
 
 ### 当前允许显式延后的能力
 
@@ -248,6 +289,11 @@ supervisor 在长期链路中的位置固定如下：
 - 完整 HITL / approval flow
 
 这些能力可以后续增加，但不影响当前先把 supervisor 的正确骨架立住。
+
+需要区分两件事：
+
+- “复杂多 specialist workflow engine” 可以延后
+- “为长期稳定能力新增一个边界清晰的 specialist” 本身并不违背长期架构；是否在当前里程碑纳入，应由 `.planning/` 中的当前执行决策决定
 
 ## 长期架构与当期设计的关系
 
@@ -274,5 +320,6 @@ supervisor 在长期链路中的位置固定如下：
 - 某个框架下的 agent/team API 用法
 - phase-1 的逐任务实施顺序
 - 第二个 specialist 的具体引入方式
+- 任何一轮新增 routing / specialist 的具体 gate 数值
 
 这些内容分别由 ADR、实施计划和后续代码设计承担。

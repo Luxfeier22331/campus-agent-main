@@ -2,7 +2,7 @@
 
 ## What This Is
 
-`campus-agent` 是一个面向学生、教职工和潜在考生的 multi-agent 校园问答助理仓库，长期形态是以 `supervisor` 作为唯一入口、`specialist agent` 作为能力边界的 supervisor-led orchestration system。当前 v1 的重点不是做全量校园知识问答，而是在新架构下先跑通 `student_handbook` 的 agentic RAG 全链路，并让 `supervisor -> rag-specialist -> retrieval` 主路径稳定成立。旧仓库 `../campusRAG` 只作为迁移参考，不再作为继续扩展的主实现。
+`campus-agent` 是一个面向学生、教职工和潜在考生的 multi-agent 校园问答助理仓库，长期形态是以 `supervisor` 作为唯一入口、`specialist agent` 作为能力边界的 supervisor-led orchestration system。当前 v1 的重点不是做全量校园知识问答，而是在新架构下先跑通 `student_handbook` 的 agentic RAG 全链路，并让 `supervisor -> rag-specialist -> retrieval` 主路径稳定成立。与此同时，若存在长期稳定、可复用、非 handbook-RAG 的能力边界，例如官网探活 / 外部站点可达性核验，也允许以独立 specialist 的形式作为当前里程碑中的显式 inserted phase 落地，而不是被降级成 supervisor 内联 tool。旧仓库 `../campusRAG` 只作为迁移参考，不再作为继续扩展的主实现。
 
 ## Core Value
 
@@ -25,13 +25,14 @@
 - [ ] 将身份与权限最小闭环落到请求级透传与 retrieval 前 ACL 过滤，面向学生、教职工和潜在考生三类用户预留访问边界
 - [ ] 为 `student_handbook` 主链路补齐基础 eval / smoke 验证，证明问答、失败与澄清分支可验证
 - [ ] 并行推进 `curriculum_plan` 的 raw 导入、清洗与 chunking，为后续开放 query-serving 做准备，但本阶段不放开查询
+- [ ] 将边界清晰的 `official-web` / `availability` specialist 纳入当前执行，以独立 contract、supervisor 显式路由与 allowlisted 官方站点探活能力完成最小闭环，但不把它混入 `rag-specialist` 或 supervisor tool bundle
 
 ### Out of Scope
 
 - `curriculum_plan` query-serving 上线 — 本阶段只做 raw 导入、清洗和 chunking，不开放查询
 - 全 corpus 上线 — v1 只证明 `student_handbook` 的完整问答主链路
 - 更细粒度的角色差异化问答行为 — 当前只做到 identity / groups 透传与 retrieval 前 ACL 过滤
-- 多 specialist 串并行协作、复杂 workflow engine — 先把单 specialist 的正确骨架立住
+- 复杂的多 specialist 串并行协作与 workflow engine — 先把显式 routing、handoff 和单条主链路骨架立住
 - 完整会话记忆、HITL / approval flow、生产级运维硬化 — 这些属于后续阶段能力，不作为当前初始化范围
 
 ## Context
@@ -56,6 +57,8 @@
 | 权限最小闭环只做到 identity / groups 透传与 retrieval 前 ACL 过滤 | 先满足多类用户的最小访问控制，再延后更细粒度角色行为 | — Pending |
 | 旧 `../campusRAG` 仅作为迁移参考 | 新仓库目标是新架构落地，不是继续扩展旧实现 | — Pending |
 | phase-1 先优先架构边界正确、handoff 清晰、tracing / audit / ACL 最小闭环 | 这是“符合最佳实践”的核心，也是后续扩展多 specialist 的前置条件 | — Pending |
+| specialist 表示稳定能力边界，不只等于 handbook RAG | 如果官网探活 / 可达性核验是长期稳定需求，应作为独立 specialist 讨论，而不是退回 supervisor 内联 tool | — Pending |
+| `official-web` / `availability` specialist 进入当前里程碑，但以 inserted phase 并行推进 | 这是长期稳定能力边界，且可以在不改写 handbook mainline 的前提下提前验证 supervisor 的多 specialist 形态 | — Pending in Phase 03.1 |
 | handbook raw onboarding 必须先进入 raw bucket + raw asset registry，再允许 OCR normalized ingestion | Phase 2 要证明 raw/document truth 分层成立，不能退回本地文件路径兼容方案 | — Validated in Phase 2 |
 | handbook duplicate/update 判定基于 `document_id + revision_track` 的历史内容哈希，并通过 import report 显式暴露 created/updated/skipped buckets | 后续 Phase 3/4 需要稳定的版本推进与可审计回归证据 | — Validated in Phase 2 |
 | handbook chunking 必须从 registry 指向的 `document-units.jsonl` 重建，并让 ingestion/retrieval 之间共享同一套 evidence-trace metadata | Phase 3 要证明 processed truth、Qdrant payload 和 retrieval evidence shaping 已经收口 | — Validated in Phase 3 |
@@ -79,4 +82,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state (users, feedback, metrics)
 
 ---
-*Last updated: 2026-03-24 after Phase 3 completion*
+*Last updated: 2026-03-25 after inserting Phase 03.1 availability specialist work*

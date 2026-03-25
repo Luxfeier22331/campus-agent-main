@@ -32,6 +32,10 @@ Requirements for the initial phase-1 release. Each requirement will map to exact
 - [ ] **GOV-02**: Each handled request records trace and audit data sufficient to link request identity, routed path, response status, and cited sources
 - [x] **GOV-03**: Phase-1 query-serving rejects corpora outside `student_handbook`, including `curriculum_plan`
 
+### Specialist Expansion
+
+- [ ] **AORC-03**: Supervisor can route to a non-RAG specialist, such as an `official-web` / `availability` capability, through explicit contracts instead of inline tool bundles
+
 ### Verification
 
 - [ ] **VER-01**: Repository includes automated tests proving the `supervisor -> rag-specialist -> retrieval` path and the `completed` / `needs_clarification` / `no_answer` / `error` response semantics
@@ -64,7 +68,7 @@ Deferred to future releases. Tracked but not part of the current roadmap.
 | Production query access for `curriculum_plan` | Phase-1 only prepares ingestion/cleaning/chunking and must not expand query-serving scope |
 | Full corpus launch across all campus domains | Current milestone is to stabilize the `student_handbook` agentic RAG path first |
 | Fine-grained persona-specific answer behavior | v1 only needs identity/groups propagation and retrieval ACL filtering |
-| Multi-specialist parallel workflows | Phase-1 focuses on a single `rag-specialist` with clean contracts |
+| Complex multi-specialist parallel workflows | Current milestone may add one explicitly routed non-RAG specialist, but not a general workflow engine or broad multi-specialist orchestration matrix |
 | Full HITL approval flow and durable memory | Governance hardening beyond minimum tracing/audit/ACL closure is deferred |
 
 ## Traceability
@@ -86,14 +90,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 | GOV-01 | Phase 5 | Pending |
 | GOV-02 | Phase 5 | Pending |
 | GOV-03 | Phase 1 | Complete |
+| AORC-03 | Phase 03.1 | Pending |
 | VER-01 | Phase 7 | Pending |
 | VER-02 | Phase 7 | Pending |
 
 **Coverage:**
-- v1 requirements: 15 total
-- Mapped to phases: 15
+- v1 requirements: 16 total
+- Mapped to phases: 16
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-23*
-*Last updated: 2026-03-24 after Phase 3 completion*
+*Last updated: 2026-03-25 after promoting AORC-03 into current execution scope*

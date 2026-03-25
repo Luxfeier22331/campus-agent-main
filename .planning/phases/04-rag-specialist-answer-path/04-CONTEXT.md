@@ -7,9 +7,9 @@
 <domain>
 ## Phase Boundary
 
-Phase 4 closes `QRY-01` through `QRY-04` for `student_handbook`. The scope is to make `rag-specialist` return grounded answers, citations, clarification responses, and safe no-answer/error outcomes on top of the Phase 3 retrieval-ready evidence path.
+Phase 4 closes `QRY-01` through `QRY-04` for `student_handbook`. The scope is to make `rag-specialist` return grounded answers, citations, clarification responses, and safe no-answer/error outcomes on top of the Phase 3 retrieval-ready evidence path and the generalized specialist boundary frozen by Phase 03.1.
 
-The phase does not expand supervisor scope, does not redesign the shared handoff contract by default, and does not broaden query-serving beyond `regulations/student_handbook`.
+The phase does not expand supervisor scope, does not reopen shared contract generalization beyond the baseline already frozen before it, and does not broaden query-serving beyond `regulations/student_handbook`.
 
 The phase delivers four things:
 
@@ -79,7 +79,7 @@ The phase delivers four things:
 
 ### The agent's Discretion
 - Exact decomposition between rewrite logic, clarification checks, evidence ranking, and answer assembly helpers within `packages/rag-specialist`, as long as package boundaries remain intact.
-- Whether answer composition uses one or more intermediate internal representations before returning `DelegateToRagAgentResponse`.
+- Whether answer composition uses one or more intermediate internal representations before returning the accepted `rag-specialist` response contract frozen before or during execution.
 - The exact unit/integration test split, as long as completed, clarification, no-answer, and error branches are each asserted directly.
 
 </decisions>
@@ -97,6 +97,7 @@ The phase delivers four things:
 - `.planning/ROADMAP.md` — Phase 4 goal, success criteria, and plan inventory
 - `.planning/STATE.md` — current milestone position after Phase 3 completion
 - `.planning/phases/01-contract-and-boundary-guardrails/01-CONTEXT.md` — contract-only handoff and query-scope rules that Phase 4 must preserve
+- `.planning/phases/03.1-availability-specialist/03.1-CONTEXT.md` — inserted-phase contract/routing generalization that Phase 4 should consume rather than redesign
 - `.planning/phases/03-retrieval-corpus-preparation/03-CONTEXT.md` — retrieval-ready chunk and evidence metadata truths that Phase 4 consumes
 
 ### Architecture and package-boundary truth
@@ -136,7 +137,7 @@ The phase delivers four things:
 - `RagSpecialistAgent.compose_answer()` is currently intentionally simple and can be replaced by a more grounded multi-evidence assembler without touching supervisor boundaries.
 
 ### Established Patterns
-- Contract-only handoff is already locked by Phase 1. Do not add a second specialist API shape.
+- Contract-only handoff is already locked. Phase 4 should consume the generalized specialist boundary frozen by earlier work instead of inventing a new `rag-specialist`-only bypass.
 - Runtime truth is repo-tracked. If table projection or retrieval defaults become stable cross-phase truth, update the right docs/configs instead of hiding them only in code.
 - Clarification, no-answer, and error are already first-class response statuses in the shared contract.
 - Retrieval currently returns snippet-first evidence, not prompt-ready context blocks. Phase 4 should explicitly define the packaging step instead of assuming retrieval output is final-answer-ready.

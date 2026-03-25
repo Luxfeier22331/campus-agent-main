@@ -25,6 +25,8 @@ updated: 2026-03-24
 - handbook 的长期逻辑 identity 应采用 `document_id + representation + version_id`，而不是绑到某个 PDF 文件名。
 - 文档切分是 normalization 之后、chunking 之前的独立步骤。
 - `article_body`、`policy_page`、`table`、`table_row` 仍然是 handbook 的文档内结构单元，但它们属于 document-level cleaning / chunking 结果，不属于 source-level structured truth。
+- 文号、标题变体、试行/暂行附记等 metadata-only 前导信息应保留在 document metadata 中，不应作为独立 retrieval chunk 落盘。
+- chunk 用于 embedding / retrieval 的文本应从 unit text 加上文档级上下文组装，而不是依赖单独的标题块或文号块参与检索。
 
 ## 主流策略
 
@@ -229,6 +231,7 @@ updated: 2026-03-24
 - `source_channel` 显式记录来源渠道；第一阶段 OCR ingest / replay 默认写 `pdf_ocr`
 - `is_current` 表示该表示线是否是当前对外生效线；source-faithful handbook 默认 `false`
 - `policy_doc_no` 仅在可稳定识别时保留
+- metadata-only 前导信息只进入 canonical metadata / contextualization 输入，不单独生成 `policy_page` unit
 - `page_start/page_end` 属于文档真相，不应由 chunking 事后回推
 - `document-units.jsonl` 必须写 `doc_id`、`version_id`、`unit_type`、`anchor`、`clean_text`
 - `chunk_id`、embedding、Qdrant payload 仍然是更下游派生物，不回写 canonical markdown

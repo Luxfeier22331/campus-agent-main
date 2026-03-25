@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0004
 status: accepted
 created: 2026-03-22
-updated: 2026-03-22
+updated: 2026-03-25
 ---
 
 # ADR-0004 评测指标体系
@@ -87,12 +87,21 @@ answer 层长期至少保留以下指标族：
 
 - `status accuracy`
   `completed`、`needs_clarification`、`no_answer`、`error` 是否与 truth 一致
+- `routing accuracy`
+  是否选择了正确的 specialist，或在不该委派时正确保持不委派
 - `clarification accuracy`
   是否在应澄清时澄清，不应澄清时不误触发
 - `no-answer accuracy`
   是否在证据不足或范围不符时正确拒答
-- `trace / handoff accuracy`
-  是否发生了正确的 specialist handoff、retrieval 调用或 fail-closed 行为
+- `delegation / handoff accuracy`
+  是否发生了正确的 specialist delegation / handoff，且没有越级绕过 supervisor policy
+- `trace path correctness`
+  是否发生了正确的 retrieval 调用、fail-closed 行为与其他关键中间路径
+
+补充约束：
+
+- 新 specialist、新 routing 或新 handoff 在进入 `release_gate` 前，必须先具备 machine-grade trace 点
+- 缺少 trace observability 的设计，视为 workflow 指标不完整，而不是“暂时不评”
 
 workflow 指标属于正式门禁对象，不得被最终答案文本指标替代。
 
@@ -104,6 +113,7 @@ workflow 指标属于正式门禁对象，不得被最终答案文本指标替�
 - forbidden-source retrieval rate
 - citation/source-locator completeness
 - error-path correctness
+- approval-path correctness（当系统存在 approval-required capability 时）
 
 这些指标优先以确定性规则或程序化断言实现，不依赖 LLM scorer。
 
@@ -116,7 +126,7 @@ workflow 指标属于正式门禁对象，不得被最终答案文本指标替�
 - `regression_locked`
   必须覆盖 retrieval、answer、workflow 三层正式指标
 - `release_gate`
-  必须覆盖 retrieval、answer、workflow 与 safety/gate 指标
+  必须覆盖 retrieval、answer、workflow 与 safety/gate 指标；当本轮变化涉及新 specialist、routing、handoff 或 approval path 时，必须显式覆盖对应维度
 - `exploratory`
   允许试验新指标，但试验指标不自动升级为正式门禁
 
@@ -136,6 +146,7 @@ split 和指标族的对应关系在长期上固定，但每个 split 的具体�
 - 指标语义先于具体工具存在
 - `ragas` 可以提供 `faithfulness`、context precision/recall 等实现，但不决定仓库的指标体系
 - OpenAI grader 可以提供 factual correctness、rubric scoring 或 trace grading，但不决定仓库的指标分组与 gate 结构
+- OpenAI trace grading 可以作为 routing、delegation / handoff、approval-path 评估实现，但不决定仓库 workflow / safety 指标语义
 - 如果多个框架都能计算同一指标族，应以仓库自己的 truth 协议为准，而不是以某个框架的默认列名或输入形状为准
 
 ## 决策 8：长期不冻结阈值，只冻结指标家族
@@ -162,4 +173,3 @@ split 和指标族的对应关系在长期上固定，但每个 split 的具体�
   负责当前阶段的 metric wiring、阈值、runner 与报表实现
 
 换句话说，golden dataset ADR 定义“真值长什么样”，本 ADR 定义“围绕这些真值评什么”，实施计划才回答“这一轮怎么算、用哪个配置、门禁卡在哪”。
-
