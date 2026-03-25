@@ -4,7 +4,7 @@
 
 This roadmap stabilizes the new supervisor-led architecture before it expands scope. The sequence starts by freezing the supervisor/specialist contract and phase-1 guardrails, then builds the `student_handbook` ingestion and retrieval path, wires the `supervisor` entrypoint with ACL/audit responsibilities, prepares `curriculum_plan` offline only, and finishes with repository-level verification that proves the end-to-end agentic RAG flow is safe to plan and execute.
 
-Current roadmap truth still centers the `student_handbook` mainline as the scheduled execution path. An inserted `03.1 Availability Specialist 最小闭环` phase is now also part of the current milestone as a parallel capability line; it exists to validate one stable non-RAG specialist boundary without hiding that work inside the existing RAG phases as an implementation detail.
+Current roadmap truth still centers the `student_handbook` mainline as the scheduled execution path. An inserted `03.1 Availability Specialist 最小闭环` phase is now also part of the current milestone as a parallel capability line; it exists to validate one stable non-RAG specialist boundary without hiding that work inside the existing RAG phases as an implementation detail. Inserted `04.x` Cloudflare phases now run in parallel to freeze the edge entry, protected internal-panel boundary, runtime topology, edge integration contract, and panel runtime shell before the mainline query path is ready, without pushing Cloudflare/runtime decisions down into core packages.
 
 The public answer route is now expected to construct a supervisor-facing request rather than hardcoding a rag-specialist handoff. Default handbook scope remains a routing/policy concern, not an API-shell constant.
 
@@ -12,7 +12,7 @@ The public answer route is now expected to construct a supervisor-facing request
 
 **Phase Numbering:**
 - Integer phases (1, 2, 3): Planned milestone work
-- Decimal phases (03.1, 05.1): Urgent insertions (marked with INSERTED)
+- Decimal phases (03.1, 04.1, 04.2, 04.3, 04.4, 05.1): Urgent insertions (marked with INSERTED)
 
 Decimal phases appear between their surrounding integers in numeric order.
 
@@ -21,6 +21,10 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Retrieval Corpus Preparation** - Produce processed, chunked, and indexed `student_handbook` artifacts for query-serving. (completed 2026-03-24)
 - [x] **Phase 03.1: Availability Specialist 最小闭环** - Generalize the supervisor/specialist boundary enough to add an allowlisted `official-web` / `availability` specialist without collapsing back into supervisor inline tools. (completed 2026-03-25)
 - [ ] **Phase 4: RAG Specialist Answer Path** - Deliver grounded `student_handbook` retrieval and answer semantics inside `rag-specialist`.
+- [x] **Phase 04.1: Cloudflare Entry And Protected Internal Panel Design** - Freeze the Cloudflare public-entry and protected internal-panel boundary without changing core query contracts. (INSERTED) (completed 2026-03-25)
+- [x] **Phase 04.2: Cloudflare Runtime Topology And Delivery Shape** - Freeze the Cloudflare-to-runtime deployment topology, origin ownership, and delivery boundary for public entry and protected panel. (INSERTED) (completed 2026-03-25)
+- [x] **Phase 04.3: Public Entry Edge Integration Contract** - Freeze the runtime-level integration contract between Cloudflare public entry and `apps/supervisor-api`. (INSERTED) (completed 2026-03-25)
+- [x] **Phase 04.4: Protected Internal Panel Runtime Shell** - Freeze the implementation shape of the protected panel as a future `apps/` runtime shell that only consumes runtime APIs. (INSERTED) (completed 2026-03-25)
 - [ ] **Phase 5: Supervisor Entry, ACL, And Audit** - Make `supervisor` the only query entrypoint with routing, identity propagation, and audit traces.
 - [ ] **Phase 6: Curriculum Offline Preparation** - Prepare `curriculum_plan` ingestion outputs without opening query-serving.
 - [ ] **Phase 7: Verification And Release Gate** - Prove the main path and failure semantics with automated tests and smoke/eval coverage.
@@ -101,6 +105,82 @@ Plans:
 - [ ] 04-02: Shape `completed` responses with citations and confidence-driven answer assembly.
 - [ ] 04-03: Implement `needs_clarification`, `no_answer`, and `error` branches for unsafe or insufficient retrieval outcomes.
 
+### Phase 04.5: Cloudflare Worker Consumer Entry And Access Policy (INSERTED)
+
+**Goal:** Freeze the Cloudflare Worker as the only public consumer-entry shell for the public answer hostname, including authenticated-only and anonymous-enabled entry modes, trusted Worker-to-origin admission, and explicit fail-closed closure of alternate public entrypoints.
+**Requirements**: []
+**Depends on:** Phase 4
+**Success Criteria** (what must be TRUE):
+  1. A canonical architecture note freezes `Custom Domain -> Cloudflare Worker -> trusted origin/apps/supervisor-api` as the only public answer entry path.
+  2. The entry policy explicitly supports `authenticated-only` mode and `anonymous-enabled` mode behind an explicit Worker flag without treating edge identity as final app-layer actor semantics.
+  3. Worker-to-origin trust, fail-closed behavior, and closure of `workers.dev` and preview URLs are explicit, while Phase 5 actor/ACL/audit work remains deferred.
+**Plans:** 2 plans
+
+Plans:
+- [ ] 04.5-01-PLAN.md — Freeze the canonical Worker consumer-entry/access-policy note and align docs index plus roadmap.
+- [ ] 04.5-02-PLAN.md — Freeze the downstream Worker implementation handoff and fail-closed checklist.
+
+### Phase 04.1: Cloudflare Entry And Protected Internal Panel Design (INSERTED)
+
+**Goal:** Freeze the Cloudflare public-entry and protected internal-panel boundary before implementation work, without changing the `supervisor -> specialist -> retrieval` contract path or leaking runtime specifics into core packages.
+**Requirements**: []
+**Depends on:** Phase 4
+**Success Criteria** (what must be TRUE):
+  1. The Cloudflare public-entry boundary is explicitly defined, including how it fronts `apps/supervisor-api` without moving orchestration logic into the edge shell.
+  2. The internal panel protection model is frozen, with identity and authorization requirements that keep the panel non-public by default and suitable for Cloudflare-protected access.
+  3. The design explicitly separates edge/panel protection from Phase 5 query-path ACL/audit work and does not require changes to `packages/contracts`, `packages/supervisor-core`, or retrieval/data-plane boundaries.
+**Plans:** 3/3 plans complete
+
+Plans:
+- [x] 04.1-01: Freeze the Cloudflare public-entry boundary in front of `apps/supervisor-api`.
+- [x] 04.1-02: Freeze the protected internal-panel trust model and allowed runtime path.
+- [x] 04.1-03: Record the deferred Phase 5 actor/ACL/audit seams and implementation handoff.
+
+### Phase 04.2: Cloudflare Runtime Topology And Delivery Shape (INSERTED)
+
+**Goal:** Freeze the Cloudflare-to-runtime deployment topology for public entry and protected panel so later delivery work has explicit origin ownership, hostname routing, secret/config boundaries, and rollback seams without binding `packages/*` to any provider or framework type.
+**Requirements**: []
+**Depends on:** Phase 04.1
+**Success Criteria** (what must be TRUE):
+  1. The topology between Cloudflare, public entry, protected panel, and repo-owned runtime origins is explicitly documented.
+  2. Delivery ownership for hostname, secret/config, origin routing, and rollback boundary is explicit at the `apps/*` level.
+  3. The topology does not reopen `packages/contracts`, supervisor routing semantics, or Phase 5 identity/audit scope.
+**Plans:** 2/2 plans complete
+
+Plans:
+- [x] 04.2-01: Freeze the Cloudflare-to-origin runtime topology and rollback boundary.
+- [x] 04.2-02: Freeze delivery ownership and downstream handoff for 04.3/04.4.
+
+### Phase 04.3: Public Entry Edge Integration Contract (INSERTED)
+
+**Goal:** Freeze the runtime-facing integration contract between Cloudflare public entry and `apps/supervisor-api`, including request forwarding, trace propagation, timeout/cache/streaming expectations, and health/readiness seams.
+**Requirements**: []
+**Depends on:** Phase 04.2
+**Success Criteria** (what must be TRUE):
+  1. Cloudflare public entry to `apps/supervisor-api` forwarding expectations are explicit and runtime-scoped.
+  2. Header, request-id/trace, cache, body-size, timeout, and streaming expectations are documented without leaking edge/provider concerns into `packages/*`.
+  3. Health/readiness and rollback behavior are explicit at the runtime boundary.
+**Plans:** 2/2 plans complete
+
+Plans:
+- [x] 04.3-01: Freeze the public-entry runtime integration contract between Cloudflare and `apps/supervisor-api`.
+- [x] 04.3-02: Freeze the downstream implementation handoff for forwarding, trace, timeout/cache, streaming, and runtime-seam health rules.
+
+### Phase 04.4: Protected Internal Panel Runtime Shell (INSERTED)
+
+**Goal:** Freeze the implementation shape of the protected internal panel as a future `apps/` runtime shell, including runtime API seams, non-goals, and fail-closed delivery assumptions, without turning it into a direct package consumer or business-workflow phase.
+**Requirements**: []
+**Depends on:** Phase 04.2
+**Success Criteria** (what must be TRUE):
+  1. The future panel is explicitly modeled as an `apps/` runtime shell and not as an extension of `apps/supervisor-api` or `packages/*`.
+  2. The allowed runtime API seams and fail-closed delivery assumptions are explicit.
+  3. Panel implementation shape remains separated from Phase 5 actor/ACL/audit work and from panel-side business workflow design.
+**Plans:** 2/2 plans complete
+
+Plans:
+- [x] 04.4-01: Freeze the protected internal panel as a future `apps/` runtime shell with a runtime-API-only seam and forbidden coupling rules.
+- [x] 04.4-02: Freeze the downstream implementation handoff for panel shell ownership, fail-closed behavior, and deferred UI/business/governance scope.
+
 ### Phase 5: Supervisor Entry, ACL, And Audit
 **Goal**: Make `supervisor` the only supported query entrypoint and wire end-to-end identity, routing, tracing, and audit projection for phase-1 requests.
 **Depends on**: Phase 4
@@ -158,7 +238,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 4 → 5 → 05.1 → 6 → 7
+Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 4 → 04.1 → 04.2 → 04.3 → 04.4 → 5 → 05.1 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -167,6 +247,10 @@ Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 4 → 5 → 05.1 →
 | 3. Retrieval Corpus Preparation | 2/2 | Complete | 2026-03-24 |
 | 03.1. Availability Specialist 最小闭环 | 3/3 | Complete | 2026-03-25 |
 | 4. RAG Specialist Answer Path | 0/3 | Not started | - |
+| 04.1. Cloudflare Entry And Protected Internal Panel Design | 3/3 | Complete   | 2026-03-25 |
+| 04.2. Cloudflare Runtime Topology And Delivery Shape | 2/2 | Complete   | 2026-03-25 |
+| 04.3. Public Entry Edge Integration Contract | 2/2 | Complete   | 2026-03-25 |
+| 04.4. Protected Internal Panel Runtime Shell | 2/2 | Complete   | 2026-03-25 |
 | 5. Supervisor Entry, ACL, And Audit | 0/3 | Not started | - |
 | 05.1. Curriculum Chunking Strategy | 0/2 | Not started | - |
 | 6. Curriculum Offline Preparation | 0/2 | Not started | - |
