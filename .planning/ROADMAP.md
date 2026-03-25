@@ -76,11 +76,11 @@ Plans:
   1. `packages/contracts` and `packages/supervisor-core` no longer hardcode rag-only delegation as the only possible specialist path.
   2. A standalone `availability-specialist` can check allowlisted official-web targets and return typed observation results without being embedded into `rag-specialist` or supervisor tool bundles.
   3. Unreachable or failing targets are represented as successful observations with explicit status semantics, while true execution/configuration faults remain `error`.
-**Plans**: 3 plans
+**Plans**: 2/3 plans complete
 
 Plans:
 - [x] 03.1-01: Generalize shared contracts and supervisor routing targets for explicit non-RAG specialist delegation.
-- [ ] 03.1-02: Implement the allowlisted `availability-specialist` MVP and its observation/status mapping.
+- [x] 03.1-02: Implement the allowlisted `availability-specialist` MVP and its observation/status mapping.
 - [ ] 03.1-03: Add focused routing/tests and a minimal smoke or eval slice for the availability path.
 
 ### Phase 4: RAG Specialist Answer Path
@@ -163,7 +163,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 4 → 5 → 05.1 →
 | 1. Contract And Boundary Guardrails | 2/2 | Complete   | 2026-03-23 |
 | 2. Student Handbook Raw Ingestion | 2/2 | Complete | 2026-03-24 |
 | 3. Retrieval Corpus Preparation | 2/2 | Complete | 2026-03-24 |
-| 03.1. Availability Specialist 最小闭环 | 1/3 | In Progress | - |
+| 03.1. Availability Specialist 最小闭环 | 2/3 | In Progress | - |
 | 4. RAG Specialist Answer Path | 0/3 | Not started | - |
 | 5. Supervisor Entry, ACL, And Audit | 0/3 | Not started | - |
 | 05.1. Curriculum Chunking Strategy | 0/2 | Not started | - |

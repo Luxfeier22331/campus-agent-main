@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03.1-01-PLAN.md
-last_updated: "2026-03-25T03:19:42.936Z"
+stopped_at: Completed 03.1-02-PLAN.md
+last_updated: "2026-03-25T03:48:59Z"
 progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 11
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 # Project State
@@ -24,9 +24,9 @@ See: `.planning/PROJECT.md` (updated 2026-03-25)
 ## Current Position
 
 Phase: 03.1 (availability-specialist) — EXECUTING
-Plan: 2 of 3
-Status: Ready to execute 03.1-02
-Last activity: 2026-03-25 — Completed 03.1-01 contract and supervisor routing generalization
+Plan: 3 of 3
+Status: Ready to execute 03.1-03
+Last activity: 2026-03-25 — Completed 03.1-02 availability-specialist package and default supervisor wiring
 
 ## Performance Metrics
 
@@ -46,7 +46,7 @@ Last activity: 2026-03-25 — Completed 03.1-01 contract and supervisor routing 
 
 **Recent Trend:**
 
-- Last 5 plans: 02-01, 02-02, 03-01, 03-02, 03.1-01
+- Last 5 plans: 02-02, 03-01, 03-02, 03.1-01, 03.1-02
 - Trend: Stable upward
 
 | Phase 01-contract-and-boundary-guardrails P01 | 4m | 2 tasks | 11 files |
@@ -56,6 +56,7 @@ Last activity: 2026-03-25 — Completed 03.1-01 contract and supervisor routing 
 | Phase 03 P01 | inline | 2 tasks | see summary |
 | Phase 03 P02 | inline | 2 tasks | see summary |
 | Phase 03.1 P01 | 22 min | 2 tasks | 18 files |
+| Phase 03.1 P02 | 12 min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -85,19 +86,21 @@ Recent decisions affecting current work:
 - [Phase 03]: ingestion writes `representation` as a Qdrant payload alias for `revision_track`, while retrieval stays contract-compatible and fail-closes on malformed or registry-missing metadata.
 - [Phase 03.1]: Shared specialist contracts now use typed envelope branches instead of rag-only top-level request/response names. — This preserves runtime-neutral contracts while allowing explicit non-RAG delegation without overloading retrieval scope.
 - [Phase 03.1]: Supervisor-core now routes by specialist target and derives source_doc_ids only from rag evidence payloads. — This keeps availability observations outside retrieval semantics while preserving minimal audit projection.
+- [Phase 03.1]: A real `packages/availability-specialist` package now owns allowlisted target resolution, `httpx` probe mapping, and typed availability observations. — This lands the non-RAG capability as a stable package boundary instead of a supervisor-inline tool path.
+- [Phase 03.1]: Supervisor-core default wiring now includes `availability-specialist` alongside `rag-specialist`. — This makes the explicit non-RAG path reachable through the same delegate seam used by the handbook mainline.
 
 ### Pending Todos
 
-- Execute Phase 03.1 plans 02 and 03.
+- Execute Phase 03.1 plan 03.
 - Keep handbook chunk-truth validation tracked separately so the inserted availability work does not get mistaken for the `student_handbook` mainline.
 
 ### Blockers/Concerns
 
 - Handbook chunk-truth validation remains the blocker for later `student_handbook` run-through work.
-- Phase 03.1 should land the real availability specialist package and deterministic eval coverage without delaying or redefining the handbook RAG requirements.
+- Phase 03.1 still needs the final doc alignment and deterministic smoke/eval slice from 03.1-03 before the inserted availability capability is fully closed.
 
 ## Session Continuity
 
-Last session: 2026-03-25T03:19:42.934Z
-Stopped at: Completed 03.1-01-PLAN.md
+Last session: 2026-03-25T03:48:59Z
+Stopped at: Completed 03.1-02-PLAN.md
 Resume file: None
