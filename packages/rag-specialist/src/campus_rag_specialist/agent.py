@@ -10,7 +10,7 @@ DEFAULT_MAX_ANSWER_SOURCES = 3
 
 @dataclass(frozen=True, slots=True)
 class RagSpecialistAgent:
-    runtime_provider: str = "agno"
+    runtime_provider: str = ""
     max_answer_sources: int = DEFAULT_MAX_ANSWER_SOURCES
 
     def compose_answer(self, evidence: EvidenceBundle) -> str:

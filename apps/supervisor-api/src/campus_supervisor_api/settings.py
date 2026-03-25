@@ -16,6 +16,7 @@ class ApiSettings:
     app_name: str = APP_NAME
     auth_mode: str = "bearer"
     bearer_token: str = ""
+    runtime_provider: str = ""
     default_actor_groups: tuple[str, ...] = field(default_factory=tuple)
     default_actor_roles: tuple[str, ...] = field(default_factory=tuple)
     default_campus_scope: str | None = None
@@ -29,6 +30,7 @@ class ApiSettings:
             app_name=os.getenv("CAMPUS_AGENT_APP_NAME", APP_NAME),
             auth_mode=os.getenv("API_AUTH_MODE", "bearer"),
             bearer_token=os.getenv("API_BEARER_TOKEN", ""),
+            runtime_provider=os.getenv("AGENT_RUNTIME_PROVIDER", ""),
             default_actor_groups=_split_csv(os.getenv("API_DEFAULT_ACTOR_GROUPS", "")),
             default_actor_roles=_split_csv(os.getenv("API_DEFAULT_ACTOR_ROLES", "")),
             default_campus_scope=os.getenv("API_DEFAULT_CAMPUS_SCOPE") or None,

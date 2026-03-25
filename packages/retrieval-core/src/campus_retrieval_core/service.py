@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from campus_contracts import DEFAULT_COLLECTION, DEFAULT_CORPUS, EvidenceBundle
+from campus_contracts import EvidenceBundle
 
 from campus_retrieval_core.backend_qdrant import QdrantRetrievalBackend, RetrievalBackendError
 from campus_retrieval_core.models import RetrievalRequest
@@ -10,8 +10,8 @@ from campus_retrieval_core.settings import RetrievalSettings
 def retrieve_sources(
     query: str,
     *,
-    corpus: str = DEFAULT_CORPUS,
-    collection: str = DEFAULT_COLLECTION,
+    corpus: str,
+    collection: str,
     campus_scope: str | None = None,
     acl_groups: tuple[str, ...] = (),
     top_k: int = 3,

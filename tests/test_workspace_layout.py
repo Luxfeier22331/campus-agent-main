@@ -28,7 +28,16 @@ class WorkspaceLayoutTest(unittest.TestCase):
         self.assertEqual(missing, [])
 
     def test_contract_surface_exposes_generic_specialist_request(self) -> None:
-        request = SpecialistRequest(target="rag-specialist", user_goal="library hours")
+        request = SpecialistRequest(
+            target="rag-specialist",
+            user_goal="library hours",
+            payload=RagRequestPayload(
+                scope=KnowledgeScope(
+                    corpus="regulations",
+                    collection="student_handbook",
+                )
+            ),
+        )
 
         self.assertEqual(
             request.payload,
@@ -50,7 +59,7 @@ class WorkspaceLayoutTest(unittest.TestCase):
             {route.path for route in app.routes},
             {"/api/v1/answer", "/healthz", "/readyz"},
         )
-        self.assertEqual(app.runtime.provider, "agno")
+        self.assertEqual(app.runtime.provider, "")
 
 
 if __name__ == "__main__":

@@ -48,14 +48,26 @@ def _make_evidence(*, scores: tuple[float, ...] = (0.82, 0.77)) -> EvidenceBundl
 class RagSpecialistTest(unittest.TestCase):
     def test_blank_user_goal_is_rejected_by_request_contract(self) -> None:
         with self.assertRaisesRegex(ValueError, "user_goal"):
-            SpecialistRequest(target="rag-specialist", user_goal="   ")
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="   ",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            )
 
     def test_retrieval_error_maps_to_error_response(self) -> None:
         def raising_retriever(*args: object, **kwargs: object) -> EvidenceBundle:
             raise RetrievalBackendError("qdrant unavailable")
 
         response = delegate_to_rag_agent(
-            SpecialistRequest(target="rag-specialist", user_goal="library hours"),
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="library hours",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
             retriever=raising_retriever,
         )
 
@@ -102,7 +114,13 @@ class RagSpecialistTest(unittest.TestCase):
 
     def test_no_evidence_maps_to_no_answer(self) -> None:
         response = delegate_to_rag_agent(
-            SpecialistRequest(target="rag-specialist", user_goal="library hours"),
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="library hours",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
             retriever=lambda *args, **kwargs: EvidenceBundle(
                 query_text="library hours",
                 corpus="regulations",
@@ -141,6 +159,9 @@ class RagSpecialistTest(unittest.TestCase):
                 groups=("students",),
                 campus_scope="north",
             ),
+            payload=RagRequestPayload(
+                scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+            ),
         )
 
         response = delegate_to_rag_agent(request, retriever=fake_retriever)
@@ -160,7 +181,16 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.result, RagResultPayload(evidence=_make_evidence()))
 
     def test_confidence_derivation_prefers_stronger_multi_source_evidence(self) -> None:
-        self.assertEqual(derive_confidence(EvidenceBundle()), "low")
+        self.assertEqual(
+            derive_confidence(
+                EvidenceBundle(
+                    query_text="library hours",
+                    corpus="regulations",
+                    collection="student_handbook",
+                )
+            ),
+            "low",
+        )
         self.assertEqual(derive_confidence(_make_evidence(scores=(0.58,))), "medium")
         self.assertEqual(derive_confidence(_make_evidence(scores=(0.92, 0.89))), "high")
 

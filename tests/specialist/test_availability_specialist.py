@@ -7,7 +7,7 @@ import httpx
 
 from campus_availability_specialist.allowlist import ALLOWLISTED_TARGETS
 from campus_availability_specialist.service import delegate_to_availability_specialist
-from campus_contracts import AvailabilityCheckPayload, RagRequestPayload, SpecialistRequest
+from campus_contracts import AvailabilityCheckPayload, KnowledgeScope, RagRequestPayload, SpecialistRequest
 
 
 def _mock_client(handler: httpx.MockTransport) -> httpx.Client:
@@ -142,7 +142,9 @@ class AvailabilitySpecialistTest(unittest.TestCase):
             SpecialistRequest(
                 target="rag-specialist",
                 user_goal="Check homepage",
-                payload=RagRequestPayload(),
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
             ),
             client=httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(200))),
         )

@@ -1,0 +1,47 @@
+from __future__ import annotations
+
+from campus_contracts import (
+    AvailabilityCheckPayload,
+    KnowledgeScope,
+    RagRequestPayload,
+    SpecialistRequest,
+)
+
+from campus_supervisor_core.context import SupervisorRequestContext
+from campus_supervisor_core.errors import MissingRoutingInputError
+from campus_supervisor_core.routing import RoutingDecision
+
+
+def frame_specialist_request(
+    context: SupervisorRequestContext,
+    decision: RoutingDecision,
+) -> SpecialistRequest:
+    if decision.target == "availability-specialist":
+        if context.availability_target_id is None:
+            raise MissingRoutingInputError(
+                "availability_target_id is required for availability requests"
+            )
+        payload = AvailabilityCheckPayload(
+            target_id=context.availability_target_id,
+            follow_redirects=context.follow_redirects,
+        )
+    else:
+        if context.requested_scope is None:
+            raise MissingRoutingInputError(
+                "requested_scope is required for knowledge requests"
+            )
+        payload = RagRequestPayload(scope=_copy_scope(context.requested_scope))
+
+    return SpecialistRequest(
+        target=decision.target,
+        user_goal=context.user_goal,
+        conversation_id=context.conversation_id,
+        request_id=context.request_id,
+        trace=context.request.trace,
+        actor=context.request.actor,
+        payload=payload,
+    )
+
+
+def _copy_scope(scope: KnowledgeScope) -> KnowledgeScope:
+    return KnowledgeScope(corpus=scope.corpus, collection=scope.collection)

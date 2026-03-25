@@ -4,10 +4,12 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from campus_availability_specialist import delegate_to_availability_specialist
-from campus_contracts import SpecialistRequest, SpecialistResponse, SpecialistTarget
+from campus_contracts import SpecialistRequest, SpecialistResponse, SpecialistTarget, SupervisorRequest
 from campus_rag_specialist import delegate_to_rag_agent
 
 from campus_supervisor_core.context import SupervisorRequestContext
+from campus_supervisor_core.errors import MissingSpecialistDelegateError
+from campus_supervisor_core.framing import frame_specialist_request
 from campus_supervisor_core.policy import finalize_specialist_response
 from campus_supervisor_core.response import assemble_response
 from campus_supervisor_core.routing import route_request
@@ -29,12 +31,25 @@ class SupervisorAgent:
         default_factory=_default_specialist_delegates
     )
 
-    def handle(self, request: SpecialistRequest) -> SpecialistResponse:
+    def handle(self, request: SupervisorRequest) -> SpecialistResponse:
         context = SupervisorRequestContext.from_request(request)
         decision = route_request(context)
         delegate = self.specialist_delegates.get(decision.target)
         if delegate is None:
-            raise ValueError(f"missing delegate for specialist target: {decision.target}")
-        specialist_response = delegate(context.request)
+            raise MissingSpecialistDelegateError(
+                f"missing delegate for specialist target: {decision.target}"
+            )
+        specialist_request = frame_specialist_request(context, decision)
+        specialist_response = delegate(specialist_request)
+        finalized_response = finalize_specialist_response(specialist_response)
+        return assemble_response(finalized_response)
+
+    def handle_specialist_request(self, request: SpecialistRequest) -> SpecialistResponse:
+        delegate = self.specialist_delegates.get(request.target)
+        if delegate is None:
+            raise MissingSpecialistDelegateError(
+                f"missing delegate for specialist target: {request.target}"
+            )
+        specialist_response = delegate(request)
         finalized_response = finalize_specialist_response(specialist_response)
         return assemble_response(finalized_response)

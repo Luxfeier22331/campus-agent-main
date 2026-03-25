@@ -4,27 +4,30 @@ import unittest
 
 from campus_contracts import (
     ActorContext,
-    AvailabilityCheckPayload,
     KnowledgeScope,
-    RagRequestPayload,
-    SpecialistRequest,
+    SupervisorRequest,
     TraceContext,
 )
 from campus_supervisor_core.context import SupervisorRequestContext
+from campus_supervisor_core.errors import (
+    DisallowedKnowledgeScopeError,
+    InvalidSupervisorRequestError,
+    MissingRoutingInputError,
+)
 from campus_supervisor_core.routing import route_request
 
 
 class SupervisorRoutingTest(unittest.TestCase):
     def test_route_request_selects_rag_specialist_for_regulations_student_handbook(self) -> None:
-        request = SpecialistRequest(
-            target="rag-specialist",
+        request = SupervisorRequest(
             user_goal="library hours",
             conversation_id="conv-001",
             request_id="req-001",
             trace=TraceContext(trace_id="trace-001"),
             actor=ActorContext(user_id="student-001", groups=("students",)),
-            payload=RagRequestPayload(
-                scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+            requested_scope=KnowledgeScope(
+                corpus="regulations",
+                collection="student_handbook",
             ),
         )
 
@@ -34,15 +37,30 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertEqual(decision.primary_corpus, "regulations")
         self.assertEqual(decision.primary_collection, "student_handbook")
 
-    def test_route_request_selects_availability_specialist_without_inspecting_knowledge_scope(self) -> None:
-        request = SpecialistRequest(
-            target="availability-specialist",
+    def test_route_request_rejects_query_disabled_scope(self) -> None:
+        request = SupervisorRequest(
+            user_goal="graduation requirements",
+            requested_scope=KnowledgeScope(
+                corpus="curriculum",
+                collection="curriculum_plan",
+            ),
+        )
+
+        with self.assertRaisesRegex(
+            DisallowedKnowledgeScopeError,
+            "knowledge scope curriculum/curriculum_plan is not query-enabled",
+        ):
+            route_request(SupervisorRequestContext.from_request(request))
+
+    def test_route_request_selects_availability_specialist_from_explicit_capability_hint(self) -> None:
+        request = SupervisorRequest(
             user_goal="官网现在能打开吗？",
             conversation_id="conv-availability",
             request_id="req-availability",
             trace=TraceContext(trace_id="trace-availability"),
             actor=ActorContext(user_id="student-001", groups=("students",)),
-            payload=AvailabilityCheckPayload(target_id="official-homepage"),
+            requested_capability="availability",
+            availability_target_id="official-homepage",
         )
 
         decision = route_request(SupervisorRequestContext.from_request(request))
@@ -51,11 +69,11 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertIsNone(decision.primary_corpus)
         self.assertIsNone(decision.primary_collection)
 
-    def test_route_request_keeps_availability_branch_independent_from_rag_scope_rules(self) -> None:
-        request = SpecialistRequest(
-            target="availability-specialist",
+    def test_route_request_keeps_availability_branch_independent_from_knowledge_scope_rules(self) -> None:
+        request = SupervisorRequest(
             user_goal="service portal reachable?",
-            payload=AvailabilityCheckPayload(target_id="service-catalog"),
+            requested_capability="availability",
+            availability_target_id="service-catalog",
         )
 
         decision = route_request(SupervisorRequestContext.from_request(request))
@@ -64,18 +82,30 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertIsNone(decision.primary_corpus)
         self.assertIsNone(decision.primary_collection)
 
-    def test_route_request_rejects_non_query_enabled_corpus_on_rag_branch(self) -> None:
-        request = SpecialistRequest(
-            target="rag-specialist",
+    def test_route_request_rejects_missing_rag_scope_when_no_capability_hint_is_provided(self) -> None:
+        request = SupervisorRequest(
             user_goal="graduation requirements",
-            payload=RagRequestPayload(
-                scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
-            ),
         )
 
         with self.assertRaisesRegex(
-            ValueError,
-            "phase-1 query-serving only supports regulations/student_handbook",
+            MissingRoutingInputError,
+            "requested_scope or availability_target_id is required",
+        ):
+            route_request(SupervisorRequestContext.from_request(request))
+
+    def test_route_request_rejects_conflicting_knowledge_and_availability_hints(self) -> None:
+        request = SupervisorRequest(
+            user_goal="官网能打开吗，顺便告诉我开馆时间",
+            requested_scope=KnowledgeScope(
+                corpus="regulations",
+                collection="student_handbook",
+            ),
+            availability_target_id="official-homepage",
+        )
+
+        with self.assertRaisesRegex(
+            InvalidSupervisorRequestError,
+            "requested_scope and availability_target_id cannot be combined",
         ):
             route_request(SupervisorRequestContext.from_request(request))
 

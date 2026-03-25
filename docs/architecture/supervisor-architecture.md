@@ -197,23 +197,24 @@ supervisor 的长期工作方式不是“只允许 handoff”，而是允许两�
 
 当前阶段的 supervisor 设计目标不是一步做到完整多 agent orchestration，而是在 phase-1 约束内建立最小正确骨架：
 
-- 当前只路由一个 specialist：`rag-specialist`
-- 当前默认查询范围只开放 `regulations` corpus 中的 `student_handbook` collection
+- 当前默认 query-serving 主线仍是 `rag-specialist`
+- 当前可以显式路由到 `availability-specialist`
+- 当前查询范围是否开放某个 scope，由 supervisor routing/policy 决定，而不是由 API shell 固定构造 `rag-specialist + regulations/student_handbook`
 - 当前仍以最小可验证主链路为优先
 - 当前必须避免继续扩大“supervisor 只是透传”的错误形态
 - 当前默认保持 supervisor 对用户回合的持续控制，不开放用户可见 handoff
 
-这里的“当前只路由一个 specialist”表示当前实现与当前默认执行范围，而不是长期架构上禁止增加第二个 specialist。
+这里的“默认主线仍是 rag-specialist”表示当前实现重点仍围绕 handbook 查询，而不是长期架构上禁止增加第二个 specialist。
 
 ### 当前架构定位
 
 当期 supervisor 应该被实现为：
 
-`single-specialist, policy-driven coordinator`
+`supervisor-facing entry, policy-driven coordinator`
 
 这意味着：
 
-- 虽然当前只有一个 specialist，但仍然要显式保留 routing decision
+- 虽然当前 handbook 主线只稳定依赖一个 query-serving specialist，但仍然要显式保留 routing decision
 - 虽然当前结果主要来自 RAG specialist，但最终状态与对外响应仍由 supervisor 收口
 - 虽然当前 workflow 很短，但仍然要把 request framing、response assembly、audit projection 从透传逻辑中拆出来
 - 当前 delegation 仍是 bounded subtask delegation，不让 `rag-specialist` 接管用户会话
@@ -222,13 +223,14 @@ supervisor 的长期工作方式不是“只允许 handoff”，而是允许两�
 
 当期查询链路固定为：
 
-`supervisor-api -> supervisor-core -> rag-specialist -> retrieval-core -> evidence -> supervisor response`
+`supervisor-api -> supervisor-core -> specialist -> downstream capability -> supervisor response`
 
 其中当前 supervisor-core 至少负责：
 
 - 接收已经完成 auth / trace 注入的请求
-- 做最小请求归一化
-- 选择 `rag-specialist`
+- 做最小请求归一化，并把外部 `SupervisorRequest` 和内部 `SpecialistRequest` 分开
+- 在路由前执行显式 validation 和 query policy gate，并对冲突输入 fail-closed
+- 选择 `rag-specialist` 或其他显式 specialist
 - 处理 `completed` / `needs_clarification` / `no_answer` / `error`
 - 形成统一的对外响应语义
 - 投影最小审计字段
@@ -242,14 +244,20 @@ supervisor 的长期工作方式不是“只允许 handoff”，而是允许两�
   只负责编排主流程，不承载所有判断细节
 - `request.py` 或 `context.py`
   负责 supervisor 内部的请求上下文模型
+- `validation.py`
+  负责 capability 归一化、冲突请求拒绝和缺失路由输入校验
+- `query_policy.py`
+  负责 phase-1 query-enabled scope gate，不把范围决策塞回 transport 壳
 - `routing.py`
   负责当前 specialist 选择逻辑，并为未来多 specialist 扩展保留接口
+- `errors.py`
+  负责 supervisor 侧稳定错误分类，供上层 boundary 做结构化映射
 - `policy.py`
   负责 clarification / escalation / finalization 等决策规则
 - `response.py`
   负责最终响应组装
 - `audit.py`
-  负责最小审计字段投影
+  负责最小审计字段投影，至少覆盖 route、requested capability/scope 和 response status
 
 当期不要求这些模块一次做得很重，但要求职责位置先固定。
 
@@ -259,7 +267,7 @@ supervisor 的长期工作方式不是“只允许 handoff”，而是允许两�
 
 1. API boundary 完成 auth、actor 映射和 trace 注入
 2. supervisor 归一化请求并构建内部上下文
-3. supervisor 路由到 `rag-specialist`
+3. supervisor 执行 validation + query policy，再路由到目标 specialist
 4. specialist 返回 typed response
 5. supervisor 根据结果决定：
    - 直接完成

@@ -7,7 +7,7 @@ import httpx
 
 from campus_availability_specialist.allowlist import ALLOWLISTED_TARGETS
 from campus_contracts import AvailabilityCheckPayload, SpecialistRequest
-from campus_supervisor_core import handle_request
+from campus_supervisor_core import handle_specialist_request
 
 
 class AvailabilitySmokeTest(unittest.TestCase):
@@ -39,7 +39,7 @@ class AvailabilitySmokeTest(unittest.TestCase):
                 "campus_availability_specialist.service.httpx.Client",
                 side_effect=lambda *args, **kwargs: original_client(transport=transport),
             ):
-                return handle_request(
+                return handle_specialist_request(
                     SpecialistRequest(
                         target="availability-specialist",
                         user_goal="官网现在能打开吗？",

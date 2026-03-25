@@ -16,22 +16,21 @@ from campus_contracts import (
     RagResultPayload,
     SpecialistRequest,
     SpecialistResponse,
+    SupervisorRequest,
     TraceContext,
 )
 
 
 class ContractModelsTest(unittest.TestCase):
-    def test_request_defaults_and_scope_are_stable(self) -> None:
-        request = SpecialistRequest(target="rag-specialist", user_goal="library hours")
+    def test_supervisor_request_defaults_do_not_inject_fixed_capability_or_scope(self) -> None:
+        request = SupervisorRequest(user_goal="library hours")
 
-        self.assertEqual(request.conversation_id, "bootstrap-conversation")
+        self.assertEqual(request.conversation_id, "")
         self.assertEqual(request.request_id, "")
-        self.assertEqual(
-            request.payload,
-            RagRequestPayload(
-                scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
-            ),
-        )
+        self.assertIsNone(request.requested_capability)
+        self.assertIsNone(request.requested_scope)
+        self.assertIsNone(request.availability_target_id)
+        self.assertTrue(request.follow_redirects)
         self.assertEqual(
             request.trace,
             TraceContext(trace_id="", parent_run_id="", tool_call_id=""),
@@ -45,6 +44,24 @@ class ContractModelsTest(unittest.TestCase):
                 groups=(),
                 campus_scope=None,
                 snapshot={},
+            ),
+        )
+
+    def test_specialist_request_requires_explicit_payload(self) -> None:
+        request = SpecialistRequest(
+            target="rag-specialist",
+            user_goal="library hours",
+            payload=RagRequestPayload(
+                scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+            ),
+        )
+
+        self.assertEqual(request.conversation_id, "")
+        self.assertEqual(request.request_id, "")
+        self.assertEqual(
+            request.payload,
+            RagRequestPayload(
+                scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
             ),
         )
 
@@ -170,6 +187,13 @@ class ContractModelsTest(unittest.TestCase):
                 "follow_redirects": False,
             },
         )
+
+    def test_specialist_request_rejects_missing_payload(self) -> None:
+        with self.assertRaises(TypeError):
+            SpecialistRequest(  # type: ignore[call-arg]
+                target="rag-specialist",
+                user_goal="library hours",
+            )
 
     def test_document_ref_and_error_defaults_are_stable(self) -> None:
         document_ref = DocumentRef(
