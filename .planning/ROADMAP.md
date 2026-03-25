@@ -12,7 +12,7 @@ The public answer route is now expected to construct a supervisor-facing request
 
 **Phase Numbering:**
 - Integer phases (1, 2, 3): Planned milestone work
-- Decimal phases (03.1, 04.1, 04.2, 04.3, 04.4, 05.1): Urgent insertions (marked with INSERTED)
+- Decimal phases (03.1, 04.1, 04.2, 04.3, 04.4, 04.5, 04.6, 05.1): Urgent insertions (marked with INSERTED)
 
 Decimal phases appear between their surrounding integers in numeric order.
 
@@ -25,6 +25,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 04.2: Cloudflare Runtime Topology And Delivery Shape** - Freeze the Cloudflare-to-runtime deployment topology, origin ownership, and delivery boundary for public entry and protected panel. (INSERTED) (completed 2026-03-25)
 - [x] **Phase 04.3: Public Entry Edge Integration Contract** - Freeze the runtime-level integration contract between Cloudflare public entry and `apps/supervisor-api`. (INSERTED) (completed 2026-03-25)
 - [x] **Phase 04.4: Protected Internal Panel Runtime Shell** - Freeze the implementation shape of the protected panel as a future `apps/` runtime shell that only consumes runtime APIs. (INSERTED) (completed 2026-03-25)
+- [x] **Phase 04.5: Cloudflare Worker Consumer Entry And Access Policy** - Freeze the Worker-only public consumer-entry seam, access modes, and Worker-to-origin trust policy for the public answer path. (INSERTED) (completed 2026-03-25)
+- [ ] **Phase 04.6: Cloudflare Worker Runtime Implementation** - Implement the Cloudflare Worker public-entry shell against the frozen 04.3 and 04.5 runtime contracts without absorbing Phase 5 actor, ACL, or audit ownership. (INSERTED)
 - [ ] **Phase 5: Supervisor Entry, ACL, And Audit** - Make `supervisor` the only query entrypoint with routing, identity propagation, and audit traces.
 - [ ] **Phase 6: Curriculum Offline Preparation** - Prepare `curriculum_plan` ingestion outputs without opening query-serving.
 - [ ] **Phase 7: Verification And Release Gate** - Prove the main path and failure semantics with automated tests and smoke/eval coverage.
@@ -111,14 +113,30 @@ Plans:
 **Requirements**: []
 **Depends on:** Phase 4
 **Success Criteria** (what must be TRUE):
-  1. A canonical architecture note freezes `Custom Domain -> Cloudflare Worker -> trusted origin/apps/supervisor-api` as the only public answer entry path.
+  1. A canonical architecture note freezes `public hostname -> Cloudflare Route -> Cloudflare Worker -> trusted origin/apps/supervisor-api` as the only public answer entry code path.
   2. The entry policy explicitly supports `authenticated-only` mode and `anonymous-enabled` mode behind an explicit Worker flag without treating edge identity as final app-layer actor semantics.
   3. Worker-to-origin trust, fail-closed behavior, and closure of `workers.dev` and preview URLs are explicit, while Phase 5 actor/ACL/audit work remains deferred.
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 04.5-01-PLAN.md — Freeze the canonical Worker consumer-entry/access-policy note and align docs index plus roadmap.
-- [ ] 04.5-02-PLAN.md — Freeze the downstream Worker implementation handoff and fail-closed checklist.
+- [x] 04.5-01-PLAN.md — Freeze the canonical Worker consumer-entry/access-policy note and align docs index plus roadmap.
+- [x] 04.5-02-PLAN.md — Freeze the downstream Worker implementation handoff and fail-closed checklist.
+
+### Phase 04.6: Cloudflare Worker Runtime Implementation (INSERTED)
+
+**Goal:** Implement the Route-based Cloudflare Worker public-entry runtime shell in front of `apps/supervisor-api`, preserving the frozen entry modes, trusted-origin seam, and alternate-entry closure without absorbing Phase 5 actor/ACL/audit scope.
+**Requirements**: [EDGE-01, EDGE-02]
+**Depends on:** Phase 04.5
+**Success Criteria** (what must be TRUE):
+  1. A dedicated Worker runtime shell exists under `apps/*` and fronts the public hostname via Cloudflare Route rather than pushing provider semantics into `packages/*`.
+  2. The Worker enforces exactly `authenticated-only` and `anonymous-enabled`, validates Access JWTs when required, injects trusted origin auth, and closes `workers.dev` plus preview URLs fail-closed.
+  3. `apps/supervisor-api` can run behind the Worker in an explicit trusted-origin mode that rejects missing or invalid Worker-auth material without claiming Phase 5 actor, ACL, or audit closure.
+**Plans:** 3 plans
+
+Plans:
+- [ ] 04.6-01-PLAN.md — Scaffold the standalone `apps/public-entry-worker` runtime shell, toolchain, Route config, and fail-closed placeholder entry.
+- [ ] 04.6-02-PLAN.md — Implement Worker entry-mode enforcement, Access JWT validation, allowlisted forwarding, and trusted-origin injection with focused Worker tests.
+- [ ] 04.6-03-PLAN.md — Patch `apps/supervisor-api` for explicit trusted-worker origin auth, env wiring, and focused API tests.
 
 ### Phase 04.1: Cloudflare Entry And Protected Internal Panel Design (INSERTED)
 
@@ -238,7 +256,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 4 → 04.1 → 04.2 → 04.3 → 04.4 → 5 → 05.1 → 6 → 7
+Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 4 → 04.1 → 04.2 → 04.3 → 04.4 → 04.5 → 04.6 → 5 → 05.1 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -251,6 +269,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 4 → 04.1 → 04.2 
 | 04.2. Cloudflare Runtime Topology And Delivery Shape | 2/2 | Complete   | 2026-03-25 |
 | 04.3. Public Entry Edge Integration Contract | 2/2 | Complete   | 2026-03-25 |
 | 04.4. Protected Internal Panel Runtime Shell | 2/2 | Complete   | 2026-03-25 |
+| 04.5. Cloudflare Worker Consumer Entry And Access Policy | 2/2 | Complete   | 2026-03-25 |
+| 04.6. Cloudflare Worker Runtime Implementation | 0/0 | Not started | - |
 | 5. Supervisor Entry, ACL, And Audit | 0/3 | Not started | - |
 | 05.1. Curriculum Chunking Strategy | 0/2 | Not started | - |
 | 6. Curriculum Offline Preparation | 0/2 | Not started | - |

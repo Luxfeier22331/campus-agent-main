@@ -32,6 +32,11 @@ Requirements for the initial phase-1 release. Each requirement will map to exact
 - [ ] **GOV-02**: Each handled request records trace and audit data sufficient to link request identity, routed path, response status, and cited sources
 - [x] **GOV-03**: Phase-1 query-serving rejects corpora outside `student_handbook`, including `curriculum_plan`
 
+### Edge Runtime
+
+- [ ] **EDGE-01**: Public answer traffic enters through a Route-based Cloudflare Worker runtime under `apps/*` that fronts `apps/supervisor-api` without bypassing supervisor or pushing provider semantics into `packages/*`
+- [ ] **EDGE-02**: Worker entry mode, Worker-to-origin trust, and alternate public-entry closure (`workers.dev`, preview URLs, and direct origin admission) remain explicit and fail-closed for the public answer path
+
 ### Specialist Expansion
 
 - [ ] **AORC-03**: Supervisor can route to a non-RAG specialist, such as an `official-web` / `availability` capability, through explicit contracts instead of inline tool bundles
@@ -90,13 +95,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 | GOV-01 | Phase 5 | Pending |
 | GOV-02 | Phase 5 | Pending |
 | GOV-03 | Phase 1 | Complete |
+| EDGE-01 | Phase 04.6 | Pending |
+| EDGE-02 | Phase 04.6 | Pending |
 | AORC-03 | Phase 03.1 | Pending |
 | VER-01 | Phase 7 | Pending |
 | VER-02 | Phase 7 | Pending |
 
 **Coverage:**
-- v1 requirements: 16 total
-- Mapped to phases: 16
+- v1 requirements: 18 total
+- Mapped to phases: 18
 - Unmapped: 0 ✓
 
 ---
