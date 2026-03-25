@@ -91,6 +91,24 @@ class SupervisorPolicyTest(unittest.TestCase):
         self.assertEqual(finalized.target, "availability-specialist")
         self.assertEqual(finalized.status, "completed")
 
+    def test_finalize_availability_connect_failure_keeps_completed_semantics(self) -> None:
+        response = SpecialistResponse(
+            target="availability-specialist",
+            status="completed",
+            answer_text="official-homepage observed as connect_failure.",
+            result=AvailabilityObservation(
+                target_id="official-homepage",
+                observed_status="connect_failure",
+                failure_classification="connect_failure",
+            ),
+        )
+
+        finalized = finalize_specialist_response(response)
+
+        self.assertIs(finalized, response)
+        self.assertEqual(finalized.status, "completed")
+        self.assertEqual(finalized.result.observed_status, "connect_failure")
+
 
 if __name__ == "__main__":
     unittest.main()

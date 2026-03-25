@@ -51,6 +51,19 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertIsNone(decision.primary_corpus)
         self.assertIsNone(decision.primary_collection)
 
+    def test_route_request_keeps_availability_branch_independent_from_rag_scope_rules(self) -> None:
+        request = SpecialistRequest(
+            target="availability-specialist",
+            user_goal="service portal reachable?",
+            payload=AvailabilityCheckPayload(target_id="service-catalog"),
+        )
+
+        decision = route_request(SupervisorRequestContext.from_request(request))
+
+        self.assertEqual(decision.target, "availability-specialist")
+        self.assertIsNone(decision.primary_corpus)
+        self.assertIsNone(decision.primary_collection)
+
     def test_route_request_rejects_non_query_enabled_corpus_on_rag_branch(self) -> None:
         request = SpecialistRequest(
             target="rag-specialist",

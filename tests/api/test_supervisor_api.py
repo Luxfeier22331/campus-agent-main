@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from campus_contracts import (
+    AvailabilityCheckPayload,
     ErrorInfo,
     EvidenceBundle,
     KnowledgeScope,
@@ -85,6 +86,51 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(captured_requests[0].actor.groups, ("students",))
         self.assertEqual(captured_requests[0].actor.roles, ("student",))
         self.assertEqual(captured_requests[0].actor.campus_scope, "north")
+        self.assertEqual(
+            captured_requests[0].payload,
+            RagRequestPayload(
+                scope=KnowledgeScope(
+                    corpus="regulations",
+                    collection="student_handbook",
+                )
+            ),
+        )
+
+    def test_answer_route_ignores_availability_specific_body_keys(self) -> None:
+        captured_requests: list[SpecialistRequest] = []
+
+        def fake_supervisor(request: SpecialistRequest) -> SpecialistResponse:
+            captured_requests.append(request)
+            return SpecialistResponse(
+                target="rag-specialist",
+                status="completed",
+                answer_text="Still handled by rag-default answer route.",
+                confidence="medium",
+            )
+
+        app = create_app(
+            settings=ApiSettings(
+                auth_mode="bearer",
+                bearer_token="secret-token",
+            ),
+            supervisor_handler=fake_supervisor,
+        )
+
+        response = app.handle(
+            "POST",
+            "/api/v1/answer",
+            headers={"authorization": "Bearer secret-token"},
+            json_body={
+                "user_goal": "Is the website up?",
+                "target_id": "official-homepage",
+                "follow_redirects": False,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(captured_requests[0].target, "rag-specialist")
+        self.assertIsInstance(captured_requests[0].payload, RagRequestPayload)
+        self.assertNotIsInstance(captured_requests[0].payload, AvailabilityCheckPayload)
         self.assertEqual(
             captured_requests[0].payload,
             RagRequestPayload(

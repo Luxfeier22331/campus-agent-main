@@ -163,6 +163,28 @@ class SupervisorCoreTest(unittest.TestCase):
         )
         self.assertEqual(audit_records[0].source_doc_ids, ())
 
+    def test_handle_request_keeps_completed_status_for_availability_connect_failure(self) -> None:
+        request = SpecialistRequest(
+            target="availability-specialist",
+            user_goal="官网现在能打开吗？",
+            payload=AvailabilityCheckPayload(target_id="official-homepage"),
+        )
+
+        response = handle_request(
+            request,
+            specialist_delegates={
+                "availability-specialist": lambda inner_request: _make_availability_completed_response(
+                    observed_status="connect_failure",
+                    failure_classification="connect_failure",
+                )
+            },
+        )
+
+        self.assertEqual(response.target, "availability-specialist")
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(response.result.observed_status, "connect_failure")
+        self.assertEqual(response.result.failure_classification, "connect_failure")
+
     def test_supervisor_default_delegate_map_includes_availability_specialist(self) -> None:
         request = SpecialistRequest(
             target="availability-specialist",

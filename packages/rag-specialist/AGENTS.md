@@ -8,8 +8,10 @@
 
 - 接收来自 `supervisor-core` 的稳定 handoff，而不是继续暴露旧 `campusRAG` tool 风格接口
 - 负责 retrieval 导向的 `query rewriting`、`retrieval strategy selection`、`evidence collection`、`evidence normalization`、`confidence` 返回
-- 返回 `DelegateToRagAgentResponse`，而不是把底层 retrieval 结果原样泄漏出去
+- 返回 `SpecialistResponse` 的 rag 分支，而不是把底层 retrieval 结果原样泄漏出去
 - 第一阶段 query-serving 默认只服务 `student_handbook`
+
+当前仓库已经存在显式 `availability-specialist` 并行能力，但它不改变本目录的 retrieval-only 责任边界，也不把 availability 逻辑带进这里。
 
 当前 bootstrap 入口是 `src/campus_rag_specialist/service.py` 中的 `delegate_to_rag_agent(...)`。优先沿着这个 service 边界演进，不要把 specialist 逻辑散落到别处。
 
