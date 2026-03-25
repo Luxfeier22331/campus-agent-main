@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Contract And Boundary Guardrails** - Freeze phase-1 supervisor/specialist contracts and corpus-policy limits. (completed 2026-03-23)
 - [x] **Phase 2: Student Handbook Raw Ingestion** - Land stable raw ingestion identity and versioning for `student_handbook`. (completed 2026-03-24)
 - [x] **Phase 3: Retrieval Corpus Preparation** - Produce processed, chunked, and indexed `student_handbook` artifacts for query-serving. (completed 2026-03-24)
-- [ ] **Phase 03.1: Availability Specialist 最小闭环** - Generalize the supervisor/specialist boundary enough to add an allowlisted `official-web` / `availability` specialist without collapsing back into supervisor inline tools.
+- [x] **Phase 03.1: Availability Specialist 最小闭环** - Generalize the supervisor/specialist boundary enough to add an allowlisted `official-web` / `availability` specialist without collapsing back into supervisor inline tools. (completed 2026-03-25)
 - [ ] **Phase 4: RAG Specialist Answer Path** - Deliver grounded `student_handbook` retrieval and answer semantics inside `rag-specialist`.
 - [ ] **Phase 5: Supervisor Entry, ACL, And Audit** - Make `supervisor` the only query entrypoint with routing, identity propagation, and audit traces.
 - [ ] **Phase 6: Curriculum Offline Preparation** - Prepare `curriculum_plan` ingestion outputs without opening query-serving.
@@ -76,12 +76,12 @@ Plans:
   1. `packages/contracts` and `packages/supervisor-core` no longer hardcode rag-only delegation as the only possible specialist path.
   2. A standalone `availability-specialist` can check allowlisted official-web targets and return typed observation results without being embedded into `rag-specialist` or supervisor tool bundles.
   3. Unreachable or failing targets are represented as successful observations with explicit status semantics, while true execution/configuration faults remain `error`.
-**Plans**: 2/3 plans complete
+**Plans**: 3/3 plans complete
 
 Plans:
 - [x] 03.1-01: Generalize shared contracts and supervisor routing targets for explicit non-RAG specialist delegation.
 - [x] 03.1-02: Implement the allowlisted `availability-specialist` MVP and its observation/status mapping.
-- [ ] 03.1-03: Add focused routing/tests and a minimal smoke or eval slice for the availability path.
+- [x] 03.1-03: Add focused routing/tests and a minimal smoke or eval slice for the availability path.
 
 ### Phase 4: RAG Specialist Answer Path
 **Goal**: Deliver the retrieval-oriented `rag-specialist` behavior for `student_handbook`, including grounded answers, citations, clarification, and no-answer/error handling, on top of the generalized specialist boundary frozen before it.
@@ -163,7 +163,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 4 → 5 → 05.1 →
 | 1. Contract And Boundary Guardrails | 2/2 | Complete   | 2026-03-23 |
 | 2. Student Handbook Raw Ingestion | 2/2 | Complete | 2026-03-24 |
 | 3. Retrieval Corpus Preparation | 2/2 | Complete | 2026-03-24 |
-| 03.1. Availability Specialist 最小闭环 | 2/3 | In Progress | - |
+| 03.1. Availability Specialist 最小闭环 | 3/3 | Complete | 2026-03-25 |
 | 4. RAG Specialist Answer Path | 0/3 | Not started | - |
 | 5. Supervisor Entry, ACL, And Audit | 0/3 | Not started | - |
 | 05.1. Curriculum Chunking Strategy | 0/2 | Not started | - |

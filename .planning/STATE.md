@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03.1-02-PLAN.md
-last_updated: "2026-03-25T03:48:59Z"
+stopped_at: Completed 03.1-03-PLAN.md
+last_updated: "2026-03-25T04:07:21Z"
 progress:
   total_phases: 9
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 11
-  completed_plans: 8
+  completed_plans: 9
 ---
 
 # Project State
@@ -19,20 +19,20 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-03-25)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 `student_handbook` 的完整 agentic RAG 主流程证明这条架构能可靠替代高频人工答疑
-**Current focus:** Phase 03.1 — availability-specialist
+**Current focus:** Phase 4 — rag-specialist answer path
 
 ## Current Position
 
-Phase: 03.1 (availability-specialist) — EXECUTING
-Plan: 3 of 3
-Status: Ready to execute 03.1-03
-Last activity: 2026-03-25 — Completed 03.1-02 availability-specialist package and default supervisor wiring
+Phase: 4 (rag-specialist answer path) — READY
+Plan: 1 of 3
+Status: Ready to execute 04-01
+Last activity: 2026-03-25 — Completed 03.1-03 doc alignment and deterministic availability smoke coverage
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 7
+- Total plans completed: 9
 - Average duration: mixed agent-run and inline execution; see per-plan summaries
 - Total execution time: 0.2 hours + 2026-03-24 inline Phase 2/3 execution
 
@@ -46,7 +46,7 @@ Last activity: 2026-03-25 — Completed 03.1-02 availability-specialist package 
 
 **Recent Trend:**
 
-- Last 5 plans: 02-02, 03-01, 03-02, 03.1-01, 03.1-02
+- Last 5 plans: 03-01, 03-02, 03.1-01, 03.1-02, 03.1-03
 - Trend: Stable upward
 
 | Phase 01-contract-and-boundary-guardrails P01 | 4m | 2 tasks | 11 files |
@@ -57,6 +57,7 @@ Last activity: 2026-03-25 — Completed 03.1-02 availability-specialist package 
 | Phase 03 P02 | inline | 2 tasks | see summary |
 | Phase 03.1 P01 | 22 min | 2 tasks | 18 files |
 | Phase 03.1 P02 | 12 min | 2 tasks | 11 files |
+| Phase 03.1 P03 | 19 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -88,19 +89,21 @@ Recent decisions affecting current work:
 - [Phase 03.1]: Supervisor-core now routes by specialist target and derives source_doc_ids only from rag evidence payloads. — This keeps availability observations outside retrieval semantics while preserving minimal audit projection.
 - [Phase 03.1]: A real `packages/availability-specialist` package now owns allowlisted target resolution, `httpx` probe mapping, and typed availability observations. — This lands the non-RAG capability as a stable package boundary instead of a supervisor-inline tool path.
 - [Phase 03.1]: Supervisor-core default wiring now includes `availability-specialist` alongside `rag-specialist`. — This makes the explicit non-RAG path reachable through the same delegate seam used by the handbook mainline.
+- [Phase 03.1]: `/api/v1/answer` is now explicitly regression-locked to rag-default request construction, even when availability-style body keys are present. — This keeps the inserted availability capability internal and prevents accidental API-surface expansion.
+- [Phase 03.1]: The repo now has a deterministic availability smoke proof that exercises the real default supervisor path with `httpx.MockTransport`. — This satisfies the eval gate for introducing the non-RAG specialist boundary.
 
 ### Pending Todos
 
-- Execute Phase 03.1 plan 03.
-- Keep handbook chunk-truth validation tracked separately so the inserted availability work does not get mistaken for the `student_handbook` mainline.
+- Execute Phase 4 plans 01-03.
+- Keep handbook chunk-truth validation tracked separately so the completed availability work does not get mistaken for the `student_handbook` mainline.
 
 ### Blockers/Concerns
 
 - Handbook chunk-truth validation remains the blocker for later `student_handbook` run-through work.
-- Phase 03.1 still needs the final doc alignment and deterministic smoke/eval slice from 03.1-03 before the inserted availability capability is fully closed.
+- Phase 4 retrieval/answer-path work should consume the generalized specialist boundary directly instead of reintroducing rag-only assumptions into shared docs or tests.
 
 ## Session Continuity
 
-Last session: 2026-03-25T03:48:59Z
-Stopped at: Completed 03.1-02-PLAN.md
+Last session: 2026-03-25T04:07:21Z
+Stopped at: Completed 03.1-03-PLAN.md
 Resume file: None
