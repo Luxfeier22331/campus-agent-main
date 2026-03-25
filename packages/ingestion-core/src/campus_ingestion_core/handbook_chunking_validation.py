@@ -1,18 +1,22 @@
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 import json
+import math
 import os
 from pathlib import Path
+import random
 from typing import Protocol
 
 from campus_ingestion_core.chunking import (
     ChunkProfile,
+    StructuredUnitChunkInput,
     TABLE_UNIT_TYPES,
     build_student_handbook_chunk_profile,
     clean_structured_text,
     estimate_token_count,
+    resolve_display_budget,
 )
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
@@ -26,6 +30,13 @@ from campus_ingestion_core.split_manifest import load_split_manifest
 DEFAULT_HANDBOOK_MANIFEST_PATH = Path("configs/ingestion/regulations/student_handbook/split-manifest.v1.json")
 HANDBOOK_SCOPE = ("regulations", "student_handbook")
 PARENT_UNIT_TYPES = {"article_body", "policy_page"}
+SAMPLE_BUCKETS = (
+    ("structure-boundary", "触发结构优先拆分"),
+    ("token-guardrail", "触发 token_guardrail"),
+    ("table", "包含表格与表格行"),
+    ("policy-page", "以 policy_page 为主"),
+    ("plain-article", "普通 article_body"),
+)
 
 
 class ChunkValidationArtifactReader(Protocol):
@@ -62,15 +73,48 @@ class StudentHandbookChunkingValidationReport:
     chunk_failures: tuple[ChunkValidationFailure, ...]
     empty_document_ids: tuple[str, ...]
     non_table_oversize_chunk_count: int
+    header_only_table_chunk_count: int
+    generic_table_label_chunk_count: int
     polluted_section_path_count: int
     missing_contextualization_count: int
     unit_type_counts: dict[str, int]
     split_reason_counts: dict[str, int]
     boundary_rule_counts: dict[str, int]
+    header_mode_counts: dict[str, int]
     oversize_parent_unit_counts: dict[str, int]
     oversize_multiline_parent_unit_counts: dict[str, int]
     structure_eligible_unit_counts: dict[str, int]
     chunk_token_histogram: dict[str, int]
+    header_token_histogram: dict[str, int]
+    display_token_histogram: dict[str, int]
+
+
+@dataclass(frozen=True, slots=True)
+class StudentHandbookValidationInputs:
+    source: dict[str, str]
+    chunk_profile: ChunkProfile
+    registry: DocumentRegistry
+    object_store: ChunkValidationArtifactReader
+    processed_bucket: str
+    manifest_path: Path
+    manifest_titles: dict[str, str]
+    records: tuple[DocumentRegistryRecord, ...]
+    records_by_doc: dict[str, tuple[DocumentRegistryRecord, ...]]
+    selected_records: tuple[DocumentRegistryRecord, ...]
+    extra_registry_document_ids: tuple[str, ...]
+    missing_registry_document_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class StudentHandbookChunkSampleCandidate:
+    title: str
+    document_id: str
+    record: DocumentRegistryRecord
+    rows: tuple[dict[str, object], ...]
+    chunks: tuple[object, ...]
+    split_reasons: dict[str, int]
+    unit_types: dict[str, int]
+    boundary_rules: dict[str, int]
 
 
 def validate_student_handbook_chunking(
@@ -81,32 +125,14 @@ def validate_student_handbook_chunking(
     manifest_path: Path | None = None,
     chunk_profile: ChunkProfile | None = None,
 ) -> StudentHandbookChunkingValidationReport:
-    source = dict(env if env is not None else os.environ)
-    corpus, collection = HANDBOOK_SCOPE
-    runtime_profile = chunk_profile or _resolve_validation_chunk_profile(source, corpus=corpus, collection=collection)
-    runtime_registry = registry or build_document_registry_from_env(source)
-    runtime_object_store = object_store or S3ObjectStoreAdmin(ObjectStoreSettings.from_env(source))
-    processed_bucket = (source.get("OBJECT_STORE_BUCKET_PROCESSED") or DEFAULT_BUCKET_PROCESSED).strip()
-    if not processed_bucket:
-        processed_bucket = DEFAULT_BUCKET_PROCESSED
-    split_manifest_path = _resolve_manifest_path(source=source, manifest_path=manifest_path)
-
-    manifest = load_split_manifest(
-        split_manifest_path,
-        expected_corpus=corpus,
-        expected_collection=collection,
+    inputs = _build_validation_inputs(
+        env=env,
+        registry=registry,
+        object_store=object_store,
+        manifest_path=manifest_path,
+        chunk_profile=chunk_profile,
     )
-    manifest_ids = {document.document_id for document in manifest.documents}
-    manifest_titles = {document.document_id: document.title for document in manifest.documents}
-
-    records = runtime_registry.list_by_scope(corpus, collection)
-    records_by_doc: dict[str, list[DocumentRegistryRecord]] = {}
-    for record in records:
-        records_by_doc.setdefault(record.document_id, []).append(record)
-
-    selected_records = _select_source_faithful_records(records_by_doc)
-    extra_registry_document_ids = tuple(sorted(set(records_by_doc) - manifest_ids))
-    missing_registry_document_ids = tuple(sorted(manifest_ids - set(records_by_doc)))
+    runtime_profile = inputs.chunk_profile
 
     read_failures: list[ChunkValidationFailure] = []
     chunk_failures: list[ChunkValidationFailure] = []
@@ -114,18 +140,23 @@ def validate_student_handbook_chunking(
     unit_type_counts: Counter[str] = Counter()
     split_reason_counts: Counter[str] = Counter()
     boundary_rule_counts: Counter[str] = Counter()
+    header_mode_counts: Counter[str] = Counter()
     oversize_parent_unit_counts: Counter[str] = Counter()
     oversize_multiline_parent_unit_counts: Counter[str] = Counter()
     structure_eligible_unit_counts: Counter[str] = Counter()
     chunk_counts_per_doc: list[int] = []
     total_units = 0
     non_table_oversize_chunk_count = 0
+    header_only_table_chunk_count = 0
+    generic_table_label_chunk_count = 0
     polluted_section_path_count = 0
     missing_contextualization_count = 0
     chunk_token_histogram: Counter[str] = Counter()
+    header_token_histogram: Counter[str] = Counter()
+    display_token_histogram: Counter[str] = Counter()
 
-    for record in selected_records:
-        title = manifest_titles.get(record.document_id, record.document_id)
+    for record in inputs.selected_records:
+        title = inputs.manifest_titles.get(record.document_id, record.document_id)
         if not record.document_units_object_key:
             read_failures.append(
                 ChunkValidationFailure(
@@ -137,8 +168,8 @@ def validate_student_handbook_chunking(
             )
             continue
         try:
-            structured_jsonl_bytes = runtime_object_store.get_bytes(
-                bucket=processed_bucket,
+            structured_jsonl_bytes = inputs.object_store.get_bytes(
+                bucket=inputs.processed_bucket,
                 key=record.document_units_object_key,
             )
         except Exception as exc:
@@ -185,22 +216,31 @@ def validate_student_handbook_chunking(
         for chunk in chunks:
             split_reason_counts[str(chunk.metadata.get("split_reason") or "none")] += 1
             boundary_rule_counts[str(chunk.metadata.get("boundary_rule") or "none")] += 1
+            header_mode_counts[str(chunk.metadata.get("header_mode") or "none")] += 1
             if _chunk_requires_context(chunk) and not bool(chunk.metadata.get("contextualized_text")):
                 missing_contextualization_count += 1
+            if _is_header_only_table_chunk(chunk):
+                header_only_table_chunk_count += 1
+            if _has_generic_table_label(chunk):
+                generic_table_label_chunk_count += 1
             token_count = estimate_token_count(chunk.text, chunk_profile=runtime_profile)
             chunk_token_histogram[_histogram_bucket(token_count)] += 1
+            header_token_histogram[_histogram_bucket(int(chunk.metadata.get("header_token_count") or 0))] += 1
+            display_token_histogram[_histogram_bucket(int(chunk.metadata.get("display_token_count") or 0))] += 1
             if str(chunk.metadata.get("unit_type") or "") not in TABLE_UNIT_TYPES and token_count > runtime_profile.max_chunk_size:
                 non_table_oversize_chunk_count += 1
 
     total_chunks = sum(chunk_counts_per_doc)
     validated_document_count = len(chunk_counts_per_doc)
     passed = not (
-        extra_registry_document_ids
-        or missing_registry_document_ids
+        inputs.extra_registry_document_ids
+        or inputs.missing_registry_document_ids
         or read_failures
         or chunk_failures
         or empty_document_ids
         or non_table_oversize_chunk_count
+        or header_only_table_chunk_count
+        or generic_table_label_chunk_count
         or polluted_section_path_count
         or missing_contextualization_count
     )
@@ -208,10 +248,10 @@ def validate_student_handbook_chunking(
         passed=passed,
         chunk_policy_version=runtime_profile.chunk_policy_version,
         tokenizer_name=runtime_profile.tokenizer_name,
-        manifest_document_count=len(manifest.documents),
-        registry_record_count=len(records),
-        registry_unique_document_count=len(records_by_doc),
-        selected_source_faithful_record_count=len(selected_records),
+        manifest_document_count=len(inputs.manifest_titles),
+        registry_record_count=len(inputs.records),
+        registry_unique_document_count=len(inputs.records_by_doc),
+        selected_source_faithful_record_count=len(inputs.selected_records),
         validated_document_count=validated_document_count,
         total_units=total_units,
         total_chunks=total_chunks,
@@ -221,22 +261,183 @@ def validate_student_handbook_chunking(
         else 0.0,
         max_chunks_in_document=max(chunk_counts_per_doc) if chunk_counts_per_doc else 0,
         min_chunks_in_document=min(chunk_counts_per_doc) if chunk_counts_per_doc else 0,
-        extra_registry_document_ids=extra_registry_document_ids,
-        missing_registry_document_ids=missing_registry_document_ids,
+        extra_registry_document_ids=inputs.extra_registry_document_ids,
+        missing_registry_document_ids=inputs.missing_registry_document_ids,
         read_failures=tuple(read_failures),
         chunk_failures=tuple(chunk_failures),
         empty_document_ids=tuple(sorted(empty_document_ids)),
         non_table_oversize_chunk_count=non_table_oversize_chunk_count,
+        header_only_table_chunk_count=header_only_table_chunk_count,
+        generic_table_label_chunk_count=generic_table_label_chunk_count,
         polluted_section_path_count=polluted_section_path_count,
         missing_contextualization_count=missing_contextualization_count,
         unit_type_counts=dict(unit_type_counts),
         split_reason_counts=dict(split_reason_counts),
         boundary_rule_counts=dict(boundary_rule_counts),
+        header_mode_counts=dict(header_mode_counts),
         oversize_parent_unit_counts=dict(oversize_parent_unit_counts),
         oversize_multiline_parent_unit_counts=dict(oversize_multiline_parent_unit_counts),
         structure_eligible_unit_counts=dict(structure_eligible_unit_counts),
         chunk_token_histogram=dict(chunk_token_histogram),
+        header_token_histogram=dict(header_token_histogram),
+        display_token_histogram=dict(display_token_histogram),
     )
+
+
+def export_student_handbook_chunk_samples(
+    *,
+    output_dir: Path,
+    env: dict[str, str] | None = None,
+    registry: DocumentRegistry | None = None,
+    object_store: ChunkValidationArtifactReader | None = None,
+    manifest_path: Path | None = None,
+    chunk_profile: ChunkProfile | None = None,
+    report: StudentHandbookChunkingValidationReport | None = None,
+    sample_seed: int = 20260325,
+) -> Path:
+    inputs = _build_validation_inputs(
+        env=env,
+        registry=registry,
+        object_store=object_store,
+        manifest_path=manifest_path,
+        chunk_profile=chunk_profile,
+    )
+    runtime_profile = inputs.chunk_profile
+    runtime_report = report or validate_student_handbook_chunking(
+        env=inputs.source,
+        registry=inputs.registry,
+        object_store=inputs.object_store,
+        manifest_path=inputs.manifest_path,
+        chunk_profile=runtime_profile,
+    )
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    (output_path / "validation-report.json").write_text(
+        json.dumps(asdict(runtime_report), ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    candidates: list[StudentHandbookChunkSampleCandidate] = []
+    header_tokens: list[int] = []
+    display_tokens: list[int] = []
+    final_tokens: list[int] = []
+    oversize_chunks: list[dict[str, object]] = []
+
+    for record in inputs.selected_records:
+        title = inputs.manifest_titles.get(record.document_id, record.document_id)
+        if not record.document_units_object_key:
+            continue
+        try:
+            structured_jsonl_bytes = inputs.object_store.get_bytes(
+                bucket=inputs.processed_bucket,
+                key=record.document_units_object_key,
+            )
+            rows = tuple(_load_rows(structured_jsonl_bytes))
+            chunks = build_indexable_chunks_from_jsonl(
+                record=record,
+                structured_jsonl_bytes=structured_jsonl_bytes,
+                chunk_profile=runtime_profile,
+            )
+        except Exception:
+            continue
+        split_reasons = Counter(str(chunk.metadata.get("split_reason") or "none") for chunk in chunks)
+        unit_types = Counter(str(chunk.metadata.get("unit_type") or "unknown") for chunk in chunks)
+        boundary_rules = Counter(str(chunk.metadata.get("boundary_rule") or "none") for chunk in chunks)
+        for chunk in chunks:
+            header_tokens.append(int(chunk.metadata.get("header_token_count") or 0))
+            display_tokens.append(int(chunk.metadata.get("display_token_count") or 0))
+            final_tokens.append(int(chunk.metadata.get("final_token_count") or 0))
+            if (
+                str(chunk.metadata.get("unit_type") or "") not in TABLE_UNIT_TYPES
+                and int(chunk.metadata.get("final_token_count") or 0) > runtime_profile.max_chunk_size
+            ):
+                oversize_chunks.append(
+                    {
+                        "document_id": record.document_id,
+                        "title": title,
+                        "chunk_id": chunk.chunk_id,
+                        "tokens": int(chunk.metadata.get("final_token_count") or 0),
+                        "split_reason": chunk.metadata.get("split_reason"),
+                        "boundary_rule": chunk.metadata.get("boundary_rule"),
+                    }
+                )
+        candidates.append(
+            StudentHandbookChunkSampleCandidate(
+                title=title,
+                document_id=record.document_id,
+                record=record,
+                rows=rows,
+                chunks=chunks,
+                split_reasons=dict(split_reasons),
+                unit_types=dict(unit_types),
+                boundary_rules=dict(boundary_rules),
+            )
+        )
+
+    (output_path / "oversize-chunks.json").write_text(
+        json.dumps(oversize_chunks, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    (output_path / "header-budget-summary.json").write_text(
+        json.dumps(
+            {
+                "chunk_count": len(final_tokens),
+                "chunk_policy_version": runtime_profile.chunk_policy_version,
+                "tokenizer_name": runtime_profile.tokenizer_name,
+                "chunk_size": runtime_profile.chunk_size,
+                "max_chunk_size": runtime_profile.max_chunk_size,
+                "chunk_overlap": runtime_profile.chunk_overlap,
+                "min_chunk_size": runtime_profile.min_chunk_size,
+                "safety_margin": runtime_profile.safety_margin,
+                "header_tokens": _summarize_tokens(header_tokens),
+                "display_tokens": _summarize_tokens(display_tokens),
+                "final_tokens": _summarize_tokens(final_tokens),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    picked = _pick_sample_candidates(candidates, sample_seed=sample_seed)
+    index_lines = [
+        "# Chunk Resample Batch",
+        "",
+        f"- chunk_profile_version: `{runtime_report.chunk_policy_version}`",
+        f"- tokenizer_name: `{runtime_report.tokenizer_name}`",
+        f"- validation_passed: `{runtime_report.passed}`",
+        f"- total_units: `{runtime_report.total_units}`",
+        f"- total_chunks: `{runtime_report.total_chunks}`",
+        f"- non_table_oversize_chunk_count: `{runtime_report.non_table_oversize_chunk_count}`",
+        f"- header_only_table_chunk_count: `{runtime_report.header_only_table_chunk_count}`",
+        f"- generic_table_label_chunk_count: `{runtime_report.generic_table_label_chunk_count}`",
+        f"- polluted_section_path_count: `{runtime_report.polluted_section_path_count}`",
+        f"- missing_contextualization_count: `{runtime_report.missing_contextualization_count}`",
+        "",
+        "## Files",
+        "",
+        "- [validation-report.json](./validation-report.json)",
+        "- [header-budget-summary.json](./header-budget-summary.json)",
+        "- [oversize-chunks.json](./oversize-chunks.json)",
+    ]
+    for index, (bucket_name, bucket_reason, candidate) in enumerate(picked, start=1):
+        filename = f"{index:02d}-{bucket_name}.md"
+        (output_path / filename).write_text(
+            _render_sample(
+                title=candidate.title,
+                bucket_name=bucket_name,
+                bucket_reason=bucket_reason,
+                record=candidate.record,
+                rows=candidate.rows,
+                chunks=candidate.chunks,
+            ),
+            encoding="utf-8",
+        )
+        index_lines.append(f"- [{filename}](./{filename}) : {candidate.title} ({bucket_reason})")
+    (output_path / "INDEX.md").write_text("\n".join(index_lines).rstrip() + "\n", encoding="utf-8")
+    return output_path
 
 
 def _resolve_manifest_path(*, source: dict[str, str], manifest_path: Path | None) -> Path:
@@ -246,6 +447,54 @@ def _resolve_manifest_path(*, source: dict[str, str], manifest_path: Path | None
     if configured:
         return Path(configured)
     return DEFAULT_HANDBOOK_MANIFEST_PATH
+
+
+def _build_validation_inputs(
+    *,
+    env: dict[str, str] | None,
+    registry: DocumentRegistry | None,
+    object_store: ChunkValidationArtifactReader | None,
+    manifest_path: Path | None,
+    chunk_profile: ChunkProfile | None,
+) -> StudentHandbookValidationInputs:
+    source = dict(env if env is not None else os.environ)
+    corpus, collection = HANDBOOK_SCOPE
+    runtime_profile = chunk_profile or _resolve_validation_chunk_profile(source, corpus=corpus, collection=collection)
+    runtime_registry = registry or build_document_registry_from_env(source)
+    runtime_object_store = object_store or S3ObjectStoreAdmin(ObjectStoreSettings.from_env(source))
+    processed_bucket = (source.get("OBJECT_STORE_BUCKET_PROCESSED") or DEFAULT_BUCKET_PROCESSED).strip()
+    if not processed_bucket:
+        processed_bucket = DEFAULT_BUCKET_PROCESSED
+    split_manifest_path = _resolve_manifest_path(source=source, manifest_path=manifest_path)
+    manifest = load_split_manifest(
+        split_manifest_path,
+        expected_corpus=corpus,
+        expected_collection=collection,
+    )
+    manifest_ids = {document.document_id for document in manifest.documents}
+    manifest_titles = {document.document_id: document.title for document in manifest.documents}
+    records = tuple(runtime_registry.list_by_scope(corpus, collection))
+    records_by_doc: dict[str, list[DocumentRegistryRecord]] = {}
+    for record in records:
+        records_by_doc.setdefault(record.document_id, []).append(record)
+    normalized_records_by_doc = {
+        document_id: tuple(doc_records) for document_id, doc_records in records_by_doc.items()
+    }
+    selected_records = _select_source_faithful_records(records_by_doc)
+    return StudentHandbookValidationInputs(
+        source=source,
+        chunk_profile=runtime_profile,
+        registry=runtime_registry,
+        object_store=runtime_object_store,
+        processed_bucket=processed_bucket,
+        manifest_path=split_manifest_path,
+        manifest_titles=manifest_titles,
+        records=records,
+        records_by_doc=normalized_records_by_doc,
+        selected_records=selected_records,
+        extra_registry_document_ids=tuple(sorted(set(records_by_doc) - manifest_ids)),
+        missing_registry_document_ids=tuple(sorted(manifest_ids - set(records_by_doc))),
+    )
 
 
 def _resolve_validation_chunk_profile(
@@ -282,6 +531,172 @@ def _select_source_faithful_records(
     return tuple(selected_records)
 
 
+def _load_rows(structured_jsonl_bytes: bytes) -> list[dict[str, object]]:
+    return [json.loads(line) for line in structured_jsonl_bytes.decode("utf-8").splitlines() if line.strip()]
+
+
+def _pick_sample_candidates(
+    candidates: list[StudentHandbookChunkSampleCandidate],
+    *,
+    sample_seed: int,
+) -> list[tuple[str, str, StudentHandbookChunkSampleCandidate]]:
+    rng = random.Random(sample_seed)
+    chosen_ids: set[str] = set()
+    picked: list[tuple[str, str, StudentHandbookChunkSampleCandidate]] = []
+
+    def pick(predicate) -> StudentHandbookChunkSampleCandidate | None:
+        eligible = [candidate for candidate in candidates if predicate(candidate) and candidate.document_id not in chosen_ids]
+        if not eligible:
+            return None
+        return rng.choice(eligible)
+
+    selectors = {
+        "structure-boundary": lambda candidate: candidate.split_reasons.get("structure_boundary", 0) > 0,
+        "token-guardrail": lambda candidate: candidate.split_reasons.get("token_guardrail", 0) > 0,
+        "table": lambda candidate: any(candidate.unit_types.get(unit_type, 0) > 0 for unit_type in ("table", "table_row", "table_unit")),
+        "policy-page": lambda candidate: candidate.unit_types.get("policy_page", 0) > 0,
+        "plain-article": lambda candidate: (
+            candidate.unit_types.get("article_body", 0) > 0
+            and candidate.split_reasons.get("structure_boundary", 0) == 0
+            and candidate.split_reasons.get("token_guardrail", 0) == 0
+            and candidate.unit_types.get("policy_page", 0) == 0
+            and candidate.unit_types.get("table", 0) == 0
+            and candidate.unit_types.get("table_row", 0) == 0
+            and candidate.unit_types.get("table_unit", 0) == 0
+        ),
+    }
+    for bucket_name, bucket_reason in SAMPLE_BUCKETS:
+        candidate = pick(selectors[bucket_name])
+        if candidate is None:
+            continue
+        chosen_ids.add(candidate.document_id)
+        picked.append((bucket_name, bucket_reason, candidate))
+    return picked
+
+
+def _render_sample(
+    *,
+    title: str,
+    bucket_name: str,
+    bucket_reason: str,
+    record: DocumentRegistryRecord,
+    rows: tuple[dict[str, object], ...],
+    chunks: tuple[object, ...],
+) -> str:
+    embedding_rows = _filter_embedding_consumable_rows(rows)
+    unit_type_counts = Counter(str(row.get("unit_type") or "") for row in embedding_rows)
+    split_reason_counts = Counter(str(getattr(chunk, "metadata", {}).get("split_reason") or "none") for chunk in chunks)
+    boundary_rule_counts = Counter(str(getattr(chunk, "metadata", {}).get("boundary_rule") or "none") for chunk in chunks)
+    final_token_counts = [int(getattr(chunk, "metadata", {}).get("final_token_count") or 0) for chunk in chunks]
+
+    lines: list[str] = [
+        f"# {title}",
+        "",
+        f"- sample_bucket: `{bucket_name}`",
+        f"- sample_reason: `{bucket_reason}`",
+        f"- document_id: `{record.document_id}`",
+        f"- version_id: `{record.version_id}`",
+        f"- revision_track: `{record.revision_track}`",
+        f"- document_units_key: `{record.document_units_object_key}`",
+        f"- total_units: `{len(embedding_rows)}`",
+        f"- total_chunks: `{len(chunks)}`",
+        f"- unit_type_counts: `{dict(unit_type_counts)}`",
+        f"- split_reason_counts: `{dict(split_reason_counts)}`",
+        f"- boundary_rule_counts: `{dict(boundary_rule_counts)}`",
+        f"- final_token_summary: `{_summarize_tokens(final_token_counts)}`",
+        "",
+        "## Units",
+        "",
+    ]
+    for index, row in enumerate(embedding_rows, start=1):
+        unit_label = str(row.get("root_unit_id") or row.get("chunk_id") or f"unit-{index:04d}")
+        lines.extend(
+            [
+                f"### {unit_label}",
+                "",
+                f"- unit_type: `{_format_value(row.get('unit_type'))}`",
+            ]
+        )
+        for key in ("section_path", "article_label", "table_context"):
+            if key in row:
+                lines.append(f"- {key}: `{_format_value(row.get(key))}`")
+        lines.extend(
+            [
+                "",
+                "```text",
+                str(row.get("clean_text") or row.get("raw_text") or row.get("text") or ""),
+                "```",
+                "",
+            ]
+        )
+    lines.extend(["## Chunks", ""])
+    for chunk in chunks:
+        metadata = getattr(chunk, "metadata", {})
+        lines.extend([f"### {getattr(chunk, 'chunk_id', '<unknown>')}", ""])
+        for key in (
+            "unit_type",
+            "split_reason",
+            "boundary_rule",
+            "header_mode",
+            "header_token_count",
+            "display_token_count",
+            "final_token_count",
+            "section_path",
+            "article_label",
+            "table_context",
+        ):
+            if key in metadata:
+                lines.append(f"- {key}: `{_format_value(metadata.get(key))}`")
+        lines.extend(["", "```text", str(getattr(chunk, "text", "")), "```", ""])
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _filter_embedding_consumable_rows(rows: tuple[dict[str, object], ...]) -> tuple[dict[str, object], ...]:
+    table_roots_with_semantic_units = {
+        str(row.get("root_unit_id") or row.get("chunk_id") or "").strip()
+        for row in rows
+        if str(row.get("unit_type") or "") in {"table_row", "table_unit"}
+    }
+    filtered: list[dict[str, object]] = []
+    for row in rows:
+        unit_type = str(row.get("unit_type") or "")
+        root_unit_id = str(row.get("root_unit_id") or row.get("chunk_id") or "").strip()
+        if unit_type == "table" and root_unit_id in table_roots_with_semantic_units:
+            continue
+        filtered.append(row)
+    return tuple(filtered)
+
+
+def _format_value(value: object) -> str:
+    if value is None:
+        return "None"
+    if isinstance(value, str):
+        return value
+    return repr(value)
+
+
+def _summarize_tokens(values: list[int]) -> dict[str, int]:
+    ordered = sorted(int(value) for value in values)
+    if not ordered:
+        return {"min": 0, "p50": 0, "p90": 0, "p95": 0, "p99": 0, "max": 0}
+    return {
+        "min": ordered[0],
+        "p50": _percentile(ordered, 50),
+        "p90": _percentile(ordered, 90),
+        "p95": _percentile(ordered, 95),
+        "p99": _percentile(ordered, 99),
+        "max": ordered[-1],
+    }
+
+
+def _percentile(values: list[int], percentile: int) -> int:
+    if not values:
+        return 0
+    rank = math.ceil((percentile / 100) * len(values)) - 1
+    rank = min(max(rank, 0), len(values) - 1)
+    return values[rank]
+
+
 def _collect_structure_stats(
     *,
     rows: list[dict[str, object]],
@@ -299,8 +714,18 @@ def _collect_structure_stats(
             continue
         text = str(row.get("clean_text") or "")
         cleaned_text = clean_structured_text(unit_type=unit_type, text=text)
+        display_budget = resolve_display_budget(
+            unit=StructuredUnitChunkInput(
+                unit_type=unit_type,
+                root_unit_id=str(row.get("root_unit_id") or row.get("chunk_id") or ""),
+                text=text,
+                anchor=row.get("anchor") if isinstance(row.get("anchor"), dict) else {},
+                metadata=row.get("metadata") if isinstance(row.get("metadata"), dict) else {},
+            ),
+            chunk_profile=chunk_profile,
+        )
         token_count = estimate_token_count(cleaned_text, chunk_profile=chunk_profile)
-        if token_count <= chunk_profile.max_chunk_size:
+        if token_count <= display_budget.max_tokens:
             continue
         oversize_parent_unit_counts[unit_type] += 1
         lines = [line.strip() for line in cleaned_text.splitlines() if line.strip()]
@@ -313,6 +738,7 @@ def _collect_structure_stats(
             unit_type=unit_type,
             text=cleaned_text,
             chunk_profile=chunk_profile,
+            display_budget=display_budget,
         )
         if result is not None:
             structure_eligible_unit_counts[result.boundary_rule] += 1
@@ -354,10 +780,28 @@ def _chunk_requires_context(chunk: object) -> bool:
     return bool(metadata.get("title"))
 
 
+def _is_header_only_table_chunk(chunk: object) -> bool:
+    metadata = getattr(chunk, "metadata", {})
+    if not isinstance(metadata, dict):
+        return False
+    if str(metadata.get("unit_type") or "") != "table_unit":
+        return False
+    return int(metadata.get("table_row_count") or 0) == 0
+
+
+def _has_generic_table_label(chunk: object) -> bool:
+    text = getattr(chunk, "text", "")
+    if not isinstance(text, str):
+        return False
+    return "列=" in text
+
+
 __all__ = [
     "ChunkValidationArtifactReader",
     "ChunkValidationFailure",
     "DEFAULT_HANDBOOK_MANIFEST_PATH",
+    "StudentHandbookValidationInputs",
     "StudentHandbookChunkingValidationReport",
+    "export_student_handbook_chunk_samples",
     "validate_student_handbook_chunking",
 ]
