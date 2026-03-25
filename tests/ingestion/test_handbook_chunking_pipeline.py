@@ -149,6 +149,25 @@ class HandbookChunkingPipelineTest(unittest.TestCase):
         self.assertEqual([chunk.metadata["unit_type"] for chunk in chunks], ["table_unit"])
         self.assertEqual([chunk.metadata["root_unit_id"] for chunk in chunks], ["table-001"])
 
+    def test_raw_handbook_table_is_not_embedded_without_table_unit(self) -> None:
+        structured_payload = (
+            json.dumps(
+                _structured_row(
+                    unit_type="table",
+                    clean_text="<table><tr><td>姓名</td><td>照片</td></tr></table>",
+                    root_unit_id="table-001",
+                )
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=_registry_record(),
+            structured_jsonl_bytes=structured_payload,
+        )
+
+        self.assertEqual(chunks, ())
+
     def test_oversize_article_body_keeps_root_segment_metadata(self) -> None:
         structured_payload = (
             json.dumps(

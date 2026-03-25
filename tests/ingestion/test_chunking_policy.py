@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import sys
+import types
 import unittest
+from unittest import mock
 
+import campus_ingestion_core.tokenizer_cache as tokenizer_cache
 from campus_ingestion_core.chunking import (
     DEFAULT_CHUNK_OVERLAP,
     DEFAULT_CHUNK_POLICY_VERSION,
@@ -16,7 +20,10 @@ from campus_ingestion_core.chunking import (
     StructuredUnitChunkInput,
     StudentHandbookChunkingStrategy,
     StudentHandbookChunkingStrategyV2,
+    _load_hf_tokenizer,
+    assemble_chunk_text,
     build_student_handbook_chunk_profile,
+    build_chunk_text_context,
     chunk_structured_unit,
     clean_structured_text,
     estimate_token_count,
@@ -24,6 +31,9 @@ from campus_ingestion_core.chunking import (
 
 
 class ChunkingPolicyTest(unittest.TestCase):
+    def tearDown(self) -> None:
+        _load_hf_tokenizer.cache_clear()
+
     def test_default_profile_matches_legacy_v1_budget_defaults(self) -> None:
         profile = ChunkProfile()
 
@@ -84,6 +94,54 @@ class ChunkingPolicyTest(unittest.TestCase):
         self.assertEqual(profile.strategy_name, "student_handbook_structure_v3")
         self.assertEqual(profile.tokenizer_name, "hf:Qwen/Qwen3-Embedding-4B")
 
+    def test_resolve_prefetched_hf_tokenizer_path_requires_local_cache(self) -> None:
+        with mock.patch(
+            "campus_ingestion_core.tokenizer_cache._snapshot_download",
+            side_effect=RuntimeError("cache miss"),
+        ) as snapshot_download:
+            with self.assertRaisesRegex(RuntimeError, "prefetch"):
+                tokenizer_cache.resolve_prefetched_hf_tokenizer_path("Qwen/Qwen3-Embedding-4B")
+
+        snapshot_download.assert_called_once_with(
+            "Qwen/Qwen3-Embedding-4B",
+            allow_patterns=tokenizer_cache.HF_TOKENIZER_ALLOW_PATTERNS,
+            local_files_only=True,
+        )
+
+    def test_prefetch_hf_tokenizer_downloads_expected_tokenizer_files(self) -> None:
+        with mock.patch(
+            "campus_ingestion_core.tokenizer_cache._snapshot_download",
+            return_value="/tmp/qwen-tokenizer",
+        ) as snapshot_download:
+            result = tokenizer_cache.prefetch_hf_tokenizer("Qwen/Qwen3-Embedding-4B")
+
+        self.assertEqual(result, "/tmp/qwen-tokenizer")
+        snapshot_download.assert_called_once_with(
+            "Qwen/Qwen3-Embedding-4B",
+            allow_patterns=tokenizer_cache.HF_TOKENIZER_ALLOW_PATTERNS,
+        )
+
+    def test_load_hf_tokenizer_uses_resolved_local_snapshot_only(self) -> None:
+        fake_tokenizer = object()
+        fake_transformers = types.SimpleNamespace(
+            AutoTokenizer=types.SimpleNamespace(
+                from_pretrained=mock.Mock(return_value=fake_tokenizer)
+            )
+        )
+        with mock.patch(
+            "campus_ingestion_core.chunking.resolve_prefetched_hf_tokenizer_path",
+            return_value="/tmp/qwen-tokenizer",
+        ) as resolve_path:
+            with mock.patch.dict(sys.modules, {"transformers": fake_transformers}):
+                result = _load_hf_tokenizer("Qwen/Qwen3-Embedding-4B")
+
+        self.assertIs(result, fake_tokenizer)
+        resolve_path.assert_called_once_with("Qwen/Qwen3-Embedding-4B")
+        fake_transformers.AutoTokenizer.from_pretrained.assert_called_once_with(
+            "/tmp/qwen-tokenizer",
+            local_files_only=True,
+        )
+
     def test_clean_structured_text_strips_parent_html_table_and_keeps_placeholder(self) -> None:
         cleaned = clean_structured_text(
             unit_type="article_body",
@@ -97,6 +155,34 @@ class ChunkingPolicyTest(unittest.TestCase):
         self.assertNotIn("<table>", cleaned)
         self.assertIn(TABLE_PLACEHOLDER, cleaned)
         self.assertIn("library remains open", cleaned.lower())
+
+    def test_assemble_chunk_text_prefers_compact_header_for_short_deeply_nested_text(self) -> None:
+        context_plan = build_chunk_text_context(
+            anchor={
+                "section_path": ["第二章 分则", "第一部分 注册", "四、权利", "(二) 注册志愿服务组织"],
+            },
+            metadata={
+                "title": "中央民族大学学生志愿服务管理办法",
+                "policy_doc_no": "民大团发〔2010〕14号",
+            },
+        )
+
+        assembly = assemble_chunk_text(
+            display_text="1. 组织开展符合组织宗旨的志愿服务活动的权利。",
+            context_plan=context_plan,
+            chunk_profile=ChunkProfile(
+                chunk_size=128,
+                max_chunk_size=192,
+                chunk_overlap=16,
+                min_chunk_size=32,
+                final_text_aware=True,
+                safety_margin=16,
+            ),
+        )
+
+        self.assertNotEqual(assembly.header_mode, "full_path")
+        self.assertLess(assembly.header_token_count, 50)
+        self.assertIn("注册志愿服务组织", assembly.text)
 
     def test_table_units_are_not_resplit_even_when_token_budget_is_large(self) -> None:
         unit = StructuredUnitChunkInput(

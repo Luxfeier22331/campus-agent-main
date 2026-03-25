@@ -7,6 +7,8 @@ import os
 import re
 from typing import Any, Callable, Literal, Mapping, Protocol
 
+from campus_ingestion_core.tokenizer_cache import resolve_prefetched_hf_tokenizer_path
+
 
 DEFAULT_CHUNK_SIZE = 240
 DEFAULT_MAX_CHUNK_SIZE = 360
@@ -685,6 +687,7 @@ def assemble_chunk_text(
             total_token_count=display_token_count,
         )
 
+    fitting_variants: list[tuple[ChunkHeaderVariant, str, int, int]] = []
     for variant in context_plan.preferred_variants:
         candidate_text, header_token_count = _compose_contextual_chunk_text(
             display_text=normalized_display_text,
@@ -693,13 +696,20 @@ def assemble_chunk_text(
         )
         total_token_count = estimate_token_count(candidate_text, chunk_profile=chunk_profile)
         if total_token_count <= chunk_profile.max_chunk_size:
-            return ChunkTextAssembly(
-                text=candidate_text,
-                header_mode=variant.mode,
-                header_token_count=header_token_count,
-                display_token_count=display_token_count,
-                total_token_count=total_token_count,
-            )
+            fitting_variants.append((variant, candidate_text, header_token_count, total_token_count))
+    selected_variant = _select_header_variant_for_display(
+        fitting_variants=fitting_variants,
+        display_token_count=display_token_count,
+    )
+    if selected_variant is not None:
+        variant, candidate_text, header_token_count, total_token_count = selected_variant
+        return ChunkTextAssembly(
+            text=candidate_text,
+            header_mode=variant.mode,
+            header_token_count=header_token_count,
+            display_token_count=display_token_count,
+            total_token_count=total_token_count,
+        )
 
     fallback_text, header_token_count = _compose_contextual_chunk_text(
         display_text=normalized_display_text,
@@ -713,6 +723,33 @@ def assemble_chunk_text(
         header_token_count=header_token_count,
         display_token_count=display_token_count,
         total_token_count=total_token_count,
+    )
+
+
+def _select_header_variant_for_display(
+    *,
+    fitting_variants: list[tuple[ChunkHeaderVariant, str, int, int]],
+    display_token_count: int,
+) -> tuple[ChunkHeaderVariant, str, int, int] | None:
+    if not fitting_variants:
+        return None
+    if display_token_count >= 120:
+        return fitting_variants[0]
+
+    short_display_mode_order = {
+        "compact_identity": 0,
+        "compact_path": 1,
+        "full_path": 2,
+        "title_only": 3,
+        "required": 4,
+    }
+    return min(
+        fitting_variants,
+        key=lambda item: (
+            short_display_mode_order.get(item[0].mode, 99),
+            item[2],
+            item[3],
+        ),
     )
 
 
@@ -919,28 +956,9 @@ def _build_student_handbook_v3_token_counter(model_name: str) -> TokenCounter:
 
 @lru_cache(maxsize=4)
 def _load_hf_tokenizer(repo_id: str) -> Any:
-    from huggingface_hub import snapshot_download
     from transformers import AutoTokenizer
 
-    allow_patterns = [
-        "tokenizer.json",
-        "tokenizer_config.json",
-        "special_tokens_map.json",
-        "added_tokens.json",
-        "vocab.json",
-        "merges.txt",
-    ]
-    try:
-        local_tokenizer_path = snapshot_download(
-            repo_id,
-            allow_patterns=allow_patterns,
-            local_files_only=True,
-        )
-    except Exception:
-        local_tokenizer_path = snapshot_download(
-            repo_id,
-            allow_patterns=allow_patterns,
-        )
+    local_tokenizer_path = resolve_prefetched_hf_tokenizer_path(repo_id)
     return AutoTokenizer.from_pretrained(local_tokenizer_path, local_files_only=True)
 
 

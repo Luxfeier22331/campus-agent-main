@@ -206,7 +206,8 @@ def rebuild_local_data(
         ),
         exclude_keys=processed_exclude_keys,
     )
-    runtime_document_registry.delete_by_scope(corpus, collection)
+    if _should_delete_document_registry_scope(collection=collection, import_mode=import_mode):
+        runtime_document_registry.delete_by_scope(corpus, collection)
     if _should_delete_raw_asset_registry(collection=collection, import_mode=import_mode):
         runtime_raw_asset_registry.delete_by_scope(corpus, collection)
 
@@ -557,6 +558,7 @@ def replay_provider_response_rebuild(
         embedding_model=_read_embedding_model_name(source),
         cleaning_policy_version=load_runtime_profile(corpus, collection).cleaning_policy_version,
         default_campus_scope=(source.get("INGESTION_DEFAULT_CAMPUS_SCOPE") or "").strip() or None,
+        scope_refresh=(corpus, collection),
     )
     errors = list(stats.errors)
     failed_count = stats.failed_count
@@ -601,6 +603,10 @@ def _processed_bucket_exclude_keys(
 
 
 def _should_clear_raw_bucket(*, collection: str, import_mode: str) -> bool:
+    return not (collection == "student_handbook" and import_mode == "provider_response_replay")
+
+
+def _should_delete_document_registry_scope(*, collection: str, import_mode: str) -> bool:
     return not (collection == "student_handbook" and import_mode == "provider_response_replay")
 
 

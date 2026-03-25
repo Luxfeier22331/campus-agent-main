@@ -77,6 +77,8 @@ Optional env:
 - `RAW_INGESTION_ARTIFACT_MODE`
 - `INGESTION_EMBEDDING_MODEL`
 - `INGESTION_DEFAULT_CAMPUS_SCOPE`
+- `HF_HOME` / `HF_HUB_CACHE` / `TRANSFORMERS_CACHE`
+- `HF_HUB_OFFLINE`
 
 Behavior:
 
@@ -94,6 +96,7 @@ Behavior:
 - For `INGESTION_CORPUS=regulations` + `INGESTION_COLLECTION=student_handbook` and `INGESTION_CORPUS=curriculum` + `INGESTION_COLLECTION=curriculum_plan`, normalized mode requires a split manifest and stores asset-level `provider-response.jsonl` / `layout-elements.jsonl` plus per-document `document-units.jsonl`; handbook also exports `canonical.md`.
 - `regulations/student_handbook` normalized mode rebuilds logical documents strictly from the repo-tracked split manifest; no legacy OCR-import adapter or non-`provider-response.jsonl` handbook input is supported.
 - Handbook retrieval preparation stays ingestion-owned: persisted `document-units.jsonl` feeds chunk generation in `packages/ingestion-core`, and `index_chunks_to_qdrant()` writes the canonical online chunk/index state into Qdrant.
+- `regulations/student_handbook` chunk budgeting uses the `Qwen/Qwen3-Embedding-4B` tokenizer from local Hugging Face cache only. Prefetch it explicitly with `uv run --all-packages python -m campus_ingestion_core.prefetch_tokenizer`, then keep worker/runtime/test runs on `HF_HUB_OFFLINE=1`; the ingestion code no longer falls back to implicit network download.
 - Only normalized mode registers processed results in the document registry with `import_source=raw_online_ocr`.
 - Normalized document-registry writes persist the scope cleaning policy version for traceability.
 - Phase-1 OCR ingestion defaults to `representation=source-faithful`, `source_channel=pdf_ocr`, `is_current=false`.

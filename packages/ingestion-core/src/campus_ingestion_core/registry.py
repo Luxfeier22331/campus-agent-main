@@ -32,6 +32,8 @@ class DocumentRegistry(Protocol):
 
     def upsert(self, record: DocumentRegistryRecord) -> None: ...
 
+    def upsert_many(self, records: tuple[DocumentRegistryRecord, ...]) -> None: ...
+
     def list_by_corpus(self, corpus: str) -> tuple[DocumentRegistryRecord, ...]: ...
 
     def list_by_scope(
@@ -57,6 +59,13 @@ class DocumentRegistry(Protocol):
     def delete_by_corpus(self, corpus: str) -> None: ...
 
     def delete_by_scope(self, corpus: str, collection: str | None = None) -> None: ...
+
+    def replace_scope(
+        self,
+        corpus: str,
+        collection: str | None,
+        records: tuple[DocumentRegistryRecord, ...],
+    ) -> None: ...
 
 
 class RawAssetRegistry(Protocol):
@@ -94,8 +103,14 @@ class FileDocumentRegistry:
         return _document_record_from_dict(raw)
 
     def upsert(self, record: DocumentRegistryRecord) -> None:
+        self.upsert_many((record,))
+
+    def upsert_many(self, records: tuple[DocumentRegistryRecord, ...]) -> None:
+        if not records:
+            return
         payload = self._load()
-        payload[self._make_key(record.document_id, record.revision_track, record.version_id)] = asdict(record)
+        for record in records:
+            payload[self._make_key(record.document_id, record.revision_track, record.version_id)] = asdict(record)
         self._store(payload)
 
     def list_by_corpus(self, corpus: str) -> tuple[DocumentRegistryRecord, ...]:
@@ -173,6 +188,14 @@ class FileDocumentRegistry:
         self.delete_by_scope(corpus)
 
     def delete_by_scope(self, corpus: str, collection: str | None = None) -> None:
+        self.replace_scope(corpus, collection, ())
+
+    def replace_scope(
+        self,
+        corpus: str,
+        collection: str | None,
+        records: tuple[DocumentRegistryRecord, ...],
+    ) -> None:
         payload = {
             key: value
             for key, value in self._load().items()
@@ -182,6 +205,8 @@ class FileDocumentRegistry:
                 or (collection is not None and value.get("collection") != collection)
             )
         }
+        for record in records:
+            payload[self._make_key(record.document_id, record.revision_track, record.version_id)] = asdict(record)
         self._store(payload)
 
     def _load(self) -> dict[str, dict[str, object]]:
@@ -317,28 +342,14 @@ class PostgresDocumentRegistry:
         return _document_record_from_dict(_coerce_json_payload(row[0]))
 
     def upsert(self, record: DocumentRegistryRecord) -> None:
-        payload = json.dumps(asdict(record), ensure_ascii=False)
-        query = (
-            f"insert into {self.table_name} "
-            "(document_id, revision_track, version_id, corpus, collection, ingestion_timestamp, record) "
-            "values (%s, %s, %s, %s, %s, %s, %s::jsonb) "
-            "on conflict (document_id, revision_track, version_id) do update set "
-            "corpus = excluded.corpus, "
-            "collection = excluded.collection, "
-            "ingestion_timestamp = excluded.ingestion_timestamp, "
-            "record = excluded.record"
-        )
-        self._execute(
-            query,
-            (
-                record.document_id,
-                record.revision_track,
-                record.version_id,
-                record.corpus,
-                record.collection,
-                _parse_timestamp(record.ingestion_timestamp),
-                payload,
-            ),
+        self.upsert_many((record,))
+
+    def upsert_many(self, records: tuple[DocumentRegistryRecord, ...]) -> None:
+        if not records:
+            return
+        self._executemany(
+            self._upsert_query(),
+            tuple(self._record_upsert_params(record) for record in records),
         )
 
     def list_by_corpus(self, corpus: str) -> tuple[DocumentRegistryRecord, ...]:
@@ -432,6 +443,27 @@ class PostgresDocumentRegistry:
             params = (corpus, collection)
         self._execute(query, params)
 
+    def replace_scope(
+        self,
+        corpus: str,
+        collection: str | None,
+        records: tuple[DocumentRegistryRecord, ...],
+    ) -> None:
+        if collection is None:
+            delete_query = f"delete from {self.table_name} where corpus = %s"
+            delete_params: tuple[object, ...] = (corpus,)
+        else:
+            delete_query = f"delete from {self.table_name} where corpus = %s and collection = %s"
+            delete_params = (corpus, collection)
+        with _postgres_connection(self.database_url, autocommit=False) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(delete_query, delete_params)
+                if records:
+                    cursor.executemany(
+                        self._upsert_query(),
+                        tuple(self._record_upsert_params(record) for record in records),
+                    )
+
     def _ensure_schema(self) -> None:
         cache_key = (self.database_url, self.table_name)
         if cache_key in _INITIALIZED_DOCUMENT_TABLES:
@@ -517,6 +549,11 @@ class PostgresDocumentRegistry:
             with conn.cursor() as cursor:
                 cursor.execute(query, params)
 
+    def _executemany(self, query: str, params_seq: tuple[tuple[object, ...], ...]) -> None:
+        with _postgres_connection(self.database_url) as conn:
+            with conn.cursor() as cursor:
+                cursor.executemany(query, params_seq)
+
     def _fetchone(self, query: str, params: tuple[object, ...]) -> tuple[object, ...] | None:
         with _postgres_connection(self.database_url) as conn:
             with conn.cursor() as cursor:
@@ -530,6 +567,30 @@ class PostgresDocumentRegistry:
                 cursor.execute(query, params)
                 rows = cursor.fetchall()
         return tuple(tuple(row) for row in rows)
+
+    def _upsert_query(self) -> str:
+        return (
+            f"insert into {self.table_name} "
+            "(document_id, revision_track, version_id, corpus, collection, ingestion_timestamp, record) "
+            "values (%s, %s, %s, %s, %s, %s, %s::jsonb) "
+            "on conflict (document_id, revision_track, version_id) do update set "
+            "corpus = excluded.corpus, "
+            "collection = excluded.collection, "
+            "ingestion_timestamp = excluded.ingestion_timestamp, "
+            "record = excluded.record"
+        )
+
+    @staticmethod
+    def _record_upsert_params(record: DocumentRegistryRecord) -> tuple[object, ...]:
+        return (
+            record.document_id,
+            record.revision_track,
+            record.version_id,
+            record.corpus,
+            record.collection,
+            _parse_timestamp(record.ingestion_timestamp),
+            json.dumps(asdict(record), ensure_ascii=False),
+        )
 
 
 class PostgresRawAssetRegistry:
@@ -701,14 +762,14 @@ def _required_raw_asset_registry_database_url(source: dict[str, str]) -> str:
     return database_url
 
 
-def _postgres_connection(database_url: str):
+def _postgres_connection(database_url: str, *, autocommit: bool = True):
     try:
         import psycopg
     except ImportError as exc:  # pragma: no cover
         raise RuntimeError(
             "psycopg is required to use the Postgres document registry"
         ) from exc
-    return psycopg.connect(database_url, autocommit=True)
+    return psycopg.connect(database_url, autocommit=autocommit)
 
 
 def _parse_timestamp(value: str) -> datetime:

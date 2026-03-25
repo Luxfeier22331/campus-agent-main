@@ -6,6 +6,8 @@ This roadmap stabilizes the new supervisor-led architecture before it expands sc
 
 Current roadmap truth still centers the `student_handbook` mainline as the scheduled execution path. An inserted `03.1 Availability Specialist 最小闭环` phase is now also part of the current milestone as a parallel capability line; it exists to validate one stable non-RAG specialist boundary without hiding that work inside the existing RAG phases as an implementation detail.
 
+The public answer route is now expected to construct a supervisor-facing request rather than hardcoding a rag-specialist handoff. Default handbook scope remains a routing/policy concern, not an API-shell constant.
+
 ## Phases
 
 **Phase Numbering:**
@@ -104,7 +106,7 @@ Plans:
 **Depends on**: Phase 4
 **Requirements**: [ORCH-01, GOV-01, GOV-02]
 **Success Criteria** (what must be TRUE):
-  1. Query traffic enters through `supervisor` and is routed to `rag-specialist` only when phase-1 policy allows it.
+  1. Query traffic enters through a supervisor-facing request contract and is routed by `supervisor`, rather than by API-shell hardcoded specialist construction.
   2. Caller identity and group information reach retrieval-time ACL filtering before evidence is returned.
   3. Each handled request records trace and audit fields covering caller identity, route, response status, and cited sources.
 **Plans**: 3 plans

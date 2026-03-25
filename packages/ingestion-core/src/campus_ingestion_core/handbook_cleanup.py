@@ -55,6 +55,31 @@ TERMINAL_PROVISION_KEYWORDS = (
     "另行通知",
     "同时废止",
 )
+GENERIC_TABLE_PROJECT_LABEL = "项目"
+FORM_TABLE_CAPTION_KEYWORDS = ("申请表", "审批表", "登记表", "备案表", "信息表")
+FORM_TABLE_FIELD_KEYWORDS = (
+    "本人情况",
+    "家庭经济情况",
+    "家庭住址",
+    "身份证号码",
+    "政治面貌",
+    "出生年月",
+    "入学时间",
+    "农行卡号",
+    "邮政编码",
+    "家庭户口",
+    "人均月收入",
+    "收入来源",
+    "工作单位及职务",
+    "火车到站站名",
+)
+DECORATIVE_TABLE_KEYWORDS = (
+    "照片",
+    "骑缝章",
+    "盖章",
+    "签字",
+    "签章",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -889,18 +914,37 @@ def _build_table_unit_semantics(
 ) -> NormalizedHandbookTable | None:
     if not table_cells:
         return None
-    header_row_count = _detect_table_header_row_count(table_cells)
-    header_rows = tuple(tuple(row) for row in table_cells[:header_row_count])
-    body_rows = tuple(tuple(row) for row in table_cells[header_row_count:])
-    column_paths = _build_table_column_paths(header_rows or (tuple(table_cells[0]),))
-    header_line = " | ".join(column_paths)
-    row_lines = tuple(" | ".join(row) for row in body_rows if any(cell.strip() for cell in row))
+    normalized_matrix = [tuple(normalize_handbook_body_text(cell) for cell in row) for row in table_cells]
     caption_text = normalize_handbook_body_text(str(table_context)) if isinstance(table_context, str) else ""
+    if _looks_like_form_table(normalized_matrix, caption_text=caption_text):
+        return None
+    header_row_count = _detect_table_header_row_count([list(row) for row in normalized_matrix])
+    header_rows = tuple(normalized_matrix[:header_row_count])
+    body_rows = tuple(normalized_matrix[header_row_count:])
+    selected_columns = _select_semantic_table_columns(header_rows=header_rows, body_rows=body_rows)
+    if not selected_columns:
+        return None
+    filtered_header_rows = tuple(
+        tuple(row[column_index] for column_index in selected_columns)
+        for row in header_rows
+    )
+    filtered_body_rows = tuple(
+        tuple(row[column_index] for column_index in selected_columns)
+        for row in body_rows
+    )
+    column_paths = _build_table_column_paths(
+        header_rows=filtered_header_rows or (tuple(filtered_body_rows[0]),),
+        body_rows=filtered_body_rows,
+    )
+    header_line = " | ".join(column_paths)
+    row_lines = tuple(" | ".join(row) for row in filtered_body_rows if any(cell.strip() for cell in row))
+    if not row_lines:
+        return None
     caption_lines = (caption_text,) if caption_text else ()
     return NormalizedHandbookTable(
-        matrix=tuple(tuple(row) for row in table_cells),
-        header_rows=header_rows,
-        body_rows=body_rows,
+        matrix=tuple((*filtered_header_rows, *filtered_body_rows)),
+        header_rows=filtered_header_rows,
+        body_rows=filtered_body_rows,
         column_paths=column_paths,
         header_line=header_line,
         row_lines=row_lines,
@@ -944,7 +988,50 @@ def _row_looks_like_numeric_payload(cells: list[str]) -> bool:
     return numeric_like >= max(1, len(cells) // 2)
 
 
-def _build_table_column_paths(header_rows: tuple[tuple[str, ...], ...]) -> tuple[str, ...]:
+def _select_semantic_table_columns(
+    *,
+    header_rows: tuple[tuple[str, ...], ...],
+    body_rows: tuple[tuple[str, ...], ...],
+) -> tuple[int, ...]:
+    width = max((len(row) for row in (*header_rows, *body_rows)), default=0)
+    selected: list[int] = []
+    for column_index in range(width):
+        header_labels = tuple(
+            row[column_index].strip()
+            for row in header_rows
+            if column_index < len(row) and row[column_index].strip()
+        )
+        column_values = tuple(
+            row[column_index].strip()
+            for row in body_rows
+            if column_index < len(row) and row[column_index].strip()
+        )
+        if _is_semantic_table_column(header_labels=header_labels, column_values=column_values):
+            selected.append(column_index)
+    return tuple(selected)
+
+
+def _is_semantic_table_column(
+    *,
+    header_labels: tuple[str, ...],
+    column_values: tuple[str, ...],
+) -> bool:
+    header_text = " / ".join(header_labels)
+    if _contains_decorative_table_keyword(header_text):
+        return False
+    if not column_values:
+        return bool(header_labels)
+    decorative_value_count = sum(1 for value in column_values if _looks_like_decorative_table_cell(value))
+    if decorative_value_count >= max(1, len(column_values)):
+        return False
+    return True
+
+
+def _build_table_column_paths(
+    *,
+    header_rows: tuple[tuple[str, ...], ...],
+    body_rows: tuple[tuple[str, ...], ...],
+) -> tuple[str, ...]:
     width = max((len(row) for row in header_rows), default=0)
     column_paths: list[str] = []
     for column_index in range(width):
@@ -957,8 +1044,83 @@ def _build_table_column_paths(header_rows: tuple[tuple[str, ...], ...]) -> tuple
                 continue
             if not parts or parts[-1] != label:
                 parts.append(label)
-        column_paths.append(" / ".join(parts) if parts else "未命名列")
+        if parts:
+            column_paths.append(" / ".join(parts))
+            continue
+        inferred = _infer_missing_table_column_label(column_index=column_index, body_rows=body_rows)
+        column_paths.append(inferred if inferred else "未命名列")
     return tuple(column_paths)
+
+
+def _infer_missing_table_column_label(
+    *,
+    column_index: int,
+    body_rows: tuple[tuple[str, ...], ...],
+) -> str | None:
+    column_values = [
+        normalize_handbook_body_text(row[column_index])
+        for row in body_rows
+        if column_index < len(row) and normalize_handbook_body_text(row[column_index])
+    ]
+    if not column_values:
+        return None
+    if column_index == 0 and _looks_like_project_table_column(column_values):
+        return GENERIC_TABLE_PROJECT_LABEL
+    return None
+
+
+def _looks_like_form_table(
+    table_matrix: list[tuple[str, ...]],
+    *,
+    caption_text: str,
+) -> bool:
+    total_cells = sum(len(row) for row in table_matrix)
+    if total_cells == 0:
+        return False
+    flattened = [cell.strip() for row in table_matrix for cell in row]
+    blank_count = sum(1 for cell in flattened if not cell)
+    non_empty = [cell for cell in flattened if cell]
+    if not non_empty:
+        return False
+    if any(keyword in caption_text for keyword in FORM_TABLE_CAPTION_KEYWORDS):
+        return True
+    decorative_hits = sum(1 for cell in non_empty if _looks_like_decorative_table_cell(cell))
+    field_hits = sum(1 for cell in non_empty if _contains_form_table_keyword(cell))
+    blank_ratio = blank_count / total_cells
+    return blank_ratio >= 0.2 and (decorative_hits >= 2 or field_hits >= 3)
+
+
+def _contains_form_table_keyword(text: str) -> bool:
+    normalized = normalize_handbook_body_text(text)
+    return any(keyword in normalized for keyword in FORM_TABLE_FIELD_KEYWORDS)
+
+
+def _contains_decorative_table_keyword(text: str) -> bool:
+    normalized = normalize_handbook_body_text(text)
+    return any(keyword in normalized for keyword in DECORATIVE_TABLE_KEYWORDS)
+
+
+def _looks_like_decorative_table_cell(text: str) -> bool:
+    normalized = normalize_handbook_body_text(text)
+    if not normalized:
+        return False
+    if _contains_decorative_table_keyword(normalized):
+        return True
+    return normalized.startswith("(请在") and normalized.endswith(")")
+
+
+def _looks_like_project_table_column(values: list[str]) -> bool:
+    if not values:
+        return False
+    textual_values = sum(1 for value in values if not _looks_like_numeric_dominant_cell(value))
+    return textual_values >= max(1, len(values) - 1)
+
+
+def _looks_like_numeric_dominant_cell(text: str) -> bool:
+    normalized = normalize_handbook_body_text(text)
+    if not normalized:
+        return False
+    return bool(re.fullmatch(r"[0-9０-９\s\-–—~～./:%()（）]+", normalized))
 
 
 class _HtmlTableMatrixParser(HTMLParser):

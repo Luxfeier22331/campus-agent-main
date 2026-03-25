@@ -323,6 +323,80 @@ class StudentHandbookChunkingValidationTest(unittest.TestCase):
             self.assertFalse(report.passed)
             self.assertEqual(report.polluted_section_path_count, 1)
 
+    def test_validation_treats_isolated_tiny_textual_chunk_as_diagnostic_only(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            manifest_path = root / "split-manifest.v1.json"
+            record = _registry_record(
+                document_id="handbook:tiny-doc",
+                version_id="v1:tiny-doc",
+                title="短条款制度",
+            )
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "corpus": "regulations",
+                        "collection": "student_handbook",
+                        "raw_asset_id": "asset:test-handbook",
+                        "documents": [
+                            _manifest_document(document_id=record.document_id, title="短条款制度"),
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            payload = (
+                json.dumps(
+                    {
+                        **_structured_row(
+                            doc_id=record.document_id,
+                            version_id=record.version_id,
+                            unit_type="article_body",
+                            clean_text="本办法自公布之日起施行。",
+                            root_unit_id="article-001",
+                        ),
+                        "metadata": {
+                            "title": "短条款制度",
+                            "policy_doc_no": "民大校发〔2024〕12号",
+                        },
+                        "anchor": {
+                            "page_start": 1,
+                            "page_end": 1,
+                            "section_path": ["第一章 总则"],
+                            "article_label": "第一条",
+                        },
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            ).encode("utf-8")
+
+            report = validate_student_handbook_chunking(
+                env={
+                    "OBJECT_STORE_BUCKET_PROCESSED": "campus-rag-processed",
+                    "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                },
+                registry=_FakeRegistry(record),
+                object_store=_FakeObjectStore(
+                    {
+                        ("campus-rag-processed", record.document_units_object_key): payload,
+                    }
+                ),
+                manifest_path=manifest_path,
+                chunk_profile=build_student_handbook_chunk_profile(
+                    profile_version="student_handbook_semantic_v3",
+                    model_name="Qwen3-Embedding-4B",
+                ),
+            )
+
+            self.assertTrue(report.passed)
+            self.assertEqual(report.tiny_textual_chunk_count, 1)
+            self.assertEqual(report.header_dominant_chunk_count, 0)
+            self.assertEqual(report.small_unaggregated_chunk_count, 0)
+
     def test_export_chunk_samples_writes_bucketed_markdown_batch(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -602,6 +676,82 @@ class StudentHandbookChunkingValidationTest(unittest.TestCase):
             self.assertNotIn("<table>", table_sample)
             self.assertNotIn("- unit_type: `table`", table_sample)
             self.assertIn("- unit_type: `table_unit`", table_sample)
+
+    def test_validation_fails_when_table_chunk_contains_unnamed_column_label(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            manifest_path = root / "split-manifest.v1.json"
+            record = _registry_record(
+                document_id="handbook:test-doc",
+                version_id="v1:test-doc",
+                title="表格制度",
+            )
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "corpus": "regulations",
+                        "collection": "student_handbook",
+                        "raw_asset_id": "asset:test-handbook",
+                        "documents": [
+                            _manifest_document(
+                                document_id=record.document_id,
+                                title="表格制度",
+                            ),
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            payload = (
+                json.dumps(
+                    {
+                        **_structured_row(
+                            doc_id=record.document_id,
+                            version_id=record.version_id,
+                            unit_type="table_unit",
+                            clean_text="考核等级表\n未命名列 | 分数\n优 | 90-100",
+                            root_unit_id="table-001",
+                        ),
+                        "metadata": {
+                            "title": "表格制度",
+                            "table_header_line": "未命名列 | 分数",
+                            "table_row_lines": ["优 | 90-100"],
+                            "table_row_count": 1,
+                        },
+                        "anchor": {
+                            "page_start": 1,
+                            "page_end": 1,
+                            "section_path": ["第一章 总则"],
+                        },
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            ).encode("utf-8")
+
+            report = validate_student_handbook_chunking(
+                env={
+                    "OBJECT_STORE_BUCKET_PROCESSED": "campus-rag-processed",
+                    "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                },
+                registry=_FakeRegistry(record),
+                object_store=_FakeObjectStore(
+                    {
+                        ("campus-rag-processed", record.document_units_object_key): payload,
+                    }
+                ),
+                manifest_path=manifest_path,
+                chunk_profile=build_student_handbook_chunk_profile(
+                    profile_version="student_handbook_semantic_v3",
+                    model_name="Qwen3-Embedding-4B",
+                ),
+            )
+
+            self.assertFalse(report.passed)
+            self.assertEqual(report.generic_table_label_chunk_count, 1)
 
 
 if __name__ == "__main__":

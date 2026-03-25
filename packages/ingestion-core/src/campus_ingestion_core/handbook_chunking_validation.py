@@ -7,7 +7,7 @@ import math
 import os
 from pathlib import Path
 import random
-from typing import Protocol
+from typing import Protocol, Sequence
 
 from campus_ingestion_core.chunking import (
     ChunkProfile,
@@ -37,6 +37,9 @@ SAMPLE_BUCKETS = (
     ("policy-page", "以 policy_page 为主"),
     ("plain-article", "普通 article_body"),
 )
+TINY_TEXTUAL_FINAL_TOKEN_THRESHOLD = 80
+HEADER_DOMINANT_RATIO_THRESHOLD = 0.4
+VERBOSE_HEADER_MODES = {"full_path", "compact_path", "required"}
 
 
 class ChunkValidationArtifactReader(Protocol):
@@ -77,6 +80,9 @@ class StudentHandbookChunkingValidationReport:
     generic_table_label_chunk_count: int
     polluted_section_path_count: int
     missing_contextualization_count: int
+    tiny_textual_chunk_count: int
+    header_dominant_chunk_count: int
+    small_unaggregated_chunk_count: int
     unit_type_counts: dict[str, int]
     split_reason_counts: dict[str, int]
     boundary_rule_counts: dict[str, int]
@@ -151,6 +157,9 @@ def validate_student_handbook_chunking(
     generic_table_label_chunk_count = 0
     polluted_section_path_count = 0
     missing_contextualization_count = 0
+    tiny_textual_chunk_count = 0
+    header_dominant_chunk_count = 0
+    small_unaggregated_chunk_count = 0
     chunk_token_histogram: Counter[str] = Counter()
     header_token_histogram: Counter[str] = Counter()
     display_token_histogram: Counter[str] = Counter()
@@ -213,7 +222,7 @@ def validate_student_handbook_chunking(
         if not chunks:
             empty_document_ids.append(record.document_id)
         chunk_counts_per_doc.append(len(chunks))
-        for chunk in chunks:
+        for chunk_index, chunk in enumerate(chunks):
             split_reason_counts[str(chunk.metadata.get("split_reason") or "none")] += 1
             boundary_rule_counts[str(chunk.metadata.get("boundary_rule") or "none")] += 1
             header_mode_counts[str(chunk.metadata.get("header_mode") or "none")] += 1
@@ -229,6 +238,26 @@ def validate_student_handbook_chunking(
             display_token_histogram[_histogram_bucket(int(chunk.metadata.get("display_token_count") or 0))] += 1
             if str(chunk.metadata.get("unit_type") or "") not in TABLE_UNIT_TYPES and token_count > runtime_profile.max_chunk_size:
                 non_table_oversize_chunk_count += 1
+            if _is_textual_chunk(chunk):
+                final_token_count = int(chunk.metadata.get("final_token_count") or token_count)
+                header_token_count = int(chunk.metadata.get("header_token_count") or 0)
+                if final_token_count < TINY_TEXTUAL_FINAL_TOKEN_THRESHOLD:
+                    tiny_textual_chunk_count += 1
+                    if (
+                        not chunk.metadata.get("aggregation_mode")
+                        and _has_actionable_short_textual_merge_neighbor(
+                            chunks=chunks,
+                            chunk_index=chunk_index,
+                            chunk_profile=runtime_profile,
+                        )
+                    ):
+                        small_unaggregated_chunk_count += 1
+                if _is_verbose_header_dominant_chunk(
+                    chunk=chunk,
+                    header_token_count=header_token_count,
+                    final_token_count=final_token_count,
+                ):
+                    header_dominant_chunk_count += 1
 
     total_chunks = sum(chunk_counts_per_doc)
     validated_document_count = len(chunk_counts_per_doc)
@@ -243,6 +272,8 @@ def validate_student_handbook_chunking(
         or generic_table_label_chunk_count
         or polluted_section_path_count
         or missing_contextualization_count
+        or header_dominant_chunk_count
+        or small_unaggregated_chunk_count
     )
     return StudentHandbookChunkingValidationReport(
         passed=passed,
@@ -271,6 +302,9 @@ def validate_student_handbook_chunking(
         generic_table_label_chunk_count=generic_table_label_chunk_count,
         polluted_section_path_count=polluted_section_path_count,
         missing_contextualization_count=missing_contextualization_count,
+        tiny_textual_chunk_count=tiny_textual_chunk_count,
+        header_dominant_chunk_count=header_dominant_chunk_count,
+        small_unaggregated_chunk_count=small_unaggregated_chunk_count,
         unit_type_counts=dict(unit_type_counts),
         split_reason_counts=dict(split_reason_counts),
         boundary_rule_counts=dict(boundary_rule_counts),
@@ -415,6 +449,9 @@ def export_student_handbook_chunk_samples(
         f"- generic_table_label_chunk_count: `{runtime_report.generic_table_label_chunk_count}`",
         f"- polluted_section_path_count: `{runtime_report.polluted_section_path_count}`",
         f"- missing_contextualization_count: `{runtime_report.missing_contextualization_count}`",
+        f"- tiny_textual_chunk_count: `{runtime_report.tiny_textual_chunk_count}`",
+        f"- header_dominant_chunk_count: `{runtime_report.header_dominant_chunk_count}`",
+        f"- small_unaggregated_chunk_count: `{runtime_report.small_unaggregated_chunk_count}`",
         "",
         "## Files",
         "",
@@ -641,6 +678,9 @@ def _render_sample(
             "header_token_count",
             "display_token_count",
             "final_token_count",
+            "aggregation_mode",
+            "member_unit_count",
+            "member_article_labels",
             "section_path",
             "article_label",
             "table_context",
@@ -652,16 +692,10 @@ def _render_sample(
 
 
 def _filter_embedding_consumable_rows(rows: tuple[dict[str, object], ...]) -> tuple[dict[str, object], ...]:
-    table_roots_with_semantic_units = {
-        str(row.get("root_unit_id") or row.get("chunk_id") or "").strip()
-        for row in rows
-        if str(row.get("unit_type") or "") in {"table_row", "table_unit"}
-    }
     filtered: list[dict[str, object]] = []
     for row in rows:
         unit_type = str(row.get("unit_type") or "")
-        root_unit_id = str(row.get("root_unit_id") or row.get("chunk_id") or "").strip()
-        if unit_type == "table" and root_unit_id in table_roots_with_semantic_units:
+        if unit_type == "table":
             continue
         filtered.append(row)
     return tuple(filtered)
@@ -780,6 +814,167 @@ def _chunk_requires_context(chunk: object) -> bool:
     return bool(metadata.get("title"))
 
 
+def _is_textual_chunk(chunk: object) -> bool:
+    metadata = getattr(chunk, "metadata", {})
+    if not isinstance(metadata, dict):
+        return False
+    return str(metadata.get("unit_type") or "") in PARENT_UNIT_TYPES
+
+
+def _chunk_header_ratio(*, header_token_count: int, final_token_count: int) -> float:
+    if final_token_count <= 0:
+        return 0.0
+    return header_token_count / final_token_count
+
+
+def _has_actionable_short_textual_merge_neighbor(
+    *,
+    chunks: Sequence[object],
+    chunk_index: int,
+    chunk_profile: ChunkProfile,
+) -> bool:
+    current = chunks[chunk_index]
+    if not _is_merge_eligible_textual_chunk(current):
+        return False
+    for neighbor_index in (chunk_index - 1, chunk_index + 1):
+        if neighbor_index < 0 or neighbor_index >= len(chunks):
+            continue
+        if _chunks_could_merge_for_validation(
+            current=current,
+            neighbor=chunks[neighbor_index],
+            chunk_profile=chunk_profile,
+        ):
+            return True
+    return False
+
+
+def _chunks_could_merge_for_validation(
+    *,
+    current: object,
+    neighbor: object,
+    chunk_profile: ChunkProfile,
+) -> bool:
+    if not _is_merge_eligible_textual_chunk(neighbor):
+        return False
+    current_metadata = getattr(current, "metadata", {})
+    neighbor_metadata = getattr(neighbor, "metadata", {})
+    if not isinstance(current_metadata, dict) or not isinstance(neighbor_metadata, dict):
+        return False
+    if str(current_metadata.get("unit_type") or "") != str(neighbor_metadata.get("unit_type") or ""):
+        return False
+    if getattr(current, "acl_level", None) != getattr(neighbor, "acl_level", None):
+        return False
+    for field_name in ("title", "policy_doc_no"):
+        if current_metadata.get(field_name) != neighbor_metadata.get(field_name):
+            return False
+    current_anchor = getattr(current, "anchor", {})
+    neighbor_anchor = getattr(neighbor, "anchor", {})
+    if not isinstance(current_anchor, dict) or not isinstance(neighbor_anchor, dict):
+        return False
+    if not _textual_chunk_paths_are_merge_compatible(
+        unit_type=str(current_metadata.get("unit_type") or ""),
+        current_anchor=current_anchor,
+        neighbor_anchor=neighbor_anchor,
+    ):
+        return False
+    merged_display_budget = (
+        int(current_metadata.get("display_token_count") or 0)
+        + int(neighbor_metadata.get("display_token_count") or 0)
+        + max(
+            int(current_metadata.get("header_token_count") or 0),
+            int(neighbor_metadata.get("header_token_count") or 0),
+        )
+    )
+    return merged_display_budget <= chunk_profile.max_chunk_size
+
+
+def _is_merge_eligible_textual_chunk(chunk: object) -> bool:
+    if not _is_textual_chunk(chunk):
+        return False
+    metadata = getattr(chunk, "metadata", {})
+    if not isinstance(metadata, dict):
+        return False
+    if metadata.get("split_reason") is not None:
+        return False
+    return int(metadata.get("segment_total") or 1) == 1
+
+
+def _textual_chunk_paths_are_merge_compatible(
+    *,
+    unit_type: str,
+    current_anchor: dict[str, object],
+    neighbor_anchor: dict[str, object],
+) -> bool:
+    current_path = _normalize_section_path(current_anchor)
+    neighbor_path = _normalize_section_path(neighbor_anchor)
+    if current_path == neighbor_path:
+        return True
+    if (
+        unit_type == "policy_page"
+        and not _chunk_has_explicit_member_label(current_anchor)
+        and not _chunk_has_explicit_member_label(neighbor_anchor)
+    ):
+        return _policy_page_paths_are_merge_compatible(current_path=current_path, neighbor_path=neighbor_path)
+    return False
+
+
+def _chunk_has_explicit_member_label(anchor: dict[str, object]) -> bool:
+    return _normalize_anchor_label(anchor, "article_label") is not None or _normalize_anchor_label(
+        anchor,
+        "provision_label",
+    ) is not None
+
+
+def _policy_page_paths_are_merge_compatible(
+    *,
+    current_path: tuple[str, ...],
+    neighbor_path: tuple[str, ...],
+) -> bool:
+    if not current_path or not neighbor_path:
+        return False
+    if len(current_path) >= 2 and neighbor_path[: len(current_path)] == current_path:
+        return True
+    if len(neighbor_path) >= 2 and current_path[: len(neighbor_path)] == neighbor_path:
+        return True
+    current_parent = current_path[:-1]
+    neighbor_parent = neighbor_path[:-1]
+    if len(current_parent) < 2 or len(neighbor_parent) < 2:
+        return False
+    return current_parent == neighbor_parent
+
+
+def _normalize_section_path(anchor: dict[str, object]) -> tuple[str, ...]:
+    section_path = anchor.get("section_path")
+    if not isinstance(section_path, list):
+        return ()
+    return tuple(str(item).strip() for item in section_path if str(item).strip())
+
+
+def _normalize_anchor_label(anchor: dict[str, object], field_name: str) -> str | None:
+    value = anchor.get(field_name)
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
+def _is_verbose_header_dominant_chunk(
+    *,
+    chunk: object,
+    header_token_count: int,
+    final_token_count: int,
+) -> bool:
+    metadata = getattr(chunk, "metadata", {})
+    if not isinstance(metadata, dict):
+        return False
+    if str(metadata.get("header_mode") or "") not in VERBOSE_HEADER_MODES:
+        return False
+    return _chunk_header_ratio(
+        header_token_count=header_token_count,
+        final_token_count=final_token_count,
+    ) >= HEADER_DOMINANT_RATIO_THRESHOLD
+
+
 def _is_header_only_table_chunk(chunk: object) -> bool:
     metadata = getattr(chunk, "metadata", {})
     if not isinstance(metadata, dict):
@@ -793,7 +988,7 @@ def _has_generic_table_label(chunk: object) -> bool:
     text = getattr(chunk, "text", "")
     if not isinstance(text, str):
         return False
-    return "列=" in text
+    return "列=" in text or "未命名列" in text
 
 
 __all__ = [

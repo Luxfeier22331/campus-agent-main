@@ -207,6 +207,7 @@ def collect_import_document_stats(
     default_campus_scope: str | None,
     unresolved_source_pdfs: tuple[str, ...] = (),
     initial_errors: list[str] | None = None,
+    scope_refresh: tuple[str, str] | None = None,
 ) -> PersistImportStats:
     success_count = 0
     skipped_count = 0
@@ -220,6 +221,25 @@ def collect_import_document_stats(
     errors = list(initial_errors or [])
     timestamp = utc_now()
     uploaded_raw_assets: set[tuple[str, str]] = set()
+    documents_by_scope = _group_documents_by_scope(documents)
+    existing_records_by_scope = {
+        scope: registry.list_by_scope(scope[0], scope[1])
+        for scope in documents_by_scope
+    }
+    if scope_refresh is not None:
+        if scope_refresh not in documents_by_scope and documents:
+            raise ValueError("scope_refresh must match the imported document scope")
+        if len(documents_by_scope) > 1:
+            raise ValueError("scope_refresh only supports a single imported scope")
+    existing_records_by_lineage = {
+        scope: _index_scope_records_by_lineage(records)
+        for scope, records in existing_records_by_scope.items()
+    }
+    pending_records: list[DocumentRegistryRecord] = []
+    scope_records_for_refresh: dict[tuple[str, str], dict[tuple[str, str, str], DocumentRegistryRecord]] = {
+        scope: {}
+        for scope in documents_by_scope
+    }
 
     for document in documents:
         metadata = document.metadata
@@ -326,12 +346,10 @@ def collect_import_document_stats(
                     if key is not None
                 )
             )
-            document_records = _list_document_records(
-                registry=registry,
-                corpus=document.corpus,
-                collection=document.collection,
-                document_id=document_id,
-                revision_track=document.revision_track,
+            scope = (document.corpus, document.collection)
+            document_records = existing_records_by_lineage.get(scope, {}).get(
+                (document_id, document.revision_track),
+                (),
             )
             matching_content_record = next(
                 (record for record in document_records if record.content_hash == content_hash),
@@ -345,24 +363,39 @@ def collect_import_document_stats(
                     canonical_markdown_key=canonical_markdown_key,
                     processed_object_keys=processed_object_keys,
                 ):
-                    registry.upsert(
-                        _build_registry_record(
-                            document_id=document_id,
-                            version_id=version_id,
-                            metadata=metadata,
-                            content_hash=content_hash,
-                            document=document,
-                            default_campus_scope=default_campus_scope,
-                            parser_version=parser_version,
-                            embedding_model=embedding_model,
-                            cleaning_policy_version=cleaning_policy_version,
-                            raw_asset=raw_asset,
-                            document_units_key=document_units_key,
-                            provider_response_key=provider_response_key,
-                            canonical_markdown_key=canonical_markdown_key,
-                            processed_object_keys=processed_object_keys,
-                            timestamp=timestamp,
-                        )
+                    refreshed_record = _build_registry_record(
+                        document_id=document_id,
+                        version_id=version_id,
+                        metadata=metadata,
+                        content_hash=content_hash,
+                        document=document,
+                        default_campus_scope=default_campus_scope,
+                        parser_version=parser_version,
+                        embedding_model=embedding_model,
+                        cleaning_policy_version=cleaning_policy_version,
+                        raw_asset=raw_asset,
+                        document_units_key=document_units_key,
+                        provider_response_key=provider_response_key,
+                        canonical_markdown_key=canonical_markdown_key,
+                        processed_object_keys=processed_object_keys,
+                        timestamp=timestamp,
+                    )
+                    pending_records.append(refreshed_record)
+                    _replace_prefetched_lineage_record(
+                        existing_records_by_lineage=existing_records_by_lineage,
+                        scope=scope,
+                        record=refreshed_record,
+                    )
+                    _record_scope_refresh_candidate(
+                        scope_records_for_refresh=scope_records_for_refresh,
+                        scope=scope,
+                        record=refreshed_record,
+                    )
+                elif scope_refresh is not None:
+                    _record_scope_refresh_candidate(
+                        scope_records_for_refresh=scope_records_for_refresh,
+                        scope=scope,
+                        record=matching_content_record,
                     )
                 skipped_count += 1
                 skipped_document_ids.append(document_id)
@@ -374,24 +407,33 @@ def collect_import_document_stats(
                 data=document_units_bytes,
                 content_type="application/x-ndjson",
             )
-            registry.upsert(
-                _build_registry_record(
-                    document_id=document_id,
-                    version_id=version_id,
-                    metadata=metadata,
-                    content_hash=content_hash,
-                    document=document,
-                    default_campus_scope=default_campus_scope,
-                    parser_version=parser_version,
-                    embedding_model=embedding_model,
-                    cleaning_policy_version=cleaning_policy_version,
-                    raw_asset=raw_asset,
-                    document_units_key=document_units_key,
-                    provider_response_key=provider_response_key,
-                    canonical_markdown_key=canonical_markdown_key,
-                    processed_object_keys=processed_object_keys,
-                    timestamp=timestamp,
-                )
+            new_record = _build_registry_record(
+                document_id=document_id,
+                version_id=version_id,
+                metadata=metadata,
+                content_hash=content_hash,
+                document=document,
+                default_campus_scope=default_campus_scope,
+                parser_version=parser_version,
+                embedding_model=embedding_model,
+                cleaning_policy_version=cleaning_policy_version,
+                raw_asset=raw_asset,
+                document_units_key=document_units_key,
+                provider_response_key=provider_response_key,
+                canonical_markdown_key=canonical_markdown_key,
+                processed_object_keys=processed_object_keys,
+                timestamp=timestamp,
+            )
+            pending_records.append(new_record)
+            _replace_prefetched_lineage_record(
+                existing_records_by_lineage=existing_records_by_lineage,
+                scope=scope,
+                record=new_record,
+            )
+            _record_scope_refresh_candidate(
+                scope_records_for_refresh=scope_records_for_refresh,
+                scope=scope,
+                record=new_record,
             )
             success_count += 1
             document_ids.append(document_id)
@@ -402,6 +444,30 @@ def collect_import_document_stats(
         except Exception as exc:
             failed_count += 1
             errors.append(f"{source_label}: {exc}")
+
+    if scope_refresh is not None and failed_count == 0:
+        refreshed_records = tuple(
+            sorted(
+                scope_records_for_refresh.get(scope_refresh, {}).values(),
+                key=lambda record: (record.document_id, record.revision_track, record.version_id),
+            )
+        )
+        replace_scope = getattr(registry, "replace_scope", None)
+        if callable(replace_scope):
+            replace_scope(scope_refresh[0], scope_refresh[1], refreshed_records)
+        else:
+            registry.delete_by_scope(scope_refresh[0], scope_refresh[1])
+            _write_registry_records(registry=registry, records=refreshed_records)
+    else:
+        _write_registry_records(
+            registry=registry,
+            records=tuple(
+                sorted(
+                    pending_records,
+                    key=lambda record: (record.document_id, record.revision_track, record.version_id),
+                )
+            ),
+        )
 
     return PersistImportStats(
         success_count=success_count,
@@ -591,7 +657,7 @@ def _registry_record_needs_refresh(
     provider_response_key: str | None,
     canonical_markdown_key: str | None,
     processed_object_keys: tuple[str, ...],
-) -> bool:
+    ) -> bool:
     if existing.document_units_object_key != document_units_key:
         return True
     if existing.provider_response_object_key != provider_response_key:
@@ -601,19 +667,72 @@ def _registry_record_needs_refresh(
     return tuple(existing.processed_object_keys) != processed_object_keys
 
 
-def _list_document_records(
+def _group_documents_by_scope(
+    documents: list[DocumentImportInput],
+) -> dict[tuple[str, str], tuple[DocumentImportInput, ...]]:
+    grouped: dict[tuple[str, str], list[DocumentImportInput]] = {}
+    for document in documents:
+        grouped.setdefault((document.corpus, document.collection), []).append(document)
+    return {
+        scope: tuple(scope_documents)
+        for scope, scope_documents in grouped.items()
+    }
+
+
+def _index_scope_records_by_lineage(
+    records: tuple[DocumentRegistryRecord, ...],
+) -> dict[tuple[str, str], tuple[DocumentRegistryRecord, ...]]:
+    indexed: dict[tuple[str, str], list[DocumentRegistryRecord]] = {}
+    for record in records:
+        indexed.setdefault((record.document_id, record.revision_track), []).append(record)
+    return {
+        lineage: tuple(lineage_records)
+        for lineage, lineage_records in indexed.items()
+    }
+
+
+def _record_scope_refresh_candidate(
+    *,
+    scope_records_for_refresh: dict[tuple[str, str], dict[tuple[str, str, str], DocumentRegistryRecord]],
+    scope: tuple[str, str],
+    record: DocumentRegistryRecord,
+) -> None:
+    scope_records_for_refresh.setdefault(scope, {})[
+        (record.document_id, record.revision_track, record.version_id)
+    ] = record
+
+
+def _replace_prefetched_lineage_record(
+    *,
+    existing_records_by_lineage: dict[
+        tuple[str, str],
+        dict[tuple[str, str], tuple[DocumentRegistryRecord, ...]],
+    ],
+    scope: tuple[str, str],
+    record: DocumentRegistryRecord,
+) -> None:
+    lineage_key = (record.document_id, record.revision_track)
+    lineage_records = {
+        candidate.version_id: candidate
+        for candidate in existing_records_by_lineage.setdefault(scope, {}).get(lineage_key, ())
+    }
+    lineage_records[record.version_id] = record
+    existing_records_by_lineage[scope][lineage_key] = tuple(lineage_records.values())
+
+
+def _write_registry_records(
     *,
     registry: DocumentRegistry,
-    corpus: str,
-    collection: str,
-    document_id: str,
-    revision_track: str,
-) -> tuple[DocumentRegistryRecord, ...]:
-    return tuple(
-        record
-        for record in registry.list_by_scope(corpus, collection)
-        if record.document_id == document_id and record.revision_track == revision_track
-    )
+    records: tuple[DocumentRegistryRecord, ...],
+) -> None:
+    if not records:
+        return
+    upsert_many = getattr(registry, "upsert_many", None)
+    if callable(upsert_many):
+        upsert_many(records)
+        return
+    for record in records:
+        registry.upsert(record)
 
 
 def _derive_document_title(*, metadata: dict[str, object], document_id: str) -> str:

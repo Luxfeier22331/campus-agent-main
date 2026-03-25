@@ -95,6 +95,30 @@ def _handbook_source_row(page: int, row_type: str, text: str, *, html: str | Non
     }
 
 
+def _structured_unit_row(
+    *,
+    doc_id: str,
+    version_id: str,
+    chunk_id: str,
+    unit_type: str,
+    root_unit_id: str,
+    clean_text: str,
+    anchor: dict[str, object] | None = None,
+    metadata: dict[str, object] | None = None,
+) -> dict[str, object]:
+    return {
+        "doc_id": doc_id,
+        "version_id": version_id,
+        "chunk_id": chunk_id,
+        "unit_type": unit_type,
+        "root_unit_id": root_unit_id,
+        "clean_text": clean_text,
+        "anchor": anchor or {},
+        "metadata": metadata or {},
+        "acl": {"level": "public", "allow_groups": []},
+    }
+
+
 class ProcessingPipelineTest(unittest.TestCase):
     def test_default_chunk_profile_matches_current_student_handbook_runtime_truth(self) -> None:
         profile = ChunkProfile()
@@ -507,6 +531,470 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertIn("二、学生课堂行为规范", chunk.text)
         self.assertIn("第十六条", chunk.text)
         self.assertIn("3、学生应严格遵守课堂纪律", chunk.text)
+
+    def test_build_indexable_chunks_merges_adjacent_short_textual_units_before_embedding(self) -> None:
+        record = _make_registry_record()
+        metadata = {
+            "title": "中央民族大学学生管理规定",
+            "policy_doc_no": "民大校发〔2024〕12号",
+        }
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id="legacy-002",
+                        unit_type="article_body",
+                        root_unit_id="article-002",
+                        clean_text="学生应按时注册。",
+                        anchor={
+                            "section_path": ["第一章 总则"],
+                            "article_label": "第二条",
+                            "page_start": 1,
+                            "page_end": 1,
+                        },
+                        metadata=metadata,
+                    ),
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id="legacy-003",
+                        unit_type="article_body",
+                        root_unit_id="article-003",
+                        clean_text="学生应按时缴费。",
+                        anchor={
+                            "section_path": ["第一章 总则"],
+                            "article_label": "第三条",
+                            "page_start": 1,
+                            "page_end": 1,
+                        },
+                        metadata=metadata,
+                    ),
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id="legacy-004",
+                        unit_type="article_body",
+                        root_unit_id="article-004",
+                        clean_text="学生应遵守宿舍秩序。",
+                        anchor={
+                            "section_path": ["第一章 总则"],
+                            "article_label": "第四条",
+                            "page_start": 1,
+                            "page_end": 1,
+                        },
+                        metadata=metadata,
+                    ),
+                    ensure_ascii=False,
+                ),
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=ChunkProfile(
+                chunk_size=128,
+                max_chunk_size=192,
+                chunk_overlap=16,
+                min_chunk_size=32,
+                final_text_aware=True,
+                safety_margin=16,
+            ),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        chunk = chunks[0]
+        self.assertEqual(chunk.anchor["article_label"], "第二条-第四条")
+        self.assertEqual(chunk.metadata["aggregation_mode"], "adjacent_short_textual_units")
+        self.assertEqual(chunk.metadata["member_unit_count"], 3)
+        self.assertEqual(
+            chunk.metadata["member_root_unit_ids"],
+            ["article-002", "article-003", "article-004"],
+        )
+        self.assertEqual(
+            chunk.metadata["member_article_labels"],
+            ["第二条", "第三条", "第四条"],
+        )
+        self.assertIn("第二条 学生应按时注册。", chunk.metadata["display_text"])
+        self.assertIn("第三条 学生应按时缴费。", chunk.metadata["display_text"])
+        self.assertIn("第四条 学生应遵守宿舍秩序。", chunk.metadata["display_text"])
+        self.assertIn("第二条-第四条", chunk.text)
+
+    def test_build_indexable_chunks_does_not_merge_short_textual_units_across_table_units(self) -> None:
+        record = _make_registry_record()
+        metadata = {
+            "title": "中央民族大学学生管理规定",
+            "policy_doc_no": "民大校发〔2024〕12号",
+        }
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id="legacy-002",
+                        unit_type="article_body",
+                        root_unit_id="article-002",
+                        clean_text="学生应按时注册。",
+                        anchor={
+                            "section_path": ["第一章 总则"],
+                            "article_label": "第二条",
+                            "page_start": 1,
+                            "page_end": 1,
+                        },
+                        metadata=metadata,
+                    ),
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id="table-001",
+                        unit_type="table_unit",
+                        root_unit_id="table-001",
+                        clean_text="学生类别 | 管理要求\n本科生 | 按学期注册",
+                        anchor={
+                            "section_path": ["第一章 总则"],
+                            "table_context": "学生类别与管理要求",
+                            "page_start": 1,
+                            "page_end": 1,
+                        },
+                        metadata={
+                            **metadata,
+                            "table_header_line": "学生类别 | 管理要求",
+                            "table_row_lines": ["本科生 | 按学期注册"],
+                        },
+                    ),
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id="legacy-003",
+                        unit_type="article_body",
+                        root_unit_id="article-003",
+                        clean_text="学生应按时缴费。",
+                        anchor={
+                            "section_path": ["第一章 总则"],
+                            "article_label": "第三条",
+                            "page_start": 1,
+                            "page_end": 1,
+                        },
+                        metadata=metadata,
+                    ),
+                    ensure_ascii=False,
+                ),
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=ChunkProfile(
+                chunk_size=128,
+                max_chunk_size=192,
+                chunk_overlap=16,
+                min_chunk_size=32,
+                final_text_aware=True,
+                safety_margin=16,
+            ),
+        )
+
+        self.assertEqual(len(chunks), 3)
+        self.assertEqual(
+            [chunk.metadata["unit_type"] for chunk in chunks],
+            ["article_body", "table_unit", "article_body"],
+        )
+        self.assertIsNone(chunks[0].metadata.get("aggregation_mode"))
+        self.assertIsNone(chunks[2].metadata.get("aggregation_mode"))
+        self.assertEqual(chunks[1].metadata["unit_type"], "table_unit")
+
+    def test_build_indexable_chunks_absorbs_trailing_short_tail_into_previous_textual_chunk(self) -> None:
+        record = _make_registry_record()
+        metadata = {
+            "title": "中央民族大学学生管理规定",
+            "policy_doc_no": "民大校发〔2024〕12号",
+        }
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id="legacy-002",
+                        unit_type="article_body",
+                        root_unit_id="article-002",
+                        clean_text="学生应当遵守学校管理制度。",
+                        anchor={
+                            "section_path": ["第三章 学生支持"],
+                            "article_label": "第二条",
+                            "page_start": 2,
+                            "page_end": 2,
+                        },
+                        metadata=metadata,
+                    ),
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id="legacy-003",
+                        unit_type="article_body",
+                        root_unit_id="article-003",
+                        clean_text="学生应当完成学籍注册。",
+                        anchor={
+                            "section_path": ["第三章 学生支持"],
+                            "article_label": "第三条",
+                            "page_start": 2,
+                            "page_end": 2,
+                        },
+                        metadata=metadata,
+                    ),
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id="legacy-004",
+                        unit_type="article_body",
+                        root_unit_id="article-004",
+                        clean_text="学生应当按时缴纳相关费用。",
+                        anchor={
+                            "section_path": ["第三章 学生支持"],
+                            "article_label": "第四条",
+                            "page_start": 2,
+                            "page_end": 2,
+                        },
+                        metadata=metadata,
+                    ),
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id="legacy-005",
+                        unit_type="article_body",
+                        root_unit_id="article-005",
+                        clean_text="学生应当维护校园秩序。",
+                        anchor={
+                            "section_path": ["第三章 学生支持"],
+                            "article_label": "第五条",
+                            "page_start": 2,
+                            "page_end": 2,
+                        },
+                        metadata=metadata,
+                    ),
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id="legacy-006",
+                        unit_type="article_body",
+                        root_unit_id="article-006",
+                        clean_text="本办法自公布之日起施行。",
+                        anchor={
+                            "section_path": ["第三章 学生支持"],
+                            "article_label": "第六条",
+                            "page_start": 2,
+                            "page_end": 2,
+                        },
+                        metadata=metadata,
+                    ),
+                    ensure_ascii=False,
+                ),
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=ChunkProfile(
+                chunk_size=128,
+                max_chunk_size=192,
+                chunk_overlap=16,
+                min_chunk_size=32,
+                final_text_aware=True,
+                safety_margin=16,
+            ),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        chunk = chunks[0]
+        self.assertEqual(chunk.anchor["article_label"], "第二条-第六条")
+        self.assertEqual(chunk.metadata["aggregation_mode"], "adjacent_short_textual_units")
+        self.assertEqual(chunk.metadata["member_unit_count"], 5)
+        self.assertIn("第五条", chunk.metadata["display_text"])
+        self.assertIn("第六条 本办法自公布之日起施行。", chunk.metadata["display_text"])
+
+    def test_build_indexable_chunks_merges_first_article_even_when_only_first_has_preface_text(self) -> None:
+        record = _make_registry_record()
+        base_metadata = {
+            "title": "中央民族大学学生资助管理工作暂行办法",
+            "policy_doc_no": "民大校发〔2012〕357号",
+        }
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id="legacy-001",
+                        unit_type="article_body",
+                        root_unit_id="article-001",
+                        clean_text="坚持公平、公开、公正原则,合理分配资助资源。",
+                        anchor={
+                            "section_path": ["第一章 总则"],
+                            "article_label": "第一条",
+                            "page_start": 1,
+                            "page_end": 1,
+                        },
+                        metadata={
+                            **base_metadata,
+                            "preface_text": "为规范学校学生资助工作,制定本办法。",
+                        },
+                    ),
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id="legacy-002",
+                        unit_type="article_body",
+                        root_unit_id="article-002",
+                        clean_text="坚持资助与解困、助学与育人相结合的原则。",
+                        anchor={
+                            "section_path": ["第一章 总则"],
+                            "article_label": "第二条",
+                            "page_start": 1,
+                            "page_end": 1,
+                        },
+                        metadata=base_metadata,
+                    ),
+                    ensure_ascii=False,
+                ),
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=ChunkProfile(
+                chunk_size=128,
+                max_chunk_size=192,
+                chunk_overlap=16,
+                min_chunk_size=32,
+                final_text_aware=True,
+                safety_margin=16,
+            ),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        chunk = chunks[0]
+        self.assertEqual(chunk.anchor["article_label"], "第一条-第二条")
+        self.assertEqual(chunk.metadata["aggregation_mode"], "adjacent_short_textual_units")
+        self.assertNotIn("preface_text", chunk.metadata)
+        self.assertIn("第一条 坚持公平、公开、公正原则", chunk.metadata["display_text"])
+        self.assertIn("第二条 坚持资助与解困、助学与育人相结合的原则。", chunk.metadata["display_text"])
+
+    def test_build_indexable_chunks_merges_short_policy_page_siblings_under_shared_parent(self) -> None:
+        record = _make_registry_record()
+        metadata = {
+            "title": "中央民族大学学生志愿服务管理办法",
+            "policy_doc_no": "民大团发〔2010〕14号",
+        }
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id="legacy-010",
+                        unit_type="policy_page",
+                        root_unit_id="policy-010",
+                        clean_text="志愿服务认证是针对注册志愿服务组织、志愿者组织和参加的各项志愿服务活动而定期开展的志愿服务评定工作。",
+                        anchor={
+                            "section_path": ["第二章 分则", "第二部分 认证"],
+                            "page_start": 3,
+                            "page_end": 3,
+                        },
+                        metadata=metadata,
+                    ),
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id="legacy-011",
+                        unit_type="policy_page",
+                        root_unit_id="policy-011",
+                        clean_text="(一)每学年第一学期,针对全体注册志愿者开展志愿服务认证。",
+                        anchor={
+                            "section_path": ["第二章 分则", "第二部分 认证", "一、认证时间"],
+                            "page_start": 3,
+                            "page_end": 3,
+                        },
+                        metadata=metadata,
+                    ),
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id="legacy-012",
+                        unit_type="policy_page",
+                        root_unit_id="policy-012",
+                        clean_text="共青团中央民族大学委员会(青年志愿者工作部)。",
+                        anchor={
+                            "section_path": ["第二章 分则", "第二部分 认证", "三、认证程序"],
+                            "page_start": 3,
+                            "page_end": 3,
+                        },
+                        metadata=metadata,
+                    ),
+                    ensure_ascii=False,
+                ),
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=ChunkProfile(
+                chunk_size=128,
+                max_chunk_size=192,
+                chunk_overlap=16,
+                min_chunk_size=32,
+                final_text_aware=True,
+                safety_margin=16,
+            ),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        chunk = chunks[0]
+        self.assertEqual(chunk.metadata["aggregation_mode"], "adjacent_short_textual_units")
+        self.assertEqual(chunk.metadata["member_unit_count"], 3)
+        self.assertEqual(chunk.anchor["section_path"], ["第二章 分则", "第二部分 认证"])
+        self.assertIn("第二部分 认证", chunk.text)
+        self.assertIn("一、认证时间 (一)每学年第一学期", chunk.metadata["display_text"])
+        self.assertIn("三、认证程序 共青团中央民族大学委员会", chunk.metadata["display_text"])
 
 if __name__ == "__main__":
     unittest.main()

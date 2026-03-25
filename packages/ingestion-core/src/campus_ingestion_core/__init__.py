@@ -18,6 +18,11 @@ from campus_ingestion_core.object_store import (
     build_raw_asset_key,
 )
 from campus_ingestion_core.campusrag_ingestion_support import ImportReport
+from campus_ingestion_core.tokenizer_cache import (
+    HF_TOKENIZER_ALLOW_PATTERNS,
+    prefetch_hf_tokenizer,
+    resolve_prefetched_hf_tokenizer_path,
+)
 from campus_ingestion_core.chunking import (
     DEFAULT_CHUNK_POLICY_VERSION,
     DEFAULT_CHUNK_OVERLAP,
@@ -121,6 +126,7 @@ __all__ = [
     "FileDocumentRegistry",
     "FileRawAssetRegistry",
     "HandbookCleanupResult",
+    "HF_TOKENIZER_ALLOW_PATTERNS",
     "ImportReport",
     "IndexableChunk",
     "ChunkValidationFailure",
@@ -154,6 +160,7 @@ __all__ = [
     "default_query_scopes",
     "ObjectStoreSettings",
     "build_mock_embedding_model",
+    "prefetch_hf_tokenizer",
     "index_chunks_to_qdrant",
     "LAYOUT_ELEMENTS_FILENAME",
     "MockEmbeddingSettings",
@@ -163,6 +170,7 @@ __all__ = [
     "migrate_campus_services_canonical_to_object_store",
     "rebuild_local_data",
     "replay_provider_response_rebuild",
+    "resolve_prefetched_hf_tokenizer_path",
     "S3ObjectStoreClientFactory",
     "serialize_handbook_layout_elements",
     "serialize_handbook_document_units",

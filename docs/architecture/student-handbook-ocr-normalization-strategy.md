@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-22
-updated: 2026-03-24
+updated: 2026-03-25
 ---
 
 # `student_handbook` Collection OCR 归一化与拆分策略
@@ -16,6 +16,17 @@ updated: 2026-03-24
 - 主流文档 AI / RAG 链路通常如何做归一化
 - 旧 `campusRAG` 实际采用了什么 handbook 归一化策略
 - `campus-agent` 在当前阶段应该如何设计 handbook 的 source-level normalization
+
+本文只覆盖 chunking 上游 truth：
+
+- provider 归一化
+- document boundary projection
+- document-level cleaning
+- unit normalization
+
+具体 token budget、tokenizer、切分与 chunk 组装规则以
+[student-handbook-chunking-and-validation-policy.md](./student-handbook-chunking-and-validation-policy.md)
+为准。
 
 ## 结论
 
@@ -160,6 +171,45 @@ updated: 2026-03-24
 - 表格与正文分离
 - `doc_id`、`version_id`、文档级 metadata 冻结
 
+### 3.1 清洗规则矩阵
+
+Document-level cleaning 当前应固定遵循以下规则：
+
+- 标题行：
+  - 使用 `NFKC + trim + whitespace collapse`
+  - 允许去除纯版式空格差异
+  - 不允许把标题语义改写成更短摘要
+- 文号行：
+  - 只在可稳定识别时写入 `policy_doc_no`
+  - 不稳定或 OCR 缺损时宁缺毋滥
+  - 不把文号单独落成 retrieval chunk
+- metadata-only 前导信息：
+  - 进入 document metadata / contextualization 输入
+  - 不单独生成 `policy_page`
+  - 不应阻断后续相邻条文聚合
+- 页眉、页脚、页码、重复制表信息：
+  - 在 document cleaning 阶段清除
+  - 不应残留进 canonical body
+  - 不应污染 `section_path`
+- 章、节、部分、条款标识：
+  - 作为结构恢复线索保留
+  - 不把纯结构 heading 误当正文句子
+- 表格：
+  - 先与正文分离
+  - 表头、行、注释在 unit 化阶段继续可追溯
+  - 不把 HTML 表格原样泄漏到最终 chunk text
+
+### 3.2 输出不变量
+
+Document-level cleaning 之后必须满足：
+
+- `canonical.md` 可作为人工对照真相
+- `document-units.jsonl` 只包含单篇逻辑文档内容
+- `doc_id`、`version_id` 与 document registry 一致
+- `page_start/page_end` 保持来源可追溯
+- 不保留运行态 chunk 字段，例如 `segment_index`、`chunk_id`、embedding payload
+- 不允许把整句正文错误写进 `section_path` 尾部
+
 ### 4. Unit Normalization
 
 目标是把 canonical 文档映射成 handbook 语义单元。
@@ -172,6 +222,53 @@ updated: 2026-03-24
 - `table_row`
 
 只有这一层之后，才进入 chunking。
+
+### 4.1 Unit 化判定规则
+
+当前 handbook unit 化应固定为：
+
+- `article_body`
+  - 适用于存在稳定 `第X条` 条款身份的正文
+  - `anchor` 中应尽量保留 `article_label`
+- `policy_page`
+  - 适用于没有稳定条文编号、但仍有页面级或小节级语义的正文
+  - 常见于通知式制度、步骤说明、评审流程、名单式规则页
+- `table`
+  - 仅保留为父级表格语义容器，不直接参与 handbook retrieval chunking
+- `table_row`
+  - 适用于仍需保留逐行语义的 provider 表格
+- `table_unit`
+  - 适用于清洗后可直接进入 chunking 的表格表达
+
+### 4.2 Unit 化边界
+
+Unit normalization 必须满足以下边界：
+
+- 不跨逻辑文档生成 unit
+- 不因为 OCR 版式碎裂就把每一行都降成独立 `policy_page`
+- 不把标题、文号、解释性前导语单独生成为检索 unit
+- 不把表格重新抹平成普通 `article_body`
+- 不把电话目录等非 regulations 语义内容继续保留在 `regulations/student_handbook`
+
+### 4.3 下游契约
+
+`document-units.jsonl` 作为 chunking 直接输入时，至少应稳定提供：
+
+- `doc_id`
+- `version_id`
+- `unit_type`
+- `root_unit_id`
+- `anchor`
+- `clean_text`
+- `metadata`
+
+其中：
+
+- `anchor` 负责页码、section_path、article_label 等定位信息
+- `metadata` 负责标题、文号、前导语等文档级上下文
+- `clean_text` 是 chunk display text 的唯一正文来源
+
+如果这三者边界混乱，后续 chunking 会退化成“正文、路径、header 三套信息相互覆盖”的 patchwork 行为。
 
 ## 推荐的 `layout-elements.jsonl` 最小字段
 

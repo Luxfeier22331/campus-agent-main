@@ -401,7 +401,7 @@ class RebuildLocalDataTest(unittest.TestCase):
                 ),
             ],
         )
-        self.assertEqual(document_registry.deleted_scopes, [("regulations", "student_handbook")])
+        self.assertEqual(document_registry.deleted_scopes, [])
         self.assertEqual(raw_asset_registry.deleted_scopes, [])
         self.assertEqual(calls, [report.import_env])
         self.assertEqual(report.import_result, {"status": "replay"})

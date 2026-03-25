@@ -190,6 +190,63 @@ class RegistryModelsTest(unittest.TestCase):
             self.assertEqual(records, (v1, v2))
             self.assertEqual(latest, (v2,))
 
+    def test_file_document_registry_upsert_many_persists_all_records(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            registry = FileDocumentRegistry(Path(temp_dir) / "registry.json")
+            handbook_record = _handbook_document_record(
+                version_id="v1:test-001",
+                content_hash="sha256:test-001",
+                ingestion_timestamp="2026-03-22T10:00:00+00:00",
+            )
+            curriculum_record = _curriculum_document_record()
+
+            registry.upsert_many((handbook_record, curriculum_record))
+
+            self.assertEqual(
+                registry.get("handbook:test-001", "source-faithful", "v1:test-001"),
+                handbook_record,
+            )
+            self.assertEqual(
+                registry.get(
+                    "curriculum:plan-001",
+                    "source-faithful",
+                    "sha256:raw-001:split:plan-001:abcd1234",
+                ),
+                curriculum_record,
+            )
+
+    def test_file_document_registry_replace_scope_replaces_only_target_scope(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            registry = FileDocumentRegistry(Path(temp_dir) / "registry.json")
+            handbook_old = _handbook_document_record(
+                version_id="v1:test-001",
+                content_hash="sha256:test-001",
+                ingestion_timestamp="2026-03-22T10:00:00+00:00",
+            )
+            handbook_new = _handbook_document_record(
+                version_id="v2:test-001",
+                content_hash="sha256:test-002",
+                ingestion_timestamp="2026-03-23T10:00:00+00:00",
+            )
+            curriculum_record = _curriculum_document_record()
+            registry.upsert(handbook_old)
+            registry.upsert(curriculum_record)
+
+            registry.replace_scope("regulations", "student_handbook", (handbook_new,))
+
+            self.assertEqual(
+                registry.list_by_scope("regulations", "student_handbook"),
+                (handbook_new,),
+            )
+            self.assertEqual(
+                registry.get(
+                    "curriculum:plan-001",
+                    "source-faithful",
+                    "sha256:raw-001:split:plan-001:abcd1234",
+                ),
+                curriculum_record,
+            )
+
     def test_file_document_registry_delete_by_corpus_removes_only_matching_records(self) -> None:
         with TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "registry.json"

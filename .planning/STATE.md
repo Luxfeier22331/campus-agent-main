@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Completed 03.1-03-PLAN.md
-last_updated: "2026-03-25T04:07:21Z"
+last_updated: "2026-03-25T08:30:00Z"
 progress:
   total_phases: 9
   completed_phases: 4
@@ -78,7 +78,7 @@ Recent decisions affecting current work:
 - `official-web` / `availability` specialist is now part of the current milestone as an inserted phase, but remains a parallel capability line rather than a rewrite of the `student_handbook` mainline.
 - The availability path must land through explicit contracts and routing, not through a supervisor inline tool bundle or by folding the work into `rag-specialist`.
 - [Phase 01-contract-and-boundary-guardrails]: Supervisor-core internal corpus and status typing now reuses shared contract literals instead of local duplicate schema aliases.
-- [Phase 01-contract-and-boundary-guardrails]: Phase-1 regression tests now explicitly gate student_handbook-only routing, raw DelegateToRagAgentRequest passthrough, and minimal audit projection.
+- [Phase 01-contract-and-boundary-guardrails]: Phase-1 regression tests now explicitly gate student_handbook-only routing, supervisor-facing request handling, and minimal audit projection.
 - [Phase 01]: apps/supervisor-api remains a transport shell; boundary confidence is locked by tests instead of moving orchestration code across packages. — The existing API implementation already fit the desired boundary, so strengthening assertions was the correct plan outcome.
 - [Phase 01]: packages/supervisor-core documentation now treats the current module split as accepted phase-1 architecture rather than aspirational bootstrap scaffolding. — Package-local docs now serve as boundary evidence and align with the accepted supervisor-core ownership model.
 - [Phase 02]: handbook source PDFs now enter through `register_raw_asset -> process_raw_ingestion_job`, making raw bucket + raw registry the canonical onboarding path.
@@ -89,7 +89,8 @@ Recent decisions affecting current work:
 - [Phase 03.1]: Supervisor-core now routes by specialist target and derives source_doc_ids only from rag evidence payloads. — This keeps availability observations outside retrieval semantics while preserving minimal audit projection.
 - [Phase 03.1]: A real `packages/availability-specialist` package now owns allowlisted target resolution, `httpx` probe mapping, and typed availability observations. — This lands the non-RAG capability as a stable package boundary instead of a supervisor-inline tool path.
 - [Phase 03.1]: Supervisor-core default wiring now includes `availability-specialist` alongside `rag-specialist`. — This makes the explicit non-RAG path reachable through the same delegate seam used by the handbook mainline.
-- [Phase 03.1]: `/api/v1/answer` is now explicitly regression-locked to rag-default request construction, even when availability-style body keys are present. — This keeps the inserted availability capability internal and prevents accidental API-surface expansion.
+- [Current correction]: `/api/v1/answer` now constructs a supervisor-facing request contract instead of hardcoding a rag-specialist handoff. — This restores the external-entry/internal-handoff boundary and keeps specialist selection inside supervisor-core.
+- [Current correction]: Supervisor-core now fail-closes conflicting routing input, enforces query-enabled scope policy in code, and emits stable supervisor error taxonomy plus richer audit route fields. — This removes remaining rag-default hidden assumptions from the supervisor entry chain without pushing policy back into the API shell.
 - [Phase 03.1]: The repo now has a deterministic availability smoke proof that exercises the real default supervisor path with `httpx.MockTransport`. — This satisfies the eval gate for introducing the non-RAG specialist boundary.
 
 ### Pending Todos

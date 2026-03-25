@@ -54,6 +54,7 @@ updated: 2026-03-25
 - `architecture/long-term-architecture.md`
 - `architecture/phase1-ingestion-and-storage-architecture.md`
 - `architecture/supervisor-architecture.md`
+- `architecture/student-handbook-chunking-and-validation-policy.md`
 - `architecture/student-handbook-ocr-normalization-strategy.md`
 - `decisions/adr-0001-phase1-architecture.md`
 - `decisions/adr-0002-local-minio-conventions.md`

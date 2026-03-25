@@ -8,6 +8,11 @@ collection within the `regulations` corpus.
 - `canonical-profile.json`: canonical identity and metadata truth for handbook documents
 - `chunk-profile.json`: chunking/runtime profile record for handbook document-level `document-units.jsonl`
 
+Stable handbook-specific policy docs:
+
+- `docs/architecture/student-handbook-ocr-normalization-strategy.md`: source-level normalization, split, and document identity truth
+- `docs/architecture/student-handbook-chunking-and-validation-policy.md`: document-level chunk budgeting, short-text aggregation, header policy, and validation gate truth
+
 The primary handbook input is processed-layer `provider-response.jsonl`.
 `layout-elements.jsonl` is the only asset-level internal truth before document splitting.
 Each cleaned document then emits `canonical.md` and `document-units.jsonl` before chunking.

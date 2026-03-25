@@ -380,6 +380,79 @@ class HandbookCleanupTest(unittest.TestCase):
         )
         self.assertNotIn("列=", table_unit["clean_text"])
 
+    def test_cleanup_infers_project_label_for_blank_first_table_header(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(22, "heading", "中央民族大学本科学生综合素质测评办法", block_role="title", title_candidate_score=1.0),
+                _source_row(
+                    22,
+                    "table",
+                    "表格文本",
+                    block_role="table",
+                    table_cells=[
+                        ["", "具体测评内容和分值", "学生民主互评", "测评小组评定"],
+                        ["思想政治表现(30分)", "拥护党的领导", "", ""],
+                        ["学习态度(20分)", "刻苦钻研", "", ""],
+                    ],
+                ),
+            ],
+            manifest_document=_manifest_document(22, 22, title="中央民族大学本科学生综合素质测评办法"),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        table_unit = next(row for row in result.document_units if row["unit_type"] == "table_unit")
+        self.assertTrue(table_unit["metadata"]["table_header_line"].startswith("项目 | "))
+        self.assertNotIn("未命名列", table_unit["clean_text"])
+
+    def test_cleanup_skips_form_like_attachment_table_unit(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(22, "heading", "中央民族大学本科生国家助学金评审办法", block_role="title", title_candidate_score=1.0),
+                _source_row(
+                    22,
+                    "table",
+                    "表格文本",
+                    block_role="table",
+                    table_cells=[
+                        ["本人情况", "姓名", "性别", "照片"],
+                        ["本人情况", "学号", "院系", "照片"],
+                        ["家庭经济情况", "家庭住址", "", "邮政编码"],
+                        ["家庭经济情况", "", "", ""],
+                    ],
+                ),
+            ],
+            manifest_document=_manifest_document(22, 22, title="中央民族大学本科生国家助学金评审办法"),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        self.assertTrue(any(row["unit_type"] == "table" for row in result.document_units))
+        self.assertFalse(any(row["unit_type"] == "table_unit" for row in result.document_units))
+
+    def test_cleanup_skips_decorative_student_card_form_table_unit(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(22, "heading", "中央民族大学本科(预科)学生证管理办法", block_role="title", title_candidate_score=1.0),
+                _source_row(
+                    22,
+                    "table",
+                    "表格文本",
+                    block_role="table",
+                    table_cells=[
+                        ["姓名 / 学号", "", "学院(系)领导签字 / 家庭所在地", "学院(系)领导签字"],
+                        ["民族", "", "火车到站站名", ""],
+                        ["学院(系)", "", "照片", "照片"],
+                        ["专业", "", "照片", "照片"],
+                        ["学制", "", "(请在照片背面加盖骑缝章)", "(请在照片背面加盖骑缝章)"],
+                    ],
+                ),
+            ],
+            manifest_document=_manifest_document(22, 22, title="中央民族大学本科(预科)学生证管理办法"),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        self.assertTrue(any(row["unit_type"] == "table" for row in result.document_units))
+        self.assertFalse(any(row["unit_type"] == "table_unit" for row in result.document_units))
+
     def test_cleanup_attaches_table_anchor_to_current_article_context(self) -> None:
         result = cleanup_handbook_document(
             structured_rows=[
