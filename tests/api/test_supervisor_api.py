@@ -6,11 +6,13 @@ import unittest
 from unittest.mock import patch
 
 from campus_contracts import (
-    DelegateToRagAgentRequest,
-    DelegateToRagAgentResponse,
     ErrorInfo,
     EvidenceBundle,
     KnowledgeScope,
+    RagRequestPayload,
+    RagResultPayload,
+    SpecialistRequest,
+    SpecialistResponse,
     TraceContext,
 )
 from campus_supervisor_api.api import HttpResponse
@@ -20,18 +22,21 @@ from campus_supervisor_api.settings import ApiSettings
 
 class SupervisorApiTest(unittest.TestCase):
     def test_answer_route_maps_auth_trace_and_response_shape(self) -> None:
-        captured_requests: list[DelegateToRagAgentRequest] = []
+        captured_requests: list[SpecialistRequest] = []
 
-        def fake_supervisor(request: DelegateToRagAgentRequest) -> DelegateToRagAgentResponse:
+        def fake_supervisor(request: SpecialistRequest) -> SpecialistResponse:
             captured_requests.append(request)
-            return DelegateToRagAgentResponse(
+            return SpecialistResponse(
+                target="rag-specialist",
                 status="completed",
                 answer_text="The library is open from 08:00 to 22:00.",
                 confidence="medium",
-                evidence=EvidenceBundle(
-                    query_text=request.user_goal,
-                    corpus="regulations",
-                    collection="student_handbook",
+                result=RagResultPayload(
+                    evidence=EvidenceBundle(
+                        query_text=request.user_goal,
+                        corpus="regulations",
+                        collection="student_handbook",
+                    )
                 ),
             )
 
@@ -65,8 +70,13 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertIsInstance(response, HttpResponse)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json_body["trace_id"], "trace-001")
+        self.assertEqual(response.json_body["target"], "rag-specialist")
         self.assertEqual(response.json_body["status"], "completed")
-        self.assertEqual(response.json_body["answer_text"], "The library is open from 08:00 to 22:00.")
+        self.assertEqual(
+            response.json_body["answer_text"],
+            "The library is open from 08:00 to 22:00.",
+        )
+        self.assertEqual(captured_requests[0].target, "rag-specialist")
         self.assertEqual(captured_requests[0].user_goal, "library hours")
         self.assertEqual(captured_requests[0].conversation_id, "conv-001")
         self.assertEqual(captured_requests[0].request_id, "req-001")
@@ -76,16 +86,26 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(captured_requests[0].actor.roles, ("student",))
         self.assertEqual(captured_requests[0].actor.campus_scope, "north")
         self.assertEqual(
-            captured_requests[0].scope,
-            KnowledgeScope(corpus="regulations", collection="student_handbook"),
+            captured_requests[0].payload,
+            RagRequestPayload(
+                scope=KnowledgeScope(
+                    corpus="regulations",
+                    collection="student_handbook",
+                )
+            ),
         )
 
     def test_answer_route_projects_supervisor_response_without_orchestration_logic(self) -> None:
-        def fake_supervisor(request: DelegateToRagAgentRequest) -> DelegateToRagAgentResponse:
-            return DelegateToRagAgentResponse(
+        def fake_supervisor(request: SpecialistRequest) -> SpecialistResponse:
+            return SpecialistResponse(
+                target="rag-specialist",
                 status="error",
                 confidence="low",
-                error=ErrorInfo(code="retrieval_failed", message="retrieval backend unavailable", retryable=False),
+                error=ErrorInfo(
+                    code="retrieval_failed",
+                    message="retrieval backend unavailable",
+                    retryable=False,
+                ),
             )
 
         app = create_app(
@@ -104,10 +124,15 @@ class SupervisorApiTest(unittest.TestCase):
         )
 
         expected_payload = asdict(
-            DelegateToRagAgentResponse(
+            SpecialistResponse(
+                target="rag-specialist",
                 status="error",
                 confidence="low",
-                error=ErrorInfo(code="retrieval_failed", message="retrieval backend unavailable", retryable=False),
+                error=ErrorInfo(
+                    code="retrieval_failed",
+                    message="retrieval backend unavailable",
+                    retryable=False,
+                ),
             )
         )
         expected_payload["trace_id"] = "trace-001"
@@ -116,11 +141,12 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(response.json_body, expected_payload)
 
     def test_create_app_dispatches_normalized_headers_only_through_supervisor_handler(self) -> None:
-        captured_requests: list[DelegateToRagAgentRequest] = []
+        captured_requests: list[SpecialistRequest] = []
 
-        def fake_supervisor(request: DelegateToRagAgentRequest) -> DelegateToRagAgentResponse:
+        def fake_supervisor(request: SpecialistRequest) -> SpecialistResponse:
             captured_requests.append(request)
-            return DelegateToRagAgentResponse(
+            return SpecialistResponse(
+                target="rag-specialist",
                 status="completed",
                 answer_text="Projected from supervisor-core.",
                 confidence="high",
@@ -151,6 +177,7 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(response.json_body["trace_id"], "trace-uppercase")
         self.assertEqual(response.json_body["answer_text"], "Projected from supervisor-core.")
         self.assertEqual(len(captured_requests), 1)
+        self.assertEqual(captured_requests[0].target, "rag-specialist")
         self.assertEqual(captured_requests[0].trace, TraceContext(trace_id="trace-uppercase"))
         self.assertEqual(captured_requests[0].actor.user_id, "student-uppercase")
 

@@ -4,7 +4,14 @@ from dataclasses import asdict, dataclass, field
 from typing import Callable, Mapping
 from uuid import uuid4
 
-from campus_contracts import DelegateToRagAgentRequest, DelegateToRagAgentResponse, ErrorInfo, TraceContext
+from campus_contracts import (
+    ErrorInfo,
+    KnowledgeScope,
+    RagRequestPayload,
+    SpecialistRequest,
+    SpecialistResponse,
+    TraceContext,
+)
 from campus_supervisor_core import handle_request
 
 from campus_supervisor_api.auth import ApiAuthError, map_actor_context
@@ -25,7 +32,7 @@ class HttpRoute:
     handler: Callable[[Mapping[str, str], dict[str, object] | None], HttpResponse]
 
 
-SupervisorHandler = Callable[[DelegateToRagAgentRequest], DelegateToRagAgentResponse]
+SupervisorHandler = Callable[[SpecialistRequest], SpecialistResponse]
 
 
 def build_routes(
@@ -34,7 +41,11 @@ def build_routes(
     supervisor_handler: SupervisorHandler = handle_request,
 ) -> tuple[HttpRoute, ...]:
     return (
-        HttpRoute("POST", "/api/v1/answer", lambda headers, body: handle_answer(headers, body, settings, supervisor_handler)),
+        HttpRoute(
+            "POST",
+            "/api/v1/answer",
+            lambda headers, body: handle_answer(headers, body, settings, supervisor_handler),
+        ),
         HttpRoute("GET", "/healthz", lambda headers, body: healthz(settings)),
         HttpRoute("GET", "/readyz", lambda headers, body: readyz(settings)),
     )
@@ -54,12 +65,16 @@ def handle_answer(
     payload = body or {}
     user_goal = str(payload.get("user_goal", ""))
     trace_id = str(headers.get("x-trace-id") or uuid4())
-    request = DelegateToRagAgentRequest(
+    request = SpecialistRequest(
+        target="rag-specialist",
         user_goal=user_goal,
         conversation_id=str(payload.get("conversation_id", "bootstrap-conversation")),
         request_id=str(payload.get("request_id", "")),
         trace=TraceContext(trace_id=trace_id),
         actor=actor,
+        payload=RagRequestPayload(
+            scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+        ),
     )
     response = supervisor_handler(request)
     response_payload = asdict(response)

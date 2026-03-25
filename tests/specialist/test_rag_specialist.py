@@ -4,11 +4,14 @@ import unittest
 
 from campus_contracts import (
     ActorContext,
-    DelegateToRagAgentRequest,
-    DelegateToRagAgentResponse,
+    ErrorInfo,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
+    RagRequestPayload,
+    RagResultPayload,
+    SpecialistRequest,
+    SpecialistResponse,
 )
 from campus_retrieval_core import CorpusQueryDisabledError, RetrievalBackendError
 from campus_rag_specialist.confidence import derive_confidence
@@ -45,35 +48,53 @@ def _make_evidence(*, scores: tuple[float, ...] = (0.82, 0.77)) -> EvidenceBundl
 class RagSpecialistTest(unittest.TestCase):
     def test_blank_user_goal_is_rejected_by_request_contract(self) -> None:
         with self.assertRaisesRegex(ValueError, "user_goal"):
-            DelegateToRagAgentRequest(user_goal="   ")
+            SpecialistRequest(target="rag-specialist", user_goal="   ")
 
     def test_retrieval_error_maps_to_error_response(self) -> None:
         def raising_retriever(*args: object, **kwargs: object) -> EvidenceBundle:
             raise RetrievalBackendError("qdrant unavailable")
 
         response = delegate_to_rag_agent(
-            DelegateToRagAgentRequest(user_goal="library hours"),
+            SpecialistRequest(target="rag-specialist", user_goal="library hours"),
             retriever=raising_retriever,
         )
 
-        self.assertEqual(response.status, "error")
-        self.assertEqual(response.confidence, "low")
-        self.assertEqual(response.error.code, "retrieval_failed")
-        self.assertIn("qdrant unavailable", response.error.message)
+        self.assertEqual(
+            response,
+            SpecialistResponse(
+                target="rag-specialist",
+                status="error",
+                confidence="low",
+                error=ErrorInfo(
+                    code="retrieval_failed",
+                    message="qdrant unavailable",
+                    retryable=False,
+                ),
+            ),
+        )
 
     def test_query_disabled_corpus_maps_to_explicit_error_response(self) -> None:
         def raising_retriever(*args: object, **kwargs: object) -> EvidenceBundle:
-            raise CorpusQueryDisabledError("curriculum/curriculum_plan retrieval is disabled in phase-1")
+            raise CorpusQueryDisabledError(
+                "curriculum/curriculum_plan retrieval is disabled in phase-1"
+            )
 
         response = delegate_to_rag_agent(
-            DelegateToRagAgentRequest(
+            SpecialistRequest(
+                target="rag-specialist",
                 user_goal="培养方案要求",
-                scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan"),
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(
+                        corpus="curriculum",
+                        collection="curriculum_plan",
+                    )
+                ),
             ),
             retriever=raising_retriever,
         )
 
-        self.assertIsInstance(response, DelegateToRagAgentResponse)
+        self.assertIsInstance(response, SpecialistResponse)
+        self.assertEqual(response.target, "rag-specialist")
         self.assertEqual(response.status, "error")
         self.assertEqual(response.confidence, "low")
         self.assertEqual(response.error.code, "corpus_not_query_enabled")
@@ -81,7 +102,7 @@ class RagSpecialistTest(unittest.TestCase):
 
     def test_no_evidence_maps_to_no_answer(self) -> None:
         response = delegate_to_rag_agent(
-            DelegateToRagAgentRequest(user_goal="library hours"),
+            SpecialistRequest(target="rag-specialist", user_goal="library hours"),
             retriever=lambda *args, **kwargs: EvidenceBundle(
                 query_text="library hours",
                 corpus="regulations",
@@ -89,10 +110,20 @@ class RagSpecialistTest(unittest.TestCase):
             ),
         )
 
+        self.assertEqual(response.target, "rag-specialist")
         self.assertEqual(response.status, "no_answer")
         self.assertEqual(response.confidence, "low")
         self.assertFalse(response.answer_text)
-        self.assertEqual(response.evidence.sources, ())
+        self.assertEqual(
+            response.result,
+            RagResultPayload(
+                evidence=EvidenceBundle(
+                    query_text="library hours",
+                    corpus="regulations",
+                    collection="student_handbook",
+                )
+            ),
+        )
 
     def test_completed_response_uses_evidence_and_actor_context(self) -> None:
         captured_kwargs: dict[str, object] = {}
@@ -102,7 +133,8 @@ class RagSpecialistTest(unittest.TestCase):
             captured_kwargs.update(kwargs)
             return _make_evidence()
 
-        request = DelegateToRagAgentRequest(
+        request = SpecialistRequest(
+            target="rag-specialist",
             user_goal="What are the library hours?",
             actor=ActorContext(
                 user_id="student-001",
@@ -113,7 +145,8 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(request, retriever=fake_retriever)
 
-        self.assertIsInstance(response, DelegateToRagAgentResponse)
+        self.assertIsInstance(response, SpecialistResponse)
+        self.assertEqual(response.target, "rag-specialist")
         self.assertEqual(response.status, "completed")
         self.assertEqual(captured_kwargs["query"], "What are the library hours?")
         self.assertEqual(captured_kwargs["corpus"], "regulations")
@@ -124,7 +157,7 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertIn("Evidence snippet 1", response.answer_text)
         self.assertIn("handbook:test-1", response.answer_text)
         self.assertEqual(response.confidence, "medium")
-        self.assertEqual(response.evidence, _make_evidence())
+        self.assertEqual(response.result, RagResultPayload(evidence=_make_evidence()))
 
     def test_confidence_derivation_prefers_stronger_multi_source_evidence(self) -> None:
         self.assertEqual(derive_confidence(EvidenceBundle()), "low")

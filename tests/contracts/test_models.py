@@ -5,26 +5,32 @@ import unittest
 
 from campus_contracts import (
     ActorContext,
-    DelegateToRagAgentRequest,
-    DelegateToRagAgentResponse,
+    AvailabilityCheckPayload,
+    AvailabilityObservation,
     DocumentRef,
     ErrorInfo,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
+    RagRequestPayload,
+    RagResultPayload,
+    SpecialistRequest,
+    SpecialistResponse,
     TraceContext,
 )
 
 
 class ContractModelsTest(unittest.TestCase):
     def test_request_defaults_and_scope_are_stable(self) -> None:
-        request = DelegateToRagAgentRequest(user_goal="library hours")
+        request = SpecialistRequest(target="rag-specialist", user_goal="library hours")
 
         self.assertEqual(request.conversation_id, "bootstrap-conversation")
         self.assertEqual(request.request_id, "")
         self.assertEqual(
-            request.scope,
-            KnowledgeScope(corpus="regulations", collection="student_handbook"),
+            request.payload,
+            RagRequestPayload(
+                scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+            ),
         )
         self.assertEqual(
             request.trace,
@@ -44,69 +50,125 @@ class ContractModelsTest(unittest.TestCase):
 
     def test_request_rejects_invalid_collection_scope(self) -> None:
         with self.assertRaises(ValueError):
-            DelegateToRagAgentRequest(
+            SpecialistRequest(
+                target="rag-specialist",
                 user_goal="library hours",
-                scope=KnowledgeScope(corpus="regulations", collection="curriculum_plan"),
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(
+                        corpus="regulations",
+                        collection="curriculum_plan",
+                    )
+                ),
             )
 
     def test_request_accepts_offline_campus_services_scope(self) -> None:
-        request = DelegateToRagAgentRequest(
+        request = SpecialistRequest(
+            target="rag-specialist",
             user_goal="校园110电话是多少？",
-            scope=KnowledgeScope(corpus="campus_services", collection="contact_directory"),
+            payload=RagRequestPayload(
+                scope=KnowledgeScope(
+                    corpus="campus_services",
+                    collection="contact_directory",
+                )
+            ),
         )
 
-        self.assertEqual(request.scope.corpus, "campus_services")
-        self.assertEqual(request.scope.collection, "contact_directory")
+        self.assertEqual(request.payload.scope.corpus, "campus_services")
+        self.assertEqual(request.payload.scope.collection, "contact_directory")
 
-    def test_response_serializes_evidence_shape(self) -> None:
-        response = DelegateToRagAgentResponse(
+    def test_response_serializes_rag_result_shape(self) -> None:
+        response = SpecialistResponse(
+            target="rag-specialist",
             status="completed",
             answer_text="The library is open.",
             confidence="high",
-            evidence=EvidenceBundle(
-                query_text="library hours",
-                corpus="regulations",
-                collection="student_handbook",
-                sources=(
-                    EvidenceSource(
-                        doc_id="doc-library-hours",
-                        revision_track="source-faithful",
-                        version_id="v2026-03-19",
-                        chunk_id="chunk-001",
-                        anchor={"section": "hours"},
-                        acl_level="public",
-                        canonical_url="https://campus.example/library#hours",
-                        latest_url="https://campus.example/library#hours",
-                        source_channel="pdf_ocr",
-                        collection="student_handbook",
-                        is_current=False,
-                        snippet="The library is open from 08:00 to 22:00.",
-                        score=0.98,
+            result=RagResultPayload(
+                evidence=EvidenceBundle(
+                    query_text="library hours",
+                    corpus="regulations",
+                    collection="student_handbook",
+                    sources=(
+                        EvidenceSource(
+                            doc_id="doc-library-hours",
+                            revision_track="source-faithful",
+                            version_id="v2026-03-19",
+                            chunk_id="chunk-001",
+                            anchor={"section": "hours"},
+                            acl_level="public",
+                            canonical_url="https://campus.example/library#hours",
+                            latest_url="https://campus.example/library#hours",
+                            source_channel="pdf_ocr",
+                            collection="student_handbook",
+                            is_current=False,
+                            snippet="The library is open from 08:00 to 22:00.",
+                            score=0.98,
+                        ),
                     ),
-                ),
+                )
             ),
         )
 
         payload = asdict(response)
 
+        self.assertEqual(payload["target"], "rag-specialist")
         self.assertEqual(payload["status"], "completed")
         self.assertEqual(payload["confidence"], "high")
-        self.assertEqual(payload["evidence"]["corpus"], "regulations")
-        self.assertEqual(payload["evidence"]["collection"], "student_handbook")
+        self.assertEqual(payload["result"]["evidence"]["corpus"], "regulations")
+        self.assertEqual(payload["result"]["evidence"]["collection"], "student_handbook")
         self.assertEqual(
-            payload["evidence"]["sources"][0]["canonical_url"],
+            payload["result"]["evidence"]["sources"][0]["canonical_url"],
             "https://campus.example/library#hours",
         )
         self.assertEqual(
-            tuple(field.name for field in fields(DelegateToRagAgentResponse)),
+            tuple(field.name for field in fields(SpecialistResponse)),
             (
+                "target",
                 "status",
                 "answer_text",
                 "follow_up_question",
                 "confidence",
-                "evidence",
+                "result",
                 "error",
             ),
+        )
+
+    def test_response_serializes_availability_observation_shape(self) -> None:
+        response = SpecialistResponse(
+            target="availability-specialist",
+            status="completed",
+            answer_text="official-homepage timed out during the latest probe.",
+            result=AvailabilityObservation(
+                target_id="official-homepage",
+                observed_status="timeout",
+                http_status=None,
+                final_url="https://campus.example/official-homepage",
+                redirect_chain=(),
+                failure_classification="timeout",
+            ),
+        )
+
+        payload = asdict(response)
+
+        self.assertEqual(payload["target"], "availability-specialist")
+        self.assertEqual(payload["result"]["observed_status"], "timeout")
+        self.assertEqual(payload["result"]["failure_classification"], "timeout")
+
+    def test_availability_request_payload_serializes(self) -> None:
+        request = SpecialistRequest(
+            target="availability-specialist",
+            user_goal="检查官网是否可访问",
+            payload=AvailabilityCheckPayload(
+                target_id="official-homepage",
+                follow_redirects=False,
+            ),
+        )
+
+        self.assertEqual(
+            asdict(request)["payload"],
+            {
+                "target_id": "official-homepage",
+                "follow_redirects": False,
+            },
         )
 
     def test_document_ref_and_error_defaults_are_stable(self) -> None:
