@@ -5,7 +5,8 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 import os
 import re
-from typing import Any, Callable, Literal, Mapping, Protocol
+import threading
+from typing import Any, Callable, Literal, Mapping, Protocol, Sequence
 
 from campus_ingestion_core.handbook_article_structure import (
     article_structure_has_nested_subclauses,
@@ -41,6 +42,7 @@ HANDBOOK_V3_SAFETY_MARGIN = 16
 HANDBOOK_V3_STRATEGY_NAME = "student_handbook_structure_v3"
 QWEN3_EMBEDDING_MODEL = "Qwen3-Embedding-4B"
 QWEN3_EMBEDDING_REPO = "Qwen/Qwen3-Embedding-4B"
+_HF_TOKENIZER_LOAD_LOCK = threading.Lock()
 
 TABLE_PLACEHOLDER = "[table omitted; see table evidence]"
 PARENT_UNIT_TYPES = {"article_body", "policy_page", "section_text"}
@@ -57,6 +59,9 @@ _ENUMERATED_LINE_RE = re.compile(
     r"^(?:第[一二三四五六七八九十百千万〇零两0-9]+条|[（(][一二三四五六七八九十百千万〇零两0-9]+[)）]|[一二三四五六七八九十]+、|[0-9]+\.)"
 )
 _PREAMBLE_LINE_RE = re.compile(r"[：:]$")
+_TOP_LEVEL_CLAUSE_CONTEXT_RE = re.compile(r"^(?:[（(][一二三四五六七八九十百千万〇零两]+[)）]|[一二三四五六七八九十百千万〇零两]+、)")
+_NUMERIC_SUBCLAUSE_CONTEXT_RE = re.compile(r"^[0-9]+[.、]")
+_PAREN_NUMERIC_SUBCLAUSE_CONTEXT_RE = re.compile(r"^[（(][0-9]+[)）]")
 
 
 class TokenCounter(Protocol):
@@ -249,6 +254,11 @@ class StudentHandbookChunkingStrategyV2:
                     chunk_profile=chunk_profile,
                     display_budget=display_budget,
                 )
+                structured = _repair_article_subclause_boundary_context(
+                    structured,
+                    chunk_profile=chunk_profile,
+                    display_budget=display_budget,
+                )
                 if len(structured) > 1 and _segments_within_budget(
                     structured,
                     chunk_profile=chunk_profile,
@@ -257,6 +267,11 @@ class StudentHandbookChunkingStrategyV2:
                     return StructuralSplitResult(segments=structured, boundary_rule="article_structure_block")
             grouped = _group_prefixed_blocks(
                 _build_clause_groups(candidate_lines),
+                chunk_profile=chunk_profile,
+                display_budget=display_budget,
+            )
+            grouped = _repair_article_subclause_boundary_context(
+                grouped,
                 chunk_profile=chunk_profile,
                 display_budget=display_budget,
             )
@@ -970,12 +985,20 @@ def _build_student_handbook_v3_token_counter(model_name: str) -> TokenCounter:
     )
 
 
-@lru_cache(maxsize=4)
 def _load_hf_tokenizer(repo_id: str) -> Any:
+    with _HF_TOKENIZER_LOAD_LOCK:
+        return _load_hf_tokenizer_cached(repo_id)
+
+
+@lru_cache(maxsize=4)
+def _load_hf_tokenizer_cached(repo_id: str) -> Any:
     from transformers import AutoTokenizer
 
     local_tokenizer_path = resolve_prefetched_hf_tokenizer_path(repo_id)
     return AutoTokenizer.from_pretrained(local_tokenizer_path, local_files_only=True)
+
+
+_load_hf_tokenizer.cache_clear = _load_hf_tokenizer_cached.cache_clear
 
 
 def _tokenize_text(text: str) -> list[re.Match[str]]:
@@ -1192,6 +1215,87 @@ def _group_article_structure_blocks(
         )
         segments.extend(grouped)
     return tuple(segments)
+
+
+def _repair_article_subclause_boundary_context(
+    segments: tuple[str, ...],
+    *,
+    chunk_profile: ChunkProfile,
+    display_budget: ResolvedDisplayBudget,
+) -> tuple[str, ...]:
+    if len(segments) < 2:
+        return segments
+
+    repaired: list[str] = []
+    for segment in segments:
+        normalized_lines = [line.strip() for line in segment.splitlines() if line.strip()]
+        if not normalized_lines or not repaired:
+            repaired.append("\n".join(normalized_lines).strip())
+            continue
+
+        repair_target = _find_article_repair_target(normalized_lines)
+        if repair_target is None:
+            repaired.append("\n".join(normalized_lines).strip())
+            continue
+
+        target_index, first_line = repair_target
+        parent_context = _infer_article_parent_context(first_line=first_line, previous_segment=repaired[-1])
+        if not parent_context:
+            repaired.append("\n".join(normalized_lines).strip())
+            continue
+
+        prefixed_lines = [
+            *normalized_lines[:target_index],
+            *parent_context,
+            *normalized_lines[target_index:],
+        ]
+        prefixed_segment = "\n".join(prefixed_lines).strip()
+        if estimate_token_count(prefixed_segment, chunk_profile=chunk_profile) > display_budget.max_tokens:
+            repaired.append("\n".join(normalized_lines).strip())
+            continue
+        repaired.append(prefixed_segment)
+
+    return tuple(repaired)
+
+
+def _find_article_repair_target(lines: Sequence[str]) -> tuple[int, str] | None:
+    for index, line in enumerate(lines):
+        if _PAREN_NUMERIC_SUBCLAUSE_CONTEXT_RE.match(line):
+            return index, line
+        if _NUMERIC_SUBCLAUSE_CONTEXT_RE.match(line):
+            return index, line
+        if _looks_like_clause_line(line):
+            return None
+    return None
+
+
+def _infer_article_parent_context(*, first_line: str, previous_segment: str) -> tuple[str, ...]:
+    previous_lines = [line.strip() for line in previous_segment.splitlines() if line.strip()]
+    if not previous_lines:
+        return ()
+
+    parent_lines: list[str] = []
+    if _PAREN_NUMERIC_SUBCLAUSE_CONTEXT_RE.match(first_line):
+        top_level_clause = _last_matching_line(previous_lines, _TOP_LEVEL_CLAUSE_CONTEXT_RE)
+        numeric_clause = _last_matching_line(previous_lines, _NUMERIC_SUBCLAUSE_CONTEXT_RE)
+        if top_level_clause is not None:
+            parent_lines.append(top_level_clause)
+        if numeric_clause is not None:
+            parent_lines.append(numeric_clause)
+        return tuple(parent_lines)
+
+    if _NUMERIC_SUBCLAUSE_CONTEXT_RE.match(first_line):
+        top_level_clause = _last_matching_line(previous_lines, _TOP_LEVEL_CLAUSE_CONTEXT_RE)
+        if top_level_clause is not None:
+            return (top_level_clause,)
+    return ()
+
+
+def _last_matching_line(lines: Sequence[str], pattern: re.Pattern[str]) -> str | None:
+    for line in reversed(lines):
+        if pattern.match(line):
+            return line
+    return None
 
 
 def _build_prefixed_groups(

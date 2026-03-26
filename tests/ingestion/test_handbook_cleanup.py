@@ -201,21 +201,37 @@ class HandbookCleanupTest(unittest.TestCase):
 
         self.assertIn("第十条 大类分专业的时间\n大类分专业一般在学生入校后 1–2 年后进行,根据各专业具体情况确定。", normalized)
 
-    def test_normalize_handbook_article_body_text_splits_repeated_and_glued_list_heading_from_body(self) -> None:
+    def test_normalize_handbook_article_body_text_splits_and_deduplicates_repeated_list_heading_from_body(self) -> None:
         normalized = normalize_handbook_article_body_text(
             "\n".join(
                 [
                     "第五条 资助方式",
                     "(一)奖学金奖学金用于奖励品学兼优、综合素质全面发展的在校学生。",
+                    "(二) 助学金助学金用于资助家庭经济困难、品学兼优的在校学生。",
                     "(三)勤工助学学校提供一定数量的勤工助学岗位。",
+                    "1、应征入伍服义务兵役学生学费及国家助学贷款代偿应征入伍服义务兵役的应届毕业生,在毕业入伍当年向学校申请,可获得学费资助。",
+                    "2、赴基层单位就业学生的学费和国家助学贷款代偿自愿到中西部地区和艰苦边远地区基层单位就业、服务期达到3年以上(含3年)的应届毕业生,在毕业当年向学校申请,可获得相应的学费和国家助学贷款代偿。",
                     "(六)学费、住宿费减免无经济来源的烈士子女可申请减免学费、住宿费。",
                 ]
             )
         )
 
-        self.assertIn("(一) 奖学金\n奖学金用于奖励品学兼优、综合素质全面发展的在校学生。", normalized)
+        self.assertIn("(一) 奖学金\n用于奖励品学兼优、综合素质全面发展的在校学生。", normalized)
+        self.assertIn("(二) 助学金\n用于资助家庭经济困难、品学兼优的在校学生。", normalized)
         self.assertIn("(三) 勤工助学\n学校提供一定数量的勤工助学岗位。", normalized)
+        self.assertIn(
+            "1、 应征入伍服义务兵役学生学费及国家助学贷款代偿\n应征入伍服义务兵役的应届毕业生,在毕业入伍当年向学校申请,可获得学费资助。",
+            normalized,
+        )
+        self.assertIn(
+            "2、 赴基层单位就业学生的学费和国家助学贷款代偿\n自愿到中西部地区和艰苦边远地区基层单位就业、服务期达到3年以上(含3年)的应届毕业生,在毕业当年向学校申请,可获得相应的学费和国家助学贷款代偿。",
+            normalized,
+        )
         self.assertIn("(六) 学费、住宿费减免\n无经济来源的烈士子女可申请减免学费、住宿费。", normalized)
+        self.assertNotIn("奖学金奖学金用于", normalized)
+        self.assertNotIn("助学金助学金用于", normalized)
+        self.assertNotIn("代偿应征入伍服义务兵役", normalized)
+        self.assertNotIn("代偿自愿到中西部地区", normalized)
 
     def test_cleanup_merges_broken_policy_doc_no_citation_lines(self) -> None:
         result = cleanup_handbook_document(
@@ -936,6 +952,51 @@ class HandbookCleanupTest(unittest.TestCase):
         self.assertEqual(table_unit["anchor"]["article_label"], "第十六条")
         self.assertEqual(table_unit["anchor"]["table_context"], "(一)考核成绩与绩点的关系:")
 
+    def test_cleanup_attaches_sentence_style_table_context_when_following_table(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(79, "heading", "中央民族大学本科生境外留学管理办法", block_role="title", title_candidate_score=1.0),
+                _source_row(79, "heading", "第三章 学籍管理", block_role="heading", title_candidate_score=0.8),
+                _source_row(79, "paragraph", "第十一条 课程、学分与成绩认定"),
+                _source_row(79, "heading", "(四)成绩认定", block_role="heading", title_candidate_score=0.7),
+                _source_row(
+                    79,
+                    "paragraph",
+                    "1. 成绩认定采用对应原则,境外课程的成绩以学校百分制成绩、成绩等级、学分绩点相对应的方式进行认定。",
+                ),
+                _source_row(80, "paragraph", "2. 境外课程以百分制记载的成绩,转换时仍按对方学校给出的百分制成绩认定。"),
+                _source_row(80, "paragraph", "3. 境外课程以非百分制方式记载的成绩,按以下方式转换成我校百分制成绩予以认定。"),
+                _source_row(
+                    80,
+                    "table",
+                    "等级 | 百分制",
+                    block_role="table",
+                    table_cells=[
+                        ["等级", "百分制"],
+                        ["A+", "95"],
+                    ],
+                ),
+                _source_row(80, "heading", "(五)认定程序", block_role="heading", title_candidate_score=0.7),
+            ],
+            manifest_document=_manifest_document(
+                79,
+                80,
+                title="中央民族大学本科生境外留学管理办法",
+                handbook_section="中央民族大学学生教学管理规定",
+            ),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        table_unit = next(row for row in result.document_units if row["unit_type"] == "table_unit")
+        self.assertEqual(
+            table_unit["anchor"]["table_context"],
+            "3. 境外课程以非百分制方式记载的成绩,按以下方式转换成我校百分制成绩予以认定。",
+        )
+        self.assertEqual(
+            table_unit["metadata"]["caption_lines"],
+            ["3. 境外课程以非百分制方式记载的成绩,按以下方式转换成我校百分制成绩予以认定。"],
+        )
+
     def test_cleanup_preserves_nested_section_path_for_article_units(self) -> None:
         result = cleanup_handbook_document(
             structured_rows=[
@@ -1436,7 +1497,7 @@ class HandbookCleanupTest(unittest.TestCase):
         self.assertEqual(len(policy_units), 2)
         self.assertEqual(policy_units[0]["anchor"]["section_path"], ["三、学生课堂秩序管理"])
         self.assertEqual(policy_units[0]["clean_text"], "任课教师和学院共同维护课堂秩序。")
-        self.assertEqual(policy_units[1]["anchor"]["section_path"], ["三、学生课堂秩序管理"])
+        self.assertEqual(policy_units[1]["anchor"]["section_path"], [])
         self.assertEqual(policy_units[1]["anchor"]["provision_label"], "四")
         self.assertEqual(policy_units[1]["clean_text"], "四、本办法由学生工作部(处)负责解释。")
 
@@ -1748,13 +1809,15 @@ class HandbookCleanupTest(unittest.TestCase):
         self.assertEqual(len(policy_units), 4)
         self.assertEqual(policy_units[0]["anchor"]["section_path"], ["三、学士学位授予程序"])
         self.assertNotIn("四、学士学位证书遗失不予补发", policy_units[0]["clean_text"])
-        self.assertEqual(policy_units[1]["anchor"]["section_path"], ["三、学士学位授予程序"])
+        self.assertEqual(policy_units[1]["anchor"]["section_path"], [])
         self.assertEqual(policy_units[1]["anchor"]["provision_label"], "四")
         self.assertEqual(
             policy_units[1]["clean_text"],
             "四、学士学位证书遗失不予补发。如遗失或者损坏,经本人申请,学校核实后出具相应的证明书。证明书与原证书具有同等效力。",
         )
+        self.assertEqual(policy_units[2]["anchor"]["section_path"], [])
         self.assertEqual(policy_units[2]["anchor"]["provision_label"], "五")
+        self.assertEqual(policy_units[3]["anchor"]["section_path"], [])
         self.assertEqual(policy_units[3]["anchor"]["provision_label"], "六")
 
     def test_cleanup_does_not_emit_policy_page_for_appendix_form_title_only(self) -> None:

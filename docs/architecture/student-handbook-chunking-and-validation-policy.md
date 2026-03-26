@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-25
-updated: 2026-03-25
+updated: 2026-03-26
 ---
 
 # `student_handbook` Chunking 与 Validation 规则
@@ -37,9 +37,24 @@ updated: 2026-03-25
 当前 handbook v3 tokenizer 契约固定为：
 
 - embedding model: `Qwen3-Embedding-4B`
+- embedding dimensions: `2560`
 - tokenizer repo: `Qwen/Qwen3-Embedding-4B`
 - 运行时只允许使用本地已预取 tokenizer
 - 主链路默认离线，不允许在 chunking 或 validation 过程中隐式联网下载 tokenizer
+
+额外约束：
+
+- handbook phase-1 必须显式请求 `Qwen3-Embedding-4B` 的 native `2560` 维向量
+- 不允许依赖兼容 API 的默认维度推断；如果 provider 默认返回 `1024`，必须通过显式参数覆盖
+- 当前项目的 provider reality 固定为：通过 `gitee` 官方 OpenAI-compatible embeddings 接口请求 `Qwen3-Embedding-4B`
+- `gitee` 路径下显式请求 `dimensions=2560` 已在本项目中验证通过；这里不再把 `2560` 视为待 provider 核验的假设
+- handbook 的 token budget、Qdrant collection 规划和回放验证都以 `2560` 维运行契约为前提
+
+字段边界：
+
+- `model`、`dimensions` 属于 embedding request contract
+- `document_id`、`chunk_id`、`corpus`、`collection`、ACL、`campus_scope` 属于 Qdrant chunk/index schema
+- 不允许把 embedding 请求字段和 retrieval payload schema 混为同一层设计
 
 工程约束：
 
@@ -151,6 +166,7 @@ chunking 只消费单篇逻辑文档的 `document-units.jsonl`，不直接消费
 
 - 优先保留完整条款组，不为追求平均大小而随意切断条款
 - `split_reason=structure_boundary` 优先于 `token_guardrail`
+- 结构拆分后的后续 chunk 不允许只以裸枚举符开头；如果正文从 `(2)`、`2.`、`（二）` 之类子项续接，display text 必须补回最近可稳定识别的父级条款上下文
 
 ### `policy_page`
 
@@ -341,6 +357,13 @@ handbook validation 的职责是卡住“仍然明显错误的 chunking 结果�
 - `passed = true`
 - `header_dominant_chunk_count = 0`
 - `small_unaggregated_chunk_count = 0`
+- `heading_body_glue_count = 0`
+- `chunk_failures = []`
+
+2026-03-26 的真实复核额外确认了两类 handbook v3 不变量已经稳定：
+
+- `policy_page` 的 closing provisions 在聚合后会脱离旧的深层 `section_path`，anchor 收敛到真实公共父路径，而不是继续挂在前文流程章节下
+- `article_body` 的 structure-first 后续 chunk 会补回父级条款上下文，不再出现只从裸 `(2)` 或类似子项编号起跳的 display text
 
 这说明当前主要问题已经不再是：
 

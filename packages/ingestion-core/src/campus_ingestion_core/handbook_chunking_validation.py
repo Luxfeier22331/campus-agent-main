@@ -26,10 +26,12 @@ from campus_ingestion_core.chunking import (
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.handbook_cleanup import (
     ARTICLE_PREFIX_RE,
+    SHORT_HEADING_BODY_STARTERS,
     SHORT_HEADING_WHITELIST,
     _find_boundary_overlap,
     _has_unclosed_citation_context,
     _looks_like_appendix_leaf_section_heading,
+    _looks_like_title_like_heading_remainder,
     _split_short_heading_from_body,
 )
 from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
@@ -1388,6 +1390,8 @@ def _extract_validation_heading_body_glue(line: str) -> tuple[str, str] | None:
     stripped = line.strip()
     if not stripped or stripped.startswith("标题：") or stripped.startswith("文号："):
         return None
+    if " / " in stripped:
+        return None
     body = _validation_line_body(stripped)
     if not body:
         return None
@@ -1395,11 +1399,18 @@ def _extract_validation_heading_body_glue(line: str) -> tuple[str, str] | None:
     if split_body is None:
         return None
     heading, remainder = split_body
-    if heading in SHORT_HEADING_WHITELIST:
-        return split_body
     if remainder.startswith(heading):
         return split_body
-    if any(remainder.startswith(starter) for starter in ("学校", "学生", "对", "无")):
+    if _looks_like_title_like_heading_remainder(remainder):
+        return split_body
+    if any(
+        starter != "无" and remainder.startswith(starter)
+        for starter in SHORT_HEADING_BODY_STARTERS
+    ):
+        return split_body
+    if remainder.startswith("无") and not remainder.startswith("无异议"):
+        return split_body
+    if heading in SHORT_HEADING_WHITELIST and _looks_like_title_like_heading_remainder(remainder):
         return split_body
     return None
 

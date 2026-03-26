@@ -1111,7 +1111,6 @@ class ProcessingPipelineTest(unittest.TestCase):
                         root_unit_id="policy-031",
                         clean_text="四、学士学位证书遗失不予补发。如遗失或者损坏,经本人申请,学校核实后出具相应的证明书。证明书与原证书具有同等效力。",
                         anchor={
-                            "section_path": ["三、学士学位授予程序"],
                             "provision_label": "四",
                             "page_start": 3,
                             "page_end": 3,
@@ -1129,7 +1128,6 @@ class ProcessingPipelineTest(unittest.TestCase):
                         root_unit_id="policy-032",
                         clean_text="五、本规定自2009年3月17日起实施。",
                         anchor={
-                            "section_path": ["三、学士学位授予程序"],
                             "provision_label": "五",
                             "page_start": 3,
                             "page_end": 3,
@@ -1147,7 +1145,6 @@ class ProcessingPipelineTest(unittest.TestCase):
                         root_unit_id="policy-033",
                         clean_text="六、本规定由教务处负责解释。",
                         anchor={
-                            "section_path": ["三、学士学位授予程序"],
                             "provision_label": "六",
                             "page_start": 3,
                             "page_end": 3,
@@ -1179,6 +1176,7 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertIn("四、学士学位证书遗失不予补发", chunks[1].metadata["display_text"])
         self.assertIn("五、本规定自2009年3月17日起实施。", chunks[1].metadata["display_text"])
         self.assertIn("六、本规定由教务处负责解释。", chunks[1].metadata["display_text"])
+        self.assertNotIn("三、学士学位授予程序", chunks[1].text)
 
 if __name__ == "__main__":
     unittest.main()

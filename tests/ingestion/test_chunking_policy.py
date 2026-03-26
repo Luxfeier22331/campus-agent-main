@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import sys
+import threading
+import time
 import types
 import unittest
 from unittest import mock
@@ -142,6 +145,39 @@ class ChunkingPolicyTest(unittest.TestCase):
             "/tmp/qwen-tokenizer",
             local_files_only=True,
         )
+
+    def test_load_hf_tokenizer_initializes_once_under_concurrent_calls(self) -> None:
+        _load_hf_tokenizer.cache_clear()
+        call_count = [0]
+        call_lock = threading.Lock()
+
+        def fake_from_pretrained(path: str, *, local_files_only: bool = True) -> object:
+            self.assertEqual(path, "/tmp/qwen-tokenizer")
+            self.assertTrue(local_files_only)
+            with call_lock:
+                call_count[0] += 1
+            time.sleep(0.05)
+            return object()
+
+        fake_transformers = types.SimpleNamespace(
+            AutoTokenizer=types.SimpleNamespace(from_pretrained=fake_from_pretrained)
+        )
+
+        with mock.patch(
+            "campus_ingestion_core.chunking.resolve_prefetched_hf_tokenizer_path",
+            return_value="/tmp/qwen-tokenizer",
+        ):
+            with mock.patch.dict(sys.modules, {"transformers": fake_transformers}):
+                with ThreadPoolExecutor(max_workers=8) as executor:
+                    results = list(
+                        executor.map(
+                            lambda _: _load_hf_tokenizer("Qwen/Qwen3-Embedding-4B"),
+                            range(8),
+                        )
+                    )
+
+        self.assertEqual(call_count[0], 1)
+        self.assertEqual(len({id(result) for result in results}), 1)
 
     def test_clean_structured_text_strips_parent_html_table_and_keeps_placeholder(self) -> None:
         cleaned = clean_structured_text(
@@ -436,6 +472,54 @@ class ChunkingPolicyTest(unittest.TestCase):
             )
         )
         self.assertFalse(any(piece.text.startswith("1. 笔试主要为外语综合能力测试") for piece in pieces))
+
+    def test_article_structure_boundary_carries_parent_context_for_nested_subclause_segments(self) -> None:
+        lines = [
+            "转专业程序",
+            "(一)制定并提交专业接收计划",
+            "1. 各院系根据本单位的师资、学生规模等实际情况和专业特点,确定各专业拟接收人数、考试科目以及考核方式等并报教务处。",
+            "2. 各院系原则上每次转专业都应提交接收计划,接收有兴趣、有能力的学生转专业,但接收计划数应与现有学生数及两次转专业接收人数进行综合考虑,不另行开班。",
+            "3. 考试科目原则上应为该学期本专业开设的两门专业基础课程,考试难易度与期末考试相当。",
+            "(二)学生申请",
+            "本科学生根据学校公布的转专业计划提出转专业申请。符合转专业申请条件的学生将申请表交所在院系。每个学生1次只允许申请转1个专业,凡申请转多个专业的学生申请表予以作废。",
+            "(三)院系审核",
+            "各院系根据转专业的原则和条件对申请学生进行审核,并将合格的学生申请材料及汇总表统一报教务处,逾期不再受理。",
+            "(四)公布参加转专业考试学生名单及考试具体安排",
+            "教务处对所有转专业学生申请材料进行复核,并公布参加转专业考试的学生名单及考试安排。",
+            "(五)考核及确定名单",
+            "1. 考核方式考核形式由各院系确定,原则上考核包括笔试和面试。笔试由教务处统一组织,试题由教务处委托院系命题或由教务处从历年试题库中随机抽取,考核试卷保存5年;面试由院系自行组织。",
+            "2. 面试人数原则上按各专业接收计划数的150%确定面试人数。",
+            "3. 确定面试名单的原则",
+            "(1)根据笔试总成绩从高到低排序,按接收计划数的150%确定面试名单。",
+            "(2)确定面试名单时,优先考虑两门专业课程笔试成绩均合格的学生。两门专业课程笔试均合格的学生人数未达到计划数的150%时,所缺名额从剩余的报考学生中,按笔试总成绩从高到低确定。",
+            "(3)单科笔试成绩为0分的学生不能参加面试。",
+            "4. 面试要求",
+            "(1)需面试的院系,按教务处提交的名单自行组织面试。",
+            "(2)面试原则上应由3名及以上具有副高职称或教学经验丰富的教师组成。",
+            "(3)院系要制定面试要求和标准,做好面试的相关记录并保存5年。",
+            "5. 拟接收名单的确定院系按照笔试和面试总成绩从高到低排序(不需要面试的院系直接按笔试成绩排序),再根据各专业的专业计划数确定拟接收学生名单,并报教务处。",
+            "6.院系对接收计划进行相应调整时,须报教务处批准。",
+            "(六)公示",
+            "教务处根据院系拟定的接收名单报经学校批准后进行公示,公示时间不少于5个工作日。",
+        ]
+
+        pieces = chunk_structured_unit(
+            unit=StructuredUnitChunkInput(
+                unit_type="article_body",
+                root_unit_id="article-010",
+                text="\n".join(lines),
+            ),
+            chunk_profile=build_student_handbook_chunk_profile(
+                profile_version=HANDBOOK_V3_CHUNK_POLICY_VERSION,
+                model_name="Qwen3-Embedding-4B",
+            ),
+        )
+
+        self.assertGreaterEqual(len(pieces), 2)
+        self.assertTrue(all(piece.split_reason == "structure_boundary" for piece in pieces))
+        self.assertTrue(all(piece.boundary_rule == "article_structure_block" for piece in pieces))
+        self.assertTrue(any(piece.text.startswith("转专业程序\n(五)考核及确定名单\n3. 确定面试名单的原则") for piece in pieces))
+        self.assertFalse(any(piece.text.startswith("转专业程序\n(2)") for piece in pieces))
 
     def test_policy_page_prefers_roster_line_boundaries_before_token_guardrail(self) -> None:
         lines = [

@@ -112,6 +112,15 @@ FORM_TABLE_SECTION_KEYWORDS = (
 )
 FORM_TABLE_SIGNATURE_KEYWORDS = ("签字", "签章", "盖章", "报送日期", "联系电话")
 FORM_TABLE_CHECKBOX_MARKERS = ("☐", "□", "■", "✓", "√")
+TABLE_CONTEXT_INTRO_PHRASES = (
+    "按以下方式",
+    "按下列方式",
+    "按下列标准",
+    "如下表",
+    "见下表",
+    "具体如下",
+    "对应关系",
+)
 DECORATIVE_TABLE_KEYWORDS = (
     "照片",
     "骑缝章",
@@ -192,7 +201,9 @@ SHORT_HEADING_SEMANTIC_SUFFIXES = (
     "意见",
     "助学",
     "奖学金",
+    "助学金",
     "减免",
+    "代偿",
     "留学",
     "注册",
     "资助",
@@ -209,11 +220,13 @@ BODY_SENTENCE_STARTERS = (
     "各院系",
     "学校",
     "用于",
+    "应征",
     "院系",
     "教务处",
     "学院",
     "根据",
     "按照",
+    "自愿",
     "符合",
     "申请",
     "应当",
@@ -499,7 +512,7 @@ def _looks_like_intended_structural_split(previous: str, current: str) -> bool:
         return False
     if len(normalized_current) < 8:
         return False
-    if not _is_short_heading_fragment(normalized_previous):
+    if not _is_short_heading_fragment(normalized_previous) and not _is_semantic_heading_fragment(normalized_previous):
         return False
     if not _looks_like_semantic_short_heading_fragment(normalized_previous):
         return False
@@ -507,7 +520,7 @@ def _looks_like_intended_structural_split(previous: str, current: str) -> bool:
         trailing = normalized_current[len(normalized_previous) :].lstrip()
         if trailing and _looks_like_title_like_heading_remainder(trailing):
             return True
-    return any(normalized_current.startswith(starter) for starter in SHORT_HEADING_BODY_STARTERS)
+    return any(normalized_current.startswith(starter) for starter in BODY_SENTENCE_STARTERS + SHORT_HEADING_BODY_STARTERS)
 
 
 def _heading_fragment_candidate(text: str) -> str:
@@ -631,7 +644,7 @@ def _split_repeated_short_heading_from_body(body: str) -> tuple[str, str] | None
     max_heading_length = min(len(normalized) // 2, 12)
     for heading_length in range(3, max_heading_length + 1):
         heading = normalized[:heading_length].strip()
-        if not _is_short_heading_fragment(heading):
+        if not _is_short_heading_fragment(heading) and not _is_semantic_heading_fragment(heading):
             continue
         if not normalized.startswith(f"{heading}{heading}"):
             continue
@@ -639,7 +652,7 @@ def _split_repeated_short_heading_from_body(body: str) -> tuple[str, str] | None
         trailing = remainder[len(heading) :].lstrip()
         if not trailing or not _looks_like_title_like_heading_remainder(trailing):
             continue
-        return heading, remainder
+        return heading, trailing
     return None
 
 
@@ -655,6 +668,14 @@ def _normalize_article_heading_body_glue(text: str) -> str:
         if split_body is None:
             return normalized
         return f"{article_label} {split_body[0]}\n{split_body[1]}"
+    list_match = INLINE_LIST_MARKER_RE.match(normalized)
+    if list_match is not None:
+        list_label = list_match.group("label").strip()
+        list_rest = " ".join(_normalize_body_fragment(list_match.group("body")).split()).strip()
+        split_body = _split_extended_inline_list_heading_body(list_rest)
+        if split_body is None:
+            return normalized
+        return f"{list_label} {split_body[0]}\n{split_body[1]}"
     split_body = _split_title_like_heading_body(normalized)
     if split_body is None:
         return normalized
@@ -683,6 +704,9 @@ def _split_title_like_heading_body(text: str) -> tuple[str, str] | None:
     repeated_heading = _split_repeated_short_heading_from_body(normalized)
     if repeated_heading is not None:
         return repeated_heading
+    semantic_heading = _split_semantic_heading_from_body(normalized)
+    if semantic_heading is not None:
+        return semantic_heading
     plain_heading = _split_plain_heading_from_body(normalized)
     if plain_heading is not None:
         return plain_heading
@@ -692,22 +716,22 @@ def _split_title_like_heading_body(text: str) -> tuple[str, str] | None:
         remainder = normalized[match.start("marker") :].lstrip()
         if not heading or not remainder:
             continue
-        if not _is_short_heading_fragment(heading):
+        if not _is_short_heading_fragment(heading) and not _is_semantic_heading_fragment(heading):
             continue
         return heading, remainder
-    max_heading_length = min(len(normalized) - 1, 16)
+    max_heading_length = min(len(normalized) - 1, 24)
     for split_index in range(2, max_heading_length + 1):
         heading = normalized[:split_index].strip()
         remainder = normalized[split_index:].lstrip()
         if not heading or not remainder:
             continue
-        if not _is_short_heading_fragment(heading):
+        if not _is_short_heading_fragment(heading) and not _is_semantic_heading_fragment(heading):
             continue
         overlap = _shared_cjk_prefix(heading, remainder)
         if len(overlap) < max(2, len(heading) // 2):
             continue
         remainder_after_overlap = remainder[len(overlap) :].lstrip()
-        if not _looks_like_title_like_heading_remainder(remainder_after_overlap):
+        if not _looks_like_title_like_heading_overlap_remainder(remainder_after_overlap):
             continue
         return heading, remainder
     return None
@@ -727,7 +751,7 @@ def _split_plain_heading_from_body(text: str) -> tuple[str, str] | None:
             continue
         if len(heading) < 4 and heading not in SHORT_HEADING_WHITELIST:
             continue
-        if not _is_short_heading_fragment(heading):
+        if not _is_short_heading_fragment(heading) and not _is_semantic_heading_fragment(heading):
             continue
         if not _looks_like_semantic_short_heading_fragment(heading):
             continue
@@ -736,6 +760,59 @@ def _split_plain_heading_from_body(text: str) -> tuple[str, str] | None:
             remainder = remainder[len(overlap) :].lstrip()
         return heading, remainder
     return None
+
+
+def _split_semantic_heading_from_body(text: str) -> tuple[str, str] | None:
+    normalized = _normalize_body_fragment(text)
+    if not normalized or "\n" in normalized:
+        return None
+    if _looks_like_navigation_section_heading_candidate(normalized):
+        return None
+    max_heading_length = min(len(normalized) - 1, 24)
+    for split_index in range(3, max_heading_length + 1):
+        heading = normalized[:split_index].strip()
+        remainder = normalized[split_index:].lstrip()
+        if not heading or not remainder:
+            continue
+        if not _is_semantic_heading_fragment(heading):
+            continue
+        if _looks_like_title_like_heading_remainder(remainder):
+            return heading, remainder
+        overlap = _shared_cjk_prefix(heading, remainder)
+        if len(overlap) < max(4, min(8, len(heading) // 2)):
+            continue
+        remainder_after_overlap = remainder[len(overlap) :].lstrip()
+        if _looks_like_title_like_heading_overlap_remainder(remainder_after_overlap):
+            return heading, remainder
+    return None
+
+
+def _split_extended_inline_list_heading_body(text: str) -> tuple[str, str] | None:
+    normalized = _normalize_body_fragment(text)
+    if not normalized or "\n" in normalized:
+        return None
+    repeated_heading = _split_repeated_short_heading_from_body(normalized)
+    if repeated_heading is not None:
+        return repeated_heading
+    semantic_heading = _split_semantic_heading_from_body(normalized)
+    if semantic_heading is None:
+        return None
+    heading, remainder = semantic_heading
+    if len(heading) >= 5:
+        return heading, remainder
+    if len(_shared_cjk_prefix(heading, remainder)) >= 4:
+        return heading, remainder
+    return None
+
+
+def _looks_like_navigation_section_heading_candidate(text: str) -> bool:
+    normalized = _normalize_body_fragment(text)
+    if not normalized or LEAF_SECTION_PUNCTUATION_RE.search(normalized):
+        return False
+    body = INLINE_LIST_MARKER_RE.match(normalized).group("body").strip() if INLINE_LIST_MARKER_RE.match(normalized) else normalized
+    if not body:
+        return False
+    return any(body.endswith(keyword) for keyword in NAVIGATION_SECTION_KEYWORDS)
 
 
 def _looks_like_title_like_heading_remainder(text: str) -> bool:
@@ -747,6 +824,15 @@ def _looks_like_title_like_heading_remainder(text: str) -> bool:
     if len(normalized) < 4:
         return False
     return any(normalized.startswith(starter) for starter in BODY_SENTENCE_STARTERS)
+
+
+def _looks_like_title_like_heading_overlap_remainder(text: str) -> bool:
+    normalized = _normalize_body_fragment(text)
+    if not normalized:
+        return False
+    if _looks_like_title_like_heading_remainder(normalized):
+        return True
+    return normalized.startswith("的") and len(normalized) >= 4
 
 
 def _shared_cjk_prefix(left: str, right: str) -> str:
@@ -773,6 +859,23 @@ def _is_short_heading_fragment(text: str) -> bool:
     if normalized.endswith(("的", "地", "得", "了", "时", "后", "前", "和", "及")):
         return False
     return bool(SHORT_HEADING_PREFIX_RE.fullmatch(normalized))
+
+
+def _is_semantic_heading_fragment(text: str) -> bool:
+    normalized = _normalize_body_fragment(text)
+    if not normalized:
+        return False
+    if normalized in SHORT_HEADING_WHITELIST:
+        return True
+    if len(normalized) < 3 or len(normalized) > 24:
+        return False
+    if normalized.endswith(("的", "地", "得", "了", "时", "后", "前", "和", "及")):
+        return False
+    if not re.fullmatch(r"[\u4e00-\u9fff、与及和\-]{3,24}", normalized):
+        return False
+    if any(fragment in normalized for fragment in SHORT_HEADING_FORBIDDEN_FRAGMENTS):
+        return _looks_like_semantic_short_heading_fragment(normalized)
+    return _looks_like_semantic_short_heading_fragment(normalized)
 
 
 def _looks_like_semantic_short_heading_fragment(text: str) -> bool:
@@ -1083,6 +1186,7 @@ def _build_document_events(content_rows: list[dict[str, object]]) -> tuple[list[
         page_end = _coerce_int(row.get("page_end")) or page_start
         next_text = _next_content_text(content_rows, row_index + 1)
         next_row = _next_nonblank_row(content_rows, row_index + 1)
+        followed_by_table = _has_following_table_before_content_break(content_rows, row_index + 1)
         glued_structural_heading = _split_glued_structural_heading(text) if text else None
 
         if row_type == "table":
@@ -1239,6 +1343,14 @@ def _build_document_events(content_rows: list[dict[str, object]]) -> tuple[list[
             and structural_heading.kind in {"enumerated", "enumerated_subsection"}
         ):
             structural_heading = None
+        if (
+            structural_heading is not None
+            and active_article_context is not None
+            and pending_table_context is not None
+            and followed_by_table
+            and structural_heading.kind in {"enumerated", "enumerated_subsection"}
+        ):
+            structural_heading = None
         if structural_heading is not None:
             flush_article()
             flush_policy_page()
@@ -1292,6 +1404,7 @@ def _build_document_events(content_rows: list[dict[str, object]]) -> tuple[list[
             flush_policy_page()
             active_article_context = None
             pending_table_context = None
+            current_section_nodes = [node for node in current_section_nodes if node[0] <= 4]
             events.append(
                 {
                     "kind": "policy_page",
@@ -1345,11 +1458,17 @@ def _build_document_events(content_rows: list[dict[str, object]]) -> tuple[list[
         if current_article is not None:
             current_article["parts"].append(text)
             current_article["page_end"] = page_end
-            if _looks_like_table_context(text):
+            if _looks_like_table_context(text, next_row=next_row, followed_by_table=followed_by_table):
                 pending_table_context = text
-            else:
+            elif not (pending_table_context is not None and followed_by_table and row_type == "heading"):
                 pending_table_context = None
             continue
+
+        if active_article_context is not None:
+            if _looks_like_table_context(text, next_row=next_row, followed_by_table=followed_by_table):
+                pending_table_context = text
+            elif not (pending_table_context is not None and followed_by_table and row_type == "heading"):
+                pending_table_context = None
 
         if appendix_context_active and _looks_like_table_lead_label(text, next_row=next_row):
             flush_policy_page()
@@ -2452,13 +2571,40 @@ def _next_nonblank_row(rows: list[dict[str, object]], start_index: int) -> dict[
     return None
 
 
-def _looks_like_table_context(text: str) -> bool:
+def _has_following_table_before_content_break(rows: list[dict[str, object]], start_index: int) -> bool:
+    for row in rows[start_index:]:
+        row_type = str(row.get("row_type") or "")
+        if row_type == "table":
+            return True
+        text = _row_text(row)
+        if not text:
+            continue
+        if row_type == "heading":
+            continue
+        return False
+    return False
+
+
+def _looks_like_table_context(
+    text: str,
+    *,
+    next_row: dict[str, object] | None = None,
+    followed_by_table: bool | None = None,
+) -> bool:
     normalized = normalize_handbook_body_text(text)
     if not normalized:
         return False
+    if followed_by_table is None:
+        followed_by_table = next_row is not None and str(next_row.get("row_type") or "") == "table"
     if normalized.endswith(("：", ":")):
         return True
-    return bool(re.match(r"^[（(][一二三四五六七八九十0-9]+[)）]", normalized))
+    if followed_by_table and any(phrase in normalized for phrase in TABLE_CONTEXT_INTRO_PHRASES):
+        return True
+    return bool(
+        next_row is not None
+        and str(next_row.get("row_type") or "") == "table"
+        and re.match(r"^[（(][一二三四五六七八九十0-9]+[)）]", normalized)
+    )
 
 
 def _split_inline_enumerated_provision(text: str) -> tuple[str, str] | None:
