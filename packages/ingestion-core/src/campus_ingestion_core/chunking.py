@@ -7,6 +7,10 @@ import os
 import re
 from typing import Any, Callable, Literal, Mapping, Protocol
 
+from campus_ingestion_core.handbook_article_structure import (
+    article_structure_has_nested_subclauses,
+    build_article_structure_groups,
+)
 from campus_ingestion_core.tokenizer_cache import resolve_prefetched_hf_tokenizer_path
 
 
@@ -239,6 +243,18 @@ class StudentHandbookChunkingStrategyV2:
             return None
 
         if unit_type == "article_body":
+            if article_structure_has_nested_subclauses(candidate_lines):
+                structured = _group_article_structure_blocks(
+                    candidate_lines,
+                    chunk_profile=chunk_profile,
+                    display_budget=display_budget,
+                )
+                if len(structured) > 1 and _segments_within_budget(
+                    structured,
+                    chunk_profile=chunk_profile,
+                    display_budget=display_budget,
+                ):
+                    return StructuralSplitResult(segments=structured, boundary_rule="article_structure_block")
             grouped = _group_prefixed_blocks(
                 _build_clause_groups(candidate_lines),
                 chunk_profile=chunk_profile,
@@ -651,7 +667,7 @@ def build_chunk_text_context(
     _append_header_variant(
         variants,
         mode="title_only",
-        base_line=title_text if title_text and not normalized_section_path else None,
+        base_line=title_text or None,
         doc_no_line=doc_no_line,
     )
     required_variant = ChunkHeaderVariant(mode="required", lines=(required_header,))
@@ -1129,7 +1145,7 @@ def _starts_new_enumerated_block(line: str) -> bool:
     return bool(
         normalized
         and re.match(
-            r"^(?:[（(][一二三四五六七八九十百千万〇零两0-9]+[)）]|[一二三四五六七八九十]+、)",
+            r"^(?:[（(][一二三四五六七八九十百千万〇零两0-9]+[)）]|[一二三四五六七八九十]+、|[0-9]+\.)",
             normalized,
         )
     )
@@ -1143,6 +1159,30 @@ def _group_prefixed_blocks(
 ) -> tuple[str, ...]:
     segments: list[str] = []
     for prefix_text, blocks in groups:
+        grouped = _group_lines_by_token_budget(
+            blocks,
+            chunk_profile=chunk_profile,
+            display_budget=display_budget,
+            prefix_text=prefix_text,
+            prefer_target_split=True,
+        )
+        segments.extend(grouped)
+    return tuple(segments)
+
+
+def _group_article_structure_blocks(
+    lines: list[str],
+    *,
+    chunk_profile: ChunkProfile,
+    display_budget: ResolvedDisplayBudget,
+) -> tuple[str, ...]:
+    groups = build_article_structure_groups(lines)
+    segments: list[str] = []
+    for group in groups:
+        prefix_text = "\n".join(group.prefix_lines).strip()
+        blocks = ["\n".join(block).strip() for block in group.blocks if any(item.strip() for item in block)]
+        if not blocks:
+            continue
         grouped = _group_lines_by_token_budget(
             blocks,
             chunk_profile=chunk_profile,

@@ -589,10 +589,6 @@ def _resolve_member_label(member: _ChunkMember) -> str | None:
         label = _normalize_anchor_label(member.unit.anchor, field_name)
         if label is not None:
             return label
-    if member.unit.unit_type == "policy_page":
-        section_path = _normalize_section_path(member.unit.anchor)
-        if section_path:
-            return section_path[-1]
     return None
 
 

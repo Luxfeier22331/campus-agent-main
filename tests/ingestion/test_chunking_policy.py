@@ -28,6 +28,7 @@ from campus_ingestion_core.chunking import (
     clean_structured_text,
     estimate_token_count,
 )
+from campus_ingestion_core.handbook_article_structure import normalize_article_body_structure
 
 
 class ChunkingPolicyTest(unittest.TestCase):
@@ -184,6 +185,27 @@ class ChunkingPolicyTest(unittest.TestCase):
         self.assertLess(assembly.header_token_count, 50)
         self.assertIn("注册志愿服务组织", assembly.text)
 
+    def test_build_chunk_text_context_title_only_variant_keeps_title_when_section_path_exists(self) -> None:
+        context_plan = build_chunk_text_context(
+            anchor={
+                "section_path": ["第五章 奖励分测评"],
+                "article_label": "第十九条",
+            },
+            metadata={
+                "title": "中央民族大学本科学生综合素质测评办法",
+                "policy_doc_no": "民大校发[2018]323号",
+            },
+        )
+
+        title_only = next(
+            variant for variant in context_plan.preferred_variants if variant.mode == "title_only"
+        )
+
+        self.assertEqual(
+            title_only.joined_text(),
+            "中央民族大学本科学生综合素质测评办法\n文号：民大校发[2018]323号",
+        )
+
     def test_table_units_are_not_resplit_even_when_token_budget_is_large(self) -> None:
         unit = StructuredUnitChunkInput(
             unit_type="table_row",
@@ -198,6 +220,52 @@ class ChunkingPolicyTest(unittest.TestCase):
         self.assertEqual(pieces[0].segment_index, 1)
         self.assertEqual(pieces[0].segment_total, 1)
         self.assertIsNone(pieces[0].split_reason)
+
+    def test_normalize_article_body_structure_keeps_soft_wrap_recoveries_as_single_body_lines(self) -> None:
+        normalized = normalize_article_body_structure(
+            "\n".join(
+                [
+                    "(三)须向学校足额缴纳学费及其他相关费用。",
+                    "(四)能较熟练掌握对方学校所在地区的语言,具备交流、沟通能力。",
+                    "1. 委托院系选拔方式,主要适用于只涉及1个学院的项目。",
+                ]
+            )
+        )
+
+        self.assertIn("(三)须向学校足额缴纳学费及其他相关费用。", normalized)
+        self.assertIn("(四)能较熟练掌握对方学校所在地区的语言,具备交流、沟通能力。", normalized)
+        self.assertIn("1. 委托院系选拔方式,主要适用于只涉及1个学院的项目。", normalized)
+        self.assertNotIn("(三)须向\n学校足额缴纳", normalized)
+        self.assertNotIn("(四)能较熟练掌握对方\n学校所在地区", normalized)
+        self.assertNotIn("1. 委托\n院系选拔方式", normalized)
+
+    def test_normalize_article_body_structure_splits_long_clause_heading_from_body(self) -> None:
+        normalized = normalize_article_body_structure(
+            "\n".join(
+                [
+                    "(一)确定项目选拔条件与年度选拔计划国际合作处(港澳台事务办公室)确定各留学项目等相关事宜,包括名额、专业、学术或学业要求、留学期限及选拔时限等项目选拔条件与要求,函告教务处。",
+                    "(二)发布选拔要求与通知教务处根据项目要求,发布具体选拔通知,视项目情况,可采取委托院系选拔或学校统一组织选拔两种方式。",
+                    "(一)科研项目奖励(总分1.5分)参与科研项目且已在所评学年内结项的,按以下标准分别依次给予奖励加分,所评学年内未结项的不予加分;",
+                ]
+            )
+        )
+
+        self.assertIn("(一)确定项目选拔条件与年度选拔计划\n国际合作处(港澳台事务办公室)确定各留学项目等相关事宜", normalized)
+        self.assertIn("(二)发布选拔要求与通知\n教务处根据项目要求,发布具体选拔通知", normalized)
+        self.assertIn("(一)科研项目奖励(总分1.5分)\n参与科研项目且已在所评学年内结项", normalized)
+
+    def test_normalize_article_body_structure_splits_title_note_glue(self) -> None:
+        normalized = normalize_article_body_structure(
+            "\n".join(
+                [
+                    "发表一般文章、专著奖励标准备注:学校官方微信即中央民族大学微信公众号",
+                    "参加社会实践、主题活动奖励标准备注:志愿服务活动须经学校团委认定为准。",
+                ]
+            )
+        )
+
+        self.assertIn("发表一般文章、专著奖励标准\n备注:学校官方微信即中央民族大学微信公众号", normalized)
+        self.assertIn("参加社会实践、主题活动奖励标准\n备注:志愿服务活动须经学校团委认定为准。", normalized)
 
     def test_table_unit_splits_by_row_window_when_body_rows_exceed_budget(self) -> None:
         unit = StructuredUnitChunkInput(
@@ -325,6 +393,50 @@ class ChunkingPolicyTest(unittest.TestCase):
         self.assertTrue(all(piece.split_reason == "structure_boundary" for piece in pieces))
         self.assertTrue(all(piece.boundary_rule == "clause_block" for piece in pieces))
 
+    def test_article_body_structure_split_keeps_nested_subclauses_with_parent_heading(self) -> None:
+        lines = [
+            "选拔程序与要求",
+            "(四)选拔考核方式",
+            "1. 学校统一组织选拔的项目,选拔考核方式包括笔试、面试等两个环节。",
+            "2. 委托院系选拔的项目,选拔考核方式由委托院系自行确定并公告学生。",
+            "(五)笔试考核",
+            "1. 笔试主要为外语综合能力测试,试题内容主要包括外语写作、翻译等。",
+            "2. 笔试试卷命题和阅卷教师由相关外语专业所在院系推荐。",
+            "(六)面试考核",
+            "1. 面试主要考核申请者的口语表达能力和综合素质。",
+            "2. 面试将根据项目需要成立面试考官组。",
+        ]
+
+        pieces = chunk_structured_unit(
+            unit=StructuredUnitChunkInput(
+                unit_type="article_body",
+                root_unit_id="article-009",
+                text="\n".join(lines),
+            ),
+            chunk_profile=ChunkProfile(
+                chunk_size=48,
+                max_chunk_size=96,
+                chunk_overlap=8,
+                min_chunk_size=12,
+                chunk_policy_version=HANDBOOK_V3_CHUNK_POLICY_VERSION,
+                strategy_name="student_handbook_structure_v3",
+                strategy=StudentHandbookChunkingStrategyV2(),
+            ),
+        )
+
+        self.assertGreaterEqual(len(pieces), 2)
+        self.assertTrue(all(piece.split_reason == "structure_boundary" for piece in pieces))
+        self.assertTrue(all(piece.boundary_rule == "article_structure_block" for piece in pieces))
+        self.assertTrue(
+            any(
+                "(五)笔试考核" in piece.text
+                and "1. 笔试主要为外语综合能力测试" in piece.text
+                and "2. 笔试试卷命题和阅卷教师" in piece.text
+                for piece in pieces
+            )
+        )
+        self.assertFalse(any(piece.text.startswith("1. 笔试主要为外语综合能力测试") for piece in pieces))
+
     def test_policy_page_prefers_roster_line_boundaries_before_token_guardrail(self) -> None:
         lines = [
             "校园110 68932220",
@@ -382,6 +494,38 @@ class ChunkingPolicyTest(unittest.TestCase):
         self.assertTrue(all(piece.text.startswith(lines[0]) for piece in pieces))
         self.assertTrue(all(piece.split_reason == "structure_boundary" for piece in pieces))
         self.assertTrue(all(piece.boundary_rule == "enumerated_list_block" for piece in pieces))
+
+    def test_policy_page_arabic_list_keeps_prefix_when_split_by_structure_boundary(self) -> None:
+        lines = [
+            "附:有下列情况之一者,不属于享受公费医疗范围:",
+            "1. " + " ".join(f"a{index}" for index in range(10)),
+            "2. " + " ".join(f"b{index}" for index in range(10)),
+            "3. " + " ".join(f"c{index}" for index in range(10)),
+            "4. " + " ".join(f"d{index}" for index in range(10)),
+        ]
+
+        pieces = chunk_structured_unit(
+            unit=StructuredUnitChunkInput(
+                unit_type="policy_page",
+                root_unit_id="policy-page-006",
+                text="\n".join(lines),
+            ),
+            chunk_profile=ChunkProfile(
+                chunk_size=18,
+                max_chunk_size=44,
+                chunk_overlap=4,
+                min_chunk_size=8,
+                chunk_policy_version=HANDBOOK_V3_CHUNK_POLICY_VERSION,
+                strategy_name="student_handbook_structure_v3",
+                strategy=StudentHandbookChunkingStrategyV2(),
+            ),
+        )
+
+        self.assertGreaterEqual(len(pieces), 2)
+        self.assertTrue(all(piece.text.startswith(lines[0]) for piece in pieces))
+        self.assertTrue(all(piece.split_reason == "structure_boundary" for piece in pieces))
+        self.assertTrue(all(piece.boundary_rule == "enumerated_list_block" for piece in pieces))
+        self.assertTrue(any("4." in piece.text for piece in pieces))
 
     def test_article_body_falls_back_to_token_guardrail_when_clause_lines_exceed_max_chunk_size(self) -> None:
         lines = [

@@ -7,6 +7,7 @@ import math
 import os
 from pathlib import Path
 import random
+import re
 from typing import Protocol, Sequence
 
 from campus_ingestion_core.chunking import (
@@ -19,6 +20,13 @@ from campus_ingestion_core.chunking import (
     resolve_display_budget,
 )
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
+from campus_ingestion_core.handbook_cleanup import (
+    ARTICLE_PREFIX_RE,
+    SHORT_HEADING_WHITELIST,
+    _find_boundary_overlap,
+    _has_unclosed_citation_context,
+    _split_short_heading_from_body,
+)
 from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import build_indexable_chunks_from_jsonl
@@ -40,6 +48,9 @@ SAMPLE_BUCKETS = (
 TINY_TEXTUAL_FINAL_TOKEN_THRESHOLD = 80
 HEADER_DOMINANT_RATIO_THRESHOLD = 0.4
 VERBOSE_HEADER_MODES = {"full_path", "compact_path", "required"}
+VALIDATION_LIST_MARKER_RE = re.compile(
+    r"^(?P<label>(?:[0-9]+[.、]|[（(][一二三四五六七八九十百千万〇零两0-9]+[)）]))\s*(?P<body>.+)$"
+)
 
 
 class ChunkValidationArtifactReader(Protocol):
@@ -80,6 +91,10 @@ class StudentHandbookChunkingValidationReport:
     generic_table_label_chunk_count: int
     polluted_section_path_count: int
     missing_contextualization_count: int
+    broken_citation_linebreak_count: int
+    unclosed_citation_context_count: int
+    heading_body_glue_count: int
+    adjacent_overlap_duplication_count: int
     tiny_textual_chunk_count: int
     header_dominant_chunk_count: int
     small_unaggregated_chunk_count: int
@@ -157,6 +172,10 @@ def validate_student_handbook_chunking(
     generic_table_label_chunk_count = 0
     polluted_section_path_count = 0
     missing_contextualization_count = 0
+    broken_citation_linebreak_count = 0
+    unclosed_citation_context_count = 0
+    heading_body_glue_count = 0
+    adjacent_overlap_duplication_count = 0
     tiny_textual_chunk_count = 0
     header_dominant_chunk_count = 0
     small_unaggregated_chunk_count = 0
@@ -228,6 +247,14 @@ def validate_student_handbook_chunking(
             header_mode_counts[str(chunk.metadata.get("header_mode") or "none")] += 1
             if _chunk_requires_context(chunk) and not bool(chunk.metadata.get("contextualized_text")):
                 missing_contextualization_count += 1
+            if _has_broken_citation_linebreak(chunk):
+                broken_citation_linebreak_count += 1
+            if _is_textual_chunk(chunk) and _has_unclosed_citation_context_in_chunk(chunk):
+                unclosed_citation_context_count += 1
+            if _has_heading_body_glue(chunk):
+                heading_body_glue_count += 1
+            if _has_adjacent_overlap_duplication(chunk):
+                adjacent_overlap_duplication_count += 1
             if _is_header_only_table_chunk(chunk):
                 header_only_table_chunk_count += 1
             if _has_generic_table_label(chunk):
@@ -272,6 +299,10 @@ def validate_student_handbook_chunking(
         or generic_table_label_chunk_count
         or polluted_section_path_count
         or missing_contextualization_count
+        or broken_citation_linebreak_count
+        or unclosed_citation_context_count
+        or heading_body_glue_count
+        or adjacent_overlap_duplication_count
         or header_dominant_chunk_count
         or small_unaggregated_chunk_count
     )
@@ -302,6 +333,10 @@ def validate_student_handbook_chunking(
         generic_table_label_chunk_count=generic_table_label_chunk_count,
         polluted_section_path_count=polluted_section_path_count,
         missing_contextualization_count=missing_contextualization_count,
+        broken_citation_linebreak_count=broken_citation_linebreak_count,
+        unclosed_citation_context_count=unclosed_citation_context_count,
+        heading_body_glue_count=heading_body_glue_count,
+        adjacent_overlap_duplication_count=adjacent_overlap_duplication_count,
         tiny_textual_chunk_count=tiny_textual_chunk_count,
         header_dominant_chunk_count=header_dominant_chunk_count,
         small_unaggregated_chunk_count=small_unaggregated_chunk_count,
@@ -449,6 +484,10 @@ def export_student_handbook_chunk_samples(
         f"- generic_table_label_chunk_count: `{runtime_report.generic_table_label_chunk_count}`",
         f"- polluted_section_path_count: `{runtime_report.polluted_section_path_count}`",
         f"- missing_contextualization_count: `{runtime_report.missing_contextualization_count}`",
+        f"- broken_citation_linebreak_count: `{runtime_report.broken_citation_linebreak_count}`",
+        f"- unclosed_citation_context_count: `{runtime_report.unclosed_citation_context_count}`",
+        f"- heading_body_glue_count: `{runtime_report.heading_body_glue_count}`",
+        f"- adjacent_overlap_duplication_count: `{runtime_report.adjacent_overlap_duplication_count}`",
         f"- tiny_textual_chunk_count: `{runtime_report.tiny_textual_chunk_count}`",
         f"- header_dominant_chunk_count: `{runtime_report.header_dominant_chunk_count}`",
         f"- small_unaggregated_chunk_count: `{runtime_report.small_unaggregated_chunk_count}`",
@@ -989,6 +1028,110 @@ def _has_generic_table_label(chunk: object) -> bool:
     if not isinstance(text, str):
         return False
     return "列=" in text or "未命名列" in text
+
+
+def _has_broken_citation_linebreak(chunk: object) -> bool:
+    text = getattr(chunk, "text", "")
+    if not isinstance(text, str) or "\n" not in text:
+        return False
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    for previous, current in zip(lines, lines[1:]):
+        if current[:1] in {"[", "〔", "(", "（"} and _has_unclosed_citation_context(previous):
+            return True
+        if previous.endswith(("民大校发", "民大学发", "民大党发", "中发", "教高")) and current[:1] in {"[", "〔"}:
+            return True
+    return False
+
+
+def _has_unclosed_citation_context_in_chunk(chunk: object) -> bool:
+    text = getattr(chunk, "text", "")
+    if not isinstance(text, str):
+        return False
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    for line in lines:
+        if line.startswith("标题：") or line.startswith("文号："):
+            continue
+        if _has_unclosed_citation_context(line):
+            return True
+    return False
+
+
+def _has_heading_body_glue(chunk: object) -> bool:
+    text = getattr(chunk, "text", "")
+    if not isinstance(text, str):
+        return False
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    for line in lines:
+        if _extract_validation_heading_body_glue(line) is not None:
+            return True
+    return False
+
+
+def _has_adjacent_overlap_duplication(chunk: object) -> bool:
+    text = getattr(chunk, "text", "")
+    if not isinstance(text, str):
+        return False
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    for line in lines:
+        split_body = _extract_validation_heading_body_glue(line)
+        if split_body is not None:
+            if _find_boundary_overlap(split_body[0], split_body[1]):
+                return True
+            if len(_shared_cjk_prefix(split_body[0], split_body[1])) >= 2:
+                return True
+    return False
+
+
+def _validation_line_body(line: str) -> str:
+    stripped = line.strip()
+    article_match = ARTICLE_PREFIX_RE.match(stripped)
+    if article_match is not None:
+        return article_match.group("rest").strip()
+    match = VALIDATION_LIST_MARKER_RE.match(stripped)
+    if match is not None:
+        return match.group("body").strip()
+    return stripped
+
+
+def _extract_validation_heading_body_glue(line: str) -> tuple[str, str] | None:
+    stripped = line.strip()
+    if not stripped or stripped.startswith("标题：") or stripped.startswith("文号："):
+        return None
+    body = _validation_line_body(stripped)
+    if not body:
+        return None
+    split_body = _split_short_heading_from_body(body)
+    if split_body is None:
+        return None
+    if split_body[0] not in SHORT_HEADING_WHITELIST:
+        return None
+    return split_body
+
+
+def _detect_inline_overlap_duplication(text: str) -> str:
+    compact = text.strip()
+    max_overlap = min(len(compact) // 2, 8)
+    for overlap_length in range(max_overlap, 2, -1):
+        for index in range(overlap_length, len(compact) - overlap_length + 1):
+            left = compact[index - overlap_length : index]
+            right = compact[index : index + overlap_length]
+            if left != right:
+                continue
+            if not re.fullmatch(r"[\u4e00-\u9fff]{3,8}", left):
+                continue
+            return left
+    return ""
+
+
+def _shared_cjk_prefix(left: str, right: str) -> str:
+    shared_chars: list[str] = []
+    for left_char, right_char in zip(left, right):
+        if left_char != right_char:
+            break
+        if not re.fullmatch(r"[\u4e00-\u9fff]", left_char):
+            break
+        shared_chars.append(left_char)
+    return "".join(shared_chars)
 
 
 __all__ = [

@@ -18,6 +18,7 @@ from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRef
 from campus_ingestion_core.object_store import build_processed_artifact_key
 from campus_ingestion_core.process import build_indexable_chunks_from_jsonl
 from campus_ingestion_core.split_manifest import SplitManifestDocument
+from tests.ingestion._handbook_chunking_test_support import build_hermetic_handbook_v3_chunk_profile
 
 
 def _make_registry_record() -> DocumentRegistryRecord:
@@ -221,6 +222,7 @@ class ProcessingPipelineTest(unittest.TestCase):
         chunks = build_indexable_chunks_from_jsonl(
             record=record,
             structured_jsonl_bytes=structured_payload,
+            chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
         )
 
         self.assertEqual(len(chunks), 1)
@@ -252,6 +254,7 @@ class ProcessingPipelineTest(unittest.TestCase):
         chunks = build_indexable_chunks_from_jsonl(
             record=record,
             structured_jsonl_bytes=structured_payload,
+            chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
         )
 
         self.assertGreater(len(chunks), 1)
@@ -400,6 +403,7 @@ class ProcessingPipelineTest(unittest.TestCase):
         chunks = build_indexable_chunks_from_jsonl(
             record=record,
             structured_jsonl_bytes=serialize_handbook_document_units(cleanup_result.document_units),
+            chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
             embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
         )
 
@@ -470,6 +474,7 @@ class ProcessingPipelineTest(unittest.TestCase):
         chunks = build_indexable_chunks_from_jsonl(
             record=record,
             structured_jsonl_bytes=serialize_handbook_document_units(cleanup_result.document_units),
+            chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
         )
 
         article_chunk = next(chunk for chunk in chunks if chunk.metadata["unit_type"] == "article_body")
@@ -993,8 +998,77 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertEqual(chunk.metadata["member_unit_count"], 3)
         self.assertEqual(chunk.anchor["section_path"], ["第二章 分则", "第二部分 认证"])
         self.assertIn("第二部分 认证", chunk.text)
-        self.assertIn("一、认证时间 (一)每学年第一学期", chunk.metadata["display_text"])
-        self.assertIn("三、认证程序 共青团中央民族大学委员会", chunk.metadata["display_text"])
+        self.assertIn("(一)每学年第一学期,针对全体注册志愿者开展志愿服务认证。", chunk.metadata["display_text"])
+        self.assertIn("共青团中央民族大学委员会(青年志愿者工作部)。", chunk.metadata["display_text"])
+        self.assertNotIn("一、认证时间 (一)每学年第一学期", chunk.metadata["display_text"])
+        self.assertNotIn("三、认证程序 共青团中央民族大学委员会", chunk.metadata["display_text"])
+
+    def test_build_indexable_chunks_does_not_repeat_policy_section_heading_inside_display_text(self) -> None:
+        record = _make_registry_record()
+        metadata = {
+            "title": "中央民族大学学生课堂行为规范及课堂秩序管理办法",
+            "policy_doc_no": "民大校发[2007]282号",
+        }
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id="legacy-020",
+                        unit_type="policy_page",
+                        root_unit_id="policy-020",
+                        clean_text="12、学生课堂行为规范和秩序的管理依照“全员参与、分级管理”的原则进行。",
+                        anchor={
+                            "section_path": ["三、学生课堂秩序管理"],
+                            "page_start": 3,
+                            "page_end": 3,
+                        },
+                        metadata=metadata,
+                    ),
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id="legacy-021",
+                        unit_type="policy_page",
+                        root_unit_id="policy-021",
+                        clean_text="四、本办法由学生工作部(处)负责解释。",
+                        anchor={
+                            "section_path": ["三、学生课堂秩序管理"],
+                            "provision_label": "四",
+                            "page_start": 3,
+                            "page_end": 3,
+                        },
+                        metadata=metadata,
+                    ),
+                    ensure_ascii=False,
+                ),
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=ChunkProfile(
+                chunk_size=128,
+                max_chunk_size=512,
+                chunk_overlap=16,
+                min_chunk_size=32,
+                final_text_aware=True,
+                safety_margin=16,
+            ),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        chunk = chunks[0]
+        self.assertEqual(chunk.metadata["aggregation_mode"], "adjacent_short_textual_units")
+        self.assertIn("12、学生课堂行为规范和秩序的管理依照", chunk.metadata["display_text"])
+        self.assertNotIn("三、学生课堂秩序管理 12、", chunk.metadata["display_text"])
+        self.assertIn("\n\n四、本办法由学生工作部(处)负责解释。", chunk.metadata["display_text"])
+        self.assertNotIn("三、学生课堂秩序管理 12、", chunk.text)
 
 if __name__ == "__main__":
     unittest.main()

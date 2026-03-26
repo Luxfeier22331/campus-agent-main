@@ -4,7 +4,11 @@ from itertools import count
 from pathlib import Path
 import unittest
 
-from campus_ingestion_core.handbook_cleanup import cleanup_handbook_document
+from campus_ingestion_core.handbook_cleanup import (
+    cleanup_handbook_document,
+    normalize_handbook_article_body_text,
+    normalize_handbook_body_text,
+)
 from campus_ingestion_core.handbook_provider_normalize import normalize_handbook_provider_result
 from campus_ingestion_core.split_manifest import SplitManifestDocument
 
@@ -83,6 +87,128 @@ def _load_fixture_rows(fixture_name: str) -> list[dict[str, object]]:
 
 
 class HandbookCleanupTest(unittest.TestCase):
+    def test_normalize_handbook_body_text_does_not_merge_heading_tail_with_following_note_line(self) -> None:
+        normalized = normalize_handbook_body_text(
+            "\n".join(
+                [
+                    "发表一般文章、专著奖励标准准",
+                    "备注：学校官方微信即中央民族大学微信公众号",
+                ]
+            )
+        )
+
+        self.assertEqual(
+            normalized,
+            "发表一般文章、专著奖励标准\n备注:学校官方微信即中央民族大学微信公众号",
+        )
+        self.assertNotIn("准备注:", normalized)
+
+    def test_normalize_handbook_article_body_text_recovers_title_tail_ocr_error_before_note_line(self) -> None:
+        normalized = normalize_handbook_article_body_text(
+            "\n".join(
+                [
+                    "2. 发表一般文章奖励。学年内在各级媒体发表一般文章(非学术论文)、出版专著(非学术专著)的,按以下标准给予奖励;",
+                    "发表一般文章、专著奖励标准准",
+                    "备注：学校官方微信即中央民族大学微信公众号",
+                    "(1)同一作品同时在多个媒体平台发表,按最高项加分;",
+                ]
+            )
+        )
+
+        self.assertIn("发表一般文章、专著奖励标准", normalized)
+        self.assertIn("备注:学校官方微信即中央民族大学微信公众号", normalized)
+        self.assertNotIn("发表一般文章、专著奖励标准准", normalized)
+        self.assertNotIn("准备注:", normalized)
+
+    def test_normalize_handbook_body_text_repairs_confirmed_ocr_phrase_errors(self) -> None:
+        normalized = normalize_handbook_body_text(
+            "\n".join(
+                [
+                    "宿舍内允许使用永恒的所有电器(包括接线板、充电器)必须是经3C(中国强制认证)认证的产品。",
+                    "(一) 违规电器一律不准带入学生宿舍内, 私自将违规电器带入室内着, 一经查获, 由学生公寓部没收并报院系, 给予当事者通报批评。",
+                    "造成严重后果者,一法追究法律责任。",
+                ]
+            )
+        )
+
+        self.assertIn("允许使用的所有电器", normalized)
+        self.assertNotIn("允许使用永恒的所有电器", normalized)
+        self.assertIn("私自将违规电器带入室内者", normalized)
+        self.assertNotIn("私自将违规电器带入室内着", normalized)
+        self.assertIn("依法追究法律责任", normalized)
+        self.assertNotIn("一法追究法律责任", normalized)
+
+    def test_normalize_handbook_body_text_repairs_missing_closing_parenthesis_after_doc_no(self) -> None:
+        normalized = normalize_handbook_body_text(
+            "为认真贯彻中央《关于进一步加强和改进大学生思想政治教育的意见》(中发〔2004〕16号文件),"
+            "深入落实《中央民族大学关于进一步加强和改进新时期大学生思想政治教育的实施意见》"
+            "(民大党发〔2009〕41号的精神,引导学生共同进步。"
+        )
+
+        self.assertIn("(民大党发〔2009〕41号)的精神", normalized)
+        self.assertNotIn("(民大党发〔2009〕41号的精神", normalized)
+
+    def test_normalize_handbook_article_body_text_splits_glued_short_heading_from_body(self) -> None:
+        normalized = normalize_handbook_article_body_text(
+            "第十条 大类分专业的时间大类分专业一般在学生入校后 1–2 年后进行,根据各专业具体情况确定。"
+        )
+
+        self.assertIn("第十条 大类分专业的时间\n大类分专业一般在学生入校后 1–2 年后进行,根据各专业具体情况确定。", normalized)
+
+    def test_cleanup_merges_broken_policy_doc_no_citation_lines(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(18, "heading", "中央民族大学本科生境外留学管理办法", block_role="title", title_candidate_score=1.0),
+                _source_row(18, "paragraph", "第十一条 课程、学分与成绩认定"),
+                _source_row(
+                    18,
+                    "paragraph",
+                    "1. 成绩认定采用对应原则,百分制成绩、成绩等级及学分绩点的对应关系根据《中央民族大学本科学生学籍管理规定》(民大校发",
+                ),
+                _source_row(18, "paragraph", "[2009]89号)规定执行。"),
+            ],
+            manifest_document=_manifest_document(
+                18,
+                18,
+                title="中央民族大学本科生境外留学管理办法",
+                handbook_section="中央民族大学学生教学管理规定",
+            ),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        article_units = [row for row in result.document_units if row["unit_type"] == "article_body"]
+        self.assertEqual(len(article_units), 1)
+        self.assertIn("(民大校发[2009]89号)规定执行。", article_units[0]["clean_text"])
+        self.assertNotIn("(民大校发\n[2009]89号)", article_units[0]["clean_text"])
+
+    def test_cleanup_repairs_missing_closing_parenthesis_after_doc_no_in_single_row(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(184, "heading", "中央民族大学十佳大学生评选办法", block_role="title", title_candidate_score=1.0),
+                _source_row(184, "paragraph", "民大校发[2009]358号"),
+                _source_row(184, "paragraph", "第一章 总 则"),
+                _source_row(
+                    184,
+                    "paragraph",
+                    "第一条 为认真贯彻中央《关于进一步加强和改进大学生思想政治教育的意见》(中发〔2004〕16号文件),"
+                    "深入落实《中央民族大学关于进一步加强和改进新时期大学生思想政治教育的实施意见》"
+                    "(民大党发〔2009〕41号的精神,引导学生德、智、体全面发展,特制定本办法。",
+                ),
+            ],
+            manifest_document=_manifest_document(
+                184,
+                184,
+                title="中央民族大学十佳大学生评选办法",
+                handbook_section="中央民族大学学生奖励管理规定",
+            ),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        article_units = [row for row in result.document_units if row["unit_type"] == "article_body"]
+        self.assertEqual(len(article_units), 1)
+        self.assertIn("(民大党发〔2009〕41号)的精神", article_units[0]["clean_text"])
+        self.assertNotIn("(民大党发〔2009〕41号的精神", article_units[0]["clean_text"])
+
     def test_cleanup_merges_broken_structural_line_continuations(self) -> None:
         result = cleanup_handbook_document(
             structured_rows=[
@@ -189,11 +315,14 @@ class HandbookCleanupTest(unittest.TestCase):
         self.assertNotIn("优秀本科毕业生评选办法（试行）", result.document_units[0]["clean_text"])
         self.assertNotIn("民大校发〔2018〕329号", result.document_units[0]["clean_text"])
 
-    def test_cleanup_prefers_manifest_title_when_first_page_heading_is_not_document_title(self) -> None:
+    def test_cleanup_discards_same_page_rows_before_title_anchor(self) -> None:
         result = cleanup_handbook_document(
             structured_rows=[
                 _source_row(67, "heading", "四、组织管理", block_role="heading", title_candidate_score=0.75),
-                _source_row(67, "paragraph", "本办法适用于学生专业调整。"),
+                _source_row(67, "paragraph", "校团委根据团中央、教育部和学校相关工作要求。"),
+                _source_row(68, "heading", "中央民族大学本科生专业调整实施办法", block_role="title", title_candidate_score=1.0),
+                _source_row(68, "paragraph", "(修订)"),
+                _source_row(68, "paragraph", "第一条 本办法适用于学生专业调整。"),
                 _source_row(68, "paragraph", "第二条 相关流程由学院执行。"),
             ],
             manifest_document=_manifest_document(
@@ -206,6 +335,57 @@ class HandbookCleanupTest(unittest.TestCase):
         )
 
         self.assertEqual(result.title, "中央民族大学本科生专业调整实施办法")
+        self.assertNotIn("校团委根据团中央", result.canonical_markdown)
+        self.assertNotIn("四、组织管理", result.canonical_markdown)
+        self.assertEqual(
+            [row["unit_type"] for row in result.document_units],
+            ["article_body", "article_body"],
+        )
+
+    def test_cleanup_requires_first_page_title_anchor_for_manifest_title(self) -> None:
+        with self.assertRaisesRegex(ValueError, "missing title anchor"):
+            cleanup_handbook_document(
+                structured_rows=[
+                    _source_row(67, "heading", "四、组织管理", block_role="heading", title_candidate_score=0.75),
+                    _source_row(67, "paragraph", "本办法适用于学生专业调整。"),
+                    _source_row(68, "paragraph", "第二条 相关流程由学院执行。"),
+                ],
+                manifest_document=_manifest_document(
+                    67,
+                    68,
+                    title="中央民族大学本科生专业调整实施办法",
+                    handbook_section="中央民族大学学生教学管理规定",
+                ),
+                source_doc="学生手册_2018.pdf",
+            )
+
+    def test_cleanup_consumes_multiline_title_anchor_on_later_page(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(67, "heading", "五、相关说明", block_role="heading", title_candidate_score=0.75),
+                _source_row(67, "paragraph", "上一份制度尾页。"),
+                _source_row(
+                    68,
+                    "heading",
+                    "中央民族大学本科生专业调整实施办法\n(修订)",
+                    block_role="title",
+                    title_candidate_score=1.0,
+                ),
+                _source_row(68, "paragraph", "民大校发[2016]209号"),
+                _source_row(68, "paragraph", "第一条 本办法适用于学生专业调整。"),
+            ],
+            manifest_document=_manifest_document(
+                67,
+                68,
+                title="中央民族大学本科生专业调整实施办法",
+                handbook_section="中央民族大学学生教学管理规定",
+            ),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        self.assertEqual([row["unit_type"] for row in result.document_units], ["article_body"])
+        self.assertNotIn("上一份制度尾页", result.canonical_markdown)
+        self.assertNotIn("中央民族大学本科生专业调整实施办法\n(修订)", result.document_units[0]["clean_text"])
 
     def test_cleanup_projects_list_like_sections_into_multiple_policy_pages(self) -> None:
         result = cleanup_handbook_document(
@@ -565,6 +745,177 @@ class HandbookCleanupTest(unittest.TestCase):
         self.assertEqual(article_units[0]["anchor"]["article_label"], "第五条")
         self.assertIn("按国家招生规定录取的新生", article_units[0]["clean_text"])
 
+    def test_cleanup_splits_short_structural_heading_from_body_sentence(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(41, "heading", "中央民族大学十佳大学生评选办法", block_role="title", title_candidate_score=1.0),
+                _source_row(41, "paragraph", "第八条 十佳大学生评选程序"),
+                _source_row(41, "paragraph", "3. 候选人公示中央民族大学十佳大学生候选人在学生工作部网站公示一周,接受监督。"),
+            ],
+            manifest_document=_manifest_document(
+                41,
+                41,
+                title="中央民族大学十佳大学生评选办法",
+                handbook_section="中央民族大学学生奖励管理规定",
+            ),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        article_unit = next(row for row in result.document_units if row["unit_type"] == "article_body")
+        self.assertIn("3. 候选人公示\n中央民族大学十佳大学生候选人在学生工作部网站公示一周,接受监督。", article_unit["clean_text"])
+        self.assertNotIn("候选人公示中央民族大学十佳大学生候选人", article_unit["clean_text"])
+
+    def test_cleanup_deduplicates_boundary_overlap_after_short_heading_split(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(42, "heading", "中央民族大学本科生境外留学管理办法", block_role="title", title_candidate_score=1.0),
+                _source_row(42, "paragraph", "第十一条 课程、学分与成绩认定"),
+                _source_row(42, "paragraph", "1. 学生申请学生需要提交境外学校提供的境外课程成绩单原件1份及复印件。"),
+            ],
+            manifest_document=_manifest_document(
+                42,
+                42,
+                title="中央民族大学本科生境外留学管理办法",
+                handbook_section="中央民族大学学生教学管理规定",
+            ),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        article_unit = next(row for row in result.document_units if row["unit_type"] == "article_body")
+        self.assertIn("1. 学生申请\n学生需要提交境外学校提供的境外课程成绩单原件1份及复印件。", article_unit["clean_text"])
+        self.assertNotIn("学生申请学生需要", article_unit["clean_text"])
+
+    def test_cleanup_does_not_split_regular_sentence_after_enumerated_marker(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(43, "heading", "中央民族大学本科生境外留学管理办法", block_role="title", title_candidate_score=1.0),
+                _source_row(43, "paragraph", "第十一条 课程、学分与成绩认定"),
+                _source_row(43, "paragraph", "1. 境外课程与其所学本科专业人才培养方案相近或相同的,可以认定为专业必修课或专业选修课。"),
+            ],
+            manifest_document=_manifest_document(
+                43,
+                43,
+                title="中央民族大学本科生境外留学管理办法",
+                handbook_section="中央民族大学学生教学管理规定",
+            ),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        article_unit = next(row for row in result.document_units if row["unit_type"] == "article_body")
+        self.assertIn("1. 境外课程与其所学本科专业人才培养方案相近或相同的,可以认定为专业必修课或专业选修课。", article_unit["clean_text"])
+        self.assertNotIn("1. 境外课程与\n", article_unit["clean_text"])
+
+    def test_cleanup_does_not_split_inside_common_word_sequence(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(44, "heading", "中央民族大学本科生境外留学管理办法", block_role="title", title_candidate_score=1.0),
+                _source_row(44, "paragraph", "第十一条 课程、学分与成绩认定"),
+                _source_row(44, "paragraph", "1. 成绩认定采用对应原则,境外课程的成绩以学校百分制成绩、成绩等级、学分绩点相对应的方式进行认定。"),
+            ],
+            manifest_document=_manifest_document(
+                44,
+                44,
+                title="中央民族大学本科生境外留学管理办法",
+                handbook_section="中央民族大学学生教学管理规定",
+            ),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        article_unit = next(row for row in result.document_units if row["unit_type"] == "article_body")
+        self.assertIn("1. 成绩认定采用对应原则,境外课程的成绩以学校百分制成绩、成绩等级、学分绩点相对应的方式进行认定。", article_unit["clean_text"])
+        self.assertNotIn("成绩认定采用对\n应原则", article_unit["clean_text"])
+
+    def test_cleanup_splits_article_heading_from_body_sentence(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(45, "heading", "中央民族大学本科生境外留学管理办法", block_role="title", title_candidate_score=1.0),
+                _source_row(45, "paragraph", "第十二条 毕业、结业与肄业参加留学项目学生返校后,必须按学校各项要求完成学习任务。"),
+            ],
+            manifest_document=_manifest_document(
+                45,
+                45,
+                title="中央民族大学本科生境外留学管理办法",
+                handbook_section="中央民族大学学生教学管理规定",
+            ),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        article_unit = next(row for row in result.document_units if row["unit_type"] == "article_body")
+        self.assertIn("毕业、结业与肄业\n参加留学项目学生返校后,必须按学校各项要求完成学习任务。", article_unit["clean_text"])
+        self.assertNotIn("毕业、结业与肄业参加留学项目学生返校后", article_unit["clean_text"])
+
+    def test_cleanup_does_not_split_article_heading_inside_single_phrase(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(46, "heading", "中央民族大学本科生境外留学管理办法", block_role="title", title_candidate_score=1.0),
+                _source_row(46, "paragraph", "第五条 申请参加境外留学项目学生的资格"),
+                _source_row(46, "paragraph", "(一)热爱祖国,思想政治表现良好,遵纪守法。"),
+            ],
+            manifest_document=_manifest_document(
+                46,
+                46,
+                title="中央民族大学本科生境外留学管理办法",
+                handbook_section="中央民族大学学生教学管理规定",
+            ),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        article_unit = next(row for row in result.document_units if row["unit_type"] == "article_body")
+        self.assertIn("申请参加境外留学项目学生的资格\n(一)热爱祖国,思想政治表现良好,遵纪守法。", article_unit["clean_text"])
+        self.assertNotIn("申请\n参加境外留学项目学生的资格", article_unit["clean_text"])
+
+    def test_cleanup_splits_inline_enumerated_heading_from_body_sentence(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(47, "heading", "中央民族大学本科生境外留学管理办法", block_role="title", title_candidate_score=1.0),
+                _source_row(47, "paragraph", "第七条 选拔程序与要求"),
+                _source_row(47, "paragraph", "(三)报名审核各院系负责审核并将符合项目选拔要求的申请学生材料统一报教务处。"),
+                _source_row(47, "paragraph", "(八)公示学校将入围学生信息向全校公示,公示期不少于5个工作日。"),
+            ],
+            manifest_document=_manifest_document(
+                47,
+                47,
+                title="中央民族大学本科生境外留学管理办法",
+                handbook_section="中央民族大学学生教学管理规定",
+            ),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        article_unit = next(row for row in result.document_units if row["unit_type"] == "article_body")
+        self.assertIn("(三)报名审核\n各院系负责审核并将符合项目选拔要求的申请学生材料统一报教务处。", article_unit["clean_text"])
+        self.assertIn("(八)公示\n学校将入围学生信息向全校公示,公示期不少于5个工作日。", article_unit["clean_text"])
+        self.assertNotIn("(三)报名审核各院系负责", article_unit["clean_text"])
+        self.assertNotIn("(八)公示学校将入围学生信息", article_unit["clean_text"])
+
+    def test_cleanup_does_not_create_false_inline_heading_splits_for_soft_wrapped_article_lines(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(48, "heading", "中央民族大学本科生境外留学管理办法", block_role="title", title_candidate_score=1.0),
+                _source_row(48, "paragraph", "第五条 申请参加境外留学项目学生的资格"),
+                _source_row(48, "paragraph", "(三)须向"),
+                _source_row(48, "paragraph", "学校足额缴纳学费及其他相关费用。"),
+                _source_row(48, "paragraph", "(四)能较熟练掌握对方"),
+                _source_row(48, "paragraph", "学校所在地区的语言,具备交流、沟通能力。"),
+                _source_row(48, "paragraph", "1. 委托"),
+                _source_row(48, "paragraph", "院系选拔方式,主要适用于只涉及1个学院的项目。"),
+            ],
+            manifest_document=_manifest_document(
+                48,
+                48,
+                title="中央民族大学本科生境外留学管理办法",
+                handbook_section="中央民族大学学生教学管理规定",
+            ),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        article_unit = next(row for row in result.document_units if row["unit_type"] == "article_body")
+        self.assertIn("(三)须向学校足额缴纳学费及其他相关费用。", article_unit["clean_text"])
+        self.assertIn("(四)能较熟练掌握对方学校所在地区的语言,具备交流、沟通能力。", article_unit["clean_text"])
+        self.assertIn("1. 委托院系选拔方式,主要适用于只涉及1个学院的项目。", article_unit["clean_text"])
+        self.assertNotIn("(三)须向\n学校足额缴纳", article_unit["clean_text"])
+        self.assertNotIn("(四)能较熟练掌握对方\n学校所在地区", article_unit["clean_text"])
+        self.assertNotIn("1. 委托\n院系选拔方式", article_unit["clean_text"])
+
     def test_cleanup_preserves_formula_like_lines_as_separate_article_lines(self) -> None:
         result = cleanup_handbook_document(
             structured_rows=[
@@ -796,6 +1147,29 @@ class HandbookCleanupTest(unittest.TestCase):
         self.assertEqual(policy_units[1]["anchor"]["provision_label"], "四")
         self.assertEqual(policy_units[1]["clean_text"], "四、本办法由学生工作部(处)负责解释。")
 
+    def test_cleanup_splits_glued_policy_section_heading_from_following_body(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(55, "heading", "中央民族大学学生课堂行为规范及课堂秩序管理办法", block_role="title", title_candidate_score=1.0),
+                _source_row(55, "paragraph", "三、学生课堂秩序管理12、学生课堂行为规范和秩序的管理依照“全员参与、分级管理”的原则进行。"),
+                _source_row(55, "paragraph", "13、所有学生都必须积极、主动地服从管理。"),
+            ],
+            manifest_document=_manifest_document(
+                55,
+                55,
+                title="中央民族大学学生课堂行为规范及课堂秩序管理办法",
+                handbook_section="中央民族大学学生日常管理规定",
+            ),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        policy_units = [row for row in result.document_units if row["unit_type"] == "policy_page"]
+        self.assertEqual(len(policy_units), 1)
+        self.assertEqual(policy_units[0]["anchor"]["section_path"], ["三、学生课堂秩序管理"])
+        self.assertTrue(policy_units[0]["clean_text"].startswith("12、学生课堂行为规范和秩序的管理依照"))
+        self.assertNotIn("三、学生课堂秩序管理 12、", policy_units[0]["clean_text"])
+        self.assertIn("## 三、学生课堂秩序管理", result.canonical_markdown)
+
     def test_cleanup_projects_consecutive_inline_appendix_provisions_as_consistent_sibling_units(self) -> None:
         result = cleanup_handbook_document(
             structured_rows=[
@@ -829,6 +1203,229 @@ class HandbookCleanupTest(unittest.TestCase):
                 "二、本办法自发布之日起实施。",
             ],
         )
+
+    def test_cleanup_splits_appendix_heading_out_of_current_article_body(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(
+                    61,
+                    "heading",
+                    "中央民族大学推荐应届优秀高水平运动员免试攻读硕士学位研究生管理办法",
+                    block_role="title",
+                    title_candidate_score=1.0,
+                ),
+                _source_row(61, "paragraph", "第八条 附则"),
+                _source_row(61, "paragraph", "(一)本规定自公布之日起开始实行,原相关规定自行废止。"),
+                _source_row(61, "paragraph", "(二)本规定相关条款分别由教务处、体育学院负责解释,并适时提请修订。"),
+                _source_row(61, "paragraph", "附件: 中央民族大学高水平运动员免试推荐硕士研究生运动成绩计算标准"),
+                _source_row(61, "paragraph", "附件:"),
+                _source_row(61, "heading", "中央民族大学高水平运动员"),
+                _source_row(62, "paragraph", "1. 网球队"),
+                _source_row(62, "paragraph", "免试推荐硕士研究生运动成绩计算标准"),
+                _source_row(
+                    62,
+                    "table",
+                    "表格文本",
+                    block_role="table",
+                    table_cells=[
+                        ["比赛项目", "评分标准"],
+                        ["全国大学生运动会或单项比赛", "20分"],
+                    ],
+                ),
+                _source_row(63, "heading", "2. 排球队"),
+                _source_row(
+                    63,
+                    "table",
+                    "表格文本",
+                    block_role="table",
+                    table_cells=[
+                        ["比赛项目", "评分标准"],
+                        ["全国大学生排球联赛", "20分"],
+                    ],
+                ),
+            ],
+            manifest_document=_manifest_document(
+                61,
+                63,
+                title="中央民族大学推荐应届优秀高水平运动员免试攻读硕士学位研究生管理办法",
+                handbook_section="中央民族大学学生教学管理规定",
+            ),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        article_units = [row for row in result.document_units if row["unit_type"] == "article_body"]
+        policy_units = [row for row in result.document_units if row["unit_type"] == "policy_page"]
+
+        self.assertEqual(len(article_units), 1)
+        self.assertEqual(article_units[0]["anchor"]["article_label"], "第八条")
+        self.assertNotIn("附件:", article_units[0]["clean_text"])
+        self.assertEqual(
+            article_units[0]["clean_text"],
+            "附则\n(一)本规定自公布之日起开始实行,原相关规定自行废止。\n(二)本规定相关条款分别由教务处、体育学院负责解释,并适时提请修订。",
+        )
+        self.assertEqual(len(policy_units), 0)
+        table_units = [row for row in result.document_units if row["unit_type"] == "table_unit"]
+        self.assertEqual(len(table_units), 2)
+        self.assertEqual(table_units[0]["anchor"]["section_path"], ["中央民族大学高水平运动员"])
+        self.assertEqual(table_units[0]["anchor"]["table_context"], "1. 网球队免试推荐硕士研究生运动成绩计算标准")
+        self.assertEqual(table_units[1]["anchor"]["section_path"], ["中央民族大学高水平运动员"])
+        self.assertEqual(table_units[1]["anchor"]["table_context"], "2. 排球队")
+
+    def test_cleanup_starts_new_appendix_section_after_marker_only_for_inline_form_template(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(
+                    249,
+                    "heading",
+                    "中央民族大学本科受资助学生参与公益服务活动实施办法",
+                    block_role="title",
+                    title_candidate_score=1.0,
+                ),
+                _source_row(249, "paragraph", "民大学发[2013]7号"),
+                _source_row(249, "paragraph", "四、其他"),
+                _source_row(250, "paragraph", "1、本实施办法自公布之日起实施。"),
+                _source_row(250, "paragraph", "2、本实施办法由中央民族大学助学服务中心负责解释。"),
+                _source_row(250, "paragraph", "附件:"),
+                _source_row(251, "heading", "中央民族大学公益服务活动证明", block_role="heading", title_candidate_score=0.75),
+                _source_row(
+                    251,
+                    "paragraph",
+                    "兹证明,中央民族大学 ___ 学院(系)学生 ___ (学号 ___ )于 ___ 年 ___ 月 ___ 日至 ___ 月 ___ 日在本单位组织的公益服务活动(义务劳动中)进行服务。累计服务时间为 ___ 小时。",
+                ),
+                _source_row(251, "paragraph", "特此证明。"),
+                _source_row(251, "paragraph", "证明人:___"),
+                _source_row(251, "paragraph", "(签字盖章)时间:___ 年 ___ 月 ___ 日"),
+                _source_row(251, "paragraph", "中央民族大学助学服务中心审核意见:"),
+                _source_row(251, "paragraph", "审核人(签字盖章):"),
+                _source_row(251, "paragraph", "时间:___ 年 ___ 月 ___ 日"),
+            ],
+            manifest_document=_manifest_document(
+                249,
+                251,
+                title="中央民族大学本科受资助学生参与公益服务活动实施办法",
+                handbook_section="中央民族大学学生资助管理规定",
+            ),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        policy_units = [row for row in result.document_units if row["unit_type"] == "policy_page"]
+        self.assertEqual(len(policy_units), 2)
+        self.assertEqual(policy_units[0]["anchor"]["section_path"], ["四、其他"])
+        self.assertEqual(
+            policy_units[0]["clean_text"],
+            "1、本实施办法自公布之日起实施。\n2、本实施办法由中央民族大学助学服务中心负责解释。",
+        )
+        self.assertEqual(policy_units[1]["anchor"]["section_path"], ["四、其他", "中央民族大学公益服务活动证明"])
+        self.assertNotIn("附件:", policy_units[1]["clean_text"])
+        self.assertTrue(policy_units[1]["clean_text"].startswith("兹证明,中央民族大学 ___ 学院(系)学生"))
+        self.assertIn("中央民族大学助学服务中心审核意见:", policy_units[1]["clean_text"])
+
+    def test_cleanup_treats_navigation_leaf_as_section_not_policy_page(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(301, "heading", "中央民族大学公寓及公费医疗管理规定", block_role="title", title_candidate_score=1.0),
+                _source_row(301, "paragraph", "四、住宿中途申请办理退宿流程"),
+                _source_row(301, "paragraph", "1、本科生特殊情况申请办理退宿手续"),
+                _source_row(301, "paragraph", "学生须经学院审批后办理退宿。"),
+            ],
+            manifest_document=_manifest_document(
+                301,
+                301,
+                title="中央民族大学公寓及公费医疗管理规定",
+                handbook_section="中央民族大学公寓及公费医疗管理规定",
+            ),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        policy_units = [row for row in result.document_units if row["unit_type"] == "policy_page"]
+        self.assertEqual(len(policy_units), 1)
+        self.assertEqual(
+            policy_units[0]["anchor"]["section_path"],
+            ["四、住宿中途申请办理退宿流程", "1、本科生特殊情况申请办理退宿手续"],
+        )
+        self.assertEqual(policy_units[0]["clean_text"], "学生须经学院审批后办理退宿。")
+        self.assertIn("## 四、住宿中途申请办理退宿流程", result.canonical_markdown)
+        self.assertIn("## 1、本科生特殊情况申请办理退宿手续", result.canonical_markdown)
+
+    def test_cleanup_does_not_emit_policy_page_for_appendix_form_title_only(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(
+                    302,
+                    "heading",
+                    "中央民族大学本科生家庭经济困难学生认定管理办法",
+                    block_role="title",
+                    title_candidate_score=1.0,
+                ),
+                _source_row(302, "paragraph", "附件:"),
+                _source_row(302, "paragraph", "《中央民族大学本科生家庭经济困难学生认定申请表》"),
+                _source_row(
+                    302,
+                    "table",
+                    "表格文本",
+                    block_role="table",
+                    table_cells=[
+                        ["姓名", "学院"],
+                        ["张三", "文学院"],
+                    ],
+                ),
+            ],
+            manifest_document=_manifest_document(
+                302,
+                302,
+                title="中央民族大学本科生家庭经济困难学生认定管理办法",
+                handbook_section="中央民族大学学生资助管理规定",
+            ),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        policy_units = [row for row in result.document_units if row["unit_type"] == "policy_page"]
+        self.assertEqual(policy_units, [])
+        table_unit = next(row for row in result.document_units if row["unit_type"] == "table_unit")
+        self.assertEqual(
+            table_unit["anchor"]["section_path"],
+            ["中央民族大学本科生家庭经济困难学生认定申请表"],
+        )
+        self.assertIsNone(table_unit["anchor"].get("table_context"))
+
+    def test_cleanup_does_not_emit_policy_page_for_ancillary_note_line(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(
+                    303,
+                    "heading",
+                    "中央民族大学学院(系)学生基本情况周查月报制度",
+                    block_role="title",
+                    title_candidate_score=1.0,
+                ),
+                _source_row(303, "paragraph", "附件:"),
+                _source_row(303, "paragraph", "1:"),
+                _source_row(303, "paragraph", "党委学生工作部、学生处制表"),
+                _source_row(
+                    303,
+                    "table",
+                    "表格文本",
+                    block_role="table",
+                    table_cells=[
+                        ["学院", "人数"],
+                        ["文学院", "120"],
+                    ],
+                ),
+            ],
+            manifest_document=_manifest_document(
+                303,
+                303,
+                title="中央民族大学学院(系)学生基本情况周查月报制度",
+                handbook_section="中央民族大学学生管理规定",
+            ),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        policy_units = [row for row in result.document_units if row["unit_type"] == "policy_page"]
+        self.assertEqual(policy_units, [])
+        table_unit = next(row for row in result.document_units if row["unit_type"] == "table_unit")
+        self.assertEqual(table_unit["anchor"]["section_path"], ["1:"])
+        self.assertIsNone(table_unit["anchor"].get("table_context"))
 
     def test_cleanup_keeps_chapter_intro_inline_enumerated_sentences_inside_policy_page(self) -> None:
         result = cleanup_handbook_document(

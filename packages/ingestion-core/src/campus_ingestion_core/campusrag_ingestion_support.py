@@ -362,7 +362,15 @@ def collect_import_document_stats(
                     provider_response_key=provider_response_key,
                     canonical_markdown_key=canonical_markdown_key,
                     processed_object_keys=processed_object_keys,
+                    writer=writer,
+                    object_store=object_store,
                 ):
+                    writer.put_bytes(
+                        bucket=object_store.bucket_processed,
+                        key=document_units_key,
+                        data=document_units_bytes,
+                        content_type="application/x-ndjson",
+                    )
                     refreshed_record = _build_registry_record(
                         document_id=document_id,
                         version_id=version_id,
@@ -657,14 +665,39 @@ def _registry_record_needs_refresh(
     provider_response_key: str | None,
     canonical_markdown_key: str | None,
     processed_object_keys: tuple[str, ...],
-    ) -> bool:
+    writer: ObjectStoreWriter,
+    object_store: ObjectStoreSettings,
+) -> bool:
     if existing.document_units_object_key != document_units_key:
         return True
     if existing.provider_response_object_key != provider_response_key:
         return True
     if existing.canonical_markdown_object_key != canonical_markdown_key:
         return True
-    return tuple(existing.processed_object_keys) != processed_object_keys
+    if tuple(existing.processed_object_keys) != processed_object_keys:
+        return True
+    return _missing_processed_object_keys(
+        writer=writer,
+        bucket=object_store.bucket_processed,
+        object_keys=processed_object_keys,
+    )
+
+
+def _missing_processed_object_keys(
+    *,
+    writer: ObjectStoreWriter,
+    bucket: str,
+    object_keys: tuple[str, ...],
+) -> bool:
+    get_bytes = getattr(writer, "get_bytes", None)
+    if not callable(get_bytes):
+        return False
+    for key in object_keys:
+        try:
+            get_bytes(bucket=bucket, key=key)
+        except Exception:
+            return True
+    return False
 
 
 def _group_documents_by_scope(

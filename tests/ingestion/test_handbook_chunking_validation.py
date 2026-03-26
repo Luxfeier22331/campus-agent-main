@@ -5,13 +5,13 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from campus_ingestion_core.chunking import build_student_handbook_chunk_profile
 from campus_ingestion_core.handbook_chunking_validation import (
     export_student_handbook_chunk_samples,
     validate_student_handbook_chunking,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.object_store import build_processed_artifact_key
+from tests.ingestion._handbook_chunking_test_support import build_hermetic_handbook_v3_chunk_profile
 
 
 class _FakeRegistry:
@@ -109,8 +109,402 @@ def _structured_row(*, doc_id: str, version_id: str, unit_type: str, clean_text:
         "acl": {"level": "public", "allow_groups": []},
     }
 
-
 class StudentHandbookChunkingValidationTest(unittest.TestCase):
+    def test_validation_fails_when_chunk_contains_broken_policy_doc_no_linebreak(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            manifest_path = root / "split-manifest.v1.json"
+            record = _registry_record(
+                document_id="handbook:broken-citation-doc",
+                version_id="v1:broken-citation-doc",
+                title="断行制度",
+            )
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "corpus": "regulations",
+                        "collection": "student_handbook",
+                        "raw_asset_id": "asset:test-handbook",
+                        "documents": [
+                            _manifest_document(document_id=record.document_id, title="断行制度"),
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            payload = (
+                json.dumps(
+                    {
+                        **_structured_row(
+                            doc_id=record.document_id,
+                            version_id=record.version_id,
+                            unit_type="article_body",
+                            clean_text="第一条 百分制成绩、成绩等级及学分绩点的对应关系根据《中央民族大学本科学生学籍管理规定》(民大校发\n[2009]89号)规定执行。",
+                            root_unit_id="article-001",
+                        ),
+                        "metadata": {"title": "断行制度"},
+                        "anchor": {
+                            "page_start": 1,
+                            "page_end": 1,
+                            "section_path": ["第一章 总则"],
+                            "article_label": "第一条",
+                        },
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            ).encode("utf-8")
+
+            report = validate_student_handbook_chunking(
+                env={
+                    "OBJECT_STORE_BUCKET_PROCESSED": "campus-rag-processed",
+                    "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                },
+                registry=_FakeRegistry(record),
+                object_store=_FakeObjectStore(
+                    {
+                        ("campus-rag-processed", record.document_units_object_key): payload,
+                    }
+                ),
+                manifest_path=manifest_path,
+                chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
+            )
+
+            self.assertFalse(report.passed)
+            self.assertEqual(report.broken_citation_linebreak_count, 1)
+
+    def test_validation_fails_when_chunk_contains_unclosed_citation_context(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            manifest_path = root / "split-manifest.v1.json"
+            record = _registry_record(
+                document_id="handbook:unclosed-citation-doc",
+                version_id="v1:unclosed-citation-doc",
+                title="未闭合引文制度",
+            )
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "corpus": "regulations",
+                        "collection": "student_handbook",
+                        "raw_asset_id": "asset:test-handbook",
+                        "documents": [
+                            _manifest_document(document_id=record.document_id, title="未闭合引文制度"),
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            payload = (
+                json.dumps(
+                    {
+                        **_structured_row(
+                            doc_id=record.document_id,
+                            version_id=record.version_id,
+                            unit_type="article_body",
+                            clean_text="第一条 为认真贯彻有关精神,根据《中央民族大学关于进一步加强和改进新时期大学生思想政治教育的实施意见》(民大党发〔2009〕41号的精神,特制定本办法。",
+                            root_unit_id="article-001",
+                        ),
+                        "metadata": {"title": "未闭合引文制度"},
+                        "anchor": {
+                            "page_start": 1,
+                            "page_end": 1,
+                            "section_path": ["第一章 总则"],
+                            "article_label": "第一条",
+                        },
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            ).encode("utf-8")
+
+            report = validate_student_handbook_chunking(
+                env={
+                    "OBJECT_STORE_BUCKET_PROCESSED": "campus-rag-processed",
+                    "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                },
+                registry=_FakeRegistry(record),
+                object_store=_FakeObjectStore(
+                    {
+                        ("campus-rag-processed", record.document_units_object_key): payload,
+                    }
+                ),
+                manifest_path=manifest_path,
+                chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
+            )
+
+            self.assertFalse(report.passed)
+            self.assertEqual(report.unclosed_citation_context_count, 1)
+
+    def test_validation_fails_when_chunk_contains_heading_body_glue(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            manifest_path = root / "split-manifest.v1.json"
+            record = _registry_record(
+                document_id="handbook:heading-glue-doc",
+                version_id="v1:heading-glue-doc",
+                title="粘连制度",
+            )
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "corpus": "regulations",
+                        "collection": "student_handbook",
+                        "raw_asset_id": "asset:test-handbook",
+                        "documents": [
+                            _manifest_document(document_id=record.document_id, title="粘连制度"),
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            payload = (
+                json.dumps(
+                    {
+                        **_structured_row(
+                            doc_id=record.document_id,
+                            version_id=record.version_id,
+                            unit_type="article_body",
+                            clean_text="第八条 十佳大学生评选程序\n3. 候选人公示中央民族大学十佳大学生候选人在学生工作部网站公示一周,接受监督。",
+                            root_unit_id="article-001",
+                        ),
+                        "metadata": {"title": "粘连制度"},
+                        "anchor": {
+                            "page_start": 1,
+                            "page_end": 1,
+                            "section_path": ["第三章 评选程序"],
+                            "article_label": "第八条",
+                        },
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            ).encode("utf-8")
+
+            report = validate_student_handbook_chunking(
+                env={
+                    "OBJECT_STORE_BUCKET_PROCESSED": "campus-rag-processed",
+                    "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                },
+                registry=_FakeRegistry(record),
+                object_store=_FakeObjectStore(
+                    {
+                        ("campus-rag-processed", record.document_units_object_key): payload,
+                    }
+                ),
+                manifest_path=manifest_path,
+                chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
+            )
+
+            self.assertFalse(report.passed)
+            self.assertEqual(report.heading_body_glue_count, 1)
+
+    def test_validation_fails_when_article_heading_is_glued_to_body(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            manifest_path = root / "split-manifest.v1.json"
+            record = _registry_record(
+                document_id="handbook:article-heading-glue-doc",
+                version_id="v1:article-heading-glue-doc",
+                title="条文粘连制度",
+            )
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "corpus": "regulations",
+                        "collection": "student_handbook",
+                        "raw_asset_id": "asset:test-handbook",
+                        "documents": [
+                            _manifest_document(document_id=record.document_id, title="条文粘连制度"),
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            payload = (
+                json.dumps(
+                    {
+                        **_structured_row(
+                            doc_id=record.document_id,
+                            version_id=record.version_id,
+                            unit_type="article_body",
+                            clean_text="第十二条 毕业、结业与肄业参加留学项目学生返校后,必须按学校各项要求完成学习任务。",
+                            root_unit_id="article-001",
+                        ),
+                        "metadata": {"title": "条文粘连制度"},
+                        "anchor": {
+                            "page_start": 1,
+                            "page_end": 1,
+                            "section_path": ["第五章 附则"],
+                            "article_label": "第十二条",
+                        },
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            ).encode("utf-8")
+
+            report = validate_student_handbook_chunking(
+                env={
+                    "OBJECT_STORE_BUCKET_PROCESSED": "campus-rag-processed",
+                    "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                },
+                registry=_FakeRegistry(record),
+                object_store=_FakeObjectStore(
+                    {
+                        ("campus-rag-processed", record.document_units_object_key): payload,
+                    }
+                ),
+                manifest_path=manifest_path,
+                chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
+            )
+
+            self.assertFalse(report.passed)
+            self.assertEqual(report.heading_body_glue_count, 1)
+
+    def test_validation_ignores_regular_clause_lines_that_contain_participation_verbs(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            manifest_path = root / "split-manifest.v1.json"
+            record = _registry_record(
+                document_id="handbook:regular-clause-doc",
+                version_id="v1:regular-clause-doc",
+                title="常规条款制度",
+            )
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "corpus": "regulations",
+                        "collection": "student_handbook",
+                        "raw_asset_id": "asset:test-handbook",
+                        "documents": [
+                            _manifest_document(document_id=record.document_id, title="常规条款制度"),
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            payload = (
+                json.dumps(
+                    {
+                        **_structured_row(
+                            doc_id=record.document_id,
+                            version_id=record.version_id,
+                            unit_type="article_body",
+                            clean_text="第七条 评选条件\n(四)积极参加体育锻炼,身心健康;",
+                            root_unit_id="article-001",
+                        ),
+                        "metadata": {"title": "常规条款制度"},
+                        "anchor": {
+                            "page_start": 1,
+                            "page_end": 1,
+                            "section_path": ["第二章 评选条件"],
+                            "article_label": "第七条",
+                        },
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            ).encode("utf-8")
+
+            report = validate_student_handbook_chunking(
+                env={
+                    "OBJECT_STORE_BUCKET_PROCESSED": "campus-rag-processed",
+                    "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                },
+                registry=_FakeRegistry(record),
+                object_store=_FakeObjectStore(
+                    {
+                        ("campus-rag-processed", record.document_units_object_key): payload,
+                    }
+                ),
+                manifest_path=manifest_path,
+                chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
+            )
+
+            self.assertEqual(report.heading_body_glue_count, 0)
+
+    def test_validation_fails_when_chunk_contains_boundary_overlap_duplication(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            manifest_path = root / "split-manifest.v1.json"
+            record = _registry_record(
+                document_id="handbook:overlap-dup-doc",
+                version_id="v1:overlap-dup-doc",
+                title="重复制度",
+            )
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "corpus": "regulations",
+                        "collection": "student_handbook",
+                        "raw_asset_id": "asset:test-handbook",
+                        "documents": [
+                            _manifest_document(document_id=record.document_id, title="重复制度"),
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            payload = (
+                json.dumps(
+                    {
+                        **_structured_row(
+                            doc_id=record.document_id,
+                            version_id=record.version_id,
+                            unit_type="article_body",
+                            clean_text="第十一条 课程、学分与成绩认定\n1. 学生申请学生需要提交境外学校提供的境外课程成绩单原件1份及复印件。",
+                            root_unit_id="article-001",
+                        ),
+                        "metadata": {"title": "重复制度"},
+                        "anchor": {
+                            "page_start": 1,
+                            "page_end": 1,
+                            "section_path": ["第三章 学籍管理"],
+                            "article_label": "第十一条",
+                        },
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            ).encode("utf-8")
+
+            report = validate_student_handbook_chunking(
+                env={
+                    "OBJECT_STORE_BUCKET_PROCESSED": "campus-rag-processed",
+                    "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                },
+                registry=_FakeRegistry(record),
+                object_store=_FakeObjectStore(
+                    {
+                        ("campus-rag-processed", record.document_units_object_key): payload,
+                    }
+                ),
+                manifest_path=manifest_path,
+                chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
+            )
+
+            self.assertFalse(report.passed)
+            self.assertEqual(report.adjacent_overlap_duplication_count, 1)
+
     def test_validation_flags_stale_registry_record_with_missing_document_units(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -166,6 +560,7 @@ class StudentHandbookChunkingValidationTest(unittest.TestCase):
                     }
                 ),
                 manifest_path=manifest_path,
+                chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
             )
 
             self.assertFalse(report.passed)
@@ -233,10 +628,7 @@ class StudentHandbookChunkingValidationTest(unittest.TestCase):
                     }
                 ),
                 manifest_path=manifest_path,
-                chunk_profile=build_student_handbook_chunk_profile(
-                    profile_version="student_handbook_semantic_v3",
-                    model_name="Qwen3-Embedding-4B",
-                ),
+                chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
             )
 
             self.assertTrue(report.passed)
@@ -314,10 +706,7 @@ class StudentHandbookChunkingValidationTest(unittest.TestCase):
                     }
                 ),
                 manifest_path=manifest_path,
-                chunk_profile=build_student_handbook_chunk_profile(
-                    profile_version="student_handbook_semantic_v3",
-                    model_name="Qwen3-Embedding-4B",
-                ),
+                chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
             )
 
             self.assertFalse(report.passed)
@@ -386,10 +775,7 @@ class StudentHandbookChunkingValidationTest(unittest.TestCase):
                     }
                 ),
                 manifest_path=manifest_path,
-                chunk_profile=build_student_handbook_chunk_profile(
-                    profile_version="student_handbook_semantic_v3",
-                    model_name="Qwen3-Embedding-4B",
-                ),
+                chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
             )
 
             self.assertTrue(report.passed)
@@ -652,10 +1038,7 @@ class StudentHandbookChunkingValidationTest(unittest.TestCase):
                 ),
                 object_store=_FakeObjectStore(objects),
                 manifest_path=manifest_path,
-                chunk_profile=build_student_handbook_chunk_profile(
-                    profile_version="student_handbook_semantic_v3",
-                    model_name="Qwen3-Embedding-4B",
-                ),
+                chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
                 sample_seed=7,
             )
 
@@ -744,10 +1127,7 @@ class StudentHandbookChunkingValidationTest(unittest.TestCase):
                     }
                 ),
                 manifest_path=manifest_path,
-                chunk_profile=build_student_handbook_chunk_profile(
-                    profile_version="student_handbook_semantic_v3",
-                    model_name="Qwen3-Embedding-4B",
-                ),
+                chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
             )
 
             self.assertFalse(report.passed)

@@ -19,6 +19,7 @@ from campus_ingestion_worker.process_raw_ingestion_job import (
     OnlineOcrProviderResult,
     process_raw_ingestion_job,
 )
+from tests.ingestion._handbook_chunking_test_support import build_hermetic_handbook_v3_chunk_profile
 
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "student_handbook"
 
@@ -696,6 +697,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                 record=record,
                 object_store=object_store,
                 bucket="campus-rag-processed",
+                chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
             )
 
             self.assertGreaterEqual(len(chunks), 1)

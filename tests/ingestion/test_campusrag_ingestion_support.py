@@ -71,8 +71,9 @@ def _record(
 
 
 class _FakeWriter:
-    def __init__(self) -> None:
+    def __init__(self, *, existing_objects: tuple[tuple[str, str], ...] = ()) -> None:
         self.puts: list[tuple[str, str]] = []
+        self.objects = {key: b"" for key in existing_objects}
 
     def put_bytes(
         self,
@@ -83,6 +84,13 @@ class _FakeWriter:
         content_type: str,
     ) -> None:
         self.puts.append((bucket, key))
+        self.objects[(bucket, key)] = data
+
+    def get_bytes(self, *, bucket: str, key: str) -> bytes:
+        try:
+            return self.objects[(bucket, key)]
+        except KeyError as exc:
+            raise FileNotFoundError(key) from exc
 
 
 class _FakeRawAssetRegistry:
@@ -221,6 +229,44 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             tuple(record.document_id for record in registry.replace_scope_calls[0][2]),
             ("handbook:doc-keep", "handbook:doc-new"),
         )
+
+    def test_collect_import_document_stats_rewrites_missing_processed_artifacts_for_matching_content(self) -> None:
+        document = _document_input(
+            document_id="handbook:doc-a",
+            version_id="v1:doc-a",
+            body='{"type":"paragraph","text":"A"}\n',
+        )
+        content_hash = hashlib.sha256(document.document_units_bytes).hexdigest()
+        existing = _record(
+            document_id="handbook:doc-a",
+            version_id="v1:doc-a",
+            content_hash=content_hash,
+        )
+        registry = _SpyDocumentRegistry(records=(existing,))
+        writer = _FakeWriter()
+
+        stats = collect_import_document_stats(
+            documents=[document],
+            registry=registry,
+            raw_asset_registry=_FakeRawAssetRegistry(),
+            writer=writer,
+            object_store=self.object_store,
+            parser_version="campusrag-import-v1",
+            embedding_model="Qwen3-Embedding-4B",
+            cleaning_policy_version="student_handbook_cleaning_v1",
+            default_campus_scope=None,
+        )
+
+        expected_key = (
+            "regulations/documents/student_handbook/doc-a--doc-a/"
+            "source-faithful/2026/document-units.jsonl"
+        )
+        self.assertEqual(stats.success_count, 0)
+        self.assertEqual(stats.skipped_count, 1)
+        self.assertEqual(stats.updated_document_ids, ())
+        self.assertEqual(stats.skipped_document_ids, ("handbook:doc-a",))
+        self.assertIn((self.object_store.bucket_processed, expected_key), writer.puts)
+        self.assertEqual(len(registry.upsert_many_calls), 1)
 
 
 if __name__ == "__main__":
