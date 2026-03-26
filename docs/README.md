@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-03-22
-updated: 2026-03-25
+updated: 2026-03-26
 ---
 
 # Docs
@@ -57,6 +57,7 @@ updated: 2026-03-25
 - `architecture/cloudflare-runtime-topology.md`
 - `architecture/cloudflare-public-entry-integration-contract.md`
 - `architecture/cloudflare-worker-consumer-entry-access-policy.md`
+- `architecture/public-consumer-chat-surface.md`
 - `architecture/protected-internal-panel-boundary.md`
 - `architecture/protected-panel-runtime-shell.md`
 - `architecture/supervisor-architecture.md`

@@ -89,6 +89,7 @@ Plan: Not started
 - Phase 04.4 inserted after Phase 04.3: Protected Internal Panel Runtime Shell (URGENT)
 - Phase 04.5 inserted after Phase 4: Cloudflare Worker Consumer Entry And Access Policy (URGENT)
 - Phase 04.6 inserted after Phase 4: Cloudflare Worker Runtime Implementation (URGENT)
+- Phase 04.7 inserted after Phase 4: Public Consumer Chat App Design (URGENT)
 - Phase 05.1 inserted after Phase 5: 研究 curriculum 的 chunking 策略 (URGENT)
 
 ### Decisions

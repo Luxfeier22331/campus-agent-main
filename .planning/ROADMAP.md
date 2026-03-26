@@ -107,6 +107,22 @@ Plans:
 - [ ] 04-02: Shape `completed` responses with citations and confidence-driven answer assembly.
 - [ ] 04-03: Implement `needs_clarification`, `no_answer`, and `error` branches for unsafe or insufficient retrieval outcomes.
 
+### Phase 04.7: Public Consumer Chat App Design (INSERTED)
+
+**Goal:** Freeze the first-version public consumer chat app shape, repo boundary, and implementation breakdown so the user-facing product can be built on top of the Worker public-entry seam without reopening panel or Phase 5 ownership questions.
+**Requirements**: []
+**Depends on:** Phase 04.6
+**Success Criteria** (what must be TRUE):
+  1. The repo has a canonical design truth for a chat-first consumer app with sidebar conversation history, a primary chatbox, and app-level user session UX.
+  2. The design makes the app an `apps/*` consumer-facing runtime surface that stays separate from `apps/public-entry-worker`, `apps/supervisor-api`, and `packages/*`.
+  3. The phase produces an implementation-ready breakdown covering app shell, auth/session, conversation ownership, chat interaction, and runtime API seam, while keeping Phase 5 actor/ACL/audit work explicitly deferred.
+  4. The phase explicitly freezes the MVP as authenticated-first and closes the browser-to-answer transport decision for v1 instead of deferring same-site versus cross-origin behavior to later implementation.
+**Plans:** 2 plans
+
+Plans:
+- [ ] 04.7-01-PLAN.md — Freeze the consumer-app boundary handoff for repo shape, routes, states, and ownership splits.
+- [ ] 04.7-02-PLAN.md — Freeze the downstream implementation handoff and build order for app shell, auth/session, conversations, chat UX, and runtime seam.
+
 ### Phase 04.5: Cloudflare Worker Consumer Entry And Access Policy (INSERTED)
 
 **Goal:** Freeze the Cloudflare Worker as the only public consumer-entry shell for the public answer hostname, including authenticated-only and anonymous-enabled entry modes, trusted Worker-to-origin admission, and explicit fail-closed closure of alternate public entrypoints.
@@ -256,7 +272,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 4 → 04.1 → 04.2 → 04.3 → 04.4 → 04.5 → 04.6 → 5 → 05.1 → 6 → 7
+Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 4 → 04.1 → 04.2 → 04.3 → 04.4 → 04.5 → 04.6 → 04.7 → 5 → 05.1 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -271,6 +287,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 4 → 04.1 → 04.2 
 | 04.4. Protected Internal Panel Runtime Shell | 2/2 | Complete   | 2026-03-25 |
 | 04.5. Cloudflare Worker Consumer Entry And Access Policy | 2/2 | Complete   | 2026-03-25 |
 | 04.6. Cloudflare Worker Runtime Implementation | 3/3 | Complete    | 2026-03-25 |
+| 04.7. Public Consumer Chat App Design | 0/2 | Not started | - |
 | 5. Supervisor Entry, ACL, And Audit | 0/3 | Not started | - |
 | 05.1. Curriculum Chunking Strategy | 0/2 | Not started | - |
 | 6. Curriculum Offline Preparation | 0/2 | Not started | - |
