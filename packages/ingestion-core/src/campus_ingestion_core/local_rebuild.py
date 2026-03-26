@@ -98,6 +98,9 @@ class S3ObjectStoreAdmin:
     def __init__(self, settings: ObjectStoreSettings) -> None:
         self._client = S3ObjectStoreClientFactory(settings).create()
 
+    def healthcheck(self, *, bucket: str) -> None:
+        self._client.list_objects_v2(Bucket=bucket, MaxKeys=1)
+
     def delete_prefix(self, *, bucket: str, prefix: str, exclude_keys: tuple[str, ...] = ()) -> None:
         excluded = set(exclude_keys)
         continuation_token: str | None = None

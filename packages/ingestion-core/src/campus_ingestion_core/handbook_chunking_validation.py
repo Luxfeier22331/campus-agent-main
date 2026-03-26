@@ -2,13 +2,17 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import asdict, dataclass
+from concurrent.futures import ThreadPoolExecutor
+import hashlib
 import json
 import math
 import os
 from pathlib import Path
 import random
 import re
-from typing import Protocol, Sequence
+import socket
+from typing import Literal, Protocol, Sequence
+from urllib.parse import urlparse
 
 from campus_ingestion_core.chunking import (
     ChunkProfile,
@@ -25,6 +29,7 @@ from campus_ingestion_core.handbook_cleanup import (
     SHORT_HEADING_WHITELIST,
     _find_boundary_overlap,
     _has_unclosed_citation_context,
+    _looks_like_appendix_leaf_section_heading,
     _split_short_heading_from_body,
 )
 from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
@@ -33,6 +38,7 @@ from campus_ingestion_core.process import build_indexable_chunks_from_jsonl
 from campus_ingestion_core.registry import DocumentRegistry, build_document_registry_from_env
 from campus_ingestion_core.settings import DEFAULT_BUCKET_PROCESSED, ObjectStoreSettings
 from campus_ingestion_core.split_manifest import load_split_manifest
+from campus_ingestion_core.tokenizer_cache import resolve_prefetched_hf_tokenizer_path
 
 
 DEFAULT_HANDBOOK_MANIFEST_PATH = Path("configs/ingestion/regulations/student_handbook/split-manifest.v1.json")
@@ -55,6 +61,8 @@ VALIDATION_LIST_MARKER_RE = re.compile(
 
 class ChunkValidationArtifactReader(Protocol):
     def get_bytes(self, *, bucket: str, key: str) -> bytes: ...
+
+    def healthcheck(self, *, bucket: str) -> None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,14 +146,33 @@ class StudentHandbookChunkSampleCandidate:
     boundary_rules: dict[str, int]
 
 
-def validate_student_handbook_chunking(
+@dataclass(frozen=True, slots=True)
+class StudentHandbookScannedDocument:
+    title: str
+    record: DocumentRegistryRecord
+    rows: tuple[dict[str, object], ...]
+    chunks: tuple[object, ...]
+    read_failure: ChunkValidationFailure | None = None
+    chunk_failure: ChunkValidationFailure | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class StudentHandbookChunkingScanResult:
+    mode: Literal["full", "samples"]
+    inputs: StudentHandbookValidationInputs
+    documents: tuple[StudentHandbookScannedDocument, ...]
+
+
+def scan_student_handbook_chunking(
     *,
     env: dict[str, str] | None = None,
     registry: DocumentRegistry | None = None,
     object_store: ChunkValidationArtifactReader | None = None,
     manifest_path: Path | None = None,
     chunk_profile: ChunkProfile | None = None,
-) -> StudentHandbookChunkingValidationReport:
+    mode: Literal["full", "samples"] = "full",
+    sample_seed: int = 20260325,
+) -> StudentHandbookChunkingScanResult:
     inputs = _build_validation_inputs(
         env=env,
         registry=registry,
@@ -153,8 +180,55 @@ def validate_student_handbook_chunking(
         manifest_path=manifest_path,
         chunk_profile=chunk_profile,
     )
-    runtime_profile = inputs.chunk_profile
+    _ensure_validation_runtime_ready(inputs)
+    cache_dir = _resolve_validation_cache_dir(inputs.source)
+    documents: tuple[StudentHandbookScannedDocument, ...]
+    if mode == "samples":
+        documents = _scan_sample_candidates_only(
+            inputs=inputs,
+            cache_dir=cache_dir,
+            sample_seed=sample_seed,
+        )
+    else:
+        documents = _scan_all_documents(
+            inputs=inputs,
+            cache_dir=cache_dir,
+        )
+    return StudentHandbookChunkingScanResult(
+        mode=mode,
+        inputs=inputs,
+        documents=documents,
+    )
 
+
+def validate_student_handbook_chunking(
+    *,
+    env: dict[str, str] | None = None,
+    registry: DocumentRegistry | None = None,
+    object_store: ChunkValidationArtifactReader | None = None,
+    manifest_path: Path | None = None,
+    chunk_profile: ChunkProfile | None = None,
+    scan_result: StudentHandbookChunkingScanResult | None = None,
+) -> StudentHandbookChunkingValidationReport:
+    runtime_scan = scan_result or scan_student_handbook_chunking(
+        env=env,
+        registry=registry,
+        object_store=object_store,
+        manifest_path=manifest_path,
+        chunk_profile=chunk_profile,
+        mode="full",
+    )
+    return build_student_handbook_chunking_validation_report(scan_result=runtime_scan)
+
+
+def build_student_handbook_chunking_validation_report(
+    *,
+    scan_result: StudentHandbookChunkingScanResult,
+) -> StudentHandbookChunkingValidationReport:
+    if scan_result.mode != "full":
+        raise ValueError("validation report requires a full handbook chunk scan")
+    inputs = scan_result.inputs
+    runtime_profile = inputs.chunk_profile
     read_failures: list[ChunkValidationFailure] = []
     chunk_failures: list[ChunkValidationFailure] = []
     empty_document_ids: list[str] = []
@@ -183,35 +257,16 @@ def validate_student_handbook_chunking(
     header_token_histogram: Counter[str] = Counter()
     display_token_histogram: Counter[str] = Counter()
 
-    for record in inputs.selected_records:
-        title = inputs.manifest_titles.get(record.document_id, record.document_id)
-        if not record.document_units_object_key:
-            read_failures.append(
-                ChunkValidationFailure(
-                    document_id=record.document_id,
-                    title=title,
-                    artifact_key=None,
-                    error="document_units_object_key is missing",
-                )
-            )
+    for document in scan_result.documents:
+        title = document.title
+        record = document.record
+        if document.read_failure is not None:
+            read_failures.append(document.read_failure)
             continue
-        try:
-            structured_jsonl_bytes = inputs.object_store.get_bytes(
-                bucket=inputs.processed_bucket,
-                key=record.document_units_object_key,
-            )
-        except Exception as exc:
-            read_failures.append(
-                ChunkValidationFailure(
-                    document_id=record.document_id,
-                    title=title,
-                    artifact_key=record.document_units_object_key,
-                    error=f"{type(exc).__name__}: {exc}",
-                )
-            )
+        if document.chunk_failure is not None:
+            chunk_failures.append(document.chunk_failure)
             continue
-
-        rows = [json.loads(line) for line in structured_jsonl_bytes.decode("utf-8").splitlines() if line.strip()]
+        rows = list(document.rows)
         total_units += len(rows)
         polluted_section_path_count += sum(1 for row in rows if _has_polluted_section_path(row))
         _collect_structure_stats(
@@ -222,22 +277,7 @@ def validate_student_handbook_chunking(
             oversize_multiline_parent_unit_counts=oversize_multiline_parent_unit_counts,
             structure_eligible_unit_counts=structure_eligible_unit_counts,
         )
-        try:
-            chunks = build_indexable_chunks_from_jsonl(
-                record=record,
-                structured_jsonl_bytes=structured_jsonl_bytes,
-                chunk_profile=runtime_profile,
-            )
-        except Exception as exc:
-            chunk_failures.append(
-                ChunkValidationFailure(
-                    document_id=record.document_id,
-                    title=title,
-                    artifact_key=record.document_units_object_key,
-                    error=f"{type(exc).__name__}: {exc}",
-                )
-            )
-            continue
+        chunks = document.chunks
         if not chunks:
             empty_document_ids.append(record.document_id)
         chunk_counts_per_doc.append(len(chunks))
@@ -362,28 +402,40 @@ def export_student_handbook_chunk_samples(
     manifest_path: Path | None = None,
     chunk_profile: ChunkProfile | None = None,
     report: StudentHandbookChunkingValidationReport | None = None,
+    scan_result: StudentHandbookChunkingScanResult | None = None,
     sample_seed: int = 20260325,
 ) -> Path:
-    inputs = _build_validation_inputs(
+    runtime_scan = scan_result or scan_student_handbook_chunking(
         env=env,
         registry=registry,
         object_store=object_store,
         manifest_path=manifest_path,
         chunk_profile=chunk_profile,
+        mode="full",
+        sample_seed=sample_seed,
     )
+    inputs = runtime_scan.inputs
     runtime_profile = inputs.chunk_profile
-    runtime_report = report or validate_student_handbook_chunking(
-        env=inputs.source,
-        registry=inputs.registry,
-        object_store=inputs.object_store,
-        manifest_path=inputs.manifest_path,
-        chunk_profile=runtime_profile,
-    )
+    runtime_report = report
+    if runtime_report is None and runtime_scan.mode == "full":
+        runtime_report = build_student_handbook_chunking_validation_report(scan_result=runtime_scan)
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
     (output_path / "validation-report.json").write_text(
-        json.dumps(asdict(runtime_report), ensure_ascii=False, indent=2) + "\n",
+        json.dumps(
+            asdict(runtime_report)
+            if runtime_report is not None
+            else {
+                "mode": runtime_scan.mode,
+                "scanned_document_count": len(runtime_scan.documents),
+                "chunk_profile_version": runtime_profile.chunk_policy_version,
+                "tokenizer_name": runtime_profile.tokenizer_name,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
         encoding="utf-8",
     )
 
@@ -393,22 +445,14 @@ def export_student_handbook_chunk_samples(
     final_tokens: list[int] = []
     oversize_chunks: list[dict[str, object]] = []
 
-    for record in inputs.selected_records:
-        title = inputs.manifest_titles.get(record.document_id, record.document_id)
-        if not record.document_units_object_key:
+    for document in runtime_scan.documents:
+        if document.read_failure is not None or document.chunk_failure is not None:
             continue
-        try:
-            structured_jsonl_bytes = inputs.object_store.get_bytes(
-                bucket=inputs.processed_bucket,
-                key=record.document_units_object_key,
-            )
-            rows = tuple(_load_rows(structured_jsonl_bytes))
-            chunks = build_indexable_chunks_from_jsonl(
-                record=record,
-                structured_jsonl_bytes=structured_jsonl_bytes,
-                chunk_profile=runtime_profile,
-            )
-        except Exception:
+        record = document.record
+        title = document.title
+        rows = document.rows
+        chunks = document.chunks
+        if not chunks:
             continue
         split_reasons = Counter(str(chunk.metadata.get("split_reason") or "none") for chunk in chunks)
         unit_types = Counter(str(chunk.metadata.get("unit_type") or "unknown") for chunk in chunks)
@@ -474,23 +518,23 @@ def export_student_handbook_chunk_samples(
     index_lines = [
         "# Chunk Resample Batch",
         "",
-        f"- chunk_profile_version: `{runtime_report.chunk_policy_version}`",
-        f"- tokenizer_name: `{runtime_report.tokenizer_name}`",
-        f"- validation_passed: `{runtime_report.passed}`",
-        f"- total_units: `{runtime_report.total_units}`",
-        f"- total_chunks: `{runtime_report.total_chunks}`",
-        f"- non_table_oversize_chunk_count: `{runtime_report.non_table_oversize_chunk_count}`",
-        f"- header_only_table_chunk_count: `{runtime_report.header_only_table_chunk_count}`",
-        f"- generic_table_label_chunk_count: `{runtime_report.generic_table_label_chunk_count}`",
-        f"- polluted_section_path_count: `{runtime_report.polluted_section_path_count}`",
-        f"- missing_contextualization_count: `{runtime_report.missing_contextualization_count}`",
-        f"- broken_citation_linebreak_count: `{runtime_report.broken_citation_linebreak_count}`",
-        f"- unclosed_citation_context_count: `{runtime_report.unclosed_citation_context_count}`",
-        f"- heading_body_glue_count: `{runtime_report.heading_body_glue_count}`",
-        f"- adjacent_overlap_duplication_count: `{runtime_report.adjacent_overlap_duplication_count}`",
-        f"- tiny_textual_chunk_count: `{runtime_report.tiny_textual_chunk_count}`",
-        f"- header_dominant_chunk_count: `{runtime_report.header_dominant_chunk_count}`",
-        f"- small_unaggregated_chunk_count: `{runtime_report.small_unaggregated_chunk_count}`",
+        f"- chunk_profile_version: `{runtime_report.chunk_policy_version if runtime_report is not None else runtime_profile.chunk_policy_version}`",
+        f"- tokenizer_name: `{runtime_report.tokenizer_name if runtime_report is not None else runtime_profile.tokenizer_name}`",
+        f"- validation_passed: `{runtime_report.passed if runtime_report is not None else 'n/a'}`",
+        f"- total_units: `{runtime_report.total_units if runtime_report is not None else 'n/a'}`",
+        f"- total_chunks: `{runtime_report.total_chunks if runtime_report is not None else 'n/a'}`",
+        f"- non_table_oversize_chunk_count: `{runtime_report.non_table_oversize_chunk_count if runtime_report is not None else 'n/a'}`",
+        f"- header_only_table_chunk_count: `{runtime_report.header_only_table_chunk_count if runtime_report is not None else 'n/a'}`",
+        f"- generic_table_label_chunk_count: `{runtime_report.generic_table_label_chunk_count if runtime_report is not None else 'n/a'}`",
+        f"- polluted_section_path_count: `{runtime_report.polluted_section_path_count if runtime_report is not None else 'n/a'}`",
+        f"- missing_contextualization_count: `{runtime_report.missing_contextualization_count if runtime_report is not None else 'n/a'}`",
+        f"- broken_citation_linebreak_count: `{runtime_report.broken_citation_linebreak_count if runtime_report is not None else 'n/a'}`",
+        f"- unclosed_citation_context_count: `{runtime_report.unclosed_citation_context_count if runtime_report is not None else 'n/a'}`",
+        f"- heading_body_glue_count: `{runtime_report.heading_body_glue_count if runtime_report is not None else 'n/a'}`",
+        f"- adjacent_overlap_duplication_count: `{runtime_report.adjacent_overlap_duplication_count if runtime_report is not None else 'n/a'}`",
+        f"- tiny_textual_chunk_count: `{runtime_report.tiny_textual_chunk_count if runtime_report is not None else 'n/a'}`",
+        f"- header_dominant_chunk_count: `{runtime_report.header_dominant_chunk_count if runtime_report is not None else 'n/a'}`",
+        f"- small_unaggregated_chunk_count: `{runtime_report.small_unaggregated_chunk_count if runtime_report is not None else 'n/a'}`",
         "",
         "## Files",
         "",
@@ -514,6 +558,251 @@ def export_student_handbook_chunk_samples(
         index_lines.append(f"- [{filename}](./{filename}) : {candidate.title} ({bucket_reason})")
     (output_path / "INDEX.md").write_text("\n".join(index_lines).rstrip() + "\n", encoding="utf-8")
     return output_path
+
+
+def _ensure_validation_runtime_ready(inputs: StudentHandbookValidationInputs) -> None:
+    _ensure_object_store_is_reachable(inputs)
+    _ensure_prefetched_tokenizer_is_available(inputs.chunk_profile.tokenizer_name)
+
+
+def _ensure_object_store_is_reachable(inputs: StudentHandbookValidationInputs) -> None:
+    source = inputs.source
+    endpoint = (source.get("OBJECT_STORE_ENDPOINT") or "").strip()
+    if endpoint:
+        parsed = urlparse(endpoint)
+        host = parsed.hostname
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        if host:
+            try:
+                with socket.create_connection((host, port), timeout=1.0):
+                    pass
+            except OSError as exc:
+                raise RuntimeError(
+                    f"Object store endpoint is unreachable: {endpoint} ({type(exc).__name__}: {exc})"
+                ) from exc
+    healthcheck = getattr(inputs.object_store, "healthcheck", None)
+    if callable(healthcheck):
+        healthcheck(bucket=inputs.processed_bucket)
+
+
+def _ensure_prefetched_tokenizer_is_available(tokenizer_name: str) -> None:
+    if not tokenizer_name.startswith("hf:"):
+        return
+    resolve_prefetched_hf_tokenizer_path(tokenizer_name.split(":", 1)[1])
+
+
+def _resolve_validation_workers(source: dict[str, str]) -> int:
+    raw_value = (source.get("HANDBOOK_CHUNK_VALIDATION_WORKERS") or "4").strip()
+    try:
+        return max(1, int(raw_value))
+    except ValueError:
+        return 4
+
+
+def _resolve_validation_cache_dir(source: dict[str, str]) -> Path | None:
+    configured = (source.get("HANDBOOK_VALIDATION_CACHE_DIR") or "").strip()
+    if not configured:
+        return None
+    return Path(configured)
+
+
+def _scan_all_documents(
+    *,
+    inputs: StudentHandbookValidationInputs,
+    cache_dir: Path | None,
+) -> tuple[StudentHandbookScannedDocument, ...]:
+    workers = _resolve_validation_workers(inputs.source)
+    if workers <= 1:
+        return tuple(
+            _scan_single_document(
+                inputs=inputs,
+                record=record,
+                cache_dir=cache_dir,
+            )
+            for record in inputs.selected_records
+        )
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        results = executor.map(
+            lambda record: _scan_single_document(
+                inputs=inputs,
+                record=record,
+                cache_dir=cache_dir,
+            ),
+            inputs.selected_records,
+        )
+        return tuple(results)
+
+
+def _scan_sample_candidates_only(
+    *,
+    inputs: StudentHandbookValidationInputs,
+    cache_dir: Path | None,
+    sample_seed: int,
+) -> tuple[StudentHandbookScannedDocument, ...]:
+    pending_bucket_names = {bucket_name for bucket_name, _ in SAMPLE_BUCKETS}
+    records = list(inputs.selected_records)
+    rng = random.Random(sample_seed)
+    rng.shuffle(records)
+    documents: list[StudentHandbookScannedDocument] = []
+    for record in records:
+        document = _scan_single_document(
+            inputs=inputs,
+            record=record,
+            cache_dir=cache_dir,
+        )
+        documents.append(document)
+        if document.read_failure is not None or document.chunk_failure is not None or not document.chunks:
+            continue
+        candidate = _build_sample_candidate(document)
+        for bucket_name, _ in SAMPLE_BUCKETS:
+            if bucket_name not in pending_bucket_names:
+                continue
+            if _sample_candidate_matches_bucket(candidate, bucket_name=bucket_name):
+                pending_bucket_names.remove(bucket_name)
+        if not pending_bucket_names:
+            break
+    documents.sort(key=lambda document: document.record.document_id)
+    return tuple(documents)
+
+
+def _scan_single_document(
+    *,
+    inputs: StudentHandbookValidationInputs,
+    record: DocumentRegistryRecord,
+    cache_dir: Path | None,
+) -> StudentHandbookScannedDocument:
+    title = inputs.manifest_titles.get(record.document_id, record.document_id)
+    if not record.document_units_object_key:
+        return StudentHandbookScannedDocument(
+            title=title,
+            record=record,
+            rows=(),
+            chunks=(),
+            read_failure=ChunkValidationFailure(
+                document_id=record.document_id,
+                title=title,
+                artifact_key=None,
+                error="document_units_object_key is missing",
+            ),
+        )
+    try:
+        structured_jsonl_bytes = _load_structured_jsonl_bytes(
+            inputs=inputs,
+            record=record,
+            cache_dir=cache_dir,
+        )
+    except Exception as exc:
+        return StudentHandbookScannedDocument(
+            title=title,
+            record=record,
+            rows=(),
+            chunks=(),
+            read_failure=ChunkValidationFailure(
+                document_id=record.document_id,
+                title=title,
+                artifact_key=record.document_units_object_key,
+                error=f"{type(exc).__name__}: {exc}",
+            ),
+        )
+    rows = tuple(_load_rows(structured_jsonl_bytes))
+    try:
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_jsonl_bytes,
+            chunk_profile=inputs.chunk_profile,
+        )
+    except Exception as exc:
+        return StudentHandbookScannedDocument(
+            title=title,
+            record=record,
+            rows=rows,
+            chunks=(),
+            chunk_failure=ChunkValidationFailure(
+                document_id=record.document_id,
+                title=title,
+                artifact_key=record.document_units_object_key,
+                error=f"{type(exc).__name__}: {exc}",
+            ),
+        )
+    return StudentHandbookScannedDocument(
+        title=title,
+        record=record,
+        rows=rows,
+        chunks=chunks,
+    )
+
+
+def _load_structured_jsonl_bytes(
+    *,
+    inputs: StudentHandbookValidationInputs,
+    record: DocumentRegistryRecord,
+    cache_dir: Path | None,
+) -> bytes:
+    if cache_dir is not None:
+        cache_path = _validation_cache_file_path(
+            cache_dir=cache_dir,
+            bucket=inputs.processed_bucket,
+            key=record.document_units_object_key or "",
+            version_id=record.version_id,
+        )
+        if cache_path.exists():
+            return cache_path.read_bytes()
+    payload = inputs.object_store.get_bytes(
+        bucket=inputs.processed_bucket,
+        key=record.document_units_object_key or "",
+    )
+    if cache_dir is not None:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        cache_path.write_bytes(payload)
+    return payload
+
+
+def _validation_cache_file_path(*, cache_dir: Path, bucket: str, key: str, version_id: str) -> Path:
+    suffix = Path(key).name or "document-units.jsonl"
+    digest = hashlib.sha1(f"{bucket}:{key}:{version_id}".encode("utf-8")).hexdigest()
+    return cache_dir / bucket / digest / suffix
+
+
+def _build_sample_candidate(document: StudentHandbookScannedDocument) -> StudentHandbookChunkSampleCandidate:
+    split_reasons = Counter(str(chunk.metadata.get("split_reason") or "none") for chunk in document.chunks)
+    unit_types = Counter(str(chunk.metadata.get("unit_type") or "unknown") for chunk in document.chunks)
+    boundary_rules = Counter(str(chunk.metadata.get("boundary_rule") or "none") for chunk in document.chunks)
+    return StudentHandbookChunkSampleCandidate(
+        title=document.title,
+        document_id=document.record.document_id,
+        record=document.record,
+        rows=document.rows,
+        chunks=document.chunks,
+        split_reasons=dict(split_reasons),
+        unit_types=dict(unit_types),
+        boundary_rules=dict(boundary_rules),
+    )
+
+
+def _sample_candidate_matches_bucket(
+    candidate: StudentHandbookChunkSampleCandidate,
+    *,
+    bucket_name: str,
+) -> bool:
+    if bucket_name == "structure-boundary":
+        return candidate.split_reasons.get("structure_boundary", 0) > 0
+    if bucket_name == "token-guardrail":
+        return candidate.split_reasons.get("token_guardrail", 0) > 0
+    if bucket_name == "table":
+        return any(candidate.unit_types.get(unit_type, 0) > 0 for unit_type in ("table", "table_row", "table_unit"))
+    if bucket_name == "policy-page":
+        return candidate.unit_types.get("policy_page", 0) > 0
+    if bucket_name == "plain-article":
+        return (
+            candidate.unit_types.get("article_body", 0) > 0
+            and candidate.split_reasons.get("structure_boundary", 0) == 0
+            and candidate.split_reasons.get("token_guardrail", 0) == 0
+            and candidate.unit_types.get("policy_page", 0) == 0
+            and candidate.unit_types.get("table", 0) == 0
+            and candidate.unit_types.get("table_row", 0) == 0
+            and candidate.unit_types.get("table_unit", 0) == 0
+        )
+    return False
 
 
 def _resolve_manifest_path(*, source: dict[str, str], manifest_path: Path | None) -> Path:
@@ -840,6 +1129,8 @@ def _has_polluted_section_path(row: dict[str, object]) -> bool:
     clean_text = str(row.get("clean_text") or "").strip()
     if not tail or not clean_text:
         return False
+    if _looks_like_appendix_leaf_section_heading(tail):
+        return True
     return tail == clean_text and tail.endswith(("。", "！", "？", "；"))
 
 
@@ -1103,9 +1394,14 @@ def _extract_validation_heading_body_glue(line: str) -> tuple[str, str] | None:
     split_body = _split_short_heading_from_body(body)
     if split_body is None:
         return None
-    if split_body[0] not in SHORT_HEADING_WHITELIST:
-        return None
-    return split_body
+    heading, remainder = split_body
+    if heading in SHORT_HEADING_WHITELIST:
+        return split_body
+    if remainder.startswith(heading):
+        return split_body
+    if any(remainder.startswith(starter) for starter in ("学校", "学生", "对", "无")):
+        return split_body
+    return None
 
 
 def _detect_inline_overlap_duplication(text: str) -> str:
@@ -1138,8 +1434,12 @@ __all__ = [
     "ChunkValidationArtifactReader",
     "ChunkValidationFailure",
     "DEFAULT_HANDBOOK_MANIFEST_PATH",
+    "StudentHandbookChunkingScanResult",
+    "StudentHandbookScannedDocument",
     "StudentHandbookValidationInputs",
     "StudentHandbookChunkingValidationReport",
+    "build_student_handbook_chunking_validation_report",
     "export_student_handbook_chunk_samples",
+    "scan_student_handbook_chunking",
     "validate_student_handbook_chunking",
 ]
