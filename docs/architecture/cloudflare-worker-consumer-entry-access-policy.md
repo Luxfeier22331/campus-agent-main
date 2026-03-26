@@ -132,7 +132,7 @@ fail-closed 的目标是保证 public entry 不会因为配置缺口而降级成
 
 04.5 明确不解决：
 
-- auth provider 最终选型
+- app-layer actor / ownership 真相
 - `SupervisorRequest.actor`
 - retrieval ACL
 - audit closure

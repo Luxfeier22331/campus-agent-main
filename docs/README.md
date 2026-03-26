@@ -57,6 +57,7 @@ updated: 2026-03-26
 - `architecture/cloudflare-runtime-topology.md`
 - `architecture/cloudflare-public-entry-integration-contract.md`
 - `architecture/cloudflare-worker-consumer-entry-access-policy.md`
+- `architecture/public-consumer-chat-auth-and-data-boundary.md`
 - `architecture/public-consumer-chat-surface.md`
 - `architecture/protected-internal-panel-boundary.md`
 - `architecture/protected-panel-runtime-shell.md`
@@ -69,6 +70,8 @@ updated: 2026-03-26
 - `decisions/adr-0004-evaluation-metrics.md`
 - `decisions/adr-0005-campus-services-taxonomy.md`
 - `decisions/adr-0006-agent-orchestration-and-safety.md`
+- `decisions/adr-0007-public-consumer-auth-and-storage.md`
+- `decisions/adr-0008-public-consumer-frontend-host.md`
 - `plans/agentic-rag-foundation.md`
 - `plans/agent-orchestration-architecture-refresh.md`
 - `plans/golden-dataset-document-delivery.md`

@@ -16,8 +16,10 @@ updated: 2026-03-26
 - Worker-only consumer-entry 与 access posture：`docs/architecture/cloudflare-worker-consumer-entry-access-policy.md`
 - 长期 `apps/*` / `packages/*` 分层：`docs/architecture/long-term-architecture.md`
 - supervisor runtime shell 与 core 分层：`docs/architecture/supervisor-architecture.md`
+- public consumer chat 用户系统与数据边界：`docs/architecture/public-consumer-chat-auth-and-data-boundary.md`
+- public consumer chat 前台宿主决策：`docs/decisions/adr-0008-public-consumer-frontend-host.md`
 
-这份文档也不负责冻结最终 auth provider、Phase 5 actor/ACL/audit 语义，或 panel/operator surface。
+这份文档也不负责冻结 Phase 5 actor/ACL/audit 语义，或 panel/operator surface。
 
 ## 目标
 
@@ -178,7 +180,7 @@ updated: 2026-03-26
 
 同时第一版 consumer app 到 answer path 的浏览器侧 transport 应按 same-site routing 规划；cross-origin 调用如果未来需要，应作为单独显式决策处理，而不是当前 MVP 的默认假设。
 
-当前推荐实现方向是 self-maintained app auth system，例如 Better Auth，但这份文档不把 provider 选型冻结成长期架构承诺。
+当前 app auth 与数据归属的冻结结论见 `docs/architecture/public-consumer-chat-auth-and-data-boundary.md` 与 `docs/decisions/adr-0007-public-consumer-auth-and-storage.md`。
 
 ## Data And Conversation Scope
 
@@ -208,5 +210,5 @@ updated: 2026-03-26
 - 不把 public chat surface 变成 edge orchestrator
 - 不在前台暴露 specialist/runtime/provider 概念
 - 不在 Worker 层拥有 canonical user system 或 retrieval ACL truth
-- 不冻结最终 auth provider、database、frontend framework 或 deployment substrate
+- 不冻结最终 deployment substrate
 - 不新增与 public answer 无关的入口协议或多工具工作台
