@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 03.1-03-PLAN.md
-last_updated: "2026-03-25T08:30:00Z"
+status: unknown
+stopped_at: Completed Phase 04.6 execution
+last_updated: "2026-03-25T15:55:46.952Z"
 progress:
-  total_phases: 9
-  completed_phases: 4
-  total_plans: 11
-  completed_plans: 9
+  total_phases: 15
+  completed_phases: 10
+  total_plans: 25
+  completed_plans: 23
 ---
 
 # Project State
@@ -19,20 +19,18 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-03-25)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 `student_handbook` 的完整 agentic RAG 主流程证明这条架构能可靠替代高频人工答疑
-**Current focus:** Phase 4 — rag-specialist answer path
+**Current focus:** Phase 05.1 — Curriculum Chunking Strategy
 
 ## Current Position
 
-Phase: 4 (rag-specialist answer path) — READY
-Plan: 1 of 3
-Status: Ready to execute 04-01
-Last activity: 2026-03-25 — Completed 03.1-03 doc alignment and deterministic availability smoke coverage
+Phase: 05.1
+Plan: Not started
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 9
+- Total plans completed: 23
 - Average duration: mixed agent-run and inline execution; see per-plan summaries
 - Total execution time: 0.2 hours + 2026-03-24 inline Phase 2/3 execution
 
@@ -43,11 +41,18 @@ Last activity: 2026-03-25 — Completed 03.1-03 doc alignment and deterministic 
 | 01 | 2 | 9 min | 4.5 min |
 | 02 | 2 | inline session | n/a |
 | 03 | 2 | inline session | n/a |
+| 03.1 | 3 | 53 min | 17.7 min |
+| 04.1 | 3 | inline session | n/a |
+| 04.2 | 2 | inline session | n/a |
+| 04.3 | 2 | inline session | n/a |
+| 04.4 | 2 | inline session | n/a |
+| 04.5 | 2 | inline session | n/a |
+| 04.6 | 3 | inline session | n/a |
 
 **Recent Trend:**
 
-- Last 5 plans: 03-01, 03-02, 03.1-01, 03.1-02, 03.1-03
-- Trend: Stable upward
+- Last 5 plans: 04.4-02, 04.5-01, 04.5-02, 04.6-02, 04.6-03
+- Trend: Cloudflare public-entry runtime line is now implemented while the handbook mainline blocker remains unchanged
 
 | Phase 01-contract-and-boundary-guardrails P01 | 4m | 2 tasks | 11 files |
 | Phase 01 P02 | 5 | 2 tasks | 3 files |
@@ -58,12 +63,32 @@ Last activity: 2026-03-25 — Completed 03.1-03 doc alignment and deterministic 
 | Phase 03.1 P01 | 22 min | 2 tasks | 18 files |
 | Phase 03.1 P02 | 12 min | 2 tasks | 11 files |
 | Phase 03.1 P03 | 19 min | 2 tasks | 8 files |
+| Phase 04.1 P01 | inline | 2 tasks | see summary |
+| Phase 04.1 P02 | inline | 2 tasks | see summary |
+| Phase 04.1 P03 | inline | 1 task | see summary |
+| Phase 04.2 P01 | inline | 1 task | 2 files |
+| Phase 04.2 P02 | inline | 1 task | 1 file |
+| Phase 04.3 P01 | inline | 1 task | 2 files |
+| Phase 04.3 P02 | inline | 1 task | 1 file |
+| Phase 04.4 P01 | inline | 1 task | 2 files |
+| Phase 04.4 P02 | inline | 1 task | 1 file |
+| Phase 04.5 P01 | inline | 2 tasks | 3 files |
+| Phase 04.5 P02 | inline | 1 task | 1 file |
+| Phase 04.6 P01 | inline | 2 tasks | 10 files |
+| Phase 04.6 P02 | inline | 1 task | 2 files |
+| Phase 04.6 P03 | inline | 1 task | 4 files |
 
 ## Accumulated Context
 
 ### Roadmap Evolution
 
 - Phase 03.1 inserted after Phase 3: Availability Specialist 最小闭环 (URGENT)
+- Phase 04.1 inserted after Phase 4: Cloudflare Entry And Protected Internal Panel Design (URGENT)
+- Phase 04.2 inserted after Phase 04.1: Cloudflare Runtime Topology And Delivery Shape (URGENT)
+- Phase 04.3 inserted after Phase 04.2: Public Entry Edge Integration Contract (URGENT)
+- Phase 04.4 inserted after Phase 04.3: Protected Internal Panel Runtime Shell (URGENT)
+- Phase 04.5 inserted after Phase 4: Cloudflare Worker Consumer Entry And Access Policy (URGENT)
+- Phase 04.6 inserted after Phase 4: Cloudflare Worker Runtime Implementation (URGENT)
 - Phase 05.1 inserted after Phase 5: 研究 curriculum 的 chunking 策略 (URGENT)
 
 ### Decisions
@@ -92,19 +117,32 @@ Recent decisions affecting current work:
 - [Current correction]: `/api/v1/answer` now constructs a supervisor-facing request contract instead of hardcoding a rag-specialist handoff. — This restores the external-entry/internal-handoff boundary and keeps specialist selection inside supervisor-core.
 - [Current correction]: Supervisor-core now fail-closes conflicting routing input, enforces query-enabled scope policy in code, and emits stable supervisor error taxonomy plus richer audit route fields. — This removes remaining rag-default hidden assumptions from the supervisor entry chain without pushing policy back into the API shell.
 - [Phase 03.1]: The repo now has a deterministic availability smoke proof that exercises the real default supervisor path with `httpx.MockTransport`. — This satisfies the eval gate for introducing the non-RAG specialist boundary.
+- [Phase 04.1]: Cloudflare public entry is now frozen as an edge/runtime boundary in front of `apps/supervisor-api`, while public entry and protected internal panel are explicitly split into two surfaces. — This prevents Cloudflare work from drifting into edge orchestration or package-boundary changes.
+- [Phase 04.1]: Protected panel work is now constrained to a future `apps/` runtime surface with `panel -> runtime APIs only`, and Cloudflare access identity is explicitly separated from `SupervisorRequest.actor`, retrieval ACL, and audit ownership. — This keeps Phase 5 focused on app-layer actor/ACL/audit closure instead of reopening edge-boundary design.
+- [Current planning decision]: Because handbook chunk-truth work is still blocking the mainline, Cloudflare follow-up is expanded into inserted phases 04.2, 04.3, and 04.4. — These phases stay strictly at edge/runtime/panel-shell level and remain forbidden from reopening `packages/*` boundaries or Phase 5 application-layer ownership.
+- [Phase 04.2]: Runtime topology is now frozen as public hostname -> `apps/supervisor-api` origin and protected hostname -> separate future `apps/` panel origin, with rollback defined by surface/origin boundary. — This gives later Cloudflare work a stable delivery topology without collapsing app boundaries.
+- [Phase 04.2]: Delivery ownership for hostname, secrets/config, health/readiness, origin route, and rollback is now explicitly handed off to 04.3/04.4 planning. — This keeps edge/runtime delivery work separate from Phase 5 actor, ACL, and audit ownership.
+- [Phase 04.3]: Public entry is now frozen as a Cloudflare-to-`apps/supervisor-api` runtime integration contract covering forwarding, trace/request-id propagation, cache/body-size posture, timeout/streaming assumptions, and runtime-seam health. — This keeps ingress implementation details out of `packages/*` and separate from Phase 5 actor/ACL/audit work.
+- [Phase 04.4]: Protected panel is now frozen as a future `apps/` runtime shell with `panel -> runtime APIs only`, explicit fail-closed assumptions, and a no-`packages/*` / no-hidden-admin rule. — This closes the panel-shell design line without dragging UI, business workflow, or governance closure into the current phase.
+- [Phase 04.5]: Public answer access policy is now frozen as `public hostname -> Cloudflare Route -> Cloudflare Worker -> trusted origin/apps/supervisor-api`, with only `authenticated-only` and explicit-flag `anonymous-enabled` modes. — This keeps Worker access policy at the runtime seam and out of `packages/*`.
+- [Phase 04.5]: Worker-side Access JWT validation, `X-Worker-Origin-Auth` trust projection, and `workers_dev = false` / `preview_urls = false` closure are now explicit downstream implementation rules. — This prevents public-entry bypass while keeping Phase 5 actor/ACL/audit ownership deferred.
+- [Phase 04.6]: A real `apps/public-entry-worker` runtime shell now fronts the public answer path with Route-based config, explicit entry-mode gating, and allowlisted origin forwarding. — This turns the 04.x Cloudflare line from design truth into runnable runtime code without leaking provider semantics into `packages/*`.
+- [Phase 04.6]: `apps/supervisor-api` now supports `trusted-worker` origin auth and runtime-owned actor context. — This closes the Worker-to-origin seam while still deferring app-layer actor, ACL, and audit closure to Phase 5.
 
 ### Pending Todos
 
-- Execute Phase 4 plans 01-03.
 - Keep handbook chunk-truth validation tracked separately so the completed availability work does not get mistaken for the `student_handbook` mainline.
+- Resume the blocked `student_handbook` mainline only after chunk-truth stabilization is explicitly re-confirmed.
 
 ### Blockers/Concerns
 
 - Handbook chunk-truth validation remains the blocker for later `student_handbook` run-through work.
-- Phase 4 retrieval/answer-path work should consume the generalized specialist boundary directly instead of reintroducing rag-only assumptions into shared docs or tests.
+- Phase 4 retrieval/answer-path work is still blocked by unresolved handbook chunk-truth stabilization.
+- Cloudflare 04.x boundary/topology/contract/shell docs are now complete; any follow-up must stay as downstream implementation against those frozen docs, not as renewed architecture churn.
+- Phase 5 should consume the explicit 04.1 handoff instead of re-opening Cloudflare entry/panel boundary questions or pushing access-provider concerns into `packages/*`.
 
 ## Session Continuity
 
-Last session: 2026-03-25T04:07:21Z
-Stopped at: Completed 03.1-03-PLAN.md
+Last session: 2026-03-25T14:19:16Z
+Stopped at: Completed 04.5-02-PLAN.md
 Resume file: None

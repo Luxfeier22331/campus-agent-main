@@ -34,8 +34,8 @@ Requirements for the initial phase-1 release. Each requirement will map to exact
 
 ### Edge Runtime
 
-- [ ] **EDGE-01**: Public answer traffic enters through a Route-based Cloudflare Worker runtime under `apps/*` that fronts `apps/supervisor-api` without bypassing supervisor or pushing provider semantics into `packages/*`
-- [ ] **EDGE-02**: Worker entry mode, Worker-to-origin trust, and alternate public-entry closure (`workers.dev`, preview URLs, and direct origin admission) remain explicit and fail-closed for the public answer path
+- [x] **EDGE-01**: Public answer traffic enters through a Route-based Cloudflare Worker runtime under `apps/*` that fronts `apps/supervisor-api` without bypassing supervisor or pushing provider semantics into `packages/*`
+- [x] **EDGE-02**: Worker entry mode, Worker-to-origin trust, and alternate public-entry closure (`workers.dev`, preview URLs, and direct origin admission) remain explicit and fail-closed for the public answer path
 
 ### Specialist Expansion
 
@@ -95,8 +95,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | GOV-01 | Phase 5 | Pending |
 | GOV-02 | Phase 5 | Pending |
 | GOV-03 | Phase 1 | Complete |
-| EDGE-01 | Phase 04.6 | Pending |
-| EDGE-02 | Phase 04.6 | Pending |
+| EDGE-01 | Phase 04.6 | Complete |
+| EDGE-02 | Phase 04.6 | Complete |
 | AORC-03 | Phase 03.1 | Pending |
 | VER-01 | Phase 7 | Pending |
 | VER-02 | Phase 7 | Pending |
@@ -108,4 +108,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-23*
-*Last updated: 2026-03-25 after promoting AORC-03 into current execution scope*
+*Last updated: 2026-03-25 after completing Phase 04.6 Worker runtime implementation*

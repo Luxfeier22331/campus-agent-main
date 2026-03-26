@@ -250,6 +250,91 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.json_body["error"]["code"], "unauthorized")
 
+    def test_answer_route_accepts_trusted_worker_origin_auth(self) -> None:
+        captured_requests: list[SupervisorRequest] = []
+
+        def fake_supervisor(request: SupervisorRequest) -> SpecialistResponse:
+            captured_requests.append(request)
+            return SpecialistResponse(
+                target="rag-specialist",
+                status="completed",
+                answer_text="Worker path reached supervisor.",
+                confidence="high",
+            )
+
+        app = create_app(
+            settings=ApiSettings(
+                auth_mode="trusted-worker",
+                worker_shared_secret="worker-secret",
+                worker_actor_id="public-entry-worker",
+                default_actor_groups=("public-entry",),
+                default_actor_roles=("runtime",),
+                default_campus_scope="north",
+            ),
+            supervisor_handler=fake_supervisor,
+        )
+
+        response = app.handle(
+            "POST",
+            "/api/v1/answer",
+            headers={
+                "x-worker-origin-auth": "worker-secret",
+                "x-actor-id": "spoofed-user",
+                "x-actor-groups": "spoofed-group",
+                "x-actor-roles": "spoofed-role",
+                "x-campus-scope": "spoofed-scope",
+            },
+            json_body={
+                "user_goal": "library hours",
+                "requested_scope": {
+                    "corpus": "regulations",
+                    "collection": "student_handbook",
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(captured_requests[0].actor.user_id, "public-entry-worker")
+        self.assertEqual(captured_requests[0].actor.groups, ("public-entry",))
+        self.assertEqual(captured_requests[0].actor.roles, ("runtime",))
+        self.assertEqual(captured_requests[0].actor.campus_scope, "north")
+
+    def test_answer_route_rejects_missing_trusted_worker_secret(self) -> None:
+        app = create_app(
+            settings=ApiSettings(
+                auth_mode="trusted-worker",
+                worker_shared_secret="worker-secret",
+            )
+        )
+
+        response = app.handle(
+            "POST",
+            "/api/v1/answer",
+            headers={},
+            json_body={"user_goal": "library hours"},
+        )
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json_body["error"]["code"], "unauthorized")
+
+    def test_answer_route_rejects_invalid_trusted_worker_secret(self) -> None:
+        app = create_app(
+            settings=ApiSettings(
+                auth_mode="trusted-worker",
+                worker_shared_secret="worker-secret",
+            )
+        )
+
+        response = app.handle(
+            "POST",
+            "/api/v1/answer",
+            headers={"x-worker-origin-auth": "wrong-secret"},
+            json_body={"user_goal": "library hours"},
+        )
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json_body["error"]["code"], "unauthorized")
+
     def test_answer_route_returns_400_for_conflicting_supervisor_inputs(self) -> None:
         app = create_app(
             settings=ApiSettings(
@@ -346,8 +431,10 @@ class SupervisorApiTest(unittest.TestCase):
     def test_api_settings_from_env_reads_api_boundary_defaults(self) -> None:
         env = {
             "CAMPUS_AGENT_APP_NAME": "campus-agent-test",
-            "API_AUTH_MODE": "bearer",
+            "API_AUTH_MODE": "trusted-worker",
             "API_BEARER_TOKEN": "secret-token",
+            "API_WORKER_SHARED_SECRET": "worker-secret",
+            "API_WORKER_ACTOR_ID": "public-entry-worker",
             "AGENT_RUNTIME_PROVIDER": "agent-os",
             "API_DEFAULT_ACTOR_GROUPS": "students,library",
             "API_DEFAULT_ACTOR_ROLES": "student",
@@ -361,8 +448,10 @@ class SupervisorApiTest(unittest.TestCase):
             settings = ApiSettings.from_env()
 
         self.assertEqual(settings.app_name, "campus-agent-test")
-        self.assertEqual(settings.auth_mode, "bearer")
+        self.assertEqual(settings.auth_mode, "trusted-worker")
         self.assertEqual(settings.bearer_token, "secret-token")
+        self.assertEqual(settings.worker_shared_secret, "worker-secret")
+        self.assertEqual(settings.worker_actor_id, "public-entry-worker")
         self.assertEqual(settings.runtime_provider, "agent-os")
         self.assertEqual(settings.default_actor_groups, ("students", "library"))
         self.assertEqual(settings.default_actor_roles, ("student",))

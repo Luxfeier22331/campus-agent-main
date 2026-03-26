@@ -1,0 +1,6 @@
+ORIGIN_BASE_URL=https://supervisor.internal
+ORIGIN_SHARED_SECRET=
+ENTRY_MODE=authenticated-only
+WORKER_ALLOW_ANONYMOUS=false
+ACCESS_TEAM_DOMAIN=https://team.cloudflareaccess.com
+ACCESS_POLICY_AUD=

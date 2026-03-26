@@ -1,0 +1,9 @@
+name = "public-entry-worker"
+main = "src/index.ts"
+compatibility_date = "2026-03-17"
+workers_dev = false
+preview_urls = false
+
+routes = [
+  { pattern = "answer.example.com/*", zone_name = "example.com" }
+]
