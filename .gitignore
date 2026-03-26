@@ -13,3 +13,5 @@ tmp.md
 var/
 .worktrees/
 .cache/
+node_modules/
+.wrangler-home/
