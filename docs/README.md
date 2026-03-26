@@ -53,6 +53,12 @@ updated: 2026-03-25
 
 - `architecture/long-term-architecture.md`
 - `architecture/phase1-ingestion-and-storage-architecture.md`
+- `architecture/cloudflare-public-entry-boundary.md`
+- `architecture/cloudflare-runtime-topology.md`
+- `architecture/cloudflare-public-entry-integration-contract.md`
+- `architecture/cloudflare-worker-consumer-entry-access-policy.md`
+- `architecture/protected-internal-panel-boundary.md`
+- `architecture/protected-panel-runtime-shell.md`
 - `architecture/supervisor-architecture.md`
 - `architecture/student-handbook-chunking-and-validation-policy.md`
 - `architecture/student-handbook-ocr-normalization-strategy.md`
