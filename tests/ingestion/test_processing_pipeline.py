@@ -1070,5 +1070,115 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertIn("\n\n四、本办法由学生工作部(处)负责解释。", chunk.metadata["display_text"])
         self.assertNotIn("三、学生课堂秩序管理 12、", chunk.text)
 
+    def test_build_indexable_chunks_does_not_merge_policy_procedure_block_with_closing_provisions(self) -> None:
+        record = _make_registry_record()
+        metadata = {
+            "title": "中央民族大学全日制本科学生学士学位授予规定",
+            "policy_doc_no": "民大校发[2009]90号",
+        }
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id="legacy-030",
+                        unit_type="policy_page",
+                        root_unit_id="policy-030",
+                        clean_text="\n".join(
+                            [
+                                "1. 学生本人提出申请,填报学士学位申请表。",
+                                "2. 院(系)学位委员会对提出申请授予学士学位的学生进行审核,提出建议授予学士学位名单和不授予学士学位名单。",
+                                "3. 教务处审核全部学生材料并负责向校学位委员会提出召开学士学位评定委员会会议。",
+                                "4. 校学位委员会审查通过获得学士学位的学生名单。",
+                            ]
+                        ),
+                        anchor={
+                            "section_path": ["三、学士学位授予程序"],
+                            "page_start": 3,
+                            "page_end": 3,
+                        },
+                        metadata=metadata,
+                    ),
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id="legacy-031",
+                        unit_type="policy_page",
+                        root_unit_id="policy-031",
+                        clean_text="四、学士学位证书遗失不予补发。如遗失或者损坏,经本人申请,学校核实后出具相应的证明书。证明书与原证书具有同等效力。",
+                        anchor={
+                            "section_path": ["三、学士学位授予程序"],
+                            "provision_label": "四",
+                            "page_start": 3,
+                            "page_end": 3,
+                        },
+                        metadata=metadata,
+                    ),
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id="legacy-032",
+                        unit_type="policy_page",
+                        root_unit_id="policy-032",
+                        clean_text="五、本规定自2009年3月17日起实施。",
+                        anchor={
+                            "section_path": ["三、学士学位授予程序"],
+                            "provision_label": "五",
+                            "page_start": 3,
+                            "page_end": 3,
+                        },
+                        metadata=metadata,
+                    ),
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id="legacy-033",
+                        unit_type="policy_page",
+                        root_unit_id="policy-033",
+                        clean_text="六、本规定由教务处负责解释。",
+                        anchor={
+                            "section_path": ["三、学士学位授予程序"],
+                            "provision_label": "六",
+                            "page_start": 3,
+                            "page_end": 3,
+                        },
+                        metadata=metadata,
+                    ),
+                    ensure_ascii=False,
+                ),
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=ChunkProfile(
+                chunk_size=128,
+                max_chunk_size=512,
+                chunk_overlap=16,
+                min_chunk_size=32,
+                final_text_aware=True,
+                safety_margin=16,
+            ),
+        )
+
+        self.assertEqual(len(chunks), 2)
+        self.assertNotIn("四、学士学位证书遗失不予补发", chunks[0].metadata["display_text"])
+        self.assertEqual(chunks[1].anchor["provision_label"], "四-六")
+        self.assertEqual(chunks[1].metadata["aggregation_mode"], "adjacent_short_textual_units")
+        self.assertIn("四、学士学位证书遗失不予补发", chunks[1].metadata["display_text"])
+        self.assertIn("五、本规定自2009年3月17日起实施。", chunks[1].metadata["display_text"])
+        self.assertIn("六、本规定由教务处负责解释。", chunks[1].metadata["display_text"])
+
 if __name__ == "__main__":
     unittest.main()

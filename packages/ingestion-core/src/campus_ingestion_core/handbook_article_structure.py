@@ -16,7 +16,12 @@ INLINE_LIST_MARKER_RE = re.compile(
 HEADING_TEXT_RE = re.compile(r"^[\u4e00-\u9fff0-9、与及和\-\(\)（）.．%％]{1,32}$")
 HEADING_SUFFIXES = (
     "公示",
+    "复审",
+    "初审",
     "审核",
+    "推荐",
+    "初选",
+    "评选",
     "方式",
     "手续",
     "认定",
@@ -80,9 +85,13 @@ INLINE_HEADING_ALLOWLIST = {
 }
 INLINE_HEADING_BODY_STARTERS = (
     "中央民族大学",
+    "党委学生工作部、学生处",
+    "国家民族事务委员会",
     "学生需要",
+    "学生工作部",
     "学校将",
     "学校",
+    "学院(系)",
     "各院系",
     "教务处",
     "国际合作处",
@@ -215,6 +224,8 @@ def _split_inline_heading_body(body: str) -> tuple[str, str] | None:
         return None
     for starter in INLINE_HEADING_BODY_STARTERS:
         marker_index = normalized.find(starter)
+        if marker_index == 0:
+            marker_index = normalized.find(starter, len(starter))
         if marker_index <= 0:
             continue
         heading = normalized[:marker_index].strip()

@@ -21,8 +21,9 @@ ENUMERATED_HEADING_RE = re.compile(
 PAREN_ENUMERATED_HEADING_RE = re.compile(
     r"^(?P<label>[（(][一二三四五六七八九十百千万〇零两0-9]+[)）])\s*(?P<rest>.+)$"
 )
-SENTENCE_PUNCTUATION_RE = re.compile(r"[。！？；]")
+SENTENCE_PUNCTUATION_RE = re.compile(r"[。！？；;!?]")
 MAX_ENUMERATED_HEADING_LENGTH = 24
+HEADING_INCOMPLETE_TAIL_CHARS = ("和", "与", "及", "或", "并")
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,9 +114,11 @@ def _looks_like_heading_title(rest: str, *, full_text: str) -> bool:
         return False
     if len(full_text) > MAX_ENUMERATED_HEADING_LENGTH:
         return False
+    if normalized_rest.endswith(HEADING_INCOMPLETE_TAIL_CHARS):
+        return False
     if SENTENCE_PUNCTUATION_RE.search(full_text):
         return False
-    if "，" in full_text:
+    if "，" in full_text or "," in full_text:
         return False
     return True
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import json
+import re
 from typing import Iterable, Protocol, Sequence
 import uuid
 
@@ -28,6 +29,8 @@ from campus_ingestion_core.chunking import (
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.curriculum_chunk_units import build_curriculum_structured_units, chunk_curriculum_unit
 from campus_ingestion_core.models import DocumentRegistryRecord
+
+_NESTED_NUMBERED_LINE_RE = re.compile(r"^(?:[0-9]+[.、]|[（(][一二三四五六七八九十百千万〇零两0-9]+[)）])")
 
 
 class ProcessArtifactReader(Protocol):
@@ -425,12 +428,41 @@ def _short_textual_candidates_are_compatible(
         return False
     if current.acl_level != incoming.acl_level:
         return False
+    if current.unit_type == "policy_page" and _policy_page_label_shape_conflicts(current=current, incoming=incoming):
+        return False
     if not _short_textual_section_paths_are_compatible(current=current, incoming=incoming):
         return False
     for field_name in ("title", "policy_doc_no"):
         if current.metadata.get(field_name) != incoming.metadata.get(field_name):
             return False
     return True
+
+
+def _policy_page_label_shape_conflicts(
+    *,
+    current: _ChunkCandidate,
+    incoming: _ChunkCandidate,
+) -> bool:
+    current_has_label = _candidate_has_explicit_member_label(current)
+    incoming_has_label = _candidate_has_explicit_member_label(incoming)
+    if current_has_label == incoming_has_label:
+        return False
+    unlabeled = current if not current_has_label else incoming
+    labeled = incoming if unlabeled is current else current
+    if _normalize_anchor_label(labeled.anchor, "provision_label") is None:
+        return False
+    return _candidate_contains_nested_numbered_items(unlabeled)
+
+
+def _candidate_contains_nested_numbered_items(candidate: _ChunkCandidate) -> bool:
+    match_count = 0
+    for member in candidate.members:
+        for line in member.piece.text.splitlines():
+            if _NESTED_NUMBERED_LINE_RE.match(line.strip()):
+                match_count += 1
+                if match_count >= 2:
+                    return True
+    return False
 
 
 def _short_textual_section_paths_are_compatible(

@@ -30,6 +30,9 @@ TOP_LEVEL_ENUMERATED_RE = re.compile(r"^(?:[（(][一二三四五六七八九十
 INLINE_LIST_MARKER_RE = re.compile(
     r"^(?P<label>(?:[0-9]+[.、]|[（(][一二三四五六七八九十百千万〇零两0-9]+[)）]))\s*(?P<body>.+)$"
 )
+INLINE_OCR_REFERENCE_MARKER_RE = re.compile(
+    r"(?:(?<=^)|(?<=[\u4e00-\u9fff0-9,，;；:：、()（）]))\[(?:0|[1-9]\d?)\](?=$|[\u4e00-\u9fffA-Za-z0-9(（])"
+)
 STRUCTURAL_LINE_RE = re.compile(
     r"^(?:第\s*[0-9一二三四五六七八九十百千万〇零两]+\s*条|第[一二三四五六七八九十百千万〇零两0-9]+部分|"
     r"第[一二三四五六七八九十百千万〇零两]+[章节编]|[一二三四五六七八九十百千万〇零两]+、|"
@@ -64,11 +67,16 @@ TERMINAL_PROVISION_KEYWORDS = (
     "另行通知",
     "同时废止",
 )
+DATED_EFFECTIVE_CLAUSE_RE = re.compile(
+    r"^(?:本办法|本规定|本细则|本制度|本通知).{0,24}自\d{4}年\d{1,2}月\d{1,2}日起(?:开始)?(?:实施|施行|执行)[。；]?$"
+)
 GENERIC_TABLE_PROJECT_LABEL = "项目"
 FORM_TABLE_CAPTION_KEYWORDS = ("申请表", "审批表", "登记表", "备案表", "信息表")
 FORM_TABLE_FIELD_KEYWORDS = (
     "本人情况",
+    "学生本人基本情况",
     "家庭经济情况",
+    "家庭经济详细情况",
     "家庭住址",
     "身份证号码",
     "政治面貌",
@@ -81,7 +89,29 @@ FORM_TABLE_FIELD_KEYWORDS = (
     "收入来源",
     "工作单位及职务",
     "火车到站站名",
+    "民主评议",
+    "推荐档次",
+    "认定决定",
+    "认定结果",
+    "户口类型",
+    "认定理由",
+    "学生陈述申请认定理由",
+    "本人联系电话",
+    "家庭人均年收入",
 )
+FORM_TABLE_SECTION_KEYWORDS = (
+    "学生本人基本情况",
+    "家庭经济情况",
+    "学生陈述申请认定理由",
+    "民主评议",
+    "认定决定",
+    "认定结果",
+    "报送日期",
+    "本人联系电话",
+    "家庭经济详细情况",
+)
+FORM_TABLE_SIGNATURE_KEYWORDS = ("签字", "签章", "盖章", "报送日期", "联系电话")
+FORM_TABLE_CHECKBOX_MARKERS = ("☐", "□", "■", "✓", "√")
 DECORATIVE_TABLE_KEYWORDS = (
     "照片",
     "骑缝章",
@@ -93,6 +123,10 @@ SHORT_HEADING_BODY_STARTERS = (
     "中央民族大学",
     "学生需要",
     "参加",
+    "学校",
+    "学生",
+    "对退役",
+    "无",
 )
 SHORT_HEADING_FORBIDDEN_FRAGMENTS = (
     "在",
@@ -115,6 +149,10 @@ SHORT_HEADING_FORBIDDEN_FRAGMENTS = (
     "审核",
     "确定",
     "通知",
+    "采用",
+    "掌握",
+    "遵守",
+    "受到",
 )
 SHORT_HEADING_PREFIX_RE = re.compile(r"^[\u4e00-\u9fff、与及和\-]{2,12}$")
 CITATION_CONTINUATION_START_CHARS = {"[", "〔", "(", "（", "《", "“", "‘", '"', "'"}
@@ -125,13 +163,52 @@ SHORT_HEADING_WHITELIST = {
     "报名审核",
     "公示",
 }
+SHORT_HEADING_SEMANTIC_SUFFIXES = (
+    "申请",
+    "审核",
+    "初评",
+    "公示",
+    "报名",
+    "认定",
+    "考核",
+    "名单",
+    "方式",
+    "要求",
+    "条件",
+    "原则",
+    "标准",
+    "程序",
+    "步骤",
+    "时间",
+    "结果",
+    "办法",
+    "流程",
+    "管理",
+    "处理",
+    "分配",
+    "实施",
+    "说明",
+    "理由",
+    "意见",
+    "助学",
+    "奖学金",
+    "减免",
+    "留学",
+    "注册",
+    "资助",
+    "服务",
+    "选拔",
+    "通知",
+)
 NOTE_LINE_PREFIXES = ("备注:", "备注：", "注:", "注：")
 BODY_SENTENCE_STARTERS = (
     "一般",
     "兹证明",
     "原则",
     "学生",
+    "各院系",
     "学校",
+    "用于",
     "院系",
     "教务处",
     "学院",
@@ -158,6 +235,7 @@ DOC_NO_PARENTHESES_REPAIR_RE = re.compile(
     r"(?P<suffix>[的并和及，。；、])"
 )
 APPENDIX_MARKERS = ("附件", "附表", "附录")
+SOFT_WRAP_CONTINUATION_CHARS = frozenset({"、", "，", ","})
 APPENDIX_INLINE_TITLE_SUFFIXES = ("证明", "申请表", "审批表", "登记表", "备案表", "信息表")
 ATTACHMENT_TITLE_SUFFIXES = APPENDIX_INLINE_TITLE_SUFFIXES + ("统计表", "调查表", "汇总表", "明细表")
 NAVIGATION_SECTION_KEYWORDS = ("流程", "程序", "步骤")
@@ -171,6 +249,7 @@ NAVIGATION_LEAF_FORBIDDEN_FRAGMENTS = (
     "根据",
     "按照",
 )
+LEAF_SECTION_PUNCTUATION_RE = re.compile(r"[，,。；;：:！？!?]")
 
 
 @dataclass(frozen=True, slots=True)
@@ -367,6 +446,8 @@ def _should_merge_broken_line(previous: str, current: str) -> bool:
         return False
     previous_tail = previous[-1]
     current_head = current[0]
+    if previous_tail in SOFT_WRAP_CONTINUATION_CHARS and _is_sentence_char(current_head):
+        return True
     if not (_is_sentence_char(previous_tail) and _is_sentence_char(current_head)):
         return False
     return True
@@ -385,10 +466,14 @@ def _should_merge_article_soft_wrap(previous: str, current: str) -> bool:
         return True
     if _looks_like_article_structure_line(normalized_current):
         return False
+    if _looks_like_intended_structural_split(normalized_previous, normalized_current):
+        return False
     if _looks_like_heading_note_boundary(normalized_previous, normalized_current):
         return False
     if normalized_previous.endswith(("。", "！", "？", "；", "：", ":")):
         return False
+    if normalized_previous[-1] in SOFT_WRAP_CONTINUATION_CHARS and _is_sentence_char(normalized_current[0]):
+        return True
     if not (_is_sentence_char(normalized_previous[-1]) and _is_sentence_char(normalized_current[0])):
         return False
     if len(normalized_previous) <= 2:
@@ -408,13 +493,34 @@ def _looks_like_article_structure_line(text: str) -> bool:
 
 
 def _looks_like_intended_structural_split(previous: str, current: str) -> bool:
-    normalized_previous = _normalize_body_fragment(previous)
+    normalized_previous = _heading_fragment_candidate(previous)
     normalized_current = _normalize_body_fragment(current)
     if not normalized_previous or not normalized_current:
         return False
+    if len(normalized_current) < 8:
+        return False
     if not _is_short_heading_fragment(normalized_previous):
         return False
+    if not _looks_like_semantic_short_heading_fragment(normalized_previous):
+        return False
+    if normalized_current.startswith(normalized_previous):
+        trailing = normalized_current[len(normalized_previous) :].lstrip()
+        if trailing and _looks_like_title_like_heading_remainder(trailing):
+            return True
     return any(normalized_current.startswith(starter) for starter in SHORT_HEADING_BODY_STARTERS)
+
+
+def _heading_fragment_candidate(text: str) -> str:
+    normalized = _normalize_body_fragment(text)
+    if not normalized:
+        return ""
+    article_match = ARTICLE_PREFIX_RE.match(normalized)
+    if article_match is not None:
+        return article_match.group("rest").strip()
+    list_match = INLINE_LIST_MARKER_RE.match(normalized)
+    if list_match is not None:
+        return list_match.group("body").strip()
+    return normalized
 
 
 def _looks_like_heading_note_boundary(previous: str, current: str) -> bool:
@@ -496,17 +602,43 @@ def _split_short_heading_from_body(body: str) -> tuple[str, str] | None:
     normalized = _normalize_body_fragment(body)
     if not normalized or "\n" in normalized:
         return None
+    repeated_heading = _split_repeated_short_heading_from_body(normalized)
+    if repeated_heading is not None:
+        return repeated_heading
     for starter in SHORT_HEADING_BODY_STARTERS:
         marker_index = normalized.find(starter)
         if marker_index <= 0:
             continue
         heading = normalized[:marker_index].strip()
         remainder = normalized[marker_index:].strip()
+        if len(remainder) < 8:
+            continue
         if not _is_short_heading_fragment(heading):
+            continue
+        if not _looks_like_semantic_short_heading_fragment(heading):
             continue
         overlap = _find_boundary_overlap(heading, remainder)
         if overlap:
             remainder = remainder[len(overlap) :].lstrip()
+        return heading, remainder
+    return None
+
+
+def _split_repeated_short_heading_from_body(body: str) -> tuple[str, str] | None:
+    normalized = _normalize_body_fragment(body)
+    if not normalized or "\n" in normalized:
+        return None
+    max_heading_length = min(len(normalized) // 2, 12)
+    for heading_length in range(3, max_heading_length + 1):
+        heading = normalized[:heading_length].strip()
+        if not _is_short_heading_fragment(heading):
+            continue
+        if not normalized.startswith(f"{heading}{heading}"):
+            continue
+        remainder = normalized[heading_length:].lstrip()
+        trailing = remainder[len(heading) :].lstrip()
+        if not trailing or not _looks_like_title_like_heading_remainder(trailing):
+            continue
         return heading, remainder
     return None
 
@@ -548,6 +680,12 @@ def _split_title_like_heading_body(text: str) -> tuple[str, str] | None:
     normalized = _normalize_body_fragment(text)
     if not normalized or "\n" in normalized:
         return None
+    repeated_heading = _split_repeated_short_heading_from_body(normalized)
+    if repeated_heading is not None:
+        return repeated_heading
+    plain_heading = _split_plain_heading_from_body(normalized)
+    if plain_heading is not None:
+        return plain_heading
     marker_re = re.compile(r"(?P<marker>(?:[0-9]+[.、]|[（(][一二三四五六七八九十百千万〇零两0-9]+[)）]))")
     for match in marker_re.finditer(normalized):
         heading = normalized[: match.start("marker")].strip()
@@ -571,6 +709,31 @@ def _split_title_like_heading_body(text: str) -> tuple[str, str] | None:
         remainder_after_overlap = remainder[len(overlap) :].lstrip()
         if not _looks_like_title_like_heading_remainder(remainder_after_overlap):
             continue
+        return heading, remainder
+    return None
+
+
+def _split_plain_heading_from_body(text: str) -> tuple[str, str] | None:
+    normalized = _normalize_body_fragment(text)
+    if not normalized or "\n" in normalized:
+        return None
+    for starter in BODY_SENTENCE_STARTERS:
+        marker_index = normalized.find(starter)
+        if marker_index <= 0:
+            continue
+        heading = normalized[:marker_index].strip()
+        remainder = normalized[marker_index:].strip()
+        if len(remainder) < 8:
+            continue
+        if len(heading) < 4 and heading not in SHORT_HEADING_WHITELIST:
+            continue
+        if not _is_short_heading_fragment(heading):
+            continue
+        if not _looks_like_semantic_short_heading_fragment(heading):
+            continue
+        overlap = _find_boundary_overlap(heading, remainder)
+        if overlap:
+            remainder = remainder[len(overlap) :].lstrip()
         return heading, remainder
     return None
 
@@ -607,9 +770,18 @@ def _is_short_heading_fragment(text: str) -> bool:
         return False
     if any(fragment in normalized for fragment in SHORT_HEADING_FORBIDDEN_FRAGMENTS):
         return False
-    if normalized.endswith(("的", "地", "得", "了", "时", "后", "前")):
+    if normalized.endswith(("的", "地", "得", "了", "时", "后", "前", "和", "及")):
         return False
     return bool(SHORT_HEADING_PREFIX_RE.fullmatch(normalized))
+
+
+def _looks_like_semantic_short_heading_fragment(text: str) -> bool:
+    normalized = _normalize_body_fragment(text)
+    if not normalized:
+        return False
+    if normalized in SHORT_HEADING_WHITELIST:
+        return True
+    return any(normalized.endswith(suffix) for suffix in SHORT_HEADING_SEMANTIC_SUFFIXES)
 
 
 def _deduplicate_boundary_overlap_lines(lines: list[str]) -> list[str]:
@@ -691,10 +863,20 @@ def _repair_known_ocr_phrase_errors(text: str) -> str:
     normalized = _normalize_body_fragment(text)
     if not normalized:
         return ""
+    normalized = _strip_inline_ocr_reference_markers(normalized)
     normalized = normalized.replace("允许使用永恒的所有电器", "允许使用的所有电器")
     normalized = normalized.replace("私自将违规电器带入室内着", "私自将违规电器带入室内者")
     normalized = normalized.replace("一法追究法律责任", "依法追究法律责任")
+    normalized = normalized.replace("志愿志愿服务", "志愿服务")
+    normalized = normalized.replace("助学服务中心中心", "助学服务中心")
     return normalized
+
+
+def _strip_inline_ocr_reference_markers(text: str) -> str:
+    normalized = _normalize_body_fragment(text)
+    if not normalized:
+        return ""
+    return INLINE_OCR_REFERENCE_MARKER_RE.sub("", normalized)
 
 
 def _strip_repeated_heading_tail_char(text: str) -> str:
@@ -848,6 +1030,7 @@ def _find_title_anchor_index(
 
 
 def _build_document_events(content_rows: list[dict[str, object]]) -> tuple[list[dict[str, object]], str | None, str | None]:
+    content_rows = _expand_multiline_paragraph_rows(content_rows)
     policy_doc_no: str | None = None
     current_section_nodes: list[tuple[int, str]] = []
     preface_parts: list[str] = []
@@ -856,6 +1039,7 @@ def _build_document_events(content_rows: list[dict[str, object]]) -> tuple[list[
     current_policy_page: dict[str, object] | None = None
     active_article_context: dict[str, object] | None = None
     pending_table_context: str | None = None
+    pending_form_table_legend_skip = False
     appendix_context_active = False
     pending_appendix_marker_only = False
 
@@ -880,6 +1064,8 @@ def _build_document_events(content_rows: list[dict[str, object]]) -> tuple[list[
     def append_section(*, text: str, rank: int = LIST_SECTION_RANK) -> None:
         nonlocal current_section_nodes
         normalized_heading = normalize_handbook_body_text(text)
+        if not normalized_heading or _looks_like_appendix_leaf_section_heading(normalized_heading):
+            return
         current_section_nodes = [node for node in current_section_nodes if node[0] < rank]
         current_section_nodes.append((rank, normalized_heading))
         events.append(
@@ -906,6 +1092,7 @@ def _build_document_events(content_rows: list[dict[str, object]]) -> tuple[list[
                 flush_policy_page()
                 active_article_context = None
                 pending_table_context = None
+                pending_form_table_legend_skip = False
                 appendix_context_active = False
                 pending_appendix_marker_only = False
                 events.extend(roster_policy_pages)
@@ -918,6 +1105,18 @@ def _build_document_events(content_rows: list[dict[str, object]]) -> tuple[list[
                 else:
                     flush_policy_page()
             table_context = pending_table_context if active_article_context is not None else policy_page_table_context
+            table_matrix = _normalize_table_matrix(
+                html=row.get("html"),
+                table_cells=row.get("table_cells"),
+            )
+            form_like_table = False
+            if table_matrix:
+                normalized_table_matrix = [
+                    tuple(normalize_handbook_body_text(cell) for cell in table_row)
+                    for table_row in table_matrix
+                ]
+                caption_text = normalize_handbook_body_text(table_context) if isinstance(table_context, str) else ""
+                form_like_table = _looks_like_form_table(normalized_table_matrix, caption_text=caption_text)
             events.append(
                 {
                     "kind": "table",
@@ -931,11 +1130,19 @@ def _build_document_events(content_rows: list[dict[str, object]]) -> tuple[list[
                     "table_context": table_context,
                 }
             )
+            pending_form_table_legend_skip = form_like_table
             pending_table_context = None
             continue
 
         if not text:
             continue
+
+        if appendix_context_active and _looks_like_form_template_legend(text):
+            continue
+        if pending_form_table_legend_skip and _looks_like_form_template_legend(text):
+            continue
+        if pending_form_table_legend_skip:
+            pending_form_table_legend_skip = False
 
         appendix_heading_title = _extract_appendix_heading_title(text)
         if appendix_heading_title is not None:
@@ -1010,7 +1217,11 @@ def _build_document_events(content_rows: list[dict[str, object]]) -> tuple[list[
             text = glued_structural_heading[0]
             next_text = glued_structural_heading[1]
 
-        if current_section_nodes and _looks_like_navigation_policy_leaf(text, current_section_nodes=current_section_nodes):
+        if (
+            current_article is None
+            and current_section_nodes
+            and _looks_like_navigation_policy_leaf(text, current_section_nodes=current_section_nodes)
+        ):
             flush_policy_page()
             active_article_context = None
             pending_table_context = None
@@ -1068,7 +1279,12 @@ def _build_document_events(content_rows: list[dict[str, object]]) -> tuple[list[
 
         terminal_provision = (
             _split_inline_enumerated_provision(text)
-            if current_article is None and _looks_like_terminal_inline_enumerated_provision(text, current_section_nodes)
+            if current_article is None
+            and _should_emit_inline_policy_provision(
+                text,
+                current_section_nodes=current_section_nodes,
+                current_policy_page=current_policy_page,
+            )
             else None
         )
         if terminal_provision is not None:
@@ -1092,6 +1308,7 @@ def _build_document_events(content_rows: list[dict[str, object]]) -> tuple[list[
         if article_label is not None:
             flush_policy_page()
             flush_article()
+            current_section_nodes = [node for node in current_section_nodes if node[0] < LIST_SECTION_RANK]
             current_article = {
                 "kind": "article",
                 "label": article_label,
@@ -1206,6 +1423,29 @@ def _build_document_events(content_rows: list[dict[str, object]]) -> tuple[list[
     if not substantive_events:
         raise ValueError("handbook document cleanup produced no content units")
     return events, policy_doc_no, preface_text
+
+
+def _expand_multiline_paragraph_rows(content_rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    expanded_rows: list[dict[str, object]] = []
+    for row in content_rows:
+        if str(row.get("row_type") or "") != "paragraph":
+            expanded_rows.append(row)
+            continue
+        text = _row_text(row)
+        if not text or "\n" not in text:
+            expanded_rows.append(row)
+            continue
+        fragments = [line.strip() for line in text.splitlines() if line.strip()]
+        if len(fragments) <= 1:
+            expanded_rows.append(row)
+            continue
+        for index, fragment in enumerate(fragments, start=1):
+            expanded_row = dict(row)
+            expanded_row["row_id"] = f"{row.get('row_id')}-part-{index:02d}"
+            expanded_row["text_raw"] = fragment
+            expanded_row["text_normalized"] = fragment
+            expanded_rows.append(expanded_row)
+    return expanded_rows
 
 
 def _build_canonical_body(
@@ -1561,6 +1801,7 @@ def _build_table_unit_semantics(
         tuple(row[column_index] for column_index in selected_columns)
         for row in body_rows
     )
+    filtered_body_rows = _merge_split_table_group_labels(filtered_body_rows)
     column_paths = _build_table_column_paths(
         header_rows=filtered_header_rows or (tuple(filtered_body_rows[0]),),
         body_rows=filtered_body_rows,
@@ -1601,6 +1842,18 @@ def _looks_like_header_continuation_row(first_row: list[str], second_row: list[s
         return False
     if _row_looks_like_numeric_payload(second_non_empty):
         return False
+    first_form_prompt_count = sum(
+        1
+        for cell in first_non_empty
+        if _contains_form_table_signature_keyword(cell) or _contains_decorative_table_keyword(cell)
+    )
+    second_field_like_count = sum(
+        1
+        for cell in second_non_empty
+        if len(cell) <= 10 or _contains_form_table_keyword(cell)
+    )
+    if first_form_prompt_count >= 2 and second_field_like_count >= max(2, len(second_non_empty) - 1):
+        return True
     first_has_duplicate_labels = len(set(first_non_empty)) < len(first_non_empty)
     second_short_label_count = sum(1 for cell in second_non_empty if len(cell) <= 8)
     return first_has_duplicate_labels and second_short_label_count == len(second_non_empty)
@@ -1681,6 +1934,56 @@ def _build_table_column_paths(
     return tuple(column_paths)
 
 
+def _merge_split_table_group_labels(body_rows: tuple[tuple[str, ...], ...]) -> tuple[tuple[str, ...], ...]:
+    if len(body_rows) < 2:
+        return body_rows
+    repaired_rows = [list(row) for row in body_rows]
+    for row_index in range(len(repaired_rows) - 1):
+        current_label = normalize_handbook_body_text(repaired_rows[row_index][0])
+        previous_label = normalize_handbook_body_text(repaired_rows[row_index - 1][0]) if row_index > 0 else ""
+        next_label = normalize_handbook_body_text(repaired_rows[row_index + 1][0])
+        if not _should_merge_split_table_group_label(
+            current_row=repaired_rows[row_index],
+            current_label=current_label,
+            previous_label=previous_label,
+            next_label=next_label,
+            following_rows=repaired_rows[row_index + 1 :],
+        ):
+            continue
+        repaired_rows[row_index][0] = f"{current_label}{next_label}"
+    return tuple(tuple(row) for row in repaired_rows)
+
+
+def _should_merge_split_table_group_label(
+    *,
+    current_row: list[str],
+    current_label: str,
+    previous_label: str,
+    next_label: str,
+    following_rows: list[list[str]],
+) -> bool:
+    if not current_label or not next_label or current_label == next_label:
+        return False
+    if previous_label == current_label:
+        return False
+    if not (2 <= len(current_label) <= 6 and 4 <= len(next_label) <= 12):
+        return False
+    if not re.fullmatch(r"[\u4e00-\u9fff()（）]+", current_label):
+        return False
+    if not re.fullmatch(r"[\u4e00-\u9fff()（）]+", next_label):
+        return False
+    if len(current_label + next_label) > 18:
+        return False
+    if any(cell.strip() for cell in current_row[2:]):
+        return False
+    repeated_group_rows = 0
+    for row in following_rows:
+        if normalize_handbook_body_text(row[0]) != next_label:
+            break
+        repeated_group_rows += 1
+    return repeated_group_rows >= 2
+
+
 def _infer_missing_table_column_label(
     *,
     column_index: int,
@@ -1715,13 +2018,42 @@ def _looks_like_form_table(
         return True
     decorative_hits = sum(1 for cell in non_empty if _looks_like_decorative_table_cell(cell))
     field_hits = sum(1 for cell in non_empty if _contains_form_table_keyword(cell))
+    checkbox_hits = sum(1 for cell in non_empty if _contains_form_table_checkbox(cell))
+    signature_hits = sum(1 for cell in non_empty if _contains_form_table_signature_keyword(cell))
+    unique_non_empty_count = len(set(non_empty))
+    section_row_hits = sum(
+        1
+        for row in table_matrix
+        if row and row[0].strip() and _contains_form_table_section_keyword(row[0])
+    )
     blank_ratio = blank_count / total_cells
+    if checkbox_hits >= 2 and (field_hits >= 3 or signature_hits >= 1 or section_row_hits >= 2):
+        return True
+    if len(table_matrix) <= 3 and unique_non_empty_count <= 6 and signature_hits >= 2 and field_hits >= 2:
+        return True
+    if section_row_hits >= 3 and (signature_hits >= 1 or field_hits >= 4):
+        return True
     return blank_ratio >= 0.2 and (decorative_hits >= 2 or field_hits >= 3)
 
 
 def _contains_form_table_keyword(text: str) -> bool:
     normalized = normalize_handbook_body_text(text)
     return any(keyword in normalized for keyword in FORM_TABLE_FIELD_KEYWORDS)
+
+
+def _contains_form_table_section_keyword(text: str) -> bool:
+    normalized = normalize_handbook_body_text(text)
+    return any(keyword in normalized for keyword in FORM_TABLE_SECTION_KEYWORDS)
+
+
+def _contains_form_table_signature_keyword(text: str) -> bool:
+    normalized = normalize_handbook_body_text(text)
+    return any(keyword in normalized for keyword in FORM_TABLE_SIGNATURE_KEYWORDS)
+
+
+def _contains_form_table_checkbox(text: str) -> bool:
+    normalized = normalize_handbook_body_text(text)
+    return any(marker in normalized for marker in FORM_TABLE_CHECKBOX_MARKERS)
 
 
 def _contains_decorative_table_keyword(text: str) -> bool:
@@ -1958,7 +2290,7 @@ def _looks_like_table_lead_label(text: str, *, next_row: dict[str, object] | Non
     normalized = normalize_handbook_body_text(text)
     if not normalized:
         return False
-    if re.search(r"[。；！？]", normalized):
+    if re.search(r"[。；;！？!?]", normalized):
         return False
     if len(normalized) > 32:
         return False
@@ -1971,7 +2303,7 @@ def _should_attach_policy_page_to_following_table(text: str) -> bool:
         return False
     if "\n" in normalized:
         return False
-    if re.search(r"[。；！？]", normalized):
+    if LEAF_SECTION_PUNCTUATION_RE.search(normalized):
         return False
     return len(normalized) <= 48
 
@@ -2000,7 +2332,7 @@ def _should_merge_policy_fragment_into_previous_line(
         return False
     if _looks_like_list_entry(normalized_fragment):
         return False
-    if re.search(r"[。；！？]", normalized_fragment):
+    if re.search(r"[。；;！？!?]", normalized_fragment):
         return False
     return len(normalized_fragment) <= 32
 
@@ -2025,7 +2357,7 @@ def _looks_like_list_section_heading(text: str, next_text: str | None) -> bool:
         return False
     if len(normalized) > 24:
         return False
-    if re.search(r"[，。；：！？]", normalized):
+    if LEAF_SECTION_PUNCTUATION_RE.search(normalized):
         return False
     return _looks_like_list_entry(next_text)
 
@@ -2036,7 +2368,7 @@ def _looks_like_navigation_policy_leaf(
     current_section_nodes: list[tuple[int, str]],
 ) -> bool:
     normalized = normalize_handbook_body_text(text)
-    if not normalized or re.search(r"[。；！？]", normalized):
+    if not normalized or LEAF_SECTION_PUNCTUATION_RE.search(normalized):
         return False
     match = INLINE_LIST_MARKER_RE.match(normalized)
     if match is None:
@@ -2051,7 +2383,7 @@ def _looks_like_navigation_policy_leaf(
 
 def _looks_like_attachment_title_text(text: str) -> bool:
     normalized = normalize_handbook_body_text(text)
-    if not normalized or re.search(r"[。；！？]", normalized):
+    if not normalized or LEAF_SECTION_PUNCTUATION_RE.search(normalized):
         return False
     candidate = normalized[1:-1].strip() if normalized.startswith("《") and normalized.endswith("》") else normalized
     if not candidate or len(candidate) > 48:
@@ -2061,16 +2393,28 @@ def _looks_like_attachment_title_text(text: str) -> bool:
 
 def _looks_like_ancillary_note_line(text: str) -> bool:
     normalized = normalize_handbook_body_text(text)
-    if not normalized or re.search(r"[。；！？]", normalized):
+    if not normalized or LEAF_SECTION_PUNCTUATION_RE.search(normalized):
         return False
     return len(normalized) <= 24 and any(normalized.endswith(suffix) for suffix in ANCILLARY_NOTE_SUFFIXES)
 
 
 def _looks_like_appendix_leaf_section_heading(text: str) -> bool:
     normalized = normalize_handbook_body_text(text)
-    if not normalized or re.search(r"[。；！？]", normalized):
+    if not normalized or re.search(r"[，,。；;！？!?]", normalized):
         return False
-    return bool(re.fullmatch(r"[0-9]+[:：]?", normalized))
+    return bool(re.fullmatch(r"[0-9一二三四五六七八九十百千万〇零两]+[:：]?", normalized))
+
+
+def _looks_like_form_template_legend(text: str) -> bool:
+    normalized = normalize_handbook_body_text(text)
+    if not normalized or len(normalized) > 96:
+        return False
+    if "为:" not in normalized and "为：" not in normalized:
+        return False
+    if not re.search(r"[;；、]", normalized):
+        return False
+    field_hits = sum(1 for keyword in FORM_TABLE_FIELD_KEYWORDS if keyword in normalized)
+    return field_hits >= 2
 
 
 def _next_policy_leaf_section_rank(current_section_nodes: list[tuple[int, str]]) -> int:
@@ -2143,7 +2487,40 @@ def _looks_like_terminal_inline_enumerated_provision(
     in_closing_section = any(keyword in section_text for _, section_text in current_section_nodes for keyword in CLOSING_SECTION_KEYWORDS)
     if in_closing_section and len(body) <= 64:
         return True
-    return len(body) <= 96 and any(keyword in body for keyword in TERMINAL_PROVISION_KEYWORDS)
+    return len(body) <= 96 and (
+        any(keyword in body for keyword in TERMINAL_PROVISION_KEYWORDS) or DATED_EFFECTIVE_CLAUSE_RE.match(body) is not None
+    )
+
+
+def _should_emit_inline_policy_provision(
+    text: str,
+    *,
+    current_section_nodes: list[tuple[int, str]],
+    current_policy_page: dict[str, object] | None,
+) -> bool:
+    if _looks_like_terminal_inline_enumerated_provision(text, current_section_nodes):
+        return True
+    if current_policy_page is None:
+        return False
+    provision = _split_inline_enumerated_provision(text)
+    if provision is None:
+        return False
+    _, normalized = provision
+    body = normalized.split("、", 1)[1].strip()
+    if len(body) > 128:
+        return False
+    return _policy_page_contains_nested_numbered_items(current_policy_page)
+
+
+def _policy_page_contains_nested_numbered_items(current_policy_page: dict[str, object]) -> bool:
+    parts = current_policy_page.get("parts")
+    if not isinstance(parts, list):
+        return False
+    for part in parts:
+        normalized = normalize_handbook_body_text(str(part))
+        if re.match(r"^(?:[0-9]+[.、]|[（(][一二三四五六七八九十百千万〇零两0-9]+[)）])", normalized):
+            return True
+    return False
 
 
 def _looks_like_inline_enumerated_heading(text: str) -> bool:
