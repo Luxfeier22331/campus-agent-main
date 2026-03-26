@@ -21,15 +21,19 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     DocumentImportInput,
     ImportReport,
     ObjectStoreWriter,
+    PersistImportStats,
     collect_import_document_stats,
     load_metadata_from_bytes,
     persist_import_documents,
     write_import_report,
 )
-from campus_ingestion_core.chunking import ChunkProfile
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
 from campus_ingestion_core.handbook_cleanup import cleanup_handbook_document, serialize_handbook_document_units
+from campus_ingestion_core.handbook_source_projections import (
+    build_handbook_projection_import_documents,
+    load_handbook_source_projections_config,
+)
 from campus_ingestion_core.handbook_provider_normalize import (
     normalize_handbook_provider_result,
     serialize_handbook_layout_elements,
@@ -205,6 +209,7 @@ def rebuild_local_data(
             corpus=corpus,
             collection=collection,
             import_mode=import_mode,
+            registry=runtime_document_registry,
             document_records=document_records,
         ),
         exclude_keys=processed_exclude_keys,
@@ -273,6 +278,7 @@ def _collect_processed_rebuild_keys(
     corpus: str,
     collection: str,
     import_mode: str,
+    registry: DocumentRegistry,
     document_records: tuple[Any, ...],
 ) -> tuple[str, ...]:
     keys: list[str] = []
@@ -286,6 +292,8 @@ def _collect_processed_rebuild_keys(
             corpus=corpus,
             collection=collection,
             import_mode=import_mode,
+            registry=registry,
+            document_records=document_records,
         )
     )
     return tuple(dict.fromkeys(keys))
@@ -297,11 +305,20 @@ def _extra_processed_rebuild_keys(
     corpus: str,
     collection: str,
     import_mode: str,
+    registry: DocumentRegistry,
+    document_records: tuple[Any, ...],
 ) -> tuple[str, ...]:
     if import_mode != "provider_response_replay" or collection != "student_handbook":
         return ()
     provider_response_key = _read_required_env(source, "REBUILD_PROVIDER_RESPONSE_KEY")
-    return (_replace_object_key_filename(provider_response_key, LAYOUT_ELEMENTS_FILENAME),)
+    return (
+        _replace_object_key_filename(provider_response_key, LAYOUT_ELEMENTS_FILENAME),
+        *_declared_projection_processed_keys(
+            source=source,
+            registry=registry,
+            current_document_records=document_records,
+        ),
+    )
 
 
 def migrate_student_handbook_source_faithful(
@@ -549,9 +566,32 @@ def replay_provider_response_rebuild(
         )
         for manifest_document in split_manifest.documents
     ]
+    raw_asset_ref = RawAssetRecord(
+        raw_asset_id=split_manifest.raw_asset_id,
+        raw_version_id=raw_version_id,
+        corpus=corpus,
+        collection=collection,
+        raw_source_uri=f"campusrag://source/{corpus}/{split_manifest.raw_asset_id}/{raw_version_id}",
+        content_hash=raw_version_id.removeprefix("sha256:") or raw_version_id,
+        source_filename=source_pdf,
+        object_key=provider_response_key,
+        ingestion_timestamp="1970-01-01T00:00:00+00:00",
+        import_source="provider_response_replay",
+    )
+    documents.extend(
+        build_handbook_projection_import_documents(
+            source=source,
+            raw_asset_record=raw_asset_ref,
+            provider_response_key=provider_response_key,
+            layout_elements_key=layout_elements_key,
+            structured_rows=structured_rows,
+            split_manifest_documents=split_manifest.documents,
+        )
+    )
     runtime_registry = registry or _build_document_registry_for_rebuild(source, corpus)
     runtime_raw_asset_registry = raw_asset_registry or _build_raw_asset_registry_for_rebuild(source, corpus)
-    stats = collect_import_document_stats(
+    stats = _collect_projection_aware_import_stats(
+        source=source,
         documents=documents,
         registry=runtime_registry,
         raw_asset_registry=runtime_raw_asset_registry,
@@ -559,9 +599,8 @@ def replay_provider_response_rebuild(
         object_store=object_store_settings,
         parser_version=DEFAULT_RAW_ONLINE_OCR_PARSER_VERSION,
         embedding_model=_read_embedding_model_name(source),
-        cleaning_policy_version=load_runtime_profile(corpus, collection).cleaning_policy_version,
         default_campus_scope=(source.get("INGESTION_DEFAULT_CAMPUS_SCOPE") or "").strip() or None,
-        scope_refresh=(corpus, collection),
+        primary_scope=(corpus, collection),
     )
     errors = list(stats.errors)
     failed_count = stats.failed_count
@@ -619,6 +658,105 @@ def _should_delete_raw_asset_registry(*, collection: str, import_mode: str) -> b
 
 def _should_index_qdrant_for_replay(source: dict[str, str]) -> bool:
     return _parse_bool(source.get("REBUILD_INDEX_QDRANT"), default=False)
+
+
+def _collect_projection_aware_import_stats(
+    *,
+    source: dict[str, str],
+    documents: list[DocumentImportInput],
+    registry: DocumentRegistry,
+    raw_asset_registry: RawAssetRegistry,
+    writer: ReplayObjectStore,
+    object_store: ObjectStoreSettings,
+    parser_version: str,
+    embedding_model: str,
+    default_campus_scope: str | None,
+    primary_scope: tuple[str, str],
+) -> PersistImportStats:
+    grouped: dict[tuple[str, str], list[DocumentImportInput]] = {}
+    for document in documents:
+        grouped.setdefault((document.corpus, document.collection), []).append(document)
+
+    success_count = 0
+    skipped_count = 0
+    failed_count = 0
+    raw_uploaded_count = 0
+    raw_reused_count = 0
+    errors: list[str] = []
+    document_ids: list[str] = []
+    created_document_ids: list[str] = []
+    updated_document_ids: list[str] = []
+    skipped_document_ids: list[str] = []
+    timestamp = "1970-01-01T00:00:00+00:00"
+    for scope, scope_documents in grouped.items():
+        profile = load_runtime_profile(scope[0], scope[1])
+        stats = collect_import_document_stats(
+            documents=scope_documents,
+            registry=registry,
+            raw_asset_registry=raw_asset_registry,
+            writer=writer,
+            object_store=object_store,
+            parser_version=parser_version,
+            embedding_model=embedding_model,
+            cleaning_policy_version=profile.cleaning_policy_version,
+            default_campus_scope=default_campus_scope,
+            scope_refresh=scope if scope == primary_scope else None,
+        )
+        timestamp = stats.timestamp
+        success_count += stats.success_count
+        skipped_count += stats.skipped_count
+        failed_count += stats.failed_count
+        raw_uploaded_count += stats.raw_uploaded_count
+        raw_reused_count += stats.raw_reused_count
+        errors.extend(stats.errors)
+        document_ids.extend(stats.document_ids)
+        created_document_ids.extend(stats.created_document_ids)
+        updated_document_ids.extend(stats.updated_document_ids)
+        skipped_document_ids.extend(stats.skipped_document_ids)
+
+    return PersistImportStats(
+        success_count=success_count,
+        skipped_count=skipped_count,
+        failed_count=failed_count,
+        raw_uploaded_count=raw_uploaded_count,
+        raw_reused_count=raw_reused_count,
+        document_ids=tuple(document_ids),
+        unresolved_source_pdfs=(),
+        errors=tuple(errors),
+        timestamp=timestamp,
+        created_document_ids=tuple(created_document_ids),
+        updated_document_ids=tuple(updated_document_ids),
+        skipped_document_ids=tuple(skipped_document_ids),
+    )
+
+
+def _declared_projection_processed_keys(
+    *,
+    source: dict[str, str],
+    registry: DocumentRegistry,
+    current_document_records: tuple[Any, ...],
+) -> tuple[str, ...]:
+    path_value = (source.get("HANDBOOK_SOURCE_PROJECTIONS_PATH") or "").strip()
+    if not path_value:
+        return ()
+    config = load_handbook_source_projections_config(Path(path_value))
+    keys: list[str] = []
+    seen_scope_records: dict[tuple[str | None, str | None], tuple[Any, ...]] = {}
+    for record in current_document_records:
+        seen_scope_records[(getattr(record, "corpus", None), getattr(record, "collection", None))] = current_document_records
+    for projection in config.projections:
+        scope = (projection.target_corpus, projection.target_collection)
+        if scope == (config.source_corpus, config.source_collection):
+            continue
+        scope_records = seen_scope_records.get(scope)
+        if scope_records is None:
+            scope_records = _list_document_records_for_scope(registry, scope[0], scope[1])
+            seen_scope_records[scope] = scope_records
+        for record in scope_records:
+            for key in tuple(getattr(record, "processed_object_keys", ()) or ()):
+                if key:
+                    keys.append(key)
+    return tuple(dict.fromkeys(keys))
 
 
 def _read_required_env(source: dict[str, str], field_name: str) -> str:
@@ -781,7 +919,6 @@ def _index_replayed_documents(
     runtime_qdrant_client = qdrant_client or _build_qdrant_client(RetrievalSettings.from_env(source))
     collection_name = (source.get("QDRANT_COLLECTION") or DEFAULT_QDRANT_COLLECTION).strip() or DEFAULT_QDRANT_COLLECTION
     embedding_model = build_embedding_model(EmbeddingSettings.from_env(source))
-    chunk_profile = ChunkProfile()
     for document in documents:
         document_id = str(document.metadata["document_id"])
         version_id = str(document.metadata["version_id"])
@@ -791,7 +928,6 @@ def _index_replayed_documents(
         chunks = build_indexable_chunks_from_jsonl(
             record=record,
             structured_jsonl_bytes=document.document_units_bytes,
-            chunk_profile=chunk_profile,
             embedding_model=embedding_model,
         )
         index_chunks_to_qdrant(

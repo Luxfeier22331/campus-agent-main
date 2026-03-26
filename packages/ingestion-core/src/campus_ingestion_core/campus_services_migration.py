@@ -8,8 +8,18 @@ from pathlib import Path
 import re
 from typing import Protocol
 
+from campus_ingestion_core.campusrag_ingestion_support import DocumentImportInput, load_metadata_from_bytes
 from campus_ingestion_core.artifacts import CANONICAL_MARKDOWN_FILENAME, PROVIDER_RESPONSE_FILENAME
-from campus_ingestion_core.handbook_cleanup import cleanup_handbook_document, validate_handbook_manifest_title
+from campus_ingestion_core.handbook_cleanup import (
+    cleanup_handbook_document,
+    serialize_handbook_document_units,
+    validate_handbook_manifest_title,
+)
+from campus_ingestion_core.handbook_source_projections import (
+    build_handbook_projection_import_documents as build_handbook_projection_import_documents_from_source_truth,
+    load_handbook_source_projections_config as load_handbook_source_projections_config_from_source_truth,
+    read_handbook_source_projections_config_path as read_handbook_source_projections_config_path_from_source_truth,
+)
 from campus_ingestion_core.handbook_provider_normalize import normalize_handbook_provider_result
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.object_store import (
@@ -30,6 +40,7 @@ LEGACY_PHONE_DOC_ID = "handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675"
 SOURCE_FAITHFUL_TRACK = "source-faithful"
 YEAR_RE = re.compile(r"(?<!\d)((?:19|20)\d{2})(?!\d)")
 HANDBOOK_DERIVED_DOCUMENTS_SCHEMA_VERSION = "handbook_derived_documents_v1"
+HANDBOOK_SOURCE_PROJECTIONS_SCHEMA_VERSION = "student_handbook_source_projections_v1"
 
 
 class CampusServicesObjectStore(Protocol):
@@ -80,6 +91,30 @@ class HandbookDerivedDocumentsConfig:
     source_pdf: str
     raw_asset_id: str
     documents: tuple[HandbookDerivedDocumentMapping, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class HandbookSourceProjection:
+    projection_name: str
+    target_corpus: str
+    target_collection: str
+    projection_family: str
+    replay_from_source_truth: bool
+    derived_from: str
+    derived_from_document_id: str | None
+    parent_document_id: str | None
+    attachment_kind: str | None
+    attachment_role: str | None
+    target_title: str | None = None
+    migration_reason: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class HandbookSourceProjectionsConfig:
+    source_corpus: str
+    source_collection: str
+    raw_asset_id: str
+    projections: tuple[HandbookSourceProjection, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -376,17 +411,18 @@ def build_handbook_derived_service_catalog_entries(
     object_store_settings: ObjectStoreSettings,
     raw_asset_registry: RawAssetRegistry,
 ) -> list[CampusServicesMigrationEntry]:
-    config_path = _read_handbook_derived_documents_config_path(source)
-    config = load_handbook_derived_documents_config(config_path)
+    projections_config = load_handbook_source_projections_config_from_source_truth(
+        read_handbook_source_projections_config_path_from_source_truth(source)
+    )
     raw_asset_record = _select_handbook_raw_asset_record(
         raw_asset_registry=raw_asset_registry,
-        source_corpus=config.source_corpus,
-        source_collection=config.source_collection,
-        raw_asset_id=config.raw_asset_id,
+        source_corpus=projections_config.source_corpus,
+        source_collection=projections_config.source_collection,
+        raw_asset_id=projections_config.raw_asset_id,
     )
-    source_pdf = raw_asset_record.source_filename or config.source_pdf
+    source_pdf = raw_asset_record.source_filename
     provider_response_key = build_processed_asset_artifact_key(
-        corpus=config.source_corpus,
+        corpus=projections_config.source_corpus,
         raw_asset_id=raw_asset_record.raw_asset_id,
         raw_version_id=raw_asset_record.raw_version_id,
         filename=PROVIDER_RESPONSE_FILENAME,
@@ -403,17 +439,105 @@ def build_handbook_derived_service_catalog_entries(
         ocr_model=(source.get("OCR_MODEL") or DEFAULT_ONLINE_OCR_MODEL).strip() or DEFAULT_ONLINE_OCR_MODEL,
         source_artifact_id=raw_asset_record.raw_asset_id,
     )
+    projection_manifests: list[SplitManifestDocument] = []
+    for projection in projections_config.projections:
+        if projection.target_corpus != "campus_services" or projection.target_collection != "service_catalog":
+            continue
+        if not projection.derived_from_document_id:
+            continue
+        inferred_title = _infer_handbook_projection_source_title(structured_rows)
+        inferred_page_start, inferred_page_end = _infer_handbook_projection_page_range(structured_rows)
+        projection_manifests.append(
+            SplitManifestDocument(
+                document_id=projection.derived_from_document_id,
+                title=inferred_title,
+                page_start=inferred_page_start,
+                page_end=inferred_page_end,
+                source_uri=(
+                    f"campus-agent://{projections_config.source_corpus}/"
+                    f"{projections_config.source_collection}/docs/{projection.derived_from_document_id}"
+                ),
+                handbook_section=inferred_title,
+            )
+        )
+    derived_documents = build_handbook_projection_import_documents_from_source_truth(
+        source=source,
+        raw_asset_record=raw_asset_record,
+        provider_response_key=provider_response_key,
+        layout_elements_key=build_processed_asset_artifact_key(
+            corpus=projections_config.source_corpus,
+            raw_asset_id=raw_asset_record.raw_asset_id,
+            raw_version_id=raw_asset_record.raw_version_id,
+            filename="layout-elements.jsonl",
+            year=_infer_year(source_pdf),
+        ),
+        structured_rows=structured_rows,
+        split_manifest_documents=tuple(projection_manifests),
+    )
     year = _infer_year(source_pdf)
     entries: list[CampusServicesMigrationEntry] = []
-    for mapping in config.documents:
-        manifest_document = SplitManifestDocument(
-            document_id=mapping.source_document_id,
-            title=mapping.source_title,
-            page_start=mapping.page_start,
-            page_end=mapping.page_end,
-            source_uri=f"campus-agent://{config.source_corpus}/{config.source_collection}/docs/{mapping.source_document_id}",
-            handbook_section=mapping.handbook_section,
+    for document in derived_documents:
+        rendered_bytes = document.canonical_markdown_bytes or b""
+        content_hash = hashlib.sha256(rendered_bytes).hexdigest()
+        document_id = str(document.metadata["document_id"])
+        title = str(document.metadata["title"])
+        cleanup_title = _infer_handbook_projection_cleanup_title(structured_rows)
+        entries.append(
+            CampusServicesMigrationEntry(
+                collection=document.collection,
+                source_path=read_handbook_source_projections_config_path_from_source_truth(source),
+                legacy_document_id=str(document.metadata.get("derived_from_document_id") or document_id),
+                document_id=document_id,
+                title=title,
+                year=year,
+                content_hash=content_hash,
+                canonical_markdown_bytes=rendered_bytes,
+                target_object_key=build_processed_artifact_key(
+                    corpus=document.corpus,
+                    collection=document.collection,
+                    document_id=document_id,
+                    revision_track=SOURCE_FAITHFUL_TRACK,
+                    version_id=f"sha256:{content_hash}",
+                    filename=CANONICAL_MARKDOWN_FILENAME,
+                    title=title,
+                    year=year,
+                ),
+                cleanup_prefixes=(
+                    _legacy_regulations_document_prefix(
+                        title=cleanup_title,
+                        legacy_document_id=str(document.metadata.get("derived_from_document_id") or document_id),
+                    ),
+                ),
+            )
         )
+    return entries
+
+
+def build_handbook_projection_import_documents(
+    *,
+    source: dict[str, str],
+    raw_asset_record: RawAssetRecord,
+    provider_response_key: str,
+    layout_elements_key: str,
+    structured_rows: list[dict[str, object]],
+    split_manifest_documents: tuple[SplitManifestDocument, ...],
+) -> list[DocumentImportInput]:
+    config = load_handbook_source_projections_config(_read_handbook_source_projections_config_path(source))
+    manifest_by_document_id = {
+        document.document_id: document
+        for document in split_manifest_documents
+    }
+    source_pdf = raw_asset_record.source_filename
+    documents: list[DocumentImportInput] = []
+    for projection in config.projections:
+        if projection.target_corpus == config.source_corpus and projection.target_collection == config.source_collection:
+            continue
+        source_document_id = projection.derived_from_document_id or projection.parent_document_id
+        if not source_document_id:
+            continue
+        manifest_document = manifest_by_document_id.get(source_document_id)
+        if manifest_document is None:
+            continue
         validate_handbook_manifest_title(
             structured_rows=structured_rows,
             manifest_document=manifest_document,
@@ -423,64 +547,76 @@ def build_handbook_derived_service_catalog_entries(
             manifest_document=manifest_document,
             source_doc=source_pdf,
         )
-        legacy_metadata, cleanup_body = _parse_yaml_front_matter_document(cleanup_result.canonical_markdown)
+        target_title = projection.target_title or cleanup_result.title
+        document_id = _build_campus_services_document_id(projection.target_collection, manifest_document.document_id)
         rendered_body = _retitle_markdown_heading(
-            cleanup_body,
+            cleanup_result.canonical_markdown,
             old_title=cleanup_result.title,
-            new_title=mapping.target_title,
+            new_title=target_title,
         )
-        document_id = _build_campus_services_document_id(mapping.target_collection, mapping.source_document_id)
-        metadata = {
-            "schema_version": legacy_metadata.get("schema_version") or 1,
-            "doc_id": document_id,
-            "corpus": "campus_services",
-            "collection": mapping.target_collection,
-            "title": mapping.target_title,
-            "source_kind": "handbook_derived_ocr",
-            "source_doc": legacy_metadata.get("source_doc") or source_pdf,
-            "handbook_section": legacy_metadata.get("handbook_section") or mapping.handbook_section,
-            "page_start": legacy_metadata.get("page_start") or mapping.page_start,
-            "page_end": legacy_metadata.get("page_end") or mapping.page_end,
-            "migration_source_corpus": config.source_corpus,
-            "migration_source_collection": config.source_collection,
-            "migration_source_document_id": mapping.source_document_id,
-            "migration_source_raw_asset_id": raw_asset_record.raw_asset_id,
-            "migration_source_raw_version_id": raw_asset_record.raw_version_id,
-            "migration_source_provider_response_key": provider_response_key,
-            "migration_reason": mapping.migration_reason,
-            "legacy_doc_id": mapping.source_document_id,
-        }
-        rendered_bytes = _render_canonical_markdown(metadata=metadata, body=rendered_body).encode("utf-8")
-        content_hash = hashlib.sha256(rendered_bytes).hexdigest()
-        entries.append(
-            CampusServicesMigrationEntry(
-                collection=mapping.target_collection,
-                source_path=config_path,
-                legacy_document_id=mapping.source_document_id,
-                document_id=document_id,
-                title=mapping.target_title,
-                year=year,
-                content_hash=content_hash,
-                canonical_markdown_bytes=rendered_bytes,
-                target_object_key=build_processed_artifact_key(
-                    corpus="campus_services",
-                    collection=mapping.target_collection,
-                    document_id=document_id,
-                    revision_track=SOURCE_FAITHFUL_TRACK,
-                    version_id=f"sha256:{content_hash}",
-                    filename=CANONICAL_MARKDOWN_FILENAME,
-                    title=mapping.target_title,
-                    year=year,
-                ),
-                cleanup_prefixes=(
-                    _legacy_regulations_document_prefix(
-                        title=mapping.source_title,
-                        legacy_document_id=mapping.source_document_id,
-                    ),
-                ),
+        canonical_markdown = _render_canonical_markdown(
+            metadata={
+                "schema_version": 1,
+                "doc_id": document_id,
+                "corpus": projection.target_corpus,
+                "collection": projection.target_collection,
+                "title": target_title,
+                "source_kind": "handbook_source_truth_projection",
+                "source_doc": source_pdf,
+                "handbook_section": manifest_document.handbook_section,
+                "page_start": manifest_document.page_start,
+                "page_end": manifest_document.page_end,
+                "projection_name": projection.projection_name,
+                "derived_from": projection.derived_from,
+                "derived_from_document_id": manifest_document.document_id,
+                "derived_from_raw_asset_id": raw_asset_record.raw_asset_id,
+                "derived_from_raw_version_id": raw_asset_record.raw_version_id,
+                "parent_document_id": projection.parent_document_id or manifest_document.document_id,
+                "attachment_kind": projection.attachment_kind,
+                "attachment_role": projection.attachment_role,
+                "migration_reason": projection.migration_reason,
+            },
+            body=rendered_body,
+        )
+        document_units_bytes = _build_handbook_derived_document_units_bytes(
+            source_document_id=manifest_document.document_id,
+            target_document_id=document_id,
+            target_title=target_title,
+            source_pdf=source_pdf,
+            source_uri=manifest_document.source_uri,
+            cleanup_result=cleanup_result,
+            projection=projection,
+            raw_asset_record=raw_asset_record,
+        )
+        metadata = load_metadata_from_bytes(document_units_bytes)
+        metadata["title"] = target_title
+        metadata["status"] = manifest_document.status
+        documents.append(
+            DocumentImportInput(
+                source_label=f"{provider_response_key}#{projection.projection_name}",
+                document_units_bytes=document_units_bytes,
+                provider_response_bytes=None,
+                canonical_markdown_bytes=canonical_markdown.encode("utf-8"),
+                metadata=metadata,
+                import_source="provider_response_replay",
+                revision_track="source-faithful",
+                source_channel="pdf_ocr",
+                is_current=False,
+                corpus=projection.target_corpus,
+                collection=projection.target_collection,
+                campus_scope=manifest_document.campus_scope,
+                status=manifest_document.status,
+                raw_path=None,
+                raw_source_uri=raw_asset_record.raw_source_uri,
+                raw_asset_id=raw_asset_record.raw_asset_id,
+                raw_version_id=raw_asset_record.raw_version_id,
+                provider_response_object_key=provider_response_key,
+                additional_processed_object_keys=(layout_elements_key,),
+                title=target_title,
+                year=_infer_year(source_pdf),
             )
         )
-    return entries
+    return documents
 
 
 def _read_required_canonical_root(source: dict[str, str]) -> Path:
@@ -495,6 +631,13 @@ def _read_handbook_derived_documents_config_path(source: dict[str, str]) -> Path
     if value:
         return Path(value)
     return _default_config_root() / "campus_services" / "service_catalog" / "handbook-derived-documents.json"
+
+
+def _read_handbook_source_projections_config_path(source: dict[str, str]) -> Path:
+    value = (source.get("HANDBOOK_SOURCE_PROJECTIONS_PATH") or "").strip()
+    if value:
+        return Path(value)
+    return _default_config_root() / "regulations" / "student_handbook" / "source-projections.v1.json"
 
 
 def load_handbook_derived_documents_config(path: Path) -> HandbookDerivedDocumentsConfig:
@@ -520,6 +663,43 @@ def load_handbook_derived_documents_config(path: Path) -> HandbookDerivedDocumen
         source_pdf=str(payload.get("source_pdf") or ""),
         raw_asset_id=str(payload.get("raw_asset_id") or ""),
         documents=documents,
+    )
+
+
+def load_handbook_source_projections_config(path: Path) -> HandbookSourceProjectionsConfig:
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    if str(payload.get("schema_version") or "") != HANDBOOK_SOURCE_PROJECTIONS_SCHEMA_VERSION:
+        raise ValueError(f"unsupported handbook source projections schema_version: {payload.get('schema_version')!r}")
+    projections = tuple(
+        HandbookSourceProjection(
+            projection_name=str(item.get("projection_name") or ""),
+            target_corpus=str(item.get("target_corpus") or ""),
+            target_collection=str(item.get("target_collection") or ""),
+            projection_family=str(item.get("projection_family") or ""),
+            replay_from_source_truth=bool(item.get("replay_from_source_truth", False)),
+            derived_from=str(item.get("derived_from") or ""),
+            derived_from_document_id=(
+                str(item["derived_from_document_id"])
+                if item.get("derived_from_document_id") is not None
+                else None
+            ),
+            parent_document_id=(
+                str(item["parent_document_id"])
+                if item.get("parent_document_id") is not None
+                else None
+            ),
+            attachment_kind=str(item["attachment_kind"]) if item.get("attachment_kind") is not None else None,
+            attachment_role=str(item["attachment_role"]) if item.get("attachment_role") is not None else None,
+            target_title=str(item["target_title"]) if item.get("target_title") is not None else None,
+            migration_reason=str(item["migration_reason"]) if item.get("migration_reason") is not None else None,
+        )
+        for item in list(payload.get("projections") or [])
+    )
+    return HandbookSourceProjectionsConfig(
+        source_corpus=str(payload.get("source_corpus") or ""),
+        source_collection=str(payload.get("source_collection") or ""),
+        raw_asset_id=str(payload.get("raw_asset_id") or ""),
+        projections=projections,
     )
 
 
@@ -609,6 +789,8 @@ def _select_handbook_raw_asset_record(
 
 
 def _retitle_markdown_heading(body: str, *, old_title: str, new_title: str) -> str:
+    _, content_body = _parse_yaml_front_matter_document(body)
+    body = content_body
     lines = body.splitlines()
     for index, line in enumerate(lines):
         if not line.strip():
@@ -660,6 +842,29 @@ def _infer_year(value: str) -> str:
     return match.group(1) if match is not None else "undated"
 
 
+def _infer_handbook_projection_source_title(structured_rows: list[dict[str, object]]) -> str:
+    for row in structured_rows:
+        title_text = str(row.get("text_normalized") or row.get("clean_text") or "").strip()
+        if title_text:
+            return title_text
+    raise ValueError("handbook projection source title not found")
+
+
+def _infer_handbook_projection_page_range(structured_rows: list[dict[str, object]]) -> tuple[int, int]:
+    pages = [
+        int(row["page_start"])
+        for row in structured_rows
+        if row.get("page_start") is not None
+    ]
+    if not pages:
+        raise ValueError("handbook projection source pages not found")
+    return min(pages), max(pages)
+
+
+def _infer_handbook_projection_cleanup_title(structured_rows: list[dict[str, object]]) -> str:
+    return _infer_handbook_projection_source_title(structured_rows)
+
+
 def _legacy_regulations_document_prefix(*, title: str, legacy_document_id: str) -> str:
     suffix = legacy_document_id.split(":")[-1].strip()
     if not suffix:
@@ -669,3 +874,43 @@ def _legacy_regulations_document_prefix(*, title: str, legacy_document_id: str) 
 
 def _default_config_root() -> Path:
     return Path(__file__).resolve().parents[4] / "configs" / "ingestion"
+
+
+def _build_handbook_derived_document_units_bytes(
+    *,
+    source_document_id: str,
+    target_document_id: str,
+    target_title: str,
+    source_pdf: str,
+    source_uri: str,
+    cleanup_result: object,
+    projection: HandbookSourceProjection,
+    raw_asset_record: RawAssetRecord,
+) -> bytes:
+    serialized = json.loads(serialize_handbook_document_units(cleanup_result.document_units).decode("utf-8").splitlines()[0])
+    version_id = f"{serialized['version_id']}:projection:{projection.projection_name}"
+    rows: list[dict[str, object]] = []
+    for raw_line in serialize_handbook_document_units(cleanup_result.document_units).decode("utf-8").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        row = json.loads(line)
+        row["doc_id"] = target_document_id
+        row["version_id"] = version_id
+        row["source_url"] = source_uri
+        row["source"] = {"id": source_uri}
+        metadata = dict(row.get("metadata") or {})
+        metadata["title"] = target_title
+        metadata["projection_name"] = projection.projection_name
+        metadata["derived_from"] = projection.derived_from
+        metadata["derived_from_document_id"] = source_document_id
+        metadata["derived_from_raw_asset_id"] = raw_asset_record.raw_asset_id
+        metadata["derived_from_raw_version_id"] = raw_asset_record.raw_version_id
+        metadata["parent_document_id"] = projection.parent_document_id or source_document_id
+        if projection.attachment_kind is not None:
+            metadata["attachment_kind"] = projection.attachment_kind
+        if projection.attachment_role is not None:
+            metadata["attachment_role"] = projection.attachment_role
+        row["metadata"] = metadata
+        rows.append(row)
+    return ("\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n").encode("utf-8")

@@ -32,6 +32,7 @@ from campus_ingestion_core.campusrag_ingestion_support import (
 )
 from campus_ingestion_core.curriculum_provider_normalize import normalize_curriculum_provider_result
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
+from campus_ingestion_core.handbook_source_projections import build_handbook_projection_import_documents
 from campus_ingestion_core.handbook_cleanup import (
     cleanup_handbook_document,
     validate_handbook_manifest_title,
@@ -237,8 +238,9 @@ def process_raw_ingestion_job(
     registry: DocumentRegistry | None = None,
     raw_asset_registry: RawAssetRegistry | None = None,
 ) -> ImportReport:
-    settings = RawIngestionProcessSettings.from_env(env)
-    raw_asset_registry = raw_asset_registry or build_raw_asset_registry_from_env(env)
+    source = dict(env if env is not None else os.environ)
+    settings = RawIngestionProcessSettings.from_env(source)
+    raw_asset_registry = raw_asset_registry or build_raw_asset_registry_from_env(source)
     writer = object_store or S3ObjectStoreClient(settings.object_store)
     if not hasattr(writer, "get_bytes"):
         raise TypeError("object_store must support get_bytes for process_raw_ingestion_job")
@@ -254,7 +256,7 @@ def process_raw_ingestion_job(
             raw_asset_record=raw_asset_record,
         )
 
-    registry = registry or build_document_registry_from_env(env)
+    registry = registry or build_document_registry_from_env(source)
     split_manifest = (
         load_split_manifest(
             settings.split_manifest_path,
@@ -296,6 +298,7 @@ def process_raw_ingestion_job(
                 corpus=settings.corpus,
                 collection=settings.collection,
                 ocr_model=settings.online_ocr.model,
+                source=source,
             )
             documents.extend(handbook_documents)
             errors.extend(handbook_errors)
@@ -449,6 +452,7 @@ def _build_split_manifest_documents(
 
 def _build_handbook_split_manifest_documents(
     *,
+    source: dict[str, str],
     raw_asset_record: RawAssetRecord,
     provider_result: OnlineOcrProviderResult,
     split_manifest: SplitManifest,
@@ -495,6 +499,19 @@ def _build_handbook_split_manifest_documents(
             )
         except Exception as exc:
             errors.append(f"{raw_asset_record.object_key}#{document.document_id}: {exc}")
+    try:
+        documents.extend(
+            build_handbook_projection_import_documents(
+                source=source,
+                raw_asset_record=raw_asset_record,
+                provider_response_key=provider_response_key,
+                layout_elements_key=layout_elements_key,
+                structured_rows=structured_rows,
+                split_manifest_documents=split_manifest.documents,
+            )
+        )
+    except Exception as exc:
+        errors.append(f"{raw_asset_record.object_key}#declared-projections: {exc}")
     return documents, errors
 
 

@@ -330,6 +330,121 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                     online_ocr=_FakeOnlineOcrClient(),
                 )
 
+    def test_process_raw_ingestion_job_emits_declared_handbook_downstream_projections(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            raw_bytes = b"%PDF-1.4 remote student handbook stable"
+            raw_hash = hashlib.sha256(raw_bytes).hexdigest()
+            raw_version_id = f"sha256:{raw_hash}"
+            raw_key = f"pdf/student-handbook-master/undated/sha256/{raw_hash}/student-handbook.pdf"
+            split_manifest_path = root / "configs" / "split-manifest.v1.json"
+            split_manifest_path.parent.mkdir(parents=True)
+            split_manifest_path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "corpus": "regulations",
+                        "collection": "student_handbook",
+                        "raw_asset_id": "asset:student-handbook-master-pdf",
+                        "documents": [
+                            {
+                                "document_id": "handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675",
+                                "title": "中央民族大学奖学金评定办法",
+                                "handbook_section": "中央民族大学学生奖励管理规定",
+                                "page_start": 1,
+                                "page_end": 1,
+                                "source_uri": "https://campus.example/handbook/scholarship-policy",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            projection_config_path = root / "configs" / "source-projections.v1.json"
+            projection_config_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "student_handbook_source_projections_v1",
+                        "source_corpus": "regulations",
+                        "source_collection": "student_handbook",
+                        "raw_asset_id": "asset:student-handbook-master-pdf",
+                        "projections": [
+                            {
+                                "projection_name": "student_handbook_primary_documents",
+                                "target_corpus": "regulations",
+                                "target_collection": "student_handbook",
+                                "projection_family": "primary_documents",
+                                "replay_from_source_truth": True,
+                                "derived_from": "source_truth",
+                                "derived_from_document_id": None,
+                                "parent_document_id": None,
+                                "attachment_kind": None,
+                                "attachment_role": None,
+                            },
+                            {
+                                "projection_name": "handbook_phone_directory",
+                                "target_corpus": "campus_services",
+                                "target_collection": "contact_directory",
+                                "projection_family": "derived_documents",
+                                "replay_from_source_truth": True,
+                                "derived_from": "source_truth",
+                                "derived_from_document_id": "handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675",
+                                "parent_document_id": "handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675",
+                                "attachment_kind": "navigation_like",
+                                "attachment_role": "service_contact_directory",
+                                "target_title": "中央民族大学校内常用电话",
+                                "migration_reason": "handbook_phone_directory_projection",
+                            },
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            object_store = _FakeObjectStore()
+            object_store.objects[("campus-rag-raw", raw_key)] = raw_bytes
+            registry = FileDocumentRegistry(root / "registry" / "documents.json")
+            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "raw-assets.json")
+            raw_asset_registry.upsert(
+                _handbook_raw_asset_record(
+                    raw_asset_id="asset:student-handbook-master-pdf",
+                    raw_version_id=raw_version_id,
+                    raw_source_uri="s3://campus-rag-raw/pdf/student-handbook-master/student-handbook.pdf",
+                    content_hash=raw_hash,
+                    source_filename="student-handbook.pdf",
+                    object_key=raw_key,
+                )
+            )
+
+            report = process_raw_ingestion_job(
+                env={
+                    "RAW_ASSET_ID": "asset:student-handbook-master-pdf",
+                    "RAW_VERSION_ID": raw_version_id,
+                    "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
+                    "HANDBOOK_SOURCE_PROJECTIONS_PATH": str(projection_config_path),
+                    "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
+                    "OCR_API_KEY": "token",
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    "IMPORT_REPORT_DIR": str(root / "reports"),
+                    "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
+                },
+                object_store=object_store,
+                online_ocr=_FixtureOnlineOcrClient("provider-result-stable.jsonl"),
+                registry=registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            self.assertEqual(report.success_count, 2)
+            self.assertEqual(
+                tuple(sorted(record.document_id for record in registry.list_by_scope("campus_services", "contact_directory"))),
+                ("campus_services:contact_directory:bf03f0bd6930e89bcc6d2733c1e87a423b510675",),
+            )
+
     def test_process_raw_ingestion_job_provider_only_reads_registered_raw_asset_from_object_store(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

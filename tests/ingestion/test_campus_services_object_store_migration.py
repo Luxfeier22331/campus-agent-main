@@ -50,6 +50,67 @@ class _FakeRawAssetRegistry:
 
 
 class CampusServicesObjectStoreMigrationTest(unittest.TestCase):
+    def test_migration_reads_handbook_source_projections_contract_for_derived_outputs(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            canonical_root = _build_canonical_fixture(root)
+            projection_config_path = root / "configs" / "source-projections.v1.json"
+            projection_config_path.parent.mkdir(parents=True)
+            projection_config_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "student_handbook_source_projections_v1",
+                        "source_corpus": "regulations",
+                        "source_collection": "student_handbook",
+                        "raw_asset_id": "asset:student-handbook-pdf",
+                        "projections": [
+                            {
+                                "projection_name": "handbook_navigation_service_catalog",
+                                "target_corpus": "campus_services",
+                                "target_collection": "service_catalog",
+                                "projection_family": "derived_documents",
+                                "replay_from_source_truth": True,
+                                "derived_from": "source_truth",
+                                "derived_from_document_id": "handbook:66f91543748400ae59b3f9265353a0538088028a",
+                                "parent_document_id": "handbook:66f91543748400ae59b3f9265353a0538088028a",
+                                "attachment_kind": "navigation_like",
+                                "attachment_role": "service_navigation_document",
+                                "target_title": "中央民族大学学生公寓管理工作流程",
+                                "migration_reason": "handbook_navigation_document",
+                            },
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            object_store = _FakeObjectStore()
+            raw_asset_registry = _build_handbook_raw_asset_registry()
+            _seed_handbook_provider_response(object_store)
+
+            with patch(
+                "campus_ingestion_core.campus_services_migration.normalize_handbook_provider_result",
+                return_value=_build_handbook_navigation_rows(),
+            ):
+                report = migrate_campus_services_canonical_to_object_store(
+                    env={
+                        "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                        "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                        "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                        "OBJECT_STORE_BUCKET_PROCESSED": "campus-rag-processed",
+                        "CAMPUSRAG_CANONICAL_ROOT": str(canonical_root),
+                        "HANDBOOK_SOURCE_PROJECTIONS_PATH": str(projection_config_path),
+                    },
+                    object_store=object_store,
+                    raw_asset_registry=raw_asset_registry,
+                )
+
+        self.assertEqual(report.imported_count, 3)
+        handbook_entries = [payload.decode("utf-8") for _, _, payload, _ in object_store.puts if b"projection_name:" in payload]
+        self.assertEqual(len(handbook_entries), 1)
+        self.assertIn("projection_name: handbook_navigation_service_catalog", handbook_entries[0])
+
     def test_build_plan_projects_active_service_portal_and_phone_docs(self) -> None:
         with TemporaryDirectory() as temp_dir:
             canonical_root = _build_canonical_fixture(Path(temp_dir))

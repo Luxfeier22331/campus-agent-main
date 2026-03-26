@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -110,6 +113,118 @@ class _FakeDocumentRegistryWithRecords(_FakeDocumentRegistry):
 
 
 class RebuildLocalDataTest(unittest.TestCase):
+    def test_rebuild_provider_response_replay_clears_declared_downstream_projection_artifacts(self) -> None:
+        object_store = _FakeObjectStoreAdmin()
+        projection_config = {
+            "schema_version": "student_handbook_source_projections_v1",
+            "source_corpus": "regulations",
+            "source_collection": "student_handbook",
+            "raw_asset_id": "asset:student-handbook-pdf",
+            "source_truth_artifacts": [
+                "provider-response.jsonl",
+                "layout-elements.jsonl",
+                "split-manifest.v1.json",
+                "per-document source rows",
+            ],
+            "rebuild_boundary": "source_truth",
+            "rebuild_rule": "When canonical source truth exists, downstream rebuild must reuse source truth and must not return to raw.",
+            "derived_document_fields": [
+                "projection_name",
+                "derived_from_raw_asset_id",
+                "derived_from_raw_version_id",
+                "derived_from",
+                "derived_from_document_id",
+                "parent_document_id",
+                "attachment_kind",
+                "attachment_role",
+            ],
+            "projections": [
+                {
+                    "projection_name": "student_handbook_primary_documents",
+                    "target_corpus": "regulations",
+                    "target_collection": "student_handbook",
+                    "projection_family": "primary_documents",
+                    "replay_from_source_truth": True,
+                    "derived_from": "source_truth",
+                    "derived_from_document_id": None,
+                    "parent_document_id": None,
+                    "attachment_kind": None,
+                    "attachment_role": None,
+                },
+                {
+                    "projection_name": "handbook_navigation_service_catalog",
+                    "target_corpus": "campus_services",
+                    "target_collection": "service_catalog",
+                    "projection_family": "derived_documents",
+                    "replay_from_source_truth": True,
+                    "derived_from": "source_truth",
+                    "derived_from_document_id": "handbook:66f91543748400ae59b3f9265353a0538088028a",
+                    "parent_document_id": "handbook:66f91543748400ae59b3f9265353a0538088028a",
+                    "attachment_kind": "navigation_like",
+                    "attachment_role": "service_navigation_document",
+                    "target_title": "中央民族大学学生公寓管理工作流程",
+                    "migration_reason": "handbook_navigation_document",
+                },
+            ],
+        }
+        source_key = (
+            "regulations/sources/pdf_ocr/student-handbook/undated/sha256/"
+            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider-response.jsonl"
+        )
+        with TemporaryDirectory() as temp_dir:
+            projection_config_path = Path(temp_dir) / "source-projections.v1.json"
+            projection_config_path.write_text(json.dumps(projection_config, ensure_ascii=False, indent=2), encoding="utf-8")
+
+            document_registry = _FakeDocumentRegistryWithRecords(
+                _FakeDocumentRecord(
+                    corpus="regulations",
+                    collection="student_handbook",
+                    processed_object_keys=(
+                        "regulations/documents/student_handbook/doc-a/source-faithful/2018/canonical.md",
+                        "regulations/documents/student_handbook/doc-a/source-faithful/2018/document-units.jsonl",
+                    ),
+                ),
+                _FakeDocumentRecord(
+                    corpus="campus_services",
+                    collection="service_catalog",
+                    processed_object_keys=(
+                        "campus_services/documents/service_catalog/"
+                        "中央民族大学学生公寓管理工作流程--66f91543/source-faithful/2018/canonical.md",
+                        "campus_services/documents/service_catalog/"
+                        "中央民族大学学生公寓管理工作流程--66f91543/source-faithful/2018/document-units.jsonl",
+                    ),
+                ),
+            )
+
+            rebuild_local_data(
+                env={
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    "INGESTION_CORPUS": "regulations",
+                    "INGESTION_COLLECTION": "student_handbook",
+                    "REBUILD_IMPORT_MODE": "provider_response_replay",
+                    "REBUILD_PROVIDER_RESPONSE_KEY": source_key,
+                    "HANDBOOK_SOURCE_PROJECTIONS_PATH": str(projection_config_path),
+                },
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=_FakeRawAssetRegistry(),
+                import_runner=lambda **kwargs: {"status": "replay"},
+            )
+
+        cleared_prefixes = [prefix for _, prefix, _ in object_store.cleared_prefixes]
+        self.assertIn(
+            "campus_services/documents/service_catalog/"
+            "中央民族大学学生公寓管理工作流程--66f91543/source-faithful/2018/canonical.md",
+            cleared_prefixes,
+        )
+        self.assertIn(
+            "campus_services/documents/service_catalog/"
+            "中央民族大学学生公寓管理工作流程--66f91543/source-faithful/2018/document-units.jsonl",
+            cleared_prefixes,
+        )
+
     def test_rebuild_clears_minio_and_registry_without_touching_qdrant_by_default(self) -> None:
         object_store = _FakeObjectStoreAdmin()
         qdrant = _FakeQdrantAdmin()
