@@ -4,17 +4,24 @@ import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 
 from campus_ingestion_core.campus_services_migration import (
     build_campus_services_migration_plan,
     migrate_campus_services_canonical_to_object_store,
 )
+from campus_ingestion_core.models import RawAssetRecord
+from campus_ingestion_core.object_store import build_processed_asset_artifact_key
 
 
 class _FakeObjectStore:
     def __init__(self) -> None:
+        self.objects: dict[tuple[str, str], bytes] = {}
         self.puts: list[tuple[str, str, bytes, str]] = []
         self.deleted_prefixes: list[tuple[str, str, tuple[str, ...]]] = []
+
+    def get_bytes(self, *, bucket: str, key: str) -> bytes:
+        return self.objects[(bucket, key)]
 
     def put_bytes(
         self,
@@ -28,6 +35,18 @@ class _FakeObjectStore:
 
     def delete_prefix(self, *, bucket: str, prefix: str, exclude_keys: tuple[str, ...] = ()) -> None:
         self.deleted_prefixes.append((bucket, prefix, exclude_keys))
+
+
+class _FakeRawAssetRegistry:
+    def __init__(self, *records: RawAssetRecord) -> None:
+        self.records = records
+
+    def list_by_scope(self, corpus: str, collection: str | None = None) -> tuple[RawAssetRecord, ...]:
+        return tuple(
+            record
+            for record in self.records
+            if record.corpus == corpus and (collection is None or record.collection == collection)
+        )
 
 
 class CampusServicesObjectStoreMigrationTest(unittest.TestCase):
@@ -66,19 +85,26 @@ class CampusServicesObjectStoreMigrationTest(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             canonical_root = _build_canonical_fixture(Path(temp_dir))
             object_store = _FakeObjectStore()
+            raw_asset_registry = _build_handbook_raw_asset_registry()
+            _seed_handbook_provider_response(object_store)
 
-            report = migrate_campus_services_canonical_to_object_store(
-                env={
-                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
-                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
-                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                    "OBJECT_STORE_BUCKET_PROCESSED": "campus-rag-processed",
-                    "CAMPUSRAG_CANONICAL_ROOT": str(canonical_root),
-                },
-                object_store=object_store,
-            )
+            with patch(
+                "campus_ingestion_core.campus_services_migration.normalize_handbook_provider_result",
+                return_value=_build_handbook_navigation_rows(),
+            ):
+                report = migrate_campus_services_canonical_to_object_store(
+                    env={
+                        "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                        "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                        "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                        "OBJECT_STORE_BUCKET_PROCESSED": "campus-rag-processed",
+                        "CAMPUSRAG_CANONICAL_ROOT": str(canonical_root),
+                    },
+                    object_store=object_store,
+                    raw_asset_registry=raw_asset_registry,
+                )
 
-        self.assertEqual(report.imported_count, 2)
+        self.assertEqual(report.imported_count, 3)
         self.assertEqual(report.skipped_count, 1)
         self.assertEqual(
             report.imported_object_keys,
@@ -87,9 +113,11 @@ class CampusServicesObjectStoreMigrationTest(unittest.TestCase):
                 "中央民族大学校内常用电话--bf03f0bd/source-faithful/2018/canonical.md",
                 "campus_services/documents/service_catalog/"
                 "一网通办服务目录--4122f8f8/source-faithful/2026/canonical.md",
+                "campus_services/documents/service_catalog/"
+                "中央民族大学学生公寓管理工作流程--66f91543/source-faithful/2018/canonical.md",
             ),
         )
-        self.assertEqual(len(object_store.deleted_prefixes), 3)
+        self.assertEqual(len(object_store.deleted_prefixes), 4)
         self.assertEqual(object_store.deleted_prefixes[0][0], "campus-rag-processed")
         self.assertEqual(object_store.deleted_prefixes[0][1], "campus_services/documents/contact_directory/")
         self.assertEqual(
@@ -106,12 +134,23 @@ class CampusServicesObjectStoreMigrationTest(unittest.TestCase):
             "一网通办服务目录--4122f8f8/source-faithful/2026/canonical.md",
             object_store.deleted_prefixes[1][2],
         )
+        self.assertIn(
+            "campus_services/documents/service_catalog/"
+            "中央民族大学学生公寓管理工作流程--66f91543/source-faithful/2018/canonical.md",
+            object_store.deleted_prefixes[1][2],
+        )
         self.assertEqual(object_store.deleted_prefixes[2][0], "campus-rag-processed")
         self.assertEqual(
             object_store.deleted_prefixes[2][1],
             "regulations/documents/student_handbook/中央民族大学校内常用电话--bf03f0bd/",
         )
         self.assertEqual(object_store.deleted_prefixes[2][2], ())
+        self.assertEqual(object_store.deleted_prefixes[3][0], "campus-rag-processed")
+        self.assertEqual(
+            object_store.deleted_prefixes[3][1],
+            "regulations/documents/student_handbook/中央民族大学公寓及公费医疗管理规定--66f91543/",
+        )
+        self.assertEqual(object_store.deleted_prefixes[3][2], ())
         self.assertEqual(
             [(bucket, key, content_type) for bucket, key, _, content_type in object_store.puts],
             [
@@ -127,10 +166,17 @@ class CampusServicesObjectStoreMigrationTest(unittest.TestCase):
                     "一网通办服务目录--4122f8f8/source-faithful/2026/canonical.md",
                     "text/markdown; charset=utf-8",
                 ),
+                (
+                    "campus-rag-processed",
+                    "campus_services/documents/service_catalog/"
+                    "中央民族大学学生公寓管理工作流程--66f91543/source-faithful/2018/canonical.md",
+                    "text/markdown; charset=utf-8",
+                ),
             ],
         )
         phone_doc = object_store.puts[0][2].decode("utf-8")
         service_doc = object_store.puts[1][2].decode("utf-8")
+        handbook_doc = object_store.puts[2][2].decode("utf-8")
         self.assertIn("doc_id: campus_services:contact_directory:bf03f0bd6930e89bcc6d2733c1e87a423b510675", phone_doc)
         self.assertIn("corpus: campus_services", phone_doc)
         self.assertIn("collection: contact_directory", phone_doc)
@@ -148,6 +194,20 @@ class CampusServicesObjectStoreMigrationTest(unittest.TestCase):
         self.assertIn("migration_source_corpus: service_portal", service_doc)
         self.assertIn("legacy_doc_id: service_portal:4122f8f863e497f4f21234da1e35dd7693bbc6e9", service_doc)
         self.assertNotIn("\ncorpus: service_portal\n", service_doc)
+        self.assertIn(
+            "doc_id: campus_services:service_catalog:66f91543748400ae59b3f9265353a0538088028a",
+            handbook_doc,
+        )
+        self.assertIn("title: 中央民族大学学生公寓管理工作流程", handbook_doc)
+        self.assertIn("collection: service_catalog", handbook_doc)
+        self.assertIn("migration_source_corpus: regulations", handbook_doc)
+        self.assertIn("migration_source_collection: student_handbook", handbook_doc)
+        self.assertIn(
+            "migration_reason: handbook_navigation_document",
+            handbook_doc,
+        )
+        self.assertIn("# 中央民族大学学生公寓管理工作流程", handbook_doc)
+        self.assertNotIn("# 中央民族大学公寓及公费医疗管理规定", handbook_doc)
 
 
 def _build_canonical_fixture(root: Path) -> Path:
@@ -236,6 +296,90 @@ def _build_canonical_fixture(root: Path) -> Path:
         encoding="utf-8",
     )
     return canonical_root
+
+
+def _build_handbook_raw_asset_registry() -> _FakeRawAssetRegistry:
+    return _FakeRawAssetRegistry(
+        RawAssetRecord(
+            raw_asset_id="asset:student-handbook-pdf",
+            raw_version_id="sha256:test-handbook-source",
+            corpus="regulations",
+            collection="student_handbook",
+            raw_source_uri="s3://upstream/student-handbook.pdf",
+            content_hash="test-handbook-source",
+            source_filename="学生手册_2018.pdf",
+            object_key="pdf/student-handbook/2018/sha256/test-handbook-source/学生手册_2018.pdf",
+            ingestion_timestamp="2026-03-26T09:00:00+00:00",
+            import_source="provider_response_replay",
+        )
+    )
+
+
+def _seed_handbook_provider_response(object_store: _FakeObjectStore) -> None:
+    provider_response_key = build_processed_asset_artifact_key(
+        corpus="regulations",
+        raw_asset_id="asset:student-handbook-pdf",
+        raw_version_id="sha256:test-handbook-source",
+        filename="provider-response.jsonl",
+        year="2018",
+    )
+    object_store.objects[("campus-rag-processed", provider_response_key)] = b'{"stub":true}\n'
+
+
+def _build_handbook_navigation_rows() -> list[dict[str, object]]:
+    return [
+        _handbook_source_row(
+            252,
+            "heading",
+            "中央民族大学公寓及公费医疗管理规定",
+            block_role="title",
+            title_candidate_score=1.0,
+        ),
+        _handbook_source_row(252, "paragraph", "四、住宿中途申请办理退宿流程"),
+        _handbook_source_row(253, "paragraph", "1、本科生特殊情况申请办理退宿手续"),
+        _handbook_source_row(254, "paragraph", "学生须经学院审批后办理退宿。"),
+    ]
+
+
+def _handbook_source_row(
+    page: int,
+    row_type: str,
+    text: str,
+    *,
+    block_role: str | None = None,
+    title_candidate_score: float = 0.0,
+) -> dict[str, object]:
+    return {
+        "schema_version": "student_handbook_layout_elements_v1",
+        "corpus": "regulations",
+        "collection": "student_handbook",
+        "source_artifact_id": "asset:student-handbook-pdf",
+        "source_pdf": "学生手册_2018.pdf",
+        "page_start": page,
+        "page_end": page,
+        "row_id": f"page-{page:04d}-{row_type}",
+        "row_index": page,
+        "ocr_provider": "paddleocr_async",
+        "ocr_model": "PaddleOCR-VL-1.5",
+        "provider_page_id": page,
+        "provider_block_id": f"block-{page:04d}",
+        "provider_payload_ref": f"line:{page}",
+        "confidence": 0.98,
+        "row_type": row_type,
+        "block_role": block_role or row_type,
+        "heading_level": 1 if row_type == "heading" else None,
+        "reading_order": page,
+        "bbox": [0.0, 0.0, 100.0, 20.0],
+        "text_raw": text,
+        "text_normalized": text,
+        "clean_text": text,
+        "html": None,
+        "table_cells": None,
+        "is_blank": False,
+        "is_repeated_candidate": False,
+        "title_candidate_score": title_candidate_score,
+        "section_hint": text if row_type == "heading" else None,
+    }
 
 
 if __name__ == "__main__":

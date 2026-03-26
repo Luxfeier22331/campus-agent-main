@@ -46,7 +46,7 @@ class SplitManifestTest(unittest.TestCase):
         self.assertEqual(payload["collection"], "student_handbook")
         self.assertEqual(payload["raw_asset_id"], "asset:student-handbook-pdf")
         self.assertIn("documents", payload)
-        self.assertEqual(len(payload["documents"]), 47)
+        self.assertEqual(len(payload["documents"]), 46)
         self.assertEqual(payload["documents"][0]["title"], "普通高等学校学生管理规定")
         self.assertEqual(payload["documents"][0]["handbook_section"], "国家高等教育管理有关规定")
         self.assertEqual(payload["documents"][-1]["title"], "中央民族大学学生公费医疗管理办法")
@@ -55,6 +55,7 @@ class SplitManifestTest(unittest.TestCase):
         )
         titles = {document["title"] for document in payload["documents"]}
         self.assertNotIn("中央民族大学校内常用电话", titles)
+        self.assertNotIn("中央民族大学公寓及公费医疗管理规定", titles)
 
     def test_repo_curriculum_plan_manifest_contains_reviewed_document_boundaries(self) -> None:
         manifest = load_split_manifest(

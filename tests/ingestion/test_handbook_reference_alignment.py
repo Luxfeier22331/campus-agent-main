@@ -42,12 +42,6 @@ REFERENCE_DOCS = {
         "page_start": 200,
         "page_end": 203,
     },
-    "中央民族大学公寓及公费医疗管理规定": {
-        "document_id": "handbook:66f91543748400ae59b3f9265353a0538088028a",
-        "handbook_section": "中央民族大学公寓及公费医疗管理规定",
-        "page_start": 252,
-        "page_end": 255,
-    },
     "中央民族大学关于学生宿舍照明的管理规定": {
         "document_id": "handbook:2ec80263a9e7b11379281349196ceb96afa44c3b",
         "handbook_section": "中央民族大学公寓及公费医疗管理规定",
@@ -74,7 +68,7 @@ REFERENCE_SECTION_COUNTS = {
     "中央民族大学学生日常管理规定": 12,
     "中央民族大学学生奖励管理规定": 8,
     "中央民族大学学生资助管理规定": 9,
-    "中央民族大学公寓及公费医疗管理规定": 4,
+    "中央民族大学公寓及公费医疗管理规定": 3,
 }
 
 
@@ -86,7 +80,7 @@ class HandbookReferenceAlignmentTest(unittest.TestCase):
             expected_collection="student_handbook",
         )
 
-        self.assertEqual(len(manifest.documents), 47)
+        self.assertEqual(len(manifest.documents), 46)
         by_title = {document.title: document for document in manifest.documents}
         self.assertEqual(set(REFERENCE_DOCS), set(REFERENCE_DOCS) & set(by_title))
         for title, expected in REFERENCE_DOCS.items():

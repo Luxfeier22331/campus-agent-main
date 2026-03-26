@@ -18,9 +18,12 @@ The primary handbook input is processed-layer `provider-response.jsonl`.
 Each cleaned document then emits `canonical.md` and `document-units.jsonl` before chunking.
 Phase-1 OCR ingestion stores document-level artifacts under `regulations/documents/student_handbook/{title_slug}--{docid8}/{representation}/{year}/...`.
 The canonical replay source filename is `学生手册_2018.pdf`; legacy `student-handbook.pdf` remains readable only for migration.
-The handbook split truth only keeps regulations-facing logical documents. The legacy
-phone directory page is derived into the offline-only `campus_services/contact_directory`
-taxonomy instead of remaining in the `regulations/student_handbook` manifest.
+The handbook split truth only keeps regulations-facing logical documents. Non-regulation
+service/navigation pages are derived into the offline-only `campus_services` taxonomy
+instead of remaining in the `regulations/student_handbook` manifest:
+
+- `中央民族大学校内常用电话` -> `campus_services/contact_directory`
+- `中央民族大学学生公寓管理工作流程` -> `campus_services/service_catalog`
 
 The repo-tracked `split-manifest.v1.json` is a scaffold and must be filled with real
 document ranges before `process_raw_ingestion_job` runs with
