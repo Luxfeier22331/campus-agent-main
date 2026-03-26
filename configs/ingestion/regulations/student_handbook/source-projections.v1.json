@@ -9,13 +9,17 @@
     "split-manifest.v1.json",
     "per-document source rows"
   ],
+  "rebuild_boundary": "source_truth",
+  "rebuild_rule": "When canonical source truth exists, downstream rebuild must reuse source truth and must not return to raw.",
   "derived_document_fields": [
     "projection_name",
     "derived_from_raw_asset_id",
     "derived_from_raw_version_id",
+    "derived_from",
     "derived_from_document_id",
     "parent_document_id",
-    "attachment_kind"
+    "attachment_kind",
+    "attachment_role"
   ],
   "projections": [
     {
@@ -25,8 +29,10 @@
       "projection_family": "primary_documents",
       "replay_from_source_truth": true,
       "derived_from": "source_truth",
+      "derived_from_document_id": null,
       "parent_document_id": null,
       "attachment_kind": null,
+      "attachment_role": null,
       "description": "Primary handbook projection into canonical handbook documents and document-units."
     },
     {
@@ -39,6 +45,7 @@
       "derived_from_document_id": "handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675",
       "parent_document_id": "handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675",
       "attachment_kind": "navigation_like",
+      "attachment_role": "service_contact_directory",
       "target_title": "中央民族大学校内常用电话",
       "migration_reason": "handbook_phone_directory_projection"
     },
@@ -52,13 +59,55 @@
       "derived_from_document_id": "handbook:66f91543748400ae59b3f9265353a0538088028a",
       "parent_document_id": "handbook:66f91543748400ae59b3f9265353a0538088028a",
       "attachment_kind": "navigation_like",
+      "attachment_role": "service_navigation_document",
       "target_title": "中央民族大学学生公寓管理工作流程",
       "migration_reason": "handbook_navigation_document"
     }
   ],
-  "deferred_attachment_kinds": [
-    "narrative_appendix",
-    "tabular_appendix",
-    "form_template"
+  "attachment_projection_families": [
+    {
+      "projection_name": "handbook_appendix_documents",
+      "target_corpus": "regulations",
+      "target_collection": "student_handbook",
+      "projection_family": "derived_documents",
+      "derived_from": "source_truth",
+      "derived_from_document_id": "*",
+      "parent_document_id": "*",
+      "attachment_kind": "narrative_appendix",
+      "attachment_role": "standalone_appendix_document"
+    },
+    {
+      "projection_name": "handbook_tabular_appendix_documents",
+      "target_corpus": "regulations",
+      "target_collection": "student_handbook",
+      "projection_family": "derived_documents",
+      "derived_from": "source_truth",
+      "derived_from_document_id": "*",
+      "parent_document_id": "*",
+      "attachment_kind": "tabular_appendix",
+      "attachment_role": "standalone_appendix_table_document"
+    },
+    {
+      "projection_name": "handbook_form_template_documents",
+      "target_corpus": "regulations",
+      "target_collection": "student_handbook",
+      "projection_family": "derived_documents",
+      "derived_from": "source_truth",
+      "derived_from_document_id": "*",
+      "parent_document_id": "*",
+      "attachment_kind": "form_template",
+      "attachment_role": "standalone_form_document"
+    },
+    {
+      "projection_name": "handbook_navigation_leaf_documents",
+      "target_corpus": "campus_services",
+      "target_collection": "service_catalog",
+      "projection_family": "derived_documents",
+      "derived_from": "source_truth",
+      "derived_from_document_id": "*",
+      "parent_document_id": "*",
+      "attachment_kind": "navigation_like",
+      "attachment_role": "service_navigation_leaf"
+    }
   ]
 }
