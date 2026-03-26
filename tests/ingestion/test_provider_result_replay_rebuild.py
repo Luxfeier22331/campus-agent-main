@@ -469,7 +469,7 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                     "REBUILD_PROVIDER_RESPONSE_KEY": source_key,
                     "REPLAY_SOURCE_PDF": "student-handbook.pdf",
                     "IMPORT_REPORT_DIR": str(root / "reports"),
-                    "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
+                    "INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                     "EMBEDDING_PROVIDER": "mock",
                     "QDRANT_COLLECTION": "student_handbook",
                     "REBUILD_INDEX_QDRANT": "1",

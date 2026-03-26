@@ -23,7 +23,7 @@ def _make_curriculum_record() -> DocumentRegistryRecord:
         status="active",
         ingestion_timestamp="2026-03-24T10:00:00+00:00",
         parser_version="raw-online-ocr-v1",
-        embedding_model="text-embedding-3-large",
+        embedding_model="Qwen3-Embedding-4B",
         source_channel="pdf_ocr",
         document_units_object_key=(
             "curriculum/documents/curriculum_plan/test-001--test-001/source-faithful/undated/document-units.jsonl"

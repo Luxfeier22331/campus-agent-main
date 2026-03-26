@@ -7,11 +7,22 @@ from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
 
 
 class EmbeddingProviderAliasTest(unittest.TestCase):
+    def test_embedding_settings_default_qwen3_dimensions_to_native_width(self) -> None:
+        settings = EmbeddingSettings.from_env(
+            {
+                "EMBEDDING_PROVIDER": "gitee",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+            }
+        )
+
+        self.assertEqual(settings.dimensions, 2560)
+
     @patch("campus_ingestion_core.embed.OpenAIEmbedding")
     def test_build_embedding_model_uses_openai_embedding_for_official_provider(self, openai_embedding) -> None:
         settings = EmbeddingSettings(
             provider="openai",
-            model="text-embedding-3-large",
+            model="Qwen3-Embedding-4B",
+            dimensions=2560,
             api_key="test-key",
             api_base="https://example.invalid/v1",
             timeout_seconds=15.0,
@@ -22,12 +33,13 @@ class EmbeddingProviderAliasTest(unittest.TestCase):
 
         self.assertIs(model, openai_embedding.return_value)
         openai_embedding.assert_called_once_with(
-            model="text-embedding-3-large",
+            model="Qwen3-Embedding-4B",
             api_key="test-key",
             api_base="https://example.invalid/v1",
+            dimensions=2560,
             timeout=15.0,
             embed_batch_size=32,
-            model_name="text-embedding-3-large",
+            model_name="Qwen3-Embedding-4B",
         )
 
     @patch("campus_ingestion_core.embed.OpenAI")
@@ -66,11 +78,11 @@ class EmbeddingProviderAliasTest(unittest.TestCase):
         self.assertEqual(sync_client.embeddings.create.call_count, 2)
         self.assertEqual(
             sync_client.embeddings.create.call_args_list[0].kwargs,
-            {"input": ["手册正文"], "model": "Qwen3-Embedding-4B"},
+            {"input": ["手册正文"], "model": "Qwen3-Embedding-4B", "dimensions": 2560},
         )
         self.assertEqual(
             sync_client.embeddings.create.call_args_list[1].kwargs,
-            {"input": ["学生管理规定"], "model": "Qwen3-Embedding-4B"},
+            {"input": ["学生管理规定"], "model": "Qwen3-Embedding-4B", "dimensions": 2560},
         )
 
 

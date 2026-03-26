@@ -15,6 +15,7 @@ from campus_ingestion_core.registry import FileDocumentRegistry
 from campus_retrieval_core.backend_qdrant import (
     CorpusQueryDisabledError,
     QdrantRetrievalBackend,
+    RetrievalCandidate,
     RetrievalBackendError,
     _build_metadata_filters,
 )
@@ -225,7 +226,6 @@ class BackendQdrantTest(unittest.TestCase):
             {
                 "QDRANT_URL": ":memory:",
                 "DOCUMENT_REGISTRY_DATABASE_URL": "postgresql://registry.example/postgres",
-                "EMBEDDING_MODEL": "mock-embedding-8d",
             }
         )
 
@@ -234,6 +234,18 @@ class BackendQdrantTest(unittest.TestCase):
             settings.document_registry_database_url,
             "postgresql://registry.example/postgres",
         )
+        self.assertEqual(settings.embedding_provider, "gitee")
+        self.assertEqual(settings.embedding_model, "Qwen3-Embedding-4B")
+        self.assertEqual(settings.embedding_dimensions, 2560)
+
+    def test_retrieval_settings_default_qwen3_dimensions_to_native_width(self) -> None:
+        settings = RetrievalSettings(
+            qdrant_url=":memory:",
+            document_registry_database_url="postgresql://registry.example/postgres",
+        )
+
+        self.assertEqual(settings.embedding_model, "Qwen3-Embedding-4B")
+        self.assertEqual(settings.embedding_dimensions, 2560)
 
     def test_backend_returns_evidence_bundle_with_source_locator(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -298,6 +310,188 @@ class BackendQdrantTest(unittest.TestCase):
             self.assertEqual(source.latest_url, source.canonical_url)
             self.assertEqual(source.anchor["page_start"], 5)
             self.assertIn("08:00", source.snippet)
+
+    def test_backend_fuses_dense_and_sparse_candidates_with_rrf(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            registry_path = Path(temp_dir) / "registry.json"
+            registry = FileDocumentRegistry(registry_path)
+            dense_only = _make_registry_record(
+                document_id="handbook:dense-only",
+                version_id="v1:dense-only",
+                acl_groups=("students",),
+            )
+            hybrid_winner = _make_registry_record(
+                document_id="handbook:hybrid-winner",
+                version_id="v1:hybrid-winner",
+                acl_groups=("students",),
+            )
+            sparse_only = _make_registry_record(
+                document_id="handbook:sparse-only",
+                version_id="v1:sparse-only",
+                acl_groups=("students",),
+            )
+            registry.upsert_many((dense_only, hybrid_winner, sparse_only))
+
+            backend = QdrantRetrievalBackend(
+                settings=RetrievalSettings(
+                    qdrant_url=":memory:",
+                    qdrant_collection="student_handbook_test",
+                    document_registry_database_url="postgresql://registry.example/postgres",
+                ),
+                registry=registry,
+                qdrant_client=QdrantClient(location=":memory:"),
+                embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+            )
+            backend.qdrant_client.collection_exists = Mock(return_value=True)  # type: ignore[method-assign]
+            backend._retrieve_dense_candidates = Mock(  # type: ignore[method-assign]
+                return_value=(
+                    RetrievalCandidate(
+                        node=TextNode(
+                            text="Dense-only result about office hours.",
+                            metadata={
+                                "document_id": dense_only.document_id,
+                                "revision_track": dense_only.revision_track,
+                                "version_id": dense_only.version_id,
+                                "chunk_id": "chunk-dense-001",
+                                "anchor": {"page_start": 2, "page_end": 2},
+                                "acl_level": "public",
+                                "source_channel": "pdf_ocr",
+                                "collection": "student_handbook",
+                                "is_current": False,
+                            },
+                        ),
+                        score=0.91,
+                        retrieval_mode="dense",
+                    ),
+                    RetrievalCandidate(
+                        node=TextNode(
+                            text="Hybrid winner surfaced by dense retrieval too.",
+                            metadata={
+                                "document_id": hybrid_winner.document_id,
+                                "revision_track": hybrid_winner.revision_track,
+                                "version_id": hybrid_winner.version_id,
+                                "chunk_id": "chunk-hybrid-001",
+                                "anchor": {"page_start": 3, "page_end": 3},
+                                "acl_level": "public",
+                                "source_channel": "pdf_ocr",
+                                "collection": "student_handbook",
+                                "is_current": False,
+                            },
+                        ),
+                        score=0.82,
+                        retrieval_mode="dense",
+                    ),
+                )
+            )
+            backend._retrieve_sparse_candidates = Mock(  # type: ignore[method-assign]
+                return_value=(
+                    RetrievalCandidate(
+                        node=TextNode(
+                            text="Hybrid winner surfaced by lexical retrieval too.",
+                            metadata={
+                                "document_id": hybrid_winner.document_id,
+                                "revision_track": hybrid_winner.revision_track,
+                                "version_id": hybrid_winner.version_id,
+                                "chunk_id": "chunk-hybrid-001",
+                                "anchor": {"page_start": 3, "page_end": 3},
+                                "acl_level": "public",
+                                "source_channel": "pdf_ocr",
+                                "collection": "student_handbook",
+                                "is_current": False,
+                            },
+                        ),
+                        score=3.5,
+                        retrieval_mode="sparse",
+                    ),
+                    RetrievalCandidate(
+                        node=TextNode(
+                            text="Sparse-only result with exact scholarship wording.",
+                            metadata={
+                                "document_id": sparse_only.document_id,
+                                "revision_track": sparse_only.revision_track,
+                                "version_id": sparse_only.version_id,
+                                "chunk_id": "chunk-sparse-001",
+                                "anchor": {"page_start": 4, "page_end": 4},
+                                "acl_level": "public",
+                                "source_channel": "pdf_ocr",
+                                "collection": "student_handbook",
+                                "is_current": False,
+                            },
+                        ),
+                        score=2.4,
+                        retrieval_mode="sparse",
+                    ),
+                )
+            )
+
+            result = backend.retrieve(
+                RetrievalRequest(
+                    query_text="scholarship office hours",
+                    corpus="regulations",
+                    collection="student_handbook",
+                    acl_groups=("students",),
+                    top_k=3,
+                )
+            )
+
+            self.assertEqual(
+                [source.doc_id for source in result.sources],
+                ["handbook:hybrid-winner", "handbook:dense-only", "handbook:sparse-only"],
+            )
+
+    def test_backend_uses_sparse_lexical_candidates_when_dense_returns_no_hits(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            registry_path = Path(temp_dir) / "registry.json"
+            registry = FileDocumentRegistry(registry_path)
+            record = _make_registry_record(
+                document_id="handbook:scholarship",
+                version_id="v1:scholarship",
+                acl_groups=("students",),
+            )
+            registry.upsert(record)
+
+            embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
+            chunks = build_indexable_chunks_from_jsonl(
+                record=record,
+                structured_jsonl_bytes=_make_structured_jsonl(
+                    document_id=record.document_id,
+                    version_id=record.version_id,
+                    text="Scholarship evaluation remains public and follows a published rubric.",
+                ),
+                chunk_profile=ChunkProfile(chunk_size=128, chunk_overlap=16),
+                embedding_model=embedding_model,
+            )
+
+            backend = QdrantRetrievalBackend(
+                settings=RetrievalSettings(
+                    qdrant_url=":memory:",
+                    qdrant_collection="student_handbook_test",
+                    document_registry_database_url="postgresql://registry.example/postgres",
+                ),
+                registry=registry,
+                qdrant_client=QdrantClient(location=":memory:"),
+                embedding_model=embedding_model,
+            )
+            index_chunks_to_qdrant(
+                chunks=chunks,
+                qdrant_client=backend.qdrant_client,
+                collection_name=backend.settings.qdrant_collection,
+            )
+            backend._retrieve_dense_candidates = Mock(return_value=())  # type: ignore[method-assign]
+
+            result = backend.retrieve(
+                RetrievalRequest(
+                    query_text="published scholarship rubric",
+                    corpus="regulations",
+                    collection="student_handbook",
+                    acl_groups=("students",),
+                    top_k=3,
+                )
+            )
+
+            self.assertEqual(len(result.sources), 1)
+            self.assertEqual(result.sources[0].doc_id, "handbook:scholarship")
+            self.assertIn("Scholarship evaluation", result.sources[0].snippet)
 
     def test_backend_accepts_representation_payload_alias_for_revision_track(self) -> None:
         with TemporaryDirectory() as temp_dir:

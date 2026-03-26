@@ -48,7 +48,7 @@ def _handbook_document_record(*, version_id: str, content_hash: str, ingestion_t
         status="active",
         ingestion_timestamp=ingestion_timestamp,
         parser_version="campusrag-import-v1",
-        embedding_model="text-embedding-3-large",
+        embedding_model="Qwen3-Embedding-4B",
         source_channel="pdf_ocr",
         raw_asset=RawAssetRef(
             raw_asset_id="asset:student-handbook-pdf",
@@ -82,7 +82,7 @@ def _curriculum_document_record() -> DocumentRegistryRecord:
         status="active",
         ingestion_timestamp="2026-03-22T10:00:00+00:00",
         parser_version="curriculum-plan-ocr-v1",
-        embedding_model="text-embedding-3-large",
+        embedding_model="Qwen3-Embedding-4B",
         source_channel="pdf_ocr",
         raw_asset=RawAssetRef(
             raw_asset_id="asset:curriculum-plan-master-pdf",
@@ -324,7 +324,7 @@ class RegistryModelsTest(unittest.TestCase):
                             "status": "active",
                             "ingestion_timestamp": "2026-03-22T10:00:00+00:00",
                             "parser_version": "campusrag-import-v1",
-                            "embedding_model": "text-embedding-3-large",
+                            "embedding_model": "Qwen3-Embedding-4B",
                             "source_channel": "pdf_ocr",
                             "raw_asset": None,
                             "processed_object_keys": [
