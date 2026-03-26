@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed Phase 04.6 execution
-last_updated: "2026-03-25T15:55:46.952Z"
+stopped_at: Completed 03.2-source-truth-fan-out-and-attachment-projection-01-PLAN.md
+last_updated: "2026-03-26T08:24:37.360Z"
 progress:
-  total_phases: 15
+  total_phases: 17
   completed_phases: 10
-  total_plans: 25
-  completed_plans: 23
+  total_plans: 29
+  completed_plans: 24
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-03-25)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 `student_handbook` 的完整 agentic RAG 主流程证明这条架构能可靠替代高频人工答疑
-**Current focus:** Phase 05.1 — Curriculum Chunking Strategy
+**Current focus:** Phase 03.2 — source-truth-fan-out-and-attachment-projection
 
 ## Current Position
 
-Phase: 05.1
-Plan: Not started
+Phase: 03.2 (source-truth-fan-out-and-attachment-projection) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -52,7 +52,7 @@ Plan: Not started
 **Recent Trend:**
 
 - Last 5 plans: 04.4-02, 04.5-01, 04.5-02, 04.6-02, 04.6-03
-- Trend: Cloudflare public-entry runtime line is now implemented while the handbook mainline blocker remains unchanged
+- Trend: Cloudflare public-entry runtime line is implemented, and the 2026-03-26 handbook chunk-truth revalidation cleared the mainline data-plane blocker
 
 | Phase 01-contract-and-boundary-guardrails P01 | 4m | 2 tasks | 11 files |
 | Phase 01 P02 | 5 | 2 tasks | 3 files |
@@ -77,12 +77,14 @@ Plan: Not started
 | Phase 04.6 P01 | inline | 2 tasks | 10 files |
 | Phase 04.6 P02 | inline | 1 task | 2 files |
 | Phase 04.6 P03 | inline | 1 task | 4 files |
+| Phase 03.2-source-truth-fan-out-and-attachment-projection P01 | 17min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
 ### Roadmap Evolution
 
 - Phase 03.1 inserted after Phase 3: Availability Specialist 最小闭环 (URGENT)
+- Phase 03.2 inserted after Phase 3: Source Truth Fan-Out And Attachment Projection (URGENT)
 - Phase 04.1 inserted after Phase 4: Cloudflare Entry And Protected Internal Panel Design (URGENT)
 - Phase 04.2 inserted after Phase 04.1: Cloudflare Runtime Topology And Delivery Shape (URGENT)
 - Phase 04.3 inserted after Phase 04.2: Public Entry Edge Integration Contract (URGENT)
@@ -129,21 +131,24 @@ Recent decisions affecting current work:
 - [Phase 04.5]: Worker-side Access JWT validation, `X-Worker-Origin-Auth` trust projection, and `workers_dev = false` / `preview_urls = false` closure are now explicit downstream implementation rules. — This prevents public-entry bypass while keeping Phase 5 actor/ACL/audit ownership deferred.
 - [Phase 04.6]: A real `apps/public-entry-worker` runtime shell now fronts the public answer path with Route-based config, explicit entry-mode gating, and allowlisted origin forwarding. — This turns the 04.x Cloudflare line from design truth into runnable runtime code without leaking provider semantics into `packages/*`.
 - [Phase 04.6]: `apps/supervisor-api` now supports `trusted-worker` origin auth and runtime-owned actor context. — This closes the Worker-to-origin seam while still deferring app-layer actor, ACL, and audit closure to Phase 5.
+- [Current correction]: 2026-03-26 real handbook validation and three extra sample batches reconfirmed chunk-truth stability, with `chunk_failures = []` and `heading_body_glue_count = 0`. — Phase 4 is no longer blocked by unresolved handbook cleanup/chunking defects.
+- [Current planning decision]: Future handbook-derived collections or attachment outputs must not trigger a second raw-consumption lane. — Phase 03.2 now freezes the direction as `single source consumption + multi-projection fan-out + replay from source truth`.
+- [Phase 03.2-source-truth-fan-out-and-attachment-projection]: Phase 03.2 now freezes the data-plane as raw -> source truth -> declared projections -> document/chunk/index.
+- [Phase 03.2-source-truth-fan-out-and-attachment-projection]: Later handbook-derived outputs must rebuild from persisted source truth instead of returning to raw.
 
 ### Pending Todos
 
-- Keep handbook chunk-truth validation tracked separately so the completed availability work does not get mistaken for the `student_handbook` mainline.
-- Resume the blocked `student_handbook` mainline only after chunk-truth stabilization is explicitly re-confirmed.
+- Execute Phase 03.2 plan 02 to converge ingestion-core, replay, and legacy migration paths onto the frozen source-truth projection contract.
+- Keep handbook chunk-truth validation as a regression gate during 03.2 execution so projection convergence does not regress the verified handbook baseline.
 
 ### Blockers/Concerns
 
-- Handbook chunk-truth validation remains the blocker for later `student_handbook` run-through work.
-- Phase 4 retrieval/answer-path work is still blocked by unresolved handbook chunk-truth stabilization.
+- No current handbook chunk-truth blocker remains, but the data-plane still has an implementation split between handbook ingestion, handbook replay, and campus_services migration until Phase 03.2-02 converges them onto the frozen projection contract.
 - Cloudflare 04.x boundary/topology/contract/shell docs are now complete; any follow-up must stay as downstream implementation against those frozen docs, not as renewed architecture churn.
 - Phase 5 should consume the explicit 04.1 handoff instead of re-opening Cloudflare entry/panel boundary questions or pushing access-provider concerns into `packages/*`.
 
 ## Session Continuity
 
-Last session: 2026-03-25T14:19:16Z
-Stopped at: Completed 04.5-02-PLAN.md
+Last session: 2026-03-26T08:24:37.357Z
+Stopped at: Completed 03.2-source-truth-fan-out-and-attachment-projection-01-PLAN.md
 Resume file: None

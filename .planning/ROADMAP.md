@@ -4,7 +4,7 @@
 
 This roadmap stabilizes the new supervisor-led architecture before it expands scope. The sequence starts by freezing the supervisor/specialist contract and phase-1 guardrails, then builds the `student_handbook` ingestion and retrieval path, wires the `supervisor` entrypoint with ACL/audit responsibilities, prepares `curriculum_plan` offline only, and finishes with repository-level verification that proves the end-to-end agentic RAG flow is safe to plan and execute.
 
-Current roadmap truth still centers the `student_handbook` mainline as the scheduled execution path. An inserted `03.1 Availability Specialist 最小闭环` phase is now also part of the current milestone as a parallel capability line; it exists to validate one stable non-RAG specialist boundary without hiding that work inside the existing RAG phases as an implementation detail. Inserted `04.x` Cloudflare phases now run in parallel to freeze the edge entry, protected internal-panel boundary, runtime topology, edge integration contract, and panel runtime shell before the mainline query path is ready, without pushing Cloudflare/runtime decisions down into core packages.
+Current roadmap truth still centers the `student_handbook` mainline as the scheduled execution path. Inserted `03.1 Availability Specialist 最小闭环` validates one stable non-RAG specialist boundary without hiding that work inside the existing RAG phases as an implementation detail. Inserted `03.2 Source Truth Fan-Out And Attachment Projection` now closes a data-plane design gap before further collection expansion: one raw source must be consumed once into canonical source truth and then fan out into all declared downstream projections, including attachment-derived documents, instead of forcing later collection work to re-consume raw inputs. Inserted `04.x` Cloudflare phases now run in parallel to freeze the edge entry, protected internal-panel boundary, runtime topology, edge integration contract, and panel runtime shell before the mainline query path is ready, without pushing Cloudflare/runtime decisions down into core packages.
 
 The public answer route is now expected to construct a supervisor-facing request rather than hardcoding a rag-specialist handoff. Default handbook scope remains a routing/policy concern, not an API-shell constant.
 
@@ -20,6 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Student Handbook Raw Ingestion** - Land stable raw ingestion identity and versioning for `student_handbook`. (completed 2026-03-24)
 - [x] **Phase 3: Retrieval Corpus Preparation** - Produce processed, chunked, and indexed `student_handbook` artifacts for query-serving. (completed 2026-03-24)
 - [x] **Phase 03.1: Availability Specialist 最小闭环** - Generalize the supervisor/specialist boundary enough to add an allowlisted `official-web` / `availability` specialist without collapsing back into supervisor inline tools. (completed 2026-03-25)
+- [ ] **Phase 03.2: Source Truth Fan-Out And Attachment Projection** - Freeze and implement the single-source-consumption fan-out architecture so one raw source produces all declared downstream projections, including attachment-derived documents, without later raw re-consumption.
 - [ ] **Phase 4: RAG Specialist Answer Path** - Deliver grounded `student_handbook` retrieval and answer semantics inside `rag-specialist`.
 - [x] **Phase 04.1: Cloudflare Entry And Protected Internal Panel Design** - Freeze the Cloudflare public-entry and protected internal-panel boundary without changing core query contracts. (INSERTED) (completed 2026-03-25)
 - [x] **Phase 04.2: Cloudflare Runtime Topology And Delivery Shape** - Freeze the Cloudflare-to-runtime deployment topology, origin ownership, and delivery boundary for public entry and protected panel. (INSERTED) (completed 2026-03-25)
@@ -91,6 +92,21 @@ Plans:
 - [x] 03.1-02: Implement the allowlisted `availability-specialist` MVP and its observation/status mapping.
 - [x] 03.1-03: Add focused routing/tests and a minimal smoke or eval slice for the availability path.
 
+### Phase 03.2: Source Truth Fan-Out And Attachment Projection (INSERTED)
+**Goal**: Freeze and execute the source-truth-first ingestion architecture so one raw source is consumed once, persisted as canonical source truth, and then fans out into all declared downstream projections, including handbook attachments and service-like derived documents, without returning to raw for later collection work.
+**Depends on**: Phase 03.1
+**Requirements**: []
+**Success Criteria** (what must be TRUE):
+  1. The repo has one canonical `raw -> source truth -> multi-projection fan-out -> document/chunk/index` design, and future downstream collections are forbidden from re-consuming the same raw asset just to derive new projections.
+  2. Attachments, appendices, forms, and navigation-like handbook leaves that have standalone downstream value are modeled as explicit derived documents with stable parent/source linkage instead of existing only as cleanup semantics or post-hoc migration output.
+  3. Rebuild/replay semantics are defined around persisted source truth plus registry provenance, and handbook-derived `campus_services` outputs align to the same ingestion contract instead of a separate migration-only lane.
+  4. The phase produces implementation-ready work breakdown covering architecture/config freeze first, then ingestion-core / worker / replay / verification convergence.
+**Plans**: 2 plans
+
+Plans:
+- [x] 03.2-01: Freeze the source-truth fan-out architecture, projection config, and derived-document identity/metadata contract.
+- [ ] 03.2-02: Unify worker/replay/migration execution around source-truth projections and add verification for attachment-derived outputs.
+
 ### Phase 4: RAG Specialist Answer Path
 **Goal**: Deliver the retrieval-oriented `rag-specialist` behavior for `student_handbook`, including grounded answers, citations, clarification, and no-answer/error handling, on top of the generalized specialist boundary frozen before it.
 **Depends on**: Phase 03.1
@@ -117,7 +133,7 @@ Plans:
   2. The design makes the app an `apps/*` consumer-facing runtime surface that stays separate from `apps/public-entry-worker`, `apps/supervisor-api`, and `packages/*`.
   3. The phase produces an implementation-ready breakdown covering app shell, auth/session, conversation ownership, chat interaction, and runtime API seam, while keeping Phase 5 actor/ACL/audit work explicitly deferred.
   4. The phase explicitly freezes the MVP as authenticated-first and closes the browser-to-answer transport decision for v1 instead of deferring same-site versus cross-origin behavior to later implementation.
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 - [ ] 04.7-01-PLAN.md — Freeze the consumer-app boundary handoff for repo shape, routes, states, and ownership splits.
@@ -272,7 +288,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 4 → 04.1 → 04.2 → 04.3 → 04.4 → 04.5 → 04.6 → 04.7 → 5 → 05.1 → 6 → 7
+Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 03.2 → 4 → 04.1 → 04.2 → 04.3 → 04.4 → 04.5 → 04.6 → 04.7 → 5 → 05.1 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -280,6 +296,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 4 → 04.1 → 04.2 
 | 2. Student Handbook Raw Ingestion | 2/2 | Complete | 2026-03-24 |
 | 3. Retrieval Corpus Preparation | 2/2 | Complete | 2026-03-24 |
 | 03.1. Availability Specialist 最小闭环 | 3/3 | Complete | 2026-03-25 |
+| 03.2. Source Truth Fan-Out And Attachment Projection | 1/2 | In Progress|  |
 | 4. RAG Specialist Answer Path | 0/3 | Not started | - |
 | 04.1. Cloudflare Entry And Protected Internal Panel Design | 3/3 | Complete   | 2026-03-25 |
 | 04.2. Cloudflare Runtime Topology And Delivery Shape | 2/2 | Complete   | 2026-03-25 |
