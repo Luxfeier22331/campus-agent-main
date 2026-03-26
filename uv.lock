@@ -15,6 +15,7 @@ members = [
     "campus-evals",
     "campus-ingestion-core",
     "campus-ingestion-worker",
+    "campus-public-entry-worker",
     "campus-rag-specialist",
     "campus-retrieval-core",
     "campus-shared",
@@ -310,6 +311,11 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [{ name = "campus-ingestion-core", editable = "packages/ingestion-core" }]
+
+[[package]]
+name = "campus-public-entry-worker"
+version = "0.1.0"
+source = { virtual = "apps/public-entry-worker" }
 
 [[package]]
 name = "campus-rag-specialist"
