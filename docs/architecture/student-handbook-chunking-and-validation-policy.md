@@ -55,6 +55,8 @@ updated: 2026-03-26
 - `model`、`dimensions` 属于 embedding request contract
 - `document_id`、`chunk_id`、`corpus`、`collection`、ACL、`campus_scope` 属于 Qdrant chunk/index schema
 - 不允许把 embedding 请求字段和 retrieval payload schema 混为同一层设计
+- handbook 已冻结的 `Qwen/Qwen3-Embedding-4B` tokenizer 只服务 chunk budgeting 与 dense embedding，不因 sparse index 路径引入而替换
+- 如果后续为 sparse retrieval 引入 BM25 或其他 sparse analyzer，那是 sparse path 自己的内部 tokenization，不改变 handbook 的 dense/chunking tokenizer truth
 
 工程约束：
 

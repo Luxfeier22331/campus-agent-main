@@ -81,6 +81,8 @@ updated: 2026-03-26
 
 - sparse candidate retrieval 的目标是覆盖术语、条款号、文号、固定措辞和标题关键词等 exact-match / sparse-match 信号
 - `Qwen3-Embedding-4B` 只负责 dense embeddings；sparse vector 必须由独立 sparse path 生成
+- phase-1 当前推荐 sparse baseline 固定为 `Qdrant native BM25`
+- handbook 中文语料的 sparse tokenization 起始配置固定为：`tokenizer=multilingual`、`language=none`
 - accepted target shape 是 Qdrant native sparse index，而不是 retrieval-core 内部本地算分
 - 当前仓库实现仍处于 transition state：dense 已写入 Qdrant，sparse 仍通过 retrieval-core 内部过渡路径生成候选
 - live rebuild 完成后，`student_handbook` collection 应升级为同一点同时保存 named `dense` 与 named `sparse` vectors
@@ -133,6 +135,13 @@ fusion 后的候选必须继续通过 `DocumentRegistry` 回链，补齐：
 - sparse vector 是独立于 `Qwen3-Embedding-4B` 的能力
 - sparse generation 必须进入 replay / rebuild 主链路，不能只存在于在线 query 临时分支
 - sparse path 必须支持 `student_handbook` 中文语料的 exact-match / fixed-phrase 场景验证
+
+当前已接受的 phase-1 选型结论：
+
+- sparse baseline 先采用 `Qdrant native BM25`
+- handbook 中文语料的 sparse tokenizer 不替换 Qwen tokenizer；它只属于 sparse index 内部 analyzer 路径
+- `multilingual + language=none` 是当前起始配置，不排除后续在 eval 证据支持下调整
+- miniCOIL、SPLADE、BM42 都不作为当前默认 baseline
 
 ## 当前不冻结的增强能力
 

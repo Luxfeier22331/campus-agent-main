@@ -198,6 +198,7 @@ updated: 2026-03-26
 - retrieval 前置 ACL filter 必须基于 metadata 执行
 - 当前 retrieval accepted baseline 为 `dense + sparse hybrid retrieval + RRF fusion + registry-backed evidence shaping`；`HyDE` 和 rerank 不是默认主路径
 - 当前 handbook embedding runtime 通过 `gitee` 官方 OpenAI-compatible 接口请求 `Qwen3-Embedding-4B @ 2560`，ingestion 与 retrieval query path 都必须显式发送 `dimensions=2560`
+- 当前 handbook 的 phase-1 sparse baseline 先采用 `Qdrant native BM25`，并以 `tokenizer=multilingual`、`language=none` 作为中文 handbook 起始配置
 - 当前 handbook 的 accepted target retrieval shape 是 Qdrant native hybrid query：同一 filter 下执行 dense prefetch 与 sparse prefetch，并使用 native `RRF` 融合
 
 ## 去重与版本策略
