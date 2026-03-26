@@ -20,8 +20,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Student Handbook Raw Ingestion** - Land stable raw ingestion identity and versioning for `student_handbook`. (completed 2026-03-24)
 - [x] **Phase 3: Retrieval Corpus Preparation** - Produce processed, chunked, and indexed `student_handbook` artifacts for query-serving. (completed 2026-03-24)
 - [x] **Phase 03.1: Availability Specialist 最小闭环** - Generalize the supervisor/specialist boundary enough to add an allowlisted `official-web` / `availability` specialist without collapsing back into supervisor inline tools. (completed 2026-03-25)
-- [ ] **Phase 03.2: Source Truth Fan-Out And Attachment Projection** - Freeze and implement the single-source-consumption fan-out architecture so one raw source produces all declared downstream projections, including attachment-derived documents, without later raw re-consumption.
-- [ ] **Phase 4: RAG Specialist Answer Path** - Deliver grounded `student_handbook` retrieval and answer semantics inside `rag-specialist`.
+- [x] **Phase 03.2: Source Truth Fan-Out And Attachment Projection** - Freeze and implement the single-source-consumption fan-out architecture so one raw source produces all declared downstream projections, including attachment-derived documents, without later raw re-consumption.
+- [ ] **Phase 4: RAG Specialist Answer Path** - Deliver grounded `student_handbook` retrieval and answer semantics inside `rag-specialist`, using the updated hybrid retrieval baseline (`dense + sparse + RRF`) instead of the old dense-only bootstrap.
 - [x] **Phase 04.1: Cloudflare Entry And Protected Internal Panel Design** - Freeze the Cloudflare public-entry and protected internal-panel boundary without changing core query contracts. (INSERTED) (completed 2026-03-25)
 - [x] **Phase 04.2: Cloudflare Runtime Topology And Delivery Shape** - Freeze the Cloudflare-to-runtime deployment topology, origin ownership, and delivery boundary for public entry and protected panel. (INSERTED) (completed 2026-03-25)
 - [x] **Phase 04.3: Public Entry Edge Integration Contract** - Freeze the runtime-level integration contract between Cloudflare public entry and `apps/supervisor-api`. (INSERTED) (completed 2026-03-25)
@@ -105,7 +105,7 @@ Plans:
 
 Plans:
 - [x] 03.2-01: Freeze the source-truth fan-out architecture, projection config, and derived-document identity/metadata contract.
-- [ ] 03.2-02: Unify worker/replay/migration execution around source-truth projections and add verification for attachment-derived outputs.
+- [x] 03.2-02: Unify worker/replay/migration execution around source-truth projections and add verification for attachment-derived outputs.
 
 ### Phase 4: RAG Specialist Answer Path
 **Goal**: Deliver the retrieval-oriented `rag-specialist` behavior for `student_handbook`, including grounded answers, citations, clarification, and no-answer/error handling, on top of the generalized specialist boundary frozen before it.
@@ -116,10 +116,11 @@ Plans:
   2. Successful answers include citations or equivalent source identifiers linked to supporting evidence.
   3. Ambiguous questions return `needs_clarification` instead of a guessed answer.
   4. Retrieval failures or insufficient evidence return `no_answer` or `error` with safe response shaping.
+  5. Retrieval evidence is produced by the accepted hybrid baseline (`dense + sparse + RRF + registry back-link`) rather than the earlier dense-only bootstrap.
 **Plans**: 3 plans
 
 Plans:
-- [ ] 04-01: Implement retrieval request framing and evidence selection inside `rag-specialist`.
+- [ ] 04-01: Implement retrieval request framing and hybrid evidence selection inside `rag-specialist`.
 - [ ] 04-02: Shape `completed` responses with citations and confidence-driven answer assembly.
 - [ ] 04-03: Implement `needs_clarification`, `no_answer`, and `error` branches for unsafe or insufficient retrieval outcomes.
 
@@ -133,6 +134,8 @@ Plans:
   2. The design makes the app an `apps/*` consumer-facing runtime surface that stays separate from `apps/public-entry-worker`, `apps/supervisor-api`, and `packages/*`.
   3. The phase produces an implementation-ready breakdown covering app shell, auth/session, conversation ownership, chat interaction, and runtime API seam, while keeping Phase 5 actor/ACL/audit work explicitly deferred.
   4. The phase explicitly freezes the MVP as authenticated-first and closes the browser-to-answer transport decision for v1 instead of deferring same-site versus cross-origin behavior to later implementation.
+  5. The phase freezes app-line auth/storage ownership as `Better Auth + Supabase Postgres`, with auth/chat sharing one relational boundary and Qdrant remaining the retrieval store.
+  6. The phase freezes the frontend host as `TanStack Start`, so the consumer app owns its own full-stack route/auth/session/conversation boundary.
 **Plans:** 1/2 plans executed
 
 Plans:
@@ -296,7 +299,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 03.2 → 4 → 04.1 
 | 2. Student Handbook Raw Ingestion | 2/2 | Complete | 2026-03-24 |
 | 3. Retrieval Corpus Preparation | 2/2 | Complete | 2026-03-24 |
 | 03.1. Availability Specialist 最小闭环 | 3/3 | Complete | 2026-03-25 |
-| 03.2. Source Truth Fan-Out And Attachment Projection | 1/2 | In Progress|  |
+| 03.2. Source Truth Fan-Out And Attachment Projection | 2/2 | Complete|  |
 | 4. RAG Specialist Answer Path | 0/3 | Not started | - |
 | 04.1. Cloudflare Entry And Protected Internal Panel Design | 3/3 | Complete   | 2026-03-25 |
 | 04.2. Cloudflare Runtime Topology And Delivery Shape | 2/2 | Complete   | 2026-03-25 |

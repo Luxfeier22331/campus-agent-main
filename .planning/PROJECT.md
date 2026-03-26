@@ -22,6 +22,7 @@
 ### Active
 
 - [ ] 跑通 `student_handbook` 的完整 agentic RAG 链路，包括 ingestion、retrieval query-serving、`supervisor -> rag-specialist` handoff、citation/source 返回、tracing、audit 与 ACL 最小闭环
+- [ ] 将 `student_handbook` retrieval baseline 从早期 dense-only bootstrap 收口为 `dense + sparse hybrid + RRF + registry-backed evidence`，并按 `Qwen3-Embedding-4B @ 2560` 重建 live collection
 - [ ] 让 `supervisor` 作为唯一入口稳定路由到 `rag-specialist`，并保持清晰 handoff contract 与正确架构边界
 - [ ] 将身份与权限最小闭环落到请求级透传与 retrieval 前 ACL 过滤，面向学生、教职工和潜在考生三类用户预留访问边界
 - [ ] 为 `student_handbook` 主链路补齐基础 eval / smoke 验证，证明问答、失败与澄清分支可验证
@@ -64,8 +65,13 @@
 | handbook duplicate/update 判定基于 `document_id + revision_track` 的历史内容哈希，并通过 import report 显式暴露 created/updated/skipped buckets | 后续 Phase 3/4 需要稳定的版本推进与可审计回归证据 | — Validated in Phase 2 |
 | handbook chunking 必须从 registry 指向的 `document-units.jsonl` 重建，并让 ingestion/retrieval 之间共享同一套 evidence-trace metadata | Phase 3 要证明 processed truth、Qdrant payload 和 retrieval evidence shaping 已经收口 | — Validated in Phase 3 |
 | `representation` 作为 Qdrant payload alias 保留在 ingestion/retrieval 边界内，shared contract 继续使用 `revision_track` | 这样可以补齐 retrieval payload 语义，同时避免 contract 泄漏或兼容层扩散 | — Validated in Phase 3 |
+| `student_handbook` retrieval baseline 不再以 dense-only bootstrap 视为 accepted truth，而是升级为 `dense + sparse hybrid + RRF`，并保持 registry-backed evidence contract 不变 | handbook/规章类语料需要 sparse exact-match 与 semantic recall 同时成立；仅冻结 dense-only 已不符合当前 accepted implementation direction | — Accepted on 2026-03-26 |
+| handbook embedding baseline 固定为 `Qwen3-Embedding-4B @ 2560`，不得依赖兼容 API 默认 `1024` 维返回 | 当前 collection/query runtime 必须围绕统一向量宽度重建和验证，不能继续容忍 provider 默认维度漂移 | — Accepted on 2026-03-26 |
+| handbook chunk-truth 调整必须先经过真实 validation 与 sample markdown 复核，再允许继续 embedding 或进入 retrieval/eval 调参 | 这次问题说明仅靠单元测试不足以覆盖 handbook 的真实 cleanup/chunking 退化；必须把 live validation 和真实样本内容作为阶段门禁 | — Re-confirmed on 2026-03-26 |
 | Cloudflare 并行后续工作拆成 `04.2` / `04.3` / `04.4` 三个 inserted phase | 主线被 chunk-truth 阻塞时，可以继续推进 edge/runtime/panel-shell 冻结，但必须避免把 provider、identity、ACL、audit 语义推入 `packages/*` 或提前吃掉 Phase 5 | — Pending in Phase 04.x |
 | Cloudflare public answer path now runs through `apps/public-entry-worker -> apps/supervisor-api` with explicit trusted-worker origin auth | 先把 public-entry runtime seam 做成真实可验证代码，再把 app-layer actor/ACL/audit留给 Phase 5 | — Validated in Phase 04.6 |
+| `public-consumer-chat` 的 app-level 用户系统固定采用 `Better Auth + Supabase Postgres`，auth/chat 同库分 schema，Qdrant 继续承担在线 retrieval 主存储 | 这样可以避免 `D1 + Postgres` 双真相源、保持 conversation ownership 与 session 一致性，并且不把在线 chunk/vector retrieval 拉回关系库 | — Accepted on 2026-03-26 |
+| `public-consumer-chat` 的前台宿主固定采用 `TanStack Start`，而不是单独 client router 或 `React Router framework mode` | 这个 app 需要 app-local full-stack boundary 来承载 route、auth handler、session、conversation CRUD 与 ownership guard；若只用 client router，会重新制造边界分裂 | — Accepted on 2026-03-26 |
 
 ## Evolution
 
@@ -85,4 +91,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state (users, feedback, metrics)
 
 ---
-*Last updated: 2026-03-25 after completing Phase 04.6 Worker runtime implementation*
+*Last updated: 2026-03-26 after handbook chunk-truth revalidation*

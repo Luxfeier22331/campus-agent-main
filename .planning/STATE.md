@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-stopped_at: Completed 03.2-source-truth-fan-out-and-attachment-projection-01-PLAN.md
-last_updated: "2026-03-26T08:24:37.360Z"
+status: in_progress
+stopped_at: Completed 03.2-source-truth-fan-out-and-attachment-projection-02-PLAN.md
+last_updated: "2026-03-26T18:15:00.000Z"
 progress:
   total_phases: 17
-  completed_phases: 10
+  completed_phases: 11
   total_plans: 29
-  completed_plans: 24
+  completed_plans: 25
 ---
 
 # Project State
@@ -19,11 +19,11 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-03-25)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 `student_handbook` 的完整 agentic RAG 主流程证明这条架构能可靠替代高频人工答疑
-**Current focus:** Phase 03.2 — source-truth-fan-out-and-attachment-projection
+**Current focus:** source-truth projection convergence completed; next gating work returns to live collection rebuild, runtime closure, and eval/smoke verification
 
 ## Current Position
 
-Phase: 03.2 (source-truth-fan-out-and-attachment-projection) — EXECUTING
+Phase: 03.2 (Source Truth Fan-Out And Attachment Projection) — COMPLETED
 Plan: 2 of 2
 
 ## Performance Metrics
@@ -52,7 +52,7 @@ Plan: 2 of 2
 **Recent Trend:**
 
 - Last 5 plans: 04.4-02, 04.5-01, 04.5-02, 04.6-02, 04.6-03
-- Trend: Cloudflare public-entry runtime line is implemented, and the 2026-03-26 handbook chunk-truth revalidation cleared the mainline data-plane blocker
+- Trend: Cloudflare public-entry runtime line is implemented, handbook chunk-truth remains stable, and retrieval baseline is now accepted as `dense + sparse hybrid + RRF + Qwen3-Embedding-4B @ 2560`; current blocker is live rebuild and runtime closure
 
 | Phase 01-contract-and-boundary-guardrails P01 | 4m | 2 tasks | 11 files |
 | Phase 01 P02 | 5 | 2 tasks | 3 files |
@@ -78,6 +78,7 @@ Plan: 2 of 2
 | Phase 04.6 P02 | inline | 1 task | 2 files |
 | Phase 04.6 P03 | inline | 1 task | 4 files |
 | Phase 03.2-source-truth-fan-out-and-attachment-projection P01 | 17min | 2 tasks | 5 files |
+| Phase 03.2-source-truth-fan-out-and-attachment-projection P02 | inline | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -131,24 +132,26 @@ Recent decisions affecting current work:
 - [Phase 04.5]: Worker-side Access JWT validation, `X-Worker-Origin-Auth` trust projection, and `workers_dev = false` / `preview_urls = false` closure are now explicit downstream implementation rules. — This prevents public-entry bypass while keeping Phase 5 actor/ACL/audit ownership deferred.
 - [Phase 04.6]: A real `apps/public-entry-worker` runtime shell now fronts the public answer path with Route-based config, explicit entry-mode gating, and allowlisted origin forwarding. — This turns the 04.x Cloudflare line from design truth into runnable runtime code without leaking provider semantics into `packages/*`.
 - [Phase 04.6]: `apps/supervisor-api` now supports `trusted-worker` origin auth and runtime-owned actor context. — This closes the Worker-to-origin seam while still deferring app-layer actor, ACL, and audit closure to Phase 5.
+- [Phase 04.7]: Public consumer chat auth/storage is now frozen as `Better Auth + Supabase Postgres`, with auth/chat sharing one relational boundary and Qdrant remaining the online retrieval store. — This closes the app-line identity/database decision without moving canonical user truth into the Worker or `apps/supervisor-api`.
+- [Phase 04.7]: Public consumer chat frontend host is now frozen as `TanStack Start`, not a standalone client router and not `React Router framework mode`. — This keeps route/auth/session/conversation ownership inside one app boundary instead of splitting UI truth from app data truth.
 - [Current correction]: 2026-03-26 real handbook validation and three extra sample batches reconfirmed chunk-truth stability, with `chunk_failures = []` and `heading_body_glue_count = 0`. — Phase 4 is no longer blocked by unresolved handbook cleanup/chunking defects.
 - [Current planning decision]: Future handbook-derived collections or attachment outputs must not trigger a second raw-consumption lane. — Phase 03.2 now freezes the direction as `single source consumption + multi-projection fan-out + replay from source truth`.
 - [Phase 03.2-source-truth-fan-out-and-attachment-projection]: Phase 03.2 now freezes the data-plane as raw -> source truth -> declared projections -> document/chunk/index.
 - [Phase 03.2-source-truth-fan-out-and-attachment-projection]: Later handbook-derived outputs must rebuild from persisted source truth instead of returning to raw.
+- [Phase 03.2-source-truth-fan-out-and-attachment-projection]: handbook raw ingestion, provider-response replay, rebuild cleanup, and handbook-derived campus_services migration now share one projection-aware source-truth contract implemented through a shared helper module.
 
 ### Pending Todos
 
-- Execute Phase 03.2 plan 02 to converge ingestion-core, replay, and legacy migration paths onto the frozen source-truth projection contract.
 - Keep handbook chunk-truth validation as a regression gate during 03.2 execution so projection convergence does not regress the verified handbook baseline.
 
 ### Blockers/Concerns
 
-- No current handbook chunk-truth blocker remains, but the data-plane still has an implementation split between handbook ingestion, handbook replay, and campus_services migration until Phase 03.2-02 converges them onto the frozen projection contract.
+- No current handbook chunk-truth blocker remains. The main remaining blocker has moved back to live rebuild/runtime closure and eval/smoke verification rather than data-plane projection architecture split.
 - Cloudflare 04.x boundary/topology/contract/shell docs are now complete; any follow-up must stay as downstream implementation against those frozen docs, not as renewed architecture churn.
 - Phase 5 should consume the explicit 04.1 handoff instead of re-opening Cloudflare entry/panel boundary questions or pushing access-provider concerns into `packages/*`.
 
 ## Session Continuity
 
 Last session: 2026-03-26T08:24:37.357Z
-Stopped at: Completed 03.2-source-truth-fan-out-and-attachment-projection-01-PLAN.md
+Stopped at: Completed 03.2-source-truth-fan-out-and-attachment-projection-02-PLAN.md
 Resume file: None

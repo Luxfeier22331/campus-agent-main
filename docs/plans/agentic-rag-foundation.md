@@ -2,7 +2,7 @@
 doc_type: plan
 status: active
 created: 2026-03-22
-updated: 2026-03-25
+updated: 2026-03-26
 ---
 
 # Agentic RAG 第一阶段地基实施文档
@@ -16,6 +16,7 @@ updated: 2026-03-25
 - 长期边界、架构方向和第一阶段 accepted implementation baseline 仍可参考这份文档
 - 当前 phase 的执行顺序、最新 pending work、讨论结论和进度状态，以 `.planning/PROJECT.md`、`.planning/ROADMAP.md`、`.planning/STATE.md` 以及对应 phase 目录下的 context / plan / validation 产物为准
 - 当这份文档中的早期 phase-1 实施叙事与 `.planning/` 中的当前执行现实不一致时，应优先更新这里的文档边界说明，并按 `.planning/` 继续推进执行，而不是把过时叙事重新提升为当前硬约束
+- 当前 retrieval accepted baseline 不再单独由本文维护；以 `ADR-0007` 与 `docs/architecture/retrieval-query-strategy.md` 为准
 
 **Goal:** 在当前 `campus-agent` monorepo 中补齐第一阶段地基，以“符合最佳实践前提下跑通端到端 agentic RAG 流程”为验收标准。
 
@@ -72,13 +73,13 @@ updated: 2026-03-25
 - `Supervisor API -> Supervisor Core -> RAG Specialist -> Retrieval Core` 能返回带 evidence 的回答
 - 第一批 `student_handbook` baseline 已冻结，并且可重复执行
 
-## 当前实测进度（2026-03-22）
+## 当前实测进度（2026-03-26）
 
-- 代码基线已验证：`uv run --all-packages python -m unittest discover -s tests -t .` 通过，当前仓库基线测试为 `62` 项
+- 代码基线已验证：`uv run --all-packages python -m unittest discover -s tests -t .` 通过，当前仓库基线测试为 `85` 项
 - Gate 1 已有运行态证据：本机 `MinIO` 可访问，`campus-rag-raw` / `campus-rag-processed` bucket 已存在
 - Gate 2 目前只完成对象存储侧证据：已在 bucket 中看到 handbook raw PDF 与 `provider-response.jsonl`，但 registry 运行态记录尚未做独立核验
-- Gate 3 尚未通过运行态验收：配置中的 `Qdrant Cloud` endpoint 可达，但当前实例 `collections_count = 0`，`.env` 指向的 `student_handbook` collection 返回 `404`
-- Gate 4 尚未做运行态闭环验收：主链路代码、specialist、supervisor、evals 已在仓库内落地，但缺少“真实 registry + 已写入点的 Qdrant”证据
+- Gate 3 当前进入重建等待态：旧的 `.env` 目标 `student_handbook` collection 已被显式删除，retrieval/embedding baseline 已更新为 `Qwen3-Embedding-4B @ 2560` 与 `dense + sparse hybrid + RRF`，但 live Qdrant collection 仍待按新基线重建并写入点数据
+- Gate 4 尚未做运行态闭环验收：主链路代码、specialist、supervisor、evals 已在仓库内落地，但缺少“真实 registry + 按 2560 重建完成的 Qdrant + end-to-end query-serving”证据
 
 ## 第一阶段实施拓扑
 
@@ -204,10 +205,10 @@ feature worktree 环境规则：
   - 当前状态：对象存储资产已验证；registry 运行态记录仍待独立核验
 - Gate 3: 检索面可用
   - `LlamaIndex + Qdrant` 已能返回带 source locator 的 evidence bundle
-  - 当前状态：未通过，当前 Qdrant Cloud 实例无 collection，目标 `student_handbook` collection 不存在
+  - 当前状态：未通过；旧 `student_handbook` collection 已删除，等待按 `Qwen3-Embedding-4B @ 2560` 与 accepted hybrid baseline 重建 live collection
 - Gate 4: Agentic RAG 主链路可用
   - supervisor 到 specialist 的委派跑通，baseline queries 可重复通过
-  - 当前状态：未做运行态闭环验收
+  - 当前状态：未做运行态闭环验收，仍缺少基于重建后 live collection 的真实 query-serving 证据
 
 ## 关键接口与公共类型
 
@@ -397,7 +398,7 @@ feature worktree 环境规则：
   - `campus_scope`
 
 **Verification:**
-- `uv run --all-packages python -m pytest tests/ingestion/test_processing_pipeline.py -q`
+- `uv run --all-packages python -m unittest tests.ingestion.test_processing_pipeline`
 
 ### Task 7: 建立 retrieval-core 的真实 backend
 
@@ -421,7 +422,7 @@ feature worktree 环境规则：
 - retrieval 读取 corpus runtime profile；phase-1 默认只开放 `regulations` corpus 下的 `student_handbook` collection，对未放开的 collection 必须 fail-closed
 
 **Verification:**
-- `uv run --all-packages python -m pytest tests/retrieval/test_backend_qdrant.py -q`
+- `uv run --all-packages python -m unittest tests.retrieval.test_backend_qdrant`
 - 验证 source locator、ACL filter、no hit、error mapping。
 
 ### Task 8: 落地 rag-specialist

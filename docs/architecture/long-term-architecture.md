@@ -15,6 +15,8 @@ updated: 2026-03-25
 
 这份文档只保存长期架构边界、职责拆分和链路形态，不冻结具体实现、部署拓扑、供应商选型或第一阶段落地细节。
 
+当前 retrieval strategy 的运行真相不由本文维护；accepted baseline 以 `docs/architecture/retrieval-query-strategy.md` 与相关 ADR 为准。
+
 ## 核心立场
 
 - `campus-agent` 应该拥有编排、委派、运行时契约、评测，以及与查询路径配套的数据摄入边界。
@@ -84,6 +86,15 @@ runtime 选择应该延后。未来可以接受的实现包括：
 - specialist delegation / handoff contract 留在 `packages/contracts`
 - ingestion/data consumption 逻辑留在 `packages/ingestion-core`
 - ingestion、job、queue 和存储相关能力都保持在独立边界之后，不反向渗透进 supervisor
+
+在长期边界上，`packages/retrieval-core` 应拥有：
+
+- query preprocessing / normalization
+- candidate retrieval（dense / sparse / hybrid）
+- candidate fusion / rerank
+- evidence shaping / registry back-link
+
+`packages/rag-specialist` 负责 retrieval strategy selection 和答案语义，而不拥有底层 retrieval backend 细节。
 
 ## 编排模式
 

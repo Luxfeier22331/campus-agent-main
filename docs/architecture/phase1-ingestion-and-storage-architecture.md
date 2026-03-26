@@ -160,6 +160,10 @@ updated: 2026-03-26
 
 - 第一阶段 canonical chunk store 是 `Qdrant`
 - 每个 chunk 必须回链到 `document_id`、`representation`、`version_id`
+- embedding request contract 与 Qdrant schema contract 必须分离：
+  `model` / `dimensions` 属于 embedding runtime；
+  named dense/sparse vectors、payload metadata 与 hybrid query shape 属于 Qdrant collection schema
+- `student_handbook` 的 accepted target schema 是同一点双写 named `dense` 与 named `sparse` vectors
 - 如需导出 chunk manifest 到对象存储，该导出物只能用于备份、审计或离线重建，不能替代 Qdrant
 
 ## 第一阶段固定流程
@@ -173,6 +177,7 @@ updated: 2026-03-26
 - crawler 产物先进入对象存储和 raw asset registry，不直接把本机路径当长期数据源
 - ingestion worker 通过 `raw_asset_id + raw_version_id` 消费已登记 raw asset，而不是直接消费本地文件路径
 - ingestion worker 对同一 source asset 的 canonical raw/source truth 只消费与持久化一次；后续 fan-out 通过 declared projections 执行
+- 对需要 online retrieval 的 collection，rebuild/indexing 必须对同一 `chunk_id` 同步写入 dense 与 sparse vectors；不能只重建 dense 而让 sparse 留在在线临时计算路径
 - 去重在摄入早期完成
 - 无变化文档直接 skip；有变化文档生成新 `version_id`
 - 文档删除通过 registry 状态与索引删除同步处理
@@ -191,6 +196,9 @@ updated: 2026-03-26
 - `campus_services/service_catalog` 与 `campus_services/contact_directory` 在当前阶段只保留离线 taxonomy 和 data-plane 入口，不改变默认查询面
 - retrieval 返回的 source 必须能回链到 document registry
 - retrieval 前置 ACL filter 必须基于 metadata 执行
+- 当前 retrieval accepted baseline 为 `dense + sparse hybrid retrieval + RRF fusion + registry-backed evidence shaping`；`HyDE` 和 rerank 不是默认主路径
+- 当前 handbook embedding runtime 通过 `gitee` 官方 OpenAI-compatible 接口请求 `Qwen3-Embedding-4B @ 2560`，ingestion 与 retrieval query path 都必须显式发送 `dimensions=2560`
+- 当前 handbook 的 accepted target retrieval shape 是 Qdrant native hybrid query：同一 filter 下执行 dense prefetch 与 sparse prefetch，并使用 native `RRF` 融合
 
 ## 去重与版本策略
 

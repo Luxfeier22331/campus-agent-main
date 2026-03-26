@@ -39,7 +39,7 @@
 - `rag-specialist`、`supervisor-core`、`supervisor-api`、`evals` 已有可测试的 phase-1 入口
 - `uv run --all-packages python -m unittest discover -s tests -t .` 当前通过，仓库基线测试为 `85` 项
 - 运行态已确认本机 `MinIO` 可访问，`campus-rag-raw` / `campus-rag-processed` bucket 和现有 `student_handbook` 资产已存在
-- 运行态已确认配置中的 `Qdrant Cloud` endpoint 可达，但当前实例没有 collection；`.env` 指向的 `student_handbook` collection 仍不存在，因此向量上传尚未完成
+- 运行态已确认配置中的 `Qdrant Cloud` endpoint 可达；旧的 `.env` 目标 collection `student_handbook` 已被显式删除，当前待按 `Qwen3-Embedding-4B @ 2560` 重建 live collection 并重新写入点数据
 
 ## 协作约定
 
