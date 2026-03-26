@@ -2,14 +2,14 @@
 doc_type: architecture
 status: active
 created: 2026-03-22
-updated: 2026-03-25
+updated: 2026-03-26
 ---
 
 # `student_handbook` Collection OCR 归一化与拆分策略
 
 ## 目标
 
-把 `student_handbook` collection 的输入边界固定为 processed 层 OCR 产物 `provider-response.jsonl`，而不是原始 PDF；同时把 handbook 从“一份 source 对应一个 document”的错误建模，收敛为“asset 级 OCR 结果 -> 内部统一 structured source -> 多逻辑文档 -> 文档内 structured units / chunks”。长期知识域 corpus 采用 `regulations`，`student_handbook` 只表示该 corpus 下的一个 collection；raw asset 不按 corpus 前缀组织，因为同一份原始文件可能被多个 corpus 复用。
+把 `student_handbook` collection 的输入边界固定为 processed 层 OCR 产物 `provider-response.jsonl`，而不是原始 PDF；同时把 handbook 从“一份 source 对应一个 document”的错误建模，收敛为“asset 级 OCR 结果 -> 内部统一 structured source/source truth -> 多逻辑文档 -> 文档内 structured units / chunks”。长期知识域 corpus 采用 `regulations`，`student_handbook` 只表示该 corpus 下的一个 collection；raw asset 不按 corpus 前缀组织，因为同一份原始文件可能被多个 corpus 复用。
 
 本文回答三个问题：
 
@@ -35,6 +35,7 @@ updated: 2026-03-25
 - `doc_id`、`version_id`、canonical metadata 应在逻辑文档层生成，不应在 source-level normalization 阶段提前冻结。
 - handbook 的长期逻辑 identity 应采用 `document_id + representation + version_id`，而不是绑到某个 PDF 文件名。
 - 文档切分是 normalization 之后、chunking 之前的独立步骤。
+- handbook 的 canonical consumption 模型是 `single source consumption + multi-projection fan-out`：先固化 source truth，再声明哪些 projection 产出 handbook 文档、service-like derived document 或 attachment-like derived document。
 - `article_body`、`policy_page`、`table`、`table_row` 仍然是 handbook 的文档内结构单元，但它们属于 document-level cleaning / chunking 结果，不属于 source-level structured truth。
 - 文号、标题变体、试行/暂行附记等 metadata-only 前导信息应保留在 document metadata 中，不应作为独立 retrieval chunk 落盘。
 - chunk 用于 embedding / retrieval 的文本应从 unit text 加上文档级上下文组装，而不是依赖单独的标题块或文号块参与检索。
@@ -93,7 +94,7 @@ updated: 2026-03-25
 
 当前阶段建议把 handbook 固定为下面这条链路：
 
-`provider-response.jsonl -> layout-elements.jsonl -> split-manifest -> per-doc source rows -> canonical.md / metadata -> document-units.jsonl -> chunks`
+`provider-response.jsonl -> layout-elements.jsonl -> split-manifest -> per-doc source rows -> source truth -> declared projections -> canonical.md / metadata -> document-units.jsonl -> chunks`
 
 当前 source artifact 的讨论样例可直接按 object key 理解为：
 
@@ -111,6 +112,9 @@ updated: 2026-03-25
 - `layout-elements.jsonl`
   - 保存 asset 级、provider-agnostic 的 source rows
   - 作为 split 和 cleanup 的唯一直接输入
+- `source truth`
+  - 表示 handbook source 在 provider payload 之后、document projection 之前的 canonical rebuild boundary
+  - 后续 replay、attachment projection、service projection 都必须从这里继续，而不是重新读取 raw PDF
 - `split-manifest.v1.json`
   - 保存 handbook 多逻辑文档的页段真相
   - 不承载 OCR 文本，不承载 chunk 规则
@@ -122,6 +126,30 @@ updated: 2026-03-25
 - document-level `document-units.jsonl`
   - 保存 `article_body`、`policy_page`、`table`、`table_row`
   - 作为 registry 和 chunking 的直接输入
+
+其中 `source truth` 的 fan-out 必须由 repo-tracked projection declaration 驱动。后续如果 handbook 需要派生出 `campus_services/service_catalog` 的导航文档、电话目录、附件、附录、表单模板或 navigation-like leaf，不允许为这些下游结果再开一条独立 raw-consumption lane。
+
+## Source Truth Fan-Out Contract
+
+handbook 的 canonical rebuild contract 固定如下：
+
+- raw asset 只消费一次
+- `provider-response.jsonl -> layout-elements.jsonl -> split-manifest -> per-doc source rows` 共同构成 persisted source truth
+- declared projections 显式列出从该 source truth 派生出的 document family
+- replay from source truth，而不是返回 raw
+
+因此：
+
+- handbook 自身的 `canonical.md` / `document-units.jsonl` 是一类 projection
+- handbook-derived `campus_services` service/navigation document 是另一类 projection
+- attachment-bearing、appendix-bearing、form-like、navigation-like leaf 只要具备独立下游价值，也应作为 explicit derived document projection
+
+禁止做法：
+
+- 不允许 handbook-only replay 继续作为长期唯一 replay 语义
+- 不允许 later collection work 在 canonical source truth 已存在时返回 raw PDF 重新消费；do not return to raw
+- 不允许继续把 `campus_services` handbook output 维持成独立 migration worldview
+- 不允许把 attachment semantics 永久困在 handbook cleanup 内部而不生成 stable derived document
 
 ## 推荐的归一化层次
 
@@ -157,6 +185,12 @@ updated: 2026-03-25
 - `page_start/page_end` 覆盖校验
 - OCR 首屏标题与 manifest title 的比对
 - 无法稳定匹配时的 import report，而不是静默并文
+
+这一层同时承担 projection planning 的输入职责：
+
+- handbook 主文档 projection 使用显式 split truth 产出 regulations 文档
+- attachment / appendix / form / navigation-like leaf 的 projection 也必须从同一 source truth 选段，而不是单独重新 OCR 或单独回 raw
+- handbook-derived `campus_services` document 应共享同一 parent/source provenance 约定
 
 ### 3. Document-Level Cleaning
 
@@ -342,7 +376,8 @@ Unit normalization 必须满足以下边界：
 - `regulations/documents/student_handbook/.../document-units.jsonl` 继续作为 `packages/ingestion-core` 的规章导向 chunking 输入
 - 当前 query-serving 默认范围应表述为 `regulations` corpus 下的 `student_handbook` collection
 - 对外展示或清洗效果对照应优先消费 `canonical.md`，不要直接拿 chunk 文本代替
-- handbook 中的电话目录页不再保留在 `regulations/student_handbook` 的 split truth；后续应派生进入 `campus_services/contact_directory`
+- handbook 中的电话目录页不再保留在 `regulations/student_handbook` 的 split truth；后续应作为 declared projection 派生进入 `campus_services/contact_directory`
+- handbook 中有独立下游价值的附录、表单、导航页或附件叶子节点，应通过 derived document projection 落入目标 collection，并显式保留 `projection_name`、`derived_from_*` 与 `parent_document_id`
 
 ## Representation 规则
 

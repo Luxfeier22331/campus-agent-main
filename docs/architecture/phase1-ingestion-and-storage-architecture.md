@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-22
-updated: 2026-03-24
+updated: 2026-03-26
 ---
 
 # campus-agent 第一阶段数据平面架构
@@ -26,6 +26,7 @@ updated: 2026-03-24
 
 - 正式引入独立的 ingestion/data plane，而不是把数据导入继续塞进在线查询路径
 - 从第一天起建立 `Raw -> Processed -> Chunk/Index` 分层
+- 冻结 `single source consumption + multi-projection fan-out`，把 canonical 模型明确为 `raw -> source truth -> declared projections -> document/chunk/index`
 - 用对象存储、raw asset registry、document registry 和 Qdrant 建立稳定真相源
 - 让 retrieval 通过 `registry + qdrant` 返回可回链 evidence，而不是只消费向量库
 - 保持 query path 与 offline ingestion path 分层，避免 supervisor/specialist 反向吸收数据平面细节
@@ -107,6 +108,33 @@ updated: 2026-03-24
 - processed layer 按长期知识域 `corpus` 组织
 - source-level artifact 与 document-level artifact 必须分层保存，不能互相替代
 
+### Source Truth 与 Projection Boundary
+
+第一阶段对可复用 source asset 的 canonical 模型固定为：
+
+`raw -> source truth -> declared projections -> document/chunk/index`
+
+这里的 `source truth` 指的是已经脱离 provider 私有形状、可稳定重放的 source-level truth，例如 handbook 的 `layout-elements.jsonl`、split truth 与 per-document source rows；它是后续 document build、attachment projection、service projection 与 replay/rebuild 的唯一共享上游。
+
+职责：
+
+- 把一份 raw source 消费一次，并把可重放的 source truth 持久化一次
+- 以 repo-tracked projection declaration 显式声明该 source 会 fan-out 到哪些下游 document family、collection 或 attachment-like output
+- 让后续 replay/rebuild 直接从 persisted source truth 重新生成 document artifact、chunk/index 或 derived document，而不是重新回到 raw
+
+不变量：
+
+- 同一份 canonical source truth 已存在时，后续 collection 扩展、附件抽取或派生文档生成不得返回 raw 重新消费；do not return to raw
+- 允许一个 source asset fan-out 到多个 collection/corpus，但 fan-out 必须通过显式 projection contract，而不是“每个下游 collection 再跑一条独立 raw ingestion lane”
+- attachment、appendix、form、navigation-like leaves 只要具有独立下游价值，就应作为 explicit derived document 建模，并保留对 source truth 与 parent document 的稳定 provenance
+- projection contract 只属于 ingestion/data plane；它不改变 retrieval、supervisor 或 contracts 的边界
+
+当前明确要被替换的反模式：
+
+- handbook-only replay：把 replay/rebuild 绑定成 `student_handbook` 私有支路，而不是 replay from source truth
+- separate `campus_services` migration lane：把 handbook-derived service output 建成独立迁移世界观，而不是同一 source truth 下的 declared projection
+- attachment semantics trapped inside cleanup：附件/附录/表单/导航语义只存在于清洗逻辑里，而不落成 derived document
+
 ### Document Registry
 
 职责：
@@ -138,15 +166,18 @@ updated: 2026-03-24
 
 ### 摄入链路
 
-`crawler/jobs -> raw layer -> raw asset registry -> ingestion worker -> processed layer -> document registry -> qdrant`
+`crawler/jobs -> raw layer -> raw asset registry -> ingestion worker -> source truth -> declared projections -> document registry -> qdrant`
 
 固定规则：
 
 - crawler 产物先进入对象存储和 raw asset registry，不直接把本机路径当长期数据源
 - ingestion worker 通过 `raw_asset_id + raw_version_id` 消费已登记 raw asset，而不是直接消费本地文件路径
+- ingestion worker 对同一 source asset 的 canonical raw/source truth 只消费与持久化一次；后续 fan-out 通过 declared projections 执行
 - 去重在摄入早期完成
 - 无变化文档直接 skip；有变化文档生成新 `version_id`
 - 文档删除通过 registry 状态与索引删除同步处理
+- replay/rebuild 的 canonical boundary 是 persisted source truth，而不是 handbook-only branch、legacy migration side path 或二次 raw re-entry
+- handbook-derived `campus_services` output、attachment/form/navigation-like output 都必须从 source truth fan-out，而不是各自回到 raw
 - collection 专属 normalization、cleanup、chunking 规则由对应 strategy doc 和 `configs/ingestion/` 冻结，不在本文重复
 
 ### 查询链路
