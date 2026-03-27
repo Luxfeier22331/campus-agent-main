@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-25
-updated: 2026-03-25
+updated: 2026-03-27
 ---
 
 # Cloudflare Runtime Topology
@@ -13,6 +13,7 @@ updated: 2026-03-25
 
 - public entry edge ownership：`docs/architecture/cloudflare-public-entry-boundary.md`
 - protected panel trust model：`docs/architecture/protected-internal-panel-boundary.md`
+- protected panel operator access：`docs/architecture/protected-panel-operator-access.md`
 - 长期 `apps/*` / `packages/*` 分层：`docs/architecture/long-term-architecture.md`
 - supervisor runtime shell 与 core 分层：`docs/architecture/supervisor-architecture.md`
 - 当前 04.2 planning/handoff：`.planning/phases/04.2-cloudflare-runtime-topology-and-delivery-shape-inserted/`
@@ -32,12 +33,12 @@ Phase 04.2 在这里冻结的不是平台选型，而是 runtime topology：
 
 `client -> Cloudflare public surface -> public runtime origin -> apps/supervisor-api -> packages/supervisor-core -> specialist`
 
-`authorized operator -> Cloudflare protected surface -> protected panel runtime origin -> future apps/* panel shell -> runtime APIs`
+`authorized operator -> Cloudflare protected surface -> protected panel Worker origin -> apps/protected-internal-panel -> runtime APIs`
 
 这里的关键结论是：
 
 - public entry runtime origin 继续 anchored on `apps/supervisor-api`
-- protected panel runtime origin 是 future `apps/` shell，不和 public entry 合并成一个 runtime boundary
+- protected panel runtime origin 冻结为 `apps/protected-internal-panel` 对应的 Cloudflare Worker shell，不和 public entry 合并成一个 runtime boundary
 - public 与 protected surface 即使未来共享某些托管基础设施，也不能因此合并成一个 exposure model、一个 hostname，或一个 rollback unit
 
 ## Surface-To-Origin Mapping
@@ -53,7 +54,7 @@ Phase 04.2 在这里冻结的不是平台选型，而是 runtime topology：
 
 - Public reachability: no, protected only
 - Edge hostname: dedicated protected hostname
-- Runtime origin: future `apps/` panel shell
+- Runtime origin: `apps/protected-internal-panel` Cloudflare Worker shell
 - Runtime responsibility: protected operator surface and runtime-API-only access path
 
 ## Topology And Ownership Matrix
@@ -61,7 +62,7 @@ Phase 04.2 在这里冻结的不是平台选型，而是 runtime topology：
 | Surface | Hostname role | Reachability | Cloudflare owns | Repo-owned runtime origin | Rollback unit |
 | --- | --- | --- | --- | --- | --- |
 | Public entry | public answer hostname | Public | DNS/TLS, edge admission, hostname routing to origin | `apps/supervisor-api` | public entry surface and its origin mapping |
-| Protected panel | protected operator hostname | Non-public by default | protected access envelope, hostname routing to protected origin | future `apps/` panel runtime shell | protected panel surface and its origin mapping |
+| Protected panel | protected operator hostname | Non-public by default | protected access envelope, hostname routing to protected origin | `apps/protected-internal-panel` Cloudflare Worker shell | protected panel surface and its origin mapping |
 
 ## Delivery Ownership
 
@@ -78,6 +79,7 @@ Phase 04.2 在这里冻结的不是平台选型，而是 runtime topology：
 - runtime-specific environment/config loading
 - health/readiness behavior after origin selection
 - transport semantics after a request reaches the runtime origin
+- origin-side validation of protected access assertions before protected routes are admitted
 
 ### Core packages do not own
 
@@ -98,6 +100,29 @@ Phase 04.2 在这里冻结的不是平台选型，而是 runtime topology：
 - shared substrate 不变成合并 app boundary 的理由
 
 也就是说，共享基础设施可以是部署实现细节，但不能推翻 two-surface runtime topology。
+
+## Protected Access Verification Path
+
+对于 protected panel surface，delivery path 固定为：
+
+`authorized operator -> Cloudflare protected surface -> protected panel origin admission -> runtime APIs`
+
+这里的关键要求是：
+
+- Cloudflare Access 负责 outer protection envelope
+- protected panel origin 负责校验 `Cf-Access-Jwt-Assertion` 或等价签名 access assertion
+- origin admission 失败时直接拒绝访问，而不是把 protected origin 当作“已经可信的内网”
+- 上游 allow 决策与 origin admission 共同组成 protected panel 的访问前提
+- protected panel Worker origin 可以承载静态资源交付与 panel BFF，但不因此越过 runtime API seam
+
+## Cache And Performance Posture
+
+这个 topology 允许按 surface 区分性能优化，但不允许用性能理由重写 trust model：
+
+- public entry 与 protected panel 可以各自拥有独立的静态资源、缓存策略与回源策略
+- protected panel 的指纹化静态资源可以独立优化交付
+- protected panel 的 HTML、JSON API、auth callback 和 operator-specific state 响应默认不应作为公共缓存对象
+- runtime API 聚合、分页和静态资源优化是推荐的性能方向；合并 surface、合并 hostname 或放宽 runtime seam 不是
 
 ## Rollback Boundary
 
@@ -129,3 +154,4 @@ runtime topology 不能替代 Phase 5 的 actor、ACL 或 audit 闭环。
 - 不把 provider/runtime delivery 类型推入 `packages/*`
 - 不定义 header forwarding、trace propagation、cache、timeout 或 streaming contract 细节
 - 不设计 panel UI、panel business workflow 或 protected operator actions
+- 不把“性能优化”解释成可以取消 protected surface split、origin admission 或 runtime-API-only seam

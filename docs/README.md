@@ -63,6 +63,7 @@ updated: 2026-03-27
 - `architecture/public-consumer-chat-auth-and-data-boundary.md`
 - `architecture/public-consumer-chat-surface.md`
 - `architecture/protected-internal-panel-boundary.md`
+- `architecture/protected-panel-operator-access.md`
 - `architecture/protected-panel-runtime-shell.md`
 - `architecture/source-truth-normalization-contract.md`
 - `architecture/supervisor-architecture.md`
@@ -78,6 +79,7 @@ updated: 2026-03-27
 - `decisions/adr-0008-public-consumer-auth-and-storage.md`
 - `decisions/adr-0009-public-consumer-frontend-host.md`
 - `decisions/adr-0010-observability-and-telemetry-stack.md`
+- `decisions/adr-0011-protected-panel-worker-runtime.md`
 - `plans/agentic-rag-foundation.md`
 - `plans/agent-orchestration-architecture-refresh.md`
 - `plans/golden-dataset-document-delivery.md`
