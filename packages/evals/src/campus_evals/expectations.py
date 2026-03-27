@@ -14,6 +14,14 @@ def evaluate_case(case: GoldenCase, execution: ExecutionResult) -> CaseResult:
     retrieval_result = _grade_retrieval(case, response)
     answer_result = _grade_answer(case, response)
     trace_result = _grade_trace(case, execution)
+    metric_results = _build_metric_results(
+        case,
+        execution,
+        status_result=status_result,
+        retrieval_result=retrieval_result,
+        answer_result=answer_result,
+        trace_result=trace_result,
+    )
     passed = all(
         (
             status_result.passed,
@@ -21,7 +29,7 @@ def evaluate_case(case: GoldenCase, execution: ExecutionResult) -> CaseResult:
             answer_result.passed,
             trace_result.passed,
         )
-    )
+    ) and all(metric.passed for metric in metric_results.values())
     return CaseResult(
         case_id=case.case_id,
         passed=passed,
@@ -29,6 +37,7 @@ def evaluate_case(case: GoldenCase, execution: ExecutionResult) -> CaseResult:
         retrieval_result=retrieval_result,
         answer_result=answer_result,
         trace_result=trace_result,
+        metric_results=metric_results,
     )
 
 
@@ -117,6 +126,167 @@ def _grade_trace(case: GoldenCase, execution: ExecutionResult) -> DimensionResul
         return DimensionResult(False, f"clarification_emitted={observed.clarification_emitted}")
     if expected.error_expected is not None and observed.error_path != expected.error_expected:
         return DimensionResult(False, f"error_path={observed.error_path}")
+    return DimensionResult(True, "ok")
+
+
+def _build_metric_results(
+    case: GoldenCase,
+    execution: ExecutionResult,
+    *,
+    status_result: DimensionResult,
+    retrieval_result: DimensionResult,
+    answer_result: DimensionResult,
+    trace_result: DimensionResult,
+) -> dict[str, DimensionResult]:
+    response = execution.response
+    if not isinstance(response, SpecialistResponse):
+        raise TypeError("execution.response must be SpecialistResponse")
+
+    metrics: dict[str, DimensionResult] = {}
+    evidence = _extract_rag_evidence(response)
+    actual_sources = tuple(evidence.sources) if evidence is not None else ()
+
+    if case.grader_policy.grade_status:
+        metrics["status_accuracy"] = status_result
+        if case.expected_status == "needs_clarification":
+            metrics["clarification_accuracy"] = _grade_clarification_accuracy(response)
+        if case.expected_status == "no_answer":
+            metrics["no_answer_accuracy"] = _grade_no_answer_accuracy(response)
+        if case.expected_status == "error":
+            metrics["error_path_correctness"] = _grade_error_path_correctness(response)
+
+    if case.grader_policy.grade_retrieval:
+        if case.expected_sources:
+            metrics["expected_doc_hit"] = _grade_expected_doc_hit(case, actual_sources)
+        if case.forbidden_sources:
+            metrics["forbidden_doc_miss"] = _grade_forbidden_doc_miss(case, actual_sources)
+        if case.expected_status == "completed":
+            metrics["citation_completeness"] = _grade_citation_completeness(case, response)
+            metrics["source_locator_completeness"] = _grade_source_locator_completeness(response)
+        if _case_requires_fail_closed(case):
+            metrics["fail_closed"] = _grade_fail_closed(response)
+
+    if case.grader_policy.grade_answer:
+        if case.expected_status == "completed" or case.required_facts or case.forbidden_claims:
+            metrics["answer_accuracy"] = answer_result
+        if case.required_facts:
+            metrics["answer_completeness"] = _grade_answer_completeness(case, response)
+        if case.forbidden_claims:
+            metrics["forbidden_claim_free"] = _grade_forbidden_claim_free(case, response)
+
+    if case.grader_policy.grade_trace:
+        metrics["trace_path_correctness"] = trace_result
+
+    return metrics
+
+
+def _grade_expected_doc_hit(
+    case: GoldenCase,
+    actual_sources,
+) -> DimensionResult:
+    for source_ref in case.expected_sources:
+        if not any(_matches_source_ref(source_ref, source) for source in actual_sources):
+            return DimensionResult(
+                False,
+                "missing expected source="
+                f"{(source_ref.doc_id, source_ref.version_id, source_ref.chunk_id)}",
+            )
+    return DimensionResult(True, "ok")
+
+
+def _grade_forbidden_doc_miss(
+    case: GoldenCase,
+    actual_sources,
+) -> DimensionResult:
+    for source_ref in case.forbidden_sources:
+        if any(_matches_source_ref(source_ref, source) for source in actual_sources):
+            return DimensionResult(
+                False,
+                "forbidden source present="
+                f"{(source_ref.doc_id, source_ref.version_id, source_ref.chunk_id)}",
+            )
+    return DimensionResult(True, "ok")
+
+
+def _grade_citation_completeness(case: GoldenCase, response: SpecialistResponse) -> DimensionResult:
+    evidence = _extract_rag_evidence(response)
+    if evidence is None:
+        return DimensionResult(False, "response missing rag evidence payload")
+    if not evidence.sources:
+        return DimensionResult(False, "completed response missing evidence sources")
+    if case.expected_sources:
+        expected_hit = _grade_expected_doc_hit(case, tuple(evidence.sources))
+        if not expected_hit.passed:
+            return expected_hit
+    return DimensionResult(True, "ok")
+
+
+def _grade_source_locator_completeness(response: SpecialistResponse) -> DimensionResult:
+    evidence = _extract_rag_evidence(response)
+    if evidence is None:
+        return DimensionResult(False, "response missing rag evidence payload")
+    if not evidence.sources:
+        return DimensionResult(False, "completed response missing evidence sources")
+    for source in evidence.sources:
+        if not source.doc_id or not source.version_id or not source.chunk_id:
+            return DimensionResult(False, "source locator is incomplete")
+    return DimensionResult(True, "ok")
+
+
+def _grade_answer_completeness(case: GoldenCase, response: SpecialistResponse) -> DimensionResult:
+    normalized_answer = _normalize_text(response.answer_text)
+    for fact in case.required_facts:
+        if _normalize_text(fact) not in normalized_answer:
+            return DimensionResult(False, f"missing required fact={fact}")
+    return DimensionResult(True, "ok")
+
+
+def _grade_forbidden_claim_free(case: GoldenCase, response: SpecialistResponse) -> DimensionResult:
+    normalized_answer = _normalize_text(response.answer_text)
+    for claim in case.forbidden_claims:
+        if _normalize_text(claim) in normalized_answer:
+            return DimensionResult(False, f"forbidden claim present={claim}")
+    return DimensionResult(True, "ok")
+
+
+def _grade_clarification_accuracy(response: SpecialistResponse) -> DimensionResult:
+    if response.status != "needs_clarification":
+        return DimensionResult(False, f"status={response.status}")
+    if not response.follow_up_question.strip():
+        return DimensionResult(False, "follow_up_question is empty")
+    return DimensionResult(True, "ok")
+
+
+def _grade_no_answer_accuracy(response: SpecialistResponse) -> DimensionResult:
+    if response.status != "no_answer":
+        return DimensionResult(False, f"status={response.status}")
+    if response.answer_text.strip():
+        return DimensionResult(False, "no_answer response should not contain answer_text")
+    return DimensionResult(True, "ok")
+
+
+def _grade_error_path_correctness(response: SpecialistResponse) -> DimensionResult:
+    if response.status != "error":
+        return DimensionResult(False, f"status={response.status}")
+    if response.error is None:
+        return DimensionResult(False, "error response missing error payload")
+    if not response.error.code.strip():
+        return DimensionResult(False, "error response missing error code")
+    return DimensionResult(True, "ok")
+
+
+def _case_requires_fail_closed(case: GoldenCase) -> bool:
+    if case.trace_expectation is not None and case.trace_expectation.fail_closed_expected is True:
+        return True
+    return case.expected_status == "no_answer" and not case.expected_sources
+
+
+def _grade_fail_closed(response: SpecialistResponse) -> DimensionResult:
+    evidence = _extract_rag_evidence(response)
+    if evidence is None:
+        return DimensionResult(False, "response missing rag evidence payload")
+    if evidence.sources:
+        return DimensionResult(False, "fail-close response should not contain evidence sources")
     return DimensionResult(True, "ok")
 
 

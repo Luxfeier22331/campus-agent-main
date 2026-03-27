@@ -20,6 +20,7 @@ def run_cases(
     results: list[CaseResult] = []
     split_stats: dict[str, Counter[str]] = defaultdict(Counter)
     dimension_stats: dict[str, Counter[str]] = defaultdict(Counter)
+    metric_stats: dict[str, Counter[str]] = defaultdict(Counter)
 
     for case in selected_cases:
         result = evaluate_case(case, executor(case))
@@ -34,6 +35,9 @@ def run_cases(
         ):
             dimension_stats[name]["total"] += 1
             dimension_stats[name]["passed" if dimension.passed else "failed"] += 1
+        for name, metric_result in result.metric_results.items():
+            metric_stats[name]["total"] += 1
+            metric_stats[name]["passed" if metric_result.passed else "failed"] += 1
 
     passed = sum(1 for result in results if result.passed)
     total = len(results)
@@ -43,6 +47,7 @@ def run_cases(
         failed=total - passed,
         by_split={name: _summary_from_counter(counter) for name, counter in split_stats.items()},
         by_dimension={name: _summary_from_counter(counter) for name, counter in dimension_stats.items()},
+        by_metric={name: _summary_from_counter(counter) for name, counter in metric_stats.items()},
         results=tuple(results),
     )
 

@@ -32,7 +32,10 @@ from campus_evals.models import (
     expected_source_ref,
 )
 from campus_evals.runner import run_cases
-from campus_evals.scenarios import student_handbook_smoke_cases
+from campus_evals.scenarios import (
+    student_handbook_release_gate_cases,
+    student_handbook_smoke_cases,
+)
 
 __all__ = [
     "CaseResult",
@@ -63,6 +66,7 @@ __all__ = [
     "load_retrieval_qrels_dataset",
     "render_retrieval_summary_text",
     "run_cases",
+    "student_handbook_release_gate_cases",
     "student_handbook_smoke_cases",
     "summarize_retrieval_metrics",
     "validate_retrieval_hybrid_query_fixture",

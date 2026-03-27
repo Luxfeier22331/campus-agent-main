@@ -4,6 +4,7 @@ import unittest
 
 from campus_contracts import (
     ActorContext,
+    ErrorInfo,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
@@ -17,6 +18,7 @@ from campus_evals import (
     TraceExpectation,
     expected_source_ref,
     run_cases,
+    student_handbook_release_gate_cases,
     student_handbook_smoke_cases,
 )
 
@@ -117,6 +119,35 @@ class RunCasesTest(unittest.TestCase):
         )
         self.assertTrue(all(case.source_type == "synthetic_expansion" for case in cases))
         self.assertTrue(all(case.generator_name == "bootstrap-smoke-generator" for case in cases))
+
+    def test_student_handbook_release_gate_cases_cover_terminal_statuses(self) -> None:
+        cases = student_handbook_release_gate_cases()
+
+        self.assertEqual(len(cases), 6)
+        self.assertEqual(
+            tuple(case.case_id for case in cases),
+            (
+                "release-gate-scholarship-title",
+                "release-gate-student-card",
+                "release-gate-dormitory-lighting",
+                "release-gate-medical-title",
+                "release-gate-no-answer",
+                "release-gate-needs-clarification",
+            ),
+        )
+        self.assertEqual(
+            tuple(case.expected_status for case in cases),
+            (
+                "completed",
+                "completed",
+                "completed",
+                "completed",
+                "no_answer",
+                "needs_clarification",
+            ),
+        )
+        self.assertTrue(all(case.split == "release_gate" for case in cases))
+        self.assertTrue(all(case.scope == KnowledgeScope(corpus="regulations", collection="student_handbook") for case in cases))
 
     def test_runner_filters_by_split_and_aggregates_dimensions(self) -> None:
         smoke_case = GoldenCase(
@@ -329,6 +360,153 @@ class RunCasesTest(unittest.TestCase):
         )
 
         self.assertFalse(report.results[0].retrieval_result.passed)
+
+    def test_runner_aggregates_deterministic_release_gate_metrics(self) -> None:
+        completed_case = GoldenCase(
+            case_id="completed-1",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="library hours",
+            actor=ActorContext(),
+            expected_status="completed",
+            expected_sources=(expected_source_ref("handbook:library"),),
+            forbidden_sources=(expected_source_ref("plan:fall"),),
+            required_facts=("08:00",),
+            forbidden_claims=("24 hours",),
+            trace_expectation=TraceExpectation(
+                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                retrieval_called=True,
+            ),
+        )
+        clarification_case = GoldenCase(
+            case_id="clarify-accuracy",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="奖学金怎么申请？",
+            actor=ActorContext(),
+            expected_status="needs_clarification",
+            trace_expectation=TraceExpectation(
+                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                retrieval_called=False,
+                clarification_expected=True,
+            ),
+        )
+        no_answer_case = GoldenCase(
+            case_id="no-answer-fail-close",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="火星校区飞船停靠规则",
+            actor=ActorContext(),
+            expected_status="no_answer",
+            trace_expectation=TraceExpectation(
+                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                retrieval_called=True,
+                fail_closed_expected=True,
+            ),
+        )
+        error_case = GoldenCase(
+            case_id="error-path",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="system failure",
+            actor=ActorContext(),
+            expected_status="error",
+            trace_expectation=TraceExpectation(
+                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                retrieval_called=True,
+                error_expected=True,
+            ),
+        )
+
+        def executor(case: GoldenCase) -> ExecutionResult:
+            if case.case_id == "completed-1":
+                return ExecutionResult(
+                    response=_response(sources=(_source(),)),
+                    observed_trace=ObservedTrace(
+                        selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                        retrieval_called=True,
+                    ),
+                )
+            if case.case_id == "clarify-accuracy":
+                return ExecutionResult(
+                    response=SpecialistResponse(
+                        target="rag-specialist",
+                        status="needs_clarification",
+                        result=RagResultPayload(
+                            evidence=EvidenceBundle(
+                                query_text="奖学金怎么申请？",
+                                corpus="regulations",
+                                collection="student_handbook",
+                            )
+                        ),
+                    ),
+                    observed_trace=ObservedTrace(
+                        selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                        retrieval_called=False,
+                        clarification_emitted=True,
+                    ),
+                )
+            if case.case_id == "no-answer-fail-close":
+                return ExecutionResult(
+                    response=SpecialistResponse(
+                        target="rag-specialist",
+                        status="no_answer",
+                        result=RagResultPayload(
+                            evidence=EvidenceBundle(
+                                query_text="火星校区飞船停靠规则",
+                                corpus="regulations",
+                                collection="student_handbook",
+                                sources=(_source(doc_id="handbook:unexpected"),),
+                            )
+                        ),
+                    ),
+                    observed_trace=ObservedTrace(
+                        selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                        retrieval_called=True,
+                    ),
+                )
+            return ExecutionResult(
+                response=SpecialistResponse(
+                    target="rag-specialist",
+                    status="error",
+                    confidence="low",
+                    answer_text="retrieval failed",
+                    error=None,
+                    result=RagResultPayload(
+                        evidence=EvidenceBundle(
+                            query_text="system failure",
+                            corpus="regulations",
+                            collection="student_handbook",
+                        )
+                    ),
+                ),
+                observed_trace=ObservedTrace(
+                    selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                    retrieval_called=True,
+                    error_path=True,
+                ),
+            )
+
+        report = run_cases(
+            (completed_case, clarification_case, no_answer_case, error_case),
+            executor=executor,
+        )
+
+        self.assertEqual(report.by_metric["status_accuracy"].passed, 4)
+        self.assertEqual(report.by_metric["expected_doc_hit"].passed, 1)
+        self.assertEqual(report.by_metric["forbidden_doc_miss"].passed, 1)
+        self.assertEqual(report.by_metric["answer_accuracy"].passed, 1)
+        self.assertEqual(report.by_metric["answer_completeness"].passed, 1)
+        self.assertEqual(report.by_metric["forbidden_claim_free"].passed, 1)
+        self.assertEqual(report.by_metric["citation_completeness"].passed, 1)
+        self.assertEqual(report.by_metric["source_locator_completeness"].passed, 1)
+        self.assertEqual(report.by_metric["clarification_accuracy"].failed, 1)
+        self.assertEqual(report.by_metric["no_answer_accuracy"].passed, 1)
+        self.assertEqual(report.by_metric["fail_closed"].failed, 1)
+        self.assertEqual(report.by_metric["error_path_correctness"].failed, 1)
+        self.assertFalse(report.results[1].passed)
+        self.assertFalse(report.results[2].passed)
+        self.assertFalse(report.results[3].passed)
 
 
 if __name__ == "__main__":

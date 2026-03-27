@@ -123,6 +123,7 @@ class CaseResult:
     retrieval_result: DimensionResult
     answer_result: DimensionResult
     trace_result: DimensionResult
+    metric_results: dict[str, DimensionResult] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,4 +140,5 @@ class RunReport:
     failed: int
     by_split: dict[str, SummaryCount]
     by_dimension: dict[str, SummaryCount]
+    by_metric: dict[str, SummaryCount]
     results: tuple[CaseResult, ...]
