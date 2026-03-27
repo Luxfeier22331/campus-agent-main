@@ -245,6 +245,11 @@ Behavior:
 - This command is a historical backfill bridge, not a canonical phase-1 ingestion path.
 - The canonical declaration of handbook downstream projections lives under
   `configs/ingestion/regulations/student_handbook/source-projections.v1.json`.
+- For handbook-derived `campus_services` outputs, source-truth selector fields
+  (`source_title`, `source_handbook_section`, `source_page_start`, `source_page_end`)
+  are now the canonical match contract; do not require retained
+  `regulations/student_handbook` manifest document ids for pages already removed from
+  the handbook split manifest.
 - New downstream outputs must be added to source-truth fan-out, not to this bridge.
 - Rewrites migrated canonical metadata into `campus_services` corpus semantics.
 - Deletes stale `regulations/student_handbook` phone-directory and migrated handbook

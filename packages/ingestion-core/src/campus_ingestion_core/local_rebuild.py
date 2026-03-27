@@ -33,6 +33,7 @@ from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
 from campus_ingestion_core.handbook_cleanup import cleanup_handbook_document, serialize_handbook_document_units
 from campus_ingestion_core.handbook_source_projections import (
     build_handbook_projection_import_documents,
+    build_declared_projection_processed_keys,
     load_handbook_source_projections_config,
 )
 from campus_ingestion_core.handbook_provider_normalize import (
@@ -198,6 +199,50 @@ class QdrantCollectionAdmin:
             self._client.delete_collection(collection_name)
 
 
+def _resolve_primary_qdrant_collection_name(source: dict[str, str]) -> str:
+    return (source.get("QDRANT_COLLECTION") or DEFAULT_QDRANT_COLLECTION).strip() or DEFAULT_QDRANT_COLLECTION
+
+
+def _resolve_target_qdrant_collection_name(
+    source: dict[str, str],
+    *,
+    corpus: str,
+    collection: str,
+) -> str:
+    primary_scope = (_read_ingestion_corpus(source), _read_ingestion_collection(source, corpus=_read_ingestion_corpus(source)))
+    if (corpus, collection) == primary_scope:
+        return _resolve_primary_qdrant_collection_name(source)
+    return collection
+
+
+def _resolve_rebuild_target_qdrant_collections(
+    *,
+    source: dict[str, str],
+    request: RebuildRequest,
+    collection_config: CollectionTruthConfig,
+) -> tuple[str, ...]:
+    target_collections = [
+        _resolve_target_qdrant_collection_name(
+            source,
+            corpus=request.corpus,
+            collection=request.collection,
+        )
+    ]
+    if request.import_mode == "provider_response_replay" and request.collection == "student_handbook":
+        projections_config = load_handbook_source_projections_config(collection_config.source_projections_path)
+        for projection in projections_config.projections:
+            if projection.target_corpus == projections_config.source_corpus and projection.target_collection == projections_config.source_collection:
+                continue
+            target_collections.append(
+                _resolve_target_qdrant_collection_name(
+                    source,
+                    corpus=projection.target_corpus,
+                    collection=projection.target_collection,
+                )
+            )
+    return tuple(dict.fromkeys(target_collections))
+
+
 def rebuild_local_data(
     *,
     env: dict[str, str] | None = None,
@@ -257,7 +302,12 @@ def rebuild_local_data(
         qdrant_collection_admin = qdrant_admin or QdrantCollectionAdmin(
             _build_qdrant_client(retrieval_settings, source=source)
         )
-        qdrant_collection_admin.reset_collection(source.get("QDRANT_COLLECTION") or DEFAULT_QDRANT_COLLECTION)
+        for collection_name in _resolve_rebuild_target_qdrant_collections(
+            source=source,
+            request=runtime_request,
+            collection_config=runtime_collection_config,
+        ):
+            qdrant_collection_admin.reset_collection(collection_name)
 
     runtime_import_runner = import_runner or _resolve_import_runner(import_mode)
 
@@ -942,6 +992,13 @@ def _declared_projection_processed_keys(
         return ()
     config = load_handbook_source_projections_config(Path(path_value))
     keys: list[str] = []
+    source_pdf = (source.get("REPLAY_SOURCE_PDF") or DEFAULT_REPLAY_SOURCE_PDF).strip() or DEFAULT_REPLAY_SOURCE_PDF
+    keys.extend(
+        build_declared_projection_processed_keys(
+            config=config,
+            source_pdf=source_pdf,
+        )
+    )
     seen_scope_records: dict[tuple[str | None, str | None], tuple[Any, ...]] = {}
     for record in current_document_records:
         seen_scope_records[(getattr(record, "corpus", None), getattr(record, "collection", None))] = current_document_records
@@ -1112,45 +1169,54 @@ def _index_replayed_documents(
     qdrant_client: QdrantClient | None,
 ) -> None:
     runtime_qdrant_client = qdrant_client or _build_qdrant_client(RetrievalSettings.from_env(source), source=source)
-    collection_name = (source.get("QDRANT_COLLECTION") or DEFAULT_QDRANT_COLLECTION).strip() or DEFAULT_QDRANT_COLLECTION
     upsert_batch_size = _read_qdrant_upsert_batch_size(source)
     embedding_model = build_embedding_model(EmbeddingSettings.from_env(source))
     sparse_embedding_model = build_sparse_embedding_model(SparseEmbeddingSettings.from_env(source))
-    pending_chunks = []
-    should_ensure_collection = True
-
-    def flush_pending_chunks() -> None:
-        nonlocal pending_chunks, should_ensure_collection
-        if not pending_chunks:
-            return
-        index_chunks_to_qdrant(
-            chunks=tuple(pending_chunks),
-            qdrant_client=runtime_qdrant_client,
-            collection_name=collection_name,
-            sparse_embedding_model=sparse_embedding_model,
-            recreate_collection_on_schema_mismatch=True,
-            ensure_collection=should_ensure_collection,
-            ensure_payload_indexes=should_ensure_collection,
-        )
-        pending_chunks = []
-        should_ensure_collection = False
-
+    documents_by_collection: dict[str, list[DocumentImportInput]] = {}
     for document in documents:
-        document_id = str(document.metadata["document_id"])
-        version_id = str(document.metadata["version_id"])
-        record = registry.get(document_id, document.revision_track, version_id)
-        if record is None:
-            continue
-        chunks = build_indexable_chunks_from_jsonl(
-            record=record,
-            structured_jsonl_bytes=document.document_units_bytes,
-            embedding_model=embedding_model,
-            sparse_embedding_model=sparse_embedding_model,
+        collection_name = _resolve_target_qdrant_collection_name(
+            source,
+            corpus=document.corpus,
+            collection=document.collection,
         )
-        pending_chunks.extend(chunks)
-        if len(pending_chunks) >= upsert_batch_size:
-            flush_pending_chunks()
-    flush_pending_chunks()
+        documents_by_collection.setdefault(collection_name, []).append(document)
+
+    for collection_name, collection_documents in documents_by_collection.items():
+        pending_chunks = []
+        should_ensure_collection = True
+
+        def flush_pending_chunks() -> None:
+            nonlocal pending_chunks, should_ensure_collection
+            if not pending_chunks:
+                return
+            index_chunks_to_qdrant(
+                chunks=tuple(pending_chunks),
+                qdrant_client=runtime_qdrant_client,
+                collection_name=collection_name,
+                sparse_embedding_model=sparse_embedding_model,
+                recreate_collection_on_schema_mismatch=True,
+                ensure_collection=should_ensure_collection,
+                ensure_payload_indexes=should_ensure_collection,
+            )
+            pending_chunks = []
+            should_ensure_collection = False
+
+        for document in collection_documents:
+            document_id = str(document.metadata["document_id"])
+            version_id = str(document.metadata["version_id"])
+            record = registry.get(document_id, document.revision_track, version_id)
+            if record is None:
+                continue
+            chunks = build_indexable_chunks_from_jsonl(
+                record=record,
+                structured_jsonl_bytes=document.document_units_bytes,
+                embedding_model=embedding_model,
+                sparse_embedding_model=sparse_embedding_model,
+            )
+            pending_chunks.extend(chunks)
+            if len(pending_chunks) >= upsert_batch_size:
+                flush_pending_chunks()
+        flush_pending_chunks()
 
 
 def _read_embedding_model_name(source: dict[str, str]) -> str:

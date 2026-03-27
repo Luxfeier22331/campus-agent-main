@@ -441,7 +441,7 @@ def _build_split_manifest_documents(
     ocr_model: str,
 ) -> list[DocumentImportInput]:
     if collection == "curriculum_plan":
-        structured_rows = _load_structured_rows(
+        structured_rows = _load_layout_elements_rows(
             normalize_curriculum_provider_result(
                 provider_jsonl_bytes=provider_result.provider_result_bytes,
                 source_pdf=raw_asset_record.source_filename,
@@ -871,6 +871,10 @@ def _transform_split_row(
         "chunk_id": source_chunk_id,
         "row_id": _normalize_optional_text(row.get("row_id")) or source_chunk_id,
         "row_type": _normalize_optional_text(row.get("row_type")) or "paragraph",
+        "heading_level": row.get("heading_level"),
+        "row_index": row.get("row_index"),
+        "reading_order": row.get("reading_order"),
+        "section_hint": _normalize_optional_text(row.get("section_hint")),
         "clean_text": clean_text,
         "html": row.get("html"),
         "table_cells": row.get("table_cells"),
@@ -902,7 +906,7 @@ def _serialize_rows(rows: list[dict[str, object]]) -> bytes:
     return ("\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n").encode("utf-8")
 
 
-def _load_structured_rows(file_bytes: bytes) -> list[dict[str, object]]:
+def _load_layout_elements_rows(file_bytes: bytes) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     for line_number, line in enumerate(file_bytes.decode("utf-8").splitlines(), start=1):
         normalized = line.strip()

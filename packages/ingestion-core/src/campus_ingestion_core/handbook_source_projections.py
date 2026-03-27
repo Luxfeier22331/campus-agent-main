@@ -8,6 +8,7 @@ from pathlib import Path
 from campus_ingestion_core.campusrag_ingestion_support import DocumentImportInput, load_metadata_from_bytes
 from campus_ingestion_core.handbook_cleanup import cleanup_handbook_document, serialize_handbook_document_units, validate_handbook_manifest_title
 from campus_ingestion_core.models import RawAssetRecord
+from campus_ingestion_core.object_store import build_processed_artifact_key
 from campus_ingestion_core.split_manifest import SplitManifestDocument
 
 
@@ -28,6 +29,10 @@ class HandbookSourceProjection:
     attachment_role: str | None
     target_title: str | None = None
     migration_reason: str | None = None
+    source_title: str | None = None
+    source_handbook_section: str | None = None
+    source_page_start: int | None = None
+    source_page_end: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +68,12 @@ def load_handbook_source_projections_config(path: Path) -> HandbookSourceProject
             attachment_role=str(item["attachment_role"]) if item.get("attachment_role") is not None else None,
             target_title=str(item["target_title"]) if item.get("target_title") is not None else None,
             migration_reason=str(item["migration_reason"]) if item.get("migration_reason") is not None else None,
+            source_title=str(item["source_title"]) if item.get("source_title") is not None else None,
+            source_handbook_section=(
+                str(item["source_handbook_section"]) if item.get("source_handbook_section") is not None else None
+            ),
+            source_page_start=(int(item["source_page_start"]) if item.get("source_page_start") is not None else None),
+            source_page_end=(int(item["source_page_end"]) if item.get("source_page_end") is not None else None),
         )
         for item in list(payload.get("projections") or [])
     )
@@ -94,10 +105,11 @@ def build_handbook_projection_import_documents(
     for projection in config.projections:
         if projection.target_corpus == config.source_corpus and projection.target_collection == config.source_collection:
             continue
-        source_document_id = projection.derived_from_document_id or projection.parent_document_id
-        if not source_document_id:
-            continue
-        manifest_document = manifest_by_document_id.get(source_document_id)
+        manifest_document = _resolve_projection_source_document(
+            projection=projection,
+            manifest_by_document_id=manifest_by_document_id,
+            split_manifest_documents=split_manifest_documents,
+        )
         if manifest_document is None:
             continue
         try:
@@ -110,7 +122,7 @@ def build_handbook_projection_import_documents(
             source_doc=source_pdf,
         )
         target_title = projection.target_title or cleanup_result.title
-        document_id = _build_campus_services_document_id(projection.target_collection, manifest_document.document_id)
+        document_id = build_projection_target_document_id(projection=projection)
         canonical_markdown = _render_canonical_markdown(
             metadata={
                 "schema_version": 1,
@@ -179,6 +191,135 @@ def build_handbook_projection_import_documents(
             )
         )
     return documents
+
+
+def build_declared_projection_processed_keys(
+    *,
+    config: HandbookSourceProjectionsConfig,
+    source_pdf: str,
+) -> tuple[str, ...]:
+    keys: list[str] = []
+    year = _infer_year(source_pdf)
+    for projection in config.projections:
+        if projection.target_corpus == config.source_corpus and projection.target_collection == config.source_collection:
+            continue
+        document_id = build_projection_target_document_id(projection=projection)
+        title = projection.target_title or projection.source_title
+        if title is None:
+            continue
+        keys.append(
+            build_processed_artifact_key(
+                corpus=projection.target_corpus,
+                collection=projection.target_collection,
+                document_id=document_id,
+                revision_track="source-faithful",
+                version_id=_build_projection_placeholder_version_id(projection),
+                filename="canonical.md",
+                title=title,
+                year=year,
+            )
+        )
+        keys.append(
+            build_processed_artifact_key(
+                corpus=projection.target_corpus,
+                collection=projection.target_collection,
+                document_id=document_id,
+                revision_track="source-faithful",
+                version_id=_build_projection_placeholder_version_id(projection),
+                filename="document-units.jsonl",
+                title=title,
+                year=year,
+            )
+        )
+    return tuple(dict.fromkeys(keys))
+
+
+def build_projection_target_document_id(*, projection: HandbookSourceProjection) -> str:
+    if projection.source_title is not None:
+        legacy_document_id = build_handbook_projection_source_document_id(projection=projection)
+        return _build_campus_services_document_id(projection.target_collection, legacy_document_id)
+    source_document_id = projection.derived_from_document_id or projection.parent_document_id
+    if source_document_id:
+        return _build_campus_services_document_id(projection.target_collection, source_document_id)
+    if projection.source_title is None:
+        raise ValueError("projection source_title is required when source document id is absent")
+    legacy_document_id = build_handbook_projection_source_document_id(projection=projection)
+    return _build_campus_services_document_id(projection.target_collection, legacy_document_id)
+
+
+def build_handbook_projection_source_document_id(*, projection: HandbookSourceProjection) -> str:
+    if projection.source_title is None:
+        raise ValueError("projection source_title is required")
+    return "handbook:" + hashlib.sha1(_normalize_projection_source_title(projection.source_title).encode("utf-8")).hexdigest()
+
+
+def _resolve_projection_source_document(
+    *,
+    projection: HandbookSourceProjection,
+    manifest_by_document_id: dict[str, SplitManifestDocument],
+    split_manifest_documents: tuple[SplitManifestDocument, ...],
+) -> SplitManifestDocument | None:
+    source_document_id = projection.derived_from_document_id or projection.parent_document_id
+    if source_document_id:
+        manifest_document = manifest_by_document_id.get(source_document_id)
+        if manifest_document is not None:
+            return manifest_document
+    return _match_projection_source_document_from_selector(
+        projection=projection,
+        split_manifest_documents=split_manifest_documents,
+    )
+
+
+def _match_projection_source_document_from_selector(
+    *,
+    projection: HandbookSourceProjection,
+    split_manifest_documents: tuple[SplitManifestDocument, ...],
+) -> SplitManifestDocument | None:
+    if projection.source_title is None:
+        return None
+    for document in split_manifest_documents:
+        if projection.source_title != document.title:
+            continue
+        if projection.source_handbook_section is not None and projection.source_handbook_section != document.handbook_section:
+            continue
+        if projection.source_page_start is not None and projection.source_page_start != document.page_start:
+            continue
+        if projection.source_page_end is not None and projection.source_page_end != document.page_end:
+            continue
+        return document
+    if projection.source_page_start is None or projection.source_page_end is None:
+        return None
+    return SplitManifestDocument(
+        document_id=build_handbook_projection_source_document_id(projection=projection),
+        title=projection.source_title,
+        page_start=projection.source_page_start,
+        page_end=projection.source_page_end,
+        source_uri=(
+            f"campus-agent://{HANDBOOK_SOURCE_PROJECTIONS_SCHEMA_VERSION}/"
+            f"{projection.target_corpus}/{projection.target_collection}/{projection.projection_name}"
+        ),
+        handbook_section=projection.source_handbook_section or projection.source_title,
+        status="active",
+    )
+
+
+def _build_projection_placeholder_version_id(projection: HandbookSourceProjection) -> str:
+    seed = "|".join(
+        [
+            projection.projection_name,
+            projection.target_collection,
+            projection.target_title or "",
+            projection.source_title or "",
+            projection.source_handbook_section or "",
+            str(projection.source_page_start or ""),
+            str(projection.source_page_end or ""),
+        ]
+    )
+    return f"projection:{hashlib.sha1(seed.encode('utf-8')).hexdigest()}"
+
+
+def _normalize_projection_source_title(value: str) -> str:
+    return " ".join(value.split()).strip()
 
 
 def _build_handbook_derived_document_units_bytes(

@@ -180,6 +180,167 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
         self.assertFalse(second_call["ensure_collection"])
         self.assertFalse(second_call["ensure_payload_indexes"])
 
+    def test_index_replayed_documents_routes_projection_documents_to_their_own_collections(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry.json")
+            documents = [
+                DocumentImportInput(
+                    source_label="handbook",
+                    document_units_bytes=b'{"doc_id":"placeholder","version_id":"placeholder"}',
+                    provider_response_bytes=None,
+                    canonical_markdown_bytes=None,
+                    metadata={"document_id": "handbook:test-001", "version_id": "v1:handbook-001"},
+                    import_source="provider_response_replay",
+                    corpus="regulations",
+                    collection="student_handbook",
+                ),
+                DocumentImportInput(
+                    source_label="contact",
+                    document_units_bytes=b'{"doc_id":"placeholder","version_id":"placeholder"}',
+                    provider_response_bytes=None,
+                    canonical_markdown_bytes=None,
+                    metadata={"document_id": "campus_services:contact_directory:test-001", "version_id": "v1:contact-001"},
+                    import_source="provider_response_replay",
+                    corpus="campus_services",
+                    collection="contact_directory",
+                ),
+                DocumentImportInput(
+                    source_label="service",
+                    document_units_bytes=b'{"doc_id":"placeholder","version_id":"placeholder"}',
+                    provider_response_bytes=None,
+                    canonical_markdown_bytes=None,
+                    metadata={"document_id": "campus_services:service_catalog:test-001", "version_id": "v1:service-001"},
+                    import_source="provider_response_replay",
+                    corpus="campus_services",
+                    collection="service_catalog",
+                ),
+            ]
+            for document in documents:
+                registry.upsert(
+                    DocumentRegistryRecord(
+                        document_id=str(document.metadata["document_id"]),
+                        revision_track="source-faithful",
+                        version_id=str(document.metadata["version_id"]),
+                        source_uri=f'https://campus.example/{document.metadata["document_id"]}',
+                        content_hash=f'sha256:{document.metadata["document_id"]}',
+                        corpus=document.corpus,
+                        collection=document.collection,
+                        acl_groups=("students",),
+                        campus_scope=None,
+                        status="active",
+                        ingestion_timestamp="2026-03-26T10:00:00+00:00",
+                        parser_version="paddleocr-vl-1.5",
+                        embedding_model="mock-embedding-8d",
+                        source_channel="pdf_ocr",
+                        document_units_object_key=f'documents/{document.metadata["document_id"]}.jsonl',
+                        processed_object_keys=(f'documents/{document.metadata["document_id"]}.jsonl',),
+                        import_source="provider_response_replay",
+                    )
+                )
+
+            built_chunks = {
+                "handbook:test-001": (
+                    IndexableChunk(
+                        document_id="handbook:test-001",
+                        revision_track="source-faithful",
+                        version_id="v1:handbook-001",
+                        chunk_id="handbook:test-001:chunk-0001",
+                        chunk_order=1,
+                        corpus="regulations",
+                        collection="student_handbook",
+                        acl_groups=("students",),
+                        campus_scope=None,
+                        source_uri="https://campus.example/handbook:test-001",
+                        source_chunk_id=None,
+                        acl_level="restricted",
+                        anchor={"page_start": 1, "page_end": 1},
+                        text="handbook chunk",
+                        source_channel="pdf_ocr",
+                        is_current=False,
+                        parser_version="paddleocr-vl-1.5",
+                        embedding_model="mock-embedding-8d",
+                        embedding=(0.1, 0.2),
+                    ),
+                ),
+                "campus_services:contact_directory:test-001": (
+                    IndexableChunk(
+                        document_id="campus_services:contact_directory:test-001",
+                        revision_track="source-faithful",
+                        version_id="v1:contact-001",
+                        chunk_id="campus_services:contact_directory:test-001:chunk-0001",
+                        chunk_order=1,
+                        corpus="campus_services",
+                        collection="contact_directory",
+                        acl_groups=("students",),
+                        campus_scope=None,
+                        source_uri="https://campus.example/campus_services:contact_directory:test-001",
+                        source_chunk_id=None,
+                        acl_level="restricted",
+                        anchor={"page_start": 1, "page_end": 1},
+                        text="contact chunk",
+                        source_channel="pdf_ocr",
+                        is_current=False,
+                        parser_version="paddleocr-vl-1.5",
+                        embedding_model="mock-embedding-8d",
+                        embedding=(0.1, 0.2),
+                    ),
+                ),
+                "campus_services:service_catalog:test-001": (
+                    IndexableChunk(
+                        document_id="campus_services:service_catalog:test-001",
+                        revision_track="source-faithful",
+                        version_id="v1:service-001",
+                        chunk_id="campus_services:service_catalog:test-001:chunk-0001",
+                        chunk_order=1,
+                        corpus="campus_services",
+                        collection="service_catalog",
+                        acl_groups=("students",),
+                        campus_scope=None,
+                        source_uri="https://campus.example/campus_services:service_catalog:test-001",
+                        source_chunk_id=None,
+                        acl_level="restricted",
+                        anchor={"page_start": 1, "page_end": 1},
+                        text="service chunk",
+                        source_channel="pdf_ocr",
+                        is_current=False,
+                        parser_version="paddleocr-vl-1.5",
+                        embedding_model="mock-embedding-8d",
+                        embedding=(0.1, 0.2),
+                    ),
+                ),
+            }
+
+            with (
+                patch("campus_ingestion_core.local_rebuild.build_embedding_model", return_value=object()),
+                patch("campus_ingestion_core.local_rebuild.build_sparse_embedding_model", return_value=object()),
+                patch(
+                    "campus_ingestion_core.local_rebuild.build_indexable_chunks_from_jsonl",
+                    side_effect=lambda **kwargs: built_chunks[kwargs["record"].document_id],
+                ),
+                patch("campus_ingestion_core.local_rebuild.index_chunks_to_qdrant") as index_chunks,
+            ):
+                _index_replayed_documents(
+                    source={
+                        "QDRANT_COLLECTION": "student_handbook",
+                        "QDRANT_UPSERT_BATCH_SIZE": "128",
+                        "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
+                        "EMBEDDING_PROVIDER": "mock",
+                    },
+                    registry=registry,
+                    documents=documents,
+                    qdrant_client=QdrantClient(location=":memory:"),
+                )
+
+        self.assertEqual(index_chunks.call_count, 3)
+        self.assertEqual(
+            [call.kwargs["collection_name"] for call in index_chunks.call_args_list],
+            ["student_handbook", "contact_directory", "service_catalog"],
+        )
+        self.assertTrue(index_chunks.call_args_list[0].kwargs["ensure_collection"])
+        self.assertTrue(index_chunks.call_args_list[1].kwargs["ensure_collection"])
+        self.assertTrue(index_chunks.call_args_list[2].kwargs["ensure_collection"])
+
     def test_replay_provider_response_rebuild_reconstructs_declared_downstream_projections_from_source_truth(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -194,20 +355,12 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                         "raw_asset_id": "asset:student-handbook-pdf",
                         "documents": [
                             {
-                                "document_id": "handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675",
-                                "title": "中央民族大学校内常用电话",
-                                "handbook_section": "校园服务电话",
-                                "page_start": 1,
-                                "page_end": 1,
-                                "source_uri": "campus-agent://regulations/student_handbook/docs/handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675",
-                            },
-                            {
-                                "document_id": "handbook:66f91543748400ae59b3f9265353a0538088028a",
-                                "title": "中央民族大学公寓及公费医疗管理规定",
-                                "handbook_section": "学生公寓管理",
-                                "page_start": 2,
-                                "page_end": 2,
-                                "source_uri": "campus-agent://regulations/student_handbook/docs/handbook:66f91543748400ae59b3f9265353a0538088028a",
+                                "document_id": "handbook:d0a1db59ed9a8b00c4349200916edae208d876f6",
+                                "title": "普通高等学校学生管理规定",
+                                "handbook_section": "国家高等教育管理有关规定",
+                                "page_start": 3,
+                                "page_end": 3,
+                                "source_uri": "campus-agent://regulations/student_handbook/docs/handbook:d0a1db59ed9a8b00c4349200916edae208d876f6",
                             },
                         ],
                     },
@@ -239,6 +392,10 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                             "derived_from",
                             "derived_from_document_id",
                             "parent_document_id",
+                            "source_title",
+                            "source_handbook_section",
+                            "source_page_start",
+                            "source_page_end",
                             "attachment_kind",
                             "attachment_role",
                         ],
@@ -262,8 +419,12 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                                 "projection_family": "derived_documents",
                                 "replay_from_source_truth": True,
                                 "derived_from": "source_truth",
-                                "derived_from_document_id": "handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675",
-                                "parent_document_id": "handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675",
+                                "derived_from_document_id": None,
+                                "parent_document_id": None,
+                                "source_title": "中央民族大学校内常用电话",
+                                "source_handbook_section": "中央民族大学公寓及公费医疗管理规定",
+                                "source_page_start": 1,
+                                "source_page_end": 1,
                                 "attachment_kind": "navigation_like",
                                 "attachment_role": "service_contact_directory",
                                 "target_title": "中央民族大学校内常用电话",
@@ -276,8 +437,12 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                                 "projection_family": "derived_documents",
                                 "replay_from_source_truth": True,
                                 "derived_from": "source_truth",
-                                "derived_from_document_id": "handbook:66f91543748400ae59b3f9265353a0538088028a",
-                                "parent_document_id": "handbook:66f91543748400ae59b3f9265353a0538088028a",
+                                "derived_from_document_id": None,
+                                "parent_document_id": None,
+                                "source_title": "中央民族大学公寓及公费医疗管理规定",
+                                "source_handbook_section": "中央民族大学公寓及公费医疗管理规定",
+                                "source_page_start": 2,
+                                "source_page_end": 2,
                                 "attachment_kind": "navigation_like",
                                 "attachment_role": "service_navigation_document",
                                 "target_title": "中央民族大学学生公寓管理工作流程",
@@ -299,6 +464,10 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                     _provider_page(
                         _provider_block("doc_title", "中央民族大学公寓及公费医疗管理规定", block_id="p2-title", block_order=1),
                         _provider_block("text", "一、学生公寓入住办理流程。", block_id="p2-body", block_order=2),
+                    ),
+                    _provider_page(
+                        _provider_block("doc_title", "普通高等学校学生管理规定", block_id="p3-title", block_order=1),
+                        _provider_block("text", "第一条 为规范普通高等学校学生管理行为。", block_id="p3-body", block_order=2),
                     ),
                 )
             ]
@@ -336,7 +505,7 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
             )
 
             self.assertEqual(report.import_mode, "provider_response_replay")
-            self.assertEqual(report.success_count, 4)
+            self.assertEqual(report.success_count, 3)
             self.assertEqual(
                 tuple(sorted(record.document_id for record in registry.list_by_scope("campus_services", "contact_directory"))),
                 ("campus_services:contact_directory:bf03f0bd6930e89bcc6d2733c1e87a423b510675",),

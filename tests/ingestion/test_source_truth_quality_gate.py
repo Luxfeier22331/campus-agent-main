@@ -71,7 +71,7 @@ def _curriculum_rows_from_payload(provider_payload: dict[str, object]) -> list[d
 
 
 def _real_curriculum_fixture_rows() -> list[dict[str, object]]:
-    fixture_path = Path("tests/fixtures/curriculum_plan/structured-full.pages-278-297.jsonl")
+    fixture_path = Path("tests/fixtures/curriculum_plan/layout-elements.pages-278-297.jsonl")
     return [json.loads(line) for line in fixture_path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 

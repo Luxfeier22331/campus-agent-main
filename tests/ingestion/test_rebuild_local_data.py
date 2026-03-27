@@ -217,7 +217,17 @@ class RebuildLocalDataTest(unittest.TestCase):
             import_runner=lambda **kwargs: calls.append(kwargs["env"]) or {"status": "replay"},
         )
 
-        self.assertEqual(object_store.cleared_prefixes, [])
+        cleared_prefixes = [prefix for _, prefix, _ in object_store.cleared_prefixes]
+        self.assertIn(
+            "campus_services/documents/contact_directory/"
+            "中央民族大学校内常用电话--bf03f0bd/source-faithful/2018/canonical.md",
+            cleared_prefixes,
+        )
+        self.assertIn(
+            "campus_services/documents/service_catalog/"
+            "中央民族大学学生公寓管理工作流程--66f91543/source-faithful/2018/document-units.jsonl",
+            cleared_prefixes,
+        )
         self.assertEqual(document_registry.deleted_scopes, [])
         self.assertEqual(raw_asset_registry.deleted_scopes, [])
         self.assertEqual(len(calls), 1)
@@ -251,6 +261,10 @@ class RebuildLocalDataTest(unittest.TestCase):
                 "derived_from",
                 "derived_from_document_id",
                 "parent_document_id",
+                "source_title",
+                "source_handbook_section",
+                "source_page_start",
+                "source_page_end",
                 "attachment_kind",
                 "attachment_role",
             ],
@@ -274,8 +288,12 @@ class RebuildLocalDataTest(unittest.TestCase):
                     "projection_family": "derived_documents",
                     "replay_from_source_truth": True,
                     "derived_from": "source_truth",
-                    "derived_from_document_id": "handbook:66f91543748400ae59b3f9265353a0538088028a",
-                    "parent_document_id": "handbook:66f91543748400ae59b3f9265353a0538088028a",
+                    "derived_from_document_id": None,
+                    "parent_document_id": None,
+                    "source_title": "中央民族大学公寓及公费医疗管理规定",
+                    "source_handbook_section": "中央民族大学公寓及公费医疗管理规定",
+                    "source_page_start": 252,
+                    "source_page_end": 255,
                     "attachment_kind": "navigation_like",
                     "attachment_role": "service_navigation_document",
                     "target_title": "中央民族大学学生公寓管理工作流程",
@@ -298,16 +316,6 @@ class RebuildLocalDataTest(unittest.TestCase):
                     processed_object_keys=(
                         "regulations/documents/student_handbook/doc-a/source-faithful/2018/canonical.md",
                         "regulations/documents/student_handbook/doc-a/source-faithful/2018/document-units.jsonl",
-                    ),
-                ),
-                _FakeDocumentRecord(
-                    corpus="campus_services",
-                    collection="service_catalog",
-                    processed_object_keys=(
-                        "campus_services/documents/service_catalog/"
-                        "中央民族大学学生公寓管理工作流程--66f91543/source-faithful/2018/canonical.md",
-                        "campus_services/documents/service_catalog/"
-                        "中央民族大学学生公寓管理工作流程--66f91543/source-faithful/2018/document-units.jsonl",
                     ),
                 ),
             )
@@ -463,6 +471,94 @@ class RebuildLocalDataTest(unittest.TestCase):
 
         self.assertEqual(qdrant.reset_collections, [])
 
+    def test_rebuild_provider_response_replay_resets_all_target_qdrant_collections(self) -> None:
+        object_store = _FakeObjectStoreAdmin()
+        qdrant = _FakeQdrantAdmin()
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            projection_config_path = root / "configs" / "source-projections.v1.json"
+            projection_config_path.parent.mkdir(parents=True)
+            projection_config_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "student_handbook_source_projections_v1",
+                        "source_corpus": "regulations",
+                        "source_collection": "student_handbook",
+                        "raw_asset_id": "asset:student-handbook-pdf",
+                        "projections": [
+                            {
+                                "projection_name": "student_handbook_primary_documents",
+                                "target_corpus": "regulations",
+                                "target_collection": "student_handbook",
+                                "projection_family": "primary_documents",
+                                "replay_from_source_truth": True,
+                                "derived_from": "source_truth",
+                                "derived_from_document_id": None,
+                                "parent_document_id": None,
+                                "attachment_kind": None,
+                                "attachment_role": None,
+                            },
+                            {
+                                "projection_name": "handbook_phone_directory",
+                                "target_corpus": "campus_services",
+                                "target_collection": "contact_directory",
+                                "projection_family": "derived_documents",
+                                "replay_from_source_truth": True,
+                                "derived_from": "source_truth",
+                                "derived_from_document_id": None,
+                                "parent_document_id": None,
+                                "source_title": "中央民族大学校内常用电话",
+                                "attachment_kind": "navigation_like",
+                                "attachment_role": "service_contact_directory",
+                                "target_title": "中央民族大学校内常用电话",
+                            },
+                            {
+                                "projection_name": "handbook_navigation_service_catalog",
+                                "target_corpus": "campus_services",
+                                "target_collection": "service_catalog",
+                                "projection_family": "derived_documents",
+                                "replay_from_source_truth": True,
+                                "derived_from": "source_truth",
+                                "derived_from_document_id": None,
+                                "parent_document_id": None,
+                                "source_title": "中央民族大学公寓及公费医疗管理规定",
+                                "attachment_kind": "navigation_like",
+                                "attachment_role": "service_navigation_document",
+                                "target_title": "中央民族大学学生公寓管理工作流程",
+                            },
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            rebuild_local_data(
+                env={
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    "INGESTION_CORPUS": "regulations",
+                    "INGESTION_COLLECTION": "student_handbook",
+                    "REBUILD_IMPORT_MODE": "provider_response_replay",
+                    "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
+                    "QDRANT_COLLECTION": "student_handbook",
+                    "REBUILD_RESET_QDRANT": "1",
+                    "HANDBOOK_SOURCE_PROJECTIONS_PATH": str(projection_config_path),
+                },
+                object_store=object_store,
+                qdrant_admin=qdrant,
+                document_registry=_FakeDocumentRegistry(),
+                raw_asset_registry=_FakeRawAssetRegistry(),
+                import_runner=lambda **kwargs: {"status": "replay"},
+            )
+
+        self.assertEqual(
+            qdrant.reset_collections,
+            ["student_handbook", "contact_directory", "service_catalog"],
+        )
+
     def test_rebuild_uses_ingestion_corpus_prefix_for_curriculum_plan(self) -> None:
         object_store = _FakeObjectStoreAdmin()
         document_registry = _FakeDocumentRegistryWithRecords(
@@ -610,7 +706,18 @@ class RebuildLocalDataTest(unittest.TestCase):
             import_runner=lambda **kwargs: calls.append(kwargs["env"]) or {"status": "replay"},
         )
 
-        self.assertEqual(object_store.cleared_prefixes, [])
+        cleared_prefixes = [prefix for _, prefix, _ in object_store.cleared_prefixes]
+        self.assertIn(
+            "campus_services/documents/contact_directory/"
+            "中央民族大学校内常用电话--bf03f0bd/source-faithful/2018/canonical.md",
+            cleared_prefixes,
+        )
+        self.assertIn(
+            "campus_services/documents/service_catalog/"
+            "中央民族大学学生公寓管理工作流程--66f91543/source-faithful/2018/document-units.jsonl",
+            cleared_prefixes,
+        )
+        self.assertNotIn(source_key, cleared_prefixes)
         self.assertEqual(document_registry.deleted_scopes, [])
         self.assertEqual(raw_asset_registry.deleted_scopes, [])
         self.assertEqual(len(calls), 1)

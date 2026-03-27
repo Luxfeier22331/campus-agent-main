@@ -394,12 +394,16 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                                 "projection_family": "derived_documents",
                                 "replay_from_source_truth": True,
                                 "derived_from": "source_truth",
-                                "derived_from_document_id": "handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675",
-                                "parent_document_id": "handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675",
+                                "derived_from_document_id": None,
+                                "parent_document_id": None,
+                                "source_title": "中央民族大学奖学金评定办法",
+                                "source_handbook_section": "中央民族大学学生奖励管理规定",
+                                "source_page_start": 1,
+                                "source_page_end": 1,
                                 "attachment_kind": "navigation_like",
                                 "attachment_role": "service_contact_directory",
-                                "target_title": "中央民族大学校内常用电话",
-                                "migration_reason": "handbook_phone_directory_projection",
+                                "target_title": "中央民族大学奖学金评定办法（联系人投影）",
+                                "migration_reason": "handbook_contact_projection_test",
                             },
                         ],
                     },
@@ -446,7 +450,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             self.assertEqual(report.success_count, 2)
             self.assertEqual(
                 tuple(sorted(record.document_id for record in registry.list_by_scope("campus_services", "contact_directory"))),
-                ("campus_services:contact_directory:bf03f0bd6930e89bcc6d2733c1e87a423b510675",),
+                ("campus_services:contact_directory:28eb517c07c83d26ca0c17d33ec46fcdf2eb5258",),
             )
 
     def test_process_raw_ingestion_job_source_truth_only_reads_registered_raw_asset_from_object_store(self) -> None:
