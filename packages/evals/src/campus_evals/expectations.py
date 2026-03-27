@@ -4,6 +4,22 @@ from campus_contracts import RagResultPayload, SpecialistResponse
 
 from campus_evals.models import CaseResult, DimensionResult, ExecutionResult, GoldenCase
 
+KNOWN_DETERMINISTIC_METRICS = (
+    "status_accuracy",
+    "expected_doc_hit",
+    "forbidden_doc_miss",
+    "citation_completeness",
+    "source_locator_completeness",
+    "answer_accuracy",
+    "answer_completeness",
+    "forbidden_claim_free",
+    "clarification_accuracy",
+    "no_answer_accuracy",
+    "error_path_correctness",
+    "fail_closed",
+    "trace_path_correctness",
+)
+
 
 def evaluate_case(case: GoldenCase, execution: ExecutionResult) -> CaseResult:
     response = execution.response

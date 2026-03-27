@@ -131,6 +131,8 @@ class SummaryCount:
     total: int
     passed: int
     failed: int
+    pass_rate: float | None
+    reason: str = ""
 
 
 @dataclass(frozen=True, slots=True)

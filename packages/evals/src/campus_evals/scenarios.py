@@ -147,3 +147,66 @@ def student_handbook_release_gate_cases() -> tuple[GoldenCase, ...]:
             tags=("phase1", "student_handbook", "release_gate"),
         ),
     )
+
+
+def student_handbook_error_gate_cases() -> tuple[GoldenCase, ...]:
+    scope = KnowledgeScope(corpus="regulations", collection="student_handbook")
+    return (
+        GoldenCase(
+            case_id="error-gate-retrieval-backend-failure",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="模拟 handbook retrieval backend 故障",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="error",
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=True,
+                fail_closed_expected=True,
+            ),
+            tags=("phase1", "student_handbook", "release_gate", "error_gate"),
+            notes="deterministic retrieval backend failure injection",
+            metadata={"failure_mode": "retrieval_backend_failure"},
+        ),
+        GoldenCase(
+            case_id="error-gate-evidence-shaping-failure",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="模拟 handbook evidence shaping 故障",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="error",
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=True,
+                fail_closed_expected=True,
+            ),
+            tags=("phase1", "student_handbook", "release_gate", "error_gate"),
+            notes="deterministic evidence shaping failure injection",
+            metadata={"failure_mode": "evidence_shaping_failure"},
+        ),
+        GoldenCase(
+            case_id="error-gate-invalid-backend-contract",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="模拟 handbook backend contract 非法返回",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="error",
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=True,
+                fail_closed_expected=True,
+            ),
+            tags=("phase1", "student_handbook", "release_gate", "error_gate"),
+            notes="deterministic backend contract failure injection",
+            metadata={"failure_mode": "invalid_backend_contract"},
+        ),
+    )

@@ -18,6 +18,7 @@ from campus_evals import (
     TraceExpectation,
     expected_source_ref,
     run_cases,
+    student_handbook_error_gate_cases,
     student_handbook_release_gate_cases,
     student_handbook_smoke_cases,
 )
@@ -147,6 +148,23 @@ class RunCasesTest(unittest.TestCase):
             ),
         )
         self.assertTrue(all(case.split == "release_gate" for case in cases))
+        self.assertTrue(all(case.scope == KnowledgeScope(corpus="regulations", collection="student_handbook") for case in cases))
+
+    def test_student_handbook_error_gate_cases_cover_deterministic_error_paths(self) -> None:
+        cases = student_handbook_error_gate_cases()
+
+        self.assertEqual(len(cases), 3)
+        self.assertEqual(
+            tuple(case.case_id for case in cases),
+            (
+                "error-gate-retrieval-backend-failure",
+                "error-gate-evidence-shaping-failure",
+                "error-gate-invalid-backend-contract",
+            ),
+        )
+        self.assertTrue(all(case.expected_status == "error" for case in cases))
+        self.assertTrue(all(case.split == "release_gate" for case in cases))
+        self.assertTrue(all("error_gate" in case.tags for case in cases))
         self.assertTrue(all(case.scope == KnowledgeScope(corpus="regulations", collection="student_handbook") for case in cases))
 
     def test_runner_filters_by_split_and_aggregates_dimensions(self) -> None:
@@ -483,6 +501,7 @@ class RunCasesTest(unittest.TestCase):
                 observed_trace=ObservedTrace(
                     selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
                     retrieval_called=True,
+                    clarification_emitted=False,
                     error_path=True,
                 ),
             )
@@ -507,6 +526,76 @@ class RunCasesTest(unittest.TestCase):
         self.assertFalse(report.results[1].passed)
         self.assertFalse(report.results[2].passed)
         self.assertFalse(report.results[3].passed)
+
+    def test_runner_surfaces_no_applicable_error_metric_for_live_release_gate(self) -> None:
+        case = GoldenCase(
+            case_id="completed-1",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="library hours",
+            actor=ActorContext(),
+            expected_status="completed",
+            expected_sources=(expected_source_ref("handbook:library"),),
+            required_facts=("08:00",),
+            trace_expectation=TraceExpectation(
+                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                retrieval_called=True,
+            ),
+        )
+
+        report = run_cases(
+            (case,),
+            executor=lambda _: ExecutionResult(
+                response=_response(sources=(_source(),)),
+                observed_trace=ObservedTrace(
+                    selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                    retrieval_called=True,
+                ),
+            ),
+        )
+
+        self.assertEqual(report.by_metric["error_path_correctness"].total, 0)
+        self.assertIsNone(report.by_metric["error_path_correctness"].pass_rate)
+        self.assertEqual(report.by_metric["error_path_correctness"].reason, "no_applicable_cases")
+
+    def test_runner_aggregates_deterministic_error_gate_metrics(self) -> None:
+        cases = student_handbook_error_gate_cases()
+
+        def executor(case: GoldenCase) -> ExecutionResult:
+            return ExecutionResult(
+                response=SpecialistResponse(
+                    target="rag-specialist",
+                    status="error",
+                    confidence="low",
+                    answer_text="",
+                    error=ErrorInfo(code=f"{case.case_id}-failed", message="deterministic failure"),
+                    result=RagResultPayload(
+                        evidence=EvidenceBundle(
+                            query_text=case.user_goal,
+                            corpus="regulations",
+                            collection="student_handbook",
+                        )
+                    ),
+                ),
+                observed_trace=ObservedTrace(
+                    selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                    retrieval_called=True,
+                    clarification_emitted=False,
+                    error_path=True,
+                ),
+            )
+
+        report = run_cases(cases, executor=executor)
+
+        self.assertEqual(report.total, 3)
+        self.assertEqual(report.passed, 3)
+        self.assertEqual(report.by_metric["status_accuracy"].passed, 3)
+        self.assertEqual(report.by_metric["error_path_correctness"].passed, 3)
+        self.assertEqual(report.by_metric["trace_path_correctness"].passed, 3)
+        self.assertEqual(report.by_metric["fail_closed"].passed, 3)
+        self.assertEqual(report.by_metric["answer_accuracy"].total, 0)
+        self.assertIsNone(report.by_metric["answer_accuracy"].pass_rate)
+        self.assertEqual(report.by_metric["answer_accuracy"].reason, "no_applicable_cases")
 
 
 if __name__ == "__main__":

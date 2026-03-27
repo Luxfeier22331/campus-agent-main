@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from typing import Callable
 
-from campus_evals.expectations import evaluate_case
+from campus_evals.expectations import KNOWN_DETERMINISTIC_METRICS, evaluate_case
 from campus_evals.models import CaseResult, ExecutionResult, GoldenCase, RunReport, SummaryCount
 
 
@@ -47,14 +47,27 @@ def run_cases(
         failed=total - passed,
         by_split={name: _summary_from_counter(counter) for name, counter in split_stats.items()},
         by_dimension={name: _summary_from_counter(counter) for name, counter in dimension_stats.items()},
-        by_metric={name: _summary_from_counter(counter) for name, counter in metric_stats.items()},
+        by_metric={
+            name: _summary_from_counter(metric_stats.get(name, Counter()))
+            for name in _metric_summary_names(metric_stats)
+        },
         results=tuple(results),
     )
 
 
 def _summary_from_counter(counter: Counter[str]) -> SummaryCount:
+    total = counter.get("total", 0)
+    passed = counter.get("passed", 0)
+    failed = counter.get("failed", 0)
     return SummaryCount(
-        total=counter.get("total", 0),
-        passed=counter.get("passed", 0),
-        failed=counter.get("failed", 0),
+        total=total,
+        passed=passed,
+        failed=failed,
+        pass_rate=(passed / total) if total else None,
+        reason="" if total else "no_applicable_cases",
     )
+
+
+def _metric_summary_names(metric_stats: dict[str, Counter[str]]) -> tuple[str, ...]:
+    extras = sorted(name for name in metric_stats if name not in KNOWN_DETERMINISTIC_METRICS)
+    return KNOWN_DETERMINISTIC_METRICS + tuple(extras)
