@@ -15,21 +15,21 @@ Requirements for the initial phase-1 release. Each requirement will map to exact
 
 ### Query Serving
 
-- [ ] **QRY-01**: User can ask a `student_handbook` question and receive a grounded answer sourced only from the `student_handbook` corpus
-- [ ] **QRY-02**: Answer response includes source citations or equivalent source identifiers that let operators trace supporting evidence
-- [ ] **QRY-03**: System returns a `needs_clarification` response when the request is too ambiguous for a reliable `student_handbook` answer
-- [ ] **QRY-04**: System returns a `no_answer` or `error` response when retrieval cannot produce a safe grounded answer
+- [x] **QRY-01**: User can ask a `student_handbook` question and receive a grounded answer sourced only from the `student_handbook` corpus
+- [x] **QRY-02**: Answer response includes source citations or equivalent source identifiers that let operators trace supporting evidence
+- [x] **QRY-03**: System returns a `needs_clarification` response when the request is too ambiguous for a reliable `student_handbook` answer
+- [x] **QRY-04**: System returns a `no_answer` or `error` response when retrieval cannot produce a safe grounded answer
 
 ### Orchestration
 
-- [ ] **ORCH-01**: `supervisor` acts as the only query entry coordinator and routes valid phase-1 requests to `rag-specialist`
+- [x] **ORCH-01**: `supervisor` acts as the only query entry coordinator and routes valid phase-1 requests to `rag-specialist`
 - [x] **ORCH-02**: `supervisor` and `rag-specialist` communicate only through the shared handoff contract in `packages/contracts`
 - [x] **ORCH-03**: `supervisor-core` remains limited to request framing, routing, policy, response shaping, and audit projection without directly owning retrieval or ingestion logic
 
 ### Governance
 
-- [ ] **GOV-01**: Request handling propagates caller identity and group information so retrieval can enforce ACL filtering before evidence is returned
-- [ ] **GOV-02**: Each handled request records trace and audit data sufficient to link request identity, routed path, response status, and cited sources
+- [x] **GOV-01**: Request handling propagates caller identity and group information so retrieval can enforce ACL filtering before evidence is returned
+- [x] **GOV-02**: Each handled request records trace and audit data sufficient to link request identity, routed path, response status, and cited sources
 - [x] **GOV-03**: Phase-1 query-serving rejects corpora outside `student_handbook`, including `curriculum_plan`
 
 ### Edge Runtime
@@ -39,7 +39,7 @@ Requirements for the initial phase-1 release. Each requirement will map to exact
 
 ### Specialist Expansion
 
-- [ ] **AORC-03**: Supervisor can route to a non-RAG specialist, such as an `official-web` / `availability` capability, through explicit contracts instead of inline tool bundles
+- [x] **AORC-03**: Supervisor can route to a non-RAG specialist, such as an `official-web` / `availability` capability, through explicit contracts instead of inline tool bundles
 
 ### Verification
 
@@ -85,19 +85,19 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ING-01 | Phase 2 | Complete |
 | ING-02 | Phase 3 | Complete |
 | ING-03 | Phase 6 | Pending |
-| QRY-01 | Phase 4 | Pending |
-| QRY-02 | Phase 4 | Pending |
-| QRY-03 | Phase 4 | Pending |
-| QRY-04 | Phase 4 | Pending |
-| ORCH-01 | Phase 5 | Pending |
+| QRY-01 | Phase 4 | Complete |
+| QRY-02 | Phase 4 | Complete |
+| QRY-03 | Phase 4 | Complete |
+| QRY-04 | Phase 4 | Complete |
+| ORCH-01 | Phase 5 | Complete |
 | ORCH-02 | Phase 1 | Complete |
 | ORCH-03 | Phase 1 | Complete |
-| GOV-01 | Phase 5 | Pending |
-| GOV-02 | Phase 5 | Pending |
+| GOV-01 | Phase 5 | Complete |
+| GOV-02 | Phase 5 | Complete |
 | GOV-03 | Phase 1 | Complete |
 | EDGE-01 | Phase 04.6 | Complete |
 | EDGE-02 | Phase 04.6 | Complete |
-| AORC-03 | Phase 03.1 | Pending |
+| AORC-03 | Phase 03.1 | Complete |
 | VER-01 | Phase 7 | Pending |
 | VER-02 | Phase 7 | Pending |
 
@@ -108,4 +108,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-23*
-*Last updated: 2026-03-25 after completing Phase 04.6 Worker runtime implementation*
+*Last updated: 2026-03-27 after completing Phase 5 supervisor entry, ACL, and audit closure*

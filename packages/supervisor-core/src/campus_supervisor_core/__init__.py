@@ -5,7 +5,11 @@ from typing import Callable
 from campus_contracts import SpecialistRequest, SpecialistResponse, SpecialistTarget, SupervisorRequest
 
 from campus_supervisor_core.agent import SpecialistDelegate, SupervisorAgent
-from campus_supervisor_core.audit import SupervisorAuditRecord, build_audit_record
+from campus_supervisor_core.audit import (
+    SupervisorAuditRecord,
+    build_audit_record,
+    build_error_audit_record,
+)
 from campus_supervisor_core.errors import (
     DisallowedKnowledgeScopeError,
     InvalidSupervisorRequestError,
@@ -56,4 +60,6 @@ __all__ = [
     "MissingSpecialistDelegateError",
     "handle_request",
     "handle_specialist_request",
+    "build_audit_record",
+    "build_error_audit_record",
 ]

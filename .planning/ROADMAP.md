@@ -21,14 +21,14 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Retrieval Corpus Preparation** - Produce processed, chunked, and indexed `student_handbook` artifacts for query-serving. (completed 2026-03-24)
 - [x] **Phase 03.1: Availability Specialist 最小闭环** - Generalize the supervisor/specialist boundary enough to add an allowlisted `official-web` / `availability` specialist without collapsing back into supervisor inline tools. (completed 2026-03-25)
 - [x] **Phase 03.2: Source Truth Fan-Out And Attachment Projection** - Freeze and implement the single-source-consumption fan-out architecture so one raw source produces all declared downstream projections, including attachment-derived documents, without later raw re-consumption.
-- [ ] **Phase 4: RAG Specialist Answer Path** - Deliver grounded `student_handbook` retrieval and answer semantics inside `rag-specialist`, using the updated hybrid retrieval baseline (`dense + sparse + RRF`) instead of the old dense-only bootstrap.
+- [x] **Phase 4: RAG Specialist Answer Path** - Deliver grounded `student_handbook` retrieval and answer semantics inside `rag-specialist`, using the updated hybrid retrieval baseline (`dense + sparse + RRF`) instead of the old dense-only bootstrap. (completed 2026-03-27)
 - [x] **Phase 04.1: Cloudflare Entry And Protected Internal Panel Design** - Freeze the Cloudflare public-entry and protected internal-panel boundary without changing core query contracts. (INSERTED) (completed 2026-03-25)
 - [x] **Phase 04.2: Cloudflare Runtime Topology And Delivery Shape** - Freeze the Cloudflare-to-runtime deployment topology, origin ownership, and delivery boundary for public entry and protected panel. (INSERTED) (completed 2026-03-25)
 - [x] **Phase 04.3: Public Entry Edge Integration Contract** - Freeze the runtime-level integration contract between Cloudflare public entry and `apps/supervisor-api`. (INSERTED) (completed 2026-03-25)
 - [x] **Phase 04.4: Protected Internal Panel Runtime Shell** - Freeze the implementation shape of the protected panel as a future `apps/` runtime shell that only consumes runtime APIs. (INSERTED) (completed 2026-03-25)
 - [x] **Phase 04.5: Cloudflare Worker Consumer Entry And Access Policy** - Freeze the Worker-only public consumer-entry seam, access modes, and Worker-to-origin trust policy for the public answer path. (INSERTED) (completed 2026-03-25)
 - [x] **Phase 04.6: Cloudflare Worker Runtime Implementation** - Implement the Cloudflare Worker public-entry shell against the frozen 04.3 and 04.5 runtime contracts without absorbing Phase 5 actor, ACL, or audit ownership. (INSERTED) (completed 2026-03-25)
-- [ ] **Phase 5: Supervisor Entry, ACL, And Audit** - Make `supervisor` the only query entrypoint with routing, identity propagation, and audit traces.
+- [x] **Phase 5: Supervisor Entry, ACL, And Audit** - Make `supervisor` the only query entrypoint with routing, identity propagation, and audit traces. (completed 2026-03-27)
 - [ ] **Phase 6: Curriculum Offline Preparation** - Prepare `curriculum_plan` ingestion outputs without opening query-serving.
 - [ ] **Phase 7: Verification And Release Gate** - Prove the main path and failure semantics with automated tests and smoke/eval coverage.
 
@@ -117,12 +117,12 @@ Plans:
   3. Ambiguous questions return `needs_clarification` instead of a guessed answer.
   4. Retrieval failures or insufficient evidence return `no_answer` or `error` with safe response shaping.
   5. Retrieval evidence is produced by the accepted hybrid baseline (`dense + sparse + RRF + registry back-link`) rather than the earlier dense-only bootstrap.
-**Plans**: 3 plans
+**Plans**: 3/3 plans complete
 
 Plans:
-- [ ] 04-01: Implement retrieval request framing and hybrid evidence selection inside `rag-specialist`.
-- [ ] 04-02: Shape `completed` responses with citations and confidence-driven answer assembly.
-- [ ] 04-03: Implement `needs_clarification`, `no_answer`, and `error` branches for unsafe or insufficient retrieval outcomes.
+- [x] 04-01: Implement retrieval request framing and hybrid evidence selection inside `rag-specialist`.
+- [x] 04-02: Shape `completed` responses with citations and confidence-driven answer assembly.
+- [x] 04-03: Implement `needs_clarification`, `no_answer`, and `error` branches for unsafe or insufficient retrieval outcomes.
 
 ### Phase 04.7: Public Consumer Chat App Design (INSERTED)
 
@@ -242,12 +242,12 @@ Plans:
   1. Query traffic enters through a supervisor-facing request contract and is routed by `supervisor`, rather than by API-shell hardcoded specialist construction.
   2. Caller identity and group information reach retrieval-time ACL filtering before evidence is returned.
   3. Each handled request records trace and audit fields covering caller identity, route, response status, and cited sources.
-**Plans**: 3 plans
+**Plans**: 3/3 plans complete
 
 Plans:
-- [ ] 05-01: Wire supervisor-api runtime requests into supervisor-core framing and route evaluation.
-- [ ] 05-02: Propagate identity/groups into retrieval ACL decisions through the handoff contract.
-- [ ] 05-03: Add audit projection and trace recording for routed supervisor requests.
+- [x] 05-01: Wire supervisor-api runtime requests into supervisor-core framing and route evaluation.
+- [x] 05-02: Propagate identity/groups into retrieval ACL decisions through the handoff contract.
+- [x] 05-03: Add audit projection and trace recording for routed supervisor requests.
 
 ### Phase 05.1: 研究 curriculum 的 chunking 策略 (INSERTED)
 

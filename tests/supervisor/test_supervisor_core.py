@@ -20,9 +20,13 @@ from campus_contracts import (
     TraceContext,
 )
 from campus_supervisor_core import SupervisorAgent, handle_request, handle_specialist_request
-from campus_supervisor_core.audit import SupervisorAuditRecord, build_audit_record
+from campus_supervisor_core.audit import (
+    SupervisorAuditRecord,
+    build_audit_record,
+    build_error_audit_record,
+)
 from campus_supervisor_core.context import SupervisorRequestContext
-from campus_supervisor_core.errors import MissingSpecialistDelegateError
+from campus_supervisor_core.errors import DisallowedKnowledgeScopeError, MissingSpecialistDelegateError
 
 
 def _make_rag_completed_response() -> SpecialistResponse:
@@ -150,6 +154,7 @@ class SupervisorCoreTest(unittest.TestCase):
                 "requested_scope_corpus": "regulations",
                 "requested_scope_collection": "student_handbook",
                 "status": "completed",
+                "error_code": None,
                 "source_doc_ids": ("handbook:test-001",),
             },
         )
@@ -311,6 +316,7 @@ class SupervisorCoreTest(unittest.TestCase):
             requested_scope_corpus="regulations",
             requested_scope_collection="student_handbook",
             status="completed",
+            error_code=None,
             source_doc_ids=("handbook:test-001", "handbook:test-002"),
         )
 
@@ -325,6 +331,7 @@ class SupervisorCoreTest(unittest.TestCase):
                 "requested_scope_corpus": "regulations",
                 "requested_scope_collection": "student_handbook",
                 "status": "completed",
+                "error_code": None,
                 "source_doc_ids": ("handbook:test-001", "handbook:test-002"),
             },
         )
@@ -339,6 +346,7 @@ class SupervisorCoreTest(unittest.TestCase):
                 "requested_scope_corpus",
                 "requested_scope_collection",
                 "status",
+                "error_code",
                 "source_doc_ids",
             ),
         )
@@ -372,6 +380,40 @@ class SupervisorCoreTest(unittest.TestCase):
                 "requested_scope_corpus": None,
                 "requested_scope_collection": None,
                 "status": "completed",
+                "error_code": None,
+                "source_doc_ids": (),
+            },
+        )
+
+    def test_build_error_audit_record_preserves_request_projection_and_error_code(self) -> None:
+        request = SupervisorRequest(
+            user_goal="培养方案要求",
+            request_id="req-err-001",
+            trace=TraceContext(trace_id="trace-err-001"),
+            actor=ActorContext(user_id="student-001", groups=("students",)),
+            requested_scope=KnowledgeScope(
+                corpus="curriculum",
+                collection="curriculum_plan",
+            ),
+        )
+
+        record = build_error_audit_record(
+            request,
+            error_code=DisallowedKnowledgeScopeError.error_code,
+        )
+
+        self.assertEqual(
+            asdict(record),
+            {
+                "request_id": "req-err-001",
+                "trace_id": "trace-err-001",
+                "user_id": "student-001",
+                "selected_target": "rag-specialist",
+                "requested_capability": "knowledge",
+                "requested_scope_corpus": "curriculum",
+                "requested_scope_collection": "curriculum_plan",
+                "status": "error",
+                "error_code": "disallowed_knowledge_scope",
                 "source_doc_ids": (),
             },
         )

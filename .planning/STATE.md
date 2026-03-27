@@ -3,34 +3,34 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Completed 03.2-source-truth-fan-out-and-attachment-projection-02-PLAN.md
-last_updated: "2026-03-26T18:15:00.000Z"
+stopped_at: Completed 05-supervisor-entry-acl-audit-03-PLAN.md
+last_updated: "2026-03-27T11:30:00.000Z"
 progress:
   total_phases: 17
-  completed_phases: 11
-  total_plans: 29
-  completed_plans: 25
+  completed_phases: 13
+  total_plans: 35
+  completed_plans: 31
 ---
 
 # Project State
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-03-25)
+See: `.planning/PROJECT.md` (updated 2026-03-27)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 `student_handbook` 的完整 agentic RAG 主流程证明这条架构能可靠替代高频人工答疑
-**Current focus:** source-truth projection convergence completed; next gating work returns to live collection rebuild, runtime closure, and eval/smoke verification
+**Current focus:** Phase 5 supervisor entry, ACL, and audit closure is complete; next mainline work moves to Phase 05.1 curriculum chunking while Phase 7 remains the release-gate closure
 
 ## Current Position
 
-Phase: 03.2 (Source Truth Fan-Out And Attachment Projection) — COMPLETED
-Plan: 2 of 2
+Phase: 05 (Supervisor Entry, ACL, And Audit) — COMPLETED
+Plan: 3 of 3
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 23
+- Total plans completed: 31
 - Average duration: mixed agent-run and inline execution; see per-plan summaries
 - Total execution time: 0.2 hours + 2026-03-24 inline Phase 2/3 execution
 
@@ -42,6 +42,9 @@ Plan: 2 of 2
 | 02 | 2 | inline session | n/a |
 | 03 | 2 | inline session | n/a |
 | 03.1 | 3 | 53 min | 17.7 min |
+| 03.2 | 2 | 17 min + inline | mixed |
+| 04 | 3 | inline session | n/a |
+| 05 | 3 | inline session | n/a |
 | 04.1 | 3 | inline session | n/a |
 | 04.2 | 2 | inline session | n/a |
 | 04.3 | 2 | inline session | n/a |
@@ -51,8 +54,8 @@ Plan: 2 of 2
 
 **Recent Trend:**
 
-- Last 5 plans: 04.4-02, 04.5-01, 04.5-02, 04.6-02, 04.6-03
-- Trend: Cloudflare public-entry runtime line is implemented, handbook chunk-truth remains stable, and retrieval baseline is now accepted as `dense + sparse hybrid + RRF + Qwen3-Embedding-4B @ 2560`; current blocker is live rebuild and runtime closure
+- Last 5 plans: 04-02, 04-03, 05-01, 05-02, 05-03
+- Trend: handbook query-serving is now closed through supervisor entry, typed actor propagation, and durable audit logging; the next blocker has moved to curriculum offline preparation and later release-gate verification
 
 | Phase 01-contract-and-boundary-guardrails P01 | 4m | 2 tasks | 11 files |
 | Phase 01 P02 | 5 | 2 tasks | 3 files |
@@ -63,6 +66,14 @@ Plan: 2 of 2
 | Phase 03.1 P01 | 22 min | 2 tasks | 18 files |
 | Phase 03.1 P02 | 12 min | 2 tasks | 11 files |
 | Phase 03.1 P03 | 19 min | 2 tasks | 8 files |
+| Phase 03.2 P01 | 17 min | 2 tasks | 5 files |
+| Phase 03.2 P02 | inline | 2 tasks | 9 files |
+| Phase 04 P01 | inline | 1 task | 4 files |
+| Phase 04 P02 | inline | 1 task | 4 files |
+| Phase 04 P03 | inline | 1 task | 4 files |
+| Phase 05 P01 | inline | 1 task | 5 files |
+| Phase 05 P02 | inline | 1 task | 2 files |
+| Phase 05 P03 | inline | 1 task | 6 files |
 | Phase 04.1 P01 | inline | 2 tasks | see summary |
 | Phase 04.1 P02 | inline | 2 tasks | see summary |
 | Phase 04.1 P03 | inline | 1 task | see summary |
@@ -77,8 +88,6 @@ Plan: 2 of 2
 | Phase 04.6 P01 | inline | 2 tasks | 10 files |
 | Phase 04.6 P02 | inline | 1 task | 2 files |
 | Phase 04.6 P03 | inline | 1 task | 4 files |
-| Phase 03.2-source-truth-fan-out-and-attachment-projection P01 | 17min | 2 tasks | 5 files |
-| Phase 03.2-source-truth-fan-out-and-attachment-projection P02 | inline | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -139,19 +148,22 @@ Recent decisions affecting current work:
 - [Phase 03.2-source-truth-fan-out-and-attachment-projection]: Phase 03.2 now freezes the data-plane as raw -> source truth -> declared projections -> document/chunk/index.
 - [Phase 03.2-source-truth-fan-out-and-attachment-projection]: Later handbook-derived outputs must rebuild from persisted source truth instead of returning to raw.
 - [Phase 03.2-source-truth-fan-out-and-attachment-projection]: handbook raw ingestion, provider-response replay, rebuild cleanup, and handbook-derived campus_services migration now share one projection-aware source-truth contract implemented through a shared helper module.
+- [Phase 04-rag-specialist-answer-path]: `rag-specialist` now consumes the accepted hybrid retrieval baseline as input and closes the answer path with clarification-first routing, grounded multi-evidence answers, support-aware confidence, and explicit `no_answer` / `error` safety semantics.
+- [Phase 04-rag-specialist-answer-path]: Phase 4 verification now includes specialist, retrieval, and eval surfaces together; handbook live hybrid fixture drift has been removed from the official verification slice.
+- [Phase 05-supervisor-entry-acl-audit]: `supervisor` is now the only supported query entrypoint in runtime practice, bearer actor spoofing is removed, trusted-worker can project caller claims from Access JWT payload, and audit records are durably persisted from the API shell.
 
 ### Pending Todos
 
-- Keep handbook chunk-truth validation as a regression gate during 03.2 execution so projection convergence does not regress the verified handbook baseline.
+- Start Phase 05.1 curriculum chunking work on top of the now-closed handbook query path.
 
 ### Blockers/Concerns
 
-- No current handbook chunk-truth blocker remains. The main remaining blocker has moved back to live rebuild/runtime closure and eval/smoke verification rather than data-plane projection architecture split.
+- No current handbook query-path blocker remains. The next mainline blocker has moved to curriculum offline preparation and final release-gate verification.
 - Cloudflare 04.x boundary/topology/contract/shell docs are now complete; any follow-up must stay as downstream implementation against those frozen docs, not as renewed architecture churn.
 - Phase 5 should consume the explicit 04.1 handoff instead of re-opening Cloudflare entry/panel boundary questions or pushing access-provider concerns into `packages/*`.
 
 ## Session Continuity
 
-Last session: 2026-03-26T08:24:37.357Z
-Stopped at: Completed 03.2-source-truth-fan-out-and-attachment-projection-02-PLAN.md
+Last session: 2026-03-27T11:30:00.000Z
+Stopped at: Completed 05-supervisor-entry-acl-audit-03-PLAN.md
 Resume file: None

@@ -17,14 +17,14 @@
 - ✓ 已存在 ingestion/data plane 基础设施骨架，可支持 `student_handbook` 与 `curriculum_plan` 的 raw / processed / chunk 路径演进 — existing
 - ✓ 已完成 `student_handbook` 的 canonical raw onboarding、稳定逻辑文档 identity/version 规则与 machine-checkable duplicate/update import reporting — Validated in Phase 2
 - ✓ 已完成 `student_handbook` 的 canonical processed artifact、chunk metadata 与 Qdrant/retrieval payload handoff 收口 — Validated in Phase 3
+- ✓ 已完成 `student_handbook` 的 `rag-specialist` answer path 收口，包括 grounded answer、chunk-level citation、`needs_clarification`、`no_answer` 与 `error` 语义 — Validated in Phase 4
+- ✓ 已完成 `student_handbook` retrieval baseline 从 dense-only bootstrap 收口为 `dense + sparse hybrid + RRF + registry-backed evidence`，并通过 live handbook fixture 与 repo tests 验证 — Validated by 2026-03-27 live + automated verification
+- ✓ 已完成 `supervisor -> specialist` 查询入口、typed actor propagation 与 durable audit logging 的 Phase 5 收口 — Validated in Phase 5
 - ✓ 已完成 Cloudflare public-entry Worker runtime shell、trusted-origin forwarding 与 `apps/supervisor-api` trusted-worker origin admission — Validated in Phase 04.6
 
 ### Active
 
 - [ ] 跑通 `student_handbook` 的完整 agentic RAG 链路，包括 ingestion、retrieval query-serving、`supervisor -> rag-specialist` handoff、citation/source 返回、tracing、audit 与 ACL 最小闭环
-- [ ] 将 `student_handbook` retrieval baseline 从早期 dense-only bootstrap 收口为 `dense + sparse hybrid + RRF + registry-backed evidence`，并按 `Qwen3-Embedding-4B @ 2560` 重建 live collection
-- [ ] 让 `supervisor` 作为唯一入口稳定路由到 `rag-specialist`，并保持清晰 handoff contract 与正确架构边界
-- [ ] 将身份与权限最小闭环落到请求级透传与 retrieval 前 ACL 过滤，面向学生、教职工和潜在考生三类用户预留访问边界
 - [ ] 为 `student_handbook` 主链路补齐基础 eval / smoke 验证，证明问答、失败与澄清分支可验证
 - [ ] 并行推进 `curriculum_plan` 的 raw 导入、清洗与 chunking，为后续开放 query-serving 做准备，但本阶段不放开查询
 - [ ] 将边界清晰的 `official-web` / `availability` specialist 纳入当前执行，以独立 contract、supervisor 显式路由与 allowlisted 官方站点探活能力完成最小闭环，但不把它混入 `rag-specialist` 或 supervisor tool bundle
@@ -68,6 +68,9 @@
 | `student_handbook` retrieval baseline 不再以 dense-only bootstrap 视为 accepted truth，而是升级为 `dense + sparse hybrid + RRF`，并保持 registry-backed evidence contract 不变 | handbook/规章类语料需要 sparse exact-match 与 semantic recall 同时成立；仅冻结 dense-only 已不符合当前 accepted implementation direction | — Accepted on 2026-03-26 |
 | handbook embedding baseline 固定为 `Qwen3-Embedding-4B @ 2560`，不得依赖兼容 API 默认 `1024` 维返回 | 当前 collection/query runtime 必须围绕统一向量宽度重建和验证，不能继续容忍 provider 默认维度漂移 | — Accepted on 2026-03-26 |
 | handbook chunk-truth 调整必须先经过真实 validation 与 sample markdown 复核，再允许继续 embedding 或进入 retrieval/eval 调参 | 这次问题说明仅靠单元测试不足以覆盖 handbook 的真实 cleanup/chunking 退化；必须把 live validation 和真实样本内容作为阶段门禁 | — Re-confirmed on 2026-03-26 |
+| `rag-specialist` answer path now fail-closes ambiguous, empty-support, and retrieval-failure outcomes while composing grounded chunk-cited answers from the accepted hybrid evidence bundle | Phase 4 must close handbook answer semantics without reopening retrieval strategy or shifting policy back into supervisor | — Validated in Phase 4 |
+| `bearer` auth is now runtime-owned and no longer trusts client-supplied `x-actor-*` headers; `trusted-worker` projects final caller actor claims from forwarded Access JWT payload after origin trust is verified | Phase 5 must close actor propagation and ACL safety without moving auth/provider semantics into `packages/*` | — Validated in Phase 5 |
+| durable audit logging lives at the API shell boundary while supervisor-core remains the owner of audit record shape | This preserves runtime ownership for persistence and package ownership for schema/projection | — Validated in Phase 5 |
 | Cloudflare 并行后续工作拆成 `04.2` / `04.3` / `04.4` 三个 inserted phase | 主线被 chunk-truth 阻塞时，可以继续推进 edge/runtime/panel-shell 冻结，但必须避免把 provider、identity、ACL、audit 语义推入 `packages/*` 或提前吃掉 Phase 5 | — Pending in Phase 04.x |
 | Cloudflare public answer path now runs through `apps/public-entry-worker -> apps/supervisor-api` with explicit trusted-worker origin auth | 先把 public-entry runtime seam 做成真实可验证代码，再把 app-layer actor/ACL/audit留给 Phase 5 | — Validated in Phase 04.6 |
 | `public-consumer-chat` 的 app-level 用户系统固定采用 `Better Auth + Supabase Postgres`，auth/chat 同库分 schema，Qdrant 继续承担在线 retrieval 主存储 | 这样可以避免 `D1 + Postgres` 双真相源、保持 conversation ownership 与 session 一致性，并且不把在线 chunk/vector retrieval 拉回关系库 | — Accepted on 2026-03-26 |
@@ -91,4 +94,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state (users, feedback, metrics)
 
 ---
-*Last updated: 2026-03-26 after handbook chunk-truth revalidation*
+*Last updated: 2026-03-27 after completing Phase 5 supervisor entry, ACL, and audit closure*

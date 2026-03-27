@@ -22,11 +22,12 @@ class SupervisorAuditRecord:
     request_id: str
     trace_id: str
     user_id: str
-    selected_target: SpecialistTarget
+    selected_target: SpecialistTarget | None
     requested_capability: RequestedCapability | None
     requested_scope_corpus: AllowedCorpus | None
     requested_scope_collection: str | None
     status: DelegateStatus
+    error_code: str | None
     source_doc_ids: tuple[str, ...]
 
 
@@ -45,7 +46,29 @@ def build_audit_record(
         requested_scope_corpus=None if requested_scope is None else requested_scope.corpus,
         requested_scope_collection=None if requested_scope is None else requested_scope.collection,
         status=response.status,
+        error_code=None,
         source_doc_ids=source_doc_ids_from_response(response),
+    )
+
+
+def build_error_audit_record(
+    request: SupervisorRequest,
+    *,
+    error_code: str,
+) -> SupervisorAuditRecord:
+    requested_capability = _requested_capability_from_request(request)
+    requested_scope = _requested_scope_from_request(request)
+    return SupervisorAuditRecord(
+        request_id=request.request_id,
+        trace_id=request.trace.trace_id,
+        user_id=request.actor.user_id,
+        selected_target=_selected_target_from_request(request),
+        requested_capability=requested_capability,
+        requested_scope_corpus=None if requested_scope is None else requested_scope.corpus,
+        requested_scope_collection=None if requested_scope is None else requested_scope.collection,
+        status="error",
+        error_code=error_code,
+        source_doc_ids=(),
     )
 
 
@@ -72,4 +95,12 @@ def _requested_scope_from_request(
         return request.requested_scope
     if isinstance(request.payload, RagRequestPayload):
         return request.payload.scope
+    return None
+
+
+def _selected_target_from_request(request: SupervisorRequest) -> SpecialistTarget | None:
+    if request.requested_scope is not None and request.availability_target_id is None:
+        return "rag-specialist"
+    if request.availability_target_id is not None and request.requested_scope is None:
+        return "availability-specialist"
     return None

@@ -11,8 +11,14 @@ from campus_contracts import (
     SupervisorRequest,
     TraceContext,
 )
-from campus_supervisor_core import SupervisorError, handle_request
+from campus_supervisor_core import (
+    SupervisorError,
+    build_audit_record,
+    build_error_audit_record,
+    handle_request,
+)
 
+from campus_supervisor_api.audit import AuditSinkError, build_jsonl_audit_sink
 from campus_supervisor_api.auth import ApiAuthError, map_actor_context
 from campus_supervisor_api.settings import ApiSettings
 
@@ -56,6 +62,7 @@ def handle_answer(
     settings: ApiSettings,
     supervisor_handler: SupervisorHandler,
 ) -> HttpResponse:
+    audit_sink = build_jsonl_audit_sink(settings.audit_log_path)
     try:
         actor = map_actor_context(headers, settings)
     except ApiAuthError as exc:
@@ -81,7 +88,21 @@ def handle_answer(
     try:
         response = supervisor_handler(request)
     except SupervisorError as exc:
+        try:
+            audit_sink(build_error_audit_record(request, error_code=exc.error_code))
+        except AuditSinkError as audit_exc:
+            return error_response(
+                500,
+                ErrorInfo(code="audit_write_failed", message=str(audit_exc), retryable=False),
+            )
         return error_response(exc.http_status_code, exc.to_error_info())
+    try:
+        audit_sink(build_audit_record(request, response))
+    except AuditSinkError as exc:
+        return error_response(
+            500,
+            ErrorInfo(code="audit_write_failed", message=str(exc), retryable=False),
+        )
     response_payload = asdict(response)
     response_payload["trace_id"] = trace_id
     return HttpResponse(status_code=200, json_body=response_payload)
