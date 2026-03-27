@@ -12,7 +12,7 @@ The public answer route is now expected to construct a supervisor-facing request
 
 **Phase Numbering:**
 - Integer phases (1, 2, 3): Planned milestone work
-- Decimal phases (03.1, 04.1, 04.2, 04.3, 04.4, 04.5, 04.6, 05.1): Urgent insertions (marked with INSERTED)
+- Decimal phases (03.1, 04.1, 04.2, 04.3, 04.4, 04.5, 04.6, 04.7, 05.1): Urgent insertions (marked with INSERTED)
 
 Decimal phases appear between their surrounding integers in numeric order.
 
@@ -28,6 +28,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 04.4: Protected Internal Panel Runtime Shell** - Freeze the implementation shape of the protected panel as a future `apps/` runtime shell that only consumes runtime APIs. (INSERTED) (completed 2026-03-25)
 - [x] **Phase 04.5: Cloudflare Worker Consumer Entry And Access Policy** - Freeze the Worker-only public consumer-entry seam, access modes, and Worker-to-origin trust policy for the public answer path. (INSERTED) (completed 2026-03-25)
 - [x] **Phase 04.6: Cloudflare Worker Runtime Implementation** - Implement the Cloudflare Worker public-entry shell against the frozen 04.3 and 04.5 runtime contracts without absorbing Phase 5 actor, ACL, or audit ownership. (INSERTED) (completed 2026-03-25)
+- [x] **Phase 04.7: Public Consumer Chat App Design** - Freeze the first-version public consumer chat app shape, repo boundary, and implementation breakdown so the user-facing product can be built on top of the Worker public-entry seam without reopening panel or Phase 5 ownership questions. (INSERTED) (completed 2026-03-27)
 - [ ] **Phase 5: Supervisor Entry, ACL, And Audit** - Make `supervisor` the only query entrypoint with routing, identity propagation, and audit traces.
 - [ ] **Phase 6: Curriculum Offline Preparation** - Prepare `curriculum_plan` ingestion outputs without opening query-serving.
 - [ ] **Phase 7: Verification And Release Gate** - Prove the main path and failure semantics with automated tests and smoke/eval coverage.
@@ -136,11 +137,13 @@ Plans:
   4. The phase explicitly freezes the MVP as authenticated-first and closes the browser-to-answer transport decision for v1 instead of deferring same-site versus cross-origin behavior to later implementation.
   5. The phase freezes app-line auth/storage ownership as `Better Auth + Supabase Postgres`, with auth/chat sharing one relational boundary and Qdrant remaining the retrieval store.
   6. The phase freezes the frontend host as `TanStack Start`, so the consumer app owns its own full-stack route/auth/session/conversation boundary.
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
+
+**Completion Note:** PR #4 merged the `apps/public-consumer-chat` implementation, README baseline, and app-local documentation guardrails into `main` on 2026-03-27. The retained 04.7 handoff notes are now accepted boundary references; the migration plan/checklist remain historical execution artifacts rather than an open work queue.
 
 Plans:
-- [ ] 04.7-01-PLAN.md — Freeze the consumer-app boundary handoff for repo shape, routes, states, and ownership splits.
-- [ ] 04.7-02-PLAN.md — Freeze the downstream implementation handoff and build order for app shell, auth/session, conversations, chat UX, and runtime seam.
+- [x] 04.7-01-PLAN.md — Freeze the consumer-app boundary handoff for repo shape, routes, states, and ownership splits.
+- [x] 04.7-02-PLAN.md — Freeze the downstream implementation handoff and build order for app shell, auth/session, conversations, chat UX, and runtime seam.
 
 ### Phase 04.5: Cloudflare Worker Consumer Entry And Access Policy (INSERTED)
 
@@ -307,7 +310,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 03.2 → 4 → 04.1 
 | 04.4. Protected Internal Panel Runtime Shell | 2/2 | Complete   | 2026-03-25 |
 | 04.5. Cloudflare Worker Consumer Entry And Access Policy | 2/2 | Complete   | 2026-03-25 |
 | 04.6. Cloudflare Worker Runtime Implementation | 3/3 | Complete    | 2026-03-25 |
-| 04.7. Public Consumer Chat App Design | 0/2 | Not started | - |
+| 04.7. Public Consumer Chat App Design | 2/2 | Complete | 2026-03-27 |
 | 5. Supervisor Entry, ACL, And Audit | 0/3 | Not started | - |
 | 05.1. Curriculum Chunking Strategy | 0/2 | Not started | - |
 | 6. Curriculum Offline Preparation | 0/2 | Not started | - |

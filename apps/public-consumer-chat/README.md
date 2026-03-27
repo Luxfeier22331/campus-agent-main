@@ -12,10 +12,17 @@ This app is a separate `apps/*` product surface. Its accepted direction is:
 
 This app owns chat UI, app-level session UX, and conversation history UX. It does not replace the public entry Worker or `apps/supervisor-api`.
 
-Planning artifacts for the current chatbot component migration:
+## Canonical Docs
 
-- `.planning/phases/04.7-public-consumer-chat-app-design/04.7-CHATBOT-COMPONENT-MIGRATION-CHECKLIST.md`
-- `.planning/phases/04.7-public-consumer-chat-app-design/04.7-CHATBOT-COMPONENT-MIGRATION-PLAN.md`
+- [`docs/architecture/public-consumer-chat-surface.md`](../../docs/architecture/public-consumer-chat-surface.md)
+- [`docs/architecture/public-consumer-chat-auth-and-data-boundary.md`](../../docs/architecture/public-consumer-chat-auth-and-data-boundary.md)
+- [`docs/decisions/adr-0008-public-consumer-auth-and-storage.md`](../../docs/decisions/adr-0008-public-consumer-auth-and-storage.md)
+- [`docs/decisions/adr-0009-public-consumer-frontend-host.md`](../../docs/decisions/adr-0009-public-consumer-frontend-host.md)
+
+## Phase-Local Handoffs
+
+- [`04.7-CONSUMER-APP-BOUNDARY-HANDOFF.md`](../../.planning/phases/04.7-public-consumer-chat-app-design/04.7-CONSUMER-APP-BOUNDARY-HANDOFF.md)
+- [`04.7-IMPLEMENTATION-HANDOFF.md`](../../.planning/phases/04.7-public-consumer-chat-app-design/04.7-IMPLEMENTATION-HANDOFF.md)
 
 Architectural guardrails:
 
@@ -273,6 +280,13 @@ The smoke output prints:
 - `answer_kind`
 - `message`
 - `correlation_id`
+
+## Historical 04.7 Execution Records
+
+PR #4 has already merged the 04.7 app implementation and baseline docs into `main`. These files are retained as historical execution artifacts, not as the current migration entrypoint:
+
+- [`04.7-CHATBOT-COMPONENT-MIGRATION-PLAN.md`](../../.planning/phases/04.7-public-consumer-chat-app-design/04.7-CHATBOT-COMPONENT-MIGRATION-PLAN.md)
+- [`04.7-CHATBOT-COMPONENT-MIGRATION-CHECKLIST.md`](../../.planning/phases/04.7-public-consumer-chat-app-design/04.7-CHATBOT-COMPONENT-MIGRATION-CHECKLIST.md)
 
 `correlation_id` is taken from `request_id` or `trace_id` mapping, so you can correlate app-local output with supervisor-side traces.
 

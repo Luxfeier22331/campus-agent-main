@@ -3,34 +3,34 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Completed 03.2-source-truth-fan-out-and-attachment-projection-02-PLAN.md
-last_updated: "2026-03-26T18:15:00.000Z"
+stopped_at: Merged PR #4 public-consumer-chat closeout on main
+last_updated: "2026-03-27T00:00:00.000Z"
 progress:
   total_phases: 17
-  completed_phases: 11
-  total_plans: 29
-  completed_plans: 25
+  completed_phases: 12
+  total_plans: 39
+  completed_plans: 27
 ---
 
 # Project State
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-03-25)
+See: `.planning/PROJECT.md` (updated 2026-03-27)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 `student_handbook` 的完整 agentic RAG 主流程证明这条架构能可靠替代高频人工答疑
-**Current focus:** source-truth projection convergence completed; next gating work returns to live collection rebuild, runtime closure, and eval/smoke verification
+**Current focus:** `public-consumer-chat` 已在 `main` 收口；接下来的 gating work 返回到 handbook live rebuild、supervisor/ACL mainline closure、以及 eval/smoke verification
 
 ## Current Position
 
-Phase: 03.2 (Source Truth Fan-Out And Attachment Projection) — COMPLETED
+Phase: 04.7 (Public Consumer Chat App Design) — COMPLETED
 Plan: 2 of 2
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 23
+- Total plans completed: 27
 - Average duration: mixed agent-run and inline execution; see per-plan summaries
 - Total execution time: 0.2 hours + 2026-03-24 inline Phase 2/3 execution
 
@@ -48,11 +48,12 @@ Plan: 2 of 2
 | 04.4 | 2 | inline session | n/a |
 | 04.5 | 2 | inline session | n/a |
 | 04.6 | 3 | inline session | n/a |
+| 04.7 | 2 | inline session | n/a |
 
 **Recent Trend:**
 
-- Last 5 plans: 04.4-02, 04.5-01, 04.5-02, 04.6-02, 04.6-03
-- Trend: Cloudflare public-entry runtime line is implemented, handbook chunk-truth remains stable, and retrieval baseline is now accepted as `dense + sparse hybrid + RRF + Qwen3-Embedding-4B @ 2560`; current blocker is live rebuild and runtime closure
+- Last 5 plans: 04.5-02, 04.6-01, 04.6-02, 04.6-03, 04.7-02
+- Trend: Cloudflare public-entry runtime line and `public-consumer-chat` app line are both on `main`; handbook chunk-truth remains stable, and current blockers have moved back to live rebuild, supervisor/ACL closure, and verification coverage
 
 | Phase 01-contract-and-boundary-guardrails P01 | 4m | 2 tasks | 11 files |
 | Phase 01 P02 | 5 | 2 tasks | 3 files |
@@ -77,6 +78,8 @@ Plan: 2 of 2
 | Phase 04.6 P01 | inline | 2 tasks | 10 files |
 | Phase 04.6 P02 | inline | 1 task | 2 files |
 | Phase 04.6 P03 | inline | 1 task | 4 files |
+| Phase 04.7 P01 | inline | 1 task | see summary |
+| Phase 04.7 P02 | inline | 1 task | see summary |
 | Phase 03.2-source-truth-fan-out-and-attachment-projection P01 | 17min | 2 tasks | 5 files |
 | Phase 03.2-source-truth-fan-out-and-attachment-projection P02 | inline | 2 tasks | 9 files |
 
@@ -134,6 +137,8 @@ Recent decisions affecting current work:
 - [Phase 04.6]: `apps/supervisor-api` now supports `trusted-worker` origin auth and runtime-owned actor context. — This closes the Worker-to-origin seam while still deferring app-layer actor, ACL, and audit closure to Phase 5.
 - [Phase 04.7]: Public consumer chat auth/storage is now frozen as `Better Auth + Supabase Postgres`, with auth/chat sharing one relational boundary and Qdrant remaining the online retrieval store. — This closes the app-line identity/database decision without moving canonical user truth into the Worker or `apps/supervisor-api`.
 - [Phase 04.7]: Public consumer chat frontend host is now frozen as `TanStack Start`, not a standalone client router and not `React Router framework mode`. — This keeps route/auth/session/conversation ownership inside one app boundary instead of splitting UI truth from app data truth.
+- [Phase 04.7]: `apps/public-consumer-chat` implementation, README baseline, and app-local documentation contract tests are now on `main` via PR #4. — 04.7 should now be read as completed implementation closeout, with phase-local handoff docs retained as accepted references and migration docs retained as history only.
+- [Current closeout]: `main` planning state must no longer describe 04.7 as planning-only or not-started. — Future work should consume the long-term architecture/ADR docs plus the retained 04.7 handoffs instead of reopening a “current migration” narrative.
 - [Current correction]: 2026-03-26 real handbook validation and three extra sample batches reconfirmed chunk-truth stability, with `chunk_failures = []` and `heading_body_glue_count = 0`. — Phase 4 is no longer blocked by unresolved handbook cleanup/chunking defects.
 - [Current planning decision]: Future handbook-derived collections or attachment outputs must not trigger a second raw-consumption lane. — Phase 03.2 now freezes the direction as `single source consumption + multi-projection fan-out + replay from source truth`.
 - [Phase 03.2-source-truth-fan-out-and-attachment-projection]: Phase 03.2 now freezes the data-plane as raw -> source truth -> declared projections -> document/chunk/index.
@@ -142,16 +147,16 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-- Keep handbook chunk-truth validation as a regression gate during 03.2 execution so projection convergence does not regress the verified handbook baseline.
+- Keep handbook chunk-truth validation as a regression gate while Phase 4/5/7 progress continues, so later retrieval/supervisor work does not regress the verified handbook baseline.
 
 ### Blockers/Concerns
 
-- No current handbook chunk-truth blocker remains. The main remaining blocker has moved back to live rebuild/runtime closure and eval/smoke verification rather than data-plane projection architecture split.
+- No current 04.7 blocker remains. The public consumer chat app line is merged to `main`; the main remaining blockers are back to live rebuild/runtime closure, supervisor/ACL closure, and eval/smoke verification rather than app-boundary design.
 - Cloudflare 04.x boundary/topology/contract/shell docs are now complete; any follow-up must stay as downstream implementation against those frozen docs, not as renewed architecture churn.
-- Phase 5 should consume the explicit 04.1 handoff instead of re-opening Cloudflare entry/panel boundary questions or pushing access-provider concerns into `packages/*`.
+- Phase 5 should consume the explicit 04.1 and 04.7 handoffs instead of re-opening Cloudflare entry/panel/app-boundary questions or pushing access-provider concerns into `packages/*`.
 
 ## Session Continuity
 
-Last session: 2026-03-26T08:24:37.357Z
-Stopped at: Completed 03.2-source-truth-fan-out-and-attachment-projection-02-PLAN.md
+Last session: 2026-03-27T00:00:00.000Z
+Stopped at: Merged PR #4 public-consumer-chat closeout on main
 Resume file: None

@@ -39,7 +39,7 @@ Requirements for the initial phase-1 release. Each requirement will map to exact
 
 ### Specialist Expansion
 
-- [ ] **AORC-03**: Supervisor can route to a non-RAG specialist, such as an `official-web` / `availability` capability, through explicit contracts instead of inline tool bundles
+- [x] **AORC-03**: Supervisor can route to a non-RAG specialist, such as an `official-web` / `availability` capability, through explicit contracts instead of inline tool bundles
 
 ### Verification
 
@@ -97,7 +97,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | GOV-03 | Phase 1 | Complete |
 | EDGE-01 | Phase 04.6 | Complete |
 | EDGE-02 | Phase 04.6 | Complete |
-| AORC-03 | Phase 03.1 | Pending |
+| AORC-03 | Phase 03.1 | Complete |
 | VER-01 | Phase 7 | Pending |
 | VER-02 | Phase 7 | Pending |
 
@@ -108,4 +108,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-23*
-*Last updated: 2026-03-25 after completing Phase 04.6 Worker runtime implementation*
+*Last updated: 2026-03-27 after 04.7 mainline merge closeout cleanup*
