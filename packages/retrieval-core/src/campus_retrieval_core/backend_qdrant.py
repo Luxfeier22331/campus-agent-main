@@ -32,6 +32,25 @@ DEFAULT_HYBRID_CANDIDATE_MULTIPLIER = 4
 DEFAULT_DENSE_QUERY_CACHE_TTL_SECONDS = 300.0
 _SCORE_TIE_EPSILON = 1e-6
 _ASCII_QUERY_TOKEN_RE = re.compile(r"[a-z0-9]{3,}")
+_WEAK_CJK_QUERY_TOKENS = frozenset(
+    {
+        "办理",
+        "校内",
+        "学校",
+        "学生",
+        "规定",
+        "办法",
+        "管理",
+        "申请",
+        "条件",
+        "流程",
+        "程序",
+        "手续",
+        "处理",
+        "服务",
+        "问题",
+    }
+)
 
 
 class RetrievalBackendError(RuntimeError):
@@ -442,12 +461,13 @@ def _normalize_snippets(snippets: str | Sequence[str]) -> tuple[str, ...]:
 def _segment_has_strong_lexical_support(*, segment: str, normalized_snippets: Sequence[str]) -> bool:
     if len(segment) >= 4 and any(segment in snippet for snippet in normalized_snippets):
         return True
-    trigrams = _cjk_query_tokens(segment, token_size=3)
+    trigrams = tuple(token for token in _cjk_query_tokens(segment, token_size=3) if token not in _WEAK_CJK_QUERY_TOKENS)
     if any(token in snippet for token in trigrams for snippet in normalized_snippets):
         return True
     matched_bigrams = {
         token
         for token in _cjk_query_tokens(segment, token_size=2)
+        if token not in _WEAK_CJK_QUERY_TOKENS
         if any(token in snippet for snippet in normalized_snippets)
     }
     return len(matched_bigrams) >= 2

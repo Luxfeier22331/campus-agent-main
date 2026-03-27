@@ -989,6 +989,52 @@ class BackendQdrantTest(unittest.TestCase):
 
         self.assertEqual(result, ())
 
+    def test_no_hit_policy_rejects_live_like_weak_bigram_matches(self) -> None:
+        profile = load_runtime_profile("regulations", "student_handbook")
+        sources = (
+            EvidenceSource(
+                doc_id="handbook:discipline",
+                revision_track="source-faithful",
+                version_id="v1:discipline",
+                chunk_id="chunk-discipline",
+                anchor={},
+                acl_level="public",
+                canonical_url="https://campus.example/discipline",
+                latest_url="https://campus.example/discipline",
+                source_channel="pdf_ocr",
+                collection="student_handbook",
+                is_current=True,
+                snippet=(
+                    "被开除学籍的学生由教务处或研究生院出具学习证明,学生须在接到处分决定之日起10日内"
+                    "办理完相关手续并离校。逾期不办理离校手续者,学校有关部门注销其在校内的各种关系。"
+                ),
+                score=0.55263156,
+            ),
+            EvidenceSource(
+                doc_id="handbook:campus-order",
+                revision_track="source-faithful",
+                version_id="v1:campus-order",
+                chunk_id="chunk-campus-order",
+                anchor={},
+                acl_level="public",
+                canonical_url="https://campus.example/campus-order",
+                latest_url="https://campus.example/campus-order",
+                source_channel="pdf_ocr",
+                collection="student_handbook",
+                is_current=True,
+                snippet="外国人、港澳台人员进入学校应经批准后方可进入学校。",
+                score=0.5,
+            ),
+        )
+
+        result = _apply_no_hit_policy(
+            profile=profile,
+            query_text="校内宇宙签证办理处",
+            sources=sources,
+        )
+
+        self.assertEqual(result, ())
+
     def test_no_hit_policy_accepts_tied_candidates_when_strong_phrase_support_exists(self) -> None:
         profile = load_runtime_profile("regulations", "student_handbook")
         sources = (

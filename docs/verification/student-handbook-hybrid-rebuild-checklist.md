@@ -193,6 +193,63 @@ updated: 2026-03-27
 - 官方 handbook 5 条样本的 top1 方向正确，`no_hit` 行为正确
 - 当前 Gate 3 / Gate 4 的 handbook retrieval 运行证据可继续使用这 5 条官方样本
 
+## 2026-03-27 Retrieval Benchmark 与 Fail-Close 修复
+
+在 live rebuild 验收通过后，本轮又补跑了 handbook retrieval qrels 与 workflow/status 样本，目标是确认：
+
+- retrieval benchmark 不只在抽样 query 上正确，而且在 repo-tracked qrels 上没有回退
+- `no_hit` fail-close 语义不会被弱 lexical 噪声误触发
+- handbook 当前主链路的终态状态分布仍符合 `completed` / `needs_clarification` / `no_answer` 预期
+
+本轮发现的问题：
+
+- 修复前，`student_handbook_retrieval_qrels.json` 中的 `no-hit-nonexistent-visa` 会错误返回非空命中
+- 失败 query：`校内宇宙签证办理处`
+- 根因不是 Qdrant schema、也不是 qrels 标注错误，而是 retrieval fail-close 判定把弱中文 bigram 当成了足够强的 lexical support
+- 误触发片段主要来自 handbook 内部包含 `校内`、`办理` 等高频弱词的无关制度片段
+
+根因修复：
+
+- 在 [`packages/retrieval-core/src/campus_retrieval_core/backend_qdrant.py`](/home/reptilian/code/campus-agent/packages/retrieval-core/src/campus_retrieval_core/backend_qdrant.py) 为 `_apply_no_hit_policy()` 增加弱 CJK token 过滤
+- `_segment_has_strong_lexical_support()` 不再把 `校内`、`办理`、`学校`、`学生`、`规定`、`办法`、`管理`、`申请`、`流程` 等弱 bigram / trigram 视为足以放行 evidence 的强支撑
+- 对应 regression 已补到 [`tests/retrieval/test_backend_qdrant.py`](/home/reptilian/code/campus-agent/tests/retrieval/test_backend_qdrant.py)
+
+本轮验证命令：
+
+- `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.retrieval.test_backend_qdrant`
+- `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.retrieval.test_backend_qdrant tests.evals.test_retrieval_benchmark tests.evals.test_golden_cases`
+
+结果：
+
+- `tests.retrieval.test_backend_qdrant`: `23 tests`, `OK`
+- `tests.retrieval.test_backend_qdrant + tests.evals.test_retrieval_benchmark + tests.evals.test_golden_cases`: `54 tests`, `OK`
+
+本轮 live retrieval benchmark 汇总：
+
+- total cases：`13`
+- `Hit@1 = 1.0`
+- `Hit@3 = 1.0`
+- `Recall@5 = 0.9743589743589743`
+- `Precision@5 = 0.35384615384615387`
+- `MRR@5 = 1.0`
+- `forbidden_hit_rate = 0.0`
+- `no-hit-nonexistent-visa` 修复后恢复为空结果，case 指标全部为 `1.0`
+
+本轮 workflow/status 样本汇总：
+
+- sample total：`6`
+- `status_accuracy = 1.0`
+- status distribution：
+  - `completed = 4`
+  - `no_answer = 1`
+  - `needs_clarification = 1`
+
+本轮结论：
+
+- handbook retrieval 当前不仅通过 live query 抽样，也通过了 doc-level qrels benchmark
+- `no_hit` fail-close 漏放行已修复，当前 handbook 主链路没有发现新的 retrieval regression
+- 详细数值快照与 split 维度汇总已单独落盘到 `docs/verification/student-handbook-eval-metrics.md`
+
 ## 完成标准
 
 - live collection 中所有 handbook 点均带有 named `dense` 与 named `sparse`

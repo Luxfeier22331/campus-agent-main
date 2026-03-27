@@ -86,4 +86,5 @@ updated: 2026-03-27
 - `plans/student-handbook-retrieval-eval-bootstrap.md`
 - `plans/supervisor-current-design-implementation.md`
 - `verification/phase1-ingestion-retrieval-implementation-truth.md`
+- `verification/student-handbook-eval-metrics.md`
 - `verification/student-handbook-hybrid-rebuild-checklist.md`
