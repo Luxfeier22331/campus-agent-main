@@ -153,7 +153,7 @@ def build_curriculum_split_manifest_seed(
 ) -> CurriculumSplitManifestSeed:
     if not raw_asset_id:
         raise ValueError("raw_asset_id is required")
-    title_to_page = _build_title_to_first_page(structured_rows)
+    title_to_pages = _build_title_to_candidate_pages(structured_rows)
     max_page = _resolve_max_page(structured_rows)
     matched: list[tuple[LegacyCurriculumDocument, int]] = []
     missing: list[MissingCurriculumSplitDocument] = []
@@ -172,8 +172,8 @@ def build_curriculum_split_manifest_seed(
                 )
             )
             continue
-        page_start = title_to_page.get(_normalize_split_title(document.title))
-        if page_start is None:
+        candidate_pages = title_to_pages.get(_normalize_split_title(document.title), ())
+        if len(candidate_pages) > 1:
             missing.append(
                 MissingCurriculumSplitDocument(
                     document_id=document.document_id,
@@ -181,9 +181,23 @@ def build_curriculum_split_manifest_seed(
                     canonical_doc_path=document.canonical_doc_path,
                     legacy_page_start=document.legacy_page_start,
                     legacy_page_end=document.legacy_page_end,
+                    reason="ambiguous_title_in_structured_headings",
                 )
             )
             continue
+        if not candidate_pages:
+            missing.append(
+                MissingCurriculumSplitDocument(
+                    document_id=document.document_id,
+                    title=document.title,
+                    canonical_doc_path=document.canonical_doc_path,
+                    legacy_page_start=document.legacy_page_start,
+                    legacy_page_end=document.legacy_page_end,
+                    reason="title_not_found_in_structured_headings",
+                )
+            )
+            continue
+        page_start = candidate_pages[0]
         matched.append((document, page_start))
     matched.sort(key=lambda item: (item[1], item[0].document_id))
     documents: list[SplitManifestDocument] = []
@@ -262,20 +276,25 @@ def _find_source_ref_uri(
     return default
 
 
-def _build_title_to_first_page(structured_rows: Sequence[Mapping[str, object]]) -> dict[str, int]:
-    title_to_page: dict[str, int] = {}
+def _build_title_to_candidate_pages(structured_rows: Sequence[Mapping[str, object]]) -> dict[str, tuple[int, ...]]:
+    title_to_pages: dict[str, set[int]] = {}
     for row in structured_rows:
         page_start = row.get("page_start")
         if not isinstance(page_start, int):
+            continue
+        if not _row_is_title_candidate(row):
             continue
         text = _row_text(row)
         if not text:
             continue
         normalized_title = _normalize_split_title(text)
-        if not normalized_title or normalized_title in title_to_page:
+        if not normalized_title:
             continue
-        title_to_page[normalized_title] = page_start
-    return title_to_page
+        title_to_pages.setdefault(normalized_title, set()).add(page_start)
+    return {
+        key: tuple(sorted(value))
+        for key, value in title_to_pages.items()
+    }
 
 
 def _normalize_split_title(value: str) -> str:
@@ -300,6 +319,16 @@ def _resolve_max_page(structured_rows: Sequence[Mapping[str, object]]) -> int:
     if max_page <= 0:
         raise ValueError("structured_rows must contain positive page_end values")
     return max_page
+
+
+def _row_is_title_candidate(row: Mapping[str, object]) -> bool:
+    if str(row.get("row_type") or "") != "heading":
+        return False
+    block_role = _optional_string(row.get("block_role"))
+    if block_role in {"doc_title", "paragraph_title", "text_heading_candidate"}:
+        return True
+    title_candidate_score = row.get("title_candidate_score")
+    return isinstance(title_candidate_score, (int, float)) and float(title_candidate_score) > 0
 
 
 def _row_text(row: Mapping[str, object]) -> str:

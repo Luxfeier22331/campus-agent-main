@@ -8,6 +8,18 @@ from campus_ingestion_core.curriculum_provider_normalize import normalize_curric
 
 
 class CurriculumProviderNormalizeTest(unittest.TestCase):
+    def _normalize_fixture_rows(self, fixture_path: str) -> list[dict[str, object]]:
+        structured_bytes = normalize_curriculum_provider_result(
+            provider_jsonl_bytes=Path(fixture_path).read_bytes(),
+            source_pdf="curriculum-plan-2022.pdf",
+            ocr_model="PaddleOCR-VL-1.5",
+        )
+        return [
+            json.loads(line)
+            for line in structured_bytes.decode("utf-8").splitlines()
+            if line.strip()
+        ]
+
     def _normalize_rows(self, provider_payload: dict[str, object]) -> list[dict[str, object]]:
         structured_bytes = normalize_curriculum_provider_result(
             provider_jsonl_bytes=(json.dumps(provider_payload, ensure_ascii=False) + "\n").encode("utf-8"),
@@ -586,6 +598,45 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
         self.assertEqual(rows[0]["row_type"], "paragraph")
         self.assertEqual(rows[0]["heading_level"], None)
         self.assertEqual(rows[0]["title_candidate_score"], 0.0)
+
+    def test_normalize_curriculum_provider_result_provider_fixture_regression(self) -> None:
+        rows = self._normalize_fixture_rows("tests/fixtures/curriculum_plan/provider-result-sample.jsonl")
+
+        self.assertEqual(len(rows), 21)
+        self.assertEqual(sum(row["row_type"] == "heading" for row in rows), 4)
+        self.assertEqual(sum(row["row_type"] == "paragraph" for row in rows), 4)
+        self.assertEqual(sum(row["row_type"] == "table_caption" for row in rows), 2)
+        self.assertEqual(sum(row["row_type"] == "table" for row in rows), 2)
+        self.assertEqual(sum(row["row_type"] == "note" for row in rows), 1)
+        self.assertEqual(sum(row["row_type"] == "footer" for row in rows), 4)
+        self.assertEqual(sum(row["row_type"] == "page_number" for row in rows), 2)
+        self.assertEqual(sum(row["row_type"] == "toc_entry" for row in rows), 1)
+        self.assertEqual(sum(row["row_type"] == "image" for row in rows), 1)
+
+        repeated_footers = [row for row in rows if row["row_type"] == "footer"]
+        self.assertEqual(len(repeated_footers), 4)
+        self.assertTrue(all(bool(row["is_repeated_candidate"]) for row in repeated_footers))
+        self.assertTrue(all(row["repeat_position_band"] == "bottom" for row in repeated_footers))
+
+        first_table = next(row for row in rows if row["provider_block_id"] == "14")
+        second_caption = next(row for row in rows if row["provider_block_id"] == "22")
+        second_table = next(row for row in rows if row["provider_block_id"] == "23")
+        note_row = next(row for row in rows if row["provider_block_id"] == "15")
+        first_continuation_paragraph = next(row for row in rows if row["provider_block_id"] == "21")
+        second_continuation_paragraph = next(row for row in rows if row["provider_block_id"] == "31")
+
+        self.assertEqual(first_table["table_header_rows"], [["类别", "课程", "学分"]])
+        self.assertTrue(bool(first_table["table_has_merged_cells"]))
+        self.assertEqual(second_table["relation_type"], "table_continuation")
+        self.assertEqual(second_table["owner_row_id"], first_table["row_id"])
+        self.assertEqual(second_table["continuation_group_id"], first_table["row_id"])
+        self.assertEqual(second_table["table_fragment_id"], first_table["table_fragment_id"])
+        self.assertEqual(second_caption["relation_type"], "caption_of")
+        self.assertEqual(second_caption["continuation_group_id"], first_table["row_id"])
+        self.assertEqual(note_row["relation_type"], "note_of")
+        self.assertEqual(note_row["owner_row_id"], first_table["row_id"])
+        self.assertTrue(bool(first_continuation_paragraph["continues_to_next_page"]))
+        self.assertTrue(bool(second_continuation_paragraph["continues_from_previous_page"]))
 
 
 if __name__ == "__main__":

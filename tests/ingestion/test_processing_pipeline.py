@@ -4,6 +4,8 @@ import json
 import unittest
 
 from campus_ingestion_core.chunking import (
+    CURRICULUM_CLEANING_POLICY_VERSION,
+    CURRICULUM_V1_CHUNK_POLICY_VERSION,
     DEFAULT_CHUNK_OVERLAP,
     DEFAULT_CHUNK_POLICY_VERSION,
     DEFAULT_CHUNK_SIZE,
@@ -11,6 +13,7 @@ from campus_ingestion_core.chunking import (
     TABLE_PLACEHOLDER,
     ChunkProfile,
     StudentHandbookChunkingStrategy,
+    build_curriculum_chunk_profile,
 )
 from campus_ingestion_core.embed import MockEmbeddingSettings, build_mock_embedding_model
 from campus_ingestion_core.handbook_cleanup import cleanup_handbook_document, serialize_handbook_document_units
@@ -54,6 +57,49 @@ def _make_registry_record() -> DocumentRegistryRecord:
                 document_id="handbook:test-001",
                 revision_track="source-faithful",
                 version_id="v1:test-001",
+                title=None,
+                year=None,
+                filename="document-units.jsonl",
+            ),
+        ),
+        import_source="raw_online_ocr",
+    )
+
+
+def _make_curriculum_registry_record() -> DocumentRegistryRecord:
+    return DocumentRegistryRecord(
+        document_id="curriculum:test-001",
+        revision_track="source-faithful",
+        version_id="v1:curriculum-test-001",
+        source_uri="campusrag://source/curriculum/test/pages/1-1",
+        content_hash="sha256:curriculum-test-001",
+        corpus="curriculum",
+        collection="curriculum_plan",
+        cleaning_policy_version=CURRICULUM_CLEANING_POLICY_VERSION,
+        acl_groups=("students",),
+        campus_scope="main",
+        status="active",
+        ingestion_timestamp="2026-03-27T10:00:00+00:00",
+        parser_version="raw-online-ocr-v1",
+        embedding_model="Qwen3-Embedding-4B",
+        source_channel="pdf_ocr",
+        document_units_object_key=build_processed_artifact_key(
+            corpus="curriculum",
+            collection="curriculum_plan",
+            document_id="curriculum:test-001",
+            revision_track="source-faithful",
+            version_id="v1:curriculum-test-001",
+            title=None,
+            year=None,
+            filename="document-units.jsonl",
+        ),
+        processed_object_keys=(
+            build_processed_artifact_key(
+                corpus="curriculum",
+                collection="curriculum_plan",
+                document_id="curriculum:test-001",
+                revision_track="source-faithful",
+                version_id="v1:curriculum-test-001",
                 title=None,
                 year=None,
                 filename="document-units.jsonl",
@@ -147,6 +193,17 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertEqual(profile.strategy_name, "student_handbook_structure")
         self.assertIsInstance(profile.strategy, StudentHandbookChunkingStrategy)
 
+    def test_build_curriculum_chunk_profile_matches_runtime_truth(self) -> None:
+        profile = build_curriculum_chunk_profile(model_name="Qwen3-Embedding-4B")
+
+        self.assertEqual(profile.chunk_size, 360)
+        self.assertEqual(profile.max_chunk_size, 540)
+        self.assertEqual(profile.chunk_overlap, 72)
+        self.assertEqual(profile.min_chunk_size, 50)
+        self.assertEqual(profile.chunk_policy_version, CURRICULUM_V1_CHUNK_POLICY_VERSION)
+        self.assertEqual(profile.cleaning_policy_version, CURRICULUM_CLEANING_POLICY_VERSION)
+        self.assertEqual(profile.strategy_name, "curriculum_plan_structure_v1")
+
     def test_build_indexable_chunks_from_jsonl_keeps_required_metadata(self) -> None:
         record = _make_registry_record()
         structured_payload = "\n".join(
@@ -205,6 +262,54 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertEqual(chunk.metadata["display_text"], "Student handbook library hours are from 08:00 to 22:00.")
         self.assertFalse(chunk.metadata["contextualized_text"])
         self.assertIn("library hours", chunk.text.lower())
+
+    def test_build_indexable_chunks_from_jsonl_defaults_to_runtime_curriculum_profile(self) -> None:
+        record = _make_curriculum_registry_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0001-block-0001",
+                        "row_id": "page-0001-block-0001",
+                        "row_type": "heading",
+                        "heading_level": 2,
+                        "clean_text": "一、培养目标",
+                        "page_start": 1,
+                        "page_end": 1,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0001-block-0002",
+                        "row_id": "page-0001-block-0002",
+                        "row_type": "paragraph",
+                        "clean_text": "培养具有国际视野和跨学科协同能力的复合型人才。",
+                        "page_start": 1,
+                        "page_end": 1,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0].metadata["chunk_policy_version"], CURRICULUM_V1_CHUNK_POLICY_VERSION)
+        self.assertEqual(chunks[0].metadata["cleaning_policy_version"], CURRICULUM_CLEANING_POLICY_VERSION)
+        self.assertEqual(chunks[0].metadata["strategy_name"], "curriculum_plan_structure_v1")
+        self.assertEqual(chunks[0].metadata["unit_type"], "section_text")
 
     def test_build_indexable_chunks_from_jsonl_rewrites_parent_table_html_to_placeholder(self) -> None:
         record = _make_registry_record()

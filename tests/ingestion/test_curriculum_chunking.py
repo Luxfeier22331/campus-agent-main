@@ -42,7 +42,7 @@ def _make_curriculum_record() -> DocumentRegistryRecord:
 
 
 class CurriculumChunkingTest(unittest.TestCase):
-    def test_build_indexable_chunks_from_jsonl_requires_explicit_curriculum_chunk_profile(self) -> None:
+    def test_build_indexable_chunks_from_jsonl_uses_runtime_curriculum_chunk_profile_by_default(self) -> None:
         record = _make_curriculum_record()
         structured_payload = "\n".join(
             [
@@ -63,8 +63,13 @@ class CurriculumChunkingTest(unittest.TestCase):
             ]
         ).encode("utf-8")
 
-        with self.assertRaisesRegex(ValueError, "explicit chunk_profile"):
-            build_indexable_chunks_from_jsonl(record=record, structured_jsonl_bytes=structured_payload)
+        chunks = build_indexable_chunks_from_jsonl(record=record, structured_jsonl_bytes=structured_payload)
+
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0].metadata["chunk_policy_version"], "curriculum_plan_semantic_v1")
+        self.assertEqual(chunks[0].metadata["cleaning_policy_version"], "curriculum_plan_cleaning_v1")
+        self.assertEqual(chunks[0].metadata["strategy_name"], "curriculum_plan_structure_v1")
+        self.assertEqual(chunks[0].metadata["unit_type"], "section_text")
 
     def test_build_indexable_chunks_from_jsonl_uses_curriculum_section_and_table_units(self) -> None:
         record = _make_curriculum_record()
@@ -188,7 +193,7 @@ class CurriculumChunkingTest(unittest.TestCase):
                 max_chunk_size=30,
                 chunk_overlap=4,
                 min_chunk_size=8,
-                chunk_policy_version="curriculum_plan_semantic_candidate_v1",
+                chunk_policy_version="curriculum_plan_semantic_v1",
                 cleaning_policy_version="curriculum_plan_cleaning_v1",
             ),
         )
@@ -240,7 +245,7 @@ class CurriculumChunkingTest(unittest.TestCase):
                     max_chunk_size=30,
                     chunk_overlap=4,
                     min_chunk_size=8,
-                    chunk_policy_version="curriculum_plan_semantic_candidate_v1",
+                    chunk_policy_version="curriculum_plan_semantic_v1",
                     cleaning_policy_version="curriculum_plan_cleaning_v1",
                 ),
             )
@@ -275,7 +280,7 @@ class CurriculumChunkingTest(unittest.TestCase):
                     max_chunk_size=30,
                     chunk_overlap=4,
                     min_chunk_size=8,
-                    chunk_policy_version="curriculum_plan_semantic_candidate_v1",
+                    chunk_policy_version="curriculum_plan_semantic_v1",
                     cleaning_policy_version="curriculum_plan_cleaning_v1",
                 ),
             )
@@ -341,7 +346,7 @@ class CurriculumChunkingTest(unittest.TestCase):
                 max_chunk_size=540,
                 chunk_overlap=72,
                 min_chunk_size=50,
-                chunk_policy_version="curriculum_plan_semantic_candidate_v1",
+                chunk_policy_version="curriculum_plan_semantic_v1",
                 cleaning_policy_version="curriculum_plan_cleaning_v1",
             ),
         )
@@ -446,7 +451,7 @@ class CurriculumChunkingTest(unittest.TestCase):
                 max_chunk_size=540,
                 chunk_overlap=72,
                 min_chunk_size=50,
-                chunk_policy_version="curriculum_plan_semantic_candidate_v1",
+                chunk_policy_version="curriculum_plan_semantic_v1",
                 cleaning_policy_version="curriculum_plan_cleaning_v1",
             ),
         )
@@ -528,7 +533,7 @@ class CurriculumChunkingTest(unittest.TestCase):
                 max_chunk_size=540,
                 chunk_overlap=72,
                 min_chunk_size=50,
-                chunk_policy_version="curriculum_plan_semantic_candidate_v1",
+                chunk_policy_version="curriculum_plan_semantic_v1",
                 cleaning_policy_version="curriculum_plan_cleaning_v1",
             ),
         )
@@ -581,7 +586,7 @@ class CurriculumChunkingTest(unittest.TestCase):
                 max_chunk_size=540,
                 chunk_overlap=72,
                 min_chunk_size=50,
-                chunk_policy_version="curriculum_plan_semantic_candidate_v1",
+                chunk_policy_version="curriculum_plan_semantic_v1",
                 cleaning_policy_version="curriculum_plan_cleaning_v1",
             ),
         )
@@ -657,7 +662,7 @@ class CurriculumChunkingTest(unittest.TestCase):
                 max_chunk_size=540,
                 chunk_overlap=72,
                 min_chunk_size=50,
-                chunk_policy_version="curriculum_plan_semantic_candidate_v1",
+                chunk_policy_version="curriculum_plan_semantic_v1",
                 cleaning_policy_version="curriculum_plan_cleaning_v1",
             ),
         )

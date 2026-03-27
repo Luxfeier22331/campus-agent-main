@@ -186,6 +186,7 @@ updated: 2026-03-27
 - 文档删除通过 registry 状态与索引删除同步处理
 - replay/rebuild 的 canonical boundary 是 persisted source truth，而不是 handbook-only branch、legacy migration side path 或二次 raw re-entry
 - handbook-derived `campus_services` output、attachment/form/navigation-like output 都必须从 source truth fan-out，而不是各自回到 raw
+- `curriculum/curriculum_plan` 的 accepted offline path 固定为 `source-truth/layout-elements.jsonl -> split-manifest logical documents -> source-truth-preserving document-units.jsonl -> curriculum_plan_semantic_v1`；它继续保持 offline-only，不进入默认 query-serving scope
 - collection 专属 normalization、cleanup、chunking 规则由对应 strategy doc 和 `configs/ingestion/` 冻结，不在本文重复
 
 ### 查询链路

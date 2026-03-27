@@ -76,6 +76,39 @@ class SplitManifestTest(unittest.TestCase):
         titles = {document.title for document in manifest.documents}
         self.assertNotIn("各类课程教学计划", titles)
 
+    def test_load_split_manifest_rejects_overlapping_curriculum_page_ranges(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "split-manifest.overlap.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "curriculum_plan_split_manifest_v1",
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "raw_asset_id": "asset:curriculum-plan-2022",
+                        "documents": [
+                            {
+                                "document_id": "curriculum:plan-a",
+                                "title": "计划甲",
+                                "page_start": 20,
+                                "page_end": 22,
+                            },
+                            {
+                                "document_id": "curriculum:plan-b",
+                                "title": "计划乙",
+                                "page_start": 22,
+                                "page_end": 23,
+                            },
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "page ranges overlap"):
+                load_split_manifest(path)
+
     def test_real_curriculum_fixture_splits_cleanly_across_adjacent_documents(self) -> None:
         manifest = load_split_manifest(
             Path("configs/ingestion/curriculum/curriculum_plan/split-manifest.v1.json"),

@@ -15,11 +15,13 @@ from campus_ingestion_core.chunking import (
     ChunkProfile,
     ChunkTextAssembly,
     ChunkTextContextPlan,
+    CURRICULUM_V1_CHUNK_POLICY_VERSION,
     SemanticChunkPiece,
     StructuredUnitChunkInput,
     TABLE_UNIT_TYPES,
     TEXTUAL_UNIT_TYPES,
     assemble_chunk_text,
+    build_curriculum_chunk_profile,
     build_student_handbook_chunk_profile,
     build_chunk_text_context,
     chunk_table_unit,
@@ -857,11 +859,14 @@ def _resolve_chunk_profile(
 ) -> ChunkProfile:
     if chunk_profile is not None:
         return chunk_profile
-    if record.collection == "curriculum_plan":
-        raise ValueError("curriculum_plan chunking requires explicit chunk_profile")
     runtime_profile = load_runtime_profile(record.corpus, record.collection)
     if record.collection == "student_handbook":
         return build_student_handbook_chunk_profile(
+            profile_version=runtime_profile.chunk_profile_version,
+            model_name=record.embedding_model,
+        )
+    if record.collection == "curriculum_plan":
+        return build_curriculum_chunk_profile(
             profile_version=runtime_profile.chunk_profile_version,
             model_name=record.embedding_model,
         )

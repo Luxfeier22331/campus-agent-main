@@ -17,6 +17,7 @@ collection within the `curriculum` corpus.
 
 - `RAW_INGESTION_ARTIFACT_MODE=source_truth_only` for pre-split onboarding. This uploads the raw PDF under `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...` and stores asset-level OCR truth under the same canonical source prefix, split by `capture/`, `provider/`, and `source-truth/` stages without requiring a split manifest. This path writes `provider-response.jsonl` and `source-truth/layout-elements.jsonl`, but does not create document-registry records or per-document artifacts.
 - `RAW_INGESTION_ARTIFACT_MODE=normalized` for document-level ingestion. This requires the split manifest to be filled with the real document list and page ranges before the job is run and then writes document artifacts under `curriculum/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/...`.
+- `REBUILD_IMPORT_MODE=provider_response_replay` for offline rebuild from persisted source truth. This reuses canonical `provider-response.jsonl` plus the repo-tracked split manifest to rebuild document records and `document-units.jsonl` without re-running OCR, and may optionally re-index Qdrant while keeping `curriculum_plan` offline-only.
 
 Notes:
 
@@ -26,6 +27,8 @@ Notes:
 - `curriculum_layout_elements_v3` no longer stores `clean_text` or `chunk_id` at source-truth level; document text and chunk identity are generated only after split/document-level ingestion.
 - curriculum `document-units.jsonl` is a structural projection, not a text-only flattening. In addition to document-level fields like `doc_id`, `version_id`, `chunk_id`, and `clean_text`, the projection must preserve chunking-required structural fields from source-truth, including `row_id`, `row_type`, `heading_level`, `row_index`, `reading_order`, `section_hint`, `html`, `table_cells`, `owner_row_id`, `relation_type`, and `continuation_group_id`.
 - because curriculum chunking reconstructs section/table units from `document-units.jsonl`, dropping those structural fields in split projection is a contract violation, not an acceptable simplification.
+- accepted curriculum runtime chunking is loaded from `runtime-profile.json` plus `build_curriculum_chunk_profile(...)`, not from handbook defaults; the current frozen runtime is `curriculum_plan_semantic_v1` / `curriculum_plan_structure_v1` with `360/540/72/50` budgets.
+- current accepted runtime covers section/table reconstruction, caption/note grouping, and source-truth-derived anchors. Broader curriculum taxonomy questions still stay inside ingestion-core review scope and do not enable retrieval.
 - The formal manifest records logical document boundaries plus ACL/status metadata only. Curriculum document `source_uri` is derived during ingestion from `raw_asset_id + raw_version_id + page_start/page_end`.
 - `split-manifest.candidate.v1.json` remains as a review companion artifact and should keep the same document inventory as the formal manifest.
 - `samples/index.json` is inspection-only metadata; it should point to the moved `configs/ingestion/curriculum/curriculum_plan/samples/...` paths.
