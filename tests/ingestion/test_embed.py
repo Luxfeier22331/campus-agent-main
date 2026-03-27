@@ -85,6 +85,101 @@ class EmbeddingProviderAliasTest(unittest.TestCase):
             {"input": ["学生管理规定"], "model": "Qwen3-Embedding-4B", "dimensions": 2560},
         )
 
+    @patch("campus_ingestion_core.embed.OpenAI")
+    @patch("campus_ingestion_core.embed.AsyncOpenAI")
+    def test_gitee_embedding_batches_text_embeddings_in_single_request(
+        self,
+        async_openai,
+        openai_client,
+    ) -> None:
+        sync_client = Mock()
+        sync_client.embeddings.create.return_value = Mock(
+            data=[
+                Mock(embedding=[0.1, 0.2, 0.3]),
+                Mock(embedding=[0.4, 0.5, 0.6]),
+            ]
+        )
+        openai_client.return_value = sync_client
+        async_openai.return_value = Mock()
+        settings = EmbeddingSettings(
+            provider="gitee",
+            model="Qwen3-Embedding-4B",
+            api_key="test-key",
+            api_base="https://example.invalid/v1",
+            timeout_seconds=15.0,
+            embed_batch_size=32,
+        )
+
+        model = build_embedding_model(settings)
+        result = model.get_text_embedding_batch(["手册正文", "学生管理规定"])
+
+        self.assertEqual(result, [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]])
+        sync_client.embeddings.create.assert_called_once_with(
+            input=["手册正文", "学生管理规定"],
+            model="Qwen3-Embedding-4B",
+            dimensions=2560,
+        )
+
+    @patch("campus_ingestion_core.embed.OpenAI")
+    @patch("campus_ingestion_core.embed.AsyncOpenAI")
+    def test_gitee_embedding_recursively_splits_batch_when_provider_rejects_large_request(
+        self,
+        async_openai,
+        openai_client,
+    ) -> None:
+        sync_client = Mock()
+        sync_client.embeddings.create.side_effect = [
+            RuntimeError("provider rejected batch"),
+            Mock(
+                data=[
+                    Mock(embedding=[0.1, 0.2, 0.3]),
+                    Mock(embedding=[0.4, 0.5, 0.6]),
+                ]
+            ),
+            Mock(
+                data=[
+                    Mock(embedding=[0.7, 0.8, 0.9]),
+                    Mock(embedding=[1.0, 1.1, 1.2]),
+                ]
+            ),
+        ]
+        openai_client.return_value = sync_client
+        async_openai.return_value = Mock()
+        settings = EmbeddingSettings(
+            provider="gitee",
+            model="Qwen3-Embedding-4B",
+            api_key="test-key",
+            api_base="https://example.invalid/v1",
+            timeout_seconds=15.0,
+            embed_batch_size=32,
+        )
+
+        model = build_embedding_model(settings)
+        result = model.get_text_embedding_batch(["甲", "乙", "丙", "丁"])
+
+        self.assertEqual(
+            result,
+            [
+                [0.1, 0.2, 0.3],
+                [0.4, 0.5, 0.6],
+                [0.7, 0.8, 0.9],
+                [1.0, 1.1, 1.2],
+            ],
+        )
+        self.assertEqual(sync_client.embeddings.create.call_count, 3)
+        self.assertEqual(
+            sync_client.embeddings.create.call_args_list[0].kwargs,
+            {"input": ["甲", "乙", "丙", "丁"], "model": "Qwen3-Embedding-4B", "dimensions": 2560},
+        )
+        self.assertEqual(
+            sync_client.embeddings.create.call_args_list[1].kwargs,
+            {"input": ["甲", "乙"], "model": "Qwen3-Embedding-4B", "dimensions": 2560},
+        )
+        self.assertEqual(
+            sync_client.embeddings.create.call_args_list[2].kwargs,
+            {"input": ["丙", "丁"], "model": "Qwen3-Embedding-4B", "dimensions": 2560},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

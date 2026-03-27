@@ -7,7 +7,7 @@ from campus_ingestion_core.object_store import (
     build_processed_artifact_key,
     build_raw_asset_key,
 )
-from campus_ingestion_core.settings import ObjectStoreSettings
+from campus_ingestion_core.settings import ObjectStoreSettings, resolve_object_store_bucket_names
 
 
 class ObjectStoreConfigTest(unittest.TestCase):
@@ -21,9 +21,36 @@ class ObjectStoreConfigTest(unittest.TestCase):
         )
 
         self.assertEqual(settings.region, "us-east-1")
-        self.assertEqual(settings.bucket_raw, "campus-rag-raw")
-        self.assertEqual(settings.bucket_processed, "campus-rag-processed")
+        self.assertEqual(settings.bucket_source, "campus-rag-source")
+        self.assertEqual(settings.bucket_derived, "campus-rag-derived")
+        self.assertEqual(settings.bucket_raw, "campus-rag-source")
+        self.assertEqual(settings.bucket_processed, "campus-rag-derived")
         self.assertFalse(settings.secure)
+
+    def test_legacy_bucket_envs_fallback_to_source_and_derived_fields(self) -> None:
+        settings = ObjectStoreSettings.from_env(
+            {
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                "OBJECT_STORE_BUCKET_RAW": "legacy-raw",
+                "OBJECT_STORE_BUCKET_PROCESSED": "legacy-processed",
+            }
+        )
+
+        self.assertEqual(settings.bucket_source, "legacy-raw")
+        self.assertEqual(settings.bucket_derived, "legacy-processed")
+
+    def test_bucket_name_resolution_supports_legacy_envs_without_full_settings(self) -> None:
+        bucket_source, bucket_derived = resolve_object_store_bucket_names(
+            {
+                "OBJECT_STORE_BUCKET_RAW": "legacy-raw",
+                "OBJECT_STORE_BUCKET_PROCESSED": "legacy-processed",
+            }
+        )
+
+        self.assertEqual(bucket_source, "legacy-raw")
+        self.assertEqual(bucket_derived, "legacy-processed")
 
     def test_rejects_local_directory_fallback_endpoint(self) -> None:
         with self.assertRaises(ValueError):

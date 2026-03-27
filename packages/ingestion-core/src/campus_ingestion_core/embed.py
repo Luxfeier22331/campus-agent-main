@@ -52,25 +52,43 @@ class OpenAICompatibleEmbedding(BaseEmbedding):
             max_retries=max_retries,
         )
 
-    def _create_embedding(self, text: str) -> Embedding:
-        payload = {"input": [text], "model": self.model_name}
+    def _build_payload(self, texts: list[str]) -> dict[str, object]:
+        payload: dict[str, object] = {"input": texts, "model": self.model_name}
         if self.dimensions is not None:
             payload["dimensions"] = self.dimensions
-        response = self._client.embeddings.create(**payload)
+        return payload
+
+    def _create_embedding(self, text: str) -> Embedding:
+        response = self._client.embeddings.create(**self._build_payload([text]))
         return [float(item) for item in response.data[0].embedding]
+
+    def _create_embeddings(self, texts: list[str]) -> list[Embedding]:
+        if not texts:
+            return []
+        try:
+            response = self._client.embeddings.create(**self._build_payload(texts))
+        except Exception:
+            if len(texts) <= 1:
+                raise
+            midpoint = len(texts) // 2
+            return [
+                *self._create_embeddings(texts[:midpoint]),
+                *self._create_embeddings(texts[midpoint:]),
+            ]
+        return [[float(item) for item in record.embedding] for record in response.data]
 
     def _get_query_embedding(self, query: str) -> Embedding:
         return self._create_embedding(query)
 
     async def _aget_query_embedding(self, query: str) -> Embedding:
-        payload = {"input": [query], "model": self.model_name}
-        if self.dimensions is not None:
-            payload["dimensions"] = self.dimensions
-        response = await self._aclient.embeddings.create(**payload)
+        response = await self._aclient.embeddings.create(**self._build_payload([query]))
         return [float(item) for item in response.data[0].embedding]
 
     def _get_text_embedding(self, text: str) -> Embedding:
         return self._create_embedding(text)
+
+    def _get_text_embeddings(self, texts: list[str]) -> list[Embedding]:
+        return self._create_embeddings(texts)
 
 
 @dataclass(frozen=True, slots=True)

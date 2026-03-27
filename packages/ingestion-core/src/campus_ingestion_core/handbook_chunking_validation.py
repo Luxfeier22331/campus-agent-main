@@ -38,7 +38,7 @@ from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import build_indexable_chunks_from_jsonl
 from campus_ingestion_core.registry import DocumentRegistry, build_document_registry_from_env
-from campus_ingestion_core.settings import DEFAULT_BUCKET_PROCESSED, ObjectStoreSettings
+from campus_ingestion_core.settings import ObjectStoreSettings, resolve_object_store_bucket_names
 from campus_ingestion_core.split_manifest import load_split_manifest
 from campus_ingestion_core.tokenizer_cache import resolve_prefetched_hf_tokenizer_path
 
@@ -126,7 +126,7 @@ class StudentHandbookValidationInputs:
     chunk_profile: ChunkProfile
     registry: DocumentRegistry
     object_store: ChunkValidationArtifactReader
-    processed_bucket: str
+    derived_bucket: str
     manifest_path: Path
     manifest_titles: dict[str, str]
     records: tuple[DocumentRegistryRecord, ...]
@@ -584,7 +584,7 @@ def _ensure_object_store_is_reachable(inputs: StudentHandbookValidationInputs) -
                 ) from exc
     healthcheck = getattr(inputs.object_store, "healthcheck", None)
     if callable(healthcheck):
-        healthcheck(bucket=inputs.processed_bucket)
+        healthcheck(bucket=inputs.derived_bucket)
 
 
 def _ensure_prefetched_tokenizer_is_available(tokenizer_name: str) -> None:
@@ -743,14 +743,14 @@ def _load_structured_jsonl_bytes(
     if cache_dir is not None:
         cache_path = _validation_cache_file_path(
             cache_dir=cache_dir,
-            bucket=inputs.processed_bucket,
+            bucket=inputs.derived_bucket,
             key=record.document_units_object_key or "",
             version_id=record.version_id,
         )
         if cache_path.exists():
             return cache_path.read_bytes()
     payload = inputs.object_store.get_bytes(
-        bucket=inputs.processed_bucket,
+        bucket=inputs.derived_bucket,
         key=record.document_units_object_key or "",
     )
     if cache_dir is not None:
@@ -828,10 +828,16 @@ def _build_validation_inputs(
     corpus, collection = HANDBOOK_SCOPE
     runtime_profile = chunk_profile or _resolve_validation_chunk_profile(source, corpus=corpus, collection=collection)
     runtime_registry = registry or build_document_registry_from_env(source)
-    runtime_object_store = object_store or S3ObjectStoreAdmin(ObjectStoreSettings.from_env(source))
-    processed_bucket = (source.get("OBJECT_STORE_BUCKET_PROCESSED") or DEFAULT_BUCKET_PROCESSED).strip()
-    if not processed_bucket:
-        processed_bucket = DEFAULT_BUCKET_PROCESSED
+    bucket_source, bucket_derived = resolve_object_store_bucket_names(source)
+    runtime_object_store = object_store or S3ObjectStoreAdmin(
+        ObjectStoreSettings.from_env(
+            {
+                **source,
+                "OBJECT_STORE_BUCKET_SOURCE": bucket_source,
+                "OBJECT_STORE_BUCKET_DERIVED": bucket_derived,
+            }
+        )
+    )
     split_manifest_path = _resolve_manifest_path(source=source, manifest_path=manifest_path)
     manifest = load_split_manifest(
         split_manifest_path,
@@ -853,7 +859,7 @@ def _build_validation_inputs(
         chunk_profile=runtime_profile,
         registry=runtime_registry,
         object_store=runtime_object_store,
-        processed_bucket=processed_bucket,
+        derived_bucket=bucket_derived,
         manifest_path=split_manifest_path,
         manifest_titles=manifest_titles,
         records=records,
