@@ -159,6 +159,7 @@ updated: 2026-03-27
 - dense schema：named `dense`, size `2560`, distance `Cosine`
 - sparse schema：named `sparse`, `modifier=IDF`
 - fixture drift 检查：`fixture_drift_errors = []`
+- fresh schema 快照：[`.tmp/phase7/handbook-live-collection-baseline.json`](/home/reptilian/code/campus-agent/.tmp/phase7/handbook-live-collection-baseline.json)
 
 本轮 live query 结果：
 

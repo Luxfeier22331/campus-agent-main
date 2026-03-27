@@ -11,7 +11,7 @@ Requirements for the initial phase-1 release. Each requirement will map to exact
 
 - [x] **ING-01**: System can ingest `student_handbook` source documents into raw storage with stable document identity and version metadata
 - [x] **ING-02**: System can transform `student_handbook` documents into processed text and chunk/index artifacts suitable for retrieval query-serving
-- [ ] **ING-03**: System can ingest `curriculum_plan` into raw / processed / chunk outputs without exposing it to query-serving
+- [x] **ING-03**: System can ingest `curriculum_plan` into raw / processed / chunk outputs without exposing it to query-serving
 
 ### Query Serving
 
@@ -43,8 +43,8 @@ Requirements for the initial phase-1 release. Each requirement will map to exact
 
 ### Verification
 
-- [ ] **VER-01**: Repository includes automated tests proving the `supervisor -> rag-specialist -> retrieval` path and the `completed` / `needs_clarification` / `no_answer` / `error` response semantics
-- [ ] **VER-02**: Repository includes baseline smoke or eval verification for the `student_handbook` query path and ingestion path so regressions can be detected before release
+- [x] **VER-01**: Repository includes automated tests proving the `supervisor -> rag-specialist -> retrieval` path and the `completed` / `needs_clarification` / `no_answer` / `error` response semantics
+- [x] **VER-02**: Repository includes baseline smoke or eval verification for the `student_handbook` query path and ingestion path so regressions can be detected before release
 
 ## v2 Requirements
 
@@ -84,7 +84,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | ING-01 | Phase 2 | Complete |
 | ING-02 | Phase 3 | Complete |
-| ING-03 | Phase 6 | Pending |
+| ING-03 | Phase 6 | Complete |
 | QRY-01 | Phase 4 | Complete |
 | QRY-02 | Phase 4 | Complete |
 | QRY-03 | Phase 4 | Complete |
@@ -98,8 +98,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EDGE-01 | Phase 04.6 | Complete |
 | EDGE-02 | Phase 04.6 | Complete |
 | AORC-03 | Phase 03.1 | Complete |
-| VER-01 | Phase 7 | Pending |
-| VER-02 | Phase 7 | Pending |
+| VER-01 | Phase 7 | Complete |
+| VER-02 | Phase 7 | Complete |
 
 **Coverage:**
 - v1 requirements: 18 total
@@ -108,4 +108,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-23*
-*Last updated: 2026-03-27 after Phase 6 completion and mainline 04.7 sync*
+*Last updated: 2026-03-27 after Phase 7 verification closeout*

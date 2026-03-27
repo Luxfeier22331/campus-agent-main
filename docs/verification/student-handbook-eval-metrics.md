@@ -89,6 +89,40 @@ updated: 2026-03-27
 
 - 主链路终态语义已覆盖 `completed`、`no_answer`、`needs_clarification`
 - 本轮样本未出现 `error`，因此这不是 `error` 分支覆盖率结论
+- 本轮 release-gate 样本的 deterministic 四维检查均通过：`status`、`retrieval`、`answer`、`trace`
+
+## Answer / Safety / Gate Aggregate
+
+2026-03-27 release-gate deterministic 指标汇总：
+
+- `answer_accuracy = 1.0`
+  - applicable cases：`4`
+- `answer_completeness = 1.0`
+  - applicable cases：`4`
+- `forbidden_claim_rate = 0.0`
+  - applicable cases：`4`
+- `citation_completeness = 1.0`
+  - applicable cases：`4`
+- `source_locator_completeness_rate = 1.0`
+  - applicable cases：`4`
+- `clarification_accuracy = 1.0`
+  - applicable cases：`1`
+- `no_answer_accuracy = 1.0`
+  - applicable cases：`1`
+- `fail_closed_rate = 1.0`
+  - applicable cases：`1`
+- `forbidden_source_retrieval_rate = 0.0`
+  - applicable cases：`2`
+- `trace_path_correctness = 1.0`
+  - applicable cases：`6`
+- `error_path_correctness = n/a`
+  - 本轮 live release-gate 未纳入稳定的 `error` 样本，因此未形成正式数值
+
+解释：
+
+- 这批指标来自 `student_handbook_release_gate_cases()` 的 deterministic 汇总，不依赖 judge-model
+- answer 与 citation/safety 指标当前只在“适用 case”上计数，不把 `needs_clarification` / `no_answer` 样本错误计入 completeness 或 citation denominator
+- `forbidden_source_retrieval_rate` 当前只在显式声明 forbidden source 的 case 上统计，因此 denominator 仍然很小
 
 ## 失败样例与修复
 
@@ -109,16 +143,31 @@ updated: 2026-03-27
 
 - `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.retrieval.test_backend_qdrant`
 - `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.retrieval.test_backend_qdrant tests.evals.test_retrieval_benchmark tests.evals.test_golden_cases`
+- `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.specialist.test_rag_specialist tests.supervisor.test_supervisor_core tests.retrieval.test_backend_qdrant tests.evals.test_retrieval_benchmark tests.evals.test_golden_cases`
 - live qrels benchmark 通过当前 `.env` 的 handbook retrieval backend 逐条查询 qrels case 后，再喂给 `campus_evals.retrieval_benchmark` scorer 汇总
+
+## Fresh Evidence Paths
+
+本轮 fresh rerun 结果已落盘到：
+
+- [`.tmp/phase7/handbook-retrieval-run.json`](/home/reptilian/code/campus-agent/.tmp/phase7/handbook-retrieval-run.json)
+- [`.tmp/phase7/handbook-retrieval-summary.json`](/home/reptilian/code/campus-agent/.tmp/phase7/handbook-retrieval-summary.json)
+- [`.tmp/phase7/handbook-workflow-status-summary.json`](/home/reptilian/code/campus-agent/.tmp/phase7/handbook-workflow-status-summary.json)
+- [`.tmp/phase7/handbook-answer-gate-summary.json`](/home/reptilian/code/campus-agent/.tmp/phase7/handbook-answer-gate-summary.json)
+
+补充说明：
+
+- `handbook-retrieval-summary.json` 记录了 13 条 live qrels case 的 aggregate、split 与逐 case timing/top-hit
+- `handbook-workflow-status-summary.json` 记录了 6 条 release-gate 样本的 `completed=4`、`no_answer=1`、`needs_clarification=1` 与四维 deterministic 通过结果
+- `handbook-answer-gate-summary.json` 记录了 answer / citation / fail-close / forbidden-source 等新增 deterministic gate 指标
 
 ## 未覆盖项
 
 当前尚未在本文形成正式指标快照的项目：
 
-- answer correctness
-- citation completeness
 - faithfulness / groundedness
-- explicit refusal rate / forbidden-claim rate
+- judge-based answer correctness / rubric score
+- explicit refusal quality rubric
 - release gate 最终阈值
 
-这些内容仍应以 phase 7 verification/release gate 的正式收口为准。
+这些内容当前尚未纳入本轮 deterministic release-gate；如后续要扩展 groundedness / judge-based gate，应另行补充验证文档与阈值定义。

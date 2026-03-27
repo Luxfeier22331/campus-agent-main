@@ -23,10 +23,10 @@
 - ✓ 已完成 `supervisor -> specialist` 查询入口、typed actor propagation 与 durable audit logging 的 Phase 5 收口 — Validated in Phase 5
 - ✓ 已完成 Cloudflare public-entry Worker runtime shell、trusted-origin forwarding 与 `apps/supervisor-api` trusted-worker origin admission — Validated in Phase 04.6
 - ✓ 已完成 `public-consumer-chat` 的 app boundary / frontend host / auth-and-storage decision closeout，并已把实现与文档基线合入 `main` — Validated in Phase 04.7
+- ✓ 已完成 `student_handbook` 主链路的基础 eval / smoke / release-gate 验证，包含 live qrels benchmark、workflow/status 样本与 handbook collection schema 快照 — Validated in Phase 7
 
 ### Active
 
-- [ ] 为 `student_handbook` 主链路补齐基础 eval / smoke / release-gate 验证，证明问答、失败与澄清分支可验证
 - [ ] 在 release gate 中验证 `curriculum_plan` offline-only 产物与 query-disabled 不变量，同时保持其不进入 query-serving
 
 ### Out of Scope
@@ -94,4 +94,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state (users, feedback, metrics)
 
 ---
-*Last updated: 2026-03-27 after syncing mainline 04.7 closeout with Phase 6-complete project state*
+*Last updated: 2026-03-27 after Phase 7 verification closeout*

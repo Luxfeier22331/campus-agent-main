@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Synced origin/main 04.7 closeout into Phase 6-complete branch state
-last_updated: "2026-03-27T14:00:00.000Z"
+stopped_at: Completed Phase 7 verification with fresh handbook live benchmark, workflow gate, and planning closeout
+last_updated: "2026-03-27T15:15:00.000Z"
 progress:
   total_phases: 17
-  completed_phases: 16
+  completed_phases: 17
   total_plans: 41
-  completed_plans: 39
+  completed_plans: 41
 ---
 
 # Project State
@@ -19,18 +19,18 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-03-27)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 `student_handbook` 的完整 agentic RAG 主流程证明这条架构能可靠替代高频人工答疑
-**Current focus:** Phase 7 verification and release gate is now the next mainline work; Phase 04.7 and Phase 6 are both complete, and `curriculum_plan` remains offline-only
+**Current focus:** Phase 7 verification is complete; handbook release-gate evidence is now landed and the milestone is ready for closeout or next-step planning
 
 ## Current Position
 
-Phase: 07 (Verification And Release Gate) — READY TO START
-Plan: 0 of 2
+Phase: 07 (Verification And Release Gate) — COMPLETE
+Plan: 2 of 2
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 39
+- Total plans completed: 41
 - Average duration: mixed agent-run and inline execution; see per-plan summaries
 - Total execution time: 0.2 hours + 2026-03-24 inline Phase 2/3 execution
 
@@ -54,11 +54,12 @@ Plan: 0 of 2
 | 05 | 3 | inline session | n/a |
 | 05.1 | 4 | inline session | n/a |
 | 06 | 2 | inline session | n/a |
+| 07 | 2 | inline session | n/a |
 
 **Recent Trend:**
 
-- Last 5 plans: 04.7-01, 04.7-02, 05.1-04, 06-01, 06-02
-- Trend: `public-consumer-chat` mainline closeout and curriculum offline preparation are both complete; the remaining mainline blocker has moved to Phase 7 verification and release evidence
+- Last 5 plans: 05.1-04, 06-01, 06-02, 07-01, 07-02
+- Trend: handbook mainline verification evidence is now closed; no remaining phase-1 mainline blocker is open inside the roadmap
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
@@ -101,6 +102,8 @@ Plan: 0 of 2
 | Phase 05.1 P04 | inline | 2 tasks | see summary |
 | Phase 06 P01 | inline | 2 tasks | see summary |
 | Phase 06 P02 | inline | 2 tasks | see summary |
+| Phase 07 P01 | inline | 2 tasks | handbook automated verification + planning closeout |
+| Phase 07 P02 | inline | 2 tasks | live qrels/workflow evidence + docs refresh |
 
 ## Accumulated Context
 
@@ -133,20 +136,21 @@ Recent decisions affecting current work:
 - Phase 05 removed bearer actor spoofing, projected caller claims from forwarded Access JWT payload, and moved durable audit persistence to the API shell boundary.
 - Phase 05.1 froze curriculum source-truth quality gates, split-manifest review fail-close behavior, and explicit chunking runtime truth.
 - Phase 06 added `provider_response_replay` rebuild support for `curriculum_plan` while keeping retrieval, supervisor policy, and API boundary query-disabled for that collection.
+- Phase 07 closed handbook release-gate verification with repo tests, live qrels benchmark, workflow/status samples, and handbook collection schema evidence under `.tmp/phase7/`.
 
 ### Pending Todos
 
-- Start Phase 7 verification and release-gate work for handbook mainline and curriculum offline-only guardrails.
-- Keep handbook chunk-truth validation as a regression gate while verification/eval work proceeds.
+- Decide milestone closeout and whether curriculum offline-only guardrails need additional release-gate artifacts beyond the existing query-disabled verification surface.
+- Keep handbook chunk-truth validation and handbook eval artifacts as reusable regression gates for subsequent retrieval changes.
 
 ### Blockers/Concerns
 
-- No current handbook or curriculum offline-prep blocker remains; the primary remaining blocker is final release-gate verification evidence.
+- No current phase-1 mainline blocker remains inside the roadmap.
 - Cloudflare 04.x boundary/topology/contract/shell docs are complete; follow-up work must consume them as frozen handoffs rather than reopening architecture churn.
 - `public-consumer-chat` is merged on `main`; downstream work should treat 04.7 handoffs and accepted architecture docs as the canonical boundary truth.
 
 ## Session Continuity
 
-Last session: 2026-03-27T14:00:00.000Z
-Stopped at: Synced origin/main 04.7 closeout into Phase 6-complete branch state
+Last session: 2026-03-27T15:15:00.000Z
+Stopped at: Completed Phase 7 verification with fresh handbook live benchmark, workflow gate, and planning closeout
 Resume file: None
