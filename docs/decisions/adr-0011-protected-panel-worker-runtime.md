@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0011
 status: accepted
 created: 2026-03-27
-updated: 2026-03-27
+updated: 2026-03-28
 ---
 
 # ADR-0011 Protected Panel Worker Runtime 决策
@@ -56,6 +56,8 @@ protected internal panel 已经被长期文档冻结为：
 
 - panel UI shell 优先采用成熟开源 admin framework 改造，而不是从零自建通用后台框架
 - 当前首选方向是 `react-admin`
+- 默认从开源版默认 `<Layout>` 起步
+- `Help Desk` demo 只作为信息架构与视觉参考，不作为整套模板直接复刻
 
 原因：
 
@@ -67,6 +69,18 @@ protected internal panel 已经被长期文档冻结为：
 
 - 允许在 `react-admin` 之上增加 custom pages 以承载非 CRUD 的 operator flows
 - UI framework 不能反向定义 auth model、runtime seam 或 package boundary
+
+当前不作为默认起步方案的选项：
+
+- 不优先采用 `ContainerLayout`
+- 不优先采用 `SolarLayout`
+- 不采用 `Appsmith` / `ToolJet` 作为当前主路线
+
+原因：
+
+- `ContainerLayout` 更适合资源数量较少且以顶栏导航为主的场景，不符合当前 panel 的 operator console 组织方式
+- `SolarLayout` 需要更高的导航复杂度和 Enterprise 形态，现阶段过重
+- `Appsmith` / `ToolJet` 更接近通用 internal-tools builder，容易把 panel 推向数据源直连和平台化扩张
 
 ## 决策 4：panel 的长期功能域固定为 control plane，而不是通用后台
 
@@ -110,6 +124,19 @@ panel 长期功能域固定为：
 
 - 不因为 Worker runtime freeze 就修改其他 app boundary 的 runtime 承诺
 - 不因为选择开源 admin framework 就放弃 panel 的长期安全边界
+
+## 决策 5：Worker 侧 BFF 推荐采用 `Hono`
+
+结论：
+
+- Worker origin 的 panel BFF 推荐采用 `Hono`
+- `Hono` 是 Worker 路由、中间件、assertion validation 与 panel-facing API aggregation 的首选方向
+
+原因：
+
+- `Hono` 与 `Cloudflare Workers` 适配直接、足够轻量
+- 更适合承载 Access assertion validation、operator admission middleware 与 panel BFF 路由
+- 不会反向改变 panel 的 `runtime APIs only` 边界
 
 ## 相关文档
 

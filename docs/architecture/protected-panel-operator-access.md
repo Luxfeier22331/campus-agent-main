@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-27
-updated: 2026-03-27
+updated: 2026-03-28
 ---
 
 # Protected Panel Operator Access
@@ -173,8 +173,18 @@ panel 的长期构建方向优先是：
 - `Cloudflare Workers` 作为 protected panel runtime
 - 开源 admin framework 改造优先于完全自建 UI shell
 - 当前首选是 `react-admin` 作为 UI 资源壳，再配合 custom pages 承载非 CRUD operator flows
+- Worker 侧 BFF 推荐采用 `Hono`
+- `Help Desk` demo 只作为视觉和信息架构参考
+- UI 起步布局采用开源版默认 `<Layout>`
 
 这条偏好只约束 panel 的长期 build direction，不改变 panel 只能调用受控 runtime APIs 的边界。
+
+当前不作为主路线的选项：
+
+- `ContainerLayout`
+- `SolarLayout`
+- `Appsmith`
+- `ToolJet`
 
 ## Deferred
 

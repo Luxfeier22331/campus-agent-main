@@ -11,6 +11,7 @@ This app is an `apps/*` protected operator surface. It exists as a runtime shell
 - it uses controlled operator access instead of a full end-user account system
 - its long-term runtime is frozen to `Cloudflare Workers`
 - its preferred UI shell is an open-source admin framework, with `react-admin` as the first-choice direction
+- its preferred Worker-local BFF direction is `Hono`
 
 Current shell scope:
 
@@ -26,6 +27,14 @@ Canonical references:
 - `docs/architecture/protected-panel-operator-access.md`
 - `docs/architecture/protected-panel-runtime-shell.md`
 - `docs/decisions/adr-0011-protected-panel-worker-runtime.md`
+
+Implementation references:
+
+- `apps/protected-internal-panel/REACT-ADMIN-REFERENCE.md`
+- `.planning/protected-panel-worker-implementation-plan.md`
+
+Historical handoff:
+
 - `.planning/phases/04.4-protected-internal-panel-runtime-shell-inserted/04.4-IMPLEMENTATION-HANDOFF.md`
 
 Long-term operator access assumptions:
@@ -42,6 +51,14 @@ Long-term functional domains:
 - `Jobs`
 - `Operations`
 - `Audit`
+
+UI / BFF direction:
+
+- `react-admin` is the preferred UI shell
+- the open-source default `<Layout>` is the starting layout
+- the `Help Desk` demo is a reference, not a template to clone wholesale
+- `Hono` is the preferred Worker-local BFF layer
+- `ContainerLayout`, `SolarLayout`, `Appsmith`, and `ToolJet` are not the current default path
 
 Environment:
 

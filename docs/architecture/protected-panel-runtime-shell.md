@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-25
-updated: 2026-03-27
+updated: 2026-03-28
 ---
 
 # Protected Panel Runtime Shell
@@ -57,10 +57,19 @@ panel 如果后续落地，repo shape 固定为：
 panel 的 UI 壳在长期上允许优先采用开源 admin framework 改造，但必须保持 app boundary 不变：
 
 - 优先接受 `react-admin` 作为 panel UI shell
+- 起步布局采用开源版默认 `<Layout>`
+- `Help Desk` demo 只作为信息架构与视觉方向参考
 - 允许在 `react-admin` 之上添加 custom pages 来承载非 CRUD 的 operator flows
 - UI framework 不得反向定义 panel 的 runtime seam、auth model 或 package boundary
 
 这里冻结的是 “UI 壳可以复用成熟开源 admin framework”，而不是把 panel 扩张成通用后台平台。
+
+当前不作为默认起步方向的选项：
+
+- `ContainerLayout`
+- `SolarLayout`
+- `Appsmith`
+- `ToolJet`
 
 ## Allowed Runtime API Seam
 
@@ -86,6 +95,15 @@ protected panel runtime shell 如果后续落地，最小 runtime responsibility
 - 为 panel UI 提供 Worker-local BFF / aggregation seam，而不是把前端直接接到内部 runtime surfaces
 
 这意味着 panel shell 负责 protected operator surface 的请求准入，但不因此拥有 actor、ACL、approval 或完整治理语义。
+
+## BFF Shape
+
+panel 的 Worker-local BFF 在长期上推荐采用 `Hono`：
+
+- 负责 Worker 路由与 middleware 组织
+- 承载 Access assertion validation 与 operator admission middleware
+- 暴露 panel-facing `/api/*` aggregation routes
+- 不改变 panel 只调用受控 runtime APIs 的基础边界
 
 ## Forbidden Coupling
 
@@ -163,3 +181,4 @@ Phase 04.4 不解决：
 - 不在本 phase 修改 `packages/*` contract 或职责
 - 不把 panel shell 扩张成自助注册、密码找回或用户资料管理系统
 - 不把 panel shell 扩张成 CMS、数据库控制台、对象存储控制台或任意命令执行台
+- 不把第三方 UI 模板或 low-code 平台引入为主导架构，而让它们反向决定 runtime seam
