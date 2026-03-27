@@ -1,12 +1,12 @@
 ---
 doc_type: decision
-decision_id: ADR-0008
+decision_id: ADR-0009
 status: accepted
 created: 2026-03-26
 updated: 2026-03-26
 ---
 
-# ADR-0008 Public Consumer Chat 前台宿主决策
+# ADR-0009 Public Consumer Chat 前台宿主决策
 
 适用范围：`apps/public-consumer-chat` 第一版前台应用宿主、路由宿主与 app-local server/runtime shape
 
@@ -99,7 +99,7 @@ updated: 2026-03-26
 
 - 04.7 的 implementation handoff 与 app scaffold 应以 `TanStack Start` 为默认宿主
 - app 内路由、auth handler、conversation API、ownership guard 都应按同一 app boundary 组织
-- `Better Auth + Supabase Postgres` 的冻结决策继续有效，并与此前 ADR-0007 组合使用
+- `Better Auth + Supabase Postgres` 的冻结决策继续有效，并与 `docs/decisions/adr-0008-public-consumer-auth-and-storage.md` 组合使用
 
 明确不做：
 
@@ -111,4 +111,4 @@ updated: 2026-03-26
 
 - `docs/architecture/public-consumer-chat-surface.md`
 - `docs/architecture/public-consumer-chat-auth-and-data-boundary.md`
-- `docs/decisions/adr-0007-public-consumer-auth-and-storage.md`
+- `docs/decisions/adr-0008-public-consumer-auth-and-storage.md`

@@ -1,12 +1,12 @@
 ---
 doc_type: decision
-decision_id: ADR-0007
+decision_id: ADR-0008
 status: accepted
 created: 2026-03-26
 updated: 2026-03-26
 ---
 
-# ADR-0007 Public Consumer Chat 用户系统与存储决策
+# ADR-0008 Public Consumer Chat 用户系统与存储决策
 
 适用范围：`apps/public-consumer-chat` 第一版用户系统、会话存储与 conversation persistence
 

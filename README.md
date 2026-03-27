@@ -24,7 +24,7 @@
 - `packages/evals`: 评测辅助和 smoke 场景
 - `packages/shared`: 轻量共享常量和工具
 
-## 当前状态
+## 当前基线
 
 仓库已经从纯 bootstrap 进入 phase-1 主链路收口阶段。
 
@@ -33,13 +33,12 @@
 - 架构目标是 `supervisor-led hybrid orchestration`，而不是把 RAG 降级成顶层产品路径里的扁平 tool adapter
 - ingestion/object-store/registry/retrieval 地基已落地
 - 查询链路当前默认只开放 `regulations` corpus 中的 `student_handbook` collection
-- ingestion truth 统一为 `corpus + collection`：默认入口是 `regulations/student_handbook`；source 资产位于 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...`，OCR/source-truth 产物位于 source bucket 的 `ocr/` 与 `source-truth/` 前缀，清洗后的文档存放在 derived bucket 的 `{corpus}/documents/{collection}/{title_slug}--{docid8}/{representation}/{year}/...`
+- ingestion truth 统一为 `corpus + collection`：默认入口是 `regulations/student_handbook`；source 资产位于 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...`，并在同一来源前缀下按 `capture/`、`provider/`、`source-truth/` 分层保存，清洗后的文档存放在 derived bucket 的 `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/...`
 - `curriculum/curriculum_plan` 已进入 data-plane / cleaned-ingestion 收口，但 phase-1 默认仍不放开 query-serving
 - `campus_services/service_catalog` 与 `campus_services/contact_directory` 已作为离线 taxonomy 预留，但当前不开放 retrieval 或默认 query-serving
 - `rag-specialist`、`supervisor-core`、`supervisor-api`、`evals` 已有可测试的 phase-1 入口
 - `uv run --all-packages python -m unittest discover -s tests -t .` 当前通过，作为仓库级基线验证命令
-- 运行态已确认本机 `MinIO` 可访问；live buckets 已切换为 `campus-rag-source` / `campus-rag-derived`，其中 handbook source 资产位于 `pdf/`、`ocr/`、`source-truth/` 前缀
-- 运行态已确认配置中的 `Qdrant Cloud` endpoint 可达；live `student_handbook` collection 已按 `Qwen3-Embedding-4B @ 2560` 重建并写入 `511` 个点
+- 运行态 buckets、live collection 重建证据、points count 与 benchmark 结果不在 README 维护；应以 `.planning/STATE.md` 和 `docs/verification/` 为准
 
 ## 协作约定
 

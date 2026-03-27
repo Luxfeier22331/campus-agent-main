@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-03-22
-updated: 2026-03-26
+updated: 2026-03-27
 ---
 
 # Docs
@@ -64,6 +64,7 @@ updated: 2026-03-26
 - `architecture/public-consumer-chat-surface.md`
 - `architecture/protected-internal-panel-boundary.md`
 - `architecture/protected-panel-runtime-shell.md`
+- `architecture/source-truth-normalization-contract.md`
 - `architecture/supervisor-architecture.md`
 - `architecture/student-handbook-chunking-and-validation-policy.md`
 - `architecture/student-handbook-ocr-normalization-strategy.md`
@@ -73,12 +74,15 @@ updated: 2026-03-26
 - `decisions/adr-0004-evaluation-metrics.md`
 - `decisions/adr-0005-campus-services-taxonomy.md`
 - `decisions/adr-0006-agent-orchestration-and-safety.md`
-- `decisions/adr-0007-public-consumer-auth-and-storage.md`
-- `decisions/adr-0008-public-consumer-frontend-host.md`
+- `decisions/adr-0007-phase1-retrieval-baseline-update.md`
+- `decisions/adr-0008-public-consumer-auth-and-storage.md`
+- `decisions/adr-0009-public-consumer-frontend-host.md`
 - `plans/agentic-rag-foundation.md`
 - `plans/agent-orchestration-architecture-refresh.md`
 - `plans/golden-dataset-document-delivery.md`
 - `plans/golden-dataset-schema-and-bootstrap.md`
+- `plans/source-truth-normalization-refactor.md`
 - `plans/student-handbook-retrieval-eval-bootstrap.md`
 - `plans/supervisor-current-design-implementation.md`
+- `verification/phase1-ingestion-retrieval-implementation-truth.md`
 - `verification/student-handbook-hybrid-rebuild-checklist.md`
