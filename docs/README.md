@@ -77,6 +77,7 @@ updated: 2026-03-27
 - `decisions/adr-0007-phase1-retrieval-baseline-update.md`
 - `decisions/adr-0008-public-consumer-auth-and-storage.md`
 - `decisions/adr-0009-public-consumer-frontend-host.md`
+- `decisions/adr-0010-observability-and-telemetry-stack.md`
 - `plans/agentic-rag-foundation.md`
 - `plans/agent-orchestration-architecture-refresh.md`
 - `plans/golden-dataset-document-delivery.md`

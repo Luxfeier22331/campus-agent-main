@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-22
-updated: 2026-03-25
+updated: 2026-03-27
 ---
 
 # campus-agent 长期架构
@@ -86,6 +86,27 @@ runtime 选择应该延后。未来可以接受的实现包括：
 - specialist delegation / handoff contract 留在 `packages/contracts`
 - ingestion/data consumption 逻辑留在 `packages/ingestion-core`
 - ingestion、job、queue 和存储相关能力都保持在独立边界之后，不反向渗透进 supervisor
+
+## 观测与遥测边界
+
+长期上，`campus-agent` 的 observability 采用“统一 telemetry seam + 职责分离 sink”的形态，而不是把错误调试、高吞吐运行事件与审计语义全部混到同一个产品或同一类日志里。
+
+长期约束如下：
+
+- canonical telemetry seam 优先是 `OpenTelemetry`
+- trace、request identity、route、status、source locator 与治理字段应在各 runtime / package 边界上保持一致可回链
+- 高吞吐结构化运行事件与长期分析面可以独立于错误调试面存在
+- 具体 sink、collector、sampling 与 retention 不在本文冻结；accepted 运行选择见对应 ADR
+
+对当前仓库的直接含义：
+
+- `apps/*` runtime 壳负责接入 telemetry export，不把 vendor-specific SDK 语义推回 `packages/contracts`
+- `packages/supervisor-core` 继续拥有最小 audit / trace 投影责任，但不直接拥有观测产品选型
+- `packages/rag-specialist`、`packages/retrieval-core`、`packages/ingestion-core` 只输出结构化事件与 trace 语义，不直接定义长期 sink 边界
+
+相关 accepted 决策：
+
+- `docs/decisions/adr-0010-observability-and-telemetry-stack.md`
 
 在长期边界上，`packages/retrieval-core` 应拥有：
 
@@ -391,6 +412,7 @@ ACL、审计和 traceability 在第一阶段按“够上线的最小闭环”建
 - 多 agent / 多存储链路有集中 tracing
 - 审计日志至少记录用户、路由、sources 和最终状态
 - ingestion 日志至少记录 `document_id`、`version_id`、`content_hash`、处理状态和索引写入结果
+- 观测默认遵循数据最小化：不把完整 prompt、chunk 正文和敏感认证材料直接作为长期默认日志落盘
 - 文档层和 chunk 层都带 ACL metadata
 - 高风险或不可逆动作必须保留 approval / HITL 介入边界
 - specialist 自由文本输出不能直接越过 deterministic gate 触发高风险动作
