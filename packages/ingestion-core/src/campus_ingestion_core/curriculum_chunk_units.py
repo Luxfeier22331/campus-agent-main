@@ -65,6 +65,10 @@ def build_curriculum_structured_units(
                     )
                 )
                 emitted_table_groups.add(group_id)
+            heading_stack = _trim_heading_stack_for_absorbed_table_lead_ins(
+                heading_stack=heading_stack,
+                lead_in_rows=tuple(table_lead_in_rows),
+            )
             continue
 
         if row_type in {"page_number", "image", "footer"}:
@@ -99,10 +103,11 @@ def chunk_curriculum_unit(
     chunk_profile: ChunkProfile,
 ) -> tuple[SemanticChunkPiece, ...]:
     if unit.unit_type != "table_unit":
-        return chunk_structured_unit(
+        pieces = chunk_structured_unit(
             unit=StructuredUnitChunkInput(unit_type=unit.unit_type, root_unit_id=unit.root_unit_id, text=unit.text),
             chunk_profile=chunk_profile,
         )
+        return tuple(_repair_curriculum_section_piece_context(piece=piece, unit=unit) for piece in pieces)
 
     header_line = str(unit.metadata.get("table_header_line") or "").strip()
     row_lines = tuple(str(item).strip() for item in list(unit.metadata.get("table_row_lines") or []) if str(item).strip())
@@ -454,11 +459,15 @@ def _split_table_lead_in_rows(
     lead_in_rows.insert(0, remaining.pop())
     while remaining:
         candidate = remaining[-1]
-        if str(candidate.get("row_type") or "") not in {"paragraph", "note"}:
+        if str(candidate.get("row_type") or "") not in {"paragraph", "note", "heading"}:
             break
-        if not _is_table_intro_row(str(candidate.get("clean_text") or "")):
+        if not _is_table_intro_row(candidate):
             break
         lead_in_rows.insert(0, remaining.pop())
+    intro_rows = _extract_short_table_intro_rows(remaining)
+    if intro_rows:
+        del remaining[-len(intro_rows):]
+        lead_in_rows = [*intro_rows, *lead_in_rows]
     return remaining, lead_in_rows
 
 
@@ -466,18 +475,117 @@ def _is_table_cue_row(text: str) -> bool:
     normalized = text.strip()
     if not normalized:
         return False
-    return any(token in normalized for token in ("课程清单如下", "清单如下", "见下表", "如下表", "如下:"))
+    return any(token in normalized for token in ("课程清单如下", "建议课程清单", "清单如下", "见下表", "如下表", "如下:"))
 
 
-def _is_table_intro_row(text: str) -> bool:
-    normalized = text.strip()
+def _is_table_intro_row(row: dict[str, object]) -> bool:
+    normalized = str(row.get("clean_text") or "").strip()
     if not normalized or len(normalized) > 120:
         return False
+    row_type = str(row.get("row_type") or "")
+    if row_type == "heading":
+        return any(
+            (
+                re.match(r"^[（(]?\d+[)）]", normalized),
+                normalized.endswith("课程"),
+                "课程" in normalized and "清单" in normalized,
+            )
+        )
     if not re.match(r"^[（(]?\d+[)）]", normalized):
         return False
     if "课程" not in normalized:
         return False
     return any(token in normalized for token in ("学分", "必修", "选修", "修读"))
+
+
+def _extract_short_table_intro_rows(narrative_rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    if len(narrative_rows) < 2:
+        return []
+    heading_row = narrative_rows[-2]
+    paragraph_row = narrative_rows[-1]
+    if str(heading_row.get("row_type") or "") != "heading":
+        return []
+    if str(paragraph_row.get("row_type") or "") not in {"paragraph", "note"}:
+        return []
+    heading_text = str(heading_row.get("clean_text") or "").strip()
+    paragraph_text = str(paragraph_row.get("clean_text") or "").strip()
+    if not heading_text or not paragraph_text:
+        return []
+    if len(paragraph_text) > 80:
+        return []
+    if "课程" not in paragraph_text:
+        return []
+    if not any(token in paragraph_text for token in ("学分", "必修", "选修", "修读")):
+        return []
+    if not _is_table_intro_row(heading_row):
+        return []
+    return [heading_row, paragraph_row]
+
+
+def _repair_curriculum_section_piece_context(
+    *,
+    piece: SemanticChunkPiece,
+    unit: DerivedStructuredUnit,
+) -> SemanticChunkPiece:
+    if unit.unit_type != "section_text":
+        return piece
+    section_path = [
+        str(item).strip()
+        for item in list(unit.anchor.get("section_path") or [])
+        if str(item).strip()
+    ]
+    if len(section_path) < 2:
+        return piece
+    current_heading = section_path[-1]
+    parent_heading = section_path[-2]
+    if not current_heading or not parent_heading:
+        return piece
+    lines = [line.strip() for line in piece.text.splitlines() if line.strip()]
+    if not lines:
+        return piece
+    first_line = lines[0]
+    if first_line != current_heading:
+        return piece
+    if piece.text.startswith(parent_heading):
+        return piece
+    if not _looks_like_subsection_heading(current_heading):
+        return piece
+    return SemanticChunkPiece(
+        unit_type=piece.unit_type,
+        root_unit_id=piece.root_unit_id,
+        text=f"{parent_heading}\n\n{piece.text}".strip(),
+        segment_index=piece.segment_index,
+        segment_total=piece.segment_total,
+        split_reason=piece.split_reason,
+        boundary_rule=piece.boundary_rule,
+    )
+
+
+def _trim_heading_stack_for_absorbed_table_lead_ins(
+    *,
+    heading_stack: list[tuple[int, str]],
+    lead_in_rows: tuple[dict[str, object], ...],
+) -> list[tuple[int, str]]:
+    trimmed = list(heading_stack)
+    for row in lead_in_rows:
+        if str(row.get("row_type") or "") != "heading":
+            continue
+        heading_text = str(row.get("clean_text") or "").strip()
+        if not heading_text or not trimmed:
+            continue
+        if trimmed[-1][1] == heading_text:
+            trimmed.pop()
+    return trimmed
+
+
+def _looks_like_subsection_heading(text: str) -> bool:
+    normalized = text.strip()
+    if not normalized:
+        return False
+    return bool(
+        re.match(r"^[（(][一二三四五六七八九十]+[)）]", normalized)
+        or re.match(r"^[（(]?\d+[)）.、]", normalized)
+    )
 
 
 def _looks_like_detached_table_note(text: str) -> bool:
@@ -486,7 +594,7 @@ def _looks_like_detached_table_note(text: str) -> bool:
         return False
     if normalized.startswith(("备注", "备注：", "注：", "说明：")):
         return False
-    if _is_table_cue_row(normalized) or _is_table_intro_row(normalized):
+    if _is_table_cue_row(normalized) or _is_table_intro_row({"clean_text": normalized, "row_type": "paragraph"}):
         return True
     return False
 

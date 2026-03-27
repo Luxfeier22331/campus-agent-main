@@ -41,6 +41,76 @@ def _make_curriculum_record() -> DocumentRegistryRecord:
     )
 
 
+def _build_real_curriculum_projection_chunks(
+    document_id: str,
+) -> tuple[DocumentRegistryRecord, tuple[object, ...]]:
+    manifest = load_split_manifest(
+        Path("configs/ingestion/curriculum/curriculum_plan/split-manifest.v1.json"),
+        expected_corpus="curriculum",
+        expected_collection="curriculum_plan",
+    )
+    layout_rows = _load_layout_elements_rows(
+        Path("tests/fixtures/curriculum_plan/layout-elements.pages-278-297.jsonl").read_bytes()
+    )
+    target_document = next(item for item in manifest.documents if item.document_id == document_id)
+    raw_version_id = "sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67"
+    document_input = _build_split_manifest_document_input(
+        raw_asset_record=type("RawAssetRecordProxy", (), {
+            "raw_asset_id": "asset:curriculum-plan-2022",
+            "raw_version_id": raw_version_id,
+            "corpus": "curriculum",
+            "collection": "curriculum_plan",
+            "raw_source_uri": "file:///tmp/curriculum-plan-2022.pdf",
+            "content_hash": raw_version_id.removeprefix("sha256:"),
+            "source_filename": "curriculum-plan-2022.pdf",
+            "object_key": "official_pdf/curriculum-plan/2022/sha256/test/capture/curriculum-plan-2022.pdf",
+            "ingestion_timestamp": "2026-03-24T10:00:00+00:00",
+            "import_source": "raw_online_ocr",
+        })(),
+        manifest_version=manifest.manifest_version,
+        manifest_document=target_document,
+        structured_rows=layout_rows,
+        provider_response_key="official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl",
+        layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
+        default_campus_scope="main",
+        corpus="curriculum",
+        collection="curriculum_plan",
+    )
+    record = DocumentRegistryRecord(
+        document_id=target_document.document_id,
+        revision_track="source-faithful",
+        version_id=str(document_input.metadata["version_id"]),
+        source_uri=str(document_input.metadata.get("source_url") or document_input.metadata.get("source_id") or ""),
+        content_hash=hashlib.sha256(document_input.document_units_bytes).hexdigest(),
+        corpus="curriculum",
+        collection="curriculum_plan",
+        cleaning_policy_version="curriculum_plan_cleaning_v1",
+        acl_groups=tuple(document_input.metadata.get("acl_groups") or ()),
+        campus_scope="main",
+        status=str(document_input.metadata.get("status") or "active"),
+        ingestion_timestamp="2026-03-27T12:00:00+00:00",
+        parser_version="raw-online-ocr-v1",
+        embedding_model="Qwen3-Embedding-4B",
+        source_channel="pdf_ocr",
+        is_current=True,
+        document_units_object_key="curriculum/documents/tmp/document-units.jsonl",
+        import_source="raw_online_ocr",
+    )
+    chunks = build_indexable_chunks_from_jsonl(
+        record=record,
+        structured_jsonl_bytes=document_input.document_units_bytes,
+        chunk_profile=ChunkProfile(
+            chunk_size=360,
+            max_chunk_size=540,
+            chunk_overlap=72,
+            min_chunk_size=50,
+            chunk_policy_version="curriculum_plan_semantic_v1",
+            cleaning_policy_version="curriculum_plan_cleaning_v1",
+        ),
+    )
+    return record, chunks
+
+
 class CurriculumChunkingTest(unittest.TestCase):
     def test_build_indexable_chunks_from_jsonl_uses_runtime_curriculum_chunk_profile_by_default(self) -> None:
         record = _make_curriculum_record()
@@ -458,8 +528,9 @@ class CurriculumChunkingTest(unittest.TestCase):
 
         self.assertEqual(len(chunks), 2)
         self.assertEqual(chunks[0].metadata["unit_type"], "section_text")
-        self.assertEqual(chunks[0].text, "五、课程设置和修读建议\n\n1. 专业核心课程")
+        self.assertEqual(chunks[0].text, "五、课程设置和修读建议")
         self.assertEqual(chunks[1].metadata["unit_type"], "table_unit")
+        self.assertIn("1. 专业核心课程", chunks[1].text)
         self.assertIn("(1)音乐表演(声乐)专业必修的专业核心课程 30 学分。", chunks[1].text)
         self.assertIn("课程清单如下:", chunks[1].text)
         self.assertIn("专业名称 | 课程号", chunks[1].text)
@@ -599,78 +670,79 @@ class CurriculumChunkingTest(unittest.TestCase):
         self.assertNotIn("\n| ", chunks[0].text)
 
     def test_real_curriculum_projection_can_chunk_after_split(self) -> None:
-        manifest = load_split_manifest(
-            Path("configs/ingestion/curriculum/curriculum_plan/split-manifest.v1.json"),
-            expected_corpus="curriculum",
-            expected_collection="curriculum_plan",
-        )
-        layout_rows = _load_layout_elements_rows(
-            Path("tests/fixtures/curriculum_plan/layout-elements.pages-278-297.jsonl").read_bytes()
-        )
-        target_document = next(
-            item for item in manifest.documents if item.document_id == "curriculum:国际经济与贸易本科人才培养方案"
-        )
-        raw_version_id = "sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67"
-        document_input = _build_split_manifest_document_input(
-            raw_asset_record=type("RawAssetRecordProxy", (), {
-                "raw_asset_id": "asset:curriculum-plan-2022",
-                "raw_version_id": raw_version_id,
-                "corpus": "curriculum",
-                "collection": "curriculum_plan",
-                "raw_source_uri": "file:///tmp/curriculum-plan-2022.pdf",
-                "content_hash": raw_version_id.removeprefix("sha256:"),
-                "source_filename": "curriculum-plan-2022.pdf",
-                "object_key": "official_pdf/curriculum-plan/2022/sha256/test/capture/curriculum-plan-2022.pdf",
-                "ingestion_timestamp": "2026-03-24T10:00:00+00:00",
-                "import_source": "raw_online_ocr",
-            })(),
-            manifest_version=manifest.manifest_version,
-            manifest_document=target_document,
-            structured_rows=layout_rows,
-            provider_response_key="official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl",
-            layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
-            default_campus_scope="main",
-            corpus="curriculum",
-            collection="curriculum_plan",
-        )
-        record = DocumentRegistryRecord(
-            document_id=target_document.document_id,
-            revision_track="source-faithful",
-            version_id=str(document_input.metadata["version_id"]),
-            source_uri=str(document_input.metadata.get("source_url") or document_input.metadata.get("source_id") or ""),
-            content_hash=hashlib.sha256(document_input.document_units_bytes).hexdigest(),
-            corpus="curriculum",
-            collection="curriculum_plan",
-            cleaning_policy_version="curriculum_plan_cleaning_v1",
-            acl_groups=tuple(document_input.metadata.get("acl_groups") or ()),
-            campus_scope="main",
-            status=str(document_input.metadata.get("status") or "active"),
-            ingestion_timestamp="2026-03-27T12:00:00+00:00",
-            parser_version="raw-online-ocr-v1",
-            embedding_model="Qwen3-Embedding-4B",
-            source_channel="pdf_ocr",
-            is_current=True,
-            document_units_object_key="curriculum/documents/tmp/document-units.jsonl",
-            import_source="raw_online_ocr",
-        )
-
-        chunks = build_indexable_chunks_from_jsonl(
-            record=record,
-            structured_jsonl_bytes=document_input.document_units_bytes,
-            chunk_profile=ChunkProfile(
-                chunk_size=360,
-                max_chunk_size=540,
-                chunk_overlap=72,
-                min_chunk_size=50,
-                chunk_policy_version="curriculum_plan_semantic_v1",
-                cleaning_policy_version="curriculum_plan_cleaning_v1",
-            ),
-        )
+        _, chunks = _build_real_curriculum_projection_chunks("curriculum:国际经济与贸易本科人才培养方案")
 
         self.assertGreater(len(chunks), 0)
         self.assertEqual(chunks[0].metadata["unit_type"], "section_text")
         self.assertEqual(chunks[0].anchor["page_start"], 278)
         self.assertIn("国际经济与贸易本科人才培养方案", chunks[0].text)
+
+    def test_real_curriculum_projection_absorbs_short_intro_and_table_cue_into_table_chunk(self) -> None:
+        _, chunks = _build_real_curriculum_projection_chunks("curriculum:国际经济与贸易本科人才培养方案")
+
+        self.assertFalse(any(chunk.text.strip() == "建议课程清单:" for chunk in chunks))
+        self.assertFalse(
+            any(
+                chunk.metadata["unit_type"] == "section_text"
+                and "国际经济与贸易专业选修课程至少任选 7 门课程,完成 14 学分。" in chunk.text
+                for chunk in chunks
+            )
+        )
+        self.assertTrue(
+            any(
+                chunk.metadata["unit_type"] == "table_unit"
+                and "国际经济与贸易专业选修课程至少任选 7 门课程,完成 14 学分。" in chunk.text
+                and "课程清单如下:" in chunk.text
+                and "课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 开设学期" in chunk.text
+                for chunk in chunks
+            )
+        )
+        self.assertTrue(
+            any(
+                chunk.metadata["unit_type"] == "table_unit"
+                and "建议课程清单:" in chunk.text
+                and "课程类 | 课程号 | 课程名称 | 学分" in chunk.text
+                for chunk in chunks
+            )
+        )
+
+    def test_real_curriculum_projection_merges_weak_single_row_table_into_previous_table_context(self) -> None:
+        _, chunks = _build_real_curriculum_projection_chunks("curriculum:国际经济与贸易本科人才培养方案")
+
+        self.assertFalse(
+            any(
+                chunk.metadata["unit_type"] == "table_unit"
+                and chunk.text.strip() == "1034030154 | 国际商务案例分析(实训) | 1 | 36 | 18 | 理论部分第6学期1-9周/实践部分5-6小学期"
+                for chunk in chunks
+            )
+        )
+        self.assertTrue(
+            any(
+                chunk.metadata["unit_type"] == "table_unit"
+                and "1034030154 | 国际商务案例分析(实训) | 1 | 36 | 18 | 理论部分第6学期1-9周/实践部分5-6小学期"
+                in chunk.text
+                and "课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 修读学期" in chunk.text
+                for chunk in chunks
+            )
+        )
+
+    def test_real_curriculum_projection_repairs_parent_heading_context_for_subsection_chunks(self) -> None:
+        _, chunks = _build_real_curriculum_projection_chunks("curriculum:国际经济与贸易本科人才培养方案")
+
+        self.assertFalse(
+            any(
+                chunk.metadata["unit_type"] == "section_text"
+                and chunk.text.startswith("(二)知识要求")
+                for chunk in chunks
+            )
+        )
+        self.assertTrue(
+            any(
+                chunk.metadata["unit_type"] == "section_text"
+                and chunk.text.startswith("二、毕业要求\n\n(二)知识要求")
+                for chunk in chunks
+            )
+        )
 
 
 if __name__ == "__main__":

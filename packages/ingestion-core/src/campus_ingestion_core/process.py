@@ -180,6 +180,11 @@ def build_indexable_chunks_from_jsonl(
         chunk_candidates=chunk_candidates,
         chunk_profile=runtime_profile,
     )
+    if record.collection == "curriculum_plan":
+        chunk_candidates = _merge_adjacent_curriculum_table_candidates(
+            chunk_candidates=chunk_candidates,
+            chunk_profile=runtime_profile,
+        )
     dense_embeddings = _embed_texts(
         [candidate.chunk_assembly.text for candidate in chunk_candidates],
         embedding_model,
@@ -398,6 +403,100 @@ def _absorb_short_textual_candidates(
     return tuple(absorbed)
 
 
+def _merge_adjacent_curriculum_table_candidates(
+    *,
+    chunk_candidates: Sequence[_ChunkCandidate],
+    chunk_profile: ChunkProfile,
+) -> tuple[_ChunkCandidate, ...]:
+    if not chunk_candidates:
+        return ()
+    merged: list[_ChunkCandidate] = []
+    index = 0
+    while index < len(chunk_candidates):
+        current = chunk_candidates[index]
+        if index + 1 < len(chunk_candidates):
+            incoming = chunk_candidates[index + 1]
+            next_candidate = _try_merge_curriculum_table_candidates(
+                current=current,
+                incoming=incoming,
+                chunk_profile=chunk_profile,
+            )
+            if next_candidate is not None:
+                merged.append(next_candidate)
+                index += 2
+                continue
+        merged.append(current)
+        index += 1
+    return tuple(merged)
+
+
+def _try_merge_curriculum_table_candidates(
+    *,
+    current: _ChunkCandidate,
+    incoming: _ChunkCandidate,
+    chunk_profile: ChunkProfile,
+) -> _ChunkCandidate | None:
+    if current.unit_type != "table_unit" or incoming.unit_type != "table_unit":
+        return None
+    if current.acl_level != incoming.acl_level:
+        return None
+    if not _curriculum_table_section_paths_are_compatible(current=current, incoming=incoming):
+        return None
+    if current.metadata.get("title") != incoming.metadata.get("title"):
+        return None
+    if not _is_weak_curriculum_table_candidate(current) and not _is_weak_curriculum_table_candidate(incoming):
+        return None
+    members = (*current.members, *incoming.members)
+    aggregated_anchor = _build_aggregated_anchor(members)
+    aggregated_metadata = _build_aggregated_metadata(current=current, members=members)
+    aggregated_metadata["aggregation_mode"] = "adjacent_curriculum_table_context"
+    aggregated_display_text = "\n".join(
+        piece
+        for piece in (current.piece.text.strip(), incoming.piece.text.strip())
+        if piece
+    ).strip()
+    chunk_assembly = assemble_chunk_text(
+        display_text=aggregated_display_text,
+        context_plan=build_chunk_text_context(anchor=aggregated_anchor, metadata=aggregated_metadata),
+        chunk_profile=chunk_profile,
+    )
+    if chunk_assembly.total_token_count > chunk_profile.max_chunk_size:
+        return None
+    return _ChunkCandidate(
+        unit_type=current.unit_type,
+        root_unit_id=current.root_unit_id,
+        source_chunk_id=current.source_chunk_id,
+        acl_level=current.acl_level,
+        anchor=aggregated_anchor,
+        metadata=aggregated_metadata,
+        piece=SemanticChunkPiece(
+            unit_type=current.piece.unit_type,
+            root_unit_id=current.piece.root_unit_id,
+            text=aggregated_display_text,
+        ),
+        chunk_assembly=chunk_assembly,
+        members=members,
+    )
+
+
+def _curriculum_table_section_paths_are_compatible(
+    *,
+    current: _ChunkCandidate,
+    incoming: _ChunkCandidate,
+) -> bool:
+    current_path = _normalize_section_path(current.anchor)
+    incoming_path = _normalize_section_path(incoming.anchor)
+    if current_path == incoming_path:
+        return True
+    if not current_path or not incoming_path:
+        return False
+    if current_path[: len(incoming_path)] == incoming_path:
+        return True
+    if incoming_path[: len(current_path)] == current_path:
+        return True
+    return False
+
+
 def _try_merge_short_textual_candidates(
     *,
     current: _ChunkCandidate,
@@ -547,6 +646,44 @@ def _is_absorbable_short_textual_candidate(candidate: _ChunkCandidate) -> bool:
     if not _is_short_textual_merge_eligible(candidate):
         return False
     return _is_short_textual_candidate(candidate)
+
+
+def _is_weak_curriculum_table_candidate(candidate: _ChunkCandidate) -> bool:
+    if candidate.unit_type != "table_unit":
+        return False
+    caption_lines = tuple(str(item).strip() for item in list(candidate.metadata.get("caption_lines") or ()) if str(item).strip())
+    row_lines = tuple(str(item).strip() for item in list(candidate.metadata.get("table_row_lines") or ()) if str(item).strip())
+    header_line = str(candidate.metadata.get("table_header_line") or "").strip()
+    if caption_lines:
+        return False
+    if row_lines:
+        return False
+    if not header_line:
+        return True
+    return not _looks_like_table_header_line(header_line)
+
+
+def _looks_like_table_header_line(text: str) -> bool:
+    normalized = text.strip()
+    if not normalized:
+        return False
+    return any(
+        token in normalized
+        for token in (
+            "课程号",
+            "课程名称",
+            "学分",
+            "学时",
+            "修读学期",
+            "开设学期",
+            "备注",
+            "类别",
+            "培养阶段",
+            "板块名称",
+            "课程类",
+            "专业名称",
+        )
+    )
 
 
 def _short_textual_group_is_satisfied(candidate: _ChunkCandidate) -> bool:
