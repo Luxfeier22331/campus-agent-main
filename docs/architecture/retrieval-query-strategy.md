@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-26
-updated: 2026-03-26
+updated: 2026-03-27
 ---
 
 # Retrieval Query Strategy
@@ -35,6 +35,8 @@ updated: 2026-03-26
 - candidate 不得绕过 registry 直接变成最终 source
 - 最终对外只暴露 `EvidenceBundle`
 - `rag-specialist` 可以选择策略，但不能吸收 retrieval backend 细节
+- query-serving 默认只消费 collection runtime profile 定义的 current-serving documents，不把历史版本命中后再用 `latest_url` 事后修补当作主路径
+- query-serving 消费的是逻辑 document/version，不是 source replica；相同内容的 `pdf_ocr` / `official_web` 不允许以两份 evidence 的形式同时进入候选集
 
 ## Contract 分层
 
@@ -110,12 +112,30 @@ fusion 后的候选必须继续通过 `DocumentRegistry` 回链，补齐：
 
 最终输出固定为 `EvidenceBundle`。
 
+## Serving Policy
+
+当前 query-serving 对“只消费最新文档”的定义固定为：
+
+- latest/current truth 只由 `DocumentRegistry` 表达，不由 object key、文件时间戳或 Qdrant score 推断
+- collection runtime profile 可以定义：
+  - `current_only`
+  - `serving_revision_tracks`
+- `student_handbook` 当前 runtime policy 为：
+  - `current_only=true`
+  - `serving_revision_tracks=["current-effective","source-faithful"]`
+- 这表示 query path 只消费被标记为 current 的 serving representation；`source-faithful` 只作为过渡 fallback / 审计线保留，不再是“历史也可默认命中”的开放路径
+- 新 current 版本写入时，ingestion 必须把同一 `document_id + revision_track` 的旧 current 版本降级为 `is_current=false`，并将其状态推进为 `superseded`
+- 当多来源在同一 `document_id + revision_track` 下对应到相同 `version_id` 时，registry 负责记录 primary source 与 alternate source；retrieval 仍只消费这一个逻辑版本
+
 ## Filter 规则
 
 当前 retrieval pre-filter 必须至少覆盖：
 
 - `corpus`
 - `collection`
+- `revision_track in serving_revision_tracks`
+- `status=active`
+- `is_current=true`（当 `current_only=true`）
 - `acl_level` / `acl_groups`
 - `campus_scope`
 
@@ -132,6 +152,7 @@ fusion 后的候选必须继续通过 `DocumentRegistry` 回链，补齐：
 - retrieval query 对同一 filter 集合同时发起 dense prefetch 与 sparse prefetch
 - dense / sparse 融合默认使用 Qdrant native `RRF`
 - registry back-link、`EvidenceBundle`、ACL filter contract 保持不变
+- serving 所需的 payload metadata 至少包括 `revision_track`、`status`、`is_current`
 
 当前不冻结 sparse model 的具体品牌或 provider，但冻结以下边界：
 

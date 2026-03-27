@@ -213,6 +213,51 @@ Example:
 python -m campus_ingestion_worker.migrate_student_handbook_source_faithful --raw-version-id sha256:...
 ```
 
+### `migrate_source_artifacts_to_canonical_source_bucket`
+
+Moves legacy source-level OCR artifacts out of the derived bucket and into the canonical source bucket layout.
+
+Required CLI args:
+
+- `--corpus`
+- `--collection`
+- `--raw-version-id`
+
+Optional CLI args:
+
+- `--raw-asset-id`
+- `--source-pdf`
+- `--year`
+
+Required env:
+
+- `OBJECT_STORE_ENDPOINT`
+- `OBJECT_STORE_ACCESS_KEY`
+- `OBJECT_STORE_SECRET_KEY`
+- `DOCUMENT_REGISTRY_DATABASE_URL`
+
+Optional env:
+
+- `RAW_ASSET_REGISTRY_DATABASE_URL`
+- `INGESTION_SPLIT_MANIFEST_PATH`
+
+Behavior:
+
+- Copies legacy source-level `provider-response.jsonl` from derived-bucket `.../sources/...` paths into canonical source-bucket `ocr/...` paths.
+- Copies matching `layout-elements.jsonl` into canonical source-bucket `source-truth/...` when that artifact exists.
+- Deletes the legacy derived-bucket source artifact objects after the canonical copies are verified.
+- Rewrites `provider_response_object_key` and `processed_object_keys` in document-registry rows for the same corpus/collection scope when they still point at the legacy source artifact paths.
+- Does not rebuild Qdrant or rewrite document-level derived artifacts.
+
+Example:
+
+```bash
+python -m campus_ingestion_worker.migrate_source_artifacts_to_canonical_source_bucket \
+  --corpus curriculum \
+  --collection curriculum_plan \
+  --raw-version-id sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67
+```
+
 ### `validate_student_handbook_chunking`
 
 Read-only validation shell for the real `regulations/student_handbook` chunking inputs and outputs.

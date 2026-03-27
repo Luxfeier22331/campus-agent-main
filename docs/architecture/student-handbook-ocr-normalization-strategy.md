@@ -361,6 +361,8 @@ Unit normalization 必须满足以下边界：
 - `version_id` 由规范化后的 `title + body` 生成，不绑定 source asset 文件名或 provider job
 - `source_channel` 显式记录来源渠道；第一阶段 OCR ingest / replay 默认写 `pdf_ocr`
 - `is_current` 表示该表示线是否是当前对外生效线；source-faithful handbook 默认 `false`
+- `source-faithful` 是审计/回放表示线，不是长期默认 serving line；query-serving 默认应优先消费 `current-effective`，只有在 collection runtime profile 显式允许时，才把 current 的 `source-faithful` 作为过渡 fallback
+- 如果 `pdf_ocr` 与 `official_web` 经过规范化后得到完全一致的文档正文，它们应共享同一个 `document_id + representation + version_id`；差异保留在 provenance，而不是扩成两份 serving document
 - `policy_doc_no` 仅在可稳定识别时保留
 - metadata-only 前导信息只进入 canonical metadata / contextualization 输入，不单独生成 `policy_page` unit
 - `page_start/page_end` 属于文档真相，不应由 chunking 事后回推
@@ -393,6 +395,8 @@ Unit normalization 必须满足以下边界：
 - `source_channel` 一律写入 `pdf_ocr`
 - `is_current=false`
 - 后续如果引入官网对照更新后的制度正文，应新增 `current-effective` representation，而不是覆盖 `source-faithful`
+- 一旦 `current-effective` 建立，query-serving 应通过 runtime profile 只消费被标记为 current 的 serving representation，而不是让历史 `source-faithful` 继续默认参与检索
+- 当同内容多来源合并为同一逻辑版本时，`current-effective` 的 primary source 默认优先 `official_web`，`source-faithful` 的 primary source 默认优先 `pdf_ocr`
 
 ## 参考
 

@@ -13,7 +13,7 @@ from campus_ingestion_core.artifacts import (
     DOCUMENT_UNITS_FILENAME,
     PROVIDER_RESPONSE_FILENAME,
 )
-from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef
+from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef, SourceObservation
 
 
 DEFAULT_DOCUMENT_REGISTRY_TABLE = "document_registry_records"
@@ -805,25 +805,21 @@ def _document_record_from_dict(raw: dict[str, object]) -> DocumentRegistryRecord
     raw_asset_payload = raw.get("raw_asset")
     raw_asset = None
     if isinstance(raw_asset_payload, dict):
-        raw_asset = RawAssetRef(
-            raw_asset_id=str(raw_asset_payload["raw_asset_id"]),
-            raw_version_id=str(raw_asset_payload["raw_version_id"]),
-            page_start=(
-                int(raw_asset_payload["page_start"])
-                if raw_asset_payload.get("page_start") is not None
-                else None
-            ),
-            page_end=(
-                int(raw_asset_payload["page_end"])
-                if raw_asset_payload.get("page_end") is not None
-                else None
-            ),
-        )
+        raw_asset = _raw_asset_ref_from_dict(raw_asset_payload)
+    source_channel = str(raw.get("source_channel") or _infer_legacy_source_channel(raw))
+    source_uri = str(raw["source_uri"])
+    source_observations = _source_observations_from_raw(
+        raw=raw,
+        source_channel=source_channel,
+        source_uri=source_uri,
+        raw_asset=raw_asset,
+        import_source=str(raw["import_source"]),
+    )
     return DocumentRegistryRecord(
         document_id=str(raw["document_id"]),
         revision_track=revision_track,
         version_id=str(raw["version_id"]),
-        source_uri=str(raw["source_uri"]),
+        source_uri=source_uri,
         content_hash=str(raw["content_hash"]),
         corpus=_normalize_registry_corpus(str(raw["corpus"])),
         collection=_normalize_registry_collection(
@@ -837,7 +833,7 @@ def _document_record_from_dict(raw: dict[str, object]) -> DocumentRegistryRecord
         ingestion_timestamp=str(raw["ingestion_timestamp"]),
         parser_version=str(raw["parser_version"]),
         embedding_model=str(raw.get("embedding_model") or ""),
-        source_channel=str(raw.get("source_channel") or _infer_legacy_source_channel(raw)),
+        source_channel=source_channel,
         is_current=bool(raw.get("is_current", False)),
         effective_date=str(raw["effective_date"]) if raw.get("effective_date") is not None else None,
         published_date=str(raw["published_date"]) if raw.get("published_date") is not None else None,
@@ -846,6 +842,7 @@ def _document_record_from_dict(raw: dict[str, object]) -> DocumentRegistryRecord
         ),
         provenance_status=str(raw.get("provenance_status") or ""),
         raw_asset=raw_asset,
+        source_observations=source_observations,
         document_units_object_key=document_units_object_key,
         provider_response_object_key=provider_response_object_key,
         canonical_markdown_object_key=canonical_markdown_object_key,
@@ -877,6 +874,55 @@ def _find_processed_artifact(processed_object_keys: tuple[str, ...], filename: s
         if key.endswith(f"/{filename}"):
             return key
     return None
+
+
+def _raw_asset_ref_from_dict(raw: dict[str, object]) -> RawAssetRef:
+    return RawAssetRef(
+        raw_asset_id=str(raw["raw_asset_id"]),
+        raw_version_id=str(raw["raw_version_id"]),
+        page_start=int(raw["page_start"]) if raw.get("page_start") is not None else None,
+        page_end=int(raw["page_end"]) if raw.get("page_end") is not None else None,
+    )
+
+
+def _source_observations_from_raw(
+    *,
+    raw: dict[str, object],
+    source_channel: str,
+    source_uri: str,
+    raw_asset: RawAssetRef | None,
+    import_source: str,
+) -> tuple[SourceObservation, ...]:
+    if "source_observations" not in raw:
+        return (
+            SourceObservation(
+                source_channel=source_channel,
+                source_uri=source_uri,
+                raw_asset=raw_asset,
+                is_primary=True,
+                import_source=import_source,
+            ),
+        )
+    observations_payload = raw.get("source_observations") or []
+    observations: list[SourceObservation] = []
+    for item in list(observations_payload):
+        if not isinstance(item, dict):
+            continue
+        observation_raw_asset = item.get("raw_asset")
+        observations.append(
+            SourceObservation(
+                source_channel=str(item.get("source_channel") or source_channel),
+                source_uri=str(item.get("source_uri") or source_uri),
+                raw_asset=(
+                    _raw_asset_ref_from_dict(observation_raw_asset)
+                    if isinstance(observation_raw_asset, dict)
+                    else None
+                ),
+                is_primary=bool(item.get("is_primary", False)),
+                import_source=str(item.get("import_source") or ""),
+            )
+        )
+    return tuple(observations)
 
 
 def _infer_legacy_source_channel(raw: dict[str, object]) -> str:

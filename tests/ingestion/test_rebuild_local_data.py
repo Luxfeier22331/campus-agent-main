@@ -9,13 +9,15 @@ from unittest.mock import patch
 
 from campus_ingestion_core.local_rebuild import (
     RebuildRequest,
+    SourceArtifactsMigrationRequest,
     StudentHandbookSourceAssetRequest,
     _build_qdrant_client,
     _resolve_ingestion_qdrant_timeout_seconds,
+    migrate_source_artifacts_to_canonical_source_bucket,
     migrate_student_handbook_source_faithful,
     rebuild_local_data,
 )
-from campus_ingestion_core.models import RawAssetRecord
+from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
 from campus_retrieval_core.settings import RetrievalSettings
 
 SOURCE_BUCKET = "campus-rag-source"
@@ -121,6 +123,32 @@ class _FakeDocumentRegistryWithRecords(_FakeDocumentRegistry):
             for record in self.records
             if record.corpus == corpus and (collection is None or record.collection == collection)
         )
+
+
+class _MutableFakeDocumentRegistry(_FakeDocumentRegistry):
+    def __init__(self, *records: DocumentRegistryRecord) -> None:
+        super().__init__()
+        self.records: dict[tuple[str, str, str], DocumentRegistryRecord] = {
+            (record.document_id, record.revision_track, record.version_id): record
+            for record in records
+        }
+
+    def list_by_corpus(self, corpus: str) -> tuple[DocumentRegistryRecord, ...]:
+        return tuple(record for record in self.records.values() if record.corpus == corpus)
+
+    def list_by_scope(self, corpus: str, collection: str | None = None) -> tuple[DocumentRegistryRecord, ...]:
+        return tuple(
+            record
+            for record in self.records.values()
+            if record.corpus == corpus and (collection is None or record.collection == collection)
+        )
+
+    def upsert(self, record: DocumentRegistryRecord) -> None:
+        self.records[(record.document_id, record.revision_track, record.version_id)] = record
+
+    def upsert_many(self, records: tuple[DocumentRegistryRecord, ...]) -> None:
+        for record in records:
+            self.upsert(record)
 
 
 class RebuildLocalDataTest(unittest.TestCase):
@@ -876,6 +904,97 @@ class RebuildLocalDataTest(unittest.TestCase):
         self.assertEqual(calls[0]["request"].raw_asset_id, override_raw_asset_id)
         self.assertEqual(calls[0]["request"].raw_version_id, raw_version_id)
         self.assertEqual(calls[0]["env"]["REPLAY_SOURCE_PDF"], "学生手册_2020.pdf")
+
+    def test_migrate_source_artifacts_to_canonical_source_bucket_moves_curriculum_legacy_source_objects(
+        self,
+    ) -> None:
+        object_store = _FakeObjectStoreAdmin()
+        legacy_provider_key = (
+            "curriculum/sources/pdf_ocr/curriculum-plan/2022/sha256/"
+            "0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67/provider-response.jsonl"
+        )
+        legacy_layout_key = (
+            "curriculum/sources/pdf_ocr/curriculum-plan/2022/sha256/"
+            "0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67/layout-elements.jsonl"
+        )
+        object_store.objects[(DERIVED_BUCKET, legacy_provider_key)] = b'{"provider":true}\n'
+        object_store.objects[(DERIVED_BUCKET, legacy_layout_key)] = b'{"layout":true}\n'
+        record = DocumentRegistryRecord(
+            document_id="plan:test-001",
+            revision_track="source-faithful",
+            version_id="sha256:test-001:split:test-001:abcd1234",
+            source_uri="campus-agent://curriculum/curriculum_plan/docs/plan:test-001",
+            content_hash="sha256:test-001",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            cleaning_policy_version="curriculum_plan_cleaning_v1",
+            acl_groups=(),
+            campus_scope=None,
+            status="active",
+            ingestion_timestamp="2026-03-27T00:00:00+00:00",
+            parser_version="campusrag-import-v1",
+            embedding_model="Qwen3-Embedding-4B",
+            source_channel="pdf_ocr",
+            provider_response_object_key=legacy_provider_key,
+            document_units_object_key=(
+                "curriculum/documents/curriculum_plan/test-001--test-001/source-faithful/2022/document-units.jsonl"
+            ),
+            processed_object_keys=(
+                legacy_provider_key,
+                legacy_layout_key,
+                "curriculum/documents/curriculum_plan/test-001--test-001/source-faithful/2022/document-units.jsonl",
+            ),
+            import_source="provider_response_replay",
+        )
+        document_registry = _MutableFakeDocumentRegistry(record)
+
+        report = migrate_source_artifacts_to_canonical_source_bucket(
+            env={
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                "OBJECT_STORE_BUCKET_SOURCE": SOURCE_BUCKET,
+                "OBJECT_STORE_BUCKET_DERIVED": DERIVED_BUCKET,
+                "INGESTION_SPLIT_MANIFEST_PATH": "configs/ingestion/curriculum/curriculum_plan/split-manifest.v1.json",
+            },
+            request=SourceArtifactsMigrationRequest(
+                corpus="curriculum",
+                collection="curriculum_plan",
+                raw_version_id="sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67",
+            ),
+            object_store=object_store,
+            document_registry=document_registry,
+            raw_asset_registry=_FakeRawAssetRegistry(),
+        )
+
+        canonical_provider_key = (
+            "ocr/pdf_ocr/curriculum-plan/2022/sha256/"
+            "0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67/provider-response.jsonl"
+        )
+        canonical_layout_key = (
+            "source-truth/pdf_ocr/curriculum-plan/2022/sha256/"
+            "0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67/layout-elements.jsonl"
+        )
+        self.assertEqual(report.raw_asset_id, "asset:curriculum-plan-2022")
+        self.assertTrue(report.provider_response_migrated)
+        self.assertTrue(report.layout_elements_migrated)
+        self.assertEqual(report.updated_document_record_count, 1)
+        self.assertIn((SOURCE_BUCKET, canonical_provider_key), object_store.puts)
+        self.assertIn((SOURCE_BUCKET, canonical_layout_key), object_store.puts)
+        self.assertIn((SOURCE_BUCKET, canonical_provider_key), object_store.objects)
+        self.assertIn((SOURCE_BUCKET, canonical_layout_key), object_store.objects)
+        self.assertNotIn((DERIVED_BUCKET, legacy_provider_key), object_store.objects)
+        self.assertNotIn((DERIVED_BUCKET, legacy_layout_key), object_store.objects)
+        updated = next(iter(document_registry.records.values()))
+        self.assertEqual(updated.provider_response_object_key, canonical_provider_key)
+        self.assertEqual(
+            updated.processed_object_keys,
+            (
+                canonical_provider_key,
+                canonical_layout_key,
+                "curriculum/documents/curriculum_plan/test-001--test-001/source-faithful/2022/document-units.jsonl",
+            ),
+        )
 
 
 if __name__ == "__main__":

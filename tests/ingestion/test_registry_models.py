@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import asdict
+from dataclasses import asdict, replace
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
-from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef
+from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef, SourceObservation
 from campus_ingestion_core.registry import (
     FileDocumentRegistry,
     FileRawAssetRegistry,
@@ -160,6 +160,42 @@ class RegistryModelsTest(unittest.TestCase):
                 version_id="v1:test-001",
                 content_hash="sha256:test-001",
                 ingestion_timestamp="2026-03-22T10:00:00+00:00",
+            )
+
+            registry.upsert(record)
+            loaded = registry.get("handbook:test-001", "source-faithful", "v1:test-001")
+
+            self.assertEqual(loaded, record)
+
+    def test_file_document_registry_roundtrips_source_observations(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            registry = FileDocumentRegistry(Path(temp_dir) / "registry.json")
+            record = _handbook_document_record(
+                version_id="v1:test-001",
+                content_hash="sha256:test-001",
+                ingestion_timestamp="2026-03-22T10:00:00+00:00",
+            )
+            record = replace(
+                record,
+                source_observations=(
+                    SourceObservation(
+                        source_channel="pdf_ocr",
+                        source_uri="campusrag://canonical/regulations/student_handbook/docs/test-001.md",
+                        raw_asset=record.raw_asset,
+                        is_primary=False,
+                        import_source="raw_online_ocr",
+                    ),
+                    SourceObservation(
+                        source_channel="official_web",
+                        source_uri="https://campus.example/policies/test-001",
+                        raw_asset=None,
+                        is_primary=True,
+                        import_source="official_web_sync",
+                    ),
+                ),
+                source_uri="https://campus.example/policies/test-001",
+                source_channel="official_web",
+                raw_asset=None,
             )
 
             registry.upsert(record)
@@ -357,6 +393,9 @@ class RegistryModelsTest(unittest.TestCase):
                 loaded.document_units_object_key,
                 "student_handbook/documents/handbook/test-001/tracks/source-faithful/v1/test-001/document-units.jsonl",
             )
+            self.assertEqual(len(loaded.source_observations), 1)
+            self.assertTrue(loaded.source_observations[0].is_primary)
+            self.assertEqual(loaded.source_observations[0].source_channel, "pdf_ocr")
 
     def test_file_raw_asset_registry_upsert_and_get_are_stable(self) -> None:
         with TemporaryDirectory() as temp_dir:

@@ -77,13 +77,16 @@ from campus_ingestion_core.handbook_chunking_validation import (
 from campus_ingestion_core.local_rebuild import (
     LocalDataRebuildReport,
     RebuildRequest,
+    SourceArtifactsMigrationReport,
+    SourceArtifactsMigrationRequest,
     StudentHandbookMigrationReport,
     StudentHandbookSourceAssetRequest,
+    migrate_source_artifacts_to_canonical_source_bucket,
     migrate_student_handbook_source_faithful,
     rebuild_local_data,
     replay_provider_response_rebuild,
 )
-from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef
+from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef, SourceObservation
 from campus_ingestion_core.process import (
     IndexableChunk,
     build_indexable_chunks_from_jsonl,
@@ -145,6 +148,8 @@ __all__ = [
     "ImportReport",
     "IndexableChunk",
     "ChunkValidationFailure",
+    "SourceArtifactsMigrationReport",
+    "SourceArtifactsMigrationRequest",
     "StudentHandbookChunkingScanResult",
     "StudentHandbookMigrationReport",
     "StudentHandbookSourceAssetRequest",
@@ -167,6 +172,7 @@ __all__ = [
     "RawAssetRecord",
     "RawAssetRef",
     "RawAssetRegistry",
+    "SourceObservation",
     "build_embedding_model",
     "build_document_registry_from_env",
     "build_campus_services_migration_plan",
@@ -190,6 +196,7 @@ __all__ = [
     "process_raw_ingestion_job",
     "PROVIDER_RESPONSE_FILENAME",
     "migrate_student_handbook_source_faithful",
+    "migrate_source_artifacts_to_canonical_source_bucket",
     "migrate_campus_services_canonical_to_object_store",
     "rebuild_local_data",
     "replay_provider_response_rebuild",

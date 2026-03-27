@@ -24,14 +24,25 @@ def _document_input(
     document_id: str,
     version_id: str,
     body: str,
+    revision_track: str = "source-faithful",
+    is_current: bool = False,
+    source_channel: str = "pdf_ocr",
+    source_url: str | None = None,
+    import_source: str = "provider_response_replay",
 ) -> DocumentImportInput:
+    metadata = _metadata(document_id, version_id)
+    if source_url is not None:
+        metadata["source_url"] = source_url
     return DocumentImportInput(
         source_label=f"{document_id}.jsonl",
         document_units_bytes=body.encode("utf-8"),
         provider_response_bytes=None,
         canonical_markdown_bytes=None,
-        metadata=_metadata(document_id, version_id),
-        import_source="provider_response_replay",
+        metadata=metadata,
+        import_source=import_source,
+        revision_track=revision_track,
+        source_channel=source_channel,
+        is_current=is_current,
         corpus="regulations",
         collection="student_handbook",
         title=document_id.split(":")[-1],
@@ -45,28 +56,35 @@ def _record(
     version_id: str,
     content_hash: str,
     ingestion_timestamp: str = "2026-03-25T00:00:00+00:00",
+    revision_track: str = "source-faithful",
+    is_current: bool = False,
+    status: str = "active",
+    source_channel: str = "pdf_ocr",
+    source_uri: str | None = None,
+    import_source: str = "provider_response_replay",
 ) -> DocumentRegistryRecord:
     return DocumentRegistryRecord(
         document_id=document_id,
-        revision_track="source-faithful",
+        revision_track=revision_track,
         version_id=version_id,
-        source_uri=f"campusrag://import/{document_id}/{version_id}",
+        source_uri=source_uri or f"campusrag://import/{document_id}/{version_id}",
         content_hash=content_hash,
         corpus="regulations",
         collection="student_handbook",
         cleaning_policy_version="student_handbook_cleaning_v1",
         acl_groups=(),
         campus_scope=None,
-        status="active",
+        status=status,
         ingestion_timestamp=ingestion_timestamp,
         parser_version="campusrag-import-v1",
         embedding_model="Qwen3-Embedding-4B",
-        source_channel="pdf_ocr",
+        source_channel=source_channel,
+        is_current=is_current,
         document_units_object_key=f"regulations/documents/student_handbook/{document_id}/{version_id}/document-units.jsonl",
         processed_object_keys=(
             f"regulations/documents/student_handbook/{document_id}/{version_id}/document-units.jsonl",
         ),
-        import_source="provider_response_replay",
+        import_source=import_source,
     )
 
 
@@ -228,6 +246,97 @@ class CampusragIngestionSupportTest(unittest.TestCase):
         self.assertEqual(
             tuple(record.document_id for record in registry.replace_scope_calls[0][2]),
             ("handbook:doc-keep", "handbook:doc-new"),
+        )
+
+    def test_collect_import_document_stats_demotes_prior_current_version_when_new_current_is_imported(self) -> None:
+        doc_new_current = _document_input(
+            document_id="handbook:doc-current",
+            version_id="v2:doc-current",
+            body='{"type":"paragraph","text":"current"}\n',
+            revision_track="current-effective",
+            is_current=True,
+        )
+        old_current = _record(
+            document_id="handbook:doc-current",
+            version_id="v1:doc-current",
+            content_hash=hashlib.sha256(b"old-current\n").hexdigest(),
+            revision_track="current-effective",
+            is_current=True,
+            status="active",
+            ingestion_timestamp="2026-03-24T00:00:00+00:00",
+        )
+        registry = _SpyDocumentRegistry(records=(old_current,))
+
+        stats = collect_import_document_stats(
+            documents=[doc_new_current],
+            registry=registry,
+            raw_asset_registry=_FakeRawAssetRegistry(),
+            writer=_FakeWriter(),
+            object_store=self.object_store,
+            parser_version="campusrag-import-v1",
+            embedding_model="Qwen3-Embedding-4B",
+            cleaning_policy_version="student_handbook_cleaning_v1",
+            default_campus_scope=None,
+            scope_refresh=("regulations", "student_handbook"),
+        )
+
+        self.assertEqual(stats.success_count, 1)
+        self.assertEqual(len(registry.replace_scope_calls), 1)
+        refreshed_records = registry.replace_scope_calls[0][2]
+        self.assertEqual(len(refreshed_records), 2)
+        records_by_version = {record.version_id: record for record in refreshed_records}
+        self.assertTrue(records_by_version["v2:doc-current"].is_current)
+        self.assertEqual(records_by_version["v2:doc-current"].supersedes_version_id, "v1:doc-current")
+        self.assertFalse(records_by_version["v1:doc-current"].is_current)
+        self.assertEqual(records_by_version["v1:doc-current"].status, "superseded")
+
+    def test_collect_import_document_stats_merges_equivalent_web_source_without_creating_new_version(self) -> None:
+        body = '{"type":"paragraph","text":"same"}\n'
+        existing = _record(
+            document_id="handbook:doc-merge",
+            version_id="v1:doc-merge",
+            content_hash=hashlib.sha256(body.encode("utf-8")).hexdigest(),
+            revision_track="current-effective",
+            is_current=True,
+            source_channel="pdf_ocr",
+            source_uri="https://pdf.example/doc-merge",
+        )
+        incoming = _document_input(
+            document_id="handbook:doc-merge",
+            version_id="v2:web-doc-merge",
+            body=body,
+            revision_track="current-effective",
+            is_current=True,
+            source_channel="official_web",
+            source_url="https://web.example/doc-merge",
+            import_source="official_web_sync",
+        )
+        registry = _SpyDocumentRegistry(records=(existing,))
+
+        stats = collect_import_document_stats(
+            documents=[incoming],
+            registry=registry,
+            raw_asset_registry=_FakeRawAssetRegistry(),
+            writer=_FakeWriter(),
+            object_store=self.object_store,
+            parser_version="campusrag-import-v1",
+            embedding_model="Qwen3-Embedding-4B",
+            cleaning_policy_version="student_handbook_cleaning_v1",
+            default_campus_scope=None,
+        )
+
+        self.assertEqual(stats.success_count, 0)
+        self.assertEqual(stats.skipped_count, 1)
+        self.assertEqual(len(registry.upsert_many_calls), 1)
+        self.assertEqual(len(registry.upsert_many_calls[0]), 1)
+        merged = registry.upsert_many_calls[0][0]
+        self.assertEqual(merged.version_id, "v1:doc-merge")
+        self.assertEqual(merged.source_channel, "official_web")
+        self.assertEqual(merged.source_uri, "https://web.example/doc-merge")
+        self.assertEqual(len(merged.source_observations), 2)
+        self.assertEqual(
+            tuple(observation.source_channel for observation in merged.source_observations if observation.is_primary),
+            ("official_web",),
         )
 
     def test_collect_import_document_stats_rewrites_missing_processed_artifacts_for_matching_content(self) -> None:

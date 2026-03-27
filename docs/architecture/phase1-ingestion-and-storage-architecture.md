@@ -200,6 +200,9 @@ updated: 2026-03-26
 - 当前 handbook embedding runtime 通过 `gitee` 官方 OpenAI-compatible 接口请求 `Qwen3-Embedding-4B @ 2560`，ingestion 与 retrieval query path 都必须显式发送 `dimensions=2560`
 - 当前 handbook 的 phase-1 sparse baseline 先采用 `Qdrant native BM25`，并以 `tokenizer=multilingual`、`language=none` 作为中文 handbook 起始配置
 - 当前 handbook 的 accepted target retrieval shape 是 Qdrant native hybrid query：同一 filter 下执行 dense prefetch 与 sparse prefetch，并使用 native `RRF` 融合
+- 当前 handbook query-serving 默认只消费 collection runtime profile 定义的 current-serving documents；当前策略为 `current_only=true`，并按 `serving_revision_tracks=["current-effective","source-faithful"]` 过滤 serving representation
+- query path 不再接受“历史版本先命中，再靠 `latest_url` 告知用户当前链接”作为默认主路径；历史版本默认不进入 retrieval candidate
+- 当同一逻辑文档同时存在 `pdf_ocr` / `official_web` 等多来源且规范化内容一致时，source layer 保留多份来源资产，但 document/version layer 只保留一份逻辑版本；Qdrant 不得为等价来源重复建索引点
 
 ## 去重与版本策略
 
@@ -214,6 +217,8 @@ updated: 2026-03-26
 
 - 同一 `document_id` 且 `content_hash` 不变：跳过重处理
 - 同一 `document_id` 且 `content_hash` 变化：生成新 `version_id`
+- ingestion 必须维护 `document_id + representation` 维度的 current truth；新 current 版本写入时，旧 current 必须同步降级为 `is_current=false`
+- 如果不同来源在同一 `document_id + representation` 下产生相同规范化内容，则必须复用已有 `version_id`，并把来源差异落到 provenance，而不是再生成第二条 document registry record
 - `chunk_id` 基于 `document_id + representation + version_id + chunk_order`
 
 ## ACL 与 Traceability
