@@ -14,9 +14,16 @@ from campus_ingestion_core.local_rebuild import (
     _resolve_ingestion_qdrant_timeout_seconds,
     migrate_student_handbook_source_faithful,
     rebuild_local_data,
+    replay_provider_response_rebuild,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
+from campus_ingestion_core.object_store import (
+    build_processed_artifact_key,
+    build_source_ocr_artifact_key,
+    build_source_truth_artifact_key,
+)
 from campus_retrieval_core.settings import RetrievalSettings
+from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 
 SOURCE_BUCKET = "campus-rag-source"
 DERIVED_BUCKET = "campus-rag-derived"
@@ -238,6 +245,34 @@ class RebuildLocalDataTest(unittest.TestCase):
             str(Path("configs/ingestion/regulations/student_handbook/split-manifest.v1.json").resolve()),
         )
         self.assertNotIn("OBJECT_STORE_SECRET_KEY", report.import_context)
+
+    def test_rebuild_provider_response_replay_uses_curriculum_default_source_pdf(self) -> None:
+        object_store = _FakeObjectStoreAdmin()
+        document_registry = _FakeDocumentRegistry()
+        raw_asset_registry = _FakeRawAssetRegistry()
+        calls: list[dict[str, str]] = []
+
+        report = rebuild_local_data(
+            env={
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+            },
+            request=RebuildRequest(
+                corpus="curriculum",
+                collection="curriculum_plan",
+                import_mode="provider_response_replay",
+                raw_version_id="sha256:curriculum-replay-001",
+            ),
+            object_store=object_store,
+            document_registry=document_registry,
+            raw_asset_registry=raw_asset_registry,
+            import_runner=lambda **kwargs: calls.append(kwargs["env"]) or {"status": "replay"},
+        )
+
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["REPLAY_SOURCE_PDF"], "curriculum-plan.pdf")
+        self.assertEqual(report.import_context["REPLAY_SOURCE_PDF"], "curriculum-plan.pdf")
 
     def test_rebuild_provider_response_replay_clears_declared_downstream_projection_artifacts(self) -> None:
         object_store = _FakeObjectStoreAdmin()
@@ -559,6 +594,31 @@ class RebuildLocalDataTest(unittest.TestCase):
             ["student_handbook", "contact_directory", "service_catalog"],
         )
 
+    def test_rebuild_provider_response_replay_resets_curriculum_target_qdrant_collection_only(self) -> None:
+        object_store = _FakeObjectStoreAdmin()
+        qdrant = _FakeQdrantAdmin()
+
+        rebuild_local_data(
+            env={
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                "INGESTION_CORPUS": "curriculum",
+                "INGESTION_COLLECTION": "curriculum_plan",
+                "REBUILD_IMPORT_MODE": "provider_response_replay",
+                "RAW_VERSION_ID": "sha256:curriculum-replay-001",
+                "QDRANT_COLLECTION": "curriculum_plan",
+                "REBUILD_RESET_QDRANT": "1",
+            },
+            object_store=object_store,
+            qdrant_admin=qdrant,
+            document_registry=_FakeDocumentRegistry(),
+            raw_asset_registry=_FakeRawAssetRegistry(),
+            import_runner=lambda **kwargs: {"status": "replay"},
+        )
+
+        self.assertEqual(qdrant.reset_collections, ["curriculum_plan"])
+
     def test_rebuild_uses_ingestion_corpus_prefix_for_curriculum_plan(self) -> None:
         object_store = _FakeObjectStoreAdmin()
         document_registry = _FakeDocumentRegistryWithRecords(
@@ -725,6 +785,140 @@ class RebuildLocalDataTest(unittest.TestCase):
         self.assertNotIn("REBUILD_PROVIDER_RESPONSE_KEY", calls[0])
         self.assertNotIn("REBUILD_PROVIDER_RESPONSE_KEY", report.import_context)
         self.assertNotIn("OBJECT_STORE_SECRET_KEY", report.import_context)
+
+    def test_replay_provider_response_rebuild_supports_curriculum_plan(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            split_manifest_path = root / "configs" / "split-manifest.v1.json"
+            split_manifest_path.parent.mkdir(parents=True)
+            split_manifest_path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "curriculum_plan_split_manifest_v1",
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "raw_asset_id": "asset:curriculum-plan-master-pdf",
+                        "documents": [
+                            {
+                                "document_id": "curriculum:plan-001",
+                                "title": "Plan 001",
+                                "page_start": 1,
+                                "page_end": 1,
+                                "campus_scope": "main",
+                                "status": "active",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            provider_lines = [
+                {
+                    "pageNumber": 1,
+                    "result": {
+                        "layoutParsingResults": [
+                            {
+                                "blockType": "title",
+                                "blockId": "p1-title",
+                                "readingOrder": 1,
+                                "markdown": {"text": "Plan 001"},
+                            },
+                            {
+                                "blockType": "paragraph",
+                                "blockId": "p1-body",
+                                "readingOrder": 2,
+                                "markdown": {"text": "培养具有跨学科能力的复合型人才。"},
+                            },
+                        ]
+                    },
+                    "logId": "log-001",
+                }
+            ]
+            provider_bytes = (
+                "\n".join(json.dumps(line, ensure_ascii=False) for line in provider_lines) + "\n"
+            ).encode("utf-8")
+            raw_version_id = "sha256:curriculum-replay-001"
+            provider_response_key = build_source_ocr_artifact_key(
+                raw_asset_id="asset:curriculum-plan-master-pdf",
+                raw_version_id=raw_version_id,
+                filename="provider-response.jsonl",
+                source_channel="official_pdf",
+                model_slug="paddleocr-vl-1-5",
+                year="undated",
+            )
+            object_store = _FakeObjectStoreAdmin()
+            object_store.objects[(SOURCE_BUCKET, provider_response_key)] = provider_bytes
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "curriculum_plan_documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "curriculum_plan_raw_assets.json"
+            )
+            raw_asset_registry.upsert(
+                RawAssetRecord(
+                    raw_asset_id="asset:curriculum-plan-master-pdf",
+                    raw_version_id=raw_version_id,
+                    corpus="curriculum",
+                    collection="curriculum_plan",
+                    raw_source_uri="s3://campus-rag-source/official_pdf/curriculum-plan-master-pdf/curriculum-plan.pdf",
+                    content_hash="curriculum-replay-001",
+                    source_filename="curriculum-plan.pdf",
+                    object_key=(
+                        "official_pdf/curriculum-plan-master-pdf/undated/sha256/"
+                        "curriculum-replay-001/capture/curriculum-plan.pdf"
+                    ),
+                    ingestion_timestamp="2026-03-27T00:00:00+00:00",
+                    import_source="seed",
+                )
+            )
+
+            report = replay_provider_response_rebuild(
+                env={
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    "OBJECT_STORE_BUCKET_SOURCE": SOURCE_BUCKET,
+                    "OBJECT_STORE_BUCKET_DERIVED": DERIVED_BUCKET,
+                    "IMPORT_REPORT_DIR": str(root / "reports"),
+                    "INGESTION_CORPUS": "curriculum",
+                    "INGESTION_COLLECTION": "curriculum_plan",
+                    "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
+                    "INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                    "RAW_VERSION_ID": raw_version_id,
+                    "REPLAY_SOURCE_PDF": "curriculum-plan.pdf",
+                },
+                object_store=object_store,
+                registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            self.assertEqual(report.document_ids, ("curriculum:plan-001",))
+            records = document_registry.list_by_scope("curriculum", "curriculum_plan")
+            self.assertEqual(len(records), 1)
+            record = records[0]
+            self.assertEqual(record.document_id, "curriculum:plan-001")
+            self.assertEqual(record.cleaning_policy_version, "curriculum_plan_cleaning_v1")
+            layout_elements_key = build_source_truth_artifact_key(
+                raw_asset_id="asset:curriculum-plan-master-pdf",
+                raw_version_id=raw_version_id,
+                filename="layout-elements.jsonl",
+                source_channel="official_pdf",
+                year="undated",
+            )
+            self.assertIn((SOURCE_BUCKET, layout_elements_key), object_store.objects)
+            document_units_key = build_processed_artifact_key(
+                corpus="curriculum",
+                collection="curriculum_plan",
+                document_id=record.document_id,
+                revision_track=record.revision_track,
+                version_id=record.version_id,
+                title="Plan 001",
+                year=None,
+                filename="document-units.jsonl",
+            )
+            self.assertIn((DERIVED_BUCKET, document_units_key), object_store.objects)
 
     def test_migrate_student_handbook_source_faithful_renames_raw_asset_and_dispatches_rebuild(self) -> None:
         object_store = _FakeObjectStoreAdmin()

@@ -29,6 +29,7 @@ from campus_ingestion_core.campusrag_ingestion_support import (
 )
 from campus_ingestion_core.collection_config import CollectionTruthConfig, resolve_collection_truth_config
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
+from campus_ingestion_core.curriculum_provider_normalize import normalize_curriculum_provider_result
 from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
 from campus_ingestion_core.handbook_cleanup import cleanup_handbook_document, serialize_handbook_document_units
 from campus_ingestion_core.handbook_source_projections import (
@@ -58,6 +59,8 @@ from campus_ingestion_core.raw_ingestion import (
     DEFAULT_ONLINE_OCR_MODEL,
     DEFAULT_ONLINE_OCR_PROVIDER,
     DEFAULT_RAW_ONLINE_OCR_PARSER_VERSION,
+    _build_split_manifest_document_input,
+    _load_layout_elements_rows,
     process_raw_ingestion_job,
 )
 from campus_ingestion_core.registry import (
@@ -74,6 +77,7 @@ from campus_retrieval_core.settings import DEFAULT_QDRANT_COLLECTION, RetrievalS
 DEFAULT_INGESTION_CORPUS = DEFAULT_CORPUS
 DEFAULT_INGESTION_COLLECTION = DEFAULT_COLLECTION
 DEFAULT_REPLAY_SOURCE_PDF = "学生手册_2018.pdf"
+DEFAULT_CURRICULUM_REPLAY_SOURCE_PDF = "curriculum-plan.pdf"
 DEFAULT_HANDBOOK_CANONICAL_RAW_FILENAME = "学生手册_2018.pdf"
 ALLOWED_REBUILD_IMPORT_MODES = ("raw_online_ocr", "provider_response_replay")
 DEFAULT_QDRANT_UPSERT_BATCH_SIZE = 128
@@ -364,7 +368,7 @@ def _build_rebuild_import_env(
         raw_version_id = request.raw_version_id
         if raw_version_id is None:
             raise ValueError("raw_version_id is required for provider_response_replay")
-        source_pdf = request.source_pdf or DEFAULT_REPLAY_SOURCE_PDF
+        source_pdf = request.source_pdf or _default_replay_source_pdf(request.collection)
         import_env["REPLAY_SOURCE_PDF"] = source_pdf
     return import_env
 
@@ -727,9 +731,11 @@ def replay_provider_response_rebuild(
     corpus = _read_ingestion_corpus(source)
     collection = _read_ingestion_collection(source, corpus=corpus)
     collection_config = _resolve_runtime_collection_config(source=source, corpus=corpus, collection=collection)
-    if collection != "student_handbook":
-        raise ValueError("provider_response_replay only supports student_handbook")
-    source_pdf = (source.get("REPLAY_SOURCE_PDF") or DEFAULT_REPLAY_SOURCE_PDF).strip() or DEFAULT_REPLAY_SOURCE_PDF
+    if collection not in {"student_handbook", "curriculum_plan"}:
+        raise ValueError("provider_response_replay only supports student_handbook or curriculum_plan")
+    source_pdf = (
+        source.get("REPLAY_SOURCE_PDF") or _default_replay_source_pdf(collection)
+    ).strip() or _default_replay_source_pdf(collection)
 
     object_store_settings = ObjectStoreSettings.from_env(source)
     runtime_object_store = object_store or S3ObjectStoreAdmin(object_store_settings)
@@ -753,14 +759,23 @@ def replay_provider_response_rebuild(
         bucket=object_store_settings.bucket_source,
         key=provider_response_key,
     )
-    structured_rows = normalize_handbook_provider_result(
-        source_pdf=source_pdf,
-        provider_jsonl_bytes=provider_response_bytes,
-        ocr_provider=DEFAULT_ONLINE_OCR_PROVIDER,
-        ocr_model=(source.get("OCR_MODEL") or DEFAULT_ONLINE_OCR_MODEL).strip() or DEFAULT_ONLINE_OCR_MODEL,
-        source_artifact_id=split_manifest.raw_asset_id,
-    )
-    layout_elements_bytes = serialize_handbook_layout_elements(structured_rows)
+    ocr_model = (source.get("OCR_MODEL") or DEFAULT_ONLINE_OCR_MODEL).strip() or DEFAULT_ONLINE_OCR_MODEL
+    if collection == "student_handbook":
+        structured_rows = normalize_handbook_provider_result(
+            source_pdf=source_pdf,
+            provider_jsonl_bytes=provider_response_bytes,
+            ocr_provider=DEFAULT_ONLINE_OCR_PROVIDER,
+            ocr_model=ocr_model,
+            source_artifact_id=split_manifest.raw_asset_id,
+        )
+        layout_elements_bytes = serialize_handbook_layout_elements(structured_rows)
+    else:
+        layout_elements_bytes = normalize_curriculum_provider_result(
+            provider_jsonl_bytes=provider_response_bytes,
+            source_pdf=source_pdf,
+            ocr_model=ocr_model,
+        )
+        structured_rows = _load_layout_elements_rows(layout_elements_bytes)
     layout_elements_key = build_source_truth_artifact_key(
         raw_asset_id=split_manifest.raw_asset_id,
         raw_version_id=raw_version_id,
@@ -788,19 +803,48 @@ def replay_provider_response_rebuild(
         canonical_layout_elements_key=layout_elements_key,
     )
 
-    documents = [
-        _build_handbook_replay_document_input(
-            source_label=f"{provider_response_key}#{manifest_document.document_id}",
-            source_doc=source_pdf,
-            manifest_document=manifest_document,
-            structured_rows=structured_rows,
-            provider_response_key=provider_response_key,
-            layout_elements_key=layout_elements_key,
+    if collection == "student_handbook":
+        documents = [
+            _build_handbook_replay_document_input(
+                source_label=f"{provider_response_key}#{manifest_document.document_id}",
+                source_doc=source_pdf,
+                manifest_document=manifest_document,
+                structured_rows=structured_rows,
+                provider_response_key=provider_response_key,
+                layout_elements_key=layout_elements_key,
+                corpus=corpus,
+                collection=collection,
+            )
+            for manifest_document in split_manifest.documents
+        ]
+    else:
+        raw_asset_ref = RawAssetRecord(
+            raw_asset_id=split_manifest.raw_asset_id,
+            raw_version_id=raw_version_id,
             corpus=corpus,
             collection=collection,
+            raw_source_uri=f"campusrag://source/{corpus}/{split_manifest.raw_asset_id}/{raw_version_id}",
+            content_hash=raw_version_id.removeprefix("sha256:") or raw_version_id,
+            source_filename=source_pdf,
+            object_key=provider_response_key,
+            ingestion_timestamp="1970-01-01T00:00:00+00:00",
+            import_source="provider_response_replay",
         )
-        for manifest_document in split_manifest.documents
-    ]
+        default_campus_scope = (source.get("INGESTION_DEFAULT_CAMPUS_SCOPE") or "").strip() or None
+        documents = [
+            _build_split_manifest_document_input(
+                raw_asset_record=raw_asset_ref,
+                manifest_version=split_manifest.manifest_version,
+                manifest_document=manifest_document,
+                structured_rows=structured_rows,
+                provider_response_key=provider_response_key,
+                layout_elements_key=layout_elements_key,
+                default_campus_scope=default_campus_scope,
+                corpus=corpus,
+                collection=collection,
+            )
+            for manifest_document in split_manifest.documents
+        ]
     raw_asset_ref = RawAssetRecord(
         raw_asset_id=split_manifest.raw_asset_id,
         raw_version_id=raw_version_id,
@@ -909,6 +953,12 @@ def _should_delete_document_registry_scope(*, collection: str, import_mode: str)
 
 def _should_index_qdrant_for_replay(source: dict[str, str]) -> bool:
     return _parse_bool(source.get("REBUILD_INDEX_QDRANT"), default=False)
+
+
+def _default_replay_source_pdf(collection: str) -> str:
+    if collection == "curriculum_plan":
+        return DEFAULT_CURRICULUM_REPLAY_SOURCE_PDF
+    return DEFAULT_REPLAY_SOURCE_PDF
 
 
 def _collect_projection_aware_import_stats(
