@@ -8,7 +8,7 @@ import unittest
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.raw_ingestion import (
     _build_split_manifest_document_input,
-    _load_structured_rows,
+    _load_layout_elements_rows,
 )
 from campus_ingestion_core.split_manifest import load_split_manifest
 
@@ -83,8 +83,8 @@ class SplitManifestTest(unittest.TestCase):
             expected_collection="curriculum_plan",
         )
         documents = {document.document_id: document for document in manifest.documents}
-        structured_rows = _load_structured_rows(
-            Path("tests/fixtures/curriculum_plan/structured-full.pages-278-297.jsonl").read_bytes()
+        structured_rows = _load_layout_elements_rows(
+            Path("tests/fixtures/curriculum_plan/layout-elements.pages-278-297.jsonl").read_bytes()
         )
         self.assertEqual(structured_rows[0]["corpus"], "curriculum")
         self.assertEqual(structured_rows[0]["collection"], "curriculum_plan")
@@ -220,6 +220,84 @@ class SplitManifestTest(unittest.TestCase):
         self.assertEqual(projected_rows[2]["relation_type"], "note_of")
         self.assertEqual(projected_rows[2]["continuation_group_id"], "page-0020-block-0002")
         self.assertEqual(projected_rows[1]["source"]["id"], expected_source_uri)
+
+    def test_build_split_manifest_document_input_preserves_heading_structure_fields(self) -> None:
+        manifest = load_split_manifest(
+            Path("configs/ingestion/curriculum/curriculum_plan/split-manifest.v1.json"),
+            expected_corpus="curriculum",
+            expected_collection="curriculum_plan",
+        )
+        manifest_document = manifest.documents[0]
+        structured_rows = [
+            {
+                "row_id": "page-0020-block-0001",
+                "row_type": "heading",
+                "heading_level": 1,
+                "row_index": 10,
+                "reading_order": 1,
+                "section_hint": "doc_title",
+                "text_raw": "测试培养方案",
+                "text_normalized": "测试培养方案",
+                "page_start": 20,
+                "page_end": 20,
+                "html": None,
+                "table_cells": None,
+                "acl": {"level": "public", "allow_groups": []},
+            },
+            {
+                "row_id": "page-0020-block-0002",
+                "row_type": "heading",
+                "heading_level": 2,
+                "row_index": 11,
+                "reading_order": 2,
+                "section_hint": "section",
+                "text_raw": "一、培养目标",
+                "text_normalized": "一、培养目标",
+                "page_start": 20,
+                "page_end": 20,
+                "html": None,
+                "table_cells": None,
+                "acl": {"level": "public", "allow_groups": []},
+            },
+            {
+                "row_id": "page-0020-block-0003",
+                "row_type": "paragraph",
+                "row_index": 12,
+                "reading_order": 3,
+                "text_raw": "培养具有系统分析能力的人才。",
+                "text_normalized": "培养具有系统分析能力的人才。",
+                "page_start": 20,
+                "page_end": 20,
+                "html": None,
+                "table_cells": None,
+                "acl": {"level": "public", "allow_groups": []},
+            },
+        ]
+        document_input = _build_split_manifest_document_input(
+            raw_asset_record=_curriculum_raw_asset_record(raw_version_id="sha256:test"),
+            manifest_version=manifest.manifest_version,
+            manifest_document=manifest_document,
+            structured_rows=structured_rows,
+            provider_response_key=(
+                "official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl"
+            ),
+            layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
+            default_campus_scope="main",
+            corpus="curriculum",
+            collection="curriculum_plan",
+        )
+
+        projected_rows = [
+            json.loads(line) for line in document_input.document_units_bytes.decode("utf-8").splitlines() if line.strip()
+        ]
+
+        self.assertEqual(projected_rows[0]["row_type"], "heading")
+        self.assertEqual(projected_rows[0]["heading_level"], 1)
+        self.assertEqual(projected_rows[0]["row_index"], 10)
+        self.assertEqual(projected_rows[0]["reading_order"], 1)
+        self.assertEqual(projected_rows[0]["section_hint"], "doc_title")
+        self.assertEqual(projected_rows[1]["heading_level"], 2)
+        self.assertEqual(projected_rows[1]["section_hint"], "section")
 
     def test_load_split_manifest_reads_curriculum_plan_documents(self) -> None:
         with TemporaryDirectory() as temp_dir:

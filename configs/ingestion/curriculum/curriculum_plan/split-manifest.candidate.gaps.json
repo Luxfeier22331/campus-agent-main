@@ -1,7 +1,7 @@
 {
   "artifact": "split-manifest.v1.json",
   "raw_asset_id": "asset:curriculum-plan-2022",
-  "structured_full_path": "/tmp/curriculum-structured-full.v3.jsonl",
+  "layout_elements_path": "/tmp/curriculum-layout-elements.v3.jsonl",
   "matched_document_count": 66,
   "missing_document_count": 0,
   "missing_documents": [],

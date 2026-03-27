@@ -26,14 +26,14 @@ def build_curriculum_structured_units(
 ) -> tuple[DerivedStructuredUnit, ...]:
     rows = _load_curriculum_rows(record=record, structured_jsonl_bytes=structured_jsonl_bytes)
     table_row_ids = {
-        str(row.get("row_id") or row.get("chunk_id") or "").strip()
+        _row_id(row)
         for row in rows
         if str(row.get("row_type") or "") == "table"
     }
     table_group_ids = {
         (
             str(row.get("continuation_group_id") or "").strip()
-            or str(row.get("row_id") or row.get("chunk_id") or "").strip()
+            or _row_id(row)
         )
         for row in rows
         if str(row.get("row_type") or "") == "table"
@@ -74,6 +74,8 @@ def build_curriculum_structured_units(
                 units.append(_build_section_unit(narrative_rows=narrative_rows, section_path=_section_path(heading_stack)))
                 narrative_rows = []
             heading_level = _normalize_heading_level(row.get("heading_level"))
+            if heading_level is None:
+                raise ValueError("curriculum structured row_type=heading requires heading_level in document-units")
             heading_text = str(row.get("clean_text") or "").strip()
             heading_stack = [item for item in heading_stack if item[0] < heading_level]
             if heading_text:
@@ -181,20 +183,21 @@ def _load_curriculum_rows(
             raise ValueError(
                 f"structured version_id {version_id!r} does not match registry version_id {record.version_id!r}"
             )
+        _row_id(raw)
         rows.append(raw)
     return rows
 
 
 def _group_table_rows(rows: list[dict[str, object]]) -> dict[str, list[dict[str, object]]]:
     table_row_ids = {
-        str(row.get("row_id") or row.get("chunk_id") or "").strip()
+        _row_id(row)
         for row in rows
         if str(row.get("row_type") or "") == "table"
     }
     table_group_ids = {
         (
             str(row.get("continuation_group_id") or "").strip()
-            or str(row.get("row_id") or row.get("chunk_id") or "").strip()
+            or _row_id(row)
         )
         for row in rows
         if str(row.get("row_type") or "") == "table"
@@ -218,7 +221,7 @@ def _table_group_id(
     continuation_group_id = str(row.get("continuation_group_id") or "").strip()
     owner_row_id = str(row.get("owner_row_id") or "").strip()
     if row_type == "table":
-        return continuation_group_id or str(row.get("row_id") or row.get("chunk_id") or "").strip() or None
+        return continuation_group_id or _row_id(row)
     if row_type in {"table_caption", "note"} and (
         owner_row_id in table_row_ids or continuation_group_id in table_group_ids
     ):
@@ -235,7 +238,7 @@ def _build_section_unit(
 ) -> DerivedStructuredUnit:
     text_parts = [str(row.get("clean_text") or "").strip() for row in narrative_rows if str(row.get("clean_text") or "").strip()]
     source_chunk_id = _normalize_optional_text(narrative_rows[0].get("chunk_id"))
-    root_unit_id = source_chunk_id or _normalize_optional_text(narrative_rows[0].get("row_id")) or "curriculum:section"
+    root_unit_id = _row_id(narrative_rows[0]) or source_chunk_id or "curriculum:section"
     page_values = [int(row.get("page_start")) for row in narrative_rows if isinstance(row.get("page_start"), int)]
     end_values = [int(row.get("page_end")) for row in narrative_rows if isinstance(row.get("page_end"), int)]
     heading_level = next(
@@ -260,7 +263,7 @@ def _build_section_unit(
         },
         acl_level=_normalize_acl_level(narrative_rows[0].get("acl")),
         metadata={
-            "source_row_ids": [str(row.get("row_id") or row.get("chunk_id") or "") for row in narrative_rows],
+            "source_row_ids": [_row_id(row) for row in narrative_rows],
             "source_row_types": [str(row.get("row_type") or "") for row in narrative_rows],
         },
     )
@@ -297,7 +300,7 @@ def _build_table_unit(
     source_chunk_id = _normalize_optional_text(table_rows[0].get("chunk_id")) if table_rows else None
     root_unit_id = (
         _normalize_optional_text(table_rows[0].get("continuation_group_id"))
-        or _normalize_optional_text(table_rows[0].get("row_id"))
+        or _row_id(table_rows[0])
         or source_chunk_id
         or "curriculum:table"
     )
@@ -326,10 +329,10 @@ def _build_table_unit(
             "note_lines": note_lines,
             "table_header_line": header_line,
             "table_row_lines": row_lines,
-            "lead_in_row_ids": [str(row.get("row_id") or row.get("chunk_id") or "") for row in lead_in_rows],
-            "table_row_ids": [str(row.get("row_id") or row.get("chunk_id") or "") for row in table_rows],
-            "caption_row_ids": [str(row.get("row_id") or row.get("chunk_id") or "") for row in ordered_rows if str(row.get("row_type") or "") == "table_caption"],
-            "note_row_ids": [str(row.get("row_id") or row.get("chunk_id") or "") for row in ordered_rows if str(row.get("row_type") or "") == "note"],
+            "lead_in_row_ids": [_row_id(row) for row in lead_in_rows],
+            "table_row_ids": [_row_id(row) for row in table_rows],
+            "caption_row_ids": [_row_id(row) for row in ordered_rows if str(row.get("row_type") or "") == "table_caption"],
+            "note_row_ids": [_row_id(row) for row in ordered_rows if str(row.get("row_type") or "") == "note"],
         },
     )
 
@@ -410,6 +413,13 @@ def _normalize_optional_text(value: object) -> str | None:
         return None
     normalized = value.strip()
     return normalized or None
+
+
+def _row_id(row: dict[str, object]) -> str:
+    row_id = _normalize_optional_text(row.get("row_id"))
+    if row_id is None:
+        raise ValueError("curriculum structured row is missing row_id")
+    return row_id
 
 
 def _normalize_acl_level(value: object) -> str:

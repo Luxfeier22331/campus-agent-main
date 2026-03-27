@@ -8,8 +8,9 @@ from campus_ingestion_core.curriculum_split_seed import (
     build_curriculum_split_manifest_seed,
     derive_legacy_curriculum_source_uri,
     load_legacy_curriculum_documents,
-    load_structured_rows,
+    load_layout_elements_rows,
 )
+from campus_ingestion_core.split_manifest import SplitManifestDocument
 
 
 class CurriculumSplitSeedTest(unittest.TestCase):
@@ -17,7 +18,7 @@ class CurriculumSplitSeedTest(unittest.TestCase):
         legacy_documents = load_legacy_curriculum_documents(
             Path("/home/reptilian/code/campusRag/rag-data/canonical/curriculum_plan/docs")
         )
-        structured_rows = load_structured_rows(Path("/tmp/curriculum-structured-full.v3.jsonl"))
+        structured_rows = load_layout_elements_rows(Path("/tmp/curriculum-layout-elements.v3.jsonl"))
 
         seed = build_curriculum_split_manifest_seed(
             legacy_documents=legacy_documents,
@@ -60,7 +61,7 @@ class CurriculumSplitSeedTest(unittest.TestCase):
         legacy_documents = load_legacy_curriculum_documents(
             Path("/home/reptilian/code/campusRag/rag-data/canonical/curriculum_plan/docs")
         )
-        structured_rows = load_structured_rows(Path("/tmp/curriculum-structured-full.v3.jsonl"))
+        structured_rows = load_layout_elements_rows(Path("/tmp/curriculum-layout-elements.v3.jsonl"))
         seed = build_curriculum_split_manifest_seed(
             legacy_documents=legacy_documents,
             structured_rows=structured_rows,
@@ -76,7 +77,7 @@ class CurriculumSplitSeedTest(unittest.TestCase):
         legacy_documents = load_legacy_curriculum_documents(
             Path("/home/reptilian/code/campusRag/rag-data/canonical/curriculum_plan/docs")
         )
-        structured_rows = load_structured_rows(Path("/tmp/curriculum-structured-full.v3.jsonl"))
+        structured_rows = load_layout_elements_rows(Path("/tmp/curriculum-layout-elements.v3.jsonl"))
         seed = build_curriculum_split_manifest_seed(
             legacy_documents=legacy_documents,
             structured_rows=structured_rows,
@@ -109,11 +110,38 @@ class CurriculumSplitSeedTest(unittest.TestCase):
         self.assertIn("中国少数民族语言文学本科人才培养方案", summary_row["clean_text"])
 
         first_page_row = rows[1]
-        self.assertEqual(first_page_row["chunk_id"], "page-0103")
+        self.assertEqual(first_page_row["chunk_id"], "page-0103-block-1-0001")
+        self.assertEqual(first_page_row["row_id"], "page-0103-block-1-0001")
         self.assertEqual(first_page_row["page_start"], 103)
         self.assertEqual(first_page_row["page_end"], 103)
         self.assertEqual(first_page_row["doc_id"], document.document_id)
         self.assertEqual(first_page_row["source_url"], source_uri)
+
+    def test_build_manifest_document_rows_rejects_clean_text_only_source_truth_rows(self) -> None:
+        manifest_document = SplitManifestDocument(
+            document_id="curriculum:test-001",
+            title="测试培养方案",
+            page_start=1,
+            page_end=1,
+            status="active",
+        )
+
+        with self.assertRaisesRegex(ValueError, "missing normalized text"):
+            build_manifest_document_rows(
+                structured_rows=[
+                    {
+                        "row_id": "page-0001-block-0001",
+                        "row_type": "paragraph",
+                        "clean_text": "这不应再被视为 source-truth 输入字段。",
+                        "page_start": 1,
+                        "page_end": 1,
+                    }
+                ],
+                manifest_document=manifest_document,
+                version_id="sha256:test",
+                source_pdf="curriculum-plan.pdf",
+                source_uri="campusrag://source/curriculum/test/pages/1-1",
+            )
 
 
 if __name__ == "__main__":

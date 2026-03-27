@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
+import hashlib
 import unittest
 
 from campus_ingestion_core.chunking import ChunkProfile
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import build_indexable_chunks_from_jsonl
+from campus_ingestion_core.raw_ingestion import _build_split_manifest_document_input, _load_layout_elements_rows
+from campus_ingestion_core.split_manifest import load_split_manifest
 
 
 def _make_curriculum_record() -> DocumentRegistryRecord:
@@ -205,6 +209,76 @@ class CurriculumChunkingTest(unittest.TestCase):
         self.assertTrue(all("表 1 核心课程设置" in chunk.text for chunk in table_chunks))
         self.assertTrue(all("课程 | 学分" in chunk.text for chunk in table_chunks))
         self.assertTrue(any("备注：实践类课程不少于 8 学分。" in chunk.text for chunk in table_chunks))
+
+    def test_build_indexable_chunks_from_jsonl_requires_row_id_for_curriculum_document_units(self) -> None:
+        record = _make_curriculum_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0020-block-0001",
+                        "row_type": "heading",
+                        "heading_level": 2,
+                        "clean_text": "一、培养目标",
+                        "page_start": 20,
+                        "page_end": 20,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                )
+            ]
+        ).encode("utf-8")
+
+        with self.assertRaisesRegex(ValueError, "missing row_id"):
+            build_indexable_chunks_from_jsonl(
+                record=record,
+                structured_jsonl_bytes=structured_payload,
+                chunk_profile=ChunkProfile(
+                    chunk_size=24,
+                    max_chunk_size=30,
+                    chunk_overlap=4,
+                    min_chunk_size=8,
+                    chunk_policy_version="curriculum_plan_semantic_candidate_v1",
+                    cleaning_policy_version="curriculum_plan_cleaning_v1",
+                ),
+            )
+
+    def test_build_indexable_chunks_from_jsonl_rejects_heading_without_heading_level(self) -> None:
+        record = _make_curriculum_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0020-block-0001",
+                        "row_id": "page-0020-block-0001",
+                        "row_type": "heading",
+                        "clean_text": "一、培养目标",
+                        "page_start": 20,
+                        "page_end": 20,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                )
+            ]
+        ).encode("utf-8")
+
+        with self.assertRaisesRegex(ValueError, "heading_level"):
+            build_indexable_chunks_from_jsonl(
+                record=record,
+                structured_jsonl_bytes=structured_payload,
+                chunk_profile=ChunkProfile(
+                    chunk_size=24,
+                    max_chunk_size=30,
+                    chunk_overlap=4,
+                    min_chunk_size=8,
+                    chunk_policy_version="curriculum_plan_semantic_candidate_v1",
+                    cleaning_policy_version="curriculum_plan_cleaning_v1",
+                ),
+            )
 
     def test_build_indexable_chunks_from_jsonl_keeps_non_table_notes_in_section_text(self) -> None:
         record = _make_curriculum_record()
@@ -518,6 +592,80 @@ class CurriculumChunkingTest(unittest.TestCase):
         self.assertIn("大类培养 | 通识教育 | 人文素养类 | 2", chunks[0].text)
         self.assertIn("大类培养 | 通识教育 | 创新创业素养类 / 2", chunks[0].text)
         self.assertNotIn("\n| ", chunks[0].text)
+
+    def test_real_curriculum_projection_can_chunk_after_split(self) -> None:
+        manifest = load_split_manifest(
+            Path("configs/ingestion/curriculum/curriculum_plan/split-manifest.v1.json"),
+            expected_corpus="curriculum",
+            expected_collection="curriculum_plan",
+        )
+        layout_rows = _load_layout_elements_rows(
+            Path("tests/fixtures/curriculum_plan/layout-elements.pages-278-297.jsonl").read_bytes()
+        )
+        target_document = next(
+            item for item in manifest.documents if item.document_id == "curriculum:国际经济与贸易本科人才培养方案"
+        )
+        raw_version_id = "sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67"
+        document_input = _build_split_manifest_document_input(
+            raw_asset_record=type("RawAssetRecordProxy", (), {
+                "raw_asset_id": "asset:curriculum-plan-2022",
+                "raw_version_id": raw_version_id,
+                "corpus": "curriculum",
+                "collection": "curriculum_plan",
+                "raw_source_uri": "file:///tmp/curriculum-plan-2022.pdf",
+                "content_hash": raw_version_id.removeprefix("sha256:"),
+                "source_filename": "curriculum-plan-2022.pdf",
+                "object_key": "official_pdf/curriculum-plan/2022/sha256/test/capture/curriculum-plan-2022.pdf",
+                "ingestion_timestamp": "2026-03-24T10:00:00+00:00",
+                "import_source": "raw_online_ocr",
+            })(),
+            manifest_version=manifest.manifest_version,
+            manifest_document=target_document,
+            structured_rows=layout_rows,
+            provider_response_key="official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl",
+            layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
+            default_campus_scope="main",
+            corpus="curriculum",
+            collection="curriculum_plan",
+        )
+        record = DocumentRegistryRecord(
+            document_id=target_document.document_id,
+            revision_track="source-faithful",
+            version_id=str(document_input.metadata["version_id"]),
+            source_uri=str(document_input.metadata.get("source_url") or document_input.metadata.get("source_id") or ""),
+            content_hash=hashlib.sha256(document_input.document_units_bytes).hexdigest(),
+            corpus="curriculum",
+            collection="curriculum_plan",
+            cleaning_policy_version="curriculum_plan_cleaning_v1",
+            acl_groups=tuple(document_input.metadata.get("acl_groups") or ()),
+            campus_scope="main",
+            status=str(document_input.metadata.get("status") or "active"),
+            ingestion_timestamp="2026-03-27T12:00:00+00:00",
+            parser_version="raw-online-ocr-v1",
+            embedding_model="Qwen3-Embedding-4B",
+            source_channel="pdf_ocr",
+            is_current=True,
+            document_units_object_key="curriculum/documents/tmp/document-units.jsonl",
+            import_source="raw_online_ocr",
+        )
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=document_input.document_units_bytes,
+            chunk_profile=ChunkProfile(
+                chunk_size=360,
+                max_chunk_size=540,
+                chunk_overlap=72,
+                min_chunk_size=50,
+                chunk_policy_version="curriculum_plan_semantic_candidate_v1",
+                cleaning_policy_version="curriculum_plan_cleaning_v1",
+            ),
+        )
+
+        self.assertGreater(len(chunks), 0)
+        self.assertEqual(chunks[0].metadata["unit_type"], "section_text")
+        self.assertEqual(chunks[0].anchor["page_start"], 278)
+        self.assertIn("国际经济与贸易本科人才培养方案", chunks[0].text)
 
 
 if __name__ == "__main__":

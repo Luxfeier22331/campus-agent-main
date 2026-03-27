@@ -64,7 +64,7 @@ def build_manifest_document_rows(
     source_uri: str,
     acl_groups: Sequence[str] = (),
 ) -> list[dict[str, object]]:
-    selected_rows = [
+    page_rows = [
         dict(row)
         for row in structured_rows
         if _row_belongs_to_page_range(
@@ -72,12 +72,14 @@ def build_manifest_document_rows(
             page_start=manifest_document.page_start,
             page_end=manifest_document.page_end,
         )
-        and _row_text(row)
     ]
-    if not selected_rows:
+    if not page_rows:
         raise ValueError(
             f"split manifest document {manifest_document.document_id} does not match any structured rows"
         )
+    selected_rows = [row for row in page_rows if _row_text(row)]
+    if not selected_rows:
+        raise ValueError("split-manifest source row is missing normalized text")
     transformed_rows = [
         _transform_split_row(
             row=row,
@@ -127,7 +129,7 @@ def load_legacy_curriculum_documents(docs_root: Path) -> tuple[LegacyCurriculumD
     return tuple(documents)
 
 
-def load_structured_rows(path: Path) -> list[dict[str, object]]:
+def load_layout_elements_rows(path: Path) -> list[dict[str, object]]:
     return [
         json.loads(line)
         for line in Path(path).read_text(encoding="utf-8").splitlines()
@@ -301,7 +303,7 @@ def _resolve_max_page(structured_rows: Sequence[Mapping[str, object]]) -> int:
 
 
 def _row_text(row: Mapping[str, object]) -> str:
-    for field_name in ("clean_text", "text_normalized", "text_raw"):
+    for field_name in ("text_normalized", "text_raw", "html"):
         value = row.get(field_name)
         if isinstance(value, str) and value.strip():
             return value.strip()
@@ -330,11 +332,22 @@ def _transform_split_row(
         raise ValueError("split-manifest source row is missing normalized text")
     page_start = int(row["page_start"])
     page_end = int(row["page_end"])
-    return {
+    projected = {
         "doc_id": document_id,
         "version_id": version_id,
-        "chunk_id": f"page-{page_start:04d}",
+        "chunk_id": _projected_chunk_id(row=row, page_start=page_start),
+        "row_id": _required_row_id(row),
+        "row_type": _optional_string(row.get("row_type")),
+        "heading_level": row.get("heading_level"),
+        "row_index": row.get("row_index"),
+        "reading_order": row.get("reading_order"),
+        "section_hint": _optional_string(row.get("section_hint")),
         "clean_text": clean_text,
+        "html": row.get("html"),
+        "table_cells": row.get("table_cells"),
+        "owner_row_id": _optional_string(row.get("owner_row_id")),
+        "relation_type": _optional_string(row.get("relation_type")),
+        "continuation_group_id": _optional_string(row.get("continuation_group_id")),
         "source_pdf": source_pdf,
         "source_url": source_uri,
         "source_md": None,
@@ -343,3 +356,25 @@ def _transform_split_row(
         "page_end": page_end,
         "acl": {"level": "public", "allow_groups": list(acl_groups)},
     }
+    return projected
+
+
+def _required_row_id(row: Mapping[str, object]) -> str:
+    row_id = _optional_string(row.get("row_id"))
+    if row_id is None:
+        raise ValueError("split-manifest source row is missing row_id")
+    return row_id
+
+
+def _projected_chunk_id(*, row: Mapping[str, object], page_start: int) -> str:
+    row_id = _optional_string(row.get("row_id"))
+    if row_id is not None:
+        return row_id
+    return f"page-{page_start:04d}"
+
+
+def _optional_string(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    return normalized or None
