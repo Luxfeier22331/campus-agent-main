@@ -7,5 +7,9 @@
   "cleaning_policy_version": "student_handbook_cleaning_v1",
   "chunk_profile_version": "student_handbook_semantic_v3",
   "retrieval_enabled": true,
-  "default_query_enabled": true
+  "default_query_enabled": true,
+  "current_only": true,
+  "serving_revision_tracks": ["current-effective", "source-faithful"],
+  "no_hit_min_top_score": 0.6,
+  "no_hit_min_score_gap": 0.1
 }

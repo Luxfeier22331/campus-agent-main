@@ -118,6 +118,24 @@ def evaluate_retrieval_case(
     ranked_sources = tuple(sources)
     relevant_sources = case.expected_sources
     relevant_total = len(relevant_sources)
+    forbidden_hit = any(
+        _matches_expected(source_ref, source)
+        for source_ref in case.forbidden_sources
+        for source in ranked_sources
+    )
+
+    if relevant_total == 0:
+        empty_success = 1.0 if not ranked_sources else 0.0
+        return RetrievalCaseMetrics(
+            case_id=case.case_id,
+            split=case.split,
+            hit_at_1=empty_success,
+            hit_at_3=empty_success,
+            recall_at_5=empty_success,
+            precision_at_5=empty_success,
+            mrr_at_5=empty_success,
+            forbidden_hit=forbidden_hit,
+        )
 
     def hit_at(limit: int) -> float:
         return 1.0 if any(_matches_expected(source_ref, source) for source in ranked_sources[:limit] for source_ref in relevant_sources) else 0.0
@@ -136,11 +154,6 @@ def evaluate_retrieval_case(
             if any(_matches_expected(source_ref, source) for source_ref in relevant_sources)
         ),
         None,
-    )
-    forbidden_hit = any(
-        _matches_expected(source_ref, source)
-        for source_ref in case.forbidden_sources
-        for source in ranked_sources
     )
     return RetrievalCaseMetrics(
         case_id=case.case_id,

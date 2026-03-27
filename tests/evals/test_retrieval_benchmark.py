@@ -40,6 +40,14 @@ ANNOTATION_TEMPLATE_PATH = (
     / "fixtures"
     / "student_handbook_retrieval_annotation_template.json"
 )
+HANDBOOK_MANIFEST_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "configs"
+    / "ingestion"
+    / "regulations"
+    / "student_handbook"
+    / "split-manifest.v1.json"
+)
 
 
 def _source(
@@ -75,26 +83,23 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertEqual(dataset.baseline["dense_model"], "Qwen3-Embedding-4B")
         self.assertEqual(dataset.baseline["sparse_model"], "qdrant/bm25")
         self.assertEqual(dataset.baseline["fusion"], "rrf")
-        self.assertGreaterEqual(len(dataset.cases), 18)
+        self.assertGreaterEqual(len(dataset.cases), 10)
 
-    def test_qrels_fixture_contains_doc_level_and_chunk_level_cases(self) -> None:
+    def test_qrels_fixture_locks_handbook_truth_to_doc_level_manifest_ids(self) -> None:
         dataset = load_retrieval_qrels_dataset(FIXTURE_PATH)
 
         case_ids = {case.case_id for case in dataset.cases}
         self.assertIn("article-number-degree-procedure", case_ids)
-        self.assertIn("fixed-phrase-office-hours", case_ids)
+        self.assertIn("fixed-phrase-medical-reimbursement", case_ids)
         article_case = next(case for case in dataset.cases if case.case_id == "article-number-degree-procedure")
-        fixed_phrase_case = next(case for case in dataset.cases if case.case_id == "fixed-phrase-office-hours")
+        fixed_phrase_case = next(case for case in dataset.cases if case.case_id == "fixed-phrase-medical-reimbursement")
         self.assertTrue(all(source.chunk_id is None for source in article_case.expected_sources))
-        self.assertTrue(any(source.chunk_id is not None for source in fixed_phrase_case.expected_sources))
+        self.assertTrue(all(source.chunk_id is None for source in fixed_phrase_case.expected_sources))
 
-    def test_qrels_fixture_loads_request_overrides_for_acl_and_campus_cases(self) -> None:
+    def test_qrels_fixture_uses_empty_request_overrides_for_handbook_scope(self) -> None:
         dataset = load_retrieval_qrels_dataset(FIXTURE_PATH)
 
-        acl_case = next(case for case in dataset.cases if case.case_id == "acl-restricted-office-hours")
-        campus_case = next(case for case in dataset.cases if case.case_id == "campus-scope-nansha-library")
-        self.assertEqual(acl_case.request_overrides["acl_groups"], ["students"])
-        self.assertEqual(campus_case.request_overrides["campus_scope"], "nansha")
+        self.assertTrue(all(case.request_overrides == {} for case in dataset.cases))
 
     def test_annotation_template_exists_and_matches_qrels_case_count(self) -> None:
         template = json.loads(ANNOTATION_TEMPLATE_PATH.read_text(encoding="utf-8"))
@@ -105,6 +110,36 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertEqual(template["collection"], "student_handbook")
         self.assertEqual(len(template["cases"]), len(dataset.cases))
         self.assertIn("instructions", template)
+
+    def test_qrels_fixture_expected_doc_ids_align_with_student_handbook_manifest(self) -> None:
+        dataset = load_retrieval_qrels_dataset(FIXTURE_PATH)
+        manifest = json.loads(HANDBOOK_MANIFEST_PATH.read_text(encoding="utf-8"))
+        manifest_doc_ids = {item["document_id"] for item in manifest["documents"]}
+        referenced_doc_ids = {
+            source.doc_id
+            for case in dataset.cases
+            for source in (*case.expected_sources, *case.forbidden_sources)
+        }
+
+        self.assertTrue(referenced_doc_ids)
+        self.assertTrue(referenced_doc_ids.issubset(manifest_doc_ids))
+
+    def test_qrels_fixture_does_not_require_acl_or_campus_cases_without_source_truth(self) -> None:
+        dataset = load_retrieval_qrels_dataset(FIXTURE_PATH)
+        manifest = json.loads(HANDBOOK_MANIFEST_PATH.read_text(encoding="utf-8"))
+        manifest_has_acl = any(item.get("acl_groups") for item in manifest["documents"])
+        manifest_has_campus_scope = any(item.get("campus_scope") for item in manifest["documents"])
+
+        if manifest_has_acl or manifest_has_campus_scope:
+            self.skipTest("student_handbook manifest now carries ACL or campus-scoped source truth")
+
+        overridden_case_ids = {
+            case.case_id
+            for case in dataset.cases
+            if case.request_overrides.get("acl_groups") or case.request_overrides.get("campus_scope")
+        }
+
+        self.assertEqual(overridden_case_ids, set())
 
 
 class RetrievalMetricsTest(unittest.TestCase):
@@ -183,6 +218,26 @@ class RetrievalMetricsTest(unittest.TestCase):
         self.assertEqual(metrics.precision_at_5, 0.0)
         self.assertEqual(metrics.mrr_at_5, 0.0)
         self.assertTrue(metrics.forbidden_hit)
+
+    def test_evaluate_retrieval_case_treats_empty_expectation_as_no_hit_contract(self) -> None:
+        case = RetrievalQrelsCase(
+            case_id="no-hit",
+            split="smoke",
+            query="校内宇宙签证办理处",
+            scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+        )
+
+        empty_metrics = evaluate_retrieval_case(case, ())
+        noisy_metrics = evaluate_retrieval_case(case, (_source(doc_id="handbook:loan"),))
+
+        self.assertEqual(empty_metrics.hit_at_1, 1.0)
+        self.assertEqual(empty_metrics.hit_at_3, 1.0)
+        self.assertEqual(empty_metrics.recall_at_5, 1.0)
+        self.assertEqual(empty_metrics.precision_at_5, 1.0)
+        self.assertEqual(empty_metrics.mrr_at_5, 1.0)
+        self.assertEqual(noisy_metrics.hit_at_1, 0.0)
+        self.assertEqual(noisy_metrics.recall_at_5, 0.0)
+        self.assertEqual(noisy_metrics.mrr_at_5, 0.0)
 
     def test_summarize_retrieval_metrics_aggregates_over_cases(self) -> None:
         metrics = (

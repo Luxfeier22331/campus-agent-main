@@ -19,6 +19,10 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertTrue(profile.split_manifest_required)
         self.assertTrue(profile.retrieval_enabled)
         self.assertTrue(profile.default_query_enabled)
+        self.assertTrue(profile.current_only)
+        self.assertEqual(profile.serving_revision_tracks, ("current-effective", "source-faithful"))
+        self.assertEqual(profile.no_hit_min_top_score, 0.6)
+        self.assertEqual(profile.no_hit_min_score_gap, 0.1)
         self.assertEqual(profile.cleaning_policy_version, "student_handbook_cleaning_v1")
         self.assertEqual(profile.chunk_profile_version, "student_handbook_semantic_v3")
 
@@ -32,6 +36,10 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertTrue(profile.split_manifest_required)
         self.assertFalse(profile.retrieval_enabled)
         self.assertFalse(profile.default_query_enabled)
+        self.assertFalse(profile.current_only)
+        self.assertEqual(profile.serving_revision_tracks, ())
+        self.assertIsNone(profile.no_hit_min_top_score)
+        self.assertIsNone(profile.no_hit_min_score_gap)
         self.assertEqual(profile.cleaning_policy_version, "curriculum_plan_cleaning_v1")
         self.assertEqual(profile.chunk_profile_version, "curriculum_plan_semantic_v1")
 
@@ -45,6 +53,10 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertFalse(profile.split_manifest_required)
         self.assertFalse(profile.retrieval_enabled)
         self.assertFalse(profile.default_query_enabled)
+        self.assertFalse(profile.current_only)
+        self.assertEqual(profile.serving_revision_tracks, ())
+        self.assertIsNone(profile.no_hit_min_top_score)
+        self.assertIsNone(profile.no_hit_min_score_gap)
         self.assertEqual(profile.cleaning_policy_version, "service_catalog_cleaning_v1")
         self.assertEqual(profile.chunk_profile_version, "service_catalog_semantic_v1")
 
@@ -58,6 +70,10 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertFalse(profile.split_manifest_required)
         self.assertFalse(profile.retrieval_enabled)
         self.assertFalse(profile.default_query_enabled)
+        self.assertFalse(profile.current_only)
+        self.assertEqual(profile.serving_revision_tracks, ())
+        self.assertIsNone(profile.no_hit_min_top_score)
+        self.assertIsNone(profile.no_hit_min_score_gap)
         self.assertEqual(profile.cleaning_policy_version, "contact_directory_cleaning_v1")
         self.assertEqual(profile.chunk_profile_version, "contact_directory_semantic_v1")
 

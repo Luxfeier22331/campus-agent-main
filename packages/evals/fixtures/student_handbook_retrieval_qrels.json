@@ -14,112 +14,93 @@
     {
       "case_id": "article-number-degree-procedure",
       "split": "smoke",
-      "query": "学士学位授予程序 第十条",
+      "query": "中央民族大学全日制本科学生学士学位授予规定 第十条",
       "expected_sources": [
         {
-          "doc_id": "handbook:degree-award-procedure",
+          "doc_id": "handbook:742d4831bfb443b99323041e263fac2fd9aafcf6",
           "grade": 2,
-          "rationale": "主制度文档。"
+          "rationale": "学士学位授予规定条款号 exact-match。"
         }
       ],
-      "notes": "doc-level exact-match 基线。"
-    },
-    {
-      "case_id": "article-number-dormitory-discipline",
-      "split": "smoke",
-      "query": "学生公寓管理规定 第十二条",
-      "expected_sources": [
-        {
-          "doc_id": "handbook:dormitory-management-policy",
-          "grade": 2,
-          "rationale": "条款号 exact-match。"
-        }
-      ],
-      "notes": "doc-level 条款号命中。"
+      "notes": "doc-level 条款号基线。"
     },
     {
       "case_id": "article-number-student-status",
       "split": "regression_locked",
-      "query": "学生管理规定 第二十四条",
+      "query": "普通高等学校学生管理规定 第二十四条",
       "expected_sources": [
         {
-          "doc_id": "handbook:student-status-policy",
-          "version_id": "v1",
+          "doc_id": "handbook:d0a1db59ed9a8b00c4349200916edae208d876f6",
           "grade": 2,
-          "rationale": "高风险条款号检索。"
+          "rationale": "学生管理规定条款号 exact-match。"
         }
       ],
-      "notes": "version-level 条款号命中。"
+      "notes": "doc-level 条款号高风险回归。"
     },
     {
       "case_id": "policy-title-scholarship",
       "split": "smoke",
-      "query": "奖学金评定办法",
+      "query": "中央民族大学本科学生国家奖学金评审办法",
       "expected_sources": [
         {
-          "doc_id": "handbook:scholarship-policy",
+          "doc_id": "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
           "grade": 2,
           "rationale": "制度标题 exact-match。"
         }
       ],
-      "notes": "制度标题 doc-level 命中。"
+      "notes": "奖学金制度标题命中。"
     },
     {
-      "case_id": "policy-title-graduation",
+      "case_id": "policy-title-loan",
       "split": "smoke",
-      "query": "毕业资格审查办法",
+      "query": "中央民族大学助学贷款管理暂行办法",
       "expected_sources": [
         {
-          "doc_id": "handbook:graduation-qualification-policy",
+          "doc_id": "handbook:ce5617b516e144a9602087cd19c1413c46e9c0ff",
           "grade": 2,
-          "rationale": "制度标题 exact-match。"
+          "rationale": "助学贷款制度标题 exact-match。"
         }
       ],
-      "notes": "毕业制度标题命中。"
+      "notes": "资助制度标题命中。"
     },
     {
-      "case_id": "policy-title-library",
+      "case_id": "policy-title-medical",
       "split": "regression_locked",
-      "query": "图书馆借阅规则",
+      "query": "中央民族大学学生公费医疗管理办法",
       "expected_sources": [
         {
-          "doc_id": "handbook:library-borrowing-policy",
-          "version_id": "v2",
+          "doc_id": "handbook:b85de1cb327a26dc63488e247403ae3126d524be",
           "grade": 2,
-          "rationale": "制度标题高风险回归。"
+          "rationale": "公费医疗制度标题 exact-match。"
         }
       ],
-      "notes": "version-level 标题命中。"
+      "notes": "公费医疗制度标题高风险回归。"
     },
     {
-      "case_id": "fixed-phrase-office-hours",
+      "case_id": "fixed-phrase-dormitory-lighting",
       "split": "regression_locked",
-      "query": "图书馆开放时间",
+      "query": "宿舍照明",
       "expected_sources": [
         {
-          "doc_id": "handbook:library-guide",
-          "version_id": "v1",
-          "chunk_id": "chunk-library-hours",
+          "doc_id": "handbook:2ec80263a9e7b11379281349196ceb96afa44c3b",
           "grade": 2,
-          "rationale": "固定措辞应稳定命中对应时间块。"
+          "rationale": "固定措辞应稳定命中宿舍照明制度。"
         }
       ],
-      "notes": "chunk-level sparse high-risk case。"
+      "notes": "sparse 固定措辞命中。"
     },
     {
-      "case_id": "fixed-phrase-leave-workflow",
-      "split": "regression_locked",
-      "query": "请假审批流程",
+      "case_id": "fixed-phrase-electrical-appliance",
+      "split": "smoke",
+      "query": "电器使用管理",
       "expected_sources": [
         {
-          "doc_id": "handbook:leave-of-absence-policy",
-          "version_id": "v1",
-          "chunk_id": "chunk-leave-workflow",
+          "doc_id": "handbook:a633b4ce84d8d92e1d98f97c57491ec24e8be834",
           "grade": 2,
-          "rationale": "流程固定措辞。"
+          "rationale": "固定措辞应命中宿舍电器管理制度。"
         }
       ],
-      "notes": "流程类 chunk-level 命中。"
+      "notes": "sparse 固定措辞命中。"
     },
     {
       "case_id": "fixed-phrase-medical-reimbursement",
@@ -127,12 +108,12 @@
       "query": "公费医疗报销",
       "expected_sources": [
         {
-          "doc_id": "handbook:medical-reimbursement-policy",
+          "doc_id": "handbook:b85de1cb327a26dc63488e247403ae3126d524be",
           "grade": 2,
-          "rationale": "固定术语 exact-match。"
+          "rationale": "固定术语应命中公费医疗制度。"
         }
       ],
-      "notes": "doc-level sparse phrase baseline。"
+      "notes": "sparse 固定术语基线。"
     },
     {
       "case_id": "semantic-degree-application",
@@ -140,17 +121,17 @@
       "query": "毕业前申请学位的流程是什么",
       "expected_sources": [
         {
-          "doc_id": "handbook:degree-award-procedure",
+          "doc_id": "handbook:742d4831bfb443b99323041e263fac2fd9aafcf6",
           "grade": 2,
-          "rationale": "语义相关主文档。"
+          "rationale": "学位授予规定是主相关制度。"
         },
         {
-          "doc_id": "handbook:graduation-guide",
+          "doc_id": "handbook:d0a1db59ed9a8b00c4349200916edae208d876f6",
           "grade": 1,
-          "rationale": "可接受相关文档。"
+          "rationale": "普通学生管理规定属于可接受相关制度。"
         }
       ],
-      "notes": "dense 语义主导的 doc-level truth。"
+      "notes": "dense semantic 问法。"
     },
     {
       "case_id": "semantic-scholarship-eligibility",
@@ -158,113 +139,35 @@
       "query": "申请奖学金需要满足什么条件",
       "expected_sources": [
         {
-          "doc_id": "handbook:scholarship-policy",
+          "doc_id": "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
           "grade": 2,
-          "rationale": "奖学金资格条件。"
-        }
-      ],
-      "notes": "dense semantic baseline。"
-    },
-    {
-      "case_id": "semantic-transcript-request",
-      "split": "regression_locked",
-      "query": "怎么开具成绩单",
-      "expected_sources": [
-        {
-          "doc_id": "handbook:academic-records-guide",
-          "version_id": "v1",
-          "grade": 2,
-          "rationale": "教务成绩单办理说明。"
+          "rationale": "国家奖学金评审办法是主相关制度。"
         },
         {
-          "doc_id": "handbook:registrar-service-guide",
+          "doc_id": "handbook:60c8b33801e2e59e6db2210719592a6252e3516d",
           "grade": 1,
-          "rationale": "可接受服务说明。"
-        }
-      ],
-      "notes": "dense semantic version-level case。"
-    },
-    {
-      "case_id": "acl-restricted-office-hours",
-      "split": "regression_locked",
-      "query": "办公室值班时间",
-      "request_overrides": {
-        "acl_groups": [
-          "students"
-        ]
-      },
-      "forbidden_sources": [
+          "rationale": "专业奖学金评定办法是可接受相关制度。"
+        },
         {
-          "doc_id": "handbook:restricted-office-hours",
+          "doc_id": "handbook:aa835b8cd4acddb62c7243fed9a9f8c0728e68bc",
           "grade": 1,
-          "rationale": "未授权组不应命中。"
+          "rationale": "社会奖助学金管理办法是可接受相关制度。"
         }
       ],
-      "notes": "ACL fail-closed case。"
+      "notes": "dense semantic 问法。"
     },
     {
-      "case_id": "acl-restricted-advisor-phone",
+      "case_id": "semantic-student-card-reissue",
       "split": "regression_locked",
-      "query": "辅导员值班电话",
-      "request_overrides": {
-        "acl_groups": [
-          "students"
-        ]
-      },
-      "forbidden_sources": [
-        {
-          "doc_id": "handbook:restricted-advisor-phonebook",
-          "grade": 1,
-          "rationale": "未授权组不应看到内部电话簿。"
-        }
-      ],
-      "notes": "ACL restricted source case。"
-    },
-    {
-      "case_id": "campus-scope-nansha-library",
-      "split": "regression_locked",
-      "query": "南沙校区 图书馆 开放",
-      "request_overrides": {
-        "campus_scope": "nansha"
-      },
+      "query": "学生证丢了怎么办",
       "expected_sources": [
         {
-          "doc_id": "handbook:nansha-library-guide",
+          "doc_id": "handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
           "grade": 2,
-          "rationale": "指定 campus_scope 的目标文档。"
+          "rationale": "学生证管理办法是主相关制度。"
         }
       ],
-      "forbidden_sources": [
-        {
-          "doc_id": "handbook:main-campus-library-guide",
-          "grade": 1,
-          "rationale": "不得跨校区泄漏。"
-        }
-      ],
-      "notes": "campus_scope filter case。"
-    },
-    {
-      "case_id": "campus-scope-nansha-dormitory",
-      "split": "regression_locked",
-      "query": "南沙校区 宿舍 管理",
-      "request_overrides": {
-        "campus_scope": "nansha"
-      },
-      "expected_sources": [
-        {
-          "doc_id": "handbook:nansha-dormitory-guide",
-          "grade": 2,
-          "rationale": "目标校区宿舍文档。"
-        }
-      ],
-      "forbidden_sources": [
-        {
-          "doc_id": "handbook:main-campus-dormitory-guide",
-          "grade": 1,
-          "rationale": "不得跨校区召回。"
-        }
-      ],
-      "notes": "campus_scope 宿舍 case。"
+      "notes": "dense semantic 高风险回归。"
     },
     {
       "case_id": "no-hit-impossible-query",

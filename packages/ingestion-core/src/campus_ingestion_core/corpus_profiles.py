@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 
-from campus_contracts import ALLOWED_CORPORA
+from campus_contracts import ALLOWED_CORPORA, ALLOWED_REVISION_TRACKS
 
 
 ALLOWED_PHASE1_STAGES = ("query_serving", "cleaned_ingestion")
@@ -22,6 +22,10 @@ class CollectionRuntimeProfile:
     chunk_profile_version: str
     retrieval_enabled: bool
     default_query_enabled: bool
+    current_only: bool = False
+    serving_revision_tracks: tuple[str, ...] = ()
+    no_hit_min_top_score: float | None = None
+    no_hit_min_score_gap: float | None = None
 
     def __post_init__(self) -> None:
         if self.corpus not in ALLOWED_CORPORA:
@@ -39,6 +43,13 @@ class CollectionRuntimeProfile:
             raise ValueError("cleaning_policy_version is required")
         if not self.chunk_profile_version:
             raise ValueError("chunk_profile_version is required")
+        for revision_track in self.serving_revision_tracks:
+            if revision_track not in ALLOWED_REVISION_TRACKS:
+                raise ValueError(f"unsupported serving_revision_track: {revision_track}")
+        if self.no_hit_min_top_score is not None and not 0.0 <= self.no_hit_min_top_score <= 1.0:
+            raise ValueError("no_hit_min_top_score must be between zero and one")
+        if self.no_hit_min_score_gap is not None and not 0.0 <= self.no_hit_min_score_gap <= 1.0:
+            raise ValueError("no_hit_min_score_gap must be between zero and one")
 
 
 def load_runtime_profile(
@@ -64,6 +75,10 @@ def load_runtime_profile(
         chunk_profile_version=str(payload.get("chunk_profile_version") or ""),
         retrieval_enabled=bool(payload.get("retrieval_enabled")),
         default_query_enabled=bool(payload.get("default_query_enabled")),
+        current_only=bool(payload.get("current_only", False)),
+        serving_revision_tracks=tuple(str(item) for item in list(payload.get("serving_revision_tracks") or [])),
+        no_hit_min_top_score=_optional_float(payload.get("no_hit_min_top_score")),
+        no_hit_min_score_gap=_optional_float(payload.get("no_hit_min_score_gap")),
     )
 
 
@@ -84,3 +99,9 @@ def default_query_scopes(*, config_root: Path | None = None) -> tuple[tuple[str,
 
 def _default_config_root() -> Path:
     return Path(__file__).resolve().parents[4] / "configs" / "ingestion"
+
+
+def _optional_float(value: object) -> float | None:
+    if value is None:
+        return None
+    return float(value)

@@ -1122,7 +1122,7 @@ def _build_handbook_replay_document_input(
         import_source="provider_response_replay",
         revision_track="source-faithful",
         source_channel="pdf_ocr",
-        is_current=False,
+        is_current=True,
         corpus=corpus,
         collection=collection,
         campus_scope=manifest_document.campus_scope,

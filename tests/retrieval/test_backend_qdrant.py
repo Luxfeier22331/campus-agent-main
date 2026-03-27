@@ -6,8 +6,9 @@ import unittest
 import uuid
 from unittest.mock import Mock, patch
 
-from campus_contracts import EvidenceBundle
+from campus_contracts import EvidenceBundle, EvidenceSource
 from campus_ingestion_core.chunking import ChunkProfile
+from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.embed import MockEmbeddingSettings, build_mock_embedding_model
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import build_indexable_chunks_from_jsonl, index_chunks_to_qdrant
@@ -22,6 +23,7 @@ from campus_retrieval_core.backend_qdrant import (
     CorpusQueryDisabledError,
     QdrantRetrievalBackend,
     RetrievalBackendError,
+    _apply_no_hit_policy,
     _build_hybrid_prefetch,
     _build_qdrant_client,
     _build_metadata_filters,
@@ -33,10 +35,18 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
 
 
-def _make_registry_record(*, document_id: str, version_id: str, acl_groups: tuple[str, ...]) -> DocumentRegistryRecord:
+def _make_registry_record(
+    *,
+    document_id: str,
+    version_id: str,
+    acl_groups: tuple[str, ...],
+    revision_track: str = "source-faithful",
+    is_current: bool = True,
+    status: str = "active",
+) -> DocumentRegistryRecord:
     return DocumentRegistryRecord(
         document_id=document_id,
-        revision_track="source-faithful",
+        revision_track=revision_track,
         version_id=version_id,
         source_uri=f"https://campus.example/handbook/{document_id}",
         content_hash=f"sha256:{document_id}",
@@ -44,11 +54,12 @@ def _make_registry_record(*, document_id: str, version_id: str, acl_groups: tupl
         collection="student_handbook",
         acl_groups=acl_groups,
         campus_scope=None,
-        status="active",
+        status=status,
         ingestion_timestamp="2026-03-22T10:00:00+00:00",
         parser_version="campusrag-import-v1",
         embedding_model="mock-embedding-8d",
         source_channel="pdf_ocr",
+        is_current=is_current,
         document_units_object_key=(
             "regulations/documents/student_handbook/"
             f"{document_id.replace(':', '-')}/source-faithful/undated/document-units.jsonl"
@@ -117,12 +128,17 @@ class BackendQdrantTest(unittest.TestCase):
         )
 
         self.assertEqual(filters.condition.value, "and")
-        self.assertEqual(len(filters.filters), 3)
+        self.assertEqual(len(filters.filters), 5)
         self.assertEqual(filters.filters[0].key, "corpus")
         self.assertEqual(filters.filters[0].value, "regulations")
         self.assertEqual(filters.filters[1].key, "collection")
         self.assertEqual(filters.filters[1].value, "student_handbook")
-        acl_filter = filters.filters[2]
+        self.assertEqual(filters.filters[2].key, "revision_track")
+        self.assertEqual(filters.filters[2].operator.value, "in")
+        self.assertEqual(filters.filters[2].value, ["current-effective", "source-faithful"])
+        self.assertEqual(filters.filters[3].key, "status")
+        self.assertEqual(filters.filters[3].value, "active")
+        acl_filter = filters.filters[4]
         self.assertEqual(acl_filter.condition.value, "or")
         self.assertEqual(len(acl_filter.filters), 2)
         self.assertEqual(acl_filter.filters[0].key, "acl_level")
@@ -213,10 +229,23 @@ class BackendQdrantTest(unittest.TestCase):
                 "campus_scope",
                 "acl_groups",
                 "acl_level",
+                "status",
                 "source_channel",
                 "is_current",
             ],
         )
+        indexed_schemas = {
+            call.kwargs["field_name"]: call.kwargs["field_schema"]
+            for call in qdrant_client.create_payload_index.call_args_list
+        }
+        self.assertTrue(
+            all(
+                indexed_schemas[field_name] == qdrant_models.PayloadSchemaType.KEYWORD
+                for field_name in indexed_fields
+                if field_name != "is_current"
+            )
+        )
+        self.assertEqual(indexed_schemas["is_current"], qdrant_models.PayloadSchemaType.BOOL)
 
     def test_backend_rejects_query_disabled_corpus(self) -> None:
         backend = QdrantRetrievalBackend(
@@ -306,6 +335,7 @@ class BackendQdrantTest(unittest.TestCase):
                 acl_groups=("students",),
                 top_k=3,
             ),
+            profile=load_runtime_profile("regulations", "student_handbook"),
             embedding_model=dense_embedding_model,
             sparse_embedding_model=sparse_embedding_model,
         )
@@ -318,6 +348,30 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertIsInstance(prefetch[1].query, qdrant_models.SparseVector)
         self.assertEqual(prefetch[1].query.indices, [11, 29])
         self.assertEqual(prefetch[1].query.values, [1.0, 1.0])
+        dense_filter = prefetch[0].filter
+        self.assertIsNotNone(dense_filter)
+        dense_conditions = dense_filter.must or []
+        self.assertTrue(
+            any(
+                getattr(condition, "key", None) == "status"
+                and getattr(getattr(condition, "match", None), "value", None) == "active"
+                for condition in dense_conditions
+            )
+        )
+        self.assertTrue(
+            any(
+                getattr(condition, "key", None) == "is_current"
+                and getattr(getattr(condition, "match", None), "value", None) is True
+                for condition in dense_conditions
+            )
+        )
+        self.assertTrue(
+            any(
+                getattr(condition, "key", None) == "revision_track"
+                and getattr(getattr(condition, "match", None), "any", None) == ["current-effective", "source-faithful"]
+                for condition in dense_conditions
+            )
+        )
 
     def test_backend_caches_dense_query_embedding_within_ttl(self) -> None:
         class _CountingDenseEmbeddingModel:
@@ -436,7 +490,7 @@ class BackendQdrantTest(unittest.TestCase):
             self.assertEqual(source.version_id, "v1:test-001")
             self.assertEqual(source.source_channel, "pdf_ocr")
             self.assertEqual(source.collection, "student_handbook")
-            self.assertFalse(source.is_current)
+            self.assertTrue(source.is_current)
             self.assertEqual(source.canonical_url, "https://campus.example/handbook/handbook:test-001")
             self.assertEqual(source.latest_url, source.canonical_url)
             self.assertEqual(source.anchor["page_start"], 5)
@@ -646,6 +700,76 @@ class BackendQdrantTest(unittest.TestCase):
 
             self.assertEqual(result.sources, ())
 
+    def test_backend_uses_payload_urls_when_evidence_payload_is_complete(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            registry_path = Path(temp_dir) / "registry.json"
+            registry = FileDocumentRegistry(registry_path)
+            record = _make_registry_record(
+                document_id="handbook:payload-complete",
+                version_id="v1:payload-complete",
+                acl_groups=("students",),
+                is_current=True,
+            )
+            registry.upsert(record)
+
+            backend = QdrantRetrievalBackend(
+                settings=RetrievalSettings(
+                    qdrant_url=":memory:",
+                    qdrant_collection="student_handbook_test",
+                    document_registry_database_url="postgresql://registry.example/postgres",
+                ),
+                registry=registry,
+                qdrant_client=QdrantClient(location=":memory:"),
+                embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+            )
+            backend.qdrant_client.collection_exists = Mock(return_value=True)  # type: ignore[method-assign]
+            backend.qdrant_client.query_points = Mock(  # type: ignore[method-assign]
+                return_value=qdrant_models.QueryResponse(
+                    points=[
+                        qdrant_models.ScoredPoint(
+                            id="chunk-payload-001",
+                            version=1,
+                            score=0.93,
+                            payload={
+                                "_node_content": TextNode(
+                                    text="Library opening hours are from 08:00 to 22:00.",
+                                    metadata={
+                                        "document_id": "handbook:payload-complete",
+                                        "revision_track": "source-faithful",
+                                        "version_id": "v1:payload-complete",
+                                        "chunk_id": "chunk-payload-001",
+                                        "anchor": {"page_start": 5, "page_end": 5},
+                                        "acl_level": "public",
+                                        "source_channel": "pdf_ocr",
+                                        "collection": "student_handbook",
+                                        "is_current": True,
+                                        "canonical_url": "https://payload.example/should-not-win",
+                                        "latest_url": "https://payload.example/should-not-win",
+                                    },
+                                ).model_dump_json(),
+                            },
+                        )
+                    ]
+                )
+            )
+
+            result = backend.retrieve(
+                RetrievalRequest(
+                    query_text="library hours",
+                    corpus="regulations",
+                    collection="student_handbook",
+                    acl_groups=("students",),
+                )
+            )
+
+            self.assertEqual(len(result.sources), 1)
+            source = result.sources[0]
+            self.assertEqual(source.doc_id, "handbook:payload-complete")
+            self.assertTrue(source.is_current)
+            self.assertEqual(source.canonical_url, "https://payload.example/should-not-win")
+            self.assertEqual(source.latest_url, "https://payload.example/should-not-win")
+
     def test_backend_applies_acl_filter_before_returning_sources(self) -> None:
         with TemporaryDirectory() as temp_dir:
             registry_path = Path(temp_dir) / "registry.json"
@@ -805,6 +929,177 @@ class BackendQdrantTest(unittest.TestCase):
                     collection="student_handbook",
                 ),
             )
+
+    def test_backend_returns_empty_bundle_for_ambiguous_low_score_results(self) -> None:
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                qdrant_collection="student_handbook_test",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=FileDocumentRegistry(Path(TemporaryDirectory().name) / "registry.json"),
+            qdrant_client=QdrantClient(location=":memory:"),
+            embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
+        backend.qdrant_client.collection_exists = Mock(return_value=True)  # type: ignore[method-assign]
+        backend.qdrant_client.query_points = Mock(  # type: ignore[method-assign]
+            return_value=qdrant_models.QueryResponse(
+                points=[
+                    qdrant_models.ScoredPoint(
+                        id="chunk-nohit-001",
+                        version=1,
+                        score=0.5,
+                        payload={
+                            "_node_content": TextNode(
+                                text="Campus order policy text.",
+                                metadata={
+                                    "document_id": "handbook:nohit-a",
+                                    "revision_track": "source-faithful",
+                                    "version_id": "v1:nohit-a",
+                                    "chunk_id": "chunk-nohit-001",
+                                    "anchor": {"page_start": 1, "page_end": 1},
+                                    "acl_level": "public",
+                                    "source_channel": "pdf_ocr",
+                                    "collection": "student_handbook",
+                                    "is_current": True,
+                                    "canonical_url": "https://campus.example/handbook/nohit-a",
+                                    "latest_url": "https://campus.example/handbook/nohit-a",
+                                },
+                            ).model_dump_json(),
+                        },
+                    ),
+                    qdrant_models.ScoredPoint(
+                        id="chunk-nohit-002",
+                        version=1,
+                        score=0.5,
+                        payload={
+                            "_node_content": TextNode(
+                                text="Student ID policy text.",
+                                metadata={
+                                    "document_id": "handbook:nohit-b",
+                                    "revision_track": "source-faithful",
+                                    "version_id": "v1:nohit-b",
+                                    "chunk_id": "chunk-nohit-002",
+                                    "anchor": {"page_start": 2, "page_end": 2},
+                                    "acl_level": "public",
+                                    "source_channel": "pdf_ocr",
+                                    "collection": "student_handbook",
+                                    "is_current": True,
+                                    "canonical_url": "https://campus.example/handbook/nohit-b",
+                                    "latest_url": "https://campus.example/handbook/nohit-b",
+                                },
+                            ).model_dump_json(),
+                        },
+                    ),
+                ]
+            )
+        )
+
+        result = backend.retrieve(
+            RetrievalRequest(
+                query_text="校内宇宙签证办理处",
+                corpus="regulations",
+                collection="student_handbook",
+                acl_groups=("students",),
+                top_k=5,
+            )
+        )
+
+        self.assertEqual(
+            result,
+            EvidenceBundle(
+                query_text="校内宇宙签证办理处",
+                corpus="regulations",
+                collection="student_handbook",
+            ),
+        )
+
+    def test_no_hit_policy_rejects_generic_single_bigram_match_across_tied_candidates(self) -> None:
+        profile = load_runtime_profile("regulations", "student_handbook")
+        sources = (
+            EvidenceSource(
+                doc_id="handbook:loan",
+                revision_track="source-faithful",
+                version_id="v1:loan",
+                chunk_id="chunk-loan",
+                anchor={},
+                acl_level="public",
+                canonical_url="https://campus.example/loan",
+                latest_url="https://campus.example/loan",
+                source_channel="pdf_ocr",
+                collection="student_handbook",
+                is_current=True,
+                snippet="第十条 国家助学贷款还款:办理过国家助学贷款的毕业生于毕业前确认还款手续。",
+                score=0.5,
+            ),
+            EvidenceSource(
+                doc_id="handbook:order",
+                revision_track="source-faithful",
+                version_id="v1:order",
+                chunk_id="chunk-order",
+                anchor={},
+                acl_level="public",
+                canonical_url="https://campus.example/order",
+                latest_url="https://campus.example/order",
+                source_channel="pdf_ocr",
+                collection="student_handbook",
+                is_current=True,
+                snippet="外国人、港澳台人员进入学校进行公务、业务活动应当告知学校。",
+                score=0.5,
+            ),
+        )
+
+        result = _apply_no_hit_policy(
+            profile=profile,
+            query_text="校内宇宙签证办理处",
+            sources=sources,
+        )
+
+        self.assertEqual(result, ())
+
+    def test_no_hit_policy_accepts_tied_candidates_when_strong_phrase_support_exists(self) -> None:
+        profile = load_runtime_profile("regulations", "student_handbook")
+        sources = (
+            EvidenceSource(
+                doc_id="handbook:student-card",
+                revision_track="source-faithful",
+                version_id="v1:student-card",
+                chunk_id="chunk-card",
+                anchor={},
+                acl_level="public",
+                canonical_url="https://campus.example/student-card",
+                latest_url="https://campus.example/student-card",
+                source_channel="pdf_ocr",
+                collection="student_handbook",
+                is_current=True,
+                snippet="学生证丢失后，应持本人书面申请和相关证明材料到学生处办理补发手续。",
+                score=0.5,
+            ),
+            EvidenceSource(
+                doc_id="handbook:other",
+                revision_track="source-faithful",
+                version_id="v1:other",
+                chunk_id="chunk-other",
+                anchor={},
+                acl_level="public",
+                canonical_url="https://campus.example/other",
+                latest_url="https://campus.example/other",
+                source_channel="pdf_ocr",
+                collection="student_handbook",
+                is_current=True,
+                snippet="其他规定文本。",
+                score=0.5,
+            ),
+        )
+
+        result = _apply_no_hit_policy(
+            profile=profile,
+            query_text="学生证丢了怎么办",
+            sources=sources,
+        )
+
+        self.assertEqual(result, sources)
 
     def test_backend_maps_qdrant_errors(self) -> None:
         with TemporaryDirectory() as temp_dir:

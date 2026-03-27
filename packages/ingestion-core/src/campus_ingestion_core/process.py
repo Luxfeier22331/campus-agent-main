@@ -76,6 +76,9 @@ class IndexableChunk:
     is_current: bool
     parser_version: str
     embedding_model: str
+    canonical_url: str = ""
+    latest_url: str = ""
+    status: str = "active"
     embedding: tuple[float, ...] | None = None
     sparse_indices: tuple[int, ...] = ()
     sparse_values: tuple[float, ...] = ()
@@ -97,8 +100,11 @@ class IndexableChunk:
                 "acl_groups": list(self.acl_groups),
                 "campus_scope": self.campus_scope,
                 "source_uri": self.source_uri,
+                "canonical_url": self.canonical_url or self.source_uri,
+                "latest_url": self.latest_url or self.canonical_url or self.source_uri,
                 "source_chunk_id": self.source_chunk_id,
                 "acl_level": self.acl_level,
+                "status": self.status,
                 "anchor": self.anchor,
                 "source_channel": self.source_channel,
                 "is_current": self.is_current,
@@ -199,11 +205,14 @@ def build_indexable_chunks_from_jsonl(
                 acl_groups=record.acl_groups,
                 campus_scope=record.campus_scope,
                 source_uri=record.source_uri,
+                canonical_url=record.source_uri,
+                latest_url=record.source_uri,
                 source_chunk_id=candidate.source_chunk_id,
                 acl_level=_resolve_effective_acl_level(
                     unit_acl_level=candidate.acl_level,
                     document_acl_groups=record.acl_groups,
                 ),
+                status=record.status,
                 anchor=candidate.anchor,
                 text=candidate.chunk_assembly.text,
                 source_channel=record.source_channel,
@@ -984,23 +993,24 @@ def _ensure_payload_indexes(*, qdrant_client: QdrantClient, collection_name: str
         return
     if _is_local_qdrant_backend(qdrant_client):
         return
-    for field_name in (
-        "document_id",
-        "revision_track",
-        "representation",
-        "version_id",
-        "corpus",
-        "collection",
-        "campus_scope",
-        "acl_groups",
-        "acl_level",
-        "source_channel",
-        "is_current",
+    for field_name, field_schema in (
+        ("document_id", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("revision_track", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("representation", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("version_id", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("corpus", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("collection", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("campus_scope", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("acl_groups", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("acl_level", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("status", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("source_channel", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("is_current", qdrant_models.PayloadSchemaType.BOOL),
     ):
         qdrant_client.create_payload_index(
             collection_name=collection_name,
             field_name=field_name,
-            field_schema=qdrant_models.PayloadSchemaType.KEYWORD,
+            field_schema=field_schema,
             wait=True,
         )
 

@@ -3,51 +3,41 @@
   "corpus": "regulations",
   "collection": "student_handbook",
   "instructions": [
+    "只标注真实属于 student_handbook 主集合的制度文档，不把 campus service / ACL / campus_scope 样本混入 handbook qrels。",
     "对每条 query 先抓取 top-10 retrieval results，再人工审核。",
     "主相关 source 标记到 expected_sources，使用 grade=2。",
     "可接受相关 source 标记到 expected_sources，使用 grade=1。",
     "不应命中的 source 标记到 forbidden_sources。",
-    "phase-1 默认先锁 doc_id；只有高风险 case 再补 version_id 或 chunk_id。"
+    "phase-1 handbook qrels 默认锁到 doc_id；只有确认 chunk 边界稳定后再补 chunk_id。"
   ],
   "cases": [
     {
       "case_id": "article-number-degree-procedure",
       "category": "article_number_exact_match",
       "split": "smoke",
-      "query": "学士学位授予程序 第十条",
+      "query": "中央民族大学全日制本科学生学士学位授予规定 第十条",
       "request_overrides": {},
       "retrieved_sources": [],
       "expected_sources": [],
       "forbidden_sources": [],
-      "notes": "条款号 exact-match。"
-    },
-    {
-      "case_id": "article-number-dormitory-discipline",
-      "category": "article_number_exact_match",
-      "split": "smoke",
-      "query": "学生公寓管理规定 第十二条",
-      "request_overrides": {},
-      "retrieved_sources": [],
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "条款号 exact-match。"
+      "notes": "学位授予规定条款号 exact-match。"
     },
     {
       "case_id": "article-number-student-status",
       "category": "article_number_exact_match",
       "split": "regression_locked",
-      "query": "学生管理规定 第二十四条",
+      "query": "普通高等学校学生管理规定 第二十四条",
       "request_overrides": {},
       "retrieved_sources": [],
       "expected_sources": [],
       "forbidden_sources": [],
-      "notes": "高风险条款号。"
+      "notes": "学生管理规定条款号 exact-match。"
     },
     {
       "case_id": "policy-title-scholarship",
       "category": "policy_title_exact_match",
       "split": "smoke",
-      "query": "奖学金评定办法",
+      "query": "中央民族大学本科学生国家奖学金评审办法",
       "request_overrides": {},
       "retrieved_sources": [],
       "expected_sources": [],
@@ -55,48 +45,48 @@
       "notes": "制度标题 exact-match。"
     },
     {
-      "case_id": "policy-title-graduation",
+      "case_id": "policy-title-loan",
       "category": "policy_title_exact_match",
       "split": "smoke",
-      "query": "毕业资格审查办法",
+      "query": "中央民族大学助学贷款管理暂行办法",
       "request_overrides": {},
       "retrieved_sources": [],
       "expected_sources": [],
       "forbidden_sources": [],
-      "notes": "制度标题 exact-match。"
+      "notes": "资助制度标题 exact-match。"
     },
     {
-      "case_id": "policy-title-library",
+      "case_id": "policy-title-medical",
       "category": "policy_title_exact_match",
       "split": "regression_locked",
-      "query": "图书馆借阅规则",
+      "query": "中央民族大学学生公费医疗管理办法",
       "request_overrides": {},
       "retrieved_sources": [],
       "expected_sources": [],
       "forbidden_sources": [],
-      "notes": "高风险标题回归。"
+      "notes": "公费医疗制度标题 exact-match。"
     },
     {
-      "case_id": "fixed-phrase-office-hours",
+      "case_id": "fixed-phrase-dormitory-lighting",
       "category": "fixed_phrase_sparse_win",
       "split": "regression_locked",
-      "query": "图书馆开放时间",
+      "query": "宿舍照明",
       "request_overrides": {},
       "retrieved_sources": [],
       "expected_sources": [],
       "forbidden_sources": [],
-      "notes": "固定措辞，优先考虑 chunk-level。"
+      "notes": "固定措辞，优先考虑 sparse 命中。"
     },
     {
-      "case_id": "fixed-phrase-leave-workflow",
+      "case_id": "fixed-phrase-electrical-appliance",
       "category": "fixed_phrase_sparse_win",
-      "split": "regression_locked",
-      "query": "请假审批流程",
+      "split": "smoke",
+      "query": "电器使用管理",
       "request_overrides": {},
       "retrieved_sources": [],
       "expected_sources": [],
       "forbidden_sources": [],
-      "notes": "流程固定措辞。"
+      "notes": "固定措辞，优先考虑 sparse 命中。"
     },
     {
       "case_id": "fixed-phrase-medical-reimbursement",
@@ -107,7 +97,7 @@
       "retrieved_sources": [],
       "expected_sources": [],
       "forbidden_sources": [],
-      "notes": "固定术语。"
+      "notes": "固定术语，优先考虑 sparse 命中。"
     },
     {
       "case_id": "semantic-degree-application",
@@ -132,71 +122,15 @@
       "notes": "dense semantic 问法。"
     },
     {
-      "case_id": "semantic-transcript-request",
+      "case_id": "semantic-student-card-reissue",
       "category": "semantic_dense_win",
       "split": "regression_locked",
-      "query": "怎么开具成绩单",
+      "query": "学生证丢了怎么办",
       "request_overrides": {},
       "retrieved_sources": [],
       "expected_sources": [],
       "forbidden_sources": [],
       "notes": "dense semantic 问法。"
-    },
-    {
-      "case_id": "acl-restricted-office-hours",
-      "category": "acl_filter",
-      "split": "regression_locked",
-      "query": "办公室值班时间",
-      "request_overrides": {
-        "acl_groups": [
-          "students"
-        ]
-      },
-      "retrieved_sources": [],
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "ACL fail-closed。"
-    },
-    {
-      "case_id": "acl-restricted-advisor-phone",
-      "category": "acl_filter",
-      "split": "regression_locked",
-      "query": "辅导员值班电话",
-      "request_overrides": {
-        "acl_groups": [
-          "students"
-        ]
-      },
-      "retrieved_sources": [],
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "ACL fail-closed。"
-    },
-    {
-      "case_id": "campus-scope-nansha-library",
-      "category": "campus_scope_filter",
-      "split": "regression_locked",
-      "query": "南沙校区 图书馆 开放",
-      "request_overrides": {
-        "campus_scope": "nansha"
-      },
-      "retrieved_sources": [],
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "campus_scope filter。"
-    },
-    {
-      "case_id": "campus-scope-nansha-dormitory",
-      "category": "campus_scope_filter",
-      "split": "regression_locked",
-      "query": "南沙校区 宿舍 管理",
-      "request_overrides": {
-        "campus_scope": "nansha"
-      },
-      "retrieved_sources": [],
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "campus_scope filter。"
     },
     {
       "case_id": "no-hit-impossible-query",
