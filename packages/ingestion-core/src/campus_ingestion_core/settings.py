@@ -7,22 +7,12 @@ from urllib.parse import urlparse
 
 DEFAULT_BUCKET_SOURCE = "campus-rag-source"
 DEFAULT_BUCKET_DERIVED = "campus-rag-derived"
-DEFAULT_BUCKET_RAW = DEFAULT_BUCKET_SOURCE
-DEFAULT_BUCKET_PROCESSED = DEFAULT_BUCKET_DERIVED
 
 
 def resolve_object_store_bucket_names(env: dict[str, str] | None = None) -> tuple[str, str]:
     source = env if env is not None else os.environ
-    bucket_source = (
-        source.get("OBJECT_STORE_BUCKET_SOURCE")
-        or source.get("OBJECT_STORE_BUCKET_RAW")
-        or DEFAULT_BUCKET_SOURCE
-    ).strip()
-    bucket_derived = (
-        source.get("OBJECT_STORE_BUCKET_DERIVED")
-        or source.get("OBJECT_STORE_BUCKET_PROCESSED")
-        or DEFAULT_BUCKET_DERIVED
-    ).strip()
+    bucket_source = (source.get("OBJECT_STORE_BUCKET_SOURCE") or DEFAULT_BUCKET_SOURCE).strip()
+    bucket_derived = (source.get("OBJECT_STORE_BUCKET_DERIVED") or DEFAULT_BUCKET_DERIVED).strip()
     return bucket_source, bucket_derived
 
 
@@ -35,14 +25,6 @@ class ObjectStoreSettings:
     bucket_source: str = DEFAULT_BUCKET_SOURCE
     bucket_derived: str = DEFAULT_BUCKET_DERIVED
     secure: bool = False
-
-    @property
-    def bucket_raw(self) -> str:
-        return self.bucket_source
-
-    @property
-    def bucket_processed(self) -> str:
-        return self.bucket_derived
 
     def __post_init__(self) -> None:
         parsed = urlparse(self.endpoint)

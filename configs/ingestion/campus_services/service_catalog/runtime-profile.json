@@ -2,7 +2,7 @@
   "corpus": "campus_services",
   "collection": "service_catalog",
   "phase1_stage": "cleaned_ingestion",
-  "allowed_artifact_modes": ["normalized", "provider_only"],
+  "allowed_artifact_modes": ["normalized", "source_truth_only"],
   "split_manifest_required": false,
   "cleaning_policy_version": "service_catalog_cleaning_v1",
   "chunk_profile_version": "service_catalog_semantic_v1",

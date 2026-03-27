@@ -27,7 +27,7 @@
 **File Storage:**
 - MinIO-compatible S3 service (configuration in `packages/ingestion-core/src/campus_ingestion_core/settings.py`).
   - Connection: `OBJECT_STORE_ENDPOINT`, `OBJECT_STORE_ACCESS_KEY`, `OBJECT_STORE_SECRET_KEY`, `OBJECT_STORE_REGION`, `OBJECT_STORE_SECURE`.
-  - Buckets: `OBJECT_STORE_BUCKET_SOURCE` and `OBJECT_STORE_BUCKET_DERIVED` (default `campus-rag-source` / `campus-rag-derived`); `OBJECT_STORE_BUCKET_RAW` / `OBJECT_STORE_BUCKET_PROCESSED` remain legacy fallback envs only.
+  - Buckets: `OBJECT_STORE_BUCKET_SOURCE` and `OBJECT_STORE_BUCKET_DERIVED` (default `campus-rag-source` / `campus-rag-derived`).
   - Client: `boto3>=1.35.0`, with key construction defined in `packages/ingestion-core/src/campus_ingestion_core/object_store.py`.
 - Qdrant vector database (the vector store is fronted by `packages/retrieval-core/src/campus_retrieval_core/backend_qdrant.py`).
   - Connection: `QDRANT_URL`, optional `QDRANT_API_KEY`, `QDRANT_COLLECTION` (default `student_handbook`), and `QDRANT_TIMEOUT_SECONDS`.

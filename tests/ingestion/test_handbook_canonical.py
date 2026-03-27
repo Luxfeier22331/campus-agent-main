@@ -28,7 +28,7 @@ def _manifest_document(title: str, *, page_start: int = 20, page_end: int = 21) 
 def _source_row(page: int, row_type: str, text: str, *, block_role: str | None = None) -> dict[str, object]:
     sequence = next(SOURCE_ROW_SEQUENCE)
     return {
-        "schema_version": "student_handbook_layout_elements_v1",
+        "schema_version": "student_handbook_layout_elements_v3",
         "corpus": "regulations",
         "collection": "student_handbook",
         "source_artifact_id": "asset:student-handbook",
@@ -56,6 +56,21 @@ def _source_row(page: int, row_type: str, text: str, *, block_role: str | None =
         "is_repeated_candidate": False,
         "title_candidate_score": 1.0 if row_type == "heading" else 0.0,
         "section_hint": text if row_type == "heading" else None,
+        "classification_confidence": 0.95,
+        "classification_reason": "test_fixture",
+        "repeat_cluster_id": None,
+        "repeat_frequency": 0,
+        "repeat_position_band": None,
+        "parent_heading_hint": None,
+        "list_level_hint": None,
+        "continues_from_previous_page": False,
+        "continues_to_next_page": False,
+        "table_fragment_id": None,
+        "table_header_rows": None,
+        "table_row_count": None,
+        "table_column_count": None,
+        "table_has_merged_cells": None,
+        "table_caption_hint": None,
     }
 
 

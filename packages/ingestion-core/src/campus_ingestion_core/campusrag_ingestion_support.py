@@ -20,7 +20,11 @@ from campus_ingestion_core.models import (
     RawAssetRef,
     SourceObservation,
 )
-from campus_ingestion_core.object_store import build_document_artifact_key, build_raw_asset_key
+from campus_ingestion_core.object_store import (
+    build_document_artifact_key,
+    build_raw_asset_key,
+    is_source_object_key,
+)
 from campus_ingestion_core.registry import DocumentRegistry, RawAssetRegistry
 from campus_ingestion_core.settings import ObjectStoreSettings
 
@@ -276,7 +280,7 @@ def _merge_equivalent_source_record(
 
 
 def _is_source_level_artifact_key(key: str) -> bool:
-    return key.startswith(("ocr/", "source-truth/", "raw/"))
+    return is_source_object_key(key)
 
 
 def load_metadata_from_bytes(file_bytes: bytes) -> dict[str, object]:
@@ -826,14 +830,7 @@ def resolve_raw_path(raw_root: Path, source_pdf: str) -> Path | None:
 
 def raw_filename_candidates(source_pdf: str) -> tuple[str, ...]:
     exact = source_pdf.strip()
-    aliases = {
-        "学生手册.pdf": ("学生手册_2018.pdf", "student-handbook.pdf"),
-        "学生手册_2018.pdf": ("学生手册.pdf", "student-handbook.pdf"),
-        "student-handbook.pdf": ("学生手册_2018.pdf", "学生手册.pdf"),
-    }
     candidates = [exact]
-    for alias in aliases.get(exact, ()):
-        candidates.append(alias)
     return tuple(dict.fromkeys(name for name in candidates if name))
 
 
@@ -991,7 +988,7 @@ def _missing_processed_object_keys(
 
 
 def _artifact_bucket_for_key(*, object_store: ObjectStoreSettings, key: str) -> str:
-    if key.startswith("ocr/") or key.startswith("source-truth/") or key.startswith("raw/"):
+    if is_source_object_key(key):
         return object_store.bucket_source
     return object_store.bucket_derived
 

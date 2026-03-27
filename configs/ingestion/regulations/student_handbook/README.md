@@ -16,8 +16,8 @@ Stable handbook-specific policy docs:
 The primary handbook input is source-bucket `provider-response.jsonl`.
 `layout-elements.jsonl` is the only source-truth artifact before document splitting.
 Each cleaned document then emits `canonical.md` and `document-units.jsonl` before chunking.
-Phase-1 OCR ingestion stores document-level artifacts under `regulations/documents/student_handbook/{title_slug}--{docid8}/{representation}/{year}/...`.
-The canonical replay source filename is `学生手册_2018.pdf`; legacy `student-handbook.pdf` remains readable only for migration.
+Phase-1 OCR ingestion stores document-level artifacts under `regulations/documents/student_handbook/{title_slug}--{docid8}/{revision_track}/{year}/...`.
+The canonical replay source filename is `学生手册_2018.pdf`.
 The handbook split truth only keeps regulations-facing logical documents. Non-regulation
 service/navigation pages are derived into the offline-only `campus_services` taxonomy
 instead of remaining in the `regulations/student_handbook` manifest:

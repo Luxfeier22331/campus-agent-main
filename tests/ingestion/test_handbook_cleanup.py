@@ -42,10 +42,13 @@ def _source_row(
     table_cells: list[list[str]] | None = None,
     html: str | None = None,
     title_candidate_score: float = 0.0,
+    is_repeated_candidate: bool | None = None,
+    classification_confidence: float = 0.9,
+    classification_reason: str = "test_fixture",
 ) -> dict[str, object]:
     sequence = next(SOURCE_ROW_SEQUENCE)
     return {
-        "schema_version": "student_handbook_layout_elements_v1",
+        "schema_version": "student_handbook_layout_elements_v3",
         "corpus": "regulations",
         "collection": "student_handbook",
         "source_artifact_id": "asset:student-handbook",
@@ -70,9 +73,28 @@ def _source_row(
         "html": html,
         "table_cells": table_cells,
         "is_blank": False,
-        "is_repeated_candidate": row_type in {"header", "footer", "page_number"},
+        "is_repeated_candidate": (
+            row_type in {"header", "footer", "page_number"}
+            if is_repeated_candidate is None
+            else is_repeated_candidate
+        ),
         "title_candidate_score": title_candidate_score,
         "section_hint": text if row_type == "heading" else None,
+        "classification_confidence": classification_confidence,
+        "classification_reason": classification_reason,
+        "repeat_cluster_id": None,
+        "repeat_frequency": 0,
+        "repeat_position_band": None,
+        "parent_heading_hint": None,
+        "list_level_hint": None,
+        "continues_from_previous_page": False,
+        "continues_to_next_page": False,
+        "table_fragment_id": None,
+        "table_header_rows": table_cells[:1] if table_cells else None,
+        "table_row_count": len(table_cells) if table_cells else None,
+        "table_column_count": len(table_cells[0]) if table_cells else None,
+        "table_has_merged_cells": False if table_cells else None,
+        "table_caption_hint": None,
     }
 
 
@@ -87,6 +109,36 @@ def _load_fixture_rows(fixture_name: str) -> list[dict[str, object]]:
 
 
 class HandbookCleanupTest(unittest.TestCase):
+    def test_cleanup_ignores_repeated_candidate_even_when_row_type_is_heading(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(
+                    18,
+                    "heading",
+                    "学生手册",
+                    block_role="title",
+                    title_candidate_score=1.0,
+                    is_repeated_candidate=True,
+                    classification_confidence=0.6,
+                    classification_reason="repeat_cluster:top",
+                ),
+                _source_row(
+                    18,
+                    "heading",
+                    "中央民族大学本科生境外留学管理办法",
+                    block_role="title",
+                    title_candidate_score=0.92,
+                    classification_confidence=0.98,
+                    classification_reason="doc_title:first_page",
+                ),
+                _source_row(18, "paragraph", "第一条 为规范境外留学管理工作"),
+            ],
+            manifest_document=_manifest_document(18, 18, title="制度标题"),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        self.assertEqual(result.metadata["title"], "中央民族大学本科生境外留学管理办法")
+
     def test_normalize_handbook_body_text_strips_inline_ocr_reference_markers(self) -> None:
         normalized = normalize_handbook_body_text(
             "根据教育部和上级主管部门当年度为学校核定的国家励志奖学金名额和[0]学校二年级以上(含)家庭经济困难在校生总人数,[0]先计算出学校国家励志奖学金名额分配系数。"

@@ -12,7 +12,7 @@ from campus_ingestion_core.process import IndexableChunk
 from campus_ingestion_core.registry import DocumentRegistryRecord
 from campus_ingestion_core.local_rebuild import replay_provider_response_rebuild
 from campus_ingestion_core.object_store import build_processed_asset_artifact_key
-from campus_ingestion_core.registry import FileDocumentRegistry, FileRawAssetRegistry
+from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 from qdrant_client import QdrantClient
 
 SOURCE_BUCKET = "campus-rag-source"
@@ -85,7 +85,7 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
     def test_index_replayed_documents_batches_upserts_and_only_ensures_collection_once(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            registry = FileDocumentRegistry(root / "registry.json")
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry.json")
             documents: list[DocumentImportInput] = []
             for index in range(3):
                 document_id = f"handbook:test-{index + 1:03d}"
@@ -306,13 +306,11 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                 "\n".join(json.dumps(line, ensure_ascii=False) for line in provider_lines) + "\n"
             ).encode("utf-8")
             object_store = _FakeObjectStore(provider_result_bytes=provider_result_bytes)
-            registry = FileDocumentRegistry(root / "registry" / "documents.json")
-            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "raw-assets.json")
-            source_key = build_processed_asset_artifact_key(
-                corpus="regulations",
-                raw_asset_id="asset:student-handbook-pdf",
-                raw_version_id="sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
-                filename="provider-response.jsonl",
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            source_key = (
+                "official_pdf/student-handbook/2018/sha256/"
+                "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider/paddleocr-vl-1-5/provider-response.jsonl"
             )
 
             report = replay_provider_response_rebuild(
@@ -325,8 +323,8 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                     "INGESTION_COLLECTION": "student_handbook",
                     "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                     "HANDBOOK_SOURCE_PROJECTIONS_PATH": str(projection_config_path),
-                    "REBUILD_PROVIDER_RESPONSE_KEY": source_key,
-                    "REPLAY_SOURCE_PDF": "student-handbook.pdf",
+                    "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
+                    "REPLAY_SOURCE_PDF": "学生手册_2018.pdf",
                     "IMPORT_REPORT_DIR": str(root / "reports"),
                     "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
                     "EMBEDDING_PROVIDER": "mock",
@@ -416,25 +414,21 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                 "\n".join(json.dumps(line, ensure_ascii=False) for line in provider_lines) + "\n"
             ).encode("utf-8")
             object_store = _FakeObjectStore(provider_result_bytes=provider_result_bytes)
-            registry = FileDocumentRegistry(root / "registry" / "student_handbook_documents.json")
-            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
-            source_key = build_processed_asset_artifact_key(
-                corpus="regulations",
-                raw_asset_id="asset:student-handbook-pdf",
-                raw_version_id="sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
-                filename="provider-response.jsonl",
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "student_handbook_raw_assets.json"
             )
-            canonical_provider_key = build_processed_asset_artifact_key(
-                corpus="regulations",
-                raw_asset_id="asset:student-handbook-pdf",
-                raw_version_id="sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
-                filename="provider-response.jsonl",
+            source_key = (
+                "official_pdf/student-handbook/2018/sha256/"
+                "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider/paddleocr-vl-1-5/provider-response.jsonl"
             )
-            canonical_layout_key = build_processed_asset_artifact_key(
-                corpus="regulations",
-                raw_asset_id="asset:student-handbook-pdf",
-                raw_version_id="sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
-                filename="layout-elements.jsonl",
+            canonical_provider_key = (
+                "official_pdf/student-handbook/2018/sha256/"
+                "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider/paddleocr-vl-1-5/provider-response.jsonl"
+            )
+            canonical_layout_key = (
+                "official_pdf/student-handbook/2018/sha256/"
+                "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/source-truth/layout-elements.jsonl"
             )
 
             with patch("campus_ingestion_core.local_rebuild._index_replayed_documents") as index_documents:
@@ -447,8 +441,8 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                         "INGESTION_CORPUS": "regulations",
                         "INGESTION_COLLECTION": "student_handbook",
                         "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
-                        "REBUILD_PROVIDER_RESPONSE_KEY": source_key,
-                        "REPLAY_SOURCE_PDF": "student-handbook.pdf",
+                        "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
+                        "REPLAY_SOURCE_PDF": "学生手册_2018.pdf",
                         "IMPORT_REPORT_DIR": str(root / "reports"),
                         "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
                         "EMBEDDING_PROVIDER": "mock",
@@ -545,8 +539,10 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                 "\n".join(json.dumps(line, ensure_ascii=False) for line in provider_lines) + "\n"
             ).encode("utf-8")
             object_store = _FakeObjectStore(provider_result_bytes=provider_result_bytes)
-            registry = FileDocumentRegistry(root / "registry" / "student_handbook_documents.json")
-            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "student_handbook_raw_assets.json"
+            )
             qdrant_client = QdrantClient(location=":memory:")
             source_key = build_processed_asset_artifact_key(
                 corpus="regulations",
@@ -554,17 +550,13 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                 raw_version_id="sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
                 filename="provider-response.jsonl",
             )
-            canonical_provider_key = build_processed_asset_artifact_key(
-                corpus="regulations",
-                raw_asset_id="asset:student-handbook-pdf",
-                raw_version_id="sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
-                filename="provider-response.jsonl",
+            canonical_provider_key = (
+                "official_pdf/student-handbook/2018/sha256/"
+                "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider/paddleocr-vl-1-5/provider-response.jsonl"
             )
-            canonical_layout_key = build_processed_asset_artifact_key(
-                corpus="regulations",
-                raw_asset_id="asset:student-handbook-pdf",
-                raw_version_id="sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
-                filename="layout-elements.jsonl",
+            canonical_layout_key = (
+                "official_pdf/student-handbook/2018/sha256/"
+                "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/source-truth/layout-elements.jsonl"
             )
 
             report = replay_provider_response_rebuild(
@@ -576,11 +568,12 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                     "INGESTION_CORPUS": "regulations",
                     "INGESTION_COLLECTION": "student_handbook",
                     "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
-                    "REBUILD_PROVIDER_RESPONSE_KEY": source_key,
-                    "REPLAY_SOURCE_PDF": "student-handbook.pdf",
+                    "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
+                    "REPLAY_SOURCE_PDF": "学生手册_2018.pdf",
                     "IMPORT_REPORT_DIR": str(root / "reports"),
                     "INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                     "EMBEDDING_PROVIDER": "mock",
+                    "SPARSE_PROVIDER": "mock",
                     "QDRANT_COLLECTION": "student_handbook",
                     "REBUILD_INDEX_QDRANT": "1",
                 },
@@ -637,8 +630,10 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                 "\n".join(json.dumps(line, ensure_ascii=False) for line in provider_lines) + "\n"
             ).encode("utf-8")
             object_store = _FakeObjectStore(provider_result_bytes=provider_result_bytes)
-            registry = FileDocumentRegistry(root / "registry" / "student_handbook_documents.json")
-            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "student_handbook_raw_assets.json"
+            )
             source_key = build_processed_asset_artifact_key(
                 corpus="regulations",
                 raw_asset_id="asset:student-handbook-pdf",
@@ -668,8 +663,8 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                         "INGESTION_CORPUS": "regulations",
                         "INGESTION_COLLECTION": "student_handbook",
                         "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
-                        "REBUILD_PROVIDER_RESPONSE_KEY": source_key,
-                        "REPLAY_SOURCE_PDF": "student-handbook.pdf",
+                        "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
+                        "REPLAY_SOURCE_PDF": "学生手册_2018.pdf",
                         "IMPORT_REPORT_DIR": str(root / "reports"),
                         "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
                         "EMBEDDING_PROVIDER": "mock",
@@ -740,25 +735,23 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                 "\n".join(json.dumps(line, ensure_ascii=False) for line in provider_lines) + "\n"
             ).encode("utf-8")
             object_store = _FakeObjectStore(provider_result_bytes=provider_result_bytes)
-            registry = FileDocumentRegistry(root / "registry" / "student_handbook_documents.json")
-            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "student_handbook_raw_assets.json"
+            )
             source_key = build_processed_asset_artifact_key(
                 corpus="regulations",
                 raw_asset_id="asset:student-handbook-pdf",
                 raw_version_id="sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
                 filename="provider-response.jsonl",
             )
-            canonical_provider_key = build_processed_asset_artifact_key(
-                corpus="regulations",
-                raw_asset_id="asset:student-handbook-pdf",
-                raw_version_id="sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
-                filename="provider-response.jsonl",
+            canonical_provider_key = (
+                "official_pdf/student-handbook/2018/sha256/"
+                "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider/paddleocr-vl-1-5/provider-response.jsonl"
             )
-            canonical_layout_key = build_processed_asset_artifact_key(
-                corpus="regulations",
-                raw_asset_id="asset:student-handbook-pdf",
-                raw_version_id="sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
-                filename="layout-elements.jsonl",
+            canonical_layout_key = (
+                "official_pdf/student-handbook/2018/sha256/"
+                "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/source-truth/layout-elements.jsonl"
             )
 
             with patch(
@@ -774,8 +767,8 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                         "INGESTION_CORPUS": "regulations",
                         "INGESTION_COLLECTION": "student_handbook",
                         "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
-                        "REBUILD_PROVIDER_RESPONSE_KEY": source_key,
-                        "REPLAY_SOURCE_PDF": "student-handbook.pdf",
+                        "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
+                        "REPLAY_SOURCE_PDF": "学生手册_2018.pdf",
                         "IMPORT_REPORT_DIR": str(root / "reports"),
                         "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
                         "EMBEDDING_PROVIDER": "mock",

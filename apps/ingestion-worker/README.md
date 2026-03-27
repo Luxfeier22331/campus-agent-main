@@ -88,12 +88,12 @@ Behavior:
 - Calls the async OCR provider.
 - Source-bucket objects live under `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...` and are intentionally not scoped by corpus because one source asset may feed multiple corpora.
 - Default `RAW_INGESTION_ARTIFACT_MODE=normalized` stores source-level `provider-response.jsonl` and `layout-elements.jsonl`, persists canonical source truth, then fans out into declared downstream projections that may write per-document `canonical.md` and `document-units.jsonl`.
-- Normalized and provider-only modes both keep source truth under `pdf/`, `ocr/`, and `source-truth/` prefixes in the source bucket.
-- Normalized mode writes derived document artifacts under `{corpus}/documents/{collection}/{title_slug}--{docid8}/{representation}/{year}/`.
-- `RAW_INGESTION_ARTIFACT_MODE=provider_only` stores asset-level `provider-response.jsonl` only, and skips `canonical.md` / `document-units.jsonl` and document-registry writes.
-- `provider_only` still writes canonical raw-asset provenance and should use the configured canonical raw-asset registry backend.
-- Runtime-profile gating decides whether the selected `corpus + collection` accepts `normalized` or `provider_only`.
-- `curriculum/curriculum_plan` may use `provider_only` as a pre-split onboarding path to inspect real OCR output before freezing its split manifest.
+- Normalized and `source_truth_only` modes both keep source artifacts under the same canonical source prefix, split by `capture/`, `provider/`, and `source-truth/` stages in the source bucket.
+- Normalized mode writes derived document artifacts under `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/`.
+- `RAW_INGESTION_ARTIFACT_MODE=source_truth_only` stores asset-level `provider-response.jsonl` and `layout-elements.jsonl`, but skips `canonical.md` / `document-units.jsonl` and document-registry writes.
+- `source_truth_only` still writes canonical raw-asset provenance and should use the configured canonical raw-asset registry backend.
+- Runtime-profile gating decides whether the selected `corpus + collection` accepts `normalized` or `source_truth_only`.
+- `curriculum/curriculum_plan` may use `source_truth_only` as a pre-split onboarding path to inspect real OCR output before freezing its split manifest.
 - For `INGESTION_CORPUS=regulations` + `INGESTION_COLLECTION=student_handbook` and `INGESTION_CORPUS=curriculum` + `INGESTION_COLLECTION=curriculum_plan`, normalized mode requires a split manifest and stores asset-level `provider-response.jsonl` / `layout-elements.jsonl` plus per-document `document-units.jsonl`; handbook also exports `canonical.md`.
 - `regulations/student_handbook` normalized mode rebuilds logical documents strictly from the repo-tracked split manifest; no legacy OCR-import adapter or non-`provider-response.jsonl` handbook input is supported.
 - `regulations/student_handbook` downstream fan-out is declared in `configs/ingestion/regulations/student_handbook/source-projections.v1.json`.
@@ -103,7 +103,7 @@ Behavior:
 - `regulations/student_handbook` chunk budgeting uses the `Qwen/Qwen3-Embedding-4B` tokenizer from local Hugging Face cache only. Prefetch it explicitly with `uv run --all-packages python -m campus_ingestion_core.prefetch_tokenizer`, then keep worker/runtime/test runs on `HF_HUB_OFFLINE=1`; the ingestion code no longer falls back to implicit network download.
 - Only normalized mode registers derived document results in the document registry with `import_source=raw_online_ocr`.
 - Normalized document-registry writes persist the scope cleaning policy version for traceability.
-- Phase-1 OCR ingestion defaults to `representation=source-faithful`, `source_channel=pdf_ocr`, `is_current=false`.
+- Phase-1 OCR ingestion defaults to `revision_track=source-faithful`, `source_channel=pdf_ocr`, `is_current=false`.
 
 ### `rebuild_local_data`
 
@@ -141,9 +141,9 @@ Behavior:
 - Dispatches to `process_raw_ingestion_job` when `--mode raw_online_ocr`.
 - Dispatches to source-truth replay rebuild when `--mode provider_response_replay`.
 - `provider_response_replay` preserves source-bucket provenance and raw-asset registry provenance.
-- `provider_response_replay` derives the replay object key from typed request identity plus repo-tracked collection truth; `REBUILD_PROVIDER_RESPONSE_KEY` is no longer the primary worker input.
+- `provider_response_replay` 只接受 typed request identity 与 repo-tracked collection truth，核心输入是 `raw_version_id`。
 - `provider_response_replay` reads an existing object-store `provider-response.jsonl`, rewrites asset-level `layout-elements.jsonl`, rebuilds persisted source truth, and re-emits declared projections such as per-document `canonical.md` / `document-units.jsonl` without synthesizing raw-layer records.
-- handbook replay默认 `--source-pdf 学生手册_2018.pdf`；兼容 `student-handbook.pdf` 仅用于迁移。
+- handbook replay默认 `--source-pdf 学生手册_2018.pdf`。
 - `provider_response_replay` does not index Qdrant by default; add `--index-qdrant` when replay should also rebuild chunk/embedding/vector state.
 - `--reset-qdrant` and `--index-qdrant` are independent: reset only clears the collection, while replay indexing is opt-in.
 - `provider_response_replay` is the canonical rebuild boundary for downstream fan-out; later projection work must not create handbook-only replay branches or separate raw re-consumption lanes.
@@ -174,7 +174,7 @@ Current known downstream families include:
 
 ### `migrate_student_handbook_source_faithful`
 
-Worker shell for the handbook representation migration.
+Worker shell for the handbook source-faithful migration.
 
 Required CLI args:
 
@@ -203,7 +203,7 @@ Behavior:
 
 - Renames the handbook raw PDF object and raw-asset registry record to the canonical filename.
 - Preserves asset-level `provider-response.jsonl`.
-- Clears old handbook derived artifacts and rebuilds `layout-elements.jsonl`, `canonical.md`, and `document-units.jsonl` under `regulations/documents/student_handbook/{title_slug}--{docid8}/source-faithful/{year}/...`.
+- Clears old handbook derived artifacts and rebuilds `layout-elements.jsonl`, `canonical.md`, and `document-units.jsonl` under `regulations/documents/student_handbook/{title_slug}--{docid8}/{revision_track}/{year}/...`.
 - Refreshes document-registry rows via `provider_response_replay`.
 - Raw version identity is now passed as typed request input; repo-tracked collection truth resolves the split manifest by default, and `INGESTION_SPLIT_MANIFEST_PATH` remains only as an explicit override.
 
@@ -211,51 +211,6 @@ Example:
 
 ```bash
 python -m campus_ingestion_worker.migrate_student_handbook_source_faithful --raw-version-id sha256:...
-```
-
-### `migrate_source_artifacts_to_canonical_source_bucket`
-
-Moves legacy source-level OCR artifacts out of the derived bucket and into the canonical source bucket layout.
-
-Required CLI args:
-
-- `--corpus`
-- `--collection`
-- `--raw-version-id`
-
-Optional CLI args:
-
-- `--raw-asset-id`
-- `--source-pdf`
-- `--year`
-
-Required env:
-
-- `OBJECT_STORE_ENDPOINT`
-- `OBJECT_STORE_ACCESS_KEY`
-- `OBJECT_STORE_SECRET_KEY`
-- `DOCUMENT_REGISTRY_DATABASE_URL`
-
-Optional env:
-
-- `RAW_ASSET_REGISTRY_DATABASE_URL`
-- `INGESTION_SPLIT_MANIFEST_PATH`
-
-Behavior:
-
-- Copies legacy source-level `provider-response.jsonl` from derived-bucket `.../sources/...` paths into canonical source-bucket `ocr/...` paths.
-- Copies matching `layout-elements.jsonl` into canonical source-bucket `source-truth/...` when that artifact exists.
-- Deletes the legacy derived-bucket source artifact objects after the canonical copies are verified.
-- Rewrites `provider_response_object_key` and `processed_object_keys` in document-registry rows for the same corpus/collection scope when they still point at the legacy source artifact paths.
-- Does not rebuild Qdrant or rewrite document-level derived artifacts.
-
-Example:
-
-```bash
-python -m campus_ingestion_worker.migrate_source_artifacts_to_canonical_source_bucket \
-  --corpus curriculum \
-  --collection curriculum_plan \
-  --raw-version-id sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67
 ```
 
 ### `validate_student_handbook_chunking`
@@ -282,35 +237,15 @@ Behavior:
 - Reports manifest/registry drift, stale registry entries, read failures, chunk-build failures, non-table oversize chunks, and structure-first eligibility statistics.
 - Does not write MinIO, registry, or Qdrant state.
 
-### `migrate_campus_services_canonical`
-
-Worker shell for offline-only `campus_services` canonical markdown backfill.
-
-Required env:
-
-- `OBJECT_STORE_ENDPOINT`
-- `OBJECT_STORE_ACCESS_KEY`
-- `OBJECT_STORE_SECRET_KEY`
-- `CAMPUSRAG_CANONICAL_ROOT`
-- `DOCUMENT_REGISTRY_DATABASE_URL`
-
-Optional env:
-
-- `OBJECT_STORE_BUCKET_DERIVED`
-- `RAW_ASSET_REGISTRY_DATABASE_URL`
-- `HANDBOOK_DERIVED_DOCUMENTS_CONFIG_PATH`
-
-Behavior:
-
-- Reads canonical markdown from legacy `campusRAG/rag-data/canonical`.
 - Imports active `service_portal` documents into `campus_services/service_catalog`.
 - Imports `中央民族大学校内常用电话` into `campus_services/contact_directory`.
 - Derives handbook navigation pages declared in
   `configs/ingestion/campus_services/service_catalog/handbook-derived-documents.json`
   from `regulations/student_handbook` source-level OCR truth into `service_catalog`.
-- This command exists as a legacy/offline bridge. Phase 03.2 freezes the long-term direction as source-truth fan-out from handbook source truth, not a permanent separate `campus_services` migration lane.
-- The canonical declaration of handbook downstream projections now lives under
-  `configs/ingestion/regulations/student_handbook/source-projections.v1.json`; this command is expected to converge onto that contract instead of remaining the long-term source of truth.
+- This command is a historical backfill bridge, not a canonical phase-1 ingestion path.
+- The canonical declaration of handbook downstream projections lives under
+  `configs/ingestion/regulations/student_handbook/source-projections.v1.json`.
+- New downstream outputs must be added to source-truth fan-out, not to this bridge.
 - Rewrites migrated canonical metadata into `campus_services` corpus semantics.
 - Deletes stale `regulations/student_handbook` phone-directory and migrated handbook
   navigation document artifacts.

@@ -5,7 +5,9 @@ import unittest
 from campus_ingestion_core.object_store import (
     S3ObjectStoreClientFactory,
     build_processed_artifact_key,
+    build_processed_asset_artifact_key,
     build_raw_asset_key,
+    parse_source_object_key,
 )
 from campus_ingestion_core.settings import ObjectStoreSettings, resolve_object_store_bucket_names
 
@@ -23,11 +25,9 @@ class ObjectStoreConfigTest(unittest.TestCase):
         self.assertEqual(settings.region, "us-east-1")
         self.assertEqual(settings.bucket_source, "campus-rag-source")
         self.assertEqual(settings.bucket_derived, "campus-rag-derived")
-        self.assertEqual(settings.bucket_raw, "campus-rag-source")
-        self.assertEqual(settings.bucket_processed, "campus-rag-derived")
         self.assertFalse(settings.secure)
 
-    def test_legacy_bucket_envs_fallback_to_source_and_derived_fields(self) -> None:
+    def test_legacy_bucket_envs_no_longer_override_source_and_derived_fields(self) -> None:
         settings = ObjectStoreSettings.from_env(
             {
                 "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
@@ -38,10 +38,10 @@ class ObjectStoreConfigTest(unittest.TestCase):
             }
         )
 
-        self.assertEqual(settings.bucket_source, "legacy-raw")
-        self.assertEqual(settings.bucket_derived, "legacy-processed")
+        self.assertEqual(settings.bucket_source, "campus-rag-source")
+        self.assertEqual(settings.bucket_derived, "campus-rag-derived")
 
-    def test_bucket_name_resolution_supports_legacy_envs_without_full_settings(self) -> None:
+    def test_bucket_name_resolution_ignores_legacy_envs_without_full_settings(self) -> None:
         bucket_source, bucket_derived = resolve_object_store_bucket_names(
             {
                 "OBJECT_STORE_BUCKET_RAW": "legacy-raw",
@@ -49,8 +49,8 @@ class ObjectStoreConfigTest(unittest.TestCase):
             }
         )
 
-        self.assertEqual(bucket_source, "legacy-raw")
-        self.assertEqual(bucket_derived, "legacy-processed")
+        self.assertEqual(bucket_source, "campus-rag-source")
+        self.assertEqual(bucket_derived, "campus-rag-derived")
 
     def test_rejects_local_directory_fallback_endpoint(self) -> None:
         with self.assertRaises(ValueError):
@@ -87,7 +87,7 @@ class ObjectStoreConfigTest(unittest.TestCase):
 
         self.assertEqual(
             object_key,
-            "pdf/student-handbook/undated/sha256/raw-001/student-handbook.pdf",
+            "official_pdf/student-handbook/undated/sha256/raw-001/capture/student-handbook.pdf",
         )
 
     def test_build_processed_artifact_key_supports_curriculum_plan(self) -> None:
@@ -115,8 +115,43 @@ class ObjectStoreConfigTest(unittest.TestCase):
 
         self.assertEqual(
             object_key,
-            "pdf/curriculum-plan-master/undated/sha256/raw-001/curriculum-plan.pdf",
+            "official_pdf/curriculum-plan-master/undated/sha256/raw-001/capture/curriculum-plan.pdf",
         )
+
+    def test_build_processed_asset_artifact_key_uses_source_stage_namespace(self) -> None:
+        provider_key = build_processed_asset_artifact_key(
+            corpus="regulations",
+            raw_asset_id="asset:student-handbook-pdf",
+            raw_version_id="sha256:raw-001",
+            filename="provider-response.jsonl",
+        )
+        layout_key = build_processed_asset_artifact_key(
+            corpus="regulations",
+            raw_asset_id="asset:student-handbook-pdf",
+            raw_version_id="sha256:raw-001",
+            filename="layout-elements.jsonl",
+        )
+
+        self.assertEqual(
+            provider_key,
+            "official_pdf/student-handbook/undated/sha256/raw-001/provider/paddleocr-vl-1-5/provider-response.jsonl",
+        )
+        self.assertEqual(
+            layout_key,
+            "official_pdf/student-handbook/undated/sha256/raw-001/source-truth/layout-elements.jsonl",
+        )
+
+    def test_parse_source_object_key_supports_provider_stage(self) -> None:
+        parsed = parse_source_object_key(
+            "official_pdf/student-handbook/2018/sha256/raw-001/provider/paddleocr-vl-1-5/provider-response.jsonl"
+        )
+
+        self.assertEqual(parsed["source_channel"], "official_pdf")
+        self.assertEqual(parsed["source_asset_slug"], "student-handbook")
+        self.assertEqual(parsed["year"], "2018")
+        self.assertEqual(parsed["raw_version_id"], "sha256:raw-001")
+        self.assertEqual(parsed["stage"], "provider")
+        self.assertEqual(parsed["model_slug"], "paddleocr-vl-1-5")
 
     def test_factory_exposes_s3_compatible_client_config_only(self) -> None:
         settings = ObjectStoreSettings.from_env(

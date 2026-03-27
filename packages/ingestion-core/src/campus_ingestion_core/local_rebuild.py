@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 import os
 from pathlib import Path
 from typing import Any, Callable, Protocol
@@ -40,11 +40,15 @@ from campus_ingestion_core.handbook_provider_normalize import (
     serialize_handbook_layout_elements,
 )
 from campus_ingestion_core.object_store import (
+    DEFAULT_RAW_SOURCE_CHANNEL,
     S3ObjectStoreClientFactory,
+    build_source_model_slug,
     build_source_ocr_artifact_key,
     build_source_truth_artifact_key,
     build_raw_asset_key,
     infer_year_label,
+    is_source_object_key,
+    parse_source_object_key,
 )
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.process import build_indexable_chunks_from_jsonl, index_chunks_to_qdrant
@@ -104,25 +108,6 @@ class StudentHandbookMigrationReport:
 
 
 @dataclass(frozen=True, slots=True)
-class SourceArtifactsMigrationReport:
-    corpus: str
-    collection: str
-    raw_asset_id: str
-    raw_version_id: str
-    source_provider_response_bucket: str
-    source_provider_response_key: str
-    canonical_provider_response_bucket: str
-    canonical_provider_response_key: str
-    source_layout_elements_bucket: str | None
-    source_layout_elements_key: str | None
-    canonical_layout_elements_bucket: str | None
-    canonical_layout_elements_key: str | None
-    provider_response_migrated: bool
-    layout_elements_migrated: bool
-    updated_document_record_count: int
-
-
-@dataclass(frozen=True, slots=True)
 class RebuildRequest:
     corpus: str
     collection: str
@@ -140,17 +125,6 @@ class StudentHandbookSourceAssetRequest:
     raw_asset_id: str | None = None
     source_pdf: str | None = None
     canonical_raw_filename: str = DEFAULT_HANDBOOK_CANONICAL_RAW_FILENAME
-
-
-@dataclass(frozen=True, slots=True)
-class SourceArtifactsMigrationRequest:
-    corpus: str
-    collection: str
-    raw_version_id: str
-    raw_asset_id: str | None = None
-    source_pdf: str | None = None
-    year: str | None = None
-    source_channel: str = "pdf_ocr"
 
 
 class S3ObjectStoreAdmin:
@@ -300,21 +274,7 @@ def _build_rebuild_request_from_env(source: dict[str, str]) -> RebuildRequest:
     raw_asset_id = _normalize_optional_text(source.get("RAW_ASSET_ID"))
     raw_version_id = _normalize_optional_text(source.get("RAW_VERSION_ID"))
     if import_mode == "provider_response_replay" and raw_version_id is None:
-        collection_config = _resolve_runtime_collection_config(source=source, corpus=corpus, collection=collection)
-        split_manifest = load_split_manifest(
-            collection_config.split_manifest_path,
-            expected_corpus=corpus,
-            expected_collection=collection,
-        )
-        raw_asset_id = raw_asset_id or split_manifest.raw_asset_id
-        provider_response_key = _normalize_optional_text(source.get("REBUILD_PROVIDER_RESPONSE_KEY"))
-        if provider_response_key is None:
-            raise ValueError("RAW_VERSION_ID is required for provider_response_replay")
-        raw_version_id = _parse_replay_raw_version_id(
-            corpus=corpus,
-            provider_response_key=provider_response_key,
-            raw_asset_id=raw_asset_id,
-        )
+        raise ValueError("RAW_VERSION_ID is required for provider_response_replay")
     return RebuildRequest(
         corpus=corpus,
         collection=collection,
@@ -356,12 +316,6 @@ def _build_rebuild_import_env(
             raise ValueError("raw_version_id is required for provider_response_replay")
         source_pdf = request.source_pdf or DEFAULT_REPLAY_SOURCE_PDF
         import_env["REPLAY_SOURCE_PDF"] = source_pdf
-        import_env["REBUILD_PROVIDER_RESPONSE_KEY"] = build_source_ocr_artifact_key(
-            raw_asset_id=raw_asset_id,
-            raw_version_id=raw_version_id,
-            filename=PROVIDER_RESPONSE_FILENAME,
-            year=infer_year_label(source_pdf),
-        )
     return import_env
 
 
@@ -376,7 +330,6 @@ _REBUILD_REPORT_CONTEXT_KEYS = (
     "INGESTION_SPLIT_MANIFEST_PATH",
     "HANDBOOK_SOURCE_PROJECTIONS_PATH",
     "REPLAY_SOURCE_PDF",
-    "REBUILD_PROVIDER_RESPONSE_KEY",
     "QDRANT_COLLECTION",
 )
 
@@ -517,11 +470,7 @@ def _extra_processed_rebuild_keys(
 
 
 def _is_derived_artifact_key(key: str) -> bool:
-    return not (
-        key.startswith("ocr/")
-        or key.startswith("source-truth/")
-        or key.startswith("raw/")
-    )
+    return not is_source_object_key(key)
 
 
 def migrate_student_handbook_source_faithful(
@@ -616,122 +565,6 @@ def migrate_student_handbook_source_faithful(
         canonical_raw_object_key=canonical_raw_object_key,
         rebuild_report=rebuild_report,
     )
-
-
-def migrate_source_artifacts_to_canonical_source_bucket(
-    *,
-    env: dict[str, str] | None = None,
-    request: SourceArtifactsMigrationRequest | None = None,
-    object_store: ReplayObjectStore | None = None,
-    document_registry: DocumentRegistry | None = None,
-    raw_asset_registry: RawAssetRegistry | None = None,
-) -> SourceArtifactsMigrationReport:
-    source = dict(env if env is not None else os.environ)
-    runtime_request = request or _build_source_artifacts_migration_request_from_env(source)
-    object_store_settings = ObjectStoreSettings.from_env(source)
-    runtime_object_store = object_store or S3ObjectStoreAdmin(object_store_settings)
-    runtime_document_registry = document_registry or _build_document_registry_for_rebuild(
-        source,
-        runtime_request.corpus,
-    )
-    runtime_raw_asset_registry = raw_asset_registry or _build_raw_asset_registry_for_rebuild(
-        source,
-        runtime_request.corpus,
-    )
-    raw_asset_id = _resolve_source_artifacts_raw_asset_id(source=source, request=runtime_request)
-    year = _resolve_source_artifact_year(
-        request=runtime_request,
-        raw_asset_id=raw_asset_id,
-        raw_asset_registry=runtime_raw_asset_registry,
-    )
-    canonical_provider_response_key = build_source_ocr_artifact_key(
-        raw_asset_id=raw_asset_id,
-        raw_version_id=runtime_request.raw_version_id,
-        filename=PROVIDER_RESPONSE_FILENAME,
-        source_channel=runtime_request.source_channel,
-        year=year,
-    )
-    legacy_provider_response_key = _build_legacy_derived_source_artifact_key(
-        corpus=runtime_request.corpus,
-        raw_asset_id=raw_asset_id,
-        raw_version_id=runtime_request.raw_version_id,
-        filename=PROVIDER_RESPONSE_FILENAME,
-        source_channel=runtime_request.source_channel,
-        year=year,
-    )
-    (
-        source_provider_response_bucket,
-        source_provider_response_key,
-        provider_response_migrated,
-    ) = _migrate_source_artifact(
-        object_store=runtime_object_store,
-        canonical_bucket=object_store_settings.bucket_source,
-        canonical_key=canonical_provider_response_key,
-        legacy_bucket=object_store_settings.bucket_derived,
-        legacy_key=legacy_provider_response_key,
-        content_type="application/x-ndjson",
-        required=True,
-    )
-    canonical_layout_elements_key = build_source_truth_artifact_key(
-        raw_asset_id=raw_asset_id,
-        raw_version_id=runtime_request.raw_version_id,
-        filename=LAYOUT_ELEMENTS_FILENAME,
-        source_channel=runtime_request.source_channel,
-        year=year,
-    )
-    legacy_layout_elements_key = _build_legacy_derived_source_artifact_key(
-        corpus=runtime_request.corpus,
-        raw_asset_id=raw_asset_id,
-        raw_version_id=runtime_request.raw_version_id,
-        filename=LAYOUT_ELEMENTS_FILENAME,
-        source_channel=runtime_request.source_channel,
-        year=year,
-    )
-    (
-        source_layout_elements_bucket,
-        source_layout_elements_key,
-        layout_elements_migrated,
-    ) = _migrate_source_artifact(
-        object_store=runtime_object_store,
-        canonical_bucket=object_store_settings.bucket_source,
-        canonical_key=canonical_layout_elements_key,
-        legacy_bucket=object_store_settings.bucket_derived,
-        legacy_key=legacy_layout_elements_key,
-        content_type="application/x-ndjson",
-        required=False,
-    )
-    updated_document_record_count = _rewrite_source_artifact_registry_keys(
-        registry=runtime_document_registry,
-        corpus=runtime_request.corpus,
-        collection=runtime_request.collection,
-        legacy_provider_response_key=legacy_provider_response_key,
-        canonical_provider_response_key=canonical_provider_response_key,
-        legacy_layout_elements_key=legacy_layout_elements_key,
-        canonical_layout_elements_key=canonical_layout_elements_key,
-    )
-    return SourceArtifactsMigrationReport(
-        corpus=runtime_request.corpus,
-        collection=runtime_request.collection,
-        raw_asset_id=raw_asset_id,
-        raw_version_id=runtime_request.raw_version_id,
-        source_provider_response_bucket=source_provider_response_bucket,
-        source_provider_response_key=source_provider_response_key,
-        canonical_provider_response_bucket=object_store_settings.bucket_source,
-        canonical_provider_response_key=canonical_provider_response_key,
-        source_layout_elements_bucket=source_layout_elements_bucket,
-        source_layout_elements_key=source_layout_elements_key,
-        canonical_layout_elements_bucket=(
-            object_store_settings.bucket_source if source_layout_elements_key is not None else None
-        ),
-        canonical_layout_elements_key=(
-            canonical_layout_elements_key if source_layout_elements_key is not None else None
-        ),
-        provider_response_migrated=provider_response_migrated,
-        layout_elements_migrated=layout_elements_migrated,
-        updated_document_record_count=updated_document_record_count,
-    )
-
-
 def _build_qdrant_client(settings: RetrievalSettings, *, source: dict[str, str] | None = None) -> QdrantClient:
     if settings.qdrant_url == ":memory:":
         return QdrantClient(location=":memory:")
@@ -742,6 +575,7 @@ def _build_qdrant_client(settings: RetrievalSettings, *, source: dict[str, str] 
             source=source,
             default_timeout_seconds=settings.qdrant_timeout_seconds,
         ),
+        cloud_inference=True,
     )
 
 
@@ -803,25 +637,7 @@ def _build_student_handbook_source_asset_request_from_env(
     raw_version_id = _normalize_optional_text(source.get("RAW_VERSION_ID"))
     raw_asset_id = _normalize_optional_text(source.get("RAW_ASSET_ID"))
     if raw_version_id is None:
-        collection_config = _resolve_runtime_collection_config(
-            source=source,
-            corpus="regulations",
-            collection="student_handbook",
-        )
-        split_manifest = load_split_manifest(
-            collection_config.split_manifest_path,
-            expected_corpus="regulations",
-            expected_collection="student_handbook",
-        )
-        raw_asset_id = raw_asset_id or split_manifest.raw_asset_id
-        provider_response_key = _normalize_optional_text(source.get("REBUILD_PROVIDER_RESPONSE_KEY"))
-        if provider_response_key is None:
-            raise ValueError("RAW_VERSION_ID is required for handbook source migration")
-        raw_version_id = _parse_replay_raw_version_id(
-            corpus="regulations",
-            provider_response_key=provider_response_key,
-            raw_asset_id=raw_asset_id,
-        )
+        raise ValueError("RAW_VERSION_ID is required for handbook source migration")
     return StudentHandbookSourceAssetRequest(
         raw_version_id=raw_version_id,
         raw_asset_id=raw_asset_id,
@@ -830,22 +646,6 @@ def _build_student_handbook_source_asset_request_from_env(
             _normalize_optional_text(source.get("HANDBOOK_CANONICAL_RAW_FILENAME"))
             or DEFAULT_HANDBOOK_CANONICAL_RAW_FILENAME
         ),
-    )
-
-
-def _build_source_artifacts_migration_request_from_env(
-    source: dict[str, str],
-) -> SourceArtifactsMigrationRequest:
-    corpus = _read_ingestion_corpus(source)
-    collection = _read_ingestion_collection(source, corpus=corpus)
-    raw_version_id = _read_required_env(source, "RAW_VERSION_ID")
-    return SourceArtifactsMigrationRequest(
-        corpus=corpus,
-        collection=collection,
-        raw_version_id=raw_version_id,
-        raw_asset_id=_normalize_optional_text(source.get("RAW_ASSET_ID")),
-        source_pdf=_normalize_optional_text(source.get("REPLAY_SOURCE_PDF")),
-        year=_normalize_optional_text(source.get("SOURCE_ARTIFACT_YEAR")),
     )
 
 
@@ -879,7 +679,6 @@ def replay_provider_response_rebuild(
     collection_config = _resolve_runtime_collection_config(source=source, corpus=corpus, collection=collection)
     if collection != "student_handbook":
         raise ValueError("provider_response_replay only supports student_handbook")
-    source_provider_response_key = _read_required_env(source, "REBUILD_PROVIDER_RESPONSE_KEY")
     source_pdf = (source.get("REPLAY_SOURCE_PDF") or DEFAULT_REPLAY_SOURCE_PDF).strip() or DEFAULT_REPLAY_SOURCE_PDF
 
     object_store_settings = ObjectStoreSettings.from_env(source)
@@ -889,20 +688,20 @@ def replay_provider_response_rebuild(
         expected_corpus=corpus,
         expected_collection=collection,
     )
-    raw_version_id = _parse_replay_raw_version_id(
-        corpus=corpus,
-        provider_response_key=source_provider_response_key,
-        raw_asset_id=split_manifest.raw_asset_id,
-    )
+    raw_version_id = _read_required_env(source, "RAW_VERSION_ID")
     provider_response_key = build_source_ocr_artifact_key(
         raw_asset_id=split_manifest.raw_asset_id,
         raw_version_id=raw_version_id,
         filename=PROVIDER_RESPONSE_FILENAME,
+        source_channel=DEFAULT_RAW_SOURCE_CHANNEL,
+        model_slug=build_source_model_slug(
+            (source.get("OCR_MODEL") or DEFAULT_ONLINE_OCR_MODEL).strip() or DEFAULT_ONLINE_OCR_MODEL
+        ),
         year=infer_year_label(source_pdf),
     )
     provider_response_bytes = runtime_object_store.get_bytes(
         bucket=object_store_settings.bucket_source,
-        key=source_provider_response_key,
+        key=provider_response_key,
     )
     structured_rows = normalize_handbook_provider_result(
         source_pdf=source_pdf,
@@ -916,6 +715,7 @@ def replay_provider_response_rebuild(
         raw_asset_id=split_manifest.raw_asset_id,
         raw_version_id=raw_version_id,
         filename=LAYOUT_ELEMENTS_FILENAME,
+        source_channel=DEFAULT_RAW_SOURCE_CHANNEL,
         year=infer_year_label(source_pdf),
     )
     runtime_object_store.put_bytes(
@@ -933,7 +733,7 @@ def replay_provider_response_rebuild(
     _cleanup_legacy_replay_source_objects(
         object_store=runtime_object_store,
         object_store_settings=object_store_settings,
-        source_provider_response_key=source_provider_response_key,
+        source_provider_response_key=provider_response_key,
         canonical_provider_response_key=provider_response_key,
         canonical_layout_elements_key=layout_elements_key,
     )
@@ -1026,7 +826,30 @@ def _processed_bucket_exclude_keys(
 ) -> tuple[str, ...]:
     if import_mode != "provider_response_replay" or collection != "student_handbook":
         return ()
-    provider_response_key = _read_required_env(source, "REBUILD_PROVIDER_RESPONSE_KEY")
+    raw_version_id = _read_required_env(source, "RAW_VERSION_ID")
+    collection_config = _resolve_runtime_collection_config(source=source, corpus=corpus, collection=collection)
+    raw_asset_id = _resolve_collection_raw_asset_id(
+        request=RebuildRequest(
+            corpus=corpus,
+            collection=collection,
+            import_mode=import_mode,
+            raw_version_id=raw_version_id,
+            raw_asset_id=_normalize_optional_text(source.get("RAW_ASSET_ID")),
+            source_pdf=_normalize_optional_text(source.get("REPLAY_SOURCE_PDF")),
+        ),
+        collection_config=collection_config,
+    )
+    source_pdf = (source.get("REPLAY_SOURCE_PDF") or DEFAULT_REPLAY_SOURCE_PDF).strip() or DEFAULT_REPLAY_SOURCE_PDF
+    provider_response_key = build_source_ocr_artifact_key(
+        raw_asset_id=raw_asset_id,
+        raw_version_id=raw_version_id,
+        filename=PROVIDER_RESPONSE_FILENAME,
+        source_channel=DEFAULT_RAW_SOURCE_CHANNEL,
+        model_slug=build_source_model_slug(
+            (source.get("OCR_MODEL") or DEFAULT_ONLINE_OCR_MODEL).strip() or DEFAULT_ONLINE_OCR_MODEL
+        ),
+        year=infer_year_label(source_pdf),
+    )
     return (provider_response_key,)
 
 
@@ -1151,71 +974,11 @@ def _normalize_optional_text(value: object) -> str | None:
     return normalized or None
 
 
-def _parse_replay_raw_version_id(
-    *,
-    corpus: str,
-    provider_response_key: str,
-    raw_asset_id: str,
-) -> str:
-    parts = [part for part in provider_response_key.strip("/").split("/") if part]
-    version_segments = _match_replay_version_segments(parts=parts, corpus=corpus, raw_asset_id=raw_asset_id)
-    if version_segments is None:
-        raise ValueError("REBUILD_PROVIDER_RESPONSE_KEY does not match split manifest raw_asset_id")
-    if parts[-1] != PROVIDER_RESPONSE_FILENAME:
-        raise ValueError(f"REBUILD_PROVIDER_RESPONSE_KEY must point to {PROVIDER_RESPONSE_FILENAME}")
-    if not version_segments:
-        raise ValueError("REBUILD_PROVIDER_RESPONSE_KEY is missing raw version segments")
-    return ":".join(version_segments)
-
-
 def _raw_asset_segments(raw_asset_id: str) -> tuple[str, ...]:
     segments = tuple(part.strip() for part in raw_asset_id.split(":") if part.strip())
     if len(segments) >= 2 and segments[0] == "asset":
         return segments[1:]
     return segments
-
-
-def _version_segments(raw_version_id: str) -> tuple[str, ...]:
-    segments = tuple(part.strip() for part in raw_version_id.split(":") if part.strip())
-    if not segments:
-        raise ValueError("raw_version_id is required")
-    return segments
-
-
-def _match_replay_version_segments(
-    *,
-    parts: list[str],
-    corpus: str,
-    raw_asset_id: str,
-) -> list[str] | None:
-    legacy_segments = list(_raw_asset_segments(raw_asset_id))
-    normalized_slug = _normalized_source_asset_slug(raw_asset_id)
-    candidate_prefixes = [
-        ["ocr", "pdf_ocr", normalized_slug],
-        ["ocr", "pdf_ocr", legacy_segments[-1]],
-        ["source-truth", "pdf_ocr", normalized_slug],
-        ["source-truth", "pdf_ocr", legacy_segments[-1]],
-        [corpus, "assets", *legacy_segments],
-    ]
-    for prefix in candidate_prefixes:
-        if parts[: len(prefix)] == prefix:
-            remainder = parts[len(prefix) : -1]
-            if remainder and _is_year_segment(remainder[0]):
-                remainder = remainder[1:]
-            return remainder
-    return None
-
-
-def _normalized_source_asset_slug(raw_asset_id: str) -> str:
-    segments = _raw_asset_segments(raw_asset_id)
-    if not segments:
-        raise ValueError("raw_asset_id is required")
-    parts = [part for part in segments[-1].split("-") if part]
-    if len(parts) >= 2 and parts[-1] in {"pdf", "doc", "docx", "html", "htm", "md", "markdown", "txt", "json", "csv", "zip"}:
-        parts = parts[:-1]
-    if len(parts) >= 2 and _is_year_segment(parts[-1]) and parts[-1] != "undated":
-        parts = parts[:-1]
-    return "-".join(parts) or segments[-1]
 
 
 def _is_year_segment(value: str) -> bool:
@@ -1228,119 +991,6 @@ def _replace_object_key_filename(object_key: str, filename: str) -> str:
         raise ValueError("object key is required")
     parts[-1] = filename
     return "/".join(parts)
-
-
-def _resolve_source_artifacts_raw_asset_id(
-    *,
-    source: dict[str, str],
-    request: SourceArtifactsMigrationRequest,
-) -> str:
-    collection_config = _resolve_runtime_collection_config(
-        source=source,
-        corpus=request.corpus,
-        collection=request.collection,
-    )
-    if collection_config.split_manifest_path.exists():
-        split_manifest = load_split_manifest(
-            collection_config.split_manifest_path,
-            expected_corpus=request.corpus,
-            expected_collection=request.collection,
-        )
-        if request.raw_asset_id is not None and request.raw_asset_id != split_manifest.raw_asset_id:
-            raise ValueError("request raw_asset_id does not match collection split manifest raw_asset_id")
-        return request.raw_asset_id or split_manifest.raw_asset_id
-    if request.raw_asset_id is None:
-        raise ValueError("raw_asset_id is required when collection split manifest is unavailable")
-    return request.raw_asset_id
-
-
-def _resolve_source_artifact_year(
-    *,
-    request: SourceArtifactsMigrationRequest,
-    raw_asset_id: str,
-    raw_asset_registry: RawAssetRegistry,
-) -> str:
-    if request.year is not None:
-        normalized_year = request.year.strip()
-        if normalized_year:
-            return normalized_year
-    if request.source_pdf is not None:
-        inferred = infer_year_label(request.source_pdf)
-        if inferred is not None:
-            return inferred
-    raw_record = raw_asset_registry.get(raw_asset_id, request.raw_version_id)
-    if raw_record is not None:
-        inferred = infer_year_label(raw_record.source_filename)
-        if inferred is not None:
-            return inferred
-    inferred = infer_year_label(raw_asset_id)
-    if inferred is not None:
-        return inferred
-    return "undated"
-
-
-def _build_legacy_derived_source_artifact_key(
-    *,
-    corpus: str,
-    raw_asset_id: str,
-    raw_version_id: str,
-    filename: str,
-    source_channel: str,
-    year: str,
-) -> str:
-    return "/".join(
-        [
-            corpus,
-            "sources",
-            source_channel,
-            _normalized_source_asset_slug(raw_asset_id),
-            year,
-            *_version_segments(raw_version_id),
-            filename,
-        ]
-    )
-
-
-def _migrate_source_artifact(
-    *,
-    object_store: ReplayObjectStore,
-    canonical_bucket: str,
-    canonical_key: str,
-    legacy_bucket: str,
-    legacy_key: str,
-    content_type: str,
-    required: bool,
-) -> tuple[str | None, str | None, bool]:
-    canonical_bytes = _try_get_object_bytes(
-        object_store=object_store,
-        bucket=canonical_bucket,
-        key=canonical_key,
-    )
-    legacy_bytes = _try_get_object_bytes(
-        object_store=object_store,
-        bucket=legacy_bucket,
-        key=legacy_key,
-    )
-    if canonical_bytes is None and legacy_bytes is None:
-        if required:
-            raise ValueError(f"source artifact is missing: {canonical_key}")
-        return None, None, False
-    if canonical_bytes is not None and legacy_bytes is not None and canonical_bytes != legacy_bytes:
-        raise ValueError(f"legacy and canonical artifacts differ for {canonical_key}")
-    migrated = False
-    source_bucket: str | None = canonical_bucket if canonical_bytes is not None else legacy_bucket
-    source_key: str | None = canonical_key if canonical_bytes is not None else legacy_key
-    if canonical_bytes is None and legacy_bytes is not None:
-        object_store.put_bytes(
-            bucket=canonical_bucket,
-            key=canonical_key,
-            data=legacy_bytes,
-            content_type=content_type,
-        )
-        migrated = True
-    if legacy_bytes is not None and legacy_key != canonical_key:
-        object_store.delete_prefix(bucket=legacy_bucket, prefix=legacy_key)
-    return source_bucket, source_key, migrated
 
 
 def _try_get_object_bytes(
@@ -1370,55 +1020,6 @@ def _is_missing_object_error(exc: Exception) -> bool:
     return False
 
 
-def _rewrite_source_artifact_registry_keys(
-    *,
-    registry: DocumentRegistry,
-    corpus: str,
-    collection: str,
-    legacy_provider_response_key: str,
-    canonical_provider_response_key: str,
-    legacy_layout_elements_key: str,
-    canonical_layout_elements_key: str,
-) -> int:
-    updated_records: list[Any] = []
-    for record in _list_document_records_for_scope(registry, corpus, collection):
-        provider_response_object_key = record.provider_response_object_key
-        if provider_response_object_key == legacy_provider_response_key:
-            provider_response_object_key = canonical_provider_response_key
-        processed_object_keys = tuple(
-            _replace_registry_object_key(
-                _replace_registry_object_key(key, legacy_provider_response_key, canonical_provider_response_key),
-                legacy_layout_elements_key,
-                canonical_layout_elements_key,
-            )
-            for key in tuple(record.processed_object_keys or ())
-        )
-        if (
-            provider_response_object_key != record.provider_response_object_key
-            or processed_object_keys != tuple(record.processed_object_keys or ())
-        ):
-            updated_records.append(
-                replace(
-                    record,
-                    provider_response_object_key=provider_response_object_key,
-                    processed_object_keys=processed_object_keys,
-                )
-            )
-    if not updated_records:
-        return 0
-    upsert_many = getattr(registry, "upsert_many", None)
-    if callable(upsert_many):
-        upsert_many(tuple(updated_records))
-    else:
-        for record in updated_records:
-            registry.upsert(record)
-    return len(updated_records)
-
-
-def _replace_registry_object_key(key: str, old: str, new: str) -> str:
-    return new if key == old else key
-
-
 def _cleanup_legacy_replay_source_objects(
     *,
     object_store: ReplayObjectStore,
@@ -1436,16 +1037,27 @@ def _cleanup_legacy_replay_source_objects(
             prefix=source_provider_response_key,
             exclude_keys=(canonical_provider_response_key,),
         )
-    source_layout_elements_key = _replace_object_key_filename(
-        source_provider_response_key,
-        LAYOUT_ELEMENTS_FILENAME,
-    )
-    if source_layout_elements_key != canonical_layout_elements_key:
-        delete_prefix(
-            bucket=object_store_settings.bucket_source,
-            prefix=source_layout_elements_key,
-            exclude_keys=(canonical_layout_elements_key,),
+    candidate_source_layout_keys = {
+        _replace_object_key_filename(source_provider_response_key, LAYOUT_ELEMENTS_FILENAME),
+    }
+    parsed_source_key = parse_source_object_key(source_provider_response_key)
+    if parsed_source_key is not None:
+        candidate_source_layout_keys.add(
+            build_source_truth_artifact_key(
+                raw_asset_id=f"asset:{parsed_source_key['source_asset_slug']}",
+                raw_version_id=str(parsed_source_key["raw_version_id"]),
+                filename=LAYOUT_ELEMENTS_FILENAME,
+                source_channel=str(parsed_source_key["source_channel"]),
+                year=str(parsed_source_key["year"]),
+            )
         )
+    for source_layout_elements_key in candidate_source_layout_keys:
+        if source_layout_elements_key != canonical_layout_elements_key:
+            delete_prefix(
+                bucket=object_store_settings.bucket_source,
+                prefix=source_layout_elements_key,
+                exclude_keys=(canonical_layout_elements_key,),
+            )
 
 
 def _build_handbook_replay_document_input(

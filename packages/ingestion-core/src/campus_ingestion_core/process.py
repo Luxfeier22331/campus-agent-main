@@ -31,7 +31,6 @@ from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.sparse import (
     SparseEmbeddingModel,
     SparseEmbeddingSettings,
-    SparseVectorData,
     build_sparse_embedding_model,
 )
 
@@ -91,7 +90,6 @@ class IndexableChunk:
             metadata={
                 "document_id": self.document_id,
                 "revision_track": self.revision_track,
-                "representation": self.revision_track,
                 "version_id": self.version_id,
                 "chunk_id": self.chunk_id,
                 "chunk_order": self.chunk_order,
@@ -117,7 +115,6 @@ class IndexableChunk:
                     node_id=self.document_id,
                     metadata={
                         "revision_track": self.revision_track,
-                        "representation": self.revision_track,
                         "version_id": self.version_id,
                         "source_uri": self.source_uri,
                     },
@@ -783,15 +780,16 @@ def index_chunks_to_qdrant(
         node = chunk.to_node()
         if chunk.embedding is None:
             raise ValueError(f"chunk {chunk.chunk_id} is missing dense embedding")
+        sparse_vector = _resolve_sparse_vector(
+            chunk=chunk,
+            sparse_embedding_model=runtime_sparse_embedding_model,
+        )
         points.append(
             qdrant_models.PointStruct(
                 id=str(uuid.uuid5(uuid.NAMESPACE_URL, chunk.chunk_id)),
                 vector={
                     "dense": list(chunk.embedding),
-                    "sparse": _resolve_sparse_vector(
-                        chunk=chunk,
-                        sparse_embedding_model=runtime_sparse_embedding_model,
-                    ).to_qdrant(),
+                    "sparse": sparse_vector,
                 },
                 payload={
                     "_node_content": node.model_dump_json(),
@@ -996,7 +994,6 @@ def _ensure_payload_indexes(*, qdrant_client: QdrantClient, collection_name: str
     for field_name, field_schema in (
         ("document_id", qdrant_models.PayloadSchemaType.KEYWORD),
         ("revision_track", qdrant_models.PayloadSchemaType.KEYWORD),
-        ("representation", qdrant_models.PayloadSchemaType.KEYWORD),
         ("version_id", qdrant_models.PayloadSchemaType.KEYWORD),
         ("corpus", qdrant_models.PayloadSchemaType.KEYWORD),
         ("collection", qdrant_models.PayloadSchemaType.KEYWORD),
@@ -1091,14 +1088,14 @@ def _resolve_sparse_vector(
     *,
     chunk: IndexableChunk,
     sparse_embedding_model: SparseEmbeddingModel,
-) -> SparseVectorData:
+) -> qdrant_models.Document | qdrant_models.SparseVector:
     if bool(chunk.sparse_indices) != bool(chunk.sparse_values):
         raise ValueError(f"chunk {chunk.chunk_id} sparse vector is incomplete")
     if len(chunk.sparse_indices) != len(chunk.sparse_values):
         raise ValueError(f"chunk {chunk.chunk_id} sparse vector length mismatch")
     if chunk.sparse_indices:
-        return SparseVectorData(indices=chunk.sparse_indices, values=chunk.sparse_values)
-    return sparse_embedding_model.get_text_embedding(chunk.text)
+        return qdrant_models.SparseVector(indices=list(chunk.sparse_indices), values=list(chunk.sparse_values))
+    return sparse_embedding_model.build_document(chunk.text)
 
 
 def _resolve_dense_vector_size(chunks: Sequence[IndexableChunk]) -> int:

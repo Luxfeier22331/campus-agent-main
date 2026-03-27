@@ -126,17 +126,31 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
         self.assertEqual(rows[8]["row_type"], "heading")
         self.assertEqual(rows[8]["heading_level"], 3)
         self.assertEqual(rows[4]["row_type"], "page_number")
-        self.assertEqual(rows[4]["clean_text"], "")
-        self.assertEqual(rows[6]["clean_text"], "")
+        self.assertEqual(rows[0]["schema_version"], "curriculum_layout_elements_v3")
         self.assertEqual(rows[0]["source_pdf"], "curriculum-plan.pdf")
         self.assertEqual(rows[0]["page_start"], 1)
         self.assertEqual(rows[8]["page_start"], 2)
         self.assertEqual(rows[3]["html"], "<table><tr><td>课程</td><td>学分</td></tr></table>")
         self.assertEqual(rows[5]["text_normalized"], "备注:正常转入研究生阶段学生免修。")
-        self.assertTrue(rows[0]["chunk_id"].startswith("page-0001-block-"))
-        self.assertTrue(rows[7]["chunk_id"].startswith("page-0002-block-"))
+        self.assertTrue(rows[0]["row_id"].startswith("page-0001-block-"))
+        self.assertTrue(rows[7]["row_id"].startswith("page-0002-block-"))
         self.assertEqual(rows[2]["provider_block_id"], "13")
         self.assertEqual(rows[3]["bbox"], [10, 160, 520, 420])
+        self.assertIn("classification_confidence", rows[0])
+        self.assertIn("classification_reason", rows[0])
+        self.assertIn("repeat_cluster_id", rows[0])
+        self.assertIn("repeat_frequency", rows[0])
+        self.assertIn("repeat_position_band", rows[0])
+        self.assertIn("parent_heading_hint", rows[0])
+        self.assertIn("list_level_hint", rows[0])
+        self.assertIn("continues_from_previous_page", rows[0])
+        self.assertIn("continues_to_next_page", rows[0])
+        self.assertIn("table_fragment_id", rows[0])
+        self.assertIn("table_header_rows", rows[0])
+        self.assertIn("table_row_count", rows[0])
+        self.assertIn("table_column_count", rows[0])
+        self.assertIn("table_has_merged_cells", rows[0])
+        self.assertIn("table_caption_hint", rows[0])
 
     def test_normalize_curriculum_provider_result_falls_back_to_markdown_when_block_list_missing(self) -> None:
         provider_payload = {
@@ -156,7 +170,7 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
 
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["row_type"], "paragraph")
-        self.assertEqual(rows[0]["clean_text"], "纯 markdown 回退文本")
+        self.assertEqual(rows[0]["text_normalized"], "纯 markdown 回退文本")
         self.assertEqual(rows[0]["provider_page_id"], 1)
 
     def test_normalize_curriculum_provider_result_keeps_unique_row_ids_when_provider_block_ids_repeat(self) -> None:
@@ -199,7 +213,6 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
 
         self.assertEqual(len(rows), 3)
         self.assertEqual(len({row["row_id"] for row in rows}), 3)
-        self.assertEqual(len({row["chunk_id"] for row in rows}), 3)
 
     def test_normalize_curriculum_provider_result_binds_caption_and_note_to_table(self) -> None:
         provider_payload = {
@@ -361,6 +374,99 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
         self.assertEqual(second_table["owner_row_id"], first_table["row_id"])
         self.assertEqual(second_table["continuation_group_id"], first_table["row_id"])
         self.assertEqual(second_caption["continuation_group_id"], first_table["row_id"])
+        self.assertEqual(first_table["table_column_count"], 2)
+        self.assertEqual(second_table["table_column_count"], 2)
+        self.assertEqual(first_table["table_fragment_id"], second_table["table_fragment_id"])
+
+    def test_normalize_curriculum_provider_result_marks_cross_page_repeated_candidates(self) -> None:
+        provider_payload = {
+            "logId": "log-009a",
+            "errorCode": 0,
+            "errorMsg": "Success",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "height": 1000,
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "text",
+                                    "block_content": "中央民族大学教务处",
+                                    "block_id": 11,
+                                    "block_order": 1,
+                                    "block_bbox": [20, 920, 220, 950],
+                                }
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    },
+                    {
+                        "prunedResult": {
+                            "height": 1000,
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "text",
+                                    "block_content": "中央民族大学教务处",
+                                    "block_id": 21,
+                                    "block_order": 1,
+                                    "block_bbox": [20, 920, 220, 950],
+                                }
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    },
+                ]
+            },
+        }
+
+        rows = self._normalize_rows(provider_payload)
+
+        self.assertEqual(len(rows), 2)
+        self.assertTrue(all(bool(row["is_repeated_candidate"]) for row in rows))
+        self.assertTrue(all(row["repeat_frequency"] == 2 for row in rows))
+        self.assertTrue(all(row["repeat_position_band"] == "bottom" for row in rows))
+
+    def test_normalize_curriculum_provider_result_marks_cross_page_continuation_hints(self) -> None:
+        provider_payload = {
+            "logId": "log-009b",
+            "errorCode": 0,
+            "errorMsg": "Success",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "text",
+                                    "block_content": "培养具备扎实基础和创新能力，",
+                                    "block_id": 11,
+                                    "block_order": 1,
+                                }
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    },
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "text",
+                                    "block_content": "能够服务国家战略与社会发展。",
+                                    "block_id": 21,
+                                    "block_order": 1,
+                                }
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    },
+                ]
+            },
+        }
+
+        rows = self._normalize_rows(provider_payload)
+
+        self.assertTrue(bool(rows[0]["continues_to_next_page"]))
+        self.assertTrue(bool(rows[1]["continues_from_previous_page"]))
 
     def test_normalize_curriculum_provider_result_keeps_long_numeric_requirement_as_paragraph(self) -> None:
         provider_payload = {
@@ -420,7 +526,6 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
         rows = self._normalize_rows(provider_payload)
 
         self.assertEqual(rows[0]["text_normalized"], "培养德智体美劳全面发展的社会主义建设者和接班人。")
-        self.assertEqual(rows[0]["clean_text"], "培养德智体美劳全面发展的社会主义建设者和接班人。")
 
     def test_normalize_curriculum_provider_result_keeps_short_subsection_marker_as_heading(self) -> None:
         provider_payload = {

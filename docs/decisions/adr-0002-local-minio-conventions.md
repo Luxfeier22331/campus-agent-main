@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0002
 status: accepted
 created: 2026-03-22
-updated: 2026-03-26
+updated: 2026-03-27
 ---
 
 # ADR-0002 本地 MinIO 约束与迁移不变量
@@ -40,29 +40,33 @@ updated: 2026-03-26
 
 ## Object Key 规范
 
-第一阶段 object key 采用稳定层级，并把“来源级产物”和“逻辑文档产物”拆到两棵前缀树中：
+第一阶段 object key 采用稳定层级，并把“来源资产处理阶段”和“逻辑文档产物”拆到两棵前缀树中：
 
 - source bucket:
-  `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/{original_filename}`
+  - retained capture artifact:
+    `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/capture/{artifact_filename}`
 - derived bucket:
   - document-oriented artifact:
-    `{corpus}/documents/{collection}/{title_slug}--{docid8}/{representation}/{year}/{artifact_filename}`
+    `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/{artifact_filename}`
 - source bucket 中的 source-oriented artifact:
-  - OCR provider artifact:
-    `ocr/{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/{artifact_filename}`
+  - provider artifact:
+    `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/provider/{model_slug}/{artifact_filename}`
   - source-truth artifact:
-    `source-truth/{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/{artifact_filename}`
+    `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/source-truth/{artifact_filename}`
 
 在线 OCR 的 source / derived artifact 约定：
 
-- `ocr/{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/provider-response.jsonl`
-- `source-truth/{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/layout-elements.jsonl`
-- `{corpus}/documents/{collection}/{title_slug}--{docid8}/{representation}/{year}/canonical.md`
-- `{corpus}/documents/{collection}/{title_slug}--{docid8}/{representation}/{year}/document-units.jsonl`
+- `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/capture/{original_filename}`
+- `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/provider/{model_slug}/provider-response.jsonl`
+- `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/source-truth/layout-elements.jsonl`
+- `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/canonical.md`
+- `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/document-units.jsonl`
 
 说明：
 
 - raw/source layer 不按 `corpus` 组织，因为同一份 raw asset 可能服务多个 corpus；derived layer 按长期知识域 `corpus` 组织，例如 `regulations`、`curriculum`
+- source bucket 的 stage 固定为 `capture`、`provider`、`source-truth` 三类，而不是顶层 `pdf/`、`ocr/`、`source-truth/` 三棵分裂前缀
+- `capture/` 保存长期保留的来源快照；对于 PDF 是原始文件，对于 web 是 retained snapshot 而不是 raw HTML
 - `provider-response.jsonl` 保存供应商返回的原始响应，供审计、重放和排障使用
 - `layout-elements.jsonl` 保存 asset 级统一结构层，供 split、cleanup 和重放使用
 - `canonical.md` 保存单篇文档的人类可读规范化表示，供展示、对照和验收使用
@@ -76,14 +80,12 @@ updated: 2026-03-26
 - source bucket 的第二层固定为 `source_asset_slug`
 - source bucket 的第三层固定为人类可读年份标签，例如 `2018`
 - derived bucket 的第一层固定为长期 corpus 根名，例如 `regulations`
-- source 级 OCR truth 固定通过 source bucket 的 `ocr/` 与 `source-truth/` 前缀保存
+- source 级来源产物固定通过 source bucket 中单一 source prefix 下的 `capture/`、`provider/` 与 `source-truth/` 保存
 - derived 的逻辑文档对象固定放在 `documents/`
 - 文档目录中的第三层固定为 `collection`
 - 文档目录中的第四层固定为 `title_slug--{docid8}`
-- 文档目录中的第五层固定为 `representation`
-- source-truth 来源级目录中的第三层固定为 `source_channel`
-- source-truth 来源级目录中的第四层固定为 `source_asset_slug`
-- source-truth 来源级目录中的第五层固定为人类可读年份标签，例如 `2018`
+- 文档目录中的第五层固定为 `revision_track`
+- source bucket 中 `capture` / `provider` / `source-truth` 都位于同一份 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}` 来源前缀下
 - 文档目录中的第六层固定为人类可读版本标签，例如 `2018`
 - object key 中不直接编码短期来源名、兼容层术语或一次性版本层级，例如 `tracks/`、`editions/`、`v1/`
 - raw / processed 层级语义由 bucket 表达，不在 key 内重复编码
@@ -101,7 +103,7 @@ updated: 2026-03-26
 以下字段不依赖 object key 推断，必须在 document registry 中显式存在：
 
 - `document_id`
-- `representation`
+- `revision_track`
 - `version_id`
 - `source_uri`
 - `content_hash`

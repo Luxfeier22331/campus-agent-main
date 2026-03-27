@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-22
-updated: 2026-03-26
+updated: 2026-03-27
 ---
 
 # `student_handbook` Collection OCR 归一化与拆分策略
@@ -33,7 +33,7 @@ updated: 2026-03-26
 - `student_handbook` collection 的主输入应是 processed 层 `provider-response.jsonl`，不是 raw PDF。
 - handbook 必须保留一层 asset-level `layout-elements.jsonl`，不能直接从 provider payload 进入逻辑文档拆分。
 - `doc_id`、`version_id`、canonical metadata 应在逻辑文档层生成，不应在 source-level normalization 阶段提前冻结。
-- handbook 的长期逻辑 identity 应采用 `document_id + representation + version_id`，而不是绑到某个 PDF 文件名。
+- handbook 的长期逻辑 identity 应采用 `document_id + revision_track + version_id`，而不是绑到某个 PDF 文件名。
 - 文档切分是 normalization 之后、chunking 之前的独立步骤。
 - handbook 的 canonical consumption 模型是 `single source consumption + multi-projection fan-out`：先固化 source truth，再声明哪些 projection 产出 handbook 文档、service-like derived document 或 attachment-like derived document。
 - `article_body`、`policy_page`、`table`、`table_row` 仍然是 handbook 的文档内结构单元，但它们属于 document-level cleaning / chunking 结果，不属于 source-level structured truth。
@@ -98,11 +98,11 @@ updated: 2026-03-26
 
 当前 source artifact 的讨论样例可直接按 object key 理解为：
 
-`ocr/pdf_ocr/student-handbook/2018/{raw_version_id}/provider-response.jsonl`
+`official_pdf/student-handbook/2018/{raw_version_id}/provider/paddleocr-vl-1-5/provider-response.jsonl`
 
 对应的原始来源资产路径应位于 source bucket：
 
-`pdf/student-handbook/2018/{raw_version_id}/{original_filename}`
+`official_pdf/student-handbook/2018/{raw_version_id}/capture/{original_filename}`
 
 其中每一层的职责分别是：
 
@@ -122,7 +122,7 @@ updated: 2026-03-26
   - 保存单篇制度文档对应的 source rows
   - 仍然保留页码、顺序、表格和标题线索
 - `canonical.md` / metadata
-  - 冻结标题、文号、章条结构、`doc_id`、`representation`、文档级 stable metadata
+  - 冻结标题、文号、章条结构、`doc_id`、`revision_track`、文档级 stable metadata
 - document-level `document-units.jsonl`
   - 保存 `article_body`、`policy_page`、`table`、`table_row`
   - 作为 registry 和 chunking 的直接输入
@@ -163,9 +163,10 @@ handbook 的 canonical rebuild contract 固定如下：
 
 - 统一换行、空白、Unicode 兼容形态
 - 统一页码语义为 1-based `page_start/page_end`
-- 统一 block 类型到内部枚举，例如 `heading`、`paragraph`、`table`、`image`、`header`、`footer`、`page_number`、`unknown`
+- 统一 block 类型到内部枚举，例如 `heading`、`paragraph`、`table`、`image`、`header`、`footer`、`page_number`、`footnote`、`caption`、`list_item`、`unknown`
 - 保留 reading order、bbox、provider page id、provider block id、置信度和原始 payload 引用
 - 同时保留 `text_raw` 和轻量 `text_normalized`
+- 允许补充 source-level hints，例如 repeated candidate、跨页延续、表格片段、父标题线索，但这些字段只能作为 split / cleanup 的输入提示
 
 这一层不应该做：
 
@@ -349,20 +350,53 @@ Unit normalization 必须满足以下边界：
 - `is_repeated_candidate`
 - `title_candidate_score`
 - `section_hint`
+- `classification_confidence`
+- `classification_reason`
+- `repeat_cluster_id`
+- `repeat_frequency`
+- `repeat_position_band`
+- `parent_heading_hint`
+- `list_level_hint`
+- `continues_from_previous_page`
+- `continues_to_next_page`
+- `table_fragment_id`
+- `table_header_rows`
+- `table_row_count`
+- `table_column_count`
+- `table_has_merged_cells`
+- `table_caption_hint`
 
 其中 `text_normalized` 应只承担轻量归一化，例如换行、空白、NFKC；不要在这里做语义重写。真正面向检索的 `clean_text` 仍然应在 document-level cleaning 之后生成。
+
+这些 hint 的使用边界必须固定如下：
+
+- 它们只服务 source-level split、cleanup、replay
+- 它们不是 canonical metadata
+- 它们不应直接进入 document registry
+- 它们不应直接进入 retrieval payload 作为最终事实
+
+当前 handbook 实现已经升级到 `student_handbook_layout_elements_v3`。`v3` 在保留 `v2` 结构能力的基础上，进一步完成了两类 contract 收口：
+
+- repo 级 source-truth 共享 contract 统一使用 `classification_confidence`，不再使用容易误导的 `semantic_confidence`
+- source-truth contract 明确禁止提前携带 document/chunk 语义，collection-specific document text 只能在 document-level cleaning 之后生成
+
+`v2` 相比早期最小 contract 的变化主要有三类：
+
+- repeated candidate 不再只靠 `row_type in {header, footer, page_number}` 的静态命中；会结合跨页频次与版面位置补充 `repeat_cluster_id / repeat_frequency / repeat_position_band`
+- `number`、`aside_text`、`vertical_text` 等 provider label 不再无条件强映射；判不准时优先保守落到 `paragraph`
+- source rows 会补 `continues_from_previous_page / continues_to_next_page`、`table_fragment_id` 等 hint，供后续 document cleanup 使用
 
 ## 推荐的 document-level 归一化策略
 
 在 handbook 被切成单篇制度文档后，建议固定以下规则：
 
 - `document_id` 继续采用稳定标题哈希策略，但不再把短期来源名编码为长期前缀；canonical object key 对外展示使用 `title_slug--{docid8}`
-- `representation` 作为语义文本表示线固定存档；第一阶段 OCR ingest / replay 默认写 `source-faithful`
+- `revision_track` 作为语义文本表示线固定存档；第一阶段 OCR ingest / replay 默认写 `source-faithful`
 - `version_id` 由规范化后的 `title + body` 生成，不绑定 source asset 文件名或 provider job
 - `source_channel` 显式记录来源渠道；第一阶段 OCR ingest / replay 默认写 `pdf_ocr`
 - `is_current` 表示该表示线是否是当前对外生效线；source-faithful handbook 默认 `false`
 - `source-faithful` 是审计/回放表示线，不是长期默认 serving line；query-serving 默认应优先消费 `current-effective`，只有在 collection runtime profile 显式允许时，才把 current 的 `source-faithful` 作为过渡 fallback
-- 如果 `pdf_ocr` 与 `official_web` 经过规范化后得到完全一致的文档正文，它们应共享同一个 `document_id + representation + version_id`；差异保留在 provenance，而不是扩成两份 serving document
+- 如果 `pdf_ocr` 与 `official_web` 经过规范化后得到完全一致的文档正文，它们应共享同一个 `document_id + revision_track + version_id`；差异保留在 provenance，而不是扩成两份 serving document
 - `policy_doc_no` 仅在可稳定识别时保留
 - metadata-only 前导信息只进入 canonical metadata / contextualization 输入，不单独生成 `policy_page` unit
 - `page_start/page_end` 属于文档真相，不应由 chunking 事后回推
@@ -371,9 +405,9 @@ Unit normalization 必须满足以下边界：
 
 ## 与现有仓库边界的对应关系
 
-- source bucket 的 `pdf/{source_asset_slug}/{year}/{raw_version_id}/...` 保存 corpus-agnostic 的原始来源资产
-- source bucket 的 `ocr/{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...` 保留 source 级 `provider-response.jsonl`
-- source bucket 的 `source-truth/{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...` 保留 source 级 `layout-elements.jsonl`
+- source bucket 的 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/capture/...` 保存 corpus-agnostic 的 retained source snapshot
+- source bucket 的 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/provider/{model_slug}/...` 保留 source 级 `provider-response.jsonl`
+- source bucket 的 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/source-truth/...` 保留 source 级 `layout-elements.jsonl`
 - document registry 只登记逻辑文档，不登记整本 handbook PDF 作为单一 document truth
 - `regulations/documents/student_handbook/.../document-units.jsonl` 继续作为 `packages/ingestion-core` 的规章导向 chunking 输入
 - 当前 query-serving 默认范围应表述为 `regulations` corpus 下的 `student_handbook` collection
@@ -386,16 +420,16 @@ Unit normalization 必须满足以下边界：
 逻辑文档 identity 固定拆成三层：
 
 - `document_id`: 脱离 PDF / 网页载体的逻辑制度身份
-- `representation`: 并行文本表示线，例如 `source-faithful`、`current-effective`、`editorial`
+- `revision_track`: 并行文本表示线，例如 `source-faithful`、`current-effective`、`editorial`
 - `version_id`: 该表示线内的具体内容版本
 
 第一阶段固定约束：
 
-- handbook OCR ingest / replay 一律写入 `representation=source-faithful`
+- handbook OCR ingest / replay 一律写入 `revision_track=source-faithful`
 - `source_channel` 一律写入 `pdf_ocr`
 - `is_current=false`
-- 后续如果引入官网对照更新后的制度正文，应新增 `current-effective` representation，而不是覆盖 `source-faithful`
-- 一旦 `current-effective` 建立，query-serving 应通过 runtime profile 只消费被标记为 current 的 serving representation，而不是让历史 `source-faithful` 继续默认参与检索
+- 后续如果引入官网对照更新后的制度正文，应新增 `current-effective` revision_track，而不是覆盖 `source-faithful`
+- 一旦 `current-effective` 建立，query-serving 应通过 runtime profile 只消费被标记为 current 的 serving revision_track，而不是让历史 `source-faithful` 继续默认参与检索
 - 当同内容多来源合并为同一逻辑版本时，`current-effective` 的 primary source 默认优先 `official_web`，`source-faithful` 的 primary source 默认优先 `pdf_ocr`
 
 ## 参考

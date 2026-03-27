@@ -1,13 +1,4 @@
 from campus_ingestion_worker.env_bootstrap import load_worker_env
-from campus_ingestion_worker.migrate_campus_services_canonical import (
-    CampusServicesObjectStoreMigrationReport,
-    migrate_campus_services_canonical_to_object_store,
-)
-from campus_ingestion_worker.migrate_source_artifacts_to_canonical_source_bucket import (
-    SourceArtifactsMigrationReport,
-    SourceArtifactsMigrationRequest,
-    migrate_source_artifacts_to_canonical_source_bucket,
-)
 from campus_ingestion_worker.migrate_student_handbook_source_faithful import (
     StudentHandbookMigrationReport,
     StudentHandbookSourceAssetRequest,
@@ -28,19 +19,14 @@ from campus_ingestion_worker.validate_student_handbook_chunking import (
 
 __all__ = [
     "ImportReport",
-    "CampusServicesObjectStoreMigrationReport",
     "LocalDataRebuildReport",
     "OnlineOcrClient",
     "OnlineOcrProviderResult",
     "RawAssetRegistrationResult",
-    "SourceArtifactsMigrationReport",
-    "SourceArtifactsMigrationRequest",
     "StudentHandbookChunkingValidationReport",
     "StudentHandbookMigrationReport",
     "StudentHandbookSourceAssetRequest",
     "load_worker_env",
-    "migrate_campus_services_canonical_to_object_store",
-    "migrate_source_artifacts_to_canonical_source_bucket",
     "migrate_student_handbook_source_faithful",
     "process_raw_ingestion_job",
     "register_raw_asset",

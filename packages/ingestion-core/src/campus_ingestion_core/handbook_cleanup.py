@@ -1036,7 +1036,7 @@ def extract_handbook_title_candidate(
     structured_rows: list[dict[str, object]],
     first_page: int,
 ) -> str | None:
-    candidates: list[tuple[float, int, str]] = []
+    candidates: list[tuple[float, float, int, str]] = []
     for row in structured_rows:
         if _coerce_int(row.get("page_start")) != first_page:
             continue
@@ -1050,6 +1050,7 @@ def extract_handbook_title_candidate(
         candidates.append(
             (
                 float(row.get("title_candidate_score") or 0.0),
+                float(row.get("classification_confidence") or 0.0),
                 -(int(row.get("reading_order") or 0)),
                 text,
             )
@@ -1057,7 +1058,7 @@ def extract_handbook_title_candidate(
     if not candidates:
         return None
     candidates.sort(reverse=True)
-    return candidates[0][2]
+    return candidates[0][3]
 
 
 def _is_placeholder_title(value: str) -> bool:

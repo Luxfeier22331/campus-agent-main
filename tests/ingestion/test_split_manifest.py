@@ -22,7 +22,7 @@ def _curriculum_raw_asset_record(*, raw_version_id: str) -> RawAssetRecord:
         raw_source_uri="file:///tmp/curriculum-plan-2022.pdf",
         content_hash=raw_version_id.removeprefix("sha256:"),
         source_filename="curriculum-plan-2022.pdf",
-        object_key="pdf/curriculum-plan/2022/sha256/test/curriculum-plan-2022.pdf",
+        object_key="official_pdf/curriculum-plan/2022/sha256/test/capture/curriculum-plan-2022.pdf",
         ingestion_timestamp="2026-03-24T10:00:00+00:00",
         import_source="raw_online_ocr",
     )
@@ -96,8 +96,10 @@ class SplitManifestTest(unittest.TestCase):
             manifest_version=manifest.manifest_version,
             manifest_document=documents["curriculum:国际经济与贸易本科人才培养方案"],
             structured_rows=structured_rows,
-            provider_response_key="ocr/pdf_ocr/curriculum-plan/2022/sha256/test/provider-response.jsonl",
-            layout_elements_key="source-truth/pdf_ocr/curriculum-plan/2022/sha256/test/layout-elements.jsonl",
+            provider_response_key=(
+                "official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl"
+            ),
+            layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
             default_campus_scope="main",
             corpus="curriculum",
             collection="curriculum_plan",
@@ -107,8 +109,10 @@ class SplitManifestTest(unittest.TestCase):
             manifest_version=manifest.manifest_version,
             manifest_document=documents["curriculum:经济学拔尖人才创新班人才培养方案"],
             structured_rows=structured_rows,
-            provider_response_key="ocr/pdf_ocr/curriculum-plan/2022/sha256/test/provider-response.jsonl",
-            layout_elements_key="source-truth/pdf_ocr/curriculum-plan/2022/sha256/test/layout-elements.jsonl",
+            provider_response_key=(
+                "official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl"
+            ),
+            layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
             default_campus_scope="main",
             corpus="curriculum",
             collection="curriculum_plan",
@@ -141,9 +145,9 @@ class SplitManifestTest(unittest.TestCase):
         structured_rows = [
             {
                 "row_id": "page-0020-block-0001",
-                "chunk_id": "page-0020-block-0001",
                 "row_type": "table_caption",
-                "clean_text": "表 1 专业课程",
+                "text_raw": "表 1 专业课程",
+                "text_normalized": "表 1 专业课程",
                 "page_start": 20,
                 "page_end": 20,
                 "owner_row_id": "page-0020-block-0002",
@@ -155,9 +159,9 @@ class SplitManifestTest(unittest.TestCase):
             },
             {
                 "row_id": "page-0020-block-0002",
-                "chunk_id": "page-0020-block-0002",
                 "row_type": "table",
-                "clean_text": "<table><tr><td>课程</td><td>学分</td></tr><tr><td>工程数学</td><td>4</td></tr></table>",
+                "text_raw": "<table><tr><td>课程</td><td>学分</td></tr><tr><td>工程数学</td><td>4</td></tr></table>",
+                "text_normalized": "<table><tr><td>课程</td><td>学分</td></tr><tr><td>工程数学</td><td>4</td></tr></table>",
                 "html": "<table><tr><td>课程</td><td>学分</td></tr><tr><td>工程数学</td><td>4</td></tr></table>",
                 "table_cells": [
                     {"row": 1, "col": 1, "text": "课程", "rowspan": 1, "colspan": 1, "is_header": True},
@@ -174,9 +178,9 @@ class SplitManifestTest(unittest.TestCase):
             },
             {
                 "row_id": "page-0021-block-0001",
-                "chunk_id": "page-0021-block-0001",
                 "row_type": "note",
-                "clean_text": "备注：本表按学期执行。",
+                "text_raw": "备注：本表按学期执行。",
+                "text_normalized": "备注：本表按学期执行。",
                 "page_start": 21,
                 "page_end": 21,
                 "owner_row_id": "page-0020-block-0002",
@@ -192,8 +196,10 @@ class SplitManifestTest(unittest.TestCase):
             manifest_version=manifest.manifest_version,
             manifest_document=manifest_document,
             structured_rows=structured_rows,
-            provider_response_key="ocr/pdf_ocr/curriculum-plan/2022/sha256/test/provider-response.jsonl",
-            layout_elements_key="source-truth/pdf_ocr/curriculum-plan/2022/sha256/test/layout-elements.jsonl",
+            provider_response_key=(
+                "official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl"
+            ),
+            layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
             default_campus_scope="main",
             corpus="curriculum",
             collection="curriculum_plan",
@@ -202,7 +208,7 @@ class SplitManifestTest(unittest.TestCase):
         projected_rows = [
             json.loads(line) for line in document_input.document_units_bytes.decode("utf-8").splitlines() if line.strip()
         ]
-        expected_source_uri = "campusrag://source/curriculum/curriculum-plan-2022/sha256/test/pages/20-21"
+        expected_source_uri = "campusrag://source/curriculum/curriculum-plan-2022/sha256/test/capture/pages/20-21"
 
         self.assertEqual(len(projected_rows), 3)
         self.assertTrue(all(row["doc_id"] == manifest_document.document_id for row in projected_rows))

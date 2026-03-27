@@ -14,7 +14,7 @@ from campus_ingestion_core.object_store import (
     build_processed_asset_artifact_key,
 )
 from campus_ingestion_core.process import build_indexable_chunks_from_record
-from campus_ingestion_core.registry import FileDocumentRegistry, FileRawAssetRegistry
+from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 from campus_ingestion_worker.process_raw_ingestion_job import (
     OnlineOcrProviderResult,
     process_raw_ingestion_job,
@@ -61,6 +61,7 @@ class _FakeOnlineOcrClient:
         self.calls.append(pdf_path)
         provider_payload = {
             "result": {
+                "dataInfo": {"numPages": 1},
                 "layoutParsingResults": [
                     {
                         "markdown": {
@@ -85,6 +86,7 @@ class _VolatileFakeOnlineOcrClient:
         self.counter += 1
         provider_payload = {
             "result": {
+                "dataInfo": {"numPages": 1},
                 "layoutParsingResults": [
                     {
                         "markdown": {
@@ -310,7 +312,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
     ) -> str:
         return (
             "campusrag://source/curriculum/"
-            f"curriculum-plan-master-pdf/sha256/{raw_hash}/pages/{page_start}-{page_end}"
+            f"curriculum-plan-master-pdf/sha256/{raw_hash}/capture/pages/{page_start}-{page_end}"
         )
 
     def test_process_raw_ingestion_job_requires_registered_raw_asset_identity(self) -> None:
@@ -338,7 +340,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             raw_bytes = b"%PDF-1.4 remote student handbook stable"
             raw_hash = hashlib.sha256(raw_bytes).hexdigest()
             raw_version_id = f"sha256:{raw_hash}"
-            raw_key = f"pdf/student-handbook-master/undated/sha256/{raw_hash}/student-handbook.pdf"
+            raw_key = f"official_pdf/student-handbook-master/undated/sha256/{raw_hash}/capture/student-handbook.pdf"
             split_manifest_path = root / "configs" / "split-manifest.v1.json"
             split_manifest_path.parent.mkdir(parents=True)
             split_manifest_path.write_text(
@@ -408,13 +410,13 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             )
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
-            registry = FileDocumentRegistry(root / "registry" / "documents.json")
-            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "raw-assets.json")
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
             raw_asset_registry.upsert(
                 _handbook_raw_asset_record(
                     raw_asset_id="asset:student-handbook-master-pdf",
                     raw_version_id=raw_version_id,
-                    raw_source_uri="s3://campus-rag-source/pdf/student-handbook-master/student-handbook.pdf",
+                    raw_source_uri="s3://campus-rag-source/official_pdf/student-handbook-master/student-handbook.pdf",
                     content_hash=raw_hash,
                     source_filename="student-handbook.pdf",
                     object_key=raw_key,
@@ -447,29 +449,37 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                 ("campus_services:contact_directory:bf03f0bd6930e89bcc6d2733c1e87a423b510675",),
             )
 
-    def test_process_raw_ingestion_job_provider_only_reads_registered_raw_asset_from_object_store(self) -> None:
+    def test_process_raw_ingestion_job_source_truth_only_reads_registered_raw_asset_from_object_store(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             raw_bytes = b"%PDF-1.4 remote student handbook"
             raw_hash = hashlib.sha256(raw_bytes).hexdigest()
             raw_version_id = f"sha256:{raw_hash}"
-            raw_key = f"pdf/student-handbook/undated/sha256/{raw_hash}/student-handbook.pdf"
+            raw_key = f"official_pdf/student-handbook/undated/sha256/{raw_hash}/capture/student-handbook.pdf"
             provider_key = build_processed_asset_artifact_key(
                 corpus="regulations",
                 raw_asset_id="asset:student-handbook-pdf",
                 raw_version_id=raw_version_id,
                 filename="provider-response.jsonl",
             )
+            layout_key = build_processed_asset_artifact_key(
+                corpus="regulations",
+                raw_asset_id="asset:student-handbook-pdf",
+                raw_version_id=raw_version_id,
+                filename="layout-elements.jsonl",
+            )
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
             online_ocr = _FakeOnlineOcrClient()
-            registry = FileDocumentRegistry(root / "registry" / "student_handbook_documents.json")
-            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "student_handbook_raw_assets.json"
+            )
             raw_asset_registry.upsert(
                 _handbook_raw_asset_record(
                     raw_asset_id="asset:student-handbook-pdf",
                     raw_version_id=raw_version_id,
-                    raw_source_uri="s3://campus-rag-source/pdf/student-handbook/student-handbook.pdf",
+                    raw_source_uri="s3://campus-rag-source/official_pdf/student-handbook/student-handbook.pdf",
                     content_hash=raw_hash,
                     source_filename="student-handbook.pdf",
                     object_key=raw_key,
@@ -480,7 +490,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                 env={
                     "RAW_ASSET_ID": "asset:student-handbook-pdf",
                     "RAW_VERSION_ID": raw_version_id,
-                    "RAW_INGESTION_ARTIFACT_MODE": "provider_only",
+                    "RAW_INGESTION_ARTIFACT_MODE": "source_truth_only",
                     "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
                     "OCR_API_KEY": "token",
                     "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
@@ -504,7 +514,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             self.assertEqual(report.document_ids, ())
             self.assertEqual(len(online_ocr.calls), 1)
             self.assertEqual(online_ocr.calls[0].name, "student-handbook.pdf")
-            self.assertEqual([upload["key"] for upload in object_store.uploads], [provider_key])
+            self.assertEqual([upload["key"] for upload in object_store.uploads], [provider_key, layout_key])
             self.assertFalse((root / "registry" / "student_handbook_documents.json").exists())
 
     def test_student_handbook_normalized_raw_ingestion_requires_split_manifest(self) -> None:
@@ -513,15 +523,17 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             raw_bytes = b"%PDF-1.4 remote student handbook"
             raw_hash = hashlib.sha256(raw_bytes).hexdigest()
             raw_version_id = f"sha256:{raw_hash}"
-            raw_key = f"pdf/student-handbook/undated/sha256/{raw_hash}/student-handbook.pdf"
+            raw_key = f"official_pdf/student-handbook/undated/sha256/{raw_hash}/capture/student-handbook.pdf"
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
-            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "student_handbook_raw_assets.json"
+            )
             raw_asset_registry.upsert(
                 _handbook_raw_asset_record(
                     raw_asset_id="asset:student-handbook-pdf",
                     raw_version_id=raw_version_id,
-                    raw_source_uri="s3://campus-rag-source/pdf/student-handbook/student-handbook.pdf",
+                    raw_source_uri="s3://campus-rag-source/official_pdf/student-handbook/student-handbook.pdf",
                     content_hash=raw_hash,
                     source_filename="student-handbook.pdf",
                     object_key=raw_key,
@@ -543,7 +555,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                     },
                     object_store=object_store,
                     online_ocr=_FakeOnlineOcrClient(),
-                    registry=FileDocumentRegistry(root / "registry" / "student_handbook_documents.json"),
+                    registry=InMemoryDocumentRegistry(
+                        backing_path=root / "registry" / "student_handbook_documents.json"
+                    ),
                     raw_asset_registry=raw_asset_registry,
                 )
 
@@ -553,7 +567,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             raw_bytes = b"%PDF-1.4 remote student handbook"
             raw_hash = hashlib.sha256(raw_bytes).hexdigest()
             raw_version_id = f"sha256:{raw_hash}"
-            raw_key = f"pdf/student-handbook-master/undated/sha256/{raw_hash}/student-handbook.pdf"
+            raw_key = f"official_pdf/student-handbook-master/undated/sha256/{raw_hash}/capture/student-handbook.pdf"
             split_manifest_path = root / "configs" / "split-manifest.v1.json"
             split_manifest_path.parent.mkdir(parents=True)
             split_manifest_path.write_text(
@@ -592,13 +606,15 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
             online_ocr = _StudentHandbookNormalizedFakeOnlineOcrClient()
-            registry = FileDocumentRegistry(root / "registry" / "student_handbook_documents.json")
-            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "student_handbook_raw_assets.json"
+            )
             raw_asset_registry.upsert(
                 _handbook_raw_asset_record(
                     raw_asset_id="asset:student-handbook-master-pdf",
                     raw_version_id=raw_version_id,
-                    raw_source_uri="s3://campus-rag-source/pdf/student-handbook-master/student-handbook.pdf",
+                    raw_source_uri="s3://campus-rag-source/official_pdf/student-handbook-master/student-handbook.pdf",
                     content_hash=raw_hash,
                     source_filename="student-handbook.pdf",
                     object_key=raw_key,
@@ -691,7 +707,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             raw_hash = hashlib.sha256(raw_bytes).hexdigest()
             raw_version_id = f"sha256:{raw_hash}"
             raw_filename = "学生手册_2018.pdf"
-            raw_key = f"pdf/student-handbook-master/2018/sha256/{raw_hash}/{raw_filename}"
+            raw_key = f"official_pdf/student-handbook-master/2018/sha256/{raw_hash}/capture/{raw_filename}"
             split_manifest_path = root / "configs" / "split-manifest.v1.json"
             split_manifest_path.parent.mkdir(parents=True)
             split_manifest_path.write_text(
@@ -700,13 +716,15 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             )
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
-            registry = FileDocumentRegistry(root / "registry" / "student_handbook_documents.json")
-            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "student_handbook_raw_assets.json"
+            )
             raw_asset_registry.upsert(
                 _handbook_raw_asset_record(
                     raw_asset_id="asset:student-handbook-master-pdf",
                     raw_version_id=raw_version_id,
-                    raw_source_uri="s3://campus-rag-source/pdf/student-handbook-master/2018/学生手册_2018.pdf",
+                    raw_source_uri="s3://campus-rag-source/official_pdf/student-handbook-master/2018/学生手册_2018.pdf",
                     content_hash=raw_hash,
                     source_filename=raw_filename,
                     object_key=raw_key,
@@ -767,7 +785,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             raw_bytes = b"%PDF-1.4 remote student handbook stable"
             raw_hash = hashlib.sha256(raw_bytes).hexdigest()
             raw_version_id = f"sha256:{raw_hash}"
-            raw_key = f"pdf/student-handbook-master/undated/sha256/{raw_hash}/student-handbook.pdf"
+            raw_key = f"official_pdf/student-handbook-master/undated/sha256/{raw_hash}/capture/student-handbook.pdf"
             split_manifest_path = root / "configs" / "split-manifest.v1.json"
             split_manifest_path.parent.mkdir(parents=True)
             split_manifest_path.write_text(
@@ -776,13 +794,15 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             )
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
-            registry = FileDocumentRegistry(root / "registry" / "student_handbook_documents.json")
-            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "student_handbook_raw_assets.json"
+            )
             raw_asset_registry.upsert(
                 _handbook_raw_asset_record(
                     raw_asset_id="asset:student-handbook-master-pdf",
                     raw_version_id=raw_version_id,
-                    raw_source_uri="s3://campus-rag-source/pdf/student-handbook-master/student-handbook.pdf",
+                    raw_source_uri="s3://campus-rag-source/official_pdf/student-handbook-master/student-handbook.pdf",
                     content_hash=raw_hash,
                     source_filename="student-handbook.pdf",
                     object_key=raw_key,
@@ -839,7 +859,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             raw_bytes = b"%PDF-1.4 remote student handbook"
             raw_hash = hashlib.sha256(raw_bytes).hexdigest()
             raw_version_id = f"sha256:{raw_hash}"
-            raw_key = f"pdf/student-handbook-master/undated/sha256/{raw_hash}/student-handbook.pdf"
+            raw_key = f"official_pdf/student-handbook-master/undated/sha256/{raw_hash}/capture/student-handbook.pdf"
             split_manifest_path = root / "configs" / "split-manifest.v1.json"
             split_manifest_path.parent.mkdir(parents=True)
             split_manifest_path.write_text(
@@ -867,12 +887,14 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             )
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
-            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "student_handbook_raw_assets.json"
+            )
             raw_asset_registry.upsert(
                 _handbook_raw_asset_record(
                     raw_asset_id="asset:student-handbook-master-pdf",
                     raw_version_id=raw_version_id,
-                    raw_source_uri="s3://campus-rag-source/pdf/student-handbook-master/student-handbook.pdf",
+                    raw_source_uri="s3://campus-rag-source/official_pdf/student-handbook-master/student-handbook.pdf",
                     content_hash=raw_hash,
                     source_filename="student-handbook.pdf",
                     object_key=raw_key,
@@ -895,7 +917,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                     },
                     object_store=object_store,
                     online_ocr=_StudentHandbookNormalizedFakeOnlineOcrClient(),
-                    registry=FileDocumentRegistry(root / "registry" / "student_handbook_documents.json"),
+                    registry=InMemoryDocumentRegistry(
+                        backing_path=root / "registry" / "student_handbook_documents.json"
+                    ),
                     raw_asset_registry=raw_asset_registry,
                 )
 
@@ -905,7 +929,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             raw_bytes = b"%PDF-1.4 remote student handbook"
             raw_hash = hashlib.sha256(raw_bytes).hexdigest()
             raw_version_id = f"sha256:{raw_hash}"
-            raw_key = f"pdf/student-handbook-master/undated/sha256/{raw_hash}/student-handbook.pdf"
+            raw_key = f"official_pdf/student-handbook-master/undated/sha256/{raw_hash}/capture/student-handbook.pdf"
             split_manifest_path = root / "configs" / "split-manifest.v1.json"
             split_manifest_path.parent.mkdir(parents=True)
             split_manifest_path.write_text(
@@ -941,13 +965,15 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             )
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
-            registry = FileDocumentRegistry(root / "registry" / "student_handbook_documents.json")
-            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "student_handbook_raw_assets.json"
+            )
             raw_asset_registry.upsert(
                 _handbook_raw_asset_record(
                     raw_asset_id="asset:student-handbook-master-pdf",
                     raw_version_id=raw_version_id,
-                    raw_source_uri="s3://campus-rag-source/pdf/student-handbook-master/student-handbook.pdf",
+                    raw_source_uri="s3://campus-rag-source/official_pdf/student-handbook-master/student-handbook.pdf",
                     content_hash=raw_hash,
                     source_filename="student-handbook.pdf",
                     object_key=raw_key,
@@ -993,7 +1019,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             raw_bytes = b"%PDF-1.4 remote student handbook stable"
             raw_hash = hashlib.sha256(raw_bytes).hexdigest()
             raw_version_id = f"sha256:{raw_hash}"
-            raw_key = f"pdf/student-handbook-master/undated/sha256/{raw_hash}/student-handbook.pdf"
+            raw_key = f"official_pdf/student-handbook-master/undated/sha256/{raw_hash}/capture/student-handbook.pdf"
             split_manifest_path = root / "configs" / "split-manifest.v1.json"
             split_manifest_path.parent.mkdir(parents=True)
             split_manifest_path.write_text(
@@ -1002,13 +1028,15 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             )
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
-            registry = FileDocumentRegistry(root / "registry" / "student_handbook_documents.json")
-            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "student_handbook_raw_assets.json"
+            )
             raw_asset_registry.upsert(
                 _handbook_raw_asset_record(
                     raw_asset_id="asset:student-handbook-master-pdf",
                     raw_version_id=raw_version_id,
-                    raw_source_uri="s3://campus-rag-source/pdf/student-handbook-master/student-handbook.pdf",
+                    raw_source_uri="s3://campus-rag-source/official_pdf/student-handbook-master/student-handbook.pdf",
                     content_hash=raw_hash,
                     source_filename="student-handbook.pdf",
                     object_key=raw_key,
@@ -1068,8 +1096,8 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             updated_hash = hashlib.sha256(updated_bytes).hexdigest()
             stable_version_id = f"sha256:{stable_hash}"
             updated_version_id = f"sha256:{updated_hash}"
-            stable_key = f"pdf/student-handbook-master/undated/sha256/{stable_hash}/student-handbook.pdf"
-            updated_key = f"pdf/student-handbook-master/undated/sha256/{updated_hash}/student-handbook.pdf"
+            stable_key = f"official_pdf/student-handbook-master/undated/sha256/{stable_hash}/capture/student-handbook.pdf"
+            updated_key = f"official_pdf/student-handbook-master/undated/sha256/{updated_hash}/capture/student-handbook.pdf"
             split_manifest_path = root / "configs" / "split-manifest.v1.json"
             split_manifest_path.parent.mkdir(parents=True)
             split_manifest_path.write_text(
@@ -1079,13 +1107,15 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, stable_key)] = stable_bytes
             object_store.objects[(SOURCE_BUCKET, updated_key)] = updated_bytes
-            registry = FileDocumentRegistry(root / "registry" / "student_handbook_documents.json")
-            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "student_handbook_raw_assets.json"
+            )
             raw_asset_registry.upsert(
                 _handbook_raw_asset_record(
                     raw_asset_id="asset:student-handbook-master-pdf",
                     raw_version_id=stable_version_id,
-                    raw_source_uri="s3://campus-rag-source/pdf/student-handbook-master/student-handbook.pdf",
+                    raw_source_uri="s3://campus-rag-source/official_pdf/student-handbook-master/student-handbook.pdf",
                     content_hash=stable_hash,
                     source_filename="student-handbook.pdf",
                     object_key=stable_key,
@@ -1095,7 +1125,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                 _handbook_raw_asset_record(
                     raw_asset_id="asset:student-handbook-master-pdf",
                     raw_version_id=updated_version_id,
-                    raw_source_uri="s3://campus-rag-source/pdf/student-handbook-master/student-handbook.pdf",
+                    raw_source_uri="s3://campus-rag-source/official_pdf/student-handbook-master/student-handbook.pdf",
                     content_hash=updated_hash,
                     source_filename="student-handbook.pdf",
                     object_key=updated_key,
@@ -1163,18 +1193,24 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             self.assertEqual(report_payload["updated_document_ids"], [document_id])
             self.assertEqual(report_payload["skipped_document_ids"], [])
 
-    def test_provider_only_reuses_registered_raw_asset_but_rewrites_provider_result(self) -> None:
+    def test_source_truth_only_reuses_registered_raw_asset_but_rewrites_provider_result(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             raw_bytes = b"%PDF-1.4 volatile"
             raw_hash = hashlib.sha256(raw_bytes).hexdigest()
             raw_version_id = f"sha256:{raw_hash}"
-            raw_key = f"pdf/volatile/undated/sha256/{raw_hash}/volatile.pdf"
+            raw_key = f"official_pdf/volatile/undated/sha256/{raw_hash}/capture/volatile.pdf"
             provider_key = build_processed_asset_artifact_key(
                 corpus="regulations",
                 raw_asset_id="asset:volatile-pdf",
                 raw_version_id=raw_version_id,
                 filename="provider-response.jsonl",
+            )
+            layout_key = build_processed_asset_artifact_key(
+                corpus="regulations",
+                raw_asset_id="asset:volatile-pdf",
+                raw_version_id=raw_version_id,
+                filename="layout-elements.jsonl",
             )
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
@@ -1182,7 +1218,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             env = {
                 "RAW_ASSET_ID": "asset:volatile-pdf",
                 "RAW_VERSION_ID": raw_version_id,
-                "RAW_INGESTION_ARTIFACT_MODE": "provider_only",
+                "RAW_INGESTION_ARTIFACT_MODE": "source_truth_only",
                 "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
                 "OCR_API_KEY": "token",
                 "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
@@ -1191,13 +1227,15 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                 "IMPORT_REPORT_DIR": str(root / "reports"),
                 "INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
-            registry = FileDocumentRegistry(root / "registry" / "student_handbook_documents.json")
-            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "student_handbook_raw_assets.json"
+            )
             raw_asset_registry.upsert(
                 _handbook_raw_asset_record(
                     raw_asset_id="asset:volatile-pdf",
                     raw_version_id=raw_version_id,
-                    raw_source_uri="s3://campus-rag-source/pdf/volatile/volatile.pdf",
+                    raw_source_uri="s3://campus-rag-source/official_pdf/volatile/volatile.pdf",
                     content_hash=raw_hash,
                     source_filename="volatile.pdf",
                     object_key=raw_key,
@@ -1224,16 +1262,16 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             self.assertEqual(second.skipped_count, 0)
             self.assertEqual(second.raw_uploaded_count, 0)
             self.assertEqual(second.raw_reused_count, 1)
-            self.assertEqual(len(object_store.uploads), 2)
-            self.assertEqual(object_store.uploads[-1]["key"], provider_key)
+            self.assertEqual(len(object_store.uploads), 4)
+            self.assertEqual([upload["key"] for upload in object_store.uploads[-2:]], [provider_key, layout_key])
 
-    def test_provider_only_rejects_split_manifest(self) -> None:
+    def test_source_truth_only_rejects_split_manifest(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             raw_bytes = b"%PDF-1.4 remote student handbook"
             raw_hash = hashlib.sha256(raw_bytes).hexdigest()
             raw_version_id = f"sha256:{raw_hash}"
-            raw_key = f"pdf/student-handbook/undated/sha256/{raw_hash}/student-handbook.pdf"
+            raw_key = f"official_pdf/student-handbook/undated/sha256/{raw_hash}/capture/student-handbook.pdf"
             split_manifest_path = root / "configs" / "split-manifest.v1.json"
             split_manifest_path.parent.mkdir(parents=True)
             split_manifest_path.write_text(
@@ -1252,24 +1290,26 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             )
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
-            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "student_handbook_raw_assets.json"
+            )
             raw_asset_registry.upsert(
                 _handbook_raw_asset_record(
                     raw_asset_id="asset:student-handbook-pdf",
                     raw_version_id=raw_version_id,
-                    raw_source_uri="s3://campus-rag-source/pdf/student-handbook/student-handbook.pdf",
+                    raw_source_uri="s3://campus-rag-source/official_pdf/student-handbook/student-handbook.pdf",
                     content_hash=raw_hash,
                     source_filename="student-handbook.pdf",
                     object_key=raw_key,
                 )
             )
 
-            with self.assertRaisesRegex(ValueError, "provider_only does not support split manifest ingestion"):
+            with self.assertRaisesRegex(ValueError, "source_truth_only does not support split manifest ingestion"):
                 process_raw_ingestion_job(
                     env={
                         "RAW_ASSET_ID": "asset:student-handbook-pdf",
                         "RAW_VERSION_ID": raw_version_id,
-                        "RAW_INGESTION_ARTIFACT_MODE": "provider_only",
+                        "RAW_INGESTION_ARTIFACT_MODE": "source_truth_only",
                         "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                         "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
                         "OCR_API_KEY": "token",
@@ -1280,7 +1320,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                     },
                     object_store=object_store,
                     online_ocr=_FakeOnlineOcrClient(),
-                    registry=FileDocumentRegistry(root / "registry" / "student_handbook_documents.json"),
+                    registry=InMemoryDocumentRegistry(
+                        backing_path=root / "registry" / "student_handbook_documents.json"
+                    ),
                     raw_asset_registry=raw_asset_registry,
                 )
 
@@ -1290,7 +1332,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             raw_bytes = b"%PDF-1.4 curriculum plan"
             raw_hash = hashlib.sha256(raw_bytes).hexdigest()
             raw_version_id = f"sha256:{raw_hash}"
-            raw_key = f"pdf/curriculum-plan-master/undated/sha256/{raw_hash}/curriculum-plan.pdf"
+            raw_key = f"official_pdf/curriculum-plan-master/undated/sha256/{raw_hash}/capture/curriculum-plan.pdf"
             split_manifest_path = root / "configs" / "split-manifest.v1.json"
             split_manifest_path.parent.mkdir(parents=True)
             split_manifest_payload = {
@@ -1322,13 +1364,15 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
             online_ocr = _CurriculumPlanFakeOnlineOcrClient()
-            registry = FileDocumentRegistry(root / "registry" / "curriculum_plan_documents.json")
-            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "curriculum_plan_raw_assets.json")
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "curriculum_plan_documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "curriculum_plan_raw_assets.json"
+            )
             raw_asset_registry.upsert(
                 _curriculum_raw_asset_record(
                     raw_asset_id="asset:curriculum-plan-master-pdf",
                     raw_version_id=raw_version_id,
-                    raw_source_uri="s3://campus-rag-source/pdf/curriculum-plan-master/curriculum-plan.pdf",
+                    raw_source_uri="s3://campus-rag-source/official_pdf/curriculum-plan-master/curriculum-plan.pdf",
                     content_hash=raw_hash,
                     source_filename="curriculum-plan.pdf",
                     object_key=raw_key,
@@ -1470,23 +1514,25 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             self.assertEqual(plan_001["source_uri"], source_uri_1)
             self.assertEqual(plan_002["source_uri"], source_uri_2)
 
-    def test_process_raw_ingestion_job_supports_curriculum_plan_provider_only_presplit(self) -> None:
+    def test_process_raw_ingestion_job_supports_curriculum_plan_source_truth_only_presplit(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             raw_bytes = b"%PDF-1.4 curriculum plan"
             raw_hash = hashlib.sha256(raw_bytes).hexdigest()
             raw_version_id = f"sha256:{raw_hash}"
-            raw_key = f"pdf/curriculum-plan/undated/sha256/{raw_hash}/curriculum-plan.pdf"
+            raw_key = f"official_pdf/curriculum-plan/undated/sha256/{raw_hash}/capture/curriculum-plan.pdf"
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
             online_ocr = _CurriculumPlanFakeOnlineOcrClient()
-            registry = FileDocumentRegistry(root / "registry" / "curriculum_plan_documents.json")
-            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "curriculum_plan_raw_assets.json")
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "curriculum_plan_documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "curriculum_plan_raw_assets.json"
+            )
             raw_asset_registry.upsert(
                 _curriculum_raw_asset_record(
                     raw_asset_id="asset:curriculum-plan-pdf",
                     raw_version_id=raw_version_id,
-                    raw_source_uri="s3://campus-rag-source/pdf/curriculum-plan/curriculum-plan.pdf",
+                    raw_source_uri="s3://campus-rag-source/official_pdf/curriculum-plan/curriculum-plan.pdf",
                     content_hash=raw_hash,
                     source_filename="curriculum-plan.pdf",
                     object_key=raw_key,
@@ -1499,7 +1545,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                     "RAW_VERSION_ID": raw_version_id,
                     "INGESTION_CORPUS": "curriculum",
                     "INGESTION_COLLECTION": "curriculum_plan",
-                    "RAW_INGESTION_ARTIFACT_MODE": "provider_only",
+                    "RAW_INGESTION_ARTIFACT_MODE": "source_truth_only",
                     "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
                     "OCR_API_KEY": "token",
                     "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
@@ -1529,35 +1575,57 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                         raw_version_id=raw_version_id,
                         filename="provider-response.jsonl",
                     ),
+                    build_processed_asset_artifact_key(
+                        corpus="curriculum",
+                        raw_asset_id="asset:curriculum-plan-pdf",
+                        raw_version_id=raw_version_id,
+                        filename="layout-elements.jsonl",
+                    ),
                 ],
             )
             self.assertFalse((root / "registry" / "curriculum_plan_documents.json").exists())
+            layout_key = build_processed_asset_artifact_key(
+                corpus="curriculum",
+                raw_asset_id="asset:curriculum-plan-pdf",
+                raw_version_id=raw_version_id,
+                filename="layout-elements.jsonl",
+            )
+            layout_bytes = object_store.objects[(SOURCE_BUCKET, layout_key)]
+            layout_rows = [
+                json.loads(line)
+                for line in layout_bytes.decode("utf-8").splitlines()
+                if line.strip()
+            ]
+            self.assertTrue(layout_rows)
+            self.assertEqual(layout_rows[0]["schema_version"], "curriculum_layout_elements_v3")
 
             raw_asset_payload = json.loads(
                 (root / "registry" / "curriculum_plan_raw_assets.json").read_text(encoding="utf-8")
             )
             self.assertEqual(len(raw_asset_payload), 1)
 
-    def test_process_raw_ingestion_job_provider_only_uses_dedicated_raw_asset_registry_env(self) -> None:
+    def test_process_raw_ingestion_job_source_truth_only_uses_dedicated_raw_asset_registry_env(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             raw_bytes = b"%PDF-1.4 curriculum plan"
             raw_hash = hashlib.sha256(raw_bytes).hexdigest()
             raw_version_id = f"sha256:{raw_hash}"
-            raw_key = f"pdf/curriculum-plan/undated/sha256/{raw_hash}/curriculum-plan.pdf"
+            raw_key = f"official_pdf/curriculum-plan/undated/sha256/{raw_hash}/capture/curriculum-plan.pdf"
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
 
             with patch(
                 "campus_ingestion_core.raw_ingestion.build_raw_asset_registry_from_env"
             ) as build_registry:
-                raw_asset_registry = FileRawAssetRegistry(root / "registry" / "curriculum_plan_raw_assets.json")
+                raw_asset_registry = InMemoryRawAssetRegistry(
+                    backing_path=root / "registry" / "curriculum_plan_raw_assets.json"
+                )
                 build_registry.return_value = raw_asset_registry
                 raw_asset_registry.upsert(
                     _curriculum_raw_asset_record(
                         raw_asset_id="asset:curriculum-plan-pdf",
                         raw_version_id=raw_version_id,
-                        raw_source_uri="s3://campus-rag-source/pdf/curriculum-plan/curriculum-plan.pdf",
+                        raw_source_uri="s3://campus-rag-source/official_pdf/curriculum-plan/curriculum-plan.pdf",
                         content_hash=raw_hash,
                         source_filename="curriculum-plan.pdf",
                         object_key=raw_key,
@@ -1570,7 +1638,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                         "RAW_VERSION_ID": raw_version_id,
                         "INGESTION_CORPUS": "curriculum",
                         "INGESTION_COLLECTION": "curriculum_plan",
-                        "RAW_INGESTION_ARTIFACT_MODE": "provider_only",
+                        "RAW_INGESTION_ARTIFACT_MODE": "source_truth_only",
                         "RAW_ASSET_REGISTRY_DATABASE_URL": "postgresql://raw-registry.example/postgres",
                         "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
                         "OCR_API_KEY": "token",
@@ -1589,7 +1657,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                     "RAW_VERSION_ID": raw_version_id,
                     "INGESTION_CORPUS": "curriculum",
                     "INGESTION_COLLECTION": "curriculum_plan",
-                    "RAW_INGESTION_ARTIFACT_MODE": "provider_only",
+                    "RAW_INGESTION_ARTIFACT_MODE": "source_truth_only",
                     "RAW_ASSET_REGISTRY_DATABASE_URL": "postgresql://raw-registry.example/postgres",
                     "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
                     "OCR_API_KEY": "token",
@@ -1606,7 +1674,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             raw_bytes = b"%PDF-1.4 curriculum plan"
             raw_hash = hashlib.sha256(raw_bytes).hexdigest()
             raw_version_id = f"sha256:{raw_hash}"
-            raw_key = f"pdf/curriculum-plan-master/undated/sha256/{raw_hash}/curriculum-plan.pdf"
+            raw_key = f"official_pdf/curriculum-plan-master/undated/sha256/{raw_hash}/capture/curriculum-plan.pdf"
             split_manifest_path = root / "configs" / "split-manifest.v1.json"
             split_manifest_path.parent.mkdir(parents=True)
             split_manifest_path.write_text(
@@ -1633,15 +1701,17 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
             online_ocr = _CurriculumPlanFakeOnlineOcrClient()
-            registry = FileDocumentRegistry(root / "registry" / "curriculum_plan_documents.json")
-            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "curriculum_plan_raw_assets.json")
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "curriculum_plan_documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "curriculum_plan_raw_assets.json"
+            )
             raw_asset_registry.upsert(
                 RawAssetRecord(
                     raw_asset_id="asset:curriculum-plan-master-pdf",
                     raw_version_id=raw_version_id,
                     corpus="regulations",
                     collection="student_handbook",
-                    raw_source_uri="s3://campus-rag-source/pdf/curriculum-plan-master/curriculum-plan.pdf",
+                    raw_source_uri="s3://campus-rag-source/official_pdf/curriculum-plan-master/curriculum-plan.pdf",
                     content_hash=raw_hash,
                     source_filename="curriculum-plan.pdf",
                     object_key=raw_key,
@@ -1676,15 +1746,17 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             raw_bytes = b"%PDF-1.4 remote student handbook"
             raw_hash = hashlib.sha256(raw_bytes).hexdigest()
             raw_version_id = f"sha256:{raw_hash}"
-            raw_key = f"pdf/student-handbook/undated/sha256/{raw_hash}/student-handbook.pdf"
+            raw_key = f"official_pdf/student-handbook/undated/sha256/{raw_hash}/capture/student-handbook.pdf"
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
-            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "student_handbook_raw_assets.json"
+            )
             raw_asset_registry.upsert(
                 _handbook_raw_asset_record(
                     raw_asset_id="asset:student-handbook-pdf",
                     raw_version_id=raw_version_id,
-                    raw_source_uri="s3://campus-rag-source/pdf/student-handbook/student-handbook.pdf",
+                    raw_source_uri="s3://campus-rag-source/official_pdf/student-handbook/student-handbook.pdf",
                     content_hash=raw_hash,
                     source_filename="student-handbook.pdf",
                     object_key=raw_key,
@@ -1703,7 +1775,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                         "INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                     },
                     object_store=object_store,
-                    registry=FileDocumentRegistry(root / "registry" / "student_handbook_documents.json"),
+                    registry=InMemoryDocumentRegistry(
+                        backing_path=root / "registry" / "student_handbook_documents.json"
+                    ),
                     raw_asset_registry=raw_asset_registry,
                 )
 

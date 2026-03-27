@@ -14,7 +14,16 @@ updated: 2026-03-22
 **Architecture:** 这轮 handbook 的主输入是当前 OCR 产物 `provider-response.jsonl`，而不是原始 PDF，也不是历史 `derived` 里的 `jsonl`。链路先把 provider 原始结果归一化成内部统一 page-level structured format，再按 handbook split manifest 恢复多篇制度文档边界，对每篇文档生成稳定 `doc_id` / `version_id` / canonical metadata，最后在单文档内部做 `article_body`、`policy_page`、`table`、`table_row` 的 structure-first chunking；历史 `derived` 产物只作为参考样本和验收对照。
 
 ## Migration note
-这份计划是 `regulations` 架构形成前的手稿，仍把 `student_handbook` 作为长期 corpus 概念。当前执行准则（见最新 architecture/decisions 文档）已经把长期语义固定为 `corpus + collection`，其中 handbook scope 为 `regulations/student_handbook`。新架构下 processed bucket 路径形态收敛为 `{corpus}/sources/{source_channel}/{source_asset_slug}/{year}/{ingest_id}/...` 与 `{corpus}/documents/{collection}/{title_slug}--{docid8}/{representation}/{year}/...`，并把原先 `revision_track` 的语义改名为 `representation`。本计划所述行动仍有价值，但请在执行时以新命名和新路径为准，而不是把本计划描述的 key/path 直接当作现行真相。
+这份计划是 `regulations` 架构形成前的手稿，仍把 `student_handbook` 作为长期 corpus 概念。当前执行准则（见最新 architecture/decisions 文档）已经把长期语义固定为 `corpus + collection`，其中 handbook scope 为 `regulations/student_handbook`。当前 canonical object storage 形态已经收敛为：
+
+- source bucket:
+  - `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/capture/{original_filename}`
+  - `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/provider/{provider_slug}/{artifact_filename}`
+  - `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/source-truth/{artifact_filename}`
+- derived bucket:
+  - `{corpus}/documents/{collection}/{title_slug}--{docid8}/{representation}/{year}/{artifact_filename}`
+
+并把原先 `revision_track` 的语义改名为 `representation`。本计划所述行动仍有价值，但请在执行时以新命名和新路径为准，而不是把本计划描述的旧 key/path 直接当作现行真相。
 
 **Tech Stack:** Python 3.12, uv workspace, unittest/pytest, JSON, Markdown, existing `campus_ingestion_core`, current OCR provider result schema, existing `campusRAG` student handbook canonical conventions
 
@@ -34,7 +43,7 @@ updated: 2026-03-22
 
 当前已确认的 source-level OCR 产物示例路径：
 
-- `campus-rag-source/ocr/pdf_ocr/student-handbook/2018/sha256/b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider-response.jsonl`
+- `campus-rag-source/official_pdf/student-handbook/2018/sha256/b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider/paddleocr/provider-response.jsonl`
 
 当前已确认的历史参考产物位于：
 

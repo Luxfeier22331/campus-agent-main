@@ -78,7 +78,7 @@ def register_raw_asset(
         )
 
     writer.put_bytes(
-        bucket=object_store_settings.bucket_raw,
+        bucket=object_store_settings.bucket_source,
         key=object_key,
         data=file_bytes,
         content_type="application/pdf",

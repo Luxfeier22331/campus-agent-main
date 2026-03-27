@@ -1559,7 +1559,7 @@ class StudentHandbookChunkingValidationTest(unittest.TestCase):
 
             scan_result = scan_student_handbook_chunking(
                 env={
-                    "OBJECT_STORE_BUCKET_PROCESSED": "legacy-derived",
+                    "OBJECT_STORE_BUCKET_DERIVED": "legacy-derived",
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 },
                 registry=_FakeRegistry(record),

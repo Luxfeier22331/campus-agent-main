@@ -8,7 +8,7 @@ from campus_contracts import ALLOWED_CORPORA, ALLOWED_REVISION_TRACKS
 
 
 ALLOWED_PHASE1_STAGES = ("query_serving", "cleaned_ingestion")
-ALLOWED_ARTIFACT_MODES = ("normalized", "provider_only")
+ALLOWED_ARTIFACT_MODES = ("normalized", "source_truth_only")
 
 
 @dataclass(frozen=True, slots=True)

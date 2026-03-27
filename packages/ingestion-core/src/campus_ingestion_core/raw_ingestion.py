@@ -44,6 +44,7 @@ from campus_ingestion_core.handbook_provider_normalize import (
 )
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.object_store import (
+    build_source_model_slug,
     build_source_ocr_artifact_key,
     build_source_truth_artifact_key,
     infer_year_label,
@@ -65,7 +66,7 @@ DEFAULT_RAW_ONLINE_OCR_PARSER_VERSION = "paddleocr-vl-1.5"
 DEFAULT_INGESTION_CORPUS = DEFAULT_CORPUS
 DEFAULT_INGESTION_COLLECTION = DEFAULT_COLLECTION
 DEFAULT_RAW_INGESTION_ARTIFACT_MODE = "normalized"
-ALLOWED_RAW_INGESTION_ARTIFACT_MODES = ("normalized", "provider_only")
+ALLOWED_RAW_INGESTION_ARTIFACT_MODES = ("normalized", "source_truth_only")
 DEFAULT_ONLINE_OCR_PROVIDER = "paddleocr_async"
 SPLIT_MANIFEST_LAYOUT_ELEMENTS_SCHEMA_VERSION = "split_manifest_layout_elements_v1"
 
@@ -212,9 +213,9 @@ class RawIngestionProcessSettings:
             raise ValueError(
                 f"{corpus}/{collection} does not support RAW_INGESTION_ARTIFACT_MODE={artifact_mode}"
             )
-        if artifact_mode == "provider_only" and split_manifest_path_value:
-            raise ValueError("provider_only does not support split manifest ingestion")
-        if artifact_mode != "provider_only" and profile.split_manifest_required and not split_manifest_path_value:
+        if artifact_mode == "source_truth_only" and split_manifest_path_value:
+            raise ValueError("source_truth_only does not support split manifest ingestion")
+        if artifact_mode != "source_truth_only" and profile.split_manifest_required and not split_manifest_path_value:
             raise ValueError(
                 f"INGESTION_SPLIT_MANIFEST_PATH is required for {corpus}/{collection} raw ingestion"
             )
@@ -250,8 +251,8 @@ def process_raw_ingestion_job(
         raise TypeError("object_store must support get_bytes for process_raw_ingestion_job")
     ocr_client = online_ocr or PaddleOcrAsyncClient(settings.online_ocr)
     raw_asset_record = _resolve_registered_raw_asset(settings=settings, raw_asset_registry=raw_asset_registry)
-    if settings.artifact_mode == "provider_only":
-        return _persist_provider_only_ocr_results(
+    if settings.artifact_mode == "source_truth_only":
+        return _persist_source_truth_only_ocr_results(
             settings=settings,
             writer=writer,
             reader=writer,  # type: ignore[arg-type]
@@ -340,7 +341,7 @@ def process_raw_ingestion_job(
     )
 
 
-def _persist_provider_only_ocr_results(
+def _persist_source_truth_only_ocr_results(
     *,
     settings: RawIngestionProcessSettings,
     writer: ObjectStoreWriter,
@@ -367,6 +368,7 @@ def _persist_provider_only_ocr_results(
             raw_asset_id=raw_asset_record.raw_asset_id,
             raw_version_id=raw_asset_record.raw_version_id,
             filename=PROVIDER_RESPONSE_FILENAME,
+            model_slug=build_source_model_slug(settings.online_ocr.model),
             year=infer_year_label(raw_asset_record.source_filename),
         )
         writer.put_bytes(
@@ -375,6 +377,36 @@ def _persist_provider_only_ocr_results(
             data=parse_result.provider_result_bytes,
             content_type="application/x-ndjson",
         )
+        layout_elements_bytes: bytes | None = None
+        if settings.collection == "curriculum_plan":
+            layout_elements_bytes = normalize_curriculum_provider_result(
+                provider_jsonl_bytes=parse_result.provider_result_bytes,
+                source_pdf=raw_asset_record.source_filename,
+                ocr_model=settings.online_ocr.model,
+            )
+        elif settings.collection == "student_handbook":
+            layout_elements_bytes = serialize_handbook_layout_elements(
+                normalize_handbook_provider_result(
+                    source_pdf=raw_asset_record.source_filename,
+                    provider_jsonl_bytes=parse_result.provider_result_bytes,
+                    ocr_provider=DEFAULT_ONLINE_OCR_PROVIDER,
+                    ocr_model=settings.online_ocr.model,
+                    source_artifact_id=raw_asset_record.raw_asset_id,
+                )
+            )
+        if layout_elements_bytes is not None:
+            layout_elements_key = build_source_truth_artifact_key(
+                raw_asset_id=raw_asset_record.raw_asset_id,
+                raw_version_id=raw_asset_record.raw_version_id,
+                filename=LAYOUT_ELEMENTS_FILENAME,
+                year=infer_year_label(raw_asset_record.source_filename),
+            )
+            writer.put_bytes(
+                bucket=settings.object_store.bucket_source,
+                key=layout_elements_key,
+                data=layout_elements_bytes,
+                content_type="application/x-ndjson",
+            )
         success_count = 1
     except Exception as exc:
         failed_count = 1
@@ -434,6 +466,7 @@ def _build_split_manifest_documents(
         raw_asset_id=raw_asset_record.raw_asset_id,
         raw_version_id=raw_asset_record.raw_version_id,
         source_filename=raw_asset_record.source_filename,
+        ocr_model=ocr_model,
         provider_response_bytes=provider_result.provider_result_bytes,
         layout_elements_bytes=layout_elements_bytes,
     )
@@ -481,6 +514,7 @@ def _build_handbook_split_manifest_documents(
         raw_asset_id=raw_asset_record.raw_asset_id,
         raw_version_id=raw_asset_record.raw_version_id,
         source_filename=raw_asset_record.source_filename,
+        ocr_model=ocr_model,
         provider_response_bytes=provider_result.provider_result_bytes,
         layout_elements_bytes=layout_elements_bytes,
     )
@@ -526,6 +560,7 @@ def _write_processed_asset_artifacts(
     raw_asset_id: str,
     raw_version_id: str,
     source_filename: str,
+    ocr_model: str,
     provider_response_bytes: bytes,
     layout_elements_bytes: bytes,
 ) -> tuple[str, str]:
@@ -534,6 +569,7 @@ def _write_processed_asset_artifacts(
         raw_asset_id=raw_asset_id,
         raw_version_id=raw_version_id,
         filename=PROVIDER_RESPONSE_FILENAME,
+        model_slug=build_source_model_slug(ocr_model),
         year=year,
     )
     layout_elements_key = build_source_truth_artifact_key(
@@ -765,7 +801,7 @@ def _build_manifest_document_source_uri(
     raw_asset_slug = _split_document_slug(raw_asset_id)
     raw_version_path = "/".join(part.strip() for part in raw_version_id.split(":") if part.strip())
     return (
-        f"campusrag://source/{corpus}/{raw_asset_slug}/{raw_version_path}/pages/{page_start}-{page_end}"
+        f"campusrag://source/{corpus}/{raw_asset_slug}/{raw_version_path}/capture/pages/{page_start}-{page_end}"
     )
 
 
@@ -828,7 +864,7 @@ def _transform_split_row(
     clean_text = _split_manifest_row_text(row)
     if not clean_text:
         return None
-    source_chunk_id = _normalize_optional_text(row.get("chunk_id")) or f"page-{page_start:04d}"
+    source_chunk_id = _normalize_optional_text(row.get("row_id")) or f"page-{page_start:04d}"
     return {
         "doc_id": document_id,
         "version_id": version_id,
@@ -919,7 +955,7 @@ def _normalize_source_text(text: str) -> str:
 
 
 def _split_manifest_row_text(row: dict[str, object]) -> str:
-    for field_name in ("clean_text", "text_normalized", "text_raw", "html"):
+    for field_name in ("text_normalized", "text_raw", "html"):
         value = row.get(field_name)
         if isinstance(value, str) and value.strip():
             return value.strip()

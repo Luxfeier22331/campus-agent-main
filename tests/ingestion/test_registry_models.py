@@ -9,12 +9,11 @@ from unittest.mock import patch
 
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef, SourceObservation
 from campus_ingestion_core.registry import (
-    FileDocumentRegistry,
-    FileRawAssetRegistry,
     PostgresDocumentRegistry,
     build_document_registry_from_env,
     build_raw_asset_registry_from_env,
 )
+from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 
 
 HANDBOOK_DOC_UNITS_KEY = (
@@ -22,7 +21,7 @@ HANDBOOK_DOC_UNITS_KEY = (
     "source-faithful/undated/document-units.jsonl"
 )
 HANDBOOK_PROVIDER_KEY = (
-    "ocr/pdf_ocr/student-handbook/undated/sha256/raw-001/provider-response.jsonl"
+    "official_pdf/student-handbook/undated/sha256/raw-001/provider/paddleocr-vl-1-5/provider-response.jsonl"
 )
 HANDBOOK_CANONICAL_KEY = (
     "regulations/documents/student_handbook/test-001--test-001/source-faithful/undated/canonical.md"
@@ -105,7 +104,7 @@ def _handbook_raw_asset_record() -> RawAssetRecord:
         raw_source_uri="campusrag://raw/regulations/student_handbook/student-handbook.pdf",
         content_hash="raw-001",
         source_filename="student-handbook.pdf",
-        object_key="pdf/student-handbook/undated/sha256/raw-001/student-handbook.pdf",
+        object_key="official_pdf/student-handbook/undated/sha256/raw-001/capture/student-handbook.pdf",
         ingestion_timestamp="2026-03-22T10:00:00+00:00",
         import_source="raw_online_ocr",
     )
@@ -120,7 +119,7 @@ def _curriculum_raw_asset_record() -> RawAssetRecord:
         raw_source_uri="https://campus.example/curriculum/master.pdf",
         content_hash="raw-002",
         source_filename="curriculum-plan.pdf",
-        object_key="pdf/curriculum-plan-master/undated/sha256/raw-002/curriculum-plan.pdf",
+        object_key="official_pdf/curriculum-plan-master/undated/sha256/raw-002/capture/curriculum-plan.pdf",
         ingestion_timestamp="2026-03-22T10:00:00+00:00",
         import_source="raw_online_ocr",
     )
@@ -155,7 +154,7 @@ class RegistryModelsTest(unittest.TestCase):
 
     def test_file_document_registry_upsert_and_get_are_stable(self) -> None:
         with TemporaryDirectory() as temp_dir:
-            registry = FileDocumentRegistry(Path(temp_dir) / "registry.json")
+            registry = InMemoryDocumentRegistry(backing_path=Path(temp_dir) / "registry.json")
             record = _handbook_document_record(
                 version_id="v1:test-001",
                 content_hash="sha256:test-001",
@@ -169,7 +168,7 @@ class RegistryModelsTest(unittest.TestCase):
 
     def test_file_document_registry_roundtrips_source_observations(self) -> None:
         with TemporaryDirectory() as temp_dir:
-            registry = FileDocumentRegistry(Path(temp_dir) / "registry.json")
+            registry = InMemoryDocumentRegistry(backing_path=Path(temp_dir) / "registry.json")
             record = _handbook_document_record(
                 version_id="v1:test-001",
                 content_hash="sha256:test-001",
@@ -205,7 +204,7 @@ class RegistryModelsTest(unittest.TestCase):
 
     def test_file_document_registry_lists_by_corpus_and_latest_versions(self) -> None:
         with TemporaryDirectory() as temp_dir:
-            registry = FileDocumentRegistry(Path(temp_dir) / "registry.json")
+            registry = InMemoryDocumentRegistry(backing_path=Path(temp_dir) / "registry.json")
             v1 = _handbook_document_record(
                 version_id="v1:test-001",
                 content_hash="sha256:test-001",
@@ -228,7 +227,7 @@ class RegistryModelsTest(unittest.TestCase):
 
     def test_file_document_registry_upsert_many_persists_all_records(self) -> None:
         with TemporaryDirectory() as temp_dir:
-            registry = FileDocumentRegistry(Path(temp_dir) / "registry.json")
+            registry = InMemoryDocumentRegistry(backing_path=Path(temp_dir) / "registry.json")
             handbook_record = _handbook_document_record(
                 version_id="v1:test-001",
                 content_hash="sha256:test-001",
@@ -253,7 +252,7 @@ class RegistryModelsTest(unittest.TestCase):
 
     def test_file_document_registry_replace_scope_replaces_only_target_scope(self) -> None:
         with TemporaryDirectory() as temp_dir:
-            registry = FileDocumentRegistry(Path(temp_dir) / "registry.json")
+            registry = InMemoryDocumentRegistry(backing_path=Path(temp_dir) / "registry.json")
             handbook_old = _handbook_document_record(
                 version_id="v1:test-001",
                 content_hash="sha256:test-001",
@@ -286,7 +285,7 @@ class RegistryModelsTest(unittest.TestCase):
     def test_file_document_registry_delete_by_corpus_removes_only_matching_records(self) -> None:
         with TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "registry.json"
-            registry = FileDocumentRegistry(path)
+            registry = InMemoryDocumentRegistry(backing_path=path)
             handbook_record = _handbook_document_record(
                 version_id="v1:test-001",
                 content_hash="sha256:test-001",
@@ -311,7 +310,7 @@ class RegistryModelsTest(unittest.TestCase):
     def test_file_document_registry_delete_document_removes_all_versions_for_document(self) -> None:
         with TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "registry.json"
-            registry = FileDocumentRegistry(path)
+            registry = InMemoryDocumentRegistry(backing_path=path)
             handbook_v1 = _handbook_document_record(
                 version_id="v1:test-001",
                 content_hash="sha256:test-001",
@@ -376,7 +375,9 @@ class RegistryModelsTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            loaded = FileDocumentRegistry(path).get("handbook:test-001", "source-faithful", "v1:test-001")
+            loaded = InMemoryDocumentRegistry.from_json_file(path).get(
+                "handbook:test-001", "source-faithful", "v1:test-001"
+            )
 
             self.assertEqual(
                 loaded.provider_response_object_key,
@@ -399,7 +400,7 @@ class RegistryModelsTest(unittest.TestCase):
 
     def test_file_raw_asset_registry_upsert_and_get_are_stable(self) -> None:
         with TemporaryDirectory() as temp_dir:
-            registry = FileRawAssetRegistry(Path(temp_dir) / "raw-assets.json")
+            registry = InMemoryRawAssetRegistry(backing_path=Path(temp_dir) / "raw-assets.json")
             record = _handbook_raw_asset_record()
 
             registry.upsert(record)
@@ -412,7 +413,7 @@ class RegistryModelsTest(unittest.TestCase):
     def test_file_raw_asset_registry_delete_by_corpus_removes_only_matching_records(self) -> None:
         with TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "raw-assets.json"
-            registry = FileRawAssetRegistry(path)
+            registry = InMemoryRawAssetRegistry(backing_path=path)
             handbook_record = _handbook_raw_asset_record()
             curriculum_record = _curriculum_raw_asset_record()
             registry.upsert(handbook_record)

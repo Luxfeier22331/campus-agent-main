@@ -9,11 +9,9 @@ from unittest.mock import patch
 
 from campus_ingestion_core.local_rebuild import (
     RebuildRequest,
-    SourceArtifactsMigrationRequest,
     StudentHandbookSourceAssetRequest,
     _build_qdrant_client,
     _resolve_ingestion_qdrant_timeout_seconds,
-    migrate_source_artifacts_to_canonical_source_bucket,
     migrate_student_handbook_source_faithful,
     rebuild_local_data,
 )
@@ -192,6 +190,7 @@ class RebuildLocalDataTest(unittest.TestCase):
             url="https://qdrant.example.com",
             api_key="test-key",
             timeout=60.0,
+            cloud_inference=True,
         )
 
     def test_rebuild_provider_response_replay_accepts_typed_request_without_source_specific_env(self) -> None:
@@ -222,16 +221,8 @@ class RebuildLocalDataTest(unittest.TestCase):
         self.assertEqual(document_registry.deleted_scopes, [])
         self.assertEqual(raw_asset_registry.deleted_scopes, [])
         self.assertEqual(len(calls), 1)
-        self.assertEqual(
-            calls[0]["REBUILD_PROVIDER_RESPONSE_KEY"],
-            "ocr/pdf_ocr/student-handbook/2018/sha256/"
-            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider-response.jsonl",
-        )
-        self.assertEqual(
-            report.import_context["REBUILD_PROVIDER_RESPONSE_KEY"],
-            "ocr/pdf_ocr/student-handbook/2018/sha256/"
-            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider-response.jsonl",
-        )
+        self.assertNotIn("REBUILD_PROVIDER_RESPONSE_KEY", calls[0])
+        self.assertNotIn("REBUILD_PROVIDER_RESPONSE_KEY", report.import_context)
         self.assertEqual(
             report.import_context["INGESTION_SPLIT_MANIFEST_PATH"],
             str(Path("configs/ingestion/regulations/student_handbook/split-manifest.v1.json").resolve()),
@@ -293,8 +284,8 @@ class RebuildLocalDataTest(unittest.TestCase):
             ],
         }
         source_key = (
-            "ocr/pdf_ocr/student-handbook/undated/sha256/"
-            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider-response.jsonl"
+            "official_pdf/student-handbook/undated/sha256/"
+            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider/paddleocr-vl-1-5/provider-response.jsonl"
         )
         with TemporaryDirectory() as temp_dir:
             projection_config_path = Path(temp_dir) / "source-projections.v1.json"
@@ -329,7 +320,7 @@ class RebuildLocalDataTest(unittest.TestCase):
                     "INGESTION_CORPUS": "regulations",
                     "INGESTION_COLLECTION": "student_handbook",
                     "REBUILD_IMPORT_MODE": "provider_response_replay",
-                    "REBUILD_PROVIDER_RESPONSE_KEY": source_key,
+                    "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
                     "HANDBOOK_SOURCE_PROJECTIONS_PATH": str(projection_config_path),
                 },
                 object_store=object_store,
@@ -358,8 +349,8 @@ class RebuildLocalDataTest(unittest.TestCase):
                 corpus="regulations",
                 collection="student_handbook",
                 processed_object_keys=(
-                    "ocr/pdf_ocr/student-handbook/undated/sha256/raw-001/provider-response.jsonl",
-                    "source-truth/pdf_ocr/student-handbook/undated/sha256/raw-001/layout-elements.jsonl",
+                    "official_pdf/student-handbook/undated/sha256/raw-001/provider/paddleocr-vl-1-5/provider-response.jsonl",
+                    "official_pdf/student-handbook/undated/sha256/raw-001/source-truth/layout-elements.jsonl",
                     "regulations/documents/student_handbook/test-001--test-001/source-faithful/2018/canonical.md",
                     "regulations/documents/student_handbook/test-001--test-001/source-faithful/2018/document-units.jsonl",
                 ),
@@ -375,7 +366,7 @@ class RebuildLocalDataTest(unittest.TestCase):
                 raw_source_uri="s3://upstream/student-handbook.pdf",
                 content_hash="raw-001",
                 source_filename="student-handbook.pdf",
-                object_key="pdf/student-handbook/undated/sha256/raw-001/student-handbook.pdf",
+                object_key="official_pdf/student-handbook/undated/sha256/raw-001/capture/student-handbook.pdf",
                 ingestion_timestamp="2026-03-24T00:00:00+00:00",
                 import_source="raw_online_ocr",
             )
@@ -449,8 +440,8 @@ class RebuildLocalDataTest(unittest.TestCase):
         object_store = _FakeObjectStoreAdmin()
         qdrant = _FakeQdrantAdmin()
         source_key = (
-            "ocr/pdf_ocr/student-handbook/undated/sha256/"
-            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider-response.jsonl"
+            "official_pdf/student-handbook/undated/sha256/"
+            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider/paddleocr-vl-1-5/provider-response.jsonl"
         )
 
         rebuild_local_data(
@@ -461,7 +452,7 @@ class RebuildLocalDataTest(unittest.TestCase):
                 "INGESTION_CORPUS": "regulations",
                 "INGESTION_COLLECTION": "student_handbook",
                 "REBUILD_IMPORT_MODE": "provider_response_replay",
-                "REBUILD_PROVIDER_RESPONSE_KEY": source_key,
+                "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
             },
             object_store=object_store,
             qdrant_admin=qdrant,
@@ -479,7 +470,7 @@ class RebuildLocalDataTest(unittest.TestCase):
                 corpus="curriculum",
                 collection="curriculum_plan",
                 processed_object_keys=(
-                    "ocr/pdf_ocr/curriculum-plan-master/undated/sha256/raw-001/provider-response.jsonl",
+                    "official_pdf/curriculum-plan-master/undated/sha256/raw-001/provider/paddleocr-vl-1-5/provider-response.jsonl",
                     "curriculum/documents/curriculum_plan/plan-001--plan-001/source-faithful/undated/document-units.jsonl",
                 ),
             )
@@ -494,7 +485,7 @@ class RebuildLocalDataTest(unittest.TestCase):
                 raw_source_uri="s3://upstream/curriculum-plan.pdf",
                 content_hash="raw-001",
                 source_filename="curriculum-plan.pdf",
-                object_key="pdf/curriculum-plan-master/undated/sha256/raw-001/curriculum-plan.pdf",
+                object_key="official_pdf/curriculum-plan-master/undated/sha256/raw-001/capture/curriculum-plan.pdf",
                 ingestion_timestamp="2026-03-24T00:00:00+00:00",
                 import_source="raw_online_ocr",
             )
@@ -599,8 +590,8 @@ class RebuildLocalDataTest(unittest.TestCase):
         raw_asset_registry = _FakeRawAssetRegistry()
         calls: list[dict[str, str]] = []
         source_key = (
-            "ocr/pdf_ocr/student-handbook/undated/sha256/"
-            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider-response.jsonl"
+            "official_pdf/student-handbook/undated/sha256/"
+            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider/paddleocr-vl-1-5/provider-response.jsonl"
         )
 
         report = rebuild_local_data(
@@ -611,7 +602,7 @@ class RebuildLocalDataTest(unittest.TestCase):
                 "INGESTION_CORPUS": "regulations",
                 "INGESTION_COLLECTION": "student_handbook",
                 "REBUILD_IMPORT_MODE": "provider_response_replay",
-                "REBUILD_PROVIDER_RESPONSE_KEY": source_key,
+                "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
             },
             object_store=object_store,
             document_registry=document_registry,
@@ -623,29 +614,21 @@ class RebuildLocalDataTest(unittest.TestCase):
         self.assertEqual(document_registry.deleted_scopes, [])
         self.assertEqual(raw_asset_registry.deleted_scopes, [])
         self.assertEqual(len(calls), 1)
-        self.assertEqual(
-            calls[0]["REBUILD_PROVIDER_RESPONSE_KEY"],
-            "ocr/pdf_ocr/student-handbook/2018/sha256/"
-            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider-response.jsonl",
-        )
         self.assertEqual(report.import_result, {"status": "replay"})
-        self.assertEqual(
-            report.import_context["REBUILD_PROVIDER_RESPONSE_KEY"],
-            "ocr/pdf_ocr/student-handbook/2018/sha256/"
-            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider-response.jsonl",
-        )
+        self.assertNotIn("REBUILD_PROVIDER_RESPONSE_KEY", calls[0])
+        self.assertNotIn("REBUILD_PROVIDER_RESPONSE_KEY", report.import_context)
         self.assertNotIn("OBJECT_STORE_SECRET_KEY", report.import_context)
 
     def test_migrate_student_handbook_source_faithful_renames_raw_asset_and_dispatches_rebuild(self) -> None:
         object_store = _FakeObjectStoreAdmin()
         raw_asset_registry = _FakeRawAssetRegistry()
         old_raw_key = (
-            "pdf/student-handbook/undated/sha256/"
-            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/student-handbook.pdf"
+            "official_pdf/student-handbook/undated/sha256/"
+            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/capture/student-handbook.pdf"
         )
         provider_response_key = (
-            "ocr/pdf_ocr/student-handbook/undated/sha256/"
-            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider-response.jsonl"
+            "official_pdf/student-handbook/undated/sha256/"
+            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider/paddleocr-vl-1-5/provider-response.jsonl"
         )
         object_store.objects[(SOURCE_BUCKET, old_raw_key)] = b"%PDF-1.4 handbook"
         raw_asset_registry.upsert(
@@ -654,7 +637,7 @@ class RebuildLocalDataTest(unittest.TestCase):
                 raw_version_id="sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
                 corpus="regulations",
                 collection="student_handbook",
-                raw_source_uri="s3://campus-rag-source/pdf/student-handbook/student-handbook.pdf",
+                raw_source_uri="s3://campus-rag-source/official_pdf/student-handbook/student-handbook.pdf",
                 content_hash="b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
                 source_filename="student-handbook.pdf",
                 object_key=old_raw_key,
@@ -679,7 +662,7 @@ class RebuildLocalDataTest(unittest.TestCase):
                     "INGESTION_CORPUS": "regulations",
                     "INGESTION_COLLECTION": "student_handbook",
                     "INGESTION_SPLIT_MANIFEST_PATH": "configs/ingestion/regulations/student_handbook/split-manifest.v1.json",
-                    "REBUILD_PROVIDER_RESPONSE_KEY": provider_response_key,
+                    "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
                 },
                 object_store=object_store,
                 raw_asset_registry=raw_asset_registry,
@@ -687,8 +670,8 @@ class RebuildLocalDataTest(unittest.TestCase):
             )
 
         new_raw_key = (
-            "pdf/student-handbook/2018/sha256/"
-            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/学生手册_2018.pdf"
+            "official_pdf/student-handbook/2018/sha256/"
+            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/capture/学生手册_2018.pdf"
         )
         self.assertEqual(report.canonical_raw_filename, "学生手册_2018.pdf")
         self.assertEqual(report.previous_raw_object_key, old_raw_key)
@@ -702,12 +685,12 @@ class RebuildLocalDataTest(unittest.TestCase):
         object_store = _FakeObjectStoreAdmin()
         raw_asset_registry = _FakeRawAssetRegistry()
         canonical_raw_key = (
-            "pdf/student-handbook/2018/sha256/"
-            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/学生手册_2018.pdf"
+            "official_pdf/student-handbook/2018/sha256/"
+            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/capture/学生手册_2018.pdf"
         )
         provider_response_key = (
-            "ocr/pdf_ocr/student-handbook/2018/sha256/"
-            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider-response.jsonl"
+            "official_pdf/student-handbook/2018/sha256/"
+            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider/paddleocr-vl-1-5/provider-response.jsonl"
         )
         raw_asset_registry.records[
             ("asset:student-handbook-pdf", "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1")
@@ -716,7 +699,7 @@ class RebuildLocalDataTest(unittest.TestCase):
             raw_version_id="sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
             corpus="student_handbook",
             collection="student_handbook",
-            raw_source_uri="s3://campus-rag-source/pdf/student-handbook/学生手册_2018.pdf",
+            raw_source_uri="s3://campus-rag-source/official_pdf/student-handbook/学生手册_2018.pdf",
             content_hash="b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
             source_filename="学生手册_2018.pdf",
             object_key=canonical_raw_key,
@@ -740,7 +723,7 @@ class RebuildLocalDataTest(unittest.TestCase):
                     "INGESTION_CORPUS": "regulations",
                     "INGESTION_COLLECTION": "student_handbook",
                     "INGESTION_SPLIT_MANIFEST_PATH": "configs/ingestion/regulations/student_handbook/split-manifest.v1.json",
-                    "REBUILD_PROVIDER_RESPONSE_KEY": provider_response_key,
+                    "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
                 },
                 object_store=object_store,
                 raw_asset_registry=raw_asset_registry,
@@ -765,8 +748,8 @@ class RebuildLocalDataTest(unittest.TestCase):
         object_store = _FakeObjectStoreAdmin()
         raw_asset_registry = _FakeRawAssetRegistry()
         canonical_raw_key = (
-            "pdf/student-handbook/2018/sha256/"
-            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/学生手册_2018.pdf"
+            "official_pdf/student-handbook/2018/sha256/"
+            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/capture/学生手册_2018.pdf"
         )
         raw_asset_registry.records[
             ("asset:student-handbook-pdf", "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1")
@@ -775,7 +758,7 @@ class RebuildLocalDataTest(unittest.TestCase):
             raw_version_id="sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
             corpus="regulations",
             collection="student_handbook",
-            raw_source_uri="s3://campus-rag-source/pdf/student-handbook/学生手册_2018.pdf",
+            raw_source_uri="s3://campus-rag-source/official_pdf/student-handbook/学生手册_2018.pdf",
             content_hash="b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
             source_filename="学生手册_2018.pdf",
             object_key=canonical_raw_key,
@@ -835,13 +818,13 @@ class RebuildLocalDataTest(unittest.TestCase):
         raw_asset_registry = _FakeRawAssetRegistry()
         override_raw_asset_id = "asset:override-handbook-pdf"
         raw_version_id = "sha256:overridehash001"
-        canonical_raw_key = "pdf/override-handbook/2020/sha256/overridehash001/学生手册_2020.pdf"
+        canonical_raw_key = "official_pdf/override-handbook/2020/sha256/overridehash001/capture/学生手册_2020.pdf"
         raw_asset_registry.records[(override_raw_asset_id, raw_version_id)] = SimpleNamespace(
             raw_asset_id=override_raw_asset_id,
             raw_version_id=raw_version_id,
             corpus="regulations",
             collection="student_handbook",
-            raw_source_uri="s3://campus-rag-source/pdf/override-handbook/学生手册_2020.pdf",
+            raw_source_uri="s3://campus-rag-source/official_pdf/override-handbook/学生手册_2020.pdf",
             content_hash="overridehash001",
             source_filename="学生手册_2020.pdf",
             object_key=canonical_raw_key,
@@ -875,8 +858,8 @@ class RebuildLocalDataTest(unittest.TestCase):
                 encoding="utf-8",
             )
             provider_response_key = (
-                "ocr/pdf_ocr/override-handbook/2020/sha256/overridehash001/"
-                "provider-response.jsonl"
+                "official_pdf/override-handbook/2020/sha256/overridehash001/"
+                "provider/paddleocr-vl-1-5/provider-response.jsonl"
             )
 
             with patch("campus_ingestion_core.local_rebuild.rebuild_local_data") as rebuild:
@@ -892,7 +875,7 @@ class RebuildLocalDataTest(unittest.TestCase):
                         "OBJECT_STORE_BUCKET_SOURCE": SOURCE_BUCKET,
                         "OBJECT_STORE_BUCKET_DERIVED": DERIVED_BUCKET,
                         "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
-                        "REBUILD_PROVIDER_RESPONSE_KEY": provider_response_key,
+                        "RAW_VERSION_ID": raw_version_id,
                         "HANDBOOK_CANONICAL_RAW_FILENAME": "学生手册_2020.pdf",
                     },
                     object_store=object_store,
@@ -904,97 +887,6 @@ class RebuildLocalDataTest(unittest.TestCase):
         self.assertEqual(calls[0]["request"].raw_asset_id, override_raw_asset_id)
         self.assertEqual(calls[0]["request"].raw_version_id, raw_version_id)
         self.assertEqual(calls[0]["env"]["REPLAY_SOURCE_PDF"], "学生手册_2020.pdf")
-
-    def test_migrate_source_artifacts_to_canonical_source_bucket_moves_curriculum_legacy_source_objects(
-        self,
-    ) -> None:
-        object_store = _FakeObjectStoreAdmin()
-        legacy_provider_key = (
-            "curriculum/sources/pdf_ocr/curriculum-plan/2022/sha256/"
-            "0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67/provider-response.jsonl"
-        )
-        legacy_layout_key = (
-            "curriculum/sources/pdf_ocr/curriculum-plan/2022/sha256/"
-            "0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67/layout-elements.jsonl"
-        )
-        object_store.objects[(DERIVED_BUCKET, legacy_provider_key)] = b'{"provider":true}\n'
-        object_store.objects[(DERIVED_BUCKET, legacy_layout_key)] = b'{"layout":true}\n'
-        record = DocumentRegistryRecord(
-            document_id="plan:test-001",
-            revision_track="source-faithful",
-            version_id="sha256:test-001:split:test-001:abcd1234",
-            source_uri="campus-agent://curriculum/curriculum_plan/docs/plan:test-001",
-            content_hash="sha256:test-001",
-            corpus="curriculum",
-            collection="curriculum_plan",
-            cleaning_policy_version="curriculum_plan_cleaning_v1",
-            acl_groups=(),
-            campus_scope=None,
-            status="active",
-            ingestion_timestamp="2026-03-27T00:00:00+00:00",
-            parser_version="campusrag-import-v1",
-            embedding_model="Qwen3-Embedding-4B",
-            source_channel="pdf_ocr",
-            provider_response_object_key=legacy_provider_key,
-            document_units_object_key=(
-                "curriculum/documents/curriculum_plan/test-001--test-001/source-faithful/2022/document-units.jsonl"
-            ),
-            processed_object_keys=(
-                legacy_provider_key,
-                legacy_layout_key,
-                "curriculum/documents/curriculum_plan/test-001--test-001/source-faithful/2022/document-units.jsonl",
-            ),
-            import_source="provider_response_replay",
-        )
-        document_registry = _MutableFakeDocumentRegistry(record)
-
-        report = migrate_source_artifacts_to_canonical_source_bucket(
-            env={
-                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
-                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
-                "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                "OBJECT_STORE_BUCKET_SOURCE": SOURCE_BUCKET,
-                "OBJECT_STORE_BUCKET_DERIVED": DERIVED_BUCKET,
-                "INGESTION_SPLIT_MANIFEST_PATH": "configs/ingestion/curriculum/curriculum_plan/split-manifest.v1.json",
-            },
-            request=SourceArtifactsMigrationRequest(
-                corpus="curriculum",
-                collection="curriculum_plan",
-                raw_version_id="sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67",
-            ),
-            object_store=object_store,
-            document_registry=document_registry,
-            raw_asset_registry=_FakeRawAssetRegistry(),
-        )
-
-        canonical_provider_key = (
-            "ocr/pdf_ocr/curriculum-plan/2022/sha256/"
-            "0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67/provider-response.jsonl"
-        )
-        canonical_layout_key = (
-            "source-truth/pdf_ocr/curriculum-plan/2022/sha256/"
-            "0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67/layout-elements.jsonl"
-        )
-        self.assertEqual(report.raw_asset_id, "asset:curriculum-plan-2022")
-        self.assertTrue(report.provider_response_migrated)
-        self.assertTrue(report.layout_elements_migrated)
-        self.assertEqual(report.updated_document_record_count, 1)
-        self.assertIn((SOURCE_BUCKET, canonical_provider_key), object_store.puts)
-        self.assertIn((SOURCE_BUCKET, canonical_layout_key), object_store.puts)
-        self.assertIn((SOURCE_BUCKET, canonical_provider_key), object_store.objects)
-        self.assertIn((SOURCE_BUCKET, canonical_layout_key), object_store.objects)
-        self.assertNotIn((DERIVED_BUCKET, legacy_provider_key), object_store.objects)
-        self.assertNotIn((DERIVED_BUCKET, legacy_layout_key), object_store.objects)
-        updated = next(iter(document_registry.records.values()))
-        self.assertEqual(updated.provider_response_object_key, canonical_provider_key)
-        self.assertEqual(
-            updated.processed_object_keys,
-            (
-                canonical_provider_key,
-                canonical_layout_key,
-                "curriculum/documents/curriculum_plan/test-001--test-001/source-faithful/2022/document-units.jsonl",
-            ),
-        )
 
 
 if __name__ == "__main__":

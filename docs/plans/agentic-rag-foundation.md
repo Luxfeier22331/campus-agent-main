@@ -2,7 +2,7 @@
 doc_type: plan
 status: active
 created: 2026-03-22
-updated: 2026-03-26
+updated: 2026-03-27
 ---
 
 # Agentic RAG 第一阶段地基实施文档
@@ -16,11 +16,11 @@ updated: 2026-03-26
 - 长期边界、架构方向和第一阶段 accepted implementation baseline 仍可参考这份文档
 - 当前 phase 的执行顺序、最新 pending work、讨论结论和进度状态，以 `.planning/PROJECT.md`、`.planning/ROADMAP.md`、`.planning/STATE.md` 以及对应 phase 目录下的 context / plan / validation 产物为准
 - 当这份文档中的早期 phase-1 实施叙事与 `.planning/` 中的当前执行现实不一致时，应优先更新这里的文档边界说明，并按 `.planning/` 继续推进执行，而不是把过时叙事重新提升为当前硬约束
-- 当前 retrieval accepted baseline 不再单独由本文维护；以 `ADR-0007` 与 `docs/architecture/retrieval-query-strategy.md` 为准
+- 当前 retrieval accepted baseline 不再单独由本文维护；以 `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md` 与 `docs/architecture/retrieval-query-strategy.md` 为准
 
 **Goal:** 在当前 `campus-agent` monorepo 中补齐第一阶段地基，以“符合最佳实践前提下跑通端到端 agentic RAG 流程”为验收标准。
 
-**Architecture:** 本次实施只做第一阶段可上线闭环，不保留旧 `/api/search`、`/api/answer` 兼容层。数据面按 `Source -> Derived -> Chunk/Index` 三层分离落地，当前对象存储使用本机部署的 `MinIO`；长期 corpus 根名统一为 `regulations`，首批开放 collection 为 `student_handbook`。source bucket 采用 corpus-agnostic 的 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...` 前缀，并把 OCR/source truth 收敛到 `pdf/`、`ocr/`、`source-truth/` 前缀；derived bucket 的命名空间固定拆成 `{corpus}/documents/...`，其中 handbook OCR truth 固定为 `provider-response.jsonl -> layout-elements.jsonl -> split-manifest -> per-document canonical.md + document-units.jsonl`，逻辑文档以 `document_id + representation + version_id` 建模，不再依赖 `campusRAG` 作为运行时输入。查询面采用 `Supervisor API -> Supervisor Core -> RAG Specialist -> Retrieval Core`，内部 runtime 使用 AgentOS-native，检索实现使用 `LlamaIndex + Qdrant`。
+**Architecture:** 本次实施只做第一阶段可上线闭环，不保留旧 `/api/search`、`/api/answer` 兼容层。数据面按 `Source -> Derived -> Chunk/Index` 三层分离落地，当前对象存储使用本机部署的 `MinIO`；长期 corpus 根名统一为 `regulations`，首批开放 collection 为 `student_handbook`。source bucket 采用 corpus-agnostic 的 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...` 前缀，并在同一来源前缀下按 `capture/`、`provider/`、`source-truth/` 分层保存来源资产；derived bucket 的命名空间固定拆成 `{corpus}/documents/...`，其中 handbook OCR truth 固定为 `provider-response.jsonl -> layout-elements.jsonl -> split-manifest -> per-document canonical.md + document-units.jsonl`，逻辑文档以 `document_id + revision_track + version_id` 建模，不再依赖 `campusRAG` 作为运行时输入。查询面采用 `Supervisor API -> Supervisor Core -> RAG Specialist -> Retrieval Core`，内部 runtime 使用 AgentOS-native，检索实现使用 `LlamaIndex + Qdrant`。
 
 **Tech Stack:** Python 3.12, uv workspace, Agno AgentOS, LlamaIndex, Qdrant, MinIO (local S3-compatible), pytest/unittest
 
@@ -73,13 +73,13 @@ updated: 2026-03-26
 - `Supervisor API -> Supervisor Core -> RAG Specialist -> Retrieval Core` 能返回带 evidence 的回答
 - 第一批 `student_handbook` baseline 已冻结，并且可重复执行
 
-## 当前实测进度（2026-03-26）
+## Migration note: 2026-03-26 phase snapshot
 
-- 代码基线已验证：`uv run --all-packages python -m unittest discover -s tests -t .` 通过，当前仓库基线测试为 `85` 项
-- Gate 1 已有运行态证据：本机 `MinIO` 可访问，`campus-rag-source` / `campus-rag-derived` bucket 已存在
-- Gate 2 目前只完成对象存储侧证据：已在 bucket 中看到 handbook raw PDF 与 `provider-response.jsonl`，但 registry 运行态记录尚未做独立核验
-- Gate 3 当前进入重建等待态：旧的 `.env` 目标 `student_handbook` collection 已被显式删除，retrieval/embedding baseline 已更新为 `Qwen3-Embedding-4B @ 2560` 与 `dense + sparse hybrid + RRF`，但 live Qdrant collection 仍待按新基线重建并写入点数据
-- Gate 4 尚未做运行态闭环验收：主链路代码、specialist、supervisor、evals 已在仓库内落地，但缺少“真实 registry + 按 2560 重建完成的 Qdrant + end-to-end query-serving”证据
+以下内容保留为 `2026-03-26` 的阶段快照，只用于理解当时的推进背景，不再作为当前执行状态真相源。当前如需判断 Gate 是否已通过、live collection 是否已重建、当前验证卡点是什么，应以 `.planning/STATE.md` 与 `docs/verification/` 下的最新验收文档为准。
+
+- 当时的代码基线验证命令为：`uv run --all-packages python -m unittest discover -s tests -t .`
+- 当时已记录 `MinIO` bucket、handbook source artifacts、retrieval baseline 调整与 live rebuild 待完成等阶段信息
+- 这些快照信息不应覆盖本文下面的 Gate 定义，也不应替代 `.planning/` 中的当前状态板
 
 ## 第一阶段实施拓扑
 
@@ -141,12 +141,12 @@ updated: 2026-03-26
 - object storage 语义：只允许 `campus-rag-source` / `campus-rag-derived`
 - object key 结构：
   - source raw asset:
-    - `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/{original_filename}`
+    - `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/capture/{original_filename}`
   - source artifact:
-    - `ocr/{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/{artifact_filename}`
-    - `source-truth/{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/{artifact_filename}`
+    - `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/provider/{model_slug}/{artifact_filename}`
+    - `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/source-truth/{artifact_filename}`
   - derived document artifact:
-      `{corpus}/documents/{collection}/{title_slug}--{docid8}/{representation}/{year}/{artifact_filename}`
+      `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/{artifact_filename}`
 - 其他 phase-1 collection 必须沿用同一套 derived 侧按 corpus 分前缀的路径语义；source raw asset 不按 corpus 分前缀
 - retrieval 实现：只允许 `LlamaIndex + Qdrant`
 - chunk profile：第一轮固定一套 chunk 大小、overlap、metadata 映射
@@ -164,15 +164,15 @@ updated: 2026-03-26
   - `raw_source_uri` 指向原始来源
 - 如果上游只提供 OCR JSON、OCR 文本、结构化抽取结果：
   - 写入 `campus-rag-source`
-  - handbook 仅接受仓库规定的 `provider-response.jsonl` 形状，并写入 `ocr/...`
+  - handbook 仅接受仓库规定的 `provider-response.jsonl` 形状，并写入 canonical source prefix 下的 `provider/...`
 - 如果 OCR 来自在线供应商：
   - source bucket 下至少同时保存 source-level `provider-response.jsonl` 与 source-level `layout-elements.jsonl`
   - derived bucket 下保存 per-document `document-units.jsonl`
   - `provider-response.jsonl` 保留供应商原始响应
   - `layout-elements.jsonl` 是 split 前唯一内部统一结构真相
   - `document-units.jsonl` 只表示单篇逻辑文档，不表示整本 handbook source
-- `curriculum/curriculum_plan` 在 split manifest 冻结前，允许先走 `provider_only` 预接入路径，只上传 raw PDF 并保留 asset-level `provider-response.jsonl` 供切分策略设计；正式 `normalized` ingestion 仍要求 repo-tracked split manifest
-- `provider_only` 不是 file-registry 兼容模式；它仍应写入 canonical raw asset registry，只是不写 document registry
+- `curriculum/curriculum_plan` 在 split manifest 冻结前，允许先走 `source_truth_only` 预接入路径，只上传 raw PDF 并保留 asset-level `provider-response.jsonl` 供切分策略设计；正式 `normalized` ingestion 仍要求 repo-tracked split manifest
+- `source_truth_only` 不是 file-registry 兼容模式；它仍应写入 canonical raw asset registry，只是不写 document registry
 - 不允许因为第一阶段赶进度，就把 OCR 文本直接冒充 raw layer 真相源
 - 不允许继续支持历史外部存储导入的非 `provider-response.jsonl` handbook OCR 形状
 
@@ -195,21 +195,18 @@ feature worktree 环境规则：
 
 为了避免“代码写了很多但主链路仍然不通”，第一阶段按门禁推进：
 
+以下 Gate 定义仍是本文要冻结的实施门禁；但每个 Gate 的当前通过状态、阻塞项与运行态证据不再在本文维护。当前真相请以 `.planning/STATE.md` 和 `docs/verification/` 下的最新文档为准。
+
 - Gate 0: 基线冻结
   - 冻结 corpus、导入来源、chunk profile、embedding profile、baseline cases
-  - 当前状态：代码与 evals 已落地，仓库基线测试已通过
 - Gate 1: 对象存储就绪
   - 本机 `MinIO` 已部署，bucket 已初始化，应用侧只能通过 `S3-compatible` 配置访问
-  - 当前状态：已验证通过
 - Gate 2: 数据面可用
   - `campusRAG` OCR 资产已导入 object storage，registry 可记录 stable ID / version / hash
-  - 当前状态：对象存储资产已验证；registry 运行态记录仍待独立核验
 - Gate 3: 检索面可用
   - `LlamaIndex + Qdrant` 已能返回带 source locator 的 evidence bundle
-  - 当前状态：未通过；旧 `student_handbook` collection 已删除，等待按 `Qwen3-Embedding-4B @ 2560` 与 accepted hybrid baseline 重建 live collection
 - Gate 4: Agentic RAG 主链路可用
   - supervisor 到 specialist 的委派跑通，baseline queries 可重复通过
-  - 当前状态：未做运行态闭环验收，仍缺少基于重建后 live collection 的真实 query-serving 证据
 
 ## 关键接口与公共类型
 
@@ -220,9 +217,9 @@ feature worktree 环境规则：
 - `ActorContext`
   字段：`user_id`, `roles`, `departments`, `groups`, `campus_scope`, `snapshot`
 - `DocumentRef`
-  字段：`document_id`, `representation`, `version_id`, `corpus`, `collection`, `source_uri`, `content_hash`
+  字段：`document_id`, `revision_track`, `version_id`, `corpus`, `collection`, `source_uri`, `content_hash`
 - `EvidenceSource`
-  字段：`doc_id`, `representation`, `version_id`, `chunk_id`, `anchor`, `acl_level`, `canonical_url`, `latest_url`, `source_channel`, `collection`, `is_current`, `snippet`, `score`
+  字段：`doc_id`, `revision_track`, `version_id`, `chunk_id`, `anchor`, `acl_level`, `canonical_url`, `latest_url`, `source_channel`, `collection`, `is_current`, `snippet`, `score`
 - `EvidenceBundle`
   字段：`query_text`, `corpus`, `collection`, `sources`
 - `DelegateToRagAgentRequest`  
@@ -588,3 +585,7 @@ feature worktree 环境规则：
 - 不做 crawler/job/queue 的真实分布式生产化实现
 - 不做 replayable 审计账本、字段级 ACL 或完整 ABAC
 - 不为了“方便导入”把本机目录直接提升为长期真相源
+
+补充边界：
+
+- 本文中的 object key 示例如果与 `docs/decisions/adr-0002-local-minio-conventions.md` 冲突，以 `ADR-0002` 和当前实现为准。

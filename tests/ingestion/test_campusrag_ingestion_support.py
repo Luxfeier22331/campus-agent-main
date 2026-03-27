@@ -374,7 +374,7 @@ class CampusragIngestionSupportTest(unittest.TestCase):
         self.assertEqual(stats.skipped_count, 1)
         self.assertEqual(stats.updated_document_ids, ())
         self.assertEqual(stats.skipped_document_ids, ("handbook:doc-a",))
-        self.assertIn((self.object_store.bucket_processed, expected_key), writer.puts)
+        self.assertIn((self.object_store.bucket_derived, expected_key), writer.puts)
         self.assertEqual(len(registry.upsert_many_calls), 1)
 
 

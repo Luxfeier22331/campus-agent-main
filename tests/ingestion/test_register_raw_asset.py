@@ -6,8 +6,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from campus_ingestion_core.registry import FileRawAssetRegistry
 from campus_ingestion_worker.register_raw_asset import register_raw_asset
+from tests.support.in_memory_registry import InMemoryRawAssetRegistry
 
 
 class _FakeObjectStore:
@@ -42,7 +42,7 @@ class RegisterRawAssetTest(unittest.TestCase):
             pdf_bytes = b"%PDF-1.4 handbook source"
             pdf_path.write_bytes(pdf_bytes)
 
-            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "raw_assets.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw_assets.json")
             object_store = _FakeObjectStore()
             env = {
                 "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
@@ -77,7 +77,7 @@ class RegisterRawAssetTest(unittest.TestCase):
             self.assertEqual(len(object_store.uploads), 1)
             self.assertEqual(
                 object_store.uploads[0]["key"],
-                f"pdf/student-handbook/undated/sha256/{raw_hash}/student-handbook.pdf",
+                f"official_pdf/student-handbook/undated/sha256/{raw_hash}/capture/student-handbook.pdf",
             )
 
             registry_payload = json.loads((root / "registry" / "raw_assets.json").read_text(encoding="utf-8"))
@@ -91,7 +91,7 @@ class RegisterRawAssetTest(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             pdf_path = root / "student-handbook.pdf"
-            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "raw_assets.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw_assets.json")
             object_store = _FakeObjectStore()
             env = {
                 "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
