@@ -1,0 +1,49 @@
+{
+  "name": "public-consumer-chat",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Public consumer chat frontend for campus-agent v2.",
+  "type": "module",
+  "packageManager": "pnpm@10.17.1",
+  "scripts": {
+    "dev": "vite dev --host 127.0.0.1 --port 3000",
+    "build": "vite build",
+    "start": "node scripts/start-dist-server.mjs",
+    "db:bootstrap": "node scripts/bootstrap-database.mjs",
+    "db:print-auth-migration": "node scripts/print-auth-migration.mjs",
+    "smoke:live": "UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python ../../scripts/public_consumer_chat_live_smoke.py",
+    "test": "vitest run",
+    "test:integration": "vitest run test/postgres.integration.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "@radix-ui/react-slot": "^1.2.4",
+    "@tanstack/react-query": "^5.95.2",
+    "@tanstack/react-router": "^1.0.0",
+    "@tanstack/react-start": "^1.0.0",
+    "better-auth": "^1.5.6",
+    "lucide-react": "^1.7.0",
+    "motion": "^12.38.0",
+    "pg": "^8.16.3",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@tanstack/router-plugin": "^1.0.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^24.6.1",
+    "@types/pg": "^8.15.6",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "^5.1.0",
+    "jsdom": "^27.0.1",
+    "typescript": "^5.9.3",
+    "vinxi": "^0.5.7",
+    "vite": "^7.1.12",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^4.0.7"
+  }
+}

@@ -10,8 +10,10 @@ build/
 !.env.local-minimal.example
 tmp.md
 .tmp/
+.smoke-evidence/
 var/
 .worktrees/
 .cache/
 node_modules/
 .wrangler-home/
+.tanstack/

@@ -108,4 +108,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-23*
-*Last updated: 2026-03-27 after completing Phase 5 supervisor entry, ACL, and audit closure*
+*Last updated: 2026-03-27 after Phase 6 completion and mainline 04.7 sync*

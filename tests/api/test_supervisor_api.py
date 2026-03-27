@@ -451,7 +451,6 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(captured_specialist_requests[0].actor.user_id, "runtime-bearer-user")
         self.assertEqual(captured_specialist_requests[0].actor.groups, ("students",))
         self.assertEqual(captured_specialist_requests[0].actor.campus_scope, "north")
-
     def test_answer_route_accepts_trusted_worker_origin_auth(self) -> None:
         captured_requests: list[SupervisorRequest] = []
 

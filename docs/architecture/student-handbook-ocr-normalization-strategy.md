@@ -414,6 +414,7 @@ Unit normalization 必须满足以下边界：
 - 对外展示或清洗效果对照应优先消费 `canonical.md`，不要直接拿 chunk 文本代替
 - handbook 中的电话目录页不再保留在 `regulations/student_handbook` 的 split truth；后续应作为 declared projection 派生进入 `campus_services/contact_directory`
 - handbook 中有独立下游价值的附录、表单、导航页或附件叶子节点，应通过 derived document projection 落入目标 collection，并显式保留 `projection_name`、`derived_from_*` 与稳定 lineage 字段；对于已不再保留于 handbook split manifest 的页段，应优先使用 source-truth selector (`source_title`、`source_handbook_section`、`source_page_start`、`source_page_end`)
+- handbook 中有独立下游价值的附录、表单、导航页或附件叶子节点，应通过 derived document projection 落入目标 collection，并显式保留 `projection_name`、`derived_from_*`、`parent_document_id` 与稳定 lineage 字段；对于已不再保留于 handbook split manifest 的页段，应优先使用 source-truth selector (`source_title`、`source_handbook_section`、`source_page_start`、`source_page_end`)
 
 ## Representation 规则
 
