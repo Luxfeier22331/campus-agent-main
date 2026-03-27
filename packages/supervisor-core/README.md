@@ -8,11 +8,12 @@
 
 这个 package 只拥有 supervisor 的编排职责：
 
-- 将 `DelegateToRagAgentRequest` 投影为 supervisor 可决策的内部上下文
+- 将共享 `SupervisorRequest` 投影为 supervisor 可决策的内部上下文
+- 在路由前执行显式 request validation 与 query policy gate
 - 对 phase-1 请求执行显式 routing decision
-- 通过共享 contract 委派给 `rag-specialist`
+- 在内部构造 `SpecialistRequest` 并委派给对应 specialist
 - 对 specialist 返回结果执行 finalization policy
-- 组装统一的 `DelegateToRagAgentResponse`
+- 组装统一的 `SpecialistResponse`
 - 投影最小审计字段
 
 这个 package 不拥有：
@@ -29,13 +30,21 @@
 当前接受的模块拆分如下：
 
 - `context.py`
-  将 `DelegateToRagAgentRequest` 投影为 `SupervisorRequestContext`，承接 request framing 所需的最小字段。
+  将 `SupervisorRequest` 投影为 `SupervisorRequestContext`，承接 request framing 所需的最小字段。
+- `validation.py`
+  在 supervisor 边界内解析 capability、拒绝冲突输入，并保持 fail-closed。
+- `query_policy.py`
+  持有当前 query-enabled scope policy，不把 phase-1 handbook 限制写死在 API shell。
 - `routing.py`
-  承担 phase-1 routing decision，当前只允许查询语料为 `student_handbook`，并只把合法请求路由到 `rag-specialist`。
+  承担 phase-1 routing decision，在 validation 与 policy gate 之后决定 specialist 路径。
+- `errors.py`
+  提供 supervisor 侧稳定错误分类，供 API shell 做结构化 HTTP 映射。
+- `framing.py`
+  在 routing 决定后构造内部 `SpecialistRequest`，把 external request boundary 和 internal handoff boundary 分开。
 - `policy.py`
   承担 specialist 结果后的 finalization policy，稳定处理 `completed`、`needs_clarification`、`no_answer` 和 `error`。
 - `response.py`
-  承担 response shaping 与 source projection，输出统一的 `DelegateToRagAgentResponse`。
+  承担 response shaping 与 source projection，输出统一的 `SpecialistResponse`。
 - `audit.py`
   承担 audit projection，只输出最小稳定审计字段。
 - `agent.py`
@@ -45,19 +54,19 @@
 
 phase-1 的查询范围是显式收敛的：
 
-- 只允许一个 specialist：`rag-specialist`
-- 只允许一个 query-serving corpus：`student_handbook`
-- 不允许在 `supervisor-core` 内静默放开其他 corpus
+- `rag-specialist` 仍是唯一默认 query-serving specialist
+- `availability-specialist` 作为显式并行 capability 已存在，并可通过 supervisor-facing request 进入统一入口
+- query-serving 是否开放某个 corpus/scope，属于 routing/policy 决策，不应由 API shell 固定构造
 - `curriculum_plan` 等其他 data-plane corpus 在本阶段仍然不参与 query-serving
 
-如果后续要增加 specialist 或放开新的 query-serving corpus，应先更新架构/决策文档，再调整这里的 contract 描述与实现。
+如果后续要继续增加 specialist 或放开新的 query-serving corpus，应先更新架构/决策文档，再调整这里的 contract 描述与实现。
 
 ## Boundary With Neighbor Packages
 
 - `apps/supervisor-api`
-  负责 auth mapping、trace propagation、`DelegateToRagAgentRequest` 构造和 HTTP response projection。
+  负责 auth mapping、trace propagation、`SupervisorRequest` 构造和 HTTP response projection。
 - `packages/contracts`
-  提供 supervisor 与 specialist 之间唯一共享的 handoff schema。
+  提供 supervisor-facing request 与 supervisor->specialist handoff schema。
 - `packages/rag-specialist`
   负责 retrieval-oriented specialist 逻辑，不由 `supervisor-core` 越级实现。
 - `packages/retrieval-core`
@@ -69,5 +78,7 @@ phase-1 的查询范围是显式收敛的：
 
 - `uv run --all-packages python -m pytest tests/supervisor/test_supervisor_core.py -q`
 - `uv run --all-packages python -m pytest tests/supervisor/test_supervisor_routing.py -q`
+- `uv run --all-packages python -m pytest tests/supervisor/test_supervisor_validation.py -q`
+- `uv run --all-packages python -m pytest tests/supervisor/test_supervisor_query_policy.py -q`
 - `uv run --all-packages python -m pytest tests/supervisor/test_supervisor_policy.py -q`
 - `uv run --all-packages python -m pytest tests/api/test_supervisor_api.py -q`

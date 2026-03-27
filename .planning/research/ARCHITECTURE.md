@@ -42,7 +42,7 @@ The diagram emphasizes the runtime boundary housed in `apps/`, the policy-driven
 | `packages/rag-specialist` | Retrieval-facing worker, query rewriting, retrieval strategy, evidence normalizer, confidence summarizer | Adapter around LlamaIndex/Agno specialist agents that obey the contract schema |
 | `packages/retrieval-core` | Retrieval abstraction layer, evidence bundling, registry lookups, vector store connectors (Qdrant) | Reusable retrieval kernel without infra-specific types |
 | `packages/ingestion-core` | Ingestion/data plane logic: dedupe, parser, chunking, embedding writes, registry updates, stable IDs | Queue consumer logic running inside ingestion-worker shell |
-| `apps/ingestion-worker` | Ingestion runtime shell, queue polls, MinIO writers, job lifecycle control | Agnostically hosts ingestion-core, handles raw/processed object paths |
+| `apps/ingestion-worker` | Ingestion runtime shell, queue polls, MinIO writers, job lifecycle control | Agnostically hosts ingestion-core, handles source/derived object paths |
 | `packages/evals` | Baselines, trace-based grading, runbooks, gating, smoke scenarios that exercise supervisor/specialist flows | Runner/expectation library separate from live request path |
 | `packages/shared` | Minimal shared constants/utilities (types, logging, config) that are safe to re-export | General helpers without business logic |
 
@@ -123,7 +123,7 @@ evidence = contracts.EvidenceBundle.load(response["evidence"])
 ## Build Order Implications
 
 1. **Contracts first:** Freeze document, chunk, evidence, ACL, and audit schema (`packages/contracts`) so orchestrator, ingestion, and specialist implementations share stable types.
-2. **Ingestion/data-plane second:** Deploy ingestion workers plus MinIO buckets and registries to create raw/processed artifacts referenced by queries.
+2. **Ingestion/data-plane second:** Deploy ingestion workers plus MinIO buckets and registries to create source/derived artifacts referenced by queries.
 3. **Retrieval core third:** Build Qdrant connectors + evidence bundler so specialists can return canonical chunks to supervisor.
 4. **Supervisor core fourth:** Wire up policy routing and specialist selection once retrieval and ingestion provide reliable data.
 5. **Evals last:** Layer smoke/regression tests once the pipeline is stable rather than letting evals drive architectural decisions.
@@ -190,7 +190,7 @@ State lives in the document registry, raw asset registry, and chunk/index layers
 
 | Service | Integration Pattern | Notes |
 |---------|---------------------|-------|
-| MinIO (S3-compatible) | Ingestion-core writes raw/processed artifacts to bucket-separated paths (`campus-rag-raw`, `campus-rag-processed`) | Phase-1 uses local MinIO but treats it as S3; bucket keys must avoid leaking IDs with colons to ease future cloud migration. |
+| MinIO (S3-compatible) | Ingestion-core writes source/derived artifacts to bucket-separated paths (`campus-rag-source`, `campus-rag-derived`) | Phase-1 uses local MinIO but treats it as S3; source bucket prefixes are `pdf/`, `ocr/`, `source-truth/`, and derived bucket prefixes remain corpus-scoped to ease future cloud migration. |
 | Qdrant | Retrieval-core manages chunk metadata and vector search, specialist queries Qdrant through abstraction | Qdrant remains the canonical chunk store; any exports for backup are derived copies only. |
 | Agno / OpenAI Agents SDK (optional) | Supervisor API or rag-specialist can host Agno agent wrappers while keeping contracts pure | Allow Agno for runtime hosting but do not leak Agno-specific types into contracts or retrieval-core. |
 | Observability stack (tracing/logs) | Runtime boundary enriches requests with trace IDs that flow through supervisor-core and into evidence bundles | Provides auditability required by governance (user, route, source, status). |

@@ -4,8 +4,6 @@ from dataclasses import asdict
 from datetime import datetime
 import json
 import os
-from pathlib import Path
-from tempfile import NamedTemporaryFile
 from typing import Protocol
 
 from campus_ingestion_core.artifacts import (
@@ -13,7 +11,7 @@ from campus_ingestion_core.artifacts import (
     DOCUMENT_UNITS_FILENAME,
     PROVIDER_RESPONSE_FILENAME,
 )
-from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef
+from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef, SourceObservation
 
 
 DEFAULT_DOCUMENT_REGISTRY_TABLE = "document_registry_records"
@@ -31,6 +29,8 @@ class DocumentRegistry(Protocol):
     ) -> DocumentRegistryRecord | None: ...
 
     def upsert(self, record: DocumentRegistryRecord) -> None: ...
+
+    def upsert_many(self, records: tuple[DocumentRegistryRecord, ...]) -> None: ...
 
     def list_by_corpus(self, corpus: str) -> tuple[DocumentRegistryRecord, ...]: ...
 
@@ -52,9 +52,18 @@ class DocumentRegistry(Protocol):
         preferred_revision_tracks: tuple[str, ...] = (),
     ) -> DocumentRegistryRecord | None: ...
 
+    def delete_document(self, document_id: str) -> None: ...
+
     def delete_by_corpus(self, corpus: str) -> None: ...
 
     def delete_by_scope(self, corpus: str, collection: str | None = None) -> None: ...
+
+    def replace_scope(
+        self,
+        corpus: str,
+        collection: str | None,
+        records: tuple[DocumentRegistryRecord, ...],
+    ) -> None: ...
 
 
 class RawAssetRegistry(Protocol):
@@ -73,209 +82,6 @@ class RawAssetRegistry(Protocol):
     def delete_by_corpus(self, corpus: str) -> None: ...
 
     def delete_by_scope(self, corpus: str, collection: str | None = None) -> None: ...
-
-
-class FileDocumentRegistry:
-    def __init__(self, path: Path) -> None:
-        self.path = Path(path)
-
-    def get(
-        self,
-        document_id: str,
-        revision_track: str,
-        version_id: str,
-    ) -> DocumentRegistryRecord | None:
-        payload = self._load()
-        raw = payload.get(self._make_key(document_id, revision_track, version_id))
-        if raw is None:
-            return None
-        return _document_record_from_dict(raw)
-
-    def upsert(self, record: DocumentRegistryRecord) -> None:
-        payload = self._load()
-        payload[self._make_key(record.document_id, record.revision_track, record.version_id)] = asdict(record)
-        self._store(payload)
-
-    def list_by_corpus(self, corpus: str) -> tuple[DocumentRegistryRecord, ...]:
-        records = self.list_by_scope(corpus)
-        return tuple(
-            sorted(
-                records,
-                key=lambda record: (record.document_id, record.revision_track, record.version_id),
-            )
-        )
-
-    def list_by_scope(
-        self,
-        corpus: str,
-        collection: str | None = None,
-    ) -> tuple[DocumentRegistryRecord, ...]:
-        records = [
-            _document_record_from_dict(raw)
-            for raw in self._load().values()
-            if raw.get("corpus") == corpus and (collection is None or raw.get("collection") == collection)
-        ]
-        return tuple(
-            sorted(
-                records,
-                key=lambda record: (record.document_id, record.revision_track, record.version_id),
-            )
-        )
-
-    def latest_versions(
-        self,
-        document_id: str,
-        revision_track: str | None = None,
-    ) -> tuple[DocumentRegistryRecord, ...]:
-        records = [
-            _document_record_from_dict(raw)
-            for raw in self._load().values()
-            if raw.get("document_id") == document_id
-            and (revision_track is None or raw.get("revision_track") == revision_track)
-        ]
-        if not records:
-            return ()
-        latest = max(records, key=lambda record: record.ingestion_timestamp)
-        return (latest,)
-
-    def current_version(
-        self,
-        document_id: str,
-        preferred_revision_tracks: tuple[str, ...] = (),
-    ) -> DocumentRegistryRecord | None:
-        records = [
-            _document_record_from_dict(raw)
-            for raw in self._load().values()
-            if raw.get("document_id") == document_id
-        ]
-        if not records:
-            return None
-        current_records = [record for record in records if record.is_current]
-        for revision_track in preferred_revision_tracks:
-            matching = [record for record in current_records if record.revision_track == revision_track]
-            if matching:
-                return max(matching, key=lambda record: record.ingestion_timestamp)
-        if current_records:
-            return max(current_records, key=lambda record: record.ingestion_timestamp)
-        return max(records, key=lambda record: record.ingestion_timestamp)
-
-    def delete_by_corpus(self, corpus: str) -> None:
-        self.delete_by_scope(corpus)
-
-    def delete_by_scope(self, corpus: str, collection: str | None = None) -> None:
-        payload = {
-            key: value
-            for key, value in self._load().items()
-            if isinstance(value, dict)
-            and (
-                value.get("corpus") != corpus
-                or (collection is not None and value.get("collection") != collection)
-            )
-        }
-        self._store(payload)
-
-    def _load(self) -> dict[str, dict[str, object]]:
-        if not self.path.exists():
-            return {}
-        return json.loads(self.path.read_text(encoding="utf-8"))
-
-    def _store(self, payload: dict[str, dict[str, object]]) -> None:
-        if not payload:
-            if self.path.exists():
-                self.path.unlink()
-            return
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with NamedTemporaryFile(
-            "w",
-            encoding="utf-8",
-            dir=self.path.parent,
-            delete=False,
-        ) as handle:
-            json.dump(payload, handle, ensure_ascii=False, indent=2, sort_keys=True)
-            temp_path = Path(handle.name)
-        temp_path.replace(self.path)
-
-    @staticmethod
-    def _make_key(document_id: str, revision_track: str, version_id: str) -> str:
-        return f"{document_id}::{revision_track}::{version_id}"
-
-
-class FileRawAssetRegistry:
-    def __init__(self, path: Path) -> None:
-        self.path = Path(path)
-
-    def ensure_exists(self) -> None:
-        if self.path.exists():
-            return
-        self._store({})
-
-    def get(self, raw_asset_id: str, raw_version_id: str) -> RawAssetRecord | None:
-        payload = self._load()
-        raw = payload.get(self._make_key(raw_asset_id, raw_version_id))
-        if raw is None:
-            return None
-        return _raw_asset_record_from_dict(raw)
-
-    def upsert(self, record: RawAssetRecord) -> None:
-        payload = self._load()
-        payload[self._make_key(record.raw_asset_id, record.raw_version_id)] = asdict(record)
-        self._store(payload)
-
-    def list_by_corpus(self, corpus: str) -> tuple[RawAssetRecord, ...]:
-        records = self.list_by_scope(corpus)
-        return tuple(sorted(records, key=lambda record: (record.raw_asset_id, record.raw_version_id)))
-
-    def list_by_scope(
-        self,
-        corpus: str,
-        collection: str | None = None,
-    ) -> tuple[RawAssetRecord, ...]:
-        records = [
-            _raw_asset_record_from_dict(raw)
-            for raw in self._load().values()
-            if raw.get("corpus") == corpus and (collection is None or raw.get("collection") == collection)
-        ]
-        return tuple(sorted(records, key=lambda record: (record.raw_asset_id, record.raw_version_id)))
-
-    def delete_by_corpus(self, corpus: str) -> None:
-        self.delete_by_scope(corpus)
-
-    def delete_by_scope(self, corpus: str, collection: str | None = None) -> None:
-        payload = {
-            key: value
-            for key, value in self._load().items()
-            if isinstance(value, dict)
-            and (
-                value.get("corpus") != corpus
-                or (collection is not None and value.get("collection") != collection)
-            )
-        }
-        self._store(payload)
-
-    def _load(self) -> dict[str, dict[str, object]]:
-        if not self.path.exists():
-            return {}
-        return json.loads(self.path.read_text(encoding="utf-8"))
-
-    def _store(self, payload: dict[str, dict[str, object]]) -> None:
-        if not payload:
-            if self.path.exists():
-                self.path.unlink()
-            return
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with NamedTemporaryFile(
-            "w",
-            encoding="utf-8",
-            dir=self.path.parent,
-            delete=False,
-        ) as handle:
-            json.dump(payload, handle, ensure_ascii=False, indent=2, sort_keys=True)
-            temp_path = Path(handle.name)
-        temp_path.replace(self.path)
-
-    @staticmethod
-    def _make_key(raw_asset_id: str, raw_version_id: str) -> str:
-        return f"{raw_asset_id}::{raw_version_id}"
 
 
 class PostgresDocumentRegistry:
@@ -307,28 +113,14 @@ class PostgresDocumentRegistry:
         return _document_record_from_dict(_coerce_json_payload(row[0]))
 
     def upsert(self, record: DocumentRegistryRecord) -> None:
-        payload = json.dumps(asdict(record), ensure_ascii=False)
-        query = (
-            f"insert into {self.table_name} "
-            "(document_id, revision_track, version_id, corpus, collection, ingestion_timestamp, record) "
-            "values (%s, %s, %s, %s, %s, %s, %s::jsonb) "
-            "on conflict (document_id, revision_track, version_id) do update set "
-            "corpus = excluded.corpus, "
-            "collection = excluded.collection, "
-            "ingestion_timestamp = excluded.ingestion_timestamp, "
-            "record = excluded.record"
-        )
-        self._execute(
-            query,
-            (
-                record.document_id,
-                record.revision_track,
-                record.version_id,
-                record.corpus,
-                record.collection,
-                _parse_timestamp(record.ingestion_timestamp),
-                payload,
-            ),
+        self.upsert_many((record,))
+
+    def upsert_many(self, records: tuple[DocumentRegistryRecord, ...]) -> None:
+        if not records:
+            return
+        self._executemany(
+            self._upsert_query(),
+            tuple(self._record_upsert_params(record) for record in records),
         )
 
     def list_by_corpus(self, corpus: str) -> tuple[DocumentRegistryRecord, ...]:
@@ -406,6 +198,10 @@ class PostgresDocumentRegistry:
         latest = self.latest_versions(document_id)
         return latest[0] if latest else None
 
+    def delete_document(self, document_id: str) -> None:
+        query = f"delete from {self.table_name} where document_id = %s"
+        self._execute(query, (document_id,))
+
     def delete_by_corpus(self, corpus: str) -> None:
         self.delete_by_scope(corpus)
 
@@ -417,6 +213,27 @@ class PostgresDocumentRegistry:
             query = f"delete from {self.table_name} where corpus = %s and collection = %s"
             params = (corpus, collection)
         self._execute(query, params)
+
+    def replace_scope(
+        self,
+        corpus: str,
+        collection: str | None,
+        records: tuple[DocumentRegistryRecord, ...],
+    ) -> None:
+        if collection is None:
+            delete_query = f"delete from {self.table_name} where corpus = %s"
+            delete_params: tuple[object, ...] = (corpus,)
+        else:
+            delete_query = f"delete from {self.table_name} where corpus = %s and collection = %s"
+            delete_params = (corpus, collection)
+        with _postgres_connection(self.database_url, autocommit=False) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(delete_query, delete_params)
+                if records:
+                    cursor.executemany(
+                        self._upsert_query(),
+                        tuple(self._record_upsert_params(record) for record in records),
+                    )
 
     def _ensure_schema(self) -> None:
         cache_key = (self.database_url, self.table_name)
@@ -503,6 +320,11 @@ class PostgresDocumentRegistry:
             with conn.cursor() as cursor:
                 cursor.execute(query, params)
 
+    def _executemany(self, query: str, params_seq: tuple[tuple[object, ...], ...]) -> None:
+        with _postgres_connection(self.database_url) as conn:
+            with conn.cursor() as cursor:
+                cursor.executemany(query, params_seq)
+
     def _fetchone(self, query: str, params: tuple[object, ...]) -> tuple[object, ...] | None:
         with _postgres_connection(self.database_url) as conn:
             with conn.cursor() as cursor:
@@ -516,6 +338,30 @@ class PostgresDocumentRegistry:
                 cursor.execute(query, params)
                 rows = cursor.fetchall()
         return tuple(tuple(row) for row in rows)
+
+    def _upsert_query(self) -> str:
+        return (
+            f"insert into {self.table_name} "
+            "(document_id, revision_track, version_id, corpus, collection, ingestion_timestamp, record) "
+            "values (%s, %s, %s, %s, %s, %s, %s::jsonb) "
+            "on conflict (document_id, revision_track, version_id) do update set "
+            "corpus = excluded.corpus, "
+            "collection = excluded.collection, "
+            "ingestion_timestamp = excluded.ingestion_timestamp, "
+            "record = excluded.record"
+        )
+
+    @staticmethod
+    def _record_upsert_params(record: DocumentRegistryRecord) -> tuple[object, ...]:
+        return (
+            record.document_id,
+            record.revision_track,
+            record.version_id,
+            record.corpus,
+            record.collection,
+            _parse_timestamp(record.ingestion_timestamp),
+            json.dumps(asdict(record), ensure_ascii=False),
+        )
 
 
 class PostgresRawAssetRegistry:
@@ -687,14 +533,14 @@ def _required_raw_asset_registry_database_url(source: dict[str, str]) -> str:
     return database_url
 
 
-def _postgres_connection(database_url: str):
+def _postgres_connection(database_url: str, *, autocommit: bool = True):
     try:
         import psycopg
     except ImportError as exc:  # pragma: no cover
         raise RuntimeError(
             "psycopg is required to use the Postgres document registry"
         ) from exc
-    return psycopg.connect(database_url, autocommit=True)
+    return psycopg.connect(database_url, autocommit=autocommit)
 
 
 def _parse_timestamp(value: str) -> datetime:
@@ -730,25 +576,21 @@ def _document_record_from_dict(raw: dict[str, object]) -> DocumentRegistryRecord
     raw_asset_payload = raw.get("raw_asset")
     raw_asset = None
     if isinstance(raw_asset_payload, dict):
-        raw_asset = RawAssetRef(
-            raw_asset_id=str(raw_asset_payload["raw_asset_id"]),
-            raw_version_id=str(raw_asset_payload["raw_version_id"]),
-            page_start=(
-                int(raw_asset_payload["page_start"])
-                if raw_asset_payload.get("page_start") is not None
-                else None
-            ),
-            page_end=(
-                int(raw_asset_payload["page_end"])
-                if raw_asset_payload.get("page_end") is not None
-                else None
-            ),
-        )
+        raw_asset = _raw_asset_ref_from_dict(raw_asset_payload)
+    source_channel = str(raw.get("source_channel") or _infer_legacy_source_channel(raw))
+    source_uri = str(raw["source_uri"])
+    source_observations = _source_observations_from_raw(
+        raw=raw,
+        source_channel=source_channel,
+        source_uri=source_uri,
+        raw_asset=raw_asset,
+        import_source=str(raw["import_source"]),
+    )
     return DocumentRegistryRecord(
         document_id=str(raw["document_id"]),
         revision_track=revision_track,
         version_id=str(raw["version_id"]),
-        source_uri=str(raw["source_uri"]),
+        source_uri=source_uri,
         content_hash=str(raw["content_hash"]),
         corpus=_normalize_registry_corpus(str(raw["corpus"])),
         collection=_normalize_registry_collection(
@@ -762,7 +604,7 @@ def _document_record_from_dict(raw: dict[str, object]) -> DocumentRegistryRecord
         ingestion_timestamp=str(raw["ingestion_timestamp"]),
         parser_version=str(raw["parser_version"]),
         embedding_model=str(raw.get("embedding_model") or ""),
-        source_channel=str(raw.get("source_channel") or _infer_legacy_source_channel(raw)),
+        source_channel=source_channel,
         is_current=bool(raw.get("is_current", False)),
         effective_date=str(raw["effective_date"]) if raw.get("effective_date") is not None else None,
         published_date=str(raw["published_date"]) if raw.get("published_date") is not None else None,
@@ -771,6 +613,7 @@ def _document_record_from_dict(raw: dict[str, object]) -> DocumentRegistryRecord
         ),
         provenance_status=str(raw.get("provenance_status") or ""),
         raw_asset=raw_asset,
+        source_observations=source_observations,
         document_units_object_key=document_units_object_key,
         provider_response_object_key=provider_response_object_key,
         canonical_markdown_object_key=canonical_markdown_object_key,
@@ -802,6 +645,55 @@ def _find_processed_artifact(processed_object_keys: tuple[str, ...], filename: s
         if key.endswith(f"/{filename}"):
             return key
     return None
+
+
+def _raw_asset_ref_from_dict(raw: dict[str, object]) -> RawAssetRef:
+    return RawAssetRef(
+        raw_asset_id=str(raw["raw_asset_id"]),
+        raw_version_id=str(raw["raw_version_id"]),
+        page_start=int(raw["page_start"]) if raw.get("page_start") is not None else None,
+        page_end=int(raw["page_end"]) if raw.get("page_end") is not None else None,
+    )
+
+
+def _source_observations_from_raw(
+    *,
+    raw: dict[str, object],
+    source_channel: str,
+    source_uri: str,
+    raw_asset: RawAssetRef | None,
+    import_source: str,
+) -> tuple[SourceObservation, ...]:
+    if "source_observations" not in raw:
+        return (
+            SourceObservation(
+                source_channel=source_channel,
+                source_uri=source_uri,
+                raw_asset=raw_asset,
+                is_primary=True,
+                import_source=import_source,
+            ),
+        )
+    observations_payload = raw.get("source_observations") or []
+    observations: list[SourceObservation] = []
+    for item in list(observations_payload):
+        if not isinstance(item, dict):
+            continue
+        observation_raw_asset = item.get("raw_asset")
+        observations.append(
+            SourceObservation(
+                source_channel=str(item.get("source_channel") or source_channel),
+                source_uri=str(item.get("source_uri") or source_uri),
+                raw_asset=(
+                    _raw_asset_ref_from_dict(observation_raw_asset)
+                    if isinstance(observation_raw_asset, dict)
+                    else None
+                ),
+                is_primary=bool(item.get("is_primary", False)),
+                import_source=str(item.get("import_source") or ""),
+            )
+        )
+    return tuple(observations)
 
 
 def _infer_legacy_source_channel(raw: dict[str, object]) -> str:

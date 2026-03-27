@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from typing import Callable
 
-from campus_contracts import DelegateToRagAgentRequest, DelegateToRagAgentResponse, ErrorInfo
+from campus_contracts import (
+    ErrorInfo,
+    RagRequestPayload,
+    RagResultPayload,
+    SpecialistRequest,
+    SpecialistResponse,
+)
 from campus_retrieval_core import CorpusQueryDisabledError, RetrievalBackendError, retrieve_sources
 
 from campus_rag_specialist.agent import RagSpecialistAgent
@@ -13,13 +19,19 @@ Retriever = Callable[..., object]
 
 
 def delegate_to_rag_agent(
-    request: DelegateToRagAgentRequest,
+    request: SpecialistRequest,
     *,
     retriever: Callable[..., object] = retrieve_sources,
-) -> DelegateToRagAgentResponse:
+) -> SpecialistResponse:
+    if request.target != "rag-specialist":
+        raise ValueError("delegate_to_rag_agent only accepts target='rag-specialist'")
+    if not isinstance(request.payload, RagRequestPayload):
+        raise TypeError("rag-specialist requires RagRequestPayload")
+
     user_goal = request.user_goal.strip()
     if not user_goal:
-        return DelegateToRagAgentResponse(
+        return SpecialistResponse(
+            target="rag-specialist",
             status="needs_clarification",
             follow_up_question="Please clarify what you want to know from the student handbook.",
         )
@@ -27,33 +39,38 @@ def delegate_to_rag_agent(
     try:
         evidence = retriever(
             user_goal,
-            corpus=request.scope.corpus,
-            collection=request.scope.collection,
+            corpus=request.payload.scope.corpus,
+            collection=request.payload.scope.collection,
             campus_scope=request.actor.campus_scope,
             acl_groups=request.actor.groups,
         )
     except CorpusQueryDisabledError as exc:
-        return DelegateToRagAgentResponse(
+        return SpecialistResponse(
+            target="rag-specialist",
             status="error",
             confidence="low",
             error=ErrorInfo(code="corpus_not_query_enabled", message=str(exc), retryable=False),
         )
     except RetrievalBackendError as exc:
-        return DelegateToRagAgentResponse(
+        return SpecialistResponse(
+            target="rag-specialist",
             status="error",
             confidence="low",
             error=ErrorInfo(code="retrieval_failed", message=str(exc), retryable=False),
         )
     if not evidence.sources:
-        return DelegateToRagAgentResponse(
+        return SpecialistResponse(
+            target="rag-specialist",
             status="no_answer",
             confidence="low",
-            evidence=evidence,
+            result=RagResultPayload(evidence=evidence),
         )
+
     agent = RagSpecialistAgent()
-    return DelegateToRagAgentResponse(
+    return SpecialistResponse(
+        target="rag-specialist",
         status="completed",
         answer_text=agent.compose_answer(evidence),
         confidence=derive_confidence(evidence),
-        evidence=evidence,
+        result=RagResultPayload(evidence=evidence),
     )

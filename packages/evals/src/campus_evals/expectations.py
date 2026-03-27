@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from campus_contracts import DelegateToRagAgentResponse
+from campus_contracts import RagResultPayload, SpecialistResponse
 
 from campus_evals.models import CaseResult, DimensionResult, ExecutionResult, GoldenCase
 
 
 def evaluate_case(case: GoldenCase, execution: ExecutionResult) -> CaseResult:
     response = execution.response
-    if not isinstance(response, DelegateToRagAgentResponse):
-        raise TypeError("execution.response must be DelegateToRagAgentResponse")
+    if not isinstance(response, SpecialistResponse):
+        raise TypeError("execution.response must be SpecialistResponse")
 
     status_result = _grade_status(case, response)
     retrieval_result = _grade_retrieval(case, response)
@@ -32,7 +32,7 @@ def evaluate_case(case: GoldenCase, execution: ExecutionResult) -> CaseResult:
     )
 
 
-def _grade_status(case: GoldenCase, response: DelegateToRagAgentResponse) -> DimensionResult:
+def _grade_status(case: GoldenCase, response: SpecialistResponse) -> DimensionResult:
     if not case.grader_policy.grade_status:
         return DimensionResult(True, "status grading disabled")
     if response.status != case.expected_status:
@@ -40,16 +40,19 @@ def _grade_status(case: GoldenCase, response: DelegateToRagAgentResponse) -> Dim
     return DimensionResult(True, "ok")
 
 
-def _grade_retrieval(case: GoldenCase, response: DelegateToRagAgentResponse) -> DimensionResult:
+def _grade_retrieval(case: GoldenCase, response: SpecialistResponse) -> DimensionResult:
     if not case.grader_policy.grade_retrieval:
         return DimensionResult(True, "retrieval grading disabled")
-    if response.evidence.corpus != case.scope.corpus or response.evidence.collection != case.scope.collection:
+    evidence = _extract_rag_evidence(response)
+    if evidence is None:
+        return DimensionResult(False, "response missing rag evidence payload")
+    if evidence.corpus != case.scope.corpus or evidence.collection != case.scope.collection:
         return DimensionResult(
             False,
-            f"evidence.scope={response.evidence.corpus}/{response.evidence.collection}",
+            f"evidence.scope={evidence.corpus}/{evidence.collection}",
         )
 
-    actual_sources = tuple(response.evidence.sources)
+    actual_sources = tuple(evidence.sources)
     for source_ref in case.expected_sources:
         if not any(_matches_source_ref(source_ref, source) for source in actual_sources):
             return DimensionResult(
@@ -65,15 +68,15 @@ def _grade_retrieval(case: GoldenCase, response: DelegateToRagAgentResponse) -> 
                 f"{(source_ref.doc_id, source_ref.version_id, source_ref.chunk_id)}",
             )
     if response.status == "completed":
-        if not response.evidence.sources:
+        if not evidence.sources:
             return DimensionResult(False, "completed response missing evidence sources")
-        for source in response.evidence.sources:
+        for source in evidence.sources:
             if not source.doc_id or not source.version_id or not source.chunk_id:
                 return DimensionResult(False, "source locator is incomplete")
     return DimensionResult(True, "ok")
 
 
-def _grade_answer(case: GoldenCase, response: DelegateToRagAgentResponse) -> DimensionResult:
+def _grade_answer(case: GoldenCase, response: SpecialistResponse) -> DimensionResult:
     if not case.grader_policy.grade_answer:
         return DimensionResult(True, "answer grading disabled")
     normalized_answer = _normalize_text(response.answer_text)
@@ -129,3 +132,9 @@ def _matches_source_ref(source_ref, source) -> bool:
     if source_ref.chunk_id is not None and source.chunk_id != source_ref.chunk_id:
         return False
     return True
+
+
+def _extract_rag_evidence(response: SpecialistResponse):
+    if not isinstance(response.result, RagResultPayload):
+        return None
+    return response.result.evidence

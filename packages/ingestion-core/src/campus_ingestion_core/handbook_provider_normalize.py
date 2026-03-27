@@ -1,11 +1,27 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
-import unicodedata
 
+from campus_ingestion_core.source_truth_common import (
+    detect_merged_cells,
+    enrich_cross_page_continuations,
+    enrich_parent_heading_hints,
+    enrich_repeated_candidates,
+    extract_html_table_grid,
+    infer_list_level_hint,
+    infer_table_column_count,
+    infer_table_header_rows,
+    infer_table_row_count,
+    is_bottom_band,
+    is_top_band,
+    normalize_bbox,
+    normalize_text,
+    serialize_layout_rows,
+)
 
-LAYOUT_ELEMENTS_SCHEMA_VERSION = "student_handbook_layout_elements_v1"
+LAYOUT_ELEMENTS_SCHEMA_VERSION = "student_handbook_layout_elements_v3"
 
 
 def normalize_handbook_provider_result(
@@ -55,11 +71,11 @@ def normalize_handbook_provider_result(
             row_index += len(page_rows)
             expected_page_id += 1
 
-    return normalized_rows
+    return _enrich_layout_rows(normalized_rows)
 
 
 def serialize_handbook_layout_elements(rows: list[dict[str, object]]) -> bytes:
-    return ("\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n").encode("utf-8")
+    return serialize_layout_rows(rows)
 
 
 def _normalize_page_rows(
@@ -78,17 +94,28 @@ def _normalize_page_rows(
     if not layout_results:
         raise ValueError(f"provider page {provider_page_id} is missing layout blocks")
 
+    page_height = _extract_page_height(page_payload)
     rows: list[dict[str, object]] = []
     for block_index, item in enumerate(layout_results, start=1):
         if not isinstance(item, dict):
             continue
-        row_type, block_role = _map_row_type(item)
         text_raw = _extract_text_raw(item)
+        text_normalized = normalize_text(text_raw)
         html = _extract_html(item)
         table_cells = _extract_table_cells(item)
+        bbox = normalize_bbox(item.get("bbox") or item.get("block_bbox") or item.get("block_polygon_points"))
+        row_type, block_role, classification_confidence, classification_reason = _classify_block(
+            item=item,
+            text_normalized=text_normalized,
+            html=html,
+            table_cells=table_cells,
+            bbox=bbox,
+            page_height=page_height,
+        )
         heading_level = _coerce_int(item.get("headingLevel"))
         if row_type == "heading" and heading_level is None:
             heading_level = 1 if block_role == "title" else None
+        table_header_rows = infer_table_header_rows(table_cells)
         rows.append(
             {
                 "schema_version": LAYOUT_ELEMENTS_SCHEMA_VERSION,
@@ -110,18 +137,47 @@ def _normalize_page_rows(
                 "block_role": block_role,
                 "heading_level": heading_level,
                 "reading_order": _coerce_int(item.get("readingOrder") or item.get("block_order")) or block_index,
-                "bbox": _normalize_bbox(item.get("bbox") or item.get("block_bbox") or item.get("block_polygon_points")),
+                "bbox": bbox,
                 "text_raw": text_raw,
-                "text_normalized": _normalize_text(text_raw),
+                "text_normalized": text_normalized,
                 "html": html,
                 "table_cells": table_cells,
-                "is_blank": not _normalize_text(text_raw) and not html and not table_cells,
+                "is_blank": not text_normalized and not html and not table_cells,
                 "is_repeated_candidate": row_type in {"header", "footer", "page_number"},
                 "title_candidate_score": 1.0 if block_role == "title" else (0.75 if row_type == "heading" else 0.0),
-                "section_hint": _normalize_text(text_raw) if row_type == "heading" else None,
+                "section_hint": text_normalized if row_type == "heading" else None,
+                "classification_confidence": classification_confidence,
+                "classification_reason": classification_reason,
+                "repeat_cluster_id": None,
+                "repeat_frequency": 0,
+                "repeat_position_band": None,
+                "parent_heading_hint": None,
+                "list_level_hint": infer_list_level_hint(text_normalized),
+                "continues_from_previous_page": False,
+                "continues_to_next_page": False,
+                "table_fragment_id": None,
+                "table_header_rows": table_header_rows,
+                "table_row_count": infer_table_row_count(table_cells),
+                "table_column_count": infer_table_column_count(table_cells),
+                "table_has_merged_cells": detect_merged_cells(table_cells),
+                "table_caption_hint": _infer_table_caption_hint(text_normalized=text_normalized, row_type=row_type),
             }
         )
     return rows
+
+
+def _extract_page_height(page_payload: dict[str, object]) -> float | None:
+    pruned_result = page_payload.get("prunedResult")
+    if isinstance(pruned_result, dict):
+        height = _coerce_float(pruned_result.get("height"))
+        if height is not None and height > 0:
+            return height
+    page_info = page_payload.get("pageInfo")
+    if isinstance(page_info, dict):
+        height = _coerce_float(page_info.get("height"))
+        if height is not None and height > 0:
+            return height
+    return None
 
 
 def _extract_page_payloads(
@@ -177,7 +233,15 @@ def _extract_page_blocks(page_payload: dict[str, object]) -> list[dict[str, obje
     return []
 
 
-def _map_row_type(item: dict[str, object]) -> tuple[str, str]:
+def _classify_block(
+    *,
+    item: dict[str, object],
+    text_normalized: str,
+    html: str | None,
+    table_cells: list[list[str]] | None,
+    bbox: list[float] | None,
+    page_height: float | None,
+) -> tuple[str, str, float, str]:
     raw_type = str(
         item.get("blockType")
         or item.get("blockRole")
@@ -186,39 +250,51 @@ def _map_row_type(item: dict[str, object]) -> tuple[str, str]:
         or ""
     ).strip().lower()
     if raw_type == "doc_title":
-        return "heading", "title"
+        return "heading", "title", 0.99, "provider_label:doc_title"
     if raw_type == "paragraph_title":
-        return "heading", "heading"
+        return "heading", "heading", 0.92, "provider_label:paragraph_title"
     if raw_type in {"title", "heading"}:
-        return "heading", "title" if raw_type == "title" else "heading"
+        return "heading", "title" if raw_type == "title" else "heading", 0.9, f"provider_label:{raw_type}"
     if raw_type in {"header"}:
-        return "header", "header"
+        return "header", "header", 0.96, "provider_label:header"
     if raw_type in {"footer"}:
-        return "footer", "footer"
+        return "footer", "footer", 0.96, "provider_label:footer"
     if raw_type in {"aside_text", "vertical_text"}:
-        return "header", "header"
+        if is_top_band(bbox=bbox, page_height=page_height) and len(text_normalized) <= 16:
+            return "paragraph", "body", 0.6, f"provider_label:{raw_type}:needs_repeat_validation"
+        return "paragraph", "body", 0.7, f"provider_label:{raw_type}:body_fallback"
     if raw_type in {"page_number", "pagenumber"}:
-        return "page_number", "page_number"
+        return "page_number", "page_number", 0.98, f"provider_label:{raw_type}"
     if raw_type == "number":
-        return "page_number", "page_number"
+        if _looks_like_page_number(text_normalized=text_normalized, bbox=bbox, page_height=page_height):
+            return "page_number", "page_number", 0.82, "provider_label:number:page_number_heuristic"
+        return "paragraph", "body", 0.55, "provider_label:number:body_fallback"
     if raw_type in {"table"}:
-        return "table", "table"
+        return "table", "table", 0.98, "provider_label:table"
     if raw_type == "header_image":
-        return "image", "header_image"
+        return "image", "header_image", 0.95, "provider_label:header_image"
     if raw_type == "footer_image":
-        return "image", "footer_image"
+        return "image", "footer_image", 0.95, "provider_label:footer_image"
     if raw_type in {"image", "figure"}:
-        return "image", "image"
+        return "image", "image", 0.92, f"provider_label:{raw_type}"
+    if raw_type in {"footnote"}:
+        return "footnote", "footnote", 0.92, "provider_label:footnote"
+    if raw_type in {"caption"}:
+        return "caption", "caption", 0.9, "provider_label:caption"
+    if raw_type in {"list", "list_item", "listitem"}:
+        return "list_item", "list_item", 0.88, f"provider_label:{raw_type}"
     if raw_type in {"text", "paragraph", "body"}:
-        return "paragraph", "body"
+        if infer_list_level_hint(text_normalized) is not None:
+            return "list_item", "list_item", 0.72, f"provider_label:{raw_type}:list_heuristic"
+        return "paragraph", "body", 0.85, f"provider_label:{raw_type}"
 
-    html = _extract_html(item)
-    table_cells = _extract_table_cells(item)
     if table_cells or (html is not None and "<table" in html.lower()):
-        return "table", "table"
-    if _extract_text_raw(item):
-        return "paragraph", "body"
-    return "unknown", "unknown"
+        return "table", "table", 0.86, "html_or_cells:table"
+    if text_normalized:
+        if infer_list_level_hint(text_normalized) is not None:
+            return "list_item", "list_item", 0.62, "text_pattern:list_item"
+        return "paragraph", "body", 0.6, "text_presence:body_fallback"
+    return "unknown", "unknown", 0.2, "no_text_or_structure"
 
 
 def _extract_text_raw(item: dict[str, object]) -> str:
@@ -254,7 +330,7 @@ def _extract_html(item: dict[str, object]) -> str | None:
 def _extract_table_cells(item: dict[str, object]) -> list[list[str]] | None:
     html = _extract_html(item)
     if html is not None and "<table" in html.lower():
-        extracted = _extract_table_cells_from_html(html)
+        extracted = extract_html_table_grid(html)
         if extracted:
             return extracted
     raw_cells = item.get("tableCells")
@@ -268,43 +344,50 @@ def _extract_table_cells(item: dict[str, object]) -> list[list[str]] | None:
     return normalized_rows or None
 
 
-def _normalize_bbox(value: object) -> list[float] | None:
-    if (
-        isinstance(value, list)
-        and value
-        and all(isinstance(item, (list, tuple)) and len(item) >= 2 for item in value)
-    ):
-        xs = [float(item[0]) for item in value if isinstance(item[0], (int, float))]
-        ys = [float(item[1]) for item in value if isinstance(item[1], (int, float))]
-        if xs and ys:
-            return [min(xs), min(ys), max(xs), max(ys)]
-    if not isinstance(value, list):
-        return None
-    normalized: list[float] = []
-    for item in value:
-        if isinstance(item, (int, float)):
-            normalized.append(float(item))
-    return normalized or None
+def _enrich_layout_rows(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    enrich_repeated_candidates(rows)
+    enrich_parent_heading_hints(rows)
+    enrich_cross_page_continuations(rows, textual_row_types=("paragraph", "list_item"))
+    _mark_table_fragments(rows)
+    return rows
 
 
-def _normalize_text(text: str) -> str:
-    normalized = unicodedata.normalize("NFKC", text.replace("\r\n", "\n").replace("\r", "\n"))
-    output_lines: list[str] = []
-    previous_blank = False
-    for raw_line in normalized.split("\n"):
-        collapsed = " ".join(raw_line.split()).strip()
-        if not collapsed:
-            if output_lines and not previous_blank:
-                output_lines.append("")
-            previous_blank = True
+def _mark_table_fragments(rows: list[dict[str, object]]) -> None:
+    previous_table: dict[str, object] | None = None
+    for row in rows:
+        if str(row.get("row_type") or "") != "table":
+            previous_table = None if not bool(row.get("continues_from_previous_page")) else previous_table
             continue
-        output_lines.append(collapsed)
-        previous_blank = False
-    while output_lines and output_lines[0] == "":
-        output_lines.pop(0)
-    while output_lines and output_lines[-1] == "":
-        output_lines.pop()
-    return "\n".join(output_lines)
+        if previous_table is not None:
+            previous_page = _coerce_int(previous_table.get("page_end"))
+            current_page = _coerce_int(row.get("page_start"))
+            same_shape = previous_table.get("table_column_count") == row.get("table_column_count")
+            if previous_page is not None and current_page is not None and current_page == previous_page + 1 and same_shape:
+                fragment_id = previous_table.get("table_fragment_id") or _build_table_fragment_id(previous_table)
+                previous_table["table_fragment_id"] = fragment_id
+                row["table_fragment_id"] = fragment_id
+        previous_table = row
+
+
+def _build_table_fragment_id(row: dict[str, object]) -> str:
+    payload = f"{row.get('source_artifact_id')}:{row.get('page_start')}:{row.get('row_id')}"
+    return f"tablefrag:{hashlib.sha1(payload.encode('utf-8')).hexdigest()[:12]}"
+
+
+def _infer_table_caption_hint(*, text_normalized: str, row_type: str) -> str | None:
+    if row_type != "table":
+        return None
+    if "申请表" in text_normalized or "登记表" in text_normalized or "备案表" in text_normalized:
+        return text_normalized
+    return None
+
+
+def _looks_like_page_number(*, text_normalized: str, bbox: list[float] | None, page_height: float | None) -> bool:
+    if not text_normalized.isdigit():
+        return False
+    if len(text_normalized) > 4:
+        return False
+    return is_bottom_band(bbox=bbox, page_height=page_height)
 
 
 def _coerce_int(value: object) -> int | None:
@@ -335,19 +418,3 @@ def _slugify_filename(filename: str) -> str:
     while "--" in slug:
         slug = slug.replace("--", "-")
     return slug or "document"
-
-
-def _extract_table_cells_from_html(html: str) -> list[list[str]] | None:
-    import re
-
-    rows = re.findall(r"<tr\b[^>]*>(.*?)</tr>", html, flags=re.IGNORECASE | re.DOTALL)
-    if not rows:
-        return None
-    table_rows: list[list[str]] = []
-    for row_html in rows:
-        cells = re.findall(r"<t[dh]\b[^>]*>(.*?)</t[dh]>", row_html, flags=re.IGNORECASE | re.DOTALL)
-        normalized_cells = [_normalize_text(re.sub(r"<[^>]+>", "", cell)) for cell in cells]
-        normalized_cells = [cell for cell in normalized_cells if cell]
-        if normalized_cells:
-            table_rows.append(normalized_cells)
-    return table_rows or None

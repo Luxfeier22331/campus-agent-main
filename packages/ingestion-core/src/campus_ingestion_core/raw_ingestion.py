@@ -32,8 +32,10 @@ from campus_ingestion_core.campusrag_ingestion_support import (
 )
 from campus_ingestion_core.curriculum_provider_normalize import normalize_curriculum_provider_result
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
+from campus_ingestion_core.handbook_source_projections import build_handbook_projection_import_documents
 from campus_ingestion_core.handbook_cleanup import (
     cleanup_handbook_document,
+    validate_handbook_manifest_title,
     serialize_handbook_document_units,
 )
 from campus_ingestion_core.handbook_provider_normalize import (
@@ -41,7 +43,12 @@ from campus_ingestion_core.handbook_provider_normalize import (
     serialize_handbook_layout_elements,
 )
 from campus_ingestion_core.models import RawAssetRecord
-from campus_ingestion_core.object_store import build_processed_asset_artifact_key, infer_year_label
+from campus_ingestion_core.object_store import (
+    build_source_model_slug,
+    build_source_ocr_artifact_key,
+    build_source_truth_artifact_key,
+    infer_year_label,
+)
 from campus_ingestion_core.registry import (
     DocumentRegistry,
     RawAssetRegistry,
@@ -59,7 +66,7 @@ DEFAULT_RAW_ONLINE_OCR_PARSER_VERSION = "paddleocr-vl-1.5"
 DEFAULT_INGESTION_CORPUS = DEFAULT_CORPUS
 DEFAULT_INGESTION_COLLECTION = DEFAULT_COLLECTION
 DEFAULT_RAW_INGESTION_ARTIFACT_MODE = "normalized"
-ALLOWED_RAW_INGESTION_ARTIFACT_MODES = ("normalized", "provider_only")
+ALLOWED_RAW_INGESTION_ARTIFACT_MODES = ("normalized", "source_truth_only")
 DEFAULT_ONLINE_OCR_PROVIDER = "paddleocr_async"
 SPLIT_MANIFEST_LAYOUT_ELEMENTS_SCHEMA_VERSION = "split_manifest_layout_elements_v1"
 
@@ -206,9 +213,9 @@ class RawIngestionProcessSettings:
             raise ValueError(
                 f"{corpus}/{collection} does not support RAW_INGESTION_ARTIFACT_MODE={artifact_mode}"
             )
-        if artifact_mode == "provider_only" and split_manifest_path_value:
-            raise ValueError("provider_only does not support split manifest ingestion")
-        if artifact_mode != "provider_only" and profile.split_manifest_required and not split_manifest_path_value:
+        if artifact_mode == "source_truth_only" and split_manifest_path_value:
+            raise ValueError("source_truth_only does not support split manifest ingestion")
+        if artifact_mode != "source_truth_only" and profile.split_manifest_required and not split_manifest_path_value:
             raise ValueError(
                 f"INGESTION_SPLIT_MANIFEST_PATH is required for {corpus}/{collection} raw ingestion"
             )
@@ -236,15 +243,16 @@ def process_raw_ingestion_job(
     registry: DocumentRegistry | None = None,
     raw_asset_registry: RawAssetRegistry | None = None,
 ) -> ImportReport:
-    settings = RawIngestionProcessSettings.from_env(env)
-    raw_asset_registry = raw_asset_registry or build_raw_asset_registry_from_env(env)
+    source = dict(env if env is not None else os.environ)
+    settings = RawIngestionProcessSettings.from_env(source)
+    raw_asset_registry = raw_asset_registry or build_raw_asset_registry_from_env(source)
     writer = object_store or S3ObjectStoreClient(settings.object_store)
     if not hasattr(writer, "get_bytes"):
         raise TypeError("object_store must support get_bytes for process_raw_ingestion_job")
     ocr_client = online_ocr or PaddleOcrAsyncClient(settings.online_ocr)
     raw_asset_record = _resolve_registered_raw_asset(settings=settings, raw_asset_registry=raw_asset_registry)
-    if settings.artifact_mode == "provider_only":
-        return _persist_provider_only_ocr_results(
+    if settings.artifact_mode == "source_truth_only":
+        return _persist_source_truth_only_ocr_results(
             settings=settings,
             writer=writer,
             reader=writer,  # type: ignore[arg-type]
@@ -253,7 +261,7 @@ def process_raw_ingestion_job(
             raw_asset_record=raw_asset_record,
         )
 
-    registry = registry or build_document_registry_from_env(env)
+    registry = registry or build_document_registry_from_env(source)
     split_manifest = (
         load_split_manifest(
             settings.split_manifest_path,
@@ -268,6 +276,11 @@ def process_raw_ingestion_job(
             "INGESTION_SPLIT_MANIFEST_PATH is required for "
             f"{settings.corpus}/{settings.collection} raw ingestion"
         )
+    if split_manifest.raw_asset_id != raw_asset_record.raw_asset_id:
+        raise ValueError(
+            "split manifest raw_asset_id mismatch: "
+            f"expected {raw_asset_record.raw_asset_id}, got {split_manifest.raw_asset_id}"
+        )
 
     documents: list[DocumentImportInput] = []
     errors: list[str] = []
@@ -275,24 +288,25 @@ def process_raw_ingestion_job(
         provider_result = _parse_registered_raw_asset(
             raw_asset_record=raw_asset_record,
             reader=writer,  # type: ignore[arg-type]
-            bucket=settings.object_store.bucket_raw,
+            bucket=settings.object_store.bucket_source,
             ocr_client=ocr_client,
         )
 
         if settings.collection == "student_handbook":
-            documents.extend(
-                _build_handbook_split_manifest_documents(
-                    raw_asset_record=raw_asset_record,
-                    provider_result=provider_result,
-                    split_manifest=split_manifest,
-                    writer=writer,
-                    object_store=settings.object_store,
-                    default_campus_scope=settings.default_campus_scope,
-                    corpus=settings.corpus,
-                    collection=settings.collection,
-                    ocr_model=settings.online_ocr.model,
-                )
+            handbook_documents, handbook_errors = _build_handbook_split_manifest_documents(
+                raw_asset_record=raw_asset_record,
+                provider_result=provider_result,
+                split_manifest=split_manifest,
+                writer=writer,
+                object_store=settings.object_store,
+                default_campus_scope=settings.default_campus_scope,
+                corpus=settings.corpus,
+                collection=settings.collection,
+                ocr_model=settings.online_ocr.model,
+                source=source,
             )
+            documents.extend(handbook_documents)
+            errors.extend(handbook_errors)
         else:
             documents.extend(
                 _build_split_manifest_documents(
@@ -327,7 +341,7 @@ def process_raw_ingestion_job(
     )
 
 
-def _persist_provider_only_ocr_results(
+def _persist_source_truth_only_ocr_results(
     *,
     settings: RawIngestionProcessSettings,
     writer: ObjectStoreWriter,
@@ -346,23 +360,53 @@ def _persist_provider_only_ocr_results(
         parse_result = _parse_registered_raw_asset(
             raw_asset_record=raw_asset_record,
             reader=reader,
-            bucket=settings.object_store.bucket_raw,
+            bucket=settings.object_store.bucket_source,
             ocr_client=ocr_client,
         )
         raw_reused_count = 1 if raw_asset_registry.get(raw_asset_record.raw_asset_id, raw_asset_record.raw_version_id) else 0
-        provider_response_key = build_processed_asset_artifact_key(
-            corpus=settings.corpus,
+        provider_response_key = build_source_ocr_artifact_key(
             raw_asset_id=raw_asset_record.raw_asset_id,
             raw_version_id=raw_asset_record.raw_version_id,
             filename=PROVIDER_RESPONSE_FILENAME,
+            model_slug=build_source_model_slug(settings.online_ocr.model),
             year=infer_year_label(raw_asset_record.source_filename),
         )
         writer.put_bytes(
-            bucket=settings.object_store.bucket_processed,
+            bucket=settings.object_store.bucket_source,
             key=provider_response_key,
             data=parse_result.provider_result_bytes,
             content_type="application/x-ndjson",
         )
+        layout_elements_bytes: bytes | None = None
+        if settings.collection == "curriculum_plan":
+            layout_elements_bytes = normalize_curriculum_provider_result(
+                provider_jsonl_bytes=parse_result.provider_result_bytes,
+                source_pdf=raw_asset_record.source_filename,
+                ocr_model=settings.online_ocr.model,
+            )
+        elif settings.collection == "student_handbook":
+            layout_elements_bytes = serialize_handbook_layout_elements(
+                normalize_handbook_provider_result(
+                    source_pdf=raw_asset_record.source_filename,
+                    provider_jsonl_bytes=parse_result.provider_result_bytes,
+                    ocr_provider=DEFAULT_ONLINE_OCR_PROVIDER,
+                    ocr_model=settings.online_ocr.model,
+                    source_artifact_id=raw_asset_record.raw_asset_id,
+                )
+            )
+        if layout_elements_bytes is not None:
+            layout_elements_key = build_source_truth_artifact_key(
+                raw_asset_id=raw_asset_record.raw_asset_id,
+                raw_version_id=raw_asset_record.raw_version_id,
+                filename=LAYOUT_ELEMENTS_FILENAME,
+                year=infer_year_label(raw_asset_record.source_filename),
+            )
+            writer.put_bytes(
+                bucket=settings.object_store.bucket_source,
+                key=layout_elements_key,
+                data=layout_elements_bytes,
+                content_type="application/x-ndjson",
+            )
         success_count = 1
     except Exception as exc:
         failed_count = 1
@@ -422,6 +466,7 @@ def _build_split_manifest_documents(
         raw_asset_id=raw_asset_record.raw_asset_id,
         raw_version_id=raw_asset_record.raw_version_id,
         source_filename=raw_asset_record.source_filename,
+        ocr_model=ocr_model,
         provider_response_bytes=provider_result.provider_result_bytes,
         layout_elements_bytes=layout_elements_bytes,
     )
@@ -443,6 +488,7 @@ def _build_split_manifest_documents(
 
 def _build_handbook_split_manifest_documents(
     *,
+    source: dict[str, str],
     raw_asset_record: RawAssetRecord,
     provider_result: OnlineOcrProviderResult,
     split_manifest: SplitManifest,
@@ -452,7 +498,7 @@ def _build_handbook_split_manifest_documents(
     corpus: str,
     collection: str,
     ocr_model: str,
-) -> list[DocumentImportInput]:
+) -> tuple[list[DocumentImportInput], list[str]]:
     structured_rows = normalize_handbook_provider_result(
         source_pdf=raw_asset_record.source_filename,
         provider_jsonl_bytes=provider_result.provider_result_bytes,
@@ -468,22 +514,42 @@ def _build_handbook_split_manifest_documents(
         raw_asset_id=raw_asset_record.raw_asset_id,
         raw_version_id=raw_asset_record.raw_version_id,
         source_filename=raw_asset_record.source_filename,
+        ocr_model=ocr_model,
         provider_response_bytes=provider_result.provider_result_bytes,
         layout_elements_bytes=layout_elements_bytes,
     )
-    return [
-        _build_handbook_manifest_document_input(
-            raw_asset_record=raw_asset_record,
-            manifest_document=document,
-            structured_rows=structured_rows,
-            provider_response_key=provider_response_key,
-            layout_elements_key=layout_elements_key,
-            default_campus_scope=default_campus_scope,
-            corpus=corpus,
-            collection=collection,
+    documents: list[DocumentImportInput] = []
+    errors: list[str] = []
+    for document in split_manifest.documents:
+        try:
+            documents.append(
+                _build_handbook_manifest_document_input(
+                    raw_asset_record=raw_asset_record,
+                    manifest_document=document,
+                    structured_rows=structured_rows,
+                    provider_response_key=provider_response_key,
+                    layout_elements_key=layout_elements_key,
+                    default_campus_scope=default_campus_scope,
+                    corpus=corpus,
+                    collection=collection,
+                )
+            )
+        except Exception as exc:
+            errors.append(f"{raw_asset_record.object_key}#{document.document_id}: {exc}")
+    try:
+        documents.extend(
+            build_handbook_projection_import_documents(
+                source=source,
+                raw_asset_record=raw_asset_record,
+                provider_response_key=provider_response_key,
+                layout_elements_key=layout_elements_key,
+                structured_rows=structured_rows,
+                split_manifest_documents=split_manifest.documents,
+            )
         )
-        for document in split_manifest.documents
-    ]
+    except Exception as exc:
+        errors.append(f"{raw_asset_record.object_key}#declared-projections: {exc}")
+    return documents, errors
 
 
 def _write_processed_asset_artifacts(
@@ -494,32 +560,32 @@ def _write_processed_asset_artifacts(
     raw_asset_id: str,
     raw_version_id: str,
     source_filename: str,
+    ocr_model: str,
     provider_response_bytes: bytes,
     layout_elements_bytes: bytes,
 ) -> tuple[str, str]:
     year = infer_year_label(source_filename)
-    provider_response_key = build_processed_asset_artifact_key(
-        corpus=corpus,
+    provider_response_key = build_source_ocr_artifact_key(
         raw_asset_id=raw_asset_id,
         raw_version_id=raw_version_id,
         filename=PROVIDER_RESPONSE_FILENAME,
+        model_slug=build_source_model_slug(ocr_model),
         year=year,
     )
-    layout_elements_key = build_processed_asset_artifact_key(
-        corpus=corpus,
+    layout_elements_key = build_source_truth_artifact_key(
         raw_asset_id=raw_asset_id,
         raw_version_id=raw_version_id,
         filename=LAYOUT_ELEMENTS_FILENAME,
         year=year,
     )
     writer.put_bytes(
-        bucket=object_store.bucket_processed,
+        bucket=object_store.bucket_source,
         key=provider_response_key,
         data=provider_response_bytes,
         content_type="application/x-ndjson",
     )
     writer.put_bytes(
-        bucket=object_store.bucket_processed,
+        bucket=object_store.bucket_source,
         key=layout_elements_key,
         data=layout_elements_bytes,
         content_type="application/x-ndjson",
@@ -538,6 +604,10 @@ def _build_handbook_manifest_document_input(
     corpus: str,
     collection: str,
 ) -> DocumentImportInput:
+    validate_handbook_manifest_title(
+        structured_rows=structured_rows,
+        manifest_document=manifest_document,
+    )
     cleanup_result = cleanup_handbook_document(
         structured_rows=structured_rows,
         manifest_document=manifest_document,
@@ -559,7 +629,7 @@ def _build_handbook_manifest_document_input(
         import_source="raw_online_ocr",
         revision_track="source-faithful",
         source_channel="pdf_ocr",
-        is_current=False,
+        is_current=True,
         corpus=corpus,
         collection=collection,
         campus_scope=manifest_document.campus_scope or default_campus_scope,
@@ -620,7 +690,7 @@ def _build_split_manifest_document_input(
         import_source="raw_online_ocr",
         revision_track="source-faithful",
         source_channel="pdf_ocr",
-        is_current=False,
+        is_current=True,
         corpus=corpus,
         collection=collection,
         campus_scope=manifest_document.campus_scope or default_campus_scope,
@@ -731,7 +801,7 @@ def _build_manifest_document_source_uri(
     raw_asset_slug = _split_document_slug(raw_asset_id)
     raw_version_path = "/".join(part.strip() for part in raw_version_id.split(":") if part.strip())
     return (
-        f"campusrag://source/{corpus}/{raw_asset_slug}/{raw_version_path}/pages/{page_start}-{page_end}"
+        f"campusrag://source/{corpus}/{raw_asset_slug}/{raw_version_path}/capture/pages/{page_start}-{page_end}"
     )
 
 
@@ -794,7 +864,7 @@ def _transform_split_row(
     clean_text = _split_manifest_row_text(row)
     if not clean_text:
         return None
-    source_chunk_id = _normalize_optional_text(row.get("chunk_id")) or f"page-{page_start:04d}"
+    source_chunk_id = _normalize_optional_text(row.get("row_id")) or f"page-{page_start:04d}"
     return {
         "doc_id": document_id,
         "version_id": version_id,
@@ -885,7 +955,7 @@ def _normalize_source_text(text: str) -> str:
 
 
 def _split_manifest_row_text(row: dict[str, object]) -> str:
-    for field_name in ("clean_text", "text_normalized", "text_raw", "html"):
+    for field_name in ("text_normalized", "text_raw", "html"):
         value = row.get(field_name)
         if isinstance(value, str) and value.strip():
             return value.strip()

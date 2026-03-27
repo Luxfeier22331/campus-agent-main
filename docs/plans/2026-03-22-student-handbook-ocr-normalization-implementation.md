@@ -14,7 +14,16 @@ updated: 2026-03-22
 **Architecture:** handbook 的主输入固定为 processed 层 OCR 产物 `provider-response.jsonl`。实现上先新增 asset-level provider normalization contract，再把文档边界恢复、canonical cleaning、document-level `document-units.jsonl` 生成接入 `raw_ingestion`，最后用回归测试锁住 identity、page range、unit typing 和 object-store artifact shape。
 
 ## Migration note
-本计划在 `regulations` 架构统一前撰写，它的正文还把 `student_handbook` 作为长期 corpus 定位并使用旧的 `revision_track` 术语。当前主线要求长期语义使用 `corpus + collection`，processed bucket 语义收敛为 `{corpus}/sources/{source_channel}/{source_asset_slug}/{year}/{ingest_id}/...` 与 `{corpus}/documents/{collection}/{title_slug}--{docid8}/{representation}/{year}/...`，`student_handbook` 仅作为 collection/source-set 标签存在，原 `revision_track` 语义已改为 `representation`。请在引用此计划时把路径和命名替换为最新架构，以避免把旧路径误当作现行真相。
+本计划在 `regulations` 架构统一前撰写，它的正文还把 `student_handbook` 作为长期 corpus 定位并使用旧的 `revision_track` 术语。当前主线要求长期语义使用 `corpus + collection`，其中 handbook scope 为 `regulations/student_handbook`。当前 canonical object storage 形态已经收敛为：
+
+- source bucket:
+  - `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/capture/{original_filename}`
+  - `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/provider/{provider_slug}/{artifact_filename}`
+  - `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/source-truth/{artifact_filename}`
+- derived bucket:
+  - `{corpus}/documents/{collection}/{title_slug}--{docid8}/{representation}/{year}/{artifact_filename}`
+
+`student_handbook` 仅作为 collection/source-set 标签存在，原 `revision_track` 语义已改为 `representation`。请在引用此计划时把路径和命名替换为最新架构，以避免把旧路径误当作现行真相。
 
 **Tech Stack:** Python 3.12, uv workspace, unittest/pytest via `uv run --all-packages`, JSON/JSONL, existing `campus_ingestion_core`, `split_manifest`, object store / registry integration, handbook canonical conventions from `campusRAG`
 
@@ -247,7 +256,7 @@ UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m pytest tests/ingestio
   - 写 asset-level `provider-response.jsonl` 与 `layout-elements.jsonl`
   - 再按 manifest 逐文档 cleanup，生成 document-level `document-units.jsonl`
   - 逐文档调用 registry 持久化，而不是把整份 handbook 当一个 document
-- 保持 `provider_only` 与 `normalized` 的 phase-1 artifact 语义清晰，不新增临时兼容层。
+- 保持 `source_truth_only` 与 `normalized` 的 phase-1 artifact 语义清晰，不新增临时兼容层。
 
 **Step 4: 运行测试到通过**
 

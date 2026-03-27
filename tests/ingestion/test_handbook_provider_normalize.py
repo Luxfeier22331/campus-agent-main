@@ -101,7 +101,7 @@ class HandbookProviderNormalizeTest(unittest.TestCase):
     def test_normalize_rejects_non_json_line(self) -> None:
         with self.assertRaisesRegex(ValueError, "JSON"):
             normalize_handbook_provider_result(
-                source_pdf="student-handbook.pdf",
+                source_pdf="学生手册_2018.pdf",
                 provider_jsonl_bytes=(
                     _provider_batch(
                         _provider_pruned_page(
@@ -135,7 +135,7 @@ class HandbookProviderNormalizeTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "page count"):
             normalize_handbook_provider_result(
-                source_pdf="student-handbook.pdf",
+                source_pdf="学生手册_2018.pdf",
                 provider_jsonl_bytes=provider_jsonl,
                 ocr_provider="paddleocr_async",
                 ocr_model="PaddleOCR-VL-1.5",
@@ -151,7 +151,7 @@ class HandbookProviderNormalizeTest(unittest.TestCase):
         ).encode("utf-8")
 
         rows = normalize_handbook_provider_result(
-            source_pdf="student-handbook.pdf",
+            source_pdf="学生手册_2018.pdf",
             provider_jsonl_bytes=provider_jsonl,
             ocr_provider="paddleocr_async",
             ocr_model="PaddleOCR-VL-1.5",
@@ -173,7 +173,7 @@ class HandbookProviderNormalizeTest(unittest.TestCase):
         ).encode("utf-8")
 
         rows = normalize_handbook_provider_result(
-            source_pdf="student-handbook.pdf",
+            source_pdf="学生手册_2018.pdf",
             provider_jsonl_bytes=provider_jsonl,
             ocr_provider="paddleocr_async",
             ocr_model="PaddleOCR-VL-1.5",
@@ -200,8 +200,21 @@ class HandbookProviderNormalizeTest(unittest.TestCase):
         )
         self.assertEqual(row["text_raw"], "  第 一 条 \n\n 内容  ")
         self.assertEqual(row["text_normalized"], "第 一 条\n\n内容")
+        self.assertEqual(row["schema_version"], "student_handbook_layout_elements_v3")
         self.assertEqual(row["corpus"], "regulations")
         self.assertEqual(row["collection"], "student_handbook")
+        self.assertIn("classification_confidence", row)
+        self.assertIn("classification_reason", row)
+        self.assertIn("repeat_cluster_id", row)
+        self.assertIn("repeat_frequency", row)
+        self.assertIn("repeat_position_band", row)
+        self.assertIn("continues_from_previous_page", row)
+        self.assertIn("continues_to_next_page", row)
+        self.assertIn("table_fragment_id", row)
+        self.assertIn("table_header_rows", row)
+        self.assertIn("table_row_count", row)
+        self.assertIn("table_column_count", row)
+        self.assertIn("table_has_merged_cells", row)
         self.assertNotIn("doc_id", row)
         self.assertNotIn("version_id", row)
         self.assertEqual(
@@ -226,7 +239,7 @@ class HandbookProviderNormalizeTest(unittest.TestCase):
         ).encode("utf-8")
 
         rows = normalize_handbook_provider_result(
-            source_pdf="student-handbook.pdf",
+            source_pdf="学生手册_2018.pdf",
             provider_jsonl_bytes=provider_jsonl,
             ocr_provider="paddleocr_async",
             ocr_model="PaddleOCR-VL-1.5",
@@ -238,11 +251,15 @@ class HandbookProviderNormalizeTest(unittest.TestCase):
         self.assertEqual(rows[1]["block_role"], "table")
         self.assertEqual(rows[1]["table_cells"], [["项目", "说明"]])
         self.assertEqual(rows[1]["html"], "<table><tr><td>项目</td><td>说明</td></tr></table>")
+        self.assertEqual(rows[1]["table_row_count"], 1)
+        self.assertEqual(rows[1]["table_column_count"], 2)
+        self.assertEqual(rows[1]["table_header_rows"], [["项目", "说明"]])
+        self.assertIsNone(rows[1]["table_fragment_id"])
 
     def test_normalize_rejects_removed_legacy_single_page_payload(self) -> None:
         with self.assertRaisesRegex(ValueError, "batch provider payload"):
             normalize_handbook_provider_result(
-                source_pdf="student-handbook.pdf",
+                source_pdf="学生手册_2018.pdf",
                 provider_jsonl_bytes=(
                     _provider_page(1, _provider_block("text", "第一页正文", block_id="b-1")) + "\n"
                 ).encode("utf-8"),
@@ -266,7 +283,7 @@ class HandbookProviderNormalizeTest(unittest.TestCase):
         ).encode("utf-8")
 
         rows = normalize_handbook_provider_result(
-            source_pdf="student-handbook.pdf",
+            source_pdf="学生手册_2018.pdf",
             provider_jsonl_bytes=provider_jsonl,
             ocr_provider="paddleocr_async",
             ocr_model="PaddleOCR-VL-1.5",
@@ -290,7 +307,7 @@ class HandbookProviderNormalizeTest(unittest.TestCase):
         ).encode("utf-8")
 
         rows = normalize_handbook_provider_result(
-            source_pdf="student-handbook.pdf",
+            source_pdf="学生手册_2018.pdf",
             provider_jsonl_bytes=provider_jsonl,
             ocr_provider="paddleocr_async",
             ocr_model="PaddleOCR-VL-1.5",
@@ -305,7 +322,7 @@ class HandbookProviderNormalizeTest(unittest.TestCase):
             _provider_batch(
                 _provider_pruned_page(
                     _provider_parsing_block("aside_text", "学生手册", block_id="p1-aside", block_order=1),
-                    _provider_parsing_block("number", "261", block_id="p1-no", block_order=2),
+                    _provider_parsing_block("number", "261", block_id="p1-no", block_order=2, block_bbox=[360, 1090, 420, 1130]),
                     _provider_parsing_block("paragraph_title", "中央民族大学校内常用电话", block_id="p1-title", block_order=3),
                     _provider_parsing_block(
                         "table",
@@ -319,15 +336,89 @@ class HandbookProviderNormalizeTest(unittest.TestCase):
         ).encode("utf-8")
 
         rows = normalize_handbook_provider_result(
-            source_pdf="student-handbook.pdf",
+            source_pdf="学生手册_2018.pdf",
             provider_jsonl_bytes=provider_jsonl,
             ocr_provider="paddleocr_async",
             ocr_model="PaddleOCR-VL-1.5",
         )
 
-        self.assertEqual([row["row_type"] for row in rows], ["header", "page_number", "heading", "table"])
+        self.assertEqual([row["row_type"] for row in rows], ["paragraph", "page_number", "heading", "table"])
         self.assertEqual(rows[2]["block_role"], "heading")
         self.assertEqual(rows[3]["table_cells"], [["单位名称", "电话号码"], ["校园110", "68932220"]])
+
+    def test_normalize_marks_repeated_header_candidates_via_cross_page_frequency(self) -> None:
+        provider_jsonl = (
+            _provider_batch(
+                _provider_pruned_page(
+                    _provider_parsing_block("aside_text", "学生手册", block_id="p1-header", block_order=1, block_bbox=[0, 0, 120, 18]),
+                    _provider_parsing_block("text", "第一页正文", block_id="p1-body", block_order=2, block_bbox=[0, 120, 300, 180]),
+                ),
+                _provider_pruned_page(
+                    _provider_parsing_block("aside_text", "学生手册", block_id="p2-header", block_order=1, block_bbox=[0, 0, 120, 18]),
+                    _provider_parsing_block("text", "第二页正文", block_id="p2-body", block_order=2, block_bbox=[0, 120, 300, 180]),
+                ),
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        rows = normalize_handbook_provider_result(
+            source_pdf="学生手册_2018.pdf",
+            provider_jsonl_bytes=provider_jsonl,
+            ocr_provider="paddleocr_async",
+            ocr_model="PaddleOCR-VL-1.5",
+        )
+
+        header_rows = [row for row in rows if row["text_normalized"] == "学生手册"]
+        self.assertEqual(len(header_rows), 2)
+        self.assertTrue(all(bool(row["is_repeated_candidate"]) for row in header_rows))
+        self.assertTrue(all(row["repeat_frequency"] == 2 for row in header_rows))
+        self.assertTrue(all(row["repeat_position_band"] == "top" for row in header_rows))
+        self.assertTrue(all(isinstance(row["repeat_cluster_id"], str) and row["repeat_cluster_id"] for row in header_rows))
+
+    def test_normalize_does_not_force_number_into_page_number_when_not_bottom_aligned(self) -> None:
+        provider_jsonl = (
+            _provider_batch(
+                _provider_pruned_page(
+                    _provider_parsing_block("number", "2024", block_id="p1-number", block_order=2, block_bbox=[120, 300, 180, 340]),
+                )
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        rows = normalize_handbook_provider_result(
+            source_pdf="学生手册_2018.pdf",
+            provider_jsonl_bytes=provider_jsonl,
+            ocr_provider="paddleocr_async",
+            ocr_model="PaddleOCR-VL-1.5",
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["row_type"], "paragraph")
+        self.assertEqual(rows[0]["block_role"], "body")
+        self.assertFalse(bool(rows[0]["is_repeated_candidate"]))
+
+    def test_normalize_sets_continuation_hints_for_cross_page_sentence(self) -> None:
+        provider_jsonl = (
+            _provider_batch(
+                _provider_pruned_page(
+                    _provider_parsing_block("text", "第一条 学生应当遵守学校规定，", block_id="p1-body", block_order=1, block_bbox=[0, 120, 300, 180]),
+                ),
+                _provider_pruned_page(
+                    _provider_parsing_block("text", "积极参与校园活动。", block_id="p2-body", block_order=1, block_bbox=[0, 120, 300, 180]),
+                ),
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        rows = normalize_handbook_provider_result(
+            source_pdf="学生手册_2018.pdf",
+            provider_jsonl_bytes=provider_jsonl,
+            ocr_provider="paddleocr_async",
+            ocr_model="PaddleOCR-VL-1.5",
+        )
+
+        self.assertTrue(bool(rows[0]["continues_to_next_page"]))
+        self.assertTrue(bool(rows[1]["continues_from_previous_page"]))
 
 
 if __name__ == "__main__":

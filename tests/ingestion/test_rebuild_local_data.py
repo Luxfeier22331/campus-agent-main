@@ -1,11 +1,25 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from campus_ingestion_core.local_rebuild import migrate_student_handbook_source_faithful, rebuild_local_data
-from campus_ingestion_core.models import RawAssetRecord
+from campus_ingestion_core.local_rebuild import (
+    RebuildRequest,
+    StudentHandbookSourceAssetRequest,
+    _build_qdrant_client,
+    _resolve_ingestion_qdrant_timeout_seconds,
+    migrate_student_handbook_source_faithful,
+    rebuild_local_data,
+)
+from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
+from campus_retrieval_core.settings import RetrievalSettings
+
+SOURCE_BUCKET = "campus-rag-source"
+DERIVED_BUCKET = "campus-rag-derived"
 
 
 class _FakeObjectStoreAdmin:
@@ -109,7 +123,224 @@ class _FakeDocumentRegistryWithRecords(_FakeDocumentRegistry):
         )
 
 
+class _MutableFakeDocumentRegistry(_FakeDocumentRegistry):
+    def __init__(self, *records: DocumentRegistryRecord) -> None:
+        super().__init__()
+        self.records: dict[tuple[str, str, str], DocumentRegistryRecord] = {
+            (record.document_id, record.revision_track, record.version_id): record
+            for record in records
+        }
+
+    def list_by_corpus(self, corpus: str) -> tuple[DocumentRegistryRecord, ...]:
+        return tuple(record for record in self.records.values() if record.corpus == corpus)
+
+    def list_by_scope(self, corpus: str, collection: str | None = None) -> tuple[DocumentRegistryRecord, ...]:
+        return tuple(
+            record
+            for record in self.records.values()
+            if record.corpus == corpus and (collection is None or record.collection == collection)
+        )
+
+    def upsert(self, record: DocumentRegistryRecord) -> None:
+        self.records[(record.document_id, record.revision_track, record.version_id)] = record
+
+    def upsert_many(self, records: tuple[DocumentRegistryRecord, ...]) -> None:
+        for record in records:
+            self.upsert(record)
+
+
 class RebuildLocalDataTest(unittest.TestCase):
+    def test_resolve_ingestion_qdrant_timeout_defaults_to_offline_budget(self) -> None:
+        self.assertEqual(
+            _resolve_ingestion_qdrant_timeout_seconds(source={}, default_timeout_seconds=10.0),
+            60.0,
+        )
+        self.assertEqual(
+            _resolve_ingestion_qdrant_timeout_seconds(source={}, default_timeout_seconds=90.0),
+            90.0,
+        )
+
+    def test_resolve_ingestion_qdrant_timeout_honors_override(self) -> None:
+        self.assertEqual(
+            _resolve_ingestion_qdrant_timeout_seconds(
+                source={"INGESTION_QDRANT_TIMEOUT_SECONDS": "25"},
+                default_timeout_seconds=10.0,
+            ),
+            25.0,
+        )
+        with self.assertRaisesRegex(ValueError, "INGESTION_QDRANT_TIMEOUT_SECONDS"):
+            _resolve_ingestion_qdrant_timeout_seconds(
+                source={"INGESTION_QDRANT_TIMEOUT_SECONDS": "0"},
+                default_timeout_seconds=10.0,
+            )
+
+    @patch("campus_ingestion_core.local_rebuild.QdrantClient")
+    def test_build_qdrant_client_uses_ingestion_timeout_budget(self, qdrant_client) -> None:
+        settings = RetrievalSettings(
+            qdrant_url="https://qdrant.example.com",
+            qdrant_api_key="test-key",
+            qdrant_timeout_seconds=10.0,
+            qdrant_collection="student_handbook",
+        )
+
+        client = _build_qdrant_client(settings, source={})
+
+        self.assertIs(client, qdrant_client.return_value)
+        qdrant_client.assert_called_once_with(
+            url="https://qdrant.example.com",
+            api_key="test-key",
+            timeout=60.0,
+            cloud_inference=True,
+        )
+
+    def test_rebuild_provider_response_replay_accepts_typed_request_without_source_specific_env(self) -> None:
+        object_store = _FakeObjectStoreAdmin()
+        document_registry = _FakeDocumentRegistry()
+        raw_asset_registry = _FakeRawAssetRegistry()
+        calls: list[dict[str, str]] = []
+
+        report = rebuild_local_data(
+            env={
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+            },
+            request=RebuildRequest(
+                corpus="regulations",
+                collection="student_handbook",
+                import_mode="provider_response_replay",
+                raw_version_id="sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
+            ),
+            object_store=object_store,
+            document_registry=document_registry,
+            raw_asset_registry=raw_asset_registry,
+            import_runner=lambda **kwargs: calls.append(kwargs["env"]) or {"status": "replay"},
+        )
+
+        self.assertEqual(object_store.cleared_prefixes, [])
+        self.assertEqual(document_registry.deleted_scopes, [])
+        self.assertEqual(raw_asset_registry.deleted_scopes, [])
+        self.assertEqual(len(calls), 1)
+        self.assertNotIn("REBUILD_PROVIDER_RESPONSE_KEY", calls[0])
+        self.assertNotIn("REBUILD_PROVIDER_RESPONSE_KEY", report.import_context)
+        self.assertEqual(
+            report.import_context["INGESTION_SPLIT_MANIFEST_PATH"],
+            str(Path("configs/ingestion/regulations/student_handbook/split-manifest.v1.json").resolve()),
+        )
+        self.assertNotIn("OBJECT_STORE_SECRET_KEY", report.import_context)
+
+    def test_rebuild_provider_response_replay_clears_declared_downstream_projection_artifacts(self) -> None:
+        object_store = _FakeObjectStoreAdmin()
+        projection_config = {
+            "schema_version": "student_handbook_source_projections_v1",
+            "source_corpus": "regulations",
+            "source_collection": "student_handbook",
+            "raw_asset_id": "asset:student-handbook-pdf",
+            "source_truth_artifacts": [
+                "provider-response.jsonl",
+                "layout-elements.jsonl",
+                "split-manifest.v1.json",
+                "per-document source rows",
+            ],
+            "rebuild_boundary": "source_truth",
+            "rebuild_rule": "When canonical source truth exists, downstream rebuild must reuse source truth and must not return to raw.",
+            "derived_document_fields": [
+                "projection_name",
+                "derived_from_raw_asset_id",
+                "derived_from_raw_version_id",
+                "derived_from",
+                "derived_from_document_id",
+                "parent_document_id",
+                "attachment_kind",
+                "attachment_role",
+            ],
+            "projections": [
+                {
+                    "projection_name": "student_handbook_primary_documents",
+                    "target_corpus": "regulations",
+                    "target_collection": "student_handbook",
+                    "projection_family": "primary_documents",
+                    "replay_from_source_truth": True,
+                    "derived_from": "source_truth",
+                    "derived_from_document_id": None,
+                    "parent_document_id": None,
+                    "attachment_kind": None,
+                    "attachment_role": None,
+                },
+                {
+                    "projection_name": "handbook_navigation_service_catalog",
+                    "target_corpus": "campus_services",
+                    "target_collection": "service_catalog",
+                    "projection_family": "derived_documents",
+                    "replay_from_source_truth": True,
+                    "derived_from": "source_truth",
+                    "derived_from_document_id": "handbook:66f91543748400ae59b3f9265353a0538088028a",
+                    "parent_document_id": "handbook:66f91543748400ae59b3f9265353a0538088028a",
+                    "attachment_kind": "navigation_like",
+                    "attachment_role": "service_navigation_document",
+                    "target_title": "中央民族大学学生公寓管理工作流程",
+                    "migration_reason": "handbook_navigation_document",
+                },
+            ],
+        }
+        source_key = (
+            "official_pdf/student-handbook/undated/sha256/"
+            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider/paddleocr-vl-1-5/provider-response.jsonl"
+        )
+        with TemporaryDirectory() as temp_dir:
+            projection_config_path = Path(temp_dir) / "source-projections.v1.json"
+            projection_config_path.write_text(json.dumps(projection_config, ensure_ascii=False, indent=2), encoding="utf-8")
+
+            document_registry = _FakeDocumentRegistryWithRecords(
+                _FakeDocumentRecord(
+                    corpus="regulations",
+                    collection="student_handbook",
+                    processed_object_keys=(
+                        "regulations/documents/student_handbook/doc-a/source-faithful/2018/canonical.md",
+                        "regulations/documents/student_handbook/doc-a/source-faithful/2018/document-units.jsonl",
+                    ),
+                ),
+                _FakeDocumentRecord(
+                    corpus="campus_services",
+                    collection="service_catalog",
+                    processed_object_keys=(
+                        "campus_services/documents/service_catalog/"
+                        "中央民族大学学生公寓管理工作流程--66f91543/source-faithful/2018/canonical.md",
+                        "campus_services/documents/service_catalog/"
+                        "中央民族大学学生公寓管理工作流程--66f91543/source-faithful/2018/document-units.jsonl",
+                    ),
+                ),
+            )
+
+            rebuild_local_data(
+                env={
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    "INGESTION_CORPUS": "regulations",
+                    "INGESTION_COLLECTION": "student_handbook",
+                    "REBUILD_IMPORT_MODE": "provider_response_replay",
+                    "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
+                    "HANDBOOK_SOURCE_PROJECTIONS_PATH": str(projection_config_path),
+                },
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=_FakeRawAssetRegistry(),
+                import_runner=lambda **kwargs: {"status": "replay"},
+            )
+
+        cleared_prefixes = [prefix for _, prefix, _ in object_store.cleared_prefixes]
+        self.assertIn(
+            "campus_services/documents/service_catalog/"
+            "中央民族大学学生公寓管理工作流程--66f91543/source-faithful/2018/canonical.md",
+            cleared_prefixes,
+        )
+        self.assertIn(
+            "campus_services/documents/service_catalog/"
+            "中央民族大学学生公寓管理工作流程--66f91543/source-faithful/2018/document-units.jsonl",
+            cleared_prefixes,
+        )
+
     def test_rebuild_clears_minio_and_registry_without_touching_qdrant_by_default(self) -> None:
         object_store = _FakeObjectStoreAdmin()
         qdrant = _FakeQdrantAdmin()
@@ -118,8 +349,8 @@ class RebuildLocalDataTest(unittest.TestCase):
                 corpus="regulations",
                 collection="student_handbook",
                 processed_object_keys=(
-                    "regulations/sources/pdf_ocr/student-handbook/undated/sha256/raw-001/provider-response.jsonl",
-                    "regulations/sources/pdf_ocr/student-handbook/undated/sha256/raw-001/layout-elements.jsonl",
+                    "official_pdf/student-handbook/undated/sha256/raw-001/provider/paddleocr-vl-1-5/provider-response.jsonl",
+                    "official_pdf/student-handbook/undated/sha256/raw-001/source-truth/layout-elements.jsonl",
                     "regulations/documents/student_handbook/test-001--test-001/source-faithful/2018/canonical.md",
                     "regulations/documents/student_handbook/test-001--test-001/source-faithful/2018/document-units.jsonl",
                 ),
@@ -135,7 +366,7 @@ class RebuildLocalDataTest(unittest.TestCase):
                 raw_source_uri="s3://upstream/student-handbook.pdf",
                 content_hash="raw-001",
                 source_filename="student-handbook.pdf",
-                object_key="pdf/student-handbook/undated/sha256/raw-001/student-handbook.pdf",
+                object_key="official_pdf/student-handbook/undated/sha256/raw-001/capture/student-handbook.pdf",
                 ingestion_timestamp="2026-03-24T00:00:00+00:00",
                 import_source="raw_online_ocr",
             )
@@ -147,8 +378,8 @@ class RebuildLocalDataTest(unittest.TestCase):
                 "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                 "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                 "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                "OBJECT_STORE_BUCKET_RAW": "campus-rag-raw",
-                "OBJECT_STORE_BUCKET_PROCESSED": "campus-rag-processed",
+                "OBJECT_STORE_BUCKET_SOURCE": SOURCE_BUCKET,
+                "OBJECT_STORE_BUCKET_DERIVED": DERIVED_BUCKET,
                 "REBUILD_IMPORT_MODE": "raw_online_ocr",
                 "QDRANT_COLLECTION": "student_handbook",
             },
@@ -162,24 +393,13 @@ class RebuildLocalDataTest(unittest.TestCase):
         self.assertEqual(
             object_store.cleared_prefixes,
             [
-                ("campus-rag-raw", "pdf/student-handbook/undated/sha256/raw-001/student-handbook.pdf", ()),
                 (
-                    "campus-rag-processed",
-                    "regulations/sources/pdf_ocr/student-handbook/undated/sha256/raw-001/provider-response.jsonl",
-                    (),
-                ),
-                (
-                    "campus-rag-processed",
-                    "regulations/sources/pdf_ocr/student-handbook/undated/sha256/raw-001/layout-elements.jsonl",
-                    (),
-                ),
-                (
-                    "campus-rag-processed",
+                    DERIVED_BUCKET,
                     "regulations/documents/student_handbook/test-001--test-001/source-faithful/2018/canonical.md",
                     (),
                 ),
                 (
-                    "campus-rag-processed",
+                    DERIVED_BUCKET,
                     "regulations/documents/student_handbook/test-001--test-001/source-faithful/2018/document-units.jsonl",
                     (),
                 ),
@@ -187,9 +407,12 @@ class RebuildLocalDataTest(unittest.TestCase):
         )
         self.assertEqual(qdrant.reset_collections, [])
         self.assertEqual(document_registry.deleted_scopes, [("regulations", "student_handbook")])
-        self.assertEqual(raw_asset_registry.deleted_scopes, [("regulations", "student_handbook")])
-        self.assertEqual(calls, [report.import_env])
+        self.assertEqual(raw_asset_registry.deleted_scopes, [])
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["REBUILD_IMPORT_MODE"], "raw_online_ocr")
         self.assertEqual(report.import_result, {"status": "ok"})
+        self.assertEqual(report.import_context["REBUILD_IMPORT_MODE"], "raw_online_ocr")
+        self.assertNotIn("OBJECT_STORE_SECRET_KEY", report.import_context)
 
     def test_rebuild_can_optionally_reset_qdrant_collection(self) -> None:
         object_store = _FakeObjectStoreAdmin()
@@ -217,8 +440,8 @@ class RebuildLocalDataTest(unittest.TestCase):
         object_store = _FakeObjectStoreAdmin()
         qdrant = _FakeQdrantAdmin()
         source_key = (
-            "regulations/sources/pdf_ocr/student-handbook/undated/sha256/"
-            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider-response.jsonl"
+            "official_pdf/student-handbook/undated/sha256/"
+            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider/paddleocr-vl-1-5/provider-response.jsonl"
         )
 
         rebuild_local_data(
@@ -229,7 +452,7 @@ class RebuildLocalDataTest(unittest.TestCase):
                 "INGESTION_CORPUS": "regulations",
                 "INGESTION_COLLECTION": "student_handbook",
                 "REBUILD_IMPORT_MODE": "provider_response_replay",
-                "REBUILD_PROVIDER_RESPONSE_KEY": source_key,
+                "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
             },
             object_store=object_store,
             qdrant_admin=qdrant,
@@ -247,7 +470,7 @@ class RebuildLocalDataTest(unittest.TestCase):
                 corpus="curriculum",
                 collection="curriculum_plan",
                 processed_object_keys=(
-                    "curriculum/sources/pdf_ocr/curriculum-plan-master/undated/sha256/raw-001/provider-response.jsonl",
+                    "official_pdf/curriculum-plan-master/undated/sha256/raw-001/provider/paddleocr-vl-1-5/provider-response.jsonl",
                     "curriculum/documents/curriculum_plan/plan-001--plan-001/source-faithful/undated/document-units.jsonl",
                 ),
             )
@@ -262,7 +485,7 @@ class RebuildLocalDataTest(unittest.TestCase):
                 raw_source_uri="s3://upstream/curriculum-plan.pdf",
                 content_hash="raw-001",
                 source_filename="curriculum-plan.pdf",
-                object_key="pdf/curriculum-plan-master/undated/sha256/raw-001/curriculum-plan.pdf",
+                object_key="official_pdf/curriculum-plan-master/undated/sha256/raw-001/capture/curriculum-plan.pdf",
                 ingestion_timestamp="2026-03-24T00:00:00+00:00",
                 import_source="raw_online_ocr",
             )
@@ -286,14 +509,8 @@ class RebuildLocalDataTest(unittest.TestCase):
         self.assertEqual(
             object_store.cleared_prefixes,
             [
-                ("campus-rag-raw", "pdf/curriculum-plan-master/undated/sha256/raw-001/curriculum-plan.pdf", ()),
                 (
-                    "campus-rag-processed",
-                    "curriculum/sources/pdf_ocr/curriculum-plan-master/undated/sha256/raw-001/provider-response.jsonl",
-                    (),
-                ),
-                (
-                    "campus-rag-processed",
+                    DERIVED_BUCKET,
                     "curriculum/documents/curriculum_plan/plan-001--plan-001/source-faithful/undated/document-units.jsonl",
                     (),
                 ),
@@ -360,9 +577,12 @@ class RebuildLocalDataTest(unittest.TestCase):
         )
 
         self.assertEqual(document_registry.deleted_scopes, [("curriculum", "curriculum_plan")])
-        self.assertEqual(raw_asset_registry.deleted_scopes, [("curriculum", "curriculum_plan")])
-        self.assertEqual(calls, [report.import_env])
+        self.assertEqual(raw_asset_registry.deleted_scopes, [])
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["REBUILD_IMPORT_MODE"], "raw_online_ocr")
         self.assertEqual(report.import_result, {"status": "raw"})
+        self.assertEqual(report.import_context["REBUILD_IMPORT_MODE"], "raw_online_ocr")
+        self.assertNotIn("OBJECT_STORE_SECRET_KEY", report.import_context)
 
     def test_rebuild_provider_response_replay_preserves_source_key_in_processed_bucket(self) -> None:
         object_store = _FakeObjectStoreAdmin()
@@ -370,8 +590,8 @@ class RebuildLocalDataTest(unittest.TestCase):
         raw_asset_registry = _FakeRawAssetRegistry()
         calls: list[dict[str, str]] = []
         source_key = (
-            "regulations/sources/pdf_ocr/student-handbook/undated/sha256/"
-            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider-response.jsonl"
+            "official_pdf/student-handbook/undated/sha256/"
+            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider/paddleocr-vl-1-5/provider-response.jsonl"
         )
 
         report = rebuild_local_data(
@@ -382,7 +602,7 @@ class RebuildLocalDataTest(unittest.TestCase):
                 "INGESTION_CORPUS": "regulations",
                 "INGESTION_COLLECTION": "student_handbook",
                 "REBUILD_IMPORT_MODE": "provider_response_replay",
-                "REBUILD_PROVIDER_RESPONSE_KEY": source_key,
+                "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
             },
             object_store=object_store,
             document_registry=document_registry,
@@ -390,41 +610,34 @@ class RebuildLocalDataTest(unittest.TestCase):
             import_runner=lambda **kwargs: calls.append(kwargs["env"]) or {"status": "replay"},
         )
 
-        self.assertEqual(
-            object_store.cleared_prefixes,
-            [
-                (
-                    "campus-rag-processed",
-                    "regulations/sources/pdf_ocr/student-handbook/undated/sha256/"
-                    "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/layout-elements.jsonl",
-                    (),
-                ),
-            ],
-        )
-        self.assertEqual(document_registry.deleted_scopes, [("regulations", "student_handbook")])
+        self.assertEqual(object_store.cleared_prefixes, [])
+        self.assertEqual(document_registry.deleted_scopes, [])
         self.assertEqual(raw_asset_registry.deleted_scopes, [])
-        self.assertEqual(calls, [report.import_env])
+        self.assertEqual(len(calls), 1)
         self.assertEqual(report.import_result, {"status": "replay"})
+        self.assertNotIn("REBUILD_PROVIDER_RESPONSE_KEY", calls[0])
+        self.assertNotIn("REBUILD_PROVIDER_RESPONSE_KEY", report.import_context)
+        self.assertNotIn("OBJECT_STORE_SECRET_KEY", report.import_context)
 
     def test_migrate_student_handbook_source_faithful_renames_raw_asset_and_dispatches_rebuild(self) -> None:
         object_store = _FakeObjectStoreAdmin()
         raw_asset_registry = _FakeRawAssetRegistry()
         old_raw_key = (
-            "pdf/student-handbook/undated/sha256/"
-            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/student-handbook.pdf"
+            "official_pdf/student-handbook/undated/sha256/"
+            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/capture/student-handbook.pdf"
         )
         provider_response_key = (
-            "regulations/sources/pdf_ocr/student-handbook/undated/sha256/"
-            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider-response.jsonl"
+            "official_pdf/student-handbook/undated/sha256/"
+            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider/paddleocr-vl-1-5/provider-response.jsonl"
         )
-        object_store.objects[("campus-rag-raw", old_raw_key)] = b"%PDF-1.4 handbook"
+        object_store.objects[(SOURCE_BUCKET, old_raw_key)] = b"%PDF-1.4 handbook"
         raw_asset_registry.upsert(
             RawAssetRecord(
                 raw_asset_id="asset:student-handbook-pdf",
                 raw_version_id="sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
                 corpus="regulations",
                 collection="student_handbook",
-                raw_source_uri="s3://campus-rag-raw/pdf/student-handbook/student-handbook.pdf",
+                raw_source_uri="s3://campus-rag-source/official_pdf/student-handbook/student-handbook.pdf",
                 content_hash="b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
                 source_filename="student-handbook.pdf",
                 object_key=old_raw_key,
@@ -432,11 +645,11 @@ class RebuildLocalDataTest(unittest.TestCase):
                 import_source="seed",
             )
         )
-        calls: list[dict[str, str]] = []
+        calls: list[dict[str, object]] = []
 
         with patch("campus_ingestion_core.local_rebuild.rebuild_local_data") as rebuild:
             rebuild.side_effect = (
-                lambda **kwargs: calls.append(kwargs["env"])
+                lambda **kwargs: calls.append(kwargs)
                 or {"status": "rebuilt", "source_pdf": kwargs["env"]["REPLAY_SOURCE_PDF"]}
             )
             report = migrate_student_handbook_source_faithful(
@@ -444,12 +657,12 @@ class RebuildLocalDataTest(unittest.TestCase):
                     "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                     "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                    "OBJECT_STORE_BUCKET_RAW": "campus-rag-raw",
-                    "OBJECT_STORE_BUCKET_PROCESSED": "campus-rag-processed",
+                    "OBJECT_STORE_BUCKET_SOURCE": SOURCE_BUCKET,
+                    "OBJECT_STORE_BUCKET_DERIVED": DERIVED_BUCKET,
                     "INGESTION_CORPUS": "regulations",
                     "INGESTION_COLLECTION": "student_handbook",
                     "INGESTION_SPLIT_MANIFEST_PATH": "configs/ingestion/regulations/student_handbook/split-manifest.v1.json",
-                    "REBUILD_PROVIDER_RESPONSE_KEY": provider_response_key,
+                    "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
                 },
                 object_store=object_store,
                 raw_asset_registry=raw_asset_registry,
@@ -457,27 +670,27 @@ class RebuildLocalDataTest(unittest.TestCase):
             )
 
         new_raw_key = (
-            "pdf/student-handbook/2018/sha256/"
-            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/学生手册_2018.pdf"
+            "official_pdf/student-handbook/2018/sha256/"
+            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/capture/学生手册_2018.pdf"
         )
         self.assertEqual(report.canonical_raw_filename, "学生手册_2018.pdf")
         self.assertEqual(report.previous_raw_object_key, old_raw_key)
         self.assertEqual(report.canonical_raw_object_key, new_raw_key)
         self.assertEqual(raw_asset_registry.get("asset:student-handbook-pdf", "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1").source_filename, "学生手册_2018.pdf")
-        self.assertIn(("campus-rag-raw", new_raw_key), object_store.puts)
-        self.assertEqual(calls[0]["REBUILD_IMPORT_MODE"], "provider_response_replay")
-        self.assertEqual(calls[0]["REPLAY_SOURCE_PDF"], "学生手册_2018.pdf")
+        self.assertIn((SOURCE_BUCKET, new_raw_key), object_store.puts)
+        self.assertEqual(calls[0]["request"].import_mode, "provider_response_replay")
+        self.assertEqual(calls[0]["env"]["REPLAY_SOURCE_PDF"], "学生手册_2018.pdf")
 
     def test_migrate_student_handbook_source_faithful_refreshes_legacy_scope_when_raw_key_is_already_canonical(self) -> None:
         object_store = _FakeObjectStoreAdmin()
         raw_asset_registry = _FakeRawAssetRegistry()
         canonical_raw_key = (
-            "pdf/student-handbook/2018/sha256/"
-            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/学生手册_2018.pdf"
+            "official_pdf/student-handbook/2018/sha256/"
+            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/capture/学生手册_2018.pdf"
         )
         provider_response_key = (
-            "regulations/sources/pdf_ocr/student-handbook/2018/sha256/"
-            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider-response.jsonl"
+            "official_pdf/student-handbook/2018/sha256/"
+            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider/paddleocr-vl-1-5/provider-response.jsonl"
         )
         raw_asset_registry.records[
             ("asset:student-handbook-pdf", "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1")
@@ -486,18 +699,18 @@ class RebuildLocalDataTest(unittest.TestCase):
             raw_version_id="sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
             corpus="student_handbook",
             collection="student_handbook",
-            raw_source_uri="s3://campus-rag-raw/pdf/student-handbook/学生手册_2018.pdf",
+            raw_source_uri="s3://campus-rag-source/official_pdf/student-handbook/学生手册_2018.pdf",
             content_hash="b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
             source_filename="学生手册_2018.pdf",
             object_key=canonical_raw_key,
             ingestion_timestamp="2026-03-24T00:00:00+00:00",
             import_source="seed",
         )
-        calls: list[dict[str, str]] = []
+        calls: list[dict[str, object]] = []
 
         with patch("campus_ingestion_core.local_rebuild.rebuild_local_data") as rebuild:
             rebuild.side_effect = (
-                lambda **kwargs: calls.append(kwargs["env"])
+                lambda **kwargs: calls.append(kwargs)
                 or {"status": "rebuilt", "source_pdf": kwargs["env"]["REPLAY_SOURCE_PDF"]}
             )
             report = migrate_student_handbook_source_faithful(
@@ -505,12 +718,12 @@ class RebuildLocalDataTest(unittest.TestCase):
                     "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                     "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                    "OBJECT_STORE_BUCKET_RAW": "campus-rag-raw",
-                    "OBJECT_STORE_BUCKET_PROCESSED": "campus-rag-processed",
+                    "OBJECT_STORE_BUCKET_SOURCE": SOURCE_BUCKET,
+                    "OBJECT_STORE_BUCKET_DERIVED": DERIVED_BUCKET,
                     "INGESTION_CORPUS": "regulations",
                     "INGESTION_COLLECTION": "student_handbook",
                     "INGESTION_SPLIT_MANIFEST_PATH": "configs/ingestion/regulations/student_handbook/split-manifest.v1.json",
-                    "REBUILD_PROVIDER_RESPONSE_KEY": provider_response_key,
+                    "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
                 },
                 object_store=object_store,
                 raw_asset_registry=raw_asset_registry,
@@ -529,7 +742,151 @@ class RebuildLocalDataTest(unittest.TestCase):
         self.assertEqual(refreshed.object_key, canonical_raw_key)
         self.assertEqual(object_store.puts, [])
         self.assertEqual(object_store.cleared_prefixes, [])
-        self.assertEqual(calls[0]["REBUILD_IMPORT_MODE"], "provider_response_replay")
+        self.assertEqual(calls[0]["request"].import_mode, "provider_response_replay")
+
+    def test_migrate_student_handbook_source_faithful_accepts_source_asset_request(self) -> None:
+        object_store = _FakeObjectStoreAdmin()
+        raw_asset_registry = _FakeRawAssetRegistry()
+        canonical_raw_key = (
+            "official_pdf/student-handbook/2018/sha256/"
+            "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/capture/学生手册_2018.pdf"
+        )
+        raw_asset_registry.records[
+            ("asset:student-handbook-pdf", "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1")
+        ] = SimpleNamespace(
+            raw_asset_id="asset:student-handbook-pdf",
+            raw_version_id="sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
+            corpus="regulations",
+            collection="student_handbook",
+            raw_source_uri="s3://campus-rag-source/official_pdf/student-handbook/学生手册_2018.pdf",
+            content_hash="b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
+            source_filename="学生手册_2018.pdf",
+            object_key=canonical_raw_key,
+            ingestion_timestamp="2026-03-24T00:00:00+00:00",
+            import_source="seed",
+        )
+        calls: list[dict[str, object]] = []
+
+        with patch("campus_ingestion_core.local_rebuild.rebuild_local_data") as rebuild:
+            rebuild.side_effect = (
+                lambda **kwargs: calls.append(kwargs)
+                or {"status": "rebuilt", "source_pdf": kwargs["env"]["REPLAY_SOURCE_PDF"]}
+            )
+            report = migrate_student_handbook_source_faithful(
+                env={
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    "OBJECT_STORE_BUCKET_SOURCE": SOURCE_BUCKET,
+                    "OBJECT_STORE_BUCKET_DERIVED": DERIVED_BUCKET,
+                },
+                request=StudentHandbookSourceAssetRequest(
+                    raw_version_id="sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
+                ),
+                object_store=object_store,
+                raw_asset_registry=raw_asset_registry,
+                document_registry=_FakeDocumentRegistry(),
+            )
+
+        self.assertEqual(report.canonical_raw_object_key, canonical_raw_key)
+        self.assertEqual(calls[0]["request"].import_mode, "provider_response_replay")
+        self.assertEqual(
+            calls[0]["request"].raw_version_id,
+            "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
+        )
+        self.assertEqual(
+            calls[0]["request"].source_pdf,
+            "学生手册_2018.pdf",
+        )
+        self.assertEqual(
+            rebuild.call_args.kwargs["request"].raw_version_id,
+            "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
+        )
+        self.assertEqual(
+            rebuild.call_args.kwargs["env"]["REPLAY_SOURCE_PDF"],
+            "学生手册_2018.pdf",
+        )
+        self.assertEqual(
+            calls[0]["request"].raw_asset_id,
+            "asset:student-handbook-pdf",
+        )
+
+    def test_migrate_student_handbook_source_faithful_uses_runtime_manifest_override_when_building_request_from_env(
+        self,
+    ) -> None:
+        object_store = _FakeObjectStoreAdmin()
+        raw_asset_registry = _FakeRawAssetRegistry()
+        override_raw_asset_id = "asset:override-handbook-pdf"
+        raw_version_id = "sha256:overridehash001"
+        canonical_raw_key = "official_pdf/override-handbook/2020/sha256/overridehash001/capture/学生手册_2020.pdf"
+        raw_asset_registry.records[(override_raw_asset_id, raw_version_id)] = SimpleNamespace(
+            raw_asset_id=override_raw_asset_id,
+            raw_version_id=raw_version_id,
+            corpus="regulations",
+            collection="student_handbook",
+            raw_source_uri="s3://campus-rag-source/official_pdf/override-handbook/学生手册_2020.pdf",
+            content_hash="overridehash001",
+            source_filename="学生手册_2020.pdf",
+            object_key=canonical_raw_key,
+            ingestion_timestamp="2026-03-24T00:00:00+00:00",
+            import_source="seed",
+        )
+        calls: list[dict[str, object]] = []
+
+        with TemporaryDirectory() as temp_dir:
+            split_manifest_path = Path(temp_dir) / "split-manifest.v1.json"
+            split_manifest_path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "corpus": "regulations",
+                        "collection": "student_handbook",
+                        "raw_asset_id": override_raw_asset_id,
+                        "documents": [
+                            {
+                                "document_id": "handbook:test-override",
+                                "title": "测试文档",
+                                "handbook_section": "测试分组",
+                                "page_start": 1,
+                                "page_end": 1,
+                                "source_uri": "campus-agent://regulations/student_handbook/docs/handbook:test-override",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            provider_response_key = (
+                "official_pdf/override-handbook/2020/sha256/overridehash001/"
+                "provider/paddleocr-vl-1-5/provider-response.jsonl"
+            )
+
+            with patch("campus_ingestion_core.local_rebuild.rebuild_local_data") as rebuild:
+                rebuild.side_effect = (
+                    lambda **kwargs: calls.append(kwargs)
+                    or {"status": "rebuilt", "source_pdf": kwargs["env"]["REPLAY_SOURCE_PDF"]}
+                )
+                report = migrate_student_handbook_source_faithful(
+                    env={
+                        "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                        "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                        "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                        "OBJECT_STORE_BUCKET_SOURCE": SOURCE_BUCKET,
+                        "OBJECT_STORE_BUCKET_DERIVED": DERIVED_BUCKET,
+                        "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
+                        "RAW_VERSION_ID": raw_version_id,
+                        "HANDBOOK_CANONICAL_RAW_FILENAME": "学生手册_2020.pdf",
+                    },
+                    object_store=object_store,
+                    raw_asset_registry=raw_asset_registry,
+                    document_registry=_FakeDocumentRegistry(),
+                )
+
+        self.assertEqual(report.canonical_raw_object_key, canonical_raw_key)
+        self.assertEqual(calls[0]["request"].raw_asset_id, override_raw_asset_id)
+        self.assertEqual(calls[0]["request"].raw_version_id, raw_version_id)
+        self.assertEqual(calls[0]["env"]["REPLAY_SOURCE_PDF"], "学生手册_2020.pdf")
 
 
 if __name__ == "__main__":

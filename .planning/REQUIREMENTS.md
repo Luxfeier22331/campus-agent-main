@@ -9,8 +9,8 @@ Requirements for the initial phase-1 release. Each requirement will map to exact
 
 ### Ingestion
 
-- [ ] **ING-01**: System can ingest `student_handbook` source documents into raw storage with stable document identity and version metadata
-- [ ] **ING-02**: System can transform `student_handbook` documents into processed text and chunk/index artifacts suitable for retrieval query-serving
+- [x] **ING-01**: System can ingest `student_handbook` source documents into raw storage with stable document identity and version metadata
+- [x] **ING-02**: System can transform `student_handbook` documents into processed text and chunk/index artifacts suitable for retrieval query-serving
 - [ ] **ING-03**: System can ingest `curriculum_plan` into raw / processed / chunk outputs without exposing it to query-serving
 
 ### Query Serving
@@ -31,6 +31,15 @@ Requirements for the initial phase-1 release. Each requirement will map to exact
 - [ ] **GOV-01**: Request handling propagates caller identity and group information so retrieval can enforce ACL filtering before evidence is returned
 - [ ] **GOV-02**: Each handled request records trace and audit data sufficient to link request identity, routed path, response status, and cited sources
 - [x] **GOV-03**: Phase-1 query-serving rejects corpora outside `student_handbook`, including `curriculum_plan`
+
+### Edge Runtime
+
+- [x] **EDGE-01**: Public answer traffic enters through a Route-based Cloudflare Worker runtime under `apps/*` that fronts `apps/supervisor-api` without bypassing supervisor or pushing provider semantics into `packages/*`
+- [x] **EDGE-02**: Worker entry mode, Worker-to-origin trust, and alternate public-entry closure (`workers.dev`, preview URLs, and direct origin admission) remain explicit and fail-closed for the public answer path
+
+### Specialist Expansion
+
+- [ ] **AORC-03**: Supervisor can route to a non-RAG specialist, such as an `official-web` / `availability` capability, through explicit contracts instead of inline tool bundles
 
 ### Verification
 
@@ -64,7 +73,7 @@ Deferred to future releases. Tracked but not part of the current roadmap.
 | Production query access for `curriculum_plan` | Phase-1 only prepares ingestion/cleaning/chunking and must not expand query-serving scope |
 | Full corpus launch across all campus domains | Current milestone is to stabilize the `student_handbook` agentic RAG path first |
 | Fine-grained persona-specific answer behavior | v1 only needs identity/groups propagation and retrieval ACL filtering |
-| Multi-specialist parallel workflows | Phase-1 focuses on a single `rag-specialist` with clean contracts |
+| Complex multi-specialist parallel workflows | Current milestone may add one explicitly routed non-RAG specialist, but not a general workflow engine or broad multi-specialist orchestration matrix |
 | Full HITL approval flow and durable memory | Governance hardening beyond minimum tracing/audit/ACL closure is deferred |
 
 ## Traceability
@@ -73,8 +82,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ING-01 | Phase 2 | Pending |
-| ING-02 | Phase 3 | Pending |
+| ING-01 | Phase 2 | Complete |
+| ING-02 | Phase 3 | Complete |
 | ING-03 | Phase 6 | Pending |
 | QRY-01 | Phase 4 | Pending |
 | QRY-02 | Phase 4 | Pending |
@@ -86,14 +95,17 @@ Which phases cover which requirements. Updated during roadmap creation.
 | GOV-01 | Phase 5 | Pending |
 | GOV-02 | Phase 5 | Pending |
 | GOV-03 | Phase 1 | Complete |
+| EDGE-01 | Phase 04.6 | Complete |
+| EDGE-02 | Phase 04.6 | Complete |
+| AORC-03 | Phase 03.1 | Pending |
 | VER-01 | Phase 7 | Pending |
 | VER-02 | Phase 7 | Pending |
 
 **Coverage:**
-- v1 requirements: 15 total
-- Mapped to phases: 15
+- v1 requirements: 18 total
+- Mapped to phases: 18
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-23*
-*Last updated: 2026-03-23 after roadmap mapping*
+*Last updated: 2026-03-25 after completing Phase 04.6 Worker runtime implementation*

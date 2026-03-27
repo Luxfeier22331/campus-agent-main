@@ -1,19 +1,19 @@
 from __future__ import annotations
 
-from dataclasses import asdict
+from dataclasses import asdict, replace
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
-from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef
+from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef, SourceObservation
 from campus_ingestion_core.registry import (
-    FileDocumentRegistry,
-    FileRawAssetRegistry,
+    PostgresDocumentRegistry,
     build_document_registry_from_env,
     build_raw_asset_registry_from_env,
 )
+from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 
 
 HANDBOOK_DOC_UNITS_KEY = (
@@ -21,7 +21,7 @@ HANDBOOK_DOC_UNITS_KEY = (
     "source-faithful/undated/document-units.jsonl"
 )
 HANDBOOK_PROVIDER_KEY = (
-    "regulations/sources/pdf_ocr/student-handbook/undated/sha256/raw-001/provider-response.jsonl"
+    "official_pdf/student-handbook/undated/sha256/raw-001/provider/paddleocr-vl-1-5/provider-response.jsonl"
 )
 HANDBOOK_CANONICAL_KEY = (
     "regulations/documents/student_handbook/test-001--test-001/source-faithful/undated/canonical.md"
@@ -47,7 +47,7 @@ def _handbook_document_record(*, version_id: str, content_hash: str, ingestion_t
         status="active",
         ingestion_timestamp=ingestion_timestamp,
         parser_version="campusrag-import-v1",
-        embedding_model="text-embedding-3-large",
+        embedding_model="Qwen3-Embedding-4B",
         source_channel="pdf_ocr",
         raw_asset=RawAssetRef(
             raw_asset_id="asset:student-handbook-pdf",
@@ -81,7 +81,7 @@ def _curriculum_document_record() -> DocumentRegistryRecord:
         status="active",
         ingestion_timestamp="2026-03-22T10:00:00+00:00",
         parser_version="curriculum-plan-ocr-v1",
-        embedding_model="text-embedding-3-large",
+        embedding_model="Qwen3-Embedding-4B",
         source_channel="pdf_ocr",
         raw_asset=RawAssetRef(
             raw_asset_id="asset:curriculum-plan-master-pdf",
@@ -104,7 +104,7 @@ def _handbook_raw_asset_record() -> RawAssetRecord:
         raw_source_uri="campusrag://raw/regulations/student_handbook/student-handbook.pdf",
         content_hash="raw-001",
         source_filename="student-handbook.pdf",
-        object_key="pdf/student-handbook/undated/sha256/raw-001/student-handbook.pdf",
+        object_key="official_pdf/student-handbook/undated/sha256/raw-001/capture/student-handbook.pdf",
         ingestion_timestamp="2026-03-22T10:00:00+00:00",
         import_source="raw_online_ocr",
     )
@@ -119,7 +119,7 @@ def _curriculum_raw_asset_record() -> RawAssetRecord:
         raw_source_uri="https://campus.example/curriculum/master.pdf",
         content_hash="raw-002",
         source_filename="curriculum-plan.pdf",
-        object_key="pdf/curriculum-plan-master/undated/sha256/raw-002/curriculum-plan.pdf",
+        object_key="official_pdf/curriculum-plan-master/undated/sha256/raw-002/capture/curriculum-plan.pdf",
         ingestion_timestamp="2026-03-22T10:00:00+00:00",
         import_source="raw_online_ocr",
     )
@@ -154,7 +154,7 @@ class RegistryModelsTest(unittest.TestCase):
 
     def test_file_document_registry_upsert_and_get_are_stable(self) -> None:
         with TemporaryDirectory() as temp_dir:
-            registry = FileDocumentRegistry(Path(temp_dir) / "registry.json")
+            registry = InMemoryDocumentRegistry(backing_path=Path(temp_dir) / "registry.json")
             record = _handbook_document_record(
                 version_id="v1:test-001",
                 content_hash="sha256:test-001",
@@ -166,9 +166,45 @@ class RegistryModelsTest(unittest.TestCase):
 
             self.assertEqual(loaded, record)
 
+    def test_file_document_registry_roundtrips_source_observations(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            registry = InMemoryDocumentRegistry(backing_path=Path(temp_dir) / "registry.json")
+            record = _handbook_document_record(
+                version_id="v1:test-001",
+                content_hash="sha256:test-001",
+                ingestion_timestamp="2026-03-22T10:00:00+00:00",
+            )
+            record = replace(
+                record,
+                source_observations=(
+                    SourceObservation(
+                        source_channel="pdf_ocr",
+                        source_uri="campusrag://canonical/regulations/student_handbook/docs/test-001.md",
+                        raw_asset=record.raw_asset,
+                        is_primary=False,
+                        import_source="raw_online_ocr",
+                    ),
+                    SourceObservation(
+                        source_channel="official_web",
+                        source_uri="https://campus.example/policies/test-001",
+                        raw_asset=None,
+                        is_primary=True,
+                        import_source="official_web_sync",
+                    ),
+                ),
+                source_uri="https://campus.example/policies/test-001",
+                source_channel="official_web",
+                raw_asset=None,
+            )
+
+            registry.upsert(record)
+            loaded = registry.get("handbook:test-001", "source-faithful", "v1:test-001")
+
+            self.assertEqual(loaded, record)
+
     def test_file_document_registry_lists_by_corpus_and_latest_versions(self) -> None:
         with TemporaryDirectory() as temp_dir:
-            registry = FileDocumentRegistry(Path(temp_dir) / "registry.json")
+            registry = InMemoryDocumentRegistry(backing_path=Path(temp_dir) / "registry.json")
             v1 = _handbook_document_record(
                 version_id="v1:test-001",
                 content_hash="sha256:test-001",
@@ -189,10 +225,67 @@ class RegistryModelsTest(unittest.TestCase):
             self.assertEqual(records, (v1, v2))
             self.assertEqual(latest, (v2,))
 
+    def test_file_document_registry_upsert_many_persists_all_records(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            registry = InMemoryDocumentRegistry(backing_path=Path(temp_dir) / "registry.json")
+            handbook_record = _handbook_document_record(
+                version_id="v1:test-001",
+                content_hash="sha256:test-001",
+                ingestion_timestamp="2026-03-22T10:00:00+00:00",
+            )
+            curriculum_record = _curriculum_document_record()
+
+            registry.upsert_many((handbook_record, curriculum_record))
+
+            self.assertEqual(
+                registry.get("handbook:test-001", "source-faithful", "v1:test-001"),
+                handbook_record,
+            )
+            self.assertEqual(
+                registry.get(
+                    "curriculum:plan-001",
+                    "source-faithful",
+                    "sha256:raw-001:split:plan-001:abcd1234",
+                ),
+                curriculum_record,
+            )
+
+    def test_file_document_registry_replace_scope_replaces_only_target_scope(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            registry = InMemoryDocumentRegistry(backing_path=Path(temp_dir) / "registry.json")
+            handbook_old = _handbook_document_record(
+                version_id="v1:test-001",
+                content_hash="sha256:test-001",
+                ingestion_timestamp="2026-03-22T10:00:00+00:00",
+            )
+            handbook_new = _handbook_document_record(
+                version_id="v2:test-001",
+                content_hash="sha256:test-002",
+                ingestion_timestamp="2026-03-23T10:00:00+00:00",
+            )
+            curriculum_record = _curriculum_document_record()
+            registry.upsert(handbook_old)
+            registry.upsert(curriculum_record)
+
+            registry.replace_scope("regulations", "student_handbook", (handbook_new,))
+
+            self.assertEqual(
+                registry.list_by_scope("regulations", "student_handbook"),
+                (handbook_new,),
+            )
+            self.assertEqual(
+                registry.get(
+                    "curriculum:plan-001",
+                    "source-faithful",
+                    "sha256:raw-001:split:plan-001:abcd1234",
+                ),
+                curriculum_record,
+            )
+
     def test_file_document_registry_delete_by_corpus_removes_only_matching_records(self) -> None:
         with TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "registry.json"
-            registry = FileDocumentRegistry(path)
+            registry = InMemoryDocumentRegistry(backing_path=path)
             handbook_record = _handbook_document_record(
                 version_id="v1:test-001",
                 content_hash="sha256:test-001",
@@ -205,6 +298,38 @@ class RegistryModelsTest(unittest.TestCase):
             registry.delete_by_scope("regulations", "student_handbook")
 
             self.assertIsNone(registry.get("handbook:test-001", "source-faithful", "v1:test-001"))
+            self.assertEqual(
+                registry.get(
+                    "curriculum:plan-001",
+                    "source-faithful",
+                    "sha256:raw-001:split:plan-001:abcd1234",
+                ),
+                curriculum_record,
+            )
+
+    def test_file_document_registry_delete_document_removes_all_versions_for_document(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "registry.json"
+            registry = InMemoryDocumentRegistry(backing_path=path)
+            handbook_v1 = _handbook_document_record(
+                version_id="v1:test-001",
+                content_hash="sha256:test-001",
+                ingestion_timestamp="2026-03-22T10:00:00+00:00",
+            )
+            handbook_v2 = _handbook_document_record(
+                version_id="v2:test-001",
+                content_hash="sha256:test-002",
+                ingestion_timestamp="2026-03-23T10:00:00+00:00",
+            )
+            curriculum_record = _curriculum_document_record()
+            registry.upsert(handbook_v1)
+            registry.upsert(handbook_v2)
+            registry.upsert(curriculum_record)
+
+            registry.delete_document("handbook:test-001")
+
+            self.assertIsNone(registry.get("handbook:test-001", "source-faithful", "v1:test-001"))
+            self.assertIsNone(registry.get("handbook:test-001", "source-faithful", "v2:test-001"))
             self.assertEqual(
                 registry.get(
                     "curriculum:plan-001",
@@ -234,7 +359,7 @@ class RegistryModelsTest(unittest.TestCase):
                             "status": "active",
                             "ingestion_timestamp": "2026-03-22T10:00:00+00:00",
                             "parser_version": "campusrag-import-v1",
-                            "embedding_model": "text-embedding-3-large",
+                            "embedding_model": "Qwen3-Embedding-4B",
                             "source_channel": "pdf_ocr",
                             "raw_asset": None,
                             "processed_object_keys": [
@@ -250,7 +375,9 @@ class RegistryModelsTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            loaded = FileDocumentRegistry(path).get("handbook:test-001", "source-faithful", "v1:test-001")
+            loaded = InMemoryDocumentRegistry.from_json_file(path).get(
+                "handbook:test-001", "source-faithful", "v1:test-001"
+            )
 
             self.assertEqual(
                 loaded.provider_response_object_key,
@@ -267,10 +394,13 @@ class RegistryModelsTest(unittest.TestCase):
                 loaded.document_units_object_key,
                 "student_handbook/documents/handbook/test-001/tracks/source-faithful/v1/test-001/document-units.jsonl",
             )
+            self.assertEqual(len(loaded.source_observations), 1)
+            self.assertTrue(loaded.source_observations[0].is_primary)
+            self.assertEqual(loaded.source_observations[0].source_channel, "pdf_ocr")
 
     def test_file_raw_asset_registry_upsert_and_get_are_stable(self) -> None:
         with TemporaryDirectory() as temp_dir:
-            registry = FileRawAssetRegistry(Path(temp_dir) / "raw-assets.json")
+            registry = InMemoryRawAssetRegistry(backing_path=Path(temp_dir) / "raw-assets.json")
             record = _handbook_raw_asset_record()
 
             registry.upsert(record)
@@ -283,7 +413,7 @@ class RegistryModelsTest(unittest.TestCase):
     def test_file_raw_asset_registry_delete_by_corpus_removes_only_matching_records(self) -> None:
         with TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "raw-assets.json"
-            registry = FileRawAssetRegistry(path)
+            registry = InMemoryRawAssetRegistry(backing_path=path)
             handbook_record = _handbook_raw_asset_record()
             curriculum_record = _curriculum_raw_asset_record()
             registry.upsert(handbook_record)
@@ -352,6 +482,17 @@ class RegistryModelsTest(unittest.TestCase):
 
             self.assertIs(registry, instance)
             registry_cls.assert_called_once_with("postgresql://raw-registry.example/postgres")
+
+    def test_postgres_document_registry_delete_document_targets_document_id(self) -> None:
+        with patch.object(PostgresDocumentRegistry, "_ensure_schema", return_value=None):
+            registry = PostgresDocumentRegistry("postgresql://registry.example/postgres")
+        with patch.object(registry, "_execute") as execute:
+            registry.delete_document("handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675")
+
+        execute.assert_called_once_with(
+            "delete from document_registry_records where document_id = %s",
+            ("handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675",),
+        )
 
     def test_registry_builders_require_database_url(self) -> None:
         with self.assertRaisesRegex(ValueError, "DOCUMENT_REGISTRY_DATABASE_URL"):

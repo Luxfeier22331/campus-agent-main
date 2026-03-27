@@ -2,24 +2,28 @@
 doc_type: architecture
 status: active
 created: 2026-03-22
-updated: 2026-03-22
+updated: 2026-03-27
 ---
 
 # campus-agent 长期架构
 
 ## 目标
 
-将 `campus-agent` 建成校园助理系统的长期入口仓库，核心形态是 supervisor 主导的编排层、specialist 子代理，以及带有独立 ingestion/data plane 的可替换 retrieval 栈。
+将 `campus-agent` 建成校园助理系统的长期入口仓库，核心形态是 supervisor 主导的 `hybrid orchestration`、specialist 子代理，以及带有独立 ingestion/data plane 的可替换 retrieval 栈。
 
 当前阶段的目标不是做一个框架示例，也不是先选一个 HTTP runtime；目标是先把仓库边界和演进方向定清楚，避免后续再次整体推翻。
 
 这份文档只保存长期架构边界、职责拆分和链路形态，不冻结具体实现、部署拓扑、供应商选型或第一阶段落地细节。
 
+当前 retrieval strategy 的运行真相不由本文维护；accepted baseline 以 `docs/architecture/retrieval-query-strategy.md` 与相关 ADR 为准。
+
 ## 核心立场
 
 - `campus-agent` 应该拥有编排、委派、运行时契约、评测，以及与查询路径配套的数据摄入边界。
 - `campus-agent` 不应该被单一 HTTP 框架或单一 retrieval 库绑定。
-- `campusRAG` 应该从“被入口 agent 调用的 tool”演进为“通过稳定委派契约消费的 specialist capability”。
+- `campusRAG` 不应继续作为顶层产品路径里的扁平 tool adapter；它应演进为通过稳定 delegation contract 消费的 specialist capability。
+- 长期编排采用 `hybrid orchestration`：确定性 gate 与安全控制优先由 code orchestration 承担，开放式推理与证据综合由 LLM orchestration 承担。
+- `manager-managed specialist` 与 `explicit handoff` 可以并存，但默认由 supervisor 保持顶层控制，不演化成无中心 peer mesh。
 - retrieval 底座应该是可替换的。LlamaIndex、直连向量基础设施，或其他检索实现，都应该藏在 specialist/retrieval 边界之后，而不是上升成仓库顶层架构。
 - `crawler/job` 与 `queue` 在长期架构里保留为摄入链路占位符，用来表达解耦和异步边界，不在此文中冻结成具体产品或运行方式。
 - 对象存储在架构上始终表示为独立存储边界；当前阶段即使先部署在本机，也不改变它在系统中的角色定义。
@@ -34,7 +38,7 @@ updated: 2026-03-22
 
 长期目标摄入链路如下：
 
-`crawler/job placeholder -> queue placeholder -> ingestion boundary -> raw layer + raw asset registry -> processed layer -> document registry -> vector index/chunk metadata`
+`crawler/job placeholder -> queue placeholder -> ingestion boundary -> source layer + raw asset registry -> derived layer -> document registry -> vector index/chunk metadata`
 
 当前 monorepo 的目录设计围绕这条链路展开：
 
@@ -43,13 +47,13 @@ updated: 2026-03-22
 - `packages/supervisor-core`
   supervisor 策略、路由、委派、答案组装和升级逻辑。
 - `packages/rag-specialist`
-  知识域 specialist 接口层。这是对旧 “RAG as a tool” 模式的主要替代。
+  知识域 specialist 接口层。这是对旧扁平 “RAG as a tool” 顶层路径的主要替代。
 - `packages/ingestion-core`
   ingestion/data plane 的逻辑消费层，承接队列后的文档标准化、去重、chunking、embedding 写入和 registry/index 更新编排。
 - `packages/retrieval-core`
   retrieval kernel 抽象和证据抓取路径。它消费 document registry、chunk metadata 和 vector index。
 - `packages/contracts`
-  handoff、evidence bundle、状态和类型化载荷的运行时契约。
+  delegation / handoff、evidence bundle、状态和类型化载荷的运行时契约。
 - `packages/evals`
   回归场景、离线评测、grader/runner 组合，以及未来 judge/e2e 评测入口。
 - `packages/shared`
@@ -73,13 +77,69 @@ runtime 选择应该延后。未来可以接受的实现包括：
 - Agno AgentOS，如果最终服务模型原生落在 Agno 上
 - 其他 transport/runtime，只要产品约束需要
 
+`ADR-0001` 中的 `AgentOS-native` 只表示 phase-1 当前生产 runtime 选择，不构成长期 runtime freeze。
+
 当前真正重要的是边界清晰：
 
 - transport 相关逻辑留在 `apps/`
 - 编排策略留在 `packages/supervisor-core`
-- specialist handoff contract 留在 `packages/contracts`
+- specialist delegation / handoff contract 留在 `packages/contracts`
 - ingestion/data consumption 逻辑留在 `packages/ingestion-core`
 - ingestion、job、queue 和存储相关能力都保持在独立边界之后，不反向渗透进 supervisor
+
+## 观测与遥测边界
+
+长期上，`campus-agent` 的 observability 采用“统一 telemetry seam + 职责分离 sink”的形态，而不是把错误调试、高吞吐运行事件与审计语义全部混到同一个产品或同一类日志里。
+
+长期约束如下：
+
+- canonical telemetry seam 优先是 `OpenTelemetry`
+- trace、request identity、route、status、source locator 与治理字段应在各 runtime / package 边界上保持一致可回链
+- 高吞吐结构化运行事件与长期分析面可以独立于错误调试面存在
+- 具体 sink、collector、sampling 与 retention 不在本文冻结；accepted 运行选择见对应 ADR
+
+对当前仓库的直接含义：
+
+- `apps/*` runtime 壳负责接入 telemetry export，不把 vendor-specific SDK 语义推回 `packages/contracts`
+- `packages/supervisor-core` 继续拥有最小 audit / trace 投影责任，但不直接拥有观测产品选型
+- `packages/rag-specialist`、`packages/retrieval-core`、`packages/ingestion-core` 只输出结构化事件与 trace 语义，不直接定义长期 sink 边界
+
+相关 accepted 决策：
+
+- `docs/decisions/adr-0010-observability-and-telemetry-stack.md`
+
+在长期边界上，`packages/retrieval-core` 应拥有：
+
+- query preprocessing / normalization
+- candidate retrieval（dense / sparse / hybrid）
+- candidate fusion / rerank
+- evidence shaping / registry back-link
+
+`packages/rag-specialist` 负责 retrieval strategy selection 和答案语义，而不拥有底层 retrieval backend 细节。
+
+## 编排模式
+
+长期编排采用 `hybrid orchestration`，而不是把所有控制都交给 LLM，也不是把所有工作流预先冻结成声明式大图。
+
+职责拆分固定如下：
+
+- `code orchestration`
+  负责 auth、ACL / policy gate、approval hook、timeout / retry、deterministic stop condition、结构化输入输出校验、审计与 trace 投影
+- `LLM orchestration`
+  负责用户目标框定、开放式任务拆解、query rewriting、evidence synthesis、clarification / refusal wording 与其他非确定性推理
+
+在这套编排模式中，允许两类 specialist 交互方式并存：
+
+- `manager-managed specialist`
+  supervisor 保持顶层控制，向 specialist 委派受限子任务；这是顶层产品路径的默认模式
+- `explicit handoff`
+  只有在 specialist 需要拥有后续回合、独立状态或独立交互上下文时，才采用显式 handoff
+
+长期禁止退化为：
+
+- 把顶层产品路径重新做回扁平 tool bundle
+- 让 specialist 在没有显式 routing 和 contract 的前提下彼此自由串联
+- 演化成没有全局策略拥有者的无中心 peer mesh
 
 ## Supervisor 与 Specialist 的职责
 
@@ -113,7 +173,8 @@ supervisor 是这个仓库长期存在的唯一入口协调者，也是查询链
 
 - supervisor 是唯一的全局策略拥有者，但不是知识实现层
 - specialist 是稳定能力边界，而不是扁平 tool adapter
-- supervisor 与 specialist 的交互必须通过 `packages/contracts` 中冻结的 handoff contract 完成
+- supervisor 与 specialist 的交互必须通过 `packages/contracts` 中冻结的 delegation / handoff contract 完成
+- 顶层产品路径默认由 supervisor 保持回合控制；只有在 specialist 明确需要接管后续回合时才采用 handoff
 - supervisor 可以决定委派、复核、澄清、升级和最终答复，但不能越级侵入 specialist 或 retrieval 内部实现
 - 当系统增加更多 specialist 时，supervisor 负责跨域协同；单个 specialist 仍只对自己的能力边界负责
 
@@ -136,14 +197,43 @@ RAG specialist 是被委派的知识域 worker，不是一个薄薄的 tool shim
 - hybrid search 基础设施
 - verification / refinement loop
 
-第一阶段的 Agno 集成深度建议如下：
+长期在这里固定的只有两件事：
 
-- `packages/supervisor-core` 直接使用 Agno 的 agent / team 语义
-- `packages/rag-specialist` 可以使用 Agno specialist agent 包装层
-- `packages/contracts` 保持纯 schema，不泄漏 Agno 类型
-- `packages/retrieval-core` 保持纯 retrieval abstraction，不泄漏 Agno 或 LlamaIndex 类型
+- runtime / agent framework 可以进入 supervisor / specialist 的实现层
+- runtime / agent framework 不得泄漏进 `packages/contracts` 或 `packages/retrieval-core`
 
-换句话说，Agno 应该进入编排层和运行时层，而不应该渗透到所有包。
+phase-1 当前对 Agno / AgentOS 的具体集成深度见 `docs/decisions/adr-0001-phase1-architecture.md`，而不是由本文冻结。
+
+### Other Specialist Types
+
+specialist 在长期架构中表示“稳定能力边界”，不等同于“只有知识域 RAG specialist”。
+
+除 retrieval-oriented specialist 之外，未来也允许存在其他类型的 specialist，例如：
+
+- `official-web` / `availability` specialist
+  负责官网探活、外部站点可达性核验、官方入口状态确认或受控的站点级检查
+- 其他非 RAG specialist
+  只要它们拥有稳定职责边界、明确 delegation / handoff contract，并且不被降级成 supervisor 内联 tool 集
+
+这类 specialist 仍应遵守同一组长期约束：
+
+- 由 supervisor 显式路由，而不是在 supervisor 内部隐式执行一组零散 tool
+- 通过 `packages/contracts` 中冻结的 delegation / handoff contract 交互，而不是暴露底层 runtime / network / infra 类型
+- 保持自身能力边界，不把 supervisor 变回“什么都自己做”的顶层 agent
+- 如果它们不是 phase-1 默认 query-serving 路径的一部分，应在当前执行计划中被单独标注，而不是偷渡进现有 `rag-specialist` 语义
+
+### Specialist 准入规则
+
+新增 specialist 不是默认优化项，必须满足清晰的架构理由。
+
+长期准入条件至少包括：
+
+- 它拥有稳定、可重复、可命名的单一职责边界
+- 它对应独立的 downstream capability、tool / permission boundary 或状态边界
+- 把该能力继续塞在现有 supervisor 或现有 specialist 内，已经造成 prompt / context / tool overload 或边界混乱
+- `packages/evals` 中已有足够证据表明拆分能提升质量、可观测性或安全性
+
+如果这些条件不成立，则默认把能力继续留在现有 specialist 内部，或留在 supervisor 的 policy / orchestration 层，而不是为了“看起来更 agentic”而新增一个边界。
 
 ### Ingestion Boundary
 
@@ -189,6 +279,8 @@ ingestion boundary 是长期存在的数据摄入边界。
 - eval 的真相源优先是仓库自有的场景、期望值、trace 和评测协议，而不是某个外部库的默认数据结构
 - agent 系统评测既看最终输出，也看中间 trace；黑盒结果评测不能替代 trace grading
 - `ragas`、OpenAI graders 或其他 scorer 只应作为 `packages/evals` 边界后的可替换实现，而不是顶层架构承诺
+- 新 specialist、新 routing 或新 handoff 在进入 `release_gate` 前，必须具备 workflow 和 safety 维度的可重复验证
+- trace grading 至少要覆盖 routing、delegation / handoff、retrieval path 与 fail-closed / approval path
 
 详细治理规则见：`docs/decisions/adr-0003-golden-dataset-governance.md`
 指标体系见：`docs/decisions/adr-0004-evaluation-metrics.md`
@@ -230,11 +322,11 @@ ingestion boundary 是长期存在的数据摄入边界。
 - Document Registry
   保存 `document_id`、`version_id`、`content_hash`、`source_uri`、`corpus`、`acl_groups`、`campus_scope`、`status`、`ingestion_timestamp`，以及指向 raw asset 的引用。它表达“当前逻辑文档版本是什么”，不重复承载 raw 文件身份。
 
-其中 `packages/ingestion-core` 主要负责把 raw/processed 输入推进成可追踪的 registry 与 chunk/index 产物，`packages/retrieval-core` 则负责消费这些产物形成 evidence bundle。
+其中 `packages/ingestion-core` 主要负责把 source/derived 输入推进成可追踪的 registry 与 chunk/index 产物，`packages/retrieval-core` 则负责消费这些产物形成 evidence bundle。
 
 额外约束：
 
-- `processed` 是 chunk 的可重建来源，不是对象存储中的 chunk 文件集合
+- `derived` 是 chunk 的可重建来源，不是对象存储中的 chunk 文件集合
 - 在线查询所消费的 canonical chunk store 是 `Chunk/Index Layer`，第一阶段具体为 `Qdrant`
 - 如需把 chunk 额外导出到对象存储，该副本只能用于备份、审计或离线重建，不能成为主消费路径或第二真相源
 
@@ -246,6 +338,23 @@ ingestion boundary 是长期存在的数据摄入边界。
 - stable document ID / version ID / chunk ID 在第一阶段建立
 - online query path 和 offline ingestion path 必须分离
 - 当前阶段对象存储可以先部署在本机，但在架构语义上仍按对象存储边界对待，而不是退化成“本机目录方案”
+
+## Untrusted Data Boundary
+
+以下输入默认都属于 `untrusted data`：
+
+- retrieval 返回的文档片段
+- OCR / parser 产物
+- 网页文本与外部站点响应
+- 第三方 API 返回
+- 用户上传文件及其提取文本
+
+长期边界固定如下：
+
+- `untrusted data` 不得直接写回 developer / system 指令层
+- `untrusted data` 不得以自由文本形式直接驱动 routing、tool permission 或 handoff 决策
+- 节点之间的关键控制信号必须通过结构化 schema 和显式字段传递
+- 如需基于不可信内容触发后续动作，必须经过 code orchestration 的显式校验和 policy gate
 
 ## 从旧 bootstrap 迁移
 
@@ -261,7 +370,7 @@ v2 真正变化的地方：
 
 - `campusRAG` 不再主要作为扁平 tool adapter 的目标
 - supervisor / sub-agent 编排成为默认模型
-- retrieval 被表示为一个具有稳定 handoff contract 的 specialist capability
+- retrieval 被表示为一个具有稳定 delegation / handoff contract 的 specialist capability
 - framework 选择与架构选择解耦
 - ingestion/data plane 被正式提升为长期架构的一部分
 - `crawler/job` 与 `queue` 在长期图中作为摄入占位边界存在
@@ -303,7 +412,10 @@ ACL、审计和 traceability 在第一阶段按“够上线的最小闭环”建
 - 多 agent / 多存储链路有集中 tracing
 - 审计日志至少记录用户、路由、sources 和最终状态
 - ingestion 日志至少记录 `document_id`、`version_id`、`content_hash`、处理状态和索引写入结果
+- 观测默认遵循数据最小化：不把完整 prompt、chunk 正文和敏感认证材料直接作为长期默认日志落盘
 - 文档层和 chunk 层都带 ACL metadata
+- 高风险或不可逆动作必须保留 approval / HITL 介入边界
+- specialist 自由文本输出不能直接越过 deterministic gate 触发高风险动作
 
 可在后续阶段继续强化的内容：
 
@@ -319,4 +431,5 @@ ACL、审计和 traceability 在第一阶段按“够上线的最小闭环”建
 - 第一阶段架构决策记录：`docs/decisions/adr-0001-phase1-architecture.md`
 - Golden dataset 治理规则：`docs/decisions/adr-0003-golden-dataset-governance.md`
 - 评测指标体系：`docs/decisions/adr-0004-evaluation-metrics.md`
+- 编排模式与安全边界：`docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - 第一阶段 ingestion 与存储架构：`docs/architecture/phase1-ingestion-and-storage-architecture.md`

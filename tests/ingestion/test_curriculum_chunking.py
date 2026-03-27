@@ -13,7 +13,7 @@ def _make_curriculum_record() -> DocumentRegistryRecord:
         document_id="curriculum:test-001",
         revision_track="source-faithful",
         version_id="sha256:test-001:split:test-001:abc123",
-        source_uri="campusrag://source/curriculum/curriculum-plan-2022/sha256/test/pages/20-21",
+        source_uri="campusrag://source/curriculum/curriculum-plan-2022/sha256/test/capture/pages/20-21",
         content_hash="sha256:test-001",
         corpus="curriculum",
         collection="curriculum_plan",
@@ -23,14 +23,14 @@ def _make_curriculum_record() -> DocumentRegistryRecord:
         status="active",
         ingestion_timestamp="2026-03-24T10:00:00+00:00",
         parser_version="raw-online-ocr-v1",
-        embedding_model="text-embedding-3-large",
+        embedding_model="Qwen3-Embedding-4B",
         source_channel="pdf_ocr",
         document_units_object_key=(
             "curriculum/documents/curriculum_plan/test-001--test-001/source-faithful/undated/document-units.jsonl"
         ),
         processed_object_keys=(
-            "curriculum/sources/pdf_ocr/curriculum-plan/2022/sha256/test/provider-response.jsonl",
-            "curriculum/sources/pdf_ocr/curriculum-plan/2022/sha256/test/layout-elements.jsonl",
+            "official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl",
+            "official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
             "curriculum/documents/curriculum_plan/test-001--test-001/source-faithful/undated/document-units.jsonl",
         ),
         import_source="raw_online_ocr",

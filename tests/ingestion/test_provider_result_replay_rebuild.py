@@ -6,10 +6,16 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
+from campus_ingestion_core.campusrag_ingestion_support import DocumentImportInput
+from campus_ingestion_core.local_rebuild import _index_replayed_documents
+from campus_ingestion_core.process import IndexableChunk
+from campus_ingestion_core.registry import DocumentRegistryRecord
 from campus_ingestion_core.local_rebuild import replay_provider_response_rebuild
 from campus_ingestion_core.object_store import build_processed_asset_artifact_key
-from campus_ingestion_core.registry import FileDocumentRegistry, FileRawAssetRegistry
+from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 from qdrant_client import QdrantClient
+
+SOURCE_BUCKET = "campus-rag-source"
 
 
 class _FakeObjectStore:
@@ -76,6 +82,283 @@ def _provider_batch_line(*pages: dict[str, object]) -> dict[str, object]:
 
 
 class ProviderResultReplayRebuildTest(unittest.TestCase):
+    def test_index_replayed_documents_batches_upserts_and_only_ensures_collection_once(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry.json")
+            documents: list[DocumentImportInput] = []
+            for index in range(3):
+                document_id = f"handbook:test-{index + 1:03d}"
+                version_id = f"v1:test-{index + 1:03d}"
+                registry.upsert(
+                    DocumentRegistryRecord(
+                        document_id=document_id,
+                        revision_track="source-faithful",
+                        version_id=version_id,
+                        source_uri=f"https://campus.example/{document_id}",
+                        content_hash=f"sha256:{document_id}",
+                        corpus="regulations",
+                        collection="student_handbook",
+                        acl_groups=("students",),
+                        campus_scope=None,
+                        status="active",
+                        ingestion_timestamp="2026-03-26T10:00:00+00:00",
+                        parser_version="paddleocr-vl-1.5",
+                        embedding_model="mock-embedding-8d",
+                        source_channel="pdf_ocr",
+                        document_units_object_key=f"documents/{document_id}.jsonl",
+                        processed_object_keys=(f"documents/{document_id}.jsonl",),
+                        import_source="provider_response_replay",
+                    )
+                )
+                documents.append(
+                    DocumentImportInput(
+                        source_label=f"doc-{index + 1}",
+                        document_units_bytes=b'{"doc_id":"placeholder","version_id":"placeholder"}',
+                        provider_response_bytes=None,
+                        canonical_markdown_bytes=None,
+                        metadata={"document_id": document_id, "version_id": version_id},
+                        import_source="provider_response_replay",
+                    )
+                )
+
+            built_chunks = {
+                str(document.metadata["document_id"]): (
+                    IndexableChunk(
+                        document_id=str(document.metadata["document_id"]),
+                        revision_track="source-faithful",
+                        version_id=str(document.metadata["version_id"]),
+                        chunk_id=f'{document.metadata["document_id"]}:chunk-0001',
+                        chunk_order=1,
+                        corpus="regulations",
+                        collection="student_handbook",
+                        acl_groups=("students",),
+                        campus_scope=None,
+                        source_uri=f'https://campus.example/{document.metadata["document_id"]}',
+                        source_chunk_id=None,
+                        acl_level="restricted",
+                        anchor={"page_start": index + 1, "page_end": index + 1},
+                        text=f'chunk text {index + 1}',
+                        source_channel="pdf_ocr",
+                        is_current=False,
+                        parser_version="paddleocr-vl-1.5",
+                        embedding_model="mock-embedding-8d",
+                        embedding=(0.1, 0.2),
+                    ),
+                )
+                for index, document in enumerate(documents)
+            }
+
+            with (
+                patch("campus_ingestion_core.local_rebuild.build_embedding_model", return_value=object()),
+                patch("campus_ingestion_core.local_rebuild.build_sparse_embedding_model", return_value=object()),
+                patch(
+                    "campus_ingestion_core.local_rebuild.build_indexable_chunks_from_jsonl",
+                    side_effect=lambda **kwargs: built_chunks[kwargs["record"].document_id],
+                ),
+                patch("campus_ingestion_core.local_rebuild.index_chunks_to_qdrant") as index_chunks,
+            ):
+                _index_replayed_documents(
+                    source={
+                        "QDRANT_COLLECTION": "student_handbook_perf",
+                        "QDRANT_UPSERT_BATCH_SIZE": "2",
+                        "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
+                        "EMBEDDING_PROVIDER": "mock",
+                    },
+                    registry=registry,
+                    documents=documents,
+                    qdrant_client=QdrantClient(location=":memory:"),
+                )
+
+        self.assertEqual(index_chunks.call_count, 2)
+        first_call = index_chunks.call_args_list[0].kwargs
+        second_call = index_chunks.call_args_list[1].kwargs
+        self.assertEqual(tuple(chunk.document_id for chunk in first_call["chunks"]), ("handbook:test-001", "handbook:test-002"))
+        self.assertEqual(tuple(chunk.document_id for chunk in second_call["chunks"]), ("handbook:test-003",))
+        self.assertTrue(first_call["ensure_collection"])
+        self.assertTrue(first_call["ensure_payload_indexes"])
+        self.assertFalse(second_call["ensure_collection"])
+        self.assertFalse(second_call["ensure_payload_indexes"])
+
+    def test_replay_provider_response_rebuild_reconstructs_declared_downstream_projections_from_source_truth(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            split_manifest_path = root / "configs" / "split-manifest.v1.json"
+            split_manifest_path.parent.mkdir(parents=True)
+            split_manifest_path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "corpus": "regulations",
+                        "collection": "student_handbook",
+                        "raw_asset_id": "asset:student-handbook-pdf",
+                        "documents": [
+                            {
+                                "document_id": "handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675",
+                                "title": "中央民族大学校内常用电话",
+                                "handbook_section": "校园服务电话",
+                                "page_start": 1,
+                                "page_end": 1,
+                                "source_uri": "campus-agent://regulations/student_handbook/docs/handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675",
+                            },
+                            {
+                                "document_id": "handbook:66f91543748400ae59b3f9265353a0538088028a",
+                                "title": "中央民族大学公寓及公费医疗管理规定",
+                                "handbook_section": "学生公寓管理",
+                                "page_start": 2,
+                                "page_end": 2,
+                                "source_uri": "campus-agent://regulations/student_handbook/docs/handbook:66f91543748400ae59b3f9265353a0538088028a",
+                            },
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            projection_config_path = root / "configs" / "source-projections.v1.json"
+            projection_config_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "student_handbook_source_projections_v1",
+                        "source_corpus": "regulations",
+                        "source_collection": "student_handbook",
+                        "raw_asset_id": "asset:student-handbook-pdf",
+                        "source_truth_artifacts": [
+                            "provider-response.jsonl",
+                            "layout-elements.jsonl",
+                            "split-manifest.v1.json",
+                            "per-document source rows",
+                        ],
+                        "rebuild_boundary": "source_truth",
+                        "rebuild_rule": "When canonical source truth exists, downstream rebuild must reuse source truth and must not return to raw.",
+                        "derived_document_fields": [
+                            "projection_name",
+                            "derived_from_raw_asset_id",
+                            "derived_from_raw_version_id",
+                            "derived_from",
+                            "derived_from_document_id",
+                            "parent_document_id",
+                            "attachment_kind",
+                            "attachment_role",
+                        ],
+                        "projections": [
+                            {
+                                "projection_name": "student_handbook_primary_documents",
+                                "target_corpus": "regulations",
+                                "target_collection": "student_handbook",
+                                "projection_family": "primary_documents",
+                                "replay_from_source_truth": True,
+                                "derived_from": "source_truth",
+                                "derived_from_document_id": None,
+                                "parent_document_id": None,
+                                "attachment_kind": None,
+                                "attachment_role": None,
+                            },
+                            {
+                                "projection_name": "handbook_phone_directory",
+                                "target_corpus": "campus_services",
+                                "target_collection": "contact_directory",
+                                "projection_family": "derived_documents",
+                                "replay_from_source_truth": True,
+                                "derived_from": "source_truth",
+                                "derived_from_document_id": "handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675",
+                                "parent_document_id": "handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675",
+                                "attachment_kind": "navigation_like",
+                                "attachment_role": "service_contact_directory",
+                                "target_title": "中央民族大学校内常用电话",
+                                "migration_reason": "handbook_phone_directory_projection",
+                            },
+                            {
+                                "projection_name": "handbook_navigation_service_catalog",
+                                "target_corpus": "campus_services",
+                                "target_collection": "service_catalog",
+                                "projection_family": "derived_documents",
+                                "replay_from_source_truth": True,
+                                "derived_from": "source_truth",
+                                "derived_from_document_id": "handbook:66f91543748400ae59b3f9265353a0538088028a",
+                                "parent_document_id": "handbook:66f91543748400ae59b3f9265353a0538088028a",
+                                "attachment_kind": "navigation_like",
+                                "attachment_role": "service_navigation_document",
+                                "target_title": "中央民族大学学生公寓管理工作流程",
+                                "migration_reason": "handbook_navigation_document",
+                            },
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            provider_lines = [
+                _provider_batch_line(
+                    _provider_page(
+                        _provider_block("doc_title", "中央民族大学校内常用电话", block_id="p1-title", block_order=1),
+                        _provider_block("text", "保卫处：68930010", block_id="p1-body", block_order=2),
+                    ),
+                    _provider_page(
+                        _provider_block("doc_title", "中央民族大学公寓及公费医疗管理规定", block_id="p2-title", block_order=1),
+                        _provider_block("text", "一、学生公寓入住办理流程。", block_id="p2-body", block_order=2),
+                    ),
+                )
+            ]
+            provider_result_bytes = (
+                "\n".join(json.dumps(line, ensure_ascii=False) for line in provider_lines) + "\n"
+            ).encode("utf-8")
+            object_store = _FakeObjectStore(provider_result_bytes=provider_result_bytes)
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            source_key = (
+                "official_pdf/student-handbook/2018/sha256/"
+                "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider/paddleocr-vl-1-5/provider-response.jsonl"
+            )
+
+            report = replay_provider_response_rebuild(
+                env={
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    "OBJECT_STORE_BUCKET_SOURCE": SOURCE_BUCKET,
+                    "INGESTION_CORPUS": "regulations",
+                    "INGESTION_COLLECTION": "student_handbook",
+                    "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
+                    "HANDBOOK_SOURCE_PROJECTIONS_PATH": str(projection_config_path),
+                    "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
+                    "REPLAY_SOURCE_PDF": "学生手册_2018.pdf",
+                    "IMPORT_REPORT_DIR": str(root / "reports"),
+                    "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
+                    "EMBEDDING_PROVIDER": "mock",
+                    "QDRANT_COLLECTION": "student_handbook",
+                },
+                object_store=object_store,
+                registry=registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            self.assertEqual(report.import_mode, "provider_response_replay")
+            self.assertEqual(report.success_count, 4)
+            self.assertEqual(
+                tuple(sorted(record.document_id for record in registry.list_by_scope("campus_services", "contact_directory"))),
+                ("campus_services:contact_directory:bf03f0bd6930e89bcc6d2733c1e87a423b510675",),
+            )
+            self.assertEqual(
+                tuple(sorted(record.document_id for record in registry.list_by_scope("campus_services", "service_catalog"))),
+                ("campus_services:service_catalog:66f91543748400ae59b3f9265353a0538088028a",),
+            )
+            upload_payloads = {
+                str(upload["key"]): upload["data"].decode("utf-8")
+                for upload in object_store.uploads
+                if str(upload["key"]).endswith("/canonical.md")
+            }
+            phone_doc = next(
+                payload
+                for key, payload in upload_payloads.items()
+                if "campus_services/documents/contact_directory/" in key
+            )
+            self.assertIn("projection_name: handbook_phone_directory", phone_doc)
+            self.assertIn("derived_from_raw_asset_id: asset:student-handbook-pdf", phone_doc)
+            self.assertIn("parent_document_id: handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675", phone_doc)
+
     def test_replay_provider_response_rebuild_reconstructs_handbook_documents_without_indexing_by_default(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -131,23 +414,21 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                 "\n".join(json.dumps(line, ensure_ascii=False) for line in provider_lines) + "\n"
             ).encode("utf-8")
             object_store = _FakeObjectStore(provider_result_bytes=provider_result_bytes)
-            registry = FileDocumentRegistry(root / "registry" / "student_handbook_documents.json")
-            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "student_handbook_raw_assets.json"
+            )
             source_key = (
-                "regulations/sources/pdf_ocr/student-handbook/undated/sha256/"
-                "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider-response.jsonl"
+                "official_pdf/student-handbook/2018/sha256/"
+                "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider/paddleocr-vl-1-5/provider-response.jsonl"
             )
-            canonical_provider_key = build_processed_asset_artifact_key(
-                corpus="regulations",
-                raw_asset_id="asset:student-handbook-pdf",
-                raw_version_id="sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
-                filename="provider-response.jsonl",
+            canonical_provider_key = (
+                "official_pdf/student-handbook/2018/sha256/"
+                "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider/paddleocr-vl-1-5/provider-response.jsonl"
             )
-            canonical_layout_key = build_processed_asset_artifact_key(
-                corpus="regulations",
-                raw_asset_id="asset:student-handbook-pdf",
-                raw_version_id="sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
-                filename="layout-elements.jsonl",
+            canonical_layout_key = (
+                "official_pdf/student-handbook/2018/sha256/"
+                "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/source-truth/layout-elements.jsonl"
             )
 
             with patch("campus_ingestion_core.local_rebuild._index_replayed_documents") as index_documents:
@@ -156,12 +437,12 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                         "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                         "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                         "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                        "OBJECT_STORE_BUCKET_PROCESSED": "campus-rag-processed",
+                        "OBJECT_STORE_BUCKET_SOURCE": SOURCE_BUCKET,
                         "INGESTION_CORPUS": "regulations",
                         "INGESTION_COLLECTION": "student_handbook",
                         "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
-                        "REBUILD_PROVIDER_RESPONSE_KEY": source_key,
-                        "REPLAY_SOURCE_PDF": "student-handbook.pdf",
+                        "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
+                        "REPLAY_SOURCE_PDF": "学生手册_2018.pdf",
                         "IMPORT_REPORT_DIR": str(root / "reports"),
                         "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
                         "EMBEDDING_PROVIDER": "mock",
@@ -180,7 +461,7 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
             index_documents.assert_not_called()
             self.assertEqual(
                 object_store.reads,
-                [("campus-rag-processed", source_key)],
+                [(SOURCE_BUCKET, source_key)],
             )
 
             upload_keys = [str(upload["key"]) for upload in object_store.uploads]
@@ -258,24 +539,24 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                 "\n".join(json.dumps(line, ensure_ascii=False) for line in provider_lines) + "\n"
             ).encode("utf-8")
             object_store = _FakeObjectStore(provider_result_bytes=provider_result_bytes)
-            registry = FileDocumentRegistry(root / "registry" / "student_handbook_documents.json")
-            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
-            qdrant_client = QdrantClient(location=":memory:")
-            source_key = (
-                "regulations/sources/pdf_ocr/student-handbook/undated/sha256/"
-                "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider-response.jsonl"
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "student_handbook_raw_assets.json"
             )
-            canonical_provider_key = build_processed_asset_artifact_key(
+            qdrant_client = QdrantClient(location=":memory:")
+            source_key = build_processed_asset_artifact_key(
                 corpus="regulations",
                 raw_asset_id="asset:student-handbook-pdf",
                 raw_version_id="sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
                 filename="provider-response.jsonl",
             )
-            canonical_layout_key = build_processed_asset_artifact_key(
-                corpus="regulations",
-                raw_asset_id="asset:student-handbook-pdf",
-                raw_version_id="sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
-                filename="layout-elements.jsonl",
+            canonical_provider_key = (
+                "official_pdf/student-handbook/2018/sha256/"
+                "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider/paddleocr-vl-1-5/provider-response.jsonl"
+            )
+            canonical_layout_key = (
+                "official_pdf/student-handbook/2018/sha256/"
+                "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/source-truth/layout-elements.jsonl"
             )
 
             report = replay_provider_response_rebuild(
@@ -283,15 +564,16 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                     "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                     "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                    "OBJECT_STORE_BUCKET_PROCESSED": "campus-rag-processed",
+                    "OBJECT_STORE_BUCKET_SOURCE": SOURCE_BUCKET,
                     "INGESTION_CORPUS": "regulations",
                     "INGESTION_COLLECTION": "student_handbook",
                     "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
-                    "REBUILD_PROVIDER_RESPONSE_KEY": source_key,
-                    "REPLAY_SOURCE_PDF": "student-handbook.pdf",
+                    "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
+                    "REPLAY_SOURCE_PDF": "学生手册_2018.pdf",
                     "IMPORT_REPORT_DIR": str(root / "reports"),
-                    "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
+                    "INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                     "EMBEDDING_PROVIDER": "mock",
+                    "SPARSE_PROVIDER": "mock",
                     "QDRANT_COLLECTION": "student_handbook",
                     "REBUILD_INDEX_QDRANT": "1",
                 },
@@ -304,6 +586,99 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
             self.assertEqual(report.failed_count, 0)
             collection_info = qdrant_client.get_collection("student_handbook")
             self.assertGreater(collection_info.points_count or 0, 0)
+
+    def test_replay_provider_response_rebuild_indexing_defers_to_record_chunk_profile(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            split_manifest_path = root / "configs" / "split-manifest.v1.json"
+            split_manifest_path.parent.mkdir(parents=True)
+            split_manifest_path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "corpus": "regulations",
+                        "collection": "student_handbook",
+                        "raw_asset_id": "asset:student-handbook-pdf",
+                        "documents": [
+                            {
+                                "document_id": "handbook:d0a1db59ed9a8b00c4349200916edae208d876f6",
+                                "title": "普通高等学校学生管理规定",
+                                "handbook_section": "国家高等教育管理有关规定",
+                                "page_start": 1,
+                                "page_end": 2,
+                                "source_uri": "campus-agent://regulations/student_handbook/docs/handbook:d0a1db59ed9a8b00c4349200916edae208d876f6",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            provider_lines = [
+                _provider_batch_line(
+                    _provider_page(
+                        _provider_block("doc_title", "普通高等学校学生管理规定", block_id="p1-title", block_order=1),
+                        _provider_block("text", "第一条 学校坚持育人为本。", block_id="p1-body", block_order=2),
+                    ),
+                    _provider_page(
+                        _provider_block("text", "第二条 学生应当遵守校纪校规。", block_id="p2-body", block_order=1),
+                    ),
+                )
+            ]
+            provider_result_bytes = (
+                "\n".join(json.dumps(line, ensure_ascii=False) for line in provider_lines) + "\n"
+            ).encode("utf-8")
+            object_store = _FakeObjectStore(provider_result_bytes=provider_result_bytes)
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "student_handbook_raw_assets.json"
+            )
+            source_key = build_processed_asset_artifact_key(
+                corpus="regulations",
+                raw_asset_id="asset:student-handbook-pdf",
+                raw_version_id="sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
+                filename="provider-response.jsonl",
+            )
+
+            chunk_profile_args: list[object | None] = []
+
+            def _capture_chunk_profile(**kwargs: object) -> tuple[object, ...]:
+                chunk_profile_args.append(kwargs.get("chunk_profile"))
+                return ()
+
+            with patch(
+                "campus_ingestion_core.local_rebuild.build_indexable_chunks_from_jsonl",
+                side_effect=_capture_chunk_profile,
+            ), patch(
+                "campus_ingestion_core.local_rebuild.index_chunks_to_qdrant",
+                return_value=(),
+            ):
+                report = replay_provider_response_rebuild(
+                    env={
+                        "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                        "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                        "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                        "OBJECT_STORE_BUCKET_SOURCE": SOURCE_BUCKET,
+                        "INGESTION_CORPUS": "regulations",
+                        "INGESTION_COLLECTION": "student_handbook",
+                        "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
+                        "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
+                        "REPLAY_SOURCE_PDF": "学生手册_2018.pdf",
+                        "IMPORT_REPORT_DIR": str(root / "reports"),
+                        "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
+                        "EMBEDDING_PROVIDER": "mock",
+                        "QDRANT_COLLECTION": "student_handbook",
+                        "REBUILD_INDEX_QDRANT": "1",
+                    },
+                    object_store=object_store,
+                    registry=registry,
+                    raw_asset_registry=raw_asset_registry,
+                    qdrant_client=QdrantClient(location=":memory:"),
+                )
+
+            self.assertEqual(report.failed_count, 0)
+            self.assertEqual(chunk_profile_args, [None])
 
     def test_replay_provider_response_rebuild_reports_indexing_failure_in_final_report(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -360,23 +735,23 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                 "\n".join(json.dumps(line, ensure_ascii=False) for line in provider_lines) + "\n"
             ).encode("utf-8")
             object_store = _FakeObjectStore(provider_result_bytes=provider_result_bytes)
-            registry = FileDocumentRegistry(root / "registry" / "student_handbook_documents.json")
-            raw_asset_registry = FileRawAssetRegistry(root / "registry" / "student_handbook_raw_assets.json")
-            source_key = (
-                "regulations/sources/pdf_ocr/student-handbook/undated/sha256/"
-                "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider-response.jsonl"
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "student_handbook_raw_assets.json"
             )
-            canonical_provider_key = build_processed_asset_artifact_key(
+            source_key = build_processed_asset_artifact_key(
                 corpus="regulations",
                 raw_asset_id="asset:student-handbook-pdf",
                 raw_version_id="sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
                 filename="provider-response.jsonl",
             )
-            canonical_layout_key = build_processed_asset_artifact_key(
-                corpus="regulations",
-                raw_asset_id="asset:student-handbook-pdf",
-                raw_version_id="sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
-                filename="layout-elements.jsonl",
+            canonical_provider_key = (
+                "official_pdf/student-handbook/2018/sha256/"
+                "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider/paddleocr-vl-1-5/provider-response.jsonl"
+            )
+            canonical_layout_key = (
+                "official_pdf/student-handbook/2018/sha256/"
+                "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/source-truth/layout-elements.jsonl"
             )
 
             with patch(
@@ -388,12 +763,12 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                         "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                         "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                         "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                        "OBJECT_STORE_BUCKET_PROCESSED": "campus-rag-processed",
+                        "OBJECT_STORE_BUCKET_SOURCE": SOURCE_BUCKET,
                         "INGESTION_CORPUS": "regulations",
                         "INGESTION_COLLECTION": "student_handbook",
                         "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
-                        "REBUILD_PROVIDER_RESPONSE_KEY": source_key,
-                        "REPLAY_SOURCE_PDF": "student-handbook.pdf",
+                        "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
+                        "REPLAY_SOURCE_PDF": "学生手册_2018.pdf",
                         "IMPORT_REPORT_DIR": str(root / "reports"),
                         "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
                         "EMBEDDING_PROVIDER": "mock",

@@ -1,15 +1,19 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
+from dataclasses import dataclass
 
 from campus_contracts import ALLOWED_CORPORA
 
 from campus_ingestion_core.settings import ObjectStoreSettings
 
 
-DEFAULT_RAW_SOURCE_CHANNEL = "pdf"
-DEFAULT_PROCESSED_SOURCE_CHANNEL = "pdf_ocr"
+DEFAULT_RAW_SOURCE_CHANNEL = "official_pdf"
+DEFAULT_SOURCE_MODEL_SLUG = "paddleocr-vl-1-5"
+SOURCE_CAPTURE_STAGE = "capture"
+SOURCE_PROVIDER_STAGE = "provider"
+SOURCE_TRUTH_STAGE = "source-truth"
+SOURCE_STAGES = {SOURCE_CAPTURE_STAGE, SOURCE_PROVIDER_STAGE, SOURCE_TRUTH_STAGE}
 YEAR_RE = re.compile(r"(?<!\d)((?:19|20)\d{2})(?!\d)")
 REDUNDANT_SOURCE_SUFFIXES = {
     "pdf",
@@ -46,12 +50,13 @@ def build_raw_asset_key(
             _source_asset_slug(raw_asset_id),
             _normalize_year_label(year or infer_year_label(filename)),
             *_identity_segments(raw_version_id),
+            SOURCE_CAPTURE_STAGE,
             filename,
         ]
     )
 
 
-def build_processed_artifact_key(
+def build_document_artifact_key(
     *,
     corpus: str,
     collection: str,
@@ -82,36 +87,180 @@ def build_processed_artifact_key(
     )
 
 
-def build_processed_asset_artifact_key(
+def build_source_provider_artifact_key(
     *,
-    corpus: str,
     raw_asset_id: str,
     raw_version_id: str,
     filename: str,
-    source_channel: str = DEFAULT_PROCESSED_SOURCE_CHANNEL,
+    source_channel: str = DEFAULT_RAW_SOURCE_CHANNEL,
+    model_slug: str = DEFAULT_SOURCE_MODEL_SLUG,
     year: str | None = None,
-) -> str:
-    _validate_corpus_and_filename(corpus=corpus, filename=filename)
+    ) -> str:
+    _validate_filename_only(filename=filename)
     if not raw_asset_id:
         raise ValueError("raw_asset_id is required")
     if not raw_version_id:
         raise ValueError("raw_version_id is required")
     return "/".join(
         [
-            corpus,
-            "sources",
             _validate_path_segment(source_channel, field_name="source_channel"),
             _source_asset_slug(raw_asset_id),
             _normalize_year_label(year),
             *_identity_segments(raw_version_id),
+            SOURCE_PROVIDER_STAGE,
+            _validate_path_segment(model_slug, field_name="model_slug"),
             filename,
         ]
     )
 
 
+def build_source_model_slug(model_name: str) -> str:
+    return _validate_path_segment(_slugify_path_label(model_name), field_name="model_slug")
+
+
+def build_source_truth_artifact_key(
+    *,
+    raw_asset_id: str,
+    raw_version_id: str,
+    filename: str,
+    source_channel: str = DEFAULT_RAW_SOURCE_CHANNEL,
+    year: str | None = None,
+) -> str:
+    _validate_filename_only(filename=filename)
+    if not raw_asset_id:
+        raise ValueError("raw_asset_id is required")
+    if not raw_version_id:
+        raise ValueError("raw_version_id is required")
+    return "/".join(
+        [
+            _validate_path_segment(source_channel, field_name="source_channel"),
+            _source_asset_slug(raw_asset_id),
+            _normalize_year_label(year),
+            *_identity_segments(raw_version_id),
+            SOURCE_TRUTH_STAGE,
+            filename,
+        ]
+    )
+
+
+def build_processed_artifact_key(
+    *,
+    corpus: str,
+    collection: str,
+    document_id: str,
+    revision_track: str,
+    version_id: str,
+    filename: str,
+    title: str | None = None,
+    year: str | None = None,
+) -> str:
+    return build_document_artifact_key(
+        corpus=corpus,
+        collection=collection,
+        document_id=document_id,
+        revision_track=revision_track,
+        version_id=version_id,
+        filename=filename,
+        title=title,
+        year=year,
+    )
+
+
+def build_processed_asset_artifact_key(
+    *,
+    corpus: str,
+    raw_asset_id: str,
+    raw_version_id: str,
+    filename: str,
+    source_channel: str = DEFAULT_RAW_SOURCE_CHANNEL,
+    model_slug: str = DEFAULT_SOURCE_MODEL_SLUG,
+    year: str | None = None,
+) -> str:
+    if filename == "layout-elements.jsonl":
+        return build_source_truth_artifact_key(
+            raw_asset_id=raw_asset_id,
+            raw_version_id=raw_version_id,
+            filename=filename,
+            source_channel=source_channel,
+            year=year,
+        )
+    return build_source_ocr_artifact_key(
+        raw_asset_id=raw_asset_id,
+        raw_version_id=raw_version_id,
+        filename=filename,
+        source_channel=source_channel,
+        model_slug=model_slug,
+        year=year,
+    )
+
+
+def build_source_ocr_artifact_key(
+    *,
+    raw_asset_id: str,
+    raw_version_id: str,
+    filename: str,
+    source_channel: str = DEFAULT_RAW_SOURCE_CHANNEL,
+    model_slug: str = DEFAULT_SOURCE_MODEL_SLUG,
+    year: str | None = None,
+) -> str:
+    return build_source_provider_artifact_key(
+        raw_asset_id=raw_asset_id,
+        raw_version_id=raw_version_id,
+        filename=filename,
+        source_channel=source_channel,
+        model_slug=model_slug,
+        year=year,
+    )
+
+
+def is_source_object_key(key: str) -> bool:
+    parsed = parse_source_object_key(key)
+    return parsed is not None
+
+
+def parse_source_object_key(key: str) -> dict[str, object] | None:
+    parts = [part for part in key.strip("/").split("/") if part]
+    if len(parts) < 6:
+        return None
+    stage_index = _find_source_stage_index(parts)
+    if stage_index is None or stage_index < 4:
+        return None
+    source_channel = parts[0]
+    source_asset_slug = parts[1]
+    year = parts[2]
+    raw_version_segments = tuple(parts[3:stage_index])
+    if not raw_version_segments:
+        return None
+    stage = parts[stage_index]
+    model_slug: str | None = None
+    filename_index = stage_index + 1
+    if stage == SOURCE_PROVIDER_STAGE:
+        if len(parts) < stage_index + 3:
+            return None
+        model_slug = parts[stage_index + 1]
+        filename_index = stage_index + 2
+    if len(parts) != filename_index + 1:
+        return None
+    filename = parts[filename_index]
+    return {
+        "source_channel": source_channel,
+        "source_asset_slug": source_asset_slug,
+        "year": year,
+        "raw_version_segments": raw_version_segments,
+        "raw_version_id": ":".join(raw_version_segments),
+        "stage": stage,
+        "model_slug": model_slug,
+        "filename": filename,
+    }
+
+
 def _validate_corpus_and_filename(*, corpus: str, filename: str) -> None:
     if corpus not in ALLOWED_CORPORA:
         raise ValueError(f"unsupported corpus: {corpus}")
+    _validate_filename_only(filename=filename)
+
+
+def _validate_filename_only(*, filename: str) -> None:
     if not filename or "/" in filename.strip("/"):
         raise ValueError("filename must be a single path segment")
 
@@ -149,6 +298,13 @@ def _source_asset_slug(raw_asset_id: str) -> str:
     if not segments:
         raise ValueError("raw_asset_id is required")
     return _normalize_source_asset_slug(segments[-1])
+
+
+def _find_source_stage_index(parts: list[str]) -> int | None:
+    for index, value in enumerate(parts):
+        if value in SOURCE_STAGES:
+            return index
+    return None
 
 
 def _normalize_source_asset_slug(value: str) -> str:

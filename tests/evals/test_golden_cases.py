@@ -4,10 +4,11 @@ import unittest
 
 from campus_contracts import (
     ActorContext,
-    DelegateToRagAgentResponse,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
+    RagResultPayload,
+    SpecialistResponse,
 )
 from campus_evals import (
     ExecutionResult,
@@ -52,16 +53,19 @@ def _response(
     corpus: str = "regulations",
     collection: str = "student_handbook",
     sources: tuple[EvidenceSource, ...] = (),
-) -> DelegateToRagAgentResponse:
-    return DelegateToRagAgentResponse(
+) -> SpecialistResponse:
+    return SpecialistResponse(
+        target="rag-specialist",
         status=status,
         answer_text=answer_text,
         confidence="high" if status == "completed" else "low",
-        evidence=EvidenceBundle(
-            query_text="library hours",
-            corpus=corpus,
-            collection=collection,
-            sources=sources,
+        result=RagResultPayload(
+            evidence=EvidenceBundle(
+                query_text="library hours",
+                corpus=corpus,
+                collection=collection,
+                sources=sources,
+            )
         ),
     )
 

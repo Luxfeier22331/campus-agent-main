@@ -4,8 +4,6 @@ from dataclasses import dataclass, field
 
 from campus_contracts import (
     ALLOWED_CORPORA,
-    DEFAULT_COLLECTION,
-    DEFAULT_CORPUS,
     KNOWN_COLLECTION_TO_CORPUS,
 )
 
@@ -13,8 +11,8 @@ from campus_contracts import (
 @dataclass(frozen=True, slots=True)
 class RetrievalRequest:
     query_text: str
-    corpus: str = DEFAULT_CORPUS
-    collection: str = DEFAULT_COLLECTION
+    corpus: str
+    collection: str
     campus_scope: str | None = None
     acl_groups: tuple[str, ...] = field(default_factory=tuple)
     top_k: int = 3

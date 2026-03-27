@@ -2,209 +2,191 @@
 doc_type: architecture
 status: active
 created: 2026-03-22
-updated: 2026-03-24
+updated: 2026-03-27
 ---
 
-# campus-agent 第一阶段 Ingestion 与存储架构
+# campus-agent 第一阶段数据平面架构
+
+## 文档边界
+
+这份文档描述的是 `campus-agent` 在 phase-1 交付范围内的 `ingestion / storage / registry / chunk-index` 数据平面架构，不是 `.planning/ROADMAP.md` 中 “Phase 1: Contract And Boundary Guardrails” 的执行说明。
+
+它只负责冻结跨 collection 共享的数据平面边界和不变量，不负责重复以下内容：
+
+- 长期 package 边界和系统形态：`docs/architecture/long-term-architecture.md`
+- 第一阶段架构取舍与范围决策：`docs/decisions/adr-0001-phase1-architecture.md`
+- 本机 `MinIO` / object key / bucket 不变量：`docs/decisions/adr-0002-local-minio-conventions.md`
+- `student_handbook` 的 OCR 归一化、拆分和 document-level 语义：`docs/architecture/student-handbook-ocr-normalization-strategy.md`
+- OCR/source-truth shared canonical contract：`docs/architecture/source-truth-normalization-contract.md`
+- collection 级 runtime truth：`configs/ingestion/<corpus>/<collection>/`
+- gate、实施顺序和验收：`docs/plans/agentic-rag-foundation.md`
 
 ## 目标
 
-在第一阶段就把长期 `regulations` corpus 的摄入与存储链路正式建好，不保留单机缓存式方案，也不把对象存储、document registry、stable ID 留到后续补齐。当前首批落地 collection 是 `student_handbook`，但它不再被建模为长期 corpus 根名。
+第一阶段的数据平面目标是：
 
-当前阶段因为暂时无法使用云服务，对象存储先采用本机部署的 `MinIO` 作为替代实现；但上层 contract 仍然按 `S3-compatible object storage` 设计，不把本机目录当作真相源。
+- 正式引入独立的 ingestion/data plane，而不是把数据导入继续塞进在线查询路径
+- 从第一天起建立 `Raw -> Processed -> Chunk/Index` 分层
+- 冻结 `single source consumption + multi-projection fan-out`，把 canonical 模型明确为 `raw -> source truth -> declared projections -> document/chunk/index`
+- 用对象存储、raw asset registry、document registry 和 Qdrant 建立稳定真相源
+- 让 retrieval 通过 `registry + qdrant` 返回可回链 evidence，而不是只消费向量库
+- 保持 query path 与 offline ingestion path 分层，避免 supervisor/specialist 反向吸收数据平面细节
 
-额外约束：
+## Source Of Truth
 
-- raw layer 不按 corpus 前缀组织，因为同一份 raw asset 可能被多个 corpus 复用
-- processed layer 才按 corpus 前缀组织；当前首批长期知识域为 `regulations`
+当前文档体系的 ownership 固定如下：
 
-## 结论
+- 数据平面的长期分层、package 边界：`docs/architecture/long-term-architecture.md`
+- 第一阶段为什么采用对象存储 + registry + Qdrant：`docs/decisions/adr-0001-phase1-architecture.md`
+- bucket、object key、registry 字段和迁移不变量：`docs/decisions/adr-0002-local-minio-conventions.md`
+- `student_handbook` 的 source-level normalization 和 document-level cleanup truth：`docs/architecture/student-handbook-ocr-normalization-strategy.md`
+- repo 级 source-truth canonical contract：`docs/architecture/source-truth-normalization-contract.md`
+- `student_handbook` / `curriculum_plan` / `campus_services` 的具体 runtime 开关、chunk profile、split manifest：`configs/ingestion/`
+
+换句话说，这份文档只保留跨 collection 的稳定架构约束；collection 专属规则不再在这里复制一份 runtime truth。
+
+## 架构结论
 
 第一阶段采用如下数据平面：
 
-- Crawler / Job 负责采集原始文档
-- Queue 负责解耦与重试
-- Ingestion Worker 负责去重、版本推进、解析、chunking 和索引写入
-- Object Storage 负责原始文档和处理中间结果
-  当前阶段实现为本机部署的 `MinIO`
-- Raw Asset Registry 负责原始文件级真相元数据
-- Document Registry 负责文档级真相元数据
-- Qdrant 负责 chunk metadata payload 和向量索引
-- Retrieval Core 通过 LlamaIndex 直连 Qdrant，并结合 registry 信息返回 evidence bundle
+- `Crawler / Job`
+  负责采集或登记待摄入的原始来源
+- `Queue`
+  表达 ingestion 与上游采集的解耦边界；不在这里冻结为具体产品
+- `Ingestion Worker`
+  消费已登记的 raw asset，执行去重、版本推进、解析、chunking、embedding 写入
+- `Object Storage`
+  承载 raw 与 processed artifacts；当前阶段实现为本机部署的 `MinIO`，但架构语义始终是 `S3-compatible object storage`
+  source bucket 内部固定采用单一 source prefix 下的 `capture -> provider -> source-truth` 阶段布局，而不是顶层 `pdf/`、`ocr/`、`source-truth/` 分裂布局
+- `Raw Asset Registry`
+  承载原始文件级真相元数据
+- `Document Registry`
+  承载逻辑文档级真相元数据
+- `Qdrant`
+  承载在线检索消费的 canonical chunk/index store
+- `Retrieval Core`
+  结合 registry 与 Qdrant 形成 evidence bundle，屏蔽下游实现细节
 
 ## 分层模型
 
 ### Raw Layer
 
-存储内容：
+职责：
 
-- PDF、Word、Markdown、HTML 等原始文件
-- 原始抓取来源 URI
-- 原始文件 hash
+- 保存 PDF、Word、Markdown、HTML 等原始来源文件
+- 保留原始抓取来源信息与可重放输入
+- 支撑审计、重处理和 provenance 回链
 
-存储要求：
+不变量：
 
-- 使用对象存储
+- 使用对象存储，不以本机文件系统作为长期真相源
 - 允许版本保留
-- 不以本机文件系统作为长期真相源
-- 当前阶段由本机 `MinIO` bucket 承载
-
-### Processed Layer
-
-存储内容：
-
-- 清洗后的正文文本
-- OCR / 结构解析结果
-- 供应商原始解析响应
-- 抽取出的结构化 metadata
-- parser 版本和处理时间
-
-存储要求：
-
-- 可放对象存储或结构化存储
-- 必须能从 raw 重建 chunk
-- 同一 `document_id + representation + version_id` 下允许保存多个 processed artifact
-- 供应商原始响应、asset 级 `layout-elements.jsonl` 和文档级 `document-units.jsonl` 必须分层保存，不能互相替代
-- 当前阶段优先仍放在本机 `MinIO` 中，与 raw layer 分 bucket 或分前缀管理
-
-`regulations` corpus 在 processed 层固定采用以下命名空间：
-
-- source-oriented artifacts 放在 `regulations/sources/...`
-- document-oriented artifacts 放在 `{corpus}/documents/...`
-
-首批 `student_handbook` collection 固定采用以下链路：
-
-- asset-level `provider-response.jsonl`
-- asset-level `layout-elements.jsonl`
-- repo-tracked `split-manifest.v1.json`
-- per-document `canonical.md` / metadata
-- per-document `document-units.jsonl`
-
-固定约束：
-
-- handbook 的主输入是 provider 原始响应 `provider-response.jsonl`，不是历史外部存储导入的其他 OCR 形状
-- `layout-elements.jsonl` 是 split 前唯一内部统一结构真相
-- handbook 文档边界必须先通过 `split-manifest.v1.json` 恢复，再进入 document-level cleaning 和 chunking
-- document registry 只登记逻辑文档，不把整本 handbook PDF 作为单一 document truth
-- handbook 逻辑文档 identity 脱离 PDF 文件名；raw provenance 通过 `raw_asset_id/raw_version_id/page_start/page_end` 显式回链
-- 第一阶段 handbook OCR ingest / replay 固定写入 `representation=source-faithful`
-
-### Chunk / Index Layer
-
-存储内容：
-
-- chunk 文本
-- chunk metadata
-- embeddings
-- vector index
-
-存储要求：
-
-- 第一阶段使用 Qdrant
-- Qdrant 是在线检索所消费的 canonical chunk/index store
-- 每个 chunk 带 stable `chunk_id`
-- 每个 chunk 必须回链到 `document_id`、`representation` 和 `version_id`
-- `processed` 必须能重建 chunk，但对象存储不承载 canonical chunk 集合
-- 如果为了备份、审计或离线重建导出 chunk manifest，该导出物只能是派生副本，不能替代 Qdrant 中的在线检索数据
-
-### `student_handbook` Collection Runtime Truth
-
-第一阶段把 `student_handbook` 的 chunking / cleaning 策略直接冻结为 runtime truth，不通过环境变量做可变参数开关。
-
-固定参数：
-
-- `target_tokens = 240`
-- `max_tokens = 360`
-- `overlap_tokens = 48`
-- `min_tokens = 40`
-- `split_strategy = structure_first`
-- `chunk_policy_version = student_handbook_semantic_v1`
-- `cleaning_policy_version = student_handbook_cleaning_v1`
-
-固定语义：
-
-- 只支持 `article_body`、`policy_page`、`table`、`table_row` 四类 handbook 语义单元
-- `article_body` / `policy_page` 先做 cleaning，再按 token guardrail split
-- `table` / `table_row` 作为 evidence 单元保留，不在 phase-1 ingestion 内再次切分
-- parent unit 中的原始 HTML table 必须移除，并替换为表格占位文本；细粒度表格事实由 `table` / `table_row` 承担
-- oversize split 结果必须写出 `root_unit_id`、`segment_index`、`segment_total`、`split_reason`
-
-### Document Registry
-
-存储内容：
-
-- `document_id`
-- `representation`
-- `version_id`
-- `source_uri`
-- `content_hash`
-- `corpus`
-- `collection`
-- `acl_groups`
-- `campus_scope`
-- `status`
-- `ingestion_timestamp`
-- `parser_version`
-- `embedding_model`
-- `source_channel`
-- `published_year`
-- `effective_year`
-- `is_current`
-- `raw_asset.raw_asset_id`
-- `raw_asset.raw_version_id`
-- `raw_asset.page_start`
-- `raw_asset.page_end`
-- `document_units_object_key`
-- `provider_response_object_key`
-- `canonical_markdown_object_key`
-
-作用：
-
-- 作为文档元数据真相源
-- 支撑增量更新、删除和审计
-- 支撑 retrieval 前置过滤和 evidence 回链
-- 不重复承载 raw 文件身份；raw 文件身份由 raw asset registry 独立维护
-- 其中 `source_uri` 表达逻辑文档版本的 canonical source locator；对于 `curriculum_plan` 这类由 master PDF 拆分出的文档，它应由 `raw_asset_id + raw_version_id + page range` 派生，而不是伪造外部详情页 URL
+- raw layer 不按 `corpus` 组织，因为同一份 raw asset 可能被多个 corpus 复用
 
 ### Raw Asset Registry
 
-存储内容：
+职责：
 
-- `raw_asset_id`
-- `raw_version_id`
-- `raw_source_uri`
-- `content_hash`
-- `source_filename`
-- `object_key`
-- `ingestion_timestamp`
-- `import_source`
+- 保存 `raw_asset_id`、`raw_version_id`、`content_hash`、`source_filename`、`raw_source_uri`、`object_key`
+- 表达“这份原始文件是什么”
+- 保证同一份 raw 资产不会因为拆出多个逻辑文档而被重复登记为多个原始真相
 
-作用：
+不变量：
 
-- 作为原始文件级真相源
-- 支撑同一份 PDF 被多个逻辑文档共享时只上传和登记一次
-- 支撑 raw layer 审计、重处理和重建
+- raw 文件身份不绑定到 `document_id/version_id`
+- retrieval 和 document registry 只能通过显式引用回链 raw asset，不能从 object key 反推真相
+
+### Processed Layer
+
+职责：
+
+- 保存清洗文本、OCR/解析结果、供应商原始响应、结构化中间结果
+- 作为 chunk 的可重建来源
+- 为不同 collection 提供稳定的 source-level 和 document-level artifact 边界
+
+不变量：
+
+- processed 必须能从 raw 重建
+- processed 可以承载中间结果，但不是在线查询的 canonical chunk store
+- processed layer 按长期知识域 `corpus` 组织
+- source-level artifact 与 document-level artifact 必须分层保存，不能互相替代
+
+### Source Truth 与 Projection Boundary
+
+第一阶段对可复用 source asset 的 canonical 模型固定为：
+
+`raw -> source truth -> declared projections -> document/chunk/index`
+
+这里的 `source truth` 指的是已经脱离 provider 私有形状、可稳定重放的 source-level truth，例如 handbook 的 `layout-elements.jsonl`、split truth 与 per-document source rows；它是后续 document build、attachment projection、service projection 与 replay/rebuild 的唯一共享上游。其 repo 级字段与命名 contract 以 `docs/architecture/source-truth-normalization-contract.md` 为准。
+
+职责：
+
+- 把一份 raw source 消费一次，并把可重放的 source truth 持久化一次
+- 以 repo-tracked projection declaration 显式声明该 source 会 fan-out 到哪些下游 document family、collection 或 attachment-like output
+- 让后续 replay/rebuild 直接从 persisted source truth 重新生成 document artifact、chunk/index 或 derived document，而不是重新回到 raw
+
+不变量：
+
+- 同一份 canonical source truth 已存在时，后续 collection 扩展、附件抽取或派生文档生成不得返回 raw 重新消费；do not return to raw
+- 允许一个 source asset fan-out 到多个 collection/corpus，但 fan-out 必须通过显式 projection contract，而不是“每个下游 collection 再跑一条独立 raw ingestion lane”
+- attachment、appendix、form、navigation-like leaves 只要具有独立下游价值，就应作为 explicit derived document 建模，并保留对 source truth 与 parent document 的稳定 provenance
+- projection contract 只属于 ingestion/data plane；它不改变 retrieval、supervisor 或 contracts 的边界
+
+当前明确要被替换的反模式：
+
+- handbook-only replay：把 replay/rebuild 绑定成 `student_handbook` 私有支路，而不是 replay from source truth
+- separate `campus_services` migration lane：把 handbook-derived service output 建成独立迁移世界观，而不是同一 source truth 下的 declared projection
+- attachment semantics trapped inside cleanup：附件/附录/表单/导航语义只存在于清洗逻辑里，而不落成 derived document
+
+### Document Registry
+
+职责：
+
+- 保存 `document_id`、`revision_track`、`version_id`、`source_uri`、`content_hash`、`corpus`、`collection`、ACL、状态、时间戳，以及指向 raw asset 的引用
+- 表达“当前逻辑文档版本是什么”
+- 支撑增量更新、删除、审计、retrieval 前过滤与 evidence 回链
+
+不变量：
+
+- document registry 只登记逻辑文档，不重复承载 raw 文件身份
+- registry 字段必须显式存储，不允许把 object key 命名当成 registry 替代品
+- `source_uri` 表达 document-level canonical locator，不要求等于外部官网 URL
+
+### Chunk / Index Layer
+
+职责：
+
+- 保存在线检索所需的 chunk 文本、chunk metadata、embeddings 和向量索引
+- 为 retrieval 提供 evidence 选择的主消费面
+
+不变量：
+
+- 第一阶段 canonical chunk store 是 `Qdrant`
+- 每个 chunk 必须回链到 `document_id`、`revision_track`、`version_id`
+- embedding request contract 与 Qdrant schema contract 必须分离：
+  `model` / `dimensions` 属于 embedding runtime；
+  named dense/sparse vectors、payload metadata 与 hybrid query shape 属于 Qdrant collection schema
+- `student_handbook` 的 accepted target schema 是同一点双写 named `dense` 与 named `sparse` vectors
+- 如需导出 chunk manifest 到对象存储，该导出物只能用于备份、审计或离线重建，不能替代 Qdrant
 
 ## 第一阶段固定流程
 
 ### 摄入链路
 
-`crawler/jobs -> raw layer -> raw asset registry -> ingestion worker -> processed layer -> document registry -> qdrant`
+`crawler/jobs -> raw layer -> raw asset registry -> ingestion worker -> source truth -> declared projections -> document registry -> qdrant`
 
 固定规则：
 
-- crawler 不直接把本机文件作为长期数据源
-- crawler 产物先进入对象存储，并在 raw asset registry 中登记稳定身份
-- ingestion worker 通过 `raw_asset_id + raw_version_id` 消费已登记的 raw asset，而不是直接消费本地 PDF 路径或本地 placeholder job 文件
-- ingestion worker 在早期做 hash 去重
-- 无变化文档直接 skip
-- 有变化文档生成新 `version_id`
-- 文档删除通过 registry 状态和索引删除同步处理
-- 当前阶段对象存储 endpoint 为本机 `MinIO`
-- `student_handbook` collection 的 normalized ingestion 固定为 `provider-response -> layout-elements -> split-manifest -> cleanup/canonical.md -> document-units.jsonl -> qdrant`
-- `student_handbook` 回放默认原始文件名为 `学生手册_2018.pdf`；兼容读取历史 `student-handbook.pdf` 仅用于迁移
-- `provider_only` 只允许跳过 document-level registry，不允许跳过 canonical raw asset registry
-- feature worktree 缺少 `.env` 时，ingestion worker CLI 允许显式回退到 main worktree `.env`；不允许因此改走本地 mock backend 或本地 file-registry 兼容路径
+- crawler 产物先进入对象存储和 raw asset registry，不直接把本机路径当长期数据源
+- ingestion worker 通过 `raw_asset_id + raw_version_id` 消费已登记 raw asset，而不是直接消费本地文件路径
+- ingestion worker 对同一 source asset 的 canonical raw/source truth 只消费与持久化一次；后续 fan-out 通过 declared projections 执行
+- 对需要 online retrieval 的 collection，rebuild/indexing 必须对同一 `chunk_id` 同步写入 dense 与 sparse vectors；不能只重建 dense 而让 sparse 留在在线临时计算路径
+- 去重在摄入早期完成
+- 无变化文档直接 skip；有变化文档生成新 `version_id`
+- 文档删除通过 registry 状态与索引删除同步处理
+- replay/rebuild 的 canonical boundary 是 persisted source truth，而不是 handbook-only branch、legacy migration side path 或二次 raw re-entry
+- handbook-derived `campus_services` output、attachment/form/navigation-like output 都必须从 source truth fan-out，而不是各自回到 raw
+- collection 专属 normalization、cleanup、chunking 规则由对应 strategy doc 和 `configs/ingestion/` 冻结，不在本文重复
 
 ### 查询链路
 
@@ -212,11 +194,18 @@ updated: 2026-03-24
 
 固定规则：
 
-- query-serving 默认开放 `regulations` corpus 中的 `student_handbook` collection
-- `curriculum/curriculum_plan` 在第一阶段必须完成 raw/processed/registry 与清洗真相收口，但不改变查询面默认 collection 范围
+- query-serving 默认只开放 `regulations` corpus 中的 `student_handbook` collection
+- `curriculum/curriculum_plan` 在 phase-1 只完成 offline data-plane 收口，不改变默认查询面
+- `campus_services/service_catalog` 与 `campus_services/contact_directory` 在当前阶段只保留离线 taxonomy 和 data-plane 入口，不改变默认查询面
 - retrieval 返回的 source 必须能回链到 document registry
 - retrieval 前置 ACL filter 必须基于 metadata 执行
-- evidence source 必须显式带回 `representation`、`source_channel` 和 `is_current`
+- 当前 retrieval accepted baseline 为 `dense + sparse hybrid retrieval + RRF fusion + registry-backed evidence shaping`；`HyDE` 和 rerank 不是默认主路径
+- 当前 handbook embedding runtime 通过 `gitee` 官方 OpenAI-compatible 接口请求 `Qwen3-Embedding-4B @ 2560`，ingestion 与 retrieval query path 都必须显式发送 `dimensions=2560`
+- 当前 handbook 的 phase-1 sparse baseline 先采用 `Qdrant native BM25`，并以 `tokenizer=multilingual`、`language=none` 作为中文 handbook 起始配置
+- 当前 handbook 的 accepted target retrieval shape 是 Qdrant native hybrid query：同一 filter 下执行 dense prefetch 与 sparse prefetch，并使用 native `RRF` 融合
+- 当前 handbook query-serving 默认只消费 collection runtime profile 定义的 current-serving documents；当前策略为 `current_only=true`，并按 `serving_revision_tracks=["current-effective","source-faithful"]` 过滤 serving revision_track
+- query path 不再接受“历史版本先命中，再靠 `latest_url` 告知用户当前链接”作为默认主路径；历史版本默认不进入 retrieval candidate
+- 当同一逻辑文档同时存在 `pdf_ocr` / `official_web` 等多来源且规范化内容一致时，source layer 保留多份来源资产，但 document/version layer 只保留一份逻辑版本；Qdrant 不得为等价来源重复建索引点
 
 ## 去重与版本策略
 
@@ -224,14 +213,16 @@ updated: 2026-03-24
 
 - exact duplicate: `content_hash`
 - stable identity: `document_id`
-- semantic representation line: `representation`
+- semantic representation line: `revision_track`
 - mutable version: `version_id`
 
 规则：
 
 - 同一 `document_id` 且 `content_hash` 不变：跳过重处理
 - 同一 `document_id` 且 `content_hash` 变化：生成新 `version_id`
-- chunk ID 基于 `document_id + representation + version_id + chunk_order`
+- ingestion 必须维护 `document_id + revision_track` 维度的 current truth；新 current 版本写入时，旧 current 必须同步降级为 `is_current=false`
+- 如果不同来源在同一 `document_id + revision_track` 下产生相同规范化内容，则必须复用已有 `version_id`，并把来源差异落到 provenance，而不是再生成第二条 document registry record
+- `chunk_id` 基于 `document_id + revision_track + version_id + chunk_order`
 
 ## ACL 与 Traceability
 
@@ -239,9 +230,9 @@ updated: 2026-03-24
 
 - 文档级 ACL metadata
 - chunk 级 ACL metadata 继承文档 metadata
-- evidence bundle 返回最小 source locator 字段
+- retrieval/evidence 返回最小 source locator 字段
 - ingestion 和 query 都写结构化日志
-- object key 从第一天起带稳定路径语义，避免未来迁移云对象存储时重写 key 体系
+- object storage 路径从第一天起保持稳定语义，避免未来迁移云对象存储时重写数据面规则
 
 第一阶段不做到：
 
@@ -252,46 +243,24 @@ updated: 2026-03-24
 ## 与仓库结构的对应关系
 
 - `apps/ingestion-worker`
-  raw ingestion worker shell 与 rebuild shell
+  ingestion runtime 壳，承接 raw ingestion / rebuild 等 worker 入口
 - `packages/ingestion-core`
-  去重、解析、chunking、embedding 写入逻辑
+  去重、解析、cleanup、chunking、embedding、registry 写入的逻辑层
 - `packages/retrieval-core`
-  基于 registry + Qdrant 的 retrieval 抽象
+  基于 registry + Qdrant 的 retrieval abstraction
 - `packages/contracts`
-  document / chunk / evidence 相关 schema
+  document / chunk / evidence 相关共享 schema，不泄漏基础设施类型
 
-## 当前阶段对象存储约束
+## 这份文档不再承载的内容
 
-第一阶段的对象存储实现约束固定为：
+以下内容如有变化，应更新对应 source of truth，而不是先改本文：
 
-- 使用本机部署的 `MinIO`
-- 上层一律按 `S3-compatible` 接口接入
-- 不直接依赖本机目录路径
-- 不把 `MinIO` 内部路径语义泄漏到 contracts
-- bucket 至少拆成：
-  - `campus-rag-raw`
-  - `campus-rag-processed`
-- object key 建议采用：
-  - raw bucket: `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/{original_filename}`
-  - processed bucket source artifact: `{corpus}/sources/{source_channel}/{source_asset_slug}/{year}/{ingest_id}/{artifact_filename}`
-  - processed bucket document artifact: `{corpus}/documents/{collection}/{title_slug}--{docid8}/{representation}/{year}/{artifact_filename}`
-- 在线 OCR 接入时，`processed/` 下至少允许：
-  - `{corpus}/sources/pdf_ocr/{source_asset_slug}/{year}/{ingest_id}/provider-response.jsonl`
-  - `{corpus}/sources/pdf_ocr/{source_asset_slug}/{year}/{ingest_id}/layout-elements.jsonl`
-  - `{corpus}/documents/{collection}/{title_slug}--{docid8}/{representation}/{year}/canonical.md`
-  - `{corpus}/documents/{collection}/{title_slug}--{docid8}/{representation}/{year}/document-units.jsonl`
-- 逻辑 ID、来源 ID 和版本 ID 继续保留在 registry / metadata 中；object key 只承载稳定分组语义与人工可核对标签
-- 不为 chunk 单独建立 canonical object storage 路径；chunk 的在线主存储保持在 `Qdrant`
+- handbook 的 `provider-response -> layout-elements -> split-manifest -> canonical.md -> document-units.jsonl` 细节
+- handbook / curriculum 的 unit set、chunk policy、cleaning policy、revision_track 默认值
+- bucket 名、object key 展开规则、迁移不变量
+- 任何 collection 级 runtime 开关或 profile 参数
 
-详细约束见：
-
-- `docs/decisions/adr-0002-local-minio-conventions.md`
-
-实施拆分见：
-
-- `docs/plans/agentic-rag-foundation.md`
-
-当前实现入口：
+## 当前实现入口
 
 - `apps/ingestion-worker/src/campus_ingestion_worker/process_raw_ingestion_job.py`
 - `packages/ingestion-core/src/campus_ingestion_core/registry.py`
@@ -302,5 +271,5 @@ updated: 2026-03-24
 
 - 不做旧 `/api/search`、`/api/answer` 兼容层
 - 不做本机目录长期存储
-- 不做多知识域 corpus 并行
 - 不做多 backend 并行
+- 不让 collection 专属 runtime truth 散落到多个 architecture doc 中

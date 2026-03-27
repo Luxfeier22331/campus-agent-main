@@ -70,6 +70,21 @@ class RawAssetRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class SourceObservation:
+    source_channel: str
+    source_uri: str
+    raw_asset: RawAssetRef | None = None
+    is_primary: bool = False
+    import_source: str = ""
+
+    def __post_init__(self) -> None:
+        if self.source_channel not in ALLOWED_SOURCE_CHANNELS:
+            raise ValueError(f"unsupported source channel: {self.source_channel}")
+        if not self.source_uri:
+            raise ValueError("source_uri is required")
+
+
+@dataclass(frozen=True, slots=True)
 class DocumentRegistryRecord:
     document_id: str
     revision_track: str
@@ -92,6 +107,7 @@ class DocumentRegistryRecord:
     supersedes_version_id: str | None = None
     provenance_status: str = ""
     raw_asset: RawAssetRef | None = None
+    source_observations: tuple[SourceObservation, ...] = field(default_factory=tuple)
     document_units_object_key: str | None = None
     provider_response_object_key: str | None = None
     canonical_markdown_object_key: str | None = None
@@ -123,3 +139,5 @@ class DocumentRegistryRecord:
             raise ValueError(f"unsupported source channel: {self.source_channel}")
         if not self.import_source:
             raise ValueError("import_source is required")
+        if sum(1 for observation in self.source_observations if observation.is_primary) > 1:
+            raise ValueError("source_observations must not contain more than one primary observation")

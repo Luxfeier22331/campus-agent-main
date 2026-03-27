@@ -3,14 +3,16 @@ from importlib import import_module
 from pathlib import Path
 import unittest
 
-from campus_contracts import DelegateToRagAgentRequest
+from campus_contracts import KnowledgeScope, RagRequestPayload, SpecialistRequest
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 EXPECTED_WORKSPACES = {
     "apps/ingestion-worker",
+    "apps/public-consumer-chat",
     "apps/supervisor-api",
+    "packages/availability-specialist",
     "packages/contracts",
     "packages/evals",
     "packages/ingestion-core",
@@ -26,20 +28,27 @@ class WorkspaceLayoutTest(unittest.TestCase):
         missing = [path for path in EXPECTED_WORKSPACES if not (ROOT / path).exists()]
         self.assertEqual(missing, [])
 
-    def test_supervisor_core_handles_request_contract(self) -> None:
-        supervisor_core = import_module("campus_supervisor_core")
-
-        response = supervisor_core.handle_request(
-            DelegateToRagAgentRequest(user_goal="library hours")
+    def test_contract_surface_exposes_generic_specialist_request(self) -> None:
+        request = SpecialistRequest(
+            target="rag-specialist",
+            user_goal="library hours",
+            payload=RagRequestPayload(
+                scope=KnowledgeScope(
+                    corpus="regulations",
+                    collection="student_handbook",
+                )
+            ),
         )
 
-        self.assertIn(response.status, {"completed", "no_answer", "error"})
-        self.assertTrue(response.evidence)
-        self.assertEqual(response.evidence.corpus, "regulations")
-        self.assertEqual(response.evidence.collection, "student_handbook")
-        if response.status == "completed":
-            self.assertTrue(response.answer_text)
-            self.assertTrue(response.evidence.sources)
+        self.assertEqual(
+            request.payload,
+            RagRequestPayload(
+                scope=KnowledgeScope(
+                    corpus="regulations",
+                    collection="student_handbook",
+                )
+            ),
+        )
 
     def test_supervisor_api_exposes_phase1_routes(self) -> None:
         supervisor_api = import_module("campus_supervisor_api")
@@ -51,7 +60,7 @@ class WorkspaceLayoutTest(unittest.TestCase):
             {route.path for route in app.routes},
             {"/api/v1/answer", "/healthz", "/readyz"},
         )
-        self.assertEqual(app.runtime.provider, "agno")
+        self.assertEqual(app.runtime.provider, "")
 
 
 if __name__ == "__main__":

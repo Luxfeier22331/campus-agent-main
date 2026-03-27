@@ -11,7 +11,7 @@ from campus_supervisor_api.settings import ApiSettings
 
 @dataclass(frozen=True, slots=True)
 class AgentOSRuntime:
-    provider: str = "agno"
+    provider: str = ""
     supervisor_model: str = ""
     specialist_model: str = ""
 
@@ -46,6 +46,7 @@ def create_app(
     return SupervisorApiApp(
         name=runtime_settings.app_name,
         runtime=AgentOSRuntime(
+            provider=runtime_settings.runtime_provider,
             supervisor_model=runtime_settings.agno_supervisor_model,
             specialist_model=runtime_settings.agno_specialist_model,
         ),

@@ -22,12 +22,17 @@
 - `docs/decisions/adr-0001-phase1-architecture.md`
 - `docs/decisions/adr-0002-local-minio-conventions.md`
 - `docs/plans/agentic-rag-foundation.md`
+- `.planning/PROJECT.md`
+- `.planning/ROADMAP.md`
+- `.planning/STATE.md`
 
 工作规则：
 
 - `AGENTS.md` 只负责仓库入口约束、目录导航和工作协议，不重复深层设计文档
 - 这个仓库当前没有业务意义上的 `refs/` 目录；默认把 `README.md` 和 `docs/` 视为实现与架构的参考材料
-- 长期边界、阶段决策、实施门禁分别以对应 `docs/` 文档为准
+- 长期边界、阶段决策、accepted implementation baseline 与实施门禁分别以对应 `docs/` 文档为准
+- 当前 phase 执行状态、pending work、最新讨论结论与当前轮计划以 `.planning/` 为准
+- 不要把 `docs/plans/agentic-rag-foundation.md` 中的早期 phase-1 实施叙事直接当作当前执行状态；它是第一阶段地基的 canonical 实施基线，不是当前 GSD 进度板
 - 如果这里的表述和深层设计文档冲突，以深层设计文档为准，并优先修正本文件
 
 ## Repo Map

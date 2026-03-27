@@ -7,8 +7,8 @@
 这个目录是 `supervisor` 的唯一策略实现层。
 
 - 负责用户目标路由、specialist 委派、结果组装、澄清升级和最小审计
-- 第一阶段只允许路由一个 specialist：`rag-specialist`
-- 当前接受的实现形态已经是 `single-specialist, policy-driven coordinator`，后续演进应在这个边界上继续深化，而不是退回透传包装
+- 第一阶段默认 query-serving 主线仍是 `rag-specialist`，但仓库已接受显式 `availability-specialist` 作为并行 capability
+- 当前接受的实现形态已经是 `supervisor-facing request -> routing -> internal specialist handoff` 的 coordinator，后续演进应在这个边界上继续深化，而不是退回透传包装
 
 ## Source Of Truth
 
@@ -23,7 +23,7 @@
 
 ## Owns
 
-- request framing：把共享 handoff request 投影成 supervisor 内部上下文
+- request framing：把共享 `SupervisorRequest` 投影成 supervisor 内部上下文，并在内部构造 `SpecialistRequest`
 - 会话入口后的意图框定
 - 选择委派给哪个 specialist
 - phase-1 corpus routing decision
@@ -37,6 +37,10 @@
 - `request_id`
 - `trace_id`
 - `user_id`
+- `selected_target`
+- `requested_capability`
+- `requested_scope_corpus`
+- `requested_scope_collection`
 - `status`
 - `source_doc_ids`
 
@@ -51,14 +55,15 @@
 边界规则：
 
 - `apps/supervisor-api` 负责 AgentOS/runtime 与外部 API 壳；不要把 transport/auth 设置回灌到这里
-- `apps/supervisor-api` 只负责 auth mapping、trace propagation、`DelegateToRagAgentRequest` 构造、route dispatch 和 HTTP JSON projection；不要把 routing、policy、response assembly 放回 API shell
+- `apps/supervisor-api` 只负责 auth mapping、trace propagation、`SupervisorRequest` 构造、route dispatch 和 HTTP JSON projection；不要把 routing、policy、response assembly 放回 API shell
 - `packages/rag-specialist` 负责 retrieval 导向的 specialist 逻辑；不要在这里越级实现 specialist 内部策略
-- `packages/contracts` 是唯一共享 handoff/schema 边界；不要绕过 `DelegateToRagAgentRequest` / `DelegateToRagAgentResponse` 私自发明并行接口
+- `packages/contracts` 是唯一共享 request/handoff/schema 边界；不要绕过 `SupervisorRequest` / `SpecialistRequest` / `SpecialistResponse` 私自发明并行接口
 
 ## Phase-1 Constraints
 
 - 默认 query-serving 只开放 `student_handbook`
-- phase-1 路由规则只允许 `student_handbook -> rag-specialist`
+- phase-1 的默认 handbook 主线仍然优先走 `rag-specialist`，但 API shell 不应再把它写死成唯一 transport 构造
+- 已插入的 `availability-specialist` 只能通过显式 supervisor-facing availability request 进入，不能借机退回 supervisor 内联 tool
 - 已冻结但未放开的 data-plane corpus 不能在 supervisor 内被静默放开为查询默认范围
 - 不要直接拼接对象存储逻辑
 - 不要越过 specialist/retrieval 层访问 registry、Qdrant 或 MinIO
