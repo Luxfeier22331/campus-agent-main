@@ -28,9 +28,11 @@ class SparseVectorData:
 
 
 class SparseEmbeddingModel(Protocol):
-    def get_text_embedding(self, text: str) -> SparseVectorData: ...
+    settings: "SparseEmbeddingSettings"
 
-    def get_query_embedding(self, text: str) -> SparseVectorData: ...
+    def build_document(self, text: str) -> qdrant_models.Document | qdrant_models.SparseVector: ...
+
+    def build_query(self, text: str) -> qdrant_models.Document | qdrant_models.SparseVector | None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +51,10 @@ class SparseEmbeddingSettings:
             raise ValueError("SPARSE_TOKENIZER is required")
         if not self.language:
             raise ValueError("SPARSE_LANGUAGE is required")
+
+    @property
+    def is_mock(self) -> bool:
+        return self.provider.strip().lower() == "mock"
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> "SparseEmbeddingSettings":
@@ -83,11 +89,29 @@ class QdrantBm25SparseEmbedding:
             raise ValueError(f"unsupported sparse language: {settings.language}")
         self.settings = settings
 
-    def get_text_embedding(self, text: str) -> SparseVectorData:
-        return _build_sparse_vector(text=text, query_mode=False)
+    def build_document(self, text: str) -> qdrant_models.Document | qdrant_models.SparseVector:
+        if self.settings.is_mock:
+            return _build_sparse_vector(text=text, query_mode=False).to_qdrant()
+        return qdrant_models.Document(
+            text=text,
+            model=self.settings.model,
+            options=_build_bm25_config(self.settings),
+        )
 
-    def get_query_embedding(self, text: str) -> SparseVectorData:
-        return _build_sparse_vector(text=text, query_mode=True)
+    def build_query(self, text: str) -> qdrant_models.Document | qdrant_models.SparseVector | None:
+        if self.settings.is_mock:
+            sparse = _build_sparse_vector(text=text, query_mode=True).to_qdrant()
+            if not sparse.indices:
+                return None
+            return sparse
+        normalized = text.strip()
+        if not normalized:
+            return None
+        return qdrant_models.Document(
+            text=normalized,
+            model=self.settings.model,
+            options=_build_bm25_config(self.settings),
+        )
 
 
 def build_sparse_embedding_model(settings: SparseEmbeddingSettings) -> SparseEmbeddingModel:
@@ -105,6 +129,15 @@ def build_mock_sparse_embedding_model(
             tokenizer=resolved.tokenizer,
             language=resolved.language,
         )
+    )
+
+
+def _build_bm25_config(settings: SparseEmbeddingSettings) -> qdrant_models.Bm25Config:
+    return qdrant_models.Bm25Config(
+        tokenizer=qdrant_models.TokenizerType(settings.tokenizer.strip().lower()),
+        language=settings.language,
+        lowercase=True,
+        ascii_folding=False,
     )
 
 

@@ -123,7 +123,7 @@ fusion 后的候选必须继续通过 `DocumentRegistry` 回链，补齐：
 - `student_handbook` 当前 runtime policy 为：
   - `current_only=true`
   - `serving_revision_tracks=["current-effective","source-faithful"]`
-- 这表示 query path 只消费被标记为 current 的 serving representation；`source-faithful` 只作为过渡 fallback / 审计线保留，不再是“历史也可默认命中”的开放路径
+- 这表示 query path 只消费被标记为 current 的 serving revision_track；`source-faithful` 只作为过渡 fallback / 审计线保留，不再是“历史也可默认命中”的开放路径
 - 新 current 版本写入时，ingestion 必须把同一 `document_id + revision_track` 的旧 current 版本降级为 `is_current=false`，并将其状态推进为 `superseded`
 - 当多来源在同一 `document_id + revision_track` 下对应到相同 `version_id` 时，registry 负责记录 primary source 与 alternate source；retrieval 仍只消费这一个逻辑版本
 

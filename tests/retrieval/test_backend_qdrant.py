@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from tempfile import TemporaryDirectory
 import unittest
 import uuid
 from unittest.mock import Mock, patch
@@ -12,12 +11,11 @@ from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.embed import MockEmbeddingSettings, build_mock_embedding_model
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import build_indexable_chunks_from_jsonl, index_chunks_to_qdrant
-from campus_ingestion_core.registry import FileDocumentRegistry
 from campus_ingestion_core.sparse import (
     MockSparseEmbeddingSettings,
-    SparseVectorData,
     SparseEmbeddingSettings,
     build_mock_sparse_embedding_model,
+    build_sparse_embedding_model,
 )
 from campus_retrieval_core.backend_qdrant import (
     CorpusQueryDisabledError,
@@ -33,6 +31,7 @@ from campus_retrieval_core.settings import RetrievalSettings
 from llama_index.core.schema import TextNode
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
+from tests.support.in_memory_registry import InMemoryDocumentRegistry
 
 
 def _make_registry_record(
@@ -203,7 +202,7 @@ class BackendQdrantTest(unittest.TestCase):
                 chunks=chunks,
                 qdrant_client=qdrant_client,
                 collection_name="student_handbook_test",
-                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+                sparse_embedding_model=build_sparse_embedding_model(SparseEmbeddingSettings()),
             )
 
         self.assertEqual(ids, (str(uuid.uuid5(uuid.NAMESPACE_URL, chunks[0].chunk_id)),))
@@ -215,14 +214,14 @@ class BackendQdrantTest(unittest.TestCase):
         point = qdrant_client.upsert.call_args.kwargs["points"][0]
         self.assertIn("dense", point.vector)
         self.assertIn("sparse", point.vector)
-        self.assertIsInstance(point.vector["sparse"], qdrant_models.SparseVector)
+        self.assertIsInstance(point.vector["sparse"], qdrant_models.Document)
+        self.assertEqual(point.vector["sparse"].model, "qdrant/bm25")
         indexed_fields = [call.kwargs["field_name"] for call in qdrant_client.create_payload_index.call_args_list]
         self.assertEqual(
             indexed_fields,
             [
                 "document_id",
                 "revision_track",
-                "representation",
                 "version_id",
                 "corpus",
                 "collection",
@@ -254,7 +253,7 @@ class BackendQdrantTest(unittest.TestCase):
                 qdrant_collection="student_handbook_test",
                 document_registry_database_url="postgresql://registry.example/postgres",
             ),
-            registry=FileDocumentRegistry(Path(TemporaryDirectory().name) / "registry.json"),
+            registry=InMemoryDocumentRegistry(),
             qdrant_client=QdrantClient(location=":memory:"),
             embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
         )
@@ -317,12 +316,21 @@ class BackendQdrantTest(unittest.TestCase):
             def __init__(self) -> None:
                 self.query_calls: list[str] = []
 
-            def get_text_embedding(self, text: str) -> SparseVectorData:
+            def build_document(self, text: str) -> qdrant_models.Document | qdrant_models.SparseVector:
                 raise AssertionError("document embedding should not be used during retrieval query prefetch")
 
-            def get_query_embedding(self, text: str) -> SparseVectorData:
+            def build_query(self, text: str) -> qdrant_models.Document | qdrant_models.SparseVector | None:
                 self.query_calls.append(text)
-                return SparseVectorData(indices=(11, 29), values=(1.0, 1.0))
+                return qdrant_models.Document(
+                    text=text,
+                    model="qdrant/bm25",
+                    options=qdrant_models.Bm25Config(
+                        tokenizer=qdrant_models.TokenizerType.MULTILINGUAL,
+                        language="none",
+                        lowercase=True,
+                        ascii_folding=False,
+                    ),
+                )
 
         dense_embedding_model = _DenseEmbeddingModel()
         sparse_embedding_model = _SparseEmbeddingModel()
@@ -345,9 +353,9 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertEqual(len(prefetch), 2)
         self.assertEqual(prefetch[0].using, "dense")
         self.assertEqual(prefetch[1].using, "sparse")
-        self.assertIsInstance(prefetch[1].query, qdrant_models.SparseVector)
-        self.assertEqual(prefetch[1].query.indices, [11, 29])
-        self.assertEqual(prefetch[1].query.values, [1.0, 1.0])
+        self.assertIsInstance(prefetch[1].query, qdrant_models.Document)
+        self.assertEqual(prefetch[1].query.model, "qdrant/bm25")
+        self.assertEqual(prefetch[1].query.text, "scholarship office hours")
         dense_filter = prefetch[0].filter
         self.assertIsNotNone(dense_filter)
         dense_conditions = dense_filter.must or []
@@ -382,34 +390,32 @@ class BackendQdrantTest(unittest.TestCase):
                 self.calls.append(query)
                 return [0.1] * 8
 
-        with TemporaryDirectory() as temp_dir:
-            registry_path = Path(temp_dir) / "registry.json"
-            registry = FileDocumentRegistry(registry_path)
-            embedding_model = _CountingDenseEmbeddingModel()
-            backend = QdrantRetrievalBackend(
-                settings=RetrievalSettings(
-                    qdrant_url=":memory:",
-                    qdrant_collection="student_handbook_test",
-                    document_registry_database_url="postgresql://registry.example/postgres",
-                ),
-                registry=registry,
-                qdrant_client=QdrantClient(location=":memory:"),
-                embedding_model=embedding_model,
-                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
-            )
-            backend.qdrant_client.collection_exists = Mock(return_value=True)  # type: ignore[method-assign]
-            backend.qdrant_client.query_points = Mock(  # type: ignore[method-assign]
-                return_value=qdrant_models.QueryResponse(points=[])
-            )
+        registry = InMemoryDocumentRegistry()
+        embedding_model = _CountingDenseEmbeddingModel()
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                qdrant_collection="student_handbook_test",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=registry,
+            qdrant_client=QdrantClient(location=":memory:"),
+            embedding_model=embedding_model,
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
+        backend.qdrant_client.collection_exists = Mock(return_value=True)  # type: ignore[method-assign]
+        backend.qdrant_client.query_points = Mock(  # type: ignore[method-assign]
+            return_value=qdrant_models.QueryResponse(points=[])
+        )
 
-            request = RetrievalRequest(
-                query_text="library hours",
-                corpus="regulations",
-                collection="student_handbook",
-                acl_groups=("students",),
-            )
-            backend.retrieve(request)
-            backend.retrieve(request)
+        request = RetrievalRequest(
+            query_text="library hours",
+            corpus="regulations",
+            collection="student_handbook",
+            acl_groups=("students",),
+        )
+        backend.retrieve(request)
+        backend.retrieve(request)
 
         self.assertEqual(embedding_model.calls, ["library hours"])
 
@@ -428,507 +434,432 @@ class BackendQdrantTest(unittest.TestCase):
             url="https://example-cloud.qdrant.io",
             api_key="secret",
             timeout=settings.qdrant_timeout_seconds,
+            cloud_inference=True,
         )
 
     def test_backend_returns_evidence_bundle_with_source_locator(self) -> None:
-        with TemporaryDirectory() as temp_dir:
-            registry_path = Path(temp_dir) / "registry.json"
-            registry = FileDocumentRegistry(registry_path)
-            record = _make_registry_record(
-                document_id="handbook:test-001",
-                version_id="v1:test-001",
+        registry = InMemoryDocumentRegistry()
+        record = _make_registry_record(
+            document_id="handbook:test-001",
+            version_id="v1:test-001",
+            acl_groups=("students",),
+        )
+        registry.upsert(record)
+
+        embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=_make_structured_jsonl(
+                document_id=record.document_id,
+                version_id=record.version_id,
+                text="Library hours are from 08:00 to 22:00 for students.",
+            ),
+            chunk_profile=ChunkProfile(chunk_size=128, chunk_overlap=16),
+            embedding_model=embedding_model,
+        )
+
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                qdrant_collection="student_handbook_test",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=registry,
+            qdrant_client=QdrantClient(location=":memory:"),
+            embedding_model=embedding_model,
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
+        index_chunks_to_qdrant(
+            chunks=chunks,
+            qdrant_client=backend.qdrant_client,
+            collection_name=backend.settings.qdrant_collection,
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
+
+        result = backend.retrieve(
+            RetrievalRequest(
+                query_text="What are the library hours?",
+                corpus="regulations",
+                collection="student_handbook",
                 acl_groups=("students",),
             )
-            registry.upsert(record)
+        )
 
-            embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
-            chunks = build_indexable_chunks_from_jsonl(
-                record=record,
-                structured_jsonl_bytes=_make_structured_jsonl(
-                    document_id=record.document_id,
-                    version_id=record.version_id,
-                    text="Library hours are from 08:00 to 22:00 for students.",
-                ),
-                chunk_profile=ChunkProfile(chunk_size=128, chunk_overlap=16),
-                embedding_model=embedding_model,
-            )
-
-            backend = QdrantRetrievalBackend(
-                settings=RetrievalSettings(
-                    qdrant_url=":memory:",
-                    qdrant_collection="student_handbook_test",
-                    document_registry_database_url="postgresql://registry.example/postgres",
-                ),
-                registry=registry,
-                qdrant_client=QdrantClient(location=":memory:"),
-                embedding_model=embedding_model,
-                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
-            )
-            index_chunks_to_qdrant(
-                chunks=chunks,
-                qdrant_client=backend.qdrant_client,
-                collection_name=backend.settings.qdrant_collection,
-                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
-            )
-
-            result = backend.retrieve(
-                RetrievalRequest(
-                    query_text="What are the library hours?",
-                    corpus="regulations",
-                    collection="student_handbook",
-                    acl_groups=("students",),
-                )
-            )
-
-            self.assertIsInstance(result, EvidenceBundle)
-            self.assertEqual(result.corpus, "regulations")
-            self.assertEqual(result.collection, "student_handbook")
-            self.assertEqual(len(result.sources), 1)
-            source = result.sources[0]
-            self.assertEqual(source.doc_id, "handbook:test-001")
-            self.assertEqual(source.revision_track, "source-faithful")
-            self.assertEqual(source.version_id, "v1:test-001")
-            self.assertEqual(source.source_channel, "pdf_ocr")
-            self.assertEqual(source.collection, "student_handbook")
-            self.assertTrue(source.is_current)
-            self.assertEqual(source.canonical_url, "https://campus.example/handbook/handbook:test-001")
-            self.assertEqual(source.latest_url, source.canonical_url)
-            self.assertEqual(source.anchor["page_start"], 5)
-            self.assertIn("08:00", source.snippet)
+        self.assertIsInstance(result, EvidenceBundle)
+        self.assertEqual(result.corpus, "regulations")
+        self.assertEqual(result.collection, "student_handbook")
+        self.assertEqual(len(result.sources), 1)
+        source = result.sources[0]
+        self.assertEqual(source.doc_id, "handbook:test-001")
+        self.assertEqual(source.revision_track, "source-faithful")
+        self.assertEqual(source.version_id, "v1:test-001")
+        self.assertEqual(source.source_channel, "pdf_ocr")
+        self.assertEqual(source.collection, "student_handbook")
+        self.assertTrue(source.is_current)
+        self.assertEqual(source.canonical_url, "https://campus.example/handbook/handbook:test-001")
+        self.assertEqual(source.latest_url, source.canonical_url)
+        self.assertEqual(source.anchor["page_start"], 5)
+        self.assertIn("08:00", source.snippet)
 
     def test_backend_uses_qdrant_native_hybrid_query_with_rrf(self) -> None:
-        with TemporaryDirectory() as temp_dir:
-            registry_path = Path(temp_dir) / "registry.json"
-            registry = FileDocumentRegistry(registry_path)
-            record = _make_registry_record(
-                document_id="handbook:hybrid-winner",
-                version_id="v1:hybrid-winner",
+        registry = InMemoryDocumentRegistry()
+        record = _make_registry_record(
+            document_id="handbook:hybrid-winner",
+            version_id="v1:hybrid-winner",
+            acl_groups=("students",),
+        )
+        registry.upsert(record)
+
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                qdrant_collection="student_handbook_test",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=registry,
+            qdrant_client=QdrantClient(location=":memory:"),
+            embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
+        backend.qdrant_client.collection_exists = Mock(return_value=True)  # type: ignore[method-assign]
+        backend.qdrant_client.query_points = Mock(  # type: ignore[method-assign]
+            return_value=qdrant_models.QueryResponse(
+                points=[
+                    qdrant_models.ScoredPoint(
+                        id="chunk-hybrid-001",
+                        version=1,
+                        score=0.77,
+                        payload={
+                            "_node_content": TextNode(
+                                text="Hybrid winner surfaced by native hybrid query.",
+                                metadata={
+                                    "document_id": record.document_id,
+                                    "revision_track": record.revision_track,
+                                    "version_id": record.version_id,
+                                    "chunk_id": "chunk-hybrid-001",
+                                    "anchor": {"page_start": 3, "page_end": 3},
+                                    "acl_level": "public",
+                                    "source_channel": "pdf_ocr",
+                                    "collection": "student_handbook",
+                                    "is_current": False,
+                                },
+                            ).model_dump_json(),
+                        },
+                    )
+                ]
+            )
+        )
+
+        result = backend.retrieve(
+            RetrievalRequest(
+                query_text="scholarship office hours",
+                corpus="regulations",
+                collection="student_handbook",
+                acl_groups=("students",),
+                top_k=3,
+            )
+        )
+
+        self.assertEqual(len(result.sources), 1)
+        self.assertEqual(result.sources[0].doc_id, "handbook:hybrid-winner")
+        query_kwargs = backend.qdrant_client.query_points.call_args.kwargs
+        self.assertIsInstance(query_kwargs["query"], qdrant_models.FusionQuery)
+        self.assertEqual(query_kwargs["query"].fusion, qdrant_models.Fusion.RRF)
+        self.assertEqual(len(query_kwargs["prefetch"]), 2)
+        self.assertEqual(query_kwargs["prefetch"][0].using, "dense")
+        self.assertEqual(query_kwargs["prefetch"][1].using, "sparse")
+
+    def test_backend_skips_sources_with_missing_registry_or_revision_metadata(self) -> None:
+        registry = InMemoryDocumentRegistry()
+        record = _make_registry_record(
+            document_id="handbook:test-skip",
+            version_id="v1:test-skip",
+            acl_groups=("students",),
+        )
+        registry.upsert(record)
+
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                qdrant_collection="student_handbook_test",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=registry,
+            qdrant_client=QdrantClient(location=":memory:"),
+            embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
+        backend.qdrant_client.collection_exists = Mock(return_value=True)  # type: ignore[method-assign]
+        backend.qdrant_client.query_points = Mock(  # type: ignore[method-assign]
+            return_value=qdrant_models.QueryResponse(
+                points=[
+                    qdrant_models.ScoredPoint(
+                        id="chunk-missing-001",
+                        version=1,
+                        score=0.8,
+                        payload={
+                            "_node_content": TextNode(
+                                text="Missing revision metadata should be skipped.",
+                                metadata={
+                                    "document_id": record.document_id,
+                                    "version_id": record.version_id,
+                                    "chunk_id": "chunk-missing-001",
+                                },
+                            ).model_dump_json()
+                        },
+                    ),
+                    qdrant_models.ScoredPoint(
+                        id="chunk-missing-002",
+                        version=1,
+                        score=0.7,
+                        payload={
+                            "_node_content": TextNode(
+                                text="Unknown registry record should also be skipped.",
+                                metadata={
+                                    "document_id": "handbook:missing-record",
+                                    "revision_track": "source-faithful",
+                                    "version_id": "v1:missing-record",
+                                    "chunk_id": "chunk-missing-002",
+                                },
+                            ).model_dump_json()
+                        },
+                    ),
+                ]
+            )
+        )
+
+        result = backend.retrieve(
+            RetrievalRequest(
+                query_text="library hours",
+                corpus="regulations",
+                collection="student_handbook",
                 acl_groups=("students",),
             )
-            registry.upsert(record)
+        )
 
-            backend = QdrantRetrievalBackend(
-                settings=RetrievalSettings(
-                    qdrant_url=":memory:",
-                    qdrant_collection="student_handbook_test",
-                    document_registry_database_url="postgresql://registry.example/postgres",
-                ),
-                registry=registry,
-                qdrant_client=QdrantClient(location=":memory:"),
-                embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
-                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
-            )
-            backend.qdrant_client.collection_exists = Mock(return_value=True)  # type: ignore[method-assign]
-            backend.qdrant_client.query_points = Mock(  # type: ignore[method-assign]
-                return_value=qdrant_models.QueryResponse(
-                    points=[
-                        qdrant_models.ScoredPoint(
-                            id="chunk-hybrid-001",
-                            version=1,
-                            score=0.77,
-                            payload={
-                                "_node_content": TextNode(
-                                    text="Hybrid winner surfaced by native hybrid query.",
-                                    metadata={
-                                        "document_id": record.document_id,
-                                        "revision_track": record.revision_track,
-                                        "version_id": record.version_id,
-                                        "chunk_id": "chunk-hybrid-001",
-                                        "anchor": {"page_start": 3, "page_end": 3},
-                                        "acl_level": "public",
-                                        "source_channel": "pdf_ocr",
-                                        "collection": "student_handbook",
-                                        "is_current": False,
-                                    },
-                                ).model_dump_json(),
-                            },
-                        )
-                    ]
-                )
-            )
-
-            result = backend.retrieve(
-                RetrievalRequest(
-                    query_text="scholarship office hours",
-                    corpus="regulations",
-                    collection="student_handbook",
-                    acl_groups=("students",),
-                    top_k=3,
-                )
-            )
-
-            self.assertEqual(len(result.sources), 1)
-            self.assertEqual(result.sources[0].doc_id, "handbook:hybrid-winner")
-            query_kwargs = backend.qdrant_client.query_points.call_args.kwargs
-            self.assertIsInstance(query_kwargs["query"], qdrant_models.FusionQuery)
-            self.assertEqual(query_kwargs["query"].fusion, qdrant_models.Fusion.RRF)
-            self.assertEqual(len(query_kwargs["prefetch"]), 2)
-            self.assertEqual(query_kwargs["prefetch"][0].using, "dense")
-            self.assertEqual(query_kwargs["prefetch"][1].using, "sparse")
-
-    def test_backend_accepts_representation_payload_alias_for_revision_track(self) -> None:
-        with TemporaryDirectory() as temp_dir:
-            registry_path = Path(temp_dir) / "registry.json"
-            registry = FileDocumentRegistry(registry_path)
-            record = _make_registry_record(
-                document_id="handbook:test-alias",
-                version_id="v1:test-alias",
-                acl_groups=("students",),
-            )
-            registry.upsert(record)
-
-            node = TextNode(
-                text="Library hours remain visible through representation alias metadata.",
-                metadata={
-                    "document_id": record.document_id,
-                    "representation": record.revision_track,
-                    "version_id": record.version_id,
-                    "chunk_id": "chunk-alias-001",
-                    "anchor": {"page_start": 5, "page_end": 5},
-                    "acl_level": "public",
-                    "source_channel": "pdf_ocr",
-                    "collection": "student_handbook",
-                    "is_current": False,
-                },
-            )
-            backend = QdrantRetrievalBackend(
-                settings=RetrievalSettings(
-                    qdrant_url=":memory:",
-                    qdrant_collection="student_handbook_test",
-                    document_registry_database_url="postgresql://registry.example/postgres",
-                ),
-                registry=registry,
-                qdrant_client=QdrantClient(location=":memory:"),
-                embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
-                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
-            )
-            backend.qdrant_client.collection_exists = Mock(return_value=True)  # type: ignore[method-assign]
-            backend.qdrant_client.query_points = Mock(  # type: ignore[method-assign]
-                return_value=qdrant_models.QueryResponse(
-                    points=[
-                        qdrant_models.ScoredPoint(
-                            id="chunk-alias-001",
-                            version=1,
-                            score=0.91,
-                            payload={"_node_content": node.model_dump_json()},
-                        )
-                    ]
-                )
-            )
-
-            result = backend.retrieve(
-                RetrievalRequest(
-                    query_text="library hours",
-                    corpus="regulations",
-                    collection="student_handbook",
-                    acl_groups=("students",),
-                )
-            )
-
-            self.assertEqual(len(result.sources), 1)
-            self.assertEqual(result.sources[0].revision_track, "source-faithful")
-
-    def test_backend_skips_sources_with_missing_registry_or_representation_metadata(self) -> None:
-        with TemporaryDirectory() as temp_dir:
-            registry_path = Path(temp_dir) / "registry.json"
-            registry = FileDocumentRegistry(registry_path)
-            record = _make_registry_record(
-                document_id="handbook:test-skip",
-                version_id="v1:test-skip",
-                acl_groups=("students",),
-            )
-            registry.upsert(record)
-
-            backend = QdrantRetrievalBackend(
-                settings=RetrievalSettings(
-                    qdrant_url=":memory:",
-                    qdrant_collection="student_handbook_test",
-                    document_registry_database_url="postgresql://registry.example/postgres",
-                ),
-                registry=registry,
-                qdrant_client=QdrantClient(location=":memory:"),
-                embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
-                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
-            )
-            backend.qdrant_client.collection_exists = Mock(return_value=True)  # type: ignore[method-assign]
-            backend.qdrant_client.query_points = Mock(  # type: ignore[method-assign]
-                return_value=qdrant_models.QueryResponse(
-                    points=[
-                        qdrant_models.ScoredPoint(
-                            id="chunk-missing-001",
-                            version=1,
-                            score=0.8,
-                            payload={
-                                "_node_content": TextNode(
-                                    text="Missing representation metadata should be skipped.",
-                                    metadata={
-                                        "document_id": record.document_id,
-                                        "version_id": record.version_id,
-                                        "chunk_id": "chunk-missing-001",
-                                    },
-                                ).model_dump_json()
-                            },
-                        ),
-                        qdrant_models.ScoredPoint(
-                            id="chunk-missing-002",
-                            version=1,
-                            score=0.7,
-                            payload={
-                                "_node_content": TextNode(
-                                    text="Unknown registry record should also be skipped.",
-                                    metadata={
-                                        "document_id": "handbook:missing-record",
-                                        "representation": "source-faithful",
-                                        "version_id": "v1:missing-record",
-                                        "chunk_id": "chunk-missing-002",
-                                    },
-                                ).model_dump_json()
-                            },
-                        ),
-                    ]
-                )
-            )
-
-            result = backend.retrieve(
-                RetrievalRequest(
-                    query_text="library hours",
-                    corpus="regulations",
-                    collection="student_handbook",
-                    acl_groups=("students",),
-                )
-            )
-
-            self.assertEqual(result.sources, ())
+        self.assertEqual(result.sources, ())
 
     def test_backend_uses_payload_urls_when_evidence_payload_is_complete(self) -> None:
-        with TemporaryDirectory() as temp_dir:
-            registry_path = Path(temp_dir) / "registry.json"
-            registry = FileDocumentRegistry(registry_path)
-            record = _make_registry_record(
-                document_id="handbook:payload-complete",
-                version_id="v1:payload-complete",
+        registry = InMemoryDocumentRegistry()
+        record = _make_registry_record(
+            document_id="handbook:payload-complete",
+            version_id="v1:payload-complete",
+            acl_groups=("students",),
+            is_current=True,
+        )
+        registry.upsert(record)
+
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                qdrant_collection="student_handbook_test",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=registry,
+            qdrant_client=QdrantClient(location=":memory:"),
+            embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
+        backend.qdrant_client.collection_exists = Mock(return_value=True)  # type: ignore[method-assign]
+        backend.qdrant_client.query_points = Mock(  # type: ignore[method-assign]
+            return_value=qdrant_models.QueryResponse(
+                points=[
+                    qdrant_models.ScoredPoint(
+                        id="chunk-payload-001",
+                        version=1,
+                        score=0.93,
+                        payload={
+                            "_node_content": TextNode(
+                                text="Library opening hours are from 08:00 to 22:00.",
+                                metadata={
+                                    "document_id": "handbook:payload-complete",
+                                    "revision_track": "source-faithful",
+                                    "version_id": "v1:payload-complete",
+                                    "chunk_id": "chunk-payload-001",
+                                    "anchor": {"page_start": 5, "page_end": 5},
+                                    "acl_level": "public",
+                                    "source_channel": "pdf_ocr",
+                                    "collection": "student_handbook",
+                                    "is_current": True,
+                                    "canonical_url": "https://payload.example/should-not-win",
+                                    "latest_url": "https://payload.example/should-not-win",
+                                },
+                            ).model_dump_json(),
+                        },
+                    )
+                ]
+            )
+        )
+
+        result = backend.retrieve(
+            RetrievalRequest(
+                query_text="library hours",
+                corpus="regulations",
+                collection="student_handbook",
                 acl_groups=("students",),
-                is_current=True,
             )
-            registry.upsert(record)
+        )
 
-            backend = QdrantRetrievalBackend(
-                settings=RetrievalSettings(
-                    qdrant_url=":memory:",
-                    qdrant_collection="student_handbook_test",
-                    document_registry_database_url="postgresql://registry.example/postgres",
-                ),
-                registry=registry,
-                qdrant_client=QdrantClient(location=":memory:"),
-                embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
-                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
-            )
-            backend.qdrant_client.collection_exists = Mock(return_value=True)  # type: ignore[method-assign]
-            backend.qdrant_client.query_points = Mock(  # type: ignore[method-assign]
-                return_value=qdrant_models.QueryResponse(
-                    points=[
-                        qdrant_models.ScoredPoint(
-                            id="chunk-payload-001",
-                            version=1,
-                            score=0.93,
-                            payload={
-                                "_node_content": TextNode(
-                                    text="Library opening hours are from 08:00 to 22:00.",
-                                    metadata={
-                                        "document_id": "handbook:payload-complete",
-                                        "revision_track": "source-faithful",
-                                        "version_id": "v1:payload-complete",
-                                        "chunk_id": "chunk-payload-001",
-                                        "anchor": {"page_start": 5, "page_end": 5},
-                                        "acl_level": "public",
-                                        "source_channel": "pdf_ocr",
-                                        "collection": "student_handbook",
-                                        "is_current": True,
-                                        "canonical_url": "https://payload.example/should-not-win",
-                                        "latest_url": "https://payload.example/should-not-win",
-                                    },
-                                ).model_dump_json(),
-                            },
-                        )
-                    ]
-                )
-            )
-
-            result = backend.retrieve(
-                RetrievalRequest(
-                    query_text="library hours",
-                    corpus="regulations",
-                    collection="student_handbook",
-                    acl_groups=("students",),
-                )
-            )
-
-            self.assertEqual(len(result.sources), 1)
-            source = result.sources[0]
-            self.assertEqual(source.doc_id, "handbook:payload-complete")
-            self.assertTrue(source.is_current)
-            self.assertEqual(source.canonical_url, "https://payload.example/should-not-win")
-            self.assertEqual(source.latest_url, "https://payload.example/should-not-win")
+        self.assertEqual(len(result.sources), 1)
+        source = result.sources[0]
+        self.assertEqual(source.doc_id, "handbook:payload-complete")
+        self.assertTrue(source.is_current)
+        self.assertEqual(source.canonical_url, "https://payload.example/should-not-win")
+        self.assertEqual(source.latest_url, "https://payload.example/should-not-win")
 
     def test_backend_applies_acl_filter_before_returning_sources(self) -> None:
-        with TemporaryDirectory() as temp_dir:
-            registry_path = Path(temp_dir) / "registry.json"
-            registry = FileDocumentRegistry(registry_path)
-            allowed = _make_registry_record(
-                document_id="handbook:students",
-                version_id="v1:students",
+        registry = InMemoryDocumentRegistry()
+        allowed = _make_registry_record(
+            document_id="handbook:students",
+            version_id="v1:students",
+            acl_groups=("students",),
+        )
+        blocked = _make_registry_record(
+            document_id="handbook:staff",
+            version_id="v1:staff",
+            acl_groups=("staff",),
+        )
+        registry.upsert(allowed)
+        registry.upsert(blocked)
+
+        embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
+        allowed_chunks = build_indexable_chunks_from_jsonl(
+            record=allowed,
+            structured_jsonl_bytes=_make_structured_jsonl(
+                document_id=allowed.document_id,
+                version_id=allowed.version_id,
+                text="Students can enter the library until 22:00.",
+            ),
+            chunk_profile=ChunkProfile(chunk_size=128, chunk_overlap=16),
+            embedding_model=embedding_model,
+        )
+        blocked_chunks = build_indexable_chunks_from_jsonl(
+            record=blocked,
+            structured_jsonl_bytes=_make_structured_jsonl_with_acl(
+                document_id=blocked.document_id,
+                version_id=blocked.version_id,
+                text="Staff office hours are private.",
+                acl_level="restricted",
+            ),
+            chunk_profile=ChunkProfile(chunk_size=128, chunk_overlap=16),
+            embedding_model=embedding_model,
+        )
+
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                qdrant_collection="student_handbook_test",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=registry,
+            qdrant_client=QdrantClient(location=":memory:"),
+            embedding_model=embedding_model,
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
+        index_chunks_to_qdrant(
+            chunks=[*allowed_chunks, *blocked_chunks],
+            qdrant_client=backend.qdrant_client,
+            collection_name=backend.settings.qdrant_collection,
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
+
+        result = backend.retrieve(
+            RetrievalRequest(
+                query_text="Tell me about office or library hours",
+                corpus="regulations",
+                collection="student_handbook",
                 acl_groups=("students",),
+                top_k=5,
             )
-            blocked = _make_registry_record(
-                document_id="handbook:staff",
-                version_id="v1:staff",
-                acl_groups=("staff",),
-            )
-            registry.upsert(allowed)
-            registry.upsert(blocked)
+        )
 
-            embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
-            allowed_chunks = build_indexable_chunks_from_jsonl(
-                record=allowed,
-                structured_jsonl_bytes=_make_structured_jsonl(
-                    document_id=allowed.document_id,
-                    version_id=allowed.version_id,
-                    text="Students can enter the library until 22:00.",
-                ),
-                chunk_profile=ChunkProfile(chunk_size=128, chunk_overlap=16),
-                embedding_model=embedding_model,
-            )
-            blocked_chunks = build_indexable_chunks_from_jsonl(
-                record=blocked,
-                structured_jsonl_bytes=_make_structured_jsonl_with_acl(
-                    document_id=blocked.document_id,
-                    version_id=blocked.version_id,
-                    text="Staff office hours are private.",
-                    acl_level="restricted",
-                ),
-                chunk_profile=ChunkProfile(chunk_size=128, chunk_overlap=16),
-                embedding_model=embedding_model,
-            )
-
-            backend = QdrantRetrievalBackend(
-                settings=RetrievalSettings(
-                    qdrant_url=":memory:",
-                    qdrant_collection="student_handbook_test",
-                    document_registry_database_url="postgresql://registry.example/postgres",
-                ),
-                registry=registry,
-                qdrant_client=QdrantClient(location=":memory:"),
-                embedding_model=embedding_model,
-                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
-            )
-            index_chunks_to_qdrant(
-                chunks=[*allowed_chunks, *blocked_chunks],
-                qdrant_client=backend.qdrant_client,
-                collection_name=backend.settings.qdrant_collection,
-                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
-            )
-
-            result = backend.retrieve(
-                RetrievalRequest(
-                    query_text="Tell me about office or library hours",
-                    corpus="regulations",
-                    collection="student_handbook",
-                    acl_groups=("students",),
-                    top_k=5,
-                )
-            )
-
-            self.assertEqual([source.doc_id for source in result.sources], ["handbook:students"])
+        self.assertEqual([source.doc_id for source in result.sources], ["handbook:students"])
 
     def test_backend_fail_closes_when_document_has_acl_groups_even_if_structured_acl_level_is_public(self) -> None:
-        with TemporaryDirectory() as temp_dir:
-            registry_path = Path(temp_dir) / "registry.json"
-            registry = FileDocumentRegistry(registry_path)
-            restricted = _make_registry_record(
-                document_id="handbook:staff-only",
-                version_id="v1:staff-only",
+        registry = InMemoryDocumentRegistry()
+        restricted = _make_registry_record(
+            document_id="handbook:staff-only",
+            version_id="v1:staff-only",
+            acl_groups=("staff",),
+        )
+        registry.upsert(restricted)
+
+        embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
+        restricted_chunks = build_indexable_chunks_from_jsonl(
+            record=restricted,
+            structured_jsonl_bytes=_make_structured_jsonl_with_acl_groups(
+                document_id=restricted.document_id,
+                version_id=restricted.version_id,
+                text="Staff office hours are private.",
+                acl_level="public",
                 acl_groups=("staff",),
-            )
-            registry.upsert(restricted)
+            ),
+            chunk_profile=ChunkProfile(chunk_size=128, chunk_overlap=16),
+            embedding_model=embedding_model,
+        )
 
-            embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
-            restricted_chunks = build_indexable_chunks_from_jsonl(
-                record=restricted,
-                structured_jsonl_bytes=_make_structured_jsonl_with_acl_groups(
-                    document_id=restricted.document_id,
-                    version_id=restricted.version_id,
-                    text="Staff office hours are private.",
-                    acl_level="public",
-                    acl_groups=("staff",),
-                ),
-                chunk_profile=ChunkProfile(chunk_size=128, chunk_overlap=16),
-                embedding_model=embedding_model,
-            )
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                qdrant_collection="student_handbook_test",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=registry,
+            qdrant_client=QdrantClient(location=":memory:"),
+            embedding_model=embedding_model,
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
+        index_chunks_to_qdrant(
+            chunks=restricted_chunks,
+            qdrant_client=backend.qdrant_client,
+            collection_name=backend.settings.qdrant_collection,
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
 
-            backend = QdrantRetrievalBackend(
-                settings=RetrievalSettings(
-                    qdrant_url=":memory:",
-                    qdrant_collection="student_handbook_test",
-                    document_registry_database_url="postgresql://registry.example/postgres",
-                ),
-                registry=registry,
-                qdrant_client=QdrantClient(location=":memory:"),
-                embedding_model=embedding_model,
-                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        result = backend.retrieve(
+            RetrievalRequest(
+                query_text="Tell me about office hours",
+                corpus="regulations",
+                collection="student_handbook",
+                acl_groups=("students",),
+                top_k=5,
             )
-            index_chunks_to_qdrant(
-                chunks=restricted_chunks,
-                qdrant_client=backend.qdrant_client,
-                collection_name=backend.settings.qdrant_collection,
-                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
-            )
+        )
 
-            result = backend.retrieve(
-                RetrievalRequest(
-                    query_text="Tell me about office hours",
-                    corpus="regulations",
-                    collection="student_handbook",
-                    acl_groups=("students",),
-                    top_k=5,
-                )
-            )
-
-            self.assertEqual(result.sources, ())
+        self.assertEqual(result.sources, ())
 
     def test_backend_returns_empty_bundle_on_no_hit(self) -> None:
-        with TemporaryDirectory() as temp_dir:
-            registry_path = Path(temp_dir) / "registry.json"
-            registry = FileDocumentRegistry(registry_path)
-            embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
-            backend = QdrantRetrievalBackend(
-                settings=RetrievalSettings(
-                    qdrant_url=":memory:",
-                    qdrant_collection="student_handbook_test",
-                    document_registry_database_url="postgresql://registry.example/postgres",
-                ),
-                registry=registry,
-                qdrant_client=QdrantClient(location=":memory:"),
-                embedding_model=embedding_model,
-                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
-            )
+        registry = InMemoryDocumentRegistry()
+        embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                qdrant_collection="student_handbook_test",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=registry,
+            qdrant_client=QdrantClient(location=":memory:"),
+            embedding_model=embedding_model,
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
 
-            result = backend.retrieve(
-                RetrievalRequest(
-                    query_text="unknown question",
-                    corpus="regulations",
-                    collection="student_handbook",
-                    acl_groups=("students",),
-                )
+        result = backend.retrieve(
+            RetrievalRequest(
+                query_text="unknown question",
+                corpus="regulations",
+                collection="student_handbook",
+                acl_groups=("students",),
             )
+        )
 
-            self.assertEqual(
-                result,
-                EvidenceBundle(
-                    query_text="unknown question",
-                    corpus="regulations",
-                    collection="student_handbook",
-                ),
-            )
+        self.assertEqual(
+            result,
+            EvidenceBundle(
+                query_text="unknown question",
+                corpus="regulations",
+                collection="student_handbook",
+            ),
+        )
 
     def test_backend_returns_empty_bundle_for_ambiguous_low_score_results(self) -> None:
         backend = QdrantRetrievalBackend(
@@ -937,7 +868,7 @@ class BackendQdrantTest(unittest.TestCase):
                 qdrant_collection="student_handbook_test",
                 document_registry_database_url="postgresql://registry.example/postgres",
             ),
-            registry=FileDocumentRegistry(Path(TemporaryDirectory().name) / "registry.json"),
+            registry=InMemoryDocumentRegistry(),
             qdrant_client=QdrantClient(location=":memory:"),
             embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
             sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
@@ -1102,58 +1033,56 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertEqual(result, sources)
 
     def test_backend_maps_qdrant_errors(self) -> None:
-        with TemporaryDirectory() as temp_dir:
-            registry_path = Path(temp_dir) / "registry.json"
-            registry = FileDocumentRegistry(registry_path)
-            embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
-            record = _make_registry_record(
-                document_id="handbook:error-case",
-                version_id="v1:error-case",
-                acl_groups=("students",),
-            )
-            registry.upsert(record)
-            backend = QdrantRetrievalBackend(
-                settings=RetrievalSettings(
-                    qdrant_url=":memory:",
-                    qdrant_collection="student_handbook_test",
-                    document_registry_database_url="postgresql://registry.example/postgres",
-                ),
-                registry=registry,
-                qdrant_client=QdrantClient(location=":memory:"),
-                embedding_model=embedding_model,
-                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
-            )
-            chunks = build_indexable_chunks_from_jsonl(
-                record=record,
-                structured_jsonl_bytes=_make_structured_jsonl(
-                    document_id=record.document_id,
-                    version_id=record.version_id,
-                    text="Library hours are from 08:00 to 22:00.",
-                ),
-                chunk_profile=ChunkProfile(chunk_size=128, chunk_overlap=16),
-                embedding_model=embedding_model,
-            )
-            index_chunks_to_qdrant(
-                chunks=chunks,
-                qdrant_client=backend.qdrant_client,
-                collection_name=backend.settings.qdrant_collection,
-                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
-            )
-            backend.qdrant_client.query_points = Mock(side_effect=RuntimeError("boom"))  # type: ignore[method-assign]
+        registry = InMemoryDocumentRegistry()
+        embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
+        record = _make_registry_record(
+            document_id="handbook:error-case",
+            version_id="v1:error-case",
+            acl_groups=("students",),
+        )
+        registry.upsert(record)
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                qdrant_collection="student_handbook_test",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=registry,
+            qdrant_client=QdrantClient(location=":memory:"),
+            embedding_model=embedding_model,
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=_make_structured_jsonl(
+                document_id=record.document_id,
+                version_id=record.version_id,
+                text="Library hours are from 08:00 to 22:00.",
+            ),
+            chunk_profile=ChunkProfile(chunk_size=128, chunk_overlap=16),
+            embedding_model=embedding_model,
+        )
+        index_chunks_to_qdrant(
+            chunks=chunks,
+            qdrant_client=backend.qdrant_client,
+            collection_name=backend.settings.qdrant_collection,
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
+        backend.qdrant_client.query_points = Mock(side_effect=RuntimeError("boom"))  # type: ignore[method-assign]
 
-            with self.assertRaises(RetrievalBackendError):
-                backend.retrieve(
-                    RetrievalRequest(
-                        query_text="library hours",
-                        corpus="regulations",
-                        collection="student_handbook",
-                        acl_groups=("students",),
-                    )
+        with self.assertRaises(RetrievalBackendError):
+            backend.retrieve(
+                RetrievalRequest(
+                    query_text="library hours",
+                    corpus="regulations",
+                    collection="student_handbook",
+                    acl_groups=("students",),
                 )
+            )
 
     def test_backend_builds_registry_from_database_url_when_not_injected(self) -> None:
         with patch("campus_retrieval_core.backend_qdrant.build_document_registry_from_env") as builder:
-            builder.return_value = FileDocumentRegistry(Path("/tmp/unused-registry.json"))
+            builder.return_value = InMemoryDocumentRegistry()
 
             backend = QdrantRetrievalBackend(
                 settings=RetrievalSettings(

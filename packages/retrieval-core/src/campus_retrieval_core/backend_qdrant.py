@@ -134,7 +134,7 @@ class QdrantRetrievalBackend:
                 continue
             metadata = dict(node.metadata)
             document_id = str(metadata.get("document_id") or "")
-            revision_track = str(metadata.get("revision_track") or metadata.get("representation") or "")
+            revision_track = str(metadata.get("revision_track") or "")
             version_id = str(metadata.get("version_id") or "")
             if not document_id or not revision_track or not version_id:
                 continue
@@ -210,16 +210,17 @@ def _build_hybrid_prefetch(
 ) -> list[qdrant_models.Prefetch]:
     limit = _candidate_limit(request.top_k)
     query_filter = _build_qdrant_filter(request, profile=profile)
+    query_text = request.query_text.strip()
     prefetch = [
         qdrant_models.Prefetch(
-            query=list(dense_query_embedding or embedding_model.get_query_embedding(request.query_text.strip())),
+            query=list(dense_query_embedding or embedding_model.get_query_embedding(query_text)),
             using="dense",
             filter=query_filter,
             limit=limit,
         )
     ]
-    sparse_query = sparse_embedding_model.get_query_embedding(request.query_text.strip()).to_qdrant()
-    if sparse_query.indices:
+    sparse_query = sparse_embedding_model.build_query(query_text)
+    if sparse_query is not None:
         prefetch.append(
             qdrant_models.Prefetch(
                 query=sparse_query,
@@ -263,6 +264,7 @@ def _build_qdrant_client(settings: RetrievalSettings) -> QdrantClient:
         url=settings.qdrant_url,
         api_key=settings.qdrant_api_key,
         timeout=settings.qdrant_timeout_seconds,
+        cloud_inference=True,
     )
 
 

@@ -2,7 +2,7 @@
 doc_type: plan
 status: active
 created: 2026-03-26
-updated: 2026-03-26
+updated: 2026-03-27
 ---
 
 # Student Handbook Hybrid Rebuild Checklist
@@ -19,6 +19,11 @@ updated: 2026-03-26
 - sparse language: `none`
 - query shape: `native hybrid query + FusionQuery(RRF)`
 - evidence shape: registry-backed `EvidenceBundle`
+
+补充说明：
+
+- live / remote sparse 路径使用 Qdrant cloud inference 执行 `qdrant/bm25`
+- 本地 `:memory:` / mock 路径只保留最小测试 fallback，不代表 live sparse 真相源
 
 ## 不在本文负责
 
@@ -46,7 +51,7 @@ updated: 2026-03-26
 - `index_chunks_to_qdrant()` 不再依赖 `QdrantVectorStore.add()` 单向量默认行为
 - retrieval 不再走本地 lexical fallback，不再用 `scroll + local sparse score`
 - retrieval query 已使用 Qdrant native `prefetch + FusionQuery(RRF)`
-- payload contract 未丢失：`document_id`、`revision_track` / `representation`、`version_id`、`chunk_id`、ACL、`campus_scope`、`anchor`
+- payload contract 未丢失：`document_id`、`revision_track`、`version_id`、`chunk_id`、ACL、`campus_scope`、`anchor`
 - `DocumentRegistry` 回链仍是最终 source shaping 的真相源
 
 ## Live Rebuild 前检查
@@ -57,6 +62,7 @@ updated: 2026-03-26
   - `SPARSE_MODEL=qdrant/bm25`
   - `SPARSE_TOKENIZER=multilingual`
   - `SPARSE_LANGUAGE=none`
+- remote Qdrant client 必须启用 `cloud_inference=True`
 - `QDRANT_COLLECTION` 指向本轮目标 collection，不与旧 dense-only collection 混用
 - `DOCUMENT_REGISTRY_DATABASE_URL` 指向本轮 live registry
 - `REBUILD_RESET_QDRANT=true` 或已确认目标 collection 可以被新 schema 重建
@@ -78,7 +84,7 @@ updated: 2026-03-26
 - sparse vector params 必须包含 `Modifier.IDF`
 - 任意抽样点 payload 必须包含：
   - `document_id`
-  - `revision_track` 或 `representation`
+  - `revision_track`
   - `version_id`
   - `chunk_id`
   - `corpus`

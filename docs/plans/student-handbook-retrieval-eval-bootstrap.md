@@ -11,11 +11,15 @@ updated: 2026-03-26
 
 **Architecture:** 本文不替代 `ADR-0003` / `ADR-0004`。它只把当前讨论收口成可执行方案：区分 live 验收样本与 retrieval qrels，先落 `doc-level truth first`，先交 deterministic retrieval metrics，再把 chunk-level truth 和正式门禁阈值留到 live rebuild 与 chunking 稳定之后。
 
+## Migration note
+
+这份计划保留其 doc-level qrels / eval bootstrap 价值，但其中涉及 live rebuild 状态的叙述可能随执行推进而过期。当前如需判断 live collection 是否已重建、当前 benchmark 是否已跑通、当前 release gate 卡在哪一步，应以 `.planning/STATE.md` 和 `docs/verification/` 下的最新验收文档为准，而不是以本文的 blocker 叙述为准。
+
 **Tech Stack:** `packages/evals` deterministic scorer、repo-tracked JSON fixtures、`uv` test runner
 
 ---
 
-## 当前结论
+## 计划基线结论
 
 - retrieval baseline 已冻结为 `dense + sparse hybrid + RRF`
 - sparse baseline 已冻结为 `qdrant/bm25`
@@ -182,7 +186,7 @@ phase-1 第一批 deterministic retrieval metrics 推荐固定为：
 
 至少补一条可重复执行的 eval 命令，并用 `uv run --all-packages ...` 暴露出来。
 
-## 当前可立即开始的工作
+## 可先行交付的工作
 
 不需要等待 chunking 全部稳定：
 
@@ -192,7 +196,7 @@ phase-1 第一批 deterministic retrieval metrics 推荐固定为：
 - 先补 `doc_id` 级 truth
 - 为 `no_hit` / `acl_filter` / `campus_scope_filter` 建立 deterministic case
 
-## 当前 Blockers
+## 需等待 live 证据的事项
 
 以下工作依赖 live rebuild 或 chunking 更稳定后再做：
 
@@ -203,7 +207,7 @@ phase-1 第一批 deterministic retrieval metrics 推荐固定为：
 
 当前 block 原因：
 
-- `student_handbook` live collection 正在等待重建完成
+- live collection 状态与 benchmark 证据以 `.planning/STATE.md` 和 `docs/verification/` 为准
 - phase-1 chunking 仍处于“可验证、但不宜大规模锁 chunk truth”的阶段
 - 现有 hybrid fixture 仍偏向人工验收，不是可直接算 IR 指标的 qrels
 
