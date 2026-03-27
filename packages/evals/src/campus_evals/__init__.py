@@ -1,6 +1,8 @@
 from campus_evals.benchmark import (
     RetrievalCaseMetrics,
     RetrievalBenchmarkRun,
+    RetrievalHybridQueryCase,
+    RetrievalHybridQueryDataset,
     RetrievalMetricSummary,
     RetrievalObservedSource,
     RetrievalQrelsCase,
@@ -8,10 +10,12 @@ from campus_evals.benchmark import (
     RetrievalQrelsSourceRef,
     evaluate_retrieval_case,
     evaluate_retrieval_run,
+    load_retrieval_hybrid_query_dataset,
     load_retrieval_qrels_dataset,
     load_retrieval_benchmark_run,
     render_retrieval_summary_text,
     summarize_retrieval_metrics,
+    validate_retrieval_hybrid_query_fixture,
 )
 from campus_evals.expectations import evaluate_case
 from campus_evals.models import (
@@ -40,6 +44,8 @@ __all__ = [
     "ObservedTrace",
     "RetrievalBenchmarkRun",
     "RetrievalCaseMetrics",
+    "RetrievalHybridQueryCase",
+    "RetrievalHybridQueryDataset",
     "RetrievalMetricSummary",
     "RetrievalObservedSource",
     "RetrievalQrelsCase",
@@ -52,10 +58,12 @@ __all__ = [
     "evaluate_retrieval_run",
     "evaluate_case",
     "expected_source_ref",
+    "load_retrieval_hybrid_query_dataset",
     "load_retrieval_benchmark_run",
     "load_retrieval_qrels_dataset",
     "render_retrieval_summary_text",
     "run_cases",
     "student_handbook_smoke_cases",
     "summarize_retrieval_metrics",
+    "validate_retrieval_hybrid_query_fixture",
 ]

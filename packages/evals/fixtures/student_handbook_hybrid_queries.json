@@ -14,9 +14,9 @@
     {
       "case_id": "article-number-degree-procedure",
       "category": "article_number_exact_match",
-      "query": "学士学位授予程序 第十条",
+      "query": "中央民族大学全日制本科学生学士学位授予规定 第十条",
       "expected_keywords": [
-        "学士学位",
+        "学士学位授予规定",
         "第十条"
       ],
       "forbidden_doc_ids": [],
@@ -25,61 +25,35 @@
     {
       "case_id": "policy-title-scholarship",
       "category": "policy_title_exact_match",
-      "query": "奖学金评定办法",
+      "query": "中央民族大学本科学生国家奖学金评审办法",
       "expected_keywords": [
-        "奖学金",
-        "评定办法"
+        "国家奖学金",
+        "评审办法"
       ],
       "forbidden_doc_ids": [],
-      "notes": "验证制度名 exact-match 不被语义噪声覆盖。"
+      "notes": "验证唯一制度名 exact-match 不被相邻奖学金制度噪声覆盖。"
     },
     {
-      "case_id": "fixed-phrase-office-hours",
+      "case_id": "fixed-phrase-dormitory-lighting",
       "category": "fixed_phrase_sparse_win",
-      "query": "图书馆开放时间",
+      "query": "宿舍照明",
       "expected_keywords": [
-        "图书馆",
-        "开放时间"
+        "宿舍",
+        "照明"
       ],
       "forbidden_doc_ids": [],
-      "notes": "验证固定措辞 / 标题关键词的 sparse 稳定性。"
+      "notes": "验证 handbook 真实存在的固定措辞可由 sparse 稳定命中。"
     },
     {
-      "case_id": "semantic-degree-application",
+      "case_id": "semantic-student-card-reissue",
       "category": "semantic_dense_win",
-      "query": "毕业前申请学位的流程是什么",
+      "query": "学生证丢了怎么办",
       "expected_keywords": [
-        "学士学位",
-        "程序"
+        "学生证",
+        "补办"
       ],
       "forbidden_doc_ids": [],
-      "notes": "验证非原文措辞的 dense 语义召回。"
-    },
-    {
-      "case_id": "acl-restricted-office-hours",
-      "category": "acl_filter",
-      "query": "办公室值班时间",
-      "scope": {
-        "acl_groups": [
-          "students"
-        ]
-      },
-      "expected_keywords": [],
-      "forbidden_doc_ids": [],
-      "notes": "仅在授权组匹配时允许命中 restricted chunk。"
-    },
-    {
-      "case_id": "campus-scope-nansha",
-      "category": "campus_scope_filter",
-      "query": "南沙校区 图书馆 开放",
-      "scope": {
-        "campus_scope": "nansha"
-      },
-      "expected_keywords": [
-        "南沙"
-      ],
-      "forbidden_doc_ids": [],
-      "notes": "验证 campus_scope pre-filter 不跨校区泄漏。"
+      "notes": "验证非标题原文问法仍能命中当前 handbook 的真实制度文档。"
     },
     {
       "case_id": "no-hit-impossible-query",

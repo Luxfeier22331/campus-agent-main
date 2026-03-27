@@ -238,6 +238,50 @@ class RunCasesTest(unittest.TestCase):
         self.assertFalse(report.results[0].trace_result.passed)
         self.assertIn("missing", report.results[0].trace_result.reason)
 
+    def test_runner_accepts_needs_clarification_with_scope_stable_evidence_payload(self) -> None:
+        case = GoldenCase(
+            case_id="clarify-1",
+            split="smoke",
+            source_type="expert_authored",
+            user_goal="这个规定怎么办理",
+            actor=ActorContext(),
+            expected_status="needs_clarification",
+            trace_expectation=TraceExpectation(
+                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                retrieval_called=False,
+                clarification_expected=True,
+            ),
+        )
+
+        report = run_cases(
+            (case,),
+            executor=lambda _: ExecutionResult(
+                response=SpecialistResponse(
+                    target="rag-specialist",
+                    status="needs_clarification",
+                    follow_up_question="请具体说明你想咨询学生手册中的哪一项制度、流程或表格。",
+                    result=RagResultPayload(
+                        evidence=EvidenceBundle(
+                            query_text="这个规定怎么办理",
+                            corpus="regulations",
+                            collection="student_handbook",
+                        )
+                    ),
+                ),
+                observed_trace=ObservedTrace(
+                    selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                    retrieval_called=False,
+                    clarification_emitted=True,
+                ),
+            ),
+        )
+
+        self.assertTrue(report.results[0].passed)
+        self.assertEqual(report.by_dimension["status"].passed, 1)
+        self.assertEqual(report.by_dimension["retrieval"].passed, 1)
+        self.assertEqual(report.by_dimension["answer"].passed, 1)
+        self.assertEqual(report.by_dimension["trace"].passed, 1)
+
     def test_doc_level_source_matching_does_not_require_chunk_id(self) -> None:
         case = GoldenCase(
             case_id="doc-level-1",

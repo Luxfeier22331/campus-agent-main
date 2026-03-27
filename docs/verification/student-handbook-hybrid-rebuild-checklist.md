@@ -101,17 +101,20 @@ updated: 2026-03-27
 - `article_number_exact_match`
   条款号、章节号、标题号检索必须稳定命中对应制度片段
 - `policy_title_exact_match`
-  制度名 exact-match 不应被语义噪声压掉
+  唯一制度名 exact-match 不应被相邻制度噪声压掉
 - `fixed_phrase_sparse_win`
-  固定措辞、规章术语、表述复现类问题应由 sparse 信号稳定召回
+  handbook 当前真实存在的固定措辞、规章术语、表述复现类问题应由 sparse 信号稳定召回
 - `semantic_dense_win`
-  不含原文措辞的语义问法仍应有 dense 命中能力
-- `acl_filter`
-  非授权组不应看到 restricted chunk
-- `campus_scope_filter`
-  指定 campus scope 时不能跨 scope 泄漏
+  不含标题原文措辞的语义问法仍应有 dense 命中能力
 - `no_hit`
   无命中时返回空 `EvidenceBundle`，不得回退到不受控的本地 repair
+
+当前 handbook live fixture 额外约束：
+
+- 样本必须只覆盖当前 `regulations/student_handbook` collection 的真实语料边界，不把 `campus_services` 或历史 handbook 服务/导航页样本混入
+- 如果当前 handbook manifest 不包含 `acl_groups` 或 `campus_scope` 真相，官方 handbook live fixture 不应继续保留 `acl_filter` / `campus_scope_filter` case
+- `policy_title_exact_match` 与 `fixed_phrase_sparse_win` 样本必须至少能回连到当前 handbook manifest 的标题关键词，避免出现 collection 已纯化但旧样本未更新的 fixture drift
+- 如需验证 ACL 或 `campus_scope` 检索行为，应在真实承载这些 payload 维度的 collection 上维护单独 fixture，而不是继续塞在 handbook live 样本里
 
 ## Gate 3 / Gate 4 证据模板
 
@@ -128,6 +131,67 @@ updated: 2026-03-27
 - registry back-link sample
 - 通过的 query case 列表
 - 失败 case 与原因
+
+## 2026-03-27 Live 验收记录
+
+本轮使用更新后的 `packages/evals/fixtures/student_handbook_hybrid_queries.json` 官方 handbook live 样本重跑真实验收，目标是确认：
+
+- fixture 已与当前 `regulations/student_handbook` collection 边界重新对齐
+- live collection schema / points count / query 行为保持正确
+- handbook 官方 5 条样本可以作为当前 Gate 3 / Gate 4 的运行态抽样证据
+
+本轮运行前置验证：
+
+- `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.evals.test_retrieval_benchmark.StudentHandbookHybridFixtureTest`
+- `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.evals.test_golden_cases tests.evals.test_retrieval_benchmark`
+
+结果：
+
+- `StudentHandbookHybridFixtureTest`: `6 tests`, `OK`
+- `tests.evals.test_golden_cases + tests.evals.test_retrieval_benchmark`: `30 tests`, `OK`
+
+本轮 live retrieval 验收环境：
+
+- 验收日期：`2026-03-27`
+- Qdrant collection：`student_handbook`
+- Qdrant URL：`https://e3ae1c33-0bce-466a-a68c-299e5714a611.us-east4-0.gcp.cloud.qdrant.io`
+- points count：`509`
+- dense schema：named `dense`, size `2560`, distance `Cosine`
+- sparse schema：named `sparse`, `modifier=IDF`
+- fixture drift 检查：`fixture_drift_errors = []`
+
+本轮 live query 结果：
+
+- `article-number-degree-procedure`
+  - query：`中央民族大学全日制本科学生学士学位授予规定 第十条`
+  - top1：`handbook:742d4831bfb443b99323041e263fac2fd9aafcf6`
+  - top1 chunk：`...:chunk-0003`
+  - 命中片段：`三、学士学位授予程序`
+- `policy-title-scholarship`
+  - query：`中央民族大学本科学生国家奖学金评审办法`
+  - top1：`handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15`
+  - top1 chunk：`...:chunk-0001`
+  - 命中片段：`中央民族大学本科学生国家奖学金评审办法`
+- `fixed-phrase-dormitory-lighting`
+  - query：`宿舍照明`
+  - top1：`handbook:2ec80263a9e7b11379281349196ceb96afa44c3b`
+  - top1 chunk：`...:chunk-0003`
+  - 命中片段：`中央民族大学关于学生宿舍照明的管理规定`
+- `semantic-student-card-reissue`
+  - query：`学生证丢了怎么办`
+  - top1：`handbook:e90f9707387f9e232ea88ce1c7f5328242e52389`
+  - top1 chunk：`...:chunk-0001`
+  - 命中片段：`中央民族大学本科(预科)学生证管理办法`
+- `no-hit-impossible-query`
+  - query：`火星校区飞船停靠规则`
+  - 结果：`0 hits`
+
+本轮结论：
+
+- handbook 官方 live fixture 已重新对齐当前 collection 边界
+- handbook live collection 未出现跨 collection 泄漏
+- 官方 handbook 5 条样本的 top1 方向正确，`no_hit` 行为正确
+- 当前 Gate 3 / Gate 4 的 handbook retrieval 运行证据可继续使用这 5 条官方样本
 
 ## 完成标准
 
