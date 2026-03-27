@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "corpus": "regulations",
+  "collection": "student_handbook",
+  "baseline": {
+    "dense_model": "Qwen3-Embedding-4B",
+    "dense_dimensions": 2560,
+    "sparse_model": "qdrant/bm25",
+    "sparse_tokenizer": "multilingual",
+    "sparse_language": "none",
+    "fusion": "rrf"
+  },
+  "cases": [
+    {
+      "case_id": "article-number-degree-procedure",
+      "category": "article_number_exact_match",
+      "query": "学士学位授予程序 第十条",
+      "expected_keywords": [
+        "学士学位",
+        "第十条"
+      ],
+      "forbidden_doc_ids": [],
+      "notes": "验证条款号 exact-match 与制度标题联合命中。"
+    },
+    {
+      "case_id": "policy-title-scholarship",
+      "category": "policy_title_exact_match",
+      "query": "奖学金评定办法",
+      "expected_keywords": [
+        "奖学金",
+        "评定办法"
+      ],
+      "forbidden_doc_ids": [],
+      "notes": "验证制度名 exact-match 不被语义噪声覆盖。"
+    },
+    {
+      "case_id": "fixed-phrase-office-hours",
+      "category": "fixed_phrase_sparse_win",
+      "query": "图书馆开放时间",
+      "expected_keywords": [
+        "图书馆",
+        "开放时间"
+      ],
+      "forbidden_doc_ids": [],
+      "notes": "验证固定措辞 / 标题关键词的 sparse 稳定性。"
+    },
+    {
+      "case_id": "semantic-degree-application",
+      "category": "semantic_dense_win",
+      "query": "毕业前申请学位的流程是什么",
+      "expected_keywords": [
+        "学士学位",
+        "程序"
+      ],
+      "forbidden_doc_ids": [],
+      "notes": "验证非原文措辞的 dense 语义召回。"
+    },
+    {
+      "case_id": "acl-restricted-office-hours",
+      "category": "acl_filter",
+      "query": "办公室值班时间",
+      "scope": {
+        "acl_groups": [
+          "students"
+        ]
+      },
+      "expected_keywords": [],
+      "forbidden_doc_ids": [],
+      "notes": "仅在授权组匹配时允许命中 restricted chunk。"
+    },
+    {
+      "case_id": "campus-scope-nansha",
+      "category": "campus_scope_filter",
+      "query": "南沙校区 图书馆 开放",
+      "scope": {
+        "campus_scope": "nansha"
+      },
+      "expected_keywords": [
+        "南沙"
+      ],
+      "forbidden_doc_ids": [],
+      "notes": "验证 campus_scope pre-filter 不跨校区泄漏。"
+    },
+    {
+      "case_id": "no-hit-impossible-query",
+      "category": "no_hit",
+      "query": "火星校区飞船停靠规则",
+      "expected_keywords": [],
+      "forbidden_doc_ids": [],
+      "notes": "验证无命中时返回空 bundle。"
+    }
+  ]
+}

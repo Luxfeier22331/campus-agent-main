@@ -1,0 +1,284 @@
+{
+  "schema_version": 1,
+  "corpus": "regulations",
+  "collection": "student_handbook",
+  "baseline": {
+    "dense_model": "Qwen3-Embedding-4B",
+    "dense_dimensions": 2560,
+    "sparse_model": "qdrant/bm25",
+    "sparse_tokenizer": "multilingual",
+    "sparse_language": "none",
+    "fusion": "rrf"
+  },
+  "cases": [
+    {
+      "case_id": "article-number-degree-procedure",
+      "split": "smoke",
+      "query": "学士学位授予程序 第十条",
+      "expected_sources": [
+        {
+          "doc_id": "handbook:degree-award-procedure",
+          "grade": 2,
+          "rationale": "主制度文档。"
+        }
+      ],
+      "notes": "doc-level exact-match 基线。"
+    },
+    {
+      "case_id": "article-number-dormitory-discipline",
+      "split": "smoke",
+      "query": "学生公寓管理规定 第十二条",
+      "expected_sources": [
+        {
+          "doc_id": "handbook:dormitory-management-policy",
+          "grade": 2,
+          "rationale": "条款号 exact-match。"
+        }
+      ],
+      "notes": "doc-level 条款号命中。"
+    },
+    {
+      "case_id": "article-number-student-status",
+      "split": "regression_locked",
+      "query": "学生管理规定 第二十四条",
+      "expected_sources": [
+        {
+          "doc_id": "handbook:student-status-policy",
+          "version_id": "v1",
+          "grade": 2,
+          "rationale": "高风险条款号检索。"
+        }
+      ],
+      "notes": "version-level 条款号命中。"
+    },
+    {
+      "case_id": "policy-title-scholarship",
+      "split": "smoke",
+      "query": "奖学金评定办法",
+      "expected_sources": [
+        {
+          "doc_id": "handbook:scholarship-policy",
+          "grade": 2,
+          "rationale": "制度标题 exact-match。"
+        }
+      ],
+      "notes": "制度标题 doc-level 命中。"
+    },
+    {
+      "case_id": "policy-title-graduation",
+      "split": "smoke",
+      "query": "毕业资格审查办法",
+      "expected_sources": [
+        {
+          "doc_id": "handbook:graduation-qualification-policy",
+          "grade": 2,
+          "rationale": "制度标题 exact-match。"
+        }
+      ],
+      "notes": "毕业制度标题命中。"
+    },
+    {
+      "case_id": "policy-title-library",
+      "split": "regression_locked",
+      "query": "图书馆借阅规则",
+      "expected_sources": [
+        {
+          "doc_id": "handbook:library-borrowing-policy",
+          "version_id": "v2",
+          "grade": 2,
+          "rationale": "制度标题高风险回归。"
+        }
+      ],
+      "notes": "version-level 标题命中。"
+    },
+    {
+      "case_id": "fixed-phrase-office-hours",
+      "split": "regression_locked",
+      "query": "图书馆开放时间",
+      "expected_sources": [
+        {
+          "doc_id": "handbook:library-guide",
+          "version_id": "v1",
+          "chunk_id": "chunk-library-hours",
+          "grade": 2,
+          "rationale": "固定措辞应稳定命中对应时间块。"
+        }
+      ],
+      "notes": "chunk-level sparse high-risk case。"
+    },
+    {
+      "case_id": "fixed-phrase-leave-workflow",
+      "split": "regression_locked",
+      "query": "请假审批流程",
+      "expected_sources": [
+        {
+          "doc_id": "handbook:leave-of-absence-policy",
+          "version_id": "v1",
+          "chunk_id": "chunk-leave-workflow",
+          "grade": 2,
+          "rationale": "流程固定措辞。"
+        }
+      ],
+      "notes": "流程类 chunk-level 命中。"
+    },
+    {
+      "case_id": "fixed-phrase-medical-reimbursement",
+      "split": "smoke",
+      "query": "公费医疗报销",
+      "expected_sources": [
+        {
+          "doc_id": "handbook:medical-reimbursement-policy",
+          "grade": 2,
+          "rationale": "固定术语 exact-match。"
+        }
+      ],
+      "notes": "doc-level sparse phrase baseline。"
+    },
+    {
+      "case_id": "semantic-degree-application",
+      "split": "smoke",
+      "query": "毕业前申请学位的流程是什么",
+      "expected_sources": [
+        {
+          "doc_id": "handbook:degree-award-procedure",
+          "grade": 2,
+          "rationale": "语义相关主文档。"
+        },
+        {
+          "doc_id": "handbook:graduation-guide",
+          "grade": 1,
+          "rationale": "可接受相关文档。"
+        }
+      ],
+      "notes": "dense 语义主导的 doc-level truth。"
+    },
+    {
+      "case_id": "semantic-scholarship-eligibility",
+      "split": "smoke",
+      "query": "申请奖学金需要满足什么条件",
+      "expected_sources": [
+        {
+          "doc_id": "handbook:scholarship-policy",
+          "grade": 2,
+          "rationale": "奖学金资格条件。"
+        }
+      ],
+      "notes": "dense semantic baseline。"
+    },
+    {
+      "case_id": "semantic-transcript-request",
+      "split": "regression_locked",
+      "query": "怎么开具成绩单",
+      "expected_sources": [
+        {
+          "doc_id": "handbook:academic-records-guide",
+          "version_id": "v1",
+          "grade": 2,
+          "rationale": "教务成绩单办理说明。"
+        },
+        {
+          "doc_id": "handbook:registrar-service-guide",
+          "grade": 1,
+          "rationale": "可接受服务说明。"
+        }
+      ],
+      "notes": "dense semantic version-level case。"
+    },
+    {
+      "case_id": "acl-restricted-office-hours",
+      "split": "regression_locked",
+      "query": "办公室值班时间",
+      "request_overrides": {
+        "acl_groups": [
+          "students"
+        ]
+      },
+      "forbidden_sources": [
+        {
+          "doc_id": "handbook:restricted-office-hours",
+          "grade": 1,
+          "rationale": "未授权组不应命中。"
+        }
+      ],
+      "notes": "ACL fail-closed case。"
+    },
+    {
+      "case_id": "acl-restricted-advisor-phone",
+      "split": "regression_locked",
+      "query": "辅导员值班电话",
+      "request_overrides": {
+        "acl_groups": [
+          "students"
+        ]
+      },
+      "forbidden_sources": [
+        {
+          "doc_id": "handbook:restricted-advisor-phonebook",
+          "grade": 1,
+          "rationale": "未授权组不应看到内部电话簿。"
+        }
+      ],
+      "notes": "ACL restricted source case。"
+    },
+    {
+      "case_id": "campus-scope-nansha-library",
+      "split": "regression_locked",
+      "query": "南沙校区 图书馆 开放",
+      "request_overrides": {
+        "campus_scope": "nansha"
+      },
+      "expected_sources": [
+        {
+          "doc_id": "handbook:nansha-library-guide",
+          "grade": 2,
+          "rationale": "指定 campus_scope 的目标文档。"
+        }
+      ],
+      "forbidden_sources": [
+        {
+          "doc_id": "handbook:main-campus-library-guide",
+          "grade": 1,
+          "rationale": "不得跨校区泄漏。"
+        }
+      ],
+      "notes": "campus_scope filter case。"
+    },
+    {
+      "case_id": "campus-scope-nansha-dormitory",
+      "split": "regression_locked",
+      "query": "南沙校区 宿舍 管理",
+      "request_overrides": {
+        "campus_scope": "nansha"
+      },
+      "expected_sources": [
+        {
+          "doc_id": "handbook:nansha-dormitory-guide",
+          "grade": 2,
+          "rationale": "目标校区宿舍文档。"
+        }
+      ],
+      "forbidden_sources": [
+        {
+          "doc_id": "handbook:main-campus-dormitory-guide",
+          "grade": 1,
+          "rationale": "不得跨校区召回。"
+        }
+      ],
+      "notes": "campus_scope 宿舍 case。"
+    },
+    {
+      "case_id": "no-hit-impossible-query",
+      "split": "smoke",
+      "query": "火星校区飞船停靠规则",
+      "expected_sources": [],
+      "notes": "no-hit deterministic case。"
+    },
+    {
+      "case_id": "no-hit-nonexistent-visa",
+      "split": "smoke",
+      "query": "校内宇宙签证办理处",
+      "expected_sources": [],
+      "notes": "no-hit 虚构服务 case。"
+    }
+  ]
+}

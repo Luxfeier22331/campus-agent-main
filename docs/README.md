@@ -14,6 +14,7 @@ updated: 2026-03-26
 - `architecture/`: 长期边界、职责划分、系统形态
 - `decisions/`: 已接受的决策记录，使用稳定 ADR 编号
 - `plans/`: 可执行实施文档
+- `verification/`: live gate、运行验收和检查清单
 
 ## Docs 与 .planning 的分工
 
@@ -23,6 +24,8 @@ updated: 2026-03-26
   已接受的长期或阶段决策、specialist 准入、runtime 取舍与评测规则的 canonical truth
 - `docs/plans/`
   被接受的实施基线、交付形状和门禁，不直接承担当前 phase 执行状态的唯一真相源
+- `docs/verification/`
+  live rebuild、运行门禁、验收项和证据模板
 - `.planning/`
   当前 GSD 执行状态、phase 顺序、pending work、最新讨论结论，以及当前轮 plan/context/validation 产物的真相源
 
@@ -76,4 +79,6 @@ updated: 2026-03-26
 - `plans/agent-orchestration-architecture-refresh.md`
 - `plans/golden-dataset-document-delivery.md`
 - `plans/golden-dataset-schema-and-bootstrap.md`
+- `plans/student-handbook-retrieval-eval-bootstrap.md`
 - `plans/supervisor-current-design-implementation.md`
+- `verification/student-handbook-hybrid-rebuild-checklist.md`

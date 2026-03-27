@@ -1,0 +1,224 @@
+{
+  "schema_version": 1,
+  "corpus": "regulations",
+  "collection": "student_handbook",
+  "instructions": [
+    "对每条 query 先抓取 top-10 retrieval results，再人工审核。",
+    "主相关 source 标记到 expected_sources，使用 grade=2。",
+    "可接受相关 source 标记到 expected_sources，使用 grade=1。",
+    "不应命中的 source 标记到 forbidden_sources。",
+    "phase-1 默认先锁 doc_id；只有高风险 case 再补 version_id 或 chunk_id。"
+  ],
+  "cases": [
+    {
+      "case_id": "article-number-degree-procedure",
+      "category": "article_number_exact_match",
+      "split": "smoke",
+      "query": "学士学位授予程序 第十条",
+      "request_overrides": {},
+      "retrieved_sources": [],
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "条款号 exact-match。"
+    },
+    {
+      "case_id": "article-number-dormitory-discipline",
+      "category": "article_number_exact_match",
+      "split": "smoke",
+      "query": "学生公寓管理规定 第十二条",
+      "request_overrides": {},
+      "retrieved_sources": [],
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "条款号 exact-match。"
+    },
+    {
+      "case_id": "article-number-student-status",
+      "category": "article_number_exact_match",
+      "split": "regression_locked",
+      "query": "学生管理规定 第二十四条",
+      "request_overrides": {},
+      "retrieved_sources": [],
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "高风险条款号。"
+    },
+    {
+      "case_id": "policy-title-scholarship",
+      "category": "policy_title_exact_match",
+      "split": "smoke",
+      "query": "奖学金评定办法",
+      "request_overrides": {},
+      "retrieved_sources": [],
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "制度标题 exact-match。"
+    },
+    {
+      "case_id": "policy-title-graduation",
+      "category": "policy_title_exact_match",
+      "split": "smoke",
+      "query": "毕业资格审查办法",
+      "request_overrides": {},
+      "retrieved_sources": [],
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "制度标题 exact-match。"
+    },
+    {
+      "case_id": "policy-title-library",
+      "category": "policy_title_exact_match",
+      "split": "regression_locked",
+      "query": "图书馆借阅规则",
+      "request_overrides": {},
+      "retrieved_sources": [],
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "高风险标题回归。"
+    },
+    {
+      "case_id": "fixed-phrase-office-hours",
+      "category": "fixed_phrase_sparse_win",
+      "split": "regression_locked",
+      "query": "图书馆开放时间",
+      "request_overrides": {},
+      "retrieved_sources": [],
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "固定措辞，优先考虑 chunk-level。"
+    },
+    {
+      "case_id": "fixed-phrase-leave-workflow",
+      "category": "fixed_phrase_sparse_win",
+      "split": "regression_locked",
+      "query": "请假审批流程",
+      "request_overrides": {},
+      "retrieved_sources": [],
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "流程固定措辞。"
+    },
+    {
+      "case_id": "fixed-phrase-medical-reimbursement",
+      "category": "fixed_phrase_sparse_win",
+      "split": "smoke",
+      "query": "公费医疗报销",
+      "request_overrides": {},
+      "retrieved_sources": [],
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "固定术语。"
+    },
+    {
+      "case_id": "semantic-degree-application",
+      "category": "semantic_dense_win",
+      "split": "smoke",
+      "query": "毕业前申请学位的流程是什么",
+      "request_overrides": {},
+      "retrieved_sources": [],
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "dense semantic 问法。"
+    },
+    {
+      "case_id": "semantic-scholarship-eligibility",
+      "category": "semantic_dense_win",
+      "split": "smoke",
+      "query": "申请奖学金需要满足什么条件",
+      "request_overrides": {},
+      "retrieved_sources": [],
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "dense semantic 问法。"
+    },
+    {
+      "case_id": "semantic-transcript-request",
+      "category": "semantic_dense_win",
+      "split": "regression_locked",
+      "query": "怎么开具成绩单",
+      "request_overrides": {},
+      "retrieved_sources": [],
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "dense semantic 问法。"
+    },
+    {
+      "case_id": "acl-restricted-office-hours",
+      "category": "acl_filter",
+      "split": "regression_locked",
+      "query": "办公室值班时间",
+      "request_overrides": {
+        "acl_groups": [
+          "students"
+        ]
+      },
+      "retrieved_sources": [],
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "ACL fail-closed。"
+    },
+    {
+      "case_id": "acl-restricted-advisor-phone",
+      "category": "acl_filter",
+      "split": "regression_locked",
+      "query": "辅导员值班电话",
+      "request_overrides": {
+        "acl_groups": [
+          "students"
+        ]
+      },
+      "retrieved_sources": [],
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "ACL fail-closed。"
+    },
+    {
+      "case_id": "campus-scope-nansha-library",
+      "category": "campus_scope_filter",
+      "split": "regression_locked",
+      "query": "南沙校区 图书馆 开放",
+      "request_overrides": {
+        "campus_scope": "nansha"
+      },
+      "retrieved_sources": [],
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "campus_scope filter。"
+    },
+    {
+      "case_id": "campus-scope-nansha-dormitory",
+      "category": "campus_scope_filter",
+      "split": "regression_locked",
+      "query": "南沙校区 宿舍 管理",
+      "request_overrides": {
+        "campus_scope": "nansha"
+      },
+      "retrieved_sources": [],
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "campus_scope filter。"
+    },
+    {
+      "case_id": "no-hit-impossible-query",
+      "category": "no_hit",
+      "split": "smoke",
+      "query": "火星校区飞船停靠规则",
+      "request_overrides": {},
+      "retrieved_sources": [],
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "no-hit。"
+    },
+    {
+      "case_id": "no-hit-nonexistent-visa",
+      "category": "no_hit",
+      "split": "smoke",
+      "query": "校内宇宙签证办理处",
+      "request_overrides": {},
+      "retrieved_sources": [],
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "no-hit。"
+    }
+  ]
+}
