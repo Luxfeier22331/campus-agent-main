@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Completed 05-supervisor-entry-acl-audit-03-PLAN.md
-last_updated: "2026-03-27T11:30:00.000Z"
+stopped_at: Completed 06-curriculum-offline-preparation-02-PLAN.md
+last_updated: "2026-03-27T13:20:00.000Z"
 progress:
   total_phases: 17
-  completed_phases: 13
-  total_plans: 35
-  completed_plans: 31
+  completed_phases: 15
+  total_plans: 39
+  completed_plans: 37
 ---
 
 # Project State
@@ -19,18 +19,18 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-03-27)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 `student_handbook` 的完整 agentic RAG 主流程证明这条架构能可靠替代高频人工答疑
-**Current focus:** Phase 5 supervisor entry, ACL, and audit closure is complete; next mainline work moves to Phase 05.1 curriculum chunking while Phase 7 remains the release-gate closure
+**Current focus:** Phase 6 curriculum offline preparation is complete; next mainline work moves to Phase 7 verification and release gate while `curriculum_plan` remains offline-only
 
 ## Current Position
 
-Phase: 05 (Supervisor Entry, ACL, And Audit) — COMPLETED
-Plan: 3 of 3
+Phase: 06 (Curriculum Offline Preparation) — COMPLETED
+Plan: 2 of 2
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 31
+- Total plans completed: 37
 - Average duration: mixed agent-run and inline execution; see per-plan summaries
 - Total execution time: 0.2 hours + 2026-03-24 inline Phase 2/3 execution
 
@@ -45,6 +45,8 @@ Plan: 3 of 3
 | 03.2 | 2 | 17 min + inline | mixed |
 | 04 | 3 | inline session | n/a |
 | 05 | 3 | inline session | n/a |
+| 05.1 | 4 | inline session | n/a |
+| 06 | 2 | inline session | n/a |
 | 04.1 | 3 | inline session | n/a |
 | 04.2 | 2 | inline session | n/a |
 | 04.3 | 2 | inline session | n/a |
@@ -54,8 +56,8 @@ Plan: 3 of 3
 
 **Recent Trend:**
 
-- Last 5 plans: 04-02, 04-03, 05-01, 05-02, 05-03
-- Trend: handbook query-serving is now closed through supervisor entry, typed actor propagation, and durable audit logging; the next blocker has moved to curriculum offline preparation and later release-gate verification
+- Last 5 plans: 05.1-02, 05.1-03, 05.1-04, 06-01, 06-02
+- Trend: curriculum offline preparation is now closed through replay/rebuild support plus explicit query-disabled regression proof; the next blocker has moved to Phase 7 verification and release-gate closure
 
 | Phase 01-contract-and-boundary-guardrails P01 | 4m | 2 tasks | 11 files |
 | Phase 01 P02 | 5 | 2 tasks | 3 files |
@@ -74,6 +76,12 @@ Plan: 3 of 3
 | Phase 05 P01 | inline | 1 task | 5 files |
 | Phase 05 P02 | inline | 1 task | 2 files |
 | Phase 05 P03 | inline | 1 task | 6 files |
+| Phase 05.1 P01 | inline | 2 tasks | see summary |
+| Phase 05.1 P02 | inline | 2 tasks | see summary |
+| Phase 05.1 P03 | inline | 2 tasks | see summary |
+| Phase 05.1 P04 | inline | 2 tasks | see summary |
+| Phase 06 P01 | inline | 2 tasks | see summary |
+| Phase 06 P02 | inline | 2 tasks | see summary |
 | Phase 04.1 P01 | inline | 2 tasks | see summary |
 | Phase 04.1 P02 | inline | 2 tasks | see summary |
 | Phase 04.1 P03 | inline | 1 task | see summary |
@@ -151,19 +159,24 @@ Recent decisions affecting current work:
 - [Phase 04-rag-specialist-answer-path]: `rag-specialist` now consumes the accepted hybrid retrieval baseline as input and closes the answer path with clarification-first routing, grounded multi-evidence answers, support-aware confidence, and explicit `no_answer` / `error` safety semantics.
 - [Phase 04-rag-specialist-answer-path]: Phase 4 verification now includes specialist, retrieval, and eval surfaces together; handbook live hybrid fixture drift has been removed from the official verification slice.
 - [Phase 05-supervisor-entry-acl-audit]: `supervisor` is now the only supported query entrypoint in runtime practice, bearer actor spoofing is removed, trusted-worker can project caller claims from Access JWT payload, and audit records are durably persisted from the API shell.
+- [Phase 05.1-curriculum-chunking]: Curriculum source truth now has a dedicated review-backed quality gate, including forbidden-field, heading-role, continuation, hint, and reading-order checks against real provider-derived fixtures.
+- [Phase 05.1-curriculum-chunking]: Curriculum split-manifest seed generation now fails closed on ambiguous structured-heading title matches instead of inventing document truth from weak body text.
+- [Phase 05.1-curriculum-chunking]: `curriculum_plan` chunking runtime is now explicit in ingestion-core via `build_curriculum_chunk_profile(...)` and collection runtime-profile resolution, while retrieval stays disabled.
+- [Phase 06-curriculum-offline-preparation]: `curriculum_plan` now supports `provider_response_replay` in local rebuild, so canonical provider/source-truth artifacts can regenerate document records and document-units without re-running OCR.
+- [Phase 06-curriculum-offline-preparation]: Curriculum offline preparation remains query-disabled end-to-end; retrieval backend, supervisor policy, and API shell regression tests still reject `curriculum/curriculum_plan`.
 
 ### Pending Todos
 
-- Start Phase 05.1 curriculum chunking work on top of the now-closed handbook query path.
+- Start Phase 7 verification and release-gate work on top of the now-closed curriculum offline preparation path.
 
 ### Blockers/Concerns
 
-- No current handbook query-path blocker remains. The next mainline blocker has moved to curriculum offline preparation and final release-gate verification.
+- No current handbook or curriculum offline-prep blocker remains. The next mainline blocker has moved to final release-gate verification.
 - Cloudflare 04.x boundary/topology/contract/shell docs are now complete; any follow-up must stay as downstream implementation against those frozen docs, not as renewed architecture churn.
 - Phase 5 should consume the explicit 04.1 handoff instead of re-opening Cloudflare entry/panel boundary questions or pushing access-provider concerns into `packages/*`.
 
 ## Session Continuity
 
-Last session: 2026-03-27T11:30:00.000Z
-Stopped at: Completed 05-supervisor-entry-acl-audit-03-PLAN.md
+Last session: 2026-03-27T13:20:00.000Z
+Stopped at: Completed 06-curriculum-offline-preparation-02-PLAN.md
 Resume file: None

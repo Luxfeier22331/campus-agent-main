@@ -29,7 +29,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 04.5: Cloudflare Worker Consumer Entry And Access Policy** - Freeze the Worker-only public consumer-entry seam, access modes, and Worker-to-origin trust policy for the public answer path. (INSERTED) (completed 2026-03-25)
 - [x] **Phase 04.6: Cloudflare Worker Runtime Implementation** - Implement the Cloudflare Worker public-entry shell against the frozen 04.3 and 04.5 runtime contracts without absorbing Phase 5 actor, ACL, or audit ownership. (INSERTED) (completed 2026-03-25)
 - [x] **Phase 5: Supervisor Entry, ACL, And Audit** - Make `supervisor` the only query entrypoint with routing, identity propagation, and audit traces. (completed 2026-03-27)
-- [ ] **Phase 6: Curriculum Offline Preparation** - Prepare `curriculum_plan` ingestion outputs without opening query-serving.
+- [x] **Phase 05.1: Curriculum Chunking Boundary Freeze** - Freeze `curriculum_plan` source-truth quality gates, split boundaries, and offline chunking runtime truth without opening query-serving. (INSERTED) (completed 2026-03-27)
+- [x] **Phase 6: Curriculum Offline Preparation** - Prepare `curriculum_plan` ingestion outputs without opening query-serving. (completed 2026-03-27)
 - [ ] **Phase 7: Verification And Release Gate** - Prove the main path and failure semantics with automated tests and smoke/eval coverage.
 
 ## Phase Details
@@ -251,14 +252,21 @@ Plans:
 
 ### Phase 05.1: 研究 curriculum 的 chunking 策略 (INSERTED)
 
-**Goal:** Freeze the evidence-backed offline-only `curriculum_plan` chunking boundary, config ownership, and sample-backed candidate semantics so Phase 6 can implement against current repo truth without accidental query-serving scope expansion or premature semantic-contract freeze.
+**Goal:** Freeze the offline-only `curriculum_plan` source-truth quality gate, split-manifest document boundary, and explicit chunking runtime truth so Phase 6 can build on accepted ingestion facts without accidental query-serving scope expansion.
 **Requirements**: []
 **Depends on:** Phase 5
-**Plans:** 2 plans
+**Success Criteria** (what must be TRUE):
+  1. Real `provider-response -> source-truth` normalization is regression-tested and curriculum source-truth rows have an explicit quality gate.
+  2. Split-manifest review helpers fail closed when heading/title evidence is ambiguous and keep logical documents as the pre-chunking boundary.
+  3. Curriculum chunking runtime truth is explicit in ingestion-core and loaded from collection runtime truth instead of inheriting handbook defaults.
+  4. `curriculum_plan` remains offline-only with `retrieval_enabled = false` and `default_query_enabled = false`.
+**Plans:** 4/4 plans complete
 
 Plans:
-- [ ] 05.1-01-PLAN.md — 对齐 `curriculum/curriculum_plan` 的 docs/config/runtime boundary，明确哪些规则已冻结、哪些 chunking 语义仍是 candidate。
-- [ ] 05.1-02-PLAN.md — 基于现有 curriculum samples/tests 补齐 fail-closed、normalization 与 candidate chunking 行为的自动化验证，不把候选语义误写成最终 contract。
+- [x] 05.1-01-PLAN.md — 对齐 `curriculum/curriculum_plan` 的 docs/config/runtime boundary，明确 offline-only ownership、split boundary 与 config truth。
+- [x] 05.1-02-PLAN.md — 补齐真实 `provider-response -> source-truth` 回归与 curriculum source-truth 质量门禁，不再只依赖已生成的 `layout-elements` 样本回归。
+- [x] 05.1-03-PLAN.md — 强化 split-manifest 与 source-truth 的 review/fail-closed 衔接，先稳定 document boundary，再冻结 review seam。
+- [x] 05.1-04-PLAN.md — 在 source-truth 与 split boundary 稳定后，收口 curriculum chunking runtime truth 与自动化验证。
 
 ### Phase 6: Curriculum Offline Preparation
 **Goal**: Prepare `curriculum_plan` raw, processed, and chunk outputs as an offline data-plane path without exposing it to query-serving.
@@ -268,11 +276,11 @@ Plans:
   1. `curriculum_plan` documents can be imported into the offline ingestion path.
   2. `curriculum_plan` can be cleaned and chunked using the same data-plane conventions as `student_handbook`.
   3. No production query-serving route exposes `curriculum_plan`.
-**Plans**: 2 plans
+**Plans**: 2/2 plans complete
 
 Plans:
-- [ ] 06-01: Add raw/processed/chunk support for `curriculum_plan` in ingestion flows.
-- [ ] 06-02: Verify query-serving policy continues to exclude `curriculum_plan` after offline prep is added.
+- [x] 06-01: Add raw/processed/chunk support for `curriculum_plan` in ingestion flows.
+- [x] 06-02: Verify query-serving policy continues to exclude `curriculum_plan` after offline prep is added.
 
 ### Phase 7: Verification And Release Gate
 **Goal**: Establish repository-level proof that the end-to-end phase-1 path behaves correctly and regressions are caught before release.
@@ -300,7 +308,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 03.2 → 4 → 04.1 
 | 3. Retrieval Corpus Preparation | 2/2 | Complete | 2026-03-24 |
 | 03.1. Availability Specialist 最小闭环 | 3/3 | Complete | 2026-03-25 |
 | 03.2. Source Truth Fan-Out And Attachment Projection | 2/2 | Complete|  |
-| 4. RAG Specialist Answer Path | 0/3 | Not started | - |
+| 4. RAG Specialist Answer Path | 3/3 | Complete | 2026-03-27 |
 | 04.1. Cloudflare Entry And Protected Internal Panel Design | 3/3 | Complete   | 2026-03-25 |
 | 04.2. Cloudflare Runtime Topology And Delivery Shape | 2/2 | Complete   | 2026-03-25 |
 | 04.3. Public Entry Edge Integration Contract | 2/2 | Complete   | 2026-03-25 |
@@ -308,7 +316,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 03.2 → 4 → 04.1 
 | 04.5. Cloudflare Worker Consumer Entry And Access Policy | 2/2 | Complete   | 2026-03-25 |
 | 04.6. Cloudflare Worker Runtime Implementation | 3/3 | Complete    | 2026-03-25 |
 | 04.7. Public Consumer Chat App Design | 0/2 | Not started | - |
-| 5. Supervisor Entry, ACL, And Audit | 0/3 | Not started | - |
-| 05.1. Curriculum Chunking Strategy | 0/2 | Not started | - |
-| 6. Curriculum Offline Preparation | 0/2 | Not started | - |
+| 5. Supervisor Entry, ACL, And Audit | 3/3 | Complete | 2026-03-27 |
+| 05.1. Curriculum Chunking Boundary Freeze | 4/4 | Complete | 2026-03-27 |
+| 6. Curriculum Offline Preparation | 2/2 | Complete | 2026-03-27 |
 | 7. Verification And Release Gate | 0/2 | Not started | - |
