@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-import math
-import re
+from dataclasses import dataclass, field
+import time
 from typing import Iterable, Sequence
 
 from campus_contracts import EvidenceBundle, EvidenceSource
@@ -12,10 +11,13 @@ from campus_ingestion_core.registry import (
     DocumentRegistry,
     build_document_registry_from_env,
 )
+from campus_ingestion_core.sparse import (
+    SparseEmbeddingModel,
+    SparseEmbeddingSettings,
+    build_sparse_embedding_model,
+)
 from llama_index.core.schema import MetadataMode, TextNode
 from llama_index.core.vector_stores import FilterCondition, FilterOperator, MetadataFilter, MetadataFilters
-from llama_index.core.vector_stores.types import VectorStoreQuery
-from llama_index.vector_stores.qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
 
@@ -24,8 +26,7 @@ from campus_retrieval_core.settings import RetrievalSettings
 
 DEFAULT_LATEST_REVISION_TRACKS = ("current-effective", "editorial", "source-faithful")
 DEFAULT_HYBRID_CANDIDATE_MULTIPLIER = 4
-DEFAULT_RRF_K = 60
-_LEXICAL_TOKEN_RE = re.compile(r"[\w\u4e00-\u9fff]+", re.UNICODE)
+DEFAULT_DENSE_QUERY_CACHE_TTL_SECONDS = 300.0
 
 
 class RetrievalBackendError(RuntimeError):
@@ -36,19 +37,15 @@ class CorpusQueryDisabledError(RetrievalBackendError):
     pass
 
 
-@dataclass(frozen=True, slots=True)
-class RetrievalCandidate:
-    node: TextNode
-    score: float
-    retrieval_mode: str
-
-
 @dataclass
 class QdrantRetrievalBackend:
     settings: RetrievalSettings
     registry: DocumentRegistry | None = None
     qdrant_client: QdrantClient | None = None
     embedding_model: object | None = None
+    sparse_embedding_model: SparseEmbeddingModel | None = None
+    dense_query_cache_ttl_seconds: float = DEFAULT_DENSE_QUERY_CACHE_TTL_SECONDS
+    _dense_query_cache: dict[str, tuple[float, tuple[float, ...]]] = field(default_factory=dict, init=False)
 
     def __post_init__(self) -> None:
         self.registry = self.registry or build_document_registry_from_env(
@@ -64,12 +61,14 @@ class QdrantRetrievalBackend:
                 dimensions=self.settings.embedding_dimensions,
             )
         )
-        self._vector_store = QdrantVectorStore(
-            collection_name=self.settings.qdrant_collection,
-            client=self.qdrant_client,
+        self.sparse_embedding_model = self.sparse_embedding_model or build_sparse_embedding_model(
+            SparseEmbeddingSettings(
+                provider=self.settings.sparse_provider,
+                model=self.settings.sparse_model,
+                tokenizer=self.settings.sparse_tokenizer,
+                language=self.settings.sparse_language,
+            )
         )
-        if self.qdrant_client.collection_exists(self.settings.qdrant_collection):
-            self._vector_store._detect_vector_format(self.settings.qdrant_collection)
 
     def retrieve(self, request: RetrievalRequest) -> EvidenceBundle:
         profile = load_runtime_profile(request.corpus, request.collection)
@@ -92,12 +91,19 @@ class QdrantRetrievalBackend:
             )
 
         try:
-            dense_candidates = self._retrieve_dense_candidates(request)
-            sparse_candidates = self._retrieve_sparse_candidates(request)
-            fused_candidates = self._fuse_candidates_rrf(
-                dense_candidates=dense_candidates,
-                sparse_candidates=sparse_candidates,
-                top_k=request.top_k,
+            dense_query_embedding = self._get_dense_query_embedding(query_text)
+            response = self.qdrant_client.query_points(
+                collection_name=self.settings.qdrant_collection,
+                prefetch=_build_hybrid_prefetch(
+                    request=request,
+                    embedding_model=self.embedding_model,
+                    sparse_embedding_model=self.sparse_embedding_model,
+                    dense_query_embedding=dense_query_embedding,
+                ),
+                query=qdrant_models.FusionQuery(fusion=qdrant_models.Fusion.RRF),
+                limit=request.top_k,
+                with_payload=True,
+                with_vectors=False,
             )
         except Exception as exc:  # pragma: no cover - exercised by error mapping test
             raise RetrievalBackendError("qdrant retrieval failed") from exc
@@ -106,101 +112,17 @@ class QdrantRetrievalBackend:
             query_text=request.query_text,
             corpus=request.corpus,
             collection=request.collection,
-            sources=self._build_evidence_sources(fused_candidates),
+            sources=self._build_evidence_sources(response.points or ()),
         )
 
-    def _retrieve_dense_candidates(self, request: RetrievalRequest) -> tuple[RetrievalCandidate, ...]:
-        if self._vector_store._legacy_vector_format is None:
-            self._vector_store._detect_vector_format(self.settings.qdrant_collection)
-
-        query_embedding = self.embedding_model.get_query_embedding(request.query_text.strip())
-        query = VectorStoreQuery(
-            query_embedding=query_embedding,
-            query_str=request.query_text,
-            similarity_top_k=_candidate_limit(request.top_k),
-            filters=_build_metadata_filters(request),
-        )
-        result = self._vector_store.query(query)
-        nodes = result.nodes or ()
-        similarities = result.similarities or [1.0] * len(nodes)
-        return tuple(
-            RetrievalCandidate(
-                node=node,
-                score=float(similarity),
-                retrieval_mode="dense",
-            )
-            for node, similarity in zip(nodes, similarities)
-        )
-
-    def _retrieve_sparse_candidates(self, request: RetrievalRequest) -> tuple[RetrievalCandidate, ...]:
-        query_tokens = _tokenize_lexical_query(request.query_text)
-        if not query_tokens:
-            return ()
-
-        try:
-            records, _ = self.qdrant_client.scroll(
-                collection_name=self.settings.qdrant_collection,
-                scroll_filter=_build_qdrant_filter(request),
-                limit=max(_candidate_limit(request.top_k) * 8, 32),
-                with_payload=True,
-                with_vectors=False,
-            )
-        except ValueError:
-            return ()
-
-        candidates: list[RetrievalCandidate] = []
-        for record in records:
-            payload = dict(record.payload or {})
-            node = _record_to_text_node(record.id, payload)
+    def _build_evidence_sources(self, points: Sequence[qdrant_models.ScoredPoint]) -> tuple[EvidenceSource, ...]:
+        sources: list[EvidenceSource] = []
+        for point in points:
+            payload = dict(point.payload or {})
+            node = _record_to_text_node(point.id, payload)
             if node is None:
                 continue
-            score = _lexical_score(query_tokens=query_tokens, node=node)
-            if score <= 0:
-                continue
-            candidates.append(
-                RetrievalCandidate(
-                    node=node,
-                    score=score,
-                    retrieval_mode="sparse",
-                )
-            )
-
-        candidates.sort(key=lambda candidate: candidate.score, reverse=True)
-        return tuple(candidates[: _candidate_limit(request.top_k)])
-
-    def _fuse_candidates_rrf(
-        self,
-        *,
-        dense_candidates: Sequence[RetrievalCandidate],
-        sparse_candidates: Sequence[RetrievalCandidate],
-        top_k: int,
-    ) -> tuple[RetrievalCandidate, ...]:
-        ranked_lists = [dense_candidates, sparse_candidates]
-        fused_scores: dict[str, float] = {}
-        chosen_candidates: dict[str, RetrievalCandidate] = {}
-
-        for ranked in ranked_lists:
-            for rank, candidate in enumerate(ranked, start=1):
-                candidate_id = _candidate_identity(candidate)
-                fused_scores[candidate_id] = fused_scores.get(candidate_id, 0.0) + 1.0 / (DEFAULT_RRF_K + rank)
-                existing = chosen_candidates.get(candidate_id)
-                if existing is None or candidate.score > existing.score:
-                    chosen_candidates[candidate_id] = candidate
-
-        ordered = sorted(
-            chosen_candidates.items(),
-            key=lambda item: (
-                fused_scores[item[0]],
-                item[1].score,
-            ),
-            reverse=True,
-        )
-        return tuple(candidate for _, candidate in ordered[:top_k])
-
-    def _build_evidence_sources(self, candidates: Sequence[RetrievalCandidate]) -> tuple[EvidenceSource, ...]:
-        sources: list[EvidenceSource] = []
-        for candidate in candidates:
-            metadata = dict(candidate.node.metadata)
+            metadata = dict(node.metadata)
             document_id = str(metadata.get("document_id") or "")
             revision_track = str(metadata.get("revision_track") or metadata.get("representation") or "")
             version_id = str(metadata.get("version_id") or "")
@@ -218,7 +140,7 @@ class QdrantRetrievalBackend:
                     doc_id=document_id,
                     revision_track=revision_track,
                     version_id=version_id,
-                    chunk_id=str(metadata.get("chunk_id") or candidate.node.node_id),
+                    chunk_id=str(metadata.get("chunk_id") or node.node_id),
                     anchor=_coerce_dict(metadata.get("anchor")),
                     acl_level=str(metadata.get("acl_level") or "public"),
                     canonical_url=record.source_uri,
@@ -226,39 +148,57 @@ class QdrantRetrievalBackend:
                     source_channel=str(metadata.get("source_channel") or record.source_channel),
                     collection=str(metadata.get("collection") or record.collection),
                     is_current=bool(metadata.get("is_current", record.is_current)),
-                    snippet=candidate.node.get_content(metadata_mode=MetadataMode.NONE),
-                    score=float(candidate.score),
+                    snippet=node.get_content(metadata_mode=MetadataMode.NONE),
+                    score=float(point.score),
                 )
             )
         return tuple(sources)
+
+    def _get_dense_query_embedding(self, query_text: str) -> tuple[float, ...]:
+        normalized_query = query_text.strip()
+        now = time.monotonic()
+        cached = self._dense_query_cache.get(normalized_query)
+        if cached is not None:
+            expires_at, embedding = cached
+            if expires_at > now:
+                return embedding
+        embedding = tuple(float(item) for item in self.embedding_model.get_query_embedding(normalized_query))
+        self._dense_query_cache[normalized_query] = (now + self.dense_query_cache_ttl_seconds, embedding)
+        return embedding
 
 
 def _candidate_limit(top_k: int) -> int:
     return max(top_k * DEFAULT_HYBRID_CANDIDATE_MULTIPLIER, top_k)
 
 
-def _candidate_identity(candidate: RetrievalCandidate) -> str:
-    metadata = dict(candidate.node.metadata)
-    chunk_id = str(metadata.get("chunk_id") or "")
-    if chunk_id:
-        return chunk_id
-    document_id = str(metadata.get("document_id") or candidate.node.node_id)
-    version_id = str(metadata.get("version_id") or "")
-    return f"{document_id}:{version_id}:{candidate.node.node_id}"
-
-
-def _tokenize_lexical_query(text: str) -> tuple[str, ...]:
-    return tuple(token.lower() for token in _LEXICAL_TOKEN_RE.findall(text))
-
-
-def _lexical_score(*, query_tokens: Sequence[str], node: TextNode) -> float:
-    content = node.get_content(metadata_mode=MetadataMode.NONE).lower()
-    score = 0.0
-    for token in query_tokens:
-        count = content.count(token)
-        if count:
-            score += 1.0 + math.log1p(count)
-    return score
+def _build_hybrid_prefetch(
+    *,
+    request: RetrievalRequest,
+    embedding_model: object,
+    sparse_embedding_model: SparseEmbeddingModel,
+    dense_query_embedding: Sequence[float] | None = None,
+) -> list[qdrant_models.Prefetch]:
+    limit = _candidate_limit(request.top_k)
+    query_filter = _build_qdrant_filter(request)
+    prefetch = [
+        qdrant_models.Prefetch(
+            query=list(dense_query_embedding or embedding_model.get_query_embedding(request.query_text.strip())),
+            using="dense",
+            filter=query_filter,
+            limit=limit,
+        )
+    ]
+    sparse_query = sparse_embedding_model.get_query_embedding(request.query_text.strip()).to_qdrant()
+    if sparse_query.indices:
+        prefetch.append(
+            qdrant_models.Prefetch(
+                query=sparse_query,
+                using="sparse",
+                filter=query_filter,
+                limit=limit,
+            )
+        )
+    return prefetch
 
 
 def _record_to_text_node(point_id: object, payload: dict[str, object]) -> TextNode | None:

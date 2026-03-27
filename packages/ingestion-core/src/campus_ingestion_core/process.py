@@ -8,7 +8,6 @@ import uuid
 
 from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.core.schema import NodeRelationship, RelatedNodeInfo, TextNode
-from llama_index.vector_stores.qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
 
@@ -29,6 +28,12 @@ from campus_ingestion_core.chunking import (
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.curriculum_chunk_units import build_curriculum_structured_units, chunk_curriculum_unit
 from campus_ingestion_core.models import DocumentRegistryRecord
+from campus_ingestion_core.sparse import (
+    SparseEmbeddingModel,
+    SparseEmbeddingSettings,
+    SparseVectorData,
+    build_sparse_embedding_model,
+)
 
 _NESTED_NUMBERED_LINE_RE = re.compile(r"^(?:[0-9]+[.、]|[（(][一二三四五六七八九十百千万〇零两0-9]+[)）])")
 
@@ -72,6 +77,8 @@ class IndexableChunk:
     parser_version: str
     embedding_model: str
     embedding: tuple[float, ...] | None = None
+    sparse_indices: tuple[int, ...] = ()
+    sparse_values: tuple[float, ...] = ()
     metadata: dict[str, object] = field(default_factory=dict)
 
     def to_node(self) -> TextNode:
@@ -147,6 +154,7 @@ def build_indexable_chunks_from_jsonl(
     structured_jsonl_bytes: bytes,
     chunk_profile: ChunkProfile | None = None,
     embedding_model: BaseEmbedding | None = None,
+    sparse_embedding_model: SparseEmbeddingModel | None = None,
 ) -> tuple[IndexableChunk, ...]:
     runtime_profile = _resolve_chunk_profile(record=record, chunk_profile=chunk_profile)
     units = _load_structured_units(record=record, structured_jsonl_bytes=structured_jsonl_bytes)
@@ -167,15 +175,18 @@ def build_indexable_chunks_from_jsonl(
         chunk_candidates=chunk_candidates,
         chunk_profile=runtime_profile,
     )
+    dense_embeddings = _embed_texts(
+        [candidate.chunk_assembly.text for candidate in chunk_candidates],
+        embedding_model,
+    )
 
     chunks: list[IndexableChunk] = []
     chunk_order = 0
-    for candidate in chunk_candidates:
+    for candidate, embedding in zip(chunk_candidates, dense_embeddings, strict=True):
         chunk_order += 1
         chunk_id = (
             f"{record.document_id}:{record.revision_track}:{record.version_id}:chunk-{chunk_order:04d}"
         )
-        embedding = _embed_text(candidate.chunk_assembly.text, embedding_model)
         chunks.append(
             IndexableChunk(
                 document_id=record.document_id,
@@ -723,6 +734,7 @@ def build_indexable_chunks_from_record(
     bucket: str,
     chunk_profile: ChunkProfile | None = None,
     embedding_model: BaseEmbedding | None = None,
+    sparse_embedding_model: SparseEmbeddingModel | None = None,
 ) -> tuple[IndexableChunk, ...]:
     document_units_key = record.document_units_object_key
     if not document_units_key:
@@ -733,6 +745,7 @@ def build_indexable_chunks_from_record(
         structured_jsonl_bytes=structured_jsonl_bytes,
         chunk_profile=chunk_profile,
         embedding_model=embedding_model,
+        sparse_embedding_model=sparse_embedding_model,
     )
 
 
@@ -741,17 +754,50 @@ def index_chunks_to_qdrant(
     chunks: Sequence[IndexableChunk],
     qdrant_client: QdrantClient,
     collection_name: str,
+    sparse_embedding_model: SparseEmbeddingModel | None = None,
+    recreate_collection_on_schema_mismatch: bool = False,
+    ensure_collection: bool = True,
+    ensure_payload_indexes: bool = True,
 ) -> tuple[str, ...]:
     if not chunks:
         return ()
-    vector_store = QdrantVectorStore(
+    runtime_sparse_embedding_model = sparse_embedding_model or build_sparse_embedding_model(SparseEmbeddingSettings())
+    if ensure_collection:
+        _ensure_collection(
+            qdrant_client=qdrant_client,
+            collection_name=collection_name,
+            dense_vector_size=_resolve_dense_vector_size(chunks),
+            recreate_on_mismatch=recreate_collection_on_schema_mismatch,
+        )
+    points: list[qdrant_models.PointStruct] = []
+    for chunk in chunks:
+        node = chunk.to_node()
+        if chunk.embedding is None:
+            raise ValueError(f"chunk {chunk.chunk_id} is missing dense embedding")
+        points.append(
+            qdrant_models.PointStruct(
+                id=str(uuid.uuid5(uuid.NAMESPACE_URL, chunk.chunk_id)),
+                vector={
+                    "dense": list(chunk.embedding),
+                    "sparse": _resolve_sparse_vector(
+                        chunk=chunk,
+                        sparse_embedding_model=runtime_sparse_embedding_model,
+                    ).to_qdrant(),
+                },
+                payload={
+                    "_node_content": node.model_dump_json(),
+                    **node.metadata,
+                },
+            )
+        )
+    qdrant_client.upsert(
         collection_name=collection_name,
-        client=qdrant_client,
-        index_doc_id=not _is_local_qdrant_backend(qdrant_client),
+        points=points,
+        wait=True,
     )
-    ids = vector_store.add([chunk.to_node() for chunk in chunks])
-    _ensure_payload_indexes(qdrant_client=qdrant_client, collection_name=collection_name)
-    return tuple(str(item) for item in ids)
+    if ensure_payload_indexes:
+        _ensure_payload_indexes(qdrant_client=qdrant_client, collection_name=collection_name)
+    return tuple(str(point.id) for point in points)
 
 
 def _load_structured_units(
@@ -916,6 +962,23 @@ def _embed_text(text: str, embedding_model: BaseEmbedding | None) -> tuple[float
     return tuple(float(item) for item in embedding_model.get_text_embedding(text))
 
 
+def _embed_texts(
+    texts: Sequence[str],
+    embedding_model: BaseEmbedding | object | None,
+) -> tuple[tuple[float, ...] | None, ...]:
+    if not texts:
+        return ()
+    if embedding_model is None:
+        return tuple(None for _ in texts)
+    batch_embed = getattr(embedding_model, "get_text_embedding_batch", None)
+    if callable(batch_embed):
+        embeddings = batch_embed(list(texts))
+        if len(embeddings) != len(texts):
+            raise ValueError("embedding batch result count does not match input count")
+        return tuple(tuple(float(item) for item in embedding) for embedding in embeddings)
+    return tuple(_embed_text(text, embedding_model) for text in texts)
+
+
 def _ensure_payload_indexes(*, qdrant_client: QdrantClient, collection_name: str) -> None:
     if not qdrant_client.collection_exists(collection_name):
         return
@@ -940,6 +1003,99 @@ def _ensure_payload_indexes(*, qdrant_client: QdrantClient, collection_name: str
             field_schema=qdrant_models.PayloadSchemaType.KEYWORD,
             wait=True,
         )
+
+
+def _ensure_collection(
+    *,
+    qdrant_client: QdrantClient,
+    collection_name: str,
+    dense_vector_size: int,
+    recreate_on_mismatch: bool,
+) -> None:
+    if not qdrant_client.collection_exists(collection_name):
+        _create_collection(
+            qdrant_client=qdrant_client,
+            collection_name=collection_name,
+            dense_vector_size=dense_vector_size,
+        )
+        return
+    if _collection_schema_matches(
+        qdrant_client=qdrant_client,
+        collection_name=collection_name,
+        dense_vector_size=dense_vector_size,
+    ):
+        return
+    if not recreate_on_mismatch:
+        raise ValueError(f"collection {collection_name} does not match dense+sparse schema")
+    qdrant_client.delete_collection(collection_name=collection_name)
+    _create_collection(
+        qdrant_client=qdrant_client,
+        collection_name=collection_name,
+        dense_vector_size=dense_vector_size,
+    )
+
+
+def _create_collection(
+    *,
+    qdrant_client: QdrantClient,
+    collection_name: str,
+    dense_vector_size: int,
+) -> None:
+    qdrant_client.create_collection(
+        collection_name=collection_name,
+        vectors_config={
+            "dense": qdrant_models.VectorParams(
+                size=dense_vector_size,
+                distance=qdrant_models.Distance.COSINE,
+            )
+        },
+        sparse_vectors_config={
+            "sparse": qdrant_models.SparseVectorParams(modifier=qdrant_models.Modifier.IDF),
+        },
+    )
+
+
+def _collection_schema_matches(
+    *,
+    qdrant_client: QdrantClient,
+    collection_name: str,
+    dense_vector_size: int,
+) -> bool:
+    info = qdrant_client.get_collection(collection_name=collection_name)
+    params = info.config.params
+    vectors = params.vectors
+    if not isinstance(vectors, dict):
+        return False
+    dense = vectors.get("dense")
+    sparse = (params.sparse_vectors or {}).get("sparse")
+    return (
+        dense is not None
+        and getattr(dense, "size", None) == dense_vector_size
+        and getattr(dense, "distance", None) == qdrant_models.Distance.COSINE
+        and sparse is not None
+        and getattr(sparse, "modifier", None) == qdrant_models.Modifier.IDF
+    )
+
+
+def _resolve_sparse_vector(
+    *,
+    chunk: IndexableChunk,
+    sparse_embedding_model: SparseEmbeddingModel,
+) -> SparseVectorData:
+    if bool(chunk.sparse_indices) != bool(chunk.sparse_values):
+        raise ValueError(f"chunk {chunk.chunk_id} sparse vector is incomplete")
+    if len(chunk.sparse_indices) != len(chunk.sparse_values):
+        raise ValueError(f"chunk {chunk.chunk_id} sparse vector length mismatch")
+    if chunk.sparse_indices:
+        return SparseVectorData(indices=chunk.sparse_indices, values=chunk.sparse_values)
+    return sparse_embedding_model.get_text_embedding(chunk.text)
+
+
+def _resolve_dense_vector_size(chunks: Sequence[IndexableChunk]) -> int:
+    first_embedding = next((chunk.embedding for chunk in chunks if chunk.embedding is not None), None)
+    if first_embedding is None:
+        raise ValueError("chunk embedding is required for qdrant indexing")
+    return len(first_embedding)
 
 
 def _is_local_qdrant_backend(qdrant_client: QdrantClient) -> bool:

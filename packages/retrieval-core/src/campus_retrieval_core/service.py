@@ -6,6 +6,20 @@ from campus_retrieval_core.backend_qdrant import QdrantRetrievalBackend, Retriev
 from campus_retrieval_core.models import RetrievalRequest
 from campus_retrieval_core.settings import RetrievalSettings
 
+_BACKEND_CACHE: dict[object, QdrantRetrievalBackend] = {}
+
+
+def clear_backend_cache() -> None:
+    _BACKEND_CACHE.clear()
+
+
+def _get_cached_backend(settings: object) -> QdrantRetrievalBackend:
+    backend = _BACKEND_CACHE.get(settings)
+    if backend is None:
+        backend = QdrantRetrievalBackend(settings)
+        _BACKEND_CACHE[settings] = backend
+    return backend
+
 
 def retrieve_sources(
     query: str,
@@ -26,7 +40,7 @@ def retrieve_sources(
         top_k=top_k,
     )
     try:
-        runtime_backend = backend or QdrantRetrievalBackend(RetrievalSettings.from_env())
+        runtime_backend = backend or _get_cached_backend(RetrievalSettings.from_env())
     except Exception as exc:  # pragma: no cover - exercised via caller mapping
         raise RetrievalBackendError("failed to initialize retrieval backend") from exc
     return runtime_backend.retrieve(request)

@@ -9,6 +9,10 @@ DEFAULT_QDRANT_COLLECTION = "student_handbook"
 DEFAULT_QDRANT_TIMEOUT_SECONDS = 10.0
 DEFAULT_EMBEDDING_PROVIDER = "gitee"
 DEFAULT_EMBEDDING_MODEL = "Qwen3-Embedding-4B"
+DEFAULT_SPARSE_PROVIDER = "qdrant"
+DEFAULT_SPARSE_MODEL = "qdrant/bm25"
+DEFAULT_SPARSE_TOKENIZER = "multilingual"
+DEFAULT_SPARSE_LANGUAGE = "none"
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,6 +27,10 @@ class RetrievalSettings:
     embedding_api_key: str = ""
     embedding_base_url: str | None = None
     embedding_dimensions: int | None = None
+    sparse_provider: str = DEFAULT_SPARSE_PROVIDER
+    sparse_model: str = DEFAULT_SPARSE_MODEL
+    sparse_tokenizer: str = DEFAULT_SPARSE_TOKENIZER
+    sparse_language: str = DEFAULT_SPARSE_LANGUAGE
 
     def __post_init__(self) -> None:
         if self.embedding_dimensions is None and self.embedding_model == "Qwen3-Embedding-4B":
@@ -39,6 +47,14 @@ class RetrievalSettings:
             raise ValueError("EMBEDDING_PROVIDER is required")
         if not self.embedding_model:
             raise ValueError("EMBEDDING_MODEL is required")
+        if not self.sparse_provider:
+            raise ValueError("SPARSE_PROVIDER is required")
+        if not self.sparse_model:
+            raise ValueError("SPARSE_MODEL is required")
+        if not self.sparse_tokenizer:
+            raise ValueError("SPARSE_TOKENIZER is required")
+        if not self.sparse_language:
+            raise ValueError("SPARSE_LANGUAGE is required")
         if self.embedding_dimensions is not None and self.embedding_dimensions <= 0:
             raise ValueError("EMBEDDING_DIMENSIONS must be greater than zero")
         if self.document_registry_database_url:
@@ -68,6 +84,13 @@ class RetrievalSettings:
                 model=(source.get("EMBEDDING_MODEL") or DEFAULT_EMBEDDING_MODEL).strip(),
                 raw_dimensions=(source.get("EMBEDDING_DIMENSIONS") or "").strip(),
             ),
+            sparse_provider=(source.get("SPARSE_PROVIDER") or DEFAULT_SPARSE_PROVIDER).strip()
+            or DEFAULT_SPARSE_PROVIDER,
+            sparse_model=(source.get("SPARSE_MODEL") or DEFAULT_SPARSE_MODEL).strip() or DEFAULT_SPARSE_MODEL,
+            sparse_tokenizer=(source.get("SPARSE_TOKENIZER") or DEFAULT_SPARSE_TOKENIZER).strip()
+            or DEFAULT_SPARSE_TOKENIZER,
+            sparse_language=(source.get("SPARSE_LANGUAGE") or DEFAULT_SPARSE_LANGUAGE).strip()
+            or DEFAULT_SPARSE_LANGUAGE,
         )
 
 

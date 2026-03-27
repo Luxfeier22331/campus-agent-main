@@ -334,6 +334,58 @@ class ProcessingPipelineTest(unittest.TestCase):
                 structured_jsonl_bytes=structured_payload,
             )
 
+    def test_build_indexable_chunks_from_jsonl_uses_batch_dense_embeddings_when_available(self) -> None:
+        class _BatchOnlyEmbeddingModel:
+            def __init__(self) -> None:
+                self.batch_calls: list[tuple[str, ...]] = []
+
+            def get_text_embedding(self, text: str) -> list[float]:
+                raise AssertionError("single-item embedding should not be used when batch embeddings are available")
+
+            def get_text_embedding_batch(self, texts: list[str]) -> list[list[float]]:
+                self.batch_calls.append(tuple(texts))
+                return [[float(index), float(index) + 0.5] for index, _ in enumerate(texts, start=1)]
+
+        record = _make_registry_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "doc_id": "handbook:test-001",
+                        "version_id": "v1:test-001",
+                        "chunk_id": "article-001",
+                        "unit_type": "article_body",
+                        "root_unit_id": "article-001",
+                        "clean_text": " ".join(f"token-{index:04d}" for index in range(520)),
+                        "anchor": {
+                            "section_path": ["学生管理", "奖惩办法"],
+                            "article_label": "第十二条",
+                            "page_start": 9,
+                            "page_end": 9,
+                        },
+                        "acl": {"level": "public", "allow_groups": []},
+                    },
+                    ensure_ascii=False,
+                )
+            ]
+        ).encode("utf-8")
+        embedding_model = _BatchOnlyEmbeddingModel()
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
+            embedding_model=embedding_model,
+        )
+
+        self.assertGreater(len(chunks), 1)
+        self.assertEqual(len(embedding_model.batch_calls), 1)
+        self.assertEqual(embedding_model.batch_calls[0], tuple(chunk.text for chunk in chunks))
+        self.assertEqual(
+            tuple(chunk.embedding for chunk in chunks),
+            tuple((float(index), float(index) + 0.5) for index in range(1, len(chunks) + 1)),
+        )
+
     def test_build_indexable_chunks_from_jsonl_accepts_split_handbook_cleanup_output(self) -> None:
         cleanup_result = cleanup_handbook_document(
             structured_rows=[

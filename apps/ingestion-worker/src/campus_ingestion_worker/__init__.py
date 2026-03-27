@@ -5,6 +5,7 @@ from campus_ingestion_worker.migrate_campus_services_canonical import (
 )
 from campus_ingestion_worker.migrate_student_handbook_source_faithful import (
     StudentHandbookMigrationReport,
+    StudentHandbookSourceAssetRequest,
     migrate_student_handbook_source_faithful,
 )
 from campus_ingestion_worker.process_raw_ingestion_job import (
@@ -29,6 +30,7 @@ __all__ = [
     "RawAssetRegistrationResult",
     "StudentHandbookChunkingValidationReport",
     "StudentHandbookMigrationReport",
+    "StudentHandbookSourceAssetRequest",
     "load_worker_env",
     "migrate_campus_services_canonical_to_object_store",
     "migrate_student_handbook_source_faithful",

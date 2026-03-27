@@ -13,10 +13,12 @@ from campus_ingestion_core.campus_services_migration import (
 )
 from campus_ingestion_core.object_store import (
     S3ObjectStoreClientFactory,
-    build_processed_artifact_key,
-    build_processed_asset_artifact_key,
+    build_document_artifact_key,
     build_raw_asset_key,
+    build_source_ocr_artifact_key,
+    build_source_truth_artifact_key,
 )
+from campus_ingestion_core.collection_config import CollectionTruthConfig, resolve_collection_truth_config
 from campus_ingestion_core.campusrag_ingestion_support import ImportReport
 from campus_ingestion_core.tokenizer_cache import (
     HF_TOKENIZER_ALLOW_PATTERNS,
@@ -74,7 +76,9 @@ from campus_ingestion_core.handbook_chunking_validation import (
 )
 from campus_ingestion_core.local_rebuild import (
     LocalDataRebuildReport,
+    RebuildRequest,
     StudentHandbookMigrationReport,
+    StudentHandbookSourceAssetRequest,
     migrate_student_handbook_source_faithful,
     rebuild_local_data,
     replay_provider_response_rebuild,
@@ -101,16 +105,23 @@ from campus_ingestion_core.registry import (
     build_raw_asset_registry_from_env,
 )
 from campus_ingestion_core.settings import (
-    DEFAULT_BUCKET_PROCESSED,
-    DEFAULT_BUCKET_RAW,
+    DEFAULT_BUCKET_DERIVED,
+    DEFAULT_BUCKET_SOURCE,
     ObjectStoreSettings,
+)
+from campus_ingestion_core.sparse import (
+    MockSparseEmbeddingSettings,
+    SparseEmbeddingSettings,
+    build_mock_sparse_embedding_model,
+    build_sparse_embedding_model,
 )
 from campus_ingestion_core.split_manifest import SplitManifest, SplitManifestDocument, load_split_manifest
 
 __all__ = [
-    "DEFAULT_BUCKET_PROCESSED",
-    "DEFAULT_BUCKET_RAW",
+    "DEFAULT_BUCKET_DERIVED",
+    "DEFAULT_BUCKET_SOURCE",
     "CANONICAL_MARKDOWN_FILENAME",
+    "CollectionTruthConfig",
     "CampusServicesMigrationEntry",
     "CampusServicesMigrationPlan",
     "CampusServicesObjectStoreMigrationReport",
@@ -136,6 +147,7 @@ __all__ = [
     "ChunkValidationFailure",
     "StudentHandbookChunkingScanResult",
     "StudentHandbookMigrationReport",
+    "StudentHandbookSourceAssetRequest",
     "StudentHandbookValidationInputs",
     "StudentHandbookChunkingValidationReport",
     "StudentHandbookScannedDocument",
@@ -147,6 +159,7 @@ __all__ = [
     "normalize_handbook_body_text",
     "normalize_handbook_title",
     "LocalDataRebuildReport",
+    "RebuildRequest",
     "OnlineOcrClient",
     "OnlineOcrProviderResult",
     "PostgresDocumentRegistry",
@@ -158,10 +171,12 @@ __all__ = [
     "build_document_registry_from_env",
     "build_campus_services_migration_plan",
     "build_indexable_chunks_from_jsonl",
-    "build_processed_artifact_key",
-    "build_processed_asset_artifact_key",
+    "build_document_artifact_key",
     "build_raw_asset_registry_from_env",
     "build_raw_asset_key",
+    "build_source_ocr_artifact_key",
+    "build_source_truth_artifact_key",
+    "resolve_collection_truth_config",
     "chunk_structured_unit",
     "clean_structured_text",
     "default_query_scopes",
@@ -171,6 +186,7 @@ __all__ = [
     "index_chunks_to_qdrant",
     "LAYOUT_ELEMENTS_FILENAME",
     "MockEmbeddingSettings",
+    "MockSparseEmbeddingSettings",
     "process_raw_ingestion_job",
     "PROVIDER_RESPONSE_FILENAME",
     "migrate_student_handbook_source_faithful",
@@ -189,5 +205,8 @@ __all__ = [
     "load_split_manifest",
     "load_runtime_profile",
     "scan_student_handbook_chunking",
+    "SparseEmbeddingSettings",
+    "build_mock_sparse_embedding_model",
+    "build_sparse_embedding_model",
     "validate_student_handbook_chunking",
 ]

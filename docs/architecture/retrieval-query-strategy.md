@@ -82,10 +82,13 @@ updated: 2026-03-26
 - sparse candidate retrieval 的目标是覆盖术语、条款号、文号、固定措辞和标题关键词等 exact-match / sparse-match 信号
 - `Qwen3-Embedding-4B` 只负责 dense embeddings；sparse vector 必须由独立 sparse path 生成
 - phase-1 当前推荐 sparse baseline 固定为 `Qdrant native BM25`
+- `qdrant/bm25` 在当前 Qdrant Cloud Inference 模型列表中标记为 `Cost: Free`
 - handbook 中文语料的 sparse tokenization 起始配置固定为：`tokenizer=multilingual`、`language=none`
+- live / remote 路径里，`tokenizer=multilingual` 由 Qdrant native `qdrant/bm25` sparse path 提供；仓库本地不会为它下载或缓存额外 tokenizer 文件
+- 本地 `:memory:` / mock / unit-test 路径里，仓库只提供一个最小兼容的 `_tokenize_multilingual()` fallback 来生成测试用 sparse vectors；它不是 live sparse 服务真相源
 - accepted target shape 是 Qdrant native sparse index，而不是 retrieval-core 内部本地算分
-- 当前仓库实现仍处于 transition state：dense 已写入 Qdrant，sparse 仍通过 retrieval-core 内部过渡路径生成候选
-- live rebuild 完成后，`student_handbook` collection 应升级为同一点同时保存 named `dense` 与 named `sparse` vectors
+- 当前仓库主实现已切换到 native hybrid：ingestion / rebuild 会对同一 `chunk_id` 双写 named `dense` 与 named `sparse` vectors，retrieval 通过 Qdrant native `prefetch + FusionQuery(RRF)` 查询
+- 当前剩余 gate 不再是实现缺口，而是 live rebuild、真实 collection 验收和 query-serving 运行态证据补齐
 
 ### 4. Fusion
 

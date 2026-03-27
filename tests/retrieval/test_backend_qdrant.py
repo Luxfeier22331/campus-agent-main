@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from types import SimpleNamespace
 import unittest
+import uuid
 from unittest.mock import Mock, patch
 
 from campus_contracts import EvidenceBundle
@@ -12,17 +12,25 @@ from campus_ingestion_core.embed import MockEmbeddingSettings, build_mock_embedd
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import build_indexable_chunks_from_jsonl, index_chunks_to_qdrant
 from campus_ingestion_core.registry import FileDocumentRegistry
+from campus_ingestion_core.sparse import (
+    MockSparseEmbeddingSettings,
+    SparseVectorData,
+    SparseEmbeddingSettings,
+    build_mock_sparse_embedding_model,
+)
 from campus_retrieval_core.backend_qdrant import (
     CorpusQueryDisabledError,
     QdrantRetrievalBackend,
-    RetrievalCandidate,
     RetrievalBackendError,
+    _build_hybrid_prefetch,
+    _build_qdrant_client,
     _build_metadata_filters,
 )
 from campus_retrieval_core.models import RetrievalRequest
 from campus_retrieval_core.settings import RetrievalSettings
 from llama_index.core.schema import TextNode
 from qdrant_client import QdrantClient
+from qdrant_client.http import models as qdrant_models
 
 
 def _make_registry_record(*, document_id: str, version_id: str, acl_groups: tuple[str, ...]) -> DocumentRegistryRecord:
@@ -147,11 +155,12 @@ class BackendQdrantTest(unittest.TestCase):
             chunks=chunks,
             qdrant_client=qdrant_client,
             collection_name="student_handbook_test",
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
         )
 
         self.assertEqual(len(ids), 1)
 
-    def test_index_chunks_to_qdrant_creates_acl_level_payload_index_for_remote_backend(self) -> None:
+    def test_index_chunks_to_qdrant_creates_named_dense_and_sparse_vectors_for_remote_backend(self) -> None:
         record = _make_registry_record(
             document_id="handbook:test-remote",
             version_id="v1:test-remote",
@@ -169,19 +178,28 @@ class BackendQdrantTest(unittest.TestCase):
             embedding_model=embedding_model,
         )
         qdrant_client = QdrantClient(location=":memory:")
-        qdrant_client.collection_exists = Mock(return_value=True)  # type: ignore[method-assign]
+        qdrant_client.collection_exists = Mock(side_effect=[False, True])  # type: ignore[method-assign]
+        qdrant_client.create_collection = Mock()  # type: ignore[method-assign]
+        qdrant_client.upsert = Mock()  # type: ignore[method-assign]
         qdrant_client.create_payload_index = Mock()  # type: ignore[method-assign]
         with patch("campus_ingestion_core.process._is_local_qdrant_backend", return_value=False):
-            with patch("campus_ingestion_core.process.QdrantVectorStore") as vector_store_cls:
-                vector_store_cls.return_value.add.return_value = ["point-1"]
+            ids = index_chunks_to_qdrant(
+                chunks=chunks,
+                qdrant_client=qdrant_client,
+                collection_name="student_handbook_test",
+                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+            )
 
-                ids = index_chunks_to_qdrant(
-                    chunks=chunks,
-                    qdrant_client=qdrant_client,
-                    collection_name="student_handbook_test",
-                )
-
-        self.assertEqual(ids, ("point-1",))
+        self.assertEqual(ids, (str(uuid.uuid5(uuid.NAMESPACE_URL, chunks[0].chunk_id)),))
+        qdrant_client.create_collection.assert_called_once()
+        create_kwargs = qdrant_client.create_collection.call_args.kwargs
+        self.assertIn("dense", create_kwargs["vectors_config"])
+        self.assertIn("sparse", create_kwargs["sparse_vectors_config"])
+        qdrant_client.upsert.assert_called_once()
+        point = qdrant_client.upsert.call_args.kwargs["points"][0]
+        self.assertIn("dense", point.vector)
+        self.assertIn("sparse", point.vector)
+        self.assertIsInstance(point.vector["sparse"], qdrant_models.SparseVector)
         indexed_fields = [call.kwargs["field_name"] for call in qdrant_client.create_payload_index.call_args_list]
         self.assertEqual(
             indexed_fields,
@@ -237,6 +255,10 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertEqual(settings.embedding_provider, "gitee")
         self.assertEqual(settings.embedding_model, "Qwen3-Embedding-4B")
         self.assertEqual(settings.embedding_dimensions, 2560)
+        self.assertEqual(settings.sparse_provider, "qdrant")
+        self.assertEqual(settings.sparse_model, "qdrant/bm25")
+        self.assertEqual(settings.sparse_tokenizer, "multilingual")
+        self.assertEqual(settings.sparse_language, "none")
 
     def test_retrieval_settings_default_qwen3_dimensions_to_native_width(self) -> None:
         settings = RetrievalSettings(
@@ -246,6 +268,113 @@ class BackendQdrantTest(unittest.TestCase):
 
         self.assertEqual(settings.embedding_model, "Qwen3-Embedding-4B")
         self.assertEqual(settings.embedding_dimensions, 2560)
+        self.assertEqual(settings.sparse_model, "qdrant/bm25")
+
+    def test_sparse_embedding_settings_default_to_qdrant_bm25_for_handbook(self) -> None:
+        settings = SparseEmbeddingSettings.from_env({})
+
+        self.assertEqual(settings.provider, "qdrant")
+        self.assertEqual(settings.model, "qdrant/bm25")
+        self.assertEqual(settings.tokenizer, "multilingual")
+        self.assertEqual(settings.language, "none")
+
+    def test_build_hybrid_prefetch_uses_sparse_vector_query_for_native_hybrid(self) -> None:
+        class _DenseEmbeddingModel:
+            def get_query_embedding(self, query: str) -> list[float]:
+                self.query = query
+                return [0.1] * 8
+
+        class _SparseEmbeddingModel:
+            def __init__(self) -> None:
+                self.query_calls: list[str] = []
+
+            def get_text_embedding(self, text: str) -> SparseVectorData:
+                raise AssertionError("document embedding should not be used during retrieval query prefetch")
+
+            def get_query_embedding(self, text: str) -> SparseVectorData:
+                self.query_calls.append(text)
+                return SparseVectorData(indices=(11, 29), values=(1.0, 1.0))
+
+        dense_embedding_model = _DenseEmbeddingModel()
+        sparse_embedding_model = _SparseEmbeddingModel()
+
+        prefetch = _build_hybrid_prefetch(
+            request=RetrievalRequest(
+                query_text="scholarship office hours",
+                corpus="regulations",
+                collection="student_handbook",
+                acl_groups=("students",),
+                top_k=3,
+            ),
+            embedding_model=dense_embedding_model,
+            sparse_embedding_model=sparse_embedding_model,
+        )
+
+        self.assertEqual(dense_embedding_model.query, "scholarship office hours")
+        self.assertEqual(sparse_embedding_model.query_calls, ["scholarship office hours"])
+        self.assertEqual(len(prefetch), 2)
+        self.assertEqual(prefetch[0].using, "dense")
+        self.assertEqual(prefetch[1].using, "sparse")
+        self.assertIsInstance(prefetch[1].query, qdrant_models.SparseVector)
+        self.assertEqual(prefetch[1].query.indices, [11, 29])
+        self.assertEqual(prefetch[1].query.values, [1.0, 1.0])
+
+    def test_backend_caches_dense_query_embedding_within_ttl(self) -> None:
+        class _CountingDenseEmbeddingModel:
+            def __init__(self) -> None:
+                self.calls: list[str] = []
+
+            def get_query_embedding(self, query: str) -> list[float]:
+                self.calls.append(query)
+                return [0.1] * 8
+
+        with TemporaryDirectory() as temp_dir:
+            registry_path = Path(temp_dir) / "registry.json"
+            registry = FileDocumentRegistry(registry_path)
+            embedding_model = _CountingDenseEmbeddingModel()
+            backend = QdrantRetrievalBackend(
+                settings=RetrievalSettings(
+                    qdrant_url=":memory:",
+                    qdrant_collection="student_handbook_test",
+                    document_registry_database_url="postgresql://registry.example/postgres",
+                ),
+                registry=registry,
+                qdrant_client=QdrantClient(location=":memory:"),
+                embedding_model=embedding_model,
+                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+            )
+            backend.qdrant_client.collection_exists = Mock(return_value=True)  # type: ignore[method-assign]
+            backend.qdrant_client.query_points = Mock(  # type: ignore[method-assign]
+                return_value=qdrant_models.QueryResponse(points=[])
+            )
+
+            request = RetrievalRequest(
+                query_text="library hours",
+                corpus="regulations",
+                collection="student_handbook",
+                acl_groups=("students",),
+            )
+            backend.retrieve(request)
+            backend.retrieve(request)
+
+        self.assertEqual(embedding_model.calls, ["library hours"])
+
+    def test_build_qdrant_client_uses_plain_remote_configuration(self) -> None:
+        settings = RetrievalSettings(
+            qdrant_url="https://example-cloud.qdrant.io",
+            qdrant_api_key="secret",
+        )
+        fake_client = object()
+
+        with patch("campus_retrieval_core.backend_qdrant.QdrantClient", return_value=fake_client) as client_ctor:
+            result = _build_qdrant_client(settings)
+
+        self.assertIs(result, fake_client)
+        client_ctor.assert_called_once_with(
+            url="https://example-cloud.qdrant.io",
+            api_key="secret",
+            timeout=settings.qdrant_timeout_seconds,
+        )
 
     def test_backend_returns_evidence_bundle_with_source_locator(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -279,11 +408,13 @@ class BackendQdrantTest(unittest.TestCase):
                 registry=registry,
                 qdrant_client=QdrantClient(location=":memory:"),
                 embedding_model=embedding_model,
+                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
             )
             index_chunks_to_qdrant(
                 chunks=chunks,
                 qdrant_client=backend.qdrant_client,
                 collection_name=backend.settings.qdrant_collection,
+                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
             )
 
             result = backend.retrieve(
@@ -311,26 +442,16 @@ class BackendQdrantTest(unittest.TestCase):
             self.assertEqual(source.anchor["page_start"], 5)
             self.assertIn("08:00", source.snippet)
 
-    def test_backend_fuses_dense_and_sparse_candidates_with_rrf(self) -> None:
+    def test_backend_uses_qdrant_native_hybrid_query_with_rrf(self) -> None:
         with TemporaryDirectory() as temp_dir:
             registry_path = Path(temp_dir) / "registry.json"
             registry = FileDocumentRegistry(registry_path)
-            dense_only = _make_registry_record(
-                document_id="handbook:dense-only",
-                version_id="v1:dense-only",
-                acl_groups=("students",),
-            )
-            hybrid_winner = _make_registry_record(
+            record = _make_registry_record(
                 document_id="handbook:hybrid-winner",
                 version_id="v1:hybrid-winner",
                 acl_groups=("students",),
             )
-            sparse_only = _make_registry_record(
-                document_id="handbook:sparse-only",
-                version_id="v1:sparse-only",
-                acl_groups=("students",),
-            )
-            registry.upsert_many((dense_only, hybrid_winner, sparse_only))
+            registry.upsert(record)
 
             backend = QdrantRetrievalBackend(
                 settings=RetrievalSettings(
@@ -341,86 +462,34 @@ class BackendQdrantTest(unittest.TestCase):
                 registry=registry,
                 qdrant_client=QdrantClient(location=":memory:"),
                 embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
             )
             backend.qdrant_client.collection_exists = Mock(return_value=True)  # type: ignore[method-assign]
-            backend._retrieve_dense_candidates = Mock(  # type: ignore[method-assign]
-                return_value=(
-                    RetrievalCandidate(
-                        node=TextNode(
-                            text="Dense-only result about office hours.",
-                            metadata={
-                                "document_id": dense_only.document_id,
-                                "revision_track": dense_only.revision_track,
-                                "version_id": dense_only.version_id,
-                                "chunk_id": "chunk-dense-001",
-                                "anchor": {"page_start": 2, "page_end": 2},
-                                "acl_level": "public",
-                                "source_channel": "pdf_ocr",
-                                "collection": "student_handbook",
-                                "is_current": False,
+            backend.qdrant_client.query_points = Mock(  # type: ignore[method-assign]
+                return_value=qdrant_models.QueryResponse(
+                    points=[
+                        qdrant_models.ScoredPoint(
+                            id="chunk-hybrid-001",
+                            version=1,
+                            score=0.77,
+                            payload={
+                                "_node_content": TextNode(
+                                    text="Hybrid winner surfaced by native hybrid query.",
+                                    metadata={
+                                        "document_id": record.document_id,
+                                        "revision_track": record.revision_track,
+                                        "version_id": record.version_id,
+                                        "chunk_id": "chunk-hybrid-001",
+                                        "anchor": {"page_start": 3, "page_end": 3},
+                                        "acl_level": "public",
+                                        "source_channel": "pdf_ocr",
+                                        "collection": "student_handbook",
+                                        "is_current": False,
+                                    },
+                                ).model_dump_json(),
                             },
-                        ),
-                        score=0.91,
-                        retrieval_mode="dense",
-                    ),
-                    RetrievalCandidate(
-                        node=TextNode(
-                            text="Hybrid winner surfaced by dense retrieval too.",
-                            metadata={
-                                "document_id": hybrid_winner.document_id,
-                                "revision_track": hybrid_winner.revision_track,
-                                "version_id": hybrid_winner.version_id,
-                                "chunk_id": "chunk-hybrid-001",
-                                "anchor": {"page_start": 3, "page_end": 3},
-                                "acl_level": "public",
-                                "source_channel": "pdf_ocr",
-                                "collection": "student_handbook",
-                                "is_current": False,
-                            },
-                        ),
-                        score=0.82,
-                        retrieval_mode="dense",
-                    ),
-                )
-            )
-            backend._retrieve_sparse_candidates = Mock(  # type: ignore[method-assign]
-                return_value=(
-                    RetrievalCandidate(
-                        node=TextNode(
-                            text="Hybrid winner surfaced by lexical retrieval too.",
-                            metadata={
-                                "document_id": hybrid_winner.document_id,
-                                "revision_track": hybrid_winner.revision_track,
-                                "version_id": hybrid_winner.version_id,
-                                "chunk_id": "chunk-hybrid-001",
-                                "anchor": {"page_start": 3, "page_end": 3},
-                                "acl_level": "public",
-                                "source_channel": "pdf_ocr",
-                                "collection": "student_handbook",
-                                "is_current": False,
-                            },
-                        ),
-                        score=3.5,
-                        retrieval_mode="sparse",
-                    ),
-                    RetrievalCandidate(
-                        node=TextNode(
-                            text="Sparse-only result with exact scholarship wording.",
-                            metadata={
-                                "document_id": sparse_only.document_id,
-                                "revision_track": sparse_only.revision_track,
-                                "version_id": sparse_only.version_id,
-                                "chunk_id": "chunk-sparse-001",
-                                "anchor": {"page_start": 4, "page_end": 4},
-                                "acl_level": "public",
-                                "source_channel": "pdf_ocr",
-                                "collection": "student_handbook",
-                                "is_current": False,
-                            },
-                        ),
-                        score=2.4,
-                        retrieval_mode="sparse",
-                    ),
+                        )
+                    ]
                 )
             )
 
@@ -434,64 +503,14 @@ class BackendQdrantTest(unittest.TestCase):
                 )
             )
 
-            self.assertEqual(
-                [source.doc_id for source in result.sources],
-                ["handbook:hybrid-winner", "handbook:dense-only", "handbook:sparse-only"],
-            )
-
-    def test_backend_uses_sparse_lexical_candidates_when_dense_returns_no_hits(self) -> None:
-        with TemporaryDirectory() as temp_dir:
-            registry_path = Path(temp_dir) / "registry.json"
-            registry = FileDocumentRegistry(registry_path)
-            record = _make_registry_record(
-                document_id="handbook:scholarship",
-                version_id="v1:scholarship",
-                acl_groups=("students",),
-            )
-            registry.upsert(record)
-
-            embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
-            chunks = build_indexable_chunks_from_jsonl(
-                record=record,
-                structured_jsonl_bytes=_make_structured_jsonl(
-                    document_id=record.document_id,
-                    version_id=record.version_id,
-                    text="Scholarship evaluation remains public and follows a published rubric.",
-                ),
-                chunk_profile=ChunkProfile(chunk_size=128, chunk_overlap=16),
-                embedding_model=embedding_model,
-            )
-
-            backend = QdrantRetrievalBackend(
-                settings=RetrievalSettings(
-                    qdrant_url=":memory:",
-                    qdrant_collection="student_handbook_test",
-                    document_registry_database_url="postgresql://registry.example/postgres",
-                ),
-                registry=registry,
-                qdrant_client=QdrantClient(location=":memory:"),
-                embedding_model=embedding_model,
-            )
-            index_chunks_to_qdrant(
-                chunks=chunks,
-                qdrant_client=backend.qdrant_client,
-                collection_name=backend.settings.qdrant_collection,
-            )
-            backend._retrieve_dense_candidates = Mock(return_value=())  # type: ignore[method-assign]
-
-            result = backend.retrieve(
-                RetrievalRequest(
-                    query_text="published scholarship rubric",
-                    corpus="regulations",
-                    collection="student_handbook",
-                    acl_groups=("students",),
-                    top_k=3,
-                )
-            )
-
             self.assertEqual(len(result.sources), 1)
-            self.assertEqual(result.sources[0].doc_id, "handbook:scholarship")
-            self.assertIn("Scholarship evaluation", result.sources[0].snippet)
+            self.assertEqual(result.sources[0].doc_id, "handbook:hybrid-winner")
+            query_kwargs = backend.qdrant_client.query_points.call_args.kwargs
+            self.assertIsInstance(query_kwargs["query"], qdrant_models.FusionQuery)
+            self.assertEqual(query_kwargs["query"].fusion, qdrant_models.Fusion.RRF)
+            self.assertEqual(len(query_kwargs["prefetch"]), 2)
+            self.assertEqual(query_kwargs["prefetch"][0].using, "dense")
+            self.assertEqual(query_kwargs["prefetch"][1].using, "sparse")
 
     def test_backend_accepts_representation_payload_alias_for_revision_track(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -527,11 +546,20 @@ class BackendQdrantTest(unittest.TestCase):
                 registry=registry,
                 qdrant_client=QdrantClient(location=":memory:"),
                 embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
             )
             backend.qdrant_client.collection_exists = Mock(return_value=True)  # type: ignore[method-assign]
-            backend._vector_store = SimpleNamespace(
-                _legacy_vector_format=True,
-                query=Mock(return_value=SimpleNamespace(nodes=[node], similarities=[0.91])),
+            backend.qdrant_client.query_points = Mock(  # type: ignore[method-assign]
+                return_value=qdrant_models.QueryResponse(
+                    points=[
+                        qdrant_models.ScoredPoint(
+                            id="chunk-alias-001",
+                            version=1,
+                            score=0.91,
+                            payload={"_node_content": node.model_dump_json()},
+                        )
+                    ]
+                )
             )
 
             result = backend.retrieve(
@@ -566,32 +594,45 @@ class BackendQdrantTest(unittest.TestCase):
                 registry=registry,
                 qdrant_client=QdrantClient(location=":memory:"),
                 embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
             )
             backend.qdrant_client.collection_exists = Mock(return_value=True)  # type: ignore[method-assign]
-            backend._vector_store = SimpleNamespace(
-                _legacy_vector_format=True,
-                query=Mock(return_value=SimpleNamespace(
-                    nodes=[
-                        TextNode(
-                            text="Missing representation metadata should be skipped.",
-                            metadata={
-                                "document_id": record.document_id,
-                                "version_id": record.version_id,
-                                "chunk_id": "chunk-missing-001",
+            backend.qdrant_client.query_points = Mock(  # type: ignore[method-assign]
+                return_value=qdrant_models.QueryResponse(
+                    points=[
+                        qdrant_models.ScoredPoint(
+                            id="chunk-missing-001",
+                            version=1,
+                            score=0.8,
+                            payload={
+                                "_node_content": TextNode(
+                                    text="Missing representation metadata should be skipped.",
+                                    metadata={
+                                        "document_id": record.document_id,
+                                        "version_id": record.version_id,
+                                        "chunk_id": "chunk-missing-001",
+                                    },
+                                ).model_dump_json()
                             },
                         ),
-                        TextNode(
-                            text="Unknown registry record should also be skipped.",
-                            metadata={
-                                "document_id": "handbook:missing-record",
-                                "representation": "source-faithful",
-                                "version_id": "v1:missing-record",
-                                "chunk_id": "chunk-missing-002",
+                        qdrant_models.ScoredPoint(
+                            id="chunk-missing-002",
+                            version=1,
+                            score=0.7,
+                            payload={
+                                "_node_content": TextNode(
+                                    text="Unknown registry record should also be skipped.",
+                                    metadata={
+                                        "document_id": "handbook:missing-record",
+                                        "representation": "source-faithful",
+                                        "version_id": "v1:missing-record",
+                                        "chunk_id": "chunk-missing-002",
+                                    },
+                                ).model_dump_json()
                             },
                         ),
-                    ],
-                    similarities=[0.8, 0.7],
-                )),
+                    ]
+                )
             )
 
             result = backend.retrieve(
@@ -654,11 +695,13 @@ class BackendQdrantTest(unittest.TestCase):
                 registry=registry,
                 qdrant_client=QdrantClient(location=":memory:"),
                 embedding_model=embedding_model,
+                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
             )
             index_chunks_to_qdrant(
                 chunks=[*allowed_chunks, *blocked_chunks],
                 qdrant_client=backend.qdrant_client,
                 collection_name=backend.settings.qdrant_collection,
+                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
             )
 
             result = backend.retrieve(
@@ -707,11 +750,13 @@ class BackendQdrantTest(unittest.TestCase):
                 registry=registry,
                 qdrant_client=QdrantClient(location=":memory:"),
                 embedding_model=embedding_model,
+                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
             )
             index_chunks_to_qdrant(
                 chunks=restricted_chunks,
                 qdrant_client=backend.qdrant_client,
                 collection_name=backend.settings.qdrant_collection,
+                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
             )
 
             result = backend.retrieve(
@@ -740,6 +785,7 @@ class BackendQdrantTest(unittest.TestCase):
                 registry=registry,
                 qdrant_client=QdrantClient(location=":memory:"),
                 embedding_model=embedding_model,
+                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
             )
 
             result = backend.retrieve(
@@ -780,6 +826,7 @@ class BackendQdrantTest(unittest.TestCase):
                 registry=registry,
                 qdrant_client=QdrantClient(location=":memory:"),
                 embedding_model=embedding_model,
+                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
             )
             chunks = build_indexable_chunks_from_jsonl(
                 record=record,
@@ -795,9 +842,9 @@ class BackendQdrantTest(unittest.TestCase):
                 chunks=chunks,
                 qdrant_client=backend.qdrant_client,
                 collection_name=backend.settings.qdrant_collection,
+                sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
             )
-
-            backend._vector_store = object()  # type: ignore[attr-defined]
+            backend.qdrant_client.query_points = Mock(side_effect=RuntimeError("boom"))  # type: ignore[method-assign]
 
             with self.assertRaises(RetrievalBackendError):
                 backend.retrieve(
