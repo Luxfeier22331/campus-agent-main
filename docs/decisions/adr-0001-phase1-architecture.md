@@ -143,7 +143,7 @@ updated: 2026-03-25
   作为去重、解析、chunking、embedding 逻辑层
 - `packages/retrieval-core`
   消费 document registry 与 Qdrant，而不是只消费向量库
-- object storage 由本机 `MinIO` 提供 raw / processed bucket
+- object storage 由本机 `MinIO` 提供 source / derived bucket
 
 原因：
 

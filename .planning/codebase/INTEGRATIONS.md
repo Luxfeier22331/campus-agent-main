@@ -13,7 +13,7 @@
 - Service: PaddleOCR job submission/ polling handled inside `packages/ingestion-core/src/campus_ingestion_core/raw_ingestion.py` via `PaddleOcrAsyncClient`.
   - Integration method: `requests` POST to `OCR_BASE_URL` with `API_KEY` in the `Authorization: bearer` header, then poll `<base_url>/<job_id>` until the job reports `state == "done"`.
   - Auth: `OCR_API_KEY` (required together with `OCR_BASE_URL`).
-  - Config: `OCR_MODEL`, `OCR_POLL_SECONDS`, and `OCR_TIMEOUT_SECONDS` are environment-driven timeouts; the ingestion worker stores both `provider-result.jsonl` and `structured.jsonl` artifacts into MinIO buckets.
+  - Config: `OCR_MODEL`, `OCR_POLL_SECONDS`, and `OCR_TIMEOUT_SECONDS` are environment-driven timeouts; the ingestion worker stores source-level `provider-response.jsonl` / `layout-elements.jsonl` plus derived document artifacts in MinIO.
 
 ## Data Storage
 
@@ -27,7 +27,7 @@
 **File Storage:**
 - MinIO-compatible S3 service (configuration in `packages/ingestion-core/src/campus_ingestion_core/settings.py`).
   - Connection: `OBJECT_STORE_ENDPOINT`, `OBJECT_STORE_ACCESS_KEY`, `OBJECT_STORE_SECRET_KEY`, `OBJECT_STORE_REGION`, `OBJECT_STORE_SECURE`.
-  - Buckets: `OBJECT_STORE_BUCKET_RAW` and `OBJECT_STORE_BUCKET_PROCESSED` (default `campus-rag-raw` / `campus-rag-processed`).
+  - Buckets: `OBJECT_STORE_BUCKET_SOURCE` and `OBJECT_STORE_BUCKET_DERIVED` (default `campus-rag-source` / `campus-rag-derived`); `OBJECT_STORE_BUCKET_RAW` / `OBJECT_STORE_BUCKET_PROCESSED` remain legacy fallback envs only.
   - Client: `boto3>=1.35.0`, with key construction defined in `packages/ingestion-core/src/campus_ingestion_core/object_store.py`.
 - Qdrant vector database (the vector store is fronted by `packages/retrieval-core/src/campus_retrieval_core/backend_qdrant.py`).
   - Connection: `QDRANT_URL`, optional `QDRANT_API_KEY`, `QDRANT_COLLECTION` (default `student_handbook`), and `QDRANT_TIMEOUT_SECONDS`.
@@ -84,4 +84,3 @@
 
 **Outgoing:**
 - No background webhook calls are defined. All external communication happens (1) via the OCR provider, (2) via embedding/Qdrant services, and (3) through the ingestion worker uploading to MinIO or writing to Postgres.
-

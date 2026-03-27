@@ -38,7 +38,7 @@ updated: 2026-03-25
 
 长期目标摄入链路如下：
 
-`crawler/job placeholder -> queue placeholder -> ingestion boundary -> raw layer + raw asset registry -> processed layer -> document registry -> vector index/chunk metadata`
+`crawler/job placeholder -> queue placeholder -> ingestion boundary -> source layer + raw asset registry -> derived layer -> document registry -> vector index/chunk metadata`
 
 当前 monorepo 的目录设计围绕这条链路展开：
 
@@ -301,11 +301,11 @@ ingestion boundary 是长期存在的数据摄入边界。
 - Document Registry
   保存 `document_id`、`version_id`、`content_hash`、`source_uri`、`corpus`、`acl_groups`、`campus_scope`、`status`、`ingestion_timestamp`，以及指向 raw asset 的引用。它表达“当前逻辑文档版本是什么”，不重复承载 raw 文件身份。
 
-其中 `packages/ingestion-core` 主要负责把 raw/processed 输入推进成可追踪的 registry 与 chunk/index 产物，`packages/retrieval-core` 则负责消费这些产物形成 evidence bundle。
+其中 `packages/ingestion-core` 主要负责把 source/derived 输入推进成可追踪的 registry 与 chunk/index 产物，`packages/retrieval-core` 则负责消费这些产物形成 evidence bundle。
 
 额外约束：
 
-- `processed` 是 chunk 的可重建来源，不是对象存储中的 chunk 文件集合
+- `derived` 是 chunk 的可重建来源，不是对象存储中的 chunk 文件集合
 - 在线查询所消费的 canonical chunk store 是 `Chunk/Index Layer`，第一阶段具体为 `Qdrant`
 - 如需把 chunk 额外导出到对象存储，该副本只能用于备份、审计或离线重建，不能成为主消费路径或第二真相源
 

@@ -24,8 +24,9 @@ from campus_ingestion_core.handbook_provider_normalize import normalize_handbook
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.object_store import (
     S3ObjectStoreClientFactory,
-    build_processed_artifact_key,
-    build_processed_asset_artifact_key,
+    build_document_artifact_key,
+    build_source_ocr_artifact_key,
+    build_source_truth_artifact_key,
 )
 from campus_ingestion_core.raw_ingestion import DEFAULT_ONLINE_OCR_MODEL, DEFAULT_ONLINE_OCR_PROVIDER
 from campus_ingestion_core.registry import RawAssetRegistry, build_raw_asset_registry_from_env
@@ -222,7 +223,7 @@ def migrate_campus_services_canonical_to_object_store(
 
     for entry in plan.entries:
         writer.put_bytes(
-            bucket=object_store_settings.bucket_processed,
+            bucket=object_store_settings.bucket_derived,
             key=entry.target_object_key,
             data=entry.canonical_markdown_bytes,
             content_type="text/markdown; charset=utf-8",
@@ -240,17 +241,17 @@ def migrate_campus_services_canonical_to_object_store(
         *tuple(prefix for entry in plan.entries for prefix in entry.cleanup_prefixes),
     )
     writer.delete_prefix(
-        bucket=object_store_settings.bucket_processed,
+        bucket=object_store_settings.bucket_derived,
         prefix=deleted_prefixes[0],
         exclude_keys=contact_directory_keys,
     )
     writer.delete_prefix(
-        bucket=object_store_settings.bucket_processed,
+        bucket=object_store_settings.bucket_derived,
         prefix=deleted_prefixes[1],
         exclude_keys=service_catalog_keys,
     )
     for prefix in deleted_prefixes[2:]:
-        writer.delete_prefix(bucket=object_store_settings.bucket_processed, prefix=prefix)
+        writer.delete_prefix(bucket=object_store_settings.bucket_derived, prefix=prefix)
 
     return CampusServicesObjectStoreMigrationReport(
         imported_count=len(plan.entries),
@@ -297,7 +298,7 @@ def _build_phone_directory_entry(canonical_root: Path) -> CampusServicesMigratio
         year=year,
         content_hash=content_hash,
         canonical_markdown_bytes=rendered_bytes,
-        target_object_key=build_processed_artifact_key(
+        target_object_key=build_document_artifact_key(
             corpus="campus_services",
             collection="contact_directory",
             document_id=document_id,
@@ -373,7 +374,7 @@ def _build_service_catalog_entries(canonical_root: Path) -> list[CampusServicesM
                 year=year,
                 content_hash=content_hash,
                 canonical_markdown_bytes=rendered_bytes,
-                target_object_key=build_processed_artifact_key(
+                target_object_key=build_document_artifact_key(
                     corpus="campus_services",
                     collection="service_catalog",
                     document_id=document_id,
@@ -421,15 +422,14 @@ def build_handbook_derived_service_catalog_entries(
         raw_asset_id=projections_config.raw_asset_id,
     )
     source_pdf = raw_asset_record.source_filename
-    provider_response_key = build_processed_asset_artifact_key(
-        corpus=projections_config.source_corpus,
+    provider_response_key = build_source_ocr_artifact_key(
         raw_asset_id=raw_asset_record.raw_asset_id,
         raw_version_id=raw_asset_record.raw_version_id,
         filename=PROVIDER_RESPONSE_FILENAME,
         year=_infer_year(source_pdf),
     )
     provider_response_bytes = object_store.get_bytes(
-        bucket=object_store_settings.bucket_processed,
+        bucket=object_store_settings.bucket_source,
         key=provider_response_key,
     )
     structured_rows = normalize_handbook_provider_result(
@@ -464,8 +464,7 @@ def build_handbook_derived_service_catalog_entries(
         source=source,
         raw_asset_record=raw_asset_record,
         provider_response_key=provider_response_key,
-        layout_elements_key=build_processed_asset_artifact_key(
-            corpus=projections_config.source_corpus,
+        layout_elements_key=build_source_truth_artifact_key(
             raw_asset_id=raw_asset_record.raw_asset_id,
             raw_version_id=raw_asset_record.raw_version_id,
             filename="layout-elements.jsonl",
@@ -492,7 +491,7 @@ def build_handbook_derived_service_catalog_entries(
                 year=year,
                 content_hash=content_hash,
                 canonical_markdown_bytes=rendered_bytes,
-                target_object_key=build_processed_artifact_key(
+                target_object_key=build_document_artifact_key(
                     corpus=document.corpus,
                     collection=document.collection,
                     document_id=document_id,

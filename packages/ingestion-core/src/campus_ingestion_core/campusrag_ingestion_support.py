@@ -15,7 +15,7 @@ from campus_ingestion_core.artifacts import (
     PROVIDER_RESPONSE_FILENAME,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef
-from campus_ingestion_core.object_store import build_processed_artifact_key, build_raw_asset_key
+from campus_ingestion_core.object_store import build_document_artifact_key, build_raw_asset_key
 from campus_ingestion_core.registry import DocumentRegistry, RawAssetRegistry
 from campus_ingestion_core.settings import ObjectStoreSettings
 
@@ -260,7 +260,7 @@ def collect_import_document_stats(
                     raw_reused_count += 1
                 else:
                     writer.put_bytes(
-                        bucket=object_store.bucket_raw,
+                        bucket=object_store.bucket_source,
                         key=raw_asset.object_key,
                         data=document.raw_path.read_bytes(),
                         content_type="application/pdf",
@@ -288,7 +288,7 @@ def collect_import_document_stats(
             year = document.year or _derive_document_year(metadata=metadata)
             provider_response_key = document.provider_response_object_key
             if document.provider_response_bytes is not None and provider_response_key is None:
-                provider_response_key = build_processed_artifact_key(
+                provider_response_key = build_document_artifact_key(
                     corpus=document.corpus,
                     collection=document.collection,
                     document_id=document_id,
@@ -300,13 +300,13 @@ def collect_import_document_stats(
                 )
             if document.provider_response_bytes is not None and provider_response_key is not None:
                 writer.put_bytes(
-                    bucket=object_store.bucket_processed,
+                    bucket=_artifact_bucket_for_key(object_store=object_store, key=provider_response_key),
                     key=provider_response_key,
                     data=document.provider_response_bytes,
                     content_type="application/x-ndjson",
                 )
 
-            document_units_key = build_processed_artifact_key(
+            document_units_key = build_document_artifact_key(
                 corpus=document.corpus,
                 collection=document.collection,
                 document_id=document_id,
@@ -318,7 +318,7 @@ def collect_import_document_stats(
             )
             canonical_markdown_key = None
             if document.canonical_markdown_bytes is not None:
-                canonical_markdown_key = build_processed_artifact_key(
+                canonical_markdown_key = build_document_artifact_key(
                     corpus=document.corpus,
                     collection=document.collection,
                     document_id=document_id,
@@ -329,7 +329,7 @@ def collect_import_document_stats(
                     year=year,
                 )
                 writer.put_bytes(
-                    bucket=object_store.bucket_processed,
+                    bucket=object_store.bucket_derived,
                     key=canonical_markdown_key,
                     data=document.canonical_markdown_bytes,
                     content_type="text/markdown; charset=utf-8",
@@ -366,7 +366,7 @@ def collect_import_document_stats(
                     object_store=object_store,
                 ):
                     writer.put_bytes(
-                        bucket=object_store.bucket_processed,
+                        bucket=object_store.bucket_derived,
                         key=document_units_key,
                         data=document_units_bytes,
                         content_type="application/x-ndjson",
@@ -410,7 +410,7 @@ def collect_import_document_stats(
                 continue
 
             writer.put_bytes(
-                bucket=object_store.bucket_processed,
+                bucket=object_store.bucket_derived,
                 key=document_units_key,
                 data=document_units_bytes,
                 content_type="application/x-ndjson",
@@ -678,7 +678,7 @@ def _registry_record_needs_refresh(
         return True
     return _missing_processed_object_keys(
         writer=writer,
-        bucket=object_store.bucket_processed,
+        object_store=object_store,
         object_keys=processed_object_keys,
     )
 
@@ -686,7 +686,7 @@ def _registry_record_needs_refresh(
 def _missing_processed_object_keys(
     *,
     writer: ObjectStoreWriter,
-    bucket: str,
+    object_store: ObjectStoreSettings,
     object_keys: tuple[str, ...],
 ) -> bool:
     get_bytes = getattr(writer, "get_bytes", None)
@@ -694,10 +694,16 @@ def _missing_processed_object_keys(
         return False
     for key in object_keys:
         try:
-            get_bytes(bucket=bucket, key=key)
+            get_bytes(bucket=_artifact_bucket_for_key(object_store=object_store, key=key), key=key)
         except Exception:
             return True
     return False
+
+
+def _artifact_bucket_for_key(*, object_store: ObjectStoreSettings, key: str) -> str:
+    if key.startswith("ocr/") or key.startswith("source-truth/") or key.startswith("raw/"):
+        return object_store.bucket_source
+    return object_store.bucket_derived
 
 
 def _group_documents_by_scope(

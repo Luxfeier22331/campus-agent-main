@@ -13,8 +13,8 @@ Stable handbook-specific policy docs:
 - `docs/architecture/student-handbook-ocr-normalization-strategy.md`: source-level normalization, split, and document identity truth
 - `docs/architecture/student-handbook-chunking-and-validation-policy.md`: document-level chunk budgeting, short-text aggregation, header policy, and validation gate truth
 
-The primary handbook input is processed-layer `provider-response.jsonl`.
-`layout-elements.jsonl` is the only asset-level internal truth before document splitting.
+The primary handbook input is source-bucket `provider-response.jsonl`.
+`layout-elements.jsonl` is the only source-truth artifact before document splitting.
 Each cleaned document then emits `canonical.md` and `document-units.jsonl` before chunking.
 Phase-1 OCR ingestion stores document-level artifacts under `regulations/documents/student_handbook/{title_slug}--{docid8}/{representation}/{year}/...`.
 The canonical replay source filename is `学生手册_2018.pdf`; legacy `student-handbook.pdf` remains readable only for migration.

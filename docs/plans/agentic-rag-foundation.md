@@ -20,7 +20,7 @@ updated: 2026-03-26
 
 **Goal:** 在当前 `campus-agent` monorepo 中补齐第一阶段地基，以“符合最佳实践前提下跑通端到端 agentic RAG 流程”为验收标准。
 
-**Architecture:** 本次实施只做第一阶段可上线闭环，不保留旧 `/api/search`、`/api/answer` 兼容层。数据面按 `Raw -> Processed -> Chunk/Index` 三层分离落地，当前对象存储使用本机部署的 `MinIO`；长期 corpus 根名统一为 `regulations`，首批开放 collection 为 `student_handbook`。raw bucket 采用 corpus-agnostic 的 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...` 前缀，processed bucket 的命名空间固定拆成 `regulations/sources/...` 与 `regulations/documents/...`，其中 handbook OCR truth 固定为 `provider-response.jsonl -> layout-elements.jsonl -> split-manifest -> per-document canonical.md + document-units.jsonl`，逻辑文档以 `document_id + representation + version_id` 建模，不再依赖 `campusRAG` 作为运行时输入。查询面采用 `Supervisor API -> Supervisor Core -> RAG Specialist -> Retrieval Core`，内部 runtime 使用 AgentOS-native，检索实现使用 `LlamaIndex + Qdrant`。
+**Architecture:** 本次实施只做第一阶段可上线闭环，不保留旧 `/api/search`、`/api/answer` 兼容层。数据面按 `Source -> Derived -> Chunk/Index` 三层分离落地，当前对象存储使用本机部署的 `MinIO`；长期 corpus 根名统一为 `regulations`，首批开放 collection 为 `student_handbook`。source bucket 采用 corpus-agnostic 的 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...` 前缀，并把 OCR/source truth 收敛到 `pdf/`、`ocr/`、`source-truth/` 前缀；derived bucket 的命名空间固定拆成 `{corpus}/documents/...`，其中 handbook OCR truth 固定为 `provider-response.jsonl -> layout-elements.jsonl -> split-manifest -> per-document canonical.md + document-units.jsonl`，逻辑文档以 `document_id + representation + version_id` 建模，不再依赖 `campusRAG` 作为运行时输入。查询面采用 `Supervisor API -> Supervisor Core -> RAG Specialist -> Retrieval Core`，内部 runtime 使用 AgentOS-native，检索实现使用 `LlamaIndex + Qdrant`。
 
 **Tech Stack:** Python 3.12, uv workspace, Agno AgentOS, LlamaIndex, Qdrant, MinIO (local S3-compatible), pytest/unittest
 
@@ -76,7 +76,7 @@ updated: 2026-03-26
 ## 当前实测进度（2026-03-26）
 
 - 代码基线已验证：`uv run --all-packages python -m unittest discover -s tests -t .` 通过，当前仓库基线测试为 `85` 项
-- Gate 1 已有运行态证据：本机 `MinIO` 可访问，`campus-rag-raw` / `campus-rag-processed` bucket 已存在
+- Gate 1 已有运行态证据：本机 `MinIO` 可访问，`campus-rag-source` / `campus-rag-derived` bucket 已存在
 - Gate 2 目前只完成对象存储侧证据：已在 bucket 中看到 handbook raw PDF 与 `provider-response.jsonl`，但 registry 运行态记录尚未做独立核验
 - Gate 3 当前进入重建等待态：旧的 `.env` 目标 `student_handbook` collection 已被显式删除，retrieval/embedding baseline 已更新为 `Qwen3-Embedding-4B @ 2560` 与 `dense + sparse hybrid + RRF`，但 live Qdrant collection 仍待按新基线重建并写入点数据
 - Gate 4 尚未做运行态闭环验收：主链路代码、specialist、supervisor、evals 已在仓库内落地，但缺少“真实 registry + 按 2560 重建完成的 Qdrant + end-to-end query-serving”证据
@@ -121,7 +121,7 @@ updated: 2026-03-26
                       |           |
                       v           v
           +------------------+   +------------------------+
-          | MinIO raw bucket |   | MinIO processed bucket |
+          | MinIO source bucket | | MinIO derived bucket |
           +------------------+   +------------------------+
                       ^
                       |
@@ -136,18 +136,18 @@ updated: 2026-03-26
 在写任何正式实现之前，先冻结以下输入，不允许边做边漂移：
 
 - query-serving 默认范围：开放 `regulations` corpus 中的 `student_handbook` collection
-- data-plane 增量语料：允许 `curriculum` corpus 下的 `curriculum_plan` 与 `campus_services` corpus 下的服务类 collection 完成 raw/processed/registry 与清洗真相收口，但不自动放开 retrieval
+- data-plane 增量语料：允许 `curriculum` corpus 下的 `curriculum_plan` 与 `campus_services` corpus 下的服务类 collection 完成 source/derived/registry 与清洗真相收口，但不自动放开 retrieval
 - handbook OCR 输入：只允许对象存储中的 `provider-response.jsonl` 与 repo-tracked `split-manifest.v1.json`
-- object storage 语义：只允许 `campus-rag-raw` / `campus-rag-processed`
+- object storage 语义：只允许 `campus-rag-source` / `campus-rag-derived`
 - object key 结构：
-  - raw:
+  - source raw asset:
     - `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/{original_filename}`
-  - processed:
-    - source artifact:
-      `{corpus}/sources/{source_channel}/{source_asset_slug}/{year}/{ingest_id}/{artifact_filename}`
-    - document artifact:
+  - source artifact:
+    - `ocr/{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/{artifact_filename}`
+    - `source-truth/{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/{artifact_filename}`
+  - derived document artifact:
       `{corpus}/documents/{collection}/{title_slug}--{docid8}/{representation}/{year}/{artifact_filename}`
-- 其他 phase-1 collection 必须沿用同一套 processed 侧按 corpus 分前缀的路径语义；raw 不按 corpus 分前缀
+- 其他 phase-1 collection 必须沿用同一套 derived 侧按 corpus 分前缀的路径语义；source raw asset 不按 corpus 分前缀
 - retrieval 实现：只允许 `LlamaIndex + Qdrant`
 - chunk profile：第一轮固定一套 chunk 大小、overlap、metadata 映射
 - embedding profile：第一轮固定一个 embedding model 标识
@@ -160,13 +160,14 @@ updated: 2026-03-26
 导入映射规则固定为：
 
 - 如果上游能提供原始 PDF/HTML/Markdown 等源文件：
-  - 写入 `campus-rag-raw`
+  - 写入 `campus-rag-source`
   - `raw_source_uri` 指向原始来源
 - 如果上游只提供 OCR JSON、OCR 文本、结构化抽取结果：
-  - 写入 `campus-rag-processed`
-  - handbook 仅接受仓库规定的 `provider-response.jsonl` 形状，并写入 `regulations/sources/...`
+  - 写入 `campus-rag-source`
+  - handbook 仅接受仓库规定的 `provider-response.jsonl` 形状，并写入 `ocr/...`
 - 如果 OCR 来自在线供应商：
-  - processed bucket 下至少同时保存 source-level `provider-response.jsonl`、source-level `layout-elements.jsonl` 和 per-document `document-units.jsonl`
+  - source bucket 下至少同时保存 source-level `provider-response.jsonl` 与 source-level `layout-elements.jsonl`
+  - derived bucket 下保存 per-document `document-units.jsonl`
   - `provider-response.jsonl` 保留供应商原始响应
   - `layout-elements.jsonl` 是 split 前唯一内部统一结构真相
   - `document-units.jsonl` 只表示单篇逻辑文档，不表示整本 handbook source
@@ -281,11 +282,11 @@ feature worktree 环境规则：
   - `OBJECT_STORE_ACCESS_KEY`
   - `OBJECT_STORE_SECRET_KEY`
   - `OBJECT_STORE_REGION`
-  - `OBJECT_STORE_BUCKET_RAW`
-  - `OBJECT_STORE_BUCKET_PROCESSED`
+  - `OBJECT_STORE_BUCKET_SOURCE`
+  - `OBJECT_STORE_BUCKET_DERIVED`
 - 固定 bucket 默认值：
-  - `campus-rag-raw`
-  - `campus-rag-processed`
+  - `campus-rag-source`
+  - `campus-rag-derived`
 - 提供 object storage 客户端工厂，不暴露 MinIO 内部细节到 contract 层。
 - bucket 创建由部署脚本或初始化步骤完成，不允许业务代码在运行期隐式兜底创建。
 
@@ -330,12 +331,12 @@ feature worktree 环境规则：
 
 **Implementation:**
 - 新建 `apps/ingestion-worker`，作为摄入运行时壳。
-- 提供 `process_raw_ingestion_job` 入口，表达 worker 边界；对已登记到 raw asset registry 的 raw PDF 做在线 OCR，写 processed/registry。
+- 提供 `process_raw_ingestion_job` 入口，表达 worker 边界；对已登记到 raw asset registry 的 source PDF 做在线 OCR，写 source/derived artifacts 与 registry。
 - worker 主路径只接受 `raw_asset_id + raw_version_id`，不接受本地 PDF 路径或本地 placeholder job envelope。
 - `regulations` 作为默认查询 corpus，`student_handbook` 作为默认开放 collection。
 - `curriculum_plan` 允许通过 split manifest 进入 storage/registry，但不在本阶段放开 retrieval。
 - 如果 OCR 来自在线供应商：
-  - `processed/` 下至少同时保存 `provider-response.jsonl` 和 `document-units.jsonl`
+  - source / derived 层必须分开保存 `provider-response.jsonl` 与 `document-units.jsonl`
   - 两者必须分开保存，不能互相替代
 - 导入过程必须产出 import report，最少包含成功数、跳过数、失败数、产生的 `document_id` 列表。
 

@@ -34,7 +34,7 @@ updated: 2026-03-22
 
 当前已确认的 source-level OCR 产物示例路径：
 
-- `campus-rag-processed/student_handbook/assets/student-handbook-pdf/sha256/b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider-response.jsonl`
+- `campus-rag-source/ocr/pdf_ocr/student-handbook/2018/sha256/b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider-response.jsonl`
 
 当前已确认的历史参考产物位于：
 

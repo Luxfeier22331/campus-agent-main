@@ -9,7 +9,7 @@ from campus_ingestion_core.settings import ObjectStoreSettings
 
 
 DEFAULT_RAW_SOURCE_CHANNEL = "pdf"
-DEFAULT_PROCESSED_SOURCE_CHANNEL = "pdf_ocr"
+DEFAULT_SOURCE_ARTIFACT_CHANNEL = "pdf_ocr"
 YEAR_RE = re.compile(r"(?<!\d)((?:19|20)\d{2})(?!\d)")
 REDUNDANT_SOURCE_SUFFIXES = {
     "pdf",
@@ -51,7 +51,7 @@ def build_raw_asset_key(
     )
 
 
-def build_processed_artifact_key(
+def build_document_artifact_key(
     *,
     corpus: str,
     collection: str,
@@ -82,24 +82,22 @@ def build_processed_artifact_key(
     )
 
 
-def build_processed_asset_artifact_key(
+def build_source_ocr_artifact_key(
     *,
-    corpus: str,
     raw_asset_id: str,
     raw_version_id: str,
     filename: str,
-    source_channel: str = DEFAULT_PROCESSED_SOURCE_CHANNEL,
+    source_channel: str = DEFAULT_SOURCE_ARTIFACT_CHANNEL,
     year: str | None = None,
 ) -> str:
-    _validate_corpus_and_filename(corpus=corpus, filename=filename)
+    _validate_filename_only(filename=filename)
     if not raw_asset_id:
         raise ValueError("raw_asset_id is required")
     if not raw_version_id:
         raise ValueError("raw_version_id is required")
     return "/".join(
         [
-            corpus,
-            "sources",
+            "ocr",
             _validate_path_segment(source_channel, field_name="source_channel"),
             _source_asset_slug(raw_asset_id),
             _normalize_year_label(year),
@@ -109,9 +107,87 @@ def build_processed_asset_artifact_key(
     )
 
 
+def build_source_truth_artifact_key(
+    *,
+    raw_asset_id: str,
+    raw_version_id: str,
+    filename: str,
+    source_channel: str = DEFAULT_SOURCE_ARTIFACT_CHANNEL,
+    year: str | None = None,
+) -> str:
+    _validate_filename_only(filename=filename)
+    if not raw_asset_id:
+        raise ValueError("raw_asset_id is required")
+    if not raw_version_id:
+        raise ValueError("raw_version_id is required")
+    return "/".join(
+        [
+            "source-truth",
+            _validate_path_segment(source_channel, field_name="source_channel"),
+            _source_asset_slug(raw_asset_id),
+            _normalize_year_label(year),
+            *_identity_segments(raw_version_id),
+            filename,
+        ]
+    )
+
+
+def build_processed_artifact_key(
+    *,
+    corpus: str,
+    collection: str,
+    document_id: str,
+    revision_track: str,
+    version_id: str,
+    filename: str,
+    title: str | None = None,
+    year: str | None = None,
+) -> str:
+    return build_document_artifact_key(
+        corpus=corpus,
+        collection=collection,
+        document_id=document_id,
+        revision_track=revision_track,
+        version_id=version_id,
+        filename=filename,
+        title=title,
+        year=year,
+    )
+
+
+def build_processed_asset_artifact_key(
+    *,
+    corpus: str,
+    raw_asset_id: str,
+    raw_version_id: str,
+    filename: str,
+    source_channel: str = DEFAULT_SOURCE_ARTIFACT_CHANNEL,
+    year: str | None = None,
+) -> str:
+    if filename == "layout-elements.jsonl":
+        return build_source_truth_artifact_key(
+            raw_asset_id=raw_asset_id,
+            raw_version_id=raw_version_id,
+            filename=filename,
+            source_channel=source_channel,
+            year=year,
+        )
+    return build_source_ocr_artifact_key(
+        raw_asset_id=raw_asset_id,
+        raw_version_id=raw_version_id,
+        filename=filename,
+        source_channel=source_channel,
+        year=year,
+    )
+
+
 def _validate_corpus_and_filename(*, corpus: str, filename: str) -> None:
     if corpus not in ALLOWED_CORPORA:
         raise ValueError(f"unsupported corpus: {corpus}")
+    _validate_filename_only(filename=filename)
+
+
+def _validate_filename_only(*, filename: str) -> None:
     if not filename or "/" in filename.strip("/"):
         raise ValueError("filename must be a single path segment")
 

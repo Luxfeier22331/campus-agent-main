@@ -77,13 +77,14 @@ def load_handbook_source_projections_config(path: Path) -> HandbookSourceProject
 def build_handbook_projection_import_documents(
     *,
     source: dict[str, str],
+    config_path: Path | None = None,
     raw_asset_record: RawAssetRecord,
     provider_response_key: str,
     layout_elements_key: str,
     structured_rows: list[dict[str, object]],
     split_manifest_documents: tuple[SplitManifestDocument, ...],
 ) -> list[DocumentImportInput]:
-    config = load_handbook_source_projections_config(read_handbook_source_projections_config_path(source))
+    config = load_handbook_source_projections_config(config_path or read_handbook_source_projections_config_path(source))
     manifest_by_document_id = {
         document.document_id: document
         for document in split_manifest_documents

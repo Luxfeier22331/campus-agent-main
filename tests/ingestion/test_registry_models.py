@@ -22,7 +22,7 @@ HANDBOOK_DOC_UNITS_KEY = (
     "source-faithful/undated/document-units.jsonl"
 )
 HANDBOOK_PROVIDER_KEY = (
-    "regulations/sources/pdf_ocr/student-handbook/undated/sha256/raw-001/provider-response.jsonl"
+    "ocr/pdf_ocr/student-handbook/undated/sha256/raw-001/provider-response.jsonl"
 )
 HANDBOOK_CANONICAL_KEY = (
     "regulations/documents/student_handbook/test-001--test-001/source-faithful/undated/canonical.md"

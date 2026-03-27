@@ -45,7 +45,7 @@
 - Agno AgentOS semantics (via `AgentOSRuntime` in `apps/supervisor-api/src/campus_supervisor_api/app.py`) shape the supervisor runtime without leaking Agno types outside the API boundary.
 - LlamaIndex (`llama-index-core>=0.14.18`, `llama-index-vector-stores-qdrant>=0.10.0`) drives chunk embeddings and retrieval filtering in `packages/retrieval-core/src/campus_retrieval_core/backend_qdrant.py`.
 - Qdrant (`qdrant-client>=1.17.1`) stores chunk vectors and feeds back metadata to the evidence bundle process.
-- MinIO-compatible object storage through `boto3>=1.35.0` and `ObjectStoreSettings` (`packages/ingestion-core/src/campus_ingestion_core/object_store.py`) acts as the raw/processed data plane.
+- MinIO-compatible object storage through `boto3>=1.35.0` and `ObjectStoreSettings` (`packages/ingestion-core/src/campus_ingestion_core/object_store.py`) acts as the source/derived data plane.
 - Requests-based PaddleOCR client (`requests>=2.31.0` inside `packages/ingestion-core/src/campus_ingestion_core/raw_ingestion.py`) powers online PDF parsing when `OCR_BASE_URL` + `OCR_API_KEY` are configured.
 
 **Testing:**
@@ -74,4 +74,3 @@
 - Ingestion tooling: `apps/ingestion-worker` (`import_campusrag_existing_ocr`, `process_raw_ingestion_job`, `submit_raw_ingestion_job`, `rebuild_local_data`) is described in `apps/ingestion-worker/README.md` and relies on `campus_ingestion_core` entry points.
 - Tests: root `README.md` documents `uv run --all-packages python -m unittest discover -s tests -t .`, and `tests/` contains API, ingestion, retrieval, specialist, supervisor, eval, and contract suites that mirror each package boundary.
 - Trace/log surface: `apps/supervisor-api/settings.py` defaults `audit_log_path` to `./var/log/audit.log` and reads `TRACE_ENABLED`/`TRACE_EXPORTER` from `.env`.
-

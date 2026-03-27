@@ -9,7 +9,7 @@ updated: 2026-03-26
 
 ## 目标
 
-把 `student_handbook` collection 的输入边界固定为 processed 层 OCR 产物 `provider-response.jsonl`，而不是原始 PDF；同时把 handbook 从“一份 source 对应一个 document”的错误建模，收敛为“asset 级 OCR 结果 -> 内部统一 structured source/source truth -> 多逻辑文档 -> 文档内 structured units / chunks”。长期知识域 corpus 采用 `regulations`，`student_handbook` 只表示该 corpus 下的一个 collection；raw asset 不按 corpus 前缀组织，因为同一份原始文件可能被多个 corpus 复用。
+把 `student_handbook` collection 的输入边界固定为 source bucket 中的 OCR 产物 `provider-response.jsonl`，而不是原始 PDF；同时把 handbook 从“一份 source 对应一个 document”的错误建模，收敛为“asset 级 OCR 结果 -> 内部统一 structured source/source truth -> 多逻辑文档 -> 文档内 structured units / chunks”。长期知识域 corpus 采用 `regulations`，`student_handbook` 只表示该 corpus 下的一个 collection；raw asset 不按 corpus 前缀组织，因为同一份原始文件可能被多个 corpus 复用。
 
 本文回答三个问题：
 
@@ -98,9 +98,9 @@ updated: 2026-03-26
 
 当前 source artifact 的讨论样例可直接按 object key 理解为：
 
-`regulations/sources/pdf_ocr/student-handbook/2018/{ingest_id}/provider-response.jsonl`
+`ocr/pdf_ocr/student-handbook/2018/{raw_version_id}/provider-response.jsonl`
 
-对应的原始来源资产路径应位于 raw bucket：
+对应的原始来源资产路径应位于 source bucket：
 
 `pdf/student-handbook/2018/{raw_version_id}/{original_filename}`
 
@@ -369,9 +369,9 @@ Unit normalization 必须满足以下边界：
 
 ## 与现有仓库边界的对应关系
 
-- raw bucket 的 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...` 保存 corpus-agnostic 的原始来源资产
-- `regulations/sources/{source_channel}/{source_asset_slug}/{year}/{ingest_id}/...` 保留 processed source 级 `provider-response.jsonl`
-- `regulations/sources/{source_channel}/{source_asset_slug}/{year}/{ingest_id}/...` 保留 processed source 级 `layout-elements.jsonl`
+- source bucket 的 `pdf/{source_asset_slug}/{year}/{raw_version_id}/...` 保存 corpus-agnostic 的原始来源资产
+- source bucket 的 `ocr/{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...` 保留 source 级 `provider-response.jsonl`
+- source bucket 的 `source-truth/{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...` 保留 source 级 `layout-elements.jsonl`
 - document registry 只登记逻辑文档，不登记整本 handbook PDF 作为单一 document truth
 - `regulations/documents/student_handbook/.../document-units.jsonl` 继续作为 `packages/ingestion-core` 的规章导向 chunking 输入
 - 当前 query-serving 默认范围应表述为 `regulations` corpus 下的 `student_handbook` collection

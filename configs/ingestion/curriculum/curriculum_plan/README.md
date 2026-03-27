@@ -15,7 +15,7 @@ collection within the `curriculum` corpus.
 `process_raw_ingestion_job` supports two phase-1 entry paths for
 `INGESTION_CORPUS=curriculum` and `INGESTION_COLLECTION=curriculum_plan`:
 
-- `RAW_INGESTION_ARTIFACT_MODE=provider_only` for pre-split onboarding. This uploads the raw PDF under `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...` and stores the processed asset-level `provider-response.jsonl` under `curriculum/sources/{source_channel}/{source_asset_slug}/{year}/{ingest_id}/...` without requiring a split manifest.
+- `RAW_INGESTION_ARTIFACT_MODE=provider_only` for pre-split onboarding. This uploads the raw PDF under `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...` and stores source-level OCR truth under the source bucket `ocr/` / `source-truth/` prefixes without requiring a split manifest.
 - `RAW_INGESTION_ARTIFACT_MODE=normalized` for document-level ingestion. This requires the split manifest to be filled with the real document list and page ranges before the job is run and then writes document artifacts under `curriculum/documents/{collection}/{title_slug}--{docid8}/{representation}/{year}/...`.
 
 Notes:

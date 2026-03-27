@@ -63,6 +63,8 @@ updated: 2026-03-26
 - 预取步骤应在受控环境中显式执行
 - 运行与测试默认使用本地缓存
 - 缺缓存时应显式报错并提示预取，而不是静默 fallback 到联网下载
+- dev 环境需要显式维护 `Qwen/Qwen3-Embedding-4B` tokenizer 的本地 Hugging Face cache；这是 chunk budgeting / dense path 的运行前置条件
+- 上述本地 cache 约束不适用于 sparse `tokenizer=multilingual`；sparse tokenization 不复用 handbook 的 HF tokenizer cache
 
 因此 handbook v3 的 token 预算真相，不仅是“用 HF tokenizer”，还包括“先预取一次，本地复用，默认离线”。
 

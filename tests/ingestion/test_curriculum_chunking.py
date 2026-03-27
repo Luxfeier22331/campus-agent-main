@@ -29,8 +29,8 @@ def _make_curriculum_record() -> DocumentRegistryRecord:
             "curriculum/documents/curriculum_plan/test-001--test-001/source-faithful/undated/document-units.jsonl"
         ),
         processed_object_keys=(
-            "curriculum/sources/pdf_ocr/curriculum-plan/2022/sha256/test/provider-response.jsonl",
-            "curriculum/sources/pdf_ocr/curriculum-plan/2022/sha256/test/layout-elements.jsonl",
+            "ocr/pdf_ocr/curriculum-plan/2022/sha256/test/provider-response.jsonl",
+            "source-truth/pdf_ocr/curriculum-plan/2022/sha256/test/layout-elements.jsonl",
             "curriculum/documents/curriculum_plan/test-001--test-001/source-faithful/undated/document-units.jsonl",
         ),
         import_source="raw_online_ocr",

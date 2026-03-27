@@ -43,7 +43,11 @@ from campus_ingestion_core.handbook_provider_normalize import (
     serialize_handbook_layout_elements,
 )
 from campus_ingestion_core.models import RawAssetRecord
-from campus_ingestion_core.object_store import build_processed_asset_artifact_key, infer_year_label
+from campus_ingestion_core.object_store import (
+    build_source_ocr_artifact_key,
+    build_source_truth_artifact_key,
+    infer_year_label,
+)
 from campus_ingestion_core.registry import (
     DocumentRegistry,
     RawAssetRegistry,
@@ -283,7 +287,7 @@ def process_raw_ingestion_job(
         provider_result = _parse_registered_raw_asset(
             raw_asset_record=raw_asset_record,
             reader=writer,  # type: ignore[arg-type]
-            bucket=settings.object_store.bucket_raw,
+            bucket=settings.object_store.bucket_source,
             ocr_client=ocr_client,
         )
 
@@ -355,19 +359,18 @@ def _persist_provider_only_ocr_results(
         parse_result = _parse_registered_raw_asset(
             raw_asset_record=raw_asset_record,
             reader=reader,
-            bucket=settings.object_store.bucket_raw,
+            bucket=settings.object_store.bucket_source,
             ocr_client=ocr_client,
         )
         raw_reused_count = 1 if raw_asset_registry.get(raw_asset_record.raw_asset_id, raw_asset_record.raw_version_id) else 0
-        provider_response_key = build_processed_asset_artifact_key(
-            corpus=settings.corpus,
+        provider_response_key = build_source_ocr_artifact_key(
             raw_asset_id=raw_asset_record.raw_asset_id,
             raw_version_id=raw_asset_record.raw_version_id,
             filename=PROVIDER_RESPONSE_FILENAME,
             year=infer_year_label(raw_asset_record.source_filename),
         )
         writer.put_bytes(
-            bucket=settings.object_store.bucket_processed,
+            bucket=settings.object_store.bucket_source,
             key=provider_response_key,
             data=parse_result.provider_result_bytes,
             content_type="application/x-ndjson",
@@ -527,28 +530,26 @@ def _write_processed_asset_artifacts(
     layout_elements_bytes: bytes,
 ) -> tuple[str, str]:
     year = infer_year_label(source_filename)
-    provider_response_key = build_processed_asset_artifact_key(
-        corpus=corpus,
+    provider_response_key = build_source_ocr_artifact_key(
         raw_asset_id=raw_asset_id,
         raw_version_id=raw_version_id,
         filename=PROVIDER_RESPONSE_FILENAME,
         year=year,
     )
-    layout_elements_key = build_processed_asset_artifact_key(
-        corpus=corpus,
+    layout_elements_key = build_source_truth_artifact_key(
         raw_asset_id=raw_asset_id,
         raw_version_id=raw_version_id,
         filename=LAYOUT_ELEMENTS_FILENAME,
         year=year,
     )
     writer.put_bytes(
-        bucket=object_store.bucket_processed,
+        bucket=object_store.bucket_source,
         key=provider_response_key,
         data=provider_response_bytes,
         content_type="application/x-ndjson",
     )
     writer.put_bytes(
-        bucket=object_store.bucket_processed,
+        bucket=object_store.bucket_source,
         key=layout_elements_key,
         data=layout_elements_bytes,
         content_type="application/x-ndjson",

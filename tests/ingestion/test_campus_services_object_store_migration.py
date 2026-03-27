@@ -13,6 +13,9 @@ from campus_ingestion_core.campus_services_migration import (
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.object_store import build_processed_asset_artifact_key
 
+SOURCE_BUCKET = "campus-rag-source"
+DERIVED_BUCKET = "campus-rag-derived"
+
 
 class _FakeObjectStore:
     def __init__(self) -> None:
@@ -98,7 +101,8 @@ class CampusServicesObjectStoreMigrationTest(unittest.TestCase):
                         "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                         "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                         "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                        "OBJECT_STORE_BUCKET_PROCESSED": "campus-rag-processed",
+                        "OBJECT_STORE_BUCKET_SOURCE": SOURCE_BUCKET,
+                        "OBJECT_STORE_BUCKET_DERIVED": DERIVED_BUCKET,
                         "CAMPUSRAG_CANONICAL_ROOT": str(canonical_root),
                         "HANDBOOK_SOURCE_PROJECTIONS_PATH": str(projection_config_path),
                     },
@@ -158,7 +162,8 @@ class CampusServicesObjectStoreMigrationTest(unittest.TestCase):
                         "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                         "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                         "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                        "OBJECT_STORE_BUCKET_PROCESSED": "campus-rag-processed",
+                        "OBJECT_STORE_BUCKET_SOURCE": SOURCE_BUCKET,
+                        "OBJECT_STORE_BUCKET_DERIVED": DERIVED_BUCKET,
                         "CAMPUSRAG_CANONICAL_ROOT": str(canonical_root),
                     },
                     object_store=object_store,
@@ -179,7 +184,7 @@ class CampusServicesObjectStoreMigrationTest(unittest.TestCase):
             ),
         )
         self.assertEqual(len(object_store.deleted_prefixes), 4)
-        self.assertEqual(object_store.deleted_prefixes[0][0], "campus-rag-processed")
+        self.assertEqual(object_store.deleted_prefixes[0][0], DERIVED_BUCKET)
         self.assertEqual(object_store.deleted_prefixes[0][1], "campus_services/documents/contact_directory/")
         self.assertEqual(
             object_store.deleted_prefixes[0][2],
@@ -188,7 +193,7 @@ class CampusServicesObjectStoreMigrationTest(unittest.TestCase):
                 "中央民族大学校内常用电话--bf03f0bd/source-faithful/2018/canonical.md",
             ),
         )
-        self.assertEqual(object_store.deleted_prefixes[1][0], "campus-rag-processed")
+        self.assertEqual(object_store.deleted_prefixes[1][0], DERIVED_BUCKET)
         self.assertEqual(object_store.deleted_prefixes[1][1], "campus_services/documents/service_catalog/")
         self.assertIn(
             "campus_services/documents/service_catalog/"
@@ -200,13 +205,13 @@ class CampusServicesObjectStoreMigrationTest(unittest.TestCase):
             "中央民族大学学生公寓管理工作流程--66f91543/source-faithful/2018/canonical.md",
             object_store.deleted_prefixes[1][2],
         )
-        self.assertEqual(object_store.deleted_prefixes[2][0], "campus-rag-processed")
+        self.assertEqual(object_store.deleted_prefixes[2][0], DERIVED_BUCKET)
         self.assertEqual(
             object_store.deleted_prefixes[2][1],
             "regulations/documents/student_handbook/中央民族大学校内常用电话--bf03f0bd/",
         )
         self.assertEqual(object_store.deleted_prefixes[2][2], ())
-        self.assertEqual(object_store.deleted_prefixes[3][0], "campus-rag-processed")
+        self.assertEqual(object_store.deleted_prefixes[3][0], DERIVED_BUCKET)
         self.assertEqual(
             object_store.deleted_prefixes[3][1],
             "regulations/documents/student_handbook/中央民族大学公寓及公费医疗管理规定--66f91543/",
@@ -216,19 +221,19 @@ class CampusServicesObjectStoreMigrationTest(unittest.TestCase):
             [(bucket, key, content_type) for bucket, key, _, content_type in object_store.puts],
             [
                 (
-                    "campus-rag-processed",
+                    DERIVED_BUCKET,
                     "campus_services/documents/contact_directory/"
                     "中央民族大学校内常用电话--bf03f0bd/source-faithful/2018/canonical.md",
                     "text/markdown; charset=utf-8",
                 ),
                 (
-                    "campus-rag-processed",
+                    DERIVED_BUCKET,
                     "campus_services/documents/service_catalog/"
                     "一网通办服务目录--4122f8f8/source-faithful/2026/canonical.md",
                     "text/markdown; charset=utf-8",
                 ),
                 (
-                    "campus-rag-processed",
+                    DERIVED_BUCKET,
                     "campus_services/documents/service_catalog/"
                     "中央民族大学学生公寓管理工作流程--66f91543/source-faithful/2018/canonical.md",
                     "text/markdown; charset=utf-8",
@@ -384,7 +389,7 @@ def _seed_handbook_provider_response(object_store: _FakeObjectStore) -> None:
         filename="provider-response.jsonl",
         year="2018",
     )
-    object_store.objects[("campus-rag-processed", provider_response_key)] = b'{"stub":true}\n'
+    object_store.objects[(SOURCE_BUCKET, provider_response_key)] = b'{"stub":true}\n'
 
 
 def _build_handbook_navigation_rows() -> list[dict[str, object]]:

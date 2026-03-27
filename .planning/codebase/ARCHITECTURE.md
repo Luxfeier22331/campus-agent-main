@@ -62,12 +62,12 @@
 **Ingestion/data-plane flow:**
 
 1. `apps/ingestion-worker/src/campus_ingestion_worker/process_raw_ingestion_job.py` or `submit_raw_ingestion_job.py` invokes `packages/ingestion-core` entrypoints (`raw_ingestion.process_raw_ingestion_job` or `.submit_raw_ingestion_job`).
-2. The ingestion core reads `configs/ingestion/<corpus>/runtime-profile.json` via `campus_ingestion_core.corpus_profiles`, validates artifact modes, and writes raw/processed objects through `campus_ingestion_core.object_store`.
+2. The ingestion core reads `configs/ingestion/<corpus>/runtime-profile.json` via `campus_ingestion_core.corpus_profiles`, validates artifact modes, and writes source/derived objects through `campus_ingestion_core.object_store`.
 3. Registry updates (via `campus_ingestion_core.registry.DocumentRegistry`/`RawAssetRegistry`) persist metadata under `var/registry/` or Postgres, which `packages/retrieval-core` later reads.
 4. Chunking, embedding, and Qdrant writes happen as part of `campus_ingestion_core.chunking`/`embed`, and `packages/retrieval-core` uses `QdrantRetrievalBackend` plus `DocumentRegistry` data to produce `EvidenceBundle`.
 
 **State Management:**
-- Raw and processed artifacts live in the S3-compatible tier even when served by local MinIO (`packages/ingestion-core/src/campus_ingestion_core/object_store.py` and `docs/architecture/phase1-ingestion-and-storage-architecture.md`), while `DocumentRegistry` and `RawAssetRegistry` (implemented as file stores or Postgres in `packages/ingestion-core/src/campus_ingestion_core/registry.py`) maintain versioned metadata.
+- Source and derived artifacts live in the S3-compatible tier even when served by local MinIO (`packages/ingestion-core/src/campus_ingestion_core/object_store.py` and `docs/architecture/phase1-ingestion-and-storage-architecture.md`), while `DocumentRegistry` and `RawAssetRegistry` (implemented as file stores or Postgres in `packages/ingestion-core/src/campus_ingestion_core/registry.py`) maintain versioned metadata.
 - Chunk metadata and embeddings are exposed through Qdrant (`packages/retrieval-core/src/campus_retrieval_core/backend_qdrant.py`), and corpora runtime profiles gate query availability (`packages/ingestion-core/src/campus_ingestion_core/corpus_profiles.py` with config roots in `configs/ingestion/`).
 
 ## Key Abstractions
