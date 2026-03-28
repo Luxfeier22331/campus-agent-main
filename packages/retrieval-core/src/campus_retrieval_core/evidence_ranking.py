@@ -73,6 +73,19 @@ class _SourceRankingFeatures:
     content_kind_priority: int
 
 
+@dataclass(frozen=True, slots=True)
+class _DocumentRankingFeatures:
+    doc_id: str
+    title_match_priority: int
+    title_overlap_count: int
+    detail_support_count: int
+    content_support_count: int
+    answer_bearing_count: int
+    content_role_priority: int
+    content_kind_priority: int
+    best_score: float
+
+
 def prioritize_evidence_sources(
     *,
     query_text: str,
@@ -96,16 +109,7 @@ def prioritize_evidence_sources(
         feature.source
         for feature in sorted(
             ranked,
-            key=lambda feature: (
-                feature.title_match_priority,
-                feature.answer_bearing_bonus,
-                feature.content_role_priority,
-                feature.detail_support_count,
-                feature.content_support_count,
-                feature.title_overlap_count,
-                feature.content_kind_priority,
-                feature.source.score,
-            ),
+            key=_source_sort_key,
             reverse=True,
         )
     )
@@ -126,27 +130,42 @@ def select_supporting_evidence_sources(
         return tuple(sources[:max_sources])
 
     ranked_features = tuple(
-        _build_ranking_features(
-            query_text=query_text,
-            normalized_query=normalized_query,
-            query_key=query_key,
-            source=source,
+        sorted(
+            (
+                _build_ranking_features(
+                    query_text=query_text,
+                    normalized_query=normalized_query,
+                    query_key=query_key,
+                    source=source,
+                )
+                for source in sources
+            ),
+            key=_source_sort_key,
+            reverse=True,
         )
-        for source in prioritize_evidence_sources(query_text=query_text, sources=sources)
     )
     if not ranked_features:
         return ()
 
+    ranked_documents = tuple(
+        sorted(
+            _build_document_ranking_features(ranked_features),
+            key=_document_sort_key,
+            reverse=True,
+        )
+    )
     locked_doc_id = (
-        ranked_features[0].source.doc_id
-        if query_targets_source_title(query_text=query_text, source=ranked_features[0].source)
+        ranked_documents[0].doc_id
+        if ranked_documents and _query_targets_document(query_key=query_key, feature=ranked_documents[0])
         else ""
     )
 
     primary: list[EvidenceSource] = []
     secondary: list[EvidenceSource] = []
+    same_doc_secondary: list[EvidenceSource] = []
     seen_chunks: set[str] = set()
     seen_snippets: set[str] = set()
+    preferred_doc_id = locked_doc_id or ranked_features[0].source.doc_id
     for feature in ranked_features:
         source = feature.source
         if locked_doc_id and source.doc_id != locked_doc_id:
@@ -162,11 +181,13 @@ def select_supporting_evidence_sources(
             primary.append(source)
         elif locked_doc_id and _is_secondary_support_candidate(feature):
             secondary.append(source)
+        elif source.doc_id == preferred_doc_id:
+            same_doc_secondary.append(source)
         seen_chunks.add(source.chunk_id)
         if normalized_snippet:
             seen_snippets.add(normalized_snippet)
 
-    selected = tuple((*primary, *secondary))[:max_sources]
+    selected = tuple((*primary, *secondary, *same_doc_secondary))[:max_sources]
     if selected:
         return selected
 
@@ -182,10 +203,24 @@ def select_supporting_evidence_sources(
 
 
 def query_targets_source_title(*, query_text: str, source: EvidenceSource) -> bool:
-    query_key = _match_key(query_text)
+    normalized_query = _normalize_text(query_text)
+    query_key = _match_key(normalized_query)
     if not query_key:
         return False
-    return _title_match_priority(query_key=query_key, title_keys=_source_title_keys(source)) >= 3
+    title_keys = _source_title_keys(source)
+    title_match_priority = _title_match_priority(query_key=query_key, title_keys=title_keys)
+    title_overlap_count = max(
+        (
+            _query_lexical_support_count(
+                normalized_query=normalized_query,
+                query_key=query_key,
+                search_key=title_key,
+            )
+            for title_key in title_keys
+        ),
+        default=0,
+    )
+    return title_match_priority >= 2 or (_is_short_semantic_query(query_key) and title_overlap_count >= 2)
 
 
 def _build_ranking_features(
@@ -225,11 +260,11 @@ def _build_ranking_features(
 
 
 def _is_primary_support_candidate(feature: _SourceRankingFeatures) -> bool:
-    if feature.source.is_answer_bearing:
-        return True
     if feature.content_role_priority > 0:
         return True
-    return feature.detail_support_count > 0 or feature.content_support_count > 0
+    if feature.detail_support_count > 0 or feature.content_support_count > 0:
+        return True
+    return feature.source.is_answer_bearing and feature.title_overlap_count > 0
 
 
 def _is_secondary_support_candidate(feature: _SourceRankingFeatures) -> bool:
@@ -237,7 +272,59 @@ def _is_secondary_support_candidate(feature: _SourceRankingFeatures) -> bool:
         return False
     if feature.title_match_priority > 0:
         return True
-    return feature.title_overlap_count > 0
+    if feature.title_overlap_count > 0:
+        return True
+    return feature.detail_support_count > 0 or feature.content_support_count > 0
+
+
+def _build_document_ranking_features(
+    features: Sequence[_SourceRankingFeatures],
+) -> tuple[_DocumentRankingFeatures, ...]:
+    documents: dict[str, list[_SourceRankingFeatures]] = {}
+    for feature in features:
+        documents.setdefault(feature.source.doc_id, []).append(feature)
+    return tuple(
+        _DocumentRankingFeatures(
+            doc_id=doc_id,
+            title_match_priority=max(item.title_match_priority for item in doc_features),
+            title_overlap_count=max(item.title_overlap_count for item in doc_features),
+            detail_support_count=max(item.detail_support_count for item in doc_features),
+            content_support_count=max(item.content_support_count for item in doc_features),
+            answer_bearing_count=sum(item.answer_bearing_bonus for item in doc_features),
+            content_role_priority=max(item.content_role_priority for item in doc_features),
+            content_kind_priority=max(item.content_kind_priority for item in doc_features),
+            best_score=max(item.source.score for item in doc_features),
+        )
+        for doc_id, doc_features in documents.items()
+    )
+
+
+def _query_targets_document(*, query_key: str, feature: _DocumentRankingFeatures) -> bool:
+    return feature.title_match_priority >= 2 or (_is_short_semantic_query(query_key) and feature.title_overlap_count >= 2)
+
+
+def _source_sort_key(feature: _SourceRankingFeatures) -> tuple[int, int, int, int, int, int, float]:
+    return (
+        feature.title_match_priority,
+        feature.title_overlap_count,
+        feature.content_role_priority,
+        feature.detail_support_count + feature.content_support_count,
+        feature.answer_bearing_bonus,
+        feature.content_kind_priority,
+        feature.source.score,
+    )
+
+
+def _document_sort_key(feature: _DocumentRankingFeatures) -> tuple[int, int, int, int, int, int, float]:
+    return (
+        feature.title_match_priority,
+        feature.title_overlap_count,
+        feature.content_role_priority,
+        feature.detail_support_count + feature.content_support_count,
+        feature.answer_bearing_count,
+        feature.content_kind_priority,
+        feature.best_score,
+    )
 
 
 def _source_title_keys(source: EvidenceSource) -> tuple[str, ...]:
@@ -383,6 +470,10 @@ def _is_cjk_char(char: str) -> bool:
         or 0x4E00 <= code_point <= 0x9FFF
         or 0xF900 <= code_point <= 0xFAFF
     )
+
+
+def _is_short_semantic_query(query_key: str) -> bool:
+    return sum(len(segment) for segment in _cjk_segments(query_key)) <= 10
 
 
 __all__ = [

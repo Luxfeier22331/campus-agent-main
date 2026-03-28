@@ -1364,5 +1364,79 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertIn("六、本规定由教务处负责解释。", chunks[1].metadata["display_text"])
         self.assertNotIn("三、学士学位授予程序", chunks[1].text)
 
+    def test_build_indexable_chunks_marks_time_rule_policy_page_as_answer_bearing(self) -> None:
+        record = _make_registry_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id="legacy-time-rule",
+                        unit_type="policy_page",
+                        root_unit_id="policy-time-rule",
+                        clean_text="冬季作息时间为周日至周四23:00熄灯，周五至周六23:30熄灯。",
+                        anchor={
+                            "section_path": ["一、时间安排"],
+                            "page_start": 12,
+                            "page_end": 12,
+                        },
+                        metadata={"title": "中央民族大学学生宿舍管理规定"},
+                    ),
+                    ensure_ascii=False,
+                )
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=ChunkProfile(chunk_size=128, max_chunk_size=256, chunk_overlap=16, min_chunk_size=32),
+            embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        chunk = chunks[0]
+        self.assertEqual(chunk.metadata["detail_label"], "一、时间安排")
+        self.assertEqual(chunk.metadata["content_role"], "time_rule")
+        self.assertTrue(chunk.metadata["is_answer_bearing"])
+
+    def test_build_indexable_chunks_marks_scope_rule_policy_page_as_non_answer_bearing(self) -> None:
+        record = _make_registry_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id="legacy-scope-rule",
+                        unit_type="policy_page",
+                        root_unit_id="policy-scope-rule",
+                        clean_text="本规定适用于全日制本科生在校期间的住宿管理。",
+                        anchor={
+                            "provision_label": "三",
+                            "page_start": 12,
+                            "page_end": 12,
+                        },
+                        metadata={"title": "中央民族大学学生宿舍管理规定"},
+                    ),
+                    ensure_ascii=False,
+                )
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=ChunkProfile(chunk_size=128, max_chunk_size=256, chunk_overlap=16, min_chunk_size=32),
+            embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        chunk = chunks[0]
+        self.assertEqual(chunk.metadata["detail_label"], "三")
+        self.assertEqual(chunk.metadata["content_role"], "scope_rule")
+        self.assertFalse(chunk.metadata["is_answer_bearing"])
+
 if __name__ == "__main__":
     unittest.main()
