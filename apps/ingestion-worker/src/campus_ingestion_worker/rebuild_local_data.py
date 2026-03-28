@@ -19,6 +19,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--source-pdf")
     parser.add_argument("--reset-qdrant", action="store_true")
     parser.add_argument("--index-qdrant", action="store_true")
+    publish_group = parser.add_mutually_exclusive_group()
+    publish_group.add_argument("--publish-alias", dest="publish_alias", action="store_true")
+    publish_group.add_argument("--no-publish-alias", dest="publish_alias", action="store_false")
+    parser.set_defaults(publish_alias=True)
     return parser
 
 
@@ -34,6 +38,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         source_pdf=args.source_pdf,
         reset_qdrant=args.reset_qdrant,
         index_qdrant=args.index_qdrant,
+        publish_qdrant_alias=args.publish_alias,
     )
     report = rebuild_local_data(request=request)
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))

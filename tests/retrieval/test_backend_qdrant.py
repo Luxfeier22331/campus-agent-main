@@ -34,7 +34,7 @@ from qdrant_client.http import models as qdrant_models
 from tests.support.in_memory_registry import InMemoryDocumentRegistry
 
 STUDENT_HANDBOOK_QDRANT_COLLECTION = (
-    load_runtime_profile("regulations", "student_handbook").qdrant_index_binding.collection_name
+    load_runtime_profile("regulations", "student_handbook").qdrant_index_binding.alias_name
 )
 
 

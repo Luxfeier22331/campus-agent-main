@@ -8,7 +8,8 @@
   "chunk_profile_version": "curriculum_plan_semantic_v2",
   "retrieval_enabled": true,
   "query_enabled_by_default": true,
-  "qdrant_collection_name": "curriculum_plan",
+  "qdrant_alias_name": "curriculum_plan",
+  "qdrant_collection_prefix": "curriculum_plan",
   "qdrant_dense_vector_name": "dense",
   "qdrant_sparse_vector_name": "sparse",
   "serving_revision_tracks": ["source-faithful"]

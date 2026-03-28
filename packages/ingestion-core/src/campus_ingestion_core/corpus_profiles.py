@@ -35,7 +35,7 @@ class CollectionRuntimeProfile:
     no_hit_min_top_score: float | None = None
     no_hit_min_score_gap: float | None = None
     qdrant_index_binding: QdrantIndexBinding = field(
-        default_factory=lambda: QdrantIndexBinding(collection_name="unconfigured")
+        default_factory=lambda: QdrantIndexBinding(alias_name="unconfigured", collection_prefix="unconfigured")
     )
 
     def __post_init__(self) -> None:
@@ -88,7 +88,8 @@ def load_runtime_profile(
         no_hit_min_top_score=_optional_float(payload.get("no_hit_min_top_score")),
         no_hit_min_score_gap=_optional_float(payload.get("no_hit_min_score_gap")),
         qdrant_index_binding=QdrantIndexBinding(
-            collection_name=str(payload.get("qdrant_collection_name") or ""),
+            alias_name=str(payload.get("qdrant_alias_name") or ""),
+            collection_prefix=str(payload.get("qdrant_collection_prefix") or ""),
             dense_vector_name=(
                 str(payload.get("qdrant_dense_vector_name") or DEFAULT_QDRANT_DENSE_VECTOR_NAME)
                 or DEFAULT_QDRANT_DENSE_VECTOR_NAME

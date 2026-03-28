@@ -12,7 +12,7 @@ from campus_ingestion_core.local_rebuild import (
     StudentHandbookSourceAssetRequest,
     _build_qdrant_client,
     _resolve_ingestion_qdrant_timeout_seconds,
-    _resolve_rebuild_target_qdrant_collections,
+    _resolve_rebuild_target_qdrant_aliases,
     migrate_student_handbook_source_faithful,
     rebuild_local_data,
     replay_provider_response_rebuild,
@@ -58,10 +58,11 @@ class _FakeObjectStoreAdmin:
 
 class _FakeQdrantAdmin:
     def __init__(self) -> None:
-        self.reset_collections: list[str] = []
+        self.reset_aliases: list[str] = []
 
-    def reset_collection(self, collection_name: str) -> None:
-        self.reset_collections.append(collection_name)
+    def reset_index_binding(self, binding) -> tuple[str, ...]:
+        self.reset_aliases.append(binding.alias_name)
+        return ()
 
 
 class _FakeDocumentRegistry:
@@ -275,6 +276,34 @@ class RebuildLocalDataTest(unittest.TestCase):
         self.assertEqual(calls[0]["REPLAY_SOURCE_PDF"], "curriculum-plan.pdf")
         self.assertEqual(report.import_context["REPLAY_SOURCE_PDF"], "curriculum-plan.pdf")
 
+    def test_rebuild_provider_response_replay_can_disable_alias_publish_in_import_context(self) -> None:
+        object_store = _FakeObjectStoreAdmin()
+        calls: list[dict[str, str]] = []
+
+        report = rebuild_local_data(
+            env={
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+            },
+            request=RebuildRequest(
+                corpus="curriculum",
+                collection="curriculum_plan",
+                import_mode="provider_response_replay",
+                raw_version_id="sha256:curriculum-replay-001",
+                index_qdrant=True,
+                publish_qdrant_alias=False,
+            ),
+            object_store=object_store,
+            document_registry=_FakeDocumentRegistry(),
+            raw_asset_registry=_FakeRawAssetRegistry(),
+            import_runner=lambda **kwargs: calls.append(kwargs["env"]) or {"status": "replay"},
+        )
+
+        self.assertEqual(calls[0]["REBUILD_INDEX_QDRANT"], "1")
+        self.assertEqual(calls[0]["REBUILD_PUBLISH_ALIAS"], "0")
+        self.assertEqual(report.import_context["REBUILD_PUBLISH_ALIAS"], "0")
+
     def test_rebuild_provider_response_replay_clears_declared_downstream_projection_artifacts(self) -> None:
         object_store = _FakeObjectStoreAdmin()
         projection_config = {
@@ -450,7 +479,7 @@ class RebuildLocalDataTest(unittest.TestCase):
                 ),
             ],
         )
-        self.assertEqual(qdrant.reset_collections, [])
+        self.assertEqual(qdrant.reset_aliases, [])
         self.assertEqual(document_registry.deleted_scopes, [("regulations", "student_handbook")])
         self.assertEqual(raw_asset_registry.deleted_scopes, [])
         self.assertEqual(len(calls), 1)
@@ -481,10 +510,10 @@ class RebuildLocalDataTest(unittest.TestCase):
             import_runner=lambda **kwargs: {"status": "ok"},
         )
 
-        self.assertEqual(qdrant.reset_collections, ["student_handbook"])
+        self.assertEqual(qdrant.reset_aliases, ["student_handbook"])
 
-    def test_resolve_rebuild_target_qdrant_collections_defaults_to_request_collection_without_global_scope(self) -> None:
-        collections = _resolve_rebuild_target_qdrant_collections(
+    def test_resolve_rebuild_target_qdrant_aliases_defaults_to_request_collection_without_global_scope(self) -> None:
+        collections = _resolve_rebuild_target_qdrant_aliases(
             source={},
             request=RebuildRequest(
                 corpus="curriculum",
@@ -521,7 +550,7 @@ class RebuildLocalDataTest(unittest.TestCase):
             import_runner=lambda **kwargs: {"status": "replay"},
         )
 
-        self.assertEqual(qdrant.reset_collections, [])
+        self.assertEqual(qdrant.reset_aliases, [])
 
     def test_rebuild_provider_response_replay_resets_all_target_qdrant_collections(self) -> None:
         object_store = _FakeObjectStoreAdmin()
@@ -607,7 +636,7 @@ class RebuildLocalDataTest(unittest.TestCase):
             )
 
         self.assertEqual(
-            qdrant.reset_collections,
+            qdrant.reset_aliases,
             ["student_handbook", "contact_directory", "service_catalog"],
         )
 
@@ -634,7 +663,7 @@ class RebuildLocalDataTest(unittest.TestCase):
             import_runner=lambda **kwargs: {"status": "replay"},
         )
 
-        self.assertEqual(qdrant.reset_collections, ["curriculum_plan"])
+        self.assertEqual(qdrant.reset_aliases, ["curriculum_plan"])
 
     def test_rebuild_uses_ingestion_corpus_prefix_for_curriculum_plan(self) -> None:
         object_store = _FakeObjectStoreAdmin()

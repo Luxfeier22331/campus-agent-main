@@ -8,7 +8,8 @@
   "chunk_profile_version": "service_catalog_semantic_v1",
   "retrieval_enabled": false,
   "query_enabled_by_default": false,
-  "qdrant_collection_name": "service_catalog",
+  "qdrant_alias_name": "service_catalog",
+  "qdrant_collection_prefix": "service_catalog",
   "qdrant_dense_vector_name": "dense",
   "qdrant_sparse_vector_name": "sparse"
 }

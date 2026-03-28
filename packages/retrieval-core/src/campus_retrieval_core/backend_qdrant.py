@@ -9,6 +9,7 @@ from typing import Iterable, Sequence
 from campus_contracts import EvidenceBundle, EvidenceSource
 from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile, load_runtime_profile
 from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
+from campus_ingestion_core.index_release import resolve_alias_target
 from campus_ingestion_core.registry import (
     DocumentRegistry,
     build_document_registry_from_env,
@@ -107,8 +108,12 @@ class QdrantRetrievalBackend:
                 corpus=request.corpus,
                 collection=request.collection,
             )
-        qdrant_collection_name = profile.qdrant_index_binding.collection_name
-        if not self.qdrant_client.collection_exists(qdrant_collection_name):
+        qdrant_collection_name = profile.qdrant_index_binding.alias_name
+        alias_target = resolve_alias_target(
+            qdrant_client=self.qdrant_client,
+            alias_name=qdrant_collection_name,
+        )
+        if alias_target is None and not self.qdrant_client.collection_exists(qdrant_collection_name):
             return EvidenceBundle(
                 query_text=request.query_text,
                 corpus=request.corpus,

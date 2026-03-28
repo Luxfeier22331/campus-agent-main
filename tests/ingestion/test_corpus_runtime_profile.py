@@ -25,6 +25,8 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.no_hit_min_score_gap, 0.1)
         self.assertEqual(profile.cleaning_policy_version, "student_handbook_cleaning_v1")
         self.assertEqual(profile.chunk_profile_version, "student_handbook_semantic_v3")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "student_handbook")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "student_handbook")
 
     def test_load_curriculum_plan_runtime_profile(self) -> None:
         profile = load_runtime_profile("curriculum", "curriculum_plan")
@@ -42,6 +44,8 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertIsNone(profile.no_hit_min_score_gap)
         self.assertEqual(profile.cleaning_policy_version, "curriculum_plan_cleaning_v1")
         self.assertEqual(profile.chunk_profile_version, "curriculum_plan_semantic_v2")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "curriculum_plan")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "curriculum_plan")
 
     def test_load_service_catalog_runtime_profile(self) -> None:
         profile = load_runtime_profile("campus_services", "service_catalog")
@@ -59,6 +63,8 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertIsNone(profile.no_hit_min_score_gap)
         self.assertEqual(profile.cleaning_policy_version, "service_catalog_cleaning_v1")
         self.assertEqual(profile.chunk_profile_version, "service_catalog_semantic_v1")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "service_catalog")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "service_catalog")
 
     def test_load_contact_directory_runtime_profile(self) -> None:
         profile = load_runtime_profile("campus_services", "contact_directory")
@@ -76,6 +82,8 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertIsNone(profile.no_hit_min_score_gap)
         self.assertEqual(profile.cleaning_policy_version, "contact_directory_cleaning_v1")
         self.assertEqual(profile.chunk_profile_version, "contact_directory_semantic_v1")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "contact_directory")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "contact_directory")
 
     def test_default_query_scopes_include_all_query_enabled_profiles(self) -> None:
         self.assertEqual(
