@@ -122,6 +122,7 @@ updated: 2026-03-29
 - `plans/supervisor-current-design-implementation.md`
 - `plans/versioned-history-query-foundation.md`
 - `runbooks/index-release-runbook.md`
+- `runbooks/forward-worker-surface-smoke-runbook.md`
 - `runbooks/student-handbook-hybrid-rebuild-checklist.md`
 - `reference/phase1-ingestion-retrieval-implementation-truth.md`
 - `reference/runtime-serving-and-index-terms.md`

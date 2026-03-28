@@ -77,6 +77,7 @@
 - specialist / supervisor：`packages/rag-specialist`、`packages/supervisor-core`
 - API shell：`apps/supervisor-api`
 - baseline / smoke：`packages/evals`、`tests/`
+- forward Worker smoke runbook：`docs/runbooks/forward-worker-surface-smoke-runbook.md`
 
 ## 本地验证
 
@@ -90,3 +91,5 @@ pnpm --dir apps/public-chat-web typecheck
 pnpm --dir apps/protected-panel-web test
 pnpm --dir apps/protected-panel-web typecheck
 ```
+
+当前 forward Worker topology 的 targeted smoke 命令与验证边界见 `docs/runbooks/forward-worker-surface-smoke-runbook.md`。
