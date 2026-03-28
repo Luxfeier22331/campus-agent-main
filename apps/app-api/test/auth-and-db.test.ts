@@ -1,0 +1,217 @@
+// @vitest-environment node
+
+import { describe, expect, it, vi } from "vitest";
+
+import { createApp } from "../src/app";
+import {
+  buildManagementDatabaseConfig,
+  buildRuntimeDatabaseConfig,
+} from "../src/db/runtime";
+import { buildBetterAuthConfig } from "../src/modules/auth/auth";
+import { appApiSchema } from "../src/db/schema";
+
+describe("app-api database config", () => {
+  it("uses Hyperdrive connectionString for runtime database access", () => {
+    const config = buildRuntimeDatabaseConfig({
+      APP_API_ENVIRONMENT: "test",
+      APP_API_DB: {
+        connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
+      },
+    });
+
+    expect(config.connectionString).toBe(
+      "postgres://postgres:secret@example.com:5432/campus_agent",
+    );
+    expect(config.ssl).toEqual({
+      rejectUnauthorized: false,
+    });
+  });
+
+  it("uses direct management connection for migrations", () => {
+    const config = buildManagementDatabaseConfig({
+      APP_API_DATABASE_SSLMODE: "require",
+      APP_API_MANAGEMENT_DATABASE_URL:
+        "postgres://postgres:secret@example.com:5432/campus_agent_admin",
+    });
+
+    expect(config.connectionString).toBe(
+      "postgres://postgres:secret@example.com:5432/campus_agent_admin",
+    );
+    expect(config.ssl).toEqual({
+      rejectUnauthorized: false,
+    });
+  });
+});
+
+describe("app-api auth config", () => {
+  it("freezes explicit auth/session policy for the shared app boundary", () => {
+    const config = buildBetterAuthConfig({
+      appName: "campus-agent-app-api",
+      betterAuthSecret: "prod-secret-prod-secret-prod-secret",
+      publicChatOrigin: "https://chat.example.com",
+      database: {} as never,
+    });
+
+    expect(config.baseURL).toBe("https://chat.example.com");
+    expect(config.basePath).toBe("/api/auth");
+    expect(config.emailAndPassword).toMatchObject({
+      autoSignIn: true,
+      enabled: true,
+      maxPasswordLength: 128,
+      minPasswordLength: 10,
+    });
+    expect(config.session).toMatchObject({
+      expiresIn: 60 * 60 * 24 * 7,
+      storeSessionInDatabase: true,
+      updateAge: 60 * 60 * 24,
+    });
+  });
+
+  it("exposes one unified Drizzle schema object for auth/chat/runtime/operator", () => {
+    expect(Object.keys(appApiSchema)).toEqual(
+      expect.arrayContaining([
+        "user",
+        "session",
+        "account",
+        "verification",
+        "conversations",
+        "messages",
+        "requestExecution",
+        "projectionOutbox",
+        "requestProjection",
+      ]),
+    );
+  });
+});
+
+describe("/api/me", () => {
+  const env = {
+    APP_API_NAME: "campus-agent-app-api",
+    APP_API_ENVIRONMENT: "test" as const,
+    BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+    PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
+    SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+    SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+    APP_API_DB: {
+      connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
+    },
+  };
+
+  it("returns session_required when no app principal exists", async () => {
+    const app = createApp(env, {
+      getPrincipal: vi.fn().mockResolvedValue(null),
+    });
+
+    const response = await app.fetch(new Request("https://app-api.internal/api/me"));
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: "session_required",
+        message: "Sign in required.",
+        retryable: false,
+        traceId: null,
+        requestId: null,
+        details: null,
+      },
+    });
+  });
+
+  it("mounts /api/auth/* onto the auth handler seam", async () => {
+    const authHandler = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 204 }));
+    const app = createApp(env, {
+      authHandler,
+      getPrincipal: vi.fn().mockResolvedValue(null),
+    });
+
+    const response = await app.fetch(
+      new Request("https://app-api.internal/api/auth/get-session", {
+        headers: {
+          cookie: "better-auth.session_token=test",
+        },
+      }),
+    );
+
+    expect(authHandler).toHaveBeenCalledTimes(1);
+    expect(authHandler).toHaveBeenCalledWith(expect.any(Request), env);
+    expect(response.status).toBe(204);
+  });
+
+  it("returns the current public user principal and session", async () => {
+    const app = createApp(env, {
+      getPrincipal: vi.fn().mockResolvedValue({
+        permissions: {
+          chat: true,
+          operator: false,
+        },
+        principal: {
+          displayName: "Jane Doe",
+          email: "jane@example.edu",
+          principalId: "user_01HQ",
+          type: "public_user",
+        },
+        session: {
+          expiresAt: "2026-03-29T07:00:00.000Z",
+          sessionId: "sess_01HQ",
+        },
+      }),
+    });
+
+    const response = await app.fetch(new Request("https://app-api.internal/api/me"));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      permissions: {
+        chat: true,
+        operator: false,
+      },
+      principal: {
+        displayName: "Jane Doe",
+        email: "jane@example.edu",
+        principalId: "user_01HQ",
+        type: "public_user",
+      },
+      session: {
+        expiresAt: "2026-03-29T07:00:00.000Z",
+        sessionId: "sess_01HQ",
+      },
+    });
+  });
+
+  it("returns a trusted operator principal without creating a user session", async () => {
+    const app = createApp(env, {
+      getPrincipal: vi.fn().mockResolvedValue({
+        permissions: {
+          chat: false,
+          operator: true,
+        },
+        principal: {
+          displayName: "Ops Team",
+          email: "ops@example.com",
+          principalId: "ops@example.com",
+          type: "operator",
+        },
+        session: null,
+      }),
+    });
+
+    const response = await app.fetch(new Request("https://app-api.internal/api/me"));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      permissions: {
+        chat: false,
+        operator: true,
+      },
+      principal: {
+        displayName: "Ops Team",
+        email: "ops@example.com",
+        principalId: "ops@example.com",
+        type: "operator",
+      },
+      session: null,
+    });
+  });
+});
