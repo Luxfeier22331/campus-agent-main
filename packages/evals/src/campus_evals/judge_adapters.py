@@ -80,7 +80,7 @@ class HandbookRagasAdapter:
                     response=response,
                     rationale=f"ragas runtime error: {exc}",
                     score=None,
-                    metadata={"judge_error": type(exc).__name__},
+                    metadata=_runtime_failure_metadata(exc),
                 )
                 for metric_name in self._metric_names
             )
@@ -184,7 +184,7 @@ class RubricJudgeAdapter:
                     response=response,
                     rationale=f"judge runtime error: {exc}",
                     score=None,
-                    metadata={"judge_error": type(exc).__name__},
+                    metadata=_runtime_failure_metadata(exc),
                 ),
             )
         return (
@@ -487,6 +487,19 @@ def _build_failed_result(
             **dict(metadata or {}),
         },
     )
+
+
+def _runtime_failure_metadata(exc: Exception) -> dict[str, object]:
+    metadata: dict[str, object] = {
+        "judge_error": type(exc).__name__,
+    }
+    reasons = tuple(str(item) for item in getattr(exc, "reasons", ()) if str(item))
+    if reasons:
+        metadata["failure_reasons"] = list(reasons)
+    disposition = getattr(exc, "disposition", None)
+    if isinstance(disposition, str) and disposition.strip():
+        metadata["failure_disposition"] = disposition
+    return metadata
 
 
 def _build_ragas_projection(case: GoldenCase, execution: ExecutionResult):

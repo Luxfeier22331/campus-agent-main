@@ -755,10 +755,25 @@ def _request_json_sync(
         except Exception as exc:
             if isinstance(exc, SupplementalFastFailError):
                 raise
-            retryable = _is_retryable_exception(exc)
-            reasons = classify_retryable_runtime_failure(str(exc), error_type=type(exc).__name__) or ("provider_error",)
-            if circuit_breaker is not None:
-                circuit_breaker.record_failure(reasons=reasons)
+            classification = classify_runtime_failure(str(exc), error_type=type(exc).__name__)
+            reasons = classification.reasons or ("provider_error",)
+            if classification.disposition == "hard_unavailable":
+                if circuit_breaker is not None:
+                    circuit_breaker.trip(reasons=reasons, disposition=classification.disposition)
+                raise SupplementalProviderUnavailableError(
+                    str(exc),
+                    reasons=reasons,
+                    disposition=classification.disposition,
+                ) from exc
+            if classification.disposition == "non_retryable_request":
+                raise SupplementalNonRetryableRequestError(
+                    str(exc),
+                    reasons=reasons,
+                    disposition=classification.disposition,
+                ) from exc
+            retryable = classification.disposition == "transient_retryable"
+            if circuit_breaker is not None and retryable:
+                circuit_breaker.record_failure(reasons=reasons, disposition=classification.disposition)
             if attempt >= total_attempts or not retryable:
                 raise
             time.sleep(_retry_delay_seconds(attempt, http_settings.retry_backoff_seconds))
@@ -791,10 +806,25 @@ async def _request_json_async(
         except Exception as exc:
             if isinstance(exc, SupplementalFastFailError):
                 raise
-            retryable = _is_retryable_exception(exc)
-            reasons = classify_retryable_runtime_failure(str(exc), error_type=type(exc).__name__) or ("provider_error",)
-            if circuit_breaker is not None:
-                circuit_breaker.record_failure(reasons=reasons)
+            classification = classify_runtime_failure(str(exc), error_type=type(exc).__name__)
+            reasons = classification.reasons or ("provider_error",)
+            if classification.disposition == "hard_unavailable":
+                if circuit_breaker is not None:
+                    circuit_breaker.trip(reasons=reasons, disposition=classification.disposition)
+                raise SupplementalProviderUnavailableError(
+                    str(exc),
+                    reasons=reasons,
+                    disposition=classification.disposition,
+                ) from exc
+            if classification.disposition == "non_retryable_request":
+                raise SupplementalNonRetryableRequestError(
+                    str(exc),
+                    reasons=reasons,
+                    disposition=classification.disposition,
+                ) from exc
+            retryable = classification.disposition == "transient_retryable"
+            if circuit_breaker is not None and retryable:
+                circuit_breaker.record_failure(reasons=reasons, disposition=classification.disposition)
             if attempt >= total_attempts or not retryable:
                 raise
             await asyncio.sleep(_retry_delay_seconds(attempt, http_settings.retry_backoff_seconds))
@@ -841,19 +871,11 @@ def _extract_embeddings(payload: dict[str, t.Any]) -> list[list[float]]:
     return [embedding for _, embedding in sorted(items, key=lambda pair: pair[0])]
 
 
-def _is_retryable_exception(exc: Exception) -> bool:
-    return is_retryable_provider_exception(exc)
-
-
 def is_retryable_provider_exception(exc: Exception) -> bool:
     if isinstance(exc, SupplementalFastFailError):
         return False
-    if isinstance(exc, (httpx.TimeoutException, httpx.TransportError)):
-        return True
-    if isinstance(exc, RuntimeError):
-        reasons = classify_retryable_runtime_failure(str(exc), error_type=type(exc).__name__)
-        return any(reason not in {"circuit_open", "preflight_failed"} for reason in reasons)
-    return False
+    classification = classify_runtime_failure(str(exc), error_type=type(exc).__name__)
+    return classification.disposition == "transient_retryable"
 
 
 def _retry_delay_seconds(attempt: int, backoff_seconds: float) -> float:
@@ -872,26 +894,80 @@ def classify_retryable_runtime_failure(
     *,
     error_type: str | None = None,
 ) -> tuple[str, ...]:
+    classification = classify_runtime_failure(message, error_type=error_type)
+    if classification.disposition not in {"transient_retryable", "hard_unavailable"}:
+        return ()
+    return classification.reasons
+
+
+def classify_runtime_failure(
+    message: str,
+    *,
+    error_type: str | None = None,
+) -> RuntimeFailureClassification:
     normalized_message = message.lower()
     normalized_error_type = (error_type or "").strip().lower()
     combined = " ".join(part for part in (normalized_error_type, normalized_message) if part)
     reasons: list[str] = []
     status_code = _leading_status_code(message)
-    if status_code in {408, 409, 429}:
+    if status_code in {400, 401, 403, 404, 408, 409, 422, 429}:
         reasons.append(f"http_{status_code}")
     elif status_code is not None and 500 <= status_code <= 599:
         reasons.append("http_5xx")
+    hard_unavailable = False
+    if status_code in {401, 403}:
+        hard_unavailable = True
+        reasons.append("auth_unavailable")
+    non_retryable = status_code in {400, 404, 422}
     if any(marker in combined for marker in _TIMEOUT_ERROR_MARKERS):
         reasons.append("timeout")
     if any(marker in combined for marker in _TRANSPORT_ERROR_MARKERS):
         reasons.append("transport")
     if any(marker in combined for marker in _RETRYABLE_PROVIDER_ERROR_MARKERS):
         reasons.append("provider_runtime")
+    for reason, markers in _HARD_UNAVAILABLE_REASON_MARKERS.items():
+        if any(marker in combined for marker in markers):
+            reasons.append(reason)
+            hard_unavailable = True
+    for reason, markers in _NON_RETRYABLE_REASON_MARKERS.items():
+        if any(marker in combined for marker in markers):
+            reasons.append(reason)
+            non_retryable = True
     if "circuit_open" in combined:
         reasons.append("circuit_open")
+        return RuntimeFailureClassification(
+            disposition="fast_fail_internal",
+            reasons=tuple(dict.fromkeys(reasons)),
+        )
     if "preflight_failed" in combined:
         reasons.append("preflight_failed")
-    return tuple(dict.fromkeys(reasons))
+        if hard_unavailable:
+            disposition = "hard_unavailable"
+        elif non_retryable:
+            disposition = "non_retryable_request"
+        elif any(reason in reasons for reason in ("timeout", "transport", "provider_runtime", "http_408", "http_409", "http_429", "http_5xx")):
+            disposition = "transient_retryable"
+        else:
+            disposition = "fast_fail_internal"
+        return RuntimeFailureClassification(
+            disposition=disposition,
+            reasons=tuple(dict.fromkeys(reasons)),
+        )
+    if hard_unavailable:
+        disposition = "hard_unavailable"
+    elif non_retryable:
+        disposition = "non_retryable_request"
+    elif any(
+        reason in reasons
+        for reason in ("timeout", "transport", "provider_runtime", "http_408", "http_409", "http_429", "http_5xx")
+    ):
+        disposition = "transient_retryable"
+    else:
+        disposition = "unknown"
+    return RuntimeFailureClassification(
+        disposition=disposition,
+        reasons=tuple(dict.fromkeys(reasons)),
+    )
 
 
 def get_request_pacer(

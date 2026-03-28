@@ -19,7 +19,7 @@ from campus_evals.models import (
     SupplementalResult,
     SummaryCount,
 )
-from campus_evals.supplemental_http import classify_retryable_runtime_failure
+from campus_evals.supplemental_http import classify_retryable_runtime_failure, classify_runtime_failure
 from campus_evals.runner import SupplementalAdapter, run_cases, summarize_case_results
 
 
@@ -44,6 +44,11 @@ def run_handbook_formal_benchmark(
     supplemental_preflight = _run_supplemental_preflight(supplemental_adapters)
     supplemental_preflight_path = resolved_output_dir / "supplemental-preflight.json"
     _write_json(supplemental_preflight_path, supplemental_preflight)
+    _raise_for_blocking_preflight_entries(supplemental_preflight)
+    runnable_supplemental_adapters = _select_runnable_supplemental_adapters(
+        supplemental_adapters=supplemental_adapters,
+        supplemental_preflight=supplemental_preflight,
+    )
 
     _write_json(
         resolved_output_dir / "benchmark-config.json",
@@ -64,7 +69,7 @@ def run_handbook_formal_benchmark(
         report = run_cases(
             cases,
             executor=executor,
-            supplemental_adapters=supplemental_adapters,
+            supplemental_adapters=runnable_supplemental_adapters,
         )
         run_reports.append(report)
         _write_run_artifacts(
@@ -154,6 +159,12 @@ def repair_handbook_formal_benchmark(
     supplemental_preflight = _run_supplemental_preflight(supplemental_adapters)
     supplemental_preflight_path = resolved_output_dir / "supplemental-preflight.json"
     _write_json(supplemental_preflight_path, supplemental_preflight)
+    _raise_for_blocking_preflight_entries(supplemental_preflight)
+    runnable_supplemental_adapters = _select_runnable_supplemental_adapters(
+        supplemental_adapters=supplemental_adapters,
+        supplemental_preflight=supplemental_preflight,
+    )
+    skipped_metric_details = _skipped_supplemental_metric_details(supplemental_preflight)
 
     _write_json(
         resolved_output_dir / "repair-config.json",
@@ -198,9 +209,29 @@ def repair_handbook_formal_benchmark(
                     for metric_key in target["metric_keys"]
                 }
             )
+            skipped_metric_keys = sorted(
+                metric_key
+                for metric_key in targeted_metric_keys
+                if metric_key in skipped_metric_details
+            )
+            if skipped_metric_keys and set(skipped_metric_keys) == set(targeted_metric_keys):
+                repair_entries.append(
+                    {
+                        "case_id": case_id,
+                        "targets": case_targets,
+                        "status": "skipped_provider_unavailable",
+                        "skipped_metric_keys": skipped_metric_keys,
+                        "preflight_failures": [
+                            skipped_metric_details[metric_key]
+                            for metric_key in skipped_metric_keys
+                        ],
+                    }
+                )
+                continue
+            runnable_metric_keys = sorted(set(targeted_metric_keys) - set(skipped_metric_keys))
             selected_adapters = _select_repair_adapters(
-                supplemental_adapters=supplemental_adapters,
-                metric_keys=tuple(targeted_metric_keys),
+                supplemental_adapters=runnable_supplemental_adapters,
+                metric_keys=tuple(runnable_metric_keys),
             )
             rerun_report = run_cases(
                 (case,),
@@ -211,9 +242,9 @@ def repair_handbook_formal_benchmark(
             replacement_by_metric_key = {
                 _supplemental_metric_key(item): item
                 for item in rerun_case_result.supplemental_results
-                if _supplemental_metric_key(item) in targeted_metric_keys
+                if _supplemental_metric_key(item) in runnable_metric_keys
             }
-            missing_metric_keys = sorted(set(targeted_metric_keys) - set(replacement_by_metric_key))
+            missing_metric_keys = sorted(set(runnable_metric_keys) - set(replacement_by_metric_key))
             if missing_metric_keys:
                 raise ValueError(
                     f"repair rerun did not return supplemental results for metric keys: {missing_metric_keys}"
@@ -230,6 +261,7 @@ def repair_handbook_formal_benchmark(
                     "case_id": case_id,
                     "targets": case_targets,
                     "replacements": replacements,
+                    "status": "repaired",
                 }
             )
             applied_target_count += len(case_targets)
@@ -335,7 +367,11 @@ def _write_benchmark_summary(
     supplemental_preflight: dict[str, object] | None = None,
 ) -> dict[str, object]:
     case_index = {case.case_id: case for case in cases}
-    supplemental_summary = _summarize_supplemental_across_runs(run_reports=run_reports, case_index=case_index)
+    supplemental_summary = _summarize_supplemental_across_runs(
+        run_reports=run_reports,
+        case_index=case_index,
+        supplemental_preflight=supplemental_preflight,
+    )
     supplemental_runtime = _summarize_supplemental_runtime_health(supplemental_summary)
     gate_report = evaluate_judge_gate(policy, supplemental_summary)
     gate_report = {
@@ -574,10 +610,17 @@ def _repairable_failure_reasons(payload: dict[str, object]) -> tuple[str, ...]:
     if payload.get("verdict") != "failed" or payload.get("score") is not None:
         return ()
     metadata = dict(payload.get("metadata") or {})
-    return classify_retryable_runtime_failure(
+    metadata_reasons = tuple(str(reason) for reason in metadata.get("failure_reasons") or ())
+    metadata_disposition = str(metadata.get("failure_disposition") or "")
+    if metadata_disposition == "transient_retryable":
+        return metadata_reasons
+    classification = classify_runtime_failure(
         str(payload.get("rationale") or ""),
         error_type=str(metadata.get("judge_error") or ""),
     )
+    if classification.disposition != "transient_retryable":
+        return ()
+    return classification.reasons
 
 
 def _group_repair_targets_by_run_case(
@@ -681,6 +724,7 @@ def _summarize_supplemental_across_runs(
     *,
     run_reports: list[RunReport],
     case_index: dict[str, GoldenCase],
+    supplemental_preflight: dict[str, object] | None = None,
 ) -> dict[str, dict[str, object]]:
     per_metric_items: dict[str, list[tuple[GoldenCase, SupplementalResult]]] = defaultdict(list)
     per_metric_run_averages: dict[str, list[float]] = defaultdict(list)
@@ -718,18 +762,42 @@ def _summarize_supplemental_across_runs(
             "by_expected_status": by_expected_status,
             "overall": _summarize_supplemental_bucket([supplemental for _, supplemental in items]),
         }
+    if supplemental_preflight is not None:
+        for metric_key, metric_payload in _build_preflight_unavailable_metric_aggregates(
+            run_reports=run_reports,
+            supplemental_preflight=supplemental_preflight,
+        ).items():
+            aggregate.setdefault(metric_key, metric_payload)
     return aggregate
 
 
 def _summarize_supplemental_bucket(items: list[SupplementalResult]) -> dict[str, object]:
     scored_items = [item.score for item in items if item.score is not None]
-    runtime_failure_reason_lists = [
-        _supplemental_runtime_failure_reasons(item)
+    runtime_failures = [
+        _supplemental_runtime_failure(item)
         for item in items
         if item.verdict == "failed" and item.score is None
     ]
-    retryable_runtime_failure_count = sum(1 for reasons in runtime_failure_reason_lists if reasons)
-    non_retryable_runtime_failure_count = sum(1 for reasons in runtime_failure_reason_lists if not reasons)
+    transient_runtime_failure_count = sum(
+        1
+        for failure in runtime_failures
+        if failure["disposition"] == "transient_retryable"
+    )
+    hard_unavailable_failure_count = sum(
+        1
+        for failure in runtime_failures
+        if failure["disposition"] == "hard_unavailable"
+    )
+    non_retryable_runtime_failure_count = sum(
+        1
+        for failure in runtime_failures
+        if failure["disposition"] == "non_retryable_request"
+    )
+    failure_disposition_counts = Counter(
+        failure["disposition"]
+        for failure in runtime_failures
+        if failure["disposition"]
+    )
     verdict_counts = Counter(
         item.verdict
         for item in items
@@ -738,7 +806,8 @@ def _summarize_supplemental_bucket(items: list[SupplementalResult]) -> dict[str,
     runtime_status = _resolve_supplemental_runtime_status(
         score_count=len(scored_items),
         verdict_counts=verdict_counts,
-        retryable_runtime_failure_count=retryable_runtime_failure_count,
+        transient_runtime_failure_count=transient_runtime_failure_count,
+        hard_unavailable_failure_count=hard_unavailable_failure_count,
         non_retryable_runtime_failure_count=non_retryable_runtime_failure_count,
     )
     return {
@@ -747,32 +816,50 @@ def _summarize_supplemental_bucket(items: list[SupplementalResult]) -> dict[str,
         "average_score": fmean(scored_items) if scored_items else None,
         "verdict_counts": dict(verdict_counts),
         "runtime_status": runtime_status,
-        "retryable_runtime_failure_count": retryable_runtime_failure_count,
+        "transient_runtime_failure_count": transient_runtime_failure_count,
+        "hard_unavailable_failure_count": hard_unavailable_failure_count,
         "non_retryable_runtime_failure_count": non_retryable_runtime_failure_count,
+        "failure_disposition_counts": dict(failure_disposition_counts),
+        "preflight_failure_count": 0,
+        "preflight_failure_reasons": [],
+        "skip_reason": "",
         "runtime_failure_reasons": sorted(
             {
                 reason
-                for reasons in runtime_failure_reason_lists
-                for reason in reasons
+                for failure in runtime_failures
+                for reason in failure["reasons"]
             }
         ),
     }
 
 
-def _supplemental_runtime_failure_reasons(item: SupplementalResult) -> tuple[str, ...]:
+def _supplemental_runtime_failure(item: SupplementalResult) -> dict[str, object]:
     if item.verdict != "failed" or item.score is not None:
-        return ()
-    return classify_retryable_runtime_failure(
+        return {"reasons": (), "disposition": None}
+    metadata = dict(item.metadata or {})
+    metadata_reasons = tuple(str(reason) for reason in metadata.get("failure_reasons") or ())
+    metadata_disposition = metadata.get("failure_disposition")
+    if metadata_reasons or metadata_disposition:
+        return {
+            "reasons": metadata_reasons,
+            "disposition": str(metadata_disposition) if metadata_disposition is not None else None,
+        }
+    classification = classify_runtime_failure(
         item.rationale,
-        error_type=str(item.metadata.get("judge_error") or ""),
+        error_type=str(metadata.get("judge_error") or ""),
     )
+    return {
+        "reasons": classification.reasons,
+        "disposition": classification.disposition,
+    }
 
 
 def _resolve_supplemental_runtime_status(
     *,
     score_count: int,
     verdict_counts: Counter[str],
-    retryable_runtime_failure_count: int,
+    transient_runtime_failure_count: int,
+    hard_unavailable_failure_count: int,
     non_retryable_runtime_failure_count: int,
 ) -> str:
     if score_count > 0:
@@ -780,7 +867,8 @@ def _resolve_supplemental_runtime_status(
     failed_count = int(verdict_counts.get("failed", 0))
     if failed_count == 0:
         return "not_applicable_only"
-    if retryable_runtime_failure_count == failed_count and non_retryable_runtime_failure_count == 0:
+    runtime_unavailable_failure_count = transient_runtime_failure_count + hard_unavailable_failure_count
+    if runtime_unavailable_failure_count == failed_count and non_retryable_runtime_failure_count == 0:
         return "unavailable"
     return "degraded"
 
@@ -898,19 +986,21 @@ def _run_supplemental_preflight(
         try:
             result = preflight_fn()
         except Exception as exc:
+            classification = _classify_preflight_failure(exc)
+            failure_reasons = list(
+                getattr(exc, "reasons", ())
+                or classification.reasons
+            )
+            failure_disposition = getattr(exc, "disposition", None) or classification.disposition
             entries.append(
                 {
                     **entry,
                     "status": "failed",
                     "error_type": type(exc).__name__,
                     "error": str(exc),
-                    "failure_reasons": list(
-                        getattr(exc, "reasons", ())
-                        or classify_retryable_runtime_failure(
-                            str(exc),
-                            error_type=type(exc).__name__,
-                        )
-                    ),
+                    "failure_reasons": failure_reasons,
+                    "failure_disposition": failure_disposition,
+                    "run_action": _run_action_for_preflight_failure(failure_disposition),
                 }
             )
             continue
@@ -919,6 +1009,7 @@ def _run_supplemental_preflight(
                 **entry,
                 "status": "passed",
                 "result": _serialize_preflight_result(result),
+                "run_action": "use_adapter",
             }
         )
     return {
@@ -931,9 +1022,17 @@ def _run_supplemental_preflight(
 
 def _summarize_preflight_entries(entries: list[dict[str, object]]) -> dict[str, object]:
     status_counts = Counter(str(entry.get("status") or "unknown") for entry in entries)
+    run_action_counts = Counter(str(entry.get("run_action") or "unknown") for entry in entries)
+    failure_disposition_counts = Counter(
+        str(entry.get("failure_disposition") or "unknown")
+        for entry in entries
+        if entry.get("status") == "failed"
+    )
     return {
         "total": len(entries),
         "status_counts": dict(status_counts),
+        "run_action_counts": dict(run_action_counts),
+        "failure_disposition_counts": dict(failure_disposition_counts),
     }
 
 
@@ -949,3 +1048,101 @@ def _serialize_preflight_result(result: object) -> object:
     if isinstance(result, (str, int, float, bool)):
         return result
     return str(result)
+
+
+def _classify_preflight_failure(exc: Exception) -> object:
+    return classify_runtime_failure(
+        str(exc),
+        error_type=type(exc).__name__,
+    )
+
+
+def _run_action_for_preflight_failure(failure_disposition: str | None) -> str:
+    if failure_disposition in {"transient_retryable", "hard_unavailable"}:
+        return "skip_adapter"
+    return "abort_benchmark"
+
+
+def _raise_for_blocking_preflight_entries(supplemental_preflight: dict[str, object]) -> None:
+    blocking_entries = [
+        entry
+        for entry in supplemental_preflight.get("adapters", [])
+        if entry.get("run_action") == "abort_benchmark"
+    ]
+    if not blocking_entries:
+        return
+    formatted_entries = ", ".join(
+        f"{entry.get('adapter_id')}[{','.join(entry.get('metric_keys') or ())}]={entry.get('error')}"
+        for entry in blocking_entries
+    )
+    raise RuntimeError(f"non-retryable supplemental preflight failure: {formatted_entries}")
+
+
+def _select_runnable_supplemental_adapters(
+    *,
+    supplemental_adapters: tuple[SupplementalAdapter, ...],
+    supplemental_preflight: dict[str, object],
+) -> tuple[SupplementalAdapter, ...]:
+    entries = tuple(supplemental_preflight.get("adapters") or ())
+    runnable: list[SupplementalAdapter] = []
+    for adapter, entry in zip(supplemental_adapters, entries, strict=True):
+        if str(entry.get("run_action") or "use_adapter") == "use_adapter":
+            runnable.append(adapter)
+    return tuple(runnable)
+
+
+def _skipped_supplemental_metric_details(
+    supplemental_preflight: dict[str, object],
+) -> dict[str, dict[str, object]]:
+    skipped: dict[str, dict[str, object]] = {}
+    for entry in supplemental_preflight.get("adapters", []):
+        if entry.get("run_action") != "skip_adapter":
+            continue
+        for metric_key in entry.get("metric_keys", []):
+            skipped[str(metric_key)] = {
+                "adapter_id": entry.get("adapter_id"),
+                "metric_key": metric_key,
+                "failure_reasons": list(entry.get("failure_reasons") or []),
+                "failure_disposition": entry.get("failure_disposition"),
+            }
+    return skipped
+
+
+def _build_preflight_unavailable_metric_aggregates(
+    *,
+    run_reports: list[RunReport],
+    supplemental_preflight: dict[str, object],
+) -> dict[str, dict[str, object]]:
+    skipped_metrics = _skipped_supplemental_metric_details(supplemental_preflight)
+    aggregates: dict[str, dict[str, object]] = {}
+    for metric_key, details in skipped_metrics.items():
+        failure_disposition = str(details.get("failure_disposition") or "unknown")
+        failure_reasons = list(details.get("failure_reasons") or [])
+        failure_disposition_counts = {failure_disposition: 1} if failure_disposition else {}
+        aggregates[metric_key] = {
+            "metric_key": metric_key,
+            "run_count": len(run_reports),
+            "applicable_runs": 0,
+            "run_average_scores": [],
+            "mean_average_score": None,
+            "min_run_average_score": None,
+            "max_run_average_score": None,
+            "run_average_drift": None,
+            "by_expected_status": {},
+            "overall": {
+                "total": 0,
+                "score_count": 0,
+                "average_score": None,
+                "verdict_counts": {},
+                "runtime_status": "unavailable",
+                "transient_runtime_failure_count": 1 if failure_disposition == "transient_retryable" else 0,
+                "hard_unavailable_failure_count": 1 if failure_disposition == "hard_unavailable" else 0,
+                "non_retryable_runtime_failure_count": 0,
+                "failure_disposition_counts": failure_disposition_counts,
+                "preflight_failure_count": 1,
+                "preflight_failure_reasons": failure_reasons,
+                "skip_reason": "preflight_unavailable",
+                "runtime_failure_reasons": failure_reasons,
+            },
+        }
+    return aggregates
