@@ -17,23 +17,10 @@ from campus_retrieval_core.evidence_ranking import query_targets_source_title, s
 
 from campus_rag_specialist.agent import DEFAULT_MAX_ANSWER_SOURCES, RagSpecialistAgent
 from campus_rag_specialist.confidence import derive_confidence
+from campus_rag_specialist.intent import build_personalization_hint, frame_rag_intent
 
 
 Retriever = Callable[..., object]
-_REFERENTIAL_PATTERNS = (
-    "这个规定",
-    "这个办法",
-    "这个流程",
-    "这个政策",
-    "这个",
-    "那个",
-    "this rule",
-    "that rule",
-    "this policy",
-    "that policy",
-    "this process",
-    "that process",
-)
 _GENERIC_AMBIGUOUS_TOPICS = ("奖学金", "scholarship", "学位", "degree", "规定", "办法", "policy", "流程", "procedure")
 _GENERIC_TOPIC_QUALIFIERS = {
     "奖学金": ("国家", "励志", "专业", "专项", "社会", "助学金"),
@@ -55,13 +42,19 @@ def delegate_to_rag_agent(
         raise TypeError("rag-specialist requires RagRequestPayload")
 
     user_goal = request.user_goal.strip()
-    if _should_clarify_without_retrieval(user_goal):
+    intent_frame = frame_rag_intent(request)
+    personalization_hint = build_personalization_hint(request)
+    if intent_frame.response_mode == "clarify":
         empty_evidence = _build_empty_evidence(request, user_goal)
         return SpecialistResponse(
             target="rag-specialist",
             status="needs_clarification",
             confidence="low",
-            follow_up_question=_build_clarification_question(user_goal, empty_evidence),
+            follow_up_question=_build_clarification_question(
+                user_goal,
+                empty_evidence,
+                recent_goal=personalization_hint.recent_goal,
+            ),
             result=RagResultPayload(evidence=empty_evidence),
         )
 
@@ -72,6 +65,7 @@ def delegate_to_rag_agent(
             collection=request.payload.scope.collection,
             campus_scope=request.actor.campus_scope,
             acl_groups=request.actor.groups,
+            personalization_hint=personalization_hint,
         )
         evidence = _with_query_text(evidence, user_goal)
     except CorpusQueryDisabledError as exc:
@@ -102,7 +96,11 @@ def delegate_to_rag_agent(
             target="rag-specialist",
             status="needs_clarification",
             confidence="low",
-            follow_up_question=_build_clarification_question(user_goal, evidence),
+            follow_up_question=_build_clarification_question(
+                user_goal,
+                evidence,
+                recent_goal=personalization_hint.recent_goal,
+            ),
             result=RagResultPayload(evidence=evidence),
         )
 
@@ -164,13 +162,6 @@ def _with_query_text(evidence: EvidenceBundle, query_text: str) -> EvidenceBundl
     )
 
 
-def _should_clarify_without_retrieval(user_goal: str) -> bool:
-    normalized_goal = _normalize_text(user_goal).lower()
-    if any(pattern in normalized_goal for pattern in _REFERENTIAL_PATTERNS):
-        return True
-    return _is_target_missing_query(normalized_goal)
-
-
 def _should_clarify_with_evidence(user_goal: str, evidence: EvidenceBundle) -> bool:
     if len(evidence.sources) < 2:
         return False
@@ -197,7 +188,14 @@ def _should_clarify_with_evidence(user_goal: str, evidence: EvidenceBundle) -> b
     return abs(first_source.score - second_source.score) <= 0.12
 
 
-def _build_clarification_question(user_goal: str, evidence: EvidenceBundle) -> str:
+def _build_clarification_question(
+    user_goal: str,
+    evidence: EvidenceBundle,
+    *,
+    recent_goal: str = "",
+) -> str:
+    if recent_goal:
+        return f"按当前记录理解，你最近在咨询{recent_goal}相关事项；请再具体说明你想确认的政策对象。"
     if evidence.sources:
         labels: list[str] = []
         for source in evidence.sources:
@@ -225,10 +223,3 @@ def _source_label(source: EvidenceSource) -> str:
 
 def _normalize_text(text: str) -> str:
     return _WHITESPACE_RE.sub(" ", text).strip()
-
-
-def _is_target_missing_query(normalized_goal: str) -> bool:
-    for topic, qualifiers in _GENERIC_TOPIC_QUALIFIERS.items():
-        if topic in normalized_goal and not any(qualifier in normalized_goal for qualifier in qualifiers):
-            return True
-    return False

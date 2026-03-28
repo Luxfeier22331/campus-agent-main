@@ -4,17 +4,24 @@ import unittest
 
 from campus_contracts import (
     ActorContext,
+    ContextProjection,
     ErrorInfo,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
+    PersonalizationHint,
+    ProfileMemoryItem,
+    ProfileMemorySummary,
     RagRequestPayload,
     RagResultPayload,
+    SessionSlot,
+    SessionSummary,
     SpecialistRequest,
     SpecialistResponse,
 )
 from campus_retrieval_core import CorpusQueryDisabledError, RetrievalBackendError
 from campus_rag_specialist.confidence import derive_confidence
+from campus_rag_specialist.intent import frame_rag_intent
 from campus_rag_specialist.service import delegate_to_rag_agent
 
 
@@ -56,6 +63,48 @@ def _make_evidence(
 
 
 class RagSpecialistTest(unittest.TestCase):
+    def test_frame_rag_intent_marks_user_grounded_personalization_when_context_exists(self) -> None:
+        request = SpecialistRequest(
+            target="rag-specialist",
+            user_goal="保研申请流程是什么？",
+            context=ContextProjection(
+                actor=ActorContext(
+                    user_id="student-001",
+                    principal_id="principal-001",
+                    campus_scope="north",
+                    cohort="2023",
+                    major="philosophy",
+                ),
+                profile_memory=ProfileMemorySummary(
+                    items=(
+                        ProfileMemoryItem(
+                            item_id="memory-001",
+                            key="recent_goal",
+                            value="咨询保研",
+                            source_type="user_declared",
+                            confidence="high",
+                            visibility="user_visible",
+                            last_verified_at="2026-03-28",
+                        ),
+                    ),
+                ),
+                session=SessionSummary(
+                    confirmed_slots=(SessionSlot(name="policy_topic", value="推免资格", confirmed=True),),
+                    turn_count=3,
+                ),
+            ),
+            payload=RagRequestPayload(
+                scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+            ),
+        )
+
+        frame = frame_rag_intent(request)
+
+        self.assertEqual(frame.question_kind, "procedure")
+        self.assertEqual(frame.personalization_mode, "user_grounded")
+        self.assertEqual(frame.response_mode, "retrieve_then_answer")
+        self.assertEqual(frame.retrieval_plan, "personalized_rewrite")
+
     def test_blank_user_goal_is_rejected_by_request_contract(self) -> None:
         with self.assertRaisesRegex(ValueError, "user_goal"):
             SpecialistRequest(
@@ -227,6 +276,92 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertIn("奖学金", response.follow_up_question)
         self.assertFalse(retriever_called)
 
+    def test_contextual_clarification_mentions_recent_goal_when_available(self) -> None:
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="这个申请条件是什么？",
+                context=ContextProjection(
+                    actor=ActorContext(user_id="student-001", principal_id="principal-001"),
+                    profile_memory=ProfileMemorySummary(
+                        items=(
+                            ProfileMemoryItem(
+                                item_id="memory-001",
+                                key="recent_goal",
+                                value="咨询保研",
+                                source_type="user_declared",
+                                confidence="high",
+                                visibility="user_visible",
+                                last_verified_at="2026-03-28",
+                            ),
+                        ),
+                    ),
+                ),
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: _make_evidence(),
+        )
+
+        self.assertEqual(response.status, "needs_clarification")
+        self.assertIn("保研", response.follow_up_question)
+
+    def test_completed_response_passes_typed_personalization_hint_to_retriever(self) -> None:
+        captured_kwargs: dict[str, object] = {}
+
+        def fake_retriever(query: str, **kwargs: object) -> EvidenceBundle:
+            captured_kwargs["query"] = query
+            captured_kwargs.update(kwargs)
+            return _make_evidence(scores=(0.82,), query_text=query)
+
+        request = SpecialistRequest(
+            target="rag-specialist",
+            user_goal="保研流程是什么？",
+            context=ContextProjection(
+                actor=ActorContext(
+                    user_id="student-001",
+                    principal_id="principal-001",
+                    groups=("students",),
+                    campus_scope="north",
+                    cohort="2023",
+                    major="philosophy",
+                ),
+                profile_memory=ProfileMemorySummary(
+                    items=(
+                        ProfileMemoryItem(
+                            item_id="memory-001",
+                            key="recent_goal",
+                            value="咨询保研",
+                            source_type="user_declared",
+                            confidence="high",
+                            visibility="user_visible",
+                            last_verified_at="2026-03-28",
+                        ),
+                    ),
+                ),
+                session=SessionSummary(
+                    confirmed_slots=(SessionSlot(name="policy_topic", value="推免资格", confirmed=True),),
+                    turn_count=2,
+                ),
+            ),
+            payload=RagRequestPayload(
+                scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+            ),
+        )
+
+        response = delegate_to_rag_agent(request, retriever=fake_retriever)
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(
+            captured_kwargs["personalization_hint"],
+            PersonalizationHint(
+                actor_claim_terms=("north campus", "2023 cohort", "philosophy major"),
+                recent_goal="咨询保研",
+                confirmed_slot_terms=("推免资格",),
+            ),
+        )
+
     def test_ambiguous_multi_policy_evidence_maps_to_needs_clarification(self) -> None:
         evidence = _make_evidence(
             scores=(0.68, 0.66),
@@ -306,6 +441,14 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(captured_kwargs["collection"], "student_handbook")
         self.assertEqual(captured_kwargs["acl_groups"], ("students",))
         self.assertEqual(captured_kwargs["campus_scope"], "north")
+        self.assertEqual(
+            captured_kwargs["personalization_hint"],
+            PersonalizationHint(
+                actor_claim_terms=("north campus",),
+                recent_goal="",
+                confirmed_slot_terms=(),
+            ),
+        )
         self.assertTrue(response.answer_text)
         self.assertIn("根据学生手册相关规定", response.answer_text)
         self.assertIn("Evidence snippet 1", response.answer_text)

@@ -5,7 +5,7 @@ import unittest
 import uuid
 from unittest.mock import Mock, patch
 
-from campus_contracts import EvidenceBundle, EvidenceSource
+from campus_contracts import EvidenceBundle, EvidenceSource, PersonalizationHint
 from campus_ingestion_core.chunking import ChunkProfile
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.embed import MockEmbeddingSettings, build_mock_embedding_model
@@ -188,6 +188,32 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertEqual(acl_filter.filters[1].key, "acl_groups")
         self.assertEqual(acl_filter.filters[1].operator.value, "in")
         self.assertEqual(acl_filter.filters[1].value, ["students"])
+
+    def test_build_metadata_filters_ignore_personalization_hint_for_acl_and_serving_scope(self) -> None:
+        filters = _build_metadata_filters(
+            RetrievalRequest(
+                query_text="保研流程",
+                corpus="regulations",
+                collection="student_handbook",
+                acl_groups=("students",),
+                personalization_hint=PersonalizationHint(
+                    actor_claim_terms=("2023 cohort", "philosophy major"),
+                    recent_goal="咨询保研",
+                    confirmed_slot_terms=("推免资格",),
+                ),
+            )
+        )
+
+        self.assertEqual(filters.condition.value, "and")
+        self.assertEqual(len(filters.filters), 5)
+        self.assertEqual(filters.filters[0].key, "corpus")
+        self.assertEqual(filters.filters[1].key, "collection")
+        self.assertEqual(filters.filters[2].key, "revision_track")
+        self.assertEqual(filters.filters[3].key, "status")
+        acl_filter = filters.filters[4]
+        self.assertEqual(acl_filter.condition.value, "or")
+        self.assertEqual(acl_filter.filters[0].key, "acl_level")
+        self.assertEqual(acl_filter.filters[1].key, "acl_groups")
 
     def test_index_chunks_to_qdrant_skips_payload_indexes_for_local_backend(self) -> None:
         record = _make_registry_record(

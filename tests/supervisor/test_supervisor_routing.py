@@ -12,7 +12,6 @@ from campus_supervisor_core.context import SupervisorRequestContext
 from campus_supervisor_core.errors import (
     DisallowedKnowledgeScopeError,
     InvalidSupervisorRequestError,
-    MissingRoutingInputError,
 )
 from campus_supervisor_core.routing import route_request
 
@@ -36,6 +35,8 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertEqual(decision.target, "rag-specialist")
         self.assertEqual(decision.primary_corpus, "regulations")
         self.assertEqual(decision.primary_collection, "student_handbook")
+        self.assertEqual(decision.intent_frame.capability, "knowledge")
+        self.assertEqual(decision.intent_frame.suggested_next_action, "delegate")
 
     def test_route_request_selects_rag_specialist_for_curriculum_plan(self) -> None:
         request = SupervisorRequest(
@@ -51,6 +52,7 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertEqual(decision.target, "rag-specialist")
         self.assertEqual(decision.primary_corpus, "curriculum")
         self.assertEqual(decision.primary_collection, "curriculum_plan")
+        self.assertEqual(decision.intent_frame.task_kind, "knowledge_lookup")
 
     def test_route_request_rejects_query_disabled_scope(self) -> None:
         request = SupervisorRequest(
@@ -83,6 +85,8 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertEqual(decision.target, "availability-specialist")
         self.assertIsNone(decision.primary_corpus)
         self.assertIsNone(decision.primary_collection)
+        self.assertEqual(decision.intent_frame.capability, "availability")
+        self.assertEqual(decision.intent_frame.suggested_next_action, "delegate")
 
     def test_route_request_keeps_availability_branch_independent_from_knowledge_scope_rules(self) -> None:
         request = SupervisorRequest(
@@ -96,17 +100,22 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertEqual(decision.target, "availability-specialist")
         self.assertIsNone(decision.primary_corpus)
         self.assertIsNone(decision.primary_collection)
+        self.assertEqual(decision.intent_frame.task_kind, "availability_check")
 
-    def test_route_request_rejects_missing_rag_scope_when_no_capability_hint_is_provided(self) -> None:
+    def test_route_request_returns_clarification_decision_when_knowledge_scope_is_missing(self) -> None:
         request = SupervisorRequest(
-            user_goal="graduation requirements",
+            user_goal="奖学金怎么申请？",
+            requested_capability="knowledge",
         )
 
-        with self.assertRaisesRegex(
-            MissingRoutingInputError,
-            "requested_scope or availability_target_id is required",
-        ):
-            route_request(SupervisorRequestContext.from_request(request))
+        decision = route_request(SupervisorRequestContext.from_request(request))
+
+        self.assertIsNone(decision.target)
+        self.assertIsNone(decision.primary_corpus)
+        self.assertIsNone(decision.primary_collection)
+        self.assertTrue(decision.intent_frame.needs_clarification)
+        self.assertEqual(decision.intent_frame.suggested_next_action, "clarify")
+        self.assertEqual(decision.intent_frame.missing_slots, ("requested_scope",))
 
     def test_route_request_rejects_conflicting_knowledge_and_availability_hints(self) -> None:
         request = SupervisorRequest(

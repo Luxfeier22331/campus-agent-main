@@ -17,6 +17,7 @@ from campus_contracts import (
     RagResultPayload,
     SpecialistRequest,
     SpecialistResponse,
+    SupervisorResponse,
     SupervisorRequest,
     TraceContext,
 )
@@ -34,10 +35,10 @@ class SupervisorApiTest(unittest.TestCase):
     def test_answer_route_maps_auth_trace_and_response_shape(self) -> None:
         captured_requests: list[SupervisorRequest] = []
 
-        def fake_supervisor(request: SupervisorRequest) -> SpecialistResponse:
+        def fake_supervisor(request: SupervisorRequest) -> SupervisorResponse:
             captured_requests.append(request)
-            return SpecialistResponse(
-                target="rag-specialist",
+            return SupervisorResponse(
+                selected_target="rag-specialist",
                 status="completed",
                 answer_text="The library is open from 08:00 to 22:00.",
                 confidence="medium",
@@ -85,7 +86,7 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertIsInstance(response, HttpResponse)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json_body["trace_id"], "trace-001")
-        self.assertEqual(response.json_body["target"], "rag-specialist")
+        self.assertEqual(response.json_body["selected_target"], "rag-specialist")
         self.assertEqual(response.json_body["status"], "completed")
         self.assertEqual(
             response.json_body["answer_text"],
@@ -112,10 +113,10 @@ class SupervisorApiTest(unittest.TestCase):
     def test_answer_route_maps_explicit_availability_hint_without_constructing_specialist_payload(self) -> None:
         captured_requests: list[SupervisorRequest] = []
 
-        def fake_supervisor(request: SupervisorRequest) -> SpecialistResponse:
+        def fake_supervisor(request: SupervisorRequest) -> SupervisorResponse:
             captured_requests.append(request)
-            return SpecialistResponse(
-                target="availability-specialist",
+            return SupervisorResponse(
+                selected_target="availability-specialist",
                 status="completed",
                 answer_text="Website is reachable.",
                 confidence="medium",
@@ -149,9 +150,9 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertIsNone(captured_requests[0].requested_scope)
 
     def test_answer_route_projects_supervisor_response_without_orchestration_logic(self) -> None:
-        def fake_supervisor(request: SupervisorRequest) -> SpecialistResponse:
-            return SpecialistResponse(
-                target="rag-specialist",
+        def fake_supervisor(request: SupervisorRequest) -> SupervisorResponse:
+            return SupervisorResponse(
+                selected_target="rag-specialist",
                 status="error",
                 confidence="low",
                 error=ErrorInfo(
@@ -184,8 +185,8 @@ class SupervisorApiTest(unittest.TestCase):
         )
 
         expected_payload = asdict(
-            SpecialistResponse(
-                target="rag-specialist",
+            SupervisorResponse(
+                selected_target="rag-specialist",
                 status="error",
                 confidence="low",
                 error=ErrorInfo(
@@ -203,10 +204,10 @@ class SupervisorApiTest(unittest.TestCase):
     def test_create_app_dispatches_normalized_headers_only_through_supervisor_handler(self) -> None:
         captured_requests: list[SupervisorRequest] = []
 
-        def fake_supervisor(request: SupervisorRequest) -> SpecialistResponse:
+        def fake_supervisor(request: SupervisorRequest) -> SupervisorResponse:
             captured_requests.append(request)
-            return SpecialistResponse(
-                target="rag-specialist",
+            return SupervisorResponse(
+                selected_target="rag-specialist",
                 status="completed",
                 answer_text="Projected from supervisor-core.",
                 confidence="high",
@@ -251,10 +252,10 @@ class SupervisorApiTest(unittest.TestCase):
     def test_bearer_mode_ignores_client_supplied_actor_headers(self) -> None:
         captured_requests: list[SupervisorRequest] = []
 
-        def fake_supervisor(request: SupervisorRequest) -> SpecialistResponse:
+        def fake_supervisor(request: SupervisorRequest) -> SupervisorResponse:
             captured_requests.append(request)
-            return SpecialistResponse(
-                target="rag-specialist",
+            return SupervisorResponse(
+                selected_target="rag-specialist",
                 status="completed",
                 answer_text="Projected from supervisor-core.",
                 confidence="high",
@@ -318,11 +319,11 @@ class SupervisorApiTest(unittest.TestCase):
                     auth_mode="bearer",
                     bearer_token="secret-token",
                     default_actor_id="runtime-bearer-user",
-                    default_actor_groups=("students",),
-                    audit_log_path=audit_path,
-                ),
-                supervisor_handler=lambda request: SpecialistResponse(
-                    target="rag-specialist",
+                default_actor_groups=("students",),
+                audit_log_path=audit_path,
+            ),
+                supervisor_handler=lambda request: SupervisorResponse(
+                    selected_target="rag-specialist",
                     status="completed",
                     answer_text="The library is open from 08:00 to 22:00.",
                     confidence="high",
@@ -457,10 +458,10 @@ class SupervisorApiTest(unittest.TestCase):
     def test_answer_route_accepts_trusted_worker_origin_auth(self) -> None:
         captured_requests: list[SupervisorRequest] = []
 
-        def fake_supervisor(request: SupervisorRequest) -> SpecialistResponse:
+        def fake_supervisor(request: SupervisorRequest) -> SupervisorResponse:
             captured_requests.append(request)
-            return SpecialistResponse(
-                target="rag-specialist",
+            return SupervisorResponse(
+                selected_target="rag-specialist",
                 status="completed",
                 answer_text="Worker path reached supervisor.",
                 confidence="high",

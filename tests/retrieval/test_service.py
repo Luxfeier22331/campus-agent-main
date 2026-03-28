@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import Mock, patch
 
-from campus_contracts import EvidenceBundle
+from campus_contracts import EvidenceBundle, PersonalizationHint
 from campus_retrieval_core.models import RetrievalRequest
 from campus_retrieval_core.service import build_retrieval_backend, retrieve_sources
 
@@ -80,6 +80,37 @@ class RetrievalServiceTest(unittest.TestCase):
         request = backend.retrieve.call_args.args[0]
         self.assertIsInstance(request, RetrievalRequest)
         self.assertEqual(request.top_k, 7)
+
+    def test_retrieve_sources_passes_personalization_hint_through_request(self) -> None:
+        backend = Mock()
+        backend.retrieve.return_value = EvidenceBundle(
+            query_text="保研流程",
+            corpus="regulations",
+            collection="student_handbook",
+        )
+
+        retrieve_sources(
+            "保研流程",
+            corpus="regulations",
+            collection="student_handbook",
+            personalization_hint=PersonalizationHint(
+                actor_claim_terms=("2023 cohort", "philosophy major"),
+                recent_goal="咨询保研",
+                confirmed_slot_terms=("推免资格",),
+            ),
+            backend=backend,
+        )
+
+        request = backend.retrieve.call_args.args[0]
+        self.assertIsInstance(request, RetrievalRequest)
+        self.assertEqual(
+            request.personalization_hint,
+            PersonalizationHint(
+                actor_claim_terms=("2023 cohort", "philosophy major"),
+                recent_goal="咨询保研",
+                confirmed_slot_terms=("推免资格",),
+            ),
+        )
 
 
 if __name__ == "__main__":

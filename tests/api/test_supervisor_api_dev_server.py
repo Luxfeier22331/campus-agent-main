@@ -5,7 +5,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from campus_contracts import SpecialistResponse, SupervisorRequest
+from campus_contracts import SupervisorRequest, SupervisorResponse
 
 from campus_supervisor_api.app import create_app
 from campus_supervisor_api.dev_server import DevServerSettings, dispatch_http_request
@@ -56,10 +56,10 @@ class SupervisorApiDevServerTest(unittest.TestCase):
     def test_answer_route_enters_create_app_handler_and_returns_completed_payload(self) -> None:
         captured_requests: list[SupervisorRequest] = []
 
-        def fake_supervisor(request: SupervisorRequest) -> SpecialistResponse:
+        def fake_supervisor(request: SupervisorRequest) -> SupervisorResponse:
             captured_requests.append(request)
-            return SpecialistResponse(
-                target="rag-specialist",
+            return SupervisorResponse(
+                selected_target="rag-specialist",
                 status="completed",
                 answer_text="The library closes at 22:00.",
                 confidence="high",
@@ -69,6 +69,7 @@ class SupervisorApiDevServerTest(unittest.TestCase):
             settings=ApiSettings(
                 auth_mode="bearer",
                 bearer_token="secret-token",
+                default_actor_id="runtime-bearer-user",
                 default_actor_groups=("students",),
                 default_actor_roles=("student",),
             ),

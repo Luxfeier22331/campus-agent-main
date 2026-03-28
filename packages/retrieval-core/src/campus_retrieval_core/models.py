@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from campus_contracts import PersonalizationHint
 from campus_ingestion_core.scope_catalog import assert_known_scope
 
 
@@ -12,6 +13,7 @@ class RetrievalRequest:
     collection: str
     campus_scope: str | None = None
     acl_groups: tuple[str, ...] = field(default_factory=tuple)
+    personalization_hint: PersonalizationHint | None = None
     top_k: int = 3
 
     def __post_init__(self) -> None:

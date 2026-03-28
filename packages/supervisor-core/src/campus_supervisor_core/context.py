@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from campus_contracts import KnowledgeScope, RequestedCapability, SupervisorRequest
+from campus_contracts import ContextProjection, KnowledgeScope, RequestedCapability, SupervisorRequest
 from campus_contracts.models import AllowedCorpus
 
 
@@ -13,6 +13,7 @@ class SupervisorRequestContext:
     trace_id: str
     user_id: str
     conversation_id: str
+    context: ContextProjection
     requested_capability: RequestedCapability | None
     requested_scope: KnowledgeScope | None
     availability_target_id: str | None
@@ -39,6 +40,7 @@ class SupervisorRequestContext:
             trace_id=request.trace.trace_id,
             user_id=request.actor.user_id,
             conversation_id=request.conversation_id,
+            context=request.context,
             requested_capability=request.requested_capability,
             requested_scope=request.requested_scope,
             availability_target_id=request.availability_target_id,

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from campus_contracts import EvidenceBundle
+from campus_contracts import EvidenceBundle, PersonalizationHint
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 
 from campus_retrieval_core.backend_qdrant import QdrantRetrievalBackend, RetrievalBackendError
@@ -25,6 +25,7 @@ def retrieve_sources(
     collection: str,
     campus_scope: str | None = None,
     acl_groups: tuple[str, ...] = (),
+    personalization_hint: PersonalizationHint | None = None,
     top_k: int | None = None,
     backend: QdrantRetrievalBackend | None = None,
 ) -> EvidenceBundle:
@@ -35,6 +36,7 @@ def retrieve_sources(
         collection=collection,
         campus_scope=campus_scope,
         acl_groups=acl_groups,
+        personalization_hint=personalization_hint,
         top_k=runtime_top_k,
     )
     runtime_backend = backend or build_retrieval_backend()

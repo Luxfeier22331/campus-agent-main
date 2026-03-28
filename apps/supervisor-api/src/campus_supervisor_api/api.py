@@ -7,7 +7,7 @@ from uuid import uuid4
 from campus_contracts import (
     ErrorInfo,
     KnowledgeScope,
-    SpecialistResponse,
+    SupervisorResponse,
     SupervisorRequest,
     TraceContext,
 )
@@ -37,7 +37,7 @@ class HttpRoute:
     handler: Callable[[Mapping[str, str], dict[str, object] | None], HttpResponse]
 
 
-SupervisorHandler = Callable[[SupervisorRequest], SpecialistResponse]
+SupervisorHandler = Callable[[SupervisorRequest], SupervisorResponse]
 
 
 def build_routes(
