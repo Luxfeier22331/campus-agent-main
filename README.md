@@ -12,6 +12,7 @@
 - `app-api` 产品层 contract：`docs/contracts/app-api-http.md`
 - `app-api -> supervisor-api` 执行契约：`docs/contracts/app-api-supervisor-execution.md`
 - `app-api` 数据模型：`docs/data/app-api-schema.md`
+- `app-api` identity ownership / supervisor execution admission：`docs/decisions/adr-0015-supervisor-internal-execution-admission.md`
 - supervisor 专项架构：`docs/architecture/supervisor-architecture.md`
 - 第一阶段决策记录：`docs/decisions/adr-0001-phase1-architecture.md`
 - 编排与安全边界：`docs/decisions/adr-0006-agent-orchestration-and-safety.md`
@@ -37,6 +38,7 @@
 - 旧 bootstrap 已从工作树移除；如需追溯请查看 git 历史
 - 当前主路径是 `supervisor-api -> supervisor-core -> rag-specialist -> retrieval-core`
 - forward product topology 已冻结为 `public-chat-web -> app-api -> supervisor-api` 与 `protected-panel-web -> app-api -> request projection`
+- `app-api` 是唯一的产品层 auth/session/principal owner；`supervisor-api` 只做 internal execution caller admission
 - 架构目标是 `supervisor-led hybrid orchestration`，而不是把 RAG 降级成顶层产品路径里的扁平 tool adapter
 - ingestion/object-store/registry/retrieval 地基已落地
 - 查询链路当前由 collection runtime profile 控制；当前 query-enabled surface 是 `regulations/student_handbook` 和 `curriculum/curriculum_plan`

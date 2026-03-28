@@ -11,7 +11,7 @@ updated: 2026-03-28
 
 **Architecture:** 本次实施固定采用 `public-chat-web/protected-panel-web -> app-api (Worker) -> supervisor-api (execution engine)`。`apps/app-api` 是 internal-only Worker runtime，内部采用模块化单体与 command/query 分离；它拥有产品层 auth/session/conversation、chat ingress、`request_execution` / `projection_outbox` 写入与 `request_projection` 读取，但不拥有 supervisor routing、specialist orchestration 或 retrieval internals。
 
-**Tech Stack:** TypeScript, Cloudflare Workers, Wrangler, Hono, Zod, Better Auth, Drizzle ORM, `pg`, Hyperdrive, Vitest, `@cloudflare/vitest-pool-workers`
+**Tech Stack:** TypeScript, Cloudflare Workers, Wrangler, Hono, Zod, Better Auth, Drizzle ORM, `pg`, Hyperdrive for runtime DB access, direct management connection for migrations, Vitest, `@cloudflare/vitest-pool-workers`
 
 ## 目标
 
@@ -47,6 +47,7 @@ updated: 2026-03-28
 - `docs/architecture/supervisor-architecture.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
+- `docs/decisions/adr-0015-supervisor-internal-execution-admission.md`
 
 ## 职责闭包
 
@@ -54,6 +55,7 @@ updated: 2026-03-28
 
 - public chat 用户认证与 session
 - protected panel 的受控 operator principal 入口
+- product-layer principal mapping，并向 execution engine 显式提供 `actor`
 - account / identity projection
 - conversation / message persistence
 - chat request ingress
@@ -91,6 +93,7 @@ MVP 调用路径固定为：
 - HTTP framework：`Hono`
 - auth：`Better Auth`
 - data access：`Drizzle ORM + pg + Hyperdrive`
+- migration / schema management：direct database management connection
 - validation / API schema：`zod` + `@hono/zod-openapi`
 - Worker tests：`vitest` + `@cloudflare/vitest-pool-workers`
 
@@ -125,6 +128,16 @@ apps/app-api/
   request projection 列表/详情读取
 - `projection`
   outbox 消费与 read model 物化
+
+## Identity And Projection Rules
+
+实现时必须同时满足：
+
+- `app-api` 是唯一的 product-layer auth/session/principal owner
+- `app-api -> supervisor-api` request body 显式携带 `actor`
+- `apps/supervisor-api` 只做 internal caller admission，不再恢复最终业务 actor
+- `runtime.request_execution` 与 `runtime.projection_outbox` 是 canonical durable truth
+- queue 只能在同库 outbox 之后作为加速手段引入
 
 ## MVP API Surface
 

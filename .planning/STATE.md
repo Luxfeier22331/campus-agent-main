@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: shared `app-api` topology, product HTTP contract, execution contract, request lifecycle, and logical schema are aligned; next work is `apps/app-api` Worker foundation and command/query implementation
-last_updated: "2026-03-28T15:25:11.000Z"
+stopped_at: shared `app-api` topology, identity ownership, supervisor internal caller admission, request lifecycle, and logical schema are aligned; next work is `apps/app-api` Worker foundation and command/query implementation
+last_updated: "2026-03-28T08:52:26Z"
 progress:
   total_phases: 17
   completed_phases: 17
@@ -19,7 +19,7 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-03-28)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 runtime-profile-driven serving surface 证明这条架构能可靠承接高频校园问答
-**Current focus:** Phase 7 handbook verification已完成；当前 follow-up 重点是补齐 `curriculum_plan` query-serving 的 live gate，同时继续把 `public-chat-web` / `protected-panel-web` + shared `app-api` Worker runtime + `supervisor-api` execution engine 作为 accepted product topology 推进，并在 `docs/contracts/` 与 `docs/data/` 中冻结 `app-api` 第一版 HTTP contract、request lifecycle、error model 与 logical schema；`Jobs` / `Operations` 仍不进入第一波 panel rollout
+**Current focus:** Phase 7 handbook verification已完成；当前 follow-up 重点是补齐 `curriculum_plan` query-serving 的 live gate，同时继续把 `public-chat-web` / `protected-panel-web` + shared `app-api` Worker runtime + `supervisor-api` execution engine 作为 accepted product topology 推进，并把 `app-api` product identity ownership、supervisor internal caller admission、outbox-first request projection 与 unified Drizzle migration baseline 一并冻结到 canonical docs；`Jobs` / `Operations` 仍不进入第一波 panel rollout
 
 ## Current Position
 
@@ -136,7 +136,10 @@ Recent decisions affecting current work:
 - Phase 05 removed bearer actor spoofing, projected caller claims from forwarded Access JWT payload, and moved durable audit persistence to the API shell boundary.
 - The accepted forward design is now `public-chat-web` + `protected-panel-web` + shared `app-api`; auth/session/conversation, chat ingress, and operator query move into `app-api`, while `apps/supervisor-api` remains the execution engine.
 - `apps/app-api` runtime is now frozen to Worker rather than remaining runtime-agnostic.
+- `apps/app-api` is now the only product-layer auth/session/principal owner; `apps/supervisor-api` should be read as internal execution admission plus execution transport, not user-auth ownership.
 - Protected panel follow-up now freezes request projection ownership on shared `apps/app-api`: `Requests` stays blocked until `app-api` exposes a safe runtime query surface, and panel work must not route around that gap through `apps/supervisor-api`, audit logs, telemetry sinks, or consumer chat tables.
+- canonical request projection is now explicitly same-database outbox-first: `runtime.request_execution` plus `runtime.projection_outbox` are the first durable truth, while queues are optional later acceleration only.
+- Better Auth is now fixed inside `apps/app-api`, and `auth/chat/runtime/operator` are expected to share one Drizzle schema codebase plus one migration pipeline; Worker runtime DB access remains Hyperdrive-based while migrations use a direct management connection.
 - Protected panel operator access is now explicitly documented as a small-team operator surface without a self-serve end-user account system; `Jobs` and `Operations` remain delayed pending re-discussion.
 - Phase 05.1 froze curriculum source-truth quality gates, split-manifest review fail-close behavior, and explicit chunking runtime truth.
 - Phase 06 added `provider_response_replay` rebuild support for `curriculum_plan`, and the current refactor promotes its serving policy into the profile-driven query surface.
