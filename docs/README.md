@@ -13,7 +13,7 @@ updated: 2026-03-28
 
 - `architecture/`: 长期边界、职责划分、系统形态
 - `decisions/`: 已接受的决策记录，使用稳定 ADR 编号
-- `plans/`: 可执行实施文档
+- `plans/`: 可执行实施文档与仍保留实现基线价值的已完成方案
 - `runbooks/`: 可重复操作步骤、发布/回滚/重建手册
 - `reference/`: 术语、当前实现真相、指标快照与固定说明
 - `policies/`: 阈值、门禁、治理规则与 collection-specific 约束
@@ -25,7 +25,7 @@ updated: 2026-03-28
 - `docs/decisions/`
   已接受的长期或阶段决策、specialist 准入、runtime 取舍与评测规则的 canonical truth
 - `docs/plans/`
-  仍承担 accepted implementation baseline 的实施基线、交付形状和门禁，不直接承担当前 phase 执行状态的唯一真相源
+  承担 accepted implementation baseline 的实施基线、交付形状和门禁；`active` plan 表示仍在指导实施，`completed` plan 表示保留实现基线价值，但二者都不直接承担当前 phase 执行状态的唯一真相源
 - `docs/runbooks/`
   面向操作面的步骤说明，例如 rebuild、release、rollback、验收 checklist
 - `docs/reference/`
@@ -41,6 +41,7 @@ updated: 2026-03-28
 - 判断“现在做到哪一步、接下来做什么、当前 phase 结论是什么”时，优先看 `.planning/`
 - 判断编排模式、specialist 准入、identity/memory/ACL 边界与安全控制时，优先看 architecture 文档和对应 ADR，而不是某一轮 plan
 - 如果 `docs/plans/` 中的早期实施叙事与 `.planning/` 的当前执行现实冲突，应更新 `docs/plans/` 的边界说明，而不是把旧叙事继续当作当前硬约束
+- 已完成但仍保留的 bootstrap / baseline 方案必须标记为 `completed`，不得继续伪装成 `active` 当前计划
 - 如果 `.planning/ROADMAP.md` 或 `.planning/phases/*` 的历史 phase 叙事与当前运行面冲突，以 `.planning/PROJECT.md`、`.planning/REQUIREMENTS.md`、`.planning/STATE.md` 和对应 architecture/decision 文档为准
 - 历史执行过程、handoff、一次性交付记录与被替代草案应退出 `docs/`，留在 `.planning/` 或 git history
 

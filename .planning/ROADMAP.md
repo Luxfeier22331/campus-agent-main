@@ -5,17 +5,9 @@
 
 ## Overview
 
-This roadmap stabilizes the new supervisor-led architecture before it expands scope. The sequence starts by freezing the supervisor/specialist contract and the initial guardrails, then builds the `student_handbook` ingestion and retrieval path, wires the `supervisor` entrypoint with ACL/audit responsibilities, prepares `curriculum_plan`, later promotes serving policy to the collection runtime profile, and finishes with repository-level verification that proves the end-to-end agentic RAG flow is safe to plan and execute.
+This roadmap records the historical execution sequence that stabilized the new supervisor-led architecture before later serving-surface and product-topology refactors landed. The sequence starts by freezing the supervisor/specialist contract and the initial guardrails, then builds the `student_handbook` ingestion and retrieval path, wires the `supervisor` entrypoint with ACL/audit responsibilities, prepares `curriculum_plan`, later promotes serving policy to the collection runtime profile, and finishes with repository-level verification that proves the end-to-end agentic RAG flow is safe to plan and execute.
 
-The phase names below are retained as execution-history labels. They should not be read as the sole source of current serving or indexing truth once later refactors have generalized runtime-profile control and versioned index-release semantics.
-
-Current roadmap truth still centers the `student_handbook` mainline as the scheduled execution path. Inserted `03.1 Availability Specialist 最小闭环` validates one stable non-RAG specialist boundary without hiding that work inside the existing RAG phases as an implementation detail. Inserted `03.2 Source Truth Fan-Out And Attachment Projection` now closes a data-plane design gap before further collection expansion: one raw source must be consumed once into canonical source truth and then fan out into all declared downstream projections, including attachment-derived documents, instead of forcing later collection work to re-consume raw inputs. Inserted `04.x` Cloudflare phases now run in parallel to freeze the edge entry, protected internal-panel boundary, runtime topology, edge integration contract, and panel runtime shell before the mainline query path is ready, without pushing Cloudflare/runtime decisions down into core packages.
-
-The public answer route is now expected to construct a supervisor-facing request rather than hardcoding a rag-specialist handoff. Current serving truth is profile-driven: `student_handbook` and `curriculum_plan` are query-enabled; `campus_services` remains `offline_preparation`. Public consumer chat must send an explicit runtime-configured scope rather than relying on a handbook hardcode.
-
-Protected/public product follow-up now has a new frozen direction as well: future work should converge on `public-chat-web` + `protected-panel-web` + shared `apps/app-api`, with `apps/app-api` fixed as an internal Worker runtime and `apps/supervisor-api` retained as the execution engine rather than the product backend.
-
-Future identity / memory / personalization work should follow the same split: canonical identity and durable user memory live in `apps/app-api`, `supervisor` and specialists consume typed projection only, institutional knowledge remains separate from personal memory truth, and personalization may bias retrieval planning or answer wording but must not widen ACL or serving surface.
+The phase names below are retained as execution-history labels. They must not be read as the current serving-surface truth, current query-enabled scope, or current product topology. Inserted `03.1`, `03.2`, and `04.x` phases remain here only as historical labels for how that execution order evolved.
 
 ## Phases
 
@@ -46,12 +38,12 @@ Decimal phases appear between their surrounding integers in numeric order.
 ## Phase Details
 
 ### Phase 1: Contract And Boundary Guardrails
-**Goal**: Freeze the shared handoff contract and corpus-policy rules so phase-1 remains limited to `student_handbook` and supervisor-core does not absorb retrieval concerns.
+**Historical execution goal**: Freeze the shared handoff contract and corpus-policy rules so the initial execution path remains limited to `student_handbook` and supervisor-core does not absorb retrieval concerns.
 **Depends on**: Nothing (first phase)
 **Requirements**: [ORCH-02, ORCH-03, GOV-03]
 **Success Criteria** (what must be TRUE):
   1. `supervisor-core` and `rag-specialist` communicate only through shared contract types in `packages/contracts`.
-  2. The phase-1 route policy rejects corpora outside `student_handbook`.
+  2. The then-current route policy rejects corpora outside `student_handbook`.
   3. `apps/supervisor-api` stays limited to transport/auth/runtime concerns and does not own orchestration rules.
 **Plans**: 2/2 plans complete
 
@@ -295,7 +287,7 @@ Plans:
 - [x] 06-02: Verify query-serving policy continues to exclude `curriculum_plan` after offline prep is added.
 
 ### Phase 7: Verification And Release Gate
-**Goal**: Establish repository-level proof that the end-to-end phase-1 path behaves correctly and regressions are caught before release.
+**Historical execution goal**: Establish repository-level proof that the then-current end-to-end main path behaves correctly and regressions are caught before release.
 **Depends on**: Phase 6
 **Requirements**: [VER-01, VER-02]
 **Success Criteria** (what must be TRUE):

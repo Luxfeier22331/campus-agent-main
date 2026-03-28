@@ -1,8 +1,8 @@
 ---
 doc_type: plan
-status: active
+status: completed
 created: 2026-03-26
-updated: 2026-03-26
+updated: 2026-03-28
 ---
 
 # Student Handbook Retrieval Eval Bootstrap
@@ -14,6 +14,10 @@ updated: 2026-03-26
 ## Migration note
 
 这份计划保留其 doc-level qrels / eval bootstrap 价值，但其中涉及 live rebuild 状态的叙述可能随执行推进而过期。当前如需判断 live collection 是否已重建、当前 benchmark 是否已跑通、当前 release gate 卡在哪一步，应以 `.planning/STATE.md` 和 `docs/runbooks/`、`docs/reference/`、`docs/policies/` 下的最新文档为准，而不是以本文的 blocker 叙述为准。
+
+## Status note
+
+本文已完成 bootstrap 阶段目标，现保留为已执行实现基线，不再代表当前运行面或当前 release gate 状态。
 
 **Tech Stack:** `packages/evals` deterministic scorer、repo-tracked JSON fixtures、`uv` test runner
 

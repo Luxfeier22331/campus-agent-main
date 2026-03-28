@@ -6,6 +6,7 @@ import unittest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOCS_ROOT = REPO_ROOT / "docs"
+PLANNING_ROOT = REPO_ROOT / ".planning"
 
 EXPECTED_DOC_TYPES = {
     "architecture": "architecture",
@@ -63,6 +64,19 @@ class DocsStructureTest(unittest.TestCase):
         for path in sorted((DOCS_ROOT / "decisions").glob("*.md")):
             front_matter = _read_front_matter(path)
             self.assertTrue(front_matter.get("decision_id"), path)
+
+    def test_completed_bootstrap_plans_do_not_remain_active(self) -> None:
+        eval_bootstrap = _read_front_matter(DOCS_ROOT / "plans" / "student-handbook-retrieval-eval-bootstrap.md")
+        golden_bootstrap = _read_front_matter(DOCS_ROOT / "plans" / "golden-dataset-schema-and-bootstrap.md")
+
+        self.assertEqual(eval_bootstrap.get("status"), "completed")
+        self.assertEqual(golden_bootstrap.get("status"), "completed")
+
+    def test_historical_roadmap_does_not_assert_current_runtime_truth(self) -> None:
+        roadmap = (PLANNING_ROOT / "ROADMAP.md").read_text(encoding="utf-8")
+
+        self.assertNotIn("Current roadmap truth still centers", roadmap)
+        self.assertNotIn("Current serving truth is profile-driven", roadmap)
 
 
 if __name__ == "__main__":
