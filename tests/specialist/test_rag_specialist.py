@@ -338,6 +338,76 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertNotIn("4.", response.answer_text)
         self.assertEqual(response.answer_text.count("学校复核后按规定办理。"), 1)
 
+    def test_curriculum_completed_answer_uses_curriculum_specific_prefix(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="民族学本科人才培养方案",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                EvidenceSource(
+                    doc_id="curriculum:民族学本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:test-curriculum",
+                    chunk_id="curriculum:民族学本科人才培养方案:chunk-0001",
+                    anchor={"page_start": 65, "page_end": 65},
+                    acl_level="public",
+                    canonical_url="https://campus.example/curriculum/ethnology",
+                    latest_url="https://campus.example/curriculum/ethnology",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet="民族学本科人才培养方案 / 五、学制 两年。",
+                    score=0.83,
+                ),
+                EvidenceSource(
+                    doc_id="curriculum:民族学本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:test-curriculum",
+                    chunk_id="curriculum:民族学本科人才培养方案:chunk-0002",
+                    anchor={"page_start": 66, "page_end": 66},
+                    acl_level="public",
+                    canonical_url="https://campus.example/curriculum/ethnology",
+                    latest_url="https://campus.example/curriculum/ethnology",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet="民族学本科人才培养方案 / 八、教学进程计划表。",
+                    score=0.79,
+                ),
+            ),
+        )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="民族学本科人才培养方案学制几年？",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIn("根据培养方案相关内容", response.answer_text)
+        self.assertNotIn("学生手册", response.answer_text)
+
+    def test_curriculum_generic_degree_question_uses_curriculum_specific_clarification(self) -> None:
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="学位怎么授予？",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: _make_evidence(),
+        )
+
+        self.assertEqual(response.status, "needs_clarification")
+        self.assertIn("培养方案", response.follow_up_question)
+        self.assertNotIn("学生手册", response.follow_up_question)
+
     def test_confidence_derivation_prefers_stronger_and_more_consistent_support(self) -> None:
         self.assertEqual(
             derive_confidence(

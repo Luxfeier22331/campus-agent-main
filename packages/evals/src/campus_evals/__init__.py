@@ -63,6 +63,8 @@ from campus_evals.ragas_adapter import (
 )
 from campus_evals.runner import run_cases
 from campus_evals.scenarios import (
+    curriculum_error_gate_cases,
+    curriculum_release_gate_cases,
     handbook_error_gate_cases,
     handbook_release_gate_cases,
     handbook_smoke_cases,
@@ -109,6 +111,8 @@ __all__ = [
     "build_ragas_projection",
     "build_ragas_scorer",
     "build_ragas_supplemental_adapter_from_env",
+    "curriculum_error_gate_cases",
+    "curriculum_release_gate_cases",
     "evaluate_judge_gate",
     "evaluate_retrieval_case",
     "evaluate_retrieval_run",

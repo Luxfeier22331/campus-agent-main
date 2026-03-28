@@ -27,7 +27,7 @@ class RagSpecialistAgent:
             f"{index}. {_normalize_snippet(source.snippet)} [{source.doc_id}#{source.chunk_id}]"
             for index, source in enumerate(supporting_sources, start=1)
         ]
-        return f"根据学生手册相关规定：{' '.join(rendered_parts)}"
+        return f"{_answer_prefix(evidence)}：{' '.join(rendered_parts)}"
 
 
 def _select_supporting_sources(
@@ -54,3 +54,9 @@ def _select_supporting_sources(
 
 def _normalize_snippet(snippet: str) -> str:
     return _WHITESPACE_RE.sub(" ", snippet).strip()
+
+
+def _answer_prefix(evidence: EvidenceBundle) -> str:
+    if evidence.corpus == "curriculum" and evidence.collection == "curriculum_plan":
+        return "根据培养方案相关内容"
+    return "根据学生手册相关规定"

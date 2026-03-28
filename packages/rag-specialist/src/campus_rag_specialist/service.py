@@ -175,6 +175,8 @@ def _build_clarification_question(user_goal: str, evidence: EvidenceBundle) -> s
             return f"请说明你想咨询哪一项内容。当前相关结果包括：{'、'.join(labels)}。"
     if "奖学金" in user_goal or "scholarship" in user_goal.lower():
         return "请说明你想咨询哪一类奖学金或对应的评审办法。"
+    if evidence.corpus == "curriculum" and evidence.collection == "curriculum_plan":
+        return "请具体说明你想咨询哪一份培养方案、哪一类学位要求，或哪一张课程/教学进程表。"
     return "请具体说明你想咨询学生手册中的哪一项制度、流程或表格。"
 
 

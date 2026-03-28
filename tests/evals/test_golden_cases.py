@@ -12,6 +12,8 @@ from campus_contracts import (
     SpecialistResponse,
 )
 from campus_evals import (
+    curriculum_error_gate_cases,
+    curriculum_release_gate_cases,
     ExecutionResult,
     GoldenCase,
     handbook_error_gate_cases,
@@ -24,6 +26,7 @@ from campus_evals import (
 )
 
 HANDBOOK_SCOPE = KnowledgeScope(corpus="regulations", collection="student_handbook")
+CURRICULUM_SCOPE = KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
 
 
 def _source(
@@ -168,6 +171,53 @@ class RunCasesTest(unittest.TestCase):
         self.assertTrue(all(case.split == "release_gate" for case in cases))
         self.assertTrue(all("error_gate" in case.tags for case in cases))
         self.assertTrue(all(case.scope == HANDBOOK_SCOPE for case in cases))
+
+    def test_curriculum_release_gate_cases_cover_terminal_statuses(self) -> None:
+        cases = curriculum_release_gate_cases()
+
+        self.assertEqual(len(cases), 6)
+        self.assertEqual(
+            tuple(case.case_id for case in cases),
+            (
+                "curriculum-release-gate-ethnology-title",
+                "curriculum-release-gate-academic-years",
+                "curriculum-release-gate-total-credits",
+                "curriculum-release-gate-course-map-table",
+                "curriculum-release-gate-no-answer",
+                "curriculum-release-gate-needs-clarification",
+            ),
+        )
+        self.assertEqual(
+            tuple(case.expected_status for case in cases),
+            (
+                "completed",
+                "completed",
+                "completed",
+                "completed",
+                "no_answer",
+                "needs_clarification",
+            ),
+        )
+        self.assertTrue(all(case.split == "release_gate" for case in cases))
+        self.assertTrue(all(case.scope == CURRICULUM_SCOPE for case in cases))
+        self.assertTrue(all("curriculum" in case.tags for case in cases))
+
+    def test_curriculum_error_gate_cases_cover_deterministic_error_paths(self) -> None:
+        cases = curriculum_error_gate_cases()
+
+        self.assertEqual(len(cases), 3)
+        self.assertEqual(
+            tuple(case.case_id for case in cases),
+            (
+                "curriculum-error-gate-retrieval-backend-failure",
+                "curriculum-error-gate-evidence-shaping-failure",
+                "curriculum-error-gate-invalid-backend-contract",
+            ),
+        )
+        self.assertTrue(all(case.expected_status == "error" for case in cases))
+        self.assertTrue(all(case.split == "release_gate" for case in cases))
+        self.assertTrue(all("error_gate" in case.tags for case in cases))
+        self.assertTrue(all(case.scope == CURRICULUM_SCOPE for case in cases))
 
     def test_runner_filters_by_split_and_aggregates_dimensions(self) -> None:
         smoke_case = GoldenCase(
