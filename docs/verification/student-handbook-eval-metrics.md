@@ -134,7 +134,7 @@ updated: 2026-03-27
 
 解释：
 
-- 这批指标来自 `student_handbook_release_gate_cases()` 的 deterministic 汇总，不依赖 judge-model
+- 这批指标来自 `handbook_release_gate_cases()` 的 deterministic 汇总，不依赖 judge-model
 - answer 与 citation/safety 指标当前只在“适用 case”上计数，不把 `needs_clarification` / `no_answer` 样本错误计入 completeness 或 citation denominator
 - `forbidden_source_retrieval_rate` 当前只在显式声明 forbidden source 的 case 上统计，因此 denominator 仍然很小
 - 从本轮开始，`SummaryCount.total=0` 的指标会显式携带 `reason=no_applicable_cases`，避免把 `n/a` 误读为“已验证通过”
@@ -164,7 +164,7 @@ updated: 2026-03-27
 
 解释：
 
-- 这批指标来自 `student_handbook_error_gate_cases()`，由受控故障注入执行，不依赖 live Qdrant 或外部网络波动
+- 这批指标来自 `handbook_error_gate_cases()`，由受控故障注入执行，不依赖 live Qdrant 或外部网络波动
 - error gate 的目标是验证统一的 `status=error`、`error.code`、trace error path 与 fail-close，不是重复 live retrieval benchmark
 
 ## 失败样例与修复

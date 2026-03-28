@@ -64,12 +64,7 @@ class GoldenCase:
     user_goal: str
     actor: ActorContext
     expected_status: DelegateStatus
-    scope: KnowledgeScope = field(
-        default_factory=lambda: KnowledgeScope(
-            corpus="regulations",
-            collection="student_handbook",
-        )
-    )
+    scope: KnowledgeScope
     expected_sources: tuple[ExpectedSourceRef, ...] = field(default_factory=tuple)
     forbidden_sources: tuple[ExpectedSourceRef, ...] = field(default_factory=tuple)
     required_facts: tuple[str, ...] = field(default_factory=tuple)

@@ -43,8 +43,6 @@ from campus_evals.ragas_adapter import (
     RagasProjection,
     RagasSupplementalAdapter,
     build_default_ragas_metric_names,
-    build_langchain_chat_model,
-    build_langchain_embeddings,
     build_ragas_dataset,
     build_ragas_projection,
     build_ragas_scorer,
@@ -52,9 +50,9 @@ from campus_evals.ragas_adapter import (
 )
 from campus_evals.runner import run_cases
 from campus_evals.scenarios import (
-    student_handbook_error_gate_cases,
-    student_handbook_release_gate_cases,
-    student_handbook_smoke_cases,
+    handbook_error_gate_cases,
+    handbook_release_gate_cases,
+    handbook_smoke_cases,
 )
 from campus_evals.settings import RagasSettings
 
@@ -88,8 +86,6 @@ __all__ = [
     "build_default_ragas_metric_names",
     "build_http_ragas_embeddings",
     "build_http_ragas_llm",
-    "build_langchain_chat_model",
-    "build_langchain_embeddings",
     "build_ragas_dataset",
     "build_ragas_projection",
     "build_ragas_scorer",
@@ -103,9 +99,9 @@ __all__ = [
     "load_retrieval_qrels_dataset",
     "render_retrieval_summary_text",
     "run_cases",
-    "student_handbook_error_gate_cases",
-    "student_handbook_release_gate_cases",
-    "student_handbook_smoke_cases",
+    "handbook_error_gate_cases",
+    "handbook_release_gate_cases",
+    "handbook_smoke_cases",
     "summarize_retrieval_metrics",
     "validate_retrieval_hybrid_query_fixture",
 ]

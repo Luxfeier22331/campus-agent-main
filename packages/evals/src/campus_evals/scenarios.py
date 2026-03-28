@@ -5,7 +5,11 @@ from campus_contracts import ActorContext, KnowledgeScope
 from campus_evals.models import GoldenCase, TraceExpectation, expected_source_ref
 
 
-def student_handbook_smoke_cases() -> tuple[GoldenCase, ...]:
+def _handbook_scope() -> KnowledgeScope:
+    return KnowledgeScope(corpus="regulations", collection="student_handbook")
+
+
+def handbook_smoke_cases() -> tuple[GoldenCase, ...]:
     goals = (
         "library hours",
         "scholarship eligibility",
@@ -21,19 +25,19 @@ def student_handbook_smoke_cases() -> tuple[GoldenCase, ...]:
             source_type="synthetic_expansion",
             user_goal=goal,
             actor=ActorContext(),
-            scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+            scope=_handbook_scope(),
             expected_status="completed",
             generator_name="bootstrap-smoke-generator",
             generator_version="v1",
-            generation_recipe="phase1-handbook-smoke-topics",
-            tags=("phase1", "student_handbook", "smoke"),
+            generation_recipe="handbook-smoke-topics-v1",
+            tags=("handbook", "smoke"),
         )
         for index, goal in enumerate(goals, start=1)
     )
 
 
-def student_handbook_release_gate_cases() -> tuple[GoldenCase, ...]:
-    scope = KnowledgeScope(corpus="regulations", collection="student_handbook")
+def handbook_release_gate_cases() -> tuple[GoldenCase, ...]:
+    scope = _handbook_scope()
     return (
         GoldenCase(
             case_id="release-gate-scholarship-title",
@@ -52,7 +56,7 @@ def student_handbook_release_gate_cases() -> tuple[GoldenCase, ...]:
                 clarification_expected=False,
                 error_expected=False,
             ),
-            tags=("phase1", "student_handbook", "release_gate"),
+            tags=("handbook", "release_gate"),
         ),
         GoldenCase(
             case_id="release-gate-student-card",
@@ -72,7 +76,7 @@ def student_handbook_release_gate_cases() -> tuple[GoldenCase, ...]:
                 clarification_expected=False,
                 error_expected=False,
             ),
-            tags=("phase1", "student_handbook", "release_gate"),
+            tags=("handbook", "release_gate"),
         ),
         GoldenCase(
             case_id="release-gate-dormitory-lighting",
@@ -91,7 +95,7 @@ def student_handbook_release_gate_cases() -> tuple[GoldenCase, ...]:
                 clarification_expected=False,
                 error_expected=False,
             ),
-            tags=("phase1", "student_handbook", "release_gate"),
+            tags=("handbook", "release_gate"),
         ),
         GoldenCase(
             case_id="release-gate-medical-title",
@@ -111,7 +115,7 @@ def student_handbook_release_gate_cases() -> tuple[GoldenCase, ...]:
                 clarification_expected=False,
                 error_expected=False,
             ),
-            tags=("phase1", "student_handbook", "release_gate"),
+            tags=("handbook", "release_gate"),
         ),
         GoldenCase(
             case_id="release-gate-no-answer",
@@ -128,7 +132,7 @@ def student_handbook_release_gate_cases() -> tuple[GoldenCase, ...]:
                 error_expected=False,
                 fail_closed_expected=True,
             ),
-            tags=("phase1", "student_handbook", "release_gate"),
+            tags=("handbook", "release_gate"),
         ),
         GoldenCase(
             case_id="release-gate-needs-clarification",
@@ -144,13 +148,13 @@ def student_handbook_release_gate_cases() -> tuple[GoldenCase, ...]:
                 clarification_expected=True,
                 error_expected=False,
             ),
-            tags=("phase1", "student_handbook", "release_gate"),
+            tags=("handbook", "release_gate"),
         ),
     )
 
 
-def student_handbook_error_gate_cases() -> tuple[GoldenCase, ...]:
-    scope = KnowledgeScope(corpus="regulations", collection="student_handbook")
+def handbook_error_gate_cases() -> tuple[GoldenCase, ...]:
+    scope = _handbook_scope()
     return (
         GoldenCase(
             case_id="error-gate-retrieval-backend-failure",
@@ -167,7 +171,7 @@ def student_handbook_error_gate_cases() -> tuple[GoldenCase, ...]:
                 error_expected=True,
                 fail_closed_expected=True,
             ),
-            tags=("phase1", "student_handbook", "release_gate", "error_gate"),
+            tags=("handbook", "release_gate", "error_gate"),
             notes="deterministic retrieval backend failure injection",
             metadata={"failure_mode": "retrieval_backend_failure"},
         ),
@@ -186,7 +190,7 @@ def student_handbook_error_gate_cases() -> tuple[GoldenCase, ...]:
                 error_expected=True,
                 fail_closed_expected=True,
             ),
-            tags=("phase1", "student_handbook", "release_gate", "error_gate"),
+            tags=("handbook", "release_gate", "error_gate"),
             notes="deterministic evidence shaping failure injection",
             metadata={"failure_mode": "evidence_shaping_failure"},
         ),
@@ -205,7 +209,7 @@ def student_handbook_error_gate_cases() -> tuple[GoldenCase, ...]:
                 error_expected=True,
                 fail_closed_expected=True,
             ),
-            tags=("phase1", "student_handbook", "release_gate", "error_gate"),
+            tags=("handbook", "release_gate", "error_gate"),
             notes="deterministic backend contract failure injection",
             metadata={"failure_mode": "invalid_backend_contract"},
         ),

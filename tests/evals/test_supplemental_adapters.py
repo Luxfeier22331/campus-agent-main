@@ -6,6 +6,8 @@ from campus_contracts import ActorContext, EvidenceBundle, EvidenceSource, Knowl
 from campus_evals import ExecutionResult, GoldenCase, ObservedTrace, SupplementalResult, TraceExpectation, build_ragas_projection, run_cases
 from campus_evals.ragas_adapter import RagasSupplementalAdapter
 
+HANDBOOK_SCOPE = KnowledgeScope(corpus="regulations", collection="student_handbook")
+
 
 def _source(
     *,
@@ -64,10 +66,11 @@ class RagasProjectionTest(unittest.TestCase):
             source_type="expert_authored",
             user_goal="library hours",
             actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
             expected_status="completed",
             required_facts=("08:00", "22:00"),
             trace_expectation=TraceExpectation(
-                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                selected_scope=HANDBOOK_SCOPE,
                 retrieval_called=True,
             ),
         )
@@ -101,10 +104,11 @@ class SupplementalRunnerTest(unittest.TestCase):
             source_type="expert_authored",
             user_goal="library hours",
             actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
             expected_status="completed",
             required_facts=("08:00",),
             trace_expectation=TraceExpectation(
-                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                selected_scope=HANDBOOK_SCOPE,
                 retrieval_called=True,
             ),
         )
@@ -149,10 +153,11 @@ class SupplementalRunnerTest(unittest.TestCase):
             source_type="expert_authored",
             user_goal="library hours",
             actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
             expected_status="completed",
             required_facts=("08:00",),
             trace_expectation=TraceExpectation(
-                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                selected_scope=HANDBOOK_SCOPE,
                 retrieval_called=True,
             ),
         )

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from math import isnan
-from typing import Any, Callable
+from typing import Callable
 
 from campus_contracts import RagResultPayload, SpecialistResponse
 from campus_evals.models import ExecutionResult, GoldenCase, SupplementalResult
@@ -10,31 +10,7 @@ from campus_evals.ragas_http import build_http_ragas_embeddings, build_http_raga
 from campus_evals.settings import RagasSettings
 
 
-DEFAULT_RAGAS_METRIC_NAMES = (
-    "faithfulness",
-    "answer_relevancy",
-    "context_precision",
-    "context_recall",
-)
-
-
-def build_responses_compatible_chat_openai(**kwargs: Any):
-    """Compat wrapper for ragas + LangChain Responses API calls.
-
-    `ragas==0.4.3` drives LangChain's async generation path in a way that can still
-    leave `n` in the request payload. OpenAI's Responses API does not accept `n`,
-    so we normalize the payload here instead of falling back to chat completions.
-    """
-    from langchain_openai import ChatOpenAI
-
-    class _PatchedChatOpenAI(ChatOpenAI):
-        def _get_request_payload(self, input_, *, stop=None, **request_kwargs):  # type: ignore[override]
-            payload = super()._get_request_payload(input_, stop=stop, **request_kwargs)
-            if self._use_responses_api(payload):
-                payload.pop("n", None)
-            return payload
-
-    return _PatchedChatOpenAI(**kwargs)
+DEFAULT_RAGAS_METRIC_NAMES = ("faithfulness", "answer_relevancy", "context_precision", "context_recall")
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,32 +90,6 @@ def build_default_ragas_metrics(llm: object, embeddings: object):
         ContextPrecision(),
         ContextRecall(),
     )
-
-
-def build_langchain_chat_model(settings: RagasSettings):
-    return build_responses_compatible_chat_openai(
-        model=settings.llm_model,
-        api_key=settings.llm_api_key,
-        base_url=settings.llm_base_url,
-        timeout=settings.request_timeout_seconds,
-        temperature=0,
-        use_responses_api=settings.use_responses_api,
-    )
-
-
-def build_langchain_embeddings(settings: RagasSettings):
-    from langchain_openai import OpenAIEmbeddings
-
-    kwargs = {
-        "model": settings.embedding_model,
-        "api_key": settings.embedding_api_key,
-        "base_url": settings.embedding_base_url,
-        "timeout": settings.request_timeout_seconds,
-    }
-    if settings.embedding_dimensions is not None:
-        kwargs["dimensions"] = settings.embedding_dimensions
-    return OpenAIEmbeddings(**kwargs)
-
 def build_ragas_scorer(
     settings: RagasSettings,
     *,

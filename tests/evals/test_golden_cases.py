@@ -14,14 +14,16 @@ from campus_contracts import (
 from campus_evals import (
     ExecutionResult,
     GoldenCase,
+    handbook_error_gate_cases,
+    handbook_release_gate_cases,
+    handbook_smoke_cases,
     ObservedTrace,
     TraceExpectation,
     expected_source_ref,
     run_cases,
-    student_handbook_error_gate_cases,
-    student_handbook_release_gate_cases,
-    student_handbook_smoke_cases,
 )
+
+HANDBOOK_SCOPE = KnowledgeScope(corpus="regulations", collection="student_handbook")
 
 
 def _source(
@@ -74,17 +76,16 @@ def _response(
 
 
 class GoldenCaseSchemaTest(unittest.TestCase):
-    def test_case_defaults_to_phase1_student_handbook_scope(self) -> None:
-        case = GoldenCase(
-            case_id="case-1",
-            split="smoke",
-            source_type="expert_authored",
-            user_goal="library hours",
-            actor=ActorContext(),
-            expected_status="completed",
-        )
-
-        self.assertEqual(case.scope, KnowledgeScope(corpus="regulations", collection="student_handbook"))
+    def test_case_requires_explicit_scope(self) -> None:
+        with self.assertRaisesRegex(TypeError, "scope"):
+            GoldenCase(
+                case_id="case-1",
+                split="smoke",
+                source_type="expert_authored",
+                user_goal="library hours",
+                actor=ActorContext(),
+                expected_status="completed",
+            )
 
     def test_case_rejects_empty_user_goal(self) -> None:
         with self.assertRaisesRegex(ValueError, "user_goal"):
@@ -94,6 +95,7 @@ class GoldenCaseSchemaTest(unittest.TestCase):
                 source_type="expert_authored",
                 user_goal="   ",
                 actor=ActorContext(),
+                scope=HANDBOOK_SCOPE,
                 expected_status="completed",
             )
 
@@ -103,8 +105,8 @@ class GoldenCaseSchemaTest(unittest.TestCase):
 
 
 class RunCasesTest(unittest.TestCase):
-    def test_student_handbook_smoke_cases_keep_phase1_queries(self) -> None:
-        cases = student_handbook_smoke_cases()
+    def test_handbook_smoke_cases_keep_seed_queries(self) -> None:
+        cases = handbook_smoke_cases()
         goals = tuple(case.user_goal for case in cases)
 
         self.assertEqual(
@@ -121,8 +123,8 @@ class RunCasesTest(unittest.TestCase):
         self.assertTrue(all(case.source_type == "synthetic_expansion" for case in cases))
         self.assertTrue(all(case.generator_name == "bootstrap-smoke-generator" for case in cases))
 
-    def test_student_handbook_release_gate_cases_cover_terminal_statuses(self) -> None:
-        cases = student_handbook_release_gate_cases()
+    def test_handbook_release_gate_cases_cover_terminal_statuses(self) -> None:
+        cases = handbook_release_gate_cases()
 
         self.assertEqual(len(cases), 6)
         self.assertEqual(
@@ -148,10 +150,10 @@ class RunCasesTest(unittest.TestCase):
             ),
         )
         self.assertTrue(all(case.split == "release_gate" for case in cases))
-        self.assertTrue(all(case.scope == KnowledgeScope(corpus="regulations", collection="student_handbook") for case in cases))
+        self.assertTrue(all(case.scope == HANDBOOK_SCOPE for case in cases))
 
-    def test_student_handbook_error_gate_cases_cover_deterministic_error_paths(self) -> None:
-        cases = student_handbook_error_gate_cases()
+    def test_handbook_error_gate_cases_cover_deterministic_error_paths(self) -> None:
+        cases = handbook_error_gate_cases()
 
         self.assertEqual(len(cases), 3)
         self.assertEqual(
@@ -165,7 +167,7 @@ class RunCasesTest(unittest.TestCase):
         self.assertTrue(all(case.expected_status == "error" for case in cases))
         self.assertTrue(all(case.split == "release_gate" for case in cases))
         self.assertTrue(all("error_gate" in case.tags for case in cases))
-        self.assertTrue(all(case.scope == KnowledgeScope(corpus="regulations", collection="student_handbook") for case in cases))
+        self.assertTrue(all(case.scope == HANDBOOK_SCOPE for case in cases))
 
     def test_runner_filters_by_split_and_aggregates_dimensions(self) -> None:
         smoke_case = GoldenCase(
@@ -189,6 +191,7 @@ class RunCasesTest(unittest.TestCase):
             source_type="expert_authored",
             user_goal="leave of absence",
             actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
             expected_status="completed",
         )
 
@@ -272,9 +275,10 @@ class RunCasesTest(unittest.TestCase):
             source_type="expert_authored",
             user_goal="library hours",
             actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
             expected_status="completed",
             trace_expectation=TraceExpectation(
-                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                selected_scope=HANDBOOK_SCOPE,
                 retrieval_called=True,
             ),
         )
@@ -294,9 +298,10 @@ class RunCasesTest(unittest.TestCase):
             source_type="expert_authored",
             user_goal="这个规定怎么办理",
             actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
             expected_status="needs_clarification",
             trace_expectation=TraceExpectation(
-                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                selected_scope=HANDBOOK_SCOPE,
                 retrieval_called=False,
                 clarification_expected=True,
             ),
@@ -338,6 +343,7 @@ class RunCasesTest(unittest.TestCase):
             source_type="synthetic_expansion",
             user_goal="library hours",
             actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
             expected_status="completed",
             expected_sources=(expected_source_ref("handbook:library"),),
         )
@@ -362,6 +368,7 @@ class RunCasesTest(unittest.TestCase):
             source_type="synthetic_expansion",
             user_goal="library hours",
             actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
             expected_status="completed",
             expected_sources=(expected_source_ref("handbook:library", "v3"),),
         )
@@ -386,6 +393,7 @@ class RunCasesTest(unittest.TestCase):
             source_type="expert_authored",
             user_goal="library hours",
             actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
             expected_status="completed",
             expected_sources=(expected_source_ref("handbook:library"),),
             forbidden_sources=(expected_source_ref("plan:fall"),),
@@ -402,9 +410,10 @@ class RunCasesTest(unittest.TestCase):
             source_type="expert_authored",
             user_goal="奖学金怎么申请？",
             actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
             expected_status="needs_clarification",
             trace_expectation=TraceExpectation(
-                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                selected_scope=HANDBOOK_SCOPE,
                 retrieval_called=False,
                 clarification_expected=True,
             ),
@@ -415,9 +424,10 @@ class RunCasesTest(unittest.TestCase):
             source_type="expert_authored",
             user_goal="火星校区飞船停靠规则",
             actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
             expected_status="no_answer",
             trace_expectation=TraceExpectation(
-                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                selected_scope=HANDBOOK_SCOPE,
                 retrieval_called=True,
                 fail_closed_expected=True,
             ),
@@ -428,9 +438,10 @@ class RunCasesTest(unittest.TestCase):
             source_type="expert_authored",
             user_goal="system failure",
             actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
             expected_status="error",
             trace_expectation=TraceExpectation(
-                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                selected_scope=HANDBOOK_SCOPE,
                 retrieval_called=True,
                 error_expected=True,
             ),
@@ -534,6 +545,7 @@ class RunCasesTest(unittest.TestCase):
             source_type="expert_authored",
             user_goal="library hours",
             actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
             expected_status="completed",
             expected_sources=(expected_source_ref("handbook:library"),),
             required_facts=("08:00",),
@@ -559,7 +571,7 @@ class RunCasesTest(unittest.TestCase):
         self.assertEqual(report.by_metric["error_path_correctness"].reason, "no_applicable_cases")
 
     def test_runner_aggregates_deterministic_error_gate_metrics(self) -> None:
-        cases = student_handbook_error_gate_cases()
+        cases = handbook_error_gate_cases()
 
         def executor(case: GoldenCase) -> ExecutionResult:
             return ExecutionResult(

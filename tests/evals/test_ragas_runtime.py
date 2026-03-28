@@ -11,13 +11,13 @@ from langchain_core.prompt_values import StringPromptValue
 from campus_evals import (
     RagasProjection,
     RagasSettings,
-    build_langchain_chat_model,
     build_default_ragas_metric_names,
     build_http_ragas_embeddings,
     build_http_ragas_llm,
     build_ragas_dataset,
     build_ragas_scorer,
 )
+from campus_evals._langchain_compat import build_langchain_chat_model
 
 
 class RagasSettingsTest(unittest.TestCase):
