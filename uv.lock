@@ -16,6 +16,7 @@ resolution-markers = [
 [manifest]
 members = [
     "campus-agent-workspace",
+    "campus-app-api",
     "campus-availability-specialist",
     "campus-contracts",
     "campus-evals",
@@ -255,6 +256,17 @@ dev = [
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=8.0.0" }]
+
+[[package]]
+name = "campus-app-api"
+version = "0.1.0"
+source = { editable = "apps/app-api" }
+dependencies = [
+    { name = "campus-contracts" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "campus-contracts", editable = "packages/contracts" }]
 
 [[package]]
 name = "campus-availability-specialist"

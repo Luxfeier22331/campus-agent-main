@@ -9,6 +9,7 @@ from campus_contracts import KnowledgeScope, RagRequestPayload, SpecialistReques
 ROOT = Path(__file__).resolve().parents[1]
 
 EXPECTED_WORKSPACES = {
+    "apps/app-api",
     "apps/ingestion-worker",
     "apps/protected-internal-panel",
     "apps/public-consumer-chat",
@@ -51,7 +52,7 @@ class WorkspaceLayoutTest(unittest.TestCase):
             ),
         )
 
-    def test_supervisor_api_exposes_phase1_routes(self) -> None:
+    def test_supervisor_api_exposes_stable_runtime_routes(self) -> None:
         supervisor_api = import_module("campus_supervisor_api")
 
         app = supervisor_api.create_app()

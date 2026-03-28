@@ -223,9 +223,18 @@ operator query path 至少包含：
 
 ## 当前仓库状态
 
-当前仓库还没有正式落地 `apps/app-api` 目录。
+当前仓库已经落地 `apps/app-api` 目录，但目前只实现了最小 `ContextProjection` 投影骨架。
 
-但从这份文档开始，后续实现必须把以下内容视为 canonical truth：
+这意味着当前已落地的是长期边界与最小 identity / memory projection seam，而不是完整 Worker product backend。
+
+当前仍然尚未落地的内容包括：
+
+- Hono / Wrangler Worker scaffold
+- auth / session / conversation product API
+- `runtime.request_execution` / `projection_outbox` / `request_projection` 数据面
+- `app-api -> supervisor-api` 内部 HTTP adapter
+
+但从这份文档开始，以下内容仍然是 canonical truth：
 
 - `apps/app-api` 是 Worker runtime
 - `apps/public-consumer-chat` 只是历史实现参考
