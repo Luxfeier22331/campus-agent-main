@@ -124,6 +124,7 @@ class CaseResult:
     answer_result: DimensionResult
     trace_result: DimensionResult
     metric_results: dict[str, DimensionResult] = field(default_factory=dict)
+    supplemental_results: tuple["SupplementalResult", ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,6 +133,40 @@ class SummaryCount:
     passed: int
     failed: int
     pass_rate: float | None
+    reason: str = ""
+
+
+SupplementalVerdict = Literal["passed", "failed", "not_applicable"]
+
+
+@dataclass(frozen=True, slots=True)
+class SupplementalResult:
+    adapter_id: str
+    metric_name: str
+    score: float | None = None
+    verdict: SupplementalVerdict | None = None
+    rationale: str = ""
+    gating: bool = False
+    metadata: dict[str, object] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if not self.adapter_id.strip():
+            raise ValueError("adapter_id must not be empty")
+        if not self.metric_name.strip():
+            raise ValueError("metric_name must not be empty")
+        if self.score is None and self.verdict is None:
+            raise ValueError("supplemental result requires score or verdict")
+
+
+@dataclass(frozen=True, slots=True)
+class SupplementalMetricSummary:
+    adapter_id: str
+    metric_name: str
+    total: int
+    score_count: int
+    average_score: float | None
+    verdict_counts: dict[str, int]
+    report_only: bool
     reason: str = ""
 
 
@@ -144,3 +179,4 @@ class RunReport:
     by_dimension: dict[str, SummaryCount]
     by_metric: dict[str, SummaryCount]
     results: tuple[CaseResult, ...]
+    by_supplemental: dict[str, SupplementalMetricSummary] = field(default_factory=dict)

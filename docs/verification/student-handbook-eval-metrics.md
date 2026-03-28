@@ -215,4 +215,30 @@ updated: 2026-03-27
 - explicit refusal quality rubric
 - release gate 最终阈值
 
+补充说明：
+
+- `packages/evals` 现已补上 supplemental adapter seam 与 `ragas` projection/adapter 边界，但当前还没有形成 handbook `ragas` 的正式数值快照
+- 在没有补齐独立 runner、依赖安装与 fresh report 之前，`ragas` 仍然处于 report-only 接线完成、指标未正式落盘的状态
+
+2026-03-28 更新：
+
+- `packages/evals` 已新增 `RagasSettings.from_env()`、`build_ragas_dataset()`、`build_ragas_scorer()` 与 env-driven supplemental scorer 接线
+- 当前 eval runtime 消费 `.env` 中的 `LLM_*` 与 `EMBEDDING_*` OpenAI-compatible 配置；judge model 选择优先级为 `RAGAS_LLM_MODEL > LLM_REASONING_MODEL > LLM_CHAT_MODEL`；`Qwen3-Embedding-4B` 在 eval 侧默认补 `dimensions=2560`
+- 针对 `ragas==0.4.3`，当前真实评分路径已固定为 `ragas.evaluate(...)` + legacy metric objects；默认运行面不再依赖 `LangChain/OpenAI SDK` transport，而是改成 `packages/evals` 自带的原生 HTTP `Responses` / `Embeddings` client
+- repo 内自动化覆盖当前已补齐：
+  - `tests.evals.test_ragas_runtime`
+  - `tests.evals.test_supplemental_adapters`
+- 先前 live smoke 失败的根因已分两层确认：
+  - 第一层：eval runtime 当时仍走 `chat.completions`，而当前 provider 对 `Responses API` 可用、对 `chat.completions` 返回阻断
+  - 第二层：即使切到 `Responses API`，当前 provider 仍会阻断 `OpenAI Python SDK / LangChain` 请求栈；同 payload 的原生 HTTP 请求则可正常返回，因此默认 runtime 已收口到原生 HTTP transport
+- 2026-03-28 live smoke 证据已更新：
+  - `.tmp/ragas-live-smoke.json`：单指标 `faithfulness` 成功，得分 `1.0`
+  - `.tmp/ragas-live-smoke-full.json`：完整四指标在 provider 首次返回 `503 system_cpu_overloaded` 后，于第二次尝试成功
+  - 当前 test key 下 `Qwen3-Embedding-4B` 没有可用 channel，因此 smoke 使用 provider 当前可用的 `gemini-embedding-001` 仅验证 transport；这不改变仓库对 handbook baseline embedding 的正式配置
+
+当前结论：
+
+- ragas supplemental runtime 的配置与 transport 已改成和当前 provider 能力一致
+- handbook 已具备产出正式 `ragas` 数值快照的运行能力；但 provider 仍存在瞬时 `503 system_cpu_overloaded` 抖动，live 评测应保留重试与证据落盘
+
 这些内容当前尚未纳入本轮 deterministic release-gate；如后续要扩展 groundedness / judge-based gate，应另行补充验证文档与阈值定义。
