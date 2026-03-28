@@ -14,7 +14,7 @@ updated: 2026-03-25
 - 长期 `apps/` 与 `packages/` 分层：`docs/architecture/long-term-architecture.md`
 - supervisor 边界与编排职责：`docs/architecture/supervisor-architecture.md`
 - phase-1 当前 runtime 取舍：`docs/decisions/adr-0001-phase1-architecture.md`
-- protected internal panel 的信任模型：`docs/architecture/protected-internal-panel-boundary.md`
+- protected panel 的信任模型：`docs/architecture/protected-panel-boundary.md`
 - 当前 phase 执行状态与后续 handoff：`.planning/phases/04.1-cloudflare-entry-and-protected-internal-panel-design/`
 
 ## 目标
@@ -22,7 +22,7 @@ updated: 2026-03-25
 Phase 04.1 在这里冻结三件事：
 
 - Cloudflare 是 public entry 的 edge/control boundary，位于 `apps/supervisor-api` 之前。
-- 系统采用 two-surface 模型：一个 public entry surface，一个 separate protected internal panel surface。
+- 系统采用 two-surface 模型：一个 public entry surface，一个 separate protected panel surface。
 - Cloudflare does not own supervisor routing、specialist delegation、retrieval semantics，`supervisor -> specialist -> retrieval` contract path 保持不变。
 
 ## 冻结结论
@@ -49,9 +49,9 @@ Phase 04.1 在这里冻结三件事：
 
 ### Protected internal panel
 
-- 是 separate protected internal panel surface，不复用 public entry 的 exposure model。
+- 是 separate protected panel surface，不复用 public entry 的 exposure model。
 - 由独立受保护 hostname/surface 承载。
-- 详细 trust model 见 `docs/architecture/protected-internal-panel-boundary.md`。
+- 详细 trust model 见 `docs/architecture/protected-panel-boundary.md`。
 
 这两个 surface 在 Cloudflare 层分开，但在 monorepo 内都必须尊重 `apps/*` 作为 runtime boundary、`packages/*` 作为稳定能力边界的长期约束。
 
@@ -60,7 +60,7 @@ Phase 04.1 在这里冻结三件事：
 | Surface | Public reachability | Cloudflare owns | Repo-owned runtime owns | Explicit non-ownership |
 | --- | --- | --- | --- | --- |
 | Public entry | Yes | DNS/TLS, WAF/admission, hostname, edge request forwarding | `apps/supervisor-api` request ingress, runtime integration, transport-to-supervisor mapping | Cloudflare does not own supervisor routing, specialist delegation, retrieval semantics |
-| Protected internal panel | No, non-public by default | Separate protected hostname, outer access protection envelope | Future `apps/` panel runtime and any runtime API surface it is allowed to call | Panel surface does not bypass `apps/supervisor-api` or call `packages/*` directly |
+| Protected internal panel | No, non-public by default | Separate protected hostname, outer access protection envelope | Future `apps/` panel runtime and any runtime API surface it is allowed to call | Panel surface does not bypass shared `apps/app-api` or call `packages/*` directly |
 
 ## `apps/supervisor-api` 边界
 

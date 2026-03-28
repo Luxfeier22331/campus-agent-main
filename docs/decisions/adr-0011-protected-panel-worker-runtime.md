@@ -8,27 +8,28 @@ updated: 2026-03-28
 
 # ADR-0011 Protected Panel Worker Runtime 决策
 
-适用范围：`apps/protected-internal-panel` 的正式 runtime 宿主、UI shell 方向与长期 operator control plane 形态
+适用范围：`apps/protected-panel-web` 的正式 runtime 宿主、UI shell 方向与长期 operator control plane 形态
 
 ## 背景
 
-protected internal panel 已经被长期文档冻结为：
+protected panel 已经被长期文档冻结为：
 
 - 独立 protected surface
 - non-public by default / fail-closed
 - controlled operator access，而不是终端用户账户产品
 - `runtime APIs only`
+- forward product topology 已收口为 `protected-panel-web -> app-api -> operator query`
 
 在上述边界已经冻结后，panel 仍需正式收口两个长期问题：
 
-- `apps/protected-internal-panel` 应采用什么 runtime 宿主
+- `apps/protected-panel-web` 应采用什么 runtime 宿主
 - panel 应优先完全自建 UI，还是优先基于成熟开源 admin framework 改造
 
 ## 决策 1：panel runtime 冻结为 `Cloudflare Workers`
 
 结论：
 
-- `apps/protected-internal-panel` 的正式 runtime 宿主冻结为 `Cloudflare Workers`
+- `apps/protected-panel-web` 的正式 runtime 宿主冻结为 `Cloudflare Workers`
 - protected panel 的 runtime origin 以 Worker shell 形态存在
 
 原因：
@@ -42,7 +43,7 @@ protected internal panel 已经被长期文档冻结为：
 
 结论：
 
-- 这里冻结的是 `apps/protected-internal-panel` 这条 runtime boundary
+- 这里冻结的是 `apps/protected-panel-web` 这条 runtime boundary
 - 不是把整个 monorepo 的 runtime 一次性统一冻结到 Workers
 
 原因：
@@ -102,6 +103,19 @@ panel 长期功能域固定为：
 - 少量可审计的 operator 动作
 - operator 行为与系统动作审计
 
+## 决策 5：当前默认 rollout 不把所有长期功能域一次性落地
+
+结论：
+
+- `Overview` 是默认起步域
+- `Requests` 需等待 `apps/app-api` 暴露安全 query surface 后再解锁
+- `Jobs` / `Operations` 当前默认保持 delayed，直到产品 scope 被明确重开
+
+原因：
+
+- panel 的长期能力图谱不等于第一波交付范围
+- 当前更重要的是先证明 protected Worker shell、operator admission、panel BFF 与最小 read-only visibility
+
 ## 明确不做
 
 - 不做完整用户系统
@@ -116,7 +130,7 @@ panel 长期功能域固定为：
 
 直接结果：
 
-- `apps/protected-internal-panel` 后续实现应以 Worker shell 为目标，而不是延续任何占位 runtime
+- `apps/protected-panel-web` 后续实现应以 Worker shell 为目标
 - panel 文档、README 与 implementation handoff 应围绕 Worker origin、Access assertion validation 和 panel BFF 收口
 - panel 功能规划应优先围绕五个能力域展开，而不是扩张成通用业务后台
 
@@ -125,7 +139,7 @@ panel 长期功能域固定为：
 - 不因为 Worker runtime freeze 就修改其他 app boundary 的 runtime 承诺
 - 不因为选择开源 admin framework 就放弃 panel 的长期安全边界
 
-## 决策 5：Worker 侧 BFF 推荐采用 `Hono`
+## 决策 6：Worker 侧 BFF 推荐采用 `Hono`
 
 结论：
 
@@ -140,7 +154,7 @@ panel 长期功能域固定为：
 
 ## 相关文档
 
-- `docs/architecture/protected-internal-panel-boundary.md`
+- `docs/architecture/protected-panel-boundary.md`
 - `docs/architecture/protected-panel-runtime-shell.md`
 - `docs/architecture/protected-panel-operator-access.md`
 - `docs/architecture/cloudflare-runtime-topology.md`

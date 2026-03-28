@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-22
-updated: 2026-03-27
+updated: 2026-03-28
 ---
 
 # campus-agent 长期架构
@@ -11,7 +11,7 @@ updated: 2026-03-27
 
 将 `campus-agent` 建成校园助理系统的长期入口仓库，核心形态是 supervisor 主导的 `hybrid orchestration`、specialist 子代理，以及带有独立 ingestion/data plane 的可替换 retrieval 栈。
 
-当前阶段的目标不是做一个框架示例，也不是先选一个 HTTP runtime；目标是先把仓库边界和演进方向定清楚，避免后续再次整体推翻。
+当前阶段的目标不是做一个框架示例，也不是先为所有边界选一个统一 HTTP runtime；目标是先把仓库边界和演进方向定清楚，避免后续再次整体推翻。
 
 这份文档只保存长期架构边界、职责拆分和链路形态，不冻结具体实现、部署拓扑、供应商选型或第一阶段落地细节。
 
@@ -42,8 +42,14 @@ updated: 2026-03-27
 
 当前 monorepo 的目录设计围绕这条链路展开：
 
+- `apps/public-chat-web`
+  public-facing Worker web surface，承载 public chat 的浏览器入口。
+- `apps/protected-panel-web`
+  protected Worker web surface，承载 panel 的浏览器入口。
+- `apps/app-api`
+  shared application backend，承载 auth/session/conversation、chat ingress 与 operator read APIs；runtime 现已冻结为 Worker。
 - `apps/supervisor-api`
-  对外服务边界，只负责 transport adapter。
+  execution engine boundary，负责 answer execution 与对应 transport adapter。
 - `packages/supervisor-core`
   supervisor 策略、路由、委派、答案组装和升级逻辑。
 - `packages/rag-specialist`
@@ -67,17 +73,28 @@ updated: 2026-03-27
 - Document Registry: 文档版本、hash、ACL、状态等元数据
 - Chunk Metadata + Vector Index: chunk 元数据和向量检索索引
 
+与 shared `app-api` 配套的运行数据层至少包括：
+
+- Request Execution: command-side durable request facts
+- Projection Outbox: command-side emitted projection inputs
+- Request Projection Read Model: operator-facing materialized view
+
 ## Runtime 边界
 
 `apps/supervisor-api` 这个名字刻意表达的是 API 边界，不是对 FastAPI 的承诺。
 
-runtime 选择应该延后。未来可以接受的实现包括：
+execution engine runtime 选择应该延后。未来可以接受的实现包括：
 
 - FastAPI，作为简单 Python HTTP 服务
 - Agno AgentOS，如果最终服务模型原生落在 Agno 上
 - 其他 transport/runtime，只要产品约束需要
 
-`ADR-0001` 中的 `AgentOS-native` 只表示 phase-1 当前生产 runtime 选择，不构成长期 runtime freeze。
+`ADR-0001` 中的 `AgentOS-native` 只表示 phase-1 当前生产 runtime 选择，不构成 execution engine 的长期 runtime freeze。
+
+但这条“runtime 仍延后”的规则不再适用于 shared `apps/app-api`：
+
+- `apps/app-api` 的 runtime 已接受为 Worker
+- 这项冻结只作用于 shared app backend，不反向推导 `apps/supervisor-api` 也必须是 Worker
 
 当前真正重要的是边界清晰：
 
@@ -86,6 +103,20 @@ runtime 选择应该延后。未来可以接受的实现包括：
 - specialist delegation / handoff contract 留在 `packages/contracts`
 - ingestion/data consumption 逻辑留在 `packages/ingestion-core`
 - ingestion、job、queue 和存储相关能力都保持在独立边界之后，不反向渗透进 supervisor
+- 面向 chat/panel 的 app-level API 留在 shared `apps/app-api` boundary
+- `apps/supervisor-api` 不承担浏览器产品 API、auth/session/conversation 或 panel list/detail 查询
+
+## Shared App API Boundary
+
+长期上，public chat 与 protected panel 可以共享一个 `apps/app-api`，但只在以下前提下成立：
+
+- `app-api` 负责产品层 auth/session/conversation 与 browser-facing API
+- `app-api` 作为 internal Worker runtime 存在，而不是默认做成独立 Docker-first backend
+- `supervisor-api` 保持 execution engine，不重新长出产品层 backend
+- `app-api` 内部仍保持 command/query 分离
+- request projection / operator read model 不能退化成 `conversation/message` 的别名
+
+当前 accepted direction 允许 `app-api` 与 execution engine 共用同一个关系数据库，但不允许因此合并 boundary 或 ownership。
 
 ## 观测与遥测边界
 
@@ -103,6 +134,7 @@ runtime 选择应该延后。未来可以接受的实现包括：
 - `apps/*` runtime 壳负责接入 telemetry export，不把 vendor-specific SDK 语义推回 `packages/contracts`
 - `packages/supervisor-core` 继续拥有最小 audit / trace 投影责任，但不直接拥有观测产品选型
 - `packages/rag-specialist`、`packages/retrieval-core`、`packages/ingestion-core` 只输出结构化事件与 trace 语义，不直接定义长期 sink 边界
+- 如果后续需要 operator-facing request list/detail，必须通过 runtime-owned projection/read API 提供，而不是直接把 telemetry sink 暴露成产品面
 
 相关 accepted 决策：
 

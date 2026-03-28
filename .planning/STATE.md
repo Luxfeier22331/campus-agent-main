@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Synced origin/main 04.7 closeout into Phase 6-complete branch state
-last_updated: "2026-03-27T14:00:00.000Z"
+stopped_at: Shared `app-api` topology docs, protected-panel naming, and request API ownership language were aligned; `Jobs` / `Operations` remain delayed
+last_updated: "2026-03-28T13:30:00.000Z"
 progress:
   total_phases: 17
   completed_phases: 16
@@ -19,7 +19,7 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-03-27)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 `student_handbook` 的完整 agentic RAG 主流程证明这条架构能可靠替代高频人工答疑
-**Current focus:** Phase 7 verification and release gate is now the next mainline work; Phase 04.7 and Phase 6 are both complete, and `curriculum_plan` remains offline-only
+**Current focus:** Phase 7 verification on mainline remains separate; this follow-up worktree now treats `public-chat-web` / `protected-panel-web` + shared `app-api` Worker runtime + `supervisor-api` execution engine as the accepted product topology, and keeps `Jobs` / `Operations` out of the first panel rollout
 
 ## Current Position
 
@@ -108,10 +108,10 @@ Plan: 0 of 2
 
 - Phase 03.1 inserted after Phase 3: Availability Specialist 最小闭环 (URGENT)
 - Phase 03.2 inserted after Phase 3: Source Truth Fan-Out And Attachment Projection (URGENT)
-- Phase 04.1 inserted after Phase 4: Cloudflare Entry And Protected Internal Panel Design (URGENT)
+- Phase 04.1 inserted after Phase 4: Cloudflare Entry And Protected Panel Design (URGENT)
 - Phase 04.2 inserted after Phase 04.1: Cloudflare Runtime Topology And Delivery Shape (URGENT)
 - Phase 04.3 inserted after Phase 04.2: Public Entry Edge Integration Contract (URGENT)
-- Phase 04.4 inserted after Phase 04.3: Protected Internal Panel Runtime Shell (URGENT)
+- Phase 04.4 inserted after Phase 04.3: Protected Panel Runtime Shell (URGENT)
 - Phase 04.5 inserted after Phase 4: Cloudflare Worker Consumer Entry And Access Policy (URGENT)
 - Phase 04.6 inserted after Phase 4: Cloudflare Worker Runtime Implementation (URGENT)
 - Phase 04.7 inserted after Phase 4: Public Consumer Chat App Design (URGENT)
@@ -122,31 +122,37 @@ Plan: 0 of 2
 Decisions are logged in `PROJECT.md` Key Decisions table.
 Recent decisions affecting current work:
 
-- Phase-1 query-serving remains restricted to `student_handbook`; `curriculum_plan` stays offline-only.
+- Phase-1 query-serving remains restricted to `student_handbook`; `curriculum_plan` stays offline-only on the mainline path.
 - Verification remains a dedicated release-gate phase after the main architecture path is in place.
 - `official-web` / `availability` specialist landed as an explicit non-RAG specialist boundary instead of a supervisor-inline tool bundle.
 - `/api/v1/answer` now constructs a supervisor-facing request contract instead of hardcoding a rag-specialist handoff.
 - Phase 03.2 froze the data-plane direction as `raw -> source truth -> declared projections -> document/chunk/index`; later handbook-derived outputs must replay from persisted source truth instead of returning to raw.
 - Phase 04 froze `rag-specialist` answer semantics on top of the accepted hybrid retrieval baseline with grounded citations plus `needs_clarification` / `no_answer` / `error` fail-close behavior.
 - Phase 04.6 closed the Worker-to-origin seam: `apps/public-entry-worker -> apps/supervisor-api` with trusted-worker origin auth.
-- Phase 04.7 is now completed on `main`; `apps/public-consumer-chat` implementation, README baseline, and app-local documentation contract tests are accepted references rather than an open design track.
+- Phase 04.7 is now completed on `main`; `apps/public-consumer-chat` implementation is a historical reference rather than the forward backend topology truth.
 - Phase 05 removed bearer actor spoofing, projected caller claims from forwarded Access JWT payload, and moved durable audit persistence to the API shell boundary.
+- The accepted forward design is now `public-chat-web` + `protected-panel-web` + shared `app-api`; auth/session/conversation, chat ingress, and operator query move into `app-api`, while `apps/supervisor-api` remains the execution engine.
+- `apps/app-api` runtime is now frozen to Worker rather than remaining runtime-agnostic.
+- Protected panel follow-up now freezes request projection ownership on shared `apps/app-api`: `Requests` stays blocked until `app-api` exposes a safe runtime query surface, and panel work must not route around that gap through `apps/supervisor-api`, audit logs, telemetry sinks, or consumer chat tables.
+- Protected panel operator access is now explicitly documented as a small-team operator surface without a self-serve end-user account system; `Jobs` and `Operations` remain delayed pending re-discussion.
 - Phase 05.1 froze curriculum source-truth quality gates, split-manifest review fail-close behavior, and explicit chunking runtime truth.
 - Phase 06 added `provider_response_replay` rebuild support for `curriculum_plan` while keeping retrieval, supervisor policy, and API boundary query-disabled for that collection.
 
 ### Pending Todos
 
-- Start Phase 7 verification and release-gate work for handbook mainline and curriculum offline-only guardrails.
-- Keep handbook chunk-truth validation as a regression gate while verification/eval work proceeds.
+- Keep handbook chunk-truth validation as a regression gate while mainline verification/eval work proceeds.
+- Land `apps/app-api` before unblocking panel `Requests`.
+- Keep `Jobs` and `Operations` out of the default panel rollout until product scope explicitly re-opens them.
 
 ### Blockers/Concerns
 
-- No current handbook or curriculum offline-prep blocker remains; the primary remaining blocker is final release-gate verification evidence.
+- No current handbook or curriculum offline-prep blocker remains inside this follow-up branch; the mainline blocker is release-gate verification evidence.
 - Cloudflare 04.x boundary/topology/contract/shell docs are complete; follow-up work must consume them as frozen handoffs rather than reopening architecture churn.
-- `public-consumer-chat` is merged on `main`; downstream work should treat 04.7 handoffs and accepted architecture docs as the canonical boundary truth.
+- `public-consumer-chat` is merged on `main`; downstream work should treat it as a historical implementation reference rather than a live backend direction.
+- protected panel `Requests` remains blocked on an `apps/app-api` runtime-owned request projection API; panel work must not route around that gap by reading audit logs, telemetry sinks, consumer chat tables, or `apps/supervisor-api` directly.
 
 ## Session Continuity
 
-Last session: 2026-03-27T14:00:00.000Z
-Stopped at: Synced origin/main 04.7 closeout into Phase 6-complete branch state
+Last session: 2026-03-28T13:30:00.000Z
+Stopped at: Shared app-api docs now consistently treat `protected-panel-web` as the forward surface and keep panel `Requests` blocked on `app-api` query APIs while `Jobs` / `Operations` remain delayed
 Resume file: None

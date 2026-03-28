@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0010
 status: accepted
 created: 2026-03-27
-updated: 2026-03-27
+updated: 2026-03-28
 ---
 
 # ADR-0010 观测与遥测栈决策
@@ -130,6 +130,7 @@ updated: 2026-03-27
 - PII、secret、token、cookie、access envelope、raw auth material 不得直接落盘
 - ACL / version / route / source locator 等治理字段必须可追踪
 - redaction 配置应先于 production sink 开启
+- 如果后续需要 operator-facing request list/detail，必须通过 runtime-owned projection/read API 提供；`Axiom`、`Sentry` 与 raw audit log 都不是 canonical panel read model
 
 ## 不冻结的内容
 

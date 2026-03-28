@@ -14,7 +14,7 @@ updated: 2026-03-25
 - public entry 的边界归属：`docs/architecture/cloudflare-public-entry-boundary.md`
 - public entry 到 runtime origin 的 integration contract：`docs/architecture/cloudflare-public-entry-integration-contract.md`
 - public/protected surface 的 topology：`docs/architecture/cloudflare-runtime-topology.md`
-- protected panel 的 trust model：`docs/architecture/protected-internal-panel-boundary.md`
+- protected panel 的 trust model：`docs/architecture/protected-panel-boundary.md`
 - 长期 `apps/*` / `packages/*` 分层：`docs/architecture/long-term-architecture.md`
 - supervisor runtime shell 与 core 分层：`docs/architecture/supervisor-architecture.md`
 
@@ -111,7 +111,7 @@ fail-closed 的目标是保证 public entry 不会因为配置缺口而降级成
 
 ## Protected Panel Separation
 
-04.5 不改变 public entry 与 protected internal panel 的双表面模型。
+04.5 不改变 public entry 与 protected panel 的双表面模型。
 
 必须继续保持：
 

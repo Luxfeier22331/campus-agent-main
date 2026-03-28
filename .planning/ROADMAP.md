@@ -22,10 +22,10 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 03.1: Availability Specialist 最小闭环** - Generalize the supervisor/specialist boundary enough to add an allowlisted `official-web` / `availability` specialist without collapsing back into supervisor inline tools. (completed 2026-03-25)
 - [x] **Phase 03.2: Source Truth Fan-Out And Attachment Projection** - Freeze and implement the single-source-consumption fan-out architecture so one raw source produces all declared downstream projections, including attachment-derived documents, without later raw re-consumption.
 - [x] **Phase 4: RAG Specialist Answer Path** - Deliver grounded `student_handbook` retrieval and answer semantics inside `rag-specialist`, using the updated hybrid retrieval baseline (`dense + sparse + RRF`) instead of the old dense-only bootstrap. (completed 2026-03-27)
-- [x] **Phase 04.1: Cloudflare Entry And Protected Internal Panel Design** - Freeze the Cloudflare public-entry and protected internal-panel boundary without changing core query contracts. (INSERTED) (completed 2026-03-25)
+- [x] **Phase 04.1: Cloudflare Entry And Protected Panel Design** - Freeze the Cloudflare public-entry and protected panel boundary without changing core query contracts. (INSERTED) (completed 2026-03-25)
 - [x] **Phase 04.2: Cloudflare Runtime Topology And Delivery Shape** - Freeze the Cloudflare-to-runtime deployment topology, origin ownership, and delivery boundary for public entry and protected panel. (INSERTED) (completed 2026-03-25)
 - [x] **Phase 04.3: Public Entry Edge Integration Contract** - Freeze the runtime-level integration contract between Cloudflare public entry and `apps/supervisor-api`. (INSERTED) (completed 2026-03-25)
-- [x] **Phase 04.4: Protected Internal Panel Runtime Shell** - Freeze the implementation shape of the protected panel as a future `apps/` runtime shell that only consumes runtime APIs. (INSERTED) (completed 2026-03-25)
+- [x] **Phase 04.4: Protected Panel Runtime Shell** - Freeze the implementation shape of the protected panel as a future `apps/` runtime shell that only consumes runtime APIs. (INSERTED) (completed 2026-03-25)
 - [x] **Phase 04.5: Cloudflare Worker Consumer Entry And Access Policy** - Freeze the Worker-only public consumer-entry seam, access modes, and Worker-to-origin trust policy for the public answer path. (INSERTED) (completed 2026-03-25)
 - [x] **Phase 04.6: Cloudflare Worker Runtime Implementation** - Implement the Cloudflare Worker public-entry shell against the frozen 04.3 and 04.5 runtime contracts without absorbing Phase 5 actor, ACL, or audit ownership. (INSERTED) (completed 2026-03-25)
 - [x] **Phase 04.7: Public Consumer Chat App Design** - Freeze the first-version public consumer chat app shape, repo boundary, and implementation breakdown so the user-facing product can be built on top of the Worker public-entry seam without reopening panel or Phase 5 ownership questions. (INSERTED) (completed 2026-03-27)
@@ -140,7 +140,7 @@ Plans:
   6. The phase freezes the frontend host as `TanStack Start`, so the consumer app owns its own full-stack route/auth/session/conversation boundary.
 **Plans:** 2/2 plans complete
 
-**Completion Note:** PR #4 merged the `apps/public-consumer-chat` implementation, README baseline, and app-local documentation guardrails into `main` on 2026-03-27. The retained 04.7 handoff notes are now accepted boundary references; the migration plan/checklist remain historical execution artifacts rather than an open work queue.
+**Completion Note:** PR #4 merged the `apps/public-consumer-chat` implementation, README baseline, and app-local documentation guardrails into `main` on 2026-03-27. The retained 04.7 handoff notes are accepted historical boundary references; later `shared app-api` decisions superseded 04.7's independent full-stack ownership as the forward product topology truth.
 
 Plans:
 - [x] 04.7-01-PLAN.md — Freeze the consumer-app boundary handoff for repo shape, routes, states, and ownership splits.
@@ -177,7 +177,7 @@ Plans:
 - [x] 04.6-02-PLAN.md — Implement Worker entry-mode enforcement, Access JWT validation, allowlisted forwarding, and trusted-origin injection with focused Worker tests.
 - [x] 04.6-03-PLAN.md — Patch `apps/supervisor-api` for explicit trusted-worker origin auth, env wiring, and focused API tests.
 
-### Phase 04.1: Cloudflare Entry And Protected Internal Panel Design (INSERTED)
+### Phase 04.1: Cloudflare Entry And Protected Panel Design (INSERTED)
 
 **Goal:** Freeze the Cloudflare public-entry and protected internal-panel boundary before implementation work, without changing the `supervisor -> specialist -> retrieval` contract path or leaking runtime specifics into core packages.
 **Requirements**: []
@@ -223,9 +223,9 @@ Plans:
 - [x] 04.3-01: Freeze the public-entry runtime integration contract between Cloudflare and `apps/supervisor-api`.
 - [x] 04.3-02: Freeze the downstream implementation handoff for forwarding, trace, timeout/cache, streaming, and runtime-seam health rules.
 
-### Phase 04.4: Protected Internal Panel Runtime Shell (INSERTED)
+### Phase 04.4: Protected Panel Runtime Shell (INSERTED)
 
-**Goal:** Freeze the implementation shape of the protected internal panel as a future `apps/` runtime shell, including runtime API seams, non-goals, and fail-closed delivery assumptions, without turning it into a direct package consumer or business-workflow phase.
+**Goal:** Freeze the implementation shape of the protected panel as a future `apps/` runtime shell, including runtime API seams, non-goals, and fail-closed delivery assumptions, without turning it into a direct package consumer or business-workflow phase.
 **Requirements**: []
 **Depends on:** Phase 04.2
 **Success Criteria** (what must be TRUE):
@@ -235,7 +235,7 @@ Plans:
 **Plans:** 2/2 plans complete
 
 Plans:
-- [x] 04.4-01: Freeze the protected internal panel as a future `apps/` runtime shell with a runtime-API-only seam and forbidden coupling rules.
+- [x] 04.4-01: Freeze the protected panel as a future `apps/` runtime shell with a runtime-API-only seam and forbidden coupling rules.
 - [x] 04.4-02: Freeze the downstream implementation handoff for panel shell ownership, fail-closed behavior, and deferred UI/business/governance scope.
 
 ### Phase 5: Supervisor Entry, ACL, And Audit
@@ -312,10 +312,10 @@ Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 03.2 → 4 → 04.1 
 | 03.1. Availability Specialist 最小闭环 | 3/3 | Complete | 2026-03-25 |
 | 03.2. Source Truth Fan-Out And Attachment Projection | 2/2 | Complete|  |
 | 4. RAG Specialist Answer Path | 3/3 | Complete | 2026-03-27 |
-| 04.1. Cloudflare Entry And Protected Internal Panel Design | 3/3 | Complete   | 2026-03-25 |
+| 04.1. Cloudflare Entry And Protected Panel Design | 3/3 | Complete   | 2026-03-25 |
 | 04.2. Cloudflare Runtime Topology And Delivery Shape | 2/2 | Complete   | 2026-03-25 |
 | 04.3. Public Entry Edge Integration Contract | 2/2 | Complete   | 2026-03-25 |
-| 04.4. Protected Internal Panel Runtime Shell | 2/2 | Complete   | 2026-03-25 |
+| 04.4. Protected Panel Runtime Shell | 2/2 | Complete   | 2026-03-25 |
 | 04.5. Cloudflare Worker Consumer Entry And Access Policy | 2/2 | Complete   | 2026-03-25 |
 | 04.6. Cloudflare Worker Runtime Implementation | 3/3 | Complete    | 2026-03-25 |
 | 04.7. Public Consumer Chat App Design | 2/2 | Complete | 2026-03-27 |

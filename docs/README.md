@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-03-22
-updated: 2026-03-27
+updated: 2026-03-28
 ---
 
 # Docs
@@ -60,10 +60,13 @@ updated: 2026-03-27
 - `architecture/cloudflare-runtime-topology.md`
 - `architecture/cloudflare-public-entry-integration-contract.md`
 - `architecture/cloudflare-worker-consumer-entry-access-policy.md`
+- `architecture/shared-app-api-and-worker-web-surfaces.md`
+- `architecture/app-api-architecture.md`
 - `architecture/public-consumer-chat-auth-and-data-boundary.md`
 - `architecture/public-consumer-chat-surface.md`
-- `architecture/protected-internal-panel-boundary.md`
+- `architecture/protected-panel-boundary.md`
 - `architecture/protected-panel-operator-access.md`
+- `architecture/request-projection-and-runtime-read-model.md`
 - `architecture/protected-panel-runtime-shell.md`
 - `architecture/source-truth-normalization-contract.md`
 - `architecture/supervisor-architecture.md`
@@ -80,6 +83,10 @@ updated: 2026-03-27
 - `decisions/adr-0009-public-consumer-frontend-host.md`
 - `decisions/adr-0010-observability-and-telemetry-stack.md`
 - `decisions/adr-0011-protected-panel-worker-runtime.md`
+- `decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
+- `decisions/adr-0013-app-api-worker-runtime.md`
+- `decisions/adr-0014-app-api-request-projection-and-panel-query-ownership.md`
+- `plans/app-api-worker-foundation.md`
 - `plans/agentic-rag-foundation.md`
 - `plans/agent-orchestration-architecture-refresh.md`
 - `plans/golden-dataset-document-delivery.md`

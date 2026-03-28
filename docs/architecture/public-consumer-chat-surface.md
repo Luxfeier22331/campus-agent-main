@@ -1,11 +1,15 @@
 ---
 doc_type: architecture
-status: active
+status: superseded
 created: 2026-03-26
-updated: 2026-03-26
+updated: 2026-03-28
 ---
 
 # Public Consumer Chat Surface
+
+> Superseded on 2026-03-28 by `docs/architecture/shared-app-api-and-worker-web-surfaces.md` and `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`.
+>
+> This file records the earlier 04.7 direction where `public-consumer-chat` was treated as a standalone full-stack app boundary. It is no longer the forward-looking canonical truth.
 
 ## 文档边界
 
@@ -206,7 +210,7 @@ updated: 2026-03-26
 
 ## Non-Goals
 
-- 不设计 protected internal panel、admin 或 operator workflow
+- 不设计 protected panel、admin 或 operator workflow
 - 不把 public chat surface 变成 edge orchestrator
 - 不在前台暴露 specialist/runtime/provider 概念
 - 不在 Worker 层拥有 canonical user system 或 retrieval ACL truth

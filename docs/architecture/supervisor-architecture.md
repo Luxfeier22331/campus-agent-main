@@ -128,7 +128,7 @@ supervisor 的长期工作方式不是“只允许 handoff”，而是允许两�
 - 最终响应决定权
 - 跨 specialist 协同权
 - 统一 policy 执行权
-- 审计 / trace 统一投影权
+- 最小审计 / trace 统一投影权
 - 失败闭环与升级权
 
 ### 长期不拥有的能力
@@ -146,8 +146,10 @@ supervisor 的长期工作方式不是“只允许 handoff”，而是允许两�
 
 与 `apps/supervisor-api`：
 
-- API 边界只负责外部协议、鉴权、runtime 集成和入口壳
+- API 边界只负责 execution-side 外部协议、鉴权、runtime 集成和入口壳
 - supervisor 不反向吸收 HTTP、auth 或 runtime host 细节
+- 产品层 auth/session/conversation 与 operator query 留在 shared `apps/app-api`
+- durable request projection 的写入、持久化与 read API 由 shared `app-api` runtime boundary 拥有，而不是 `packages/supervisor-core`
 
 与 `packages/contracts`：
 
@@ -168,6 +170,25 @@ supervisor 的长期工作方式不是“只允许 handoff”，而是允许两�
 
 - supervisor 不拥有任何 ingestion/data plane 逻辑
 - online query path 与 offline ingestion path 必须长期分离
+
+### 请求级投影与读模型
+
+需要区分两层 ownership：
+
+- `packages/supervisor-core`
+  负责最小 audit / trace 语义投影
+- `apps/app-api`
+  负责把该语义连同产品侧 request identity / conversation correlation 收口为 durable request projection，并对外暴露 request list/detail read API
+
+这条规则的目的，是避免两种错误收口：
+
+- 把 panel 变成 request projection 的第二生产者
+- 把 `packages/supervisor-core` 反向扩成面向产品 surface 的 read-model host
+- 把 `apps/supervisor-api` 重新扩回产品 query backend
+
+request projection 的长期边界见：
+
+- `docs/architecture/request-projection-and-runtime-read-model.md`
 
 ### 长期演进方向
 
@@ -236,6 +257,13 @@ supervisor 的长期工作方式不是“只允许 handoff”，而是允许两�
 - 投影最小审计字段
 - 为后续 approval / escalation 留出 deterministic gate 的位置，但当前不要求一次做满
 
+而 runtime boundary 可以在该流程之后继续做：
+
+- durable request projection persistence
+- runtime-owned request list/detail API projection
+
+这些仍属于 `apps/*` boundary，不回灌到 supervisor-core。
+
 ### 当前建议的内部模块骨架
 
 为了避免长期继续围绕一个 `handle()` 透传函数扩展，当期设计建议 supervisor-core 至少收敛为以下模块角色：
@@ -275,6 +303,8 @@ supervisor 的长期工作方式不是“只允许 handoff”，而是允许两�
    - 保持 no-answer
    - 返回错误并记录审计
 6. supervisor 输出统一响应并投影最小审计字段
+
+request projection 如果需要落盘或提供给 panel，应在 API/runtime boundary 内跟随这条链路一次完成，而不是由 panel 或 telemetry sink 事后重算。
 
 ### 当前必须做到的边界
 

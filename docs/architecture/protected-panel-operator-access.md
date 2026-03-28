@@ -11,8 +11,10 @@ updated: 2026-03-28
 
 这份文档只冻结 protected panel 的 operator access 形态，不负责 panel UI、业务操作编排或 app-layer governance closure，也不替代以下文档：
 
-- protected panel 的 trust boundary：`docs/architecture/protected-internal-panel-boundary.md`
+- protected panel 的 trust boundary：`docs/architecture/protected-panel-boundary.md`
 - protected panel 的 runtime shell：`docs/architecture/protected-panel-runtime-shell.md`
+- shared app backend 与 web surfaces：`docs/architecture/shared-app-api-and-worker-web-surfaces.md`
+- `app-api` runtime 与内部边界：`docs/architecture/app-api-architecture.md`
 - public/protected surface 的 runtime topology：`docs/architecture/cloudflare-runtime-topology.md`
 - supervisor runtime shell 与 core 分层：`docs/architecture/supervisor-architecture.md`
 
@@ -25,6 +27,7 @@ updated: 2026-03-28
 - upstream protected access 与 origin admission 必须同时成立
 - operator-specific state 不因为性能优化而变成公共缓存对象
 - panel 的产品形态固定为 operator control plane，而不是通用业务后台
+- 首发 rollout 不默认包含全部长期功能域
 
 ## Access Model Conclusion
 
@@ -38,6 +41,7 @@ protected panel 的长期 access path 固定为：
 - upstream protected access 负责外层准入，不替代 origin admission
 - panel app 只维护最小 operator context，不承担注册、密码恢复、资料管理或用户产品语义
 - panel 的长期功能域固定为运行可见性、请求排障、任务观察、受控操作与审计，不扩张成任意后台
+- 对于当前 2 到 3 人的小组使用场景，不需要额外自建 end-user user system
 
 ## Identity Source
 
@@ -68,6 +72,18 @@ protected panel 在长期上只承载以下五类功能域：
 - `Audit`
   查看 operator 行为记录、授权失败和关键系统动作投影
 
+## Current Rollout Constraint
+
+长期功能域不等于第一波产品范围。
+
+当前默认 rollout 约束固定为：
+
+- `Overview` 优先
+- `Requests` 仅在 `apps/app-api` 提供安全 request projection query surface 后解锁
+- `Jobs` 延迟，等待 scope 重开
+- `Operations` 延迟，等待 scope 重开
+- `Audit` 可以跟随可用的安全 projection surface 逐步引入，但不应通过原始日志旁路拼装
+
 ### Overview
 
 允许：
@@ -88,10 +104,12 @@ protected panel 在长期上只承载以下五类功能域：
 - request-level 查询
 - 按状态、时间和标识过滤
 - 失败请求和 no-answer/clarification 摘要
+- 查看经 runtime 治理后的 request projection，而不是原始运行日志
 
 不允许：
 
 - 将内部 package trace 原样暴露成未经治理的调试后门
+- 直接把 audit log、telemetry sink 或 consumer app 会话表当作 request truth
 
 ### Jobs
 

@@ -11,10 +11,13 @@ updated: 2026-03-28
 
 这份文档只冻结 Phase 04.4 的 protected panel runtime shell，不负责 panel UI、business workflow 或治理闭环，也不替代以下文档：
 
-- protected panel 的 trust boundary：`docs/architecture/protected-internal-panel-boundary.md`
+- protected panel 的 trust boundary：`docs/architecture/protected-panel-boundary.md`
 - protected panel 的 operator access：`docs/architecture/protected-panel-operator-access.md`
 - public/protected surface 的 runtime topology：`docs/architecture/cloudflare-runtime-topology.md`
+- shared app backend 与 web surfaces：`docs/architecture/shared-app-api-and-worker-web-surfaces.md`
+- `app-api` runtime 与内部边界：`docs/architecture/app-api-architecture.md`
 - 长期 `apps/*` / `packages/*` 分层：`docs/architecture/long-term-architecture.md`
+- request projection 与 runtime-owned read model：`docs/architecture/request-projection-and-runtime-read-model.md`
 - supervisor runtime shell 与 core 分层：`docs/architecture/supervisor-architecture.md`
 
 ## 目标
@@ -32,7 +35,7 @@ Phase 04.4 在这里冻结的是 protected panel 作为 repo/runtime shape 的�
 
 protected panel 的 shell 形态固定为：
 
-`protected panel surface -> Cloudflare Worker panel shell -> runtime APIs`
+`protected panel surface -> Cloudflare Worker panel shell -> apps/app-api (Worker) -> request projection / operator read model`
 
 关键结论是：
 
@@ -40,6 +43,7 @@ protected panel 的 shell 形态固定为：
 - panel 不是 `packages/*` 的直连消费方
 - panel runtime shell 的责任是承载 protected operator surface，而不是重写 supervisor 或 retrieval 语义
 - panel runtime shell 的技术形态接受 `Cloudflare Workers + static assets + panel BFF`
+- panel shell 位于 shared `apps/app-api` 之上，而不是自己承载 request projection 或产品后端语义
 
 ## Repo Shape
 
@@ -75,11 +79,12 @@ panel 的 UI 壳在长期上允许优先采用开源 admin framework 改造，�
 
 allowed seam 只允许：
 
-`panel -> runtime APIs only`
+`panel -> Worker-local BFF -> shared app-api runtime APIs`
 
 因此这里冻结：
 
 - panel 只能消费 runtime-facing APIs
+- panel 当前 request visibility 的 canonical seam 是 `panel shell -> apps/app-api`
 - panel 不得直接 import `packages/contracts`
 - panel 不得直接 import `packages/supervisor-core`
 - panel 不得直接 import `packages/rag-specialist`、`packages/retrieval-core` 或其他 package internals
@@ -105,6 +110,12 @@ panel 的 Worker-local BFF 在长期上推荐采用 `Hono`：
 - 暴露 panel-facing `/api/*` aggregation routes
 - 不改变 panel 只调用受控 runtime APIs 的基础边界
 
+对 `Requests` domain 的额外约束：
+
+- BFF 只能调用 runtime-owned request projection APIs
+- BFF 当前默认对接 `apps/app-api` 的 operator query surface，而不是 `apps/supervisor-api`
+- BFF 不得读取 consumer app conversation store、audit log 或 telemetry sink 来拼 list/detail
+
 ## Forbidden Coupling
 
 以下耦合在 04.4 明确禁止：
@@ -112,6 +123,7 @@ panel 的 Worker-local BFF 在长期上推荐采用 `Hono`：
 - 把 panel 做成 `apps/supervisor-api` hidden admin mode
 - 让 panel 直接依赖 `packages/*`
 - 让 panel 越过 runtime API seam 直连内部 orchestrator 或 retrieval internals
+- 让 panel 把 `apps/supervisor-api` 当作 request list/detail query backend
 - 让 panel runtime shell 承担 app-layer actor、ACL、audit 或 approval semantics
 
 ## Fail-Closed Runtime Assumptions
@@ -139,7 +151,7 @@ panel runtime shell 在长期上只承载 operator control plane 所需的最小
 - `Overview`
   系统健康、最近错误、关键依赖与运行摘要
 - `Requests`
-  以 `request_id`、`conversation_id` 或相关标识查看请求级摘要与失败投影
+  以 `request_id`、`conversation_id` 或相关标识查看由 shared `app-api` 产出的 runtime-owned request projection 与失败投影
 - `Jobs`
   查看 ingestion / rebuild / eval / smoke 等后台任务状态
 - `Operations`
@@ -148,6 +160,12 @@ panel runtime shell 在长期上只承载 operator control plane 所需的最小
   查看 operator 行为记录和关键运行事件投影
 
 这些能力域都是 panel shell 之上的产品组织，不改变 “Worker shell + runtime APIs only” 的基础边界。
+
+当前第一波 rollout 的默认范围不是这五个域全部同时实现：
+
+- `Overview` 是默认起步域
+- `Requests` 需等待 `apps/app-api` 的安全 query surface ready 后再解锁
+- `Jobs` 与 `Operations` 当前保持 delayed，直到产品 scope 被明确重开
 
 ## 与 UI / Business / Governance 的关系
 

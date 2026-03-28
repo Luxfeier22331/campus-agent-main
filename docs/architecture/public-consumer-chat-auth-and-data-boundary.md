@@ -1,11 +1,15 @@
 ---
 doc_type: architecture
-status: active
+status: superseded
 created: 2026-03-26
-updated: 2026-03-26
+updated: 2026-03-28
 ---
 
 # Public Consumer Chat Auth And Data Boundary
+
+> Superseded on 2026-03-28 by `docs/architecture/shared-app-api-and-worker-web-surfaces.md` and `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`.
+>
+> This file records the earlier direction where auth/session/conversation were owned by `public-consumer-chat` itself. The accepted direction now moves those concerns into shared `apps/app-api`.
 
 ## 文档边界
 
@@ -17,6 +21,7 @@ updated: 2026-03-26
 - 长期 `apps/*` / `packages/*` 边界：`docs/architecture/long-term-architecture.md`
 - public entry edge boundary：`docs/architecture/cloudflare-public-entry-boundary.md`
 - public entry 到 runtime origin 的 forwarding contract：`docs/architecture/cloudflare-public-entry-integration-contract.md`
+- request projection 与 runtime-owned read model：`docs/architecture/request-projection-and-runtime-read-model.md`
 
 这份文档不负责冻结：
 
@@ -103,6 +108,7 @@ public consumer chat 的 canonical user system 固定属于 app layer，而不�
 - Worker admission 不能直接等价于 app user identity
 - `SupervisorRequest.actor` 不是前台 app user system 的唯一真相源
 - conversation ownership 检查必须在 consumer app 自己的 server boundary 完成
+- conversation/message store 可以保存 `request_id` 关联，但不承担 canonical request projection truth
 
 ## Storage Boundary
 
