@@ -2,15 +2,22 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from math import isnan
+import time
 from typing import Callable
 
 from campus_contracts import RagResultPayload, SpecialistResponse
 from campus_evals.models import ExecutionResult, GoldenCase, SupplementalResult
-from campus_evals.ragas_http import build_http_ragas_embeddings, build_http_ragas_llm
+from campus_evals.ragas_http import (
+    build_http_ragas_embeddings,
+    build_http_ragas_llm,
+    is_retryable_provider_exception,
+)
 from campus_evals.settings import RagasSettings
 
 
 DEFAULT_RAGAS_METRIC_NAMES = ("faithfulness", "answer_relevancy", "context_precision", "context_recall")
+DEFAULT_RAGAS_SCORE_ATTEMPTS = 3
+DEFAULT_RAGAS_SCORE_BACKOFF_SECONDS = 2.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,14 +119,13 @@ def build_ragas_scorer(
     )
 
     def _score(projection: RagasProjection) -> tuple[SupplementalResult, ...]:
-        evaluation = evaluate_fn(
-            dataset=build_ragas_dataset(projection),
+        evaluation = _evaluate_with_retries(
+            evaluate_fn=evaluate_fn,
+            projection=projection,
             metrics=metrics,
             llm=llm,
             embeddings=embeddings,
             run_config=run_config,
-            show_progress=False,
-            raise_exceptions=True,
             batch_size=settings.batch_size,
         )
         row = _extract_ragas_score_row(evaluation)
@@ -172,3 +178,36 @@ def _coerce_score(value: object) -> float | None:
         numeric = float(value)
         return None if isnan(numeric) else numeric
     return None
+
+
+def _evaluate_with_retries(
+    *,
+    evaluate_fn,
+    projection: RagasProjection,
+    metrics: list[object],
+    llm: object,
+    embeddings: object,
+    run_config,
+    batch_size: int | None,
+):
+    for attempt in range(1, DEFAULT_RAGAS_SCORE_ATTEMPTS + 1):
+        try:
+            return evaluate_fn(
+                dataset=build_ragas_dataset(projection),
+                metrics=metrics,
+                llm=llm,
+                embeddings=embeddings,
+                run_config=run_config,
+                show_progress=False,
+                raise_exceptions=True,
+                batch_size=batch_size,
+            )
+        except Exception as exc:
+            if attempt >= DEFAULT_RAGAS_SCORE_ATTEMPTS or not _is_retryable_ragas_exception(exc):
+                raise
+            time.sleep(DEFAULT_RAGAS_SCORE_BACKOFF_SECONDS * attempt)
+    raise RuntimeError("unreachable ragas retry loop")
+
+
+def _is_retryable_ragas_exception(exc: Exception) -> bool:
+    return isinstance(exc, TimeoutError) or is_retryable_provider_exception(exc)

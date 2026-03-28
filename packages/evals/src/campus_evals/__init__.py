@@ -18,6 +18,19 @@ from campus_evals.benchmark import (
     validate_retrieval_hybrid_query_fixture,
 )
 from campus_evals.expectations import evaluate_case
+from campus_evals.handbook_benchmark import run_handbook_formal_benchmark
+from campus_evals.judge_adapters import (
+    build_answer_rubric_adapter,
+    build_default_handbook_supplemental_adapters_from_env,
+    build_handbook_ragas_adapter,
+    build_refusal_rubric_adapter,
+    load_handbook_judge_rubrics,
+)
+from campus_evals.judge_gate import (
+    build_metric_key,
+    evaluate_judge_gate,
+    load_judge_gate_policy,
+)
 from campus_evals.models import (
     CaseResult,
     DimensionResult,
@@ -54,7 +67,7 @@ from campus_evals.scenarios import (
     handbook_release_gate_cases,
     handbook_smoke_cases,
 )
-from campus_evals.settings import RagasSettings
+from campus_evals.settings import JudgeLLMSettings, RagasSettings
 
 __all__ = [
     "CaseResult",
@@ -63,6 +76,7 @@ __all__ = [
     "ExpectedSourceRef",
     "GoldenCase",
     "GraderPolicy",
+    "JudgeLLMSettings",
     "ObservedTrace",
     "OpenAICompatibleHTTPEmbeddings",
     "OpenAICompatibleResponsesLLM",
@@ -84,20 +98,29 @@ __all__ = [
     "SupplementalResult",
     "TraceExpectation",
     "build_default_ragas_metric_names",
+    "build_default_handbook_supplemental_adapters_from_env",
     "build_http_ragas_embeddings",
     "build_http_ragas_llm",
+    "build_answer_rubric_adapter",
+    "build_handbook_ragas_adapter",
+    "build_metric_key",
+    "build_refusal_rubric_adapter",
     "build_ragas_dataset",
     "build_ragas_projection",
     "build_ragas_scorer",
     "build_ragas_supplemental_adapter_from_env",
+    "evaluate_judge_gate",
     "evaluate_retrieval_case",
     "evaluate_retrieval_run",
     "evaluate_case",
     "expected_source_ref",
     "load_retrieval_hybrid_query_dataset",
     "load_retrieval_benchmark_run",
+    "load_handbook_judge_rubrics",
+    "load_judge_gate_policy",
     "load_retrieval_qrels_dataset",
     "render_retrieval_summary_text",
+    "run_handbook_formal_benchmark",
     "run_cases",
     "handbook_error_gate_cases",
     "handbook_release_gate_cases",

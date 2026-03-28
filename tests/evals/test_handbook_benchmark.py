@@ -1,0 +1,235 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
+import unittest
+
+from campus_contracts import ActorContext, EvidenceBundle, EvidenceSource, KnowledgeScope, RagResultPayload, SpecialistResponse
+from campus_evals import ExecutionResult, GoldenCase, ObservedTrace, SupplementalResult, TraceExpectation
+from campus_evals.handbook_benchmark import run_handbook_formal_benchmark
+from campus_evals.judge_gate import evaluate_judge_gate, load_judge_gate_policy
+
+
+HANDBOOK_SCOPE = KnowledgeScope(corpus="regulations", collection="student_handbook")
+
+
+def _source(doc_id: str) -> EvidenceSource:
+    return EvidenceSource(
+        doc_id=doc_id,
+        revision_track="source-faithful",
+        version_id="v1",
+        chunk_id="chunk-1",
+        anchor={"page": 1},
+        acl_level="public",
+        canonical_url=f"https://example.edu/{doc_id}",
+        latest_url=f"https://example.edu/{doc_id}",
+        source_channel="pdf_ocr",
+        collection="student_handbook",
+        is_current=False,
+        snippet="snippet",
+        score=0.95,
+    )
+
+
+def _completed_case() -> GoldenCase:
+    return GoldenCase(
+        case_id="benchmark-completed",
+        split="release_gate",
+        source_type="expert_authored",
+        user_goal="图书馆开放时间是什么？",
+        actor=ActorContext(),
+        scope=HANDBOOK_SCOPE,
+        expected_status="completed",
+        expected_sources=(type("Expected", (), {"doc_id": "handbook:library", "version_id": None, "chunk_id": None})(),),
+        required_facts=("08:00",),
+        trace_expectation=TraceExpectation(selected_scope=HANDBOOK_SCOPE, retrieval_called=True),
+    )
+
+
+def _no_answer_case() -> GoldenCase:
+    return GoldenCase(
+        case_id="benchmark-no-answer",
+        split="release_gate",
+        source_type="expert_authored",
+        user_goal="火星校区飞船停靠规则",
+        actor=ActorContext(),
+        scope=HANDBOOK_SCOPE,
+        expected_status="no_answer",
+        trace_expectation=TraceExpectation(
+            selected_scope=HANDBOOK_SCOPE,
+            retrieval_called=True,
+            fail_closed_expected=True,
+        ),
+    )
+
+
+def _response(
+    *,
+    status: str,
+    answer_text: str = "",
+    sources: tuple[EvidenceSource, ...] = (),
+    follow_up_question: str = "",
+) -> SpecialistResponse:
+    return SpecialistResponse(
+        target="rag-specialist",
+        status=status,
+        answer_text=answer_text,
+        confidence="high" if status == "completed" else "low",
+        follow_up_question=follow_up_question,
+        result=RagResultPayload(
+            evidence=EvidenceBundle(
+                query_text="query",
+                corpus="regulations",
+                collection="student_handbook",
+                sources=sources,
+            )
+        ),
+    )
+
+
+class HandbookBenchmarkRunnerTest(unittest.TestCase):
+    def test_run_handbook_formal_benchmark_writes_expected_artifacts_and_summaries(self) -> None:
+        cases = (_completed_case(), _no_answer_case())
+        adapter = type(
+            "Adapter",
+            (),
+            {
+                "adapter_id": "judge",
+                "evaluate": lambda self, case, execution: (
+                    SupplementalResult(
+                        adapter_id="judge",
+                        metric_name="answer_correctness_rubric",
+                        score=0.9,
+                        verdict="passed",
+                        rationale=f"scored {case.case_id}",
+                        metadata={"expected_status": case.expected_status},
+                    ),
+                )
+                if case.expected_status == "completed"
+                else (
+                    SupplementalResult(
+                        adapter_id="judge",
+                        metric_name="answer_correctness_rubric",
+                        verdict="not_applicable",
+                        rationale="completed-only metric",
+                        metadata={"expected_status": case.expected_status},
+                    ),
+                ),
+            },
+        )()
+
+        with TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "benchmark"
+            policy_path = Path(tmpdir) / "policy.json"
+            policy_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "required_runs": 2,
+                        "metrics": [
+                            {
+                                "adapter_id": "judge",
+                                "metric_name": "answer_correctness_rubric",
+                                "gate_level": "soft_gate",
+                                "min_mean_score": 0.85,
+                                "min_run_average_score": 0.85,
+                                "max_run_average_drift": 0.2,
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            run_handbook_formal_benchmark(
+                cases=cases,
+                executor=lambda case: ExecutionResult(
+                    response=_response(
+                        status=case.expected_status,
+                        answer_text="图书馆开放时间为 08:00 到 22:00。" if case.expected_status == "completed" else "",
+                        sources=(_source("handbook:library"),) if case.expected_status == "completed" else (),
+                    ),
+                    observed_trace=ObservedTrace(
+                        selected_scope=HANDBOOK_SCOPE,
+                        retrieval_called=True,
+                    ),
+                ),
+                supplemental_adapters=(adapter,),
+                output_dir=output_dir,
+                reruns=2,
+                policy_path=policy_path,
+                benchmark_type="formal_benchmark",
+            )
+
+            self.assertTrue((output_dir / "benchmark-config.json").exists())
+            self.assertTrue((output_dir / "run-01-case-results.json").exists())
+            self.assertTrue((output_dir / "run-01-summary.json").exists())
+            self.assertTrue((output_dir / "run-02-case-results.json").exists())
+            self.assertTrue((output_dir / "run-02-summary.json").exists())
+            self.assertTrue((output_dir / "summary.json").exists())
+            self.assertTrue((output_dir / "gate-report.json").exists())
+            self.assertTrue((output_dir / "SUMMARY.md").exists())
+
+            summary = json.loads((output_dir / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["benchmark_type"], "formal_benchmark")
+            self.assertEqual(summary["reruns"], 2)
+            self.assertEqual(summary["case_set"]["expected_status_counts"]["completed"], 1)
+            self.assertEqual(summary["case_set"]["expected_status_counts"]["no_answer"], 1)
+            metric_summary = summary["aggregate"]["supplemental"]["judge.answer_correctness_rubric"]
+            self.assertAlmostEqual(metric_summary["mean_average_score"], 0.9)
+            self.assertEqual(metric_summary["by_expected_status"]["completed"]["score_count"], 2)
+            self.assertEqual(metric_summary["by_expected_status"]["no_answer"]["verdict_counts"]["not_applicable"], 2)
+
+
+class JudgeGatePolicyTest(unittest.TestCase):
+    def test_evaluate_judge_gate_returns_warn_for_soft_gate_metric_below_threshold(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            policy_path = Path(tmpdir) / "policy.json"
+            policy_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "required_runs": 3,
+                        "metrics": [
+                            {
+                                "adapter_id": "judge",
+                                "metric_name": "answer_correctness_rubric",
+                                "gate_level": "soft_gate",
+                                "min_mean_score": 0.9,
+                                "min_run_average_score": 0.88,
+                                "max_run_average_drift": 0.1,
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            report = evaluate_judge_gate(
+                load_judge_gate_policy(policy_path),
+                {
+                    "judge.answer_correctness_rubric": {
+                        "metric_key": "judge.answer_correctness_rubric",
+                        "run_count": 3,
+                        "run_average_scores": [0.93, 0.84, 0.92],
+                        "mean_average_score": 0.8966666667,
+                        "min_run_average_score": 0.84,
+                        "max_run_average_score": 0.93,
+                        "run_average_drift": 0.09,
+                        "applicable_runs": 3,
+                    }
+                },
+            )
+
+            self.assertEqual(report["overall_verdict"], "warn")
+            self.assertEqual(report["metrics"][0]["metric_key"], "judge.answer_correctness_rubric")
+            self.assertEqual(report["metrics"][0]["verdict"], "warn")
+
+
+if __name__ == "__main__":
+    unittest.main()

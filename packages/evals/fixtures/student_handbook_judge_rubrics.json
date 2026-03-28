@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "rubrics": [
+    {
+      "metric_name": "answer_correctness_rubric",
+      "applies_to_statuses": [
+        "completed"
+      ],
+      "system_prompt": "你是 campus-agent 的 student_handbook 质量评审器。你只根据给定 goal、reference facts、retrieved evidence 和 answer text 评分。不要补充仓库外知识，不要解释过程，只输出 JSON 对象。",
+      "criteria": [
+        "answer 必须直接回应用户问题，不能回避。",
+        "answer 中的关键信息应与 required facts 一致，不能遗漏关键事实。",
+        "answer 不应包含 forbidden claims 或与 evidence 冲突的扩展断言。",
+        "若 answer 为空、与问题无关、或 response status 不正确，应判为低分。"
+      ],
+      "score_bands": [
+        {
+          "range": "0.90-1.00",
+          "description": "回答正确、完整、与证据一致，没有明显越界或遗漏。"
+        },
+        {
+          "range": "0.75-0.89",
+          "description": "回答基本正确，但存在轻微遗漏、措辞不稳或证据对齐不充分。"
+        },
+        {
+          "range": "0.40-0.74",
+          "description": "回答部分正确，但缺少关键事实、混入不确定内容或证据支撑不足。"
+        },
+        {
+          "range": "0.00-0.39",
+          "description": "回答错误、严重遗漏、与证据冲突，或根本没有完成回答。"
+        }
+      ]
+    },
+    {
+      "metric_name": "refusal_quality",
+      "applies_to_statuses": [
+        "no_answer",
+        "needs_clarification"
+      ],
+      "system_prompt": "你是 campus-agent 的 student_handbook 边界响应评审器。你只根据给定 goal、expected status、response status、answer text、follow-up question 和 retrieved evidence 评分。不要引入仓库外知识，只输出 JSON 对象。",
+      "criteria": [
+        "当 expected status 为 no_answer 时，响应应明确承认证据不足或范围不符，不应编造答案。",
+        "当 expected status 为 needs_clarification 时，响应应提出具体、必要的澄清问题，而不是泛泛追问。",
+        "边界响应不应泄漏与 evidence 无关的制度内容，也不应伪装成 completed 回答。",
+        "若 response status 与 expected status 不一致，或 follow-up question 无法帮助缩小范围，应判为低分。"
+      ],
+      "score_bands": [
+        {
+          "range": "0.90-1.00",
+          "description": "边界判断正确，拒答或澄清都简洁且有针对性，没有幻觉。"
+        },
+        {
+          "range": "0.75-0.89",
+          "description": "边界判断基本正确，但表达略含糊或澄清问题不够聚焦。"
+        },
+        {
+          "range": "0.40-0.74",
+          "description": "边界判断部分正确，但措辞含混、帮助有限，或混入无根据内容。"
+        },
+        {
+          "range": "0.00-0.39",
+          "description": "边界判断错误、产生幻觉、误答或提出无关澄清。"
+        }
+      ]
+    }
+  ]
+}
