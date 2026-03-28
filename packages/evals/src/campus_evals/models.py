@@ -3,8 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-from campus_contracts import ActorContext, EvidenceSource, KnowledgeScope
-from campus_contracts.models import ALLOWED_DELEGATE_STATUSES, DelegateStatus
+from campus_contracts import (
+    ActorContext,
+    EvidenceSource,
+    KnowledgeScope,
+    SpecialistResponse,
+    SupervisorResponse,
+    SupervisorStatus,
+)
+from campus_contracts.models import ALLOWED_SUPERVISOR_STATUSES
 
 
 CaseSplit = Literal["smoke", "regression_locked", "exploratory", "release_gate"]
@@ -63,7 +70,7 @@ class GoldenCase:
     source_type: SourceType
     user_goal: str
     actor: ActorContext
-    expected_status: DelegateStatus
+    expected_status: SupervisorStatus
     scope: KnowledgeScope
     expected_sources: tuple[ExpectedSourceRef, ...] = field(default_factory=tuple)
     forbidden_sources: tuple[ExpectedSourceRef, ...] = field(default_factory=tuple)
@@ -84,7 +91,7 @@ class GoldenCase:
             raise ValueError(f"unsupported split: {self.split}")
         if self.source_type not in ALLOWED_SOURCE_TYPES:
             raise ValueError(f"unsupported source_type: {self.source_type}")
-        if self.expected_status not in ALLOWED_DELEGATE_STATUSES:
+        if self.expected_status not in ALLOWED_SUPERVISOR_STATUSES:
             raise ValueError(f"unsupported expected_status: {self.expected_status}")
         if not self.user_goal.strip():
             raise ValueError("user_goal must not be empty")
@@ -102,7 +109,7 @@ class ObservedTrace:
 
 @dataclass(frozen=True, slots=True)
 class ExecutionResult:
-    response: object
+    response: SpecialistResponse | SupervisorResponse
     observed_trace: ObservedTrace | None = None
 
 

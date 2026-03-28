@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from campus_contracts import RagResultPayload, SpecialistResponse
+from campus_contracts import RagResultPayload, SpecialistResponse, SupervisorResponse
 
 from campus_evals.models import CaseResult, DimensionResult, ExecutionResult, GoldenCase
 
@@ -15,6 +15,8 @@ KNOWN_DETERMINISTIC_METRICS = (
     "forbidden_claim_free",
     "clarification_accuracy",
     "no_answer_accuracy",
+    "approval_required_accuracy",
+    "rejection_accuracy",
     "error_path_correctness",
     "fail_closed",
     "trace_path_correctness",
@@ -22,9 +24,7 @@ KNOWN_DETERMINISTIC_METRICS = (
 
 
 def evaluate_case(case: GoldenCase, execution: ExecutionResult) -> CaseResult:
-    response = execution.response
-    if not isinstance(response, SpecialistResponse):
-        raise TypeError("execution.response must be SpecialistResponse")
+    response = _require_supported_response(execution)
 
     status_result = _grade_status(case, response)
     retrieval_result = _grade_retrieval(case, response)
@@ -57,7 +57,7 @@ def evaluate_case(case: GoldenCase, execution: ExecutionResult) -> CaseResult:
     )
 
 
-def _grade_status(case: GoldenCase, response: SpecialistResponse) -> DimensionResult:
+def _grade_status(case: GoldenCase, response: SpecialistResponse | SupervisorResponse) -> DimensionResult:
     if not case.grader_policy.grade_status:
         return DimensionResult(True, "status grading disabled")
     if response.status != case.expected_status:
@@ -65,11 +65,13 @@ def _grade_status(case: GoldenCase, response: SpecialistResponse) -> DimensionRe
     return DimensionResult(True, "ok")
 
 
-def _grade_retrieval(case: GoldenCase, response: SpecialistResponse) -> DimensionResult:
+def _grade_retrieval(case: GoldenCase, response: SpecialistResponse | SupervisorResponse) -> DimensionResult:
     if not case.grader_policy.grade_retrieval:
         return DimensionResult(True, "retrieval grading disabled")
     evidence = _extract_rag_evidence(response)
     if evidence is None:
+        if not _response_targets_rag(response):
+            return DimensionResult(True, "retrieval not applicable")
         return DimensionResult(False, "response missing rag evidence payload")
     if evidence.corpus != case.scope.corpus or evidence.collection != case.scope.collection:
         return DimensionResult(
@@ -101,7 +103,7 @@ def _grade_retrieval(case: GoldenCase, response: SpecialistResponse) -> Dimensio
     return DimensionResult(True, "ok")
 
 
-def _grade_answer(case: GoldenCase, response: SpecialistResponse) -> DimensionResult:
+def _grade_answer(case: GoldenCase, response: SpecialistResponse | SupervisorResponse) -> DimensionResult:
     if not case.grader_policy.grade_answer:
         return DimensionResult(True, "answer grading disabled")
     normalized_answer = _normalize_text(response.answer_text)
@@ -154,9 +156,7 @@ def _build_metric_results(
     answer_result: DimensionResult,
     trace_result: DimensionResult,
 ) -> dict[str, DimensionResult]:
-    response = execution.response
-    if not isinstance(response, SpecialistResponse):
-        raise TypeError("execution.response must be SpecialistResponse")
+    response = _require_supported_response(execution)
 
     metrics: dict[str, DimensionResult] = {}
     evidence = _extract_rag_evidence(response)
@@ -168,6 +168,10 @@ def _build_metric_results(
             metrics["clarification_accuracy"] = _grade_clarification_accuracy(response)
         if case.expected_status == "no_answer":
             metrics["no_answer_accuracy"] = _grade_no_answer_accuracy(response)
+        if case.expected_status == "approval_required":
+            metrics["approval_required_accuracy"] = _grade_approval_required_accuracy(response)
+        if case.expected_status == "rejected":
+            metrics["rejection_accuracy"] = _grade_rejection_accuracy(response)
         if case.expected_status == "error":
             metrics["error_path_correctness"] = _grade_error_path_correctness(response)
 
@@ -224,7 +228,10 @@ def _grade_forbidden_doc_miss(
     return DimensionResult(True, "ok")
 
 
-def _grade_citation_completeness(case: GoldenCase, response: SpecialistResponse) -> DimensionResult:
+def _grade_citation_completeness(
+    case: GoldenCase,
+    response: SpecialistResponse | SupervisorResponse,
+) -> DimensionResult:
     evidence = _extract_rag_evidence(response)
     if evidence is None:
         return DimensionResult(False, "response missing rag evidence payload")
@@ -237,7 +244,7 @@ def _grade_citation_completeness(case: GoldenCase, response: SpecialistResponse)
     return DimensionResult(True, "ok")
 
 
-def _grade_source_locator_completeness(response: SpecialistResponse) -> DimensionResult:
+def _grade_source_locator_completeness(response: SpecialistResponse | SupervisorResponse) -> DimensionResult:
     evidence = _extract_rag_evidence(response)
     if evidence is None:
         return DimensionResult(False, "response missing rag evidence payload")
@@ -249,7 +256,10 @@ def _grade_source_locator_completeness(response: SpecialistResponse) -> Dimensio
     return DimensionResult(True, "ok")
 
 
-def _grade_answer_completeness(case: GoldenCase, response: SpecialistResponse) -> DimensionResult:
+def _grade_answer_completeness(
+    case: GoldenCase,
+    response: SpecialistResponse | SupervisorResponse,
+) -> DimensionResult:
     normalized_answer = _normalize_text(response.answer_text)
     for fact in case.required_facts:
         if _normalize_text(fact) not in normalized_answer:
@@ -257,7 +267,10 @@ def _grade_answer_completeness(case: GoldenCase, response: SpecialistResponse) -
     return DimensionResult(True, "ok")
 
 
-def _grade_forbidden_claim_free(case: GoldenCase, response: SpecialistResponse) -> DimensionResult:
+def _grade_forbidden_claim_free(
+    case: GoldenCase,
+    response: SpecialistResponse | SupervisorResponse,
+) -> DimensionResult:
     normalized_answer = _normalize_text(response.answer_text)
     for claim in case.forbidden_claims:
         if _normalize_text(claim) in normalized_answer:
@@ -265,7 +278,7 @@ def _grade_forbidden_claim_free(case: GoldenCase, response: SpecialistResponse) 
     return DimensionResult(True, "ok")
 
 
-def _grade_clarification_accuracy(response: SpecialistResponse) -> DimensionResult:
+def _grade_clarification_accuracy(response: SpecialistResponse | SupervisorResponse) -> DimensionResult:
     if response.status != "needs_clarification":
         return DimensionResult(False, f"status={response.status}")
     if not response.follow_up_question.strip():
@@ -273,7 +286,7 @@ def _grade_clarification_accuracy(response: SpecialistResponse) -> DimensionResu
     return DimensionResult(True, "ok")
 
 
-def _grade_no_answer_accuracy(response: SpecialistResponse) -> DimensionResult:
+def _grade_no_answer_accuracy(response: SpecialistResponse | SupervisorResponse) -> DimensionResult:
     if response.status != "no_answer":
         return DimensionResult(False, f"status={response.status}")
     if response.answer_text.strip():
@@ -281,7 +294,31 @@ def _grade_no_answer_accuracy(response: SpecialistResponse) -> DimensionResult:
     return DimensionResult(True, "ok")
 
 
-def _grade_error_path_correctness(response: SpecialistResponse) -> DimensionResult:
+def _grade_approval_required_accuracy(
+    response: SpecialistResponse | SupervisorResponse,
+) -> DimensionResult:
+    if response.status != "approval_required":
+        return DimensionResult(False, f"status={response.status}")
+    if _response_targets_rag(response):
+        return DimensionResult(False, "approval_required response should not select specialist target")
+    if not response.answer_text.strip() and not response.follow_up_question.strip():
+        return DimensionResult(False, "approval_required response should include operator guidance")
+    return DimensionResult(True, "ok")
+
+
+def _grade_rejection_accuracy(response: SpecialistResponse | SupervisorResponse) -> DimensionResult:
+    if response.status != "rejected":
+        return DimensionResult(False, f"status={response.status}")
+    if _response_targets_rag(response):
+        return DimensionResult(False, "rejected response should not select specialist target")
+    if response.error is None:
+        return DimensionResult(False, "rejected response missing error payload")
+    if not response.error.code.strip():
+        return DimensionResult(False, "rejected response missing error code")
+    return DimensionResult(True, "ok")
+
+
+def _grade_error_path_correctness(response: SpecialistResponse | SupervisorResponse) -> DimensionResult:
     if response.status != "error":
         return DimensionResult(False, f"status={response.status}")
     if response.error is None:
@@ -297,9 +334,11 @@ def _case_requires_fail_closed(case: GoldenCase) -> bool:
     return case.expected_status == "no_answer" and not case.expected_sources
 
 
-def _grade_fail_closed(response: SpecialistResponse) -> DimensionResult:
+def _grade_fail_closed(response: SpecialistResponse | SupervisorResponse) -> DimensionResult:
     evidence = _extract_rag_evidence(response)
     if evidence is None:
+        if not _response_targets_rag(response):
+            return DimensionResult(True, "retrieval not applicable")
         return DimensionResult(False, "response missing rag evidence payload")
     if evidence.sources:
         return DimensionResult(False, "fail-close response should not contain evidence sources")
@@ -320,7 +359,22 @@ def _matches_source_ref(source_ref, source) -> bool:
     return True
 
 
-def _extract_rag_evidence(response: SpecialistResponse):
+def _require_supported_response(
+    execution: ExecutionResult,
+) -> SpecialistResponse | SupervisorResponse:
+    response = execution.response
+    if not isinstance(response, (SpecialistResponse, SupervisorResponse)):
+        raise TypeError("execution.response must be SpecialistResponse or SupervisorResponse")
+    return response
+
+
+def _response_targets_rag(response: SpecialistResponse | SupervisorResponse) -> bool:
+    if isinstance(response, SpecialistResponse):
+        return response.target == "rag-specialist"
+    return response.selected_target == "rag-specialist"
+
+
+def _extract_rag_evidence(response: SpecialistResponse | SupervisorResponse):
     if not isinstance(response.result, RagResultPayload):
         return None
     return response.result.evidence

@@ -10,6 +10,7 @@ from campus_contracts import (
     KnowledgeScope,
     RagResultPayload,
     SpecialistResponse,
+    SupervisorResponse,
 )
 from campus_evals import (
     curriculum_error_gate_cases,
@@ -619,6 +620,92 @@ class RunCasesTest(unittest.TestCase):
         self.assertEqual(report.by_metric["error_path_correctness"].total, 0)
         self.assertIsNone(report.by_metric["error_path_correctness"].pass_rate)
         self.assertEqual(report.by_metric["error_path_correctness"].reason, "no_applicable_cases")
+
+    def test_runner_accepts_supervisor_clarification_without_rag_evidence(self) -> None:
+        case = GoldenCase(
+            case_id="supervisor-clarify-1",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="奖学金怎么申请？",
+            actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
+            expected_status="needs_clarification",
+            trace_expectation=TraceExpectation(
+                retrieval_called=False,
+                clarification_expected=True,
+            ),
+        )
+
+        report = run_cases(
+            (case,),
+            executor=lambda _: ExecutionResult(
+                response=SupervisorResponse(
+                    selected_target=None,
+                    status="needs_clarification",
+                    follow_up_question="请先说明你想查询的知识范围或资料集合。",
+                    confidence="low",
+                ),
+                observed_trace=ObservedTrace(
+                    retrieval_called=False,
+                    clarification_emitted=True,
+                ),
+            ),
+        )
+
+        result = report.results[0]
+        self.assertTrue(result.passed)
+        self.assertTrue(result.retrieval_result.passed)
+        self.assertEqual(report.by_metric["clarification_accuracy"].passed, 1)
+
+    def test_runner_supports_supervisor_only_terminal_statuses(self) -> None:
+        approval_case = GoldenCase(
+            case_id="approval-required-1",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="帮我提交奖学金申请",
+            actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
+            expected_status="approval_required",
+        )
+        rejected_case = GoldenCase(
+            case_id="rejected-1",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="请执行未授权操作",
+            actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
+            expected_status="rejected",
+        )
+
+        def executor(case: GoldenCase) -> ExecutionResult:
+            if case.case_id == "approval-required-1":
+                return ExecutionResult(
+                    response=SupervisorResponse(
+                        selected_target=None,
+                        status="approval_required",
+                        answer_text="该请求涉及需要人工确认的操作，必须先经过审批。",
+                        confidence="low",
+                    )
+                )
+            return ExecutionResult(
+                response=SupervisorResponse(
+                    selected_target=None,
+                    status="rejected",
+                    confidence="low",
+                    error=ErrorInfo(
+                        code="request_rejected",
+                        message="request was rejected by supervisor policy",
+                    ),
+                )
+            )
+
+        report = run_cases((approval_case, rejected_case), executor=executor)
+
+        self.assertEqual(report.total, 2)
+        self.assertEqual(report.passed, 2)
+        self.assertEqual(report.by_metric["approval_required_accuracy"].passed, 1)
+        self.assertEqual(report.by_metric["rejection_accuracy"].passed, 1)
+        self.assertTrue(all(result.retrieval_result.passed for result in report.results))
 
     def test_runner_aggregates_deterministic_error_gate_metrics(self) -> None:
         cases = handbook_error_gate_cases()

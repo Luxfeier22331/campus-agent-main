@@ -8,7 +8,7 @@ from typing import Callable
 import httpx
 from langchain_core.prompt_values import StringPromptValue
 
-from campus_contracts import RagResultPayload, SpecialistResponse
+from campus_contracts import RagResultPayload, SpecialistResponse, SupervisorResponse
 from campus_evals.models import ExecutionResult, GoldenCase, SupplementalResult
 from campus_evals.ragas_adapter import build_default_ragas_metric_names, build_ragas_scorer
 from campus_evals.supplemental_http import (
@@ -369,7 +369,7 @@ def _build_rubric_prompt(
     *,
     rubric: dict[str, object],
     case: GoldenCase,
-    response: SpecialistResponse,
+    response: SpecialistResponse | SupervisorResponse,
 ) -> str:
     evidence = response.result.evidence if isinstance(response.result, RagResultPayload) else None
     sources = tuple(evidence.sources) if evidence is not None else ()
@@ -412,7 +412,7 @@ def _coerce_judge_result(
     adapter_id: str,
     metric_name: str,
     case: GoldenCase,
-    response: SpecialistResponse,
+    response: SpecialistResponse | SupervisorResponse,
     judged: dict[str, object],
 ) -> SupplementalResult:
     if not isinstance(judged, dict):
@@ -447,7 +447,7 @@ def _build_not_applicable_result(
     adapter_id: str,
     metric_name: str,
     case: GoldenCase,
-    response: SpecialistResponse,
+    response: SpecialistResponse | SupervisorResponse,
     rationale: str,
 ) -> SupplementalResult:
     return SupplementalResult(
@@ -468,7 +468,7 @@ def _build_failed_result(
     adapter_id: str,
     metric_name: str,
     case: GoldenCase,
-    response: SpecialistResponse,
+    response: SpecialistResponse | SupervisorResponse,
     rationale: str,
     score: float | None,
     metadata: dict[str, object] | None = None,
@@ -494,10 +494,12 @@ def _build_ragas_projection(case: GoldenCase, execution: ExecutionResult):
     return build_ragas_projection(case, execution)
 
 
-def _require_specialist_response(execution: ExecutionResult) -> SpecialistResponse:
+def _require_specialist_response(
+    execution: ExecutionResult,
+) -> SpecialistResponse | SupervisorResponse:
     response = execution.response
-    if not isinstance(response, SpecialistResponse):
-        raise TypeError("execution.response must be SpecialistResponse")
+    if not isinstance(response, (SpecialistResponse, SupervisorResponse)):
+        raise TypeError("execution.response must be SpecialistResponse or SupervisorResponse")
     return response
 
 
