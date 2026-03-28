@@ -14,10 +14,13 @@ from campus_contracts import (
 )
 from campus_evals import (
     curriculum_error_gate_cases,
+    curriculum_regression_locked_cases,
     curriculum_release_gate_cases,
+    curriculum_smoke_cases,
     ExecutionResult,
     GoldenCase,
     handbook_error_gate_cases,
+    handbook_regression_locked_cases,
     handbook_release_gate_cases,
     handbook_smoke_cases,
     ObservedTrace,
@@ -109,23 +112,57 @@ class GoldenCaseSchemaTest(unittest.TestCase):
 
 
 class RunCasesTest(unittest.TestCase):
-    def test_handbook_smoke_cases_keep_seed_queries(self) -> None:
+    def test_handbook_smoke_cases_cover_stable_terminal_statuses(self) -> None:
         cases = handbook_smoke_cases()
-        goals = tuple(case.user_goal for case in cases)
 
         self.assertEqual(
-            goals,
+            tuple(case.case_id for case in cases),
             (
-                "library hours",
-                "scholarship eligibility",
-                "graduation credits",
-                "registrar transcript",
-                "add/drop",
-                "leave of absence",
+                "handbook-smoke-scholarship-title",
+                "handbook-smoke-student-card",
+                "handbook-smoke-no-answer",
+                "handbook-smoke-needs-clarification",
             ),
         )
-        self.assertTrue(all(case.source_type == "synthetic_expansion" for case in cases))
-        self.assertTrue(all(case.generator_name == "bootstrap-smoke-generator" for case in cases))
+        self.assertEqual(
+            tuple(case.expected_status for case in cases),
+            (
+                "completed",
+                "completed",
+                "no_answer",
+                "needs_clarification",
+            ),
+        )
+        self.assertTrue(all(case.source_type == "expert_authored" for case in cases))
+        self.assertTrue(all(case.split == "smoke" for case in cases))
+        self.assertTrue(all(case.scope == HANDBOOK_SCOPE for case in cases))
+
+    def test_handbook_regression_locked_cases_cover_high_risk_lanes(self) -> None:
+        cases = handbook_regression_locked_cases()
+
+        self.assertEqual(
+            tuple(case.case_id for case in cases),
+            (
+                "handbook-regression-student-status-article",
+                "handbook-regression-dormitory-lighting",
+                "handbook-regression-student-card-reissue",
+                "handbook-regression-no-answer-visa",
+                "handbook-regression-needs-clarification-scholarship",
+            ),
+        )
+        self.assertEqual(
+            tuple(case.expected_status for case in cases),
+            (
+                "completed",
+                "completed",
+                "completed",
+                "no_answer",
+                "needs_clarification",
+            ),
+        )
+        self.assertTrue(all(case.source_type == "expert_authored" for case in cases))
+        self.assertTrue(all(case.split == "regression_locked" for case in cases))
+        self.assertTrue(all(case.scope == HANDBOOK_SCOPE for case in cases))
 
     def test_handbook_release_gate_cases_cover_terminal_statuses(self) -> None:
         cases = handbook_release_gate_cases()
@@ -202,6 +239,58 @@ class RunCasesTest(unittest.TestCase):
         self.assertTrue(all(case.split == "release_gate" for case in cases))
         self.assertTrue(all(case.scope == CURRICULUM_SCOPE for case in cases))
         self.assertTrue(all("curriculum" in case.tags for case in cases))
+
+    def test_curriculum_smoke_cases_cover_stable_terminal_statuses(self) -> None:
+        cases = curriculum_smoke_cases()
+
+        self.assertEqual(
+            tuple(case.case_id for case in cases),
+            (
+                "curriculum-smoke-ethnology-title",
+                "curriculum-smoke-academic-years",
+                "curriculum-smoke-no-answer",
+                "curriculum-smoke-needs-clarification",
+            ),
+        )
+        self.assertEqual(
+            tuple(case.expected_status for case in cases),
+            (
+                "completed",
+                "completed",
+                "no_answer",
+                "needs_clarification",
+            ),
+        )
+        self.assertTrue(all(case.source_type == "expert_authored" for case in cases))
+        self.assertTrue(all(case.split == "smoke" for case in cases))
+        self.assertTrue(all(case.scope == CURRICULUM_SCOPE for case in cases))
+
+    def test_curriculum_regression_locked_cases_cover_high_risk_lanes(self) -> None:
+        cases = curriculum_regression_locked_cases()
+
+        self.assertEqual(
+            tuple(case.case_id for case in cases),
+            (
+                "curriculum-regression-history-strong-base",
+                "curriculum-regression-course-map-table",
+                "curriculum-regression-general-english-credits",
+                "curriculum-regression-no-answer-program",
+                "curriculum-regression-needs-clarification-degree",
+            ),
+        )
+        self.assertEqual(
+            tuple(case.expected_status for case in cases),
+            (
+                "completed",
+                "completed",
+                "completed",
+                "no_answer",
+                "needs_clarification",
+            ),
+        )
+        self.assertTrue(all(case.source_type == "expert_authored" for case in cases))
+        self.assertTrue(all(case.split == "regression_locked" for case in cases))
+        self.assertTrue(all(case.scope == CURRICULUM_SCOPE for case in cases))
 
     def test_curriculum_error_gate_cases_cover_deterministic_error_paths(self) -> None:
         cases = curriculum_error_gate_cases()

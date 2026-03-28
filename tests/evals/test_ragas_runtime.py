@@ -20,6 +20,10 @@ from campus_evals import (
 )
 from campus_evals._langchain_compat import build_langchain_chat_model
 from campus_evals.settings import SupplementalHTTPSettings
+from campus_evals.supplemental_http import (
+    SupplementalPreflightFailedError,
+    reset_supplemental_http_runtime_state_for_tests,
+)
 
 
 class RagasSettingsTest(unittest.TestCase):
@@ -49,6 +53,27 @@ class RagasSettingsTest(unittest.TestCase):
         self.assertEqual(settings.circuit_breaker_cooldown_seconds, 45.0)
         self.assertEqual(settings.preflight_timeout_seconds, 6.0)
         self.assertEqual(settings.request_min_interval_seconds, 0.5)
+
+    def test_supplemental_http_settings_derive_request_interval_from_requests_per_minute(self) -> None:
+        settings = SupplementalHTTPSettings.from_env(
+            {
+                "SUPPLEMENTAL_HTTP_REQUESTS_PER_MINUTE": "10",
+            }
+        )
+
+        self.assertEqual(settings.requests_per_minute, 10.0)
+        self.assertEqual(settings.request_min_interval_seconds, 6.0)
+
+    def test_supplemental_http_settings_prefer_explicit_interval_over_requests_per_minute(self) -> None:
+        settings = SupplementalHTTPSettings.from_env(
+            {
+                "SUPPLEMENTAL_HTTP_REQUESTS_PER_MINUTE": "10",
+                "SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS": "7.5",
+            }
+        )
+
+        self.assertEqual(settings.requests_per_minute, 10.0)
+        self.assertEqual(settings.request_min_interval_seconds, 7.5)
 
     def test_from_env_reads_openai_compatible_llm_and_embedding_settings(self) -> None:
         settings = RagasSettings.from_env(
@@ -112,7 +137,9 @@ class RagasSettingsTest(unittest.TestCase):
             }
         )
 
-        self.assertEqual(settings.http_settings.read_timeout_seconds, 20.0)
+        self.assertEqual(settings.http_settings.connect_timeout_seconds, 10.0)
+        self.assertEqual(settings.http_settings.read_timeout_seconds, 30.0)
+        self.assertEqual(settings.http_settings.preflight_timeout_seconds, 20.0)
         self.assertEqual(settings.http_settings.request_min_interval_seconds, 0.0)
 
     def test_from_env_prefers_ragas_llm_model_over_reasoning_and_chat_model(self) -> None:
@@ -208,6 +235,9 @@ class RagasDatasetTest(unittest.TestCase):
 
 
 class RagasHttpTransportTest(unittest.TestCase):
+    def setUp(self) -> None:
+        reset_supplemental_http_runtime_state_for_tests()
+
     def test_build_http_ragas_llm_opens_shared_circuit_breaker_after_repeated_provider_failures(self) -> None:
         attempts = 0
 
@@ -545,6 +575,48 @@ class RagasHttpTransportTest(unittest.TestCase):
 
         self.assertEqual(len(created_clients), 1)
 
+    def test_build_http_ragas_llm_reuses_internal_sync_client_between_calls(self) -> None:
+        created_clients: list[object] = []
+
+        class FakeSyncClient:
+            def __init__(self, *args, **kwargs) -> None:
+                del args, kwargs
+                created_clients.append(self)
+
+            def post(self, path, json, headers):
+                del path, headers
+                return httpx.Response(
+                    200,
+                    request=httpx.Request("POST", "https://llm.example/v1/responses"),
+                    json={
+                        "error": None,
+                        "output": [
+                            {
+                                "content": [
+                                    {"type": "output_text", "text": json["input"][0]["content"]},
+                                ]
+                            }
+                        ],
+                    },
+                )
+
+        settings = RagasSettings.from_env(
+            {
+                "LLM_BASE_URL": "https://llm.example/v1",
+                "LLM_API_KEY": "llm-key",
+                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+            }
+        )
+
+        with patch("campus_evals.supplemental_http.httpx.Client", FakeSyncClient):
+            llm = build_http_ragas_llm(settings)
+            llm.generate_text(StringPromptValue(text="first"))
+            llm.generate_text(StringPromptValue(text="second"))
+
+        self.assertEqual(len(created_clients), 1)
+
     def test_build_http_ragas_llm_reuses_request_pacer_for_same_provider_key(self) -> None:
         settings = RagasSettings.from_env(
             {
@@ -563,7 +635,216 @@ class RagasHttpTransportTest(unittest.TestCase):
         self.assertIsNotNone(first.request_pacer)
         self.assertIs(first.request_pacer, second.request_pacer)
 
-    def test_build_http_ragas_embeddings_share_request_pacer_with_same_provider_origin(self) -> None:
+    def test_build_http_ragas_llm_preflight_failure_opens_runtime_breaker_until_cooldown(self) -> None:
+        attempts = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                return httpx.Response(
+                    503,
+                    request=request,
+                    text='{"error":{"message":"Service temporarily unavailable","type":"api_error"}}',
+                )
+            return httpx.Response(
+                200,
+                request=request,
+                json={
+                    "error": None,
+                    "output": [
+                        {
+                            "content": [
+                                {"type": "output_text", "text": "OK"},
+                            ]
+                        }
+                    ],
+                },
+            )
+
+        settings = RagasSettings.from_env(
+            {
+                "LLM_BASE_URL": "https://llm.example/v1",
+                "LLM_API_KEY": "llm-key",
+                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS": "0",
+                "SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_FAILURE_THRESHOLD": "1",
+            }
+        )
+        sync_client = httpx.Client(
+            base_url="https://llm.example/v1",
+            transport=httpx.MockTransport(handler),
+        )
+        llm = build_http_ragas_llm(settings, sync_client=sync_client)
+
+        with self.assertRaises(SupplementalPreflightFailedError):
+            llm.preflight_sync()
+
+        with self.assertRaisesRegex(RuntimeError, "circuit_open"):
+            llm.generate_text(StringPromptValue(text="只回复 OK"))
+
+        sync_client.close()
+        self.assertEqual(attempts, 1)
+
+    def test_build_http_ragas_llm_hard_unavailable_provider_opens_shared_circuit_after_single_failure(self) -> None:
+        attempts = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal attempts
+            attempts += 1
+            return httpx.Response(
+                500,
+                request=request,
+                text='{"error":{"message":"auth_unavailable: no auth available","type":"new_api_error"}}',
+            )
+
+        settings = RagasSettings.from_env(
+            {
+                "LLM_BASE_URL": "https://llm.example/v1",
+                "LLM_API_KEY": "llm-key",
+                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS": "1",
+                "SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_FAILURE_THRESHOLD": "3",
+            }
+        )
+        sync_client = httpx.Client(
+            base_url="https://llm.example/v1",
+            transport=httpx.MockTransport(handler),
+        )
+        llm = build_http_ragas_llm(settings, sync_client=sync_client)
+
+        with self.assertRaisesRegex(RuntimeError, "auth_unavailable"):
+            llm.generate_text(StringPromptValue(text="只回复 OK"))
+        with self.assertRaisesRegex(RuntimeError, "circuit_open"):
+            llm.generate_text(StringPromptValue(text="只回复 OK"))
+
+        sync_client.close()
+        self.assertEqual(attempts, 1)
+
+    def test_build_http_ragas_llm_preflight_is_cached_for_same_runtime_signature(self) -> None:
+        attempts = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal attempts
+            attempts += 1
+            return httpx.Response(
+                200,
+                request=request,
+                json={
+                    "error": None,
+                    "output": [
+                        {
+                            "content": [
+                                {"type": "output_text", "text": "OK"},
+                            ]
+                        }
+                    ],
+                },
+            )
+
+        settings = RagasSettings.from_env(
+            {
+                "LLM_BASE_URL": "https://llm.example/v1",
+                "LLM_API_KEY": "llm-key",
+                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+            }
+        )
+        first_client = httpx.Client(
+            base_url="https://llm.example/v1",
+            transport=httpx.MockTransport(handler),
+        )
+        second_client = httpx.Client(
+            base_url="https://llm.example/v1",
+            transport=httpx.MockTransport(handler),
+        )
+        first = build_http_ragas_llm(settings, sync_client=first_client)
+        second = build_http_ragas_llm(settings, sync_client=second_client)
+
+        first.preflight_sync()
+        second.preflight_sync()
+
+        first_client.close()
+        second_client.close()
+        self.assertEqual(attempts, 1)
+
+    def test_build_http_ragas_llm_preflight_retries_retryable_failure_without_tripping_breaker(self) -> None:
+        attempts = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                return httpx.Response(
+                    503,
+                    request=request,
+                    text='{"error":{"message":"temporary upstream error","type":"bad_response_body"}}',
+                )
+            return httpx.Response(
+                200,
+                request=request,
+                json={
+                    "error": None,
+                    "output": [
+                        {
+                            "content": [
+                                {"type": "output_text", "text": "OK"},
+                            ]
+                        }
+                    ],
+                },
+            )
+
+        settings = RagasSettings.from_env(
+            {
+                "LLM_BASE_URL": "https://llm.example/v1",
+                "LLM_API_KEY": "llm-key",
+                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS": "1",
+                "SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_FAILURE_THRESHOLD": "1",
+            }
+        )
+        sync_client = httpx.Client(
+            base_url="https://llm.example/v1",
+            transport=httpx.MockTransport(handler),
+        )
+        llm = build_http_ragas_llm(settings, sync_client=sync_client)
+
+        result = llm.preflight_sync()
+        runtime = llm.generate_text(StringPromptValue(text="只回复 OK"))
+
+        sync_client.close()
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(runtime.generations[0][0].text, "OK")
+        self.assertEqual(attempts, 3)
+
+    def test_build_http_ragas_embeddings_share_request_pacer_with_same_provider_origin_and_api_key(self) -> None:
+        settings = RagasSettings.from_env(
+            {
+                "LLM_BASE_URL": "https://provider.example/v1",
+                "LLM_API_KEY": "shared-key",
+                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EMBEDDING_BASE_URL": "https://provider.example/embeddings",
+                "EMBEDDING_API_KEY": "shared-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS": "12.5",
+            }
+        )
+
+        llm = build_http_ragas_llm(settings)
+        embeddings = build_http_ragas_embeddings(settings)
+
+        self.assertIsNotNone(llm.request_pacer)
+        self.assertIs(llm.request_pacer, embeddings.request_pacer)
+
+    def test_build_http_ragas_embeddings_do_not_share_request_pacer_across_different_api_keys(self) -> None:
         settings = RagasSettings.from_env(
             {
                 "LLM_BASE_URL": "https://provider.example/v1",
@@ -580,7 +861,7 @@ class RagasHttpTransportTest(unittest.TestCase):
         embeddings = build_http_ragas_embeddings(settings)
 
         self.assertIsNotNone(llm.request_pacer)
-        self.assertIs(llm.request_pacer, embeddings.request_pacer)
+        self.assertIsNot(llm.request_pacer, embeddings.request_pacer)
 
     def test_build_http_ragas_llm_recreates_internal_async_client_when_event_loop_changes(self) -> None:
         created_clients: list[object] = []

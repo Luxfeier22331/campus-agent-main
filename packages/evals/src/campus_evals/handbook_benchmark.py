@@ -336,7 +336,12 @@ def _write_benchmark_summary(
 ) -> dict[str, object]:
     case_index = {case.case_id: case for case in cases}
     supplemental_summary = _summarize_supplemental_across_runs(run_reports=run_reports, case_index=case_index)
+    supplemental_runtime = _summarize_supplemental_runtime_health(supplemental_summary)
     gate_report = evaluate_judge_gate(policy, supplemental_summary)
+    gate_report = {
+        **gate_report,
+        "supplemental_runtime": supplemental_runtime,
+    }
     if provenance is not None:
         gate_report = {
             **gate_report,
@@ -356,6 +361,7 @@ def _write_benchmark_summary(
         "aggregate": {
             "supplemental": supplemental_summary,
         },
+        "supplemental_runtime": supplemental_runtime,
         "gate_report": gate_report,
     }
     if provenance is not None:
@@ -717,16 +723,85 @@ def _summarize_supplemental_across_runs(
 
 def _summarize_supplemental_bucket(items: list[SupplementalResult]) -> dict[str, object]:
     scored_items = [item.score for item in items if item.score is not None]
+    runtime_failure_reason_lists = [
+        _supplemental_runtime_failure_reasons(item)
+        for item in items
+        if item.verdict == "failed" and item.score is None
+    ]
+    retryable_runtime_failure_count = sum(1 for reasons in runtime_failure_reason_lists if reasons)
+    non_retryable_runtime_failure_count = sum(1 for reasons in runtime_failure_reason_lists if not reasons)
     verdict_counts = Counter(
         item.verdict
         for item in items
         if item.verdict is not None
+    )
+    runtime_status = _resolve_supplemental_runtime_status(
+        score_count=len(scored_items),
+        verdict_counts=verdict_counts,
+        retryable_runtime_failure_count=retryable_runtime_failure_count,
+        non_retryable_runtime_failure_count=non_retryable_runtime_failure_count,
     )
     return {
         "total": len(items),
         "score_count": len(scored_items),
         "average_score": fmean(scored_items) if scored_items else None,
         "verdict_counts": dict(verdict_counts),
+        "runtime_status": runtime_status,
+        "retryable_runtime_failure_count": retryable_runtime_failure_count,
+        "non_retryable_runtime_failure_count": non_retryable_runtime_failure_count,
+        "runtime_failure_reasons": sorted(
+            {
+                reason
+                for reasons in runtime_failure_reason_lists
+                for reason in reasons
+            }
+        ),
+    }
+
+
+def _supplemental_runtime_failure_reasons(item: SupplementalResult) -> tuple[str, ...]:
+    if item.verdict != "failed" or item.score is not None:
+        return ()
+    return classify_retryable_runtime_failure(
+        item.rationale,
+        error_type=str(item.metadata.get("judge_error") or ""),
+    )
+
+
+def _resolve_supplemental_runtime_status(
+    *,
+    score_count: int,
+    verdict_counts: Counter[str],
+    retryable_runtime_failure_count: int,
+    non_retryable_runtime_failure_count: int,
+) -> str:
+    if score_count > 0:
+        return "available"
+    failed_count = int(verdict_counts.get("failed", 0))
+    if failed_count == 0:
+        return "not_applicable_only"
+    if retryable_runtime_failure_count == failed_count and non_retryable_runtime_failure_count == 0:
+        return "unavailable"
+    return "degraded"
+
+
+def _summarize_supplemental_runtime_health(
+    aggregate: dict[str, dict[str, object]],
+) -> dict[str, object]:
+    status_to_metric_keys: dict[str, list[str]] = defaultdict(list)
+    for metric_key, metric_summary in aggregate.items():
+        overall = dict(metric_summary.get("overall") or {})
+        status = str(overall.get("runtime_status") or "unknown")
+        status_to_metric_keys[status].append(metric_key)
+    return {
+        "status_counts": {
+            status: len(metric_keys)
+            for status, metric_keys in sorted(status_to_metric_keys.items())
+        },
+        "metric_keys_by_status": {
+            status: sorted(metric_keys)
+            for status, metric_keys in sorted(status_to_metric_keys.items())
+        },
     }
 
 
@@ -754,6 +829,11 @@ def _render_summary_markdown(summary: dict[str, object]) -> str:
         lines.append(
             f"- supplemental_preflight.status_counts: `{supplemental_preflight.get('summary', {}).get('status_counts')}`"
         )
+    supplemental_runtime = summary.get("supplemental_runtime")
+    if isinstance(supplemental_runtime, dict):
+        lines.append(
+            f"- supplemental_runtime.status_counts: `{supplemental_runtime.get('status_counts')}`"
+        )
     lines.extend(
         (
             "",
@@ -773,7 +853,7 @@ def _render_summary_markdown(summary: dict[str, object]) -> str:
     else:
         for metric_key, metric_summary in supplemental.items():
             lines.append(
-                f"- `{metric_key}`: mean={metric_summary['mean_average_score']}, min_run={metric_summary['min_run_average_score']}, drift={metric_summary['run_average_drift']}, applicable_runs={metric_summary['applicable_runs']}"
+                f"- `{metric_key}`: mean={metric_summary['mean_average_score']}, min_run={metric_summary['min_run_average_score']}, drift={metric_summary['run_average_drift']}, applicable_runs={metric_summary['applicable_runs']}, runtime={metric_summary['overall']['runtime_status']}"
             )
     lines.extend(
         (

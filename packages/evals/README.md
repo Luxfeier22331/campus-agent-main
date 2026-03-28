@@ -13,6 +13,9 @@ Evaluation helpers for campus-agent v2.
 - curriculum live fixture 必须跟随当前 `curriculum/curriculum_plan` 的真实 manifest 边界收口；重点覆盖标题命中、短事实 section、table retrieval、同专业不同方案区分、needs-clarification 与 no-hit
 - `policy_title_exact_match` 与 `fixed_phrase_sparse_win` 类 live 样本必须至少能锚定到当前 handbook manifest 的标题关键词；相关 drift guard 由 `tests/evals/test_retrieval_benchmark.py` 覆盖
 - curriculum qrels 当前同样采取 `doc_id-level truth first`，第二学士学位、强基计划、创新班与课程教学计划是首批固定回归样本
+- selected `regression_locked` retrieval qrels 现在已经开始锁到 `doc_id + version_id`；`chunk_id` 仍只在边界长期稳定后使用
+- `campus_evals.scenarios` 现在同时提供 handbook / curriculum 的 `smoke`、`regression_locked`、`release_gate` 与 `error_gate` 固定 case 集；`release_gate` 继续服务 live gate，`smoke` / `regression_locked` 负责 repo-tracked 常设回归样本
+- handbook / curriculum 的 retrieval annotation template 现在都需要与各自 qrels case inventory 保持一一对应，避免人工标注模板和 canonical qrels 漂移
 - deterministic runner 现在接受 `SpecialistResponse` 与 `SupervisorResponse` 两种执行结果；supervisor-only 终态额外覆盖 `approval_required_accuracy` / `rejection_accuracy`
 - `ragas`、OpenAI graders 或其他 judge/scorer 只能作为 `packages/evals` 之后的 supplemental adapter，不得改写 canonical deterministic gate
 - `student_handbook` formal benchmark 的 policy / rubric fixture 分别固定在 `student_handbook_judge_gate_policy.json` 与 `student_handbook_judge_rubrics.json`
@@ -52,8 +55,11 @@ ragas runtime：
 - 默认运行面走 `build_http_ragas_llm()` + `build_http_ragas_embeddings()`，直接对 OpenAI-compatible `/responses` 与 `/embeddings` 发原生 HTTP 请求；实现边界固定在 `campus_evals.supplemental_http`
 - 这样做的直接原因是：当前 provider 对原生 HTTP `Responses API` 可用，但会阻断 OpenAI Python SDK / LangChain transport；因此 LangChain 兼容 helper 只保留在内部测试模块 `campus_evals._langchain_compat`，不再作为默认或公开 runtime surface
 - `RAGAS_USE_RESPONSES_API` 仍保留在 settings 中，用于 LangChain compatibility helper 的回归测试；默认值仍为 `true`
-- `SUPPLEMENTAL_HTTP_*` 是 ragas + rubric judge 共享的 supplemental provider runtime，分别控制 connect/read/write/pool timeout、单层 retry、provider-origin circuit breaker、preflight timeout 与 request pacing
-- `SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS` 可对同一 provider origin 的 supplemental HTTP 请求施加最小间隔，用于在低配额 provider 上稳定跑完 formal benchmark
+- `SUPPLEMENTAL_HTTP_*` 是 ragas + rubric judge 共享的 supplemental provider runtime，分别控制 connect/read/write/pool timeout、单层 retry、provider runtime circuit breaker、preflight timeout、request pacing 与 keep-alive
+- pacing / breaker 的共享粒度已经收口到 `provider origin + api key`，避免不同 credential 互相污染 rate budget
+- `SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS` 可显式指定最小请求间隔；若只知道 provider 配额，也可改填 `SUPPLEMENTAL_HTTP_REQUESTS_PER_MINUTE`，runtime 会自动派生 `60 / rpm`
+- internal shared transport 现在会复用 sync/async HTTP client，并把 keep-alive expiry 提升到适配低 RPM provider 的窗口；重复 preflight 会命中同一 runtime signature 的缓存，不再重复消耗 provider 预算
+- preflight 现在只做 warmup / availability probe，不再因为一次失败直接 trip runtime circuit breaker
 - Responses judge payload 支持独立低延迟 profile：`RAGAS_REASONING_EFFORT`、`RAGAS_TEXT_VERBOSITY`、`RAGAS_MAX_OUTPUT_TOKENS`
 - `n>1` 的 ragas judge 调用现在会在同一 async transport 上并发发出，不再串行放大单 metric 延迟
 - `Qwen3-Embedding-4B` 未显式配置 `EMBEDDING_DIMENSIONS` 时，eval 侧默认补成 `2560`
@@ -97,3 +103,9 @@ student handbook formal benchmark：
 - repair rerun 的 provenance 固定写入 repaired `summary.json` / `gate-report.json`；原 benchmark artifact 保持不可变
 - `gate-report.json` 只解释 supplemental judge/ragas 阈值，不替代 deterministic gate
 - 当前 `student_handbook` policy fixture 全部是 `soft_gate`；`warn` 表示 supplemental 指标未达阈值，不表示 handbook 主链路 deterministic 回归失败
+- 当某个 supplemental metric 没有任何可计分 observation，且失败全部来自 retryable runtime / provider outage 时，aggregate 会显式写出 `overall.runtime_status=unavailable`
+- 这种场景的 gate reason 会包含 `runtime_unavailable`，而不会再错误地追加 `*_below_threshold` 或 `run_average_drift_above_threshold`
+- handbook live runner 现已固定为 `campus_evals.handbook_live_benchmark`：
+  - `uv run --all-packages python -m campus_evals.handbook_live_benchmark run --reruns 3`
+  - `uv run --all-packages python -m campus_evals.handbook_live_benchmark repair --benchmark-dir <formal-benchmark-dir>`
+  - 该入口直接复用当前 `delegate_to_rag_agent` + `retrieve_sources` 真链路，把 `GoldenCase` 收口为 live `ExecutionResult`

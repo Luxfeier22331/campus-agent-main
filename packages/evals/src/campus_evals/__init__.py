@@ -68,8 +68,11 @@ from campus_evals.ragas_adapter import (
 from campus_evals.runner import run_cases
 from campus_evals.scenarios import (
     curriculum_error_gate_cases,
+    curriculum_regression_locked_cases,
     curriculum_release_gate_cases,
+    curriculum_smoke_cases,
     handbook_error_gate_cases,
+    handbook_regression_locked_cases,
     handbook_release_gate_cases,
     handbook_smoke_cases,
 )
@@ -117,7 +120,9 @@ __all__ = [
     "build_ragas_scorer",
     "build_ragas_supplemental_adapter_from_env",
     "curriculum_error_gate_cases",
+    "curriculum_regression_locked_cases",
     "curriculum_release_gate_cases",
+    "curriculum_smoke_cases",
     "collect_repairable_handbook_benchmark_targets",
     "evaluate_judge_gate",
     "evaluate_retrieval_case",
@@ -134,6 +139,7 @@ __all__ = [
     "run_handbook_formal_benchmark",
     "run_cases",
     "handbook_error_gate_cases",
+    "handbook_regression_locked_cases",
     "handbook_release_gate_cases",
     "handbook_smoke_cases",
     "summarize_retrieval_metrics",

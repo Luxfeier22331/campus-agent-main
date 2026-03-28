@@ -10,6 +10,12 @@ from llama_index.core.embeddings.mock_embed_model import MockEmbedding
 from llama_index.embeddings.openai import OpenAIEmbedding
 from openai import AsyncOpenAI, OpenAI
 
+DEFAULT_EMBEDDING_PROVIDER = "gitee"
+DEFAULT_EMBEDDING_MODEL = "Qwen3-Embedding-4B"
+DEFAULT_EMBEDDING_TIMEOUT_SECONDS = 60.0
+DEFAULT_EMBED_BATCH_SIZE = 100
+DEFAULT_QWEN3_EMBEDDING_DIMENSIONS = 2560
+
 
 class OpenAICompatibleEmbedding(BaseEmbedding):
     api_key: str = ""
@@ -98,8 +104,8 @@ class EmbeddingSettings:
     api_key: str = ""
     api_base: str | None = None
     dimensions: int | None = None
-    timeout_seconds: float = 60.0
-    embed_batch_size: int = 100
+    timeout_seconds: float = DEFAULT_EMBEDDING_TIMEOUT_SECONDS
+    embed_batch_size: int = DEFAULT_EMBED_BATCH_SIZE
 
     def __post_init__(self) -> None:
         if not self.provider:
@@ -125,7 +131,12 @@ class EmbeddingSettings:
         model_override: str | None = None,
     ) -> "EmbeddingSettings":
         source = env if env is not None else os.environ
-        model = (model_override or source.get("INGESTION_EMBEDDING_MODEL") or source.get("EMBEDDING_MODEL") or "").strip()
+        model = (
+            model_override
+            or source.get("INGESTION_EMBEDDING_MODEL")
+            or source.get("EMBEDDING_MODEL")
+            or DEFAULT_EMBEDDING_MODEL
+        ).strip()
         dimensions = _resolve_embedding_dimensions(
             model=model,
             raw_dimensions=(
@@ -135,13 +146,16 @@ class EmbeddingSettings:
             ).strip(),
         )
         return cls(
-            provider=(source.get("EMBEDDING_PROVIDER") or "openai").strip() or "openai",
+            provider=(source.get("EMBEDDING_PROVIDER") or DEFAULT_EMBEDDING_PROVIDER).strip()
+            or DEFAULT_EMBEDDING_PROVIDER,
             model=model,
             api_key=(source.get("EMBEDDING_API_KEY") or "").strip(),
             api_base=(source.get("EMBEDDING_BASE_URL") or "").strip() or None,
             dimensions=dimensions,
-            timeout_seconds=float((source.get("EMBEDDING_TIMEOUT_SECONDS") or "60").strip()),
-            embed_batch_size=int((source.get("EMBEDDING_BATCH_SIZE") or "100").strip()),
+            timeout_seconds=float(
+                (source.get("EMBEDDING_TIMEOUT_SECONDS") or str(DEFAULT_EMBEDDING_TIMEOUT_SECONDS)).strip()
+            ),
+            embed_batch_size=int((source.get("EMBEDDING_BATCH_SIZE") or str(DEFAULT_EMBED_BATCH_SIZE)).strip()),
         )
 
 
@@ -193,7 +207,7 @@ def build_mock_embedding_model(settings: MockEmbeddingSettings | None = None) ->
 def _resolve_embedding_dimensions(*, model: str, raw_dimensions: str) -> int | None:
     if raw_dimensions:
         return int(raw_dimensions)
-    if model == "Qwen3-Embedding-4B":
+    if model == DEFAULT_EMBEDDING_MODEL:
         # The accepted Qwen3 baseline uses native-width vectors instead of the API compatibility default.
-        return 2560
+        return DEFAULT_QWEN3_EMBEDDING_DIMENSIONS
     return None

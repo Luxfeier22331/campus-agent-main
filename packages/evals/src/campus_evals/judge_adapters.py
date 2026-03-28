@@ -349,6 +349,7 @@ def _build_responses_judge_runtime(
         ),
         circuit_breaker=get_provider_circuit_breaker(
             base_url=base_url,
+            api_key=settings.llm_api_key,
             settings=settings.http_settings,
         ),
         sync_client=sync_client,

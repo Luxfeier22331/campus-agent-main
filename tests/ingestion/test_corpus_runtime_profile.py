@@ -21,7 +21,7 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertTrue(profile.query_enabled_by_default)
         self.assertTrue(profile.current_only)
         self.assertEqual(profile.serving_revision_tracks, ("current-effective", "source-faithful"))
-        self.assertEqual(profile.retrieval_top_k, 3)
+        self.assertEqual(profile.retrieval_top_k, 8)
         self.assertEqual(profile.no_hit_min_top_score, 0.6)
         self.assertEqual(profile.no_hit_min_score_gap, 0.1)
         self.assertEqual(profile.cleaning_policy_version, "student_handbook_cleaning_v1")

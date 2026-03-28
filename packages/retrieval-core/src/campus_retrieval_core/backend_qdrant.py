@@ -30,9 +30,7 @@ from campus_retrieval_core.settings import RetrievalSettings
 
 DEFAULT_LATEST_REVISION_TRACKS = ("current-effective", "editorial", "source-faithful")
 DEFAULT_SERVING_STATUS = "active"
-DEFAULT_HYBRID_CANDIDATE_MULTIPLIER = 4
 DEFAULT_DENSE_QUERY_CACHE_TTL_SECONDS = 300.0
-DEFAULT_DOCUMENT_SUPPORT_LIMIT = 24
 _SCORE_TIE_EPSILON = 1e-6
 _ASCII_QUERY_TOKEN_RE = re.compile(r"[a-z0-9]{3,}")
 _WEAK_CJK_QUERY_TOKENS = frozenset(
@@ -139,13 +137,14 @@ class QdrantRetrievalBackend:
             response = self.qdrant_client.query_points(
                 collection_name=qdrant_collection_name,
                 prefetch=_build_hybrid_prefetch(
+                    settings=self.settings,
                     request=request,
                     profile=profile,
                     embedding_model=self.embedding_model,
                     sparse_embedding_model=self.sparse_embedding_model,
                     dense_query_embedding=dense_query_embedding,
                 ),
-                query=qdrant_models.FusionQuery(fusion=qdrant_models.Fusion.RRF),
+                query=_build_rrf_query(self.settings),
                 limit=request.top_k,
                 with_payload=True,
                 with_vectors=False,
@@ -245,7 +244,10 @@ class QdrantRetrievalBackend:
         return tuple(sources)
 
     def _get_dense_query_embedding(self, query_text: str) -> tuple[float, ...]:
-        normalized_query = query_text.strip()
+        normalized_query = _build_dense_query_text(
+            query_text=query_text,
+            instruction=self.settings.embedding_query_instruction,
+        )
         now = time.monotonic()
         cached = self._dense_query_cache.get(normalized_query)
         if cached is not None:
@@ -279,6 +281,7 @@ class QdrantRetrievalBackend:
             response = self.qdrant_client.query_points(
                 collection_name=qdrant_collection_name,
                 prefetch=_build_hybrid_prefetch(
+                    settings=self.settings,
                     request=request,
                     profile=profile,
                     embedding_model=self.embedding_model,
@@ -290,8 +293,8 @@ class QdrantRetrievalBackend:
                         source=target_source,
                     ),
                 ),
-                query=qdrant_models.FusionQuery(fusion=qdrant_models.Fusion.RRF),
-                limit=max(request.top_k, DEFAULT_DOCUMENT_SUPPORT_LIMIT),
+                query=_build_rrf_query(self.settings),
+                limit=max(request.top_k, self.settings.document_support_limit),
                 with_payload=True,
                 with_vectors=False,
             )
@@ -303,12 +306,9 @@ class QdrantRetrievalBackend:
         )
 
 
-def _candidate_limit(top_k: int) -> int:
-    return max(top_k * DEFAULT_HYBRID_CANDIDATE_MULTIPLIER, top_k)
-
-
 def _build_hybrid_prefetch(
     *,
+    settings: RetrievalSettings,
     request: RetrievalRequest,
     profile: CollectionRuntimeProfile,
     embedding_model: object,
@@ -316,15 +316,20 @@ def _build_hybrid_prefetch(
     dense_query_embedding: Sequence[float] | None = None,
     query_filter: qdrant_models.Filter | None = None,
 ) -> list[qdrant_models.Prefetch]:
-    limit = _candidate_limit(request.top_k)
     runtime_query_filter = query_filter or _build_qdrant_filter(request, profile=profile)
     query_text = request.query_text.strip()
+    dense_limit = max(request.top_k, settings.dense_prefetch_limit)
+    sparse_limit = max(request.top_k, settings.sparse_prefetch_limit)
+    dense_query_text = _build_dense_query_text(
+        query_text=query_text,
+        instruction=settings.embedding_query_instruction,
+    )
     prefetch = [
         qdrant_models.Prefetch(
-            query=list(dense_query_embedding or embedding_model.get_query_embedding(query_text)),
+            query=list(dense_query_embedding or embedding_model.get_query_embedding(dense_query_text)),
             using=profile.qdrant_index_binding.dense_vector_name,
             filter=runtime_query_filter,
-            limit=limit,
+            limit=dense_limit,
         )
     ]
     sparse_query = sparse_embedding_model.build_query(query_text)
@@ -334,10 +339,27 @@ def _build_hybrid_prefetch(
                 query=sparse_query,
                 using=profile.qdrant_index_binding.sparse_vector_name,
                 filter=runtime_query_filter,
-                limit=limit,
+                limit=sparse_limit,
             )
         )
     return prefetch
+
+
+def _build_dense_query_text(*, query_text: str, instruction: str) -> str:
+    normalized_query = query_text.strip()
+    normalized_instruction = instruction.strip()
+    if not normalized_instruction:
+        return normalized_query
+    return f"Instruct: {normalized_instruction}\nQuery: {normalized_query}"
+
+
+def _build_rrf_query(settings: RetrievalSettings) -> qdrant_models.RrfQuery:
+    return qdrant_models.RrfQuery(
+        rrf=qdrant_models.Rrf(
+            k=settings.rrf_k,
+            weights=[settings.rrf_dense_weight, settings.rrf_sparse_weight],
+        )
+    )
 
 
 def _merge_evidence_sources(

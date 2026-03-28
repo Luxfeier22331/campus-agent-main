@@ -86,6 +86,13 @@ updated: 2026-03-28
 - `SPARSE_MODEL`
 - `SPARSE_TOKENIZER`
 - `SPARSE_LANGUAGE`
+- `RETRIEVAL_EMBEDDING_QUERY_INSTRUCTION`
+- `RETRIEVAL_DENSE_PREFETCH_LIMIT`
+- `RETRIEVAL_SPARSE_PREFETCH_LIMIT`
+- `RETRIEVAL_RRF_K`
+- `RETRIEVAL_RRF_DENSE_WEIGHT`
+- `RETRIEVAL_RRF_SPARSE_WEIGHT`
+- `RETRIEVAL_DOCUMENT_SUPPORT_LIMIT`
 - `QDRANT_URL`
 - `DOCUMENT_REGISTRY_DATABASE_URL`
 
@@ -150,6 +157,12 @@ shared core 当前统一负责：
 - dense: `Qwen3-Embedding-4B @ 2560`
 - sparse: `Qdrant native BM25`
 - fusion: `RRF`
+- dense query instruction:
+  `Given a campus policy or handbook question, retrieve relevant passages that answer the query.`
+- dense prefetch limit: `20`
+- sparse prefetch limit: `20`
+- `RrfQuery(k=60, weights=[1.0, 1.0])`
+- handbook runtime `retrieval_top_k`: `8`
 - output: registry-backed `EvidenceBundle`
 
 当前 live / remote sparse 路径：

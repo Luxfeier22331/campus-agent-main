@@ -7,6 +7,13 @@ from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
 
 
 class EmbeddingProviderAliasTest(unittest.TestCase):
+    def test_embedding_settings_from_env_defaults_to_gitee_qwen_baseline(self) -> None:
+        settings = EmbeddingSettings.from_env({})
+
+        self.assertEqual(settings.provider, "gitee")
+        self.assertEqual(settings.model, "Qwen3-Embedding-4B")
+        self.assertEqual(settings.dimensions, 2560)
+
     def test_embedding_settings_default_qwen3_dimensions_to_native_width(self) -> None:
         settings = EmbeddingSettings.from_env(
             {

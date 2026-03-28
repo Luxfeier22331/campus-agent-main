@@ -28,7 +28,13 @@ from campus_retrieval_core.backend_qdrant import (
 )
 from campus_retrieval_core.evidence_ranking import prioritize_evidence_sources
 from campus_retrieval_core.models import RetrievalRequest
-from campus_retrieval_core.settings import RetrievalSettings
+from campus_retrieval_core.settings import (
+    DEFAULT_DENSE_PREFETCH_LIMIT,
+    DEFAULT_EMBEDDING_QUERY_INSTRUCTION,
+    DEFAULT_RRF_K,
+    DEFAULT_SPARSE_PREFETCH_LIMIT,
+    RetrievalSettings,
+)
 from llama_index.core.schema import TextNode
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
@@ -364,6 +370,13 @@ class BackendQdrantTest(unittest.TestCase):
         settings = RetrievalSettings.from_env({"QDRANT_URL": ":memory:"})
 
         self.assertEqual(settings.qdrant_url, ":memory:")
+        self.assertEqual(settings.dense_prefetch_limit, DEFAULT_DENSE_PREFETCH_LIMIT)
+        self.assertEqual(settings.sparse_prefetch_limit, DEFAULT_SPARSE_PREFETCH_LIMIT)
+        self.assertEqual(settings.rrf_k, DEFAULT_RRF_K)
+        self.assertEqual(
+            settings.embedding_query_instruction,
+            DEFAULT_EMBEDDING_QUERY_INSTRUCTION,
+        )
 
     def test_retrieval_settings_default_qwen3_dimensions_to_native_width(self) -> None:
         settings = RetrievalSettings(
@@ -413,6 +426,10 @@ class BackendQdrantTest(unittest.TestCase):
         sparse_embedding_model = _SparseEmbeddingModel()
 
         prefetch = _build_hybrid_prefetch(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
             request=RetrievalRequest(
                 query_text="scholarship office hours",
                 corpus="regulations",
@@ -425,11 +442,19 @@ class BackendQdrantTest(unittest.TestCase):
             sparse_embedding_model=sparse_embedding_model,
         )
 
-        self.assertEqual(dense_embedding_model.query, "scholarship office hours")
+        self.assertEqual(
+            dense_embedding_model.query,
+            (
+                "Instruct: Given a campus policy or handbook question, retrieve relevant passages that answer "
+                "the query.\nQuery: scholarship office hours"
+            ),
+        )
         self.assertEqual(sparse_embedding_model.query_calls, ["scholarship office hours"])
         self.assertEqual(len(prefetch), 2)
         self.assertEqual(prefetch[0].using, "dense")
         self.assertEqual(prefetch[1].using, "sparse")
+        self.assertEqual(prefetch[0].limit, DEFAULT_DENSE_PREFETCH_LIMIT)
+        self.assertEqual(prefetch[1].limit, DEFAULT_SPARSE_PREFETCH_LIMIT)
         self.assertIsInstance(prefetch[1].query, qdrant_models.Document)
         self.assertEqual(prefetch[1].query.model, "qdrant/bm25")
         self.assertEqual(prefetch[1].query.text, "scholarship office hours")
@@ -493,7 +518,13 @@ class BackendQdrantTest(unittest.TestCase):
         backend.retrieve(request)
         backend.retrieve(request)
 
-        self.assertEqual(embedding_model.calls, ["library hours"])
+        self.assertEqual(
+            embedding_model.calls,
+            [
+                "Instruct: Given a campus policy or handbook question, retrieve relevant passages that answer "
+                "the query.\nQuery: library hours"
+            ],
+        )
 
     def test_build_qdrant_client_uses_plain_remote_configuration(self) -> None:
         settings = RetrievalSettings(
@@ -576,7 +607,7 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertEqual(source.anchor["page_start"], 5)
         self.assertIn("08:00", source.snippet)
 
-    def test_backend_uses_qdrant_native_hybrid_query_with_rrf(self) -> None:
+    def test_backend_uses_qdrant_native_hybrid_query_with_explicit_rrf_config(self) -> None:
         registry = InMemoryDocumentRegistry()
         record = _make_registry_record(
             document_id="handbook:hybrid-winner",
@@ -637,11 +668,14 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertEqual(len(result.sources), 1)
         self.assertEqual(result.sources[0].doc_id, "handbook:hybrid-winner")
         query_kwargs = backend.qdrant_client.query_points.call_args.kwargs
-        self.assertIsInstance(query_kwargs["query"], qdrant_models.FusionQuery)
-        self.assertEqual(query_kwargs["query"].fusion, qdrant_models.Fusion.RRF)
+        self.assertIsInstance(query_kwargs["query"], qdrant_models.RrfQuery)
+        self.assertEqual(query_kwargs["query"].rrf.k, DEFAULT_RRF_K)
+        self.assertEqual(query_kwargs["query"].rrf.weights, [1.0, 1.0])
         self.assertEqual(len(query_kwargs["prefetch"]), 2)
         self.assertEqual(query_kwargs["prefetch"][0].using, "dense")
         self.assertEqual(query_kwargs["prefetch"][1].using, "sparse")
+        self.assertEqual(query_kwargs["prefetch"][0].limit, DEFAULT_DENSE_PREFETCH_LIMIT)
+        self.assertEqual(query_kwargs["prefetch"][1].limit, DEFAULT_SPARSE_PREFETCH_LIMIT)
 
     def test_backend_skips_sources_with_missing_registry_or_revision_metadata(self) -> None:
         registry = InMemoryDocumentRegistry()

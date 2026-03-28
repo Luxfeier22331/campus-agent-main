@@ -43,6 +43,8 @@ updated: 2026-03-28
 
 2026-03-27 live retrieval benchmark 汇总：
 
+- 注：以下数值对应 2026-03-27 当时的 qrels 快照，不代表当前 repo 中已经扩充后的 qrels inventory；fresh live rerun 仍待补。
+
 - total cases：`13`
 - `Hit@1 = 1.0`
 - `Hit@3 = 1.0`
@@ -295,9 +297,10 @@ supplemental 聚合：
 - 当前 supplemental runtime 已收口为共享 `SUPPLEMENTAL_HTTP_*`：
   - connect/read/write/pool timeout
   - 单层 retry
-  - provider-origin circuit breaker
+  - `provider origin + api key` 作用域的 shared pacing / circuit breaker
   - preflight timeout
-  - request pacing
+  - request pacing（支持直接填最小间隔，也支持从 `SUPPLEMENTAL_HTTP_REQUESTS_PER_MINUTE` 自动派生）
+  - shared keep-alive transport limits
 - 当前 formal benchmark / repair rerun 都共享同一 transient infra failure 分类边界：
   - `429`
   - `5xx`
@@ -306,6 +309,7 @@ supplemental 聚合：
   - provider runtime marker，例如 `do_request_failed`
 - 当前 Responses judge payload 已支持独立低延迟 profile：`RAGAS_REASONING_EFFORT`、`RAGAS_TEXT_VERBOSITY`、`RAGAS_MAX_OUTPUT_TOKENS`
 - `AnswerRelevancy` 这类 `n>1` judge 调用已改成在同一 async transport 上并发发出，不再把单 metric 放大成串行多次 `/responses`
+- shared transport 现在会复用 HTTP client，并把 keep-alive expiry 提升到适配低 RPM provider 的窗口；preflight 改成 warmup-only，不再因为单次失败直接 poison runtime breaker
 - repo 内自动化覆盖当前已补齐：
   - `tests.evals.test_ragas_runtime`
   - `tests.evals.test_supplemental_adapters`

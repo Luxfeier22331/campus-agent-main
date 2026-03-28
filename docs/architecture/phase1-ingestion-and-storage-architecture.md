@@ -213,9 +213,11 @@ phase-1 当前采用对象存储 + raw asset registry + document registry + Qdra
 - retrieval 前置 ACL filter 必须基于 metadata 执行
 - 当前 retrieval accepted baseline 为 `dense + sparse hybrid retrieval + RRF fusion + registry-backed evidence shaping`；`HyDE` 和 rerank 不是默认主路径
 - 当前 handbook embedding runtime 通过 `gitee` 官方 OpenAI-compatible 接口请求 `Qwen3-Embedding-4B @ 2560`，ingestion 与 retrieval query path 都必须显式发送 `dimensions=2560`
+- 当前 handbook dense query embedding 会在 retrieval time 追加英文 instruction，再送入 `Qwen3-Embedding-4B`
 - 当前 handbook 的 phase-1 sparse baseline 先采用 `Qdrant native BM25`，并以 `tokenizer=multilingual`、`language=none` 作为中文 handbook 起始配置
-- 当前 handbook 的 accepted target retrieval shape 是 Qdrant native hybrid query：同一 filter 下执行 dense prefetch 与 sparse prefetch，并使用 native `RRF` 融合
+- 当前 handbook 的 accepted target retrieval shape 是 Qdrant native hybrid query：同一 filter 下执行 dense prefetch 与 sparse prefetch，并使用 native `RRF` 融合；当前 runtime 冻结为 dense prefetch `20`、sparse prefetch `20`、`RrfQuery(k=60, weights=[1.0,1.0])`
 - query-serving 默认只消费 collection runtime profile 定义的 serving documents。当前 `student_handbook` 策略为 `current_only=true` 且 `serving_revision_tracks=["current-effective","source-faithful"]`；当前 `curriculum_plan` 策略为 `current_only=false` 且 `serving_revision_tracks=["source-faithful"]`
+- 当前 `student_handbook` runtime profile 默认返回 `8` 个 retrieval candidates，回答阶段再裁剪为最多 `3` 条支撑证据
 - query path 不再接受“历史版本先命中，再靠 `latest_url` 告知用户当前链接”作为默认主路径；历史版本默认不进入 retrieval candidate
 - 当同一逻辑文档同时存在 `pdf_ocr` / `official_web` 等多来源且规范化内容一致时，source layer 保留多份来源资产，但 document/version layer 只保留一份逻辑版本；Qdrant 不得为等价来源重复建索引点
 - 当前数据平面已经具备“保留历史版本并维护 current truth”的能力，但当前在线 query path 仍不支持用户显式选择历史版本、按时间点查询或版本对比；这些属于后续版本化 serving 能力，不属于本文冻结的现状
