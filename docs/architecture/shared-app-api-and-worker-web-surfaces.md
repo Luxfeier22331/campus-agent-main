@@ -15,6 +15,9 @@ updated: 2026-03-28
 
 - 长期 `apps/*` / `packages/*` 分层：`docs/architecture/long-term-architecture.md`
 - `app-api` 自身 runtime 与内部边界：`docs/architecture/app-api-architecture.md`
+- `app-api` 产品层 HTTP contract：`docs/contracts/app-api-http.md`
+- `app-api` request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
+- `app-api` 数据模型：`docs/data/app-api-schema.md`
 - supervisor 执行引擎边界：`docs/architecture/supervisor-architecture.md`
 - protected surface trust model：`docs/architecture/protected-panel-boundary.md`
 - Cloudflare delivery/topology：`docs/architecture/cloudflare-runtime-topology.md`
@@ -214,4 +217,9 @@ runtime 形态已不再 deferred：
 - shared `app-api`
 - `supervisor-api` execution engine
 
-详细 API contract、数据表、auth stack、frontend framework 和 migration sequence 留待后续设计讨论；`app-api` runtime freeze 见 `docs/decisions/adr-0013-app-api-worker-runtime.md`。
+详细 API contract、request lifecycle、error model 与数据表现已冻结在以下文档：
+
+- `docs/contracts/app-api-http.md`
+- `docs/contracts/app-api-request-lifecycle.md`
+- `docs/contracts/app-api-error-model.md`
+- `docs/data/app-api-schema.md`

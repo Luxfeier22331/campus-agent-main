@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Phase 7 release-gate closeout is merged; shared `app-api` topology docs, protected-panel naming, and request API ownership language are aligned; `Jobs` / `Operations` remain delayed
-last_updated: "2026-03-28T13:45:00.000Z"
+stopped_at: shared `app-api` topology, product HTTP contract, execution contract, request lifecycle, and logical schema are aligned; next work is `apps/app-api` Worker foundation and command/query implementation
+last_updated: "2026-03-28T15:25:11.000Z"
 progress:
   total_phases: 17
   completed_phases: 17
@@ -19,7 +19,7 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-03-28)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 runtime-profile-driven serving surface 证明这条架构能可靠承接高频校园问答
-**Current focus:** Phase 7 handbook verification已完成；当前 follow-up 重点是补齐 `curriculum_plan` query-serving 的 live gate，同时继续把 `public-chat-web` / `protected-panel-web` + shared `app-api` Worker runtime + `supervisor-api` execution engine 作为 accepted product topology 推进，并保持 `Jobs` / `Operations` 不进入第一波 panel rollout
+**Current focus:** Phase 7 handbook verification已完成；当前 follow-up 重点是补齐 `curriculum_plan` query-serving 的 live gate，同时继续把 `public-chat-web` / `protected-panel-web` + shared `app-api` Worker runtime + `supervisor-api` execution engine 作为 accepted product topology 推进，并在 `docs/contracts/` 与 `docs/data/` 中冻结 `app-api` 第一版 HTTP contract、request lifecycle、error model 与 logical schema；`Jobs` / `Operations` 仍不进入第一波 panel rollout
 
 ## Current Position
 
@@ -142,6 +142,7 @@ Recent decisions affecting current work:
 - Phase 06 added `provider_response_replay` rebuild support for `curriculum_plan`, and the current refactor promotes its serving policy into the profile-driven query surface.
 - Phase 07 closed handbook release-gate verification with repo tests, live qrels benchmark, workflow/status samples, and handbook collection schema evidence under `.tmp/phase7/`.
 - The detailed `app-api` implementation baseline now lives in `docs/plans/app-api-worker-foundation.md`, including framework selection, API surface, data domains, and execution waves.
+- `app-api` 第一版产品层 HTTP contract、`app-api -> supervisor-api` execution contract、request lifecycle、error model 与 logical schema 现已冻结在 `docs/contracts/` 与 `docs/data/`。
 
 ### Pending Todos
 
@@ -159,6 +160,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-28T13:45:00.000Z
-Stopped at: Phase 7 release-gate closeout is merged, shared app-api docs consistently treat `protected-panel-web` as the forward surface, and panel `Requests` remains blocked on `app-api` query APIs while `Jobs` / `Operations` remain delayed
+Last session: 2026-03-28T15:25:11.000Z
+Stopped at: shared app-api docs now include frozen product HTTP contract, supervisor execution contract, request lifecycle, and logical schema; next implementation work is app-api Worker foundation plus command/query paths while panel `Requests` remains blocked on shipped app-api query APIs
 Resume file: None

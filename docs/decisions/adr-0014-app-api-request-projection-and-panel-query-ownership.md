@@ -32,11 +32,12 @@ updated: 2026-03-28
 - `packages/supervisor-core` 被反向扩成 request read-model host
 - `apps/supervisor-api` 顺手继续长成 panel query backend
 
-## 决策 1：canonical request projection 在 shared `app-api` command path 内一次产出
+## 决策 1：canonical request facts 与 projection input 在 shared `app-api` command path 内一次产出
 
 结论：
 
-- request projection 必须在 shared `app-api` handling 内一次完成
+- canonical request facts 与 projection input 必须在 shared `app-api` handling 内一次产出
+- `operator.request_projection` 可以在同一 boundary 内异步物化
 - 不采用 panel、日志系统或其他下游组件事后重算的形态
 
 原因：
@@ -51,7 +52,7 @@ updated: 2026-03-28
 - 当前第一 owner 固定为 `apps/app-api`
 - 它负责：
   - `runtime.request_execution` / `runtime.projection_outbox`
-  - request projection 持久化
+  - `request_projection` 物化
   - request list/detail runtime API
 
 原因：

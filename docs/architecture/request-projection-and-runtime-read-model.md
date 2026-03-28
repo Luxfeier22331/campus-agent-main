@@ -16,6 +16,8 @@ updated: 2026-03-28
 - 仓库级长期边界：`docs/architecture/long-term-architecture.md`
 - shared app backend / product topology：`docs/architecture/shared-app-api-and-worker-web-surfaces.md`
 - `app-api` runtime 与内部边界：`docs/architecture/app-api-architecture.md`
+- `app-api` request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
+- `app-api` 数据模型：`docs/data/app-api-schema.md`
 - supervisor 与 runtime shell 分层：`docs/architecture/supervisor-architecture.md`
 - protected panel runtime shell：`docs/architecture/protected-panel-runtime-shell.md`
 - public consumer chat 数据边界：`docs/architecture/public-consumer-chat-auth-and-data-boundary.md`
@@ -41,9 +43,9 @@ updated: 2026-03-28
 
 长期 canonical request projection 固定为：
 
-- 在 shared `app-api` 的 command path 内一次产出
-- 由 `apps/app-api` 对应的 `apps/*` boundary 持久化
-- 由同一 `app-api` boundary 暴露 list/detail read API
+- 在 shared `app-api` 的 command path 内一次产出 canonical request facts 与 projection input
+- 由 `apps/app-api` 对应的 `apps/*` boundary 持久化 `runtime.request_execution` 与 `runtime.projection_outbox`
+- 由同一 `app-api` boundary 物化 `operator.request_projection` 并暴露 list/detail read API
 
 第一落点固定为：
 
@@ -60,12 +62,13 @@ updated: 2026-03-28
 
 长期推荐链路固定为：
 
-`browser -> public-chat-web / protected-panel-web -> app-api command/query boundary -> request projection store -> app-api read API -> panel BFF -> panel UI`
+`browser -> public-chat-web / protected-panel-web -> app-api command/query boundary -> runtime.request_execution / projection_outbox -> projector -> operator.request_projection -> app-api read API -> panel BFF -> panel UI`
 
 其中：
 
 - command path 与 read-model path 属于同一个 shared app boundary
-- projection 生产应与 chat request handling 同步完成
+- durable request facts 与 projection input 必须在 chat request handling 内提交
+- materialized request projection 可以在同一 boundary 内异步生成
 - panel 只读取 runtime-owned projection API，不直接读取底层存储
 
 ## Ownership Model
@@ -75,7 +78,8 @@ updated: 2026-03-28
 - 接收来自 public chat 的产品层请求
 - 构造 canonical request identity 与 correlation fields
 - 在一次处理内同时产出 request facts、execution correlation 与 request projection input
-- 持久化 request projection
+- 持久化 `runtime.request_execution` 与 `runtime.projection_outbox`
+- 在同一 boundary 内负责 `request_projection` 物化
 - 暴露 `GET /api/operator/requests` / `GET /api/operator/requests/:id` 一类 runtime-owned read APIs
 
 直接含义：
@@ -178,7 +182,7 @@ updated: 2026-03-28
 当前缺口是：
 
 - 还没有正式落地 `apps/app-api`
-- 没有 queryable request projection store
+- 没有 queryable `operator.request_projection` store
 - 没有 `apps/app-api` 提供的 runtime-owned `GET /api/operator/requests`
 - 没有 `apps/app-api` 提供的 runtime-owned `GET /api/operator/requests/:id`
 

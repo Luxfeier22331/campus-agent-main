@@ -38,6 +38,11 @@ updated: 2026-03-28
 - `docs/architecture/long-term-architecture.md`
 - `docs/architecture/shared-app-api-and-worker-web-surfaces.md`
 - `docs/architecture/app-api-architecture.md`
+- `docs/contracts/app-api-http.md`
+- `docs/contracts/app-api-supervisor-execution.md`
+- `docs/contracts/app-api-request-lifecycle.md`
+- `docs/contracts/app-api-error-model.md`
+- `docs/data/app-api-schema.md`
 - `docs/architecture/cloudflare-runtime-topology.md`
 - `docs/architecture/supervisor-architecture.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
@@ -178,6 +183,7 @@ apps/app-api/
 但从这份方案开始，后续实现必须把以下内容视为 canonical truth：
 
 - `app-api` 是 shared Worker backend
+- `docs/contracts/` 与 `docs/data/` 已冻结第一版 API / lifecycle / schema
 - `public-consumer-chat` 是历史参考，不是 forward backend truth
 - `protected-panel-web` 是当前 protected panel web surface
 - `supervisor-api` 保持 execution engine

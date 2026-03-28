@@ -17,6 +17,10 @@ updated: 2026-03-28
 - 长期 `apps/*` / `packages/*` 边界：`docs/architecture/long-term-architecture.md`
 - Cloudflare delivery/topology：`docs/architecture/cloudflare-runtime-topology.md`
 - execution engine 边界：`docs/architecture/supervisor-architecture.md`
+- 产品层 HTTP contract：`docs/contracts/app-api-http.md`
+- execution contract：`docs/contracts/app-api-supervisor-execution.md`
+- request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
+- 数据模型：`docs/data/app-api-schema.md`
 - 详细 MVP API/data/implementation baseline：`docs/plans/app-api-worker-foundation.md`
 
 ## 目标
@@ -195,4 +199,11 @@ operator query path 至少包含：
 - `apps/protected-panel-web` 是当前受保护前端表面的 canonical app boundary
 - `apps/supervisor-api` 保持 execution engine
 
-详细框架选型、最小 API 面、数据模型与实施波次，见 `docs/plans/app-api-worker-foundation.md`。
+详细框架选型、最小 API 面、request lifecycle、错误语义、数据模型与实施波次，见：
+
+- `docs/plans/app-api-worker-foundation.md`
+- `docs/contracts/app-api-http.md`
+- `docs/contracts/app-api-supervisor-execution.md`
+- `docs/contracts/app-api-request-lifecycle.md`
+- `docs/contracts/app-api-error-model.md`
+- `docs/data/app-api-schema.md`

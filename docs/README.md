@@ -12,6 +12,8 @@ updated: 2026-03-28
 ## 分类
 
 - `architecture/`: 长期边界、职责划分、系统形态
+- `contracts/`: 稳定 HTTP seam、生命周期、错误模型
+- `data/`: 稳定逻辑 schema、存储 ownership、读写边界
 - `decisions/`: 已接受的决策记录，使用稳定 ADR 编号
 - `plans/`: 可执行实施文档
 - `verification/`: live gate、运行验收和检查清单
@@ -20,6 +22,10 @@ updated: 2026-03-28
 
 - `docs/architecture/`
   长期边界、职责、系统形态、编排模式与跨边界不变量的 canonical truth
+- `docs/contracts/`
+  runtime / app boundary 的稳定 HTTP contract、生命周期与错误语义
+- `docs/data/`
+  逻辑 schema、表 ownership、projection/read-model 真相源划分
 - `docs/decisions/`
   已接受的长期或阶段决策、specialist 准入、runtime 取舍与评测规则的 canonical truth
 - `docs/plans/`
@@ -34,11 +40,13 @@ updated: 2026-03-28
 - 判断长期架构边界时，优先看 `docs/architecture/` 和 `docs/decisions/`
 - 判断“现在做到哪一步、接下来做什么、当前 phase 结论是什么”时，优先看 `.planning/`
 - 判断编排模式、specialist 准入与安全边界时，优先看 architecture 文档和对应 ADR，而不是某一轮 plan
+- 判断 HTTP contract、状态流转、错误码与 schema ownership 时，优先看 `docs/contracts/` 与 `docs/data/`
 - 如果 `docs/plans/` 中的早期实施叙事与 `.planning/` 的当前执行现实冲突，应更新 `docs/plans/` 的边界说明，而不是把旧叙事继续当作当前硬约束
 
 ## 标识规则
 
 - `architecture` 和 `plans` 使用语义 slug，例如 `long-term-architecture.md`
+- `contracts` 与 `data` 同样使用语义 slug，例如 `app-api-http.md`
 - `decisions` 使用 `adr-NNNN-<slug>.md`
 - 日期进入 YAML front matter，不作为文件名主标识
 
@@ -46,7 +54,7 @@ updated: 2026-03-28
 
 所有 canonical 文档在顶部使用 YAML front matter。
 
-- `doc_type`: `index`、`architecture`、`decision`、`plan`
+- `doc_type`: `index`、`architecture`、`contract`、`data`、`decision`、`plan`
 - `status`: `active`、`accepted`、`archived`、`superseded`
 - `created`: 文档首次建立日期
 - `updated`: 最近一次实质内容更新时间
@@ -62,6 +70,11 @@ updated: 2026-03-28
 - `architecture/cloudflare-worker-consumer-entry-access-policy.md`
 - `architecture/shared-app-api-and-worker-web-surfaces.md`
 - `architecture/app-api-architecture.md`
+- `contracts/app-api-http.md`
+- `contracts/app-api-supervisor-execution.md`
+- `contracts/app-api-request-lifecycle.md`
+- `contracts/app-api-error-model.md`
+- `data/app-api-schema.md`
 - `architecture/public-consumer-chat-auth-and-data-boundary.md`
 - `architecture/public-consumer-chat-surface.md`
 - `architecture/protected-panel-boundary.md`

@@ -9,6 +9,9 @@
 - 文档索引与标识规则：`docs/README.md`
 - 长期架构文档：`docs/architecture/long-term-architecture.md`
 - `app-api` 架构文档：`docs/architecture/app-api-architecture.md`
+- `app-api` 产品层 contract：`docs/contracts/app-api-http.md`
+- `app-api -> supervisor-api` 执行契约：`docs/contracts/app-api-supervisor-execution.md`
+- `app-api` 数据模型：`docs/data/app-api-schema.md`
 - supervisor 专项架构：`docs/architecture/supervisor-architecture.md`
 - 第一阶段决策记录：`docs/decisions/adr-0001-phase1-architecture.md`
 - 编排与安全边界：`docs/decisions/adr-0006-agent-orchestration-and-safety.md`
@@ -54,6 +57,7 @@
 - phase-1 地基实施基线：`docs/plans/agentic-rag-foundation.md`
 - 编排架构刷新：`docs/plans/agent-orchestration-architecture-refresh.md`
 - `app-api` 实施方案：`docs/plans/app-api-worker-foundation.md`
+- `app-api` contract / lifecycle / schema：`docs/contracts/`、`docs/data/`
 - 当前执行状态与 phase 推进：`.planning/PROJECT.md`、`.planning/ROADMAP.md`、`.planning/STATE.md`
 - ingestion/data plane：`apps/ingestion-worker`、`packages/ingestion-core`
 - retrieval kernel：`packages/retrieval-core`
