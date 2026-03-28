@@ -291,6 +291,6 @@ operator query path 至少包含：
 - `apps/public-consumer-chat` 只是历史实现参考
 - `apps/protected-panel-web` 是当前受保护前端表面的 canonical app boundary
 - `apps/supervisor-api` 保持 execution engine
-- `official_web` control-plane ownership 已接受由 `app-api` 承接，但对应 code path 仍属后续实施项
+- `official_web` control-plane ownership 已由 `app-api` 承接并完成首版 code path，包含 schema、collector command/query endpoints、operator projections 与 scheduled handoff dispatch
 
 Python `campus_app_api` package 现在作为同目录下的 companion typed projection helper 保留；它补充 execution-side context projection，不改变 `apps/app-api` 已经是 shared Worker product backend 的事实。

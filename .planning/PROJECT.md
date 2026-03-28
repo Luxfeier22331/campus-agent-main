@@ -13,7 +13,7 @@
 - retrieval 读取 serving alias；离线索引发布写入 versioned physical collection，并以 release manifest 保留追溯信息
 - shared `apps/app-api` Worker backend、`apps/public-chat-web`、`apps/protected-panel-web` 已在当前工作树落地
 - panel `Requests` 已接上 `apps/app-api` 的 runtime-owned request projection APIs；不得绕回 audit log、telemetry sink、consumer chat tables 或 `apps/supervisor-api`
-- `official_web` control plane 的 accepted direction 已冻结为收口到 shared `apps/app-api`；`apps/ingestion-worker` 继续只是 offline executor
+- `official_web` control plane 已在 shared `apps/app-api` 落地，collector admission、crawl-run ledger、operator query 与 ingestion handoff 继续收口在同一 Worker backend；`apps/ingestion-worker` 继续只是 offline executor
 - canonical app identity、profile memory 与 session truth 归属 shared `app-api`；execution engine 只消费 typed projection
 - personalization 可以利用 verified identity / profile memory / session summary，但 memory 不得授予权限或绕过 retrieval ACL
 - 04.7 `public-consumer-chat` 现仅作为历史实现参考，不再覆盖 forward topology truth
@@ -42,11 +42,12 @@
 - ✓ 已完成 shared `apps/app-api` Worker foundation、request projection API 与 `public-chat-web` / `protected-panel-web` 接线收口 — Validated on 2026-03-29
 - ✓ 已完成 `student_handbook` 主链路的基础 eval / smoke / release-gate 验证，包含 live qrels benchmark、workflow/status 样本与 handbook collection schema 快照 — Validated in Phase 7
 - ✓ 已完成 `official_web -> app-api` control-plane ownership、contract、lifecycle、schema 与实施基线文档冻结 — Validated on 2026-03-29
+- ✓ 已完成 `official_web -> app-api` control-plane foundation 实现，包含 collector command/query APIs、outbox 驱动的 operator projections 与 ingestion handoff，以及 protected panel `Official Web` domain — Validated on 2026-03-29
 
 ### Active
 
 - [ ] 按新增 curriculum live-gate runbook 生成 fresh `curriculum_plan` live evidence，并据此决定 milestone closeout；`campus_services` 继续保持 `offline_preparation`
-- [ ] 按已冻结文档落地 `official_web -> app-api` control-plane foundation，并以聚焦 `Official Web` 域而非 generic ops console 扩展 protected panel
+- [ ] 继续对齐 `develop` shared seam（`ContextProjection` / `SupervisorResponse`）并清理剩余 merge gap，不得回退到旧 `snapshot`
 
 ### Out of Scope
 
@@ -127,4 +128,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state (users, feedback, metrics)
 
 ---
-*Last updated: 2026-03-29 after freezing `official_web -> app-api` control-plane ownership and aligning the related architecture/contracts/planning docs while preserving the shared seam blocker truth*
+*Last updated: 2026-03-29 after landing the `official_web -> app-api` control-plane foundation, protected-panel `Official Web` domain, and the related planning/doc status cleanup*

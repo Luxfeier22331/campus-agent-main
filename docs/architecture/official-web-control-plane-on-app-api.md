@@ -220,16 +220,12 @@ collector 与 panel 的 trust model 固定分开：
 
 ## 当前状态
 
-当前冻结的是 accepted direction：
+当前这条 accepted direction 已经落地：
 
-- `app-api` 作为 `official_web` control-plane owner 已接受
-- 对应 docs/contracts/data/plan 需要作为后续实现基线
-
-当前尚未自动意味着：
-
-- collector command endpoints 已经在代码中落地
-- `app-api` 已经拥有 `official_web.*` schema
-- panel 已经上线 `Official Web` pages
+- `app-api` 作为 `official_web` control-plane owner 已接受并实现
+- `app-api` 已拥有 `official_web.*` schema、collector command/query endpoints、outbox-driven operator projections 与 scheduled ingestion handoff dispatch
+- `protected-panel-web` 已上线 `Official Web / Sites`、`Crawl Runs` 与 `Run Detail`
+- 对应 docs/contracts/data/plan 现作为后续维护与增量扩展的基线，而不是预实现 handoff
 
 ## 非目标
 

@@ -242,7 +242,7 @@ runtime 形态已不再 deferred：
 
 `apps/public-consumer-chat` 仍保留为历史实现参考，但它不再定义 forward product topology、backend ownership 或 panel/query boundary。
 
-同时，`official_web -> app-api` control-plane ownership 已经被接受并写入 canonical docs，但对应 runtime implementation 仍属于后续实施项。
+同时，`official_web -> app-api` control-plane ownership 不仅已经被接受并写入 canonical docs，也已在当前实现中落地到 shared `app-api` 与 `protected-panel-web` 的 runtime-owned surface。
 
 详细 API contract、request lifecycle、error model 与数据表现已冻结在以下文档：
 

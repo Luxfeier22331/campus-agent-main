@@ -171,7 +171,7 @@ panel runtime shell 在长期上只承载 operator control plane 所需的最小
 
 - `Overview` 是默认起步域
 - `Requests` 已随着 `apps/app-api` 的安全 query surface 落地而解锁
-- `Official Web` 是 accepted next domain，但前提是 `app-api` official_web control-plane APIs 先落地
+- `Official Web` 已随着 `app-api` official_web control-plane APIs 与 panel domain 一起落地
 - `Jobs`、`Operations` 与 `Audit` 当前保持 delayed，直到产品 scope 被明确重开
 
 ## 与 UI / Business / Governance 的关系

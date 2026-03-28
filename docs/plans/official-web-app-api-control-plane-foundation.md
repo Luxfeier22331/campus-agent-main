@@ -1,6 +1,6 @@
 ---
 doc_type: plan
-status: active
+status: completed
 created: 2026-03-29
 updated: 2026-03-29
 ---
@@ -88,6 +88,10 @@ updated: 2026-03-29
 - artifact refs 先 durable，再 handoff
 - run truth 与 ingestion status 分开建模
 
+当前状态：
+
+- 本 wave 已完成：`official_web.*` schema、migration、collector command endpoints 与 command-side tests 已落地
+
 ### Wave 3. Handoff Consumer And Operator Projections
 
 目标：
@@ -106,6 +110,10 @@ updated: 2026-03-29
 
 - 不让 panel 直读 outbox 或底层 tables
 - ingestion handoff 与 panel projection 都以 outbox 事实为上游
+
+当前状态：
+
+- 本 wave 已完成：`official_web.run_outbox` 现由 scheduled projector 同时驱动 operator projections 与 ingestion handoff dispatch，并包含 abandonment / retry / `ingestion_failed` 收口
 
 ### Wave 4. Protected Panel Official Web Domain
 
@@ -126,6 +134,10 @@ updated: 2026-03-29
 - browser 仍只打 panel-local `/api/*`
 - 不引入 generic jobs console、object storage console 或 Qdrant console
 
+当前状态：
+
+- 本 wave 已完成：`protected-panel-web` 已落地 `Official Web / Sites`、`Crawl Runs`、`Run Detail` 与 artifacts/failures 明细呈现
+
 ### Wave 5. Collector Integration And End-To-End Verification
 
 目标：
@@ -144,6 +156,10 @@ updated: 2026-03-29
 - collector 不直接调用 `apps/ingestion-worker`
 - ingestion worker 只从 handoff event 开始接力
 - smoke evidence 能同时证明 crawl status 与 ingestion dispatch status
+
+当前状态：
+
+- 本 wave 已完成：repo 内已有 collector route contract 测试、handoff publisher 测试，以及 `start -> heartbeat -> finalize -> scheduled dispatch -> operator query` 端到端 smoke
 
 ## 里程碑验收
 

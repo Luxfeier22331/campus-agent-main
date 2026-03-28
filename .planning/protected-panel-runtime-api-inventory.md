@@ -2,7 +2,7 @@
 
 ## Status
 
-Current execution-truth inventory for the next protected panel expansion after `Overview` and `Requests` landed on top of shared `apps/app-api`.
+Current execution-truth inventory after `Overview`、`Requests` 与 `Official Web` landed on top of shared `apps/app-api`.
 
 This inventory only records panel-facing runtime seams and current ownership assumptions. It does not authorize direct package, database, object-store, queue, or index access.
 
@@ -80,20 +80,27 @@ Panel-facing routes:
 - `GET /api/official-web/runs`
 - `GET /api/official-web/runs/:runId`
 
-Expected runtime owner:
+Runtime owner:
 
 - `apps/app-api` official_web control-plane APIs
 
 Current state:
 
-- accepted direction, not yet implemented
-- the repo has accepted `app-api` ownership for collector admission, crawl-run ledger, artifact refs, and operator site/run/detail queries
-- no current safe `official_web` site/run/detail API exists yet
+- landed baseline
+- safe `official_web` site/run/detail runtime APIs now exist on `apps/app-api`
+- protected panel `Official Web` pages now consume those APIs and expose crawl status plus ingestion dispatch status without direct infrastructure reads
 
-Blocked reason:
+Allowed data sources:
 
-- `official_web` control-plane schema and endpoints are not landed yet
-- panel must not synthesize these views from object storage listings, queue state, ingestion-worker internals, or Qdrant
+- `apps/app-api` official_web site/run/detail APIs only
+
+Forbidden shortcuts:
+
+- object storage listings
+- queue state
+- ingestion-worker internals
+- vector indexes / Qdrant
+- raw audit logs
 
 ### Jobs
 
@@ -143,9 +150,9 @@ Current state:
 - delayed pending re-discussion
 - no generic audit console should be inferred from `Official Web` work
 
-## Next Implementation Cut
+## Current Implementation Cut
 
-The next implementation cut is allowed to expand with:
+The current implementation cut now includes:
 
 - `GET /api/overview`
 - existing `GET /api/operator/requests`
@@ -155,7 +162,7 @@ The next implementation cut is allowed to expand with:
 - `GET /api/official-web/runs`
 - `GET /api/official-web/runs/:runId`
 
-The next implementation cut must not pretend the following are ready by default:
+The current implementation cut must not pretend the following are ready by default:
 
 - `GET /api/jobs`
 - `GET /api/jobs/:id`
@@ -178,9 +185,9 @@ The next implementation cut must not pretend the following are ready by default:
 
 ## Next Unlock Conditions
 
-`Official Web` unlocks when:
+`Official Web` is already unlocked because:
 
-- a safe site/run/detail runtime API exists
+- a safe site/run/detail runtime API exists on `apps/app-api`
 - the runtime owner is `apps/app-api`, not a panel-local bypass
 - crawl status and ingestion dispatch status are both queryable without reading infrastructure directly
 

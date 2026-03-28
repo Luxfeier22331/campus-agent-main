@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: official_web control-plane docs/contracts/data/plan have been migrated into this worktree; next work is app-api official_web implementation plus curriculum live-gate evidence and remaining shared seam alignment
-last_updated: "2026-03-29T12:00:00+08:00"
+stopped_at: official_web app-api control-plane foundation and protected-panel Official Web domain are now landed; next work is curriculum live-gate evidence plus remaining shared seam hardening
+last_updated: "2026-03-29T07:16:24+08:00"
 progress:
   total_phases: 17
   completed_phases: 17
@@ -19,7 +19,7 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-03-29)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 runtime-profile-driven serving surface 证明这条架构能可靠承接高频校园问答
-**Current focus:** Phase 7 handbook verification 已完成；当前 follow-up 重点是按新 runbook 补齐 `curriculum_plan` query-serving 的 fresh live gate，同时在已落地的 `public-chat-web` / `protected-panel-web` + shared `app-api` Worker runtime 基线之上完成 `ContextProjection` / `SupervisorResponse` shared seam 对齐，并按已冻结文档推进 `official_web -> app-api` control-plane foundation。panel `Requests` 已解锁，`Official Web` 是 accepted next domain，`Jobs` / `Operations` 仍不进入第一波 rollout
+**Current focus:** Phase 7 handbook verification 已完成；当前 follow-up 重点是按新 runbook 补齐 `curriculum_plan` query-serving 的 fresh live gate，并在已落地的 `public-chat-web` / `protected-panel-web` + shared `app-api` Worker runtime 基线之上继续完成 `ContextProjection` / `SupervisorResponse` shared seam 对齐与后续 runtime hardening。`Official Web` control-plane foundation 及 panel domain 已落地，`Jobs` / `Operations` 仍不进入第一波 rollout
 
 ## Current Position
 
@@ -59,7 +59,7 @@ Plan: 2 of 2
 **Recent Trend:**
 
 - Last 5 plans: 05.1-04, 06-01, 06-02, 07-01, 07-02
-- Trend: handbook mainline verification evidence is closed; current follow-up work is serving-surface refactor closeout and curriculum release-gate expansion rather than additional phase-1 architecture churn
+- Trend: handbook mainline verification evidence is closed; current follow-up work is curriculum release-gate expansion, shared seam closeout, and landed `official_web` surface hardening rather than topology/bootstrap work
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
@@ -142,7 +142,7 @@ Recent decisions affecting current work:
 - Better Auth is now fixed inside `apps/app-api`, and `auth/chat/runtime/operator` are expected to share one Drizzle schema codebase plus one migration pipeline; Worker runtime DB access remains Hyperdrive-based while migrations use a direct management connection.
 - Protected panel operator access is now explicitly documented as a small-team operator surface without a self-serve end-user account system; `Jobs` and `Operations` remain delayed pending re-discussion.
 - shared `apps/app-api` Worker foundation, request projection APIs, and current web-surface wiring are now implemented in this worktree; remaining work is follow-up hardening rather than topology bootstrap.
-- `official_web` control plane is now documented as an `app-api` owned surface with dedicated architecture, contract, lifecycle, schema, and implementation-plan docs; runtime implementation remains pending.
+- `official_web` control plane is now implemented on `apps/app-api` with dedicated schema, collector command/query endpoints, outbox-driven operator projections, and scheduled ingestion handoff dispatch; `apps/protected-panel-web` now consumes the owned site/run/detail APIs instead of treating `Official Web` as a blocked next domain.
 - Phase 05.1 froze curriculum source-truth quality gates, split-manifest review fail-close behavior, and explicit chunking runtime truth.
 - Phase 06 added `provider_response_replay` rebuild support for `curriculum_plan`, and the current refactor promotes its serving policy into the profile-driven query surface.
 - Phase 07 closed handbook release-gate verification with repo tests, live qrels benchmark, workflow/status samples, and handbook collection schema evidence under `.tmp/phase7/`.
@@ -158,7 +158,7 @@ Recent decisions affecting current work:
 - Generate fresh `curriculum_plan` live release-gate artifacts using the new curriculum runbook and attach the resulting evidence before milestone closeout.
 - Keep handbook chunk-truth validation and handbook eval artifacts as reusable regression gates for later retrieval changes.
 - Finish app-api shared seam alignment (`snapshot -> ContextProjection`, `SpecialistResponse -> SupervisorResponse`) before promoting this worktree to `develop` / `main`.
-- Implement the `official_web -> app-api` control-plane foundation on top of the newly landed docs/contracts/data baseline.
+- Keep `official_web` command/query/handoff tests and operator projections as reusable regression gates for later collector or ingestion integration changes.
 - Decide the next `app-api` hardening scope on top of the landed Worker foundation without reopening topology ownership.
 - Keep `Jobs` and `Operations` out of the default panel rollout until product scope explicitly re-opens them.
 
@@ -168,10 +168,11 @@ Recent decisions affecting current work:
 - Cloudflare 04.x boundary/topology/contract/shell docs are complete; follow-up work must consume them as frozen handoffs rather than reopening architecture churn.
 - `public-consumer-chat` is merged on `main`; downstream work should treat it as a historical implementation reference rather than a live backend direction.
 - panel `Requests` is no longer blocked, but panel work must still avoid reading audit logs, telemetry sinks, consumer chat tables, or `apps/supervisor-api` directly.
-- `Official Web` panel work is no longer blocked by architecture, but it is still blocked on `app-api` official_web control-plane APIs; panel must not bypass that gap with infrastructure reads.
+- `Official Web` control-plane APIs and panel domain are now landed on `apps/app-api` + `apps/protected-panel-web`; follow-up work must extend this surface rather than reintroducing panel-side synthesis or direct infrastructure reads.
+- `Jobs` / `Operations` / `Audit` remain delayed; landed `Official Web` views do not authorize a generic ops console.
 
 ## Session Continuity
 
 Last session: 2026-03-29T12:00:00+08:00
-Stopped at: official_web control-plane docs/contracts/data/plan have been migrated into this worktree; next work is app-api official_web implementation plus curriculum live-gate evidence and remaining shared seam alignment
+Stopped at: official_web app-api control-plane foundation and protected-panel Official Web domain are now landed; next work is curriculum live-gate evidence plus remaining shared seam hardening
 Resume file: None
