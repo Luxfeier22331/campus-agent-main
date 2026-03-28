@@ -20,10 +20,14 @@ updated: 2026-03-29
 - identity / memory / personalization 边界：`docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - request projection ownership：`docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - supervisor execution admission：`docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
+- `official_web` control-plane ownership：`docs/decisions/adr-0018-app-api-official-web-control-plane-ownership.md`
 - 产品层 HTTP contract：`docs/contracts/app-api-http.md`
+- `official_web` control-plane HTTP contract：`docs/contracts/app-api-official-web-http.md`
 - execution contract：`docs/contracts/app-api-supervisor-execution.md`
 - request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
 - 数据模型：`docs/data/app-api-schema.md`
+- `official_web` 数据模型：`docs/data/app-api-official-web-schema.md`
+- `official_web` control-plane 架构：`docs/architecture/official-web-control-plane-on-app-api.md`
 - 详细 MVP API/data/implementation baseline：`docs/plans/app-api-worker-foundation.md`
 
 ## 目标
@@ -33,13 +37,13 @@ updated: 2026-03-29
 - `apps/app-api` 到底是不是单独的长期 app boundary
 - 它的 runtime 是否继续保持未冻结
 - 它内部应采用什么架构而不重新长出第二个 orchestrator
-- 它与 `apps/supervisor-api`、panel read model、auth/session/conversation/identity/memory truth 的关系如何固定
+- 它与 `apps/supervisor-api`、panel read model、`official_web` control plane、auth/session/conversation/identity/memory truth 的关系如何固定
 
 ## 核心结论
 
 `apps/app-api` 现在固定为：
 
-- shared application backend
+- shared application/control-plane backend
 - internal-only Cloudflare Worker runtime
 - modular monolith
 - internal CQRS boundary
@@ -49,7 +53,7 @@ updated: 2026-03-29
 - `app-api` 不再保持 runtime-agnostic
 - `app-api` 不采用 Docker-first 或单独 VM-first 作为默认长期形态
 - `app-api` 不是第二个 supervisor/orchestrator
-- `app-api` 是 chat 与 panel 的共享产品后端，而不是 panel 专用 query service
+- `app-api` 是 chat、panel 与选定 operator control surfaces 的共享 application/control-plane backend，而不是 panel 专用 query service
 
 ## Runtime Conclusion
 
@@ -60,6 +64,8 @@ updated: 2026-03-29
 `browser -> public-chat-web (Worker) -> app-api (Worker) -> supervisor-api`
 
 `browser -> protected-panel-web (Worker) -> app-api (Worker) -> request projection read model`
+
+`collector Docker -> app-api official_web control plane -> app-api outbox / operator projections -> ingestion-worker`
 
 这里冻结的约束是：
 
@@ -76,7 +82,7 @@ updated: 2026-03-29
 
 - public chat 与 protected panel 本身已经冻结为 Worker web surface
 - shared `app-api` 与它们处于同一平台，更容易保持 internal-only service seam
-- 不需要为一个仅服务这两类前端的产品后端再引入独立 Docker 运维面
+- 不需要为一个服务 Worker web surfaces 与选定 control-plane seams 的共享后端再引入独立 Docker 运维面
 - auth/session/chat ingress 这类 browser-facing API 更适合作为 edge-adjacent runtime 存在
 
 这里冻结的是 runtime 形态，不是具体框架或库。
@@ -88,6 +94,7 @@ updated: 2026-03-29
 - auth
 - session
 - principal mapping / actor handoff
+- service-principal admission for declared control-plane surfaces
 - account / identity projection
 - profile memory
 - conversation / message persistence
@@ -96,12 +103,15 @@ updated: 2026-03-29
 - request correlation
 - request ledger / projection input 写入
 - operator-facing read APIs
+- `official_web` crawl-run admission、artifact refs 与 operator query surface
 - 调用 `apps/supervisor-api`
 
 `apps/app-api` 不负责：
 
 - supervisor routing / delegation / response policy
 - retrieval internals
+- crawl execution
+- ingestion execution
 - panel UI
 - public chat UI
 - 把 `request_projection` 反向变成同步 answer execution 查询
@@ -120,12 +130,30 @@ updated: 2026-03-29
   chat 请求进入、ledger/outbox 写入、execution request 发起
 - `operator-query`
   request projection 的只读查询面
+- `official-web-control`
+  collector start / heartbeat / finalize、artifact refs、handoff/outbox 与 site/run operator projections
 - `projection`
   outbox 消费与 read model 物化
 - `integration`
   `app-api -> supervisor-api`、数据库、队列或其他外部依赖适配
 
 这里冻结职责，不强制具体目录名。
+
+## Official Web Control-Plane Extension
+
+`official_web` 不会为 crawler 再新增一个平行 backend。
+
+accepted direction 固定为：
+
+- collector Docker 向 `apps/app-api` 上报 run lifecycle
+- `app-api` durable 写入 crawl-run ledger、artifact refs 与 outbox
+- `apps/ingestion-worker` 只消费 handoff，并执行 offline data-plane 工作
+- `apps/protected-panel-web` 只通过 `app-api` 的 `official_web` query surface 查看 site/run/detail
+
+这意味着：
+
+- `app-api` 可以同时拥有 browser-facing product APIs 与 non-browser control-plane APIs
+- 但它仍然不是 crawl executor，也不是 ingestion orchestrator
 
 ## Canonical Identity And Memory Ownership
 
@@ -193,6 +221,7 @@ operator query path 至少包含：
 - `auth.*`
 - `profile.*`
 - `chat.*`
+- `official_web.*`
 - `runtime.*`
 - `operator.*`
 
@@ -203,6 +232,7 @@ operator query path 至少包含：
 - 共库不等于共边界
 - `verified identity` truth 不等于 `profile memory` truth
 - `conversation/message` truth 不等于 operator request truth
+- `official_web` crawl-run truth 不等于 ingestion worker 的内部 execution truth
 - `request_execution`、projection outbox 与 read model 必须逻辑分离
 
 ## Background Processing Rule
@@ -234,6 +264,7 @@ operator query path 至少包含：
 - `app-api` 继续保持 runtime 未冻结
 - `app-api` 作为 Docker-first backend 成为默认长期形态
 - `app-api` 吸收 supervisor orchestration 语义
+- 为 `official_web` 再造第二个 crawler-intake backend
 - Worker / edge identity 被直接当作 canonical actor truth
 - browser 直接调用 `apps/supervisor-api`
 - panel 直接查询数据库、audit sink 或 telemetry sink
@@ -260,5 +291,6 @@ operator query path 至少包含：
 - `apps/public-consumer-chat` 只是历史实现参考
 - `apps/protected-panel-web` 是当前受保护前端表面的 canonical app boundary
 - `apps/supervisor-api` 保持 execution engine
+- `official_web` control-plane ownership 已接受由 `app-api` 承接，但对应 code path 仍属后续实施项
 
 Python `campus_app_api` package 现在作为同目录下的 companion typed projection helper 保留；它补充 execution-side context projection，不改变 `apps/app-api` 已经是 shared Worker product backend 的事实。

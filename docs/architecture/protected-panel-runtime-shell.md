@@ -16,6 +16,7 @@ updated: 2026-03-29
 - public/protected surface 的 runtime topology：`docs/architecture/cloudflare-runtime-topology.md`
 - shared app backend 与 web surfaces：`docs/architecture/shared-app-api-and-worker-web-surfaces.md`
 - `app-api` runtime 与内部边界：`docs/architecture/app-api-architecture.md`
+- `official_web` control-plane architecture：`docs/architecture/official-web-control-plane-on-app-api.md`
 - 长期 `apps/*` / `packages/*` 分层：`docs/architecture/long-term-architecture.md`
 - request projection 与 runtime-owned read model：`docs/architecture/request-projection-and-runtime-read-model.md`
 - supervisor runtime shell 与 core 分层：`docs/architecture/supervisor-architecture.md`
@@ -35,7 +36,7 @@ Phase 04.4 在这里冻结的是 protected panel 作为 repo/runtime shape 的�
 
 protected panel 的 shell 形态固定为：
 
-`protected panel surface -> Cloudflare Worker panel shell -> apps/app-api (Worker) -> request projection / operator read model`
+`protected panel surface -> Cloudflare Worker panel shell -> apps/app-api (Worker) -> request projection / official_web operator read models`
 
 关键结论是：
 
@@ -85,6 +86,7 @@ allowed seam 只允许：
 
 - panel 只能消费 runtime-facing APIs
 - panel 当前 request visibility 的 canonical seam 是 `panel shell -> apps/app-api`
+- panel 当前 `Official Web` visibility 的 canonical seam 也是 `panel shell -> apps/app-api`
 - panel 不得直接 import `packages/contracts`
 - panel 不得直接 import `packages/supervisor-core`
 - panel 不得直接 import `packages/rag-specialist`、`packages/retrieval-core` 或其他 package internals
@@ -115,6 +117,11 @@ panel 的 Worker-local BFF 在长期上推荐采用 `Hono`：
 - BFF 只能调用 runtime-owned request projection APIs
 - BFF 当前默认对接 `apps/app-api` 的 operator query surface，而不是 `apps/supervisor-api`
 - BFF 不得读取 consumer app conversation store、audit log 或 telemetry sink 来拼 list/detail
+
+对 `Official Web` domain 的额外约束：
+
+- BFF 只能调用 `apps/app-api` 的 official_web site/run/detail APIs
+- BFF 不得扫描对象存储目录、队列、Qdrant 或 ingestion worker 状态来拼页面
 
 ## Forbidden Coupling
 
@@ -153,12 +160,10 @@ panel runtime shell 在长期上只承载 operator control plane 所需的最小
   系统健康、最近错误、关键依赖与运行摘要
 - `Requests`
   以 `request_id`、`conversation_id` 或相关标识查看由 shared `app-api` 产出的 runtime-owned request projection 与失败投影
-- `Jobs`
-  查看 ingestion / rebuild / eval / smoke 等后台任务状态
-- `Operations`
-  触发少量受控、可审计的 operator 动作
-- `Audit`
-  查看 operator 行为记录和关键运行事件投影
+- `Official Web`
+  查看站点、crawl runs、run detail、failures 与 artifacts 摘要；数据源固定为 shared `app-api` 的 official_web control-plane APIs
+- `Jobs` / `Operations` / `Audit`
+  仍属于可选后续域，不默认进入第一波 rollout
 
 这些能力域都是 panel shell 之上的产品组织，不改变 “Worker shell + runtime APIs only” 的基础边界。
 
@@ -166,7 +171,8 @@ panel runtime shell 在长期上只承载 operator control plane 所需的最小
 
 - `Overview` 是默认起步域
 - `Requests` 已随着 `apps/app-api` 的安全 query surface 落地而解锁
-- `Jobs` 与 `Operations` 当前保持 delayed，直到产品 scope 被明确重开
+- `Official Web` 是 accepted next domain，但前提是 `app-api` official_web control-plane APIs 先落地
+- `Jobs`、`Operations` 与 `Audit` 当前保持 delayed，直到产品 scope 被明确重开
 
 ## 与 UI / Business / Governance 的关系
 
@@ -200,4 +206,5 @@ Phase 04.4 不解决：
 - 不在本 phase 修改 `packages/*` contract 或职责
 - 不把 panel shell 扩张成自助注册、密码找回或用户资料管理系统
 - 不把 panel shell 扩张成 CMS、数据库控制台、对象存储控制台或任意命令执行台
+- 不把 `Official Web` 扩张成对象存储浏览器、队列浏览器、Qdrant 控制台或 crawler debug shell
 - 不把第三方 UI 模板或 low-code 平台引入为主导架构，而让它们反向决定 runtime seam

@@ -13,6 +13,7 @@
 - retrieval 读取 serving alias；离线索引发布写入 versioned physical collection，并以 release manifest 保留追溯信息
 - shared `apps/app-api` Worker backend、`apps/public-chat-web`、`apps/protected-panel-web` 已在当前工作树落地
 - panel `Requests` 已接上 `apps/app-api` 的 runtime-owned request projection APIs；不得绕回 audit log、telemetry sink、consumer chat tables 或 `apps/supervisor-api`
+- `official_web` control plane 的 accepted direction 已冻结为收口到 shared `apps/app-api`；`apps/ingestion-worker` 继续只是 offline executor
 - canonical app identity、profile memory 与 session truth 归属 shared `app-api`；execution engine 只消费 typed projection
 - personalization 可以利用 verified identity / profile memory / session summary，但 memory 不得授予权限或绕过 retrieval ACL
 - 04.7 `public-consumer-chat` 现仅作为历史实现参考，不再覆盖 forward topology truth
@@ -40,11 +41,12 @@
 - ✓ 已完成 `public-consumer-chat` 的 04.7 app boundary / frontend host / auth-and-storage closeout，并已把实现与文档基线合入 `main`；该实现现作为历史参考而非 forward backend truth — Validated in Phase 04.7
 - ✓ 已完成 shared `apps/app-api` Worker foundation、request projection API 与 `public-chat-web` / `protected-panel-web` 接线收口 — Validated on 2026-03-29
 - ✓ 已完成 `student_handbook` 主链路的基础 eval / smoke / release-gate 验证，包含 live qrels benchmark、workflow/status 样本与 handbook collection schema 快照 — Validated in Phase 7
-- ✓ 已完成当前集成线的 intent/memory/ACL shared seam 收口，包含 `ContextProjection` / `SupervisorResponse`、supervisor-only eval coverage、curriculum gate docs 与 `app-api` merge handoff — Validated on 2026-03-28
+- ✓ 已完成 `official_web -> app-api` control-plane ownership、contract、lifecycle、schema 与实施基线文档冻结 — Validated on 2026-03-29
 
 ### Active
 
 - [ ] 按新增 curriculum live-gate runbook 生成 fresh `curriculum_plan` live evidence，并据此决定 milestone closeout；`campus_services` 继续保持 `offline_preparation`
+- [ ] 按已冻结文档落地 `official_web -> app-api` control-plane foundation，并以聚焦 `Official Web` 域而非 generic ops console 扩展 protected panel
 
 ### Out of Scope
 
@@ -105,6 +107,7 @@
 | `develop` 集成线把 `ContextProjection` / `SupervisorResponse` 视为 shared seam；当前 worktree 回 `develop` / `main` 前必须继续对齐 | 这能吸收当前集成线的 typed projection / eval contract，而不把旧 `snapshot` 路径带回 merged truth | — Accepted on 2026-03-28 |
 | shared `apps/app-api` foundation 已在当前工作树落地，panel `Requests` 不再属于 blocked follow-up | 当前后续工作应转向 integration hardening、curriculum gate 和增量能力，而不是重复讨论 shared backend topology 是否存在 | — Validated on 2026-03-29 |
 | protected panel 面向小团队 operator principal，不额外自建 end-user user system；`Jobs` / `Operations` 默认不进首发 rollout | 这能保持 panel 是受控 operator control plane，而不是用户系统、CMS、数据库控制台或万能后台 | — Accepted on 2026-03-28 |
+| `official_web` control plane 收口到 shared `apps/app-api`，而不是新建 crawler-intake backend | 这能复用现有 app-owned admission、ledger、outbox 与 operator read-model 形态，同时保持 `apps/ingestion-worker` 继续只是 offline executor | — Accepted on 2026-03-29 |
 
 ## Evolution
 
@@ -124,4 +127,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state (users, feedback, metrics)
 
 ---
-*Last updated: 2026-03-29 after merging `develop` into `protected-panel-web` and reconciling worktree truth with the shared integration seam*
+*Last updated: 2026-03-29 after freezing `official_web -> app-api` control-plane ownership and aligning the related architecture/contracts/planning docs while preserving the shared seam blocker truth*

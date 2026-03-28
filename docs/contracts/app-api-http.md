@@ -2,20 +2,21 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-03-29
 ---
 
 # App API HTTP Contract
 
 ## 文档边界
 
-这份文档冻结 shared `apps/app-api` 对 `public-chat-web` 与 `protected-panel-web` 暴露的产品层 HTTP contract。
+这份文档冻结 shared `apps/app-api` 对 `public-chat-web` 与 `protected-panel-web` 暴露的 browser-facing HTTP contract。
 
 它补充但不替代以下文档：
 
 - shared product topology：`docs/architecture/shared-app-api-and-worker-web-surfaces.md`
 - `app-api` runtime 与内部边界：`docs/architecture/app-api-architecture.md`
 - `app-api -> supervisor-api` 内部执行契约：`docs/contracts/app-api-supervisor-execution.md`
+- `official_web` collector/control-plane HTTP contract：`docs/contracts/app-api-official-web-http.md`
 - request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
 - error model：`docs/contracts/app-api-error-model.md`
 - 数据模型：`docs/data/app-api-schema.md`
@@ -26,10 +27,11 @@ updated: 2026-03-28
 - Better Auth 的 provider 细节
 - panel UI layout
 - streaming 或异步回答产品形态
+- `official_web` collector command endpoints
 
 ## 适用范围
 
-这里的 API 是 `app-api` 的产品层 contract。
+这里的 API 是 `app-api` 的 browser-facing app contract。
 
 长期调用形态固定为：
 
@@ -41,6 +43,7 @@ updated: 2026-03-28
 - browser 默认不直连 `app-api` public hostname
 - web surface 可以做 route proxy / BFF
 - 但 proxy 后的 contract 必须保持与这里一致
+- `official_web` collector command surface 与 app-owned run APIs 不属于本文范围，另见 `docs/contracts/app-api-official-web-http.md`
 
 ## Cross-Cutting Rules
 
@@ -80,6 +83,7 @@ updated: 2026-03-28
 - operator 写操作 API
 - chat delete / archive API
 - streaming chat API
+- `official_web` collector command endpoints
 
 ## Response Shapes
 

@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-03-29
 ---
 
 # Official Web Source Channel
@@ -28,6 +28,7 @@ updated: 2026-03-28
 
 - crawl 规则：`docs/architecture/official-web-crawl-policy.md`
 - web source-truth schema：`docs/architecture/official-web-source-truth-contract.md`
+- `official_web` control-plane ownership：`docs/architecture/official-web-control-plane-on-app-api.md`
 - phase-1 数据平面不变量：`docs/architecture/phase1-ingestion-and-storage-architecture.md`
 - 对象存储与 object key 不变量：`docs/decisions/adr-0002-local-minio-conventions.md`
 - repo 级 source-truth shared contract：`docs/architecture/source-truth-normalization-contract.md`
@@ -51,12 +52,13 @@ updated: 2026-03-28
 
 ## 系统形态
 
-`external scheduler -> official-web collector Docker job -> object storage (capture/provider/source-truth) -> raw asset registration / crawl run report -> ingestion worker / projection replay -> document registry -> chunk/index`
+`external scheduler -> official-web collector Docker job -> object storage (capture/provider/source-truth) + app-api official_web APIs -> app-api crawl-run control plane -> ingestion worker / projection replay -> document registry -> chunk/index`
 
 这条链路里的边界固定如下：
 
 - scheduler 负责“什么时候跑”
 - collector 负责“采到什么、如何规范化、如何上报”
+- `app-api` 负责“run admission、crawl-run ledger、artifact refs、handoff truth 与 operator query”
 - ingestion worker 负责“哪些 source-truth 进入哪些下游 collection / corpus”
 - retrieval / serving 只消费 registry 与 Qdrant，不反向理解 crawl 细节
 
@@ -191,7 +193,7 @@ collector 的上报边界固定为：
 
 - object storage source artifacts
 - crawl run manifest / summary / failure report
-- raw asset registration request
+- `app-api` official_web control-plane HTTP contract
 
 当前不允许 collector 直接上报：
 

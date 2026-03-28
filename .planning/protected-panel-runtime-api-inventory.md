@@ -2,9 +2,9 @@
 
 ## Status
 
-Current execution-truth inventory for the first protected panel rollout.
+Current execution-truth inventory for the next protected panel expansion after `Overview` and `Requests` landed on top of shared `apps/app-api`.
 
-This inventory only records panel-facing runtime seams and current ownership assumptions. It does not authorize direct package, database, object-store, or index access.
+This inventory only records panel-facing runtime seams and current ownership assumptions. It does not authorize direct package, database, object-store, queue, or index access.
 
 ## Inventory Rules
 
@@ -12,6 +12,7 @@ This inventory only records panel-facing runtime seams and current ownership ass
 - Browser traffic must terminate on panel-local `/api/*`.
 - The Worker-local BFF may aggregate runtime responses, but it must not bypass runtime ownership.
 - If a safe runtime API does not exist yet, the panel capability remains blocked.
+- Focused `Official Web` operator views are preferred over generic infrastructure consoles.
 
 ## Domain Inventory
 
@@ -24,11 +25,11 @@ Panel-facing routes:
 Runtime owner:
 
 - `apps/protected-panel-web` Worker-local BFF
-- may consume `GET /healthz` and `GET /readyz` from declared runtime boundaries such as `apps/supervisor-api`
+- may consume declared health/readiness endpoints from owned runtime boundaries
 
 Current state:
 
-- partially implementable now
+- landed baseline
 - panel shell can expose local shell/runtime summary immediately
 - upstream runtime health/readiness summary can be added only through declared runtime URLs
 
@@ -49,24 +50,50 @@ Panel-facing routes:
 - `GET /api/operator/requests`
 - `GET /api/operator/requests/:id`
 
-Expected runtime owner:
+Runtime owner:
 
-- `apps/app-api` as the shared product backend boundary
+- `apps/app-api` as the shared application/control-plane backend
 
 Current state:
 
-- blocked
-- the repo has accepted `app-api` ownership in docs, but the actual `apps/app-api` runtime is not landed yet
-- `apps/supervisor-api` still only exposes `/api/v1/answer` plus minimal audit writing
-- `apps/app-api` still does not expose `GET /api/operator/requests` or `GET /api/operator/requests/:id`
-- the current audit sink is not a request projection store
-- no safe request-projection runtime API exists yet
+- landed baseline
+- canonical runtime-owned request projection APIs already exist on `apps/app-api`
+- panel must continue to consume those APIs rather than any fallback data source
+
+Allowed data sources:
+
+- `apps/app-api` operator request projection APIs only
+
+Forbidden shortcuts:
+
+- consumer chat tables
+- raw audit logs
+- telemetry sinks
+- `apps/supervisor-api` fallback query routes
+
+### Official Web
+
+Panel-facing routes:
+
+- `GET /api/official-web/sites`
+- `GET /api/official-web/sites/:siteId`
+- `GET /api/official-web/runs`
+- `GET /api/official-web/runs/:runId`
+
+Expected runtime owner:
+
+- `apps/app-api` official_web control-plane APIs
+
+Current state:
+
+- accepted direction, not yet implemented
+- the repo has accepted `app-api` ownership for collector admission, crawl-run ledger, artifact refs, and operator site/run/detail queries
+- no current safe `official_web` site/run/detail API exists yet
 
 Blocked reason:
 
-- no queryable request projection store exists
-- no current list/detail request projection surface exists
-- panel must not fall back to consumer chat tables, raw audit logs, or telemetry sinks
+- `official_web` control-plane schema and endpoints are not landed yet
+- panel must not synthesize these views from object storage listings, queue state, ingestion-worker internals, or Qdrant
 
 ### Jobs
 
@@ -83,13 +110,7 @@ Expected runtime owner:
 Current state:
 
 - delayed pending re-discussion
-- `apps/ingestion-worker` exposes command shells, not an HTTP job projection API
 - current implementation must not assume `Jobs` belongs in the first panel rollout
-
-Blocked reason:
-
-- no current job list/detail runtime API exists
-- product scope is being re-discussed before any job projection work resumes
 
 ### Operations
 
@@ -119,35 +140,28 @@ Expected runtime owner:
 
 Current state:
 
-- blocked
-- no safe app-facing audit projection API exists yet
+- delayed pending re-discussion
+- no generic audit console should be inferred from `Official Web` work
 
-Blocked reason:
+## Next Implementation Cut
 
-- no runtime-facing audit query surface exists
+The next implementation cut is allowed to expand with:
 
-## First Implementation Cut
-
-The first implementation cut is allowed to land only:
-
-- `GET /healthz`
-- `GET /readyz`
-- `GET /`
 - `GET /api/overview`
+- existing `GET /api/operator/requests`
+- existing `GET /api/operator/requests/:id`
+- `GET /api/official-web/sites`
+- `GET /api/official-web/sites/:siteId`
+- `GET /api/official-web/runs`
+- `GET /api/official-web/runs/:runId`
 
-The first implementation cut must not pretend the following are ready when no runtime owner exists yet:
+The next implementation cut must not pretend the following are ready by default:
 
-- `GET /api/operator/requests`
-- `GET /api/operator/requests/:id`
 - `GET /api/jobs`
 - `GET /api/jobs/:id`
 - `GET /api/audit`
 - `GET /api/audit/:id`
 - `POST /api/operations/*`
-
-Current execution note:
-
-- `Jobs` and `Operations` are delayed pending re-discussion and must not be implemented by default in the current rollout
 
 ## Forbidden Direct Access List
 
@@ -157,16 +171,18 @@ Current execution note:
 - `packages/retrieval-core`
 - internal document registries
 - object storage buckets
+- queue backlogs
 - vector indexes
 - ingestion worker local state
 - audit log files as a direct browser or BFF data source
 
 ## Next Unlock Conditions
 
-`Requests` unlocks when:
+`Official Web` unlocks when:
 
-- a safe request list/detail runtime API exists
-- the runtime owner is `apps/app-api`, not a panel-local bypass or `apps/supervisor-api` fallback
+- a safe site/run/detail runtime API exists
+- the runtime owner is `apps/app-api`, not a panel-local bypass
+- crawl status and ingestion dispatch status are both queryable without reading infrastructure directly
 
 `Jobs` unlocks when:
 

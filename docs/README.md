@@ -85,6 +85,7 @@ updated: 2026-03-29
 - `architecture/cloudflare-worker-consumer-entry-access-policy.md`
 - `architecture/long-term-architecture.md`
 - `architecture/official-web-crawl-policy.md`
+- `architecture/official-web-control-plane-on-app-api.md`
 - `architecture/official-web-source-channel.md`
 - `architecture/official-web-source-truth-contract.md`
 - `architecture/phase1-ingestion-and-storage-architecture.md`
@@ -101,8 +102,11 @@ updated: 2026-03-29
 - `architecture/versioned-document-serving-and-history-query.md`
 - `contracts/app-api-error-model.md`
 - `contracts/app-api-http.md`
+- `contracts/app-api-official-web-http.md`
+- `contracts/app-api-official-web-run-lifecycle.md`
 - `contracts/app-api-request-lifecycle.md`
 - `contracts/app-api-supervisor-execution.md`
+- `data/app-api-official-web-schema.md`
 - `data/app-api-schema.md`
 - `environment/README.md`
 - `decisions/adr-0002-local-minio-conventions.md`
@@ -119,12 +123,14 @@ updated: 2026-03-29
 - `decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - `decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - `decisions/adr-0017-supervisor-internal-execution-admission.md`
+- `decisions/adr-0018-app-api-official-web-control-plane-ownership.md`
 - `plans/agentic-rag-foundation.md`
 - `plans/app-api-initial-execution-plan.md`
 - `plans/app-api-worker-foundation.md`
 - `plans/golden-dataset-execution-plan.md`
 - `plans/golden-dataset-schema-and-bootstrap.md`
 - `plans/intent-memory-acl-foundation.md`
+- `plans/official-web-app-api-control-plane-foundation.md`
 - `plans/source-truth-normalization-refactor.md`
 - `plans/student-handbook-retrieval-eval-bootstrap.md`
 - `plans/supervisor-current-design-implementation.md`
