@@ -87,6 +87,7 @@ updated: 2026-03-28
 - principal mapping / actor handoff
 - account / identity projection
 - conversation / message persistence
+- explicit conversation draft create 与首轮 lazy create
 - chat ingress
 - request correlation
 - audit ingress / metrics recording
@@ -130,6 +131,7 @@ updated: 2026-03-28
 chat command path 至少包含：
 
 - session / ownership 校验
+- conversation resolution 与首轮 lazy create
 - user message 写入
 - `runtime.request_execution` 写入
 - `runtime.projection_outbox` 写入

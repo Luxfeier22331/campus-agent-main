@@ -24,7 +24,7 @@ updated: 2026-03-28
 长期请求链路固定为：
 
 1. `app-api` 解析 session / trusted operator identity
-2. 校验 conversation ownership 与请求体
+2. 解析已有 conversation 或为首轮请求准备 lazy create，并校验请求体
 3. 生成 canonical `requestId` 与 `traceId`
 4. 在同库 command boundary durable 写入 `runtime.request_execution` 与首个 `runtime.projection_outbox` 事件
 5. 调用 `apps/supervisor-api`
@@ -68,7 +68,9 @@ updated: 2026-03-28
 `app-api` 完成：
 
 - session / principal lookup
-- conversation ownership 校验
+- conversation resolution
+- 如果请求体携带 `conversationId`，先校验 ownership
+- 如果请求体未携带 `conversationId`，标记为首轮请求并准备 lazy create
 - prompt normalize
 - `Idempotency-Key` 校验
 - canonical `requestId` / `traceId` 分配
@@ -82,6 +84,7 @@ updated: 2026-03-28
 
 在第一次 command-side commit 中至少写入：
 
+- 首轮请求缺少 `conversationId` 时，对应的 `chat.conversations`
 - `chat.messages` user message
 - `runtime.request_execution`
 - `runtime.projection_outbox` 的 `request.accepted` 事件
@@ -91,6 +94,12 @@ updated: 2026-03-28
 - `status=accepted`
 - 已记录 `requestId`、`traceId`
 - 已绑定 conversation / actor snapshot / requested scope
+
+### Conversation Resolution Rule
+
+- `POST /api/chat/conversations` 是显式 draft create API，不是 `POST /api/chat/requests` 的前置依赖
+- `POST /api/chat/requests` 如果携带 `conversationId`，按 owned conversation 继续追加消息
+- `POST /api/chat/requests` 如果未携带 `conversationId`，必须在第一次 durable commit 内创建 canonical conversation，并把同一次请求绑定到新 conversation
 
 ### Step 3: Execute
 
@@ -175,6 +184,12 @@ projection 的长期规则固定为：
   返回 `409 request_in_progress`
 - fingerprint 不同
   返回 `409 idempotency_conflict`
+
+首轮 lazy-create 请求的 fingerprint 规则固定为：
+
+- 在尚未分配 canonical conversation id 之前，使用稳定的 new-conversation discriminator 参与 fingerprint 计算
+- 第一版 discriminator 固定为 `__new__`
+- 这样同一首轮请求在首次提交完成前后都能稳定重放，而不要求客户端先显式创建 conversation
 
 `requestId` 不是幂等键。
 

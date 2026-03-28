@@ -109,6 +109,7 @@ updated: 2026-03-28
 规则：
 
 - 只承载 public chat user 的 conversation ownership
+- conversation 可以通过显式 draft create 创建，也可以在首轮 `POST /api/chat/requests` 中 lazy create
 - 不承载 operator request projection
 
 ## `chat.messages`
@@ -199,6 +200,7 @@ updated: 2026-03-28
 规则：
 
 - 这是 panel request truth 的上游 command-side owner
+- 首轮 lazy-create 请求在分配 canonical conversation id 之前，允许用稳定的 new-conversation discriminator 参与 `request_fingerprint_sha256` 计算
 - `question_preview` / `answer_preview` 是 projection-friendly 摘要，不要求保存 raw full prompt / raw full answer
 - `requested_scope_json` 与 `source_doc_ids_json` 使用结构化 JSON，不把 Python-side payload 原样塞进宽 JSON dump
 

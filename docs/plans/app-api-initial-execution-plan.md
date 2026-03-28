@@ -179,11 +179,11 @@ updated: 2026-03-28
 
 ### 目标
 
-把 `POST /api/chat/requests` 打通成最小可验证主链路：`app-api` 接请求、做 ownership 与 principal mapping、写 command-side truth、显式调用 `supervisor-api`、返回产品层响应。
+把 `POST /api/chat/requests` 打通成最小可验证主链路：`app-api` 接请求、做 conversation resolve-or-create 与 principal mapping、写 command-side truth、显式调用 `supervisor-api`、返回产品层响应。
 
 ### 范围
 
-- conversation ownership guard 的最小实现
+- conversation resolve-or-create 的最小实现
 - `chat.messages` user / assistant message 写入
 - `runtime.request_execution` 写入
 - `runtime.projection_outbox` 写入
@@ -201,7 +201,7 @@ updated: 2026-03-28
 
 ### 实现要点
 
-- 请求进入后先完成 session/principal lookup 与 conversation ownership 校验
+- 请求进入后先完成 session/principal lookup，并对已有 conversation 做 ownership 校验或为首轮请求准备 lazy create
 - `requestId` 与 `traceId` 由 `app-api` canonical 分配
 - 对 `supervisor-api` 的调用必须显式传 `actor`
 - `request_execution` 与 `projection_outbox` 必须在 command-side commit 中 durable 写入

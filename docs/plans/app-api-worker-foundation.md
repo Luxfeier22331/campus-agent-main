@@ -1,6 +1,6 @@
 ---
 doc_type: plan
-status: active
+status: completed
 created: 2026-03-28
 updated: 2026-03-28
 ---
@@ -171,7 +171,7 @@ apps/app-api/
 推荐顺序固定为：
 
 1. 建立 `apps/app-api` Worker shell 与最小 health/readiness（已完成）
-2. 落地 auth/session/conversation 基线（部分完成：auth/session 已完成，conversation APIs 仍未补齐）
+2. 落地 auth/session/conversation 基线（已完成）
 3. 落地 chat command path 与 `app-api -> supervisor-api` adapter（已完成）
 4. 落地 `request_execution` / `projection_outbox`（已完成）
 5. 落地 `request_projection` 与 `GET /api/operator/requests*`（已完成）
@@ -202,17 +202,14 @@ apps/app-api/
 
 - `apps/app-api` Worker runtime、health/readiness、模块目录骨架
 - Better Auth、Drizzle schema / migration baseline 与 `GET /api/me`
+- `GET/POST /api/chat/conversations`、`GET /api/chat/conversations/:conversationId`
 - `POST /api/chat/requests` 与显式 `app-api -> supervisor-api` execution adapter
 - `runtime.request_execution`、`runtime.projection_outbox`、`request_projection` 与 `GET /api/operator/requests*`
 - `public-chat-web` / `protected-panel-web` 对 shared `app-api` 的当前接线
 
-当前这份 foundation plan 仍保持 `active` 的主要原因是：MVP API surface 里尚未补齐以下 conversation endpoints：
+这份 foundation plan 现在已经完成：MVP API surface 已补齐 conversation endpoints，并且 `POST /api/chat/requests` 也已收口为“可直接首轮 lazy create”的长期 contract。
 
-- `GET /api/chat/conversations`
-- `POST /api/chat/conversations`
-- `GET /api/chat/conversations/:conversationId`
-
-因此，下一步实现重点应收敛在 conversation surface，而不是重新讨论 shared `app-api` topology、identity ownership、panel request query ownership 或 `public/protected` Worker shell 边界。
+后续工作不再属于 foundation 收口，而是建立在这套 shared Worker backend 基线之上的上层产品实现与增量能力扩展。
 
 已落地实现现在应继续把以下内容视为 canonical truth：
 

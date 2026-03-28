@@ -237,13 +237,9 @@ updated: 2026-03-28
 
 ### `POST /api/chat/conversations`
 
-创建空 conversation draft。
+创建显式 conversation draft。
 
-请求 body：
-
-```json
-{}
-```
+这个接口是可选入口，不是首轮消息的必经前置步骤。
 
 响应：
 
@@ -261,7 +257,8 @@ updated: 2026-03-28
 
 规则：
 
-- 第一版不要求客户端先提交 title
+- 第一版不要求请求 body 或客户端先提交 title
+- 如果客户端只想直接发送首轮消息，可以跳过这个接口，直接调用 `POST /api/chat/requests`
 - title 可以在首轮问答后由服务端回填
 
 ### `GET /api/chat/conversations/:conversationId`
@@ -293,9 +290,7 @@ updated: 2026-03-28
 
 ```json
 {
-  "conversationId": "conv_01HQ...",
   "prompt": "图书馆开放到几点？",
-  "requestId": "req_client_01HQ...",
   "requestedCapability": "knowledge",
   "requestedScope": {
     "corpus": "regulations",
@@ -306,9 +301,9 @@ updated: 2026-03-28
 
 字段规则：
 
-- `conversationId` 必填，必须属于当前 user
+- `conversationId` 可选；如果提供，必须属于当前 user
+- 如果未提供 `conversationId`，`app-api` 必须在同一条 command path 内 lazy create conversation，并返回 canonical conversation id
 - `prompt` 必填，服务端会 trim 并做最小长度校验
-- `requestId` 可选；如果提供，只作为客户端 correlation hint，canonical `requestId` 仍由服务端决定
 - `requestedCapability` / `requestedScope` 可选；未提供时由 `app-api` runtime policy 决定默认值
 
 成功响应：
