@@ -2,7 +2,7 @@
 doc_type: policy
 status: active
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-03-29
 ---
 
 # Student Handbook Judge Gate Policy
@@ -84,8 +84,12 @@ updated: 2026-03-28
   - `run_average_drift`
   - `applicable_runs`
   - `overall.runtime_status`
-  - `overall.retryable_runtime_failure_count`
+  - `overall.transient_runtime_failure_count`
+  - `overall.hard_unavailable_failure_count`
   - `overall.non_retryable_runtime_failure_count`
+  - `overall.failure_disposition_counts`
+  - `overall.preflight_failure_count`
+  - `overall.skip_reason`
 
 gate 解释规则：
 
@@ -105,11 +109,11 @@ gate 解释规则：
 
 ## Failure Mapping
 
-supplemental runtime 当前采用 fail-open for benchmark aggregation：
+ supplemental runtime 当前采用“deterministic 继续、supplemental 显式分流”的聚合策略：
 
-- judge / ragas runtime 异常不会中断整轮 benchmark
-- 异常会被映射成对应 metric 的 `failed` supplemental result
-- 结果必须保留 `judge_error` 或等价 metadata，便于区分“模型低分”和“运行面失败”
+- judge / ragas runtime 的 case-level 异常不会中断整轮 benchmark，但必须保留 `judge_error`、`failure_reasons`、`failure_disposition`
+- preflight 阶段若命中 `transient_retryable` 或 `hard_unavailable`，formal benchmark 会跳过对应 supplemental adapter，不再把整轮 case 都记成伪 failed
+- preflight 阶段若命中 `non_retryable_request`，benchmark 会在写出 `supplemental-preflight.json` 后直接中止
 - summary / gate report 必须把纯运行面 outage 明确标成 `runtime_unavailable`，不能伪装成阈值低分
 
 这样做的原因：
@@ -187,10 +191,12 @@ repair contract：
   - timeout
   - transport error
   - provider runtime marker，例如 `do_request_failed`
+- `auth_unavailable`、invalid request、模型名错误等非 transient failure 不属于 repair 边界
 - 低分、真实 `warn`、真实 `failed` case 不属于 repair 边界
 - repair 结果必须写到新目录
 - 原 formal benchmark artifact 不允许被静默覆盖
 - repaired `summary.json` / `gate-report.json` 必须带 `provenance.mode=repair_rerun`
+- 如果 repair preflight 判定 provider unavailable，则对应 target 必须落为 `skipped_provider_unavailable`，而不是继续重放 case
 
 ## 2026-03-28 Snapshot
 
@@ -218,6 +224,27 @@ repair contract：
 - 当前 `warn` 代表真实 gap，应交回 retrieval / answer / refusal 质量修复，而不是通过 policy 放宽掩盖
 - 当前仍有一处 residual runtime noise：
   - `run-02 / release-gate-dormitory-lighting` 的 `ragas.*` 因 provider `429` 未产出分数
+
+## 2026-03-29 Fast-Fail Evidence
+
+最新 formal benchmark 产物：
+
+- [`.tmp/evals/student-handbook-formal-benchmark-20260329T020642/summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-20260329T020642/summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-20260329T020642/gate-report.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-20260329T020642/gate-report.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-20260329T020642/supplemental-preflight.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-20260329T020642/supplemental-preflight.json)
+
+本轮观察到：
+
+- supplemental preflight 直接命中 provider `502 Bad gateway`
+- 3 个 adapter 全部被写成 `failure_disposition=transient_retryable` + `run_action=skip_adapter`
+- `summary.json` 对 6 个 metric 合成 `overall.runtime_status=unavailable`
+- `gate-report.json` 对应 reason 只有 `insufficient_applicable_runs` 与 `runtime_unavailable`
+
+这说明当前 fast-fail 语义已经落地：
+
+- provider 不可用时不会再把每个 case 都灌成伪 failed supplemental result
+- gate 不会再把 provider outage 解释成阈值低分
+- repair rerun 也不会把这类 preflight unavailable 误当成可重放 case
   - 因此当前 ragas aggregate 为 `11/12` scored completed-case observations
 - 该噪声当前已可通过 repo 内的 repair rerun 能力单独重跑并重算 aggregate / gate，但原正式 artifact 仍保留为首次 benchmark 证据
 

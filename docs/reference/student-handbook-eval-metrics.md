@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-03-27
-updated: 2026-03-28
+updated: 2026-03-29
 ---
 
 # Student Handbook Eval Metrics
@@ -274,6 +274,55 @@ supplemental 聚合：
   - 因此当前 ragas aggregate 是 `11/12` scored completed-case observations，而不是 `12/12`
   - 该残余噪声不会改变本轮 `overall_verdict=warn` 的高层结论
   - repo 现已支持对这类 transient infra failure 做 repair rerun，并在新目录里生成 repaired aggregate / gate；原 formal benchmark artifact 保持不变
+
+## 2026-03-29 Supplemental Fast-Fail 修复
+
+本轮把 handbook formal benchmark 的 supplemental provider 运行面改成了正式 fast-fail 语义，重点不是继续堆 retry，而是把“provider 不可用”和“metric 低分”彻底分开。
+
+当前语义：
+
+- preflight 现在是 run-level gate，而不是只写个探针文件
+- preflight 命中 `transient_retryable` 或 `hard_unavailable` 时：
+  - deterministic 主链路继续执行
+  - 对应 supplemental adapter 整组跳过
+  - `summary.json` 为对应 metric 合成：
+    - `overall.runtime_status=unavailable`
+    - `overall.preflight_failure_count=1`
+    - `overall.skip_reason=preflight_unavailable`
+- preflight 命中 `non_retryable_request` 时：
+  - formal benchmark 直接中止
+  - 只保留 `supplemental-preflight.json` 作为证据，不再继续生成误导性的 supplemental 分数
+- repair rerun 若再次命中 provider unavailable：
+  - target 会落为 `skipped_provider_unavailable`
+  - 不再继续重放 case
+
+根因修复点：
+
+- `supplemental_http.py` 新增统一 `failure_disposition` 分类：
+  - `transient_retryable`
+  - `hard_unavailable`
+  - `non_retryable_request`
+- runtime breaker 现在会记住最近一次 failure disposition；`circuit_open` 不再丢失上游根因
+- judge/ragas adapter 现在会把 `failure_reasons` 与 `failure_disposition` 写回 supplemental metadata，便于 repair 与 artifact 解释复用同一根因分类
+
+本轮真实产物：
+
+- [`.tmp/evals/student-handbook-formal-benchmark-20260329T020642/summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-20260329T020642/summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-20260329T020642/gate-report.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-20260329T020642/gate-report.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-20260329T020642/supplemental-preflight.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-20260329T020642/supplemental-preflight.json)
+
+这次真实 run 的结论：
+
+- deterministic：
+  - `run_pass_counts = [4, 4, 4]`
+  - 剩余 live 失败仍是：
+    - `release-gate-student-card`
+    - `release-gate-dormitory-lighting`
+- supplemental：
+  - preflight 全部命中 provider `502 Bad gateway`
+  - 3 个 adapter 全部被标成 `run_action=skip_adapter`
+  - 6 个 supplemental metric 全部以 `runtime_status=unavailable` 合成写入 aggregate
+  - gate reasons 只保留 `insufficient_applicable_runs + runtime_unavailable`，没有再伪造低分阈值告警
 
 ## 本轮新增运行面修复
 
