@@ -1,5 +1,6 @@
 export type AssistantMessageKind = "answer" | "clarification" | "no_answer" | "error";
 export type ChatMessageRole = "user" | "assistant";
+export const DRAFT_CONVERSATION_TITLE = "New conversation";
 
 export interface ChatMessage {
   id: string;
@@ -21,12 +22,26 @@ export interface ChatConversation {
   messages: ChatMessage[];
 }
 
+export interface ChatConversationSummary {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ChatConversationResponse {
   id: string;
   title: string;
   createdAt: string;
   updatedAt: string;
   messages: ChatMessage[];
+}
+
+export interface ChatConversationSummaryResponse {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export function toConversationResponse(conversation: ChatConversation): ChatConversationResponse {
@@ -36,5 +51,16 @@ export function toConversationResponse(conversation: ChatConversation): ChatConv
     createdAt: conversation.createdAt,
     updatedAt: conversation.updatedAt,
     messages: conversation.messages,
+  };
+}
+
+export function toConversationSummaryResponse(
+  conversation: ChatConversationSummary,
+): ChatConversationSummaryResponse {
+  return {
+    id: conversation.id,
+    title: conversation.title,
+    createdAt: conversation.createdAt,
+    updatedAt: conversation.updatedAt,
   };
 }

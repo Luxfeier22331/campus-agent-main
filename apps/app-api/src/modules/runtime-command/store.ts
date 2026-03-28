@@ -57,6 +57,13 @@ export interface ProjectionOutboxWrite {
 }
 
 export interface AcceptRequestWrite {
+  conversationSeed?: {
+    id: string;
+    ownerUserId: string;
+    title: string;
+    createdAt: string;
+    updatedAt: string;
+  };
   conversationTitle: string;
   ownerUserId: string;
   outboxEvent: ProjectionOutboxWrite;
@@ -79,7 +86,6 @@ export interface StoredIdempotentRequest {
 }
 
 export interface ChatCommandStore {
-  getConversationByOwner(ownerUserId: string, conversationId: string): Promise<ChatConversation | null>;
   findIdempotentRequest(input: {
     actorUserId: string;
     idempotencyKey: string;
@@ -145,10 +151,6 @@ export function createPgChatCommandStore(env: Env): ChatCommandStore {
   }
 
   return {
-    async getConversationByOwner(ownerUserId, conversationId) {
-      return loadConversation(ownerUserId, conversationId);
-    },
-
     async findIdempotentRequest(input) {
       const db = await createRuntimeDatabase(env);
       const executionRows = await db
@@ -239,6 +241,16 @@ export function createPgChatCommandStore(env: Env): ChatCommandStore {
     async acceptRequest(input) {
       const db = await createRuntimeDatabase(env);
       await db.transaction(async (tx) => {
+        if (input.conversationSeed) {
+          await tx.insert(conversations).values({
+            id: input.conversationSeed.id,
+            ownerUserId: input.conversationSeed.ownerUserId,
+            title: input.conversationSeed.title,
+            createdAt: new Date(input.conversationSeed.createdAt),
+            updatedAt: new Date(input.conversationSeed.updatedAt),
+          });
+        }
+
         await tx
           .insert(messages)
           .values({

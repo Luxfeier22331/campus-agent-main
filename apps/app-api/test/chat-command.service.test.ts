@@ -6,7 +6,9 @@ import type { ResolvedAppPrincipal } from "../src/modules/auth";
 import {
   AppApiRouteError,
   buildChatCommandService,
+  DRAFT_CONVERSATION_TITLE,
   SupervisorTransportError,
+  type ChatConversationStore,
   type ChatCommandStore,
 } from "../src/modules/runtime-command";
 import type { SupervisorExecutionClient } from "../src/modules/integration/supervisor";
@@ -61,21 +63,51 @@ function createConversation() {
 }
 
 function createDeterministicIdGenerator() {
-  let counter = 0;
+  const counters = new Map<string, number>();
 
   return (prefix: string) => {
-    counter += 1;
-    return `${prefix}_${String(counter).padStart(4, "0")}`;
+    const nextValue = (counters.get(prefix) ?? 0) + 1;
+    counters.set(prefix, nextValue);
+    return `${prefix}_${String(nextValue).padStart(4, "0")}`;
   };
 }
 
-function createStore() {
+function createConversationStore(input?: {
+  conversation?: ReturnType<typeof createConversation>;
+}) {
+  const conversation = input?.conversation ?? createConversation();
+  const store: ChatConversationStore = {
+    createConversationDraft: vi.fn(),
+    getConversationByOwner: vi.fn(async (ownerUserId: string, conversationId: string) => {
+      if (ownerUserId !== conversation.ownerUserId || conversationId !== conversation.id) {
+        return null;
+      }
+
+      return structuredClone(conversation);
+    }),
+    getConversationDetailByOwner: vi.fn(),
+    listConversationSummariesByOwner: vi.fn(),
+  };
+
+  return {
+    conversation,
+    store,
+  };
+}
+
+function createCommandStore() {
   const conversation = createConversation();
   const acceptedWrites: unknown[] = [];
   const finalWrites: unknown[] = [];
   const store: ChatCommandStore = {
     acceptRequest: vi.fn(async (input) => {
       acceptedWrites.push(input);
+      if (input.conversationSeed) {
+        conversation.id = input.conversationSeed.id;
+        conversation.ownerUserId = input.conversationSeed.ownerUserId;
+        conversation.createdAt = input.conversationSeed.createdAt;
+      }
+      conversation.title = input.conversationTitle;
       conversation.updatedAt = input.userMessage.createdAt;
       conversation.messages.push({
         ...input.userMessage,
@@ -91,13 +123,6 @@ function createStore() {
       return structuredClone(conversation);
     }),
     findIdempotentRequest: vi.fn(async () => null),
-    getConversationByOwner: vi.fn(async (ownerUserId: string, conversationId: string) => {
-      if (ownerUserId !== conversation.ownerUserId || conversationId !== conversation.id) {
-        return null;
-      }
-
-      return structuredClone(conversation);
-    }),
   };
 
   return {
@@ -110,7 +135,8 @@ function createStore() {
 
 describe("chat command service", () => {
   it("accepts a chat request, calls supervisor with explicit actor, and finalizes a completed answer", async () => {
-    const { store, acceptedWrites, finalWrites } = createStore();
+    const { store, acceptedWrites, finalWrites } = createCommandStore();
+    const { store: conversationStore } = createConversationStore();
     const supervisor: SupervisorExecutionClient = {
       execute: vi.fn().mockResolvedValue({
         answerText: "图书馆开放到 22:00。",
@@ -130,6 +156,7 @@ describe("chat command service", () => {
     const service = buildChatCommandService({
       generateId: createDeterministicIdGenerator(),
       now: () => new Date("2026-03-28T08:00:00.000Z"),
+      conversationStore,
       store,
       supervisor,
     });
@@ -157,7 +184,7 @@ describe("chat command service", () => {
         collection: "student_handbook",
         corpus: "regulations",
       },
-      traceId: "trace_0002",
+      traceId: "trace_0001",
       userGoal: "图书馆开放到几点？",
     });
     expect(acceptedWrites).toHaveLength(1);
@@ -171,7 +198,7 @@ describe("chat command service", () => {
         questionPreview: "图书馆开放到几点？",
         requestId: "req_0001",
         status: "accepted",
-        traceId: "trace_0002",
+        traceId: "trace_0001",
       },
     });
     expect(finalWrites).toHaveLength(1);
@@ -222,11 +249,14 @@ describe("chat command service", () => {
   });
 
   it("maps clarification and no-answer statuses into chat-visible result kinds", async () => {
-    const clarificationStore = createStore();
-    const noAnswerStore = createStore();
+    const clarificationStore = createCommandStore();
+    const noAnswerStore = createCommandStore();
+    const clarificationConversationStore = createConversationStore();
+    const noAnswerConversationStore = createConversationStore();
     const clarificationService = buildChatCommandService({
       generateId: createDeterministicIdGenerator(),
       now: () => new Date("2026-03-28T08:00:00.000Z"),
+      conversationStore: clarificationConversationStore.store,
       store: clarificationStore.store,
       supervisor: {
         execute: vi
@@ -245,6 +275,7 @@ describe("chat command service", () => {
     const noAnswerService = buildChatCommandService({
       generateId: createDeterministicIdGenerator(),
       now: () => new Date("2026-03-28T08:00:00.000Z"),
+      conversationStore: noAnswerConversationStore.store,
       store: noAnswerStore.store,
       supervisor: {
         execute: vi.fn().mockResolvedValue({
@@ -305,10 +336,12 @@ describe("chat command service", () => {
   });
 
   it("finalizes a handled execution error when the supervisor transport fails after accept", async () => {
-    const { store, finalWrites } = createStore();
+    const { store, finalWrites } = createCommandStore();
+    const { store: conversationStore } = createConversationStore();
     const service = buildChatCommandService({
       generateId: createDeterministicIdGenerator(),
       now: () => new Date("2026-03-28T08:00:00.000Z"),
+      conversationStore,
       store,
       supervisor: {
         execute: vi.fn().mockRejectedValue(
@@ -350,7 +383,7 @@ describe("chat command service", () => {
       message: "Supervisor execution timed out.",
       requestId: "req_0001",
       retryable: true,
-      traceId: "trace_0002",
+      traceId: "trace_0001",
     });
   });
 
@@ -393,7 +426,10 @@ describe("chat command service", () => {
       traceId: "trace_prev",
     };
 
-    const { store } = createStore();
+    const { store } = createCommandStore();
+    const { store: conversationStore } = createConversationStore({
+      conversation: replayConversation,
+    });
     const findIdempotentRequest = vi
       .fn()
       .mockResolvedValueOnce({
@@ -420,6 +456,7 @@ describe("chat command service", () => {
       computeFingerprint: () => "fingerprint:图书馆开放到几点？",
       generateId: createDeterministicIdGenerator(),
       now: () => new Date("2026-03-28T08:00:00.000Z"),
+      conversationStore,
       store,
       supervisor,
     });
@@ -466,11 +503,13 @@ describe("chat command service", () => {
   });
 
   it("fails closed before accept when the conversation does not belong to the caller", async () => {
-    const { store } = createStore();
-    store.getConversationByOwner = vi.fn().mockResolvedValue(null);
+    const { store } = createCommandStore();
+    const { store: conversationStore } = createConversationStore();
+    conversationStore.getConversationByOwner = vi.fn().mockResolvedValue(null);
     const service = buildChatCommandService({
       generateId: createDeterministicIdGenerator(),
       now: () => new Date("2026-03-28T08:00:00.000Z"),
+      conversationStore,
       store,
       supervisor: {
         execute: vi.fn(),
@@ -489,6 +528,117 @@ describe("chat command service", () => {
       code: "conversation_not_found",
       status: 404,
     });
+    expect(store.acceptRequest).not.toHaveBeenCalled();
+  });
+
+  it("creates a conversation lazily on the first chat request when conversationId is omitted", async () => {
+    const { store, acceptedWrites } = createCommandStore();
+    const { store: conversationStore } = createConversationStore();
+    const supervisor: SupervisorExecutionClient = {
+      execute: vi.fn().mockResolvedValue({
+        answerText: "图书馆开放到 22:00。",
+        error: null,
+        followUpQuestion: "",
+        result: {
+          evidence: {
+            sources: [],
+          },
+        },
+        status: "completed",
+        target: "rag-specialist",
+        traceId: "trace_0001",
+      }),
+    };
+    const service = buildChatCommandService({
+      computeFingerprint: (input) =>
+        `fingerprint:${input.conversationDiscriminator}:${input.prompt}`,
+      generateId: createDeterministicIdGenerator(),
+      now: () => new Date("2026-03-28T08:00:00.000Z"),
+      conversationStore,
+      store,
+      supervisor,
+    });
+
+    const response = await service.submit({
+      idempotencyKey: "idem-001",
+      payload: {
+        prompt: "图书馆开放到几点？",
+      },
+      principal: createPrincipal(),
+    });
+
+    expect(conversationStore.getConversationByOwner).not.toHaveBeenCalled();
+    expect(acceptedWrites[0]).toMatchObject({
+      conversationSeed: {
+        id: "conv_0001",
+        ownerUserId: "user_01HQ",
+        title: "图书馆开放到几点？",
+      },
+      requestExecution: {
+        conversationId: "conv_0001",
+      },
+    });
+    expect(store.findIdempotentRequest).toHaveBeenCalledWith({
+      actorUserId: "user_01HQ",
+      idempotencyKey: "idem-001",
+    });
+    expect(supervisor.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: "conv_0001",
+      }),
+    );
+    expect(response.answer.conversation).toMatchObject({
+      id: "conv_0001",
+      title: "图书馆开放到几点？",
+    });
+  });
+
+  it("uses a stable new-conversation fingerprint scope for idempotent first-turn retries", async () => {
+    const { store } = createCommandStore();
+    store.findIdempotentRequest = vi.fn().mockResolvedValue({
+      requestFingerprintSha256: "fingerprint:__new__:图书馆开放到几点？",
+      response: {
+        answer: {
+          conversation: {
+            createdAt: "2026-03-28T08:00:00.000Z",
+            id: "conv_0001",
+            messages: [],
+            title: DRAFT_CONVERSATION_TITLE,
+            updatedAt: "2026-03-28T08:00:00.000Z",
+          },
+          result: {
+            kind: "answer",
+            requestId: "req_prev",
+            text: "图书馆开放到 22:00。",
+            traceId: "trace_prev",
+          },
+        },
+        requestId: "req_prev",
+        traceId: "trace_prev",
+      },
+      status: "completed",
+    });
+    const service = buildChatCommandService({
+      computeFingerprint: (input) =>
+        `fingerprint:${input.conversationDiscriminator}:${input.prompt}`,
+      generateId: createDeterministicIdGenerator(),
+      now: () => new Date("2026-03-28T08:00:00.000Z"),
+      conversationStore: createConversationStore().store,
+      store,
+      supervisor: {
+        execute: vi.fn(),
+      },
+    });
+
+    const response = await service.submit({
+      idempotencyKey: "idem-001",
+      payload: {
+        prompt: "图书馆开放到几点？",
+      },
+      principal: createPrincipal(),
+    });
+
+    expect(response.requestId).toBe("req_prev");
     expect(store.acceptRequest).not.toHaveBeenCalled();
   });
 });

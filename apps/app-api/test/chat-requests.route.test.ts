@@ -73,7 +73,6 @@ describe("POST /api/chat/requests", () => {
     const response = await app.fetch(
       new Request("https://app-api.internal/api/chat/requests", {
         body: JSON.stringify({
-          conversationId: "conv_01HQ",
           prompt: "图书馆开放到几点？",
         }),
         headers: {
@@ -107,7 +106,6 @@ describe("POST /api/chat/requests", () => {
     expect(service.submit).toHaveBeenCalledWith({
       idempotencyKey: "idem-001",
       payload: {
-        conversationId: "conv_01HQ",
         prompt: "图书馆开放到几点？",
       },
       principal: expect.objectContaining({
@@ -126,7 +124,6 @@ describe("POST /api/chat/requests", () => {
     const response = await app.fetch(
       new Request("https://app-api.internal/api/chat/requests", {
         body: JSON.stringify({
-          conversationId: "conv_01HQ",
           prompt: "图书馆开放到几点？",
         }),
         headers: {

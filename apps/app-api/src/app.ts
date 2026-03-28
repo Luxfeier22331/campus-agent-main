@@ -7,6 +7,11 @@ import {
   type Env,
 } from "./config";
 import { AppApiRouteError, errorEnvelope, jsonResponse, routeErrorResponse } from "./http";
+import {
+  buildChatConversationService,
+  createPgChatConversationStore,
+  type ChatConversationService,
+} from "./modules/chat";
 import { createSupervisorExecutionClient } from "./modules/integration";
 import {
   buildOperatorQueryService,
@@ -26,6 +31,7 @@ import {
 
 export interface AppDependencies {
   authHandler?: (request: Request, env: Env) => Promise<Response> | Response;
+  chatConversationService?: ChatConversationService;
   chatCommandService?: ChatCommandService;
   getPrincipal?: (request: Request, env: Env) => Promise<ResolvedAppPrincipal | null>;
   operatorQueryService?: OperatorQueryService;
@@ -76,9 +82,16 @@ function operatorAccessForbiddenResponse() {
 export function createApp(env: Env, dependencies: AppDependencies = {}) {
   const app = new Hono<{ Bindings: Env }>();
   const authHandler = dependencies.authHandler ?? handleAuthRequest;
+  const chatConversationStore = createPgChatConversationStore(env);
+  const chatConversationService =
+    dependencies.chatConversationService ??
+    buildChatConversationService({
+      store: chatConversationStore,
+    });
   const chatCommandService =
     dependencies.chatCommandService ??
     buildChatCommandService({
+      conversationStore: chatConversationStore,
       store: createPgChatCommandStore(env),
       supervisor: createSupervisorExecutionClient(env),
     });
@@ -201,6 +214,60 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
         status: 200,
       },
     );
+  });
+
+  app.get("/api/chat/conversations", async (c) => {
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await getPrincipal(c.req.raw, env);
+    } catch {
+      return dependencyNotReadyResponse();
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+
+    const response = await chatConversationService.list({ principal });
+    return jsonResponse(response);
+  });
+
+  app.post("/api/chat/conversations", async (c) => {
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await getPrincipal(c.req.raw, env);
+    } catch {
+      return dependencyNotReadyResponse();
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+
+    const response = await chatConversationService.createDraft({ principal });
+    return jsonResponse(response, { status: 201 });
+  });
+
+  app.get("/api/chat/conversations/:conversationId", async (c) => {
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await getPrincipal(c.req.raw, env);
+    } catch {
+      return dependencyNotReadyResponse();
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+
+    const response = await chatConversationService.getById({
+      conversationId: c.req.param("conversationId"),
+      principal,
+    });
+    return jsonResponse(response);
   });
 
   app.get("/api/operator/requests", async (c) => {

@@ -1,5 +1,9 @@
 export { AppApiRouteError } from "../../http";
 export {
+  DRAFT_CONVERSATION_TITLE,
+  type ChatConversationStore,
+} from "../chat";
+export {
   buildChatCommandService,
   type ChatCommandPayload,
   type ChatCommandResponse,

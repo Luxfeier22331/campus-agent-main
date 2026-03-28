@@ -2,8 +2,13 @@ import { createHash, randomUUID } from "node:crypto";
 
 import { AppApiRouteError } from "../../http";
 import type { ResolvedAppPrincipal } from "../auth";
-import type { ChatConversation, ChatMessage } from "../chat";
-import { toConversationResponse } from "../chat";
+import {
+  DRAFT_CONVERSATION_TITLE,
+  toConversationResponse,
+  type ChatConversation,
+  type ChatConversationStore,
+  type ChatMessage,
+} from "../chat";
 import {
   SupervisorTransportError,
   type RequestedScope,
@@ -22,10 +27,11 @@ const DEFAULT_REQUESTED_SCOPE = {
   collection: "student_handbook",
 } satisfies RequestedScope;
 
+const NEW_CONVERSATION_FINGERPRINT_SCOPE = "__new__";
+
 export interface ChatCommandPayload {
   conversationId?: unknown;
   prompt?: unknown;
-  requestId?: unknown;
   requestedCapability?: unknown;
   requestedScope?: unknown;
 }
@@ -65,11 +71,12 @@ export interface ChatCommandService {
 
 export interface ChatCommandServiceDependencies {
   computeFingerprint?: (input: {
-    conversationId: string;
+    conversationDiscriminator: string;
     prompt: string;
     requestedCapability: string;
     requestedScope: RequestedScope;
   }) => string;
+  conversationStore: ChatConversationStore;
   generateId?: (prefix: string) => string;
   now?: () => Date;
   store: ChatCommandStore;
@@ -81,7 +88,7 @@ function defaultGenerateId(prefix: string): string {
 }
 
 function defaultComputeFingerprint(input: {
-  conversationId: string;
+  conversationDiscriminator: string;
   prompt: string;
   requestedCapability: string;
   requestedScope: RequestedScope;
@@ -89,7 +96,7 @@ function defaultComputeFingerprint(input: {
   return createHash("sha256")
     .update(
       JSON.stringify({
-        conversationId: input.conversationId,
+        conversationDiscriminator: input.conversationDiscriminator,
         prompt: input.prompt,
         requestedCapability: input.requestedCapability,
         requestedScope: input.requestedScope,
@@ -127,7 +134,7 @@ function normalizeRequestedCapability(value: unknown): string | null {
 }
 
 function buildConversationTitle(currentTitle: string, prompt: string): string {
-  if (currentTitle !== "New conversation" && currentTitle.trim()) {
+  if (currentTitle !== DRAFT_CONVERSATION_TITLE && currentTitle.trim()) {
     return currentTitle;
   }
 
@@ -167,20 +174,12 @@ function createPreAcceptError(input: {
 }
 
 function resolveValidatedPayload(payload: ChatCommandPayload): {
-  conversationId: string;
+  conversationId: string | null;
   prompt: string;
   requestedCapability: string;
   requestedScope: RequestedScope;
 } {
-  const conversationId = normalizeString(payload.conversationId);
-  if (!conversationId) {
-    throw createPreAcceptError({
-      code: "validation_failed",
-      details: { field: "conversationId" },
-      message: "conversationId is required.",
-      status: 422,
-    });
-  }
+  const conversationId = normalizeString(payload.conversationId) || null;
 
   const prompt = normalizeString(payload.prompt);
   if (!prompt) {
@@ -213,6 +212,13 @@ function resolveValidatedPayload(payload: ChatCommandPayload): {
 
 function buildAcceptedWrite(input: {
   conversation: ChatConversation;
+  conversationSeed?: {
+    id: string;
+    ownerUserId: string;
+    title: string;
+    createdAt: string;
+    updatedAt: string;
+  };
   conversationTitle: string;
   idempotencyKey: string | null;
   now: string;
@@ -238,6 +244,7 @@ function buildAcceptedWrite(input: {
   };
 
   return {
+    ...(input.conversationSeed ? { conversationSeed: input.conversationSeed } : {}),
     conversationTitle: input.conversationTitle,
     ownerUserId: input.conversation.ownerUserId,
     userMessage,
@@ -513,22 +520,36 @@ export function buildChatCommandService(
       }
 
       const validatedPayload = resolveValidatedPayload(input.payload);
-      const conversation = await dependencies.store.getConversationByOwner(
-        input.principal.principal.principalId,
-        validatedPayload.conversationId,
-      );
-      if (!conversation) {
-        throw createPreAcceptError({
-          code: "conversation_not_found",
-          message: "Conversation not found.",
-          status: 404,
-        });
+      const ownerUserId = input.principal.principal.principalId;
+
+      let conversation: ChatConversation | null = null;
+      let conversationDiscriminator = NEW_CONVERSATION_FINGERPRINT_SCOPE;
+
+      if (validatedPayload.conversationId) {
+        conversation = await dependencies.conversationStore.getConversationByOwner(
+          ownerUserId,
+          validatedPayload.conversationId,
+        );
+        if (!conversation) {
+          throw createPreAcceptError({
+            code: "conversation_not_found",
+            message: "Conversation not found.",
+            status: 404,
+          });
+        }
+        conversationDiscriminator = conversation.id;
       }
 
       const idempotencyKey = input.idempotencyKey?.trim() || null;
       const requestFingerprintSha256 = idempotencyKey
-        ? computeFingerprint(validatedPayload)
+        ? computeFingerprint({
+            conversationDiscriminator,
+            prompt: validatedPayload.prompt,
+            requestedCapability: validatedPayload.requestedCapability,
+            requestedScope: validatedPayload.requestedScope,
+          })
         : null;
+
       if (idempotencyKey && requestFingerprintSha256) {
         const existing = await dependencies.store.findIdempotentRequest({
           actorUserId: input.principal.actor.userId,
@@ -560,10 +581,41 @@ export function buildChatCommandService(
       const acceptedAt = now().toISOString();
       const userMessageId = generateId("msg");
       const acceptedEventId = generateId("evt");
-      const conversationTitle = buildConversationTitle(conversation.title, validatedPayload.prompt);
 
+      let conversationSeed:
+        | {
+            id: string;
+            ownerUserId: string;
+            title: string;
+            createdAt: string;
+            updatedAt: string;
+          }
+        | undefined;
+
+      if (!conversation) {
+        const conversationId = generateId("conv");
+        const title = buildConversationTitle(DRAFT_CONVERSATION_TITLE, validatedPayload.prompt);
+        conversationSeed = {
+          id: conversationId,
+          ownerUserId,
+          title,
+          createdAt: acceptedAt,
+          updatedAt: acceptedAt,
+        };
+        conversation = {
+          id: conversationId,
+          ownerUserId,
+          title,
+          createdAt: acceptedAt,
+          updatedAt: acceptedAt,
+          messages: [],
+        };
+      }
+
+      const conversationTitle = buildConversationTitle(conversation.title, validatedPayload.prompt);
       const acceptedWrite = buildAcceptedWrite({
         conversation,
+        conversationSeed,
         conversationTitle,
         idempotencyKey,
         now: acceptedAt,
