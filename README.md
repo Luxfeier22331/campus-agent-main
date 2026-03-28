@@ -39,7 +39,7 @@
 - 查询链路当前由 collection runtime profile 控制；当前 query-enabled surface 是 `regulations/student_handbook` 和 `curriculum/curriculum_plan`
 - ingestion truth 统一为 `corpus + collection`：默认入口是 `regulations/student_handbook`；source 资产位于 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...`，并在同一来源前缀下按 `capture/`、`provider/`、`source-truth/` 分层保存，清洗后的文档存放在 derived bucket 的 `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/...`
 - `curriculum/curriculum_plan` 已进入 query-serving runtime profile 的受控 surface
-- `campus_services/service_catalog` 与 `campus_services/contact_directory` 已作为离线 taxonomy 预留，但当前不开放 retrieval 或默认 query-serving
+- `campus_services/service_catalog` 与 `campus_services/contact_directory` 已作为离线 taxonomy 预留，当前保持 `offline_preparation`，不开放 retrieval 或默认 query-serving
 - `rag-specialist`、`supervisor-core`、`supervisor-api`、`evals` 已有可测试的 phase-1 入口
 - `uv run --all-packages python -m unittest discover -s tests -t .` 当前通过，作为仓库级基线验证命令
 - 运行态 buckets、live collection 重建证据、points count 与 benchmark 结果不在 README 维护；应以 `.planning/STATE.md` 和 `docs/verification/` 为准

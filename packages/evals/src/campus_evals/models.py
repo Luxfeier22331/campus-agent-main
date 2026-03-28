@@ -64,12 +64,7 @@ class GoldenCase:
     user_goal: str
     actor: ActorContext
     expected_status: DelegateStatus
-    scope: KnowledgeScope = field(
-        default_factory=lambda: KnowledgeScope(
-            corpus="regulations",
-            collection="student_handbook",
-        )
-    )
+    scope: KnowledgeScope
     expected_sources: tuple[ExpectedSourceRef, ...] = field(default_factory=tuple)
     forbidden_sources: tuple[ExpectedSourceRef, ...] = field(default_factory=tuple)
     required_facts: tuple[str, ...] = field(default_factory=tuple)
@@ -123,6 +118,8 @@ class CaseResult:
     retrieval_result: DimensionResult
     answer_result: DimensionResult
     trace_result: DimensionResult
+    metric_results: dict[str, DimensionResult] = field(default_factory=dict)
+    supplemental_results: tuple["SupplementalResult", ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,6 +127,42 @@ class SummaryCount:
     total: int
     passed: int
     failed: int
+    pass_rate: float | None
+    reason: str = ""
+
+
+SupplementalVerdict = Literal["passed", "failed", "not_applicable"]
+
+
+@dataclass(frozen=True, slots=True)
+class SupplementalResult:
+    adapter_id: str
+    metric_name: str
+    score: float | None = None
+    verdict: SupplementalVerdict | None = None
+    rationale: str = ""
+    gating: bool = False
+    metadata: dict[str, object] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if not self.adapter_id.strip():
+            raise ValueError("adapter_id must not be empty")
+        if not self.metric_name.strip():
+            raise ValueError("metric_name must not be empty")
+        if self.score is None and self.verdict is None:
+            raise ValueError("supplemental result requires score or verdict")
+
+
+@dataclass(frozen=True, slots=True)
+class SupplementalMetricSummary:
+    adapter_id: str
+    metric_name: str
+    total: int
+    score_count: int
+    average_score: float | None
+    verdict_counts: dict[str, int]
+    report_only: bool
+    reason: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,4 +172,6 @@ class RunReport:
     failed: int
     by_split: dict[str, SummaryCount]
     by_dimension: dict[str, SummaryCount]
+    by_metric: dict[str, SummaryCount]
     results: tuple[CaseResult, ...]
+    by_supplemental: dict[str, SupplementalMetricSummary] = field(default_factory=dict)

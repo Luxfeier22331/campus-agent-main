@@ -124,6 +124,7 @@ panel 的 Worker-local BFF 在长期上推荐采用 `Hono`：
 - 让 panel 直接依赖 `packages/*`
 - 让 panel 越过 runtime API seam 直连内部 orchestrator 或 retrieval internals
 - 让 panel 把 `apps/supervisor-api` 当作 request list/detail query backend
+- 让 panel 把 raw audit logs、telemetry sink 或 consumer chat store 当作 request 主数据源
 - 让 panel runtime shell 承担 app-layer actor、ACL、audit 或 approval semantics
 
 ## Fail-Closed Runtime Assumptions

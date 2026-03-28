@@ -32,6 +32,16 @@ CURRICULUM_V1_MAX_CHUNK_SIZE = 540
 CURRICULUM_V1_CHUNK_OVERLAP = 72
 CURRICULUM_V1_MIN_CHUNK_SIZE = 50
 CURRICULUM_V1_STRATEGY_NAME = "curriculum_plan_structure_v1"
+CURRICULUM_V2_CHUNK_POLICY_VERSION = "curriculum_plan_semantic_v2"
+CURRICULUM_V2_CHUNK_SIZE = 360
+CURRICULUM_V2_MAX_CHUNK_SIZE = 540
+CURRICULUM_V2_CHUNK_OVERLAP = 72
+CURRICULUM_V2_MIN_CHUNK_SIZE = 50
+CURRICULUM_V2_TABLE_CHUNK_SIZE = 420
+CURRICULUM_V2_TABLE_MAX_CHUNK_SIZE = 640
+CURRICULUM_V2_TABLE_CHUNK_OVERLAP = 72
+CURRICULUM_V2_TABLE_MIN_CHUNK_SIZE = 64
+CURRICULUM_V2_STRATEGY_NAME = "curriculum_plan_structure_v2"
 CURRICULUM_CLEANING_POLICY_VERSION = "curriculum_plan_cleaning_v1"
 
 HANDBOOK_V2_CHUNK_POLICY_VERSION = "student_handbook_semantic_v2"
@@ -481,11 +491,10 @@ def build_student_handbook_chunk_profile(
 
 def build_curriculum_chunk_profile(
     *,
-    profile_version: str = CURRICULUM_V1_CHUNK_POLICY_VERSION,
+    profile_version: str = CURRICULUM_V2_CHUNK_POLICY_VERSION,
     model_name: str | None = None,
+    unit_type: str | None = None,
 ) -> ChunkProfile:
-    if profile_version != CURRICULUM_V1_CHUNK_POLICY_VERSION:
-        raise ValueError(f"unsupported curriculum chunk profile version: {profile_version}")
     resolved_model_name = (
         model_name
         or os.environ.get("INGESTION_EMBEDDING_MODEL")
@@ -493,19 +502,44 @@ def build_curriculum_chunk_profile(
         or ""
     ).strip()
     token_counter = _build_curriculum_token_counter(resolved_model_name)
-    return ChunkProfile(
-        chunk_size=CURRICULUM_V1_CHUNK_SIZE,
-        max_chunk_size=CURRICULUM_V1_MAX_CHUNK_SIZE,
-        chunk_overlap=CURRICULUM_V1_CHUNK_OVERLAP,
-        min_chunk_size=CURRICULUM_V1_MIN_CHUNK_SIZE,
-        split_strategy="structure_first",
-        chunk_policy_version=CURRICULUM_V1_CHUNK_POLICY_VERSION,
-        cleaning_policy_version=CURRICULUM_CLEANING_POLICY_VERSION,
-        strategy_name=CURRICULUM_V1_STRATEGY_NAME,
-        strategy=CurriculumChunkingStrategy(),
-        token_counter=token_counter,
-        tokenizer_name=token_counter.name,
-    )
+    if profile_version == CURRICULUM_V1_CHUNK_POLICY_VERSION:
+        return ChunkProfile(
+            chunk_size=CURRICULUM_V1_CHUNK_SIZE,
+            max_chunk_size=CURRICULUM_V1_MAX_CHUNK_SIZE,
+            chunk_overlap=CURRICULUM_V1_CHUNK_OVERLAP,
+            min_chunk_size=CURRICULUM_V1_MIN_CHUNK_SIZE,
+            split_strategy="structure_first",
+            chunk_policy_version=CURRICULUM_V1_CHUNK_POLICY_VERSION,
+            cleaning_policy_version=CURRICULUM_CLEANING_POLICY_VERSION,
+            strategy_name=CURRICULUM_V1_STRATEGY_NAME,
+            strategy=CurriculumChunkingStrategy(),
+            token_counter=token_counter,
+            tokenizer_name=token_counter.name,
+        )
+    if profile_version == CURRICULUM_V2_CHUNK_POLICY_VERSION:
+        chunk_size = CURRICULUM_V2_CHUNK_SIZE
+        max_chunk_size = CURRICULUM_V2_MAX_CHUNK_SIZE
+        chunk_overlap = CURRICULUM_V2_CHUNK_OVERLAP
+        min_chunk_size = CURRICULUM_V2_MIN_CHUNK_SIZE
+        if unit_type == "table_unit":
+            chunk_size = CURRICULUM_V2_TABLE_CHUNK_SIZE
+            max_chunk_size = CURRICULUM_V2_TABLE_MAX_CHUNK_SIZE
+            chunk_overlap = CURRICULUM_V2_TABLE_CHUNK_OVERLAP
+            min_chunk_size = CURRICULUM_V2_TABLE_MIN_CHUNK_SIZE
+        return ChunkProfile(
+            chunk_size=chunk_size,
+            max_chunk_size=max_chunk_size,
+            chunk_overlap=chunk_overlap,
+            min_chunk_size=min_chunk_size,
+            split_strategy="structure_first",
+            chunk_policy_version=CURRICULUM_V2_CHUNK_POLICY_VERSION,
+            cleaning_policy_version=CURRICULUM_CLEANING_POLICY_VERSION,
+            strategy_name=CURRICULUM_V2_STRATEGY_NAME,
+            strategy=CurriculumChunkingStrategy(),
+            token_counter=token_counter,
+            tokenizer_name=token_counter.name,
+        )
+    raise ValueError(f"unsupported curriculum chunk profile version: {profile_version}")
 
 
 def clean_structured_text(*, unit_type: str, text: str) -> str:

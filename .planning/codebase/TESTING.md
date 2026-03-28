@@ -1,11 +1,11 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-03-23
+**Analysis Date:** 2026-03-28
 
 ## Test Framework
 
 **Runner:**
-- `python -m unittest discover -s tests -t .` is the baseline; every package is expected to load through the workspace `tests/__init__.py` setup so the runner can import `apps/*/src` and `packages/*/src`.
+- `uv run --all-packages python -m unittest discover -s tests -t .` is the baseline; every package is expected to load through the workspace `tests/__init__.py` setup so the runner can import `apps/*/src` and `packages/*/src`.
 - Targeted runs (e.g., `uv run --all-packages python -m pytest tests/specialist/test_rag_specialist.py -q` as listed in `packages/rag-specialist/AGENTS.md`) use `pytest` to take advantage of its filtering flags even though the file itself defines `unittest.TestCase` subclasses.
 
 **Assertion Library:**
@@ -17,6 +17,8 @@
 ```bash
 uv run --all-packages python -m unittest discover -s tests -t .
 uv run --all-packages python -m pytest tests/specialist/test_rag_specialist.py -q
+pnpm -C apps/public-consumer-chat test
+pnpm -C apps/public-consumer-chat typecheck
 ```
 
 The first command is the canonical “run everything” verification referenced in `AGENTS.md`. The second command is recommended when working inside `packages/rag-specialist` (`packages/rag-specialist/AGENTS.md`) to focus on the specialist logic without rerunning unrelated suites.
@@ -49,7 +51,7 @@ The first command is the canonical “run everything” verification referenced 
 
 ## Coverage Expectations
 
-- No explicit coverage target is enforced; the repo focuses on ensuring the baseline `uv run --all-packages python -m unittest discover -s tests -t .` passes before merging.
+- No explicit coverage target is enforced; the repo focuses on ensuring the baseline `uv run --all-packages python -m unittest discover -s tests -t .` passes before merging, plus app-local TS verification when touching `apps/public-consumer-chat`.
 - Coverage reporting is not configured in `pyproject.toml` or anywhere else, so teams treat coverage as informational and add tooling only when a future need arises.
 
 ## Test Types

@@ -1,11 +1,17 @@
 # campus-supervisor-api
 
-`apps/supervisor-api` 是 `campus-agent` 当前查询主链路的对外 serving boundary。
+`apps/supervisor-api` 是 `campus-agent` 的 execution engine boundary。
+
+在当前接受的产品拓扑里：
+
+- browser-facing chat / panel API 不在这里
+- shared `apps/app-api` 承接产品层 auth/session/conversation、chat ingress 与 operator query
+- `apps/supervisor-api` 只接收受控执行请求并进入 `packages/supervisor-core`
 
 它负责：
 
-- 外部请求的 transport / auth / runtime 集成
-- 将入口请求映射为共享 contract
+- execution-side transport / auth / runtime 集成
+- 将受控执行入口映射为共享 contract
 - 调用 `packages/supervisor-core` 并投影 HTTP 响应
 - 在 runtime 边界持久化 supervisor audit records
 - 暴露最小健康检查与 readiness 边界
@@ -17,13 +23,13 @@
 - retrieval / Qdrant / registry 访问
 - ingestion / data-plane 逻辑
 
-因此这里不是“未来再补的 bootstrap app”，而是稳定的 API shell；核心编排继续留在 `packages/supervisor-core`。
+因此这里不是产品后端，也不是“未来再补的 bootstrap app”，而是稳定的 execution API shell；核心编排继续留在 `packages/supervisor-core`。
 
 ## Current Auth And Audit Shape
 
 - `bearer` 模式仍是 API shell 的显式 auth 入口，负责把认证后的请求映射为 `SupervisorRequest.actor`
-- `bearer` 模式不再信任客户端提交的 `x-actor-*` header；它使用 runtime-owned 默认 actor 配置
-- `trusted-worker` 模式在验证 `x-worker-origin-auth` 后，会从 worker 转发的 `cf-access-jwt-assertion` 里提取 caller identity claims；未命中时回退到 runtime-owned 默认 actor
+- `bearer` 模式不再信任客户端提交的 `x-actor-*` header；它要求显式的 runtime-owned actor 配置
+- `trusted-worker` 模式在验证 `x-worker-origin-auth` 后，会从 worker 转发的 `cf-access-jwt-assertion` 里提取 caller identity claims；未命中时只会回退到显式配置的 `API_WORKER_ACTOR_ID`，否则 fail-close
 - audit 持久化由 API shell 负责落盘，但 audit record 的 shape 仍由 `packages/supervisor-core` 投影
 
 ## Local Dev HTTP Entry
@@ -51,6 +57,7 @@ export CAMPUS_AGENT_HTTP_HOST=127.0.0.1
 export CAMPUS_AGENT_HTTP_PORT=8000
 export API_AUTH_MODE=bearer
 export API_BEARER_TOKEN=local-dev-token
+export API_DEFAULT_ACTOR_ID=local-dev-bearer-user
 ```
 
 推荐本地 bearer 默认值：
@@ -99,6 +106,6 @@ curl -s \
 ## Known Preconditions
 
 - 仍然需要有效 retrieval 环境；这个 dev HTTP 入口只替换临时 runner，不会 mock retrieval、Qdrant、MinIO 或 specialist 行为。
-- Phase-1 默认知识范围仍然是 `regulations/student_handbook`。
+- query-serving surface 由 collection runtime profile 控制；当前 query-enabled scope 为 `regulations/student_handbook` 与 `curriculum/curriculum_plan`。
 - 如果启用 bearer auth 且 token 缺失或错误，`/api/v1/answer` 会返回 `401`。
-- 这个 dev server 只是本地 runtime shell，不代表 Cloudflare Worker ingress、Phase 5 actor closure 或 runtime unification 已冻结。
+- 这个 dev server 只是本地 runtime shell，不代表 Cloudflare Worker ingress 或 Phase 5 actor closure 已冻结；当前冻结的是 shared `apps/app-api` runtime，而不是 execution engine runtime。

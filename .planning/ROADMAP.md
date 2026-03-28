@@ -32,7 +32,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Supervisor Entry, ACL, And Audit** - Make `supervisor` the only query entrypoint with routing, identity propagation, and audit traces. (completed 2026-03-27)
 - [x] **Phase 05.1: Curriculum Chunking Boundary Freeze** - Freeze `curriculum_plan` source-truth quality gates, split boundaries, and offline chunking runtime truth without opening query-serving. (INSERTED) (completed 2026-03-27)
 - [x] **Phase 6: Curriculum Offline Preparation** - Prepare `curriculum_plan` ingestion outputs without opening query-serving. (completed 2026-03-27)
-- [ ] **Phase 7: Verification And Release Gate** - Prove the main path and failure semantics with automated tests and smoke/eval coverage.
+- [x] **Phase 7: Verification And Release Gate** - Prove the main path and failure semantics with automated tests and smoke/eval coverage. (completed 2026-03-27)
 
 ## Phase Details
 
@@ -293,11 +293,11 @@ Plans:
   1. Automated tests cover the `supervisor -> rag-specialist -> retrieval` flow and all terminal response semantics.
   2. Smoke or eval coverage exercises the `student_handbook` query path and ingestion path.
   3. Verification outputs are repeatable enough to serve as a release gate for phase-1 changes.
-**Plans**: 2 plans
+**Plans**: 2/2 plans complete
 
 Plans:
-- [ ] 07-01: Add and stabilize automated test coverage for happy-path and failure-path supervisor/rag interactions.
-- [ ] 07-02: Add smoke/eval verification for `student_handbook` ingestion and query-serving behavior.
+- [x] 07-01: Add and stabilize automated test coverage for happy-path and failure-path supervisor/rag interactions.
+- [x] 07-02: Add smoke/eval verification for `student_handbook` ingestion and query-serving behavior.
 
 ## Progress
 
@@ -322,4 +322,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 03.2 → 4 → 04.1 
 | 5. Supervisor Entry, ACL, And Audit | 3/3 | Complete | 2026-03-27 |
 | 05.1. Curriculum Chunking Boundary Freeze | 4/4 | Complete | 2026-03-27 |
 | 6. Curriculum Offline Preparation | 2/2 | Complete | 2026-03-27 |
-| 7. Verification And Release Gate | 0/2 | Not started | - |
+| 7. Verification And Release Gate | 2/2 | Complete | 2026-03-27 |

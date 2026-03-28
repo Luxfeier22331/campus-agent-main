@@ -3,10 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from campus_contracts import (
-    ALLOWED_CORPORA,
     ALLOWED_REVISION_TRACKS,
     ALLOWED_SOURCE_CHANNELS,
 )
+from campus_ingestion_core.scope_catalog import assert_known_scope
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,10 +47,7 @@ class RawAssetRecord:
     import_source: str
 
     def __post_init__(self) -> None:
-        if self.corpus not in ALLOWED_CORPORA:
-            raise ValueError(f"unsupported corpus: {self.corpus}")
-        if not self.collection:
-            raise ValueError("collection is required")
+        assert_known_scope(self.corpus, self.collection)
         if not self.raw_asset_id:
             raise ValueError("raw_asset_id is required")
         if not self.raw_version_id:
@@ -115,10 +112,7 @@ class DocumentRegistryRecord:
     import_source: str = ""
 
     def __post_init__(self) -> None:
-        if self.corpus not in ALLOWED_CORPORA:
-            raise ValueError(f"unsupported corpus: {self.corpus}")
-        if not self.collection:
-            raise ValueError("collection is required")
+        assert_known_scope(self.corpus, self.collection)
         if not self.document_id:
             raise ValueError("document_id is required")
         if self.revision_track not in ALLOWED_REVISION_TRACKS:

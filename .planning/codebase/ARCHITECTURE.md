@@ -1,13 +1,13 @@
 # Architecture
 
-**Analysis Date:** 2026-03-23
+**Analysis Date:** 2026-03-28
 
 ## Pattern Overview
 
 **Overall:** Supervisor-led layered orchestrator with dedicated runtime surfaces for query handling and data ingestion, keeping retrieval, storage, and contracts tightly separated.
 
 **Key Characteristics:**
-- Policy-driven multi-agent path: client requests cross `apps/supervisor-api` into `packages/supervisor-core`, which delegates to `packages/rag-specialist` and `packages/retrieval-core` via the shared `DelegateToRagAgentRequest/Response` contract documented in `packages/contracts/src/campus_contracts/models.py` and `docs/architecture/long-term-architecture.md`.
+- Policy-driven multi-agent path: client requests cross `apps/supervisor-api` into `packages/supervisor-core`, which frames a `SupervisorRequest`, routes to an explicit specialist target, and delegates to `packages/rag-specialist` or other specialists through the shared `SupervisorRequest` / `SpecialistRequest` / `SpecialistResponse` contracts documented in `packages/contracts/src/campus_contracts/models.py` and `docs/architecture/long-term-architecture.md`.
 - Phase-1 data plane enforces S3-compatible object storage, registries, and Qdrant-backed chunk indexes for `student_handbook`/`curriculum_plan`, most of which is described in `docs/architecture/phase1-ingestion-and-storage-architecture.md` and implemented under `packages/ingestion-core/src/campus_ingestion_core`.
 - Explicit boundary governance: `packages/contracts` holds allowed corpora, trace contexts, and error schemas, while `packages/shared` keeps only constants that other packages may import without pulling runtime infrastructure details into coordination logic.
 
@@ -20,13 +20,13 @@
 - Used by: AgentOS/HTTP clients for answers and cron/CLI tooling for raw ingestion jobs.
 
 **Supervisor Coordination Layer (`packages/supervisor-core`):**
-- Purpose: normalize `DelegateToRagAgentRequest`, apply routing policy, audit outcomes, and assemble final responses.
+- Purpose: normalize `SupervisorRequest`, apply routing policy, audit outcomes, and assemble final responses.
 - Contains: `packages/supervisor-core/src/campus_supervisor_core/agent.py`, `.routing.py`, `.response.py`, `.policy.py`, `.audit.py`, and `context.py`.
 - Depends on: `packages/contracts` for schemas, `packages/rag-specialist` via the delegate gateway, and `packages/shared` for lightweight constants.
 - Used by: `apps/supervisor-api` routes and any future supervisors that need the same policy plumbing; guardrails are spelled out in `packages/supervisor-core/AGENTS.md`.
 
 **Specialist Capability Layer (`packages/rag-specialist`):**
-- Purpose: implement the RAG-oriented specialist that performs query validation, retrieval strategy evaluation, and answer composition according to `DelegateToRagAgentResponse`.
+- Purpose: implement the RAG-oriented specialist that performs query validation, retrieval strategy evaluation, and answer composition according to `SpecialistResponse`.
 - Contains: `packages/rag-specialist/src/campus_rag_specialist/service.py`, `.agent.py`, `.confidence.py`, and bootstrap `delegate_to_rag_agent`.
 - Depends on: `packages/contracts` for actor/evidence/error models and `packages/retrieval-core` for actual evidence.
 - Used by: the supervisor layer when `route_request` returns `rag-specialist`.
@@ -54,15 +54,15 @@
 **Answer request flow:**
 
 1. Incoming HTTP/AgentOS requests hit `apps/supervisor-api/src/campus_supervisor_api/app.py`, where `build_routes` wires `/api/v1/answer` to `handle_answer` (`apps/supervisor-api/src/campus_supervisor_api/api.py`).
-2. `handle_answer` authenticates using `map_actor_context` (`.auth.py`), constructs a `DelegateToRagAgentRequest`, and hands it to `packages/supervisor-core/src/campus_supervisor_core/agent.py`.
-3. `SupervisorAgent.handle` builds a `SupervisorRequestContext`, routes the request via `routing.route_request`, and invokes `packages/rag-specialist/src/campus_rag_specialist/service.py`.
+2. `handle_answer` authenticates using `map_actor_context` (`.auth.py`), constructs a `SupervisorRequest`, and hands it to `packages/supervisor-core/src/campus_supervisor_core/agent.py`.
+3. `SupervisorAgent.handle` builds a `SupervisorRequestContext`, routes the request via `routing.route_request`, frames a `SpecialistRequest`, and invokes the configured specialist delegate.
 4. `delegate_to_rag_agent` validates the `user_goal`, calls `packages/retrieval-core/src/campus_retrieval_core/service.py`, and either returns an error status (wrapped with `ErrorInfo`) or a completed response containing `EvidenceBundle`.
-5. Supervisor finalizes the specialist response, audits via `packages/supervisor-core/src/campus_supervisor_core/audit.py`, and returns `DelegateToRagAgentResponse` to the API, which serializes it with `error_response` helpers.
+5. Supervisor finalizes the specialist response, audits via `packages/supervisor-core/src/campus_supervisor_core/audit.py`, and returns `SpecialistResponse` to the API, which serializes it with `error_response` helpers.
 
 **Ingestion/data-plane flow:**
 
 1. `apps/ingestion-worker/src/campus_ingestion_worker/process_raw_ingestion_job.py` or `submit_raw_ingestion_job.py` invokes `packages/ingestion-core` entrypoints (`raw_ingestion.process_raw_ingestion_job` or `.submit_raw_ingestion_job`).
-2. The ingestion core reads `configs/ingestion/<corpus>/runtime-profile.json` via `campus_ingestion_core.corpus_profiles`, validates artifact modes, and writes source/derived objects through `campus_ingestion_core.object_store`.
+2. The ingestion core reads `configs/ingestion/<corpus>/<collection>/runtime-profile.json` via `campus_ingestion_core.corpus_profiles`, validates artifact modes, and writes source/derived objects through `campus_ingestion_core.object_store`.
 3. Registry updates (via `campus_ingestion_core.registry.DocumentRegistry`/`RawAssetRegistry`) persist metadata under `var/registry/` or Postgres, which `packages/retrieval-core` later reads.
 4. Chunking, embedding, and Qdrant writes happen as part of `campus_ingestion_core.chunking`/`embed`, and `packages/retrieval-core` uses `QdrantRetrievalBackend` plus `DocumentRegistry` data to produce `EvidenceBundle`.
 
@@ -73,7 +73,7 @@
 ## Key Abstractions
 
 **Handoff Contracts (`packages/contracts/src/campus_contracts/models.py`):**
-- Purpose: centralize request/response/evidence/error enums such as `DelegateToRagAgentRequest`, `DelegateToRagAgentResponse`, `EvidenceBundle`, `TraceContext`, and `ErrorInfo`.
+- Purpose: centralize request/response/evidence/error enums such as `SupervisorRequest`, `SpecialistRequest`, `SpecialistResponse`, `EvidenceBundle`, `TraceContext`, and `ErrorInfo`.
 - Examples: `ActorContext` shapes inbound auth metadata, while `ALLOWED_CORPORA` prevents unsupported corpora from leaking into the runtime.
 - Pattern: frozen dataclasses with `__post_init__` validation so every layer shares the same schema.
 
@@ -96,10 +96,10 @@
 
 **`apps/supervisor-api/src/campus_supervisor_api/app.py` & `api.py`:**
 - Location: API runtime surfaces, routing `/api/v1/answer`, `/healthz`, `/readyz`, and wiring `ApiSettings`.
-- Triggers: HTTP/AgentOS requests; responsibilities include auth (`map_actor_context`), trace propagation, and delegating to `supervisor_core.handle_request`.
+- Triggers: HTTP/AgentOS requests; responsibilities include auth (`map_actor_context`), trace propagation, audit sink wiring, and delegating to `supervisor_core.handle_request`.
 
 **`packages/supervisor-core/src/campus_supervisor_core/agent.py`:**
-- Location: supervisor logic entry; responsibilities include context construction, routing, specialist delegation, and response assembly before returning `DelegateToRagAgentResponse`.
+- Location: supervisor logic entry; responsibilities include context construction, routing, specialist delegation, and response assembly before returning `SpecialistResponse`.
 
 **`packages/rag-specialist/src/campus_rag_specialist/service.py`:**
 - Location: specialist entrypoint used by the supervisor; responsibilities include user goal validation, retrieving evidence, handling retrieval errors, and composing answers via `RagSpecialistAgent`.
@@ -114,11 +114,11 @@
 **Patterns:**
 - `apps/supervisor-api/src/campus_supervisor_api/api.py` wraps `ApiAuthError` (from `.auth.py`) and returns `error_response` with `ErrorInfo`.
 - `packages/rag-specialist/src/campus_rag_specialist/service.py` catches `CorpusQueryDisabledError` and `RetrievalBackendError` from `packages/retrieval-core/src/campus_retrieval_core/backend_qdrant.py`, returning statuses like `error`, `needs_clarification`, or `no_answer`.
-- `DelegateToRagAgentRequest.__post_init__`, `RetrievalRequest.__post_init__`, and `CorpusRuntimeProfile` class validators prevent invalid corpora, top_k, or artifact modes from propagating.
+- `SupervisorRequest.__post_init__`, `SpecialistRequest.__post_init__`, `RetrievalRequest.__post_init__`, and `CorpusRuntimeProfile` class validators prevent invalid corpora, top_k, or artifact modes from propagating.
 
 ## Cross-Cutting Concerns
 
-**Authentication:** `ApiSettings` (`apps/supervisor-api/src/campus_supervisor_api/settings.py`) defines bearer token config and default actor metadata, while `map_actor_context` enforces bearer-only mode before building `ActorContext`.
+**Authentication:** `ApiSettings` (`apps/supervisor-api/src/campus_supervisor_api/settings.py`) defines bearer and trusted-worker config; `map_actor_context` either projects a configured default actor in bearer mode or derives caller claims from a trusted worker JWT before building `ActorContext`.
 
 **Configuration:** `ApiSettings` and `RetrievalSettings` (`packages/retrieval-core/src/campus_retrieval_core/settings.py`) read runtime overrides from environment variables, keeping host, embedding provider, and registry URLs adjustable per deployment.
 

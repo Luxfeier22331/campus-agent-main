@@ -65,19 +65,20 @@ class ContractModelsTest(unittest.TestCase):
             ),
         )
 
-    def test_request_rejects_invalid_collection_scope(self) -> None:
-        with self.assertRaises(ValueError):
-            SpecialistRequest(
-                target="rag-specialist",
-                user_goal="library hours",
-                payload=RagRequestPayload(
-                    scope=KnowledgeScope(
-                        corpus="regulations",
-                        collection="curriculum_plan",
-                    )
-                ),
+    def test_contract_request_shape_no_longer_owns_scope_catalog_validation(self) -> None:
+        request = SpecialistRequest(
+            target="rag-specialist",
+            user_goal="library hours",
+            payload=RagRequestPayload(
+                scope=KnowledgeScope(
+                    corpus="regulations",
+                    collection="curriculum_plan",
+                )
             )
+        )
 
+        self.assertEqual(request.payload.scope.corpus, "regulations")
+        self.assertEqual(request.payload.scope.collection, "curriculum_plan")
     def test_request_accepts_offline_campus_services_scope(self) -> None:
         request = SpecialistRequest(
             target="rag-specialist",

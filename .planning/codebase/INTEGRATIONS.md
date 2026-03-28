@@ -1,13 +1,13 @@
 # External Integrations
 
-**Analysis Date:** 2026-03-23
+**Analysis Date:** 2026-03-28
 
 ## APIs & External Services
 
-**Embedding & semantic search backend (default OpenAI)**
-- Service: OpenAI embeddings accessed through `llama_index.embeddings.openai.OpenAIEmbedding` (see `packages/ingestion-core/src/campus_ingestion_core/embed.py`).
+**Embedding & semantic search backend (OpenAI-compatible by default)**
+- Service: Embeddings are requested through `llama_index.embeddings.openai.OpenAIEmbedding` (see `packages/ingestion-core/src/campus_ingestion_core/embed.py`), but the repo default is an OpenAI-compatible endpoint rather than the OpenAI public endpoint itself.
   - Integration method: Batch embedding requests pulled from `EmbeddingSettings.from_env`, so the ingestion and retrieval cores always call the configured provider before talking to Qdrant.
-  - Auth: `EMBEDDING_API_KEY` (plus optional `EMBEDDING_BASE_URL` overrides the default OpenAI endpoint). Other knobs include `EMBEDDING_MODEL`, `EMBEDDING_TIMEOUT_SECONDS`, and `EMBEDDING_BATCH_SIZE` as exposed in `.env.example`.
+  - Auth: `EMBEDDING_API_KEY` (plus optional `EMBEDDING_BASE_URL` overrides the provider endpoint). Other knobs include `EMBEDDING_MODEL`, `EMBEDDING_TIMEOUT_SECONDS`, and `EMBEDDING_BATCH_SIZE` as exposed in `.env.example`.
 
 **Online OCR service (PaddleOCR-VL-1.5)**
 - Service: PaddleOCR job submission/ polling handled inside `packages/ingestion-core/src/campus_ingestion_core/raw_ingestion.py` via `PaddleOcrAsyncClient`.
@@ -30,9 +30,9 @@
   - Buckets: `OBJECT_STORE_BUCKET_SOURCE` and `OBJECT_STORE_BUCKET_DERIVED` (default `campus-rag-source` / `campus-rag-derived`).
   - Client: `boto3>=1.35.0`, with key construction defined in `packages/ingestion-core/src/campus_ingestion_core/object_store.py`.
 - Qdrant vector database (the vector store is fronted by `packages/retrieval-core/src/campus_retrieval_core/backend_qdrant.py`).
-  - Connection: `QDRANT_URL`, optional `QDRANT_API_KEY`, `QDRANT_COLLECTION` (default `student_handbook`), and `QDRANT_TIMEOUT_SECONDS`.
+  - Connection: `QDRANT_URL`, optional `QDRANT_API_KEY`, required `QDRANT_COLLECTION`, and `QDRANT_TIMEOUT_SECONDS`.
   - Client libraries: `qdrant-client>=1.17.1`, `llama-index-vector-stores-qdrant>=0.10.0`.
-  - Collections: The code checks for collection existence before querying, so local dev often spins up `http://localhost:6333` while production can swap in a managed Qdrant Cloud endpoint.
+  - Collections: `RetrievalSettings.from_env()` now fail-closes when `QDRANT_URL` or `QDRANT_COLLECTION` is missing. Shared-dev and production are expected to use a managed/cloud Qdrant endpoint; local `:memory:` remains a test-only fallback, not a serving default.
 - CampusRAG legacy assets are ingested through `apps/ingestion-worker` using `CAMPUSRAG_OCR_ROOT`, `CAMPUSRAG_RAW_ROOT`, and `RAW_INGESTION_SOURCE_PATHS`; these paths simply point to local files/directories that the ingestion worker uploads to MinIO.
 
 **Caching:**
@@ -42,8 +42,11 @@
 
 **Supervisor API bearer auth**
 - Implementation: `apps/supervisor-api/src/campus_supervisor_api/auth.py` enforces `API_AUTH_MODE=bearer` (default).
-  - Credentials: `API_BEARER_TOKEN` must match the `Authorization: bearer` header; caller-specified actors are read from `X-Actor-*` headers or fall back to `API_DEFAULT_ACTOR_GROUPS`, `API_DEFAULT_ACTOR_ROLES`, and `API_DEFAULT_CAMPUS_SCOPE` in `apps/supervisor-api/settings.py`.
+  - Credentials: `API_BEARER_TOKEN` must match the `Authorization: bearer` header; bearer mode projects the configured default actor (`API_DEFAULT_ACTOR_ID`, `API_DEFAULT_ACTOR_GROUPS`, `API_DEFAULT_ACTOR_ROLES`, `API_DEFAULT_CAMPUS_SCOPE`) instead of trusting caller-supplied actor headers.
   - Sessions are stateless per request, and actor metadata is mapped into the `ActorContext` model from `packages/contracts`.
+
+**Trusted worker auth**
+- Implementation: `API_AUTH_MODE=trusted-worker` requires `x-worker-origin-auth` plus a forwarded `cf-access-jwt-assertion`; `map_actor_context` derives user/group/role claims from the configured trusted JWT claim names and falls back to worker defaults only when claims are absent.
 
 **AgentOS runtime metadata**
 - The supervisor records model hints in `AgentOSRuntime` (`apps/supervisor-api/src/campus_supervisor_api/app.py`), and the runtime expects Agno models to be supplied via `AGNO_SUPERVISOR_MODEL` and `AGNO_SPECIALIST_MODEL`. The repo does not yet invoke an Agno API from here, but the metadata fields keep longer-term deployments consistent with AgentOS conventions.
@@ -61,7 +64,7 @@
 
 **Hosting:**
 - No hosted platform is codified; the repo intentionally keeps runtime choices open (`docs/architecture/long-term-architecture.md` emphasizes boundary-first design).
-- Local runs assume `python -m campus_supervisor_api.app` or similar entry points inside the `uv` workspace, with `apps/supervisor-api` acting purely as a transport shim.
+- Local runs are expected through the `uv` workspace entrypoints (for example `uv run --all-packages campus-supervisor-api-dev`), with `apps/supervisor-api` acting purely as a transport shim.
 
 **CI Pipeline:**
 - Tests and verification are executed via `uv run --all-packages python -m unittest discover -s tests -t .` (documented in `README.md`). There is no GitHub Action, Terraform, or other pipeline defined inside the repo.
@@ -72,6 +75,7 @@
 - Required env vars (all spelled out in `.env.example`): `AGNO_SUPERVISOR_MODEL`, `AGNO_SPECIALIST_MODEL`, `API_BEARER_TOKEN`, `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL`, `EMBEDDING_API_KEY`, `DOCUMENT_REGISTRY_DATABASE_URL`, `QDRANT_URL`, `QDRANT_COLLECTION`, `OBJECT_STORE_ENDPOINT`, `OBJECT_STORE_ACCESS_KEY`, `OBJECT_STORE_SECRET_KEY`, `CAMPUSRAG_OCR_ROOT`, `OCR_BASE_URL`, `OCR_API_KEY`.
 - Secrets are expected in the environment (no checked-in `.env`), so local developers typically copy `.env.example` and fill values before running `uv sync` + ingestion/retrieval commands.
 - Mock coverage: the embedding stack can run with `EMBEDDING_PROVIDER=mock` if actual OpenAI credentials are unavailable, and registry fallbacks exist in `var/` files.
+- `apps/public-consumer-chat` live mode additionally requires `PUBLIC_CONSUMER_CHAT_SCOPE_CORPUS` and `PUBLIC_CONSUMER_CHAT_SCOPE_COLLECTION`, so the app sends an explicit supervisor answer scope instead of relying on a handbook hardcode.
 
 **Staging / Production:**
 - The repo does not include separate staging overrides; promote env vars from the `.env.example` sections and swap `QDRANT_URL`/`OBJECT_STORE_ENDPOINT` to staging endpoints as needed.

@@ -17,8 +17,8 @@ class ApiSettings:
     auth_mode: str = "bearer"
     bearer_token: str = ""
     worker_shared_secret: str = ""
-    worker_actor_id: str = "public-entry-worker"
-    default_actor_id: str = "api-user"
+    worker_actor_id: str = ""
+    default_actor_id: str = ""
     runtime_provider: str = ""
     default_actor_groups: tuple[str, ...] = field(default_factory=tuple)
     default_actor_roles: tuple[str, ...] = field(default_factory=tuple)
@@ -37,8 +37,8 @@ class ApiSettings:
             auth_mode=os.getenv("API_AUTH_MODE", "bearer"),
             bearer_token=os.getenv("API_BEARER_TOKEN", ""),
             worker_shared_secret=os.getenv("API_WORKER_SHARED_SECRET", ""),
-            worker_actor_id=os.getenv("API_WORKER_ACTOR_ID", "public-entry-worker"),
-            default_actor_id=os.getenv("API_DEFAULT_ACTOR_ID", "api-user"),
+            worker_actor_id=os.getenv("API_WORKER_ACTOR_ID", "").strip(),
+            default_actor_id=os.getenv("API_DEFAULT_ACTOR_ID", "").strip(),
             runtime_provider=os.getenv("AGENT_RUNTIME_PROVIDER", ""),
             default_actor_groups=_split_csv(os.getenv("API_DEFAULT_ACTOR_GROUPS", "")),
             default_actor_roles=_split_csv(os.getenv("API_DEFAULT_ACTOR_ROLES", "")),

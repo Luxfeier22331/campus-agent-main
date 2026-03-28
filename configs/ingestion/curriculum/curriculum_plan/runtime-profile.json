@@ -1,11 +1,15 @@
 {
   "corpus": "curriculum",
   "collection": "curriculum_plan",
-  "phase1_stage": "cleaned_ingestion",
+  "serving_stage": "query_serving",
   "allowed_artifact_modes": ["normalized", "source_truth_only"],
   "split_manifest_required": true,
   "cleaning_policy_version": "curriculum_plan_cleaning_v1",
-  "chunk_profile_version": "curriculum_plan_semantic_v1",
-  "retrieval_enabled": false,
-  "default_query_enabled": false
+  "chunk_profile_version": "curriculum_plan_semantic_v2",
+  "retrieval_enabled": true,
+  "query_enabled_by_default": true,
+  "qdrant_collection_name": "curriculum_plan",
+  "qdrant_dense_vector_name": "dense",
+  "qdrant_sparse_vector_name": "sparse",
+  "serving_revision_tracks": ["source-faithful"]
 }

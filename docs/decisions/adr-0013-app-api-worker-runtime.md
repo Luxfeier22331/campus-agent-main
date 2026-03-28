@@ -57,7 +57,7 @@ Accepted on 2026-03-28.
 
 - 需要一份单独的 canonical architecture doc 描述 `app-api` 的 Worker runtime 与内部边界
 - repo 入口文档与 planning 入口需要把 `app-api runtime = Worker` 作为 accepted truth
-- `apps/public-consumer-chat` 应被表述为历史实现参考，而不是 forward backend truth
+- `apps/public-consumer-chat` 与 `apps/protected-internal-panel` 应被表述为历史实现参考或 migration source，而不是 forward backend truth
 
 ## Complements
 

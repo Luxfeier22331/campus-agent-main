@@ -63,7 +63,7 @@ updated: 2026-03-27
   - `SPARSE_TOKENIZER=multilingual`
   - `SPARSE_LANGUAGE=none`
 - remote Qdrant client 必须启用 `cloud_inference=True`
-- `QDRANT_COLLECTION` 指向本轮目标 collection，不与旧 dense-only collection 混用
+- handbook runtime profile 中的 `qdrant_collection_name` / vector binding 必须对齐本轮目标索引，不与旧 dense-only target 混用
 - `DOCUMENT_REGISTRY_DATABASE_URL` 指向本轮 live registry
 - `REBUILD_RESET_QDRANT=true` 或已确认目标 collection 可以被新 schema 重建
 
@@ -159,6 +159,7 @@ updated: 2026-03-27
 - dense schema：named `dense`, size `2560`, distance `Cosine`
 - sparse schema：named `sparse`, `modifier=IDF`
 - fixture drift 检查：`fixture_drift_errors = []`
+- fresh schema 快照：[`.tmp/phase7/handbook-live-collection-baseline.json`](/home/reptilian/code/campus-agent/.tmp/phase7/handbook-live-collection-baseline.json)
 
 本轮 live query 结果：
 
@@ -248,6 +249,7 @@ updated: 2026-03-27
 
 - handbook retrieval 当前不仅通过 live query 抽样，也通过了 doc-level qrels benchmark
 - `no_hit` fail-close 漏放行已修复，当前 handbook 主链路没有发现新的 retrieval regression
+- 当前 live workflow/status gate 按设计只覆盖稳定主链路；`error` 分支现已迁移为单独的 deterministic error gate，不再要求依赖 live 偶发故障取样
 - 详细数值快照与 split 维度汇总已单独落盘到 `docs/verification/student-handbook-eval-metrics.md`
 
 ## 完成标准

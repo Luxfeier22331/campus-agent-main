@@ -55,11 +55,7 @@ def delegate_to_rag_agent(
 
     user_goal = request.user_goal.strip()
     if _should_clarify_without_retrieval(user_goal):
-        empty_evidence = EvidenceBundle(
-            query_text=user_goal,
-            corpus=request.payload.scope.corpus,
-            collection=request.payload.scope.collection,
-        )
+        empty_evidence = _build_empty_evidence(request, user_goal)
         return SpecialistResponse(
             target="rag-specialist",
             status="needs_clarification",
@@ -81,6 +77,7 @@ def delegate_to_rag_agent(
             target="rag-specialist",
             status="error",
             confidence="low",
+            result=RagResultPayload(evidence=_build_empty_evidence(request, user_goal)),
             error=ErrorInfo(code="corpus_not_query_enabled", message=str(exc), retryable=False),
         )
     except RetrievalBackendError as exc:
@@ -88,6 +85,7 @@ def delegate_to_rag_agent(
             target="rag-specialist",
             status="error",
             confidence="low",
+            result=RagResultPayload(evidence=_build_empty_evidence(request, user_goal)),
             error=ErrorInfo(code="retrieval_failed", message=str(exc), retryable=False),
         )
     if not evidence.sources:
@@ -122,6 +120,14 @@ def delegate_to_rag_agent(
         answer_text=agent.compose_answer(evidence),
         confidence=confidence,
         result=RagResultPayload(evidence=evidence),
+    )
+
+
+def _build_empty_evidence(request: SpecialistRequest, user_goal: str) -> EvidenceBundle:
+    return EvidenceBundle(
+        query_text=user_goal,
+        corpus=request.payload.scope.corpus,
+        collection=request.payload.scope.collection,
     )
 
 

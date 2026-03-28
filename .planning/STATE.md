@@ -3,34 +3,34 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Shared `app-api` topology docs, protected-panel naming, and request API ownership language were aligned; `Jobs` / `Operations` remain delayed
-last_updated: "2026-03-28T13:30:00.000Z"
+stopped_at: Phase 7 release-gate closeout is merged; shared `app-api` topology docs, protected-panel naming, and request API ownership language are aligned; `Jobs` / `Operations` remain delayed
+last_updated: "2026-03-28T13:45:00.000Z"
 progress:
   total_phases: 17
-  completed_phases: 16
+  completed_phases: 17
   total_plans: 41
-  completed_plans: 39
+  completed_plans: 41
 ---
 
 # Project State
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-03-27)
+See: `.planning/PROJECT.md` (updated 2026-03-28)
 
-**Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 `student_handbook` 的完整 agentic RAG 主流程证明这条架构能可靠替代高频人工答疑
-**Current focus:** Phase 7 verification on mainline remains separate; this follow-up worktree now treats `public-chat-web` / `protected-panel-web` + shared `app-api` Worker runtime + `supervisor-api` execution engine as the accepted product topology, and keeps `Jobs` / `Operations` out of the first panel rollout
+**Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 runtime-profile-driven serving surface 证明这条架构能可靠承接高频校园问答
+**Current focus:** Phase 7 handbook verification已完成；当前 follow-up 重点是补齐 `curriculum_plan` query-serving 的 live gate，同时继续把 `public-chat-web` / `protected-panel-web` + shared `app-api` Worker runtime + `supervisor-api` execution engine 作为 accepted product topology 推进，并保持 `Jobs` / `Operations` 不进入第一波 panel rollout
 
 ## Current Position
 
-Phase: 07 (Verification And Release Gate) — READY TO START
-Plan: 0 of 2
+Phase: 07 (Verification And Release Gate) — COMPLETE
+Plan: 2 of 2
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 39
+- Total plans completed: 41
 - Average duration: mixed agent-run and inline execution; see per-plan summaries
 - Total execution time: 0.2 hours + 2026-03-24 inline Phase 2/3 execution
 
@@ -54,11 +54,12 @@ Plan: 0 of 2
 | 05 | 3 | inline session | n/a |
 | 05.1 | 4 | inline session | n/a |
 | 06 | 2 | inline session | n/a |
+| 07 | 2 | inline session | n/a |
 
 **Recent Trend:**
 
-- Last 5 plans: 04.7-01, 04.7-02, 05.1-04, 06-01, 06-02
-- Trend: `public-consumer-chat` mainline closeout and curriculum offline preparation are both complete; the remaining mainline blocker has moved to Phase 7 verification and release evidence
+- Last 5 plans: 05.1-04, 06-01, 06-02, 07-01, 07-02
+- Trend: handbook mainline verification evidence is closed; current follow-up work is serving-surface refactor closeout and curriculum release-gate expansion rather than additional phase-1 architecture churn
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
@@ -101,6 +102,8 @@ Plan: 0 of 2
 | Phase 05.1 P04 | inline | 2 tasks | see summary |
 | Phase 06 P01 | inline | 2 tasks | see summary |
 | Phase 06 P02 | inline | 2 tasks | see summary |
+| Phase 07 P01 | inline | 2 tasks | handbook automated verification + planning closeout |
+| Phase 07 P02 | inline | 2 tasks | live qrels/workflow evidence + docs refresh |
 
 ## Accumulated Context
 
@@ -122,7 +125,7 @@ Plan: 0 of 2
 Decisions are logged in `PROJECT.md` Key Decisions table.
 Recent decisions affecting current work:
 
-- Phase-1 query-serving remains restricted to `student_handbook`; `curriculum_plan` stays offline-only on the mainline path.
+- Query-serving is now runtime-profile-driven; current query-enabled scope is `student_handbook` plus `curriculum_plan`, while `campus_services` remains `offline_preparation`.
 - Verification remains a dedicated release-gate phase after the main architecture path is in place.
 - `official-web` / `availability` specialist landed as an explicit non-RAG specialist boundary instead of a supervisor-inline tool bundle.
 - `/api/v1/answer` now constructs a supervisor-facing request contract instead of hardcoding a rag-specialist handoff.
@@ -136,23 +139,26 @@ Recent decisions affecting current work:
 - Protected panel follow-up now freezes request projection ownership on shared `apps/app-api`: `Requests` stays blocked until `app-api` exposes a safe runtime query surface, and panel work must not route around that gap through `apps/supervisor-api`, audit logs, telemetry sinks, or consumer chat tables.
 - Protected panel operator access is now explicitly documented as a small-team operator surface without a self-serve end-user account system; `Jobs` and `Operations` remain delayed pending re-discussion.
 - Phase 05.1 froze curriculum source-truth quality gates, split-manifest review fail-close behavior, and explicit chunking runtime truth.
-- Phase 06 added `provider_response_replay` rebuild support for `curriculum_plan` while keeping retrieval, supervisor policy, and API boundary query-disabled for that collection.
+- Phase 06 added `provider_response_replay` rebuild support for `curriculum_plan`, and the current refactor promotes its serving policy into the profile-driven query surface.
+- Phase 07 closed handbook release-gate verification with repo tests, live qrels benchmark, workflow/status samples, and handbook collection schema evidence under `.tmp/phase7/`.
+- The detailed `app-api` implementation baseline now lives in `docs/plans/app-api-worker-foundation.md`, including framework selection, API surface, data domains, and execution waves.
 
 ### Pending Todos
 
-- Keep handbook chunk-truth validation as a regression gate while mainline verification/eval work proceeds.
+- Keep handbook chunk-truth validation and handbook eval artifacts as reusable regression gates for later retrieval changes.
+- Decide milestone closeout and land the missing `curriculum_plan` query-serving live release-gate artifacts beyond the existing automated verification surface.
 - Land `apps/app-api` before unblocking panel `Requests`.
 - Keep `Jobs` and `Operations` out of the default panel rollout until product scope explicitly re-opens them.
 
 ### Blockers/Concerns
 
-- No current handbook or curriculum offline-prep blocker remains inside this follow-up branch; the mainline blocker is release-gate verification evidence.
+- No current phase-1 mainline blocker remains inside this follow-up branch.
 - Cloudflare 04.x boundary/topology/contract/shell docs are complete; follow-up work must consume them as frozen handoffs rather than reopening architecture churn.
 - `public-consumer-chat` is merged on `main`; downstream work should treat it as a historical implementation reference rather than a live backend direction.
 - protected panel `Requests` remains blocked on an `apps/app-api` runtime-owned request projection API; panel work must not route around that gap by reading audit logs, telemetry sinks, consumer chat tables, or `apps/supervisor-api` directly.
 
 ## Session Continuity
 
-Last session: 2026-03-28T13:30:00.000Z
-Stopped at: Shared app-api docs now consistently treat `protected-panel-web` as the forward surface and keep panel `Requests` blocked on `app-api` query APIs while `Jobs` / `Operations` remain delayed
+Last session: 2026-03-28T13:45:00.000Z
+Stopped at: Phase 7 release-gate closeout is merged, shared app-api docs consistently treat `protected-panel-web` as the forward surface, and panel `Requests` remains blocked on `app-api` query APIs while `Jobs` / `Operations` remain delayed
 Resume file: None

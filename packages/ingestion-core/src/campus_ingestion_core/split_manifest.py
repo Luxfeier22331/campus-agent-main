@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 import json
 from pathlib import Path
 
-from campus_contracts import ALLOWED_CORPORA, KNOWN_COLLECTION_TO_CORPUS
+from campus_ingestion_core.scope_catalog import assert_known_scope
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,15 +45,7 @@ class SplitManifest:
     def __post_init__(self) -> None:
         if not self.manifest_version:
             raise ValueError("manifest_version is required")
-        if self.corpus not in ALLOWED_CORPORA:
-            raise ValueError(f"unsupported corpus: {self.corpus}")
-        if not self.collection:
-            raise ValueError("collection is required")
-        expected_corpus = KNOWN_COLLECTION_TO_CORPUS.get(self.collection)
-        if expected_corpus is not None and expected_corpus != self.corpus:
-            raise ValueError(
-                f"split manifest collection scope mismatch: {self.collection} belongs to {expected_corpus}"
-            )
+        assert_known_scope(self.corpus, self.collection)
         if not self.raw_asset_id:
             raise ValueError("raw_asset_id is required")
         if not self.documents:

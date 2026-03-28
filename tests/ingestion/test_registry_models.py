@@ -10,6 +10,8 @@ from unittest.mock import patch
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef, SourceObservation
 from campus_ingestion_core.registry import (
     PostgresDocumentRegistry,
+    _document_record_from_dict,
+    _raw_asset_record_from_dict,
     build_document_registry_from_env,
     build_raw_asset_registry_from_env,
 )
@@ -339,7 +341,7 @@ class RegistryModelsTest(unittest.TestCase):
                 curriculum_record,
             )
 
-    def test_file_document_registry_backfills_explicit_processed_keys_from_legacy_payload(self) -> None:
+    def test_file_document_registry_backfills_explicit_processed_keys_from_payload(self) -> None:
         with TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "registry.json"
             path.write_text(
@@ -349,9 +351,9 @@ class RegistryModelsTest(unittest.TestCase):
                             "document_id": "handbook:test-001",
                             "revision_track": "source-faithful",
                             "version_id": "v1:test-001",
-                            "source_uri": "campusrag://canonical/student_handbook/docs/test-001.md",
+                            "source_uri": "campusrag://canonical/regulations/student_handbook/docs/test-001.md",
                             "content_hash": "sha256:test-001",
-                            "corpus": "student_handbook",
+                            "corpus": "regulations",
                             "collection": "student_handbook",
                             "cleaning_policy_version": "student_handbook_cleaning_v1",
                             "acl_groups": ["students"],
@@ -397,6 +399,58 @@ class RegistryModelsTest(unittest.TestCase):
             self.assertEqual(len(loaded.source_observations), 1)
             self.assertTrue(loaded.source_observations[0].is_primary)
             self.assertEqual(loaded.source_observations[0].source_channel, "pdf_ocr")
+
+    def test_document_registry_payload_requires_explicit_corpus_collection_and_source_channel(self) -> None:
+        with self.assertRaisesRegex(ValueError, "source_channel"):
+            _document_record_from_dict(
+                {
+                    "document_id": "handbook:test-001",
+                    "revision_track": "source-faithful",
+                    "version_id": "v1:test-001",
+                    "source_uri": "campusrag://canonical/regulations/student_handbook/docs/test-001.md",
+                    "content_hash": "sha256:test-001",
+                    "corpus": "regulations",
+                    "status": "active",
+                    "ingestion_timestamp": "2026-03-22T10:00:00+00:00",
+                    "parser_version": "campusrag-import-v1",
+                    "embedding_model": "Qwen3-Embedding-4B",
+                    "import_source": "raw_online_ocr",
+                }
+            )
+
+        with self.assertRaisesRegex(ValueError, "collection"):
+            _document_record_from_dict(
+                {
+                    "document_id": "handbook:test-001",
+                    "revision_track": "source-faithful",
+                    "version_id": "v1:test-001",
+                    "source_uri": "campusrag://canonical/regulations/student_handbook/docs/test-001.md",
+                    "content_hash": "sha256:test-001",
+                    "corpus": "regulations",
+                    "status": "active",
+                    "ingestion_timestamp": "2026-03-22T10:00:00+00:00",
+                    "parser_version": "campusrag-import-v1",
+                    "embedding_model": "Qwen3-Embedding-4B",
+                    "source_channel": "pdf_ocr",
+                    "import_source": "raw_online_ocr",
+                }
+            )
+
+    def test_raw_asset_registry_payload_requires_explicit_corpus_and_collection(self) -> None:
+        with self.assertRaisesRegex(ValueError, "collection"):
+            _raw_asset_record_from_dict(
+                {
+                    "raw_asset_id": "asset:student-handbook-pdf",
+                    "raw_version_id": "sha256:raw-001",
+                    "corpus": "regulations",
+                    "raw_source_uri": "campusrag://raw/regulations/student_handbook/student-handbook.pdf",
+                    "content_hash": "raw-001",
+                    "source_filename": "student-handbook.pdf",
+                    "object_key": "official_pdf/student-handbook/undated/sha256/raw-001/capture/student-handbook.pdf",
+                    "ingestion_timestamp": "2026-03-22T10:00:00+00:00",
+                    "import_source": "raw_online_ocr",
+                }
+            )
 
     def test_file_raw_asset_registry_upsert_and_get_are_stable(self) -> None:
         with TemporaryDirectory() as temp_dir:

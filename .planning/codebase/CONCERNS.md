@@ -1,20 +1,20 @@
 # Codebase Concerns
 
-**Analysis Date:** 2026-03-23
+**Analysis Date:** 2026-03-28
 
 ## Tech Debt
 
-**Supervisor coordination is still a pass-through (`packages/supervisor-core/src/campus_supervisor_core/agent.py`, `routing.py`, `response.py`, `policy.py`):**
-- Issue: `SupervisorAgent.handle` only builds `SupervisorRequestContext`, enforces the single `QUERY_ENABLED_CORPUS`, delegates straight to `rag-specialist`, and then re-emits the specialist response without any policy layers or request framing.
-- Why: Phase‑1 bootstrapping deemed a minimal delegation pipeline sufficient to prove the end-to-end path.
-- Impact: Adding new specialists/corpora, customizing clarification policies, or auditing response shaping requires rewriting the entire module because there is no explicit `RequestFraming`, `RoutingPolicy`, or `ResponseAssembler` even though the architecture docs describe them (`docs/architecture/supervisor-architecture.md`).
-- Fix approach: Reify the suggested responsibility layers (request framing, intent routing, delegation gateway, response assembler, audit projector) inside `packages/supervisor-core`, ensure `route_request` returns structured decisions rather than raising, and make the specialist list a configurable registry.
+**Supervisor coordination is still a thin coordinator (`packages/supervisor-core/src/campus_supervisor_core/agent.py`, `routing.py`, `response.py`, `policy.py`):**
+- Issue: `SupervisorAgent.handle` now builds `SupervisorRequestContext`, routes through an explicit decision, frames `SpecialistRequest`, delegates, and reassembles the result, but it still remains a narrow policy shell with little intent shaping or multi-step planning.
+- Why: The repo intentionally stopped at a minimal supervisor-led boundary once typed routing, query-policy, and audit hooks were in place.
+- Impact: Adding richer clarification policies, multi-specialist orchestration, or answer post-processing will still require substantial supervisor expansion because the current implementation is intentionally shallow.
+- Fix approach: Introduce richer request framing and response-finalization layers only when a concrete second-step coordination need appears; avoid re-flattening the boundary back into API-shell or specialist-local logic.
 
-**Retrieval backend is re-created on every call (`packages/retrieval-core/src/campus_retrieval_core/service.py`):**
-- Issue: `retrieve_sources` either uses the injected backend or instantiates a new `QdrantRetrievalBackend(RetrievalSettings.from_env())`, which itself builds a `DocumentRegistry`, a `QdrantClient`, and an embedding model inside `__post_init__`.
-- Why: A quick wiring to get retrieval + specialist working without managing shared lifetimes.
-- Impact: Each user query fires two remote handshakes (Postgres registry + Qdrant server) and reinitializes the embedding model before the actual search, so latency and connection churn climb linearly with traffic.
-- Fix approach: Hoist backend creation outside the hot path (process-level singleton or dependency-injected pool), and reuse the `EmbeddingSettings`, `DocumentRegistry`, and client for the lifetime of a worker so only the actual search runs per request.
+**Retrieval backend lifecycle is still implicit (`packages/retrieval-core/src/campus_retrieval_core/service.py`):**
+- Issue: `retrieve_sources` now uses a process-local backend cache, but the cache remains an internal module detail rather than an explicit runtime-owned dependency lifecycle.
+- Why: The code moved from full per-request reinitialization to a small fail-closed cache without introducing a larger host-level container.
+- Impact: New worker processes still pay backend startup cost on first request, and the ownership boundary for backend warmup/teardown is still implicit.
+- Fix approach: Hoist backend creation into runtime startup if serving volume or cold-start latency justifies a more explicit dependency lifecycle.
 
 **Specialist answer shaping is a stub (`packages/rag-specialist/src/campus_rag_specialist/agent.py` and `service.py`):**
 - Issue: `RagSpecialistAgent.compose_answer` simply emits the first snippet plus a concatenated citation string, and `delegate_to_rag_agent` never enriches or reshapes the evidence bundle beyond calling `derive_confidence`.
@@ -24,32 +24,27 @@
 
 ## Known Bugs
 
-**Requesting `curriculum_plan` corpus raises before a response (`packages/supervisor-core/src/campus_supervisor_core/routing.py`):**
-- Symptoms: `delegate_to_rag_agent` never runs; `campus_supervisor_core.handle_request` raises `ValueError("phase-1 query-serving only supports student_handbook")` and the request fails with a 500 when the client requests `corpora=("curriculum_plan",)` even though that corpus exists in `packages/contracts/src/campus_contracts/models.py`.
-- Trigger: Any request that explicitly sets a non-`student_handbook` corpus, whether coming from new UI layers or ingestion tests.
-- Workaround: None—`handle_request` does not wrap the exception.
-- Root cause: `route_request` enforces the phase‑1 corpus by raising instead of translating it into a `DelegateToRagAgentResponse` with `ErrorInfo`.
-- Fix approach: Move the corpus gating into request framing, return a structured error response (status `error` with code `corpus_not_query_enabled`), and let the API layer surface a proper 400 rather than crashing.
+No current query-scope crash is recorded here: the old `student_handbook`-only routing bug has been removed, and query-serving scope is now enforced through runtime-profile-backed supervisor policy with structured fail-closed errors.
 
 ## Security Considerations
 
-**Actor identity is forged via headers (`apps/supervisor-api/src/campus_supervisor_api/auth.py`):**
-- Risk: After passing the shared bearer token, any client can spoof `x-actor-id`, `x-actor-roles`, `x-actor-groups`, and `x-campus-scope`; those header values flow straight into `ActorContext` and reach downstream policies with no verification or TTL.
-- Current mitigation: A single bearer token gate, but it only proves the caller knows that token; it does not bind actor claims to a trusted issuer.
-- Recommendations: Accept actor metadata from a signed token (JWT/HMAC) or drop the client-supplied headers for identity-critical fields, relying on an internal directory or API gateway to supply trusted roles/groups.
+**Bearer mode still represents a coarse caller class (`apps/supervisor-api/src/campus_supervisor_api/auth.py`):**
+- Risk: Bearer mode no longer trusts caller-supplied actor headers, but it still projects one configured default actor for every request that holds the shared token.
+- Current mitigation: `trusted-worker` mode derives caller identity from the forwarded Access JWT, and bearer mode is now explicit about its coarse identity posture.
+- Recommendations: Use `trusted-worker` or another signed-identity mode for any deployment that needs per-user enforcement rather than a shared caller class.
 
-**Audit sink is never wired (`packages/supervisor-core/src/campus_supervisor_core/audit.py` and `apps/supervisor-api/src/campus_supervisor_api/app.py`):**
-- Risk: Supervisor already projects `SupervisorAuditRecord` (request_id, trace_id, status, doc ids) via `build_audit_record`, but `apps/supervisor-api.create_app` never passes the optional `audit_sink` to `handle_request`, so no audit log is emitted and `ApiSettings.audit_log_path` is unused.
-- Current mitigation: None—production deployments have zero persisted audit trail.
-- Recommendations: Connect `handle_request` to a sink that persists newline-delimited JSON (or integrates with a logging service) whenever requests complete, honoring `ApiSettings.audit_log_path` for compliance monitoring.
+**Audit persistence is local-file-first (`apps/supervisor-api/src/campus_supervisor_api/api.py`):**
+- Risk: Audit sink wiring now exists, but it currently persists JSONL to the local audit path by default rather than a centralized durable observability pipeline.
+- Current mitigation: The API shell fail-closes if the configured audit sink cannot be written.
+- Recommendations: Promote audit output to a managed log pipeline or durable store before production-scale traffic so request history is not tied to one host filesystem.
 
 ## Performance Bottlenecks
 
-**Backend initialization in the hot path (`packages/retrieval-core/src/campus_retrieval_core/service.py`):**
-- Problem: Before any retrieval happens, `retrieve_sources` re-instantiates `QdrantRetrievalBackend`, which in turn rebuilds the `DocumentRegistry`, `QdrantClient`, and embedding model on each call.
-- Measurement: Every query triggers at least two remote handshakes (Postgres registry builder + Qdrant HTTP connection) and a fresh embedding-model creation before the Qdrant search even runs, so p95 latency is dominated by backend setup rather than the query proper.
-- Cause: Bootstrapping the wiring without managing lifetime for the heavyweight components.
-- Improvement path: Cache or inject a warmed backend (and embedding model) per worker so the only per-request work is encoding the query and running `VectorStore.query`.
+**Backend cache is process-local only (`packages/retrieval-core/src/campus_retrieval_core/service.py`):**
+- Problem: `retrieve_sources` now caches initialized backends, but the cache is an in-process dictionary keyed by settings rather than a more explicit lifecycle-managed dependency graph.
+- Measurement: Warm requests avoid reinitialization, but every new worker process still pays the full registry/Qdrant/embedding startup cost once.
+- Cause: The code intentionally stopped at a small fail-closed cache instead of introducing a broader app-wide DI container.
+- Improvement path: If retrieval traffic grows, move backend creation into runtime startup and make the lifecycle explicit per host process.
 
 ## Fragile Areas
 
@@ -87,11 +82,11 @@
 
 ## Missing Critical Features
 
-**Audit/log sink is not hooked (`packages/supervisor-core/src/campus_supervisor_core/audit.py`, `apps/supervisor-api/src/campus_supervisor_api/app.py`):**
-- Problem: Although `handle_request` allows an `audit_sink`, `apps/supervisor-api.create_app` never wires one, so the audit log path from `ApiSettings.audit_log_path` is untouched and there is no persisted trace of request_id/trace_id/status combinations.
-- Current workaround: None; the only audit evidence exists inside unit tests.
-- Blocks: Compliance/ops teams cannot trace which corpus produced which response, making debugging or incident post-mortems difficult.
-- Implementation complexity: Low—implement a sink that appends newline-delimited JSON to `ApiSettings.audit_log_path` (or injects into structured logging) and pass it down to `handle_request`.
+**Audit/log pipeline stops at JSONL (`packages/supervisor-core/src/campus_supervisor_core/audit.py`, `apps/supervisor-api/src/campus_supervisor_api/api.py`):**
+- Problem: The API shell now writes audit records, but only to the configured local JSONL sink.
+- Current workaround: Consume the JSONL file directly during local verification and debugging.
+- Blocks: Centralized compliance monitoring, retention policy management, and cross-host audit search.
+- Implementation complexity: Low to medium—replace or wrap the current sink with structured log shipping or a managed audit store.
 
 **Ingestion orchestration and monitoring (`packages/ingestion-core/src/campus_ingestion_core` & `apps/ingestion-worker`) still manual:**
 - Problem: There is no scheduler, queue, or observability for ingestion jobs described in `docs/plans/agentic-rag-foundation.md`; helpers such as `submit_raw_ingestion_job` and `process_raw_ingestion_job` only work with CLI env vars and print JSON reports.
@@ -101,17 +96,17 @@
 
 ## Test Coverage Gaps
 
-**`apps/supervisor-api` lacks targeted tests:**
-- What's not tested: `build_routes`, `handle_answer`, `map_actor_context`, authorization failure modes, and the `SupervisorApiApp.handle` fallback behavior.
-- Risk: Authentication bugs or route regressions would reach production undetected.
-- Priority: High.
-- Difficulty to test: Low—existing workspace layout test already imports `campus_supervisor_api.create_app`; extend it with requests that exercise bad tokens, missing routes, and audit sink wiring.
-
-**`packages/ingestion-core` pipeline has no unit/integration tests:**
-- What's not tested: `index_chunks_to_qdrant`, `process_raw_ingestion_job`, object-store interactions, and the chunking/embedding helpers.
-- Risk: Any regression in chunking, registry writes, or object-store key generation will surface only during manual runs.
+**`apps/supervisor-api` test surface still skews toward route-level behavior:**
+- What's not fully stressed: broader runtime-host permutations, log sink failure handling across deployment environments, and more exhaustive auth-mode matrix coverage beyond the current API tests.
+- Risk: Host-specific regressions or environment-specific auth/audit integration issues may slip through even though the core API path is covered.
 - Priority: Medium.
-- Difficulty to test: Medium; existing mock helpers in `campus_ingestion_core` can be leveraged to build reproducible pipelines.
+- Difficulty to test: Medium; extend `tests/api/test_supervisor_api.py` with more environment-mode and sink-failure cases.
+
+**`packages/ingestion-core` still relies heavily on mocked integration coverage:**
+- What's not fully stressed: remote object-store, remote Qdrant, and live OCR interactions under realistic failure modes; most current tests validate logic with in-memory or patched adapters.
+- Risk: Infrastructure-specific regressions can still surface only during live rebuilds or shared-dev runs.
+- Priority: Medium.
+- Difficulty to test: Medium; add more live-contract smoke cases around cloud Qdrant/object-store interactions without making the main test suite flaky.
 
 **`campus_retrieval_core.service.retrieve_sources` default path is untested:**
 - What's not tested: the environment-backed path that builds `QdrantRetrievalBackend` inside `retrieve_sources`, so env parsing and error mapping in the default flow is not covered.
@@ -119,5 +114,5 @@
 - Priority: Medium.
 - Difficulty to test: Medium; add an integration test that sets `QDRANT_URL=:memory:` and exercises `retrieve_sources()` without injecting `backend`.
 
-*Concerns audit: 2026-03-23*
+*Concerns audit: 2026-03-28*
 *Update as issues are fixed or new ones discovered*

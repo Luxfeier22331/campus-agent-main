@@ -87,8 +87,11 @@ updated: 2026-03-27
 - `SPARSE_TOKENIZER`
 - `SPARSE_LANGUAGE`
 - `QDRANT_URL`
-- `QDRANT_COLLECTION`
 - `DOCUMENT_REGISTRY_DATABASE_URL`
+
+当前物理 Qdrant target 不再由单个全局 env 指定，而是由每个
+`configs/ingestion/<corpus>/<collection>/runtime-profile.json` 中的
+`qdrant_collection_name` 与 vector binding 字段声明。
 
 当前明显带 `student_handbook` 语义的 rebuild / migration 变量：
 
@@ -150,7 +153,7 @@ shared core 当前统一负责：
 
 当前 live / remote sparse 路径：
 
-- ingestion / rebuild 向 Qdrant 写入 named `dense` + named `sparse`
+- ingestion / rebuild 向 runtime profile 声明的 named dense / sparse vectors 写入
 - sparse live path 不再使用仓库内本地 tokenizer/hash 生成在线真相
 - remote Qdrant client 启用 `cloud_inference=True`
 - sparse query / sparse index payload 直接使用 `qdrant/bm25`

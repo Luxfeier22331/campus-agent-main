@@ -10,13 +10,42 @@ Evaluation helpers for campus-agent v2.
 - retrieval 数值指标所需的 ground truth 应独立维护为专用 qrels fixture，避免与 live 抽样验收样本混用
 - handbook live fixture 必须跟随当前 `regulations/student_handbook` 的真实 collection 边界收口；如果 handbook manifest 不再包含 ACL、`campus_scope`、服务导航页等真相，这些 case 不应继续留在 handbook fixture 中
 - `policy_title_exact_match` 与 `fixed_phrase_sparse_win` 类 live 样本必须至少能锚定到当前 handbook manifest 的标题关键词；相关 drift guard 由 `tests/evals/test_retrieval_benchmark.py` 覆盖
+- `ragas`、OpenAI graders 或其他 judge/scorer 只能作为 `packages/evals` 之后的 supplemental adapter，不得改写 canonical deterministic gate
 
 验证命令：
 
 - `uv run --all-packages python -m unittest tests.evals.test_golden_cases tests.evals.test_retrieval_benchmark`
+- `uv run --all-packages python -m unittest tests.evals.test_golden_cases tests.evals.test_retrieval_benchmark tests.evals.test_supplemental_adapters`
 
 retrieval benchmark CLI：
 
 - `uv run --all-packages python -m campus_evals.retrieval_benchmark --qrels packages/evals/fixtures/student_handbook_retrieval_qrels.json --results <run-results.json>`
 - `run-results.json` 输入形状为 `{"schema_version": 1, "cases": [{"case_id": "...", "retrieved_sources": [{"doc_id": "...", "version_id": "...", "chunk_id": "...", "score": 0.9}]}]}`
 - 默认输出 text summary；加 `--format json` 输出 aggregate 指标与 `by_split` 汇总
+
+supplemental adapter seam：
+
+- `run_cases(..., supplemental_adapters=(...,))` 可在 deterministic verdict 之外附加 report-only 评分
+- `campus_evals.ragas_adapter.build_ragas_projection()` 负责把仓库自有 `GoldenCase + ExecutionResult` 投影成 `ragas` 友好的 `user_input / response / retrieved_contexts / reference`
+- `campus_evals.ragas_adapter.RagasSupplementalAdapter` 只负责 supplemental 评分接线，不影响 `CaseResult.passed`
+- `RunReport.by_supplemental` 单独聚合 adapter 指标，和 `by_metric` 的 deterministic gate 分离
+
+ragas runtime：
+
+- `campus_evals.settings.RagasSettings.from_env()` 当前消费 `LLM_BASE_URL`、`LLM_API_KEY`、`RAGAS_LLM_MODEL`、`LLM_REASONING_MODEL`、`LLM_CHAT_MODEL`、`RAGAS_USE_RESPONSES_API`、`EMBEDDING_BASE_URL`、`EMBEDDING_API_KEY`、`EMBEDDING_MODEL`
+- ragas judge model 选择优先级固定为 `RAGAS_LLM_MODEL > LLM_REASONING_MODEL > LLM_CHAT_MODEL`
+- 默认运行面走 `build_http_ragas_llm()` + `build_http_ragas_embeddings()`，直接对 OpenAI-compatible `/responses` 与 `/embeddings` 发原生 HTTP 请求
+- 这样做的直接原因是：当前 provider 对原生 HTTP `Responses API` 可用，但会阻断 OpenAI Python SDK / LangChain transport；因此 LangChain 兼容 helper 只保留在内部测试模块 `campus_evals._langchain_compat`，不再作为默认或公开 runtime surface
+- `RAGAS_USE_RESPONSES_API` 仍保留在 settings 中，用于 LangChain compatibility helper 的回归测试；默认值仍为 `true`
+- `Qwen3-Embedding-4B` 未显式配置 `EMBEDDING_DIMENSIONS` 时，eval 侧默认补成 `2560`
+- pinned `ragas==0.4.3` 当前通过 `ragas.evaluate(...)` + legacy metric objects 执行真实评分；默认 scorer 现在直接接 `BaseRagasLLM` / `BaseRagasEmbeddings` 的原生 HTTP 实现
+- `uv run` 不会自动读取 `.env`；本地运行前需先 `set -a && source .env && set +a`
+
+最小 smoke：
+
+- `set -a && source .env && set +a && env UV_CACHE_DIR=/tmp/uv-cache uv run --package campus-evals python - <<'PY'`
+- `from campus_evals import RagasProjection, RagasSettings, build_ragas_scorer`
+- `settings = RagasSettings.from_env()`
+- `scorer = build_ragas_scorer(settings)`
+- `print(scorer(RagasProjection(case_id="smoke", user_input="学校图书馆开放时间是什么？", response="图书馆开放时间为 08:00 到 22:00。", retrieved_contexts=("图书馆开放时间为 08:00-22:00。",), reference="图书馆开放时间为 08:00-22:00。")))`
+- `PY`

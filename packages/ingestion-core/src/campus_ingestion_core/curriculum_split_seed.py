@@ -6,12 +6,14 @@ import json
 from pathlib import Path
 import re
 from typing import Mapping, Sequence
-import unicodedata
 
+from campus_ingestion_core.curriculum_title_normalization import (
+    canonicalize_curriculum_manifest_heading,
+    normalize_curriculum_title_for_match,
+)
 from campus_ingestion_core.split_manifest import SplitManifest, SplitManifestDocument
 
 _PAGES_SPAN_PATTERN = re.compile(r"(?P<start>\d+)-(?P<end>\d+)")
-_TRAILING_EDITION_SUFFIX_PATTERN = re.compile(r"\(\s*20\d{2}\s*版\s*\)$")
 _LEGACY_RETIRED_DOCUMENT_REASONS = {
     "plan:78d25a2033e93fc5940e2d10648ae2d7e887cb74": "legacy_synthetic_umbrella_title",
 }
@@ -84,6 +86,7 @@ def build_manifest_document_rows(
         _transform_split_row(
             row=row,
             document_id=manifest_document.document_id,
+            manifest_title=manifest_document.title,
             version_id=version_id,
             source_pdf=source_pdf,
             source_uri=source_uri,
@@ -298,12 +301,7 @@ def _build_title_to_candidate_pages(structured_rows: Sequence[Mapping[str, objec
 
 
 def _normalize_split_title(value: str) -> str:
-    normalized = unicodedata.normalize("NFKC", value).strip()
-    if not normalized:
-        return ""
-    normalized = " ".join(normalized.split())
-    normalized = _TRAILING_EDITION_SUFFIX_PATTERN.sub("", normalized).strip()
-    return normalized
+    return normalize_curriculum_title_for_match(value)
 
 
 def _resolve_legacy_document_retirement_reason(document: LegacyCurriculumDocument) -> str | None:
@@ -351,6 +349,7 @@ def _transform_split_row(
     *,
     row: Mapping[str, object],
     document_id: str,
+    manifest_title: str,
     version_id: str,
     source_pdf: str,
     source_uri: str,
@@ -359,6 +358,11 @@ def _transform_split_row(
     clean_text = _row_text(row)
     if not clean_text:
         raise ValueError("split-manifest source row is missing normalized text")
+    clean_text = canonicalize_curriculum_manifest_heading(
+        row=row,
+        clean_text=clean_text,
+        manifest_title=manifest_title,
+    )
     page_start = int(row["page_start"])
     page_end = int(row["page_end"])
     projected = {

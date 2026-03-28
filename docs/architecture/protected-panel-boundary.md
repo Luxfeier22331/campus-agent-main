@@ -39,6 +39,7 @@ future panel 的允许形态固定为：
 
 - panel 不是 public answer entry 的变体。
 - panel may call runtime APIs only。
+- panel 当前 canonical request read path 是 `apps/app-api`，而不是 `apps/supervisor-api`。
 - panel must not bypass `apps/app-api` 或其他受控 runtime boundary 直接触达 `packages/*`。
 - panel 必须保持 non-public by default；任何失去上层保护条件的场景都应 fail-closed。
 - 外层 protected access 命中后，origin 仍需校验签名访问断言，而不是把 upstream allow 当作最终授权完成。
@@ -86,6 +87,9 @@ panel 的允许交互路径固定如下：
 - panel 的 forward web-surface 名称固定为 `apps/protected-panel-web`。
 - panel 只能消费 runtime APIs，不能 import `packages/supervisor-core`、`packages/contracts`、`packages/rag-specialist` 或 retrieval internals 作为直连后门。
 - panel 发起的任何请求都 must not bypass shared `app-api` boundary。
+- panel 发起 request visibility 查询时，不得把 `apps/supervisor-api` 当作列表/详情读取面。
+- panel 不承担 auth/session/conversation backend；这些进入 shared `apps/app-api`。
+- panel 不得把 consumer chat conversation store、raw audit logs 或 telemetry sinks 当作 canonical request truth。
 - 如果需要读写内部能力，必须通过受控 runtime API surface，而不是把 package internals 暴露给前端或 panel server。
 - panel runtime 不把 Cloudflare Access identity header 直接当成业务授权结论；origin admission 与 app-layer authorization 仍然是 repo-owned runtime concern。
 

@@ -98,7 +98,7 @@ class QdrantRetrievalBackend:
         profile = load_runtime_profile(request.corpus, request.collection)
         if not profile.retrieval_enabled:
             raise CorpusQueryDisabledError(
-                f"{request.corpus}/{request.collection} retrieval is disabled in phase-1"
+                f"{request.corpus}/{request.collection} retrieval is disabled by runtime profile"
             )
         query_text = request.query_text.strip()
         if not query_text:
@@ -107,7 +107,8 @@ class QdrantRetrievalBackend:
                 corpus=request.corpus,
                 collection=request.collection,
             )
-        if not self.qdrant_client.collection_exists(self.settings.qdrant_collection):
+        qdrant_collection_name = profile.qdrant_index_binding.collection_name
+        if not self.qdrant_client.collection_exists(qdrant_collection_name):
             return EvidenceBundle(
                 query_text=request.query_text,
                 corpus=request.corpus,
@@ -117,7 +118,7 @@ class QdrantRetrievalBackend:
         try:
             dense_query_embedding = self._get_dense_query_embedding(query_text)
             response = self.qdrant_client.query_points(
-                collection_name=self.settings.qdrant_collection,
+                collection_name=qdrant_collection_name,
                 prefetch=_build_hybrid_prefetch(
                     request=request,
                     profile=profile,
@@ -233,7 +234,7 @@ def _build_hybrid_prefetch(
     prefetch = [
         qdrant_models.Prefetch(
             query=list(dense_query_embedding or embedding_model.get_query_embedding(query_text)),
-            using="dense",
+            using=profile.qdrant_index_binding.dense_vector_name,
             filter=query_filter,
             limit=limit,
         )
@@ -243,7 +244,7 @@ def _build_hybrid_prefetch(
         prefetch.append(
             qdrant_models.Prefetch(
                 query=sparse_query,
-                using="sparse",
+                using=profile.qdrant_index_binding.sparse_vector_name,
                 filter=query_filter,
                 limit=limit,
             )

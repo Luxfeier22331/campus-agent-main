@@ -1,6 +1,6 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-03-23
+**Analysis Date:** 2026-03-28
 
 ## Directory Layout
 
@@ -13,8 +13,13 @@
 │   └── ingestion-worker/      # Ingestion shells (`src/campus_ingestion_worker/`)
 ├── configs/                  # Static corpus/runtime profiles for ingestion
 │   └── ingestion/
-│       ├── curriculum_plan/
-│       └── student_handbook/
+│       ├── campus_services/
+│       │   ├── contact_directory/
+│       │   └── service_catalog/
+│       ├── curriculum/
+│       │   └── curriculum_plan/
+│       └── regulations/
+│           └── student_handbook/
 ├── docs/                     # Architecture, decisions, and planning references
 │   ├── architecture/
 │   ├── decisions/
@@ -51,9 +56,9 @@
 
 **configs/**
 - Purpose: housing per-corpus runtime profiles consumed by retrieval and ingestion code.
-- Contains: `configs/ingestion/<corpus>/runtime-profile.json`.
-- Key files: JSON profiles that `packages/ingestion-core/src/campus_ingestion_core/corpus_profiles.py` loads to enforce `retrieval_enabled` and allowed artifact modes.
-- Subdirectories: one per corpus (`student_handbook`, `curriculum_plan`); extend here when adding new corpora or phases.
+- Contains: `configs/ingestion/<corpus>/<collection>/runtime-profile.json`.
+- Key files: collection-level JSON profiles that `packages/ingestion-core/src/campus_ingestion_core/corpus_profiles.py` loads to enforce `serving_stage`, `retrieval_enabled`, `query_enabled_by_default`, and allowed artifact modes.
+- Subdirectories: one corpus directory containing one or more collection directories; extend at the collection boundary rather than flattening corpus and collection together.
 
 **docs/**
 - Purpose: persistent architecture, decision, and plan references (`README.md`, `docs/architecture/*.md`, `docs/decisions/*.md`, `docs/plans/*.md`).

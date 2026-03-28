@@ -263,15 +263,7 @@ class PostgresDocumentRegistry:
                 cursor.execute(
                     f"update {self.table_name} set collection = coalesce(nullif(record->>'collection', ''), collection, '')"
                 )
-                cursor.execute(
-                    f"update {self.table_name} set collection = case corpus "
-                    "when 'regulations' then coalesce(nullif(record->>'collection', ''), 'student_handbook') "
-                    "when 'curriculum' then coalesce(nullif(record->>'collection', ''), 'curriculum_plan') "
-                    "when 'student_handbook' then 'student_handbook' "
-                    "when 'curriculum_plan' then 'curriculum_plan' "
-                    "else collection end "
-                    "where collection is null or collection = ''"
-                )
+                _require_explicit_collection_column(cursor=cursor, table_name=self.table_name)
                 cursor.execute(f"alter table {self.table_name} alter column revision_track set not null")
                 cursor.execute(f"alter table {self.table_name} alter column collection set not null")
                 cursor.execute(
@@ -468,15 +460,7 @@ class PostgresRawAssetRegistry:
                 cursor.execute(
                     f"update {self.table_name} set collection = coalesce(nullif(record->>'collection', ''), collection, '')"
                 )
-                cursor.execute(
-                    f"update {self.table_name} set collection = case corpus "
-                    "when 'regulations' then coalesce(nullif(record->>'collection', ''), 'student_handbook') "
-                    "when 'curriculum' then coalesce(nullif(record->>'collection', ''), 'curriculum_plan') "
-                    "when 'student_handbook' then 'student_handbook' "
-                    "when 'curriculum_plan' then 'curriculum_plan' "
-                    "else collection end "
-                    "where collection is null or collection = ''"
-                )
+                _require_explicit_collection_column(cursor=cursor, table_name=self.table_name)
                 cursor.execute(f"alter table {self.table_name} alter column collection set not null")
                 cursor.execute(
                     f"""
@@ -555,6 +539,19 @@ def _coerce_json_payload(value: object) -> dict[str, object]:
     raise TypeError(f"unexpected registry payload type: {type(value)!r}")
 
 
+def _require_explicit_collection_column(*, cursor, table_name: str) -> None:
+    cursor.execute(
+        f"select count(*) from {table_name} where collection is null or btrim(collection) = ''"
+    )
+    row = cursor.fetchone()
+    missing_count = int(row[0]) if row is not None else 0
+    if missing_count > 0:
+        raise RuntimeError(
+            f"{table_name} contains {missing_count} legacy rows without explicit collection; "
+            "migrate registry records to canonical corpus + collection before startup"
+        )
+
+
 def _document_record_from_dict(raw: dict[str, object]) -> DocumentRegistryRecord:
     revision_track = str(raw.get("revision_track") or "source-faithful")
     processed_object_keys = tuple(str(item) for item in list(raw.get("processed_object_keys") or []))
@@ -577,7 +574,7 @@ def _document_record_from_dict(raw: dict[str, object]) -> DocumentRegistryRecord
     raw_asset = None
     if isinstance(raw_asset_payload, dict):
         raw_asset = _raw_asset_ref_from_dict(raw_asset_payload)
-    source_channel = str(raw.get("source_channel") or _infer_legacy_source_channel(raw))
+    source_channel = _required_registry_text(raw, "source_channel")
     source_uri = str(raw["source_uri"])
     source_observations = _source_observations_from_raw(
         raw=raw,
@@ -592,11 +589,8 @@ def _document_record_from_dict(raw: dict[str, object]) -> DocumentRegistryRecord
         version_id=str(raw["version_id"]),
         source_uri=source_uri,
         content_hash=str(raw["content_hash"]),
-        corpus=_normalize_registry_corpus(str(raw["corpus"])),
-        collection=_normalize_registry_collection(
-            raw_collection=str(raw.get("collection") or ""),
-            raw_corpus=str(raw["corpus"]),
-        ),
+        corpus=_required_registry_text(raw, "corpus"),
+        collection=_required_registry_text(raw, "collection"),
         cleaning_policy_version=str(raw.get("cleaning_policy_version") or ""),
         acl_groups=tuple(str(item) for item in list(raw.get("acl_groups") or [])),
         campus_scope=str(raw["campus_scope"]) if raw.get("campus_scope") is not None else None,
@@ -626,11 +620,8 @@ def _raw_asset_record_from_dict(raw: dict[str, object]) -> RawAssetRecord:
     return RawAssetRecord(
         raw_asset_id=str(raw["raw_asset_id"]),
         raw_version_id=str(raw["raw_version_id"]),
-        corpus=_normalize_registry_corpus(str(raw["corpus"])),
-        collection=_normalize_registry_collection(
-            raw_collection=str(raw.get("collection") or ""),
-            raw_corpus=str(raw["corpus"]),
-        ),
+        corpus=_required_registry_text(raw, "corpus"),
+        collection=_required_registry_text(raw, "collection"),
         raw_source_uri=str(raw["raw_source_uri"]),
         content_hash=str(raw["content_hash"]),
         source_filename=str(raw["source_filename"]),
@@ -696,28 +687,8 @@ def _source_observations_from_raw(
     return tuple(observations)
 
 
-def _infer_legacy_source_channel(raw: dict[str, object]) -> str:
-    if raw.get("raw_asset") is not None:
-        return "pdf_ocr"
-    import_source = str(raw.get("import_source") or "")
-    if import_source in {"raw_online_ocr", "provider_response_replay"}:
-        return "pdf_ocr"
-    return "manual_curated"
-
-
-def _normalize_registry_corpus(raw_corpus: str) -> str:
-    if raw_corpus == "student_handbook":
-        return "regulations"
-    if raw_corpus == "curriculum_plan":
-        return "curriculum"
-    return raw_corpus
-
-
-def _normalize_registry_collection(*, raw_collection: str, raw_corpus: str) -> str:
-    if raw_collection:
-        return raw_collection
-    if raw_corpus in {"student_handbook", "regulations"}:
-        return "student_handbook"
-    if raw_corpus in {"curriculum_plan", "curriculum"}:
-        return "curriculum_plan"
-    return "unknown"
+def _required_registry_text(raw: dict[str, object], field_name: str) -> str:
+    value = raw.get(field_name)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"registry payload is missing required {field_name}")
+    return value.strip()

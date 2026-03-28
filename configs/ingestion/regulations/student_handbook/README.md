@@ -3,7 +3,7 @@
 This directory holds the repo-tracked config scaffolding for the `student_handbook`
 collection within the `regulations` corpus.
 
-- `runtime-profile.json`: canonical phase-1 runtime truth for ingestion/query gating
+- `runtime-profile.json`: canonical runtime truth for ingestion/query gating
 - `split-manifest.v1.json`: repo-tracked scaffold for handbook logical document boundaries
 - `canonical-profile.json`: canonical identity and metadata truth for handbook documents
 - `chunk-profile.json`: chunking/runtime profile record for handbook document-level `document-units.jsonl`
@@ -16,7 +16,7 @@ Stable handbook-specific policy docs:
 The primary handbook input is source-bucket `provider-response.jsonl`.
 `layout-elements.jsonl` is the only source-truth artifact before document splitting.
 Each cleaned document then emits `canonical.md` and `document-units.jsonl` before chunking.
-Phase-1 OCR ingestion stores document-level artifacts under `regulations/documents/student_handbook/{title_slug}--{docid8}/{revision_track}/{year}/...`.
+Current OCR ingestion stores document-level artifacts under `regulations/documents/student_handbook/{title_slug}--{docid8}/{revision_track}/{year}/...`.
 The canonical replay source filename is `学生手册_2018.pdf`.
 The handbook split truth only keeps regulations-facing logical documents. Non-regulation
 service/navigation pages are derived into the offline-only `campus_services` taxonomy

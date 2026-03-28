@@ -27,12 +27,34 @@ from campus_evals.models import (
     GraderPolicy,
     ObservedTrace,
     RunReport,
+    SupplementalMetricSummary,
+    SupplementalResult,
     SummaryCount,
     TraceExpectation,
     expected_source_ref,
 )
+from campus_evals.ragas_http import (
+    OpenAICompatibleHTTPEmbeddings,
+    OpenAICompatibleResponsesLLM,
+    build_http_ragas_embeddings,
+    build_http_ragas_llm,
+)
+from campus_evals.ragas_adapter import (
+    RagasProjection,
+    RagasSupplementalAdapter,
+    build_default_ragas_metric_names,
+    build_ragas_dataset,
+    build_ragas_projection,
+    build_ragas_scorer,
+    build_ragas_supplemental_adapter_from_env,
+)
 from campus_evals.runner import run_cases
-from campus_evals.scenarios import student_handbook_smoke_cases
+from campus_evals.scenarios import (
+    handbook_error_gate_cases,
+    handbook_release_gate_cases,
+    handbook_smoke_cases,
+)
+from campus_evals.settings import RagasSettings
 
 __all__ = [
     "CaseResult",
@@ -42,6 +64,8 @@ __all__ = [
     "GoldenCase",
     "GraderPolicy",
     "ObservedTrace",
+    "OpenAICompatibleHTTPEmbeddings",
+    "OpenAICompatibleResponsesLLM",
     "RetrievalBenchmarkRun",
     "RetrievalCaseMetrics",
     "RetrievalHybridQueryCase",
@@ -52,8 +76,20 @@ __all__ = [
     "RetrievalQrelsDataset",
     "RetrievalQrelsSourceRef",
     "RunReport",
+    "RagasProjection",
+    "RagasSettings",
+    "RagasSupplementalAdapter",
     "SummaryCount",
+    "SupplementalMetricSummary",
+    "SupplementalResult",
     "TraceExpectation",
+    "build_default_ragas_metric_names",
+    "build_http_ragas_embeddings",
+    "build_http_ragas_llm",
+    "build_ragas_dataset",
+    "build_ragas_projection",
+    "build_ragas_scorer",
+    "build_ragas_supplemental_adapter_from_env",
     "evaluate_retrieval_case",
     "evaluate_retrieval_run",
     "evaluate_case",
@@ -63,7 +99,9 @@ __all__ = [
     "load_retrieval_qrels_dataset",
     "render_retrieval_summary_text",
     "run_cases",
-    "student_handbook_smoke_cases",
+    "handbook_error_gate_cases",
+    "handbook_release_gate_cases",
+    "handbook_smoke_cases",
     "summarize_retrieval_metrics",
     "validate_retrieval_hybrid_query_fixture",
 ]

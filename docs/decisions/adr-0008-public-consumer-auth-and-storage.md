@@ -1,12 +1,14 @@
 ---
 doc_type: decision
 decision_id: ADR-0008
-status: accepted
+status: superseded
 created: 2026-03-26
-updated: 2026-03-26
+updated: 2026-03-28
 ---
 
 # ADR-0008 Public Consumer Chat 用户系统与存储决策
+
+Superseded on 2026-03-28 by `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`.
 
 适用范围：`apps/public-consumer-chat` 第一版用户系统、会话存储与 conversation persistence
 

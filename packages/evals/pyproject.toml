@@ -4,7 +4,11 @@ version = "0.1.0"
 description = "Evaluation helpers for campus-agent v2."
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["campus-contracts"]
+dependencies = [
+    "campus-contracts",
+    "httpx>=0.28.1",
+    "ragas>=0.4.3",
+]
 
 [tool.uv]
 package = true

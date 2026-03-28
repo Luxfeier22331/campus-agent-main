@@ -34,7 +34,7 @@ Accepted on 2026-03-28.
 1. `apps/public-chat-web` 作为 public chat 的 Worker 前端。
 2. `apps/protected-panel-web` 作为 protected panel 的 Worker 前端。
 3. `apps/app-api` 作为 shared application backend。
-4. `apps/app-api` 接管 auth、session、conversation、chat ingress、request ledger / projection input 与 operator query。
+4. `apps/app-api` 接管 auth、session、conversation、chat ingress、request ledger / projection input、审计入口、指标记录与 operator query。
 5. `apps/supervisor-api` 退为 execution engine，不再承担产品层 auth/session/conversation 或 panel 查询 API。
 
 ## 边界约束
@@ -63,4 +63,5 @@ Accepted on 2026-03-28.
 
 - `docs/decisions/adr-0008-public-consumer-auth-and-storage.md`
 - `docs/decisions/adr-0009-public-consumer-frontend-host.md`
+- `docs/decisions/adr-0011-operator-query-api-and-request-projection.md`
 - the earlier `operator-query-api` split-backend direction; forward request-projection ownership is now recorded in `docs/decisions/adr-0014-app-api-request-projection-and-panel-query-ownership.md`

@@ -41,6 +41,7 @@ def build_curriculum_structured_units(
     table_groups = _group_table_rows(rows)
     emitted_table_groups: set[str] = set()
     heading_stack: list[tuple[int, str]] = []
+    heading_stack_history: dict[str, list[tuple[int, str]]] = {}
     narrative_rows: list[dict[str, object]] = []
     units: list[DerivedStructuredUnit] = []
 
@@ -52,23 +53,29 @@ def build_curriculum_structured_units(
             if narrative_rows:
                 narrative_rows, table_lead_in_rows = _split_table_lead_in_rows(narrative_rows)
                 if narrative_rows:
-                    units.append(
-                        _build_section_unit(narrative_rows=narrative_rows, section_path=_section_path(heading_stack))
-                    )
+                    if _should_emit_heading_residual_section_unit(
+                        narrative_rows=narrative_rows,
+                        lead_in_rows=tuple(table_lead_in_rows),
+                    ):
+                        units.append(
+                            _build_section_unit(narrative_rows=narrative_rows, section_path=_section_path(heading_stack))
+                        )
                     narrative_rows = []
+            effective_heading_stack = _trim_heading_stack_for_absorbed_table_lead_ins(
+                heading_stack=heading_stack,
+                lead_in_rows=tuple(table_lead_in_rows),
+                heading_stack_history=heading_stack_history,
+            )
             if group_id not in emitted_table_groups:
                 units.append(
                     _build_table_unit(
                         table_groups[group_id],
-                        section_path=_section_path(heading_stack),
+                        section_path=_section_path(effective_heading_stack),
                         lead_in_rows=tuple(table_lead_in_rows),
                     )
                 )
                 emitted_table_groups.add(group_id)
-            heading_stack = _trim_heading_stack_for_absorbed_table_lead_ins(
-                heading_stack=heading_stack,
-                lead_in_rows=tuple(table_lead_in_rows),
-            )
+            heading_stack = effective_heading_stack
             continue
 
         if row_type in {"page_number", "image", "footer"}:
@@ -81,9 +88,11 @@ def build_curriculum_structured_units(
             if heading_level is None:
                 raise ValueError("curriculum structured row_type=heading requires heading_level in document-units")
             heading_text = str(row.get("clean_text") or "").strip()
+            previous_heading_stack = list(heading_stack)
             heading_stack = [item for item in heading_stack if item[0] < heading_level]
             if heading_text:
                 heading_stack.append((heading_level, heading_text))
+                heading_stack_history[_row_id(row)] = previous_heading_stack
             narrative_rows.append(row)
             continue
         if row_type in {"paragraph", "note"}:
@@ -107,7 +116,10 @@ def chunk_curriculum_unit(
             unit=StructuredUnitChunkInput(unit_type=unit.unit_type, root_unit_id=unit.root_unit_id, text=unit.text),
             chunk_profile=chunk_profile,
         )
-        return tuple(_repair_curriculum_section_piece_context(piece=piece, unit=unit) for piece in pieces)
+        return tuple(
+            _repair_curriculum_piece_context(piece=piece, unit=unit, chunk_profile=chunk_profile)
+            for piece in pieces
+        )
 
     header_line = str(unit.metadata.get("table_header_line") or "").strip()
     row_lines = tuple(str(item).strip() for item in list(unit.metadata.get("table_row_lines") or []) if str(item).strip())
@@ -115,26 +127,38 @@ def chunk_curriculum_unit(
     note_lines = tuple(str(item).strip() for item in list(unit.metadata.get("note_lines") or []) if str(item).strip())
     if not row_lines:
         text = _serialize_table_chunk(caption_lines=caption_lines, header_line=header_line, row_lines=(), note_lines=note_lines)
-        return (SemanticChunkPiece(unit_type=unit.unit_type, root_unit_id=unit.root_unit_id, text=text),)
+        piece = SemanticChunkPiece(unit_type=unit.unit_type, root_unit_id=unit.root_unit_id, text=text)
+        return (_repair_curriculum_piece_context(piece=piece, unit=unit, chunk_profile=chunk_profile),)
 
     prefix_lines = [*caption_lines]
     if header_line:
         prefix_lines.append(header_line)
     prefix_lines.extend(note_lines)
-    prefix_token_count = estimate_token_count("\n".join(prefix_lines))
+    context_reserve_tokens = _estimate_curriculum_table_context_reserve_tokens(
+        unit=unit,
+        caption_lines=caption_lines,
+        chunk_profile=chunk_profile,
+    )
+    effective_max_tokens = max(
+        chunk_profile.min_chunk_size,
+        chunk_profile.max_chunk_size - context_reserve_tokens,
+    )
     windows: list[list[str]] = []
     current_rows: list[str] = []
-    current_tokens = prefix_token_count
 
     for row_line in row_lines:
-        row_tokens = estimate_token_count(row_line)
-        if current_rows and current_tokens + row_tokens > chunk_profile.max_chunk_size:
+        candidate_rows = [*current_rows, row_line]
+        candidate_text = _serialize_table_chunk(
+            caption_lines=caption_lines,
+            header_line=header_line,
+            row_lines=tuple(candidate_rows),
+            note_lines=note_lines,
+        )
+        if current_rows and estimate_token_count(candidate_text, chunk_profile=chunk_profile) > effective_max_tokens:
             windows.append(current_rows)
             current_rows = [row_line]
-            current_tokens = prefix_token_count + row_tokens
             continue
         current_rows.append(row_line)
-        current_tokens += row_tokens
 
     if current_rows:
         windows.append(current_rows)
@@ -146,22 +170,27 @@ def chunk_curriculum_unit(
             row_lines=tuple(windows[0]),
             note_lines=note_lines,
         )
-        return (SemanticChunkPiece(unit_type=unit.unit_type, root_unit_id=unit.root_unit_id, text=text),)
+        piece = SemanticChunkPiece(unit_type=unit.unit_type, root_unit_id=unit.root_unit_id, text=text)
+        return (_repair_curriculum_piece_context(piece=piece, unit=unit, chunk_profile=chunk_profile),)
 
     total = len(windows)
     return tuple(
-        SemanticChunkPiece(
-            unit_type=unit.unit_type,
-            root_unit_id=unit.root_unit_id,
-            text=_serialize_table_chunk(
-                caption_lines=caption_lines,
-                header_line=header_line,
-                row_lines=tuple(window_rows),
-                note_lines=note_lines,
+        _repair_curriculum_piece_context(
+            piece=SemanticChunkPiece(
+                unit_type=unit.unit_type,
+                root_unit_id=unit.root_unit_id,
+                text=_serialize_table_chunk(
+                    caption_lines=caption_lines,
+                    header_line=header_line,
+                    row_lines=tuple(window_rows),
+                    note_lines=note_lines,
+                ),
+                segment_index=index,
+                segment_total=total,
+                split_reason="table_row_window",
             ),
-            segment_index=index,
-            segment_total=total,
-            split_reason="table_row_window",
+            unit=unit,
+            chunk_profile=chunk_profile,
         )
         for index, window_rows in enumerate(windows, start=1)
     )
@@ -522,38 +551,33 @@ def _extract_short_table_intro_rows(narrative_rows: list[dict[str, object]]) -> 
     return [heading_row, paragraph_row]
 
 
-def _repair_curriculum_section_piece_context(
+def _repair_curriculum_piece_context(
     *,
     piece: SemanticChunkPiece,
     unit: DerivedStructuredUnit,
+    chunk_profile: ChunkProfile,
 ) -> SemanticChunkPiece:
-    if unit.unit_type != "section_text":
+    if unit.unit_type not in {"section_text", "table_unit"}:
         return piece
     section_path = [
         str(item).strip()
         for item in list(unit.anchor.get("section_path") or [])
         if str(item).strip()
     ]
-    if len(section_path) < 2:
+    if not section_path:
         return piece
-    current_heading = section_path[-1]
-    parent_heading = section_path[-2]
-    if not current_heading or not parent_heading:
-        return piece
-    lines = [line.strip() for line in piece.text.splitlines() if line.strip()]
-    if not lines:
-        return piece
-    first_line = lines[0]
-    if first_line != current_heading:
-        return piece
-    if piece.text.startswith(parent_heading):
-        return piece
-    if not _looks_like_subsection_heading(current_heading):
+    repaired_text = _build_curriculum_contextual_text(
+        unit_type=unit.unit_type,
+        section_path=section_path,
+        piece_text=piece.text,
+        chunk_profile=chunk_profile,
+    )
+    if not repaired_text or repaired_text == piece.text.strip():
         return piece
     return SemanticChunkPiece(
         unit_type=piece.unit_type,
         root_unit_id=piece.root_unit_id,
-        text=f"{parent_heading}\n\n{piece.text}".strip(),
+        text=repaired_text,
         segment_index=piece.segment_index,
         segment_total=piece.segment_total,
         split_reason=piece.split_reason,
@@ -561,14 +585,33 @@ def _repair_curriculum_section_piece_context(
     )
 
 
+def _should_emit_heading_residual_section_unit(
+    *,
+    narrative_rows: list[dict[str, object]],
+    lead_in_rows: tuple[dict[str, object], ...],
+) -> bool:
+    if not narrative_rows:
+        return False
+    if not lead_in_rows:
+        return True
+    if _narrative_has_body_rows(narrative_rows):
+        return True
+    return not all(str(row.get("row_type") or "") == "heading" for row in narrative_rows)
+
+
 def _trim_heading_stack_for_absorbed_table_lead_ins(
     *,
     heading_stack: list[tuple[int, str]],
     lead_in_rows: tuple[dict[str, object], ...],
+    heading_stack_history: dict[str, list[tuple[int, str]]],
 ) -> list[tuple[int, str]]:
     trimmed = list(heading_stack)
-    for row in lead_in_rows:
+    for row in reversed(lead_in_rows):
         if str(row.get("row_type") or "") != "heading":
+            continue
+        prior_stack = heading_stack_history.get(_row_id(row))
+        if prior_stack is not None:
+            trimmed = list(prior_stack)
             continue
         heading_text = str(row.get("clean_text") or "").strip()
         if not heading_text or not trimmed:
@@ -586,6 +629,167 @@ def _looks_like_subsection_heading(text: str) -> bool:
         re.match(r"^[（(][一二三四五六七八九十]+[)）]", normalized)
         or re.match(r"^[（(]?\d+[)）.、]", normalized)
     )
+
+
+def _looks_like_curriculum_structure_heading(text: str) -> bool:
+    normalized = text.strip()
+    if not normalized:
+        return False
+    return bool(
+        re.match(r"^[一二三四五六七八九十]+、", normalized)
+        or _looks_like_subsection_heading(normalized)
+        or re.match(r"^第[一二三四五六七八九十百千万〇零两0-9]+[章节部分]", normalized)
+    )
+
+
+def _select_curriculum_context_prefix_lines(
+    *,
+    section_path: list[str],
+    piece_text: str,
+    chunk_profile: ChunkProfile,
+) -> list[str]:
+    contextual_text = _build_curriculum_contextual_text(
+        unit_type="section_text",
+        section_path=section_path,
+        piece_text=piece_text,
+        chunk_profile=chunk_profile,
+    )
+    if contextual_text == piece_text.strip():
+        return []
+    piece_lines = [line.strip() for line in piece_text.splitlines() if line.strip()]
+    contextual_lines = [line.strip() for line in contextual_text.splitlines() if line.strip()]
+    if len(contextual_lines) <= len(piece_lines):
+        return []
+    return contextual_lines[:-len(piece_lines)]
+
+
+def _build_curriculum_contextual_text(
+    *,
+    unit_type: str,
+    section_path: list[str],
+    piece_text: str,
+    chunk_profile: ChunkProfile,
+) -> str:
+    structural_path = [item for item in section_path if item]
+    if len(structural_path) > 1 and not _looks_like_curriculum_structure_heading(structural_path[0]):
+        structural_path = structural_path[1:]
+    if not structural_path:
+        return piece_text.strip()
+    piece_lines = [line.strip() for line in piece_text.splitlines() if line.strip()]
+    if not piece_lines:
+        return piece_text.strip()
+    if len(structural_path) == 1:
+        only_heading = structural_path[0]
+        if any(line == only_heading for line in piece_lines):
+            return piece_text.strip()
+        candidate_text = "\n\n".join([only_heading, piece_text.strip()]).strip()
+        if estimate_token_count(candidate_text, chunk_profile=chunk_profile) <= chunk_profile.max_chunk_size:
+            return candidate_text
+        return piece_text.strip()
+    heading_prefix = _leading_curriculum_heading_lines(piece_lines, structural_path=structural_path)
+    if heading_prefix == structural_path:
+        return piece_text.strip()
+    content_lines = piece_lines[len(heading_prefix):] if heading_prefix else piece_lines
+    content_text = "\n".join(content_lines).strip()
+    if not content_text:
+        return piece_text.strip()
+    prefix_variants = _curriculum_context_prefix_variants(structural_path)
+    for candidate_prefix in prefix_variants:
+        candidate_text = "\n\n".join([*candidate_prefix, content_text]).strip()
+        if estimate_token_count(candidate_text, chunk_profile=chunk_profile) <= chunk_profile.max_chunk_size:
+            return candidate_text
+    if unit_type != "table_unit":
+        return piece_text.strip()
+    compact_lines = [line for line in content_lines if not _is_table_cue_row(line)]
+    if len(compact_lines) == len(content_lines):
+        return piece_text.strip()
+    compact_text = "\n".join(compact_lines).strip()
+    for candidate_prefix in prefix_variants:
+        candidate_text = "\n\n".join([*candidate_prefix, compact_text]).strip()
+        if estimate_token_count(candidate_text, chunk_profile=chunk_profile) <= chunk_profile.max_chunk_size:
+            return candidate_text
+    return piece_text.strip()
+
+
+def _leading_curriculum_heading_lines(
+    lines: list[str],
+    *,
+    structural_path: list[str] | None = None,
+) -> list[str]:
+    prefix: list[str] = []
+    expected_prefix = list(structural_path or [])
+    for line in lines:
+        if not _looks_like_curriculum_structure_heading(line):
+            break
+        if expected_prefix and len(prefix) < len(expected_prefix) and line != expected_prefix[len(prefix)]:
+            break
+        prefix.append(line)
+    return prefix
+
+
+def _curriculum_context_prefix_variants(structural_path: list[str]) -> list[list[str]]:
+    variants: list[list[str]] = []
+    _append_unique_curriculum_prefix_variant(variants, structural_path)
+    if len(structural_path) > 2:
+        _append_unique_curriculum_prefix_variant(variants, [structural_path[0], structural_path[-1]])
+    if len(structural_path) > 1:
+        _append_unique_curriculum_prefix_variant(variants, [structural_path[0]])
+    for index in range(1, len(structural_path)):
+        _append_unique_curriculum_prefix_variant(variants, structural_path[index:])
+    return variants
+
+
+def _estimate_curriculum_table_context_reserve_tokens(
+    *,
+    unit: DerivedStructuredUnit,
+    caption_lines: tuple[str, ...],
+    chunk_profile: ChunkProfile,
+) -> int:
+    required_lines = _required_curriculum_table_context_lines(
+        section_path=[
+            str(item).strip()
+            for item in list(unit.anchor.get("section_path") or [])
+            if str(item).strip()
+        ],
+        caption_lines=caption_lines,
+    )
+    if not required_lines:
+        return 0
+    return estimate_token_count("\n\n".join(required_lines), chunk_profile=chunk_profile) + (2 * len(required_lines))
+
+
+def _required_curriculum_table_context_lines(
+    *,
+    section_path: list[str],
+    caption_lines: tuple[str, ...],
+) -> list[str]:
+    structural_path = [item for item in section_path if item]
+    if len(structural_path) > 1 and not _looks_like_curriculum_structure_heading(structural_path[0]):
+        structural_path = structural_path[1:]
+    if not structural_path:
+        return []
+    existing_headings = [
+        line
+        for line in caption_lines
+        if _looks_like_curriculum_structure_heading(line)
+    ]
+    return [
+        heading
+        for heading in structural_path
+        if heading not in existing_headings
+    ]
+
+
+def _append_unique_curriculum_prefix_variant(
+    variants: list[list[str]],
+    candidate: list[str],
+) -> None:
+    normalized = [item for item in candidate if item]
+    if not normalized:
+        return
+    if normalized in variants:
+        return
+    variants.append(normalized)
 
 
 def _looks_like_detached_table_note(text: str) -> bool:

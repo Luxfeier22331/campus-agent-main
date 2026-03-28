@@ -2,6 +2,11 @@ type RuntimeMode = "mock" | "live";
 type DatabaseSslMode = "disable" | "prefer" | "require";
 type RuntimeEnvironment = "development" | "test" | "production";
 
+export type PublicAnswerScope = {
+  corpus: string;
+  collection: string;
+};
+
 export type PublicChatServerEnv = {
   publicChatMode: RuntimeMode;
   nodeEnv: RuntimeEnvironment;
@@ -14,6 +19,7 @@ export type PublicChatServerEnv = {
   ingestionRegistrySchema: string;
   answerBaseUrl?: string;
   answerBearerToken?: string;
+  answerScope?: PublicAnswerScope;
 };
 
 const POSTGRES_PREFIX = /^(postgres|postgresql):\/\//i;
@@ -52,6 +58,31 @@ const readSchema = (env: NodeJS.ProcessEnv, key: string, fallback: string): stri
     throw new Error(`${key} must be a lowercase PostgreSQL schema identifier.`);
   }
   return value;
+};
+
+const readScopeCorpus = (value: string): string => {
+  const normalized = value.trim();
+  if (!normalized) {
+    throw new Error("PUBLIC_CONSUMER_CHAT_SCOPE_CORPUS must not be blank.");
+  }
+  return normalized;
+};
+
+const readAnswerScope = (env: NodeJS.ProcessEnv): PublicAnswerScope | undefined => {
+  const corpus = env.PUBLIC_CONSUMER_CHAT_SCOPE_CORPUS?.trim();
+  const collection = env.PUBLIC_CONSUMER_CHAT_SCOPE_COLLECTION?.trim();
+  if (!corpus && !collection) {
+    return undefined;
+  }
+  if (!corpus || !collection) {
+    throw new Error(
+      "PUBLIC_CONSUMER_CHAT_SCOPE_CORPUS and PUBLIC_CONSUMER_CHAT_SCOPE_COLLECTION must be configured together.",
+    );
+  }
+  return {
+    corpus: readScopeCorpus(corpus),
+    collection,
+  };
 };
 
 const ensurePostgresUrl = (databaseUrl: string): string => {
@@ -109,6 +140,7 @@ export function readPublicChatServerEnv(
 ): PublicChatServerEnv {
   const nodeEnv = readRuntimeEnvironment(env);
   const appBaseUrl = readAppBaseUrl(env);
+  const answerScope = readAnswerScope(env);
 
   return {
     nodeEnv,
@@ -129,6 +161,7 @@ export function readPublicChatServerEnv(
     ),
     answerBaseUrl: env.SUPERVISOR_API_BASE_URL?.trim() || undefined,
     answerBearerToken: env.SUPERVISOR_API_BEARER_TOKEN?.trim() || undefined,
+    answerScope,
   };
 }
 

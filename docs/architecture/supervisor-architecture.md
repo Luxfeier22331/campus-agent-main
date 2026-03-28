@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-22
-updated: 2026-03-25
+updated: 2026-03-28
 ---
 
 # Supervisor 架构设计
@@ -149,6 +149,7 @@ supervisor 的长期工作方式不是“只允许 handoff”，而是允许两�
 - API 边界只负责 execution-side 外部协议、鉴权、runtime 集成和入口壳
 - supervisor 不反向吸收 HTTP、auth 或 runtime host 细节
 - 产品层 auth/session/conversation 与 operator query 留在 shared `apps/app-api`
+- `apps/app-api` 只把受控执行请求交给 supervisor，而不是把 supervisor 暴露成产品后端
 - durable request projection 的写入、持久化与 read API 由 shared `app-api` runtime boundary 拥有，而不是 `packages/supervisor-core`
 
 与 `packages/contracts`：

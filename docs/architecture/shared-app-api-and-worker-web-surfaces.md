@@ -27,7 +27,7 @@ updated: 2026-03-28
 
 - public chat 与 protected panel 是否继续各自带一个独立 app backend
 - auth / session / conversation 由哪一层拥有
-- chat 请求 ingress、request ledger / projection input 与 panel 查询由谁承接
+- chat 请求 ingress、request ledger / projection input、审计入口、指标记录与 panel 查询由谁承接
 - `apps/supervisor-api` 在这套设计里退到什么边界
 
 ## 核心结论
@@ -122,7 +122,7 @@ apps/
 - session
 - conversation / message persistence
 - chat request ingress
-- request correlation
+- request correlation、audit ingress 与 metrics recording
 - `runtime.request_execution` 与 `runtime.projection_outbox` 写入
 - 调用 `apps/supervisor-api`
 - panel 读取 request projection 的 API
@@ -177,7 +177,7 @@ apps/
 - `chat.*`
   conversation、message 等 consumer product truth
 - `runtime.*`
-  request execution、projection input 相关 truth
+  request execution、projection input、审计入口相关 truth
 - `operator.*`
   request projection 等 panel-facing read model
 

@@ -91,23 +91,30 @@ class RagSpecialistTest(unittest.TestCase):
                     message="qdrant unavailable",
                     retryable=False,
                 ),
+                result=RagResultPayload(
+                    evidence=EvidenceBundle(
+                        query_text="library hours",
+                        corpus="regulations",
+                        collection="student_handbook",
+                    )
+                ),
             ),
         )
 
     def test_query_disabled_corpus_maps_to_explicit_error_response(self) -> None:
         def raising_retriever(*args: object, **kwargs: object) -> EvidenceBundle:
             raise CorpusQueryDisabledError(
-                "curriculum/curriculum_plan retrieval is disabled in phase-1"
+                "campus_services/service_catalog retrieval is disabled by runtime profile"
             )
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
                 target="rag-specialist",
-                user_goal="培养方案要求",
+                user_goal="宿舍报修流程",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(
-                        corpus="curriculum",
-                        collection="curriculum_plan",
+                        corpus="campus_services",
+                        collection="service_catalog",
                     )
                 ),
             ),
@@ -119,7 +126,17 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.status, "error")
         self.assertEqual(response.confidence, "low")
         self.assertEqual(response.error.code, "corpus_not_query_enabled")
-        self.assertIn("curriculum_plan", response.error.message)
+        self.assertIn("service_catalog", response.error.message)
+        self.assertEqual(
+            response.result,
+            RagResultPayload(
+                evidence=EvidenceBundle(
+                    query_text="宿舍报修流程",
+                    corpus="campus_services",
+                    collection="service_catalog",
+                )
+            ),
+        )
 
     def test_no_evidence_maps_to_no_answer(self) -> None:
         response = delegate_to_rag_agent(

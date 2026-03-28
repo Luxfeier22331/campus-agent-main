@@ -10,10 +10,10 @@ Env bootstrap rule:
 
 ## Commands
 
-`apps/ingestion-worker` exposes phase-1 ingestion shells.
+`apps/ingestion-worker` exposes ingestion runtime shells.
 
-- Query-facing defaults target `regulations/student_handbook`.
-- Data-plane ingestion supports `regulations/student_handbook` and `curriculum/curriculum_plan`.
+- Query-serving scope is controlled by `configs/ingestion/<corpus>/<collection>/runtime-profile.json`, not by worker defaults.
+- Data-plane ingestion currently covers `regulations/student_handbook` and `curriculum/curriculum_plan`.
 - Phase-1 runtime truth lives in `configs/ingestion/<corpus>/<collection>/runtime-profile.json`.
 - Phase 03.2 freezes `single source consumption + multi-projection fan-out` as the canonical ingestion model: a source asset is consumed once, source truth is persisted once, and downstream outputs rebuild from declared projections instead of returning to the original PDF.
 
@@ -35,15 +35,18 @@ Required env:
 - `OBJECT_STORE_ENDPOINT`
 - `OBJECT_STORE_ACCESS_KEY`
 - `OBJECT_STORE_SECRET_KEY`
-- `RAW_SOURCE_FILE`
-- `RAW_SOURCE_URI`
 - `RAW_ASSET_REGISTRY_DATABASE_URL` or `DOCUMENT_REGISTRY_DATABASE_URL`
 
-Optional env:
+Required CLI args:
+
+- `--pdf-path`
+- `--raw-source-uri`
+- `--corpus`
+- `--collection`
+
+Optional CLI args:
 
 - `RAW_ASSET_ID`
-- `INGESTION_CORPUS`
-- `INGESTION_COLLECTION`
 
 Behavior:
 
@@ -60,9 +63,14 @@ Required env:
 - `OBJECT_STORE_SECRET_KEY`
 - `OCR_BASE_URL`
 - `OCR_API_KEY`
-- `RAW_ASSET_ID`
-- `RAW_VERSION_ID`
 - `RAW_ASSET_REGISTRY_DATABASE_URL` or `DOCUMENT_REGISTRY_DATABASE_URL`
+
+Required CLI args:
+
+- `--raw-asset-id`
+- `--raw-version-id`
+- `--corpus`
+- `--collection`
 
 Optional env:
 
@@ -72,8 +80,6 @@ Optional env:
 - `OCR_POLL_SECONDS`
 - `OCR_TIMEOUT_SECONDS`
 - `IMPORT_REPORT_DIR`
-- `INGESTION_CORPUS`
-- `INGESTION_COLLECTION`
 - `INGESTION_SPLIT_MANIFEST_PATH`
 - `RAW_INGESTION_ARTIFACT_MODE`
 - `INGESTION_EMBEDDING_MODEL`
@@ -94,7 +100,7 @@ Behavior:
 - `source_truth_only` still writes canonical raw-asset provenance and should use the configured canonical raw-asset registry backend.
 - Runtime-profile gating decides whether the selected `corpus + collection` accepts `normalized` or `source_truth_only`.
 - `curriculum/curriculum_plan` may use `source_truth_only` as a pre-split onboarding path to inspect real OCR output before freezing its split manifest.
-- For `INGESTION_CORPUS=regulations` + `INGESTION_COLLECTION=student_handbook` and `INGESTION_CORPUS=curriculum` + `INGESTION_COLLECTION=curriculum_plan`, normalized mode requires a split manifest and stores asset-level `provider-response.jsonl` / `layout-elements.jsonl` plus per-document `document-units.jsonl`; handbook also exports `canonical.md`.
+- For `regulations/student_handbook` and `curriculum/curriculum_plan`, normalized mode requires a split manifest and stores asset-level `provider-response.jsonl` / `layout-elements.jsonl` plus per-document `document-units.jsonl`; handbook also exports `canonical.md`.
 - `regulations/student_handbook` normalized mode rebuilds logical documents strictly from the repo-tracked split manifest; no legacy OCR-import adapter or non-`provider-response.jsonl` handbook input is supported.
 - `regulations/student_handbook` downstream fan-out is declared in `configs/ingestion/regulations/student_handbook/source-projections.v1.json`.
 - When canonical source truth for the same source asset already exists, later collection work, handbook-derived service outputs, and attachment-derived outputs must rebuild from source truth through declared projections; do not return to the original PDF.
@@ -146,6 +152,7 @@ Behavior:
 - handbook replay默认 `--source-pdf 学生手册_2018.pdf`。
 - `provider_response_replay` does not index Qdrant by default; add `--index-qdrant` when replay should also rebuild chunk/embedding/vector state.
 - `--reset-qdrant` and `--index-qdrant` are independent: reset only clears the collection, while replay indexing is opt-in.
+- Rebuild / replay now resolve the physical Qdrant collection from each collection runtime profile instead of a global `QDRANT_COLLECTION` env.
 - `provider_response_replay` is the canonical rebuild boundary for downstream fan-out; later projection work must not create handbook-only replay branches or separate raw re-consumption lanes.
 
 ### Source-Truth Fan-Out Rule

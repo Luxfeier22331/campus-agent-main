@@ -84,6 +84,7 @@ updated: 2026-03-28
 - conversation / message persistence
 - chat ingress
 - request correlation
+- audit ingress / metrics recording
 - request ledger / projection input 写入
 - operator-facing read APIs
 - 调用 `apps/supervisor-api`
@@ -190,6 +191,7 @@ operator query path 至少包含：
 
 - `apps/app-api` 是 Worker runtime
 - `apps/public-consumer-chat` 只是历史实现参考
+- `apps/protected-internal-panel` 只应被视为旧 placeholder / migration source
 - `apps/protected-panel-web` 是当前受保护前端表面的 canonical app boundary
 - `apps/supervisor-api` 保持 execution engine
 

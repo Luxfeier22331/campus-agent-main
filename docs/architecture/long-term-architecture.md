@@ -27,6 +27,7 @@ updated: 2026-03-28
 - retrieval 底座应该是可替换的。LlamaIndex、直连向量基础设施，或其他检索实现，都应该藏在 specialist/retrieval 边界之后，而不是上升成仓库顶层架构。
 - `crawler/job` 与 `queue` 在长期架构里保留为摄入链路占位符，用来表达解耦和异步边界，不在此文中冻结成具体产品或运行方式。
 - 对象存储在架构上始终表示为独立存储边界；当前阶段即使先部署在本机，也不改变它在系统中的角色定义。
+- 面向浏览器的 public/protected product surface 可以拆成独立 Worker web surface，但共享 app backend 仍必须保持清晰 app boundary，不得把产品层职责重新塞回 execution engine。
 
 ## 架构形态
 
@@ -39,6 +40,10 @@ updated: 2026-03-28
 长期目标摄入链路如下：
 
 `crawler/job placeholder -> queue placeholder -> ingestion boundary -> source layer + raw asset registry -> derived layer -> document registry -> vector index/chunk metadata`
+
+长期目标产品链路如下：
+
+`browser -> web surface -> shared app-api -> execution engine / read model`
 
 当前 monorepo 的目录设计围绕这条链路展开：
 
