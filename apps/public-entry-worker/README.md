@@ -23,11 +23,13 @@ Implementation rules carried from Phase 04.5 and 04.6:
 Local commands:
 
 ```bash
-npm install
-npm run test
-npm run typecheck
-npm run dev
+pnpm install
+pnpm --filter public-entry-worker test
+pnpm --filter public-entry-worker typecheck
+pnpm --filter public-entry-worker dev
 ```
+
+The repo now uses a shared root `pnpm-workspace.yaml` and `turbo.json` for JS/TS apps. Install dependencies from the repo root; app-local commands remain valid if you run them from this directory with `pnpm test`, `pnpm typecheck`, or `pnpm dev`.
 
 ## Local Env
 

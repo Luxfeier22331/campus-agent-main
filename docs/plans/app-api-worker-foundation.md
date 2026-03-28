@@ -133,13 +133,13 @@ MVP 调用路径固定为：
 
 - `app-api` 是 backend/API Worker，不是前端 HMR 优先的应用
 - 当前仓库已有 `apps/public-entry-worker` 的 `wrangler + vitest + typescript` 基线
-- 可以避免把 repo 拉成新的 Node workspace
+- 已接受的 JS/TS 工具链现在是 repo root `pnpm-workspace.yaml` + shared `pnpm-lock.yaml` + `turbo.json`
 
 包管理建议：
 
-- `app-api` 自带局部 `package.json`
-- 使用 `npm` 与 checked-in `package-lock.json`
-- 不引入 repo 根级 `pnpm-workspace.yaml`
+- `app-api` 作为 repo JS/TS workspace package 进入 root `pnpm-workspace.yaml`
+- 依赖安装与锁文件统一由 repo root `pnpm-lock.yaml` 管理
+- app 自身继续维护独立 `package.json` 脚本，但通过 root `turbo.json` 进入统一任务编排
 
 ### Auth
 
@@ -237,7 +237,6 @@ MVP 约束：
 ```text
 apps/app-api/
 ├── package.json
-├── package-lock.json
 ├── tsconfig.json
 ├── wrangler.jsonc
 ├── drizzle.config.ts
@@ -523,9 +522,9 @@ MVP 约束：
 实现后应具备这些命令：
 
 ```bash
-cd apps/app-api && npm test
-cd apps/app-api && npm run typecheck
-cd apps/app-api && npm run deploy -- --dry-run
+cd apps/app-api && pnpm test
+cd apps/app-api && pnpm run typecheck
+cd apps/app-api && pnpm run deploy -- --dry-run
 ```
 
 仓库级回归仍保留：

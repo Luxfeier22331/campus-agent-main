@@ -57,6 +57,8 @@ pnpm test:integration
 pnpm smoke:live
 ```
 
+The repo now uses a shared root `pnpm-workspace.yaml` and `turbo.json` for JS/TS apps. Prefer running `pnpm install` once at the repo root, then use app-local commands here or root workspace commands such as `pnpm web:test`, `pnpm web:typecheck`, and `pnpm web:build`.
+
 ## Historical Local Topology
 
 - browser -> `TanStack Start` app host

@@ -70,6 +70,15 @@
 - `uv run --all-packages python -m unittest discover -s tests -t .` 当前通过，作为仓库级基线验证命令
 - 运行态 buckets、live collection 重建证据、points count 与 benchmark 结果不在 README 维护；应以 `.planning/STATE.md`、`docs/runbooks/`、`docs/reference/` 和 `docs/policies/` 为准
 
+## JS/TS Workspace
+
+- Python workspace 继续以 `uv` 为准；不要把 `turbo` 当成 Python 主链路的替代
+- JS/TS apps 现在通过 repo root `pnpm-workspace.yaml` 和 `turbo.json` 统一编排
+- 当前纳入 workspace 的主要 app 是 `apps/public-consumer-chat` 与 `apps/public-entry-worker`
+- repo root `package.json` 只提供 Turbo 代理脚本，不承载 app 级业务逻辑
+- 日常全量验证使用 `pnpm web:typecheck`、`pnpm web:test`、`pnpm web:build`
+- 面向 `develop` 的增量验证使用 `pnpm web:typecheck:affected`、`pnpm web:test:affected`、`pnpm web:build:affected` 或 `pnpm web:check:affected`
+
 ## 协作约定
 
 - 提交标题默认使用 `Conventional Commit` 前缀加中文结果描述，例如：`feat: 完成 Phase 2A 工作流补全（resume/apply-choice + navigation_mode）`
@@ -93,4 +102,9 @@
 uv sync --all-packages --dev
 uv run --all-packages python -m pytest tests/specialist/test_rag_specialist.py tests/supervisor/test_supervisor_core.py tests/api/test_supervisor_api.py tests/evals/test_golden_cases.py -q
 uv run --all-packages python -m unittest discover -s tests -t .
+pnpm install
+pnpm web:typecheck
+pnpm web:test
+pnpm web:build
+pnpm web:check:affected
 ```

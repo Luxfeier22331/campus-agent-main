@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Cloudflare Worker public-entry runtime shell for campus-agent v2.",
+  "packageManager": "pnpm@10.17.1",
   "scripts": {
     "dev": "XDG_CONFIG_HOME=./.wrangler-home wrangler dev",
     "deploy": "XDG_CONFIG_HOME=./.wrangler-home wrangler deploy",
