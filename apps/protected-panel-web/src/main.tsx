@@ -1,8 +1,15 @@
-import { StrictMode } from "react";
+import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 
-import { ProtectedPanelAdminApp } from "./panel/app";
 import "./styles.css";
+
+const ProtectedPanelAdminApp = lazy(async () => {
+  const module = await import("./panel/app");
+
+  return {
+    default: module.ProtectedPanelAdminApp,
+  };
+});
 
 const rootElement = document.getElementById("root");
 
@@ -12,6 +19,17 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <ProtectedPanelAdminApp />
+    <Suspense fallback={<PanelBootFallback />}>
+      <ProtectedPanelAdminApp />
+    </Suspense>
   </StrictMode>,
 );
+
+function PanelBootFallback() {
+  return (
+    <div className="panel-boot-fallback" role="status">
+      <div className="panel-boot-fallback__spinner" aria-hidden="true" />
+      <span>Loading protected panel...</span>
+    </div>
+  );
+}
