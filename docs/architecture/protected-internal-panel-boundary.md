@@ -9,14 +9,13 @@ updated: 2026-03-28
 
 ## 文档边界
 
-这份文档只冻结 Phase 04.1 的 protected internal panel boundary，不负责定义具体 panel 功能，也不替代以下文档：
+这份文档只冻结 protected internal panel 的长期边界，不负责定义具体 panel 功能，也不替代以下文档：
 
 - public entry 与 Cloudflare edge ownership：`docs/architecture/cloudflare-public-entry-boundary.md`
 - 长期 `apps/` 与 `packages/` 分层：`docs/architecture/long-term-architecture.md`
 - `app-api` runtime 与内部边界：`docs/architecture/app-api-architecture.md`
 - supervisor 请求边界：`docs/architecture/supervisor-architecture.md`
 - shared app backend 与 web surfaces：`docs/architecture/shared-app-api-and-worker-web-surfaces.md`
-- 当前 phase handoff 与 deferred seams：`.planning/phases/04.1-cloudflare-entry-and-protected-internal-panel-design/04.1-PHASE5-HANDOFF.md`
 
 ## 目标
 
@@ -31,7 +30,7 @@ updated: 2026-03-28
 
 future panel 的允许形态固定为：
 
-`authorized operator principal -> Cloudflare-protected access -> protected-panel-web -> apps/app-api (Worker) -> request projection read model`
+`authorized operator principal -> Cloudflare-protected access -> apps/protected-panel-web -> apps/app-api (Worker) -> request projection read model`
 
 这条链路里的硬约束是：
 
@@ -61,7 +60,7 @@ future panel 的允许形态固定为：
 - automation principal
   后续如需加入自动化 panel-side job，只能作为受控 machine principal 进入，不能假装成普通公网调用方。
 
-是否存在更细粒度角色、group claim、审批流程或分级授权，全部 deferred to Phase 5。
+是否存在更细粒度角色、group claim、审批流程或分级授权，全部留给后续治理文档与实现。
 
 ## Allowed Runtime Path
 
@@ -90,18 +89,18 @@ internal panel 与 public entry 的关系固定为并列双表面，而不是同
 
 ## 对核心 package 的限制
 
-Phase 04.1 不授权以下变化：
+本文不授权以下变化：
 
 - 不修改 `packages/contracts` 来承载 panel-specific transport identity。
 - 不把 panel 逻辑塞进 `packages/supervisor-core`。
 - 不让 `packages/rag-specialist` 或 `packages/retrieval-core` 暴露 panel-only 入口。
 - 不因为 panel 需求而新增绕过 runtime APIs 的内部调用路径。
 
-## Phase 5 Deferred
+## 与后续治理的关系
 
 这份文档明确只记录 boundary-level identity and authorization requirements，不在这里关闭应用层治理问题。
 
-仍留给 Phase 5 的事项包括：
+仍留给后续治理阶段的事项包括：
 
 - `SupervisorRequest.actor` 的映射规则。
 - retrieval-time ACL 过滤。
@@ -112,7 +111,7 @@ Cloudflare-protected access 是 outer protection envelope，不等于应用层�
 
 ## 非目标
 
-- 不在本 phase 设计具体 panel 页面、业务流或写操作。
-- 不在本 phase 确定 runtime/framework 细节。
+- 不在本文设计具体 panel 页面、业务流或写操作。
+- 不在本文确定 runtime/framework 细节。
 - 不把 panel 合并成 `apps/supervisor-api` 的隐藏管理模式。
 - 不改变 `packages/supervisor-core`、`packages/contracts` 或 retrieval 相关 package 的长期职责。

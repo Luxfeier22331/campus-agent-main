@@ -54,7 +54,7 @@
 - **Architecture**: `supervisor` 必须是唯一入口协调层，`specialist` 作为稳定能力边界存在，不能退回成旧 `campusRAG` 的扁平 tool 模式 — 这是仓库长期架构和当前 supervisor 设计的核心前提
 - **Scope**: serving surface 由 runtime profile 显式控制；当前开放 `student_handbook` 与 `curriculum_plan`，`campus_services` 保持 `offline_preparation` — 避免再次把运行策略写死在 supervisor、API shell 或 worker 默认值里
 - **Contracts**: handoff 必须通过 `packages/contracts` 中的 schema 完成，不让 AgentOS / retrieval / infra 类型渗透进共享 contract — 这是未来可替换 specialist / retrieval 的基础
-- **Runtime Boundary**: runtime 与 transport 逻辑留在 `apps/`；`apps/public-chat-web` 与 `apps/protected-panel-web` 是浏览器侧 Worker surface，shared `apps/app-api` 也已冻结为 internal Worker runtime，承接 auth/session/conversation、chat ingress 与 panel query，`apps/supervisor-api` 保持 execution engine；`packages/supervisor-core` 只负责 request framing、routing、policy、response shaping、audit projection — 避免框架宿主反向污染编排层
+- **Runtime Boundary**: runtime 与 transport 逻辑留在 `apps/`；已接受的 forward product topology 是浏览器侧 Worker surface `apps/public-chat-web` / `apps/protected-panel-web` 加上 internal Worker runtime `apps/app-api`，但这些目录尚未全部在当前工作树落地，现有 `apps/public-consumer-chat` 与 `apps/protected-internal-panel` 仍主要承担迁移参考 / 壳层角色；`apps/supervisor-api` 保持 execution engine；`packages/supervisor-core` 只负责 request framing、routing、policy、response shaping、audit projection — 避免框架宿主反向污染编排层
 - **Security**: v1 必须做到身份透传、trace 透传、retrieval 前 ACL 过滤、最小审计和最小 source traceability — 这是面向不同权限用户上线前的最低治理要求
 - **Execution Goal**: 当前优先级是把新架构站稳，不以覆盖更多知识域或更复杂 agent 能力为第一目标 — 避免为了功能面牺牲边界正确性
 

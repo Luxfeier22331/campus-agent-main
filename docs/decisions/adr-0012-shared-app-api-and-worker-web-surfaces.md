@@ -61,6 +61,6 @@ Accepted on 2026-03-28.
 
 这项决策 supersedes 以下此前结论：
 
-- `docs/decisions/adr-0008-public-consumer-auth-and-storage.md`
-- `docs/decisions/adr-0009-public-consumer-frontend-host.md`
-- `docs/decisions/adr-0011-operator-query-api-and-request-projection.md`
+- `ADR-0008`：public consumer chat 用户系统与存储拆分决策
+- `ADR-0009`：public consumer chat 前台宿主决策
+- `ADR-0011`：operator query API 与 request projection 拆分决策

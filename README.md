@@ -12,7 +12,7 @@
 - supervisor 专项架构：`docs/architecture/supervisor-architecture.md`
 - 第一阶段决策记录：`docs/decisions/adr-0001-phase1-architecture.md`
 - 编排与安全边界：`docs/decisions/adr-0006-agent-orchestration-and-safety.md`
-- shared `apps/app-api` runtime 已冻结为 Worker；见 `docs/decisions/adr-0013-app-api-worker-runtime.md`
+- 前向接受的 shared `apps/app-api` runtime 已冻结为 Worker；见 `docs/decisions/adr-0013-app-api-worker-runtime.md`
 - `apps/supervisor-api` 表示 execution engine boundary，不代表已经选定 FastAPI 或其他 runtime
 - execution engine runtime 选择仍保持未冻结；当前实现取舍见 `docs/decisions/adr-0001-phase1-architecture.md`
 
@@ -23,16 +23,22 @@
 - 历史 phase 排期与存档：`.planning/ROADMAP.md`、`.planning/phases/`
 - 当前 index / serving 术语：`docs/architecture/runtime-serving-and-index-terms.md`
 
-## 仓库范围
+## 当前仓库范围
 
 - `apps/supervisor-api`: 入口 / supervisor 的对外服务边界
-- `apps/app-api`: forward shared product backend boundary，长期形态为 internal Worker runtime
+- `apps/ingestion-worker`: ingestion runtime 壳与离线任务入口
+- `apps/public-entry-worker`: public entry Worker runtime 壳
+- `apps/public-consumer-chat`: 当前 public chat Worker shell / 历史迁移参考
+- `apps/protected-internal-panel`: 当前 internal panel shell / 历史迁移参考
 - `packages/supervisor-core`: user goal 路由、委派和最终响应组装
+- `packages/ingestion-core`: ingestion/data plane 逻辑消费层
 - `packages/rag-specialist`: 知识域 specialist 入口
 - `packages/retrieval-core`: retrieval 抽象和 evidence 获取引导层
 - `packages/contracts`: 共享请求 / 响应与 delegation / handoff schema
 - `packages/evals`: 评测辅助和 smoke 场景
 - `packages/shared`: 轻量共享常量和工具
+
+已接受但尚未全部落地为目录的前向产品拓扑是 `public-chat-web -> app-api -> supervisor-api` 与 `protected-panel-web -> app-api -> request projection`。当前仓库里的 `apps/public-consumer-chat` 与 `apps/protected-internal-panel` 仍主要承担迁移参考 / 壳层角色。
 
 ## 当前基线
 
@@ -40,7 +46,7 @@
 
 - 旧 bootstrap 已从工作树移除；如需追溯请查看 git 历史
 - 当前主路径是 `supervisor-api -> supervisor-core -> rag-specialist -> retrieval-core`
-- forward product topology 已冻结为 `public-chat-web -> app-api -> supervisor-api` 与 `protected-panel-web -> app-api -> request projection`
+- forward product topology 已接受为 `public-chat-web -> app-api -> supervisor-api` 与 `protected-panel-web -> app-api -> request projection`，但相关目录尚未全部在当前工作树落地
 - 架构目标是 `supervisor-led hybrid orchestration`，而不是把 RAG 降级成顶层产品路径里的扁平 tool adapter
 - ingestion/object-store/registry/retrieval 地基已落地
 - 查询链路当前由 collection runtime profile 控制；当前 query-enabled surface 是 `regulations/student_handbook` 和 `curriculum/curriculum_plan`
@@ -60,7 +66,6 @@
 ## 实现入口
 
 - 当前地基实施基线：`docs/plans/agentic-rag-foundation.md`
-- 编排架构刷新：`docs/plans/agent-orchestration-architecture-refresh.md`
 - `app-api` 实施方案：`docs/plans/app-api-worker-foundation.md`
 - 当前执行状态与当前 truth：`.planning/PROJECT.md`、`.planning/REQUIREMENTS.md`、`.planning/STATE.md`
 - 历史排期和 phase 存档：`.planning/ROADMAP.md`

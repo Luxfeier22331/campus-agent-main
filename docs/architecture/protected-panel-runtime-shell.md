@@ -9,7 +9,7 @@ updated: 2026-03-28
 
 ## 文档边界
 
-这份文档只冻结 Phase 04.4 的 protected panel runtime shell，不负责 panel UI、business workflow 或治理闭环，也不替代以下文档：
+这份文档只冻结 protected panel runtime shell，不负责 panel UI、business workflow 或治理闭环，也不替代以下文档：
 
 - protected panel 的 trust boundary：`docs/architecture/protected-internal-panel-boundary.md`
 - public/protected surface 的 runtime topology：`docs/architecture/cloudflare-runtime-topology.md`
@@ -20,9 +20,9 @@ updated: 2026-03-28
 
 ## 目标
 
-Phase 04.4 在这里冻结的是 protected panel 作为 repo/runtime shape 的定义：
+本文冻结的是 protected panel 作为 repo/runtime shape 的定义：
 
-- 它属于 future `apps/` runtime shell
+- 它属于 `apps/protected-panel-web` 这一层的 runtime shell
 - 它只允许通过 runtime APIs 与系统交互
 - 它位于 shared `apps/app-api` Worker runtime 之上，而不是自己承载 request projection 查询语义
 - 它必须保持 fail-closed
@@ -32,7 +32,7 @@ Phase 04.4 在这里冻结的是 protected panel 作为 repo/runtime shape 的�
 
 protected panel 的 shell 形态固定为：
 
-`protected panel surface -> future apps/* panel shell -> apps/app-api (Worker) -> request projection read model`
+`protected panel surface -> apps/protected-panel-web -> apps/app-api (Worker) -> request projection read model`
 
 关键结论是：
 
@@ -67,7 +67,7 @@ allowed seam 只允许：
 
 ## Forbidden Coupling
 
-以下耦合在 04.4 明确禁止：
+以下耦合在这里明确禁止：
 
 - 把 panel 做成 `apps/supervisor-api` hidden admin mode
 - 让 panel 直接依赖 `packages/*`
@@ -86,7 +86,7 @@ protected panel 的 runtime shell 必须保持 fail-closed：
 
 ## 与 UI / Business / Governance 的关系
 
-这份文档明确把三类东西排除在 shell phase 之外：
+这份文档明确把三类东西排除在 shell 边界之外：
 
 - UI
   panel 页面、路由、交互层结构
@@ -95,22 +95,22 @@ protected panel 的 runtime shell 必须保持 fail-closed：
 - governance
   actor mapping、retrieval ACL、audit/trace closure、approval flow
 
-这些都不由 04.4 关闭。
+这些都不由本文关闭。
 
-## 与 Phase 5 的关系
+## 与后续治理的关系
 
-Phase 04.4 不解决：
+本文不解决：
 
 - `SupervisorRequest.actor`
 - retrieval ACL
 - audit / trace closure
 - approval flow
 
-这些仍然属于 Phase 5 或更后的治理阶段。
+这些仍然属于后续治理阶段。
 
 ## 非目标
 
-- 不在本 phase 设计 panel UI / routes / pages
-- 不在本 phase 设计 panel business actions
-- 不在本 phase 实现 auth/identity mapping
-- 不在本 phase 修改 `packages/*` contract 或职责
+- 不在本文设计 panel UI / routes / pages
+- 不在本文设计 panel business actions
+- 不在本文实现 auth/identity mapping
+- 不在本文修改 `packages/*` contract 或职责

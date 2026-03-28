@@ -9,20 +9,19 @@ updated: 2026-03-28
 
 ## 文档边界
 
-这份文档只冻结 Phase 04.2 的 Cloudflare-to-runtime topology，不负责实现部署、IaC 或 provider 配置，也不替代以下文档：
+这份文档只冻结 Cloudflare-to-runtime topology，不负责实现部署、IaC 或 provider 配置，也不替代以下文档：
 
 - public entry edge ownership：`docs/architecture/cloudflare-public-entry-boundary.md`
 - protected panel trust model：`docs/architecture/protected-internal-panel-boundary.md`
 - `app-api` runtime 与内部边界：`docs/architecture/app-api-architecture.md`
 - 长期 `apps/*` / `packages/*` 分层：`docs/architecture/long-term-architecture.md`
 - supervisor runtime shell 与 core 分层：`docs/architecture/supervisor-architecture.md`
-- 当前 04.2 planning/handoff：`.planning/phases/04.2-cloudflare-runtime-topology-and-delivery-shape-inserted/`
 
 ## 目标
 
-Phase 04.2 在这里冻结的不是平台选型，而是 runtime topology：
+本文冻结的不是平台选型，而是 runtime topology：
 
-- public hostname 如何落到 `apps/supervisor-api` runtime origin
+- public hostname 如何落到 `apps/public-chat-web` runtime origin
 - protected hostname 如何落到 separate protected panel runtime origin
 - public/protected web surface 如何连接 shared app backend
 - Cloudflare 与 repo-owned runtime 在 delivery 层分别拥有哪部分职责
@@ -32,9 +31,9 @@ Phase 04.2 在这里冻结的不是平台选型，而是 runtime topology：
 
 系统的 runtime topology 固定为：
 
-`client -> Cloudflare public surface -> public runtime origin -> apps/public-chat-web -> apps/app-api -> apps/supervisor-api -> packages/supervisor-core -> specialist`
+`client -> Cloudflare public surface -> apps/public-chat-web -> apps/app-api -> apps/supervisor-api -> packages/supervisor-core -> specialist`
 
-`authorized operator -> Cloudflare protected surface -> protected panel runtime origin -> apps/protected-panel-web -> apps/app-api -> request projection read model`
+`authorized operator -> Cloudflare protected surface -> apps/protected-panel-web -> apps/app-api -> request projection read model`
 
 这里的关键结论是：
 
@@ -135,23 +134,23 @@ rollback unit 必须按 surface/origin 边界定义，而不是按整个 Cloudfl
 - shared app backend 的变更不应迫使两个 web surface 与 execution engine 被绑定成同一个回滚单元
 - 任何 shared substrate 设计都不能让一条 surface 的回滚被迫隐式影响另一条 surface
 
-## 与 Phase 5 的关系
+## 与后续治理的关系
 
 这份文档只冻结 runtime topology，不关闭应用层治理。
 
-仍然留给 Phase 5 的事项包括：
+仍然留给后续治理阶段的事项包括：
 
 - `SupervisorRequest.actor`
 - retrieval ACL
 - audit / trace ownership
 - 请求级身份与组信息传播
 
-runtime topology 不能替代 Phase 5 的 actor、ACL 或 audit 闭环。
+runtime topology 不能替代 actor、ACL 或 audit 闭环。
 
 ## 非目标
 
-- 不在本 phase 实现 Cloudflare dashboard 配置、IaC、CI/CD 或容器编排
-- 不在本 phase 选择 execution engine 的最终 runtime/framework
+- 不在本文实现 Cloudflare dashboard 配置、IaC、CI/CD 或容器编排
+- 不在本文选择 execution engine 的最终 runtime/framework
 - 不把 provider/runtime delivery 类型推入 `packages/*`
 - 不定义 header forwarding、trace propagation、cache、timeout 或 streaming contract 细节
 - 不设计 panel UI、panel business workflow 或 protected operator actions

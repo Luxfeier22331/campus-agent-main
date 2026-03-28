@@ -204,7 +204,7 @@ runtime 形态已不再 deferred：
 
 ## 当前实现状态
 
-当前仓库已经存在的 04.7 public consumer chat 设计与实现，是前一版边界结论。
+当前仓库已经存在的 `public-consumer-chat` 设计与实现，是前一版边界结论。
 
 从这份文档开始，后续前台/后台实现的 canonical direction 改为：
 

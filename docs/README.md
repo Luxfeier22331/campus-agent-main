@@ -7,7 +7,7 @@ updated: 2026-03-28
 
 # Docs
 
-`docs/` 只保留稳定文档标识，不把创建日期放进文件名。
+`docs/` 只保留当前有效、可直接消费的稳定文档，不保留纯历史追溯材料或一次性交付记录。
 
 ## 分类
 
@@ -23,7 +23,7 @@ updated: 2026-03-28
 - `docs/decisions/`
   已接受的长期或阶段决策、specialist 准入、runtime 取舍与评测规则的 canonical truth
 - `docs/plans/`
-  被接受的实施基线、交付形状和门禁，不直接承担当前 phase 执行状态的唯一真相源
+  仍承担 accepted implementation baseline 的实施基线、交付形状和门禁，不直接承担当前 phase 执行状态的唯一真相源
 - `docs/verification/`
   live rebuild、运行门禁、验收项和证据模板
 - `.planning/`
@@ -36,10 +36,11 @@ updated: 2026-03-28
 - 判断编排模式、specialist 准入与安全边界时，优先看 architecture 文档和对应 ADR，而不是某一轮 plan
 - 如果 `docs/plans/` 中的早期实施叙事与 `.planning/` 的当前执行现实冲突，应更新 `docs/plans/` 的边界说明，而不是把旧叙事继续当作当前硬约束
 - 如果 `.planning/ROADMAP.md` 或 `.planning/phases/*` 的历史 phase 叙事与当前运行面冲突，以 `.planning/PROJECT.md`、`.planning/REQUIREMENTS.md`、`.planning/STATE.md` 和对应 architecture/decision 文档为准
+- 历史执行过程、handoff、一次性交付记录与被替代草案应退出 `docs/`，留在 `.planning/` 或 git history
 
 ## 标识规则
 
-- `architecture` 和 `plans` 使用语义 slug，例如 `long-term-architecture.md`
+- `architecture` 和新增 `plans` 使用语义 slug，例如 `long-term-architecture.md`
 - `decisions` 使用 `adr-NNNN-<slug>.md`
 - 日期进入 YAML front matter，不作为文件名主标识
 
@@ -48,12 +49,14 @@ updated: 2026-03-28
 所有 canonical 文档在顶部使用 YAML front matter。
 
 - `doc_type`: `index`、`architecture`、`decision`、`plan`
-- `status`: `active`、`accepted`、`archived`、`superseded`
+- `status`: `active`、`accepted`、`completed`
 - `created`: 文档首次建立日期
 - `updated`: 最近一次实质内容更新时间
 - `decision_id`: 仅 decision 文档必填
 
 ## Canonical Docs
+
+Canonical Docs 只收录当前 active / accepted 文档，以及少数虽然 `completed` 但仍承担 accepted implementation baseline 的 plan。一次性交付型文档、历史手稿和被替代草案不在这里维护。
 
 - `architecture/long-term-architecture.md`
 - `architecture/phase1-ingestion-and-storage-architecture.md`
@@ -67,6 +70,7 @@ updated: 2026-03-28
 - `architecture/shared-app-api-and-worker-web-surfaces.md`
 - `architecture/source-truth-normalization-contract.md`
 - `architecture/runtime-serving-and-index-terms.md`
+- `architecture/retrieval-query-strategy.md`
 - `architecture/versioned-document-serving-and-history-query.md`
 - `architecture/supervisor-architecture.md`
 - `architecture/student-handbook-chunking-and-validation-policy.md`
@@ -83,9 +87,7 @@ updated: 2026-03-28
 - `decisions/adr-0013-app-api-worker-runtime.md`
 - `decisions/adr-0014-versioned-document-serving-and-history-query.md`
 - `plans/agentic-rag-foundation.md`
-- `plans/agent-orchestration-architecture-refresh.md`
 - `plans/app-api-worker-foundation.md`
-- `plans/golden-dataset-document-delivery.md`
 - `plans/golden-dataset-schema-and-bootstrap.md`
 - `plans/source-truth-normalization-refactor.md`
 - `plans/student-handbook-retrieval-eval-bootstrap.md`
