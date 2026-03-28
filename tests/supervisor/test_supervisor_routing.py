@@ -37,7 +37,7 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertEqual(decision.primary_corpus, "regulations")
         self.assertEqual(decision.primary_collection, "student_handbook")
 
-    def test_route_request_rejects_query_disabled_scope(self) -> None:
+    def test_route_request_selects_rag_specialist_for_curriculum_plan(self) -> None:
         request = SupervisorRequest(
             user_goal="graduation requirements",
             requested_scope=KnowledgeScope(
@@ -46,9 +46,24 @@ class SupervisorRoutingTest(unittest.TestCase):
             ),
         )
 
+        decision = route_request(SupervisorRequestContext.from_request(request))
+
+        self.assertEqual(decision.target, "rag-specialist")
+        self.assertEqual(decision.primary_corpus, "curriculum")
+        self.assertEqual(decision.primary_collection, "curriculum_plan")
+
+    def test_route_request_rejects_query_disabled_scope(self) -> None:
+        request = SupervisorRequest(
+            user_goal="谁负责宿舍报修？",
+            requested_scope=KnowledgeScope(
+                corpus="campus_services",
+                collection="service_catalog",
+            ),
+        )
+
         with self.assertRaisesRegex(
             DisallowedKnowledgeScopeError,
-            "knowledge scope curriculum/curriculum_plan is not query-enabled",
+            "knowledge scope campus_services/service_catalog is not query-enabled",
         ):
             route_request(SupervisorRequestContext.from_request(request))
 

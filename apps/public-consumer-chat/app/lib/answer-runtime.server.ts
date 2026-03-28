@@ -4,10 +4,6 @@ import type { PublicChatServerEnv } from "./env.server";
 import type { RawAnswerResult } from "./chat-types";
 
 const ANSWER_ENDPOINT = "/api/v1/answer";
-const DEFAULT_SCOPE = {
-  corpus: "regulations",
-  collection: "student_handbook",
-} as const;
 
 const buildMockResult = (prompt: string): RawAnswerResult => {
   const normalized = prompt.trim().toLowerCase();
@@ -57,6 +53,15 @@ export async function requestPublicAnswer(input: {
     };
   }
 
+  if (!env.answerScope) {
+    return {
+      kind: "error",
+      message: "PUBLIC_CONSUMER_CHAT_SCOPE_CORPUS and PUBLIC_CONSUMER_CHAT_SCOPE_COLLECTION are required in live mode.",
+      request_id: `req-${randomUUID().slice(0, 8)}`,
+      retryable: false,
+    };
+  }
+
   try {
     const response = await fetch(new URL(ANSWER_ENDPOINT, env.answerBaseUrl), {
       method: "POST",
@@ -72,7 +77,7 @@ export async function requestPublicAnswer(input: {
         user_goal: prompt,
         conversation_id: conversationId,
         request_id: upstreamRequestId,
-        requested_scope: DEFAULT_SCOPE,
+        requested_scope: env.answerScope,
       }),
     });
 

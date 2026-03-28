@@ -1,10 +1,10 @@
 {
   "corpus": "curriculum",
   "collection": "curriculum_plan",
-  "chunk_profile_version": "curriculum_plan_semantic_v1",
+  "chunk_profile_version": "curriculum_plan_semantic_v2",
   "structured_input": "document_units_jsonl",
   "runtime_defaults": {
-    "strategy_name": "curriculum_plan_structure_v1",
+    "strategy_name": "curriculum_plan_structure_v2",
     "chunk_size": 360,
     "max_chunk_size": 540,
     "chunk_overlap": 72,
@@ -14,6 +14,7 @@
   "notes": [
     "Use split-manifest logical documents as the pre-chunking boundary.",
     "Resolve the accepted runtime profile through build_curriculum_chunk_profile(...) instead of handbook defaults.",
+    "curriculum_plan_semantic_v2 keeps 360/540/72/50 for section_text and raises table_unit to 420/640/72/64.",
     "Preserve provider tables, figure titles, and page-level layout blocks through cleaning before semantic chunking.",
     "Chunk only source-truth-preserving document-units.jsonl rows generated after split-manifest document projection.",
     "Treat provider labels as normalization hints instead of final curriculum semantics.",

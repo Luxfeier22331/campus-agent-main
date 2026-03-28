@@ -5,11 +5,12 @@ from pathlib import Path
 import hashlib
 import unittest
 
+from campus_ingestion_core.curriculum_budget_evaluation import load_default_curriculum_budget_evaluation_documents
 from campus_ingestion_core.chunking import ChunkProfile
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import build_indexable_chunks_from_jsonl
 from campus_ingestion_core.raw_ingestion import _build_split_manifest_document_input, _load_layout_elements_rows
-from campus_ingestion_core.split_manifest import load_split_manifest
+from campus_ingestion_core.split_manifest import SplitManifestDocument, load_split_manifest
 
 
 def _make_curriculum_record() -> DocumentRegistryRecord:
@@ -111,6 +112,21 @@ def _build_real_curriculum_projection_chunks(
     return record, chunks
 
 
+def _build_real_curriculum_runtime_chunks(
+    document_title: str,
+) -> tuple[DocumentRegistryRecord, tuple[object, ...]]:
+    document = next(
+        item
+        for item in load_default_curriculum_budget_evaluation_documents()
+        if item.title == document_title
+    )
+    chunks = build_indexable_chunks_from_jsonl(
+        record=document.record,
+        structured_jsonl_bytes=document.structured_jsonl_bytes,
+    )
+    return document.record, chunks
+
+
 class CurriculumChunkingTest(unittest.TestCase):
     def test_build_indexable_chunks_from_jsonl_uses_runtime_curriculum_chunk_profile_by_default(self) -> None:
         record = _make_curriculum_record()
@@ -136,9 +152,9 @@ class CurriculumChunkingTest(unittest.TestCase):
         chunks = build_indexable_chunks_from_jsonl(record=record, structured_jsonl_bytes=structured_payload)
 
         self.assertEqual(len(chunks), 1)
-        self.assertEqual(chunks[0].metadata["chunk_policy_version"], "curriculum_plan_semantic_v1")
+        self.assertEqual(chunks[0].metadata["chunk_policy_version"], "curriculum_plan_semantic_v2")
         self.assertEqual(chunks[0].metadata["cleaning_policy_version"], "curriculum_plan_cleaning_v1")
-        self.assertEqual(chunks[0].metadata["strategy_name"], "curriculum_plan_structure_v1")
+        self.assertEqual(chunks[0].metadata["strategy_name"], "curriculum_plan_structure_v2")
         self.assertEqual(chunks[0].metadata["unit_type"], "section_text")
 
     def test_build_indexable_chunks_from_jsonl_uses_curriculum_section_and_table_units(self) -> None:
@@ -426,6 +442,103 @@ class CurriculumChunkingTest(unittest.TestCase):
         self.assertIn("第一学年以通识课和学科基础课为主。", chunks[0].text)
         self.assertIn("通识课和学科基础课为主", chunks[0].text)
 
+    def test_build_indexable_chunks_from_jsonl_canonicalizes_root_title_anchor(self) -> None:
+        raw_version_id = "sha256:test-curriculum-root-title"
+        document_input = _build_split_manifest_document_input(
+            raw_asset_record=type("RawAssetRecordProxy", (), {
+                "raw_asset_id": "asset:curriculum-plan-2022",
+                "raw_version_id": raw_version_id,
+                "corpus": "curriculum",
+                "collection": "curriculum_plan",
+                "raw_source_uri": "file:///tmp/curriculum-plan-2022.pdf",
+                "content_hash": raw_version_id.removeprefix("sha256:"),
+                "source_filename": "curriculum-plan-2022.pdf",
+                "object_key": "official_pdf/curriculum-plan/2022/sha256/test/capture/curriculum-plan-2022.pdf",
+                "ingestion_timestamp": "2026-03-28T10:00:00+00:00",
+                "import_source": "raw_online_ocr",
+            })(),
+            manifest_version="curriculum_plan_split_manifest_v1",
+            manifest_document=SplitManifestDocument(
+                document_id="curriculum:民族学本科第二学士学位人才培养方案",
+                title="民族学本科第二学士学位人才培养方案",
+                page_start=100,
+                page_end=101,
+                status="active",
+            ),
+            structured_rows=[
+                {
+                    "row_id": "page-0100-block-0001",
+                    "row_type": "heading",
+                    "block_role": "doc_title",
+                    "heading_level": 1,
+                    "text_normalized": "民族学本科第二学士学位人才培养方案(2020 版)",
+                    "page_start": 100,
+                    "page_end": 100,
+                },
+                {
+                    "row_id": "page-0100-block-0002",
+                    "row_type": "heading",
+                    "heading_level": 2,
+                    "text_normalized": "一、培养目标",
+                    "page_start": 100,
+                    "page_end": 100,
+                },
+                {
+                    "row_id": "page-0100-block-0003",
+                    "row_type": "paragraph",
+                    "text_normalized": "培养具备民族学基础理论与方法的复合型人才。",
+                    "page_start": 100,
+                    "page_end": 100,
+                },
+            ],
+            provider_response_key="official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl",
+            layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
+            default_campus_scope="main",
+            corpus="curriculum",
+            collection="curriculum_plan",
+        )
+        record = DocumentRegistryRecord(
+            document_id="curriculum:民族学本科第二学士学位人才培养方案",
+            revision_track="source-faithful",
+            version_id=str(document_input.metadata["version_id"]),
+            source_uri=str(document_input.metadata.get("source_url") or document_input.metadata.get("source_id") or ""),
+            content_hash=hashlib.sha256(document_input.document_units_bytes).hexdigest(),
+            corpus="curriculum",
+            collection="curriculum_plan",
+            cleaning_policy_version="curriculum_plan_cleaning_v1",
+            acl_groups=tuple(document_input.metadata.get("acl_groups") or ()),
+            campus_scope="main",
+            status=str(document_input.metadata.get("status") or "active"),
+            ingestion_timestamp="2026-03-28T10:00:00+00:00",
+            parser_version="raw-online-ocr-v1",
+            embedding_model="Qwen3-Embedding-4B",
+            source_channel="pdf_ocr",
+            is_current=True,
+            document_units_object_key="curriculum/documents/tmp/document-units.jsonl",
+            import_source="raw_online_ocr",
+        )
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=document_input.document_units_bytes,
+            chunk_profile=ChunkProfile(
+                chunk_size=360,
+                max_chunk_size=540,
+                chunk_overlap=72,
+                min_chunk_size=50,
+                chunk_policy_version="curriculum_plan_semantic_v1",
+                cleaning_policy_version="curriculum_plan_cleaning_v1",
+            ),
+        )
+
+        self.assertGreaterEqual(len(chunks), 1)
+        self.assertEqual(
+            chunks[0].anchor["section_path"],
+            ["民族学本科第二学士学位人才培养方案", "一、培养目标"],
+        )
+        self.assertNotIn("(2020 版)", chunks[0].text)
+        self.assertNotIn("(2020 版)", "\n".join(chunks[0].anchor["section_path"]))
+
     def test_build_indexable_chunks_from_jsonl_moves_table_lead_in_into_table_chunk(self) -> None:
         record = _make_curriculum_record()
         structured_payload = "\n".join(
@@ -526,14 +639,12 @@ class CurriculumChunkingTest(unittest.TestCase):
             ),
         )
 
-        self.assertEqual(len(chunks), 2)
-        self.assertEqual(chunks[0].metadata["unit_type"], "section_text")
-        self.assertEqual(chunks[0].text, "五、课程设置和修读建议")
-        self.assertEqual(chunks[1].metadata["unit_type"], "table_unit")
-        self.assertIn("1. 专业核心课程", chunks[1].text)
-        self.assertIn("(1)音乐表演(声乐)专业必修的专业核心课程 30 学分。", chunks[1].text)
-        self.assertIn("课程清单如下:", chunks[1].text)
-        self.assertIn("专业名称 | 课程号", chunks[1].text)
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0].metadata["unit_type"], "table_unit")
+        self.assertTrue(chunks[0].text.startswith("五、课程设置和修读建议\n\n1. 专业核心课程"))
+        self.assertIn("(1)音乐表演(声乐)专业必修的专业核心课程 30 学分。", chunks[0].text)
+        self.assertIn("课程清单如下:", chunks[0].text)
+        self.assertIn("专业名称 | 课程号", chunks[0].text)
 
     def test_build_indexable_chunks_from_jsonl_detaches_heading_like_note_from_table_chunk(self) -> None:
         record = _make_curriculum_record()
@@ -743,6 +854,95 @@ class CurriculumChunkingTest(unittest.TestCase):
                 for chunk in chunks
             )
         )
+
+    def test_real_curriculum_projection_does_not_emit_orphan_heading_only_section_chunk(self) -> None:
+        _, chunks = _build_real_curriculum_projection_chunks("curriculum:国际经济与贸易本科人才培养方案")
+
+        self.assertFalse(
+            any(
+                chunk.metadata["unit_type"] == "section_text"
+                and chunk.text.strip() == "(二)专业教育"
+                for chunk in chunks
+            )
+        )
+
+    def test_real_curriculum_projection_repairs_course_setting_parent_context_for_section_and_table_chunks(self) -> None:
+        _, chunks = _build_real_curriculum_projection_chunks("curriculum:国际经济与贸易本科人才培养方案")
+
+        self.assertTrue(
+            any(
+                chunk.metadata["unit_type"] == "section_text"
+                and "2. 学科基础教育" in chunk.text
+                and chunk.text.startswith("五、课程设置和修读建议\n\n(一) 大类培养\n\n2. 学科基础教育")
+                for chunk in chunks
+            )
+        )
+        self.assertTrue(
+            any(
+                chunk.metadata["unit_type"] == "table_unit"
+                and "课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 修读学期" in chunk.text
+                and chunk.text.startswith("五、课程设置和修读建议\n\n(一) 大类培养\n\n2. 学科基础教育")
+                for chunk in chunks
+            )
+        )
+
+    def test_real_curriculum_projection_keeps_structural_context_on_high_token_table_chunks(self) -> None:
+        for document_id in (
+            "curriculum:国际经济与贸易本科人才培养方案",
+            "curriculum:经济学拔尖人才创新班人才培养方案",
+        ):
+            _, chunks = _build_real_curriculum_projection_chunks(document_id)
+
+            self.assertFalse(
+                any(
+                    chunk.metadata["unit_type"] == "table_unit"
+                    and "五、课程设置和修读建议" in chunk.anchor["section_path"]
+                    and chunk.metadata["final_token_count"] >= 500
+                    and not any(
+                        heading in chunk.text
+                        for heading in chunk.anchor["section_path"][1:]
+                    )
+                    for chunk in chunks
+                )
+            )
+
+    def test_runtime_v2_keeps_intermediate_course_setting_heading_on_high_token_table_chunks(self) -> None:
+        _, chunks = _build_real_curriculum_runtime_chunks("经济学拔尖人才创新班人才培养方案")
+
+        target_chunk = next(
+            chunk
+            for chunk in chunks
+            if chunk.metadata["unit_type"] == "table_unit"
+            and chunk.anchor["section_path"] == [
+                "经济学拔尖人才创新班人才培养方案",
+                "五、课程设置和修读建议",
+                "(一) 大类培养",
+                "1. 通识教育",
+            ]
+            and int(chunk.metadata["final_token_count"]) >= 600
+        )
+
+        self.assertIn("五、课程设置和修读建议", target_chunk.text)
+        self.assertIn("(一) 大类培养", target_chunk.text)
+        self.assertIn("1. 通识教育", target_chunk.text)
+
+    def test_runtime_v2_keeps_leaf_professional_education_heading_on_large_legacy_table_chunks(self) -> None:
+        _, chunks = _build_real_curriculum_runtime_chunks("孝通实验班本科人才培养方案")
+
+        target_chunk = next(
+            chunk
+            for chunk in chunks
+            if chunk.metadata["unit_type"] == "table_unit"
+            and chunk.anchor["section_path"] == [
+                "孝通实验班本科人才培养方案",
+                "五、课程设置和修读建议",
+                "(二)专业教育",
+            ]
+            and "老龄化与健康" in chunk.text
+        )
+
+        self.assertIn("五、课程设置和修读建议", target_chunk.text)
+        self.assertIn("(二)专业教育", target_chunk.text)
 
 
 if __name__ == "__main__":

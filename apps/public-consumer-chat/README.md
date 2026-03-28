@@ -70,6 +70,8 @@ pnpm smoke:live
 - `PUBLIC_CHAT_TEST_DATABASE_URL=postgres://...` for real Postgres integration tests
 - `SUPERVISOR_API_BASE_URL=http://127.0.0.1:8000`
 - `SUPERVISOR_API_BEARER_TOKEN=local-dev-token`
+- `PUBLIC_CONSUMER_CHAT_SCOPE_CORPUS=<query-enabled corpus>`
+- `PUBLIC_CONSUMER_CHAT_SCOPE_COLLECTION=<query-enabled collection>`
 - `BETTER_AUTH_SECRET=<generate-with-openssl-rand-base64-32>`
 
 `SUPERVISOR_API_BEARER_TOKEN` must match the repo root `API_BEARER_TOKEN` used by `apps/supervisor-api`.
@@ -104,6 +106,8 @@ PUBLIC_CONSUMER_CHAT_CHAT_SCHEMA=chat
 PUBLIC_CONSUMER_CHAT_INGESTION_REGISTRY_SCHEMA=ingestion_registry
 SUPERVISOR_API_BASE_URL=http://127.0.0.1:8000
 SUPERVISOR_API_BEARER_TOKEN=local-dev-token
+PUBLIC_CONSUMER_CHAT_SCOPE_CORPUS=curriculum
+PUBLIC_CONSUMER_CHAT_SCOPE_COLLECTION=curriculum_plan
 BETTER_AUTH_SECRET="$(openssl rand -base64 32)"
 ```
 
@@ -145,6 +149,8 @@ export PUBLIC_CONSUMER_CHAT_CHAT_SCHEMA=chat
 export PUBLIC_CONSUMER_CHAT_INGESTION_REGISTRY_SCHEMA=ingestion_registry
 export SUPERVISOR_API_BASE_URL=http://127.0.0.1:8000
 export SUPERVISOR_API_BEARER_TOKEN=local-dev-token
+export PUBLIC_CONSUMER_CHAT_SCOPE_CORPUS=curriculum
+export PUBLIC_CONSUMER_CHAT_SCOPE_COLLECTION=curriculum_plan
 export BETTER_AUTH_SECRET="$(openssl rand -base64 32)"
 
 pnpm dev
@@ -316,7 +322,7 @@ With both local servers running and `PUBLIC_CONSUMER_CHAT_DATABASE_URL` pointing
 - `401 unauthorized`
   Usually means `SUPERVISOR_API_BEARER_TOKEN` is missing in `apps/public-consumer-chat` or does not match `API_BEARER_TOKEN` in `apps/supervisor-api`.
 - `400 invalid_request` for missing `requested_scope`
-  `public-consumer-chat` already sends the default `regulations/student_handbook` scope in live mode. If you hit this, the live code path was bypassed or changed.
+  `public-consumer-chat` now requires `PUBLIC_CONSUMER_CHAT_SCOPE_CORPUS` and `PUBLIC_CONSUMER_CHAT_SCOPE_COLLECTION` in live mode. If you hit this, the live scope env is missing or the live code path was bypassed.
 - `error` / `no_answer`
   These can be real supervisor semantics from the live chain, not necessarily a frontend fault. Check the returned message and `correlation_id` before assuming the app-local server is broken.
 - Transport failure with `The public answer path is unavailable right now.`

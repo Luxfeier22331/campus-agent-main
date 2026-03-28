@@ -40,6 +40,14 @@ from campus_ingestion_core.corpus_profiles import (
     default_query_scopes,
     load_runtime_profile,
 )
+from campus_ingestion_core.scope_catalog import (
+    CollectionScope,
+    QdrantIndexBinding,
+    assert_known_corpus,
+    assert_known_scope,
+    list_collection_scopes,
+    list_corpora,
+)
 from campus_ingestion_core.curriculum_provider_normalize import normalize_curriculum_provider_result
 from campus_ingestion_core.embed import (
     EmbeddingSettings,
@@ -89,6 +97,7 @@ from campus_ingestion_core.process import (
 from campus_ingestion_core.raw_ingestion import (
     OnlineOcrClient,
     OnlineOcrProviderResult,
+    RawIngestionRequest,
     process_raw_ingestion_job,
 )
 from campus_ingestion_core.registry import (
@@ -116,6 +125,7 @@ __all__ = [
     "DEFAULT_BUCKET_DERIVED",
     "DEFAULT_BUCKET_SOURCE",
     "CANONICAL_MARKDOWN_FILENAME",
+    "CollectionScope",
     "CollectionTruthConfig",
     "DEFAULT_CHUNK_POLICY_VERSION",
     "DEFAULT_CHUNK_OVERLAP",
@@ -152,6 +162,7 @@ __all__ = [
     "RebuildRequest",
     "OnlineOcrClient",
     "OnlineOcrProviderResult",
+    "RawIngestionRequest",
     "PostgresDocumentRegistry",
     "PostgresRawAssetRegistry",
     "RawAssetRecord",
@@ -173,6 +184,8 @@ __all__ = [
     "chunk_structured_unit",
     "clean_structured_text",
     "default_query_scopes",
+    "assert_known_corpus",
+    "assert_known_scope",
     "ObjectStoreSettings",
     "build_mock_embedding_model",
     "prefetch_hf_tokenizer",
@@ -194,9 +207,12 @@ __all__ = [
     "SplitManifest",
     "SplitManifestDocument",
     "export_student_handbook_chunk_samples",
+    "list_collection_scopes",
+    "list_corpora",
     "load_split_manifest",
     "load_runtime_profile",
     "parse_source_object_key",
+    "QdrantIndexBinding",
     "scan_student_handbook_chunking",
     "SparseEmbeddingSettings",
     "build_mock_sparse_embedding_model",

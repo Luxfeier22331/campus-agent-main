@@ -8,6 +8,7 @@ import unittest
 from unittest.mock import patch
 
 from campus_ingestion_core.handbook_cleanup import build_handbook_doc_id
+from campus_ingestion_core.raw_ingestion import RawIngestionRequest
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.object_store import (
     build_processed_artifact_key,
@@ -17,13 +18,34 @@ from campus_ingestion_core.process import build_indexable_chunks_from_record
 from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 from campus_ingestion_worker.process_raw_ingestion_job import (
     OnlineOcrProviderResult,
-    process_raw_ingestion_job,
+    process_raw_ingestion_job as _process_raw_ingestion_job,
 )
 from tests.ingestion._handbook_chunking_test_support import build_hermetic_handbook_v3_chunk_profile
 
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "student_handbook"
 SOURCE_BUCKET = "campus-rag-source"
 DERIVED_BUCKET = "campus-rag-derived"
+
+
+def process_raw_ingestion_job(**kwargs):
+    env = kwargs.get("env") or {}
+    request = kwargs.pop("request", None)
+    if request is None:
+        request = RawIngestionRequest(
+            raw_asset_id=(env.get("RAW_ASSET_ID") or "").strip(),
+            raw_version_id=(env.get("RAW_VERSION_ID") or "").strip(),
+            corpus=(env.get("INGESTION_CORPUS") or "").strip(),
+            collection=(env.get("INGESTION_COLLECTION") or "").strip(),
+            artifact_mode=(env.get("RAW_INGESTION_ARTIFACT_MODE") or "normalized").strip() or "normalized",
+            split_manifest_path=(
+                Path(env["INGESTION_SPLIT_MANIFEST_PATH"]).resolve()
+                if (env.get("INGESTION_SPLIT_MANIFEST_PATH") or "").strip()
+                else None
+            ),
+            report_dir=Path((env.get("IMPORT_REPORT_DIR") or "./var/import-reports").strip()),
+            default_campus_scope=(env.get("INGESTION_DEFAULT_CAMPUS_SCOPE") or "").strip() or None,
+        )
+    return _process_raw_ingestion_job(request=request, **kwargs)
 
 
 class _FakeObjectStore:
@@ -319,7 +341,7 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
 
-            with self.assertRaisesRegex(ValueError, "RAW_ASSET_ID and RAW_VERSION_ID"):
+            with self.assertRaisesRegex(ValueError, "raw_asset_id is required"):
                 process_raw_ingestion_job(
                     env={
                         "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
@@ -431,6 +453,8 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                 env={
                     "RAW_ASSET_ID": "asset:student-handbook-master-pdf",
                     "RAW_VERSION_ID": raw_version_id,
+                    "INGESTION_CORPUS": "regulations",
+                    "INGESTION_COLLECTION": "student_handbook",
                     "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                     "HANDBOOK_SOURCE_PROJECTIONS_PATH": str(projection_config_path),
                     "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
@@ -494,6 +518,8 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                 env={
                     "RAW_ASSET_ID": "asset:student-handbook-pdf",
                     "RAW_VERSION_ID": raw_version_id,
+                    "INGESTION_CORPUS": "regulations",
+                    "INGESTION_COLLECTION": "student_handbook",
                     "RAW_INGESTION_ARTIFACT_MODE": "source_truth_only",
                     "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
                     "OCR_API_KEY": "token",
@@ -544,11 +570,13 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                 )
             )
 
-            with self.assertRaisesRegex(ValueError, "INGESTION_SPLIT_MANIFEST_PATH is required"):
+            with self.assertRaisesRegex(ValueError, "split_manifest_path is required"):
                 process_raw_ingestion_job(
                     env={
                         "RAW_ASSET_ID": "asset:student-handbook-pdf",
                         "RAW_VERSION_ID": raw_version_id,
+                        "INGESTION_CORPUS": "regulations",
+                        "INGESTION_COLLECTION": "student_handbook",
                         "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
                         "OCR_API_KEY": "token",
                         "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
@@ -629,6 +657,8 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                 env={
                     "RAW_ASSET_ID": "asset:student-handbook-master-pdf",
                     "RAW_VERSION_ID": raw_version_id,
+                    "INGESTION_CORPUS": "regulations",
+                    "INGESTION_COLLECTION": "student_handbook",
                     "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                     "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
                     "OCR_API_KEY": "token",
@@ -739,6 +769,8 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                 env={
                     "RAW_ASSET_ID": "asset:student-handbook-master-pdf",
                     "RAW_VERSION_ID": raw_version_id,
+                    "INGESTION_CORPUS": "regulations",
+                    "INGESTION_COLLECTION": "student_handbook",
                     "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                     "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
                     "OCR_API_KEY": "token",
@@ -817,6 +849,8 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                 env={
                     "RAW_ASSET_ID": "asset:student-handbook-master-pdf",
                     "RAW_VERSION_ID": raw_version_id,
+                    "INGESTION_CORPUS": "regulations",
+                    "INGESTION_COLLECTION": "student_handbook",
                     "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                     "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
                     "OCR_API_KEY": "token",
@@ -910,6 +944,8 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                     env={
                         "RAW_ASSET_ID": "asset:student-handbook-master-pdf",
                         "RAW_VERSION_ID": raw_version_id,
+                        "INGESTION_CORPUS": "regulations",
+                        "INGESTION_COLLECTION": "student_handbook",
                         "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                         "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
                         "OCR_API_KEY": "token",
@@ -988,6 +1024,8 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                 env={
                     "RAW_ASSET_ID": "asset:student-handbook-master-pdf",
                     "RAW_VERSION_ID": raw_version_id,
+                    "INGESTION_CORPUS": "regulations",
+                    "INGESTION_COLLECTION": "student_handbook",
                     "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                     "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
                     "OCR_API_KEY": "token",
@@ -1049,6 +1087,8 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             env = {
                 "RAW_ASSET_ID": "asset:student-handbook-master-pdf",
                 "RAW_VERSION_ID": raw_version_id,
+                "INGESTION_CORPUS": "regulations",
+                "INGESTION_COLLECTION": "student_handbook",
                 "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                 "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
                 "OCR_API_KEY": "token",
@@ -1140,6 +1180,8 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                 env={
                     "RAW_ASSET_ID": "asset:student-handbook-master-pdf",
                     "RAW_VERSION_ID": stable_version_id,
+                    "INGESTION_CORPUS": "regulations",
+                    "INGESTION_COLLECTION": "student_handbook",
                     "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                     "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
                     "OCR_API_KEY": "token",
@@ -1158,6 +1200,8 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                 env={
                     "RAW_ASSET_ID": "asset:student-handbook-master-pdf",
                     "RAW_VERSION_ID": updated_version_id,
+                    "INGESTION_CORPUS": "regulations",
+                    "INGESTION_COLLECTION": "student_handbook",
                     "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                     "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
                     "OCR_API_KEY": "token",
@@ -1222,6 +1266,8 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             env = {
                 "RAW_ASSET_ID": "asset:volatile-pdf",
                 "RAW_VERSION_ID": raw_version_id,
+                "INGESTION_CORPUS": "regulations",
+                "INGESTION_COLLECTION": "student_handbook",
                 "RAW_INGESTION_ARTIFACT_MODE": "source_truth_only",
                 "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
                 "OCR_API_KEY": "token",
@@ -1313,6 +1359,8 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                     env={
                         "RAW_ASSET_ID": "asset:student-handbook-pdf",
                         "RAW_VERSION_ID": raw_version_id,
+                        "INGESTION_CORPUS": "regulations",
+                        "INGESTION_COLLECTION": "student_handbook",
                         "RAW_INGESTION_ARTIFACT_MODE": "source_truth_only",
                         "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                         "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
@@ -1729,6 +1777,8 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                     env={
                         "RAW_ASSET_ID": "asset:curriculum-plan-master-pdf",
                         "RAW_VERSION_ID": raw_version_id,
+                        "INGESTION_CORPUS": "regulations",
+                        "INGESTION_COLLECTION": "student_handbook",
                         "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                         "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
                         "OCR_API_KEY": "token",
@@ -1772,6 +1822,8 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                     env={
                         "RAW_ASSET_ID": "asset:student-handbook-pdf",
                         "RAW_VERSION_ID": raw_version_id,
+                        "INGESTION_CORPUS": "regulations",
+                        "INGESTION_COLLECTION": "student_handbook",
                         "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                         "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                         "OBJECT_STORE_SECRET_KEY": "minioadmin",

@@ -33,6 +33,10 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
 from tests.support.in_memory_registry import InMemoryDocumentRegistry
 
+STUDENT_HANDBOOK_QDRANT_COLLECTION = (
+    load_runtime_profile("regulations", "student_handbook").qdrant_index_binding.collection_name
+)
+
 
 def _make_registry_record(
     *,
@@ -169,7 +173,7 @@ class BackendQdrantTest(unittest.TestCase):
         ids = index_chunks_to_qdrant(
             chunks=chunks,
             qdrant_client=qdrant_client,
-            collection_name="student_handbook_test",
+            collection_name=STUDENT_HANDBOOK_QDRANT_COLLECTION,
             sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
         )
 
@@ -201,7 +205,7 @@ class BackendQdrantTest(unittest.TestCase):
             ids = index_chunks_to_qdrant(
                 chunks=chunks,
                 qdrant_client=qdrant_client,
-                collection_name="student_handbook_test",
+                collection_name=STUDENT_HANDBOOK_QDRANT_COLLECTION,
                 sparse_embedding_model=build_sparse_embedding_model(SparseEmbeddingSettings()),
             )
 
@@ -250,7 +254,6 @@ class BackendQdrantTest(unittest.TestCase):
         backend = QdrantRetrievalBackend(
             settings=RetrievalSettings(
                 qdrant_url=":memory:",
-                qdrant_collection="student_handbook_test",
                 document_registry_database_url="postgresql://registry.example/postgres",
             ),
             registry=InMemoryDocumentRegistry(),
@@ -258,12 +261,12 @@ class BackendQdrantTest(unittest.TestCase):
             embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
         )
 
-        with self.assertRaisesRegex(CorpusQueryDisabledError, "curriculum/curriculum_plan"):
+        with self.assertRaisesRegex(CorpusQueryDisabledError, "campus_services/service_catalog"):
             backend.retrieve(
                 RetrievalRequest(
-                    query_text="培养方案要求",
-                    corpus="curriculum",
-                    collection="curriculum_plan",
+                    query_text="宿舍报修流程",
+                    corpus="campus_services",
+                    collection="service_catalog",
                 )
             )
 
@@ -287,6 +290,15 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertEqual(settings.sparse_model, "qdrant/bm25")
         self.assertEqual(settings.sparse_tokenizer, "multilingual")
         self.assertEqual(settings.sparse_language, "none")
+
+    def test_retrieval_settings_from_env_requires_explicit_qdrant_url(self) -> None:
+        with self.assertRaisesRegex(ValueError, "QDRANT_URL is required"):
+            RetrievalSettings.from_env({})
+
+    def test_retrieval_settings_from_env_no_longer_requires_qdrant_collection(self) -> None:
+        settings = RetrievalSettings.from_env({"QDRANT_URL": ":memory:"})
+
+        self.assertEqual(settings.qdrant_url, ":memory:")
 
     def test_retrieval_settings_default_qwen3_dimensions_to_native_width(self) -> None:
         settings = RetrievalSettings(
@@ -395,7 +407,6 @@ class BackendQdrantTest(unittest.TestCase):
         backend = QdrantRetrievalBackend(
             settings=RetrievalSettings(
                 qdrant_url=":memory:",
-                qdrant_collection="student_handbook_test",
                 document_registry_database_url="postgresql://registry.example/postgres",
             ),
             registry=registry,
@@ -461,7 +472,6 @@ class BackendQdrantTest(unittest.TestCase):
         backend = QdrantRetrievalBackend(
             settings=RetrievalSettings(
                 qdrant_url=":memory:",
-                qdrant_collection="student_handbook_test",
                 document_registry_database_url="postgresql://registry.example/postgres",
             ),
             registry=registry,
@@ -472,7 +482,7 @@ class BackendQdrantTest(unittest.TestCase):
         index_chunks_to_qdrant(
             chunks=chunks,
             qdrant_client=backend.qdrant_client,
-            collection_name=backend.settings.qdrant_collection,
+            collection_name=STUDENT_HANDBOOK_QDRANT_COLLECTION,
             sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
         )
 
@@ -513,7 +523,6 @@ class BackendQdrantTest(unittest.TestCase):
         backend = QdrantRetrievalBackend(
             settings=RetrievalSettings(
                 qdrant_url=":memory:",
-                qdrant_collection="student_handbook_test",
                 document_registry_database_url="postgresql://registry.example/postgres",
             ),
             registry=registry,
@@ -581,7 +590,6 @@ class BackendQdrantTest(unittest.TestCase):
         backend = QdrantRetrievalBackend(
             settings=RetrievalSettings(
                 qdrant_url=":memory:",
-                qdrant_collection="student_handbook_test",
                 document_registry_database_url="postgresql://registry.example/postgres",
             ),
             registry=registry,
@@ -652,7 +660,6 @@ class BackendQdrantTest(unittest.TestCase):
         backend = QdrantRetrievalBackend(
             settings=RetrievalSettings(
                 qdrant_url=":memory:",
-                qdrant_collection="student_handbook_test",
                 document_registry_database_url="postgresql://registry.example/postgres",
             ),
             registry=registry,
@@ -748,7 +755,6 @@ class BackendQdrantTest(unittest.TestCase):
         backend = QdrantRetrievalBackend(
             settings=RetrievalSettings(
                 qdrant_url=":memory:",
-                qdrant_collection="student_handbook_test",
                 document_registry_database_url="postgresql://registry.example/postgres",
             ),
             registry=registry,
@@ -759,7 +765,7 @@ class BackendQdrantTest(unittest.TestCase):
         index_chunks_to_qdrant(
             chunks=[*allowed_chunks, *blocked_chunks],
             qdrant_client=backend.qdrant_client,
-            collection_name=backend.settings.qdrant_collection,
+            collection_name=STUDENT_HANDBOOK_QDRANT_COLLECTION,
             sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
         )
 
@@ -801,7 +807,6 @@ class BackendQdrantTest(unittest.TestCase):
         backend = QdrantRetrievalBackend(
             settings=RetrievalSettings(
                 qdrant_url=":memory:",
-                qdrant_collection="student_handbook_test",
                 document_registry_database_url="postgresql://registry.example/postgres",
             ),
             registry=registry,
@@ -812,7 +817,7 @@ class BackendQdrantTest(unittest.TestCase):
         index_chunks_to_qdrant(
             chunks=restricted_chunks,
             qdrant_client=backend.qdrant_client,
-            collection_name=backend.settings.qdrant_collection,
+            collection_name=STUDENT_HANDBOOK_QDRANT_COLLECTION,
             sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
         )
 
@@ -834,7 +839,6 @@ class BackendQdrantTest(unittest.TestCase):
         backend = QdrantRetrievalBackend(
             settings=RetrievalSettings(
                 qdrant_url=":memory:",
-                qdrant_collection="student_handbook_test",
                 document_registry_database_url="postgresql://registry.example/postgres",
             ),
             registry=registry,
@@ -865,7 +869,6 @@ class BackendQdrantTest(unittest.TestCase):
         backend = QdrantRetrievalBackend(
             settings=RetrievalSettings(
                 qdrant_url=":memory:",
-                qdrant_collection="student_handbook_test",
                 document_registry_database_url="postgresql://registry.example/postgres",
             ),
             registry=InMemoryDocumentRegistry(),
@@ -1090,7 +1093,6 @@ class BackendQdrantTest(unittest.TestCase):
         backend = QdrantRetrievalBackend(
             settings=RetrievalSettings(
                 qdrant_url=":memory:",
-                qdrant_collection="student_handbook_test",
                 document_registry_database_url="postgresql://registry.example/postgres",
             ),
             registry=registry,
@@ -1111,7 +1113,7 @@ class BackendQdrantTest(unittest.TestCase):
         index_chunks_to_qdrant(
             chunks=chunks,
             qdrant_client=backend.qdrant_client,
-            collection_name=backend.settings.qdrant_collection,
+            collection_name=STUDENT_HANDBOOK_QDRANT_COLLECTION,
             sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
         )
         backend.qdrant_client.query_points = Mock(side_effect=RuntimeError("boom"))  # type: ignore[method-assign]
@@ -1133,7 +1135,6 @@ class BackendQdrantTest(unittest.TestCase):
             backend = QdrantRetrievalBackend(
                 settings=RetrievalSettings(
                     qdrant_url=":memory:",
-                    qdrant_collection="student_handbook_test",
                     document_registry_database_url="postgresql://registry.example/postgres",
                     embedding_model="mock-embedding-8d",
                 ),

@@ -4,8 +4,6 @@ from dataclasses import dataclass
 import os
 from urllib.parse import urlparse
 
-
-DEFAULT_QDRANT_COLLECTION = "student_handbook"
 DEFAULT_QDRANT_TIMEOUT_SECONDS = 10.0
 DEFAULT_EMBEDDING_PROVIDER = "gitee"
 DEFAULT_EMBEDDING_MODEL = "Qwen3-Embedding-4B"
@@ -18,7 +16,6 @@ DEFAULT_SPARSE_LANGUAGE = "none"
 @dataclass(frozen=True, slots=True)
 class RetrievalSettings:
     qdrant_url: str
-    qdrant_collection: str = DEFAULT_QDRANT_COLLECTION
     qdrant_api_key: str | None = None
     qdrant_timeout_seconds: float = DEFAULT_QDRANT_TIMEOUT_SECONDS
     document_registry_database_url: str = ""
@@ -39,8 +36,6 @@ class RetrievalSettings:
             parsed = urlparse(self.qdrant_url)
             if parsed.scheme not in {"http", "https"} or not parsed.netloc:
                 raise ValueError("QDRANT_URL must be http(s) or :memory:")
-        if not self.qdrant_collection:
-            raise ValueError("QDRANT_COLLECTION is required")
         if self.qdrant_timeout_seconds <= 0:
             raise ValueError("QDRANT_TIMEOUT_SECONDS must be greater than zero")
         if not self.embedding_provider:
@@ -65,9 +60,11 @@ class RetrievalSettings:
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> "RetrievalSettings":
         source = env if env is not None else os.environ
+        qdrant_url = (source.get("QDRANT_URL") or "").strip()
+        if not qdrant_url:
+            raise ValueError("QDRANT_URL is required")
         return cls(
-            qdrant_url=(source.get("QDRANT_URL") or "http://localhost:6333").strip(),
-            qdrant_collection=(source.get("QDRANT_COLLECTION") or DEFAULT_QDRANT_COLLECTION).strip(),
+            qdrant_url=qdrant_url,
             qdrant_api_key=(source.get("QDRANT_API_KEY") or "").strip() or None,
             qdrant_timeout_seconds=float(
                 (source.get("QDRANT_TIMEOUT_SECONDS") or str(DEFAULT_QDRANT_TIMEOUT_SECONDS)).strip()

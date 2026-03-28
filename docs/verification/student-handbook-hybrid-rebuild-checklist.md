@@ -63,7 +63,7 @@ updated: 2026-03-27
   - `SPARSE_TOKENIZER=multilingual`
   - `SPARSE_LANGUAGE=none`
 - remote Qdrant client 必须启用 `cloud_inference=True`
-- `QDRANT_COLLECTION` 指向本轮目标 collection，不与旧 dense-only collection 混用
+- handbook runtime profile 中的 `qdrant_collection_name` / vector binding 必须对齐本轮目标索引，不与旧 dense-only target 混用
 - `DOCUMENT_REGISTRY_DATABASE_URL` 指向本轮 live registry
 - `REBUILD_RESET_QDRANT=true` 或已确认目标 collection 可以被新 schema 重建
 

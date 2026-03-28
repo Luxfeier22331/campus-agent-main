@@ -5,7 +5,7 @@ import unittest
 
 from campus_ingestion_core.chunking import (
     CURRICULUM_CLEANING_POLICY_VERSION,
-    CURRICULUM_V1_CHUNK_POLICY_VERSION,
+    CURRICULUM_V2_CHUNK_POLICY_VERSION,
     DEFAULT_CHUNK_OVERLAP,
     DEFAULT_CHUNK_POLICY_VERSION,
     DEFAULT_CHUNK_SIZE,
@@ -200,9 +200,23 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertEqual(profile.max_chunk_size, 540)
         self.assertEqual(profile.chunk_overlap, 72)
         self.assertEqual(profile.min_chunk_size, 50)
-        self.assertEqual(profile.chunk_policy_version, CURRICULUM_V1_CHUNK_POLICY_VERSION)
+        self.assertEqual(profile.chunk_policy_version, CURRICULUM_V2_CHUNK_POLICY_VERSION)
         self.assertEqual(profile.cleaning_policy_version, CURRICULUM_CLEANING_POLICY_VERSION)
-        self.assertEqual(profile.strategy_name, "curriculum_plan_structure_v1")
+        self.assertEqual(profile.strategy_name, "curriculum_plan_structure_v2")
+
+    def test_build_curriculum_chunk_profile_v2_uses_balanced_table_budget_for_table_units(self) -> None:
+        profile = build_curriculum_chunk_profile(
+            profile_version=CURRICULUM_V2_CHUNK_POLICY_VERSION,
+            model_name="Qwen3-Embedding-4B",
+            unit_type="table_unit",
+        )
+
+        self.assertEqual(profile.chunk_size, 420)
+        self.assertEqual(profile.max_chunk_size, 640)
+        self.assertEqual(profile.chunk_overlap, 72)
+        self.assertEqual(profile.min_chunk_size, 64)
+        self.assertEqual(profile.chunk_policy_version, CURRICULUM_V2_CHUNK_POLICY_VERSION)
+        self.assertEqual(profile.strategy_name, "curriculum_plan_structure_v2")
 
     def test_build_indexable_chunks_from_jsonl_keeps_required_metadata(self) -> None:
         record = _make_registry_record()
@@ -306,9 +320,9 @@ class ProcessingPipelineTest(unittest.TestCase):
         )
 
         self.assertEqual(len(chunks), 1)
-        self.assertEqual(chunks[0].metadata["chunk_policy_version"], CURRICULUM_V1_CHUNK_POLICY_VERSION)
+        self.assertEqual(chunks[0].metadata["chunk_policy_version"], CURRICULUM_V2_CHUNK_POLICY_VERSION)
         self.assertEqual(chunks[0].metadata["cleaning_policy_version"], CURRICULUM_CLEANING_POLICY_VERSION)
-        self.assertEqual(chunks[0].metadata["strategy_name"], "curriculum_plan_structure_v1")
+        self.assertEqual(chunks[0].metadata["strategy_name"], "curriculum_plan_structure_v2")
         self.assertEqual(chunks[0].metadata["unit_type"], "section_text")
 
     def test_build_indexable_chunks_from_jsonl_rewrites_parent_table_html_to_placeholder(self) -> None:

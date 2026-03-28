@@ -1,11 +1,14 @@
 {
   "corpus": "campus_services",
   "collection": "service_catalog",
-  "phase1_stage": "cleaned_ingestion",
+  "serving_stage": "offline_preparation",
   "allowed_artifact_modes": ["normalized", "source_truth_only"],
   "split_manifest_required": false,
   "cleaning_policy_version": "service_catalog_cleaning_v1",
   "chunk_profile_version": "service_catalog_semantic_v1",
   "retrieval_enabled": false,
-  "default_query_enabled": false
+  "query_enabled_by_default": false,
+  "qdrant_collection_name": "service_catalog",
+  "qdrant_dense_vector_name": "dense",
+  "qdrant_sparse_vector_name": "sparse"
 }

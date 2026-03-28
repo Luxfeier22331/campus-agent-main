@@ -25,7 +25,7 @@ This note records the current repo-tracked `cleaning -> split` decision state fo
 
 - `split-manifest.v1.json`
   - promoted to the real split truth for the reviewed `asset:curriculum-plan-2022`
-  - `66` title-anchored documents
+  - `69` title-anchored documents
   - page ranges inferred from current `layout-elements.v3` title occurrences after minimal title normalization
 - `split-manifest.candidate.v1.json`
   - review companion artifact generated from the same source and document list

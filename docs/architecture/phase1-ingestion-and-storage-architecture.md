@@ -186,7 +186,7 @@ updated: 2026-03-27
 - 文档删除通过 registry 状态与索引删除同步处理
 - replay/rebuild 的 canonical boundary 是 persisted source truth，而不是 handbook-only branch、legacy migration side path 或二次 raw re-entry
 - handbook-derived `campus_services` output、attachment/form/navigation-like output 都必须从 source truth fan-out，而不是各自回到 raw
-- `curriculum/curriculum_plan` 的 accepted offline path 固定为 `source-truth/layout-elements.jsonl -> split-manifest logical documents -> source-truth-preserving document-units.jsonl -> curriculum_plan_semantic_v1`；它继续保持 offline-only，不进入默认 query-serving scope
+- `curriculum/curriculum_plan` 的 accepted ingestion path 固定为 `source-truth/layout-elements.jsonl -> split-manifest logical documents -> source-truth-preserving document-units.jsonl -> curriculum_plan_semantic_v1`
 - collection 专属 normalization、cleanup、chunking 规则由对应 strategy doc 和 `configs/ingestion/` 冻结，不在本文重复
 
 ### 查询链路
@@ -195,16 +195,15 @@ updated: 2026-03-27
 
 固定规则：
 
-- query-serving 默认只开放 `regulations` corpus 中的 `student_handbook` collection
-- `curriculum/curriculum_plan` 在 phase-1 只完成 offline data-plane 收口，不改变默认查询面
-- `campus_services/service_catalog` 与 `campus_services/contact_directory` 在当前阶段只保留离线 taxonomy 和 data-plane 入口，不改变默认查询面
+- query-serving surface 由 collection runtime profile 控制；当前 query-enabled collection 是 `regulations/student_handbook` 与 `curriculum/curriculum_plan`
+- `campus_services/service_catalog` 与 `campus_services/contact_directory` 当前保持 `offline_preparation`，只保留离线 taxonomy 和 data-plane 入口
 - retrieval 返回的 source 必须能回链到 document registry
 - retrieval 前置 ACL filter 必须基于 metadata 执行
 - 当前 retrieval accepted baseline 为 `dense + sparse hybrid retrieval + RRF fusion + registry-backed evidence shaping`；`HyDE` 和 rerank 不是默认主路径
 - 当前 handbook embedding runtime 通过 `gitee` 官方 OpenAI-compatible 接口请求 `Qwen3-Embedding-4B @ 2560`，ingestion 与 retrieval query path 都必须显式发送 `dimensions=2560`
 - 当前 handbook 的 phase-1 sparse baseline 先采用 `Qdrant native BM25`，并以 `tokenizer=multilingual`、`language=none` 作为中文 handbook 起始配置
 - 当前 handbook 的 accepted target retrieval shape 是 Qdrant native hybrid query：同一 filter 下执行 dense prefetch 与 sparse prefetch，并使用 native `RRF` 融合
-- 当前 handbook query-serving 默认只消费 collection runtime profile 定义的 current-serving documents；当前策略为 `current_only=true`，并按 `serving_revision_tracks=["current-effective","source-faithful"]` 过滤 serving revision_track
+- query-serving 默认只消费 collection runtime profile 定义的 serving documents。当前 `student_handbook` 策略为 `current_only=true` 且 `serving_revision_tracks=["current-effective","source-faithful"]`；当前 `curriculum_plan` 策略为 `current_only=false` 且 `serving_revision_tracks=["source-faithful"]`
 - query path 不再接受“历史版本先命中，再靠 `latest_url` 告知用户当前链接”作为默认主路径；历史版本默认不进入 retrieval candidate
 - 当同一逻辑文档同时存在 `pdf_ocr` / `official_web` 等多来源且规范化内容一致时，source layer 保留多份来源资产，但 document/version layer 只保留一份逻辑版本；Qdrant 不得为等价来源重复建索引点
 

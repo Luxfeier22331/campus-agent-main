@@ -83,8 +83,8 @@ updated: 2026-03-25
 - LlamaIndex 继续作为第一版 retrieval 实现
 - 但它只能存在于 `packages/retrieval-core` 和 `packages/ingestion-core` 背后
 - 第一阶段不从 day 1 设计多 backend 并行
-- 第一阶段 query-serving 默认只开放 `regulations` corpus 中的 `student_handbook` collection
-- 第一阶段 `curriculum_plan` 必须完成 raw/processed/registry 与清洗真相收口，但不自动放开查询链路
+- query-serving surface 由 collection runtime profile 控制；当前 query-enabled collection 是 `regulations/student_handbook` 与 `curriculum/curriculum_plan`
+- `campus_services` collection 当前保持 `offline_preparation`，不自动进入查询链路
 - 第一阶段直连共享 Qdrant
 
 原因：

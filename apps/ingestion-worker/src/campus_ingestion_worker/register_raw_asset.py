@@ -4,9 +4,10 @@ from dataclasses import asdict, dataclass
 import hashlib
 import json
 import os
+import argparse
 from pathlib import Path
+from typing import Sequence
 
-from campus_contracts import ALLOWED_CORPORA, DEFAULT_COLLECTION, DEFAULT_CORPUS, KNOWN_COLLECTION_TO_CORPUS
 from campus_ingestion_core import (
     ObjectStoreSettings,
     RawAssetRecord,
@@ -20,6 +21,7 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     build_raw_asset_id,
     utc_now,
 )
+from campus_ingestion_core.scope_catalog import assert_known_scope
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
@@ -37,6 +39,8 @@ def register_raw_asset(
     *,
     pdf_path: Path,
     raw_source_uri: str,
+    corpus: str,
+    collection: str,
     env: dict[str, str] | None = None,
     raw_asset_id: str | None = None,
     object_store: ObjectStoreWriter | None = None,
@@ -50,8 +54,7 @@ def register_raw_asset(
     if not normalized_source_uri:
         raise ValueError("raw_source_uri is required")
 
-    corpus = _read_ingestion_corpus(source)
-    collection = _read_ingestion_collection(source, corpus=corpus)
+    assert_known_scope(corpus, collection)
     object_store_settings = ObjectStoreSettings.from_env(source)
     raw_asset_registry = raw_asset_registry or build_raw_asset_registry_from_env(source)
     writer = object_store or S3ObjectStoreWriter(object_store_settings)
@@ -107,37 +110,27 @@ def register_raw_asset(
 
 def main() -> None:
     load_worker_env()
-    source_file = (os.environ.get("RAW_SOURCE_FILE") or "").strip()
-    raw_source_uri = (os.environ.get("RAW_SOURCE_URI") or "").strip()
-    raw_asset_id = (os.environ.get("RAW_ASSET_ID") or "").strip() or None
-    if not source_file:
-        raise ValueError("RAW_SOURCE_FILE is required")
-    if not raw_source_uri:
-        raise ValueError("RAW_SOURCE_URI is required")
+    args = build_parser().parse_args()
     result = register_raw_asset(
-        pdf_path=Path(source_file),
-        raw_source_uri=raw_source_uri,
-        raw_asset_id=raw_asset_id,
+        pdf_path=Path(args.pdf_path),
+        raw_source_uri=args.raw_source_uri,
+        corpus=args.corpus,
+        collection=args.collection,
+        raw_asset_id=args.raw_asset_id,
     )
     print(json.dumps(asdict(result), ensure_ascii=False, indent=2))
 
-
-def _read_ingestion_corpus(source: dict[str, str]) -> str:
-    corpus = (source.get("INGESTION_CORPUS") or DEFAULT_CORPUS).strip() or DEFAULT_CORPUS
-    if corpus not in ALLOWED_CORPORA:
-        raise ValueError(f"unsupported corpus: {corpus}")
-    return corpus
-
-
-def _read_ingestion_collection(source: dict[str, str], *, corpus: str) -> str:
-    collection = (source.get("INGESTION_COLLECTION") or DEFAULT_COLLECTION).strip() or DEFAULT_COLLECTION
-    expected_corpus = KNOWN_COLLECTION_TO_CORPUS.get(collection)
-    if expected_corpus is not None and expected_corpus != corpus:
-        raise ValueError(f"unsupported collection scope: {collection} does not belong to {corpus}")
-    return collection
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Register a raw asset with an explicit corpus/collection scope")
+    parser.add_argument("--pdf-path", required=True)
+    parser.add_argument("--raw-source-uri", required=True)
+    parser.add_argument("--corpus", required=True)
+    parser.add_argument("--collection", required=True)
+    parser.add_argument("--raw-asset-id")
+    return parser
 
 
-__all__ = ["RawAssetRegistrationResult", "register_raw_asset", "main"]
+__all__ = ["RawAssetRegistrationResult", "build_parser", "register_raw_asset", "main"]
 
 
 if __name__ == "__main__":

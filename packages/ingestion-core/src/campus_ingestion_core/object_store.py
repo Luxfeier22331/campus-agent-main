@@ -3,9 +3,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from campus_contracts import ALLOWED_CORPORA
-
 from campus_ingestion_core.settings import ObjectStoreSettings
+from campus_ingestion_core.scope_catalog import assert_known_corpus
 
 
 DEFAULT_RAW_SOURCE_CHANNEL = "official_pdf"
@@ -255,8 +254,7 @@ def parse_source_object_key(key: str) -> dict[str, object] | None:
 
 
 def _validate_corpus_and_filename(*, corpus: str, filename: str) -> None:
-    if corpus not in ALLOWED_CORPORA:
-        raise ValueError(f"unsupported corpus: {corpus}")
+    assert_known_corpus(corpus)
     _validate_filename_only(filename=filename)
 
 

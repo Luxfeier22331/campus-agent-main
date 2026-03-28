@@ -6,7 +6,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from campus_ingestion_worker.register_raw_asset import register_raw_asset
+from campus_ingestion_worker.register_raw_asset import register_raw_asset as _register_raw_asset
 from tests.support.in_memory_registry import InMemoryRawAssetRegistry
 
 
@@ -34,6 +34,15 @@ class _FakeObjectStore:
         self.objects[(bucket, key)] = data
 
 
+def register_raw_asset(**kwargs):
+    env = kwargs.get("env") or {}
+    return _register_raw_asset(
+        corpus=kwargs.pop("corpus", (env.get("INGESTION_CORPUS") or "").strip()),
+        collection=kwargs.pop("collection", (env.get("INGESTION_COLLECTION") or "").strip()),
+        **kwargs,
+    )
+
+
 class RegisterRawAssetTest(unittest.TestCase):
     def test_register_raw_asset_uses_filename_derived_identity_and_reuses_existing_record(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -55,6 +64,8 @@ class RegisterRawAssetTest(unittest.TestCase):
             first = register_raw_asset(
                 pdf_path=pdf_path,
                 raw_source_uri="https://campus.example/student-handbook.pdf",
+                corpus="regulations",
+                collection="student_handbook",
                 env=env,
                 object_store=object_store,
                 raw_asset_registry=raw_asset_registry,
@@ -62,6 +73,8 @@ class RegisterRawAssetTest(unittest.TestCase):
             second = register_raw_asset(
                 pdf_path=pdf_path,
                 raw_source_uri="https://campus.example/student-handbook.pdf",
+                corpus="regulations",
+                collection="student_handbook",
                 env=env,
                 object_store=object_store,
                 raw_asset_registry=raw_asset_registry,
@@ -107,6 +120,8 @@ class RegisterRawAssetTest(unittest.TestCase):
             first = register_raw_asset(
                 pdf_path=pdf_path,
                 raw_source_uri="https://campus.example/student-handbook.pdf",
+                corpus="regulations",
+                collection="student_handbook",
                 env=env,
                 object_store=object_store,
                 raw_asset_registry=raw_asset_registry,
@@ -116,6 +131,8 @@ class RegisterRawAssetTest(unittest.TestCase):
             second = register_raw_asset(
                 pdf_path=pdf_path,
                 raw_source_uri="https://campus.example/student-handbook.pdf",
+                corpus="regulations",
+                collection="student_handbook",
                 env=env,
                 object_store=object_store,
                 raw_asset_registry=raw_asset_registry,

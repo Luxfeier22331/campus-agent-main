@@ -15,6 +15,7 @@ from campus_ingestion_core.chunking import (
     ChunkProfile,
     ChunkTextAssembly,
     ChunkTextContextPlan,
+    CURRICULUM_V2_CHUNK_POLICY_VERSION,
     CURRICULUM_V1_CHUNK_POLICY_VERSION,
     SemanticChunkPiece,
     StructuredUnitChunkInput,
@@ -162,6 +163,7 @@ def build_indexable_chunks_from_jsonl(
     sparse_embedding_model: SparseEmbeddingModel | None = None,
 ) -> tuple[IndexableChunk, ...]:
     runtime_profile = _resolve_chunk_profile(record=record, chunk_profile=chunk_profile)
+    use_runtime_curriculum_unit_profiles = chunk_profile is None
     units = _load_structured_units(record=record, structured_jsonl_bytes=structured_jsonl_bytes)
     if not units:
         return ()
@@ -175,15 +177,26 @@ def build_indexable_chunks_from_jsonl(
         units=units,
         chunk_profile=runtime_profile,
         table_roots_with_semantic_units=table_roots_with_semantic_units,
+        use_runtime_curriculum_unit_profiles=use_runtime_curriculum_unit_profiles,
     )
     chunk_candidates = _merge_adjacent_short_textual_candidates(
         chunk_candidates=chunk_candidates,
-        chunk_profile=runtime_profile,
+        chunk_profile=_resolve_unit_chunk_profile(
+            record=record,
+            runtime_profile=runtime_profile,
+            unit_type="section_text",
+            use_runtime_curriculum_unit_profiles=use_runtime_curriculum_unit_profiles,
+        ),
     )
     if record.collection == "curriculum_plan":
         chunk_candidates = _merge_adjacent_curriculum_table_candidates(
             chunk_candidates=chunk_candidates,
-            chunk_profile=runtime_profile,
+            chunk_profile=_resolve_unit_chunk_profile(
+                record=record,
+                runtime_profile=runtime_profile,
+                unit_type="table_unit",
+                use_runtime_curriculum_unit_profiles=use_runtime_curriculum_unit_profiles,
+            ),
         )
     dense_embeddings = _embed_texts(
         [candidate.chunk_assembly.text for candidate in chunk_candidates],
@@ -254,16 +267,23 @@ def _build_chunk_candidates(
     units: Sequence[StructuredUnit],
     chunk_profile: ChunkProfile,
     table_roots_with_semantic_units: set[str],
+    use_runtime_curriculum_unit_profiles: bool,
 ) -> tuple[_ChunkCandidate, ...]:
     candidates: list[_ChunkCandidate] = []
     for unit in units:
+        resolved_chunk_profile = _resolve_unit_chunk_profile(
+            record=record,
+            runtime_profile=chunk_profile,
+            unit_type=unit.unit_type,
+            use_runtime_curriculum_unit_profiles=use_runtime_curriculum_unit_profiles,
+        )
         if unit.unit_type == "table":
             if record.collection == "student_handbook":
                 continue
             if unit.root_unit_id in table_roots_with_semantic_units:
                 continue
         if record.collection == "curriculum_plan":
-            pieces = chunk_curriculum_unit(unit=unit, chunk_profile=chunk_profile)
+            pieces = chunk_curriculum_unit(unit=unit, chunk_profile=resolved_chunk_profile)
         elif unit.unit_type == "table_unit":
             pieces = chunk_table_unit(
                 unit=StructuredUnitChunkInput(
@@ -273,7 +293,7 @@ def _build_chunk_candidates(
                     anchor=unit.anchor,
                     metadata=unit.metadata,
                 ),
-                chunk_profile=chunk_profile,
+                chunk_profile=resolved_chunk_profile,
             )
         else:
             pieces = chunk_structured_unit(
@@ -284,17 +304,17 @@ def _build_chunk_candidates(
                     anchor=unit.anchor,
                     metadata=unit.metadata,
                 ),
-                chunk_profile=chunk_profile,
+                chunk_profile=resolved_chunk_profile,
             )
         context_plan = build_chunk_text_context(anchor=unit.anchor, metadata=unit.metadata)
         for piece in pieces:
             chunk_assembly = _build_chunk_text(
                 unit=unit,
                 piece=piece,
-                chunk_profile=chunk_profile,
+                chunk_profile=resolved_chunk_profile,
                 context_plan=context_plan,
             )
-            _validate_chunk_budget(piece=piece, chunk_assembly=chunk_assembly, chunk_profile=chunk_profile)
+            _validate_chunk_budget(piece=piece, chunk_assembly=chunk_assembly, chunk_profile=resolved_chunk_profile)
             candidates.append(
                 _ChunkCandidate(
                     unit_type=piece.unit_type,
@@ -302,13 +322,42 @@ def _build_chunk_candidates(
                     source_chunk_id=unit.source_chunk_id,
                     acl_level=unit.acl_level,
                     anchor=dict(unit.anchor),
-                    metadata=dict(unit.metadata),
+                    metadata={
+                        "strategy_name": resolved_chunk_profile.strategy_name,
+                        "split_strategy": resolved_chunk_profile.split_strategy,
+                        "chunk_policy_version": resolved_chunk_profile.chunk_policy_version,
+                        "cleaning_policy_version": resolved_chunk_profile.cleaning_policy_version,
+                        **dict(unit.metadata),
+                    },
                     piece=piece,
                     chunk_assembly=chunk_assembly,
                     members=(_ChunkMember(unit=unit, piece=piece),),
                 )
             )
     return tuple(candidates)
+
+
+def _resolve_unit_chunk_profile(
+    *,
+    record: DocumentRegistryRecord,
+    runtime_profile: ChunkProfile,
+    unit_type: str,
+    use_runtime_curriculum_unit_profiles: bool,
+) -> ChunkProfile:
+    if not use_runtime_curriculum_unit_profiles:
+        return runtime_profile
+    if record.collection != "curriculum_plan":
+        return runtime_profile
+    if runtime_profile.chunk_policy_version not in {
+        CURRICULUM_V1_CHUNK_POLICY_VERSION,
+        CURRICULUM_V2_CHUNK_POLICY_VERSION,
+    }:
+        return runtime_profile
+    return build_curriculum_chunk_profile(
+        profile_version=runtime_profile.chunk_policy_version,
+        model_name=record.embedding_model,
+        unit_type=unit_type,
+    )
 
 
 def _merge_adjacent_short_textual_candidates(
@@ -907,11 +956,14 @@ def index_chunks_to_qdrant(
     if not chunks:
         return ()
     runtime_sparse_embedding_model = sparse_embedding_model or build_sparse_embedding_model(SparseEmbeddingSettings())
+    runtime_profile = load_runtime_profile(chunks[0].corpus, chunks[0].collection)
     if ensure_collection:
         _ensure_collection(
             qdrant_client=qdrant_client,
             collection_name=collection_name,
             dense_vector_size=_resolve_dense_vector_size(chunks),
+            dense_vector_name=runtime_profile.qdrant_index_binding.dense_vector_name,
+            sparse_vector_name=runtime_profile.qdrant_index_binding.sparse_vector_name,
             recreate_on_mismatch=recreate_collection_on_schema_mismatch,
         )
     points: list[qdrant_models.PointStruct] = []
@@ -927,8 +979,8 @@ def index_chunks_to_qdrant(
             qdrant_models.PointStruct(
                 id=str(uuid.uuid5(uuid.NAMESPACE_URL, chunk.chunk_id)),
                 vector={
-                    "dense": list(chunk.embedding),
-                    "sparse": sparse_vector,
+                    runtime_profile.qdrant_index_binding.dense_vector_name: list(chunk.embedding),
+                    runtime_profile.qdrant_index_binding.sparse_vector_name: sparse_vector,
                 },
                 payload={
                     "_node_content": node.model_dump_json(),
@@ -1158,6 +1210,8 @@ def _ensure_collection(
     *,
     qdrant_client: QdrantClient,
     collection_name: str,
+    dense_vector_name: str,
+    sparse_vector_name: str,
     dense_vector_size: int,
     recreate_on_mismatch: bool,
 ) -> None:
@@ -1165,12 +1219,16 @@ def _ensure_collection(
         _create_collection(
             qdrant_client=qdrant_client,
             collection_name=collection_name,
+            dense_vector_name=dense_vector_name,
+            sparse_vector_name=sparse_vector_name,
             dense_vector_size=dense_vector_size,
         )
         return
     if _collection_schema_matches(
         qdrant_client=qdrant_client,
         collection_name=collection_name,
+        dense_vector_name=dense_vector_name,
+        sparse_vector_name=sparse_vector_name,
         dense_vector_size=dense_vector_size,
     ):
         return
@@ -1180,6 +1238,8 @@ def _ensure_collection(
     _create_collection(
         qdrant_client=qdrant_client,
         collection_name=collection_name,
+        dense_vector_name=dense_vector_name,
+        sparse_vector_name=sparse_vector_name,
         dense_vector_size=dense_vector_size,
     )
 
@@ -1188,18 +1248,20 @@ def _create_collection(
     *,
     qdrant_client: QdrantClient,
     collection_name: str,
+    dense_vector_name: str,
+    sparse_vector_name: str,
     dense_vector_size: int,
 ) -> None:
     qdrant_client.create_collection(
         collection_name=collection_name,
         vectors_config={
-            "dense": qdrant_models.VectorParams(
+            dense_vector_name: qdrant_models.VectorParams(
                 size=dense_vector_size,
                 distance=qdrant_models.Distance.COSINE,
             )
         },
         sparse_vectors_config={
-            "sparse": qdrant_models.SparseVectorParams(modifier=qdrant_models.Modifier.IDF),
+            sparse_vector_name: qdrant_models.SparseVectorParams(modifier=qdrant_models.Modifier.IDF),
         },
     )
 
@@ -1208,6 +1270,8 @@ def _collection_schema_matches(
     *,
     qdrant_client: QdrantClient,
     collection_name: str,
+    dense_vector_name: str,
+    sparse_vector_name: str,
     dense_vector_size: int,
 ) -> bool:
     info = qdrant_client.get_collection(collection_name=collection_name)
@@ -1215,8 +1279,8 @@ def _collection_schema_matches(
     vectors = params.vectors
     if not isinstance(vectors, dict):
         return False
-    dense = vectors.get("dense")
-    sparse = (params.sparse_vectors or {}).get("sparse")
+    dense = vectors.get(dense_vector_name)
+    sparse = (params.sparse_vectors or {}).get(sparse_vector_name)
     return (
         dense is not None
         and getattr(dense, "size", None) == dense_vector_size

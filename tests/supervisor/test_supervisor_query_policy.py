@@ -13,11 +13,16 @@ class SupervisorQueryPolicyTest(unittest.TestCase):
             KnowledgeScope(corpus="regulations", collection="student_handbook")
         )
 
-    def test_query_policy_rejects_curriculum_plan(self) -> None:
+    def test_query_policy_allows_curriculum_plan(self) -> None:
+        assert_scope_is_query_enabled(
+            KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+        )
+
+    def test_query_policy_rejects_service_catalog(self) -> None:
         with self.assertRaisesRegex(
             DisallowedKnowledgeScopeError,
-            "knowledge scope curriculum/curriculum_plan is not query-enabled",
+            "knowledge scope campus_services/service_catalog is not query-enabled",
         ):
             assert_scope_is_query_enabled(
-                KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                KnowledgeScope(corpus="campus_services", collection="service_catalog")
             )

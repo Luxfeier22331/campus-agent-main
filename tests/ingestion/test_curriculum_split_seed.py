@@ -213,6 +213,44 @@ class CurriculumSplitSeedTest(unittest.TestCase):
         self.assertEqual(first_page_row["doc_id"], document.document_id)
         self.assertEqual(first_page_row["source_url"], source_uri)
 
+    def test_build_manifest_document_rows_canonicalizes_root_heading_to_manifest_title(self) -> None:
+        manifest_document = SplitManifestDocument(
+            document_id="curriculum:民族学本科第二学士学位人才培养方案",
+            title="民族学本科第二学士学位人才培养方案",
+            page_start=100,
+            page_end=101,
+            status="active",
+        )
+
+        rows = build_manifest_document_rows(
+            structured_rows=[
+                {
+                    "row_id": "page-0100-block-0001",
+                    "row_type": "heading",
+                    "block_role": "doc_title",
+                    "heading_level": 1,
+                    "text_normalized": "民族学本科第二学士学位人才培养方案(2020 版)",
+                    "page_start": 100,
+                    "page_end": 100,
+                },
+                {
+                    "row_id": "page-0100-block-0002",
+                    "row_type": "paragraph",
+                    "text_normalized": "培养具备民族学基础理论与方法的复合型人才。",
+                    "page_start": 100,
+                    "page_end": 100,
+                },
+            ],
+            manifest_document=manifest_document,
+            version_id="sha256:test",
+            source_pdf="curriculum-plan.pdf",
+            source_uri="campusrag://source/curriculum/test/pages/100-101",
+        )
+
+        self.assertEqual(rows[1]["clean_text"], "民族学本科第二学士学位人才培养方案")
+        self.assertNotIn("(2020 版)", rows[0]["clean_text"])
+        self.assertNotIn("(2020 版)", rows[1]["clean_text"])
+
     def test_build_manifest_document_rows_rejects_clean_text_only_source_truth_rows(self) -> None:
         manifest_document = SplitManifestDocument(
             document_id="curriculum:test-001",

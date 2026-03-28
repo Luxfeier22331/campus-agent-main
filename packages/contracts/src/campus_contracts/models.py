@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, TypeAlias
 
 
-AllowedCorpus = Literal["regulations", "curriculum", "campus_services"]
+AllowedCorpus: TypeAlias = str
 RevisionTrack = Literal["source-faithful", "current-effective", "editorial"]
 SourceChannel = Literal["pdf_ocr", "official_web", "manual_curated"]
 DelegateStatus = Literal["completed", "needs_clarification", "no_answer", "error"]
@@ -12,15 +12,6 @@ ConfidenceLevel = Literal["high", "medium", "low"]
 SpecialistTarget = Literal["rag-specialist", "availability-specialist"]
 RequestedCapability = Literal["knowledge", "availability"]
 
-ALLOWED_CORPORA = ("regulations", "curriculum", "campus_services")
-DEFAULT_CORPUS = "regulations"
-DEFAULT_COLLECTION = "student_handbook"
-KNOWN_COLLECTION_TO_CORPUS = {
-    "student_handbook": "regulations",
-    "curriculum_plan": "curriculum",
-    "service_catalog": "campus_services",
-    "contact_directory": "campus_services",
-}
 ALLOWED_REVISION_TRACKS = ("source-faithful", "current-effective", "editorial")
 ALLOWED_SOURCE_CHANNELS = ("pdf_ocr", "official_web", "manual_curated")
 DEFAULT_REVISION_TRACK = "source-faithful"
@@ -214,8 +205,8 @@ class SpecialistResponse:
             raise ValueError(f"unsupported confidence level: {self.confidence}")
 
 def _validate_corpus(corpus: str) -> None:
-    if corpus not in ALLOWED_CORPORA:
-        raise ValueError(f"unsupported corpus: {corpus}")
+    if not corpus or not corpus.strip():
+        raise ValueError("corpus is required")
 
 
 def _validate_collection(collection: str) -> None:
@@ -224,9 +215,10 @@ def _validate_collection(collection: str) -> None:
 
 
 def _validate_collection_scope(corpus: str, collection: str) -> None:
-    expected_corpus = KNOWN_COLLECTION_TO_CORPUS.get(collection)
-    if expected_corpus is not None and expected_corpus != corpus:
-        raise ValueError(f"collection {collection!r} does not belong to corpus {corpus!r}")
+    if not corpus.strip():
+        raise ValueError("corpus is required")
+    if not collection.strip():
+        raise ValueError("collection is required")
 
 
 def _validate_revision_track(revision_track: str) -> None:

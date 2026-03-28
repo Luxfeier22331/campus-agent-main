@@ -5,12 +5,6 @@ import os
 from pathlib import Path
 from typing import Any, Callable, Protocol
 
-from campus_contracts import (
-    ALLOWED_CORPORA,
-    DEFAULT_COLLECTION,
-    DEFAULT_CORPUS,
-    KNOWN_COLLECTION_TO_CORPUS,
-)
 from qdrant_client import QdrantClient
 
 from campus_ingestion_core.artifacts import (
@@ -59,6 +53,7 @@ from campus_ingestion_core.raw_ingestion import (
     DEFAULT_ONLINE_OCR_MODEL,
     DEFAULT_ONLINE_OCR_PROVIDER,
     DEFAULT_RAW_ONLINE_OCR_PARSER_VERSION,
+    RawIngestionRequest,
     _build_split_manifest_document_input,
     _load_layout_elements_rows,
     process_raw_ingestion_job,
@@ -70,12 +65,11 @@ from campus_ingestion_core.registry import (
     build_raw_asset_registry_from_env,
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
+from campus_ingestion_core.scope_catalog import assert_known_scope
 from campus_ingestion_core.split_manifest import SplitManifestDocument, load_split_manifest
-from campus_retrieval_core.settings import DEFAULT_QDRANT_COLLECTION, RetrievalSettings
+from campus_retrieval_core.settings import RetrievalSettings
 
 
-DEFAULT_INGESTION_CORPUS = DEFAULT_CORPUS
-DEFAULT_INGESTION_COLLECTION = DEFAULT_COLLECTION
 DEFAULT_REPLAY_SOURCE_PDF = "学生手册_2018.pdf"
 DEFAULT_CURRICULUM_REPLAY_SOURCE_PDF = "curriculum-plan.pdf"
 DEFAULT_HANDBOOK_CANONICAL_RAW_FILENAME = "学生手册_2018.pdf"
@@ -203,20 +197,12 @@ class QdrantCollectionAdmin:
             self._client.delete_collection(collection_name)
 
 
-def _resolve_primary_qdrant_collection_name(source: dict[str, str]) -> str:
-    return (source.get("QDRANT_COLLECTION") or DEFAULT_QDRANT_COLLECTION).strip() or DEFAULT_QDRANT_COLLECTION
-
-
 def _resolve_target_qdrant_collection_name(
-    source: dict[str, str],
     *,
     corpus: str,
     collection: str,
 ) -> str:
-    primary_scope = (_read_ingestion_corpus(source), _read_ingestion_collection(source, corpus=_read_ingestion_corpus(source)))
-    if (corpus, collection) == primary_scope:
-        return _resolve_primary_qdrant_collection_name(source)
-    return collection
+    return load_runtime_profile(corpus, collection).qdrant_index_binding.collection_name
 
 
 def _resolve_rebuild_target_qdrant_collections(
@@ -227,7 +213,6 @@ def _resolve_rebuild_target_qdrant_collections(
 ) -> tuple[str, ...]:
     target_collections = [
         _resolve_target_qdrant_collection_name(
-            source,
             corpus=request.corpus,
             collection=request.collection,
         )
@@ -239,7 +224,6 @@ def _resolve_rebuild_target_qdrant_collections(
                 continue
             target_collections.append(
                 _resolve_target_qdrant_collection_name(
-                    source,
                     corpus=projection.target_corpus,
                     collection=projection.target_collection,
                 )
@@ -317,13 +301,18 @@ def rebuild_local_data(
 
     return LocalDataRebuildReport(
         import_context=_build_rebuild_report_context(import_env),
-        import_result=runtime_import_runner(env=import_env),
+        import_result=_invoke_import_runner(
+            runtime_import_runner=runtime_import_runner,
+            source=import_env,
+            request=runtime_request,
+        ),
     )
 
 
 def _build_rebuild_request_from_env(source: dict[str, str]) -> RebuildRequest:
-    corpus = _read_ingestion_corpus(source)
-    collection = _read_ingestion_collection(source, corpus=corpus)
+    corpus = _read_required_scope_part(source, "REBUILD_CORPUS")
+    collection = _read_required_scope_part(source, "REBUILD_COLLECTION")
+    assert_known_scope(corpus, collection)
     import_mode = _read_rebuild_import_mode(source)
     raw_asset_id = _normalize_optional_text(source.get("RAW_ASSET_ID"))
     raw_version_id = _normalize_optional_text(source.get("RAW_VERSION_ID"))
@@ -348,8 +337,8 @@ def _build_rebuild_import_env(
     collection_config: CollectionTruthConfig,
 ) -> dict[str, str]:
     import_env = dict(source)
-    import_env["INGESTION_CORPUS"] = request.corpus
-    import_env["INGESTION_COLLECTION"] = request.collection
+    import_env["REBUILD_CORPUS"] = request.corpus
+    import_env["REBUILD_COLLECTION"] = request.collection
     import_env["REBUILD_IMPORT_MODE"] = request.import_mode
     if request.reset_qdrant:
         import_env["REBUILD_RESET_QDRANT"] = "1"
@@ -363,8 +352,14 @@ def _build_rebuild_import_env(
         import_env["INGESTION_SPLIT_MANIFEST_PATH"] = str(collection_config.split_manifest_path.resolve())
     if collection_config.source_projections_path is not None:
         import_env["HANDBOOK_SOURCE_PROJECTIONS_PATH"] = str(collection_config.source_projections_path.resolve())
+    import_env["QDRANT_TARGET_COLLECTIONS"] = ",".join(
+        _resolve_rebuild_target_qdrant_collections(
+            source=source,
+            request=request,
+            collection_config=collection_config,
+        )
+    )
     if request.import_mode == "provider_response_replay":
-        raw_asset_id = _resolve_collection_raw_asset_id(request=request, collection_config=collection_config)
         raw_version_id = request.raw_version_id
         if raw_version_id is None:
             raise ValueError("raw_version_id is required for provider_response_replay")
@@ -374,8 +369,8 @@ def _build_rebuild_import_env(
 
 
 _REBUILD_REPORT_CONTEXT_KEYS = (
-    "INGESTION_CORPUS",
-    "INGESTION_COLLECTION",
+    "REBUILD_CORPUS",
+    "REBUILD_COLLECTION",
     "REBUILD_IMPORT_MODE",
     "REBUILD_RESET_QDRANT",
     "REBUILD_INDEX_QDRANT",
@@ -384,7 +379,7 @@ _REBUILD_REPORT_CONTEXT_KEYS = (
     "INGESTION_SPLIT_MANIFEST_PATH",
     "HANDBOOK_SOURCE_PROJECTIONS_PATH",
     "REPLAY_SOURCE_PDF",
-    "QDRANT_COLLECTION",
+    "QDRANT_TARGET_COLLECTIONS",
 )
 
 
@@ -659,23 +654,6 @@ def _resolve_ingestion_qdrant_timeout_seconds(
     return max(default_timeout_seconds, DEFAULT_INGESTION_QDRANT_TIMEOUT_SECONDS)
 
 
-def _read_ingestion_corpus(source: dict[str, str]) -> str:
-    corpus = (source.get("INGESTION_CORPUS") or DEFAULT_INGESTION_CORPUS).strip() or DEFAULT_INGESTION_CORPUS
-    if corpus not in ALLOWED_CORPORA:
-        raise ValueError(f"unsupported corpus: {corpus}")
-    return corpus
-
-
-def _read_ingestion_collection(source: dict[str, str], *, corpus: str) -> str:
-    collection = (
-        source.get("INGESTION_COLLECTION") or DEFAULT_INGESTION_COLLECTION
-    ).strip() or DEFAULT_INGESTION_COLLECTION
-    expected_corpus = KNOWN_COLLECTION_TO_CORPUS.get(collection)
-    if expected_corpus is not None and expected_corpus != corpus:
-        raise ValueError(f"unsupported collection scope: {collection} does not belong to {corpus}")
-    return collection
-
-
 def _read_rebuild_import_mode(source: dict[str, str]) -> str:
     import_mode = (source.get("REBUILD_IMPORT_MODE") or "").strip()
     if not import_mode:
@@ -703,6 +681,68 @@ def _build_student_handbook_source_asset_request_from_env(
     )
 
 
+def _invoke_import_runner(
+    *,
+    runtime_import_runner: Callable[..., Any],
+    source: dict[str, str],
+    request: RebuildRequest,
+) -> Any:
+    if runtime_import_runner is process_raw_ingestion_job:
+        return runtime_import_runner(
+            env=source,
+            request=_build_raw_ingestion_request(source=source, request=request),
+        )
+    if runtime_import_runner is replay_provider_response_rebuild:
+        return runtime_import_runner(
+            env=source,
+            request=request,
+        )
+    return runtime_import_runner(env=source, request=request)
+
+
+def _build_raw_ingestion_request(
+    *,
+    source: dict[str, str],
+    request: RebuildRequest,
+) -> RawIngestionRequest:
+    return RawIngestionRequest(
+        raw_asset_id=_read_required_env(source, "RAW_ASSET_ID"),
+        raw_version_id=_read_required_env(source, "RAW_VERSION_ID"),
+        corpus=request.corpus,
+        collection=request.collection,
+        artifact_mode=(
+            source.get("RAW_INGESTION_ARTIFACT_MODE") or "normalized"
+        ).strip()
+        or "normalized",
+        split_manifest_path=(
+            Path(source["INGESTION_SPLIT_MANIFEST_PATH"]).resolve()
+            if (source.get("INGESTION_SPLIT_MANIFEST_PATH") or "").strip()
+            else None
+        ),
+        report_dir=Path((source.get("IMPORT_REPORT_DIR") or "./var/import-reports").strip()),
+        default_campus_scope=(source.get("INGESTION_DEFAULT_CAMPUS_SCOPE") or "").strip() or None,
+    )
+
+
+def _build_replay_request_from_env(source: dict[str, str]) -> RebuildRequest:
+    corpus = _read_required_scope_part(source, "REBUILD_CORPUS")
+    collection = _read_required_scope_part(source, "REBUILD_COLLECTION")
+    assert_known_scope(corpus, collection)
+    raw_version_id = _normalize_optional_text(source.get("RAW_VERSION_ID"))
+    if raw_version_id is None:
+        raise ValueError("RAW_VERSION_ID is required for provider_response_replay")
+    return RebuildRequest(
+        corpus=corpus,
+        collection=collection,
+        import_mode="provider_response_replay",
+        raw_version_id=raw_version_id,
+        raw_asset_id=_normalize_optional_text(source.get("RAW_ASSET_ID")),
+        source_pdf=_normalize_optional_text(source.get("REPLAY_SOURCE_PDF")),
+        reset_qdrant=_parse_bool(source.get("REBUILD_RESET_QDRANT"), default=False),
+        index_qdrant=_parse_bool(source.get("REBUILD_INDEX_QDRANT"), default=False),
+    )
+
+
 def _resolve_import_runner(import_mode: str) -> Callable[..., Any]:
     if import_mode == "raw_online_ocr":
         return process_raw_ingestion_job
@@ -721,6 +761,7 @@ def _build_raw_asset_registry_for_rebuild(source: dict[str, str], corpus: str) -
 
 def replay_provider_response_rebuild(
     *,
+    request: RebuildRequest | None = None,
     env: dict[str, str] | None = None,
     object_store: ReplayObjectStore | None = None,
     registry: DocumentRegistry | None = None,
@@ -728,14 +769,13 @@ def replay_provider_response_rebuild(
     qdrant_client: QdrantClient | None = None,
 ) -> ImportReport:
     source = dict(env if env is not None else os.environ)
-    corpus = _read_ingestion_corpus(source)
-    collection = _read_ingestion_collection(source, corpus=corpus)
+    runtime_request = request or _build_replay_request_from_env(source)
+    corpus = runtime_request.corpus
+    collection = runtime_request.collection
     collection_config = _resolve_runtime_collection_config(source=source, corpus=corpus, collection=collection)
     if collection not in {"student_handbook", "curriculum_plan"}:
         raise ValueError("provider_response_replay only supports student_handbook or curriculum_plan")
-    source_pdf = (
-        source.get("REPLAY_SOURCE_PDF") or _default_replay_source_pdf(collection)
-    ).strip() or _default_replay_source_pdf(collection)
+    source_pdf = runtime_request.source_pdf or _default_replay_source_pdf(collection)
 
     object_store_settings = ObjectStoreSettings.from_env(source)
     runtime_object_store = object_store or S3ObjectStoreAdmin(object_store_settings)
@@ -744,9 +784,12 @@ def replay_provider_response_rebuild(
         expected_corpus=corpus,
         expected_collection=collection,
     )
-    raw_version_id = _read_required_env(source, "RAW_VERSION_ID")
+    raw_asset_id = _resolve_collection_raw_asset_id(request=runtime_request, collection_config=collection_config)
+    raw_version_id = runtime_request.raw_version_id
+    if raw_version_id is None:
+        raise ValueError("RAW_VERSION_ID is required")
     provider_response_key = build_source_ocr_artifact_key(
-        raw_asset_id=split_manifest.raw_asset_id,
+        raw_asset_id=raw_asset_id,
         raw_version_id=raw_version_id,
         filename=PROVIDER_RESPONSE_FILENAME,
         source_channel=DEFAULT_RAW_SOURCE_CHANNEL,
@@ -766,7 +809,7 @@ def replay_provider_response_rebuild(
             provider_jsonl_bytes=provider_response_bytes,
             ocr_provider=DEFAULT_ONLINE_OCR_PROVIDER,
             ocr_model=ocr_model,
-            source_artifact_id=split_manifest.raw_asset_id,
+            source_artifact_id=raw_asset_id,
         )
         layout_elements_bytes = serialize_handbook_layout_elements(structured_rows)
     else:
@@ -777,7 +820,7 @@ def replay_provider_response_rebuild(
         )
         structured_rows = _load_layout_elements_rows(layout_elements_bytes)
     layout_elements_key = build_source_truth_artifact_key(
-        raw_asset_id=split_manifest.raw_asset_id,
+        raw_asset_id=raw_asset_id,
         raw_version_id=raw_version_id,
         filename=LAYOUT_ELEMENTS_FILENAME,
         source_channel=DEFAULT_RAW_SOURCE_CHANNEL,
@@ -819,11 +862,11 @@ def replay_provider_response_rebuild(
         ]
     else:
         raw_asset_ref = RawAssetRecord(
-            raw_asset_id=split_manifest.raw_asset_id,
+            raw_asset_id=raw_asset_id,
             raw_version_id=raw_version_id,
             corpus=corpus,
             collection=collection,
-            raw_source_uri=f"campusrag://source/{corpus}/{split_manifest.raw_asset_id}/{raw_version_id}",
+            raw_source_uri=f"campusrag://source/{corpus}/{raw_asset_id}/{raw_version_id}",
             content_hash=raw_version_id.removeprefix("sha256:") or raw_version_id,
             source_filename=source_pdf,
             object_key=provider_response_key,
@@ -846,11 +889,11 @@ def replay_provider_response_rebuild(
             for manifest_document in split_manifest.documents
         ]
     raw_asset_ref = RawAssetRecord(
-        raw_asset_id=split_manifest.raw_asset_id,
+        raw_asset_id=raw_asset_id,
         raw_version_id=raw_version_id,
         corpus=corpus,
         collection=collection,
-        raw_source_uri=f"campusrag://source/{corpus}/{split_manifest.raw_asset_id}/{raw_version_id}",
+        raw_source_uri=f"campusrag://source/{corpus}/{raw_asset_id}/{raw_version_id}",
         content_hash=raw_version_id.removeprefix("sha256:") or raw_version_id,
         source_filename=source_pdf,
         object_key=provider_response_key,
@@ -1074,6 +1117,13 @@ def _read_required_env(source: dict[str, str], field_name: str) -> str:
     return value
 
 
+def _read_required_scope_part(source: dict[str, str], field_name: str) -> str:
+    value = (source.get(field_name) or "").strip()
+    if not value:
+        raise ValueError(f"{field_name} is required")
+    return value
+
+
 def _normalize_optional_text(value: object) -> str | None:
     if not isinstance(value, str):
         return None
@@ -1225,7 +1275,6 @@ def _index_replayed_documents(
     documents_by_collection: dict[str, list[DocumentImportInput]] = {}
     for document in documents:
         collection_name = _resolve_target_qdrant_collection_name(
-            source,
             corpus=document.corpus,
             collection=document.collection,
         )
