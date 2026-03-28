@@ -206,20 +206,86 @@ updated: 2026-03-28
 - `handbook-answer-gate-summary.json` 记录了 live release gate 的 answer / citation / fail-close / forbidden-source 等 deterministic 指标
 - `handbook-error-gate-summary.json` 记录了 deterministic error gate 的 `error_path_correctness`、`fail_closed` 与 `no_applicable_cases` 语义
 
-## 未覆盖项
+## 2026-03-28 Formal Benchmark
 
-当前尚未在本文形成正式指标快照的项目：
+2026-03-28 已完成 handbook fixed-case formal benchmark，fresh artifact 落盘到：
 
-- faithfulness / groundedness
-- judge-based answer correctness / rubric score
-- explicit refusal quality rubric
-- release gate 最终阈值
+- [`.tmp/evals/student-handbook-formal-benchmark-20260328T173355/summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-20260328T173355/summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-20260328T173355/gate-report.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-20260328T173355/gate-report.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-20260328T173355/SUMMARY.md`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-20260328T173355/SUMMARY.md)
 
-补充说明：
+case 集：
 
-- `packages/evals` 现已补上 supplemental adapter seam 与 `ragas` projection/adapter 边界
-- 当前已形成 handbook `ragas` 的单 case readiness 数值证据，但还没有形成固定 case 集的正式 benchmark 快照
-- 在没有补齐独立 runner、依赖安装与 fresh report 之前，`ragas` 仍然处于 readiness evidence 已落盘、正式 benchmark 未落盘的状态
+- total cases：`6`
+- `completed = 4`
+- `no_answer = 1`
+- `needs_clarification = 1`
+- reruns：`3`
+
+deterministic 结果：
+
+- `run_pass_counts = [6, 6, 6]`
+- `run_pass_rates = [1.0, 1.0, 1.0]`
+- `mean_pass_rate = 1.0`
+- `stable_across_runs = true`
+
+supplemental 聚合：
+
+- `judge.answer_correctness_rubric`
+  - `mean_average_score = 0.96`
+  - `min_run_average_score = 0.9425`
+  - `run_average_drift = 0.040000000000000036`
+  - gate：`pass`
+- `judge.refusal_quality`
+  - `mean_average_score = 0.54`
+  - `min_run_average_score = 0.54`
+  - `run_average_drift = 0.0`
+  - gate：`warn`
+- `ragas.faithfulness`
+  - `mean_average_score = 0.9871001250164477`
+  - `min_run_average_score = 0.9781090871705553`
+  - `run_average_drift = 0.01810303404156588`
+  - gate：`pass`
+- `ragas.answer_relevancy`
+  - `mean_average_score = 0.7692526174711283`
+  - `min_run_average_score = 0.7188073118355898`
+  - `run_average_drift = 0.1097459500962823`
+  - gate：`warn`
+- `ragas.context_precision`
+  - `mean_average_score = 0.5555555555356482`
+  - `min_run_average_score = 0.49999999997916666`
+  - `run_average_drift = 0.16666666666527774`
+  - gate：`warn`
+- `ragas.context_recall`
+  - `mean_average_score = 0.7222222222222222`
+  - `min_run_average_score = 0.5`
+  - `run_average_drift = 0.5`
+  - gate：`warn`
+
+当前 formal benchmark 结论：
+
+- deterministic handbook release gate 已达到 `3/3` 稳定通过
+- supplemental gate 最终 verdict 为 `warn`
+- 当前不调整 `student_handbook_judge_gate_policy.json` 阈值；这些 `warn` 被保留为正式 gap，而不是通过放宽阈值消除
+- supplemental 仍残留一处运行面噪声：
+  - `run-02 / release-gate-dormitory-lighting` 的 `ragas.*` 因 provider `429` 未产出分数
+  - 因此当前 ragas aggregate 是 `11/12` scored completed-case observations，而不是 `12/12`
+  - 该残余噪声不会改变本轮 `overall_verdict=warn` 的高层结论
+  - repo 现已支持对这类 transient infra failure 做 repair rerun，并在新目录里生成 repaired aggregate / gate；原 formal benchmark artifact 保持不变
+
+## 本轮新增运行面修复
+
+为了让 formal benchmark 真正跑完，本轮补了两类 runtime 修复：
+
+- retryable provider error 扩展：
+  - `do_request_failed` 现已纳入 supplemental retry 边界
+  - 相关实现：[`ragas_http.py`](/home/reptilian/code/campus-agent/packages/evals/src/campus_evals/ragas_http.py)、[`ragas_adapter.py`](/home/reptilian/code/campus-agent/packages/evals/src/campus_evals/ragas_adapter.py)
+- supplemental request pacing：
+  - 新增 `RAGAS_REQUEST_MIN_INTERVAL_SECONDS`
+  - pacing scope 已按 provider origin 收口，`ragas` 与 rubric judge 的 llm / embeddings 请求共享节流
+  - 相关实现：[`settings.py`](/home/reptilian/code/campus-agent/packages/evals/src/campus_evals/settings.py)、[`ragas_http.py`](/home/reptilian/code/campus-agent/packages/evals/src/campus_evals/ragas_http.py)、[`judge_adapters.py`](/home/reptilian/code/campus-agent/packages/evals/src/campus_evals/judge_adapters.py)
+
+本轮 live 运行中仍可见 `wrapped_callable_async ... was never awaited` 类 runtime warning，但它没有阻断 benchmark artifact 写盘；当前它是 supplemental runtime 的残余噪声，不影响本轮 formal benchmark 结论。
 
 2026-03-28 更新：
 
@@ -227,6 +293,13 @@ updated: 2026-03-28
 - 当前 eval runtime 消费 `.env` 中的 `LLM_*`、`EMBEDDING_*` 与独立 `RAGAS_*` 配置；judge model 选择优先级为 `RAGAS_LLM_MODEL > LLM_REASONING_MODEL > LLM_CHAT_MODEL`；`Qwen3-Embedding-4B` 在 eval 侧默认补 `dimensions=2560`
 - 针对 `ragas==0.4.3`，当前真实评分路径已固定为 `ragas.evaluate(...)` + legacy metric objects；默认运行面不再依赖 `LangChain/OpenAI SDK` transport，而是改成 `packages/evals` 自带的原生 HTTP `Responses` / `Embeddings` client
 - 当前 `RAGAS_REQUEST_TIMEOUT_SECONDS` 已从 eval runtime 独立出来，不再复用 `EMBEDDING_TIMEOUT_SECONDS`
+- 当前 `RAGAS_REQUEST_MIN_INTERVAL_SECONDS` 已接入 supplemental HTTP transport，用于 provider 侧 request-window 节流
+- 当前 formal benchmark / repair rerun 都共享同一 transient infra failure 分类边界：
+  - `429`
+  - `5xx`
+  - timeout
+  - transport error
+  - provider runtime marker，例如 `do_request_failed`
 - 当前 Responses judge payload 已支持独立低延迟 profile：`RAGAS_REASONING_EFFORT`、`RAGAS_TEXT_VERBOSITY`、`RAGAS_MAX_OUTPUT_TOKENS`
 - `AnswerRelevancy` 这类 `n>1` judge 调用已改成在同一 async transport 上并发发出，不再把单 metric 放大成串行多次 `/responses`
 - repo 内自动化覆盖当前已补齐：
@@ -256,8 +329,6 @@ updated: 2026-03-28
 
 当前结论：
 
-- ragas supplemental runtime 的配置与 transport 已改成和当前 provider 能力一致
-- handbook 已具备产出 readiness 级 `ragas` 数值快照的运行能力
-- 这批数值是单 case readiness 证据，不应替代后续固定 case 集的正式 benchmark
-
-这些内容当前尚未纳入本轮 deterministic release-gate；如后续要扩展 groundedness / judge-based gate，应另行补充验证文档与阈值定义。
+- ragas supplemental runtime 的配置、retry 和 pacing 已改成和当前 provider 能力更匹配
+- handbook fixed-case formal benchmark 已形成正式 3-run artifact
+- 当前 supplemental `warn` 主要来自真实质量 gap，但 run 2 仍残留一处 `429` 级 runtime 噪声，尚未完全达到“零运行噪声”状态

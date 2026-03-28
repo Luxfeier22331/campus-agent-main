@@ -18,7 +18,11 @@ from campus_evals.benchmark import (
     validate_retrieval_hybrid_query_fixture,
 )
 from campus_evals.expectations import evaluate_case
-from campus_evals.handbook_benchmark import run_handbook_formal_benchmark
+from campus_evals.handbook_benchmark import (
+    collect_repairable_handbook_benchmark_targets,
+    repair_handbook_formal_benchmark,
+    run_handbook_formal_benchmark,
+)
 from campus_evals.judge_adapters import (
     build_answer_rubric_adapter,
     build_default_handbook_supplemental_adapters_from_env,
@@ -113,6 +117,7 @@ __all__ = [
     "build_ragas_supplemental_adapter_from_env",
     "curriculum_error_gate_cases",
     "curriculum_release_gate_cases",
+    "collect_repairable_handbook_benchmark_targets",
     "evaluate_judge_gate",
     "evaluate_retrieval_case",
     "evaluate_retrieval_run",
@@ -124,6 +129,7 @@ __all__ = [
     "load_judge_gate_policy",
     "load_retrieval_qrels_dataset",
     "render_retrieval_summary_text",
+    "repair_handbook_formal_benchmark",
     "run_handbook_formal_benchmark",
     "run_cases",
     "handbook_error_gate_cases",

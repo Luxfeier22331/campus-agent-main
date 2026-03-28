@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from threading import Lock
 import time
 import typing as t
@@ -21,6 +22,23 @@ _RETRYABLE_PROVIDER_ERROR_MARKERS = (
     "system_cpu_overloaded",
     "bad_response_body",
     "do_request_failed",
+)
+_TIMEOUT_ERROR_MARKERS = (
+    "timeout",
+    "timed out",
+    "readtimeout",
+    "connecttimeout",
+    "writetimeout",
+    "pooltimeout",
+)
+_TRANSPORT_ERROR_MARKERS = (
+    "connecterror",
+    "readerror",
+    "writeerror",
+    "networkerror",
+    "transport error",
+    "remoteprotocolerror",
+    "connection reset",
 )
 _REQUEST_PACERS: dict[tuple[str, float], "RequestPacer"] = {}
 _REQUEST_PACERS_LOCK = Lock()
@@ -521,7 +539,7 @@ def is_retryable_provider_exception(exc: Exception) -> bool:
     if isinstance(exc, (httpx.TimeoutException, httpx.TransportError)):
         return True
     if isinstance(exc, RuntimeError):
-        return _is_retryable_runtime_error_message(str(exc))
+        return bool(classify_retryable_runtime_failure(str(exc)))
     return False
 
 
@@ -530,17 +548,33 @@ def _retry_delay_seconds(attempt: int) -> float:
 
 
 def _leading_status_code(message: str) -> int | None:
-    first_token = message.split(" ", 1)[0]
-    if not first_token.isdigit():
+    match = re.search(r"\b(\d{3})\b", message)
+    if match is None:
         return None
-    return int(first_token)
+    return int(match.group(1))
 
 
-def _is_retryable_runtime_error_message(message: str) -> bool:
+def classify_retryable_runtime_failure(
+    message: str,
+    *,
+    error_type: str | None = None,
+) -> tuple[str, ...]:
+    normalized_message = message.lower()
+    normalized_error_type = (error_type or "").strip().lower()
+    combined = " ".join(part for part in (normalized_error_type, normalized_message) if part)
+    reasons: list[str] = []
     status_code = _leading_status_code(message)
-    if status_code in {408, 409, 429} or (status_code is not None and 500 <= status_code <= 599):
-        return True
-    return any(marker in message for marker in _RETRYABLE_PROVIDER_ERROR_MARKERS)
+    if status_code in {408, 409, 429}:
+        reasons.append(f"http_{status_code}")
+    elif status_code is not None and 500 <= status_code <= 599:
+        reasons.append("http_5xx")
+    if any(marker in combined for marker in _TIMEOUT_ERROR_MARKERS):
+        reasons.append("timeout")
+    if any(marker in combined for marker in _TRANSPORT_ERROR_MARKERS):
+        reasons.append("transport")
+    if any(marker in combined for marker in _RETRYABLE_PROVIDER_ERROR_MARKERS):
+        reasons.append("provider_runtime")
+    return tuple(dict.fromkeys(reasons))
 
 
 def get_request_pacer(

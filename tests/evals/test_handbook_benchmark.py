@@ -7,7 +7,11 @@ import unittest
 
 from campus_contracts import ActorContext, EvidenceBundle, EvidenceSource, KnowledgeScope, RagResultPayload, SpecialistResponse
 from campus_evals import ExecutionResult, GoldenCase, ObservedTrace, SupplementalResult, TraceExpectation
-from campus_evals.handbook_benchmark import run_handbook_formal_benchmark
+from campus_evals.handbook_benchmark import (
+    collect_repairable_handbook_benchmark_targets,
+    repair_handbook_formal_benchmark,
+    run_handbook_formal_benchmark,
+)
 from campus_evals.judge_gate import evaluate_judge_gate, load_judge_gate_policy
 
 
@@ -182,6 +186,241 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
             self.assertAlmostEqual(metric_summary["mean_average_score"], 0.9)
             self.assertEqual(metric_summary["by_expected_status"]["completed"]["score_count"], 2)
             self.assertEqual(metric_summary["by_expected_status"]["no_answer"]["verdict_counts"]["not_applicable"], 2)
+
+    def test_collect_repairable_handbook_benchmark_targets_only_selects_transient_infra_failures(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "benchmark"
+            output_dir.mkdir(parents=True, exist_ok=True)
+            (output_dir / "run-01-case-results.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "benchmark_type": "formal_benchmark",
+                        "run_number": 1,
+                        "results": [
+                            {
+                                "case_id": "case-ragas",
+                                "passed": True,
+                                "status_result": {"passed": True, "reason": ""},
+                                "retrieval_result": {"passed": True, "reason": ""},
+                                "answer_result": {"passed": True, "reason": ""},
+                                "trace_result": {"passed": True, "reason": ""},
+                                "metric_results": {},
+                                "supplemental_results": [
+                                    {
+                                        "adapter_id": "ragas",
+                                        "metric_name": "faithfulness",
+                                        "score": None,
+                                        "verdict": "failed",
+                                        "rationale": 'ragas runtime error: 429 {"error":{"message":"upstream error","code":"do_request_failed"}}',
+                                        "metadata": {"judge_error": "RuntimeError"},
+                                    },
+                                    {
+                                        "adapter_id": "ragas",
+                                        "metric_name": "answer_relevancy",
+                                        "score": None,
+                                        "verdict": "failed",
+                                        "rationale": 'ragas runtime error: 429 {"error":{"message":"upstream error","code":"do_request_failed"}}',
+                                        "metadata": {"judge_error": "RuntimeError"},
+                                    },
+                                ],
+                            },
+                            {
+                                "case_id": "case-low-score",
+                                "passed": True,
+                                "status_result": {"passed": True, "reason": ""},
+                                "retrieval_result": {"passed": True, "reason": ""},
+                                "answer_result": {"passed": True, "reason": ""},
+                                "trace_result": {"passed": True, "reason": ""},
+                                "metric_results": {},
+                                "supplemental_results": [
+                                    {
+                                        "adapter_id": "judge",
+                                        "metric_name": "answer_correctness_rubric",
+                                        "score": 0.2,
+                                        "verdict": "failed",
+                                        "rationale": "judge scored the answer as incomplete",
+                                        "metadata": {},
+                                    }
+                                ],
+                            },
+                            {
+                                "case_id": "case-invalid-request",
+                                "passed": True,
+                                "status_result": {"passed": True, "reason": ""},
+                                "retrieval_result": {"passed": True, "reason": ""},
+                                "answer_result": {"passed": True, "reason": ""},
+                                "trace_result": {"passed": True, "reason": ""},
+                                "metric_results": {},
+                                "supplemental_results": [
+                                    {
+                                        "adapter_id": "judge",
+                                        "metric_name": "answer_correctness_rubric",
+                                        "score": None,
+                                        "verdict": "failed",
+                                        "rationale": "judge runtime error: 400 invalid request",
+                                        "metadata": {"judge_error": "HTTPStatusError"},
+                                    }
+                                ],
+                            },
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            targets = collect_repairable_handbook_benchmark_targets(output_dir)
+
+            self.assertEqual(len(targets), 1)
+            self.assertEqual(targets[0]["run_number"], 1)
+            self.assertEqual(targets[0]["case_id"], "case-ragas")
+            self.assertEqual(targets[0]["adapter_id"], "ragas")
+            self.assertEqual(
+                targets[0]["metric_keys"],
+                ["ragas.answer_relevancy", "ragas.faithfulness"],
+            )
+            self.assertEqual(targets[0]["failure_reasons"], ["http_429", "provider_runtime"])
+
+    def test_repair_handbook_formal_benchmark_writes_repaired_artifacts_without_mutating_original(self) -> None:
+        cases = (_completed_case(),)
+        run_scores = iter(
+            (
+                SupplementalResult(
+                    adapter_id="judge",
+                    metric_name="answer_correctness_rubric",
+                    score=None,
+                    verdict="failed",
+                    rationale='judge runtime error: 429 {"error":{"message":"upstream error","code":"do_request_failed"}}',
+                    metadata={"judge_error": "RuntimeError"},
+                ),
+                SupplementalResult(
+                    adapter_id="judge",
+                    metric_name="answer_correctness_rubric",
+                    score=0.9,
+                    verdict="passed",
+                    rationale="scored benchmark-completed",
+                    metadata={"expected_status": "completed"},
+                ),
+            )
+        )
+        original_adapter = type(
+            "StatefulAdapter",
+            (),
+            {
+                "adapter_id": "judge",
+                "metric_name": "answer_correctness_rubric",
+                "metric_names": ("answer_correctness_rubric",),
+                "evaluate": lambda self, case, execution: (next(run_scores),),
+            },
+        )()
+        repair_adapter = type(
+            "RepairAdapter",
+            (),
+            {
+                "adapter_id": "judge",
+                "metric_name": "answer_correctness_rubric",
+                "metric_names": ("answer_correctness_rubric",),
+                "evaluate": lambda self, case, execution: (
+                    SupplementalResult(
+                        adapter_id="judge",
+                        metric_name="answer_correctness_rubric",
+                        score=0.95,
+                        verdict="passed",
+                        rationale="repaired benchmark-completed",
+                        metadata={"expected_status": "completed"},
+                    ),
+                ),
+            },
+        )()
+
+        with TemporaryDirectory() as tmpdir:
+            benchmark_dir = Path(tmpdir) / "benchmark"
+            repair_dir = Path(tmpdir) / "benchmark-repair"
+            policy_path = Path(tmpdir) / "policy.json"
+            policy_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "required_runs": 2,
+                        "metrics": [
+                            {
+                                "adapter_id": "judge",
+                                "metric_name": "answer_correctness_rubric",
+                                "gate_level": "soft_gate",
+                                "min_mean_score": 0.85,
+                                "min_run_average_score": 0.85,
+                                "max_run_average_drift": 0.2,
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            run_handbook_formal_benchmark(
+                cases=cases,
+                executor=lambda case: ExecutionResult(
+                    response=_response(
+                        status=case.expected_status,
+                        answer_text="图书馆开放时间为 08:00 到 22:00。",
+                        sources=(_source("handbook:library"),),
+                    ),
+                    observed_trace=ObservedTrace(
+                        selected_scope=HANDBOOK_SCOPE,
+                        retrieval_called=True,
+                    ),
+                ),
+                supplemental_adapters=(original_adapter,),
+                output_dir=benchmark_dir,
+                reruns=2,
+                policy_path=policy_path,
+            )
+
+            original_summary = json.loads((benchmark_dir / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(
+                original_summary["aggregate"]["supplemental"]["judge.answer_correctness_rubric"]["applicable_runs"],
+                1,
+            )
+
+            repaired_summary = repair_handbook_formal_benchmark(
+                cases=cases,
+                executor=lambda case: ExecutionResult(
+                    response=_response(
+                        status=case.expected_status,
+                        answer_text="图书馆开放时间为 08:00 到 22:00。",
+                        sources=(_source("handbook:library"),),
+                    ),
+                    observed_trace=ObservedTrace(
+                        selected_scope=HANDBOOK_SCOPE,
+                        retrieval_called=True,
+                    ),
+                ),
+                supplemental_adapters=(repair_adapter,),
+                benchmark_dir=benchmark_dir,
+                output_dir=repair_dir,
+            )
+
+            self.assertTrue((repair_dir / "repair-config.json").exists())
+            self.assertTrue((repair_dir / "repair-plan.json").exists())
+            self.assertTrue((repair_dir / "run-01-repair-results.json").exists())
+            self.assertTrue((repair_dir / "run-01-case-results.json").exists())
+            self.assertTrue((repair_dir / "summary.json").exists())
+            self.assertEqual(repaired_summary["provenance"]["repair_of"], str(benchmark_dir))
+            self.assertEqual(repaired_summary["repair"]["applied_target_count"], 1)
+            repaired_metric = repaired_summary["aggregate"]["supplemental"]["judge.answer_correctness_rubric"]
+            self.assertEqual(repaired_metric["applicable_runs"], 2)
+            self.assertAlmostEqual(repaired_metric["mean_average_score"], 0.925)
+            self.assertEqual(repaired_summary["gate_report"]["overall_verdict"], "pass")
+
+            original_summary_after = json.loads((benchmark_dir / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(
+                original_summary_after["aggregate"]["supplemental"]["judge.answer_correctness_rubric"]["applicable_runs"],
+                1,
+            )
 
 
 class JudgeGatePolicyTest(unittest.TestCase):

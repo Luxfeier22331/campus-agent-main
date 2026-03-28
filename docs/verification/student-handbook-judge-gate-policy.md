@@ -90,7 +90,8 @@ gate 解释规则：
 - 低于均值阈值：`mean_average_score_below_threshold`
 - 低于单 run 下界：`min_run_average_score_below_threshold`
 - 波动过大：`run_average_drift_above_threshold`
-- 适用 run 不足：`applicable_runs_below_threshold`
+- 总 run 数不足：`insufficient_total_runs`
+- 适用 run 不足：`insufficient_applicable_runs`
 
 ## Failure Mapping
 
@@ -117,7 +118,7 @@ supplemental runtime 当前采用 fail-open for benchmark aggregation：
 
 `RAGAS_REQUEST_MIN_INTERVAL_SECONDS` 的语义：
 
-- 对同一 `base_url + api_key` 的 supplemental HTTP 请求施加最小间隔
+- 对同一 provider origin 的 supplemental HTTP 请求施加最小间隔
 - `ragas` judge 与 rubric judge 共享同一 pacing 语义
 - 默认值为 `0`，表示不主动节流
 
@@ -145,6 +146,54 @@ formal benchmark 产物至少包含：
    用于看跨 run 聚合结果
 3. `gate-report.json`
    用于看 policy 阈值比较后的正式 verdict
+
+repair rerun artifact 额外包含：
+
+- `repair-config.json`
+- `repair-plan.json`
+- `run-XX-repair-results.json`
+
+repair contract：
+
+- repair rerun 只允许针对 transient infra failure：
+  - `429`
+  - `5xx`
+  - timeout
+  - transport error
+  - provider runtime marker，例如 `do_request_failed`
+- 低分、真实 `warn`、真实 `failed` case 不属于 repair 边界
+- repair 结果必须写到新目录
+- 原 formal benchmark artifact 不允许被静默覆盖
+- repaired `summary.json` / `gate-report.json` 必须带 `provenance.mode=repair_rerun`
+
+## 2026-03-28 Snapshot
+
+当前 formal benchmark artifact：
+
+- [`.tmp/evals/student-handbook-formal-benchmark-20260328T173355/summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-20260328T173355/summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-20260328T173355/gate-report.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-20260328T173355/gate-report.json)
+
+当前正式 gate 结论：
+
+- `overall_verdict = warn`
+- `pass`:
+  - `ragas.faithfulness`
+  - `judge.answer_correctness_rubric`
+- `warn`:
+  - `ragas.answer_relevancy`
+  - `ragas.context_precision`
+  - `ragas.context_recall`
+  - `judge.refusal_quality`
+
+阈值处理原则：
+
+- 本轮不为追求 `pass` 下调阈值
+- 现有 fixture 阈值继续保留为 phase-1 目标线
+- 当前 `warn` 代表真实 gap，应交回 retrieval / answer / refusal 质量修复，而不是通过 policy 放宽掩盖
+- 当前仍有一处 residual runtime noise：
+  - `run-02 / release-gate-dormitory-lighting` 的 `ragas.*` 因 provider `429` 未产出分数
+  - 因此当前 ragas aggregate 为 `11/12` scored completed-case observations
+- 该噪声当前已可通过 repo 内的 repair rerun 能力单独重跑并重算 aggregate / gate，但原正式 artifact 仍保留为首次 benchmark 证据
 
 ## Relation To Other Docs
 

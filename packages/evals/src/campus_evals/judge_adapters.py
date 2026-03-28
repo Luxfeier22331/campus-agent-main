@@ -34,6 +34,10 @@ class HandbookRagasAdapter:
         self._scorer = scorer
         self._metric_names = metric_names
 
+    @property
+    def metric_names(self) -> tuple[str, ...]:
+        return self._metric_names
+
     def evaluate(self, case: GoldenCase, execution: ExecutionResult) -> tuple[SupplementalResult, ...]:
         response = _require_specialist_response(execution)
         if case.expected_status != "completed":
@@ -123,6 +127,10 @@ class RubricJudgeAdapter:
         self._applicable_statuses = applicable_statuses
         self._rubric = rubric
         self._judge_fn = judge_fn
+
+    @property
+    def metric_names(self) -> tuple[str, ...]:
+        return (self.metric_name,)
 
     def evaluate(self, case: GoldenCase, execution: ExecutionResult) -> tuple[SupplementalResult, ...]:
         response = _require_specialist_response(execution)

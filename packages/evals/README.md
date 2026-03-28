@@ -44,7 +44,7 @@ ragas runtime：
 - 这样做的直接原因是：当前 provider 对原生 HTTP `Responses API` 可用，但会阻断 OpenAI Python SDK / LangChain transport；因此 LangChain 兼容 helper 只保留在内部测试模块 `campus_evals._langchain_compat`，不再作为默认或公开 runtime surface
 - `RAGAS_USE_RESPONSES_API` 仍保留在 settings 中，用于 LangChain compatibility helper 的回归测试；默认值仍为 `true`
 - `RAGAS_REQUEST_TIMEOUT_SECONDS` 只控制 ragas judge 路径，不再复用 `EMBEDDING_TIMEOUT_SECONDS`
-- `RAGAS_REQUEST_MIN_INTERVAL_SECONDS` 可对同一 `base_url + api_key` 的 supplemental HTTP 请求施加最小间隔，用于在低配额 provider 上稳定跑完 formal benchmark
+- `RAGAS_REQUEST_MIN_INTERVAL_SECONDS` 可对同一 provider origin 的 supplemental HTTP 请求施加最小间隔，用于在低配额 provider 上稳定跑完 formal benchmark
 - Responses judge payload 支持独立低延迟 profile：`RAGAS_REASONING_EFFORT`、`RAGAS_TEXT_VERBOSITY`、`RAGAS_MAX_OUTPUT_TOKENS`
 - `n>1` 的 ragas judge 调用现在会在同一 async transport 上并发发出，不再串行放大单 metric 延迟
 - `Qwen3-Embedding-4B` 未显式配置 `EMBEDDING_DIMENSIONS` 时，eval 侧默认补成 `2560`
@@ -68,5 +68,22 @@ student handbook formal benchmark：
   - `summary.json`
   - `gate-report.json`
   - `SUMMARY.md`
+- `campus_evals.handbook_benchmark.collect_repairable_handbook_benchmark_targets(...)` 会从既有 artifact 中筛出可修复的 transient infra failure；当前只接受运行面失败，不接受低分 case
+- `campus_evals.handbook_benchmark.repair_handbook_formal_benchmark(...)` 会在新目录里生成 repair artifact，不会改写原 formal benchmark 目录：
+  - `repair-config.json`
+  - `repair-plan.json`
+  - `run-XX-repair-results.json`
+  - repaired `run-XX-case-results.json`
+  - repaired `run-XX-summary.json`
+  - repaired `summary.json`
+  - repaired `gate-report.json`
+  - repaired `SUMMARY.md`
+- repair rerun 只用于 transient infra failure：
+  - `429`
+  - `5xx`
+  - timeout
+  - transport error
+  - provider runtime marker，例如 `do_request_failed`
+- repair rerun 的 provenance 固定写入 repaired `summary.json` / `gate-report.json`；原 benchmark artifact 保持不可变
 - `gate-report.json` 只解释 supplemental judge/ragas 阈值，不替代 deterministic gate
 - 当前 `student_handbook` policy fixture 全部是 `soft_gate`；`warn` 表示 supplemental 指标未达阈值，不表示 handbook 主链路 deterministic 回归失败
