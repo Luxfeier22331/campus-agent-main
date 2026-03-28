@@ -14,6 +14,7 @@ updated: 2026-03-28
 它补充但不替代以下文档：
 
 - 长期 `apps/*` / `packages/*` 分层：`docs/architecture/long-term-architecture.md`
+- `app-api` 自身 runtime 与内部边界：`docs/architecture/app-api-architecture.md`
 - supervisor 执行引擎边界：`docs/architecture/supervisor-architecture.md`
 - protected surface trust model：`docs/architecture/protected-internal-panel-boundary.md`
 - Cloudflare delivery/topology：`docs/architecture/cloudflare-runtime-topology.md`
@@ -38,7 +39,7 @@ updated: 2026-03-28
 - `apps/protected-panel-web`
   protected panel 的 Worker 前端
 - `apps/app-api`
-  shared application backend，承接 auth/session/conversation、chat ingress 与 operator query
+  shared application backend，承接 auth/session/conversation、chat ingress 与 operator query；runtime 现已冻结为 internal Worker
 - `apps/supervisor-api`
   answer execution engine，负责进入 `packages/supervisor-core -> specialist`
 
@@ -47,6 +48,7 @@ updated: 2026-03-28
 - chatbot 与 panel 不再各自维护独立产品后端
 - `app-api` 是 shared app backend，而不是 panel 专用 query backend
 - `supervisor-api` 不再承担产品层 auth/session/conversation 或 panel list/detail 查询
+- `app-api` runtime 不再保持未冻结状态
 
 ## Surface Topology
 
@@ -124,6 +126,7 @@ apps/
 - request ledger 与 projection 输入写入
 - 调用 `apps/supervisor-api`
 - panel 读取 request projection 的 API
+- 作为 internal Worker runtime 提供 shared app boundary
 
 它不负责：
 
@@ -184,6 +187,11 @@ apps/
 - auth/session/conversation 不再由 public chat app 自己单独持有
 - 它们进入 shared `app-api` boundary
 
+runtime 形态已不再 deferred：
+
+- `apps/app-api` 固定为 internal Worker runtime
+- 具体实现边界见 `docs/architecture/app-api-architecture.md`
+
 ## Forbidden Shapes
 
 以下形态不再接受：
@@ -205,4 +213,4 @@ apps/
 - shared `app-api`
 - `supervisor-api` execution engine
 
-详细 API contract、数据表、auth stack、frontend framework 和 migration sequence 留待后续设计讨论。
+详细 API contract、数据表、auth stack、frontend framework 和 migration sequence 留待后续设计讨论；`app-api` runtime freeze 见 `docs/decisions/adr-0013-app-api-worker-runtime.md`。

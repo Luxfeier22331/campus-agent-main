@@ -179,6 +179,7 @@ supervisor 的长期工作方式不是“只允许 handoff”，而是允许两�
 
 - supervisor 不直接 serving browser-facing chat/panel APIs
 - `app-api` 负责 auth/session/conversation 与 operator query
+- `app-api` 当前已冻结为 Worker runtime，但这不要求 supervisor 也采用同一 runtime
 - `app-api` 只把受控执行请求交给 supervisor，而不是把 supervisor 暴露成产品后端
 
 ### 长期演进方向

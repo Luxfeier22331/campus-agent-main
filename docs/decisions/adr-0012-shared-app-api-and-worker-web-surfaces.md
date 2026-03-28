@@ -55,6 +55,7 @@ Accepted on 2026-03-28.
 - `apps/operator-query-api` 作为独立长期边界的设计被放弃
 - `public-consumer-chat` 作为独立 full-stack app boundary 的设计被放弃
 - 详细 API、数据表、auth provider、framework 和 migration 方案留给后续设计阶段
+- `app-api` runtime freeze 后续由 `ADR-0013` 单独记录
 
 ## Supersedes
 

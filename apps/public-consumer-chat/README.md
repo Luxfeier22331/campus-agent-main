@@ -2,7 +2,15 @@
 
 Public consumer chat frontend for campus-agent v2.
 
-This app is a separate `apps/*` product surface. Its accepted direction is:
+This directory records the merged 04.7 implementation and should now be treated as a historical reference plus migration source, not as the forward product backend boundary.
+
+The accepted forward topology is:
+
+- `apps/public-chat-web` as the public Worker web surface
+- `apps/app-api` as the shared Worker app backend
+- `apps/supervisor-api` as the execution engine
+
+The historical 04.7 implementation direction in this directory was:
 
 - app host: `TanStack Start`
 - auth: `Better Auth`
@@ -10,9 +18,16 @@ This app is a separate `apps/*` product surface. Its accepted direction is:
 - auth/chat: one Postgres with schema split
 - online retrieval store: `Qdrant`
 
-This app owns chat UI, app-level session UX, and conversation history UX. It does not replace the public entry Worker or `apps/supervisor-api`.
+Historically this app owned chat UI, app-level session UX, and conversation history UX. That ownership is no longer the canonical forward truth for auth/session/conversation.
 
-## Canonical Docs
+## Current Canonical Docs
+
+- [`docs/architecture/shared-app-api-and-worker-web-surfaces.md`](../../docs/architecture/shared-app-api-and-worker-web-surfaces.md)
+- [`docs/architecture/app-api-architecture.md`](../../docs/architecture/app-api-architecture.md)
+- [`docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`](../../docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md)
+- [`docs/decisions/adr-0013-app-api-worker-runtime.md`](../../docs/decisions/adr-0013-app-api-worker-runtime.md)
+
+## Historical 04.7 References
 
 - [`docs/architecture/public-consumer-chat-surface.md`](../../docs/architecture/public-consumer-chat-surface.md)
 - [`docs/architecture/public-consumer-chat-auth-and-data-boundary.md`](../../docs/architecture/public-consumer-chat-auth-and-data-boundary.md)
@@ -27,8 +42,9 @@ This app owns chat UI, app-level session UX, and conversation history UX. It doe
 Architectural guardrails:
 
 - Worker admission is not canonical app identity truth
-- app auth / conversation CRUD stay inside `apps/public-consumer-chat`
-- `apps/supervisor-api` stays the runtime ingress only
+- the historical 04.7 implementation kept app auth / conversation CRUD inside `apps/public-consumer-chat`
+- current forward truth moves auth/session/conversation into shared `apps/app-api`
+- `apps/supervisor-api` stays the execution engine only
 - `Qdrant` remains the online retrieval store
 - no bare `TanStack Router + 外挂后端壳`
 - no `D1 for auth`
@@ -48,7 +64,7 @@ pnpm test:integration
 pnpm smoke:live
 ```
 
-## Local topology
+## Historical Local Topology
 
 - browser -> `TanStack Start` app host
 - app-local route/UI/auth/conversation boundary -> `apps/public-consumer-chat`

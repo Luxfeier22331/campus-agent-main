@@ -60,6 +60,7 @@ updated: 2026-03-28
 - `architecture/cloudflare-runtime-topology.md`
 - `architecture/cloudflare-public-entry-integration-contract.md`
 - `architecture/cloudflare-worker-consumer-entry-access-policy.md`
+- `architecture/app-api-architecture.md`
 - `architecture/protected-internal-panel-boundary.md`
 - `architecture/protected-panel-runtime-shell.md`
 - `architecture/shared-app-api-and-worker-web-surfaces.md`
@@ -76,8 +77,10 @@ updated: 2026-03-28
 - `decisions/adr-0007-phase1-retrieval-baseline-update.md`
 - `decisions/adr-0010-observability-and-telemetry-stack.md`
 - `decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
+- `decisions/adr-0013-app-api-worker-runtime.md`
 - `plans/agentic-rag-foundation.md`
 - `plans/agent-orchestration-architecture-refresh.md`
+- `plans/app-api-worker-foundation.md`
 - `plans/golden-dataset-document-delivery.md`
 - `plans/golden-dataset-schema-and-bootstrap.md`
 - `plans/source-truth-normalization-refactor.md`

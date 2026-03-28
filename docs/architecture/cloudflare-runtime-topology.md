@@ -13,6 +13,7 @@ updated: 2026-03-28
 
 - public entry edge ownership：`docs/architecture/cloudflare-public-entry-boundary.md`
 - protected panel trust model：`docs/architecture/protected-internal-panel-boundary.md`
+- `app-api` runtime 与内部边界：`docs/architecture/app-api-architecture.md`
 - 长期 `apps/*` / `packages/*` 分层：`docs/architecture/long-term-architecture.md`
 - supervisor runtime shell 与 core 分层：`docs/architecture/supervisor-architecture.md`
 - 当前 04.2 planning/handoff：`.planning/phases/04.2-cloudflare-runtime-topology-and-delivery-shape-inserted/`
@@ -40,6 +41,7 @@ Phase 04.2 在这里冻结的不是平台选型，而是 runtime topology：
 - public entry runtime origin 是 `apps/public-chat-web`
 - protected panel runtime origin 是 `apps/protected-panel-web`，不和 public entry 合并成一个 runtime boundary
 - 两条外部 surface 在内部共享 `apps/app-api`
+- `apps/app-api` 自身固定为 internal Worker runtime，而不是独立 public backend
 - `apps/supervisor-api` 是 internal execution engine，而不是 browser-facing runtime origin
 - public 与 protected surface 即使未来共享某些托管基础设施，也不能因此合并成一个 exposure model、一个 hostname，或一个 rollback unit
 
@@ -62,9 +64,9 @@ Phase 04.2 在这里冻结的不是平台选型，而是 runtime topology：
 ### Shared app backend boundary
 
 - Public reachability: no dedicated public exposure required
-- Edge hostname: none by default; internal protected runtime call only
+- Edge hostname: none by default; internal Worker-to-Worker runtime call only
 - Runtime boundary: `apps/app-api`
-- Runtime responsibility: serve auth/session/conversation, chat ingress, and operator query from one shared app boundary
+- Runtime responsibility: serve auth/session/conversation, chat ingress, and operator query from one shared Worker app boundary
 
 ### Execution engine boundary
 
@@ -79,7 +81,7 @@ Phase 04.2 在这里冻结的不是平台选型，而是 runtime topology：
 | --- | --- | --- | --- | --- | --- |
 | Public entry | public answer hostname | Public | DNS/TLS, edge admission, hostname routing to origin | `apps/public-chat-web` | public entry surface and its origin mapping |
 | Protected panel | protected operator hostname | Non-public by default | protected access envelope, hostname routing to protected origin | `apps/protected-panel-web` | protected panel surface and its origin mapping |
-| Shared app backend | no public hostname by default | Internal only | not the primary owner; Cloudflare only protects the outer browser surfaces | `apps/app-api` | shared app backend boundary |
+| Shared app backend | no public hostname by default | Internal only | not the primary owner; Cloudflare only protects the outer browser surfaces | `apps/app-api` (Worker) | shared app backend boundary |
 | Execution engine | no public hostname by default | Internal only | no browser exposure | `apps/supervisor-api` | execution engine boundary |
 
 ## Delivery Ownership
@@ -99,6 +101,7 @@ Phase 04.2 在这里冻结的不是平台选型，而是 runtime topology：
 - transport semantics after a request reaches the runtime origin
 - web surface 到 shared `apps/app-api` 的内部 runtime 调用边界
 - shared `apps/app-api` 到 execution engine 的内部 runtime 调用边界
+- `apps/app-api` 作为 internal Worker service 的环境/config 装配
 
 ### Core packages do not own
 
@@ -148,7 +151,7 @@ runtime topology 不能替代 Phase 5 的 actor、ACL 或 audit 闭环。
 ## 非目标
 
 - 不在本 phase 实现 Cloudflare dashboard 配置、IaC、CI/CD 或容器编排
-- 不在本 phase 选择最终 runtime/framework
+- 不在本 phase 选择 execution engine 的最终 runtime/framework
 - 不把 provider/runtime delivery 类型推入 `packages/*`
 - 不定义 header forwarding、trace propagation、cache、timeout 或 streaming contract 细节
 - 不设计 panel UI、panel business workflow 或 protected operator actions

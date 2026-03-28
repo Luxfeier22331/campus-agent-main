@@ -13,6 +13,7 @@ updated: 2026-03-28
 
 - protected panel 的 trust boundary：`docs/architecture/protected-internal-panel-boundary.md`
 - public/protected surface 的 runtime topology：`docs/architecture/cloudflare-runtime-topology.md`
+- `app-api` runtime 与内部边界：`docs/architecture/app-api-architecture.md`
 - shared app backend 与 web surfaces：`docs/architecture/shared-app-api-and-worker-web-surfaces.md`
 - 长期 `apps/*` / `packages/*` 分层：`docs/architecture/long-term-architecture.md`
 - supervisor runtime shell 与 core 分层：`docs/architecture/supervisor-architecture.md`
@@ -23,7 +24,7 @@ Phase 04.4 在这里冻结的是 protected panel 作为 repo/runtime shape 的�
 
 - 它属于 future `apps/` runtime shell
 - 它只允许通过 runtime APIs 与系统交互
-- 它位于 shared `apps/app-api` 之上，而不是自己承载 request projection 查询语义
+- 它位于 shared `apps/app-api` Worker runtime 之上，而不是自己承载 request projection 查询语义
 - 它必须保持 fail-closed
 - 它不承担 UI/business/governance scope
 
@@ -31,7 +32,7 @@ Phase 04.4 在这里冻结的是 protected panel 作为 repo/runtime shape 的�
 
 protected panel 的 shell 形态固定为：
 
-`protected panel surface -> future apps/* panel shell -> apps/app-api -> request projection read model`
+`protected panel surface -> future apps/* panel shell -> apps/app-api (Worker) -> request projection read model`
 
 关键结论是：
 
@@ -54,7 +55,7 @@ panel 如果后续落地，repo shape 固定为：
 
 allowed seam 只允许：
 
-`panel shell -> shared app-api -> request projection read model`
+`panel shell -> shared app-api Worker -> request projection read model`
 
 因此这里冻结：
 

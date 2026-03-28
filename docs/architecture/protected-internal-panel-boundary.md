@@ -13,6 +13,7 @@ updated: 2026-03-28
 
 - public entry 与 Cloudflare edge ownership：`docs/architecture/cloudflare-public-entry-boundary.md`
 - 长期 `apps/` 与 `packages/` 分层：`docs/architecture/long-term-architecture.md`
+- `app-api` runtime 与内部边界：`docs/architecture/app-api-architecture.md`
 - supervisor 请求边界：`docs/architecture/supervisor-architecture.md`
 - shared app backend 与 web surfaces：`docs/architecture/shared-app-api-and-worker-web-surfaces.md`
 - 当前 phase handoff 与 deferred seams：`.planning/phases/04.1-cloudflare-entry-and-protected-internal-panel-design/04.1-PHASE5-HANDOFF.md`
@@ -30,7 +31,7 @@ updated: 2026-03-28
 
 future panel 的允许形态固定为：
 
-`authorized operator principal -> Cloudflare-protected access -> protected-panel-web -> apps/app-api -> request projection read model`
+`authorized operator principal -> Cloudflare-protected access -> protected-panel-web -> apps/app-api (Worker) -> request projection read model`
 
 这条链路里的硬约束是：
 

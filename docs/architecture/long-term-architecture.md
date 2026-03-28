@@ -11,7 +11,7 @@ updated: 2026-03-28
 
 将 `campus-agent` 建成校园助理系统的长期入口仓库，核心形态是 supervisor 主导的 `hybrid orchestration`、specialist 子代理，以及带有独立 ingestion/data plane 的可替换 retrieval 栈。
 
-当前阶段的目标不是做一个框架示例，也不是先选一个 HTTP runtime；目标是先把仓库边界和演进方向定清楚，避免后续再次整体推翻。
+当前阶段的目标不是做一个框架示例，也不是先为所有边界选一个统一 HTTP runtime；目标是先把仓库边界和演进方向定清楚，避免后续再次整体推翻。
 
 这份文档只保存长期架构边界、职责拆分和链路形态，不冻结具体实现、部署拓扑、供应商选型或第一阶段落地细节。
 
@@ -52,7 +52,7 @@ updated: 2026-03-28
 - `apps/protected-panel-web`
   protected Worker web surface，承载 panel 的浏览器入口。
 - `apps/app-api`
-  shared application backend，承载 auth/session/conversation、chat ingress 与 operator read APIs。
+  shared application backend，承载 auth/session/conversation、chat ingress 与 operator read APIs；runtime 现已冻结为 Worker。
 - `apps/supervisor-api`
   execution engine boundary，负责 answer execution 与对应 transport adapter。
 - `packages/supervisor-core`
@@ -88,13 +88,18 @@ updated: 2026-03-28
 
 `apps/supervisor-api` 这个名字刻意表达的是 API 边界，不是对 FastAPI 的承诺。
 
-runtime 选择应该延后。未来可以接受的实现包括：
+execution engine runtime 选择应该延后。未来可以接受的实现包括：
 
 - FastAPI，作为简单 Python HTTP 服务
 - Agno AgentOS，如果最终服务模型原生落在 Agno 上
 - 其他 transport/runtime，只要产品约束需要
 
-`ADR-0001` 中的 `AgentOS-native` 只表示 phase-1 当前生产 runtime 选择，不构成长期 runtime freeze。
+`ADR-0001` 中的 `AgentOS-native` 只表示 phase-1 当前生产 runtime 选择，不构成 execution engine 的长期 runtime freeze。
+
+但这条“runtime 仍延后”的规则不再适用于 shared `apps/app-api`：
+
+- `apps/app-api` 的 runtime 已接受为 Worker
+- 这项冻结只作用于 shared app backend，不反向推导 `apps/supervisor-api` 也必须是 Worker
 
 当前真正重要的是边界清晰：
 
@@ -111,6 +116,7 @@ runtime 选择应该延后。未来可以接受的实现包括：
 长期上，public chat 与 protected panel 可以共享一个 `apps/app-api`，但只在以下前提下成立：
 
 - `app-api` 负责产品层 auth/session/conversation 与 browser-facing API
+- `app-api` 作为 internal Worker runtime 存在，而不是默认做成独立 Docker-first backend
 - `supervisor-api` 保持 execution engine，不重新长出产品层 backend
 - `app-api` 内部仍保持 command/query 分离
 - request projection / operator read model 不能退化成 `conversation/message` 的别名

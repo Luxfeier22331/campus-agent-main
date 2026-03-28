@@ -2,6 +2,8 @@
 
 Protected internal panel runtime shell for campus-agent v2.
 
+This directory is the 04.4 placeholder shell and should now be treated as a migration source for future `apps/protected-panel-web`, not as the final long-term app boundary.
+
 This app is an `apps/*` protected operator surface. It exists as a runtime shell only:
 
 - it remains separate from `apps/supervisor-api`
@@ -28,6 +30,7 @@ Canonical references:
 - `docs/architecture/protected-internal-panel-boundary.md`
 - `docs/architecture/protected-panel-runtime-shell.md`
 - `docs/architecture/shared-app-api-and-worker-web-surfaces.md`
+- `docs/architecture/app-api-architecture.md`
 - `docs/architecture/cloudflare-runtime-topology.md`
 
 Environment:
