@@ -42,9 +42,7 @@ updated: 2026-03-25
 - `docs/architecture/long-term-architecture.md`
   定义整个仓库的长期架构边界
 - `docs/architecture/supervisor-architecture.md`
-  定义 supervisor 的长期架构与当期设计架构
-- `docs/decisions/adr-0001-phase1-architecture.md`
-  定义 phase-1 runtime 与架构约束
+  定义 supervisor 的长期架构与当期设计架构，以及当前 execution engine runtime / Agno 集成边界
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
   定义长期编排模式、specialist 准入与安全边界
 - 本文

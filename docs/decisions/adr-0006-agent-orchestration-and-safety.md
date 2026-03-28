@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0006
 status: accepted
 created: 2026-03-25
-updated: 2026-03-25
+updated: 2026-03-28
 ---
 
 # ADR-0006 编排模式与安全边界
@@ -137,9 +137,11 @@ updated: 2026-03-25
 - `docs/architecture/long-term-architecture.md`
   负责长期编排边界、角色分工与系统形态
 - `docs/architecture/supervisor-architecture.md`
-  负责 supervisor 如何承接这些长期规则
-- `docs/decisions/adr-0001-phase1-architecture.md`
-  负责 phase-1 当前运行时与实现取舍
+  负责 supervisor 如何承接这些长期规则，以及当前 execution engine runtime / Agno 集成边界
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
+  负责 identity / memory / personalization 如何作为 typed context 进入编排，而不稀释 ACL 或权限边界
+- `docs/architecture/phase1-ingestion-and-storage-architecture.md`
+  负责 phase-1 数据平面约束，以及对象存储 + registry + Qdrant 组合理由
 - 本 ADR
   负责长期编排模式、specialist 准入与安全边界
 - `docs/decisions/adr-0004-evaluation-metrics.md`

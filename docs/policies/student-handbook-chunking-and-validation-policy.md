@@ -1,8 +1,8 @@
 ---
-doc_type: architecture
+doc_type: policy
 status: active
 created: 2026-03-25
-updated: 2026-03-26
+updated: 2026-03-28
 ---
 
 # `student_handbook` Chunking 与 Validation 规则
@@ -21,7 +21,7 @@ updated: 2026-03-26
 - handbook validation 的通过条件与诊断指标
 - 何时允许继续调整预算
 
-本文不重复 source-level OCR normalization 与 split-manifest 设计；这些内容以 [student-handbook-ocr-normalization-strategy.md](./student-handbook-ocr-normalization-strategy.md) 为准。
+本文不重复 source-level OCR normalization 与 split-manifest 设计；这些内容以 [student-handbook-ocr-normalization-strategy.md](../architecture/student-handbook-ocr-normalization-strategy.md) 为准。
 
 ## 适用范围
 

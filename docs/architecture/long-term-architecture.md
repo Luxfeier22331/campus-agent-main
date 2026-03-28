@@ -94,7 +94,7 @@ execution engine runtime 选择应该延后。未来可以接受的实现包括�
 - Agno AgentOS，如果最终服务模型原生落在 Agno 上
 - 其他 transport/runtime，只要产品约束需要
 
-`ADR-0001` 中的 `AgentOS-native` 只表示 phase-1 当前生产 runtime 选择，不构成 execution engine 的长期 runtime freeze。
+当前 `AgentOS-native` 只是 `apps/supervisor-api` 的当期 execution engine 选择，不构成 execution engine 的长期 runtime freeze；当前实现取舍与 Agno 集成深度见 `docs/architecture/supervisor-architecture.md`。
 
 但这条“runtime 仍延后”的规则不再适用于 shared `apps/app-api`：
 
@@ -116,12 +116,35 @@ execution engine runtime 选择应该延后。未来可以接受的实现包括�
 长期上，public chat 与 protected panel 可以共享一个 `apps/app-api`，但只在以下前提下成立：
 
 - `app-api` 负责产品层 auth/session/conversation 与 browser-facing API
+- `app-api` 负责 canonical identity、profile memory 与 session truth
 - `app-api` 作为 internal Worker runtime 存在，而不是默认做成独立 Docker-first backend
 - `supervisor-api` 保持 execution engine，不重新长出产品层 backend
 - `app-api` 内部仍保持 command/query 分离
 - request projection / operator read model 不能退化成 `conversation/message` 的别名
 
 当前 accepted direction 允许 `app-api` 与 execution engine 共用同一个关系数据库，但不允许因此合并 boundary 或 ownership。
+
+## Identity, Memory And Knowledge Truth
+
+长期上，回答链路相关的用户上下文固定拆成四层真相：
+
+- `verified identity`
+  canonical account / identity truth 支撑的已验证 claims，例如 cohort、major、program、campus、role
+- `profile memory`
+  用户允许持久化的长期偏好、目标与背景摘要，例如“最近在咨询保研”
+- `session memory`
+  当前会话内的短期工作记忆、已确认槽位与上下文承接
+- `institutional knowledge`
+  机构制度、培养方案、官网内容等 document / chunk / evidence truth
+
+长期硬约束如下：
+
+- `apps/app-api` 拥有 `verified identity`、`profile memory` 与 `session memory` 的 canonical truth
+- Worker / edge identity 只属于 runtime-boundary material，不等于最终 actor truth
+- `apps/supervisor-api`、`packages/supervisor-core` 与 `packages/rag-specialist` 默认只消费 typed projection，而不是 raw auth / raw memory / raw transcript
+- `institutional knowledge` 与 personal memory 不得共用同一个 canonical retrieval truth store
+- memory 可以个性化 query planning、clarification 与 answer wording，但不能授予权限
+- 当 `verified identity`、memory 与 institutional knowledge 发生冲突时，权限与事实依据分别以 verified identity 和 institutional knowledge 为准
 
 ## 观测与遥测边界
 
@@ -238,7 +261,9 @@ RAG specialist 是被委派的知识域 worker，不是一个薄薄的 tool shim
 - runtime / agent framework 可以进入 supervisor / specialist 的实现层
 - runtime / agent framework 不得泄漏进 `packages/contracts` 或 `packages/retrieval-core`
 
-phase-1 当前对 Agno / AgentOS 的具体集成深度见 `docs/decisions/adr-0001-phase1-architecture.md`，而不是由本文冻结。
+phase-1 当前对 Agno / AgentOS 的具体集成深度见 `docs/architecture/supervisor-architecture.md`，而不是由本文冻结。
+
+RAG specialist 的长期内部形态、`RagIntentFrame`、个性化输入边界与 ACL 约束，见 `docs/architecture/rag-specialist-architecture.md`。
 
 ### Other Specialist Types
 
@@ -425,6 +450,8 @@ v2 真正变化的地方：
 - 具体 queue / crawler / object storage / vector store 产品
 - repo 中是否新增某个 app 或 package
 - 第一阶段部署形态和实施顺序
+- `rag-specialist` 的具体 retrieval-specific planning 细节
+- `app-api` 的具体 identity / memory schema
 
 ## 设计约束
 
@@ -464,8 +491,9 @@ ACL、审计和 traceability 在第一阶段按“够上线的最小闭环”建
 
 ## 决策索引
 
-- 第一阶段架构决策记录：`docs/decisions/adr-0001-phase1-architecture.md`
+- Supervisor 当期设计与执行引擎边界：`docs/architecture/supervisor-architecture.md`
 - Golden dataset 治理规则：`docs/decisions/adr-0003-golden-dataset-governance.md`
 - 评测指标体系：`docs/decisions/adr-0004-evaluation-metrics.md`
 - 编排模式与安全边界：`docs/decisions/adr-0006-agent-orchestration-and-safety.md`
+- 用户身份、长期记忆与个性化边界：`docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - 第一阶段 ingestion 与存储架构：`docs/architecture/phase1-ingestion-and-storage-architecture.md`

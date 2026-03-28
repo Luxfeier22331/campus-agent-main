@@ -1,8 +1,8 @@
 ---
-doc_type: plan
+doc_type: runbook
 status: active
 created: 2026-03-26
-updated: 2026-03-27
+updated: 2026-03-28
 ---
 
 # Student Handbook Hybrid Rebuild Checklist
@@ -250,7 +250,7 @@ updated: 2026-03-27
 - handbook retrieval 当前不仅通过 live query 抽样，也通过了 doc-level qrels benchmark
 - `no_hit` fail-close 漏放行已修复，当前 handbook 主链路没有发现新的 retrieval regression
 - 当前 live workflow/status gate 按设计只覆盖稳定主链路；`error` 分支现已迁移为单独的 deterministic error gate，不再要求依赖 live 偶发故障取样
-- 详细数值快照与 split 维度汇总已单独落盘到 `docs/verification/student-handbook-eval-metrics.md`
+- 详细数值快照与 split 维度汇总已单独落盘到 `docs/reference/student-handbook-eval-metrics.md`
 
 ## 完成标准
 

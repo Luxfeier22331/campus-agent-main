@@ -1,5 +1,5 @@
 ---
-doc_type: plan
+doc_type: policy
 status: active
 created: 2026-03-28
 updated: 2026-03-28
@@ -197,5 +197,5 @@ repair contract：
 
 ## Relation To Other Docs
 
-- deterministic retrieval / workflow / error gate 指标见 [`student-handbook-eval-metrics.md`](/home/reptilian/code/campus-agent/docs/verification/student-handbook-eval-metrics.md)
-- live rebuild 与 handbook serving collection 验收见 [`student-handbook-hybrid-rebuild-checklist.md`](/home/reptilian/code/campus-agent/docs/verification/student-handbook-hybrid-rebuild-checklist.md)
+- deterministic retrieval / workflow / error gate 指标见 [`student-handbook-eval-metrics.md`](/home/reptilian/code/campus-agent/docs/reference/student-handbook-eval-metrics.md)
+- live rebuild 与 handbook serving collection 验收见 [`student-handbook-hybrid-rebuild-checklist.md`](/home/reptilian/code/campus-agent/docs/runbooks/student-handbook-hybrid-rebuild-checklist.md)

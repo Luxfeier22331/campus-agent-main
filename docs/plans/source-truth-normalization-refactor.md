@@ -96,7 +96,7 @@ updated: 2026-03-27
   收紧为 handbook-specific rules 与 projection semantics，不再重复 repo 级 source-truth contract
 - `configs/ingestion/curriculum/curriculum_plan/README.md`
   收紧为 curriculum-specific extension，不再承担 repo 级 source-truth 定义
-- `docs/verification/phase1-ingestion-retrieval-implementation-truth.md`
+- `docs/reference/phase1-ingestion-retrieval-implementation-truth.md`
   在代码完成后更新为“当前实现已经删除哪些过渡态”
 
 ## 目标代码分层

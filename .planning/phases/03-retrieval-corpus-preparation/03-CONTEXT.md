@@ -75,7 +75,7 @@ The phase delivers three things:
 - `docs/architecture/phase1-ingestion-and-storage-architecture.md` — canonical Raw -> Processed -> Chunk/Index layering, registry truth, chunk metadata requirements, and Qdrant ownership
 - `docs/architecture/student-handbook-ocr-normalization-strategy.md` — `provider-response.jsonl -> layout-elements.jsonl -> split-manifest -> canonical.md -> document-units.jsonl -> chunks` truth for `student_handbook`
 - `docs/architecture/long-term-architecture.md` — long-term package boundaries across supervisor, specialist, retrieval, and ingestion layers
-- `docs/decisions/adr-0001-phase1-architecture.md` — accepted phase-1 scope and package-boundary constraints
+- `docs/architecture/phase1-ingestion-and-storage-architecture.md` — accepted phase-1 scope, data-plane, and package-boundary constraints
 - `docs/decisions/adr-0002-local-minio-conventions.md` — S3-compatible object-store semantics and bucket conventions
 - `docs/plans/agentic-rag-foundation.md` — implementation gates, processed/chunk/index expectations, and phase-1 completion framing
 

@@ -1,5 +1,5 @@
 ---
-doc_type: plan
+doc_type: reference
 status: active
 created: 2026-03-27
 updated: 2026-03-28
@@ -198,7 +198,9 @@ shared core 当前统一负责：
 这类信息应进入：
 
 - `.planning/STATE.md`
-- `docs/verification/`
+- `docs/runbooks/`
+- `docs/reference/`
+- `docs/policies/`
 - `.tmp/` 或 `var/` 下的证据产物
 
 而不是留在 `README.md` 这类稳定入口文档里。

@@ -15,6 +15,8 @@ The public answer route is now expected to construct a supervisor-facing request
 
 Protected/public product follow-up now has a new frozen direction as well: future work should converge on `public-chat-web` + `protected-panel-web` + shared `apps/app-api`, with `apps/app-api` fixed as an internal Worker runtime and `apps/supervisor-api` retained as the execution engine rather than the product backend.
 
+Future identity / memory / personalization work should follow the same split: canonical identity and durable user memory live in `apps/app-api`, `supervisor` and specialists consume typed projection only, institutional knowledge remains separate from personal memory truth, and personalization may bias retrieval planning or answer wording but must not widen ACL or serving surface.
+
 ## Phases
 
 **Phase Numbering:**

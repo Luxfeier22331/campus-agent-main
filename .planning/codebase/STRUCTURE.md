@@ -62,7 +62,7 @@
 
 **docs/**
 - Purpose: persistent architecture, decision, and plan references (`README.md`, `docs/architecture/*.md`, `docs/decisions/*.md`, `docs/plans/*.md`).
-- Contains: `docs/architecture/long-term-architecture.md`, `docs/architecture/phase1-ingestion-and-storage-architecture.md`, `docs/decisions/adr-0001-phase1-architecture.md`, `docs/plans/agentic-rag-foundation.md`.
+- Contains: `docs/architecture/long-term-architecture.md`, `docs/architecture/supervisor-architecture.md`, `docs/architecture/phase1-ingestion-and-storage-architecture.md`, `docs/plans/agentic-rag-foundation.md`.
 - Key files: architecture/phase-1 docs describe goals and constraints; plans track future phases.
 
 **infra/**
@@ -128,7 +128,7 @@
 **Documentation:**
 - `README.md` – top-level orientation and baseline instructions.
 - `docs/architecture/*.md` – permanent architecture/phase docs.
-- `docs/decisions/*.md` – ADRs such as `adr-0001-phase1-architecture.md`.
+- `docs/decisions/*.md` – ADRs such as `adr-0006-agent-orchestration-and-safety.md`.
 - `docs/plans/*.md` – planning artifacts for future phases.
 
 ## Naming Conventions

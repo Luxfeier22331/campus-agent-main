@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0010
 status: accepted
 created: 2026-03-27
-updated: 2026-03-27
+updated: 2026-03-28
 ---
 
 # ADR-0010 观测与遥测栈决策
@@ -131,6 +131,29 @@ updated: 2026-03-27
 - ACL / version / route / source locator 等治理字段必须可追踪
 - redaction 配置应先于 production sink 开启
 
+## 决策 6：identity / memory / personalization telemetry 也必须最小化
+
+后续当系统引入 canonical identity、profile memory、session memory 与 personalization 后，长期默认允许观测的字段仍应保持最小化。
+
+长期默认允许的结构化字段包括：
+
+- `actor_id_hash`
+- actor claims version / snapshot id
+- `personalization_mode`
+- memory item id / hash
+- memory source type
+- clarification reason
+- ACL filter summary
+
+长期默认不允许直接进入 sink 的内容包括：
+
+- raw JWT、raw access envelope、raw auth header
+- raw long-term memory
+- 未脱敏的 personal conversation text
+- 用户私密笔记、profile 原文、自由文本画像摘要
+
+这些规则同样适用于 `Axiom`、`Sentry` 与后续其他 sink；Collector / telemetry adapter 应在 sink 前完成 redaction 与字段裁剪。
+
 ## 不冻结的内容
 
 本 ADR 不冻结以下内容：
@@ -163,3 +186,4 @@ updated: 2026-03-27
 - `docs/architecture/long-term-architecture.md`
 - `docs/architecture/supervisor-architecture.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`

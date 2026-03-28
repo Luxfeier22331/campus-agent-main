@@ -130,7 +130,7 @@ updated: 2026-03-28
 
 - `docs/architecture/retrieval-query-strategy.md`
 - `docs/architecture/phase1-ingestion-and-storage-architecture.md`
-- `docs/verification/phase1-ingestion-retrieval-implementation-truth.md`
+- `docs/reference/phase1-ingestion-retrieval-implementation-truth.md`
 - `docs/README.md`
 
 ## 验收标准

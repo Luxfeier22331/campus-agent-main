@@ -1,5 +1,5 @@
 ---
-doc_type: plan
+doc_type: runbook
 status: active
 created: 2026-03-28
 updated: 2026-03-28
@@ -20,7 +20,7 @@ updated: 2026-03-28
 
 - 长期架构边界：`docs/architecture/long-term-architecture.md`
 - 数据平面分层：`docs/architecture/phase1-ingestion-and-storage-architecture.md`
-- 术语定义：`docs/architecture/runtime-serving-and-index-terms.md`
+- 术语定义：`docs/reference/runtime-serving-and-index-terms.md`
 - 当前优先级和执行状态：`.planning/PROJECT.md`、`.planning/STATE.md`
 
 ## 前置检查

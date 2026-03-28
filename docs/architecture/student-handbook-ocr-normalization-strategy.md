@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-22
-updated: 2026-03-27
+updated: 2026-03-28
 ---
 
 # `student_handbook` Collection OCR 归一化与拆分策略
@@ -25,7 +25,7 @@ updated: 2026-03-27
 - unit normalization
 
 具体 token budget、tokenizer、切分与 chunk 组装规则以
-[student-handbook-chunking-and-validation-policy.md](./student-handbook-chunking-and-validation-policy.md)
+[student-handbook-chunking-and-validation-policy.md](../policies/student-handbook-chunking-and-validation-policy.md)
 为准。
 
 ## 结论

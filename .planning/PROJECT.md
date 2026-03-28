@@ -10,6 +10,8 @@
 - 当前 query-enabled scope 是 `regulations/student_handbook` 与 `curriculum/curriculum_plan`
 - `campus_services/*` 仍为 `offline_preparation`
 - retrieval 读取 serving alias；离线索引发布写入 versioned physical collection，并以 release manifest 保留追溯信息
+- canonical app identity、profile memory 与 session truth 归属 shared `app-api`；execution engine 只消费 typed projection
+- personalization 可以利用 verified identity / profile memory / session summary，但 memory 不得授予权限或绕过 retrieval ACL
 - 早期 roadmap / phase 文档主要承担历史排期与讨论存档，不应覆盖这里的当前 truth
 
 ## Core Value
@@ -56,6 +58,7 @@
 - **Contracts**: handoff 必须通过 `packages/contracts` 中的 schema 完成，不让 AgentOS / retrieval / infra 类型渗透进共享 contract — 这是未来可替换 specialist / retrieval 的基础
 - **Runtime Boundary**: runtime 与 transport 逻辑留在 `apps/`；已接受的 forward product topology 是浏览器侧 Worker surface `apps/public-chat-web` / `apps/protected-panel-web` 加上 internal Worker runtime `apps/app-api`，但这些目录尚未全部在当前工作树落地，现有 `apps/public-consumer-chat` 与 `apps/protected-internal-panel` 仍主要承担迁移参考 / 壳层角色；`apps/supervisor-api` 保持 execution engine；`packages/supervisor-core` 只负责 request framing、routing、policy、response shaping、audit projection — 避免框架宿主反向污染编排层
 - **Security**: v1 必须做到身份透传、trace 透传、retrieval 前 ACL 过滤、最小审计和最小 source traceability — 这是面向不同权限用户上线前的最低治理要求
+- **Identity & Memory**: canonical identity、profile memory 与 session memory 属于 `app-api` boundary；`supervisor` / `rag-specialist` 只消费 typed projection；memory 只能个性化，不能授权 — 这是后续引入长期记忆而不稀释 ACL 的前提
 - **Execution Goal**: 当前优先级是把新架构站稳，不以覆盖更多知识域或更复杂 agent 能力为第一目标 — 避免为了功能面牺牲边界正确性
 
 ## Key Decisions
@@ -85,6 +88,8 @@
 | shared `apps/app-api` 接管 auth/session/conversation、chat ingress、审计/指标入口与 panel query | 这样可以避免 chat 和 panel 各自维护产品后端，同时保持 `apps/supervisor-api` 专注于执行引擎 | — Accepted on 2026-03-28 |
 | `apps/supervisor-api` 退为 execution engine，不再承担 product-facing backend | shared app backend 可以承接浏览器产品 API，而 supervisor 继续只拥有 orchestrator execution path | — Accepted on 2026-03-28 |
 | shared `apps/app-api` runtime 冻结为 Worker | public/protected web surfaces 已是 Worker；共享产品后端保持 internal Worker runtime 更符合边界和部署形态 | — Accepted on 2026-03-28 |
+| canonical identity、profile memory、session memory 与 institutional knowledge 必须长期分层 | 否则长期记忆会污染机构知识真相，或被误用为隐式授权通道 | — Accepted on 2026-03-28 |
+| personalization 允许影响 intent framing、retrieval planning 与 answer wording，但不得扩大 ACL 或 serving surface | 这样可以引入长期记忆而不破坏 retrieval fail-closed 与 runtime-profile-driven query policy | — Accepted on 2026-03-28 |
 
 ## Evolution
 

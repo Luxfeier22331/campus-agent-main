@@ -1,5 +1,5 @@
 ---
-doc_type: plan
+doc_type: reference
 status: active
 created: 2026-03-27
 updated: 2026-03-28
@@ -13,7 +13,7 @@ updated: 2026-03-28
 
 边界：
 
-- live rebuild、collection schema、points count、query 验收证据仍以 `student-handbook-hybrid-rebuild-checklist.md` 为准
+- live rebuild、collection schema、points count、query 验收证据仍以 `docs/runbooks/student-handbook-hybrid-rebuild-checklist.md` 为准
 - 本文只记录 benchmark / workflow 的指标结果、失败样例和本轮修复结论
 - 本文不是 release gate 阈值文档，也不把当前快照上升为长期稳定 KPI
 

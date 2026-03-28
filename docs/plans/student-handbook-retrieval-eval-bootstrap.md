@@ -13,7 +13,7 @@ updated: 2026-03-26
 
 ## Migration note
 
-这份计划保留其 doc-level qrels / eval bootstrap 价值，但其中涉及 live rebuild 状态的叙述可能随执行推进而过期。当前如需判断 live collection 是否已重建、当前 benchmark 是否已跑通、当前 release gate 卡在哪一步，应以 `.planning/STATE.md` 和 `docs/verification/` 下的最新验收文档为准，而不是以本文的 blocker 叙述为准。
+这份计划保留其 doc-level qrels / eval bootstrap 价值，但其中涉及 live rebuild 状态的叙述可能随执行推进而过期。当前如需判断 live collection 是否已重建、当前 benchmark 是否已跑通、当前 release gate 卡在哪一步，应以 `.planning/STATE.md` 和 `docs/runbooks/`、`docs/reference/`、`docs/policies/` 下的最新文档为准，而不是以本文的 blocker 叙述为准。
 
 **Tech Stack:** `packages/evals` deterministic scorer、repo-tracked JSON fixtures、`uv` test runner
 
@@ -207,7 +207,7 @@ phase-1 第一批 deterministic retrieval metrics 推荐固定为：
 
 当前 block 原因：
 
-- live collection 状态与 benchmark 证据以 `.planning/STATE.md` 和 `docs/verification/` 为准
+- live collection 状态与 benchmark 证据以 `.planning/STATE.md`、`docs/runbooks/`、`docs/reference/` 和 `docs/policies/` 为准
 - phase-1 chunking 仍处于“可验证、但不宜大规模锁 chunk truth”的阶段
 - 现有 hybrid fixture 仍偏向人工验收，不是可直接算 IR 指标的 qrels
 

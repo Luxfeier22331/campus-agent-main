@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Curriculum release-gate follow-up remains pending; public/protected web surfaces plus shared app-api are now frozen, and app-api runtime is now fixed to Worker
-last_updated: "2026-03-28T12:00:00.000Z"
+stopped_at: Curriculum release-gate follow-up remains pending; shared app-api plus Worker web surface topology is frozen, and long-term identity/memory/personalization boundaries are now documented
+last_updated: "2026-03-28T14:11:36.000Z"
 progress:
   total_phases: 17
   completed_phases: 17
@@ -19,7 +19,7 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-03-28)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 runtime-profile-driven serving surface 证明这条架构能可靠承接高频校园问答
-**Current focus:** Phase 7 handbook verification已完成；当前收尾重点一方面是补齐 `curriculum_plan` query-serving 的 live gate，另一方面是把后续产品形态冻结为 `public-chat-web` / `protected-panel-web` + shared `app-api` Worker runtime + `supervisor-api` execution engine，并将 `app-api` 的详细实现基线落到 `docs/plans/app-api-worker-foundation.md`
+**Current focus:** Phase 7 handbook verification已完成；当前收尾重点一方面是补齐 `curriculum_plan` query-serving 的 live gate，另一方面是把后续产品形态冻结为 `public-chat-web` / `protected-panel-web` + shared `app-api` Worker runtime + `supervisor-api` execution engine，并把长期 identity / memory / personalization 边界落到 canonical docs
 
 ## Current Position
 
@@ -140,12 +140,15 @@ Recent decisions affecting current work:
 - The accepted forward design is now `public-chat-web` + `protected-panel-web` + shared `app-api`; auth/session/conversation, chat ingress, and operator query move into `app-api`, while `apps/supervisor-api` remains the execution engine.
 - `apps/app-api` runtime is now frozen to Worker rather than remaining runtime-agnostic.
 - The detailed `app-api` implementation baseline now lives in `docs/plans/app-api-worker-foundation.md`, including framework selection, API surface, data domains, and execution waves.
+- The accepted long-term split now separates verified identity, profile memory, session memory, and institutional knowledge into distinct truth layers.
+- Personalization may influence intent framing, retrieval planning, clarification, and answer wording, but memory does not grant permissions or widen retrieval ACL.
 
 ### Pending Todos
 
 - Decide milestone closeout and land the missing `curriculum_plan` query-serving live release-gate artifacts beyond the existing automated verification surface.
 - Keep handbook chunk-truth validation and handbook eval artifacts as reusable regression gates for subsequent retrieval changes.
 - Execute the `app-api` Worker foundation plan before parallelizing `public-chat-web` and `protected-panel-web` integration work.
+- Translate the accepted identity / memory / personalization boundary docs into concrete `app-api`, `supervisor-core`, `rag-specialist`, and eval implementation waves.
 
 ### Blockers/Concerns
 

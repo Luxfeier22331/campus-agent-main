@@ -19,7 +19,7 @@ Current runtime truth:
 Stable handbook-specific policy docs:
 
 - `docs/architecture/student-handbook-ocr-normalization-strategy.md`: source-level normalization, split, and document identity truth
-- `docs/architecture/student-handbook-chunking-and-validation-policy.md`: document-level chunk budgeting, short-text aggregation, header policy, and validation gate truth
+- `docs/policies/student-handbook-chunking-and-validation-policy.md`: document-level chunk budgeting, short-text aggregation, header policy, and validation gate truth
 
 The primary handbook input is source-bucket `provider-response.jsonl`.
 `layout-elements.jsonl` is the only source-truth artifact before document splitting.

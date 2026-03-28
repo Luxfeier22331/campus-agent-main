@@ -1,5 +1,5 @@
 ---
-doc_type: architecture
+doc_type: reference
 status: active
 created: 2026-03-28
 updated: 2026-03-28
@@ -9,7 +9,7 @@ updated: 2026-03-28
 
 ## 文档边界
 
-这份文档只负责冻结当前运行面里最容易被混用的 serving / indexing 术语。
+这份文档只负责解释当前运行面里最容易被混用的 serving / indexing 术语。
 
 - 不重复长期 package 边界：`docs/architecture/long-term-architecture.md`
 - 不重复数据平面全景：`docs/architecture/phase1-ingestion-and-storage-architecture.md`

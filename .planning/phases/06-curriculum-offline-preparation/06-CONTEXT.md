@@ -81,7 +81,6 @@ The phase does not open curriculum query-serving, does not move curriculum seman
 - `.planning/phases/05.1-curriculum-chunking/05.1-04-SUMMARY.md`
 - `docs/architecture/phase1-ingestion-and-storage-architecture.md`
 - `docs/architecture/source-truth-normalization-contract.md`
-- `docs/decisions/adr-0001-phase1-architecture.md`
 - `docs/decisions/adr-0002-local-minio-conventions.md`
 - `docs/plans/agentic-rag-foundation.md`
 - `configs/ingestion/curriculum/curriculum_plan/README.md`

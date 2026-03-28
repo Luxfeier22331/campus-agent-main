@@ -17,6 +17,7 @@ updated: 2026-03-28
 - 长期 `apps/*` / `packages/*` 边界：`docs/architecture/long-term-architecture.md`
 - Cloudflare delivery/topology：`docs/architecture/cloudflare-runtime-topology.md`
 - execution engine 边界：`docs/architecture/supervisor-architecture.md`
+- identity / memory / personalization 边界：`docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - 详细 MVP API/data/implementation baseline：`docs/plans/app-api-worker-foundation.md`
 
 ## 目标
@@ -26,7 +27,7 @@ updated: 2026-03-28
 - `apps/app-api` 到底是不是单独的长期 app boundary
 - 它的 runtime 是否继续保持未冻结
 - 它内部应采用什么架构而不重新长出第二个 orchestrator
-- 它与 `apps/supervisor-api`、panel read model、auth/session/conversation truth 的关系如何固定
+- 它与 `apps/supervisor-api`、panel read model、auth/session/conversation/identity/memory truth 的关系如何固定
 
 ## 核心结论
 
@@ -81,6 +82,7 @@ updated: 2026-03-28
 - auth
 - session
 - account / identity projection
+- profile memory
 - conversation / message persistence
 - chat ingress
 - request correlation
@@ -102,6 +104,8 @@ updated: 2026-03-28
 
 - `auth`
   session、account、登录态与访问控制入口
+- `profile`
+  canonical identity 映射、profile memory 管理与 typed context projection
 - `chat`
   conversation/message 等 consumer product truth
 - `runtime-command`
@@ -112,6 +116,40 @@ updated: 2026-03-28
   `app-api -> supervisor-api`、数据库、队列或其他外部依赖适配
 
 这里冻结职责，不强制具体目录名。
+
+## Canonical Identity And Memory Ownership
+
+长期上，`app-api` 是以下 truth 的 canonical owner：
+
+- verified identity
+- profile memory
+- session / conversation truth
+
+长期硬约束：
+
+- Worker / edge admission 不是 canonical app identity truth
+- `app-api` 必须把 runtime-boundary identity material 映射为最小化 actor claims
+- `profile memory` 与 `session memory` 必须与 `verified identity` 区分语义，不得混成单一“memory blob”
+- memory record 应至少具备 source、confidence、visibility、staleness / last-verified 语义
+
+## Projection To Supervisor
+
+`app-api -> supervisor-api` 默认只投影最小化 typed context，而不直传 raw product state。
+
+长期允许的 projection 内容包括：
+
+- stable actor id / principal id
+- role / group / campus / cohort / major 等 typed claims
+- profile memory summary
+- session summary / confirmed slots
+- correlation / trace metadata
+
+长期默认不允许跨边界直传：
+
+- raw JWT、raw auth header、raw cookie
+- raw long-term memory 文本
+- 未裁剪的完整 conversation transcript
+- 产品层 provider payload
 
 ## Command / Query Split
 
@@ -141,6 +179,7 @@ operator query path 至少包含：
 `app-api` 下的推荐逻辑分域固定为：
 
 - `auth.*`
+- `profile.*`
 - `chat.*`
 - `runtime.*`
 - `operator.*`
@@ -150,6 +189,7 @@ operator query path 至少包含：
 这里不冻结物理拆库，只冻结 ownership：
 
 - 共库不等于共边界
+- `verified identity` truth 不等于 `profile memory` truth
 - `conversation/message` truth 不等于 operator request truth
 - `request_execution`、projection outbox 与 read model 必须逻辑分离
 
@@ -176,6 +216,7 @@ operator query path 至少包含：
 - `app-api` 继续保持 runtime 未冻结
 - `app-api` 作为 Docker-first backend 成为默认长期形态
 - `app-api` 吸收 supervisor orchestration 语义
+- Worker / edge identity 被直接当作 canonical actor truth
 - browser 直接调用 `apps/supervisor-api`
 - panel 直接查询数据库、audit sink 或 telemetry sink
 - chat 与 panel 再次拆回两套独立产品后端

@@ -58,8 +58,7 @@ The phase delivers three things:
 
 ### Architecture and phase-1 decisions
 - `docs/architecture/long-term-architecture.md` — long-term package boundaries and system layering
-- `docs/architecture/supervisor-architecture.md` — supervisor long-term role and current-design module split
-- `docs/decisions/adr-0001-phase1-architecture.md` — accepted phase-1 runtime and architecture constraints
+- `docs/architecture/supervisor-architecture.md` — supervisor long-term role, current-design module split, and current execution engine boundary
 - `docs/plans/supervisor-current-design-implementation.md` — supervisor current-design implementation order, file targets, and acceptance criteria
 
 ### Shared contract and current code

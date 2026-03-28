@@ -14,7 +14,7 @@ updated: 2026-03-28
 - 长期架构：系统成熟后的稳定角色、职责和交互模型
 - 当期设计架构：phase-1 / 当前实现阶段应该采用的最小正确形态
 
-这份文档只回答 supervisor 应该如何设计，不替代全局架构文档、阶段 ADR 或实施计划。
+这份文档只回答 supervisor 应该如何设计，不替代全局架构文档、长期编排 ADR 或实施计划；当前 execution engine runtime 取舍与 Agno 集成深度由本文承接。
 
 ## 文档定位
 
@@ -22,14 +22,20 @@ updated: 2026-03-28
 
 - `docs/architecture/long-term-architecture.md`
   定义整个仓库的长期边界、链路分层和 package 责任
-- `docs/decisions/adr-0001-phase1-architecture.md`
-  定义第一阶段的架构取舍、运行时选择和约束
+- `docs/architecture/app-api-architecture.md`
+  定义 canonical app identity / memory ownership 与 app boundary
+- `docs/architecture/rag-specialist-architecture.md`
+  定义 retrieval-specific intent framing 与 RAG 内部边界
+- `docs/architecture/phase1-ingestion-and-storage-architecture.md`
+  定义 phase-1 数据平面边界，以及对象存储 + registry + Qdrant 组合的原因
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
   定义长期编排模式、specialist 准入与安全边界
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
+  定义 identity / memory / personalization 的长期边界
 - `docs/plans/agentic-rag-foundation.md`
   定义 phase-1 落地顺序、文件落点和验收标准
 - 本文
-  只定义 supervisor 这个边界自身的长期形态与当期设计形态
+  负责 supervisor 这个边界自身的长期形态与当期设计形态，并承接当前 execution engine runtime 与 Agno 集成边界
 
 ## 设计原则
 
@@ -38,6 +44,7 @@ updated: 2026-03-28
 - supervisor 与 specialist 的交互必须通过稳定 delegation / handoff contract 完成
 - 长期采用 `hybrid orchestration`；deterministic gate 与安全边界优先由 code orchestration 收口
 - supervisor 不直接接触 retrieval、ingestion 或基础设施细节
+- supervisor 只消费 typed identity / memory projection，不拥有 canonical identity / memory truth
 - supervisor command side 可以生成最小 audit/trace/runtime facts，但不承载 shared product API、auth/session/conversation 或 panel query serving
 - phase-1 即使只有一个 specialist，也应保留真正的 coordination 形态，而不是长期停留在透传包装
 
@@ -124,6 +131,50 @@ supervisor 的长期工作方式不是“只允许 handoff”，而是允许两�
 
 这些层是职责分层，不强制绑定为某种框架类或某个特定 runtime 抽象。
 
+### 长期 IntentFrame Contract
+
+长期上，supervisor 不应把 top-level intent 识别等价为“入口已经给定 capability 或 scope”。
+
+它至少应拥有一个稳定的 `IntentFrame` 语义层，字段名可以演进，但语义至少覆盖：
+
+- `capability`
+- `task_kind`
+- `domain_candidates`
+- `missing_slots`
+- `risk_level`
+- `needs_clarification`
+- `suggested_next_action`
+
+这里冻结的是语义，不冻结具体 dataclass / JSON schema 名称。
+
+### 长期 Routing Inputs
+
+supervisor 长期允许消费的 routing input 固定如下：
+
+- 用户原始输入
+- canonical actor claims 的 typed projection
+- profile memory / session memory 的 typed summary
+- conversation / trace / request metadata
+- runtime profile、serving policy 与 approval policy
+
+长期默认不允许把以下内容当成 routing truth：
+
+- Worker / edge 侧未经 app-layer 映射的 identity
+- raw memory text
+- raw conversation transcript
+- retrieval / OCR / 网页片段等 untrusted free text
+
+### 长期 Clarification / Rejection / Approval Policy
+
+supervisor 的长期职责不只是“选 specialist”，还包括对不完整或高风险请求做显式收口。
+
+因此长期规则固定如下：
+
+- 缺关键槽位时，优先 `clarify`
+- 范围不符、未开放或风险过高时，优先 `reject` 或 `approval_required`
+- 只有在 routing input 已足够稳定时，才进入 specialist delegation
+- 个人记忆可以帮助提问更精准的澄清问题，但不能绕过 deterministic gate
+
 ### 长期拥有的能力
 
 - 全局路由权
@@ -143,6 +194,7 @@ supervisor 的长期工作方式不是“只允许 handoff”，而是允许两�
 - transport/runtime 宿主实现
 - shared app-level auth/session/conversation hosting
 - product-facing panel query serving
+- canonical identity / profile memory ownership
 
 这些能力分别属于 `specialist`、`retrieval-core`、`ingestion-core` 和 `apps/*` 边界。
 
@@ -163,7 +215,8 @@ supervisor 的长期工作方式不是“只允许 handoff”，而是允许两�
 与 `packages/rag-specialist`：
 
 - supervisor 决定是否委派给 RAG specialist
-- RAG specialist 决定 retrieval-oriented query / answer / confidence 逻辑
+- supervisor 拥有 top-level intent framing
+- RAG specialist 决定 retrieval-oriented query / answer / confidence 逻辑，以及 retrieval-specific intent framing
 
 与 `packages/retrieval-core`：
 
@@ -179,8 +232,9 @@ supervisor 的长期工作方式不是“只允许 handoff”，而是允许两�
 
 - supervisor 不直接 serving browser-facing chat/panel APIs
 - `app-api` 负责 auth/session/conversation 与 operator query
+- `app-api` 负责 canonical identity、profile memory 与 session truth
 - `app-api` 当前已冻结为 Worker runtime，但这不要求 supervisor 也采用同一 runtime
-- `app-api` 只把受控执行请求交给 supervisor，而不是把 supervisor 暴露成产品后端
+- `app-api` 只把受控执行请求和最小化 typed context projection 交给 supervisor，而不是把 supervisor 暴露成产品后端
 
 ### 长期演进方向
 
@@ -218,6 +272,28 @@ supervisor 的长期工作方式不是“只允许 handoff”，而是允许两�
 - 当前默认保持 supervisor 对用户回合的持续控制，不开放用户可见 handoff
 
 这里的“默认主线仍是 rag-specialist”表示当前实现重点仍围绕 handbook 查询，而不是长期架构上禁止增加第二个 specialist。
+
+### 当前执行引擎与 Agno 集成边界
+
+当前设计固定如下：
+
+- `apps/supervisor-api` 当前采用 `AgentOS-native` 作为 execution engine runtime
+- 对外产品接口仍保留自定义 HTTP 入口壳；`AgentOS-native` 不等于“不暴露 HTTP”
+- 当前不保留旧 `/api/search`、`/api/answer` 兼容层
+- `Agno` 允许进入 `apps/supervisor-api`、`packages/supervisor-core`、`packages/rag-specialist`
+- `Agno` 不得泄漏到 `packages/contracts` 与 `packages/retrieval-core`
+
+采用这组边界的原因是：
+
+- 直接复用 `AgentOS`/`Agno` 已有的 session、trace、RBAC、streaming 与 team/workflow execution 能力
+- 保留产品 API 的自主定义能力，不把 execution engine runtime 等价成唯一外部接口
+- 避免把运行时框架绑定成整个 monorepo 的底层类型系统
+- 让 retrieval kernel、shared contracts 与未来 specialist 扩展继续保持可替换
+
+这里冻结的是当前设计，不是长期 runtime freeze：
+
+- 长期是否继续沿用 `AgentOS-native`，仍取决于 contract 兼容性、observability、RBAC、deployment 与迁移成本
+- 当前 serving surface、serving alias、physical collection 与 release 运行真相不由本文维护；以 runtime profile、`.planning/PROJECT.md`、`.planning/STATE.md` 与 `docs/reference/runtime-serving-and-index-terms.md` 为准
 
 ### 当前架构定位
 

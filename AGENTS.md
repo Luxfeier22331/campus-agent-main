@@ -28,9 +28,13 @@
 - `README.md`
 - `docs/README.md`
 - `docs/architecture/long-term-architecture.md`
+- `docs/architecture/supervisor-architecture.md`
 - `docs/architecture/phase1-ingestion-and-storage-architecture.md`
-- `docs/decisions/adr-0001-phase1-architecture.md`
+- `docs/architecture/retrieval-query-strategy.md`
 - `docs/decisions/adr-0002-local-minio-conventions.md`
+- `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
+- `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`
+- `docs/reference/runtime-serving-and-index-terms.md`
 - `docs/plans/agentic-rag-foundation.md`
 - `.planning/PROJECT.md`
 - `.planning/ROADMAP.md`

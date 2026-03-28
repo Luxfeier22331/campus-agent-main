@@ -17,7 +17,7 @@ updated: 2026-03-28
 - 当前 phase 的执行顺序、最新 pending work、讨论结论和进度状态，以 `.planning/PROJECT.md`、`.planning/ROADMAP.md`、`.planning/STATE.md` 以及对应 phase 目录下的 context / plan / validation 产物为准
 - 当这份文档中的早期 phase-1 实施叙事与 `.planning/` 中的当前执行现实不一致时，应优先更新这里的文档边界说明，并按 `.planning/` 继续推进执行，而不是把过时叙事重新提升为当前硬约束
 - 当前 retrieval accepted baseline 不再单独由本文维护；以 `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md` 与 `docs/architecture/retrieval-query-strategy.md` 为准
-- 当前 serving/indexing 术语不再由本文解释；以 `docs/architecture/runtime-serving-and-index-terms.md` 为准
+- 当前 serving/indexing 术语不再由本文解释；以 `docs/reference/runtime-serving-and-index-terms.md` 为准
 
 当前不应从本文直接读取的运行真相包括：
 
@@ -67,7 +67,8 @@ updated: 2026-03-28
 它不重复长期架构原则，也不替代 ADR。关系固定如下：
 
 - 长期边界、职责拆分、可替换性定义，留在 `docs/architecture/long-term-architecture.md`
-- 第一阶段架构取舍和约束，留在 `docs/decisions/adr-0001-phase1-architecture.md`
+- supervisor / execution engine 当前设计取舍，留在 `docs/architecture/supervisor-architecture.md`
+- 第一阶段数据平面约束，留在 `docs/architecture/phase1-ingestion-and-storage-architecture.md`
 - 本机 `MinIO` 作为本地对象存储替代实现的规则，留在 `docs/decisions/adr-0002-local-minio-conventions.md`
 - 当前阶段执行状态、phase 排序、pending work 和最新讨论结论，留在 `.planning/`
 - 这份文档只负责把上面三类原则拆成第一阶段地基的实施基线、门禁、文件落点和验收标准，不再充当当前 phase-by-phase 执行日志
@@ -84,7 +85,7 @@ updated: 2026-03-28
 
 ## Migration note: 2026-03-26 phase snapshot
 
-以下内容保留为 `2026-03-26` 的阶段快照，只用于理解当时的推进背景，不再作为当前执行状态真相源。当前如需判断 Gate 是否已通过、live collection 是否已重建、当前验证卡点是什么，应以 `.planning/STATE.md` 与 `docs/verification/` 下的最新验收文档为准。
+以下内容保留为 `2026-03-26` 的阶段快照，只用于理解当时的推进背景，不再作为当前执行状态真相源。当前如需判断 Gate 是否已通过、live collection 是否已重建、当前验证卡点是什么，应以 `.planning/STATE.md` 与 `docs/runbooks/`、`docs/reference/`、`docs/policies/` 下的最新文档为准。
 
 - 当时的代码基线验证命令为：`uv run --all-packages python -m unittest discover -s tests -t .`
 - 当时已记录 `MinIO` bucket、handbook source artifacts、retrieval baseline 调整与 live rebuild 待完成等阶段信息
@@ -204,7 +205,7 @@ feature worktree 环境规则：
 
 为了避免“代码写了很多但主链路仍然不通”，第一阶段按门禁推进：
 
-以下 Gate 定义仍是本文要冻结的实施门禁；但每个 Gate 的当前通过状态、阻塞项与运行态证据不再在本文维护。当前真相请以 `.planning/STATE.md` 和 `docs/verification/` 下的最新文档为准。
+以下 Gate 定义仍是本文要冻结的实施门禁；但每个 Gate 的当前通过状态、阻塞项与运行态证据不再在本文维护。当前真相请以 `.planning/STATE.md` 和 `docs/runbooks/`、`docs/reference/`、`docs/policies/` 下的最新文档为准。
 
 - Gate 0: 基线冻结
   - 冻结 corpus、导入来源、chunk profile、embedding profile、baseline cases
@@ -534,7 +535,7 @@ feature worktree 环境规则：
 - Modify: `tests/test_workspace_layout.py`
 - Modify: `README.md`
 - Modify: `docs/architecture/phase1-ingestion-and-storage-architecture.md` 仅补实现链接
-- Modify: `docs/decisions/adr-0001-phase1-architecture.md` 仅补实施链接
+- Modify: `docs/architecture/supervisor-architecture.md` 仅补当前设计链接
 
 **Implementation:**
 - 把当前 smoke 从“骨架存在”升级为“主链路可用”

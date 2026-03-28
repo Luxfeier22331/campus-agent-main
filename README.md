@@ -10,18 +10,18 @@
 - 长期架构文档：`docs/architecture/long-term-architecture.md`
 - `app-api` 架构文档：`docs/architecture/app-api-architecture.md`
 - supervisor 专项架构：`docs/architecture/supervisor-architecture.md`
-- 第一阶段决策记录：`docs/decisions/adr-0001-phase1-architecture.md`
+- 第一阶段数据平面架构：`docs/architecture/phase1-ingestion-and-storage-architecture.md`
 - 编排与安全边界：`docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - 前向接受的 shared `apps/app-api` runtime 已冻结为 Worker；见 `docs/decisions/adr-0013-app-api-worker-runtime.md`
 - `apps/supervisor-api` 表示 execution engine boundary，不代表已经选定 FastAPI 或其他 runtime
-- execution engine runtime 选择仍保持未冻结；当前实现取舍见 `docs/decisions/adr-0001-phase1-architecture.md`
+- execution engine runtime 选择仍保持未冻结；当前实现取舍与 Agno 集成边界见 `docs/architecture/supervisor-architecture.md`
 
 ## 先看哪里
 
 - 当前运行面、已开放 serving surface、当前优先级：`.planning/PROJECT.md`、`.planning/REQUIREMENTS.md`、`.planning/STATE.md`
 - 长期边界和冻结决策：`docs/architecture/`、`docs/decisions/`
 - 历史 phase 排期与存档：`.planning/ROADMAP.md`、`.planning/phases/`
-- 当前 index / serving 术语：`docs/architecture/runtime-serving-and-index-terms.md`
+- 当前 index / serving 术语：`docs/reference/runtime-serving-and-index-terms.md`
 
 ## 当前仓库范围
 
@@ -56,7 +56,7 @@
 - `campus_services/service_catalog` 与 `campus_services/contact_directory` 已作为离线 taxonomy 预留，当前保持 `offline_preparation`，不开放默认 query-serving；但它们同样走 release-managed alias + versioned physical collection
 - `rag-specialist`、`supervisor-core`、`supervisor-api`、`evals` 已有可测试的当前 serving 入口
 - `uv run --all-packages python -m unittest discover -s tests -t .` 当前通过，作为仓库级基线验证命令
-- 运行态 buckets、live collection 重建证据、points count 与 benchmark 结果不在 README 维护；应以 `.planning/STATE.md` 和 `docs/verification/` 为准
+- 运行态 buckets、live collection 重建证据、points count 与 benchmark 结果不在 README 维护；应以 `.planning/STATE.md`、`docs/runbooks/`、`docs/reference/` 和 `docs/policies/` 为准
 
 ## 协作约定
 

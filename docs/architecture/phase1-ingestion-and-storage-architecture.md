@@ -14,7 +14,6 @@ updated: 2026-03-28
 它只负责冻结跨 collection 共享的数据平面边界和不变量，不负责重复以下内容：
 
 - 长期 package 边界和系统形态：`docs/architecture/long-term-architecture.md`
-- 第一阶段架构取舍与范围决策：`docs/decisions/adr-0001-phase1-architecture.md`
 - 本机 `MinIO` / object key / bucket 不变量：`docs/decisions/adr-0002-local-minio-conventions.md`
 - `student_handbook` 的 OCR 归一化、拆分和 document-level 语义：`docs/architecture/student-handbook-ocr-normalization-strategy.md`
 - OCR/source-truth shared canonical contract：`docs/architecture/source-truth-normalization-contract.md`
@@ -38,13 +37,23 @@ updated: 2026-03-28
 当前文档体系的 ownership 固定如下：
 
 - 数据平面的长期分层、package 边界：`docs/architecture/long-term-architecture.md`
-- 第一阶段为什么采用对象存储 + registry + Qdrant：`docs/decisions/adr-0001-phase1-architecture.md`
+- 第一阶段为什么采用对象存储 + registry + Qdrant：本文
 - bucket、object key、registry 字段和迁移不变量：`docs/decisions/adr-0002-local-minio-conventions.md`
 - `student_handbook` 的 source-level normalization 和 document-level cleanup truth：`docs/architecture/student-handbook-ocr-normalization-strategy.md`
 - repo 级 source-truth canonical contract：`docs/architecture/source-truth-normalization-contract.md`
 - `student_handbook` / `curriculum_plan` / `campus_services` 的具体 runtime 开关、chunk profile、split manifest：`configs/ingestion/`
 
 换句话说，这份文档只保留跨 collection 的稳定架构约束；collection 专属规则不再在这里复制一份 runtime truth。
+
+## 采用该数据面组合的原因
+
+phase-1 当前采用对象存储 + raw asset registry + document registry + Qdrant，不是为了把实现堆得更重，而是为了尽早固定可重建、可审计、可升级的数据面骨架：
+
+- 不把 ingestion 留成后续必须推倒重做的技术债
+- 从第一天建立稳定的 `raw_asset_id`、`document_id`、`version_id` 与 `chunk_id`
+- 支撑增量更新、删除、审计、回放与重处理，而不是只做一次性导入
+- 让 retrieval 建立在 `registry + qdrant` 的可回链证据链之上，而不是只消费向量库分数
+- 即使当前使用本机 `MinIO`，上层仍保持 `S3-compatible object storage` 语义，避免未来迁移云对象存储时重写 contract
 
 ## 架构结论
 
