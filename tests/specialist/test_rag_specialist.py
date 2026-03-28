@@ -4,6 +4,8 @@ import unittest
 
 from campus_contracts import (
     ActorContext,
+    AuthorizedRetrievalFilter,
+    AuthorizationProjection,
     ContextProjection,
     ErrorInfo,
     EvidenceBundle,
@@ -442,6 +444,14 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(captured_kwargs["acl_groups"], ("students",))
         self.assertEqual(captured_kwargs["campus_scope"], "north")
         self.assertEqual(
+            captured_kwargs["authorized_filter"],
+            AuthorizedRetrievalFilter(
+                acl_groups=("students",),
+                visibility_scope="north",
+                campus_scope="north",
+            ),
+        )
+        self.assertEqual(
             captured_kwargs["personalization_hint"],
             PersonalizationHint(
                 actor_claim_terms=("north campus",),
@@ -459,6 +469,56 @@ class RagSpecialistTest(unittest.TestCase):
             response.result,
             RagResultPayload(evidence=_make_evidence(query_text="What are the library hours?")),
         )
+
+    def test_delegate_passes_context_authorization_filter_to_retriever(self) -> None:
+        captured_kwargs: dict[str, object] = {}
+
+        def fake_retriever(query: str, **kwargs: object) -> EvidenceBundle:
+            captured_kwargs["query"] = query
+            captured_kwargs.update(kwargs)
+            return _make_evidence(scores=(0.83,), query_text=query)
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="保研流程是什么？",
+                context=ContextProjection(
+                    actor=ActorContext(
+                        user_id="student-001",
+                        principal_id="principal-001",
+                        groups=("legacy-group",),
+                        campus_scope="legacy-campus",
+                    ),
+                    authorization=AuthorizationProjection(
+                        principal_id="principal-001",
+                        entitlement_snapshot_id="entitlements-2026-03-29",
+                        entitlement_groups=("students",),
+                        visibility_scope="north",
+                        retrieval_filter=AuthorizedRetrievalFilter(
+                            acl_groups=("students",),
+                            visibility_scope="north",
+                            campus_scope="north",
+                        ),
+                    ),
+                ),
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(
+            captured_kwargs["authorized_filter"],
+            AuthorizedRetrievalFilter(
+                acl_groups=("students",),
+                visibility_scope="north",
+                campus_scope="north",
+            ),
+        )
+        self.assertEqual(captured_kwargs["acl_groups"], ("legacy-group",))
+        self.assertEqual(captured_kwargs["campus_scope"], "legacy-campus")
 
     def test_completed_answer_uses_small_deduplicated_supporting_evidence_budget(self) -> None:
         evidence = _make_evidence(

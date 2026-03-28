@@ -5,7 +5,7 @@ import unittest
 import uuid
 from unittest.mock import Mock, patch
 
-from campus_contracts import EvidenceBundle, EvidenceSource, PersonalizationHint
+from campus_contracts import AuthorizedRetrievalFilter, EvidenceBundle, EvidenceSource, PersonalizationHint
 from campus_ingestion_core.chunking import ChunkProfile
 from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile, load_runtime_profile
 from campus_ingestion_core.embed import MockEmbeddingSettings, build_mock_embedding_model
@@ -261,6 +261,49 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertEqual(acl_filter.condition.value, "or")
         self.assertEqual(acl_filter.filters[0].key, "acl_level")
         self.assertEqual(acl_filter.filters[1].key, "acl_groups")
+
+    def test_build_metadata_filters_prefers_authorized_filter_over_legacy_fields(self) -> None:
+        filters = _build_metadata_filters(
+            RetrievalRequest(
+                query_text="library hours",
+                corpus="regulations",
+                collection="student_handbook",
+                campus_scope="legacy-campus",
+                acl_groups=("legacy-group",),
+                authorized_filter=AuthorizedRetrievalFilter(
+                    acl_groups=("students",),
+                    visibility_scope="north",
+                    campus_scope="north",
+                ),
+            )
+        )
+
+        acl_filter = filters.filters[4]
+        self.assertEqual(acl_filter.filters[1].key, "acl_groups")
+        self.assertEqual(acl_filter.filters[1].value, ["students"])
+        campus_filter = filters.filters[5]
+        self.assertEqual(campus_filter.condition.value, "or")
+        self.assertEqual(campus_filter.filters[0].key, "campus_scope")
+        self.assertEqual(campus_filter.filters[1].key, "campus_scope")
+        self.assertEqual(campus_filter.filters[1].value, "north")
+
+    def test_build_metadata_filters_fail_closes_when_authorized_filter_has_no_acl_groups(self) -> None:
+        filters = _build_metadata_filters(
+            RetrievalRequest(
+                query_text="library hours",
+                corpus="regulations",
+                collection="student_handbook",
+                acl_groups=("students",),
+                authorized_filter=AuthorizedRetrievalFilter(
+                    acl_groups=(),
+                    visibility_scope="north",
+                ),
+            )
+        )
+
+        acl_filter = filters.filters[4]
+        self.assertEqual(acl_filter.filters[1].key, "acl_groups")
+        self.assertEqual(acl_filter.filters[1].value, [])
 
     def test_index_chunks_to_qdrant_skips_payload_indexes_for_local_backend(self) -> None:
         record = _make_registry_record(

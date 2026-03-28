@@ -9,6 +9,8 @@ from campus_contracts.models import (
     ALLOWED_SPECIALIST_TARGETS,
     ALLOWED_SUPERVISOR_STATUSES,
     ActorContext,
+    AuthorizedRetrievalFilter,
+    AuthorizationProjection,
     AvailabilityCheckPayload,
     AvailabilityObservation,
     ConfidenceLevel,
@@ -42,6 +44,7 @@ from campus_contracts.models import (
 
 __all__ = [
     "ActorContext",
+    "AuthorizedRetrievalFilter",
     "ALLOWED_CONFIDENCE_LEVELS",
     "ALLOWED_DELEGATE_STATUSES",
     "ALLOWED_MEMORY_SOURCE_TYPES",
@@ -51,6 +54,7 @@ __all__ = [
     "ALLOWED_SOURCE_CHANNELS",
     "ALLOWED_SPECIALIST_TARGETS",
     "ALLOWED_SUPERVISOR_STATUSES",
+    "AuthorizationProjection",
     "AvailabilityCheckPayload",
     "AvailabilityObservation",
     "ConfidenceLevel",

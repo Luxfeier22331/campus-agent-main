@@ -419,6 +419,8 @@ def _build_metadata_filters(
     profile: CollectionRuntimeProfile | None = None,
 ) -> MetadataFilters:
     runtime_profile = profile or load_runtime_profile(request.corpus, request.collection)
+    effective_acl_groups = request.effective_acl_groups()
+    effective_visibility_scope = request.effective_visibility_scope()
     filters: list[MetadataFilter | MetadataFilters] = [
         MetadataFilter(key="corpus", value=request.corpus),
         MetadataFilter(key="collection", value=request.collection),
@@ -438,19 +440,19 @@ def _build_metadata_filters(
                 MetadataFilter(key="acl_level", value="public"),
                 MetadataFilter(
                     key="acl_groups",
-                    value=list(request.acl_groups),
+                    value=list(effective_acl_groups),
                     operator=FilterOperator.IN,
                 ),
             ],
             condition=FilterCondition.OR,
         )
     )
-    if request.campus_scope is not None:
+    if effective_visibility_scope is not None:
         filters.append(
             MetadataFilters(
                 filters=[
                     MetadataFilter(key="campus_scope", value=None, operator=FilterOperator.IS_EMPTY),
-                    MetadataFilter(key="campus_scope", value=request.campus_scope),
+                    MetadataFilter(key="campus_scope", value=effective_visibility_scope),
                 ],
                 condition=FilterCondition.OR,
             )
@@ -464,6 +466,8 @@ def _build_qdrant_filter(
     profile: CollectionRuntimeProfile | None = None,
 ) -> qdrant_models.Filter:
     runtime_profile = profile or load_runtime_profile(request.corpus, request.collection)
+    effective_acl_groups = request.effective_acl_groups()
+    effective_visibility_scope = request.effective_visibility_scope()
     must: list[qdrant_models.Condition] = [
         qdrant_models.FieldCondition(
             key="corpus",
@@ -485,7 +489,7 @@ def _build_qdrant_filter(
                 ),
                 qdrant_models.FieldCondition(
                     key="acl_groups",
-                    match=qdrant_models.MatchAny(any=list(request.acl_groups)),
+                    match=qdrant_models.MatchAny(any=list(effective_acl_groups)),
                 ),
             ]
         ),
@@ -504,14 +508,14 @@ def _build_qdrant_filter(
                 match=qdrant_models.MatchValue(value=True),
             )
         )
-    if request.campus_scope is not None:
+    if effective_visibility_scope is not None:
         must.append(
             qdrant_models.Filter(
                 should=[
                     qdrant_models.IsEmptyCondition(is_empty=qdrant_models.PayloadField(key="campus_scope")),
                     qdrant_models.FieldCondition(
                         key="campus_scope",
-                        match=qdrant_models.MatchValue(value=request.campus_scope),
+                        match=qdrant_models.MatchValue(value=effective_visibility_scope),
                     ),
                 ]
             )

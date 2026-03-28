@@ -5,6 +5,8 @@ import unittest
 
 from campus_contracts import (
     ActorContext,
+    AuthorizedRetrievalFilter,
+    AuthorizationProjection,
     AvailabilityCheckPayload,
     AvailabilityObservation,
     ContextProjection,
@@ -69,6 +71,20 @@ class ContractModelsTest(unittest.TestCase):
                     major=None,
                     program=None,
                 ),
+                authorization=AuthorizationProjection(
+                    principal_id="",
+                    entitlement_snapshot_id="",
+                    entitlement_groups=(),
+                    visibility_scope=None,
+                    applicability_scope=None,
+                    ownership_scopes=(),
+                    approval_state="",
+                    retrieval_filter=AuthorizedRetrievalFilter(
+                        acl_groups=(),
+                        visibility_scope=None,
+                        campus_scope=None,
+                    ),
+                ),
                 profile_memory=ProfileMemorySummary(items=()),
                 session=SessionSummary(confirmed_slots=(), turn_count=0),
             ),
@@ -86,6 +102,20 @@ class ContractModelsTest(unittest.TestCase):
                     campus_scope="north",
                     cohort="2023",
                     major="philosophy",
+                ),
+                authorization=AuthorizationProjection(
+                    principal_id="principal-001",
+                    entitlement_snapshot_id="entitlements-2026-03-29",
+                    entitlement_groups=("students",),
+                    visibility_scope="north",
+                    applicability_scope="undergraduate",
+                    ownership_scopes=("conversation:student-001",),
+                    approval_state="not_required",
+                    retrieval_filter=AuthorizedRetrievalFilter(
+                        acl_groups=("students",),
+                        visibility_scope="north",
+                        campus_scope="north",
+                    ),
                 ),
                 profile_memory=ProfileMemorySummary(
                     items=(
@@ -111,8 +141,39 @@ class ContractModelsTest(unittest.TestCase):
 
         self.assertEqual(request.actor.user_id, "student-001")
         self.assertEqual(request.context.actor.major, "philosophy")
+        self.assertEqual(request.context.authorization.entitlement_snapshot_id, "entitlements-2026-03-29")
+        self.assertEqual(request.context.authorization.retrieval_filter.acl_groups, ("students",))
         self.assertEqual(request.context.profile_memory.items[0].value, "咨询保研")
         self.assertEqual(request.context.session.confirmed_slots[0].value, "推免资格")
+
+    def test_supervisor_request_actor_only_projects_transitional_authorization_filter(self) -> None:
+        request = SupervisorRequest(
+            user_goal="保研政策怎么准备？",
+            actor=ActorContext(
+                user_id="student-001",
+                principal_id="principal-001",
+                groups=("students",),
+                campus_scope="north",
+            ),
+        )
+
+        self.assertEqual(
+            request.context.authorization,
+            AuthorizationProjection(
+                principal_id="principal-001",
+                entitlement_snapshot_id="",
+                entitlement_groups=("students",),
+                visibility_scope="north",
+                applicability_scope=None,
+                ownership_scopes=(),
+                approval_state="",
+                retrieval_filter=AuthorizedRetrievalFilter(
+                    acl_groups=("students",),
+                    visibility_scope="north",
+                    campus_scope="north",
+                ),
+            ),
+        )
 
     def test_specialist_request_requires_explicit_payload(self) -> None:
         request = SpecialistRequest(

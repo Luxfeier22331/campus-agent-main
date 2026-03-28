@@ -42,7 +42,7 @@ updated: 2026-03-29
 
 - 判断长期架构边界时，优先看 `docs/architecture/` 和 `docs/decisions/`
 - 判断“现在做到哪一步、接下来做什么、当前 phase 结论是什么”时，优先看 `.planning/`
-- 判断编排模式、specialist 准入、identity/memory/ACL 边界与安全控制时，优先看 architecture 文档和对应 ADR，而不是某一轮 plan
+- 判断编排模式、specialist 准入、identity/memory/authorization 边界与安全控制时，优先看 architecture 文档和对应 ADR，而不是某一轮 plan
 - 如果 `docs/plans/` 中的早期实施叙事与 `.planning/` 的当前执行现实冲突，应更新 `docs/plans/` 的边界说明，而不是把旧叙事继续当作当前硬约束
 - 已完成但仍保留的 bootstrap / baseline 方案必须标记为 `completed`，不得继续伪装成 `active` 当前计划
 - 如果 `.planning/ROADMAP.md` 或 `.planning/phases/*` 的历史 phase 叙事与当前运行面冲突，以 `.planning/PROJECT.md`、`.planning/REQUIREMENTS.md`、`.planning/STATE.md` 和对应 architecture/decision 文档为准
@@ -79,6 +79,7 @@ Canonical Docs 只收录当前 active / accepted 文档，以及少数虽然 `co
 - `architecture/cloudflare-public-entry-integration-contract.md`
 - `architecture/cloudflare-worker-consumer-entry-access-policy.md`
 - `architecture/app-api-architecture.md`
+- `architecture/authorization-and-access-control-architecture.md`
 - `architecture/protected-internal-panel-boundary.md`
 - `architecture/protected-panel-runtime-shell.md`
 - `architecture/shared-app-api-and-worker-web-surfaces.md`
@@ -103,6 +104,7 @@ Canonical Docs 只收录当前 active / accepted 文档，以及少数虽然 `co
 - `decisions/adr-0013-app-api-worker-runtime.md`
 - `decisions/adr-0014-versioned-document-serving-and-history-query.md`
 - `decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
+- `decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
 - `plans/agentic-rag-foundation.md`
 - `plans/app-api-worker-foundation.md`
 - `plans/golden-dataset-execution-plan.md`

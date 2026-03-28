@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 
 from campus_contracts import (
     ActorContext,
+    AuthorizedRetrievalFilter,
+    AuthorizationProjection,
     ContextProjection,
     MemorySourceType,
     MemoryVisibility,
@@ -45,9 +47,29 @@ class SessionSlotRecord:
     confirmed: bool = True
 
 
+@dataclass(frozen=True, slots=True)
+class AuthorizedRetrievalFilterInput:
+    acl_groups: tuple[str, ...] = field(default_factory=tuple)
+    visibility_scope: str | None = None
+    campus_scope: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AuthorizationInput:
+    principal_id: str = ""
+    entitlement_snapshot_id: str = ""
+    entitlement_groups: tuple[str, ...] = field(default_factory=tuple)
+    visibility_scope: str | None = None
+    applicability_scope: str | None = None
+    ownership_scopes: tuple[str, ...] = field(default_factory=tuple)
+    approval_state: str = ""
+    retrieval_filter: AuthorizedRetrievalFilterInput | None = None
+
+
 def build_context_projection(
     *,
     identity: VerifiedIdentityInput,
+    authorization: AuthorizationInput | None = None,
     profile_records: tuple[ProfileMemoryRecord, ...] = (),
     session_slots: tuple[SessionSlotRecord, ...] = (),
     turn_count: int = 0,
@@ -82,9 +104,49 @@ def build_context_projection(
             major=identity.major,
             program=identity.program,
         ),
+        authorization=_build_authorization_projection(identity, authorization),
         profile_memory=ProfileMemorySummary(items=profile_items),
         session=SessionSummary(
             confirmed_slots=confirmed_slots,
             turn_count=turn_count,
+        ),
+    )
+
+
+def _build_authorization_projection(
+    identity: VerifiedIdentityInput,
+    authorization: AuthorizationInput | None,
+) -> AuthorizationProjection:
+    if authorization is None:
+        principal_id = identity.principal_id or identity.user_id
+        return AuthorizationProjection(
+            principal_id=principal_id,
+            entitlement_groups=identity.groups,
+            visibility_scope=identity.campus_scope,
+            retrieval_filter=AuthorizedRetrievalFilter(
+                acl_groups=identity.groups,
+                visibility_scope=identity.campus_scope,
+                campus_scope=identity.campus_scope,
+            ),
+        )
+
+    retrieval_filter = authorization.retrieval_filter or AuthorizedRetrievalFilterInput(
+        acl_groups=authorization.entitlement_groups,
+        visibility_scope=authorization.visibility_scope,
+        campus_scope=identity.campus_scope,
+    )
+    principal_id = authorization.principal_id or identity.principal_id or identity.user_id
+    return AuthorizationProjection(
+        principal_id=principal_id,
+        entitlement_snapshot_id=authorization.entitlement_snapshot_id,
+        entitlement_groups=authorization.entitlement_groups,
+        visibility_scope=authorization.visibility_scope,
+        applicability_scope=authorization.applicability_scope,
+        ownership_scopes=authorization.ownership_scopes,
+        approval_state=authorization.approval_state,
+        retrieval_filter=AuthorizedRetrievalFilter(
+            acl_groups=retrieval_filter.acl_groups,
+            visibility_scope=retrieval_filter.visibility_scope,
+            campus_scope=retrieval_filter.campus_scope,
         ),
     )

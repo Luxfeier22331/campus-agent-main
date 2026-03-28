@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-22
-updated: 2026-03-28
+updated: 2026-03-29
 ---
 
 # Supervisor 架构设计
@@ -23,7 +23,9 @@ updated: 2026-03-28
 - `docs/architecture/long-term-architecture.md`
   定义整个仓库的长期边界、链路分层和 package 责任
 - `docs/architecture/app-api-architecture.md`
-  定义 canonical app identity / memory ownership 与 app boundary
+  定义 canonical app identity / authorization / memory ownership 与 app boundary
+- `docs/architecture/authorization-and-access-control-architecture.md`
+  定义长期 authorization truth、retrieval filter projection 与 visibility / applicability 分层
 - `docs/architecture/rag-specialist-architecture.md`
   定义 retrieval-specific intent framing 与 RAG 内部边界
 - `docs/architecture/phase1-ingestion-and-storage-architecture.md`
@@ -32,6 +34,8 @@ updated: 2026-03-28
   定义长期编排模式、specialist 准入与安全边界
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
   定义 identity / memory / personalization 的长期边界
+- `docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
+  定义长期授权模型与 retrieval filter projection 的 canonical 决策
 - `docs/plans/agentic-rag-foundation.md`
   定义 phase-1 落地顺序、文件落点和验收标准
 - 本文
@@ -44,7 +48,7 @@ updated: 2026-03-28
 - supervisor 与 specialist 的交互必须通过稳定 delegation / handoff contract 完成
 - 长期采用 `hybrid orchestration`；deterministic gate 与安全边界优先由 code orchestration 收口
 - supervisor 不直接接触 retrieval、ingestion 或基础设施细节
-- supervisor 只消费 typed identity / memory projection，不拥有 canonical identity / memory truth
+- supervisor 只消费 typed identity / authorization / memory projection，不拥有 canonical identity / authorization / memory truth
 - supervisor command side 可以生成最小 audit/trace/runtime facts，但不承载 shared product API、auth/session/conversation 或 panel query serving
 - phase-1 即使只有一个 specialist，也应保留真正的 coordination 形态，而不是长期停留在透传包装
 
@@ -153,6 +157,7 @@ supervisor 长期允许消费的 routing input 固定如下：
 
 - 用户原始输入
 - canonical actor claims 的 typed projection
+- canonical authorization projection，例如 entitlement / ownership / approval summary
 - profile memory / session memory 的 typed summary
 - conversation / trace / request metadata
 - runtime profile、serving policy 与 approval policy
@@ -160,9 +165,21 @@ supervisor 长期允许消费的 routing input 固定如下：
 长期默认不允许把以下内容当成 routing truth：
 
 - Worker / edge 侧未经 app-layer 映射的 identity
+- 未经 app-layer 映射的 raw authz state 或 raw token claims
 - raw memory text
 - raw conversation transcript
 - retrieval / OCR / 网页片段等 untrusted free text
+
+### 长期 Authorization Boundary
+
+长期上，supervisor 只拥有 workflow-layer 的 deterministic gate，不拥有 canonical authorization truth。
+
+固定边界如下：
+
+- supervisor 可以消费 typed authz projection，用于 `route`、`reject`、`approval_required` 或其他 workflow-level policy 收口
+- supervisor 可以基于 approval / ownership summary 决定是否继续执行，但不应反向解析 raw JWT、raw session 或产品层 authz store
+- supervisor 不应扩大 retrieval visibility filter，也不应把 applicability / personalization 当成 authorization truth
+- authz projection 缺失、冲突或无法安全解释时，supervisor 应 fail-closed
 
 ### 长期 Clarification / Rejection / Approval Policy
 
@@ -194,7 +211,7 @@ supervisor 的长期职责不只是“选 specialist”，还包括对不完整�
 - transport/runtime 宿主实现
 - shared app-level auth/session/conversation hosting
 - product-facing panel query serving
-- canonical identity / profile memory ownership
+- canonical identity / authorization / profile memory ownership
 
 这些能力分别属于 `specialist`、`retrieval-core`、`ingestion-core` 和 `apps/*` 边界。
 
@@ -205,6 +222,7 @@ supervisor 的长期职责不只是“选 specialist”，还包括对不完整�
 - execution engine 边界只负责受控执行入口、runtime 集成和进入 supervisor core
 - API 边界可以持久化 command-side request facts 与 projection outbox
 - browser-facing product APIs 不属于这里
+- runtime shell 可以校验 transport / origin trust，但不拥有最终 principal mapping 或 entitlement resolution
 - supervisor 不反向吸收 HTTP、auth 或 runtime host 细节
 
 与 `packages/contracts`：

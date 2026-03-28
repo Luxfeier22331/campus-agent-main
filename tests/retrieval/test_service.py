@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import Mock, patch
 
-from campus_contracts import EvidenceBundle, PersonalizationHint
+from campus_contracts import AuthorizedRetrievalFilter, EvidenceBundle, PersonalizationHint
 from campus_retrieval_core.models import RetrievalRequest
 from campus_retrieval_core.service import build_retrieval_backend, retrieve_sources
 
@@ -111,6 +111,35 @@ class RetrievalServiceTest(unittest.TestCase):
                 confirmed_slot_terms=("推免资格",),
             ),
         )
+
+    def test_retrieve_sources_passes_authorized_filter_with_legacy_compatibility_fields(self) -> None:
+        backend = Mock()
+        backend.retrieve.return_value = EvidenceBundle(
+            query_text="保研流程",
+            corpus="regulations",
+            collection="student_handbook",
+        )
+        authorized_filter = AuthorizedRetrievalFilter(
+            acl_groups=("entitled-students",),
+            visibility_scope="north",
+            campus_scope="north",
+        )
+
+        retrieve_sources(
+            "保研流程",
+            corpus="regulations",
+            collection="student_handbook",
+            campus_scope="legacy-campus",
+            acl_groups=("legacy-group",),
+            authorized_filter=authorized_filter,
+            backend=backend,
+        )
+
+        request = backend.retrieve.call_args.args[0]
+        self.assertIsInstance(request, RetrievalRequest)
+        self.assertEqual(request.authorized_filter, authorized_filter)
+        self.assertEqual(request.acl_groups, ("legacy-group",))
+        self.assertEqual(request.campus_scope, "legacy-campus")
 
 
 if __name__ == "__main__":

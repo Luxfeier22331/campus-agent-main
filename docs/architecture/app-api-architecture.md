@@ -15,9 +15,11 @@ updated: 2026-03-29
 
 - shared web surface 与 product topology：`docs/architecture/shared-app-api-and-worker-web-surfaces.md`
 - 长期 `apps/*` / `packages/*` 边界：`docs/architecture/long-term-architecture.md`
+- authorization / access-control 长期边界：`docs/architecture/authorization-and-access-control-architecture.md`
 - Cloudflare delivery/topology：`docs/architecture/cloudflare-runtime-topology.md`
 - execution engine 边界：`docs/architecture/supervisor-architecture.md`
 - identity / memory / personalization 边界：`docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
+- 授权模型与 retrieval filter projection：`docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
 - 详细 MVP API/data/implementation baseline：`docs/plans/app-api-worker-foundation.md`
 
 ## 目标
@@ -27,7 +29,7 @@ updated: 2026-03-29
 - `apps/app-api` 到底是不是单独的长期 app boundary
 - 它的 runtime 是否继续保持未冻结
 - 它内部应采用什么架构而不重新长出第二个 orchestrator
-- 它与 `apps/supervisor-api`、panel read model、auth/session/conversation/identity/memory truth 的关系如何固定
+- 它与 `apps/supervisor-api`、panel read model、auth/session/conversation/identity/memory/authorization truth 的关系如何固定
 
 ## 核心结论
 
@@ -80,8 +82,10 @@ updated: 2026-03-29
 `apps/app-api` 负责：
 
 - auth
+- authorization
 - session
 - account / identity projection
+- principal / entitlement projection
 - profile memory
 - conversation / message persistence
 - chat ingress
@@ -104,6 +108,8 @@ updated: 2026-03-29
 
 - `auth`
   session、account、登录态与访问控制入口
+- `authorization`
+  principal mapping、entitlement snapshot、ownership / approval rule 与 execution-facing authz projection
 - `profile`
   canonical identity 映射、profile memory 管理与 typed context projection
 - `chat`
@@ -117,29 +123,46 @@ updated: 2026-03-29
 
 这里冻结职责，不强制具体目录名。
 
-## Canonical Identity And Memory Ownership
+## Canonical Identity, Authorization, And Memory Ownership
 
 长期上，`app-api` 是以下 truth 的 canonical owner：
 
 - verified identity
+- authorization truth
 - profile memory
 - session / conversation truth
 
 长期硬约束：
 
 - Worker / edge admission 不是 canonical app identity truth
-- `app-api` 必须把 runtime-boundary identity material 映射为最小化 actor claims
-- `profile memory` 与 `session memory` 必须与 `verified identity` 区分语义，不得混成单一“memory blob”
+- `app-api` 必须把 runtime-boundary identity material 映射为最小化 principal / actor truth 与 authz projection
+- `profile memory` 与 `session memory` 必须与 `verified identity`、authorization truth 区分语义，不得混成单一“memory blob”
 - memory record 应至少具备 source、confidence、visibility、staleness / last-verified 语义
 
-## Projection To Supervisor
+## Authorization Ownership
 
-`app-api -> supervisor-api` 默认只投影最小化 typed context，而不直传 raw product state。
+长期上，`app-api` 至少拥有以下授权职责：
+
+- principal mapping
+- entitlement snapshot / membership truth
+- conversation ownership
+- profile / session memory visibility
+- operator principal allowlist
+- approval / break-glass state
+
+这些语义可以共用关系数据库，但不应被 `apps/supervisor-api`、`packages/supervisor-core` 或 `packages/retrieval-core` 反向声明为自己的 canonical truth。
+
+## Projection To Execution Path
+
+`app-api -> supervisor-api` 默认只投影最小化 typed context 与 authz projection，而不直传 raw product state。
 
 长期允许的 projection 内容包括：
 
 - stable actor id / principal id
-- role / group / campus / cohort / major 等 typed claims
+- authorization snapshot id、version 或等价的最小 entitlement summary
+- role / group / campus / cohort / major 等仍需要给 workflow / retrieval planning 使用的 typed claims
+- ownership / approval summary
+- authorized retrieval filter summary
 - profile memory summary
 - session summary / confirmed slots
 - correlation / trace metadata
@@ -147,6 +170,7 @@ updated: 2026-03-29
 长期默认不允许跨边界直传：
 
 - raw JWT、raw auth header、raw cookie
+- raw Access envelope、raw authz store 对象
 - raw long-term memory 文本
 - 未裁剪的完整 conversation transcript
 - 产品层 provider payload
@@ -160,10 +184,11 @@ updated: 2026-03-29
 chat command path 至少包含：
 
 - session / ownership 校验
+- authorization / approval 校验
 - user message 写入
 - `runtime.request_execution` 写入
 - `runtime.projection_outbox` 写入
-- 向 `apps/supervisor-api` 发起受控执行请求
+- 向 `apps/supervisor-api` 发起带最小 authz projection 的受控执行请求
 - 执行结果与最小运行元数据落盘
 
 ### Query path
@@ -171,6 +196,7 @@ chat command path 至少包含：
 operator query path 至少包含：
 
 - 只读取 `operator.request_projection`
+- 先做 operator principal / authz 校验
 - 不回放 answer execution
 - 不把 consumer conversation store 当 operator request truth
 
@@ -179,6 +205,7 @@ operator query path 至少包含：
 `app-api` 下的推荐逻辑分域固定为：
 
 - `auth.*`
+- `authorization.*`
 - `profile.*`
 - `chat.*`
 - `runtime.*`
@@ -189,7 +216,8 @@ operator query path 至少包含：
 这里不冻结物理拆库，只冻结 ownership：
 
 - 共库不等于共边界
-- `verified identity` truth 不等于 `profile memory` truth
+- `verified identity` truth 不等于 authorization truth
+- authorization truth 不等于 `profile memory` truth
 - `conversation/message` truth 不等于 operator request truth
 - `request_execution`、projection outbox 与 read model 必须逻辑分离
 
@@ -217,7 +245,9 @@ operator query path 至少包含：
 - `app-api` 作为 Docker-first backend 成为默认长期形态
 - `app-api` 吸收 supervisor orchestration 语义
 - Worker / edge identity 被直接当作 canonical actor truth
+- Worker / edge identity 被直接当作 canonical authorization truth
 - browser 直接调用 `apps/supervisor-api`
+- `apps/supervisor-api` 反向拥有 principal mapping、entitlement resolution 或 memory visibility truth
 - panel 直接查询数据库、audit sink 或 telemetry sink
 - chat 与 panel 再次拆回两套独立产品后端
 
@@ -225,7 +255,7 @@ operator query path 至少包含：
 
 当前 `develop` 集成线已经落地 `apps/app-api` 目录，但目前只实现了最小 `ContextProjection` 投影骨架。
 
-这意味着当前集成线已落地的是长期边界与最小 identity / memory projection seam，而不是完整 Worker product backend。
+这意味着当前集成线已落地的是长期边界、authorization ownership direction 与最小 identity / memory projection seam，而不是完整 Worker product backend。
 
 更完整的 `apps/app-api` Worker 实现目前正在独立 worktree 推进，但在合入 `develop` 之前，不应把那部分进度写成这里的 merged truth。
 
@@ -233,6 +263,7 @@ operator query path 至少包含：
 
 - Hono / Wrangler Worker scaffold
 - auth / session / conversation product API
+- principal / entitlement / ownership / approval 数据面
 - `runtime.request_execution` / `projection_outbox` / `request_projection` 数据面
 - `app-api -> supervisor-api` 内部 HTTP adapter
 

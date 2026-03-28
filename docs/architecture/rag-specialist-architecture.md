@@ -2,14 +2,14 @@
 doc_type: architecture
 status: active
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-03-29
 ---
 
 # RAG Specialist Architecture
 
 ## 文档边界
 
-本文只冻结 `packages/rag-specialist` 的长期职责、内部决策分层、个性化输入边界与 ACL 约束。
+本文只冻结 `packages/rag-specialist` 的长期职责、内部决策分层、个性化输入边界与 authorization filter 约束。
 
 本文不负责：
 
@@ -22,9 +22,11 @@ updated: 2026-03-28
 
 - repo 级长期边界：`long-term-architecture.md`
 - supervisor 入口协调职责：`supervisor-architecture.md`
+- authorization / access-control 长期边界：`authorization-and-access-control-architecture.md`
 - retrieval runtime truth：`retrieval-query-strategy.md`
 - 长期编排与安全边界：`../decisions/adr-0006-agent-orchestration-and-safety.md`
 - identity / memory / personalization 分层：`../decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
+- 授权模型与 retrieval filter projection：`../decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
 
 ## 目标
 
@@ -45,7 +47,7 @@ updated: 2026-03-28
 - supervisor 决定是否进入 knowledge specialist
 - `rag-specialist` 决定 retrieval-specific intent framing、query planning、evidence collection、ambiguity handling 与 grounded answer synthesis
 - retrieval-core 负责真正的 pre-filter、candidate retrieval 与 evidence shaping
-- `app-api` 负责 canonical identity / memory ownership
+- `app-api` 负责 canonical identity / authorization / memory ownership
 
 ## 长期职责
 
@@ -133,7 +135,7 @@ updated: 2026-03-28
 
 这些输入不能影响：
 
-- ACL / campus_scope / group-based filtering
+- authorization filter projection，包括当前过渡期 `acl_level` / `acl_groups` / `campus_scope`
 - runtime profile 中未开放 collection 的准入
 - approval-required deterministic gate
 
@@ -154,19 +156,22 @@ updated: 2026-03-28
 - 如果 personalization hint 过旧或置信度不足，应显式说明“按当前记录理解”或先请求确认
 - 不允许仅凭 personalization 将 generic query 强行收窄到单一政策对象而不暴露该假设
 
-## ACL And Untrusted Data Boundary
+## Authorization Filter And Untrusted Data Boundary
 
 长期硬约束如下：
 
-- ACL 由 code path 强制执行，不由模型决定
+- authorization filter projection 由 code path 强制执行，不由模型决定
 - retrieval pre-filter 必须先于 candidate retrieval 生效
-- personal memory 不能绕过 `acl_level`、`acl_groups`、`campus_scope`、`current_only` 或版本过滤
+- personal memory 不能绕过 authorized visibility filter、`current_only`、版本过滤或 serving surface gate
+- 当前 phase-1 的 `acl_level`、`acl_groups` 与 `campus_scope` 只属于 transitional filter fields，不是 canonical authz truth
 - retrieval 返回的文本仍然是 `untrusted data`
 
 这意味着：
 
 - `rag-specialist` 可以基于 evidence 做解释和综合
+- `rag-specialist` 可以请求更精细的澄清或更保守的 query planning，但不能扩大 visibility
 - 但不能把 evidence 当作新的 routing / permission truth
+- 也不能把 applicability / personalization 假设伪装成 permission truth
 - 也不能让自由文本输出越过 deterministic gate 执行高风险动作
 
 ## 与其他边界的关系
@@ -185,7 +190,7 @@ updated: 2026-03-28
 
 与 `app-api`：
 
-- `app-api` 拥有 canonical identity、profile memory 与 session truth
+- `app-api` 拥有 canonical identity、authorization、profile memory 与 session truth
 - `rag-specialist` 只消费最小化 typed projection
 - `rag-specialist` 不直接连接产品层 auth/session/memory 存储
 
