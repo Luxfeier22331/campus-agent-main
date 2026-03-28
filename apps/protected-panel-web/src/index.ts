@@ -8,6 +8,7 @@ export interface Env {
     fetch(request: Request): Promise<Response> | Response;
   };
   PANEL_APP_NAME?: string;
+  PANEL_APP_API_SHARED_SECRET?: string;
   PANEL_RUNTIME_API_BASE_URL?: string;
   PANEL_PROTECTED_HOSTNAME?: string;
   PANEL_PROTECTION_ENVELOPE?: string;
@@ -45,8 +46,27 @@ export default {
     }
 
     if (request.method === "GET" && url.pathname === "/readyz") {
+      const missing = getMissingRuntimeConfig(env);
+      if (missing.length > 0) {
+        return jsonResponse(503, {
+          error: {
+            code: "dependency_not_ready",
+            details: {
+              missing,
+            },
+            message: "Runtime configuration is incomplete.",
+          },
+        });
+      }
+
       return jsonResponse(200, {
         status: "ready",
+        dependencies: {
+          access: env.PANEL_PROTECTION_ENVELOPE === "cloudflare-access" ? "configured" : "not_required",
+          appApiBinding: "configured",
+          assets: "configured",
+          operatorBridge: "configured",
+        },
         runtime_api_base_url: env.PANEL_RUNTIME_API_BASE_URL || "",
         protected_hostname: env.PANEL_PROTECTED_HOSTNAME || "",
         protection_envelope: env.PANEL_PROTECTION_ENVELOPE || "required",
@@ -163,6 +183,36 @@ function jsonResponse(status: number, payload: Record<string, unknown>): Respons
   });
 }
 
+function getMissingRuntimeConfig(env: Env): string[] {
+  const missing: string[] = [];
+
+  if (!env.APP_API) {
+    missing.push("APP_API binding");
+  }
+  if (!env.ASSETS) {
+    missing.push("ASSETS binding");
+  }
+  if (!env.PANEL_RUNTIME_API_BASE_URL?.trim()) {
+    missing.push("PANEL_RUNTIME_API_BASE_URL");
+  }
+  if (!env.PANEL_PROTECTED_HOSTNAME?.trim()) {
+    missing.push("PANEL_PROTECTED_HOSTNAME");
+  }
+  if (!env.PANEL_APP_API_SHARED_SECRET?.trim()) {
+    missing.push("PANEL_APP_API_SHARED_SECRET");
+  }
+  if (env.PANEL_PROTECTION_ENVELOPE === "cloudflare-access") {
+    if (!env.ACCESS_TEAM_DOMAIN?.trim()) {
+      missing.push("ACCESS_TEAM_DOMAIN");
+    }
+    if (!env.ACCESS_POLICY_AUD?.trim()) {
+      missing.push("ACCESS_POLICY_AUD");
+    }
+  }
+
+  return missing;
+}
+
 async function validateProtectedApiRequest(
   request: Request,
   env: Env,
@@ -227,6 +277,7 @@ function textResponse(message: string, status: number): Response {
   return new Response(message, {
     status,
     headers: {
+      "cache-control": "no-store",
       "content-type": "text/plain; charset=utf-8",
     },
   });
@@ -253,7 +304,11 @@ async function proxyToAppApi(input: {
   request: Request;
   targetPath: string;
 }): Promise<Response> {
-  if (!input.env.APP_API || !input.env.PANEL_RUNTIME_API_BASE_URL) {
+  if (
+    !input.env.APP_API ||
+    !input.env.PANEL_RUNTIME_API_BASE_URL ||
+    !input.env.PANEL_APP_API_SHARED_SECRET
+  ) {
     return jsonResponse(503, {
       error: {
         code: "dependency_not_ready",
@@ -273,6 +328,7 @@ async function proxyToAppApi(input: {
   }
 
   headers.set("x-app-operator-email", input.operatorContext.email ?? input.operatorContext.operator_id);
+  headers.set("x-app-internal-auth", input.env.PANEL_APP_API_SHARED_SECRET);
   headers.set("x-app-operator-id", input.operatorContext.operator_id);
 
   if (input.operatorContext.display_name) {
@@ -290,7 +346,7 @@ async function proxyToAppApi(input: {
     }),
   );
 
-  return response;
+  return withNoStore(response);
 }
 
 async function serveProtectedShell(request: Request, env: Env): Promise<Response> {
@@ -311,6 +367,17 @@ async function serveProtectedShell(request: Request, env: Env): Promise<Response
 
   const headers = new Headers(response.headers);
   headers.set("cache-control", "no-store");
+  return new Response(response.body, {
+    headers,
+    status: response.status,
+    statusText: response.statusText,
+  });
+}
+
+function withNoStore(response: Response): Response {
+  const headers = new Headers(response.headers);
+  headers.set("cache-control", "no-store");
+
   return new Response(response.body, {
     headers,
     status: response.status,

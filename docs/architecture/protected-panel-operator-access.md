@@ -157,6 +157,8 @@ protected panel 在长期上只承载以下五类功能域：
 
 origin admission 的职责是 protected runtime boundary 的一部分，不属于 `packages/*`。
 
+另外，panel Worker 在把 operator identity 转交给 shared `app-api` 时，仍应携带独立的 internal caller secret；`app-api` 不应把裸 `x-app-operator-*` 头直接视为可信 caller admission。
+
 ## Minimal Operator Context
 
 panel app 只需要最小 operator context，例如：

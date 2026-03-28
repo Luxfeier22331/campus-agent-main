@@ -1,6 +1,7 @@
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import { createApp as createAppApi } from "../../app-api/src/app";
 import worker from "../src/index";
 import wranglerConfig from "../wrangler.toml?raw";
 
@@ -15,23 +16,42 @@ describe("protected panel web worker shell", () => {
     const health = await worker.fetch(
       new Request("https://panel.example.com/healthz"),
       {
+        APP_API: {
+          fetch: async () => new Response(null, { status: 204 }),
+        },
+        ASSETS: {
+          fetch: async () => new Response("ok", { status: 200 }),
+        },
         PANEL_APP_NAME: "campus-agent-v2-protected-panel",
+        PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
         PANEL_RUNTIME_API_BASE_URL: "https://supervisor.internal",
         PANEL_PROTECTED_HOSTNAME: "panel.example.com",
         PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
+        ACCESS_TEAM_DOMAIN: "https://team.cloudflareaccess.com",
+        ACCESS_POLICY_AUD: "panel-audience",
       },
     );
     const ready = await worker.fetch(
       new Request("https://panel.example.com/readyz"),
       {
+        APP_API: {
+          fetch: async () => new Response(null, { status: 204 }),
+        },
+        ASSETS: {
+          fetch: async () => new Response("ok", { status: 200 }),
+        },
         PANEL_APP_NAME: "campus-agent-v2-protected-panel",
+        PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
         PANEL_RUNTIME_API_BASE_URL: "https://supervisor.internal",
         PANEL_PROTECTED_HOSTNAME: "panel.example.com",
         PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
+        ACCESS_TEAM_DOMAIN: "https://team.cloudflareaccess.com",
+        ACCESS_POLICY_AUD: "panel-audience",
       },
     );
 
     expect(health.status).toBe(200);
+    expect(health.headers.get("cache-control")).toBe("no-store");
     await expect(health.json()).resolves.toEqual({
       status: "ok",
       app_name: "campus-agent-v2-protected-panel",
@@ -40,12 +60,47 @@ describe("protected panel web worker shell", () => {
     });
 
     expect(ready.status).toBe(200);
+    expect(ready.headers.get("cache-control")).toBe("no-store");
     await expect(ready.json()).resolves.toEqual({
       status: "ready",
+      dependencies: {
+        access: "configured",
+        appApiBinding: "configured",
+        assets: "configured",
+        operatorBridge: "configured",
+      },
       runtime_api_base_url: "https://supervisor.internal",
       protected_hostname: "panel.example.com",
       protection_envelope: "cloudflare-access",
       runtime: "cloudflare-worker",
+    });
+  });
+
+  it("fails readyz closed when protected runtime dependencies are missing", async () => {
+    const response = await worker.fetch(
+      new Request("https://panel.example.com/readyz"),
+      {
+        PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
+      },
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: "dependency_not_ready",
+        details: {
+          missing: [
+            "APP_API binding",
+            "ASSETS binding",
+            "PANEL_RUNTIME_API_BASE_URL",
+            "PANEL_PROTECTED_HOSTNAME",
+            "PANEL_APP_API_SHARED_SECRET",
+            "ACCESS_TEAM_DOMAIN",
+            "ACCESS_POLICY_AUD",
+          ],
+        },
+        message: "Runtime configuration is incomplete.",
+      },
     });
   });
 
@@ -271,6 +326,7 @@ describe("protected panel web worker shell", () => {
     let forwardedOperatorEmail: string | null = null;
     let forwardedOperatorGroups: string | null = null;
     let forwardedOperatorId: string | null = null;
+    let forwardedInternalAuth: string | null = null;
     let forwardedOperatorName: string | null = null;
     let forwardedUrl: string | null = null;
 
@@ -302,6 +358,7 @@ describe("protected panel web worker shell", () => {
               forwardedOperatorEmail = request.headers.get("x-app-operator-email");
               forwardedOperatorGroups = request.headers.get("x-app-operator-groups");
               forwardedOperatorId = request.headers.get("x-app-operator-id");
+              forwardedInternalAuth = request.headers.get("x-app-internal-auth");
               forwardedOperatorName = request.headers.get("x-app-operator-name");
 
               return new Response(
@@ -326,6 +383,7 @@ describe("protected panel web worker shell", () => {
             },
           },
           PANEL_APP_NAME: "campus-agent-v2-protected-panel",
+          PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
           PANEL_PROTECTED_HOSTNAME: "panel.example.com",
           PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
           PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
@@ -352,6 +410,7 @@ describe("protected panel web worker shell", () => {
       expect(forwardedOperatorId).toBe("ops@example.com");
       expect(forwardedOperatorName).toBe("Ops Team");
       expect(forwardedOperatorGroups).toBe("panel,ops");
+      expect(forwardedInternalAuth).toBe("panel-bridge-secret");
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -403,6 +462,7 @@ describe("protected panel web worker shell", () => {
                 status: 200,
               }),
           },
+          PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
           PANEL_PROTECTED_HOSTNAME: "panel.example.com",
           PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
           PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
@@ -425,6 +485,7 @@ describe("protected panel web worker shell", () => {
         {
           ACCESS_POLICY_AUD: "panel-audience",
           ACCESS_TEAM_DOMAIN: accessTeamDomain,
+          PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
           PANEL_PROTECTED_HOSTNAME: "panel.example.com",
           PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
           PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
@@ -437,6 +498,127 @@ describe("protected panel web worker shell", () => {
           code: "dependency_not_ready",
           message: "App API binding is not configured.",
         },
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("smokes request queries through protected-panel-web into app-api with internal caller admission", async () => {
+    const originalFetch = globalThis.fetch;
+    const accessTeamDomain = "https://team-smoke.cloudflareaccess.com";
+    const certsUrl = `${accessTeamDomain}/cdn-cgi/access/certs`;
+    const { privateKey, publicKey } = await generateKeyPair("ES256");
+    const publicJwk = await exportJWK(publicKey);
+    publicJwk.kid = "panel-test-key";
+    const token = await new SignJWT({ email: "ops@example.com", sub: "operator-001" })
+      .setProtectedHeader({ alg: "ES256", kid: "panel-test-key" })
+      .setIssuer(accessTeamDomain)
+      .setAudience("panel-audience")
+      .setIssuedAt()
+      .setExpirationTime("5m")
+      .sign(privateKey);
+
+    globalThis.fetch = (async (request: Request | URL | string) => {
+      const inbound = request instanceof Request ? request : new Request(request);
+      if (inbound.url === certsUrl) {
+        return new Response(JSON.stringify({ keys: [publicJwk] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      throw new Error(`Unexpected fetch call: ${inbound.url}`);
+    }) as typeof fetch;
+
+    try {
+      const appApiEnv = {
+        APP_API_NAME: "campus-agent-app-api",
+        APP_API_ENVIRONMENT: "test" as const,
+        BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+        PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
+        SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+        SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+        APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
+        APP_API_INTERNAL_SHARED_SECRET: "panel-bridge-secret",
+        APP_API_DB: {
+          connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
+        },
+      };
+      const appApi = createAppApi(appApiEnv, {
+        operatorQueryService: {
+          getById: vi.fn(),
+          list: vi.fn().mockResolvedValue({
+            page: {
+              nextCursor: null,
+            },
+            requests: [
+              {
+                answerPreview: "图书馆开放到 22:00。",
+                completedAt: "2026-03-28T08:00:01.000Z",
+                conversationId: "conv_01HQ",
+                durationMs: 812,
+                errorCode: null,
+                principalId: "user_01HQ",
+                principalLabel: "Jane Doe",
+                principalType: "public_user",
+                projectedAt: "2026-03-28T08:00:02.000Z",
+                questionPreview: "图书馆开放到几点？",
+                requestId: "req_01HQ",
+                requestedCapability: "knowledge",
+                requestedScope: {
+                  collection: "student_handbook",
+                  corpus: "regulations",
+                },
+                selectedTarget: "rag-specialist",
+                sourceDocIds: ["handbook:library-hours"],
+                startedAt: "2026-03-28T08:00:00.000Z",
+                status: "completed",
+                surface: "public_chat_web",
+                traceId: "trace_01HQ",
+              },
+            ],
+          }),
+        },
+      });
+
+      const response = await worker.fetch(
+        new Request("https://panel.example.com/api/requests?status=completed", {
+          headers: {
+            "cf-access-jwt-assertion": token,
+          },
+        }),
+        {
+          ACCESS_POLICY_AUD: "panel-audience",
+          ACCESS_TEAM_DOMAIN: accessTeamDomain,
+          APP_API: {
+            fetch: async (request: Request) => appApi.fetch(request, appApiEnv),
+          },
+          ASSETS: {
+            fetch: async () =>
+              new Response("<!doctype html><html><body><div id=\"root\"></div></body></html>", {
+                headers: {
+                  "content-type": "text/html; charset=utf-8",
+                },
+                status: 200,
+              }),
+          },
+          PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
+          PANEL_PROTECTED_HOSTNAME: "panel.example.com",
+          PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
+          PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
+        },
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      await expect(response.json()).resolves.toMatchObject({
+        requests: [
+          {
+            requestId: "req_01HQ",
+            status: "completed",
+          },
+        ],
       });
     } finally {
       globalThis.fetch = originalFetch;

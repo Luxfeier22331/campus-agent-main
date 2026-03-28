@@ -19,6 +19,7 @@ const FORWARDED_HEADERS = [
 ] as const;
 
 const JSON_HEADERS = {
+  "cache-control": "no-store",
   "content-type": "application/json; charset=utf-8",
 } as const;
 
@@ -36,9 +37,26 @@ export default {
     }
 
     if (request.method === "GET" && url.pathname === "/readyz") {
+      const missing = getMissingRuntimeConfig(env);
+      if (missing.length > 0) {
+        return jsonResponse(503, {
+          error: {
+            code: "dependency_not_ready",
+            details: {
+              missing,
+            },
+            message: "Runtime configuration is incomplete.",
+          },
+        });
+      }
+
       return jsonResponse(200, {
         status: "ready",
         app_api_base_url: env.APP_API_BASE_URL || "",
+        dependencies: {
+          appApiBinding: "configured",
+          assets: "configured",
+        },
         public_hostname: env.PUBLIC_CHAT_HOSTNAME || "",
         runtime: "cloudflare-worker",
       });
@@ -68,6 +86,25 @@ function jsonResponse(status: number, payload: Record<string, unknown>): Respons
   });
 }
 
+function getMissingRuntimeConfig(env: Env): string[] {
+  const missing: string[] = [];
+
+  if (!env.APP_API) {
+    missing.push("APP_API binding");
+  }
+  if (!env.ASSETS) {
+    missing.push("ASSETS binding");
+  }
+  if (!env.APP_API_BASE_URL?.trim()) {
+    missing.push("APP_API_BASE_URL");
+  }
+  if (!env.PUBLIC_CHAT_HOSTNAME?.trim()) {
+    missing.push("PUBLIC_CHAT_HOSTNAME");
+  }
+
+  return missing;
+}
+
 async function proxyToAppApi(request: Request, env: Env): Promise<Response> {
   if (!env.APP_API || !env.APP_API_BASE_URL) {
     return jsonResponse(503, {
@@ -89,13 +126,15 @@ async function proxyToAppApi(request: Request, env: Env): Promise<Response> {
     }
   }
 
-  return env.APP_API.fetch(
+  return withNoStore(
+    await env.APP_API.fetch(
     new Request(appApiUrl.toString(), {
       body: shouldForwardBody(request.method) ? request.body : undefined,
       headers,
       method: request.method,
       redirect: request.redirect,
     }),
+    ),
   );
 }
 
@@ -121,6 +160,17 @@ async function servePublicShell(request: Request, env: Env): Promise<Response> {
 
   const headers = new Headers(response.headers);
   headers.set("cache-control", "no-store");
+  return new Response(response.body, {
+    headers,
+    status: response.status,
+    statusText: response.statusText,
+  });
+}
+
+function withNoStore(response: Response): Response {
+  const headers = new Headers(response.headers);
+  headers.set("cache-control", "no-store");
+
   return new Response(response.body, {
     headers,
     status: response.status,

@@ -22,7 +22,7 @@ Current shell scope:
 - `GET /api/requests`
 - `GET /api/requests/:requestId`
 
-The root route and protected SPA routes now serve the `react-admin` shell once upstream operator admission and frontend assets are configured. If either condition is missing, the Worker fails closed instead of exposing a public panel shell.
+The root route and protected SPA routes now serve the `react-admin` shell once upstream operator admission, frontend assets, and the trusted panel-to-`app-api` bridge are configured. If any of those assumptions are missing, the Worker fails closed instead of exposing a public panel shell.
 
 Canonical references:
 
@@ -88,6 +88,7 @@ UI / BFF direction:
 Environment:
 
 - `PANEL_APP_NAME`
+- `PANEL_APP_API_SHARED_SECRET`
 - `PANEL_RUNTIME_API_BASE_URL`
 - `PANEL_PROTECTED_HOSTNAME`
 - `PANEL_PROTECTION_ENVELOPE`
@@ -98,6 +99,12 @@ Runtime bindings:
 
 - `APP_API` service binding for request projection list/detail queries
 - `ASSETS` binding generated from the Vite client build
+
+Readiness expectations:
+
+- `GET /readyz` stays `503` until `APP_API`, `ASSETS`, hostname/runtime base URL, and `PANEL_APP_API_SHARED_SECRET` are all configured
+- when `PANEL_PROTECTION_ENVELOPE=cloudflare-access`, `ACCESS_TEAM_DOMAIN` and `ACCESS_POLICY_AUD` are also mandatory for readiness
+- proxied panel API responses are forced to `Cache-Control: no-store`
 
 Current operator-access env contract for Cloudflare Access admission includes:
 

@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import { createApp as createAppApi } from "../../app-api/src/app";
 import worker from "../src/index";
 import wranglerConfig from "../wrangler.toml?raw";
 
@@ -14,7 +15,13 @@ describe("public chat web worker shell", () => {
     const health = await worker.fetch(
       new Request("https://chat.example.com/healthz"),
       {
+        APP_API: {
+          fetch: async () => new Response(null, { status: 204 }),
+        },
         APP_API_BASE_URL: "https://app-api.internal",
+        ASSETS: {
+          fetch: async () => new Response("ok", { status: 200 }),
+        },
         PUBLIC_CHAT_APP_NAME: "campus-agent-public-chat-web",
         PUBLIC_CHAT_HOSTNAME: "chat.example.com",
       },
@@ -22,13 +29,20 @@ describe("public chat web worker shell", () => {
     const ready = await worker.fetch(
       new Request("https://chat.example.com/readyz"),
       {
+        APP_API: {
+          fetch: async () => new Response(null, { status: 204 }),
+        },
         APP_API_BASE_URL: "https://app-api.internal",
+        ASSETS: {
+          fetch: async () => new Response("ok", { status: 200 }),
+        },
         PUBLIC_CHAT_APP_NAME: "campus-agent-public-chat-web",
         PUBLIC_CHAT_HOSTNAME: "chat.example.com",
       },
     );
 
     expect(health.status).toBe(200);
+    expect(health.headers.get("cache-control")).toBe("no-store");
     await expect(health.json()).resolves.toEqual({
       status: "ok",
       app_name: "campus-agent-public-chat-web",
@@ -37,11 +51,41 @@ describe("public chat web worker shell", () => {
     });
 
     expect(ready.status).toBe(200);
+    expect(ready.headers.get("cache-control")).toBe("no-store");
     await expect(ready.json()).resolves.toEqual({
       status: "ready",
       app_api_base_url: "https://app-api.internal",
+      dependencies: {
+        appApiBinding: "configured",
+        assets: "configured",
+      },
       public_hostname: "chat.example.com",
       runtime: "cloudflare-worker",
+    });
+  });
+
+  it("fails readyz closed when runtime dependencies are missing", async () => {
+    const response = await worker.fetch(
+      new Request("https://chat.example.com/readyz"),
+      {
+        PUBLIC_CHAT_APP_NAME: "campus-agent-public-chat-web",
+      },
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: "dependency_not_ready",
+        details: {
+          missing: [
+            "APP_API binding",
+            "ASSETS binding",
+            "APP_API_BASE_URL",
+            "PUBLIC_CHAT_HOSTNAME",
+          ],
+        },
+        message: "Runtime configuration is incomplete.",
+      },
     });
   });
 
@@ -143,6 +187,7 @@ describe("public chat web worker shell", () => {
     );
 
     expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("x-request-id")).toBe("req_01HQ");
     await expect(response.json()).resolves.toEqual({
       answer: {
@@ -162,6 +207,113 @@ describe("public chat web worker shell", () => {
         prompt: "图书馆开放到几点？",
       }),
     );
+  });
+
+  it("smokes a chat request through public-chat-web into app-api", async () => {
+    const appApiEnv = {
+      APP_API_NAME: "campus-agent-app-api",
+      APP_API_ENVIRONMENT: "test" as const,
+      BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+      PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
+      SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+      SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+      APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
+      APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
+      APP_API_DB: {
+        connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
+      },
+    };
+    const appApi = createAppApi(appApiEnv, {
+      chatCommandService: {
+        submit: vi.fn().mockResolvedValue({
+          answer: {
+            conversation: {
+              createdAt: "2026-03-28T07:59:00.000Z",
+              id: "conv_01HQ",
+              messages: [],
+              title: "图书馆开放时间",
+              updatedAt: "2026-03-28T08:00:01.000Z",
+            },
+            result: {
+              kind: "answer",
+              requestId: "req_01HQ",
+              text: "图书馆开放到 22:00。",
+              traceId: "trace_01HQ",
+            },
+          },
+          requestId: "req_01HQ",
+          traceId: "trace_01HQ",
+        }),
+      },
+      getPrincipal: vi.fn().mockResolvedValue({
+        actor: {
+          campusScope: "main",
+          departments: [],
+          groups: ["students"],
+          roles: ["student"],
+          snapshot: {
+            principal_type: "public_user",
+          },
+          userId: "user_01HQ",
+        },
+        permissions: {
+          chat: true,
+          operator: false,
+        },
+        principal: {
+          displayName: "Jane Doe",
+          email: "jane@example.edu",
+          principalId: "user_01HQ",
+          type: "public_user",
+        },
+        session: {
+          expiresAt: "2026-03-29T07:00:00.000Z",
+          sessionId: "sess_01HQ",
+        },
+      }),
+    });
+
+    const response = await worker.fetch(
+      new Request("https://chat.example.com/api/chat/requests", {
+        body: JSON.stringify({
+          prompt: "图书馆开放到几点？",
+        }),
+        headers: {
+          "content-type": "application/json",
+          cookie: "better-auth.session_token=test",
+          "idempotency-key": "idem-001",
+        },
+        method: "POST",
+      }),
+      {
+        APP_API: {
+          fetch: async (request: Request) => appApi.fetch(request, appApiEnv),
+        },
+        APP_API_BASE_URL: "https://app-api.internal",
+        ASSETS: {
+          fetch: async () =>
+            new Response("<!doctype html><html><body><div id=\"root\"></div></body></html>", {
+              headers: {
+                "content-type": "text/html; charset=utf-8",
+              },
+              status: 200,
+            }),
+        },
+        PUBLIC_CHAT_HOSTNAME: "chat.example.com",
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("x-request-id")).toBe("req_01HQ");
+    await expect(response.json()).resolves.toMatchObject({
+      answer: {
+        result: {
+          kind: "answer",
+          requestId: "req_01HQ",
+        },
+      },
+    });
   });
 
   it("fails closed when app-api binding is missing", async () => {

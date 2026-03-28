@@ -64,6 +64,11 @@ Environment:
 
 The Worker also requires an internal `APP_API` service binding at runtime.
 
+Readiness expectations:
+
+- `GET /readyz` stays `503` until `APP_API`, `ASSETS`, `APP_API_BASE_URL`, and `PUBLIC_CHAT_HOSTNAME` are all configured
+- proxied same-site `/api/*` responses are forced to `Cache-Control: no-store`
+
 Local commands:
 
 ```bash
