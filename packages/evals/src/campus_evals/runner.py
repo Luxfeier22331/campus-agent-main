@@ -40,6 +40,8 @@ def run_cases(
     for case in selected_cases:
         execution = executor(case)
         result = evaluate_case(case, execution)
+        if execution.observed_trace is not None:
+            result = replace(result, observed_trace=execution.observed_trace)
         supplemental_results = _evaluate_supplemental_results(
             case,
             execution,

@@ -159,6 +159,8 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
                     observed_trace=ObservedTrace(
                         selected_scope=HANDBOOK_SCOPE,
                         retrieval_called=True,
+                        retrieved_sources=(_source("handbook:library"),),
+                        supporting_sources=(_source("handbook:library"),),
                     ),
                 ),
                 supplemental_adapters=(adapter,),
@@ -182,6 +184,15 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
             self.assertEqual(summary["reruns"], 2)
             self.assertEqual(summary["case_set"]["expected_status_counts"]["completed"], 1)
             self.assertEqual(summary["case_set"]["expected_status_counts"]["no_answer"], 1)
+            run_results = json.loads((output_dir / "run-01-case-results.json").read_text(encoding="utf-8"))
+            self.assertEqual(
+                run_results["results"][0]["observed_trace"]["retrieved_sources"][0]["doc_id"],
+                "handbook:library",
+            )
+            self.assertEqual(
+                run_results["results"][0]["observed_trace"]["supporting_sources"][0]["chunk_id"],
+                "chunk-1",
+            )
             metric_summary = summary["aggregate"]["supplemental"]["judge.answer_correctness_rubric"]
             self.assertAlmostEqual(metric_summary["mean_average_score"], 0.9)
             self.assertEqual(metric_summary["by_expected_status"]["completed"]["score_count"], 2)

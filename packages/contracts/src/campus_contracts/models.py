@@ -82,6 +82,12 @@ class EvidenceSource:
     is_current: bool
     snippet: str
     score: float
+    source_title: str = ""
+    structural_path: tuple[str, ...] = field(default_factory=tuple)
+    content_kind: str = ""
+    content_role: str = ""
+    detail_label: str = ""
+    is_answer_bearing: bool = False
 
     def __post_init__(self) -> None:
         _validate_revision_track(self.revision_track)

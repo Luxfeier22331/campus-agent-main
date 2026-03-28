@@ -192,6 +192,7 @@ class QdrantRetrievalBackend:
             version_id = str(metadata.get("version_id") or "")
             if not document_id or not revision_track or not version_id:
                 continue
+            anchor = _coerce_dict(metadata.get("anchor"))
             canonical_url = _optional_text(metadata.get("canonical_url")) or _optional_text(metadata.get("source_uri"))
             latest_url = _optional_text(metadata.get("latest_url")) or canonical_url
             source_channel = _optional_text(metadata.get("source_channel"))
@@ -224,7 +225,7 @@ class QdrantRetrievalBackend:
                     revision_track=revision_track,
                     version_id=version_id,
                     chunk_id=str(metadata.get("chunk_id") or node.node_id),
-                    anchor=_coerce_dict(metadata.get("anchor")),
+                    anchor=anchor,
                     acl_level=str(metadata.get("acl_level") or "public"),
                     canonical_url=canonical_url,
                     latest_url=latest_url,
@@ -233,6 +234,12 @@ class QdrantRetrievalBackend:
                     is_current=is_current,
                     snippet=node.get_content(metadata_mode=MetadataMode.NONE),
                     score=float(point.score),
+                    source_title=_resolve_source_title(metadata, document_id=document_id, anchor=anchor),
+                    structural_path=_coerce_structural_path(anchor.get("section_path")),
+                    content_kind=_resolve_content_kind(metadata),
+                    content_role=_resolve_content_role(metadata, anchor=anchor),
+                    detail_label=_resolve_detail_label(metadata, anchor=anchor),
+                    is_answer_bearing=_resolve_is_answer_bearing(metadata, anchor=anchor),
                 )
             )
         return tuple(sources)
@@ -519,6 +526,89 @@ def _build_source_scoped_qdrant_filter(
 
 def _coerce_dict(value: object) -> dict[str, object]:
     return dict(value) if isinstance(value, dict) else {}
+
+
+def _coerce_structural_path(value: object) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        return ()
+    normalized: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        text = item.strip()
+        if text:
+            normalized.append(text)
+    return tuple(normalized)
+
+
+def _resolve_source_title(
+    metadata: dict[str, object],
+    *,
+    document_id: str,
+    anchor: dict[str, object],
+) -> str:
+    for key in ("source_title", "title", "document_title"):
+        value = _optional_text(metadata.get(key))
+        if value is not None:
+            return value
+    structural_path = _coerce_structural_path(anchor.get("section_path"))
+    if structural_path:
+        first_segment = structural_path[0]
+        if ":" not in first_segment:
+            return first_segment
+    return document_id.split(":", 1)[-1].strip()
+
+
+def _resolve_content_kind(metadata: dict[str, object]) -> str:
+    return str(metadata.get("unit_type") or "").strip()
+
+
+def _resolve_content_role(
+    metadata: dict[str, object],
+    *,
+    anchor: dict[str, object],
+) -> str:
+    explicit_role = _optional_text(metadata.get("content_role"))
+    if explicit_role is not None:
+        return explicit_role
+    structural_path = _coerce_structural_path(anchor.get("section_path"))
+    if any(segment.endswith("附则") or segment == "附则" for segment in structural_path):
+        return "closing_provision"
+    content_kind = _resolve_content_kind(metadata)
+    if content_kind == "table_unit":
+        return "table_fact"
+    return ""
+
+
+def _resolve_detail_label(
+    metadata: dict[str, object],
+    *,
+    anchor: dict[str, object],
+) -> str:
+    explicit_label = _optional_text(metadata.get("detail_label"))
+    if explicit_label is not None:
+        return explicit_label
+    for key in ("article_label", "provision_label", "table_context"):
+        value = _optional_text(anchor.get(key))
+        if value is not None:
+            return value
+    return ""
+
+
+def _resolve_is_answer_bearing(
+    metadata: dict[str, object],
+    *,
+    anchor: dict[str, object],
+) -> bool:
+    explicit_value = _optional_bool(metadata.get("is_answer_bearing"))
+    if explicit_value is not None:
+        return explicit_value
+    content_role = _resolve_content_role(metadata, anchor=anchor)
+    if content_role == "closing_provision":
+        return False
+    detail_label = _resolve_detail_label(metadata, anchor=anchor)
+    content_kind = _resolve_content_kind(metadata)
+    return bool(detail_label) and content_kind in {"article_body", "policy_page", "section_text", "table_unit"}
 
 
 def _optional_text(value: object) -> str | None:

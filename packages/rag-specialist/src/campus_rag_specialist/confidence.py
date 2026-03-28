@@ -1,17 +1,21 @@
 from __future__ import annotations
 
 from campus_contracts import EvidenceBundle
-from campus_retrieval_core.evidence_ranking import prioritize_evidence_sources, query_targets_source_title
+from campus_retrieval_core.evidence_ranking import (
+    query_targets_source_title,
+    select_supporting_evidence_sources,
+)
 
 
 def derive_confidence(evidence: EvidenceBundle) -> str:
     if not evidence.sources:
         return "low"
 
-    supporting_sources = prioritize_evidence_sources(
+    supporting_sources = select_supporting_evidence_sources(
         query_text=evidence.query_text,
         sources=evidence.sources,
-    )[:3]
+        max_sources=3,
+    )
     top_score = supporting_sources[0].score
     support_count = len(supporting_sources)
     distinct_doc_count = len({source.doc_id for source in supporting_sources})

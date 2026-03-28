@@ -120,6 +120,12 @@ class ContractModelsTest(unittest.TestCase):
                             is_current=False,
                             snippet="The library is open from 08:00 to 22:00.",
                             score=0.98,
+                            source_title="Library Hours Policy",
+                            structural_path=("Chapter 1", "Opening Hours"),
+                            content_kind="text",
+                            content_role="time_rule",
+                            detail_label="Article 3",
+                            is_answer_bearing=True,
                         ),
                     ),
                 )
@@ -137,6 +143,16 @@ class ContractModelsTest(unittest.TestCase):
             payload["result"]["evidence"]["sources"][0]["canonical_url"],
             "https://campus.example/library#hours",
         )
+        self.assertEqual(
+            payload["result"]["evidence"]["sources"][0]["source_title"],
+            "Library Hours Policy",
+        )
+        self.assertEqual(
+            tuple(payload["result"]["evidence"]["sources"][0]["structural_path"]),
+            ("Chapter 1", "Opening Hours"),
+        )
+        self.assertEqual(payload["result"]["evidence"]["sources"][0]["content_role"], "time_rule")
+        self.assertTrue(payload["result"]["evidence"]["sources"][0]["is_answer_bearing"])
         self.assertEqual(
             tuple(field.name for field in fields(SpecialistResponse)),
             (

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-from campus_contracts import ActorContext, KnowledgeScope
+from campus_contracts import ActorContext, EvidenceSource, KnowledgeScope
 from campus_contracts.models import ALLOWED_DELEGATE_STATUSES, DelegateStatus
 
 
@@ -96,6 +96,8 @@ class ObservedTrace:
     retrieval_called: bool | None = None
     clarification_emitted: bool | None = None
     error_path: bool | None = None
+    retrieved_sources: tuple[EvidenceSource, ...] = field(default_factory=tuple)
+    supporting_sources: tuple[EvidenceSource, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,6 +121,7 @@ class CaseResult:
     answer_result: DimensionResult
     trace_result: DimensionResult
     metric_results: dict[str, DimensionResult] = field(default_factory=dict)
+    observed_trace: ObservedTrace | None = None
     supplemental_results: tuple["SupplementalResult", ...] = field(default_factory=tuple)
 
 

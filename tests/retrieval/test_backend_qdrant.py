@@ -46,13 +46,20 @@ def _make_source(
     snippet: str,
     score: float,
     collection: str = "curriculum_plan",
+    anchor: dict[str, object] | None = None,
+    source_title: str = "",
+    structural_path: tuple[str, ...] = (),
+    content_kind: str = "",
+    content_role: str = "",
+    detail_label: str = "",
+    is_answer_bearing: bool = False,
 ) -> EvidenceSource:
     return EvidenceSource(
         doc_id=doc_id,
         revision_track="source-faithful",
         version_id=f"v1:{chunk_id}",
         chunk_id=chunk_id,
-        anchor={},
+        anchor=anchor or {},
         acl_level="public",
         canonical_url=f"https://campus.example/{chunk_id}",
         latest_url=f"https://campus.example/{chunk_id}",
@@ -61,6 +68,12 @@ def _make_source(
         is_current=False,
         snippet=snippet,
         score=score,
+        source_title=source_title,
+        structural_path=structural_path,
+        content_kind=content_kind,
+        content_role=content_role,
+        detail_label=detail_label,
+        is_answer_bearing=is_answer_bearing,
     )
 
 
@@ -1055,6 +1068,156 @@ class BackendQdrantTest(unittest.TestCase):
         )
 
         self.assertEqual(ranked[0].doc_id, "curriculum:民族学本科第二学士学位人才培养方案")
+
+    def test_prioritize_evidence_sources_uses_explicit_source_title_when_doc_ids_are_opaque(self) -> None:
+        ranked = prioritize_evidence_sources(
+            query_text="民族学本科第二学士学位人才培养方案学制几年？",
+            sources=(
+                _make_source(
+                    doc_id="curriculum:doc-001",
+                    chunk_id="curriculum:doc-001:chunk-0005",
+                    snippet="学制：两年。",
+                    score=0.49,
+                    source_title="民族学本科第二学士学位人才培养方案",
+                    content_kind="text",
+                    content_role="time_rule",
+                    detail_label="五、学制",
+                    is_answer_bearing=True,
+                ),
+                _make_source(
+                    doc_id="curriculum:doc-002",
+                    chunk_id="curriculum:doc-002:chunk-0005",
+                    snippet="学制：两年。",
+                    score=0.82,
+                    source_title="教育学本科第二学士学位人才培养方案",
+                    content_kind="text",
+                    content_role="time_rule",
+                    detail_label="五、学制",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        self.assertEqual(ranked[0].doc_id, "curriculum:doc-001")
+
+    def test_prioritize_evidence_sources_prefers_answer_bearing_procedure_chunk_over_closing_provision(self) -> None:
+        ranked = prioritize_evidence_sources(
+            query_text="学生证丢失后怎么办理补办？",
+            sources=(
+                _make_source(
+                    doc_id="handbook:student-card",
+                    chunk_id="student-card-closing",
+                    snippet="附则 本办法由学生处负责解释。",
+                    score=0.91,
+                    collection="student_handbook",
+                    source_title="中央民族大学学生证管理办法",
+                    structural_path=("附则",),
+                    content_kind="text",
+                    content_role="closing_provision",
+                    detail_label="附则",
+                ),
+                _make_source(
+                    doc_id="handbook:student-card",
+                    chunk_id="student-card-procedure",
+                    snippet="学生证遗失后，应及时到学院挂失，填写补办申请表，经学院审批后到学生处办理。",
+                    score=0.73,
+                    collection="student_handbook",
+                    source_title="中央民族大学学生证管理办法",
+                    structural_path=("第三章 学籍管理", "学生证管理"),
+                    content_kind="text",
+                    content_role="procedure",
+                    detail_label="第十二条",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        self.assertEqual(ranked[0].chunk_id, "student-card-procedure")
+
+    def test_prioritize_evidence_sources_uses_content_role_to_demote_explanatory_background_chunks(self) -> None:
+        ranked = prioritize_evidence_sources(
+            query_text="学生证补办流程是什么？",
+            sources=(
+                _make_source(
+                    doc_id="handbook:doc-opaque",
+                    chunk_id="student-card-background",
+                    snippet="学生证补办相关规定由学生处负责解释。",
+                    score=0.92,
+                    collection="student_handbook",
+                    source_title="中央民族大学学生证管理办法",
+                    content_kind="text",
+                    content_role="closing_provision",
+                    detail_label="附则",
+                ),
+                _make_source(
+                    doc_id="handbook:doc-opaque",
+                    chunk_id="student-card-procedure-steps",
+                    snippet="需先挂失，再提交补证申请，经学院审批后办理。",
+                    score=0.67,
+                    collection="student_handbook",
+                    source_title="中央民族大学学生证管理办法",
+                    content_kind="text",
+                    content_role="procedure",
+                    detail_label="第十二条",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        self.assertEqual(ranked[0].chunk_id, "student-card-procedure-steps")
+
+    def test_build_evidence_sources_maps_structural_metadata_into_contract_fields(self) -> None:
+        registry = InMemoryDocumentRegistry()
+        embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=registry,
+            qdrant_client=Mock(),
+            embedding_model=embedding_model,
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
+
+        sources = backend._build_evidence_sources(
+            (
+                qdrant_models.ScoredPoint(
+                    id="point-student-card",
+                    version=0,
+                    score=0.77,
+                    payload={
+                        "document_id": "handbook:student-card",
+                        "revision_track": "source-faithful",
+                        "version_id": "v1:student-card",
+                        "chunk_id": "student-card-procedure",
+                        "collection": "student_handbook",
+                        "acl_level": "public",
+                        "canonical_url": "https://campus.example/handbook/student-card",
+                        "latest_url": "https://campus.example/handbook/student-card",
+                        "source_channel": "pdf_ocr",
+                        "is_current": False,
+                        "title": "中央民族大学学生证管理办法",
+                        "unit_type": "article_body",
+                        "content_role": "procedure",
+                        "is_answer_bearing": True,
+                        "anchor": {
+                            "section_path": ["第三章 学籍管理", "学生证管理"],
+                            "article_label": "第十二条",
+                        },
+                        "text": "学生证遗失后，应及时到学院挂失，填写补办申请表。",
+                    },
+                ),
+            )
+        )
+
+        self.assertEqual(len(sources), 1)
+        self.assertEqual(sources[0].source_title, "中央民族大学学生证管理办法")
+        self.assertEqual(sources[0].structural_path, ("第三章 学籍管理", "学生证管理"))
+        self.assertEqual(sources[0].content_kind, "article_body")
+        self.assertEqual(sources[0].content_role, "procedure")
+        self.assertEqual(sources[0].detail_label, "第十二条")
+        self.assertTrue(sources[0].is_answer_bearing)
 
     def test_backend_expands_named_curriculum_document_support_with_same_doc_chunks(self) -> None:
         registry = InMemoryDocumentRegistry()

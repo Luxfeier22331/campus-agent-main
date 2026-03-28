@@ -36,6 +36,7 @@ def build_ragas_projection(case: GoldenCase, execution: ExecutionResult) -> Raga
         raise TypeError("execution.response must be SpecialistResponse")
     evidence = response.result.evidence if isinstance(response.result, RagResultPayload) else None
     contexts = tuple(source.snippet for source in evidence.sources) if evidence is not None else ()
+    observed_trace = execution.observed_trace
     reference = "\n".join(case.required_facts).strip()
     return RagasProjection(
         case_id=case.case_id,
@@ -48,6 +49,8 @@ def build_ragas_projection(case: GoldenCase, execution: ExecutionResult) -> Raga
             "corpus": case.scope.corpus,
             "collection": case.scope.collection,
             "response_status": response.status,
+            "retrieved_source_count": len(observed_trace.retrieved_sources) if observed_trace is not None else 0,
+            "supporting_source_count": len(observed_trace.supporting_sources) if observed_trace is not None else len(contexts),
         },
     )
 

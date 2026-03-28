@@ -13,9 +13,9 @@ from campus_contracts import (
     SpecialistResponse,
 )
 from campus_retrieval_core import CorpusQueryDisabledError, RetrievalBackendError, retrieve_sources
-from campus_retrieval_core.evidence_ranking import query_targets_source_title
+from campus_retrieval_core.evidence_ranking import query_targets_source_title, select_supporting_evidence_sources
 
-from campus_rag_specialist.agent import RagSpecialistAgent
+from campus_rag_specialist.agent import DEFAULT_MAX_ANSWER_SOURCES, RagSpecialistAgent
 from campus_rag_specialist.confidence import derive_confidence
 
 
@@ -73,6 +73,7 @@ def delegate_to_rag_agent(
             campus_scope=request.actor.campus_scope,
             acl_groups=request.actor.groups,
         )
+        evidence = _with_query_text(evidence, user_goal)
     except CorpusQueryDisabledError as exc:
         return SpecialistResponse(
             target="rag-specialist",
@@ -105,22 +106,31 @@ def delegate_to_rag_agent(
             result=RagResultPayload(evidence=evidence),
         )
 
-    confidence = derive_confidence(evidence)
+    supporting_evidence = _build_supporting_evidence(evidence)
+    if not supporting_evidence.sources:
+        return SpecialistResponse(
+            target="rag-specialist",
+            status="no_answer",
+            confidence="low",
+            result=RagResultPayload(evidence=supporting_evidence),
+        )
+
+    confidence = derive_confidence(supporting_evidence)
     if confidence == "low":
         return SpecialistResponse(
             target="rag-specialist",
             status="no_answer",
             confidence="low",
-            result=RagResultPayload(evidence=evidence),
+            result=RagResultPayload(evidence=supporting_evidence),
         )
 
     agent = RagSpecialistAgent()
     return SpecialistResponse(
         target="rag-specialist",
         status="completed",
-        answer_text=agent.compose_answer(evidence),
+        answer_text=agent.compose_answer(supporting_evidence),
         confidence=confidence,
-        result=RagResultPayload(evidence=evidence),
+        result=RagResultPayload(evidence=supporting_evidence),
     )
 
 
@@ -129,6 +139,28 @@ def _build_empty_evidence(request: SpecialistRequest, user_goal: str) -> Evidenc
         query_text=user_goal,
         corpus=request.payload.scope.corpus,
         collection=request.payload.scope.collection,
+    )
+
+
+def _build_supporting_evidence(evidence: EvidenceBundle) -> EvidenceBundle:
+    return EvidenceBundle(
+        query_text=evidence.query_text,
+        corpus=evidence.corpus,
+        collection=evidence.collection,
+        sources=select_supporting_evidence_sources(
+            query_text=evidence.query_text,
+            sources=evidence.sources,
+            max_sources=DEFAULT_MAX_ANSWER_SOURCES,
+        ),
+    )
+
+
+def _with_query_text(evidence: EvidenceBundle, query_text: str) -> EvidenceBundle:
+    return EvidenceBundle(
+        query_text=query_text,
+        corpus=evidence.corpus,
+        collection=evidence.collection,
+        sources=evidence.sources,
     )
 
 

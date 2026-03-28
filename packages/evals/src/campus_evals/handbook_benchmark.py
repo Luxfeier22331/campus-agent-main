@@ -7,12 +7,14 @@ from pathlib import Path
 from statistics import fmean
 from typing import Callable
 
+from campus_contracts import EvidenceSource, KnowledgeScope
 from campus_evals.judge_gate import evaluate_judge_gate, load_judge_gate_policy
 from campus_evals.models import (
     CaseResult,
     DimensionResult,
     ExecutionResult,
     GoldenCase,
+    ObservedTrace,
     RunReport,
     SupplementalResult,
     SummaryCount,
@@ -383,6 +385,11 @@ def _serialize_case_result(result: CaseResult) -> dict[str, object]:
             name: _serialize_dimension_result(metric_result)
             for name, metric_result in result.metric_results.items()
         },
+        "observed_trace": (
+            _serialize_dataclass(result.observed_trace)
+            if result.observed_trace is not None
+            else None
+        ),
         "supplemental_results": [
             _serialize_dataclass(item)
             for item in result.supplemental_results
@@ -431,6 +438,7 @@ def _deserialize_case_result(payload: dict[str, object]) -> CaseResult:
         answer_result=_deserialize_dimension_result(payload["answer_result"]),
         trace_result=_deserialize_dimension_result(payload["trace_result"]),
         metric_results=metric_results,
+        observed_trace=_deserialize_observed_trace(payload.get("observed_trace")),
         supplemental_results=supplemental_results,
     )
 
@@ -455,6 +463,67 @@ def _deserialize_supplemental_result(payload: object) -> SupplementalResult:
         gating=bool(item.get("gating") or False),
         metadata=dict(item.get("metadata") or {}),
     )
+
+
+def _deserialize_observed_trace(payload: object) -> ObservedTrace | None:
+    if not isinstance(payload, dict):
+        return None
+    selected_scope_payload = payload.get("selected_scope")
+    selected_scope = None
+    if isinstance(selected_scope_payload, dict):
+        selected_scope = KnowledgeScope(
+            corpus=str(selected_scope_payload.get("corpus") or ""),
+            collection=str(selected_scope_payload.get("collection") or ""),
+        )
+    return ObservedTrace(
+        selected_scope=selected_scope,
+        retrieval_called=_deserialize_optional_bool(payload.get("retrieval_called")),
+        clarification_emitted=_deserialize_optional_bool(payload.get("clarification_emitted")),
+        error_path=_deserialize_optional_bool(payload.get("error_path")),
+        retrieved_sources=_deserialize_evidence_sources(payload.get("retrieved_sources")),
+        supporting_sources=_deserialize_evidence_sources(payload.get("supporting_sources")),
+    )
+
+
+def _deserialize_evidence_sources(payload: object) -> tuple[EvidenceSource, ...]:
+    if not isinstance(payload, list):
+        return ()
+    return tuple(
+        _deserialize_evidence_source(item)
+        for item in payload
+        if isinstance(item, dict)
+    )
+
+
+def _deserialize_evidence_source(payload: dict[str, object]) -> EvidenceSource:
+    structural_path = payload.get("structural_path")
+    return EvidenceSource(
+        doc_id=str(payload.get("doc_id") or ""),
+        revision_track=str(payload.get("revision_track") or "source-faithful"),
+        version_id=str(payload.get("version_id") or ""),
+        chunk_id=str(payload.get("chunk_id") or ""),
+        anchor=dict(payload.get("anchor") or {}),
+        acl_level=str(payload.get("acl_level") or "public"),
+        canonical_url=str(payload.get("canonical_url") or ""),
+        latest_url=str(payload.get("latest_url") or ""),
+        source_channel=str(payload.get("source_channel") or "pdf_ocr"),
+        collection=str(payload.get("collection") or ""),
+        is_current=bool(payload.get("is_current")),
+        snippet=str(payload.get("snippet") or ""),
+        score=float(payload.get("score") or 0.0),
+        source_title=str(payload.get("source_title") or ""),
+        structural_path=tuple(str(item) for item in structural_path) if isinstance(structural_path, list) else (),
+        content_kind=str(payload.get("content_kind") or ""),
+        content_role=str(payload.get("content_role") or ""),
+        detail_label=str(payload.get("detail_label") or ""),
+        is_answer_bearing=bool(payload.get("is_answer_bearing")),
+    )
+
+
+def _deserialize_optional_bool(value: object) -> bool | None:
+    if value is None:
+        return None
+    return bool(value)
 
 
 def _load_run_case_result_payloads(benchmark_dir: str | Path) -> list[dict[str, object]]:

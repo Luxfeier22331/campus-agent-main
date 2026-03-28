@@ -23,6 +23,7 @@ def _make_evidence(
     scores: tuple[float, ...] = (0.82, 0.77),
     snippets: tuple[str, ...] | None = None,
     doc_ids: tuple[str, ...] | None = None,
+    query_text: str = "library hours",
 ) -> EvidenceBundle:
     sources = tuple(
         EvidenceSource(
@@ -47,7 +48,7 @@ def _make_evidence(
         for index, score in enumerate(scores)
     )
     return EvidenceBundle(
-        query_text="library hours",
+        query_text=query_text,
         corpus="regulations",
         collection="student_handbook",
         sources=sources,
@@ -234,6 +235,7 @@ class RagSpecialistTest(unittest.TestCase):
                 "中央民族大学本科学生国家奖学金评审办法 / 第一章 总则 国家奖学金每学年评定一次。",
                 "中央民族大学本科学生专业奖学金评定办法 / 第一章 总则 专业奖学金面向普通培养类型学生。",
             ),
+            query_text="国家奖学金还是专业奖学金怎么申请？",
         )
 
         response = delegate_to_rag_agent(
@@ -252,7 +254,10 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.result, RagResultPayload(evidence=evidence))
 
     def test_low_support_evidence_maps_to_no_answer_instead_of_completed(self) -> None:
-        evidence = _make_evidence(scores=(0.41,))
+        evidence = _make_evidence(
+            scores=(0.41,),
+            query_text="How do I replace my student card?",
+        )
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
@@ -276,7 +281,7 @@ class RagSpecialistTest(unittest.TestCase):
         def fake_retriever(query: str, **kwargs: object) -> EvidenceBundle:
             captured_kwargs["query"] = query
             captured_kwargs.update(kwargs)
-            return _make_evidence()
+            return _make_evidence(query_text="What are the library hours?")
 
         request = SpecialistRequest(
             target="rag-specialist",
@@ -307,9 +312,12 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertIn("[handbook:test-1#", response.answer_text)
         self.assertIn("[handbook:test-2#", response.answer_text)
         self.assertEqual(response.confidence, "medium")
-        self.assertEqual(response.result, RagResultPayload(evidence=_make_evidence()))
+        self.assertEqual(
+            response.result,
+            RagResultPayload(evidence=_make_evidence(query_text="What are the library hours?")),
+        )
 
-    def test_completed_answer_uses_small_deduplicated_evidence_budget(self) -> None:
+    def test_completed_answer_uses_small_deduplicated_supporting_evidence_budget(self) -> None:
         evidence = _make_evidence(
             scores=(0.84, 0.8, 0.76, 0.74),
             snippets=(
@@ -332,11 +340,106 @@ class RagSpecialistTest(unittest.TestCase):
         )
 
         self.assertEqual(response.status, "completed")
-        self.assertIn("1.", response.answer_text)
-        self.assertIn("2.", response.answer_text)
-        self.assertIn("3.", response.answer_text)
-        self.assertNotIn("4.", response.answer_text)
-        self.assertEqual(response.answer_text.count("学校复核后按规定办理。"), 1)
+        self.assertNotIn("1.", response.answer_text)
+        self.assertIn("学生应提交书面申请并填写申请表。", response.answer_text)
+        self.assertIn("院系审核通过后报学校复核。", response.answer_text)
+        self.assertLessEqual(len(response.result.evidence.sources), 3)
+        self.assertEqual(
+            len({source.chunk_id for source in response.result.evidence.sources}),
+            len(response.result.evidence.sources),
+        )
+        self.assertLessEqual(response.answer_text.count("学校复核后按规定办理。"), 1)
+
+    def test_completed_response_keeps_only_supporting_sources_and_excludes_background_snippets(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="学生证丢失后怎么办理补办？",
+            corpus="regulations",
+            collection="student_handbook",
+            sources=(
+                EvidenceSource(
+                    doc_id="handbook:student-card",
+                    revision_track="source-faithful",
+                    version_id="v1:student-card",
+                    chunk_id="student-card-procedure",
+                    anchor={"section_path": ["第三章 学籍管理"], "article_label": "第十二条"},
+                    acl_level="public",
+                    canonical_url="https://campus.example/handbook/student-card",
+                    latest_url="https://campus.example/handbook/student-card",
+                    source_channel="pdf_ocr",
+                    collection="student_handbook",
+                    is_current=False,
+                    snippet="中央民族大学学生证管理办法\n第三章 学籍管理\n第十二条 学生证遗失后，应及时到学院挂失，填写补办申请表，经学院审批后到学生处办理。",
+                    score=0.74,
+                    source_title="中央民族大学学生证管理办法",
+                    structural_path=("第三章 学籍管理",),
+                    content_kind="text",
+                    content_role="procedure",
+                    detail_label="第十二条",
+                    is_answer_bearing=True,
+                ),
+                EvidenceSource(
+                    doc_id="handbook:student-card",
+                    revision_track="source-faithful",
+                    version_id="v1:student-card",
+                    chunk_id="student-card-closing",
+                    anchor={"section_path": ["附则"], "provision_label": "附则"},
+                    acl_level="public",
+                    canonical_url="https://campus.example/handbook/student-card",
+                    latest_url="https://campus.example/handbook/student-card",
+                    source_channel="pdf_ocr",
+                    collection="student_handbook",
+                    is_current=False,
+                    snippet="中央民族大学学生证管理办法\n附则\n本办法由学生处负责解释。",
+                    score=0.89,
+                    source_title="中央民族大学学生证管理办法",
+                    structural_path=("附则",),
+                    content_kind="text",
+                    content_role="closing_provision",
+                    detail_label="附则",
+                ),
+                EvidenceSource(
+                    doc_id="handbook:medical",
+                    revision_track="source-faithful",
+                    version_id="v1:medical",
+                    chunk_id="medical-background",
+                    anchor={"section_path": ["公费医疗"]},
+                    acl_level="public",
+                    canonical_url="https://campus.example/handbook/medical",
+                    latest_url="https://campus.example/handbook/medical",
+                    source_channel="pdf_ocr",
+                    collection="student_handbook",
+                    is_current=False,
+                    snippet="公费医疗管理办法 住院报销按学校相关规定执行。",
+                    score=0.78,
+                    source_title="中央民族大学学生公费医疗管理办法",
+                    structural_path=("公费医疗",),
+                    content_kind="text",
+                    content_role="scope_rule",
+                    detail_label="第二条",
+                ),
+            ),
+        )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="学生证丢失后怎么办理补办？",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(
+            [source.chunk_id for source in response.result.evidence.sources],
+            ["student-card-procedure"],
+        )
+        self.assertIn("学生证遗失后", response.answer_text)
+        self.assertNotIn("负责解释", response.answer_text)
+        self.assertNotIn("公费医疗", response.answer_text)
+        self.assertNotIn("1.", response.answer_text)
 
     def test_curriculum_completed_answer_uses_curriculum_specific_prefix(self) -> None:
         evidence = EvidenceBundle(

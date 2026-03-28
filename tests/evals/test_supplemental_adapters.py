@@ -95,6 +95,39 @@ class RagasProjectionTest(unittest.TestCase):
         self.assertEqual(projection.metadata["collection"], "student_handbook")
         self.assertEqual(projection.metadata["expected_status"], "completed")
 
+    def test_build_ragas_projection_uses_supporting_evidence_for_contexts_and_trace_for_counts(self) -> None:
+        case = GoldenCase(
+            case_id="ragas-2",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="library hours",
+            actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
+            expected_status="completed",
+            required_facts=("08:00",),
+            trace_expectation=TraceExpectation(
+                selected_scope=HANDBOOK_SCOPE,
+                retrieval_called=True,
+            ),
+        )
+        support_source = _source(chunk_id="chunk-support", snippet="Library hours are 08:00 to 22:00.")
+        raw_background = _source(chunk_id="chunk-background", snippet="The library policy is interpreted by the student office.")
+        execution = ExecutionResult(
+            response=_response(sources=(support_source,)),
+            observed_trace=ObservedTrace(
+                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                retrieval_called=True,
+                retrieved_sources=(support_source, raw_background),
+                supporting_sources=(support_source,),
+            ),
+        )
+
+        projection = build_ragas_projection(case, execution)
+
+        self.assertEqual(projection.retrieved_contexts, ("Library hours are 08:00 to 22:00.",))
+        self.assertEqual(projection.metadata["retrieved_source_count"], 2)
+        self.assertEqual(projection.metadata["supporting_source_count"], 1)
+
 
 class SupplementalRunnerTest(unittest.TestCase):
     def test_run_cases_attaches_supplemental_results_without_changing_deterministic_pass(self) -> None:
