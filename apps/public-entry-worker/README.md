@@ -23,10 +23,10 @@ Implementation rules carried from Phase 04.5 and 04.6:
 Local commands:
 
 ```bash
-npm install
-npm run test
-npm run typecheck
-npm run dev
+pnpm install
+pnpm test
+pnpm typecheck
+pnpm dev
 ```
 
 Runtime env keys:

@@ -4,7 +4,7 @@
   "private": true,
   "description": "Public consumer chat frontend for campus-agent v2.",
   "type": "module",
-  "packageManager": "pnpm@10.17.1",
+  "packageManager": "pnpm@10.26.1",
   "scripts": {
     "dev": "vite dev --host 127.0.0.1 --port 3000",
     "build": "vite build",

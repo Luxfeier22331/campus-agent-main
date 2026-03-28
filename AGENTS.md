@@ -142,6 +142,7 @@
 - 做结构性改动前，先读 `Source Of Truth` 中对应文档
 - 优先在边界内修改；跨多个 package 改动时，先确认 `packages/contracts` 是否需要先冻结或先调整
 - 仓库仍在地基阶段；优先补最小可验证闭环，不做“未来也许会用到”的泛化设计
+- Node / Worker app 默认使用 `pnpm`，不再新增或维护 `package-lock.json`
 - 如果变更触及长期边界、phase-1 约束或对象存储/ingestion 不变量，同步检查相关 `docs/architecture` 或 `docs/decisions` 是否需要更新
 - 不要在 repo 级 `AGENTS.md` 里写个人工作习惯、平台专属工具细则或一次性实验说明；这些内容应放到全局 agent 配置
 - 在规则、架构、文档和实现设计层面，同样禁止用“最小改法”替代长期正确的结构性修正

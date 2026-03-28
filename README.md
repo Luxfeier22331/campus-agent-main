@@ -47,6 +47,7 @@
 - `campus_services/service_catalog` 与 `campus_services/contact_directory` 已作为离线 taxonomy 预留，当前保持 `offline_preparation`，不开放 retrieval 或默认 query-serving
 - `rag-specialist`、`supervisor-core`、`supervisor-api`、`evals` 已有可测试的 phase-1 入口
 - `uv run --all-packages python -m unittest discover -s tests -t .` 当前通过，作为仓库级基线验证命令
+- Node / Worker app 当前统一使用 `pnpm`，不再维护 `package-lock.json`
 - 运行态 buckets、live collection 重建证据、points count 与 benchmark 结果不在 README 维护；应以 `.planning/STATE.md` 和 `docs/verification/` 为准
 
 ## 协作约定
