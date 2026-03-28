@@ -71,7 +71,7 @@ supervisor 在长期链路中的位置固定如下：
 其中：
 
 - `supervisor boundary`
-  负责 transport、session、auth、外部协议与运行时壳
+  负责 execution-side transport、internal caller admission、外部协议与运行时壳
 - `supervisor core`
   负责策略、路由、委派、升级和最终响应
 - `specialist`
@@ -89,7 +89,7 @@ supervisor 的长期工作方式不是“只允许 handoff”，而是允许两�
 同时，supervisor 长期采用 `hybrid orchestration`：
 
 - `code orchestration`
-  负责 auth、ACL / policy gate、tool permission、approval hook、timeout / retry、deterministic stop condition 与结构化输入输出校验
+  负责 internal caller admission 对接、ACL / policy gate、tool permission、approval hook、timeout / retry、deterministic stop condition 与结构化输入输出校验
 - `LLM orchestration`
   负责意图框定、开放式任务拆解、query rewriting、澄清措辞与结果综合
 
@@ -146,9 +146,10 @@ supervisor 的长期工作方式不是“只允许 handoff”，而是允许两�
 
 与 `apps/supervisor-api`：
 
-- API 边界只负责 execution-side 外部协议、鉴权、runtime 集成和入口壳
+- API 边界只负责 execution-side 外部协议、internal caller admission、runtime 集成和入口壳
 - supervisor 不反向吸收 HTTP、auth 或 runtime host 细节
 - 产品层 auth/session/conversation 与 operator query 留在 shared `apps/app-api`
+- `apps/app-api` 拥有最终 business actor 的映射责任，并把显式 `actor` 交给 execution seam
 - `apps/app-api` 只把受控执行请求交给 supervisor，而不是把 supervisor 暴露成产品后端
 - durable request projection 的写入、持久化与 read API 由 shared `app-api` runtime boundary 拥有，而不是 `packages/supervisor-core`
 
@@ -249,7 +250,7 @@ request projection 的长期边界见：
 
 其中当前 supervisor-core 至少负责：
 
-- 接收已经完成 auth / trace 注入的请求
+- 接收已经完成产品层 principal -> actor 映射与 trace 注入的请求
 - 做最小请求归一化，并把外部 `SupervisorRequest` 和内部 `SpecialistRequest` 分开
 - 在路由前执行显式 validation 和 query policy gate，并对冲突输入 fail-closed
 - 选择 `rag-specialist` 或其他显式 specialist
@@ -294,9 +295,9 @@ request projection 的长期边界见：
 
 当期建议的最小决策流如下：
 
-1. API boundary 完成 auth、actor 映射和 trace 注入
-2. supervisor 归一化请求并构建内部上下文
-3. supervisor 执行 validation + query policy，再路由到目标 specialist
+1. 上游 `app-api` 完成产品层 auth/session/principal mapping，并显式提供 `actor` 与 `trace`
+2. `apps/supervisor-api` 只完成 internal caller admission，并把请求送入 supervisor
+3. supervisor 归一化请求并构建内部上下文
 4. specialist 返回 typed response
 5. supervisor 根据结果决定：
    - 直接完成

@@ -123,6 +123,18 @@ execution engine runtime 选择应该延后。未来可以接受的实现包括�
 
 当前 accepted direction 允许 `app-api` 与 execution engine 共用同一个关系数据库，但不允许因此合并 boundary 或 ownership。
 
+这里进一步冻结三条补充规则：
+
+- `app-api` 是唯一的 product-layer auth/session/principal mapping owner，并向 execution engine 显式提供 `actor`
+- `supervisor-api` 只做 internal execution caller admission，不从 edge/header 恢复最终 business actor
+- request projection 采用 same-database outbox-first：`runtime.request_execution` 与 `runtime.projection_outbox` 是 canonical durable truth
+
+第一版数据库实现同时接受：
+
+- Worker runtime 通过 Hyperdrive 访问数据库
+- Better Auth 与 `auth/chat/runtime/operator` 共享一套 Drizzle schema codebase 与 migration pipeline
+- migration / schema management 使用 direct database management connection
+
 ## 观测与遥测边界
 
 长期上，`campus-agent` 的 observability 采用“统一 telemetry seam + 职责分离 sink”的形态，而不是把错误调试、高吞吐运行事件与审计语义全部混到同一个产品或同一类日志里。

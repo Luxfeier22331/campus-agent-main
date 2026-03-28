@@ -18,6 +18,7 @@ updated: 2026-03-28
 - supervisor execution engine 边界：`docs/architecture/supervisor-architecture.md`
 - 产品层 HTTP contract：`docs/contracts/app-api-http.md`
 - request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
+- execution admission ownership：`docs/decisions/adr-0015-supervisor-internal-execution-admission.md`
 
 这份文档不冻结：
 
@@ -34,8 +35,8 @@ updated: 2026-03-28
 这里的关键规则只有三条：
 
 - browser 永远不直接使用这份 contract
-- `app-api` 负责把产品层 session / principal 映射成 execution-side `actor`
-- `supervisor-api` 继续只是 execution engine，不重新吸收产品层 auth/session/conversation
+- `app-api` 负责产品层 auth/session/principal mapping，并把 execution-side `actor` 显式传给 `supervisor-api`
+- `supervisor-api` 继续只是 execution engine，只做 internal caller admission，不重新吸收产品层 auth/session/conversation
 
 ## Transport Conclusion
 
@@ -44,6 +45,13 @@ updated: 2026-03-28
 - `POST /api/v1/answer`
 - `GET /healthz`
 - `GET /readyz`
+
+这里需要区分两件事：
+
+- 当前复用 `/api/v1/answer` 是兼容现有实现的 transport 选择
+- forward canonical seam 是 `app-api -> supervisor-api` 的 internal execution contract，而不是 browser-facing public API
+
+后续如果为了收口边界而把 transport 迁移到 dedicated internal execution endpoint，不会改变本文冻结的 request/response 语义。
 
 JSON 命名保持 `snake_case`，原因如下：
 
@@ -60,7 +68,7 @@ JSON 命名保持 `snake_case`，原因如下：
 规则：
 
 - `x-trace-id` 由 `app-api` 生成并负责透传
-- `x-worker-origin-auth` 是当前仓库已有的 trusted-origin auth 头名；`app-api` 第一版可以直接复用这个名字
+- `x-worker-origin-auth` 是 execution-side internal caller admission 头；`app-api` 第一版可以直接复用这个名字
 - `cf-access-jwt-assertion` 不是 shared `app-api` 调用 `supervisor-api` 的长期 contract 一部分
 
 ## Request Body
@@ -150,7 +158,7 @@ JSON 命名保持 `snake_case`，原因如下：
 
 对 `app-api` 来说，需要区分两类失败：
 
-- transport / auth / malformed execution request
+- transport / admission / malformed execution request
   使用非 `200`
 - execution 已被受理并得到 typed `SpecialistResponse`
   返回 `200`，由 body 内 `status` 区分 `completed` / `needs_clarification` / `no_answer` / `error`
@@ -160,15 +168,20 @@ JSON 命名保持 `snake_case`，原因如下：
 - `app-api` 应把 `200 + status=error` 视为 execution-level handled outcome
 - `app-api` 不应把所有非理想执行结果都折叠成 transport error
 
-## Compatibility Note
+## Current Compatibility Note
 
 当前仓库里的 `apps/supervisor-api` 仍主要通过 bearer / trusted-worker header 来构造 `SupervisorRequest.actor`。
 
 shared `app-api` 落地时，需要把 execution-side caller contract 收口为：
 
-- internal caller auth 仍由 runtime header 保证
+- internal caller admission 仍由 runtime header 保证
 - `actor` 由 `app-api` 显式提供
-- `supervisor-api` 不再依赖 Cloudflare Access JWT 来恢复 public chat user identity
+- `supervisor-api` 不再依赖 Cloudflare Access JWT 或 edge identity header 来恢复最终业务 actor
+
+因此：
+
+- `bearer` / `trusted-worker` 是当前实现与本地调试的 compatibility ingress
+- 它们不是 forward product identity ownership 的长期依据
 
 这不重开 `packages/contracts`，因为 `ActorContext` 本身已经是 accepted shared contract。
 

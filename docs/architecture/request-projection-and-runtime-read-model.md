@@ -44,7 +44,7 @@ updated: 2026-03-28
 长期 canonical request projection 固定为：
 
 - 在 shared `app-api` 的 command path 内一次产出 canonical request facts 与 projection input
-- 由 `apps/app-api` 对应的 `apps/*` boundary 持久化 `runtime.request_execution` 与 `runtime.projection_outbox`
+- 由 `apps/app-api` 对应的 `apps/*` boundary 以 same-database outbox-first 方式持久化 `runtime.request_execution` 与 `runtime.projection_outbox`
 - 由同一 `app-api` boundary 物化 `operator.request_projection` 并暴露 list/detail read API
 
 第一落点固定为：
@@ -69,6 +69,7 @@ updated: 2026-03-28
 - command path 与 read-model path 属于同一个 shared app boundary
 - durable request facts 与 projection input 必须在 chat request handling 内提交
 - materialized request projection 可以在同一 boundary 内异步生成
+- queue 可以在 outbox 之后用于 fan-out，但不是第一真相源
 - panel 只读取 runtime-owned projection API，不直接读取底层存储
 
 ## Ownership Model

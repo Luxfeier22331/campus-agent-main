@@ -26,15 +26,16 @@ updated: 2026-03-28
 1. `app-api` 解析 session / trusted operator identity
 2. 校验 conversation ownership 与请求体
 3. 生成 canonical `requestId` 与 `traceId`
-4. 在 command boundary durable 写入 `runtime.request_execution`
+4. 在同库 command boundary durable 写入 `runtime.request_execution` 与首个 `runtime.projection_outbox` 事件
 5. 调用 `apps/supervisor-api`
-6. 写回最终 execution outcome，并产出 `runtime.projection_outbox`
+6. 写回最终 execution outcome，并追加最终 `runtime.projection_outbox` 事件
 7. projector 在同一 `app-api` boundary 内物化 `operator.request_projection`
 8. panel 只通过 `GET /api/operator/requests*` 读取 projection
 
 这里冻结的重点是：
 
 - durable request facts 必须在 `app-api` command path 内产生
+- canonical projection input 必须先以 database outbox 形式 durable 提交
 - projection read model 可以异步物化
 - panel 不得通过同步回放 answer execution 来补 operator query
 
@@ -83,6 +84,7 @@ updated: 2026-03-28
 
 - `chat.messages` user message
 - `runtime.request_execution`
+- `runtime.projection_outbox` 的 `request.accepted` 事件
 
 此时最小状态为：
 
@@ -106,7 +108,7 @@ updated: 2026-03-28
 
 - assistant message 或 safe failure message
 - `runtime.request_execution` 最终状态
-- `runtime.projection_outbox` 事件
+- 对应最终状态的 `runtime.projection_outbox` 事件
 
 最终状态写回规则：
 
@@ -119,7 +121,7 @@ updated: 2026-03-28
 
 projection 的长期规则固定为：
 
-- canonical truth 先进入 `runtime.request_execution`
+- canonical truth 先进入 `runtime.request_execution` 与同库 `runtime.projection_outbox`
 - panel-facing read model 不直接由 chat response body 拼装
 - `operator.request_projection` 通过 `runtime.projection_outbox` 物化
 
@@ -129,7 +131,9 @@ projection 的长期规则固定为：
 
 实现说明：
 
-- projector 可以是 Queue consumer、scheduled projector 或 Worker 内异步消费者
+- 第一版优先采用 scheduled projector 或 Worker 内异步消费者直接消费数据库 outbox
+- queue 只可以在 outbox commit 之后作为 fan-out / 加速手段引入
+- 不接受 queue-first 再反补数据库 truth 的形态
 - 但它必须仍属于 `app-api` boundary
 - panel 查询不等待 projector 完成
 

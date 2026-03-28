@@ -30,7 +30,8 @@ updated: 2026-03-28
 第一版接受：
 
 - 单个 Postgres
-- 通过 Hyperdrive 供 Worker 访问
+- Worker runtime 通过 Hyperdrive 访问数据库
+- migration / schema 管理通过 direct database management connection 访问数据库
 - 逻辑 schema 分域而不是物理拆库
 
 固定逻辑分域：
@@ -48,6 +49,27 @@ updated: 2026-03-28
 - `runtime.*` 是 request command-side truth 与 projection input truth
 - 第一版不单独建立 operator end-user 用户系统表
 
+## Schema Code Ownership
+
+`apps/app-api` 的数据库代码组织固定为：
+
+- `auth.*`
+- `chat.*`
+- `runtime.*`
+- `operator.*`
+
+它们共享：
+
+- 一套 Drizzle schema codebase
+- 一条 migration pipeline
+- 一份 schema 版本历史
+
+这意味着：
+
+- Better Auth 不单独维护另一套仓库外 migration 世界观
+- app-domain 也不应拆出第二条 migration pipeline
+- 可以按模块分文件组织 schema，但不能把 migration 真相源拆裂
+
 ## `auth.*`
 
 `auth.*` 由 Better Auth 拥有。
@@ -62,6 +84,7 @@ updated: 2026-03-28
 规则：
 
 - 具体物理表名允许由 Better Auth adapter 决定
+- Better Auth adapter-owned 表与 app-domain 表继续共享同一条 migration pipeline
 - app-domain migration 不应手写改造 Better Auth 的内部列约定，除非适配器明确支持
 - panel operator principal 在 v1 不要求持久化成独立 auth 表
 
@@ -300,6 +323,8 @@ updated: 2026-03-28
 
 ## Migration Rules
 
-- Better Auth 相关 migration 与 app-domain migration 分开维护
+- Better Auth 相关表与 app-domain 表共享同一条 Drizzle migration pipeline
 - app-domain 第一波 migration 至少包含 `chat.*`、`runtime.*`、`operator.*`
+- Worker runtime 使用 Hyperdrive；migration 命令不通过 Hyperdrive 执行
+- migration / drift check / schema inspection 使用 direct database management connection
 - 允许第一版单库共存，但禁止把 schema separation 退化成无边界的大表堆

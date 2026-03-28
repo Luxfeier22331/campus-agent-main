@@ -123,6 +123,7 @@ apps/
 
 - auth
 - session
+- principal mapping / actor handoff
 - conversation / message persistence
 - chat request ingress
 - request correlation、audit ingress 与 metrics recording
@@ -143,6 +144,7 @@ apps/
 在这套设计里，`apps/supervisor-api` 固定退为 execution engine：
 
 - 接收来自 `app-api` 的受控执行请求
+- 只做 internal caller admission，并消费 `app-api` 显式提供的 `actor`
 - 进入 `packages/supervisor-core`
 - 调用 specialist / retrieval
 - 返回执行结果与最小执行元数据
@@ -184,7 +186,13 @@ apps/
 - `operator.*`
   request projection 等 panel-facing read model
 
-是否继续使用单个 Postgres、以及具体 auth provider / migration shape，留给后续详细设计。
+数据库与 auth 的具体实现 baseline 现已收口为：
+
+- 单个 Postgres 可以作为第一版共库
+- Worker runtime 通过 Hyperdrive 访问数据库
+- Better Auth 位于 `apps/app-api`
+- `auth.*`、`chat.*`、`runtime.*`、`operator.*` 共享一套 Drizzle schema codebase 与 migration pipeline
+- migration / schema management 使用 direct database management connection
 
 这里冻结的只有一件事：
 

@@ -82,8 +82,9 @@ updated: 2026-03-28
 
 `apps/app-api` 负责：
 
-- auth
+- product-layer auth
 - session
+- principal mapping / actor handoff
 - account / identity projection
 - conversation / message persistence
 - chat ingress
@@ -154,6 +155,12 @@ operator query path 至少包含：
 
 第一版允许这些逻辑分域先共用一个关系数据库。
 
+数据库实现的 accepted baseline 是：
+
+- Worker runtime 通过 Hyperdrive 访问数据库
+- Better Auth 与 `auth/chat/runtime/operator` 共享一套 Drizzle schema codebase
+- migration / schema management 走 direct database management connection
+
 这里不冻结物理拆库，只冻结 ownership：
 
 - 共库不等于共边界
@@ -169,6 +176,11 @@ operator query path 至少包含：
 - `app-api` Worker 内的异步消费者
 - Worker-compatible queue consumer
 - Worker-compatible scheduled projector
+
+但固定前提是：
+
+- canonical truth 必须先落到同库 `runtime.request_execution` 与 `runtime.projection_outbox`
+- queue 只能作为 outbox 之后的加速或 fan-out 手段
 
 不接受的形态包括：
 
