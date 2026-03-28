@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-26
-updated: 2026-03-27
+updated: 2026-03-28
 ---
 
 # Retrieval Query Strategy
@@ -22,6 +22,7 @@ updated: 2026-03-27
 - embedding / chunking：`student-handbook-chunking-and-validation-policy.md`
 - query path / data plane 边界：`phase1-ingestion-and-storage-architecture.md`
 - accepted retrieval baseline：`../decisions/adr-0007-phase1-retrieval-baseline-update.md`
+- 长期版本化 serving / 历史查询目标：`versioned-document-serving-and-history-query.md`
 
 ## 当前 baseline
 
@@ -126,6 +127,12 @@ fusion 后的候选必须继续通过 `DocumentRegistry` 回链，补齐：
 - 这表示 query path 只消费被标记为 current 的 serving revision_track；`source-faithful` 只作为过渡 fallback / 审计线保留，不再是“历史也可默认命中”的开放路径
 - 新 current 版本写入时，ingestion 必须把同一 `document_id + revision_track` 的旧 current 版本降级为 `is_current=false`，并将其状态推进为 `superseded`
 - 当多来源在同一 `document_id + revision_track` 下对应到相同 `version_id` 时，registry 负责记录 primary source 与 alternate source；retrieval 仍只消费这一个逻辑版本
+
+当前额外边界：
+
+- 当前 query path 只支持“默认服务当前有效版本”，尚不支持用户显式指定历史版本、按时间点查询历史版本或执行版本对比查询
+- 因此“历史版本被保留”不等于“历史版本已经成为当前在线查询能力”
+- 后续如果要开放历史查询，必须先引入显式 version-selection / version-resolution 边界，再改变 retrieval filter；不得让模型仅凭 query 文本自行猜测该查哪一版
 
 ## Filter 规则
 

@@ -63,13 +63,13 @@ updated: 2026-03-27
   - `SPARSE_TOKENIZER=multilingual`
   - `SPARSE_LANGUAGE=none`
 - remote Qdrant client 必须启用 `cloud_inference=True`
-- handbook runtime profile 中的 `qdrant_collection_name` / vector binding 必须对齐本轮目标索引，不与旧 dense-only target 混用
+- handbook runtime profile 中的 `qdrant_alias_name` / `qdrant_collection_prefix` / vector binding 必须对齐本轮目标索引，不与旧 dense-only target 混用
 - `DOCUMENT_REGISTRY_DATABASE_URL` 指向本轮 live registry
-- `REBUILD_RESET_QDRANT=true` 或已确认目标 collection 可以被新 schema 重建
+- `REBUILD_RESET_QDRANT=true` 或已确认目标 alias family 可以被新 schema 重建
 
 ## Live Rebuild 执行顺序
 
-1. 校验 `.env` 和目标 collection 名称。
+1. 校验 `.env`、serving alias 和目标 physical collection 前缀。
 2. 执行 rebuild。
 3. 确认 collection schema 为 named `dense` + named `sparse`。
 4. 记录点数、payload 样本和 registry back-link 样本。
@@ -153,7 +153,7 @@ updated: 2026-03-27
 本轮 live retrieval 验收环境：
 
 - 验收日期：`2026-03-27`
-- Qdrant collection：`student_handbook`
+- Qdrant serving alias：`student_handbook`
 - Qdrant URL：`https://e3ae1c33-0bce-466a-a68c-299e5714a611.us-east4-0.gcp.cloud.qdrant.io`
 - points count：`509`
 - dense schema：named `dense`, size `2560`, distance `Cosine`

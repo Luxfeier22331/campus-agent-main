@@ -2,7 +2,7 @@
 doc_type: plan
 status: active
 created: 2026-03-27
-updated: 2026-03-27
+updated: 2026-03-28
 ---
 
 # Student Handbook Eval Metrics
@@ -217,14 +217,18 @@ updated: 2026-03-27
 
 补充说明：
 
-- `packages/evals` 现已补上 supplemental adapter seam 与 `ragas` projection/adapter 边界，但当前还没有形成 handbook `ragas` 的正式数值快照
-- 在没有补齐独立 runner、依赖安装与 fresh report 之前，`ragas` 仍然处于 report-only 接线完成、指标未正式落盘的状态
+- `packages/evals` 现已补上 supplemental adapter seam 与 `ragas` projection/adapter 边界
+- 当前已形成 handbook `ragas` 的单 case readiness 数值证据，但还没有形成固定 case 集的正式 benchmark 快照
+- 在没有补齐独立 runner、依赖安装与 fresh report 之前，`ragas` 仍然处于 readiness evidence 已落盘、正式 benchmark 未落盘的状态
 
 2026-03-28 更新：
 
 - `packages/evals` 已新增 `RagasSettings.from_env()`、`build_ragas_dataset()`、`build_ragas_scorer()` 与 env-driven supplemental scorer 接线
-- 当前 eval runtime 消费 `.env` 中的 `LLM_*` 与 `EMBEDDING_*` OpenAI-compatible 配置；judge model 选择优先级为 `RAGAS_LLM_MODEL > LLM_REASONING_MODEL > LLM_CHAT_MODEL`；`Qwen3-Embedding-4B` 在 eval 侧默认补 `dimensions=2560`
+- 当前 eval runtime 消费 `.env` 中的 `LLM_*`、`EMBEDDING_*` 与独立 `RAGAS_*` 配置；judge model 选择优先级为 `RAGAS_LLM_MODEL > LLM_REASONING_MODEL > LLM_CHAT_MODEL`；`Qwen3-Embedding-4B` 在 eval 侧默认补 `dimensions=2560`
 - 针对 `ragas==0.4.3`，当前真实评分路径已固定为 `ragas.evaluate(...)` + legacy metric objects；默认运行面不再依赖 `LangChain/OpenAI SDK` transport，而是改成 `packages/evals` 自带的原生 HTTP `Responses` / `Embeddings` client
+- 当前 `RAGAS_REQUEST_TIMEOUT_SECONDS` 已从 eval runtime 独立出来，不再复用 `EMBEDDING_TIMEOUT_SECONDS`
+- 当前 Responses judge payload 已支持独立低延迟 profile：`RAGAS_REASONING_EFFORT`、`RAGAS_TEXT_VERBOSITY`、`RAGAS_MAX_OUTPUT_TOKENS`
+- `AnswerRelevancy` 这类 `n>1` judge 调用已改成在同一 async transport 上并发发出，不再把单 metric 放大成串行多次 `/responses`
 - repo 内自动化覆盖当前已补齐：
   - `tests.evals.test_ragas_runtime`
   - `tests.evals.test_supplemental_adapters`
@@ -235,10 +239,25 @@ updated: 2026-03-27
   - `.tmp/ragas-live-smoke.json`：单指标 `faithfulness` 成功，得分 `1.0`
   - `.tmp/ragas-live-smoke-full.json`：完整四指标在 provider 首次返回 `503 system_cpu_overloaded` 后，于第二次尝试成功
   - 当前 test key 下 `Qwen3-Embedding-4B` 没有可用 channel，因此 smoke 使用 provider 当前可用的 `gemini-embedding-001` 仅验证 transport；这不改变仓库对 handbook baseline embedding 的正式配置
+- 2026-03-28 handbook readiness 证据已落盘到：
+  - [`.tmp/evals/student-handbook-ragas-readiness-20260328T141617/ragas-readiness-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-ragas-readiness-20260328T141617/ragas-readiness-summary.json)
+  - [`.tmp/evals/student-handbook-ragas-readiness-20260328T141617/SUMMARY.md`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-ragas-readiness-20260328T141617/SUMMARY.md)
+- 本轮 readiness probe 使用当前 handbook 主链路真实 retrieval 输出，单 case 固定为 `release-gate-scholarship-title`
+- 本轮 readiness probe 的 judge 配置为：`RAGAS_LLM_MODEL=gpt-5.4`、`RAGAS_REQUEST_TIMEOUT_SECONDS=180`、`RAGAS_REASONING_EFFORT=none`、`RAGAS_TEXT_VERBOSITY=low`、`RAGAS_MAX_OUTPUT_TOKENS=256`
+- 本轮 readiness probe 结果：
+  - default `.env` 单指标验证：`answer_relevancy = 0.8790205622411746`，耗时 `29.994s`
+  - 完整四指标验证：`faithfulness = 0.9761904761904762`（`91.749s`）、`answer_relevancy = 0.8652808340936117`（`47.163s`）、`context_precision = 0.9999999999666667`（`81.713s`）、`context_recall = 1.0`（`11.227s`）
+- 本轮与上轮的语义边界不同：
+  - 上轮 `.tmp/ragas-live-smoke*.json` 主要用于确认 provider transport 是否可用
+  - 本轮 readiness artifact 记录的是当前 `.env` 下 handbook 主链路的真实 judge 数值证据
+- repo 级相关验证已通过：
+  - `tests.evals.test_ragas_runtime tests.evals.test_supplemental_adapters tests.evals.test_golden_cases tests.evals.test_availability_smoke tests.evals.test_retrieval_benchmark`
+  - `53 tests passed`
 
 当前结论：
 
 - ragas supplemental runtime 的配置与 transport 已改成和当前 provider 能力一致
-- handbook 已具备产出正式 `ragas` 数值快照的运行能力；但 provider 仍存在瞬时 `503 system_cpu_overloaded` 抖动，live 评测应保留重试与证据落盘
+- handbook 已具备产出 readiness 级 `ragas` 数值快照的运行能力
+- 这批数值是单 case readiness 证据，不应替代后续固定 case 集的正式 benchmark
 
 这些内容当前尚未纳入本轮 deterministic release-gate；如后续要扩展 groundedness / judge-based gate，应另行补充验证文档与阈值定义。

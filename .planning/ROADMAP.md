@@ -1,8 +1,13 @@
 # Roadmap: Campus Agent
 
+> Historical scheduling record. Use this file for phase ordering, completion history, and archived execution framing.
+> For current serving surface, current indexing semantics, and active priorities, prefer `.planning/PROJECT.md`, `.planning/REQUIREMENTS.md`, and `.planning/STATE.md`.
+
 ## Overview
 
 This roadmap stabilizes the new supervisor-led architecture before it expands scope. The sequence starts by freezing the supervisor/specialist contract and the initial guardrails, then builds the `student_handbook` ingestion and retrieval path, wires the `supervisor` entrypoint with ACL/audit responsibilities, prepares `curriculum_plan`, later promotes serving policy to the collection runtime profile, and finishes with repository-level verification that proves the end-to-end agentic RAG flow is safe to plan and execute.
+
+The phase names below are retained as execution-history labels. They should not be read as the sole source of current serving or indexing truth once later refactors have generalized runtime-profile control and versioned index-release semantics.
 
 Current roadmap truth still centers the `student_handbook` mainline as the scheduled execution path. Inserted `03.1 Availability Specialist 最小闭环` validates one stable non-RAG specialist boundary without hiding that work inside the existing RAG phases as an implementation detail. Inserted `03.2 Source Truth Fan-Out And Attachment Projection` now closes a data-plane design gap before further collection expansion: one raw source must be consumed once into canonical source truth and then fan out into all declared downstream projections, including attachment-derived documents, instead of forcing later collection work to re-consume raw inputs. Inserted `04.x` Cloudflare phases now run in parallel to freeze the edge entry, protected internal-panel boundary, runtime topology, edge integration contract, and panel runtime shell before the mainline query path is ready, without pushing Cloudflare/runtime decisions down into core packages.
 

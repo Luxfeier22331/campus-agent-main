@@ -9,6 +9,13 @@
 - cleanup、chunking、indexable chunk 构建与 Qdrant indexing
 - corpus / collection runtime profile 与 rebuild 支撑
 
+当前运行语义：
+
+- runtime profile 只声明 serving alias、collection prefix 与 vector binding
+- ingestion 侧写入 versioned physical collection：`<collection_prefix>__<release_id>`
+- validation 通过后由 ingestion 发布 serving alias
+- derived bucket 只保留 source/document artifact 与 release manifest，不保留 chunk dump
+
 它不负责：
 
 - online query-serving 编排

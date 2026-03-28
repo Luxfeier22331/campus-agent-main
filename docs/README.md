@@ -35,6 +35,7 @@ updated: 2026-03-28
 - 判断“现在做到哪一步、接下来做什么、当前 phase 结论是什么”时，优先看 `.planning/`
 - 判断编排模式、specialist 准入与安全边界时，优先看 architecture 文档和对应 ADR，而不是某一轮 plan
 - 如果 `docs/plans/` 中的早期实施叙事与 `.planning/` 的当前执行现实冲突，应更新 `docs/plans/` 的边界说明，而不是把旧叙事继续当作当前硬约束
+- 如果 `.planning/ROADMAP.md` 或 `.planning/phases/*` 的历史 phase 叙事与当前运行面冲突，以 `.planning/PROJECT.md`、`.planning/REQUIREMENTS.md`、`.planning/STATE.md` 和对应 architecture/decision 文档为准
 
 ## 标识规则
 
@@ -65,6 +66,8 @@ updated: 2026-03-28
 - `architecture/protected-panel-runtime-shell.md`
 - `architecture/shared-app-api-and-worker-web-surfaces.md`
 - `architecture/source-truth-normalization-contract.md`
+- `architecture/runtime-serving-and-index-terms.md`
+- `architecture/versioned-document-serving-and-history-query.md`
 - `architecture/supervisor-architecture.md`
 - `architecture/student-handbook-chunking-and-validation-policy.md`
 - `architecture/student-handbook-ocr-normalization-strategy.md`
@@ -78,6 +81,7 @@ updated: 2026-03-28
 - `decisions/adr-0010-observability-and-telemetry-stack.md`
 - `decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `decisions/adr-0013-app-api-worker-runtime.md`
+- `decisions/adr-0014-versioned-document-serving-and-history-query.md`
 - `plans/agentic-rag-foundation.md`
 - `plans/agent-orchestration-architecture-refresh.md`
 - `plans/app-api-worker-foundation.md`
@@ -86,6 +90,9 @@ updated: 2026-03-28
 - `plans/source-truth-normalization-refactor.md`
 - `plans/student-handbook-retrieval-eval-bootstrap.md`
 - `plans/supervisor-current-design-implementation.md`
+- `plans/versioned-history-query-foundation.md`
 - `verification/phase1-ingestion-retrieval-implementation-truth.md`
+- `verification/index-release-runbook.md`
 - `verification/student-handbook-eval-metrics.md`
 - `verification/student-handbook-hybrid-rebuild-checklist.md`
+- `verification/student-handbook-judge-gate-policy.md`

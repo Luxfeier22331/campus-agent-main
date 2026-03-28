@@ -8,13 +8,14 @@ updated: 2026-03-25
 
 # ADR-0001 第一阶段架构决策记录
 
-适用范围：`campus-agent` v2 第一阶段上线实现
+适用范围：`campus-agent` v2 第一阶段上线实现与当时接受的阶段性架构取舍
 
 说明：
 
 - 本文只记录 phase-1 当前 accepted implementation decision
 - 长期编排模式、specialist 准入与安全边界见 `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - 长期 runtime 是否继续沿用当前实现，不由本文冻结
+- 当前 serving scope、serving alias、physical collection 与 index release 运行真相不由本文维护；以 runtime profile、`.planning/PROJECT.md`、`.planning/STATE.md` 和 `docs/architecture/runtime-serving-and-index-terms.md` 为准
 
 ## 决策 1：Agno 的集成深度
 

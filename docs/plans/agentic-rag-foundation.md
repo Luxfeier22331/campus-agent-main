@@ -17,10 +17,19 @@ updated: 2026-03-28
 - 当前 phase 的执行顺序、最新 pending work、讨论结论和进度状态，以 `.planning/PROJECT.md`、`.planning/ROADMAP.md`、`.planning/STATE.md` 以及对应 phase 目录下的 context / plan / validation 产物为准
 - 当这份文档中的早期 phase-1 实施叙事与 `.planning/` 中的当前执行现实不一致时，应优先更新这里的文档边界说明，并按 `.planning/` 继续推进执行，而不是把过时叙事重新提升为当前硬约束
 - 当前 retrieval accepted baseline 不再单独由本文维护；以 `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md` 与 `docs/architecture/retrieval-query-strategy.md` 为准
+- 当前 serving/indexing 术语不再由本文解释；以 `docs/architecture/runtime-serving-and-index-terms.md` 为准
+
+当前不应从本文直接读取的运行真相包括：
+
+- 当前 query-enabled scope
+- 当前 serving alias / physical collection 语义
+- 当前 release manifest / rollback 运行约束
+
+这些内容分别以 runtime profile、`.planning/PROJECT.md` / `.planning/STATE.md`、以及 operator runbook 为准。
 
 **Goal:** 在当前 `campus-agent` monorepo 中补齐第一阶段地基，以“符合最佳实践前提下跑通端到端 agentic RAG 流程”为验收标准。
 
-**Architecture:** 本次实施只做第一阶段可上线闭环，不保留旧 `/api/search`、`/api/answer` 兼容层。数据面按 `Source -> Derived -> Chunk/Index` 三层分离落地，当前对象存储使用本机部署的 `MinIO`；长期 corpus 根名统一为 `regulations`，初始开放 collection 为 `student_handbook`。source bucket 采用 corpus-agnostic 的 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...` 前缀，并在同一来源前缀下按 `capture/`、`provider/`、`source-truth/` 分层保存来源资产；derived bucket 的命名空间固定拆成 `{corpus}/documents/...`，其中 handbook OCR truth 固定为 `provider-response.jsonl -> layout-elements.jsonl -> split-manifest -> per-document canonical.md + document-units.jsonl`，逻辑文档以 `document_id + revision_track + version_id` 建模，不再依赖 `campusRAG` 作为运行时输入。查询面采用 `Supervisor API -> Supervisor Core -> RAG Specialist -> Retrieval Core`，内部 runtime 使用 AgentOS-native，检索实现使用 `LlamaIndex + Qdrant`。当前运行态的 query-serving truth 已不再由本文单独维护，而由 collection runtime profile 控制；现行 query-enabled scope 为 `regulations/student_handbook` 与 `curriculum/curriculum_plan`。
+**Architecture:** 本次实施只做第一阶段可上线闭环，不保留旧 `/api/search`、`/api/answer` 兼容层。数据面按 `Source -> Derived -> Chunk/Index` 三层分离落地，当前对象存储使用本机部署的 `MinIO`；早期初始开放 collection 为 `student_handbook`。source bucket 采用 corpus-agnostic 的 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...` 前缀，并在同一来源前缀下按 `capture/`、`provider/`、`source-truth/` 分层保存来源资产；derived bucket 的命名空间固定拆成 `{corpus}/documents/...`，其中 handbook OCR truth 固定为 `provider-response.jsonl -> layout-elements.jsonl -> split-manifest -> per-document canonical.md + document-units.jsonl`，逻辑文档以 `document_id + revision_track + version_id` 建模，不再依赖 `campusRAG` 作为运行时输入。查询面采用 `Supervisor API -> Supervisor Core -> RAG Specialist -> Retrieval Core`，内部 runtime 使用 AgentOS-native，检索实现使用 `LlamaIndex + Qdrant`。当前运行态的 query-serving truth 和 index release 语义不再由本文维护，而由 collection runtime profile、`.planning/PROJECT.md` / `.planning/STATE.md` 以及 operator runbook 控制。
 
 **Tech Stack:** Python 3.12, uv workspace, Agno AgentOS, LlamaIndex, Qdrant, MinIO (local S3-compatible), pytest/unittest
 

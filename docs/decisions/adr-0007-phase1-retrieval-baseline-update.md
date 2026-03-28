@@ -15,6 +15,7 @@ updated: 2026-03-26
 - 本文 supersede `ADR-0001` 中未显式冻结 retrieval strategy 的旧表述
 - handbook embedding / chunking 的运行真相仍以 `docs/architecture/student-handbook-chunking-and-validation-policy.md` 为准
 - retrieval runtime truth 以 `docs/architecture/retrieval-query-strategy.md` 为准
+- serving alias / physical collection / index release 运行真相以 `docs/architecture/runtime-serving-and-index-terms.md` 和 operator runbook 为准
 
 ## 决策
 

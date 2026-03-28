@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-22
-updated: 2026-03-27
+updated: 2026-03-28
 ---
 
 # campus-agent 第一阶段数据平面架构
@@ -18,6 +18,7 @@ updated: 2026-03-27
 - 本机 `MinIO` / object key / bucket 不变量：`docs/decisions/adr-0002-local-minio-conventions.md`
 - `student_handbook` 的 OCR 归一化、拆分和 document-level 语义：`docs/architecture/student-handbook-ocr-normalization-strategy.md`
 - OCR/source-truth shared canonical contract：`docs/architecture/source-truth-normalization-contract.md`
+- 长期版本化 serving / 历史查询目标：`docs/architecture/versioned-document-serving-and-history-query.md`
 - collection 级 runtime truth：`configs/ingestion/<corpus>/<collection>/`
 - gate、实施顺序和验收：`docs/plans/agentic-rag-foundation.md`
 
@@ -163,11 +164,13 @@ updated: 2026-03-27
 
 - 第一阶段 canonical chunk store 是 `Qdrant`
 - 每个 chunk 必须回链到 `document_id`、`revision_track`、`version_id`
+- 已进入 release-managed lifecycle 的 collection 必须通过固定 serving alias 暴露，离线重建写入按 `collection_prefix__release_id` 命名的 versioned physical collection
+- 每次 chunking/embedding/indexing 发布都必须生成小型 release manifest，并落到 derived bucket 的 `{corpus}/releases/{collection}/{release_id}/` 前缀；manifest 用于审计与回滚，不保存 chunk dump
 - embedding request contract 与 Qdrant schema contract 必须分离：
   `model` / `dimensions` 属于 embedding runtime；
   named dense/sparse vectors、payload metadata 与 hybrid query shape 属于 Qdrant collection schema
 - `student_handbook` 的 accepted target schema 是同一点双写 named `dense` 与 named `sparse` vectors
-- 如需导出 chunk manifest 到对象存储，该导出物只能用于备份、审计或离线重建，不能替代 Qdrant
+- 对象存储不保留 chunking 后的全文 chunk 产物；chunk 文本、向量与检索 payload 只保留在 Qdrant 中，离线重建以 `document-units.jsonl + policy version` 为准
 
 ## 第一阶段固定流程
 
@@ -196,7 +199,7 @@ updated: 2026-03-27
 固定规则：
 
 - query-serving surface 由 collection runtime profile 控制；当前 query-enabled collection 是 `regulations/student_handbook` 与 `curriculum/curriculum_plan`
-- `campus_services/service_catalog` 与 `campus_services/contact_directory` 当前保持 `offline_preparation`，只保留离线 taxonomy 和 data-plane 入口
+- `campus_services/service_catalog` 与 `campus_services/contact_directory` 当前保持 `offline_preparation`，不进入默认 query-serving surface；但它们已经可以参与 release-managed index lifecycle，并应与 query-serving collection 一样使用稳定 alias + versioned physical collection
 - retrieval 返回的 source 必须能回链到 document registry
 - retrieval 前置 ACL filter 必须基于 metadata 执行
 - 当前 retrieval accepted baseline 为 `dense + sparse hybrid retrieval + RRF fusion + registry-backed evidence shaping`；`HyDE` 和 rerank 不是默认主路径
@@ -206,6 +209,7 @@ updated: 2026-03-27
 - query-serving 默认只消费 collection runtime profile 定义的 serving documents。当前 `student_handbook` 策略为 `current_only=true` 且 `serving_revision_tracks=["current-effective","source-faithful"]`；当前 `curriculum_plan` 策略为 `current_only=false` 且 `serving_revision_tracks=["source-faithful"]`
 - query path 不再接受“历史版本先命中，再靠 `latest_url` 告知用户当前链接”作为默认主路径；历史版本默认不进入 retrieval candidate
 - 当同一逻辑文档同时存在 `pdf_ocr` / `official_web` 等多来源且规范化内容一致时，source layer 保留多份来源资产，但 document/version layer 只保留一份逻辑版本；Qdrant 不得为等价来源重复建索引点
+- 当前数据平面已经具备“保留历史版本并维护 current truth”的能力，但当前在线 query path 仍不支持用户显式选择历史版本、按时间点查询或版本对比；这些属于后续版本化 serving 能力，不属于本文冻结的现状
 
 ## 去重与版本策略
 

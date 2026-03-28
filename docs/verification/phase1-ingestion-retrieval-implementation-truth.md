@@ -2,7 +2,7 @@
 doc_type: plan
 status: active
 created: 2026-03-27
-updated: 2026-03-27
+updated: 2026-03-28
 ---
 
 # Phase-1 Ingestion / Retrieval 实现真相快照
@@ -89,9 +89,10 @@ updated: 2026-03-27
 - `QDRANT_URL`
 - `DOCUMENT_REGISTRY_DATABASE_URL`
 
-当前物理 Qdrant target 不再由单个全局 env 指定，而是由每个
+当前 Qdrant serving target 不再由单个全局 env 指定，而是由每个
 `configs/ingestion/<corpus>/<collection>/runtime-profile.json` 中的
-`qdrant_collection_name` 与 vector binding 字段声明。
+`qdrant_alias_name`、`qdrant_collection_prefix` 与 vector binding 字段声明；
+物理 collection 在每次 index release 时按 `<collection_prefix>__<release_id>` 生成。
 
 当前明显带 `student_handbook` 语义的 rebuild / migration 变量：
 
@@ -163,6 +164,27 @@ shared core 当前统一负责：
 - 仅保留最小兼容 fallback
 - 目的只是单元测试和本地断言
 - 不代表 live sparse 服务真相
+
+## 版本服务真相
+
+当前实现已经具备：
+
+- 在 registry 中保留历史 `version_id`
+- 维护 `document_id + revision_track` 维度的 `is_current` truth
+- 默认 query-serving 只消费 current-serving documents
+- 多来源等价内容归并到同一逻辑版本，而不是重复建索引点
+
+当前实现尚未具备：
+
+- 用户显式指定历史版本查询
+- 按时间点选择历史有效版本
+- 同一问题下的新旧版本对比查询
+
+因此当前准确表述应为：
+
+- “默认只服务当前有效版本”已经落地
+- “历史版本被保留且可追溯”已经落地
+- “用户可以主动查询旧版”尚未作为正式在线能力落地
 
 ## 当前最容易漂移的点
 
