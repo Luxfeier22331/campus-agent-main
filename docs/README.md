@@ -43,6 +43,7 @@ updated: 2026-03-28
 - 如果 `docs/plans/` 中的早期实施叙事与 `.planning/` 的当前执行现实冲突，应更新 `docs/plans/` 的边界说明，而不是把旧叙事继续当作当前硬约束
 - 已完成但仍保留的 bootstrap / baseline 方案必须标记为 `completed`，不得继续伪装成 `active` 当前计划
 - 如果 `.planning/ROADMAP.md` 或 `.planning/phases/*` 的历史 phase 叙事与当前运行面冲突，以 `.planning/PROJECT.md`、`.planning/REQUIREMENTS.md`、`.planning/STATE.md` 和对应 architecture/decision 文档为准
+- 独立 worktree 中尚未合入 `main` 的实现进度，不能直接写成当前 merged truth；如需记录，必须明确标注为 pending merge 或 worktree-local progress
 - 历史执行过程、handoff、一次性交付记录与被替代草案应退出 `docs/`，留在 `.planning/` 或 git history
 
 ## 标识规则

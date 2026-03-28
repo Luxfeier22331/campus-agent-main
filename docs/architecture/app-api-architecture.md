@@ -223,11 +223,13 @@ operator query path 至少包含：
 
 ## 当前仓库状态
 
-当前仓库已经落地 `apps/app-api` 目录，但目前只实现了最小 `ContextProjection` 投影骨架。
+当前 main worktree 已经落地 `apps/app-api` 目录，但目前只实现了最小 `ContextProjection` 投影骨架。
 
-这意味着当前已落地的是长期边界与最小 identity / memory projection seam，而不是完整 Worker product backend。
+这意味着当前 main 已落地的是长期边界与最小 identity / memory projection seam，而不是完整 Worker product backend。
 
-当前仍然尚未落地的内容包括：
+更完整的 `apps/app-api` Worker 实现目前正在独立 worktree 推进，但在合入 main 之前，不应把那部分进度写成这里的 merged truth。
+
+因此，当前 main 仍然尚未落地的内容包括：
 
 - Hono / Wrangler Worker scaffold
 - auth / session / conversation product API

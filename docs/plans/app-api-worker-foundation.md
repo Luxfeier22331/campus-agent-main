@@ -13,6 +13,18 @@ updated: 2026-03-28
 
 **Tech Stack:** TypeScript, Cloudflare Workers, Wrangler, Hono, Zod, Better Auth, Drizzle ORM, `pg`, Hyperdrive, Vitest, `@cloudflare/vitest-pool-workers`
 
+## 当前 main worktree 状态
+
+这份文档描述的是 `apps/app-api` 的目标实现基线，不等于当前 main worktree 已经完整合入的代码状态。
+
+截至当前 main：
+
+- `apps/app-api` 只落地了最小 Python projection seam，用于 canonical identity / profile memory / session summary 到共享 `ContextProjection` 的构造
+- shared contracts、supervisor、rag-specialist 与 retrieval side 的 intent / memory / ACL 边界已经在 main 推进
+- 更完整的 Worker runtime、auth/chat/operator API、Drizzle schema、projection data plane 与 web-surface integration 仍在独立 worktree 推进
+
+因此，在相关实现正式 merge 回 main 之前，本文仍应被读取为 forward implementation baseline，而不是 main 已完成现状。
+
 ## 摘要
 
 这份方案只回答五个问题：

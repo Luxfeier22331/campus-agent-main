@@ -25,6 +25,7 @@
 
 ## 当前仓库范围
 
+- `apps/app-api`: 当前 main worktree 只承载最小 typed projection seam；完整 Worker product backend 仍在独立 worktree 推进、尚未合入
 - `apps/supervisor-api`: 入口 / supervisor 的对外服务边界
 - `apps/ingestion-worker`: ingestion runtime 壳与离线任务入口
 - `apps/public-entry-worker`: public entry Worker runtime 壳
@@ -38,7 +39,7 @@
 - `packages/evals`: 评测辅助和 smoke 场景
 - `packages/shared`: 轻量共享常量和工具
 
-已接受但尚未全部落地为目录的前向产品拓扑是 `public-chat-web -> app-api -> supervisor-api` 与 `protected-panel-web -> app-api -> request projection`。当前仓库里的 `apps/public-consumer-chat` 与 `apps/protected-internal-panel` 仍主要承担迁移参考 / 壳层角色。
+已接受的前向产品拓扑是 `public-chat-web -> app-api -> supervisor-api` 与 `protected-panel-web -> app-api -> request projection`。但在当前 main worktree 里，`apps/app-api` 仍只落地了最小 projection seam；更完整的 Worker 实现与 web-surface 接线仍以独立 worktree 进展为准，尚未合入这里的 merged truth。
 
 ## 当前基线
 
@@ -46,7 +47,9 @@
 
 - 旧 bootstrap 已从工作树移除；如需追溯请查看 git 历史
 - 当前主路径是 `supervisor-api -> supervisor-core -> rag-specialist -> retrieval-core`
-- forward product topology 已接受为 `public-chat-web -> app-api -> supervisor-api` 与 `protected-panel-web -> app-api -> request projection`，但相关目录尚未全部在当前工作树落地
+- forward product topology 已接受为 `public-chat-web -> app-api -> supervisor-api` 与 `protected-panel-web -> app-api -> request projection`
+- 当前 main worktree 已落地 `apps/app-api` 的最小 Python projection seam，用于 canonical actor / profile memory / session summary 到共享 contract 的构造
+- 更完整的 `apps/app-api` Worker runtime、auth/chat/operator API、projection data plane 与 web-surface 接线仍在独立 worktree 推进，待 merge 后再更新这里的当前基线描述
 - 架构目标是 `supervisor-led hybrid orchestration`，而不是把 RAG 降级成顶层产品路径里的扁平 tool adapter
 - ingestion/object-store/registry/retrieval 地基已落地
 - 查询链路当前由 collection runtime profile 控制；当前 query-enabled surface 是 `regulations/student_handbook` 和 `curriculum/curriculum_plan`
