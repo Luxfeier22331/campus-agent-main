@@ -1,11 +1,11 @@
 # External Integrations
 
-**Analysis Date:** 2026-03-28
+**Analysis Date:** 2026-03-29
 
 ## APIs & External Services
 
 **Embedding & semantic search backend (OpenAI-compatible by default)**
-- Service: Embeddings are requested through `llama_index.embeddings.openai.OpenAIEmbedding` (see `packages/ingestion-core/src/campus_ingestion_core/embed.py`), but the repo default is an OpenAI-compatible endpoint rather than the OpenAI public endpoint itself.
+- Service: Embeddings are requested through `llama_index.embeddings.openai.OpenAIEmbedding` or the repo’s `OpenAICompatibleEmbedding` wrapper (see `packages/ingestion-core/src/campus_ingestion_core/embed.py`), but the runtime default is a Gitee OpenAI-compatible endpoint rather than the OpenAI public endpoint itself.
   - Integration method: Batch embedding requests pulled from `EmbeddingSettings.from_env`, so the ingestion and retrieval cores always call the configured provider before talking to Qdrant.
   - Auth: `EMBEDDING_API_KEY` (plus optional `EMBEDDING_BASE_URL` overrides the provider endpoint). Other knobs include `EMBEDDING_MODEL`, `EMBEDDING_TIMEOUT_SECONDS`, and `EMBEDDING_BATCH_SIZE` as exposed in `.env.example`.
 
@@ -22,7 +22,7 @@
   - Connection: `DOCUMENT_REGISTRY_DATABASE_URL` (expects a fully formed Postgres URL; `.env.example` warns to use the Supabase pooler when applicable).
   - Client: `psycopg[binary]>=3.2.0`.
   - Schema/migrations: `_ensure_schema()` inside the registry ensures tables exist; there is no separate migration tool logged in the repo, so schema drift must be managed via code changes.
-- File-based fallback registries (`FileDocumentRegistry`, `FileRawAssetRegistry`) store JSON snapshots under `var/` when Postgres is absent.
+- Current env-backed runtime path does not auto-fallback to file registries; `build_document_registry_from_env()` / `build_raw_asset_registry_from_env()` require Postgres URLs.
 
 **File Storage:**
 - MinIO-compatible S3 service (configuration in `packages/ingestion-core/src/campus_ingestion_core/settings.py`).
@@ -30,9 +30,9 @@
   - Buckets: `OBJECT_STORE_BUCKET_SOURCE` and `OBJECT_STORE_BUCKET_DERIVED` (default `campus-rag-source` / `campus-rag-derived`).
   - Client: `boto3>=1.35.0`, with key construction defined in `packages/ingestion-core/src/campus_ingestion_core/object_store.py`.
 - Qdrant vector database (the vector store is fronted by `packages/retrieval-core/src/campus_retrieval_core/backend_qdrant.py`).
-  - Connection: `QDRANT_URL`, optional `QDRANT_API_KEY`, required `QDRANT_COLLECTION`, and `QDRANT_TIMEOUT_SECONDS`.
+  - Connection: `QDRANT_URL`, optional `QDRANT_API_KEY`, and `QDRANT_TIMEOUT_SECONDS`.
   - Client libraries: `qdrant-client>=1.17.1`, `llama-index-vector-stores-qdrant>=0.10.0`.
-  - Collections: `RetrievalSettings.from_env()` now fail-closes when `QDRANT_URL` or `QDRANT_COLLECTION` is missing. Shared-dev and production are expected to use a managed/cloud Qdrant endpoint; local `:memory:` remains a test-only fallback, not a serving default.
+  - Collections: `RetrievalSettings.from_env()` now fail-closes when `QDRANT_URL` is missing. Online query targets no longer come from a global env var; retrieval resolves the serving alias from each collection runtime profile, and ingestion publishes versioned physical collections as `<collection_prefix>__<release_id>`.
 - CampusRAG legacy assets are ingested through `apps/ingestion-worker` using `CAMPUSRAG_OCR_ROOT`, `CAMPUSRAG_RAW_ROOT`, and `RAW_INGESTION_SOURCE_PATHS`; these paths simply point to local files/directories that the ingestion worker uploads to MinIO.
 
 **Caching:**
@@ -72,10 +72,11 @@
 ## Environment Configuration
 
 **Development:**
-- Required env vars (all spelled out in `.env.example`): `AGNO_SUPERVISOR_MODEL`, `AGNO_SPECIALIST_MODEL`, `API_BEARER_TOKEN`, `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL`, `EMBEDDING_API_KEY`, `DOCUMENT_REGISTRY_DATABASE_URL`, `QDRANT_URL`, `QDRANT_COLLECTION`, `OBJECT_STORE_ENDPOINT`, `OBJECT_STORE_ACCESS_KEY`, `OBJECT_STORE_SECRET_KEY`, `CAMPUSRAG_OCR_ROOT`, `OCR_BASE_URL`, `OCR_API_KEY`.
+- Required env vars (all spelled out in `.env.example`): `AGNO_SUPERVISOR_MODEL`, `AGNO_SPECIALIST_MODEL`, `API_BEARER_TOKEN`, `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL`, `EMBEDDING_API_KEY`, `DOCUMENT_REGISTRY_DATABASE_URL`, `QDRANT_URL`, `OBJECT_STORE_ENDPOINT`, `OBJECT_STORE_ACCESS_KEY`, `OBJECT_STORE_SECRET_KEY`, `CAMPUSRAG_OCR_ROOT`, `OCR_BASE_URL`, `OCR_API_KEY`.
 - Secrets are expected in the environment (no checked-in `.env`), so local developers typically copy `.env.example` and fill values before running `uv sync` + ingestion/retrieval commands.
-- Mock coverage: the embedding stack can run with `EMBEDDING_PROVIDER=mock` if actual OpenAI credentials are unavailable, and registry fallbacks exist in `var/` files.
-- `apps/public-consumer-chat` live mode additionally requires `PUBLIC_CONSUMER_CHAT_SCOPE_CORPUS` and `PUBLIC_CONSUMER_CHAT_SCOPE_COLLECTION`, so the app sends an explicit supervisor answer scope instead of relying on a handbook hardcode.
+- Current retrieval/index defaults are `EMBEDDING_PROVIDER=gitee`, `EMBEDDING_MODEL=Qwen3-Embedding-4B`, `EMBEDDING_DIMENSIONS=2560`, plus Qdrant native sparse settings (`SPARSE_PROVIDER=qdrant`, `SPARSE_MODEL=qdrant/bm25`, `SPARSE_TOKENIZER=multilingual`, `SPARSE_LANGUAGE=none`).
+- Mock embedding/sparse helpers still exist for unit tests and isolated local pipelines, but they are not the runtime baseline recorded in `.env.example`.
+- Historical `apps/public-consumer-chat` local runs additionally require `PUBLIC_CONSUMER_CHAT_SCOPE_CORPUS` and `PUBLIC_CONSUMER_CHAT_SCOPE_COLLECTION`; those vars belong to the retained migration reference, not the forward merged-truth app topology.
 
 **Staging / Production:**
 - The repo does not include separate staging overrides; promote env vars from the `.env.example` sections and swap `QDRANT_URL`/`OBJECT_STORE_ENDPOINT` to staging endpoints as needed.

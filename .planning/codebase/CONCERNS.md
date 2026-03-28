@@ -1,6 +1,6 @@
 # Codebase Concerns
 
-**Analysis Date:** 2026-03-28
+**Analysis Date:** 2026-03-29
 
 ## Tech Debt
 
@@ -11,16 +11,16 @@
 - Fix approach: Introduce richer request framing and response-finalization layers only when a concrete second-step coordination need appears; avoid re-flattening the boundary back into API-shell or specialist-local logic.
 
 **Retrieval backend lifecycle is still implicit (`packages/retrieval-core/src/campus_retrieval_core/service.py`):**
-- Issue: `retrieve_sources` now uses a process-local backend cache, but the cache remains an internal module detail rather than an explicit runtime-owned dependency lifecycle.
-- Why: The code moved from full per-request reinitialization to a small fail-closed cache without introducing a larger host-level container.
-- Impact: New worker processes still pay backend startup cost on first request, and the ownership boundary for backend warmup/teardown is still implicit.
+- Issue: `retrieve_sources` still constructs a backend on demand unless callers explicitly inject one, but there is no runtime-owned lifecycle or warmup boundary.
+- Why: The code keeps the retrieval service simple and fail-closed instead of introducing a host-level dependency container.
+- Impact: Requests still pay backend initialization cost unless a higher layer starts managing backend reuse explicitly.
 - Fix approach: Hoist backend creation into runtime startup if serving volume or cold-start latency justifies a more explicit dependency lifecycle.
 
-**Specialist answer shaping is a stub (`packages/rag-specialist/src/campus_rag_specialist/agent.py` and `service.py`):**
-- Issue: `RagSpecialistAgent.compose_answer` simply emits the first snippet plus a concatenated citation string, and `delegate_to_rag_agent` never enriches or reshapes the evidence bundle beyond calling `derive_confidence`.
-- Why: Offer an answer so the supervisor pipeline proves that evidence can flow through.
-- Impact: Responses remain raw text snippets without structured reasoning, follow-up prompts, or multimodal composition; flagging new evidence sources or templating (needed for future UX) would require rewriting this minimal logic.
-- Fix approach: Extract an answer-shaping layer that can aggregate multiple sources, respect `max_answer_sources`, support structured follow-ups, and plug into `finalize_specialist_response` so the specialist contract can evolve without touching the core agent.
+**Specialist answer shaping is still intentionally simple (`packages/rag-specialist/src/campus_rag_specialist/agent.py` and `service.py`):**
+- Issue: `RagSpecialistAgent.compose_answer` now selects supporting evidence and renders a grounded answer template, but it is still a deterministic text renderer rather than a richer structured answer layer.
+- Why: The repo froze a small grounded-answer baseline before introducing richer orchestration or post-processing.
+- Impact: Future needs such as answer sectioning, richer clarification follow-ups, or UI-targeted structured rendering will still require a dedicated answer-shaping layer.
+- Fix approach: Extract a more explicit answer assembly component once product surfaces need richer response structure than the current grounded template.
 
 ## Known Bugs
 
@@ -40,19 +40,19 @@ No current query-scope crash is recorded here: the old `student_handbook`-only r
 
 ## Performance Bottlenecks
 
-**Backend cache is process-local only (`packages/retrieval-core/src/campus_retrieval_core/service.py`):**
-- Problem: `retrieve_sources` now caches initialized backends, but the cache is an in-process dictionary keyed by settings rather than a more explicit lifecycle-managed dependency graph.
-- Measurement: Warm requests avoid reinitialization, but every new worker process still pays the full registry/Qdrant/embedding startup cost once.
-- Cause: The code intentionally stopped at a small fail-closed cache instead of introducing a broader app-wide DI container.
+**Backend lifecycle is per-call unless injected (`packages/retrieval-core/src/campus_retrieval_core/service.py`):**
+- Problem: the default `retrieve_sources()` path creates a backend on demand rather than participating in an explicit app-owned dependency lifecycle.
+- Measurement: callers that do not inject a backend pay the full registry/Qdrant/embedding startup path repeatedly.
+- Cause: The code intentionally kept retrieval bootstrap simple instead of adding a broader DI container.
 - Improvement path: If retrieval traffic grows, move backend creation into runtime startup and make the lifecycle explicit per host process.
 
 ## Fragile Areas
 
-**Qdrant vector store depends on private APIs (`packages/retrieval-core/src/campus_retrieval_core/backend_qdrant.py`):**
-- Why fragile: Calls like `_vector_store._detect_vector_format` and checking `_legacy_vector_format` reach into private `llama_index` attributes that can change without notice.
-- Common failures: Upgrading `llama_index` or `llama-index-vector-stores-qdrant` may rename/remove `_legacy_vector_format`, breaking startup or query-time metadata detection.
-- Safe modification: Wrap the vector store in an adapter that hides the private access, add defensive checks for attribute presence, and lock to a tested version before upgrading.
-- Test coverage: Only the backend tests (`tests/retrieval/test_backend_qdrant.py`) run, and they never assert on these private attributes, so a dependency bump would slip by until runtime.
+**Retrieval payload shape is tightly coupled to ingestion output (`packages/retrieval-core/src/campus_retrieval_core/backend_qdrant.py`):**
+- Why fragile: `_record_to_text_node(...)` and evidence shaping assume a stable payload contract (`node_content`, `text`/`display_text`, document metadata, anchors) emitted by ingestion/indexing.
+- Common failures: Changing chunk payload fields or node serialization in ingestion can silently degrade retrieval shaping, title extraction, or registry back-link behavior.
+- Safe modification: Version payload changes explicitly, add cross-package regression tests, and keep retrieval payload parsing narrow and well asserted.
+- Test coverage: Backend tests cover many shaping paths, but payload contract drift can still slip through if ingestion changes field semantics without updating retrieval assertions.
 
 **Silent failures when registry/collection missing (`backend_qdrant.py`):**
 - Why fragile: `retrieve` returns an empty `EvidenceBundle` when the collection or registry is absent (`if not self.qdrant_client.collection_exists`/missing nodes) without logging or surfacing the misconfiguration.
@@ -70,10 +70,10 @@ No current query-scope crash is recorded here: the old `student_handbook`-only r
 
 ## Dependencies at Risk
 
-**`llama_index` private API (`packages/retrieval-core/src/campus_retrieval_core/backend_qdrant.py` and `packages/ingestion-core/src/campus_ingestion_core/process.py`):**
-- Risk: Both ingestion and retrieval rely on internal `llama_index` structures (`QdrantVectorStore`, `_detect_vector_format`, `_legacy_vector_format`, `TextNode`, etc.) that are not semver-guaranteed.
-- Impact: Any `llama_index` release that reorganizes core modules will break both ingestion indexing and runtime retrieval, causing the entire RAG pipeline to fail.
-- Migration plan: Encapsulate `llama_index` usage behind adapters, pin the working versions, and add regression tests that run with new `llama_index` releases in a controlled environment before upgrading.
+**`llama_index` schema and adapter surface (`packages/retrieval-core/src/campus_retrieval_core/backend_qdrant.py` and `packages/ingestion-core/src/campus_ingestion_core/process.py`):**
+- Risk: Ingestion and retrieval both depend on `llama_index` data models such as `TextNode` and adapter behavior across indexing/query paths.
+- Impact: Dependency upgrades that change serialization or adapter semantics can break chunk persistence or retrieval parsing even without any repo-level code changes.
+- Migration plan: Pin working versions, keep adapter usage narrow, and add regression tests that exercise both indexing output and retrieval parsing before upgrades.
 
 **`qdrant-client` without retries (`packages/retrieval-core/src/campus_retrieval_core/backend_qdrant.py`):**
 - Risk: Requests to Qdrant are issued with the default client and no retry/backoff logic, so transient network glitches surface directly as `RetrievalBackendError`.
@@ -114,5 +114,5 @@ No current query-scope crash is recorded here: the old `student_handbook`-only r
 - Priority: Medium.
 - Difficulty to test: Medium; add an integration test that sets `QDRANT_URL=:memory:` and exercises `retrieve_sources()` without injecting `backend`.
 
-*Concerns audit: 2026-03-28*
+*Concerns audit: 2026-03-29*
 *Update as issues are fixed or new ones discovered*

@@ -20,17 +20,26 @@
 
 - 当前运行面、已开放 serving surface、当前优先级：`.planning/PROJECT.md`、`.planning/REQUIREMENTS.md`、`.planning/STATE.md`
 - 长期边界和冻结决策：`docs/architecture/`、`docs/decisions/`
+- 环境配置 ownership 与模板索引：`docs/environment/README.md`
 - 历史 phase 排期与存档：`.planning/ROADMAP.md`、`.planning/phases/`
 - 当前 index / serving 术语：`docs/reference/runtime-serving-and-index-terms.md`
 
+## 分支模型
+
+- `develop` 是当前长期集成分支，也是根 worktree 默认检出的 merged truth
+- `main` 是稳定分支，只通过 PR 接收已经在 `develop` 收口的改动
+- 独立 feature / phase worktree 的进度，只有在合入 `develop` 后才能写成仓库当前 truth
+- 历史上“某实现已合入 `main`”的记录继续保留，但不代表根 worktree 当前一定检出 `main`
+
 ## 当前仓库范围
 
-- `apps/app-api`: 当前 main worktree 只承载最小 typed projection seam；完整 Worker product backend 仍在独立 worktree 推进、尚未合入
+- `apps/app-api`: 当前 `develop` 集成线只承载最小 typed projection seam；完整 Worker product backend 仍在独立 worktree 推进、尚未合入
 - `apps/supervisor-api`: 入口 / supervisor 的对外服务边界
 - `apps/ingestion-worker`: ingestion runtime 壳与离线任务入口
 - `apps/public-entry-worker`: public entry Worker runtime 壳
-- `apps/public-consumer-chat`: 当前 public chat Worker shell / 历史迁移参考
+- `apps/public-consumer-chat`: 已合入的历史 public chat app 实现参考，不再代表 forward Worker web surface truth
 - `apps/protected-internal-panel`: 当前 internal panel shell / 历史迁移参考
+- `packages/availability-specialist`: availability probe specialist 边界
 - `packages/supervisor-core`: user goal 路由、委派和最终响应组装
 - `packages/ingestion-core`: ingestion/data plane 逻辑消费层
 - `packages/rag-specialist`: 知识域 specialist 入口
@@ -39,7 +48,7 @@
 - `packages/evals`: 评测辅助和 smoke 场景
 - `packages/shared`: 轻量共享常量和工具
 
-已接受的前向产品拓扑是 `public-chat-web -> app-api -> supervisor-api` 与 `protected-panel-web -> app-api -> request projection`。但在当前 main worktree 里，`apps/app-api` 仍只落地了最小 projection seam；更完整的 Worker 实现与 web-surface 接线仍以独立 worktree 进展为准，尚未合入这里的 merged truth。
+已接受的前向产品拓扑是 `public-chat-web -> app-api -> supervisor-api` 与 `protected-panel-web -> app-api -> request projection`。但在当前 `develop` 集成线里，`apps/app-api` 仍只落地了最小 projection seam；更完整的 Worker 实现与 web-surface 接线仍以独立 worktree 进展为准，尚未合入这里的 merged truth。
 
 ## 当前基线
 
@@ -48,7 +57,7 @@
 - 旧 bootstrap 已从工作树移除；如需追溯请查看 git 历史
 - 当前主路径是 `supervisor-api -> supervisor-core -> rag-specialist -> retrieval-core`
 - forward product topology 已接受为 `public-chat-web -> app-api -> supervisor-api` 与 `protected-panel-web -> app-api -> request projection`
-- 当前 main worktree 已落地 `apps/app-api` 的最小 Python projection seam，用于 canonical actor / profile memory / session summary 到共享 contract 的构造
+- 当前 `develop` 集成线已落地 `apps/app-api` 的最小 Python projection seam，用于 canonical actor / profile memory / session summary 到共享 contract 的构造
 - 更完整的 `apps/app-api` Worker runtime、auth/chat/operator API、projection data plane 与 web-surface 接线仍在独立 worktree 推进，待 merge 后再更新这里的当前基线描述
 - 架构目标是 `supervisor-led hybrid orchestration`，而不是把 RAG 降级成顶层产品路径里的扁平 tool adapter
 - ingestion/object-store/registry/retrieval 地基已落地

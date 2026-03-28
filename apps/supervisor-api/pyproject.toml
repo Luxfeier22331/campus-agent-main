@@ -1,7 +1,7 @@
 [project]
 name = "campus-supervisor-api"
 version = "0.1.0"
-description = "API bootstrap for campus-agent v2."
+description = "Execution API shell for campus-agent v2."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

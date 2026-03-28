@@ -9,6 +9,7 @@
 - 当前 serving surface 由 collection runtime profile 控制，不再由早期 `phase-1` 路由文案单独定义
 - 当前 query-enabled scope 是 `regulations/student_handbook` 与 `curriculum/curriculum_plan`
 - `campus_services/*` 仍为 `offline_preparation`
+- 当前分支模型固定为：`develop` 承担长期集成，`main` 承担稳定发布，`main` 上的改动只通过 PR 进入
 - retrieval 读取 serving alias；离线索引发布写入 versioned physical collection，并以 release manifest 保留追溯信息
 - canonical app identity、profile memory 与 session truth 归属 shared `app-api`；execution engine 只消费 typed projection
 - personalization 可以利用 verified identity / profile memory / session summary，但 memory 不得授予权限或绕过 retrieval ACL
@@ -112,4 +113,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state (users, feedback, metrics)
 
 ---
-*Last updated: 2026-03-28 after shared app-api Worker runtime freeze*
+*Last updated: 2026-03-29 after adopting `develop` as the integration branch and retaining `main` as the stable PR-only branch*
