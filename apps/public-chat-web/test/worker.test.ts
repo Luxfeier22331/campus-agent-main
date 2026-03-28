@@ -45,7 +45,31 @@ describe("public chat web worker shell", () => {
     });
   });
 
-  it("keeps the root route as a placeholder until the forward ui is mounted", async () => {
+  it("serves the public chat app shell when frontend assets are configured", async () => {
+    const response = await worker.fetch(
+      new Request("https://chat.example.com/"),
+      {
+        ASSETS: {
+          fetch: async () =>
+            new Response("<!doctype html><html><body><div id=\"root\"></div></body></html>", {
+              headers: {
+                "content-type": "text/html; charset=utf-8",
+              },
+              status: 200,
+            }),
+        },
+        APP_API_BASE_URL: "https://app-api.internal",
+        PUBLIC_CHAT_HOSTNAME: "chat.example.com",
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/html");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    await expect(response.text()).resolves.toContain("<div id=\"root\"></div>");
+  });
+
+  it("fails closed when frontend assets are not configured for the public shell", async () => {
     const response = await worker.fetch(
       new Request("https://chat.example.com/"),
       {
@@ -54,12 +78,11 @@ describe("public chat web worker shell", () => {
       },
     );
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({
       error: {
-        code: "public_surface_placeholder",
-        message:
-          "Public chat web keeps the root route as a placeholder until the forward UI shell is mounted here.",
+        code: "frontend_assets_not_ready",
+        message: "Public chat frontend assets are not configured.",
       },
     });
   });

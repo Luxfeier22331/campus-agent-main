@@ -1,12 +1,13 @@
 # public-chat-web
 
-Cloudflare Worker runtime shell for the public chat web surface.
+Cloudflare Worker-hosted public chat web surface for campus-agent v2.
 
 This app is the forward canonical public browser surface in front of shared `apps/app-api`.
 
-It currently owns only:
+It owns:
 
-- public route shell
+- public chat UI
+- browser-side login and chat routes
 - same-site `/api/*` proxy seam into `apps/app-api`
 - minimal health/readiness contract
 
@@ -16,21 +17,37 @@ It does not own:
 - chat request ledger or request projection truth
 - direct browser access to `apps/supervisor-api`
 
-Current shell scope:
+Current route scope:
 
 - `GET /healthz`
 - `GET /readyz`
-- `GET /`
+- `GET /login`
+- `GET /chat`
+- `GET /chat/:conversationId`
 - `ALL /api/*`
 
-The root route intentionally remains a placeholder until the forward public UI shell is mounted here. This worker already provides the canonical same-site API seam to `app-api`, so future UI migration does not need to reopen backend ownership.
+Current chat contract assumptions:
+
+- the browser always talks to same-site `/api/*` routes on this Worker
+- `GET /api/me` resolves the current Better Auth session through shared `app-api`
+- `POST /api/chat/requests` is the primary chat command route
+- first-turn chat requests may omit `conversationId`; `app-api` lazy-creates the canonical conversation
+- `POST /api/chat/conversations` remains available only for explicit empty-draft creation
+
+UI behavior:
+
+- `/login` provides email/password sign-in and sign-up against shared Better Auth endpoints
+- `/chat` is the first-turn chat surface and conversation history view
+- `/chat/:conversationId` continues an existing owned conversation
+- the left rail uses conversation summaries from `GET /api/chat/conversations`
 
 Canonical references:
 
 - `docs/architecture/shared-app-api-and-worker-web-surfaces.md`
 - `docs/architecture/app-api-architecture.md`
-- `docs/architecture/cloudflare-runtime-topology.md`
+- `docs/architecture/long-term-architecture.md`
 - `docs/contracts/app-api-http.md`
+- `docs/contracts/app-api-request-lifecycle.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
 - `docs/decisions/adr-0015-supervisor-internal-execution-admission.md`
@@ -51,6 +68,7 @@ Local commands:
 
 ```bash
 pnpm install
+pnpm build
 pnpm test
 pnpm typecheck
 pnpm dev

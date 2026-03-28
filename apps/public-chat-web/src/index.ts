@@ -2,6 +2,9 @@ export interface Env {
   APP_API?: {
     fetch(request: Request): Promise<Response> | Response;
   };
+  ASSETS?: {
+    fetch(request: Request): Promise<Response> | Response;
+  };
   APP_API_BASE_URL?: string;
   PUBLIC_CHAT_APP_NAME?: string;
   PUBLIC_CHAT_HOSTNAME?: string;
@@ -45,14 +48,8 @@ export default {
       return proxyToAppApi(request, env);
     }
 
-    if (request.method === "GET" && url.pathname === "/") {
-      return jsonResponse(403, {
-        error: {
-          code: "public_surface_placeholder",
-          message:
-            "Public chat web keeps the root route as a placeholder until the forward UI shell is mounted here.",
-        },
-      });
+    if ((request.method === "GET" || request.method === "HEAD") && !url.pathname.startsWith("/api/")) {
+      return servePublicShell(request, env);
     }
 
     return jsonResponse(404, {
@@ -104,4 +101,29 @@ async function proxyToAppApi(request: Request, env: Env): Promise<Response> {
 
 function shouldForwardBody(method: string): boolean {
   return method !== "GET" && method !== "HEAD";
+}
+
+async function servePublicShell(request: Request, env: Env): Promise<Response> {
+  if (!env.ASSETS) {
+    return jsonResponse(503, {
+      error: {
+        code: "frontend_assets_not_ready",
+        message: "Public chat frontend assets are not configured.",
+      },
+    });
+  }
+
+  const response = await env.ASSETS.fetch(request);
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.includes("text/html")) {
+    return response;
+  }
+
+  const headers = new Headers(response.headers);
+  headers.set("cache-control", "no-store");
+  return new Response(response.body, {
+    headers,
+    status: response.status,
+    statusText: response.statusText,
+  });
 }
