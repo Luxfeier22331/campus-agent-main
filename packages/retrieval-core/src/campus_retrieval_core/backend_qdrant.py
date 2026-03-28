@@ -133,18 +133,17 @@ class QdrantRetrievalBackend:
             )
 
         try:
-            dense_query_embedding = self._get_dense_query_embedding(query_text)
+            dense_query_embedding = self._get_dense_query_embedding(query_text, profile=profile)
             response = self.qdrant_client.query_points(
                 collection_name=qdrant_collection_name,
                 prefetch=_build_hybrid_prefetch(
-                    settings=self.settings,
                     request=request,
                     profile=profile,
                     embedding_model=self.embedding_model,
                     sparse_embedding_model=self.sparse_embedding_model,
                     dense_query_embedding=dense_query_embedding,
                 ),
-                query=_build_rrf_query(self.settings),
+                query=_build_rrf_query(profile),
                 limit=request.top_k,
                 with_payload=True,
                 with_vectors=False,
@@ -243,10 +242,15 @@ class QdrantRetrievalBackend:
             )
         return tuple(sources)
 
-    def _get_dense_query_embedding(self, query_text: str) -> tuple[float, ...]:
+    def _get_dense_query_embedding(
+        self,
+        query_text: str,
+        *,
+        profile: CollectionRuntimeProfile,
+    ) -> tuple[float, ...]:
         normalized_query = _build_dense_query_text(
             query_text=query_text,
-            instruction=self.settings.embedding_query_instruction,
+            instruction=profile.embedding_query_instruction,
         )
         now = time.monotonic()
         cached = self._dense_query_cache.get(normalized_query)
@@ -281,7 +285,6 @@ class QdrantRetrievalBackend:
             response = self.qdrant_client.query_points(
                 collection_name=qdrant_collection_name,
                 prefetch=_build_hybrid_prefetch(
-                    settings=self.settings,
                     request=request,
                     profile=profile,
                     embedding_model=self.embedding_model,
@@ -293,8 +296,8 @@ class QdrantRetrievalBackend:
                         source=target_source,
                     ),
                 ),
-                query=_build_rrf_query(self.settings),
-                limit=max(request.top_k, self.settings.document_support_limit),
+                query=_build_rrf_query(profile),
+                limit=max(request.top_k, profile.document_support_limit),
                 with_payload=True,
                 with_vectors=False,
             )
@@ -308,7 +311,6 @@ class QdrantRetrievalBackend:
 
 def _build_hybrid_prefetch(
     *,
-    settings: RetrievalSettings,
     request: RetrievalRequest,
     profile: CollectionRuntimeProfile,
     embedding_model: object,
@@ -318,11 +320,11 @@ def _build_hybrid_prefetch(
 ) -> list[qdrant_models.Prefetch]:
     runtime_query_filter = query_filter or _build_qdrant_filter(request, profile=profile)
     query_text = request.query_text.strip()
-    dense_limit = max(request.top_k, settings.dense_prefetch_limit)
-    sparse_limit = max(request.top_k, settings.sparse_prefetch_limit)
+    dense_limit = max(request.top_k, profile.dense_prefetch_limit)
+    sparse_limit = max(request.top_k, profile.sparse_prefetch_limit)
     dense_query_text = _build_dense_query_text(
         query_text=query_text,
-        instruction=settings.embedding_query_instruction,
+        instruction=profile.embedding_query_instruction,
     )
     prefetch = [
         qdrant_models.Prefetch(
@@ -353,11 +355,11 @@ def _build_dense_query_text(*, query_text: str, instruction: str) -> str:
     return f"Instruct: {normalized_instruction}\nQuery: {normalized_query}"
 
 
-def _build_rrf_query(settings: RetrievalSettings) -> qdrant_models.RrfQuery:
+def _build_rrf_query(profile: CollectionRuntimeProfile) -> qdrant_models.RrfQuery:
     return qdrant_models.RrfQuery(
         rrf=qdrant_models.Rrf(
-            k=settings.rrf_k,
-            weights=[settings.rrf_dense_weight, settings.rrf_sparse_weight],
+            k=profile.rrf_k,
+            weights=[profile.rrf_dense_weight, profile.rrf_sparse_weight],
         )
     )
 

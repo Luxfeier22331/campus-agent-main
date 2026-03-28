@@ -103,10 +103,11 @@ updated: 2026-03-28
 ### 4. Fusion
 
 - 当前默认 fusion 为 `RRF`
-- 当前 runtime 明确固定：
+- 当前 runtime 参数由各 collection 的 `runtime-profile.json` 持有；当前 handbook/curriculum baseline 为：
   - dense prefetch limit = `20`
   - sparse prefetch limit = `20`
   - `RrfQuery(k=60, weights=[1.0, 1.0])`
+- dense query instruction 也由 runtime profile 持有，而不是全局 `.env`
 - 当前 `regulations/student_handbook` runtime profile 取回 `top_k=8` 个 retrieval candidates；`rag-specialist` 最终只保留最多 `3` 条支撑证据进入回答
 - dense / sparse 两路候选必须进入统一 candidate shape 后再融合
 - 不允许让 specialist 或 supervisor 理解底层 fusion 细节
@@ -122,6 +123,7 @@ fusion 后的候选必须继续通过 `DocumentRegistry` 回链，补齐：
 - `source_channel`
 - `collection`
 - `anchor`
+- `latest_url` 只在 registry 中存在 current 版本时回链到 current source；若当前版本不存在，不再用 latest fallback 伪装 current，而是回落到命中文档自身 `source_uri`
 
 最终输出固定为 `EvidenceBundle`。
 

@@ -5,6 +5,7 @@ from typing import Union
 
 from campus_contracts import (
     AvailabilityCheckPayload,
+    RagResultPayload,
     RagRequestPayload,
     RequestedCapability,
     SpecialistRequest,
@@ -31,6 +32,9 @@ class SupervisorAuditRecord:
     status: SupervisorStatus
     error_code: str | None
     source_doc_ids: tuple[str, ...]
+    evidence_source_count: int
+    follow_up_emitted: bool
+    fail_closed: bool
 
 
 def build_audit_record(
@@ -50,6 +54,9 @@ def build_audit_record(
         status=response.status,
         error_code=None,
         source_doc_ids=source_doc_ids_from_response(response),
+        evidence_source_count=_evidence_source_count_from_response(response),
+        follow_up_emitted=bool(response.follow_up_question.strip()),
+        fail_closed=_is_fail_closed_status(response.status),
     )
 
 
@@ -71,6 +78,9 @@ def build_error_audit_record(
         status="error",
         error_code=error_code,
         source_doc_ids=(),
+        evidence_source_count=0,
+        follow_up_emitted=False,
+        fail_closed=True,
     )
 
 
@@ -114,3 +124,13 @@ def _selected_target_from_response(
     if isinstance(response, SpecialistResponse):
         return response.target
     return response.selected_target
+
+
+def _evidence_source_count_from_response(response: SpecialistResponse | SupervisorResponse) -> int:
+    if not isinstance(response.result, RagResultPayload):
+        return 0
+    return len(response.result.evidence.sources)
+
+
+def _is_fail_closed_status(status: SupervisorStatus) -> bool:
+    return status in {"no_answer", "error"}

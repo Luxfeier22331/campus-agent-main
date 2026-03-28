@@ -17,6 +17,15 @@ from campus_ingestion_core.scope_catalog import (
 
 ALLOWED_SERVING_STAGES = ("query_serving", "offline_preparation")
 ALLOWED_ARTIFACT_MODES = ("normalized", "source_truth_only")
+DEFAULT_DENSE_PREFETCH_LIMIT = 20
+DEFAULT_SPARSE_PREFETCH_LIMIT = 20
+DEFAULT_RRF_K = 60
+DEFAULT_RRF_DENSE_WEIGHT = 1.0
+DEFAULT_RRF_SPARSE_WEIGHT = 1.0
+DEFAULT_DOCUMENT_SUPPORT_LIMIT = 24
+DEFAULT_EMBEDDING_QUERY_INSTRUCTION = (
+    "Given a campus policy or handbook question, retrieve relevant passages that answer the query."
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,6 +42,13 @@ class CollectionRuntimeProfile:
     retrieval_top_k: int = 3
     current_only: bool = False
     serving_revision_tracks: tuple[str, ...] = ()
+    dense_prefetch_limit: int = DEFAULT_DENSE_PREFETCH_LIMIT
+    sparse_prefetch_limit: int = DEFAULT_SPARSE_PREFETCH_LIMIT
+    rrf_k: int = DEFAULT_RRF_K
+    rrf_dense_weight: float = DEFAULT_RRF_DENSE_WEIGHT
+    rrf_sparse_weight: float = DEFAULT_RRF_SPARSE_WEIGHT
+    document_support_limit: int = DEFAULT_DOCUMENT_SUPPORT_LIMIT
+    embedding_query_instruction: str = DEFAULT_EMBEDDING_QUERY_INSTRUCTION
     no_hit_min_top_score: float | None = None
     no_hit_min_score_gap: float | None = None
     qdrant_index_binding: QdrantIndexBinding = field(
@@ -57,6 +73,18 @@ class CollectionRuntimeProfile:
             raise ValueError("chunk_profile_version is required")
         if self.retrieval_top_k <= 0:
             raise ValueError("retrieval_top_k must be greater than zero")
+        if self.dense_prefetch_limit <= 0:
+            raise ValueError("dense_prefetch_limit must be greater than zero")
+        if self.sparse_prefetch_limit <= 0:
+            raise ValueError("sparse_prefetch_limit must be greater than zero")
+        if self.rrf_k <= 0:
+            raise ValueError("rrf_k must be greater than zero")
+        if self.rrf_dense_weight <= 0:
+            raise ValueError("rrf_dense_weight must be greater than zero")
+        if self.rrf_sparse_weight <= 0:
+            raise ValueError("rrf_sparse_weight must be greater than zero")
+        if self.document_support_limit <= 0:
+            raise ValueError("document_support_limit must be greater than zero")
         for revision_track in self.serving_revision_tracks:
             if revision_track not in ALLOWED_REVISION_TRACKS:
                 raise ValueError(f"unsupported serving_revision_track: {revision_track}")
@@ -64,6 +92,8 @@ class CollectionRuntimeProfile:
             raise ValueError("no_hit_min_top_score must be between zero and one")
         if self.no_hit_min_score_gap is not None and not 0.0 <= self.no_hit_min_score_gap <= 1.0:
             raise ValueError("no_hit_min_score_gap must be between zero and one")
+        if not self.embedding_query_instruction.strip():
+            raise ValueError("embedding_query_instruction is required")
 
 
 def load_runtime_profile(
@@ -89,6 +119,15 @@ def load_runtime_profile(
         retrieval_top_k=int(payload.get("retrieval_top_k") or 3),
         current_only=bool(payload.get("current_only", False)),
         serving_revision_tracks=tuple(str(item) for item in list(payload.get("serving_revision_tracks") or [])),
+        dense_prefetch_limit=int(payload.get("dense_prefetch_limit") or DEFAULT_DENSE_PREFETCH_LIMIT),
+        sparse_prefetch_limit=int(payload.get("sparse_prefetch_limit") or DEFAULT_SPARSE_PREFETCH_LIMIT),
+        rrf_k=int(payload.get("rrf_k") or DEFAULT_RRF_K),
+        rrf_dense_weight=float(payload.get("rrf_dense_weight") or DEFAULT_RRF_DENSE_WEIGHT),
+        rrf_sparse_weight=float(payload.get("rrf_sparse_weight") or DEFAULT_RRF_SPARSE_WEIGHT),
+        document_support_limit=int(payload.get("document_support_limit") or DEFAULT_DOCUMENT_SUPPORT_LIMIT),
+        embedding_query_instruction=str(
+            payload.get("embedding_query_instruction") or DEFAULT_EMBEDDING_QUERY_INSTRUCTION
+        ),
         no_hit_min_top_score=_optional_float(payload.get("no_hit_min_top_score")),
         no_hit_min_score_gap=_optional_float(payload.get("no_hit_min_score_gap")),
         qdrant_index_binding=QdrantIndexBinding(
