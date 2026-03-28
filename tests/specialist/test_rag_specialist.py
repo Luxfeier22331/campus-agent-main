@@ -633,6 +633,144 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertIn("民族学本科第二学士学位人才培养方案", response.answer_text)
         self.assertNotIn("教育学本科第二学士学位人才培养方案", response.answer_text)
 
+    def test_curriculum_named_document_multi_chunk_support_allows_medium_confidence_for_low_fact_scores(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="民族学本科第二学士学位人才培养方案学制几年？",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                EvidenceSource(
+                    doc_id="curriculum:民族学本科第二学士学位人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:ethnology-years",
+                    chunk_id="curriculum:民族学本科第二学士学位人才培养方案:chunk-0005",
+                    anchor={"page_start": 5, "page_end": 5},
+                    acl_level="public",
+                    canonical_url="https://campus.example/curriculum/ethnology-second-degree",
+                    latest_url="https://campus.example/curriculum/ethnology-second-degree",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet="五、学制 两年",
+                    score=0.35,
+                ),
+                EvidenceSource(
+                    doc_id="curriculum:民族学本科第二学士学位人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:ethnology-intro",
+                    chunk_id="curriculum:民族学本科第二学士学位人才培养方案:chunk-0001",
+                    anchor={"page_start": 1, "page_end": 1},
+                    acl_level="public",
+                    canonical_url="https://campus.example/curriculum/ethnology-second-degree",
+                    latest_url="https://campus.example/curriculum/ethnology-second-degree",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet="民族学本科第二学士学位人才培养方案 一、培养目标。",
+                    score=1.0,
+                ),
+                EvidenceSource(
+                    doc_id="curriculum:民族学本科第二学士学位人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:ethnology-degree",
+                    chunk_id="curriculum:民族学本科第二学士学位人才培养方案:chunk-0006",
+                    anchor={"page_start": 6, "page_end": 6},
+                    acl_level="public",
+                    canonical_url="https://campus.example/curriculum/ethnology-second-degree",
+                    latest_url="https://campus.example/curriculum/ethnology-second-degree",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet="六、授予学位 法学学士",
+                    score=0.41,
+                ),
+            ),
+        )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="民族学本科第二学士学位人才培养方案学制几年？",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(response.confidence, "medium")
+        self.assertIn("两年", response.answer_text)
+
+    def test_curriculum_named_document_credit_query_allows_same_doc_multi_chunk_medium_confidence(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="民族学本科人才培养方案总学分要求是多少？",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                EvidenceSource(
+                    doc_id="curriculum:民族学本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:ethnology-credits-table",
+                    chunk_id="curriculum:民族学本科人才培养方案:chunk-0007",
+                    anchor={"page_start": 7, "page_end": 7},
+                    acl_level="public",
+                    canonical_url="https://campus.example/curriculum/ethnology",
+                    latest_url="https://campus.example/curriculum/ethnology",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet="四、各教学环节学时学分 总学分 — — 159",
+                    score=0.21666667,
+                ),
+                EvidenceSource(
+                    doc_id="curriculum:民族学本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:ethnology-credits",
+                    chunk_id="curriculum:民族学本科人才培养方案:chunk-0005",
+                    anchor={"page_start": 5, "page_end": 5},
+                    acl_level="public",
+                    canonical_url="https://campus.example/curriculum/ethnology",
+                    latest_url="https://campus.example/curriculum/ethnology",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet="三、学制、总学分和学位授予 总学分:159 学分",
+                    score=0.13247864,
+                ),
+                EvidenceSource(
+                    doc_id="curriculum:民族学本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:ethnology-course-settings",
+                    chunk_id="curriculum:民族学本科人才培养方案:chunk-0011",
+                    anchor={"page_start": 11, "page_end": 11},
+                    acl_level="public",
+                    canonical_url="https://campus.example/curriculum/ethnology",
+                    latest_url="https://campus.example/curriculum/ethnology",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet="民族学本科人才培养方案 五、课程设置和修读建议 学科基础教育板块应修学分 26 学分。",
+                    score=1.0,
+                ),
+            ),
+        )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="民族学本科人才培养方案总学分要求是多少？",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(response.confidence, "medium")
+        self.assertIn("学分", response.answer_text)
+
     def test_confidence_derivation_prefers_stronger_and_more_consistent_support(self) -> None:
         self.assertEqual(
             derive_confidence(

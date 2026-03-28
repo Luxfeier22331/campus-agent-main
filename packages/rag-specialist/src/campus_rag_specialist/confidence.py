@@ -18,6 +18,19 @@ def derive_confidence(evidence: EvidenceBundle) -> str:
     distinct_chunk_count = len({source.chunk_id for source in supporting_sources})
     strong_support_count = sum(1 for source in supporting_sources if source.score >= 0.75)
     medium_support_count = sum(1 for source in supporting_sources if source.score >= 0.55)
+    named_doc_id = next(
+        (
+            source.doc_id
+            for source in supporting_sources
+            if query_targets_source_title(query_text=evidence.query_text, source=source)
+        ),
+        None,
+    )
+    named_doc_chunk_count = (
+        sum(1 for source in supporting_sources if source.doc_id == named_doc_id)
+        if named_doc_id is not None
+        else 0
+    )
 
     if (
         top_score >= 0.85
@@ -26,6 +39,8 @@ def derive_confidence(evidence: EvidenceBundle) -> str:
         and (distinct_doc_count >= 2 or support_count >= 3)
     ):
         return "high"
+    if named_doc_id is not None and named_doc_chunk_count >= 2:
+        return "medium"
     if query_targets_source_title(query_text=evidence.query_text, source=supporting_sources[0]) and top_score >= 0.4:
         return "medium"
     if top_score >= 0.55 and medium_support_count >= 1:
