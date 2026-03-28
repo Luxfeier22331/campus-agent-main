@@ -5,8 +5,10 @@ Runtime shell for campus-agent v2 ingestion commands.
 Env bootstrap rule:
 
 - Worker CLI first reads `./.env` from the current repo/worktree root.
-- If the current worktree has no `./.env`, worker CLI falls back to the main worktree root `.env`.
+- If the current worktree has no `./.env`, worker CLI falls back to the root worktree `.env`.
 - Do not introduce local mock backends or file-registry compatibility paths just because a feature worktree is missing `.env`.
+- repo root `.env` only owns shared runtime config such as `OBJECT_STORE_*`, retrieval, OCR provider, and shared registry settings.
+- Per-command override examples live under `env/commands/*.env.example`.
 
 ## Commands
 
@@ -89,6 +91,10 @@ Optional env:
 - `HF_HOME` / `HF_HUB_CACHE` / `TRANSFORMERS_CACHE`
 - `HF_HUB_OFFLINE`
 
+Command override example:
+
+- `env/commands/process-raw-ingestion-job.env.example`
+
 Behavior:
 
 - Reads the source PDF from the source bucket using canonical raw-asset registry metadata.
@@ -141,6 +147,10 @@ Optional env:
 - `INGESTION_SPLIT_MANIFEST_PATH`
 - `HANDBOOK_SOURCE_PROJECTIONS_PATH`
 - Any env required by the selected import mode
+
+Command override example:
+
+- `env/commands/rebuild-local-data.env.example`
 
 Behavior:
 
@@ -234,6 +244,10 @@ Optional env:
 - `INGESTION_SPLIT_MANIFEST_PATH`
 - `REBUILD_RESET_QDRANT`
 - `REBUILD_INDEX_QDRANT`
+
+Command override example:
+
+- `env/commands/migrate-student-handbook.env.example`
 
 Behavior:
 

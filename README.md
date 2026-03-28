@@ -22,13 +22,30 @@
 - `apps/supervisor-api` 表示 execution engine boundary，不代表已经选定 FastAPI 或其他 runtime
 - execution engine runtime 选择仍保持未冻结；当前实现取舍与 Agno 集成边界见 `docs/architecture/supervisor-architecture.md`
 
-## 仓库范围
+## 导航
+
+- 当前运行面、已开放 serving surface、当前优先级：`.planning/PROJECT.md`、`.planning/REQUIREMENTS.md`、`.planning/STATE.md`
+- 长期边界和冻结决策：`docs/architecture/`、`docs/decisions/`
+- 环境配置 ownership 与模板索引：`docs/environment/README.md`
+- 历史 phase 排期与存档：`.planning/ROADMAP.md`、`.planning/phases/`
+- 当前 index / serving 术语：`docs/reference/runtime-serving-and-index-terms.md`
+
+## 分支模型
+
+- `develop` 是长期集成分支，`main` 是稳定分支
+- 讨论“当前 merged truth”时，默认指已合入 `develop` 的状态；独立 worktree 的进度只有在写明分支或已回 `develop` 后才能当作 merged truth
+- 历史上“某实现已合入 `main`”的记录可以保留，但不等于当前工作树一定检出 `main`
+
+## 当前仓库范围
 
 - `apps/public-chat-web`: public-facing Worker web surface
 - `apps/protected-panel-web`: protected Worker web surface
 - `apps/app-api`: shared Worker-native product backend
 - `apps/supervisor-api`: execution engine boundary
 - `apps/ingestion-worker`: ingestion runtime 壳与离线任务入口
+- `apps/public-entry-worker`: historical public-entry Worker/runtime reference
+- `apps/public-consumer-chat`: historical public chat app reference
+- `apps/protected-internal-panel`: historical internal panel reference
 - `packages/supervisor-core`: user goal 路由、委派和最终响应组装
 - `packages/ingestion-core`: ingestion/data plane 逻辑消费层
 - `packages/rag-specialist`: 知识域 specialist 入口
@@ -36,6 +53,8 @@
 - `packages/contracts`: 共享请求 / 响应与 delegation / handoff schema
 - `packages/evals`: 评测辅助和 smoke 场景
 - `packages/shared`: 轻量共享常量和工具
+
+已接受的前向产品拓扑是 `public-chat-web -> app-api -> supervisor-api` 与 `protected-panel-web -> app-api -> request projection`。当前 `protected-panel-web` worktree 已落地 shared Worker backend 与 web-surface 接线；当这些改动回 `develop` / `main` 时，仍必须保持 `ContextProjection` / `SupervisorResponse` shared seam，不得回退到旧 `snapshot` 路径。
 
 ## 当前基线
 
@@ -48,6 +67,7 @@
 - `app-api` 是唯一的产品层 auth/session/principal owner；`supervisor-api` 只做 internal execution caller admission
 - identity / memory truth 已冻结为 `verified identity`、`profile memory`、`session memory`、`institutional knowledge` 四层；memory 只能个性化，不能授权
 - canonical request projection 由 `app-api` command path 一次产出，并通过 runtime-owned operator request APIs 提供给 panel
+- `develop` 新增的 shared seam / curriculum gate / supplemental runtime 文档与评测更新已并入当前 worktree，后续合流不得回退这些约束
 - 架构目标是 `supervisor-led hybrid orchestration`，而不是把 RAG 降级成顶层产品路径里的扁平 tool adapter
 - ingestion/object-store/registry/retrieval 地基已落地
 - 查询链路当前由 collection runtime profile 控制；当前 query-enabled surface 是 `regulations/student_handbook` 和 `curriculum/curriculum_plan`

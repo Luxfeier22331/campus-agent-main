@@ -13,6 +13,8 @@ from campus_contracts import (
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
+    ProfileMemoryItem,
+    ProfileMemorySummary,
     RagRequestPayload,
     RagResultPayload,
     SessionSlot,
@@ -303,6 +305,44 @@ class SupervisorCoreTest(unittest.TestCase):
             ),
         )
 
+    def test_handle_request_returns_approval_required_without_delegate_for_high_risk_request(self) -> None:
+        audit_records: list[SupervisorAuditRecord] = []
+
+        response = handle_request(
+            SupervisorRequest(
+                user_goal="帮我提交奖学金申请",
+                requested_scope=KnowledgeScope(
+                    corpus="regulations",
+                    collection="student_handbook",
+                ),
+                context=ContextProjection(
+                    actor=ActorContext(
+                        user_id="student-001",
+                        principal_id="principal-001",
+                        groups=("students",),
+                        campus_scope="north",
+                    ),
+                    profile_memory=ProfileMemorySummary(),
+                    session=SessionSummary(turn_count=1),
+                ),
+            ),
+            specialist_delegates={},
+            audit_sink=audit_records.append,
+        )
+
+        self.assertEqual(
+            response,
+            SupervisorResponse(
+                selected_target=None,
+                status="approval_required",
+                answer_text="该请求涉及需要人工确认的操作，必须先经过审批。",
+                confidence="low",
+            ),
+        )
+        self.assertEqual(len(audit_records), 1)
+        self.assertEqual(audit_records[0].status, "approval_required")
+        self.assertIsNone(audit_records[0].selected_target)
+
     def test_handle_request_raises_for_valid_route_without_delegate(self) -> None:
         with self.assertRaisesRegex(
             MissingSpecialistDelegateError,
@@ -395,6 +435,88 @@ class SupervisorCoreTest(unittest.TestCase):
                 "source_doc_ids",
             ),
         )
+
+    def test_build_audit_record_omits_context_projection_and_memory_fields(self) -> None:
+        request = SupervisorRequest(
+            user_goal="保研政策怎么准备？",
+            request_id="req-context-001",
+            trace=TraceContext(trace_id="trace-context-001"),
+            context=ContextProjection(
+                actor=ActorContext(
+                    user_id="student-001",
+                    principal_id="principal-001",
+                    groups=("students",),
+                    campus_scope="north",
+                    cohort="2023",
+                    major="philosophy",
+                ),
+                profile_memory=ProfileMemorySummary(
+                    items=(
+                        ProfileMemoryItem(
+                            item_id="memory-001",
+                            key="recent_goal",
+                            value="咨询保研",
+                            source_type="user_declared",
+                            confidence="high",
+                            visibility="user_visible",
+                            last_verified_at="2026-03-28",
+                        ),
+                    ),
+                ),
+                session=SessionSummary(
+                    confirmed_slots=(SessionSlot(name="policy_topic", value="推免资格", confirmed=True),),
+                    turn_count=3,
+                ),
+            ),
+            requested_scope=KnowledgeScope(
+                corpus="regulations",
+                collection="student_handbook",
+            ),
+        )
+
+        record = build_audit_record(
+            request,
+            SupervisorResponse(
+                selected_target=None,
+                status="approval_required",
+                answer_text="该请求涉及需要人工确认的操作，必须先经过审批。",
+                confidence="low",
+            ),
+        )
+
+        payload = asdict(record)
+
+        self.assertEqual(
+            payload,
+            {
+                "request_id": "req-context-001",
+                "trace_id": "trace-context-001",
+                "user_id": "student-001",
+                "selected_target": None,
+                "requested_capability": "knowledge",
+                "requested_scope_corpus": "regulations",
+                "requested_scope_collection": "student_handbook",
+                "status": "approval_required",
+                "error_code": None,
+                "source_doc_ids": (),
+            },
+        )
+        for forbidden_key in (
+            "principal_id",
+            "roles",
+            "groups",
+            "campus_scope",
+            "cohort",
+            "major",
+            "program",
+            "context",
+            "profile_memory",
+            "session",
+            "memory",
+            "confirmed_slots",
+            "raw_transcript",
+        ):
+            self.assertNotIn(forbidden_key, payload)
 
     def test_build_audit_record_keeps_minimum_projection_for_non_rag_response(self) -> None:
         request = SupervisorRequest(

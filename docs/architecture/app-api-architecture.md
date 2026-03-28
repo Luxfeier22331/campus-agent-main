@@ -241,7 +241,7 @@ operator query path 至少包含：
 
 ## 当前仓库状态
 
-当前仓库已经正式落地 `apps/app-api`。
+当前 `protected-panel-web` worktree 已经正式落地 `apps/app-api` 的完整 Worker foundation。
 
 已落地的实现事实包括：
 
@@ -252,7 +252,9 @@ operator query path 至少包含：
 - `request_projection` 与 `GET /api/operator/requests*`
 - `public-chat-web` / `protected-panel-web` 对 shared `app-api` 的当前接线
 
-同时，以下内容仍然是 canonical truth：
+同时，`develop` 长期集成线已经把 `ContextProjection` / `SupervisorResponse` 视为 shared seam。当前 worktree 在回 `develop` / `main` 时，必须继续保持这条 contract，不得把旧 `snapshot` 形态重新带回 merged truth。
+
+以下内容仍然是 canonical truth：
 
 - `apps/app-api` 是 Worker runtime
 - `apps/public-consumer-chat` 只是历史实现参考

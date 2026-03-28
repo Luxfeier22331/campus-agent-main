@@ -4,15 +4,18 @@ from dataclasses import dataclass
 import os
 
 
-DEFAULT_SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS = 3.0
-DEFAULT_SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS = 20.0
+DEFAULT_SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS = 10.0
+DEFAULT_SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS = 30.0
 DEFAULT_SUPPLEMENTAL_HTTP_WRITE_TIMEOUT_SECONDS = 10.0
 DEFAULT_SUPPLEMENTAL_HTTP_POOL_TIMEOUT_SECONDS = 3.0
 DEFAULT_SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS = 1
 DEFAULT_SUPPLEMENTAL_HTTP_RETRY_BACKOFF_SECONDS = 1.0
 DEFAULT_SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_FAILURE_THRESHOLD = 3
 DEFAULT_SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_COOLDOWN_SECONDS = 60.0
-DEFAULT_SUPPLEMENTAL_HTTP_PREFLIGHT_TIMEOUT_SECONDS = 5.0
+DEFAULT_SUPPLEMENTAL_HTTP_PREFLIGHT_TIMEOUT_SECONDS = 20.0
+DEFAULT_SUPPLEMENTAL_HTTP_KEEPALIVE_EXPIRY_SECONDS = 30.0
+DEFAULT_SUPPLEMENTAL_HTTP_MAX_CONNECTIONS = 100
+DEFAULT_SUPPLEMENTAL_HTTP_MAX_KEEPALIVE_CONNECTIONS = 20
 DEFAULT_SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS = 0.0
 ALLOWED_RAGAS_REASONING_EFFORTS = frozenset({"minimal", "low", "medium", "high", "none"})
 ALLOWED_RAGAS_TEXT_VERBOSITIES = frozenset({"low", "medium", "high"})
@@ -29,7 +32,11 @@ class SupplementalHTTPSettings:
     circuit_breaker_failure_threshold: int = DEFAULT_SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_FAILURE_THRESHOLD
     circuit_breaker_cooldown_seconds: float = DEFAULT_SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_COOLDOWN_SECONDS
     preflight_timeout_seconds: float = DEFAULT_SUPPLEMENTAL_HTTP_PREFLIGHT_TIMEOUT_SECONDS
+    requests_per_minute: float | None = None
     request_min_interval_seconds: float = DEFAULT_SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS
+    keepalive_expiry_seconds: float = DEFAULT_SUPPLEMENTAL_HTTP_KEEPALIVE_EXPIRY_SECONDS
+    max_connections: int = DEFAULT_SUPPLEMENTAL_HTTP_MAX_CONNECTIONS
+    max_keepalive_connections: int = DEFAULT_SUPPLEMENTAL_HTTP_MAX_KEEPALIVE_CONNECTIONS
 
     def __post_init__(self) -> None:
         if self.connect_timeout_seconds <= 0:
@@ -50,12 +57,28 @@ class SupplementalHTTPSettings:
             raise ValueError("SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_COOLDOWN_SECONDS must be greater than zero")
         if self.preflight_timeout_seconds <= 0:
             raise ValueError("SUPPLEMENTAL_HTTP_PREFLIGHT_TIMEOUT_SECONDS must be greater than zero")
+        if self.requests_per_minute is not None and self.requests_per_minute <= 0:
+            raise ValueError("SUPPLEMENTAL_HTTP_REQUESTS_PER_MINUTE must be greater than zero")
         if self.request_min_interval_seconds < 0:
             raise ValueError("SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS must be greater than or equal to zero")
+        if self.keepalive_expiry_seconds <= 0:
+            raise ValueError("SUPPLEMENTAL_HTTP_KEEPALIVE_EXPIRY_SECONDS must be greater than zero")
+        if self.max_connections <= 0:
+            raise ValueError("SUPPLEMENTAL_HTTP_MAX_CONNECTIONS must be greater than zero")
+        if self.max_keepalive_connections <= 0:
+            raise ValueError("SUPPLEMENTAL_HTTP_MAX_KEEPALIVE_CONNECTIONS must be greater than zero")
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> "SupplementalHTTPSettings":
         source = env if env is not None else os.environ
+        explicit_request_interval = _read_optional_float(source.get("SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS"))
+        requests_per_minute = _read_optional_float(source.get("SUPPLEMENTAL_HTTP_REQUESTS_PER_MINUTE"))
+        if explicit_request_interval is not None:
+            request_min_interval_seconds = explicit_request_interval
+        elif requests_per_minute is not None:
+            request_min_interval_seconds = 60.0 / requests_per_minute
+        else:
+            request_min_interval_seconds = DEFAULT_SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS
         return cls(
             connect_timeout_seconds=float(
                 (
@@ -111,10 +134,24 @@ class SupplementalHTTPSettings:
                     or str(DEFAULT_SUPPLEMENTAL_HTTP_PREFLIGHT_TIMEOUT_SECONDS)
                 ).strip()
             ),
-            request_min_interval_seconds=float(
+            requests_per_minute=requests_per_minute,
+            request_min_interval_seconds=request_min_interval_seconds,
+            keepalive_expiry_seconds=float(
                 (
-                    source.get("SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS")
-                    or str(DEFAULT_SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS)
+                    source.get("SUPPLEMENTAL_HTTP_KEEPALIVE_EXPIRY_SECONDS")
+                    or str(DEFAULT_SUPPLEMENTAL_HTTP_KEEPALIVE_EXPIRY_SECONDS)
+                ).strip()
+            ),
+            max_connections=int(
+                (
+                    source.get("SUPPLEMENTAL_HTTP_MAX_CONNECTIONS")
+                    or str(DEFAULT_SUPPLEMENTAL_HTTP_MAX_CONNECTIONS)
+                ).strip()
+            ),
+            max_keepalive_connections=int(
+                (
+                    source.get("SUPPLEMENTAL_HTTP_MAX_KEEPALIVE_CONNECTIONS")
+                    or str(DEFAULT_SUPPLEMENTAL_HTTP_MAX_KEEPALIVE_CONNECTIONS)
                 ).strip()
             ),
         )
@@ -279,6 +316,13 @@ def _read_optional_int(value: str | None) -> int | None:
     if normalized is None:
         return None
     return int(normalized)
+
+
+def _read_optional_float(value: str | None) -> float | None:
+    normalized = _read_optional_str(value)
+    if normalized is None:
+        return None
+    return float(normalized)
 
 
 def _resolve_judge_model(source: dict[str, str]) -> str:

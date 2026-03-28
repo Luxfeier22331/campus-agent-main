@@ -83,6 +83,9 @@ updated: 2026-03-28
   - `max_run_average_score`
   - `run_average_drift`
   - `applicable_runs`
+  - `overall.runtime_status`
+  - `overall.retryable_runtime_failure_count`
+  - `overall.non_retryable_runtime_failure_count`
 
 gate 解释规则：
 
@@ -92,6 +95,13 @@ gate 解释规则：
 - 波动过大：`run_average_drift_above_threshold`
 - 总 run 数不足：`insufficient_total_runs`
 - 适用 run 不足：`insufficient_applicable_runs`
+- 运行面不可用：`runtime_unavailable`
+
+补充说明：
+
+- 当某个 metric `applicable_runs=0` 且 `overall.runtime_status=unavailable` 时，gate 应报告 `runtime_unavailable`
+- 此时不再追加 `mean_average_score_below_threshold`、`min_run_average_score_below_threshold`、`run_average_drift_above_threshold`
+- 也就是说，“没有拿到任何分数”与“拿到了分数但低于阈值”必须被区分开
 
 ## Failure Mapping
 
@@ -100,6 +110,7 @@ supplemental runtime 当前采用 fail-open for benchmark aggregation：
 - judge / ragas runtime 异常不会中断整轮 benchmark
 - 异常会被映射成对应 metric 的 `failed` supplemental result
 - 结果必须保留 `judge_error` 或等价 metadata，便于区分“模型低分”和“运行面失败”
+- summary / gate report 必须把纯运行面 outage 明确标成 `runtime_unavailable`，不能伪装成阈值低分
 
 这样做的原因：
 
@@ -119,21 +130,27 @@ supplemental runtime 当前采用 fail-open for benchmark aggregation：
 - `SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_FAILURE_THRESHOLD`
 - `SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_COOLDOWN_SECONDS`
 - `SUPPLEMENTAL_HTTP_PREFLIGHT_TIMEOUT_SECONDS`
+- `SUPPLEMENTAL_HTTP_REQUESTS_PER_MINUTE`
 - `SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS`
+- `SUPPLEMENTAL_HTTP_KEEPALIVE_EXPIRY_SECONDS`
+- `SUPPLEMENTAL_HTTP_MAX_CONNECTIONS`
+- `SUPPLEMENTAL_HTTP_MAX_KEEPALIVE_CONNECTIONS`
 - `RAGAS_REASONING_EFFORT`
 - `RAGAS_TEXT_VERBOSITY`
 - `RAGAS_MAX_OUTPUT_TOKENS`
 
-`SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS` 的语义：
+`SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS` / `SUPPLEMENTAL_HTTP_REQUESTS_PER_MINUTE` 的语义：
 
-- 对同一 provider origin 的 supplemental HTTP 请求施加最小间隔
-- `ragas` judge 与 rubric judge 共享同一 pacing 语义
+- pacing 的共享粒度是 `provider origin + api key`
+- 可直接指定最小间隔，也可只给 `rpm`，由 runtime 自动派生 `60 / rpm`
+- `ragas` judge 与 rubric judge 会复用同一 pacing / keep-alive transport
 - 默认值为 `0`，表示不主动节流
 
 使用场景：
 
 - provider 存在严格 request-count window 限流
 - formal benchmark 需要在不更换 metric set 的前提下稳定跑完
+- provider 握手延迟偏高，需要依赖 keep-alive 避免每次 fresh connect
 
 ## Artifact Contract
 

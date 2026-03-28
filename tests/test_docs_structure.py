@@ -13,6 +13,7 @@ EXPECTED_DOC_TYPES = {
     "contracts": "contract",
     "data": "data",
     "decisions": "decision",
+    "environment": "index",
     "plans": "plan",
     "runbooks": "runbook",
     "reference": "reference",

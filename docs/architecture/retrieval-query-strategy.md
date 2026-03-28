@@ -64,6 +64,9 @@ updated: 2026-03-28
 - trim
 - 空查询 fail-closed
 - 保留原始 query text 进入 downstream trace / evidence context
+- dense query path 会在 embedding 前附加英文 retrieval instruction，当前固定格式为：
+  `Instruct: <instruction>\nQuery: <user query>`
+- 这层 instruction 只作用于 dense query embedding，不改 document embedding，也不改 sparse query text
 
 当前默认不做：
 
@@ -79,6 +82,8 @@ updated: 2026-03-28
 - 当前项目通过 `gitee` 官方 OpenAI-compatible 接口请求 embeddings
 - 当前项目运行契约要求 ingestion 与 retrieval query path 都显式发送 `dimensions=2560`
 - `gitee` + `Qwen3-Embedding-4B @ 2560` 已在本项目中验证通过，不再把 `2560` 视为待确认假设
+- dense query embedding 当前固定附加英文 instruction：
+  `Given a campus policy or handbook question, retrieve relevant passages that answer the query.`
 - dense query 向量在 retrieval time 生成
 - dense candidate retrieval 的目标是覆盖语义近邻和表达变体
 
@@ -92,15 +97,20 @@ updated: 2026-03-28
 - live / remote 路径里，`tokenizer=multilingual` 由 Qdrant native `qdrant/bm25` sparse path 提供；仓库本地不会为它下载或缓存额外 tokenizer 文件
 - 本地 `:memory:` / mock / unit-test 路径里，仓库只提供一个最小兼容的 `_tokenize_multilingual()` fallback 来生成测试用 sparse vectors；它不是 live sparse 服务真相源
 - accepted target shape 是 Qdrant native sparse index，而不是 retrieval-core 内部本地算分
-- 当前仓库主实现已切换到 native hybrid：ingestion / rebuild 会对同一 `chunk_id` 双写 named `dense` 与 named `sparse` vectors，retrieval 通过 Qdrant native `prefetch + FusionQuery(RRF)` 查询
+- 当前仓库主实现已切换到 native hybrid：ingestion / rebuild 会对同一 `chunk_id` 双写 named `dense` 与 named `sparse` vectors，retrieval 通过 Qdrant native `prefetch + RrfQuery(...)` 查询
 - 当前剩余 gate 不再是实现缺口，而是 live rebuild、真实 collection 验收和 query-serving 运行态证据补齐
 
 ### 4. Fusion
 
 - 当前默认 fusion 为 `RRF`
+- 当前 runtime 明确固定：
+  - dense prefetch limit = `20`
+  - sparse prefetch limit = `20`
+  - `RrfQuery(k=60, weights=[1.0, 1.0])`
+- 当前 `regulations/student_handbook` runtime profile 取回 `top_k=8` 个 retrieval candidates；`rag-specialist` 最终只保留最多 `3` 条支撑证据进入回答
 - dense / sparse 两路候选必须进入统一 candidate shape 后再融合
 - 不允许让 specialist 或 supervisor 理解底层 fusion 细节
-- accepted target query shape 为 `prefetch(dense) + prefetch(sparse) + FusionQuery(RRF)`
+- accepted target query shape 为 `prefetch(dense) + prefetch(sparse) + RrfQuery(k=60, weights=[1.0, 1.0])`
 
 ### 5. Evidence shaping
 
@@ -186,6 +196,10 @@ fusion 后的候选必须继续通过 `DocumentRegistry` 回链，补齐：
 - ingestion / rebuild 对同一 `chunk_id` 双写 dense 与 sparse vectors
 - retrieval query 对同一 filter 集合同时发起 dense prefetch 与 sparse prefetch
 - dense / sparse 融合默认使用 Qdrant native `RRF`
+- 当前 phase-1 handbook runtime 已显式冻结 prefetch / fusion baseline：
+  - dense prefetch limit = `20`
+  - sparse prefetch limit = `20`
+  - `RrfQuery(k=60, weights=[1.0, 1.0])`
 - registry back-link、`EvidenceBundle`、ACL filter contract 保持不变
 - serving 所需的 payload metadata 至少包括 `revision_track`、`status`、`is_current`
 

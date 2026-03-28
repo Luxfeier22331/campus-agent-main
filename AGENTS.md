@@ -11,6 +11,12 @@
 - runtime 选择尚未 repo-wide 冻结；当前只对 `apps/app-api` 明确冻结为 Worker，其余边界尤其 `apps/supervisor-api` 不要为了实现便利提前绑定到单一 HTTP 框架
 - 不要按旧 bootstrap 的 tool-adapter 模式扩展当前仓库；如需追溯旧实现请查看 git 历史
 
+### Branch Model
+
+- `develop` 是长期集成分支，`main` 是稳定分支
+- 讨论“当前 merged truth”时，默认指已合入 `develop` 的状态；如果讨论当前 worktree / feature branch，必须显式写明
+- 独立 worktree 中尚未回 `develop` 的实现进度，不得冒充 merged truth
+
 ## Source Of Truth
 
 先看这些文件，再做结构性修改：

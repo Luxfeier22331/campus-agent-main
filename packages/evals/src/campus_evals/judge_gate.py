@@ -116,24 +116,28 @@ def _evaluate_metric_policy(
 
     run_count = int(aggregate.get("run_count") or 0)
     applicable_runs = int(aggregate.get("applicable_runs") or 0)
+    overall_bucket = dict(aggregate.get("overall") or {})
+    runtime_status = str(overall_bucket.get("runtime_status") or "").strip()
     min_applicable_runs = int(metric_policy["min_applicable_runs"] or required_runs)
     if run_count < required_runs:
         reasons.append("insufficient_total_runs")
     if applicable_runs < min_applicable_runs:
         reasons.append("insufficient_applicable_runs")
+        if applicable_runs == 0 and runtime_status == "unavailable":
+            reasons.append("runtime_unavailable")
 
     mean_average_score = _read_optional_float(aggregate.get("mean_average_score"))
     min_run_average_score = _read_optional_float(aggregate.get("min_run_average_score"))
     run_average_drift = _read_optional_float(aggregate.get("run_average_drift"))
 
     expected_min_mean = _read_optional_float(metric_policy.get("min_mean_score"))
-    if expected_min_mean is not None and (mean_average_score is None or mean_average_score < expected_min_mean):
+    if expected_min_mean is not None and mean_average_score is not None and mean_average_score < expected_min_mean:
         reasons.append("mean_average_score_below_threshold")
     expected_min_run = _read_optional_float(metric_policy.get("min_run_average_score"))
-    if expected_min_run is not None and (min_run_average_score is None or min_run_average_score < expected_min_run):
+    if expected_min_run is not None and min_run_average_score is not None and min_run_average_score < expected_min_run:
         reasons.append("min_run_average_score_below_threshold")
     expected_max_drift = _read_optional_float(metric_policy.get("max_run_average_drift"))
-    if expected_max_drift is not None and (run_average_drift is None or run_average_drift > expected_max_drift):
+    if expected_max_drift is not None and run_average_drift is not None and run_average_drift > expected_max_drift:
         reasons.append("run_average_drift_above_threshold")
 
     verdict = "pass" if not reasons else _verdict_for_gate_level(gate_level)

@@ -8,7 +8,7 @@
     "主相关 source 标记到 expected_sources，使用 grade=2。",
     "可接受相关 source 标记到 expected_sources，使用 grade=1。",
     "不应命中的 source 标记到 forbidden_sources。",
-    "phase-1 curriculum qrels 默认锁到 doc_id；只有在 chunk 边界和表格锚点长期稳定后再补 chunk_id。"
+    "curriculum qrels 默认锁到 doc_id；已确认版本语义稳定的高风险 regression_locked case 可以补 version_id，chunk_id 仍只在边界和表格锚点长期稳定后再补。"
   ],
   "cases": [
     {
@@ -54,6 +54,20 @@
       "notes": "创新班方案标题命中。"
     },
     {
+      "case_id": "philosophy-strong-base-title",
+      "query": "哲学强基计划本科人才培养方案",
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "哲学强基计划与普通哲学方案区分。"
+    },
+    {
+      "case_id": "digital-economy-plan-paraphrase",
+      "query": "想看数字经济这个专业的培养方案",
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "dense paraphrase + disambiguation 样本。"
+    },
+    {
       "case_id": "ethnology-second-degree-academic-years",
       "query": "民族学本科第二学士学位人才培养方案学制几年",
       "expected_sources": [],
@@ -75,11 +89,32 @@
       "notes": "table retrieval 样本。"
     },
     {
+      "case_id": "general-english-total-credits",
+      "query": "大学英语课程教学计划一共多少学分",
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "课程教学计划短事实 + forbidden-source 区分。"
+    },
+    {
       "case_id": "law-ethnic-experimental-total-credits",
       "query": "法学民族实验班本科人才培养方案总学分是多少",
       "expected_sources": [],
       "forbidden_sources": [],
       "notes": "括号标题和相邻专业区分样本。"
+    },
+    {
+      "case_id": "fixed-phrase-ethnic-experimental-class",
+      "query": "民族实验班",
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "sparse 固定短语样本。"
+    },
+    {
+      "case_id": "semantic-philosophy-strong-base-paraphrase",
+      "query": "想看哲学强基方向的培养方案",
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "dense paraphrase + disambiguation 样本。"
     },
     {
       "case_id": "no-hit-impossible-query",

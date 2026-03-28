@@ -97,6 +97,47 @@
       "notes": "table-heavy 文档标题命中。"
     },
     {
+      "case_id": "philosophy-strong-base-title",
+      "split": "regression_locked",
+      "query": "哲学强基计划本科人才培养方案",
+      "expected_sources": [
+        {
+          "doc_id": "curriculum:哲学（强基计划）本科人才培养方案",
+          "grade": 2,
+          "rationale": "去括号后的标题近似命中，目标仍应是哲学强基版本。"
+        }
+      ],
+      "forbidden_sources": [
+        {
+          "doc_id": "curriculum:哲学类本科人才培养方案",
+          "grade": 1,
+          "rationale": "普通哲学类方案不应压过强基计划版本。"
+        }
+      ],
+      "notes": "相邻同专业不同培养路径的区分样本。"
+    },
+    {
+      "case_id": "digital-economy-plan-paraphrase",
+      "split": "smoke",
+      "query": "想看数字经济这个专业的培养方案",
+      "expected_sources": [
+        {
+          "doc_id": "curriculum:数字经济本科人才培养方案",
+          "version_id": "sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67:split:数字经济本科人才培养方案:fdc86726d542",
+          "grade": 2,
+          "rationale": "自然问法仍应回到数字经济本科方案。"
+        }
+      ],
+      "forbidden_sources": [
+        {
+          "doc_id": "curriculum:经济学本科人才培养方案",
+          "grade": 1,
+          "rationale": "相邻经济学方案不应压过数字经济方案。"
+        }
+      ],
+      "notes": "dense paraphrase + disambiguation 样本。"
+    },
+    {
       "case_id": "ethnology-second-degree-academic-years",
       "split": "regression_locked",
       "query": "民族学本科第二学士学位人才培养方案学制几年",
@@ -136,6 +177,27 @@
       "notes": "table retrieval 高风险回归样本。"
     },
     {
+      "case_id": "general-english-total-credits",
+      "split": "regression_locked",
+      "query": "大学英语课程教学计划一共多少学分",
+      "expected_sources": [
+        {
+          "doc_id": "curriculum:中央民族大学通识课程“大学英语”课程教学计划",
+          "version_id": "sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67:split:中央民族大学通识课程“大学英语”课程教学计划:00f8ddafb450",
+          "grade": 2,
+          "rationale": "大学英语课程教学计划是主相关文档。"
+        }
+      ],
+      "forbidden_sources": [
+        {
+          "doc_id": "curriculum:中央民族大学通识课程教学计划",
+          "grade": 1,
+          "rationale": "通识课程总计划不应压过大学英语教学计划。"
+        }
+      ],
+      "notes": "课程教学计划短事实 + forbidden-source 区分。"
+    },
+    {
       "case_id": "law-ethnic-experimental-total-credits",
       "split": "smoke",
       "query": "法学民族实验班本科人才培养方案总学分是多少",
@@ -147,6 +209,39 @@
         }
       ],
       "notes": "带括号标题的课程方案区分样本。"
+    },
+    {
+      "case_id": "fixed-phrase-ethnic-experimental-class",
+      "split": "smoke",
+      "query": "民族实验班",
+      "expected_sources": [
+        {
+          "doc_id": "curriculum:法学（民族实验班）本科人才培养方案",
+          "grade": 2,
+          "rationale": "固定短语应直接命中民族实验班培养方案。"
+        }
+      ],
+      "notes": "sparse 固定短语样本。"
+    },
+    {
+      "case_id": "semantic-philosophy-strong-base-paraphrase",
+      "split": "smoke",
+      "query": "想看哲学强基方向的培养方案",
+      "expected_sources": [
+        {
+          "doc_id": "curriculum:哲学（强基计划）本科人才培养方案",
+          "grade": 2,
+          "rationale": "自然问法仍应回到哲学强基计划方案。"
+        }
+      ],
+      "forbidden_sources": [
+        {
+          "doc_id": "curriculum:哲学类本科人才培养方案",
+          "grade": 1,
+          "rationale": "普通哲学类方案不应压过哲学强基计划版本。"
+        }
+      ],
+      "notes": "dense paraphrase + disambiguation 样本。"
     },
     {
       "case_id": "no-hit-impossible-query",

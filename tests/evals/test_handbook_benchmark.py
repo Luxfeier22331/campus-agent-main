@@ -93,7 +93,9 @@ def _response(
 
 
 class HandbookBenchmarkRunnerTest(unittest.TestCase):
-    def test_run_handbook_formal_benchmark_executes_supplemental_preflight_without_blocking_deterministic_runs(self) -> None:
+    def test_run_handbook_formal_benchmark_skips_unavailable_supplemental_adapters_and_preserves_deterministic_runs(
+        self,
+    ) -> None:
         cases = (_completed_case(),)
 
         class PreflightAwareAdapter:
@@ -163,16 +165,80 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
             )
 
             self.assertEqual(adapter.preflight_calls, 1)
-            self.assertEqual(adapter.evaluate_calls, 1)
+            self.assertEqual(adapter.evaluate_calls, 0)
             self.assertTrue((output_dir / "supplemental-preflight.json").exists())
             preflight = json.loads((output_dir / "supplemental-preflight.json").read_text(encoding="utf-8"))
             self.assertEqual(preflight["summary"]["status_counts"]["failed"], 1)
+            self.assertEqual(preflight["adapters"][0]["failure_disposition"], "transient_retryable")
+            self.assertEqual(preflight["adapters"][0]["run_action"], "skip_adapter")
             summary = json.loads((output_dir / "run-01-summary.json").read_text(encoding="utf-8"))
             self.assertEqual(summary["summary"]["total"], 1)
             self.assertEqual(summary["summary"]["passed"], 1)
-            supplemental = summary["summary"]["by_supplemental"]["judge.answer_correctness_rubric"]
-            self.assertEqual(supplemental["score_count"], 0)
-            self.assertEqual(supplemental["verdict_counts"]["failed"], 1)
+            self.assertEqual(summary["summary"]["by_supplemental"], {})
+            aggregate = json.loads((output_dir / "summary.json").read_text(encoding="utf-8"))
+            metric = aggregate["aggregate"]["supplemental"]["judge.answer_correctness_rubric"]
+            self.assertEqual(metric["overall"]["runtime_status"], "unavailable")
+            self.assertEqual(metric["overall"]["skip_reason"], "preflight_unavailable")
+            self.assertEqual(metric["overall"]["preflight_failure_count"], 1)
+            self.assertEqual(
+                metric["overall"]["failure_disposition_counts"],
+                {"transient_retryable": 1},
+            )
+            gate_metric = next(
+                item
+                for item in aggregate["gate_report"]["metrics"]
+                if item["metric_key"] == "judge.answer_correctness_rubric"
+            )
+            self.assertIn("runtime_unavailable", gate_metric["reasons"])
+            self.assertNotIn("mean_average_score_below_threshold", gate_metric["reasons"])
+            self.assertNotIn("min_run_average_score_below_threshold", gate_metric["reasons"])
+            self.assertNotIn("run_average_drift_above_threshold", gate_metric["reasons"])
+
+    def test_run_handbook_formal_benchmark_raises_for_non_retryable_preflight_failure(self) -> None:
+        cases = (_completed_case(),)
+
+        class InvalidRequestAdapter:
+            adapter_id = "judge"
+            metric_name = "answer_correctness_rubric"
+            metric_names = ("answer_correctness_rubric",)
+
+            def preflight(self) -> dict[str, object]:
+                raise RuntimeError("400 invalid request: unsupported parameter")
+
+            def evaluate(self, case, execution):
+                del case, execution
+                raise AssertionError("evaluate should not run after non-retryable preflight failure")
+
+        with TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "benchmark"
+
+            with self.assertRaisesRegex(RuntimeError, "non-retryable supplemental preflight failure"):
+                run_handbook_formal_benchmark(
+                    cases=cases,
+                    executor=lambda case: ExecutionResult(
+                        response=_response(
+                            status=case.expected_status,
+                            answer_text="图书馆开放时间为 08:00 到 22:00。",
+                            sources=(_source("handbook:library"),),
+                        ),
+                        observed_trace=ObservedTrace(
+                            selected_scope=HANDBOOK_SCOPE,
+                            retrieval_called=True,
+                            retrieved_sources=(_source("handbook:library"),),
+                            supporting_sources=(_source("handbook:library"),),
+                        ),
+                    ),
+                    supplemental_adapters=(InvalidRequestAdapter(),),
+                    output_dir=output_dir,
+                    reruns=1,
+                    benchmark_type="formal_benchmark",
+                )
+
+            self.assertTrue((output_dir / "supplemental-preflight.json").exists())
+            self.assertFalse((output_dir / "summary.json").exists())
+            preflight = json.loads((output_dir / "supplemental-preflight.json").read_text(encoding="utf-8"))
+            self.assertEqual(preflight["adapters"][0]["failure_disposition"], "non_retryable_request")
+            self.assertEqual(preflight["adapters"][0]["run_action"], "abort_benchmark")
 
     def test_run_handbook_formal_benchmark_writes_expected_artifacts_and_summaries(self) -> None:
         cases = (_completed_case(), _no_answer_case())
@@ -356,6 +422,25 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
                                     }
                                 ],
                             },
+                            {
+                                "case_id": "case-auth-unavailable",
+                                "passed": True,
+                                "status_result": {"passed": True, "reason": ""},
+                                "retrieval_result": {"passed": True, "reason": ""},
+                                "answer_result": {"passed": True, "reason": ""},
+                                "trace_result": {"passed": True, "reason": ""},
+                                "metric_results": {},
+                                "supplemental_results": [
+                                    {
+                                        "adapter_id": "judge",
+                                        "metric_name": "answer_correctness_rubric",
+                                        "score": None,
+                                        "verdict": "failed",
+                                        "rationale": 'judge runtime error: 500 {"error":{"message":"auth_unavailable: no auth available"}}',
+                                        "metadata": {"judge_error": "RuntimeError"},
+                                    }
+                                ],
+                            },
                         ],
                     },
                     ensure_ascii=False,
@@ -515,6 +600,92 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
                 1,
             )
 
+    def test_repair_handbook_formal_benchmark_skips_targets_when_repair_preflight_is_unavailable(self) -> None:
+        cases = (_completed_case(),)
+        original_adapter = type(
+            "OriginalAdapter",
+            (),
+            {
+                "adapter_id": "judge",
+                "metric_name": "answer_correctness_rubric",
+                "metric_names": ("answer_correctness_rubric",),
+                "evaluate": lambda self, case, execution: (
+                    SupplementalResult(
+                        adapter_id="judge",
+                        metric_name="answer_correctness_rubric",
+                        score=None,
+                        verdict="failed",
+                        rationale='judge runtime error: 429 {"error":{"message":"upstream error","code":"do_request_failed"}}',
+                        metadata={"judge_error": "RuntimeError"},
+                    ),
+                ),
+            },
+        )()
+
+        class UnavailableRepairAdapter:
+            adapter_id = "judge"
+            metric_name = "answer_correctness_rubric"
+            metric_names = ("answer_correctness_rubric",)
+
+            def __init__(self) -> None:
+                self.evaluate_calls = 0
+
+            def preflight(self) -> dict[str, object]:
+                raise RuntimeError("preflight_failed: 503 upstream temporarily unavailable")
+
+            def evaluate(self, case, execution):
+                del case, execution
+                self.evaluate_calls += 1
+                raise AssertionError("repair rerun should skip unavailable adapters")
+
+        repair_adapter = UnavailableRepairAdapter()
+
+        with TemporaryDirectory() as tmpdir:
+            benchmark_dir = Path(tmpdir) / "benchmark"
+            repair_dir = Path(tmpdir) / "benchmark-repair"
+
+            run_handbook_formal_benchmark(
+                cases=cases,
+                executor=lambda case: ExecutionResult(
+                    response=_response(
+                        status=case.expected_status,
+                        answer_text="图书馆开放时间为 08:00 到 22:00。",
+                        sources=(_source("handbook:library"),),
+                    ),
+                    observed_trace=ObservedTrace(
+                        selected_scope=HANDBOOK_SCOPE,
+                        retrieval_called=True,
+                    ),
+                ),
+                supplemental_adapters=(original_adapter,),
+                output_dir=benchmark_dir,
+                reruns=1,
+            )
+
+            repaired_summary = repair_handbook_formal_benchmark(
+                cases=cases,
+                executor=lambda case: ExecutionResult(
+                    response=_response(
+                        status=case.expected_status,
+                        answer_text="图书馆开放时间为 08:00 到 22:00。",
+                        sources=(_source("handbook:library"),),
+                    ),
+                    observed_trace=ObservedTrace(
+                        selected_scope=HANDBOOK_SCOPE,
+                        retrieval_called=True,
+                    ),
+                ),
+                supplemental_adapters=(repair_adapter,),
+                benchmark_dir=benchmark_dir,
+                output_dir=repair_dir,
+            )
+
+            self.assertEqual(repair_adapter.evaluate_calls, 0)
+            self.assertEqual(repaired_summary["repair"]["selected_target_count"], 1)
+            self.assertEqual(repaired_summary["repair"]["applied_target_count"], 0)
+            repair_results = json.loads((repair_dir / "run-01-repair-results.json").read_text(encoding="utf-8"))
+            self.assertEqual(repair_results["results"][0]["status"], "skipped_provider_unavailable")
+
 
 class JudgeGatePolicyTest(unittest.TestCase):
     def test_evaluate_judge_gate_returns_warn_for_soft_gate_metric_below_threshold(self) -> None:
@@ -561,6 +732,66 @@ class JudgeGatePolicyTest(unittest.TestCase):
             self.assertEqual(report["overall_verdict"], "warn")
             self.assertEqual(report["metrics"][0]["metric_key"], "judge.answer_correctness_rubric")
             self.assertEqual(report["metrics"][0]["verdict"], "warn")
+
+    def test_evaluate_judge_gate_marks_runtime_unavailable_without_threshold_reasons_when_no_scores_exist(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            policy_path = Path(tmpdir) / "policy.json"
+            policy_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "required_runs": 3,
+                        "metrics": [
+                            {
+                                "adapter_id": "judge",
+                                "metric_name": "answer_correctness_rubric",
+                                "gate_level": "soft_gate",
+                                "min_mean_score": 0.9,
+                                "min_run_average_score": 0.88,
+                                "max_run_average_drift": 0.1,
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            report = evaluate_judge_gate(
+                load_judge_gate_policy(policy_path),
+                {
+                    "judge.answer_correctness_rubric": {
+                        "metric_key": "judge.answer_correctness_rubric",
+                        "run_count": 3,
+                        "run_average_scores": [],
+                        "mean_average_score": None,
+                        "min_run_average_score": None,
+                        "max_run_average_score": None,
+                        "run_average_drift": None,
+                        "applicable_runs": 0,
+                        "overall": {
+                            "total": 3,
+                            "score_count": 0,
+                            "average_score": None,
+                            "verdict_counts": {"failed": 3},
+                            "runtime_status": "unavailable",
+                            "retryable_runtime_failure_count": 3,
+                            "non_retryable_runtime_failure_count": 0,
+                        },
+                    }
+                },
+            )
+
+            metric_report = report["metrics"][0]
+            self.assertEqual(report["overall_verdict"], "warn")
+            self.assertEqual(metric_report["metric_key"], "judge.answer_correctness_rubric")
+            self.assertEqual(metric_report["verdict"], "warn")
+            self.assertIn("insufficient_applicable_runs", metric_report["reasons"])
+            self.assertIn("runtime_unavailable", metric_report["reasons"])
+            self.assertNotIn("mean_average_score_below_threshold", metric_report["reasons"])
+            self.assertNotIn("min_run_average_score_below_threshold", metric_report["reasons"])
+            self.assertNotIn("run_average_drift_above_threshold", metric_report["reasons"])
 
 
 if __name__ == "__main__":

@@ -365,6 +365,33 @@ class SupervisorApiTest(unittest.TestCase):
             self.assertEqual(payload["selected_target"], "rag-specialist")
             self.assertEqual(payload["status"], "completed")
             self.assertIsNone(payload["error_code"])
+            self.assertEqual(
+                set(payload),
+                {
+                    "recorded_at",
+                    "request_id",
+                    "trace_id",
+                    "user_id",
+                    "selected_target",
+                    "requested_capability",
+                    "requested_scope_corpus",
+                    "requested_scope_collection",
+                    "status",
+                    "error_code",
+                    "source_doc_ids",
+                },
+            )
+            for forbidden_key in (
+                "principal_id",
+                "roles",
+                "groups",
+                "campus_scope",
+                "context",
+                "profile_memory",
+                "session",
+                "raw_transcript",
+            ):
+                self.assertNotIn(forbidden_key, payload)
 
     def test_answer_route_writes_error_audit_log_for_supervisor_error(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
@@ -405,6 +432,8 @@ class SupervisorApiTest(unittest.TestCase):
             self.assertEqual(payload["selected_target"], "rag-specialist")
             self.assertEqual(payload["status"], "error")
             self.assertEqual(payload["error_code"], "disallowed_knowledge_scope")
+            self.assertNotIn("context", payload)
+            self.assertNotIn("profile_memory", payload)
 
     def test_actor_groups_reach_specialist_handoff_for_acl_filtering(self) -> None:
         captured_specialist_requests: list[SpecialistRequest] = []

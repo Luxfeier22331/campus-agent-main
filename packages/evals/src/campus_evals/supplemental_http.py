@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 import json
 import re
 from threading import Lock
@@ -21,6 +24,38 @@ _RETRYABLE_PROVIDER_ERROR_MARKERS = (
     "bad_response_body",
     "do_request_failed",
 )
+_HARD_UNAVAILABLE_REASON_MARKERS = {
+    "auth_unavailable": (
+        "auth_unavailable",
+        "no auth available",
+        "invalid_api_key",
+        "invalid api key",
+        "authentication failed",
+        "authentication_error",
+        "unauthorized",
+        "forbidden",
+    ),
+    "quota_unavailable": (
+        "insufficient_quota",
+        "quota exceeded",
+        "quota_exceeded",
+    ),
+}
+_NON_RETRYABLE_REASON_MARKERS = {
+    "invalid_request": (
+        "invalid_request",
+        "invalid request",
+        "unsupported parameter",
+        "unsupported_parameter",
+        "unsupported value",
+        "bad request",
+    ),
+    "model_not_found": (
+        "model_not_found",
+        "unknown model",
+        "model not found",
+    ),
+}
 _TIMEOUT_ERROR_MARKERS = (
     "timeout",
     "timed out",
@@ -46,12 +81,25 @@ _REQUEST_PACERS: dict[tuple[str, float], "RequestPacer"] = {}
 _REQUEST_PACERS_LOCK = Lock()
 _PROVIDER_CIRCUIT_BREAKERS: dict[tuple[str, int, float], "ProviderCircuitBreaker"] = {}
 _PROVIDER_CIRCUIT_BREAKERS_LOCK = Lock()
+_SHARED_SYNC_CLIENTS: dict[tuple[object, ...], httpx.Client] = {}
+_SHARED_SYNC_CLIENTS_LOCK = Lock()
+_SHARED_ASYNC_CLIENTS: dict[tuple[object, ...], httpx.AsyncClient] = {}
+_SHARED_ASYNC_CLIENTS_LOCK = Lock()
+_PREFLIGHT_CACHE: dict[tuple[str, str, str], "_PreflightCacheEntry"] = {}
+_PREFLIGHT_CACHE_LOCK = Lock()
 
 
 class SupplementalFastFailError(RuntimeError):
-    def __init__(self, message: str, *, reasons: tuple[str, ...]) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        reasons: tuple[str, ...],
+        disposition: str | None = None,
+    ) -> None:
         super().__init__(message)
         self.reasons = reasons
+        self.disposition = disposition
 
 
 class SupplementalPreflightFailedError(SupplementalFastFailError):
@@ -60,6 +108,30 @@ class SupplementalPreflightFailedError(SupplementalFastFailError):
 
 class SupplementalCircuitOpenError(SupplementalFastFailError):
     pass
+
+
+class SupplementalProviderUnavailableError(SupplementalFastFailError):
+    pass
+
+
+class SupplementalNonRetryableRequestError(SupplementalFastFailError):
+    pass
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeFailureClassification:
+    disposition: str
+    reasons: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class _PreflightCacheEntry:
+    status: str
+    result: dict[str, object] | None = None
+    error_message: str | None = None
+    error_reasons: tuple[str, ...] = ()
+    failure_disposition: str | None = None
+    expires_at: float | None = None
 
 
 class RequestPacer:
@@ -87,6 +159,18 @@ class RequestPacer:
         if delay_seconds > 0:
             await asyncio.sleep(delay_seconds)
 
+    def defer_until_after(self, delay_seconds: float) -> None:
+        if delay_seconds <= 0:
+            return
+        with self._lock:
+            self._next_allowed_at = max(self._next_allowed_at, time.monotonic() + delay_seconds)
+
+    def observe_response_headers(self, headers: httpx.Headers) -> None:
+        delay_seconds = _parse_retry_after_seconds(headers)
+        if delay_seconds is None:
+            return
+        self.defer_until_after(delay_seconds)
+
 
 class ProviderCircuitBreaker:
     def __init__(
@@ -102,6 +186,7 @@ class ProviderCircuitBreaker:
         self._consecutive_failures = 0
         self._opened_until = 0.0
         self._last_failure_reasons: tuple[str, ...] = ()
+        self._last_failure_disposition: str | None = None
         self._lock = Lock()
 
     def ensure_request_allowed(self) -> None:
@@ -113,6 +198,7 @@ class ProviderCircuitBreaker:
             raise SupplementalCircuitOpenError(
                 f"circuit_open: provider origin {self.origin} is in cooldown",
                 reasons=("circuit_open", *reasons),
+                disposition=self._last_failure_disposition,
             )
 
     def record_success(self) -> None:
@@ -120,20 +206,23 @@ class ProviderCircuitBreaker:
             self._consecutive_failures = 0
             self._opened_until = 0.0
             self._last_failure_reasons = ()
+            self._last_failure_disposition = None
 
-    def record_failure(self, *, reasons: tuple[str, ...]) -> bool:
+    def record_failure(self, *, reasons: tuple[str, ...], disposition: str | None) -> bool:
         with self._lock:
             self._consecutive_failures += 1
             self._last_failure_reasons = reasons
+            self._last_failure_disposition = disposition
             if self._consecutive_failures < self.failure_threshold:
                 return False
             self._opened_until = time.monotonic() + self.cooldown_seconds
             return True
 
-    def trip(self, *, reasons: tuple[str, ...]) -> None:
+    def trip(self, *, reasons: tuple[str, ...], disposition: str | None) -> None:
         with self._lock:
             self._consecutive_failures = self.failure_threshold
             self._last_failure_reasons = reasons
+            self._last_failure_disposition = disposition
             self._opened_until = time.monotonic() + self.cooldown_seconds
 
 
@@ -166,9 +255,6 @@ class OpenAICompatibleResponsesLLM(BaseRagasLLM):
         self.circuit_breaker = circuit_breaker
         self._sync_client = sync_client
         self._async_client = async_client
-        self._own_sync_client: httpx.Client | None = None
-        self._own_async_client: httpx.AsyncClient | None = None
-        self._own_async_client_loop: asyncio.AbstractEventLoop | None = None
 
     def generate_text(
         self,
@@ -247,73 +333,96 @@ class OpenAICompatibleResponsesLLM(BaseRagasLLM):
             "input": [{"role": "user", "type": "message", "content": "Reply with OK only."}],
             "max_output_tokens": min(self.max_output_tokens or 16, 16),
         }
-        try:
-            with httpx.Client(
-                base_url=self.base_url,
-                timeout=_build_httpx_timeout(self.http_settings, preflight=True),
-                trust_env=False,
-            ) as client:
-                _request_json_sync(
-                    lambda: client.post("/responses", json=payload, headers=_build_headers(self.api_key)),
-                    http_settings=self.http_settings,
-                    circuit_breaker=self.circuit_breaker,
-                    retry_attempts=0,
-                )
-        except Exception as exc:
-            reasons = ("preflight_failed", *classify_retryable_runtime_failure(str(exc), error_type=type(exc).__name__))
-            if self.circuit_breaker is not None:
-                self.circuit_breaker.trip(reasons=reasons)
+        cache_key = _preflight_cache_key(
+            base_url=self.base_url,
+            api_key=self.api_key,
+            endpoint="/responses",
+            payload=payload,
+        )
+        cached = _get_cached_preflight_entry(cache_key)
+        if cached is not None:
+            if cached.status == "passed" and cached.result is not None:
+                return dict(cached.result)
             raise SupplementalPreflightFailedError(
-                f"preflight_failed: {exc}",
+                cached.error_message or "preflight_failed",
+                reasons=cached.error_reasons,
+                disposition=cached.failure_disposition,
+            )
+        try:
+            _request_json_sync(
+                lambda: self._get_sync_client().post(
+                    "/responses",
+                    json=payload,
+                    headers=_build_headers(self.api_key),
+                    timeout=_build_httpx_timeout(self.http_settings, preflight=True),
+                ),
+                http_settings=self.http_settings,
+                circuit_breaker=self.circuit_breaker,
+                retry_attempts=self.http_settings.retry_attempts,
+                request_pacer=self.request_pacer,
+            )
+        except Exception as exc:
+            classification = classify_runtime_failure(str(exc), error_type=type(exc).__name__)
+            reasons = ("preflight_failed", *classification.reasons)
+            error_message = f"preflight_failed: {exc}"
+            _store_preflight_entry(
+                cache_key,
+                _PreflightCacheEntry(
+                    status="failed",
+                    error_message=error_message,
+                    error_reasons=reasons,
+                    failure_disposition=classification.disposition,
+                    expires_at=time.monotonic() + self.http_settings.circuit_breaker_cooldown_seconds,
+                ),
+            )
+            raise SupplementalPreflightFailedError(
+                error_message,
                 reasons=reasons,
+                disposition=classification.disposition,
             ) from exc
-        return {"status": "passed", "endpoint": "/responses", "model": self.model}
+        result = {"status": "passed", "endpoint": "/responses", "model": self.model}
+        _store_preflight_entry(
+            cache_key,
+            _PreflightCacheEntry(
+                status="passed",
+                result=result,
+            ),
+        )
+        return result
 
     def _post_json_sync(self, path: str, payload: dict[str, t.Any]) -> dict[str, t.Any]:
-        if self.request_pacer is not None:
-            self.request_pacer.wait_sync()
         return _request_json_sync(
             lambda: self._get_sync_client().post(path, json=payload, headers=_build_headers(self.api_key)),
             http_settings=self.http_settings,
             circuit_breaker=self.circuit_breaker,
+            request_pacer=self.request_pacer,
         )
 
     async def _post_json_async(self, path: str, payload: dict[str, t.Any]) -> dict[str, t.Any]:
-        if self.request_pacer is not None:
-            await self.request_pacer.wait_async()
         return await _request_json_async(
             lambda: self._get_async_client().post(path, json=payload, headers=_build_headers(self.api_key)),
             http_settings=self.http_settings,
             circuit_breaker=self.circuit_breaker,
+            request_pacer=self.request_pacer,
         )
 
     def _get_sync_client(self) -> httpx.Client:
         if self._sync_client is not None:
             return self._sync_client
-        if self._own_sync_client is None:
-            self._own_sync_client = httpx.Client(
-                base_url=self.base_url,
-                timeout=_build_httpx_timeout(self.http_settings),
-                trust_env=False,
-            )
-        return self._own_sync_client
+        return get_shared_sync_client(
+            base_url=self.base_url,
+            api_key=self.api_key,
+            settings=self.http_settings,
+        )
 
     def _get_async_client(self) -> httpx.AsyncClient:
         if self._async_client is not None:
             return self._async_client
-        current_loop = asyncio.get_running_loop()
-        if (
-            self._own_async_client is None
-            or self._own_async_client_loop is not current_loop
-            or getattr(self._own_async_client, "is_closed", False)
-        ):
-            self._own_async_client = httpx.AsyncClient(
-                base_url=self.base_url,
-                timeout=_build_httpx_timeout(self.http_settings),
-                trust_env=False,
-            )
-            self._own_async_client_loop = current_loop
-        return self._own_async_client
+        return get_shared_async_client(
+            base_url=self.base_url,
+            api_key=self.api_key,
+            settings=self.http_settings,
+        )
 
 
 class OpenAICompatibleHTTPEmbeddings(BaseRagasEmbeddings):
@@ -341,9 +450,6 @@ class OpenAICompatibleHTTPEmbeddings(BaseRagasEmbeddings):
         self.circuit_breaker = circuit_breaker
         self._sync_client = sync_client
         self._async_client = async_client
-        self._own_sync_client: httpx.Client | None = None
-        self._own_async_client: httpx.AsyncClient | None = None
-        self._own_async_client_loop: asyncio.AbstractEventLoop | None = None
 
     def embed_query(self, text: str) -> list[float]:
         return self.embed_documents([text])[0]
@@ -354,13 +460,12 @@ class OpenAICompatibleHTTPEmbeddings(BaseRagasEmbeddings):
             texts=texts,
             dimensions=self.dimensions,
         )
-        if self.request_pacer is not None:
-            self.request_pacer.wait_sync()
         return _extract_embeddings(
             _request_json_sync(
                 lambda: self._get_sync_client().post("/embeddings", json=payload, headers=_build_headers(self.api_key)),
                 http_settings=self.http_settings,
                 circuit_breaker=self.circuit_breaker,
+                request_pacer=self.request_pacer,
             )
         )
 
@@ -373,13 +478,12 @@ class OpenAICompatibleHTTPEmbeddings(BaseRagasEmbeddings):
             texts=texts,
             dimensions=self.dimensions,
         )
-        if self.request_pacer is not None:
-            await self.request_pacer.wait_async()
         return _extract_embeddings(
             await _request_json_async(
                 lambda: self._get_async_client().post("/embeddings", json=payload, headers=_build_headers(self.api_key)),
                 http_settings=self.http_settings,
                 circuit_breaker=self.circuit_breaker,
+                request_pacer=self.request_pacer,
             )
         )
 
@@ -389,55 +493,80 @@ class OpenAICompatibleHTTPEmbeddings(BaseRagasEmbeddings):
             texts=["supplemental preflight"],
             dimensions=self.dimensions,
         )
-        try:
-            with httpx.Client(
-                base_url=self.base_url,
-                timeout=_build_httpx_timeout(self.http_settings, preflight=True),
-                trust_env=False,
-            ) as client:
-                _request_json_sync(
-                    lambda: client.post("/embeddings", json=payload, headers=_build_headers(self.api_key)),
-                    http_settings=self.http_settings,
-                    circuit_breaker=self.circuit_breaker,
-                    retry_attempts=0,
-                )
-        except Exception as exc:
-            reasons = ("preflight_failed", *classify_retryable_runtime_failure(str(exc), error_type=type(exc).__name__))
-            if self.circuit_breaker is not None:
-                self.circuit_breaker.trip(reasons=reasons)
+        cache_key = _preflight_cache_key(
+            base_url=self.base_url,
+            api_key=self.api_key,
+            endpoint="/embeddings",
+            payload=payload,
+        )
+        cached = _get_cached_preflight_entry(cache_key)
+        if cached is not None:
+            if cached.status == "passed" and cached.result is not None:
+                return dict(cached.result)
             raise SupplementalPreflightFailedError(
-                f"preflight_failed: {exc}",
+                cached.error_message or "preflight_failed",
+                reasons=cached.error_reasons,
+                disposition=cached.failure_disposition,
+            )
+        try:
+            _request_json_sync(
+                lambda: self._get_sync_client().post(
+                    "/embeddings",
+                    json=payload,
+                    headers=_build_headers(self.api_key),
+                    timeout=_build_httpx_timeout(self.http_settings, preflight=True),
+                ),
+                http_settings=self.http_settings,
+                circuit_breaker=self.circuit_breaker,
+                retry_attempts=self.http_settings.retry_attempts,
+                request_pacer=self.request_pacer,
+            )
+        except Exception as exc:
+            classification = classify_runtime_failure(str(exc), error_type=type(exc).__name__)
+            reasons = ("preflight_failed", *classification.reasons)
+            error_message = f"preflight_failed: {exc}"
+            _store_preflight_entry(
+                cache_key,
+                _PreflightCacheEntry(
+                    status="failed",
+                    error_message=error_message,
+                    error_reasons=reasons,
+                    failure_disposition=classification.disposition,
+                    expires_at=time.monotonic() + self.http_settings.circuit_breaker_cooldown_seconds,
+                ),
+            )
+            raise SupplementalPreflightFailedError(
+                error_message,
                 reasons=reasons,
+                disposition=classification.disposition,
             ) from exc
-        return {"status": "passed", "endpoint": "/embeddings", "model": self.model}
+        result = {"status": "passed", "endpoint": "/embeddings", "model": self.model}
+        _store_preflight_entry(
+            cache_key,
+            _PreflightCacheEntry(
+                status="passed",
+                result=result,
+            ),
+        )
+        return result
 
     def _get_sync_client(self) -> httpx.Client:
         if self._sync_client is not None:
             return self._sync_client
-        if self._own_sync_client is None:
-            self._own_sync_client = httpx.Client(
-                base_url=self.base_url,
-                timeout=_build_httpx_timeout(self.http_settings),
-                trust_env=False,
-            )
-        return self._own_sync_client
+        return get_shared_sync_client(
+            base_url=self.base_url,
+            api_key=self.api_key,
+            settings=self.http_settings,
+        )
 
     def _get_async_client(self) -> httpx.AsyncClient:
         if self._async_client is not None:
             return self._async_client
-        current_loop = asyncio.get_running_loop()
-        if (
-            self._own_async_client is None
-            or self._own_async_client_loop is not current_loop
-            or getattr(self._own_async_client, "is_closed", False)
-        ):
-            self._own_async_client = httpx.AsyncClient(
-                base_url=self.base_url,
-                timeout=_build_httpx_timeout(self.http_settings),
-                trust_env=False,
-            )
-            self._own_async_client_loop = current_loop
-        return self._own_async_client
+        return get_shared_async_client(
+            base_url=self.base_url,
+            api_key=self.api_key,
+            settings=self.http_settings,
+        )
 
 
 def build_http_ragas_llm(
@@ -453,6 +582,7 @@ def build_http_ragas_llm(
     )
     circuit_breaker = get_provider_circuit_breaker(
         base_url=settings.llm_base_url or "https://api.openai.com/v1",
+        api_key=settings.llm_api_key,
         settings=settings.http_settings,
     )
     return OpenAICompatibleResponsesLLM(
@@ -484,6 +614,7 @@ def build_http_ragas_embeddings(
     )
     circuit_breaker = get_provider_circuit_breaker(
         base_url=base_url,
+        api_key=settings.embedding_api_key,
         settings=settings.http_settings,
     )
     return OpenAICompatibleHTTPEmbeddings(
@@ -608,20 +739,41 @@ def _request_json_sync(
     http_settings: SupplementalHTTPSettings,
     circuit_breaker: ProviderCircuitBreaker | None,
     retry_attempts: int | None = None,
+    request_pacer: RequestPacer | None = None,
 ) -> dict[str, t.Any]:
     total_attempts = 1 + (http_settings.retry_attempts if retry_attempts is None else retry_attempts)
     if circuit_breaker is not None:
         circuit_breaker.ensure_request_allowed()
     for attempt in range(1, total_attempts + 1):
         try:
-            payload = _decode_json_response(request_fn())
+            if request_pacer is not None:
+                request_pacer.wait_sync()
+            response = request_fn()
+            if request_pacer is not None:
+                request_pacer.observe_response_headers(response.headers)
+            payload = _decode_json_response(response)
         except Exception as exc:
             if isinstance(exc, SupplementalFastFailError):
                 raise
-            retryable = _is_retryable_exception(exc)
-            reasons = classify_retryable_runtime_failure(str(exc), error_type=type(exc).__name__) or ("provider_error",)
-            if circuit_breaker is not None:
-                circuit_breaker.record_failure(reasons=reasons)
+            classification = classify_runtime_failure(str(exc), error_type=type(exc).__name__)
+            reasons = classification.reasons or ("provider_error",)
+            if classification.disposition == "hard_unavailable":
+                if circuit_breaker is not None:
+                    circuit_breaker.trip(reasons=reasons, disposition=classification.disposition)
+                raise SupplementalProviderUnavailableError(
+                    str(exc),
+                    reasons=reasons,
+                    disposition=classification.disposition,
+                ) from exc
+            if classification.disposition == "non_retryable_request":
+                raise SupplementalNonRetryableRequestError(
+                    str(exc),
+                    reasons=reasons,
+                    disposition=classification.disposition,
+                ) from exc
+            retryable = classification.disposition == "transient_retryable"
+            if circuit_breaker is not None and retryable:
+                circuit_breaker.record_failure(reasons=reasons, disposition=classification.disposition)
             if attempt >= total_attempts or not retryable:
                 raise
             time.sleep(_retry_delay_seconds(attempt, http_settings.retry_backoff_seconds))
@@ -638,20 +790,41 @@ async def _request_json_async(
     http_settings: SupplementalHTTPSettings,
     circuit_breaker: ProviderCircuitBreaker | None,
     retry_attempts: int | None = None,
+    request_pacer: RequestPacer | None = None,
 ) -> dict[str, t.Any]:
     total_attempts = 1 + (http_settings.retry_attempts if retry_attempts is None else retry_attempts)
     if circuit_breaker is not None:
         circuit_breaker.ensure_request_allowed()
     for attempt in range(1, total_attempts + 1):
         try:
-            payload = _decode_json_response(await request_fn())
+            if request_pacer is not None:
+                await request_pacer.wait_async()
+            response = await request_fn()
+            if request_pacer is not None:
+                request_pacer.observe_response_headers(response.headers)
+            payload = _decode_json_response(response)
         except Exception as exc:
             if isinstance(exc, SupplementalFastFailError):
                 raise
-            retryable = _is_retryable_exception(exc)
-            reasons = classify_retryable_runtime_failure(str(exc), error_type=type(exc).__name__) or ("provider_error",)
-            if circuit_breaker is not None:
-                circuit_breaker.record_failure(reasons=reasons)
+            classification = classify_runtime_failure(str(exc), error_type=type(exc).__name__)
+            reasons = classification.reasons or ("provider_error",)
+            if classification.disposition == "hard_unavailable":
+                if circuit_breaker is not None:
+                    circuit_breaker.trip(reasons=reasons, disposition=classification.disposition)
+                raise SupplementalProviderUnavailableError(
+                    str(exc),
+                    reasons=reasons,
+                    disposition=classification.disposition,
+                ) from exc
+            if classification.disposition == "non_retryable_request":
+                raise SupplementalNonRetryableRequestError(
+                    str(exc),
+                    reasons=reasons,
+                    disposition=classification.disposition,
+                ) from exc
+            retryable = classification.disposition == "transient_retryable"
+            if circuit_breaker is not None and retryable:
+                circuit_breaker.record_failure(reasons=reasons, disposition=classification.disposition)
             if attempt >= total_attempts or not retryable:
                 raise
             await asyncio.sleep(_retry_delay_seconds(attempt, http_settings.retry_backoff_seconds))
@@ -698,19 +871,11 @@ def _extract_embeddings(payload: dict[str, t.Any]) -> list[list[float]]:
     return [embedding for _, embedding in sorted(items, key=lambda pair: pair[0])]
 
 
-def _is_retryable_exception(exc: Exception) -> bool:
-    return is_retryable_provider_exception(exc)
-
-
 def is_retryable_provider_exception(exc: Exception) -> bool:
     if isinstance(exc, SupplementalFastFailError):
         return False
-    if isinstance(exc, (httpx.TimeoutException, httpx.TransportError)):
-        return True
-    if isinstance(exc, RuntimeError):
-        reasons = classify_retryable_runtime_failure(str(exc), error_type=type(exc).__name__)
-        return any(reason not in {"circuit_open", "preflight_failed"} for reason in reasons)
-    return False
+    classification = classify_runtime_failure(str(exc), error_type=type(exc).__name__)
+    return classification.disposition == "transient_retryable"
 
 
 def _retry_delay_seconds(attempt: int, backoff_seconds: float) -> float:
@@ -729,26 +894,80 @@ def classify_retryable_runtime_failure(
     *,
     error_type: str | None = None,
 ) -> tuple[str, ...]:
+    classification = classify_runtime_failure(message, error_type=error_type)
+    if classification.disposition not in {"transient_retryable", "hard_unavailable"}:
+        return ()
+    return classification.reasons
+
+
+def classify_runtime_failure(
+    message: str,
+    *,
+    error_type: str | None = None,
+) -> RuntimeFailureClassification:
     normalized_message = message.lower()
     normalized_error_type = (error_type or "").strip().lower()
     combined = " ".join(part for part in (normalized_error_type, normalized_message) if part)
     reasons: list[str] = []
     status_code = _leading_status_code(message)
-    if status_code in {408, 409, 429}:
+    if status_code in {400, 401, 403, 404, 408, 409, 422, 429}:
         reasons.append(f"http_{status_code}")
     elif status_code is not None and 500 <= status_code <= 599:
         reasons.append("http_5xx")
+    hard_unavailable = False
+    if status_code in {401, 403}:
+        hard_unavailable = True
+        reasons.append("auth_unavailable")
+    non_retryable = status_code in {400, 404, 422}
     if any(marker in combined for marker in _TIMEOUT_ERROR_MARKERS):
         reasons.append("timeout")
     if any(marker in combined for marker in _TRANSPORT_ERROR_MARKERS):
         reasons.append("transport")
     if any(marker in combined for marker in _RETRYABLE_PROVIDER_ERROR_MARKERS):
         reasons.append("provider_runtime")
+    for reason, markers in _HARD_UNAVAILABLE_REASON_MARKERS.items():
+        if any(marker in combined for marker in markers):
+            reasons.append(reason)
+            hard_unavailable = True
+    for reason, markers in _NON_RETRYABLE_REASON_MARKERS.items():
+        if any(marker in combined for marker in markers):
+            reasons.append(reason)
+            non_retryable = True
     if "circuit_open" in combined:
         reasons.append("circuit_open")
+        return RuntimeFailureClassification(
+            disposition="fast_fail_internal",
+            reasons=tuple(dict.fromkeys(reasons)),
+        )
     if "preflight_failed" in combined:
         reasons.append("preflight_failed")
-    return tuple(dict.fromkeys(reasons))
+        if hard_unavailable:
+            disposition = "hard_unavailable"
+        elif non_retryable:
+            disposition = "non_retryable_request"
+        elif any(reason in reasons for reason in ("timeout", "transport", "provider_runtime", "http_408", "http_409", "http_429", "http_5xx")):
+            disposition = "transient_retryable"
+        else:
+            disposition = "fast_fail_internal"
+        return RuntimeFailureClassification(
+            disposition=disposition,
+            reasons=tuple(dict.fromkeys(reasons)),
+        )
+    if hard_unavailable:
+        disposition = "hard_unavailable"
+    elif non_retryable:
+        disposition = "non_retryable_request"
+    elif any(
+        reason in reasons
+        for reason in ("timeout", "transport", "provider_runtime", "http_408", "http_409", "http_429", "http_5xx")
+    ):
+        disposition = "transient_retryable"
+    else:
+        disposition = "unknown"
+    return RuntimeFailureClassification(
+        disposition=disposition,
+        reasons=tuple(dict.fromkeys(reasons)),
+    )
 
 
 def get_request_pacer(
@@ -757,10 +976,9 @@ def get_request_pacer(
     api_key: str,
     min_interval_seconds: float,
 ) -> RequestPacer | None:
-    del api_key
     if min_interval_seconds <= 0:
         return None
-    key = (_pacer_scope_key(base_url), float(min_interval_seconds))
+    key = (_runtime_scope_key(base_url, api_key), float(min_interval_seconds))
     with _REQUEST_PACERS_LOCK:
         existing = _REQUEST_PACERS.get(key)
         if existing is not None:
@@ -773,10 +991,11 @@ def get_request_pacer(
 def get_provider_circuit_breaker(
     *,
     base_url: str,
+    api_key: str,
     settings: SupplementalHTTPSettings,
 ) -> ProviderCircuitBreaker:
     key = (
-        _pacer_scope_key(base_url),
+        _runtime_scope_key(base_url, api_key),
         settings.circuit_breaker_failure_threshold,
         float(settings.circuit_breaker_cooldown_seconds),
     )
@@ -798,6 +1017,159 @@ def _pacer_scope_key(base_url: str) -> str:
     if parsed.scheme and parsed.netloc:
         return f"{parsed.scheme}://{parsed.netloc}"
     return base_url.rstrip("/")
+
+
+def _runtime_scope_key(base_url: str, api_key: str) -> str:
+    return f"{_pacer_scope_key(base_url)}::{api_key}"
+
+
+def _shared_client_key(
+    *,
+    base_url: str,
+    api_key: str,
+    settings: SupplementalHTTPSettings,
+) -> tuple[object, ...]:
+    return (
+        base_url.rstrip("/"),
+        api_key,
+        float(settings.connect_timeout_seconds),
+        float(settings.read_timeout_seconds),
+        float(settings.write_timeout_seconds),
+        float(settings.pool_timeout_seconds),
+        float(settings.keepalive_expiry_seconds),
+        int(settings.max_connections),
+        int(settings.max_keepalive_connections),
+    )
+
+
+def _build_httpx_limits(settings: SupplementalHTTPSettings) -> httpx.Limits:
+    return httpx.Limits(
+        max_connections=settings.max_connections,
+        max_keepalive_connections=settings.max_keepalive_connections,
+        keepalive_expiry=settings.keepalive_expiry_seconds,
+    )
+
+
+def get_shared_sync_client(
+    *,
+    base_url: str,
+    api_key: str,
+    settings: SupplementalHTTPSettings,
+) -> httpx.Client:
+    key = _shared_client_key(base_url=base_url, api_key=api_key, settings=settings)
+    with _SHARED_SYNC_CLIENTS_LOCK:
+        existing = _SHARED_SYNC_CLIENTS.get(key)
+        if existing is not None:
+            return existing
+        client = httpx.Client(
+            base_url=base_url.rstrip("/"),
+            timeout=_build_httpx_timeout(settings),
+            limits=_build_httpx_limits(settings),
+            trust_env=False,
+        )
+        _SHARED_SYNC_CLIENTS[key] = client
+        return client
+
+
+def get_shared_async_client(
+    *,
+    base_url: str,
+    api_key: str,
+    settings: SupplementalHTTPSettings,
+) -> httpx.AsyncClient:
+    current_loop = asyncio.get_running_loop()
+    key = _shared_client_key(base_url=base_url, api_key=api_key, settings=settings) + (current_loop,)
+    with _SHARED_ASYNC_CLIENTS_LOCK:
+        existing = _SHARED_ASYNC_CLIENTS.get(key)
+        if existing is not None and not getattr(existing, "is_closed", False):
+            return existing
+        client = httpx.AsyncClient(
+            base_url=base_url.rstrip("/"),
+            timeout=_build_httpx_timeout(settings),
+            limits=_build_httpx_limits(settings),
+            trust_env=False,
+        )
+        _SHARED_ASYNC_CLIENTS[key] = client
+        return client
+
+
+def _preflight_cache_key(
+    *,
+    base_url: str,
+    api_key: str,
+    endpoint: str,
+    payload: dict[str, t.Any],
+) -> tuple[str, str, str]:
+    return (
+        _runtime_scope_key(base_url, api_key),
+        endpoint,
+        json.dumps(payload, sort_keys=True, ensure_ascii=False),
+    )
+
+
+def _get_cached_preflight_entry(cache_key: tuple[str, str, str]) -> _PreflightCacheEntry | None:
+    with _PREFLIGHT_CACHE_LOCK:
+        entry = _PREFLIGHT_CACHE.get(cache_key)
+        if entry is None:
+            return None
+        if entry.expires_at is not None and time.monotonic() >= entry.expires_at:
+            _PREFLIGHT_CACHE.pop(cache_key, None)
+            return None
+        return entry
+
+
+def _store_preflight_entry(cache_key: tuple[str, str, str], entry: _PreflightCacheEntry) -> None:
+    with _PREFLIGHT_CACHE_LOCK:
+        _PREFLIGHT_CACHE[cache_key] = entry
+
+
+def _parse_retry_after_seconds(headers: httpx.Headers) -> float | None:
+    raw_value = headers.get("retry-after")
+    if raw_value is None:
+        return None
+    normalized = raw_value.strip()
+    if not normalized:
+        return None
+    try:
+        seconds = float(normalized)
+    except ValueError:
+        try:
+            retry_at = parsedate_to_datetime(normalized)
+        except (TypeError, ValueError):
+            return None
+        if retry_at.tzinfo is None:
+            retry_at = retry_at.replace(tzinfo=timezone.utc)
+        seconds = (retry_at - datetime.now(timezone.utc)).total_seconds()
+    return max(0.0, seconds)
+
+
+def reset_supplemental_http_runtime_state_for_tests() -> None:
+    with _REQUEST_PACERS_LOCK:
+        _REQUEST_PACERS.clear()
+    with _PROVIDER_CIRCUIT_BREAKERS_LOCK:
+        _PROVIDER_CIRCUIT_BREAKERS.clear()
+    with _PREFLIGHT_CACHE_LOCK:
+        _PREFLIGHT_CACHE.clear()
+    with _SHARED_SYNC_CLIENTS_LOCK:
+        clients = list(_SHARED_SYNC_CLIENTS.values())
+        _SHARED_SYNC_CLIENTS.clear()
+    for client in clients:
+        close = getattr(client, "close", None)
+        if callable(close):
+            close()
+    with _SHARED_ASYNC_CLIENTS_LOCK:
+        async_clients = list(_SHARED_ASYNC_CLIENTS.values())
+        _SHARED_ASYNC_CLIENTS.clear()
+    for client in async_clients:
+        if getattr(client, "is_closed", False):
+            continue
+        aclose = getattr(client, "aclose", None)
+        if not callable(aclose):
+            continue
+        try:
+            asyncio.run(aclose())
+        except RuntimeError:
+            continue
 
 
 def _build_httpx_timeout(

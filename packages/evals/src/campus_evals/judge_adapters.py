@@ -8,7 +8,7 @@ from typing import Callable
 import httpx
 from langchain_core.prompt_values import StringPromptValue
 
-from campus_contracts import RagResultPayload, SpecialistResponse
+from campus_contracts import RagResultPayload, SpecialistResponse, SupervisorResponse
 from campus_evals.models import ExecutionResult, GoldenCase, SupplementalResult
 from campus_evals.ragas_adapter import build_default_ragas_metric_names, build_ragas_scorer
 from campus_evals.supplemental_http import (
@@ -80,7 +80,7 @@ class HandbookRagasAdapter:
                     response=response,
                     rationale=f"ragas runtime error: {exc}",
                     score=None,
-                    metadata={"judge_error": type(exc).__name__},
+                    metadata=_runtime_failure_metadata(exc),
                 )
                 for metric_name in self._metric_names
             )
@@ -184,7 +184,7 @@ class RubricJudgeAdapter:
                     response=response,
                     rationale=f"judge runtime error: {exc}",
                     score=None,
-                    metadata={"judge_error": type(exc).__name__},
+                    metadata=_runtime_failure_metadata(exc),
                 ),
             )
         return (
@@ -349,6 +349,7 @@ def _build_responses_judge_runtime(
         ),
         circuit_breaker=get_provider_circuit_breaker(
             base_url=base_url,
+            api_key=settings.llm_api_key,
             settings=settings.http_settings,
         ),
         sync_client=sync_client,
@@ -369,7 +370,7 @@ def _build_rubric_prompt(
     *,
     rubric: dict[str, object],
     case: GoldenCase,
-    response: SpecialistResponse,
+    response: SpecialistResponse | SupervisorResponse,
 ) -> str:
     evidence = response.result.evidence if isinstance(response.result, RagResultPayload) else None
     sources = tuple(evidence.sources) if evidence is not None else ()
@@ -412,7 +413,7 @@ def _coerce_judge_result(
     adapter_id: str,
     metric_name: str,
     case: GoldenCase,
-    response: SpecialistResponse,
+    response: SpecialistResponse | SupervisorResponse,
     judged: dict[str, object],
 ) -> SupplementalResult:
     if not isinstance(judged, dict):
@@ -447,7 +448,7 @@ def _build_not_applicable_result(
     adapter_id: str,
     metric_name: str,
     case: GoldenCase,
-    response: SpecialistResponse,
+    response: SpecialistResponse | SupervisorResponse,
     rationale: str,
 ) -> SupplementalResult:
     return SupplementalResult(
@@ -468,7 +469,7 @@ def _build_failed_result(
     adapter_id: str,
     metric_name: str,
     case: GoldenCase,
-    response: SpecialistResponse,
+    response: SpecialistResponse | SupervisorResponse,
     rationale: str,
     score: float | None,
     metadata: dict[str, object] | None = None,
@@ -488,16 +489,31 @@ def _build_failed_result(
     )
 
 
+def _runtime_failure_metadata(exc: Exception) -> dict[str, object]:
+    metadata: dict[str, object] = {
+        "judge_error": type(exc).__name__,
+    }
+    reasons = tuple(str(item) for item in getattr(exc, "reasons", ()) if str(item))
+    if reasons:
+        metadata["failure_reasons"] = list(reasons)
+    disposition = getattr(exc, "disposition", None)
+    if isinstance(disposition, str) and disposition.strip():
+        metadata["failure_disposition"] = disposition
+    return metadata
+
+
 def _build_ragas_projection(case: GoldenCase, execution: ExecutionResult):
     from campus_evals.ragas_adapter import build_ragas_projection
 
     return build_ragas_projection(case, execution)
 
 
-def _require_specialist_response(execution: ExecutionResult) -> SpecialistResponse:
+def _require_specialist_response(
+    execution: ExecutionResult,
+) -> SpecialistResponse | SupervisorResponse:
     response = execution.response
-    if not isinstance(response, SpecialistResponse):
-        raise TypeError("execution.response must be SpecialistResponse")
+    if not isinstance(response, (SpecialistResponse, SupervisorResponse)):
+        raise TypeError("execution.response must be SpecialistResponse or SupervisorResponse")
     return response
 
 

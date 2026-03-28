@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: shared `app-api` Worker foundation, public/protected web-surface wiring, request projection APIs, and identity/memory/admission docs are aligned after merging develop guidance; next work is `curriculum_plan` live-gate expansion plus app-api/runtime hardening follow-up
-last_updated: "2026-03-28T16:28:59Z"
+stopped_at: local `develop` has been merged into `protected-panel-web`; current worktree now carries the shared seam/docs/eval updates plus the shared `app-api` Worker foundation, and next work is verification plus `curriculum_plan` live-gate evidence and remaining app-api seam alignment
+last_updated: "2026-03-29T02:11:11+08:00"
 progress:
   total_phases: 17
   completed_phases: 17
@@ -19,7 +19,7 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-03-29)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 runtime-profile-driven serving surface 证明这条架构能可靠承接高频校园问答
-**Current focus:** Phase 7 handbook verification 已完成；当前 follow-up 重点是补齐 `curriculum_plan` query-serving 的 live gate，同时在已落地的 `public-chat-web` / `protected-panel-web` + shared `app-api` Worker runtime + `supervisor-api` execution engine 基线之上继续做 integration hardening。`app-api` product identity ownership、request projection ownership、supervisor internal caller admission 与 unified Drizzle migration baseline 已写入 canonical docs；panel `Requests` 已解锁，`Jobs` / `Operations` 仍不进入第一波 rollout
+**Current focus:** Phase 7 handbook verification 已完成；当前 follow-up 重点是按新 runbook 补齐 `curriculum_plan` query-serving 的 fresh live gate，同时在已落地的 `public-chat-web` / `protected-panel-web` + shared `app-api` Worker runtime 基线之上完成 `ContextProjection` / `SupervisorResponse` shared seam 对齐、merge 验证与后续 runtime hardening。panel `Requests` 已解锁，`Jobs` / `Operations` 仍不进入第一波 rollout
 
 ## Current Position
 
@@ -147,11 +147,16 @@ Recent decisions affecting current work:
 - Phase 07 closed handbook release-gate verification with repo tests, live qrels benchmark, workflow/status samples, and handbook collection schema evidence under `.tmp/phase7/`.
 - The detailed `app-api` implementation baseline now lives in `docs/plans/app-api-worker-foundation.md`, including framework selection, API surface, data domains, and execution waves.
 - `app-api` 第一版产品层 HTTP contract、`app-api -> supervisor-api` execution contract、request lifecycle、error model 与 logical schema 现已冻结在 `docs/contracts/` 与 `docs/data/`。
+- The accepted long-term split now separates verified identity, profile memory, session memory, and institutional knowledge into distinct truth layers.
+- Personalization may influence intent framing, retrieval planning, clarification, and answer wording, but memory does not grant permissions or widen retrieval ACL.
+- The current `develop` integration branch now treats `ContextProjection` + `SupervisorResponse` as the merge-ready shared seam; the pending worktree implementation must keep aligning to that seam instead of reintroducing `snapshot`.
+- Curriculum gate closeout now has canonical docs/runbook coverage in `docs/reference/curriculum-plan-eval-metrics.md` and `docs/runbooks/curriculum-plan-hybrid-rebuild-checklist.md`; what remains is fresh live evidence, not fixture design.
 
 ### Pending Todos
 
+- Generate fresh `curriculum_plan` live release-gate artifacts using the new curriculum runbook and attach the resulting evidence before milestone closeout.
 - Keep handbook chunk-truth validation and handbook eval artifacts as reusable regression gates for later retrieval changes.
-- Decide milestone closeout and land the missing `curriculum_plan` query-serving live release-gate artifacts beyond the existing automated verification surface.
+- Finish app-api shared seam alignment (`snapshot -> ContextProjection`, `SpecialistResponse -> SupervisorResponse`) before promoting this worktree to `develop` / `main`.
 - Decide the next `app-api` hardening scope on top of the landed Worker foundation without reopening topology ownership.
 - Keep `Jobs` and `Operations` out of the default panel rollout until product scope explicitly re-opens them.
 
@@ -164,6 +169,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-03-28T16:28:59Z
-Stopped at: shared app-api Worker foundation, request projection APIs, public/protected web-surface wiring, and merged develop guidance are aligned; next work is curriculum live-gate expansion plus app-api/runtime hardening follow-up
+Last session: 2026-03-29T02:11:11+08:00
+Stopped at: local `develop` has been merged into `protected-panel-web`; next work is merge verification plus `curriculum_plan` live-gate evidence and remaining app-api seam alignment
 Resume file: None

@@ -13,7 +13,13 @@ updated: 2026-03-29
 
 **Tech Stack:** TypeScript, Cloudflare Workers, Wrangler, Hono, Zod, Better Auth, Drizzle ORM, `pg`, Hyperdrive for runtime DB access, direct management connection for migrations, Vitest, `@cloudflare/vitest-pool-workers`
 
-## 目标
+## 状态说明
+
+这份文档描述的是 `apps/app-api` 的 forward implementation baseline，同时也记录了当前 `protected-panel-web` worktree 已经落地的 Worker foundation。
+
+当前 worktree 已经具备完整 Worker runtime、auth/chat/operator API、Drizzle schema、projection data plane 与 web-surface integration；但在正式回 `develop` / `main` 之前，仍必须继续保持 `develop` 已冻结的 `ContextProjection` / `SupervisorResponse` shared seam，不得把旧 `snapshot` 合约重新带回主线。
+
+## 摘要
 
 这份方案只回答五个问题：
 

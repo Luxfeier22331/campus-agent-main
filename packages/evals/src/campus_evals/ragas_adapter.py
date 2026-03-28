@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from math import isnan
 from typing import Callable
 
-from campus_contracts import RagResultPayload, SpecialistResponse
+from campus_contracts import RagResultPayload, SpecialistResponse, SupervisorResponse
 from campus_evals.models import ExecutionResult, GoldenCase, SupplementalResult
 from campus_evals.supplemental_http import (
     build_http_ragas_embeddings,
@@ -27,9 +27,7 @@ class RagasProjection:
 
 
 def build_ragas_projection(case: GoldenCase, execution: ExecutionResult) -> RagasProjection:
-    response = execution.response
-    if not isinstance(response, SpecialistResponse):
-        raise TypeError("execution.response must be SpecialistResponse")
+    response = _require_supported_response(execution)
     evidence = response.result.evidence if isinstance(response.result, RagResultPayload) else None
     contexts = tuple(source.snippet for source in evidence.sources) if evidence is not None else ()
     observed_trace = execution.observed_trace
@@ -72,6 +70,13 @@ class RagasSupplementalAdapter:
         if self._preflight is None:
             return {"status": "skipped"}
         return self._preflight()
+
+
+def _require_supported_response(execution: ExecutionResult) -> SpecialistResponse | SupervisorResponse:
+    response = execution.response
+    if not isinstance(response, (SpecialistResponse, SupervisorResponse)):
+        raise TypeError("execution.response must be SpecialistResponse or SupervisorResponse")
+    return response
 
 
 def build_default_ragas_metric_names() -> tuple[str, ...]:

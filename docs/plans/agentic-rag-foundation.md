@@ -2,7 +2,7 @@
 doc_type: plan
 status: active
 created: 2026-03-22
-updated: 2026-03-28
+updated: 2026-03-29
 ---
 
 # Agentic RAG 第一阶段地基实施文档
@@ -189,7 +189,7 @@ updated: 2026-03-28
 feature worktree 环境规则：
 
 - ingestion worker CLI 优先读取当前 worktree 根目录 `.env`
-- 如果当前 worktree 没有 `.env`，允许显式回退到 main worktree 根目录 `.env`
+- 如果当前 worktree 没有 `.env`，允许显式回退到根集成 worktree 的 `.env`
 - 不允许因为 worktree 缺少 `.env` 就临时切到本地 file registry、mock OCR 或其他非 canonical backend
 
 第一阶段至少要冻结以下导入基线资产：

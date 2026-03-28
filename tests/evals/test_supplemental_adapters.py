@@ -2,7 +2,15 @@ from __future__ import annotations
 
 import unittest
 
-from campus_contracts import ActorContext, EvidenceBundle, EvidenceSource, KnowledgeScope, RagResultPayload, SpecialistResponse
+from campus_contracts import (
+    ActorContext,
+    EvidenceBundle,
+    EvidenceSource,
+    KnowledgeScope,
+    RagResultPayload,
+    SpecialistResponse,
+    SupervisorResponse,
+)
 from campus_evals import ExecutionResult, GoldenCase, ObservedTrace, SupplementalResult, TraceExpectation, build_ragas_projection, run_cases
 from campus_evals.ragas_adapter import RagasSupplementalAdapter
 
@@ -127,6 +135,46 @@ class RagasProjectionTest(unittest.TestCase):
         self.assertEqual(projection.retrieved_contexts, ("Library hours are 08:00 to 22:00.",))
         self.assertEqual(projection.metadata["retrieved_source_count"], 2)
         self.assertEqual(projection.metadata["supporting_source_count"], 1)
+
+    def test_build_ragas_projection_accepts_supervisor_response_shape(self) -> None:
+        case = GoldenCase(
+            case_id="ragas-supervisor-1",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="library hours",
+            actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
+            expected_status="completed",
+            required_facts=("08:00",),
+        )
+        execution = ExecutionResult(
+            response=SupervisorResponse(
+                selected_target="rag-specialist",
+                status="completed",
+                answer_text="Library hours are 08:00 to 22:00.",
+                confidence="high",
+                result=RagResultPayload(
+                    evidence=EvidenceBundle(
+                        query_text="library hours",
+                        corpus="regulations",
+                        collection="student_handbook",
+                        sources=(_source(),),
+                    )
+                ),
+            ),
+            observed_trace=ObservedTrace(
+                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                retrieval_called=True,
+                retrieved_sources=(_source(),),
+                supporting_sources=(_source(),),
+            ),
+        )
+
+        projection = build_ragas_projection(case, execution)
+
+        self.assertEqual(projection.response, "Library hours are 08:00 to 22:00.")
+        self.assertEqual(projection.metadata["response_status"], "completed")
+        self.assertEqual(projection.metadata["retrieved_source_count"], 1)
 
 
 class SupplementalRunnerTest(unittest.TestCase):

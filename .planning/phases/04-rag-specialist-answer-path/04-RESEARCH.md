@@ -29,7 +29,7 @@ This means Phase 4 should be planned as specialist-side answer-path closure, not
 
 ### What is already aligned
 
-- `packages/retrieval-core` already executes Qdrant native hybrid retrieval with `prefetch(dense) + prefetch(sparse) + FusionQuery(RRF)`.
+- `packages/retrieval-core` already executes Qdrant native hybrid retrieval with `prefetch(dense) + prefetch(sparse) + RrfQuery(...)`.
 - Retrieval already applies fail-closed metadata filtering for corpus, collection, status, currentness, ACL, and `campus_scope`.
 - Retrieval already shapes final sources as registry-backed `EvidenceSource` / `EvidenceBundle`.
 - `delegate_to_rag_agent()` already owns the specialist-side terminal branch mapping for:

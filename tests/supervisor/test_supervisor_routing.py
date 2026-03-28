@@ -117,6 +117,22 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertEqual(decision.intent_frame.suggested_next_action, "clarify")
         self.assertEqual(decision.intent_frame.missing_slots, ("requested_scope",))
 
+    def test_route_request_returns_approval_required_for_high_risk_knowledge_request(self) -> None:
+        request = SupervisorRequest(
+            user_goal="帮我提交奖学金申请",
+            requested_scope=KnowledgeScope(
+                corpus="regulations",
+                collection="student_handbook",
+            ),
+        )
+
+        decision = route_request(SupervisorRequestContext.from_request(request))
+
+        self.assertIsNone(decision.target)
+        self.assertEqual(decision.intent_frame.capability, "knowledge")
+        self.assertEqual(decision.intent_frame.risk_level, "high")
+        self.assertEqual(decision.intent_frame.suggested_next_action, "approval_required")
+
     def test_route_request_rejects_conflicting_knowledge_and_availability_hints(self) -> None:
         request = SupervisorRequest(
             user_goal="官网能打开吗，顺便告诉我开馆时间",

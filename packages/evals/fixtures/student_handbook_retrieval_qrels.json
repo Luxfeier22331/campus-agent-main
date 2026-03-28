@@ -70,11 +70,32 @@
       "expected_sources": [
         {
           "doc_id": "handbook:b85de1cb327a26dc63488e247403ae3126d524be",
+          "version_id": "v1:6400733add49dabae20b1303fba6418339e029dc",
           "grade": 2,
           "rationale": "公费医疗制度标题 exact-match。"
         }
       ],
       "notes": "公费医疗制度标题高风险回归。"
+    },
+    {
+      "case_id": "policy-title-national-encouragement-scholarship",
+      "split": "regression_locked",
+      "query": "中央民族大学本科学生国家励志奖学金评审办法",
+      "expected_sources": [
+        {
+          "doc_id": "handbook:1f17ba6234c15963648b3d74656d78621cad77a7",
+          "grade": 2,
+          "rationale": "国家励志奖学金制度标题 exact-match。"
+        }
+      ],
+      "forbidden_sources": [
+        {
+          "doc_id": "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+          "grade": 1,
+          "rationale": "国家奖学金制度不应压过国家励志奖学金制度。"
+        }
+      ],
+      "notes": "奖学金同主题制度区分。"
     },
     {
       "case_id": "fixed-phrase-dormitory-lighting",
@@ -163,11 +184,65 @@
       "expected_sources": [
         {
           "doc_id": "handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
+          "version_id": "v1:f9c1621665f50ffbf0c02cf79cb5452bfd938d2e",
           "grade": 2,
           "rationale": "学生证管理办法是主相关制度。"
         }
       ],
       "notes": "dense semantic 高风险回归。"
+    },
+    {
+      "case_id": "semantic-disciplinary-relief",
+      "split": "regression_locked",
+      "query": "被处分后多久可以申请解除处分",
+      "expected_sources": [
+        {
+          "doc_id": "handbook:6f147355748d2d2f181c310f8d1e0da908f2f1a8",
+          "grade": 2,
+          "rationale": "解除学生纪律处分实施办法是主相关制度。"
+        }
+      ],
+      "forbidden_sources": [
+        {
+          "doc_id": "handbook:9350d885657d7409e524e73666b828b826f07191",
+          "grade": 1,
+          "rationale": "学生违纪处分实施办法与解除处分主题相邻，但不应压过目标制度。"
+        }
+      ],
+      "notes": "dense semantic + forbidden-source 区分。"
+    },
+    {
+      "case_id": "short-fact-attendance-discipline-threshold",
+      "split": "smoke",
+      "query": "旷课多少学时会按违纪处理",
+      "expected_sources": [
+        {
+          "doc_id": "handbook:e53d05ae90e91f1c45843c50c3a777f774a88afc",
+          "grade": 2,
+          "rationale": "旷课处理阈值问题应回到学生考勤管理办法。"
+        }
+      ],
+      "notes": "短事实 retrieval 样本。"
+    },
+    {
+      "case_id": "structured-disciplinary-relief-materials",
+      "split": "regression_locked",
+      "query": "申请解除处分需要提交哪些材料",
+      "expected_sources": [
+        {
+          "doc_id": "handbook:6f147355748d2d2f181c310f8d1e0da908f2f1a8",
+          "grade": 2,
+          "rationale": "解除处分申请材料清单应回到解除学生纪律处分实施办法。"
+        }
+      ],
+      "forbidden_sources": [
+        {
+          "doc_id": "handbook:9350d885657d7409e524e73666b828b826f07191",
+          "grade": 1,
+          "rationale": "学生违纪处分实施办法与处分主题相邻，但不应压过解除处分材料清单。"
+        }
+      ],
+      "notes": "list-like / structured evidence 样本。"
     },
     {
       "case_id": "no-hit-impossible-query",

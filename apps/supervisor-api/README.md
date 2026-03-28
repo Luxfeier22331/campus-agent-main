@@ -76,6 +76,8 @@ export API_DEFAULT_CAMPUS_SCOPE=main
 
 `ApiSettings.from_env()` 仍会从 repo `.env` 读取其余 runtime 配置，包括 `AGNO_SUPERVISOR_MODEL`、`AGNO_SPECIALIST_MODEL`、object store access 与 retrieval backend settings。
 
+repo root `.env` / `.env.example` 只负责 shared runtime config，不承担 Worker / web app 的 app-local env ownership。相关模板索引见 `docs/environment/README.md`。
+
 ## Curl Smoke
 
 Health:

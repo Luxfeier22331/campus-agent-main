@@ -55,6 +55,13 @@ CURRICULUM_HYBRID_FIXTURE_PATH = (
     / "fixtures"
     / "curriculum_plan_hybrid_queries.json"
 )
+CURRICULUM_ANNOTATION_TEMPLATE_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "packages"
+    / "evals"
+    / "fixtures"
+    / "curriculum_plan_retrieval_annotation_template.json"
+)
 ANNOTATION_TEMPLATE_PATH = (
     Path(__file__).resolve().parents[2]
     / "packages"
@@ -121,10 +128,49 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         case_ids = {case.case_id for case in dataset.cases}
         self.assertIn("article-number-degree-procedure", case_ids)
         self.assertIn("fixed-phrase-medical-reimbursement", case_ids)
+        self.assertIn("policy-title-national-encouragement-scholarship", case_ids)
+        self.assertIn("semantic-disciplinary-relief", case_ids)
+        self.assertIn("short-fact-attendance-discipline-threshold", case_ids)
+        self.assertIn("structured-disciplinary-relief-materials", case_ids)
         article_case = next(case for case in dataset.cases if case.case_id == "article-number-degree-procedure")
         fixed_phrase_case = next(case for case in dataset.cases if case.case_id == "fixed-phrase-medical-reimbursement")
         self.assertTrue(all(source.chunk_id is None for source in article_case.expected_sources))
         self.assertTrue(all(source.chunk_id is None for source in fixed_phrase_case.expected_sources))
+
+    def test_handbook_qrels_fixture_contains_multiple_forbidden_source_cases(self) -> None:
+        dataset = load_retrieval_qrels_dataset(FIXTURE_PATH)
+
+        forbidden_case_ids = {case.case_id for case in dataset.cases if case.forbidden_sources}
+        self.assertTrue(
+            {
+                "policy-title-national-encouragement-scholarship",
+                "semantic-disciplinary-relief",
+                "structured-disciplinary-relief-materials",
+            }.issubset(forbidden_case_ids)
+        )
+
+    def test_handbook_qrels_fixture_contains_selected_version_locked_cases(self) -> None:
+        dataset = load_retrieval_qrels_dataset(FIXTURE_PATH)
+
+        version_locked_case_ids = {
+            case.case_id
+            for case in dataset.cases
+            if any(source.version_id is not None for source in case.expected_sources)
+        }
+        self.assertTrue(
+            {
+                "policy-title-medical",
+                "semantic-student-card-reissue",
+            }.issubset(version_locked_case_ids)
+        )
+        self.assertTrue(
+            all(
+                source.chunk_id is None
+                for case in dataset.cases
+                if case.case_id in {"policy-title-medical", "semantic-student-card-reissue"}
+                for source in case.expected_sources
+            )
+        )
 
     def test_qrels_fixture_uses_empty_request_overrides_for_handbook_scope(self) -> None:
         dataset = load_retrieval_qrels_dataset(FIXTURE_PATH)
@@ -182,6 +228,16 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertEqual(dataset.baseline["fusion"], "rrf")
         self.assertGreaterEqual(len(dataset.cases), 12)
 
+    def test_curriculum_annotation_template_exists_and_matches_qrels_case_count(self) -> None:
+        template = json.loads(CURRICULUM_ANNOTATION_TEMPLATE_PATH.read_text(encoding="utf-8"))
+        dataset = load_retrieval_qrels_dataset(CURRICULUM_QRELS_FIXTURE_PATH)
+
+        self.assertEqual(template["schema_version"], 1)
+        self.assertEqual(template["corpus"], "curriculum")
+        self.assertEqual(template["collection"], "curriculum_plan")
+        self.assertEqual(len(template["cases"]), len(dataset.cases))
+        self.assertIn("instructions", template)
+
     def test_curriculum_qrels_fixture_expected_doc_ids_align_with_curriculum_manifest(self) -> None:
         dataset = load_retrieval_qrels_dataset(CURRICULUM_QRELS_FIXTURE_PATH)
         manifest = json.loads(CURRICULUM_MANIFEST_PATH.read_text(encoding="utf-8"))
@@ -200,6 +256,53 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
 
         self.assertTrue(all(case.scope == KnowledgeScope(corpus="curriculum", collection="curriculum_plan") for case in dataset.cases))
         self.assertTrue(all(case.request_overrides == {} for case in dataset.cases))
+
+    def test_curriculum_qrels_fixture_contains_disambiguation_and_paraphrase_cases(self) -> None:
+        dataset = load_retrieval_qrels_dataset(CURRICULUM_QRELS_FIXTURE_PATH)
+
+        case_ids = {case.case_id for case in dataset.cases}
+        self.assertTrue(
+            {
+                "philosophy-strong-base-title",
+                "digital-economy-plan-paraphrase",
+                "general-english-total-credits",
+                "fixed-phrase-ethnic-experimental-class",
+                "semantic-philosophy-strong-base-paraphrase",
+            }.issubset(case_ids)
+        )
+        forbidden_case_ids = {case.case_id for case in dataset.cases if case.forbidden_sources}
+        self.assertTrue(
+            {
+                "history-strong-base-title",
+                "philosophy-strong-base-title",
+                "digital-economy-plan-paraphrase",
+                "general-english-total-credits",
+                "semantic-philosophy-strong-base-paraphrase",
+            }.issubset(forbidden_case_ids)
+        )
+
+    def test_curriculum_qrels_fixture_contains_selected_version_locked_cases(self) -> None:
+        dataset = load_retrieval_qrels_dataset(CURRICULUM_QRELS_FIXTURE_PATH)
+
+        version_locked_case_ids = {
+            case.case_id
+            for case in dataset.cases
+            if any(source.version_id is not None for source in case.expected_sources)
+        }
+        self.assertTrue(
+            {
+                "digital-economy-plan-paraphrase",
+                "general-english-total-credits",
+            }.issubset(version_locked_case_ids)
+        )
+        self.assertTrue(
+            all(
+                source.chunk_id is None
+                for case in dataset.cases
+                if case.case_id in {"digital-economy-plan-paraphrase", "general-english-total-credits"}
+                for source in case.expected_sources
+            )
+        )
 
 
 class StudentHandbookHybridFixtureTest(unittest.TestCase):

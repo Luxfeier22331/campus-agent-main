@@ -17,7 +17,7 @@ updated: 2026-03-28
 - sparse: `Qdrant native BM25`
 - sparse tokenizer: `multilingual`
 - sparse language: `none`
-- query shape: `native hybrid query + FusionQuery(RRF)`
+- query shape: `native hybrid query + RrfQuery(k=60, weights=[1.0, 1.0])`
 - evidence shape: registry-backed `EvidenceBundle`
 
 补充说明：
@@ -50,7 +50,7 @@ updated: 2026-03-28
 - ingestion / rebuild 已通过同一条路径写入 named `dense` 与 named `sparse` vectors
 - `index_chunks_to_qdrant()` 不再依赖 `QdrantVectorStore.add()` 单向量默认行为
 - retrieval 不再走本地 lexical fallback，不再用 `scroll + local sparse score`
-- retrieval query 已使用 Qdrant native `prefetch + FusionQuery(RRF)`
+- retrieval query 已使用 Qdrant native `prefetch + RrfQuery(...)`
 - payload contract 未丢失：`document_id`、`revision_track`、`version_id`、`chunk_id`、ACL、`campus_scope`、`anchor`
 - `DocumentRegistry` 回链仍是最终 source shaping 的真相源
 
@@ -62,8 +62,15 @@ updated: 2026-03-28
   - `SPARSE_MODEL=qdrant/bm25`
   - `SPARSE_TOKENIZER=multilingual`
   - `SPARSE_LANGUAGE=none`
+- `.env` 中 retrieval hybrid 配置为：
+  - `RETRIEVAL_EMBEDDING_QUERY_INSTRUCTION=Given a campus policy or handbook question, retrieve relevant passages that answer the query.`
+  - `RETRIEVAL_DENSE_PREFETCH_LIMIT=20`
+  - `RETRIEVAL_SPARSE_PREFETCH_LIMIT=20`
+  - `RETRIEVAL_RRF_K=60`
+  - `RETRIEVAL_RRF_DENSE_WEIGHT=1.0`
+  - `RETRIEVAL_RRF_SPARSE_WEIGHT=1.0`
 - remote Qdrant client 必须启用 `cloud_inference=True`
-- handbook runtime profile 中的 `qdrant_alias_name` / `qdrant_collection_prefix` / vector binding 必须对齐本轮目标索引，不与旧 dense-only target 混用
+- handbook runtime profile 中的 `qdrant_alias_name` / `qdrant_collection_prefix` / vector binding / `retrieval_top_k=8` 必须对齐本轮目标索引，不与旧 dense-only target 混用
 - `DOCUMENT_REGISTRY_DATABASE_URL` 指向本轮 live registry
 - `REBUILD_RESET_QDRANT=true` 或已确认目标 alias family 可以被新 schema 重建
 
