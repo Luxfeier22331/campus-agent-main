@@ -281,4 +281,125 @@ describe("protected panel data provider", () => {
       status: 400,
     });
   });
+
+  it("maps official web run filters onto the protected same-site runtime seam", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      createJsonResponse({
+        page: {
+          nextCursor: "cursor_ow_02",
+        },
+        runs: [
+          {
+            artifacts: [],
+            collectorVersion: "official-web-collector@0.1.0",
+            configVersion: "git:abc1234",
+            failureCount: 0,
+            finishedAt: "2026-03-29T08:17:32.000Z",
+            ingestionDispatchRef: null,
+            ingestionDispatchStatus: "queued",
+            lastHeartbeatAt: "2026-03-29T08:05:00.000Z",
+            projectedAt: "2026-03-29T08:17:33.000Z",
+            runId: "owrun_01HQ",
+            siteId: "www_muc_edu_cn",
+            startedAt: "2026-03-29T08:00:01.000Z",
+            status: "completed",
+            summary: {
+              failureCount: 0,
+            },
+          },
+        ],
+      }),
+    );
+
+    const response = await protectedPanelDataProvider.getList("officialWebRuns", {
+      filter: {
+        ingestionDispatchStatus: "queued",
+        siteId: "www_muc_edu_cn",
+        status: "completed",
+      },
+      meta: undefined,
+      pagination: {
+        page: 1,
+        perPage: 20,
+      },
+      signal: undefined,
+      sort: {
+        field: "startedAt",
+        order: "DESC",
+      },
+    });
+
+    expect(response.data[0]).toMatchObject({
+      id: "owrun_01HQ",
+      runId: "owrun_01HQ",
+      status: "completed",
+    });
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/official-web/runs?limit=20&siteId=www_muc_edu_cn&status=completed&ingestionDispatchStatus=queued",
+      expect.objectContaining({
+        headers: {
+          accept: "application/json",
+        },
+        method: "GET",
+      }),
+    );
+  });
+
+  it("loads official web site detail and recent runs from the runtime seam", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      createJsonResponse({
+        recentRuns: [
+          {
+            artifacts: [],
+            collectorVersion: "official-web-collector@0.1.0",
+            configVersion: "git:abc1234",
+            failureCount: 0,
+            finishedAt: "2026-03-29T08:17:32.000Z",
+            ingestionDispatchRef: null,
+            ingestionDispatchStatus: "queued",
+            lastHeartbeatAt: "2026-03-29T08:05:00.000Z",
+            projectedAt: "2026-03-29T08:17:33.000Z",
+            runId: "owrun_01HQ",
+            siteId: "www_muc_edu_cn",
+            startedAt: "2026-03-29T08:00:01.000Z",
+            status: "completed",
+            summary: {
+              failureCount: 0,
+            },
+          },
+        ],
+        site: {
+          displayName: "Www Muc Edu Cn",
+          hostRoots: ["www.muc.edu.cn"],
+          lastFailureAt: null,
+          lastSuccessAt: "2026-03-29T08:17:32.000Z",
+          latestCollectorVersion: "official-web-collector@0.1.0",
+          latestConfigVersion: "git:abc1234",
+          latestIngestionDispatchStatus: "queued",
+          latestRunId: "owrun_01HQ",
+          latestRunStatus: "completed",
+          projectedAt: "2026-03-29T08:17:33.000Z",
+          siteId: "www_muc_edu_cn",
+        },
+      }),
+    );
+
+    await expect(
+      protectedPanelDataProvider.getOne("officialWebSites", {
+        id: "www_muc_edu_cn",
+        meta: undefined,
+        signal: undefined,
+      }),
+    ).resolves.toMatchObject({
+      data: {
+        id: "www_muc_edu_cn",
+        recentRuns: [
+          expect.objectContaining({
+            id: "owrun_01HQ",
+          }),
+        ],
+        siteId: "www_muc_edu_cn",
+      },
+    });
+  });
 });

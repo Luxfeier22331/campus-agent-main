@@ -206,6 +206,7 @@ describe("protected panel web worker shell", () => {
       panel_domains: {
         overview: "ready",
         requests: "ready",
+        official_web: "ready",
         jobs: "blocked",
         operations: "deferred",
         audit: "blocked",
@@ -285,6 +286,7 @@ describe("protected panel web worker shell", () => {
         panel_domains: {
           overview: "ready",
           requests: "ready",
+          official_web: "ready",
           jobs: "blocked",
           operations: "deferred",
           audit: "blocked",
@@ -620,6 +622,92 @@ describe("protected panel web worker shell", () => {
           },
         ],
       });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("proxies official web site queries to app-api with the same trusted operator bridge", async () => {
+    const originalFetch = globalThis.fetch;
+    const accessTeamDomain = "https://team-official-web-sites.cloudflareaccess.com";
+    const certsUrl = `${accessTeamDomain}/cdn-cgi/access/certs`;
+    const { privateKey, publicKey } = await generateKeyPair("ES256");
+    const publicJwk = await exportJWK(publicKey);
+    publicJwk.kid = "panel-test-key";
+    const token = await new SignJWT({
+      email: "ops@example.com",
+      groups: ["panel", "ops"],
+      name: "Ops Team",
+      sub: "operator-001",
+    })
+      .setProtectedHeader({ alg: "ES256", kid: "panel-test-key" })
+      .setIssuer(accessTeamDomain)
+      .setAudience("panel-audience")
+      .setIssuedAt()
+      .setExpirationTime("5m")
+      .sign(privateKey);
+
+    let forwardedUrl: string | null = null;
+
+    globalThis.fetch = (async (request: Request | URL | string) => {
+      const inbound = request instanceof Request ? request : new Request(request);
+      if (inbound.url === certsUrl) {
+        return new Response(JSON.stringify({ keys: [publicJwk] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      throw new Error(`Unexpected fetch call: ${inbound.url}`);
+    }) as typeof fetch;
+
+    try {
+      const response = await worker.fetch(
+        new Request("https://panel.example.com/api/official-web/sites", {
+          headers: {
+            "cf-access-jwt-assertion": token,
+          },
+        }),
+        {
+          ACCESS_POLICY_AUD: "panel-audience",
+          ACCESS_TEAM_DOMAIN: accessTeamDomain,
+          APP_API: {
+            fetch: async (request: Request) => {
+              forwardedUrl = request.url;
+
+              return new Response(
+                JSON.stringify({
+                  sites: [
+                    {
+                      siteId: "www_muc_edu_cn",
+                    },
+                  ],
+                }),
+                {
+                  headers: {
+                    "content-type": "application/json; charset=utf-8",
+                  },
+                  status: 200,
+                },
+              );
+            },
+          },
+          PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
+          PANEL_PROTECTED_HOSTNAME: "panel.example.com",
+          PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
+          PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
+        },
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        sites: [
+          {
+            siteId: "www_muc_edu_cn",
+          },
+        ],
+      });
+      expect(forwardedUrl).toBe("https://app-api.internal/api/operator/official-web/sites");
     } finally {
       globalThis.fetch = originalFetch;
     }

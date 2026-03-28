@@ -78,6 +78,76 @@ export interface RawRequestDetailResponse {
   request: RawRequestProjectionRecord;
 }
 
+export interface RawOfficialWebArtifactRecord {
+  artifactType: string;
+  byteSize: number | null;
+  contentSha256: string;
+  objectKey: string;
+  recordCount: number | null;
+}
+
+export type OfficialWebArtifactRecord = RawOfficialWebArtifactRecord;
+
+export interface RawOfficialWebRunRecord {
+  artifacts: RawOfficialWebArtifactRecord[];
+  collectorVersion: string | null;
+  configVersion: string | null;
+  failureCount: number;
+  finishedAt: string | null;
+  ingestionDispatchRef: string | null;
+  ingestionDispatchStatus: string;
+  lastHeartbeatAt: string | null;
+  projectedAt: string;
+  runId: string;
+  siteId: string;
+  startedAt: string;
+  status: string;
+  summary: Record<string, unknown> | null;
+}
+
+export interface OfficialWebRunRecord extends RawOfficialWebRunRecord {
+  id: string;
+}
+
+export interface RawOfficialWebRunListResponse {
+  page: {
+    nextCursor: string | null;
+  };
+  runs: RawOfficialWebRunRecord[];
+}
+
+export interface RawOfficialWebRunDetailResponse {
+  run: RawOfficialWebRunRecord;
+}
+
+export interface RawOfficialWebSiteRecord {
+  displayName: string;
+  hostRoots: string[];
+  lastFailureAt: string | null;
+  lastSuccessAt: string | null;
+  latestCollectorVersion: string | null;
+  latestConfigVersion: string | null;
+  latestIngestionDispatchStatus: string | null;
+  latestRunId: string | null;
+  latestRunStatus: string | null;
+  projectedAt: string;
+  siteId: string;
+}
+
+export interface OfficialWebSiteRecord extends RawOfficialWebSiteRecord {
+  id: string;
+  recentRuns?: OfficialWebRunRecord[];
+}
+
+export interface RawOfficialWebSiteListResponse {
+  sites: RawOfficialWebSiteRecord[];
+}
+
+export interface RawOfficialWebSiteDetailResponse {
+  recentRuns: RawOfficialWebRunRecord[];
+  site: RawOfficialWebSiteRecord;
+}
+
 export function normalizeOperatorContext(
   input: RawOperatorContext | undefined,
 ): OperatorContext | null {
@@ -118,5 +188,32 @@ export function normalizeRequestRecord(
   return {
     ...input,
     id: input.requestId,
+  };
+}
+
+export function normalizeOfficialWebRunRecord(
+  input: RawOfficialWebRunRecord,
+): OfficialWebRunRecord {
+  return {
+    ...input,
+    id: input.runId,
+  };
+}
+
+export function normalizeOfficialWebSiteRecord(
+  input: RawOfficialWebSiteRecord,
+): OfficialWebSiteRecord {
+  return {
+    ...input,
+    id: input.siteId,
+  };
+}
+
+export function normalizeOfficialWebSiteDetailRecord(
+  input: RawOfficialWebSiteDetailResponse,
+): OfficialWebSiteRecord {
+  return {
+    ...normalizeOfficialWebSiteRecord(input.site),
+    recentRuns: input.recentRuns.map(normalizeOfficialWebRunRecord),
   };
 }

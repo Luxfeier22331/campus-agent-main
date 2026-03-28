@@ -1,8 +1,10 @@
 import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
 import FindInPageOutlinedIcon from "@mui/icons-material/FindInPageOutlined";
 import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
+import LanguageOutlinedIcon from "@mui/icons-material/LanguageOutlined";
 import PendingActionsOutlinedIcon from "@mui/icons-material/PendingActionsOutlined";
 import RuleFolderOutlinedIcon from "@mui/icons-material/RuleFolderOutlined";
+import TravelExploreOutlinedIcon from "@mui/icons-material/TravelExploreOutlined";
 import {
   lazy,
   Suspense,
@@ -55,10 +57,42 @@ const RequestShowPage = lazy(async () => {
     default: module.RequestShowPage,
   };
 });
+const OfficialWebSitesListPage = lazy(async () => {
+  const module = await import("./official-web/sites-list");
+
+  return {
+    default: module.OfficialWebSitesListPage,
+  };
+});
+const OfficialWebSiteShowPage = lazy(async () => {
+  const module = await import("./official-web/site-show");
+
+  return {
+    default: module.OfficialWebSiteShowPage,
+  };
+});
+const OfficialWebRunsListPage = lazy(async () => {
+  const module = await import("./official-web/runs-list");
+
+  return {
+    default: module.OfficialWebRunsListPage,
+  };
+});
+const OfficialWebRunShowPage = lazy(async () => {
+  const module = await import("./official-web/run-show");
+
+  return {
+    default: module.OfficialWebRunShowPage,
+  };
+});
 
 const SuspendedOverviewPage = withPanelPageSuspense(OverviewPage);
 const SuspendedRequestListPage = withPanelPageSuspense(RequestListPage);
 const SuspendedRequestShowPage = withPanelPageSuspense(RequestShowPage);
+const SuspendedOfficialWebSitesListPage = withPanelPageSuspense(OfficialWebSitesListPage);
+const SuspendedOfficialWebSiteShowPage = withPanelPageSuspense(OfficialWebSiteShowPage);
+const SuspendedOfficialWebRunsListPage = withPanelPageSuspense(OfficialWebRunsListPage);
+const SuspendedOfficialWebRunShowPage = withPanelPageSuspense(OfficialWebRunShowPage);
 const SuspendedDelayedDomainPage = withPanelPageSuspense(DelayedDomainPage);
 
 function ProtectedPanelMenu() {
@@ -66,6 +100,16 @@ function ProtectedPanelMenu() {
     <Menu>
       <Menu.Item leftIcon={<DashboardOutlinedIcon />} primaryText="Overview" to="/" />
       <Menu.ResourceItem name="requests" />
+      <Menu.Item
+        leftIcon={<LanguageOutlinedIcon />}
+        primaryText="Official Web Sites"
+        to="/officialWebSites"
+      />
+      <Menu.Item
+        leftIcon={<TravelExploreOutlinedIcon />}
+        primaryText="Crawl Runs"
+        to="/officialWebRuns"
+      />
       <Menu.Item leftIcon={<RuleFolderOutlinedIcon />} primaryText="Jobs" to="/jobs" />
       <Menu.Item
         leftIcon={<PendingActionsOutlinedIcon />}
@@ -98,6 +142,22 @@ export function ProtectedPanelAdminApp() {
         options={{ label: "Requests" }}
         recordRepresentation="requestId"
         show={SuspendedRequestShowPage}
+      />
+      <Resource
+        icon={LanguageOutlinedIcon}
+        list={SuspendedOfficialWebSitesListPage}
+        name="officialWebSites"
+        options={{ label: "Official Web Sites" }}
+        recordRepresentation="siteId"
+        show={SuspendedOfficialWebSiteShowPage}
+      />
+      <Resource
+        icon={TravelExploreOutlinedIcon}
+        list={SuspendedOfficialWebRunsListPage}
+        name="officialWebRuns"
+        options={{ label: "Crawl Runs" }}
+        recordRepresentation="runId"
+        show={SuspendedOfficialWebRunShowPage}
       />
       <CustomRoutes>
         <Route

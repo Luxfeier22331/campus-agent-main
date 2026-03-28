@@ -91,11 +91,124 @@ export default {
         panel_domains: {
           overview: "ready",
           requests: "ready",
+          official_web: "ready",
           jobs: "blocked",
           operations: "deferred",
           audit: "blocked",
         },
         ...(admission.operatorContext ? { operator_context: admission.operatorContext } : {}),
+      });
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/official-web/sites") {
+      const admission = await validateProtectedApiRequest(request, env);
+      if (admission.error) {
+        return admission.error;
+      }
+
+      if (!admission.operatorContext) {
+        return jsonResponse(403, {
+          error: {
+            code: "operator_identity_required",
+            message: "Protected official web queries require a trusted operator identity.",
+          },
+        });
+      }
+
+      return proxyToAppApi({
+        env,
+        operatorContext: admission.operatorContext,
+        request,
+        targetPath: `/api/operator/official-web/sites${url.search}`,
+      });
+    }
+
+    if (request.method === "GET" && url.pathname.startsWith("/api/official-web/sites/")) {
+      const admission = await validateProtectedApiRequest(request, env);
+      if (admission.error) {
+        return admission.error;
+      }
+
+      if (!admission.operatorContext) {
+        return jsonResponse(403, {
+          error: {
+            code: "operator_identity_required",
+            message: "Protected official web queries require a trusted operator identity.",
+          },
+        });
+      }
+
+      const siteId = url.pathname.slice("/api/official-web/sites/".length);
+      if (!siteId) {
+        return jsonResponse(404, {
+          error: {
+            code: "not_found",
+            message: "Route not found.",
+          },
+        });
+      }
+
+      return proxyToAppApi({
+        env,
+        operatorContext: admission.operatorContext,
+        request,
+        targetPath: `/api/operator/official-web/sites/${siteId}${url.search}`,
+      });
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/official-web/runs") {
+      const admission = await validateProtectedApiRequest(request, env);
+      if (admission.error) {
+        return admission.error;
+      }
+
+      if (!admission.operatorContext) {
+        return jsonResponse(403, {
+          error: {
+            code: "operator_identity_required",
+            message: "Protected official web queries require a trusted operator identity.",
+          },
+        });
+      }
+
+      return proxyToAppApi({
+        env,
+        operatorContext: admission.operatorContext,
+        request,
+        targetPath: `/api/operator/official-web/runs${url.search}`,
+      });
+    }
+
+    if (request.method === "GET" && url.pathname.startsWith("/api/official-web/runs/")) {
+      const admission = await validateProtectedApiRequest(request, env);
+      if (admission.error) {
+        return admission.error;
+      }
+
+      if (!admission.operatorContext) {
+        return jsonResponse(403, {
+          error: {
+            code: "operator_identity_required",
+            message: "Protected official web queries require a trusted operator identity.",
+          },
+        });
+      }
+
+      const runId = url.pathname.slice("/api/official-web/runs/".length);
+      if (!runId) {
+        return jsonResponse(404, {
+          error: {
+            code: "not_found",
+            message: "Route not found.",
+          },
+        });
+      }
+
+      return proxyToAppApi({
+        env,
+        operatorContext: admission.operatorContext,
+        request,
+        targetPath: `/api/operator/official-web/runs/${runId}${url.search}`,
       });
     }
 
