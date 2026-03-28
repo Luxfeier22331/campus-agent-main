@@ -259,6 +259,12 @@ operator query path 至少包含：
 
 更完整的 `apps/app-api` Worker 实现目前正在独立 worktree 推进，但在合入 `develop` 之前，不应把那部分进度写成这里的 merged truth。
 
+同时要明确：
+
+- 截至 2026-03-29，独立 worktree 内的 app-api 实现仍保留 `snapshot`-based actor carrier 与 top-level `actor -> supervisor` adapter
+- 因此它还不能单独作为“ACL/authz 过渡态已结束”的证据
+- 只有当它对齐 `ContextProjection.authorization`、`SupervisorRequest` 与 `SupervisorResponse` shared seam 后，才算真正完成 app-layer 收口
+
 因此，当前 `develop` 仍然尚未落地的内容包括：
 
 - Hono / Wrangler Worker scaffold
