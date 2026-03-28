@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Callable, Mapping
 
-from campus_protected_internal_panel.settings import ProtectedPanelSettings
+from campus_protected_panel_web.settings import ProtectedPanelSettings
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,7 +40,7 @@ def healthz(settings: ProtectedPanelSettings) -> HttpResponse:
         json_body={
             "status": "ok",
             "app_name": settings.app_name,
-            "surface": "protected-internal-panel",
+            "surface": "protected-panel-web",
         },
     )
 
@@ -65,7 +65,7 @@ def fail_closed_root(settings: ProtectedPanelSettings) -> HttpResponse:
                 ErrorInfo(
                     code="protected_surface_required",
                     message=(
-                        "Protected internal panel stays fail-closed until an outer protected "
+                        "Protected panel stays fail-closed until an outer protected "
                         "access envelope and panel-facing runtime API inventory are configured."
                     ),
                 )

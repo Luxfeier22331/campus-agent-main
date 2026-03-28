@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Mapping
 
-from campus_protected_internal_panel.api import HttpResponse, HttpRoute, build_routes
-from campus_protected_internal_panel.settings import ProtectedPanelSettings
+from campus_protected_panel_web.api import HttpResponse, HttpRoute, build_routes
+from campus_protected_panel_web.settings import ProtectedPanelSettings
 
 
 @dataclass(slots=True)

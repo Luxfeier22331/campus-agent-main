@@ -1,10 +1,10 @@
 # React Admin Reference
 
-This note records what the repo should borrow from `react-admin` and what it should explicitly avoid while implementing `apps/protected-internal-panel`.
+This note records what the repo should borrow from `react-admin` and what it should explicitly avoid while implementing `apps/protected-panel-web`.
 
 It is an app-local implementation reference, not a replacement for:
 
-- `docs/architecture/protected-internal-panel-boundary.md`
+- `docs/architecture/protected-panel-boundary.md`
 - `docs/architecture/protected-panel-runtime-shell.md`
 - `docs/architecture/protected-panel-operator-access.md`
 - `docs/decisions/adr-0011-protected-panel-worker-runtime.md`

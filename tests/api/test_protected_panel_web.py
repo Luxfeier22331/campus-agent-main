@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import unittest
 
-from campus_protected_internal_panel import create_app
-from campus_protected_internal_panel.settings import ProtectedPanelSettings
+from campus_protected_panel_web import create_app
+from campus_protected_panel_web.settings import ProtectedPanelSettings
 
 
-class ProtectedInternalPanelTest(unittest.TestCase):
+class ProtectedPanelWebTest(unittest.TestCase):
     def test_shell_exposes_only_health_readiness_and_fail_closed_root(self) -> None:
         app = create_app()
 
@@ -53,7 +53,7 @@ class ProtectedInternalPanelTest(unittest.TestCase):
         ready = app.handle("GET", "/readyz")
 
         self.assertEqual(health.status_code, 200)
-        self.assertEqual(health.json_body["surface"], "protected-internal-panel")
+        self.assertEqual(health.json_body["surface"], "protected-panel-web")
         self.assertEqual(health.json_body["app_name"], "campus-agent-v2-protected-panel")
         self.assertEqual(ready.status_code, 200)
         self.assertEqual(ready.json_body["runtime_api_base_url"], "http://127.0.0.1:8000")

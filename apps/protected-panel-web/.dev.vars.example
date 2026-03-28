@@ -1,0 +1,6 @@
+PANEL_APP_NAME=campus-agent-v2-protected-panel
+PANEL_RUNTIME_API_BASE_URL=https://supervisor.internal
+PANEL_PROTECTED_HOSTNAME=panel.example.com
+PANEL_PROTECTION_ENVELOPE=cloudflare-access
+ACCESS_TEAM_DOMAIN=https://team.cloudflareaccess.com
+ACCESS_POLICY_AUD=panel-audience

@@ -1,7 +1,7 @@
 [project]
-name = "campus-protected-internal-panel"
+name = "campus-protected-panel-web"
 version = "0.1.0"
-description = "Protected internal panel runtime shell for campus-agent v2."
+description = "Protected panel web runtime shell for campus-agent v2."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -15,10 +15,10 @@ package = true
 campus-shared = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/campus_protected_internal_panel"]
+packages = ["src/campus_protected_panel_web"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/campus_protected_internal_panel", "pyproject.toml", "README.md"]
+include = ["src/campus_protected_panel_web", "pyproject.toml", "README.md"]
 
 [build-system]
 requires = ["hatchling>=1.24.0"]

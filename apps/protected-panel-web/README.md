@@ -1,6 +1,6 @@
-# protected-internal-panel
+# protected-panel-web
 
-Protected internal panel runtime shell for campus-agent v2.
+Protected panel web runtime shell for campus-agent v2.
 
 This app is an `apps/*` protected operator surface. It exists as a runtime shell only:
 
@@ -18,20 +18,28 @@ Current shell scope:
 - `GET /healthz`
 - `GET /readyz`
 - `GET /`
+- `GET /api/overview`
 
 The root route intentionally remains fail-closed until a protected delivery envelope and panel-facing runtime API inventory are explicitly wired.
 
 Canonical references:
 
-- `docs/architecture/protected-internal-panel-boundary.md`
+- `docs/architecture/protected-panel-boundary.md`
+- `docs/architecture/shared-app-api-and-worker-web-surfaces.md`
+- `docs/architecture/app-api-architecture.md`
 - `docs/architecture/protected-panel-operator-access.md`
 - `docs/architecture/protected-panel-runtime-shell.md`
+- `docs/architecture/request-projection-and-runtime-read-model.md`
+- `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
+- `docs/decisions/adr-0013-app-api-worker-runtime.md`
 - `docs/decisions/adr-0011-protected-panel-worker-runtime.md`
+- `docs/decisions/adr-0014-app-api-request-projection-and-panel-query-ownership.md`
 
 Implementation references:
 
-- `apps/protected-internal-panel/REACT-ADMIN-REFERENCE.md`
+- `apps/protected-panel-web/REACT-ADMIN-REFERENCE.md`
 - `.planning/protected-panel-worker-implementation-plan.md`
+- `.planning/protected-panel-runtime-api-inventory.md`
 
 Historical handoff:
 
@@ -52,6 +60,14 @@ Long-term functional domains:
 - `Operations`
 - `Audit`
 
+Current rollout default:
+
+- `Overview` is the first implementation target
+- `Requests` stays blocked until `apps/app-api` exposes a safe request projection query surface
+- `Jobs` and `Operations` are delayed pending re-discussion
+
+`Requests` is defined against `apps/app-api` owned request projection APIs. This app must not treat consumer chat persistence, raw audit logs, or telemetry sinks as canonical request list/detail sources.
+
 UI / BFF direction:
 
 - `react-admin` is the preferred UI shell
@@ -66,11 +82,27 @@ Environment:
 - `PANEL_RUNTIME_API_BASE_URL`
 - `PANEL_PROTECTED_HOSTNAME`
 - `PANEL_PROTECTION_ENVELOPE`
+- `ACCESS_TEAM_DOMAIN`
+- `ACCESS_POLICY_AUD`
 
-Future operator-access env contract is expected to add origin-admission values such as:
+Current operator-access env contract for Cloudflare Access admission includes:
 
-- access audience / issuer configuration for assertion validation
+- access issuer / team-domain configuration for assertion validation
+- access audience configuration
+
+Later env expansion is still expected to add values such as:
+
 - operator identity claim mapping
 - audit sink / trace projection configuration
+- app-api request projection runtime API configuration
 
 This app does not close retrieval ACL, actor mapping, approval flow, or full governance semantics. It also does not exist to become a CMS, database console, or generic admin platform.
+
+Local commands:
+
+```bash
+npm install
+npm test
+npm run typecheck
+npm run dev
+```

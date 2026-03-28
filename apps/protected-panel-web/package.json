@@ -1,0 +1,23 @@
+{
+  "name": "protected-panel-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cloudflare Worker runtime shell for the protected panel web surface.",
+  "dependencies": {
+    "jose": "^6.0.10"
+  },
+  "scripts": {
+    "dev": "XDG_CONFIG_HOME=./.wrangler-home wrangler dev",
+    "deploy": "XDG_CONFIG_HOME=./.wrangler-home wrangler deploy",
+    "test": "XDG_CONFIG_HOME=./.wrangler-home vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.13.4",
+    "@cloudflare/workers-types": "^4.20260317.1",
+    "@types/node": "^24.12.0",
+    "typescript": "^5.8.2",
+    "vitest": "^4.1.0",
+    "wrangler": "^4.77.0"
+  }
+}
