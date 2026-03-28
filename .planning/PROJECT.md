@@ -12,6 +12,7 @@
 - retrieval 读取 serving alias；离线索引发布写入 versioned physical collection，并以 release manifest 保留追溯信息
 - canonical app identity、profile memory 与 session truth 归属 shared `app-api`；execution engine 只消费 typed projection
 - personalization 可以利用 verified identity / profile memory / session summary，但 memory 不得授予权限或绕过 retrieval ACL
+- 当前 `develop` 集成线已把 `ContextProjection` / `SupervisorResponse` / eval supervisor seam 收口为 merge target；独立 worktree 的 `app-api` 实现合并前必须先对齐这条 seam，再由 `develop -> main` PR 进入稳定分支
 - 早期 roadmap / phase 文档主要承担历史排期与讨论存档，不应覆盖这里的当前 truth
 
 ## Core Value
@@ -34,10 +35,11 @@
 - ✓ 已完成 Cloudflare public-entry Worker runtime shell、trusted-origin forwarding 与 `apps/supervisor-api` trusted-worker origin admission — Validated in Phase 04.6
 - ✓ 已完成 04.7 `public-consumer-chat` 阶段性实现并合入 `main`，当前作为历史参考存在，但不再是后续 panel/chat 工作的 forward topology truth — Validated in Phase 04.7
 - ✓ 已完成 `student_handbook` 主链路的基础 eval / smoke / release-gate 验证，包含 live qrels benchmark、workflow/status 样本与 handbook collection schema 快照 — Validated in Phase 7
+- ✓ 已完成当前集成线的 intent/memory/ACL shared seam 收口，包含 `ContextProjection` / `SupervisorResponse`、supervisor-only eval coverage、curriculum gate docs 与 `app-api` merge handoff — Validated on 2026-03-28
 
 ### Active
 
-- [ ] 在 release gate 中补齐 `curriculum_plan` query-serving 的 live 验证与回归样本，并确认 `campus_services` 继续保持 `offline_preparation`
+- [ ] 按新增 curriculum live-gate runbook 生成 fresh `curriculum_plan` live evidence，并据此决定 milestone closeout；`campus_services` 继续保持 `offline_preparation`
 
 ### Out of Scope
 
@@ -90,6 +92,7 @@
 | shared `apps/app-api` runtime 冻结为 Worker | public/protected web surfaces 已是 Worker；共享产品后端保持 internal Worker runtime 更符合边界和部署形态 | — Accepted on 2026-03-28 |
 | canonical identity、profile memory、session memory 与 institutional knowledge 必须长期分层 | 否则长期记忆会污染机构知识真相，或被误用为隐式授权通道 | — Accepted on 2026-03-28 |
 | personalization 允许影响 intent framing、retrieval planning 与 answer wording，但不得扩大 ACL 或 serving surface | 这样可以引入长期记忆而不破坏 retrieval fail-closed 与 runtime-profile-driven query policy | — Accepted on 2026-03-28 |
+| `app-api` worktree 先回并 `develop`、再经 PR 进入 `main` 时必须先对齐 `ContextProjection` / `SupervisorResponse` shared seam，不能把旧 `snapshot` 合约重新带回主线 | 当前集成线已先完成 shared boundary、docs truth 和 eval seam；worktree merge 应基于这条 merge target 对齐，而不是反向覆盖 | — Accepted on 2026-03-28 |
 
 ## Evolution
 

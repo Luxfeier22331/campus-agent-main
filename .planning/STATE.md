@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Curriculum release-gate follow-up remains pending; shared app-api plus Worker web surface topology is frozen, and long-term identity/memory/personalization boundaries are now documented
-last_updated: "2026-03-28T14:11:36.000Z"
+stopped_at: Wave A-D develop integration-line closeout has landed the shared seam, curriculum gate docs, and app-api merge handoff; fresh curriculum live evidence and worktree merge alignment remain pending
+last_updated: "2026-03-29T00:00:00.000Z"
 progress:
   total_phases: 17
   completed_phases: 17
@@ -16,10 +16,10 @@ progress:
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-03-28)
+See: `.planning/PROJECT.md` (updated 2026-03-29)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 runtime-profile-driven serving surface 证明这条架构能可靠承接高频校园问答
-**Current focus:** Phase 7 handbook verification已完成；当前收尾重点一方面是补齐 `curriculum_plan` query-serving 的 live gate，另一方面是把后续产品形态冻结为 `public-chat-web` / `protected-panel-web` + shared `app-api` Worker runtime + `supervisor-api` execution engine，并把长期 identity / memory / personalization 边界落到 canonical docs
+**Current focus:** Phase 7 handbook verification已完成；当前 `develop` 集成线已收口 shared `ContextProjection` / `SupervisorResponse` seam、curriculum gate docs 与 `app-api` merge checklist，剩余重点是按新 runbook 生成 fresh `curriculum_plan` live evidence，并在后续 worktree merge 中对齐 app-api Worker 实现
 
 ## Current Position
 
@@ -142,13 +142,15 @@ Recent decisions affecting current work:
 - The detailed `app-api` implementation baseline now lives in `docs/plans/app-api-worker-foundation.md`, including framework selection, API surface, data domains, and execution waves.
 - The accepted long-term split now separates verified identity, profile memory, session memory, and institutional knowledge into distinct truth layers.
 - Personalization may influence intent framing, retrieval planning, clarification, and answer wording, but memory does not grant permissions or widen retrieval ACL.
+- The current `develop` integration branch now treats `ContextProjection` + `SupervisorResponse` as the merge-ready shared seam; the pending `app-api` worktree must align to that seam instead of reintroducing `snapshot`.
+- Curriculum gate closeout now has canonical docs/runbook coverage in `docs/reference/curriculum-plan-eval-metrics.md` and `docs/runbooks/curriculum-plan-hybrid-rebuild-checklist.md`; what remains is fresh live evidence, not fixture design.
 
 ### Pending Todos
 
-- Decide milestone closeout and land the missing `curriculum_plan` query-serving live release-gate artifacts beyond the existing automated verification surface.
+- Generate fresh `curriculum_plan` live release-gate artifacts using the new curriculum runbook and attach the resulting evidence before milestone closeout.
 - Keep handbook chunk-truth validation and handbook eval artifacts as reusable regression gates for subsequent retrieval changes.
-- Execute the `app-api` Worker foundation plan before parallelizing `public-chat-web` and `protected-panel-web` integration work.
-- Translate the accepted identity / memory / personalization boundary docs into concrete `app-api`, `supervisor-core`, `rag-specialist`, and eval implementation waves.
+- Merge the `app-api` Worker worktree back to `develop` only after `snapshot -> ContextProjection` and `SpecialistResponse -> SupervisorResponse` alignment is complete.
+- After that merge, rerun app-api-specific tests plus the repository baseline on `develop`, then promote to `main` via PR.
 
 ### Blockers/Concerns
 

@@ -106,7 +106,9 @@ Canonical Docs 只收录当前 active / accepted 文档，以及少数虽然 `co
 - `plans/supervisor-current-design-implementation.md`
 - `plans/versioned-history-query-foundation.md`
 - `runbooks/index-release-runbook.md`
+- `runbooks/curriculum-plan-hybrid-rebuild-checklist.md`
 - `runbooks/student-handbook-hybrid-rebuild-checklist.md`
+- `reference/curriculum-plan-eval-metrics.md`
 - `reference/runtime-serving-and-index-terms.md`
 - `reference/phase1-ingestion-retrieval-implementation-truth.md`
 - `reference/student-handbook-eval-metrics.md`

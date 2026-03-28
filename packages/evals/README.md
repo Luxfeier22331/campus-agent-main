@@ -13,13 +13,22 @@ Evaluation helpers for campus-agent v2.
 - curriculum live fixture 必须跟随当前 `curriculum/curriculum_plan` 的真实 manifest 边界收口；重点覆盖标题命中、短事实 section、table retrieval、同专业不同方案区分、needs-clarification 与 no-hit
 - `policy_title_exact_match` 与 `fixed_phrase_sparse_win` 类 live 样本必须至少能锚定到当前 handbook manifest 的标题关键词；相关 drift guard 由 `tests/evals/test_retrieval_benchmark.py` 覆盖
 - curriculum qrels 当前同样采取 `doc_id-level truth first`，第二学士学位、强基计划、创新班与课程教学计划是首批固定回归样本
+- deterministic runner 现在接受 `SpecialistResponse` 与 `SupervisorResponse` 两种执行结果；supervisor-only 终态额外覆盖 `approval_required_accuracy` / `rejection_accuracy`
 - `ragas`、OpenAI graders 或其他 judge/scorer 只能作为 `packages/evals` 之后的 supplemental adapter，不得改写 canonical deterministic gate
 - `student_handbook` formal benchmark 的 policy / rubric fixture 分别固定在 `student_handbook_judge_gate_policy.json` 与 `student_handbook_judge_rubrics.json`
+
+配套文档：
+
+- `docs/reference/student-handbook-eval-metrics.md`
+- `docs/reference/curriculum-plan-eval-metrics.md`
+- `docs/runbooks/student-handbook-hybrid-rebuild-checklist.md`
+- `docs/runbooks/curriculum-plan-hybrid-rebuild-checklist.md`
 
 验证命令：
 
 - `uv run --all-packages python -m unittest tests.evals.test_golden_cases tests.evals.test_retrieval_benchmark`
 - `uv run --all-packages python -m unittest tests.evals.test_golden_cases tests.evals.test_retrieval_benchmark tests.evals.test_supplemental_adapters`
+- `uv run --all-packages python -m unittest tests.supervisor.test_supervisor_core tests.specialist.test_rag_specialist tests.evals.test_golden_cases tests.evals.test_retrieval_benchmark`
 - `curriculum` live benchmark 也复用同一 scorer，只需将 `--qrels` 切换为 `packages/evals/fixtures/curriculum_plan_retrieval_qrels.json`
 
 retrieval benchmark CLI：
