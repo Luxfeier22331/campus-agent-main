@@ -17,10 +17,12 @@ Current shell scope:
 
 - `GET /healthz`
 - `GET /readyz`
-- `GET /`
+- `GET /` and protected SPA routes such as `/requests`
 - `GET /api/overview`
+- `GET /api/requests`
+- `GET /api/requests/:requestId`
 
-The root route intentionally remains fail-closed until a protected delivery envelope and panel-facing runtime API inventory are explicitly wired.
+The root route and protected SPA routes now serve the `react-admin` shell once upstream operator admission and frontend assets are configured. If either condition is missing, the Worker fails closed instead of exposing a public panel shell.
 
 Canonical references:
 
@@ -63,8 +65,9 @@ Long-term functional domains:
 Current rollout default:
 
 - `Overview` is the first implementation target
-- `Requests` stays blocked until `apps/app-api` exposes a safe request projection query surface
+- `Requests` now renders through `react-admin` and proxies to `apps/app-api` request projection APIs through the Worker-local BFF seam
 - `Jobs` and `Operations` are delayed pending re-discussion
+- `Audit` currently remains a delayed route skeleton rather than a raw-log viewer
 
 `Requests` is defined against `apps/app-api` owned request projection APIs. This app must not treat consumer chat persistence, raw audit logs, or telemetry sinks as canonical request list/detail sources.
 
@@ -85,6 +88,11 @@ Environment:
 - `ACCESS_TEAM_DOMAIN`
 - `ACCESS_POLICY_AUD`
 
+Runtime bindings:
+
+- `APP_API` service binding for request projection list/detail queries
+- `ASSETS` binding generated from the Vite client build
+
 Current operator-access env contract for Cloudflare Access admission includes:
 
 - access issuer / team-domain configuration for assertion validation
@@ -94,15 +102,18 @@ Later env expansion is still expected to add values such as:
 
 - operator identity claim mapping
 - audit sink / trace projection configuration
-- app-api request projection runtime API configuration
+- app-api request projection runtime API configuration beyond the current `APP_API` service binding
 
 This app does not close retrieval ACL, actor mapping, approval flow, or full governance semantics. It also does not exist to become a CMS, database console, or generic admin platform.
 
 Local commands:
 
 ```bash
-npm install
-npm test
-npm run typecheck
-npm run dev
+pnpm install
+pnpm build
+pnpm preview
+pnpm test
+pnpm typecheck
+pnpm dev
+pnpm deploy
 ```
