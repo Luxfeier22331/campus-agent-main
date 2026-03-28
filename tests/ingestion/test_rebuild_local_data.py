@@ -276,6 +276,37 @@ class RebuildLocalDataTest(unittest.TestCase):
         self.assertEqual(calls[0]["REPLAY_SOURCE_PDF"], "curriculum-plan.pdf")
         self.assertEqual(report.import_context["REPLAY_SOURCE_PDF"], "curriculum-plan.pdf")
 
+    def test_rebuild_typed_request_ignores_stale_split_manifest_override_from_env(self) -> None:
+        object_store = _FakeObjectStoreAdmin()
+        document_registry = _FakeDocumentRegistry()
+        raw_asset_registry = _FakeRawAssetRegistry()
+        calls: list[dict[str, str]] = []
+
+        report = rebuild_local_data(
+            env={
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                "INGESTION_SPLIT_MANIFEST_PATH": "configs/ingestion/regulations/student_handbook/split-manifest.v1.json",
+            },
+            request=RebuildRequest(
+                corpus="curriculum",
+                collection="curriculum_plan",
+                import_mode="provider_response_replay",
+                raw_version_id="sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67",
+            ),
+            object_store=object_store,
+            document_registry=document_registry,
+            raw_asset_registry=raw_asset_registry,
+            import_runner=lambda **kwargs: calls.append(kwargs["env"]) or {"status": "replay"},
+        )
+
+        expected_manifest = str(
+            Path("configs/ingestion/curriculum/curriculum_plan/split-manifest.v1.json").resolve()
+        )
+        self.assertEqual(report.import_context["INGESTION_SPLIT_MANIFEST_PATH"], expected_manifest)
+        self.assertEqual(calls[0]["INGESTION_SPLIT_MANIFEST_PATH"], expected_manifest)
+
     def test_rebuild_provider_response_replay_can_disable_alias_publish_in_import_context(self) -> None:
         object_store = _FakeObjectStoreAdmin()
         calls: list[dict[str, str]] = []

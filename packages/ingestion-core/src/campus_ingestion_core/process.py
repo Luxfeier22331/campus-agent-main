@@ -322,8 +322,6 @@ def _should_skip_handbook_unit(unit: StructuredUnit, table_roots_with_semantic_u
 def _should_skip_curriculum_unit(unit: StructuredUnit, table_roots_with_semantic_units: set[str]) -> bool:
     if _should_skip_generic_unit(unit, table_roots_with_semantic_units):
         return True
-    if _is_curriculum_course_map_placeholder_unit(unit):
-        return True
     return _is_curriculum_course_map_noise_unit(unit)
 
 
@@ -1418,17 +1416,25 @@ def _curriculum_path_leaf_is_top_level_heading(section_path: tuple[str, ...]) ->
 
 def _is_curriculum_course_map_noise_unit(unit: StructuredUnit) -> bool:
     section_path = _normalize_curriculum_structural_path(list(_normalize_section_path(unit.anchor)))
-    if any(item == "六、课程地图" for item in section_path):
-        return True
     lines = [line.strip() for line in unit.text.splitlines() if line.strip()]
     if not lines:
         return False
-    if not any(_is_curriculum_course_map_title_line(line) for line in lines):
+    title_line_count = sum(1 for line in lines if _is_curriculum_course_map_title_line(line))
+    if title_line_count == 0:
         return False
-    return all(
+    if not all(
         _looks_like_curriculum_structure_heading(line) or _is_curriculum_course_map_title_line(line)
         for line in lines
+    ):
+        return False
+    if "六、课程地图" not in section_path:
+        return True
+    non_root_heading_count = sum(
+        1
+        for line in lines
+        if _looks_like_curriculum_structure_heading(line) and line != "六、课程地图"
     )
+    return non_root_heading_count > 0 or title_line_count > 1
 
 
 def _shared_metadata_text(members: Sequence[_ChunkMember], field_name: str) -> str | None:

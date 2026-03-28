@@ -281,10 +281,9 @@ def rebuild_local_data(
 ) -> LocalDataRebuildReport:
     source = dict(env if env is not None else os.environ)
     runtime_request = request or _build_rebuild_request_from_env(source)
-    runtime_collection_config = collection_config or _resolve_runtime_collection_config(
-        source=source,
-        corpus=runtime_request.corpus,
-        collection=runtime_request.collection,
+    runtime_collection_config = collection_config or resolve_collection_truth_config(
+        runtime_request.corpus,
+        runtime_request.collection,
     )
     import_env = _build_rebuild_import_env(
         source=source,

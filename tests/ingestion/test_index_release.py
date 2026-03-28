@@ -83,6 +83,41 @@ class IndexReleaseValidationTest(unittest.TestCase):
         self.assertEqual(validation.status, "failed")
         self.assertEqual(validation.summary["tiny_chunks_lt24"], 1)
 
+    def test_curriculum_validation_allows_course_map_title_chunks_as_observations(self) -> None:
+        validation = validate_scope_release(
+            corpus="curriculum",
+            collection="curriculum_plan",
+            chunks=(
+                _make_chunk(
+                    chunk_id="chunk-0001",
+                    text="六、课程地图\n\n经济学拔尖人才创新班本科课程结果拓扑图",
+                    section_path=["经济学拔尖人才创新班人才培养方案", "六、课程地图"],
+                    tokens=12,
+                ),
+            ),
+        )
+
+        self.assertEqual(validation.status, "passed")
+        self.assertEqual(validation.summary["tiny_chunks_lt24"], 0)
+        self.assertEqual(validation.summary["course_map_chunks"], 1)
+
+    def test_curriculum_validation_allows_short_course_map_reference_note(self) -> None:
+        validation = validate_scope_release(
+            corpus="curriculum",
+            collection="curriculum_plan",
+            chunks=(
+                _make_chunk(
+                    chunk_id="chunk-0001",
+                    text="六、课程地图\n\n参见各专业培养方案的课程地图。",
+                    section_path=["理工科交叉创新人才培养实验班本科人才培养方案", "六、课程地图"],
+                    tokens=15,
+                ),
+            ),
+        )
+
+        self.assertEqual(validation.status, "passed")
+        self.assertEqual(validation.summary["tiny_chunks_lt24"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

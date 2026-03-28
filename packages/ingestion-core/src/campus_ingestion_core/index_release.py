@@ -362,7 +362,11 @@ def _validate_curriculum_release(chunks: Sequence[IndexableChunk]) -> IndexRelea
         "course_map_chunks": sum(1 for row in rows if row["course_map_chunk"]),
         "topology_leaks": sum(1 for row in rows if row["topology_leak"]),
     }
-    status = "passed" if all(int(value) == 0 for key, value in summary.items() if key != "chunk_count") else "failed"
+    status = (
+        "passed"
+        if all(int(value) == 0 for key, value in summary.items() if key not in {"chunk_count", "course_map_chunks"})
+        else "failed"
+    )
     return IndexReleaseValidationResult(status=status, summary=summary)
 
 
@@ -390,6 +394,18 @@ def _curriculum_is_allowed_tiny_chunk(
         return False
     if any("|" in line for line in lines):
         return False
+    if (chunk.anchor.get("section_path") or [])[-1:] == [_CURRICULUM_COURSE_MAP_HEADING]:
+        if not lines or len(lines) > 3:
+            return False
+        remainder = lines[len(leading):] if leading else lines
+        if not remainder:
+            return True
+        if any(
+            _looks_like_curriculum_structure_heading(line) and line != _CURRICULUM_COURSE_MAP_HEADING
+            for line in remainder
+        ):
+            return False
+        return all(len(line) <= 32 for line in remainder)
     if "拓扑图" in chunk.text:
         return False
     if not lines or len(lines) > 4:
