@@ -72,6 +72,14 @@ function getCursorHistory(cursorKey: string) {
   return history;
 }
 
+function pruneCursorHistory(history: Map<number, string | null>, currentPage: number) {
+  for (const knownPage of [...history.keys()]) {
+    if (knownPage > currentPage) {
+      history.delete(knownPage);
+    }
+  }
+}
+
 function appendRequestFilters(query: URLSearchParams, filter: GetListParams["filter"]) {
   const requestId = normalizeFilterValue(filter?.requestId);
   const conversationId = normalizeFilterValue(filter?.conversationId);
@@ -132,7 +140,10 @@ async function getRequestList(
   const payload = await fetchJson<RawRequestListResponse>(`/api/requests?${query.toString()}`, {
     signal: params.signal,
   });
-  cursorHistory.set(page + 1, payload.page.nextCursor);
+  pruneCursorHistory(cursorHistory, page);
+  if (payload.page.nextCursor) {
+    cursorHistory.set(page + 1, payload.page.nextCursor);
+  }
 
   return {
     data: payload.requests.map(normalizeRequestRecord),

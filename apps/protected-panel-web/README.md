@@ -64,12 +64,18 @@ Long-term functional domains:
 
 Current rollout default:
 
-- `Overview` is the first implementation target
-- `Requests` now renders through `react-admin` and proxies to `apps/app-api` request projection APIs through the Worker-local BFF seam
+- `Overview` is implemented as the runtime and operator-context landing page
+- `Requests` is implemented as a request projection list/detail surface through `react-admin`
 - `Jobs` and `Operations` are delayed pending re-discussion
 - `Audit` currently remains a delayed route skeleton rather than a raw-log viewer
 
 `Requests` is defined against `apps/app-api` owned request projection APIs. This app must not treat consumer chat persistence, raw audit logs, or telemetry sinks as canonical request list/detail sources.
+
+Requests UX notes:
+
+- list/detail views are projection snapshots, not execution replay pages
+- pagination is cursor-backed and intentionally supports sequential next-page navigation only
+- freshly completed chat requests can appear slightly later than the chat response because projection materialization is eventually consistent
 
 UI / BFF direction:
 

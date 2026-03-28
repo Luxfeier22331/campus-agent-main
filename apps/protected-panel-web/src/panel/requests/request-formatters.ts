@@ -21,3 +21,46 @@ export function formatScope(scope: Record<string, unknown> | null) {
 
   return parts.length > 0 ? parts.join(" · ") : "Unspecified";
 }
+
+export function formatStatusLabel(status: string) {
+  switch (status) {
+    case "accepted":
+      return "Accepted";
+    case "completed":
+      return "Completed";
+    case "needs_clarification":
+      return "Needs clarification";
+    case "no_answer":
+      return "No answer";
+    case "error":
+      return "Error";
+    default:
+      return status;
+  }
+}
+
+export function formatSurfaceLabel(surface: string) {
+  if (surface === "public_chat_web") {
+    return "Public chat web";
+  }
+  if (surface === "protected_panel_web") {
+    return "Protected panel web";
+  }
+
+  return surface
+    .split("_")
+    .filter(Boolean)
+    .map((segment) => segment[0]?.toUpperCase() + segment.slice(1))
+    .join(" ");
+}
+
+export function formatTimestamp(value: string | null) {
+  if (!value) {
+    return "Pending";
+  }
+
+  return new Intl.DateTimeFormat("en", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
