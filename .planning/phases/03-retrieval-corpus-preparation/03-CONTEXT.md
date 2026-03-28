@@ -1,5 +1,8 @@
 # Phase 3: Retrieval Corpus Preparation - Context
 
+> Historical phase context. This file records what Phase 3 assumed at planning time.
+> If its wording conflicts with current serving/index semantics, prefer `.planning/PROJECT.md`, `.planning/REQUIREMENTS.md`, `.planning/STATE.md`, and the current architecture/decision docs.
+
 **Gathered:** 2026-03-24
 **Status:** Ready for planning
 **Source:** Derived from roadmap, ingestion/retrieval architecture docs, prior phase context, and current ingestion-core / retrieval-core code
@@ -35,7 +38,7 @@ The phase delivers three things:
 
 ### Index ownership and online retrieval boundary
 - `packages/ingestion-core` owns chunk construction and index writes; `packages/retrieval-core` owns query-time retrieval only.
-- Qdrant remains the canonical online chunk/index store for phase-1 retrieval. Any chunk manifest exported to object storage is a derived backup or audit artifact, not the online source of truth.
+- Qdrant remains the canonical online chunk/index store for phase-1 retrieval. Object storage may keep small index release manifests for audit and rollback, but it must not keep chunk dumps or serve as online chunk truth.
 - Index-writing logic may use Qdrant/LlamaIndex inside ingestion-core, but those infrastructure details must not leak into `packages/contracts`, `packages/supervisor-core`, or roadmap-level contracts.
 - Retrieval-facing metadata shape should match what `packages/retrieval-core` already consumes in Qdrant payloads and document-registry lookups, instead of inventing a second index contract.
 
@@ -48,7 +51,7 @@ The phase delivers three things:
 
 ### The agent's Discretion
 - Exact function decomposition between raw-ingestion orchestration, document-unit serialization, chunk building, and index-write helpers, as long as package boundaries remain intact.
-- Whether Phase 3 writes an explicit chunk/index manifest to object storage for audit or rebuild support, provided Qdrant remains the canonical online chunk store.
+- The precise shape of release-manifest metadata written to object storage for audit or rollback, provided Qdrant remains the canonical online chunk store and chunk dumps are not persisted there.
 - The precise verification split between unit tests and integration-style ingestion tests, as long as processed artifacts, chunk metadata, and index outputs are asserted directly.
 
 </decisions>
@@ -72,7 +75,7 @@ The phase delivers three things:
 - `docs/architecture/phase1-ingestion-and-storage-architecture.md` — canonical Raw -> Processed -> Chunk/Index layering, registry truth, chunk metadata requirements, and Qdrant ownership
 - `docs/architecture/student-handbook-ocr-normalization-strategy.md` — `provider-response.jsonl -> layout-elements.jsonl -> split-manifest -> canonical.md -> document-units.jsonl -> chunks` truth for `student_handbook`
 - `docs/architecture/long-term-architecture.md` — long-term package boundaries across supervisor, specialist, retrieval, and ingestion layers
-- `docs/decisions/adr-0001-phase1-architecture.md` — accepted phase-1 scope and package-boundary constraints
+- `docs/architecture/phase1-ingestion-and-storage-architecture.md` — accepted phase-1 scope, data-plane, and package-boundary constraints
 - `docs/decisions/adr-0002-local-minio-conventions.md` — S3-compatible object-store semantics and bucket conventions
 - `docs/plans/agentic-rag-foundation.md` — implementation gates, processed/chunk/index expectations, and phase-1 completion framing
 

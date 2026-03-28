@@ -2,7 +2,7 @@
 doc_type: plan
 status: completed
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-03-29
 ---
 
 # App API Worker Foundation 实施方案
@@ -47,7 +47,9 @@ updated: 2026-03-28
 - `docs/architecture/supervisor-architecture.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
-- `docs/decisions/adr-0015-supervisor-internal-execution-admission.md`
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
+- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
+- `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 - `docs/plans/app-api-initial-execution-plan.md`
 
 ## 职责闭包

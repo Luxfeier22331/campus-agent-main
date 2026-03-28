@@ -1,12 +1,12 @@
 ---
 doc_type: decision
-decision_id: ADR-0015
+decision_id: ADR-0017
 status: accepted
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-03-29
 ---
 
-# ADR-0015 Supervisor Internal Execution Admission
+# ADR-0017 Supervisor Internal Execution Admission
 
 ## 状态
 
@@ -14,10 +14,11 @@ Accepted on 2026-03-28.
 
 ## 背景
 
-`ADR-0012`、`ADR-0013` 与 `ADR-0014` 已经冻结了以下方向：
+`ADR-0012`、`ADR-0013`、`ADR-0015` 与 `ADR-0016` 已经冻结了以下方向：
 
 - `public-chat-web` 与 `protected-panel-web` 是两个 Worker web surface
 - `apps/app-api` 是 shared product backend
+- `apps/app-api` 拥有 canonical identity / memory projection
 - `apps/supervisor-api` 是 execution engine
 - request projection 由 `apps/app-api` 拥有
 
@@ -83,4 +84,5 @@ Accepted on 2026-03-28.
 
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
-- `docs/decisions/adr-0014-app-api-request-projection-and-panel-query-ownership.md`
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
+- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`

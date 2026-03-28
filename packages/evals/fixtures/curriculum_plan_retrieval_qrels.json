@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "corpus": "curriculum",
+  "collection": "curriculum_plan",
+  "baseline": {
+    "dense_model": "Qwen3-Embedding-4B",
+    "dense_dimensions": 2560,
+    "sparse_model": "qdrant/bm25",
+    "sparse_tokenizer": "multilingual",
+    "sparse_language": "none",
+    "fusion": "rrf"
+  },
+  "cases": [
+    {
+      "case_id": "ethnology-plan-title",
+      "split": "smoke",
+      "query": "民族学本科人才培养方案",
+      "expected_sources": [
+        {
+          "doc_id": "curriculum:民族学本科人才培养方案",
+          "grade": 2,
+          "rationale": "培养方案标题 exact-match。"
+        }
+      ],
+      "notes": "curriculum 主链路标题命中。"
+    },
+    {
+      "case_id": "digital-economy-plan-title",
+      "split": "smoke",
+      "query": "数字经济本科人才培养方案",
+      "expected_sources": [
+        {
+          "doc_id": "curriculum:数字经济本科人才培养方案",
+          "grade": 2,
+          "rationale": "培养方案标题 exact-match。"
+        }
+      ],
+      "notes": "相邻经济学类文档不应压过目标方案。"
+    },
+    {
+      "case_id": "general-english-plan-title",
+      "split": "smoke",
+      "query": "中央民族大学通识课程大学英语课程教学计划",
+      "expected_sources": [
+        {
+          "doc_id": "curriculum:中央民族大学通识课程“大学英语”课程教学计划",
+          "grade": 2,
+          "rationale": "课程教学计划标题 exact-match。"
+        }
+      ],
+      "notes": "课程教学计划标题命中。"
+    },
+    {
+      "case_id": "history-strong-base-title",
+      "split": "smoke",
+      "query": "历史学强基计划本科人才培养方案",
+      "expected_sources": [
+        {
+          "doc_id": "curriculum:历史学（强基计划）本科人才培养方案",
+          "grade": 2,
+          "rationale": "去括号后的标题近似命中，目标仍应是强基版本。"
+        }
+      ],
+      "forbidden_sources": [
+        {
+          "doc_id": "curriculum:历史学本科人才培养方案",
+          "grade": 1,
+          "rationale": "普通历史学方案不应盖过强基计划版本。"
+        }
+      ],
+      "notes": "验证相邻同专业不同培养路径的区分能力。"
+    },
+    {
+      "case_id": "data-science-second-degree-title",
+      "split": "smoke",
+      "query": "数据科学与大数据技术本科第二学士学位人才培养方案",
+      "expected_sources": [
+        {
+          "doc_id": "curriculum:数据科学与大数据技术本科第二学士学位人才培养方案",
+          "grade": 2,
+          "rationale": "第二学士学位方案标题 exact-match。"
+        }
+      ],
+      "notes": "第二学士学位标题命中。"
+    },
+    {
+      "case_id": "economics-innovation-title",
+      "split": "smoke",
+      "query": "经济学拔尖人才创新班人才培养方案",
+      "expected_sources": [
+        {
+          "doc_id": "curriculum:经济学拔尖人才创新班人才培养方案",
+          "grade": 2,
+          "rationale": "创新班培养方案标题 exact-match。"
+        }
+      ],
+      "notes": "table-heavy 文档标题命中。"
+    },
+    {
+      "case_id": "ethnology-second-degree-academic-years",
+      "split": "regression_locked",
+      "query": "民族学本科第二学士学位人才培养方案学制几年",
+      "expected_sources": [
+        {
+          "doc_id": "curriculum:民族学本科第二学士学位人才培养方案",
+          "grade": 2,
+          "rationale": "短事实问题应回到对应第二学士学位方案。"
+        }
+      ],
+      "notes": "release gate 对齐的学制短事实样本。"
+    },
+    {
+      "case_id": "ethnology-total-credits",
+      "split": "smoke",
+      "query": "民族学本科人才培养方案总学分要求是多少",
+      "expected_sources": [
+        {
+          "doc_id": "curriculum:民族学本科人才培养方案",
+          "grade": 2,
+          "rationale": "总学分短事实应回到民族学本科方案。"
+        }
+      ],
+      "notes": "短事实 section 命中。"
+    },
+    {
+      "case_id": "economics-course-map-table",
+      "split": "regression_locked",
+      "query": "经济学拔尖人才创新班人才培养方案课程地图怎么安排",
+      "expected_sources": [
+        {
+          "doc_id": "curriculum:经济学拔尖人才创新班人才培养方案",
+          "grade": 2,
+          "rationale": "课程地图表格检索应回到创新班方案。"
+        }
+      ],
+      "notes": "table retrieval 高风险回归样本。"
+    },
+    {
+      "case_id": "law-ethnic-experimental-total-credits",
+      "split": "smoke",
+      "query": "法学民族实验班本科人才培养方案总学分是多少",
+      "expected_sources": [
+        {
+          "doc_id": "curriculum:法学（民族实验班）本科人才培养方案",
+          "grade": 2,
+          "rationale": "相邻法学类方案中应命中民族实验班版本。"
+        }
+      ],
+      "notes": "带括号标题的课程方案区分样本。"
+    },
+    {
+      "case_id": "no-hit-impossible-query",
+      "split": "smoke",
+      "query": "火星校区飞船停靠规则",
+      "expected_sources": [],
+      "notes": "curriculum no-hit deterministic case。"
+    },
+    {
+      "case_id": "no-hit-nonexistent-program",
+      "split": "smoke",
+      "query": "量子飞船驾驶本科人才培养方案",
+      "expected_sources": [],
+      "notes": "虚构专业 no-hit case。"
+    }
+  ]
+}

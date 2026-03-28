@@ -22,11 +22,12 @@
 - `docs/architecture/app-api-architecture.md`
 - `docs/architecture/request-projection-and-runtime-read-model.md`
 - `docs/architecture/phase1-ingestion-and-storage-architecture.md`
-- `docs/decisions/adr-0001-phase1-architecture.md`
 - `docs/decisions/adr-0002-local-minio-conventions.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
-- `docs/decisions/adr-0014-app-api-request-projection-and-panel-query-ownership.md`
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
+- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
+- `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 - `docs/plans/agentic-rag-foundation.md`
 - `docs/plans/app-api-worker-foundation.md`
 - `.planning/PROJECT.md`

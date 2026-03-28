@@ -16,6 +16,8 @@ def frame_specialist_request(
     context: SupervisorRequestContext,
     decision: RoutingDecision,
 ) -> SpecialistRequest:
+    if decision.target is None:
+        raise MissingRoutingInputError("specialist target is required for delegated requests")
     if decision.target == "availability-specialist":
         if context.availability_target_id is None:
             raise MissingRoutingInputError(
@@ -39,6 +41,7 @@ def frame_specialist_request(
         request_id=context.request_id,
         trace=context.request.trace,
         actor=context.request.actor,
+        context=context.context,
         payload=payload,
     )
 

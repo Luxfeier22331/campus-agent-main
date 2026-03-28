@@ -9,6 +9,7 @@ from typing import Iterable, Sequence
 from campus_contracts import EvidenceBundle, EvidenceSource
 from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile, load_runtime_profile
 from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
+from campus_ingestion_core.index_release import resolve_alias_target
 from campus_ingestion_core.registry import (
     DocumentRegistry,
     build_document_registry_from_env,
@@ -23,6 +24,7 @@ from llama_index.core.vector_stores import FilterCondition, FilterOperator, Meta
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
 
+from campus_retrieval_core.evidence_ranking import prioritize_evidence_sources, query_targets_source_title
 from campus_retrieval_core.models import RetrievalRequest
 from campus_retrieval_core.settings import RetrievalSettings
 
@@ -30,6 +32,7 @@ DEFAULT_LATEST_REVISION_TRACKS = ("current-effective", "editorial", "source-fait
 DEFAULT_SERVING_STATUS = "active"
 DEFAULT_HYBRID_CANDIDATE_MULTIPLIER = 4
 DEFAULT_DENSE_QUERY_CACHE_TTL_SECONDS = 300.0
+DEFAULT_DOCUMENT_SUPPORT_LIMIT = 24
 _SCORE_TIE_EPSILON = 1e-6
 _ASCII_QUERY_TOKEN_RE = re.compile(r"[a-z0-9]{3,}")
 _WEAK_CJK_QUERY_TOKENS = frozenset(
@@ -50,6 +53,18 @@ _WEAK_CJK_QUERY_TOKENS = frozenset(
         "服务",
         "问题",
     }
+)
+_LOW_SIGNAL_CJK_PHRASES = (
+    "本科第二学士学位人才培养方案",
+    "本科专业第二学位人才培养方案",
+    "本科第二学位人才培养方案",
+    "第二学士学位人才培养方案",
+    "第二学位人才培养方案",
+    "本科人才培养方案",
+    "人才培养方案",
+    "课程教学计划",
+    "教学计划",
+    "课程地图",
 )
 
 
@@ -107,8 +122,12 @@ class QdrantRetrievalBackend:
                 corpus=request.corpus,
                 collection=request.collection,
             )
-        qdrant_collection_name = profile.qdrant_index_binding.collection_name
-        if not self.qdrant_client.collection_exists(qdrant_collection_name):
+        qdrant_collection_name = profile.qdrant_index_binding.alias_name
+        alias_target = resolve_alias_target(
+            qdrant_client=self.qdrant_client,
+            alias_name=qdrant_collection_name,
+        )
+        if alias_target is None and not self.qdrant_client.collection_exists(qdrant_collection_name):
             return EvidenceBundle(
                 query_text=request.query_text,
                 corpus=request.corpus,
@@ -134,15 +153,30 @@ class QdrantRetrievalBackend:
         except Exception as exc:  # pragma: no cover - exercised by error mapping test
             raise RetrievalBackendError("qdrant retrieval failed") from exc
 
+        initial_sources = _apply_no_hit_policy(
+            profile=profile,
+            query_text=query_text,
+            sources=self._build_evidence_sources(response.points or ()),
+        )
+        ranked_sources = prioritize_evidence_sources(
+            query_text=query_text,
+            sources=initial_sources,
+        )
+        expanded_sources = self._expand_named_document_support(
+            request=request,
+            profile=profile,
+            qdrant_collection_name=qdrant_collection_name,
+            dense_query_embedding=dense_query_embedding,
+            sources=ranked_sources,
+        )
         return EvidenceBundle(
             query_text=request.query_text,
             corpus=request.corpus,
             collection=request.collection,
-            sources=_apply_no_hit_policy(
-                profile=profile,
+            sources=prioritize_evidence_sources(
                 query_text=query_text,
-                sources=self._build_evidence_sources(response.points or ()),
-            ),
+                sources=expanded_sources,
+            )[: request.top_k],
         )
 
     def _build_evidence_sources(self, points: Sequence[qdrant_models.ScoredPoint]) -> tuple[EvidenceSource, ...]:
@@ -158,6 +192,7 @@ class QdrantRetrievalBackend:
             version_id = str(metadata.get("version_id") or "")
             if not document_id or not revision_track or not version_id:
                 continue
+            anchor = _coerce_dict(metadata.get("anchor"))
             canonical_url = _optional_text(metadata.get("canonical_url")) or _optional_text(metadata.get("source_uri"))
             latest_url = _optional_text(metadata.get("latest_url")) or canonical_url
             source_channel = _optional_text(metadata.get("source_channel"))
@@ -190,7 +225,7 @@ class QdrantRetrievalBackend:
                     revision_track=revision_track,
                     version_id=version_id,
                     chunk_id=str(metadata.get("chunk_id") or node.node_id),
-                    anchor=_coerce_dict(metadata.get("anchor")),
+                    anchor=anchor,
                     acl_level=str(metadata.get("acl_level") or "public"),
                     canonical_url=canonical_url,
                     latest_url=latest_url,
@@ -199,6 +234,12 @@ class QdrantRetrievalBackend:
                     is_current=is_current,
                     snippet=node.get_content(metadata_mode=MetadataMode.NONE),
                     score=float(point.score),
+                    source_title=_resolve_source_title(metadata, document_id=document_id, anchor=anchor),
+                    structural_path=_coerce_structural_path(anchor.get("section_path")),
+                    content_kind=_resolve_content_kind(metadata),
+                    content_role=_resolve_content_role(metadata, anchor=anchor),
+                    detail_label=_resolve_detail_label(metadata, anchor=anchor),
+                    is_answer_bearing=_resolve_is_answer_bearing(metadata, anchor=anchor),
                 )
             )
         return tuple(sources)
@@ -215,6 +256,52 @@ class QdrantRetrievalBackend:
         self._dense_query_cache[normalized_query] = (now + self.dense_query_cache_ttl_seconds, embedding)
         return embedding
 
+    def _expand_named_document_support(
+        self,
+        *,
+        request: RetrievalRequest,
+        profile: CollectionRuntimeProfile,
+        qdrant_collection_name: str,
+        dense_query_embedding: Sequence[float],
+        sources: Sequence[EvidenceSource],
+    ) -> tuple[EvidenceSource, ...]:
+        target_source = next(
+            (
+                source
+                for source in sources
+                if query_targets_source_title(query_text=request.query_text, source=source)
+            ),
+            None,
+        )
+        if target_source is None:
+            return tuple(sources)
+        try:
+            response = self.qdrant_client.query_points(
+                collection_name=qdrant_collection_name,
+                prefetch=_build_hybrid_prefetch(
+                    request=request,
+                    profile=profile,
+                    embedding_model=self.embedding_model,
+                    sparse_embedding_model=self.sparse_embedding_model,
+                    dense_query_embedding=dense_query_embedding,
+                    query_filter=_build_source_scoped_qdrant_filter(
+                        request=request,
+                        profile=profile,
+                        source=target_source,
+                    ),
+                ),
+                query=qdrant_models.FusionQuery(fusion=qdrant_models.Fusion.RRF),
+                limit=max(request.top_k, DEFAULT_DOCUMENT_SUPPORT_LIMIT),
+                with_payload=True,
+                with_vectors=False,
+            )
+        except Exception:
+            return tuple(sources)
+        return _merge_evidence_sources(
+            preferred=sources,
+            additional=self._build_evidence_sources(response.points or ()),
+        )
+
 
 def _candidate_limit(top_k: int) -> int:
     return max(top_k * DEFAULT_HYBRID_CANDIDATE_MULTIPLIER, top_k)
@@ -227,15 +314,16 @@ def _build_hybrid_prefetch(
     embedding_model: object,
     sparse_embedding_model: SparseEmbeddingModel,
     dense_query_embedding: Sequence[float] | None = None,
+    query_filter: qdrant_models.Filter | None = None,
 ) -> list[qdrant_models.Prefetch]:
     limit = _candidate_limit(request.top_k)
-    query_filter = _build_qdrant_filter(request, profile=profile)
+    runtime_query_filter = query_filter or _build_qdrant_filter(request, profile=profile)
     query_text = request.query_text.strip()
     prefetch = [
         qdrant_models.Prefetch(
             query=list(dense_query_embedding or embedding_model.get_query_embedding(query_text)),
             using=profile.qdrant_index_binding.dense_vector_name,
-            filter=query_filter,
+            filter=runtime_query_filter,
             limit=limit,
         )
     ]
@@ -245,11 +333,24 @@ def _build_hybrid_prefetch(
             qdrant_models.Prefetch(
                 query=sparse_query,
                 using=profile.qdrant_index_binding.sparse_vector_name,
-                filter=query_filter,
+                filter=runtime_query_filter,
                 limit=limit,
             )
         )
     return prefetch
+
+
+def _merge_evidence_sources(
+    *,
+    preferred: Sequence[EvidenceSource],
+    additional: Sequence[EvidenceSource],
+) -> tuple[EvidenceSource, ...]:
+    merged: dict[str, EvidenceSource] = {source.chunk_id: source for source in preferred}
+    for source in additional:
+        existing = merged.get(source.chunk_id)
+        if existing is None or source.score > existing.score:
+            merged[source.chunk_id] = source
+    return tuple(merged.values())
 
 
 def _record_to_text_node(point_id: object, payload: dict[str, object]) -> TextNode | None:
@@ -394,8 +495,120 @@ def _build_qdrant_filter(
     return qdrant_models.Filter(must=must)
 
 
+def _build_source_scoped_qdrant_filter(
+    *,
+    request: RetrievalRequest,
+    profile: CollectionRuntimeProfile,
+    source: EvidenceSource,
+) -> qdrant_models.Filter:
+    base_filter = _build_qdrant_filter(request, profile=profile)
+    return qdrant_models.Filter(
+        must=[
+            *(base_filter.must or []),
+            qdrant_models.FieldCondition(
+                key="document_id",
+                match=qdrant_models.MatchValue(value=source.doc_id),
+            ),
+            qdrant_models.FieldCondition(
+                key="revision_track",
+                match=qdrant_models.MatchValue(value=source.revision_track),
+            ),
+            qdrant_models.FieldCondition(
+                key="version_id",
+                match=qdrant_models.MatchValue(value=source.version_id),
+            ),
+        ],
+        should=base_filter.should,
+        must_not=base_filter.must_not,
+        min_should=base_filter.min_should,
+    )
+
+
 def _coerce_dict(value: object) -> dict[str, object]:
     return dict(value) if isinstance(value, dict) else {}
+
+
+def _coerce_structural_path(value: object) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        return ()
+    normalized: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        text = item.strip()
+        if text:
+            normalized.append(text)
+    return tuple(normalized)
+
+
+def _resolve_source_title(
+    metadata: dict[str, object],
+    *,
+    document_id: str,
+    anchor: dict[str, object],
+) -> str:
+    for key in ("source_title", "title", "document_title"):
+        value = _optional_text(metadata.get(key))
+        if value is not None:
+            return value
+    structural_path = _coerce_structural_path(anchor.get("section_path"))
+    if structural_path:
+        first_segment = structural_path[0]
+        if ":" not in first_segment:
+            return first_segment
+    return document_id.split(":", 1)[-1].strip()
+
+
+def _resolve_content_kind(metadata: dict[str, object]) -> str:
+    return str(metadata.get("unit_type") or "").strip()
+
+
+def _resolve_content_role(
+    metadata: dict[str, object],
+    *,
+    anchor: dict[str, object],
+) -> str:
+    explicit_role = _optional_text(metadata.get("content_role"))
+    if explicit_role is not None:
+        return explicit_role
+    structural_path = _coerce_structural_path(anchor.get("section_path"))
+    if any(segment.endswith("附则") or segment == "附则" for segment in structural_path):
+        return "closing_provision"
+    content_kind = _resolve_content_kind(metadata)
+    if content_kind == "table_unit":
+        return "table_fact"
+    return ""
+
+
+def _resolve_detail_label(
+    metadata: dict[str, object],
+    *,
+    anchor: dict[str, object],
+) -> str:
+    explicit_label = _optional_text(metadata.get("detail_label"))
+    if explicit_label is not None:
+        return explicit_label
+    for key in ("article_label", "provision_label", "table_context"):
+        value = _optional_text(anchor.get(key))
+        if value is not None:
+            return value
+    return ""
+
+
+def _resolve_is_answer_bearing(
+    metadata: dict[str, object],
+    *,
+    anchor: dict[str, object],
+) -> bool:
+    explicit_value = _optional_bool(metadata.get("is_answer_bearing"))
+    if explicit_value is not None:
+        return explicit_value
+    content_role = _resolve_content_role(metadata, anchor=anchor)
+    if content_role == "closing_provision":
+        return False
+    detail_label = _resolve_detail_label(metadata, anchor=anchor)
+    content_kind = _resolve_content_kind(metadata)
+    return bool(detail_label) and content_kind in {"article_body", "policy_page", "section_text", "table_unit"}
 
 
 def _optional_text(value: object) -> str | None:
@@ -427,10 +640,9 @@ def _apply_no_hit_policy(
     runner_up_score = sources[1].score if len(sources) > 1 else top_source.score
     if (top_source.score - runner_up_score) >= profile.no_hit_min_score_gap:
         return sources
-    top_tier_sources = tuple(source for source in sources if abs(source.score - top_source.score) <= _SCORE_TIE_EPSILON)
     if _has_query_lexical_support(
         query_text=query_text,
-        snippets=tuple(source.snippet for source in top_tier_sources),
+        snippets=tuple(source.snippet for source in sources),
     ):
         return sources
     return ()
@@ -444,7 +656,7 @@ def _has_query_lexical_support(*, query_text: str, snippets: str | Sequence[str]
     for token in _ASCII_QUERY_TOKEN_RE.findall(normalized_query):
         if any(token in normalized_snippet for normalized_snippet in normalized_snippets):
             return True
-    for segment in _cjk_segments(normalized_query):
+    for segment in _query_support_segments(normalized_query):
         if _segment_has_strong_lexical_support(segment=segment, normalized_snippets=normalized_snippets):
             return True
     return False
@@ -472,6 +684,14 @@ def _segment_has_strong_lexical_support(*, segment: str, normalized_snippets: Se
         if any(token in snippet for snippet in normalized_snippets)
     }
     return len(matched_bigrams) >= 2
+
+
+def _query_support_segments(normalized_query: str) -> tuple[str, ...]:
+    stripped_query = normalized_query
+    for phrase in _LOW_SIGNAL_CJK_PHRASES:
+        stripped_query = stripped_query.replace(phrase, " ")
+    stripped_segments = _cjk_segments(stripped_query)
+    return stripped_segments or _cjk_segments(normalized_query)
 
 
 def _cjk_segments(text: str) -> tuple[str, ...]:

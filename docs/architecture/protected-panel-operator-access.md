@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-27
-updated: 2026-03-28
+updated: 2026-03-29
 ---
 
 # Protected Panel Operator Access
@@ -79,7 +79,7 @@ protected panel 在长期上只承载以下五类功能域：
 当前默认 rollout 约束固定为：
 
 - `Overview` 优先
-- `Requests` 仅在 `apps/app-api` 提供安全 request projection query surface 后解锁
+- `Requests` 已通过 `apps/app-api` 的安全 request projection query surface 解锁
 - `Jobs` 延迟，等待 scope 重开
 - `Operations` 延迟，等待 scope 重开
 - `Audit` 可以跟随可用的安全 projection surface 逐步引入，但不应通过原始日志旁路拼装

@@ -12,12 +12,21 @@ collection within the `curriculum` corpus.
 - `retrieval-profile.json`: retrieval/runtime profile record for this collection
 - `samples/`: real document-level sample outputs for chunking and manual review
 
+Current runtime truth:
+
+- serving stage: `query_serving`
+- query enabled: `true`
+- serving alias: `curriculum_plan`
+- collection prefix: `curriculum_plan`
+- release manifests: `curriculum/releases/curriculum_plan/{release_id}/...`
+
 `process_raw_ingestion_job` supports two canonical entry paths for
 `INGESTION_CORPUS=curriculum` and `INGESTION_COLLECTION=curriculum_plan`:
 
 - `RAW_INGESTION_ARTIFACT_MODE=source_truth_only` for pre-split onboarding. This uploads the raw PDF under `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...` and stores asset-level OCR truth under the same canonical source prefix, split by `capture/`, `provider/`, and `source-truth/` stages without requiring a split manifest. This path writes `provider-response.jsonl` and `source-truth/layout-elements.jsonl`, but does not create document-registry records or per-document artifacts.
 - `RAW_INGESTION_ARTIFACT_MODE=normalized` for document-level ingestion. This requires the split manifest to be filled with the real document list and page ranges before the job is run and then writes document artifacts under `curriculum/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/...`.
 - `REBUILD_IMPORT_MODE=provider_response_replay` for rebuild from persisted source truth. This reuses canonical `provider-response.jsonl` plus the repo-tracked split manifest to rebuild document records and `document-units.jsonl` without re-running OCR, and may optionally re-index Qdrant for the `curriculum_plan` serving surface.
+- Qdrant indexing writes release-managed physical collections and publishes the stable serving alias after validation; object storage keeps only release manifests, not chunk dumps.
 
 Notes:
 

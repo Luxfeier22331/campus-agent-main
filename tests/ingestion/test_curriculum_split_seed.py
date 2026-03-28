@@ -4,10 +4,10 @@ from pathlib import Path
 import unittest
 
 from campus_ingestion_core.curriculum_split_seed import (
-    LegacyCurriculumDocument,
+    HistoricalCurriculumDocument,
     build_manifest_document_rows,
     build_curriculum_split_manifest_seed,
-    derive_legacy_curriculum_source_uri,
+    derive_curriculum_source_uri_from_canonical_path,
     load_layout_elements_rows,
 )
 from campus_ingestion_core.split_manifest import SplitManifestDocument
@@ -15,23 +15,23 @@ from campus_ingestion_core.split_manifest import SplitManifestDocument
 
 class CurriculumSplitSeedTest(unittest.TestCase):
     def test_build_curriculum_split_manifest_seed_uses_heading_rows_for_non_overlapping_ranges(self) -> None:
-        legacy_documents = (
-            LegacyCurriculumDocument(
+        historical_documents = (
+            HistoricalCurriculumDocument(
                 document_id="curriculum:plan-a",
                 title="计划甲",
                 status="active",
                 canonical_doc_path="rag-data/canonical/curriculum_plan/docs/计划甲.md",
-                legacy_page_start=None,
-                legacy_page_end=None,
+                historical_page_start=None,
+                historical_page_end=None,
                 ocr_doc_decision_uri=None,
             ),
-            LegacyCurriculumDocument(
+            HistoricalCurriculumDocument(
                 document_id="curriculum:plan-b",
                 title="计划乙",
                 status="active",
                 canonical_doc_path="rag-data/canonical/curriculum_plan/docs/计划乙.md",
-                legacy_page_start=None,
-                legacy_page_end=None,
+                historical_page_start=None,
+                historical_page_end=None,
                 ocr_doc_decision_uri=None,
             ),
         )
@@ -42,7 +42,7 @@ class CurriculumSplitSeedTest(unittest.TestCase):
         ]
 
         seed = build_curriculum_split_manifest_seed(
-            legacy_documents=legacy_documents,
+            historical_documents=historical_documents,
             structured_rows=structured_rows,
             raw_asset_id="asset:curriculum-plan-2022",
         )
@@ -58,30 +58,32 @@ class CurriculumSplitSeedTest(unittest.TestCase):
         self.assertEqual(seed.manifest.documents[1].document_id, "curriculum:plan-b")
         self.assertEqual((seed.manifest.documents[1].page_start, seed.manifest.documents[1].page_end), (22, 22))
 
-    def test_derive_legacy_curriculum_source_uri_wraps_canonical_doc_path(self) -> None:
+    def test_derive_curriculum_source_uri_from_canonical_path_wraps_canonical_doc_path(self) -> None:
         self.assertEqual(
-            derive_legacy_curriculum_source_uri("rag-data/canonical/curriculum_plan/docs/中国少数民族语言文学本科人才培养方案.md"),
+            derive_curriculum_source_uri_from_canonical_path(
+                "rag-data/canonical/curriculum_plan/docs/中国少数民族语言文学本科人才培养方案.md"
+            ),
             "campusrag://rag-data/canonical/curriculum_plan/docs/中国少数民族语言文学本科人才培养方案.md",
         )
 
-    def test_curriculum_split_manifest_seed_retires_legacy_synthetic_umbrella_title(self) -> None:
-        legacy_documents = (
-            LegacyCurriculumDocument(
+    def test_curriculum_split_manifest_seed_retires_historical_synthetic_umbrella_title(self) -> None:
+        historical_documents = (
+            HistoricalCurriculumDocument(
                 document_id="plan:78d25a2033e93fc5940e2d10648ae2d7e887cb74",
                 title="各类课程教学计划",
                 status="active",
                 canonical_doc_path="rag-data/canonical/curriculum_plan/docs/各类课程教学计划.md",
-                legacy_page_start=None,
-                legacy_page_end=None,
+                historical_page_start=None,
+                historical_page_end=None,
                 ocr_doc_decision_uri=None,
             ),
-            LegacyCurriculumDocument(
+            HistoricalCurriculumDocument(
                 document_id="curriculum:plan-a",
                 title="计划甲",
                 status="active",
                 canonical_doc_path="rag-data/canonical/curriculum_plan/docs/计划甲.md",
-                legacy_page_start=None,
-                legacy_page_end=None,
+                historical_page_start=None,
+                historical_page_end=None,
                 ocr_doc_decision_uri=None,
             ),
         )
@@ -89,7 +91,7 @@ class CurriculumSplitSeedTest(unittest.TestCase):
             {"row_type": "heading", "block_role": "doc_title", "title_candidate_score": 1.0, "text_normalized": "计划甲", "page_start": 20, "page_end": 20},
         ]
         seed = build_curriculum_split_manifest_seed(
-            legacy_documents=legacy_documents,
+            historical_documents=historical_documents,
             structured_rows=structured_rows,
             raw_asset_id="asset:curriculum-plan-2022",
         )
@@ -97,26 +99,26 @@ class CurriculumSplitSeedTest(unittest.TestCase):
         self.assertEqual(len(seed.retired_documents), 1)
         retired = seed.retired_documents[0]
         self.assertEqual(retired.title, "各类课程教学计划")
-        self.assertEqual(retired.reason, "legacy_synthetic_umbrella_title")
+        self.assertEqual(retired.reason, "synthetic_umbrella_title")
 
     def test_build_curriculum_split_manifest_seed_marks_ambiguous_heading_titles_missing(self) -> None:
-        legacy_documents = (
-            LegacyCurriculumDocument(
+        historical_documents = (
+            HistoricalCurriculumDocument(
                 document_id="curriculum:plan-a",
                 title="计划甲",
                 status="active",
                 canonical_doc_path="rag-data/canonical/curriculum_plan/docs/计划甲.md",
-                legacy_page_start=None,
-                legacy_page_end=None,
+                historical_page_start=None,
+                historical_page_end=None,
                 ocr_doc_decision_uri=None,
             ),
-            LegacyCurriculumDocument(
+            HistoricalCurriculumDocument(
                 document_id="curriculum:plan-b",
                 title="计划乙",
                 status="active",
                 canonical_doc_path="rag-data/canonical/curriculum_plan/docs/计划乙.md",
-                legacy_page_start=None,
-                legacy_page_end=None,
+                historical_page_start=None,
+                historical_page_end=None,
                 ocr_doc_decision_uri=None,
             ),
         )
@@ -127,7 +129,7 @@ class CurriculumSplitSeedTest(unittest.TestCase):
         ]
 
         seed = build_curriculum_split_manifest_seed(
-            legacy_documents=legacy_documents,
+            historical_documents=historical_documents,
             structured_rows=structured_rows,
             raw_asset_id="asset:curriculum-plan-2022",
         )
@@ -137,23 +139,23 @@ class CurriculumSplitSeedTest(unittest.TestCase):
         self.assertEqual(seed.missing_documents[0].reason, "ambiguous_title_in_structured_headings")
 
     def test_build_curriculum_split_manifest_seed_ignores_body_text_title_collisions(self) -> None:
-        legacy_documents = (
-            LegacyCurriculumDocument(
+        historical_documents = (
+            HistoricalCurriculumDocument(
                 document_id="curriculum:plan-a",
                 title="计划甲",
                 status="active",
                 canonical_doc_path="rag-data/canonical/curriculum_plan/docs/计划甲.md",
-                legacy_page_start=None,
-                legacy_page_end=None,
+                historical_page_start=None,
+                historical_page_end=None,
                 ocr_doc_decision_uri=None,
             ),
-            LegacyCurriculumDocument(
+            HistoricalCurriculumDocument(
                 document_id="curriculum:plan-b",
                 title="计划乙",
                 status="active",
                 canonical_doc_path="rag-data/canonical/curriculum_plan/docs/计划乙.md",
-                legacy_page_start=None,
-                legacy_page_end=None,
+                historical_page_start=None,
+                historical_page_end=None,
                 ocr_doc_decision_uri=None,
             ),
         )
@@ -163,7 +165,7 @@ class CurriculumSplitSeedTest(unittest.TestCase):
         ]
 
         seed = build_curriculum_split_manifest_seed(
-            legacy_documents=legacy_documents,
+            historical_documents=historical_documents,
             structured_rows=structured_rows,
             raw_asset_id="asset:curriculum-plan-2022",
         )
@@ -181,7 +183,7 @@ class CurriculumSplitSeedTest(unittest.TestCase):
             page_end=288,
             status="active",
         )
-        source_uri = derive_legacy_curriculum_source_uri(
+        source_uri = derive_curriculum_source_uri_from_canonical_path(
             "rag-data/canonical/curriculum_plan/docs/国际经济与贸易本科人才培养方案.md"
         )
 

@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: shared `app-api` topology, identity ownership, supervisor internal caller admission, request lifecycle, and logical schema are aligned; next work is `apps/app-api` Worker foundation and command/query implementation
-last_updated: "2026-03-28T08:52:26Z"
+stopped_at: shared `app-api` Worker foundation, public/protected web-surface wiring, request projection APIs, and identity/memory/admission docs are aligned after merging develop guidance; next work is `curriculum_plan` live-gate expansion plus app-api/runtime hardening follow-up
+last_updated: "2026-03-28T16:28:59Z"
 progress:
   total_phases: 17
   completed_phases: 17
@@ -16,10 +16,10 @@ progress:
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-03-28)
+See: `.planning/PROJECT.md` (updated 2026-03-29)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 runtime-profile-driven serving surface 证明这条架构能可靠承接高频校园问答
-**Current focus:** Phase 7 handbook verification已完成；当前 follow-up 重点是补齐 `curriculum_plan` query-serving 的 live gate，同时继续把 `public-chat-web` / `protected-panel-web` + shared `app-api` Worker runtime + `supervisor-api` execution engine 作为 accepted product topology 推进，并把 `app-api` product identity ownership、supervisor internal caller admission、outbox-first request projection 与 unified Drizzle migration baseline 一并冻结到 canonical docs；`Jobs` / `Operations` 仍不进入第一波 panel rollout
+**Current focus:** Phase 7 handbook verification 已完成；当前 follow-up 重点是补齐 `curriculum_plan` query-serving 的 live gate，同时在已落地的 `public-chat-web` / `protected-panel-web` + shared `app-api` Worker runtime + `supervisor-api` execution engine 基线之上继续做 integration hardening。`app-api` product identity ownership、request projection ownership、supervisor internal caller admission 与 unified Drizzle migration baseline 已写入 canonical docs；panel `Requests` 已解锁，`Jobs` / `Operations` 仍不进入第一波 rollout
 
 ## Current Position
 
@@ -137,10 +137,11 @@ Recent decisions affecting current work:
 - The accepted forward design is now `public-chat-web` + `protected-panel-web` + shared `app-api`; auth/session/conversation, chat ingress, and operator query move into `app-api`, while `apps/supervisor-api` remains the execution engine.
 - `apps/app-api` runtime is now frozen to Worker rather than remaining runtime-agnostic.
 - `apps/app-api` is now the only product-layer auth/session/principal owner; `apps/supervisor-api` should be read as internal execution admission plus execution transport, not user-auth ownership.
-- Protected panel follow-up now freezes request projection ownership on shared `apps/app-api`: `Requests` stays blocked until `app-api` exposes a safe runtime query surface, and panel work must not route around that gap through `apps/supervisor-api`, audit logs, telemetry sinks, or consumer chat tables.
+- Protected panel request visibility is now fixed on shared `apps/app-api`: panel `Requests` must consume the shipped runtime-owned query surface and must not route around it through `apps/supervisor-api`, audit logs, telemetry sinks, or consumer chat tables.
 - canonical request projection is now explicitly same-database outbox-first: `runtime.request_execution` plus `runtime.projection_outbox` are the first durable truth, while queues are optional later acceleration only.
 - Better Auth is now fixed inside `apps/app-api`, and `auth/chat/runtime/operator` are expected to share one Drizzle schema codebase plus one migration pipeline; Worker runtime DB access remains Hyperdrive-based while migrations use a direct management connection.
 - Protected panel operator access is now explicitly documented as a small-team operator surface without a self-serve end-user account system; `Jobs` and `Operations` remain delayed pending re-discussion.
+- shared `apps/app-api` Worker foundation, request projection APIs, and current web-surface wiring are now implemented in this worktree; remaining work is follow-up hardening rather than topology bootstrap.
 - Phase 05.1 froze curriculum source-truth quality gates, split-manifest review fail-close behavior, and explicit chunking runtime truth.
 - Phase 06 added `provider_response_replay` rebuild support for `curriculum_plan`, and the current refactor promotes its serving policy into the profile-driven query surface.
 - Phase 07 closed handbook release-gate verification with repo tests, live qrels benchmark, workflow/status samples, and handbook collection schema evidence under `.tmp/phase7/`.
@@ -151,7 +152,7 @@ Recent decisions affecting current work:
 
 - Keep handbook chunk-truth validation and handbook eval artifacts as reusable regression gates for later retrieval changes.
 - Decide milestone closeout and land the missing `curriculum_plan` query-serving live release-gate artifacts beyond the existing automated verification surface.
-- Land `apps/app-api` before unblocking panel `Requests`.
+- Decide the next `app-api` hardening scope on top of the landed Worker foundation without reopening topology ownership.
 - Keep `Jobs` and `Operations` out of the default panel rollout until product scope explicitly re-opens them.
 
 ### Blockers/Concerns
@@ -159,10 +160,10 @@ Recent decisions affecting current work:
 - No current phase-1 mainline blocker remains inside this follow-up branch.
 - Cloudflare 04.x boundary/topology/contract/shell docs are complete; follow-up work must consume them as frozen handoffs rather than reopening architecture churn.
 - `public-consumer-chat` is merged on `main`; downstream work should treat it as a historical implementation reference rather than a live backend direction.
-- protected panel `Requests` remains blocked on an `apps/app-api` runtime-owned request projection API; panel work must not route around that gap by reading audit logs, telemetry sinks, consumer chat tables, or `apps/supervisor-api` directly.
+- panel `Requests` is no longer blocked, but panel work must still avoid reading audit logs, telemetry sinks, consumer chat tables, or `apps/supervisor-api` directly.
 
 ## Session Continuity
 
-Last session: 2026-03-28T15:25:11.000Z
-Stopped at: shared app-api docs now include frozen product HTTP contract, supervisor execution contract, request lifecycle, and logical schema; next implementation work is app-api Worker foundation plus command/query paths while panel `Requests` remains blocked on shipped app-api query APIs
+Last session: 2026-03-28T16:28:59Z
+Stopped at: shared app-api Worker foundation, request projection APIs, public/protected web-surface wiring, and merged develop guidance are aligned; next work is curriculum live-gate expansion plus app-api/runtime hardening follow-up
 Resume file: None

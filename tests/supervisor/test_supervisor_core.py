@@ -8,14 +8,18 @@ from campus_contracts import (
     ActorContext,
     AvailabilityCheckPayload,
     AvailabilityObservation,
+    ContextProjection,
     ErrorInfo,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
     RagRequestPayload,
     RagResultPayload,
+    SessionSlot,
+    SessionSummary,
     SpecialistRequest,
     SpecialistResponse,
+    SupervisorResponse,
     SupervisorRequest,
     TraceContext,
 )
@@ -103,6 +107,7 @@ class SupervisorCoreTest(unittest.TestCase):
         self.assertEqual(context.primary_corpus, "regulations")
         self.assertEqual(context.primary_collection, "student_handbook")
         self.assertEqual(context.user_goal, "library hours")
+        self.assertEqual(context.context.actor.user_id, "student-001")
 
     def test_handle_request_routes_rag_request_and_emits_audit_record(self) -> None:
         captured_requests: list[SpecialistRequest] = []
@@ -129,7 +134,7 @@ class SupervisorCoreTest(unittest.TestCase):
             audit_sink=audit_records.append,
         )
 
-        self.assertEqual(response.target, "rag-specialist")
+        self.assertEqual(response.selected_target, "rag-specialist")
         self.assertEqual(response.status, "completed")
         self.assertEqual(len(captured_requests), 1)
         self.assertEqual(captured_requests[0].target, "rag-specialist")
@@ -178,7 +183,7 @@ class SupervisorCoreTest(unittest.TestCase):
             audit_sink=audit_records.append,
         )
 
-        self.assertEqual(response.target, "availability-specialist")
+        self.assertEqual(response.selected_target, "availability-specialist")
         self.assertEqual(response.status, "completed")
         self.assertEqual(
             response.result,
@@ -209,7 +214,7 @@ class SupervisorCoreTest(unittest.TestCase):
             },
         )
 
-        self.assertEqual(response.target, "availability-specialist")
+        self.assertEqual(response.selected_target, "availability-specialist")
         self.assertEqual(response.status, "completed")
         self.assertEqual(response.result.observed_status, "connect_failure")
         self.assertEqual(response.result.failure_classification, "connect_failure")
@@ -234,7 +239,16 @@ class SupervisorCoreTest(unittest.TestCase):
 
         availability_delegate.assert_called_once()
         rag_delegate.assert_not_called()
-        self.assertEqual(response, expected_response)
+        self.assertEqual(
+            response,
+            SupervisorResponse(
+                selected_target="availability-specialist",
+                status="completed",
+                answer_text=expected_response.answer_text,
+                confidence=expected_response.confidence,
+                result=expected_response.result,
+            ),
+        )
 
     def test_handle_request_preserves_needs_clarification_response(self) -> None:
         response = handle_request(
@@ -254,9 +268,40 @@ class SupervisorCoreTest(unittest.TestCase):
             },
         )
 
-        self.assertEqual(response.target, "rag-specialist")
+        self.assertEqual(response.selected_target, "rag-specialist")
         self.assertEqual(response.status, "needs_clarification")
         self.assertEqual(response.follow_up_question, "Which campus are you asking about?")
+
+    def test_handle_request_returns_supervisor_clarification_without_delegate_when_scope_is_missing(self) -> None:
+        response = handle_request(
+            SupervisorRequest(
+                user_goal="奖学金怎么申请？",
+                requested_capability="knowledge",
+                context=ContextProjection(
+                    actor=ActorContext(
+                        user_id="student-001",
+                        principal_id="principal-001",
+                        groups=("students",),
+                        campus_scope="north",
+                    ),
+                    session=SessionSummary(
+                        confirmed_slots=(SessionSlot(name="policy_topic", value="奖学金", confirmed=True),),
+                        turn_count=2,
+                    ),
+                ),
+            ),
+            specialist_delegates={},
+        )
+
+        self.assertEqual(
+            response,
+            SupervisorResponse(
+                selected_target=None,
+                status="needs_clarification",
+                follow_up_question="请先说明你想查询的知识范围或资料集合。",
+                confidence="low",
+            ),
+        )
 
     def test_handle_request_raises_for_valid_route_without_delegate(self) -> None:
         with self.assertRaisesRegex(
@@ -297,7 +342,7 @@ class SupervisorCoreTest(unittest.TestCase):
             },
         )
 
-        self.assertEqual(response.target, "rag-specialist")
+        self.assertEqual(response.selected_target, "rag-specialist")
         self.assertEqual(response.status, "error")
         self.assertEqual(response.answer_text, "retrieval failed while checking the handbook.")
         self.assertEqual(response.follow_up_question, "Try again later?")

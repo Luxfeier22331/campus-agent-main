@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-03-29
 ---
 
 # App API Architecture
@@ -17,6 +17,9 @@ updated: 2026-03-28
 - 长期 `apps/*` / `packages/*` 边界：`docs/architecture/long-term-architecture.md`
 - Cloudflare delivery/topology：`docs/architecture/cloudflare-runtime-topology.md`
 - execution engine 边界：`docs/architecture/supervisor-architecture.md`
+- identity / memory / personalization 边界：`docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
+- request projection ownership：`docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
+- supervisor execution admission：`docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 - 产品层 HTTP contract：`docs/contracts/app-api-http.md`
 - execution contract：`docs/contracts/app-api-supervisor-execution.md`
 - request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
@@ -30,7 +33,7 @@ updated: 2026-03-28
 - `apps/app-api` 到底是不是单独的长期 app boundary
 - 它的 runtime 是否继续保持未冻结
 - 它内部应采用什么架构而不重新长出第二个 orchestrator
-- 它与 `apps/supervisor-api`、panel read model、auth/session/conversation truth 的关系如何固定
+- 它与 `apps/supervisor-api`、panel read model、auth/session/conversation/identity/memory truth 的关系如何固定
 
 ## 核心结论
 
@@ -82,15 +85,15 @@ updated: 2026-03-28
 
 `apps/app-api` 负责：
 
-- product-layer auth
+- auth
 - session
 - principal mapping / actor handoff
 - account / identity projection
+- profile memory
 - conversation / message persistence
 - explicit conversation draft create 与首轮 lazy create
 - chat ingress
 - request correlation
-- audit ingress / metrics recording
 - request ledger / projection input 写入
 - operator-facing read APIs
 - 调用 `apps/supervisor-api`
@@ -109,6 +112,8 @@ updated: 2026-03-28
 
 - `auth`
   session、account、登录态与访问控制入口
+- `profile`
+  canonical identity 映射、profile memory 管理与 typed context projection
 - `chat`
   conversation/message 等 consumer product truth
 - `runtime-command`
@@ -116,11 +121,45 @@ updated: 2026-03-28
 - `operator-query`
   request projection 的只读查询面
 - `projection`
-  command-side outbox 消费与 read model 物化
+  outbox 消费与 read model 物化
 - `integration`
   `app-api -> supervisor-api`、数据库、队列或其他外部依赖适配
 
 这里冻结职责，不强制具体目录名。
+
+## Canonical Identity And Memory Ownership
+
+长期上，`app-api` 是以下 truth 的 canonical owner：
+
+- verified identity
+- profile memory
+- session / conversation truth
+
+长期硬约束：
+
+- Worker / edge admission 不是 canonical app identity truth
+- `app-api` 必须把 runtime-boundary identity material 映射为最小化 actor claims
+- `profile memory` 与 `session memory` 必须与 `verified identity` 区分语义，不得混成单一“memory blob”
+- memory record 应至少具备 source、confidence、visibility、staleness / last-verified 语义
+
+## Projection To Supervisor
+
+`app-api -> supervisor-api` 默认只投影最小化 typed context，而不直传 raw product state。
+
+长期允许的 projection 内容包括：
+
+- stable actor id / principal id
+- role / group / campus / cohort / major 等 typed claims
+- profile memory summary
+- session summary / confirmed slots
+- correlation / trace metadata
+
+长期默认不允许跨边界直传：
+
+- raw JWT、raw auth header、raw cookie
+- raw long-term memory 文本
+- 未裁剪的完整 conversation transcript
+- 产品层 provider payload
 
 ## Command / Query Split
 
@@ -151,21 +190,17 @@ operator query path 至少包含：
 `app-api` 下的推荐逻辑分域固定为：
 
 - `auth.*`
+- `profile.*`
 - `chat.*`
 - `runtime.*`
 - `operator.*`
 
 第一版允许这些逻辑分域先共用一个关系数据库。
 
-数据库实现的 accepted baseline 是：
-
-- Worker runtime 通过 Hyperdrive 访问数据库
-- Better Auth 与 `auth/chat/runtime/operator` 共享一套 Drizzle schema codebase
-- migration / schema management 走 direct database management connection
-
 这里不冻结物理拆库，只冻结 ownership：
 
 - 共库不等于共边界
+- `verified identity` truth 不等于 `profile memory` truth
 - `conversation/message` truth 不等于 operator request truth
 - `request_execution`、projection outbox 与 read model 必须逻辑分离
 
@@ -197,27 +232,29 @@ operator query path 至少包含：
 - `app-api` 继续保持 runtime 未冻结
 - `app-api` 作为 Docker-first backend 成为默认长期形态
 - `app-api` 吸收 supervisor orchestration 语义
+- Worker / edge identity 被直接当作 canonical actor truth
 - browser 直接调用 `apps/supervisor-api`
 - panel 直接查询数据库、audit sink 或 telemetry sink
 - chat 与 panel 再次拆回两套独立产品后端
 
 ## 当前仓库状态
 
-当前仓库还没有正式落地 `apps/app-api` 目录。
+当前仓库已经正式落地 `apps/app-api`。
 
-但从这份文档开始，后续实现必须把以下内容视为 canonical truth：
+已落地的实现事实包括：
+
+- internal Worker runtime、health/readiness 与 Hono 路由入口
+- Better Auth、Drizzle schema / migration baseline 与 `GET /api/me`
+- conversation list/detail/create 与首轮 lazy create 的 chat contract
+- `POST /api/chat/requests`、`runtime.request_execution`、`runtime.projection_outbox`
+- `request_projection` 与 `GET /api/operator/requests*`
+- `public-chat-web` / `protected-panel-web` 对 shared `app-api` 的当前接线
+
+同时，以下内容仍然是 canonical truth：
 
 - `apps/app-api` 是 Worker runtime
 - `apps/public-consumer-chat` 只是历史实现参考
-- `apps/protected-internal-panel` 只应被视为旧 placeholder / migration source
 - `apps/protected-panel-web` 是当前受保护前端表面的 canonical app boundary
 - `apps/supervisor-api` 保持 execution engine
 
-详细框架选型、最小 API 面、request lifecycle、错误语义、数据模型与实施波次，见：
-
-- `docs/plans/app-api-worker-foundation.md`
-- `docs/contracts/app-api-http.md`
-- `docs/contracts/app-api-supervisor-execution.md`
-- `docs/contracts/app-api-request-lifecycle.md`
-- `docs/contracts/app-api-error-model.md`
-- `docs/data/app-api-schema.md`
+Python `campus_app_api` package 现在作为同目录下的 companion typed projection helper 保留；它补充 execution-side context projection，不改变 `apps/app-api` 已经是 shared Worker product backend 的事实。

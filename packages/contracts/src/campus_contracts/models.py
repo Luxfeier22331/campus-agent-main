@@ -11,6 +11,16 @@ DelegateStatus = Literal["completed", "needs_clarification", "no_answer", "error
 ConfidenceLevel = Literal["high", "medium", "low"]
 SpecialistTarget = Literal["rag-specialist", "availability-specialist"]
 RequestedCapability = Literal["knowledge", "availability"]
+SupervisorStatus = Literal[
+    "completed",
+    "needs_clarification",
+    "no_answer",
+    "error",
+    "rejected",
+    "approval_required",
+]
+MemorySourceType = Literal["verified_record", "user_declared", "conversation_summary", "system_inferred"]
+MemoryVisibility = Literal["user_visible", "internal_only"]
 
 ALLOWED_REVISION_TRACKS = ("source-faithful", "current-effective", "editorial")
 ALLOWED_SOURCE_CHANNELS = ("pdf_ocr", "official_web", "manual_curated")
@@ -20,6 +30,21 @@ ALLOWED_DELEGATE_STATUSES = ("completed", "needs_clarification", "no_answer", "e
 ALLOWED_CONFIDENCE_LEVELS = ("high", "medium", "low")
 ALLOWED_SPECIALIST_TARGETS = ("rag-specialist", "availability-specialist")
 ALLOWED_REQUESTED_CAPABILITIES = ("knowledge", "availability")
+ALLOWED_SUPERVISOR_STATUSES = (
+    "completed",
+    "needs_clarification",
+    "no_answer",
+    "error",
+    "rejected",
+    "approval_required",
+)
+ALLOWED_MEMORY_SOURCE_TYPES = (
+    "verified_record",
+    "user_declared",
+    "conversation_summary",
+    "system_inferred",
+)
+ALLOWED_MEMORY_VISIBILITIES = ("user_visible", "internal_only")
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,11 +57,81 @@ class TraceContext:
 @dataclass(frozen=True, slots=True)
 class ActorContext:
     user_id: str = ""
+    principal_id: str = ""
     roles: tuple[str, ...] = field(default_factory=tuple)
     departments: tuple[str, ...] = field(default_factory=tuple)
     groups: tuple[str, ...] = field(default_factory=tuple)
     campus_scope: str | None = None
-    snapshot: dict[str, object] = field(default_factory=dict)
+    cohort: str | None = None
+    major: str | None = None
+    program: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ProfileMemoryItem:
+    item_id: str
+    key: str
+    value: str
+    source_type: MemorySourceType = "user_declared"
+    confidence: ConfidenceLevel = "low"
+    visibility: MemoryVisibility = "user_visible"
+    last_verified_at: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.item_id.strip():
+            raise ValueError("item_id must not be empty")
+        if not self.key.strip():
+            raise ValueError("key must not be empty")
+        if not self.value.strip():
+            raise ValueError("value must not be empty")
+        if self.source_type not in ALLOWED_MEMORY_SOURCE_TYPES:
+            raise ValueError(f"unsupported memory source_type: {self.source_type}")
+        if self.confidence not in ALLOWED_CONFIDENCE_LEVELS:
+            raise ValueError(f"unsupported confidence level: {self.confidence}")
+        if self.visibility not in ALLOWED_MEMORY_VISIBILITIES:
+            raise ValueError(f"unsupported visibility: {self.visibility}")
+
+
+@dataclass(frozen=True, slots=True)
+class ProfileMemorySummary:
+    items: tuple[ProfileMemoryItem, ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True, slots=True)
+class SessionSlot:
+    name: str
+    value: str
+    confirmed: bool = True
+
+    def __post_init__(self) -> None:
+        if not self.name.strip():
+            raise ValueError("session slot name must not be empty")
+        if not self.value.strip():
+            raise ValueError("session slot value must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class SessionSummary:
+    confirmed_slots: tuple[SessionSlot, ...] = field(default_factory=tuple)
+    turn_count: int = 0
+
+    def __post_init__(self) -> None:
+        if self.turn_count < 0:
+            raise ValueError("turn_count must not be negative")
+
+
+@dataclass(frozen=True, slots=True)
+class ContextProjection:
+    actor: ActorContext = field(default_factory=ActorContext)
+    profile_memory: ProfileMemorySummary = field(default_factory=ProfileMemorySummary)
+    session: SessionSummary = field(default_factory=SessionSummary)
+
+
+@dataclass(frozen=True, slots=True)
+class PersonalizationHint:
+    actor_claim_terms: tuple[str, ...] = field(default_factory=tuple)
+    recent_goal: str = ""
+    confirmed_slot_terms: tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,6 +177,12 @@ class EvidenceSource:
     is_current: bool
     snippet: str
     score: float
+    source_title: str = ""
+    structural_path: tuple[str, ...] = field(default_factory=tuple)
+    content_kind: str = ""
+    content_role: str = ""
+    detail_label: str = ""
+    is_answer_bearing: bool = False
 
     def __post_init__(self) -> None:
         _validate_revision_track(self.revision_track)
@@ -152,6 +253,7 @@ class SupervisorRequest:
     request_id: str = ""
     trace: TraceContext = field(default_factory=TraceContext)
     actor: ActorContext = field(default_factory=ActorContext)
+    context: ContextProjection = field(default_factory=ContextProjection)
     requested_capability: RequestedCapability | None = None
     requested_scope: KnowledgeScope | None = None
     availability_target_id: str | None = None
@@ -160,6 +262,7 @@ class SupervisorRequest:
     def __post_init__(self) -> None:
         if not self.user_goal.strip():
             raise ValueError("user_goal must not be empty")
+        _coerce_context_projection(self)
         if (
             self.requested_capability is not None
             and self.requested_capability not in ALLOWED_REQUESTED_CAPABILITIES
@@ -178,12 +281,14 @@ class SpecialistRequest:
     request_id: str = ""
     trace: TraceContext = field(default_factory=TraceContext)
     actor: ActorContext = field(default_factory=ActorContext)
+    context: ContextProjection = field(default_factory=ContextProjection)
 
     def __post_init__(self) -> None:
         if self.target not in ALLOWED_SPECIALIST_TARGETS:
             raise ValueError(f"unsupported specialist target: {self.target}")
         if not self.user_goal.strip():
             raise ValueError("user_goal must not be empty")
+        _coerce_context_projection(self)
 
 
 @dataclass(frozen=True, slots=True)
@@ -203,6 +308,41 @@ class SpecialistResponse:
             raise ValueError(f"unsupported delegate status: {self.status}")
         if self.confidence not in ALLOWED_CONFIDENCE_LEVELS:
             raise ValueError(f"unsupported confidence level: {self.confidence}")
+
+
+@dataclass(frozen=True, slots=True)
+class SupervisorResponse:
+    selected_target: SpecialistTarget | None
+    status: SupervisorStatus
+    answer_text: str = ""
+    follow_up_question: str = ""
+    confidence: ConfidenceLevel = "low"
+    result: RagResultPayload | AvailabilityObservation | None = None
+    error: ErrorInfo | None = None
+
+    def __post_init__(self) -> None:
+        if self.selected_target is not None and self.selected_target not in ALLOWED_SPECIALIST_TARGETS:
+            raise ValueError(f"unsupported selected_target: {self.selected_target}")
+        if self.status not in ALLOWED_SUPERVISOR_STATUSES:
+            raise ValueError(f"unsupported supervisor status: {self.status}")
+        if self.confidence not in ALLOWED_CONFIDENCE_LEVELS:
+            raise ValueError(f"unsupported confidence level: {self.confidence}")
+
+
+def _coerce_context_projection(request: SupervisorRequest | SpecialistRequest) -> None:
+    default_actor = ActorContext()
+    default_context = ContextProjection()
+    if request.actor == default_actor and request.context == default_context:
+        return
+    if request.context == default_context:
+        object.__setattr__(request, "context", ContextProjection(actor=request.actor))
+        return
+    if request.actor == default_actor:
+        object.__setattr__(request, "actor", request.context.actor)
+        return
+    if request.actor != request.context.actor:
+        raise ValueError("actor and context.actor must match")
+
 
 def _validate_corpus(corpus: str) -> None:
     if not corpus or not corpus.strip():

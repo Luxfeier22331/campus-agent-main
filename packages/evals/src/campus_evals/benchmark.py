@@ -14,6 +14,9 @@ HybridQueryCategory = Literal[
     "policy_title_exact_match",
     "fixed_phrase_sparse_win",
     "semantic_dense_win",
+    "short_fact_section",
+    "table_retrieval",
+    "needs_clarification",
     "acl_filter",
     "campus_scope_filter",
     "no_hit",
@@ -23,6 +26,9 @@ ALLOWED_HYBRID_QUERY_CATEGORIES = (
     "policy_title_exact_match",
     "fixed_phrase_sparse_win",
     "semantic_dense_win",
+    "short_fact_section",
+    "table_retrieval",
+    "needs_clarification",
     "acl_filter",
     "campus_scope_filter",
     "no_hit",
@@ -171,21 +177,22 @@ def validate_retrieval_hybrid_query_fixture(
     manifest_has_campus_scope = any(bool(item.get("campus_scope")) for item in documents)
 
     errors: list[str] = []
+    scope_label = f"{dataset.scope.corpus}/{dataset.scope.collection}"
     for case in dataset.cases:
         if (case.category == "acl_filter" or case.scope.get("acl_groups")) and not manifest_has_acl:
             errors.append(
-                f"case {case.case_id} requires ACL scope, but the manifest has no ACL-bearing handbook documents"
+                f"case {case.case_id} requires ACL scope, but the manifest has no ACL-bearing {scope_label} documents"
             )
         if (case.category == "campus_scope_filter" or case.scope.get("campus_scope")) and not manifest_has_campus_scope:
             errors.append(
-                f"case {case.case_id} requires campus_scope, but the manifest has no campus-scoped handbook documents"
+                f"case {case.case_id} requires campus_scope, but the manifest has no campus-scoped {scope_label} documents"
             )
         if case.category in {"policy_title_exact_match", "fixed_phrase_sparse_win"} and not _case_is_grounded_in_titles(
             case,
             titles=titles,
         ):
             errors.append(
-                f"case {case.case_id} category {case.category} is not grounded in any current handbook title keyword"
+                f"case {case.case_id} category {case.category} is not grounded in any current {scope_label} title keyword"
             )
     return tuple(errors)
 

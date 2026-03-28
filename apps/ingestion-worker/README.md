@@ -14,8 +14,10 @@ Env bootstrap rule:
 
 - Query-serving scope is controlled by `configs/ingestion/<corpus>/<collection>/runtime-profile.json`, not by worker defaults.
 - Data-plane ingestion currently covers `regulations/student_handbook` and `curriculum/curriculum_plan`.
-- Phase-1 runtime truth lives in `configs/ingestion/<corpus>/<collection>/runtime-profile.json`.
+- Current runtime truth lives in `configs/ingestion/<corpus>/<collection>/runtime-profile.json`.
 - Phase 03.2 freezes `single source consumption + multi-projection fan-out` as the canonical ingestion model: a source asset is consumed once, source truth is persisted once, and downstream outputs rebuild from declared projections instead of returning to the original PDF.
+- Serving/indexing terms follow `docs/reference/runtime-serving-and-index-terms.md`.
+- Operator release flow follows `docs/runbooks/index-release-runbook.md`.
 
 ### `process_raw_ingestion_job`
 
@@ -109,7 +111,7 @@ Behavior:
 - `regulations/student_handbook` chunk budgeting uses the `Qwen/Qwen3-Embedding-4B` tokenizer from local Hugging Face cache only. Prefetch it explicitly with `uv run --all-packages python -m campus_ingestion_core.prefetch_tokenizer`, then keep worker/runtime/test runs on `HF_HUB_OFFLINE=1`; the ingestion code no longer falls back to implicit network download.
 - Only normalized mode registers derived document results in the document registry with `import_source=raw_online_ocr`.
 - Normalized document-registry writes persist the scope cleaning policy version for traceability.
-- Phase-1 OCR ingestion defaults to `revision_track=source-faithful`, `source_channel=pdf_ocr`, `is_current=false`.
+- Current OCR ingestion defaults to `revision_track=source-faithful`, `source_channel=pdf_ocr`, `is_current=false`.
 
 ### `rebuild_local_data`
 
@@ -151,9 +153,36 @@ Behavior:
 - `provider_response_replay` reads an existing object-store `provider-response.jsonl`, rewrites asset-level `layout-elements.jsonl`, rebuilds persisted source truth, and re-emits declared projections such as per-document `canonical.md` / `document-units.jsonl` without synthesizing raw-layer records.
 - handbook replay默认 `--source-pdf 学生手册_2018.pdf`。
 - `provider_response_replay` does not index Qdrant by default; add `--index-qdrant` when replay should also rebuild chunk/embedding/vector state.
-- `--reset-qdrant` and `--index-qdrant` are independent: reset only clears the collection, while replay indexing is opt-in.
-- Rebuild / replay now resolve the physical Qdrant collection from each collection runtime profile instead of a global `QDRANT_COLLECTION` env.
+- `--reset-qdrant` and `--index-qdrant` are independent: reset only clears the alias family, while replay indexing is opt-in.
+- `--publish-alias` / `--no-publish-alias` control whether a successful index release should switch the serving alias after validation.
+- Rebuild / replay now resolve `qdrant_alias_name` and `qdrant_collection_prefix` from each collection runtime profile instead of any global collection-name env.
 - `provider_response_replay` is the canonical rebuild boundary for downstream fan-out; later projection work must not create handbook-only replay branches or separate raw re-consumption lanes.
+
+### `release_index`
+
+Operator-facing release shell for one `provider_response_replay -> chunking -> embedding -> indexing -> optional alias publish` run.
+
+Required CLI args:
+
+- `--corpus`
+- `--collection`
+- `--raw-version-id`
+
+Optional CLI args:
+
+- `--raw-asset-id`
+- `--source-pdf`
+- `--reset-index`
+- `--publish-alias`
+- `--no-publish-alias`
+
+Behavior:
+
+- Always runs a Qdrant index release from persisted source truth.
+- Creates a new physical collection as `<collection_prefix>__<release_id>`.
+- Writes release manifests under `{corpus}/releases/{collection}/{release_id}/...`.
+- Only switches the serving alias when `--publish-alias` is enabled.
+- Never writes chunk dumps back to object storage.
 
 ### Source-Truth Fan-Out Rule
 
@@ -249,7 +278,7 @@ Behavior:
 - Derives handbook navigation pages declared in
   `configs/ingestion/campus_services/service_catalog/handbook-derived-documents.json`
   from `regulations/student_handbook` source-level OCR truth into `service_catalog`.
-- This command is a historical backfill bridge, not a canonical phase-1 ingestion path.
+- This command is a historical backfill bridge, not a canonical current ingestion path.
 - The canonical declaration of handbook downstream projections lives under
   `configs/ingestion/regulations/student_handbook/source-projections.v1.json`.
 - For handbook-derived `campus_services` outputs, source-truth selector fields

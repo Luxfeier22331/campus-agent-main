@@ -10,9 +10,11 @@ from campus_contracts import (
     SpecialistRequest,
     SpecialistResponse,
     SpecialistTarget,
+    SupervisorResponse,
+    SupervisorStatus,
     SupervisorRequest,
 )
-from campus_contracts.models import AllowedCorpus, DelegateStatus
+from campus_contracts.models import AllowedCorpus
 
 from campus_supervisor_core.response import source_doc_ids_from_response
 
@@ -26,14 +28,14 @@ class SupervisorAuditRecord:
     requested_capability: RequestedCapability | None
     requested_scope_corpus: AllowedCorpus | None
     requested_scope_collection: str | None
-    status: DelegateStatus
+    status: SupervisorStatus
     error_code: str | None
     source_doc_ids: tuple[str, ...]
 
 
 def build_audit_record(
     request: Union[SupervisorRequest, SpecialistRequest],
-    response: SpecialistResponse,
+    response: SpecialistResponse | SupervisorResponse,
 ) -> SupervisorAuditRecord:
     requested_capability = _requested_capability_from_request(request)
     requested_scope = _requested_scope_from_request(request)
@@ -41,7 +43,7 @@ def build_audit_record(
         request_id=request.request_id,
         trace_id=request.trace.trace_id,
         user_id=request.actor.user_id,
-        selected_target=response.target,
+        selected_target=_selected_target_from_response(response),
         requested_capability=requested_capability,
         requested_scope_corpus=None if requested_scope is None else requested_scope.corpus,
         requested_scope_collection=None if requested_scope is None else requested_scope.collection,
@@ -104,3 +106,11 @@ def _selected_target_from_request(request: SupervisorRequest) -> SpecialistTarge
     if request.availability_target_id is not None and request.requested_scope is None:
         return "availability-specialist"
     return None
+
+
+def _selected_target_from_response(
+    response: SpecialistResponse | SupervisorResponse,
+) -> SpecialistTarget | None:
+    if isinstance(response, SpecialistResponse):
+        return response.target
+    return response.selected_target

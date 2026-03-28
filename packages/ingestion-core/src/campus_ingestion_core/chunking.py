@@ -20,12 +20,15 @@ DEFAULT_MAX_CHUNK_SIZE = 360
 DEFAULT_CHUNK_OVERLAP = 48
 DEFAULT_MIN_CHUNK_SIZE = 40
 DEFAULT_SPLIT_STRATEGY: Literal["structure_first", "token_budget"] = "structure_first"
-DEFAULT_CHUNK_POLICY_VERSION = "student_handbook_semantic_v1"
-DEFAULT_CLEANING_POLICY_VERSION = "student_handbook_cleaning_v1"
-DEFAULT_STRATEGY_NAME = "student_handbook_structure"
+DEFAULT_CHUNK_POLICY_VERSION = "structure_first_semantic_v1"
+DEFAULT_CLEANING_POLICY_VERSION = "generic_cleaning_v1"
+DEFAULT_STRATEGY_NAME = "structure_first_default_v1"
 DEFAULT_TOKENIZER_NAME = "regex_approximation_v1"
 DEFAULT_SAFETY_MARGIN = 0
 
+HANDBOOK_V1_CHUNK_POLICY_VERSION = "student_handbook_semantic_v1"
+HANDBOOK_CLEANING_POLICY_VERSION = "student_handbook_cleaning_v1"
+HANDBOOK_V1_STRATEGY_NAME = "student_handbook_structure_v1"
 CURRICULUM_V1_CHUNK_POLICY_VERSION = "curriculum_plan_semantic_v1"
 CURRICULUM_V1_CHUNK_SIZE = 360
 CURRICULUM_V1_MAX_CHUNK_SIZE = 540
@@ -441,7 +444,7 @@ class ChunkProfile:
 
 def build_student_handbook_chunk_profile(
     *,
-    profile_version: str = DEFAULT_CHUNK_POLICY_VERSION,
+    profile_version: str = HANDBOOK_V1_CHUNK_POLICY_VERSION,
     model_name: str | None = None,
 ) -> ChunkProfile:
     resolved_model_name = (
@@ -459,7 +462,7 @@ def build_student_handbook_chunk_profile(
             min_chunk_size=HANDBOOK_V2_MIN_CHUNK_SIZE,
             split_strategy="structure_first",
             chunk_policy_version=HANDBOOK_V2_CHUNK_POLICY_VERSION,
-            cleaning_policy_version=DEFAULT_CLEANING_POLICY_VERSION,
+            cleaning_policy_version=HANDBOOK_CLEANING_POLICY_VERSION,
             strategy_name=HANDBOOK_V2_STRATEGY_NAME,
             strategy=StudentHandbookChunkingStrategyV2(),
             token_counter=token_counter,
@@ -474,7 +477,7 @@ def build_student_handbook_chunk_profile(
             min_chunk_size=HANDBOOK_V3_MIN_CHUNK_SIZE,
             split_strategy="structure_first",
             chunk_policy_version=HANDBOOK_V3_CHUNK_POLICY_VERSION,
-            cleaning_policy_version=DEFAULT_CLEANING_POLICY_VERSION,
+            cleaning_policy_version=HANDBOOK_CLEANING_POLICY_VERSION,
             strategy_name=HANDBOOK_V3_STRATEGY_NAME,
             strategy=StudentHandbookChunkingStrategyV2(),
             token_counter=token_counter,
@@ -484,6 +487,10 @@ def build_student_handbook_chunk_profile(
         )
     token_counter = _build_token_counter(resolved_model_name)
     return ChunkProfile(
+        chunk_policy_version=HANDBOOK_V1_CHUNK_POLICY_VERSION,
+        cleaning_policy_version=HANDBOOK_CLEANING_POLICY_VERSION,
+        strategy_name=HANDBOOK_V1_STRATEGY_NAME,
+        strategy=StudentHandbookChunkingStrategy(),
         token_counter=token_counter,
         tokenizer_name=token_counter.name,
     )

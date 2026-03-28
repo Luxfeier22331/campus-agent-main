@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-03-29
 ---
 
 # App API Supervisor Execution Contract
@@ -18,7 +18,7 @@ updated: 2026-03-28
 - supervisor execution engine 边界：`docs/architecture/supervisor-architecture.md`
 - 产品层 HTTP contract：`docs/contracts/app-api-http.md`
 - request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
-- execution admission ownership：`docs/decisions/adr-0015-supervisor-internal-execution-admission.md`
+- execution admission ownership：`docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 
 这份文档不冻结：
 

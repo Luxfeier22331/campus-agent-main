@@ -9,7 +9,7 @@
 - 接收来自 `supervisor-core` 的稳定 handoff，而不是继续暴露旧 `campusRAG` tool 风格接口
 - 负责 retrieval 导向的 `query rewriting`、`retrieval strategy selection`、`evidence collection`、`evidence normalization`、`confidence` 返回
 - 返回 `SpecialistResponse` 的 rag 分支，而不是把底层 retrieval 结果原样泄漏出去
-- 第一阶段 query-serving 默认只服务 `student_handbook`
+- 当前默认 query-serving retrieval specialist 仍是 `rag-specialist`
 
 当前仓库已经存在显式 `availability-specialist` 并行能力，但它不改变本目录的 retrieval-only 责任边界，也不把 availability 逻辑带进这里。
 
@@ -22,7 +22,9 @@
 - `../../AGENTS.md`
 - `../../docs/architecture/long-term-architecture.md`
 - `../../docs/architecture/phase1-ingestion-and-storage-architecture.md`
-- `../../docs/decisions/adr-0001-phase1-architecture.md`
+- `../../docs/architecture/retrieval-query-strategy.md`
+- `../../docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`
+- `../../docs/reference/runtime-serving-and-index-terms.md`
 - `../../docs/plans/agentic-rag-foundation.md`
 - `src/campus_rag_specialist/service.py`
 - `README.md`
@@ -47,10 +49,11 @@
 - 不要把 `Agno`、retrieval backend 或对象存储 SDK 类型泄漏进 `packages/contracts`
 - `confidence` 逻辑属于 specialist 层，不是 retrieval backend 原始输出的直接透传
 
-## Phase-1 Constraints
+## Current Serving Constraints
 
-- 第一阶段 query-serving 默认只开放 `student_handbook`
+- 当前 query-serving scope 由 collection runtime profile 决定；默认开放 `regulations/student_handbook` 与 `curriculum/curriculum_plan`
 - 已冻结但未放开的 corpus 应通过显式 fail-closed 路径返回，而不是在 specialist 内静默扩面
+- 不要在此目录自行维护 query-enabled scope truth；范围判断以 supervisor 与 runtime profile 为准
 - 不要在此目录提前引入多 corpus fan-out 或并行检索逻辑
 - 不要提前引入多 retrieval backend 并行
 - 不要把 specialist 写成 retrieval backend 的薄壳；这里负责 contract 化和结果整形

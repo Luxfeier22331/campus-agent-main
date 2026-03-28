@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "corpus": "curriculum",
+  "collection": "curriculum_plan",
+  "baseline": {
+    "dense_model": "Qwen3-Embedding-4B",
+    "dense_dimensions": 2560,
+    "sparse_model": "qdrant/bm25",
+    "sparse_tokenizer": "multilingual",
+    "sparse_language": "none",
+    "fusion": "rrf"
+  },
+  "cases": [
+    {
+      "case_id": "ethnology-plan-title",
+      "category": "policy_title_exact_match",
+      "query": "民族学本科人才培养方案",
+      "expected_keywords": [
+        "民族学本科人才培养方案"
+      ],
+      "forbidden_doc_ids": [],
+      "notes": "验证培养方案标题 exact-match。"
+    },
+    {
+      "case_id": "digital-economy-plan-title",
+      "category": "policy_title_exact_match",
+      "query": "数字经济本科人才培养方案",
+      "expected_keywords": [
+        "数字经济本科人才培养方案"
+      ],
+      "forbidden_doc_ids": [],
+      "notes": "验证相邻经济学类方案不盖过目标标题。"
+    },
+    {
+      "case_id": "english-general-plan-title",
+      "category": "policy_title_exact_match",
+      "query": "中央民族大学通识课程大学英语课程教学计划",
+      "expected_keywords": [
+        "大学英语",
+        "课程教学计划"
+      ],
+      "forbidden_doc_ids": [],
+      "notes": "验证课程教学计划标题检索。"
+    },
+    {
+      "case_id": "academic-years-short-fact",
+      "category": "short_fact_section",
+      "query": "民族学本科第二学士学位人才培养方案学制几年？",
+      "expected_keywords": [
+        "民族学本科第二学士学位人才培养方案",
+        "学制"
+      ],
+      "forbidden_doc_ids": [],
+      "notes": "验证短事实 section 可回到正确方案。"
+    },
+    {
+      "case_id": "total-credits-short-fact",
+      "category": "short_fact_section",
+      "query": "民族学本科人才培养方案总学分要求是多少？",
+      "expected_keywords": [
+        "民族学本科人才培养方案",
+        "总学分"
+      ],
+      "forbidden_doc_ids": [],
+      "notes": "验证学制/学分段落的短事实检索。"
+    },
+    {
+      "case_id": "course-map-table-hit",
+      "category": "table_retrieval",
+      "query": "经济学拔尖人才创新班人才培养方案课程地图怎么安排？",
+      "expected_keywords": [
+        "经济学拔尖人才创新班人才培养方案",
+        "课程地图"
+      ],
+      "forbidden_doc_ids": [],
+      "notes": "验证表格/课程地图相关检索。"
+    },
+    {
+      "case_id": "cross-major-disambiguation",
+      "category": "semantic_dense_win",
+      "query": "历史学强基计划本科人才培养方案",
+      "expected_keywords": [
+        "历史学（强基计划）本科人才培养方案"
+      ],
+      "forbidden_doc_ids": [
+        "curriculum:历史学本科人才培养方案"
+      ],
+      "notes": "验证强基计划版本不被普通历史学方案覆盖。"
+    },
+    {
+      "case_id": "generic-degree-needs-clarification",
+      "category": "needs_clarification",
+      "query": "学位怎么授予？",
+      "expected_keywords": [],
+      "forbidden_doc_ids": [],
+      "notes": "验证 curriculum 泛化问题应触发澄清，而不是误答到单一方案。"
+    },
+    {
+      "case_id": "no-hit-impossible-query",
+      "category": "no_hit",
+      "query": "火星校区飞船停靠规则",
+      "expected_keywords": [],
+      "forbidden_doc_ids": [],
+      "notes": "验证无命中时返回空 bundle。"
+    }
+  ]
+}

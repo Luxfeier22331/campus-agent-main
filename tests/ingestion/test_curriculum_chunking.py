@@ -7,6 +7,10 @@ import unittest
 
 from campus_ingestion_core.curriculum_budget_evaluation import load_default_curriculum_budget_evaluation_documents
 from campus_ingestion_core.chunking import ChunkProfile
+from campus_ingestion_core.curriculum_chunk_units import (
+    _build_curriculum_contextual_text,
+    build_curriculum_structured_units,
+)
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import build_indexable_chunks_from_jsonl
 from campus_ingestion_core.raw_ingestion import _build_split_manifest_document_input, _load_layout_elements_rows
@@ -117,7 +121,7 @@ def _build_real_curriculum_runtime_chunks(
 ) -> tuple[DocumentRegistryRecord, tuple[object, ...]]:
     document = next(
         item
-        for item in load_default_curriculum_budget_evaluation_documents()
+        for item in load_default_curriculum_budget_evaluation_documents(include_historical=True)
         if item.title == document_title
     )
     chunks = build_indexable_chunks_from_jsonl(
@@ -128,6 +132,370 @@ def _build_real_curriculum_runtime_chunks(
 
 
 class CurriculumChunkingTest(unittest.TestCase):
+    def test_build_curriculum_contextual_text_only_prepends_missing_parent_headings(self) -> None:
+        contextual_text = _build_curriculum_contextual_text(
+            unit_type="section_text",
+            section_path=[
+                "经济学拔尖人才创新班人才培养方案",
+                "二、毕业要求",
+                "(二)知识要求",
+            ],
+            piece_text=(
+                "(二)知识要求\n"
+                "1. 通识性知识:掌握文学、历史、哲学、艺术、管理、法律、社会、写作等方面的知识。"
+            ),
+            chunk_profile=ChunkProfile(
+                chunk_size=360,
+                max_chunk_size=540,
+                chunk_overlap=72,
+                min_chunk_size=50,
+                chunk_policy_version="curriculum_plan_semantic_v1",
+                cleaning_policy_version="curriculum_plan_cleaning_v1",
+            ),
+        )
+
+        self.assertEqual(
+            contextual_text,
+            (
+                "二、毕业要求\n\n"
+                "(二)知识要求\n"
+                "1. 通识性知识:掌握文学、历史、哲学、艺术、管理、法律、社会、写作等方面的知识。"
+            ),
+        )
+
+    def test_build_curriculum_structured_units_flushes_section_before_advancing_parent_heading(self) -> None:
+        record = _make_curriculum_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0020-block-0001",
+                        "row_id": "page-0020-block-0001",
+                        "row_type": "heading",
+                        "heading_level": 2,
+                        "clean_text": "二、毕业要求",
+                        "page_start": 20,
+                        "page_end": 20,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0020-block-0002",
+                        "row_id": "page-0020-block-0002",
+                        "row_type": "heading",
+                        "heading_level": 3,
+                        "clean_text": "(二)知识要求",
+                        "page_start": 20,
+                        "page_end": 20,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0020-block-0003",
+                        "row_id": "page-0020-block-0003",
+                        "row_type": "paragraph",
+                        "clean_text": "1. 通识性知识:掌握文学、历史、哲学、艺术、管理、法律、社会、写作等方面的知识。",
+                        "page_start": 20,
+                        "page_end": 20,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0020-block-0004",
+                        "row_id": "page-0020-block-0004",
+                        "row_type": "heading",
+                        "heading_level": 2,
+                        "clean_text": "三、学制、总学分和学位授予",
+                        "page_start": 20,
+                        "page_end": 20,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0020-block-0005",
+                        "row_id": "page-0020-block-0005",
+                        "row_type": "paragraph",
+                        "clean_text": "学制:4年",
+                        "page_start": 20,
+                        "page_end": 20,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+            ]
+        ).encode("utf-8")
+
+        units = build_curriculum_structured_units(record=record, structured_jsonl_bytes=structured_payload)
+
+        self.assertEqual(len(units), 2)
+        self.assertEqual(
+            units[0].anchor["section_path"],
+            ["二、毕业要求", "(二)知识要求"],
+        )
+        self.assertTrue(units[0].text.startswith("二、毕业要求\n\n(二)知识要求"))
+        self.assertNotIn("三、学制、总学分和学位授予", units[0].text)
+        self.assertEqual(
+            units[1].anchor["section_path"],
+            ["三、学制、总学分和学位授予"],
+        )
+        self.assertEqual(units[1].text, "三、学制、总学分和学位授予\n\n学制:4年")
+
+    def test_build_curriculum_structured_units_flushes_same_level_heading_only_section_before_next_section(self) -> None:
+        record = _make_curriculum_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0020-block-0001",
+                        "row_id": "page-0020-block-0001",
+                        "row_type": "heading",
+                        "heading_level": 2,
+                        "clean_text": "六、课程地图",
+                        "section_hint": "section",
+                        "page_start": 20,
+                        "page_end": 20,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0020-block-0002",
+                        "row_id": "page-0020-block-0002",
+                        "row_type": "heading",
+                        "heading_level": 2,
+                        "clean_text": "国际经济与贸易专业本科课程结构拓扑图",
+                        "section_hint": None,
+                        "page_start": 20,
+                        "page_end": 20,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0020-block-0003",
+                        "row_id": "page-0020-block-0003",
+                        "row_type": "heading",
+                        "heading_level": 2,
+                        "clean_text": "七、其他说明",
+                        "section_hint": "section",
+                        "page_start": 20,
+                        "page_end": 20,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0020-block-0004",
+                        "row_id": "page-0020-block-0004",
+                        "row_type": "paragraph",
+                        "clean_text": "允许国际学分、在线课程学分等学分转换。",
+                        "page_start": 20,
+                        "page_end": 20,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+            ]
+        ).encode("utf-8")
+
+        units = build_curriculum_structured_units(record=record, structured_jsonl_bytes=structured_payload)
+
+        self.assertEqual(len(units), 2)
+        self.assertEqual(units[0].anchor["section_path"], ["六、课程地图"])
+        self.assertEqual(
+            units[0].text,
+            "六、课程地图\n\n国际经济与贸易专业本科课程结构拓扑图",
+        )
+        self.assertEqual(units[1].anchor["section_path"], ["七、其他说明"])
+        self.assertEqual(
+            units[1].text,
+            "七、其他说明\n\n允许国际学分、在线课程学分等学分转换。",
+        )
+
+    def test_build_curriculum_structured_units_flushes_consecutive_same_level_structural_headings(self) -> None:
+        record = _make_curriculum_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0020-block-0001",
+                        "row_id": "page-0020-block-0001",
+                        "row_type": "heading",
+                        "heading_level": 2,
+                        "clean_text": "六、课程地图",
+                        "section_hint": "section",
+                        "page_start": 20,
+                        "page_end": 20,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0020-block-0002",
+                        "row_id": "page-0020-block-0002",
+                        "row_type": "heading",
+                        "heading_level": 2,
+                        "clean_text": "七、其他说明",
+                        "section_hint": "section",
+                        "page_start": 20,
+                        "page_end": 20,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0020-block-0003",
+                        "row_id": "page-0020-block-0003",
+                        "row_type": "paragraph",
+                        "clean_text": "允许国际学分、在线课程学分等学分转换。",
+                        "page_start": 20,
+                        "page_end": 20,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+            ]
+        ).encode("utf-8")
+
+        units = build_curriculum_structured_units(record=record, structured_jsonl_bytes=structured_payload)
+
+        self.assertEqual(len(units), 2)
+        self.assertEqual(units[0].anchor["section_path"], ["六、课程地图"])
+        self.assertEqual(units[0].text, "六、课程地图")
+        self.assertEqual(units[1].anchor["section_path"], ["七、其他说明"])
+        self.assertEqual(
+            units[1].text,
+            "七、其他说明\n\n允许国际学分、在线课程学分等学分转换。",
+        )
+
+    def test_build_curriculum_structured_units_flushes_heading_only_mixed_levels_before_new_parent_heading(self) -> None:
+        record = _make_curriculum_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0020-block-0001",
+                        "row_id": "page-0020-block-0001",
+                        "row_type": "heading",
+                        "heading_level": 2,
+                        "clean_text": "二、毕业要求",
+                        "page_start": 20,
+                        "page_end": 20,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0020-block-0002",
+                        "row_id": "page-0020-block-0002",
+                        "row_type": "heading",
+                        "heading_level": 3,
+                        "clean_text": "(一)素质要求",
+                        "page_start": 20,
+                        "page_end": 20,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0020-block-0003",
+                        "row_id": "page-0020-block-0003",
+                        "row_type": "heading",
+                        "heading_level": 4,
+                        "clean_text": "1. 政治素质",
+                        "page_start": 20,
+                        "page_end": 20,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0020-block-0004",
+                        "row_id": "page-0020-block-0004",
+                        "row_type": "heading",
+                        "heading_level": 2,
+                        "clean_text": "三、学制、总学分和学位授予",
+                        "page_start": 20,
+                        "page_end": 20,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0020-block-0005",
+                        "row_id": "page-0020-block-0005",
+                        "row_type": "heading",
+                        "heading_level": 3,
+                        "clean_text": "学制:4年",
+                        "page_start": 20,
+                        "page_end": 20,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+            ]
+        ).encode("utf-8")
+
+        units = build_curriculum_structured_units(record=record, structured_jsonl_bytes=structured_payload)
+
+        self.assertEqual(len(units), 2)
+        self.assertEqual(units[0].anchor["section_path"], ["二、毕业要求", "(一)素质要求", "1. 政治素质"])
+        self.assertTrue(units[0].text.startswith("二、毕业要求\n\n(一)素质要求\n\n1. 政治素质"))
+        self.assertNotIn("三、学制、总学分和学位授予", units[0].text)
+        self.assertEqual(units[1].anchor["section_path"], ["三、学制、总学分和学位授予", "学制:4年"])
+        self.assertTrue(units[1].text.startswith("三、学制、总学分和学位授予\n\n学制:4年"))
+
     def test_build_indexable_chunks_from_jsonl_uses_runtime_curriculum_chunk_profile_by_default(self) -> None:
         record = _make_curriculum_record()
         structured_payload = "\n".join(
@@ -442,6 +810,242 @@ class CurriculumChunkingTest(unittest.TestCase):
         self.assertIn("第一学年以通识课和学科基础课为主。", chunks[0].text)
         self.assertIn("通识课和学科基础课为主", chunks[0].text)
 
+    def test_build_indexable_chunks_from_jsonl_merges_curriculum_subsection_marker_into_following_table_chunk(self) -> None:
+        record = _make_curriculum_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0300-block-0001",
+                        "row_id": "page-0300-block-0001",
+                        "row_type": "heading",
+                        "heading_level": 2,
+                        "clean_text": "二、课程设计",
+                        "page_start": 300,
+                        "page_end": 300,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0300-block-0002",
+                        "row_id": "page-0300-block-0002",
+                        "row_type": "heading",
+                        "heading_level": 3,
+                        "clean_text": "(三) 学时学分设置",
+                        "page_start": 300,
+                        "page_end": 300,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0300-block-0003",
+                        "row_id": "page-0300-block-0003",
+                        "row_type": "table",
+                        "clean_text": "<table><tr><td>课程名称</td><td>学分</td></tr><tr><td>马克思主义基本原理</td><td>3</td></tr></table>",
+                        "html": "<table><tr><td>课程名称</td><td>学分</td></tr><tr><td>马克思主义基本原理</td><td>3</td></tr></table>",
+                        "table_cells": [
+                            {"row": 1, "col": 1, "text": "课程名称", "rowspan": 1, "colspan": 1, "is_header": True},
+                            {"row": 1, "col": 2, "text": "学分", "rowspan": 1, "colspan": 1, "is_header": True},
+                            {"row": 2, "col": 1, "text": "马克思主义基本原理", "rowspan": 1, "colspan": 1, "is_header": False},
+                            {"row": 2, "col": 2, "text": "3", "rowspan": 1, "colspan": 1, "is_header": False},
+                        ],
+                        "page_start": 300,
+                        "page_end": 300,
+                        "continuation_group_id": "page-0300-block-0003",
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=ChunkProfile(
+                chunk_size=360,
+                max_chunk_size=540,
+                chunk_overlap=72,
+                min_chunk_size=50,
+                chunk_policy_version="curriculum_plan_semantic_v1",
+                cleaning_policy_version="curriculum_plan_cleaning_v1",
+            ),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0].metadata["unit_type"], "table_unit")
+        self.assertTrue(chunks[0].text.startswith("二、课程设计\n\n(三) 学时学分设置"))
+        self.assertEqual(chunks[0].text.count("(三) 学时学分设置"), 1)
+        self.assertIn("课程名称 | 学分", chunks[0].text)
+
+    def test_build_indexable_chunks_from_jsonl_merges_curriculum_subsection_marker_with_following_same_parent_items(self) -> None:
+        record = _make_curriculum_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0301-block-0001",
+                        "row_id": "page-0301-block-0001",
+                        "row_type": "heading",
+                        "heading_level": 2,
+                        "clean_text": "二、毕业要求",
+                        "page_start": 301,
+                        "page_end": 301,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0301-block-0002",
+                        "row_id": "page-0301-block-0002",
+                        "row_type": "heading",
+                        "heading_level": 3,
+                        "clean_text": "(二)知识要求",
+                        "page_start": 301,
+                        "page_end": 301,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0301-block-0003",
+                        "row_id": "page-0301-block-0003",
+                        "row_type": "heading",
+                        "heading_level": 3,
+                        "clean_text": "1. 跨学科基础和理论。",
+                        "page_start": 301,
+                        "page_end": 301,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0301-block-0004",
+                        "row_id": "page-0301-block-0004",
+                        "row_type": "heading",
+                        "heading_level": 3,
+                        "clean_text": "2. 核心知识。",
+                        "page_start": 301,
+                        "page_end": 301,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=ChunkProfile(
+                chunk_size=360,
+                max_chunk_size=540,
+                chunk_overlap=72,
+                min_chunk_size=50,
+                chunk_policy_version="curriculum_plan_semantic_v1",
+                cleaning_policy_version="curriculum_plan_cleaning_v1",
+            ),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0].metadata["unit_type"], "section_text")
+        self.assertTrue(chunks[0].text.startswith("二、毕业要求\n\n(二)知识要求"))
+        self.assertEqual(chunks[0].text.count("二、毕业要求"), 1)
+        self.assertIn("1. 跨学科基础和理论。", chunks[0].text)
+        self.assertIn("2. 核心知识。", chunks[0].text)
+
+    def test_build_indexable_chunks_from_jsonl_merges_short_curriculum_items_under_same_parent(self) -> None:
+        record = _make_curriculum_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0302-block-0001",
+                        "row_id": "page-0302-block-0001",
+                        "row_type": "heading",
+                        "heading_level": 2,
+                        "clean_text": "七、其他说明",
+                        "page_start": 302,
+                        "page_end": 302,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0302-block-0002",
+                        "row_id": "page-0302-block-0002",
+                        "row_type": "heading",
+                        "heading_level": 3,
+                        "clean_text": "6. 讲座报告。第 1-6 学期每学期至少参加 2 次本专业组织的讲座。",
+                        "page_start": 302,
+                        "page_end": 302,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0302-block-0003",
+                        "row_id": "page-0302-block-0003",
+                        "row_type": "heading",
+                        "heading_level": 3,
+                        "clean_text": "7. 学年论文以及毕业论文由专业分流后的导师具体负责指导。",
+                        "page_start": 302,
+                        "page_end": 302,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=ChunkProfile(
+                chunk_size=360,
+                max_chunk_size=540,
+                chunk_overlap=72,
+                min_chunk_size=50,
+                chunk_policy_version="curriculum_plan_semantic_v1",
+                cleaning_policy_version="curriculum_plan_cleaning_v1",
+            ),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0].metadata["unit_type"], "section_text")
+        self.assertEqual(chunks[0].text.count("七、其他说明"), 1)
+        self.assertIn("6. 讲座报告。第 1-6 学期每学期至少参加 2 次本专业组织的讲座。", chunks[0].text)
+        self.assertIn("7. 学年论文以及毕业论文由专业分流后的导师具体负责指导。", chunks[0].text)
+
     def test_build_indexable_chunks_from_jsonl_canonicalizes_root_title_anchor(self) -> None:
         raw_version_id = "sha256:test-curriculum-root-title"
         document_input = _build_split_manifest_document_input(
@@ -720,11 +1324,12 @@ class CurriculumChunkingTest(unittest.TestCase):
             ),
         )
 
-        self.assertEqual(len(chunks), 3)
-        self.assertEqual(chunks[1].metadata["unit_type"], "table_unit")
-        self.assertNotIn("(3)舞蹈学专业必修的专业核心课程 50 学分。", chunks[1].text)
-        self.assertEqual(chunks[2].metadata["unit_type"], "section_text")
-        self.assertIn("(3)舞蹈学专业必修的专业核心课程 50 学分。", chunks[2].text)
+        self.assertEqual(len(chunks), 2)
+        self.assertEqual(chunks[0].metadata["unit_type"], "table_unit")
+        self.assertTrue(chunks[0].text.startswith("五、课程设置和修读建议"))
+        self.assertNotIn("(3)舞蹈学专业必修的专业核心课程 50 学分。", chunks[0].text)
+        self.assertEqual(chunks[1].metadata["unit_type"], "section_text")
+        self.assertIn("(3)舞蹈学专业必修的专业核心课程 50 学分。", chunks[1].text)
 
     def test_build_indexable_chunks_from_jsonl_renders_rowspan_and_colspan_rows_readably(self) -> None:
         record = _make_curriculum_record()
@@ -855,6 +1460,34 @@ class CurriculumChunkingTest(unittest.TestCase):
             )
         )
 
+    def test_runtime_v2_does_not_duplicate_leaf_heading_when_prepending_parent_context(self) -> None:
+        _, chunks = _build_real_curriculum_runtime_chunks("经济学拔尖人才创新班人才培养方案")
+
+        target_chunk = next(
+            chunk
+            for chunk in chunks
+            if chunk.metadata["unit_type"] == "section_text"
+            and chunk.anchor["section_path"] == [
+                "经济学拔尖人才创新班人才培养方案",
+                "二、毕业要求",
+                "(二)知识要求",
+            ]
+        )
+
+        self.assertTrue(target_chunk.text.startswith("二、毕业要求\n\n(二)知识要求"))
+        self.assertNotIn("(二)知识要求\n\n(二)知识要求", target_chunk.text)
+
+    def test_runtime_v2_does_not_duplicate_leaf_heading_on_historical_curriculum_chunks(self) -> None:
+        _, chunks = _build_real_curriculum_runtime_chunks("中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案")
+
+        self.assertFalse(
+            any(
+                chunk.metadata["unit_type"] == "section_text"
+                and "2. 专业选修课程\n\n2. 专业选修课程" in chunk.text
+                for chunk in chunks
+            )
+        )
+
     def test_real_curriculum_projection_does_not_emit_orphan_heading_only_section_chunk(self) -> None:
         _, chunks = _build_real_curriculum_projection_chunks("curriculum:国际经济与贸易本科人才培养方案")
 
@@ -926,7 +1559,7 @@ class CurriculumChunkingTest(unittest.TestCase):
         self.assertIn("(一) 大类培养", target_chunk.text)
         self.assertIn("1. 通识教育", target_chunk.text)
 
-    def test_runtime_v2_keeps_leaf_professional_education_heading_on_large_legacy_table_chunks(self) -> None:
+    def test_runtime_v2_keeps_leaf_professional_education_heading_on_large_historical_table_chunks(self) -> None:
         _, chunks = _build_real_curriculum_runtime_chunks("孝通实验班本科人才培养方案")
 
         target_chunk = next(
@@ -943,6 +1576,428 @@ class CurriculumChunkingTest(unittest.TestCase):
 
         self.assertIn("五、课程设置和修读建议", target_chunk.text)
         self.assertIn("(二)专业教育", target_chunk.text)
+
+    def test_runtime_v2_does_not_bleed_previous_section_into_degree_section_for_historical_curriculum(self) -> None:
+        _, chunks = _build_real_curriculum_runtime_chunks("财政学本科人才培养方案")
+
+        target_chunk = next(
+            chunk
+            for chunk in chunks
+            if chunk.metadata["unit_type"] == "section_text"
+            and chunk.anchor["section_path"] == [
+                "财政学本科人才培养方案",
+                "三、学制、总学分和学位授予",
+            ]
+        )
+
+        self.assertTrue(target_chunk.text.startswith("三、学制、总学分和学位授予"))
+        self.assertNotIn("二、毕业要求\n\n", target_chunk.text)
+
+    def test_runtime_v2_does_not_bleed_previous_section_into_degree_section_for_mixed_heading_historical_curriculum(self) -> None:
+        _, chunks = _build_real_curriculum_runtime_chunks("中国少数民族语言文学本科人才培养方案")
+
+        target_chunk = next(
+            chunk
+            for chunk in chunks
+            if chunk.metadata["unit_type"] == "section_text"
+            and chunk.anchor["section_path"] == [
+                "中国少数民族语言文学本科人才培养方案",
+                "三、学制、总学分和学位授予",
+            ]
+        )
+
+        self.assertTrue(target_chunk.text.startswith("三、学制、总学分和学位授予"))
+        self.assertNotIn("二、毕业要求\n\n", target_chunk.text)
+
+    def test_runtime_v2_absorbs_short_parent_intro_into_following_child_section(self) -> None:
+        _, chunks = _build_real_curriculum_runtime_chunks("中央民族大学通识课程思想政治理论课教学计划")
+
+        self.assertFalse(
+            any(
+                chunk.metadata["unit_type"] == "section_text"
+                and chunk.anchor["section_path"] == [
+                    "中央民族大学通识课程思想政治理论课教学计划",
+                    "二、课程设置及培养要求",
+                ]
+                and chunk.text == "二、课程设置及培养要求\n\n课程模式包括大学体育课程和第二课堂实践活动。"
+                for chunk in chunks
+            )
+        )
+        target_chunk = next(
+            chunk
+            for chunk in chunks
+            if chunk.metadata["unit_type"] == "section_text"
+            and "课程模式包括大学体育课程和第二课堂实践活动。" in chunk.text
+            and "(一)大学体育课程" in chunk.text
+        )
+
+        self.assertTrue(target_chunk.text.startswith("二、课程设置及培养要求"))
+
+    def test_runtime_v2_keeps_retrievable_course_map_section_chunks(self) -> None:
+        _, chunks = _build_real_curriculum_runtime_chunks("经济学拔尖人才创新班人才培养方案")
+
+        target_chunk = next(
+            chunk
+            for chunk in chunks
+            if chunk.metadata["unit_type"] == "section_text"
+            and chunk.anchor["section_path"] == [
+                "经济学拔尖人才创新班人才培养方案",
+                "六、课程地图",
+            ]
+        )
+
+        self.assertTrue(target_chunk.text.startswith("六、课程地图"))
+        self.assertIn("拓扑图", target_chunk.text)
+
+    def test_runtime_v2_does_not_leave_course_map_title_card_on_previous_section(self) -> None:
+        _, chunks = _build_real_curriculum_runtime_chunks("中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案")
+
+        self.assertFalse(
+            any(
+                "拓扑图" in chunk.text
+                for chunk in chunks
+                if (chunk.anchor.get("section_path") or [])[-1:] != ["六、课程地图"]
+            )
+        )
+
+    def test_build_indexable_chunks_from_jsonl_skips_course_map_navigation_noise(self) -> None:
+        record = _make_curriculum_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0600-block-0001",
+                        "row_id": "page-0600-block-0001",
+                        "row_type": "heading",
+                        "heading_level": 2,
+                        "clean_text": "六、课程地图",
+                        "section_hint": "section",
+                        "page_start": 600,
+                        "page_end": 600,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0600-block-0002",
+                        "row_id": "page-0600-block-0002",
+                        "row_type": "heading",
+                        "heading_level": 4,
+                        "clean_text": "1. 哲学",
+                        "section_hint": "numeric_heading",
+                        "page_start": 600,
+                        "page_end": 600,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0600-block-0003",
+                        "row_id": "page-0600-block-0003",
+                        "row_type": "heading",
+                        "heading_level": 2,
+                        "clean_text": "哲学专业本科课程结构拓扑图",
+                        "section_hint": None,
+                        "page_start": 600,
+                        "page_end": 600,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0600-block-0004",
+                        "row_id": "page-0600-block-0004",
+                        "row_type": "heading",
+                        "heading_level": 4,
+                        "clean_text": "2. 宗教学",
+                        "section_hint": "numeric_heading",
+                        "page_start": 600,
+                        "page_end": 600,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0600-block-0005",
+                        "row_id": "page-0600-block-0005",
+                        "row_type": "heading",
+                        "heading_level": 2,
+                        "clean_text": "宗教学专业本科课程结构拓扑图",
+                        "section_hint": None,
+                        "page_start": 600,
+                        "page_end": 600,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0600-block-0006",
+                        "row_id": "page-0600-block-0006",
+                        "row_type": "heading",
+                        "heading_level": 2,
+                        "clean_text": "七、其他说明",
+                        "section_hint": "section",
+                        "page_start": 600,
+                        "page_end": 600,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0600-block-0007",
+                        "row_id": "page-0600-block-0007",
+                        "row_type": "paragraph",
+                        "clean_text": "允许国际学分转换。",
+                        "page_start": 600,
+                        "page_end": 600,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(record=record, structured_jsonl_bytes=structured_payload)
+
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0].anchor["section_path"], ["七、其他说明"])
+        self.assertNotIn("拓扑图", chunks[0].text)
+
+    def test_build_indexable_chunks_from_jsonl_promotes_structural_table_caption_to_table_section(self) -> None:
+        record = _make_curriculum_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0610-block-0001",
+                        "row_id": "page-0610-block-0001",
+                        "row_type": "heading",
+                        "heading_level": 1,
+                        "clean_text": "八、教学进程计划表",
+                        "section_hint": "section",
+                        "page_start": 610,
+                        "page_end": 610,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0610-block-0002",
+                        "row_id": "page-0610-block-0002",
+                        "row_type": "note",
+                        "clean_text": "专业代码:060104",
+                        "page_start": 610,
+                        "page_end": 610,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0610-block-0003",
+                        "row_id": "page-0610-block-0003",
+                        "row_type": "table",
+                        "clean_text": "<table><tr><td>课程类别</td><td>课程名称</td></tr><tr><td>专业基础课</td><td>文物学概论</td></tr></table>",
+                        "html": "<table><tr><td>课程类别</td><td>课程名称</td></tr><tr><td>专业基础课</td><td>文物学概论</td></tr></table>",
+                        "table_cells": [
+                            {"row": 1, "col": 1, "text": "课程类别", "rowspan": 1, "colspan": 1, "is_header": True},
+                            {"row": 1, "col": 2, "text": "课程名称", "rowspan": 1, "colspan": 1, "is_header": True},
+                            {"row": 2, "col": 1, "text": "专业基础课", "rowspan": 1, "colspan": 1, "is_header": False},
+                            {"row": 2, "col": 2, "text": "文物学概论", "rowspan": 1, "colspan": 1, "is_header": False},
+                        ],
+                        "page_start": 610,
+                        "page_end": 610,
+                        "continuation_group_id": "page-0610-block-0003",
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0611-block-0001",
+                        "row_id": "page-0611-block-0001",
+                        "row_type": "table_caption",
+                        "clean_text": "九、实践教学环节安排表",
+                        "page_start": 611,
+                        "page_end": 611,
+                        "owner_row_id": "page-0611-block-0002",
+                        "relation_type": "caption_of",
+                        "continuation_group_id": "page-0611-block-0002",
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0611-block-0002",
+                        "row_id": "page-0611-block-0002",
+                        "row_type": "table",
+                        "clean_text": "<table><tr><td>实践教学环节</td><td>学分</td></tr><tr><td>毕业论文</td><td>6</td></tr></table>",
+                        "html": "<table><tr><td>实践教学环节</td><td>学分</td></tr><tr><td>毕业论文</td><td>6</td></tr></table>",
+                        "table_cells": [
+                            {"row": 1, "col": 1, "text": "实践教学环节", "rowspan": 1, "colspan": 1, "is_header": True},
+                            {"row": 1, "col": 2, "text": "学分", "rowspan": 1, "colspan": 1, "is_header": True},
+                            {"row": 2, "col": 1, "text": "毕业论文", "rowspan": 1, "colspan": 1, "is_header": False},
+                            {"row": 2, "col": 2, "text": "6", "rowspan": 1, "colspan": 1, "is_header": False},
+                        ],
+                        "page_start": 611,
+                        "page_end": 611,
+                        "continuation_group_id": "page-0611-block-0002",
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0611-block-0003",
+                        "row_id": "page-0611-block-0003",
+                        "row_type": "heading",
+                        "heading_level": 2,
+                        "clean_text": "十、有关说明",
+                        "section_hint": "section",
+                        "page_start": 611,
+                        "page_end": 611,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0611-block-0004",
+                        "row_id": "page-0611-block-0004",
+                        "row_type": "paragraph",
+                        "clean_text": "允许使用案例分析作为毕业论文形式。",
+                        "page_start": 611,
+                        "page_end": 611,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(record=record, structured_jsonl_bytes=structured_payload)
+
+        target_table_chunk = next(
+            chunk
+            for chunk in chunks
+            if chunk.metadata["unit_type"] == "table_unit" and "毕业论文" in chunk.text
+        )
+        trailing_section_chunk = next(
+            chunk
+            for chunk in chunks
+            if chunk.metadata["unit_type"] == "section_text"
+            and chunk.text.startswith("十、有关说明")
+        )
+
+        self.assertEqual(target_table_chunk.anchor["section_path"], ["九、实践教学环节安排表"])
+        self.assertTrue(target_table_chunk.text.startswith("九、实践教学环节安排表"))
+        self.assertNotIn("八、教学进程计划表\n\n", trailing_section_chunk.text)
+
+    def test_build_indexable_chunks_from_jsonl_dedupes_repeated_structural_caption_heading(self) -> None:
+        record = _make_curriculum_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0620-block-0001",
+                        "row_id": "page-0620-block-0001",
+                        "row_type": "heading",
+                        "heading_level": 2,
+                        "clean_text": "七、各教学环节学时学分分配表",
+                        "section_hint": "section",
+                        "page_start": 620,
+                        "page_end": 620,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0620-block-0002",
+                        "row_id": "page-0620-block-0002",
+                        "row_type": "table_caption",
+                        "clean_text": "七、各教学环节学时学分分配表",
+                        "page_start": 620,
+                        "page_end": 620,
+                        "owner_row_id": "page-0620-block-0003",
+                        "relation_type": "caption_of",
+                        "continuation_group_id": "page-0620-block-0003",
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0620-block-0003",
+                        "row_id": "page-0620-block-0003",
+                        "row_type": "table",
+                        "clean_text": "<table><tr><td>类别</td><td>学分</td></tr><tr><td>专业教育</td><td>54</td></tr></table>",
+                        "html": "<table><tr><td>类别</td><td>学分</td></tr><tr><td>专业教育</td><td>54</td></tr></table>",
+                        "table_cells": [
+                            {"row": 1, "col": 1, "text": "类别", "rowspan": 1, "colspan": 1, "is_header": True},
+                            {"row": 1, "col": 2, "text": "学分", "rowspan": 1, "colspan": 1, "is_header": True},
+                            {"row": 2, "col": 1, "text": "专业教育", "rowspan": 1, "colspan": 1, "is_header": False},
+                            {"row": 2, "col": 2, "text": "54", "rowspan": 1, "colspan": 1, "is_header": False},
+                        ],
+                        "page_start": 620,
+                        "page_end": 620,
+                        "continuation_group_id": "page-0620-block-0003",
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(record=record, structured_jsonl_bytes=structured_payload)
+
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(
+            chunks[0].text.count("七、各教学环节学时学分分配表"),
+            1,
+        )
 
 
 if __name__ == "__main__":

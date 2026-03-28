@@ -1,8 +1,8 @@
 ---
 doc_type: plan
-status: active
+status: completed
 created: 2026-03-23
-updated: 2026-03-24
+updated: 2026-03-28
 ---
 
 # Golden Dataset Schema And Bootstrap
@@ -10,6 +10,8 @@ updated: 2026-03-24
 **Goal:** Define the first executable golden dataset schema for `campus-agent`, aligned with ADR-0003 / ADR-0004, while accepting a `synthetic-heavy` bootstrap strategy and keeping downstream scorer/runtime integrations replaceable.
 
 **Architecture:** This document does not replace the long-term governance ADRs. It translates them into a phase-1 executable schema shape, bootstrap split strategy, provenance rules for synthetic cases, and the minimum deterministic grading surface that `packages/evals` should support before richer LLM graders or larger datasets exist.
+
+**Status note:** 本文已完成 bootstrap 阶段 schema 收口，现保留为已执行实现基线；当前运行中的 golden dataset / eval 状态应以 `.planning/STATE.md`、`docs/reference/` 与相关 runbook 为准。
 
 **Tech Stack:** Markdown, Python dataclasses in `packages/evals`, deterministic graders, optional adapters for Ragas / Promptfoo / Langfuse / Phoenix
 

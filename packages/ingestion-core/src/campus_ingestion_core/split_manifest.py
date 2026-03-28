@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 import json
 from pathlib import Path
 
 from campus_ingestion_core.scope_catalog import assert_known_scope
+
+
+SplitManifestValidator = Callable[["SplitManifest"], None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,12 +89,9 @@ def load_split_manifest(
         raw_asset_id=str(payload.get("raw_asset_id") or ""),
         documents=documents,
     )
-    if manifest.collection == "student_handbook":
-        for document in manifest.documents:
-            if not document.handbook_section:
-                raise ValueError("student_handbook split manifest requires handbook_section")
-            if not document.source_uri:
-                raise ValueError("student_handbook split manifest requires source_uri")
+    validator = _SPLIT_MANIFEST_VALIDATORS.get((manifest.corpus, manifest.collection))
+    if validator is not None:
+        validator(manifest)
     if expected_corpus is not None and manifest.corpus != expected_corpus:
         raise ValueError(
             f"split manifest corpus mismatch: expected {expected_corpus}, got {manifest.corpus}"
@@ -128,3 +129,16 @@ def _optional_string(value: object) -> str | None:
         return None
     normalized = value.strip()
     return normalized or None
+
+
+def _validate_student_handbook_manifest(manifest: SplitManifest) -> None:
+    for document in manifest.documents:
+        if not document.handbook_section:
+            raise ValueError("student_handbook split manifest requires handbook_section")
+        if not document.source_uri:
+            raise ValueError("student_handbook split manifest requires source_uri")
+
+
+_SPLIT_MANIFEST_VALIDATORS: dict[tuple[str, str], SplitManifestValidator] = {
+    ("regulations", "student_handbook"): _validate_student_handbook_manifest,
+}

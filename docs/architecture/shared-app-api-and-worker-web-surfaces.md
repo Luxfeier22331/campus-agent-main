@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-03-29
 ---
 
 # Shared App API And Worker Web Surfaces
@@ -70,7 +70,7 @@ updated: 2026-03-28
 
 ## Repo Shape
 
-未来 repo shape 固定为：
+repo shape 固定为：
 
 ```text
 apps/
@@ -80,9 +80,7 @@ apps/
 └── supervisor-api
 ```
 
-这里冻结的是目标边界，不等于当前仓库已经完成目录迁移。
-
-当前仓库中的 `apps/public-consumer-chat` 仍可作为历史实现参考，但 protected panel 的当前 canonical app boundary 已收口为 `apps/protected-panel-web`。
+当前仓库已经落地这组目录；`apps/public-consumer-chat` 仅作为 04.7 历史实现参考保留，不再承担 forward backend truth。
 
 ## Web Surface Responsibilities
 
@@ -216,14 +214,14 @@ runtime 形态已不再 deferred：
 
 ## 当前实现状态
 
-当前仓库已经存在的 04.7 public consumer chat 设计与实现，是前一版边界结论。
-
-从这份文档开始，后续前台/后台实现的 canonical direction 改为：
+当前仓库已经落地的 canonical direction 为：
 
 - `public-chat-web`
 - `protected-panel-web`
 - shared `app-api`
 - `supervisor-api` execution engine
+
+`apps/public-consumer-chat` 仍保留为历史实现参考，但它不再定义 forward product topology、backend ownership 或 panel/query boundary。
 
 详细 API contract、request lifecycle、error model 与数据表现已冻结在以下文档：
 

@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-25
-updated: 2026-03-28
+updated: 2026-03-29
 ---
 
 # Protected Panel Runtime Shell
@@ -165,7 +165,7 @@ panel runtime shell 在长期上只承载 operator control plane 所需的最小
 当前第一波 rollout 的默认范围不是这五个域全部同时实现：
 
 - `Overview` 是默认起步域
-- `Requests` 需等待 `apps/app-api` 的安全 query surface ready 后再解锁
+- `Requests` 已随着 `apps/app-api` 的安全 query surface 落地而解锁
 - `Jobs` 与 `Operations` 当前保持 delayed，直到产品 scope 被明确重开
 
 ## 与 UI / Business / Governance 的关系

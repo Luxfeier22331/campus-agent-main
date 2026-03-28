@@ -83,7 +83,6 @@ The phase delivers three things:
 ### Ingestion architecture and decisions
 - `docs/architecture/phase1-ingestion-and-storage-architecture.md` — canonical raw/processed/registry/object-store rules for phase 1
 - `docs/architecture/student-handbook-ocr-normalization-strategy.md` — handbook-specific normalization, split, `document_id`, and `version_id` truth
-- `docs/decisions/adr-0001-phase1-architecture.md` — accepted phase-1 architecture and scope constraints
 - `docs/decisions/adr-0002-local-minio-conventions.md` — MinIO/S3-compatible storage semantics and bucket conventions
 - `docs/plans/agentic-rag-foundation.md` — milestone implementation order, raw-ingestion gate, and acceptance framing
 

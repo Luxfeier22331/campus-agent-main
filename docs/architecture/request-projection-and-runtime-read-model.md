@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-03-29
 ---
 
 # Request Projection And Runtime Read Model
@@ -20,8 +20,8 @@ updated: 2026-03-28
 - `app-api` 数据模型：`docs/data/app-api-schema.md`
 - supervisor 与 runtime shell 分层：`docs/architecture/supervisor-architecture.md`
 - protected panel runtime shell：`docs/architecture/protected-panel-runtime-shell.md`
-- public consumer chat 数据边界：`docs/architecture/public-consumer-chat-auth-and-data-boundary.md`
 - observability stack：`docs/decisions/adr-0010-observability-and-telemetry-stack.md`
+- request projection ownership ADR：`docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 
 这份文档不冻结：
 
@@ -37,7 +37,7 @@ updated: 2026-03-28
 - request projection 应该由谁生产
 - 在什么时机生产
 - 哪些数据面是 canonical truth，哪些不是
-- panel 与 consumer app 如何在不重复造后端的前提下消费这类数据
+- panel 与 chat 如何在不重复造后端的前提下消费这类数据
 
 ## 核心结论
 
@@ -47,14 +47,14 @@ updated: 2026-03-28
 - 由 `apps/app-api` 对应的 `apps/*` boundary 以 same-database outbox-first 方式持久化 `runtime.request_execution` 与 `runtime.projection_outbox`
 - 由同一 `app-api` boundary 物化 `operator.request_projection` 并暴露 list/detail read API
 
-第一落点固定为：
+第一 owner 固定为：
 
 - `apps/app-api`
 
 这意味着：
 
 - panel 不生产 canonical request projection
-- `public-consumer-chat` 不生产 canonical operator-facing request projection
+- `public-chat-web` 不生产 canonical operator-facing request projection
 - telemetry / audit sink 不承担 panel 的主读模型
 - `apps/supervisor-api` 不承担 request list/detail API
 
@@ -121,13 +121,14 @@ updated: 2026-03-28
 `apps/protected-panel-web` 不拥有：
 
 - canonical request projection 生产权
-- 直接读取 audit log / telemetry sink / consumer app 会话库的权限
+- 直接读取 audit log / telemetry sink / consumer chat tables 的权限
 
 ## Non-Canonical Sources
 
 以下数据面都不是 canonical request projection truth：
 
-- `public-consumer-chat` 的 conversation / message store
+- `chat.*` conversation / message store
+- 历史 `apps/public-consumer-chat` conversation / message store
 - JSONL audit sink
 - `Axiom`、`Sentry` 或其他 telemetry sink
 - raw trace dump
@@ -171,23 +172,21 @@ updated: 2026-03-28
 
 ## Current Repo Mapping
 
-当前仓库已经有一部分地基，但还没闭环：
+当前仓库已经落地完整的第一版 shared request-projection path：
 
-- `apps/supervisor-api` 已经拥有 `/api/v1/answer`
-- `packages/supervisor-core` 已经能产出最小 audit record
-- `apps/supervisor-api` 已经会把该 audit record 持久化到 JSONL
-- `public-consumer-chat` 会保存 app-owned conversation/message history，并记录 `request_id`
-- `shared app-api` / Worker web surfaces 已经被接受为 forward product topology
-- `apps/protected-panel-web` 已经是 forward canonical protected web surface
+- `apps/app-api` 已落地 Worker runtime、chat command path 与 operator query path
+- `apps/app-api` 已写入 `runtime.request_execution` 与 `runtime.projection_outbox`
+- `apps/app-api` 已物化 `operator.request_projection`
+- `apps/app-api` 已提供 `GET /api/operator/requests` 与 `GET /api/operator/requests/:requestId`
+- `apps/protected-panel-web` 的 `Requests` domain 当前应消费这些 runtime-owned APIs
+- `packages/supervisor-core` 仍只产出最小 audit / trace 语义
+- `apps/supervisor-api` 仍只承担 execution engine transport
 
-当前缺口是：
+因此当前正确读法是：
 
-- 还没有正式落地 `apps/app-api`
-- 没有 queryable `operator.request_projection` store
-- 没有 `apps/app-api` 提供的 runtime-owned `GET /api/operator/requests`
-- 没有 `apps/app-api` 提供的 runtime-owned `GET /api/operator/requests/:id`
-
-因此当前 `Requests` panel domain 仍然 blocked，不应由 panel 通过旁路存储自行补齐。
+- panel `Requests` 已解锁
+- panel 仍不得绕过 `app-api` 读取 audit log、telemetry sink、consumer chat tables 或 `apps/supervisor-api`
+- 历史 `public-consumer-chat` 与其会话存储只能继续作为关联参考，不承担 operator-facing request truth
 
 ## Non-Goals
 

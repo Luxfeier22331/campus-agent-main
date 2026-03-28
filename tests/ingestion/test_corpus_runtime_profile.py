@@ -21,10 +21,13 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertTrue(profile.query_enabled_by_default)
         self.assertTrue(profile.current_only)
         self.assertEqual(profile.serving_revision_tracks, ("current-effective", "source-faithful"))
+        self.assertEqual(profile.retrieval_top_k, 3)
         self.assertEqual(profile.no_hit_min_top_score, 0.6)
         self.assertEqual(profile.no_hit_min_score_gap, 0.1)
         self.assertEqual(profile.cleaning_policy_version, "student_handbook_cleaning_v1")
         self.assertEqual(profile.chunk_profile_version, "student_handbook_semantic_v3")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "student_handbook")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "student_handbook")
 
     def test_load_curriculum_plan_runtime_profile(self) -> None:
         profile = load_runtime_profile("curriculum", "curriculum_plan")
@@ -38,10 +41,13 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertTrue(profile.query_enabled_by_default)
         self.assertFalse(profile.current_only)
         self.assertEqual(profile.serving_revision_tracks, ("source-faithful",))
-        self.assertIsNone(profile.no_hit_min_top_score)
-        self.assertIsNone(profile.no_hit_min_score_gap)
+        self.assertEqual(profile.retrieval_top_k, 5)
+        self.assertEqual(profile.no_hit_min_top_score, 0.6)
+        self.assertEqual(profile.no_hit_min_score_gap, 0.1)
         self.assertEqual(profile.cleaning_policy_version, "curriculum_plan_cleaning_v1")
         self.assertEqual(profile.chunk_profile_version, "curriculum_plan_semantic_v2")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "curriculum_plan")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "curriculum_plan")
 
     def test_load_service_catalog_runtime_profile(self) -> None:
         profile = load_runtime_profile("campus_services", "service_catalog")
@@ -55,10 +61,13 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertFalse(profile.query_enabled_by_default)
         self.assertFalse(profile.current_only)
         self.assertEqual(profile.serving_revision_tracks, ())
+        self.assertEqual(profile.retrieval_top_k, 3)
         self.assertIsNone(profile.no_hit_min_top_score)
         self.assertIsNone(profile.no_hit_min_score_gap)
         self.assertEqual(profile.cleaning_policy_version, "service_catalog_cleaning_v1")
         self.assertEqual(profile.chunk_profile_version, "service_catalog_semantic_v1")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "service_catalog")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "service_catalog")
 
     def test_load_contact_directory_runtime_profile(self) -> None:
         profile = load_runtime_profile("campus_services", "contact_directory")
@@ -72,10 +81,13 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertFalse(profile.query_enabled_by_default)
         self.assertFalse(profile.current_only)
         self.assertEqual(profile.serving_revision_tracks, ())
+        self.assertEqual(profile.retrieval_top_k, 3)
         self.assertIsNone(profile.no_hit_min_top_score)
         self.assertIsNone(profile.no_hit_min_score_gap)
         self.assertEqual(profile.cleaning_policy_version, "contact_directory_cleaning_v1")
         self.assertEqual(profile.chunk_profile_version, "contact_directory_semantic_v1")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "contact_directory")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "contact_directory")
 
     def test_default_query_scopes_include_all_query_enabled_profiles(self) -> None:
         self.assertEqual(

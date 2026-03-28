@@ -28,13 +28,15 @@ class CollectionScope:
 
 @dataclass(frozen=True, slots=True)
 class QdrantIndexBinding:
-    collection_name: str
+    alias_name: str
+    collection_prefix: str
     dense_vector_name: str = DEFAULT_QDRANT_DENSE_VECTOR_NAME
     sparse_vector_name: str = DEFAULT_QDRANT_SPARSE_VECTOR_NAME
 
     def __post_init__(self) -> None:
         for field_name, value in (
-            ("collection_name", self.collection_name),
+            ("alias_name", self.alias_name),
+            ("collection_prefix", self.collection_prefix),
             ("dense_vector_name", self.dense_vector_name),
             ("sparse_vector_name", self.sparse_vector_name),
         ):
@@ -43,6 +45,14 @@ class QdrantIndexBinding:
                 raise ValueError(f"{field_name} is required")
             if "/" in normalized:
                 raise ValueError(f"{field_name} must not contain slash")
+
+    def build_physical_collection_name(self, release_id: str) -> str:
+        normalized_release_id = release_id.strip()
+        if not normalized_release_id:
+            raise ValueError("release_id is required")
+        if "/" in normalized_release_id:
+            raise ValueError("release_id must not contain slash")
+        return f"{self.collection_prefix}__{normalized_release_id}"
 
 
 def default_config_root() -> Path:
@@ -88,4 +98,3 @@ def assert_known_scope(corpus: str, collection: str, *, config_root: Path | None
             f"unsupported collection scope: {normalized_collection} does not belong to {normalized_corpus}"
         )
     return CollectionScope(corpus=normalized_corpus, collection=normalized_collection)
-

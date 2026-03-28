@@ -194,6 +194,6 @@ def _resolve_embedding_dimensions(*, model: str, raw_dimensions: str) -> int | N
     if raw_dimensions:
         return int(raw_dimensions)
     if model == "Qwen3-Embedding-4B":
-        # Handbook phase-1 freezes Qwen3 native vectors instead of the API default width.
+        # The accepted Qwen3 baseline uses native-width vectors instead of the API compatibility default.
         return 2560
     return None

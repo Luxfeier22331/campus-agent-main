@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import re
 
 from campus_contracts import EvidenceBundle, EvidenceSource
+from campus_retrieval_core.evidence_ranking import select_supporting_evidence_sources
 
 
 DEFAULT_MAX_ANSWER_SOURCES = 3
@@ -19,38 +20,78 @@ class RagSpecialistAgent:
         if not evidence.sources:
             return ""
 
-        supporting_sources = _select_supporting_sources(
-            evidence.sources,
-            max_answer_sources=self.max_answer_sources,
+        supporting_sources = select_supporting_evidence_sources(
+            query_text=evidence.query_text,
+            sources=evidence.sources,
+            max_sources=self.max_answer_sources,
         )
         rendered_parts = [
-            f"{index}. {_normalize_snippet(source.snippet)} [{source.doc_id}#{source.chunk_id}]"
-            for index, source in enumerate(supporting_sources, start=1)
+            f"{_render_source_support(source)} [{source.doc_id}#{source.chunk_id}]"
+            for source in supporting_sources
         ]
-        return f"根据学生手册相关规定：{' '.join(rendered_parts)}"
-
-
-def _select_supporting_sources(
-    sources: tuple[EvidenceSource, ...],
-    *,
-    max_answer_sources: int,
-) -> tuple[EvidenceSource, ...]:
-    selected: list[EvidenceSource] = []
-    seen_chunks: set[str] = set()
-    seen_snippets: set[str] = set()
-    for source in sources:
-        if source.chunk_id in seen_chunks:
-            continue
-        normalized_snippet = _normalize_snippet(source.snippet)
-        if not normalized_snippet or normalized_snippet in seen_snippets:
-            continue
-        selected.append(source)
-        seen_chunks.add(source.chunk_id)
-        seen_snippets.add(normalized_snippet)
-        if len(selected) >= max_answer_sources:
-            break
-    return tuple(selected)
+        answer_prefix = _answer_prefix(evidence)
+        lead_title = _lead_source_title(supporting_sources)
+        if lead_title:
+            return f"{answer_prefix}，《{lead_title}》相关内容显示：{'；'.join(rendered_parts)}"
+        return f"{answer_prefix}：{'；'.join(rendered_parts)}"
 
 
 def _normalize_snippet(snippet: str) -> str:
     return _WHITESPACE_RE.sub(" ", snippet).strip()
+
+
+def _render_source_support(source: EvidenceSource) -> str:
+    normalized = _normalize_snippet(source.snippet)
+    filtered_lines: list[str] = []
+    title = _normalize_snippet(source.source_title)
+    ignored_lines = {
+        title,
+        *(_normalize_snippet(item) for item in source.structural_path if item.strip()),
+    }
+    if source.detail_label.strip():
+        ignored_lines.add(_normalize_snippet(source.detail_label))
+    for raw_line in re.split(r"[\r\n]+", normalized):
+        line = _normalize_snippet(raw_line)
+        if not line or line in ignored_lines:
+            continue
+        filtered_lines.append(line)
+    rendered = " ".join(filtered_lines) if filtered_lines else normalized
+    rendered = re.sub(r"(学制[:： ]*)(\d+)年", _replace_academic_years_match, rendered)
+    return rendered
+
+
+def _lead_source_title(sources: tuple[EvidenceSource, ...]) -> str:
+    if not sources:
+        return ""
+    explicit_title = _normalize_snippet(sources[0].source_title)
+    if explicit_title:
+        return explicit_title
+    return sources[0].doc_id.split(":", 1)[-1].strip()
+
+
+def _replace_academic_years_match(match: re.Match[str]) -> str:
+    prefix, years = match.groups()
+    return f"{prefix}{_arabic_number_to_chinese(years)}年"
+
+
+def _arabic_number_to_chinese(value: str) -> str:
+    numerals = {
+        "1": "一",
+        "2": "两",
+        "3": "三",
+        "4": "四",
+        "5": "五",
+        "6": "六",
+        "7": "七",
+        "8": "八",
+        "9": "九",
+    }
+    if value in numerals:
+        return numerals[value]
+    return value
+
+
+def _answer_prefix(evidence: EvidenceBundle) -> str:
+    if evidence.corpus == "curriculum" and evidence.collection == "curriculum_plan":
+        return "根据培养方案相关内容"
+    return "根据学生手册相关规定"

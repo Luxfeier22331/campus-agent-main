@@ -27,14 +27,7 @@ Historically this app owned chat UI, app-level session UX, and conversation hist
 - [`docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`](../../docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md)
 - [`docs/decisions/adr-0013-app-api-worker-runtime.md`](../../docs/decisions/adr-0013-app-api-worker-runtime.md)
 
-## Historical 04.7 References
-
-- [`docs/architecture/public-consumer-chat-surface.md`](../../docs/architecture/public-consumer-chat-surface.md)
-- [`docs/architecture/public-consumer-chat-auth-and-data-boundary.md`](../../docs/architecture/public-consumer-chat-auth-and-data-boundary.md)
-- [`docs/decisions/adr-0008-public-consumer-auth-and-storage.md`](../../docs/decisions/adr-0008-public-consumer-auth-and-storage.md)
-- [`docs/decisions/adr-0009-public-consumer-frontend-host.md`](../../docs/decisions/adr-0009-public-consumer-frontend-host.md)
-
-## Phase-Local Handoffs
+## Historical 04.7 Phase Artifacts
 
 - [`04.7-CONSUMER-APP-BOUNDARY-HANDOFF.md`](../../.planning/phases/04.7-public-consumer-chat-app-design/04.7-CONSUMER-APP-BOUNDARY-HANDOFF.md)
 - [`04.7-IMPLEMENTATION-HANDOFF.md`](../../.planning/phases/04.7-public-consumer-chat-app-design/04.7-IMPLEMENTATION-HANDOFF.md)

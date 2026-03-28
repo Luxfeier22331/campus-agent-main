@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-26
-updated: 2026-03-27
+updated: 2026-03-28
 ---
 
 # Retrieval Query Strategy
@@ -19,9 +19,12 @@ updated: 2026-03-27
 
 对应 source of truth：
 
-- embedding / chunking：`student-handbook-chunking-and-validation-policy.md`
+- embedding / chunking：`../policies/student-handbook-chunking-and-validation-policy.md`
 - query path / data plane 边界：`phase1-ingestion-and-storage-architecture.md`
+- retrieval-specific intent framing 与个性化边界：`rag-specialist-architecture.md`
 - accepted retrieval baseline：`../decisions/adr-0007-phase1-retrieval-baseline-update.md`
+- identity / memory / personalization 分层：`../decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
+- 长期版本化 serving / 历史查询目标：`versioned-document-serving-and-history-query.md`
 
 ## 当前 baseline
 
@@ -127,6 +130,12 @@ fusion 后的候选必须继续通过 `DocumentRegistry` 回链，补齐：
 - 新 current 版本写入时，ingestion 必须把同一 `document_id + revision_track` 的旧 current 版本降级为 `is_current=false`，并将其状态推进为 `superseded`
 - 当多来源在同一 `document_id + revision_track` 下对应到相同 `version_id` 时，registry 负责记录 primary source 与 alternate source；retrieval 仍只消费这一个逻辑版本
 
+当前额外边界：
+
+- 当前 query path 只支持“默认服务当前有效版本”，尚不支持用户显式指定历史版本、按时间点查询历史版本或执行版本对比查询
+- 因此“历史版本被保留”不等于“历史版本已经成为当前在线查询能力”
+- 后续如果要开放历史查询，必须先引入显式 version-selection / version-resolution 边界，再改变 retrieval filter；不得让模型仅凭 query 文本自行猜测该查哪一版
+
 ## Filter 规则
 
 当前 retrieval pre-filter 必须至少覆盖：
@@ -140,6 +149,32 @@ fusion 后的候选必须继续通过 `DocumentRegistry` 回链，补齐：
 - `campus_scope`
 
 这些过滤必须在 retrieval candidate 阶段完成，而不是在答案生成之后事后裁剪。
+
+## Personalization Boundary
+
+长期上，retrieval path 可以消费 typed personalization hint，但这些 hint 只能作为 retrieval planning 的输入，而不是 authorization truth。
+
+允许的 hint 语义包括：
+
+- verified identity claims
+- profile memory summary
+- session-confirmed slots
+
+这些 hint 可以影响：
+
+- query rewrite / terminology choice
+- multi-query decomposition
+- ranking / disambiguation bias
+- clarification 触发条件
+
+这些 hint 不能影响：
+
+- `acl_level` / `acl_groups` / `campus_scope`
+- `current_only` / `serving_revision_tracks`
+- runtime-profile-driven serving surface
+- 未开放 collection 的准入
+
+如果 personalization hint 过弱、过旧或与 evidence 冲突，允许的正确行为是澄清或保持 no-answer，而不是静默把 query 收窄成某一份文档。
 
 ## Native Sparse Index 目标形态
 

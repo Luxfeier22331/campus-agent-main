@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -150,6 +151,7 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                 )
                 for index, document in enumerate(documents)
             }
+            release_store = _FakeObjectStore(provider_result_bytes=b"")
 
             with (
                 patch("campus_ingestion_core.local_rebuild.build_embedding_model", return_value=object()),
@@ -159,15 +161,21 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                     side_effect=lambda **kwargs: built_chunks[kwargs["record"].document_id],
                 ),
                 patch("campus_ingestion_core.local_rebuild.index_chunks_to_qdrant") as index_chunks,
+                patch("campus_ingestion_core.local_rebuild.publish_release_alias", return_value=None),
             ):
                 _index_replayed_documents(
                     source={
+                        "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                        "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                        "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                        "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
                         "QDRANT_UPSERT_BATCH_SIZE": "2",
                         "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
                         "EMBEDDING_PROVIDER": "mock",
                     },
                     registry=registry,
                     documents=documents,
+                    object_store=release_store,
                     qdrant_client=QdrantClient(location=":memory:"),
                 )
 
@@ -176,10 +184,24 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
         second_call = index_chunks.call_args_list[1].kwargs
         self.assertEqual(tuple(chunk.document_id for chunk in first_call["chunks"]), ("handbook:test-001", "handbook:test-002"))
         self.assertEqual(tuple(chunk.document_id for chunk in second_call["chunks"]), ("handbook:test-003",))
+        self.assertTrue(first_call["collection_name"].startswith("student_handbook__r"))
+        self.assertEqual(first_call["collection_name"], second_call["collection_name"])
         self.assertTrue(first_call["ensure_collection"])
         self.assertTrue(first_call["ensure_payload_indexes"])
         self.assertFalse(second_call["ensure_collection"])
         self.assertFalse(second_call["ensure_payload_indexes"])
+        self.assertEqual(first_call["extra_payload"]["index_release_alias"], "student_handbook")
+        self.assertEqual(first_call["extra_payload"]["index_release_id"], second_call["extra_payload"]["index_release_id"])
+        self.assertEqual(first_call["extra_payload"]["index_physical_collection_name"], first_call["collection_name"])
+        upload_keys = [str(upload["key"]) for upload in release_store.uploads]
+        self.assertIn(
+            f'regulations/releases/student_handbook/{first_call["extra_payload"]["index_release_id"]}/index-release.json',
+            upload_keys,
+        )
+        self.assertIn(
+            f'regulations/releases/student_handbook/{first_call["extra_payload"]["index_release_id"]}/validation-summary.json',
+            upload_keys,
+        )
 
     def test_index_replayed_documents_routes_projection_documents_to_their_own_collections(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -311,6 +333,7 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                     ),
                 ),
             }
+            release_store = _FakeObjectStore(provider_result_bytes=b"")
 
             with (
                 patch("campus_ingestion_core.local_rebuild.build_embedding_model", return_value=object()),
@@ -320,26 +343,47 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                     side_effect=lambda **kwargs: built_chunks[kwargs["record"].document_id],
                 ),
                 patch("campus_ingestion_core.local_rebuild.index_chunks_to_qdrant") as index_chunks,
+                patch("campus_ingestion_core.local_rebuild.publish_release_alias", return_value=None),
             ):
                 _index_replayed_documents(
                     source={
+                        "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                        "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                        "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                        "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
                         "QDRANT_UPSERT_BATCH_SIZE": "128",
                         "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
                         "EMBEDDING_PROVIDER": "mock",
                     },
                     registry=registry,
                     documents=documents,
+                    object_store=release_store,
                     qdrant_client=QdrantClient(location=":memory:"),
                 )
 
         self.assertEqual(index_chunks.call_count, 3)
-        self.assertEqual(
-            [call.kwargs["collection_name"] for call in index_chunks.call_args_list],
-            ["student_handbook", "contact_directory", "service_catalog"],
-        )
+        self.assertTrue(index_chunks.call_args_list[0].kwargs["collection_name"].startswith("student_handbook__r"))
+        self.assertTrue(index_chunks.call_args_list[1].kwargs["collection_name"].startswith("contact_directory__r"))
+        self.assertTrue(index_chunks.call_args_list[2].kwargs["collection_name"].startswith("service_catalog__r"))
+        self.assertEqual(index_chunks.call_args_list[0].kwargs["extra_payload"]["index_release_alias"], "student_handbook")
+        self.assertEqual(index_chunks.call_args_list[1].kwargs["extra_payload"]["index_release_alias"], "contact_directory")
+        self.assertEqual(index_chunks.call_args_list[2].kwargs["extra_payload"]["index_release_alias"], "service_catalog")
         self.assertTrue(index_chunks.call_args_list[0].kwargs["ensure_collection"])
         self.assertTrue(index_chunks.call_args_list[1].kwargs["ensure_collection"])
         self.assertTrue(index_chunks.call_args_list[2].kwargs["ensure_collection"])
+        upload_keys = [str(upload["key"]) for upload in release_store.uploads]
+        self.assertIn(
+            f'regulations/releases/student_handbook/{index_chunks.call_args_list[0].kwargs["extra_payload"]["index_release_id"]}/index-release.json',
+            upload_keys,
+        )
+        self.assertIn(
+            f'campus_services/releases/contact_directory/{index_chunks.call_args_list[1].kwargs["extra_payload"]["index_release_id"]}/index-release.json',
+            upload_keys,
+        )
+        self.assertIn(
+            f'campus_services/releases/service_catalog/{index_chunks.call_args_list[2].kwargs["extra_payload"]["index_release_id"]}/index-release.json',
+            upload_keys,
+        )
 
     def test_replay_provider_response_rebuild_reconstructs_declared_downstream_projections_from_source_truth(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -750,8 +794,93 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
             )
 
             self.assertEqual(report.failed_count, 0)
-            collection_info = qdrant_client.get_collection("student_handbook")
+            aliases = {alias.alias_name: alias.collection_name for alias in qdrant_client.get_aliases().aliases or []}
+            self.assertIn("student_handbook", aliases)
+            collection_info = qdrant_client.get_collection(aliases["student_handbook"])
             self.assertGreater(collection_info.points_count or 0, 0)
+
+    def test_replay_provider_response_rebuild_can_index_without_publishing_alias(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            split_manifest_path = root / "configs" / "split-manifest.v1.json"
+            split_manifest_path.parent.mkdir(parents=True)
+            split_manifest_path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "curriculum_plan_split_manifest_v1",
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "raw_asset_id": "asset:curriculum-plan-master-pdf",
+                        "documents": [
+                            {
+                                "document_id": "curriculum:test-doc-001",
+                                "title": "培养方案示例",
+                                "page_start": 1,
+                                "page_end": 1,
+                                "source_uri": "campus-agent://curriculum/curriculum_plan/docs/curriculum:test-doc-001",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            provider_lines = [
+                _provider_batch_line(
+                    _provider_page(
+                        _provider_block("doc_title", "培养方案示例", block_id="p1-title", block_order=1),
+                        _provider_block("text", "一、培养目标。", block_id="p1-body", block_order=2),
+                    ),
+                )
+            ]
+            provider_result_bytes = (
+                "\n".join(json.dumps(line, ensure_ascii=False) for line in provider_lines) + "\n"
+            ).encode("utf-8")
+            object_store = _FakeObjectStore(provider_result_bytes=provider_result_bytes)
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "curriculum_documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "curriculum_raw_assets.json"
+            )
+            qdrant_client = QdrantClient(location=":memory:")
+
+            with patch(
+                "campus_ingestion_core.local_rebuild.validate_scope_release",
+                return_value=SimpleNamespace(status="passed", summary={"chunk_count": 1}),
+            ):
+                report = replay_provider_response_rebuild(
+                    env={
+                        "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                        "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                        "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                        "OBJECT_STORE_BUCKET_SOURCE": SOURCE_BUCKET,
+                        "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                        "REBUILD_CORPUS": "curriculum",
+                        "REBUILD_COLLECTION": "curriculum_plan",
+                        "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
+                        "RAW_VERSION_ID": "sha256:curriculum-replay-001",
+                        "REPLAY_SOURCE_PDF": "curriculum-plan.pdf",
+                        "IMPORT_REPORT_DIR": str(root / "reports"),
+                        "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
+                        "EMBEDDING_PROVIDER": "mock",
+                        "SPARSE_PROVIDER": "mock",
+                        "REBUILD_INDEX_QDRANT": "1",
+                        "REBUILD_PUBLISH_ALIAS": "0",
+                    },
+                    object_store=object_store,
+                    registry=registry,
+                    raw_asset_registry=raw_asset_registry,
+                    qdrant_client=qdrant_client,
+                )
+
+            self.assertEqual(report.failed_count, 0)
+            aliases = {alias.alias_name: alias.collection_name for alias in qdrant_client.get_aliases().aliases or []}
+            self.assertNotIn("curriculum_plan", aliases)
+            collections = [collection.name for collection in qdrant_client.get_collections().collections or []]
+            self.assertTrue(any(str(name).startswith("curriculum_plan__r") for name in collections))
+            upload_keys = [str(upload["key"]) for upload in object_store.uploads]
+            self.assertTrue(any(key.endswith("/index-release.json") for key in upload_keys))
+            self.assertTrue(any(key.endswith("/validation-summary.json") for key in upload_keys))
 
     def test_replay_provider_response_rebuild_indexing_defers_to_record_chunk_profile(self) -> None:
         with TemporaryDirectory() as temp_dir:

@@ -1,5 +1,8 @@
 # Phase 6: Curriculum Offline Preparation - Context
 
+> Historical phase context. This file records what Phase 6 assumed at planning time.
+> If its wording conflicts with current serving/index semantics, prefer `.planning/PROJECT.md`, `.planning/REQUIREMENTS.md`, `.planning/STATE.md`, and the current architecture/decision docs.
+
 **Gathered:** 2026-03-27
 **Status:** Ready for planning
 **Source:** Derived from roadmap, 05.1 outputs, ingestion architecture docs, and current ingestion/rebuild/query-policy code
@@ -78,7 +81,6 @@ The phase does not open curriculum query-serving, does not move curriculum seman
 - `.planning/phases/05.1-curriculum-chunking/05.1-04-SUMMARY.md`
 - `docs/architecture/phase1-ingestion-and-storage-architecture.md`
 - `docs/architecture/source-truth-normalization-contract.md`
-- `docs/decisions/adr-0001-phase1-architecture.md`
 - `docs/decisions/adr-0002-local-minio-conventions.md`
 - `docs/plans/agentic-rag-foundation.md`
 - `configs/ingestion/curriculum/curriculum_plan/README.md`
@@ -114,7 +116,7 @@ The phase does not open curriculum query-serving, does not move curriculum seman
 - Runtime truth is config-owned per `corpus/collection`, not hidden in env-only switches.
 - Ingestion-core owns replay/rebuild mutation; retrieval-core stays query-only.
 - Offline collection preparation may build chunks and Qdrant indexes without becoming query-enabled.
-- Tests use fake object stores, in-memory registries, and collection-scoped rebuild assertions rather than real infrastructure.
+- Tests use fake object stores, in-memory registries, and alias-family / versioned-collection rebuild assertions rather than real infrastructure.
 
 ### Integration Points
 - `local_rebuild.py` is the missing curriculum closure point because `provider_response_replay` is still hardcoded to `student_handbook`.

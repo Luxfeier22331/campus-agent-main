@@ -5,9 +5,11 @@
 
 Current capability truth has evolved beyond the original phase-1-only surface: `student_handbook` and `curriculum_plan` are now query-enabled under runtime-profile control; `campus_services` remains `offline_preparation`.
 
+Current indexing truth has also moved beyond the original fixed-collection wording: runtime profiles declare serving aliases and collection prefixes, while physical Qdrant collections are published per release.
+
 ## v1 Requirements
 
-Requirements for the initial phase-1 release. Each requirement will map to exactly one roadmap phase.
+Requirements inherited from the initial phase-1 release baseline. They remain the current roadmap contract, but current serving/index truth should be read from the notes above plus `.planning/PROJECT.md` and `.planning/STATE.md`.
 
 ### Ingestion
 

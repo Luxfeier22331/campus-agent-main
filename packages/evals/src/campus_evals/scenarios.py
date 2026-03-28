@@ -9,6 +9,10 @@ def _handbook_scope() -> KnowledgeScope:
     return KnowledgeScope(corpus="regulations", collection="student_handbook")
 
 
+def _curriculum_scope() -> KnowledgeScope:
+    return KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+
+
 def handbook_smoke_cases() -> tuple[GoldenCase, ...]:
     goals = (
         "library hours",
@@ -210,6 +214,184 @@ def handbook_error_gate_cases() -> tuple[GoldenCase, ...]:
                 fail_closed_expected=True,
             ),
             tags=("handbook", "release_gate", "error_gate"),
+            notes="deterministic backend contract failure injection",
+            metadata={"failure_mode": "invalid_backend_contract"},
+        ),
+    )
+
+
+def curriculum_release_gate_cases() -> tuple[GoldenCase, ...]:
+    scope = _curriculum_scope()
+    return (
+        GoldenCase(
+            case_id="curriculum-release-gate-ethnology-title",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="民族学本科人才培养方案",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(expected_source_ref("curriculum:民族学本科人才培养方案"),),
+            required_facts=("民族学本科人才培养方案",),
+            forbidden_claims=("学生手册",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "release_gate"),
+        ),
+        GoldenCase(
+            case_id="curriculum-release-gate-academic-years",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="民族学本科第二学士学位人才培养方案学制几年？",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(expected_source_ref("curriculum:民族学本科第二学士学位人才培养方案"),),
+            required_facts=("两年",),
+            forbidden_claims=("四年", "学生手册"),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "release_gate"),
+        ),
+        GoldenCase(
+            case_id="curriculum-release-gate-total-credits",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="民族学本科人才培养方案总学分要求是多少？",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(expected_source_ref("curriculum:民族学本科人才培养方案"),),
+            required_facts=("学分",),
+            forbidden_claims=("学生手册",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "release_gate"),
+        ),
+        GoldenCase(
+            case_id="curriculum-release-gate-course-map-table",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="经济学拔尖人才创新班人才培养方案课程地图怎么安排？",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(expected_source_ref("curriculum:经济学拔尖人才创新班人才培养方案"),),
+            required_facts=("课程地图",),
+            forbidden_claims=("学生手册",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "release_gate"),
+        ),
+        GoldenCase(
+            case_id="curriculum-release-gate-no-answer",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="火星校区飞船停靠规则",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="no_answer",
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+                fail_closed_expected=True,
+            ),
+            tags=("curriculum", "release_gate"),
+        ),
+        GoldenCase(
+            case_id="curriculum-release-gate-needs-clarification",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="学位怎么授予？",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="needs_clarification",
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=False,
+                clarification_expected=True,
+                error_expected=False,
+            ),
+            tags=("curriculum", "release_gate"),
+        ),
+    )
+
+
+def curriculum_error_gate_cases() -> tuple[GoldenCase, ...]:
+    scope = _curriculum_scope()
+    return (
+        GoldenCase(
+            case_id="curriculum-error-gate-retrieval-backend-failure",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="模拟 curriculum retrieval backend 故障",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="error",
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=True,
+                fail_closed_expected=True,
+            ),
+            tags=("curriculum", "release_gate", "error_gate"),
+            notes="deterministic retrieval backend failure injection",
+            metadata={"failure_mode": "retrieval_backend_failure"},
+        ),
+        GoldenCase(
+            case_id="curriculum-error-gate-evidence-shaping-failure",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="模拟 curriculum evidence shaping 故障",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="error",
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=True,
+                fail_closed_expected=True,
+            ),
+            tags=("curriculum", "release_gate", "error_gate"),
+            notes="deterministic evidence shaping failure injection",
+            metadata={"failure_mode": "evidence_shaping_failure"},
+        ),
+        GoldenCase(
+            case_id="curriculum-error-gate-invalid-backend-contract",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="模拟 curriculum backend contract 非法返回",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="error",
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=True,
+                fail_closed_expected=True,
+            ),
+            tags=("curriculum", "release_gate", "error_gate"),
             notes="deterministic backend contract failure injection",
             metadata={"failure_mode": "invalid_backend_contract"},
         ),

@@ -2,6 +2,11 @@
 
 Shared Worker-native application backend for campus-agent v2.
 
+This directory currently contains two aligned artifacts:
+
+- the Worker app that serves auth/chat/operator APIs for `public-chat-web` and `protected-panel-web`
+- the companion Python package `campus_app_api`, used for typed context projection helpers on the Python-side execution path
+
 This app is the shared product backend behind:
 
 - `apps/public-chat-web`
@@ -39,6 +44,9 @@ Canonical references:
 - `docs/architecture/shared-app-api-and-worker-web-surfaces.md`
 - `docs/architecture/app-api-architecture.md`
 - `docs/architecture/request-projection-and-runtime-read-model.md`
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
+- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
+- `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 - `docs/contracts/app-api-http.md`
 - `docs/contracts/app-api-supervisor-execution.md`
 - `docs/contracts/app-api-request-lifecycle.md`
@@ -53,7 +61,6 @@ Database baseline:
 Local commands:
 
 ```bash
-pnpm install
 pnpm test
 pnpm typecheck
 pnpm db:generate

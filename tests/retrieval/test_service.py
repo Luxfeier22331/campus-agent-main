@@ -3,7 +3,8 @@ from __future__ import annotations
 import unittest
 from unittest.mock import Mock, patch
 
-from campus_contracts import EvidenceBundle
+from campus_contracts import EvidenceBundle, PersonalizationHint
+from campus_retrieval_core.models import RetrievalRequest
 from campus_retrieval_core.service import build_retrieval_backend, retrieve_sources
 
 
@@ -40,6 +41,76 @@ class RetrievalServiceTest(unittest.TestCase):
 
         self.assertIsInstance(result, EvidenceBundle)
         backend.retrieve.assert_called_once()
+
+    def test_retrieve_sources_uses_runtime_profile_retrieval_budget_when_top_k_is_omitted(self) -> None:
+        backend = Mock()
+        backend.retrieve.return_value = EvidenceBundle(
+            query_text="民族学本科人才培养方案总学分要求是多少？",
+            corpus="curriculum",
+            collection="curriculum_plan",
+        )
+
+        retrieve_sources(
+            "民族学本科人才培养方案总学分要求是多少？",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            backend=backend,
+        )
+
+        request = backend.retrieve.call_args.args[0]
+        self.assertIsInstance(request, RetrievalRequest)
+        self.assertEqual(request.top_k, 5)
+
+    def test_retrieve_sources_keeps_explicit_top_k_override(self) -> None:
+        backend = Mock()
+        backend.retrieve.return_value = EvidenceBundle(
+            query_text="民族学本科人才培养方案总学分要求是多少？",
+            corpus="curriculum",
+            collection="curriculum_plan",
+        )
+
+        retrieve_sources(
+            "民族学本科人才培养方案总学分要求是多少？",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            top_k=7,
+            backend=backend,
+        )
+
+        request = backend.retrieve.call_args.args[0]
+        self.assertIsInstance(request, RetrievalRequest)
+        self.assertEqual(request.top_k, 7)
+
+    def test_retrieve_sources_passes_personalization_hint_through_request(self) -> None:
+        backend = Mock()
+        backend.retrieve.return_value = EvidenceBundle(
+            query_text="保研流程",
+            corpus="regulations",
+            collection="student_handbook",
+        )
+
+        retrieve_sources(
+            "保研流程",
+            corpus="regulations",
+            collection="student_handbook",
+            personalization_hint=PersonalizationHint(
+                actor_claim_terms=("2023 cohort", "philosophy major"),
+                recent_goal="咨询保研",
+                confirmed_slot_terms=("推免资格",),
+            ),
+            backend=backend,
+        )
+
+        request = backend.retrieve.call_args.args[0]
+        self.assertIsInstance(request, RetrievalRequest)
+        self.assertEqual(
+            request.personalization_hint,
+            PersonalizationHint(
+                actor_claim_terms=("2023 cohort", "philosophy major"),
+                recent_goal="咨询保研",
+                confirmed_slot_terms=("推免资格",),
+            ),
+        )
 
 
 if __name__ == "__main__":

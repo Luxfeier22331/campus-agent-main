@@ -204,7 +204,6 @@ The phase delivers three things:
 - `docs/decisions/adr-0003-golden-dataset-governance.md` — canonical truth protocol and split/provenance governance
 - `docs/decisions/adr-0004-evaluation-metrics.md` — layered metric families and gate semantics
 - `docs/plans/golden-dataset-schema-and-bootstrap.md` — initial executable schema direction and bootstrap grading posture
-- `docs/plans/golden-dataset-document-delivery.md` — delivery expectations and non-goals for golden assets
 
 ### Existing eval and test surfaces
 - `packages/evals/README.md` — current eval package boundary

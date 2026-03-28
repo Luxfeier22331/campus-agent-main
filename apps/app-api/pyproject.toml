@@ -1,13 +1,24 @@
 [project]
 name = "campus-app-api"
 version = "0.1.0"
-description = "Shared Worker-native application backend for campus-agent v2."
+description = "Python projection helpers bundled with the shared app-api boundary."
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+  "campus-contracts",
+]
 
 [tool.uv]
-package = false
+package = true
+
+[tool.uv.sources]
+campus-contracts = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/campus_app_api"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/campus_app_api", "pyproject.toml", "README.md"]
 
 [build-system]
 requires = ["hatchling>=1.24.0"]

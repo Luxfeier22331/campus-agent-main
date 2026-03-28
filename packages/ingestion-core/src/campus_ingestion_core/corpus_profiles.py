@@ -30,12 +30,13 @@ class CollectionRuntimeProfile:
     chunk_profile_version: str
     retrieval_enabled: bool
     query_enabled_by_default: bool
+    retrieval_top_k: int = 3
     current_only: bool = False
     serving_revision_tracks: tuple[str, ...] = ()
     no_hit_min_top_score: float | None = None
     no_hit_min_score_gap: float | None = None
     qdrant_index_binding: QdrantIndexBinding = field(
-        default_factory=lambda: QdrantIndexBinding(collection_name="unconfigured")
+        default_factory=lambda: QdrantIndexBinding(alias_name="unconfigured", collection_prefix="unconfigured")
     )
 
     def __post_init__(self) -> None:
@@ -54,6 +55,8 @@ class CollectionRuntimeProfile:
             raise ValueError("cleaning_policy_version is required")
         if not self.chunk_profile_version:
             raise ValueError("chunk_profile_version is required")
+        if self.retrieval_top_k <= 0:
+            raise ValueError("retrieval_top_k must be greater than zero")
         for revision_track in self.serving_revision_tracks:
             if revision_track not in ALLOWED_REVISION_TRACKS:
                 raise ValueError(f"unsupported serving_revision_track: {revision_track}")
@@ -83,12 +86,14 @@ def load_runtime_profile(
         chunk_profile_version=str(payload.get("chunk_profile_version") or ""),
         retrieval_enabled=bool(payload.get("retrieval_enabled")),
         query_enabled_by_default=bool(payload.get("query_enabled_by_default")),
+        retrieval_top_k=int(payload.get("retrieval_top_k") or 3),
         current_only=bool(payload.get("current_only", False)),
         serving_revision_tracks=tuple(str(item) for item in list(payload.get("serving_revision_tracks") or [])),
         no_hit_min_top_score=_optional_float(payload.get("no_hit_min_top_score")),
         no_hit_min_score_gap=_optional_float(payload.get("no_hit_min_score_gap")),
         qdrant_index_binding=QdrantIndexBinding(
-            collection_name=str(payload.get("qdrant_collection_name") or ""),
+            alias_name=str(payload.get("qdrant_alias_name") or ""),
+            collection_prefix=str(payload.get("qdrant_collection_prefix") or ""),
             dense_vector_name=(
                 str(payload.get("qdrant_dense_vector_name") or DEFAULT_QDRANT_DENSE_VECTOR_NAME)
                 or DEFAULT_QDRANT_DENSE_VECTOR_NAME

@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0012
 status: accepted
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-03-29
 ---
 
 # ADR-0012 Shared App API And Worker Web Surfaces
@@ -61,7 +61,7 @@ Accepted on 2026-03-28.
 
 这项决策 supersedes 以下此前结论：
 
-- `docs/decisions/adr-0008-public-consumer-auth-and-storage.md`
-- `docs/decisions/adr-0009-public-consumer-frontend-host.md`
-- `docs/decisions/adr-0011-operator-query-api-and-request-projection.md`
-- the earlier `operator-query-api` split-backend direction; forward request-projection ownership is now recorded in `docs/decisions/adr-0014-app-api-request-projection-and-panel-query-ownership.md`
+- the former public-consumer auth/storage split-backend direction
+- the former public-consumer frontend-host split-backend direction
+- the former operator-query-api/request-projection split-backend direction
+- the earlier `operator-query-api` split-backend direction; forward request-projection ownership is now recorded in `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`

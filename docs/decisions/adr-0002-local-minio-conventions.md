@@ -35,8 +35,8 @@ updated: 2026-03-27
 - `campus-rag-derived`
   保存按 collection 派生的 canonical 文档、结构化 metadata 和其他 downstream 中间产物
 
-第一阶段不新增第三个专门 chunk bucket；chunk 文本和 embeddings 仍分别由 Qdrant 与 registry/index 层管理。
-如果为了备份、审计或离线重建额外导出 chunk manifest，该导出物也不能上升为 canonical chunk store。
+第一阶段不新增第三个专门 chunk bucket；chunk 文本、向量与检索 payload 统一由 Qdrant 管理。
+对象存储只保留 source-truth / document artifact 与小型 index release manifest，不保留 chunking 后的全文 chunk dump。
 
 ## Object Key 规范
 
@@ -71,6 +71,8 @@ updated: 2026-03-27
 - `layout-elements.jsonl` 保存 asset 级统一结构层，供 split、cleanup 和重放使用
 - `canonical.md` 保存单篇文档的人类可读规范化表示，供展示、对照和验收使用
 - `document-units.jsonl` 保存单篇文档的结构化清洗单元，供 registry、chunking 和去重使用
+- `{corpus}/releases/{collection}/{release_id}/validation-summary.json` 保存一次 index release 的结构性校验摘要
+- `{corpus}/releases/{collection}/{release_id}/index-release.json` 保存 serving alias、physical collection、policy version 和文档哈希等发布元数据
 - `provider-response.jsonl` 不得冒充 raw layer 真相源
 - `title_slug--{docid8}` 负责人工定位；`version_id` 继续留在 registry / metadata 中，不再强制单独占路径层级
 

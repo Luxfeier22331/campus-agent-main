@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-22
-updated: 2026-03-28
+updated: 2026-03-29
 ---
 
 # Supervisor 架构设计
@@ -22,8 +22,8 @@ updated: 2026-03-28
 
 - `docs/architecture/long-term-architecture.md`
   定义整个仓库的长期边界、链路分层和 package 责任
-- `docs/decisions/adr-0001-phase1-architecture.md`
-  定义第一阶段的架构取舍、运行时选择和约束
+- `docs/architecture/phase1-ingestion-and-storage-architecture.md`
+  定义第一阶段 ingestion / serving 的 accepted data-plane truth
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
   定义长期编排模式、specialist 准入与安全边界
 - `docs/plans/agentic-rag-foundation.md`

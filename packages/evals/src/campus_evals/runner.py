@@ -36,14 +36,12 @@ def run_cases(
 ) -> RunReport:
     selected_cases = tuple(case for case in cases if split is None or case.split == split)
     results: list[CaseResult] = []
-    split_stats: dict[str, Counter[str]] = defaultdict(Counter)
-    dimension_stats: dict[str, Counter[str]] = defaultdict(Counter)
-    metric_stats: dict[str, Counter[str]] = defaultdict(Counter)
-    supplemental_buckets: dict[str, list[SupplementalResult]] = defaultdict(list)
 
     for case in selected_cases:
         execution = executor(case)
         result = evaluate_case(case, execution)
+        if execution.observed_trace is not None:
+            result = replace(result, observed_trace=execution.observed_trace)
         supplemental_results = _evaluate_supplemental_results(
             case,
             execution,
@@ -52,6 +50,25 @@ def run_cases(
         if supplemental_results:
             result = replace(result, supplemental_results=supplemental_results)
         results.append(result)
+    return summarize_case_results(selected_cases, tuple(results))
+
+
+def summarize_case_results(
+    cases: tuple[GoldenCase, ...],
+    results: tuple[CaseResult, ...],
+) -> RunReport:
+    case_index = {case.case_id: case for case in cases}
+    unknown_case_ids = sorted({result.case_id for result in results} - set(case_index))
+    if unknown_case_ids:
+        raise ValueError(f"run results contain unknown case ids: {unknown_case_ids}")
+
+    split_stats: dict[str, Counter[str]] = defaultdict(Counter)
+    dimension_stats: dict[str, Counter[str]] = defaultdict(Counter)
+    metric_stats: dict[str, Counter[str]] = defaultdict(Counter)
+    supplemental_buckets: dict[str, list[SupplementalResult]] = defaultdict(list)
+
+    for result in results:
+        case = case_index[result.case_id]
         split_stats[case.split]["total"] += 1
         split_stats[case.split]["passed" if result.passed else "failed"] += 1
         for name, dimension in (

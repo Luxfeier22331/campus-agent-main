@@ -12,6 +12,7 @@ from campus_ingestion_worker.process_raw_ingestion_job import (
 )
 from campus_ingestion_worker.register_raw_asset import RawAssetRegistrationResult, register_raw_asset
 from campus_ingestion_worker.rebuild_local_data import LocalDataRebuildReport, rebuild_local_data
+from campus_ingestion_worker.release_index import main as release_index_main
 from campus_ingestion_worker.validate_student_handbook_chunking import (
     StudentHandbookChunkingValidationReport,
     validate_student_handbook_chunking,
@@ -30,6 +31,7 @@ __all__ = [
     "migrate_student_handbook_source_faithful",
     "process_raw_ingestion_job",
     "register_raw_asset",
+    "release_index_main",
     "rebuild_local_data",
     "validate_student_handbook_chunking",
 ]

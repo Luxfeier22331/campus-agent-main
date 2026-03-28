@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-25
-updated: 2026-03-25
+updated: 2026-03-29
 ---
 
 # Cloudflare 公网入口边界
@@ -13,7 +13,7 @@ updated: 2026-03-25
 
 - 长期 `apps/` 与 `packages/` 分层：`docs/architecture/long-term-architecture.md`
 - supervisor 边界与编排职责：`docs/architecture/supervisor-architecture.md`
-- phase-1 当前 runtime 取舍：`docs/decisions/adr-0001-phase1-architecture.md`
+- execution engine 当前实现取舍：`docs/architecture/supervisor-architecture.md`
 - protected panel 的信任模型：`docs/architecture/protected-panel-boundary.md`
 - 当前 phase 执行状态与后续 handoff：`.planning/phases/04.1-cloudflare-entry-and-protected-internal-panel-design/`
 

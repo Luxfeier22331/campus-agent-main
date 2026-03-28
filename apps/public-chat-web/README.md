@@ -50,7 +50,7 @@ Canonical references:
 - `docs/contracts/app-api-request-lifecycle.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
-- `docs/decisions/adr-0015-supervisor-internal-execution-admission.md`
+- `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 
 Historical reference:
 

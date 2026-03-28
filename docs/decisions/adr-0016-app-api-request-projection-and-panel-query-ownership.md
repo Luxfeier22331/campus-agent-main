@@ -1,12 +1,12 @@
 ---
 doc_type: decision
-decision_id: ADR-0014
+decision_id: ADR-0016
 status: accepted
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-03-29
 ---
 
-# ADR-0014 App API Request Projection And Panel Query Ownership
+# ADR-0016 App API Request Projection And Panel Query Ownership
 
 适用范围：operator-facing request list/detail、shared `app-api` request projection、panel `Requests` domain 的长期 ownership
 
@@ -15,20 +15,20 @@ updated: 2026-03-28
 当前仓库已经具备以下事实：
 
 - `apps/supervisor-api` 是 execution engine boundary
-- `apps/app-api` 已被接受为 shared application backend
+- `apps/app-api` 已被接受并实现为 shared application backend
 - `packages/supervisor-core` 已能产出最小 audit record
-- `apps/supervisor-api` 当前会把该 audit record 持久化到 JSONL
-- `apps/public-consumer-chat` 会在 app-owned conversation history 中记录 `request_id`
+- `apps/supervisor-api` 当前仍会把该 audit record 持久化到 JSONL
+- chat conversation history 会记录 `request_id`
 - protected panel 已冻结为 `runtime APIs only` 的 protected Worker shell；forward web-surface 名称为 `apps/protected-panel-web`
 
 但仓库仍缺一条长期清晰规则：
 
 - operator-facing `Requests` 应该由谁生产和提供
 
-如果这条规则不冻结，后续很容易出现三种腐烂路径：
+如果这条规则不冻结，后续很容易出现四种腐烂路径：
 
 - panel 直接读 audit log 或 telemetry sink
-- consumer app conversation store 被误当成 request truth
+- conversation store 被误当成 request truth
 - `packages/supervisor-core` 被反向扩成 request read-model host
 - `apps/supervisor-api` 顺手继续长成 panel query backend
 
@@ -95,7 +95,8 @@ updated: 2026-03-28
 
 以下都不是 panel `Requests` 的 canonical truth：
 
-- `public-consumer-chat` conversation / message store
+- `chat.*` conversation / message store
+- 历史 `apps/public-consumer-chat` conversation / message store
 - JSONL audit sink
 - `Axiom`、`Sentry` 或其他 telemetry sink
 - raw trace dump
@@ -122,9 +123,9 @@ updated: 2026-03-28
 
 直接结果：
 
-- 后续 `GET /api/operator/requests` / `GET /api/operator/requests/:id` 应由 `apps/app-api` 或其继任 shared app boundary 提供
-- panel `Requests` 在该 API 落地前保持 blocked 是正确状态
-- `public-consumer-chat` 可以继续记录 `request_id` 用于 UX 关联，但不承担 operator-facing request truth
+- `GET /api/operator/requests` / `GET /api/operator/requests/:requestId` 应由 `apps/app-api` 或其继任 shared app boundary 提供
+- panel `Requests` 的合法数据源固定为这些 runtime-owned APIs
+- chat 会话可以继续记录 `request_id` 用于 UX 关联，但不承担 operator-facing request truth
 
 明确不做：
 
