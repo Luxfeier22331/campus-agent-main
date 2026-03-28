@@ -15,5 +15,6 @@ var/
 .worktrees/
 .cache/
 node_modules/
+.wrangler/
 .wrangler-home/
 .tanstack/
