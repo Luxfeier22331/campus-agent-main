@@ -48,6 +48,7 @@ updated: 2026-03-28
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
 - `docs/decisions/adr-0015-supervisor-internal-execution-admission.md`
+- `docs/plans/app-api-initial-execution-plan.md`
 
 ## 职责闭包
 
@@ -175,6 +176,10 @@ apps/app-api/
 4. 落地 `request_execution` / `projection_outbox`
 5. 落地 `request_projection` 与 `GET /api/operator/requests*`
 6. 在 `app-api` 稳定后，再并发接入 `public-chat-web` 与 `protected-panel-web`
+
+前三步的逐步执行目标、验收和测试见：
+
+- `docs/plans/app-api-initial-execution-plan.md`
 
 对 panel 的直接含义：
 

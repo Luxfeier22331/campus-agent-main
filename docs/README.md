@@ -101,6 +101,7 @@ updated: 2026-03-28
 - `decisions/adr-0014-app-api-request-projection-and-panel-query-ownership.md`
 - `decisions/adr-0015-supervisor-internal-execution-admission.md`
 - `plans/app-api-worker-foundation.md`
+- `plans/app-api-initial-execution-plan.md`
 - `plans/agentic-rag-foundation.md`
 - `plans/agent-orchestration-architecture-refresh.md`
 - `plans/golden-dataset-document-delivery.md`
