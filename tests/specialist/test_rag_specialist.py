@@ -91,6 +91,13 @@ class RagSpecialistTest(unittest.TestCase):
                     message="qdrant unavailable",
                     retryable=False,
                 ),
+                result=RagResultPayload(
+                    evidence=EvidenceBundle(
+                        query_text="library hours",
+                        corpus="regulations",
+                        collection="student_handbook",
+                    )
+                ),
             ),
         )
 
@@ -120,6 +127,16 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.confidence, "low")
         self.assertEqual(response.error.code, "corpus_not_query_enabled")
         self.assertIn("service_catalog", response.error.message)
+        self.assertEqual(
+            response.result,
+            RagResultPayload(
+                evidence=EvidenceBundle(
+                    query_text="宿舍报修流程",
+                    corpus="campus_services",
+                    collection="service_catalog",
+                )
+            ),
+        )
 
     def test_no_evidence_maps_to_no_answer(self) -> None:
         response = delegate_to_rag_agent(

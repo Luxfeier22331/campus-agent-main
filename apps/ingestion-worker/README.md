@@ -10,10 +10,10 @@ Env bootstrap rule:
 
 ## Commands
 
-`apps/ingestion-worker` exposes phase-1 ingestion shells.
+`apps/ingestion-worker` exposes ingestion runtime shells.
 
-- Query-facing defaults target `regulations/student_handbook`.
-- Data-plane ingestion supports `regulations/student_handbook` and `curriculum/curriculum_plan`.
+- Query-serving scope is controlled by `configs/ingestion/<corpus>/<collection>/runtime-profile.json`, not by worker defaults.
+- Data-plane ingestion currently covers `regulations/student_handbook` and `curriculum/curriculum_plan`.
 - Phase-1 runtime truth lives in `configs/ingestion/<corpus>/<collection>/runtime-profile.json`.
 - Phase 03.2 freezes `single source consumption + multi-projection fan-out` as the canonical ingestion model: a source asset is consumed once, source truth is persisted once, and downstream outputs rebuild from declared projections instead of returning to the original PDF.
 
