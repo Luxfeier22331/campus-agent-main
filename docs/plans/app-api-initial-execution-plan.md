@@ -1,6 +1,6 @@
 ---
 doc_type: plan
-status: active
+status: completed
 created: 2026-03-28
 updated: 2026-03-28
 ---
@@ -30,6 +30,24 @@ updated: 2026-03-28
 - `request_projection` materialization 与 `GET /api/operator/requests*`
 - `public-chat-web` / `protected-panel-web` 的接线改造
 - panel 的 `Jobs` / `Operations`
+
+## 完成状态
+
+这份前三步计划现在已经完成，且当前实现已经略微超出原始计划边界。
+
+仓库内现已具备：
+
+- `apps/app-api` Worker runtime、Hono app、`GET /healthz`、`GET /readyz`
+- Drizzle schema / migration baseline、Better Auth handler、`GET /api/me`
+- `POST /api/chat/requests` 与显式 `app-api -> supervisor-api` execution adapter
+- `runtime.request_execution` 与 `runtime.projection_outbox` 的 command-side durable write
+
+在这份计划闭合之后，又继续落地了：
+
+- `request_projection` materialization 与 `GET /api/operator/requests*`
+- `public-chat-web` 与 `protected-panel-web` 对 shared `app-api` 的接线
+
+因此，这份文档现在只作为前三步已完成的历史执行基线保留；剩余未完成的 `conversation` API 属于 `docs/plans/app-api-worker-foundation.md` 的后续缺口，而不再属于本文件的未完成项。
 
 ## 目标
 
@@ -242,3 +260,5 @@ updated: 2026-03-28
 - 但 `operator.request_projection` 与 panel `Requests` query API 仍可保持未完成状态
 
 这意味着：前三步完成后，仓库将拥有一个真实可推进的 shared app backend，而不是继续停留在架构文档阶段。
+
+当前仓库状态已经满足并超出上述完成定义。

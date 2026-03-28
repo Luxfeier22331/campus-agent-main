@@ -170,12 +170,12 @@ apps/app-api/
 
 推荐顺序固定为：
 
-1. 建立 `apps/app-api` Worker shell 与最小 health/readiness
-2. 落地 auth/session/conversation 基线
-3. 落地 chat command path 与 `app-api -> supervisor-api` adapter
-4. 落地 `request_execution` / `projection_outbox`
-5. 落地 `request_projection` 与 `GET /api/operator/requests*`
-6. 在 `app-api` 稳定后，再并发接入 `public-chat-web` 与 `protected-panel-web`
+1. 建立 `apps/app-api` Worker shell 与最小 health/readiness（已完成）
+2. 落地 auth/session/conversation 基线（部分完成：auth/session 已完成，conversation APIs 仍未补齐）
+3. 落地 chat command path 与 `app-api -> supervisor-api` adapter（已完成）
+4. 落地 `request_execution` / `projection_outbox`（已完成）
+5. 落地 `request_projection` 与 `GET /api/operator/requests*`（已完成）
+6. 在 `app-api` 稳定后，再并发接入 `public-chat-web` 与 `protected-panel-web`（已完成）
 
 前三步的逐步执行目标、验收和测试见：
 
@@ -183,8 +183,8 @@ apps/app-api/
 
 对 panel 的直接含义：
 
-- `Overview` 可以在 app-api 完整落地前先用 panel-local summary 起步
-- `Requests` 必须等 `app-api` 的安全 query surface ready 后再解锁
+- `Overview` 已通过 panel-local summary 起步
+- `Requests` 已随着 `app-api` 的安全 query surface 落地而解锁
 - `Jobs` / `Operations` 仍然延后，不默认并入第一波产品范围
 
 ## 非目标
@@ -196,9 +196,25 @@ apps/app-api/
 
 ## 当前状态
 
-当前仓库尚未正式落地 `apps/app-api` 目录。
+当前仓库已经正式落地 `apps/app-api`，并且 shared Worker product topology 也已经接上 `public-chat-web` 与 `protected-panel-web`。
 
-但从这份方案开始，后续实现必须把以下内容视为 canonical truth：
+已完成的基础能力包括：
+
+- `apps/app-api` Worker runtime、health/readiness、模块目录骨架
+- Better Auth、Drizzle schema / migration baseline 与 `GET /api/me`
+- `POST /api/chat/requests` 与显式 `app-api -> supervisor-api` execution adapter
+- `runtime.request_execution`、`runtime.projection_outbox`、`request_projection` 与 `GET /api/operator/requests*`
+- `public-chat-web` / `protected-panel-web` 对 shared `app-api` 的当前接线
+
+当前这份 foundation plan 仍保持 `active` 的主要原因是：MVP API surface 里尚未补齐以下 conversation endpoints：
+
+- `GET /api/chat/conversations`
+- `POST /api/chat/conversations`
+- `GET /api/chat/conversations/:conversationId`
+
+因此，下一步实现重点应收敛在 conversation surface，而不是重新讨论 shared `app-api` topology、identity ownership、panel request query ownership 或 `public/protected` Worker shell 边界。
+
+已落地实现现在应继续把以下内容视为 canonical truth：
 
 - `app-api` 是 shared Worker backend
 - `docs/contracts/` 与 `docs/data/` 已冻结第一版 API / lifecycle / schema
