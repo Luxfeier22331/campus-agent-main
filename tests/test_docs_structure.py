@@ -11,6 +11,7 @@ PLANNING_ROOT = REPO_ROOT / ".planning"
 EXPECTED_DOC_TYPES = {
     "architecture": "architecture",
     "decisions": "decision",
+    "environment": "index",
     "plans": "plan",
     "runbooks": "runbook",
     "reference": "reference",

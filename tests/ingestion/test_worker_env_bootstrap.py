@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
@@ -15,44 +16,44 @@ class WorkerEnvBootstrapTest(unittest.TestCase):
             root.mkdir(parents=True)
             current_env = root / ".env"
             current_env.write_text("OCR_BASE_URL=https://current.example/api\n", encoding="utf-8")
-            main_root = root.parent.parent
-            main_root.mkdir(parents=True, exist_ok=True)
-            (main_root / ".env").write_text("OCR_BASE_URL=https://main.example/api\n", encoding="utf-8")
+            root_worktree = root.parent.parent
+            root_worktree.mkdir(parents=True, exist_ok=True)
+            (root_worktree / ".env").write_text("OCR_BASE_URL=https://root.example/api\n", encoding="utf-8")
 
-            with unittest.mock.patch.dict(os.environ, {}, clear=True):
+            with patch.dict(os.environ, {}, clear=True):
                 loaded = load_worker_env(repo_root=root)
                 self.assertEqual(os.environ["OCR_BASE_URL"], "https://current.example/api")
 
             self.assertEqual(loaded, current_env)
 
-    def test_load_worker_env_falls_back_to_main_worktree_dotenv(self) -> None:
+    def test_load_worker_env_falls_back_to_root_worktree_dotenv(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / ".worktrees" / "feature-a"
             root.mkdir(parents=True)
-            main_root = root.parent.parent
-            main_root.mkdir(parents=True, exist_ok=True)
-            main_env = main_root / ".env"
-            main_env.write_text("OCR_BASE_URL=https://main.example/api\n", encoding="utf-8")
+            root_worktree = root.parent.parent
+            root_worktree.mkdir(parents=True, exist_ok=True)
+            root_env = root_worktree / ".env"
+            root_env.write_text("OCR_BASE_URL=https://root.example/api\n", encoding="utf-8")
 
-            with unittest.mock.patch.dict(os.environ, {}, clear=True):
+            with patch.dict(os.environ, {}, clear=True):
                 loaded = load_worker_env(repo_root=root)
-                self.assertEqual(os.environ["OCR_BASE_URL"], "https://main.example/api")
+                self.assertEqual(os.environ["OCR_BASE_URL"], "https://root.example/api")
 
-            self.assertEqual(loaded, main_env)
+            self.assertEqual(loaded, root_env)
 
     def test_load_worker_env_does_not_override_existing_environment(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / ".worktrees" / "feature-a"
             root.mkdir(parents=True)
-            main_root = root.parent.parent
-            main_root.mkdir(parents=True, exist_ok=True)
-            (main_root / ".env").write_text("OCR_BASE_URL=https://main.example/api\n", encoding="utf-8")
+            root_worktree = root.parent.parent
+            root_worktree.mkdir(parents=True, exist_ok=True)
+            (root_worktree / ".env").write_text("OCR_BASE_URL=https://root.example/api\n", encoding="utf-8")
 
-            with unittest.mock.patch.dict(os.environ, {"OCR_BASE_URL": "https://runtime.example/api"}, clear=True):
+            with patch.dict(os.environ, {"OCR_BASE_URL": "https://runtime.example/api"}, clear=True):
                 loaded = load_worker_env(repo_root=root)
                 self.assertEqual(os.environ["OCR_BASE_URL"], "https://runtime.example/api")
 
-            self.assertEqual(loaded, main_root / ".env")
+            self.assertEqual(loaded, root_worktree / ".env")
 
 
 if __name__ == "__main__":

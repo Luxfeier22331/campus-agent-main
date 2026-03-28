@@ -16,13 +16,13 @@ def load_worker_env(*, repo_root: Path | None = None) -> Path | None:
 
 def _dotenv_candidates(repo_root: Path) -> tuple[Path, ...]:
     current = repo_root / ".env"
-    main = _resolve_main_worktree_root(repo_root) / ".env"
-    if current == main:
+    root_worktree = _resolve_root_worktree_root(repo_root) / ".env"
+    if current == root_worktree:
         return (current,)
-    return (current, main)
+    return (current, root_worktree)
 
 
-def _resolve_main_worktree_root(repo_root: Path) -> Path:
+def _resolve_root_worktree_root(repo_root: Path) -> Path:
     resolved = repo_root.resolve()
     parts = resolved.parts
     if ".worktrees" not in parts:
@@ -41,4 +41,3 @@ def _load_dotenv(path: Path) -> None:
         if not normalized_key or normalized_key in os.environ:
             continue
         os.environ[normalized_key] = value.strip()
-
