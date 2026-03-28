@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-25
-updated: 2026-03-25
+updated: 2026-03-28
 ---
 
 # Protected Internal Panel Boundary
@@ -14,6 +14,7 @@ updated: 2026-03-25
 - public entry 与 Cloudflare edge ownership：`docs/architecture/cloudflare-public-entry-boundary.md`
 - 长期 `apps/` 与 `packages/` 分层：`docs/architecture/long-term-architecture.md`
 - supervisor 请求边界：`docs/architecture/supervisor-architecture.md`
+- shared app backend 与 web surfaces：`docs/architecture/shared-app-api-and-worker-web-surfaces.md`
 - 当前 phase handoff 与 deferred seams：`.planning/phases/04.1-cloudflare-entry-and-protected-internal-panel-design/04.1-PHASE5-HANDOFF.md`
 
 ## 目标
@@ -29,13 +30,14 @@ updated: 2026-03-25
 
 future panel 的允许形态固定为：
 
-`authorized operator principal -> Cloudflare-protected access -> panel app under apps/ -> runtime APIs -> supervisor-facing runtime boundary`
+`authorized operator principal -> Cloudflare-protected access -> protected-panel-web -> apps/app-api -> request projection read model`
 
 这条链路里的硬约束是：
 
 - panel 不是 public answer entry 的变体。
 - panel may call runtime APIs only。
-- panel must not bypass `apps/supervisor-api` 或其他受控 runtime boundary 直接触达 `packages/*`。
+- panel 当前 canonical request read path 是 `apps/app-api`，而不是 `apps/supervisor-api`。
+- panel must not bypass 受控 runtime boundary 直接触达数据库或 `packages/*`。
 - panel 必须保持 non-public by default；任何失去上层保护条件的场景都应 fail-closed。
 
 ## Allowed Access Preconditions
@@ -64,13 +66,15 @@ future panel 的允许形态固定为：
 
 panel 的允许交互路径固定如下：
 
-`panel -> runtime APIs only -> apps/* runtime shell -> packages/* through existing runtime-owned seams`
+`panel -> apps/app-api -> request projection read model`
 
 具体约束：
 
 - panel 自身如果实现，放在 `apps/` 下，而不是合并进 `apps/supervisor-api`。
 - panel 只能消费 runtime APIs，不能 import `packages/supervisor-core`、`packages/contracts`、`packages/rag-specialist` 或 retrieval internals 作为直连后门。
-- panel 发起的任何请求都 must not bypass supervisor-facing boundary。
+- panel 发起 request visibility 查询时，不得把 `apps/supervisor-api` 当作列表/详情读取面。
+- panel 不承担 auth/session/conversation backend；这些进入 shared `apps/app-api`。
+- panel 不得把 consumer chat conversation store、raw audit logs 或 telemetry sinks 当作 canonical request truth。
 - 如果需要读写内部能力，必须通过受控 runtime API surface，而不是把 package internals 暴露给前端或 panel server。
 
 ## 与 Public Entry 的关系

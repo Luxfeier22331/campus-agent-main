@@ -1,12 +1,14 @@
 ---
 doc_type: decision
 decision_id: ADR-0009
-status: accepted
+status: superseded
 created: 2026-03-26
-updated: 2026-03-26
+updated: 2026-03-28
 ---
 
 # ADR-0009 Public Consumer Chat 前台宿主决策
+
+Superseded on 2026-03-28 by `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`.
 
 适用范围：`apps/public-consumer-chat` 第一版前台应用宿主、路由宿主与 app-local server/runtime shape
 

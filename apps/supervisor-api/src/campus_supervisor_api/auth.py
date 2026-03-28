@@ -32,6 +32,12 @@ def _map_bearer_actor_context(headers: Mapping[str, str], settings: ApiSettings)
         raise ApiAuthError(code="unauthorized", message="Invalid bearer token.")
     if not token:
         raise ApiAuthError(code="unauthorized", message="Missing bearer token.")
+    if not settings.default_actor_id:
+        raise ApiAuthError(
+            code="auth_not_configured",
+            message="Bearer auth requires API_DEFAULT_ACTOR_ID.",
+            status_code=500,
+        )
 
     return ActorContext(
         user_id=settings.default_actor_id,
@@ -58,6 +64,12 @@ def _map_trusted_worker_actor_context(headers: Mapping[str, str], settings: ApiS
         _first_string_claim(jwt_payload, settings.trusted_jwt_user_id_claims)
         or settings.worker_actor_id
     )
+    if not user_id:
+        raise ApiAuthError(
+            code="auth_not_configured",
+            message="Trusted worker auth requires API_WORKER_ACTOR_ID or a configured JWT user-id claim.",
+            status_code=500,
+        )
     roles = (
         _first_sequence_claim(jwt_payload, settings.trusted_jwt_roles_claims)
         or settings.default_actor_roles

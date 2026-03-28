@@ -1,11 +1,15 @@
 ---
 doc_type: architecture
-status: active
+status: superseded
 created: 2026-03-26
-updated: 2026-03-26
+updated: 2026-03-28
 ---
 
 # Public Consumer Chat Auth And Data Boundary
+
+> Superseded on 2026-03-28 by `docs/architecture/shared-app-api-and-worker-web-surfaces.md` and `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`.
+>
+> This file records the earlier direction where auth/session/conversation were owned by `public-consumer-chat` itself. The accepted direction now moves those concerns into shared `apps/app-api`.
 
 ## 文档边界
 
@@ -17,6 +21,7 @@ updated: 2026-03-26
 - 长期 `apps/*` / `packages/*` 边界：`docs/architecture/long-term-architecture.md`
 - public entry edge boundary：`docs/architecture/cloudflare-public-entry-boundary.md`
 - public entry 到 runtime origin 的 forwarding contract：`docs/architecture/cloudflare-public-entry-integration-contract.md`
+- operator-facing request projection boundary：`docs/architecture/request-projection-and-operator-query-architecture.md`
 
 这份文档不负责冻结：
 
@@ -103,6 +108,7 @@ public consumer chat 的 canonical user system 固定属于 app layer，而不�
 - Worker admission 不能直接等价于 app user identity
 - `SupervisorRequest.actor` 不是前台 app user system 的唯一真相源
 - conversation ownership 检查必须在 consumer app 自己的 server boundary 完成
+- operator-facing request truth 不来自 consumer app 的 conversation/message store
 
 ## Storage Boundary
 
@@ -121,6 +127,7 @@ public consumer chat 的 canonical user system 固定属于 app layer，而不�
 
 - 关系型业务真相与关系型元数据真相可以在同一个 Postgres 中分域共存
 - 在线语义检索主路径仍然留在 Qdrant，不回退到 Postgres
+- operator-facing request projection 即使未来也落在同一个 Postgres，也应保持单独 read-model 领域，而不是复用 chat conversation truth
 
 ## PostgreSQL Domain Layout
 
@@ -181,6 +188,11 @@ public consumer chat 默认采用 database-backed session。
 
 - 同一个 `Supabase Postgres` 同时承载 `auth + chat + registry metadata` 是合理的
 - 真正需要守住的是边界，而不是过早拆散数据库
+
+但这不改变另一条约束：
+
+- panel / operator request list 不能直接从 `chat.conversation`、`chat.message` 推导
+- consumer app 的关系型真相与 operator request projection 即使共库，也必须分开建模
 
 ## Fail-Closed Rules
 

@@ -8,7 +8,6 @@ from pathlib import Path
 import re
 from typing import Protocol
 
-from campus_contracts import DEFAULT_COLLECTION, DEFAULT_CORPUS
 from campus_ingestion_core.artifacts import (
     CANONICAL_MARKDOWN_FILENAME,
     DOCUMENT_UNITS_FILENAME,
@@ -73,8 +72,8 @@ class DocumentImportInput:
     revision_track: str = "source-faithful"
     source_channel: str = "pdf_ocr"
     is_current: bool = False
-    corpus: str = DEFAULT_CORPUS
-    collection: str = DEFAULT_COLLECTION
+    corpus: str = ""
+    collection: str = ""
     campus_scope: str | None = None
     status: str = "active"
     raw_path: Path | None = None

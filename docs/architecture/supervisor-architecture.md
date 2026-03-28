@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-22
-updated: 2026-03-25
+updated: 2026-03-28
 ---
 
 # Supervisor 架构设计
@@ -38,6 +38,7 @@ updated: 2026-03-25
 - supervisor 与 specialist 的交互必须通过稳定 delegation / handoff contract 完成
 - 长期采用 `hybrid orchestration`；deterministic gate 与安全边界优先由 code orchestration 收口
 - supervisor 不直接接触 retrieval、ingestion 或基础设施细节
+- supervisor command side 可以生成最小 audit/trace/runtime facts，但不承载 shared product API、auth/session/conversation 或 panel query serving
 - phase-1 即使只有一个 specialist，也应保留真正的 coordination 形态，而不是长期停留在透传包装
 
 ## 长期架构
@@ -55,6 +56,7 @@ updated: 2026-03-25
 - 多 specialist 协同
 - 最终响应组装
 - 审计与 trace 投影
+- command-side runtime fact emission
 
 它不是：
 
@@ -139,6 +141,8 @@ supervisor 的长期工作方式不是“只允许 handoff”，而是允许两�
 - vector store / object store / registry 访问
 - ingestion/data plane orchestration
 - transport/runtime 宿主实现
+- shared app-level auth/session/conversation hosting
+- product-facing panel query serving
 
 这些能力分别属于 `specialist`、`retrieval-core`、`ingestion-core` 和 `apps/*` 边界。
 
@@ -146,7 +150,9 @@ supervisor 的长期工作方式不是“只允许 handoff”，而是允许两�
 
 与 `apps/supervisor-api`：
 
-- API 边界只负责外部协议、鉴权、runtime 集成和入口壳
+- execution engine 边界只负责受控执行入口、runtime 集成和进入 supervisor core
+- API 边界可以持久化 command-side request facts 与 projection outbox
+- browser-facing product APIs 不属于这里
 - supervisor 不反向吸收 HTTP、auth 或 runtime host 细节
 
 与 `packages/contracts`：
@@ -168,6 +174,12 @@ supervisor 的长期工作方式不是“只允许 handoff”，而是允许两�
 
 - supervisor 不拥有任何 ingestion/data plane 逻辑
 - online query path 与 offline ingestion path 必须长期分离
+
+与 `apps/app-api`：
+
+- supervisor 不直接 serving browser-facing chat/panel APIs
+- `app-api` 负责 auth/session/conversation 与 operator query
+- `app-api` 只把受控执行请求交给 supervisor，而不是把 supervisor 暴露成产品后端
 
 ### 长期演进方向
 
@@ -218,6 +230,7 @@ supervisor 的长期工作方式不是“只允许 handoff”，而是允许两�
 - 虽然当前结果主要来自 RAG specialist，但最终状态与对外响应仍由 supervisor 收口
 - 虽然当前 workflow 很短，但仍然要把 request framing、response assembly、audit projection 从透传逻辑中拆出来
 - 当前 delegation 仍是 bounded subtask delegation，不让 `rag-specialist` 接管用户会话
+- 当前如果需要 request projection，也应在 command side 一次性生成事实，再交给 `app-api` 的 read path，而不是在 panel 查询时回打 supervisor
 
 ### 当前查询链路
 

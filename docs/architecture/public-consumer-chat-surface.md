@@ -1,11 +1,15 @@
 ---
 doc_type: architecture
-status: active
+status: superseded
 created: 2026-03-26
-updated: 2026-03-26
+updated: 2026-03-28
 ---
 
 # Public Consumer Chat Surface
+
+> Superseded on 2026-03-28 by `docs/architecture/shared-app-api-and-worker-web-surfaces.md` and `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`.
+>
+> This file records the earlier 04.7 direction where `public-consumer-chat` was treated as a standalone full-stack app boundary. It is no longer the forward-looking canonical truth.
 
 ## 文档边界
 

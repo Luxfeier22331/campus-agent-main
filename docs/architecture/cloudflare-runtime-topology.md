@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-25
-updated: 2026-03-25
+updated: 2026-03-28
 ---
 
 # Cloudflare Runtime Topology
@@ -23,6 +23,7 @@ Phase 04.2 在这里冻结的不是平台选型，而是 runtime topology：
 
 - public hostname 如何落到 `apps/supervisor-api` runtime origin
 - protected hostname 如何落到 separate protected panel runtime origin
+- public/protected web surface 如何连接 shared app backend
 - Cloudflare 与 repo-owned runtime 在 delivery 层分别拥有哪部分职责
 - rollback unit 以哪个 surface/origin 为边界
 
@@ -30,14 +31,16 @@ Phase 04.2 在这里冻结的不是平台选型，而是 runtime topology：
 
 系统的 runtime topology 固定为：
 
-`client -> Cloudflare public surface -> public runtime origin -> apps/supervisor-api -> packages/supervisor-core -> specialist`
+`client -> Cloudflare public surface -> public runtime origin -> apps/public-chat-web -> apps/app-api -> apps/supervisor-api -> packages/supervisor-core -> specialist`
 
-`authorized operator -> Cloudflare protected surface -> protected panel runtime origin -> future apps/* panel shell -> runtime APIs`
+`authorized operator -> Cloudflare protected surface -> protected panel runtime origin -> apps/protected-panel-web -> apps/app-api -> request projection read model`
 
 这里的关键结论是：
 
-- public entry runtime origin 继续 anchored on `apps/supervisor-api`
-- protected panel runtime origin 是 future `apps/` shell，不和 public entry 合并成一个 runtime boundary
+- public entry runtime origin 是 `apps/public-chat-web`
+- protected panel runtime origin 是 `apps/protected-panel-web`，不和 public entry 合并成一个 runtime boundary
+- 两条外部 surface 在内部共享 `apps/app-api`
+- `apps/supervisor-api` 是 internal execution engine，而不是 browser-facing runtime origin
 - public 与 protected surface 即使未来共享某些托管基础设施，也不能因此合并成一个 exposure model、一个 hostname，或一个 rollback unit
 
 ## Surface-To-Origin Mapping
@@ -46,22 +49,38 @@ Phase 04.2 在这里冻结的不是平台选型，而是 runtime topology：
 
 - Public reachability: yes
 - Edge hostname: public answer hostname
-- Runtime origin: `apps/supervisor-api`
-- Runtime responsibility: transport ingress、runtime integration、supervisor-facing request mapping
+- Runtime origin: `apps/public-chat-web`
+- Runtime responsibility: public chat web delivery、same-site browser entry、以及对 shared `apps/app-api` 的受控调用
 
 ### Protected panel surface
 
 - Public reachability: no, protected only
 - Edge hostname: dedicated protected hostname
-- Runtime origin: future `apps/` panel shell
-- Runtime responsibility: protected operator surface and runtime-API-only access path
+- Runtime origin: `apps/protected-panel-web`
+- Runtime responsibility: protected panel web delivery、protected browser entry、以及对 shared `apps/app-api` 的受控调用
+
+### Shared app backend boundary
+
+- Public reachability: no dedicated public exposure required
+- Edge hostname: none by default; internal protected runtime call only
+- Runtime boundary: `apps/app-api`
+- Runtime responsibility: serve auth/session/conversation, chat ingress, and operator query from one shared app boundary
+
+### Execution engine boundary
+
+- Public reachability: no dedicated browser exposure required
+- Edge hostname: none by default; internal service-to-service call only
+- Runtime boundary: `apps/supervisor-api`
+- Runtime responsibility: execute supervisor-led answer requests
 
 ## Topology And Ownership Matrix
 
 | Surface | Hostname role | Reachability | Cloudflare owns | Repo-owned runtime origin | Rollback unit |
 | --- | --- | --- | --- | --- | --- |
-| Public entry | public answer hostname | Public | DNS/TLS, edge admission, hostname routing to origin | `apps/supervisor-api` | public entry surface and its origin mapping |
-| Protected panel | protected operator hostname | Non-public by default | protected access envelope, hostname routing to protected origin | future `apps/` panel runtime shell | protected panel surface and its origin mapping |
+| Public entry | public answer hostname | Public | DNS/TLS, edge admission, hostname routing to origin | `apps/public-chat-web` | public entry surface and its origin mapping |
+| Protected panel | protected operator hostname | Non-public by default | protected access envelope, hostname routing to protected origin | `apps/protected-panel-web` | protected panel surface and its origin mapping |
+| Shared app backend | no public hostname by default | Internal only | not the primary owner; Cloudflare only protects the outer browser surfaces | `apps/app-api` | shared app backend boundary |
+| Execution engine | no public hostname by default | Internal only | no browser exposure | `apps/supervisor-api` | execution engine boundary |
 
 ## Delivery Ownership
 
@@ -78,6 +97,8 @@ Phase 04.2 在这里冻结的不是平台选型，而是 runtime topology：
 - runtime-specific environment/config loading
 - health/readiness behavior after origin selection
 - transport semantics after a request reaches the runtime origin
+- web surface 到 shared `apps/app-api` 的内部 runtime 调用边界
+- shared `apps/app-api` 到 execution engine 的内部 runtime 调用边界
 
 ### Core packages do not own
 
@@ -96,6 +117,7 @@ Phase 04.2 在这里冻结的不是平台选型，而是 runtime topology：
 - runtime origin responsibility 仍然分离
 - rollback 仍然能按 surface/origin 边界处理
 - shared substrate 不变成合并 app boundary 的理由
+- shared backend 不变成让 `apps/supervisor-api` 重新长出产品层 API 的理由
 
 也就是说，共享基础设施可以是部署实现细节，但不能推翻 two-surface runtime topology。
 
@@ -107,6 +129,7 @@ rollback unit 必须按 surface/origin 边界定义，而不是按整个 Cloudfl
 
 - public entry 的变更应能按 public surface/origin 回滚
 - protected panel 的变更应能按 protected surface/origin 回滚
+- shared app backend 的变更不应迫使两个 web surface 与 execution engine 被绑定成同一个回滚单元
 - 任何 shared substrate 设计都不能让一条 surface 的回滚被迫隐式影响另一条 surface
 
 ## 与 Phase 5 的关系

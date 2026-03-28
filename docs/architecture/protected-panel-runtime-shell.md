@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-25
-updated: 2026-03-25
+updated: 2026-03-28
 ---
 
 # Protected Panel Runtime Shell
@@ -13,6 +13,7 @@ updated: 2026-03-25
 
 - protected panel 的 trust boundary：`docs/architecture/protected-internal-panel-boundary.md`
 - public/protected surface 的 runtime topology：`docs/architecture/cloudflare-runtime-topology.md`
+- shared app backend 与 web surfaces：`docs/architecture/shared-app-api-and-worker-web-surfaces.md`
 - 长期 `apps/*` / `packages/*` 分层：`docs/architecture/long-term-architecture.md`
 - supervisor runtime shell 与 core 分层：`docs/architecture/supervisor-architecture.md`
 
@@ -22,6 +23,7 @@ Phase 04.4 在这里冻结的是 protected panel 作为 repo/runtime shape 的�
 
 - 它属于 future `apps/` runtime shell
 - 它只允许通过 runtime APIs 与系统交互
+- 它位于 shared `apps/app-api` 之上，而不是自己承载 request projection 查询语义
 - 它必须保持 fail-closed
 - 它不承担 UI/business/governance scope
 
@@ -29,11 +31,12 @@ Phase 04.4 在这里冻结的是 protected panel 作为 repo/runtime shape 的�
 
 protected panel 的 shell 形态固定为：
 
-`protected panel surface -> future apps/* panel shell -> runtime APIs`
+`protected panel surface -> future apps/* panel shell -> apps/app-api -> request projection read model`
 
 关键结论是：
 
 - panel 不是 `apps/supervisor-api` 的隐藏管理模式
+- panel shell 不是 shared app backend 的 owner
 - panel 不是 `packages/*` 的直连消费方
 - panel runtime shell 的责任是承载 protected operator surface，而不是重写 supervisor 或 retrieval 语义
 
@@ -51,11 +54,12 @@ panel 如果后续落地，repo shape 固定为：
 
 allowed seam 只允许：
 
-`panel -> runtime APIs only`
+`panel shell -> shared app-api -> request projection read model`
 
 因此这里冻结：
 
-- panel 只能消费 runtime-facing APIs
+- panel shell 只能消费 runtime-facing APIs
+- 当前 request visibility 的 canonical seam 是 `panel shell -> apps/app-api`
 - panel 不得直接 import `packages/contracts`
 - panel 不得直接 import `packages/supervisor-core`
 - panel 不得直接 import `packages/rag-specialist`、`packages/retrieval-core` 或其他 package internals
@@ -66,7 +70,9 @@ allowed seam 只允许：
 
 - 把 panel 做成 `apps/supervisor-api` hidden admin mode
 - 让 panel 直接依赖 `packages/*`
-- 让 panel 越过 runtime API seam 直连内部 orchestrator 或 retrieval internals
+- 让 panel 越过 runtime API seam 直连数据库、内部 orchestrator 或 retrieval internals
+- 让 panel 自己长出独立 auth/session/conversation backend
+- 让 panel 把 raw audit logs、telemetry sink 或 consumer chat store 当作 request 主数据源
 - 让 panel runtime shell 承担 app-layer actor、ACL、audit 或 approval semantics
 
 ## Fail-Closed Runtime Assumptions

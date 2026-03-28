@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-22
-updated: 2026-03-27
+updated: 2026-03-28
 ---
 
 # campus-agent 长期架构
@@ -27,6 +27,7 @@ updated: 2026-03-27
 - retrieval 底座应该是可替换的。LlamaIndex、直连向量基础设施，或其他检索实现，都应该藏在 specialist/retrieval 边界之后，而不是上升成仓库顶层架构。
 - `crawler/job` 与 `queue` 在长期架构里保留为摄入链路占位符，用来表达解耦和异步边界，不在此文中冻结成具体产品或运行方式。
 - 对象存储在架构上始终表示为独立存储边界；当前阶段即使先部署在本机，也不改变它在系统中的角色定义。
+- 面向浏览器的 public/protected product surface 可以拆成独立 Worker web surface，但共享 app backend 仍必须保持清晰 app boundary，不得把产品层职责重新塞回 execution engine。
 
 ## 架构形态
 
@@ -40,10 +41,20 @@ updated: 2026-03-27
 
 `crawler/job placeholder -> queue placeholder -> ingestion boundary -> source layer + raw asset registry -> derived layer -> document registry -> vector index/chunk metadata`
 
+长期目标产品链路如下：
+
+`browser -> web surface -> shared app-api -> execution engine / read model`
+
 当前 monorepo 的目录设计围绕这条链路展开：
 
+- `apps/public-chat-web`
+  public-facing Worker web surface，承载 public chat 的浏览器入口。
+- `apps/protected-panel-web`
+  protected Worker web surface，承载 panel 的浏览器入口。
+- `apps/app-api`
+  shared application backend，承载 auth/session/conversation、chat ingress 与 operator read APIs。
 - `apps/supervisor-api`
-  对外服务边界，只负责 transport adapter。
+  execution engine boundary，负责 answer execution 与对应 transport adapter。
 - `packages/supervisor-core`
   supervisor 策略、路由、委派、答案组装和升级逻辑。
 - `packages/rag-specialist`
@@ -67,6 +78,12 @@ updated: 2026-03-27
 - Document Registry: 文档版本、hash、ACL、状态等元数据
 - Chunk Metadata + Vector Index: chunk 元数据和向量检索索引
 
+与 shared `app-api` 配套的运行数据层至少包括：
+
+- Request Execution: command-side durable request facts
+- Projection Outbox: command-side emitted projection inputs
+- Request Projection Read Model: operator-facing materialized view
+
 ## Runtime 边界
 
 `apps/supervisor-api` 这个名字刻意表达的是 API 边界，不是对 FastAPI 的承诺。
@@ -86,6 +103,19 @@ runtime 选择应该延后。未来可以接受的实现包括：
 - specialist delegation / handoff contract 留在 `packages/contracts`
 - ingestion/data consumption 逻辑留在 `packages/ingestion-core`
 - ingestion、job、queue 和存储相关能力都保持在独立边界之后，不反向渗透进 supervisor
+- 面向 chat/panel 的 app-level API 留在 shared `apps/app-api` boundary
+- `apps/supervisor-api` 不承担浏览器产品 API、auth/session/conversation 或 panel list/detail 查询
+
+## Shared App API Boundary
+
+长期上，public chat 与 protected panel 可以共享一个 `apps/app-api`，但只在以下前提下成立：
+
+- `app-api` 负责产品层 auth/session/conversation 与 browser-facing API
+- `supervisor-api` 保持 execution engine，不重新长出产品层 backend
+- `app-api` 内部仍保持 command/query 分离
+- request projection / operator read model 不能退化成 `conversation/message` 的别名
+
+当前 accepted direction 允许 `app-api` 与 execution engine 共用同一个关系数据库，但不允许因此合并 boundary 或 ownership。
 
 ## 观测与遥测边界
 

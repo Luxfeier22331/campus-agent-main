@@ -125,6 +125,7 @@ class SupervisorApiTest(unittest.TestCase):
             settings=ApiSettings(
                 auth_mode="bearer",
                 bearer_token="secret-token",
+                default_actor_id="runtime-bearer-user",
             ),
             supervisor_handler=fake_supervisor,
         )
@@ -164,6 +165,7 @@ class SupervisorApiTest(unittest.TestCase):
             settings=ApiSettings(
                 auth_mode="bearer",
                 bearer_token="secret-token",
+                default_actor_id="runtime-bearer-user",
             ),
             supervisor_handler=fake_supervisor,
         )
@@ -370,6 +372,7 @@ class SupervisorApiTest(unittest.TestCase):
                 settings=ApiSettings(
                     auth_mode="bearer",
                     bearer_token="secret-token",
+                    default_actor_id="runtime-bearer-user",
                     audit_log_path=audit_path,
                 ),
                 supervisor_handler=lambda request: (_ for _ in ()).throw(
@@ -551,6 +554,7 @@ class SupervisorApiTest(unittest.TestCase):
             settings=ApiSettings(
                 auth_mode="bearer",
                 bearer_token="secret-token",
+                default_actor_id="runtime-bearer-user",
             ),
             supervisor_handler=lambda request: (_ for _ in ()).throw(
                 InvalidSupervisorRequestError(
@@ -580,6 +584,7 @@ class SupervisorApiTest(unittest.TestCase):
             settings=ApiSettings(
                 auth_mode="bearer",
                 bearer_token="secret-token",
+                default_actor_id="runtime-bearer-user",
             ),
             supervisor_handler=lambda request: (_ for _ in ()).throw(
                 DisallowedKnowledgeScopeError(
@@ -609,6 +614,7 @@ class SupervisorApiTest(unittest.TestCase):
             settings=ApiSettings(
                 auth_mode="bearer",
                 bearer_token="secret-token",
+                default_actor_id="runtime-bearer-user",
             ),
         )
 
@@ -678,6 +684,57 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(settings.agno_supervisor_model, "gpt-supervisor")
         self.assertEqual(settings.agno_specialist_model, "gpt-specialist")
         self.assertEqual(str(settings.audit_log_path), "var/log/custom-audit.log")
+
+    def test_answer_route_rejects_missing_bearer_actor_identity_configuration(self) -> None:
+        app = create_app(
+            settings=ApiSettings(
+                auth_mode="bearer",
+                bearer_token="secret-token",
+            )
+        )
+
+        response = app.handle(
+            "POST",
+            "/api/v1/answer",
+            headers={"authorization": "Bearer secret-token"},
+            json_body={
+                "user_goal": "library hours",
+                "requested_scope": {
+                    "corpus": "regulations",
+                    "collection": "student_handbook",
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json_body["error"]["code"], "auth_not_configured")
+
+    def test_answer_route_rejects_missing_trusted_worker_identity_fallback(self) -> None:
+        app = create_app(
+            settings=ApiSettings(
+                auth_mode="trusted-worker",
+                worker_shared_secret="worker-secret",
+            )
+        )
+
+        response = app.handle(
+            "POST",
+            "/api/v1/answer",
+            headers={
+                "x-worker-origin-auth": "worker-secret",
+                "cf-access-jwt-assertion": _make_jwt({}),
+            },
+            json_body={
+                "user_goal": "library hours",
+                "requested_scope": {
+                    "corpus": "regulations",
+                    "collection": "student_handbook",
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json_body["error"]["code"], "auth_not_configured")
 
 
 def _make_jwt(payload: dict[str, object]) -> str:

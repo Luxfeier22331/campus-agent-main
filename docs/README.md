@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-03-22
-updated: 2026-03-27
+updated: 2026-03-28
 ---
 
 # Docs
@@ -60,10 +60,9 @@ updated: 2026-03-27
 - `architecture/cloudflare-runtime-topology.md`
 - `architecture/cloudflare-public-entry-integration-contract.md`
 - `architecture/cloudflare-worker-consumer-entry-access-policy.md`
-- `architecture/public-consumer-chat-auth-and-data-boundary.md`
-- `architecture/public-consumer-chat-surface.md`
 - `architecture/protected-internal-panel-boundary.md`
 - `architecture/protected-panel-runtime-shell.md`
+- `architecture/shared-app-api-and-worker-web-surfaces.md`
 - `architecture/source-truth-normalization-contract.md`
 - `architecture/supervisor-architecture.md`
 - `architecture/student-handbook-chunking-and-validation-policy.md`
@@ -75,9 +74,8 @@ updated: 2026-03-27
 - `decisions/adr-0005-campus-services-taxonomy.md`
 - `decisions/adr-0006-agent-orchestration-and-safety.md`
 - `decisions/adr-0007-phase1-retrieval-baseline-update.md`
-- `decisions/adr-0008-public-consumer-auth-and-storage.md`
-- `decisions/adr-0009-public-consumer-frontend-host.md`
 - `decisions/adr-0010-observability-and-telemetry-stack.md`
+- `decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `plans/agentic-rag-foundation.md`
 - `plans/agent-orchestration-architecture-refresh.md`
 - `plans/golden-dataset-document-delivery.md`
