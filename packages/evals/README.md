@@ -7,9 +7,12 @@ Evaluation helpers for campus-agent v2.
 当前约束：
 
 - `student_handbook_hybrid_queries.json` 负责 live hybrid rebuild/query 验收样本，不承担 canonical retrieval qrels
+- `curriculum_plan_hybrid_queries.json` 负责 `curriculum/curriculum_plan` 的 live hybrid/query 验收样本，不承担 canonical retrieval qrels
 - retrieval 数值指标所需的 ground truth 应独立维护为专用 qrels fixture，避免与 live 抽样验收样本混用
 - handbook live fixture 必须跟随当前 `regulations/student_handbook` 的真实 collection 边界收口；如果 handbook manifest 不再包含 ACL、`campus_scope`、服务导航页等真相，这些 case 不应继续留在 handbook fixture 中
+- curriculum live fixture 必须跟随当前 `curriculum/curriculum_plan` 的真实 manifest 边界收口；重点覆盖标题命中、短事实 section、table retrieval、同专业不同方案区分、needs-clarification 与 no-hit
 - `policy_title_exact_match` 与 `fixed_phrase_sparse_win` 类 live 样本必须至少能锚定到当前 handbook manifest 的标题关键词；相关 drift guard 由 `tests/evals/test_retrieval_benchmark.py` 覆盖
+- curriculum qrels 当前同样采取 `doc_id-level truth first`，第二学士学位、强基计划、创新班与课程教学计划是首批固定回归样本
 - `ragas`、OpenAI graders 或其他 judge/scorer 只能作为 `packages/evals` 之后的 supplemental adapter，不得改写 canonical deterministic gate
 - `student_handbook` formal benchmark 的 policy / rubric fixture 分别固定在 `student_handbook_judge_gate_policy.json` 与 `student_handbook_judge_rubrics.json`
 
@@ -17,10 +20,12 @@ Evaluation helpers for campus-agent v2.
 
 - `uv run --all-packages python -m unittest tests.evals.test_golden_cases tests.evals.test_retrieval_benchmark`
 - `uv run --all-packages python -m unittest tests.evals.test_golden_cases tests.evals.test_retrieval_benchmark tests.evals.test_supplemental_adapters`
+- `curriculum` live benchmark 也复用同一 scorer，只需将 `--qrels` 切换为 `packages/evals/fixtures/curriculum_plan_retrieval_qrels.json`
 
 retrieval benchmark CLI：
 
 - `uv run --all-packages python -m campus_evals.retrieval_benchmark --qrels packages/evals/fixtures/student_handbook_retrieval_qrels.json --results <run-results.json>`
+- `uv run --all-packages python -m campus_evals.retrieval_benchmark --qrels packages/evals/fixtures/curriculum_plan_retrieval_qrels.json --results <run-results.json>`
 - `run-results.json` 输入形状为 `{"schema_version": 1, "cases": [{"case_id": "...", "retrieved_sources": [{"doc_id": "...", "version_id": "...", "chunk_id": "...", "score": 0.9}]}]}`
 - 默认输出 text summary；加 `--format json` 输出 aggregate 指标与 `by_split` 汇总
 
