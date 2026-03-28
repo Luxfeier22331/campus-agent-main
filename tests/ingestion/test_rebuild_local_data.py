@@ -7,17 +7,19 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
+from campus_ingestion_core.collection_config import resolve_collection_truth_config
+from campus_ingestion_core.handbook_source_migration import (
+    StudentHandbookSourceAssetRequest,
+    migrate_student_handbook_source_faithful,
+)
 from campus_ingestion_core.local_rebuild import (
     RebuildRequest,
-    StudentHandbookSourceAssetRequest,
     _build_qdrant_client,
     _resolve_ingestion_qdrant_timeout_seconds,
     _resolve_rebuild_target_qdrant_aliases,
-    migrate_student_handbook_source_faithful,
     rebuild_local_data,
     replay_provider_response_rebuild,
 )
-from campus_ingestion_core.collection_config import resolve_collection_truth_config
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
 from campus_ingestion_core.object_store import (
     build_processed_artifact_key,
@@ -1031,7 +1033,7 @@ class RebuildLocalDataTest(unittest.TestCase):
         )
         calls: list[dict[str, object]] = []
 
-        with patch("campus_ingestion_core.local_rebuild.rebuild_local_data") as rebuild:
+        with patch("campus_ingestion_core.handbook_source_migration.rebuild_local_data") as rebuild:
             rebuild.side_effect = (
                 lambda **kwargs: calls.append(kwargs)
                 or {"status": "rebuilt", "source_pdf": kwargs["env"]["REPLAY_SOURCE_PDF"]}
@@ -1092,7 +1094,7 @@ class RebuildLocalDataTest(unittest.TestCase):
         )
         calls: list[dict[str, object]] = []
 
-        with patch("campus_ingestion_core.local_rebuild.rebuild_local_data") as rebuild:
+        with patch("campus_ingestion_core.handbook_source_migration.rebuild_local_data") as rebuild:
             rebuild.side_effect = (
                 lambda **kwargs: calls.append(kwargs)
                 or {"status": "rebuilt", "source_pdf": kwargs["env"]["REPLAY_SOURCE_PDF"]}
@@ -1151,7 +1153,7 @@ class RebuildLocalDataTest(unittest.TestCase):
         )
         calls: list[dict[str, object]] = []
 
-        with patch("campus_ingestion_core.local_rebuild.rebuild_local_data") as rebuild:
+        with patch("campus_ingestion_core.handbook_source_migration.rebuild_local_data") as rebuild:
             rebuild.side_effect = (
                 lambda **kwargs: calls.append(kwargs)
                 or {"status": "rebuilt", "source_pdf": kwargs["env"]["REPLAY_SOURCE_PDF"]}
@@ -1246,7 +1248,7 @@ class RebuildLocalDataTest(unittest.TestCase):
                 "provider/paddleocr-vl-1-5/provider-response.jsonl"
             )
 
-            with patch("campus_ingestion_core.local_rebuild.rebuild_local_data") as rebuild:
+            with patch("campus_ingestion_core.handbook_source_migration.rebuild_local_data") as rebuild:
                 rebuild.side_effect = (
                     lambda **kwargs: calls.append(kwargs)
                     or {"status": "rebuilt", "source_pdf": kwargs["env"]["REPLAY_SOURCE_PDF"]}

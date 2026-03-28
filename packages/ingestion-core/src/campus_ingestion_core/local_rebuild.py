@@ -54,7 +54,6 @@ from campus_ingestion_core.object_store import (
     build_source_model_slug,
     build_source_ocr_artifact_key,
     build_source_truth_artifact_key,
-    build_raw_asset_key,
     infer_year_label,
     is_source_object_key,
     parse_source_object_key,
@@ -83,9 +82,8 @@ from campus_ingestion_core.split_manifest import SplitManifestDocument, load_spl
 from campus_retrieval_core.settings import RetrievalSettings
 
 
-DEFAULT_REPLAY_SOURCE_PDF = "学生手册_2018.pdf"
-DEFAULT_CURRICULUM_REPLAY_SOURCE_PDF = "curriculum-plan.pdf"
-DEFAULT_HANDBOOK_CANONICAL_RAW_FILENAME = "学生手册_2018.pdf"
+DEFAULT_STUDENT_HANDBOOK_REPLAY_SOURCE_PDF = "学生手册_2018.pdf"
+DEFAULT_CURRICULUM_PLAN_REPLAY_SOURCE_PDF = "curriculum-plan.pdf"
 ALLOWED_REBUILD_IMPORT_MODES = ("raw_online_ocr", "provider_response_replay")
 DEFAULT_QDRANT_UPSERT_BATCH_SIZE = 128
 DEFAULT_INGESTION_QDRANT_TIMEOUT_SECONDS = 60.0
@@ -112,14 +110,6 @@ class LocalDataRebuildReport:
 
 
 @dataclass(frozen=True, slots=True)
-class StudentHandbookMigrationReport:
-    canonical_raw_filename: str
-    previous_raw_object_key: str
-    canonical_raw_object_key: str
-    rebuild_report: LocalDataRebuildReport
-
-
-@dataclass(frozen=True, slots=True)
 class RebuildRequest:
     corpus: str
     collection: str
@@ -130,14 +120,6 @@ class RebuildRequest:
     reset_qdrant: bool = False
     index_qdrant: bool = False
     publish_qdrant_alias: bool = True
-
-
-@dataclass(frozen=True, slots=True)
-class StudentHandbookSourceAssetRequest:
-    raw_version_id: str
-    raw_asset_id: str | None = None
-    source_pdf: str | None = None
-    canonical_raw_filename: str = DEFAULT_HANDBOOK_CANONICAL_RAW_FILENAME
 
 
 class S3ObjectStoreAdmin:
@@ -562,99 +544,6 @@ def _is_derived_artifact_key(key: str) -> bool:
     return not is_source_object_key(key)
 
 
-def migrate_student_handbook_source_faithful(
-    *,
-    env: dict[str, str] | None = None,
-    request: StudentHandbookSourceAssetRequest | None = None,
-    object_store: ReplayObjectStore | None = None,
-    qdrant_admin: QdrantAdmin | None = None,
-    document_registry: DocumentRegistry | None = None,
-    raw_asset_registry: RawAssetRegistry | None = None,
-) -> StudentHandbookMigrationReport:
-    source = dict(env if env is not None else os.environ)
-    runtime_request = request or _build_student_handbook_source_asset_request_from_env(source)
-    corpus = "regulations"
-    collection = "student_handbook"
-    collection_config = _resolve_runtime_collection_config(source=source, corpus=corpus, collection=collection)
-    object_store_settings = ObjectStoreSettings.from_env(source)
-    runtime_object_store = object_store or S3ObjectStoreAdmin(object_store_settings)
-    runtime_raw_asset_registry = raw_asset_registry or _build_raw_asset_registry_for_rebuild(source, corpus)
-    split_manifest = load_split_manifest(
-        collection_config.split_manifest_path,
-        expected_corpus=corpus,
-        expected_collection=collection,
-    )
-    raw_asset_id = runtime_request.raw_asset_id or split_manifest.raw_asset_id
-    if raw_asset_id != split_manifest.raw_asset_id:
-        raise ValueError("request raw_asset_id does not match collection split manifest raw_asset_id")
-    canonical_raw_filename = runtime_request.canonical_raw_filename
-    raw_version_id = runtime_request.raw_version_id
-    raw_record = runtime_raw_asset_registry.get(raw_asset_id, raw_version_id)
-    if raw_record is None:
-        raise ValueError("raw asset registry record is required before handbook migration")
-
-    canonical_raw_object_key = build_raw_asset_key(
-        corpus=corpus,
-        raw_asset_id=raw_record.raw_asset_id,
-        raw_version_id=raw_record.raw_version_id,
-        filename=canonical_raw_filename,
-    )
-    canonical_raw_record = RawAssetRecord(
-        raw_asset_id=raw_record.raw_asset_id,
-        raw_version_id=raw_record.raw_version_id,
-        corpus=corpus,
-        collection=collection,
-        raw_source_uri=raw_record.raw_source_uri,
-        content_hash=raw_record.content_hash,
-        source_filename=canonical_raw_filename,
-        object_key=canonical_raw_object_key,
-        ingestion_timestamp=raw_record.ingestion_timestamp,
-        import_source=raw_record.import_source,
-    )
-    if raw_record.object_key != canonical_raw_object_key:
-        raw_bytes = runtime_object_store.get_bytes(
-            bucket=object_store_settings.bucket_source,
-            key=raw_record.object_key,
-        )
-        runtime_object_store.put_bytes(
-            bucket=object_store_settings.bucket_source,
-            key=canonical_raw_object_key,
-            data=raw_bytes,
-            content_type="application/pdf",
-        )
-        runtime_object_store.delete_prefix(
-            bucket=object_store_settings.bucket_source,
-            prefix=raw_record.object_key,
-            exclude_keys=(canonical_raw_object_key,),
-        )
-    runtime_raw_asset_registry.upsert(canonical_raw_record)
-
-    rebuild_env = dict(source)
-    rebuild_env["REPLAY_SOURCE_PDF"] = canonical_raw_filename
-    rebuild_report = rebuild_local_data(
-        env=rebuild_env,
-        request=RebuildRequest(
-            corpus=corpus,
-            collection=collection,
-            import_mode="provider_response_replay",
-            raw_asset_id=raw_asset_id,
-            raw_version_id=raw_version_id,
-            source_pdf=canonical_raw_filename,
-            reset_qdrant=_parse_bool(source.get("REBUILD_RESET_QDRANT"), default=False),
-            index_qdrant=_parse_bool(source.get("REBUILD_INDEX_QDRANT"), default=False),
-            publish_qdrant_alias=_parse_bool(source.get("REBUILD_PUBLISH_ALIAS"), default=True),
-        ),
-        object_store=runtime_object_store,
-        qdrant_admin=qdrant_admin,
-        document_registry=document_registry,
-        raw_asset_registry=runtime_raw_asset_registry,
-    )
-    return StudentHandbookMigrationReport(
-        canonical_raw_filename=canonical_raw_filename,
-        previous_raw_object_key=raw_record.object_key,
-        canonical_raw_object_key=canonical_raw_object_key,
-        rebuild_report=rebuild_report,
-    )
 def _build_qdrant_client(settings: RetrievalSettings, *, source: dict[str, str] | None = None) -> QdrantClient:
     if settings.qdrant_url == ":memory:":
         return QdrantClient(location=":memory:")
@@ -702,24 +591,6 @@ def _read_rebuild_import_mode(source: dict[str, str]) -> str:
     if import_mode not in ALLOWED_REBUILD_IMPORT_MODES:
         raise ValueError(f"unsupported REBUILD_IMPORT_MODE: {import_mode}")
     return import_mode
-
-
-def _build_student_handbook_source_asset_request_from_env(
-    source: dict[str, str],
-) -> StudentHandbookSourceAssetRequest:
-    raw_version_id = _normalize_optional_text(source.get("RAW_VERSION_ID"))
-    raw_asset_id = _normalize_optional_text(source.get("RAW_ASSET_ID"))
-    if raw_version_id is None:
-        raise ValueError("RAW_VERSION_ID is required for handbook source migration")
-    return StudentHandbookSourceAssetRequest(
-        raw_version_id=raw_version_id,
-        raw_asset_id=raw_asset_id,
-        source_pdf=_normalize_optional_text(source.get("REPLAY_SOURCE_PDF")),
-        canonical_raw_filename=(
-            _normalize_optional_text(source.get("HANDBOOK_CANONICAL_RAW_FILENAME"))
-            or DEFAULT_HANDBOOK_CANONICAL_RAW_FILENAME
-        ),
-    )
 
 
 def _invoke_import_runner(
@@ -880,7 +751,7 @@ def replay_provider_response_rebuild(
         data=layout_elements_bytes,
         content_type="application/x-ndjson",
     )
-    _cleanup_legacy_replay_source_objects(
+    _cleanup_replay_source_artifact_collisions(
         object_store=runtime_object_store,
         object_store_settings=object_store_settings,
         source_provider_response_key=provider_response_key,
@@ -1019,7 +890,9 @@ def _processed_bucket_exclude_keys(
         ),
         collection_config=collection_config,
     )
-    source_pdf = (source.get("REPLAY_SOURCE_PDF") or DEFAULT_REPLAY_SOURCE_PDF).strip() or DEFAULT_REPLAY_SOURCE_PDF
+    source_pdf = (
+        source.get("REPLAY_SOURCE_PDF") or DEFAULT_STUDENT_HANDBOOK_REPLAY_SOURCE_PDF
+    ).strip() or DEFAULT_STUDENT_HANDBOOK_REPLAY_SOURCE_PDF
     provider_response_key = build_source_ocr_artifact_key(
         raw_asset_id=raw_asset_id,
         raw_version_id=raw_version_id,
@@ -1047,8 +920,8 @@ def _should_publish_qdrant_alias_for_replay(source: dict[str, str]) -> bool:
 
 def _default_replay_source_pdf(collection: str) -> str:
     if collection == "curriculum_plan":
-        return DEFAULT_CURRICULUM_REPLAY_SOURCE_PDF
-    return DEFAULT_REPLAY_SOURCE_PDF
+        return DEFAULT_CURRICULUM_PLAN_REPLAY_SOURCE_PDF
+    return DEFAULT_STUDENT_HANDBOOK_REPLAY_SOURCE_PDF
 
 
 def _collect_projection_aware_import_stats(
@@ -1132,7 +1005,9 @@ def _declared_projection_processed_keys(
         return ()
     config = load_handbook_source_projections_config(Path(path_value))
     keys: list[str] = []
-    source_pdf = (source.get("REPLAY_SOURCE_PDF") or DEFAULT_REPLAY_SOURCE_PDF).strip() or DEFAULT_REPLAY_SOURCE_PDF
+    source_pdf = (
+        source.get("REPLAY_SOURCE_PDF") or DEFAULT_STUDENT_HANDBOOK_REPLAY_SOURCE_PDF
+    ).strip() or DEFAULT_STUDENT_HANDBOOK_REPLAY_SOURCE_PDF
     keys.extend(
         build_declared_projection_processed_keys(
             config=config,
@@ -1224,7 +1099,7 @@ def _is_missing_object_error(exc: Exception) -> bool:
     return False
 
 
-def _cleanup_legacy_replay_source_objects(
+def _cleanup_replay_source_artifact_collisions(
     *,
     object_store: ReplayObjectStore,
     object_store_settings: ObjectStoreSettings,

@@ -68,6 +68,11 @@ from campus_ingestion_core.handbook_provider_normalize import (
     normalize_handbook_provider_result,
     serialize_handbook_layout_elements,
 )
+from campus_ingestion_core.handbook_source_migration import (
+    StudentHandbookMigrationReport,
+    StudentHandbookSourceAssetRequest,
+    migrate_student_handbook_source_faithful,
+)
 from campus_ingestion_core.handbook_chunking_validation import (
     ChunkValidationFailure,
     StudentHandbookChunkingScanResult,
@@ -97,9 +102,6 @@ from campus_ingestion_core.index_release import (
 from campus_ingestion_core.local_rebuild import (
     LocalDataRebuildReport,
     RebuildRequest,
-    StudentHandbookMigrationReport,
-    StudentHandbookSourceAssetRequest,
-    migrate_student_handbook_source_faithful,
     rebuild_local_data,
     replay_provider_response_rebuild,
 )
