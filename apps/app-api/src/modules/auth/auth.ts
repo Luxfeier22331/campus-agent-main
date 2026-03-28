@@ -4,10 +4,13 @@ import { readAppApiConfig, readPublicChatOrigin, type Env } from "../../config";
 
 const AUTH_SESSION_EXPIRES_IN = 60 * 60 * 24 * 7;
 const AUTH_SESSION_UPDATE_AGE = 60 * 60 * 24;
+const AUTH_RATE_LIMIT_WINDOW = 60;
+const AUTH_RATE_LIMIT_MAX = 10;
 
 export interface BetterAuthConfigInput {
   appName: string;
   betterAuthSecret: string;
+  environment: "development" | "test" | "production";
   publicChatOrigin: string;
   database: object;
 }
@@ -28,6 +31,12 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
       minPasswordLength: 10,
     },
     database: input.database,
+    rateLimit: {
+      enabled: input.environment === "production",
+      max: AUTH_RATE_LIMIT_MAX,
+      storage: "memory",
+      window: AUTH_RATE_LIMIT_WINDOW,
+    },
     session: {
       expiresIn: AUTH_SESSION_EXPIRES_IN,
       storeSessionInDatabase: true,
@@ -46,12 +55,13 @@ export async function createAppAuth(env: Env) {
   const { createBetterAuthPool } = await import("../../db/runtime");
 
   return betterAuth(
-    buildBetterAuthConfig({
-      appName: config.appName,
-      betterAuthSecret: config.betterAuthSecret,
-      publicChatOrigin: readPublicChatOrigin(env),
-      database: await createBetterAuthPool(env),
-    }) as never,
+        buildBetterAuthConfig({
+          appName: config.appName,
+          betterAuthSecret: config.betterAuthSecret,
+          environment: config.environment,
+          publicChatOrigin: readPublicChatOrigin(env),
+          database: await createBetterAuthPool(env),
+        }) as never,
   );
 }
 

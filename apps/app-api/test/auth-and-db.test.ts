@@ -48,6 +48,7 @@ describe("app-api auth config", () => {
     const config = buildBetterAuthConfig({
       appName: "campus-agent-app-api",
       betterAuthSecret: "prod-secret-prod-secret-prod-secret",
+      environment: "production",
       publicChatOrigin: "https://chat.example.com",
       database: {} as never,
     });
@@ -64,6 +65,12 @@ describe("app-api auth config", () => {
       expiresIn: 60 * 60 * 24 * 7,
       storeSessionInDatabase: true,
       updateAge: 60 * 60 * 24,
+    });
+    expect(config.rateLimit).toMatchObject({
+      enabled: true,
+      max: 10,
+      storage: "memory",
+      window: 60,
     });
   });
 
@@ -92,6 +99,8 @@ describe("/api/me", () => {
     PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
     SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
     SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+    APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
+    APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
     APP_API_DB: {
       connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
     },

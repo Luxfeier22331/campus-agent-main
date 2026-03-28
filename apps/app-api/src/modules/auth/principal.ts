@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "node:crypto";
+
 import { parseCsvList, type Env } from "../../config";
 import { getAppAuth } from "./auth";
 
@@ -58,6 +60,25 @@ function normalizeHeaderValue(value: string | null): string | null {
 function normalizeEmail(value: string | null): string | null {
   const normalized = normalizeHeaderValue(value);
   return normalized ? normalized.toLowerCase() : null;
+}
+
+function hasMatchingInternalSecret(
+  request: Request,
+  env: Pick<Env, "APP_API_INTERNAL_SHARED_SECRET">,
+): boolean {
+  const expected = normalizeHeaderValue(env.APP_API_INTERNAL_SHARED_SECRET ?? null);
+  const provided = normalizeHeaderValue(request.headers.get("x-app-internal-auth"));
+  if (!expected || !provided) {
+    return false;
+  }
+
+  const expectedBytes = Buffer.from(expected);
+  const providedBytes = Buffer.from(provided);
+  if (expectedBytes.length !== providedBytes.length) {
+    return false;
+  }
+
+  return timingSafeEqual(expectedBytes, providedBytes);
 }
 
 function parseHeaderList(request: Request, headerName: string): string[] {
@@ -121,10 +142,13 @@ export function mapSessionToPublicUserPrincipal(
 
 export function mapOperatorHeadersToPrincipal(
   request: Request,
-  env: Pick<Env, "APP_API_OPERATOR_EMAIL_ALLOWLIST">,
+  env: Pick<Env, "APP_API_INTERNAL_SHARED_SECRET" | "APP_API_OPERATOR_EMAIL_ALLOWLIST">,
 ): ResolvedAppPrincipal | null {
   const email = normalizeEmail(request.headers.get("x-app-operator-email"));
   if (!email) {
+    return null;
+  }
+  if (!hasMatchingInternalSecret(request, env)) {
     return null;
   }
 

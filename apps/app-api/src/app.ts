@@ -6,7 +6,13 @@ import {
   resolveAppName,
   type Env,
 } from "./config";
-import { AppApiRouteError, errorEnvelope, jsonResponse, routeErrorResponse } from "./http";
+import {
+  AppApiRouteError,
+  errorEnvelope,
+  jsonResponse,
+  routeErrorResponse,
+  withNoStore,
+} from "./http";
 import {
   buildChatConversationService,
   createPgChatConversationStore,
@@ -24,6 +30,7 @@ import {
   type ChatCommandService,
 } from "./modules/runtime-command";
 import {
+  buildBetterAuthConfig,
   handleAuthRequest,
   resolveRequestPrincipal,
   type ResolvedAppPrincipal,
@@ -109,7 +116,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     }),
   );
 
-  app.get("/readyz", (c) => {
+  app.get("/readyz", async (c) => {
     const missing = getMissingRuntimeConfig(env);
     if (missing.length > 0) {
       return jsonResponse(
@@ -123,12 +130,37 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
       );
     }
 
-    readAppApiConfig(env);
+    try {
+      const config = readAppApiConfig(env);
+      buildBetterAuthConfig({
+        appName: config.appName,
+        betterAuthSecret: config.betterAuthSecret,
+        database: {},
+        environment: config.environment,
+        publicChatOrigin: config.publicChatOrigin,
+      });
+    } catch (error) {
+      return jsonResponse(
+        errorEnvelope({
+          code: "dependency_not_ready",
+          message: "Runtime configuration is incomplete.",
+          retryable: true,
+          details: {
+            reason:
+              error instanceof Error ? error.message : "Unable to initialize app-api runtime.",
+          },
+        }),
+        { status: 503 },
+      );
+    }
 
     return jsonResponse({
       status: "ready",
       dependencies: {
+        auth: "configured",
         database: "configured",
+        operatorBridge: "configured",
+        publicChatOrigin: "configured",
         supervisorApi: "configured",
       },
     });
@@ -136,7 +168,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
   app.all("/api/auth/*", async (c) => {
     try {
-      return await authHandler(c.req.raw, env);
+      return withNoStore(await authHandler(c.req.raw, env));
     } catch {
       return dependencyNotReadyResponse();
     }

@@ -1,4 +1,8 @@
-import type { Env } from "../../config";
+import {
+  DEFAULT_SUPERVISOR_API_TIMEOUT_MS,
+  parsePositiveInteger,
+  type Env,
+} from "../../config";
 import type { ExecutionActorContext } from "../auth";
 
 export interface RequestedScope {
@@ -73,7 +77,10 @@ function mapStatusCodeToErrorCode(status: number): string {
 }
 
 export function createSupervisorExecutionClient(
-  env: Pick<Env, "SUPERVISOR_API_BASE_URL" | "SUPERVISOR_API_SHARED_SECRET">,
+  env: Pick<
+    Env,
+    "SUPERVISOR_API_BASE_URL" | "SUPERVISOR_API_SHARED_SECRET" | "SUPERVISOR_API_TIMEOUT_MS"
+  >,
   input: {
     fetchImplementation?: typeof fetch;
   } = {},
@@ -84,6 +91,10 @@ export function createSupervisorExecutionClient(
     async execute(payload: SupervisorExecutionInput): Promise<SupervisorExecutionResponse> {
       const baseUrl = env.SUPERVISOR_API_BASE_URL?.trim();
       const sharedSecret = env.SUPERVISOR_API_SHARED_SECRET?.trim();
+      const timeoutMs = parsePositiveInteger(
+        env.SUPERVISOR_API_TIMEOUT_MS,
+        DEFAULT_SUPERVISOR_API_TIMEOUT_MS,
+      );
       if (!baseUrl || !sharedSecret) {
         throw new SupervisorTransportError({
           code: "dependency_not_ready",
@@ -95,23 +106,62 @@ export function createSupervisorExecutionClient(
 
       let response: Response;
       try {
-        response = await fetchImplementation(`${baseUrl}/api/v1/answer`, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            "x-trace-id": payload.traceId,
-            "x-worker-origin-auth": sharedSecret,
-          },
-          body: JSON.stringify({
-            actor: toSupervisorActor(payload.actor),
-            conversation_id: payload.conversationId,
-            request_id: payload.requestId,
-            requested_capability: payload.requestedCapability,
-            requested_scope: payload.requestedScope,
-            user_goal: payload.userGoal,
-          }),
+        response = await new Promise<Response>((resolve, reject) => {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => {
+            controller.abort();
+            reject(
+              new SupervisorTransportError({
+                code: "execution_timeout",
+                message: `Supervisor execution exceeded ${timeoutMs}ms timeout.`,
+                retryable: true,
+                status: 504,
+              }),
+            );
+          }, timeoutMs);
+
+          fetchImplementation(`${baseUrl}/api/v1/answer`, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-trace-id": payload.traceId,
+              "x-worker-origin-auth": sharedSecret,
+            },
+            body: JSON.stringify({
+              actor: toSupervisorActor(payload.actor),
+              conversation_id: payload.conversationId,
+              request_id: payload.requestId,
+              requested_capability: payload.requestedCapability,
+              requested_scope: payload.requestedScope,
+              user_goal: payload.userGoal,
+            }),
+            signal: controller.signal,
+          })
+            .then(resolve)
+            .catch((error) => {
+              if (error instanceof Error && error.name === "AbortError") {
+                reject(
+                  new SupervisorTransportError({
+                    code: "execution_timeout",
+                    message: `Supervisor execution exceeded ${timeoutMs}ms timeout.`,
+                    retryable: true,
+                    status: 504,
+                  }),
+                );
+                return;
+              }
+
+              reject(error);
+            })
+            .finally(() => {
+              clearTimeout(timeoutId);
+            });
         });
       } catch (error) {
+        if (error instanceof SupervisorTransportError) {
+          throw error;
+        }
+
         throw new SupervisorTransportError({
           code: "supervisor_unavailable",
           message: error instanceof Error ? error.message : "Supervisor request failed.",
@@ -120,9 +170,19 @@ export function createSupervisorExecutionClient(
         });
       }
 
-      const parsed = (await response.json().catch(() => null)) as
-        | Record<string, unknown>
-        | null;
+      let parsed: Record<string, unknown> | null = null;
+      try {
+        parsed = (await response.json()) as Record<string, unknown>;
+      } catch {
+        if (response.status === 200) {
+          throw new SupervisorTransportError({
+            code: "supervisor_invalid_response",
+            message: "Supervisor returned an invalid JSON response.",
+            retryable: true,
+            status: 502,
+          });
+        }
+      }
 
       if (response.status !== 200) {
         const errorBody =

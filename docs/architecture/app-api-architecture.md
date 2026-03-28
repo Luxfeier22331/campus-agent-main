@@ -184,6 +184,7 @@ operator query path 至少包含：
 - 只读取 `operator.request_projection`
 - 不回放 answer execution
 - 不把 consumer conversation store 当 operator request truth
+- 只接受 allowlisted operator identity 与匹配 internal shared secret 的受控 panel bridge，而不是裸信任 `x-app-operator-*` 头
 
 ## Data Ownership
 
@@ -218,6 +219,7 @@ operator query path 至少包含：
 
 - canonical truth 必须先落到同库 `runtime.request_execution` 与 `runtime.projection_outbox`
 - queue 只能作为 outbox 之后的加速或 fan-out 手段
+- projector failure 必须有 backoff / terminal-failure 语义，不能对坏事件无限热循环
 
 不接受的形态包括：
 

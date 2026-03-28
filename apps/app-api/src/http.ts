@@ -2,9 +2,21 @@ export function jsonResponse(payload: unknown, init: ResponseInit = {}): Respons
   return new Response(JSON.stringify(payload), {
     ...init,
     headers: {
+      "cache-control": "no-store",
       "content-type": "application/json; charset=utf-8",
       ...(init.headers ?? {}),
     },
+  });
+}
+
+export function withNoStore(response: Response): Response {
+  const headers = new Headers(response.headers);
+  headers.set("cache-control", "no-store");
+
+  return new Response(response.body, {
+    headers,
+    status: response.status,
+    statusText: response.statusText,
   });
 }
 

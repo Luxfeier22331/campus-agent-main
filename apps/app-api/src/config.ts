@@ -1,5 +1,6 @@
 export type AppApiEnvironment = "development" | "test" | "production";
 export type DatabaseSslMode = "disable" | "prefer" | "require";
+export const DEFAULT_SUPERVISOR_API_TIMEOUT_MS = 8_000;
 
 export interface HyperdriveBindingLike {
   connectionString?: string;
@@ -12,9 +13,11 @@ export interface Env {
   PUBLIC_CHAT_WEB_ORIGIN?: string;
   SUPERVISOR_API_BASE_URL?: string;
   SUPERVISOR_API_SHARED_SECRET?: string;
+  SUPERVISOR_API_TIMEOUT_MS?: string;
   APP_API_MANAGEMENT_DATABASE_URL?: string;
   APP_API_DATABASE_SSLMODE?: DatabaseSslMode;
   APP_API_OPERATOR_EMAIL_ALLOWLIST?: string;
+  APP_API_INTERNAL_SHARED_SECRET?: string;
   APP_API_DB?: HyperdriveBindingLike;
 }
 
@@ -22,21 +25,26 @@ export interface AppApiConfig {
   appName: string;
   environment: AppApiEnvironment;
   betterAuthSecret: string;
-  publicChatOrigin?: string;
+  publicChatOrigin: string;
   databaseConnectionString: string;
   databaseSslMode: DatabaseSslMode;
   managementDatabaseUrl?: string;
+  internalSharedSecret: string;
+  operatorEmailAllowlist: string[];
   supervisorApiBaseUrl: string;
   supervisorApiSharedSecret: string;
-  operatorEmailAllowlist: string[];
+  supervisorApiTimeoutMs: number;
 }
 
 const DEFAULT_APP_NAME = "app-api";
 const MISSING_CONFIG_KEYS = [
   "APP_API_DB.connectionString",
   "BETTER_AUTH_SECRET",
+  "PUBLIC_CHAT_WEB_ORIGIN",
   "SUPERVISOR_API_BASE_URL",
   "SUPERVISOR_API_SHARED_SECRET",
+  "APP_API_OPERATOR_EMAIL_ALLOWLIST",
+  "APP_API_INTERNAL_SHARED_SECRET",
 ] as const;
 
 export function resolveAppName(env: Env): string {
@@ -74,6 +82,22 @@ export function parseCsvList(value?: string): string[] {
     .filter(Boolean);
 }
 
+export function parsePositiveInteger(
+  value: string | undefined,
+  fallback: number,
+): number {
+  if (!value?.trim()) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return fallback;
+  }
+
+  return parsed;
+}
+
 export function getMissingRuntimeConfig(env: Env): string[] {
   const missing: string[] = [];
 
@@ -83,11 +107,20 @@ export function getMissingRuntimeConfig(env: Env): string[] {
   if (!env.BETTER_AUTH_SECRET?.trim()) {
     missing.push(MISSING_CONFIG_KEYS[1]);
   }
-  if (!env.SUPERVISOR_API_BASE_URL?.trim()) {
+  if (!env.PUBLIC_CHAT_WEB_ORIGIN?.trim()) {
     missing.push(MISSING_CONFIG_KEYS[2]);
   }
-  if (!env.SUPERVISOR_API_SHARED_SECRET?.trim()) {
+  if (!env.SUPERVISOR_API_BASE_URL?.trim()) {
     missing.push(MISSING_CONFIG_KEYS[3]);
+  }
+  if (!env.SUPERVISOR_API_SHARED_SECRET?.trim()) {
+    missing.push(MISSING_CONFIG_KEYS[4]);
+  }
+  if (parseCsvList(env.APP_API_OPERATOR_EMAIL_ALLOWLIST).length === 0) {
+    missing.push(MISSING_CONFIG_KEYS[5]);
+  }
+  if (!env.APP_API_INTERNAL_SHARED_SECRET?.trim()) {
+    missing.push(MISSING_CONFIG_KEYS[6]);
   }
 
   return missing;
@@ -112,14 +145,19 @@ export function readAppApiConfig(env: Env): AppApiConfig {
     appName: resolveAppName(env),
     environment: resolveEnvironment(env),
     betterAuthSecret: env.BETTER_AUTH_SECRET!.trim(),
-    publicChatOrigin: env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || undefined,
+    publicChatOrigin: readPublicChatOrigin(env),
     databaseConnectionString: env.APP_API_DB!.connectionString!.trim(),
     databaseSslMode: resolveDatabaseSslMode(env),
+    internalSharedSecret: env.APP_API_INTERNAL_SHARED_SECRET!.trim(),
     managementDatabaseUrl: env.APP_API_MANAGEMENT_DATABASE_URL?.trim() || undefined,
     supervisorApiBaseUrl: env.SUPERVISOR_API_BASE_URL!.trim(),
     supervisorApiSharedSecret: env.SUPERVISOR_API_SHARED_SECRET!.trim(),
     operatorEmailAllowlist: parseCsvList(env.APP_API_OPERATOR_EMAIL_ALLOWLIST).map((item) =>
       item.toLowerCase(),
+    ),
+    supervisorApiTimeoutMs: parsePositiveInteger(
+      env.SUPERVISOR_API_TIMEOUT_MS,
+      DEFAULT_SUPERVISOR_API_TIMEOUT_MS,
     ),
   };
 }

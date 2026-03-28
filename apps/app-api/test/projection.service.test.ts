@@ -128,10 +128,46 @@ describe("request projection projector", () => {
     });
     expect(store.markEventFailed).toHaveBeenCalledWith({
       attemptCount: 1,
+      availableAt: "2026-03-28T08:00:08.000Z",
       eventId: "evt_accepted",
       lastError: "Missing request_execution for req_01HQ.",
+      processedAt: null,
     });
     expect(store.upsertProjection).not.toHaveBeenCalled();
+    expect(store.markEventProcessed).not.toHaveBeenCalled();
+  });
+
+  it("marks terminal projector failures as processed after the retry budget is exhausted", async () => {
+    const store: RequestProjectionProjectorStore = {
+      getRequestExecution: vi.fn().mockResolvedValue(null),
+      listPendingEvents: vi.fn().mockResolvedValue([
+        createPendingEvent({
+          attemptCount: 4,
+          eventId: "evt_terminal",
+        }),
+      ]),
+      markEventFailed: vi.fn(),
+      markEventProcessed: vi.fn(),
+      upsertProjection: vi.fn(),
+    };
+    const projector = buildRequestProjectionProjector({
+      now: () => new Date("2026-03-28T08:00:03.000Z"),
+      store,
+    });
+
+    const result = await projector.drain();
+
+    expect(result).toEqual({
+      failed: 1,
+      processed: 0,
+    });
+    expect(store.markEventFailed).toHaveBeenCalledWith({
+      attemptCount: 5,
+      availableAt: "2026-03-28T08:00:03.000Z",
+      eventId: "evt_terminal",
+      lastError: "Missing request_execution for req_01HQ.",
+      processedAt: "2026-03-28T08:00:03.000Z",
+    });
     expect(store.markEventProcessed).not.toHaveBeenCalled();
   });
 });

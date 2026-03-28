@@ -16,8 +16,11 @@ describe("app-api worker foundation", () => {
       {
         APP_API_NAME: "campus-agent-app-api",
         BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+        PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
         SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
         SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+        APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
+        APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
         APP_API_ENVIRONMENT: "test",
         APP_API_DB: {
           connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
@@ -29,8 +32,11 @@ describe("app-api worker foundation", () => {
       {
         APP_API_NAME: "campus-agent-app-api",
         BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+        PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
         SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
         SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+        APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
+        APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
         APP_API_ENVIRONMENT: "test",
         APP_API_DB: {
           connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
@@ -48,7 +54,10 @@ describe("app-api worker foundation", () => {
     await expect(ready.json()).resolves.toEqual({
       status: "ready",
       dependencies: {
+        auth: "configured",
         database: "configured",
+        operatorBridge: "configured",
+        publicChatOrigin: "configured",
         supervisorApi: "configured",
       },
     });
@@ -75,8 +84,11 @@ describe("app-api worker foundation", () => {
           missing: [
             "APP_API_DB.connectionString",
             "BETTER_AUTH_SECRET",
+            "PUBLIC_CHAT_WEB_ORIGIN",
             "SUPERVISOR_API_BASE_URL",
             "SUPERVISOR_API_SHARED_SECRET",
+            "APP_API_OPERATOR_EMAIL_ALLOWLIST",
+            "APP_API_INTERNAL_SHARED_SECRET",
           ],
         },
       },

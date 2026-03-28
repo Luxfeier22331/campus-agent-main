@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   SupervisorTransportError,
@@ -8,6 +8,10 @@ import {
 } from "../src/modules/integration/supervisor";
 
 describe("supervisor execution adapter", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("sends snake_case execution payload and maps the typed response", async () => {
     const fetchImplementation = vi.fn().mockResolvedValue(
       new Response(
@@ -143,5 +147,89 @@ describe("supervisor execution adapter", () => {
         userGoal: "图书馆开放到几点？",
       }),
     ).rejects.toBeInstanceOf(SupervisorTransportError);
+  });
+
+  it("raises execution_timeout when the supervisor call exceeds the timeout budget", async () => {
+    vi.useFakeTimers();
+    const client = createSupervisorExecutionClient(
+      {
+        SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+        SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+        SUPERVISOR_API_TIMEOUT_MS: "25",
+      },
+      {
+        fetchImplementation: vi.fn().mockImplementation(
+          () => new Promise<Response>(() => undefined),
+        ),
+      },
+    );
+
+    const pending = client.execute({
+      actor: {
+        campusScope: "main",
+        departments: [],
+        groups: ["students"],
+        roles: ["student"],
+        snapshot: {
+          principal_type: "public_user",
+        },
+        userId: "user_01HQ",
+      },
+      conversationId: "conv_01HQ",
+      requestId: "req_01HQ",
+      traceId: "trace_01HQ",
+      userGoal: "图书馆开放到几点？",
+    });
+
+    const assertion = expect(pending).rejects.toMatchObject({
+      code: "execution_timeout",
+      retryable: true,
+      status: 504,
+    });
+
+    await vi.advanceTimersByTimeAsync(25);
+    await assertion;
+  });
+
+  it("raises supervisor_invalid_response when the upstream body is not valid json", async () => {
+    const client = createSupervisorExecutionClient(
+      {
+        SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+        SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+      },
+      {
+        fetchImplementation: vi.fn().mockResolvedValue(
+          new Response("not-json", {
+            headers: {
+              "content-type": "application/json",
+            },
+            status: 200,
+          }),
+        ),
+      },
+    );
+
+    await expect(
+      client.execute({
+        actor: {
+          campusScope: "main",
+          departments: [],
+          groups: ["students"],
+          roles: ["student"],
+          snapshot: {
+            principal_type: "public_user",
+          },
+          userId: "user_01HQ",
+        },
+        conversationId: "conv_01HQ",
+        requestId: "req_01HQ",
+        traceId: "trace_01HQ",
+        userGoal: "图书馆开放到几点？",
+      }),
+    ).rejects.toMatchObject({
+      code: "supervisor_invalid_response",
+      retryable: true,
+      status: 502,
+    });
   });
 });

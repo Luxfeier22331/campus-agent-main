@@ -80,8 +80,10 @@ export function createPgProjectionStore(env: Env): RequestProjectionProjectorSto
       await db
         .update(projectionOutbox)
         .set({
+          availableAt: new Date(input.availableAt),
           attemptCount: input.attemptCount,
           lastError: input.lastError,
+          processedAt: input.processedAt ? new Date(input.processedAt) : null,
         })
         .where(eq(projectionOutbox.eventId, input.eventId));
     },

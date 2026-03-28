@@ -13,6 +13,24 @@ export default {
       store: createPgProjectionStore(env),
     });
 
-    await projector.drain();
+    const result = await projector.drain();
+    if (result.processed > 0) {
+      console.info(
+        JSON.stringify({
+          failed: result.failed,
+          processed: result.processed,
+          source: "app-api.request-projection-projector",
+        }),
+      );
+    }
+    if (result.failed > 0) {
+      console.error(
+        JSON.stringify({
+          failed: result.failed,
+          processed: result.processed,
+          source: "app-api.request-projection-projector",
+        }),
+      );
+    }
   },
 };

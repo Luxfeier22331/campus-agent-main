@@ -39,6 +39,15 @@ Current runtime scope:
 - `GET /api/operator/requests/:requestId`
 - scheduled request-projection projector
 
+Runtime hardening baseline:
+
+- `GET /readyz` now fails closed unless database binding, Better Auth origin, operator allowlist, internal bridge secret, and supervisor config are all present
+- auth responses, chat responses, and operator query responses default to `Cache-Control: no-store`
+- Better Auth keeps origin / CSRF checks enabled and turns on production rate limiting
+- the protected panel operator bridge is accepted only when allowlisted operator headers arrive with a matching internal shared secret
+- `app-api -> supervisor-api` uses a bounded timeout budget and typed invalid-response handling
+- the request projector now retries with backoff and marks exhausted events terminally instead of spinning forever
+
 Canonical references:
 
 - `docs/architecture/shared-app-api-and-worker-web-surfaces.md`
@@ -57,6 +66,21 @@ Database baseline:
 - runtime reads/writes use Hyperdrive-style runtime connection config
 - migration / schema management uses `APP_API_MANAGEMENT_DATABASE_URL`
 - Drizzle schema and Better Auth tables share one migration pipeline
+
+Environment:
+
+- `APP_API_NAME`
+- `APP_API_ENVIRONMENT`
+- `APP_API_DB.connectionString`
+- `BETTER_AUTH_SECRET`
+- `PUBLIC_CHAT_WEB_ORIGIN`
+- `SUPERVISOR_API_BASE_URL`
+- `SUPERVISOR_API_SHARED_SECRET`
+- `SUPERVISOR_API_TIMEOUT_MS`
+- `APP_API_OPERATOR_EMAIL_ALLOWLIST`
+- `APP_API_INTERNAL_SHARED_SECRET`
+- `APP_API_MANAGEMENT_DATABASE_URL`
+- `APP_API_DATABASE_SSLMODE`
 
 Local commands:
 

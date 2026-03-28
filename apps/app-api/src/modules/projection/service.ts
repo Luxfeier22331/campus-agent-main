@@ -59,7 +59,9 @@ export interface RequestProjectionProjectorStore {
   markEventFailed(input: {
     eventId: string;
     attemptCount: number;
+    availableAt: string;
     lastError: string;
+    processedAt: string | null;
   }): Promise<void>;
   markEventProcessed(input: { eventId: string; processedAt: string }): Promise<void>;
   upsertProjection(projection: RequestProjectionMaterialization): Promise<void>;
@@ -75,6 +77,9 @@ export interface RequestProjectionProjectorDependencies {
 }
 
 const DEFAULT_DRAIN_LIMIT = 50;
+const MAX_PROJECTION_ATTEMPTS = 5;
+const PROJECTION_RETRY_BASE_DELAY_MS = 5_000;
+const PROJECTION_RETRY_MAX_DELAY_MS = 5 * 60_000;
 
 function normalizePrincipalType(snapshot: Record<string, unknown>): string {
   const value = snapshot.principal_type;
@@ -89,6 +94,13 @@ function normalizePrincipalLabel(snapshot: Record<string, unknown>): string | nu
 
   const email = snapshot.email;
   return typeof email === "string" && email.trim() ? email : null;
+}
+
+function computeRetryDelayMs(attemptCount: number): number {
+  return Math.min(
+    PROJECTION_RETRY_BASE_DELAY_MS * 2 ** Math.max(0, attemptCount - 1),
+    PROJECTION_RETRY_MAX_DELAY_MS,
+  );
 }
 
 export function toRequestProjectionMaterialization(input: {
@@ -151,11 +163,17 @@ export function buildRequestProjectionProjector(
           });
           processed += 1;
         } catch (error) {
+          const nextAttemptCount = event.attemptCount + 1;
+          const terminalFailure = nextAttemptCount >= MAX_PROJECTION_ATTEMPTS;
           await dependencies.store.markEventFailed({
-            attemptCount: event.attemptCount + 1,
+            attemptCount: nextAttemptCount,
+            availableAt: terminalFailure
+              ? projectedAt
+              : new Date(now().valueOf() + computeRetryDelayMs(nextAttemptCount)).toISOString(),
             eventId: event.eventId,
             lastError:
               error instanceof Error ? error.message : "Unexpected projection materialization failure.",
+            processedAt: terminalFailure ? projectedAt : null,
           });
           failed += 1;
         }
