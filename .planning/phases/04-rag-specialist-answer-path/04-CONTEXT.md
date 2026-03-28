@@ -101,8 +101,8 @@ The phase delivers four things:
 - `docs/architecture/retrieval-query-strategy.md`
 - `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`
 - `docs/plans/agentic-rag-foundation.md`
-- `docs/verification/student-handbook-hybrid-rebuild-checklist.md`
-- `docs/verification/phase1-ingestion-retrieval-implementation-truth.md`
+- `docs/runbooks/student-handbook-hybrid-rebuild-checklist.md`
+- `docs/reference/phase1-ingestion-retrieval-implementation-truth.md`
 
 ### Existing code surfaces
 - `packages/contracts/src/campus_contracts/models.py`
