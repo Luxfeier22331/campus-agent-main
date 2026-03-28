@@ -13,11 +13,9 @@ from langchain_core.outputs import Generation, LLMResult
 from ragas.embeddings.base import BaseRagasEmbeddings
 from ragas.llms.base import BaseRagasLLM
 
-from campus_evals.settings import RagasSettings
+from campus_evals.settings import RagasSettings, SupplementalHTTPSettings
 
 
-DEFAULT_HTTP_RETRY_ATTEMPTS = 3
-DEFAULT_HTTP_RETRY_BACKOFF_SECONDS = 1.0
 _RETRYABLE_PROVIDER_ERROR_MARKERS = (
     "system_cpu_overloaded",
     "bad_response_body",
@@ -40,8 +38,28 @@ _TRANSPORT_ERROR_MARKERS = (
     "remoteprotocolerror",
     "connection reset",
 )
+_FAST_FAIL_ERROR_MARKERS = (
+    "circuit_open",
+    "preflight_failed",
+)
 _REQUEST_PACERS: dict[tuple[str, float], "RequestPacer"] = {}
 _REQUEST_PACERS_LOCK = Lock()
+_PROVIDER_CIRCUIT_BREAKERS: dict[tuple[str, int, float], "ProviderCircuitBreaker"] = {}
+_PROVIDER_CIRCUIT_BREAKERS_LOCK = Lock()
+
+
+class SupplementalFastFailError(RuntimeError):
+    def __init__(self, message: str, *, reasons: tuple[str, ...]) -> None:
+        super().__init__(message)
+        self.reasons = reasons
+
+
+class SupplementalPreflightFailedError(SupplementalFastFailError):
+    pass
+
+
+class SupplementalCircuitOpenError(SupplementalFastFailError):
+    pass
 
 
 class RequestPacer:
@@ -70,25 +88,68 @@ class RequestPacer:
             await asyncio.sleep(delay_seconds)
 
 
+class ProviderCircuitBreaker:
+    def __init__(
+        self,
+        *,
+        origin: str,
+        failure_threshold: int,
+        cooldown_seconds: float,
+    ) -> None:
+        self.origin = origin
+        self.failure_threshold = failure_threshold
+        self.cooldown_seconds = cooldown_seconds
+        self._consecutive_failures = 0
+        self._opened_until = 0.0
+        self._last_failure_reasons: tuple[str, ...] = ()
+        self._lock = Lock()
+
+    def ensure_request_allowed(self) -> None:
+        with self._lock:
+            now = time.monotonic()
+            if now >= self._opened_until:
+                return
+            reasons = self._last_failure_reasons or ("circuit_open",)
+            raise SupplementalCircuitOpenError(
+                f"circuit_open: provider origin {self.origin} is in cooldown",
+                reasons=("circuit_open", *reasons),
+            )
+
+    def record_success(self) -> None:
+        with self._lock:
+            self._consecutive_failures = 0
+            self._opened_until = 0.0
+            self._last_failure_reasons = ()
+
+    def record_failure(self, *, reasons: tuple[str, ...]) -> bool:
+        with self._lock:
+            self._consecutive_failures += 1
+            self._last_failure_reasons = reasons
+            if self._consecutive_failures < self.failure_threshold:
+                return False
+            self._opened_until = time.monotonic() + self.cooldown_seconds
+            return True
+
+    def trip(self, *, reasons: tuple[str, ...]) -> None:
+        with self._lock:
+            self._consecutive_failures = self.failure_threshold
+            self._last_failure_reasons = reasons
+            self._opened_until = time.monotonic() + self.cooldown_seconds
+
+
 class OpenAICompatibleResponsesLLM(BaseRagasLLM):
-    """Minimal Responses API client for ragas judge calls.
-
-    Some OpenAI-compatible providers accept raw `/v1/responses` HTTP payloads while
-    rejecting the same call shape when it comes through the OpenAI Python SDK stack.
-    This client keeps the request surface minimal and SDK-free.
-    """
-
     def __init__(
         self,
         *,
         base_url: str,
         api_key: str,
         model: str,
-        timeout: float,
+        http_settings: SupplementalHTTPSettings,
         reasoning_effort: str | None = None,
         text_verbosity: str | None = None,
         max_output_tokens: int | None = None,
         request_pacer: RequestPacer | None = None,
+        circuit_breaker: ProviderCircuitBreaker | None = None,
         cache=None,
         sync_client: httpx.Client | None = None,
         async_client: httpx.AsyncClient | None = None,
@@ -97,11 +158,12 @@ class OpenAICompatibleResponsesLLM(BaseRagasLLM):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.model = model
-        self.timeout = timeout
+        self.http_settings = http_settings
         self.reasoning_effort = reasoning_effort
         self.text_verbosity = text_verbosity
         self.max_output_tokens = max_output_tokens
         self.request_pacer = request_pacer
+        self.circuit_breaker = circuit_breaker
         self._sync_client = sync_client
         self._async_client = async_client
         self._own_sync_client: httpx.Client | None = None
@@ -178,18 +240,51 @@ class OpenAICompatibleResponsesLLM(BaseRagasLLM):
     def is_finished(self, response: LLMResult) -> bool:
         return True
 
+    def preflight_sync(self) -> dict[str, object]:
+        payload = {
+            "model": self.model,
+            "stream": False,
+            "input": [{"role": "user", "type": "message", "content": "Reply with OK only."}],
+            "max_output_tokens": min(self.max_output_tokens or 16, 16),
+        }
+        try:
+            with httpx.Client(
+                base_url=self.base_url,
+                timeout=_build_httpx_timeout(self.http_settings, preflight=True),
+                trust_env=False,
+            ) as client:
+                _request_json_sync(
+                    lambda: client.post("/responses", json=payload, headers=_build_headers(self.api_key)),
+                    http_settings=self.http_settings,
+                    circuit_breaker=self.circuit_breaker,
+                    retry_attempts=0,
+                )
+        except Exception as exc:
+            reasons = ("preflight_failed", *classify_retryable_runtime_failure(str(exc), error_type=type(exc).__name__))
+            if self.circuit_breaker is not None:
+                self.circuit_breaker.trip(reasons=reasons)
+            raise SupplementalPreflightFailedError(
+                f"preflight_failed: {exc}",
+                reasons=reasons,
+            ) from exc
+        return {"status": "passed", "endpoint": "/responses", "model": self.model}
+
     def _post_json_sync(self, path: str, payload: dict[str, t.Any]) -> dict[str, t.Any]:
         if self.request_pacer is not None:
             self.request_pacer.wait_sync()
         return _request_json_sync(
-            lambda: self._get_sync_client().post(path, json=payload, headers=_build_headers(self.api_key))
+            lambda: self._get_sync_client().post(path, json=payload, headers=_build_headers(self.api_key)),
+            http_settings=self.http_settings,
+            circuit_breaker=self.circuit_breaker,
         )
 
     async def _post_json_async(self, path: str, payload: dict[str, t.Any]) -> dict[str, t.Any]:
         if self.request_pacer is not None:
             await self.request_pacer.wait_async()
         return await _request_json_async(
-            lambda: self._get_async_client().post(path, json=payload, headers=_build_headers(self.api_key))
+            lambda: self._get_async_client().post(path, json=payload, headers=_build_headers(self.api_key)),
+            http_settings=self.http_settings,
+            circuit_breaker=self.circuit_breaker,
         )
 
     def _get_sync_client(self) -> httpx.Client:
@@ -198,7 +293,7 @@ class OpenAICompatibleResponsesLLM(BaseRagasLLM):
         if self._own_sync_client is None:
             self._own_sync_client = httpx.Client(
                 base_url=self.base_url,
-                timeout=self.timeout,
+                timeout=_build_httpx_timeout(self.http_settings),
                 trust_env=False,
             )
         return self._own_sync_client
@@ -214,7 +309,7 @@ class OpenAICompatibleResponsesLLM(BaseRagasLLM):
         ):
             self._own_async_client = httpx.AsyncClient(
                 base_url=self.base_url,
-                timeout=self.timeout,
+                timeout=_build_httpx_timeout(self.http_settings),
                 trust_env=False,
             )
             self._own_async_client_loop = current_loop
@@ -222,17 +317,16 @@ class OpenAICompatibleResponsesLLM(BaseRagasLLM):
 
 
 class OpenAICompatibleHTTPEmbeddings(BaseRagasEmbeddings):
-    """Minimal embeddings client for OpenAI-compatible HTTP providers."""
-
     def __init__(
         self,
         *,
         base_url: str,
         api_key: str,
         model: str,
-        timeout: float,
+        http_settings: SupplementalHTTPSettings,
         dimensions: int | None = None,
         request_pacer: RequestPacer | None = None,
+        circuit_breaker: ProviderCircuitBreaker | None = None,
         cache=None,
         sync_client: httpx.Client | None = None,
         async_client: httpx.AsyncClient | None = None,
@@ -241,9 +335,10 @@ class OpenAICompatibleHTTPEmbeddings(BaseRagasEmbeddings):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.model = model
-        self.timeout = timeout
+        self.http_settings = http_settings
         self.dimensions = dimensions
         self.request_pacer = request_pacer
+        self.circuit_breaker = circuit_breaker
         self._sync_client = sync_client
         self._async_client = async_client
         self._own_sync_client: httpx.Client | None = None
@@ -263,7 +358,9 @@ class OpenAICompatibleHTTPEmbeddings(BaseRagasEmbeddings):
             self.request_pacer.wait_sync()
         return _extract_embeddings(
             _request_json_sync(
-                lambda: self._get_sync_client().post("/embeddings", json=payload, headers=_build_headers(self.api_key))
+                lambda: self._get_sync_client().post("/embeddings", json=payload, headers=_build_headers(self.api_key)),
+                http_settings=self.http_settings,
+                circuit_breaker=self.circuit_breaker,
             )
         )
 
@@ -280,9 +377,39 @@ class OpenAICompatibleHTTPEmbeddings(BaseRagasEmbeddings):
             await self.request_pacer.wait_async()
         return _extract_embeddings(
             await _request_json_async(
-                lambda: self._get_async_client().post("/embeddings", json=payload, headers=_build_headers(self.api_key))
+                lambda: self._get_async_client().post("/embeddings", json=payload, headers=_build_headers(self.api_key)),
+                http_settings=self.http_settings,
+                circuit_breaker=self.circuit_breaker,
             )
         )
+
+    def preflight_sync(self) -> dict[str, object]:
+        payload = _build_embeddings_payload(
+            model=self.model,
+            texts=["supplemental preflight"],
+            dimensions=self.dimensions,
+        )
+        try:
+            with httpx.Client(
+                base_url=self.base_url,
+                timeout=_build_httpx_timeout(self.http_settings, preflight=True),
+                trust_env=False,
+            ) as client:
+                _request_json_sync(
+                    lambda: client.post("/embeddings", json=payload, headers=_build_headers(self.api_key)),
+                    http_settings=self.http_settings,
+                    circuit_breaker=self.circuit_breaker,
+                    retry_attempts=0,
+                )
+        except Exception as exc:
+            reasons = ("preflight_failed", *classify_retryable_runtime_failure(str(exc), error_type=type(exc).__name__))
+            if self.circuit_breaker is not None:
+                self.circuit_breaker.trip(reasons=reasons)
+            raise SupplementalPreflightFailedError(
+                f"preflight_failed: {exc}",
+                reasons=reasons,
+            ) from exc
+        return {"status": "passed", "endpoint": "/embeddings", "model": self.model}
 
     def _get_sync_client(self) -> httpx.Client:
         if self._sync_client is not None:
@@ -290,7 +417,7 @@ class OpenAICompatibleHTTPEmbeddings(BaseRagasEmbeddings):
         if self._own_sync_client is None:
             self._own_sync_client = httpx.Client(
                 base_url=self.base_url,
-                timeout=self.timeout,
+                timeout=_build_httpx_timeout(self.http_settings),
                 trust_env=False,
             )
         return self._own_sync_client
@@ -306,7 +433,7 @@ class OpenAICompatibleHTTPEmbeddings(BaseRagasEmbeddings):
         ):
             self._own_async_client = httpx.AsyncClient(
                 base_url=self.base_url,
-                timeout=self.timeout,
+                timeout=_build_httpx_timeout(self.http_settings),
                 trust_env=False,
             )
             self._own_async_client_loop = current_loop
@@ -322,17 +449,22 @@ def build_http_ragas_llm(
     request_pacer = get_request_pacer(
         base_url=settings.llm_base_url or "https://api.openai.com/v1",
         api_key=settings.llm_api_key,
-        min_interval_seconds=settings.request_min_interval_seconds,
+        min_interval_seconds=settings.http_settings.request_min_interval_seconds,
+    )
+    circuit_breaker = get_provider_circuit_breaker(
+        base_url=settings.llm_base_url or "https://api.openai.com/v1",
+        settings=settings.http_settings,
     )
     return OpenAICompatibleResponsesLLM(
         base_url=settings.llm_base_url or "https://api.openai.com/v1",
         api_key=settings.llm_api_key,
         model=settings.llm_model,
-        timeout=settings.request_timeout_seconds,
+        http_settings=settings.http_settings,
         reasoning_effort=settings.reasoning_effort,
         text_verbosity=settings.text_verbosity,
         max_output_tokens=settings.max_output_tokens,
         request_pacer=request_pacer,
+        circuit_breaker=circuit_breaker,
         sync_client=sync_client,
         async_client=async_client,
     )
@@ -348,15 +480,20 @@ def build_http_ragas_embeddings(
     request_pacer = get_request_pacer(
         base_url=base_url,
         api_key=settings.embedding_api_key,
-        min_interval_seconds=settings.request_min_interval_seconds,
+        min_interval_seconds=settings.http_settings.request_min_interval_seconds,
+    )
+    circuit_breaker = get_provider_circuit_breaker(
+        base_url=base_url,
+        settings=settings.http_settings,
     )
     return OpenAICompatibleHTTPEmbeddings(
         base_url=base_url,
         api_key=settings.embedding_api_key,
         model=settings.embedding_model,
-        timeout=settings.request_timeout_seconds,
+        http_settings=settings.http_settings,
         dimensions=settings.embedding_dimensions,
         request_pacer=request_pacer,
+        circuit_breaker=circuit_breaker,
         sync_client=sync_client,
         async_client=async_client,
     )
@@ -468,30 +605,60 @@ def _decode_json_response(response: httpx.Response) -> dict[str, t.Any]:
 def _request_json_sync(
     request_fn: t.Callable[[], httpx.Response],
     *,
-    attempts: int = DEFAULT_HTTP_RETRY_ATTEMPTS,
+    http_settings: SupplementalHTTPSettings,
+    circuit_breaker: ProviderCircuitBreaker | None,
+    retry_attempts: int | None = None,
 ) -> dict[str, t.Any]:
-    for attempt in range(1, attempts + 1):
+    total_attempts = 1 + (http_settings.retry_attempts if retry_attempts is None else retry_attempts)
+    if circuit_breaker is not None:
+        circuit_breaker.ensure_request_allowed()
+    for attempt in range(1, total_attempts + 1):
         try:
-            return _decode_json_response(request_fn())
+            payload = _decode_json_response(request_fn())
         except Exception as exc:
-            if attempt >= attempts or not _is_retryable_exception(exc):
+            if isinstance(exc, SupplementalFastFailError):
                 raise
-            time.sleep(_retry_delay_seconds(attempt))
+            retryable = _is_retryable_exception(exc)
+            reasons = classify_retryable_runtime_failure(str(exc), error_type=type(exc).__name__) or ("provider_error",)
+            if circuit_breaker is not None:
+                circuit_breaker.record_failure(reasons=reasons)
+            if attempt >= total_attempts or not retryable:
+                raise
+            time.sleep(_retry_delay_seconds(attempt, http_settings.retry_backoff_seconds))
+        else:
+            if circuit_breaker is not None:
+                circuit_breaker.record_success()
+            return payload
     raise RuntimeError("unreachable retry loop")
 
 
 async def _request_json_async(
     request_fn: t.Callable[[], t.Awaitable[httpx.Response]],
     *,
-    attempts: int = DEFAULT_HTTP_RETRY_ATTEMPTS,
+    http_settings: SupplementalHTTPSettings,
+    circuit_breaker: ProviderCircuitBreaker | None,
+    retry_attempts: int | None = None,
 ) -> dict[str, t.Any]:
-    for attempt in range(1, attempts + 1):
+    total_attempts = 1 + (http_settings.retry_attempts if retry_attempts is None else retry_attempts)
+    if circuit_breaker is not None:
+        circuit_breaker.ensure_request_allowed()
+    for attempt in range(1, total_attempts + 1):
         try:
-            return _decode_json_response(await request_fn())
+            payload = _decode_json_response(await request_fn())
         except Exception as exc:
-            if attempt >= attempts or not _is_retryable_exception(exc):
+            if isinstance(exc, SupplementalFastFailError):
                 raise
-            await asyncio.sleep(_retry_delay_seconds(attempt))
+            retryable = _is_retryable_exception(exc)
+            reasons = classify_retryable_runtime_failure(str(exc), error_type=type(exc).__name__) or ("provider_error",)
+            if circuit_breaker is not None:
+                circuit_breaker.record_failure(reasons=reasons)
+            if attempt >= total_attempts or not retryable:
+                raise
+            await asyncio.sleep(_retry_delay_seconds(attempt, http_settings.retry_backoff_seconds))
+        else:
+            if circuit_breaker is not None:
+                circuit_breaker.record_success()
+            return payload
     raise RuntimeError("unreachable retry loop")
 
 
@@ -536,15 +703,18 @@ def _is_retryable_exception(exc: Exception) -> bool:
 
 
 def is_retryable_provider_exception(exc: Exception) -> bool:
+    if isinstance(exc, SupplementalFastFailError):
+        return False
     if isinstance(exc, (httpx.TimeoutException, httpx.TransportError)):
         return True
     if isinstance(exc, RuntimeError):
-        return bool(classify_retryable_runtime_failure(str(exc)))
+        reasons = classify_retryable_runtime_failure(str(exc), error_type=type(exc).__name__)
+        return any(reason not in {"circuit_open", "preflight_failed"} for reason in reasons)
     return False
 
 
-def _retry_delay_seconds(attempt: int) -> float:
-    return DEFAULT_HTTP_RETRY_BACKOFF_SECONDS * attempt
+def _retry_delay_seconds(attempt: int, backoff_seconds: float) -> float:
+    return backoff_seconds * attempt
 
 
 def _leading_status_code(message: str) -> int | None:
@@ -574,6 +744,10 @@ def classify_retryable_runtime_failure(
         reasons.append("transport")
     if any(marker in combined for marker in _RETRYABLE_PROVIDER_ERROR_MARKERS):
         reasons.append("provider_runtime")
+    if "circuit_open" in combined:
+        reasons.append("circuit_open")
+    if "preflight_failed" in combined:
+        reasons.append("preflight_failed")
     return tuple(dict.fromkeys(reasons))
 
 
@@ -596,8 +770,52 @@ def get_request_pacer(
         return pacer
 
 
+def get_provider_circuit_breaker(
+    *,
+    base_url: str,
+    settings: SupplementalHTTPSettings,
+) -> ProviderCircuitBreaker:
+    key = (
+        _pacer_scope_key(base_url),
+        settings.circuit_breaker_failure_threshold,
+        float(settings.circuit_breaker_cooldown_seconds),
+    )
+    with _PROVIDER_CIRCUIT_BREAKERS_LOCK:
+        existing = _PROVIDER_CIRCUIT_BREAKERS.get(key)
+        if existing is not None:
+            return existing
+        breaker = ProviderCircuitBreaker(
+            origin=key[0],
+            failure_threshold=settings.circuit_breaker_failure_threshold,
+            cooldown_seconds=settings.circuit_breaker_cooldown_seconds,
+        )
+        _PROVIDER_CIRCUIT_BREAKERS[key] = breaker
+        return breaker
+
+
 def _pacer_scope_key(base_url: str) -> str:
     parsed = urlparse(base_url)
     if parsed.scheme and parsed.netloc:
         return f"{parsed.scheme}://{parsed.netloc}"
     return base_url.rstrip("/")
+
+
+def _build_httpx_timeout(
+    settings: SupplementalHTTPSettings,
+    *,
+    preflight: bool = False,
+) -> httpx.Timeout:
+    if not preflight:
+        return httpx.Timeout(
+            connect=settings.connect_timeout_seconds,
+            read=settings.read_timeout_seconds,
+            write=settings.write_timeout_seconds,
+            pool=settings.pool_timeout_seconds,
+        )
+    timeout = settings.preflight_timeout_seconds
+    return httpx.Timeout(
+        connect=min(settings.connect_timeout_seconds, timeout),
+        read=min(settings.read_timeout_seconds, timeout),
+        write=min(settings.write_timeout_seconds, timeout),
+        pool=min(settings.pool_timeout_seconds, timeout),
+    )

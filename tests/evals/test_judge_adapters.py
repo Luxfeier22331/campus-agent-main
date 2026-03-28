@@ -123,7 +123,8 @@ class JudgeSettingsTest(unittest.TestCase):
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
                 "RAGAS_LLM_MODEL": "gpt-5.4",
-                "RAGAS_REQUEST_TIMEOUT_SECONDS": "120",
+                "SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS": "120",
+                "SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS": "4",
                 "RAGAS_REASONING_EFFORT": "none",
                 "RAGAS_TEXT_VERBOSITY": "low",
                 "RAGAS_MAX_OUTPUT_TOKENS": "256",
@@ -131,8 +132,9 @@ class JudgeSettingsTest(unittest.TestCase):
         )
 
         self.assertEqual(settings.llm_model, "gpt-5.4")
-        self.assertEqual(settings.request_timeout_seconds, 120.0)
-        self.assertEqual(settings.request_min_interval_seconds, 0.0)
+        self.assertEqual(settings.http_settings.read_timeout_seconds, 120.0)
+        self.assertEqual(settings.http_settings.connect_timeout_seconds, 4.0)
+        self.assertEqual(settings.http_settings.request_min_interval_seconds, 0.0)
         self.assertEqual(settings.reasoning_effort, "none")
         self.assertEqual(settings.text_verbosity, "low")
         self.assertEqual(settings.max_output_tokens, 256)
@@ -142,11 +144,11 @@ class JudgeSettingsTest(unittest.TestCase):
             {
                 "LLM_API_KEY": "llm-key",
                 "RAGAS_LLM_MODEL": "gpt-5.4",
-                "RAGAS_REQUEST_MIN_INTERVAL_SECONDS": "15",
+                "SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS": "15",
             }
         )
 
-        self.assertEqual(settings.request_min_interval_seconds, 15.0)
+        self.assertEqual(settings.http_settings.request_min_interval_seconds, 15.0)
 
     def test_build_responses_json_judge_attaches_request_pacer_when_configured(self) -> None:
         settings = JudgeLLMSettings.from_env(
@@ -154,7 +156,7 @@ class JudgeSettingsTest(unittest.TestCase):
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
                 "RAGAS_LLM_MODEL": "gpt-5.4",
-                "RAGAS_REQUEST_MIN_INTERVAL_SECONDS": "12.5",
+                "SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS": "12.5",
             }
         )
         captured: dict[str, object] = {}

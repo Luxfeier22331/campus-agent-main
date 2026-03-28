@@ -19,9 +19,37 @@ from campus_evals import (
     build_ragas_scorer,
 )
 from campus_evals._langchain_compat import build_langchain_chat_model
+from campus_evals.settings import SupplementalHTTPSettings
 
 
 class RagasSettingsTest(unittest.TestCase):
+    def test_supplemental_http_settings_from_env_reads_fine_grained_runtime_controls(self) -> None:
+        settings = SupplementalHTTPSettings.from_env(
+            {
+                "SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS": "2.5",
+                "SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS": "18",
+                "SUPPLEMENTAL_HTTP_WRITE_TIMEOUT_SECONDS": "7",
+                "SUPPLEMENTAL_HTTP_POOL_TIMEOUT_SECONDS": "1.5",
+                "SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS": "1",
+                "SUPPLEMENTAL_HTTP_RETRY_BACKOFF_SECONDS": "0.25",
+                "SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_FAILURE_THRESHOLD": "4",
+                "SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_COOLDOWN_SECONDS": "45",
+                "SUPPLEMENTAL_HTTP_PREFLIGHT_TIMEOUT_SECONDS": "6",
+                "SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS": "0.5",
+            }
+        )
+
+        self.assertEqual(settings.connect_timeout_seconds, 2.5)
+        self.assertEqual(settings.read_timeout_seconds, 18.0)
+        self.assertEqual(settings.write_timeout_seconds, 7.0)
+        self.assertEqual(settings.pool_timeout_seconds, 1.5)
+        self.assertEqual(settings.retry_attempts, 1)
+        self.assertEqual(settings.retry_backoff_seconds, 0.25)
+        self.assertEqual(settings.circuit_breaker_failure_threshold, 4)
+        self.assertEqual(settings.circuit_breaker_cooldown_seconds, 45.0)
+        self.assertEqual(settings.preflight_timeout_seconds, 6.0)
+        self.assertEqual(settings.request_min_interval_seconds, 0.5)
+
     def test_from_env_reads_openai_compatible_llm_and_embedding_settings(self) -> None:
         settings = RagasSettings.from_env(
             {
@@ -32,8 +60,10 @@ class RagasSettingsTest(unittest.TestCase):
                 "EMBEDDING_BASE_URL": "https://embed.example/v1",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
-                "EMBEDDING_TIMEOUT_SECONDS": "45",
-                "RAGAS_REQUEST_TIMEOUT_SECONDS": "75",
+                "SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS": "4",
+                "SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS": "75",
+                "SUPPLEMENTAL_HTTP_WRITE_TIMEOUT_SECONDS": "9",
+                "SUPPLEMENTAL_HTTP_POOL_TIMEOUT_SECONDS": "2",
                 "RAGAS_REASONING_EFFORT": "none",
                 "RAGAS_TEXT_VERBOSITY": "low",
                 "RAGAS_MAX_OUTPUT_TOKENS": "256",
@@ -48,8 +78,11 @@ class RagasSettingsTest(unittest.TestCase):
         self.assertEqual(settings.embedding_api_key, "embed-key")
         self.assertEqual(settings.embedding_model, "Qwen3-Embedding-4B")
         self.assertEqual(settings.embedding_dimensions, 2560)
-        self.assertEqual(settings.request_timeout_seconds, 75.0)
-        self.assertEqual(settings.request_min_interval_seconds, 0.0)
+        self.assertEqual(settings.http_settings.connect_timeout_seconds, 4.0)
+        self.assertEqual(settings.http_settings.read_timeout_seconds, 75.0)
+        self.assertEqual(settings.http_settings.write_timeout_seconds, 9.0)
+        self.assertEqual(settings.http_settings.pool_timeout_seconds, 2.0)
+        self.assertEqual(settings.http_settings.request_min_interval_seconds, 0.0)
         self.assertEqual(settings.reasoning_effort, "none")
         self.assertEqual(settings.text_verbosity, "low")
         self.assertEqual(settings.max_output_tokens, 256)
@@ -61,24 +94,26 @@ class RagasSettingsTest(unittest.TestCase):
                 "RAGAS_LLM_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
-                "RAGAS_REQUEST_MIN_INTERVAL_SECONDS": "12.5",
+                "SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS": "12.5",
             }
         )
 
-        self.assertEqual(settings.request_min_interval_seconds, 12.5)
+        self.assertEqual(settings.http_settings.request_min_interval_seconds, 12.5)
 
-    def test_from_env_does_not_reuse_embedding_timeout_for_ragas_timeout(self) -> None:
+    def test_from_env_ignores_legacy_ragas_timeout_knobs(self) -> None:
         settings = RagasSettings.from_env(
             {
                 "LLM_API_KEY": "llm-key",
                 "LLM_REASONING_MODEL": "qwen-reasoning",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
-                "EMBEDDING_TIMEOUT_SECONDS": "45",
+                "RAGAS_REQUEST_TIMEOUT_SECONDS": "180",
+                "RAGAS_REQUEST_MIN_INTERVAL_SECONDS": "30",
             }
         )
 
-        self.assertEqual(settings.request_timeout_seconds, 60.0)
+        self.assertEqual(settings.http_settings.read_timeout_seconds, 20.0)
+        self.assertEqual(settings.http_settings.request_min_interval_seconds, 0.0)
 
     def test_from_env_prefers_ragas_llm_model_over_reasoning_and_chat_model(self) -> None:
         settings = RagasSettings.from_env(
@@ -173,6 +208,46 @@ class RagasDatasetTest(unittest.TestCase):
 
 
 class RagasHttpTransportTest(unittest.TestCase):
+    def test_build_http_ragas_llm_opens_shared_circuit_breaker_after_repeated_provider_failures(self) -> None:
+        attempts = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal attempts
+            attempts += 1
+            return httpx.Response(
+                503,
+                request=request,
+                text='{"error":{"message":"Service temporarily unavailable","type":"api_error"}}',
+            )
+
+        settings = RagasSettings.from_env(
+            {
+                "LLM_BASE_URL": "https://llm.example/v1",
+                "LLM_API_KEY": "llm-key",
+                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS": "0",
+                "SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_FAILURE_THRESHOLD": "2",
+                "SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_COOLDOWN_SECONDS": "60",
+            }
+        )
+        sync_client = httpx.Client(
+            base_url="https://llm.example/v1",
+            transport=httpx.MockTransport(handler),
+        )
+        llm = build_http_ragas_llm(settings, sync_client=sync_client)
+
+        with self.assertRaisesRegex(RuntimeError, "503"):
+            llm.generate_text(StringPromptValue(text="只回复 OK"))
+        with self.assertRaisesRegex(RuntimeError, "503"):
+            llm.generate_text(StringPromptValue(text="只回复 OK"))
+        with self.assertRaisesRegex(RuntimeError, "circuit_open"):
+            llm.generate_text(StringPromptValue(text="只回复 OK"))
+
+        sync_client.close()
+        self.assertEqual(attempts, 2)
+
     def test_build_http_ragas_llm_posts_responses_payload_without_sdk_only_fields(self) -> None:
         captured: dict[str, object] = {}
 
@@ -460,7 +535,7 @@ class RagasHttpTransportTest(unittest.TestCase):
             }
         )
 
-        with patch("campus_evals.ragas_http.httpx.AsyncClient", FakeAsyncClient):
+        with patch("campus_evals.supplemental_http.httpx.AsyncClient", FakeAsyncClient):
             llm = build_http_ragas_llm(settings)
             async def run_two_calls() -> None:
                 await llm.agenerate_text(StringPromptValue(text="first"))
@@ -478,7 +553,7 @@ class RagasHttpTransportTest(unittest.TestCase):
                 "RAGAS_LLM_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
-                "RAGAS_REQUEST_MIN_INTERVAL_SECONDS": "12.5",
+                "SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS": "12.5",
             }
         )
 
@@ -497,7 +572,7 @@ class RagasHttpTransportTest(unittest.TestCase):
                 "EMBEDDING_BASE_URL": "https://provider.example/embeddings",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
-                "RAGAS_REQUEST_MIN_INTERVAL_SECONDS": "12.5",
+                "SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS": "12.5",
             }
         )
 
@@ -545,7 +620,7 @@ class RagasHttpTransportTest(unittest.TestCase):
             }
         )
 
-        with patch("campus_evals.ragas_http.httpx.AsyncClient", LoopBoundAsyncClient):
+        with patch("campus_evals.supplemental_http.httpx.AsyncClient", LoopBoundAsyncClient):
             llm = build_http_ragas_llm(settings)
             asyncio.run(llm.agenerate_text(StringPromptValue(text="first")))
             asyncio.run(llm.agenerate_text(StringPromptValue(text="second")))
@@ -631,7 +706,7 @@ class RagasHttpTransportTest(unittest.TestCase):
             }
         )
 
-        with patch("campus_evals.ragas_http.httpx.AsyncClient", LoopBoundAsyncClient):
+        with patch("campus_evals.supplemental_http.httpx.AsyncClient", LoopBoundAsyncClient):
             embeddings = build_http_ragas_embeddings(settings)
             asyncio.run(embeddings.aembed_documents(["first"]))
             asyncio.run(embeddings.aembed_documents(["second"]))
@@ -717,7 +792,7 @@ class RagasScorerTest(unittest.TestCase):
                 "EMBEDDING_BASE_URL": "https://embed.example/v1",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
-                "RAGAS_REQUEST_TIMEOUT_SECONDS": "45",
+                "SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS": "45",
             }
         )
 
@@ -761,10 +836,10 @@ class RagasScorerTest(unittest.TestCase):
         self.assertEqual(captured["kwargs"]["show_progress"], False)
         self.assertEqual(captured["kwargs"]["raise_exceptions"], True)
         self.assertEqual(captured["kwargs"]["run_config"].timeout, 45)
-        self.assertEqual(captured["kwargs"]["run_config"].max_retries, 1)
+        self.assertEqual(captured["kwargs"]["run_config"].max_retries, 0)
         self.assertEqual(captured["kwargs"]["run_config"].max_workers, 1)
 
-    def test_build_ragas_scorer_retries_retryable_evaluate_timeout(self) -> None:
+    def test_build_ragas_scorer_does_not_retry_outer_evaluate_timeout(self) -> None:
         attempts = 0
 
         class FakeMetric:
@@ -798,7 +873,6 @@ class RagasScorerTest(unittest.TestCase):
                 "EMBEDDING_BASE_URL": "https://embed.example/v1",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
-                "RAGAS_REQUEST_TIMEOUT_SECONDS": "45",
             }
         )
 
@@ -815,20 +889,20 @@ class RagasScorerTest(unittest.TestCase):
             ),
         )
 
-        results = scorer(
-            RagasProjection(
-                case_id="case-retry",
-                user_input="图书馆开放时间是什么？",
-                response="08:00 到 22:00。",
-                retrieved_contexts=("图书馆开放时间为 08:00-22:00。",),
-                reference="图书馆开放时间为 08:00-22:00。",
+        with self.assertRaisesRegex(TimeoutError, "judge timed out"):
+            scorer(
+                RagasProjection(
+                    case_id="case-retry",
+                    user_input="图书馆开放时间是什么？",
+                    response="08:00 到 22:00。",
+                    retrieved_contexts=("图书馆开放时间为 08:00-22:00。",),
+                    reference="图书馆开放时间为 08:00-22:00。",
+                )
             )
-        )
 
-        self.assertEqual(attempts, 2)
-        self.assertEqual(tuple(item.metric_name for item in results), build_default_ragas_metric_names())
+        self.assertEqual(attempts, 1)
 
-    def test_build_ragas_scorer_retries_retryable_do_request_failed_runtime_error(self) -> None:
+    def test_build_ragas_scorer_does_not_retry_outer_do_request_failed_runtime_error(self) -> None:
         attempts = 0
 
         class FakeMetric:
@@ -864,7 +938,6 @@ class RagasScorerTest(unittest.TestCase):
                 "EMBEDDING_BASE_URL": "https://embed.example/v1",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
-                "RAGAS_REQUEST_TIMEOUT_SECONDS": "45",
             }
         )
 
@@ -881,18 +954,18 @@ class RagasScorerTest(unittest.TestCase):
             ),
         )
 
-        results = scorer(
-            RagasProjection(
-                case_id="case-retry-do-request-failed",
-                user_input="图书馆开放时间是什么？",
-                response="08:00 到 22:00。",
-                retrieved_contexts=("图书馆开放时间为 08:00-22:00。",),
-                reference="图书馆开放时间为 08:00-22:00。",
+        with self.assertRaisesRegex(RuntimeError, "do request failed"):
+            scorer(
+                RagasProjection(
+                    case_id="case-retry-do-request-failed",
+                    user_input="图书馆开放时间是什么？",
+                    response="08:00 到 22:00。",
+                    retrieved_contexts=("图书馆开放时间为 08:00-22:00。",),
+                    reference="图书馆开放时间为 08:00-22:00。",
+                )
             )
-        )
 
-        self.assertEqual(attempts, 2)
-        self.assertEqual(tuple(item.metric_name for item in results), build_default_ragas_metric_names())
+        self.assertEqual(attempts, 1)
 
 
 if __name__ == "__main__":

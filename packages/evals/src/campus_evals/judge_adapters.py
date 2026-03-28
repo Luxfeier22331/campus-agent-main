@@ -11,7 +11,11 @@ from langchain_core.prompt_values import StringPromptValue
 from campus_contracts import RagResultPayload, SpecialistResponse
 from campus_evals.models import ExecutionResult, GoldenCase, SupplementalResult
 from campus_evals.ragas_adapter import build_default_ragas_metric_names, build_ragas_scorer
-from campus_evals.ragas_http import OpenAICompatibleResponsesLLM, get_request_pacer
+from campus_evals.supplemental_http import (
+    OpenAICompatibleResponsesLLM,
+    get_provider_circuit_breaker,
+    get_request_pacer,
+)
 from campus_evals.settings import JudgeLLMSettings, RagasSettings
 
 
@@ -30,9 +34,11 @@ class HandbookRagasAdapter:
         *,
         scorer: Callable[[object], tuple[SupplementalResult, ...]],
         metric_names: tuple[str, ...],
+        preflight: Callable[[], object] | None = None,
     ) -> None:
         self._scorer = scorer
         self._metric_names = metric_names
+        self._preflight = preflight
 
     @property
     def metric_names(self) -> tuple[str, ...]:
@@ -111,6 +117,11 @@ class HandbookRagasAdapter:
             )
         return tuple(final_results)
 
+    def preflight(self) -> object:
+        if self._preflight is None:
+            return {"status": "skipped"}
+        return self._preflight()
+
 
 class RubricJudgeAdapter:
     adapter_id = "judge"
@@ -122,11 +133,13 @@ class RubricJudgeAdapter:
         applicable_statuses: tuple[str, ...],
         rubric: dict[str, object],
         judge_fn: JudgeFn,
+        preflight: Callable[[], object] | None = None,
     ) -> None:
         self.metric_name = metric_name
         self._applicable_statuses = applicable_statuses
         self._rubric = rubric
         self._judge_fn = judge_fn
+        self._preflight = preflight
 
     @property
     def metric_names(self) -> tuple[str, ...]:
@@ -184,6 +197,11 @@ class RubricJudgeAdapter:
             ),
         )
 
+    def preflight(self) -> object:
+        if self._preflight is None:
+            return {"status": "skipped"}
+        return self._preflight()
+
 
 def load_handbook_judge_rubrics(path: str | Path | None = None) -> dict[str, dict[str, object]]:
     resolved_path = Path(path) if path is not None else DEFAULT_STUDENT_HANDBOOK_JUDGE_RUBRICS_PATH
@@ -209,11 +227,30 @@ def build_handbook_ragas_adapter(
     *,
     scorer: Callable[[object], tuple[SupplementalResult, ...]] | None = None,
     metric_names: tuple[str, ...] | None = None,
+    preflight: Callable[[], object] | None = None,
 ) -> HandbookRagasAdapter:
     resolved_metric_names = metric_names or build_default_ragas_metric_names()
+    resolved_scorer = scorer
+    resolved_preflight = preflight
+    if resolved_scorer is None:
+        from campus_evals.supplemental_http import build_http_ragas_embeddings, build_http_ragas_llm
+
+        llm = build_http_ragas_llm(settings)
+        embeddings = build_http_ragas_embeddings(settings)
+        resolved_scorer = build_ragas_scorer(
+            settings,
+            llm_factory=lambda resolved: llm,
+            embeddings_factory=lambda resolved: embeddings,
+        )
+        if resolved_preflight is None:
+            resolved_preflight = lambda: {
+                "llm": llm.preflight_sync(),
+                "embeddings": embeddings.preflight_sync(),
+            }
     return HandbookRagasAdapter(
-        scorer=scorer or build_ragas_scorer(settings),
+        scorer=resolved_scorer,
         metric_names=resolved_metric_names,
+        preflight=resolved_preflight,
     )
 
 
@@ -223,13 +260,22 @@ def build_answer_rubric_adapter(
     judge_fn: JudgeFn | None = None,
     rubrics_path: str | Path | None = None,
     sync_client: httpx.Client | None = None,
+    preflight: Callable[[], object] | None = None,
 ) -> RubricJudgeAdapter:
     rubric = load_handbook_judge_rubrics(rubrics_path)["answer_correctness_rubric"]
+    resolved_judge_fn = judge_fn
+    resolved_preflight = preflight
+    if resolved_judge_fn is None:
+        _, resolved_judge_fn, resolved_preflight = _build_responses_judge_runtime(
+            settings,
+            sync_client=sync_client,
+        )
     return RubricJudgeAdapter(
         metric_name="answer_correctness_rubric",
         applicable_statuses=("completed",),
         rubric=rubric,
-        judge_fn=judge_fn or build_responses_json_judge(settings, sync_client=sync_client),
+        judge_fn=resolved_judge_fn,
+        preflight=resolved_preflight,
     )
 
 
@@ -239,13 +285,22 @@ def build_refusal_rubric_adapter(
     judge_fn: JudgeFn | None = None,
     rubrics_path: str | Path | None = None,
     sync_client: httpx.Client | None = None,
+    preflight: Callable[[], object] | None = None,
 ) -> RubricJudgeAdapter:
     rubric = load_handbook_judge_rubrics(rubrics_path)["refusal_quality"]
+    resolved_judge_fn = judge_fn
+    resolved_preflight = preflight
+    if resolved_judge_fn is None:
+        _, resolved_judge_fn, resolved_preflight = _build_responses_judge_runtime(
+            settings,
+            sync_client=sync_client,
+        )
     return RubricJudgeAdapter(
         metric_name="refusal_quality",
         applicable_statuses=("no_answer", "needs_clarification"),
         rubric=rubric,
-        judge_fn=judge_fn or build_responses_json_judge(settings, sync_client=sync_client),
+        judge_fn=resolved_judge_fn,
+        preflight=resolved_preflight,
     )
 
 
@@ -254,10 +309,13 @@ def build_default_handbook_supplemental_adapters_from_env(
     *,
     metric_names: tuple[str, ...] | None = None,
 ) -> tuple[object, ...]:
+    ragas_settings = RagasSettings.from_env(env)
+    judge_settings = JudgeLLMSettings.from_env(env)
+    _, judge_fn, judge_preflight = _build_responses_judge_runtime(judge_settings)
     return (
-        build_handbook_ragas_adapter(RagasSettings.from_env(env), metric_names=metric_names),
-        build_answer_rubric_adapter(JudgeLLMSettings.from_env(env)),
-        build_refusal_rubric_adapter(JudgeLLMSettings.from_env(env)),
+        build_handbook_ragas_adapter(ragas_settings, metric_names=metric_names),
+        build_answer_rubric_adapter(judge_settings, judge_fn=judge_fn, preflight=judge_preflight),
+        build_refusal_rubric_adapter(judge_settings, judge_fn=judge_fn, preflight=judge_preflight),
     )
 
 
@@ -266,18 +324,32 @@ def build_responses_json_judge(
     *,
     sync_client: httpx.Client | None = None,
 ) -> JudgeFn:
+    _, judge_fn, _ = _build_responses_judge_runtime(settings, sync_client=sync_client)
+    return judge_fn
+
+
+def _build_responses_judge_runtime(
+    settings: JudgeLLMSettings,
+    *,
+    sync_client: httpx.Client | None = None,
+) -> tuple[OpenAICompatibleResponsesLLM, JudgeFn, Callable[[], object]]:
+    base_url = settings.llm_base_url or "https://api.openai.com/v1"
     llm = OpenAICompatibleResponsesLLM(
-        base_url=settings.llm_base_url or "https://api.openai.com/v1",
+        base_url=base_url,
         api_key=settings.llm_api_key,
         model=settings.llm_model,
-        timeout=settings.request_timeout_seconds,
+        http_settings=settings.http_settings,
         reasoning_effort=settings.reasoning_effort,
         text_verbosity=settings.text_verbosity,
         max_output_tokens=settings.max_output_tokens,
         request_pacer=get_request_pacer(
-            base_url=settings.llm_base_url or "https://api.openai.com/v1",
+            base_url=base_url,
             api_key=settings.llm_api_key,
-            min_interval_seconds=settings.request_min_interval_seconds,
+            min_interval_seconds=settings.http_settings.request_min_interval_seconds,
+        ),
+        circuit_breaker=get_provider_circuit_breaker(
+            base_url=base_url,
+            settings=settings.http_settings,
         ),
         sync_client=sync_client,
     )
@@ -287,7 +359,10 @@ def build_responses_json_judge(
         text = result.generations[0][0].text
         return _parse_judge_json(text)
 
-    return _judge
+    preflight = getattr(llm, "preflight_sync", None)
+    if not callable(preflight):
+        preflight = lambda: {"status": "not_supported"}
+    return llm, _judge, preflight
 
 
 def _build_rubric_prompt(

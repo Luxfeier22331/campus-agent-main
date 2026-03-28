@@ -93,6 +93,87 @@ def _response(
 
 
 class HandbookBenchmarkRunnerTest(unittest.TestCase):
+    def test_run_handbook_formal_benchmark_executes_supplemental_preflight_without_blocking_deterministic_runs(self) -> None:
+        cases = (_completed_case(),)
+
+        class PreflightAwareAdapter:
+            adapter_id = "judge"
+            metric_name = "answer_correctness_rubric"
+            metric_names = ("answer_correctness_rubric",)
+
+            def __init__(self) -> None:
+                self.preflight_calls = 0
+                self.evaluate_calls = 0
+                self.preflight_failed = False
+
+            def preflight(self) -> dict[str, object]:
+                self.preflight_calls += 1
+                self.preflight_failed = True
+                raise RuntimeError("preflight_failed: 503 upstream temporarily unavailable")
+
+            def evaluate(self, case, execution):
+                del execution
+                self.evaluate_calls += 1
+                if self.preflight_failed:
+                    return (
+                        SupplementalResult(
+                            adapter_id="judge",
+                            metric_name="answer_correctness_rubric",
+                            score=None,
+                            verdict="failed",
+                            rationale=f"judge runtime error: circuit_open after preflight_failed for {case.case_id}",
+                            metadata={"judge_error": "RuntimeError"},
+                        ),
+                    )
+                return (
+                    SupplementalResult(
+                        adapter_id="judge",
+                        metric_name="answer_correctness_rubric",
+                        score=0.9,
+                        verdict="passed",
+                        rationale=f"scored {case.case_id}",
+                        metadata={"expected_status": case.expected_status},
+                    ),
+                )
+
+        adapter = PreflightAwareAdapter()
+
+        with TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "benchmark"
+
+            run_handbook_formal_benchmark(
+                cases=cases,
+                executor=lambda case: ExecutionResult(
+                    response=_response(
+                        status=case.expected_status,
+                        answer_text="图书馆开放时间为 08:00 到 22:00。",
+                        sources=(_source("handbook:library"),),
+                    ),
+                    observed_trace=ObservedTrace(
+                        selected_scope=HANDBOOK_SCOPE,
+                        retrieval_called=True,
+                        retrieved_sources=(_source("handbook:library"),),
+                        supporting_sources=(_source("handbook:library"),),
+                    ),
+                ),
+                supplemental_adapters=(adapter,),
+                output_dir=output_dir,
+                reruns=1,
+                benchmark_type="formal_benchmark",
+            )
+
+            self.assertEqual(adapter.preflight_calls, 1)
+            self.assertEqual(adapter.evaluate_calls, 1)
+            self.assertTrue((output_dir / "supplemental-preflight.json").exists())
+            preflight = json.loads((output_dir / "supplemental-preflight.json").read_text(encoding="utf-8"))
+            self.assertEqual(preflight["summary"]["status_counts"]["failed"], 1)
+            summary = json.loads((output_dir / "run-01-summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["summary"]["total"], 1)
+            self.assertEqual(summary["summary"]["passed"], 1)
+            supplemental = summary["summary"]["by_supplemental"]["judge.answer_correctness_rubric"]
+            self.assertEqual(supplemental["score_count"], 0)
+            self.assertEqual(supplemental["verdict_counts"]["failed"], 1)
+
     def test_run_handbook_formal_benchmark_writes_expected_artifacts_and_summaries(self) -> None:
         cases = (_completed_case(), _no_answer_case())
         adapter = type(
@@ -171,6 +252,7 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
             )
 
             self.assertTrue((output_dir / "benchmark-config.json").exists())
+            self.assertTrue((output_dir / "supplemental-preflight.json").exists())
             self.assertTrue((output_dir / "run-01-case-results.json").exists())
             self.assertTrue((output_dir / "run-01-summary.json").exists())
             self.assertTrue((output_dir / "run-02-case-results.json").exists())

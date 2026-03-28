@@ -19,7 +19,7 @@ from campus_evals.models import (
     SupplementalResult,
     SummaryCount,
 )
-from campus_evals.ragas_http import classify_retryable_runtime_failure
+from campus_evals.supplemental_http import classify_retryable_runtime_failure
 from campus_evals.runner import SupplementalAdapter, run_cases, summarize_case_results
 
 
@@ -41,6 +41,9 @@ def run_handbook_formal_benchmark(
     resolved_output_dir = Path(output_dir)
     resolved_output_dir.mkdir(parents=True, exist_ok=True)
     policy = load_judge_gate_policy(policy_path)
+    supplemental_preflight = _run_supplemental_preflight(supplemental_adapters)
+    supplemental_preflight_path = resolved_output_dir / "supplemental-preflight.json"
+    _write_json(supplemental_preflight_path, supplemental_preflight)
 
     _write_json(
         resolved_output_dir / "benchmark-config.json",
@@ -50,6 +53,8 @@ def run_handbook_formal_benchmark(
             "reruns": reruns,
             "policy_path": policy.get("path"),
             "supplemental_adapters": [adapter.adapter_id for adapter in supplemental_adapters],
+            "supplemental_preflight_path": str(supplemental_preflight_path),
+            "supplemental_preflight": supplemental_preflight["summary"],
             "case_set": _case_set_summary(cases),
         },
     )
@@ -76,6 +81,7 @@ def run_handbook_formal_benchmark(
         cases=cases,
         policy=policy,
         run_reports=run_reports,
+        supplemental_preflight=supplemental_preflight,
     )
 
 
@@ -145,6 +151,9 @@ def repair_handbook_formal_benchmark(
     grouped_targets = _group_repair_targets_by_run_case(targets)
     case_index = {case.case_id: case for case in cases}
     original_run_payloads = _load_run_case_result_payloads(resolved_benchmark_dir)
+    supplemental_preflight = _run_supplemental_preflight(supplemental_adapters)
+    supplemental_preflight_path = resolved_output_dir / "supplemental-preflight.json"
+    _write_json(supplemental_preflight_path, supplemental_preflight)
 
     _write_json(
         resolved_output_dir / "repair-config.json",
@@ -155,6 +164,8 @@ def repair_handbook_formal_benchmark(
             "source_benchmark_type": original_config.get("benchmark_type"),
             "policy_path": policy.get("path"),
             "supplemental_adapters": [adapter.adapter_id for adapter in supplemental_adapters],
+            "supplemental_preflight_path": str(supplemental_preflight_path),
+            "supplemental_preflight": supplemental_preflight["summary"],
             "selected_target_count": len(targets),
         },
     )
@@ -264,6 +275,7 @@ def repair_handbook_formal_benchmark(
             "applied_target_count": applied_target_count,
             "plan_path": str(resolved_output_dir / "repair-plan.json"),
         },
+        supplemental_preflight=supplemental_preflight,
     )
 
 
@@ -320,6 +332,7 @@ def _write_benchmark_summary(
     run_reports: list[RunReport],
     provenance: dict[str, object] | None = None,
     repair: dict[str, object] | None = None,
+    supplemental_preflight: dict[str, object] | None = None,
 ) -> dict[str, object]:
     case_index = {case.case_id: case for case in cases}
     supplemental_summary = _summarize_supplemental_across_runs(run_reports=run_reports, case_index=case_index)
@@ -349,6 +362,8 @@ def _write_benchmark_summary(
         summary["provenance"] = provenance
     if repair is not None:
         summary["repair"] = repair
+    if supplemental_preflight is not None:
+        summary["supplemental_preflight"] = supplemental_preflight
     _write_json(output_dir / "summary.json", summary)
     _write_json(output_dir / "gate-report.json", gate_report)
     (output_dir / "SUMMARY.md").write_text(
@@ -734,6 +749,11 @@ def _render_summary_markdown(summary: dict[str, object]) -> str:
     if isinstance(repair, dict):
         lines.append(f"- repair.selected_target_count: `{repair.get('selected_target_count')}`")
         lines.append(f"- repair.applied_target_count: `{repair.get('applied_target_count')}`")
+    supplemental_preflight = summary.get("supplemental_preflight")
+    if isinstance(supplemental_preflight, dict):
+        lines.append(
+            f"- supplemental_preflight.status_counts: `{supplemental_preflight.get('summary', {}).get('status_counts')}`"
+        )
     lines.extend(
         (
             "",
@@ -774,3 +794,78 @@ def _write_json(path: Path, payload: dict[str, object]) -> None:
         json.dumps(payload, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+
+
+def _run_supplemental_preflight(
+    supplemental_adapters: tuple[SupplementalAdapter, ...],
+) -> dict[str, object]:
+    entries: list[dict[str, object]] = []
+    for adapter in supplemental_adapters:
+        preflight_fn = getattr(adapter, "preflight", None)
+        metric_keys = list(_adapter_metric_keys(adapter))
+        entry = {
+            "adapter_id": adapter.adapter_id,
+            "metric_keys": metric_keys,
+        }
+        if not callable(preflight_fn):
+            entries.append(
+                {
+                    **entry,
+                    "status": "not_supported",
+                }
+            )
+            continue
+        try:
+            result = preflight_fn()
+        except Exception as exc:
+            entries.append(
+                {
+                    **entry,
+                    "status": "failed",
+                    "error_type": type(exc).__name__,
+                    "error": str(exc),
+                    "failure_reasons": list(
+                        getattr(exc, "reasons", ())
+                        or classify_retryable_runtime_failure(
+                            str(exc),
+                            error_type=type(exc).__name__,
+                        )
+                    ),
+                }
+            )
+            continue
+        entries.append(
+            {
+                **entry,
+                "status": "passed",
+                "result": _serialize_preflight_result(result),
+            }
+        )
+    return {
+        "schema_version": 1,
+        "adapter_count": len(supplemental_adapters),
+        "summary": _summarize_preflight_entries(entries),
+        "adapters": entries,
+    }
+
+
+def _summarize_preflight_entries(entries: list[dict[str, object]]) -> dict[str, object]:
+    status_counts = Counter(str(entry.get("status") or "unknown") for entry in entries)
+    return {
+        "total": len(entries),
+        "status_counts": dict(status_counts),
+    }
+
+
+def _serialize_preflight_result(result: object) -> object:
+    if result is None:
+        return None
+    if is_dataclass(result):
+        return asdict(result)
+    if isinstance(result, dict):
+        return {str(key): _serialize_preflight_result(value) for key, value in result.items()}
+    if isinstance(result, (list, tuple)):
+        return [_serialize_preflight_result(item) for item in result]
+    if isinstance(result, (str, int, float, bool)):
+        return result
+    return str(result)

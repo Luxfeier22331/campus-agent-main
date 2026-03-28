@@ -2,22 +2,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from math import isnan
-import time
 from typing import Callable
 
 from campus_contracts import RagResultPayload, SpecialistResponse
 from campus_evals.models import ExecutionResult, GoldenCase, SupplementalResult
-from campus_evals.ragas_http import (
+from campus_evals.supplemental_http import (
     build_http_ragas_embeddings,
     build_http_ragas_llm,
-    is_retryable_provider_exception,
 )
 from campus_evals.settings import RagasSettings
 
 
 DEFAULT_RAGAS_METRIC_NAMES = ("faithfulness", "answer_relevancy", "context_precision", "context_recall")
-DEFAULT_RAGAS_SCORE_ATTEMPTS = 3
-DEFAULT_RAGAS_SCORE_BACKOFF_SECONDS = 2.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,13 +58,20 @@ class RagasSupplementalAdapter:
         self,
         *,
         scorer: Callable[[RagasProjection], tuple[SupplementalResult, ...]],
+        preflight: Callable[[], object] | None = None,
     ) -> None:
         self._scorer = scorer
+        self._preflight = preflight
 
     def evaluate(self, case: GoldenCase, execution: ExecutionResult) -> tuple[SupplementalResult, ...]:
         projection = build_ragas_projection(case, execution)
         results = self._scorer(projection)
         return tuple(results)
+
+    def preflight(self) -> object:
+        if self._preflight is None:
+            return {"status": "skipped"}
+        return self._preflight()
 
 
 def build_default_ragas_metric_names() -> tuple[str, ...]:
@@ -117,18 +120,19 @@ def build_ragas_scorer(
     metrics = list(metric_factory(llm, embeddings))
     run_config = RunConfig(
         timeout=int(settings.request_timeout_seconds),
-        max_retries=1,
+        max_retries=0,
         max_workers=1,
     )
 
     def _score(projection: RagasProjection) -> tuple[SupplementalResult, ...]:
-        evaluation = _evaluate_with_retries(
-            evaluate_fn=evaluate_fn,
-            projection=projection,
+        evaluation = evaluate_fn(
+            dataset=build_ragas_dataset(projection),
             metrics=metrics,
             llm=llm,
             embeddings=embeddings,
             run_config=run_config,
+            show_progress=False,
+            raise_exceptions=True,
             batch_size=settings.batch_size,
         )
         row = _extract_ragas_score_row(evaluation)
@@ -138,7 +142,20 @@ def build_ragas_scorer(
 
 
 def build_ragas_supplemental_adapter_from_env(env: dict[str, str] | None = None) -> RagasSupplementalAdapter:
-    return RagasSupplementalAdapter(scorer=build_ragas_scorer(RagasSettings.from_env(env)))
+    settings = RagasSettings.from_env(env)
+    llm = build_http_ragas_llm(settings)
+    embeddings = build_http_ragas_embeddings(settings)
+    return RagasSupplementalAdapter(
+        scorer=build_ragas_scorer(
+            settings,
+            llm_factory=lambda resolved: llm,
+            embeddings_factory=lambda resolved: embeddings,
+        ),
+        preflight=lambda: {
+            "llm": llm.preflight_sync(),
+            "embeddings": embeddings.preflight_sync(),
+        },
+    )
 
 
 def _extract_ragas_score_row(evaluation: object) -> dict[str, object]:
@@ -181,36 +198,3 @@ def _coerce_score(value: object) -> float | None:
         numeric = float(value)
         return None if isnan(numeric) else numeric
     return None
-
-
-def _evaluate_with_retries(
-    *,
-    evaluate_fn,
-    projection: RagasProjection,
-    metrics: list[object],
-    llm: object,
-    embeddings: object,
-    run_config,
-    batch_size: int | None,
-):
-    for attempt in range(1, DEFAULT_RAGAS_SCORE_ATTEMPTS + 1):
-        try:
-            return evaluate_fn(
-                dataset=build_ragas_dataset(projection),
-                metrics=metrics,
-                llm=llm,
-                embeddings=embeddings,
-                run_config=run_config,
-                show_progress=False,
-                raise_exceptions=True,
-                batch_size=batch_size,
-            )
-        except Exception as exc:
-            if attempt >= DEFAULT_RAGAS_SCORE_ATTEMPTS or not _is_retryable_ragas_exception(exc):
-                raise
-            time.sleep(DEFAULT_RAGAS_SCORE_BACKOFF_SECONDS * attempt)
-    raise RuntimeError("unreachable ragas retry loop")
-
-
-def _is_retryable_ragas_exception(exc: Exception) -> bool:
-    return isinstance(exc, TimeoutError) or is_retryable_provider_exception(exc)

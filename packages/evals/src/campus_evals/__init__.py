@@ -50,7 +50,7 @@ from campus_evals.models import (
     TraceExpectation,
     expected_source_ref,
 )
-from campus_evals.ragas_http import (
+from campus_evals.supplemental_http import (
     OpenAICompatibleHTTPEmbeddings,
     OpenAICompatibleResponsesLLM,
     build_http_ragas_embeddings,
@@ -73,7 +73,7 @@ from campus_evals.scenarios import (
     handbook_release_gate_cases,
     handbook_smoke_cases,
 )
-from campus_evals.settings import JudgeLLMSettings, RagasSettings
+from campus_evals.settings import JudgeLLMSettings, RagasSettings, SupplementalHTTPSettings
 
 __all__ = [
     "CaseResult",
@@ -102,6 +102,7 @@ __all__ = [
     "SummaryCount",
     "SupplementalMetricSummary",
     "SupplementalResult",
+    "SupplementalHTTPSettings",
     "TraceExpectation",
     "build_default_ragas_metric_names",
     "build_default_handbook_supplemental_adapters_from_env",

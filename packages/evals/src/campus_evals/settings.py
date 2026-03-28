@@ -4,10 +4,120 @@ from dataclasses import dataclass
 import os
 
 
-DEFAULT_RAGAS_TIMEOUT_SECONDS = 60.0
-DEFAULT_RAGAS_REQUEST_MIN_INTERVAL_SECONDS = 0.0
+DEFAULT_SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS = 3.0
+DEFAULT_SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS = 20.0
+DEFAULT_SUPPLEMENTAL_HTTP_WRITE_TIMEOUT_SECONDS = 10.0
+DEFAULT_SUPPLEMENTAL_HTTP_POOL_TIMEOUT_SECONDS = 3.0
+DEFAULT_SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS = 1
+DEFAULT_SUPPLEMENTAL_HTTP_RETRY_BACKOFF_SECONDS = 1.0
+DEFAULT_SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_FAILURE_THRESHOLD = 3
+DEFAULT_SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_COOLDOWN_SECONDS = 60.0
+DEFAULT_SUPPLEMENTAL_HTTP_PREFLIGHT_TIMEOUT_SECONDS = 5.0
+DEFAULT_SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS = 0.0
 ALLOWED_RAGAS_REASONING_EFFORTS = frozenset({"minimal", "low", "medium", "high", "none"})
 ALLOWED_RAGAS_TEXT_VERBOSITIES = frozenset({"low", "medium", "high"})
+
+
+@dataclass(frozen=True, slots=True)
+class SupplementalHTTPSettings:
+    connect_timeout_seconds: float = DEFAULT_SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS
+    read_timeout_seconds: float = DEFAULT_SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS
+    write_timeout_seconds: float = DEFAULT_SUPPLEMENTAL_HTTP_WRITE_TIMEOUT_SECONDS
+    pool_timeout_seconds: float = DEFAULT_SUPPLEMENTAL_HTTP_POOL_TIMEOUT_SECONDS
+    retry_attempts: int = DEFAULT_SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS
+    retry_backoff_seconds: float = DEFAULT_SUPPLEMENTAL_HTTP_RETRY_BACKOFF_SECONDS
+    circuit_breaker_failure_threshold: int = DEFAULT_SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_FAILURE_THRESHOLD
+    circuit_breaker_cooldown_seconds: float = DEFAULT_SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_COOLDOWN_SECONDS
+    preflight_timeout_seconds: float = DEFAULT_SUPPLEMENTAL_HTTP_PREFLIGHT_TIMEOUT_SECONDS
+    request_min_interval_seconds: float = DEFAULT_SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS
+
+    def __post_init__(self) -> None:
+        if self.connect_timeout_seconds <= 0:
+            raise ValueError("SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS must be greater than zero")
+        if self.read_timeout_seconds <= 0:
+            raise ValueError("SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS must be greater than zero")
+        if self.write_timeout_seconds <= 0:
+            raise ValueError("SUPPLEMENTAL_HTTP_WRITE_TIMEOUT_SECONDS must be greater than zero")
+        if self.pool_timeout_seconds <= 0:
+            raise ValueError("SUPPLEMENTAL_HTTP_POOL_TIMEOUT_SECONDS must be greater than zero")
+        if self.retry_attempts < 0:
+            raise ValueError("SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS must be greater than or equal to zero")
+        if self.retry_backoff_seconds < 0:
+            raise ValueError("SUPPLEMENTAL_HTTP_RETRY_BACKOFF_SECONDS must be greater than or equal to zero")
+        if self.circuit_breaker_failure_threshold <= 0:
+            raise ValueError("SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_FAILURE_THRESHOLD must be greater than zero")
+        if self.circuit_breaker_cooldown_seconds <= 0:
+            raise ValueError("SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_COOLDOWN_SECONDS must be greater than zero")
+        if self.preflight_timeout_seconds <= 0:
+            raise ValueError("SUPPLEMENTAL_HTTP_PREFLIGHT_TIMEOUT_SECONDS must be greater than zero")
+        if self.request_min_interval_seconds < 0:
+            raise ValueError("SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS must be greater than or equal to zero")
+
+    @classmethod
+    def from_env(cls, env: dict[str, str] | None = None) -> "SupplementalHTTPSettings":
+        source = env if env is not None else os.environ
+        return cls(
+            connect_timeout_seconds=float(
+                (
+                    source.get("SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS")
+                    or str(DEFAULT_SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS)
+                ).strip()
+            ),
+            read_timeout_seconds=float(
+                (
+                    source.get("SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS")
+                    or str(DEFAULT_SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS)
+                ).strip()
+            ),
+            write_timeout_seconds=float(
+                (
+                    source.get("SUPPLEMENTAL_HTTP_WRITE_TIMEOUT_SECONDS")
+                    or str(DEFAULT_SUPPLEMENTAL_HTTP_WRITE_TIMEOUT_SECONDS)
+                ).strip()
+            ),
+            pool_timeout_seconds=float(
+                (
+                    source.get("SUPPLEMENTAL_HTTP_POOL_TIMEOUT_SECONDS")
+                    or str(DEFAULT_SUPPLEMENTAL_HTTP_POOL_TIMEOUT_SECONDS)
+                ).strip()
+            ),
+            retry_attempts=int(
+                (
+                    source.get("SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS")
+                    or str(DEFAULT_SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS)
+                ).strip()
+            ),
+            retry_backoff_seconds=float(
+                (
+                    source.get("SUPPLEMENTAL_HTTP_RETRY_BACKOFF_SECONDS")
+                    or str(DEFAULT_SUPPLEMENTAL_HTTP_RETRY_BACKOFF_SECONDS)
+                ).strip()
+            ),
+            circuit_breaker_failure_threshold=int(
+                (
+                    source.get("SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_FAILURE_THRESHOLD")
+                    or str(DEFAULT_SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_FAILURE_THRESHOLD)
+                ).strip()
+            ),
+            circuit_breaker_cooldown_seconds=float(
+                (
+                    source.get("SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_COOLDOWN_SECONDS")
+                    or str(DEFAULT_SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_COOLDOWN_SECONDS)
+                ).strip()
+            ),
+            preflight_timeout_seconds=float(
+                (
+                    source.get("SUPPLEMENTAL_HTTP_PREFLIGHT_TIMEOUT_SECONDS")
+                    or str(DEFAULT_SUPPLEMENTAL_HTTP_PREFLIGHT_TIMEOUT_SECONDS)
+                ).strip()
+            ),
+            request_min_interval_seconds=float(
+                (
+                    source.get("SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS")
+                    or str(DEFAULT_SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS)
+                ).strip()
+            ),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -19,8 +129,7 @@ class RagasSettings:
     llm_base_url: str | None = None
     embedding_base_url: str | None = None
     embedding_dimensions: int | None = None
-    request_timeout_seconds: float = DEFAULT_RAGAS_TIMEOUT_SECONDS
-    request_min_interval_seconds: float = DEFAULT_RAGAS_REQUEST_MIN_INTERVAL_SECONDS
+    http_settings: SupplementalHTTPSettings = SupplementalHTTPSettings()
     batch_size: int | None = None
     use_responses_api: bool = True
     reasoning_effort: str | None = None
@@ -40,10 +149,6 @@ class RagasSettings:
             object.__setattr__(self, "embedding_dimensions", 2560)
         if self.embedding_dimensions is not None and self.embedding_dimensions <= 0:
             raise ValueError("EMBEDDING_DIMENSIONS must be greater than zero")
-        if self.request_timeout_seconds <= 0:
-            raise ValueError("ragas timeout must be greater than zero")
-        if self.request_min_interval_seconds < 0:
-            raise ValueError("RAGAS_REQUEST_MIN_INTERVAL_SECONDS must be greater than or equal to zero")
         if self.batch_size is not None and self.batch_size <= 0:
             raise ValueError("RAGAS_BATCH_SIZE must be greater than zero")
         if self.reasoning_effort is not None and self.reasoning_effort not in ALLOWED_RAGAS_REASONING_EFFORTS:
@@ -69,12 +174,7 @@ class RagasSettings:
                 model=embedding_model,
                 raw_dimensions=raw_embedding_dimensions,
             ),
-            request_timeout_seconds=float(
-                (source.get("RAGAS_REQUEST_TIMEOUT_SECONDS") or str(DEFAULT_RAGAS_TIMEOUT_SECONDS)).strip()
-            ),
-            request_min_interval_seconds=float(
-                (source.get("RAGAS_REQUEST_MIN_INTERVAL_SECONDS") or str(DEFAULT_RAGAS_REQUEST_MIN_INTERVAL_SECONDS)).strip()
-            ),
+            http_settings=SupplementalHTTPSettings.from_env(source),
             batch_size=_read_optional_int(source.get("RAGAS_BATCH_SIZE")),
             use_responses_api=_read_bool(source.get("RAGAS_USE_RESPONSES_API"), default=True),
             reasoning_effort=_read_optional_str(source.get("RAGAS_REASONING_EFFORT")),
@@ -82,14 +182,21 @@ class RagasSettings:
             max_output_tokens=_read_optional_int(source.get("RAGAS_MAX_OUTPUT_TOKENS")),
         )
 
+    @property
+    def request_timeout_seconds(self) -> float:
+        return self.http_settings.read_timeout_seconds
+
+    @property
+    def request_min_interval_seconds(self) -> float:
+        return self.http_settings.request_min_interval_seconds
+
 
 @dataclass(frozen=True, slots=True)
 class JudgeLLMSettings:
     llm_api_key: str
     llm_model: str
     llm_base_url: str | None = None
-    request_timeout_seconds: float = DEFAULT_RAGAS_TIMEOUT_SECONDS
-    request_min_interval_seconds: float = DEFAULT_RAGAS_REQUEST_MIN_INTERVAL_SECONDS
+    http_settings: SupplementalHTTPSettings = SupplementalHTTPSettings()
     reasoning_effort: str | None = None
     text_verbosity: str | None = None
     max_output_tokens: int | None = None
@@ -99,10 +206,6 @@ class JudgeLLMSettings:
             raise ValueError("LLM_API_KEY is required")
         if not self.llm_model.strip():
             raise ValueError("RAGAS_LLM_MODEL, LLM_REASONING_MODEL, or LLM_CHAT_MODEL is required")
-        if self.request_timeout_seconds <= 0:
-            raise ValueError("judge timeout must be greater than zero")
-        if self.request_min_interval_seconds < 0:
-            raise ValueError("RAGAS_REQUEST_MIN_INTERVAL_SECONDS must be greater than or equal to zero")
         if self.reasoning_effort is not None and self.reasoning_effort not in ALLOWED_RAGAS_REASONING_EFFORTS:
             raise ValueError("RAGAS_REASONING_EFFORT must be one of minimal, low, medium, high, none")
         if self.text_verbosity is not None and self.text_verbosity not in ALLOWED_RAGAS_TEXT_VERBOSITIES:
@@ -117,12 +220,7 @@ class JudgeLLMSettings:
             llm_api_key=(source.get("LLM_API_KEY") or "").strip(),
             llm_model=_resolve_judge_model(source),
             llm_base_url=(source.get("LLM_BASE_URL") or "").strip() or None,
-            request_timeout_seconds=float(
-                (source.get("RAGAS_REQUEST_TIMEOUT_SECONDS") or str(DEFAULT_RAGAS_TIMEOUT_SECONDS)).strip()
-            ),
-            request_min_interval_seconds=float(
-                (source.get("RAGAS_REQUEST_MIN_INTERVAL_SECONDS") or str(DEFAULT_RAGAS_REQUEST_MIN_INTERVAL_SECONDS)).strip()
-            ),
+            http_settings=SupplementalHTTPSettings.from_env(source),
             reasoning_effort=_read_optional_str(source.get("RAGAS_REASONING_EFFORT")),
             text_verbosity=_read_optional_str(source.get("RAGAS_TEXT_VERBOSITY")),
             max_output_tokens=_read_optional_int(source.get("RAGAS_MAX_OUTPUT_TOKENS")),
@@ -133,12 +231,19 @@ class JudgeLLMSettings:
             "llm_api_key": self.llm_api_key,
             "llm_model": self.llm_model,
             "llm_base_url": self.llm_base_url,
-            "request_timeout_seconds": self.request_timeout_seconds,
-            "request_min_interval_seconds": self.request_min_interval_seconds,
+            "http_settings": self.http_settings,
             "reasoning_effort": self.reasoning_effort,
             "text_verbosity": self.text_verbosity,
             "max_output_tokens": self.max_output_tokens,
         }
+
+    @property
+    def request_timeout_seconds(self) -> float:
+        return self.http_settings.read_timeout_seconds
+
+    @property
+    def request_min_interval_seconds(self) -> float:
+        return self.http_settings.request_min_interval_seconds
 
 
 def _resolve_embedding_dimensions(*, model: str, raw_dimensions: str) -> int | None:
