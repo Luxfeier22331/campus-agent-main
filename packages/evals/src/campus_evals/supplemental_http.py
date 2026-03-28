@@ -13,8 +13,9 @@ from urllib.parse import urlparse
 
 import httpx
 from langchain_core.outputs import Generation, LLMResult
+from pydantic import BaseModel, ValidationError
 from ragas.embeddings.base import BaseRagasEmbeddings
-from ragas.llms.base import BaseRagasLLM
+from ragas.llms.base import BaseRagasLLM, InstructorBaseRagasLLM
 
 from campus_evals.settings import RagasSettings, SupplementalHTTPSettings
 
@@ -87,6 +88,7 @@ _SHARED_ASYNC_CLIENTS: dict[tuple[object, ...], httpx.AsyncClient] = {}
 _SHARED_ASYNC_CLIENTS_LOCK = Lock()
 _PREFLIGHT_CACHE: dict[tuple[str, str, str], "_PreflightCacheEntry"] = {}
 _PREFLIGHT_CACHE_LOCK = Lock()
+StructuredOutputModel = t.TypeVar("StructuredOutputModel", bound=BaseModel)
 
 
 class SupplementalFastFailError(RuntimeError):
@@ -132,6 +134,10 @@ class _PreflightCacheEntry:
     error_reasons: tuple[str, ...] = ()
     failure_disposition: str | None = None
     expires_at: float | None = None
+
+
+class _ResponsesStructuredPreflightModel(BaseModel):
+    status: str
 
 
 class RequestPacer:
@@ -226,7 +232,7 @@ class ProviderCircuitBreaker:
             self._opened_until = time.monotonic() + self.cooldown_seconds
 
 
-class OpenAICompatibleResponsesLLM(BaseRagasLLM):
+class OpenAICompatibleResponsesLLM(BaseRagasLLM, InstructorBaseRagasLLM):
     def __init__(
         self,
         *,
@@ -288,6 +294,23 @@ class OpenAICompatibleResponsesLLM(BaseRagasLLM):
             llm_output={"provider": "responses_http", "model": self.model},
         )
 
+    def generate(
+        self,
+        prompt: str,
+        response_model: type[StructuredOutputModel],
+    ) -> StructuredOutputModel:
+        payload = _build_responses_structured_payload(
+            model=self.model,
+            prompt=prompt,
+            response_model=response_model,
+            reasoning_effort=self.reasoning_effort,
+            max_output_tokens=self.max_output_tokens,
+        )
+        return _extract_structured_output_model(
+            self._post_json_sync("/responses", payload),
+            response_model=response_model,
+        )
+
     async def agenerate_text(
         self,
         prompt,
@@ -323,16 +346,34 @@ class OpenAICompatibleResponsesLLM(BaseRagasLLM):
             llm_output={"provider": "responses_http", "model": self.model},
         )
 
+    async def agenerate(
+        self,
+        prompt: str,
+        response_model: type[StructuredOutputModel],
+    ) -> StructuredOutputModel:
+        payload = _build_responses_structured_payload(
+            model=self.model,
+            prompt=prompt,
+            response_model=response_model,
+            reasoning_effort=self.reasoning_effort,
+            max_output_tokens=self.max_output_tokens,
+        )
+        return _extract_structured_output_model(
+            await self._post_json_async("/responses", payload),
+            response_model=response_model,
+        )
+
     def is_finished(self, response: LLMResult) -> bool:
         return True
 
     def preflight_sync(self) -> dict[str, object]:
-        payload = {
-            "model": self.model,
-            "stream": False,
-            "input": [{"role": "user", "type": "message", "content": "Reply with OK only."}],
-            "max_output_tokens": min(self.max_output_tokens or 16, 16),
-        }
+        payload = _build_responses_structured_payload(
+            model=self.model,
+            prompt="Return a JSON object with status set to 'ok'.",
+            response_model=_ResponsesStructuredPreflightModel,
+            reasoning_effort=self.reasoning_effort,
+            max_output_tokens=min(self.max_output_tokens or 32, 32),
+        )
         cache_key = _preflight_cache_key(
             base_url=self.base_url,
             api_key=self.api_key,
@@ -349,20 +390,23 @@ class OpenAICompatibleResponsesLLM(BaseRagasLLM):
                 disposition=cached.failure_disposition,
             )
         try:
-            _request_json_sync(
-                lambda: self._get_sync_client().post(
-                    "/responses",
-                    json=payload,
-                    headers=_build_headers(self.api_key),
-                    timeout=_build_httpx_timeout(self.http_settings, preflight=True),
+            result_model = _extract_structured_output_model(
+                _request_json_sync(
+                    lambda: self._get_sync_client().post(
+                        "/responses",
+                        json=payload,
+                        headers=_build_headers(self.api_key),
+                        timeout=_build_httpx_timeout(self.http_settings, preflight=True),
+                    ),
+                    http_settings=self.http_settings,
+                    circuit_breaker=self.circuit_breaker,
+                    retry_attempts=self.http_settings.retry_attempts,
+                    request_pacer=self.request_pacer,
                 ),
-                http_settings=self.http_settings,
-                circuit_breaker=self.circuit_breaker,
-                retry_attempts=self.http_settings.retry_attempts,
-                request_pacer=self.request_pacer,
+                response_model=_ResponsesStructuredPreflightModel,
             )
         except Exception as exc:
-            classification = classify_runtime_failure(str(exc), error_type=type(exc).__name__)
+            classification = _classify_preflight_exception(exc)
             reasons = ("preflight_failed", *classification.reasons)
             error_message = f"preflight_failed: {exc}"
             _store_preflight_entry(
@@ -380,7 +424,12 @@ class OpenAICompatibleResponsesLLM(BaseRagasLLM):
                 reasons=reasons,
                 disposition=classification.disposition,
             ) from exc
-        result = {"status": "passed", "endpoint": "/responses", "model": self.model}
+        result = {
+            "status": "passed",
+            "endpoint": "/responses",
+            "model": self.model,
+            "structured_output": result_model.model_dump(mode="json"),
+        }
         _store_preflight_entry(
             cache_key,
             _PreflightCacheEntry(
@@ -662,6 +711,40 @@ def _build_responses_payload(
     return payload
 
 
+def _build_responses_structured_payload(
+    *,
+    model: str,
+    prompt: str,
+    response_model: type[BaseModel],
+    reasoning_effort: str | None,
+    max_output_tokens: int | None,
+) -> dict[str, t.Any]:
+    payload: dict[str, t.Any] = {
+        "model": model,
+        "stream": False,
+        "input": [
+            {
+                "role": "user",
+                "type": "message",
+                "content": prompt,
+            }
+        ],
+        "text": {
+            "format": {
+                "type": "json_schema",
+                "name": response_model.__name__,
+                "schema": response_model.model_json_schema(),
+                "strict": True,
+            }
+        },
+    }
+    if reasoning_effort is not None:
+        payload["reasoning"] = {"effort": reasoning_effort}
+    if max_output_tokens is not None:
+        payload["max_output_tokens"] = max_output_tokens
+    return payload
+
+
 def _build_embeddings_payload(
     *,
     model: str,
@@ -854,6 +937,30 @@ def _extract_output_text(payload: dict[str, t.Any]) -> str:
     raise ValueError("responses payload did not contain output text")
 
 
+def _extract_structured_output_model(
+    payload: dict[str, t.Any],
+    *,
+    response_model: type[StructuredOutputModel],
+) -> StructuredOutputModel:
+    output_parsed = payload.get("output_parsed")
+    if output_parsed is not None:
+        try:
+            return response_model.model_validate(output_parsed)
+        except ValidationError:
+            pass
+    for output_item in payload.get("output", []):
+        if not isinstance(output_item, dict):
+            continue
+        for content_item in output_item.get("content", []):
+            if not isinstance(content_item, dict):
+                continue
+            parsed_value = content_item.get("parsed")
+            if parsed_value is None:
+                continue
+            return response_model.model_validate(parsed_value)
+    return response_model.model_validate_json(_extract_output_text(payload))
+
+
 def _extract_embeddings(payload: dict[str, t.Any]) -> list[list[float]]:
     raw_data = payload.get("data")
     if not isinstance(raw_data, list):
@@ -968,6 +1075,20 @@ def classify_runtime_failure(
         disposition=disposition,
         reasons=tuple(dict.fromkeys(reasons)),
     )
+
+
+def _classify_preflight_exception(exc: Exception) -> RuntimeFailureClassification:
+    if isinstance(exc, ValidationError):
+        return RuntimeFailureClassification(
+            disposition="non_retryable_request",
+            reasons=("structured_output_invalid",),
+        )
+    if isinstance(exc, ValueError) and "responses payload did not contain output text" not in str(exc):
+        return RuntimeFailureClassification(
+            disposition="non_retryable_request",
+            reasons=("structured_output_invalid",),
+        )
+    return classify_runtime_failure(str(exc), error_type=type(exc).__name__)
 
 
 def get_request_pacer(
