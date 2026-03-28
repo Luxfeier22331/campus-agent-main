@@ -110,13 +110,21 @@ supplemental runtime 当前采用 fail-open for benchmark aggregation：
 
 当前 judge/ragas runtime 已支持独立 pacing 配置：
 
-- `RAGAS_REQUEST_TIMEOUT_SECONDS`
-- `RAGAS_REQUEST_MIN_INTERVAL_SECONDS`
+- `SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS`
+- `SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS`
+- `SUPPLEMENTAL_HTTP_WRITE_TIMEOUT_SECONDS`
+- `SUPPLEMENTAL_HTTP_POOL_TIMEOUT_SECONDS`
+- `SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS`
+- `SUPPLEMENTAL_HTTP_RETRY_BACKOFF_SECONDS`
+- `SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_FAILURE_THRESHOLD`
+- `SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_COOLDOWN_SECONDS`
+- `SUPPLEMENTAL_HTTP_PREFLIGHT_TIMEOUT_SECONDS`
+- `SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS`
 - `RAGAS_REASONING_EFFORT`
 - `RAGAS_TEXT_VERBOSITY`
 - `RAGAS_MAX_OUTPUT_TOKENS`
 
-`RAGAS_REQUEST_MIN_INTERVAL_SECONDS` 的语义：
+`SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS` 的语义：
 
 - 对同一 provider origin 的 supplemental HTTP 请求施加最小间隔
 - `ragas` judge 与 rubric judge 共享同一 pacing 语义
@@ -132,6 +140,7 @@ supplemental runtime 当前采用 fail-open for benchmark aggregation：
 formal benchmark 产物至少包含：
 
 - `benchmark-config.json`
+- `supplemental-preflight.json`
 - `run-XX-case-results.json`
 - `run-XX-summary.json`
 - `summary.json`

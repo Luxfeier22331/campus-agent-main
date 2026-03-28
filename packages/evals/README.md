@@ -38,13 +38,13 @@ supplemental adapter seam：
 
 ragas runtime：
 
-- `campus_evals.settings.RagasSettings.from_env()` 当前消费 `LLM_BASE_URL`、`LLM_API_KEY`、`RAGAS_LLM_MODEL`、`LLM_REASONING_MODEL`、`LLM_CHAT_MODEL`、`RAGAS_REQUEST_TIMEOUT_SECONDS`、`RAGAS_REASONING_EFFORT`、`RAGAS_TEXT_VERBOSITY`、`RAGAS_MAX_OUTPUT_TOKENS`、`RAGAS_USE_RESPONSES_API`、`EMBEDDING_BASE_URL`、`EMBEDDING_API_KEY`、`EMBEDDING_MODEL`
+- `campus_evals.settings.RagasSettings.from_env()` 当前消费 `LLM_BASE_URL`、`LLM_API_KEY`、`RAGAS_LLM_MODEL`、`LLM_REASONING_MODEL`、`LLM_CHAT_MODEL`、`SUPPLEMENTAL_HTTP_*`、`RAGAS_REASONING_EFFORT`、`RAGAS_TEXT_VERBOSITY`、`RAGAS_MAX_OUTPUT_TOKENS`、`RAGAS_USE_RESPONSES_API`、`EMBEDDING_BASE_URL`、`EMBEDDING_API_KEY`、`EMBEDDING_MODEL`
 - ragas judge model 选择优先级固定为 `RAGAS_LLM_MODEL > LLM_REASONING_MODEL > LLM_CHAT_MODEL`
-- 默认运行面走 `build_http_ragas_llm()` + `build_http_ragas_embeddings()`，直接对 OpenAI-compatible `/responses` 与 `/embeddings` 发原生 HTTP 请求
+- 默认运行面走 `build_http_ragas_llm()` + `build_http_ragas_embeddings()`，直接对 OpenAI-compatible `/responses` 与 `/embeddings` 发原生 HTTP 请求；实现边界固定在 `campus_evals.supplemental_http`
 - 这样做的直接原因是：当前 provider 对原生 HTTP `Responses API` 可用，但会阻断 OpenAI Python SDK / LangChain transport；因此 LangChain 兼容 helper 只保留在内部测试模块 `campus_evals._langchain_compat`，不再作为默认或公开 runtime surface
 - `RAGAS_USE_RESPONSES_API` 仍保留在 settings 中，用于 LangChain compatibility helper 的回归测试；默认值仍为 `true`
-- `RAGAS_REQUEST_TIMEOUT_SECONDS` 只控制 ragas judge 路径，不再复用 `EMBEDDING_TIMEOUT_SECONDS`
-- `RAGAS_REQUEST_MIN_INTERVAL_SECONDS` 可对同一 provider origin 的 supplemental HTTP 请求施加最小间隔，用于在低配额 provider 上稳定跑完 formal benchmark
+- `SUPPLEMENTAL_HTTP_*` 是 ragas + rubric judge 共享的 supplemental provider runtime，分别控制 connect/read/write/pool timeout、单层 retry、provider-origin circuit breaker、preflight timeout 与 request pacing
+- `SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS` 可对同一 provider origin 的 supplemental HTTP 请求施加最小间隔，用于在低配额 provider 上稳定跑完 formal benchmark
 - Responses judge payload 支持独立低延迟 profile：`RAGAS_REASONING_EFFORT`、`RAGAS_TEXT_VERBOSITY`、`RAGAS_MAX_OUTPUT_TOKENS`
 - `n>1` 的 ragas judge 调用现在会在同一 async transport 上并发发出，不再串行放大单 metric 延迟
 - `Qwen3-Embedding-4B` 未显式配置 `EMBEDDING_DIMENSIONS` 时，eval 侧默认补成 `2560`
@@ -63,6 +63,7 @@ ragas runtime：
 student handbook formal benchmark：
 
 - `campus_evals.handbook_benchmark.run_handbook_formal_benchmark(...)` 负责把 live release-gate case 集重跑多轮，并落盘：
+  - `supplemental-preflight.json`
   - `run-XX-case-results.json`
   - `run-XX-summary.json`
   - `summary.json`
