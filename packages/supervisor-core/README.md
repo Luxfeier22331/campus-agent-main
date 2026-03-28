@@ -57,7 +57,7 @@ phase-1 的查询范围是显式收敛的：
 - `rag-specialist` 仍是唯一默认 query-serving specialist
 - `availability-specialist` 作为显式并行 capability 已存在，并可通过 supervisor-facing request 进入统一入口
 - query-serving 是否开放某个 corpus/scope，属于 routing/policy 决策，不应由 API shell 固定构造
-- `curriculum_plan` 等其他 data-plane corpus 在本阶段仍然不参与 query-serving
+- 当前 runtime-profile 已开放 `regulations/student_handbook` 与 `curriculum/curriculum_plan` 的 query-serving；`campus_services/*` 继续保持 `offline_preparation`
 
 如果后续要继续增加 specialist 或放开新的 query-serving corpus，应先更新架构/决策文档，再调整这里的 contract 描述与实现。
 

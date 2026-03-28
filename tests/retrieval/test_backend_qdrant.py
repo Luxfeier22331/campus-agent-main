@@ -26,6 +26,7 @@ from campus_retrieval_core.backend_qdrant import (
     _build_qdrant_client,
     _build_metadata_filters,
 )
+from campus_retrieval_core.evidence_ranking import prioritize_evidence_sources
 from campus_retrieval_core.models import RetrievalRequest
 from campus_retrieval_core.settings import RetrievalSettings
 from llama_index.core.schema import TextNode
@@ -36,6 +37,31 @@ from tests.support.in_memory_registry import InMemoryDocumentRegistry
 STUDENT_HANDBOOK_QDRANT_COLLECTION = (
     load_runtime_profile("regulations", "student_handbook").qdrant_index_binding.alias_name
 )
+
+
+def _make_source(
+    *,
+    doc_id: str,
+    chunk_id: str,
+    snippet: str,
+    score: float,
+    collection: str = "curriculum_plan",
+) -> EvidenceSource:
+    return EvidenceSource(
+        doc_id=doc_id,
+        revision_track="source-faithful",
+        version_id=f"v1:{chunk_id}",
+        chunk_id=chunk_id,
+        anchor={},
+        acl_level="public",
+        canonical_url=f"https://campus.example/{chunk_id}",
+        latest_url=f"https://campus.example/{chunk_id}",
+        source_channel="pdf_ocr",
+        collection=collection,
+        is_current=False,
+        snippet=snippet,
+        score=score,
+    )
 
 
 def _make_registry_record(
@@ -948,6 +974,275 @@ class BackendQdrantTest(unittest.TestCase):
                 collection="student_handbook",
             ),
         )
+
+    def test_prioritize_evidence_sources_prefers_exact_curriculum_title_over_longer_superset(self) -> None:
+        ranked = prioritize_evidence_sources(
+            query_text="民族学本科人才培养方案",
+            sources=(
+                _make_source(
+                    doc_id="curriculum:民族学本科第二学士学位人才培养方案",
+                    chunk_id="curriculum:ethnology-second-degree:chunk-0001",
+                    snippet="民族学本科第二学士学位人才培养方案 一、培养目标。",
+                    score=0.7,
+                ),
+                _make_source(
+                    doc_id="curriculum:民族学本科人才培养方案",
+                    chunk_id="curriculum:ethnology:chunk-0001",
+                    snippet="民族学本科人才培养方案 一、培养目标。",
+                    score=0.4761905,
+                ),
+            ),
+        )
+
+        self.assertEqual(ranked[0].doc_id, "curriculum:民族学本科人才培养方案")
+
+    def test_prioritize_evidence_sources_prefers_curriculum_fact_chunk_for_short_fact_query(self) -> None:
+        ranked = prioritize_evidence_sources(
+            query_text="民族学本科第二学士学位人才培养方案学制几年？",
+            sources=(
+                _make_source(
+                    doc_id="curriculum:民族学本科第二学士学位人才培养方案",
+                    chunk_id="curriculum:ethnology-second-degree:chunk-0001",
+                    snippet="民族学本科第二学士学位人才培养方案 一、培养目标。",
+                    score=0.9,
+                ),
+                _make_source(
+                    doc_id="curriculum:法学本科第二学士学位人才培养方案",
+                    chunk_id="curriculum:law-second-degree:chunk-0005",
+                    snippet="三、学制、总学分和学位授予 学制:2年 总学分:60学分。",
+                    score=0.82,
+                ),
+                _make_source(
+                    doc_id="curriculum:教育学本科第二学士学位人才培养方案",
+                    chunk_id="curriculum:education-second-degree:chunk-0005",
+                    snippet="三、学制、总学分和学位授予 学制:2年 总学分:60学分。",
+                    score=0.81,
+                ),
+                _make_source(
+                    doc_id="curriculum:民族学本科第二学士学位人才培养方案",
+                    chunk_id="curriculum:ethnology-second-degree:chunk-0005",
+                    snippet="三、学制、总学分和学位授予 学制:2年 总学分:60学分。",
+                    score=0.78,
+                ),
+            ),
+        )
+
+        self.assertEqual(ranked[0].chunk_id, "curriculum:ethnology-second-degree:chunk-0005")
+
+    def test_prioritize_evidence_sources_prefers_named_curriculum_document_over_other_docs_fact_chunks(self) -> None:
+        ranked = prioritize_evidence_sources(
+            query_text="民族学本科第二学士学位人才培养方案学制几年？",
+            sources=(
+                _make_source(
+                    doc_id="curriculum:教育学本科第二学士学位人才培养方案",
+                    chunk_id="curriculum:education-second-degree:chunk-0005",
+                    snippet="三、学制、总学分和学位授予 学制:2年 总学分:60学分。",
+                    score=0.82,
+                ),
+                _make_source(
+                    doc_id="curriculum:应用统计学本科专业第二学位人才培养方案",
+                    chunk_id="curriculum:stats-second-degree:chunk-0005",
+                    snippet="三、学制、总学分和学位授予 学制:2年 总学分:48.5学分。",
+                    score=0.81,
+                ),
+                _make_source(
+                    doc_id="curriculum:民族学本科第二学士学位人才培养方案",
+                    chunk_id="curriculum:ethnology-second-degree:chunk-0001",
+                    snippet="民族学本科第二学士学位人才培养方案 一、培养目标。",
+                    score=0.49,
+                ),
+            ),
+        )
+
+        self.assertEqual(ranked[0].doc_id, "curriculum:民族学本科第二学士学位人才培养方案")
+
+    def test_backend_expands_named_curriculum_document_support_with_same_doc_chunks(self) -> None:
+        registry = InMemoryDocumentRegistry()
+        embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
+        qdrant_client = Mock()
+        qdrant_client.collection_exists = Mock(return_value=True)
+        qdrant_client.get_aliases = Mock(return_value=type("Aliases", (), {"aliases": []})())
+        qdrant_client.query_points = Mock(
+            side_effect=[
+                qdrant_models.QueryResponse(
+                    points=[
+                        qdrant_models.ScoredPoint(
+                            id="point-intro",
+                            version=0,
+                            score=0.49,
+                            payload={
+                                "document_id": "curriculum:民族学本科第二学士学位人才培养方案",
+                                "revision_track": "source-faithful",
+                                "version_id": "v1:ethnology-second-degree",
+                                "chunk_id": "curriculum:民族学本科第二学士学位人才培养方案:chunk-0001",
+                                "corpus": "curriculum",
+                                "collection": "curriculum_plan",
+                                "acl_level": "public",
+                                "status": "active",
+                                "source_uri": "https://campus.example/curriculum/ethnology-second-degree",
+                                "canonical_url": "https://campus.example/curriculum/ethnology-second-degree",
+                                "latest_url": "https://campus.example/curriculum/ethnology-second-degree",
+                                "source_channel": "pdf_ocr",
+                                "is_current": True,
+                                "anchor": {"section_path": ["民族学本科第二学士学位人才培养方案", "一、培养目标"]},
+                                "text": "民族学本科第二学士学位人才培养方案 一、培养目标。",
+                            },
+                        ),
+                        qdrant_models.ScoredPoint(
+                            id="point-other",
+                            version=0,
+                            score=0.82,
+                            payload={
+                                "document_id": "curriculum:教育学本科第二学士学位人才培养方案",
+                                "revision_track": "source-faithful",
+                                "version_id": "v1:education-second-degree",
+                                "chunk_id": "curriculum:教育学本科第二学士学位人才培养方案:chunk-0005",
+                                "corpus": "curriculum",
+                                "collection": "curriculum_plan",
+                                "acl_level": "public",
+                                "status": "active",
+                                "source_uri": "https://campus.example/curriculum/education-second-degree",
+                                "canonical_url": "https://campus.example/curriculum/education-second-degree",
+                                "latest_url": "https://campus.example/curriculum/education-second-degree",
+                                "source_channel": "pdf_ocr",
+                                "is_current": True,
+                                "anchor": {"section_path": ["教育学本科第二学士学位人才培养方案", "三、学制、总学分和学位授予"]},
+                                "text": "三、学制、总学分和学位授予 学制:2年 总学分:60学分。",
+                            },
+                        ),
+                    ]
+                ),
+                qdrant_models.QueryResponse(
+                    points=[
+                        qdrant_models.ScoredPoint(
+                            id="point-intro",
+                            version=0,
+                            score=0.49,
+                            payload={
+                                "document_id": "curriculum:民族学本科第二学士学位人才培养方案",
+                                "revision_track": "source-faithful",
+                                "version_id": "v1:ethnology-second-degree",
+                                "chunk_id": "curriculum:民族学本科第二学士学位人才培养方案:chunk-0001",
+                                "corpus": "curriculum",
+                                "collection": "curriculum_plan",
+                                "acl_level": "public",
+                                "status": "active",
+                                "source_uri": "https://campus.example/curriculum/ethnology-second-degree",
+                                "canonical_url": "https://campus.example/curriculum/ethnology-second-degree",
+                                "latest_url": "https://campus.example/curriculum/ethnology-second-degree",
+                                "source_channel": "pdf_ocr",
+                                "is_current": True,
+                                "anchor": {"section_path": ["民族学本科第二学士学位人才培养方案", "一、培养目标"]},
+                                "text": "民族学本科第二学士学位人才培养方案 一、培养目标。",
+                            },
+                        ),
+                        qdrant_models.ScoredPoint(
+                            id="point-years",
+                            version=0,
+                            score=0.47,
+                            payload={
+                                "document_id": "curriculum:民族学本科第二学士学位人才培养方案",
+                                "revision_track": "source-faithful",
+                                "version_id": "v1:ethnology-second-degree",
+                                "chunk_id": "curriculum:民族学本科第二学士学位人才培养方案:chunk-0005",
+                                "corpus": "curriculum",
+                                "collection": "curriculum_plan",
+                                "acl_level": "public",
+                                "status": "active",
+                                "source_uri": "https://campus.example/curriculum/ethnology-second-degree",
+                                "canonical_url": "https://campus.example/curriculum/ethnology-second-degree",
+                                "latest_url": "https://campus.example/curriculum/ethnology-second-degree",
+                                "source_channel": "pdf_ocr",
+                                "is_current": True,
+                                "anchor": {"section_path": ["民族学本科第二学士学位人才培养方案", "五、学制 两年"]},
+                                "text": "五、学制 两年",
+                            },
+                        ),
+                    ]
+                ),
+            ]
+        )
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=registry,
+            qdrant_client=qdrant_client,
+            embedding_model=embedding_model,
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
+
+        result = backend.retrieve(
+            RetrievalRequest(
+                query_text="民族学本科第二学士学位人才培养方案学制几年？",
+                corpus="curriculum",
+                collection="curriculum_plan",
+                top_k=5,
+            )
+        )
+
+        self.assertEqual(
+            [source.chunk_id for source in result.sources[:2]],
+            [
+                "curriculum:民族学本科第二学士学位人才培养方案:chunk-0005",
+                "curriculum:民族学本科第二学士学位人才培养方案:chunk-0001",
+            ],
+        )
+        self.assertEqual(qdrant_client.query_points.call_count, 2)
+
+    def test_no_hit_policy_fail_closes_curriculum_ambiguous_low_score_results(self) -> None:
+        profile = load_runtime_profile("curriculum", "curriculum_plan")
+        result = _apply_no_hit_policy(
+            profile=profile,
+            query_text="火星校区飞船停靠规则",
+            sources=(
+                _make_source(
+                    doc_id="curriculum:法学本科人才培养方案",
+                    chunk_id="curriculum:law:chunk-0001",
+                    snippet="法学本科人才培养方案 一、培养目标。",
+                    score=0.5,
+                ),
+                _make_source(
+                    doc_id="curriculum:美术学类本科人才培养方案",
+                    chunk_id="curriculum:fine-arts:chunk-0001",
+                    snippet="美术学类本科人才培养方案 一、培养目标。",
+                    score=0.5,
+                ),
+            ),
+        )
+
+        self.assertEqual(result, ())
+
+    def test_no_hit_policy_rejects_nonexistent_curriculum_program_with_only_boilerplate_matches(self) -> None:
+        profile = load_runtime_profile("curriculum", "curriculum_plan")
+
+        result = _apply_no_hit_policy(
+            profile=profile,
+            query_text="量子飞船驾驶本科人才培养方案",
+            sources=(
+                _make_source(
+                    doc_id="curriculum:美术学类本科人才培养方案",
+                    chunk_id="curriculum:fine-arts:chunk-0001",
+                    snippet="美术学类本科人才培养方案 一、培养目标。",
+                    score=0.5,
+                ),
+                _make_source(
+                    doc_id="curriculum:新闻传播学类本科人才培养方案",
+                    chunk_id="curriculum:journalism:chunk-0001",
+                    snippet="新闻传播学类本科人才培养方案 一、培养目标。",
+                    score=0.5,
+                ),
+                _make_source(
+                    doc_id="curriculum:设计学类本科人才培养方案",
+                    chunk_id="curriculum:design:chunk-0001",
+                    snippet="设计学类本科人才培养方案 一、培养目标。",
+                    score=0.5,
+                ),
+            ),
+        )
+
+        self.assertEqual(result, ())
 
     def test_no_hit_policy_rejects_generic_single_bigram_match_across_tied_candidates(self) -> None:
         profile = load_runtime_profile("regulations", "student_handbook")

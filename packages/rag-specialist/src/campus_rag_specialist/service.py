@@ -13,6 +13,7 @@ from campus_contracts import (
     SpecialistResponse,
 )
 from campus_retrieval_core import CorpusQueryDisabledError, RetrievalBackendError, retrieve_sources
+from campus_retrieval_core.evidence_ranking import query_targets_source_title
 
 from campus_rag_specialist.agent import RagSpecialistAgent
 from campus_rag_specialist.confidence import derive_confidence
@@ -140,6 +141,8 @@ def _should_clarify_without_retrieval(user_goal: str) -> bool:
 
 def _should_clarify_with_evidence(user_goal: str, evidence: EvidenceBundle) -> bool:
     if len(evidence.sources) < 2:
+        return False
+    if any(query_targets_source_title(query_text=user_goal, source=source) for source in evidence.sources):
         return False
 
     first_source = evidence.sources[0]
