@@ -40,10 +40,10 @@ updated: 2026-03-29
 当前已落盘的 curriculum 基线包括：
 
 - retrieval qrels：`packages/evals/fixtures/curriculum_plan_retrieval_qrels.json`
-  - total cases：`12`
+  - total cases：`17`
   - split：
-    - `smoke = 10`
-    - `regression_locked = 2`
+    - `smoke = 13`
+    - `regression_locked = 4`
 - hybrid live query fixture：`packages/evals/fixtures/curriculum_plan_hybrid_queries.json`
   - total cases：`9`
   - categories：
@@ -70,6 +70,7 @@ updated: 2026-03-29
 - 同专业不同方案区分
 - 第二学士学位短事实
 - table / 课程地图 retrieval
+- selected `doc_id + version_id` regression locks
 - no-hit fail-close
 
 补充说明：

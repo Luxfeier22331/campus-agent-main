@@ -24,6 +24,38 @@ _RETRYABLE_PROVIDER_ERROR_MARKERS = (
     "bad_response_body",
     "do_request_failed",
 )
+_HARD_UNAVAILABLE_REASON_MARKERS = {
+    "auth_unavailable": (
+        "auth_unavailable",
+        "no auth available",
+        "invalid_api_key",
+        "invalid api key",
+        "authentication failed",
+        "authentication_error",
+        "unauthorized",
+        "forbidden",
+    ),
+    "quota_unavailable": (
+        "insufficient_quota",
+        "quota exceeded",
+        "quota_exceeded",
+    ),
+}
+_NON_RETRYABLE_REASON_MARKERS = {
+    "invalid_request": (
+        "invalid_request",
+        "invalid request",
+        "unsupported parameter",
+        "unsupported_parameter",
+        "unsupported value",
+        "bad request",
+    ),
+    "model_not_found": (
+        "model_not_found",
+        "unknown model",
+        "model not found",
+    ),
+}
 _TIMEOUT_ERROR_MARKERS = (
     "timeout",
     "timed out",
@@ -58,9 +90,16 @@ _PREFLIGHT_CACHE_LOCK = Lock()
 
 
 class SupplementalFastFailError(RuntimeError):
-    def __init__(self, message: str, *, reasons: tuple[str, ...]) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        reasons: tuple[str, ...],
+        disposition: str | None = None,
+    ) -> None:
         super().__init__(message)
         self.reasons = reasons
+        self.disposition = disposition
 
 
 class SupplementalPreflightFailedError(SupplementalFastFailError):
@@ -71,12 +110,27 @@ class SupplementalCircuitOpenError(SupplementalFastFailError):
     pass
 
 
+class SupplementalProviderUnavailableError(SupplementalFastFailError):
+    pass
+
+
+class SupplementalNonRetryableRequestError(SupplementalFastFailError):
+    pass
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeFailureClassification:
+    disposition: str
+    reasons: tuple[str, ...]
+
+
 @dataclass(frozen=True, slots=True)
 class _PreflightCacheEntry:
     status: str
     result: dict[str, object] | None = None
     error_message: str | None = None
     error_reasons: tuple[str, ...] = ()
+    failure_disposition: str | None = None
     expires_at: float | None = None
 
 
@@ -132,6 +186,7 @@ class ProviderCircuitBreaker:
         self._consecutive_failures = 0
         self._opened_until = 0.0
         self._last_failure_reasons: tuple[str, ...] = ()
+        self._last_failure_disposition: str | None = None
         self._lock = Lock()
 
     def ensure_request_allowed(self) -> None:
@@ -143,6 +198,7 @@ class ProviderCircuitBreaker:
             raise SupplementalCircuitOpenError(
                 f"circuit_open: provider origin {self.origin} is in cooldown",
                 reasons=("circuit_open", *reasons),
+                disposition=self._last_failure_disposition,
             )
 
     def record_success(self) -> None:
@@ -150,20 +206,23 @@ class ProviderCircuitBreaker:
             self._consecutive_failures = 0
             self._opened_until = 0.0
             self._last_failure_reasons = ()
+            self._last_failure_disposition = None
 
-    def record_failure(self, *, reasons: tuple[str, ...]) -> bool:
+    def record_failure(self, *, reasons: tuple[str, ...], disposition: str | None) -> bool:
         with self._lock:
             self._consecutive_failures += 1
             self._last_failure_reasons = reasons
+            self._last_failure_disposition = disposition
             if self._consecutive_failures < self.failure_threshold:
                 return False
             self._opened_until = time.monotonic() + self.cooldown_seconds
             return True
 
-    def trip(self, *, reasons: tuple[str, ...]) -> None:
+    def trip(self, *, reasons: tuple[str, ...], disposition: str | None) -> None:
         with self._lock:
             self._consecutive_failures = self.failure_threshold
             self._last_failure_reasons = reasons
+            self._last_failure_disposition = disposition
             self._opened_until = time.monotonic() + self.cooldown_seconds
 
 
@@ -287,6 +346,7 @@ class OpenAICompatibleResponsesLLM(BaseRagasLLM):
             raise SupplementalPreflightFailedError(
                 cached.error_message or "preflight_failed",
                 reasons=cached.error_reasons,
+                disposition=cached.failure_disposition,
             )
         try:
             _request_json_sync(
@@ -297,12 +357,13 @@ class OpenAICompatibleResponsesLLM(BaseRagasLLM):
                     timeout=_build_httpx_timeout(self.http_settings, preflight=True),
                 ),
                 http_settings=self.http_settings,
-                circuit_breaker=None,
+                circuit_breaker=self.circuit_breaker,
                 retry_attempts=self.http_settings.retry_attempts,
                 request_pacer=self.request_pacer,
             )
         except Exception as exc:
-            reasons = ("preflight_failed", *classify_retryable_runtime_failure(str(exc), error_type=type(exc).__name__))
+            classification = classify_runtime_failure(str(exc), error_type=type(exc).__name__)
+            reasons = ("preflight_failed", *classification.reasons)
             error_message = f"preflight_failed: {exc}"
             _store_preflight_entry(
                 cache_key,
@@ -310,12 +371,14 @@ class OpenAICompatibleResponsesLLM(BaseRagasLLM):
                     status="failed",
                     error_message=error_message,
                     error_reasons=reasons,
+                    failure_disposition=classification.disposition,
                     expires_at=time.monotonic() + self.http_settings.circuit_breaker_cooldown_seconds,
                 ),
             )
             raise SupplementalPreflightFailedError(
                 error_message,
                 reasons=reasons,
+                disposition=classification.disposition,
             ) from exc
         result = {"status": "passed", "endpoint": "/responses", "model": self.model}
         _store_preflight_entry(
@@ -443,6 +506,7 @@ class OpenAICompatibleHTTPEmbeddings(BaseRagasEmbeddings):
             raise SupplementalPreflightFailedError(
                 cached.error_message or "preflight_failed",
                 reasons=cached.error_reasons,
+                disposition=cached.failure_disposition,
             )
         try:
             _request_json_sync(
@@ -453,12 +517,13 @@ class OpenAICompatibleHTTPEmbeddings(BaseRagasEmbeddings):
                     timeout=_build_httpx_timeout(self.http_settings, preflight=True),
                 ),
                 http_settings=self.http_settings,
-                circuit_breaker=None,
+                circuit_breaker=self.circuit_breaker,
                 retry_attempts=self.http_settings.retry_attempts,
                 request_pacer=self.request_pacer,
             )
         except Exception as exc:
-            reasons = ("preflight_failed", *classify_retryable_runtime_failure(str(exc), error_type=type(exc).__name__))
+            classification = classify_runtime_failure(str(exc), error_type=type(exc).__name__)
+            reasons = ("preflight_failed", *classification.reasons)
             error_message = f"preflight_failed: {exc}"
             _store_preflight_entry(
                 cache_key,
@@ -466,12 +531,14 @@ class OpenAICompatibleHTTPEmbeddings(BaseRagasEmbeddings):
                     status="failed",
                     error_message=error_message,
                     error_reasons=reasons,
+                    failure_disposition=classification.disposition,
                     expires_at=time.monotonic() + self.http_settings.circuit_breaker_cooldown_seconds,
                 ),
             )
             raise SupplementalPreflightFailedError(
                 error_message,
                 reasons=reasons,
+                disposition=classification.disposition,
             ) from exc
         result = {"status": "passed", "endpoint": "/embeddings", "model": self.model}
         _store_preflight_entry(
