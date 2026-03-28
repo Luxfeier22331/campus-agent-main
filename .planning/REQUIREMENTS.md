@@ -1,7 +1,9 @@
 # Requirements: Campus Agent
 
 **Defined:** 2026-03-23
-**Core Value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 `student_handbook` 的完整 agentic RAG 主流程证明这条架构能可靠替代高频人工答疑
+**Core Value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 runtime-profile-driven serving surface 证明这条架构能可靠承接高频校园问答
+
+Current capability truth has evolved beyond the original phase-1-only surface: `student_handbook` and `curriculum_plan` are now query-enabled under runtime-profile control; `campus_services` remains `offline_preparation`.
 
 ## v1 Requirements
 
@@ -11,13 +13,13 @@ Requirements for the initial phase-1 release. Each requirement will map to exact
 
 - [x] **ING-01**: System can ingest `student_handbook` source documents into raw storage with stable document identity and version metadata
 - [x] **ING-02**: System can transform `student_handbook` documents into processed text and chunk/index artifacts suitable for retrieval query-serving
-- [x] **ING-03**: System can ingest `curriculum_plan` into raw / processed / chunk outputs without exposing it to query-serving
+- [x] **ING-03**: System can ingest `curriculum_plan` into raw / processed / chunk outputs and keep it compatible with runtime-profile-controlled query-serving
 
 ### Query Serving
 
-- [x] **QRY-01**: User can ask a `student_handbook` question and receive a grounded answer sourced only from the `student_handbook` corpus
+- [x] **QRY-01**: User can ask a `student_handbook` or `curriculum_plan` question and receive a grounded answer sourced only from the selected query-enabled corpus
 - [x] **QRY-02**: Answer response includes source citations or equivalent source identifiers that let operators trace supporting evidence
-- [x] **QRY-03**: System returns a `needs_clarification` response when the request is too ambiguous for a reliable `student_handbook` answer
+- [x] **QRY-03**: System returns a `needs_clarification` response when the request is too ambiguous for a reliable answer from the selected query-enabled corpus
 - [x] **QRY-04**: System returns a `no_answer` or `error` response when retrieval cannot produce a safe grounded answer
 
 ### Orchestration
@@ -30,7 +32,7 @@ Requirements for the initial phase-1 release. Each requirement will map to exact
 
 - [x] **GOV-01**: Request handling propagates caller identity and group information so retrieval can enforce ACL filtering before evidence is returned
 - [x] **GOV-02**: Each handled request records trace and audit data sufficient to link request identity, routed path, response status, and cited sources
-- [x] **GOV-03**: Phase-1 query-serving rejects corpora outside `student_handbook`, including `curriculum_plan`
+- [x] **GOV-03**: Query-serving rejects corpora outside the runtime-profile query-enabled surface, including `campus_services`
 
 ### Edge Runtime
 
@@ -52,8 +54,8 @@ Deferred to future releases. Tracked but not part of the current roadmap.
 
 ### Additional Corpora
 
-- **CORP-01**: User can query `curriculum_plan` through the production supervisor path after ACL, monitoring, and policy gates are approved
-- **CORP-02**: User can query additional campus knowledge domains beyond `student_handbook`
+- **CORP-01**: User can query `campus_services` through the production supervisor path after ACL, monitoring, and policy gates are approved
+- **CORP-02**: User can query additional campus knowledge domains beyond `student_handbook` and `curriculum_plan`
 
 ### Advanced Orchestration
 
@@ -70,7 +72,7 @@ Deferred to future releases. Tracked but not part of the current roadmap.
 
 | Feature | Reason |
 |---------|--------|
-| Production query access for `curriculum_plan` | Phase-1 only prepares ingestion/cleaning/chunking and must not expand query-serving scope |
+| Production query access for `campus_services` | Current milestone keeps service taxonomy outside the query-enabled runtime-profile surface |
 | Full corpus launch across all campus domains | Current milestone is to stabilize the `student_handbook` agentic RAG path first |
 | Fine-grained persona-specific answer behavior | v1 only needs identity/groups propagation and retrieval ACL filtering |
 | Complex multi-specialist parallel workflows | Current milestone may add one explicitly routed non-RAG specialist, but not a general workflow engine or broad multi-specialist orchestration matrix |
@@ -85,16 +87,16 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ING-01 | Phase 2 | Complete |
 | ING-02 | Phase 3 | Complete |
 | ING-03 | Phase 6 | Complete |
-| QRY-01 | Phase 4 | Complete |
+| QRY-01 | Phase 4 + runtime-profile serving refactor | Complete |
 | QRY-02 | Phase 4 | Complete |
-| QRY-03 | Phase 4 | Complete |
-| QRY-04 | Phase 4 | Complete |
+| QRY-03 | Phase 4 + runtime-profile serving refactor | Complete |
+| QRY-04 | Phase 4 + runtime-profile serving refactor | Complete |
 | ORCH-01 | Phase 5 | Complete |
 | ORCH-02 | Phase 1 | Complete |
 | ORCH-03 | Phase 1 | Complete |
 | GOV-01 | Phase 5 | Complete |
 | GOV-02 | Phase 5 | Complete |
-| GOV-03 | Phase 1 | Complete |
+| GOV-03 | Phase 1 + runtime-profile serving refactor | Complete |
 | EDGE-01 | Phase 04.6 | Complete |
 | EDGE-02 | Phase 04.6 | Complete |
 | AORC-03 | Phase 03.1 | Complete |
@@ -108,4 +110,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-23*
-*Last updated: 2026-03-27 after Phase 7 verification closeout*
+*Last updated: 2026-03-28 after runtime-profile serving truth and operator-query boundary refresh*

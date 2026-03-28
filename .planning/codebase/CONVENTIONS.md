@@ -1,10 +1,10 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-03-23
+**Analysis Date:** 2026-03-28
 
 ## Repo invariants
 - `AGENTS.md` anchors the project as the v2 campus assistant, where the primary path flows `apps/supervisor-api -> packages/supervisor-core -> packages/rag-specialist -> packages/retrieval-core` and runtime choices wait until contracts and packages stabilise.
-- The supervisor-led architecture described in `docs/architecture/long-term-architecture.md` and the phase-1 grounding in `docs/plans/agentic-rag-foundation.md` keep ingestion and serving clearly split while `student_handbook` remains the default query corpus.
+- The supervisor-led architecture described in `docs/architecture/long-term-architecture.md` and the phase-1 grounding in `docs/plans/agentic-rag-foundation.md` keep ingestion and serving clearly split while query-serving scope is controlled by collection runtime profiles rather than a single hardcoded default corpus.
 - Local object storage is only a temporary implementation detail; `docs/decisions/adr-0002-local-minio-conventions.md` treats MinIO as an S3-compatible facade so future cloud migration does not leak filesystem paths.
 
 ## Package boundaries
@@ -32,13 +32,13 @@
 - Tuples of allowed values (`ALLOWED_CORPORA`, `ALLOWED_DELEGATE_STATUSES`, `ALLOWED_CONFIDENCE_LEVELS`) freeze runtime invariants so callers treat them as constants.
 
 **Types:**
-- Dataclasses and class names are `PascalCase` without `I` prefixes (`ChunkProfile`, `DocumentRegistryRecord`, `DelegateToRagAgentRequest`, `QdrantRetrievalBackend`).
+- Dataclasses and class names are `PascalCase` without `I` prefixes (`ChunkProfile`, `DocumentRegistryRecord`, `SupervisorRequest`, `QdrantRetrievalBackend`).
 - Contract models use `@dataclass(frozen=True, slots=True)` (`packages/contracts/src/campus_contracts/models.py`), and ingestion models follow the same pattern (`packages/ingestion-core/src/campus_ingestion_core/models.py`).
 
 ## Code Style
 - Every Python module starts with `from __future__ import annotations` to delay type evaluation (`packages/retrieval-core/src/campus_retrieval_core/backend_qdrant.py`, `packages/ingestion-core/src/campus_ingestion_core/chunking.py`).
 - Type hints are pervasive, using `typing.Literal`, `tuple[str, ...]`, and generous keyword-only arguments to keep signatures self-documenting (`chunk_structured_unit`, `QdrantRetrievalBackend.__post_init__`).
-- Guard clauses prevail: `delegate_to_rag_agent` returns practical `DelegateToRagAgentResponse` values before doing work, and `ChunkProfile.__post_init__` raises `ValueError` immediately when configuration is invalid.
+- Guard clauses prevail: `delegate_to_rag_agent` returns practical `SpecialistResponse` values before doing work, and `ChunkProfile.__post_init__` raises `ValueError` immediately when configuration is invalid.
 - The repo relies on PEP 8 conventions (4-space indent, blank lines between logical blocks) rather than an enforced formatter; maintainers keep functions short and expressive to stay readable.
 
 ## Import Organization
@@ -46,7 +46,7 @@
 - Blank lines separate each group, and workspace modules use their package-style names (`campus_contracts`, `campus_ingestion_core`, etc.) rather than relative paths.
 
 ## Error Handling
-- API surfaces convert downstream failures into structured `DelegateToRagAgentResponse` objects (`packages/rag-specialist/src/campus_rag_specialist/service.py`) instead of letting raw exceptions bubble up.
+- API and specialist surfaces convert downstream failures into structured `SpecialistResponse` objects (`packages/rag-specialist/src/campus_rag_specialist/service.py`) instead of letting raw exceptions bubble up.
 - The retrieval layer raises specific `CorpusQueryDisabledError`/`RetrievalBackendError` types defined in `packages/retrieval-core/src/campus_retrieval_core/backend_qdrant.py` and wraps low-level exceptions with `raise ... from exc` so traces stay actionable.
 - Dataclasses enforce invariants via `__post_init__` raising `ValueError` (`packages/contracts/src/campus_contracts/models.py`, `packages/ingestion-core/src/campus_ingestion_core/models.py`, `ChunkProfile` in `chunking.py`).
 

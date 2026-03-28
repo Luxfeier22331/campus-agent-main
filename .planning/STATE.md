@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Completed Phase 7 verification with fresh handbook live benchmark, workflow gate, and planning closeout
-last_updated: "2026-03-27T15:15:00.000Z"
+stopped_at: Curriculum release-gate follow-up remains pending; public/protected web surfaces plus shared app-api are now frozen, and app-api runtime is now fixed to Worker
+last_updated: "2026-03-28T12:00:00.000Z"
 progress:
   total_phases: 17
   completed_phases: 17
@@ -16,10 +16,10 @@ progress:
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-03-27)
+See: `.planning/PROJECT.md` (updated 2026-03-28)
 
-**Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 `student_handbook` 的完整 agentic RAG 主流程证明这条架构能可靠替代高频人工答疑
-**Current focus:** Phase 7 verification is complete; handbook release-gate evidence is now landed and the milestone is ready for closeout or next-step planning
+**Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 runtime-profile-driven serving surface 证明这条架构能可靠承接高频校园问答
+**Current focus:** Phase 7 handbook verification已完成；当前收尾重点一方面是补齐 `curriculum_plan` query-serving 的 live gate，另一方面是把后续产品形态冻结为 `public-chat-web` / `protected-panel-web` + shared `app-api` Worker runtime + `supervisor-api` execution engine
 
 ## Current Position
 
@@ -59,7 +59,7 @@ Plan: 2 of 2
 **Recent Trend:**
 
 - Last 5 plans: 05.1-04, 06-01, 06-02, 07-01, 07-02
-- Trend: handbook mainline verification evidence is now closed; no remaining phase-1 mainline blocker is open inside the roadmap
+- Trend: handbook mainline verification evidence is closed; current follow-up work is serving-surface refactor closeout and curriculum release-gate expansion rather than additional phase-1 architecture churn
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
@@ -125,32 +125,36 @@ Plan: 2 of 2
 Decisions are logged in `PROJECT.md` Key Decisions table.
 Recent decisions affecting current work:
 
-- Phase-1 query-serving remains restricted to `student_handbook`; `curriculum_plan` stays offline-only.
+- Query-serving is now runtime-profile-driven; current query-enabled scope is `student_handbook` plus `curriculum_plan`, while `campus_services` remains `offline_preparation`.
 - Verification remains a dedicated release-gate phase after the main architecture path is in place.
 - `official-web` / `availability` specialist landed as an explicit non-RAG specialist boundary instead of a supervisor-inline tool bundle.
 - `/api/v1/answer` now constructs a supervisor-facing request contract instead of hardcoding a rag-specialist handoff.
 - Phase 03.2 froze the data-plane direction as `raw -> source truth -> declared projections -> document/chunk/index`; later handbook-derived outputs must replay from persisted source truth instead of returning to raw.
 - Phase 04 froze `rag-specialist` answer semantics on top of the accepted hybrid retrieval baseline with grounded citations plus `needs_clarification` / `no_answer` / `error` fail-close behavior.
 - Phase 04.6 closed the Worker-to-origin seam: `apps/public-entry-worker -> apps/supervisor-api` with trusted-worker origin auth.
-- Phase 04.7 is now completed on `main`; `apps/public-consumer-chat` implementation, README baseline, and app-local documentation contract tests are accepted references rather than an open design track.
+- Phase 04.7 is now completed on `main`; `apps/public-consumer-chat` implementation remains a historical reference, but it is no longer the forward-looking topology truth for upcoming panel/chat work.
 - Phase 05 removed bearer actor spoofing, projected caller claims from forwarded Access JWT payload, and moved durable audit persistence to the API shell boundary.
 - Phase 05.1 froze curriculum source-truth quality gates, split-manifest review fail-close behavior, and explicit chunking runtime truth.
-- Phase 06 added `provider_response_replay` rebuild support for `curriculum_plan` while keeping retrieval, supervisor policy, and API boundary query-disabled for that collection.
+- Phase 06 added `provider_response_replay` rebuild support for `curriculum_plan`, and the current refactor promotes its serving policy into the profile-driven query surface.
 - Phase 07 closed handbook release-gate verification with repo tests, live qrels benchmark, workflow/status samples, and handbook collection schema evidence under `.tmp/phase7/`.
+- The accepted forward design is now `public-chat-web` + `protected-panel-web` + shared `app-api`; auth/session/conversation, chat ingress, and operator query move into `app-api`, while `apps/supervisor-api` remains the execution engine.
+- `apps/app-api` runtime is now frozen to Worker rather than remaining runtime-agnostic.
 
 ### Pending Todos
 
-- Decide milestone closeout and whether curriculum offline-only guardrails need additional release-gate artifacts beyond the existing query-disabled verification surface.
+- Decide milestone closeout and land the missing `curriculum_plan` query-serving live release-gate artifacts beyond the existing automated verification surface.
 - Keep handbook chunk-truth validation and handbook eval artifacts as reusable regression gates for subsequent retrieval changes.
 
 ### Blockers/Concerns
 
 - No current phase-1 mainline blocker remains inside the roadmap.
 - Cloudflare 04.x boundary/topology/contract/shell docs are complete; follow-up work must consume them as frozen handoffs rather than reopening architecture churn.
-- `public-consumer-chat` is merged on `main`; downstream work should treat 04.7 handoffs and accepted architecture docs as the canonical boundary truth.
+- `public-consumer-chat` is merged on `main`, but downstream work should treat it as a historical implementation reference rather than the final forward topology.
+- Future panel/chat work must not reuse `apps/supervisor-api` as the product backend; the accepted direction is shared `apps/app-api`.
+- Future `app-api` implementation work should assume Worker-native delivery and internal-only exposure by default.
 
 ## Session Continuity
 
-Last session: 2026-03-27T15:15:00.000Z
-Stopped at: Completed Phase 7 verification with fresh handbook live benchmark, workflow gate, and planning closeout
+Last session: 2026-03-28T12:00:00.000Z
+Stopped at: Curriculum release-gate follow-up remains pending; shared app-api plus worker web surface topology is frozen for future work, and app-api runtime is fixed to Worker
 Resume file: None

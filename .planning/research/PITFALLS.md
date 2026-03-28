@@ -1,8 +1,10 @@
 # Pitfalls Research
 
-**Domain:** Campus multi-agent QA assistant migrating from legacy RAG to a supervisor-led architecture with student_handbook query-serving and curriculum_plan ingestion prep
+**Domain:** Campus multi-agent QA assistant migrating from legacy RAG to a supervisor-led architecture with student-handbook-first validation and controlled serving-surface expansion
 **Researched:** March 23, 2026
 **Confidence:** MEDIUM
+
+> Historical research snapshot: several pitfalls below were written before `curriculum_plan` entered the runtime-profile-driven query surface. Treat this file as risk framing, not current serving truth.
 
 ## Critical Pitfalls
 
@@ -36,11 +38,11 @@
 
 ### Pitfall 3: Premature scope expansion to extra corpora or multi-specialist workflows
 
-**What goes wrong:** The team tries to run queries across multiple corpora, add extra specialists, or unleash curriculum_plan search in Phase 1, which introduces new ingestion connectors, ACL permutations, and nondeterminism before the student_handbook master flow stabilizes. The result is prolonged debugging, missed contracts, and repeated regressions in reasoning across agents.
+**What goes wrong:** The team opens new corpora or specialist flows without explicit runtime-policy changes and release-gate proof, introducing new ingestion connectors, ACL permutations, and nondeterminism faster than evals can contain them. The result is prolonged debugging, missed contracts, and repeated regressions in reasoning across agents.
 
 **Why it happens:** There is natural pressure (internal or stakeholder-driven) to prove broader coverage, but OpenAI’s evaluation guide warns that multi-agent architectures add complexity that should be driven by evals—starting with a multi-agent architecture before you can reliably evaluate it slows time to production. citeturn3view0 Adding corpora multiplies those handoffs and anchors us to more failure points.
 
-**How to avoid:** Lock Phase 1 scope explicitly: only student_handbook is query-served, curriculum_plan remains ingestion-only, and supervisor calls a single specialist. Reject incrementally added corpora or specialist branches until regression-free evals confirm stability, and track scope drift through this research doc.
+**How to avoid:** Keep serving-surface changes explicit in runtime profiles, require regression-free evals before opening more scope, and track scope drift through current source-of-truth docs rather than this historical research note.
 
 **Warning signs:** New ingestion tickets requesting curriculum_plan query routing, or supervisor changes that allow selecting a new specialist ID via config without a verified eval pass.
 
@@ -124,7 +126,7 @@
 |---------|------------------|--------------|
 | Reverting to flat RAG | Phase 1 | Code review ensures supervisor never embeds retrieval calls; smoke tests confirm only one specialist is invoked.
 | Missing ACL/tracing visibility | Phase 1 | Audit logs demonstrate identity/ACL propagation and trace coverage for every QA request.
-| Scope creep to additional corpora | Phase 1 | Architecture review confirms curriculum_plan remains ingestion-only and student_handbook is the sole query path.
+| Scope creep to additional corpora | Phase 1+ | Architecture review confirms every newly exposed scope has explicit runtime-policy and release-gate evidence.
 | Retrieval QA blind spot | Phase 1 | Continuous eval dashboard shows precision/recall goals met for student_handbook queries.
 
 ## Sources

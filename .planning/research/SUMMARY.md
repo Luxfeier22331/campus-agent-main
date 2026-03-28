@@ -1,13 +1,13 @@
 # Project Research Summary
 
 **Project:** Campus Agent
-**Domain:** Supervisor-led multi-agent campus QA assistant proving the student_handbook agentic RAG path with disciplined ingestion prep for curriculum_plan
+**Domain:** Supervisor-led multi-agent campus QA assistant proving the student_handbook agentic RAG path with disciplined expansion toward `curriculum_plan`
 **Researched:** 2026-03-23
 **Confidence:** MEDIUM
 
 ## Executive Summary
 
-Campus Agent is an architecture-first effort: the repo is building a supervisor-led orchestration whose only live query domain in Phase 1 is the student_handbook corpus, while curriculum_plan ingestion stays offline. The goal is to prove that the supervisor→rag-specialist→retrieval runway can replace the legacy campusRAG flat tool without leaking retrieval, ACL, or storage details back into the orchestrator.
+Campus Agent is an architecture-first effort: this research snapshot originally assumed a handbook-only live query domain, but the current repo has since promoted query-serving scope into collection runtime profiles and now serves both `student_handbook` and `curriculum_plan` by configuration. The enduring goal remains to prove that the supervisor→rag-specialist→retrieval runway can replace the legacy campusRAG flat tool without leaking retrieval, ACL, or storage details back into the orchestrator.
 
 The recommended implementation stack centers on the OpenAI Responses API plus Retrieval API tooling, the Agent Builder/Agents SDK for typed workflows, and GPT-5.2 for reasoning, with trace grading and eval dashboards layered on top. This keeps retrieval and specialist responsibilities inside their packages, reserves supervisor-core for policy/routing/audit, and gives the runtime boundary in `apps/supervisor-api` a clean contract to work with.
 
@@ -35,7 +35,7 @@ Table-stakes for Phase 1 are cited, verifiable student_handbook answers, role-ba
 
 **Should have (competitive):**
 - Supervisor-led multi-agent orchestration with an explicit rag-specialist handoff — differentiates our approach and keeps policies centralized.
-- Curriculum_plan ingestion prep plus analytics-ready chunking — signals progress without opening query access prematurely.
+- Curriculum_plan ingestion/query preparation plus analytics-ready chunking — signals progress while keeping serving-surface expansion explicit and separately gated.
 
 **Defer (v2+):**
 - Additional corpuses, persona-aware behavior, and multi-campus deployments — wait until supervisor-contracts, ACL metadata, and eval systems are stable.
@@ -53,7 +53,7 @@ The architecture layers runtime, orchestration, and data-plane boundaries: `apps
 
 1. **Reverting to the legacy flat RAG flow** — prevent supervisor-core from embedding vector-store or chunking code by codifying the agent-as-tool pattern and keeping all retrieval logic inside the specialist packages.
 2. **Visibility/audit gaps around ACL and tracing** — hook guardrail instrumentation and trace emissions between supervisor and specialist so every request records identity, ACL decisions, and evidence IDs.
-3. **Premature scope expansion beyond student_handbook** — lock Phase 1 to the student_handbook corpus, keep curriculum_plan ingestion-only, and reject new corpora/specialists until evals confirm stability.
+3. **Premature scope expansion beyond validated release gates** — keep serving-surface changes explicit in runtime profiles, and do not open new corpora/specialists until evals confirm stability.
 4. **Neglecting retrieval QA instrumentation** — bake eval dashboards, trace grading, and retrieval precision/recall monitoring into the workflow to spot hallucinations before release.
 
 ## Implications for Roadmap
@@ -65,8 +65,8 @@ The architecture layers runtime, orchestration, and data-plane boundaries: `apps
 **Avoids:** Scope creep into curriculum_plan query-serving and early retrieval tangles (Pitfalls 1 and 3).
 
 ### Phase 2: Observability & Curriculum Prep
-**Rationale:** With the baseline flow stable, add retrieval QA instrumentation and offline curriculum_plan ingestion to prepare for future data expansion.
-**Delivers:** Trace grading + Evals dashboards, guardrail nodes, and a curriculum_plan ingestion pipeline (dedupe, metadata tagging, analytics) that stays offline until contracts and ACLs are verified.
+**Rationale:** With the baseline flow stable, add retrieval QA instrumentation and curriculum data-plane work to prepare for controlled serving-surface expansion.
+**Delivers:** Trace grading + Evals dashboards, guardrail nodes, and a curriculum_plan ingestion/query pipeline (dedupe, metadata tagging, analytics) whose live gate remains explicit and separately verifiable.
 **Uses:** Stack tooling such as trace grading/Evals API, Agent Builder guardrails, and Responses API trace metadata.
 **Implements:** The layered data-plane architecture (contracts → ingestion-core → retrieval-core) and evaluation tooling needed to keep the specialist honest.
 

@@ -2,11 +2,13 @@
 
 ## Overview
 
-This roadmap stabilizes the new supervisor-led architecture before it expands scope. The sequence starts by freezing the supervisor/specialist contract and phase-1 guardrails, then builds the `student_handbook` ingestion and retrieval path, wires the `supervisor` entrypoint with ACL/audit responsibilities, prepares `curriculum_plan` offline only, and finishes with repository-level verification that proves the end-to-end agentic RAG flow is safe to plan and execute.
+This roadmap stabilizes the new supervisor-led architecture before it expands scope. The sequence starts by freezing the supervisor/specialist contract and the initial guardrails, then builds the `student_handbook` ingestion and retrieval path, wires the `supervisor` entrypoint with ACL/audit responsibilities, prepares `curriculum_plan`, later promotes serving policy to the collection runtime profile, and finishes with repository-level verification that proves the end-to-end agentic RAG flow is safe to plan and execute.
 
 Current roadmap truth still centers the `student_handbook` mainline as the scheduled execution path. Inserted `03.1 Availability Specialist 最小闭环` validates one stable non-RAG specialist boundary without hiding that work inside the existing RAG phases as an implementation detail. Inserted `03.2 Source Truth Fan-Out And Attachment Projection` now closes a data-plane design gap before further collection expansion: one raw source must be consumed once into canonical source truth and then fan out into all declared downstream projections, including attachment-derived documents, instead of forcing later collection work to re-consume raw inputs. Inserted `04.x` Cloudflare phases now run in parallel to freeze the edge entry, protected internal-panel boundary, runtime topology, edge integration contract, and panel runtime shell before the mainline query path is ready, without pushing Cloudflare/runtime decisions down into core packages.
 
-The public answer route is now expected to construct a supervisor-facing request rather than hardcoding a rag-specialist handoff. Default handbook scope remains a routing/policy concern, not an API-shell constant.
+The public answer route is now expected to construct a supervisor-facing request rather than hardcoding a rag-specialist handoff. Current serving truth is profile-driven: `student_handbook` and `curriculum_plan` are query-enabled; `campus_services` remains `offline_preparation`. Public consumer chat must send an explicit runtime-configured scope rather than relying on a handbook hardcode.
+
+Protected/public product follow-up now has a new frozen direction as well: future work should converge on `public-chat-web` + `protected-panel-web` + shared `apps/app-api`, with `apps/app-api` fixed as an internal Worker runtime and `apps/supervisor-api` retained as the execution engine rather than the product backend.
 
 ## Phases
 
@@ -140,7 +142,7 @@ Plans:
   6. The phase freezes the frontend host as `TanStack Start`, so the consumer app owns its own full-stack route/auth/session/conversation boundary.
 **Plans:** 2/2 plans complete
 
-**Completion Note:** PR #4 merged the `apps/public-consumer-chat` implementation, README baseline, and app-local documentation guardrails into `main` on 2026-03-27. The retained 04.7 handoff notes are now accepted boundary references; the migration plan/checklist remain historical execution artifacts rather than an open work queue.
+**Completion Note:** PR #4 merged the `apps/public-consumer-chat` implementation, README baseline, and app-local documentation guardrails into `main` on 2026-03-27. Those 04.7 handoff notes now remain historical reference material, while the forward-looking product topology has since been superseded by the shared `app-api` plus Worker web surface design.
 
 Plans:
 - [x] 04.7-01-PLAN.md — Freeze the consumer-app boundary handoff for repo shape, routes, states, and ownership splits.
@@ -255,30 +257,30 @@ Plans:
 
 ### Phase 05.1: 研究 curriculum 的 chunking 策略 (INSERTED)
 
-**Goal:** Freeze the offline-only `curriculum_plan` source-truth quality gate, split-manifest document boundary, and explicit chunking runtime truth so Phase 6 can build on accepted ingestion facts without accidental query-serving scope expansion.
+Historical execution goal: freeze the then-offline `curriculum_plan` source-truth quality gate, split-manifest document boundary, and explicit chunking runtime truth before any later serving-policy refactor.
 **Requirements**: []
 **Depends on:** Phase 5
 **Success Criteria** (what must be TRUE):
   1. Real `provider-response -> source-truth` normalization is regression-tested and curriculum source-truth rows have an explicit quality gate.
   2. Split-manifest review helpers fail closed when heading/title evidence is ambiguous and keep logical documents as the pre-chunking boundary.
   3. Curriculum chunking runtime truth is explicit in ingestion-core and loaded from collection runtime truth instead of inheriting handbook defaults.
-  4. `curriculum_plan` remains offline-only with `retrieval_enabled = false` and `default_query_enabled = false`.
+  4. During 05.1 execution, `curriculum_plan` remains `offline_preparation` with `retrieval_enabled = false` and `query_enabled_by_default = false`.
 **Plans:** 4/4 plans complete
 
 Plans:
-- [x] 05.1-01-PLAN.md — 对齐 `curriculum/curriculum_plan` 的 docs/config/runtime boundary，明确 offline-only ownership、split boundary 与 config truth。
+- [x] 05.1-01-PLAN.md — 对齐 `curriculum/curriculum_plan` 当时的 offline-preparation docs/config/runtime boundary，明确 split boundary 与 config truth。
 - [x] 05.1-02-PLAN.md — 补齐真实 `provider-response -> source-truth` 回归与 curriculum source-truth 质量门禁，不再只依赖已生成的 `layout-elements` 样本回归。
 - [x] 05.1-03-PLAN.md — 强化 split-manifest 与 source-truth 的 review/fail-closed 衔接，先稳定 document boundary，再冻结 review seam。
 - [x] 05.1-04-PLAN.md — 在 source-truth 与 split boundary 稳定后，收口 curriculum chunking runtime truth 与自动化验证。
 
 ### Phase 6: Curriculum Offline Preparation
-**Goal**: Prepare `curriculum_plan` raw, processed, and chunk outputs as an offline data-plane path without exposing it to query-serving.
+Historical execution goal: prepare `curriculum_plan` raw, processed, and chunk outputs as an offline data-plane path before the later profile-driven serving-surface refactor.
 **Depends on**: Phase 05.1
 **Requirements**: [ING-03]
 **Success Criteria** (what must be TRUE):
   1. `curriculum_plan` documents can be imported into the offline ingestion path.
   2. `curriculum_plan` can be cleaned and chunked using the same data-plane conventions as `student_handbook`.
-  3. No production query-serving route exposes `curriculum_plan`.
+  3. At Phase 6 closeout, no production query-serving route yet exposed `curriculum_plan`.
 **Plans**: 2/2 plans complete
 
 Plans:

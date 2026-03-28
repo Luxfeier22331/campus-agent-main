@@ -1,6 +1,6 @@
 # Technology Stack
 
-**Analysis Date:** 2026-03-23
+**Analysis Date:** 2026-03-28
 
 ## Languages
 
@@ -35,7 +35,7 @@
 - `packages/rag-specialist` – specialist agent and confidence computation funneling to `campus_retrieval_core`.
 - `packages/retrieval-core` – LlamaIndex + Qdrant backend, retrieval settings, and retrieval service wrappers (`packages/retrieval-core/src/campus_retrieval_core/`).
 - `packages/ingestion-core` – ingestion pipelines, object store helpers, registries, OCR glue, corpus profiles (`packages/ingestion-core/src/campus_ingestion_core/`).
-- `packages/contracts` – shared DTOs such as `DelegateToRagAgentRequest/Response`, `EvidenceBundle`, and `ALLOWED_CORPORA` (`packages/contracts/src/campus_contracts/models.py`).
+- `packages/contracts` – shared DTOs such as `SupervisorRequest`, `SpecialistRequest`, `SpecialistResponse`, `EvidenceBundle`, and `ALLOWED_CORPORA` (`packages/contracts/src/campus_contracts/models.py`).
 - `packages/shared` – shared constants (`packages/shared/src/campus_shared/constants.py`).
 - `packages/evals` – evaluation & smoke fixtures that depend on the shared contracts.
 
@@ -61,8 +61,8 @@
 
 **Environment:**
 - `pyproject.toml` anchors Python 3.12 and declares the workspace members (`apps/*`, `packages/*`), so every command runs within a consistent `uv` context.
-- `.env.example` lays out the required variables for the Supervisor API (`API_AUTH_MODE`, `AGNO_SUPERVISOR_MODEL`, `AGNO_SPECIALIST_MODEL`, `API_BEARER_TOKEN`), retrieval/embedding (`QDRANT_URL`, `EMBEDDING_MODEL`, `DOCUMENT_REGISTRY_DATABASE_URL`, `EMBEDDING_PROVIDER=openai`), MinIO (`OBJECT_STORE_*`), ingestion/OCR/backfill (`CAMPUSRAG_OCR_ROOT`, `OCR_BASE_URL`, `OCR_API_KEY`), and placeholders for traces (`TRACE_ENABLED`, `TRACE_EXPORTER=console`).
-- Corpus runtime profiles (`configs/ingestion/student_handbook/runtime-profile.json`, `configs/ingestion/curriculum_plan/runtime-profile.json`) are loaded via `load_corpus_runtime_profile` to freeze phase-1 behavior for each corpus.
+- `.env.example` lays out the required variables for the Supervisor API (`API_AUTH_MODE`, `AGNO_SUPERVISOR_MODEL`, `AGNO_SPECIALIST_MODEL`, `API_BEARER_TOKEN`), retrieval/embedding (`QDRANT_URL`, required `QDRANT_COLLECTION`, `EMBEDDING_MODEL`, `DOCUMENT_REGISTRY_DATABASE_URL`, `EMBEDDING_PROVIDER=gitee` by default), MinIO (`OBJECT_STORE_*`), ingestion/OCR/backfill (`CAMPUSRAG_OCR_ROOT`, `OCR_BASE_URL`, `OCR_API_KEY`), and placeholders for traces (`TRACE_ENABLED`, `TRACE_EXPORTER=console`).
+- Collection runtime profiles (`configs/ingestion/regulations/student_handbook/runtime-profile.json`, `configs/ingestion/curriculum/curriculum_plan/runtime-profile.json`, `configs/ingestion/campus_services/*/runtime-profile.json`) are loaded via `load_runtime_profile` / `default_query_scopes` to freeze serving and ingestion behavior per collection.
 
 **Build:**
 - Packaging metadata and source inclusion are centralized in each `pyproject.toml` through `tool.hatch.build.targets`.

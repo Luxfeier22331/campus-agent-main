@@ -1,8 +1,10 @@
 # Feature Research
 
-**Domain:** Campus QA assistant for students, staff, and prospective students with a phase-1, architecture-first student handbook agentic RAG path and curriculum plan ingestion preparation.
+**Domain:** Campus QA assistant for students, staff, and prospective students with an architecture-first student handbook agentic RAG path and controlled expansion toward `curriculum_plan`.
 **Researched:** 2026-03-23
 **Confidence:** MEDIUM
+
+> Historical research snapshot: this document predates the current runtime-profile serving refactor. Current serving truth is maintained in `README.md`, `docs/`, and `.planning/`, not here.
 
 ## Feature Landscape
 
@@ -21,14 +23,14 @@
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
 | Supervisor-led multi-agent orchestration with explicit `rag-specialist` handoff | Guarantees architectural clarity: the supervisor owns policy/routing while specialists own retrieval, yielding deterministic governance and easier debugging. | HIGH | StackAI’s 2026 guide and agent-platform analysis recommend this topology for regulated workflows because each agent gets clear contracts, limited tool sets, and scoped context.citeturn3search0turn3search1 |
-| Curriculum plan ingestion-only pipeline with analytics-ready chunks | Prepares the next corpus without destabilizing the student handbook path; ACLs/monitoring remain closed until the pipeline proves itself. | MEDIUM | LearnWise and Microsoft’s education strategy describe phased activation—ingest, dedupe, add metadata, and only then expose new knowledge.citeturn4search0turn0search0 |
+| Curriculum plan controlled expansion pipeline with analytics-ready chunks | Prepares the next corpus without destabilizing the student handbook path; serving exposure stays explicitly gated by runtime policy and release verification. | MEDIUM | LearnWise and Microsoft’s education strategy describe phased activation—ingest, dedupe, add metadata, and only then expose new knowledge.citeturn4search0turn0search0 |
 | Human-in-the-loop evaluation and clarification loops | Builds trust by flagging ambiguous policy questions, capturing reviewer feedback, and surfacing citation confidence for each response. | MEDIUM | Times Higher Education and AiMatch both highlight continuous refinement, escalation, and human oversight as differentiators for trustworthy campus assistants.citeturn1search0turn5search0 |
 
 ### Anti-Features (Commonly Requested, Often Problematic)
 
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| Opening `curriculum_plan` query-serving in Phase 1 | Pressure to show progress by surfacing more knowledge, especially curriculum guidance. | Violates the documented phase-1 guardrail and distracts from stabilizing the student handbook flow. | Keep `curriculum_plan` ingestion-only until the supervisor → rag-specialist path, ACLs, and monitoring are proven. |
+| Opening new corpus scope without explicit live gate | Pressure to show progress by surfacing more knowledge quickly. | Skips the runtime-profile + verification discipline and destabilizes the already validated path. | Keep serving-surface changes explicit in runtime policy and add release-gate evidence before opening more scope. |
 | Decentralized swarm or judge-only agents without a supervisor | Feels flexible—multiple agents debating could cover every angle. | StackAI warns swarms are hard to debug, hard to restrict, and leak sensitive data when coordination drifts. | Stick with the supervisor → specialist pattern and deterministic contracts so behavior stays measurable.citeturn3search0 |
 | Caching sensitive student data in shared, long-lived artifacts | Improves latency and looks easier than repeated lookups. | Violates FERPA/GDPR expectations and leaks context across roles; EdTech cautions explicit privacy reviews before storing PII. | Use ephemeral storage, log every access, and forget sensitive details immediately; keep ACLs at the retrieval layer.citeturn2search1turn2search0 |
 
@@ -62,7 +64,7 @@
 - [ ] Observability dashboards that surface unresolved queries, manual escalations, and evidence gaps for continuous refinement.  
 
 ### Add After Validation (v1.x)
-- [ ] Curriculum plan ingestion pipeline (deduping, metadata, analytics) that remains offline until policies, ACLs, and monitoring approve exposure.  
+- [ ] Curriculum plan serving/release gate evidence (deduping, metadata, analytics, verification) that proves the new scope is safe to keep open.  
 - [ ] Human-in-the-loop evaluation, citation confidence scoring, and audit-ready summaries that feed the logging dashboard.  
 - [ ] Proactive scheduling + escalation paths wired to campus calendars/ticketing for the next wave of use cases.  
 
@@ -101,5 +103,5 @@
 - AiMatch Pro: “AI Agent Workflows in 2025: The 2026 Playbook.”【turn5search0】
 
 ---
-*Feature research for: Campus QA assistant (architecture-first/phase-1)*  
+*Feature research for: Campus QA assistant (historical architecture-first snapshot)*  
 *Researched: 2026-03-23*

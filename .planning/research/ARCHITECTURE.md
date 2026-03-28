@@ -4,6 +4,8 @@
 **Researched:** 2026-03-23  
 **Confidence:** MEDIUM
 
+> Historical research snapshot: this file captures architecture framing research and generic patterns. Current repo truth lives in `README.md`, `docs/architecture/*`, and `.planning/*`.
+
 ## Standard Architecture
 
 ### System Overview

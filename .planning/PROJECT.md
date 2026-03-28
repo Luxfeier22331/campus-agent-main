@@ -2,11 +2,11 @@
 
 ## What This Is
 
-`campus-agent` 是一个面向学生、教职工和潜在考生的 multi-agent 校园问答助理仓库，长期形态是以 `supervisor` 作为唯一入口、`specialist agent` 作为能力边界的 supervisor-led orchestration system。当前 v1 的重点不是做全量校园知识问答，而是在新架构下先跑通 `student_handbook` 的 agentic RAG 全链路，并让 `supervisor -> rag-specialist -> retrieval` 主路径稳定成立。与此同时，若存在长期稳定、可复用、非 handbook-RAG 的能力边界，例如官网探活 / 外部站点可达性核验，也允许以独立 specialist 的形式作为当前里程碑中的显式 inserted phase 落地，而不是被降级成 supervisor 内联 tool。旧仓库 `../campusRAG` 只作为迁移参考，不再作为继续扩展的主实现。
+`campus-agent` 是一个面向学生、教职工和潜在考生的 multi-agent 校园问答助理仓库，长期形态是以 `supervisor` 作为唯一入口、`specialist agent` 作为能力边界的 supervisor-led orchestration system。当前 v1 的重点不是一次性做全量校园知识问答，而是在新架构下把 `supervisor -> rag-specialist -> retrieval` 主路径稳定成立，并让 serving surface 由 runtime profile 显式控制。当前 query-enabled surface 是 `student_handbook` 与 `curriculum_plan`；`campus_services` 仍保持 offline preparation。与此同时，若存在长期稳定、可复用、非 handbook-RAG 的能力边界，例如官网探活 / 外部站点可达性核验，也允许以独立 specialist 的形式作为当前里程碑中的显式 inserted phase 落地，而不是被降级成 supervisor 内联 tool。旧仓库 `../campusRAG` 只作为迁移参考，不再作为继续扩展的主实现。
 
 ## Core Value
 
-先把新的 supervisor-led multi-agent 架构站稳，并用 `student_handbook` 的完整 agentic RAG 主流程证明这条架构能可靠替代高频人工答疑。
+先把新的 supervisor-led multi-agent 架构站稳，并用 runtime-profile-driven serving surface 证明这条架构能可靠承接高频校园问答。
 
 ## Requirements
 
@@ -22,17 +22,17 @@
 - ✓ 已完成 `student_handbook` retrieval baseline 从 dense-only bootstrap 收口为 `dense + sparse hybrid + RRF + registry-backed evidence`，并通过 live handbook fixture 与 repo tests 验证 — Validated by 2026-03-27 live + automated verification
 - ✓ 已完成 `supervisor -> specialist` 查询入口、typed actor propagation 与 durable audit logging 的 Phase 5 收口 — Validated in Phase 5
 - ✓ 已完成 Cloudflare public-entry Worker runtime shell、trusted-origin forwarding 与 `apps/supervisor-api` trusted-worker origin admission — Validated in Phase 04.6
-- ✓ 已完成 `public-consumer-chat` 的 app boundary / frontend host / auth-and-storage decision closeout，并已把实现与文档基线合入 `main` — Validated in Phase 04.7
+- ✓ 已完成 04.7 `public-consumer-chat` 阶段性实现并合入 `main`，当前作为历史参考存在，但不再是后续 panel/chat 工作的 forward topology truth — Validated in Phase 04.7
 - ✓ 已完成 `student_handbook` 主链路的基础 eval / smoke / release-gate 验证，包含 live qrels benchmark、workflow/status 样本与 handbook collection schema 快照 — Validated in Phase 7
 
 ### Active
 
-- [ ] 在 release gate 中验证 `curriculum_plan` offline-only 产物与 query-disabled 不变量，同时保持其不进入 query-serving
+- [ ] 在 release gate 中补齐 `curriculum_plan` query-serving 的 live 验证与回归样本，并确认 `campus_services` 继续保持 `offline_preparation`
 
 ### Out of Scope
 
-- `curriculum_plan` query-serving 上线 — 本阶段只做 raw 导入、清洗和 chunking，不开放查询
-- 全 corpus 上线 — v1 只证明 `student_handbook` 的完整问答主链路
+- `campus_services` query-serving 上线 — 当前阶段不把 service taxonomy 直接放进默认查询面
+- 全 corpus 同步上线 — 当前完整 live release-gate 仍以 `student_handbook` 为主；`curriculum_plan` 已进入 query-serving，但还需要补齐更系统的 live gate
 - 更细粒度的角色差异化问答行为 — 当前只做到 identity / groups 透传与 retrieval 前 ACL 过滤
 - 复杂的多 specialist 串并行协作与 workflow engine — 先把显式 routing、handoff 和单条主链路骨架立住
 - 完整会话记忆、HITL / approval flow、生产级运维硬化 — 这些属于后续阶段能力，不作为当前初始化范围
@@ -44,9 +44,9 @@
 ## Constraints
 
 - **Architecture**: `supervisor` 必须是唯一入口协调层，`specialist` 作为稳定能力边界存在，不能退回成旧 `campusRAG` 的扁平 tool 模式 — 这是仓库长期架构和当前 supervisor 设计的核心前提
-- **Scope**: phase-1 只开放 `student_handbook` query-serving，`curriculum_plan` 仅做到 raw 导入、清洗和 chunking — 避免范围扩张破坏主链路收敛
+- **Scope**: serving surface 由 runtime profile 显式控制；当前开放 `student_handbook` 与 `curriculum_plan`，`campus_services` 保持 `offline_preparation` — 避免再次把运行策略写死在 supervisor、API shell 或 worker 默认值里
 - **Contracts**: handoff 必须通过 `packages/contracts` 中的 schema 完成，不让 AgentOS / retrieval / infra 类型渗透进共享 contract — 这是未来可替换 specialist / retrieval 的基础
-- **Runtime Boundary**: runtime 与 transport 逻辑留在 `apps/`，尤其是 `apps/supervisor-api`；`packages/supervisor-core` 只负责 request framing、routing、policy、response shaping、audit projection — 避免框架宿主反向污染编排层
+- **Runtime Boundary**: runtime 与 transport 逻辑留在 `apps/`；`apps/public-chat-web` 与 `apps/protected-panel-web` 是浏览器侧 Worker surface，shared `apps/app-api` 也已冻结为 internal Worker runtime，承接 auth/session/conversation、chat ingress 与 panel query，`apps/supervisor-api` 保持 execution engine；`packages/supervisor-core` 只负责 request framing、routing、policy、response shaping、audit projection — 避免框架宿主反向污染编排层
 - **Security**: v1 必须做到身份透传、trace 透传、retrieval 前 ACL 过滤、最小审计和最小 source traceability — 这是面向不同权限用户上线前的最低治理要求
 - **Execution Goal**: 当前优先级是把新架构站稳，不以覆盖更多知识域或更复杂 agent 能力为第一目标 — 避免为了功能面牺牲边界正确性
 
@@ -54,8 +54,8 @@
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| v1 只开放 `student_handbook` query-serving | 先用一个清晰知识域证明新架构可用，避免多 corpus 同时上线扩大复杂度 | — Pending |
-| `curriculum_plan` 本阶段只做 raw 导入、清洗和 chunking | 该链路可以并行推进，但不应打断 `student_handbook` 主流程收口 | — Pending |
+| query-serving surface 由 runtime profile 控制 | 避免把 serving policy 写死在 supervisor、API shell、worker env 默认值或 handbook-only 约束里 | — Accepted |
+| `curriculum_plan` 已进入 query-serving，`campus_services` 继续保持 `offline_preparation` | curriculum 已具备 source-truth、chunking 与 retrieval 入口；service taxonomy 仍需后续独立验证 | — Accepted |
 | 权限最小闭环只做到 identity / groups 透传与 retrieval 前 ACL 过滤 | 先满足多类用户的最小访问控制，再延后更细粒度角色行为 | — Pending |
 | 旧 `../campusRAG` 仅作为迁移参考 | 新仓库目标是新架构落地，不是继续扩展旧实现 | — Pending |
 | phase-1 先优先架构边界正确、handoff 清晰、tracing / audit / ACL 最小闭环 | 这是“符合最佳实践”的核心，也是后续扩展多 specialist 的前置条件 | — Pending |
@@ -73,8 +73,10 @@
 | durable audit logging lives at the API shell boundary while supervisor-core remains the owner of audit record shape | This preserves runtime ownership for persistence and package ownership for schema/projection | — Validated in Phase 5 |
 | Cloudflare 并行后续工作拆成 `04.2` / `04.3` / `04.4` 三个 inserted phase | 主线被 chunk-truth 阻塞时，可以继续推进 edge/runtime/panel-shell 冻结，但必须避免把 provider、identity、ACL、audit 语义推入 `packages/*` 或提前吃掉 Phase 5 | — Pending in Phase 04.x |
 | Cloudflare public answer path now runs through `apps/public-entry-worker -> apps/supervisor-api` with explicit trusted-worker origin auth | 先把 public-entry runtime seam 做成真实可验证代码，再把 app-layer actor/ACL/audit留给 Phase 5 | — Validated in Phase 04.6 |
-| `public-consumer-chat` 的 app-level 用户系统固定采用 `Better Auth + Supabase Postgres`，auth/chat 同库分 schema，Qdrant 继续承担在线 retrieval 主存储 | 这样可以避免 `D1 + Postgres` 双真相源、保持 conversation ownership 与 session 一致性，并且不把在线 chunk/vector retrieval 拉回关系库 | — Accepted on 2026-03-26 |
-| `public-consumer-chat` 的前台宿主固定采用 `TanStack Start`，而不是单独 client router 或 `React Router framework mode` | 这个 app 需要 app-local full-stack boundary 来承载 route、auth handler、session、conversation CRUD 与 ownership guard；若只用 client router，会重新制造边界分裂 | — Accepted on 2026-03-26 |
+| public/protected product surface 改为 `apps/public-chat-web` 与 `apps/protected-panel-web` 两个 Worker web surface | 浏览器入口仍保持 public/protected 分离，但不再各自长出独立产品后端 | — Accepted on 2026-03-28 |
+| shared `apps/app-api` 接管 auth/session/conversation、chat ingress、审计/指标入口与 panel query | 这样可以避免 chat 和 panel 各自维护产品后端，同时保持 `apps/supervisor-api` 专注于执行引擎 | — Accepted on 2026-03-28 |
+| `apps/supervisor-api` 退为 execution engine，不再承担 product-facing backend | shared app backend 可以承接浏览器产品 API，而 supervisor 继续只拥有 orchestrator execution path | — Accepted on 2026-03-28 |
+| shared `apps/app-api` runtime 冻结为 Worker | public/protected web surfaces 已是 Worker；共享产品后端保持 internal Worker runtime 更符合边界和部署形态 | — Accepted on 2026-03-28 |
 
 ## Evolution
 
@@ -94,4 +96,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state (users, feedback, metrics)
 
 ---
-*Last updated: 2026-03-27 after Phase 7 verification closeout*
+*Last updated: 2026-03-28 after shared app-api Worker runtime freeze*

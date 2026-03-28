@@ -4,6 +4,8 @@
 **Researched:** 2026-03-23
 **Confidence:** MEDIUM
 
+> Historical research snapshot: this file captures external-platform research, not the repo's current implementation truth. Current serving/runtime truth is maintained in local source-of-truth docs.
+
 ## Recommended Stack
 
 ### Core Technologies
@@ -94,5 +96,5 @@ pip install pytest uv
 - citeturn1search7 — GPT-5.2 best practices for reasoning and agentic tasks.
 
 ---
-*Stack research for: Supervisor-led multi-agent campus QA assistant (phase-1)*
+*Stack research for: Supervisor-led multi-agent campus QA assistant (historical snapshot)*
 *Researched: 2026-03-23*
