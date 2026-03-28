@@ -246,10 +246,23 @@ def build_default_curriculum_budget_candidates() -> tuple[CurriculumBudgetCandid
     )
 
 
-def load_default_curriculum_budget_evaluation_documents() -> tuple[CurriculumBudgetEvaluationDocument, ...]:
+def load_runtime_curriculum_budget_evaluation_documents() -> tuple[CurriculumBudgetEvaluationDocument, ...]:
+    return _load_runtime_fixture_documents()
+
+
+def load_historical_curriculum_budget_evaluation_documents() -> tuple[CurriculumBudgetEvaluationDocument, ...]:
+    return _load_historical_sample_documents()
+
+
+def load_default_curriculum_budget_evaluation_documents(
+    *,
+    include_historical: bool = False,
+) -> tuple[CurriculumBudgetEvaluationDocument, ...]:
     runtime_documents = _load_runtime_fixture_documents()
-    legacy_documents = _load_legacy_sample_documents()
-    return (*runtime_documents, *legacy_documents)
+    if not include_historical:
+        return runtime_documents
+    historical_documents = _load_historical_sample_documents()
+    return (*runtime_documents, *historical_documents)
 
 
 def evaluate_curriculum_budget_candidates(
@@ -520,14 +533,14 @@ def _load_runtime_fixture_documents() -> tuple[CurriculumBudgetEvaluationDocumen
     return tuple(documents)
 
 
-def _load_legacy_sample_documents() -> tuple[CurriculumBudgetEvaluationDocument, ...]:
+def _load_historical_sample_documents() -> tuple[CurriculumBudgetEvaluationDocument, ...]:
     sample_index = json.loads(_DEFAULT_SAMPLE_INDEX_PATH.read_text(encoding="utf-8"))
     documents: list[CurriculumBudgetEvaluationDocument] = []
     for sample in list(sample_index.get("samples") or []):
         title = str(sample["title"])
         label = str(sample["label"])
         path = _REPO_ROOT / str(sample["path"])
-        structured_jsonl_bytes = _normalize_legacy_sample_bytes(
+        structured_jsonl_bytes = _normalize_historical_sample_bytes(
             path.read_bytes(),
             document_title=title,
         )
@@ -554,12 +567,12 @@ def _load_legacy_sample_documents() -> tuple[CurriculumBudgetEvaluationDocument,
         )
         documents.append(
             CurriculumBudgetEvaluationDocument(
-                tier="legacy",
+                tier="historical",
                 label=label,
                 title=title,
                 record=record,
                 structured_jsonl_bytes=structured_jsonl_bytes,
-                probe_cases=_default_legacy_probe_cases(title=title, label=label),
+                probe_cases=_default_historical_probe_cases(title=title, label=label),
             )
         )
     return tuple(documents)
@@ -603,7 +616,7 @@ def _default_runtime_probe_cases(title: str) -> tuple[CurriculumBudgetProbeCase,
     return ()
 
 
-def _default_legacy_probe_cases(
+def _default_historical_probe_cases(
     *,
     title: str,
     label: str,
@@ -673,7 +686,7 @@ def _default_legacy_probe_cases(
     return ()
 
 
-def _normalize_legacy_sample_bytes(
+def _normalize_historical_sample_bytes(
     payload: bytes,
     *,
     document_title: str,
@@ -690,9 +703,12 @@ def _normalize_legacy_sample_bytes(
             normalized_rows.append(json.dumps(raw, ensure_ascii=False))
             continue
         clean_text = str(raw.get("clean_text") or "").strip()
-        chunk_id = str(raw.get("chunk_id") or f"legacy-{index:04d}").strip() or f"legacy-{index:04d}"
+        chunk_id = (
+            str(raw.get("chunk_id") or f"historical-{index:04d}").strip()
+            or f"historical-{index:04d}"
+        )
         row_id = f"{chunk_id}-row-{index:04d}"
-        row_type = _infer_legacy_row_type(clean_text=clean_text, document_title=document_title)
+        row_type = _infer_historical_row_type(clean_text=clean_text, document_title=document_title)
         normalized: dict[str, object] = {
             **raw,
             "row_id": row_id,
@@ -700,7 +716,10 @@ def _normalize_legacy_sample_bytes(
             "row_type": row_type,
         }
         if row_type == "heading":
-            normalized["heading_level"] = _infer_legacy_heading_level(clean_text=clean_text, document_title=document_title)
+            normalized["heading_level"] = _infer_historical_heading_level(
+                clean_text=clean_text,
+                document_title=document_title,
+            )
         elif row_type == "table":
             normalized["html"] = clean_text
             normalized["continuation_group_id"] = row_id
@@ -708,7 +727,7 @@ def _normalize_legacy_sample_bytes(
     return ("\n".join(normalized_rows) + "\n").encode("utf-8")
 
 
-def _infer_legacy_row_type(*, clean_text: str, document_title: str) -> str:
+def _infer_historical_row_type(*, clean_text: str, document_title: str) -> str:
     if not clean_text:
         return "paragraph"
     if clean_text.startswith("<table"):
@@ -722,7 +741,7 @@ def _infer_legacy_row_type(*, clean_text: str, document_title: str) -> str:
     return "paragraph"
 
 
-def _infer_legacy_heading_level(*, clean_text: str, document_title: str) -> int:
+def _infer_historical_heading_level(*, clean_text: str, document_title: str) -> int:
     if clean_text == document_title:
         return 1
     if clean_text.startswith(("（", "(")) or clean_text[:1].isdigit():
@@ -1178,4 +1197,6 @@ __all__ = [
     "build_default_curriculum_budget_candidates",
     "evaluate_curriculum_budget_candidates",
     "load_default_curriculum_budget_evaluation_documents",
+    "load_historical_curriculum_budget_evaluation_documents",
+    "load_runtime_curriculum_budget_evaluation_documents",
 ]

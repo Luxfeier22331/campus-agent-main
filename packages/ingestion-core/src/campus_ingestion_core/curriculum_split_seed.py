@@ -14,19 +14,19 @@ from campus_ingestion_core.curriculum_title_normalization import (
 from campus_ingestion_core.split_manifest import SplitManifest, SplitManifestDocument
 
 _PAGES_SPAN_PATTERN = re.compile(r"(?P<start>\d+)-(?P<end>\d+)")
-_LEGACY_RETIRED_DOCUMENT_REASONS = {
-    "plan:78d25a2033e93fc5940e2d10648ae2d7e887cb74": "legacy_synthetic_umbrella_title",
+_HISTORICAL_RETIRED_DOCUMENT_REASONS = {
+    "plan:78d25a2033e93fc5940e2d10648ae2d7e887cb74": "synthetic_umbrella_title",
 }
 
 
 @dataclass(frozen=True, slots=True)
-class LegacyCurriculumDocument:
+class HistoricalCurriculumDocument:
     document_id: str
     title: str
     status: str
     canonical_doc_path: str
-    legacy_page_start: int | None
-    legacy_page_end: int | None
+    historical_page_start: int | None
+    historical_page_end: int | None
     ocr_doc_decision_uri: str | None
 
 
@@ -35,8 +35,8 @@ class MissingCurriculumSplitDocument:
     document_id: str
     title: str
     canonical_doc_path: str
-    legacy_page_start: int | None
-    legacy_page_end: int | None
+    historical_page_start: int | None
+    historical_page_end: int | None
     reason: str = "title_not_found_in_structured_full"
 
 
@@ -45,8 +45,8 @@ class RetiredCurriculumSplitDocument:
     document_id: str
     title: str
     canonical_doc_path: str
-    legacy_page_start: int | None
-    legacy_page_end: int | None
+    historical_page_start: int | None
+    historical_page_end: int | None
     reason: str
 
 
@@ -104,10 +104,10 @@ def build_manifest_document_rows(
     return [summary_row, *transformed_rows]
 
 
-def load_legacy_curriculum_documents(docs_root: Path) -> tuple[LegacyCurriculumDocument, ...]:
-    documents: list[LegacyCurriculumDocument] = []
+def load_historical_curriculum_documents(docs_root: Path) -> tuple[HistoricalCurriculumDocument, ...]:
+    documents: list[HistoricalCurriculumDocument] = []
     for path in sorted(Path(docs_root).glob("*.md")):
-        metadata = _load_legacy_markdown_metadata(path)
+        metadata = _load_historical_markdown_metadata(path)
         document_id = str(metadata.get("doc_id") or "").strip()
         title = str(metadata.get("title") or "").strip()
         if not document_id or not title:
@@ -115,7 +115,7 @@ def load_legacy_curriculum_documents(docs_root: Path) -> tuple[LegacyCurriculumD
         page_start, page_end = _parse_pages_span(str(metadata.get("pages_span") or "").strip())
         source_refs = _parse_source_refs(str(metadata.get("source_refs") or "[]"))
         documents.append(
-            LegacyCurriculumDocument(
+            HistoricalCurriculumDocument(
                 document_id=document_id,
                 title=title,
                 status=str(metadata.get("status") or "active"),
@@ -124,8 +124,8 @@ def load_legacy_curriculum_documents(docs_root: Path) -> tuple[LegacyCurriculumD
                     ref_type="canonical_doc_path",
                     default=f"rag-data/canonical/curriculum_plan/docs/{path.name}",
                 ),
-                legacy_page_start=page_start,
-                legacy_page_end=page_end,
+                historical_page_start=page_start,
+                historical_page_end=page_end,
                 ocr_doc_decision_uri=_find_source_ref_uri(source_refs=source_refs, ref_type="ocr_doc_decision_v1"),
             )
         )
@@ -140,7 +140,7 @@ def load_layout_elements_rows(path: Path) -> list[dict[str, object]]:
     ]
 
 
-def derive_legacy_curriculum_source_uri(canonical_doc_path: str) -> str:
+def derive_curriculum_source_uri_from_canonical_path(canonical_doc_path: str) -> str:
     normalized = canonical_doc_path.strip().lstrip("/")
     if not normalized:
         raise ValueError("canonical_doc_path is required")
@@ -149,7 +149,7 @@ def derive_legacy_curriculum_source_uri(canonical_doc_path: str) -> str:
 
 def build_curriculum_split_manifest_seed(
     *,
-    legacy_documents: Sequence[LegacyCurriculumDocument],
+    historical_documents: Sequence[HistoricalCurriculumDocument],
     structured_rows: Sequence[Mapping[str, object]],
     raw_asset_id: str,
     manifest_version: str = "curriculum_plan_split_manifest_seed_v1",
@@ -158,19 +158,19 @@ def build_curriculum_split_manifest_seed(
         raise ValueError("raw_asset_id is required")
     title_to_pages = _build_title_to_candidate_pages(structured_rows)
     max_page = _resolve_max_page(structured_rows)
-    matched: list[tuple[LegacyCurriculumDocument, int]] = []
+    matched: list[tuple[HistoricalCurriculumDocument, int]] = []
     missing: list[MissingCurriculumSplitDocument] = []
     retired: list[RetiredCurriculumSplitDocument] = []
-    for document in legacy_documents:
-        retirement_reason = _resolve_legacy_document_retirement_reason(document)
+    for document in historical_documents:
+        retirement_reason = _resolve_historical_document_retirement_reason(document)
         if retirement_reason is not None:
             retired.append(
                 RetiredCurriculumSplitDocument(
                     document_id=document.document_id,
                     title=document.title,
                     canonical_doc_path=document.canonical_doc_path,
-                    legacy_page_start=document.legacy_page_start,
-                    legacy_page_end=document.legacy_page_end,
+                    historical_page_start=document.historical_page_start,
+                    historical_page_end=document.historical_page_end,
                     reason=retirement_reason,
                 )
             )
@@ -182,8 +182,8 @@ def build_curriculum_split_manifest_seed(
                     document_id=document.document_id,
                     title=document.title,
                     canonical_doc_path=document.canonical_doc_path,
-                    legacy_page_start=document.legacy_page_start,
-                    legacy_page_end=document.legacy_page_end,
+                    historical_page_start=document.historical_page_start,
+                    historical_page_end=document.historical_page_end,
                     reason="ambiguous_title_in_structured_headings",
                 )
             )
@@ -194,8 +194,8 @@ def build_curriculum_split_manifest_seed(
                     document_id=document.document_id,
                     title=document.title,
                     canonical_doc_path=document.canonical_doc_path,
-                    legacy_page_start=document.legacy_page_start,
-                    legacy_page_end=document.legacy_page_end,
+                    historical_page_start=document.historical_page_start,
+                    historical_page_end=document.historical_page_end,
                     reason="title_not_found_in_structured_headings",
                 )
             )
@@ -229,7 +229,7 @@ def build_curriculum_split_manifest_seed(
     )
 
 
-def _load_legacy_markdown_metadata(path: Path) -> dict[str, str]:
+def _load_historical_markdown_metadata(path: Path) -> dict[str, str]:
     metadata: dict[str, str] = {}
     for line in Path(path).read_text(encoding="utf-8").splitlines():
         if line == "---":
@@ -304,8 +304,8 @@ def _normalize_split_title(value: str) -> str:
     return normalize_curriculum_title_for_match(value)
 
 
-def _resolve_legacy_document_retirement_reason(document: LegacyCurriculumDocument) -> str | None:
-    return _LEGACY_RETIRED_DOCUMENT_REASONS.get(document.document_id)
+def _resolve_historical_document_retirement_reason(document: HistoricalCurriculumDocument) -> str | None:
+    return _HISTORICAL_RETIRED_DOCUMENT_REASONS.get(document.document_id)
 
 
 def _resolve_max_page(structured_rows: Sequence[Mapping[str, object]]) -> int:

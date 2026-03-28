@@ -182,7 +182,7 @@ def _structured_unit_row(
 
 
 class ProcessingPipelineTest(unittest.TestCase):
-    def test_default_chunk_profile_matches_current_student_handbook_runtime_truth(self) -> None:
+    def test_default_chunk_profile_matches_generic_structure_first_defaults(self) -> None:
         profile = ChunkProfile()
 
         self.assertEqual(profile.chunk_size, DEFAULT_CHUNK_SIZE)
@@ -190,7 +190,7 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertEqual(profile.split_strategy, "structure_first")
         self.assertEqual(profile.chunk_policy_version, DEFAULT_CHUNK_POLICY_VERSION)
         self.assertEqual(profile.cleaning_policy_version, DEFAULT_CLEANING_POLICY_VERSION)
-        self.assertEqual(profile.strategy_name, "student_handbook_structure")
+        self.assertEqual(profile.strategy_name, "structure_first_default_v1")
         self.assertIsInstance(profile.strategy, StudentHandbookChunkingStrategy)
 
     def test_build_curriculum_chunk_profile_matches_runtime_truth(self) -> None:
@@ -269,7 +269,7 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertEqual(chunk.metadata["segment_total"], 1)
         self.assertIsNone(chunk.metadata["split_reason"])
         self.assertIsNone(chunk.metadata["boundary_rule"])
-        self.assertEqual(chunk.metadata["strategy_name"], "student_handbook_structure")
+        self.assertEqual(chunk.metadata["strategy_name"], "structure_first_default_v1")
         self.assertEqual(chunk.metadata["split_strategy"], "structure_first")
         self.assertEqual(chunk.metadata["chunk_policy_version"], DEFAULT_CHUNK_POLICY_VERSION)
         self.assertEqual(chunk.metadata["cleaning_policy_version"], DEFAULT_CLEANING_POLICY_VERSION)

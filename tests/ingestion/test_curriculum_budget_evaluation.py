@@ -13,6 +13,7 @@ from campus_ingestion_core.curriculum_budget_evaluation import (
     build_default_curriculum_budget_candidates,
     evaluate_curriculum_budget_candidates,
     load_default_curriculum_budget_evaluation_documents,
+    load_historical_curriculum_budget_evaluation_documents,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
 
@@ -243,18 +244,23 @@ class CurriculumBudgetEvaluationTest(unittest.TestCase):
             self.assertIn("table-relaxed", markdown)
             self.assertIn("Probe Summary", markdown)
 
-    def test_load_default_curriculum_budget_evaluation_documents_includes_runtime_and_legacy_inputs(self) -> None:
+    def test_load_default_curriculum_budget_evaluation_documents_defaults_to_runtime_inputs(self) -> None:
         documents = load_default_curriculum_budget_evaluation_documents()
 
         runtime_titles = {document.title for document in documents if document.tier == "runtime"}
-        legacy_labels = {document.label for document in documents if document.tier == "legacy"}
 
         self.assertEqual(len(runtime_titles), 2)
         self.assertIn("国际经济与贸易本科人才培养方案", runtime_titles)
         self.assertIn("经济学拔尖人才创新班人才培养方案", runtime_titles)
         self.assertTrue(all(document.probe_cases for document in documents))
+        self.assertTrue(all(document.tier == "runtime" for document in documents))
+
+    def test_historical_curriculum_budget_documents_require_explicit_opt_in(self) -> None:
+        documents = load_historical_curriculum_budget_evaluation_documents()
+        historical_labels = {document.label for document in documents if document.tier == "historical"}
+
         self.assertEqual(
-            legacy_labels,
+            historical_labels,
             {"narrative", "requirement-like", "table-heavy", "mixed", "title-boundary", "normalized-title"},
         )
 
@@ -302,7 +308,7 @@ class CurriculumBudgetEvaluationTest(unittest.TestCase):
             report = evaluate_curriculum_budget_candidates(
                 output_dir=Path(temp_dir),
                 candidates=(baseline,),
-                documents=load_default_curriculum_budget_evaluation_documents(),
+                documents=load_default_curriculum_budget_evaluation_documents(include_historical=True),
             )
 
         self.assertEqual(len(report.candidates), 1)

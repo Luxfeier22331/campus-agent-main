@@ -121,7 +121,7 @@ def _build_real_curriculum_runtime_chunks(
 ) -> tuple[DocumentRegistryRecord, tuple[object, ...]]:
     document = next(
         item
-        for item in load_default_curriculum_budget_evaluation_documents()
+        for item in load_default_curriculum_budget_evaluation_documents(include_historical=True)
         if item.title == document_title
     )
     chunks = build_indexable_chunks_from_jsonl(
@@ -1477,7 +1477,7 @@ class CurriculumChunkingTest(unittest.TestCase):
         self.assertTrue(target_chunk.text.startswith("二、毕业要求\n\n(二)知识要求"))
         self.assertNotIn("(二)知识要求\n\n(二)知识要求", target_chunk.text)
 
-    def test_runtime_v2_does_not_duplicate_leaf_heading_on_legacy_curriculum_chunks(self) -> None:
+    def test_runtime_v2_does_not_duplicate_leaf_heading_on_historical_curriculum_chunks(self) -> None:
         _, chunks = _build_real_curriculum_runtime_chunks("中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案")
 
         self.assertFalse(
@@ -1559,7 +1559,7 @@ class CurriculumChunkingTest(unittest.TestCase):
         self.assertIn("(一) 大类培养", target_chunk.text)
         self.assertIn("1. 通识教育", target_chunk.text)
 
-    def test_runtime_v2_keeps_leaf_professional_education_heading_on_large_legacy_table_chunks(self) -> None:
+    def test_runtime_v2_keeps_leaf_professional_education_heading_on_large_historical_table_chunks(self) -> None:
         _, chunks = _build_real_curriculum_runtime_chunks("孝通实验班本科人才培养方案")
 
         target_chunk = next(
@@ -1577,7 +1577,7 @@ class CurriculumChunkingTest(unittest.TestCase):
         self.assertIn("五、课程设置和修读建议", target_chunk.text)
         self.assertIn("(二)专业教育", target_chunk.text)
 
-    def test_runtime_v2_does_not_bleed_previous_section_into_degree_section_for_legacy_curriculum(self) -> None:
+    def test_runtime_v2_does_not_bleed_previous_section_into_degree_section_for_historical_curriculum(self) -> None:
         _, chunks = _build_real_curriculum_runtime_chunks("财政学本科人才培养方案")
 
         target_chunk = next(
@@ -1593,7 +1593,7 @@ class CurriculumChunkingTest(unittest.TestCase):
         self.assertTrue(target_chunk.text.startswith("三、学制、总学分和学位授予"))
         self.assertNotIn("二、毕业要求\n\n", target_chunk.text)
 
-    def test_runtime_v2_does_not_bleed_previous_section_into_degree_section_for_mixed_heading_legacy_curriculum(self) -> None:
+    def test_runtime_v2_does_not_bleed_previous_section_into_degree_section_for_mixed_heading_historical_curriculum(self) -> None:
         _, chunks = _build_real_curriculum_runtime_chunks("中国少数民族语言文学本科人才培养方案")
 
         target_chunk = next(
