@@ -20,6 +20,16 @@ import {
 } from "./modules/chat";
 import { createSupervisorExecutionClient } from "./modules/integration";
 import {
+  buildOfficialWebCommandService,
+  createPgOfficialWebCommandStore,
+  type OfficialWebCommandService,
+} from "./modules/official-web-command";
+import {
+  buildOfficialWebQueryService,
+  createPgOfficialWebQueryStore,
+  type OfficialWebQueryService,
+} from "./modules/official-web-query";
+import {
   buildOperatorQueryService,
   createPgOperatorQueryStore,
   type OperatorQueryService,
@@ -32,6 +42,7 @@ import {
 import {
   buildBetterAuthConfig,
   handleAuthRequest,
+  resolveOfficialWebCollectorPrincipal,
   resolveRequestPrincipal,
   type ResolvedAppPrincipal,
 } from "./modules/auth";
@@ -41,6 +52,8 @@ export interface AppDependencies {
   chatConversationService?: ChatConversationService;
   chatCommandService?: ChatCommandService;
   getPrincipal?: (request: Request, env: Env) => Promise<ResolvedAppPrincipal | null>;
+  officialWebCommandService?: OfficialWebCommandService;
+  officialWebQueryService?: OfficialWebQueryService;
   operatorQueryService?: OperatorQueryService;
 }
 
@@ -60,6 +73,17 @@ function sessionRequiredResponse() {
     errorEnvelope({
       code: "session_required",
       message: "Sign in required.",
+      retryable: false,
+    }),
+    { status: 401 },
+  );
+}
+
+function serviceCredentialRequiredResponse() {
+  return jsonResponse(
+    errorEnvelope({
+      code: "service_credential_required",
+      message: "Collector service credential required.",
       retryable: false,
     }),
     { status: 401 },
@@ -86,6 +110,31 @@ function operatorAccessForbiddenResponse() {
   );
 }
 
+async function readJsonRequestBody(request: Request): Promise<Record<string, unknown>> {
+  const contentType = request.headers.get("content-type") ?? "";
+  if (!contentType.toLowerCase().includes("application/json")) {
+    throw new AppApiRouteError({
+      code: "unsupported_media_type",
+      message: "application/json is required.",
+      retryable: false,
+      status: 415,
+    });
+  }
+
+  const payload = (await request.json().catch(() => {
+    throw new AppApiRouteError({
+      code: "invalid_json",
+      message: "Invalid JSON body.",
+      retryable: false,
+      status: 400,
+    });
+  })) as unknown;
+
+  return payload && typeof payload === "object" && !Array.isArray(payload)
+    ? (payload as Record<string, unknown>)
+    : {};
+}
+
 export function createApp(env: Env, dependencies: AppDependencies = {}) {
   const app = new Hono<{ Bindings: Env }>();
   const authHandler = dependencies.authHandler ?? handleAuthRequest;
@@ -103,6 +152,16 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
       supervisor: createSupervisorExecutionClient(env),
     });
   const getPrincipal = dependencies.getPrincipal ?? resolveRequestPrincipal;
+  const officialWebCommandService =
+    dependencies.officialWebCommandService ??
+    buildOfficialWebCommandService({
+      store: createPgOfficialWebCommandStore(env),
+    });
+  const officialWebQueryService =
+    dependencies.officialWebQueryService ??
+    buildOfficialWebQueryService({
+      store: createPgOfficialWebQueryStore(env),
+    });
   const operatorQueryService =
     dependencies.operatorQueryService ??
     buildOperatorQueryService({
@@ -159,6 +218,10 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
       dependencies: {
         auth: "configured",
         database: "configured",
+        officialWebHandoff:
+          env.APP_API_OFFICIAL_WEB_HANDOFF_URL?.trim() && env.APP_API_OFFICIAL_WEB_HANDOFF_TOKEN?.trim()
+            ? "configured"
+            : "not_configured",
         operatorBridge: "configured",
         publicChatOrigin: "configured",
         supervisorApi: "configured",
@@ -207,26 +270,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
       return sessionRequiredResponse();
     }
 
-    const contentType = c.req.header("content-type") ?? "";
-    if (!contentType.toLowerCase().includes("application/json")) {
-      return routeErrorResponse(
-        new AppApiRouteError({
-          code: "unsupported_media_type",
-          message: "application/json is required.",
-          retryable: false,
-          status: 415,
-        }),
-      );
-    }
-
-    const payload = (await c.req.raw.json().catch(() => {
-      throw new AppApiRouteError({
-        code: "invalid_json",
-        message: "Invalid JSON body.",
-        retryable: false,
-        status: 400,
-      });
-    })) as Record<string, unknown>;
+    const payload = await readJsonRequestBody(c.req.raw);
 
     const response = await chatCommandService.submit({
       idempotencyKey: c.req.header("idempotency-key") ?? null,
@@ -246,6 +290,50 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
         status: 200,
       },
     );
+  });
+
+  app.post("/api/official-web/runs", async (c) => {
+    const principal = await resolveOfficialWebCollectorPrincipal(c.req.raw, env);
+    if (!principal) {
+      return serviceCredentialRequiredResponse();
+    }
+
+    const response = await officialWebCommandService.start({
+      payload: await readJsonRequestBody(c.req.raw),
+      principal,
+    });
+
+    return jsonResponse(response);
+  });
+
+  app.post("/api/official-web/runs/:runId/heartbeats", async (c) => {
+    const principal = await resolveOfficialWebCollectorPrincipal(c.req.raw, env);
+    if (!principal) {
+      return serviceCredentialRequiredResponse();
+    }
+
+    const response = await officialWebCommandService.heartbeat({
+      payload: await readJsonRequestBody(c.req.raw),
+      principal,
+      runId: c.req.param("runId"),
+    });
+
+    return jsonResponse(response);
+  });
+
+  app.post("/api/official-web/runs/:runId/finalize", async (c) => {
+    const principal = await resolveOfficialWebCollectorPrincipal(c.req.raw, env);
+    if (!principal) {
+      return serviceCredentialRequiredResponse();
+    }
+
+    const response = await officialWebCommandService.finalize({
+      payload: await readJsonRequestBody(c.req.raw),
+      principal,
+      runId: c.req.param("runId"),
+    });
+
+    return jsonResponse(response);
   });
 
   app.get("/api/chat/conversations", async (c) => {
@@ -355,6 +443,109 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     });
 
     return jsonResponse({ request });
+  });
+
+  app.get("/api/operator/official-web/sites", async (c) => {
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await getPrincipal(c.req.raw, env);
+    } catch {
+      return dependencyNotReadyResponse();
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+    if (!principal.permissions.operator) {
+      return operatorAccessForbiddenResponse();
+    }
+
+    return jsonResponse(
+      await officialWebQueryService.listSites({
+        principal,
+      }),
+    );
+  });
+
+  app.get("/api/operator/official-web/sites/:siteId", async (c) => {
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await getPrincipal(c.req.raw, env);
+    } catch {
+      return dependencyNotReadyResponse();
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+    if (!principal.permissions.operator) {
+      return operatorAccessForbiddenResponse();
+    }
+
+    return jsonResponse(
+      await officialWebQueryService.getSiteById({
+        principal,
+        siteId: c.req.param("siteId"),
+      }),
+    );
+  });
+
+  app.get("/api/operator/official-web/runs", async (c) => {
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await getPrincipal(c.req.raw, env);
+    } catch {
+      return dependencyNotReadyResponse();
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+    if (!principal.permissions.operator) {
+      return operatorAccessForbiddenResponse();
+    }
+
+    return jsonResponse(
+      await officialWebQueryService.listRuns({
+        filters: {
+          cursor: c.req.query("cursor") ?? null,
+          ingestionDispatchStatus: c.req.query("ingestionDispatchStatus") ?? null,
+          limit: parseLimit(c.req.query("limit")),
+          siteId: c.req.query("siteId") ?? null,
+          startedAfter: c.req.query("startedAfter") ?? null,
+          startedBefore: c.req.query("startedBefore") ?? null,
+          status: c.req.query("status") ?? null,
+        },
+        principal,
+      }),
+    );
+  });
+
+  app.get("/api/operator/official-web/runs/:runId", async (c) => {
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await getPrincipal(c.req.raw, env);
+    } catch {
+      return dependencyNotReadyResponse();
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+    if (!principal.permissions.operator) {
+      return operatorAccessForbiddenResponse();
+    }
+
+    return jsonResponse({
+      run: await officialWebQueryService.getRunById({
+        principal,
+        runId: c.req.param("runId"),
+      }),
+    });
   });
 
   app.onError((error) => {

@@ -1,11 +1,13 @@
 export { account, session, user, verification } from "./auth";
 export { conversations, messages } from "./chat";
-export { requestProjection } from "./operator";
+export { crawlRuns, runArtifacts, runHeartbeats, runOutbox } from "./official-web";
+export { officialWebRunProjection, officialWebSiteProjection, requestProjection } from "./operator";
 export { projectionOutbox, requestExecution } from "./runtime";
 
 import { account, session, user, verification } from "./auth";
 import { conversations, messages } from "./chat";
-import { requestProjection } from "./operator";
+import { crawlRuns, runArtifacts, runHeartbeats, runOutbox } from "./official-web";
+import { officialWebRunProjection, officialWebSiteProjection, requestProjection } from "./operator";
 import { projectionOutbox, requestExecution } from "./runtime";
 
 export const appApiSchema = {
@@ -15,7 +17,13 @@ export const appApiSchema = {
   verification,
   conversations,
   messages,
+  crawlRuns,
+  runHeartbeats,
+  runArtifacts,
+  runOutbox,
   requestExecution,
   projectionOutbox,
   requestProjection,
+  officialWebRunProjection,
+  officialWebSiteProjection,
 };

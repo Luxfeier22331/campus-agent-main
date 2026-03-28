@@ -5,6 +5,12 @@ import { getAppAuth } from "./auth";
 
 export type AppPrincipalType = "public_user" | "operator";
 
+export interface OfficialWebCollectorPrincipal {
+  kind: "service";
+  serviceClass: "official_web_collector";
+  serviceId: "official-web-collector";
+}
+
 export interface AppPermissions {
   chat: boolean;
   operator: boolean;
@@ -83,6 +89,33 @@ function hasMatchingInternalSecret(
 
 function parseHeaderList(request: Request, headerName: string): string[] {
   return parseCsvList(request.headers.get(headerName) ?? undefined);
+}
+
+function hasMatchingBearerToken(
+  request: Request,
+  token: string | null,
+): boolean {
+  const expected = normalizeHeaderValue(token);
+  const authorization = normalizeHeaderValue(request.headers.get("authorization"));
+  if (!expected || !authorization) {
+    return false;
+  }
+  if (!authorization.toLowerCase().startsWith("bearer ")) {
+    return false;
+  }
+
+  const provided = normalizeHeaderValue(authorization.slice("bearer ".length));
+  if (!provided) {
+    return false;
+  }
+
+  const expectedBytes = Buffer.from(expected);
+  const providedBytes = Buffer.from(provided);
+  if (expectedBytes.length !== providedBytes.length) {
+    return false;
+  }
+
+  return timingSafeEqual(expectedBytes, providedBytes);
 }
 
 function toIsoString(value: string | Date | null | undefined): string | null {
@@ -193,6 +226,21 @@ export function mapOperatorHeadersToPrincipal(
         source: "trusted_operator_bridge",
       },
     },
+  };
+}
+
+export async function resolveOfficialWebCollectorPrincipal(
+  request: Request,
+  env: Pick<Env, "APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN">,
+): Promise<OfficialWebCollectorPrincipal | null> {
+  if (!hasMatchingBearerToken(request, env.APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN ?? null)) {
+    return null;
+  }
+
+  return {
+    kind: "service",
+    serviceClass: "official_web_collector",
+    serviceId: "official-web-collector",
   };
 }
 

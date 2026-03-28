@@ -1,0 +1,378 @@
+// @vitest-environment node
+
+import { describe, expect, it, vi } from "vitest";
+
+import {
+  buildOfficialWebProjectionProjector,
+  type OfficialWebRunOutboxEvent,
+  type OfficialWebProjectionProjectorStore,
+  type OfficialWebRunProjectionSource,
+  type OfficialWebSiteProjectionSource,
+} from "../src/modules/official-web-projection";
+
+function createRunSource(
+  overrides: Partial<OfficialWebRunProjectionSource> = {},
+): OfficialWebRunProjectionSource {
+  return {
+    artifacts: [
+      {
+        artifactType: "crawl_run_manifest",
+        byteSize: null,
+        contentSha256: "abc123",
+        objectKey: "official_web/www_muc_edu_cn/runs/owrun_01HQ/crawl-run.json",
+        recordCount: 1,
+      },
+    ],
+    collectorVersion: "official-web-collector@0.1.0",
+    configVersion: "git:abc1234",
+    crawlPolicyVersion: "2026-03-29",
+    failureCount: 0,
+    finishedAt: "2026-03-29T08:17:32.000Z",
+    hostSet: ["www.muc.edu.cn"],
+    ingestionDispatchRef: null,
+    ingestionDispatchStatus: "queued",
+    lastHeartbeatAt: "2026-03-29T08:05:00.000Z",
+    projectedAtHint: "2026-03-29T08:17:33.000Z",
+    runId: "owrun_01HQ",
+    schedulerRunKey: "cron-2026-03-29T08:00:00.000Z",
+    seedSet: ["https://www.muc.edu.cn/"],
+    siteId: "www_muc_edu_cn",
+    startedAt: "2026-03-29T08:00:01.000Z",
+    status: "completed",
+    summary: {
+      failureCount: 0,
+      pagesNormalized: 310,
+      urlsDiscovered: 420,
+      urlsFetched: 390,
+    },
+    triggerType: "scheduled",
+    ...overrides,
+  };
+}
+
+function createSiteSource(
+  overrides: Partial<OfficialWebSiteProjectionSource> = {},
+): OfficialWebSiteProjectionSource {
+  return {
+    displayName: "Www Muc Edu Cn",
+    hostRoots: ["www.muc.edu.cn"],
+    lastFailureAt: null,
+    lastSuccessAt: "2026-03-29T08:17:32.000Z",
+    latestCollectorVersion: "official-web-collector@0.1.0",
+    latestConfigVersion: "git:abc1234",
+    latestIngestionDispatchStatus: "queued",
+    latestRunId: "owrun_01HQ",
+    latestRunStatus: "completed",
+    projectedAtHint: "2026-03-29T08:17:33.000Z",
+    siteId: "www_muc_edu_cn",
+    ...overrides,
+  };
+}
+
+function createPendingEvent(
+  overrides: Partial<OfficialWebRunOutboxEvent> = {},
+): OfficialWebRunOutboxEvent {
+  return {
+    attemptCount: 0,
+    availableAt: "2026-03-29T08:17:32.000Z",
+    eventId: "owevt_completed_01HQ",
+    eventType: "official_web.run.completed",
+    occurredAt: "2026-03-29T08:17:32.000Z",
+    processedAt: null,
+    runId: "owrun_01HQ",
+    ...overrides,
+  };
+}
+
+describe("official web projection projector", () => {
+  it("dispatches terminal handoff events before materializing dispatched projections", async () => {
+    const store: OfficialWebProjectionProjectorStore = {
+      listPendingEvents: vi.fn().mockResolvedValue([createPendingEvent()]),
+      markEventFailed: vi.fn(),
+      markEventProcessed: vi.fn(),
+      markTimedOutRunsAsAbandoned: vi.fn().mockResolvedValue(0),
+      updateRunDispatchStatus: vi.fn(),
+      upsertRunProjection: vi.fn(),
+      upsertSiteProjection: vi.fn(),
+      getRunProjectionSource: vi.fn().mockResolvedValue(createRunSource()),
+      getSiteProjectionSource: vi.fn().mockResolvedValue(createSiteSource()),
+    };
+    const handoffPublisher = {
+      publish: vi.fn().mockResolvedValue({
+        dispatchRef: "dispatch_01HQ",
+      }),
+    };
+    const projector = buildOfficialWebProjectionProjector({
+      handoffPublisher,
+      now: () => new Date("2026-03-29T08:17:33.000Z"),
+      store,
+    });
+
+    const result = await projector.drain();
+
+    expect(result).toEqual({
+      abandoned: 0,
+      failed: 0,
+      processed: 1,
+    });
+    expect(handoffPublisher.publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        artifacts: [
+          expect.objectContaining({
+            artifactType: "crawl_run_manifest",
+            objectKey: "official_web/www_muc_edu_cn/runs/owrun_01HQ/crawl-run.json",
+          }),
+        ],
+        eventId: "owevt_completed_01HQ",
+        eventType: "official_web.run.completed",
+        runId: "owrun_01HQ",
+        siteId: "www_muc_edu_cn",
+      }),
+    );
+    expect(store.updateRunDispatchStatus).toHaveBeenCalledWith({
+      dispatchRef: "dispatch_01HQ",
+      dispatchedAt: "2026-03-29T08:17:33.000Z",
+      runId: "owrun_01HQ",
+      status: "dispatched",
+    });
+    expect(store.upsertRunProjection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ingestionDispatchRef: "dispatch_01HQ",
+        ingestionDispatchStatus: "dispatched",
+        runId: "owrun_01HQ",
+      }),
+    );
+    expect(store.upsertSiteProjection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        latestIngestionDispatchStatus: "dispatched",
+        siteId: "www_muc_edu_cn",
+      }),
+    );
+  });
+
+  it("materializes accepted run and site projections and marks events processed", async () => {
+    const store: OfficialWebProjectionProjectorStore = {
+      listPendingEvents: vi
+        .fn()
+        .mockResolvedValue([createPendingEvent({ eventType: "official_web.run.accepted" })]),
+      markEventFailed: vi.fn(),
+      markEventProcessed: vi.fn(),
+      markTimedOutRunsAsAbandoned: vi.fn().mockResolvedValue(0),
+      updateRunDispatchStatus: vi.fn(),
+      upsertRunProjection: vi.fn(),
+      upsertSiteProjection: vi.fn(),
+      getRunProjectionSource: vi
+        .fn()
+        .mockResolvedValue(
+          createRunSource({
+            failureCount: 0,
+            finishedAt: null,
+            ingestionDispatchStatus: "pending",
+            lastHeartbeatAt: null,
+            status: "accepted",
+            summary: null,
+          }),
+        ),
+      getSiteProjectionSource: vi
+        .fn()
+        .mockResolvedValue(
+          createSiteSource({
+            latestIngestionDispatchStatus: "pending",
+            latestRunStatus: "accepted",
+          }),
+        ),
+    };
+    const projector = buildOfficialWebProjectionProjector({
+      now: () => new Date("2026-03-29T08:17:33.000Z"),
+      store,
+    });
+
+    const result = await projector.drain();
+
+    expect(result).toEqual({
+      abandoned: 0,
+      failed: 0,
+      processed: 1,
+    });
+    expect(store.upsertRunProjection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ingestionDispatchStatus: "pending",
+        runId: "owrun_01HQ",
+        status: "accepted",
+      }),
+    );
+    expect(store.upsertSiteProjection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        latestRunId: "owrun_01HQ",
+        siteId: "www_muc_edu_cn",
+      }),
+    );
+    expect(store.markEventProcessed).toHaveBeenCalledWith({
+      eventId: "owevt_completed_01HQ",
+      processedAt: "2026-03-29T08:17:33.000Z",
+    });
+  });
+
+  it("records a retryable failure when the run source is missing", async () => {
+    const store: OfficialWebProjectionProjectorStore = {
+      listPendingEvents: vi.fn().mockResolvedValue([createPendingEvent()]),
+      markEventFailed: vi.fn(),
+      markEventProcessed: vi.fn(),
+      markTimedOutRunsAsAbandoned: vi.fn().mockResolvedValue(0),
+      updateRunDispatchStatus: vi.fn(),
+      upsertRunProjection: vi.fn(),
+      upsertSiteProjection: vi.fn(),
+      getRunProjectionSource: vi.fn().mockResolvedValue(null),
+      getSiteProjectionSource: vi.fn(),
+    };
+    const projector = buildOfficialWebProjectionProjector({
+      now: () => new Date("2026-03-29T08:17:33.000Z"),
+      store,
+    });
+
+    const result = await projector.drain();
+
+    expect(result).toEqual({
+      abandoned: 0,
+      failed: 1,
+      processed: 0,
+    });
+    expect(store.markEventFailed).toHaveBeenCalledWith({
+      attemptCount: 1,
+      availableAt: "2026-03-29T08:17:38.000Z",
+      eventId: "owevt_completed_01HQ",
+      lastError: "Missing official_web crawl run source for owrun_01HQ.",
+      processedAt: null,
+    });
+  });
+
+  it("marks terminal projection failures as processed when the retry budget is exhausted", async () => {
+    const store: OfficialWebProjectionProjectorStore = {
+      listPendingEvents: vi.fn().mockResolvedValue([
+        createPendingEvent({
+          attemptCount: 4,
+          eventId: "owevt_terminal_01HQ",
+        }),
+      ]),
+      markEventFailed: vi.fn(),
+      markEventProcessed: vi.fn(),
+      markTimedOutRunsAsAbandoned: vi.fn().mockResolvedValue(0),
+      updateRunDispatchStatus: vi.fn(),
+      upsertRunProjection: vi.fn(),
+      upsertSiteProjection: vi.fn(),
+      getRunProjectionSource: vi.fn().mockResolvedValue(null),
+      getSiteProjectionSource: vi.fn(),
+    };
+    const projector = buildOfficialWebProjectionProjector({
+      now: () => new Date("2026-03-29T08:17:33.000Z"),
+      store,
+    });
+
+    const result = await projector.drain();
+
+    expect(result).toEqual({
+      abandoned: 0,
+      failed: 1,
+      processed: 0,
+    });
+    expect(store.markEventFailed).toHaveBeenCalledWith({
+      attemptCount: 5,
+      availableAt: "2026-03-29T08:17:33.000Z",
+      eventId: "owevt_terminal_01HQ",
+      lastError: "Missing official_web crawl run source for owrun_01HQ.",
+      processedAt: "2026-03-29T08:17:33.000Z",
+    });
+  });
+
+  it("marks terminal dispatch failures as ingestion_failed when retries are exhausted", async () => {
+    const store: OfficialWebProjectionProjectorStore = {
+      listPendingEvents: vi.fn().mockResolvedValue([
+        createPendingEvent({
+          attemptCount: 4,
+          eventId: "owevt_dispatch_terminal_01HQ",
+        }),
+      ]),
+      markEventFailed: vi.fn(),
+      markEventProcessed: vi.fn(),
+      markTimedOutRunsAsAbandoned: vi.fn().mockResolvedValue(0),
+      updateRunDispatchStatus: vi.fn(),
+      upsertRunProjection: vi.fn(),
+      upsertSiteProjection: vi.fn(),
+      getRunProjectionSource: vi.fn().mockResolvedValue(createRunSource()),
+      getSiteProjectionSource: vi.fn().mockResolvedValue(createSiteSource()),
+    };
+    const handoffPublisher = {
+      publish: vi.fn().mockRejectedValue(new Error("handoff unavailable")),
+    };
+    const projector = buildOfficialWebProjectionProjector({
+      handoffPublisher,
+      now: () => new Date("2026-03-29T08:17:33.000Z"),
+      store,
+    });
+
+    const result = await projector.drain();
+
+    expect(result).toEqual({
+      abandoned: 0,
+      failed: 1,
+      processed: 0,
+    });
+    expect(store.updateRunDispatchStatus).toHaveBeenCalledWith({
+      dispatchRef: null,
+      dispatchedAt: "2026-03-29T08:17:33.000Z",
+      runId: "owrun_01HQ",
+      status: "ingestion_failed",
+    });
+    expect(store.upsertRunProjection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ingestionDispatchRef: null,
+        ingestionDispatchStatus: "ingestion_failed",
+        runId: "owrun_01HQ",
+      }),
+    );
+    expect(store.upsertSiteProjection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        latestIngestionDispatchStatus: "ingestion_failed",
+        siteId: "www_muc_edu_cn",
+      }),
+    );
+    expect(store.markEventFailed).toHaveBeenCalledWith({
+      attemptCount: 5,
+      availableAt: "2026-03-29T08:17:33.000Z",
+      eventId: "owevt_dispatch_terminal_01HQ",
+      lastError: "handoff unavailable",
+      processedAt: "2026-03-29T08:17:33.000Z",
+    });
+  });
+
+  it("marks timed-out runs abandoned before draining pending events", async () => {
+    const store: OfficialWebProjectionProjectorStore = {
+      listPendingEvents: vi.fn().mockResolvedValue([]),
+      markEventFailed: vi.fn(),
+      markEventProcessed: vi.fn(),
+      markTimedOutRunsAsAbandoned: vi.fn().mockResolvedValue(2),
+      updateRunDispatchStatus: vi.fn(),
+      upsertRunProjection: vi.fn(),
+      upsertSiteProjection: vi.fn(),
+      getRunProjectionSource: vi.fn(),
+      getSiteProjectionSource: vi.fn(),
+    };
+    const projector = buildOfficialWebProjectionProjector({
+      heartbeatTimeoutSeconds: 180,
+      now: () => new Date("2026-03-29T08:17:33.000Z"),
+      store,
+    });
+
+    const result = await projector.drain();
+
+    expect(result).toEqual({
+      abandoned: 2,
+      failed: 0,
+      processed: 0,
+    });
+    expect(store.markTimedOutRunsAsAbandoned).toHaveBeenCalledWith({
+      heartbeatTimeoutSeconds: 180,
+      now: "2026-03-29T08:17:33.000Z",
+    });
+  });
+});

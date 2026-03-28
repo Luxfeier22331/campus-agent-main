@@ -2,6 +2,7 @@ export { buildBetterAuthConfig, createAppAuth, getAppAuth, handleAuthRequest } f
 export {
   mapOperatorHeadersToPrincipal,
   mapSessionToPublicUserPrincipal,
+  resolveOfficialWebCollectorPrincipal,
   resolveRequestPrincipal,
 } from "./principal";
 export type {
@@ -10,5 +11,6 @@ export type {
   AppSessionPayload,
   BetterAuthSessionPayload,
   ExecutionActorContext,
+  OfficialWebCollectorPrincipal,
   ResolvedAppPrincipal,
 } from "./principal";

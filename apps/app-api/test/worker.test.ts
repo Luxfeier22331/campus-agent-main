@@ -56,6 +56,7 @@ describe("app-api worker foundation", () => {
       dependencies: {
         auth: "configured",
         database: "configured",
+        officialWebHandoff: "not_configured",
         operatorBridge: "configured",
         publicChatOrigin: "configured",
         supervisorApi: "configured",

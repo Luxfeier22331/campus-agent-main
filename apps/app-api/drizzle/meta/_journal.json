@@ -8,6 +8,13 @@
       "when": 1774694729154,
       "tag": "0000_funny_tiger_shark",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1774729104860,
+      "tag": "0001_supreme_zeigeist",
+      "breakpoints": true
     }
   ]
 }

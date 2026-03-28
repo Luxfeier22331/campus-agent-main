@@ -1,6 +1,7 @@
 export type AppApiEnvironment = "development" | "test" | "production";
 export type DatabaseSslMode = "disable" | "prefer" | "require";
 export const DEFAULT_SUPERVISOR_API_TIMEOUT_MS = 8_000;
+export const DEFAULT_OFFICIAL_WEB_HANDOFF_TIMEOUT_MS = 8_000;
 
 export interface HyperdriveBindingLike {
   connectionString?: string;
@@ -9,6 +10,10 @@ export interface HyperdriveBindingLike {
 export interface Env {
   APP_API_NAME?: string;
   APP_API_ENVIRONMENT?: AppApiEnvironment;
+  APP_API_OFFICIAL_WEB_HANDOFF_TIMEOUT_MS?: string;
+  APP_API_OFFICIAL_WEB_HANDOFF_TOKEN?: string;
+  APP_API_OFFICIAL_WEB_HANDOFF_URL?: string;
+  APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN?: string;
   BETTER_AUTH_SECRET?: string;
   PUBLIC_CHAT_WEB_ORIGIN?: string;
   SUPERVISOR_API_BASE_URL?: string;
