@@ -18,6 +18,15 @@ const FORBIDDEN_FIELD_NAMES = new Set([
 
 type AxiomScalar = boolean | number | string | null;
 
+function buildAxiomIngestUrl(endpoint: string, dataset: string): string {
+  const hostname = new URL(endpoint).hostname;
+  if (/\.edge\.axiom\.co$/u.test(hostname)) {
+    return `${endpoint}/v1/ingest/${dataset}`;
+  }
+
+  return `${endpoint}/v1/datasets/${dataset}/ingest`;
+}
+
 export interface AxiomRuntimeEventSink {
   emit(payload: Record<string, unknown>): Promise<void>;
 }
@@ -71,7 +80,7 @@ export function createAxiomRuntimeEventSink(
       }
 
       try {
-        const response = await fetchImplementation(`${endpoint}/v1/ingest/${dataset}`, {
+        const response = await fetchImplementation(buildAxiomIngestUrl(endpoint, dataset), {
           body: JSON.stringify([sanitizeAxiomEventPayload(payload)]),
           headers: {
             Authorization: `Bearer ${token}`,

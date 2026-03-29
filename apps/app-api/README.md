@@ -69,6 +69,10 @@ Observability data policy:
 - allowed sink fields are correlation and governance summaries such as `request_id`, `trace_id`, `conversation_id`, `surface`, `status`, `selected_target`, `requested_capability`, `requested_scope_summary`, `duration_ms`, and source-doc count/summary
 - forbidden fields include raw JWT/auth headers, cookies, raw prompt/question, raw answer, operator email, transcript text, and long-term memory text
 - the current Axiom integration is an interim Worker-local REST adapter; the long-term architecture still targets `OTel -> Collector -> sink`
+- `AXIOM_ENDPOINT` should normally be the base domain of the org edge deployment shown in Axiom `Settings -> General -> Edge deployment`, for example `https://us-east-1.aws.edge.axiom.co`
+- `app-api` uses the edge ingest route for `*.edge.axiom.co` endpoints and the dataset ingest route for the shared `https://api.axiom.co` domain
+- `AXIOM_DATASET` should stay service- and environment-scoped, for example `campus-agent-runtime-dev`
+- when `AXIOM_ENDPOINT` points at an edge deployment domain, `AXIOM_TOKEN` must be an Axiom API token rather than a PAT
 
 Canonical references:
 
