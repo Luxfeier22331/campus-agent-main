@@ -151,11 +151,14 @@ def _build_authorization_projection(
             retrieval_filter=AuthorizedRetrievalFilter(
                 entitlement_groups=identity.groups,
                 visibility_scope=identity.campus_scope,
+                acl_groups=identity.groups,
+                campus_scope=identity.campus_scope,
             ),
         )
 
     retrieval_filter = authorization.retrieval_filter or AuthorizedRetrievalFilterInput(
         entitlement_groups=authorization.entitlement_groups,
+        acl_groups=authorization.entitlement_groups,
         visibility_scope=authorization.visibility_scope,
         campus_scope=identity.campus_scope,
     )

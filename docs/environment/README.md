@@ -32,6 +32,12 @@ updated: 2026-03-29
   supervisor-api shared auth/audit、retrieval/embedding/Qdrant、object store、OCR/raw registry、eval judge、`CAMPUS_AGENT_HTTP_HOST` / `CAMPUS_AGENT_HTTP_PORT`
 - app-local [`apps/public-consumer-chat/.env.example`](../../apps/public-consumer-chat/.env.example)
   `public-consumer-chat` 的 app host、Supabase Postgres、Better Auth、same-site supervisor answer seam
+- app-local [`apps/app-api/.dev.vars.example`](../../apps/app-api/.dev.vars.example)
+  `app-api` 的 Worker string env，包括 auth/supervisor bridge、official_web control-plane string config，以及 `SENTRY_*` / `AXIOM_*`
+- app-local [`apps/public-chat-web/.dev.vars.example`](../../apps/public-chat-web/.dev.vars.example)
+  `public-chat-web` 的 Worker string env，包括 same-site app-api proxy seam 与 `SENTRY_*`
+- app-local [`apps/protected-panel-web/.dev.vars.example`](../../apps/protected-panel-web/.dev.vars.example)
+  `protected-panel-web` 的 protected hostname/admission string env 与 `SENTRY_*`
 - app-local [`apps/public-entry-worker/.dev.vars.example`](../../apps/public-entry-worker/.dev.vars.example)
   `public-entry-worker` 的 Cloudflare Worker 本地 bindings
 - command-scoped [`env/commands/process-raw-ingestion-job.env.example`](../../env/commands/process-raw-ingestion-job.env.example)
@@ -40,6 +46,19 @@ updated: 2026-03-29
   `rebuild_local_data` 的一次性 override
 - command-scoped [`env/commands/migrate-student-handbook.env.example`](../../env/commands/migrate-student-handbook.env.example)
   `migrate_student_handbook_source_faithful` 的一次性 override
+
+## 当前待提供项
+
+- `apps/app-api`、`apps/public-chat-web`、`apps/protected-panel-web` 的模板已经预留 `SENTRY_*` / `AXIOM_*` 槽位，但 provider-side deploy 值仍待分配；在真实值下发前，只保留模板占位，不提交任何实际 secrets
+
+## 本地同步便利
+
+- 如果本地把 surface-specific DSN 暂时集中存放在 root worktree `.env`，可用 `uv run --all-packages python -m scripts.sync_worker_observability_env`
+  把 `SENTRY_DSN_API`、`SENTRY_DSN_CHAT`、`SENTRY_DSN_PANEL` fan out 到当前 worktree 的 app-local `.dev.vars`
+- `apps/app-api` 还会在 source `.env` 存在 `AXIOM_ENDPOINT`、`AXIOM_DATASET`、`AXIOM_TOKEN` 时同步这三个键
+- `AXIOM_ENDPOINT` 应填写 Axiom `Settings -> General -> Edge deployment` 对应的 base domain，例如 `https://us-east-1.aws.edge.axiom.co`
+- `AXIOM_DATASET` 应保持 service/env 级别命名，例如 `campus-agent-runtime-dev`，不要把多类信号混进一个 kitchen-sink dataset
+- 这个脚本只是本地 convenience，不改变 ownership：运行时仍然只消费各 app 自己的 `.dev.vars` 或 deploy secret store
 
 ## 命令级 Override 约束
 

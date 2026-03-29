@@ -94,7 +94,7 @@ execution engine runtime 选择应该延后。未来可以接受的实现包括�
 - Agno AgentOS，如果最终服务模型原生落在 Agno 上
 - 其他 transport/runtime，只要产品约束需要
 
-当前 `AgentOS-native` 只是 `apps/supervisor-api` 的当期 execution engine 选择，不构成 execution engine 的长期 runtime freeze；当前实现取舍与 Agno 集成深度见 `docs/architecture/supervisor-architecture.md`。
+当前 `AgentOS-native` 只表示 `apps/supervisor-api` 的当期 execution engine 选择，不构成 execution engine 的长期 runtime freeze；当前实现取舍与 Agno 集成深度见 `docs/architecture/supervisor-architecture.md`。
 
 但这条“runtime 仍延后”的规则不再适用于 shared `apps/app-api`：
 
@@ -124,6 +124,18 @@ execution engine runtime 选择应该延后。未来可以接受的实现包括�
 
 当前 accepted direction 允许 `app-api` 与 execution engine 共用同一个关系数据库，但不允许因此合并 boundary 或 ownership。
 
+这里进一步冻结三条补充规则：
+
+- `app-api` 是唯一的 product-layer auth/session/principal mapping owner，并向 execution engine 显式提供 `actor`
+- `supervisor-api` 只做 internal execution caller admission，不从 edge/header 恢复最终 business actor
+- request projection 采用 same-database outbox-first：`runtime.request_execution` 与 `runtime.projection_outbox` 是 canonical durable truth
+
+第一版数据库实现同时接受：
+
+- Worker runtime 通过 Hyperdrive 访问数据库
+- Better Auth 与 `auth/chat/runtime/operator` 共享一套 Drizzle schema codebase 与 migration pipeline
+- migration / schema management 使用 direct database management connection
+
 ## Identity, Memory And Knowledge Truth
 
 长期上，回答链路相关的用户上下文固定拆成四层真相：
@@ -145,7 +157,7 @@ execution engine runtime 选择应该延后。未来可以接受的实现包括�
 - `apps/supervisor-api`、`packages/supervisor-core` 与 `packages/rag-specialist` 默认只消费 typed projection，而不是 raw auth / raw authz state / raw memory / raw transcript
 - `institutional knowledge` 与 personal memory 不得共用同一个 canonical retrieval truth store
 - memory 可以个性化 query planning、clarification 与 answer wording，但不能授予权限
-- 当 `verified identity`、memory 与 institutional knowledge 发生冲突时，权限与事实依据分别以 verified identity 和 institutional knowledge 为准
+- 当 `verified identity`、memory 与 `institutional knowledge` 发生冲突时，权限与事实依据分别以 verified identity 和 institutional knowledge 为准
 
 ## Authorization Truth
 
@@ -177,6 +189,7 @@ execution engine runtime 选择应该延后。未来可以接受的实现包括�
 - `apps/*` runtime 壳负责接入 telemetry export，不把 vendor-specific SDK 语义推回 `packages/contracts`
 - `packages/supervisor-core` 继续拥有最小 audit / trace 投影责任，但不直接拥有观测产品选型
 - `packages/rag-specialist`、`packages/retrieval-core`、`packages/ingestion-core` 只输出结构化事件与 trace 语义，不直接定义长期 sink 边界
+- 如果后续需要 operator-facing request list/detail，必须通过 runtime-owned projection/read API 提供，而不是直接把 telemetry sink 暴露成产品面
 
 相关 accepted 决策：
 
@@ -279,7 +292,6 @@ RAG specialist 是被委派的知识域 worker，不是一个薄薄的 tool shim
 phase-1 当前对 Agno / AgentOS 的具体集成深度见 `docs/architecture/supervisor-architecture.md`，而不是由本文冻结。
 
 RAG specialist 的长期内部形态、`RagIntentFrame`、个性化输入边界与 authorization filter 约束，见 `docs/architecture/rag-specialist-architecture.md`。
-
 ### Other Specialist Types
 
 specialist 在长期架构中表示“稳定能力边界”，不等同于“只有知识域 RAG specialist”。
@@ -465,8 +477,6 @@ v2 真正变化的地方：
 - 具体 queue / crawler / object storage / vector store 产品
 - repo 中是否新增某个 app 或 package
 - 第一阶段部署形态和实施顺序
-- `rag-specialist` 的具体 retrieval-specific planning 细节
-- `app-api` 的具体 identity / memory schema
 
 ## 设计约束
 
@@ -506,7 +516,6 @@ ACL、审计和 traceability 在第一阶段按“够上线的最小闭环”建
 
 ## 决策索引
 
-- Supervisor 当期设计与执行引擎边界：`docs/architecture/supervisor-architecture.md`
 - Golden dataset 治理规则：`docs/decisions/adr-0003-golden-dataset-governance.md`
 - 评测指标体系：`docs/decisions/adr-0004-evaluation-metrics.md`
 - 编排模式与安全边界：`docs/decisions/adr-0006-agent-orchestration-and-safety.md`
@@ -514,3 +523,6 @@ ACL、审计和 traceability 在第一阶段按“够上线的最小闭环”建
 - 用户身份、长期记忆与个性化边界：`docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - 授权模型与检索过滤投影：`docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
 - 第一阶段 ingestion 与存储架构：`docs/architecture/phase1-ingestion-and-storage-architecture.md`
+- shared app backend 与 web surface：`docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
+- request projection ownership：`docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
+- supervisor internal execution admission：`docs/decisions/adr-0017-supervisor-internal-execution-admission.md`

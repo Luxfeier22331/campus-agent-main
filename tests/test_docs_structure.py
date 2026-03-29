@@ -10,6 +10,8 @@ PLANNING_ROOT = REPO_ROOT / ".planning"
 
 EXPECTED_DOC_TYPES = {
     "architecture": "architecture",
+    "contracts": "contract",
+    "data": "data",
     "decisions": "decision",
     "environment": "index",
     "plans": "plan",
@@ -38,7 +40,6 @@ def _read_front_matter(path: Path) -> dict[str, str]:
 
 class DocsStructureTest(unittest.TestCase):
     def test_docs_root_has_expected_top_level_categories(self) -> None:
-        expected_dirs = set(EXPECTED_DOC_TYPES) | {"docs"}
         actual_dirs = {path.name for path in DOCS_ROOT.iterdir() if path.is_dir()}
 
         self.assertEqual(actual_dirs, set(EXPECTED_DOC_TYPES))

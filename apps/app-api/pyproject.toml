@@ -1,7 +1,7 @@
 [project]
 name = "campus-app-api"
 version = "0.1.0"
-description = "Shared app-api projection layer for campus-agent v2."
+description = "Python projection helpers bundled with the shared app-api boundary."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

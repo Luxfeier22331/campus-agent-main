@@ -1,0 +1,43 @@
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background: #f4f6f8;
+}
+
+.panel-boot-fallback,
+.panel-route-fallback {
+  align-items: center;
+  color: #2f3a4a;
+  display: flex;
+  font: 500 0.95rem/1.4 system-ui, sans-serif;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.panel-boot-fallback {
+  min-height: 100vh;
+}
+
+.panel-route-fallback {
+  min-height: 16rem;
+}
+
+.panel-boot-fallback__spinner {
+  animation: panel-spinner 0.8s linear infinite;
+  border: 0.2rem solid rgba(47, 58, 74, 0.16);
+  border-radius: 999px;
+  border-top-color: #2f3a4a;
+  height: 1.2rem;
+  width: 1.2rem;
+}
+
+@keyframes panel-spinner {
+  to {
+    transform: rotate(360deg);
+  }
+}

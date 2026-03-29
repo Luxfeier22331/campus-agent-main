@@ -11,9 +11,13 @@
 - `campus_services/*` 仍为 `offline_preparation`
 - 当前分支模型固定为：`develop` 承担长期集成，`main` 承担稳定发布，`main` 上的改动只通过 PR 进入
 - retrieval 读取 serving alias；离线索引发布写入 versioned physical collection，并以 release manifest 保留追溯信息
+- shared `apps/app-api` Worker backend、`apps/public-chat-web`、`apps/protected-panel-web` 已在当前工作树落地
+- panel `Requests` 已接上 `apps/app-api` 的 runtime-owned request projection APIs；不得绕回 audit log、telemetry sink、consumer chat tables 或 `apps/supervisor-api`
+- `official_web` control plane 已在 shared `apps/app-api` 落地，collector admission、crawl-run ledger、operator query 与 ingestion handoff 继续收口在同一 Worker backend；`apps/ingestion-worker` 继续只是 offline executor
 - canonical app identity、profile memory 与 session truth 归属 shared `app-api`；execution engine 只消费 typed projection
 - personalization 可以利用 verified identity / profile memory / session summary，但 memory 不得授予权限或绕过 retrieval ACL
-- 当前 `develop` 集成线已把 `ContextProjection` / `SupervisorResponse` / eval supervisor seam 收口为 merge target；独立 worktree 的 `app-api` 实现合并前必须先对齐这条 seam，再由 `develop -> main` PR 进入稳定分支
+- 04.7 `public-consumer-chat` 现仅作为历史实现参考，不再覆盖 forward topology truth
+- 当前 `develop` 集成线已把 `ContextProjection` / `SupervisorResponse` / eval supervisor seam 收口为 merge target；当前 worktree 回 `develop` / `main` 前必须继续对齐这条 seam，不得回退到旧 `snapshot`
 - 早期 roadmap / phase 文档主要承担历史排期与讨论存档，不应覆盖这里的当前 truth
 
 ## Core Value
@@ -34,13 +38,16 @@
 - ✓ 已完成 `student_handbook` retrieval baseline 从 dense-only bootstrap 收口为 `dense + sparse hybrid + RRF + registry-backed evidence`，并通过 live handbook fixture 与 repo tests 验证 — Validated by 2026-03-27 live + automated verification
 - ✓ 已完成 `supervisor -> specialist` 查询入口、typed actor propagation 与 durable audit logging 的 Phase 5 收口 — Validated in Phase 5
 - ✓ 已完成 Cloudflare public-entry Worker runtime shell、trusted-origin forwarding 与 `apps/supervisor-api` trusted-worker origin admission — Validated in Phase 04.6
-- ✓ 已完成 04.7 `public-consumer-chat` 阶段性实现并合入 `main`，当前作为历史参考存在，但不再是后续 panel/chat 工作的 forward topology truth — Validated in Phase 04.7
+- ✓ 已完成 `public-consumer-chat` 的 04.7 app boundary / frontend host / auth-and-storage closeout，并已把实现与文档基线合入 `main`；该实现现作为历史参考而非 forward backend truth — Validated in Phase 04.7
+- ✓ 已完成 shared `apps/app-api` Worker foundation、request projection API 与 `public-chat-web` / `protected-panel-web` 接线收口 — Validated on 2026-03-29
 - ✓ 已完成 `student_handbook` 主链路的基础 eval / smoke / release-gate 验证，包含 live qrels benchmark、workflow/status 样本与 handbook collection schema 快照 — Validated in Phase 7
-- ✓ 已完成当前集成线的 intent/memory/ACL shared seam 收口，包含 `ContextProjection` / `SupervisorResponse`、supervisor-only eval coverage、curriculum gate docs 与 `app-api` merge handoff — Validated on 2026-03-28
+- ✓ 已完成 `official_web -> app-api` control-plane ownership、contract、lifecycle、schema 与实施基线文档冻结 — Validated on 2026-03-29
+- ✓ 已完成 `official_web -> app-api` control-plane foundation 实现，包含 collector command/query APIs、outbox 驱动的 operator projections 与 ingestion handoff，以及 protected panel `Official Web` domain — Validated on 2026-03-29
 
 ### Active
 
-- [ ] 按新增 curriculum live-gate runbook 生成 fresh `curriculum_plan` live evidence，并据此决定 milestone closeout；`campus_services` 继续保持 `offline_preparation`
+- [ ] 按新增 curriculum live-gate runbook 生成 fresh `curriculum_plan` live evidence，并据此决定 milestone closeout；这项执行当前由 root worktree 跟进，`campus_services` 继续保持 `offline_preparation`
+- [ ] 在已落地的 `ContextProjection` / `SupervisorResponse` shared seam 之上继续完成 merge-readiness cleanup，不得回退到旧 `snapshot`
 
 ### Out of Scope
 
@@ -52,16 +59,16 @@
 
 ## Context
 
-当前真人答疑群里存在大量校园相关问题，需要人工持续回答，已经形成明显的人力消耗；这个项目的直接业务背景就是用结构正确的校园问答助理承接这些高频问答。仓库本身是 brownfield：`docs/` 中已有长期架构、阶段决策、supervisor 架构与实施计划文档，`.planning/codebase/` 也已经记录了当前代码地图。技术上，新仓库采用 supervisor-led multi-agent 方向，`../campusRAG` 是旧的 RAG 实现，只作为迁移参考；迁移目标不是复制旧接口，而是用新的 contract、retrieval abstraction 和 supervisor/specialist 边界重建主链路。
+当前真人答疑群里存在大量校园相关问题，需要人工持续回答，已经形成明显的人力消耗；这个项目的直接业务背景就是用结构正确的校园问答助理承接这些高频问答。仓库本身是 brownfield：`docs/` 中已有长期架构、phase-1、supervisor 架构与实施计划文档，`.planning/codebase/` 也已经记录了当前代码地图。技术上，新仓库采用 supervisor-led multi-agent 方向，`../campusRAG` 是旧的 RAG 实现，只作为迁移参考；迁移目标不是复制旧接口，而是用新的 contract、retrieval abstraction 和 supervisor/specialist 边界重建主链路。
 
 ## Constraints
 
 - **Architecture**: `supervisor` 必须是唯一入口协调层，`specialist` 作为稳定能力边界存在，不能退回成旧 `campusRAG` 的扁平 tool 模式 — 这是仓库长期架构和当前 supervisor 设计的核心前提
 - **Scope**: serving surface 由 runtime profile 显式控制；当前开放 `student_handbook` 与 `curriculum_plan`，`campus_services` 保持 `offline_preparation` — 避免再次把运行策略写死在 supervisor、API shell 或 worker 默认值里
 - **Contracts**: handoff 必须通过 `packages/contracts` 中的 schema 完成，不让 AgentOS / retrieval / infra 类型渗透进共享 contract — 这是未来可替换 specialist / retrieval 的基础
-- **Runtime Boundary**: runtime 与 transport 逻辑留在 `apps/`；已接受的 forward product topology 是浏览器侧 Worker surface `apps/public-chat-web` / `apps/protected-panel-web` 加上 internal Worker runtime `apps/app-api`，但这些目录尚未全部在当前工作树落地，现有 `apps/public-consumer-chat` 与 `apps/protected-internal-panel` 仍主要承担迁移参考 / 壳层角色；`apps/supervisor-api` 保持 execution engine；`packages/supervisor-core` 只负责 request framing、routing、policy、response shaping、audit projection — 避免框架宿主反向污染编排层
+- **Runtime Boundary**: runtime 与 transport 逻辑留在 `apps/`，尤其是 `apps/supervisor-api`；`packages/supervisor-core` 只负责 request framing、routing、policy、response shaping、audit projection — 避免框架宿主反向污染编排层
+- **Product Identity**: product-layer auth/session/principal mapping 固定留在 `apps/app-api`；`apps/supervisor-api` 只做 internal execution caller admission，并消费显式 `actor` — 避免 execution engine 重新长出产品身份语义
 - **Security**: v1 必须做到身份透传、trace 透传、retrieval 前 ACL 过滤、最小审计和最小 source traceability — 这是面向不同权限用户上线前的最低治理要求
-- **Identity & Memory**: canonical identity、profile memory 与 session memory 属于 `app-api` boundary；`supervisor` / `rag-specialist` 只消费 typed projection；memory 只能个性化，不能授权 — 这是后续引入长期记忆而不稀释 ACL 的前提
 - **Execution Goal**: 当前优先级是把新架构站稳，不以覆盖更多知识域或更复杂 agent 能力为第一目标 — 避免为了功能面牺牲边界正确性
 
 ## Key Decisions
@@ -87,13 +94,21 @@
 | durable audit logging lives at the API shell boundary while supervisor-core remains the owner of audit record shape | This preserves runtime ownership for persistence and package ownership for schema/projection | — Validated in Phase 5 |
 | Cloudflare 并行后续工作拆成 `04.2` / `04.3` / `04.4` 三个 inserted phase | 主线被 chunk-truth 阻塞时，可以继续推进 edge/runtime/panel-shell 冻结，但必须避免把 provider、identity、ACL、audit 语义推入 `packages/*` 或提前吃掉 Phase 5 | — Pending in Phase 04.x |
 | Cloudflare public answer path now runs through `apps/public-entry-worker -> apps/supervisor-api` with explicit trusted-worker origin auth | 先把 public-entry runtime seam 做成真实可验证代码，再把 app-layer actor/ACL/audit留给 Phase 5 | — Validated in Phase 04.6 |
-| public/protected product surface 改为 `apps/public-chat-web` 与 `apps/protected-panel-web` 两个 Worker web surface | 浏览器入口仍保持 public/protected 分离，但不再各自长出独立产品后端 | — Accepted on 2026-03-28 |
-| shared `apps/app-api` 接管 auth/session/conversation、chat ingress、审计/指标入口与 panel query | 这样可以避免 chat 和 panel 各自维护产品后端，同时保持 `apps/supervisor-api` 专注于执行引擎 | — Accepted on 2026-03-28 |
+| public/protected product surface 收口为 `apps/public-chat-web` 与 `apps/protected-panel-web` 两个 Worker web surface | 浏览器保持 public/protected 分离，但不再各自长出独立产品后端 | — Accepted on 2026-03-28 |
+| `public-consumer-chat` 的 04.7 `Better Auth + Supabase Postgres` 与 `TanStack Start` 结论保留为历史实现参考，不再作为 forward backend truth | 这些结论解释了已合入 `main` 的 04.7 实现，但后续产品方向已经收口为 `public-chat-web` / `protected-panel-web` + shared `app-api` | — Superseded by ADR-0012 on 2026-03-28 |
+| shared `app-api` 作为 public chat 与 protected panel 的共同产品后端 | 需要把 auth/session/conversation、chat ingress、request ledger / projection input 与 operator query 收口在一个 shared app boundary，而不是继续分裂成 consumer full-stack app + operator query backend | — Accepted on 2026-03-28 |
 | `apps/supervisor-api` 退为 execution engine，不再承担 product-facing backend | shared app backend 可以承接浏览器产品 API，而 supervisor 继续只拥有 orchestrator execution path | — Accepted on 2026-03-28 |
-| shared `apps/app-api` runtime 冻结为 Worker | public/protected web surfaces 已是 Worker；共享产品后端保持 internal Worker runtime 更符合边界和部署形态 | — Accepted on 2026-03-28 |
-| canonical identity、profile memory、session memory 与 institutional knowledge 必须长期分层 | 否则长期记忆会污染机构知识真相，或被误用为隐式授权通道 | — Accepted on 2026-03-28 |
-| personalization 允许影响 intent framing、retrieval planning 与 answer wording，但不得扩大 ACL 或 serving surface | 这样可以引入长期记忆而不破坏 retrieval fail-closed 与 runtime-profile-driven query policy | — Accepted on 2026-03-28 |
-| `app-api` worktree 先回并 `develop`、再经 PR 进入 `main` 时必须先对齐 `ContextProjection` / `SupervisorResponse` shared seam，不能把旧 `snapshot` 合约重新带回主线 | 当前集成线已先完成 shared boundary、docs truth 和 eval seam；worktree merge 应基于这条 merge target 对齐，而不是反向覆盖 | — Accepted on 2026-03-28 |
+| `apps/app-api` runtime 冻结为 Worker，而不是继续保持 runtime-agnostic | 这能避免 shared product backend 再次滑回 Docker-first / 双后端裂缝，并保持与 Worker web surfaces 的 internal-only seam 一致 | — Accepted on 2026-03-28 |
+| canonical request projection 由 shared `apps/app-api` command path 一次产出，并由 `app-api` 暴露 panel `Requests` query surface | 这能避免把 panel、consumer chat、telemetry sink 或 `apps/supervisor-api` 错当成 request list/detail truth | — Accepted on 2026-03-28 |
+| `apps/app-api` 是唯一的 product-layer auth/session/principal owner；`apps/supervisor-api` 只做 internal execution caller admission | 这能避免 execution engine 继续从 edge/header 恢复最终业务 actor，并把 product identity 明确收口在 shared app boundary | — Accepted on 2026-03-28 |
+| canonical user context 固定拆为 `verified identity`、`profile memory`、`session memory`、`institutional knowledge` 四层真相 | 这样可以引入长期记忆与个性化，同时避免 memory 提权、污染机构知识真相或绕过 retrieval ACL | — Accepted on 2026-03-28 |
+| personalization 可以影响 intent framing、retrieval planning 与 answer wording，但 memory 不能授权或扩大 retrieval ACL | 这样可以引入长期记忆而不破坏 retrieval fail-close 与 runtime-profile-driven serving policy | — Accepted on 2026-03-28 |
+| canonical request projection 采用 same-database outbox-first：`runtime.request_execution` + `runtime.projection_outbox` 是第一 durable truth | 这能避免 queue-first、日志重算或 panel 侧事后拼装造成的多真相源与时序漂移 | — Accepted on 2026-03-28 |
+| Better Auth 位于 `apps/app-api`，且 `auth/chat/runtime/operator` 共享一套 Drizzle schema codebase 与 migration pipeline | 这能避免 auth 表和 app-domain 表分裂成两套迁移世界观，同时保持 Worker runtime 与数据库管理路径清晰分离 | — Accepted on 2026-03-28 |
+| `develop` 集成线把 `ContextProjection` / `SupervisorResponse` 视为 shared seam；当前 worktree 回 `develop` / `main` 前必须继续对齐 | 这能吸收当前集成线的 typed projection / eval contract，而不把旧 `snapshot` 路径带回 merged truth | — Accepted on 2026-03-28 |
+| shared `apps/app-api` foundation 已在当前工作树落地，panel `Requests` 不再属于 blocked follow-up | 这个 worktree 的后续工作应转向 integration hardening、observability verification 与 merge readiness，而不是重复讨论 shared backend topology 是否存在，也不再把 curriculum gate 记为本分支 follow-up | — Validated on 2026-03-29 |
+| protected panel 面向小团队 operator principal，不额外自建 end-user user system；`Jobs` / `Operations` 默认不进首发 rollout | 这能保持 panel 是受控 operator control plane，而不是用户系统、CMS、数据库控制台或万能后台 | — Accepted on 2026-03-28 |
+| `official_web` control plane 收口到 shared `apps/app-api`，而不是新建 crawler-intake backend | 这能复用现有 app-owned admission、ledger、outbox 与 operator read-model 形态，同时保持 `apps/ingestion-worker` 继续只是 offline executor | — Accepted on 2026-03-29 |
 
 ## Evolution
 
@@ -113,4 +128,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state (users, feedback, metrics)
 
 ---
-*Last updated: 2026-03-29 after adopting `develop` as the integration branch and retaining `main` as the stable PR-only branch*
+*Last updated: 2026-03-29 after landing the `official_web -> app-api` control-plane foundation, protected-panel `Official Web` domain, and the related planning/doc status cleanup*

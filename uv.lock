@@ -22,7 +22,8 @@ members = [
     "campus-evals",
     "campus-ingestion-core",
     "campus-ingestion-worker",
-    "campus-protected-internal-panel",
+    "campus-protected-panel-web",
+    "campus-public-chat-web",
     "campus-public-consumer-chat",
     "campus-public-entry-worker",
     "campus-rag-specialist",
@@ -348,15 +349,20 @@ dependencies = [
 requires-dist = [{ name = "campus-ingestion-core", editable = "packages/ingestion-core" }]
 
 [[package]]
-name = "campus-protected-internal-panel"
+name = "campus-protected-panel-web"
 version = "0.1.0"
-source = { editable = "apps/protected-internal-panel" }
+source = { editable = "apps/protected-panel-web" }
 dependencies = [
     { name = "campus-shared" },
 ]
 
 [package.metadata]
 requires-dist = [{ name = "campus-shared", editable = "packages/shared" }]
+
+[[package]]
+name = "campus-public-chat-web"
+version = "0.1.0"
+source = { virtual = "apps/public-chat-web" }
 
 [[package]]
 name = "campus-public-consumer-chat"

@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0012
 status: accepted
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-03-29
 ---
 
 # ADR-0012 Shared App API And Worker Web Surfaces
@@ -34,7 +34,7 @@ Accepted on 2026-03-28.
 1. `apps/public-chat-web` 作为 public chat 的 Worker 前端。
 2. `apps/protected-panel-web` 作为 protected panel 的 Worker 前端。
 3. `apps/app-api` 作为 shared application backend。
-4. `apps/app-api` 接管 auth、session、conversation、chat ingress、审计入口、指标记录与 operator query。
+4. `apps/app-api` 接管 auth、session、conversation、chat ingress、request ledger / projection input、审计入口、指标记录与 operator query。
 5. `apps/supervisor-api` 退为 execution engine，不再承担产品层 auth/session/conversation 或 panel 查询 API。
 
 ## 边界约束
@@ -54,13 +54,14 @@ Accepted on 2026-03-28.
 - 需要一份新的 canonical architecture doc 来描述 shared `app-api` 与两个 Worker web surfaces
 - `apps/operator-query-api` 作为独立长期边界的设计被放弃
 - `public-consumer-chat` 作为独立 full-stack app boundary 的设计被放弃
-- 详细 API、数据表、auth provider、framework 和 migration 方案留给后续设计阶段
+- 详细 API、lifecycle、error model 与 schema 由后续 contract/data 文档冻结
 - `app-api` runtime freeze 后续由 `ADR-0013` 单独记录
 
 ## Supersedes
 
 这项决策 supersedes 以下此前结论：
 
-- `ADR-0008`：public consumer chat 用户系统与存储拆分决策
-- `ADR-0009`：public consumer chat 前台宿主决策
-- `ADR-0011`：operator query API 与 request projection 拆分决策
+- the former public-consumer auth/storage split-backend direction
+- the former public-consumer frontend-host split-backend direction
+- the former operator-query-api/request-projection split-backend direction
+- the earlier `operator-query-api` split-backend direction; forward request-projection ownership is now recorded in `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`

@@ -14,7 +14,7 @@ updated: 2026-03-29
 - 长期架构：系统成熟后的稳定角色、职责和交互模型
 - 当期设计架构：phase-1 / 当前实现阶段应该采用的最小正确形态
 
-这份文档只回答 supervisor 应该如何设计，不替代全局架构文档、长期编排 ADR 或实施计划；当前 execution engine runtime 取舍与 Agno 集成深度由本文承接。
+这份文档只回答 supervisor 应该如何设计，不替代全局架构文档、阶段 ADR 或实施计划。
 
 ## 文档定位
 
@@ -29,7 +29,7 @@ updated: 2026-03-29
 - `docs/architecture/rag-specialist-architecture.md`
   定义 retrieval-specific intent framing 与 RAG 内部边界
 - `docs/architecture/phase1-ingestion-and-storage-architecture.md`
-  定义 phase-1 数据平面边界，以及对象存储 + registry + Qdrant 组合的原因
+  定义第一阶段 ingestion / serving 的 accepted data-plane truth
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
   定义长期编排模式、specialist 准入与安全边界
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
@@ -39,7 +39,7 @@ updated: 2026-03-29
 - `docs/plans/agentic-rag-foundation.md`
   定义 phase-1 落地顺序、文件落点和验收标准
 - 本文
-  负责 supervisor 这个边界自身的长期形态与当期设计形态，并承接当前 execution engine runtime 与 Agno 集成边界
+  只定义 supervisor 这个边界自身的长期形态与当期设计形态
 
 ## 设计原则
 
@@ -67,7 +67,6 @@ updated: 2026-03-29
 - 多 specialist 协同
 - 最终响应组装
 - 审计与 trace 投影
-- command-side runtime fact emission
 
 它不是：
 
@@ -84,7 +83,7 @@ supervisor 在长期链路中的位置固定如下：
 其中：
 
 - `supervisor boundary`
-  负责 transport、session、auth、外部协议与运行时壳
+  负责 execution-side transport、internal caller admission、外部协议与运行时壳
 - `supervisor core`
   负责策略、路由、委派、升级和最终响应
 - `specialist`
@@ -102,7 +101,7 @@ supervisor 的长期工作方式不是“只允许 handoff”，而是允许两�
 同时，supervisor 长期采用 `hybrid orchestration`：
 
 - `code orchestration`
-  负责 auth、ACL / policy gate、tool permission、approval hook、timeout / retry、deterministic stop condition 与结构化输入输出校验
+  负责 internal caller admission 对接、ACL / policy gate、tool permission、approval hook、timeout / retry、deterministic stop condition 与结构化输入输出校验
 - `LLM orchestration`
   负责意图框定、开放式任务拆解、query rewriting、澄清措辞与结果综合
 
@@ -191,14 +190,13 @@ supervisor 的长期职责不只是“选 specialist”，还包括对不完整�
 - 范围不符、未开放或风险过高时，优先 `reject` 或 `approval_required`
 - 只有在 routing input 已足够稳定时，才进入 specialist delegation
 - 个人记忆可以帮助提问更精准的澄清问题，但不能绕过 deterministic gate
-
 ### 长期拥有的能力
 
 - 全局路由权
 - 最终响应决定权
 - 跨 specialist 协同权
 - 统一 policy 执行权
-- 审计 / trace 统一投影权
+- 最小审计 / trace 统一投影权
 - 失败闭环与升级权
 
 ### 长期不拥有的能力
@@ -224,6 +222,10 @@ supervisor 的长期职责不只是“选 specialist”，还包括对不完整�
 - browser-facing product APIs 不属于这里
 - runtime shell 可以校验 transport / origin trust，但不拥有最终 principal mapping 或 entitlement resolution
 - supervisor 不反向吸收 HTTP、auth 或 runtime host 细节
+- 产品层 auth/session/conversation 与 operator query 留在 shared `apps/app-api`
+- `apps/app-api` 拥有最终 business actor 的映射责任，并把显式 `actor` 交给 execution seam
+- `apps/app-api` 只把受控执行请求交给 supervisor，而不是把 supervisor 暴露成产品后端
+- durable request projection 的写入、持久化与 read API 由 shared `app-api` runtime boundary 拥有，而不是 `packages/supervisor-core`
 
 与 `packages/contracts`：
 
@@ -233,8 +235,7 @@ supervisor 的长期职责不只是“选 specialist”，还包括对不完整�
 与 `packages/rag-specialist`：
 
 - supervisor 决定是否委派给 RAG specialist
-- supervisor 拥有 top-level intent framing
-- RAG specialist 决定 retrieval-oriented query / answer / confidence 逻辑，以及 retrieval-specific intent framing
+- RAG specialist 决定 retrieval-oriented query / answer / confidence 逻辑
 
 与 `packages/retrieval-core`：
 
@@ -246,13 +247,24 @@ supervisor 的长期职责不只是“选 specialist”，还包括对不完整�
 - supervisor 不拥有任何 ingestion/data plane 逻辑
 - online query path 与 offline ingestion path 必须长期分离
 
-与 `apps/app-api`：
+### 请求级投影与读模型
 
-- supervisor 不直接 serving browser-facing chat/panel APIs
-- `app-api` 负责 auth/session/conversation 与 operator query
-- `app-api` 负责 canonical identity、profile memory 与 session truth
-- `app-api` 当前已冻结为 Worker runtime，但这不要求 supervisor 也采用同一 runtime
-- `app-api` 只把受控执行请求和最小化 typed context projection 交给 supervisor，而不是把 supervisor 暴露成产品后端
+需要区分两层 ownership：
+
+- `packages/supervisor-core`
+  负责最小 audit / trace 语义投影
+- `apps/app-api`
+  负责把该语义连同产品侧 request identity / conversation correlation 收口为 durable request projection，并对外暴露 request list/detail read API
+
+这条规则的目的，是避免两种错误收口：
+
+- 把 panel 变成 request projection 的第二生产者
+- 把 `packages/supervisor-core` 反向扩成面向产品 surface 的 read-model host
+- 把 `apps/supervisor-api` 重新扩回产品 query backend
+
+request projection 的长期边界见：
+
+- `docs/architecture/request-projection-and-runtime-read-model.md`
 
 ### 长期演进方向
 
@@ -291,28 +303,6 @@ supervisor 的长期职责不只是“选 specialist”，还包括对不完整�
 
 这里的“默认主线仍是 rag-specialist”表示当前实现重点仍围绕 handbook 查询，而不是长期架构上禁止增加第二个 specialist。
 
-### 当前执行引擎与 Agno 集成边界
-
-当前设计固定如下：
-
-- `apps/supervisor-api` 当前采用 `AgentOS-native` 作为 execution engine runtime
-- 对外产品接口仍保留自定义 HTTP 入口壳；`AgentOS-native` 不等于“不暴露 HTTP”
-- 当前不保留旧 `/api/search`、`/api/answer` 兼容层
-- `Agno` 允许进入 `apps/supervisor-api`、`packages/supervisor-core`、`packages/rag-specialist`
-- `Agno` 不得泄漏到 `packages/contracts` 与 `packages/retrieval-core`
-
-采用这组边界的原因是：
-
-- 直接复用 `AgentOS`/`Agno` 已有的 session、trace、RBAC、streaming 与 team/workflow execution 能力
-- 保留产品 API 的自主定义能力，不把 execution engine runtime 等价成唯一外部接口
-- 避免把运行时框架绑定成整个 monorepo 的底层类型系统
-- 让 retrieval kernel、shared contracts 与未来 specialist 扩展继续保持可替换
-
-这里冻结的是当前设计，不是长期 runtime freeze：
-
-- 长期是否继续沿用 `AgentOS-native`，仍取决于 contract 兼容性、observability、RBAC、deployment 与迁移成本
-- 当前 serving surface、serving alias、physical collection 与 release 运行真相不由本文维护；以 runtime profile、`.planning/PROJECT.md`、`.planning/STATE.md` 与 `docs/reference/runtime-serving-and-index-terms.md` 为准
-
 ### 当前架构定位
 
 当期 supervisor 应该被实现为：
@@ -325,7 +315,6 @@ supervisor 的长期职责不只是“选 specialist”，还包括对不完整�
 - 虽然当前结果主要来自 RAG specialist，但最终状态与对外响应仍由 supervisor 收口
 - 虽然当前 workflow 很短，但仍然要把 request framing、response assembly、audit projection 从透传逻辑中拆出来
 - 当前 delegation 仍是 bounded subtask delegation，不让 `rag-specialist` 接管用户会话
-- 当前如果需要 request projection，也应在 command side 一次性生成事实，再交给 `app-api` 的 read path，而不是在 panel 查询时回打 supervisor
 
 ### 当前查询链路
 
@@ -335,7 +324,7 @@ supervisor 的长期职责不只是“选 specialist”，还包括对不完整�
 
 其中当前 supervisor-core 至少负责：
 
-- 接收已经完成 auth / trace 注入的请求
+- 接收已经完成产品层 principal -> actor 映射与 trace 注入的请求
 - 做最小请求归一化，并把外部 `SupervisorRequest` 和内部 `SpecialistRequest` 分开
 - 在路由前执行显式 validation 和 query policy gate，并对冲突输入 fail-closed
 - 选择 `rag-specialist` 或其他显式 specialist
@@ -343,6 +332,13 @@ supervisor 的长期职责不只是“选 specialist”，还包括对不完整�
 - 形成统一的对外响应语义
 - 投影最小审计字段
 - 为后续 approval / escalation 留出 deterministic gate 的位置，但当前不要求一次做满
+
+而 runtime boundary 可以在该流程之后继续做：
+
+- durable request projection persistence
+- runtime-owned request list/detail API projection
+
+这些仍属于 `apps/*` boundary，不回灌到 supervisor-core。
 
 ### 当前建议的内部模块骨架
 
@@ -373,9 +369,9 @@ supervisor 的长期职责不只是“选 specialist”，还包括对不完整�
 
 当期建议的最小决策流如下：
 
-1. API boundary 完成 auth、actor 映射和 trace 注入
-2. supervisor 归一化请求并构建内部上下文
-3. supervisor 执行 validation + query policy，再路由到目标 specialist
+1. 上游 `app-api` 完成产品层 auth/session/principal mapping，并显式提供 `actor` 与 `trace`
+2. `apps/supervisor-api` 只完成 internal caller admission，并把请求送入 supervisor
+3. supervisor 归一化请求并构建内部上下文
 4. specialist 返回 typed response
 5. supervisor 根据结果决定：
    - 直接完成
@@ -383,6 +379,8 @@ supervisor 的长期职责不只是“选 specialist”，还包括对不完整�
    - 保持 no-answer
    - 返回错误并记录审计
 6. supervisor 输出统一响应并投影最小审计字段
+
+request projection 如果需要落盘或提供给 panel，应在 API/runtime boundary 内跟随这条链路一次完成，而不是由 panel 或 telemetry sink 事后重算。
 
 ### 当前必须做到的边界
 

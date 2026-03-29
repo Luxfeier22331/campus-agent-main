@@ -1,6 +1,6 @@
 ---
 doc_type: plan
-status: active
+status: completed
 created: 2026-03-28
 updated: 2026-03-29
 ---
@@ -11,19 +11,13 @@ updated: 2026-03-29
 
 **Architecture:** 本次实施固定采用 `public-chat-web/protected-panel-web -> app-api (Worker) -> supervisor-api (execution engine)`。`apps/app-api` 是 internal-only Worker runtime，内部采用模块化单体与 command/query 分离；它拥有产品层 auth/session/conversation、chat ingress、`request_execution` / `projection_outbox` 写入与 `request_projection` 读取，但不拥有 supervisor routing、specialist orchestration 或 retrieval internals。
 
-**Tech Stack:** TypeScript, Cloudflare Workers, Wrangler, Hono, Zod, Better Auth, Drizzle ORM, `pg`, Hyperdrive, Vitest, `@cloudflare/vitest-pool-workers`
+**Tech Stack:** TypeScript, Cloudflare Workers, Wrangler, Hono, Zod, Better Auth, Drizzle ORM, `pg`, Hyperdrive for runtime DB access, direct management connection for migrations, Vitest, `@cloudflare/vitest-pool-workers`
 
-## 当前 develop 集成线状态
+## 状态说明
 
-这份文档描述的是 `apps/app-api` 的目标实现基线，不等于当前 `develop` 集成线已经完整合入的代码状态。
+这份文档描述的是 `apps/app-api` 的 forward implementation baseline，同时也记录了当前 `protected-panel-web` worktree 已经落地的 Worker foundation。
 
-截至当前 `develop`：
-
-- `apps/app-api` 只落地了最小 Python projection seam，用于 canonical identity / profile memory / session summary 到共享 `ContextProjection` 的构造
-- shared contracts、supervisor、rag-specialist 与 retrieval side 的 intent / memory / ACL 边界已经在 `develop` 推进
-- 更完整的 Worker runtime、auth/chat/operator API、Drizzle schema、projection data plane 与 web-surface integration 仍在独立 worktree 推进
-
-因此，在相关实现正式 merge 回 `develop`、并再经 PR 进入 `main` 之前，本文仍应被读取为 forward implementation baseline，而不是稳定分支已完成现状。
+当前 worktree 已经具备完整 Worker runtime、auth/chat/operator API、Drizzle schema、projection data plane 与 web-surface integration；但在正式回 `develop` / `main` 之前，仍必须继续保持 `develop` 已冻结的 `ContextProjection` / `SupervisorResponse` shared seam，不得把旧 `snapshot` 合约重新带回主线。
 
 ## 摘要
 
@@ -50,18 +44,19 @@ updated: 2026-03-29
 - `docs/architecture/long-term-architecture.md`
 - `docs/architecture/shared-app-api-and-worker-web-surfaces.md`
 - `docs/architecture/app-api-architecture.md`
+- `docs/contracts/app-api-http.md`
+- `docs/contracts/app-api-supervisor-execution.md`
+- `docs/contracts/app-api-request-lifecycle.md`
+- `docs/contracts/app-api-error-model.md`
+- `docs/data/app-api-schema.md`
 - `docs/architecture/cloudflare-runtime-topology.md`
 - `docs/architecture/supervisor-architecture.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
-
-官方实现参考来自：
-
-- Cloudflare Workers framework/runtime docs
-- Cloudflare Service Bindings / Hyperdrive docs
-- Hono 官方 Cloudflare Workers 文档
-- Better Auth 官方 Hono 集成文档
-- Drizzle 官方 PostgreSQL 文档
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
+- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
+- `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
+- `docs/plans/app-api-initial-execution-plan.md`
 
 ## 职责闭包
 
@@ -69,6 +64,7 @@ updated: 2026-03-29
 
 - public chat 用户认证与 session
 - protected panel 的受控 operator principal 入口
+- product-layer principal mapping，并向 execution engine 显式提供 `actor`
 - account / identity projection
 - conversation / message persistence
 - chat request ingress
@@ -101,134 +97,16 @@ MVP 调用路径固定为：
 - `app-api` 再通过受控内部 HTTP adapter 调用 `apps/supervisor-api`
 - `apps/supervisor-api` 保持 execution engine，不反向暴露给 browser
 
-这里不采用 Service Binding RPC 作为默认主路径，原因是 `app-api` 需要保持显式 HTTP 语义、cookie、header 与状态码边界。
-
 ## 选型结论
 
-### HTTP 框架
+- HTTP framework：`Hono`
+- auth：`Better Auth`
+- data access：`Drizzle ORM + pg + Hyperdrive`
+- migration / schema management：direct database management connection
+- validation / API schema：`zod` + `@hono/zod-openapi`
+- Worker tests：`vitest` + `@cloudflare/vitest-pool-workers`
 
-首选：`Hono`
-
-原因：
-
-- 它天然贴合 Worker runtime
-- API-only 心智足够轻，不会把 `app-api` 误导成 full-stack UI host
-- 对 Zod、OpenAPI、middleware、typed client 的支持够用
-- Better Auth 已有官方 Hono 集成
-
-不选：
-
-- `TanStack Start`
-  更适合 web surface，而不是 shared API Worker
-- `Fastify` / `NestJS`
-  对 Worker runtime 不贴边，会把 `app-api` 拉回 Node server 心智
-- `tRPC` 作为唯一 contract
-  对内部 TS 项目可以工作，但不如显式 HTTP contract 稳定
-
-### Toolchain
-
-首选：`Wrangler`
-
-原因：
-
-- `app-api` 是 backend/API Worker，不是前端 HMR 优先的应用
-- 当前仓库已有 `apps/public-entry-worker` 的 `wrangler + vitest + typescript` 基线
-- 已接受的 JS/TS 工具链现在是 repo root `pnpm-workspace.yaml` + shared `pnpm-lock.yaml` + `turbo.json`
-
-包管理建议：
-
-- `app-api` 作为 repo JS/TS workspace package 进入 root `pnpm-workspace.yaml`
-- 依赖安装与锁文件统一由 repo root `pnpm-lock.yaml` 管理
-- app 自身继续维护独立 `package.json` 脚本，但通过 root `turbo.json` 进入统一任务编排
-
-### Auth
-
-首选：`Better Auth`
-
-原因：
-
-- 已有官方 Hono 集成
-- 可以直接承接 public chat 的 session/auth truth
-- 当前仓库历史参考里已经验证过 Better Auth 与产品边界的匹配度
-
-MVP 约束：
-
-- public user path 使用 Better Auth session
-- protected panel path 不做 self-serve operator 用户系统
-- operator 访问通过 protected surface 的 trusted identity bridge 进入 `app-api`
-- `app-api` 在内部映射 operator principal，而不是再做第二套 panel 登录产品
-
-### 数据访问
-
-首选：`Drizzle ORM + drizzle-kit + pg + Hyperdrive`
-
-原因：
-
-- Cloudflare 官方 Hyperdrive 文档直接支持现有 PostgreSQL driver / ORM
-- `pg` 已经在仓库历史 app 里使用过，迁移成本更低
-- Drizzle 对 schema、migrations、typed query 足够克制，适合模块化单体
-
-不选：
-
-- D1
-  当前 accepted direction 已经是 Postgres truth，而不是把 auth/chat/runtime 再拆到 D1
-- Prisma
-  在 Worker runtime 下并非最贴边选择，额外 runtime 负担也更高
-
-### 请求校验与 API 文档
-
-首选：
-
-- `zod`
-- `@hono/zod-openapi`
-
-原因：
-
-- 可以把 runtime validation、类型推断和 OpenAPI 收在同一层
-- 比单独再引 `chanfana` 更贴合 Hono 主栈
-
-### Worker 测试
-
-首选：
-
-- `vitest`
-- `@cloudflare/vitest-pool-workers`
-
-原因：
-
-- 与现有 `apps/public-entry-worker` 一致
-- 适合直接验证 bindings、middleware、route handlers 与 env wiring
-
-## 推荐开源库清单
-
-必须层：
-
-- `hono`
-- `zod`
-- `@hono/zod-openapi`
-- `better-auth`
-- `drizzle-orm`
-- `drizzle-kit`
-- `pg`
-- `jose`
-- `vitest`
-- `@cloudflare/vitest-pool-workers`
-- `typescript`
-- `wrangler`
-
-可选增强层：
-
-- `@hono/client`
-  如果后续 web surfaces 需要 typed internal client
-- `pino`
-  如果后续需要更统一的结构化日志包装
-
-当前不建议先引：
-
-- `tRPC`
-- `Prisma`
-- `Durable Objects`
-- 任何 panel-only admin framework
+这些选型的共同目标是：贴合 Worker runtime、保持显式 HTTP seam，并通过 repo root `pnpm-workspace.yaml`、共享 `pnpm-lock.yaml` 与 `turbo.json` 统一 JS/TS 工作区编排，避免把 `app-api` 误导成另一套 Node/Docker-first backend。
 
 ## 模块边界
 
@@ -241,14 +119,6 @@ apps/app-api/
 ├── wrangler.jsonc
 ├── drizzle.config.ts
 ├── src/
-│   ├── index.ts
-│   ├── app.ts
-│   ├── env.ts
-│   ├── lib/
-│   │   ├── db.ts
-│   │   ├── auth.ts
-│   │   ├── http-client.ts
-│   │   └── tracing.ts
 │   ├── modules/
 │   │   ├── auth/
 │   │   ├── chat/
@@ -256,10 +126,6 @@ apps/app-api/
 │   │   ├── operator-query/
 │   │   └── projection/
 │   └── routes/
-│       ├── auth.ts
-│       ├── chat.ts
-│       ├── operator.ts
-│       └── system.ts
 └── test/
 ```
 
@@ -276,9 +142,17 @@ apps/app-api/
 - `projection`
   outbox 消费与 read model 物化
 
-## API Surface
+## Identity And Projection Rules
 
-MVP 最小 API 面固定如下。
+实现时必须同时满足：
+
+- `app-api` 是唯一的 product-layer auth/session/principal owner
+- `app-api -> supervisor-api` request body 显式携带 `actor`
+- `apps/supervisor-api` 只做 internal caller admission，不再恢复最终业务 actor
+- `runtime.request_execution` 与 `runtime.projection_outbox` 是 canonical durable truth
+- queue 只能在同库 outbox 之后作为加速手段引入
+
+## MVP API Surface
 
 ### System
 
@@ -288,88 +162,74 @@ MVP 最小 API 面固定如下。
 ### Auth
 
 - `ALL /api/auth/*`
-  Better Auth handler
 - `GET /api/me`
-  返回当前 principal 的最小投影
 
 ### Chat
 
 - `GET /api/chat/conversations`
-  当前用户的会话列表
 - `POST /api/chat/conversations`
-  创建空会话
 - `GET /api/chat/conversations/:conversationId`
-  返回单个会话及其消息
 - `POST /api/chat/requests`
-  提交一条 chat 请求并触发 execution path
-
-`POST /api/chat/requests` 的最小入参应包含：
-
-- `conversation_id` 或 `null`
-- `message`
-- `requested_scope`
-- `client_request_id`
-
-最小返回应包含：
-
-- `conversation_id`
-- `request_id`
-- `assistant_message`
-- `request_status`
-- `trace_id`
 
 ### Operator
 
 - `GET /api/operator/requests`
-  panel 请求列表
 - `GET /api/operator/requests/:requestId`
-  panel 请求详情
 
 第一版 panel 不做写操作 API。
 
-## 数据模型
+## 分波次实施
 
-### `auth.*`
+推荐顺序固定为：
 
-由 Better Auth 管理的最小表集：
+1. 建立 `apps/app-api` Worker shell 与最小 health/readiness（已完成）
+2. 落地 auth/session/conversation 基线（已完成）
+3. 落地 chat command path 与 `app-api -> supervisor-api` adapter（已完成）
+4. 落地 `request_execution` / `projection_outbox`（已完成）
+5. 落地 `request_projection` 与 `GET /api/operator/requests*`（已完成）
+6. 在 `app-api` 稳定后，再并发接入 `public-chat-web` 与 `protected-panel-web`（已完成）
 
-- `user`
-- `session`
-- `account`
-- `verification`
+前三步的逐步执行目标、验收和测试见：
 
-### `chat.*`
+- `docs/plans/app-api-initial-execution-plan.md`
 
-最小产品表：
+对 panel 的直接含义：
 
-- `chat.conversation`
-  `conversation_id`, `owner_principal_id`, `title`, `status`, `created_at`, `updated_at`, `last_message_at`
-- `chat.message`
-  `message_id`, `conversation_id`, `author_kind`, `request_id`, `body`, `status`, `created_at`
+- `Overview` 已通过 panel-local summary 起步
+- `Requests` 已随着 `app-api` 的安全 query surface 落地而解锁
+- `Jobs` / `Operations` 仍然延后，不默认并入第一波产品范围
 
-### `runtime.*`
+## 非目标
 
-最小 command-side 事实表：
+- 不让 panel 直连数据库或日志系统
+- 不让 `supervisor-api` 顺手提供 panel list/detail API
+- 不把 consumer conversation store 升格成 operator request truth
+- 不为了 panel 再复制一套 backend
 
-- `runtime.request_execution`
-  `request_id`, `conversation_id`, `principal_id`, `requested_scope`, `route_target`, `status`, `trace_id`, `started_at`, `completed_at`, `error_code`, `citations_json`
-- `runtime.projection_outbox`
-  `outbox_id`, `request_id`, `event_type`, `payload_json`, `created_at`, `processed_at`
+## 当前状态
 
-### `operator.*`
+当前仓库已经正式落地 `apps/app-api`，并且 shared Worker product topology 也已经接上 `public-chat-web` 与 `protected-panel-web`。
 
-最小读模型：
+已完成的基础能力包括：
 
-- `operator.request_projection`
-  `request_id`, `conversation_id`, `principal_id`, `requested_scope`, `route_target`, `status`, `started_at`, `completed_at`, `latency_ms`, `citation_count`, `error_code`, `last_projected_at`
+- `apps/app-api` Worker runtime、health/readiness、模块目录骨架
+- Better Auth、Drizzle schema / migration baseline 与 `GET /api/me`
+- `GET/POST /api/chat/conversations`、`GET /api/chat/conversations/:conversationId`
+- `POST /api/chat/requests` 与显式 `app-api -> supervisor-api` execution adapter
+- `runtime.request_execution`、`runtime.projection_outbox`、`request_projection` 与 `GET /api/operator/requests*`
+- `public-chat-web` / `protected-panel-web` 对 shared `app-api` 的当前接线
 
-固定规则：
+这份 foundation plan 现在已经完成：MVP API surface 已补齐 conversation endpoints，并且 `POST /api/chat/requests` 也已收口为“可直接首轮 lazy create”的长期 contract。
 
-- `chat.message` 不是 operator request truth
-- `runtime.request_execution` 不是 panel 直接读取面
-- `operator.request_projection` 是 panel canonical source
+后续工作不再属于 foundation 收口，而是建立在这套 shared Worker backend 基线之上的上层产品实现与增量能力扩展。
 
-## 身份与权限模型
+已落地实现现在应继续把以下内容视为 canonical truth：
+
+- `app-api` 是 shared Worker backend
+- `docs/contracts/` 与 `docs/data/` 已冻结第一版 API / lifecycle / schema
+- `public-consumer-chat` 是历史参考，不是 forward backend truth
+- `protected-panel-web` 是当前 protected panel web surface
+- `supervisor-api` 保持 execution engine
 
 ### Public chat
 

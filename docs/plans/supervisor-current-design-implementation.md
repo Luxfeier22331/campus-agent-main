@@ -2,7 +2,7 @@
 doc_type: plan
 status: active
 created: 2026-03-22
-updated: 2026-03-25
+updated: 2026-03-28
 ---
 
 # Supervisor 当期设计架构实施方案
@@ -11,7 +11,7 @@ updated: 2026-03-25
 
 **Goal:** 在不扩大 supervisor 边界的前提下，将当前 `packages/supervisor-core` 从薄透传升级为单 specialist 的最小协调层，并保持 `supervisor-api -> supervisor-core -> rag-specialist -> retrieval-core` 主链路稳定可测。
 
-**Architecture:** 本次实施只落地 `single-specialist, policy-driven coordinator`。`apps/supervisor-api` 继续只负责 transport/auth/runtime boundary，`packages/supervisor-core` 负责 request framing、routing、policy、response shaping 和 audit projection，`packages/rag-specialist` 继续负责 retrieval-oriented specialist 逻辑。当前阶段只支持路由到 `rag-specialist`，并保持 supervisor 对用户回合的持续控制，不开放用户可见 handoff；但必须显式保留 routing decision 和 supervisor finalization，不允许继续围绕透传函数扩建。
+**Architecture:** 本次实施只落地 `single-specialist, policy-driven coordinator`。`apps/supervisor-api` 继续只负责 transport/internal-caller-admission/runtime boundary，`packages/supervisor-core` 负责 request framing、routing、policy、response shaping 和 audit projection，`packages/rag-specialist` 继续负责 retrieval-oriented specialist 逻辑。当前阶段只支持路由到 `rag-specialist`，并保持 supervisor 对用户回合的持续控制，不开放用户可见 handoff；但必须显式保留 routing decision 和 supervisor finalization，不允许继续围绕透传函数扩建。
 
 **Tech Stack:** Python 3.12, uv workspace, dataclasses, Agno runtime boundary, unittest/pytest
 
@@ -33,7 +33,7 @@ updated: 2026-03-25
 - query-serving surface 由 runtime profile 控制；当前 query-enabled collection 是 `regulations/student_handbook` 与 `curriculum/curriculum_plan`
 - 不修改 `packages/contracts` 的 schema 形状
 - 不把 retrieval / ingestion / infra 细节拉回 supervisor
-- 不把 transport/auth/runtime 逻辑回灌到 `supervisor-core`
+- 不把 transport/internal-caller-admission/runtime 逻辑回灌到 `supervisor-core`
 
 ## 文档定位
 

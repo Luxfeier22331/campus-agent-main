@@ -1,0 +1,227 @@
+---
+doc_type: contract
+status: active
+created: 2026-03-28
+updated: 2026-03-29
+---
+
+# App API Request Lifecycle
+
+## 文档边界
+
+这份文档冻结 `POST /api/chat/requests` 的生命周期、幂等规则、状态流转，以及 request projection 如何进入 operator read model。
+
+它补充但不替代以下文档：
+
+- 产品层 HTTP contract：`docs/contracts/app-api-http.md`
+- `app-api -> supervisor-api` 契约：`docs/contracts/app-api-supervisor-execution.md`
+- error model：`docs/contracts/app-api-error-model.md`
+- 数据模型：`docs/data/app-api-schema.md`
+- request projection ownership：`docs/architecture/request-projection-and-runtime-read-model.md`
+
+## Lifecycle Conclusion
+
+长期请求链路固定为：
+
+1. `app-api` 解析 session / trusted operator identity
+2. 解析已有 conversation 或为首轮请求准备 lazy create，并校验请求体
+3. 生成 canonical `requestId` 与 `traceId`
+4. 在同库 command boundary durable 写入 `runtime.request_execution` 与首个 `runtime.projection_outbox` 事件
+5. 调用 `apps/supervisor-api`
+6. 写回最终 execution outcome，并追加最终 `runtime.projection_outbox` 事件
+7. projector 在同一 `app-api` boundary 内物化 `operator.request_projection`
+8. panel 只通过 `GET /api/operator/requests*` 读取 projection
+
+这里冻结的重点是：
+
+- durable request facts 必须在 `app-api` command path 内产生
+- canonical projection input 必须先以 database outbox 形式 durable 提交
+- projection read model 可以异步物化
+- panel 不得通过同步回放 answer execution 来补 operator query
+
+## State Model
+
+`runtime.request_execution.status` 第一版固定允许：
+
+- `accepted`
+- `completed`
+- `needs_clarification`
+- `no_answer`
+- `error`
+- `approval_required`
+- `rejected`
+
+状态语义：
+
+| Status | Meaning | Chat-visible result |
+| --- | --- | --- |
+| `accepted` | 请求已 durable 接受，但最终执行结果尚未写回 | 无；仅内部短暂状态 |
+| `completed` | 返回 grounded answer | `answer` |
+| `needs_clarification` | 返回追问问题 | `clarification` |
+| `no_answer` | 安全地无法给出 grounded answer | `no_answer` |
+| `error` | 请求被接受，但执行或依赖失败 | `error` |
+| `approval_required` | supervisor policy 要求先人工审批 | `error` |
+| `rejected` | supervisor policy 明确拒绝本次请求 | `error` |
+
+第一版不强制单独暴露 `running` 状态。
+
+## Command-Side Sequence
+
+### Step 1: Admit
+
+`app-api` 完成：
+
+- session / principal lookup
+- conversation resolution
+- 如果请求体携带 `conversationId`，先校验 ownership
+- 如果请求体未携带 `conversationId`，标记为首轮请求并准备 lazy create
+- prompt normalize
+- `Idempotency-Key` 校验
+- canonical `requestId` / `traceId` 分配
+
+如果此时失败：
+
+- 直接返回 HTTP error envelope
+- 不创建 `runtime.request_execution`
+
+### Step 2: Durable Request Record
+
+在第一次 command-side commit 中至少写入：
+
+- 首轮请求缺少 `conversationId` 时，对应的 `chat.conversations`
+- `chat.messages` user message
+- `runtime.request_execution`
+- `runtime.projection_outbox` 的 `request.accepted` 事件
+
+此时最小状态为：
+
+- `status=accepted`
+- 已记录 `requestId`、`traceId`
+- 已绑定 conversation / verified actor projection / requested scope
+
+### Conversation Resolution Rule
+
+- `POST /api/chat/conversations` 是显式 draft create API，不是 `POST /api/chat/requests` 的前置依赖
+- `POST /api/chat/requests` 如果携带 `conversationId`，按 owned conversation 继续追加消息
+- `POST /api/chat/requests` 如果未携带 `conversationId`，必须在第一次 durable commit 内创建 canonical conversation，并把同一次请求绑定到新 conversation
+
+### Step 3: Execute
+
+`app-api` 使用内部 execution contract 调用 `apps/supervisor-api`。
+
+该调用：
+
+- 不暴露给 browser
+- 不回写 panel projection
+- 只返回 typed execution outcome
+
+### Step 4: Finalize
+
+第二次 command-side commit 至少写入：
+
+- assistant message 或 safe failure message
+- `runtime.request_execution` 最终状态
+- 对应最终状态的 `runtime.projection_outbox` 事件
+
+最终状态写回规则：
+
+- `completed` 写 `answer_text` 摘要与 source identifiers
+- `needs_clarification` 写 follow-up question 摘要
+- `no_answer` 写 safe no-answer 摘要
+- `error` 写 error code / retryable
+- `approval_required` 写审批提示与最终 supervisor 状态，不把它折叠成 command-side `error`
+- `rejected` 写拒绝原因与最终 supervisor 状态，不把它折叠成 command-side `error`
+
+## Projection Rule
+
+projection 的长期规则固定为：
+
+- canonical truth 先进入 `runtime.request_execution` 与同库 `runtime.projection_outbox`
+- panel-facing read model 不直接由 chat response body 拼装
+- `operator.request_projection` 通过 `runtime.projection_outbox` 物化
+
+推荐链路：
+
+`runtime.request_execution -> runtime.projection_outbox -> projector -> operator.request_projection`
+
+实现说明：
+
+- 第一版优先采用 scheduled projector 或 Worker 内异步消费者直接消费数据库 outbox
+- queue 只可以在 outbox commit 之后作为 fan-out / 加速手段引入
+- 不接受 queue-first 再反补数据库 truth 的形态
+- 但它必须仍属于 `app-api` boundary
+- panel 查询不等待 projector 完成
+
+## Consistency Rule
+
+第一版明确接受 eventual consistency：
+
+- chat response 可以先成功返回
+- panel list/detail 可以短时间内看不到刚完成的请求
+- 这不是让 panel 反查 `runtime.request_execution`、JSONL audit、telemetry sink 或 `apps/supervisor-api` 的理由
+
+## Idempotency Rule
+
+### Scope
+
+`Idempotency-Key` 只适用于：
+
+- `POST /api/chat/requests`
+
+### Storage Rule
+
+第一版在 `runtime.request_execution` 上至少保存：
+
+- `idempotency_key`
+- `request_fingerprint_sha256`
+- `request_id`
+
+唯一性范围固定为：
+
+- `actor_user_id + idempotency_key`
+
+### Replay Rule
+
+如果收到同一个 `Idempotency-Key`：
+
+- fingerprint 相同且原请求已完成
+  返回原始结果
+- fingerprint 相同但原请求仍停留在 `accepted`
+  返回 `409 request_in_progress`
+- fingerprint 不同
+  返回 `409 idempotency_conflict`
+
+首轮 lazy-create 请求的 fingerprint 规则固定为：
+
+- 在尚未分配 canonical conversation id 之前，使用稳定的 new-conversation discriminator 参与 fingerprint 计算
+- 第一版 discriminator 固定为 `__new__`
+- 这样同一首轮请求在首次提交完成前后都能稳定重放，而不要求客户端先显式创建 conversation
+
+`requestId` 不是幂等键。
+
+它的职责只是：
+
+- correlation
+- panel / operator 可见 request identity
+- user support reference
+
+## Error Boundary Rule
+
+这里固定区分两类错误：
+
+- pre-accept error
+  使用 HTTP error envelope
+- post-accept execution error
+  使用 `200 + result.kind=error`
+
+原因：
+
+- 一旦请求已经 durable 接受，必须保留 `requestId`
+- 用户和 operator 需要能关联这次失败
+- panel request projection 也需要看到这次失败请求
+
+## Non-Goals
+
+- 不把 panel detail 变成 execution replay 接口
+- 不要求 chat response 同步等待 projection materialization
+- 不用 raw log 或 telemetry sink 替代 outbox / read model

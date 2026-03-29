@@ -80,19 +80,28 @@ def handle_answer(
     user_goal = str(payload.get("user_goal", ""))
     trace_id = str(headers.get("x-trace-id") or uuid4())
     try:
-        projected_context = _parse_context_projection(
+        body_actor = _parse_request_actor_projection(
+            payload.get("actor"),
+            authenticated_actor=authenticated_actor,
+            auth_mode=settings.auth_mode,
+        )
+        body_context = _parse_context_projection(
             payload.get("context"),
             authenticated_actor=authenticated_actor,
             auth_mode=settings.auth_mode,
         )
-        request_actor = projected_context.actor if projected_context is not None else authenticated_actor
+        actor, context = _resolve_request_identity_projection(
+            authenticated_actor=authenticated_actor,
+            body_actor=body_actor,
+            body_context=body_context,
+        )
         request = SupervisorRequest(
             user_goal=user_goal,
             conversation_id=str(payload.get("conversation_id", "")),
             request_id=str(payload.get("request_id", "")),
             trace=TraceContext(trace_id=trace_id),
-            actor=request_actor,
-            context=projected_context or ContextProjection(),
+            actor=actor,
+            context=context,
             requested_capability=_parse_requested_capability(payload.get("requested_capability")),
             requested_scope=_parse_requested_scope(payload.get("requested_scope")),
             availability_target_id=_parse_optional_string(payload.get("availability_target_id")),
@@ -143,6 +152,137 @@ def error_response(status_code: int, error: ErrorInfo) -> HttpResponse:
     return HttpResponse(status_code=status_code, json_body={"error": asdict(error)})
 
 
+def _resolve_request_identity_projection(
+    *,
+    authenticated_actor: ActorContext,
+    body_actor: ActorContext | None,
+    body_context: ContextProjection | None,
+) -> tuple[ActorContext, ContextProjection]:
+    if body_actor is None and body_context is None:
+        return authenticated_actor, ContextProjection(
+            actor=authenticated_actor,
+            authorization=_default_authorization_projection(authenticated_actor),
+        )
+    if body_context is None:
+        assert body_actor is not None
+        return body_actor, ContextProjection(
+            actor=body_actor,
+            authorization=_default_authorization_projection(body_actor),
+        )
+    if body_actor is None:
+        return body_context.actor, body_context
+    if body_context.actor == ActorContext():
+        authorization = body_context.authorization
+        if authorization == AuthorizationProjection():
+            authorization = _default_authorization_projection(body_actor)
+        body_context = ContextProjection(
+            actor=body_actor,
+            authorization=authorization,
+            profile_memory=body_context.profile_memory,
+            session=body_context.session,
+        )
+    if body_context.actor != body_actor:
+        raise ValueError("actor and context.actor must match")
+    return body_actor, body_context
+
+
+def _parse_profile_memory_summary(raw_memory: object) -> ProfileMemorySummary:
+    if raw_memory is None:
+        return ProfileMemorySummary()
+    if not isinstance(raw_memory, dict):
+        raise ValueError("context.profile_memory must be an object")
+
+    raw_items = raw_memory.get("items", [])
+    if not isinstance(raw_items, list):
+        raise ValueError("context.profile_memory.items must be an array")
+
+    items: list[ProfileMemoryItem] = []
+    for raw_item in raw_items:
+        if not isinstance(raw_item, dict):
+            raise ValueError("context.profile_memory.items must only contain objects")
+        kwargs: dict[str, str] = {}
+        source_type = _parse_optional_string(raw_item.get("source_type"))
+        confidence = _parse_optional_string(raw_item.get("confidence"))
+        visibility = _parse_optional_string(raw_item.get("visibility"))
+        last_verified_at = _parse_optional_string(raw_item.get("last_verified_at"))
+        if source_type is not None:
+            kwargs["source_type"] = source_type
+        if confidence is not None:
+            kwargs["confidence"] = confidence
+        if visibility is not None:
+            kwargs["visibility"] = visibility
+        if last_verified_at is not None:
+            kwargs["last_verified_at"] = last_verified_at
+        items.append(
+            ProfileMemoryItem(
+                item_id=_require_string(raw_item.get("item_id"), field_name="context.profile_memory.items[].item_id"),
+                key=_require_string(raw_item.get("key"), field_name="context.profile_memory.items[].key"),
+                value=_require_string(raw_item.get("value"), field_name="context.profile_memory.items[].value"),
+                **kwargs,
+            )
+        )
+
+    return ProfileMemorySummary(items=tuple(items))
+
+
+def _parse_session_summary(raw_session: object) -> SessionSummary:
+    if raw_session is None:
+        return SessionSummary()
+    if not isinstance(raw_session, dict):
+        raise ValueError("context.session must be an object")
+
+    raw_slots = raw_session.get("confirmed_slots", [])
+    if not isinstance(raw_slots, list):
+        raise ValueError("context.session.confirmed_slots must be an array")
+
+    confirmed_slots: list[SessionSlot] = []
+    for raw_slot in raw_slots:
+        if not isinstance(raw_slot, dict):
+            raise ValueError("context.session.confirmed_slots must only contain objects")
+        confirmed = raw_slot.get("confirmed", True)
+        if not isinstance(confirmed, bool):
+            raise ValueError("context.session.confirmed_slots[].confirmed must be a boolean")
+        confirmed_slots.append(
+            SessionSlot(
+                name=_require_string(raw_slot.get("name"), field_name="context.session.confirmed_slots[].name"),
+                value=_require_string(raw_slot.get("value"), field_name="context.session.confirmed_slots[].value"),
+                confirmed=confirmed,
+            )
+        )
+
+    raw_turn_count = raw_session.get("turn_count", 0)
+    if not isinstance(raw_turn_count, int) or isinstance(raw_turn_count, bool):
+        raise ValueError("context.session.turn_count must be an integer")
+
+    return SessionSummary(
+        confirmed_slots=tuple(confirmed_slots),
+        turn_count=raw_turn_count,
+    )
+
+
+def _parse_string_tuple(raw_value: object, *, field_name: str) -> tuple[str, ...]:
+    if raw_value is None:
+        return ()
+    if not isinstance(raw_value, list):
+        raise ValueError(f"{field_name} must be an array")
+
+    values: list[str] = []
+    for item in raw_value:
+        if not isinstance(item, str):
+            raise ValueError(f"{field_name} must only contain strings")
+        normalized = item.strip()
+        if normalized:
+            values.append(normalized)
+    return tuple(values)
+
+
+def _require_string(raw_value: object, *, field_name: str) -> str:
+    value = _parse_optional_string(raw_value)
+    if value is None:
+        raise ValueError(f"{field_name} must be a non-empty string")
+    return value
+
+
 def _parse_requested_scope(raw_scope: object) -> KnowledgeScope | None:
     if raw_scope is None:
         return None
@@ -177,6 +317,24 @@ def _parse_follow_redirects(raw_value: object) -> bool:
     raise ValueError("follow_redirects must be a boolean")
 
 
+def _parse_request_actor_projection(
+    raw_actor: object,
+    *,
+    authenticated_actor: ActorContext,
+    auth_mode: str,
+) -> ActorContext | None:
+    if raw_actor is None:
+        return None
+    if auth_mode != "trusted-worker":
+        raise ValueError("actor projection is only accepted in trusted-worker mode")
+    projected_actor = _parse_actor_context(raw_actor, field_prefix="actor")
+    return _merge_projected_actor(
+        projected_actor,
+        authenticated_actor,
+        field_prefix="actor",
+    )
+
+
 def _parse_context_projection(
     raw_context: object,
     *,
@@ -191,8 +349,9 @@ def _parse_context_projection(
         raise ValueError("context must be an object")
 
     merged_actor = _merge_projected_actor(
-        _parse_actor_context(raw_context.get("actor")),
+        _parse_actor_context(raw_context.get("actor"), field_prefix="context.actor"),
         authenticated_actor,
+        field_prefix="context.actor",
     )
     authorization = _parse_authorization_projection(
         raw_context.get("authorization"),
@@ -209,13 +368,15 @@ def _parse_context_projection(
 def _merge_projected_actor(
     projected_actor: ActorContext,
     authenticated_actor: ActorContext,
+    *,
+    field_prefix: str,
 ) -> ActorContext:
     if (
         projected_actor.user_id
         and authenticated_actor.user_id
         and projected_actor.user_id != authenticated_actor.user_id
     ):
-        raise ValueError("context.actor.user_id must match authenticated actor.user_id")
+        raise ValueError(f"{field_prefix}.user_id must match authenticated actor.user_id")
     return ActorContext(
         user_id=projected_actor.user_id or authenticated_actor.user_id,
         principal_id=projected_actor.principal_id,
@@ -229,24 +390,24 @@ def _merge_projected_actor(
     )
 
 
-def _parse_actor_context(raw_actor: object) -> ActorContext:
+def _parse_actor_context(raw_actor: object, *, field_prefix: str) -> ActorContext:
     if raw_actor is None:
         return ActorContext()
     if not isinstance(raw_actor, dict):
-        raise ValueError("context.actor must be an object")
+        raise ValueError(f"{field_prefix} must be an object")
     return ActorContext(
-        user_id=_parse_text(raw_actor.get("user_id")),
-        principal_id=_parse_text(raw_actor.get("principal_id")),
-        roles=_parse_string_tuple(raw_actor.get("roles"), field_name="context.actor.roles"),
+        user_id=_parse_optional_string(raw_actor.get("user_id")) or "",
+        principal_id=_parse_optional_string(raw_actor.get("principal_id")) or "",
+        roles=_parse_string_tuple(raw_actor.get("roles"), field_name=f"{field_prefix}.roles"),
         departments=_parse_string_tuple(
             raw_actor.get("departments"),
-            field_name="context.actor.departments",
+            field_name=f"{field_prefix}.departments",
         ),
-        groups=_parse_string_tuple(raw_actor.get("groups"), field_name="context.actor.groups"),
-        campus_scope=_parse_nullable_text(raw_actor.get("campus_scope")),
-        cohort=_parse_nullable_text(raw_actor.get("cohort")),
-        major=_parse_nullable_text(raw_actor.get("major")),
-        program=_parse_nullable_text(raw_actor.get("program")),
+        groups=_parse_string_tuple(raw_actor.get("groups"), field_name=f"{field_prefix}.groups"),
+        campus_scope=_parse_optional_string(raw_actor.get("campus_scope")),
+        cohort=_parse_optional_string(raw_actor.get("cohort")),
+        major=_parse_optional_string(raw_actor.get("major")),
+        program=_parse_optional_string(raw_actor.get("program")),
     )
 
 
@@ -264,7 +425,7 @@ def _parse_authorization_projection(
         raw_authorization.get("entitlement_groups"),
         field_name="context.authorization.entitlement_groups",
     )
-    visibility_scope = _parse_nullable_text(raw_authorization.get("visibility_scope"))
+    visibility_scope = _parse_optional_string(raw_authorization.get("visibility_scope"))
     retrieval_filter = _parse_authorized_retrieval_filter(
         raw_authorization.get("retrieval_filter"),
         fallback_entitlement_groups=entitlement_groups,
@@ -272,16 +433,16 @@ def _parse_authorization_projection(
         fallback_campus_scope=actor.campus_scope,
     )
     return AuthorizationProjection(
-        principal_id=_parse_text(raw_authorization.get("principal_id")) or actor.principal_id or actor.user_id,
-        entitlement_snapshot_id=_parse_text(raw_authorization.get("entitlement_snapshot_id")),
+        principal_id=_parse_optional_string(raw_authorization.get("principal_id")) or actor.principal_id or actor.user_id,
+        entitlement_snapshot_id=_parse_optional_string(raw_authorization.get("entitlement_snapshot_id")) or "",
         entitlement_groups=entitlement_groups,
         visibility_scope=visibility_scope,
-        applicability_scope=_parse_nullable_text(raw_authorization.get("applicability_scope")),
+        applicability_scope=_parse_optional_string(raw_authorization.get("applicability_scope")),
         ownership_scopes=_parse_string_tuple(
             raw_authorization.get("ownership_scopes"),
             field_name="context.authorization.ownership_scopes",
         ),
-        approval_state=_parse_text(raw_authorization.get("approval_state")),
+        approval_state=_parse_optional_string(raw_authorization.get("approval_state")) or "",
         retrieval_filter=retrieval_filter,
     )
 
@@ -296,17 +457,15 @@ def _parse_authorized_retrieval_filter(
     if raw_filter is None:
         return AuthorizedRetrievalFilter(
             entitlement_groups=fallback_entitlement_groups,
+            acl_groups=fallback_entitlement_groups,
             visibility_scope=fallback_visibility_scope,
             campus_scope=fallback_campus_scope,
         )
     if not isinstance(raw_filter, dict):
         raise ValueError("context.authorization.retrieval_filter must be an object")
+
     entitlement_groups = raw_filter.get("entitlement_groups")
     acl_groups = raw_filter.get("acl_groups")
-    visibility_level = raw_filter.get("visibility_level")
-    visibility_scope = raw_filter.get("visibility_scope")
-    campus_scope = raw_filter.get("campus_scope")
-    policy_projection_version = raw_filter.get("policy_projection_version")
     return AuthorizedRetrievalFilter(
         entitlement_groups=(
             _parse_string_tuple(
@@ -323,11 +482,7 @@ def _parse_authorized_retrieval_filter(
                 else fallback_entitlement_groups
             )
         ),
-        visibility_level=(
-            _parse_text(visibility_level) or "public"
-            if visibility_level is not None
-            else "public"
-        ),
+        visibility_level=_parse_optional_string(raw_filter.get("visibility_level")) or "public",
         acl_groups=(
             _parse_string_tuple(
                 acl_groups,
@@ -337,16 +492,16 @@ def _parse_authorized_retrieval_filter(
             else fallback_entitlement_groups
         ),
         visibility_scope=(
-            _parse_nullable_text(visibility_scope)
-            if visibility_scope is not None
+            _parse_optional_string(raw_filter.get("visibility_scope"))
+            if raw_filter.get("visibility_scope") is not None
             else fallback_visibility_scope
         ),
         campus_scope=(
-            _parse_nullable_text(campus_scope)
-            if campus_scope is not None
+            _parse_optional_string(raw_filter.get("campus_scope"))
+            if raw_filter.get("campus_scope") is not None
             else fallback_campus_scope
         ),
-        policy_projection_version=_parse_text(policy_projection_version),
+        policy_projection_version=_parse_optional_string(raw_filter.get("policy_projection_version")) or "",
     )
 
 
@@ -358,82 +513,8 @@ def _default_authorization_projection(actor: ActorContext) -> AuthorizationProje
         visibility_scope=actor.campus_scope,
         retrieval_filter=AuthorizedRetrievalFilter(
             entitlement_groups=actor.groups,
+            acl_groups=actor.groups,
             visibility_scope=actor.campus_scope,
+            campus_scope=actor.campus_scope,
         ),
     )
-
-
-def _parse_profile_memory_summary(raw_profile_memory: object) -> ProfileMemorySummary:
-    if raw_profile_memory is None:
-        return ProfileMemorySummary()
-    if not isinstance(raw_profile_memory, dict):
-        raise ValueError("context.profile_memory must be an object")
-    raw_items = raw_profile_memory.get("items", ())
-    if not isinstance(raw_items, list):
-        raise ValueError("context.profile_memory.items must be a list")
-    return ProfileMemorySummary(
-        items=tuple(_parse_profile_memory_item(raw_item) for raw_item in raw_items),
-    )
-
-
-def _parse_profile_memory_item(raw_item: object) -> ProfileMemoryItem:
-    if not isinstance(raw_item, dict):
-        raise ValueError("context.profile_memory.items entries must be objects")
-    return ProfileMemoryItem(
-        item_id=_parse_text(raw_item.get("item_id")),
-        key=_parse_text(raw_item.get("key")),
-        value=_parse_text(raw_item.get("value")),
-        source_type=_parse_text(raw_item.get("source_type")) or "user_declared",
-        confidence=_parse_text(raw_item.get("confidence")) or "low",
-        visibility=_parse_text(raw_item.get("visibility")) or "user_visible",
-        last_verified_at=_parse_text(raw_item.get("last_verified_at")),
-    )
-
-
-def _parse_session_summary(raw_session: object) -> SessionSummary:
-    if raw_session is None:
-        return SessionSummary()
-    if not isinstance(raw_session, dict):
-        raise ValueError("context.session must be an object")
-    raw_slots = raw_session.get("confirmed_slots", ())
-    if not isinstance(raw_slots, list):
-        raise ValueError("context.session.confirmed_slots must be a list")
-    turn_count = raw_session.get("turn_count", 0)
-    if not isinstance(turn_count, int):
-        raise ValueError("context.session.turn_count must be an integer")
-    return SessionSummary(
-        confirmed_slots=tuple(_parse_session_slot(raw_slot) for raw_slot in raw_slots),
-        turn_count=turn_count,
-    )
-
-
-def _parse_session_slot(raw_slot: object) -> SessionSlot:
-    if not isinstance(raw_slot, dict):
-        raise ValueError("context.session.confirmed_slots entries must be objects")
-    confirmed = raw_slot.get("confirmed", True)
-    if not isinstance(confirmed, bool):
-        raise ValueError("context.session.confirmed_slots[].confirmed must be a boolean")
-    return SessionSlot(
-        name=_parse_text(raw_slot.get("name")),
-        value=_parse_text(raw_slot.get("value")),
-        confirmed=confirmed,
-    )
-
-
-def _parse_string_tuple(raw_value: object, *, field_name: str) -> tuple[str, ...]:
-    if raw_value is None:
-        return ()
-    if not isinstance(raw_value, list):
-        raise ValueError(f"{field_name} must be a list")
-    return tuple(str(item).strip() for item in raw_value if str(item).strip())
-
-
-def _parse_text(raw_value: object) -> str:
-    if raw_value is None:
-        return ""
-    return str(raw_value).strip()
-
-
-def _parse_nullable_text(raw_value: object) -> str | None:
-    value = _parse_text(raw_value)
-    return value or None

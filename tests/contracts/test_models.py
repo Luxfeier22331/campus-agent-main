@@ -218,7 +218,6 @@ class ContractModelsTest(unittest.TestCase):
             legacy_first.policy_projection_version,
             "phase1-authorization-projection-v1",
         )
-
     def test_specialist_request_requires_explicit_payload(self) -> None:
         request = SpecialistRequest(
             target="rag-specialist",

@@ -744,7 +744,6 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json_body["error"]["code"], "invalid_request")
         self.assertIn("context.actor.user_id", response.json_body["error"]["message"])
-
     def test_answer_route_rejects_missing_trusted_worker_secret(self) -> None:
         app = create_app(
             settings=ApiSettings(
