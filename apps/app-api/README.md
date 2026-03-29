@@ -59,6 +59,16 @@ Runtime hardening baseline:
 - `app-api -> supervisor-api` uses a bounded timeout budget and typed invalid-response handling
 - the request projector now retries with backoff and marks exhausted events terminally instead of spinning forever
 - the `official_web` projector now dispatches terminal run handoff payloads before marking outbox events processed, and it projects `queued` / `dispatched` / `ingestion_failed` explicitly for panel consumers
+- Worker `fetch` and `scheduled` are wrapped by Sentry; `app-api` is the primary observability owner for this product topology
+- `app-api` emits minimal Axiom runtime events for `request.accepted`, `request.finalized`, `request.transport_error`, `projection.enqueued`, and `projection.drain`
+- trace propagation keeps canonical `x-trace-id` and also forwards `sentry-trace` / `baggage` across `public-chat-web -> app-api -> supervisor-api` and `protected-panel-web -> app-api`
+- observability sinks are never the panel request truth source; `operator.request_projection` remains canonical
+
+Observability data policy:
+
+- allowed sink fields are correlation and governance summaries such as `request_id`, `trace_id`, `conversation_id`, `surface`, `status`, `selected_target`, `requested_capability`, `requested_scope_summary`, `duration_ms`, and source-doc count/summary
+- forbidden fields include raw JWT/auth headers, cookies, raw prompt/question, raw answer, operator email, transcript text, and long-term memory text
+- the current Axiom integration is an interim Worker-local REST adapter; the long-term architecture still targets `OTel -> Collector -> sink`
 
 Canonical references:
 
@@ -102,6 +112,12 @@ Environment:
 - `APP_API_INTERNAL_SHARED_SECRET`
 - `APP_API_MANAGEMENT_DATABASE_URL`
 - `APP_API_DATABASE_SSLMODE`
+- `SENTRY_DSN`
+- `SENTRY_ENVIRONMENT`
+- `SENTRY_RELEASE`
+- `AXIOM_ENDPOINT`
+- `AXIOM_DATASET`
+- `AXIOM_TOKEN`
 
 Local commands:
 

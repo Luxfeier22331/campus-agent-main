@@ -12,6 +12,7 @@ import {
   type ChatCommandStore,
 } from "../src/modules/runtime-command";
 import type { SupervisorExecutionClient } from "../src/modules/integration/supervisor";
+import type { AppTelemetry } from "../src/modules/telemetry";
 
 function createPrincipal(): ResolvedAppPrincipal {
   return {
@@ -133,10 +134,29 @@ function createCommandStore() {
   };
 }
 
+function createTelemetryMock(): AppTelemetry {
+  return {
+    captureException: vi.fn(),
+    configureChatRequestScope: vi.fn(),
+    configureHttpRequestScope: vi.fn(),
+    getTraceHeaders: vi.fn().mockReturnValue({
+      baggage: "sentry-environment=test",
+      sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
+    }),
+    markHttpResponseStatus: vi.fn(),
+    recordProjectionDrain: vi.fn(),
+    recordProjectionEnqueued: vi.fn(),
+    recordRequestAccepted: vi.fn(),
+    recordRequestFinalized: vi.fn(),
+    recordRequestTransportError: vi.fn(),
+  };
+}
+
 describe("chat command service", () => {
   it("accepts a chat request, calls supervisor with explicit actor, and finalizes a completed answer", async () => {
     const { store, acceptedWrites, finalWrites } = createCommandStore();
     const { store: conversationStore } = createConversationStore();
+    const telemetry = createTelemetryMock();
     const supervisor: SupervisorExecutionClient = {
       execute: vi.fn().mockResolvedValue({
         answerText: "图书馆开放到 22:00。",
@@ -159,6 +179,7 @@ describe("chat command service", () => {
       conversationStore,
       store,
       supervisor,
+      telemetry,
     });
 
     const response = await service.submit({
@@ -184,9 +205,20 @@ describe("chat command service", () => {
         collection: "student_handbook",
         corpus: "regulations",
       },
+      traceHeaders: {
+        baggage: "sentry-environment=test",
+        sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
+      },
       traceId: "trace_0001",
       userGoal: "图书馆开放到几点？",
     });
+    expect(telemetry.configureChatRequestScope).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestId: "req_0001",
+        requestedCapability: "knowledge",
+        traceId: "trace_0001",
+      }),
+    );
     expect(acceptedWrites).toHaveLength(1);
     expect(acceptedWrites[0]).toMatchObject({
       outboxEvent: {
@@ -246,6 +278,36 @@ describe("chat command service", () => {
       requestId: "req_0001",
       traceId: "trace_0002",
     });
+    expect(telemetry.recordRequestAccepted).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: "conv_01HQ",
+        requestId: "req_0001",
+        traceId: "trace_0001",
+      }),
+    );
+    expect(telemetry.recordProjectionEnqueued).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        projectionStage: "accepted",
+        requestId: "req_0001",
+      }),
+    );
+    expect(telemetry.recordProjectionEnqueued).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        projectionStage: "finalized",
+        requestId: "req_0001",
+      }),
+    );
+    expect(telemetry.recordRequestFinalized).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestId: "req_0001",
+        selectedTarget: "rag-specialist",
+        sourceDocIds: ["handbook:library-hours"],
+        status: "completed",
+      }),
+    );
+    expect(telemetry.recordRequestTransportError).not.toHaveBeenCalled();
   });
 
   it("maps clarification and no-answer statuses into chat-visible result kinds", async () => {
@@ -338,11 +400,13 @@ describe("chat command service", () => {
   it("finalizes a handled execution error when the supervisor transport fails after accept", async () => {
     const { store, finalWrites } = createCommandStore();
     const { store: conversationStore } = createConversationStore();
+    const telemetry = createTelemetryMock();
     const service = buildChatCommandService({
       generateId: createDeterministicIdGenerator(),
       now: () => new Date("2026-03-28T08:00:00.000Z"),
       conversationStore,
       store,
+      telemetry,
       supervisor: {
         execute: vi.fn().mockRejectedValue(
           new SupervisorTransportError({
@@ -385,6 +449,19 @@ describe("chat command service", () => {
       retryable: true,
       traceId: "trace_0001",
     });
+    expect(telemetry.recordRequestTransportError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        errorCode: "execution_timeout",
+        requestId: "req_0001",
+        retryable: true,
+      }),
+    );
+    expect(telemetry.recordRequestFinalized).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestId: "req_0001",
+        status: "error",
+      }),
+    );
   });
 
   it("replays a completed idempotent request and blocks conflicts or in-flight duplicates", async () => {

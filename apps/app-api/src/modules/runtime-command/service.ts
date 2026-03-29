@@ -15,6 +15,7 @@ import {
   type SupervisorExecutionClient,
   type SupervisorExecutionResponse,
 } from "../integration";
+import type { AppTelemetry } from "../telemetry";
 import type {
   AcceptRequestWrite,
   ChatCommandStore,
@@ -81,6 +82,7 @@ export interface ChatCommandServiceDependencies {
   now?: () => Date;
   store: ChatCommandStore;
   supervisor: SupervisorExecutionClient;
+  telemetry?: AppTelemetry;
 }
 
 function defaultGenerateId(prefix: string): string {
@@ -508,6 +510,7 @@ export function buildChatCommandService(
   const computeFingerprint = dependencies.computeFingerprint ?? defaultComputeFingerprint;
   const generateId = dependencies.generateId ?? defaultGenerateId;
   const now = dependencies.now ?? (() => new Date());
+  const telemetry = dependencies.telemetry;
 
   return {
     async submit(input) {
@@ -630,20 +633,84 @@ export function buildChatCommandService(
         outboxEventId: acceptedEventId,
       });
 
+      telemetry?.configureChatRequestScope({
+        actor: {
+          principalType: input.principal.principal.type,
+          subject: input.principal.actor.userId,
+        },
+        conversationId: conversation.id,
+        requestId,
+        requestedCapability: validatedPayload.requestedCapability,
+        requestedScope: validatedPayload.requestedScope,
+        surface: "public_chat_web",
+        traceId,
+      });
+
       await dependencies.store.acceptRequest(acceptedWrite);
 
-      const executionResponse =
-        (await dependencies.supervisor
-          .execute({
-            actor: input.principal.actor,
-            conversationId: conversation.id,
-            requestId,
-            requestedCapability: validatedPayload.requestedCapability,
-            requestedScope: validatedPayload.requestedScope,
-            traceId,
-            userGoal: validatedPayload.prompt,
-          })
-          .catch((error: unknown) => toHandledErrorTransportOutcome(error))) as SupervisorExecutionResponse;
+      await telemetry?.recordRequestAccepted({
+        actor: {
+          principalType: input.principal.principal.type,
+          subject: input.principal.actor.userId,
+        },
+        conversationId: conversation.id,
+        requestId,
+        requestedCapability: validatedPayload.requestedCapability,
+        requestedScope: validatedPayload.requestedScope,
+        status: "accepted",
+        surface: "public_chat_web",
+        traceId,
+      });
+      await telemetry?.recordProjectionEnqueued({
+        conversationId: conversation.id,
+        projectionStage: "accepted",
+        requestId,
+        requestedCapability: validatedPayload.requestedCapability,
+        requestedScope: validatedPayload.requestedScope,
+        surface: "public_chat_web",
+        traceId,
+      });
+
+      let transportError:
+        | {
+            code: string;
+            retryable: boolean;
+          }
+        | null = null;
+      let executionResponse: SupervisorExecutionResponse;
+
+      try {
+        executionResponse = await dependencies.supervisor.execute({
+          actor: input.principal.actor,
+          conversationId: conversation.id,
+          requestId,
+          requestedCapability: validatedPayload.requestedCapability,
+          requestedScope: validatedPayload.requestedScope,
+          traceHeaders: telemetry?.getTraceHeaders(),
+          traceId,
+          userGoal: validatedPayload.prompt,
+        });
+      } catch (error) {
+        const handled = toHandledErrorTransportOutcome(error);
+        transportError = {
+          code: handled.error.code,
+          retryable: handled.error.retryable ?? true,
+        };
+        executionResponse = handled;
+      }
+
+      if (transportError) {
+        await telemetry?.recordRequestTransportError({
+          conversationId: conversation.id,
+          errorCode: transportError.code,
+          requestId,
+          requestedCapability: validatedPayload.requestedCapability,
+          requestedScope: validatedPayload.requestedScope,
+          retryable: transportError.retryable,
+          surface: "public_chat_web",
+          traceId,
+        });
+      }
 
       const completedAt = now().toISOString();
       const durationMs = Math.max(0, new Date(completedAt).valueOf() - new Date(acceptedAt).valueOf());
@@ -676,6 +743,33 @@ export function buildChatCommandService(
       finalized.write.requestExecution.requestedScope = validatedPayload.requestedScope;
 
       const finalizedConversation = await dependencies.store.finalizeRequest(finalized.write);
+      await telemetry?.recordProjectionEnqueued({
+        conversationId: conversation.id,
+        projectionStage: "finalized",
+        requestId,
+        requestedCapability: validatedPayload.requestedCapability,
+        requestedScope: validatedPayload.requestedScope,
+        surface: "public_chat_web",
+        traceId: finalized.write.requestExecution.traceId,
+      });
+      await telemetry?.recordRequestFinalized({
+        conversationId: conversation.id,
+        durationMs,
+        errorCode: finalized.write.requestExecution.errorCode,
+        requestId,
+        requestedCapability: validatedPayload.requestedCapability,
+        requestedScope: validatedPayload.requestedScope,
+        retryable: finalized.write.assistantMessage.retryable,
+        selectedTarget: finalized.write.requestExecution.selectedTarget,
+        sourceDocIds: finalized.write.requestExecution.sourceDocIds,
+        status: finalized.write.requestExecution.status as
+          | "completed"
+          | "error"
+          | "needs_clarification"
+          | "no_answer",
+        surface: "public_chat_web",
+        traceId: finalized.write.requestExecution.traceId,
+      });
 
       return {
         ...finalized.responseBody,

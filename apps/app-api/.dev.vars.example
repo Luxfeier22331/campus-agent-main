@@ -1,0 +1,23 @@
+APP_API_NAME=campus-agent-app-api
+APP_API_ENVIRONMENT=development
+BETTER_AUTH_SECRET=replace-with-dev-secret
+PUBLIC_CHAT_WEB_ORIGIN=https://chat.example.com
+SUPERVISOR_API_BASE_URL=https://supervisor.internal
+SUPERVISOR_API_SHARED_SECRET=replace-with-supervisor-shared-secret
+SUPERVISOR_API_TIMEOUT_MS=8000
+APP_API_OPERATOR_EMAIL_ALLOWLIST=ops@example.com
+APP_API_INTERNAL_SHARED_SECRET=replace-with-panel-bridge-secret
+APP_API_DATABASE_SSLMODE=prefer
+APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN=
+APP_API_OFFICIAL_WEB_HANDOFF_URL=
+APP_API_OFFICIAL_WEB_HANDOFF_TOKEN=
+APP_API_OFFICIAL_WEB_HANDOFF_TIMEOUT_MS=8000
+SENTRY_DSN=
+SENTRY_ENVIRONMENT=development
+SENTRY_RELEASE=dev-local
+AXIOM_ENDPOINT=https://api.axiom.co
+AXIOM_DATASET=campus_agent_runtime
+AXIOM_TOKEN=
+
+# APP_API_DB is a Worker binding and is not configured in .dev.vars.
+# APP_API_MANAGEMENT_DATABASE_URL is used only for schema generation and migrations.

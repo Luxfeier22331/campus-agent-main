@@ -39,6 +39,7 @@ import {
   createPgChatCommandStore,
   type ChatCommandService,
 } from "./modules/runtime-command";
+import { createAppTelemetry, type AppTelemetry } from "./modules/telemetry";
 import {
   buildBetterAuthConfig,
   handleAuthRequest,
@@ -55,6 +56,7 @@ export interface AppDependencies {
   officialWebCommandService?: OfficialWebCommandService;
   officialWebQueryService?: OfficialWebQueryService;
   operatorQueryService?: OperatorQueryService;
+  telemetry?: AppTelemetry;
 }
 
 function dependencyNotReadyResponse() {
@@ -110,6 +112,22 @@ function operatorAccessForbiddenResponse() {
   );
 }
 
+function resolveRequestSurface(request: Request): string {
+  const pathname = new URL(request.url).pathname;
+
+  if (pathname.startsWith("/api/operator/")) {
+    return "protected_panel_web";
+  }
+  if (pathname.startsWith("/api/official-web/")) {
+    return "official_web";
+  }
+  if (pathname.startsWith("/api/chat/") || pathname.startsWith("/api/auth/") || pathname === "/api/me") {
+    return "public_chat_web";
+  }
+
+  return "app_api";
+}
+
 async function readJsonRequestBody(request: Request): Promise<Record<string, unknown>> {
   const contentType = request.headers.get("content-type") ?? "";
   if (!contentType.toLowerCase().includes("application/json")) {
@@ -138,6 +156,7 @@ async function readJsonRequestBody(request: Request): Promise<Record<string, unk
 export function createApp(env: Env, dependencies: AppDependencies = {}) {
   const app = new Hono<{ Bindings: Env }>();
   const authHandler = dependencies.authHandler ?? handleAuthRequest;
+  const telemetry = dependencies.telemetry ?? createAppTelemetry(env);
   const chatConversationStore = createPgChatConversationStore(env);
   const chatConversationService =
     dependencies.chatConversationService ??
@@ -150,6 +169,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
       conversationStore: chatConversationStore,
       store: createPgChatCommandStore(env),
       supervisor: createSupervisorExecutionClient(env),
+      telemetry,
     });
   const getPrincipal = dependencies.getPrincipal ?? resolveRequestPrincipal;
   const officialWebCommandService =
@@ -167,6 +187,18 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     buildOperatorQueryService({
       store: createPgOperatorQueryStore(env),
     });
+
+  app.use("*", async (c, next) => {
+    telemetry.configureHttpRequestScope({
+      route: c.req.path,
+      surface: resolveRequestSurface(c.req.raw),
+      traceId: c.req.header("x-trace-id"),
+    });
+
+    await next();
+
+    telemetry.markHttpResponseStatus(c.res.status);
+  });
 
   app.get("/healthz", (c) =>
     jsonResponse({
@@ -548,10 +580,17 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     });
   });
 
-  app.onError((error) => {
+  app.onError((error, c) => {
     if (error instanceof AppApiRouteError) {
       return routeErrorResponse(error);
     }
+
+    telemetry.captureException(error, {
+      route: c.req.path,
+      status: 500,
+      surface: resolveRequestSurface(c.req.raw),
+      traceId: c.req.header("x-trace-id"),
+    });
 
     return jsonResponse(
       errorEnvelope({

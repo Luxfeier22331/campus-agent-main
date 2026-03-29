@@ -4,6 +4,11 @@ import {
   type Env,
 } from "../../config";
 import type { ExecutionActorContext } from "../auth";
+import {
+  applyTracePropagationHeaders,
+  resolveTracePropagationHeaders,
+  type TracePropagationHeaders,
+} from "../telemetry/trace";
 
 export interface RequestedScope {
   corpus: string;
@@ -16,6 +21,7 @@ export interface SupervisorExecutionInput {
   requestId: string;
   requestedCapability?: string;
   requestedScope?: RequestedScope;
+  traceHeaders?: TracePropagationHeaders;
   traceId: string;
   userGoal: string;
 }
@@ -83,9 +89,11 @@ export function createSupervisorExecutionClient(
   >,
   input: {
     fetchImplementation?: typeof fetch;
+    traceDataProvider?: () => Record<string, unknown>;
   } = {},
 ): SupervisorExecutionClient {
   const fetchImplementation = input.fetchImplementation ?? fetch;
+  const traceDataProvider = input.traceDataProvider ?? (() => ({}));
 
   return {
     async execute(payload: SupervisorExecutionInput): Promise<SupervisorExecutionResponse> {
@@ -120,13 +128,24 @@ export function createSupervisorExecutionClient(
             );
           }, timeoutMs);
 
+          const headers = new Headers({
+            "content-type": "application/json",
+            "x-trace-id": payload.traceId,
+            "x-worker-origin-auth": sharedSecret,
+          });
+          applyTracePropagationHeaders(
+            headers,
+            resolveTracePropagationHeaders({
+              traceData: traceDataProvider(),
+            }),
+          );
+          if (payload.traceHeaders) {
+            applyTracePropagationHeaders(headers, payload.traceHeaders);
+          }
+
           fetchImplementation(`${baseUrl}/api/v1/answer`, {
             method: "POST",
-            headers: {
-              "content-type": "application/json",
-              "x-trace-id": payload.traceId,
-              "x-worker-origin-auth": sharedSecret,
-            },
+            headers: Object.fromEntries(headers.entries()),
             body: JSON.stringify({
               actor: toSupervisorActor(payload.actor),
               conversation_id: payload.conversationId,

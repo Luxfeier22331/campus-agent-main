@@ -57,6 +57,10 @@ describe("supervisor execution adapter", () => {
         collection: "student_handbook",
         corpus: "regulations",
       },
+      traceHeaders: {
+        baggage: "sentry-environment=test",
+        sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
+      },
       traceId: "trace_01HQ",
       userGoal: "图书馆开放到几点？",
     });
@@ -65,7 +69,9 @@ describe("supervisor execution adapter", () => {
       "https://supervisor.internal/api/v1/answer",
       expect.objectContaining({
         headers: {
+          baggage: "sentry-environment=test",
           "content-type": "application/json",
+          "sentry-trace": "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
           "x-trace-id": "trace_01HQ",
           "x-worker-origin-auth": "shared-secret",
         },

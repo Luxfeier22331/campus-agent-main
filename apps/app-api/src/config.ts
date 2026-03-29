@@ -23,6 +23,12 @@ export interface Env {
   APP_API_DATABASE_SSLMODE?: DatabaseSslMode;
   APP_API_OPERATOR_EMAIL_ALLOWLIST?: string;
   APP_API_INTERNAL_SHARED_SECRET?: string;
+  AXIOM_DATASET?: string;
+  AXIOM_ENDPOINT?: string;
+  AXIOM_TOKEN?: string;
+  SENTRY_DSN?: string;
+  SENTRY_ENVIRONMENT?: string;
+  SENTRY_RELEASE?: string;
   APP_API_DB?: HyperdriveBindingLike;
 }
 
