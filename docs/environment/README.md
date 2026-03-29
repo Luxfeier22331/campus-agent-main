@@ -32,6 +32,12 @@ updated: 2026-03-29
   supervisor-api shared auth/audit、retrieval/embedding/Qdrant、object store、OCR/raw registry、eval judge、`CAMPUS_AGENT_HTTP_HOST` / `CAMPUS_AGENT_HTTP_PORT`
 - app-local [`apps/public-consumer-chat/.env.example`](../../apps/public-consumer-chat/.env.example)
   `public-consumer-chat` 的 app host、Supabase Postgres、Better Auth、same-site supervisor answer seam
+- app-local [`apps/app-api/.dev.vars.example`](../../apps/app-api/.dev.vars.example)
+  `app-api` 的 Worker string env，包括 auth/supervisor bridge、official_web control-plane string config，以及 `SENTRY_*` / `AXIOM_*`
+- app-local [`apps/public-chat-web/.dev.vars.example`](../../apps/public-chat-web/.dev.vars.example)
+  `public-chat-web` 的 Worker string env，包括 same-site app-api proxy seam 与 `SENTRY_*`
+- app-local [`apps/protected-panel-web/.dev.vars.example`](../../apps/protected-panel-web/.dev.vars.example)
+  `protected-panel-web` 的 protected hostname/admission string env 与 `SENTRY_*`
 - app-local [`apps/public-entry-worker/.dev.vars.example`](../../apps/public-entry-worker/.dev.vars.example)
   `public-entry-worker` 的 Cloudflare Worker 本地 bindings
 - command-scoped [`env/commands/process-raw-ingestion-job.env.example`](../../env/commands/process-raw-ingestion-job.env.example)

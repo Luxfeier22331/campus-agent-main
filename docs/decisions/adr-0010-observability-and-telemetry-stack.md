@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0010
 status: accepted
 created: 2026-03-27
-updated: 2026-03-28
+updated: 2026-03-29
 ---
 
 # ADR-0010 观测与遥测栈决策
@@ -174,6 +174,24 @@ updated: 2026-03-28
 - 后续 observability 接入应以 `OTel schema -> Collector -> sink` 为默认方向
 - `Axiom` 与 `Sentry` 采用职责拆分，而不是互相替代
 - Phase 5 及后续运行时工作应把 audit / trace / telemetry 字段统一到同一 request identity 模型下
+
+## 当前第一版落地基线
+
+截至 2026-03-29，当前 worktree 的最小接入基线固定为：
+
+- `apps/app-api`
+  接入 `Sentry` 的 Worker `fetch` 与 `scheduled`，并作为当前 product topology 的主 observability owner
+- `apps/public-chat-web`
+  接入 `Sentry` 的 Worker shell，并向 `app-api` 透传 `x-trace-id`、`sentry-trace`、`baggage`
+- `apps/protected-panel-web`
+  接入 `Sentry` 的 Worker shell，并向 `app-api` 透传 `x-trace-id`、`sentry-trace`、`baggage`
+- `Axiom`
+  当前只在 `apps/app-api` 落地最小结构化运行事件；实现形态允许先使用 Worker-local REST ingest adapter，但不改变长期 `OTel -> Collector -> sink` 方向
+
+这一版不改变 canonical truth：
+
+- panel `Requests` 仍然只读取 `operator.request_projection`
+- `Axiom`、`Sentry`、raw audit log、trace dump 都不是 panel read model
 
 明确不做：
 
