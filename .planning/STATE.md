@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: official_web app-api control-plane foundation and protected-panel Official Web domain are now landed; next work is curriculum live-gate evidence plus remaining shared seam hardening
-last_updated: "2026-03-29T12:45:00+08:00"
+stopped_at: shared app-api seam alignment is now landed on this worktree; next work is runtime observability verification and merge-readiness cleanup
+last_updated: "2026-03-29T09:30:00+08:00"
 progress:
   total_phases: 17
   completed_phases: 17
@@ -19,7 +19,7 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-03-29)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 runtime-profile-driven serving surface 证明这条架构能可靠承接高频校园问答
-**Current focus:** Phase 7 handbook verification 已完成；当前 follow-up 重点是按新 runbook 补齐 `curriculum_plan` query-serving 的 fresh live gate，并在已落地的 `public-chat-web` / `protected-panel-web` + shared `app-api` Worker runtime 基线之上继续完成 `ContextProjection` / `SupervisorResponse` shared seam 对齐与后续 runtime hardening。`Official Web` control-plane foundation 及 panel domain 已落地，`Jobs` / `Operations` 仍不进入第一波 rollout
+**Current focus:** Phase 7 handbook verification 已完成；这个 worktree 当前 follow-up 已从 `curriculum_plan` live-gate 切回 branch-local closeout：`ContextProjection` / `SupervisorResponse` shared seam 对齐已落地，后续重点是 shared `app-api` Worker runtime 的 observability verification、merge-readiness cleanup，以及已落地 `Official Web` surface 的持续 hardening。`Jobs` / `Operations` 仍不进入第一波 rollout
 
 ## Current Position
 
@@ -59,7 +59,7 @@ Plan: 2 of 2
 **Recent Trend:**
 
 - Last 5 plans: 05.1-04, 06-01, 06-02, 07-01, 07-02
-- Trend: handbook mainline verification evidence is closed; current follow-up work is curriculum release-gate expansion, shared seam closeout, and landed `official_web` surface hardening rather than topology/bootstrap work
+- Trend: handbook mainline verification evidence is closed; this worktree’s current follow-up now centers on shared seam closeout、runtime observability verification 与 landed `official_web` surface hardening，而不是继续承担 curriculum release-gate 执行
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
@@ -151,15 +151,14 @@ Recent decisions affecting current work:
 - The accepted long-term split now separates verified identity, profile memory, session memory, and institutional knowledge into distinct truth layers.
 - Personalization may influence intent framing, retrieval planning, clarification, and answer wording, but memory does not grant permissions or widen retrieval ACL.
 - The current `develop` integration branch now treats `ContextProjection` + `SupervisorResponse` as the merge-ready shared seam; the pending worktree implementation must keep aligning to that seam instead of reintroducing `snapshot`.
-- Curriculum gate closeout now has canonical docs/runbook coverage in `docs/reference/curriculum-plan-eval-metrics.md` and `docs/runbooks/curriculum-plan-hybrid-rebuild-checklist.md`; what remains is fresh live evidence, not fixture design.
+- Curriculum gate closeout now has canonical docs/runbook coverage in `docs/reference/curriculum-plan-eval-metrics.md` and `docs/runbooks/curriculum-plan-hybrid-rebuild-checklist.md`; fresh live evidence belongs to the root worktree rather than this branch-local follow-up.
+- shared `app-api -> supervisor-api` seam is now aligned to `ContextProjection` / `SupervisorResponse`: request payloads no longer depend on actor `snapshot`, `supervisor-api` accepts body `actor/context` after admission, and request projections keep `approval_required` / `rejected` as first-class runtime statuses.
 
 ### Pending Todos
 
-- Generate fresh `curriculum_plan` live release-gate artifacts using the new curriculum runbook and attach the resulting evidence before milestone closeout.
 - Keep handbook chunk-truth validation and handbook eval artifacts as reusable regression gates for later retrieval changes.
-- Finish app-api shared seam alignment (`snapshot -> ContextProjection`, `SpecialistResponse -> SupervisorResponse`) before promoting this worktree to `develop` / `main`.
 - Keep `official_web` command/query/handoff tests and operator projections as reusable regression gates for later collector or ingestion integration changes.
-- Decide the next `app-api` hardening scope on top of the landed Worker foundation without reopening topology ownership.
+- Complete merge-readiness verification for this worktree on top of the landed Worker foundation without reopening topology ownership.
 - Keep `Jobs` and `Operations` out of the default panel rollout until product scope explicitly re-opens them.
 - Provision deploy-side `SENTRY_*` / `AXIOM_*` values for `apps/app-api`, `apps/public-chat-web`, and `apps/protected-panel-web`, then run post-deploy smoke verification for trace propagation, error capture, and minimal runtime event ingest.
 
@@ -176,5 +175,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-03-29T12:00:00+08:00
-Stopped at: official_web app-api control-plane foundation and protected-panel Official Web domain are now landed; next work is curriculum live-gate evidence plus remaining shared seam hardening
+Stopped at: shared app-api seam alignment is now landed on this worktree; next work is runtime observability verification and merge-readiness cleanup
 Resume file: None

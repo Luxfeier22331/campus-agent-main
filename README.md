@@ -29,12 +29,14 @@
 - 环境配置 ownership 与模板索引：`docs/environment/README.md`
 - 历史 phase 排期与存档：`.planning/ROADMAP.md`、`.planning/phases/`
 - 当前 index / serving 术语：`docs/reference/runtime-serving-and-index-terms.md`
+- 分支集成与稳定发布流程：`docs/runbooks/develop-main-release-runbook.md`
 
 ## 分支模型
 
 - `develop` 是长期集成分支，`main` 是稳定分支
 - 讨论“当前 merged truth”时，默认指已合入 `develop` 的状态；独立 worktree 的进度只有在写明分支或已回 `develop` 后才能当作 merged truth
 - 历史上“某实现已合入 `main`”的记录可以保留，但不等于当前工作树一定检出 `main`
+- 具体的 `worktree feature -> develop -> main` 流程见 `docs/runbooks/develop-main-release-runbook.md`
 
 ## 当前仓库范围
 

@@ -136,6 +136,7 @@ updated: 2026-03-29
 - `plans/supervisor-current-design-implementation.md`
 - `plans/versioned-history-query-foundation.md`
 - `runbooks/curriculum-plan-hybrid-rebuild-checklist.md`
+- `runbooks/develop-main-release-runbook.md`
 - `runbooks/forward-worker-surface-smoke-runbook.md`
 - `runbooks/index-release-runbook.md`
 - `runbooks/student-handbook-hybrid-rebuild-checklist.md`

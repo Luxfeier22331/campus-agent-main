@@ -46,8 +46,8 @@
 
 ### Active
 
-- [ ] 按新增 curriculum live-gate runbook 生成 fresh `curriculum_plan` live evidence，并据此决定 milestone closeout；`campus_services` 继续保持 `offline_preparation`
-- [ ] 继续对齐 `develop` shared seam（`ContextProjection` / `SupervisorResponse`）并清理剩余 merge gap，不得回退到旧 `snapshot`
+- [ ] 按新增 curriculum live-gate runbook 生成 fresh `curriculum_plan` live evidence，并据此决定 milestone closeout；这项执行当前由 root worktree 跟进，`campus_services` 继续保持 `offline_preparation`
+- [ ] 在已落地的 `ContextProjection` / `SupervisorResponse` shared seam 之上继续完成 merge-readiness cleanup，不得回退到旧 `snapshot`
 
 ### Out of Scope
 
@@ -106,7 +106,7 @@
 | canonical request projection 采用 same-database outbox-first：`runtime.request_execution` + `runtime.projection_outbox` 是第一 durable truth | 这能避免 queue-first、日志重算或 panel 侧事后拼装造成的多真相源与时序漂移 | — Accepted on 2026-03-28 |
 | Better Auth 位于 `apps/app-api`，且 `auth/chat/runtime/operator` 共享一套 Drizzle schema codebase 与 migration pipeline | 这能避免 auth 表和 app-domain 表分裂成两套迁移世界观，同时保持 Worker runtime 与数据库管理路径清晰分离 | — Accepted on 2026-03-28 |
 | `develop` 集成线把 `ContextProjection` / `SupervisorResponse` 视为 shared seam；当前 worktree 回 `develop` / `main` 前必须继续对齐 | 这能吸收当前集成线的 typed projection / eval contract，而不把旧 `snapshot` 路径带回 merged truth | — Accepted on 2026-03-28 |
-| shared `apps/app-api` foundation 已在当前工作树落地，panel `Requests` 不再属于 blocked follow-up | 当前后续工作应转向 integration hardening、curriculum gate 和增量能力，而不是重复讨论 shared backend topology 是否存在 | — Validated on 2026-03-29 |
+| shared `apps/app-api` foundation 已在当前工作树落地，panel `Requests` 不再属于 blocked follow-up | 这个 worktree 的后续工作应转向 integration hardening、observability verification 与 merge readiness，而不是重复讨论 shared backend topology 是否存在，也不再把 curriculum gate 记为本分支 follow-up | — Validated on 2026-03-29 |
 | protected panel 面向小团队 operator principal，不额外自建 end-user user system；`Jobs` / `Operations` 默认不进首发 rollout | 这能保持 panel 是受控 operator control plane，而不是用户系统、CMS、数据库控制台或万能后台 | — Accepted on 2026-03-28 |
 | `official_web` control plane 收口到 shared `apps/app-api`，而不是新建 crawler-intake backend | 这能复用现有 app-owned admission、ledger、outbox 与 operator read-model 形态，同时保持 `apps/ingestion-worker` 继续只是 offline executor | — Accepted on 2026-03-29 |
 
