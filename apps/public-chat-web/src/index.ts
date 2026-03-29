@@ -1,3 +1,6 @@
+import type { CloudflareOptions } from "@sentry/cloudflare";
+import * as Sentry from "@sentry/cloudflare";
+
 export interface Env {
   APP_API?: {
     fetch(request: Request): Promise<Response> | Response;
@@ -8,6 +11,9 @@ export interface Env {
   APP_API_BASE_URL?: string;
   PUBLIC_CHAT_APP_NAME?: string;
   PUBLIC_CHAT_HOSTNAME?: string;
+  SENTRY_DSN?: string;
+  SENTRY_ENVIRONMENT?: string;
+  SENTRY_RELEASE?: string;
 }
 
 const FORWARDED_HEADERS = [
@@ -23,7 +29,65 @@ const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",
 } as const;
 
-export default {
+const SENSITIVE_EVENT_FIELDS = new Set(["authorization", "cookie", "prompt", "transcript"]);
+
+function scrubSensitiveRecord(value: unknown): void {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return;
+  }
+
+  for (const key of Object.keys(value as Record<string, unknown>)) {
+    if (SENSITIVE_EVENT_FIELDS.has(key.toLowerCase())) {
+      delete (value as Record<string, unknown>)[key];
+    }
+  }
+}
+
+function createSentryOptions(env: Env): CloudflareOptions | undefined {
+  const dsn = env.SENTRY_DSN?.trim();
+  if (!dsn) {
+    return undefined;
+  }
+
+  return {
+    dsn,
+    environment: env.SENTRY_ENVIRONMENT?.trim() || undefined,
+    initialScope: {
+      tags: {
+        app: env.PUBLIC_CHAT_APP_NAME || "campus-agent-public-chat-web",
+        runtime: "cloudflare-worker",
+        surface: "public-chat-web",
+      },
+    },
+    release: env.SENTRY_RELEASE?.trim() || undefined,
+    sendDefaultPii: false,
+    tracesSampleRate: 1,
+    beforeSend(event) {
+      scrubSensitiveRecord(event.request?.headers);
+      scrubSensitiveRecord(event.request?.data);
+      if (event.user) {
+        delete event.user.email;
+        delete event.user.ip_address;
+        delete event.user.username;
+      }
+      return event;
+    },
+  };
+}
+
+function resolveTraceHeaders(request: Request): {
+  baggage?: string;
+  sentryTrace?: string;
+} {
+  const traceData = Sentry.getTraceData();
+
+  return {
+    baggage: request.headers.get("baggage") ?? traceData.baggage,
+    sentryTrace: request.headers.get("sentry-trace") ?? traceData["sentry-trace"],
+  };
+}
+
+const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
@@ -125,6 +189,13 @@ async function proxyToAppApi(request: Request, env: Env): Promise<Response> {
       headers.set(headerName, value);
     }
   }
+  const traceHeaders = resolveTraceHeaders(request);
+  if (traceHeaders.sentryTrace) {
+    headers.set("sentry-trace", traceHeaders.sentryTrace);
+  }
+  if (traceHeaders.baggage) {
+    headers.set("baggage", traceHeaders.baggage);
+  }
 
   return withNoStore(
     await env.APP_API.fetch(
@@ -177,3 +248,5 @@ function withNoStore(response: Response): Response {
     statusText: response.statusText,
   });
 }
+
+export default Sentry.withSentry(createSentryOptions, worker);

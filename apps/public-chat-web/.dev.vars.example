@@ -1,3 +1,6 @@
 PUBLIC_CHAT_APP_NAME=campus-agent-public-chat-web
 PUBLIC_CHAT_HOSTNAME=chat.example.com
 APP_API_BASE_URL=https://app-api.internal
+SENTRY_DSN=
+SENTRY_ENVIRONMENT=development
+SENTRY_RELEASE=dev-local

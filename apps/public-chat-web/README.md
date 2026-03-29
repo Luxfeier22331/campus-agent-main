@@ -69,6 +69,19 @@ Readiness expectations:
 - `GET /readyz` stays `503` until `APP_API`, `ASSETS`, `APP_API_BASE_URL`, and `PUBLIC_CHAT_HOSTNAME` are all configured
 - proxied same-site `/api/*` responses are forced to `Cache-Control: no-store`
 
+Observability:
+
+- this Worker attaches Sentry at the runtime shell only; `app-api` remains the main observability owner
+- outgoing same-site `/api/*` proxy requests preserve `x-trace-id` and also propagate `sentry-trace` / `baggage` into `app-api`
+- Sentry stays fail-open when `SENTRY_DSN` is unset
+- raw cookies, raw prompt/answer text, and other auth material are not intended to enter the sink
+
+Additional env:
+
+- `SENTRY_DSN`
+- `SENTRY_ENVIRONMENT`
+- `SENTRY_RELEASE`
+
 Local commands:
 
 ```bash

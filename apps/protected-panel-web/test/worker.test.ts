@@ -9,6 +9,7 @@ describe("protected panel web worker shell", () => {
   it("closes workers.dev and preview urls in config", () => {
     expect(wranglerConfig).toContain("workers_dev = false");
     expect(wranglerConfig).toContain("preview_urls = false");
+    expect(wranglerConfig).toContain('compatibility_flags = ["nodejs_compat"]');
     expect(wranglerConfig).toMatch(/routes?\s*=/);
   });
 
@@ -330,6 +331,8 @@ describe("protected panel web worker shell", () => {
     let forwardedOperatorId: string | null = null;
     let forwardedInternalAuth: string | null = null;
     let forwardedOperatorName: string | null = null;
+    let forwardedBaggage: string | null = null;
+    let forwardedSentryTrace: string | null = null;
     let forwardedUrl: string | null = null;
 
     globalThis.fetch = (async (request: Request | URL | string) => {
@@ -348,7 +351,9 @@ describe("protected panel web worker shell", () => {
       const response = await worker.fetch(
         new Request("https://panel.example.com/api/requests?status=completed", {
           headers: {
+            baggage: "sentry-environment=test",
             "cf-access-jwt-assertion": token,
+            "sentry-trace": "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
           },
         }),
         {
@@ -362,6 +367,8 @@ describe("protected panel web worker shell", () => {
               forwardedOperatorId = request.headers.get("x-app-operator-id");
               forwardedInternalAuth = request.headers.get("x-app-internal-auth");
               forwardedOperatorName = request.headers.get("x-app-operator-name");
+              forwardedBaggage = request.headers.get("baggage");
+              forwardedSentryTrace = request.headers.get("sentry-trace");
 
               return new Response(
                 JSON.stringify({
@@ -413,6 +420,10 @@ describe("protected panel web worker shell", () => {
       expect(forwardedOperatorName).toBe("Ops Team");
       expect(forwardedOperatorGroups).toBe("panel,ops");
       expect(forwardedInternalAuth).toBe("panel-bridge-secret");
+      expect(forwardedBaggage).toBe("sentry-environment=test");
+      expect(forwardedSentryTrace).toBe(
+        "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
+      );
     } finally {
       globalThis.fetch = originalFetch;
     }

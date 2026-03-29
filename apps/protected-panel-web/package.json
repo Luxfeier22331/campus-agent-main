@@ -10,6 +10,7 @@
     "@emotion/styled": "^11.14.0",
     "@mui/icons-material": "^7.0.1",
     "@mui/material": "^7.0.1",
+    "@sentry/cloudflare": "^10.46.0",
     "jose": "^6.0.10",
     "react": "^19.2.0",
     "react-admin": "^5.14.4",

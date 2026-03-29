@@ -8,6 +8,7 @@ describe("public chat web worker shell", () => {
   it("closes workers.dev and preview urls in config", () => {
     expect(wranglerConfig).toContain("workers_dev = false");
     expect(wranglerConfig).toContain("preview_urls = false");
+    expect(wranglerConfig).toContain('compatibility_flags = ["nodejs_compat"]');
     expect(wranglerConfig).toMatch(/routes?\s*=/);
   });
 
@@ -133,8 +134,10 @@ describe("public chat web worker shell", () => {
 
   it("proxies same-site api requests to app-api and forwards auth/body headers only", async () => {
     let forwardedBody: string | null = null;
+    let forwardedBaggage: string | null = null;
     let forwardedCookie: string | null = null;
     let forwardedIdempotencyKey: string | null = null;
+    let forwardedSentryTrace: string | null = null;
     let forwardedTraceId: string | null = null;
     let forwardedUrl: string | null = null;
 
@@ -146,6 +149,8 @@ describe("public chat web worker shell", () => {
           cookie: "better-auth.session_token=test",
           "content-type": "application/json",
           "idempotency-key": "idem-001",
+          baggage: "sentry-environment=test",
+          "sentry-trace": "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
           "x-spoofed-header": "drop-me",
           "x-trace-id": "trace-001",
         },
@@ -158,8 +163,10 @@ describe("public chat web worker shell", () => {
         APP_API: {
           fetch: async (request: Request) => {
             forwardedBody = await request.text();
+            forwardedBaggage = request.headers.get("baggage");
             forwardedCookie = request.headers.get("cookie");
             forwardedIdempotencyKey = request.headers.get("idempotency-key");
+            forwardedSentryTrace = request.headers.get("sentry-trace");
             forwardedTraceId = request.headers.get("x-trace-id");
             forwardedUrl = request.url;
 
@@ -200,6 +207,10 @@ describe("public chat web worker shell", () => {
     expect(forwardedUrl).toBe("https://app-api.internal/api/chat/requests");
     expect(forwardedCookie).toBe("better-auth.session_token=test");
     expect(forwardedIdempotencyKey).toBe("idem-001");
+    expect(forwardedBaggage).toBe("sentry-environment=test");
+    expect(forwardedSentryTrace).toBe(
+      "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
+    );
     expect(forwardedTraceId).toBe("trace-001");
     expect(forwardedBody).toBe(
       JSON.stringify({

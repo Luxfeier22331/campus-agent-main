@@ -1,3 +1,5 @@
+import type { CloudflareOptions } from "@sentry/cloudflare";
+import * as Sentry from "@sentry/cloudflare";
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 
 export interface Env {
@@ -12,6 +14,9 @@ export interface Env {
   PANEL_RUNTIME_API_BASE_URL?: string;
   PANEL_PROTECTED_HOSTNAME?: string;
   PANEL_PROTECTION_ENVELOPE?: string;
+  SENTRY_DSN?: string;
+  SENTRY_ENVIRONMENT?: string;
+  SENTRY_RELEASE?: string;
   ACCESS_TEAM_DOMAIN?: string;
   ACCESS_POLICY_AUD?: string;
 }
@@ -32,7 +37,71 @@ const JSON_HEADERS = {
 const JWKS_BY_ISSUER = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 const FORWARDED_HEADERS = ["accept", "content-type", "x-trace-id"] as const;
 
-export default {
+const SENSITIVE_EVENT_FIELDS = new Set([
+  "authorization",
+  "cf-access-jwt-assertion",
+  "cookie",
+  "operator_email",
+  "x-app-internal-auth",
+]);
+
+function scrubSensitiveRecord(value: unknown): void {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return;
+  }
+
+  for (const key of Object.keys(value as Record<string, unknown>)) {
+    if (SENSITIVE_EVENT_FIELDS.has(key.toLowerCase())) {
+      delete (value as Record<string, unknown>)[key];
+    }
+  }
+}
+
+function createSentryOptions(env: Env): CloudflareOptions | undefined {
+  const dsn = env.SENTRY_DSN?.trim();
+  if (!dsn) {
+    return undefined;
+  }
+
+  return {
+    dsn,
+    environment: env.SENTRY_ENVIRONMENT?.trim() || undefined,
+    initialScope: {
+      tags: {
+        app: env.PANEL_APP_NAME || "campus-agent-protected-panel",
+        runtime: "cloudflare-worker",
+        surface: "protected-panel-web",
+      },
+    },
+    release: env.SENTRY_RELEASE?.trim() || undefined,
+    sendDefaultPii: false,
+    tracesSampleRate: 1,
+    beforeSend(event) {
+      scrubSensitiveRecord(event.request?.headers);
+      scrubSensitiveRecord(event.request?.data);
+      if (event.user) {
+        delete event.user.email;
+        delete event.user.ip_address;
+        delete event.user.username;
+      }
+      return event;
+    },
+  };
+}
+
+function resolveTraceHeaders(request: Request): {
+  baggage?: string;
+  sentryTrace?: string;
+} {
+  const traceData = Sentry.getTraceData();
+
+  return {
+    baggage: request.headers.get("baggage") ?? traceData.baggage,
+    sentryTrace: request.headers.get("sentry-trace") ?? traceData["sentry-trace"],
+  };
+}
+
+const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
@@ -439,6 +508,13 @@ async function proxyToAppApi(input: {
       headers.set(headerName, value);
     }
   }
+  const traceHeaders = resolveTraceHeaders(input.request);
+  if (traceHeaders.sentryTrace) {
+    headers.set("sentry-trace", traceHeaders.sentryTrace);
+  }
+  if (traceHeaders.baggage) {
+    headers.set("baggage", traceHeaders.baggage);
+  }
 
   headers.set("x-app-operator-email", input.operatorContext.email ?? input.operatorContext.operator_id);
   headers.set("x-app-internal-auth", input.env.PANEL_APP_API_SHARED_SECRET);
@@ -497,3 +573,5 @@ function withNoStore(response: Response): Response {
     statusText: response.statusText,
   });
 }
+
+export default Sentry.withSentry(createSentryOptions, worker);

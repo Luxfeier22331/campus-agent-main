@@ -117,6 +117,19 @@ Later env expansion is still expected to add values such as:
 - audit sink / trace projection configuration
 - app-api request projection runtime API configuration beyond the current `APP_API` service binding
 
+Observability:
+
+- this Worker attaches Sentry at the protected shell only; it does not become the telemetry owner or panel truth source
+- proxied panel queries preserve canonical `x-trace-id` and also forward `sentry-trace` / `baggage` into `app-api`
+- operator-facing `Requests` still read `operator.request_projection`; telemetry sinks are debugging/analysis surfaces only
+- raw Access JWTs, cookies, operator email, prompt text, answer text, and transcript text are not intended to enter the sink
+
+Additional env:
+
+- `SENTRY_DSN`
+- `SENTRY_ENVIRONMENT`
+- `SENTRY_RELEASE`
+
 This app does not close retrieval ACL, actor mapping, approval flow, or full governance semantics. It also does not exist to become a CMS, database console, or generic admin platform.
 
 Local commands:
