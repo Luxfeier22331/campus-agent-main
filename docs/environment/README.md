@@ -47,6 +47,10 @@ updated: 2026-03-29
 - command-scoped [`env/commands/migrate-student-handbook.env.example`](../../env/commands/migrate-student-handbook.env.example)
   `migrate_student_handbook_source_faithful` 的一次性 override
 
+## 当前待提供项
+
+- `apps/app-api`、`apps/public-chat-web`、`apps/protected-panel-web` 的模板已经预留 `SENTRY_*` / `AXIOM_*` 槽位，但 provider-side deploy 值仍待分配；在真实值下发前，只保留模板占位，不提交任何实际 secrets
+
 ## 命令级 Override 约束
 
 - `env/commands/*.env.example` 只放 override，不重复 shared runtime secrets

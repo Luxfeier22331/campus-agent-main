@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: in_progress
 stopped_at: official_web app-api control-plane foundation and protected-panel Official Web domain are now landed; next work is curriculum live-gate evidence plus remaining shared seam hardening
-last_updated: "2026-03-29T07:16:24+08:00"
+last_updated: "2026-03-29T12:45:00+08:00"
 progress:
   total_phases: 17
   completed_phases: 17
@@ -161,6 +161,7 @@ Recent decisions affecting current work:
 - Keep `official_web` command/query/handoff tests and operator projections as reusable regression gates for later collector or ingestion integration changes.
 - Decide the next `app-api` hardening scope on top of the landed Worker foundation without reopening topology ownership.
 - Keep `Jobs` and `Operations` out of the default panel rollout until product scope explicitly re-opens them.
+- Provision deploy-side `SENTRY_*` / `AXIOM_*` values for `apps/app-api`, `apps/public-chat-web`, and `apps/protected-panel-web`, then run post-deploy smoke verification for trace propagation, error capture, and minimal runtime event ingest.
 
 ### Blockers/Concerns
 
@@ -170,6 +171,7 @@ Recent decisions affecting current work:
 - panel `Requests` is no longer blocked, but panel work must still avoid reading audit logs, telemetry sinks, consumer chat tables, or `apps/supervisor-api` directly.
 - `Official Web` control-plane APIs and panel domain are now landed on `apps/app-api` + `apps/protected-panel-web`; follow-up work must extend this surface rather than reintroducing panel-side synthesis or direct infrastructure reads.
 - `Jobs` / `Operations` / `Audit` remain delayed; landed `Official Web` views do not authorize a generic ops console.
+- Observability runtime code is landed, but provider-side `SENTRY_*` / `AXIOM_*` secrets are not available yet; until they are assigned, telemetry remains unconfigured/fail-open and live sink verification cannot be closed.
 
 ## Session Continuity
 
