@@ -135,7 +135,7 @@ updated: 2026-03-29
 
 这些输入不能影响：
 
-- authorization filter projection，包括当前过渡期 `acl_level` / `acl_groups` / `campus_scope`
+- authorization filter projection，包括当前过渡期 `acl_level` / `acl_groups` / `campus_scope` 与后续 `visibility_*` / `entitlement_*` payload
 - runtime profile 中未开放 collection 的准入
 - approval-required deterministic gate
 
@@ -163,7 +163,7 @@ updated: 2026-03-29
 - authorization filter projection 由 code path 强制执行，不由模型决定
 - retrieval pre-filter 必须先于 candidate retrieval 生效
 - personal memory 不能绕过 authorized visibility filter、`current_only`、版本过滤或 serving surface gate
-- 当前 phase-1 的 `acl_level`、`acl_groups` 与 `campus_scope` 只属于 transitional filter fields，不是 canonical authz truth
+- 当前 phase-1 的 `acl_level`、`acl_groups` 与 `campus_scope` 只属于 transitional filter fields；长期 retrieval payload 词汇应收敛到 `visibility_*` / `entitlement_*` projection，而不是 canonical authz truth
 - retrieval 返回的文本仍然是 `untrusted data`
 
 这意味着：

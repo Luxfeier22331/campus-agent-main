@@ -84,7 +84,7 @@ Accepted on 2026-03-28.
 
 不允许的影响范围：
 
-- authorization filter projection，包括当前过渡期 `acl_level` / `acl_groups` / `campus_scope` 过滤结果
+- authorization filter projection，包括当前过渡期 `acl_level` / `acl_groups` / `campus_scope` 过滤结果，以及后续 `visibility_*` / `entitlement_*` projection
 - runtime-profile-driven serving surface
 - approval-required capability 的 deterministic gate
 - 历史版本选择、跨 corpus 放开或未开放 collection 的静默路由

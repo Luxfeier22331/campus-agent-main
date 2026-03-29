@@ -152,7 +152,7 @@ phase-1 当前采用对象存储 + raw asset registry + document registry + Qdra
 
 职责：
 
-- 保存 `document_id`、`revision_track`、`version_id`、`source_uri`、`content_hash`、`corpus`、`collection`、ACL、状态、时间戳，以及指向 raw asset 的引用
+- 保存 `document_id`、`revision_track`、`version_id`、`source_uri`、`content_hash`、`corpus`、`collection`、authorization filter projection、状态、时间戳，以及指向 raw asset 的引用
 - 表达“当前逻辑文档版本是什么”
 - 支撑增量更新、删除、审计、retrieval 前过滤与 evidence 回链
 
@@ -239,12 +239,14 @@ phase-1 当前采用对象存储 + raw asset registry + document registry + Qdra
 - 如果不同来源在同一 `document_id + revision_track` 下产生相同规范化内容，则必须复用已有 `version_id`，并把来源差异落到 provenance，而不是再生成第二条 document registry record
 - `chunk_id` 基于 `document_id + revision_track + version_id + chunk_order`
 
-## ACL 与 Traceability
+## Authorization Filter Projection 与 Traceability
 
 第一阶段必须做到：
 
-- 文档级 ACL metadata
-- chunk 级 ACL metadata 继承文档 metadata
+- 文档级 authorization filter projection metadata
+- chunk 级 authorization filter projection metadata 继承文档 metadata
+- 当前 phase-1 可继续使用 `acl_level`、`acl_groups`、`campus_scope` 作为 projection carrier
+- 但这组字段只服务 retrieval pre-filter，不是 canonical authorization truth
 - retrieval/evidence 返回最小 source locator 字段
 - ingestion 和 query 都写结构化日志
 - object storage 路径从第一天起保持稳定语义，避免未来迁移云对象存储时重写数据面规则

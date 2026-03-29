@@ -126,6 +126,12 @@ updated: 2026-03-27
 - `raw_asset.page_start`
 - `raw_asset.page_end`
 
+补充说明：
+
+- 当前 phase-1 实现里，document registry 仍显式保存 `acl_groups` / `campus_scope`
+- 这组字段的语义是 retrieval pre-filter projection carrier，不是长期 canonical authorization truth
+- 长期授权词汇与后续迁移方向以 `ADR-0016` 和 `docs/architecture/authorization-and-access-control-architecture.md` 为准
+
 以下字段必须在 raw asset registry 中显式存在：
 
 - `raw_asset_id`

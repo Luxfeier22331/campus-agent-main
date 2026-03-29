@@ -75,8 +75,8 @@ updated: 2026-03-29
 - Raw Layer: 对象存储中的原始文档
 - Raw Asset Registry: 原始文件身份、版本和存储定位
 - Processed Layer: 清洗文本和结构化处理中间结果
-- Document Registry: 文档版本、hash、ACL、状态等元数据
-- Chunk Metadata + Vector Index: chunk 元数据和向量检索索引
+- Document Registry: 文档版本、hash、authorization filter projection、状态等元数据
+- Chunk Metadata + Vector Index: chunk 元数据和向量检索索引；phase-1 当前 ACL 字段只属于 projection carrier
 
 与 shared `app-api` 配套的运行数据层至少包括：
 
@@ -159,7 +159,7 @@ execution engine runtime 选择应该延后。未来可以接受的实现包括�
 - `packages/retrieval-core` 负责执行 serving filter 与 authorization filter projection，但不拥有最终 entitlement resolution
 - document / chunk 上的 ACL metadata 属于 search-time filter projection，不是长期 canonical authorization truth
 - `visibility` 与 `applicability` 必须分层；major、cohort、recent goal 这类个性化线索默认首先属于 applicability / personalization，而不是 visibility truth
-- 当前 phase-1 的 `acl_level`、`acl_groups` 与 `campus_scope` 只属于 transitional filter shape，不应继续被提升为长期 canonical authz schema
+- 当前 phase-1 的 `acl_level`、`acl_groups` 与 `campus_scope` 只属于 transitional filter shape；长期字段族应收敛到显式 `visibility` / `entitlement` projection，不应继续被提升为 canonical authz schema
 
 ## 观测与遥测边界
 
@@ -396,7 +396,7 @@ ingestion boundary 是长期存在的数据摄入边界。
 - Chunk/Index Layer
   保存在线检索所需的 chunk 文本、chunk metadata、embeddings 和向量索引。
 - Document Registry
-  保存 `document_id`、`version_id`、`content_hash`、`source_uri`、`corpus`、`acl_groups`、`campus_scope`、`status`、`ingestion_timestamp`，以及指向 raw asset 的引用。它表达“当前逻辑文档版本是什么”，不重复承载 raw 文件身份。
+  保存 `document_id`、`version_id`、`content_hash`、`source_uri`、`corpus`、`collection`、status、ingestion metadata，以及指向 raw asset 的引用；同时保存 retrieval pre-filter 所需的 authorization projection metadata。phase-1 当前 carrier 仍是 `acl_groups` / `campus_scope`，但长期应收敛到显式 `visibility` / `entitlement` projection。它表达“当前逻辑文档版本是什么”，不重复承载 raw 文件身份。
 
 其中 `packages/ingestion-core` 主要负责把 source/derived 输入推进成可追踪的 registry 与 chunk/index 产物，`packages/retrieval-core` 则负责消费这些产物形成 evidence bundle。
 
@@ -491,7 +491,7 @@ ACL、审计和 traceability 在第一阶段按“够上线的最小闭环”建
 - 审计日志至少记录用户、路由、sources 和最终状态
 - ingestion 日志至少记录 `document_id`、`version_id`、`content_hash`、处理状态和索引写入结果
 - 观测默认遵循数据最小化：不把完整 prompt、chunk 正文和敏感认证材料直接作为长期默认日志落盘
-- 文档层和 chunk 层都带 ACL metadata
+- 文档层和 chunk 层都带可重建的 authorization filter projection metadata；phase-1 当前仍使用 ACL carrier，但它不是 canonical authz truth
 - 高风险或不可逆动作必须保留 approval / HITL 介入边界
 - specialist 自由文本输出不能直接越过 deterministic gate 触发高风险动作
 

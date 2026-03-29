@@ -44,7 +44,7 @@ updated: 2026-03-29
 
 - `apps/app-api` 是 canonical authorization truth owner
 - `apps/supervisor-api`、`packages/supervisor-core`、`packages/rag-specialist` 与 `packages/retrieval-core` 只消费最小化 typed authz projection
-- retrieval index 中的 `acl_level`、`acl_groups` 与同类字段只表达 search-time filter projection，不是 canonical authorization truth
+- retrieval index 中的 `acl_level`、`acl_groups` 与同类字段只表达 search-time filter projection；长期词汇应收敛到显式 `visibility` / `entitlement` 投影，而不是继续把旧 ACL 字段当 canonical truth
 - 长期授权模型必须至少覆盖 `subject / action / resource / context`，而不是只靠 group filter
 - `visibility` 与 `applicability` 必须分层；个性化和适用性不能伪装成权限
 - 所有高风险或不可逆动作仍由 deterministic code gate 收口，而不是交给 LLM 自行决定
@@ -101,6 +101,37 @@ updated: 2026-03-29
 
 这里冻结的是语义，不冻结具体 dataclass、JSON schema 或 header 名称。
 
+## Long-Term Projection Vocabulary
+
+长期上，这个仓库的权限相关词汇必须固定成三层，而不是继续把所有东西都写成 `acl_*`：
+
+- canonical authorization truth
+  只属于 `apps/app-api`；至少覆盖 principal mapping、entitlement snapshot、resource ownership 与 approval truth
+- execution authz projection
+  由 `app-api` 投影给 `supervisor-api` / specialist / retrieval；表达最小化 principal、entitlement summary、ownership / approval summary 与 authorized retrieval filter
+- retrieval / index projection
+  只服务检索 pre-filter；长期词汇应收敛到 `visibility_level`、`visibility_scope`、`entitlement_groups`，以及仅在私有资源检索确有必要时引入的 `owner_scope` / `tenant_scope`、`policy_projection_version`
+
+其中：
+
+- `visibility_*`
+  表达“当前 principal 是否可见”
+- `entitlement_*`
+  表达来源于授权层的 membership / role / policy 投影
+- `owner_scope` / `tenant_scope`
+  只在 conversation、memory、user-private retrieval 等资源需要 owner- or tenant-scoped pre-filter 时使用
+- `policy_projection_version`
+  只用于审计和重投影，不用于替代 canonical authz truth
+
+长期不应进入 retrieval ACL metadata 的内容包括：
+
+- raw JWT / raw session / raw provider claims
+- `major`、`cohort`、`program`
+- `recent_goal`、profile memory、session memory
+- 完整 approval truth 或完整 ownership graph
+
+这些内容要么留在 `app-api` canonical truth，要么只作为 applicability / personalization hint。
+
 ## Retrieval Filter Projection
 
 长期上，retrieval path 继续要求 pre-filter，但其含义固定为“执行上游授权层投影后的过滤结果”，而不是在 retrieval-core 内部拥有 canonical authz truth。
@@ -110,6 +141,7 @@ updated: 2026-03-29
 - `packages/retrieval-core` 负责在 candidate retrieval 前执行 serving filter 与 authorization filter
 - `packages/retrieval-core` 不反向读取 profile/auth/chat store 做最终 entitlement resolution
 - document / chunk metadata 中的 ACL 字段属于 search projection，服务于高性能过滤，不是长期授权真相源
+- document / chunk metadata 长期只应保留稳定、可重建、执行上必需的 visibility / entitlement projection，不承载 personalized identity、memory 或 raw auth state
 - filter 缺失、冲突或无法安全判定时必须 fail-closed
 
 当前 phase-1 实现仍允许使用如下 transitional projection：
@@ -119,6 +151,23 @@ updated: 2026-03-29
 - `campus_scope`
 
 但这些字段只表示当前实现使用的过滤载体，不应继续被文档或新实现描述为长期 canonical authorization model。
+
+## Resource Families And Retrieval Projection
+
+长期上，不同资源类型可以共享同一 authz 平面，但不应复用同一组 retrieval payload 语义：
+
+- institutional documents / chunks
+  使用面向制度内容的 visibility / entitlement projection
+- conversation / request execution
+  以 ownership、session 归属与 operator policy 为主，不应伪装成文档 ACL
+- profile memory / session memory
+  如果未来进入检索索引，必须使用 owner- or tenant-scoped projection，不应复用 institutional document 的 `acl_groups`
+
+这意味着：
+
+- chatbot 将来带有“23 级哲学专业、最近在咨询保研”这类长期记忆时，这些信息默认属于 identity / memory / applicability，不属于 chunk ACL truth
+- 只有当某条 policy 明确把某个 verified attribute 建模为 entitlement 或 visibility 条件时，它才允许进入 authorization projection
+- memory retrieval 如需预过滤，应优先建模 `owner_scope` / `tenant_scope` / conversation ownership，而不是继续扩写 `campus_scope`
 
 ## Visibility Vs Applicability
 
@@ -209,5 +258,6 @@ updated: 2026-03-29
 - 让 `packages/retrieval-core` 成为 canonical authz owner
 - 让 `rag-specialist` 或 `supervisor` 自行从 raw conversation / memory 中推断权限
 - 让 personalization 或 applicability 改写 visibility 结果
+- 把 `major`、`cohort`、`recent_goal` 或长期记忆直接写进 chunk ACL metadata
 - 先检索再事后裁剪未授权 evidence
 - panel、conversation ownership、memory visibility 各自维护互不兼容的权限模型

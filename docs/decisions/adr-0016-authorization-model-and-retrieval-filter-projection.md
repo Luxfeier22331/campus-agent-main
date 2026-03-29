@@ -62,6 +62,21 @@ Accepted on 2026-03-29.
 
 - retrieval metadata 可以被重建、迁移或重新投影
 - 真正的 entitlement / ownership / approval truth 不应只存在于索引层
+- 长期词汇应收敛到显式 `visibility` / `entitlement` projection，而不是继续扩写 `acl_*`
+
+长期推荐的 retrieval projection 语义包括：
+
+- `visibility_level`
+- `visibility_scope`
+- `entitlement_groups`
+- `policy_projection_version`
+
+如果未来 conversation、memory 或其他 user-private 资源进入 retrieval index，则额外引入：
+
+- `owner_scope`
+- `tenant_scope`
+
+这些字段仍然只是执行投影，不是 canonical authz truth。
 
 ## 决策 4：retrieval 必须消费授权层投影后的 filter，并在 candidate retrieval 前执行
 
@@ -114,6 +129,22 @@ Accepted on 2026-03-29.
 - long-term唯一权限模型
 - 新功能继续扩展的默认真相源
 
+## 决策 8：identity / memory / applicability 不进入 retrieval ACL metadata
+
+长期上：
+
+- `major`、`cohort`、`program`、`recent goal`
+- profile memory / session memory
+- raw token claims / raw session envelope
+
+都不应直接进入 document / chunk ACL metadata。
+
+它们只能：
+
+- 保留在 `app-api` canonical truth
+- 作为 typed identity / applicability claim 参与 workflow 或 personalization
+- 或在明确 policy 建模后，被上游授权层映射成最小化 entitlement / visibility projection
+
 ## 结果
 
 直接结果如下：
@@ -121,6 +152,7 @@ Accepted on 2026-03-29.
 - 后续 identity / memory / personalization 文档只负责上下文和个性化边界，不再独自承担完整授权模型定义
 - retrieval 文档必须区分 serving filter、authorization filter 与 applicability hint
 - `app-api` 文档必须显式承担 principal / entitlement / ownership / approval ownership
+- ingestion / registry / chunk metadata 文档必须明确区分 canonical authz truth 与 search-time projection
 - 新实现若要增加 panel、memory 或 conversation 权限逻辑，必须对齐同一 authz model，而不是再发明局部 ACL
 
 ## 相关文档

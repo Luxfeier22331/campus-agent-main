@@ -167,6 +167,17 @@ updated: 2026-03-29
 - session summary / confirmed slots
 - correlation / trace metadata
 
+这里的长期语义还要继续分层：
+
+- `authorization projection`
+  只承载 principal、entitlement、ownership、approval 与 authorized retrieval filter
+- `typed identity / applicability claims`
+  只承载 `campus`、`cohort`、`major`、`program` 等 workflow / personalization 仍需要的已验证字段
+- `memory summary`
+  只承载最小 personalization context，不得改写 authorization projection
+
+当前 phase-1 的 `groups` / `campus_scope` 仍允许作为过渡 carrier，但长期不再是 canonical 词汇；长期 retrieval filter 词汇应收敛到 `visibility_*` / `entitlement_*` projection。
+
 长期默认不允许跨边界直传：
 
 - raw JWT、raw auth header、raw cookie
@@ -253,9 +264,9 @@ operator query path 至少包含：
 
 ## 当前仓库状态
 
-当前 `develop` 集成线已经落地 `apps/app-api` 目录，但目前只实现了最小 `ContextProjection` 投影骨架。
+当前 `develop` 集成线已经落地 `apps/app-api` 目录，并已经实现了最小 `ContextProjection` / `AuthorizationProjection` builder 骨架。
 
-这意味着当前集成线已落地的是长期边界、authorization ownership direction 与最小 identity / memory projection seam，而不是完整 Worker product backend。
+这意味着当前集成线已落地的是长期边界、authorization ownership direction、最小 identity / memory projection seam，以及 app-layer authz projection builder，而不是完整 Worker product backend。
 
 更完整的 `apps/app-api` Worker 实现目前正在独立 worktree 推进，但在合入 `develop` 之前，不应把那部分进度写成这里的 merged truth。
 

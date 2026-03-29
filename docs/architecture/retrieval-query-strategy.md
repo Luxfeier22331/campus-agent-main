@@ -48,12 +48,12 @@ updated: 2026-03-29
 - embedding request contract
   属于 embedding provider / model runtime；当前固定请求字段是 `model=Qwen3-Embedding-4B` 与 `dimensions=2560`
 - Qdrant collection schema contract
-  属于 chunk/index store；当前关心的是 named dense/sparse vectors、payload metadata 与 hybrid query shape，例如 `document_id`、`chunk_id`、`corpus`、`collection`、ACL、`campus_scope`
+  属于 chunk/index store；当前关心的是 named dense/sparse vectors、payload metadata 与 hybrid query shape，例如 `document_id`、`chunk_id`、`corpus`、`collection`、serving metadata，以及 authorization filter projection metadata。phase-1 当前 carrier 仍包括 `acl_level`、`acl_groups`、`campus_scope`
 
 两层不允许混写：
 
 - `dimensions` 是 embedding 请求参数，不是 Qdrant payload 字段
-- `document_id`、`chunk_id`、`acl_level`、`acl_groups`、`campus_scope` 是 retrieval / index schema 字段，不是 embedding model 的“支持字段”
+- `document_id`、`chunk_id`、`acl_level`、`acl_groups`、`campus_scope` 与后续演进到的 `visibility_*` / `entitlement_*` 字段都属于 retrieval / index schema，不是 embedding model 的“支持字段”
 
 ## 查询阶段
 
@@ -173,6 +173,7 @@ authorization filter 负责表达“在当前 request context 下，哪些 evide
 - retrieval 必须消费上游授权层投影后的 authorization filter，而不是在 retrieval-core 内重建 canonical authz truth
 - authorization filter 必须在 candidate retrieval 阶段完成，而不是在答案生成之后事后裁剪
 - filter 缺失、冲突或不可安全判定时必须 fail-closed
+- retrieval payload 长期只应保留稳定、可重建、可索引的 visibility / entitlement projection；不承载 memory、raw token claims 或 personalized profile fields
 
 当前 phase-1 的 transitional filter carrier 仍包括：
 
@@ -181,6 +182,20 @@ authorization filter 负责表达“在当前 request context 下，哪些 evide
 - `campus_scope`
 
 但这些字段只表示当前实现采用的 filter projection，不应继续被描述为长期 canonical authorization model。
+
+长期目标形态中，institutional document retrieval payload 应收敛到：
+
+- `visibility_level`
+- `visibility_scope`
+- `entitlement_groups`
+- `policy_projection_version`
+
+如果未来 conversation / profile memory / user-private corpus 进入 retrieval index，则应新增 owner- or tenant-scoped projection，例如：
+
+- `owner_scope`
+- `tenant_scope`
+
+而不是继续复用 institutional document 的 `acl_groups` / `campus_scope`。
 
 ### Applicability / Ranking Hints
 
@@ -195,6 +210,7 @@ authorization filter 负责表达“在当前 request context 下，哪些 evide
 
 - `visibility` 与 `applicability` 必须分层
 - 当前被写进 `campus_scope` 的混合语义，长期上应拆成 `visibility_scope` 与 `applicability_scope`
+- `major`、`cohort`、`program`、`recent_goal` 与长期记忆默认属于 applicability / personalization，不进入 authorization payload
 
 ## Personalization Boundary
 
@@ -215,7 +231,7 @@ authorization filter 负责表达“在当前 request context 下，哪些 evide
 
 这些 hint 不能影响：
 
-- authorization filter projection，包括当前过渡期 `acl_level` / `acl_groups` / `campus_scope`
+- authorization filter projection，包括当前过渡期 `acl_level` / `acl_groups` / `campus_scope` 与后续 `visibility_*` / `entitlement_*` payload
 - `current_only` / `serving_revision_tracks`
 - runtime-profile-driven serving surface
 - 未开放 collection 的准入
@@ -236,7 +252,7 @@ authorization filter 负责表达“在当前 request context 下，哪些 evide
   - dense prefetch limit = `20`
   - sparse prefetch limit = `20`
   - `RrfQuery(k=60, weights=[1.0, 1.0])`
-- registry back-link、`EvidenceBundle`、ACL filter contract 保持不变
+- registry back-link、`EvidenceBundle` 与 authorization filter projection contract 保持最小执行语义不变；phase-1 当前 ACL carrier 继续受控兼容
 - serving 所需的 payload metadata 至少包括 `revision_track`、`status`、`is_current`
 
 当前不冻结 sparse model 的具体品牌或 provider，但冻结以下边界：
