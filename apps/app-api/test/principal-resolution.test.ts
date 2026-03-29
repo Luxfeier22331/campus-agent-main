@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   mapOperatorHeadersToPrincipal,
+  mapSessionToPublicUserPrincipal,
   resolveOfficialWebCollectorPrincipal,
 } from "../src/modules/auth/principal";
 
@@ -43,10 +44,21 @@ describe("operator bridge principal resolution", () => {
     ).toMatchObject({
       actor: {
         groups: ["panel", "ops"],
-        snapshot: {
-          source: "trusted_operator_bridge",
-        },
+        principalId: "operator-001",
         userId: "operator-001",
+      },
+      authorization: {
+        entitlementGroups: ["panel", "ops"],
+        principalId: "operator-001",
+        retrievalFilter: {
+          aclGroups: ["panel", "ops"],
+          campusScope: null,
+          entitlementGroups: ["panel", "ops"],
+          policyProjectionVersion: "phase1-authorization-projection-v1",
+          visibilityLevel: "public",
+          visibilityScope: null,
+        },
+        visibilityScope: null,
       },
       permissions: {
         chat: false,
@@ -59,6 +71,44 @@ describe("operator bridge principal resolution", () => {
         type: "operator",
       },
       session: null,
+    });
+  });
+});
+
+describe("public user principal projection", () => {
+  it("projects authorization from verified identity without using memory as an auth source", () => {
+    expect(
+      mapSessionToPublicUserPrincipal({
+        session: {
+          expiresAt: "2026-03-29T08:00:00.000Z",
+          id: "sess_01HQ",
+        },
+        user: {
+          email: "student@example.edu",
+          id: "user_01HQ",
+          name: "Jane Doe",
+        },
+      }),
+    ).toMatchObject({
+      actor: {
+        campusScope: null,
+        groups: ["public_chat_users"],
+        principalId: "user_01HQ",
+        userId: "user_01HQ",
+      },
+      authorization: {
+        entitlementGroups: ["public_chat_users"],
+        principalId: "user_01HQ",
+        retrievalFilter: {
+          aclGroups: ["public_chat_users"],
+          campusScope: null,
+          entitlementGroups: ["public_chat_users"],
+          policyProjectionVersion: "phase1-authorization-projection-v1",
+          visibilityLevel: "public",
+          visibilityScope: null,
+        },
+        visibilityScope: null,
+      },
     });
   });
 });

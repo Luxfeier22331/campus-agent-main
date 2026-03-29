@@ -1,4 +1,6 @@
 from campus_app_api.projection import (
+    AuthorizationInput,
+    AuthorizedRetrievalFilterInput,
     ProfileMemoryRecord,
     SessionSlotRecord,
     VerifiedIdentityInput,
@@ -6,6 +8,8 @@ from campus_app_api.projection import (
 )
 
 __all__ = [
+    "AuthorizationInput",
+    "AuthorizedRetrievalFilterInput",
     "ProfileMemoryRecord",
     "SessionSlotRecord",
     "VerifiedIdentityInput",

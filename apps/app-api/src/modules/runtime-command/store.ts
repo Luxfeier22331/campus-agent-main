@@ -12,7 +12,9 @@ export type RequestExecutionStatus =
   | "completed"
   | "needs_clarification"
   | "no_answer"
-  | "error";
+  | "error"
+  | "approval_required"
+  | "rejected";
 
 export interface RequestExecutionWrite {
   requestId: string;
@@ -21,11 +23,13 @@ export interface RequestExecutionWrite {
   assistantMessageId: string | null;
   surface: string;
   actorUserId: string;
+  actorPrincipalId: string;
   actorRoles: string[];
   actorDepartments: string[];
   actorGroups: string[];
   actorCampusScope: string | null;
-  actorSnapshot: Record<string, unknown>;
+  principalType: string;
+  principalLabel: string | null;
   idempotencyKey: string | null;
   requestFingerprintSha256: string | null;
   traceId: string;
@@ -193,7 +197,9 @@ export function createPgChatCommandStore(env: Env): ChatCommandStore {
               kind: "error" as const,
               message: assistantMessage.text,
               errorCode: executionRow.errorCode ?? "internal_error",
-              retryable: assistantMessage.retryable ?? true,
+              retryable:
+                assistantMessage.retryable ??
+                (executionRow.status === "error" ? true : false),
               requestId: executionRow.requestId,
               traceId: executionRow.traceId,
             }
@@ -273,11 +279,13 @@ export function createPgChatCommandStore(env: Env): ChatCommandStore {
             assistantMessageId: null,
             surface: input.requestExecution.surface,
             actorUserId: input.requestExecution.actorUserId,
+            actorPrincipalId: input.requestExecution.actorPrincipalId,
             actorRolesJson: input.requestExecution.actorRoles,
             actorDepartmentsJson: input.requestExecution.actorDepartments,
             actorGroupsJson: input.requestExecution.actorGroups,
             actorCampusScope: input.requestExecution.actorCampusScope,
-            actorSnapshotJson: input.requestExecution.actorSnapshot,
+            principalType: input.requestExecution.principalType,
+            principalLabel: input.requestExecution.principalLabel,
             idempotencyKey: input.requestExecution.idempotencyKey,
             requestFingerprintSha256: input.requestExecution.requestFingerprintSha256,
             traceId: input.requestExecution.traceId,

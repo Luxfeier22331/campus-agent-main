@@ -3,7 +3,7 @@ import {
   parsePositiveInteger,
   type Env,
 } from "../../config";
-import type { ExecutionActorContext } from "../auth";
+import type { ExecutionActorContext, ExecutionAuthorizationContext } from "../auth";
 import {
   applyTracePropagationHeaders,
   resolveTracePropagationHeaders,
@@ -15,8 +15,41 @@ export interface RequestedScope {
   collection: string;
 }
 
-export interface SupervisorExecutionInput {
+export interface SupervisorProfileMemoryItem {
+  itemId: string;
+  key: string;
+  value: string;
+  confidence?: string;
+  lastVerifiedAt?: string;
+  sourceType?: string;
+  visibility?: string;
+}
+
+export interface SupervisorProfileMemorySummary {
+  items: SupervisorProfileMemoryItem[];
+}
+
+export interface SupervisorSessionSlot {
+  confirmed?: boolean;
+  name: string;
+  value: string;
+}
+
+export interface SupervisorSessionSummary {
+  confirmedSlots: SupervisorSessionSlot[];
+  turnCount: number;
+}
+
+export interface SupervisorContextProjection {
   actor: ExecutionActorContext;
+  authorization: ExecutionAuthorizationContext;
+  profileMemory: SupervisorProfileMemorySummary;
+  session: SupervisorSessionSummary;
+}
+
+export interface SupervisorExecutionInput {
+  actor?: ExecutionActorContext;
+  context: SupervisorContextProjection;
   conversationId: string;
   requestId: string;
   requestedCapability?: string;
@@ -35,8 +68,14 @@ export interface SupervisorExecutionResponse {
   } | null;
   followUpQuestion: string;
   result: unknown;
-  status: "completed" | "needs_clarification" | "no_answer" | "error";
-  target: string;
+  selectedTarget: string | null;
+  status:
+    | "completed"
+    | "needs_clarification"
+    | "no_answer"
+    | "error"
+    | "approval_required"
+    | "rejected";
   traceId: string;
 }
 
@@ -66,11 +105,54 @@ export class SupervisorTransportError extends Error {
 function toSupervisorActor(actor: ExecutionActorContext) {
   return {
     user_id: actor.userId,
+    principal_id: actor.principalId,
     roles: actor.roles,
     departments: actor.departments,
     groups: actor.groups,
     campus_scope: actor.campusScope,
-    snapshot: actor.snapshot,
+  };
+}
+
+function toSupervisorContext(context: SupervisorContextProjection) {
+  return {
+    actor: toSupervisorActor(context.actor),
+    authorization: {
+      principal_id: context.authorization.principalId,
+      entitlement_snapshot_id: context.authorization.entitlementSnapshotId,
+      entitlement_groups: context.authorization.entitlementGroups,
+      visibility_scope: context.authorization.visibilityScope,
+      applicability_scope: context.authorization.applicabilityScope,
+      ownership_scopes: context.authorization.ownershipScopes,
+      approval_state: context.authorization.approvalState,
+      retrieval_filter: {
+        acl_groups: context.authorization.retrievalFilter.aclGroups,
+        campus_scope: context.authorization.retrievalFilter.campusScope,
+        entitlement_groups: context.authorization.retrievalFilter.entitlementGroups,
+        policy_projection_version:
+          context.authorization.retrievalFilter.policyProjectionVersion,
+        visibility_level: context.authorization.retrievalFilter.visibilityLevel,
+        visibility_scope: context.authorization.retrievalFilter.visibilityScope,
+      },
+    },
+    profile_memory: {
+      items: context.profileMemory.items.map((item) => ({
+        item_id: item.itemId,
+        key: item.key,
+        value: item.value,
+        source_type: item.sourceType,
+        confidence: item.confidence,
+        visibility: item.visibility,
+        last_verified_at: item.lastVerifiedAt,
+      })),
+    },
+    session: {
+      confirmed_slots: context.session.confirmedSlots.map((slot) => ({
+        confirmed: slot.confirmed,
+        name: slot.name,
+        value: slot.value,
+      })),
+      turn_count: context.session.turnCount,
+    },
   };
 }
 
@@ -147,7 +229,7 @@ export function createSupervisorExecutionClient(
             method: "POST",
             headers: Object.fromEntries(headers.entries()),
             body: JSON.stringify({
-              actor: toSupervisorActor(payload.actor),
+              context: toSupervisorContext(payload.context),
               conversation_id: payload.conversationId,
               request_id: payload.requestId,
               requested_capability: payload.requestedCapability,
@@ -213,11 +295,13 @@ export function createSupervisorExecutionClient(
               : mapStatusCodeToErrorCode(response.status),
           message:
             errorBody && typeof (errorBody as { message?: unknown }).message === "string"
-              ? (((errorBody as { message: string }).message as string) ?? "Supervisor execution request failed.")
+              ? (((errorBody as { message: string }).message as string) ??
+                  "Supervisor execution request failed.")
               : "Supervisor execution request failed.",
           retryable:
             errorBody && typeof (errorBody as { retryable?: unknown }).retryable === "boolean"
-              ? (((errorBody as { retryable: boolean }).retryable as boolean) ?? response.status >= 500)
+              ? (((errorBody as { retryable: boolean }).retryable as boolean) ??
+                  response.status >= 500)
               : response.status >= 500,
           status: response.status,
         });
@@ -245,13 +329,15 @@ export function createSupervisorExecutionClient(
         followUpQuestion:
           typeof parsed?.follow_up_question === "string" ? parsed.follow_up_question : "",
         result: parsed?.result ?? null,
+        selectedTarget: typeof parsed?.selected_target === "string" ? parsed.selected_target : null,
         status:
           parsed?.status === "needs_clarification" ||
           parsed?.status === "no_answer" ||
-          parsed?.status === "error"
+          parsed?.status === "error" ||
+          parsed?.status === "approval_required" ||
+          parsed?.status === "rejected"
             ? parsed.status
             : "completed",
-        target: typeof parsed?.target === "string" ? parsed.target : "rag-specialist",
         traceId: typeof parsed?.trace_id === "string" ? parsed.trace_id : payload.traceId,
       };
     },

@@ -30,11 +30,31 @@ export interface AppSessionPayload {
 
 export interface ExecutionActorContext {
   userId: string;
+  principalId: string;
   roles: string[];
   departments: string[];
   groups: string[];
   campusScope: string | null;
-  snapshot: Record<string, unknown>;
+}
+
+export interface ExecutionAuthorizationRetrievalFilter {
+  aclGroups: string[];
+  campusScope: string | null;
+  entitlementGroups: string[];
+  policyProjectionVersion: string;
+  visibilityLevel: string;
+  visibilityScope: string | null;
+}
+
+export interface ExecutionAuthorizationContext {
+  principalId: string;
+  entitlementSnapshotId: string;
+  entitlementGroups: string[];
+  visibilityScope: string | null;
+  applicabilityScope?: string;
+  ownershipScopes: string[];
+  approvalState: string;
+  retrievalFilter: ExecutionAuthorizationRetrievalFilter;
 }
 
 export interface ResolvedAppPrincipal {
@@ -42,6 +62,7 @@ export interface ResolvedAppPrincipal {
   session: AppSessionPayload | null;
   permissions: AppPermissions;
   actor: ExecutionActorContext;
+  authorization?: ExecutionAuthorizationContext;
 }
 
 export type BetterAuthSessionPayload =
@@ -57,6 +78,8 @@ export type BetterAuthSessionPayload =
       } | null;
     }
   | null;
+
+const DEFAULT_POLICY_PROJECTION_VERSION = "phase1-authorization-projection-v1";
 
 function normalizeHeaderValue(value: string | null): string | null {
   const normalized = value?.trim();
@@ -127,6 +150,27 @@ function toIsoString(value: string | Date | null | undefined): string | null {
   return Number.isNaN(date.valueOf()) ? null : date.toISOString();
 }
 
+export function buildExecutionAuthorizationContext(
+  actor: ExecutionActorContext,
+): ExecutionAuthorizationContext {
+  return {
+    principalId: actor.principalId || actor.userId,
+    entitlementSnapshotId: "",
+    entitlementGroups: actor.groups,
+    visibilityScope: actor.campusScope,
+    ownershipScopes: [],
+    approvalState: "",
+    retrievalFilter: {
+      aclGroups: actor.groups,
+      campusScope: actor.campusScope,
+      entitlementGroups: actor.groups,
+      policyProjectionVersion: DEFAULT_POLICY_PROJECTION_VERSION,
+      visibilityLevel: "public",
+      visibilityScope: actor.campusScope,
+    },
+  };
+}
+
 export function mapSessionToPublicUserPrincipal(
   session: BetterAuthSessionPayload,
 ): ResolvedAppPrincipal | null {
@@ -139,6 +183,15 @@ export function mapSessionToPublicUserPrincipal(
   const displayName = normalizeHeaderValue(session?.user?.name ?? null) ?? email ?? userId;
   const sessionId = normalizeHeaderValue(session?.session?.id ?? null);
   const expiresAt = toIsoString(session?.session?.expiresAt ?? null);
+
+  const actor: ExecutionActorContext = {
+    userId,
+    principalId: userId,
+    roles: ["public_user"],
+    departments: [],
+    groups: ["public_chat_users"],
+    campusScope: null,
+  };
 
   return {
     principal: {
@@ -158,18 +211,8 @@ export function mapSessionToPublicUserPrincipal(
       chat: true,
       operator: false,
     },
-    actor: {
-      userId,
-      roles: ["public_user"],
-      departments: [],
-      groups: ["public_chat_users"],
-      campusScope: null,
-      snapshot: {
-        principal_type: "public_user",
-        display_name: displayName,
-        email,
-      },
-    },
+    actor,
+    authorization: buildExecutionAuthorizationContext(actor),
   };
 }
 
@@ -201,6 +244,15 @@ export function mapOperatorHeadersToPrincipal(
   const departments = parseHeaderList(request, "x-app-operator-departments");
   const campusScope = normalizeHeaderValue(request.headers.get("x-app-operator-campus-scope"));
 
+  const actor: ExecutionActorContext = {
+    userId: principalId,
+    principalId,
+    roles,
+    departments,
+    groups,
+    campusScope,
+  };
+
   return {
     principal: {
       type: "operator",
@@ -213,19 +265,8 @@ export function mapOperatorHeadersToPrincipal(
       chat: false,
       operator: true,
     },
-    actor: {
-      userId: principalId,
-      roles,
-      departments,
-      groups,
-      campusScope,
-      snapshot: {
-        principal_type: "operator",
-        display_name: displayName,
-        email,
-        source: "trusted_operator_bridge",
-      },
-    },
+    actor,
+    authorization: buildExecutionAuthorizationContext(actor),
   };
 }
 

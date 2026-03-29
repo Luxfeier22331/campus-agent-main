@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-03-29
 ---
 
 # App API Request Lifecycle
@@ -48,6 +48,8 @@ updated: 2026-03-28
 - `needs_clarification`
 - `no_answer`
 - `error`
+- `approval_required`
+- `rejected`
 
 状态语义：
 
@@ -58,6 +60,8 @@ updated: 2026-03-28
 | `needs_clarification` | 返回追问问题 | `clarification` |
 | `no_answer` | 安全地无法给出 grounded answer | `no_answer` |
 | `error` | 请求被接受，但执行或依赖失败 | `error` |
+| `approval_required` | supervisor policy 要求先人工审批 | `error` |
+| `rejected` | supervisor policy 明确拒绝本次请求 | `error` |
 
 第一版不强制单独暴露 `running` 状态。
 
@@ -93,7 +97,7 @@ updated: 2026-03-28
 
 - `status=accepted`
 - 已记录 `requestId`、`traceId`
-- 已绑定 conversation / actor snapshot / requested scope
+- 已绑定 conversation / verified actor projection / requested scope
 
 ### Conversation Resolution Rule
 
@@ -125,6 +129,8 @@ updated: 2026-03-28
 - `needs_clarification` 写 follow-up question 摘要
 - `no_answer` 写 safe no-answer 摘要
 - `error` 写 error code / retryable
+- `approval_required` 写审批提示与最终 supervisor 状态，不把它折叠成 command-side `error`
+- `rejected` 写拒绝原因与最终 supervisor 状态，不把它折叠成 command-side `error`
 
 ## Projection Rule
 

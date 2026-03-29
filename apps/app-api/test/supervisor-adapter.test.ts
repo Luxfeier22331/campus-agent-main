@@ -7,6 +7,51 @@ import {
   createSupervisorExecutionClient,
 } from "../src/modules/integration/supervisor";
 
+function createActor() {
+  return {
+    campusScope: "main",
+    departments: [],
+    groups: ["students"],
+    principalId: "principal_01HQ",
+    roles: ["student"],
+    userId: "user_01HQ",
+  };
+}
+
+function createAuthorization() {
+  return {
+    applicabilityScope: "undergraduate",
+    approvalState: "not_required",
+    entitlementGroups: ["students"],
+    entitlementSnapshotId: "entitlements-2026-03-29",
+    ownershipScopes: ["conversation:user_01HQ"],
+    principalId: "principal_01HQ",
+    retrievalFilter: {
+      aclGroups: ["students"],
+      campusScope: "main",
+      entitlementGroups: ["students"],
+      policyProjectionVersion: "phase1-authorization-projection-v1",
+      visibilityLevel: "public",
+      visibilityScope: "main",
+    },
+    visibilityScope: "main",
+  };
+}
+
+function createContext(turnCount = 0) {
+  return {
+    actor: createActor(),
+    authorization: createAuthorization(),
+    profileMemory: {
+      items: [],
+    },
+    session: {
+      confirmedSlots: [],
+      turnCount,
+    },
+  };
+}
+
 describe("supervisor execution adapter", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -24,8 +69,8 @@ describe("supervisor execution adapter", () => {
               sources: [{ doc_id: "handbook:library-hours" }],
             },
           },
+          selected_target: "rag-specialist",
           status: "completed",
-          target: "rag-specialist",
           trace_id: "trace_01HQ",
         }),
         { status: 200 },
@@ -40,16 +85,8 @@ describe("supervisor execution adapter", () => {
     );
 
     const result = await client.execute({
-      actor: {
-        campusScope: "main",
-        departments: [],
-        groups: ["students"],
-        roles: ["student"],
-        snapshot: {
-          principal_type: "public_user",
-        },
-        userId: "user_01HQ",
-      },
+      actor: createActor(),
+      context: createContext(),
       conversationId: "conv_01HQ",
       requestId: "req_01HQ",
       requestedCapability: "knowledge",
@@ -79,15 +116,39 @@ describe("supervisor execution adapter", () => {
       }),
     );
     expect(JSON.parse(fetchImplementation.mock.calls[0]![1]!.body as string)).toEqual({
-      actor: {
-        campus_scope: "main",
-        departments: [],
-        groups: ["students"],
-        roles: ["student"],
-        snapshot: {
-          principal_type: "public_user",
+      context: {
+        actor: {
+          campus_scope: "main",
+          departments: [],
+          groups: ["students"],
+          principal_id: "principal_01HQ",
+          roles: ["student"],
+          user_id: "user_01HQ",
         },
-        user_id: "user_01HQ",
+        authorization: {
+          applicability_scope: "undergraduate",
+          approval_state: "not_required",
+          entitlement_groups: ["students"],
+          entitlement_snapshot_id: "entitlements-2026-03-29",
+          ownership_scopes: ["conversation:user_01HQ"],
+          principal_id: "principal_01HQ",
+          retrieval_filter: {
+            acl_groups: ["students"],
+            campus_scope: "main",
+            entitlement_groups: ["students"],
+            policy_projection_version: "phase1-authorization-projection-v1",
+            visibility_level: "public",
+            visibility_scope: "main",
+          },
+          visibility_scope: "main",
+        },
+        profile_memory: {
+          items: [],
+        },
+        session: {
+          confirmed_slots: [],
+          turn_count: 0,
+        },
       },
       conversation_id: "conv_01HQ",
       request_id: "req_01HQ",
@@ -107,8 +168,96 @@ describe("supervisor execution adapter", () => {
           sources: [{ doc_id: "handbook:library-hours" }],
         },
       },
+      selectedTarget: "rag-specialist",
       status: "completed",
-      target: "rag-specialist",
+      traceId: "trace_01HQ",
+    });
+  });
+
+  it("ignores legacy target fallback and only trusts selected_target", async () => {
+    const client = createSupervisorExecutionClient(
+      {
+        SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+        SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+      },
+      {
+        fetchImplementation: vi.fn().mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              answer_text: "图书馆开放到 22:00。",
+              error: null,
+              follow_up_question: "",
+              result: null,
+              status: "completed",
+              target: "rag-specialist",
+              trace_id: "trace_01HQ",
+            }),
+            { status: 200 },
+          ),
+        ),
+      },
+    );
+
+    await expect(
+      client.execute({
+        actor: createActor(),
+        context: createContext(),
+        conversationId: "conv_01HQ",
+        requestId: "req_01HQ",
+        traceId: "trace_01HQ",
+        userGoal: "图书馆开放到几点？",
+      }),
+    ).resolves.toEqual({
+      answerText: "图书馆开放到 22:00。",
+      error: null,
+      followUpQuestion: "",
+      result: null,
+      selectedTarget: null,
+      status: "completed",
+      traceId: "trace_01HQ",
+    });
+  });
+
+  it("preserves approval_required without forcing a specialist target", async () => {
+    const client = createSupervisorExecutionClient(
+      {
+        SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+        SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+      },
+      {
+        fetchImplementation: vi.fn().mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              answer_text: "该请求涉及需要人工确认的操作，必须先经过审批。",
+              error: null,
+              follow_up_question: "",
+              result: null,
+              selected_target: null,
+              status: "approval_required",
+              trace_id: "trace_01HQ",
+            }),
+            { status: 200 },
+          ),
+        ),
+      },
+    );
+
+    await expect(
+      client.execute({
+        actor: createActor(),
+        context: createContext(2),
+        conversationId: "conv_01HQ",
+        requestId: "req_01HQ",
+        traceId: "trace_01HQ",
+        userGoal: "帮我提交奖学金申请",
+      }),
+    ).resolves.toEqual({
+      answerText: "该请求涉及需要人工确认的操作，必须先经过审批。",
+      error: null,
+      followUpQuestion: "",
+      result: null,
+      selectedTarget: null,
+      status: "approval_required",
       traceId: "trace_01HQ",
     });
   });
@@ -137,16 +286,8 @@ describe("supervisor execution adapter", () => {
 
     await expect(
       client.execute({
-        actor: {
-          campusScope: "main",
-          departments: [],
-          groups: ["students"],
-          roles: ["student"],
-          snapshot: {
-            principal_type: "public_user",
-          },
-          userId: "user_01HQ",
-        },
+        actor: createActor(),
+        context: createContext(),
         conversationId: "conv_01HQ",
         requestId: "req_01HQ",
         traceId: "trace_01HQ",
@@ -171,16 +312,8 @@ describe("supervisor execution adapter", () => {
     );
 
     const pending = client.execute({
-      actor: {
-        campusScope: "main",
-        departments: [],
-        groups: ["students"],
-        roles: ["student"],
-        snapshot: {
-          principal_type: "public_user",
-        },
-        userId: "user_01HQ",
-      },
+      actor: createActor(),
+      context: createContext(),
       conversationId: "conv_01HQ",
       requestId: "req_01HQ",
       traceId: "trace_01HQ",
@@ -217,16 +350,8 @@ describe("supervisor execution adapter", () => {
 
     await expect(
       client.execute({
-        actor: {
-          campusScope: "main",
-          departments: [],
-          groups: ["students"],
-          roles: ["student"],
-          snapshot: {
-            principal_type: "public_user",
-          },
-          userId: "user_01HQ",
-        },
+        actor: createActor(),
+        context: createContext(),
         conversationId: "conv_01HQ",
         requestId: "req_01HQ",
         traceId: "trace_01HQ",

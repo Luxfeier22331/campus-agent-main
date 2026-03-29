@@ -45,6 +45,7 @@ ALLOWED_MEMORY_SOURCE_TYPES = (
     "system_inferred",
 )
 ALLOWED_MEMORY_VISIBILITIES = ("user_visible", "internal_only")
+DEFAULT_POLICY_PROJECTION_VERSION = "phase1-authorization-projection-v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,8 +122,52 @@ class SessionSummary:
 
 
 @dataclass(frozen=True, slots=True)
+class AuthorizedRetrievalFilter:
+    entitlement_groups: tuple[str, ...] = field(default_factory=tuple)
+    visibility_level: str = "public"
+    acl_groups: tuple[str, ...] = field(default_factory=tuple)
+    visibility_scope: str | None = None
+    campus_scope: str | None = None
+    policy_projection_version: str = DEFAULT_POLICY_PROJECTION_VERSION
+
+    def __post_init__(self) -> None:
+        entitlement_groups = self.entitlement_groups or self.acl_groups
+        acl_groups = self.acl_groups or self.entitlement_groups
+        visibility_scope = self.visibility_scope or self.campus_scope
+        campus_scope = self.campus_scope or self.visibility_scope
+        visibility_level = self.visibility_level.strip() or "public"
+        policy_projection_version = self.policy_projection_version.strip() or DEFAULT_POLICY_PROJECTION_VERSION
+
+        if entitlement_groups != self.entitlement_groups:
+            object.__setattr__(self, "entitlement_groups", entitlement_groups)
+        if acl_groups != self.acl_groups:
+            object.__setattr__(self, "acl_groups", acl_groups)
+        if visibility_scope != self.visibility_scope:
+            object.__setattr__(self, "visibility_scope", visibility_scope)
+        if campus_scope != self.campus_scope:
+            object.__setattr__(self, "campus_scope", campus_scope)
+        if visibility_level != self.visibility_level:
+            object.__setattr__(self, "visibility_level", visibility_level)
+        if policy_projection_version != self.policy_projection_version:
+            object.__setattr__(self, "policy_projection_version", policy_projection_version)
+
+
+@dataclass(frozen=True, slots=True)
+class AuthorizationProjection:
+    principal_id: str = ""
+    entitlement_snapshot_id: str = ""
+    entitlement_groups: tuple[str, ...] = field(default_factory=tuple)
+    visibility_scope: str | None = None
+    applicability_scope: str | None = None
+    ownership_scopes: tuple[str, ...] = field(default_factory=tuple)
+    approval_state: str = ""
+    retrieval_filter: AuthorizedRetrievalFilter = field(default_factory=AuthorizedRetrievalFilter)
+
+
+@dataclass(frozen=True, slots=True)
 class ContextProjection:
     actor: ActorContext = field(default_factory=ActorContext)
+    authorization: AuthorizationProjection = field(default_factory=AuthorizationProjection)
     profile_memory: ProfileMemorySummary = field(default_factory=ProfileMemorySummary)
     session: SessionSummary = field(default_factory=SessionSummary)
 
@@ -335,13 +380,35 @@ def _coerce_context_projection(request: SupervisorRequest | SpecialistRequest) -
     if request.actor == default_actor and request.context == default_context:
         return
     if request.context == default_context:
-        object.__setattr__(request, "context", ContextProjection(actor=request.actor))
+        object.__setattr__(
+            request,
+            "context",
+            ContextProjection(
+                actor=request.actor,
+                authorization=_build_authorization_projection_from_actor(request.actor),
+            ),
+        )
         return
     if request.actor == default_actor:
         object.__setattr__(request, "actor", request.context.actor)
         return
     if request.actor != request.context.actor:
         raise ValueError("actor and context.actor must match")
+
+
+def _build_authorization_projection_from_actor(actor: ActorContext) -> AuthorizationProjection:
+    if actor == ActorContext():
+        return AuthorizationProjection()
+    principal_id = actor.principal_id or actor.user_id
+    return AuthorizationProjection(
+        principal_id=principal_id,
+        entitlement_groups=actor.groups,
+        visibility_scope=actor.campus_scope,
+        retrieval_filter=AuthorizedRetrievalFilter(
+            entitlement_groups=actor.groups,
+            visibility_scope=actor.campus_scope,
+        ),
+    )
 
 
 def _validate_corpus(corpus: str) -> None:

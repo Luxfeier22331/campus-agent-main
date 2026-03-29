@@ -17,6 +17,33 @@ const env = {
   },
 };
 
+function createPublicPrincipal() {
+  return {
+    actor: {
+      campusScope: null,
+      departments: [],
+      groups: ["public_chat_users"],
+      principalId: "user_01HQ",
+      roles: ["public_user"],
+      userId: "user_01HQ",
+    },
+    permissions: {
+      chat: true,
+      operator: false,
+    },
+    principal: {
+      displayName: "Jane Doe",
+      email: "jane@example.edu",
+      principalId: "user_01HQ",
+      type: "public_user" as const,
+    },
+    session: {
+      expiresAt: "2026-03-29T07:00:00.000Z",
+      sessionId: "sess_01HQ",
+    },
+  };
+}
+
 describe("POST /api/chat/requests", () => {
   it("returns a product-layer answer payload plus request/trace headers", async () => {
     const service: ChatCommandService = {
@@ -42,32 +69,7 @@ describe("POST /api/chat/requests", () => {
     };
     const app = createApp(env, {
       chatCommandService: service,
-      getPrincipal: vi.fn().mockResolvedValue({
-        actor: {
-          campusScope: "main",
-          departments: [],
-          groups: ["students"],
-          roles: ["student"],
-          snapshot: {
-            principal_type: "public_user",
-          },
-          userId: "user_01HQ",
-        },
-        permissions: {
-          chat: true,
-          operator: false,
-        },
-        principal: {
-          displayName: "Jane Doe",
-          email: "jane@example.edu",
-          principalId: "user_01HQ",
-          type: "public_user",
-        },
-        session: {
-          expiresAt: "2026-03-29T07:00:00.000Z",
-          sessionId: "sess_01HQ",
-        },
-      }),
+      getPrincipal: vi.fn().mockResolvedValue(createPublicPrincipal()),
     });
 
     const response = await app.fetch(
@@ -158,32 +160,7 @@ describe("POST /api/chat/requests", () => {
           }),
         ),
       },
-      getPrincipal: vi.fn().mockResolvedValue({
-        actor: {
-          campusScope: "main",
-          departments: [],
-          groups: ["students"],
-          roles: ["student"],
-          snapshot: {
-            principal_type: "public_user",
-          },
-          userId: "user_01HQ",
-        },
-        permissions: {
-          chat: true,
-          operator: false,
-        },
-        principal: {
-          displayName: "Jane Doe",
-          email: "jane@example.edu",
-          principalId: "user_01HQ",
-          type: "public_user",
-        },
-        session: {
-          expiresAt: "2026-03-29T07:00:00.000Z",
-          sessionId: "sess_01HQ",
-        },
-      }),
+      getPrincipal: vi.fn().mockResolvedValue(createPublicPrincipal()),
     });
 
     const response = await app.fetch(

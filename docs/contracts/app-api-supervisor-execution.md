@@ -55,7 +55,7 @@ updated: 2026-03-29
 
 JSON 命名保持 `snake_case`，原因如下：
 
-- 当前 `apps/supervisor-api` 已以 Python-side `SupervisorRequest` / `SpecialistResponse` 为真相
+- 当前 `apps/supervisor-api` 已以 Python-side `SupervisorRequest` / `SupervisorResponse` 为真相
 - 这里是 internal execution seam，不是 browser product API
 - 这样可以减少 `app-api -> supervisor-api` 之间的翻译噪音
 
@@ -82,12 +82,27 @@ JSON 命名保持 `snake_case`，原因如下：
   "user_goal": "图书馆开放到几点？",
   "actor": {
     "user_id": "user_01HQ...",
+    "principal_id": "principal_01HQ...",
     "roles": ["student"],
     "departments": [],
     "groups": ["students"],
-    "campus_scope": "main",
-    "snapshot": {
-      "principal_type": "public_user"
+    "campus_scope": "main"
+  },
+  "context": {
+    "actor": {
+      "user_id": "user_01HQ...",
+      "principal_id": "principal_01HQ...",
+      "roles": ["student"],
+      "departments": [],
+      "groups": ["students"],
+      "campus_scope": "main"
+    },
+    "profile_memory": {
+      "items": []
+    },
+    "session": {
+      "confirmed_slots": [],
+      "turn_count": 0
     }
   },
   "requested_capability": "knowledge",
@@ -108,6 +123,8 @@ JSON 命名保持 `snake_case`，原因如下：
   来自产品层 prompt
 - `actor`
   由 `app-api` 从 session / trusted operator identity 映射而来，对齐 `packages/contracts.ActorContext`
+- `context`
+  由 `app-api` 显式投影的最小 `ContextProjection`；当前至少包含 `actor`、空的 `profile_memory.items` 与 `session.confirmed_slots`，以及 turn count 摘要
 - `requested_capability`
   当前允许 `knowledge` 或 `availability`
 - `requested_scope`
@@ -117,11 +134,11 @@ JSON 命名保持 `snake_case`，原因如下：
 
 ## Response Body
 
-`supervisor-api` 返回的最小成功 body 继续对齐 `SpecialistResponse + trace_id`：
+`supervisor-api` 返回的最小成功 body 继续对齐 `SupervisorResponse + trace_id`：
 
 ```json
 {
-  "target": "rag-specialist",
+  "selected_target": "rag-specialist",
   "status": "completed",
   "answer_text": "图书馆开放到 22:00。",
   "follow_up_question": "",
@@ -138,12 +155,14 @@ JSON 命名保持 `snake_case`，原因如下：
 - `needs_clarification`
 - `no_answer`
 - `error`
+- `approval_required`
+- `rejected`
 
 `app-api` 依赖的最小字段只有：
 
 - `status`
 - `trace_id`
-- `target`
+- `selected_target`
 - `answer_text`
 - `follow_up_question`
 - `error`
@@ -160,12 +179,13 @@ JSON 命名保持 `snake_case`，原因如下：
 
 - transport / admission / malformed execution request
   使用非 `200`
-- execution 已被受理并得到 typed `SpecialistResponse`
-  返回 `200`，由 body 内 `status` 区分 `completed` / `needs_clarification` / `no_answer` / `error`
+- execution 已被受理并得到 typed `SupervisorResponse`
+  返回 `200`，由 body 内 `status` 区分 `completed` / `needs_clarification` / `no_answer` / `error` / `approval_required` / `rejected`
 
 这意味着：
 
 - `app-api` 应把 `200 + status=error` 视为 execution-level handled outcome
+- `app-api` 应保留 `approval_required` / `rejected` 作为 runtime / panel projection 的最终状态，即使 browser chat surface 折叠为 `error`
 - `app-api` 不应把所有非理想执行结果都折叠成 transport error
 
 ## Current Compatibility Note
@@ -175,7 +195,7 @@ JSON 命名保持 `snake_case`，原因如下：
 shared `app-api` 落地时，需要把 execution-side caller contract 收口为：
 
 - internal caller admission 仍由 runtime header 保证
-- `actor` 由 `app-api` 显式提供
+- `actor` 与最小 `context` 由 `app-api` 显式提供
 - `supervisor-api` 不再依赖 Cloudflare Access JWT 或 edge identity header 来恢复最终业务 actor
 
 因此：

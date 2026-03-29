@@ -24,12 +24,8 @@ function createOperatorPrincipal(): ResolvedAppPrincipal {
       campusScope: "main",
       departments: ["ops"],
       groups: ["panel"],
+      principalId: "ops@example.com",
       roles: ["operator"],
-      snapshot: {
-        display_name: "Ops Team",
-        email: "ops@example.com",
-        principal_type: "operator",
-      },
       userId: "ops@example.com",
     },
     permissions: {
@@ -43,6 +39,33 @@ function createOperatorPrincipal(): ResolvedAppPrincipal {
       type: "operator",
     },
     session: null,
+  };
+}
+
+function createPublicPrincipal(): ResolvedAppPrincipal {
+  return {
+    actor: {
+      campusScope: null,
+      departments: [],
+      groups: ["public_chat_users"],
+      principalId: "user_01HQ",
+      roles: ["public_user"],
+      userId: "user_01HQ",
+    },
+    permissions: {
+      chat: true,
+      operator: false,
+    },
+    principal: {
+      displayName: "Jane Doe",
+      email: "jane@example.edu",
+      principalId: "user_01HQ",
+      type: "public_user",
+    },
+    session: {
+      expiresAt: "2026-03-29T07:00:00.000Z",
+      sessionId: "sess_01HQ",
+    },
   };
 }
 
@@ -238,32 +261,7 @@ describe("official web operator query routes", () => {
     expect(anonymous.status).toBe(401);
 
     const forbidden = await createApp(env, {
-      getPrincipal: vi.fn().mockResolvedValue({
-        actor: {
-          campusScope: "main",
-          departments: [],
-          groups: ["students"],
-          roles: ["student"],
-          snapshot: {
-            principal_type: "public_user",
-          },
-          userId: "user_01HQ",
-        },
-        permissions: {
-          chat: true,
-          operator: false,
-        },
-        principal: {
-          displayName: "Jane Doe",
-          email: "jane@example.edu",
-          principalId: "user_01HQ",
-          type: "public_user",
-        },
-        session: {
-          expiresAt: "2026-03-29T07:00:00.000Z",
-          sessionId: "sess_01HQ",
-        },
-      }),
+      getPrincipal: vi.fn().mockResolvedValue(createPublicPrincipal()),
       officialWebQueryService: service,
     }).fetch(new Request("https://app-api.internal/api/operator/official-web/runs"));
     expect(forbidden.status).toBe(403);

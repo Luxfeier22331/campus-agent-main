@@ -30,13 +30,14 @@ function toExecutionProjectionSource(
   row: typeof requestExecution.$inferSelect,
 ): RequestExecutionProjectionSource {
   return {
-    actorSnapshot: row.actorSnapshotJson,
-    actorUserId: row.actorUserId,
     answerPreview: row.answerPreview ?? null,
     completedAt: toIsoString(row.completedAt),
     conversationId: row.conversationId,
     durationMs: row.durationMs ?? null,
     errorCode: row.errorCode ?? null,
+    principalId: row.actorPrincipalId,
+    principalLabel: row.principalLabel ?? null,
+    principalType: row.principalType,
     questionPreview: row.questionPreview,
     requestId: row.requestId,
     requestedCapability: row.requestedCapability ?? null,

@@ -26,16 +26,20 @@ import {
   RequestSurfaceLabel,
 } from "./request-presenters";
 
+export const REQUEST_STATUS_CHOICES = [
+  { id: "accepted", name: "Accepted" },
+  { id: "completed", name: "Completed" },
+  { id: "needs_clarification", name: "Needs clarification" },
+  { id: "approval_required", name: "Approval required" },
+  { id: "rejected", name: "Rejected" },
+  { id: "no_answer", name: "No answer" },
+  { id: "error", name: "Error" },
+];
+
 const requestFilters = [
   <TextInput alwaysOn key="requestId" label="Request ID" source="requestId" />,
   <SelectInput
-    choices={[
-      { id: "accepted", name: "Accepted" },
-      { id: "completed", name: "Completed" },
-      { id: "needs_clarification", name: "Needs clarification" },
-      { id: "no_answer", name: "No answer" },
-      { id: "error", name: "Error" },
-    ]}
+    choices={REQUEST_STATUS_CHOICES}
     emptyText="All statuses"
     key="status"
     label="Status"

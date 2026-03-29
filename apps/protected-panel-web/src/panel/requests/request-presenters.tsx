@@ -14,7 +14,9 @@ function statusChipColor(
     case "completed":
       return "success";
     case "needs_clarification":
+    case "approval_required":
       return "warning";
+    case "rejected":
     case "error":
       return "error";
     case "accepted":

@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-03-29
 ---
 
 # App API Schema
@@ -161,11 +161,13 @@ updated: 2026-03-28
 - `assistant_message_id` nullable
 - `surface`
 - `actor_user_id`
+- `actor_principal_id`
 - `actor_roles_json`
 - `actor_departments_json`
 - `actor_groups_json`
 - `actor_campus_scope` nullable
-- `actor_snapshot_json`
+- `principal_type`
+- `principal_label` nullable
 - `idempotency_key` nullable
 - `request_fingerprint_sha256` nullable
 - `trace_id`
@@ -196,12 +198,15 @@ updated: 2026-03-28
 - `needs_clarification`
 - `no_answer`
 - `error`
+- `approval_required`
+- `rejected`
 
 规则：
 
 - 这是 panel request truth 的上游 command-side owner
 - 首轮 lazy-create 请求在分配 canonical conversation id 之前，允许用稳定的 new-conversation discriminator 参与 `request_fingerprint_sha256` 计算
 - `question_preview` / `answer_preview` 是 projection-friendly 摘要，不要求保存 raw full prompt / raw full answer
+- `principal_type` / `principal_label` 是 command-side 落盘后的最小 operator projection metadata；不要再把 raw auth/session snapshot 宽 JSON 写入这里
 - `requested_scope_json` 与 `source_doc_ids_json` 使用结构化 JSON，不把 Python-side payload 原样塞进宽 JSON dump
 
 ## `runtime.projection_outbox`

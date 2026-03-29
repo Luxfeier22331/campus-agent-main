@@ -30,6 +30,10 @@ export function formatStatusLabel(status: string) {
       return "Completed";
     case "needs_clarification":
       return "Needs clarification";
+    case "approval_required":
+      return "Approval required";
+    case "rejected":
+      return "Rejected";
     case "no_answer":
       return "No answer";
     case "error":

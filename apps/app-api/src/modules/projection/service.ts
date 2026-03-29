@@ -15,8 +15,9 @@ export interface RequestExecutionProjectionSource {
   traceId: string;
   surface: string;
   conversationId: string;
-  actorUserId: string;
-  actorSnapshot: Record<string, unknown>;
+  principalId: string;
+  principalType: string;
+  principalLabel: string | null;
   requestedCapability: string | null;
   requestedScope: Record<string, unknown> | null;
   selectedTarget: string | null;
@@ -81,21 +82,6 @@ const MAX_PROJECTION_ATTEMPTS = 5;
 const PROJECTION_RETRY_BASE_DELAY_MS = 5_000;
 const PROJECTION_RETRY_MAX_DELAY_MS = 5 * 60_000;
 
-function normalizePrincipalType(snapshot: Record<string, unknown>): string {
-  const value = snapshot.principal_type;
-  return typeof value === "string" && value.trim() ? value : "unknown";
-}
-
-function normalizePrincipalLabel(snapshot: Record<string, unknown>): string | null {
-  const displayName = snapshot.display_name;
-  if (typeof displayName === "string" && displayName.trim()) {
-    return displayName;
-  }
-
-  const email = snapshot.email;
-  return typeof email === "string" && email.trim() ? email : null;
-}
-
 function computeRetryDelayMs(attemptCount: number): number {
   return Math.min(
     PROJECTION_RETRY_BASE_DELAY_MS * 2 ** Math.max(0, attemptCount - 1),
@@ -113,9 +99,9 @@ export function toRequestProjectionMaterialization(input: {
     conversationId: input.execution.conversationId,
     durationMs: input.execution.durationMs,
     errorCode: input.execution.errorCode,
-    principalId: input.execution.actorUserId,
-    principalLabel: normalizePrincipalLabel(input.execution.actorSnapshot),
-    principalType: normalizePrincipalType(input.execution.actorSnapshot),
+    principalId: input.execution.principalId,
+    principalLabel: input.execution.principalLabel,
+    principalType: input.execution.principalType,
     projectedAt: input.projectedAt,
     questionPreview: input.execution.questionPreview,
     requestId: input.execution.requestId,
@@ -172,7 +158,9 @@ export function buildRequestProjectionProjector(
               : new Date(now().valueOf() + computeRetryDelayMs(nextAttemptCount)).toISOString(),
             eventId: event.eventId,
             lastError:
-              error instanceof Error ? error.message : "Unexpected projection materialization failure.",
+              error instanceof Error
+                ? error.message
+                : "Unexpected projection materialization failure.",
             processedAt: terminalFailure ? projectedAt : null,
           });
           failed += 1;

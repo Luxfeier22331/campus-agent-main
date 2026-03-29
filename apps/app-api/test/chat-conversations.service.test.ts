@@ -17,10 +17,8 @@ function createPrincipal(
       campusScope: "main",
       departments: [],
       groups: ["students"],
+      principalId: "user_01HQ",
       roles: ["student"],
-      snapshot: {
-        principal_type: "public_user",
-      },
       userId: "user_01HQ",
     },
     permissions: {

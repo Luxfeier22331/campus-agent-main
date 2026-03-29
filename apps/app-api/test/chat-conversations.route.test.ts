@@ -25,13 +25,11 @@ const env = {
 function createPublicPrincipal() {
   return {
     actor: {
-      campusScope: "main",
+      campusScope: null,
       departments: [],
-      groups: ["students"],
-      roles: ["student"],
-      snapshot: {
-        principal_type: "public_user",
-      },
+      groups: ["public_chat_users"],
+      principalId: "user_01HQ",
+      roles: ["public_user"],
       userId: "user_01HQ",
     },
     permissions: {

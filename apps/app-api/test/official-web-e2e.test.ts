@@ -58,12 +58,8 @@ function createOperatorPrincipal(): ResolvedAppPrincipal {
       campusScope: "main",
       departments: ["ops"],
       groups: ["panel"],
+      principalId: "ops@example.com",
       roles: ["operator"],
-      snapshot: {
-        display_name: "Ops Team",
-        email: "ops@example.com",
-        principal_type: "operator",
-      },
       userId: "ops@example.com",
     },
     permissions: {

@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 
 import { AppApiRouteError } from "../../http";
-import type { ResolvedAppPrincipal } from "../auth";
+import { buildExecutionAuthorizationContext, type ResolvedAppPrincipal } from "../auth";
 import {
   DRAFT_CONVERSATION_TITLE,
   toConversationResponse,
@@ -143,6 +143,24 @@ function buildConversationTitle(currentTitle: string, prompt: string): string {
   return previewText(prompt, 48);
 }
 
+function buildSupervisorContextProjection(input: {
+  actor: ResolvedAppPrincipal["actor"];
+  authorization?: ResolvedAppPrincipal["authorization"];
+  turnCount: number;
+}) {
+  return {
+    actor: input.actor,
+    authorization: input.authorization ?? buildExecutionAuthorizationContext(input.actor),
+    profileMemory: {
+      items: [],
+    },
+    session: {
+      confirmedSlots: [],
+      turnCount: Math.max(0, Math.floor(input.turnCount)),
+    },
+  };
+}
+
 function extractSourceDocIds(result: unknown): string[] {
   if (!result || typeof result !== "object") {
     return [];
@@ -257,11 +275,13 @@ function buildAcceptedWrite(input: {
       assistantMessageId: null,
       surface: "public_chat_web",
       actorUserId: input.principal.actor.userId,
+      actorPrincipalId: input.principal.actor.principalId,
       actorRoles: input.principal.actor.roles,
       actorDepartments: input.principal.actor.departments,
       actorGroups: input.principal.actor.groups,
       actorCampusScope: input.principal.actor.campusScope,
-      actorSnapshot: input.principal.actor.snapshot,
+      principalType: input.principal.principal.type,
+      principalLabel: input.principal.principal.displayName,
       idempotencyKey: input.idempotencyKey,
       requestFingerprintSha256: input.requestFingerprintSha256,
       traceId: input.traceId,
@@ -313,8 +333,8 @@ function toHandledErrorTransportOutcome(
   };
   followUpQuestion: string;
   result: null;
+  selectedTarget: null;
   status: "error";
-  target: string;
   traceId: string;
 } {
   if (error instanceof SupervisorTransportError) {
@@ -327,8 +347,8 @@ function toHandledErrorTransportOutcome(
       },
       followUpQuestion: "",
       result: null,
+      selectedTarget: null,
       status: "error",
-      target: "rag-specialist",
       traceId: "",
     };
   }
@@ -342,8 +362,8 @@ function toHandledErrorTransportOutcome(
     },
     followUpQuestion: "",
     result: null,
+    selectedTarget: null,
     status: "error",
-    target: "rag-specialist",
     traceId: "",
   };
 }
@@ -396,13 +416,31 @@ function buildFinalizedWrite(input: {
       traceId: normalizedTraceId,
     };
     status = "no_answer";
-  } else if (input.response.status === "error") {
+  } else if (
+    input.response.status === "error" ||
+    input.response.status === "approval_required" ||
+    input.response.status === "rejected"
+  ) {
     assistantKind = "error";
     assistantText =
-      input.response.error?.message || input.response.answerText || "The request could not be completed.";
-    errorCode = input.response.error?.code ?? "internal_error";
-    retryable = input.response.error?.retryable ?? true;
-    outboxEventType = "request.error";
+      input.response.error?.message ||
+      input.response.answerText ||
+      (input.response.status === "approval_required"
+        ? "The request requires approval before it can continue."
+        : input.response.status === "rejected"
+          ? "The request was rejected by supervisor policy."
+          : "The request could not be completed.");
+    errorCode =
+      input.response.error?.code ??
+      (input.response.status === "approval_required"
+        ? "approval_required"
+        : input.response.status === "rejected"
+          ? "request_rejected"
+          : "internal_error");
+    retryable =
+      input.response.error?.retryable ??
+      (input.response.status === "error");
+    outboxEventType = `request.${input.response.status}`;
     result = {
       kind: "error",
       message: assistantText,
@@ -411,7 +449,7 @@ function buildFinalizedWrite(input: {
       retryable,
       traceId: normalizedTraceId,
     };
-    status = "error";
+    status = input.response.status;
   } else {
     assistantKind = "answer";
     assistantText = input.response.answerText;
@@ -447,17 +485,19 @@ function buildFinalizedWrite(input: {
       assistantMessageId: input.assistantMessageId,
       surface: "public_chat_web",
       actorUserId: input.conversation.ownerUserId,
+      actorPrincipalId: input.conversation.ownerUserId,
       actorRoles: [],
       actorDepartments: [],
       actorGroups: [],
       actorCampusScope: null,
-      actorSnapshot: {},
+      principalType: "public_user",
+      principalLabel: null,
       idempotencyKey: null,
       requestFingerprintSha256: null,
       traceId: normalizedTraceId,
       requestedCapability: "knowledge",
       requestedScope: DEFAULT_REQUESTED_SCOPE,
-      selectedTarget: input.response.target,
+      selectedTarget: input.response.selectedTarget,
       status,
       errorCode,
       questionPreview: "",
@@ -478,7 +518,7 @@ function buildFinalizedWrite(input: {
         traceId: normalizedTraceId,
         conversationId: input.conversation.id,
         status,
-        selectedTarget: input.response.target,
+        selectedTarget: input.response.selectedTarget,
         answerPreview: previewText(assistantText),
         errorCode,
         sourceDocIds,
@@ -681,7 +721,11 @@ export function buildChatCommandService(
 
       try {
         executionResponse = await dependencies.supervisor.execute({
-          actor: input.principal.actor,
+          context: buildSupervisorContextProjection({
+            actor: input.principal.actor,
+            authorization: input.principal.authorization,
+            turnCount: conversation.messages.length,
+          }),
           conversationId: conversation.id,
           requestId,
           requestedCapability: validatedPayload.requestedCapability,
@@ -731,11 +775,13 @@ export function buildChatCommandService(
 
       finalized.write.requestExecution.userMessageId = userMessageId;
       finalized.write.requestExecution.actorUserId = input.principal.actor.userId;
+      finalized.write.requestExecution.actorPrincipalId = input.principal.actor.principalId;
       finalized.write.requestExecution.actorRoles = input.principal.actor.roles;
       finalized.write.requestExecution.actorDepartments = input.principal.actor.departments;
       finalized.write.requestExecution.actorGroups = input.principal.actor.groups;
       finalized.write.requestExecution.actorCampusScope = input.principal.actor.campusScope;
-      finalized.write.requestExecution.actorSnapshot = input.principal.actor.snapshot;
+      finalized.write.requestExecution.principalType = input.principal.principal.type;
+      finalized.write.requestExecution.principalLabel = input.principal.principal.displayName;
       finalized.write.requestExecution.idempotencyKey = idempotencyKey;
       finalized.write.requestExecution.requestFingerprintSha256 = requestFingerprintSha256;
       finalized.write.requestExecution.questionPreview = previewText(validatedPayload.prompt);
@@ -766,7 +812,9 @@ export function buildChatCommandService(
           | "completed"
           | "error"
           | "needs_clarification"
-          | "no_answer",
+          | "no_answer"
+          | "approval_required"
+          | "rejected",
         surface: "public_chat_web",
         traceId: finalized.write.requestExecution.traceId,
       });

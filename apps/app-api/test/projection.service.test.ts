@@ -13,16 +13,14 @@ function createExecutionSource(
   overrides: Partial<RequestExecutionProjectionSource> = {},
 ): RequestExecutionProjectionSource {
   return {
-    actorSnapshot: {
-      display_name: "Jane Doe",
-      principal_type: "public_user",
-    },
-    actorUserId: "user_01HQ",
     answerPreview: "图书馆开放到 22:00。",
     completedAt: "2026-03-28T08:00:01.000Z",
     conversationId: "conv_01HQ",
     durationMs: 842,
     errorCode: null,
+    principalId: "user_01HQ",
+    principalLabel: "Jane Doe",
+    principalType: "public_user",
     projectedAtHint: "2026-03-28T08:00:02.000Z",
     questionPreview: "图书馆开放到几点？",
     requestId: "req_01HQ",

@@ -1203,6 +1203,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "actor_principal_id": {
+          "name": "actor_principal_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "actor_roles_json": {
           "name": "actor_roles_json",
           "type": "jsonb",
@@ -1227,11 +1233,17 @@
           "primaryKey": false,
           "notNull": false
         },
-        "actor_snapshot_json": {
-          "name": "actor_snapshot_json",
-          "type": "jsonb",
+        "principal_type": {
+          "name": "principal_type",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "principal_label": {
+          "name": "principal_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "idempotency_key": {
           "name": "idempotency_key",

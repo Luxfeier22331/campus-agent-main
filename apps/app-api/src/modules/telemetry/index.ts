@@ -82,7 +82,13 @@ export interface AppTelemetry {
       retryable: boolean | null;
       selectedTarget: string | null;
       sourceDocIds: string[];
-      status: "completed" | "error" | "needs_clarification" | "no_answer";
+      status:
+        | "completed"
+        | "error"
+        | "needs_clarification"
+        | "no_answer"
+        | "approval_required"
+        | "rejected";
     },
   ): Promise<void>;
   recordRequestTransportError(

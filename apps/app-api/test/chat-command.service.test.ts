@@ -14,6 +14,26 @@ import {
 import type { SupervisorExecutionClient } from "../src/modules/integration/supervisor";
 import type { AppTelemetry } from "../src/modules/telemetry";
 
+function createAuthorization() {
+  return {
+    applicabilityScope: "undergraduate",
+    approvalState: "not_required",
+    entitlementGroups: ["students"],
+    entitlementSnapshotId: "entitlements-2026-03-29",
+    ownershipScopes: ["conversation:user_01HQ"],
+    principalId: "user_01HQ",
+    retrievalFilter: {
+      aclGroups: ["students"],
+      campusScope: "main",
+      entitlementGroups: ["students"],
+      policyProjectionVersion: "phase1-authorization-projection-v1",
+      visibilityLevel: "public",
+      visibilityScope: "main",
+    },
+    visibilityScope: "main",
+  };
+}
+
 function createPrincipal(): ResolvedAppPrincipal {
   return {
     principal: {
@@ -30,15 +50,14 @@ function createPrincipal(): ResolvedAppPrincipal {
       chat: true,
       operator: false,
     },
+    authorization: createAuthorization(),
     actor: {
       userId: "user_01HQ",
+      principalId: "user_01HQ",
       roles: ["student"],
       departments: [],
       groups: ["students"],
       campusScope: "main",
-      snapshot: {
-        principal_type: "public_user",
-      },
     },
   };
 }
@@ -167,8 +186,8 @@ describe("chat command service", () => {
             sources: [{ doc_id: "handbook:library-hours" }],
           },
         },
+        selectedTarget: "rag-specialist",
         status: "completed",
-        target: "rag-specialist",
         traceId: "trace_0002",
       }),
     };
@@ -197,8 +216,18 @@ describe("chat command service", () => {
     });
 
     expect(supervisor.execute).toHaveBeenCalledWith({
-      actor: createPrincipal().actor,
       conversationId: "conv_01HQ",
+      context: {
+        actor: createPrincipal().actor,
+        authorization: createPrincipal().authorization,
+        profileMemory: {
+          items: [],
+        },
+        session: {
+          confirmedSlots: [],
+          turnCount: 0,
+        },
+      },
       requestId: "req_0001",
       requestedCapability: "knowledge",
       requestedScope: {
@@ -225,14 +254,20 @@ describe("chat command service", () => {
         eventType: "request.accepted",
       },
       requestExecution: {
+        actorPrincipalId: "user_01HQ",
         actorUserId: "user_01HQ",
         idempotencyKey: "idem-001",
+        principalLabel: "Jane Doe",
+        principalType: "public_user",
         questionPreview: "图书馆开放到几点？",
         requestId: "req_0001",
         status: "accepted",
         traceId: "trace_0001",
       },
     });
+    expect(
+      (acceptedWrites[0] as { requestExecution: Record<string, unknown> }).requestExecution,
+    ).not.toHaveProperty("actorSnapshot");
     expect(finalWrites).toHaveLength(1);
     expect(finalWrites[0]).toMatchObject({
       assistantMessage: {
@@ -246,6 +281,7 @@ describe("chat command service", () => {
       },
       requestExecution: {
         answerPreview: "图书馆开放到 22:00。",
+        actorPrincipalId: "user_01HQ",
         requestId: "req_0001",
         selectedTarget: "rag-specialist",
         sourceDocIds: ["handbook:library-hours"],
@@ -328,8 +364,8 @@ describe("chat command service", () => {
             error: null,
             followUpQuestion: "你要问哪个校区？",
             result: null,
+            selectedTarget: "rag-specialist",
             status: "needs_clarification",
-            target: "rag-specialist",
             traceId: "trace_0002",
           }),
       },
@@ -345,8 +381,8 @@ describe("chat command service", () => {
           error: null,
           followUpQuestion: "",
           result: null,
+          selectedTarget: "rag-specialist",
           status: "no_answer",
-          target: "rag-specialist",
           traceId: "trace_0002",
         }),
       },
@@ -395,6 +431,119 @@ describe("chat command service", () => {
         status: "no_answer",
       },
     });
+  });
+
+  it("maps approval_required and rejected into chat-visible errors while preserving runtime statuses", async () => {
+    const approvalStore = createCommandStore();
+    const rejectedStore = createCommandStore();
+    const approvalTelemetry = createTelemetryMock();
+    const rejectedTelemetry = createTelemetryMock();
+    const approvalService = buildChatCommandService({
+      generateId: createDeterministicIdGenerator(),
+      now: () => new Date("2026-03-28T08:00:00.000Z"),
+      conversationStore: createConversationStore().store,
+      store: approvalStore.store,
+      supervisor: {
+        execute: vi.fn().mockResolvedValue({
+          answerText: "该请求涉及需要人工确认的操作，必须先经过审批。",
+          error: null,
+          followUpQuestion: "",
+          result: null,
+          selectedTarget: null,
+          status: "approval_required",
+          traceId: "trace_0002",
+        }),
+      },
+      telemetry: approvalTelemetry,
+    });
+    const rejectedService = buildChatCommandService({
+      generateId: createDeterministicIdGenerator(),
+      now: () => new Date("2026-03-28T08:00:00.000Z"),
+      conversationStore: createConversationStore().store,
+      store: rejectedStore.store,
+      supervisor: {
+        execute: vi.fn().mockResolvedValue({
+          answerText: "",
+          error: {
+            code: "request_rejected",
+            message: "request was rejected by supervisor policy",
+            retryable: false,
+          },
+          followUpQuestion: "",
+          result: null,
+          selectedTarget: null,
+          status: "rejected",
+          traceId: "trace_0002",
+        }),
+      },
+      telemetry: rejectedTelemetry,
+    });
+
+    const approvalRequired = await approvalService.submit({
+      payload: {
+        conversationId: "conv_01HQ",
+        prompt: "帮我提交奖学金申请",
+      },
+      principal: createPrincipal(),
+    });
+    const rejected = await rejectedService.submit({
+      payload: {
+        conversationId: "conv_01HQ",
+        prompt: "直接替我发邮件给教务处",
+      },
+      principal: createPrincipal(),
+    });
+
+    expect(approvalRequired.answer.result).toEqual({
+      errorCode: "approval_required",
+      kind: "error",
+      message: "该请求涉及需要人工确认的操作，必须先经过审批。",
+      requestId: "req_0001",
+      retryable: false,
+      traceId: "trace_0002",
+    });
+    expect(approvalStore.finalWrites[0]).toMatchObject({
+      outboxEvent: {
+        eventType: "request.approval_required",
+      },
+      requestExecution: {
+        selectedTarget: null,
+        status: "approval_required",
+      },
+    });
+    expect(approvalTelemetry.recordRequestFinalized).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestId: "req_0001",
+        selectedTarget: null,
+        status: "approval_required",
+      }),
+    );
+
+    expect(rejected.answer.result).toEqual({
+      errorCode: "request_rejected",
+      kind: "error",
+      message: "request was rejected by supervisor policy",
+      requestId: "req_0001",
+      retryable: false,
+      traceId: "trace_0002",
+    });
+    expect(rejectedStore.finalWrites[0]).toMatchObject({
+      outboxEvent: {
+        eventType: "request.rejected",
+      },
+      requestExecution: {
+        errorCode: "request_rejected",
+        selectedTarget: null,
+        status: "rejected",
+      },
+    });
+    expect(rejectedTelemetry.recordRequestFinalized).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestId: "req_0001",
+        selectedTarget: null,
+        status: "rejected",
+      }),
+    );
   });
 
   it("finalizes a handled execution error when the supervisor transport fails after accept", async () => {
@@ -621,8 +770,8 @@ describe("chat command service", () => {
             sources: [],
           },
         },
+        selectedTarget: "rag-specialist",
         status: "completed",
-        target: "rag-specialist",
         traceId: "trace_0001",
       }),
     };
