@@ -1,21 +1,34 @@
 from __future__ import annotations
 
+import re
 from typing import Callable
 
 from campus_contracts import (
     ErrorInfo,
+    EvidenceBundle,
+    EvidenceSource,
     RagRequestPayload,
     RagResultPayload,
     SpecialistRequest,
     SpecialistResponse,
 )
 from campus_retrieval_core import CorpusQueryDisabledError, RetrievalBackendError, retrieve_sources
+from campus_retrieval_core.evidence_ranking import query_targets_source_title, select_supporting_evidence_sources
 
-from campus_rag_specialist.agent import RagSpecialistAgent
+from campus_rag_specialist.agent import DEFAULT_MAX_ANSWER_SOURCES, RagSpecialistAgent
 from campus_rag_specialist.confidence import derive_confidence
+from campus_rag_specialist.intent import build_personalization_hint, frame_rag_intent
 
 
 Retriever = Callable[..., object]
+_GENERIC_AMBIGUOUS_TOPICS = ("奖学金", "scholarship", "学位", "degree", "规定", "办法", "policy", "流程", "procedure")
+_GENERIC_TOPIC_QUALIFIERS = {
+    "奖学金": ("国家", "励志", "专业", "专项", "社会", "助学金"),
+    "scholarship": ("national", "professional", "special", "grant"),
+    "学位": ("学士", "硕士", "博士", "本科"),
+    "degree": ("bachelor", "master", "doctoral", "phd"),
+}
+_WHITESPACE_RE = re.compile(r"\s+")
 
 
 def delegate_to_rag_agent(
@@ -29,11 +42,20 @@ def delegate_to_rag_agent(
         raise TypeError("rag-specialist requires RagRequestPayload")
 
     user_goal = request.user_goal.strip()
-    if not user_goal:
+    intent_frame = frame_rag_intent(request)
+    personalization_hint = build_personalization_hint(request)
+    if intent_frame.response_mode == "clarify":
+        empty_evidence = _build_empty_evidence(request, user_goal)
         return SpecialistResponse(
             target="rag-specialist",
             status="needs_clarification",
-            follow_up_question="Please clarify what you want to know from the student handbook.",
+            confidence="low",
+            follow_up_question=_build_clarification_question(
+                user_goal,
+                empty_evidence,
+                recent_goal=personalization_hint.recent_goal,
+            ),
+            result=RagResultPayload(evidence=empty_evidence),
         )
 
     try:
@@ -43,12 +65,16 @@ def delegate_to_rag_agent(
             collection=request.payload.scope.collection,
             campus_scope=request.actor.campus_scope,
             acl_groups=request.actor.groups,
+            authorized_filter=request.context.authorization.retrieval_filter,
+            personalization_hint=personalization_hint,
         )
+        evidence = _with_query_text(evidence, user_goal)
     except CorpusQueryDisabledError as exc:
         return SpecialistResponse(
             target="rag-specialist",
             status="error",
             confidence="low",
+            result=RagResultPayload(evidence=_build_empty_evidence(request, user_goal)),
             error=ErrorInfo(code="corpus_not_query_enabled", message=str(exc), retryable=False),
         )
     except RetrievalBackendError as exc:
@@ -56,6 +82,7 @@ def delegate_to_rag_agent(
             target="rag-specialist",
             status="error",
             confidence="low",
+            result=RagResultPayload(evidence=_build_empty_evidence(request, user_goal)),
             error=ErrorInfo(code="retrieval_failed", message=str(exc), retryable=False),
         )
     if not evidence.sources:
@@ -65,12 +92,135 @@ def delegate_to_rag_agent(
             confidence="low",
             result=RagResultPayload(evidence=evidence),
         )
+    if _should_clarify_with_evidence(user_goal, evidence):
+        return SpecialistResponse(
+            target="rag-specialist",
+            status="needs_clarification",
+            confidence="low",
+            follow_up_question=_build_clarification_question(
+                user_goal,
+                evidence,
+                recent_goal=personalization_hint.recent_goal,
+            ),
+            result=RagResultPayload(evidence=evidence),
+        )
+
+    supporting_evidence = _build_supporting_evidence(evidence)
+    if not supporting_evidence.sources:
+        return SpecialistResponse(
+            target="rag-specialist",
+            status="no_answer",
+            confidence="low",
+            result=RagResultPayload(evidence=supporting_evidence),
+        )
+
+    confidence = derive_confidence(supporting_evidence)
+    if confidence == "low":
+        return SpecialistResponse(
+            target="rag-specialist",
+            status="no_answer",
+            confidence="low",
+            result=RagResultPayload(evidence=supporting_evidence),
+        )
 
     agent = RagSpecialistAgent()
     return SpecialistResponse(
         target="rag-specialist",
         status="completed",
-        answer_text=agent.compose_answer(evidence),
-        confidence=derive_confidence(evidence),
-        result=RagResultPayload(evidence=evidence),
+        answer_text=agent.compose_answer(supporting_evidence),
+        confidence=confidence,
+        result=RagResultPayload(evidence=supporting_evidence),
     )
+
+
+def _build_empty_evidence(request: SpecialistRequest, user_goal: str) -> EvidenceBundle:
+    return EvidenceBundle(
+        query_text=user_goal,
+        corpus=request.payload.scope.corpus,
+        collection=request.payload.scope.collection,
+    )
+
+
+def _build_supporting_evidence(evidence: EvidenceBundle) -> EvidenceBundle:
+    return EvidenceBundle(
+        query_text=evidence.query_text,
+        corpus=evidence.corpus,
+        collection=evidence.collection,
+        sources=select_supporting_evidence_sources(
+            query_text=evidence.query_text,
+            sources=evidence.sources,
+            max_sources=DEFAULT_MAX_ANSWER_SOURCES,
+        ),
+    )
+
+
+def _with_query_text(evidence: EvidenceBundle, query_text: str) -> EvidenceBundle:
+    return EvidenceBundle(
+        query_text=query_text,
+        corpus=evidence.corpus,
+        collection=evidence.collection,
+        sources=evidence.sources,
+    )
+
+
+def _should_clarify_with_evidence(user_goal: str, evidence: EvidenceBundle) -> bool:
+    if len(evidence.sources) < 2:
+        return False
+    if any(query_targets_source_title(query_text=user_goal, source=source) for source in evidence.sources):
+        return False
+
+    first_source = evidence.sources[0]
+    second_source = next(
+        (source for source in evidence.sources[1:] if source.doc_id != first_source.doc_id),
+        None,
+    )
+    if second_source is None:
+        return False
+
+    normalized_goal = _normalize_text(user_goal).lower()
+    if not any(topic in normalized_goal for topic in _GENERIC_AMBIGUOUS_TOPICS):
+        return False
+
+    first_label = _source_label(first_source).lower()
+    second_label = _source_label(second_source).lower()
+    if (first_label and first_label in normalized_goal) or (second_label and second_label in normalized_goal):
+        return False
+
+    return abs(first_source.score - second_source.score) <= 0.12
+
+
+def _build_clarification_question(
+    user_goal: str,
+    evidence: EvidenceBundle,
+    *,
+    recent_goal: str = "",
+) -> str:
+    if recent_goal:
+        return f"按当前记录理解，你最近在咨询{recent_goal}相关事项；请再具体说明你想确认的政策对象。"
+    if evidence.sources:
+        labels: list[str] = []
+        for source in evidence.sources:
+            label = _source_label(source)
+            if label and label not in labels:
+                labels.append(label)
+            if len(labels) >= 3:
+                break
+        if labels:
+            return f"请说明你想咨询哪一项内容。当前相关结果包括：{'、'.join(labels)}。"
+    if "奖学金" in user_goal or "scholarship" in user_goal.lower():
+        return "请说明你想咨询哪一类奖学金或对应的评审办法。"
+    if evidence.corpus == "curriculum" and evidence.collection == "curriculum_plan":
+        return "请具体说明你想咨询哪一份培养方案、哪一类学位要求，或哪一张课程/教学进程表。"
+    return "请具体说明你想咨询学生手册中的哪一项制度、流程或表格。"
+
+
+def _source_label(source: EvidenceSource) -> str:
+    snippet = _normalize_text(source.snippet)
+    for separator in (" | ", " / "):
+        if separator in snippet:
+            return snippet.split(separator, 1)[0].strip()
+    return snippet.split("。", 1)[0].strip()
+
+
+def _normalize_text(text: str) -> str:
+    return _WHITESPACE_RE.sub(" ", text).strip()

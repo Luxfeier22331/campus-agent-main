@@ -1,0 +1,35 @@
+{
+  "name": "app-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared Worker-native application backend for campus-agent v2.",
+  "packageManager": "pnpm@10.26.1",
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "dev": "XDG_CONFIG_HOME=./.wrangler-home wrangler dev",
+    "deploy": "XDG_CONFIG_HOME=./.wrangler-home wrangler deploy",
+    "test": "XDG_CONFIG_HOME=./.wrangler-home vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/zod-openapi": "^0.19.10",
+    "@sentry/cloudflare": "^10.46.0",
+    "better-auth": "^1.5.6",
+    "drizzle-orm": "^0.44.5",
+    "hono": "^4.9.8",
+    "pg": "^8.16.3",
+    "zod": "^4.1.11"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.13.4",
+    "@cloudflare/workers-types": "^4.20260317.1",
+    "@types/node": "^24.12.0",
+    "@types/pg": "^8.15.6",
+    "drizzle-kit": "^0.31.5",
+    "typescript": "^5.8.2",
+    "vite": "^8.0.3",
+    "vitest": "^4.1.0",
+    "wrangler": "^4.77.0"
+  }
+}

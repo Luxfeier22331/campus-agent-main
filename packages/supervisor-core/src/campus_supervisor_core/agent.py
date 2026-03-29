@@ -4,13 +4,19 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from campus_availability_specialist import delegate_to_availability_specialist
-from campus_contracts import SpecialistRequest, SpecialistResponse, SpecialistTarget, SupervisorRequest
+from campus_contracts import (
+    SpecialistRequest,
+    SpecialistResponse,
+    SpecialistTarget,
+    SupervisorRequest,
+    SupervisorResponse,
+)
 from campus_rag_specialist import delegate_to_rag_agent
 
 from campus_supervisor_core.context import SupervisorRequestContext
 from campus_supervisor_core.errors import MissingSpecialistDelegateError
 from campus_supervisor_core.framing import frame_specialist_request
-from campus_supervisor_core.policy import finalize_specialist_response
+from campus_supervisor_core.policy import finalize_routing_decision, finalize_specialist_response
 from campus_supervisor_core.response import assemble_response
 from campus_supervisor_core.routing import route_request
 
@@ -31,9 +37,12 @@ class SupervisorAgent:
         default_factory=_default_specialist_delegates
     )
 
-    def handle(self, request: SupervisorRequest) -> SpecialistResponse:
+    def handle(self, request: SupervisorRequest) -> SupervisorResponse:
         context = SupervisorRequestContext.from_request(request)
         decision = route_request(context)
+        terminal_response = finalize_routing_decision(decision)
+        if terminal_response is not None:
+            return assemble_response(terminal_response)
         delegate = self.specialist_delegates.get(decision.target)
         if delegate is None:
             raise MissingSpecialistDelegateError(
@@ -50,6 +59,4 @@ class SupervisorAgent:
             raise MissingSpecialistDelegateError(
                 f"missing delegate for specialist target: {request.target}"
             )
-        specialist_response = delegate(request)
-        finalized_response = finalize_specialist_response(specialist_response)
-        return assemble_response(finalized_response)
+        return delegate(request)

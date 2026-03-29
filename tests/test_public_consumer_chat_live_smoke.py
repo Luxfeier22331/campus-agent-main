@@ -44,10 +44,11 @@ class _FakeOpener:
 
     def open(self, request):
         self.calls.append(request)
-        if request.full_url.endswith("/api/app/login"):
+        if request.full_url.endswith("/api/auth/sign-up/email"):
             self._login_call_count += 1
-            if self._login_call_count == 1:
-                return _FakeResponse({"error": "User already exists. Use another email."})
+            return _FakeResponse({"error": "User already exists. Use another email."})
+        if request.full_url.endswith("/api/auth/sign-in/email"):
+            self._login_call_count += 1
             return _FakeResponse(
                 {"ok": True},
                 headers=_FakeHeaders(
@@ -58,16 +59,19 @@ class _FakeOpener:
                     }
                 ),
             )
-        if request.full_url.endswith("/api/app/conversations"):
+        if request.full_url.endswith("/api/conversations"):
             return _FakeResponse({"conversation": {"id": "conv-123"}})
-        if request.full_url.endswith("/api/app/answer"):
+        if request.full_url.endswith("/api/answer"):
             return _FakeResponse(
                 {
-                    "result": {
-                        "kind": "answer",
-                        "text": "ok",
-                        "request_id": "trace-123",
-                    }
+                    "answer": {
+                        "conversation": {"id": "conv-123"},
+                        "result": {
+                            "kind": "answer",
+                            "text": "ok",
+                            "request_id": "trace-123",
+                        },
+                    },
                 }
             )
         raise AssertionError(f"unexpected url: {request.full_url}")
@@ -80,11 +84,13 @@ class PublicConsumerChatLiveSmokeTest(unittest.TestCase):
                 "login": {"ok": True},
                 "conversation": {"id": "conv-123"},
                 "answer": {
-                    "result": {
-                        "kind": "answer",
-                        "text": "The library closes at 22:00.",
-                        "request_id": "trace-123",
-                    }
+                    "answer": {
+                        "result": {
+                            "kind": "answer",
+                            "text": "The library closes at 22:00.",
+                            "request_id": "trace-123",
+                        }
+                    },
                 },
             }
         )
@@ -101,14 +107,16 @@ class PublicConsumerChatLiveSmokeTest(unittest.TestCase):
                 "login": {"ok": True},
                 "conversation": {"conversation": {"id": "conv-456"}},
                 "answer": {
-                    "result": {
-                        "kind": "error",
-                        "message": "No grounded answer is available yet.",
-                    },
-                    "conversation": {
-                        "messages": [
-                            {"role": "assistant", "requestId": "trace-456"},
-                        ]
+                    "answer": {
+                        "result": {
+                            "kind": "error",
+                            "message": "No grounded answer is available yet.",
+                        },
+                        "conversation": {
+                            "messages": [
+                                {"role": "assistant", "requestId": "trace-456"},
+                            ]
+                        },
                     },
                 },
             }
@@ -133,7 +141,7 @@ class PublicConsumerChatLiveSmokeTest(unittest.TestCase):
             )
 
         self.assertEqual(payload["conversation"]["conversation"]["id"], "conv-123")
-        self.assertEqual(payload["answer"]["result"]["request_id"], "trace-123")
+        self.assertEqual(payload["answer"]["answer"]["result"]["request_id"], "trace-123")
 
         self.assertEqual(len(opener.calls), 4)
         conversations_request = opener.calls[2]
@@ -148,8 +156,17 @@ class PublicConsumerChatLiveSmokeTest(unittest.TestCase):
         )
         first_login_body = json.loads(opener.calls[0].data.decode("utf-8"))
         second_login_body = json.loads(opener.calls[1].data.decode("utf-8"))
-        self.assertEqual(first_login_body["mode"], "sign-up")
-        self.assertEqual(second_login_body["mode"], "sign-in")
+        self.assertEqual(opener.calls[0].full_url, "http://127.0.0.1:8788/api/auth/sign-up/email")
+        self.assertEqual(opener.calls[1].full_url, "http://127.0.0.1:8788/api/auth/sign-in/email")
+        self.assertEqual(
+            first_login_body,
+            {
+                "name": "Smoke Student",
+                "email": "smoke@example.com",
+                "password": "password123",
+            },
+        )
+        self.assertEqual(second_login_body, first_login_body)
 
 
 if __name__ == "__main__":

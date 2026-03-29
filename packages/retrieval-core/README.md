@@ -9,6 +9,12 @@
 - 通过 Qdrant native hybrid query 获取候选
 - 结合 registry truth 返回 `EvidenceBundle`
 
+当前运行语义：
+
+- retrieval 默认只读取 runtime profile 声明的 serving alias
+- retrieval 不负责生成 physical collection，也不负责 alias publish
+- retrieval 不把对象存储中的任何 release manifest 当作在线 chunk truth
+
 它不负责：
 
 - supervisor / specialist 编排

@@ -3,9 +3,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from campus_contracts import ALLOWED_CORPORA
-
 from campus_ingestion_core.settings import ObjectStoreSettings
+from campus_ingestion_core.scope_catalog import assert_known_corpus
 
 
 DEFAULT_RAW_SOURCE_CHANNEL = "official_pdf"
@@ -166,6 +165,25 @@ def build_processed_artifact_key(
     )
 
 
+def build_index_release_artifact_key(
+    *,
+    corpus: str,
+    collection: str,
+    release_id: str,
+    filename: str,
+) -> str:
+    _validate_corpus_and_filename(corpus=corpus, filename=filename)
+    return "/".join(
+        [
+            corpus,
+            "releases",
+            _validate_path_segment(collection, field_name="collection"),
+            _validate_path_segment(release_id, field_name="release_id"),
+            filename,
+        ]
+    )
+
+
 def build_processed_asset_artifact_key(
     *,
     corpus: str,
@@ -255,8 +273,7 @@ def parse_source_object_key(key: str) -> dict[str, object] | None:
 
 
 def _validate_corpus_and_filename(*, corpus: str, filename: str) -> None:
-    if corpus not in ALLOWED_CORPORA:
-        raise ValueError(f"unsupported corpus: {corpus}")
+    assert_known_corpus(corpus)
     _validate_filename_only(filename=filename)
 
 

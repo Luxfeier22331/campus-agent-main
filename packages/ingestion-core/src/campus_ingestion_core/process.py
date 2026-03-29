@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import json
 import re
-from typing import Iterable, Protocol, Sequence
+from typing import Callable, Iterable, Protocol, Sequence
 import uuid
 
 from llama_index.core.base.embeddings.base import BaseEmbedding
@@ -11,22 +11,35 @@ from llama_index.core.schema import NodeRelationship, RelatedNodeInfo, TextNode
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
 
+from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 from campus_ingestion_core.chunking import (
     ChunkProfile,
     ChunkTextAssembly,
     ChunkTextContextPlan,
+    CURRICULUM_V2_CHUNK_POLICY_VERSION,
+    CURRICULUM_V1_CHUNK_POLICY_VERSION,
     SemanticChunkPiece,
     StructuredUnitChunkInput,
     TABLE_UNIT_TYPES,
     TEXTUAL_UNIT_TYPES,
     assemble_chunk_text,
+    build_curriculum_chunk_profile,
     build_student_handbook_chunk_profile,
     build_chunk_text_context,
     chunk_table_unit,
     chunk_structured_unit,
 )
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
-from campus_ingestion_core.curriculum_chunk_units import build_curriculum_structured_units, chunk_curriculum_unit
+from campus_ingestion_core.curriculum_chunk_units import (
+    _is_curriculum_course_map_placeholder_unit,
+    _is_curriculum_course_map_title_line,
+    _leading_curriculum_heading_lines,
+    _looks_like_curriculum_structure_heading,
+    _normalize_curriculum_structural_path,
+    build_curriculum_structured_units,
+    chunk_curriculum_unit,
+)
+from campus_ingestion_core.handbook_semantics import derive_handbook_semantic_metadata
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.sparse import (
     SparseEmbeddingModel,
@@ -35,6 +48,9 @@ from campus_ingestion_core.sparse import (
 )
 
 _NESTED_NUMBERED_LINE_RE = re.compile(r"^(?:[0-9]+[.、]|[（(][一二三四五六七八九十百千万〇零两0-9]+[)）])")
+_CURRICULUM_TOP_LEVEL_HEADING_RE = re.compile(
+    r"^(?:[一二三四五六七八九十]+、|第[一二三四五六七八九十百千万〇零两0-9]+[章节部分])"
+)
 
 
 class ProcessArtifactReader(Protocol):
@@ -75,6 +91,10 @@ class IndexableChunk:
     is_current: bool
     parser_version: str
     embedding_model: str
+    entitlement_groups: tuple[str, ...] = field(default_factory=tuple)
+    visibility_scope: str | None = None
+    visibility_level: str = ""
+    policy_projection_version: str = DEFAULT_POLICY_PROJECTION_VERSION
     canonical_url: str = ""
     latest_url: str = ""
     status: str = "active"
@@ -82,6 +102,29 @@ class IndexableChunk:
     sparse_indices: tuple[int, ...] = ()
     sparse_values: tuple[float, ...] = ()
     metadata: dict[str, object] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        entitlement_groups = self.entitlement_groups or self.acl_groups
+        acl_groups = self.acl_groups or self.entitlement_groups
+        visibility_scope = self.visibility_scope or self.campus_scope
+        campus_scope = self.campus_scope or self.visibility_scope
+        visibility_level = self.visibility_level.strip() or self.acl_level.strip() or "public"
+        policy_projection_version = (
+            self.policy_projection_version.strip() or DEFAULT_POLICY_PROJECTION_VERSION
+        )
+
+        if entitlement_groups != self.entitlement_groups:
+            object.__setattr__(self, "entitlement_groups", entitlement_groups)
+        if acl_groups != self.acl_groups:
+            object.__setattr__(self, "acl_groups", acl_groups)
+        if visibility_scope != self.visibility_scope:
+            object.__setattr__(self, "visibility_scope", visibility_scope)
+        if campus_scope != self.campus_scope:
+            object.__setattr__(self, "campus_scope", campus_scope)
+        if visibility_level != self.visibility_level:
+            object.__setattr__(self, "visibility_level", visibility_level)
+        if policy_projection_version != self.policy_projection_version:
+            object.__setattr__(self, "policy_projection_version", policy_projection_version)
 
     def to_node(self) -> TextNode:
         node = TextNode(
@@ -95,6 +138,10 @@ class IndexableChunk:
                 "chunk_order": self.chunk_order,
                 "corpus": self.corpus,
                 "collection": self.collection,
+                "entitlement_groups": list(self.entitlement_groups),
+                "visibility_scope": self.visibility_scope,
+                "visibility_level": self.visibility_level,
+                "policy_projection_version": self.policy_projection_version,
                 "acl_groups": list(self.acl_groups),
                 "campus_scope": self.campus_scope,
                 "source_uri": self.source_uri,
@@ -151,6 +198,249 @@ class _ChunkCandidate:
     members: tuple[_ChunkMember, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class _CollectionChunkStrategy:
+    build_chunk_profile: Callable[[DocumentRegistryRecord], ChunkProfile]
+    load_structured_units: Callable[[DocumentRegistryRecord, bytes], tuple[StructuredUnit, ...]]
+    build_unit_pieces: Callable[[StructuredUnit, ChunkProfile], tuple[SemanticChunkPiece, ...]]
+    resolve_unit_chunk_profile: Callable[[DocumentRegistryRecord, ChunkProfile, str, bool], ChunkProfile]
+    should_skip_unit: Callable[[StructuredUnit, set[str]], bool]
+    postprocess_candidates: Callable[
+        [Sequence[_ChunkCandidate], DocumentRegistryRecord, ChunkProfile, bool],
+        tuple[_ChunkCandidate, ...],
+    ]
+
+
+def _build_handbook_chunk_profile(record: DocumentRegistryRecord) -> ChunkProfile:
+    runtime_profile = load_runtime_profile(record.corpus, record.collection)
+    return build_student_handbook_chunk_profile(
+        profile_version=runtime_profile.chunk_profile_version,
+        model_name=record.embedding_model,
+    )
+
+
+def _build_curriculum_runtime_chunk_profile(record: DocumentRegistryRecord) -> ChunkProfile:
+    runtime_profile = load_runtime_profile(record.corpus, record.collection)
+    return build_curriculum_chunk_profile(
+        profile_version=runtime_profile.chunk_profile_version,
+        model_name=record.embedding_model,
+    )
+
+
+def _build_generic_runtime_chunk_profile(record: DocumentRegistryRecord) -> ChunkProfile:
+    runtime_profile = load_runtime_profile(record.corpus, record.collection)
+    return ChunkProfile(
+        chunk_policy_version=runtime_profile.chunk_profile_version,
+        cleaning_policy_version=runtime_profile.cleaning_policy_version,
+        strategy_name=f"{record.collection}_generic",
+        strategy=None,
+    )
+
+
+def _load_default_structured_units(
+    record: DocumentRegistryRecord,
+    structured_jsonl_bytes: bytes,
+) -> tuple[StructuredUnit, ...]:
+    units: list[StructuredUnit] = []
+    for unit_index, line in enumerate(structured_jsonl_bytes.decode("utf-8").splitlines()):
+        normalized = line.strip()
+        if not normalized:
+            continue
+        raw = json.loads(normalized)
+        if str(raw.get("chunk_id") or "").strip() == "document-0000":
+            raise ValueError("structured input must not contain synthetic document-0000 rows")
+        doc_id = str(raw.get("doc_id") or "").strip()
+        version_id = str(raw.get("version_id") or "").strip()
+        if doc_id != record.document_id:
+            raise ValueError(
+                f"structured doc_id {doc_id!r} does not match registry document_id {record.document_id!r}"
+            )
+        if version_id != record.version_id:
+            raise ValueError(
+                f"structured version_id {version_id!r} does not match registry version_id {record.version_id!r}"
+            )
+        text = _resolve_structured_text(raw)
+        units.append(
+            StructuredUnit(
+                unit_index=unit_index,
+                document_id=doc_id,
+                version_id=version_id,
+                text=text,
+                source_chunk_id=_normalize_optional_text(raw.get("chunk_id")),
+                anchor=_normalize_anchor(raw.get("anchor")),
+                acl_level=_normalize_acl_level(raw.get("acl")),
+                unit_type=_normalize_unit_type(raw.get("unit_type")),
+                root_unit_id=_normalize_root_unit_id(raw),
+                metadata=_normalize_unit_metadata(raw),
+            )
+        )
+    return tuple(units)
+
+
+def _load_curriculum_runtime_structured_units(
+    record: DocumentRegistryRecord,
+    structured_jsonl_bytes: bytes,
+) -> tuple[StructuredUnit, ...]:
+    return tuple(build_curriculum_structured_units(record=record, structured_jsonl_bytes=structured_jsonl_bytes))
+
+
+def _build_default_unit_pieces(unit: StructuredUnit, chunk_profile: ChunkProfile) -> tuple[SemanticChunkPiece, ...]:
+    if unit.unit_type == "table_unit":
+        return chunk_table_unit(
+            unit=StructuredUnitChunkInput(
+                unit_type=unit.unit_type,
+                root_unit_id=unit.root_unit_id,
+                text=unit.text,
+                anchor=unit.anchor,
+                metadata=unit.metadata,
+            ),
+            chunk_profile=chunk_profile,
+        )
+    return chunk_structured_unit(
+        unit=StructuredUnitChunkInput(
+            unit_type=unit.unit_type,
+            root_unit_id=unit.root_unit_id,
+            text=unit.text,
+            anchor=unit.anchor,
+            metadata=unit.metadata,
+        ),
+        chunk_profile=chunk_profile,
+    )
+
+
+def _build_curriculum_unit_pieces(unit: StructuredUnit, chunk_profile: ChunkProfile) -> tuple[SemanticChunkPiece, ...]:
+    return chunk_curriculum_unit(unit=unit, chunk_profile=chunk_profile)
+
+
+def _resolve_default_unit_chunk_profile(
+    record: DocumentRegistryRecord,
+    runtime_profile: ChunkProfile,
+    unit_type: str,
+    use_collection_unit_profiles: bool,
+) -> ChunkProfile:
+    del record, unit_type, use_collection_unit_profiles
+    return runtime_profile
+
+
+def _resolve_curriculum_unit_chunk_profile(
+    record: DocumentRegistryRecord,
+    runtime_profile: ChunkProfile,
+    unit_type: str,
+    use_collection_unit_profiles: bool,
+) -> ChunkProfile:
+    if not use_collection_unit_profiles:
+        return runtime_profile
+    if runtime_profile.chunk_policy_version not in {
+        CURRICULUM_V1_CHUNK_POLICY_VERSION,
+        CURRICULUM_V2_CHUNK_POLICY_VERSION,
+    }:
+        return runtime_profile
+    return build_curriculum_chunk_profile(
+        profile_version=runtime_profile.chunk_policy_version,
+        model_name=record.embedding_model,
+        unit_type=unit_type,
+    )
+
+
+def _should_skip_generic_unit(unit: StructuredUnit, table_roots_with_semantic_units: set[str]) -> bool:
+    return unit.unit_type == "table" and unit.root_unit_id in table_roots_with_semantic_units
+
+
+def _should_skip_handbook_unit(unit: StructuredUnit, table_roots_with_semantic_units: set[str]) -> bool:
+    if unit.unit_type == "table":
+        return True
+    return _should_skip_generic_unit(unit, table_roots_with_semantic_units)
+
+
+def _should_skip_curriculum_unit(unit: StructuredUnit, table_roots_with_semantic_units: set[str]) -> bool:
+    if _should_skip_generic_unit(unit, table_roots_with_semantic_units):
+        return True
+    return _is_curriculum_course_map_noise_unit(unit)
+
+
+def _postprocess_default_chunk_candidates(
+    chunk_candidates: Sequence[_ChunkCandidate],
+    record: DocumentRegistryRecord,
+    runtime_profile: ChunkProfile,
+    use_collection_unit_profiles: bool,
+) -> tuple[_ChunkCandidate, ...]:
+    return _merge_adjacent_short_textual_candidates(
+        chunk_candidates=chunk_candidates,
+        chunk_profile=_resolve_default_unit_chunk_profile(
+            record=record,
+            runtime_profile=runtime_profile,
+            unit_type="section_text",
+            use_collection_unit_profiles=use_collection_unit_profiles,
+        ),
+    )
+
+
+def _postprocess_curriculum_chunk_candidates(
+    chunk_candidates: Sequence[_ChunkCandidate],
+    record: DocumentRegistryRecord,
+    runtime_profile: ChunkProfile,
+    use_collection_unit_profiles: bool,
+) -> tuple[_ChunkCandidate, ...]:
+    section_chunk_profile = _resolve_curriculum_unit_chunk_profile(
+        record=record,
+        runtime_profile=runtime_profile,
+        unit_type="section_text",
+        use_collection_unit_profiles=use_collection_unit_profiles,
+    )
+    table_chunk_profile = _resolve_curriculum_unit_chunk_profile(
+        record=record,
+        runtime_profile=runtime_profile,
+        unit_type="table_unit",
+        use_collection_unit_profiles=use_collection_unit_profiles,
+    )
+    merged_candidates = _merge_adjacent_short_textual_candidates(
+        chunk_candidates=chunk_candidates,
+        chunk_profile=section_chunk_profile,
+    )
+    merged_candidates = _merge_adjacent_curriculum_section_context_candidates(
+        chunk_candidates=merged_candidates,
+        section_chunk_profile=section_chunk_profile,
+        table_chunk_profile=table_chunk_profile,
+    )
+    return _merge_adjacent_curriculum_table_candidates(
+        chunk_candidates=merged_candidates,
+        chunk_profile=table_chunk_profile,
+    )
+
+
+_DEFAULT_COLLECTION_CHUNK_STRATEGY = _CollectionChunkStrategy(
+    build_chunk_profile=_build_generic_runtime_chunk_profile,
+    load_structured_units=_load_default_structured_units,
+    build_unit_pieces=_build_default_unit_pieces,
+    resolve_unit_chunk_profile=_resolve_default_unit_chunk_profile,
+    should_skip_unit=_should_skip_generic_unit,
+    postprocess_candidates=_postprocess_default_chunk_candidates,
+)
+
+_COLLECTION_CHUNK_STRATEGIES: dict[tuple[str, str], _CollectionChunkStrategy] = {
+    ("regulations", "student_handbook"): _CollectionChunkStrategy(
+        build_chunk_profile=_build_handbook_chunk_profile,
+        load_structured_units=_load_default_structured_units,
+        build_unit_pieces=_build_default_unit_pieces,
+        resolve_unit_chunk_profile=_resolve_default_unit_chunk_profile,
+        should_skip_unit=_should_skip_handbook_unit,
+        postprocess_candidates=_postprocess_default_chunk_candidates,
+    ),
+    ("curriculum", "curriculum_plan"): _CollectionChunkStrategy(
+        build_chunk_profile=_build_curriculum_runtime_chunk_profile,
+        load_structured_units=_load_curriculum_runtime_structured_units,
+        build_unit_pieces=_build_curriculum_unit_pieces,
+        resolve_unit_chunk_profile=_resolve_curriculum_unit_chunk_profile,
+        should_skip_unit=_should_skip_curriculum_unit,
+        postprocess_candidates=_postprocess_curriculum_chunk_candidates,
+    ),
+}
+
+
+def _resolve_collection_chunk_strategy(record: DocumentRegistryRecord) -> _CollectionChunkStrategy:
+    return _COLLECTION_CHUNK_STRATEGIES.get((record.corpus, record.collection), _DEFAULT_COLLECTION_CHUNK_STRATEGY)
+
+
 def build_indexable_chunks_from_jsonl(
     *,
     record: DocumentRegistryRecord,
@@ -159,8 +449,10 @@ def build_indexable_chunks_from_jsonl(
     embedding_model: BaseEmbedding | None = None,
     sparse_embedding_model: SparseEmbeddingModel | None = None,
 ) -> tuple[IndexableChunk, ...]:
+    collection_chunk_strategy = _resolve_collection_chunk_strategy(record)
     runtime_profile = _resolve_chunk_profile(record=record, chunk_profile=chunk_profile)
-    units = _load_structured_units(record=record, structured_jsonl_bytes=structured_jsonl_bytes)
+    use_collection_unit_profiles = chunk_profile is None
+    units = collection_chunk_strategy.load_structured_units(record, structured_jsonl_bytes)
     if not units:
         return ()
     table_roots_with_semantic_units = {
@@ -173,10 +465,14 @@ def build_indexable_chunks_from_jsonl(
         units=units,
         chunk_profile=runtime_profile,
         table_roots_with_semantic_units=table_roots_with_semantic_units,
+        use_collection_unit_profiles=use_collection_unit_profiles,
+        collection_chunk_strategy=collection_chunk_strategy,
     )
-    chunk_candidates = _merge_adjacent_short_textual_candidates(
-        chunk_candidates=chunk_candidates,
-        chunk_profile=runtime_profile,
+    chunk_candidates = collection_chunk_strategy.postprocess_candidates(
+        chunk_candidates,
+        record,
+        runtime_profile,
+        use_collection_unit_profiles,
     )
     dense_embeddings = _embed_texts(
         [candidate.chunk_assembly.text for candidate in chunk_candidates],
@@ -189,6 +485,10 @@ def build_indexable_chunks_from_jsonl(
         chunk_order += 1
         chunk_id = (
             f"{record.document_id}:{record.revision_track}:{record.version_id}:chunk-{chunk_order:04d}"
+        )
+        effective_visibility_level = _resolve_effective_acl_level(
+            unit_acl_level=candidate.acl_level,
+            document_acl_groups=record.entitlement_groups or record.acl_groups,
         )
         chunks.append(
             IndexableChunk(
@@ -205,10 +505,7 @@ def build_indexable_chunks_from_jsonl(
                 canonical_url=record.source_uri,
                 latest_url=record.source_uri,
                 source_chunk_id=candidate.source_chunk_id,
-                acl_level=_resolve_effective_acl_level(
-                    unit_acl_level=candidate.acl_level,
-                    document_acl_groups=record.acl_groups,
-                ),
+                acl_level=effective_visibility_level,
                 status=record.status,
                 anchor=candidate.anchor,
                 text=candidate.chunk_assembly.text,
@@ -216,6 +513,10 @@ def build_indexable_chunks_from_jsonl(
                 is_current=record.is_current,
                 parser_version=record.parser_version,
                 embedding_model=record.embedding_model,
+                entitlement_groups=record.entitlement_groups,
+                visibility_scope=record.visibility_scope,
+                visibility_level=effective_visibility_level,
+                policy_projection_version=record.policy_projection_version,
                 embedding=embedding,
                 metadata={
                     "unit_type": candidate.piece.unit_type,
@@ -235,6 +536,13 @@ def build_indexable_chunks_from_jsonl(
                     "header_token_count": candidate.chunk_assembly.header_token_count,
                     "display_token_count": candidate.chunk_assembly.display_token_count,
                     "final_token_count": candidate.chunk_assembly.total_token_count,
+                    **_build_collection_semantic_metadata(
+                        record=record,
+                        unit_type=candidate.piece.unit_type,
+                        anchor=candidate.anchor,
+                        metadata=candidate.metadata,
+                        text=candidate.piece.text,
+                    ),
                 },
             )
         )
@@ -247,47 +555,29 @@ def _build_chunk_candidates(
     units: Sequence[StructuredUnit],
     chunk_profile: ChunkProfile,
     table_roots_with_semantic_units: set[str],
+    use_collection_unit_profiles: bool,
+    collection_chunk_strategy: _CollectionChunkStrategy,
 ) -> tuple[_ChunkCandidate, ...]:
     candidates: list[_ChunkCandidate] = []
     for unit in units:
-        if unit.unit_type == "table":
-            if record.collection == "student_handbook":
-                continue
-            if unit.root_unit_id in table_roots_with_semantic_units:
-                continue
-        if record.collection == "curriculum_plan":
-            pieces = chunk_curriculum_unit(unit=unit, chunk_profile=chunk_profile)
-        elif unit.unit_type == "table_unit":
-            pieces = chunk_table_unit(
-                unit=StructuredUnitChunkInput(
-                    unit_type=unit.unit_type,
-                    root_unit_id=unit.root_unit_id,
-                    text=unit.text,
-                    anchor=unit.anchor,
-                    metadata=unit.metadata,
-                ),
-                chunk_profile=chunk_profile,
-            )
-        else:
-            pieces = chunk_structured_unit(
-                unit=StructuredUnitChunkInput(
-                    unit_type=unit.unit_type,
-                    root_unit_id=unit.root_unit_id,
-                    text=unit.text,
-                    anchor=unit.anchor,
-                    metadata=unit.metadata,
-                ),
-                chunk_profile=chunk_profile,
-            )
+        resolved_chunk_profile = collection_chunk_strategy.resolve_unit_chunk_profile(
+            record,
+            chunk_profile,
+            unit.unit_type,
+            use_collection_unit_profiles,
+        )
+        if collection_chunk_strategy.should_skip_unit(unit, table_roots_with_semantic_units):
+            continue
+        pieces = collection_chunk_strategy.build_unit_pieces(unit, resolved_chunk_profile)
         context_plan = build_chunk_text_context(anchor=unit.anchor, metadata=unit.metadata)
         for piece in pieces:
             chunk_assembly = _build_chunk_text(
                 unit=unit,
                 piece=piece,
-                chunk_profile=chunk_profile,
+                chunk_profile=resolved_chunk_profile,
                 context_plan=context_plan,
             )
-            _validate_chunk_budget(piece=piece, chunk_assembly=chunk_assembly, chunk_profile=chunk_profile)
+            _validate_chunk_budget(piece=piece, chunk_assembly=chunk_assembly, chunk_profile=resolved_chunk_profile)
             candidates.append(
                 _ChunkCandidate(
                     unit_type=piece.unit_type,
@@ -295,13 +585,43 @@ def _build_chunk_candidates(
                     source_chunk_id=unit.source_chunk_id,
                     acl_level=unit.acl_level,
                     anchor=dict(unit.anchor),
-                    metadata=dict(unit.metadata),
+                    metadata={
+                        "strategy_name": resolved_chunk_profile.strategy_name,
+                        "split_strategy": resolved_chunk_profile.split_strategy,
+                        "chunk_policy_version": resolved_chunk_profile.chunk_policy_version,
+                        "cleaning_policy_version": resolved_chunk_profile.cleaning_policy_version,
+                        **dict(unit.metadata),
+                    },
                     piece=piece,
                     chunk_assembly=chunk_assembly,
                     members=(_ChunkMember(unit=unit, piece=piece),),
                 )
             )
     return tuple(candidates)
+
+
+def _build_collection_semantic_metadata(
+    *,
+    record: DocumentRegistryRecord,
+    unit_type: str,
+    anchor: dict[str, object],
+    metadata: dict[str, object],
+    text: str,
+) -> dict[str, object]:
+    if record.collection != "student_handbook":
+        return {}
+    semantics = derive_handbook_semantic_metadata(
+        unit_type=unit_type,
+        anchor=anchor,
+        metadata=metadata,
+        text=text,
+    )
+    return {
+        "content_kind": semantics.content_kind,
+        "content_role": semantics.content_role,
+        "detail_label": semantics.detail_label,
+        "is_answer_bearing": semantics.is_answer_bearing,
+    }
 
 
 def _merge_adjacent_short_textual_candidates(
@@ -394,6 +714,274 @@ def _absorb_short_textual_candidates(
                     continue
             index += 1
     return tuple(absorbed)
+
+
+def _merge_adjacent_curriculum_table_candidates(
+    *,
+    chunk_candidates: Sequence[_ChunkCandidate],
+    chunk_profile: ChunkProfile,
+) -> tuple[_ChunkCandidate, ...]:
+    if not chunk_candidates:
+        return ()
+    merged: list[_ChunkCandidate] = []
+    index = 0
+    while index < len(chunk_candidates):
+        current = chunk_candidates[index]
+        if index + 1 < len(chunk_candidates):
+            incoming = chunk_candidates[index + 1]
+            next_candidate = _try_merge_curriculum_table_candidates(
+                current=current,
+                incoming=incoming,
+                chunk_profile=chunk_profile,
+            )
+            if next_candidate is not None:
+                merged.append(next_candidate)
+                index += 2
+                continue
+        merged.append(current)
+        index += 1
+    return tuple(merged)
+
+
+def _merge_adjacent_curriculum_section_context_candidates(
+    *,
+    chunk_candidates: Sequence[_ChunkCandidate],
+    section_chunk_profile: ChunkProfile,
+    table_chunk_profile: ChunkProfile,
+) -> tuple[_ChunkCandidate, ...]:
+    absorbed = list(chunk_candidates)
+    changed = True
+    while changed:
+        changed = False
+        index = 0
+        while index < len(absorbed):
+            candidate = absorbed[index]
+            if not _is_absorbable_curriculum_section_candidate(candidate):
+                index += 1
+                continue
+            if index + 1 < len(absorbed):
+                merged_with_next = _try_merge_curriculum_section_context_candidates(
+                    current=candidate,
+                    incoming=absorbed[index + 1],
+                    chunk_profile=(
+                        table_chunk_profile if absorbed[index + 1].unit_type == "table_unit" else section_chunk_profile
+                    ),
+                )
+                if merged_with_next is not None:
+                    absorbed[index] = merged_with_next
+                    del absorbed[index + 1]
+                    changed = True
+                    continue
+            if index > 0 and absorbed[index - 1].unit_type == "section_text":
+                merged_with_previous = _try_merge_curriculum_section_context_candidates(
+                    current=absorbed[index - 1],
+                    incoming=candidate,
+                    chunk_profile=section_chunk_profile,
+                )
+                if merged_with_previous is not None:
+                    absorbed[index - 1] = merged_with_previous
+                    del absorbed[index]
+                    changed = True
+                    index = max(index - 1, 0)
+                    continue
+            index += 1
+    return tuple(absorbed)
+
+
+def _try_merge_curriculum_table_candidates(
+    *,
+    current: _ChunkCandidate,
+    incoming: _ChunkCandidate,
+    chunk_profile: ChunkProfile,
+) -> _ChunkCandidate | None:
+    if current.unit_type != "table_unit" or incoming.unit_type != "table_unit":
+        return None
+    if current.acl_level != incoming.acl_level:
+        return None
+    if not _curriculum_table_section_paths_are_compatible(current=current, incoming=incoming):
+        return None
+    if current.metadata.get("title") != incoming.metadata.get("title"):
+        return None
+    if not _is_weak_curriculum_table_candidate(current) and not _is_weak_curriculum_table_candidate(incoming):
+        return None
+    members = (*current.members, *incoming.members)
+    aggregated_anchor = _build_aggregated_anchor(members)
+    aggregated_metadata = _build_aggregated_metadata(current=current, members=members)
+    aggregated_metadata["aggregation_mode"] = "adjacent_curriculum_table_context"
+    aggregated_display_text = "\n".join(
+        piece
+        for piece in (current.piece.text.strip(), incoming.piece.text.strip())
+        if piece
+    ).strip()
+    chunk_assembly = assemble_chunk_text(
+        display_text=aggregated_display_text,
+        context_plan=build_chunk_text_context(anchor=aggregated_anchor, metadata=aggregated_metadata),
+        chunk_profile=chunk_profile,
+    )
+    if chunk_assembly.total_token_count > chunk_profile.max_chunk_size:
+        return None
+    return _ChunkCandidate(
+        unit_type=current.unit_type,
+        root_unit_id=current.root_unit_id,
+        source_chunk_id=current.source_chunk_id,
+        acl_level=current.acl_level,
+        anchor=aggregated_anchor,
+        metadata=aggregated_metadata,
+        piece=SemanticChunkPiece(
+            unit_type=current.piece.unit_type,
+            root_unit_id=current.piece.root_unit_id,
+            text=aggregated_display_text,
+        ),
+        chunk_assembly=chunk_assembly,
+        members=members,
+    )
+
+
+def _try_merge_curriculum_section_context_candidates(
+    *,
+    current: _ChunkCandidate,
+    incoming: _ChunkCandidate,
+    chunk_profile: ChunkProfile,
+) -> _ChunkCandidate | None:
+    if not _curriculum_section_context_candidates_are_compatible(current=current, incoming=incoming):
+        return None
+    members = (*current.members, *incoming.members)
+    base_candidate = _select_curriculum_context_base_candidate(current=current, incoming=incoming)
+    aggregated_anchor = _build_curriculum_context_aggregated_anchor(
+        current=current,
+        incoming=incoming,
+        members=members,
+    )
+    aggregated_metadata = _build_aggregated_metadata(current=base_candidate, members=members)
+    aggregated_metadata["aggregation_mode"] = _resolve_curriculum_context_aggregation_mode(
+        current=current,
+        incoming=incoming,
+    )
+    aggregated_display_text = _build_curriculum_aggregated_display_text(members)
+    chunk_assembly = assemble_chunk_text(
+        display_text=aggregated_display_text,
+        context_plan=build_chunk_text_context(anchor=aggregated_anchor, metadata=aggregated_metadata),
+        chunk_profile=chunk_profile,
+    )
+    if chunk_assembly.total_token_count > chunk_profile.max_chunk_size:
+        return None
+    return _ChunkCandidate(
+        unit_type=base_candidate.unit_type,
+        root_unit_id=base_candidate.root_unit_id,
+        source_chunk_id=base_candidate.source_chunk_id,
+        acl_level=base_candidate.acl_level,
+        anchor=aggregated_anchor,
+        metadata=aggregated_metadata,
+        piece=SemanticChunkPiece(
+            unit_type=base_candidate.piece.unit_type,
+            root_unit_id=base_candidate.piece.root_unit_id,
+            text=aggregated_display_text,
+        ),
+        chunk_assembly=chunk_assembly,
+        members=members,
+    )
+
+
+def _curriculum_table_section_paths_are_compatible(
+    *,
+    current: _ChunkCandidate,
+    incoming: _ChunkCandidate,
+) -> bool:
+    current_path = _normalize_section_path(current.anchor)
+    incoming_path = _normalize_section_path(incoming.anchor)
+    if current_path == incoming_path:
+        return True
+    if not current_path or not incoming_path:
+        return False
+    if current_path[: len(incoming_path)] == incoming_path:
+        return True
+    if incoming_path[: len(current_path)] == current_path:
+        return True
+    return False
+
+
+def _curriculum_section_context_candidates_are_compatible(
+    *,
+    current: _ChunkCandidate,
+    incoming: _ChunkCandidate,
+) -> bool:
+    if current.unit_type != "section_text":
+        return False
+    if incoming.unit_type not in {"section_text", "table_unit"}:
+        return False
+    if current.acl_level != incoming.acl_level:
+        return False
+    current_path = _normalize_section_path(current.anchor)
+    incoming_path = _normalize_section_path(incoming.anchor)
+    if incoming.unit_type == "table_unit":
+        return _curriculum_section_to_table_candidates_are_compatible(
+            current=current,
+            incoming=incoming,
+            current_path=current_path,
+            incoming_path=incoming_path,
+        )
+    if current_path == incoming_path:
+        return True
+    if _curriculum_candidate_is_title_only(current) and incoming_path:
+        return True
+    if (
+        current_path
+        and len(incoming_path) == len(current_path) + 1
+        and incoming_path[: len(current_path)] == current_path
+        and _curriculum_candidate_has_structural_continuation_beyond_anchor(current)
+        and _curriculum_candidate_has_explicit_leaf_item(incoming)
+    ):
+        return True
+    if (
+        current_path
+        and len(incoming_path) == len(current_path) + 1
+        and incoming_path[: len(current_path)] == current_path
+        and _is_short_textual_candidate(current)
+        and not _curriculum_candidate_is_heading_only(current)
+        and (
+            not _curriculum_candidate_has_explicit_leaf_item(current)
+            or _curriculum_candidate_has_short_parent_intro_body(current)
+        )
+    ):
+        return True
+    if not current_path or not incoming_path:
+        return False
+    if current_path[:-1] != incoming_path[:-1]:
+        return False
+    if _curriculum_candidate_leaf_is_top_level_heading(current) or _curriculum_candidate_leaf_is_top_level_heading(incoming):
+        return False
+    if _curriculum_candidate_is_heading_only(current):
+        return True
+    return _curriculum_candidate_has_explicit_leaf_item(current) and _curriculum_candidate_has_explicit_leaf_item(
+        incoming
+    )
+
+
+def _curriculum_section_to_table_candidates_are_compatible(
+    *,
+    current: _ChunkCandidate,
+    incoming: _ChunkCandidate,
+    current_path: tuple[str, ...],
+    incoming_path: tuple[str, ...],
+) -> bool:
+    if not _curriculum_candidate_is_heading_only(current) and not _curriculum_candidate_is_title_only(current):
+        return False
+    if current_path and current_path == incoming_path:
+        return True
+    if (
+        current_path
+        and incoming_path
+        and current_path[:-1] == incoming_path[:-1]
+        and _curriculum_candidate_is_heading_only(current)
+    ):
+        if _curriculum_path_leaf_is_top_level_heading(current_path) or _curriculum_path_leaf_is_top_level_heading(
+            incoming_path
+        ):
+            return False
+        return True
+    if _curriculum_candidate_is_title_only(current) and incoming_path:
+        return True
+    return False
 
 
 def _try_merge_short_textual_candidates(
@@ -541,10 +1129,58 @@ def _is_short_textual_candidate(candidate: _ChunkCandidate) -> bool:
     return _header_ratio(candidate.chunk_assembly) >= _SHORT_TEXTUAL_HEADER_RATIO_THRESHOLD
 
 
+def _is_absorbable_curriculum_section_candidate(candidate: _ChunkCandidate) -> bool:
+    if candidate.unit_type != "section_text":
+        return False
+    if candidate.piece.split_reason is not None:
+        return False
+    if candidate.piece.segment_total != 1:
+        return False
+    return _is_short_textual_candidate(candidate)
+
+
 def _is_absorbable_short_textual_candidate(candidate: _ChunkCandidate) -> bool:
     if not _is_short_textual_merge_eligible(candidate):
         return False
     return _is_short_textual_candidate(candidate)
+
+
+def _is_weak_curriculum_table_candidate(candidate: _ChunkCandidate) -> bool:
+    if candidate.unit_type != "table_unit":
+        return False
+    caption_lines = tuple(str(item).strip() for item in list(candidate.metadata.get("caption_lines") or ()) if str(item).strip())
+    row_lines = tuple(str(item).strip() for item in list(candidate.metadata.get("table_row_lines") or ()) if str(item).strip())
+    header_line = str(candidate.metadata.get("table_header_line") or "").strip()
+    if caption_lines:
+        return False
+    if row_lines:
+        return False
+    if not header_line:
+        return True
+    return not _looks_like_table_header_line(header_line)
+
+
+def _looks_like_table_header_line(text: str) -> bool:
+    normalized = text.strip()
+    if not normalized:
+        return False
+    return any(
+        token in normalized
+        for token in (
+            "课程号",
+            "课程名称",
+            "学分",
+            "学时",
+            "修读学期",
+            "开设学期",
+            "备注",
+            "类别",
+            "培养阶段",
+            "板块名称",
+            "课程类",
+            "专业名称",
+        )
+    )
 
 
 def _short_textual_group_is_satisfied(candidate: _ChunkCandidate) -> bool:
@@ -624,6 +1260,47 @@ def _build_aggregated_display_text(members: Sequence[_ChunkMember]) -> str:
     return "\n\n".join(_build_member_display_text(member) for member in members).strip()
 
 
+def _build_curriculum_aggregated_display_text(members: Sequence[_ChunkMember]) -> str:
+    if not members:
+        return ""
+    common_path = _common_section_path(_normalize_section_path(member.unit.anchor) for member in members)
+    parts: list[str] = []
+    first_text = members[0].piece.text.strip()
+    if first_text:
+        parts.append(first_text)
+    for member in members[1:]:
+        contribution = _build_curriculum_member_display_text(member, common_path=common_path)
+        if contribution:
+            parts.append(contribution)
+    return "\n\n".join(parts).strip()
+
+
+def _build_curriculum_member_display_text(member: _ChunkMember, *, common_path: tuple[str, ...]) -> str:
+    return _strip_curriculum_common_path_prefix(member.piece.text, common_path=common_path)
+
+
+def _strip_curriculum_common_path_prefix(text: str, *, common_path: tuple[str, ...]) -> str:
+    text = text.strip()
+    if not text:
+        return ""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return ""
+    prefix = _normalize_curriculum_structural_path(list(common_path))
+    strip_count = 0
+    for expected in prefix:
+        if strip_count < len(lines) and lines[strip_count] == expected:
+            strip_count += 1
+            continue
+        break
+    if strip_count <= 0:
+        return text
+    remaining_lines = lines[strip_count:]
+    if remaining_lines:
+        return "\n".join(remaining_lines).strip()
+    return text
+
+
 def _build_member_display_text(member: _ChunkMember) -> str:
     text = member.piece.text.strip()
     label = _resolve_member_label(member)
@@ -677,6 +1354,156 @@ def _normalize_anchor_label(anchor: dict[str, object], field_name: str) -> str |
         return None
     normalized = value.strip()
     return normalized or None
+
+
+def _select_curriculum_context_base_candidate(
+    *,
+    current: _ChunkCandidate,
+    incoming: _ChunkCandidate,
+) -> _ChunkCandidate:
+    if incoming.unit_type == "table_unit":
+        return incoming
+    if _curriculum_candidate_is_title_only(current):
+        return incoming
+    return current
+
+
+def _build_curriculum_context_aggregated_anchor(
+    *,
+    current: _ChunkCandidate,
+    incoming: _ChunkCandidate,
+    members: Sequence[_ChunkMember],
+) -> dict[str, object]:
+    aggregated_anchor = _build_aggregated_anchor(members)
+    if _normalize_section_path(aggregated_anchor):
+        return aggregated_anchor
+    incoming_path = _normalize_section_path(incoming.anchor)
+    if _curriculum_candidate_is_title_only(current) and incoming_path:
+        aggregated_anchor["section_path"] = list(incoming_path)
+        return aggregated_anchor
+    current_path = _normalize_section_path(current.anchor)
+    if (
+        current_path
+        and incoming_path
+        and current_path[:-1] == incoming_path[:-1]
+        and _curriculum_candidate_is_heading_only(current)
+    ):
+        aggregated_anchor["section_path"] = list(current_path)
+    return aggregated_anchor
+
+
+def _resolve_curriculum_context_aggregation_mode(
+    *,
+    current: _ChunkCandidate,
+    incoming: _ChunkCandidate,
+) -> str:
+    if incoming.unit_type == "table_unit":
+        return "adjacent_curriculum_section_table_context"
+    return "adjacent_curriculum_section_context"
+
+
+def _curriculum_candidate_is_heading_only(candidate: _ChunkCandidate) -> bool:
+    if candidate.unit_type != "section_text":
+        return False
+    lines = [line.strip() for line in candidate.piece.text.splitlines() if line.strip()]
+    if not lines:
+        return False
+    return len(_leading_curriculum_heading_lines(lines)) == len(lines)
+
+
+def _curriculum_candidate_is_title_only(candidate: _ChunkCandidate) -> bool:
+    if candidate.unit_type != "section_text":
+        return False
+    if _normalize_section_path(candidate.anchor):
+        return False
+    lines = [line.strip() for line in candidate.piece.text.splitlines() if line.strip()]
+    return len(lines) == 1
+
+
+def _curriculum_candidate_has_explicit_leaf_item(candidate: _ChunkCandidate) -> bool:
+    if candidate.unit_type != "section_text":
+        return False
+    section_path = _normalize_section_path(candidate.anchor)
+    if not section_path:
+        return False
+    text = _strip_curriculum_common_path_prefix(
+        candidate.piece.text,
+        common_path=section_path[:-1],
+    )
+    contribution_lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not contribution_lines:
+        return False
+    return contribution_lines[0] == section_path[-1]
+
+
+def _curriculum_candidate_has_short_parent_intro_body(candidate: _ChunkCandidate) -> bool:
+    if candidate.unit_type != "section_text":
+        return False
+    section_path = _normalize_section_path(candidate.anchor)
+    if not section_path:
+        return False
+    text = _strip_curriculum_common_path_prefix(
+        candidate.piece.text,
+        common_path=section_path[:-1],
+    )
+    contribution_lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if len(contribution_lines) < 2:
+        return False
+    if contribution_lines[0] != section_path[-1]:
+        return False
+    first_body_line = contribution_lines[1]
+    if _CURRICULUM_TOP_LEVEL_HEADING_RE.match(first_body_line) or _NESTED_NUMBERED_LINE_RE.match(first_body_line):
+        return False
+    return True
+
+
+def _curriculum_candidate_has_structural_continuation_beyond_anchor(candidate: _ChunkCandidate) -> bool:
+    if candidate.unit_type != "section_text":
+        return False
+    section_path = _normalize_section_path(candidate.anchor)
+    if not section_path:
+        return False
+    text = _strip_curriculum_common_path_prefix(candidate.piece.text, common_path=section_path)
+    continuation_lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not continuation_lines:
+        return False
+    return bool(_CURRICULUM_TOP_LEVEL_HEADING_RE.match(continuation_lines[0]) or _NESTED_NUMBERED_LINE_RE.match(continuation_lines[0]))
+
+
+def _curriculum_candidate_leaf_is_top_level_heading(candidate: _ChunkCandidate) -> bool:
+    section_path = _normalize_section_path(candidate.anchor)
+    if not section_path:
+        return False
+    return _curriculum_path_leaf_is_top_level_heading(section_path)
+
+
+def _curriculum_path_leaf_is_top_level_heading(section_path: tuple[str, ...]) -> bool:
+    if not section_path:
+        return False
+    return bool(_CURRICULUM_TOP_LEVEL_HEADING_RE.match(section_path[-1]))
+
+
+def _is_curriculum_course_map_noise_unit(unit: StructuredUnit) -> bool:
+    section_path = _normalize_curriculum_structural_path(list(_normalize_section_path(unit.anchor)))
+    lines = [line.strip() for line in unit.text.splitlines() if line.strip()]
+    if not lines:
+        return False
+    title_line_count = sum(1 for line in lines if _is_curriculum_course_map_title_line(line))
+    if title_line_count == 0:
+        return False
+    if not all(
+        _looks_like_curriculum_structure_heading(line) or _is_curriculum_course_map_title_line(line)
+        for line in lines
+    ):
+        return False
+    if "六、课程地图" not in section_path:
+        return True
+    non_root_heading_count = sum(
+        1
+        for line in lines
+        if _looks_like_curriculum_structure_heading(line) and line != "六、课程地图"
+    )
+    return non_root_heading_count > 0 or title_line_count > 1
 
 
 def _shared_metadata_text(members: Sequence[_ChunkMember], field_name: str) -> str | None:
@@ -764,20 +1591,27 @@ def index_chunks_to_qdrant(
     recreate_collection_on_schema_mismatch: bool = False,
     ensure_collection: bool = True,
     ensure_payload_indexes: bool = True,
+    extra_payload: dict[str, object] | None = None,
 ) -> tuple[str, ...]:
     if not chunks:
         return ()
     runtime_sparse_embedding_model = sparse_embedding_model or build_sparse_embedding_model(SparseEmbeddingSettings())
+    runtime_profile = load_runtime_profile(chunks[0].corpus, chunks[0].collection)
+    runtime_extra_payload = dict(extra_payload or {})
     if ensure_collection:
         _ensure_collection(
             qdrant_client=qdrant_client,
             collection_name=collection_name,
             dense_vector_size=_resolve_dense_vector_size(chunks),
+            dense_vector_name=runtime_profile.qdrant_index_binding.dense_vector_name,
+            sparse_vector_name=runtime_profile.qdrant_index_binding.sparse_vector_name,
             recreate_on_mismatch=recreate_collection_on_schema_mismatch,
         )
     points: list[qdrant_models.PointStruct] = []
     for chunk in chunks:
         node = chunk.to_node()
+        if runtime_extra_payload:
+            node.metadata.update(runtime_extra_payload)
         if chunk.embedding is None:
             raise ValueError(f"chunk {chunk.chunk_id} is missing dense embedding")
         sparse_vector = _resolve_sparse_vector(
@@ -788,8 +1622,8 @@ def index_chunks_to_qdrant(
             qdrant_models.PointStruct(
                 id=str(uuid.uuid5(uuid.NAMESPACE_URL, chunk.chunk_id)),
                 vector={
-                    "dense": list(chunk.embedding),
-                    "sparse": sparse_vector,
+                    runtime_profile.qdrant_index_binding.dense_vector_name: list(chunk.embedding),
+                    runtime_profile.qdrant_index_binding.sparse_vector_name: sparse_vector,
                 },
                 payload={
                     "_node_content": node.model_dump_json(),
@@ -807,49 +1641,6 @@ def index_chunks_to_qdrant(
     return tuple(str(point.id) for point in points)
 
 
-def _load_structured_units(
-    *,
-    record: DocumentRegistryRecord,
-    structured_jsonl_bytes: bytes,
-) -> tuple[StructuredUnit, ...]:
-    if record.collection == "curriculum_plan":
-        return tuple(build_curriculum_structured_units(record=record, structured_jsonl_bytes=structured_jsonl_bytes))
-    units: list[StructuredUnit] = []
-    for unit_index, line in enumerate(structured_jsonl_bytes.decode("utf-8").splitlines()):
-        normalized = line.strip()
-        if not normalized:
-            continue
-        raw = json.loads(normalized)
-        if str(raw.get("chunk_id") or "").strip() == "document-0000":
-            raise ValueError("structured input must not contain synthetic document-0000 rows")
-        doc_id = str(raw.get("doc_id") or "").strip()
-        version_id = str(raw.get("version_id") or "").strip()
-        if doc_id != record.document_id:
-            raise ValueError(
-                f"structured doc_id {doc_id!r} does not match registry document_id {record.document_id!r}"
-            )
-        if version_id != record.version_id:
-            raise ValueError(
-                f"structured version_id {version_id!r} does not match registry version_id {record.version_id!r}"
-            )
-        text = _resolve_structured_text(raw)
-        units.append(
-            StructuredUnit(
-                unit_index=unit_index,
-                document_id=doc_id,
-                version_id=version_id,
-                text=text,
-                source_chunk_id=_normalize_optional_text(raw.get("chunk_id")),
-                anchor=_normalize_anchor(raw.get("anchor")),
-                acl_level=_normalize_acl_level(raw.get("acl")),
-                unit_type=_normalize_unit_type(raw.get("unit_type")),
-                root_unit_id=_normalize_root_unit_id(raw),
-                metadata=_normalize_unit_metadata(raw),
-            )
-        )
-    return tuple(units)
-
-
 def _resolve_chunk_profile(
     *,
     record: DocumentRegistryRecord,
@@ -857,15 +1648,7 @@ def _resolve_chunk_profile(
 ) -> ChunkProfile:
     if chunk_profile is not None:
         return chunk_profile
-    if record.collection == "curriculum_plan":
-        raise ValueError("curriculum_plan chunking requires explicit chunk_profile")
-    runtime_profile = load_runtime_profile(record.corpus, record.collection)
-    if record.collection == "student_handbook":
-        return build_student_handbook_chunk_profile(
-            profile_version=runtime_profile.chunk_profile_version,
-            model_name=record.embedding_model,
-        )
-    return ChunkProfile()
+    return _resolve_collection_chunk_strategy(record).build_chunk_profile(record)
 
 
 def _resolve_structured_text(raw: dict[str, object]) -> str:
@@ -997,6 +1780,10 @@ def _ensure_payload_indexes(*, qdrant_client: QdrantClient, collection_name: str
         ("version_id", qdrant_models.PayloadSchemaType.KEYWORD),
         ("corpus", qdrant_models.PayloadSchemaType.KEYWORD),
         ("collection", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("visibility_scope", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("entitlement_groups", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("visibility_level", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("policy_projection_version", qdrant_models.PayloadSchemaType.KEYWORD),
         ("campus_scope", qdrant_models.PayloadSchemaType.KEYWORD),
         ("acl_groups", qdrant_models.PayloadSchemaType.KEYWORD),
         ("acl_level", qdrant_models.PayloadSchemaType.KEYWORD),
@@ -1016,6 +1803,8 @@ def _ensure_collection(
     *,
     qdrant_client: QdrantClient,
     collection_name: str,
+    dense_vector_name: str,
+    sparse_vector_name: str,
     dense_vector_size: int,
     recreate_on_mismatch: bool,
 ) -> None:
@@ -1023,12 +1812,16 @@ def _ensure_collection(
         _create_collection(
             qdrant_client=qdrant_client,
             collection_name=collection_name,
+            dense_vector_name=dense_vector_name,
+            sparse_vector_name=sparse_vector_name,
             dense_vector_size=dense_vector_size,
         )
         return
     if _collection_schema_matches(
         qdrant_client=qdrant_client,
         collection_name=collection_name,
+        dense_vector_name=dense_vector_name,
+        sparse_vector_name=sparse_vector_name,
         dense_vector_size=dense_vector_size,
     ):
         return
@@ -1038,6 +1831,8 @@ def _ensure_collection(
     _create_collection(
         qdrant_client=qdrant_client,
         collection_name=collection_name,
+        dense_vector_name=dense_vector_name,
+        sparse_vector_name=sparse_vector_name,
         dense_vector_size=dense_vector_size,
     )
 
@@ -1046,18 +1841,20 @@ def _create_collection(
     *,
     qdrant_client: QdrantClient,
     collection_name: str,
+    dense_vector_name: str,
+    sparse_vector_name: str,
     dense_vector_size: int,
 ) -> None:
     qdrant_client.create_collection(
         collection_name=collection_name,
         vectors_config={
-            "dense": qdrant_models.VectorParams(
+            dense_vector_name: qdrant_models.VectorParams(
                 size=dense_vector_size,
                 distance=qdrant_models.Distance.COSINE,
             )
         },
         sparse_vectors_config={
-            "sparse": qdrant_models.SparseVectorParams(modifier=qdrant_models.Modifier.IDF),
+            sparse_vector_name: qdrant_models.SparseVectorParams(modifier=qdrant_models.Modifier.IDF),
         },
     )
 
@@ -1066,6 +1863,8 @@ def _collection_schema_matches(
     *,
     qdrant_client: QdrantClient,
     collection_name: str,
+    dense_vector_name: str,
+    sparse_vector_name: str,
     dense_vector_size: int,
 ) -> bool:
     info = qdrant_client.get_collection(collection_name=collection_name)
@@ -1073,8 +1872,8 @@ def _collection_schema_matches(
     vectors = params.vectors
     if not isinstance(vectors, dict):
         return False
-    dense = vectors.get("dense")
-    sparse = (params.sparse_vectors or {}).get("sparse")
+    dense = vectors.get(dense_vector_name)
+    sparse = (params.sparse_vectors or {}).get(sparse_vector_name)
     return (
         dense is not None
         and getattr(dense, "size", None) == dense_vector_size

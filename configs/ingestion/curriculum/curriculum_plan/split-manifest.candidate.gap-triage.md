@@ -1,6 +1,6 @@
 ## curriculum_plan split gap triage
 
-This triage is based on direct inspection of `/tmp/curriculum-structured-full.v3.jsonl`.
+This triage is based on direct inspection of `/tmp/curriculum-layout-elements.v3.jsonl`.
 It is retained as a historical note after the split-truth promotion decision.
 
 ### Historical repo facts
@@ -13,7 +13,7 @@ It is retained as a historical note after the split-truth promotion decision.
 
 #### Class A: title exists, only punctuation normalization differs
 
-These titles exist in `structured-full.v3`, but current exact-match seeding misses them because OCR-cleaned titles use ASCII parentheses `()` while old canonical titles use full-width Chinese parentheses `（）`.
+These titles exist in `layout-elements.v3`, but current exact-match seeding misses them because OCR-cleaned titles use ASCII parentheses `()` while old canonical titles use full-width Chinese parentheses `（）`.
 
 - `中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案`
 - `俄语（俄语、中亚语）本科人才培养方案`
@@ -33,7 +33,7 @@ Minimum fix:
 
 #### Class B: title exists, but OCR title has stable suffix drift
 
-These titles exist in `structured-full.v3`, but the cleaned source keeps a stable edition suffix not present in old canonical title strings.
+These titles exist in `layout-elements.v3`, but the cleaned source keeps a stable edition suffix not present in old canonical title strings.
 
 - `民族学本科第二学士学位人才培养方案`
   - OCR title: `民族学本科第二学士学位人才培养方案(2020 版)`
@@ -60,7 +60,7 @@ Minimum fix:
 #### Class D: likely not a real split document under current cleaned source
 
 - `各类课程教学计划`
-  - no matching title row found in current `structured-full.v3`
+  - no matching title row found in current `layout-elements.v3`
   - legacy page span `14-22` is a preface / generic curriculum-rule segment that overlaps with later concrete course-plan documents
 
 Minimum fix:

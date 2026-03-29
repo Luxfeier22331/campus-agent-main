@@ -4,6 +4,8 @@ import json
 import unittest
 
 from campus_ingestion_core.chunking import (
+    CURRICULUM_CLEANING_POLICY_VERSION,
+    CURRICULUM_V2_CHUNK_POLICY_VERSION,
     DEFAULT_CHUNK_OVERLAP,
     DEFAULT_CHUNK_POLICY_VERSION,
     DEFAULT_CHUNK_SIZE,
@@ -11,6 +13,7 @@ from campus_ingestion_core.chunking import (
     TABLE_PLACEHOLDER,
     ChunkProfile,
     StudentHandbookChunkingStrategy,
+    build_curriculum_chunk_profile,
 )
 from campus_ingestion_core.embed import MockEmbeddingSettings, build_mock_embedding_model
 from campus_ingestion_core.handbook_cleanup import cleanup_handbook_document, serialize_handbook_document_units
@@ -54,6 +57,49 @@ def _make_registry_record() -> DocumentRegistryRecord:
                 document_id="handbook:test-001",
                 revision_track="source-faithful",
                 version_id="v1:test-001",
+                title=None,
+                year=None,
+                filename="document-units.jsonl",
+            ),
+        ),
+        import_source="raw_online_ocr",
+    )
+
+
+def _make_curriculum_registry_record() -> DocumentRegistryRecord:
+    return DocumentRegistryRecord(
+        document_id="curriculum:test-001",
+        revision_track="source-faithful",
+        version_id="v1:curriculum-test-001",
+        source_uri="campusrag://source/curriculum/test/pages/1-1",
+        content_hash="sha256:curriculum-test-001",
+        corpus="curriculum",
+        collection="curriculum_plan",
+        cleaning_policy_version=CURRICULUM_CLEANING_POLICY_VERSION,
+        acl_groups=("students",),
+        campus_scope="main",
+        status="active",
+        ingestion_timestamp="2026-03-27T10:00:00+00:00",
+        parser_version="raw-online-ocr-v1",
+        embedding_model="Qwen3-Embedding-4B",
+        source_channel="pdf_ocr",
+        document_units_object_key=build_processed_artifact_key(
+            corpus="curriculum",
+            collection="curriculum_plan",
+            document_id="curriculum:test-001",
+            revision_track="source-faithful",
+            version_id="v1:curriculum-test-001",
+            title=None,
+            year=None,
+            filename="document-units.jsonl",
+        ),
+        processed_object_keys=(
+            build_processed_artifact_key(
+                corpus="curriculum",
+                collection="curriculum_plan",
+                document_id="curriculum:test-001",
+                revision_track="source-faithful",
+                version_id="v1:curriculum-test-001",
                 title=None,
                 year=None,
                 filename="document-units.jsonl",
@@ -136,7 +182,7 @@ def _structured_unit_row(
 
 
 class ProcessingPipelineTest(unittest.TestCase):
-    def test_default_chunk_profile_matches_current_student_handbook_runtime_truth(self) -> None:
+    def test_default_chunk_profile_matches_generic_structure_first_defaults(self) -> None:
         profile = ChunkProfile()
 
         self.assertEqual(profile.chunk_size, DEFAULT_CHUNK_SIZE)
@@ -144,8 +190,33 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertEqual(profile.split_strategy, "structure_first")
         self.assertEqual(profile.chunk_policy_version, DEFAULT_CHUNK_POLICY_VERSION)
         self.assertEqual(profile.cleaning_policy_version, DEFAULT_CLEANING_POLICY_VERSION)
-        self.assertEqual(profile.strategy_name, "student_handbook_structure")
+        self.assertEqual(profile.strategy_name, "structure_first_default_v1")
         self.assertIsInstance(profile.strategy, StudentHandbookChunkingStrategy)
+
+    def test_build_curriculum_chunk_profile_matches_runtime_truth(self) -> None:
+        profile = build_curriculum_chunk_profile(model_name="Qwen3-Embedding-4B")
+
+        self.assertEqual(profile.chunk_size, 360)
+        self.assertEqual(profile.max_chunk_size, 540)
+        self.assertEqual(profile.chunk_overlap, 72)
+        self.assertEqual(profile.min_chunk_size, 50)
+        self.assertEqual(profile.chunk_policy_version, CURRICULUM_V2_CHUNK_POLICY_VERSION)
+        self.assertEqual(profile.cleaning_policy_version, CURRICULUM_CLEANING_POLICY_VERSION)
+        self.assertEqual(profile.strategy_name, "curriculum_plan_structure_v2")
+
+    def test_build_curriculum_chunk_profile_v2_uses_balanced_table_budget_for_table_units(self) -> None:
+        profile = build_curriculum_chunk_profile(
+            profile_version=CURRICULUM_V2_CHUNK_POLICY_VERSION,
+            model_name="Qwen3-Embedding-4B",
+            unit_type="table_unit",
+        )
+
+        self.assertEqual(profile.chunk_size, 420)
+        self.assertEqual(profile.max_chunk_size, 640)
+        self.assertEqual(profile.chunk_overlap, 72)
+        self.assertEqual(profile.min_chunk_size, 64)
+        self.assertEqual(profile.chunk_policy_version, CURRICULUM_V2_CHUNK_POLICY_VERSION)
+        self.assertEqual(profile.strategy_name, "curriculum_plan_structure_v2")
 
     def test_build_indexable_chunks_from_jsonl_keeps_required_metadata(self) -> None:
         record = _make_registry_record()
@@ -186,6 +257,10 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertEqual(chunk.version_id, "v1:test-001")
         self.assertEqual(chunk.chunk_id, "handbook:test-001:source-faithful:v1:test-001:chunk-0001")
         self.assertEqual(chunk.corpus, "regulations")
+        self.assertEqual(chunk.entitlement_groups, ("students", "staff"))
+        self.assertIsNone(chunk.visibility_scope)
+        self.assertEqual(chunk.visibility_level, "restricted")
+        self.assertEqual(chunk.policy_projection_version, "phase1-authorization-projection-v1")
         self.assertEqual(chunk.acl_groups, ("students", "staff"))
         self.assertIsNone(chunk.campus_scope)
         self.assertEqual(chunk.source_chunk_id, "legacy-chunk-001")
@@ -198,13 +273,70 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertEqual(chunk.metadata["segment_total"], 1)
         self.assertIsNone(chunk.metadata["split_reason"])
         self.assertIsNone(chunk.metadata["boundary_rule"])
-        self.assertEqual(chunk.metadata["strategy_name"], "student_handbook_structure")
+        self.assertEqual(chunk.metadata["strategy_name"], "structure_first_default_v1")
         self.assertEqual(chunk.metadata["split_strategy"], "structure_first")
         self.assertEqual(chunk.metadata["chunk_policy_version"], DEFAULT_CHUNK_POLICY_VERSION)
         self.assertEqual(chunk.metadata["cleaning_policy_version"], DEFAULT_CLEANING_POLICY_VERSION)
         self.assertEqual(chunk.metadata["display_text"], "Student handbook library hours are from 08:00 to 22:00.")
         self.assertFalse(chunk.metadata["contextualized_text"])
         self.assertIn("library hours", chunk.text.lower())
+        node = chunk.to_node()
+        self.assertEqual(node.metadata["entitlement_groups"], ["students", "staff"])
+        self.assertEqual(node.metadata["visibility_scope"], None)
+        self.assertEqual(node.metadata["visibility_level"], "restricted")
+        self.assertEqual(
+            node.metadata["policy_projection_version"],
+            "phase1-authorization-projection-v1",
+        )
+        self.assertEqual(node.metadata["acl_groups"], ["students", "staff"])
+
+    def test_build_indexable_chunks_from_jsonl_defaults_to_runtime_curriculum_profile(self) -> None:
+        record = _make_curriculum_registry_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0001-block-0001",
+                        "row_id": "page-0001-block-0001",
+                        "row_type": "heading",
+                        "heading_level": 2,
+                        "clean_text": "一、培养目标",
+                        "page_start": 1,
+                        "page_end": 1,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0001-block-0002",
+                        "row_id": "page-0001-block-0002",
+                        "row_type": "paragraph",
+                        "clean_text": "培养具有国际视野和跨学科协同能力的复合型人才。",
+                        "page_start": 1,
+                        "page_end": 1,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0].metadata["chunk_policy_version"], CURRICULUM_V2_CHUNK_POLICY_VERSION)
+        self.assertEqual(chunks[0].metadata["cleaning_policy_version"], CURRICULUM_CLEANING_POLICY_VERSION)
+        self.assertEqual(chunks[0].metadata["strategy_name"], "curriculum_plan_structure_v2")
+        self.assertEqual(chunks[0].metadata["unit_type"], "section_text")
 
     def test_build_indexable_chunks_from_jsonl_rewrites_parent_table_html_to_placeholder(self) -> None:
         record = _make_registry_record()
@@ -1244,6 +1376,80 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertIn("五、本规定自2009年3月17日起实施。", chunks[1].metadata["display_text"])
         self.assertIn("六、本规定由教务处负责解释。", chunks[1].metadata["display_text"])
         self.assertNotIn("三、学士学位授予程序", chunks[1].text)
+
+    def test_build_indexable_chunks_marks_time_rule_policy_page_as_answer_bearing(self) -> None:
+        record = _make_registry_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id="legacy-time-rule",
+                        unit_type="policy_page",
+                        root_unit_id="policy-time-rule",
+                        clean_text="冬季作息时间为周日至周四23:00熄灯，周五至周六23:30熄灯。",
+                        anchor={
+                            "section_path": ["一、时间安排"],
+                            "page_start": 12,
+                            "page_end": 12,
+                        },
+                        metadata={"title": "中央民族大学学生宿舍管理规定"},
+                    ),
+                    ensure_ascii=False,
+                )
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=ChunkProfile(chunk_size=128, max_chunk_size=256, chunk_overlap=16, min_chunk_size=32),
+            embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        chunk = chunks[0]
+        self.assertEqual(chunk.metadata["detail_label"], "一、时间安排")
+        self.assertEqual(chunk.metadata["content_role"], "time_rule")
+        self.assertTrue(chunk.metadata["is_answer_bearing"])
+
+    def test_build_indexable_chunks_marks_scope_rule_policy_page_as_non_answer_bearing(self) -> None:
+        record = _make_registry_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id="legacy-scope-rule",
+                        unit_type="policy_page",
+                        root_unit_id="policy-scope-rule",
+                        clean_text="本规定适用于全日制本科生在校期间的住宿管理。",
+                        anchor={
+                            "provision_label": "三",
+                            "page_start": 12,
+                            "page_end": 12,
+                        },
+                        metadata={"title": "中央民族大学学生宿舍管理规定"},
+                    ),
+                    ensure_ascii=False,
+                )
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=ChunkProfile(chunk_size=128, max_chunk_size=256, chunk_overlap=16, min_chunk_size=32),
+            embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        chunk = chunks[0]
+        self.assertEqual(chunk.metadata["detail_label"], "三")
+        self.assertEqual(chunk.metadata["content_role"], "scope_rule")
+        self.assertFalse(chunk.metadata["is_answer_bearing"])
 
 if __name__ == "__main__":
     unittest.main()

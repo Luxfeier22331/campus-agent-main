@@ -17,6 +17,11 @@ const baseEnv: PublicChatServerEnv = {
   ingestionRegistrySchema: "ingestion_registry",
 };
 
+const curriculumScope = {
+  corpus: "curriculum",
+  collection: "curriculum_plan",
+} as const;
+
 describe("answer runtime availability", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -53,6 +58,7 @@ describe("answer runtime availability", () => {
         publicChatMode: "live",
         answerBaseUrl: "http://127.0.0.1:8000",
         answerBearerToken: "local-dev-token",
+        answerScope: curriculumScope,
       },
       conversationId: "conv-1",
       prompt: "图书馆开放到几点？",
@@ -65,6 +71,27 @@ describe("answer runtime availability", () => {
     expect(result.message).toContain("The public answer path is unavailable right now.");
     expect(result.message).toContain("connect ECONNREFUSED");
     expect(result.request_id).toMatch(/^req-/);
+  });
+
+  it("returns a non-retryable error when live mode is missing an explicit answer scope", async () => {
+    const result = await requestPublicAnswer({
+      env: {
+        ...baseEnv,
+        publicChatMode: "live",
+        answerBaseUrl: "http://127.0.0.1:8000",
+      },
+      conversationId: "conv-1",
+      prompt: "培养方案要求是什么？",
+    });
+
+    expect(result.kind).toBe("error");
+    if (result.kind !== "error") {
+      throw new Error("Expected error result.");
+    }
+    expect(result.message).toBe(
+      "PUBLIC_CONSUMER_CHAT_SCOPE_CORPUS and PUBLIC_CONSUMER_CHAT_SCOPE_COLLECTION are required in live mode.",
+    );
+    expect(result.retryable).toBe(false);
   });
 
   it("maps invalid live payloads into a request-correlated error state", async () => {
@@ -86,6 +113,7 @@ describe("answer runtime availability", () => {
         ...baseEnv,
         publicChatMode: "live",
         answerBaseUrl: "http://127.0.0.1:8000",
+        answerScope: curriculumScope,
       },
       conversationId: "conv-1",
       prompt: "图书馆开放到几点？",
@@ -125,6 +153,7 @@ describe("answer runtime availability", () => {
         ...baseEnv,
         publicChatMode: "live",
         answerBaseUrl: "http://127.0.0.1:8000",
+        answerScope: curriculumScope,
       },
       conversationId: "conv-1",
       prompt: "图书馆开放到几点？",
@@ -166,6 +195,7 @@ describe("answer runtime availability", () => {
         ...baseEnv,
         publicChatMode: "live",
         answerBaseUrl: "http://127.0.0.1:8000",
+        answerScope: curriculumScope,
       },
       conversationId: "conv-1",
       prompt: "图书馆开放到几点？",
@@ -205,6 +235,7 @@ describe("answer runtime availability", () => {
         ...baseEnv,
         publicChatMode: "live",
         answerBaseUrl: "http://127.0.0.1:8000",
+        answerScope: curriculumScope,
       },
       conversationId: "conv-1",
       prompt: "图书馆开放到几点？",
@@ -246,6 +277,7 @@ describe("answer runtime availability", () => {
         ...baseEnv,
         publicChatMode: "live",
         answerBaseUrl: "http://127.0.0.1:8000",
+        answerScope: curriculumScope,
       },
       conversationId: "conv-1",
       prompt: "图书馆开放到几点？",

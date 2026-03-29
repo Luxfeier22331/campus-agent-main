@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0004
 status: accepted
 created: 2026-03-22
-updated: 2026-03-25
+updated: 2026-03-28
 ---
 
 # ADR-0004 评测指标体系
@@ -87,12 +87,18 @@ answer 层长期至少保留以下指标族：
 
 - `status accuracy`
   `completed`、`needs_clarification`、`no_answer`、`error` 是否与 truth 一致
+- `intent-frame accuracy`
+  top-level intent / task framing 是否与 truth 一致
 - `routing accuracy`
   是否选择了正确的 specialist，或在不该委派时正确保持不委派
+- `slot completeness / missing-slot accuracy`
+  是否识别出 cohort、major、campus、target policy 等关键缺失信息
 - `clarification accuracy`
   是否在应澄清时澄清，不应澄清时不误触发
 - `no-answer accuracy`
   是否在证据不足或范围不符时正确拒答
+- `personalization correctness`
+  是否正确使用 verified identity / typed memory 做 personalization，且没有错误过拟合到未验证个人背景
 - `delegation / handoff accuracy`
   是否发生了正确的 specialist delegation / handoff，且没有越级绕过 supervisor policy
 - `trace path correctness`
@@ -111,6 +117,9 @@ workflow 指标属于正式门禁对象，不得被最终答案文本指标替�
 
 - ACL fail-closed rate
 - forbidden-source retrieval rate
+- memory privilege-escalation rate
+- identity / memory projection correctness
+- forbidden-personal-data disclosure rate
 - citation/source-locator completeness
 - error-path correctness
 - approval-path correctness（当系统存在 approval-required capability 时）
@@ -126,7 +135,7 @@ workflow 指标属于正式门禁对象，不得被最终答案文本指标替�
 - `regression_locked`
   必须覆盖 retrieval、answer、workflow 三层正式指标
 - `release_gate`
-  必须覆盖 retrieval、answer、workflow 与 safety/gate 指标；当本轮变化涉及新 specialist、routing、handoff 或 approval path 时，必须显式覆盖对应维度
+  必须覆盖 retrieval、answer、workflow 与 safety/gate 指标；当本轮变化涉及新 specialist、routing、handoff、approval path 或 personalization / memory projection 时，必须显式覆盖对应维度
 - `exploratory`
   允许试验新指标，但试验指标不自动升级为正式门禁
 
@@ -167,6 +176,8 @@ split 和指标族的对应关系在长期上固定，但每个 split 的具体�
   只保留 `evals` 边界与可替换性原则
 - `docs/decisions/adr-0003-golden-dataset-governance.md`
   负责 golden dataset 的真值治理
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
+  负责 identity / memory / personalization 的长期边界
 - 本 ADR
   负责指标家族、指标分层与 gate 语义
 - `docs/plans/`

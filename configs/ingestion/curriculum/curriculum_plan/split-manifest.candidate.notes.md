@@ -10,7 +10,7 @@ This note records the current repo-tracked `cleaning -> split` decision state fo
   - non-overlapping page ranges
 - the formal split manifest does not store an external `source_uri`
 - normalized raw ingestion derives document `source_uri` from `raw_asset_id + raw_version_id + page_start/page_end`
-- `/tmp/curriculum-structured-full.v3.jsonl` contains the reviewed cleaned source rows used for this split review
+- `/tmp/curriculum-layout-elements.v3.jsonl` contains the reviewed source-truth rows used for this split review
 - old `campusRag` curriculum canonical docs provide reusable:
   - `doc_id`
   - `title`
@@ -25,8 +25,8 @@ This note records the current repo-tracked `cleaning -> split` decision state fo
 
 - `split-manifest.v1.json`
   - promoted to the real split truth for the reviewed `asset:curriculum-plan-2022`
-  - `66` title-anchored documents
-  - page ranges inferred from current `structured-full.v3` title occurrences after minimal title normalization
+  - `69` title-anchored documents
+  - page ranges inferred from current `layout-elements.v3` title occurrences after minimal title normalization
 - `split-manifest.candidate.v1.json`
   - review companion artifact generated from the same source and document list
   - follows the same repo manifest schema as the formal split truth
@@ -35,7 +35,7 @@ This note records the current repo-tracked `cleaning -> split` decision state fo
   - `1` retired legacy canonical document: `各类课程教学计划`
   - retirement reason: `legacy_synthetic_umbrella_title`
 - `samples/*.structured.jsonl`
-  - real document-level outputs cut from the current reviewed `structured-full.v3`
+  - real document-level outputs cut from the current reviewed `layout-elements.v3`
   - intended for split-shape inspection only
   - retain compatibility `source_url` values derived from canonical doc paths for review convenience
 

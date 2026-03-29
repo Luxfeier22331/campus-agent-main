@@ -96,7 +96,7 @@ class InMemoryDocumentRegistry:
                 return max(matching, key=lambda record: record.ingestion_timestamp)
         if current_records:
             return max(current_records, key=lambda record: record.ingestion_timestamp)
-        return max(records, key=lambda record: record.ingestion_timestamp)
+        return None
 
     def delete_document(self, document_id: str) -> None:
         self._records = {

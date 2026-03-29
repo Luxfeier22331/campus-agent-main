@@ -2,7 +2,7 @@
 doc_type: plan
 status: active
 created: 2026-03-22
-updated: 2026-03-27
+updated: 2026-03-29
 ---
 
 # Agentic RAG 第一阶段地基实施文档
@@ -17,10 +17,19 @@ updated: 2026-03-27
 - 当前 phase 的执行顺序、最新 pending work、讨论结论和进度状态，以 `.planning/PROJECT.md`、`.planning/ROADMAP.md`、`.planning/STATE.md` 以及对应 phase 目录下的 context / plan / validation 产物为准
 - 当这份文档中的早期 phase-1 实施叙事与 `.planning/` 中的当前执行现实不一致时，应优先更新这里的文档边界说明，并按 `.planning/` 继续推进执行，而不是把过时叙事重新提升为当前硬约束
 - 当前 retrieval accepted baseline 不再单独由本文维护；以 `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md` 与 `docs/architecture/retrieval-query-strategy.md` 为准
+- 当前 serving/indexing 术语不再由本文解释；以 `docs/reference/runtime-serving-and-index-terms.md` 为准
+
+当前不应从本文直接读取的运行真相包括：
+
+- 当前 query-enabled scope
+- 当前 serving alias / physical collection 语义
+- 当前 release manifest / rollback 运行约束
+
+这些内容分别以 runtime profile、`.planning/PROJECT.md` / `.planning/STATE.md`、以及 operator runbook 为准。
 
 **Goal:** 在当前 `campus-agent` monorepo 中补齐第一阶段地基，以“符合最佳实践前提下跑通端到端 agentic RAG 流程”为验收标准。
 
-**Architecture:** 本次实施只做第一阶段可上线闭环，不保留旧 `/api/search`、`/api/answer` 兼容层。数据面按 `Source -> Derived -> Chunk/Index` 三层分离落地，当前对象存储使用本机部署的 `MinIO`；长期 corpus 根名统一为 `regulations`，首批开放 collection 为 `student_handbook`。source bucket 采用 corpus-agnostic 的 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...` 前缀，并在同一来源前缀下按 `capture/`、`provider/`、`source-truth/` 分层保存来源资产；derived bucket 的命名空间固定拆成 `{corpus}/documents/...`，其中 handbook OCR truth 固定为 `provider-response.jsonl -> layout-elements.jsonl -> split-manifest -> per-document canonical.md + document-units.jsonl`，逻辑文档以 `document_id + revision_track + version_id` 建模，不再依赖 `campusRAG` 作为运行时输入。查询面采用 `Supervisor API -> Supervisor Core -> RAG Specialist -> Retrieval Core`，内部 runtime 使用 AgentOS-native，检索实现使用 `LlamaIndex + Qdrant`。
+**Architecture:** 本次实施只做第一阶段可上线闭环，不保留旧 `/api/search`、`/api/answer` 兼容层。数据面按 `Source -> Derived -> Chunk/Index` 三层分离落地，当前对象存储使用本机部署的 `MinIO`；早期初始开放 collection 为 `student_handbook`。source bucket 采用 corpus-agnostic 的 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...` 前缀，并在同一来源前缀下按 `capture/`、`provider/`、`source-truth/` 分层保存来源资产；derived bucket 的命名空间固定拆成 `{corpus}/documents/...`，其中 handbook OCR truth 固定为 `provider-response.jsonl -> layout-elements.jsonl -> split-manifest -> per-document canonical.md + document-units.jsonl`，逻辑文档以 `document_id + revision_track + version_id` 建模，不再依赖 `campusRAG` 作为运行时输入。查询面采用 `Supervisor API -> Supervisor Core -> RAG Specialist -> Retrieval Core`，内部 runtime 使用 AgentOS-native，检索实现使用 `LlamaIndex + Qdrant`。当前运行态的 query-serving truth 和 index release 语义不再由本文维护，而由 collection runtime profile、`.planning/PROJECT.md` / `.planning/STATE.md` 以及 operator runbook 控制。
 
 **Tech Stack:** Python 3.12, uv workspace, Agno AgentOS, LlamaIndex, Qdrant, MinIO (local S3-compatible), pytest/unittest
 
@@ -40,8 +49,8 @@ updated: 2026-03-27
 
 实施范围固定为：
 
-- 查询链路默认开放 `regulations` corpus 中的 `student_handbook` collection
-- storage/data-plane 可增量支持其他已冻结 scope，例如 `curriculum/curriculum_plan` 与 offline-only 的 `campus_services/service_catalog`、`campus_services/contact_directory`
+- 初始基线默认开放 `regulations` corpus 中的 `student_handbook` collection；当前 query-serving truth 已由 runtime profile 扩展到 `curriculum/curriculum_plan`
+- storage/data-plane 可增量支持其他已冻结 scope；当前 `campus_services/service_catalog` 与 `campus_services/contact_directory` 仍保持 `offline_preparation`
 - 上游可以保留 `crawler job` / `queue` 概念边界，但当前 worker runtime 只消费已登记的 raw asset identity，不实现本地 placeholder queue
 - 当前对象存储只做本机 `MinIO`
 - 不保留旧 RAG API 兼容层
@@ -58,7 +67,8 @@ updated: 2026-03-27
 它不重复长期架构原则，也不替代 ADR。关系固定如下：
 
 - 长期边界、职责拆分、可替换性定义，留在 `docs/architecture/long-term-architecture.md`
-- 第一阶段架构取舍和约束，留在 `docs/decisions/adr-0001-phase1-architecture.md`
+- supervisor / execution engine 当前设计取舍，留在 `docs/architecture/supervisor-architecture.md`
+- 第一阶段数据平面约束，留在 `docs/architecture/phase1-ingestion-and-storage-architecture.md`
 - 本机 `MinIO` 作为本地对象存储替代实现的规则，留在 `docs/decisions/adr-0002-local-minio-conventions.md`
 - 当前阶段执行状态、phase 排序、pending work 和最新讨论结论，留在 `.planning/`
 - 这份文档只负责把上面三类原则拆成第一阶段地基的实施基线、门禁、文件落点和验收标准，不再充当当前 phase-by-phase 执行日志
@@ -75,7 +85,7 @@ updated: 2026-03-27
 
 ## Migration note: 2026-03-26 phase snapshot
 
-以下内容保留为 `2026-03-26` 的阶段快照，只用于理解当时的推进背景，不再作为当前执行状态真相源。当前如需判断 Gate 是否已通过、live collection 是否已重建、当前验证卡点是什么，应以 `.planning/STATE.md` 与 `docs/verification/` 下的最新验收文档为准。
+以下内容保留为 `2026-03-26` 的阶段快照，只用于理解当时的推进背景，不再作为当前执行状态真相源。当前如需判断 Gate 是否已通过、live collection 是否已重建、当前验证卡点是什么，应以 `.planning/STATE.md` 与 `docs/runbooks/`、`docs/reference/`、`docs/policies/` 下的最新文档为准。
 
 - 当时的代码基线验证命令为：`uv run --all-packages python -m unittest discover -s tests -t .`
 - 当时已记录 `MinIO` bucket、handbook source artifacts、retrieval baseline 调整与 live rebuild 待完成等阶段信息
@@ -131,12 +141,12 @@ updated: 2026-03-27
           +------------------------------+
 ```
 
-## 实施前冻结项
+## 初始实施前冻结项（历史基线）
 
 在写任何正式实现之前，先冻结以下输入，不允许边做边漂移：
 
-- query-serving 默认范围：开放 `regulations` corpus 中的 `student_handbook` collection
-- data-plane 增量语料：允许 `curriculum` corpus 下的 `curriculum_plan` 与 `campus_services` corpus 下的服务类 collection 完成 source/derived/registry 与清洗真相收口，但不自动放开 retrieval
+- 当时的 query-serving 默认范围：开放 `regulations` corpus 中的 `student_handbook` collection
+- 当时的 data-plane 增量语料：允许 `curriculum` corpus 下的 `curriculum_plan` 与 `campus_services` corpus 下的服务类 collection 完成 source/derived/registry 与清洗真相收口，但不自动放开 retrieval
 - handbook OCR 输入：只允许对象存储中的 `provider-response.jsonl` 与 repo-tracked `split-manifest.v1.json`
 - object storage 语义：只允许 `campus-rag-source` / `campus-rag-derived`
 - object key 结构：
@@ -179,7 +189,7 @@ updated: 2026-03-27
 feature worktree 环境规则：
 
 - ingestion worker CLI 优先读取当前 worktree 根目录 `.env`
-- 如果当前 worktree 没有 `.env`，允许显式回退到 main worktree 根目录 `.env`
+- 如果当前 worktree 没有 `.env`，允许显式回退到根集成 worktree 的 `.env`
 - 不允许因为 worktree 缺少 `.env` 就临时切到本地 file registry、mock OCR 或其他非 canonical backend
 
 第一阶段至少要冻结以下导入基线资产：
@@ -195,7 +205,7 @@ feature worktree 环境规则：
 
 为了避免“代码写了很多但主链路仍然不通”，第一阶段按门禁推进：
 
-以下 Gate 定义仍是本文要冻结的实施门禁；但每个 Gate 的当前通过状态、阻塞项与运行态证据不再在本文维护。当前真相请以 `.planning/STATE.md` 和 `docs/verification/` 下的最新文档为准。
+以下 Gate 定义仍是本文要冻结的实施门禁；但每个 Gate 的当前通过状态、阻塞项与运行态证据不再在本文维护。当前真相请以 `.planning/STATE.md` 和 `docs/runbooks/`、`docs/reference/`、`docs/policies/` 下的最新文档为准。
 
 - Gate 0: 基线冻结
   - 冻结 corpus、导入来源、chunk profile、embedding profile、baseline cases
@@ -222,10 +232,12 @@ feature worktree 环境规则：
   字段：`doc_id`, `revision_track`, `version_id`, `chunk_id`, `anchor`, `acl_level`, `canonical_url`, `latest_url`, `source_channel`, `collection`, `is_current`, `snippet`, `score`
 - `EvidenceBundle`
   字段：`query_text`, `corpus`, `collection`, `sources`
-- `DelegateToRagAgentRequest`  
-  字段：`user_goal`, `conversation_id`, `request_id`, `trace`, `actor`, `scope`
-- `DelegateToRagAgentResponse`
-  字段：`status`, `answer_text`, `follow_up_question`, `confidence`, `evidence`, `error`
+- `SupervisorRequest`
+  字段：`user_goal`, `conversation_id`, `request_id`, `trace`, `actor`, `requested_capability`, `requested_scope`
+- `SpecialistRequest`
+  字段：`target`, `user_goal`, `payload`, `conversation_id`, `request_id`, `trace`, `actor`
+- `SpecialistResponse`
+  字段：`target`, `status`, `answer_text`, `follow_up_question`, `confidence`, `result`, `error`
 
 固定状态枚举：
 
@@ -252,7 +264,7 @@ feature worktree 环境规则：
 **Implementation:**
 - 扩展现有 request/response dataclass，加入 trace、actor、evidence、error 相关模型。
 - 保持 `packages/contracts` 纯 Python schema，不引入 Agno、LlamaIndex、MinIO SDK 类型。
-- `scope` 第一阶段默认为 `{"corpus": "regulations", "collection": "student_handbook"}`，并由查询面做 fail-closed 控制。
+- 初始基线里 `scope` 默认先围绕 `{"corpus": "regulations", "collection": "student_handbook"}` 设计；当前运行态 query-serving truth 已由 runtime profile 控制，不再由这里声明单一默认查询面。
 - 明确 `DocumentRef` 与 `EvidenceSource` 的最小字段集，对齐现有决策文档与 legacy source locator 语义。
 
 **Verification:**
@@ -330,8 +342,8 @@ feature worktree 环境规则：
 - 新建 `apps/ingestion-worker`，作为摄入运行时壳。
 - 提供 `process_raw_ingestion_job` 入口，表达 worker 边界；对已登记到 raw asset registry 的 source PDF 做在线 OCR，写 source/derived artifacts 与 registry。
 - worker 主路径只接受 `raw_asset_id + raw_version_id`，不接受本地 PDF 路径或本地 placeholder job envelope。
-- `regulations` 作为默认查询 corpus，`student_handbook` 作为默认开放 collection。
-- `curriculum_plan` 允许通过 split manifest 进入 storage/registry，但不在本阶段放开 retrieval。
+- 初始实现先以 `regulations/student_handbook` 为查询主链路。
+- `curriculum_plan` 在当时仅通过 split manifest 进入 storage/registry；当前 serving truth 已以后续 runtime profile 为准。
 - 如果 OCR 来自在线供应商：
   - source / derived 层必须分开保存 `provider-response.jsonl` 与 `document-units.jsonl`
   - 两者必须分开保存，不能互相替代
@@ -417,7 +429,7 @@ feature worktree 环境规则：
   - `acl_groups`
 - retrieval 输出必须是 `EvidenceBundle` 能直接消费的结构
 - retrieval 前置 ACL filter 基于 metadata 执行
-- retrieval 读取 corpus runtime profile；phase-1 默认只开放 `regulations` corpus 下的 `student_handbook` collection，对未放开的 collection 必须 fail-closed
+- retrieval 读取 corpus runtime profile；当前 query-enabled surface 由 profile 驱动，当前为 `regulations/student_handbook` 与 `curriculum/curriculum_plan`，对未放开的 collection 必须 fail-closed
 
 **Verification:**
 - `uv run --all-packages python -m unittest tests.retrieval.test_backend_qdrant`
@@ -508,7 +520,7 @@ feature worktree 环境规则：
   - registrar transcript
   - add/drop
   - leave of absence
-- 支持 multi-corpus request truth，但 phase-1 只对“单次请求选一个 query-enabled corpus”的路由语义做评测
+- 支持 multi-corpus request truth，但当前只对“单次请求选一个 query-enabled corpus”的路由语义做评测
 - 增加 ingestion 基线：
   - OCR 导入成功
   - 重复导入 skip
@@ -523,7 +535,7 @@ feature worktree 环境规则：
 - Modify: `tests/test_workspace_layout.py`
 - Modify: `README.md`
 - Modify: `docs/architecture/phase1-ingestion-and-storage-architecture.md` 仅补实现链接
-- Modify: `docs/decisions/adr-0001-phase1-architecture.md` 仅补实施链接
+- Modify: `docs/architecture/supervisor-architecture.md` 仅补当前设计链接
 
 **Implementation:**
 - 把当前 smoke 从“骨架存在”升级为“主链路可用”
@@ -544,7 +556,7 @@ feature worktree 环境规则：
 - `Supervisor API -> Supervisor Core -> RAG Specialist -> Retrieval Core` 可跑通
 - 返回结果带 `trace_id`、最小 source locator、confidence
 - `student_handbook` baseline 场景冻结并可重复运行
-- `curriculum_plan` 在 phase-1 完成 data-plane / cleaned-ingestion 收口，但默认不进入 query-serving
+- `curriculum_plan` 已完成 data-plane / cleaned-ingestion 收口并进入 profile-driven query-serving；`campus_services` collection 当前仍不进入 query-serving
 - gate 0 到 gate 4 均有明确通过证据，而不是只停留在代码存在
 
 ## 并行策略
@@ -572,7 +584,7 @@ feature worktree 环境规则：
 ## 假设与默认值
 
 - 当前 `campusRAG` 原始 OCR 结果在本机可访问
-- 第一阶段只处理 `regulations` corpus 下的 `student_handbook` collection
+- 初始主链路只处理 `regulations/student_handbook`；当前如涉及运行态 serving surface，以 runtime profile 和 `.planning/` 为准
 - MinIO 为本机部署，但 contract 一律按 S3-compatible 设计
 - worker 输入冻结为 `raw_asset_id + raw_version_id`
 - 不做云服务接入

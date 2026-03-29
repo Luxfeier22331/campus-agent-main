@@ -1,6 +1,6 @@
 # Technology Stack
 
-**Analysis Date:** 2026-03-23
+**Analysis Date:** 2026-03-29
 
 ## Languages
 
@@ -23,19 +23,24 @@
 
 ## Workspace Layout
 
-- Transport/runtime boundaries: `apps/supervisor-api` (API shell, see `apps/supervisor-api/src/campus_supervisor_api/api.py` for `/api/v1/answer`, `/healthz`, `/readyz`) and `apps/ingestion-worker` (ingestion CLI, per `apps/ingestion-worker/README.md`).
-- Capability packages: `packages/supervisor-core`, `packages/rag-specialist`, `packages/retrieval-core`, `packages/ingestion-core`, `packages/contracts`, `packages/shared`, `packages/evals`, each with its own `pyproject.toml` and `src/` entry points.
+- Transport/runtime boundaries now span `apps/supervisor-api`, `apps/ingestion-worker`, `apps/app-api`, `apps/public-entry-worker`, and `apps/protected-internal-panel`; `apps/public-consumer-chat` remains in-tree only as a historical implementation reference.
+- Capability packages: `packages/supervisor-core`, `packages/rag-specialist`, `packages/availability-specialist`, `packages/retrieval-core`, `packages/ingestion-core`, `packages/contracts`, `packages/shared`, `packages/evals`, each with its own `pyproject.toml` and `src/` entry points.
 - Architecture framing is documented in `docs/architecture/long-term-architecture.md` and the phase-1 implementation details in `docs/architecture/phase1-ingestion-and-storage-architecture.md`, so stack decisions follow those boundaries.
 
 ## Apps & Packages Inventory
 
-- `apps/supervisor-api` – bootstrap API boundary wiring supervisor handler (`apps/supervisor-api/src/campus_supervisor_api/app.py` and `settings.py`).
+- `apps/supervisor-api` – execution API shell wiring the supervisor handler (`apps/supervisor-api/src/campus_supervisor_api/app.py` and `settings.py`).
 - `apps/ingestion-worker` – CLI shells (`apps/ingestion-worker/src/campus_ingestion_worker/*`) for importing campusRAG OCR assets, submitting ingestion jobs, and rebuilding local datasets, controlled by `apps/ingestion-worker/README.md`.
+- `apps/app-api` – current merged truth only includes the minimal Python `ContextProjection` seam; the fuller Worker app backend is still pending merge from a dedicated worktree.
+- `apps/public-entry-worker` – public Worker runtime shell that fronts trusted origin access.
+- `apps/protected-internal-panel` – protected panel shell / migration surface.
+- `apps/public-consumer-chat` – merged 04.7 historical app implementation retained as a migration source, not the forward product backend boundary.
 - `packages/supervisor-core` – superintendent agent, routing, policy, and response assembly (`packages/supervisor-core/src/...`).
 - `packages/rag-specialist` – specialist agent and confidence computation funneling to `campus_retrieval_core`.
+- `packages/availability-specialist` – typed availability-probe specialist that stays parallel to `rag-specialist`.
 - `packages/retrieval-core` – LlamaIndex + Qdrant backend, retrieval settings, and retrieval service wrappers (`packages/retrieval-core/src/campus_retrieval_core/`).
 - `packages/ingestion-core` – ingestion pipelines, object store helpers, registries, OCR glue, corpus profiles (`packages/ingestion-core/src/campus_ingestion_core/`).
-- `packages/contracts` – shared DTOs such as `DelegateToRagAgentRequest/Response`, `EvidenceBundle`, and `ALLOWED_CORPORA` (`packages/contracts/src/campus_contracts/models.py`).
+- `packages/contracts` – shared DTOs such as `SupervisorRequest`, `SpecialistRequest`, `SpecialistResponse`, `EvidenceBundle`, and `ALLOWED_CORPORA` (`packages/contracts/src/campus_contracts/models.py`).
 - `packages/shared` – shared constants (`packages/shared/src/campus_shared/constants.py`).
 - `packages/evals` – evaluation & smoke fixtures that depend on the shared contracts.
 
@@ -61,8 +66,9 @@
 
 **Environment:**
 - `pyproject.toml` anchors Python 3.12 and declares the workspace members (`apps/*`, `packages/*`), so every command runs within a consistent `uv` context.
-- `.env.example` lays out the required variables for the Supervisor API (`API_AUTH_MODE`, `AGNO_SUPERVISOR_MODEL`, `AGNO_SPECIALIST_MODEL`, `API_BEARER_TOKEN`), retrieval/embedding (`QDRANT_URL`, `EMBEDDING_MODEL`, `DOCUMENT_REGISTRY_DATABASE_URL`, `EMBEDDING_PROVIDER=openai`), MinIO (`OBJECT_STORE_*`), ingestion/OCR/backfill (`CAMPUSRAG_OCR_ROOT`, `OCR_BASE_URL`, `OCR_API_KEY`), and placeholders for traces (`TRACE_ENABLED`, `TRACE_EXPORTER=console`).
-- Corpus runtime profiles (`configs/ingestion/student_handbook/runtime-profile.json`, `configs/ingestion/curriculum_plan/runtime-profile.json`) are loaded via `load_corpus_runtime_profile` to freeze phase-1 behavior for each corpus.
+- `.env.example` lays out the required variables for the Supervisor API (`API_AUTH_MODE`, `AGNO_SUPERVISOR_MODEL`, `AGNO_SPECIALIST_MODEL`, `API_BEARER_TOKEN`), retrieval/embedding (`QDRANT_URL`, `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS=2560`, sparse settings, `DOCUMENT_REGISTRY_DATABASE_URL`), MinIO (`OBJECT_STORE_*`), ingestion/OCR/backfill (`CAMPUSRAG_OCR_ROOT`, `OCR_BASE_URL`, `OCR_API_KEY`), and placeholders for traces (`TRACE_ENABLED`, `TRACE_EXPORTER=console`).
+- Collection runtime profiles (`configs/ingestion/regulations/student_handbook/runtime-profile.json`, `configs/ingestion/curriculum/curriculum_plan/runtime-profile.json`, `configs/ingestion/campus_services/*/runtime-profile.json`) are loaded via `load_runtime_profile` / `default_query_scopes` to freeze serving and ingestion behavior per collection.
+- Retrieval no longer reads a global `QDRANT_COLLECTION` env. Runtime profiles declare the serving alias, collection prefix, and vector bindings; physical Qdrant collections are published per release as `<collection_prefix>__<release_id>`.
 
 **Build:**
 - Packaging metadata and source inclusion are centralized in each `pyproject.toml` through `tool.hatch.build.targets`.
@@ -72,5 +78,6 @@
 
 - API shell: `apps/supervisor-api/src/campus_supervisor_api/api.py` exposes `/api/v1/answer`, `/healthz`, and `/readyz` and is wired through `apps/supervisor-api/src/campus_supervisor_api/app.py`.
 - Ingestion tooling: `apps/ingestion-worker` (`import_campusrag_existing_ocr`, `process_raw_ingestion_job`, `submit_raw_ingestion_job`, `rebuild_local_data`) is described in `apps/ingestion-worker/README.md` and relies on `campus_ingestion_core` entry points.
+- `apps/app-api/src/campus_app_api/projection.py` is the only merged `app-api` implementation slice in this worktree today.
 - Tests: root `README.md` documents `uv run --all-packages python -m unittest discover -s tests -t .`, and `tests/` contains API, ingestion, retrieval, specialist, supervisor, eval, and contract suites that mirror each package boundary.
 - Trace/log surface: `apps/supervisor-api/settings.py` defaults `audit_log_path` to `./var/log/audit.log` and reads `TRACE_ENABLED`/`TRACE_EXPORTER` from `.env`.

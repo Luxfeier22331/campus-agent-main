@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-22
-updated: 2026-03-27
+updated: 2026-03-29
 ---
 
 # campus-agent 长期架构
@@ -11,7 +11,7 @@ updated: 2026-03-27
 
 将 `campus-agent` 建成校园助理系统的长期入口仓库，核心形态是 supervisor 主导的 `hybrid orchestration`、specialist 子代理，以及带有独立 ingestion/data plane 的可替换 retrieval 栈。
 
-当前阶段的目标不是做一个框架示例，也不是先选一个 HTTP runtime；目标是先把仓库边界和演进方向定清楚，避免后续再次整体推翻。
+当前阶段的目标不是做一个框架示例，也不是先为所有边界选一个统一 HTTP runtime；目标是先把仓库边界和演进方向定清楚，避免后续再次整体推翻。
 
 这份文档只保存长期架构边界、职责拆分和链路形态，不冻结具体实现、部署拓扑、供应商选型或第一阶段落地细节。
 
@@ -27,6 +27,7 @@ updated: 2026-03-27
 - retrieval 底座应该是可替换的。LlamaIndex、直连向量基础设施，或其他检索实现，都应该藏在 specialist/retrieval 边界之后，而不是上升成仓库顶层架构。
 - `crawler/job` 与 `queue` 在长期架构里保留为摄入链路占位符，用来表达解耦和异步边界，不在此文中冻结成具体产品或运行方式。
 - 对象存储在架构上始终表示为独立存储边界；当前阶段即使先部署在本机，也不改变它在系统中的角色定义。
+- 面向浏览器的 public/protected product surface 可以拆成独立 Worker web surface，但共享 app backend 仍必须保持清晰 app boundary，不得把产品层职责重新塞回 execution engine。
 
 ## 架构形态
 
@@ -40,10 +41,20 @@ updated: 2026-03-27
 
 `crawler/job placeholder -> queue placeholder -> ingestion boundary -> source layer + raw asset registry -> derived layer -> document registry -> vector index/chunk metadata`
 
+长期目标产品链路如下：
+
+`browser -> web surface -> shared app-api -> execution engine / read model`
+
 当前 monorepo 的目录设计围绕这条链路展开：
 
+- `apps/public-chat-web`
+  public-facing Worker web surface，承载 public chat 的浏览器入口。
+- `apps/protected-panel-web`
+  protected Worker web surface，承载 panel 的浏览器入口。
+- `apps/app-api`
+  shared application backend，承载 auth/session/conversation、chat ingress 与 operator read APIs；runtime 现已冻结为 Worker。
 - `apps/supervisor-api`
-  对外服务边界，只负责 transport adapter。
+  execution engine boundary，负责 answer execution 与对应 transport adapter。
 - `packages/supervisor-core`
   supervisor 策略、路由、委派、答案组装和升级逻辑。
 - `packages/rag-specialist`
@@ -64,20 +75,31 @@ updated: 2026-03-27
 - Raw Layer: 对象存储中的原始文档
 - Raw Asset Registry: 原始文件身份、版本和存储定位
 - Processed Layer: 清洗文本和结构化处理中间结果
-- Document Registry: 文档版本、hash、ACL、状态等元数据
-- Chunk Metadata + Vector Index: chunk 元数据和向量检索索引
+- Document Registry: 文档版本、hash、authorization filter projection、状态等元数据
+- Chunk Metadata + Vector Index: chunk 元数据和向量检索索引；phase-1 当前 ACL 字段只属于 projection carrier
+
+与 shared `app-api` 配套的运行数据层至少包括：
+
+- Request Execution: command-side durable request facts
+- Projection Outbox: command-side emitted projection inputs
+- Request Projection Read Model: operator-facing materialized view
 
 ## Runtime 边界
 
 `apps/supervisor-api` 这个名字刻意表达的是 API 边界，不是对 FastAPI 的承诺。
 
-runtime 选择应该延后。未来可以接受的实现包括：
+execution engine runtime 选择应该延后。未来可以接受的实现包括：
 
 - FastAPI，作为简单 Python HTTP 服务
 - Agno AgentOS，如果最终服务模型原生落在 Agno 上
 - 其他 transport/runtime，只要产品约束需要
 
-`ADR-0001` 中的 `AgentOS-native` 只表示 phase-1 当前生产 runtime 选择，不构成长期 runtime freeze。
+当前 `AgentOS-native` 只表示 `apps/supervisor-api` 的当期 execution engine 选择，不构成 execution engine 的长期 runtime freeze；当前实现取舍与 Agno 集成深度见 `docs/architecture/supervisor-architecture.md`。
+
+但这条“runtime 仍延后”的规则不再适用于 shared `apps/app-api`：
+
+- `apps/app-api` 的 runtime 已接受为 Worker
+- 这项冻结只作用于 shared app backend，不反向推导 `apps/supervisor-api` 也必须是 Worker
 
 当前真正重要的是边界清晰：
 
@@ -86,6 +108,70 @@ runtime 选择应该延后。未来可以接受的实现包括：
 - specialist delegation / handoff contract 留在 `packages/contracts`
 - ingestion/data consumption 逻辑留在 `packages/ingestion-core`
 - ingestion、job、queue 和存储相关能力都保持在独立边界之后，不反向渗透进 supervisor
+- 面向 chat/panel 的 app-level API 留在 shared `apps/app-api` boundary
+- `apps/supervisor-api` 不承担浏览器产品 API、auth/session/conversation 或 panel list/detail 查询
+
+## Shared App API Boundary
+
+长期上，public chat 与 protected panel 可以共享一个 `apps/app-api`，但只在以下前提下成立：
+
+- `app-api` 负责产品层 auth/session/conversation 与 browser-facing API
+- `app-api` 负责 canonical identity、authorization、profile memory 与 session truth
+- `app-api` 作为 internal Worker runtime 存在，而不是默认做成独立 Docker-first backend
+- `supervisor-api` 保持 execution engine，不重新长出产品层 backend
+- `app-api` 内部仍保持 command/query 分离
+- request projection / operator read model 不能退化成 `conversation/message` 的别名
+
+当前 accepted direction 允许 `app-api` 与 execution engine 共用同一个关系数据库，但不允许因此合并 boundary 或 ownership。
+
+这里进一步冻结三条补充规则：
+
+- `app-api` 是唯一的 product-layer auth/session/principal mapping owner，并向 execution engine 显式提供 `actor`
+- `supervisor-api` 只做 internal execution caller admission，不从 edge/header 恢复最终 business actor
+- request projection 采用 same-database outbox-first：`runtime.request_execution` 与 `runtime.projection_outbox` 是 canonical durable truth
+
+第一版数据库实现同时接受：
+
+- Worker runtime 通过 Hyperdrive 访问数据库
+- Better Auth 与 `auth/chat/runtime/operator` 共享一套 Drizzle schema codebase 与 migration pipeline
+- migration / schema management 使用 direct database management connection
+
+## Identity, Memory And Knowledge Truth
+
+长期上，回答链路相关的用户上下文固定拆成四层真相：
+
+- `verified identity`
+  canonical account / identity truth 支撑的已验证 claims，例如 cohort、major、program、campus、role
+- `profile memory`
+  用户允许持久化的长期偏好、目标与背景摘要，例如“最近在咨询保研”
+- `session memory`
+  当前会话内的短期工作记忆、已确认槽位与上下文承接
+- `institutional knowledge`
+  机构制度、培养方案、官网内容等 document / chunk / evidence truth
+
+长期硬约束如下：
+
+- `apps/app-api` 拥有 `verified identity`、`profile memory` 与 `session memory` 的 canonical truth
+- `apps/app-api` 同时拥有 canonical authorization truth，例如 principal mapping、entitlement snapshot、resource ownership 与 approval state
+- Worker / edge identity 只属于 runtime-boundary material，不等于最终 actor truth
+- `apps/supervisor-api`、`packages/supervisor-core` 与 `packages/rag-specialist` 默认只消费 typed projection，而不是 raw auth / raw authz state / raw memory / raw transcript
+- `institutional knowledge` 与 personal memory 不得共用同一个 canonical retrieval truth store
+- memory 可以个性化 query planning、clarification 与 answer wording，但不能授予权限
+- 当 `verified identity`、memory 与 `institutional knowledge` 发生冲突时，权限与事实依据分别以 verified identity 和 institutional knowledge 为准
+
+## Authorization Truth
+
+长期上，authorization 与 identity / memory 相邻，但不是同一层真相。
+
+长期硬约束如下：
+
+- `apps/app-api` 是 canonical authorization truth owner
+- canonical authorization truth 至少覆盖 principal mapping、entitlement truth、resource ownership truth 与 approval truth
+- `packages/supervisor-core` 与 `packages/rag-specialist` 只消费最小化 typed authz projection，不直接解析 raw JWT、raw session 或 raw product authz store
+- `packages/retrieval-core` 负责执行 serving filter 与 authorization filter projection，但不拥有最终 entitlement resolution
+- document / chunk 上的 ACL metadata 属于 search-time filter projection，不是长期 canonical authorization truth
+- `visibility` 与 `applicability` 必须分层；major、cohort、recent goal 这类个性化线索默认首先属于 applicability / personalization，而不是 visibility truth
+- 当前 phase-1 的 `acl_level`、`acl_groups` 与 `campus_scope` 只属于 transitional filter shape；长期字段族应收敛到显式 `visibility` / `entitlement` projection，不应继续被提升为 canonical authz schema
 
 ## 观测与遥测边界
 
@@ -103,6 +189,7 @@ runtime 选择应该延后。未来可以接受的实现包括：
 - `apps/*` runtime 壳负责接入 telemetry export，不把 vendor-specific SDK 语义推回 `packages/contracts`
 - `packages/supervisor-core` 继续拥有最小 audit / trace 投影责任，但不直接拥有观测产品选型
 - `packages/rag-specialist`、`packages/retrieval-core`、`packages/ingestion-core` 只输出结构化事件与 trace 语义，不直接定义长期 sink 边界
+- 如果后续需要 operator-facing request list/detail，必须通过 runtime-owned projection/read API 提供，而不是直接把 telemetry sink 暴露成产品面
 
 相关 accepted 决策：
 
@@ -202,8 +289,9 @@ RAG specialist 是被委派的知识域 worker，不是一个薄薄的 tool shim
 - runtime / agent framework 可以进入 supervisor / specialist 的实现层
 - runtime / agent framework 不得泄漏进 `packages/contracts` 或 `packages/retrieval-core`
 
-phase-1 当前对 Agno / AgentOS 的具体集成深度见 `docs/decisions/adr-0001-phase1-architecture.md`，而不是由本文冻结。
+phase-1 当前对 Agno / AgentOS 的具体集成深度见 `docs/architecture/supervisor-architecture.md`，而不是由本文冻结。
 
+RAG specialist 的长期内部形态、`RagIntentFrame`、个性化输入边界与 authorization filter 约束，见 `docs/architecture/rag-specialist-architecture.md`。
 ### Other Specialist Types
 
 specialist 在长期架构中表示“稳定能力边界”，不等同于“只有知识域 RAG specialist”。
@@ -320,7 +408,7 @@ ingestion boundary 是长期存在的数据摄入边界。
 - Chunk/Index Layer
   保存在线检索所需的 chunk 文本、chunk metadata、embeddings 和向量索引。
 - Document Registry
-  保存 `document_id`、`version_id`、`content_hash`、`source_uri`、`corpus`、`acl_groups`、`campus_scope`、`status`、`ingestion_timestamp`，以及指向 raw asset 的引用。它表达“当前逻辑文档版本是什么”，不重复承载 raw 文件身份。
+  保存 `document_id`、`version_id`、`content_hash`、`source_uri`、`corpus`、`collection`、status、ingestion metadata，以及指向 raw asset 的引用；同时保存 retrieval pre-filter 所需的 authorization projection metadata。phase-1 当前 carrier 仍是 `acl_groups` / `campus_scope`，但长期应收敛到显式 `visibility` / `entitlement` projection。它表达“当前逻辑文档版本是什么”，不重复承载 raw 文件身份。
 
 其中 `packages/ingestion-core` 主要负责把 source/derived 输入推进成可追踪的 registry 与 chunk/index 产物，`packages/retrieval-core` 则负责消费这些产物形成 evidence bundle。
 
@@ -413,7 +501,7 @@ ACL、审计和 traceability 在第一阶段按“够上线的最小闭环”建
 - 审计日志至少记录用户、路由、sources 和最终状态
 - ingestion 日志至少记录 `document_id`、`version_id`、`content_hash`、处理状态和索引写入结果
 - 观测默认遵循数据最小化：不把完整 prompt、chunk 正文和敏感认证材料直接作为长期默认日志落盘
-- 文档层和 chunk 层都带 ACL metadata
+- 文档层和 chunk 层都带可重建的 authorization filter projection metadata；phase-1 当前仍使用 ACL carrier，但它不是 canonical authz truth
 - 高风险或不可逆动作必须保留 approval / HITL 介入边界
 - specialist 自由文本输出不能直接越过 deterministic gate 触发高风险动作
 
@@ -428,8 +516,13 @@ ACL、审计和 traceability 在第一阶段按“够上线的最小闭环”建
 
 ## 决策索引
 
-- 第一阶段架构决策记录：`docs/decisions/adr-0001-phase1-architecture.md`
 - Golden dataset 治理规则：`docs/decisions/adr-0003-golden-dataset-governance.md`
 - 评测指标体系：`docs/decisions/adr-0004-evaluation-metrics.md`
 - 编排模式与安全边界：`docs/decisions/adr-0006-agent-orchestration-and-safety.md`
+- 授权与访问控制架构：`docs/architecture/authorization-and-access-control-architecture.md`
+- 用户身份、长期记忆与个性化边界：`docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
+- 授权模型与检索过滤投影：`docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
 - 第一阶段 ingestion 与存储架构：`docs/architecture/phase1-ingestion-and-storage-architecture.md`
+- shared app backend 与 web surface：`docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
+- request projection ownership：`docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
+- supervisor internal execution admission：`docs/decisions/adr-0017-supervisor-internal-execution-admission.md`

@@ -20,11 +20,32 @@ DEFAULT_MAX_CHUNK_SIZE = 360
 DEFAULT_CHUNK_OVERLAP = 48
 DEFAULT_MIN_CHUNK_SIZE = 40
 DEFAULT_SPLIT_STRATEGY: Literal["structure_first", "token_budget"] = "structure_first"
-DEFAULT_CHUNK_POLICY_VERSION = "student_handbook_semantic_v1"
-DEFAULT_CLEANING_POLICY_VERSION = "student_handbook_cleaning_v1"
-DEFAULT_STRATEGY_NAME = "student_handbook_structure"
+DEFAULT_CHUNK_POLICY_VERSION = "structure_first_semantic_v1"
+DEFAULT_CLEANING_POLICY_VERSION = "generic_cleaning_v1"
+DEFAULT_STRATEGY_NAME = "structure_first_default_v1"
 DEFAULT_TOKENIZER_NAME = "regex_approximation_v1"
 DEFAULT_SAFETY_MARGIN = 0
+
+HANDBOOK_V1_CHUNK_POLICY_VERSION = "student_handbook_semantic_v1"
+HANDBOOK_CLEANING_POLICY_VERSION = "student_handbook_cleaning_v1"
+HANDBOOK_V1_STRATEGY_NAME = "student_handbook_structure_v1"
+CURRICULUM_V1_CHUNK_POLICY_VERSION = "curriculum_plan_semantic_v1"
+CURRICULUM_V1_CHUNK_SIZE = 360
+CURRICULUM_V1_MAX_CHUNK_SIZE = 540
+CURRICULUM_V1_CHUNK_OVERLAP = 72
+CURRICULUM_V1_MIN_CHUNK_SIZE = 50
+CURRICULUM_V1_STRATEGY_NAME = "curriculum_plan_structure_v1"
+CURRICULUM_V2_CHUNK_POLICY_VERSION = "curriculum_plan_semantic_v2"
+CURRICULUM_V2_CHUNK_SIZE = 360
+CURRICULUM_V2_MAX_CHUNK_SIZE = 540
+CURRICULUM_V2_CHUNK_OVERLAP = 72
+CURRICULUM_V2_MIN_CHUNK_SIZE = 50
+CURRICULUM_V2_TABLE_CHUNK_SIZE = 420
+CURRICULUM_V2_TABLE_MAX_CHUNK_SIZE = 640
+CURRICULUM_V2_TABLE_CHUNK_OVERLAP = 72
+CURRICULUM_V2_TABLE_MIN_CHUNK_SIZE = 64
+CURRICULUM_V2_STRATEGY_NAME = "curriculum_plan_structure_v2"
+CURRICULUM_CLEANING_POLICY_VERSION = "curriculum_plan_cleaning_v1"
 
 HANDBOOK_V2_CHUNK_POLICY_VERSION = "student_handbook_semantic_v2"
 HANDBOOK_V2_CHUNK_SIZE = 384
@@ -312,6 +333,49 @@ class StudentHandbookChunkingStrategyV2:
         return None
 
 
+class CurriculumChunkingStrategy:
+    def split_structure_boundaries(
+        self,
+        *,
+        unit_type: str,
+        text: str,
+        chunk_profile: ChunkProfile,
+        display_budget: ResolvedDisplayBudget,
+    ) -> StructuralSplitResult | None:
+        candidate_lines = [line.strip() for line in text.splitlines() if line.strip()]
+        if unit_type != "section_text" or len(candidate_lines) < 2:
+            return None
+        if article_structure_has_nested_subclauses(candidate_lines):
+            structured = _group_article_structure_blocks(
+                candidate_lines,
+                chunk_profile=chunk_profile,
+                display_budget=display_budget,
+            )
+            structured = _repair_article_subclause_boundary_context(
+                structured,
+                chunk_profile=chunk_profile,
+                display_budget=display_budget,
+            )
+            if len(structured) > 1 and _segments_within_budget(
+                structured,
+                chunk_profile=chunk_profile,
+                display_budget=display_budget,
+            ):
+                return StructuralSplitResult(segments=structured, boundary_rule="curriculum_structure_block")
+        grouped = _group_prefixed_blocks(
+            _build_enumerated_groups(candidate_lines),
+            chunk_profile=chunk_profile,
+            display_budget=display_budget,
+        )
+        if len(grouped) > 1 and _segments_within_budget(
+            grouped,
+            chunk_profile=chunk_profile,
+            display_budget=display_budget,
+        ):
+            return StructuralSplitResult(segments=grouped, boundary_rule="curriculum_enumerated_block")
+        return None
+
+
 @dataclass(frozen=True, slots=True)
 class ChunkProfile:
     chunk_size: int = DEFAULT_CHUNK_SIZE
@@ -380,7 +444,7 @@ class ChunkProfile:
 
 def build_student_handbook_chunk_profile(
     *,
-    profile_version: str = DEFAULT_CHUNK_POLICY_VERSION,
+    profile_version: str = HANDBOOK_V1_CHUNK_POLICY_VERSION,
     model_name: str | None = None,
 ) -> ChunkProfile:
     resolved_model_name = (
@@ -398,7 +462,7 @@ def build_student_handbook_chunk_profile(
             min_chunk_size=HANDBOOK_V2_MIN_CHUNK_SIZE,
             split_strategy="structure_first",
             chunk_policy_version=HANDBOOK_V2_CHUNK_POLICY_VERSION,
-            cleaning_policy_version=DEFAULT_CLEANING_POLICY_VERSION,
+            cleaning_policy_version=HANDBOOK_CLEANING_POLICY_VERSION,
             strategy_name=HANDBOOK_V2_STRATEGY_NAME,
             strategy=StudentHandbookChunkingStrategyV2(),
             token_counter=token_counter,
@@ -413,7 +477,7 @@ def build_student_handbook_chunk_profile(
             min_chunk_size=HANDBOOK_V3_MIN_CHUNK_SIZE,
             split_strategy="structure_first",
             chunk_policy_version=HANDBOOK_V3_CHUNK_POLICY_VERSION,
-            cleaning_policy_version=DEFAULT_CLEANING_POLICY_VERSION,
+            cleaning_policy_version=HANDBOOK_CLEANING_POLICY_VERSION,
             strategy_name=HANDBOOK_V3_STRATEGY_NAME,
             strategy=StudentHandbookChunkingStrategyV2(),
             token_counter=token_counter,
@@ -423,9 +487,66 @@ def build_student_handbook_chunk_profile(
         )
     token_counter = _build_token_counter(resolved_model_name)
     return ChunkProfile(
+        chunk_policy_version=HANDBOOK_V1_CHUNK_POLICY_VERSION,
+        cleaning_policy_version=HANDBOOK_CLEANING_POLICY_VERSION,
+        strategy_name=HANDBOOK_V1_STRATEGY_NAME,
+        strategy=StudentHandbookChunkingStrategy(),
         token_counter=token_counter,
         tokenizer_name=token_counter.name,
     )
+
+
+def build_curriculum_chunk_profile(
+    *,
+    profile_version: str = CURRICULUM_V2_CHUNK_POLICY_VERSION,
+    model_name: str | None = None,
+    unit_type: str | None = None,
+) -> ChunkProfile:
+    resolved_model_name = (
+        model_name
+        or os.environ.get("INGESTION_EMBEDDING_MODEL")
+        or os.environ.get("EMBEDDING_MODEL")
+        or ""
+    ).strip()
+    token_counter = _build_curriculum_token_counter(resolved_model_name)
+    if profile_version == CURRICULUM_V1_CHUNK_POLICY_VERSION:
+        return ChunkProfile(
+            chunk_size=CURRICULUM_V1_CHUNK_SIZE,
+            max_chunk_size=CURRICULUM_V1_MAX_CHUNK_SIZE,
+            chunk_overlap=CURRICULUM_V1_CHUNK_OVERLAP,
+            min_chunk_size=CURRICULUM_V1_MIN_CHUNK_SIZE,
+            split_strategy="structure_first",
+            chunk_policy_version=CURRICULUM_V1_CHUNK_POLICY_VERSION,
+            cleaning_policy_version=CURRICULUM_CLEANING_POLICY_VERSION,
+            strategy_name=CURRICULUM_V1_STRATEGY_NAME,
+            strategy=CurriculumChunkingStrategy(),
+            token_counter=token_counter,
+            tokenizer_name=token_counter.name,
+        )
+    if profile_version == CURRICULUM_V2_CHUNK_POLICY_VERSION:
+        chunk_size = CURRICULUM_V2_CHUNK_SIZE
+        max_chunk_size = CURRICULUM_V2_MAX_CHUNK_SIZE
+        chunk_overlap = CURRICULUM_V2_CHUNK_OVERLAP
+        min_chunk_size = CURRICULUM_V2_MIN_CHUNK_SIZE
+        if unit_type == "table_unit":
+            chunk_size = CURRICULUM_V2_TABLE_CHUNK_SIZE
+            max_chunk_size = CURRICULUM_V2_TABLE_MAX_CHUNK_SIZE
+            chunk_overlap = CURRICULUM_V2_TABLE_CHUNK_OVERLAP
+            min_chunk_size = CURRICULUM_V2_TABLE_MIN_CHUNK_SIZE
+        return ChunkProfile(
+            chunk_size=chunk_size,
+            max_chunk_size=max_chunk_size,
+            chunk_overlap=chunk_overlap,
+            min_chunk_size=min_chunk_size,
+            split_strategy="structure_first",
+            chunk_policy_version=CURRICULUM_V2_CHUNK_POLICY_VERSION,
+            cleaning_policy_version=CURRICULUM_CLEANING_POLICY_VERSION,
+            strategy_name=CURRICULUM_V2_STRATEGY_NAME,
+            strategy=CurriculumChunkingStrategy(),
+            token_counter=token_counter,
+            tokenizer_name=token_counter.name,
+        )
+    raise ValueError(f"unsupported curriculum chunk profile version: {profile_version}")
 
 
 def clean_structured_text(*, unit_type: str, text: str) -> str:
@@ -970,6 +1091,16 @@ def _build_token_counter(model_name: str) -> TokenCounter:
     if model_name:
         return TiktokenTokenCounter(model_name=model_name)
     return RegexApproxTokenCounter()
+
+
+def _build_curriculum_token_counter(model_name: str) -> TokenCounter:
+    normalized_model_name = _normalize_embedding_model_name(model_name)
+    if normalized_model_name == QWEN3_EMBEDDING_MODEL:
+        return HuggingFaceTokenCounter(
+            tokenizer_repo=QWEN3_EMBEDDING_REPO,
+            display_name=QWEN3_EMBEDDING_REPO,
+        )
+    return _build_token_counter(model_name)
 
 
 def _build_student_handbook_v3_token_counter(model_name: str) -> TokenCounter:

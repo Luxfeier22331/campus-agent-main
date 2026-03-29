@@ -2,10 +2,20 @@ from __future__ import annotations
 
 from typing import Callable
 
-from campus_contracts import SpecialistRequest, SpecialistResponse, SpecialistTarget, SupervisorRequest
+from campus_contracts import (
+    SpecialistRequest,
+    SpecialistResponse,
+    SpecialistTarget,
+    SupervisorRequest,
+    SupervisorResponse,
+)
 
 from campus_supervisor_core.agent import SpecialistDelegate, SupervisorAgent
-from campus_supervisor_core.audit import SupervisorAuditRecord, build_audit_record
+from campus_supervisor_core.audit import (
+    SupervisorAuditRecord,
+    build_audit_record,
+    build_error_audit_record,
+)
 from campus_supervisor_core.errors import (
     DisallowedKnowledgeScopeError,
     InvalidSupervisorRequestError,
@@ -24,7 +34,7 @@ def handle_request(
     *,
     specialist_delegates: dict[SpecialistTarget, SpecialistDelegate] | None = None,
     audit_sink: AuditSink | None = None,
-) -> SpecialistResponse:
+) -> SupervisorResponse:
     agent = SupervisorAgent()
     if specialist_delegates is not None:
         agent.specialist_delegates = dict(specialist_delegates)
@@ -56,4 +66,6 @@ __all__ = [
     "MissingSpecialistDelegateError",
     "handle_request",
     "handle_specialist_request",
+    "build_audit_record",
+    "build_error_audit_record",
 ]

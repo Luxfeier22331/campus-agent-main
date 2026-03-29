@@ -2,7 +2,15 @@
 
 Public consumer chat frontend for campus-agent v2.
 
-This app is a separate `apps/*` product surface. Its accepted direction is:
+This directory records the merged 04.7 implementation and should now be treated as a historical reference plus migration source, not as the forward product backend boundary.
+
+The accepted forward topology is:
+
+- `apps/public-chat-web` as the public Worker web surface
+- `apps/app-api` as the shared Worker app backend
+- `apps/supervisor-api` as the execution engine
+
+The historical 04.7 implementation direction in this directory was:
 
 - app host: `TanStack Start`
 - auth: `Better Auth`
@@ -10,16 +18,16 @@ This app is a separate `apps/*` product surface. Its accepted direction is:
 - auth/chat: one Postgres with schema split
 - online retrieval store: `Qdrant`
 
-This app owns chat UI, app-level session UX, and conversation history UX. It does not replace the public entry Worker or `apps/supervisor-api`.
+Historically this app owned chat UI, app-level session UX, and conversation history UX. That ownership is no longer the canonical forward truth for auth/session/conversation.
 
-## Canonical Docs
+## Current Canonical Docs
 
-- [`docs/architecture/public-consumer-chat-surface.md`](../../docs/architecture/public-consumer-chat-surface.md)
-- [`docs/architecture/public-consumer-chat-auth-and-data-boundary.md`](../../docs/architecture/public-consumer-chat-auth-and-data-boundary.md)
-- [`docs/decisions/adr-0008-public-consumer-auth-and-storage.md`](../../docs/decisions/adr-0008-public-consumer-auth-and-storage.md)
-- [`docs/decisions/adr-0009-public-consumer-frontend-host.md`](../../docs/decisions/adr-0009-public-consumer-frontend-host.md)
+- [`docs/architecture/shared-app-api-and-worker-web-surfaces.md`](../../docs/architecture/shared-app-api-and-worker-web-surfaces.md)
+- [`docs/architecture/app-api-architecture.md`](../../docs/architecture/app-api-architecture.md)
+- [`docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`](../../docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md)
+- [`docs/decisions/adr-0013-app-api-worker-runtime.md`](../../docs/decisions/adr-0013-app-api-worker-runtime.md)
 
-## Phase-Local Handoffs
+## Historical 04.7 Phase Artifacts
 
 - [`04.7-CONSUMER-APP-BOUNDARY-HANDOFF.md`](../../.planning/phases/04.7-public-consumer-chat-app-design/04.7-CONSUMER-APP-BOUNDARY-HANDOFF.md)
 - [`04.7-IMPLEMENTATION-HANDOFF.md`](../../.planning/phases/04.7-public-consumer-chat-app-design/04.7-IMPLEMENTATION-HANDOFF.md)
@@ -27,8 +35,9 @@ This app owns chat UI, app-level session UX, and conversation history UX. It doe
 Architectural guardrails:
 
 - Worker admission is not canonical app identity truth
-- app auth / conversation CRUD stay inside `apps/public-consumer-chat`
-- `apps/supervisor-api` stays the runtime ingress only
+- the historical 04.7 implementation kept app auth / conversation CRUD inside `apps/public-consumer-chat`
+- current forward truth moves auth/session/conversation into shared `apps/app-api`
+- `apps/supervisor-api` stays the execution engine only
 - `Qdrant` remains the online retrieval store
 - no bare `TanStack Router + 外挂后端壳`
 - no `D1 for auth`
@@ -48,7 +57,9 @@ pnpm test:integration
 pnpm smoke:live
 ```
 
-## Local topology
+The repo now uses a shared root `pnpm-workspace.yaml` and `turbo.json` for JS/TS apps. Prefer running `pnpm install` once at the repo root, then use app-local commands here or root workspace commands such as `pnpm web:test`, `pnpm web:typecheck`, and `pnpm web:build`.
+
+## Historical Local Topology
 
 - browser -> `TanStack Start` app host
 - app-local route/UI/auth/conversation boundary -> `apps/public-consumer-chat`
@@ -70,6 +81,8 @@ pnpm smoke:live
 - `PUBLIC_CHAT_TEST_DATABASE_URL=postgres://...` for real Postgres integration tests
 - `SUPERVISOR_API_BASE_URL=http://127.0.0.1:8000`
 - `SUPERVISOR_API_BEARER_TOKEN=local-dev-token`
+- `PUBLIC_CONSUMER_CHAT_SCOPE_CORPUS=<query-enabled corpus>`
+- `PUBLIC_CONSUMER_CHAT_SCOPE_COLLECTION=<query-enabled collection>`
 - `BETTER_AUTH_SECRET=<generate-with-openssl-rand-base64-32>`
 
 `SUPERVISOR_API_BEARER_TOKEN` must match the repo root `API_BEARER_TOKEN` used by `apps/supervisor-api`.
@@ -104,6 +117,8 @@ PUBLIC_CONSUMER_CHAT_CHAT_SCHEMA=chat
 PUBLIC_CONSUMER_CHAT_INGESTION_REGISTRY_SCHEMA=ingestion_registry
 SUPERVISOR_API_BASE_URL=http://127.0.0.1:8000
 SUPERVISOR_API_BEARER_TOKEN=local-dev-token
+PUBLIC_CONSUMER_CHAT_SCOPE_CORPUS=curriculum
+PUBLIC_CONSUMER_CHAT_SCOPE_COLLECTION=curriculum_plan
 BETTER_AUTH_SECRET="$(openssl rand -base64 32)"
 ```
 
@@ -145,6 +160,8 @@ export PUBLIC_CONSUMER_CHAT_CHAT_SCHEMA=chat
 export PUBLIC_CONSUMER_CHAT_INGESTION_REGISTRY_SCHEMA=ingestion_registry
 export SUPERVISOR_API_BASE_URL=http://127.0.0.1:8000
 export SUPERVISOR_API_BEARER_TOKEN=local-dev-token
+export PUBLIC_CONSUMER_CHAT_SCOPE_CORPUS=curriculum
+export PUBLIC_CONSUMER_CHAT_SCOPE_COLLECTION=curriculum_plan
 export BETTER_AUTH_SECRET="$(openssl rand -base64 32)"
 
 pnpm dev
@@ -316,7 +333,7 @@ With both local servers running and `PUBLIC_CONSUMER_CHAT_DATABASE_URL` pointing
 - `401 unauthorized`
   Usually means `SUPERVISOR_API_BEARER_TOKEN` is missing in `apps/public-consumer-chat` or does not match `API_BEARER_TOKEN` in `apps/supervisor-api`.
 - `400 invalid_request` for missing `requested_scope`
-  `public-consumer-chat` already sends the default `regulations/student_handbook` scope in live mode. If you hit this, the live code path was bypassed or changed.
+  `public-consumer-chat` now requires `PUBLIC_CONSUMER_CHAT_SCOPE_CORPUS` and `PUBLIC_CONSUMER_CHAT_SCOPE_COLLECTION` in live mode. If you hit this, the live scope env is missing or the live code path was bypassed.
 - `error` / `no_answer`
   These can be real supervisor semantics from the live chain, not necessarily a frontend fault. Check the returned message and `correlation_id` before assuming the app-local server is broken.
 - Transport failure with `The public answer path is unavailable right now.`

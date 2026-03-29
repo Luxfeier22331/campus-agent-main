@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-22
-updated: 2026-03-27
+updated: 2026-03-28
 ---
 
 # `student_handbook` Collection OCR 归一化与拆分策略
@@ -25,7 +25,7 @@ updated: 2026-03-27
 - unit normalization
 
 具体 token budget、tokenizer、切分与 chunk 组装规则以
-[student-handbook-chunking-and-validation-policy.md](./student-handbook-chunking-and-validation-policy.md)
+[student-handbook-chunking-and-validation-policy.md](../policies/student-handbook-chunking-and-validation-policy.md)
 为准。
 
 ## 结论
@@ -413,7 +413,7 @@ Unit normalization 必须满足以下边界：
 - 当前 query-serving 默认范围应表述为 `regulations` corpus 下的 `student_handbook` collection
 - 对外展示或清洗效果对照应优先消费 `canonical.md`，不要直接拿 chunk 文本代替
 - handbook 中的电话目录页不再保留在 `regulations/student_handbook` 的 split truth；后续应作为 declared projection 派生进入 `campus_services/contact_directory`
-- handbook 中有独立下游价值的附录、表单、导航页或附件叶子节点，应通过 derived document projection 落入目标 collection，并显式保留 `projection_name`、`derived_from_*` 与 `parent_document_id`
+- handbook 中有独立下游价值的附录、表单、导航页或附件叶子节点，应通过 derived document projection 落入目标 collection，并显式保留 `projection_name`、`derived_from_*`、`parent_document_id` 与稳定 lineage 字段；对于已不再保留于 handbook split manifest 的页段，应优先使用 source-truth selector (`source_title`、`source_handbook_section`、`source_page_start`、`source_page_end`)
 
 ## Representation 规则
 
@@ -446,6 +446,6 @@ Unit normalization 必须满足以下边界：
 本地参考：
 
 - `docs/architecture/phase1-ingestion-and-storage-architecture.md`
-- `docs/plans/2026-03-22-student-handbook-cleaning-reconstruction.md`
+- `docs/plans/source-truth-normalization-refactor.md`
 - `/home/reptilian/code/campusRag/docs/rag/student-handbook-canonical-schema.md`
 - `/home/reptilian/code/campusRag/packages/rag-core/src/campusrag/pipelines/ingest/build_structured_from_clean_markdown.py`

@@ -23,11 +23,20 @@ Implementation rules carried from Phase 04.5 and 04.6:
 Local commands:
 
 ```bash
-npm install
-npm run test
-npm run typecheck
-npm run dev
+pnpm install
+pnpm --filter public-entry-worker test
+pnpm --filter public-entry-worker typecheck
+pnpm --filter public-entry-worker dev
 ```
+
+The repo now uses a shared root `pnpm-workspace.yaml` and `turbo.json` for JS/TS apps. Install dependencies from the repo root; app-local commands remain valid if you run them from this directory with `pnpm test`, `pnpm typecheck`, or `pnpm dev`.
+
+## Local Env
+
+- Local Worker bindings should live in `apps/public-entry-worker/.dev.vars`
+- Start from `apps/public-entry-worker/.dev.vars.example`
+- Do not put Worker-local bindings back into the repo root `.env`
+- `ORIGIN_SHARED_SECRET` must match repo root `API_WORKER_SHARED_SECRET`
 
 Runtime env keys:
 
@@ -37,3 +46,6 @@ Runtime env keys:
 - `WORKER_ALLOW_ANONYMOUS`
 - `ACCESS_TEAM_DOMAIN`
 - `ACCESS_POLICY_AUD`
+
+When `ENTRY_MODE=authenticated-only`, both `ACCESS_TEAM_DOMAIN` and `ACCESS_POLICY_AUD` are required.
+When `ENTRY_MODE=anonymous-enabled`, `WORKER_ALLOW_ANONYMOUS=true` is required.

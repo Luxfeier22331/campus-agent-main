@@ -1,6 +1,6 @@
 # campus-supervisor-core
 
-`packages/supervisor-core` 是 `campus-agent` 在 phase-1 中已经接受的 supervisor coordination 边界。
+`packages/supervisor-core` 是 `campus-agent` 当前已经接受的 supervisor coordination 边界。
 
 它不再被定义成“未来再补的 bootstrap 壳”，而是当前查询主链路中负责 request framing、routing、policy、response shaping 和 audit projection 的稳定 package。
 
@@ -10,7 +10,7 @@
 
 - 将共享 `SupervisorRequest` 投影为 supervisor 可决策的内部上下文
 - 在路由前执行显式 request validation 与 query policy gate
-- 对 phase-1 请求执行显式 routing decision
+- 对 query-serving 请求执行显式 routing decision
 - 在内部构造 `SpecialistRequest` 并委派给对应 specialist
 - 对 specialist 返回结果执行 finalization policy
 - 组装统一的 `SpecialistResponse`
@@ -34,9 +34,9 @@
 - `validation.py`
   在 supervisor 边界内解析 capability、拒绝冲突输入，并保持 fail-closed。
 - `query_policy.py`
-  持有当前 query-enabled scope policy，不把 phase-1 handbook 限制写死在 API shell。
+  持有当前 query-enabled scope policy，不把当前 serving scope 限制写死在 API shell。
 - `routing.py`
-  承担 phase-1 routing decision，在 validation 与 policy gate 之后决定 specialist 路径。
+  承担当前 routing decision，在 validation 与 policy gate 之后决定 specialist 路径。
 - `errors.py`
   提供 supervisor 侧稳定错误分类，供 API shell 做结构化 HTTP 映射。
 - `framing.py`
@@ -50,14 +50,14 @@
 - `agent.py`
   串起 `context -> routing -> specialist delegation -> policy -> response assembly` 的主流程。
 
-## Phase-1 Scope
+## Current Query Scope
 
-phase-1 的查询范围是显式收敛的：
+当前查询范围是显式收敛的：
 
-- `rag-specialist` 仍是唯一默认 query-serving specialist
+- `rag-specialist` 仍是默认 retrieval query-serving specialist
 - `availability-specialist` 作为显式并行 capability 已存在，并可通过 supervisor-facing request 进入统一入口
 - query-serving 是否开放某个 corpus/scope，属于 routing/policy 决策，不应由 API shell 固定构造
-- `curriculum_plan` 等其他 data-plane corpus 在本阶段仍然不参与 query-serving
+- 当前 runtime-profile 已开放 `regulations/student_handbook` 与 `curriculum/curriculum_plan` 的 query-serving；`campus_services/*` 继续保持 `offline_preparation`
 
 如果后续要继续增加 specialist 或放开新的 query-serving corpus，应先更新架构/决策文档，再调整这里的 contract 描述与实现。
 

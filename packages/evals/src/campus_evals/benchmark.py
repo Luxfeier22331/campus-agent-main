@@ -3,10 +3,63 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import json
 from pathlib import Path
+from typing import Literal
 
 from campus_contracts import EvidenceSource, KnowledgeScope
 
 from campus_evals.models import ALLOWED_CASE_SPLITS, CaseSplit
+
+HybridQueryCategory = Literal[
+    "article_number_exact_match",
+    "policy_title_exact_match",
+    "fixed_phrase_sparse_win",
+    "semantic_dense_win",
+    "short_fact_section",
+    "table_retrieval",
+    "needs_clarification",
+    "acl_filter",
+    "campus_scope_filter",
+    "no_hit",
+]
+ALLOWED_HYBRID_QUERY_CATEGORIES = (
+    "article_number_exact_match",
+    "policy_title_exact_match",
+    "fixed_phrase_sparse_win",
+    "semantic_dense_win",
+    "short_fact_section",
+    "table_retrieval",
+    "needs_clarification",
+    "acl_filter",
+    "campus_scope_filter",
+    "no_hit",
+)
+
+
+@dataclass(frozen=True, slots=True)
+class RetrievalHybridQueryCase:
+    case_id: str
+    category: HybridQueryCategory
+    query: str
+    scope: dict[str, object] = field(default_factory=dict)
+    expected_keywords: tuple[str, ...] = field(default_factory=tuple)
+    forbidden_doc_ids: tuple[str, ...] = field(default_factory=tuple)
+    notes: str = ""
+
+    def __post_init__(self) -> None:
+        if self.category not in ALLOWED_HYBRID_QUERY_CATEGORIES:
+            raise ValueError(f"unsupported hybrid query category: {self.category}")
+        if not self.case_id.strip():
+            raise ValueError("case_id must not be empty")
+        if not self.query.strip():
+            raise ValueError("query must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class RetrievalHybridQueryDataset:
+    schema_version: int
+    scope: KnowledgeScope
+    baseline: dict[str, object]
+    cases: tuple[RetrievalHybridQueryCase, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,6 +147,54 @@ class RetrievalRunCase:
 class RetrievalBenchmarkRun:
     schema_version: int
     cases: tuple[RetrievalRunCase, ...]
+
+
+def load_retrieval_hybrid_query_dataset(path: str | Path) -> RetrievalHybridQueryDataset:
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    scope = KnowledgeScope(
+        corpus=str(payload["corpus"]),
+        collection=str(payload["collection"]),
+    )
+    cases = tuple(_load_hybrid_query_case(item) for item in payload["cases"])
+    return RetrievalHybridQueryDataset(
+        schema_version=int(payload["schema_version"]),
+        scope=scope,
+        baseline=dict(payload.get("baseline") or {}),
+        cases=cases,
+    )
+
+
+def validate_retrieval_hybrid_query_fixture(
+    path: str | Path,
+    *,
+    manifest_path: str | Path,
+) -> tuple[str, ...]:
+    dataset = load_retrieval_hybrid_query_dataset(path)
+    manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+    documents = tuple(manifest.get("documents") or ())
+    titles = tuple(_optional_string(item.get("title")) or "" for item in documents)
+    manifest_has_acl = any(bool(item.get("acl_groups")) for item in documents)
+    manifest_has_campus_scope = any(bool(item.get("campus_scope")) for item in documents)
+
+    errors: list[str] = []
+    scope_label = f"{dataset.scope.corpus}/{dataset.scope.collection}"
+    for case in dataset.cases:
+        if (case.category == "acl_filter" or case.scope.get("acl_groups")) and not manifest_has_acl:
+            errors.append(
+                f"case {case.case_id} requires ACL scope, but the manifest has no ACL-bearing {scope_label} documents"
+            )
+        if (case.category == "campus_scope_filter" or case.scope.get("campus_scope")) and not manifest_has_campus_scope:
+            errors.append(
+                f"case {case.case_id} requires campus_scope, but the manifest has no campus-scoped {scope_label} documents"
+            )
+        if case.category in {"policy_title_exact_match", "fixed_phrase_sparse_win"} and not _case_is_grounded_in_titles(
+            case,
+            titles=titles,
+        ):
+            errors.append(
+                f"case {case.case_id} category {case.category} is not grounded in any current {scope_label} title keyword"
+            )
+    return tuple(errors)
 
 
 def load_retrieval_qrels_dataset(path: str | Path) -> RetrievalQrelsDataset:
@@ -232,6 +333,18 @@ def _load_case(payload: dict[str, object], *, default_scope: KnowledgeScope) -> 
     )
 
 
+def _load_hybrid_query_case(payload: dict[str, object]) -> RetrievalHybridQueryCase:
+    return RetrievalHybridQueryCase(
+        case_id=str(payload["case_id"]),
+        category=str(payload["category"]),
+        query=str(payload["query"]),
+        scope=dict(payload.get("scope") or {}),
+        expected_keywords=tuple(str(item) for item in payload.get("expected_keywords") or ()),
+        forbidden_doc_ids=tuple(str(item) for item in payload.get("forbidden_doc_ids") or ()),
+        notes=str(payload.get("notes") or ""),
+    )
+
+
 def _load_source_ref(payload: dict[str, object]) -> RetrievalQrelsSourceRef:
     return RetrievalQrelsSourceRef(
         doc_id=str(payload["doc_id"]),
@@ -247,6 +360,12 @@ def _optional_string(value: object) -> str | None:
         return None
     normalized = str(value).strip()
     return normalized or None
+
+
+def _case_is_grounded_in_titles(case: RetrievalHybridQueryCase, *, titles: tuple[str, ...]) -> bool:
+    terms = (case.query, *case.expected_keywords)
+    normalized_terms = tuple(term.strip() for term in terms if term.strip())
+    return any(term in title for title in titles for term in normalized_terms)
 
 
 def _source_identity(source_ref: RetrievalQrelsSourceRef) -> tuple[str, str | None, str | None]:

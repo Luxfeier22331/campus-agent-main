@@ -8,21 +8,31 @@ from campus_contracts import (
     ActorContext,
     AvailabilityCheckPayload,
     AvailabilityObservation,
+    ContextProjection,
     ErrorInfo,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
+    ProfileMemoryItem,
+    ProfileMemorySummary,
     RagRequestPayload,
     RagResultPayload,
+    SessionSlot,
+    SessionSummary,
     SpecialistRequest,
     SpecialistResponse,
+    SupervisorResponse,
     SupervisorRequest,
     TraceContext,
 )
 from campus_supervisor_core import SupervisorAgent, handle_request, handle_specialist_request
-from campus_supervisor_core.audit import SupervisorAuditRecord, build_audit_record
+from campus_supervisor_core.audit import (
+    SupervisorAuditRecord,
+    build_audit_record,
+    build_error_audit_record,
+)
 from campus_supervisor_core.context import SupervisorRequestContext
-from campus_supervisor_core.errors import MissingSpecialistDelegateError
+from campus_supervisor_core.errors import DisallowedKnowledgeScopeError, MissingSpecialistDelegateError
 
 
 def _make_rag_completed_response() -> SpecialistResponse:
@@ -99,6 +109,7 @@ class SupervisorCoreTest(unittest.TestCase):
         self.assertEqual(context.primary_corpus, "regulations")
         self.assertEqual(context.primary_collection, "student_handbook")
         self.assertEqual(context.user_goal, "library hours")
+        self.assertEqual(context.context.actor.user_id, "student-001")
 
     def test_handle_request_routes_rag_request_and_emits_audit_record(self) -> None:
         captured_requests: list[SpecialistRequest] = []
@@ -125,7 +136,7 @@ class SupervisorCoreTest(unittest.TestCase):
             audit_sink=audit_records.append,
         )
 
-        self.assertEqual(response.target, "rag-specialist")
+        self.assertEqual(response.selected_target, "rag-specialist")
         self.assertEqual(response.status, "completed")
         self.assertEqual(len(captured_requests), 1)
         self.assertEqual(captured_requests[0].target, "rag-specialist")
@@ -150,7 +161,11 @@ class SupervisorCoreTest(unittest.TestCase):
                 "requested_scope_corpus": "regulations",
                 "requested_scope_collection": "student_handbook",
                 "status": "completed",
+                "error_code": None,
                 "source_doc_ids": ("handbook:test-001",),
+                "evidence_source_count": 1,
+                "follow_up_emitted": False,
+                "fail_closed": False,
             },
         )
 
@@ -173,7 +188,7 @@ class SupervisorCoreTest(unittest.TestCase):
             audit_sink=audit_records.append,
         )
 
-        self.assertEqual(response.target, "availability-specialist")
+        self.assertEqual(response.selected_target, "availability-specialist")
         self.assertEqual(response.status, "completed")
         self.assertEqual(
             response.result,
@@ -204,7 +219,7 @@ class SupervisorCoreTest(unittest.TestCase):
             },
         )
 
-        self.assertEqual(response.target, "availability-specialist")
+        self.assertEqual(response.selected_target, "availability-specialist")
         self.assertEqual(response.status, "completed")
         self.assertEqual(response.result.observed_status, "connect_failure")
         self.assertEqual(response.result.failure_classification, "connect_failure")
@@ -229,7 +244,16 @@ class SupervisorCoreTest(unittest.TestCase):
 
         availability_delegate.assert_called_once()
         rag_delegate.assert_not_called()
-        self.assertEqual(response, expected_response)
+        self.assertEqual(
+            response,
+            SupervisorResponse(
+                selected_target="availability-specialist",
+                status="completed",
+                answer_text=expected_response.answer_text,
+                confidence=expected_response.confidence,
+                result=expected_response.result,
+            ),
+        )
 
     def test_handle_request_preserves_needs_clarification_response(self) -> None:
         response = handle_request(
@@ -249,9 +273,78 @@ class SupervisorCoreTest(unittest.TestCase):
             },
         )
 
-        self.assertEqual(response.target, "rag-specialist")
+        self.assertEqual(response.selected_target, "rag-specialist")
         self.assertEqual(response.status, "needs_clarification")
         self.assertEqual(response.follow_up_question, "Which campus are you asking about?")
+
+    def test_handle_request_returns_supervisor_clarification_without_delegate_when_scope_is_missing(self) -> None:
+        response = handle_request(
+            SupervisorRequest(
+                user_goal="奖学金怎么申请？",
+                requested_capability="knowledge",
+                context=ContextProjection(
+                    actor=ActorContext(
+                        user_id="student-001",
+                        principal_id="principal-001",
+                        groups=("students",),
+                        campus_scope="north",
+                    ),
+                    session=SessionSummary(
+                        confirmed_slots=(SessionSlot(name="policy_topic", value="奖学金", confirmed=True),),
+                        turn_count=2,
+                    ),
+                ),
+            ),
+            specialist_delegates={},
+        )
+
+        self.assertEqual(
+            response,
+            SupervisorResponse(
+                selected_target=None,
+                status="needs_clarification",
+                follow_up_question="请先说明你想查询的知识范围或资料集合。",
+                confidence="low",
+            ),
+        )
+
+    def test_handle_request_returns_approval_required_without_delegate_for_high_risk_request(self) -> None:
+        audit_records: list[SupervisorAuditRecord] = []
+
+        response = handle_request(
+            SupervisorRequest(
+                user_goal="帮我提交奖学金申请",
+                requested_scope=KnowledgeScope(
+                    corpus="regulations",
+                    collection="student_handbook",
+                ),
+                context=ContextProjection(
+                    actor=ActorContext(
+                        user_id="student-001",
+                        principal_id="principal-001",
+                        groups=("students",),
+                        campus_scope="north",
+                    ),
+                    profile_memory=ProfileMemorySummary(),
+                    session=SessionSummary(turn_count=1),
+                ),
+            ),
+            specialist_delegates={},
+            audit_sink=audit_records.append,
+        )
+
+        self.assertEqual(
+            response,
+            SupervisorResponse(
+                selected_target=None,
+                status="approval_required",
+                answer_text="该请求涉及需要人工确认的操作，必须先经过审批。",
+                confidence="low",
+            ),
+        )
+        self.assertEqual(len(audit_records), 1)
+        self.assertEqual(audit_records[0].status, "approval_required")
+        self.assertIsNone(audit_records[0].selected_target)
 
     def test_handle_request_raises_for_valid_route_without_delegate(self) -> None:
         with self.assertRaisesRegex(
@@ -292,7 +385,7 @@ class SupervisorCoreTest(unittest.TestCase):
             },
         )
 
-        self.assertEqual(response.target, "rag-specialist")
+        self.assertEqual(response.selected_target, "rag-specialist")
         self.assertEqual(response.status, "error")
         self.assertEqual(response.answer_text, "retrieval failed while checking the handbook.")
         self.assertEqual(response.follow_up_question, "Try again later?")
@@ -311,7 +404,11 @@ class SupervisorCoreTest(unittest.TestCase):
             requested_scope_corpus="regulations",
             requested_scope_collection="student_handbook",
             status="completed",
+            error_code=None,
             source_doc_ids=("handbook:test-001", "handbook:test-002"),
+            evidence_source_count=2,
+            follow_up_emitted=False,
+            fail_closed=False,
         )
 
         self.assertEqual(
@@ -325,7 +422,11 @@ class SupervisorCoreTest(unittest.TestCase):
                 "requested_scope_corpus": "regulations",
                 "requested_scope_collection": "student_handbook",
                 "status": "completed",
+                "error_code": None,
                 "source_doc_ids": ("handbook:test-001", "handbook:test-002"),
+                "evidence_source_count": 2,
+                "follow_up_emitted": False,
+                "fail_closed": False,
             },
         )
         self.assertEqual(
@@ -339,9 +440,98 @@ class SupervisorCoreTest(unittest.TestCase):
                 "requested_scope_corpus",
                 "requested_scope_collection",
                 "status",
+                "error_code",
                 "source_doc_ids",
+                "evidence_source_count",
+                "follow_up_emitted",
+                "fail_closed",
             ),
         )
+
+    def test_build_audit_record_omits_context_projection_and_memory_fields(self) -> None:
+        request = SupervisorRequest(
+            user_goal="保研政策怎么准备？",
+            request_id="req-context-001",
+            trace=TraceContext(trace_id="trace-context-001"),
+            context=ContextProjection(
+                actor=ActorContext(
+                    user_id="student-001",
+                    principal_id="principal-001",
+                    groups=("students",),
+                    campus_scope="north",
+                    cohort="2023",
+                    major="philosophy",
+                ),
+                profile_memory=ProfileMemorySummary(
+                    items=(
+                        ProfileMemoryItem(
+                            item_id="memory-001",
+                            key="recent_goal",
+                            value="咨询保研",
+                            source_type="user_declared",
+                            confidence="high",
+                            visibility="user_visible",
+                            last_verified_at="2026-03-28",
+                        ),
+                    ),
+                ),
+                session=SessionSummary(
+                    confirmed_slots=(SessionSlot(name="policy_topic", value="推免资格", confirmed=True),),
+                    turn_count=3,
+                ),
+            ),
+            requested_scope=KnowledgeScope(
+                corpus="regulations",
+                collection="student_handbook",
+            ),
+        )
+
+        record = build_audit_record(
+            request,
+            SupervisorResponse(
+                selected_target=None,
+                status="approval_required",
+                answer_text="该请求涉及需要人工确认的操作，必须先经过审批。",
+                confidence="low",
+            ),
+        )
+
+        payload = asdict(record)
+
+        self.assertEqual(
+            payload,
+            {
+                "request_id": "req-context-001",
+                "trace_id": "trace-context-001",
+                "user_id": "student-001",
+                "selected_target": None,
+                "requested_capability": "knowledge",
+                "requested_scope_corpus": "regulations",
+                "requested_scope_collection": "student_handbook",
+                "status": "approval_required",
+                "error_code": None,
+                "source_doc_ids": (),
+                "evidence_source_count": 0,
+                "follow_up_emitted": False,
+                "fail_closed": False,
+            },
+        )
+        for forbidden_key in (
+            "principal_id",
+            "roles",
+            "groups",
+            "campus_scope",
+            "cohort",
+            "major",
+            "program",
+            "context",
+            "profile_memory",
+            "session",
+            "memory",
+            "confirmed_slots",
+            "raw_transcript",
+        ):
+            self.assertNotIn(forbidden_key, payload)
 
     def test_build_audit_record_keeps_minimum_projection_for_non_rag_response(self) -> None:
         request = SupervisorRequest(
@@ -372,9 +562,114 @@ class SupervisorCoreTest(unittest.TestCase):
                 "requested_scope_corpus": None,
                 "requested_scope_collection": None,
                 "status": "completed",
+                "error_code": None,
                 "source_doc_ids": (),
+                "evidence_source_count": 0,
+                "follow_up_emitted": False,
+                "fail_closed": False,
             },
         )
+
+    def test_build_error_audit_record_preserves_request_projection_and_error_code(self) -> None:
+        request = SupervisorRequest(
+            user_goal="培养方案要求",
+            request_id="req-err-001",
+            trace=TraceContext(trace_id="trace-err-001"),
+            actor=ActorContext(user_id="student-001", groups=("students",)),
+            requested_scope=KnowledgeScope(
+                corpus="curriculum",
+                collection="curriculum_plan",
+            ),
+        )
+
+        record = build_error_audit_record(
+            request,
+            error_code=DisallowedKnowledgeScopeError.error_code,
+        )
+
+        self.assertEqual(
+            asdict(record),
+            {
+                "request_id": "req-err-001",
+                "trace_id": "trace-err-001",
+                "user_id": "student-001",
+                "selected_target": "rag-specialist",
+                "requested_capability": "knowledge",
+                "requested_scope_corpus": "curriculum",
+                "requested_scope_collection": "curriculum_plan",
+                "status": "error",
+                "error_code": "disallowed_knowledge_scope",
+                "source_doc_ids": (),
+                "evidence_source_count": 0,
+                "follow_up_emitted": False,
+                "fail_closed": True,
+            },
+        )
+
+    def test_build_audit_record_marks_clarification_follow_up(self) -> None:
+        request = SupervisorRequest(
+            user_goal="奖学金怎么申请？",
+            request_id="req-clarify-001",
+            trace=TraceContext(trace_id="trace-clarify-001"),
+            actor=ActorContext(user_id="student-001", groups=("students",)),
+            requested_scope=KnowledgeScope(
+                corpus="regulations",
+                collection="student_handbook",
+            ),
+        )
+
+        record = build_audit_record(
+            request,
+            SupervisorResponse(
+                selected_target="rag-specialist",
+                status="needs_clarification",
+                follow_up_question="请说明你想咨询哪一类奖学金。",
+                confidence="low",
+                result=RagResultPayload(
+                    evidence=EvidenceBundle(
+                        query_text="奖学金怎么申请？",
+                        corpus="regulations",
+                        collection="student_handbook",
+                    )
+                ),
+            ),
+        )
+
+        self.assertEqual(record.evidence_source_count, 0)
+        self.assertTrue(record.follow_up_emitted)
+        self.assertFalse(record.fail_closed)
+
+    def test_build_audit_record_marks_no_answer_as_fail_closed(self) -> None:
+        request = SupervisorRequest(
+            user_goal="校内宇宙签证办理处",
+            request_id="req-no-answer-001",
+            trace=TraceContext(trace_id="trace-no-answer-001"),
+            actor=ActorContext(user_id="student-001", groups=("students",)),
+            requested_scope=KnowledgeScope(
+                corpus="regulations",
+                collection="student_handbook",
+            ),
+        )
+
+        record = build_audit_record(
+            request,
+            SupervisorResponse(
+                selected_target="rag-specialist",
+                status="no_answer",
+                confidence="low",
+                result=RagResultPayload(
+                    evidence=EvidenceBundle(
+                        query_text="校内宇宙签证办理处",
+                        corpus="regulations",
+                        collection="student_handbook",
+                    )
+                ),
+            ),
+        )
+
+        self.assertEqual(record.evidence_source_count, 0)
+        self.assertFalse(record.follow_up_emitted)
+        self.assertTrue(record.fail_closed)
 
     def test_handle_specialist_request_preserves_internal_delegate_seam(self) -> None:
         request = SpecialistRequest(

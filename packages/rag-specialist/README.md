@@ -1,6 +1,6 @@
 # campus-rag-specialist
 
-`packages/rag-specialist` 是当前 phase-1 已接受的 retrieval-oriented specialist 边界。
+`packages/rag-specialist` 是当前已接受的 retrieval-oriented specialist 边界。
 
 它负责：
 
@@ -15,4 +15,4 @@
 - transport / runtime host
 - ingestion、object storage、registry 写入
 
-当前默认 query-serving specialist 仍是 `rag-specialist`；它已经不是早期的 bootstrap 占位壳。
+当前默认 query-serving retrieval specialist 仍是 `rag-specialist`；它已经不是早期的 bootstrap 占位壳。

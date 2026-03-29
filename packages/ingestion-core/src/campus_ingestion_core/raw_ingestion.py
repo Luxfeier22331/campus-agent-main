@@ -9,12 +9,6 @@ from tempfile import TemporaryDirectory
 import time
 from typing import Protocol
 
-from campus_contracts import (
-    ALLOWED_CORPORA,
-    DEFAULT_COLLECTION,
-    DEFAULT_CORPUS,
-    KNOWN_COLLECTION_TO_CORPUS,
-)
 from campus_ingestion_core.artifacts import (
     LAYOUT_ELEMENTS_FILENAME,
     PROVIDER_RESPONSE_FILENAME,
@@ -31,6 +25,7 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     write_import_report,
 )
 from campus_ingestion_core.curriculum_provider_normalize import normalize_curriculum_provider_result
+from campus_ingestion_core.curriculum_title_normalization import canonicalize_curriculum_manifest_heading
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.handbook_source_projections import build_handbook_projection_import_documents
 from campus_ingestion_core.handbook_cleanup import (
@@ -56,6 +51,7 @@ from campus_ingestion_core.registry import (
     build_raw_asset_registry_from_env,
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
+from campus_ingestion_core.scope_catalog import assert_known_scope
 from campus_ingestion_core.split_manifest import SplitManifest, SplitManifestDocument, load_split_manifest
 
 
@@ -63,8 +59,6 @@ DEFAULT_ONLINE_OCR_MODEL = "PaddleOCR-VL-1.5"
 DEFAULT_ONLINE_OCR_POLL_SECONDS = 5
 DEFAULT_ONLINE_OCR_TIMEOUT_SECONDS = 300
 DEFAULT_RAW_ONLINE_OCR_PARSER_VERSION = "paddleocr-vl-1.5"
-DEFAULT_INGESTION_CORPUS = DEFAULT_CORPUS
-DEFAULT_INGESTION_COLLECTION = DEFAULT_COLLECTION
 DEFAULT_RAW_INGESTION_ARTIFACT_MODE = "normalized"
 ALLOWED_RAW_INGESTION_ARTIFACT_MODES = ("normalized", "source_truth_only")
 DEFAULT_ONLINE_OCR_PROVIDER = "paddleocr_async"
@@ -74,6 +68,27 @@ SPLIT_MANIFEST_LAYOUT_ELEMENTS_SCHEMA_VERSION = "split_manifest_layout_elements_
 @dataclass(frozen=True, slots=True)
 class OnlineOcrProviderResult:
     provider_result_bytes: bytes
+
+
+@dataclass(frozen=True, slots=True)
+class RawIngestionRequest:
+    raw_asset_id: str
+    raw_version_id: str
+    corpus: str
+    collection: str
+    artifact_mode: str = DEFAULT_RAW_INGESTION_ARTIFACT_MODE
+    split_manifest_path: Path | None = None
+    report_dir: Path = Path("./var/import-reports")
+    default_campus_scope: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.raw_asset_id:
+            raise ValueError("raw_asset_id is required")
+        if not self.raw_version_id:
+            raise ValueError("raw_version_id is required")
+        assert_known_scope(self.corpus, self.collection)
+        if self.artifact_mode not in ALLOWED_RAW_INGESTION_ARTIFACT_MODES:
+            raise ValueError(f"unsupported artifact_mode: {self.artifact_mode}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -195,48 +210,49 @@ class RawIngestionProcessSettings:
     object_store: ObjectStoreSettings
 
     @classmethod
-    def from_env(cls, env: dict[str, str] | None = None) -> "RawIngestionProcessSettings":
+    def from_request(
+        cls,
+        request: RawIngestionRequest,
+        env: dict[str, str] | None = None,
+    ) -> "RawIngestionProcessSettings":
         source = env if env is not None else os.environ
-        raw_asset_id = (source.get("RAW_ASSET_ID") or "").strip()
-        raw_version_id = (source.get("RAW_VERSION_ID") or "").strip()
-        if not raw_asset_id or not raw_version_id:
-            raise ValueError("RAW_ASSET_ID and RAW_VERSION_ID are required")
-        corpus = _read_ingestion_corpus(source)
-        collection = _read_ingestion_collection(source, corpus=corpus)
-        profile = load_runtime_profile(corpus, collection)
-        artifact_mode = _read_raw_ingestion_artifact_mode(source)
-        split_manifest_path_value = (source.get("INGESTION_SPLIT_MANIFEST_PATH") or "").strip()
+        profile = load_runtime_profile(request.corpus, request.collection)
         online_ocr = OnlineOcrSettings.from_env(source, required=True)
         if online_ocr is None:
             raise ValueError("OCR_BASE_URL and OCR_API_KEY must be configured together")
-        if artifact_mode not in profile.allowed_artifact_modes:
+        if request.artifact_mode not in profile.allowed_artifact_modes:
             raise ValueError(
-                f"{corpus}/{collection} does not support RAW_INGESTION_ARTIFACT_MODE={artifact_mode}"
+                f"{request.corpus}/{request.collection} does not support artifact_mode={request.artifact_mode}"
             )
-        if artifact_mode == "source_truth_only" and split_manifest_path_value:
+        if request.artifact_mode == "source_truth_only" and request.split_manifest_path is not None:
             raise ValueError("source_truth_only does not support split manifest ingestion")
-        if artifact_mode != "source_truth_only" and profile.split_manifest_required and not split_manifest_path_value:
+        if (
+            request.artifact_mode != "source_truth_only"
+            and profile.split_manifest_required
+            and request.split_manifest_path is None
+        ):
             raise ValueError(
-                f"INGESTION_SPLIT_MANIFEST_PATH is required for {corpus}/{collection} raw ingestion"
+                f"split_manifest_path is required for {request.corpus}/{request.collection} raw ingestion"
             )
         return cls(
-            raw_asset_id=raw_asset_id,
-            raw_version_id=raw_version_id,
-            report_dir=Path((source.get("IMPORT_REPORT_DIR") or "./var/import-reports").strip()),
-            corpus=corpus,
-            collection=collection,
-            artifact_mode=artifact_mode,
-            split_manifest_path=Path(split_manifest_path_value) if split_manifest_path_value else None,
+            raw_asset_id=request.raw_asset_id,
+            raw_version_id=request.raw_version_id,
+            report_dir=request.report_dir,
+            corpus=request.corpus,
+            collection=request.collection,
+            artifact_mode=request.artifact_mode,
+            split_manifest_path=request.split_manifest_path,
             parser_version=DEFAULT_RAW_ONLINE_OCR_PARSER_VERSION,
             embedding_model=(source.get("INGESTION_EMBEDDING_MODEL") or source.get("EMBEDDING_MODEL") or "").strip(),
             cleaning_policy_version=profile.cleaning_policy_version,
-            default_campus_scope=(source.get("INGESTION_DEFAULT_CAMPUS_SCOPE") or "").strip() or None,
+            default_campus_scope=request.default_campus_scope,
             online_ocr=online_ocr,
             object_store=ObjectStoreSettings.from_env(source),
         )
 
 def process_raw_ingestion_job(
     *,
+    request: RawIngestionRequest,
     env: dict[str, str] | None = None,
     object_store: ObjectStoreWriter | ObjectStoreReader | None = None,
     online_ocr: OnlineOcrClient | None = None,
@@ -244,7 +260,7 @@ def process_raw_ingestion_job(
     raw_asset_registry: RawAssetRegistry | None = None,
 ) -> ImportReport:
     source = dict(env if env is not None else os.environ)
-    settings = RawIngestionProcessSettings.from_env(source)
+    settings = RawIngestionProcessSettings.from_request(request, source)
     raw_asset_registry = raw_asset_registry or build_raw_asset_registry_from_env(source)
     writer = object_store or S3ObjectStoreClient(settings.object_store)
     if not hasattr(writer, "get_bytes"):
@@ -441,7 +457,7 @@ def _build_split_manifest_documents(
     ocr_model: str,
 ) -> list[DocumentImportInput]:
     if collection == "curriculum_plan":
-        structured_rows = _load_structured_rows(
+        structured_rows = _load_layout_elements_rows(
             normalize_curriculum_provider_result(
                 provider_jsonl_bytes=provider_result.provider_result_bytes,
                 source_pdf=raw_asset_record.source_filename,
@@ -835,6 +851,7 @@ def _slice_structured_rows_for_manifest_document(
             _transform_split_row(
                 row=row,
                 document_id=document_id,
+                manifest_title=manifest_document.title,
                 version_id=version_id,
                 source_pdf=source_pdf,
                 source_uri=source_uri,
@@ -854,6 +871,7 @@ def _transform_split_row(
     *,
     row: dict[str, object],
     document_id: str,
+    manifest_title: str,
     version_id: str,
     source_pdf: str,
     source_uri: str,
@@ -864,6 +882,11 @@ def _transform_split_row(
     clean_text = _split_manifest_row_text(row)
     if not clean_text:
         return None
+    clean_text = canonicalize_curriculum_manifest_heading(
+        row=row,
+        clean_text=clean_text,
+        manifest_title=manifest_title,
+    )
     source_chunk_id = _normalize_optional_text(row.get("row_id")) or f"page-{page_start:04d}"
     return {
         "doc_id": document_id,
@@ -871,6 +894,10 @@ def _transform_split_row(
         "chunk_id": source_chunk_id,
         "row_id": _normalize_optional_text(row.get("row_id")) or source_chunk_id,
         "row_type": _normalize_optional_text(row.get("row_type")) or "paragraph",
+        "heading_level": row.get("heading_level"),
+        "row_index": row.get("row_index"),
+        "reading_order": row.get("reading_order"),
+        "section_hint": _normalize_optional_text(row.get("section_hint")),
         "clean_text": clean_text,
         "html": row.get("html"),
         "table_cells": row.get("table_cells"),
@@ -902,7 +929,7 @@ def _serialize_rows(rows: list[dict[str, object]]) -> bytes:
     return ("\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n").encode("utf-8")
 
 
-def _load_structured_rows(file_bytes: bytes) -> list[dict[str, object]]:
+def _load_layout_elements_rows(file_bytes: bytes) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     for line_number, line in enumerate(file_bytes.decode("utf-8").splitlines(), start=1):
         normalized = line.strip()
@@ -967,31 +994,6 @@ def _normalize_optional_text(value: object) -> str | None:
         return None
     normalized = value.strip()
     return normalized or None
-
-
-def _read_ingestion_corpus(source: dict[str, str]) -> str:
-    corpus = (source.get("INGESTION_CORPUS") or DEFAULT_INGESTION_CORPUS).strip() or DEFAULT_INGESTION_CORPUS
-    if corpus not in ALLOWED_CORPORA:
-        raise ValueError(f"unsupported corpus: {corpus}")
-    return corpus
-
-
-def _read_ingestion_collection(source: dict[str, str], *, corpus: str) -> str:
-    collection = (
-        source.get("INGESTION_COLLECTION") or DEFAULT_INGESTION_COLLECTION
-    ).strip() or DEFAULT_INGESTION_COLLECTION
-    expected_corpus = KNOWN_COLLECTION_TO_CORPUS.get(collection)
-    if expected_corpus is not None and expected_corpus != corpus:
-        raise ValueError(f"unsupported collection scope: {collection} does not belong to {corpus}")
-    return collection
-
-
-def _read_raw_ingestion_artifact_mode(source: dict[str, str]) -> str:
-    mode = (source.get("RAW_INGESTION_ARTIFACT_MODE") or DEFAULT_RAW_INGESTION_ARTIFACT_MODE).strip().lower()
-    normalized_mode = mode or DEFAULT_RAW_INGESTION_ARTIFACT_MODE
-    if normalized_mode not in ALLOWED_RAW_INGESTION_ARTIFACT_MODES:
-        raise ValueError(f"unsupported RAW_INGESTION_ARTIFACT_MODE: {normalized_mode}")
-    return normalized_mode
 
 
 def _resolve_registered_raw_asset(

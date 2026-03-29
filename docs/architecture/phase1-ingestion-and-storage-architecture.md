@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-22
-updated: 2026-03-27
+updated: 2026-03-28
 ---
 
 # campus-agent 第一阶段数据平面架构
@@ -14,10 +14,10 @@ updated: 2026-03-27
 它只负责冻结跨 collection 共享的数据平面边界和不变量，不负责重复以下内容：
 
 - 长期 package 边界和系统形态：`docs/architecture/long-term-architecture.md`
-- 第一阶段架构取舍与范围决策：`docs/decisions/adr-0001-phase1-architecture.md`
 - 本机 `MinIO` / object key / bucket 不变量：`docs/decisions/adr-0002-local-minio-conventions.md`
 - `student_handbook` 的 OCR 归一化、拆分和 document-level 语义：`docs/architecture/student-handbook-ocr-normalization-strategy.md`
 - OCR/source-truth shared canonical contract：`docs/architecture/source-truth-normalization-contract.md`
+- 长期版本化 serving / 历史查询目标：`docs/architecture/versioned-document-serving-and-history-query.md`
 - collection 级 runtime truth：`configs/ingestion/<corpus>/<collection>/`
 - gate、实施顺序和验收：`docs/plans/agentic-rag-foundation.md`
 
@@ -37,13 +37,23 @@ updated: 2026-03-27
 当前文档体系的 ownership 固定如下：
 
 - 数据平面的长期分层、package 边界：`docs/architecture/long-term-architecture.md`
-- 第一阶段为什么采用对象存储 + registry + Qdrant：`docs/decisions/adr-0001-phase1-architecture.md`
+- 第一阶段为什么采用对象存储 + registry + Qdrant：本文
 - bucket、object key、registry 字段和迁移不变量：`docs/decisions/adr-0002-local-minio-conventions.md`
 - `student_handbook` 的 source-level normalization 和 document-level cleanup truth：`docs/architecture/student-handbook-ocr-normalization-strategy.md`
 - repo 级 source-truth canonical contract：`docs/architecture/source-truth-normalization-contract.md`
 - `student_handbook` / `curriculum_plan` / `campus_services` 的具体 runtime 开关、chunk profile、split manifest：`configs/ingestion/`
 
 换句话说，这份文档只保留跨 collection 的稳定架构约束；collection 专属规则不再在这里复制一份 runtime truth。
+
+## 采用该数据面组合的原因
+
+phase-1 当前采用对象存储 + raw asset registry + document registry + Qdrant，不是为了把实现堆得更重，而是为了尽早固定可重建、可审计、可升级的数据面骨架：
+
+- 不把 ingestion 留成后续必须推倒重做的技术债
+- 从第一天建立稳定的 `raw_asset_id`、`document_id`、`version_id` 与 `chunk_id`
+- 支撑增量更新、删除、审计、回放与重处理，而不是只做一次性导入
+- 让 retrieval 建立在 `registry + qdrant` 的可回链证据链之上，而不是只消费向量库分数
+- 即使当前使用本机 `MinIO`，上层仍保持 `S3-compatible object storage` 语义，避免未来迁移云对象存储时重写 contract
 
 ## 架构结论
 
@@ -142,7 +152,7 @@ updated: 2026-03-27
 
 职责：
 
-- 保存 `document_id`、`revision_track`、`version_id`、`source_uri`、`content_hash`、`corpus`、`collection`、ACL、状态、时间戳，以及指向 raw asset 的引用
+- 保存 `document_id`、`revision_track`、`version_id`、`source_uri`、`content_hash`、`corpus`、`collection`、authorization filter projection、状态、时间戳，以及指向 raw asset 的引用
 - 表达“当前逻辑文档版本是什么”
 - 支撑增量更新、删除、审计、retrieval 前过滤与 evidence 回链
 
@@ -163,11 +173,13 @@ updated: 2026-03-27
 
 - 第一阶段 canonical chunk store 是 `Qdrant`
 - 每个 chunk 必须回链到 `document_id`、`revision_track`、`version_id`
+- 已进入 release-managed lifecycle 的 collection 必须通过固定 serving alias 暴露，离线重建写入按 `collection_prefix__release_id` 命名的 versioned physical collection
+- 每次 chunking/embedding/indexing 发布都必须生成小型 release manifest，并落到 derived bucket 的 `{corpus}/releases/{collection}/{release_id}/` 前缀；manifest 用于审计与回滚，不保存 chunk dump
 - embedding request contract 与 Qdrant schema contract 必须分离：
   `model` / `dimensions` 属于 embedding runtime；
   named dense/sparse vectors、payload metadata 与 hybrid query shape 属于 Qdrant collection schema
 - `student_handbook` 的 accepted target schema 是同一点双写 named `dense` 与 named `sparse` vectors
-- 如需导出 chunk manifest 到对象存储，该导出物只能用于备份、审计或离线重建，不能替代 Qdrant
+- 对象存储不保留 chunking 后的全文 chunk 产物；chunk 文本、向量与检索 payload 只保留在 Qdrant 中，离线重建以 `document-units.jsonl + policy version` 为准
 
 ## 第一阶段固定流程
 
@@ -186,6 +198,7 @@ updated: 2026-03-27
 - 文档删除通过 registry 状态与索引删除同步处理
 - replay/rebuild 的 canonical boundary 是 persisted source truth，而不是 handbook-only branch、legacy migration side path 或二次 raw re-entry
 - handbook-derived `campus_services` output、attachment/form/navigation-like output 都必须从 source truth fan-out，而不是各自回到 raw
+- `curriculum/curriculum_plan` 的 accepted ingestion path 固定为 `source-truth/layout-elements.jsonl -> split-manifest logical documents -> source-truth-preserving document-units.jsonl -> curriculum_plan_semantic_v1`
 - collection 专属 normalization、cleanup、chunking 规则由对应 strategy doc 和 `configs/ingestion/` 冻结，不在本文重复
 
 ### 查询链路
@@ -194,18 +207,20 @@ updated: 2026-03-27
 
 固定规则：
 
-- query-serving 默认只开放 `regulations` corpus 中的 `student_handbook` collection
-- `curriculum/curriculum_plan` 在 phase-1 只完成 offline data-plane 收口，不改变默认查询面
-- `campus_services/service_catalog` 与 `campus_services/contact_directory` 在当前阶段只保留离线 taxonomy 和 data-plane 入口，不改变默认查询面
+- query-serving surface 由 collection runtime profile 控制；当前 query-enabled collection 是 `regulations/student_handbook` 与 `curriculum/curriculum_plan`
+- `campus_services/service_catalog` 与 `campus_services/contact_directory` 当前保持 `offline_preparation`，不进入默认 query-serving surface；但它们已经可以参与 release-managed index lifecycle，并应与 query-serving collection 一样使用稳定 alias + versioned physical collection
 - retrieval 返回的 source 必须能回链到 document registry
 - retrieval 前置 ACL filter 必须基于 metadata 执行
 - 当前 retrieval accepted baseline 为 `dense + sparse hybrid retrieval + RRF fusion + registry-backed evidence shaping`；`HyDE` 和 rerank 不是默认主路径
 - 当前 handbook embedding runtime 通过 `gitee` 官方 OpenAI-compatible 接口请求 `Qwen3-Embedding-4B @ 2560`，ingestion 与 retrieval query path 都必须显式发送 `dimensions=2560`
+- 当前 handbook dense query embedding 会在 retrieval time 追加英文 instruction，再送入 `Qwen3-Embedding-4B`
 - 当前 handbook 的 phase-1 sparse baseline 先采用 `Qdrant native BM25`，并以 `tokenizer=multilingual`、`language=none` 作为中文 handbook 起始配置
-- 当前 handbook 的 accepted target retrieval shape 是 Qdrant native hybrid query：同一 filter 下执行 dense prefetch 与 sparse prefetch，并使用 native `RRF` 融合
-- 当前 handbook query-serving 默认只消费 collection runtime profile 定义的 current-serving documents；当前策略为 `current_only=true`，并按 `serving_revision_tracks=["current-effective","source-faithful"]` 过滤 serving revision_track
+- 当前 handbook 的 accepted target retrieval shape 是 Qdrant native hybrid query：同一 filter 下执行 dense prefetch 与 sparse prefetch，并使用 native `RRF` 融合；当前 runtime 冻结为 dense prefetch `20`、sparse prefetch `20`、`RrfQuery(k=60, weights=[1.0,1.0])`
+- query-serving 默认只消费 collection runtime profile 定义的 serving documents。当前 `student_handbook` 策略为 `current_only=true` 且 `serving_revision_tracks=["current-effective","source-faithful"]`；当前 `curriculum_plan` 策略为 `current_only=false` 且 `serving_revision_tracks=["source-faithful"]`
+- 当前 `student_handbook` runtime profile 默认返回 `8` 个 retrieval candidates，回答阶段再裁剪为最多 `3` 条支撑证据
 - query path 不再接受“历史版本先命中，再靠 `latest_url` 告知用户当前链接”作为默认主路径；历史版本默认不进入 retrieval candidate
 - 当同一逻辑文档同时存在 `pdf_ocr` / `official_web` 等多来源且规范化内容一致时，source layer 保留多份来源资产，但 document/version layer 只保留一份逻辑版本；Qdrant 不得为等价来源重复建索引点
+- 当前数据平面已经具备“保留历史版本并维护 current truth”的能力，但当前在线 query path 仍不支持用户显式选择历史版本、按时间点查询或版本对比；这些属于后续版本化 serving 能力，不属于本文冻结的现状
 
 ## 去重与版本策略
 
@@ -224,12 +239,14 @@ updated: 2026-03-27
 - 如果不同来源在同一 `document_id + revision_track` 下产生相同规范化内容，则必须复用已有 `version_id`，并把来源差异落到 provenance，而不是再生成第二条 document registry record
 - `chunk_id` 基于 `document_id + revision_track + version_id + chunk_order`
 
-## ACL 与 Traceability
+## Authorization Filter Projection 与 Traceability
 
 第一阶段必须做到：
 
-- 文档级 ACL metadata
-- chunk 级 ACL metadata 继承文档 metadata
+- 文档级 authorization filter projection metadata
+- chunk 级 authorization filter projection metadata 继承文档 metadata
+- 当前 phase-1 可继续使用 `acl_level`、`acl_groups`、`campus_scope` 作为 projection carrier
+- 但这组字段只服务 retrieval pre-filter，不是 canonical authorization truth
 - retrieval/evidence 返回最小 source locator 字段
 - ingestion 和 query 都写结构化日志
 - object storage 路径从第一天起保持稳定语义，避免未来迁移云对象存储时重写数据面规则

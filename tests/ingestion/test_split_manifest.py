@@ -8,7 +8,7 @@ import unittest
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.raw_ingestion import (
     _build_split_manifest_document_input,
-    _load_structured_rows,
+    _load_layout_elements_rows,
 )
 from campus_ingestion_core.split_manifest import load_split_manifest
 
@@ -66,15 +66,60 @@ class SplitManifestTest(unittest.TestCase):
 
         self.assertEqual(manifest.manifest_version, "curriculum_plan_split_manifest_v1")
         self.assertEqual(manifest.raw_asset_id, "asset:curriculum-plan-2022")
-        self.assertEqual(len(manifest.documents), 66)
+        self.assertEqual(len(manifest.documents), 69)
         self.assertEqual(manifest.documents[0].document_id, "curriculum:中央民族大学通识课程教学计划")
         self.assertEqual(manifest.documents[0].page_start, 20)
         self.assertEqual(manifest.documents[0].page_end, 21)
+        self.assertEqual(manifest.documents[1].document_id, "curriculum:中央民族大学通识课程思想政治理论课教学计划")
+        self.assertEqual(manifest.documents[1].page_start, 22)
+        self.assertEqual(manifest.documents[1].page_end, 26)
+        self.assertEqual(manifest.documents[2].document_id, "curriculum:中央民族大学通识课程“大学英语”课程教学计划")
+        self.assertEqual(manifest.documents[2].page_start, 27)
+        self.assertEqual(manifest.documents[2].page_end, 29)
+        self.assertEqual(manifest.documents[3].document_id, "curriculum:中央民族大学通识课程“信息素养”课程教学计划")
+        self.assertEqual(manifest.documents[3].page_start, 30)
+        self.assertEqual(manifest.documents[3].page_end, 31)
+        self.assertEqual(manifest.documents[4].document_id, "curriculum:中央民族大学通识课程“大学体育”课程教学计划")
+        self.assertEqual(manifest.documents[4].page_start, 32)
+        self.assertEqual(manifest.documents[4].page_end, 36)
         self.assertEqual(manifest.documents[-1].document_id, "curriculum:教育学本科第二学士学位人才培养方案")
         self.assertEqual(manifest.documents[-1].page_start, 704)
         self.assertEqual(manifest.documents[-1].page_end, 710)
         titles = {document.title for document in manifest.documents}
         self.assertNotIn("各类课程教学计划", titles)
+
+    def test_load_split_manifest_rejects_overlapping_curriculum_page_ranges(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "split-manifest.overlap.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "curriculum_plan_split_manifest_v1",
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "raw_asset_id": "asset:curriculum-plan-2022",
+                        "documents": [
+                            {
+                                "document_id": "curriculum:plan-a",
+                                "title": "计划甲",
+                                "page_start": 20,
+                                "page_end": 22,
+                            },
+                            {
+                                "document_id": "curriculum:plan-b",
+                                "title": "计划乙",
+                                "page_start": 22,
+                                "page_end": 23,
+                            },
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "page ranges overlap"):
+                load_split_manifest(path)
 
     def test_real_curriculum_fixture_splits_cleanly_across_adjacent_documents(self) -> None:
         manifest = load_split_manifest(
@@ -83,8 +128,8 @@ class SplitManifestTest(unittest.TestCase):
             expected_collection="curriculum_plan",
         )
         documents = {document.document_id: document for document in manifest.documents}
-        structured_rows = _load_structured_rows(
-            Path("tests/fixtures/curriculum_plan/structured-full.pages-278-297.jsonl").read_bytes()
+        structured_rows = _load_layout_elements_rows(
+            Path("tests/fixtures/curriculum_plan/layout-elements.pages-278-297.jsonl").read_bytes()
         )
         self.assertEqual(structured_rows[0]["corpus"], "curriculum")
         self.assertEqual(structured_rows[0]["collection"], "curriculum_plan")
@@ -220,6 +265,84 @@ class SplitManifestTest(unittest.TestCase):
         self.assertEqual(projected_rows[2]["relation_type"], "note_of")
         self.assertEqual(projected_rows[2]["continuation_group_id"], "page-0020-block-0002")
         self.assertEqual(projected_rows[1]["source"]["id"], expected_source_uri)
+
+    def test_build_split_manifest_document_input_preserves_heading_structure_fields(self) -> None:
+        manifest = load_split_manifest(
+            Path("configs/ingestion/curriculum/curriculum_plan/split-manifest.v1.json"),
+            expected_corpus="curriculum",
+            expected_collection="curriculum_plan",
+        )
+        manifest_document = manifest.documents[0]
+        structured_rows = [
+            {
+                "row_id": "page-0020-block-0001",
+                "row_type": "heading",
+                "heading_level": 1,
+                "row_index": 10,
+                "reading_order": 1,
+                "section_hint": "doc_title",
+                "text_raw": "测试培养方案",
+                "text_normalized": "测试培养方案",
+                "page_start": 20,
+                "page_end": 20,
+                "html": None,
+                "table_cells": None,
+                "acl": {"level": "public", "allow_groups": []},
+            },
+            {
+                "row_id": "page-0020-block-0002",
+                "row_type": "heading",
+                "heading_level": 2,
+                "row_index": 11,
+                "reading_order": 2,
+                "section_hint": "section",
+                "text_raw": "一、培养目标",
+                "text_normalized": "一、培养目标",
+                "page_start": 20,
+                "page_end": 20,
+                "html": None,
+                "table_cells": None,
+                "acl": {"level": "public", "allow_groups": []},
+            },
+            {
+                "row_id": "page-0020-block-0003",
+                "row_type": "paragraph",
+                "row_index": 12,
+                "reading_order": 3,
+                "text_raw": "培养具有系统分析能力的人才。",
+                "text_normalized": "培养具有系统分析能力的人才。",
+                "page_start": 20,
+                "page_end": 20,
+                "html": None,
+                "table_cells": None,
+                "acl": {"level": "public", "allow_groups": []},
+            },
+        ]
+        document_input = _build_split_manifest_document_input(
+            raw_asset_record=_curriculum_raw_asset_record(raw_version_id="sha256:test"),
+            manifest_version=manifest.manifest_version,
+            manifest_document=manifest_document,
+            structured_rows=structured_rows,
+            provider_response_key=(
+                "official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl"
+            ),
+            layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
+            default_campus_scope="main",
+            corpus="curriculum",
+            collection="curriculum_plan",
+        )
+
+        projected_rows = [
+            json.loads(line) for line in document_input.document_units_bytes.decode("utf-8").splitlines() if line.strip()
+        ]
+
+        self.assertEqual(projected_rows[0]["row_type"], "heading")
+        self.assertEqual(projected_rows[0]["heading_level"], 1)
+        self.assertEqual(projected_rows[0]["row_index"], 10)
+        self.assertEqual(projected_rows[0]["reading_order"], 1)
+        self.assertEqual(projected_rows[0]["section_hint"], "doc_title")
+        self.assertEqual(projected_rows[1]["heading_level"], 2)
+        self.assertEqual(projected_rows[1]["section_hint"], "section")
 
     def test_load_split_manifest_reads_curriculum_plan_documents(self) -> None:
         with TemporaryDirectory() as temp_dir:

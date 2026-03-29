@@ -51,13 +51,13 @@ describe("04.7 documentation contracts", () => {
     expect(source).toContain("Qdrant");
     expect(source).toContain("same-site");
     expect(source).toContain("Worker admission is not canonical app identity truth");
-    expect(source).toContain("docs/architecture/public-consumer-chat-surface.md");
-    expect(source).toContain("docs/architecture/public-consumer-chat-auth-and-data-boundary.md");
-    expect(source).toContain("docs/decisions/adr-0008-public-consumer-auth-and-storage.md");
-    expect(source).toContain("docs/decisions/adr-0009-public-consumer-frontend-host.md");
+    expect(source).toContain("docs/architecture/shared-app-api-and-worker-web-surfaces.md");
+    expect(source).toContain("docs/architecture/app-api-architecture.md");
+    expect(source).toContain("docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md");
+    expect(source).toContain("docs/decisions/adr-0013-app-api-worker-runtime.md");
     expect(source).toContain("04.7-CONSUMER-APP-BOUNDARY-HANDOFF.md");
     expect(source).toContain("04.7-IMPLEMENTATION-HANDOFF.md");
-    expect(source).toContain("Historical 04.7 Execution Records");
+    expect(source).toContain("Historical 04.7 Phase Artifacts");
     expect(source).not.toContain("Planning artifacts for the current chatbot component migration");
     expect(source).not.toContain("Vite dev client");
     expect(source).not.toContain("app-local Hono server");

@@ -10,6 +10,8 @@ from unittest.mock import patch
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef, SourceObservation
 from campus_ingestion_core.registry import (
     PostgresDocumentRegistry,
+    _document_record_from_dict,
+    _raw_asset_record_from_dict,
     build_document_registry_from_env,
     build_raw_asset_registry_from_env,
 )
@@ -140,6 +142,13 @@ class RegistryModelsTest(unittest.TestCase):
         self.assertEqual(payload["corpus"], "regulations")
         self.assertEqual(payload["collection"], "student_handbook")
         self.assertEqual(payload["cleaning_policy_version"], "student_handbook_cleaning_v1")
+        self.assertEqual(payload["entitlement_groups"], ("students",))
+        self.assertEqual(payload["visibility_scope"], None)
+        self.assertEqual(payload["visibility_level"], "restricted")
+        self.assertEqual(
+            payload["policy_projection_version"],
+            "phase1-authorization-projection-v1",
+        )
         self.assertEqual(payload["status"], "active")
         self.assertEqual(payload["import_source"], "raw_online_ocr")
         self.assertEqual(payload["source_channel"], "pdf_ocr")
@@ -150,6 +159,17 @@ class RegistryModelsTest(unittest.TestCase):
         self.assertEqual(
             payload["canonical_markdown_object_key"],
             HANDBOOK_CANONICAL_KEY,
+        )
+
+    def test_document_registry_record_backfills_projection_fields_from_legacy_acl(self) -> None:
+        record = _curriculum_document_record()
+
+        self.assertEqual(record.entitlement_groups, ())
+        self.assertEqual(record.visibility_scope, "main")
+        self.assertEqual(record.visibility_level, "public")
+        self.assertEqual(
+            record.policy_projection_version,
+            "phase1-authorization-projection-v1",
         )
 
     def test_file_document_registry_upsert_and_get_are_stable(self) -> None:
@@ -224,6 +244,22 @@ class RegistryModelsTest(unittest.TestCase):
 
             self.assertEqual(records, (v1, v2))
             self.assertEqual(latest, (v2,))
+
+    def test_file_document_registry_current_version_requires_explicit_current_record(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            registry = InMemoryDocumentRegistry(backing_path=Path(temp_dir) / "registry.json")
+            stale_record = replace(
+                _handbook_document_record(
+                    version_id="v2:test-001",
+                    content_hash="sha256:test-002",
+                    ingestion_timestamp="2026-03-23T10:00:00+00:00",
+                ),
+                is_current=False,
+            )
+
+            registry.upsert(stale_record)
+
+            self.assertIsNone(registry.current_version("handbook:test-001"))
 
     def test_file_document_registry_upsert_many_persists_all_records(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -339,7 +375,7 @@ class RegistryModelsTest(unittest.TestCase):
                 curriculum_record,
             )
 
-    def test_file_document_registry_backfills_explicit_processed_keys_from_legacy_payload(self) -> None:
+    def test_file_document_registry_backfills_explicit_processed_keys_from_payload(self) -> None:
         with TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "registry.json"
             path.write_text(
@@ -349,9 +385,9 @@ class RegistryModelsTest(unittest.TestCase):
                             "document_id": "handbook:test-001",
                             "revision_track": "source-faithful",
                             "version_id": "v1:test-001",
-                            "source_uri": "campusrag://canonical/student_handbook/docs/test-001.md",
+                            "source_uri": "campusrag://canonical/regulations/student_handbook/docs/test-001.md",
                             "content_hash": "sha256:test-001",
-                            "corpus": "student_handbook",
+                            "corpus": "regulations",
                             "collection": "student_handbook",
                             "cleaning_policy_version": "student_handbook_cleaning_v1",
                             "acl_groups": ["students"],
@@ -397,6 +433,58 @@ class RegistryModelsTest(unittest.TestCase):
             self.assertEqual(len(loaded.source_observations), 1)
             self.assertTrue(loaded.source_observations[0].is_primary)
             self.assertEqual(loaded.source_observations[0].source_channel, "pdf_ocr")
+
+    def test_document_registry_payload_requires_explicit_corpus_collection_and_source_channel(self) -> None:
+        with self.assertRaisesRegex(ValueError, "source_channel"):
+            _document_record_from_dict(
+                {
+                    "document_id": "handbook:test-001",
+                    "revision_track": "source-faithful",
+                    "version_id": "v1:test-001",
+                    "source_uri": "campusrag://canonical/regulations/student_handbook/docs/test-001.md",
+                    "content_hash": "sha256:test-001",
+                    "corpus": "regulations",
+                    "status": "active",
+                    "ingestion_timestamp": "2026-03-22T10:00:00+00:00",
+                    "parser_version": "campusrag-import-v1",
+                    "embedding_model": "Qwen3-Embedding-4B",
+                    "import_source": "raw_online_ocr",
+                }
+            )
+
+        with self.assertRaisesRegex(ValueError, "collection"):
+            _document_record_from_dict(
+                {
+                    "document_id": "handbook:test-001",
+                    "revision_track": "source-faithful",
+                    "version_id": "v1:test-001",
+                    "source_uri": "campusrag://canonical/regulations/student_handbook/docs/test-001.md",
+                    "content_hash": "sha256:test-001",
+                    "corpus": "regulations",
+                    "status": "active",
+                    "ingestion_timestamp": "2026-03-22T10:00:00+00:00",
+                    "parser_version": "campusrag-import-v1",
+                    "embedding_model": "Qwen3-Embedding-4B",
+                    "source_channel": "pdf_ocr",
+                    "import_source": "raw_online_ocr",
+                }
+            )
+
+    def test_raw_asset_registry_payload_requires_explicit_corpus_and_collection(self) -> None:
+        with self.assertRaisesRegex(ValueError, "collection"):
+            _raw_asset_record_from_dict(
+                {
+                    "raw_asset_id": "asset:student-handbook-pdf",
+                    "raw_version_id": "sha256:raw-001",
+                    "corpus": "regulations",
+                    "raw_source_uri": "campusrag://raw/regulations/student_handbook/student-handbook.pdf",
+                    "content_hash": "raw-001",
+                    "source_filename": "student-handbook.pdf",
+                    "object_key": "official_pdf/student-handbook/undated/sha256/raw-001/capture/student-handbook.pdf",
+                    "ingestion_timestamp": "2026-03-22T10:00:00+00:00",
+                    "import_source": "raw_online_ocr",
+                }
+            )
 
     def test_file_raw_asset_registry_upsert_and_get_are_stable(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -493,6 +581,30 @@ class RegistryModelsTest(unittest.TestCase):
             "delete from document_registry_records where document_id = %s",
             ("handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675",),
         )
+
+    def test_postgres_document_registry_current_version_does_not_fallback_to_latest(self) -> None:
+        with patch.object(PostgresDocumentRegistry, "_ensure_schema", return_value=None):
+            registry = PostgresDocumentRegistry("postgresql://registry.example/postgres")
+
+        with (
+            patch.object(registry, "_fetchone", return_value=None),
+            patch.object(
+                registry,
+                "latest_versions",
+                return_value=(
+                    replace(
+                        _handbook_document_record(
+                            version_id="v2:test-001",
+                            content_hash="sha256:test-002",
+                            ingestion_timestamp="2026-03-23T10:00:00+00:00",
+                        ),
+                        is_current=False,
+                    ),
+                ),
+            ) as latest_versions,
+        ):
+            self.assertIsNone(registry.current_version("handbook:test-001"))
+            latest_versions.assert_not_called()
 
     def test_registry_builders_require_database_url(self) -> None:
         with self.assertRaisesRegex(ValueError, "DOCUMENT_REGISTRY_DATABASE_URL"):

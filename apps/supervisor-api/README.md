@@ -1,12 +1,19 @@
 # campus-supervisor-api
 
-`apps/supervisor-api` 是 `campus-agent` 当前查询主链路的对外 serving boundary。
+`apps/supervisor-api` 是 `campus-agent` 的 execution engine boundary。
+
+在当前接受的产品拓扑里：
+
+- browser-facing chat / panel API 不在这里
+- shared `apps/app-api` 承接产品层 auth/session/conversation、chat ingress 与 operator query
+- `apps/supervisor-api` 只接收受控执行请求并进入 `packages/supervisor-core`
 
 它负责：
 
-- 外部请求的 transport / auth / runtime 集成
-- 将入口请求映射为共享 contract
+- execution-side transport / internal caller admission / runtime 集成
+- 将受控执行入口映射为共享 contract
 - 调用 `packages/supervisor-core` 并投影 HTTP 响应
+- 在 runtime 边界持久化 supervisor audit records
 - 暴露最小健康检查与 readiness 边界
 
 它不负责：
@@ -16,7 +23,20 @@
 - retrieval / Qdrant / registry 访问
 - ingestion / data-plane 逻辑
 
-因此这里不是“未来再补的 bootstrap app”，而是稳定的 API shell；核心编排继续留在 `packages/supervisor-core`。
+因此这里不是产品后端，也不是“未来再补的 bootstrap app”，而是稳定的 execution API shell；核心编排继续留在 `packages/supervisor-core`。
+
+## Current Admission And Audit Shape
+
+- `bearer` 模式是当前 repo-local / compatibility ingress，用于在没有 `app-api` 的情况下提供 internal caller admission 与显式 actor 默认值
+- `bearer` 模式不再信任客户端提交的 `x-actor-*` header；forward canonical path 应由 `app-api` 显式提供 `actor`
+- `trusted-worker` 模式是当前 public-entry Worker 兼容入口；在验证 `x-worker-origin-auth` 后，它仍可能从转发的 `cf-access-jwt-assertion` 提取 caller claims，但这不是 shared `app-api -> supervisor-api` 的长期 contract
+- audit 持久化由 API shell 负责落盘，但 audit record 的 shape 仍由 `packages/supervisor-core` 投影
+
+forward canonical direction 已冻结为：
+
+- `app-api` 拥有 product-layer auth/session/principal mapping
+- `apps/supervisor-api` 只做 internal caller admission
+- `actor` 由 `app-api` 显式传入 execution contract
 
 ## Local Dev HTTP Entry
 
@@ -34,7 +54,7 @@
 uv run --all-packages campus-supervisor-api-dev
 ```
 
-## Minimum Env
+## Compatibility Local Dev Env
 
 至少需要：
 
@@ -43,9 +63,10 @@ export CAMPUS_AGENT_HTTP_HOST=127.0.0.1
 export CAMPUS_AGENT_HTTP_PORT=8000
 export API_AUTH_MODE=bearer
 export API_BEARER_TOKEN=local-dev-token
+export API_DEFAULT_ACTOR_ID=local-dev-bearer-user
 ```
 
-推荐本地 bearer 默认值：
+推荐本地 bearer compatibility 默认值：
 
 ```bash
 export API_DEFAULT_ACTOR_GROUPS=students
@@ -54,6 +75,8 @@ export API_DEFAULT_CAMPUS_SCOPE=main
 ```
 
 `ApiSettings.from_env()` 仍会从 repo `.env` 读取其余 runtime 配置，包括 `AGNO_SUPERVISOR_MODEL`、`AGNO_SPECIALIST_MODEL`、object store access 与 retrieval backend settings。
+
+repo root `.env` / `.env.example` 只负责 shared runtime config，不承担 Worker / web app 的 app-local env ownership。相关模板索引见 `docs/environment/README.md`。
 
 ## Curl Smoke
 
@@ -91,6 +114,6 @@ curl -s \
 ## Known Preconditions
 
 - 仍然需要有效 retrieval 环境；这个 dev HTTP 入口只替换临时 runner，不会 mock retrieval、Qdrant、MinIO 或 specialist 行为。
-- Phase-1 默认知识范围仍然是 `regulations/student_handbook`。
-- 如果启用 bearer auth 且 token 缺失或错误，`/api/v1/answer` 会返回 `401`。
-- 这个 dev server 只是本地 runtime shell，不代表 Cloudflare Worker ingress、Phase 5 actor closure 或 runtime unification 已冻结。
+- query-serving surface 由 collection runtime profile 控制；当前 query-enabled scope 为 `regulations/student_handbook` 与 `curriculum/curriculum_plan`。
+- 如果启用 bearer compatibility ingress 且 token 缺失或错误，`/api/v1/answer` 会返回 `401`。
+- 这个 dev server 只是本地 runtime shell，不代表 Cloudflare Worker ingress 或 Phase 5 actor closure 已冻结；当前冻结的是 shared `apps/app-api` runtime，而不是 execution engine runtime。

@@ -6,6 +6,7 @@ from campus_contracts import (
     AvailabilityObservation,
     ErrorInfo,
     SpecialistResponse,
+    SupervisorResponse,
 )
 from campus_supervisor_core.policy import finalize_specialist_response
 
@@ -19,7 +20,15 @@ class SupervisorPolicyTest(unittest.TestCase):
             confidence="high",
         )
 
-        self.assertIs(finalize_specialist_response(response), response)
+        self.assertEqual(
+            finalize_specialist_response(response),
+            SupervisorResponse(
+                selected_target="rag-specialist",
+                status="completed",
+                answer_text="The library is open.",
+                confidence="high",
+            ),
+        )
 
     def test_finalize_needs_clarification_response_keeps_follow_up(self) -> None:
         response = SpecialistResponse(
@@ -30,7 +39,7 @@ class SupervisorPolicyTest(unittest.TestCase):
 
         finalized = finalize_specialist_response(response)
 
-        self.assertIs(finalized, response)
+        self.assertEqual(finalized.selected_target, "rag-specialist")
         self.assertEqual(finalized.status, "needs_clarification")
         self.assertEqual(finalized.follow_up_question, "Which campus are you asking about?")
 
@@ -43,7 +52,7 @@ class SupervisorPolicyTest(unittest.TestCase):
 
         finalized = finalize_specialist_response(response)
 
-        self.assertIs(finalized, response)
+        self.assertEqual(finalized.selected_target, "rag-specialist")
         self.assertEqual(finalized.status, "no_answer")
         self.assertEqual(finalized.confidence, "low")
 
@@ -61,7 +70,7 @@ class SupervisorPolicyTest(unittest.TestCase):
 
         finalized = finalize_specialist_response(response)
 
-        self.assertIs(finalized, response)
+        self.assertEqual(finalized.selected_target, "rag-specialist")
         self.assertEqual(finalized.status, "error")
         self.assertEqual(finalized.confidence, "low")
         self.assertEqual(
@@ -87,8 +96,7 @@ class SupervisorPolicyTest(unittest.TestCase):
 
         finalized = finalize_specialist_response(response)
 
-        self.assertIs(finalized, response)
-        self.assertEqual(finalized.target, "availability-specialist")
+        self.assertEqual(finalized.selected_target, "availability-specialist")
         self.assertEqual(finalized.status, "completed")
 
     def test_finalize_availability_connect_failure_keeps_completed_semantics(self) -> None:
@@ -105,7 +113,7 @@ class SupervisorPolicyTest(unittest.TestCase):
 
         finalized = finalize_specialist_response(response)
 
-        self.assertIs(finalized, response)
+        self.assertEqual(finalized.selected_target, "availability-specialist")
         self.assertEqual(finalized.status, "completed")
         self.assertEqual(finalized.result.observed_status, "connect_failure")
 

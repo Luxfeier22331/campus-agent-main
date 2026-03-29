@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 import json
 from pathlib import Path
 
-from campus_contracts import ALLOWED_CORPORA, KNOWN_COLLECTION_TO_CORPUS
+from campus_ingestion_core.scope_catalog import assert_known_scope
+
+
+SplitManifestValidator = Callable[["SplitManifest"], None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,15 +49,7 @@ class SplitManifest:
     def __post_init__(self) -> None:
         if not self.manifest_version:
             raise ValueError("manifest_version is required")
-        if self.corpus not in ALLOWED_CORPORA:
-            raise ValueError(f"unsupported corpus: {self.corpus}")
-        if not self.collection:
-            raise ValueError("collection is required")
-        expected_corpus = KNOWN_COLLECTION_TO_CORPUS.get(self.collection)
-        if expected_corpus is not None and expected_corpus != self.corpus:
-            raise ValueError(
-                f"split manifest collection scope mismatch: {self.collection} belongs to {expected_corpus}"
-            )
+        assert_known_scope(self.corpus, self.collection)
         if not self.raw_asset_id:
             raise ValueError("raw_asset_id is required")
         if not self.documents:
@@ -93,12 +89,9 @@ def load_split_manifest(
         raw_asset_id=str(payload.get("raw_asset_id") or ""),
         documents=documents,
     )
-    if manifest.collection == "student_handbook":
-        for document in manifest.documents:
-            if not document.handbook_section:
-                raise ValueError("student_handbook split manifest requires handbook_section")
-            if not document.source_uri:
-                raise ValueError("student_handbook split manifest requires source_uri")
+    validator = _SPLIT_MANIFEST_VALIDATORS.get((manifest.corpus, manifest.collection))
+    if validator is not None:
+        validator(manifest)
     if expected_corpus is not None and manifest.corpus != expected_corpus:
         raise ValueError(
             f"split manifest corpus mismatch: expected {expected_corpus}, got {manifest.corpus}"
@@ -136,3 +129,16 @@ def _optional_string(value: object) -> str | None:
         return None
     normalized = value.strip()
     return normalized or None
+
+
+def _validate_student_handbook_manifest(manifest: SplitManifest) -> None:
+    for document in manifest.documents:
+        if not document.handbook_section:
+            raise ValueError("student_handbook split manifest requires handbook_section")
+        if not document.source_uri:
+            raise ValueError("student_handbook split manifest requires source_uri")
+
+
+_SPLIT_MANIFEST_VALIDATORS: dict[tuple[str, str], SplitManifestValidator] = {
+    ("regulations", "student_handbook"): _validate_student_handbook_manifest,
+}

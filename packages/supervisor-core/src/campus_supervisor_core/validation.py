@@ -34,10 +34,6 @@ def resolve_requested_capability(context: SupervisorRequestContext) -> Requested
         )
 
     if capability == "knowledge":
-        if not has_scope:
-            raise MissingRoutingInputError(
-                "requested_scope is required for knowledge requests"
-            )
         if has_target:
             raise InvalidSupervisorRequestError(
                 "availability_target_id is not allowed for knowledge requests"

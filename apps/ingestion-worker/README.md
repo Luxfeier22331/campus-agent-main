@@ -5,17 +5,21 @@ Runtime shell for campus-agent v2 ingestion commands.
 Env bootstrap rule:
 
 - Worker CLI first reads `./.env` from the current repo/worktree root.
-- If the current worktree has no `./.env`, worker CLI falls back to the main worktree root `.env`.
+- If the current worktree has no `./.env`, worker CLI falls back to the root worktree `.env`.
 - Do not introduce local mock backends or file-registry compatibility paths just because a feature worktree is missing `.env`.
+- repo root `.env` only owns shared runtime config such as `OBJECT_STORE_*`, retrieval, OCR provider, and shared registry settings.
+- Per-command override examples live under `env/commands/*.env.example`.
 
 ## Commands
 
-`apps/ingestion-worker` exposes phase-1 ingestion shells.
+`apps/ingestion-worker` exposes ingestion runtime shells.
 
-- Query-facing defaults target `regulations/student_handbook`.
-- Data-plane ingestion supports `regulations/student_handbook` and `curriculum/curriculum_plan`.
-- Phase-1 runtime truth lives in `configs/ingestion/<corpus>/<collection>/runtime-profile.json`.
+- Query-serving scope is controlled by `configs/ingestion/<corpus>/<collection>/runtime-profile.json`, not by worker defaults.
+- Data-plane ingestion currently covers `regulations/student_handbook` and `curriculum/curriculum_plan`.
+- Current runtime truth lives in `configs/ingestion/<corpus>/<collection>/runtime-profile.json`.
 - Phase 03.2 freezes `single source consumption + multi-projection fan-out` as the canonical ingestion model: a source asset is consumed once, source truth is persisted once, and downstream outputs rebuild from declared projections instead of returning to the original PDF.
+- Serving/indexing terms follow `docs/reference/runtime-serving-and-index-terms.md`.
+- Operator release flow follows `docs/runbooks/index-release-runbook.md`.
 
 ### `process_raw_ingestion_job`
 
@@ -35,15 +39,18 @@ Required env:
 - `OBJECT_STORE_ENDPOINT`
 - `OBJECT_STORE_ACCESS_KEY`
 - `OBJECT_STORE_SECRET_KEY`
-- `RAW_SOURCE_FILE`
-- `RAW_SOURCE_URI`
 - `RAW_ASSET_REGISTRY_DATABASE_URL` or `DOCUMENT_REGISTRY_DATABASE_URL`
 
-Optional env:
+Required CLI args:
+
+- `--pdf-path`
+- `--raw-source-uri`
+- `--corpus`
+- `--collection`
+
+Optional CLI args:
 
 - `RAW_ASSET_ID`
-- `INGESTION_CORPUS`
-- `INGESTION_COLLECTION`
 
 Behavior:
 
@@ -60,9 +67,14 @@ Required env:
 - `OBJECT_STORE_SECRET_KEY`
 - `OCR_BASE_URL`
 - `OCR_API_KEY`
-- `RAW_ASSET_ID`
-- `RAW_VERSION_ID`
 - `RAW_ASSET_REGISTRY_DATABASE_URL` or `DOCUMENT_REGISTRY_DATABASE_URL`
+
+Required CLI args:
+
+- `--raw-asset-id`
+- `--raw-version-id`
+- `--corpus`
+- `--collection`
 
 Optional env:
 
@@ -72,14 +84,16 @@ Optional env:
 - `OCR_POLL_SECONDS`
 - `OCR_TIMEOUT_SECONDS`
 - `IMPORT_REPORT_DIR`
-- `INGESTION_CORPUS`
-- `INGESTION_COLLECTION`
 - `INGESTION_SPLIT_MANIFEST_PATH`
 - `RAW_INGESTION_ARTIFACT_MODE`
 - `INGESTION_EMBEDDING_MODEL`
 - `INGESTION_DEFAULT_CAMPUS_SCOPE`
 - `HF_HOME` / `HF_HUB_CACHE` / `TRANSFORMERS_CACHE`
 - `HF_HUB_OFFLINE`
+
+Command override example:
+
+- `env/commands/process-raw-ingestion-job.env.example`
 
 Behavior:
 
@@ -94,7 +108,7 @@ Behavior:
 - `source_truth_only` still writes canonical raw-asset provenance and should use the configured canonical raw-asset registry backend.
 - Runtime-profile gating decides whether the selected `corpus + collection` accepts `normalized` or `source_truth_only`.
 - `curriculum/curriculum_plan` may use `source_truth_only` as a pre-split onboarding path to inspect real OCR output before freezing its split manifest.
-- For `INGESTION_CORPUS=regulations` + `INGESTION_COLLECTION=student_handbook` and `INGESTION_CORPUS=curriculum` + `INGESTION_COLLECTION=curriculum_plan`, normalized mode requires a split manifest and stores asset-level `provider-response.jsonl` / `layout-elements.jsonl` plus per-document `document-units.jsonl`; handbook also exports `canonical.md`.
+- For `regulations/student_handbook` and `curriculum/curriculum_plan`, normalized mode requires a split manifest and stores asset-level `provider-response.jsonl` / `layout-elements.jsonl` plus per-document `document-units.jsonl`; handbook also exports `canonical.md`.
 - `regulations/student_handbook` normalized mode rebuilds logical documents strictly from the repo-tracked split manifest; no legacy OCR-import adapter or non-`provider-response.jsonl` handbook input is supported.
 - `regulations/student_handbook` downstream fan-out is declared in `configs/ingestion/regulations/student_handbook/source-projections.v1.json`.
 - When canonical source truth for the same source asset already exists, later collection work, handbook-derived service outputs, and attachment-derived outputs must rebuild from source truth through declared projections; do not return to the original PDF.
@@ -103,7 +117,7 @@ Behavior:
 - `regulations/student_handbook` chunk budgeting uses the `Qwen/Qwen3-Embedding-4B` tokenizer from local Hugging Face cache only. Prefetch it explicitly with `uv run --all-packages python -m campus_ingestion_core.prefetch_tokenizer`, then keep worker/runtime/test runs on `HF_HUB_OFFLINE=1`; the ingestion code no longer falls back to implicit network download.
 - Only normalized mode registers derived document results in the document registry with `import_source=raw_online_ocr`.
 - Normalized document-registry writes persist the scope cleaning policy version for traceability.
-- Phase-1 OCR ingestion defaults to `revision_track=source-faithful`, `source_channel=pdf_ocr`, `is_current=false`.
+- Current OCR ingestion defaults to `revision_track=source-faithful`, `source_channel=pdf_ocr`, `is_current=false`.
 
 ### `rebuild_local_data`
 
@@ -134,6 +148,10 @@ Optional env:
 - `HANDBOOK_SOURCE_PROJECTIONS_PATH`
 - Any env required by the selected import mode
 
+Command override example:
+
+- `env/commands/rebuild-local-data.env.example`
+
 Behavior:
 
 - `raw_online_ocr` deletes only the selected derived scope prefix and the source artifacts explicitly selected by registry identity.
@@ -145,8 +163,36 @@ Behavior:
 - `provider_response_replay` reads an existing object-store `provider-response.jsonl`, rewrites asset-level `layout-elements.jsonl`, rebuilds persisted source truth, and re-emits declared projections such as per-document `canonical.md` / `document-units.jsonl` without synthesizing raw-layer records.
 - handbook replay默认 `--source-pdf 学生手册_2018.pdf`。
 - `provider_response_replay` does not index Qdrant by default; add `--index-qdrant` when replay should also rebuild chunk/embedding/vector state.
-- `--reset-qdrant` and `--index-qdrant` are independent: reset only clears the collection, while replay indexing is opt-in.
+- `--reset-qdrant` and `--index-qdrant` are independent: reset only clears the alias family, while replay indexing is opt-in.
+- `--publish-alias` / `--no-publish-alias` control whether a successful index release should switch the serving alias after validation.
+- Rebuild / replay now resolve `qdrant_alias_name` and `qdrant_collection_prefix` from each collection runtime profile instead of any global collection-name env.
 - `provider_response_replay` is the canonical rebuild boundary for downstream fan-out; later projection work must not create handbook-only replay branches or separate raw re-consumption lanes.
+
+### `release_index`
+
+Operator-facing release shell for one `provider_response_replay -> chunking -> embedding -> indexing -> optional alias publish` run.
+
+Required CLI args:
+
+- `--corpus`
+- `--collection`
+- `--raw-version-id`
+
+Optional CLI args:
+
+- `--raw-asset-id`
+- `--source-pdf`
+- `--reset-index`
+- `--publish-alias`
+- `--no-publish-alias`
+
+Behavior:
+
+- Always runs a Qdrant index release from persisted source truth.
+- Creates a new physical collection as `<collection_prefix>__<release_id>`.
+- Writes release manifests under `{corpus}/releases/{collection}/{release_id}/...`.
+- Only switches the serving alias when `--publish-alias` is enabled.
+- Never writes chunk dumps back to object storage.
 
 ### Source-Truth Fan-Out Rule
 
@@ -199,6 +245,10 @@ Optional env:
 - `REBUILD_RESET_QDRANT`
 - `REBUILD_INDEX_QDRANT`
 
+Command override example:
+
+- `env/commands/migrate-student-handbook.env.example`
+
 Behavior:
 
 - Renames the handbook raw PDF object and raw-asset registry record to the canonical filename.
@@ -242,9 +292,14 @@ Behavior:
 - Derives handbook navigation pages declared in
   `configs/ingestion/campus_services/service_catalog/handbook-derived-documents.json`
   from `regulations/student_handbook` source-level OCR truth into `service_catalog`.
-- This command is a historical backfill bridge, not a canonical phase-1 ingestion path.
+- This command is a historical backfill bridge, not a canonical current ingestion path.
 - The canonical declaration of handbook downstream projections lives under
   `configs/ingestion/regulations/student_handbook/source-projections.v1.json`.
+- For handbook-derived `campus_services` outputs, source-truth selector fields
+  (`source_title`, `source_handbook_section`, `source_page_start`, `source_page_end`)
+  are now the canonical match contract; do not require retained
+  `regulations/student_handbook` manifest document ids for pages already removed from
+  the handbook split manifest.
 - New downstream outputs must be added to source-truth fan-out, not to this bridge.
 - Rewrites migrated canonical metadata into `campus_services` corpus semantics.
 - Deletes stale `regulations/student_handbook` phone-directory and migrated handbook

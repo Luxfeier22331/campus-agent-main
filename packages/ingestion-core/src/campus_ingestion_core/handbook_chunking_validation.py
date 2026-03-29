@@ -56,6 +56,8 @@ SAMPLE_BUCKETS = (
 TINY_TEXTUAL_FINAL_TOKEN_THRESHOLD = 80
 HEADER_DOMINANT_RATIO_THRESHOLD = 0.4
 VERBOSE_HEADER_MODES = {"full_path", "compact_path", "required"}
+RUNNING_HEADER_LINES = frozenset({"学生手册"})
+APPENDIX_WEAK_TEXTUAL_KEYWORDS = ("申请表", "调查表", "统计表", "汇总表", "明细表", "报送时间")
 VALIDATION_LIST_MARKER_RE = re.compile(
     r"^(?P<label>(?:[0-9]+[.、]|[（(][一二三四五六七八九十百千万〇零两0-9]+[)）]))\s*(?P<body>.+)$"
 )
@@ -100,6 +102,8 @@ class StudentHandbookChunkingValidationReport:
     header_only_table_chunk_count: int
     generic_table_label_chunk_count: int
     polluted_section_path_count: int
+    boilerplate_policy_page_count: int
+    weak_appendix_textual_chunk_count: int
     missing_contextualization_count: int
     broken_citation_linebreak_count: int
     unclosed_citation_context_count: int
@@ -247,6 +251,8 @@ def build_student_handbook_chunking_validation_report(
     header_only_table_chunk_count = 0
     generic_table_label_chunk_count = 0
     polluted_section_path_count = 0
+    boilerplate_policy_page_count = 0
+    weak_appendix_textual_chunk_count = 0
     missing_contextualization_count = 0
     broken_citation_linebreak_count = 0
     unclosed_citation_context_count = 0
@@ -271,6 +277,12 @@ def build_student_handbook_chunking_validation_report(
         rows = list(document.rows)
         total_units += len(rows)
         polluted_section_path_count += sum(1 for row in rows if _has_polluted_section_path(row))
+        boilerplate_policy_page_count += sum(1 for row in rows if _is_boilerplate_policy_page_row(row))
+        weak_appendix_textual_chunk_count += sum(
+            1
+            for index, row in enumerate(rows)
+            if _is_weak_appendix_textual_row(rows=rows, row_index=index)
+        )
         _collect_structure_stats(
             rows=rows,
             chunk_profile=runtime_profile,
@@ -340,6 +352,8 @@ def build_student_handbook_chunking_validation_report(
         or header_only_table_chunk_count
         or generic_table_label_chunk_count
         or polluted_section_path_count
+        or boilerplate_policy_page_count
+        or weak_appendix_textual_chunk_count
         or missing_contextualization_count
         or broken_citation_linebreak_count
         or unclosed_citation_context_count
@@ -374,6 +388,8 @@ def build_student_handbook_chunking_validation_report(
         header_only_table_chunk_count=header_only_table_chunk_count,
         generic_table_label_chunk_count=generic_table_label_chunk_count,
         polluted_section_path_count=polluted_section_path_count,
+        boilerplate_policy_page_count=boilerplate_policy_page_count,
+        weak_appendix_textual_chunk_count=weak_appendix_textual_chunk_count,
         missing_contextualization_count=missing_contextualization_count,
         broken_citation_linebreak_count=broken_citation_linebreak_count,
         unclosed_citation_context_count=unclosed_citation_context_count,
@@ -529,6 +545,8 @@ def export_student_handbook_chunk_samples(
         f"- header_only_table_chunk_count: `{runtime_report.header_only_table_chunk_count if runtime_report is not None else 'n/a'}`",
         f"- generic_table_label_chunk_count: `{runtime_report.generic_table_label_chunk_count if runtime_report is not None else 'n/a'}`",
         f"- polluted_section_path_count: `{runtime_report.polluted_section_path_count if runtime_report is not None else 'n/a'}`",
+        f"- boilerplate_policy_page_count: `{runtime_report.boilerplate_policy_page_count if runtime_report is not None else 'n/a'}`",
+        f"- weak_appendix_textual_chunk_count: `{runtime_report.weak_appendix_textual_chunk_count if runtime_report is not None else 'n/a'}`",
         f"- missing_contextualization_count: `{runtime_report.missing_contextualization_count if runtime_report is not None else 'n/a'}`",
         f"- broken_citation_linebreak_count: `{runtime_report.broken_citation_linebreak_count if runtime_report is not None else 'n/a'}`",
         f"- unclosed_citation_context_count: `{runtime_report.unclosed_citation_context_count if runtime_report is not None else 'n/a'}`",
@@ -1157,6 +1175,40 @@ def _is_textual_chunk(chunk: object) -> bool:
     if not isinstance(metadata, dict):
         return False
     return str(metadata.get("unit_type") or "") in PARENT_UNIT_TYPES
+
+
+def _is_boilerplate_policy_page_row(row: dict[str, object]) -> bool:
+    if str(row.get("unit_type") or "") != "policy_page":
+        return False
+    display_text = str(row.get("clean_text") or "").strip()
+    return display_text in RUNNING_HEADER_LINES
+
+
+def _is_weak_appendix_textual_row(*, rows: Sequence[dict[str, object]], row_index: int) -> bool:
+    row = rows[row_index]
+    if str(row.get("unit_type") or "") != "policy_page":
+        return False
+    if _is_boilerplate_policy_page_row(row):
+        return False
+    display_text = str(row.get("clean_text") or "").strip()
+    if not display_text or len(display_text) > 120:
+        return False
+    anchor = row.get("anchor")
+    if not isinstance(anchor, dict):
+        return False
+    section_path = _normalize_section_path(anchor)
+    if not section_path:
+        return False
+    joined_path = " / ".join(section_path)
+    if not any(keyword in joined_path or keyword in display_text for keyword in APPENDIX_WEAK_TEXTUAL_KEYWORDS):
+        return False
+    for neighbor_index in (row_index - 1, row_index + 1):
+        if neighbor_index < 0 or neighbor_index >= len(rows):
+            continue
+        neighbor_row = rows[neighbor_index]
+        if str(neighbor_row.get("unit_type") or "") in {"table", "table_unit"}:
+            return True
+    return False
 
 
 def _chunk_header_ratio(*, header_token_count: int, final_token_count: int) -> float:

@@ -1,16 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 import os
 from pathlib import Path
 from typing import Any, Callable, Protocol
 
-from campus_contracts import (
-    ALLOWED_CORPORA,
-    DEFAULT_COLLECTION,
-    DEFAULT_CORPUS,
-    KNOWN_COLLECTION_TO_CORPUS,
-)
 from qdrant_client import QdrantClient
 
 from campus_ingestion_core.artifacts import (
@@ -29,23 +24,36 @@ from campus_ingestion_core.campusrag_ingestion_support import (
 )
 from campus_ingestion_core.collection_config import CollectionTruthConfig, resolve_collection_truth_config
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
+from campus_ingestion_core.curriculum_provider_normalize import normalize_curriculum_provider_result
 from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
 from campus_ingestion_core.handbook_cleanup import cleanup_handbook_document, serialize_handbook_document_units
 from campus_ingestion_core.handbook_source_projections import (
     build_handbook_projection_import_documents,
+    build_declared_projection_processed_keys,
     load_handbook_source_projections_config,
 )
 from campus_ingestion_core.handbook_provider_normalize import (
     normalize_handbook_provider_result,
     serialize_handbook_layout_elements,
 )
+from campus_ingestion_core.index_release import (
+    build_index_release_manifest,
+    build_release_metadata_payload,
+    default_release_id,
+    publish_release_alias,
+    reset_index_binding,
+    resolve_alias_target,
+    rollback_release_alias,
+    validate_scope_release,
+    write_index_release_artifacts,
+)
 from campus_ingestion_core.object_store import (
     DEFAULT_RAW_SOURCE_CHANNEL,
     S3ObjectStoreClientFactory,
+    build_index_release_artifact_key,
     build_source_model_slug,
     build_source_ocr_artifact_key,
     build_source_truth_artifact_key,
-    build_raw_asset_key,
     infer_year_label,
     is_source_object_key,
     parse_source_object_key,
@@ -57,6 +65,9 @@ from campus_ingestion_core.raw_ingestion import (
     DEFAULT_ONLINE_OCR_MODEL,
     DEFAULT_ONLINE_OCR_PROVIDER,
     DEFAULT_RAW_ONLINE_OCR_PARSER_VERSION,
+    RawIngestionRequest,
+    _build_split_manifest_document_input,
+    _load_layout_elements_rows,
     process_raw_ingestion_job,
 )
 from campus_ingestion_core.registry import (
@@ -66,14 +77,13 @@ from campus_ingestion_core.registry import (
     build_raw_asset_registry_from_env,
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
+from campus_ingestion_core.scope_catalog import QdrantIndexBinding, assert_known_scope
 from campus_ingestion_core.split_manifest import SplitManifestDocument, load_split_manifest
-from campus_retrieval_core.settings import DEFAULT_QDRANT_COLLECTION, RetrievalSettings
+from campus_retrieval_core.settings import RetrievalSettings
 
 
-DEFAULT_INGESTION_CORPUS = DEFAULT_CORPUS
-DEFAULT_INGESTION_COLLECTION = DEFAULT_COLLECTION
-DEFAULT_REPLAY_SOURCE_PDF = "学生手册_2018.pdf"
-DEFAULT_HANDBOOK_CANONICAL_RAW_FILENAME = "学生手册_2018.pdf"
+DEFAULT_STUDENT_HANDBOOK_REPLAY_SOURCE_PDF = "学生手册_2018.pdf"
+DEFAULT_CURRICULUM_PLAN_REPLAY_SOURCE_PDF = "curriculum-plan.pdf"
 ALLOWED_REBUILD_IMPORT_MODES = ("raw_online_ocr", "provider_response_replay")
 DEFAULT_QDRANT_UPSERT_BATCH_SIZE = 128
 DEFAULT_INGESTION_QDRANT_TIMEOUT_SECONDS = 60.0
@@ -90,21 +100,13 @@ class ReplayObjectStore(ObjectStoreWriter, Protocol):
 
 
 class QdrantAdmin(Protocol):
-    def reset_collection(self, collection_name: str) -> None: ...
+    def reset_index_binding(self, binding: QdrantIndexBinding) -> tuple[str, ...]: ...
 
 
 @dataclass(frozen=True, slots=True)
 class LocalDataRebuildReport:
     import_context: dict[str, str]
     import_result: object
-
-
-@dataclass(frozen=True, slots=True)
-class StudentHandbookMigrationReport:
-    canonical_raw_filename: str
-    previous_raw_object_key: str
-    canonical_raw_object_key: str
-    rebuild_report: LocalDataRebuildReport
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,14 +119,7 @@ class RebuildRequest:
     source_pdf: str | None = None
     reset_qdrant: bool = False
     index_qdrant: bool = False
-
-
-@dataclass(frozen=True, slots=True)
-class StudentHandbookSourceAssetRequest:
-    raw_version_id: str
-    raw_asset_id: str | None = None
-    source_pdf: str | None = None
-    canonical_raw_filename: str = DEFAULT_HANDBOOK_CANONICAL_RAW_FILENAME
+    publish_qdrant_alias: bool = True
 
 
 class S3ObjectStoreAdmin:
@@ -193,9 +188,66 @@ class QdrantCollectionAdmin:
     def __init__(self, client: QdrantClient) -> None:
         self._client = client
 
-    def reset_collection(self, collection_name: str) -> None:
-        if self._client.collection_exists(collection_name):
-            self._client.delete_collection(collection_name)
+    def reset_index_binding(self, binding: QdrantIndexBinding) -> tuple[str, ...]:
+        return reset_index_binding(qdrant_client=self._client, binding=binding)
+
+
+def _resolve_target_qdrant_binding(
+    *,
+    corpus: str,
+    collection: str,
+) -> QdrantIndexBinding:
+    return load_runtime_profile(corpus, collection).qdrant_index_binding
+
+
+def _resolve_rebuild_target_qdrant_bindings(
+    *,
+    source: dict[str, str],
+    request: RebuildRequest,
+    collection_config: CollectionTruthConfig,
+) -> tuple[QdrantIndexBinding, ...]:
+    target_bindings = [
+        _resolve_target_qdrant_binding(
+            corpus=request.corpus,
+            collection=request.collection,
+        )
+    ]
+    if request.import_mode == "provider_response_replay" and request.collection == "student_handbook":
+        projections_config = load_handbook_source_projections_config(collection_config.source_projections_path)
+        for projection in projections_config.projections:
+            if projection.target_corpus == projections_config.source_corpus and projection.target_collection == projections_config.source_collection:
+                continue
+            target_bindings.append(
+                _resolve_target_qdrant_binding(
+                    corpus=projection.target_corpus,
+                    collection=projection.target_collection,
+                )
+            )
+    deduped: list[QdrantIndexBinding] = []
+    seen: set[tuple[str, str]] = set()
+    for binding in target_bindings:
+        key = (binding.alias_name, binding.collection_prefix)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(binding)
+    return tuple(deduped)
+
+
+def _resolve_rebuild_target_qdrant_aliases(
+    *,
+    source: dict[str, str],
+    request: RebuildRequest,
+    collection_config: CollectionTruthConfig,
+) -> tuple[str, ...]:
+    return tuple(
+        binding.alias_name
+        for binding in _resolve_rebuild_target_qdrant_bindings(
+            source=source,
+            request=request,
+            collection_config=collection_config,
+        )
+    )
 
 
 def rebuild_local_data(
@@ -211,10 +263,9 @@ def rebuild_local_data(
 ) -> LocalDataRebuildReport:
     source = dict(env if env is not None else os.environ)
     runtime_request = request or _build_rebuild_request_from_env(source)
-    runtime_collection_config = collection_config or _resolve_runtime_collection_config(
-        source=source,
-        corpus=runtime_request.corpus,
-        collection=runtime_request.collection,
+    runtime_collection_config = collection_config or resolve_collection_truth_config(
+        runtime_request.corpus,
+        runtime_request.collection,
     )
     import_env = _build_rebuild_import_env(
         source=source,
@@ -257,19 +308,29 @@ def rebuild_local_data(
         qdrant_collection_admin = qdrant_admin or QdrantCollectionAdmin(
             _build_qdrant_client(retrieval_settings, source=source)
         )
-        qdrant_collection_admin.reset_collection(source.get("QDRANT_COLLECTION") or DEFAULT_QDRANT_COLLECTION)
+        for binding in _resolve_rebuild_target_qdrant_bindings(
+            source=source,
+            request=runtime_request,
+            collection_config=runtime_collection_config,
+        ):
+            qdrant_collection_admin.reset_index_binding(binding)
 
     runtime_import_runner = import_runner or _resolve_import_runner(import_mode)
 
     return LocalDataRebuildReport(
         import_context=_build_rebuild_report_context(import_env),
-        import_result=runtime_import_runner(env=import_env),
+        import_result=_invoke_import_runner(
+            runtime_import_runner=runtime_import_runner,
+            source=import_env,
+            request=runtime_request,
+        ),
     )
 
 
 def _build_rebuild_request_from_env(source: dict[str, str]) -> RebuildRequest:
-    corpus = _read_ingestion_corpus(source)
-    collection = _read_ingestion_collection(source, corpus=corpus)
+    corpus = _read_required_scope_part(source, "REBUILD_CORPUS")
+    collection = _read_required_scope_part(source, "REBUILD_COLLECTION")
+    assert_known_scope(corpus, collection)
     import_mode = _read_rebuild_import_mode(source)
     raw_asset_id = _normalize_optional_text(source.get("RAW_ASSET_ID"))
     raw_version_id = _normalize_optional_text(source.get("RAW_VERSION_ID"))
@@ -284,6 +345,7 @@ def _build_rebuild_request_from_env(source: dict[str, str]) -> RebuildRequest:
         source_pdf=_normalize_optional_text(source.get("REPLAY_SOURCE_PDF")),
         reset_qdrant=_parse_bool(source.get("REBUILD_RESET_QDRANT"), default=False),
         index_qdrant=_parse_bool(source.get("REBUILD_INDEX_QDRANT"), default=False),
+        publish_qdrant_alias=_parse_bool(source.get("REBUILD_PUBLISH_ALIAS"), default=True),
     )
 
 
@@ -294,13 +356,15 @@ def _build_rebuild_import_env(
     collection_config: CollectionTruthConfig,
 ) -> dict[str, str]:
     import_env = dict(source)
-    import_env["INGESTION_CORPUS"] = request.corpus
-    import_env["INGESTION_COLLECTION"] = request.collection
+    import_env["REBUILD_CORPUS"] = request.corpus
+    import_env["REBUILD_COLLECTION"] = request.collection
     import_env["REBUILD_IMPORT_MODE"] = request.import_mode
     if request.reset_qdrant:
         import_env["REBUILD_RESET_QDRANT"] = "1"
     if request.index_qdrant:
         import_env["REBUILD_INDEX_QDRANT"] = "1"
+    if not request.publish_qdrant_alias:
+        import_env["REBUILD_PUBLISH_ALIAS"] = "0"
     if request.raw_asset_id:
         import_env["RAW_ASSET_ID"] = request.raw_asset_id
     if request.raw_version_id:
@@ -309,28 +373,35 @@ def _build_rebuild_import_env(
         import_env["INGESTION_SPLIT_MANIFEST_PATH"] = str(collection_config.split_manifest_path.resolve())
     if collection_config.source_projections_path is not None:
         import_env["HANDBOOK_SOURCE_PROJECTIONS_PATH"] = str(collection_config.source_projections_path.resolve())
+    import_env["QDRANT_TARGET_ALIASES"] = ",".join(
+        _resolve_rebuild_target_qdrant_aliases(
+            source=source,
+            request=request,
+            collection_config=collection_config,
+        )
+    )
     if request.import_mode == "provider_response_replay":
-        raw_asset_id = _resolve_collection_raw_asset_id(request=request, collection_config=collection_config)
         raw_version_id = request.raw_version_id
         if raw_version_id is None:
             raise ValueError("raw_version_id is required for provider_response_replay")
-        source_pdf = request.source_pdf or DEFAULT_REPLAY_SOURCE_PDF
+        source_pdf = request.source_pdf or _default_replay_source_pdf(request.collection)
         import_env["REPLAY_SOURCE_PDF"] = source_pdf
     return import_env
 
 
 _REBUILD_REPORT_CONTEXT_KEYS = (
-    "INGESTION_CORPUS",
-    "INGESTION_COLLECTION",
+    "REBUILD_CORPUS",
+    "REBUILD_COLLECTION",
     "REBUILD_IMPORT_MODE",
     "REBUILD_RESET_QDRANT",
     "REBUILD_INDEX_QDRANT",
+    "REBUILD_PUBLISH_ALIAS",
     "RAW_ASSET_ID",
     "RAW_VERSION_ID",
     "INGESTION_SPLIT_MANIFEST_PATH",
     "HANDBOOK_SOURCE_PROJECTIONS_PATH",
     "REPLAY_SOURCE_PDF",
-    "QDRANT_COLLECTION",
+    "QDRANT_TARGET_ALIASES",
 )
 
 
@@ -473,98 +544,6 @@ def _is_derived_artifact_key(key: str) -> bool:
     return not is_source_object_key(key)
 
 
-def migrate_student_handbook_source_faithful(
-    *,
-    env: dict[str, str] | None = None,
-    request: StudentHandbookSourceAssetRequest | None = None,
-    object_store: ReplayObjectStore | None = None,
-    qdrant_admin: QdrantAdmin | None = None,
-    document_registry: DocumentRegistry | None = None,
-    raw_asset_registry: RawAssetRegistry | None = None,
-) -> StudentHandbookMigrationReport:
-    source = dict(env if env is not None else os.environ)
-    runtime_request = request or _build_student_handbook_source_asset_request_from_env(source)
-    corpus = "regulations"
-    collection = "student_handbook"
-    collection_config = _resolve_runtime_collection_config(source=source, corpus=corpus, collection=collection)
-    object_store_settings = ObjectStoreSettings.from_env(source)
-    runtime_object_store = object_store or S3ObjectStoreAdmin(object_store_settings)
-    runtime_raw_asset_registry = raw_asset_registry or _build_raw_asset_registry_for_rebuild(source, corpus)
-    split_manifest = load_split_manifest(
-        collection_config.split_manifest_path,
-        expected_corpus=corpus,
-        expected_collection=collection,
-    )
-    raw_asset_id = runtime_request.raw_asset_id or split_manifest.raw_asset_id
-    if raw_asset_id != split_manifest.raw_asset_id:
-        raise ValueError("request raw_asset_id does not match collection split manifest raw_asset_id")
-    canonical_raw_filename = runtime_request.canonical_raw_filename
-    raw_version_id = runtime_request.raw_version_id
-    raw_record = runtime_raw_asset_registry.get(raw_asset_id, raw_version_id)
-    if raw_record is None:
-        raise ValueError("raw asset registry record is required before handbook migration")
-
-    canonical_raw_object_key = build_raw_asset_key(
-        corpus=corpus,
-        raw_asset_id=raw_record.raw_asset_id,
-        raw_version_id=raw_record.raw_version_id,
-        filename=canonical_raw_filename,
-    )
-    canonical_raw_record = RawAssetRecord(
-        raw_asset_id=raw_record.raw_asset_id,
-        raw_version_id=raw_record.raw_version_id,
-        corpus=corpus,
-        collection=collection,
-        raw_source_uri=raw_record.raw_source_uri,
-        content_hash=raw_record.content_hash,
-        source_filename=canonical_raw_filename,
-        object_key=canonical_raw_object_key,
-        ingestion_timestamp=raw_record.ingestion_timestamp,
-        import_source=raw_record.import_source,
-    )
-    if raw_record.object_key != canonical_raw_object_key:
-        raw_bytes = runtime_object_store.get_bytes(
-            bucket=object_store_settings.bucket_source,
-            key=raw_record.object_key,
-        )
-        runtime_object_store.put_bytes(
-            bucket=object_store_settings.bucket_source,
-            key=canonical_raw_object_key,
-            data=raw_bytes,
-            content_type="application/pdf",
-        )
-        runtime_object_store.delete_prefix(
-            bucket=object_store_settings.bucket_source,
-            prefix=raw_record.object_key,
-            exclude_keys=(canonical_raw_object_key,),
-        )
-    runtime_raw_asset_registry.upsert(canonical_raw_record)
-
-    rebuild_env = dict(source)
-    rebuild_env["REPLAY_SOURCE_PDF"] = canonical_raw_filename
-    rebuild_report = rebuild_local_data(
-        env=rebuild_env,
-        request=RebuildRequest(
-            corpus=corpus,
-            collection=collection,
-            import_mode="provider_response_replay",
-            raw_asset_id=raw_asset_id,
-            raw_version_id=raw_version_id,
-            source_pdf=canonical_raw_filename,
-            reset_qdrant=_parse_bool(source.get("REBUILD_RESET_QDRANT"), default=False),
-            index_qdrant=_parse_bool(source.get("REBUILD_INDEX_QDRANT"), default=False),
-        ),
-        object_store=runtime_object_store,
-        qdrant_admin=qdrant_admin,
-        document_registry=document_registry,
-        raw_asset_registry=runtime_raw_asset_registry,
-    )
-    return StudentHandbookMigrationReport(
-        canonical_raw_filename=canonical_raw_filename,
-        previous_raw_object_key=raw_record.object_key,
-        canonical_raw_object_key=canonical_raw_object_key,
-        rebuild_report=rebuild_report,
-    )
 def _build_qdrant_client(settings: RetrievalSettings, *, source: dict[str, str] | None = None) -> QdrantClient:
     if settings.qdrant_url == ":memory:":
         return QdrantClient(location=":memory:")
@@ -605,23 +584,6 @@ def _resolve_ingestion_qdrant_timeout_seconds(
     return max(default_timeout_seconds, DEFAULT_INGESTION_QDRANT_TIMEOUT_SECONDS)
 
 
-def _read_ingestion_corpus(source: dict[str, str]) -> str:
-    corpus = (source.get("INGESTION_CORPUS") or DEFAULT_INGESTION_CORPUS).strip() or DEFAULT_INGESTION_CORPUS
-    if corpus not in ALLOWED_CORPORA:
-        raise ValueError(f"unsupported corpus: {corpus}")
-    return corpus
-
-
-def _read_ingestion_collection(source: dict[str, str], *, corpus: str) -> str:
-    collection = (
-        source.get("INGESTION_COLLECTION") or DEFAULT_INGESTION_COLLECTION
-    ).strip() or DEFAULT_INGESTION_COLLECTION
-    expected_corpus = KNOWN_COLLECTION_TO_CORPUS.get(collection)
-    if expected_corpus is not None and expected_corpus != corpus:
-        raise ValueError(f"unsupported collection scope: {collection} does not belong to {corpus}")
-    return collection
-
-
 def _read_rebuild_import_mode(source: dict[str, str]) -> str:
     import_mode = (source.get("REBUILD_IMPORT_MODE") or "").strip()
     if not import_mode:
@@ -631,21 +593,66 @@ def _read_rebuild_import_mode(source: dict[str, str]) -> str:
     return import_mode
 
 
-def _build_student_handbook_source_asset_request_from_env(
+def _invoke_import_runner(
+    *,
+    runtime_import_runner: Callable[..., Any],
     source: dict[str, str],
-) -> StudentHandbookSourceAssetRequest:
-    raw_version_id = _normalize_optional_text(source.get("RAW_VERSION_ID"))
-    raw_asset_id = _normalize_optional_text(source.get("RAW_ASSET_ID"))
-    if raw_version_id is None:
-        raise ValueError("RAW_VERSION_ID is required for handbook source migration")
-    return StudentHandbookSourceAssetRequest(
-        raw_version_id=raw_version_id,
-        raw_asset_id=raw_asset_id,
-        source_pdf=_normalize_optional_text(source.get("REPLAY_SOURCE_PDF")),
-        canonical_raw_filename=(
-            _normalize_optional_text(source.get("HANDBOOK_CANONICAL_RAW_FILENAME"))
-            or DEFAULT_HANDBOOK_CANONICAL_RAW_FILENAME
+    request: RebuildRequest,
+) -> Any:
+    if runtime_import_runner is process_raw_ingestion_job:
+        return runtime_import_runner(
+            env=source,
+            request=_build_raw_ingestion_request(source=source, request=request),
+        )
+    if runtime_import_runner is replay_provider_response_rebuild:
+        return runtime_import_runner(
+            env=source,
+            request=request,
+        )
+    return runtime_import_runner(env=source, request=request)
+
+
+def _build_raw_ingestion_request(
+    *,
+    source: dict[str, str],
+    request: RebuildRequest,
+) -> RawIngestionRequest:
+    return RawIngestionRequest(
+        raw_asset_id=_read_required_env(source, "RAW_ASSET_ID"),
+        raw_version_id=_read_required_env(source, "RAW_VERSION_ID"),
+        corpus=request.corpus,
+        collection=request.collection,
+        artifact_mode=(
+            source.get("RAW_INGESTION_ARTIFACT_MODE") or "normalized"
+        ).strip()
+        or "normalized",
+        split_manifest_path=(
+            Path(source["INGESTION_SPLIT_MANIFEST_PATH"]).resolve()
+            if (source.get("INGESTION_SPLIT_MANIFEST_PATH") or "").strip()
+            else None
         ),
+        report_dir=Path((source.get("IMPORT_REPORT_DIR") or "./var/import-reports").strip()),
+        default_campus_scope=(source.get("INGESTION_DEFAULT_CAMPUS_SCOPE") or "").strip() or None,
+    )
+
+
+def _build_replay_request_from_env(source: dict[str, str]) -> RebuildRequest:
+    corpus = _read_required_scope_part(source, "REBUILD_CORPUS")
+    collection = _read_required_scope_part(source, "REBUILD_COLLECTION")
+    assert_known_scope(corpus, collection)
+    raw_version_id = _normalize_optional_text(source.get("RAW_VERSION_ID"))
+    if raw_version_id is None:
+        raise ValueError("RAW_VERSION_ID is required for provider_response_replay")
+    return RebuildRequest(
+        corpus=corpus,
+        collection=collection,
+        import_mode="provider_response_replay",
+        raw_version_id=raw_version_id,
+        raw_asset_id=_normalize_optional_text(source.get("RAW_ASSET_ID")),
+        source_pdf=_normalize_optional_text(source.get("REPLAY_SOURCE_PDF")),
+        reset_qdrant=_parse_bool(source.get("REBUILD_RESET_QDRANT"), default=False),
+        index_qdrant=_parse_bool(source.get("REBUILD_INDEX_QDRANT"), default=False),
+        publish_qdrant_alias=_parse_bool(source.get("REBUILD_PUBLISH_ALIAS"), default=True),
     )
 
 
@@ -667,6 +674,7 @@ def _build_raw_asset_registry_for_rebuild(source: dict[str, str], corpus: str) -
 
 def replay_provider_response_rebuild(
     *,
+    request: RebuildRequest | None = None,
     env: dict[str, str] | None = None,
     object_store: ReplayObjectStore | None = None,
     registry: DocumentRegistry | None = None,
@@ -674,12 +682,13 @@ def replay_provider_response_rebuild(
     qdrant_client: QdrantClient | None = None,
 ) -> ImportReport:
     source = dict(env if env is not None else os.environ)
-    corpus = _read_ingestion_corpus(source)
-    collection = _read_ingestion_collection(source, corpus=corpus)
+    runtime_request = request or _build_replay_request_from_env(source)
+    corpus = runtime_request.corpus
+    collection = runtime_request.collection
     collection_config = _resolve_runtime_collection_config(source=source, corpus=corpus, collection=collection)
-    if collection != "student_handbook":
-        raise ValueError("provider_response_replay only supports student_handbook")
-    source_pdf = (source.get("REPLAY_SOURCE_PDF") or DEFAULT_REPLAY_SOURCE_PDF).strip() or DEFAULT_REPLAY_SOURCE_PDF
+    if collection not in {"student_handbook", "curriculum_plan"}:
+        raise ValueError("provider_response_replay only supports student_handbook or curriculum_plan")
+    source_pdf = runtime_request.source_pdf or _default_replay_source_pdf(collection)
 
     object_store_settings = ObjectStoreSettings.from_env(source)
     runtime_object_store = object_store or S3ObjectStoreAdmin(object_store_settings)
@@ -688,9 +697,12 @@ def replay_provider_response_rebuild(
         expected_corpus=corpus,
         expected_collection=collection,
     )
-    raw_version_id = _read_required_env(source, "RAW_VERSION_ID")
+    raw_asset_id = _resolve_collection_raw_asset_id(request=runtime_request, collection_config=collection_config)
+    raw_version_id = runtime_request.raw_version_id
+    if raw_version_id is None:
+        raise ValueError("RAW_VERSION_ID is required")
     provider_response_key = build_source_ocr_artifact_key(
-        raw_asset_id=split_manifest.raw_asset_id,
+        raw_asset_id=raw_asset_id,
         raw_version_id=raw_version_id,
         filename=PROVIDER_RESPONSE_FILENAME,
         source_channel=DEFAULT_RAW_SOURCE_CHANNEL,
@@ -703,16 +715,25 @@ def replay_provider_response_rebuild(
         bucket=object_store_settings.bucket_source,
         key=provider_response_key,
     )
-    structured_rows = normalize_handbook_provider_result(
-        source_pdf=source_pdf,
-        provider_jsonl_bytes=provider_response_bytes,
-        ocr_provider=DEFAULT_ONLINE_OCR_PROVIDER,
-        ocr_model=(source.get("OCR_MODEL") or DEFAULT_ONLINE_OCR_MODEL).strip() or DEFAULT_ONLINE_OCR_MODEL,
-        source_artifact_id=split_manifest.raw_asset_id,
-    )
-    layout_elements_bytes = serialize_handbook_layout_elements(structured_rows)
+    ocr_model = (source.get("OCR_MODEL") or DEFAULT_ONLINE_OCR_MODEL).strip() or DEFAULT_ONLINE_OCR_MODEL
+    if collection == "student_handbook":
+        structured_rows = normalize_handbook_provider_result(
+            source_pdf=source_pdf,
+            provider_jsonl_bytes=provider_response_bytes,
+            ocr_provider=DEFAULT_ONLINE_OCR_PROVIDER,
+            ocr_model=ocr_model,
+            source_artifact_id=raw_asset_id,
+        )
+        layout_elements_bytes = serialize_handbook_layout_elements(structured_rows)
+    else:
+        layout_elements_bytes = normalize_curriculum_provider_result(
+            provider_jsonl_bytes=provider_response_bytes,
+            source_pdf=source_pdf,
+            ocr_model=ocr_model,
+        )
+        structured_rows = _load_layout_elements_rows(layout_elements_bytes)
     layout_elements_key = build_source_truth_artifact_key(
-        raw_asset_id=split_manifest.raw_asset_id,
+        raw_asset_id=raw_asset_id,
         raw_version_id=raw_version_id,
         filename=LAYOUT_ELEMENTS_FILENAME,
         source_channel=DEFAULT_RAW_SOURCE_CHANNEL,
@@ -730,7 +751,7 @@ def replay_provider_response_rebuild(
         data=layout_elements_bytes,
         content_type="application/x-ndjson",
     )
-    _cleanup_legacy_replay_source_objects(
+    _cleanup_replay_source_artifact_collisions(
         object_store=runtime_object_store,
         object_store_settings=object_store_settings,
         source_provider_response_key=provider_response_key,
@@ -738,25 +759,54 @@ def replay_provider_response_rebuild(
         canonical_layout_elements_key=layout_elements_key,
     )
 
-    documents = [
-        _build_handbook_replay_document_input(
-            source_label=f"{provider_response_key}#{manifest_document.document_id}",
-            source_doc=source_pdf,
-            manifest_document=manifest_document,
-            structured_rows=structured_rows,
-            provider_response_key=provider_response_key,
-            layout_elements_key=layout_elements_key,
+    if collection == "student_handbook":
+        documents = [
+            _build_handbook_replay_document_input(
+                source_label=f"{provider_response_key}#{manifest_document.document_id}",
+                source_doc=source_pdf,
+                manifest_document=manifest_document,
+                structured_rows=structured_rows,
+                provider_response_key=provider_response_key,
+                layout_elements_key=layout_elements_key,
+                corpus=corpus,
+                collection=collection,
+            )
+            for manifest_document in split_manifest.documents
+        ]
+    else:
+        raw_asset_ref = RawAssetRecord(
+            raw_asset_id=raw_asset_id,
+            raw_version_id=raw_version_id,
             corpus=corpus,
             collection=collection,
+            raw_source_uri=f"campusrag://source/{corpus}/{raw_asset_id}/{raw_version_id}",
+            content_hash=raw_version_id.removeprefix("sha256:") or raw_version_id,
+            source_filename=source_pdf,
+            object_key=provider_response_key,
+            ingestion_timestamp="1970-01-01T00:00:00+00:00",
+            import_source="provider_response_replay",
         )
-        for manifest_document in split_manifest.documents
-    ]
+        default_campus_scope = (source.get("INGESTION_DEFAULT_CAMPUS_SCOPE") or "").strip() or None
+        documents = [
+            _build_split_manifest_document_input(
+                raw_asset_record=raw_asset_ref,
+                manifest_version=split_manifest.manifest_version,
+                manifest_document=manifest_document,
+                structured_rows=structured_rows,
+                provider_response_key=provider_response_key,
+                layout_elements_key=layout_elements_key,
+                default_campus_scope=default_campus_scope,
+                corpus=corpus,
+                collection=collection,
+            )
+            for manifest_document in split_manifest.documents
+        ]
     raw_asset_ref = RawAssetRecord(
-        raw_asset_id=split_manifest.raw_asset_id,
+        raw_asset_id=raw_asset_id,
         raw_version_id=raw_version_id,
         corpus=corpus,
         collection=collection,
-        raw_source_uri=f"campusrag://source/{corpus}/{split_manifest.raw_asset_id}/{raw_version_id}",
+        raw_source_uri=f"campusrag://source/{corpus}/{raw_asset_id}/{raw_version_id}",
         content_hash=raw_version_id.removeprefix("sha256:") or raw_version_id,
         source_filename=source_pdf,
         object_key=provider_response_key,
@@ -796,6 +846,7 @@ def replay_provider_response_rebuild(
                 source=source,
                 registry=runtime_registry,
                 documents=documents,
+                object_store=runtime_object_store,
                 qdrant_client=qdrant_client,
             )
         except Exception as exc:
@@ -839,7 +890,9 @@ def _processed_bucket_exclude_keys(
         ),
         collection_config=collection_config,
     )
-    source_pdf = (source.get("REPLAY_SOURCE_PDF") or DEFAULT_REPLAY_SOURCE_PDF).strip() or DEFAULT_REPLAY_SOURCE_PDF
+    source_pdf = (
+        source.get("REPLAY_SOURCE_PDF") or DEFAULT_STUDENT_HANDBOOK_REPLAY_SOURCE_PDF
+    ).strip() or DEFAULT_STUDENT_HANDBOOK_REPLAY_SOURCE_PDF
     provider_response_key = build_source_ocr_artifact_key(
         raw_asset_id=raw_asset_id,
         raw_version_id=raw_version_id,
@@ -859,6 +912,16 @@ def _should_delete_document_registry_scope(*, collection: str, import_mode: str)
 
 def _should_index_qdrant_for_replay(source: dict[str, str]) -> bool:
     return _parse_bool(source.get("REBUILD_INDEX_QDRANT"), default=False)
+
+
+def _should_publish_qdrant_alias_for_replay(source: dict[str, str]) -> bool:
+    return _parse_bool(source.get("REBUILD_PUBLISH_ALIAS"), default=True)
+
+
+def _default_replay_source_pdf(collection: str) -> str:
+    if collection == "curriculum_plan":
+        return DEFAULT_CURRICULUM_PLAN_REPLAY_SOURCE_PDF
+    return DEFAULT_STUDENT_HANDBOOK_REPLAY_SOURCE_PDF
 
 
 def _collect_projection_aware_import_stats(
@@ -942,6 +1005,15 @@ def _declared_projection_processed_keys(
         return ()
     config = load_handbook_source_projections_config(Path(path_value))
     keys: list[str] = []
+    source_pdf = (
+        source.get("REPLAY_SOURCE_PDF") or DEFAULT_STUDENT_HANDBOOK_REPLAY_SOURCE_PDF
+    ).strip() or DEFAULT_STUDENT_HANDBOOK_REPLAY_SOURCE_PDF
+    keys.extend(
+        build_declared_projection_processed_keys(
+            config=config,
+            source_pdf=source_pdf,
+        )
+    )
     seen_scope_records: dict[tuple[str | None, str | None], tuple[Any, ...]] = {}
     for record in current_document_records:
         seen_scope_records[(getattr(record, "corpus", None), getattr(record, "collection", None))] = current_document_records
@@ -961,6 +1033,13 @@ def _declared_projection_processed_keys(
 
 
 def _read_required_env(source: dict[str, str], field_name: str) -> str:
+    value = (source.get(field_name) or "").strip()
+    if not value:
+        raise ValueError(f"{field_name} is required")
+    return value
+
+
+def _read_required_scope_part(source: dict[str, str], field_name: str) -> str:
     value = (source.get(field_name) or "").strip()
     if not value:
         raise ValueError(f"{field_name} is required")
@@ -1020,7 +1099,7 @@ def _is_missing_object_error(exc: Exception) -> bool:
     return False
 
 
-def _cleanup_legacy_replay_source_objects(
+def _cleanup_replay_source_artifact_collisions(
     *,
     object_store: ReplayObjectStore,
     object_store_settings: ObjectStoreSettings,
@@ -1109,48 +1188,195 @@ def _index_replayed_documents(
     source: dict[str, str],
     registry: DocumentRegistry,
     documents: list[DocumentImportInput],
+    object_store: ReplayObjectStore,
     qdrant_client: QdrantClient | None,
 ) -> None:
     runtime_qdrant_client = qdrant_client or _build_qdrant_client(RetrievalSettings.from_env(source), source=source)
-    collection_name = (source.get("QDRANT_COLLECTION") or DEFAULT_QDRANT_COLLECTION).strip() or DEFAULT_QDRANT_COLLECTION
+    object_store_settings = ObjectStoreSettings.from_env(source)
     upsert_batch_size = _read_qdrant_upsert_batch_size(source)
     embedding_model = build_embedding_model(EmbeddingSettings.from_env(source))
     sparse_embedding_model = build_sparse_embedding_model(SparseEmbeddingSettings.from_env(source))
-    pending_chunks = []
-    should_ensure_collection = True
-
-    def flush_pending_chunks() -> None:
-        nonlocal pending_chunks, should_ensure_collection
-        if not pending_chunks:
-            return
-        index_chunks_to_qdrant(
-            chunks=tuple(pending_chunks),
-            qdrant_client=runtime_qdrant_client,
-            collection_name=collection_name,
-            sparse_embedding_model=sparse_embedding_model,
-            recreate_collection_on_schema_mismatch=True,
-            ensure_collection=should_ensure_collection,
-            ensure_payload_indexes=should_ensure_collection,
-        )
-        pending_chunks = []
-        should_ensure_collection = False
-
+    should_publish_alias = _should_publish_qdrant_alias_for_replay(source)
+    release_id = default_release_id()
+    documents_by_scope: dict[tuple[str, str], list[DocumentImportInput]] = {}
     for document in documents:
-        document_id = str(document.metadata["document_id"])
-        version_id = str(document.metadata["version_id"])
-        record = registry.get(document_id, document.revision_track, version_id)
-        if record is None:
-            continue
-        chunks = build_indexable_chunks_from_jsonl(
-            record=record,
-            structured_jsonl_bytes=document.document_units_bytes,
-            embedding_model=embedding_model,
-            sparse_embedding_model=sparse_embedding_model,
+        scope = (document.corpus, document.collection)
+        documents_by_scope.setdefault(scope, []).append(document)
+
+    for (corpus, collection), scope_documents in documents_by_scope.items():
+        binding = _resolve_target_qdrant_binding(corpus=corpus, collection=collection)
+        physical_collection_name = binding.build_physical_collection_name(release_id)
+        previous_physical_collection_name = resolve_alias_target(
+            qdrant_client=runtime_qdrant_client,
+            alias_name=binding.alias_name,
         )
-        pending_chunks.extend(chunks)
-        if len(pending_chunks) >= upsert_batch_size:
+        records = []
+        chunks = []
+        missing_registry_documents: list[str] = []
+        empty_chunk_documents: list[str] = []
+        for document in scope_documents:
+            document_id = str(document.metadata["document_id"])
+            version_id = str(document.metadata["version_id"])
+            document_label = f"{corpus}/{collection} {document_id}@{version_id}"
+            record = registry.get(document_id, document.revision_track, version_id)
+            if record is None:
+                missing_registry_documents.append(document_label)
+                continue
+            records.append(record)
+            document_chunks = build_indexable_chunks_from_jsonl(
+                record=record,
+                structured_jsonl_bytes=document.document_units_bytes,
+                embedding_model=embedding_model,
+                sparse_embedding_model=sparse_embedding_model,
+            )
+            if not document_chunks:
+                empty_chunk_documents.append(document_label)
+                continue
+            chunks.extend(document_chunks)
+        if missing_registry_documents:
+            raise ValueError(
+                "missing registry record for replayed document "
+                + "; ".join(missing_registry_documents)
+            )
+        if empty_chunk_documents:
+            raise ValueError(
+                "replayed document "
+                + "; ".join(empty_chunk_documents)
+                + " produced no chunks"
+            )
+        if not chunks:
+            continue
+
+        validation = validate_scope_release(corpus=corpus, collection=collection, chunks=tuple(chunks))
+        validation_summary_object_key = build_index_release_artifact_key(
+            corpus=corpus,
+            collection=collection,
+            release_id=release_id,
+            filename="validation-summary.json",
+        )
+        indexed_at = datetime.now(timezone.utc).isoformat()
+        manifest_object_key = build_index_release_artifact_key(
+            corpus=corpus,
+            collection=collection,
+            release_id=release_id,
+            filename="index-release.json",
+        )
+        prepublish_manifest = build_index_release_manifest(
+            release_id=release_id,
+            corpus=corpus,
+            collection=collection,
+            binding=binding,
+            physical_collection_name=physical_collection_name,
+            previous_physical_collection_name=previous_physical_collection_name,
+            records=tuple(records),
+            chunks=tuple(chunks),
+            validation=validation,
+            indexed_at=indexed_at,
+            published_at=None,
+            validation_summary_object_key=validation_summary_object_key,
+        )
+        release_metadata = build_release_metadata_payload(
+            manifest=prepublish_manifest,
+            manifest_object_key=manifest_object_key,
+        )
+
+        pending_chunks = []
+        should_ensure_collection = True
+
+        def flush_pending_chunks() -> None:
+            nonlocal pending_chunks, should_ensure_collection
+            if not pending_chunks:
+                return
+            index_chunks_to_qdrant(
+                chunks=tuple(pending_chunks),
+                qdrant_client=runtime_qdrant_client,
+                collection_name=physical_collection_name,
+                sparse_embedding_model=sparse_embedding_model,
+                recreate_collection_on_schema_mismatch=True,
+                ensure_collection=should_ensure_collection,
+                ensure_payload_indexes=should_ensure_collection,
+                extra_payload=release_metadata,
+            )
+            pending_chunks = []
+            should_ensure_collection = False
+
+        try:
+            for chunk in chunks:
+                pending_chunks.append(chunk)
+                if len(pending_chunks) >= upsert_batch_size:
+                    flush_pending_chunks()
             flush_pending_chunks()
-    flush_pending_chunks()
+        except Exception:
+            if runtime_qdrant_client.collection_exists(physical_collection_name):
+                runtime_qdrant_client.delete_collection(collection_name=physical_collection_name)
+            raise
+
+        if validation.status != "passed":
+            write_index_release_artifacts(
+                writer=object_store,
+                bucket=object_store_settings.bucket_derived,
+                manifest=prepublish_manifest,
+                validation_summary=validation.summary,
+            )
+            if runtime_qdrant_client.collection_exists(physical_collection_name):
+                runtime_qdrant_client.delete_collection(collection_name=physical_collection_name)
+            raise ValueError(
+                f"index release validation failed for {corpus}/{collection}: {validation.summary}"
+            )
+
+        if not should_publish_alias:
+            write_index_release_artifacts(
+                writer=object_store,
+                bucket=object_store_settings.bucket_derived,
+                manifest=prepublish_manifest,
+                validation_summary=validation.summary,
+            )
+            continue
+
+        published_at = datetime.now(timezone.utc).isoformat()
+        published_manifest = build_index_release_manifest(
+            release_id=release_id,
+            corpus=corpus,
+            collection=collection,
+            binding=binding,
+            physical_collection_name=physical_collection_name,
+            previous_physical_collection_name=previous_physical_collection_name,
+            records=tuple(records),
+            chunks=tuple(chunks),
+            validation=validation,
+            indexed_at=indexed_at,
+            published_at=published_at,
+            validation_summary_object_key=validation_summary_object_key,
+        )
+        alias_published = False
+        try:
+            publish_release_alias(
+                qdrant_client=runtime_qdrant_client,
+                binding=binding,
+                physical_collection_name=physical_collection_name,
+            )
+            alias_published = True
+            write_index_release_artifacts(
+                writer=object_store,
+                bucket=object_store_settings.bucket_derived,
+                manifest=published_manifest,
+                validation_summary=validation.summary,
+            )
+        except Exception:
+            if alias_published and previous_physical_collection_name is not None:
+                rollback_release_alias(
+                    qdrant_client=runtime_qdrant_client,
+                    binding=binding,
+                    target_collection_name=previous_physical_collection_name,
+                )
+            elif alias_published:
+                reset_index_binding(
+                    qdrant_client=runtime_qdrant_client,
+                    binding=binding,
+                )
+            if runtime_qdrant_client.collection_exists(physical_collection_name):
+                runtime_qdrant_client.delete_collection(collection_name=physical_collection_name)
+            raise
 
 
 def _read_embedding_model_name(source: dict[str, str]) -> str:

@@ -83,7 +83,6 @@ The phase delivers three things:
 ### Ingestion architecture and decisions
 - `docs/architecture/phase1-ingestion-and-storage-architecture.md` — canonical raw/processed/registry/object-store rules for phase 1
 - `docs/architecture/student-handbook-ocr-normalization-strategy.md` — handbook-specific normalization, split, `document_id`, and `version_id` truth
-- `docs/decisions/adr-0001-phase1-architecture.md` — accepted phase-1 architecture and scope constraints
 - `docs/decisions/adr-0002-local-minio-conventions.md` — MinIO/S3-compatible storage semantics and bucket conventions
 - `docs/plans/agentic-rag-foundation.md` — milestone implementation order, raw-ingestion gate, and acceptance framing
 
@@ -120,7 +119,7 @@ The phase delivers three things:
 - `apps/ingestion-worker/src/campus_ingestion_worker/process_raw_ingestion_job.py`: thin runtime shell that already matches the desired boundary.
 
 ### Established Patterns
-- Worker commands load `.env` from the current worktree and explicitly fall back to the main worktree `.env`; missing local env is not a reason to introduce mock backends.
+- Worker commands load `.env` from the current worktree and explicitly fall back to the root worktree `.env`; missing local env is not a reason to introduce mock backends.
 - Registry interfaces are protocol-driven, and tests commonly use file-backed registries plus fake object-store / fake OCR clients rather than hitting real infrastructure.
 - Handbook ingestion already assumes repo-tracked split-manifest and corpus runtime profiles are the source of truth; phase planning should build on that instead of adding new config channels.
 - Tests use `unittest` style under `pytest` runners, with `TemporaryDirectory`, `patch`, and in-memory/fake dependencies as the dominant verification pattern.

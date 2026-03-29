@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -82,6 +83,110 @@ def _provider_batch_line(*pages: dict[str, object]) -> dict[str, object]:
 
 
 class ProviderResultReplayRebuildTest(unittest.TestCase):
+    def test_index_replayed_documents_fails_closed_when_registry_record_is_missing(self) -> None:
+        documents = [
+            DocumentImportInput(
+                source_label="missing-registry-doc",
+                document_units_bytes=b'{"doc_id":"placeholder","version_id":"placeholder"}',
+                provider_response_bytes=None,
+                canonical_markdown_bytes=None,
+                metadata={"document_id": "handbook:missing-record", "version_id": "v1:missing-record"},
+                import_source="provider_response_replay",
+                corpus="regulations",
+                collection="student_handbook",
+            )
+        ]
+
+        with (
+            patch("campus_ingestion_core.local_rebuild.build_embedding_model", return_value=object()),
+            patch("campus_ingestion_core.local_rebuild.build_sparse_embedding_model", return_value=object()),
+        ):
+            with self.assertRaisesRegex(
+                ValueError,
+                "missing registry record for replayed document regulations/student_handbook handbook:missing-record@v1:missing-record",
+            ):
+                _index_replayed_documents(
+                    source={
+                        "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                        "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                        "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                        "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                        "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
+                        "EMBEDDING_PROVIDER": "mock",
+                    },
+                    registry=InMemoryDocumentRegistry(),
+                    documents=documents,
+                    object_store=_FakeObjectStore(provider_result_bytes=b""),
+                    qdrant_client=QdrantClient(location=":memory:"),
+                )
+
+    def test_index_replayed_documents_fails_closed_when_document_produces_no_chunks(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry.json")
+            document_id = "handbook:empty-chunks"
+            version_id = "v1:empty-chunks"
+            registry.upsert(
+                DocumentRegistryRecord(
+                    document_id=document_id,
+                    revision_track="source-faithful",
+                    version_id=version_id,
+                    source_uri=f"https://campus.example/{document_id}",
+                    content_hash=f"sha256:{document_id}",
+                    corpus="regulations",
+                    collection="student_handbook",
+                    acl_groups=("students",),
+                    campus_scope=None,
+                    status="active",
+                    ingestion_timestamp="2026-03-26T10:00:00+00:00",
+                    parser_version="paddleocr-vl-1.5",
+                    embedding_model="mock-embedding-8d",
+                    source_channel="pdf_ocr",
+                    document_units_object_key=f"documents/{document_id}.jsonl",
+                    processed_object_keys=(f"documents/{document_id}.jsonl",),
+                    import_source="provider_response_replay",
+                )
+            )
+            documents = [
+                DocumentImportInput(
+                    source_label="empty-chunks-doc",
+                    document_units_bytes=b'{"doc_id":"placeholder","version_id":"placeholder"}',
+                    provider_response_bytes=None,
+                    canonical_markdown_bytes=None,
+                    metadata={"document_id": document_id, "version_id": version_id},
+                    import_source="provider_response_replay",
+                    corpus="regulations",
+                    collection="student_handbook",
+                )
+            ]
+
+            with (
+                patch("campus_ingestion_core.local_rebuild.build_embedding_model", return_value=object()),
+                patch("campus_ingestion_core.local_rebuild.build_sparse_embedding_model", return_value=object()),
+                patch(
+                    "campus_ingestion_core.local_rebuild.build_indexable_chunks_from_jsonl",
+                    return_value=(),
+                ),
+            ):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "replayed document regulations/student_handbook handbook:empty-chunks@v1:empty-chunks produced no chunks",
+                ):
+                    _index_replayed_documents(
+                        source={
+                            "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                            "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                            "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                            "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                            "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
+                            "EMBEDDING_PROVIDER": "mock",
+                        },
+                        registry=registry,
+                        documents=documents,
+                        object_store=_FakeObjectStore(provider_result_bytes=b""),
+                        qdrant_client=QdrantClient(location=":memory:"),
+                    )
+
     def test_index_replayed_documents_batches_upserts_and_only_ensures_collection_once(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -119,6 +224,8 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                         canonical_markdown_bytes=None,
                         metadata={"document_id": document_id, "version_id": version_id},
                         import_source="provider_response_replay",
+                        corpus="regulations",
+                        collection="student_handbook",
                     )
                 )
 
@@ -148,6 +255,7 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                 )
                 for index, document in enumerate(documents)
             }
+            release_store = _FakeObjectStore(provider_result_bytes=b"")
 
             with (
                 patch("campus_ingestion_core.local_rebuild.build_embedding_model", return_value=object()),
@@ -157,16 +265,21 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                     side_effect=lambda **kwargs: built_chunks[kwargs["record"].document_id],
                 ),
                 patch("campus_ingestion_core.local_rebuild.index_chunks_to_qdrant") as index_chunks,
+                patch("campus_ingestion_core.local_rebuild.publish_release_alias", return_value=None),
             ):
                 _index_replayed_documents(
                     source={
-                        "QDRANT_COLLECTION": "student_handbook_perf",
+                        "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                        "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                        "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                        "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
                         "QDRANT_UPSERT_BATCH_SIZE": "2",
                         "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
                         "EMBEDDING_PROVIDER": "mock",
                     },
                     registry=registry,
                     documents=documents,
+                    object_store=release_store,
                     qdrant_client=QdrantClient(location=":memory:"),
                 )
 
@@ -175,10 +288,206 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
         second_call = index_chunks.call_args_list[1].kwargs
         self.assertEqual(tuple(chunk.document_id for chunk in first_call["chunks"]), ("handbook:test-001", "handbook:test-002"))
         self.assertEqual(tuple(chunk.document_id for chunk in second_call["chunks"]), ("handbook:test-003",))
+        self.assertTrue(first_call["collection_name"].startswith("student_handbook__r"))
+        self.assertEqual(first_call["collection_name"], second_call["collection_name"])
         self.assertTrue(first_call["ensure_collection"])
         self.assertTrue(first_call["ensure_payload_indexes"])
         self.assertFalse(second_call["ensure_collection"])
         self.assertFalse(second_call["ensure_payload_indexes"])
+        self.assertEqual(first_call["extra_payload"]["index_release_alias"], "student_handbook")
+        self.assertEqual(first_call["extra_payload"]["index_release_id"], second_call["extra_payload"]["index_release_id"])
+        self.assertEqual(first_call["extra_payload"]["index_physical_collection_name"], first_call["collection_name"])
+        upload_keys = [str(upload["key"]) for upload in release_store.uploads]
+        self.assertIn(
+            f'regulations/releases/student_handbook/{first_call["extra_payload"]["index_release_id"]}/index-release.json',
+            upload_keys,
+        )
+        self.assertIn(
+            f'regulations/releases/student_handbook/{first_call["extra_payload"]["index_release_id"]}/validation-summary.json',
+            upload_keys,
+        )
+
+    def test_index_replayed_documents_routes_projection_documents_to_their_own_collections(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry.json")
+            documents = [
+                DocumentImportInput(
+                    source_label="handbook",
+                    document_units_bytes=b'{"doc_id":"placeholder","version_id":"placeholder"}',
+                    provider_response_bytes=None,
+                    canonical_markdown_bytes=None,
+                    metadata={"document_id": "handbook:test-001", "version_id": "v1:handbook-001"},
+                    import_source="provider_response_replay",
+                    corpus="regulations",
+                    collection="student_handbook",
+                ),
+                DocumentImportInput(
+                    source_label="contact",
+                    document_units_bytes=b'{"doc_id":"placeholder","version_id":"placeholder"}',
+                    provider_response_bytes=None,
+                    canonical_markdown_bytes=None,
+                    metadata={"document_id": "campus_services:contact_directory:test-001", "version_id": "v1:contact-001"},
+                    import_source="provider_response_replay",
+                    corpus="campus_services",
+                    collection="contact_directory",
+                ),
+                DocumentImportInput(
+                    source_label="service",
+                    document_units_bytes=b'{"doc_id":"placeholder","version_id":"placeholder"}',
+                    provider_response_bytes=None,
+                    canonical_markdown_bytes=None,
+                    metadata={"document_id": "campus_services:service_catalog:test-001", "version_id": "v1:service-001"},
+                    import_source="provider_response_replay",
+                    corpus="campus_services",
+                    collection="service_catalog",
+                ),
+            ]
+            for document in documents:
+                registry.upsert(
+                    DocumentRegistryRecord(
+                        document_id=str(document.metadata["document_id"]),
+                        revision_track="source-faithful",
+                        version_id=str(document.metadata["version_id"]),
+                        source_uri=f'https://campus.example/{document.metadata["document_id"]}',
+                        content_hash=f'sha256:{document.metadata["document_id"]}',
+                        corpus=document.corpus,
+                        collection=document.collection,
+                        acl_groups=("students",),
+                        campus_scope=None,
+                        status="active",
+                        ingestion_timestamp="2026-03-26T10:00:00+00:00",
+                        parser_version="paddleocr-vl-1.5",
+                        embedding_model="mock-embedding-8d",
+                        source_channel="pdf_ocr",
+                        document_units_object_key=f'documents/{document.metadata["document_id"]}.jsonl',
+                        processed_object_keys=(f'documents/{document.metadata["document_id"]}.jsonl',),
+                        import_source="provider_response_replay",
+                    )
+                )
+
+            built_chunks = {
+                "handbook:test-001": (
+                    IndexableChunk(
+                        document_id="handbook:test-001",
+                        revision_track="source-faithful",
+                        version_id="v1:handbook-001",
+                        chunk_id="handbook:test-001:chunk-0001",
+                        chunk_order=1,
+                        corpus="regulations",
+                        collection="student_handbook",
+                        acl_groups=("students",),
+                        campus_scope=None,
+                        source_uri="https://campus.example/handbook:test-001",
+                        source_chunk_id=None,
+                        acl_level="restricted",
+                        anchor={"page_start": 1, "page_end": 1},
+                        text="handbook chunk",
+                        source_channel="pdf_ocr",
+                        is_current=False,
+                        parser_version="paddleocr-vl-1.5",
+                        embedding_model="mock-embedding-8d",
+                        embedding=(0.1, 0.2),
+                    ),
+                ),
+                "campus_services:contact_directory:test-001": (
+                    IndexableChunk(
+                        document_id="campus_services:contact_directory:test-001",
+                        revision_track="source-faithful",
+                        version_id="v1:contact-001",
+                        chunk_id="campus_services:contact_directory:test-001:chunk-0001",
+                        chunk_order=1,
+                        corpus="campus_services",
+                        collection="contact_directory",
+                        acl_groups=("students",),
+                        campus_scope=None,
+                        source_uri="https://campus.example/campus_services:contact_directory:test-001",
+                        source_chunk_id=None,
+                        acl_level="restricted",
+                        anchor={"page_start": 1, "page_end": 1},
+                        text="contact chunk",
+                        source_channel="pdf_ocr",
+                        is_current=False,
+                        parser_version="paddleocr-vl-1.5",
+                        embedding_model="mock-embedding-8d",
+                        embedding=(0.1, 0.2),
+                    ),
+                ),
+                "campus_services:service_catalog:test-001": (
+                    IndexableChunk(
+                        document_id="campus_services:service_catalog:test-001",
+                        revision_track="source-faithful",
+                        version_id="v1:service-001",
+                        chunk_id="campus_services:service_catalog:test-001:chunk-0001",
+                        chunk_order=1,
+                        corpus="campus_services",
+                        collection="service_catalog",
+                        acl_groups=("students",),
+                        campus_scope=None,
+                        source_uri="https://campus.example/campus_services:service_catalog:test-001",
+                        source_chunk_id=None,
+                        acl_level="restricted",
+                        anchor={"page_start": 1, "page_end": 1},
+                        text="service chunk",
+                        source_channel="pdf_ocr",
+                        is_current=False,
+                        parser_version="paddleocr-vl-1.5",
+                        embedding_model="mock-embedding-8d",
+                        embedding=(0.1, 0.2),
+                    ),
+                ),
+            }
+            release_store = _FakeObjectStore(provider_result_bytes=b"")
+
+            with (
+                patch("campus_ingestion_core.local_rebuild.build_embedding_model", return_value=object()),
+                patch("campus_ingestion_core.local_rebuild.build_sparse_embedding_model", return_value=object()),
+                patch(
+                    "campus_ingestion_core.local_rebuild.build_indexable_chunks_from_jsonl",
+                    side_effect=lambda **kwargs: built_chunks[kwargs["record"].document_id],
+                ),
+                patch("campus_ingestion_core.local_rebuild.index_chunks_to_qdrant") as index_chunks,
+                patch("campus_ingestion_core.local_rebuild.publish_release_alias", return_value=None),
+            ):
+                _index_replayed_documents(
+                    source={
+                        "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                        "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                        "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                        "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                        "QDRANT_UPSERT_BATCH_SIZE": "128",
+                        "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
+                        "EMBEDDING_PROVIDER": "mock",
+                    },
+                    registry=registry,
+                    documents=documents,
+                    object_store=release_store,
+                    qdrant_client=QdrantClient(location=":memory:"),
+                )
+
+        self.assertEqual(index_chunks.call_count, 3)
+        self.assertTrue(index_chunks.call_args_list[0].kwargs["collection_name"].startswith("student_handbook__r"))
+        self.assertTrue(index_chunks.call_args_list[1].kwargs["collection_name"].startswith("contact_directory__r"))
+        self.assertTrue(index_chunks.call_args_list[2].kwargs["collection_name"].startswith("service_catalog__r"))
+        self.assertEqual(index_chunks.call_args_list[0].kwargs["extra_payload"]["index_release_alias"], "student_handbook")
+        self.assertEqual(index_chunks.call_args_list[1].kwargs["extra_payload"]["index_release_alias"], "contact_directory")
+        self.assertEqual(index_chunks.call_args_list[2].kwargs["extra_payload"]["index_release_alias"], "service_catalog")
+        self.assertTrue(index_chunks.call_args_list[0].kwargs["ensure_collection"])
+        self.assertTrue(index_chunks.call_args_list[1].kwargs["ensure_collection"])
+        self.assertTrue(index_chunks.call_args_list[2].kwargs["ensure_collection"])
+        upload_keys = [str(upload["key"]) for upload in release_store.uploads]
+        self.assertIn(
+            f'regulations/releases/student_handbook/{index_chunks.call_args_list[0].kwargs["extra_payload"]["index_release_id"]}/index-release.json',
+            upload_keys,
+        )
+        self.assertIn(
+            f'campus_services/releases/contact_directory/{index_chunks.call_args_list[1].kwargs["extra_payload"]["index_release_id"]}/index-release.json',
+            upload_keys,
+        )
+        self.assertIn(
+            f'campus_services/releases/service_catalog/{index_chunks.call_args_list[2].kwargs["extra_payload"]["index_release_id"]}/index-release.json',
+            upload_keys,
+        )
 
     def test_replay_provider_response_rebuild_reconstructs_declared_downstream_projections_from_source_truth(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -194,20 +503,12 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                         "raw_asset_id": "asset:student-handbook-pdf",
                         "documents": [
                             {
-                                "document_id": "handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675",
-                                "title": "中央民族大学校内常用电话",
-                                "handbook_section": "校园服务电话",
-                                "page_start": 1,
-                                "page_end": 1,
-                                "source_uri": "campus-agent://regulations/student_handbook/docs/handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675",
-                            },
-                            {
-                                "document_id": "handbook:66f91543748400ae59b3f9265353a0538088028a",
-                                "title": "中央民族大学公寓及公费医疗管理规定",
-                                "handbook_section": "学生公寓管理",
-                                "page_start": 2,
-                                "page_end": 2,
-                                "source_uri": "campus-agent://regulations/student_handbook/docs/handbook:66f91543748400ae59b3f9265353a0538088028a",
+                                "document_id": "handbook:d0a1db59ed9a8b00c4349200916edae208d876f6",
+                                "title": "普通高等学校学生管理规定",
+                                "handbook_section": "国家高等教育管理有关规定",
+                                "page_start": 3,
+                                "page_end": 3,
+                                "source_uri": "campus-agent://regulations/student_handbook/docs/handbook:d0a1db59ed9a8b00c4349200916edae208d876f6",
                             },
                         ],
                     },
@@ -239,6 +540,10 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                             "derived_from",
                             "derived_from_document_id",
                             "parent_document_id",
+                            "source_title",
+                            "source_handbook_section",
+                            "source_page_start",
+                            "source_page_end",
                             "attachment_kind",
                             "attachment_role",
                         ],
@@ -262,8 +567,12 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                                 "projection_family": "derived_documents",
                                 "replay_from_source_truth": True,
                                 "derived_from": "source_truth",
-                                "derived_from_document_id": "handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675",
-                                "parent_document_id": "handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675",
+                                "derived_from_document_id": None,
+                                "parent_document_id": None,
+                                "source_title": "中央民族大学校内常用电话",
+                                "source_handbook_section": "中央民族大学公寓及公费医疗管理规定",
+                                "source_page_start": 1,
+                                "source_page_end": 1,
                                 "attachment_kind": "navigation_like",
                                 "attachment_role": "service_contact_directory",
                                 "target_title": "中央民族大学校内常用电话",
@@ -276,8 +585,12 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                                 "projection_family": "derived_documents",
                                 "replay_from_source_truth": True,
                                 "derived_from": "source_truth",
-                                "derived_from_document_id": "handbook:66f91543748400ae59b3f9265353a0538088028a",
-                                "parent_document_id": "handbook:66f91543748400ae59b3f9265353a0538088028a",
+                                "derived_from_document_id": None,
+                                "parent_document_id": None,
+                                "source_title": "中央民族大学公寓及公费医疗管理规定",
+                                "source_handbook_section": "中央民族大学公寓及公费医疗管理规定",
+                                "source_page_start": 2,
+                                "source_page_end": 2,
                                 "attachment_kind": "navigation_like",
                                 "attachment_role": "service_navigation_document",
                                 "target_title": "中央民族大学学生公寓管理工作流程",
@@ -300,6 +613,10 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                         _provider_block("doc_title", "中央民族大学公寓及公费医疗管理规定", block_id="p2-title", block_order=1),
                         _provider_block("text", "一、学生公寓入住办理流程。", block_id="p2-body", block_order=2),
                     ),
+                    _provider_page(
+                        _provider_block("doc_title", "普通高等学校学生管理规定", block_id="p3-title", block_order=1),
+                        _provider_block("text", "第一条 为规范普通高等学校学生管理行为。", block_id="p3-body", block_order=2),
+                    ),
                 )
             ]
             provider_result_bytes = (
@@ -319,8 +636,8 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                     "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
                     "OBJECT_STORE_BUCKET_SOURCE": SOURCE_BUCKET,
-                    "INGESTION_CORPUS": "regulations",
-                    "INGESTION_COLLECTION": "student_handbook",
+                    "REBUILD_CORPUS": "regulations",
+                    "REBUILD_COLLECTION": "student_handbook",
                     "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                     "HANDBOOK_SOURCE_PROJECTIONS_PATH": str(projection_config_path),
                     "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
@@ -328,7 +645,6 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                     "IMPORT_REPORT_DIR": str(root / "reports"),
                     "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
                     "EMBEDDING_PROVIDER": "mock",
-                    "QDRANT_COLLECTION": "student_handbook",
                 },
                 object_store=object_store,
                 registry=registry,
@@ -336,7 +652,7 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
             )
 
             self.assertEqual(report.import_mode, "provider_response_replay")
-            self.assertEqual(report.success_count, 4)
+            self.assertEqual(report.success_count, 3)
             self.assertEqual(
                 tuple(sorted(record.document_id for record in registry.list_by_scope("campus_services", "contact_directory"))),
                 ("campus_services:contact_directory:bf03f0bd6930e89bcc6d2733c1e87a423b510675",),
@@ -438,15 +754,14 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                         "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                         "OBJECT_STORE_SECRET_KEY": "minioadmin",
                         "OBJECT_STORE_BUCKET_SOURCE": SOURCE_BUCKET,
-                        "INGESTION_CORPUS": "regulations",
-                        "INGESTION_COLLECTION": "student_handbook",
+                        "REBUILD_CORPUS": "regulations",
+                        "REBUILD_COLLECTION": "student_handbook",
                         "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                         "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
                         "REPLAY_SOURCE_PDF": "学生手册_2018.pdf",
                         "IMPORT_REPORT_DIR": str(root / "reports"),
                         "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
                         "EMBEDDING_PROVIDER": "mock",
-                        "QDRANT_COLLECTION": "student_handbook",
                     },
                     object_store=object_store,
                     registry=registry,
@@ -565,8 +880,8 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                     "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
                     "OBJECT_STORE_BUCKET_SOURCE": SOURCE_BUCKET,
-                    "INGESTION_CORPUS": "regulations",
-                    "INGESTION_COLLECTION": "student_handbook",
+                    "REBUILD_CORPUS": "regulations",
+                    "REBUILD_COLLECTION": "student_handbook",
                     "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                     "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
                     "REPLAY_SOURCE_PDF": "学生手册_2018.pdf",
@@ -574,7 +889,6 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                     "INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                     "EMBEDDING_PROVIDER": "mock",
                     "SPARSE_PROVIDER": "mock",
-                    "QDRANT_COLLECTION": "student_handbook",
                     "REBUILD_INDEX_QDRANT": "1",
                 },
                 object_store=object_store,
@@ -584,8 +898,93 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
             )
 
             self.assertEqual(report.failed_count, 0)
-            collection_info = qdrant_client.get_collection("student_handbook")
+            aliases = {alias.alias_name: alias.collection_name for alias in qdrant_client.get_aliases().aliases or []}
+            self.assertIn("student_handbook", aliases)
+            collection_info = qdrant_client.get_collection(aliases["student_handbook"])
             self.assertGreater(collection_info.points_count or 0, 0)
+
+    def test_replay_provider_response_rebuild_can_index_without_publishing_alias(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            split_manifest_path = root / "configs" / "split-manifest.v1.json"
+            split_manifest_path.parent.mkdir(parents=True)
+            split_manifest_path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "curriculum_plan_split_manifest_v1",
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "raw_asset_id": "asset:curriculum-plan-master-pdf",
+                        "documents": [
+                            {
+                                "document_id": "curriculum:test-doc-001",
+                                "title": "培养方案示例",
+                                "page_start": 1,
+                                "page_end": 1,
+                                "source_uri": "campus-agent://curriculum/curriculum_plan/docs/curriculum:test-doc-001",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            provider_lines = [
+                _provider_batch_line(
+                    _provider_page(
+                        _provider_block("doc_title", "培养方案示例", block_id="p1-title", block_order=1),
+                        _provider_block("text", "一、培养目标。", block_id="p1-body", block_order=2),
+                    ),
+                )
+            ]
+            provider_result_bytes = (
+                "\n".join(json.dumps(line, ensure_ascii=False) for line in provider_lines) + "\n"
+            ).encode("utf-8")
+            object_store = _FakeObjectStore(provider_result_bytes=provider_result_bytes)
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "curriculum_documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "curriculum_raw_assets.json"
+            )
+            qdrant_client = QdrantClient(location=":memory:")
+
+            with patch(
+                "campus_ingestion_core.local_rebuild.validate_scope_release",
+                return_value=SimpleNamespace(status="passed", summary={"chunk_count": 1}),
+            ):
+                report = replay_provider_response_rebuild(
+                    env={
+                        "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                        "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                        "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                        "OBJECT_STORE_BUCKET_SOURCE": SOURCE_BUCKET,
+                        "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                        "REBUILD_CORPUS": "curriculum",
+                        "REBUILD_COLLECTION": "curriculum_plan",
+                        "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
+                        "RAW_VERSION_ID": "sha256:curriculum-replay-001",
+                        "REPLAY_SOURCE_PDF": "curriculum-plan.pdf",
+                        "IMPORT_REPORT_DIR": str(root / "reports"),
+                        "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
+                        "EMBEDDING_PROVIDER": "mock",
+                        "SPARSE_PROVIDER": "mock",
+                        "REBUILD_INDEX_QDRANT": "1",
+                        "REBUILD_PUBLISH_ALIAS": "0",
+                    },
+                    object_store=object_store,
+                    registry=registry,
+                    raw_asset_registry=raw_asset_registry,
+                    qdrant_client=qdrant_client,
+                )
+
+            self.assertEqual(report.failed_count, 0)
+            aliases = {alias.alias_name: alias.collection_name for alias in qdrant_client.get_aliases().aliases or []}
+            self.assertNotIn("curriculum_plan", aliases)
+            collections = [collection.name for collection in qdrant_client.get_collections().collections or []]
+            self.assertTrue(any(str(name).startswith("curriculum_plan__r") for name in collections))
+            upload_keys = [str(upload["key"]) for upload in object_store.uploads]
+            self.assertTrue(any(key.endswith("/index-release.json") for key in upload_keys))
+            self.assertTrue(any(key.endswith("/validation-summary.json") for key in upload_keys))
 
     def test_replay_provider_response_rebuild_indexing_defers_to_record_chunk_profile(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -645,14 +1044,44 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
 
             def _capture_chunk_profile(**kwargs: object) -> tuple[object, ...]:
                 chunk_profile_args.append(kwargs.get("chunk_profile"))
-                return ()
+                record = kwargs["record"]
+                assert isinstance(record, DocumentRegistryRecord)
+                return (
+                    IndexableChunk(
+                        document_id=record.document_id,
+                        revision_track=record.revision_track,
+                        version_id=record.version_id,
+                        chunk_id=f"{record.document_id}:chunk-0001",
+                        chunk_order=1,
+                        corpus=record.corpus,
+                        collection=record.collection,
+                        acl_groups=record.acl_groups,
+                        campus_scope=record.campus_scope,
+                        source_uri=record.source_uri,
+                        source_chunk_id=None,
+                        acl_level="public",
+                        anchor={"page_start": 1, "page_end": 1},
+                        text="captured chunk",
+                        source_channel=record.source_channel,
+                        is_current=record.is_current,
+                        parser_version=record.parser_version,
+                        embedding_model=record.embedding_model,
+                        embedding=(0.1, 0.2),
+                    ),
+                )
 
             with patch(
                 "campus_ingestion_core.local_rebuild.build_indexable_chunks_from_jsonl",
                 side_effect=_capture_chunk_profile,
             ), patch(
+                "campus_ingestion_core.local_rebuild.validate_scope_release",
+                return_value=SimpleNamespace(status="passed", summary={"chunk_count": 1}),
+            ), patch(
                 "campus_ingestion_core.local_rebuild.index_chunks_to_qdrant",
                 return_value=(),
+            ), patch(
+                "campus_ingestion_core.local_rebuild.publish_release_alias",
+                return_value=None,
             ):
                 report = replay_provider_response_rebuild(
                     env={
@@ -660,15 +1089,14 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                         "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                         "OBJECT_STORE_SECRET_KEY": "minioadmin",
                         "OBJECT_STORE_BUCKET_SOURCE": SOURCE_BUCKET,
-                        "INGESTION_CORPUS": "regulations",
-                        "INGESTION_COLLECTION": "student_handbook",
+                        "REBUILD_CORPUS": "regulations",
+                        "REBUILD_COLLECTION": "student_handbook",
                         "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                         "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
                         "REPLAY_SOURCE_PDF": "学生手册_2018.pdf",
                         "IMPORT_REPORT_DIR": str(root / "reports"),
                         "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
                         "EMBEDDING_PROVIDER": "mock",
-                        "QDRANT_COLLECTION": "student_handbook",
                         "REBUILD_INDEX_QDRANT": "1",
                     },
                     object_store=object_store,
@@ -764,15 +1192,14 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                         "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                         "OBJECT_STORE_SECRET_KEY": "minioadmin",
                         "OBJECT_STORE_BUCKET_SOURCE": SOURCE_BUCKET,
-                        "INGESTION_CORPUS": "regulations",
-                        "INGESTION_COLLECTION": "student_handbook",
+                        "REBUILD_CORPUS": "regulations",
+                        "REBUILD_COLLECTION": "student_handbook",
                         "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                         "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
                         "REPLAY_SOURCE_PDF": "学生手册_2018.pdf",
                         "IMPORT_REPORT_DIR": str(root / "reports"),
                         "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
                         "EMBEDDING_PROVIDER": "mock",
-                        "QDRANT_COLLECTION": "student_handbook",
                         "REBUILD_INDEX_QDRANT": "1",
                     },
                     object_store=object_store,

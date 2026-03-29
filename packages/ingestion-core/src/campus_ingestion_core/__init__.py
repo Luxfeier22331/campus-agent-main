@@ -40,6 +40,14 @@ from campus_ingestion_core.corpus_profiles import (
     default_query_scopes,
     load_runtime_profile,
 )
+from campus_ingestion_core.scope_catalog import (
+    CollectionScope,
+    QdrantIndexBinding,
+    assert_known_corpus,
+    assert_known_scope,
+    list_collection_scopes,
+    list_corpora,
+)
 from campus_ingestion_core.curriculum_provider_normalize import normalize_curriculum_provider_result
 from campus_ingestion_core.embed import (
     EmbeddingSettings,
@@ -60,6 +68,11 @@ from campus_ingestion_core.handbook_provider_normalize import (
     normalize_handbook_provider_result,
     serialize_handbook_layout_elements,
 )
+from campus_ingestion_core.handbook_source_migration import (
+    StudentHandbookMigrationReport,
+    StudentHandbookSourceAssetRequest,
+    migrate_student_handbook_source_faithful,
+)
 from campus_ingestion_core.handbook_chunking_validation import (
     ChunkValidationFailure,
     StudentHandbookChunkingScanResult,
@@ -71,12 +84,24 @@ from campus_ingestion_core.handbook_chunking_validation import (
     scan_student_handbook_chunking,
     validate_student_handbook_chunking,
 )
+from campus_ingestion_core.index_release import (
+    IndexReleaseArtifacts,
+    IndexReleaseDocumentRef,
+    IndexReleaseManifest,
+    IndexReleaseValidationResult,
+    build_index_release_manifest,
+    build_release_metadata_payload,
+    default_release_id,
+    publish_release_alias,
+    reset_index_binding,
+    resolve_alias_target,
+    rollback_release_alias,
+    validate_scope_release,
+    write_index_release_artifacts,
+)
 from campus_ingestion_core.local_rebuild import (
     LocalDataRebuildReport,
     RebuildRequest,
-    StudentHandbookMigrationReport,
-    StudentHandbookSourceAssetRequest,
-    migrate_student_handbook_source_faithful,
     rebuild_local_data,
     replay_provider_response_rebuild,
 )
@@ -89,6 +114,7 @@ from campus_ingestion_core.process import (
 from campus_ingestion_core.raw_ingestion import (
     OnlineOcrClient,
     OnlineOcrProviderResult,
+    RawIngestionRequest,
     process_raw_ingestion_job,
 )
 from campus_ingestion_core.registry import (
@@ -116,6 +142,7 @@ __all__ = [
     "DEFAULT_BUCKET_DERIVED",
     "DEFAULT_BUCKET_SOURCE",
     "CANONICAL_MARKDOWN_FILENAME",
+    "CollectionScope",
     "CollectionTruthConfig",
     "DEFAULT_CHUNK_POLICY_VERSION",
     "DEFAULT_CHUNK_OVERLAP",
@@ -134,6 +161,10 @@ __all__ = [
     "HF_TOKENIZER_ALLOW_PATTERNS",
     "ImportReport",
     "IndexableChunk",
+    "IndexReleaseArtifacts",
+    "IndexReleaseDocumentRef",
+    "IndexReleaseManifest",
+    "IndexReleaseValidationResult",
     "ChunkValidationFailure",
     "StudentHandbookChunkingScanResult",
     "StudentHandbookMigrationReport",
@@ -152,6 +183,7 @@ __all__ = [
     "RebuildRequest",
     "OnlineOcrClient",
     "OnlineOcrProviderResult",
+    "RawIngestionRequest",
     "PostgresDocumentRegistry",
     "PostgresRawAssetRegistry",
     "RawAssetRecord",
@@ -160,7 +192,9 @@ __all__ = [
     "SourceObservation",
     "build_embedding_model",
     "build_document_registry_from_env",
+    "build_index_release_manifest",
     "build_indexable_chunks_from_jsonl",
+    "build_release_metadata_payload",
     "build_document_artifact_key",
     "build_processed_asset_artifact_key",
     "build_raw_asset_registry_from_env",
@@ -173,6 +207,9 @@ __all__ = [
     "chunk_structured_unit",
     "clean_structured_text",
     "default_query_scopes",
+    "default_release_id",
+    "assert_known_corpus",
+    "assert_known_scope",
     "ObjectStoreSettings",
     "build_mock_embedding_model",
     "prefetch_hf_tokenizer",
@@ -194,12 +231,21 @@ __all__ = [
     "SplitManifest",
     "SplitManifestDocument",
     "export_student_handbook_chunk_samples",
+    "list_collection_scopes",
+    "list_corpora",
     "load_split_manifest",
     "load_runtime_profile",
     "parse_source_object_key",
+    "publish_release_alias",
+    "QdrantIndexBinding",
+    "reset_index_binding",
+    "resolve_alias_target",
+    "rollback_release_alias",
     "scan_student_handbook_chunking",
     "SparseEmbeddingSettings",
     "build_mock_sparse_embedding_model",
     "build_sparse_embedding_model",
+    "validate_scope_release",
     "validate_student_handbook_chunking",
+    "write_index_release_artifacts",
 ]

@@ -112,8 +112,14 @@ def summarize_result(payload: dict[str, Any]) -> dict[str, Any]:
     answer_payload = payload.get("answer")
 
     answer = answer_payload.get("answer") if isinstance(answer_payload, dict) else None
-    answer_result = answer.get("result") if isinstance(answer, dict) else None
-    answer_conversation = answer.get("conversation") if isinstance(answer, dict) else None
+    answer_result = None
+    answer_conversation = None
+    if isinstance(answer, dict):
+        answer_result = answer.get("result")
+        answer_conversation = answer.get("conversation")
+    elif isinstance(answer_payload, dict):
+        answer_result = answer_payload.get("result")
+        answer_conversation = answer_payload.get("conversation")
     result_kind = answer_result.get("kind") if isinstance(answer_result, dict) else None
     text = None
     correlation_id = None

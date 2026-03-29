@@ -3,34 +3,34 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Merged PR #4 public-consumer-chat closeout on main
-last_updated: "2026-03-27T00:00:00.000Z"
+stopped_at: shared app-api seam alignment is now landed on this worktree; next work is runtime observability verification and merge-readiness cleanup
+last_updated: "2026-03-29T09:30:00+08:00"
 progress:
   total_phases: 17
-  completed_phases: 12
-  total_plans: 39
-  completed_plans: 27
+  completed_phases: 17
+  total_plans: 41
+  completed_plans: 41
 ---
 
 # Project State
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-03-27)
+See: `.planning/PROJECT.md` (updated 2026-03-29)
 
-**Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 `student_handbook` 的完整 agentic RAG 主流程证明这条架构能可靠替代高频人工答疑
-**Current focus:** `public-consumer-chat` 已在 `main` 收口；接下来的 gating work 返回到 handbook live rebuild、supervisor/ACL mainline closure、以及 eval/smoke verification
+**Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 runtime-profile-driven serving surface 证明这条架构能可靠承接高频校园问答
+**Current focus:** Phase 7 handbook verification 已完成；这个 worktree 当前 follow-up 已从 `curriculum_plan` live-gate 切回 branch-local closeout：`ContextProjection` / `SupervisorResponse` shared seam 对齐已落地，后续重点是 shared `app-api` Worker runtime 的 observability verification、merge-readiness cleanup，以及已落地 `Official Web` surface 的持续 hardening。`Jobs` / `Operations` 仍不进入第一波 rollout
 
 ## Current Position
 
-Phase: 04.7 (Public Consumer Chat App Design) — COMPLETED
+Phase: 07 (Verification And Release Gate) — COMPLETE
 Plan: 2 of 2
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 27
+- Total plans completed: 41
 - Average duration: mixed agent-run and inline execution; see per-plan summaries
 - Total execution time: 0.2 hours + 2026-03-24 inline Phase 2/3 execution
 
@@ -42,6 +42,8 @@ Plan: 2 of 2
 | 02 | 2 | inline session | n/a |
 | 03 | 2 | inline session | n/a |
 | 03.1 | 3 | 53 min | 17.7 min |
+| 03.2 | 2 | 17 min + inline | mixed |
+| 04 | 3 | inline session | n/a |
 | 04.1 | 3 | inline session | n/a |
 | 04.2 | 2 | inline session | n/a |
 | 04.3 | 2 | inline session | n/a |
@@ -49,14 +51,20 @@ Plan: 2 of 2
 | 04.5 | 2 | inline session | n/a |
 | 04.6 | 3 | inline session | n/a |
 | 04.7 | 2 | inline session | n/a |
+| 05 | 3 | inline session | n/a |
+| 05.1 | 4 | inline session | n/a |
+| 06 | 2 | inline session | n/a |
+| 07 | 2 | inline session | n/a |
 
 **Recent Trend:**
 
-- Last 5 plans: 04.5-02, 04.6-01, 04.6-02, 04.6-03, 04.7-02
-- Trend: Cloudflare public-entry runtime line and `public-consumer-chat` app line are both on `main`; handbook chunk-truth remains stable, and current blockers have moved back to live rebuild, supervisor/ACL closure, and verification coverage
+- Last 5 plans: 05.1-04, 06-01, 06-02, 07-01, 07-02
+- Trend: handbook mainline verification evidence is closed; this worktree’s current follow-up now centers on shared seam closeout、runtime observability verification 与 landed `official_web` surface hardening，而不是继续承担 curriculum release-gate 执行
 
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
 | Phase 01-contract-and-boundary-guardrails P01 | 4m | 2 tasks | 11 files |
-| Phase 01 P02 | 5 | 2 tasks | 3 files |
+| Phase 01 P02 | 5m | 2 tasks | 3 files |
 | Phase 02 P01 | inline | 2 tasks | 7 files |
 | Phase 02 P02 | inline | 2 tasks | 6 files |
 | Phase 03 P01 | inline | 2 tasks | see summary |
@@ -64,6 +72,11 @@ Plan: 2 of 2
 | Phase 03.1 P01 | 22 min | 2 tasks | 18 files |
 | Phase 03.1 P02 | 12 min | 2 tasks | 11 files |
 | Phase 03.1 P03 | 19 min | 2 tasks | 8 files |
+| Phase 03.2 P01 | 17 min | 2 tasks | 5 files |
+| Phase 03.2 P02 | inline | 2 tasks | 9 files |
+| Phase 04 P01 | inline | 1 task | 4 files |
+| Phase 04 P02 | inline | 1 task | 4 files |
+| Phase 04 P03 | inline | 1 task | 4 files |
 | Phase 04.1 P01 | inline | 2 tasks | see summary |
 | Phase 04.1 P02 | inline | 2 tasks | see summary |
 | Phase 04.1 P03 | inline | 1 task | see summary |
@@ -80,8 +93,17 @@ Plan: 2 of 2
 | Phase 04.6 P03 | inline | 1 task | 4 files |
 | Phase 04.7 P01 | inline | 1 task | see summary |
 | Phase 04.7 P02 | inline | 1 task | see summary |
-| Phase 03.2-source-truth-fan-out-and-attachment-projection P01 | 17min | 2 tasks | 5 files |
-| Phase 03.2-source-truth-fan-out-and-attachment-projection P02 | inline | 2 tasks | 9 files |
+| Phase 05 P01 | inline | 1 task | 5 files |
+| Phase 05 P02 | inline | 1 task | 2 files |
+| Phase 05 P03 | inline | 1 task | 6 files |
+| Phase 05.1 P01 | inline | 2 tasks | see summary |
+| Phase 05.1 P02 | inline | 2 tasks | see summary |
+| Phase 05.1 P03 | inline | 2 tasks | see summary |
+| Phase 05.1 P04 | inline | 2 tasks | see summary |
+| Phase 06 P01 | inline | 2 tasks | see summary |
+| Phase 06 P02 | inline | 2 tasks | see summary |
+| Phase 07 P01 | inline | 2 tasks | handbook automated verification + planning closeout |
+| Phase 07 P02 | inline | 2 tasks | live qrels/workflow evidence + docs refresh |
 
 ## Accumulated Context
 
@@ -89,10 +111,10 @@ Plan: 2 of 2
 
 - Phase 03.1 inserted after Phase 3: Availability Specialist 最小闭环 (URGENT)
 - Phase 03.2 inserted after Phase 3: Source Truth Fan-Out And Attachment Projection (URGENT)
-- Phase 04.1 inserted after Phase 4: Cloudflare Entry And Protected Internal Panel Design (URGENT)
+- Phase 04.1 inserted after Phase 4: Cloudflare Entry And Protected Panel Design (URGENT)
 - Phase 04.2 inserted after Phase 04.1: Cloudflare Runtime Topology And Delivery Shape (URGENT)
 - Phase 04.3 inserted after Phase 04.2: Public Entry Edge Integration Contract (URGENT)
-- Phase 04.4 inserted after Phase 04.3: Protected Internal Panel Runtime Shell (URGENT)
+- Phase 04.4 inserted after Phase 04.3: Protected Panel Runtime Shell (URGENT)
 - Phase 04.5 inserted after Phase 4: Cloudflare Worker Consumer Entry And Access Policy (URGENT)
 - Phase 04.6 inserted after Phase 4: Cloudflare Worker Runtime Implementation (URGENT)
 - Phase 04.7 inserted after Phase 4: Public Consumer Chat App Design (URGENT)
@@ -103,60 +125,55 @@ Plan: 2 of 2
 Decisions are logged in `PROJECT.md` Key Decisions table.
 Recent decisions affecting current work:
 
-- Phase 1 roadmap starts with contract and boundary guardrails before more implementation work.
-- Phase-1 query-serving remains restricted to `student_handbook`; `curriculum_plan` stays offline-only.
-- Verification is held as a dedicated release gate phase after the main architecture path is in place.
-- Phase 1 execution will treat the existing supervisor current-design code as baseline and close remaining boundary/documentation gaps instead of rebuilding the coordinator from scratch.
-- `official-web` / `availability` specialist is now part of the current milestone as an inserted phase, but remains a parallel capability line rather than a rewrite of the `student_handbook` mainline.
-- The availability path must land through explicit contracts and routing, not through a supervisor inline tool bundle or by folding the work into `rag-specialist`.
-- [Phase 01-contract-and-boundary-guardrails]: Supervisor-core internal corpus and status typing now reuses shared contract literals instead of local duplicate schema aliases.
-- [Phase 01-contract-and-boundary-guardrails]: Phase-1 regression tests now explicitly gate student_handbook-only routing, supervisor-facing request handling, and minimal audit projection.
-- [Phase 01]: apps/supervisor-api remains a transport shell; boundary confidence is locked by tests instead of moving orchestration code across packages. — The existing API implementation already fit the desired boundary, so strengthening assertions was the correct plan outcome.
-- [Phase 01]: packages/supervisor-core documentation now treats the current module split as accepted phase-1 architecture rather than aspirational bootstrap scaffolding. — Package-local docs now serve as boundary evidence and align with the accepted supervisor-core ownership model.
-- [Phase 02]: handbook source PDFs now enter through `register_raw_asset -> process_raw_ingestion_job`, making raw bucket + raw registry the canonical onboarding path.
-- [Phase 02]: handbook normalized imports now classify `created_document_ids`, `updated_document_ids`, and `skipped_document_ids` from logical document identity plus content hash instead of only exact version tuple matches.
-- [Phase 03]: handbook chunk generation now rebuilds directly from `document_units_object_key` in the document registry instead of relying on ad hoc in-memory processing inputs.
-- [Phase 03]: ingestion writes `representation` as a Qdrant payload alias for `revision_track`, while retrieval stays contract-compatible and fail-closes on malformed or registry-missing metadata.
-- [Phase 03.1]: Shared specialist contracts now use typed envelope branches instead of rag-only top-level request/response names. — This preserves runtime-neutral contracts while allowing explicit non-RAG delegation without overloading retrieval scope.
-- [Phase 03.1]: Supervisor-core now routes by specialist target and derives source_doc_ids only from rag evidence payloads. — This keeps availability observations outside retrieval semantics while preserving minimal audit projection.
-- [Phase 03.1]: A real `packages/availability-specialist` package now owns allowlisted target resolution, `httpx` probe mapping, and typed availability observations. — This lands the non-RAG capability as a stable package boundary instead of a supervisor-inline tool path.
-- [Phase 03.1]: Supervisor-core default wiring now includes `availability-specialist` alongside `rag-specialist`. — This makes the explicit non-RAG path reachable through the same delegate seam used by the handbook mainline.
-- [Current correction]: `/api/v1/answer` now constructs a supervisor-facing request contract instead of hardcoding a rag-specialist handoff. — This restores the external-entry/internal-handoff boundary and keeps specialist selection inside supervisor-core.
-- [Current correction]: Supervisor-core now fail-closes conflicting routing input, enforces query-enabled scope policy in code, and emits stable supervisor error taxonomy plus richer audit route fields. — This removes remaining rag-default hidden assumptions from the supervisor entry chain without pushing policy back into the API shell.
-- [Phase 03.1]: The repo now has a deterministic availability smoke proof that exercises the real default supervisor path with `httpx.MockTransport`. — This satisfies the eval gate for introducing the non-RAG specialist boundary.
-- [Phase 04.1]: Cloudflare public entry is now frozen as an edge/runtime boundary in front of `apps/supervisor-api`, while public entry and protected internal panel are explicitly split into two surfaces. — This prevents Cloudflare work from drifting into edge orchestration or package-boundary changes.
-- [Phase 04.1]: Protected panel work is now constrained to a future `apps/` runtime surface with `panel -> runtime APIs only`, and Cloudflare access identity is explicitly separated from `SupervisorRequest.actor`, retrieval ACL, and audit ownership. — This keeps Phase 5 focused on app-layer actor/ACL/audit closure instead of reopening edge-boundary design.
-- [Current planning decision]: Because handbook chunk-truth work is still blocking the mainline, Cloudflare follow-up is expanded into inserted phases 04.2, 04.3, and 04.4. — These phases stay strictly at edge/runtime/panel-shell level and remain forbidden from reopening `packages/*` boundaries or Phase 5 application-layer ownership.
-- [Phase 04.2]: Runtime topology is now frozen as public hostname -> `apps/supervisor-api` origin and protected hostname -> separate future `apps/` panel origin, with rollback defined by surface/origin boundary. — This gives later Cloudflare work a stable delivery topology without collapsing app boundaries.
-- [Phase 04.2]: Delivery ownership for hostname, secrets/config, health/readiness, origin route, and rollback is now explicitly handed off to 04.3/04.4 planning. — This keeps edge/runtime delivery work separate from Phase 5 actor, ACL, and audit ownership.
-- [Phase 04.3]: Public entry is now frozen as a Cloudflare-to-`apps/supervisor-api` runtime integration contract covering forwarding, trace/request-id propagation, cache/body-size posture, timeout/streaming assumptions, and runtime-seam health. — This keeps ingress implementation details out of `packages/*` and separate from Phase 5 actor/ACL/audit work.
-- [Phase 04.4]: Protected panel is now frozen as a future `apps/` runtime shell with `panel -> runtime APIs only`, explicit fail-closed assumptions, and a no-`packages/*` / no-hidden-admin rule. — This closes the panel-shell design line without dragging UI, business workflow, or governance closure into the current phase.
-- [Phase 04.5]: Public answer access policy is now frozen as `public hostname -> Cloudflare Route -> Cloudflare Worker -> trusted origin/apps/supervisor-api`, with only `authenticated-only` and explicit-flag `anonymous-enabled` modes. — This keeps Worker access policy at the runtime seam and out of `packages/*`.
-- [Phase 04.5]: Worker-side Access JWT validation, `X-Worker-Origin-Auth` trust projection, and `workers_dev = false` / `preview_urls = false` closure are now explicit downstream implementation rules. — This prevents public-entry bypass while keeping Phase 5 actor/ACL/audit ownership deferred.
-- [Phase 04.6]: A real `apps/public-entry-worker` runtime shell now fronts the public answer path with Route-based config, explicit entry-mode gating, and allowlisted origin forwarding. — This turns the 04.x Cloudflare line from design truth into runnable runtime code without leaking provider semantics into `packages/*`.
-- [Phase 04.6]: `apps/supervisor-api` now supports `trusted-worker` origin auth and runtime-owned actor context. — This closes the Worker-to-origin seam while still deferring app-layer actor, ACL, and audit closure to Phase 5.
-- [Phase 04.7]: Public consumer chat auth/storage is now frozen as `Better Auth + Supabase Postgres`, with auth/chat sharing one relational boundary and Qdrant remaining the online retrieval store. — This closes the app-line identity/database decision without moving canonical user truth into the Worker or `apps/supervisor-api`.
-- [Phase 04.7]: Public consumer chat frontend host is now frozen as `TanStack Start`, not a standalone client router and not `React Router framework mode`. — This keeps route/auth/session/conversation ownership inside one app boundary instead of splitting UI truth from app data truth.
-- [Phase 04.7]: `apps/public-consumer-chat` implementation, README baseline, and app-local documentation contract tests are now on `main` via PR #4. — 04.7 should now be read as completed implementation closeout, with phase-local handoff docs retained as accepted references and migration docs retained as history only.
-- [Current closeout]: `main` planning state must no longer describe 04.7 as planning-only or not-started. — Future work should consume the long-term architecture/ADR docs plus the retained 04.7 handoffs instead of reopening a “current migration” narrative.
-- [Current correction]: 2026-03-26 real handbook validation and three extra sample batches reconfirmed chunk-truth stability, with `chunk_failures = []` and `heading_body_glue_count = 0`. — Phase 4 is no longer blocked by unresolved handbook cleanup/chunking defects.
-- [Current planning decision]: Future handbook-derived collections or attachment outputs must not trigger a second raw-consumption lane. — Phase 03.2 now freezes the direction as `single source consumption + multi-projection fan-out + replay from source truth`.
-- [Phase 03.2-source-truth-fan-out-and-attachment-projection]: Phase 03.2 now freezes the data-plane as raw -> source truth -> declared projections -> document/chunk/index.
-- [Phase 03.2-source-truth-fan-out-and-attachment-projection]: Later handbook-derived outputs must rebuild from persisted source truth instead of returning to raw.
-- [Phase 03.2-source-truth-fan-out-and-attachment-projection]: handbook raw ingestion, provider-response replay, rebuild cleanup, and handbook-derived campus_services migration now share one projection-aware source-truth contract implemented through a shared helper module.
+- Query-serving is now runtime-profile-driven; current query-enabled scope is `student_handbook` plus `curriculum_plan`, while `campus_services` remains `offline_preparation`.
+- Verification remains a dedicated release-gate phase after the main architecture path is in place.
+- `official-web` / `availability` specialist landed as an explicit non-RAG specialist boundary instead of a supervisor-inline tool bundle.
+- `/api/v1/answer` now constructs a supervisor-facing request contract instead of hardcoding a rag-specialist handoff.
+- Phase 03.2 froze the data-plane direction as `raw -> source truth -> declared projections -> document/chunk/index`; later handbook-derived outputs must replay from persisted source truth instead of returning to raw.
+- Phase 04 froze `rag-specialist` answer semantics on top of the accepted hybrid retrieval baseline with grounded citations plus `needs_clarification` / `no_answer` / `error` fail-close behavior.
+- Phase 04.6 closed the Worker-to-origin seam: `apps/public-entry-worker -> apps/supervisor-api` with trusted-worker origin auth.
+- Phase 04.7 is now completed on `main`; `apps/public-consumer-chat` implementation is a historical reference rather than the forward backend topology truth.
+- Phase 05 removed bearer actor spoofing, projected caller claims from forwarded Access JWT payload, and moved durable audit persistence to the API shell boundary.
+- The accepted forward design is now `public-chat-web` + `protected-panel-web` + shared `app-api`; auth/session/conversation, chat ingress, and operator query move into `app-api`, while `apps/supervisor-api` remains the execution engine.
+- `apps/app-api` runtime is now frozen to Worker rather than remaining runtime-agnostic.
+- `apps/app-api` is now the only product-layer auth/session/principal owner; `apps/supervisor-api` should be read as internal execution admission plus execution transport, not user-auth ownership.
+- Protected panel request visibility is now fixed on shared `apps/app-api`: panel `Requests` must consume the shipped runtime-owned query surface and must not route around it through `apps/supervisor-api`, audit logs, telemetry sinks, or consumer chat tables.
+- canonical request projection is now explicitly same-database outbox-first: `runtime.request_execution` plus `runtime.projection_outbox` are the first durable truth, while queues are optional later acceleration only.
+- Better Auth is now fixed inside `apps/app-api`, and `auth/chat/runtime/operator` are expected to share one Drizzle schema codebase plus one migration pipeline; Worker runtime DB access remains Hyperdrive-based while migrations use a direct management connection.
+- Protected panel operator access is now explicitly documented as a small-team operator surface without a self-serve end-user account system; `Jobs` and `Operations` remain delayed pending re-discussion.
+- shared `apps/app-api` Worker foundation, request projection APIs, and current web-surface wiring are now implemented in this worktree; remaining work is follow-up hardening rather than topology bootstrap.
+- `official_web` control plane is now implemented on `apps/app-api` with dedicated schema, collector command/query endpoints, outbox-driven operator projections, and scheduled ingestion handoff dispatch; `apps/protected-panel-web` now consumes the owned site/run/detail APIs instead of treating `Official Web` as a blocked next domain.
+- Phase 05.1 froze curriculum source-truth quality gates, split-manifest review fail-close behavior, and explicit chunking runtime truth.
+- Phase 06 added `provider_response_replay` rebuild support for `curriculum_plan`, and the current refactor promotes its serving policy into the profile-driven query surface.
+- Phase 07 closed handbook release-gate verification with repo tests, live qrels benchmark, workflow/status samples, and handbook collection schema evidence under `.tmp/phase7/`.
+- The detailed `app-api` implementation baseline now lives in `docs/plans/app-api-worker-foundation.md`, including framework selection, API surface, data domains, and execution waves.
+- `app-api` 第一版产品层 HTTP contract、`app-api -> supervisor-api` execution contract、request lifecycle、error model 与 logical schema 现已冻结在 `docs/contracts/` 与 `docs/data/`。
+- The accepted long-term split now separates verified identity, profile memory, session memory, and institutional knowledge into distinct truth layers.
+- Personalization may influence intent framing, retrieval planning, clarification, and answer wording, but memory does not grant permissions or widen retrieval ACL.
+- The current `develop` integration branch now treats `ContextProjection` + `SupervisorResponse` as the merge-ready shared seam; the pending worktree implementation must keep aligning to that seam instead of reintroducing `snapshot`.
+- Curriculum gate closeout now has canonical docs/runbook coverage in `docs/reference/curriculum-plan-eval-metrics.md` and `docs/runbooks/curriculum-plan-hybrid-rebuild-checklist.md`; fresh live evidence belongs to the root worktree rather than this branch-local follow-up.
+- shared `app-api -> supervisor-api` seam is now aligned to `ContextProjection` / `SupervisorResponse`: request payloads no longer depend on actor `snapshot`, `supervisor-api` accepts body `actor/context` after admission, and request projections keep `approval_required` / `rejected` as first-class runtime statuses.
 
 ### Pending Todos
 
-- Keep handbook chunk-truth validation as a regression gate while Phase 4/5/7 progress continues, so later retrieval/supervisor work does not regress the verified handbook baseline.
+- Keep handbook chunk-truth validation and handbook eval artifacts as reusable regression gates for later retrieval changes.
+- Keep `official_web` command/query/handoff tests and operator projections as reusable regression gates for later collector or ingestion integration changes.
+- Complete merge-readiness verification for this worktree on top of the landed Worker foundation without reopening topology ownership.
+- Keep `Jobs` and `Operations` out of the default panel rollout until product scope explicitly re-opens them.
+- Provision deploy-side `SENTRY_*` / `AXIOM_*` values for `apps/app-api`, `apps/public-chat-web`, and `apps/protected-panel-web`, then run post-deploy smoke verification for trace propagation, error capture, and minimal runtime event ingest.
 
 ### Blockers/Concerns
 
-- No current 04.7 blocker remains. The public consumer chat app line is merged to `main`; the main remaining blockers are back to live rebuild/runtime closure, supervisor/ACL closure, and eval/smoke verification rather than app-boundary design.
-- Cloudflare 04.x boundary/topology/contract/shell docs are now complete; any follow-up must stay as downstream implementation against those frozen docs, not as renewed architecture churn.
-- Phase 5 should consume the explicit 04.1 and 04.7 handoffs instead of re-opening Cloudflare entry/panel/app-boundary questions or pushing access-provider concerns into `packages/*`.
+- No current phase-1 mainline blocker remains inside this follow-up branch.
+- Cloudflare 04.x boundary/topology/contract/shell docs are complete; follow-up work must consume them as frozen handoffs rather than reopening architecture churn.
+- `public-consumer-chat` is merged on `main`; downstream work should treat it as a historical implementation reference rather than a live backend direction.
+- panel `Requests` is no longer blocked, but panel work must still avoid reading audit logs, telemetry sinks, consumer chat tables, or `apps/supervisor-api` directly.
+- `Official Web` control-plane APIs and panel domain are now landed on `apps/app-api` + `apps/protected-panel-web`; follow-up work must extend this surface rather than reintroducing panel-side synthesis or direct infrastructure reads.
+- `Jobs` / `Operations` / `Audit` remain delayed; landed `Official Web` views do not authorize a generic ops console.
+- Observability runtime code is landed, but provider-side `SENTRY_*` / `AXIOM_*` secrets are not available yet; until they are assigned, telemetry remains unconfigured/fail-open and live sink verification cannot be closed.
 
 ## Session Continuity
 
-Last session: 2026-03-27T00:00:00.000Z
-Stopped at: Merged PR #4 public-consumer-chat closeout on main
+Last session: 2026-03-29T12:00:00+08:00
+Stopped at: shared app-api seam alignment is now landed on this worktree; next work is runtime observability verification and merge-readiness cleanup
 Resume file: None

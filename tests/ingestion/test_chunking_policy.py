@@ -38,7 +38,7 @@ class ChunkingPolicyTest(unittest.TestCase):
     def tearDown(self) -> None:
         _load_hf_tokenizer.cache_clear()
 
-    def test_default_profile_matches_legacy_v1_budget_defaults(self) -> None:
+    def test_default_profile_matches_generic_structure_first_budget_defaults(self) -> None:
         profile = ChunkProfile()
 
         self.assertEqual(profile.chunk_size, DEFAULT_CHUNK_SIZE)
@@ -63,10 +63,10 @@ class ChunkingPolicyTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             ChunkProfile(split_strategy="unknown")  # type: ignore[arg-type]
 
-    def test_student_handbook_strategy_is_explicit_runtime_default(self) -> None:
+    def test_default_profile_keeps_structure_first_strategy_available(self) -> None:
         profile = ChunkProfile()
 
-        self.assertEqual(profile.strategy_name, "student_handbook_structure")
+        self.assertEqual(profile.strategy_name, "structure_first_default_v1")
         self.assertIsInstance(profile.strategy, StudentHandbookChunkingStrategy)
 
     def test_build_student_handbook_chunk_profile_v2_uses_current_runtime_budget(self) -> None:

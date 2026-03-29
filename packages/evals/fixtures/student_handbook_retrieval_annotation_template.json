@@ -8,7 +8,7 @@
     "主相关 source 标记到 expected_sources，使用 grade=2。",
     "可接受相关 source 标记到 expected_sources，使用 grade=1。",
     "不应命中的 source 标记到 forbidden_sources。",
-    "phase-1 handbook qrels 默认锁到 doc_id；只有确认 chunk 边界稳定后再补 chunk_id。"
+    "handbook qrels 默认锁到 doc_id；已确认版本语义稳定的高风险 regression_locked case 可以补 version_id，chunk_id 仍只在边界长期稳定后再补。"
   ],
   "cases": [
     {
@@ -65,6 +65,17 @@
       "expected_sources": [],
       "forbidden_sources": [],
       "notes": "公费医疗制度标题 exact-match。"
+    },
+    {
+      "case_id": "policy-title-national-encouragement-scholarship",
+      "category": "policy_title_exact_match",
+      "split": "regression_locked",
+      "query": "中央民族大学本科学生国家励志奖学金评审办法",
+      "request_overrides": {},
+      "retrieved_sources": [],
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "奖学金同主题制度区分。"
     },
     {
       "case_id": "fixed-phrase-dormitory-lighting",
@@ -131,6 +142,39 @@
       "expected_sources": [],
       "forbidden_sources": [],
       "notes": "dense semantic 问法。"
+    },
+    {
+      "case_id": "semantic-disciplinary-relief",
+      "category": "semantic_dense_win",
+      "split": "regression_locked",
+      "query": "被处分后多久可以申请解除处分",
+      "request_overrides": {},
+      "retrieved_sources": [],
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "dense semantic + forbidden-source 区分。"
+    },
+    {
+      "case_id": "short-fact-attendance-discipline-threshold",
+      "category": "short_fact_section",
+      "split": "smoke",
+      "query": "旷课多少学时会按违纪处理",
+      "request_overrides": {},
+      "retrieved_sources": [],
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "短事实 retrieval 样本。"
+    },
+    {
+      "case_id": "structured-disciplinary-relief-materials",
+      "category": "structured_evidence",
+      "split": "regression_locked",
+      "query": "申请解除处分需要提交哪些材料",
+      "request_overrides": {},
+      "retrieved_sources": [],
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "list-like / structured evidence 样本。"
     },
     {
       "case_id": "no-hit-impossible-query",

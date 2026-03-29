@@ -3,8 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-from campus_contracts import ActorContext, KnowledgeScope
-from campus_contracts.models import ALLOWED_DELEGATE_STATUSES, DelegateStatus
+from campus_contracts import (
+    ActorContext,
+    EvidenceSource,
+    KnowledgeScope,
+    SpecialistResponse,
+    SupervisorResponse,
+    SupervisorStatus,
+)
+from campus_contracts.models import ALLOWED_SUPERVISOR_STATUSES
 
 
 CaseSplit = Literal["smoke", "regression_locked", "exploratory", "release_gate"]
@@ -63,13 +70,8 @@ class GoldenCase:
     source_type: SourceType
     user_goal: str
     actor: ActorContext
-    expected_status: DelegateStatus
-    scope: KnowledgeScope = field(
-        default_factory=lambda: KnowledgeScope(
-            corpus="regulations",
-            collection="student_handbook",
-        )
-    )
+    expected_status: SupervisorStatus
+    scope: KnowledgeScope
     expected_sources: tuple[ExpectedSourceRef, ...] = field(default_factory=tuple)
     forbidden_sources: tuple[ExpectedSourceRef, ...] = field(default_factory=tuple)
     required_facts: tuple[str, ...] = field(default_factory=tuple)
@@ -89,7 +91,7 @@ class GoldenCase:
             raise ValueError(f"unsupported split: {self.split}")
         if self.source_type not in ALLOWED_SOURCE_TYPES:
             raise ValueError(f"unsupported source_type: {self.source_type}")
-        if self.expected_status not in ALLOWED_DELEGATE_STATUSES:
+        if self.expected_status not in ALLOWED_SUPERVISOR_STATUSES:
             raise ValueError(f"unsupported expected_status: {self.expected_status}")
         if not self.user_goal.strip():
             raise ValueError("user_goal must not be empty")
@@ -101,11 +103,13 @@ class ObservedTrace:
     retrieval_called: bool | None = None
     clarification_emitted: bool | None = None
     error_path: bool | None = None
+    retrieved_sources: tuple[EvidenceSource, ...] = field(default_factory=tuple)
+    supporting_sources: tuple[EvidenceSource, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True, slots=True)
 class ExecutionResult:
-    response: object
+    response: SpecialistResponse | SupervisorResponse
     observed_trace: ObservedTrace | None = None
 
 
@@ -123,6 +127,9 @@ class CaseResult:
     retrieval_result: DimensionResult
     answer_result: DimensionResult
     trace_result: DimensionResult
+    metric_results: dict[str, DimensionResult] = field(default_factory=dict)
+    observed_trace: ObservedTrace | None = None
+    supplemental_results: tuple["SupplementalResult", ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,6 +137,42 @@ class SummaryCount:
     total: int
     passed: int
     failed: int
+    pass_rate: float | None
+    reason: str = ""
+
+
+SupplementalVerdict = Literal["passed", "failed", "not_applicable"]
+
+
+@dataclass(frozen=True, slots=True)
+class SupplementalResult:
+    adapter_id: str
+    metric_name: str
+    score: float | None = None
+    verdict: SupplementalVerdict | None = None
+    rationale: str = ""
+    gating: bool = False
+    metadata: dict[str, object] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if not self.adapter_id.strip():
+            raise ValueError("adapter_id must not be empty")
+        if not self.metric_name.strip():
+            raise ValueError("metric_name must not be empty")
+        if self.score is None and self.verdict is None:
+            raise ValueError("supplemental result requires score or verdict")
+
+
+@dataclass(frozen=True, slots=True)
+class SupplementalMetricSummary:
+    adapter_id: str
+    metric_name: str
+    total: int
+    score_count: int
+    average_score: float | None
+    verdict_counts: dict[str, int]
+    report_only: bool
+    reason: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,4 +182,6 @@ class RunReport:
     failed: int
     by_split: dict[str, SummaryCount]
     by_dimension: dict[str, SummaryCount]
+    by_metric: dict[str, SummaryCount]
     results: tuple[CaseResult, ...]
+    by_supplemental: dict[str, SupplementalMetricSummary] = field(default_factory=dict)

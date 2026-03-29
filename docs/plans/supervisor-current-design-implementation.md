@@ -2,7 +2,7 @@
 doc_type: plan
 status: active
 created: 2026-03-22
-updated: 2026-03-25
+updated: 2026-03-28
 ---
 
 # Supervisor 当期设计架构实施方案
@@ -11,7 +11,7 @@ updated: 2026-03-25
 
 **Goal:** 在不扩大 supervisor 边界的前提下，将当前 `packages/supervisor-core` 从薄透传升级为单 specialist 的最小协调层，并保持 `supervisor-api -> supervisor-core -> rag-specialist -> retrieval-core` 主链路稳定可测。
 
-**Architecture:** 本次实施只落地 `single-specialist, policy-driven coordinator`。`apps/supervisor-api` 继续只负责 transport/auth/runtime boundary，`packages/supervisor-core` 负责 request framing、routing、policy、response shaping 和 audit projection，`packages/rag-specialist` 继续负责 retrieval-oriented specialist 逻辑。当前阶段只支持路由到 `rag-specialist`，并保持 supervisor 对用户回合的持续控制，不开放用户可见 handoff；但必须显式保留 routing decision 和 supervisor finalization，不允许继续围绕透传函数扩建。
+**Architecture:** 本次实施只落地 `single-specialist, policy-driven coordinator`。`apps/supervisor-api` 继续只负责 transport/internal-caller-admission/runtime boundary，`packages/supervisor-core` 负责 request framing、routing、policy、response shaping 和 audit projection，`packages/rag-specialist` 继续负责 retrieval-oriented specialist 逻辑。当前阶段只支持路由到 `rag-specialist`，并保持 supervisor 对用户回合的持续控制，不开放用户可见 handoff；但必须显式保留 routing decision 和 supervisor finalization，不允许继续围绕透传函数扩建。
 
 **Tech Stack:** Python 3.12, uv workspace, dataclasses, Agno runtime boundary, unittest/pytest
 
@@ -29,11 +29,11 @@ updated: 2026-03-25
 
 本轮实施范围固定为：
 
-- phase-1 只支持 `rag-specialist`
-- phase-1 默认 query-serving 只开放 `regulations` corpus 中的 `student_handbook` collection
+- 当前主查询链路只支持 `rag-specialist`
+- query-serving surface 由 runtime profile 控制；当前 query-enabled collection 是 `regulations/student_handbook` 与 `curriculum/curriculum_plan`
 - 不修改 `packages/contracts` 的 schema 形状
 - 不把 retrieval / ingestion / infra 细节拉回 supervisor
-- 不把 transport/auth/runtime 逻辑回灌到 `supervisor-core`
+- 不把 transport/internal-caller-admission/runtime 逻辑回灌到 `supervisor-core`
 
 ## 文档定位
 
@@ -42,9 +42,7 @@ updated: 2026-03-25
 - `docs/architecture/long-term-architecture.md`
   定义整个仓库的长期架构边界
 - `docs/architecture/supervisor-architecture.md`
-  定义 supervisor 的长期架构与当期设计架构
-- `docs/decisions/adr-0001-phase1-architecture.md`
-  定义 phase-1 runtime 与架构约束
+  定义 supervisor 的长期架构与当期设计架构，以及当前 execution engine runtime / Agno 集成边界
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
   定义长期编排模式、specialist 准入与安全边界
 - 本文
@@ -56,7 +54,7 @@ updated: 2026-03-25
 
 - `packages/supervisor-core` 不再只由单个透传 `handle()` 支撑主流程
 - request framing、routing、policy、response assembly、audit projection 各自有明确代码落点
-- 当前依然只路由到 `rag-specialist`，但 route decision 已显式存在
+- 当前依然只路由到 `rag-specialist`，但 route decision 已显式存在且 serving policy 由 runtime profile 决定
 - 当前用户回合仍由 supervisor 持有，`rag-specialist` 不接管对话主导权
 - `apps/supervisor-api` 不新增核心编排逻辑
 - `tests/supervisor/` 能覆盖最小协调层行为
@@ -137,8 +135,8 @@ updated: 2026-03-25
   - audit 仍只投影最小字段
   - `needs_clarification`、`no_answer`、`error` 都由 supervisor 最终收口
 - 在 `test_supervisor_routing.py` 中新增：
-  - phase-1 默认只选择 `rag-specialist`
-  - 不允许在 supervisor 内静默放开其他 corpus
+  - 当前默认只选择 `rag-specialist`
+  - 不允许在 supervisor 内静默放开未被 runtime profile 标记为 query-enabled 的 collection
 - 在 `test_supervisor_policy.py` 中新增：
   - `completed` 保持完成
   - `needs_clarification` 保持 follow-up
@@ -157,7 +155,7 @@ updated: 2026-03-25
 **Implementation:**
 - 新建 supervisor 内部上下文 dataclass，建议命名为 `SupervisorRequestContext`。
 - 只承接 supervisor 需要的最小信息：
-  - 原始 `DelegateToRagAgentRequest`
+  - 原始 `SupervisorRequest`
   - `request_id`
   - `trace_id`
   - `user_id`
@@ -184,8 +182,8 @@ updated: 2026-03-25
   - `RoutingDecision`
   - `route_request(context) -> RoutingDecision`
 - 当前规则固定为：
-  - query-serving 只允许 `regulations` corpus 中已开放的 collection，第一阶段默认仅 `student_handbook`
-  - 所有合法请求都路由到 `rag-specialist`
+  - query-serving 只允许 runtime profile 中已开放的 collection，当前为 `student_handbook` 与 `curriculum_plan`
+  - 所有合法知识请求都路由到 `rag-specialist`
 - 当前 delegation 保持为 bounded subtask delegation，不开放 user-visible handoff
 - routing 模块的价值是固定“决策位置”，不是制造多余抽象。
 
@@ -284,7 +282,7 @@ updated: 2026-03-25
 - API 层只验证：
   - auth header -> `ActorContext`
   - trace header -> `TraceContext`
-  - request payload -> `DelegateToRagAgentRequest`
+  - request payload -> `SupervisorRequest`
   - response -> HTTP JSON projection
 - 如果当前 API 测试隐含了 supervisor 内部实现细节，应改成只断言 boundary 行为。
 - 除非必要，不修改 `apps/supervisor-api` 主体代码；本轮核心不是 API 扩张。

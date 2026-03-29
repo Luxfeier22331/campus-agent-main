@@ -30,6 +30,9 @@ TOP_LEVEL_ENUMERATED_RE = re.compile(r"^(?:[（(][一二三四五六七八九十
 INLINE_LIST_MARKER_RE = re.compile(
     r"^(?P<label>(?:[0-9]+[.、]|[（(][一二三四五六七八九十百千万〇零两0-9]+[)）]))\s*(?P<body>.+)$"
 )
+ATTACHMENT_INLINE_LABEL_RE = re.compile(
+    r"^(?P<label>(?:[0-9]+|[一二三四五六七八九十百千万〇零两]+)[:：])\s*(?P<body>.+)$"
+)
 INLINE_OCR_REFERENCE_MARKER_RE = re.compile(
     r"(?:(?<=^)|(?<=[\u4e00-\u9fff0-9,，;；:：、()（）]))\[(?:0|[1-9]\d?)\](?=$|[\u4e00-\u9fffA-Za-z0-9(（])"
 )
@@ -250,7 +253,7 @@ DOC_NO_PARENTHESES_REPAIR_RE = re.compile(
 APPENDIX_MARKERS = ("附件", "附表", "附录")
 SOFT_WRAP_CONTINUATION_CHARS = frozenset({"、", "，", ","})
 APPENDIX_INLINE_TITLE_SUFFIXES = ("证明", "申请表", "审批表", "登记表", "备案表", "信息表")
-ATTACHMENT_TITLE_SUFFIXES = APPENDIX_INLINE_TITLE_SUFFIXES + ("统计表", "调查表", "汇总表", "明细表")
+ATTACHMENT_TITLE_SUFFIXES = ("申请表", "审批表", "登记表", "备案表", "信息表", "统计表", "调查表", "汇总表", "明细表", "报表")
 NAVIGATION_SECTION_KEYWORDS = ("流程", "程序", "步骤")
 ANCILLARY_NOTE_SUFFIXES = ("制表",)
 NAVIGATION_LEAF_FORBIDDEN_FRAGMENTS = (
@@ -263,6 +266,8 @@ NAVIGATION_LEAF_FORBIDDEN_FRAGMENTS = (
     "按照",
 )
 LEAF_SECTION_PUNCTUATION_RE = re.compile(r"[，,。；;：:！？!?]")
+RUNNING_HEADER_LINES = frozenset({"学生手册"})
+FORM_COVER_KEYWORDS = ATTACHMENT_TITLE_SUFFIXES + ("报送时间",)
 
 
 @dataclass(frozen=True, slots=True)
@@ -1159,7 +1164,7 @@ def _build_document_events(content_rows: list[dict[str, object]]) -> tuple[list[
         nonlocal current_policy_page
         if current_policy_page is None:
             return
-        text = normalize_handbook_body_text("\n".join(current_policy_page.pop("parts")))
+        text = _normalize_policy_page_body_text("\n".join(current_policy_page.pop("parts")))
         if text:
             current_policy_page["text"] = text
             events.append(current_policy_page)
@@ -1205,11 +1210,20 @@ def _build_document_events(content_rows: list[dict[str, object]]) -> tuple[list[
             if current_policy_page is not None:
                 candidate_policy_text = normalize_handbook_body_text("\n".join(current_policy_page["parts"]))
                 if appendix_context_active and _should_attach_policy_page_to_following_table(candidate_policy_text):
-                    policy_page_table_context = candidate_policy_text
+                    policy_page_table_context = _normalize_policy_page_table_context(candidate_policy_text)
                     current_policy_page = None
                 else:
                     flush_policy_page()
             table_context = pending_table_context if active_article_context is not None else policy_page_table_context
+            if (
+                table_context is None
+                and not current_section_nodes
+                and not any(event["kind"] != "section" for event in events)
+            ):
+                preface_table_context = _normalize_policy_page_table_context("\n".join(preface_parts))
+                if preface_table_context is not None and _looks_like_form_cover_table_context(preface_table_context):
+                    table_context = preface_table_context
+                    preface_parts.clear()
             table_matrix = _normalize_table_matrix(
                 html=row.get("html"),
                 table_cells=row.get("table_cells"),
@@ -1314,8 +1328,38 @@ def _build_document_events(content_rows: list[dict[str, object]]) -> tuple[list[
             else:
                 pending_appendix_marker_only = False
 
+        if appendix_context_active:
+            attachment_title_with_body = _split_attachment_title_with_body(text)
+            if attachment_title_with_body is not None:
+                attachment_title, attachment_body = attachment_title_with_body
+                flush_article()
+                flush_policy_page()
+                active_article_context = None
+                pending_table_context = None
+                append_section(
+                    text=attachment_title,
+                    rank=_next_policy_leaf_section_rank(current_section_nodes),
+                )
+                if not attachment_body:
+                    continue
+                text = attachment_body
+                next_text = _next_content_text(content_rows, row_index + 1)
+                next_row = _next_nonblank_row(content_rows, row_index + 1)
+                followed_by_table = _has_following_table_before_content_break(content_rows, row_index + 1)
+            elif _is_duplicate_attachment_cover_text(
+                text=text,
+                current_section_nodes=current_section_nodes,
+            ):
+                continue
+
         if policy_doc_no is None and _looks_like_policy_doc_no(text):
             policy_doc_no = _normalize_policy_doc_no(text)
+            continue
+
+        if _is_duplicate_attachment_cover_text(
+            text=text,
+            current_section_nodes=current_section_nodes,
+        ):
             continue
 
         if glued_structural_heading is not None:
@@ -1481,6 +1525,24 @@ def _build_document_events(content_rows: list[dict[str, object]]) -> tuple[list[
                 "section_path": tuple(node_text for _, node_text in current_section_nodes),
             }
             continue
+
+        if appendix_context_active and followed_by_table:
+            normalized_table_context = _normalize_policy_page_table_context(text)
+            if _is_duplicate_attachment_cover_text(
+                text=text,
+                current_section_nodes=current_section_nodes,
+            ):
+                continue
+            if normalized_table_context is not None and _looks_like_form_cover_table_context(normalized_table_context):
+                flush_policy_page()
+                current_policy_page = {
+                    "kind": "policy_page",
+                    "parts": [text],
+                    "page_start": page_start,
+                    "page_end": page_end,
+                    "section_path": tuple(node_text for _, node_text in current_section_nodes),
+                }
+                continue
 
         if _looks_like_list_section_heading(text, next_text):
             flush_policy_page()
@@ -2404,6 +2466,68 @@ def _split_appendix_inline_title(text: str) -> tuple[str, str] | None:
     return heading, remainder
 
 
+def _split_attachment_title_with_body(text: str) -> tuple[str, str] | None:
+    normalized = normalize_handbook_body_text(text)
+    if not normalized:
+        return None
+    attachment_label_match = ATTACHMENT_INLINE_LABEL_RE.match(normalized)
+    attachment_label = attachment_label_match.group("label").strip() if attachment_label_match is not None else ""
+    attachment_body_source = attachment_label_match.group("body").strip() if attachment_label_match is not None else normalized
+    marker_match = INLINE_LIST_MARKER_RE.match(normalized)
+    title_candidate = marker_match.group("body").strip() if marker_match is not None else attachment_body_source
+    stripped_title_candidate = _strip_running_header_prefix(title_candidate)
+    had_running_header_prefix = stripped_title_candidate != title_candidate
+    if had_running_header_prefix and not attachment_label and not stripped_title_candidate.startswith("《"):
+        return None
+    title = None
+    title_body = ""
+    if _looks_like_attachment_title_text(stripped_title_candidate):
+        title = stripped_title_candidate
+    else:
+        leading_title = _extract_leading_attachment_title(stripped_title_candidate)
+        if leading_title is not None:
+            title, title_body = leading_title
+        else:
+            for suffix in ATTACHMENT_TITLE_SUFFIXES:
+                marker_index = stripped_title_candidate.find(suffix)
+                if marker_index < 0:
+                    continue
+                candidate_title = stripped_title_candidate[: marker_index + len(suffix)].strip()
+                if not _looks_like_attachment_title_text(candidate_title):
+                    continue
+                title = candidate_title
+                title_body = stripped_title_candidate[marker_index + len(suffix) :].strip()
+                break
+    if title is None:
+        return None
+    if attachment_label:
+        title = f"{attachment_label}{title}"
+    else:
+        title = _normalize_attachment_heading_text(title)
+    if not title_body and marker_match is None:
+        return title, ""
+    if not title_body and marker_match is not None:
+        title_body = normalized[marker_match.end() :].strip()
+    title_body = _strip_running_header_prefix(title_body)
+    if _attachment_title_body(title_body) == _attachment_title_body(title):
+        title_body = ""
+    return title, title_body
+
+
+def _extract_leading_attachment_title(text: str) -> tuple[str, str] | None:
+    normalized = normalize_handbook_body_text(text)
+    if not normalized or not normalized.startswith("《"):
+        return None
+    closing_index = normalized.find("》")
+    if closing_index <= 1:
+        return None
+    candidate_title = normalized[: closing_index + 1].strip()
+    if not _looks_like_attachment_title_text(candidate_title):
+        return None
+    remainder = normalized[closing_index + 1 :].strip()
+    return candidate_title, remainder
+
+
 def _looks_like_table_lead_label(text: str, *, next_row: dict[str, object] | None) -> bool:
     if next_row is None or str(next_row.get("row_type") or "") != "table":
         return False
@@ -2418,11 +2542,13 @@ def _looks_like_table_lead_label(text: str, *, next_row: dict[str, object] | Non
 
 
 def _should_attach_policy_page_to_following_table(text: str) -> bool:
-    normalized = normalize_handbook_body_text(text)
-    if not normalized:
-        return False
+    normalized = _normalize_policy_page_table_context(text)
+    if normalized is None:
+        return True
     if "\n" in normalized:
         return False
+    if _looks_like_form_cover_table_context(normalized):
+        return True
     if LEAF_SECTION_PUNCTUATION_RE.search(normalized):
         return False
     return len(normalized) <= 48
@@ -2502,8 +2628,12 @@ def _looks_like_navigation_policy_leaf(
 
 
 def _looks_like_attachment_title_text(text: str) -> bool:
-    normalized = normalize_handbook_body_text(text)
+    normalized = _attachment_title_body(text)
     if not normalized or LEAF_SECTION_PUNCTUATION_RE.search(normalized):
+        return False
+    if ("《" in normalized or "》" in normalized) and not (
+        normalized.startswith("《") and normalized.endswith("》")
+    ):
         return False
     candidate = normalized[1:-1].strip() if normalized.startswith("《") and normalized.endswith("》") else normalized
     if not candidate or len(candidate) > 48:
@@ -2516,6 +2646,93 @@ def _looks_like_ancillary_note_line(text: str) -> bool:
     if not normalized or LEAF_SECTION_PUNCTUATION_RE.search(normalized):
         return False
     return len(normalized) <= 24 and any(normalized.endswith(suffix) for suffix in ANCILLARY_NOTE_SUFFIXES)
+
+
+def _normalize_policy_page_body_text(text: str) -> str:
+    normalized = normalize_handbook_body_text(text)
+    if not normalized:
+        return ""
+    kept_lines = []
+    for line in normalized.splitlines():
+        stripped = _strip_running_header_prefix(line)
+        if not stripped or _is_running_header_line(stripped):
+            continue
+        kept_lines.append(stripped)
+    return normalize_handbook_body_text("\n".join(kept_lines)) if kept_lines else ""
+
+
+def _normalize_policy_page_table_context(text: str) -> str | None:
+    normalized = _normalize_policy_page_body_text(text)
+    if not normalized:
+        return None
+    parts = [line.strip() for line in normalized.splitlines() if line.strip()]
+    if not parts:
+        return None
+    return "\n".join(parts)
+
+
+def _is_running_header_line(text: str) -> bool:
+    normalized = normalize_handbook_body_text(text)
+    return normalized in RUNNING_HEADER_LINES
+
+
+def _strip_running_header_prefix(text: str) -> str:
+    normalized = normalize_handbook_body_text(text)
+    for prefix in RUNNING_HEADER_LINES:
+        if normalized.startswith(prefix):
+            stripped = normalized[len(prefix) :].strip()
+            return stripped
+    return normalized
+
+
+def _is_duplicate_attachment_cover_text(
+    *,
+    text: str,
+    current_section_nodes: list[tuple[int, str]],
+) -> bool:
+    normalized = _strip_running_header_prefix(text)
+    if not normalized:
+        return False
+    if not current_section_nodes:
+        return False
+    current_leaf = normalize_handbook_body_text(current_section_nodes[-1][1])
+    if not current_leaf:
+        return False
+    if not _looks_like_attachment_title_text(current_leaf):
+        return False
+    current_leaf_body = _attachment_title_body(current_leaf)
+    normalized_body = _attachment_title_body(normalized)
+    if normalized == current_leaf:
+        return True
+    if current_leaf_body and normalized == current_leaf_body:
+        return True
+    if current_leaf_body and normalized_body and normalized_body == current_leaf_body:
+        return True
+    return False
+
+
+def _attachment_title_body(text: str) -> str:
+    normalized = normalize_handbook_body_text(text)
+    if not normalized:
+        return ""
+    attachment_label_match = ATTACHMENT_INLINE_LABEL_RE.match(normalized)
+    if attachment_label_match is not None:
+        normalized = attachment_label_match.group("body").strip()
+    marker_match = INLINE_LIST_MARKER_RE.match(normalized)
+    if marker_match is not None:
+        return marker_match.group("body").strip()
+    return normalized[1:-1].strip() if normalized.startswith("《") and normalized.endswith("》") else normalized
+
+
+def _looks_like_form_cover_table_context(text: str) -> bool:
+    normalized = normalize_handbook_body_text(text)
+    if not normalized:
+        return False
+    if _looks_like_attachment_title_text(normalized):
+        return False
+    if len(normalized) > 96:
+        return False
+    return any(keyword in normalized for keyword in FORM_COVER_KEYWORDS)
 
 
 def _looks_like_appendix_leaf_section_heading(text: str) -> bool:

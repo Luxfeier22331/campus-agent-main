@@ -5,17 +5,25 @@ import unittest
 
 from campus_contracts import (
     ActorContext,
+    AuthorizedRetrievalFilter,
+    AuthorizationProjection,
     AvailabilityCheckPayload,
     AvailabilityObservation,
+    ContextProjection,
     DocumentRef,
     ErrorInfo,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
+    ProfileMemoryItem,
+    ProfileMemorySummary,
+    SessionSlot,
+    SessionSummary,
     RagRequestPayload,
     RagResultPayload,
     SpecialistRequest,
     SpecialistResponse,
+    SupervisorResponse,
     SupervisorRequest,
     TraceContext,
 )
@@ -39,14 +47,177 @@ class ContractModelsTest(unittest.TestCase):
             request.actor,
             ActorContext(
                 user_id="",
+                principal_id="",
                 roles=(),
                 departments=(),
                 groups=(),
                 campus_scope=None,
-                snapshot={},
+                cohort=None,
+                major=None,
+                program=None,
+            ),
+        )
+        self.assertEqual(
+            request.context,
+            ContextProjection(
+                actor=ActorContext(
+                    user_id="",
+                    principal_id="",
+                    roles=(),
+                    departments=(),
+                    groups=(),
+                    campus_scope=None,
+                    cohort=None,
+                    major=None,
+                    program=None,
+                ),
+                authorization=AuthorizationProjection(
+                    principal_id="",
+                    entitlement_snapshot_id="",
+                    entitlement_groups=(),
+                    visibility_scope=None,
+                    applicability_scope=None,
+                    ownership_scopes=(),
+                    approval_state="",
+                    retrieval_filter=AuthorizedRetrievalFilter(
+                        entitlement_groups=(),
+                        visibility_level="public",
+                        acl_groups=(),
+                        visibility_scope=None,
+                        campus_scope=None,
+                        policy_projection_version="phase1-authorization-projection-v1",
+                    ),
+                ),
+                profile_memory=ProfileMemorySummary(items=()),
+                session=SessionSummary(confirmed_slots=(), turn_count=0),
             ),
         )
 
+    def test_supervisor_request_accepts_typed_context_projection(self) -> None:
+        request = SupervisorRequest(
+            user_goal="保研政策怎么准备？",
+            context=ContextProjection(
+                actor=ActorContext(
+                    user_id="student-001",
+                    principal_id="principal-001",
+                    roles=("student",),
+                    groups=("students",),
+                    campus_scope="north",
+                    cohort="2023",
+                    major="philosophy",
+                ),
+                authorization=AuthorizationProjection(
+                    principal_id="principal-001",
+                    entitlement_snapshot_id="entitlements-2026-03-29",
+                    entitlement_groups=("students",),
+                    visibility_scope="north",
+                    applicability_scope="undergraduate",
+                    ownership_scopes=("conversation:student-001",),
+                    approval_state="not_required",
+                    retrieval_filter=AuthorizedRetrievalFilter(
+                        entitlement_groups=("students",),
+                        visibility_level="public",
+                        acl_groups=("students",),
+                        visibility_scope="north",
+                        campus_scope="north",
+                        policy_projection_version="phase1-authorization-projection-v1",
+                    ),
+                ),
+                profile_memory=ProfileMemorySummary(
+                    items=(
+                        ProfileMemoryItem(
+                            item_id="memory-001",
+                            key="recent_goal",
+                            value="咨询保研",
+                            source_type="user_declared",
+                            confidence="high",
+                            visibility="user_visible",
+                            last_verified_at="2026-03-28",
+                        ),
+                    ),
+                ),
+                session=SessionSummary(
+                    confirmed_slots=(
+                        SessionSlot(name="policy_topic", value="推免资格", confirmed=True),
+                    ),
+                    turn_count=3,
+                ),
+            ),
+        )
+
+        self.assertEqual(request.actor.user_id, "student-001")
+        self.assertEqual(request.context.actor.major, "philosophy")
+        self.assertEqual(request.context.authorization.entitlement_snapshot_id, "entitlements-2026-03-29")
+        self.assertEqual(
+            request.context.authorization.retrieval_filter.entitlement_groups,
+            ("students",),
+        )
+        self.assertEqual(request.context.authorization.retrieval_filter.visibility_level, "public")
+        self.assertEqual(request.context.authorization.retrieval_filter.acl_groups, ("students",))
+        self.assertEqual(request.context.profile_memory.items[0].value, "咨询保研")
+        self.assertEqual(request.context.session.confirmed_slots[0].value, "推免资格")
+
+    def test_supervisor_request_actor_only_projects_transitional_authorization_filter(self) -> None:
+        request = SupervisorRequest(
+            user_goal="保研政策怎么准备？",
+            actor=ActorContext(
+                user_id="student-001",
+                principal_id="principal-001",
+                groups=("students",),
+                campus_scope="north",
+            ),
+        )
+
+        self.assertEqual(
+            request.context.authorization,
+            AuthorizationProjection(
+                principal_id="principal-001",
+                entitlement_snapshot_id="",
+                entitlement_groups=("students",),
+                visibility_scope="north",
+                applicability_scope=None,
+                ownership_scopes=(),
+                approval_state="",
+                retrieval_filter=AuthorizedRetrievalFilter(
+                    entitlement_groups=("students",),
+                    visibility_level="public",
+                    acl_groups=("students",),
+                    visibility_scope="north",
+                    campus_scope="north",
+                    policy_projection_version="phase1-authorization-projection-v1",
+                ),
+            ),
+        )
+
+    def test_authorized_retrieval_filter_backfills_projection_and_legacy_fields(self) -> None:
+        projection_first = AuthorizedRetrievalFilter(
+            entitlement_groups=("students",),
+            visibility_scope="north",
+        )
+        legacy_first = AuthorizedRetrievalFilter(
+            acl_groups=("staff",),
+            campus_scope="south",
+        )
+
+        self.assertEqual(projection_first.entitlement_groups, ("students",))
+        self.assertEqual(projection_first.acl_groups, ("students",))
+        self.assertEqual(projection_first.visibility_scope, "north")
+        self.assertEqual(projection_first.campus_scope, "north")
+        self.assertEqual(projection_first.visibility_level, "public")
+        self.assertEqual(
+            projection_first.policy_projection_version,
+            "phase1-authorization-projection-v1",
+        )
+
+        self.assertEqual(legacy_first.entitlement_groups, ("staff",))
+        self.assertEqual(legacy_first.acl_groups, ("staff",))
+        self.assertEqual(legacy_first.visibility_scope, "south")
+        self.assertEqual(legacy_first.campus_scope, "south")
+        self.assertEqual(legacy_first.visibility_level, "public")
+        self.assertEqual(
+            legacy_first.policy_projection_version,
+            "phase1-authorization-projection-v1",
+        )
     def test_specialist_request_requires_explicit_payload(self) -> None:
         request = SpecialistRequest(
             target="rag-specialist",
@@ -64,20 +235,22 @@ class ContractModelsTest(unittest.TestCase):
                 scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
             ),
         )
+        self.assertEqual(request.context.actor, ActorContext())
 
-    def test_request_rejects_invalid_collection_scope(self) -> None:
-        with self.assertRaises(ValueError):
-            SpecialistRequest(
-                target="rag-specialist",
-                user_goal="library hours",
-                payload=RagRequestPayload(
-                    scope=KnowledgeScope(
-                        corpus="regulations",
-                        collection="curriculum_plan",
-                    )
-                ),
+    def test_contract_request_shape_no_longer_owns_scope_catalog_validation(self) -> None:
+        request = SpecialistRequest(
+            target="rag-specialist",
+            user_goal="library hours",
+            payload=RagRequestPayload(
+                scope=KnowledgeScope(
+                    corpus="regulations",
+                    collection="curriculum_plan",
+                )
             )
+        )
 
+        self.assertEqual(request.payload.scope.corpus, "regulations")
+        self.assertEqual(request.payload.scope.collection, "curriculum_plan")
     def test_request_accepts_offline_campus_services_scope(self) -> None:
         request = SpecialistRequest(
             target="rag-specialist",
@@ -119,6 +292,12 @@ class ContractModelsTest(unittest.TestCase):
                             is_current=False,
                             snippet="The library is open from 08:00 to 22:00.",
                             score=0.98,
+                            source_title="Library Hours Policy",
+                            structural_path=("Chapter 1", "Opening Hours"),
+                            content_kind="text",
+                            content_role="time_rule",
+                            detail_label="Article 3",
+                            is_answer_bearing=True,
                         ),
                     ),
                 )
@@ -136,6 +315,16 @@ class ContractModelsTest(unittest.TestCase):
             payload["result"]["evidence"]["sources"][0]["canonical_url"],
             "https://campus.example/library#hours",
         )
+        self.assertEqual(
+            payload["result"]["evidence"]["sources"][0]["source_title"],
+            "Library Hours Policy",
+        )
+        self.assertEqual(
+            tuple(payload["result"]["evidence"]["sources"][0]["structural_path"]),
+            ("Chapter 1", "Opening Hours"),
+        )
+        self.assertEqual(payload["result"]["evidence"]["sources"][0]["content_role"], "time_rule")
+        self.assertTrue(payload["result"]["evidence"]["sources"][0]["is_answer_bearing"])
         self.assertEqual(
             tuple(field.name for field in fields(SpecialistResponse)),
             (
@@ -169,6 +358,21 @@ class ContractModelsTest(unittest.TestCase):
         self.assertEqual(payload["target"], "availability-specialist")
         self.assertEqual(payload["result"]["observed_status"], "timeout")
         self.assertEqual(payload["result"]["failure_classification"], "timeout")
+
+    def test_supervisor_response_serializes_selected_target_and_context_free_shape(self) -> None:
+        response = SupervisorResponse(
+            selected_target="rag-specialist",
+            status="needs_clarification",
+            follow_up_question="请说明你想咨询哪一类奖学金。",
+            confidence="low",
+        )
+
+        payload = asdict(response)
+
+        self.assertEqual(payload["selected_target"], "rag-specialist")
+        self.assertEqual(payload["status"], "needs_clarification")
+        self.assertEqual(payload["follow_up_question"], "请说明你想咨询哪一类奖学金。")
+        self.assertNotIn("target", payload)
 
     def test_availability_request_payload_serializes(self) -> None:
         request = SpecialistRequest(
