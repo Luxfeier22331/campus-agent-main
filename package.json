@@ -1,0 +1,22 @@
+{
+  "name": "campus-agent-web-workspace",
+  "private": true,
+  "packageManager": "pnpm@10.17.1",
+  "scripts": {
+    "web:build:affected": "TURBO_SCM_BASE=origin/develop turbo run build --affected",
+    "web:build": "turbo run build",
+    "web:check:affected": "TURBO_SCM_BASE=origin/develop turbo run typecheck test build --affected",
+    "web:check": "turbo run typecheck test build",
+    "web:dev": "turbo run dev",
+    "web:dev:chat": "turbo run dev --filter=public-consumer-chat",
+    "web:dev:entry": "turbo run dev --filter=public-entry-worker",
+    "web:test:affected": "TURBO_SCM_BASE=origin/develop turbo run test --affected",
+    "web:test": "turbo run test",
+    "web:test:integration": "turbo run test:integration --filter=public-consumer-chat",
+    "web:typecheck:affected": "TURBO_SCM_BASE=origin/develop turbo run typecheck --affected",
+    "web:typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "turbo": "^2.8.21"
+  }
+}

@@ -59,7 +59,10 @@ ragas runtime：
 - pacing / breaker 的共享粒度已经收口到 `provider origin + api key`，避免不同 credential 互相污染 rate budget
 - `SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS` 可显式指定最小请求间隔；若只知道 provider 配额，也可改填 `SUPPLEMENTAL_HTTP_REQUESTS_PER_MINUTE`，runtime 会自动派生 `60 / rpm`
 - internal shared transport 现在会复用 sync/async HTTP client，并把 keep-alive expiry 提升到适配低 RPM provider 的窗口；重复 preflight 会命中同一 runtime signature 的缓存，不再重复消耗 provider 预算
-- preflight 现在只做 warmup / availability probe，不再因为一次失败直接 trip runtime circuit breaker
+- preflight 现在承担 run-level availability gate：
+  - `transient_retryable` / `hard_unavailable` 会把对应 supplemental adapter 标成 `skip_adapter`
+  - `non_retryable_request` 会在写出 `supplemental-preflight.json` 后直接中止 benchmark，避免继续生成误导性 0 分 artifact
+- preflight 失败现在会写出 `failure_disposition` 与 `run_action`，并同步把 runtime breaker / preflight cache 置入 fast-fail 状态
 - Responses judge payload 支持独立低延迟 profile：`RAGAS_REASONING_EFFORT`、`RAGAS_TEXT_VERBOSITY`、`RAGAS_MAX_OUTPUT_TOKENS`
 - `n>1` 的 ragas judge 调用现在会在同一 async transport 上并发发出，不再串行放大单 metric 延迟
 - `Qwen3-Embedding-4B` 未显式配置 `EMBEDDING_DIMENSIONS` 时，eval 侧默认补成 `2560`
@@ -105,6 +108,10 @@ student handbook formal benchmark：
 - 当前 `student_handbook` policy fixture 全部是 `soft_gate`；`warn` 表示 supplemental 指标未达阈值，不表示 handbook 主链路 deterministic 回归失败
 - 当某个 supplemental metric 没有任何可计分 observation，且失败全部来自 retryable runtime / provider outage 时，aggregate 会显式写出 `overall.runtime_status=unavailable`
 - 这种场景的 gate reason 会包含 `runtime_unavailable`，而不会再错误地追加 `*_below_threshold` 或 `run_average_drift_above_threshold`
+- 当 supplemental preflight 在 run 开始前就判定 provider unavailable 时：
+  - formal benchmark 会继续 deterministic 主链路，但不会再执行对应 supplemental adapter
+  - `summary.json` 会为被跳过的 metric 合成 `overall.runtime_status=unavailable`、`preflight_failure_count=1`、`skip_reason=preflight_unavailable`
+  - repair rerun 会把受影响 target 记为 `skipped_provider_unavailable`，不再盲目重放 case
 - handbook live runner 现已固定为 `campus_evals.handbook_live_benchmark`：
   - `uv run --all-packages python -m campus_evals.handbook_live_benchmark run --reruns 3`
   - `uv run --all-packages python -m campus_evals.handbook_live_benchmark repair --benchmark-dir <formal-benchmark-dir>`

@@ -373,6 +373,9 @@ class SupervisorApiTest(unittest.TestCase):
             self.assertEqual(payload["selected_target"], "rag-specialist")
             self.assertEqual(payload["status"], "completed")
             self.assertIsNone(payload["error_code"])
+            self.assertEqual(payload["evidence_source_count"], 0)
+            self.assertFalse(payload["follow_up_emitted"])
+            self.assertFalse(payload["fail_closed"])
             self.assertEqual(
                 set(payload),
                 {
@@ -387,6 +390,9 @@ class SupervisorApiTest(unittest.TestCase):
                     "status",
                     "error_code",
                     "source_doc_ids",
+                    "evidence_source_count",
+                    "follow_up_emitted",
+                    "fail_closed",
                 },
             )
             for forbidden_key in (
@@ -440,6 +446,9 @@ class SupervisorApiTest(unittest.TestCase):
             self.assertEqual(payload["selected_target"], "rag-specialist")
             self.assertEqual(payload["status"], "error")
             self.assertEqual(payload["error_code"], "disallowed_knowledge_scope")
+            self.assertEqual(payload["evidence_source_count"], 0)
+            self.assertFalse(payload["follow_up_emitted"])
+            self.assertTrue(payload["fail_closed"])
             self.assertNotIn("context", payload)
             self.assertNotIn("profile_memory", payload)
 
@@ -698,6 +707,43 @@ class SupervisorApiTest(unittest.TestCase):
         )
         self.assertEqual(captured_requests[0].actor, captured_requests[0].context.actor)
 
+    def test_answer_route_rejects_projected_context_with_mismatched_trusted_worker_identity(self) -> None:
+        app = create_app(
+            settings=ApiSettings(
+                auth_mode="trusted-worker",
+                worker_shared_secret="worker-secret",
+                worker_actor_id="public-entry-worker",
+            ),
+        )
+
+        response = app.handle(
+            "POST",
+            "/api/v1/answer",
+            headers={
+                "x-worker-origin-auth": "worker-secret",
+                "cf-access-jwt-assertion": _make_jwt(
+                    {
+                        "email": "student@example.edu",
+                    }
+                ),
+            },
+            json_body={
+                "user_goal": "保研政策怎么准备？",
+                "requested_scope": {
+                    "corpus": "regulations",
+                    "collection": "student_handbook",
+                },
+                "context": {
+                    "actor": {
+                        "user_id": "other-student@example.edu",
+                    }
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json_body["error"]["code"], "invalid_request")
+        self.assertIn("context.actor.user_id", response.json_body["error"]["message"])
     def test_answer_route_rejects_missing_trusted_worker_secret(self) -> None:
         app = create_app(
             settings=ApiSettings(

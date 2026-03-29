@@ -163,6 +163,9 @@ class SupervisorCoreTest(unittest.TestCase):
                 "status": "completed",
                 "error_code": None,
                 "source_doc_ids": ("handbook:test-001",),
+                "evidence_source_count": 1,
+                "follow_up_emitted": False,
+                "fail_closed": False,
             },
         )
 
@@ -403,6 +406,9 @@ class SupervisorCoreTest(unittest.TestCase):
             status="completed",
             error_code=None,
             source_doc_ids=("handbook:test-001", "handbook:test-002"),
+            evidence_source_count=2,
+            follow_up_emitted=False,
+            fail_closed=False,
         )
 
         self.assertEqual(
@@ -418,6 +424,9 @@ class SupervisorCoreTest(unittest.TestCase):
                 "status": "completed",
                 "error_code": None,
                 "source_doc_ids": ("handbook:test-001", "handbook:test-002"),
+                "evidence_source_count": 2,
+                "follow_up_emitted": False,
+                "fail_closed": False,
             },
         )
         self.assertEqual(
@@ -433,6 +442,9 @@ class SupervisorCoreTest(unittest.TestCase):
                 "status",
                 "error_code",
                 "source_doc_ids",
+                "evidence_source_count",
+                "follow_up_emitted",
+                "fail_closed",
             ),
         )
 
@@ -499,6 +511,9 @@ class SupervisorCoreTest(unittest.TestCase):
                 "status": "approval_required",
                 "error_code": None,
                 "source_doc_ids": (),
+                "evidence_source_count": 0,
+                "follow_up_emitted": False,
+                "fail_closed": False,
             },
         )
         for forbidden_key in (
@@ -549,6 +564,9 @@ class SupervisorCoreTest(unittest.TestCase):
                 "status": "completed",
                 "error_code": None,
                 "source_doc_ids": (),
+                "evidence_source_count": 0,
+                "follow_up_emitted": False,
+                "fail_closed": False,
             },
         )
 
@@ -582,8 +600,76 @@ class SupervisorCoreTest(unittest.TestCase):
                 "status": "error",
                 "error_code": "disallowed_knowledge_scope",
                 "source_doc_ids": (),
+                "evidence_source_count": 0,
+                "follow_up_emitted": False,
+                "fail_closed": True,
             },
         )
+
+    def test_build_audit_record_marks_clarification_follow_up(self) -> None:
+        request = SupervisorRequest(
+            user_goal="奖学金怎么申请？",
+            request_id="req-clarify-001",
+            trace=TraceContext(trace_id="trace-clarify-001"),
+            actor=ActorContext(user_id="student-001", groups=("students",)),
+            requested_scope=KnowledgeScope(
+                corpus="regulations",
+                collection="student_handbook",
+            ),
+        )
+
+        record = build_audit_record(
+            request,
+            SupervisorResponse(
+                selected_target="rag-specialist",
+                status="needs_clarification",
+                follow_up_question="请说明你想咨询哪一类奖学金。",
+                confidence="low",
+                result=RagResultPayload(
+                    evidence=EvidenceBundle(
+                        query_text="奖学金怎么申请？",
+                        corpus="regulations",
+                        collection="student_handbook",
+                    )
+                ),
+            ),
+        )
+
+        self.assertEqual(record.evidence_source_count, 0)
+        self.assertTrue(record.follow_up_emitted)
+        self.assertFalse(record.fail_closed)
+
+    def test_build_audit_record_marks_no_answer_as_fail_closed(self) -> None:
+        request = SupervisorRequest(
+            user_goal="校内宇宙签证办理处",
+            request_id="req-no-answer-001",
+            trace=TraceContext(trace_id="trace-no-answer-001"),
+            actor=ActorContext(user_id="student-001", groups=("students",)),
+            requested_scope=KnowledgeScope(
+                corpus="regulations",
+                collection="student_handbook",
+            ),
+        )
+
+        record = build_audit_record(
+            request,
+            SupervisorResponse(
+                selected_target="rag-specialist",
+                status="no_answer",
+                confidence="low",
+                result=RagResultPayload(
+                    evidence=EvidenceBundle(
+                        query_text="校内宇宙签证办理处",
+                        corpus="regulations",
+                        collection="student_handbook",
+                    )
+                ),
+            ),
+        )
+
+        self.assertEqual(record.evidence_source_count, 0)
+        self.assertFalse(record.follow_up_emitted)
+        self.assertTrue(record.fail_closed)
 
     def test_handle_specialist_request_preserves_internal_delegate_seam(self) -> None:
         request = SpecialistRequest(

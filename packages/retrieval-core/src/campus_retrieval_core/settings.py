@@ -17,15 +17,6 @@ from campus_ingestion_core.sparse import (
 )
 
 DEFAULT_QDRANT_TIMEOUT_SECONDS = 10.0
-DEFAULT_DENSE_PREFETCH_LIMIT = 20
-DEFAULT_SPARSE_PREFETCH_LIMIT = 20
-DEFAULT_RRF_K = 60
-DEFAULT_RRF_DENSE_WEIGHT = 1.0
-DEFAULT_RRF_SPARSE_WEIGHT = 1.0
-DEFAULT_DOCUMENT_SUPPORT_LIMIT = 24
-DEFAULT_EMBEDDING_QUERY_INSTRUCTION = (
-    "Given a campus policy or handbook question, retrieve relevant passages that answer the query."
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,13 +34,6 @@ class RetrievalSettings:
     sparse_model: str = DEFAULT_SPARSE_MODEL
     sparse_tokenizer: str = DEFAULT_SPARSE_TOKENIZER
     sparse_language: str = DEFAULT_SPARSE_LANGUAGE
-    dense_prefetch_limit: int = DEFAULT_DENSE_PREFETCH_LIMIT
-    sparse_prefetch_limit: int = DEFAULT_SPARSE_PREFETCH_LIMIT
-    rrf_k: int = DEFAULT_RRF_K
-    rrf_dense_weight: float = DEFAULT_RRF_DENSE_WEIGHT
-    rrf_sparse_weight: float = DEFAULT_RRF_SPARSE_WEIGHT
-    document_support_limit: int = DEFAULT_DOCUMENT_SUPPORT_LIMIT
-    embedding_query_instruction: str = DEFAULT_EMBEDDING_QUERY_INSTRUCTION
 
     def __post_init__(self) -> None:
         if self.embedding_dimensions is None:
@@ -76,18 +60,6 @@ class RetrievalSettings:
             raise ValueError("SPARSE_LANGUAGE is required")
         if self.embedding_dimensions is not None and self.embedding_dimensions <= 0:
             raise ValueError("EMBEDDING_DIMENSIONS must be greater than zero")
-        if self.dense_prefetch_limit <= 0:
-            raise ValueError("RETRIEVAL_DENSE_PREFETCH_LIMIT must be greater than zero")
-        if self.sparse_prefetch_limit <= 0:
-            raise ValueError("RETRIEVAL_SPARSE_PREFETCH_LIMIT must be greater than zero")
-        if self.rrf_k <= 0:
-            raise ValueError("RETRIEVAL_RRF_K must be greater than zero")
-        if self.rrf_dense_weight <= 0:
-            raise ValueError("RETRIEVAL_RRF_DENSE_WEIGHT must be greater than zero")
-        if self.rrf_sparse_weight <= 0:
-            raise ValueError("RETRIEVAL_RRF_SPARSE_WEIGHT must be greater than zero")
-        if self.document_support_limit <= 0:
-            raise ValueError("RETRIEVAL_DOCUMENT_SUPPORT_LIMIT must be greater than zero")
         if self.document_registry_database_url:
             parsed_registry = urlparse(self.document_registry_database_url)
             if parsed_registry.scheme not in {"postgresql", "postgres"}:
@@ -124,24 +96,4 @@ class RetrievalSettings:
             or DEFAULT_SPARSE_TOKENIZER,
             sparse_language=(source.get("SPARSE_LANGUAGE") or DEFAULT_SPARSE_LANGUAGE).strip()
             or DEFAULT_SPARSE_LANGUAGE,
-            dense_prefetch_limit=int(
-                (source.get("RETRIEVAL_DENSE_PREFETCH_LIMIT") or str(DEFAULT_DENSE_PREFETCH_LIMIT)).strip()
-            ),
-            sparse_prefetch_limit=int(
-                (source.get("RETRIEVAL_SPARSE_PREFETCH_LIMIT") or str(DEFAULT_SPARSE_PREFETCH_LIMIT)).strip()
-            ),
-            rrf_k=int((source.get("RETRIEVAL_RRF_K") or str(DEFAULT_RRF_K)).strip()),
-            rrf_dense_weight=float(
-                (source.get("RETRIEVAL_RRF_DENSE_WEIGHT") or str(DEFAULT_RRF_DENSE_WEIGHT)).strip()
-            ),
-            rrf_sparse_weight=float(
-                (source.get("RETRIEVAL_RRF_SPARSE_WEIGHT") or str(DEFAULT_RRF_SPARSE_WEIGHT)).strip()
-            ),
-            document_support_limit=int(
-                (source.get("RETRIEVAL_DOCUMENT_SUPPORT_LIMIT") or str(DEFAULT_DOCUMENT_SUPPORT_LIMIT)).strip()
-            ),
-            embedding_query_instruction=(
-                source.get("RETRIEVAL_EMBEDDING_QUERY_INSTRUCTION") or DEFAULT_EMBEDDING_QUERY_INSTRUCTION
-            ).strip()
-            or DEFAULT_EMBEDDING_QUERY_INSTRUCTION,
         )

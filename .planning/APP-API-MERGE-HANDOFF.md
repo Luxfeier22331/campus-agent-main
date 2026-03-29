@@ -6,6 +6,8 @@ Pending merge on 2026-03-28.
 
 这份 handoff 只服务于后续把 `apps/app-api` 的独立 worktree 实现先回 `develop`、再经 PR 进入 `main`。它不把 worktree 内尚未合入的实现写成当前 merged truth。
 
+截至 2026-03-29，这份 handoff 对应的 ACL/authz 过渡态仍未关闭。原因不是长期方向未定，而是 worktree 内的 `app-api` execution seam 还没有完全对齐 shared `ContextProjection + AuthorizationProjection + SupervisorResponse` contract。
+
 ## Goal
 
 把独立 worktree 中的 `app-api` Worker 实现，对齐到当前 `develop` 已冻结的 shared seam：
@@ -68,6 +70,21 @@ Pending merge on 2026-03-28.
 - auth/session 到 actor claims 的 canonical projection
 - Worker integration tests 与 contract tests
 
+## 当前审计结论（2026-03-29）
+
+目前独立 worktree 中至少还有以下未对齐点，因此不能直接宣称可以结束 ACL/authz 过渡态：
+
+- `apps/app-api/src/modules/auth/principal.ts`
+  仍以 `ExecutionActorContext` 承载 `groups`、`campusScope` 与 `snapshot`，说明 principal/authz 还没有收口成 canonical projection。
+- `apps/app-api/src/modules/integration/supervisor.ts`
+  仍向 `apps/supervisor-api` 发送 top-level `actor` payload，并依赖旧 `target` response shape，而不是 `ContextProjection` + `SupervisorResponse`。
+- `apps/app-api/src/campus_app_api/projection.py`
+  仍只构建 `actor + profile_memory + session`，还没有构建 `authorization`。
+- `apps/app-api/src/modules/runtime-command/service.ts`
+  仍把 `actorSnapshot` 写入 execution path 相关记录；如需保留，只能降级为 read-model / audit material，不能继续作为 downstream execution seam 的真相。
+- `apps/app-api/test/supervisor-adapter.test.ts` 与 `tests/app_api/test_projection.py`
+  当前断言仍锁定旧请求/响应形态，因此测试面也没有完成对齐。
+
 ## 需要补的测试
 
 合并后的 app-api 相关测试至少要覆盖：
@@ -94,6 +111,17 @@ Pending merge on 2026-03-28.
 - 不要把 unmerged worktree 的实现进度写成 `develop` 已完成 truth
 - 不要让 app-api 通过 raw memory / raw auth 直接驱动 supervisor routing
 - 不要把 raw identity / raw memory 落到 audit 或 telemetry sink
+
+## 结束过渡态的最小关闭条件
+
+只有当以下条件全部成立，才可以说 worktree 已支持结束 ACL/authz 过渡态：
+
+1. `apps/app-api` principal/auth/session path 不再把 `snapshot` 当成 execution contract，并能稳定产出 canonical `ContextProjection.authorization`。
+2. app-api supervisor adapter 统一发送 `SupervisorRequest` 兼容的 `context` payload，而不是 top-level `actor` payload。
+3. app-api 统一消费 `SupervisorResponse` 的 `selected_target + status + error/result` 语义，不再按 specialist-only shape 做产品映射。
+4. panel/chat/operator surface 都通过 app-api 的 canonical projection path 执行，不再各自保留 legacy actor carrier。
+5. memory/session 相关代码与测试明确证明：不能改写 ACL groups、visibility scope、serving surface 或 approval outcome。
+6. app-api 自身测试、shared contract tests 与仓库 baseline 同时通过。
 
 ## Merge 完成定义
 

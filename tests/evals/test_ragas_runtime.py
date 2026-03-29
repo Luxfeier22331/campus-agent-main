@@ -731,6 +731,24 @@ class RagasHttpTransportTest(unittest.TestCase):
         def handler(request: httpx.Request) -> httpx.Response:
             nonlocal attempts
             attempts += 1
+            payload = json.loads(request.content.decode("utf-8"))
+            text_config = payload.get("text") or {}
+            format_config = text_config.get("format") or {}
+            if format_config.get("type") == "json_schema":
+                return httpx.Response(
+                    200,
+                    request=request,
+                    json={
+                        "error": None,
+                        "output": [
+                            {
+                                "content": [
+                                    {"type": "output_text", "text": "{\"status\":\"ok\"}"},
+                                ]
+                            }
+                        ],
+                    },
+                )
             return httpx.Response(
                 200,
                 request=request,
@@ -773,6 +791,62 @@ class RagasHttpTransportTest(unittest.TestCase):
         second_client.close()
         self.assertEqual(attempts, 1)
 
+    def test_build_http_ragas_llm_preflight_requires_structured_output_probe(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            payload = json.loads(request.content.decode("utf-8"))
+            text_config = payload.get("text") or {}
+            format_config = text_config.get("format") or {}
+            if format_config.get("type") == "json_schema":
+                return httpx.Response(
+                    200,
+                    request=request,
+                    json={
+                        "error": None,
+                        "output": [
+                            {
+                                "content": [
+                                    {"type": "output_text", "text": "{}"},
+                                ]
+                            }
+                        ],
+                    },
+                )
+            return httpx.Response(
+                200,
+                request=request,
+                json={
+                    "error": None,
+                    "output": [
+                        {
+                            "content": [
+                                {"type": "output_text", "text": "OK"},
+                            ]
+                        }
+                    ],
+                },
+            )
+
+        settings = RagasSettings.from_env(
+            {
+                "LLM_BASE_URL": "https://llm.example/v1",
+                "LLM_API_KEY": "llm-key",
+                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS": "0",
+            }
+        )
+        sync_client = httpx.Client(
+            base_url="https://llm.example/v1",
+            transport=httpx.MockTransport(handler),
+        )
+        llm = build_http_ragas_llm(settings, sync_client=sync_client)
+
+        with self.assertRaises(SupplementalPreflightFailedError):
+            llm.preflight_sync()
+
+        sync_client.close()
+
     def test_build_http_ragas_llm_preflight_retries_retryable_failure_without_tripping_breaker(self) -> None:
         attempts = 0
 
@@ -784,6 +858,24 @@ class RagasHttpTransportTest(unittest.TestCase):
                     503,
                     request=request,
                     text='{"error":{"message":"temporary upstream error","type":"bad_response_body"}}',
+                )
+            payload = json.loads(request.content.decode("utf-8"))
+            text_config = payload.get("text") or {}
+            format_config = text_config.get("format") or {}
+            if format_config.get("type") == "json_schema":
+                return httpx.Response(
+                    200,
+                    request=request,
+                    json={
+                        "error": None,
+                        "output": [
+                            {
+                                "content": [
+                                    {"type": "output_text", "text": "{\"status\":\"ok\"}"},
+                                ]
+                            }
+                        ],
+                    },
                 )
             return httpx.Response(
                 200,

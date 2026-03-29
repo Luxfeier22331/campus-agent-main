@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-03-27
-updated: 2026-03-28
+updated: 2026-03-29
 ---
 
 # Phase-1 Ingestion / Retrieval 实现真相快照
@@ -86,19 +86,13 @@ updated: 2026-03-28
 - `SPARSE_MODEL`
 - `SPARSE_TOKENIZER`
 - `SPARSE_LANGUAGE`
-- `RETRIEVAL_EMBEDDING_QUERY_INSTRUCTION`
-- `RETRIEVAL_DENSE_PREFETCH_LIMIT`
-- `RETRIEVAL_SPARSE_PREFETCH_LIMIT`
-- `RETRIEVAL_RRF_K`
-- `RETRIEVAL_RRF_DENSE_WEIGHT`
-- `RETRIEVAL_RRF_SPARSE_WEIGHT`
-- `RETRIEVAL_DOCUMENT_SUPPORT_LIMIT`
 - `QDRANT_URL`
 - `DOCUMENT_REGISTRY_DATABASE_URL`
 
 当前 Qdrant serving target 不再由单个全局 env 指定，而是由每个
 `configs/ingestion/<corpus>/<collection>/runtime-profile.json` 中的
-`qdrant_alias_name`、`qdrant_collection_prefix` 与 vector binding 字段声明；
+`qdrant_alias_name`、`qdrant_collection_prefix`、vector binding 与 hybrid runtime
+参数字段声明；
 物理 collection 在每次 index release 时按 `<collection_prefix>__<release_id>` 生成。
 
 当前明显带 `student_handbook` 语义的 rebuild / migration 变量：
@@ -157,6 +151,7 @@ shared core 当前统一负责：
 - dense: `Qwen3-Embedding-4B @ 2560`
 - sparse: `Qdrant native BM25`
 - fusion: `RRF`
+- hybrid runtime knobs 由 collection runtime profile 持有，不再由 `.env` 持有
 - dense query instruction:
   `Given a campus policy or handbook question, retrieve relevant passages that answer the query.`
 - dense prefetch limit: `20`
@@ -186,6 +181,7 @@ shared core 当前统一负责：
 - 维护 `document_id + revision_track` 维度的 `is_current` truth
 - 默认 query-serving 只消费 current-serving documents
 - 多来源等价内容归并到同一逻辑版本，而不是重复建索引点
+- `current_version()` 不再在 query-serving 语义下偷偷回退到 latest non-current 版本
 
 当前实现尚未具备：
 
@@ -198,6 +194,30 @@ shared core 当前统一负责：
 - “默认只服务当前有效版本”已经落地
 - “历史版本被保留且可追溯”已经落地
 - “用户可以主动查询旧版”尚未作为正式在线能力落地
+
+## Replay / Rebuild Fail-Closed 真相
+
+当前 replay index release 已经显式 fail-closed：
+
+- 任一 replay 文档缺少 registry record，会中止对应 scope 的 index release
+- 任一 replay 文档在 chunking 后产出空 chunk，会中止对应 scope 的 index release
+- 不再允许 silently skip 单个文档后继续发布残缺索引
+
+实现落点：
+
+- `packages/ingestion-core/src/campus_ingestion_core/local_rebuild.py`
+- `tests/ingestion/test_provider_result_replay_rebuild.py`
+
+## Query Audit 最小投影真相
+
+当前 supervisor query audit 的最小投影已经包括：
+
+- `source_doc_ids`
+- `evidence_source_count`
+- `follow_up_emitted`
+- `fail_closed`
+
+这些字段只保留最小运行语义，不落盘 prompt 正文、memory 原文或 chunk 正文。
 
 ## 当前最容易漂移的点
 

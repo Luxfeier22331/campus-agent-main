@@ -83,6 +83,110 @@ def _provider_batch_line(*pages: dict[str, object]) -> dict[str, object]:
 
 
 class ProviderResultReplayRebuildTest(unittest.TestCase):
+    def test_index_replayed_documents_fails_closed_when_registry_record_is_missing(self) -> None:
+        documents = [
+            DocumentImportInput(
+                source_label="missing-registry-doc",
+                document_units_bytes=b'{"doc_id":"placeholder","version_id":"placeholder"}',
+                provider_response_bytes=None,
+                canonical_markdown_bytes=None,
+                metadata={"document_id": "handbook:missing-record", "version_id": "v1:missing-record"},
+                import_source="provider_response_replay",
+                corpus="regulations",
+                collection="student_handbook",
+            )
+        ]
+
+        with (
+            patch("campus_ingestion_core.local_rebuild.build_embedding_model", return_value=object()),
+            patch("campus_ingestion_core.local_rebuild.build_sparse_embedding_model", return_value=object()),
+        ):
+            with self.assertRaisesRegex(
+                ValueError,
+                "missing registry record for replayed document regulations/student_handbook handbook:missing-record@v1:missing-record",
+            ):
+                _index_replayed_documents(
+                    source={
+                        "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                        "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                        "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                        "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                        "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
+                        "EMBEDDING_PROVIDER": "mock",
+                    },
+                    registry=InMemoryDocumentRegistry(),
+                    documents=documents,
+                    object_store=_FakeObjectStore(provider_result_bytes=b""),
+                    qdrant_client=QdrantClient(location=":memory:"),
+                )
+
+    def test_index_replayed_documents_fails_closed_when_document_produces_no_chunks(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry.json")
+            document_id = "handbook:empty-chunks"
+            version_id = "v1:empty-chunks"
+            registry.upsert(
+                DocumentRegistryRecord(
+                    document_id=document_id,
+                    revision_track="source-faithful",
+                    version_id=version_id,
+                    source_uri=f"https://campus.example/{document_id}",
+                    content_hash=f"sha256:{document_id}",
+                    corpus="regulations",
+                    collection="student_handbook",
+                    acl_groups=("students",),
+                    campus_scope=None,
+                    status="active",
+                    ingestion_timestamp="2026-03-26T10:00:00+00:00",
+                    parser_version="paddleocr-vl-1.5",
+                    embedding_model="mock-embedding-8d",
+                    source_channel="pdf_ocr",
+                    document_units_object_key=f"documents/{document_id}.jsonl",
+                    processed_object_keys=(f"documents/{document_id}.jsonl",),
+                    import_source="provider_response_replay",
+                )
+            )
+            documents = [
+                DocumentImportInput(
+                    source_label="empty-chunks-doc",
+                    document_units_bytes=b'{"doc_id":"placeholder","version_id":"placeholder"}',
+                    provider_response_bytes=None,
+                    canonical_markdown_bytes=None,
+                    metadata={"document_id": document_id, "version_id": version_id},
+                    import_source="provider_response_replay",
+                    corpus="regulations",
+                    collection="student_handbook",
+                )
+            ]
+
+            with (
+                patch("campus_ingestion_core.local_rebuild.build_embedding_model", return_value=object()),
+                patch("campus_ingestion_core.local_rebuild.build_sparse_embedding_model", return_value=object()),
+                patch(
+                    "campus_ingestion_core.local_rebuild.build_indexable_chunks_from_jsonl",
+                    return_value=(),
+                ),
+            ):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "replayed document regulations/student_handbook handbook:empty-chunks@v1:empty-chunks produced no chunks",
+                ):
+                    _index_replayed_documents(
+                        source={
+                            "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                            "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                            "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                            "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                            "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
+                            "EMBEDDING_PROVIDER": "mock",
+                        },
+                        registry=registry,
+                        documents=documents,
+                        object_store=_FakeObjectStore(provider_result_bytes=b""),
+                        qdrant_client=QdrantClient(location=":memory:"),
+                    )
+
     def test_index_replayed_documents_batches_upserts_and_only_ensures_collection_once(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -940,14 +1044,44 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
 
             def _capture_chunk_profile(**kwargs: object) -> tuple[object, ...]:
                 chunk_profile_args.append(kwargs.get("chunk_profile"))
-                return ()
+                record = kwargs["record"]
+                assert isinstance(record, DocumentRegistryRecord)
+                return (
+                    IndexableChunk(
+                        document_id=record.document_id,
+                        revision_track=record.revision_track,
+                        version_id=record.version_id,
+                        chunk_id=f"{record.document_id}:chunk-0001",
+                        chunk_order=1,
+                        corpus=record.corpus,
+                        collection=record.collection,
+                        acl_groups=record.acl_groups,
+                        campus_scope=record.campus_scope,
+                        source_uri=record.source_uri,
+                        source_chunk_id=None,
+                        acl_level="public",
+                        anchor={"page_start": 1, "page_end": 1},
+                        text="captured chunk",
+                        source_channel=record.source_channel,
+                        is_current=record.is_current,
+                        parser_version=record.parser_version,
+                        embedding_model=record.embedding_model,
+                        embedding=(0.1, 0.2),
+                    ),
+                )
 
             with patch(
                 "campus_ingestion_core.local_rebuild.build_indexable_chunks_from_jsonl",
                 side_effect=_capture_chunk_profile,
             ), patch(
+                "campus_ingestion_core.local_rebuild.validate_scope_release",
+                return_value=SimpleNamespace(status="passed", summary={"chunk_count": 1}),
+            ), patch(
                 "campus_ingestion_core.local_rebuild.index_chunks_to_qdrant",
                 return_value=(),
+            ), patch(
+                "campus_ingestion_core.local_rebuild.publish_release_alias",
+                return_value=None,
             ):
                 report = replay_provider_response_rebuild(
                     env={

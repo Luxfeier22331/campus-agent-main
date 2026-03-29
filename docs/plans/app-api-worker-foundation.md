@@ -106,7 +106,7 @@ MVP 调用路径固定为：
 - validation / API schema：`zod` + `@hono/zod-openapi`
 - Worker tests：`vitest` + `@cloudflare/vitest-pool-workers`
 
-这些选型的共同目标是：贴合 Worker runtime、保持显式 HTTP seam，并避免把 `app-api` 误导成另一套 Node/Docker-first backend。
+这些选型的共同目标是：贴合 Worker runtime、保持显式 HTTP seam，并通过 repo root `pnpm-workspace.yaml`、共享 `pnpm-lock.yaml` 与 `turbo.json` 统一 JS/TS 工作区编排，避免把 `app-api` 误导成另一套 Node/Docker-first backend。
 
 ## 模块边界
 
@@ -114,6 +114,10 @@ MVP 调用路径固定为：
 
 ```text
 apps/app-api/
+├── package.json
+├── tsconfig.json
+├── wrangler.jsonc
+├── drizzle.config.ts
 ├── src/
 │   ├── modules/
 │   │   ├── auth/
@@ -226,3 +230,175 @@ apps/app-api/
 - `public-consumer-chat` 是历史参考，不是 forward backend truth
 - `protected-panel-web` 是当前 protected panel web surface
 - `supervisor-api` 保持 execution engine
+
+### Public chat
+
+- 使用 Better Auth session
+- `app-api` 负责读取 session 并映射为 app principal
+- conversation ownership 在 `chat.*` 层执行
+
+### Protected panel
+
+- protected surface 先完成外层 Cloudflare-protected access
+- `protected-panel-web` 将 trusted operator identity 投影给 `app-api`
+- `app-api` 对 operator principal 做 allowlist / mapping
+- MVP 不做 panel 自助注册、密码找回或单独 operator 用户系统
+
+这条设计的重点是：
+
+- panel 仍然有 app-level authz
+- 但不为 2-3 个内部使用者再做一套独立 auth 产品
+
+## 请求流
+
+### Chat command path
+
+1. `public-chat-web` same-site API seam 收到浏览器请求。
+2. web surface 通过 Service Binding 调用 `app-api`。
+3. `app-api` 完成 session / ownership 校验。
+4. `app-api` 写入 `chat.message(user)`、`runtime.request_execution` 与 `runtime.projection_outbox(initial)`。
+5. `app-api` 调用 `apps/supervisor-api`。
+6. `app-api` 持久化 assistant message、execution result 与 completion outbox。
+7. 响应返回浏览器。
+
+### Operator query path
+
+1. `protected-panel-web` same-site API seam 收到浏览器请求。
+2. web surface 通过 Service Binding 调用 `app-api`。
+3. `app-api` 验证 operator principal。
+4. `app-api` 只读取 `operator.request_projection` 并返回结果。
+
+## Projection 物化
+
+MVP 接受 eventual consistency。
+
+推荐顺序：
+
+1. 第一版先在 `app-api` 内保留 outbox 表与 projector 模块。
+2. 如果单请求内同步更新 projection 会让边界复杂化，则改为：
+   - Cloudflare Queue consumer
+   - 或 scheduled projector Worker
+
+但无论采用哪种实现：
+
+- projector 都属于 `app-api` boundary
+- panel 查询都不能回放 answer execution
+- 不新增 `operator-query-api`
+
+## 与 Web Surfaces 的契约
+
+`public-chat-web` / `protected-panel-web` 不直接复用 `packages/contracts`。
+
+MVP 约束：
+
+- browser-facing contract 保持在 TypeScript/HTTP 层
+- web surfaces 作为同站点 adapter / facade
+- 如果需要共享 typed client，优先使用 `@hono/client` 或单独的 TS schema 包
+- 不要把 Python-side supervisor contract 污染到 browser product API
+
+## 与 `supervisor-api` 的契约
+
+`app-api -> supervisor-api` 保持显式内部 HTTP adapter。
+
+最小出站请求需要携带：
+
+- `request_id`
+- `trace_id`
+- `conversation_id`
+- principal projection
+- `requested_scope`
+- user goal / user message
+
+最小回包需要包含：
+
+- `status`
+- assistant answer 或 follow-up
+- citations / source locators
+- confidence / response metadata
+- error payload when needed
+
+当前不把这条链路改成 shared runtime 或 shared DB direct call。
+
+## 实施波次
+
+### Wave 0: Worker Scaffold
+
+- 建立 `apps/app-api` Worker 工程
+- 接入 `wrangler`, `typescript`, `vitest`
+- 接入最小 `Hono` app、`/healthz`、`/readyz`
+
+### Wave 1: DB And Auth Foundation
+
+- 接入 Hyperdrive
+- 接入 Drizzle 与 migrations
+- 挂载 Better Auth
+- 实现 `GET /api/me`
+
+### Wave 2: Chat Product Truth
+
+- 落 `chat.conversation`
+- 落 `chat.message`
+- 实现会话列表、创建、详情读取
+
+### Wave 3: Runtime Command Path
+
+- 落 `runtime.request_execution`
+- 落 `runtime.projection_outbox`
+- 实现 `POST /api/chat/requests`
+- 打通 `app-api -> supervisor-api`
+
+### Wave 4: Operator Read Path
+
+- 落 `operator.request_projection`
+- 实现 projector
+- 实现 `GET /api/operator/requests` 与详情接口
+
+### Wave 5: Web Surface Integration
+
+- `public-chat-web` 接上 same-site chat API seam
+- `protected-panel-web` 接上 same-site operator API seam
+- 保持 web surface 仍然是薄 adapter
+
+### Wave 6: Verification And Cutover
+
+- Worker runtime tests
+- auth/session smoke
+- conversation ownership tests
+- command/query separation smoke
+- projection eventual-consistency smoke
+
+## 验证门禁
+
+完成后至少要满足：
+
+- `app-api` 不直接吸收 supervisor orchestration
+- browser 不直接调用 `apps/supervisor-api`
+- `conversation/message` 与 operator request truth 仍然分离
+- web surfaces 只做 same-site adapter，不长出产品后端
+- Worker tests 能覆盖 auth、chat command、operator query 与 supervisor adapter
+
+## 计划内验证命令
+
+实现后应具备这些命令：
+
+```bash
+cd apps/app-api && pnpm test
+cd apps/app-api && pnpm run typecheck
+cd apps/app-api && pnpm run deploy -- --dry-run
+```
+
+仓库级回归仍保留：
+
+```bash
+uv run --all-packages python -m unittest discover -s tests -t .
+```
+
+## Deferred
+
+以下内容明确延后：
+
+- panel 写操作与审批流
+- 流式回答与增量 token transport
+- 多租户 / 多组织 auth 模型
+- 对 operator principal 的完整 RBAC UI
+- 将 `supervisor-api` 迁到 Worker runtime

@@ -22,6 +22,16 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertTrue(profile.current_only)
         self.assertEqual(profile.serving_revision_tracks, ("current-effective", "source-faithful"))
         self.assertEqual(profile.retrieval_top_k, 8)
+        self.assertEqual(profile.dense_prefetch_limit, 20)
+        self.assertEqual(profile.sparse_prefetch_limit, 20)
+        self.assertEqual(profile.rrf_k, 60)
+        self.assertEqual(profile.rrf_dense_weight, 1.0)
+        self.assertEqual(profile.rrf_sparse_weight, 1.0)
+        self.assertEqual(profile.document_support_limit, 24)
+        self.assertEqual(
+            profile.embedding_query_instruction,
+            "Given a campus policy or handbook question, retrieve relevant passages that answer the query.",
+        )
         self.assertEqual(profile.no_hit_min_top_score, 0.6)
         self.assertEqual(profile.no_hit_min_score_gap, 0.1)
         self.assertEqual(profile.cleaning_policy_version, "student_handbook_cleaning_v1")
@@ -42,6 +52,16 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertFalse(profile.current_only)
         self.assertEqual(profile.serving_revision_tracks, ("source-faithful",))
         self.assertEqual(profile.retrieval_top_k, 5)
+        self.assertEqual(profile.dense_prefetch_limit, 20)
+        self.assertEqual(profile.sparse_prefetch_limit, 20)
+        self.assertEqual(profile.rrf_k, 60)
+        self.assertEqual(profile.rrf_dense_weight, 1.0)
+        self.assertEqual(profile.rrf_sparse_weight, 1.0)
+        self.assertEqual(profile.document_support_limit, 24)
+        self.assertEqual(
+            profile.embedding_query_instruction,
+            "Given a campus policy or handbook question, retrieve relevant passages that answer the query.",
+        )
         self.assertEqual(profile.no_hit_min_top_score, 0.6)
         self.assertEqual(profile.no_hit_min_score_gap, 0.1)
         self.assertEqual(profile.cleaning_policy_version, "curriculum_plan_cleaning_v1")

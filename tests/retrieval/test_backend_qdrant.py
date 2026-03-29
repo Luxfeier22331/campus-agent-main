@@ -5,12 +5,13 @@ import unittest
 import uuid
 from unittest.mock import Mock, patch
 
-from campus_contracts import EvidenceBundle, EvidenceSource, PersonalizationHint
+from campus_contracts import AuthorizedRetrievalFilter, EvidenceBundle, EvidenceSource, PersonalizationHint
 from campus_ingestion_core.chunking import ChunkProfile
-from campus_ingestion_core.corpus_profiles import load_runtime_profile
+from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile, load_runtime_profile
 from campus_ingestion_core.embed import MockEmbeddingSettings, build_mock_embedding_model
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import build_indexable_chunks_from_jsonl, index_chunks_to_qdrant
+from campus_ingestion_core.scope_catalog import QdrantIndexBinding
 from campus_ingestion_core.sparse import (
     MockSparseEmbeddingSettings,
     SparseEmbeddingSettings,
@@ -23,16 +24,13 @@ from campus_retrieval_core.backend_qdrant import (
     RetrievalBackendError,
     _apply_no_hit_policy,
     _build_hybrid_prefetch,
+    _build_rrf_query,
     _build_qdrant_client,
     _build_metadata_filters,
 )
 from campus_retrieval_core.evidence_ranking import prioritize_evidence_sources
 from campus_retrieval_core.models import RetrievalRequest
 from campus_retrieval_core.settings import (
-    DEFAULT_DENSE_PREFETCH_LIMIT,
-    DEFAULT_EMBEDDING_QUERY_INSTRUCTION,
-    DEFAULT_RRF_K,
-    DEFAULT_SPARSE_PREFETCH_LIMIT,
     RetrievalSettings,
 )
 from llama_index.core.schema import TextNode
@@ -80,6 +78,49 @@ def _make_source(
         content_role=content_role,
         detail_label=detail_label,
         is_answer_bearing=is_answer_bearing,
+    )
+
+
+def _make_runtime_profile(
+    *,
+    corpus: str = "regulations",
+    collection: str = "student_handbook",
+    retrieval_top_k: int = 8,
+    current_only: bool = True,
+    serving_revision_tracks: tuple[str, ...] = ("current-effective", "source-faithful"),
+    dense_prefetch_limit: int = 20,
+    sparse_prefetch_limit: int = 20,
+    rrf_k: int = 60,
+    rrf_dense_weight: float = 1.0,
+    rrf_sparse_weight: float = 1.0,
+    document_support_limit: int = 24,
+    embedding_query_instruction: str = (
+        "Given a campus policy or handbook question, retrieve relevant passages that answer the query."
+    ),
+) -> CollectionRuntimeProfile:
+    return CollectionRuntimeProfile(
+        corpus=corpus,
+        collection=collection,
+        serving_stage="query_serving",
+        allowed_artifact_modes=("normalized", "source_truth_only"),
+        split_manifest_required=True,
+        cleaning_policy_version=f"{collection}_cleaning_v1",
+        chunk_profile_version=f"{collection}_semantic_v1",
+        retrieval_enabled=True,
+        query_enabled_by_default=True,
+        retrieval_top_k=retrieval_top_k,
+        current_only=current_only,
+        serving_revision_tracks=serving_revision_tracks,
+        dense_prefetch_limit=dense_prefetch_limit,
+        sparse_prefetch_limit=sparse_prefetch_limit,
+        rrf_k=rrf_k,
+        rrf_dense_weight=rrf_dense_weight,
+        rrf_sparse_weight=rrf_sparse_weight,
+        document_support_limit=document_support_limit,
+        embedding_query_instruction=embedding_query_instruction,
+        no_hit_min_top_score=0.6,
+        no_hit_min_score_gap=0.1,
+        qdrant_index_binding=QdrantIndexBinding(alias_name=collection, collection_prefix=collection),
     )
 
 
@@ -220,6 +261,49 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertEqual(acl_filter.condition.value, "or")
         self.assertEqual(acl_filter.filters[0].key, "acl_level")
         self.assertEqual(acl_filter.filters[1].key, "acl_groups")
+
+    def test_build_metadata_filters_prefers_authorized_filter_over_legacy_fields(self) -> None:
+        filters = _build_metadata_filters(
+            RetrievalRequest(
+                query_text="library hours",
+                corpus="regulations",
+                collection="student_handbook",
+                campus_scope="legacy-campus",
+                acl_groups=("legacy-group",),
+                authorized_filter=AuthorizedRetrievalFilter(
+                    acl_groups=("students",),
+                    visibility_scope="north",
+                    campus_scope="north",
+                ),
+            )
+        )
+
+        acl_filter = filters.filters[4]
+        self.assertEqual(acl_filter.filters[1].key, "acl_groups")
+        self.assertEqual(acl_filter.filters[1].value, ["students"])
+        campus_filter = filters.filters[5]
+        self.assertEqual(campus_filter.condition.value, "or")
+        self.assertEqual(campus_filter.filters[0].key, "campus_scope")
+        self.assertEqual(campus_filter.filters[1].key, "campus_scope")
+        self.assertEqual(campus_filter.filters[1].value, "north")
+
+    def test_build_metadata_filters_fail_closes_when_authorized_filter_has_no_acl_groups(self) -> None:
+        filters = _build_metadata_filters(
+            RetrievalRequest(
+                query_text="library hours",
+                corpus="regulations",
+                collection="student_handbook",
+                acl_groups=("students",),
+                authorized_filter=AuthorizedRetrievalFilter(
+                    acl_groups=(),
+                    visibility_scope="north",
+                ),
+            )
+        )
+
+        acl_filter = filters.filters[4]
+        self.assertEqual(acl_filter.filters[1].key, "acl_groups")
+        self.assertEqual(acl_filter.filters[1].value, [])
 
     def test_index_chunks_to_qdrant_skips_payload_indexes_for_local_backend(self) -> None:
         record = _make_registry_record(
@@ -370,13 +454,6 @@ class BackendQdrantTest(unittest.TestCase):
         settings = RetrievalSettings.from_env({"QDRANT_URL": ":memory:"})
 
         self.assertEqual(settings.qdrant_url, ":memory:")
-        self.assertEqual(settings.dense_prefetch_limit, DEFAULT_DENSE_PREFETCH_LIMIT)
-        self.assertEqual(settings.sparse_prefetch_limit, DEFAULT_SPARSE_PREFETCH_LIMIT)
-        self.assertEqual(settings.rrf_k, DEFAULT_RRF_K)
-        self.assertEqual(
-            settings.embedding_query_instruction,
-            DEFAULT_EMBEDDING_QUERY_INSTRUCTION,
-        )
 
     def test_retrieval_settings_default_qwen3_dimensions_to_native_width(self) -> None:
         settings = RetrievalSettings(
@@ -424,12 +501,13 @@ class BackendQdrantTest(unittest.TestCase):
 
         dense_embedding_model = _DenseEmbeddingModel()
         sparse_embedding_model = _SparseEmbeddingModel()
+        profile = _make_runtime_profile(
+            dense_prefetch_limit=11,
+            sparse_prefetch_limit=13,
+            embedding_query_instruction="Retrieve handbook passages about the requested office or schedule.",
+        )
 
         prefetch = _build_hybrid_prefetch(
-            settings=RetrievalSettings(
-                qdrant_url=":memory:",
-                document_registry_database_url="postgresql://registry.example/postgres",
-            ),
             request=RetrievalRequest(
                 query_text="scholarship office hours",
                 corpus="regulations",
@@ -437,7 +515,7 @@ class BackendQdrantTest(unittest.TestCase):
                 acl_groups=("students",),
                 top_k=3,
             ),
-            profile=load_runtime_profile("regulations", "student_handbook"),
+            profile=profile,
             embedding_model=dense_embedding_model,
             sparse_embedding_model=sparse_embedding_model,
         )
@@ -445,16 +523,16 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertEqual(
             dense_embedding_model.query,
             (
-                "Instruct: Given a campus policy or handbook question, retrieve relevant passages that answer "
-                "the query.\nQuery: scholarship office hours"
+                "Instruct: Retrieve handbook passages about the requested office or schedule.\n"
+                "Query: scholarship office hours"
             ),
         )
         self.assertEqual(sparse_embedding_model.query_calls, ["scholarship office hours"])
         self.assertEqual(len(prefetch), 2)
         self.assertEqual(prefetch[0].using, "dense")
         self.assertEqual(prefetch[1].using, "sparse")
-        self.assertEqual(prefetch[0].limit, DEFAULT_DENSE_PREFETCH_LIMIT)
-        self.assertEqual(prefetch[1].limit, DEFAULT_SPARSE_PREFETCH_LIMIT)
+        self.assertEqual(prefetch[0].limit, 11)
+        self.assertEqual(prefetch[1].limit, 13)
         self.assertIsInstance(prefetch[1].query, qdrant_models.Document)
         self.assertEqual(prefetch[1].query.model, "qdrant/bm25")
         self.assertEqual(prefetch[1].query.text, "scholarship office hours")
@@ -482,6 +560,18 @@ class BackendQdrantTest(unittest.TestCase):
                 for condition in dense_conditions
             )
         )
+
+    def test_build_rrf_query_uses_runtime_profile_weights(self) -> None:
+        query = _build_rrf_query(
+            _make_runtime_profile(
+                rrf_k=37,
+                rrf_dense_weight=1.6,
+                rrf_sparse_weight=0.7,
+            )
+        )
+
+        self.assertEqual(query.rrf.k, 37)
+        self.assertEqual(query.rrf.weights, [1.6, 0.7])
 
     def test_backend_caches_dense_query_embedding_within_ttl(self) -> None:
         class _CountingDenseEmbeddingModel:
@@ -667,15 +757,19 @@ class BackendQdrantTest(unittest.TestCase):
 
         self.assertEqual(len(result.sources), 1)
         self.assertEqual(result.sources[0].doc_id, "handbook:hybrid-winner")
+        profile = load_runtime_profile("regulations", "student_handbook")
         query_kwargs = backend.qdrant_client.query_points.call_args.kwargs
         self.assertIsInstance(query_kwargs["query"], qdrant_models.RrfQuery)
-        self.assertEqual(query_kwargs["query"].rrf.k, DEFAULT_RRF_K)
-        self.assertEqual(query_kwargs["query"].rrf.weights, [1.0, 1.0])
+        self.assertEqual(query_kwargs["query"].rrf.k, profile.rrf_k)
+        self.assertEqual(
+            query_kwargs["query"].rrf.weights,
+            [profile.rrf_dense_weight, profile.rrf_sparse_weight],
+        )
         self.assertEqual(len(query_kwargs["prefetch"]), 2)
         self.assertEqual(query_kwargs["prefetch"][0].using, "dense")
         self.assertEqual(query_kwargs["prefetch"][1].using, "sparse")
-        self.assertEqual(query_kwargs["prefetch"][0].limit, DEFAULT_DENSE_PREFETCH_LIMIT)
-        self.assertEqual(query_kwargs["prefetch"][1].limit, DEFAULT_SPARSE_PREFETCH_LIMIT)
+        self.assertEqual(query_kwargs["prefetch"][0].limit, profile.dense_prefetch_limit)
+        self.assertEqual(query_kwargs["prefetch"][1].limit, profile.sparse_prefetch_limit)
 
     def test_backend_skips_sources_with_missing_registry_or_revision_metadata(self) -> None:
         registry = InMemoryDocumentRegistry()

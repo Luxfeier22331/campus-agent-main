@@ -407,6 +407,8 @@ def _build_authorization_projection_from_actor(actor: ActorContext) -> Authoriza
         retrieval_filter=AuthorizedRetrievalFilter(
             entitlement_groups=actor.groups,
             visibility_scope=actor.campus_scope,
+            acl_groups=actor.groups,
+            campus_scope=actor.campus_scope,
         ),
     )
 

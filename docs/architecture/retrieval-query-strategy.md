@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-26
-updated: 2026-03-28
+updated: 2026-03-29
 ---
 
 # Retrieval Query Strategy
@@ -103,10 +103,11 @@ updated: 2026-03-28
 ### 4. Fusion
 
 - 当前默认 fusion 为 `RRF`
-- 当前 runtime 明确固定：
+- 当前 runtime 参数由各 collection 的 `runtime-profile.json` 持有；当前 handbook/curriculum baseline 为：
   - dense prefetch limit = `20`
   - sparse prefetch limit = `20`
   - `RrfQuery(k=60, weights=[1.0, 1.0])`
+- dense query instruction 也由 runtime profile 持有，而不是全局 `.env`
 - 当前 `regulations/student_handbook` runtime profile 取回 `top_k=8` 个 retrieval candidates；`rag-specialist` 最终只保留最多 `3` 条支撑证据进入回答
 - dense / sparse 两路候选必须进入统一 candidate shape 后再融合
 - 不允许让 specialist 或 supervisor 理解底层 fusion 细节
@@ -122,6 +123,7 @@ fusion 后的候选必须继续通过 `DocumentRegistry` 回链，补齐：
 - `source_channel`
 - `collection`
 - `anchor`
+- `latest_url` 只在 registry 中存在 current 版本时回链到 current source；若当前版本不存在，不再用 latest fallback 伪装 current，而是回落到命中文档自身 `source_uri`
 
 最终输出固定为 `EvidenceBundle`。
 
@@ -146,19 +148,53 @@ fusion 后的候选必须继续通过 `DocumentRegistry` 回链，补齐：
 - 因此“历史版本被保留”不等于“历史版本已经成为当前在线查询能力”
 - 后续如果要开放历史查询，必须先引入显式 version-selection / version-resolution 边界，再改变 retrieval filter；不得让模型仅凭 query 文本自行猜测该查哪一版
 
-## Filter 规则
+## Filter Layers
 
-当前 retrieval pre-filter 必须至少覆盖：
+长期上，retrieval query path 至少区分三层过滤 / 收窄语义，而不是把它们全部混成一组 ACL 条件。
+
+### Serving Filter
+
+serving filter 负责表达“当前在线查询面允许消费哪些 institutional knowledge version”。
+
+当前必须至少覆盖：
 
 - `corpus`
 - `collection`
 - `revision_track in serving_revision_tracks`
 - `status=active`
 - `is_current=true`（当 `current_only=true`）
-- `acl_level` / `acl_groups`
+
+### Authorization Filter
+
+authorization filter 负责表达“在当前 request context 下，哪些 evidence 对该 principal 可见”。
+
+长期规则如下：
+
+- retrieval 必须消费上游授权层投影后的 authorization filter，而不是在 retrieval-core 内重建 canonical authz truth
+- authorization filter 必须在 candidate retrieval 阶段完成，而不是在答案生成之后事后裁剪
+- filter 缺失、冲突或不可安全判定时必须 fail-closed
+
+当前 phase-1 的 transitional filter carrier 仍包括：
+
+- `acl_level`
+- `acl_groups`
 - `campus_scope`
 
-这些过滤必须在 retrieval candidate 阶段完成，而不是在答案生成之后事后裁剪。
+但这些字段只表示当前实现采用的 filter projection，不应继续被描述为长期 canonical authorization model。
+
+### Applicability / Ranking Hints
+
+以下输入长期允许参与 retrieval planning、ranking 或 clarification，但不属于 authorization truth：
+
+- verified identity claims 中仅承担适用性含义的字段
+- profile memory summary
+- session-confirmed slots
+- recent goal、terminology preference 与其他 personalization hint
+
+这意味着：
+
+- `visibility` 与 `applicability` 必须分层
+- 当前被写进 `campus_scope` 的混合语义，长期上应拆成 `visibility_scope` 与 `applicability_scope`
 
 ## Personalization Boundary
 
@@ -179,7 +215,7 @@ fusion 后的候选必须继续通过 `DocumentRegistry` 回链，补齐：
 
 这些 hint 不能影响：
 
-- `acl_level` / `acl_groups` / `campus_scope`
+- authorization filter projection，包括当前过渡期 `acl_level` / `acl_groups` / `campus_scope`
 - `current_only` / `serving_revision_tracks`
 - runtime-profile-driven serving surface
 - 未开放 collection 的准入

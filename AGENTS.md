@@ -215,10 +215,28 @@ uv sync --all-packages --dev
 uv run --all-packages python -m unittest discover -s tests -t .
 ```
 
+JS/TS surface 的默认验证命令：
+
+```bash
+pnpm install
+pnpm web:typecheck
+pnpm web:test
+pnpm web:build
+```
+
+面向 `develop` 的增量验证命令：
+
+```bash
+pnpm web:typecheck:affected
+pnpm web:test:affected
+pnpm web:build:affected
+```
+
 补充约束：
 
 - 默认不要直接运行裸 `python3` 或裸 `pytest`
 - 仓库级基线验证与局部测试命令默认都通过 `uv run --all-packages ...` 执行
+- JS/TS app 的共享任务编排默认通过 repo root `pnpm` + `turbo` 入口执行，不再鼓励把跨 app 验证拆回各自目录手动串行运行
 - 如果新增局部测试或检查命令，只记录仓库里真实存在、可重复执行的命令
 - 不要把“担心腐烂”当成替代验证证据的理由
 - 当提出某种设计风险时，应尽可能区分：文档事实、代码事实，以及你的推断

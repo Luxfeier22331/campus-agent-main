@@ -17,11 +17,15 @@
 ```bash
 uv run --all-packages python -m unittest discover -s tests -t .
 uv run --all-packages python -m pytest tests/specialist/test_rag_specialist.py -q
-pnpm -C apps/public-consumer-chat test
-pnpm -C apps/public-consumer-chat typecheck
+pnpm web:test
+pnpm web:typecheck
+pnpm web:build
+pnpm web:check:affected
 ```
 
 The first command is the canonical “run everything” verification referenced in `AGENTS.md`. The second command is recommended when working inside `packages/rag-specialist` (`packages/rag-specialist/AGENTS.md`) to focus on the specialist logic without rerunning unrelated suites.
+
+For JS/TS surfaces, the repo now uses a root `pnpm-workspace.yaml` plus `turbo.json`. Root `pnpm web:*` commands are the preferred verification entrypoint for `apps/public-consumer-chat` and `apps/public-entry-worker`, while app-local `pnpm` commands remain valid for focused work inside a single app.
 
 ## Test File Organization
 
@@ -51,7 +55,7 @@ The first command is the canonical “run everything” verification referenced 
 
 ## Coverage Expectations
 
-- No explicit coverage target is enforced; the repo focuses on ensuring the baseline `uv run --all-packages python -m unittest discover -s tests -t .` passes before merging, plus app-local TS verification when touching `apps/public-consumer-chat`.
+- No explicit coverage target is enforced; the repo focuses on ensuring the baseline `uv run --all-packages python -m unittest discover -s tests -t .` passes before merging, plus root `pnpm web:*` verification for JS/TS surfaces and `pnpm web:*:affected` checks when validating changes against `develop`.
 - Coverage reporting is not configured in `pyproject.toml` or anywhere else, so teams treat coverage as informational and add tooling only when a future need arises.
 
 ## Test Types

@@ -116,7 +116,7 @@ execution engine runtime 选择应该延后。未来可以接受的实现包括�
 长期上，public chat 与 protected panel 可以共享一个 `apps/app-api`，但只在以下前提下成立：
 
 - `app-api` 负责产品层 auth/session/conversation 与 browser-facing API
-- `app-api` 负责 canonical identity、profile memory 与 session truth
+- `app-api` 负责 canonical identity、authorization、profile memory 与 session truth
 - `app-api` 作为 internal Worker runtime 存在，而不是默认做成独立 Docker-first backend
 - `supervisor-api` 保持 execution engine，不重新长出产品层 backend
 - `app-api` 内部仍保持 command/query 分离
@@ -152,11 +152,26 @@ execution engine runtime 选择应该延后。未来可以接受的实现包括�
 长期硬约束如下：
 
 - `apps/app-api` 拥有 `verified identity`、`profile memory` 与 `session memory` 的 canonical truth
+- `apps/app-api` 同时拥有 canonical authorization truth，例如 principal mapping、entitlement snapshot、resource ownership 与 approval state
 - Worker / edge identity 只属于 runtime-boundary material，不等于最终 actor truth
-- `apps/supervisor-api`、`packages/supervisor-core` 与 `packages/rag-specialist` 默认只消费 typed projection，而不是 raw auth / raw memory / raw transcript
+- `apps/supervisor-api`、`packages/supervisor-core` 与 `packages/rag-specialist` 默认只消费 typed projection，而不是 raw auth / raw authz state / raw memory / raw transcript
 - `institutional knowledge` 与 personal memory 不得共用同一个 canonical retrieval truth store
 - memory 可以个性化 query planning、clarification 与 answer wording，但不能授予权限
 - 当 `verified identity`、memory 与 `institutional knowledge` 发生冲突时，权限与事实依据分别以 verified identity 和 institutional knowledge 为准
+
+## Authorization Truth
+
+长期上，authorization 与 identity / memory 相邻，但不是同一层真相。
+
+长期硬约束如下：
+
+- `apps/app-api` 是 canonical authorization truth owner
+- canonical authorization truth 至少覆盖 principal mapping、entitlement truth、resource ownership truth 与 approval truth
+- `packages/supervisor-core` 与 `packages/rag-specialist` 只消费最小化 typed authz projection，不直接解析 raw JWT、raw session 或 raw product authz store
+- `packages/retrieval-core` 负责执行 serving filter 与 authorization filter projection，但不拥有最终 entitlement resolution
+- document / chunk 上的 ACL metadata 属于 search-time filter projection，不是长期 canonical authorization truth
+- `visibility` 与 `applicability` 必须分层；major、cohort、recent goal 这类个性化线索默认首先属于 applicability / personalization，而不是 visibility truth
+- 当前 phase-1 的 `acl_level`、`acl_groups` 与 `campus_scope` 只属于 transitional filter shape，不应继续被提升为长期 canonical authz schema
 
 ## 观测与遥测边界
 
@@ -276,6 +291,7 @@ RAG specialist 是被委派的知识域 worker，不是一个薄薄的 tool shim
 
 phase-1 当前对 Agno / AgentOS 的具体集成深度见 `docs/architecture/supervisor-architecture.md`，而不是由本文冻结。
 
+RAG specialist 的长期内部形态、`RagIntentFrame`、个性化输入边界与 authorization filter 约束，见 `docs/architecture/rag-specialist-architecture.md`。
 ### Other Specialist Types
 
 specialist 在长期架构中表示“稳定能力边界”，不等同于“只有知识域 RAG specialist”。
@@ -503,8 +519,10 @@ ACL、审计和 traceability 在第一阶段按“够上线的最小闭环”建
 - Golden dataset 治理规则：`docs/decisions/adr-0003-golden-dataset-governance.md`
 - 评测指标体系：`docs/decisions/adr-0004-evaluation-metrics.md`
 - 编排模式与安全边界：`docs/decisions/adr-0006-agent-orchestration-and-safety.md`
+- 授权与访问控制架构：`docs/architecture/authorization-and-access-control-architecture.md`
+- 用户身份、长期记忆与个性化边界：`docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
+- 授权模型与检索过滤投影：`docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
 - 第一阶段 ingestion 与存储架构：`docs/architecture/phase1-ingestion-and-storage-architecture.md`
 - shared app backend 与 web surface：`docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
-- 用户身份、长期记忆与个性化边界：`docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - request projection ownership：`docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - supervisor internal execution admission：`docs/decisions/adr-0017-supervisor-internal-execution-admission.md`

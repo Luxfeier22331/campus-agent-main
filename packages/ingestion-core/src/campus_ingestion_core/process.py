@@ -38,6 +38,7 @@ from campus_ingestion_core.curriculum_chunk_units import (
     build_curriculum_structured_units,
     chunk_curriculum_unit,
 )
+from campus_ingestion_core.handbook_semantics import derive_handbook_semantic_metadata
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.sparse import (
     SparseEmbeddingModel,
@@ -498,6 +499,13 @@ def build_indexable_chunks_from_jsonl(
                     "header_token_count": candidate.chunk_assembly.header_token_count,
                     "display_token_count": candidate.chunk_assembly.display_token_count,
                     "final_token_count": candidate.chunk_assembly.total_token_count,
+                    **_build_collection_semantic_metadata(
+                        record=record,
+                        unit_type=candidate.piece.unit_type,
+                        anchor=candidate.anchor,
+                        metadata=candidate.metadata,
+                        text=candidate.piece.text,
+                    ),
                 },
             )
         )
@@ -553,6 +561,30 @@ def _build_chunk_candidates(
                 )
             )
     return tuple(candidates)
+
+
+def _build_collection_semantic_metadata(
+    *,
+    record: DocumentRegistryRecord,
+    unit_type: str,
+    anchor: dict[str, object],
+    metadata: dict[str, object],
+    text: str,
+) -> dict[str, object]:
+    if record.collection != "student_handbook":
+        return {}
+    semantics = derive_handbook_semantic_metadata(
+        unit_type=unit_type,
+        anchor=anchor,
+        metadata=metadata,
+        text=text,
+    )
+    return {
+        "content_kind": semantics.content_kind,
+        "content_role": semantics.content_role,
+        "detail_label": semantics.detail_label,
+        "is_answer_bearing": semantics.is_answer_bearing,
+    }
 
 
 def _merge_adjacent_short_textual_candidates(

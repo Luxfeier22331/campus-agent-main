@@ -24,10 +24,12 @@ Local commands:
 
 ```bash
 pnpm install
-pnpm test
-pnpm typecheck
-pnpm dev
+pnpm --filter public-entry-worker test
+pnpm --filter public-entry-worker typecheck
+pnpm --filter public-entry-worker dev
 ```
+
+The repo now uses a shared root `pnpm-workspace.yaml` and `turbo.json` for JS/TS apps. Install dependencies from the repo root; app-local commands remain valid if you run them from this directory with `pnpm test`, `pnpm typecheck`, or `pnpm dev`.
 
 ## Local Env
 

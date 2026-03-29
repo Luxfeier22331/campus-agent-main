@@ -19,7 +19,7 @@ from campus_evals.models import (
     SupplementalResult,
     SummaryCount,
 )
-from campus_evals.supplemental_http import classify_retryable_runtime_failure, classify_runtime_failure
+from campus_evals.supplemental_http import classify_runtime_failure
 from campus_evals.runner import SupplementalAdapter, run_cases, summarize_case_results
 
 

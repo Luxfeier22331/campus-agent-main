@@ -1212,20 +1212,37 @@ def _index_replayed_documents(
         )
         records = []
         chunks = []
+        missing_registry_documents: list[str] = []
+        empty_chunk_documents: list[str] = []
         for document in scope_documents:
             document_id = str(document.metadata["document_id"])
             version_id = str(document.metadata["version_id"])
+            document_label = f"{corpus}/{collection} {document_id}@{version_id}"
             record = registry.get(document_id, document.revision_track, version_id)
             if record is None:
+                missing_registry_documents.append(document_label)
                 continue
             records.append(record)
-            chunks.extend(
-                build_indexable_chunks_from_jsonl(
-                    record=record,
-                    structured_jsonl_bytes=document.document_units_bytes,
-                    embedding_model=embedding_model,
-                    sparse_embedding_model=sparse_embedding_model,
-                )
+            document_chunks = build_indexable_chunks_from_jsonl(
+                record=record,
+                structured_jsonl_bytes=document.document_units_bytes,
+                embedding_model=embedding_model,
+                sparse_embedding_model=sparse_embedding_model,
+            )
+            if not document_chunks:
+                empty_chunk_documents.append(document_label)
+                continue
+            chunks.extend(document_chunks)
+        if missing_registry_documents:
+            raise ValueError(
+                "missing registry record for replayed document "
+                + "; ".join(missing_registry_documents)
+            )
+        if empty_chunk_documents:
+            raise ValueError(
+                "replayed document "
+                + "; ".join(empty_chunk_documents)
+                + " produced no chunks"
             )
         if not chunks:
             continue

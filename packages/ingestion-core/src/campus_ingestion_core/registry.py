@@ -195,8 +195,7 @@ class PostgresDocumentRegistry:
         )
         if row is not None:
             return _document_record_from_dict(_coerce_json_payload(row[0]))
-        latest = self.latest_versions(document_id)
-        return latest[0] if latest else None
+        return None
 
     def delete_document(self, document_id: str) -> None:
         query = f"delete from {self.table_name} where document_id = %s"

@@ -8,7 +8,10 @@ export default defineConfig({
     tanstackStart({
       srcDirectory: "app",
     }),
-    tsconfigPaths(),
+    tsconfigPaths({
+      root: ".",
+      ignoreConfigErrors: true,
+    }),
     react(),
   ],
   test: {

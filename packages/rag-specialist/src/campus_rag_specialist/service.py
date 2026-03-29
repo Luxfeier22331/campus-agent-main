@@ -65,6 +65,7 @@ def delegate_to_rag_agent(
             collection=request.payload.scope.collection,
             campus_scope=request.actor.campus_scope,
             acl_groups=request.actor.groups,
+            authorized_filter=request.context.authorization.retrieval_filter,
             personalization_hint=personalization_hint,
         )
         evidence = _with_query_text(evidence, user_goal)

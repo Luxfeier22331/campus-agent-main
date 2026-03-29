@@ -227,6 +227,22 @@ class RegistryModelsTest(unittest.TestCase):
             self.assertEqual(records, (v1, v2))
             self.assertEqual(latest, (v2,))
 
+    def test_file_document_registry_current_version_requires_explicit_current_record(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            registry = InMemoryDocumentRegistry(backing_path=Path(temp_dir) / "registry.json")
+            stale_record = replace(
+                _handbook_document_record(
+                    version_id="v2:test-001",
+                    content_hash="sha256:test-002",
+                    ingestion_timestamp="2026-03-23T10:00:00+00:00",
+                ),
+                is_current=False,
+            )
+
+            registry.upsert(stale_record)
+
+            self.assertIsNone(registry.current_version("handbook:test-001"))
+
     def test_file_document_registry_upsert_many_persists_all_records(self) -> None:
         with TemporaryDirectory() as temp_dir:
             registry = InMemoryDocumentRegistry(backing_path=Path(temp_dir) / "registry.json")
@@ -547,6 +563,30 @@ class RegistryModelsTest(unittest.TestCase):
             "delete from document_registry_records where document_id = %s",
             ("handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675",),
         )
+
+    def test_postgres_document_registry_current_version_does_not_fallback_to_latest(self) -> None:
+        with patch.object(PostgresDocumentRegistry, "_ensure_schema", return_value=None):
+            registry = PostgresDocumentRegistry("postgresql://registry.example/postgres")
+
+        with (
+            patch.object(registry, "_fetchone", return_value=None),
+            patch.object(
+                registry,
+                "latest_versions",
+                return_value=(
+                    replace(
+                        _handbook_document_record(
+                            version_id="v2:test-001",
+                            content_hash="sha256:test-002",
+                            ingestion_timestamp="2026-03-23T10:00:00+00:00",
+                        ),
+                        is_current=False,
+                    ),
+                ),
+            ) as latest_versions,
+        ):
+            self.assertIsNone(registry.current_version("handbook:test-001"))
+            latest_versions.assert_not_called()
 
     def test_registry_builders_require_database_url(self) -> None:
         with self.assertRaisesRegex(ValueError, "DOCUMENT_REGISTRY_DATABASE_URL"):

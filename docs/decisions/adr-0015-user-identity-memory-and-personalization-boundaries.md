@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0015
 status: accepted
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-03-29
 ---
 
 # ADR-0015 用户身份、长期记忆与个性化边界
@@ -31,7 +31,7 @@ Accepted on 2026-03-28.
 - 把 institutional knowledge 与个人记忆塞进同一 retrieval truth store
 - 让 `supervisor` / `rag-specialist` 跨边界直接读取 raw auth、raw memory 或 raw conversation state
 
-因此这里要先固定：身份、长期记忆、会话记忆、个性化和 ACL 到底分别属于哪一层，并且哪些能力以后不允许再摇摆。
+因此这里要先固定：身份、长期记忆、会话记忆、个性化与授权边界到底分别属于哪一层，并且哪些能力以后不允许再摇摆。
 
 ## 决策 1：canonical identity 由 `app-api` 拥有
 
@@ -84,10 +84,12 @@ Accepted on 2026-03-28.
 
 不允许的影响范围：
 
-- `acl_level` / `acl_groups` / `campus_scope` 过滤结果
+- authorization filter projection，包括当前过渡期 `acl_level` / `acl_groups` / `campus_scope` 过滤结果
 - runtime-profile-driven serving surface
 - approval-required capability 的 deterministic gate
 - 历史版本选择、跨 corpus 放开或未开放 collection 的静默路由
+
+完整 authorization model、retrieval filter projection 与 `visibility` / `applicability` 拆分由 `ADR-0016` 单独定义；本文只冻结“memory 不得授权”这条长期边界。
 
 ## 决策 4：跨边界只传 typed projection，不传 raw state
 
@@ -96,6 +98,7 @@ Accepted on 2026-03-28.
 长期默认允许的内容包括：
 
 - actor id 或 stable principal id
+- authorization snapshot id、ownership / approval summary 或等价的最小 authz projection
 - role / group / campus / cohort / major 等 typed claims
 - 受控 memory summary
 - memory source type / confidence / staleness / visibility
@@ -159,33 +162,40 @@ Accepted on 2026-03-28.
 
 - `docs/architecture/long-term-architecture.md`
   负责 repo 级 identity / memory / knowledge truth 分层
+- `docs/architecture/authorization-and-access-control-architecture.md`
+  负责 canonical authz truth、retrieval filter projection 与 visibility / applicability 分层
 - `docs/architecture/app-api-architecture.md`
-  负责 canonical identity 与 memory ownership 所在的 app boundary
+  负责 canonical identity、authorization 与 memory ownership 所在的 app boundary
 - `docs/architecture/supervisor-architecture.md`
-  负责 supervisor 如何消费 typed identity / memory projection
+  负责 supervisor 如何消费 typed identity / authorization / memory projection
 - `docs/architecture/rag-specialist-architecture.md`
   负责 retrieval-specific personalization 与 `RagIntentFrame`
+- `docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
+  负责长期 authorization model 与 retrieval filter projection 决策
 - `docs/decisions/adr-0010-observability-and-telemetry-stack.md`
   负责 identity / memory telemetry 的最小化规则
 - `docs/decisions/adr-0004-evaluation-metrics.md`
-  负责 personalization / memory / ACL 相关 gate 指标
+  负责 personalization / memory / authorization 相关 gate 指标
 - `docs/plans/`
-  负责某一轮 identity / memory / personalization 实现波次、文件落点与验收标准
+  负责某一轮 identity / authorization / memory / personalization 实现波次、文件落点与验收标准
 
 ## 结果
 
 直接结果如下：
 
-- 后续个性化能力必须以 `app-api` 为 canonical identity / memory owner
+- 后续个性化能力必须以 `app-api` 为 canonical identity / authorization / memory owner
 - `supervisor` 负责 top-level intent framing 时可以参考 typed personal context，但不能把 personal context 当作权限源
 - `rag-specialist` 可以利用 typed personal context 优化 retrieval-specific planning，但不能绕过 retrieval pre-filter
+- retrieval 与 workflow path 消费的 authz 语义必须来自 app-layer projection，而不是 raw token claims 或 memory 推断
 - memory 系统与 RAG 系统的 join 点必须可审计、可最小化、可回收
 
 ## 相关文档
 
 - `docs/architecture/long-term-architecture.md`
 - `docs/architecture/app-api-architecture.md`
+- `docs/architecture/authorization-and-access-control-architecture.md`
 - `docs/architecture/supervisor-architecture.md`
 - `docs/architecture/rag-specialist-architecture.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - `docs/decisions/adr-0010-observability-and-telemetry-stack.md`
+- `docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`

@@ -22,10 +22,20 @@ updated: 2026-03-29
 
 - `docs/architecture/long-term-architecture.md`
   定义整个仓库的长期边界、链路分层和 package 责任
+- `docs/architecture/app-api-architecture.md`
+  定义 canonical app identity / authorization / memory ownership 与 app boundary
+- `docs/architecture/authorization-and-access-control-architecture.md`
+  定义长期 authorization truth、retrieval filter projection 与 visibility / applicability 分层
+- `docs/architecture/rag-specialist-architecture.md`
+  定义 retrieval-specific intent framing 与 RAG 内部边界
 - `docs/architecture/phase1-ingestion-and-storage-architecture.md`
   定义第一阶段 ingestion / serving 的 accepted data-plane truth
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
   定义长期编排模式、specialist 准入与安全边界
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
+  定义 identity / memory / personalization 的长期边界
+- `docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
+  定义长期授权模型与 retrieval filter projection 的 canonical 决策
 - `docs/plans/agentic-rag-foundation.md`
   定义 phase-1 落地顺序、文件落点和验收标准
 - 本文
@@ -38,6 +48,8 @@ updated: 2026-03-29
 - supervisor 与 specialist 的交互必须通过稳定 delegation / handoff contract 完成
 - 长期采用 `hybrid orchestration`；deterministic gate 与安全边界优先由 code orchestration 收口
 - supervisor 不直接接触 retrieval、ingestion 或基础设施细节
+- supervisor 只消费 typed identity / authorization / memory projection，不拥有 canonical identity / authorization / memory truth
+- supervisor command side 可以生成最小 audit/trace/runtime facts，但不承载 shared product API、auth/session/conversation 或 panel query serving
 - phase-1 即使只有一个 specialist，也应保留真正的 coordination 形态，而不是长期停留在透传包装
 
 ## 长期架构
@@ -122,6 +134,62 @@ supervisor 的长期工作方式不是“只允许 handoff”，而是允许两�
 
 这些层是职责分层，不强制绑定为某种框架类或某个特定 runtime 抽象。
 
+### 长期 IntentFrame Contract
+
+长期上，supervisor 不应把 top-level intent 识别等价为“入口已经给定 capability 或 scope”。
+
+它至少应拥有一个稳定的 `IntentFrame` 语义层，字段名可以演进，但语义至少覆盖：
+
+- `capability`
+- `task_kind`
+- `domain_candidates`
+- `missing_slots`
+- `risk_level`
+- `needs_clarification`
+- `suggested_next_action`
+
+这里冻结的是语义，不冻结具体 dataclass / JSON schema 名称。
+
+### 长期 Routing Inputs
+
+supervisor 长期允许消费的 routing input 固定如下：
+
+- 用户原始输入
+- canonical actor claims 的 typed projection
+- canonical authorization projection，例如 entitlement / ownership / approval summary
+- profile memory / session memory 的 typed summary
+- conversation / trace / request metadata
+- runtime profile、serving policy 与 approval policy
+
+长期默认不允许把以下内容当成 routing truth：
+
+- Worker / edge 侧未经 app-layer 映射的 identity
+- 未经 app-layer 映射的 raw authz state 或 raw token claims
+- raw memory text
+- raw conversation transcript
+- retrieval / OCR / 网页片段等 untrusted free text
+
+### 长期 Authorization Boundary
+
+长期上，supervisor 只拥有 workflow-layer 的 deterministic gate，不拥有 canonical authorization truth。
+
+固定边界如下：
+
+- supervisor 可以消费 typed authz projection，用于 `route`、`reject`、`approval_required` 或其他 workflow-level policy 收口
+- supervisor 可以基于 approval / ownership summary 决定是否继续执行，但不应反向解析 raw JWT、raw session 或产品层 authz store
+- supervisor 不应扩大 retrieval visibility filter，也不应把 applicability / personalization 当成 authorization truth
+- authz projection 缺失、冲突或无法安全解释时，supervisor 应 fail-closed
+
+### 长期 Clarification / Rejection / Approval Policy
+
+supervisor 的长期职责不只是“选 specialist”，还包括对不完整或高风险请求做显式收口。
+
+因此长期规则固定如下：
+
+- 缺关键槽位时，优先 `clarify`
+- 范围不符、未开放或风险过高时，优先 `reject` 或 `approval_required`
+- 只有在 routing input 已足够稳定时，才进入 specialist delegation
+- 个人记忆可以帮助提问更精准的澄清问题，但不能绕过 deterministic gate
 ### 长期拥有的能力
 
 - 全局路由权
@@ -139,6 +207,9 @@ supervisor 的长期工作方式不是“只允许 handoff”，而是允许两�
 - vector store / object store / registry 访问
 - ingestion/data plane orchestration
 - transport/runtime 宿主实现
+- shared app-level auth/session/conversation hosting
+- product-facing panel query serving
+- canonical identity / authorization / profile memory ownership
 
 这些能力分别属于 `specialist`、`retrieval-core`、`ingestion-core` 和 `apps/*` 边界。
 
@@ -146,7 +217,10 @@ supervisor 的长期工作方式不是“只允许 handoff”，而是允许两�
 
 与 `apps/supervisor-api`：
 
-- API 边界只负责 execution-side 外部协议、internal caller admission、runtime 集成和入口壳
+- execution engine 边界只负责受控执行入口、runtime 集成和进入 supervisor core
+- API 边界可以持久化 command-side request facts 与 projection outbox
+- browser-facing product APIs 不属于这里
+- runtime shell 可以校验 transport / origin trust，但不拥有最终 principal mapping 或 entitlement resolution
 - supervisor 不反向吸收 HTTP、auth 或 runtime host 细节
 - 产品层 auth/session/conversation 与 operator query 留在 shared `apps/app-api`
 - `apps/app-api` 拥有最终 business actor 的映射责任，并把显式 `actor` 交给 execution seam

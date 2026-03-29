@@ -62,17 +62,23 @@ updated: 2026-03-28
   - `SPARSE_MODEL=qdrant/bm25`
   - `SPARSE_TOKENIZER=multilingual`
   - `SPARSE_LANGUAGE=none`
-- `.env` 中 retrieval hybrid 配置为：
-  - `RETRIEVAL_EMBEDDING_QUERY_INSTRUCTION=Given a campus policy or handbook question, retrieve relevant passages that answer the query.`
-  - `RETRIEVAL_DENSE_PREFETCH_LIMIT=20`
-  - `RETRIEVAL_SPARSE_PREFETCH_LIMIT=20`
-  - `RETRIEVAL_RRF_K=60`
-  - `RETRIEVAL_RRF_DENSE_WEIGHT=1.0`
-  - `RETRIEVAL_RRF_SPARSE_WEIGHT=1.0`
+- retrieval hybrid 运行参数不再放在 `.env`，而是以
+  `configs/ingestion/regulations/student_handbook/runtime-profile.json` 为准：
+  - `embedding_query_instruction`
+  - `dense_prefetch_limit`
+  - `sparse_prefetch_limit`
+  - `rrf_k`
+  - `rrf_dense_weight`
+  - `rrf_sparse_weight`
+  - `document_support_limit`
 - remote Qdrant client 必须启用 `cloud_inference=True`
-- handbook runtime profile 中的 `qdrant_alias_name` / `qdrant_collection_prefix` / vector binding / `retrieval_top_k=8` 必须对齐本轮目标索引，不与旧 dense-only target 混用
+- handbook runtime profile 中的 `qdrant_alias_name` / `qdrant_collection_prefix` / vector binding /
+  `retrieval_top_k=8` / hybrid runtime knobs 必须对齐本轮目标索引，不与旧 dense-only target 混用
 - `DOCUMENT_REGISTRY_DATABASE_URL` 指向本轮 live registry
 - `REBUILD_RESET_QDRANT=true` 或已确认目标 alias family 可以被新 schema 重建
+- replay indexing 现在是 fail-closed：
+  - 任一 replay 文档缺少 registry record，会直接中止本轮 index release
+  - 任一 replay 文档产出空 chunk，会直接中止本轮 index release
 
 ## Live Rebuild 执行顺序
 
