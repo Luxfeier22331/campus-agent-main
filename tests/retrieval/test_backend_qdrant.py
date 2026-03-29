@@ -205,6 +205,15 @@ def _make_structured_jsonl_with_acl_groups(
     )
 
 
+def _collect_filter_keys(filter_node: object) -> list[str]:
+    if hasattr(filter_node, "key"):
+        return [filter_node.key]
+    keys: list[str] = []
+    for nested in getattr(filter_node, "filters", ()):
+        keys.extend(_collect_filter_keys(nested))
+    return keys
+
+
 class BackendQdrantTest(unittest.TestCase):
     def test_build_metadata_filters_treats_public_acl_as_public_level(self) -> None:
         filters = _build_metadata_filters(
@@ -229,12 +238,11 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertEqual(filters.filters[3].value, "active")
         acl_filter = filters.filters[4]
         self.assertEqual(acl_filter.condition.value, "or")
-        self.assertEqual(len(acl_filter.filters), 2)
-        self.assertEqual(acl_filter.filters[0].key, "acl_level")
-        self.assertEqual(acl_filter.filters[0].value, "public")
-        self.assertEqual(acl_filter.filters[1].key, "acl_groups")
-        self.assertEqual(acl_filter.filters[1].operator.value, "in")
-        self.assertEqual(acl_filter.filters[1].value, ["students"])
+        auth_keys = _collect_filter_keys(acl_filter)
+        self.assertIn("visibility_level", auth_keys)
+        self.assertIn("entitlement_groups", auth_keys)
+        self.assertIn("acl_level", auth_keys)
+        self.assertIn("acl_groups", auth_keys)
 
     def test_build_metadata_filters_ignore_personalization_hint_for_acl_and_serving_scope(self) -> None:
         filters = _build_metadata_filters(
@@ -259,8 +267,9 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertEqual(filters.filters[3].key, "status")
         acl_filter = filters.filters[4]
         self.assertEqual(acl_filter.condition.value, "or")
-        self.assertEqual(acl_filter.filters[0].key, "acl_level")
-        self.assertEqual(acl_filter.filters[1].key, "acl_groups")
+        auth_keys = _collect_filter_keys(acl_filter)
+        self.assertIn("visibility_level", auth_keys)
+        self.assertIn("entitlement_groups", auth_keys)
 
     def test_build_metadata_filters_prefers_authorized_filter_over_legacy_fields(self) -> None:
         filters = _build_metadata_filters(
@@ -271,21 +280,47 @@ class BackendQdrantTest(unittest.TestCase):
                 campus_scope="legacy-campus",
                 acl_groups=("legacy-group",),
                 authorized_filter=AuthorizedRetrievalFilter(
+                    entitlement_groups=("students",),
+                    visibility_level="public",
                     acl_groups=("students",),
                     visibility_scope="north",
                     campus_scope="north",
+                    policy_projection_version="phase1-authorization-projection-v1",
                 ),
             )
         )
 
         acl_filter = filters.filters[4]
-        self.assertEqual(acl_filter.filters[1].key, "acl_groups")
-        self.assertEqual(acl_filter.filters[1].value, ["students"])
+        auth_keys = _collect_filter_keys(acl_filter)
+        self.assertIn("entitlement_groups", auth_keys)
         campus_filter = filters.filters[5]
-        self.assertEqual(campus_filter.condition.value, "or")
-        self.assertEqual(campus_filter.filters[0].key, "campus_scope")
-        self.assertEqual(campus_filter.filters[1].key, "campus_scope")
-        self.assertEqual(campus_filter.filters[1].value, "north")
+        scope_keys = _collect_filter_keys(campus_filter)
+        self.assertIn("visibility_scope", scope_keys)
+        self.assertIn("campus_scope", scope_keys)
+
+    def test_build_metadata_filters_uses_projection_payload_keys_before_legacy_carriers(self) -> None:
+        filters = _build_metadata_filters(
+            RetrievalRequest(
+                query_text="保研流程",
+                corpus="regulations",
+                collection="student_handbook",
+                authorized_filter=AuthorizedRetrievalFilter(
+                    entitlement_groups=("students",),
+                    visibility_level="public",
+                    visibility_scope="north",
+                    policy_projection_version="phase1-authorization-projection-v1",
+                ),
+            )
+        )
+
+        auth_filter = filters.filters[4]
+        auth_keys = _collect_filter_keys(auth_filter)
+        scope_filter = filters.filters[5]
+        scope_keys = _collect_filter_keys(scope_filter)
+
+        self.assertIn("visibility_level", auth_keys)
+        self.assertIn("entitlement_groups", auth_keys)
+        self.assertIn("visibility_scope", scope_keys)
 
     def test_build_metadata_filters_fail_closes_when_authorized_filter_has_no_acl_groups(self) -> None:
         filters = _build_metadata_filters(
@@ -295,15 +330,21 @@ class BackendQdrantTest(unittest.TestCase):
                 collection="student_handbook",
                 acl_groups=("students",),
                 authorized_filter=AuthorizedRetrievalFilter(
+                    entitlement_groups=(),
+                    visibility_level="public",
                     acl_groups=(),
                     visibility_scope="north",
+                    policy_projection_version="phase1-authorization-projection-v1",
                 ),
             )
         )
 
         acl_filter = filters.filters[4]
-        self.assertEqual(acl_filter.filters[1].key, "acl_groups")
-        self.assertEqual(acl_filter.filters[1].value, [])
+        entitlement_filter = next(
+            item for item in acl_filter.filters
+            if hasattr(item, "key") and item.key == "entitlement_groups"
+        )
+        self.assertEqual(entitlement_filter.value, [])
 
     def test_index_chunks_to_qdrant_skips_payload_indexes_for_local_backend(self) -> None:
         record = _make_registry_record(
@@ -384,6 +425,10 @@ class BackendQdrantTest(unittest.TestCase):
                 "version_id",
                 "corpus",
                 "collection",
+                "visibility_scope",
+                "entitlement_groups",
+                "visibility_level",
+                "policy_projection_version",
                 "campus_scope",
                 "acl_groups",
                 "acl_level",

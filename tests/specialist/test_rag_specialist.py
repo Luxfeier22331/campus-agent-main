@@ -446,9 +446,12 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(
             captured_kwargs["authorized_filter"],
             AuthorizedRetrievalFilter(
+                entitlement_groups=("students",),
+                visibility_level="public",
                 acl_groups=("students",),
                 visibility_scope="north",
                 campus_scope="north",
+                policy_projection_version="phase1-authorization-projection-v1",
             ),
         )
         self.assertEqual(
@@ -495,9 +498,12 @@ class RagSpecialistTest(unittest.TestCase):
                         entitlement_groups=("students",),
                         visibility_scope="north",
                         retrieval_filter=AuthorizedRetrievalFilter(
+                            entitlement_groups=("students",),
+                            visibility_level="public",
                             acl_groups=("students",),
                             visibility_scope="north",
                             campus_scope="north",
+                            policy_projection_version="phase1-authorization-projection-v1",
                         ),
                     ),
                 ),
@@ -512,9 +518,12 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(
             captured_kwargs["authorized_filter"],
             AuthorizedRetrievalFilter(
+                entitlement_groups=("students",),
+                visibility_level="public",
                 acl_groups=("students",),
                 visibility_scope="north",
                 campus_scope="north",
+                policy_projection_version="phase1-authorization-projection-v1",
             ),
         )
         self.assertEqual(captured_kwargs["acl_groups"], ("legacy-group",))

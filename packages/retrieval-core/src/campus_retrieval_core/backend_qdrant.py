@@ -419,8 +419,9 @@ def _build_metadata_filters(
     profile: CollectionRuntimeProfile | None = None,
 ) -> MetadataFilters:
     runtime_profile = profile or load_runtime_profile(request.corpus, request.collection)
-    effective_acl_groups = request.effective_acl_groups()
+    effective_entitlement_groups = request.effective_entitlement_groups()
     effective_visibility_scope = request.effective_visibility_scope()
+    effective_visibility_level = request.effective_visibility_level()
     filters: list[MetadataFilter | MetadataFilters] = [
         MetadataFilter(key="corpus", value=request.corpus),
         MetadataFilter(key="collection", value=request.collection),
@@ -435,28 +436,13 @@ def _build_metadata_filters(
         )
     filters.append(MetadataFilter(key="status", value=DEFAULT_SERVING_STATUS))
     filters.append(
-        MetadataFilters(
-            filters=[
-                MetadataFilter(key="acl_level", value="public"),
-                MetadataFilter(
-                    key="acl_groups",
-                    value=list(effective_acl_groups),
-                    operator=FilterOperator.IN,
-                ),
-            ],
-            condition=FilterCondition.OR,
+        _build_authorization_metadata_filter(
+            entitlement_groups=effective_entitlement_groups,
+            visibility_level=effective_visibility_level,
         )
     )
     if effective_visibility_scope is not None:
-        filters.append(
-            MetadataFilters(
-                filters=[
-                    MetadataFilter(key="campus_scope", value=None, operator=FilterOperator.IS_EMPTY),
-                    MetadataFilter(key="campus_scope", value=effective_visibility_scope),
-                ],
-                condition=FilterCondition.OR,
-            )
-        )
+        filters.append(_build_visibility_scope_metadata_filter(effective_visibility_scope))
     return MetadataFilters(filters=filters, condition=FilterCondition.AND)
 
 
@@ -466,8 +452,9 @@ def _build_qdrant_filter(
     profile: CollectionRuntimeProfile | None = None,
 ) -> qdrant_models.Filter:
     runtime_profile = profile or load_runtime_profile(request.corpus, request.collection)
-    effective_acl_groups = request.effective_acl_groups()
+    effective_entitlement_groups = request.effective_entitlement_groups()
     effective_visibility_scope = request.effective_visibility_scope()
+    effective_visibility_level = request.effective_visibility_level()
     must: list[qdrant_models.Condition] = [
         qdrant_models.FieldCondition(
             key="corpus",
@@ -481,17 +468,9 @@ def _build_qdrant_filter(
             key="status",
             match=qdrant_models.MatchValue(value=DEFAULT_SERVING_STATUS),
         ),
-        qdrant_models.Filter(
-            should=[
-                qdrant_models.FieldCondition(
-                    key="acl_level",
-                    match=qdrant_models.MatchValue(value="public"),
-                ),
-                qdrant_models.FieldCondition(
-                    key="acl_groups",
-                    match=qdrant_models.MatchAny(any=list(effective_acl_groups)),
-                ),
-            ]
+        _build_authorization_qdrant_filter(
+            entitlement_groups=effective_entitlement_groups,
+            visibility_level=effective_visibility_level,
         ),
     ]
     if runtime_profile.serving_revision_tracks:
@@ -509,18 +488,136 @@ def _build_qdrant_filter(
             )
         )
     if effective_visibility_scope is not None:
-        must.append(
+        must.append(_build_visibility_scope_qdrant_filter(effective_visibility_scope))
+    return qdrant_models.Filter(must=must)
+
+
+def _build_authorization_metadata_filter(
+    *,
+    entitlement_groups: tuple[str, ...],
+    visibility_level: str,
+) -> MetadataFilters:
+    return MetadataFilters(
+        filters=[
+            MetadataFilter(key="visibility_level", value=visibility_level),
+            MetadataFilter(
+                key="entitlement_groups",
+                value=list(entitlement_groups),
+                operator=FilterOperator.IN,
+            ),
+            MetadataFilters(
+                filters=[
+                    MetadataFilter(key="visibility_level", value=None, operator=FilterOperator.IS_EMPTY),
+                    MetadataFilter(key="acl_level", value=visibility_level),
+                ],
+                condition=FilterCondition.AND,
+            ),
+            MetadataFilters(
+                filters=[
+                    MetadataFilter(key="entitlement_groups", value=None, operator=FilterOperator.IS_EMPTY),
+                    MetadataFilter(
+                        key="acl_groups",
+                        value=list(entitlement_groups),
+                        operator=FilterOperator.IN,
+                    ),
+                ],
+                condition=FilterCondition.AND,
+            ),
+        ],
+        condition=FilterCondition.OR,
+    )
+
+
+def _build_visibility_scope_metadata_filter(visibility_scope: str) -> MetadataFilters:
+    return MetadataFilters(
+        filters=[
+            MetadataFilter(key="visibility_scope", value=visibility_scope),
+            MetadataFilters(
+                filters=[
+                    MetadataFilter(key="visibility_scope", value=None, operator=FilterOperator.IS_EMPTY),
+                    MetadataFilters(
+                        filters=[
+                            MetadataFilter(key="campus_scope", value=None, operator=FilterOperator.IS_EMPTY),
+                            MetadataFilter(key="campus_scope", value=visibility_scope),
+                        ],
+                        condition=FilterCondition.OR,
+                    ),
+                ],
+                condition=FilterCondition.AND,
+            ),
+        ],
+        condition=FilterCondition.OR,
+    )
+
+
+def _build_authorization_qdrant_filter(
+    *,
+    entitlement_groups: tuple[str, ...],
+    visibility_level: str,
+) -> qdrant_models.Filter:
+    return qdrant_models.Filter(
+        should=[
+            qdrant_models.FieldCondition(
+                key="visibility_level",
+                match=qdrant_models.MatchValue(value=visibility_level),
+            ),
+            qdrant_models.FieldCondition(
+                key="entitlement_groups",
+                match=qdrant_models.MatchAny(any=list(entitlement_groups)),
+            ),
             qdrant_models.Filter(
-                should=[
-                    qdrant_models.IsEmptyCondition(is_empty=qdrant_models.PayloadField(key="campus_scope")),
+                must=[
+                    qdrant_models.IsEmptyCondition(
+                        is_empty=qdrant_models.PayloadField(key="visibility_level")
+                    ),
                     qdrant_models.FieldCondition(
-                        key="campus_scope",
-                        match=qdrant_models.MatchValue(value=effective_visibility_scope),
+                        key="acl_level",
+                        match=qdrant_models.MatchValue(value=visibility_level),
                     ),
                 ]
-            )
-        )
-    return qdrant_models.Filter(must=must)
+            ),
+            qdrant_models.Filter(
+                must=[
+                    qdrant_models.IsEmptyCondition(
+                        is_empty=qdrant_models.PayloadField(key="entitlement_groups")
+                    ),
+                    qdrant_models.FieldCondition(
+                        key="acl_groups",
+                        match=qdrant_models.MatchAny(any=list(entitlement_groups)),
+                    ),
+                ]
+            ),
+        ]
+    )
+
+
+def _build_visibility_scope_qdrant_filter(visibility_scope: str) -> qdrant_models.Filter:
+    return qdrant_models.Filter(
+        should=[
+            qdrant_models.FieldCondition(
+                key="visibility_scope",
+                match=qdrant_models.MatchValue(value=visibility_scope),
+            ),
+            qdrant_models.Filter(
+                must=[
+                    qdrant_models.IsEmptyCondition(
+                        is_empty=qdrant_models.PayloadField(key="visibility_scope")
+                    ),
+                    qdrant_models.Filter(
+                        should=[
+                            qdrant_models.IsEmptyCondition(
+                                is_empty=qdrant_models.PayloadField(key="campus_scope")
+                            ),
+                            qdrant_models.FieldCondition(
+                                key="campus_scope",
+                                match=qdrant_models.MatchValue(value=visibility_scope),
+                            ),
+                        ]
+                    ),
+                ]
+            ),
+        ]
+    )
 
 
 def _build_source_scoped_qdrant_filter(

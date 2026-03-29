@@ -11,6 +11,7 @@ from llama_index.core.schema import NodeRelationship, RelatedNodeInfo, TextNode
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
 
+from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 from campus_ingestion_core.chunking import (
     ChunkProfile,
     ChunkTextAssembly,
@@ -90,6 +91,10 @@ class IndexableChunk:
     is_current: bool
     parser_version: str
     embedding_model: str
+    entitlement_groups: tuple[str, ...] = field(default_factory=tuple)
+    visibility_scope: str | None = None
+    visibility_level: str = ""
+    policy_projection_version: str = DEFAULT_POLICY_PROJECTION_VERSION
     canonical_url: str = ""
     latest_url: str = ""
     status: str = "active"
@@ -97,6 +102,29 @@ class IndexableChunk:
     sparse_indices: tuple[int, ...] = ()
     sparse_values: tuple[float, ...] = ()
     metadata: dict[str, object] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        entitlement_groups = self.entitlement_groups or self.acl_groups
+        acl_groups = self.acl_groups or self.entitlement_groups
+        visibility_scope = self.visibility_scope or self.campus_scope
+        campus_scope = self.campus_scope or self.visibility_scope
+        visibility_level = self.visibility_level.strip() or self.acl_level.strip() or "public"
+        policy_projection_version = (
+            self.policy_projection_version.strip() or DEFAULT_POLICY_PROJECTION_VERSION
+        )
+
+        if entitlement_groups != self.entitlement_groups:
+            object.__setattr__(self, "entitlement_groups", entitlement_groups)
+        if acl_groups != self.acl_groups:
+            object.__setattr__(self, "acl_groups", acl_groups)
+        if visibility_scope != self.visibility_scope:
+            object.__setattr__(self, "visibility_scope", visibility_scope)
+        if campus_scope != self.campus_scope:
+            object.__setattr__(self, "campus_scope", campus_scope)
+        if visibility_level != self.visibility_level:
+            object.__setattr__(self, "visibility_level", visibility_level)
+        if policy_projection_version != self.policy_projection_version:
+            object.__setattr__(self, "policy_projection_version", policy_projection_version)
 
     def to_node(self) -> TextNode:
         node = TextNode(
@@ -110,6 +138,10 @@ class IndexableChunk:
                 "chunk_order": self.chunk_order,
                 "corpus": self.corpus,
                 "collection": self.collection,
+                "entitlement_groups": list(self.entitlement_groups),
+                "visibility_scope": self.visibility_scope,
+                "visibility_level": self.visibility_level,
+                "policy_projection_version": self.policy_projection_version,
                 "acl_groups": list(self.acl_groups),
                 "campus_scope": self.campus_scope,
                 "source_uri": self.source_uri,
@@ -454,6 +486,10 @@ def build_indexable_chunks_from_jsonl(
         chunk_id = (
             f"{record.document_id}:{record.revision_track}:{record.version_id}:chunk-{chunk_order:04d}"
         )
+        effective_visibility_level = _resolve_effective_acl_level(
+            unit_acl_level=candidate.acl_level,
+            document_acl_groups=record.entitlement_groups or record.acl_groups,
+        )
         chunks.append(
             IndexableChunk(
                 document_id=record.document_id,
@@ -469,10 +505,7 @@ def build_indexable_chunks_from_jsonl(
                 canonical_url=record.source_uri,
                 latest_url=record.source_uri,
                 source_chunk_id=candidate.source_chunk_id,
-                acl_level=_resolve_effective_acl_level(
-                    unit_acl_level=candidate.acl_level,
-                    document_acl_groups=record.acl_groups,
-                ),
+                acl_level=effective_visibility_level,
                 status=record.status,
                 anchor=candidate.anchor,
                 text=candidate.chunk_assembly.text,
@@ -480,6 +513,10 @@ def build_indexable_chunks_from_jsonl(
                 is_current=record.is_current,
                 parser_version=record.parser_version,
                 embedding_model=record.embedding_model,
+                entitlement_groups=record.entitlement_groups,
+                visibility_scope=record.visibility_scope,
+                visibility_level=effective_visibility_level,
+                policy_projection_version=record.policy_projection_version,
                 embedding=embedding,
                 metadata={
                     "unit_type": candidate.piece.unit_type,
@@ -1743,6 +1780,10 @@ def _ensure_payload_indexes(*, qdrant_client: QdrantClient, collection_name: str
         ("version_id", qdrant_models.PayloadSchemaType.KEYWORD),
         ("corpus", qdrant_models.PayloadSchemaType.KEYWORD),
         ("collection", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("visibility_scope", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("entitlement_groups", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("visibility_level", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("policy_projection_version", qdrant_models.PayloadSchemaType.KEYWORD),
         ("campus_scope", qdrant_models.PayloadSchemaType.KEYWORD),
         ("acl_groups", qdrant_models.PayloadSchemaType.KEYWORD),
         ("acl_level", qdrant_models.PayloadSchemaType.KEYWORD),

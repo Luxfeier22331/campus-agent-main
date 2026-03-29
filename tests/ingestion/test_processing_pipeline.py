@@ -257,6 +257,10 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertEqual(chunk.version_id, "v1:test-001")
         self.assertEqual(chunk.chunk_id, "handbook:test-001:source-faithful:v1:test-001:chunk-0001")
         self.assertEqual(chunk.corpus, "regulations")
+        self.assertEqual(chunk.entitlement_groups, ("students", "staff"))
+        self.assertIsNone(chunk.visibility_scope)
+        self.assertEqual(chunk.visibility_level, "restricted")
+        self.assertEqual(chunk.policy_projection_version, "phase1-authorization-projection-v1")
         self.assertEqual(chunk.acl_groups, ("students", "staff"))
         self.assertIsNone(chunk.campus_scope)
         self.assertEqual(chunk.source_chunk_id, "legacy-chunk-001")
@@ -276,6 +280,15 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertEqual(chunk.metadata["display_text"], "Student handbook library hours are from 08:00 to 22:00.")
         self.assertFalse(chunk.metadata["contextualized_text"])
         self.assertIn("library hours", chunk.text.lower())
+        node = chunk.to_node()
+        self.assertEqual(node.metadata["entitlement_groups"], ["students", "staff"])
+        self.assertEqual(node.metadata["visibility_scope"], None)
+        self.assertEqual(node.metadata["visibility_level"], "restricted")
+        self.assertEqual(
+            node.metadata["policy_projection_version"],
+            "phase1-authorization-projection-v1",
+        )
+        self.assertEqual(node.metadata["acl_groups"], ["students", "staff"])
 
     def test_build_indexable_chunks_from_jsonl_defaults_to_runtime_curriculum_profile(self) -> None:
         record = _make_curriculum_registry_record()

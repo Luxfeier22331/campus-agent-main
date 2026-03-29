@@ -44,9 +44,12 @@ class AppApiProjectionTest(unittest.TestCase):
                 ownership_scopes=("conversation:student-001",),
                 approval_state="not_required",
                 retrieval_filter=AuthorizedRetrievalFilterInput(
+                    entitlement_groups=("students",),
+                    visibility_level="public",
                     acl_groups=("students",),
                     visibility_scope="north",
                     campus_scope="north",
+                    policy_projection_version="phase1-authorization-projection-v1",
                 ),
             ),
             profile_records=(
@@ -89,9 +92,12 @@ class AppApiProjectionTest(unittest.TestCase):
                     ownership_scopes=("conversation:student-001",),
                     approval_state="not_required",
                     retrieval_filter=AuthorizedRetrievalFilter(
+                        entitlement_groups=("students",),
+                        visibility_level="public",
                         acl_groups=("students",),
                         visibility_scope="north",
                         campus_scope="north",
+                        policy_projection_version="phase1-authorization-projection-v1",
                     ),
                 ),
                 profile_memory=ProfileMemorySummary(
@@ -135,9 +141,12 @@ class AppApiProjectionTest(unittest.TestCase):
                 ownership_scopes=(),
                 approval_state="",
                 retrieval_filter=AuthorizedRetrievalFilter(
+                    entitlement_groups=("students",),
+                    visibility_level="public",
                     acl_groups=("students",),
                     visibility_scope="north",
                     campus_scope="north",
+                    policy_projection_version="phase1-authorization-projection-v1",
                 ),
             ),
         )
@@ -178,9 +187,12 @@ class AppApiProjectionTest(unittest.TestCase):
                 ownership_scopes=("conversation:student-001",),
                 approval_state="not_required",
                 retrieval_filter=AuthorizedRetrievalFilterInput(
+                    entitlement_groups=("students",),
+                    visibility_level="public",
                     acl_groups=("students",),
                     visibility_scope="north",
                     campus_scope="north",
+                    policy_projection_version="phase1-authorization-projection-v1",
                 ),
             ),
             profile_records=(
@@ -199,6 +211,11 @@ class AppApiProjectionTest(unittest.TestCase):
         )
 
         self.assertEqual(projection.authorization.entitlement_groups, ("students",))
+        self.assertEqual(
+            projection.authorization.retrieval_filter.entitlement_groups,
+            ("students",),
+        )
+        self.assertEqual(projection.authorization.retrieval_filter.visibility_level, "public")
         self.assertEqual(projection.authorization.retrieval_filter.campus_scope, "north")
         self.assertEqual(projection.authorization.retrieval_filter.visibility_scope, "north")
         self.assertEqual(projection.profile_memory.items[0].value, "admins")

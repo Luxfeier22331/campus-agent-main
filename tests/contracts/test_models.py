@@ -80,9 +80,12 @@ class ContractModelsTest(unittest.TestCase):
                     ownership_scopes=(),
                     approval_state="",
                     retrieval_filter=AuthorizedRetrievalFilter(
+                        entitlement_groups=(),
+                        visibility_level="public",
                         acl_groups=(),
                         visibility_scope=None,
                         campus_scope=None,
+                        policy_projection_version="phase1-authorization-projection-v1",
                     ),
                 ),
                 profile_memory=ProfileMemorySummary(items=()),
@@ -112,9 +115,12 @@ class ContractModelsTest(unittest.TestCase):
                     ownership_scopes=("conversation:student-001",),
                     approval_state="not_required",
                     retrieval_filter=AuthorizedRetrievalFilter(
+                        entitlement_groups=("students",),
+                        visibility_level="public",
                         acl_groups=("students",),
                         visibility_scope="north",
                         campus_scope="north",
+                        policy_projection_version="phase1-authorization-projection-v1",
                     ),
                 ),
                 profile_memory=ProfileMemorySummary(
@@ -142,6 +148,11 @@ class ContractModelsTest(unittest.TestCase):
         self.assertEqual(request.actor.user_id, "student-001")
         self.assertEqual(request.context.actor.major, "philosophy")
         self.assertEqual(request.context.authorization.entitlement_snapshot_id, "entitlements-2026-03-29")
+        self.assertEqual(
+            request.context.authorization.retrieval_filter.entitlement_groups,
+            ("students",),
+        )
+        self.assertEqual(request.context.authorization.retrieval_filter.visibility_level, "public")
         self.assertEqual(request.context.authorization.retrieval_filter.acl_groups, ("students",))
         self.assertEqual(request.context.profile_memory.items[0].value, "咨询保研")
         self.assertEqual(request.context.session.confirmed_slots[0].value, "推免资格")
@@ -168,11 +179,44 @@ class ContractModelsTest(unittest.TestCase):
                 ownership_scopes=(),
                 approval_state="",
                 retrieval_filter=AuthorizedRetrievalFilter(
+                    entitlement_groups=("students",),
+                    visibility_level="public",
                     acl_groups=("students",),
                     visibility_scope="north",
                     campus_scope="north",
+                    policy_projection_version="phase1-authorization-projection-v1",
                 ),
             ),
+        )
+
+    def test_authorized_retrieval_filter_backfills_projection_and_legacy_fields(self) -> None:
+        projection_first = AuthorizedRetrievalFilter(
+            entitlement_groups=("students",),
+            visibility_scope="north",
+        )
+        legacy_first = AuthorizedRetrievalFilter(
+            acl_groups=("staff",),
+            campus_scope="south",
+        )
+
+        self.assertEqual(projection_first.entitlement_groups, ("students",))
+        self.assertEqual(projection_first.acl_groups, ("students",))
+        self.assertEqual(projection_first.visibility_scope, "north")
+        self.assertEqual(projection_first.campus_scope, "north")
+        self.assertEqual(projection_first.visibility_level, "public")
+        self.assertEqual(
+            projection_first.policy_projection_version,
+            "phase1-authorization-projection-v1",
+        )
+
+        self.assertEqual(legacy_first.entitlement_groups, ("staff",))
+        self.assertEqual(legacy_first.acl_groups, ("staff",))
+        self.assertEqual(legacy_first.visibility_scope, "south")
+        self.assertEqual(legacy_first.campus_scope, "south")
+        self.assertEqual(legacy_first.visibility_level, "public")
+        self.assertEqual(
+            legacy_first.policy_projection_version,
+            "phase1-authorization-projection-v1",
         )
 
     def test_specialist_request_requires_explicit_payload(self) -> None:

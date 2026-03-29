@@ -26,14 +26,20 @@ class RetrievalRequest:
         if self.authorized_filter is not None:
             return self.authorized_filter
         return AuthorizedRetrievalFilter(
-            acl_groups=self.acl_groups,
+            entitlement_groups=self.acl_groups,
             visibility_scope=self.campus_scope,
             campus_scope=self.campus_scope,
         )
 
+    def effective_entitlement_groups(self) -> tuple[str, ...]:
+        return self.effective_authorized_filter().entitlement_groups
+
     def effective_acl_groups(self) -> tuple[str, ...]:
-        return self.effective_authorized_filter().acl_groups
+        return self.effective_entitlement_groups()
 
     def effective_visibility_scope(self) -> str | None:
         authorized_filter = self.effective_authorized_filter()
         return authorized_filter.visibility_scope or authorized_filter.campus_scope
+
+    def effective_visibility_level(self) -> str:
+        return self.effective_authorized_filter().visibility_level or "public"

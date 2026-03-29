@@ -621,9 +621,12 @@ class SupervisorApiTest(unittest.TestCase):
                         "ownership_scopes": ["conversation:student@example.edu"],
                         "approval_state": "not_required",
                         "retrieval_filter": {
+                            "entitlement_groups": ["students", "library"],
+                            "visibility_level": "public",
                             "acl_groups": ["students", "library"],
                             "visibility_scope": "north",
                             "campus_scope": "north",
+                            "policy_projection_version": "phase1-authorization-projection-v1",
                         },
                     },
                     "profile_memory": {
@@ -673,9 +676,12 @@ class SupervisorApiTest(unittest.TestCase):
                     ownership_scopes=("conversation:student@example.edu",),
                     approval_state="not_required",
                     retrieval_filter=AuthorizedRetrievalFilter(
+                        entitlement_groups=("students", "library"),
+                        visibility_level="public",
                         acl_groups=("students", "library"),
                         visibility_scope="north",
                         campus_scope="north",
+                        policy_projection_version="phase1-authorization-projection-v1",
                     ),
                 ),
                 profile_memory=ProfileMemorySummary(

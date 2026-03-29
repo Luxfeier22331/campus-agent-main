@@ -142,6 +142,13 @@ class RegistryModelsTest(unittest.TestCase):
         self.assertEqual(payload["corpus"], "regulations")
         self.assertEqual(payload["collection"], "student_handbook")
         self.assertEqual(payload["cleaning_policy_version"], "student_handbook_cleaning_v1")
+        self.assertEqual(payload["entitlement_groups"], ("students",))
+        self.assertEqual(payload["visibility_scope"], None)
+        self.assertEqual(payload["visibility_level"], "restricted")
+        self.assertEqual(
+            payload["policy_projection_version"],
+            "phase1-authorization-projection-v1",
+        )
         self.assertEqual(payload["status"], "active")
         self.assertEqual(payload["import_source"], "raw_online_ocr")
         self.assertEqual(payload["source_channel"], "pdf_ocr")
@@ -152,6 +159,17 @@ class RegistryModelsTest(unittest.TestCase):
         self.assertEqual(
             payload["canonical_markdown_object_key"],
             HANDBOOK_CANONICAL_KEY,
+        )
+
+    def test_document_registry_record_backfills_projection_fields_from_legacy_acl(self) -> None:
+        record = _curriculum_document_record()
+
+        self.assertEqual(record.entitlement_groups, ())
+        self.assertEqual(record.visibility_scope, "main")
+        self.assertEqual(record.visibility_level, "public")
+        self.assertEqual(
+            record.policy_projection_version,
+            "phase1-authorization-projection-v1",
         )
 
     def test_file_document_registry_upsert_and_get_are_stable(self) -> None:

@@ -267,7 +267,7 @@ def _parse_authorization_projection(
     visibility_scope = _parse_nullable_text(raw_authorization.get("visibility_scope"))
     retrieval_filter = _parse_authorized_retrieval_filter(
         raw_authorization.get("retrieval_filter"),
-        fallback_acl_groups=entitlement_groups,
+        fallback_entitlement_groups=entitlement_groups,
         fallback_visibility_scope=visibility_scope,
         fallback_campus_scope=actor.campus_scope,
     )
@@ -289,29 +289,52 @@ def _parse_authorization_projection(
 def _parse_authorized_retrieval_filter(
     raw_filter: object,
     *,
-    fallback_acl_groups: tuple[str, ...],
+    fallback_entitlement_groups: tuple[str, ...],
     fallback_visibility_scope: str | None,
     fallback_campus_scope: str | None,
 ) -> AuthorizedRetrievalFilter:
     if raw_filter is None:
         return AuthorizedRetrievalFilter(
-            acl_groups=fallback_acl_groups,
+            entitlement_groups=fallback_entitlement_groups,
             visibility_scope=fallback_visibility_scope,
             campus_scope=fallback_campus_scope,
         )
     if not isinstance(raw_filter, dict):
         raise ValueError("context.authorization.retrieval_filter must be an object")
+    entitlement_groups = raw_filter.get("entitlement_groups")
     acl_groups = raw_filter.get("acl_groups")
+    visibility_level = raw_filter.get("visibility_level")
     visibility_scope = raw_filter.get("visibility_scope")
     campus_scope = raw_filter.get("campus_scope")
+    policy_projection_version = raw_filter.get("policy_projection_version")
     return AuthorizedRetrievalFilter(
+        entitlement_groups=(
+            _parse_string_tuple(
+                entitlement_groups,
+                field_name="context.authorization.retrieval_filter.entitlement_groups",
+            )
+            if entitlement_groups is not None
+            else (
+                _parse_string_tuple(
+                    acl_groups,
+                    field_name="context.authorization.retrieval_filter.acl_groups",
+                )
+                if acl_groups is not None
+                else fallback_entitlement_groups
+            )
+        ),
+        visibility_level=(
+            _parse_text(visibility_level) or "public"
+            if visibility_level is not None
+            else "public"
+        ),
         acl_groups=(
             _parse_string_tuple(
                 acl_groups,
                 field_name="context.authorization.retrieval_filter.acl_groups",
             )
             if acl_groups is not None
-            else fallback_acl_groups
+            else fallback_entitlement_groups
         ),
         visibility_scope=(
             _parse_nullable_text(visibility_scope)
@@ -323,6 +346,7 @@ def _parse_authorized_retrieval_filter(
             if campus_scope is not None
             else fallback_campus_scope
         ),
+        policy_projection_version=_parse_text(policy_projection_version),
     )
 
 
@@ -333,9 +357,8 @@ def _default_authorization_projection(actor: ActorContext) -> AuthorizationProje
         entitlement_groups=actor.groups,
         visibility_scope=actor.campus_scope,
         retrieval_filter=AuthorizedRetrievalFilter(
-            acl_groups=actor.groups,
+            entitlement_groups=actor.groups,
             visibility_scope=actor.campus_scope,
-            campus_scope=actor.campus_scope,
         ),
     )
 

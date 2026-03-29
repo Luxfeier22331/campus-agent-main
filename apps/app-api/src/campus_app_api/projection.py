@@ -7,6 +7,7 @@ from campus_contracts import (
     AuthorizedRetrievalFilter,
     AuthorizationProjection,
     ContextProjection,
+    DEFAULT_POLICY_PROJECTION_VERSION,
     MemorySourceType,
     MemoryVisibility,
     ProfileMemoryItem,
@@ -49,9 +50,33 @@ class SessionSlotRecord:
 
 @dataclass(frozen=True, slots=True)
 class AuthorizedRetrievalFilterInput:
+    entitlement_groups: tuple[str, ...] = field(default_factory=tuple)
+    visibility_level: str = "public"
     acl_groups: tuple[str, ...] = field(default_factory=tuple)
     visibility_scope: str | None = None
     campus_scope: str | None = None
+    policy_projection_version: str = DEFAULT_POLICY_PROJECTION_VERSION
+
+    def __post_init__(self) -> None:
+        entitlement_groups = self.entitlement_groups or self.acl_groups
+        acl_groups = self.acl_groups or self.entitlement_groups
+        visibility_scope = self.visibility_scope or self.campus_scope
+        campus_scope = self.campus_scope or self.visibility_scope
+        visibility_level = self.visibility_level.strip() or "public"
+        policy_projection_version = self.policy_projection_version.strip() or DEFAULT_POLICY_PROJECTION_VERSION
+
+        if entitlement_groups != self.entitlement_groups:
+            object.__setattr__(self, "entitlement_groups", entitlement_groups)
+        if acl_groups != self.acl_groups:
+            object.__setattr__(self, "acl_groups", acl_groups)
+        if visibility_scope != self.visibility_scope:
+            object.__setattr__(self, "visibility_scope", visibility_scope)
+        if campus_scope != self.campus_scope:
+            object.__setattr__(self, "campus_scope", campus_scope)
+        if visibility_level != self.visibility_level:
+            object.__setattr__(self, "visibility_level", visibility_level)
+        if policy_projection_version != self.policy_projection_version:
+            object.__setattr__(self, "policy_projection_version", policy_projection_version)
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,14 +149,13 @@ def _build_authorization_projection(
             entitlement_groups=identity.groups,
             visibility_scope=identity.campus_scope,
             retrieval_filter=AuthorizedRetrievalFilter(
-                acl_groups=identity.groups,
+                entitlement_groups=identity.groups,
                 visibility_scope=identity.campus_scope,
-                campus_scope=identity.campus_scope,
             ),
         )
 
     retrieval_filter = authorization.retrieval_filter or AuthorizedRetrievalFilterInput(
-        acl_groups=authorization.entitlement_groups,
+        entitlement_groups=authorization.entitlement_groups,
         visibility_scope=authorization.visibility_scope,
         campus_scope=identity.campus_scope,
     )
@@ -145,8 +169,11 @@ def _build_authorization_projection(
         ownership_scopes=authorization.ownership_scopes,
         approval_state=authorization.approval_state,
         retrieval_filter=AuthorizedRetrievalFilter(
+            entitlement_groups=retrieval_filter.entitlement_groups,
+            visibility_level=retrieval_filter.visibility_level,
             acl_groups=retrieval_filter.acl_groups,
             visibility_scope=retrieval_filter.visibility_scope,
             campus_scope=retrieval_filter.campus_scope,
+            policy_projection_version=retrieval_filter.policy_projection_version,
         ),
     )
