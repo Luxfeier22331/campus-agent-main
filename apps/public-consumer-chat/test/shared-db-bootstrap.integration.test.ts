@@ -43,8 +43,7 @@ describe.skipIf(!RUN_INTEGRATION)("public-consumer-chat shared DB bootstrap", ()
       process.env.PUBLIC_CONSUMER_CHAT_APP_BASE_URL?.trim() || "http://127.0.0.1:3000";
     process.env.PUBLIC_CONSUMER_CHAT_DATABASE_SSLMODE =
       process.env.PUBLIC_CONSUMER_CHAT_DATABASE_SSLMODE?.trim() || "require";
-    process.env.PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA =
-      process.env.PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA?.trim() || "app_auth";
+    process.env.PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA = "app_auth";
     process.env.PUBLIC_CONSUMER_CHAT_CHAT_SCHEMA =
       process.env.PUBLIC_CONSUMER_CHAT_CHAT_SCHEMA?.trim() || "chat";
     process.env.PUBLIC_CONSUMER_CHAT_INGESTION_REGISTRY_SCHEMA =

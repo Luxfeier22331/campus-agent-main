@@ -29,6 +29,18 @@ describe("public chat env contract", () => {
     ).toThrow("Supabase Postgres");
   });
 
+  it("rejects the legacy Supabase auth schema for Better Auth tables", () => {
+    expect(() =>
+      readPublicChatServerEnv({
+        PUBLIC_CHAT_MODE: "mock",
+        PUBLIC_CONSUMER_CHAT_APP_BASE_URL: "http://127.0.0.1:3000",
+        PUBLIC_CONSUMER_CHAT_DATABASE_URL: "postgres://postgres:secret@example.com:5432/postgres",
+        PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA: "auth",
+        BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+      } as NodeJS.ProcessEnv),
+    ).toThrow("PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA=auth is not allowed");
+  });
+
   it("rejects weak Better Auth secrets outside localhost-style development", () => {
     expect(() =>
       readPublicChatServerEnv({

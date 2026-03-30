@@ -30,6 +30,16 @@ function assertIdentifier(label, value) {
   return value;
 }
 
+function assertRepoOwnedAuthSchema(value) {
+  const schemaName = assertIdentifier("auth schema", value);
+  if (schemaName === "auth") {
+    throw new Error(
+      "PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA=auth is not allowed. Use app_auth; Supabase auth.* remains platform-managed.",
+    );
+  }
+  return schemaName;
+}
+
 function resolveSsl(databaseSslMode) {
   return databaseSslMode === "disable"
     ? false
@@ -53,8 +63,7 @@ export function readBootstrapEnv(env = process.env) {
   return {
     appBaseUrl:
       env.PUBLIC_CONSUMER_CHAT_APP_BASE_URL?.trim() || "http://127.0.0.1:3000",
-    authSchema: assertIdentifier(
-      "auth schema",
+    authSchema: assertRepoOwnedAuthSchema(
       env.PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA?.trim() || PUBLIC_CHAT_AUTH_SCHEMA,
     ),
     chatSchema: assertIdentifier(

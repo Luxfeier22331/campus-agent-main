@@ -60,6 +60,11 @@ const readSchema = (env: NodeJS.ProcessEnv, key: string, fallback: string): stri
   if (!IDENTIFIER.test(value)) {
     throw new Error(`${key} must be a lowercase PostgreSQL schema identifier.`);
   }
+  if (key === "PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA" && value === "auth") {
+    throw new Error(
+      "PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA=auth is not allowed. Use app_auth; Supabase auth.* remains platform-managed.",
+    );
+  }
   return value;
 };
 
