@@ -10,9 +10,15 @@ from langchain_core.prompt_values import StringPromptValue
 
 from campus_contracts import RagResultPayload, SpecialistResponse, SupervisorResponse
 from campus_evals.models import ExecutionResult, GoldenCase, SupplementalResult
-from campus_evals.ragas_adapter import build_default_ragas_metric_names, build_ragas_scorer
+from campus_evals.ragas_adapter import (
+    RagasSupplementalAdapter,
+    build_default_ragas_metric_names,
+    build_ragas_scorer,
+)
+from campus_evals.runtime_observability import bind_runtime_event_context
 from campus_evals.supplemental_http import (
     OpenAICompatibleResponsesLLM,
+    format_runtime_exception_message,
     get_provider_circuit_breaker,
     get_request_pacer,
 )
@@ -26,101 +32,7 @@ DEFAULT_STUDENT_HANDBOOK_JUDGE_RUBRICS_PATH = (
 _JSON_BLOCK_RE = re.compile(r"```(?:json)?\s*(\{.*\})\s*```", re.DOTALL)
 
 
-class HandbookRagasAdapter:
-    adapter_id = "ragas"
-
-    def __init__(
-        self,
-        *,
-        scorer: Callable[[object], tuple[SupplementalResult, ...]],
-        metric_names: tuple[str, ...],
-        preflight: Callable[[], object] | None = None,
-    ) -> None:
-        self._scorer = scorer
-        self._metric_names = metric_names
-        self._preflight = preflight
-
-    @property
-    def metric_names(self) -> tuple[str, ...]:
-        return self._metric_names
-
-    def evaluate(self, case: GoldenCase, execution: ExecutionResult) -> tuple[SupplementalResult, ...]:
-        response = _require_specialist_response(execution)
-        if case.expected_status != "completed":
-            return tuple(
-                _build_not_applicable_result(
-                    adapter_id=self.adapter_id,
-                    metric_name=metric_name,
-                    case=case,
-                    response=response,
-                    rationale="completed-only metric",
-                )
-                for metric_name in self._metric_names
-            )
-        if response.status != "completed":
-            return tuple(
-                _build_failed_result(
-                    adapter_id=self.adapter_id,
-                    metric_name=metric_name,
-                    case=case,
-                    response=response,
-                    rationale=f"expected completed response but got {response.status}",
-                    score=0.0,
-                )
-                for metric_name in self._metric_names
-            )
-        try:
-            results = tuple(self._scorer(_build_ragas_projection(case, execution)))
-        except Exception as exc:
-            return tuple(
-                _build_failed_result(
-                    adapter_id=self.adapter_id,
-                    metric_name=metric_name,
-                    case=case,
-                    response=response,
-                    rationale=f"ragas runtime error: {exc}",
-                    score=None,
-                    metadata=_runtime_failure_metadata(exc),
-                )
-                for metric_name in self._metric_names
-            )
-        by_metric_name = {result.metric_name: result for result in results}
-        final_results: list[SupplementalResult] = []
-        for metric_name in self._metric_names:
-            result = by_metric_name.get(metric_name)
-            if result is None:
-                final_results.append(
-                    _build_not_applicable_result(
-                        adapter_id=self.adapter_id,
-                        metric_name=metric_name,
-                        case=case,
-                        response=response,
-                        rationale=f"ragas scorer did not return metric {metric_name}",
-                    )
-                )
-                continue
-            final_results.append(
-                SupplementalResult(
-                    adapter_id=result.adapter_id,
-                    metric_name=result.metric_name,
-                    score=result.score,
-                    verdict=result.verdict,
-                    rationale=result.rationale,
-                    gating=result.gating,
-                    metadata={
-                        "case_id": case.case_id,
-                        "expected_status": case.expected_status,
-                        "response_status": response.status,
-                        **dict(result.metadata),
-                    },
-                )
-            )
-        return tuple(final_results)
-
-    def preflight(self) -> object:
-        if self._preflight is None:
-            return {"status": "skipped"}
-        return self._preflight()
+HandbookRagasAdapter = RagasSupplementalAdapter
 
 
 class RubricJudgeAdapter:
@@ -174,7 +86,8 @@ class RubricJudgeAdapter:
             response=response,
         )
         try:
-            judged = self._judge_fn(prompt)
+            with bind_runtime_event_context(adapter_id=self.adapter_id, metric_name=self.metric_name):
+                judged = self._judge_fn(prompt)
         except Exception as exc:
             return (
                 _build_failed_result(
@@ -182,7 +95,7 @@ class RubricJudgeAdapter:
                     metric_name=self.metric_name,
                     case=case,
                     response=response,
-                    rationale=f"judge runtime error: {exc}",
+                    rationale=f"judge runtime error: {format_runtime_exception_message(exc)}",
                     score=None,
                     metadata=_runtime_failure_metadata(exc),
                 ),
@@ -308,9 +221,10 @@ def build_default_handbook_supplemental_adapters_from_env(
     env: dict[str, str] | None = None,
     *,
     metric_names: tuple[str, ...] | None = None,
+    http_settings=None,
 ) -> tuple[object, ...]:
-    ragas_settings = RagasSettings.from_env(env)
-    judge_settings = JudgeLLMSettings.from_env(env)
+    ragas_settings = RagasSettings.from_env(env, http_settings=http_settings)
+    judge_settings = JudgeLLMSettings.from_env(env, http_settings=http_settings)
     _, judge_fn, judge_preflight = _build_responses_judge_runtime(judge_settings)
     return (
         build_handbook_ragas_adapter(ragas_settings, metric_names=metric_names),
@@ -500,12 +414,6 @@ def _runtime_failure_metadata(exc: Exception) -> dict[str, object]:
     if isinstance(disposition, str) and disposition.strip():
         metadata["failure_disposition"] = disposition
     return metadata
-
-
-def _build_ragas_projection(case: GoldenCase, execution: ExecutionResult):
-    from campus_evals.ragas_adapter import build_ragas_projection
-
-    return build_ragas_projection(case, execution)
 
 
 def _require_specialist_response(

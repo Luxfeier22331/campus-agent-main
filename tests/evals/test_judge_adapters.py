@@ -11,7 +11,7 @@ from campus_evals.judge_adapters import (
     build_handbook_ragas_adapter,
     build_refusal_rubric_adapter,
 )
-from campus_evals.settings import JudgeLLMSettings, RagasSettings
+from campus_evals.settings import JudgeLLMSettings, RagasSettings, SupplementalHTTPSettings
 
 
 HANDBOOK_SCOPE = KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -138,6 +138,34 @@ class JudgeSettingsTest(unittest.TestCase):
         self.assertEqual(settings.reasoning_effort, "none")
         self.assertEqual(settings.text_verbosity, "low")
         self.assertEqual(settings.max_output_tokens, 256)
+
+    def test_judge_settings_from_env_prefers_eval_scoped_keys(self) -> None:
+        settings = JudgeLLMSettings.from_env(
+            {
+                "EVAL_LLM_BASE_URL": "https://eval-llm.example/v1",
+                "EVAL_LLM_API_KEY": "eval-llm-key",
+                "EVAL_JUDGE_MODEL": "gpt-5.4-judge",
+                "LLM_BASE_URL": "https://shared-llm.example/v1",
+                "LLM_API_KEY": "shared-llm-key",
+                "RAGAS_LLM_MODEL": "gpt-4.1-shared",
+            }
+        )
+
+        self.assertEqual(settings.llm_base_url, "https://eval-llm.example/v1")
+        self.assertEqual(settings.llm_api_key, "eval-llm-key")
+        self.assertEqual(settings.llm_model, "gpt-5.4-judge")
+
+    def test_judge_settings_from_env_accept_repo_tracked_http_settings_override(self) -> None:
+        settings = JudgeLLMSettings.from_env(
+            {
+                "EVAL_LLM_BASE_URL": "https://eval-llm.example/v1",
+                "EVAL_LLM_API_KEY": "eval-llm-key",
+                "EVAL_JUDGE_MODEL": "gpt-5.4-judge",
+            },
+            http_settings=SupplementalHTTPSettings(read_timeout_seconds=45.0),
+        )
+
+        self.assertEqual(settings.http_settings.read_timeout_seconds, 45.0)
 
     def test_judge_settings_from_env_reads_request_pacing_override(self) -> None:
         settings = JudgeLLMSettings.from_env(

@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-03-30
 ---
 
 # Curriculum Plan Hybrid Rebuild Checklist
@@ -52,6 +52,37 @@ updated: 2026-03-28
 5. 用 qrels scorer 汇总 retrieval benchmark。
 6. 用 release-gate / error-gate case 重跑 workflow/status deterministic gate。
 7. 把证据统一落到同一轮 artifact 目录。
+
+## Formal Benchmark 验收入口
+
+推荐直接走 shared live benchmark acceptance flow：
+
+- `set -a && source .env && set +a`
+- `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m campus_evals.curriculum_live_benchmark accept --reruns 3 --verbose --log-jsonl .tmp/evals/curriculum-runtime-events.jsonl`
+
+accept flow 语义：
+
+- 先跑 fresh curriculum live gate
+- 若 ragas / supplemental judge 出现 transient infra failure，则自动 repair rerun
+- acceptance 根目录保留 final verdict，不改写原始 run artifact
+
+## Runtime Observability Artifact
+
+每轮 curriculum acceptance 建议至少保留：
+
+- `run/supplemental-runtime-events.jsonl`
+- `run/supplemental-provider-summary.json`
+- 若发生 repair：
+  - `repair/supplemental-runtime-events.jsonl`
+  - `repair/supplemental-provider-summary.json`
+- acceptance 根目录：
+  - `accept-config.json`
+  - `final-summary.json`
+
+如果使用 `--log-jsonl`：
+
+- `accept` 会把 base path 自动拆成 `<base>.run.jsonl` 与 `<base>.repair.jsonl`
+- `--verbose` 会打印 preflight、retrying、recovered、breaker 等高信号事件，便于 live 验收时确认 provider 失败与恢复过程
 
 ## Query 抽样验收
 

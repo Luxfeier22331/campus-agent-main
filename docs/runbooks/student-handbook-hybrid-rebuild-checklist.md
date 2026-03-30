@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-03-26
-updated: 2026-03-28
+updated: 2026-03-30
 ---
 
 # Student Handbook Hybrid Rebuild Checklist
@@ -88,6 +88,37 @@ updated: 2026-03-28
 4. 记录点数、payload 样本和 registry back-link 样本。
 5. 使用 fixtures 抽样查询做 Gate 3 / Gate 4 验收。
 
+## Formal Benchmark 验收入口
+
+推荐直接走 shared live benchmark acceptance flow：
+
+- `set -a && source .env && set +a`
+- `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m campus_evals.handbook_live_benchmark accept --reruns 3 --verbose --log-jsonl .tmp/evals/student-handbook-runtime-events.jsonl`
+
+accept flow 语义：
+
+- 先跑 fresh live benchmark
+- 若存在 transient supplemental infra failure，再自动进入 repair rerun
+- 在 acceptance 根目录输出最终 verdict，而不改写原 run artifact
+
+## Runtime Observability Artifact
+
+每轮 handbook acceptance 建议至少保留：
+
+- `run/supplemental-runtime-events.jsonl`
+- `run/supplemental-provider-summary.json`
+- 若发生 repair：
+  - `repair/supplemental-runtime-events.jsonl`
+  - `repair/supplemental-provider-summary.json`
+- acceptance 根目录：
+  - `accept-config.json`
+  - `final-summary.json`
+
+如果使用 `--log-jsonl`：
+
+- `accept` 会把 base path 自动拆成 `<base>.run.jsonl` 与 `<base>.repair.jsonl`
+- `--verbose` 会直接打印 preflight、retrying、recovered、breaker 等高信号事件，便于现场确认 provider 瞬时失败是否已自动重试
+
 ## Schema / Payload / Registry 检查
 
 - collection schema 中必须存在：
@@ -106,6 +137,18 @@ updated: 2026-03-28
   - `acl_groups`
   - `anchor`
 - 任意抽样命中回链后，`canonical_url` / `latest_url` / `is_current` 必须来自 registry truth，而不是直接取 Qdrant payload
+
+## 常见故障签名
+
+- 如果 handbook live query 返回 `status=error`，且底层异常包含
+  `Bad request: Index required but not found for "entitlement_groups"`：
+  - 先不要把它归因到 LLM provider 或 supplemental adapter
+  - 这表示当前 serving alias 指向的 remote Qdrant collection 缺少 authorization projection 需要的 payload index
+  - 当前 ingestion/indexing 代码对 remote Qdrant 已要求创建
+    `entitlement_groups` / `visibility_level` / `policy_projection_version` / `campus_scope` /
+    `acl_groups` / `acl_level` 等 payload index；出现该错误通常意味着 alias 仍指向旧 schema collection
+  - 正确处置是核对 serving alias、physical collection 和最近一次 release manifest，必要时重做 release-managed rebuild / publish
+  - 当前 retrieval 代码已经避免在 `entitlement_groups=()` 的 public-only 请求上额外发送空 group 谓词，但这不替代 serving collection 应具备的完整 authorization projection schema
 
 ## Query 抽样验收
 

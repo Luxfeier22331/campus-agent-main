@@ -71,8 +71,18 @@ class SupplementalHTTPSettings:
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> "SupplementalHTTPSettings":
         source = env if env is not None else os.environ
-        explicit_request_interval = _read_optional_float(source.get("SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS"))
-        requests_per_minute = _read_optional_float(source.get("SUPPLEMENTAL_HTTP_REQUESTS_PER_MINUTE"))
+        explicit_request_interval = _read_optional_float(
+            _read_first_non_empty(
+                source,
+                "SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS",
+            )
+        )
+        requests_per_minute = _read_optional_float(
+            _read_first_non_empty(
+                source,
+                "SUPPLEMENTAL_HTTP_REQUESTS_PER_MINUTE",
+            )
+        )
         if explicit_request_interval is not None:
             request_min_interval_seconds = explicit_request_interval
         elif requests_per_minute is not None:
@@ -81,78 +91,90 @@ class SupplementalHTTPSettings:
             request_min_interval_seconds = DEFAULT_SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS
         return cls(
             connect_timeout_seconds=float(
-                (
-                    source.get("SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS")
-                    or str(DEFAULT_SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS)
-                ).strip()
+                _read_first_non_empty(
+                    source,
+                    "SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS",
+                )
+                or str(DEFAULT_SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS)
             ),
             read_timeout_seconds=float(
-                (
-                    source.get("SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS")
-                    or str(DEFAULT_SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS)
-                ).strip()
+                _read_first_non_empty(
+                    source,
+                    "SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS",
+                )
+                or str(DEFAULT_SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS)
             ),
             write_timeout_seconds=float(
-                (
-                    source.get("SUPPLEMENTAL_HTTP_WRITE_TIMEOUT_SECONDS")
-                    or str(DEFAULT_SUPPLEMENTAL_HTTP_WRITE_TIMEOUT_SECONDS)
-                ).strip()
+                _read_first_non_empty(
+                    source,
+                    "SUPPLEMENTAL_HTTP_WRITE_TIMEOUT_SECONDS",
+                )
+                or str(DEFAULT_SUPPLEMENTAL_HTTP_WRITE_TIMEOUT_SECONDS)
             ),
             pool_timeout_seconds=float(
-                (
-                    source.get("SUPPLEMENTAL_HTTP_POOL_TIMEOUT_SECONDS")
-                    or str(DEFAULT_SUPPLEMENTAL_HTTP_POOL_TIMEOUT_SECONDS)
-                ).strip()
+                _read_first_non_empty(
+                    source,
+                    "SUPPLEMENTAL_HTTP_POOL_TIMEOUT_SECONDS",
+                )
+                or str(DEFAULT_SUPPLEMENTAL_HTTP_POOL_TIMEOUT_SECONDS)
             ),
             retry_attempts=int(
-                (
-                    source.get("SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS")
-                    or str(DEFAULT_SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS)
-                ).strip()
+                _read_first_non_empty(
+                    source,
+                    "SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS",
+                )
+                or str(DEFAULT_SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS)
             ),
             retry_backoff_seconds=float(
-                (
-                    source.get("SUPPLEMENTAL_HTTP_RETRY_BACKOFF_SECONDS")
-                    or str(DEFAULT_SUPPLEMENTAL_HTTP_RETRY_BACKOFF_SECONDS)
-                ).strip()
+                _read_first_non_empty(
+                    source,
+                    "SUPPLEMENTAL_HTTP_RETRY_BACKOFF_SECONDS",
+                )
+                or str(DEFAULT_SUPPLEMENTAL_HTTP_RETRY_BACKOFF_SECONDS)
             ),
             circuit_breaker_failure_threshold=int(
-                (
-                    source.get("SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_FAILURE_THRESHOLD")
-                    or str(DEFAULT_SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_FAILURE_THRESHOLD)
-                ).strip()
+                _read_first_non_empty(
+                    source,
+                    "SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_FAILURE_THRESHOLD",
+                )
+                or str(DEFAULT_SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_FAILURE_THRESHOLD)
             ),
             circuit_breaker_cooldown_seconds=float(
-                (
-                    source.get("SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_COOLDOWN_SECONDS")
-                    or str(DEFAULT_SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_COOLDOWN_SECONDS)
-                ).strip()
+                _read_first_non_empty(
+                    source,
+                    "SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_COOLDOWN_SECONDS",
+                )
+                or str(DEFAULT_SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_COOLDOWN_SECONDS)
             ),
             preflight_timeout_seconds=float(
-                (
-                    source.get("SUPPLEMENTAL_HTTP_PREFLIGHT_TIMEOUT_SECONDS")
-                    or str(DEFAULT_SUPPLEMENTAL_HTTP_PREFLIGHT_TIMEOUT_SECONDS)
-                ).strip()
+                _read_first_non_empty(
+                    source,
+                    "SUPPLEMENTAL_HTTP_PREFLIGHT_TIMEOUT_SECONDS",
+                )
+                or str(DEFAULT_SUPPLEMENTAL_HTTP_PREFLIGHT_TIMEOUT_SECONDS)
             ),
             requests_per_minute=requests_per_minute,
             request_min_interval_seconds=request_min_interval_seconds,
             keepalive_expiry_seconds=float(
-                (
-                    source.get("SUPPLEMENTAL_HTTP_KEEPALIVE_EXPIRY_SECONDS")
-                    or str(DEFAULT_SUPPLEMENTAL_HTTP_KEEPALIVE_EXPIRY_SECONDS)
-                ).strip()
+                _read_first_non_empty(
+                    source,
+                    "SUPPLEMENTAL_HTTP_KEEPALIVE_EXPIRY_SECONDS",
+                )
+                or str(DEFAULT_SUPPLEMENTAL_HTTP_KEEPALIVE_EXPIRY_SECONDS)
             ),
             max_connections=int(
-                (
-                    source.get("SUPPLEMENTAL_HTTP_MAX_CONNECTIONS")
-                    or str(DEFAULT_SUPPLEMENTAL_HTTP_MAX_CONNECTIONS)
-                ).strip()
+                _read_first_non_empty(
+                    source,
+                    "SUPPLEMENTAL_HTTP_MAX_CONNECTIONS",
+                )
+                or str(DEFAULT_SUPPLEMENTAL_HTTP_MAX_CONNECTIONS)
             ),
             max_keepalive_connections=int(
-                (
-                    source.get("SUPPLEMENTAL_HTTP_MAX_KEEPALIVE_CONNECTIONS")
-                    or str(DEFAULT_SUPPLEMENTAL_HTTP_MAX_KEEPALIVE_CONNECTIONS)
-                ).strip()
+                _read_first_non_empty(
+                    source,
+                    "SUPPLEMENTAL_HTTP_MAX_KEEPALIVE_CONNECTIONS",
+                )
+                or str(DEFAULT_SUPPLEMENTAL_HTTP_MAX_KEEPALIVE_CONNECTIONS)
             ),
         )
 
@@ -196,22 +218,44 @@ class RagasSettings:
             raise ValueError("RAGAS_MAX_OUTPUT_TOKENS must be greater than zero")
 
     @classmethod
-    def from_env(cls, env: dict[str, str] | None = None) -> "RagasSettings":
+    def from_env(
+        cls,
+        env: dict[str, str] | None = None,
+        *,
+        http_settings: SupplementalHTTPSettings | None = None,
+    ) -> "RagasSettings":
         source = env if env is not None else os.environ
-        embedding_model = (source.get("EMBEDDING_MODEL") or "").strip()
-        raw_embedding_dimensions = (source.get("EMBEDDING_DIMENSIONS") or "").strip()
+        embedding_model = _read_first_non_empty(
+            source,
+            "EVAL_EMBEDDING_MODEL",
+            "EMBEDDING_MODEL",
+        ) or ""
+        raw_embedding_dimensions = _read_first_non_empty(
+            source,
+            "EVAL_EMBEDDING_DIMENSIONS",
+            "EMBEDDING_DIMENSIONS",
+        ) or ""
         return cls(
-            llm_api_key=(source.get("LLM_API_KEY") or "").strip(),
-            llm_model=_resolve_judge_model(source),
-            embedding_api_key=(source.get("EMBEDDING_API_KEY") or "").strip(),
+            llm_api_key=_read_first_non_empty(source, "EVAL_LLM_API_KEY", "LLM_API_KEY") or "",
+            llm_model=_resolve_ragas_model(source),
+            embedding_api_key=_read_first_non_empty(
+                source,
+                "EVAL_EMBEDDING_API_KEY",
+                "EMBEDDING_API_KEY",
+            )
+            or "",
             embedding_model=embedding_model,
-            llm_base_url=(source.get("LLM_BASE_URL") or "").strip() or None,
-            embedding_base_url=(source.get("EMBEDDING_BASE_URL") or "").strip() or None,
+            llm_base_url=_read_first_non_empty(source, "EVAL_LLM_BASE_URL", "LLM_BASE_URL"),
+            embedding_base_url=_read_first_non_empty(
+                source,
+                "EVAL_EMBEDDING_BASE_URL",
+                "EMBEDDING_BASE_URL",
+            ),
             embedding_dimensions=_resolve_embedding_dimensions(
                 model=embedding_model,
                 raw_dimensions=raw_embedding_dimensions,
             ),
-            http_settings=SupplementalHTTPSettings.from_env(source),
+            http_settings=http_settings or SupplementalHTTPSettings.from_env(source),
             batch_size=_read_optional_int(source.get("RAGAS_BATCH_SIZE")),
             use_responses_api=_read_bool(source.get("RAGAS_USE_RESPONSES_API"), default=True),
             reasoning_effort=_read_optional_str(source.get("RAGAS_REASONING_EFFORT")),
@@ -251,13 +295,18 @@ class JudgeLLMSettings:
             raise ValueError("RAGAS_MAX_OUTPUT_TOKENS must be greater than zero")
 
     @classmethod
-    def from_env(cls, env: dict[str, str] | None = None) -> "JudgeLLMSettings":
+    def from_env(
+        cls,
+        env: dict[str, str] | None = None,
+        *,
+        http_settings: SupplementalHTTPSettings | None = None,
+    ) -> "JudgeLLMSettings":
         source = env if env is not None else os.environ
         return cls(
-            llm_api_key=(source.get("LLM_API_KEY") or "").strip(),
+            llm_api_key=_read_first_non_empty(source, "EVAL_LLM_API_KEY", "LLM_API_KEY") or "",
             llm_model=_resolve_judge_model(source),
-            llm_base_url=(source.get("LLM_BASE_URL") or "").strip() or None,
-            http_settings=SupplementalHTTPSettings.from_env(source),
+            llm_base_url=_read_first_non_empty(source, "EVAL_LLM_BASE_URL", "LLM_BASE_URL"),
+            http_settings=http_settings or SupplementalHTTPSettings.from_env(source),
             reasoning_effort=_read_optional_str(source.get("RAGAS_REASONING_EFFORT")),
             text_verbosity=_read_optional_str(source.get("RAGAS_TEXT_VERBOSITY")),
             max_output_tokens=_read_optional_int(source.get("RAGAS_MAX_OUTPUT_TOKENS")),
@@ -325,8 +374,29 @@ def _read_optional_float(value: str | None) -> float | None:
     return float(normalized)
 
 
+def _read_first_non_empty(source: dict[str, str], *keys: str) -> str | None:
+    for key in keys:
+        value = source.get(key)
+        if value is None:
+            continue
+        normalized = value.strip()
+        if normalized:
+            return normalized
+    return None
+
+
+def _resolve_ragas_model(source: dict[str, str]) -> str:
+    eval_ragas_model = _read_first_non_empty(source, "EVAL_RAGAS_MODEL")
+    ragas_llm_model = _read_first_non_empty(source, "RAGAS_LLM_MODEL")
+    llm_reasoning_model = _read_first_non_empty(source, "LLM_REASONING_MODEL")
+    llm_chat_model = _read_first_non_empty(source, "LLM_CHAT_MODEL")
+    return eval_ragas_model or ragas_llm_model or llm_reasoning_model or llm_chat_model or ""
+
+
 def _resolve_judge_model(source: dict[str, str]) -> str:
-    ragas_llm_model = (source.get("RAGAS_LLM_MODEL") or "").strip()
-    llm_reasoning_model = (source.get("LLM_REASONING_MODEL") or "").strip()
-    llm_chat_model = (source.get("LLM_CHAT_MODEL") or "").strip()
-    return ragas_llm_model or llm_reasoning_model or llm_chat_model
+    eval_judge_model = _read_first_non_empty(source, "EVAL_JUDGE_MODEL")
+    eval_ragas_model = _read_first_non_empty(source, "EVAL_RAGAS_MODEL")
+    ragas_llm_model = _read_first_non_empty(source, "RAGAS_LLM_MODEL")
+    llm_reasoning_model = _read_first_non_empty(source, "LLM_REASONING_MODEL")
+    llm_chat_model = _read_first_non_empty(source, "LLM_CHAT_MODEL")
+    return eval_judge_model or eval_ragas_model or ragas_llm_model or llm_reasoning_model or llm_chat_model or ""

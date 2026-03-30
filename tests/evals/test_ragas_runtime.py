@@ -8,6 +8,7 @@ from unittest.mock import patch
 import httpx
 from langchain_core.messages import HumanMessage
 from langchain_core.prompt_values import StringPromptValue
+from ragas.llms.base import InstructorBaseRagasLLM
 
 from campus_evals import (
     RagasProjection,
@@ -17,10 +18,13 @@ from campus_evals import (
     build_http_ragas_llm,
     build_ragas_dataset,
     build_ragas_scorer,
+    build_ragas_supplemental_adapter_from_env,
 )
 from campus_evals._langchain_compat import build_langchain_chat_model
+from campus_evals.ragas_adapter import build_default_ragas_metrics
 from campus_evals.settings import SupplementalHTTPSettings
 from campus_evals.supplemental_http import (
+    OpenAICompatibleResponsesLLM,
     SupplementalPreflightFailedError,
     reset_supplemental_http_runtime_state_for_tests,
 )
@@ -156,6 +160,44 @@ class RagasSettingsTest(unittest.TestCase):
 
         self.assertEqual(settings.llm_model, "gpt-5.4")
 
+    def test_from_env_prefers_eval_scoped_keys_over_shared_runtime_keys(self) -> None:
+        settings = RagasSettings.from_env(
+            {
+                "EVAL_LLM_BASE_URL": "https://eval-llm.example/v1",
+                "EVAL_LLM_API_KEY": "eval-llm-key",
+                "EVAL_RAGAS_MODEL": "gpt-5.4-eval",
+                "LLM_BASE_URL": "https://shared-llm.example/v1",
+                "LLM_API_KEY": "shared-llm-key",
+                "RAGAS_LLM_MODEL": "gpt-4.1-shared",
+                "EVAL_EMBEDDING_BASE_URL": "https://eval-embed.example/v1",
+                "EVAL_EMBEDDING_API_KEY": "eval-embed-key",
+                "EVAL_EMBEDDING_MODEL": "text-embedding-3-large",
+                "EMBEDDING_BASE_URL": "https://shared-embed.example/v1",
+                "EMBEDDING_API_KEY": "shared-embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+            }
+        )
+
+        self.assertEqual(settings.llm_base_url, "https://eval-llm.example/v1")
+        self.assertEqual(settings.llm_api_key, "eval-llm-key")
+        self.assertEqual(settings.llm_model, "gpt-5.4-eval")
+        self.assertEqual(settings.embedding_base_url, "https://eval-embed.example/v1")
+        self.assertEqual(settings.embedding_api_key, "eval-embed-key")
+        self.assertEqual(settings.embedding_model, "text-embedding-3-large")
+
+    def test_from_env_accepts_repo_tracked_http_settings_override(self) -> None:
+        settings = RagasSettings.from_env(
+            {
+                "EVAL_LLM_API_KEY": "eval-llm-key",
+                "EVAL_RAGAS_MODEL": "gpt-5.4-eval",
+                "EVAL_EMBEDDING_API_KEY": "eval-embed-key",
+                "EVAL_EMBEDDING_MODEL": "text-embedding-3-large",
+            },
+            http_settings=SupplementalHTTPSettings(read_timeout_seconds=45.0),
+        )
+
+        self.assertEqual(settings.http_settings.read_timeout_seconds, 45.0)
+
     def test_from_env_requires_llm_and_embedding_secrets_and_models(self) -> None:
         with self.assertRaisesRegex(ValueError, "LLM_API_KEY is required"):
             RagasSettings.from_env(
@@ -212,6 +254,18 @@ class RagasSettingsTest(unittest.TestCase):
         self.assertIn("input", payload)
         self.assertNotIn("n", payload)
 
+    def test_build_ragas_supplemental_adapter_from_env_exposes_default_metric_names(self) -> None:
+        adapter = build_ragas_supplemental_adapter_from_env(
+            {
+                "EVAL_LLM_API_KEY": "llm-key",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
+                "EVAL_EMBEDDING_API_KEY": "embed-key",
+                "EVAL_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+            }
+        )
+
+        self.assertEqual(adapter.metric_names, build_default_ragas_metric_names())
+
 
 class RagasDatasetTest(unittest.TestCase):
     def test_build_ragas_dataset_projects_single_turn_sample(self) -> None:
@@ -237,6 +291,22 @@ class RagasDatasetTest(unittest.TestCase):
 class RagasHttpTransportTest(unittest.TestCase):
     def setUp(self) -> None:
         reset_supplemental_http_runtime_state_for_tests()
+
+    def test_build_http_ragas_llm_uses_text_first_ragas_runtime(self) -> None:
+        settings = RagasSettings.from_env(
+            {
+                "LLM_BASE_URL": "https://llm.example/v1",
+                "LLM_API_KEY": "llm-key",
+                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+            }
+        )
+
+        llm = build_http_ragas_llm(settings)
+
+        self.assertFalse(isinstance(llm, InstructorBaseRagasLLM))
+        self.assertTrue(hasattr(llm, "agenerate_text"))
 
     def test_build_http_ragas_llm_opens_shared_circuit_breaker_after_repeated_provider_failures(self) -> None:
         attempts = 0
@@ -272,11 +342,12 @@ class RagasHttpTransportTest(unittest.TestCase):
             llm.generate_text(StringPromptValue(text="只回复 OK"))
         with self.assertRaisesRegex(RuntimeError, "503"):
             llm.generate_text(StringPromptValue(text="只回复 OK"))
-        with self.assertRaisesRegex(RuntimeError, "circuit_open"):
+        with self.assertRaisesRegex(RuntimeError, "circuit_open") as raised:
             llm.generate_text(StringPromptValue(text="只回复 OK"))
 
         sync_client.close()
         self.assertEqual(attempts, 2)
+        self.assertNotIn("llm-key", str(raised.exception))
 
     def test_build_http_ragas_llm_posts_responses_payload_without_sdk_only_fields(self) -> None:
         captured: dict[str, object] = {}
@@ -731,24 +802,6 @@ class RagasHttpTransportTest(unittest.TestCase):
         def handler(request: httpx.Request) -> httpx.Response:
             nonlocal attempts
             attempts += 1
-            payload = json.loads(request.content.decode("utf-8"))
-            text_config = payload.get("text") or {}
-            format_config = text_config.get("format") or {}
-            if format_config.get("type") == "json_schema":
-                return httpx.Response(
-                    200,
-                    request=request,
-                    json={
-                        "error": None,
-                        "output": [
-                            {
-                                "content": [
-                                    {"type": "output_text", "text": "{\"status\":\"ok\"}"},
-                                ]
-                            }
-                        ],
-                    },
-                )
             return httpx.Response(
                 200,
                 request=request,
@@ -784,33 +837,25 @@ class RagasHttpTransportTest(unittest.TestCase):
         first = build_http_ragas_llm(settings, sync_client=first_client)
         second = build_http_ragas_llm(settings, sync_client=second_client)
 
-        first.preflight_sync()
-        second.preflight_sync()
+        first_result = first.preflight_sync()
+        second_result = second.preflight_sync()
 
         first_client.close()
         second_client.close()
         self.assertEqual(attempts, 1)
+        self.assertEqual(first_result["output_text"], "OK")
+        self.assertEqual(second_result["output_text"], "OK")
 
-    def test_build_http_ragas_llm_preflight_requires_structured_output_probe(self) -> None:
+    def test_build_http_ragas_llm_preflight_uses_text_responses_probe(self) -> None:
+        captured_payloads: list[dict[str, object]] = []
+
         def handler(request: httpx.Request) -> httpx.Response:
             payload = json.loads(request.content.decode("utf-8"))
+            captured_payloads.append(payload)
             text_config = payload.get("text") or {}
             format_config = text_config.get("format") or {}
             if format_config.get("type") == "json_schema":
-                return httpx.Response(
-                    200,
-                    request=request,
-                    json={
-                        "error": None,
-                        "output": [
-                            {
-                                "content": [
-                                    {"type": "output_text", "text": "{}"},
-                                ]
-                            }
-                        ],
-                    },
-                )
+                return httpx.Response(503, request=request, text='{"error":{"message":"structured unavailable","type":"api_error"}}')
             return httpx.Response(
                 200,
                 request=request,
@@ -842,10 +887,75 @@ class RagasHttpTransportTest(unittest.TestCase):
         )
         llm = build_http_ragas_llm(settings, sync_client=sync_client)
 
-        with self.assertRaises(SupplementalPreflightFailedError):
-            llm.preflight_sync()
+        result = llm.preflight_sync()
 
         sync_client.close()
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["output_text"], "OK")
+        self.assertEqual(len(captured_payloads), 1)
+        self.assertNotEqual(((captured_payloads[0].get("text") or {}).get("format") or {}).get("type"), "json_schema")
+
+    def test_openai_compatible_responses_llm_preflight_supports_providers_requiring_closed_json_schema(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            payload = json.loads(request.content.decode("utf-8"))
+            text_config = payload.get("text") or {}
+            format_config = text_config.get("format") or {}
+            schema = format_config.get("schema") or {}
+            if schema.get("additionalProperties") is not False:
+                return httpx.Response(
+                    400,
+                    request=request,
+                    json={
+                        "error": {
+                            "message": "Invalid schema: additionalProperties is required to be false",
+                            "type": "invalid_request_error",
+                            "param": "text.format.schema",
+                            "code": "invalid_json_schema",
+                        }
+                    },
+                )
+            return httpx.Response(
+                200,
+                request=request,
+                json={
+                    "error": None,
+                    "output": [
+                        {
+                            "content": [
+                                {"type": "output_text", "text": "{\"status\":\"ok\"}"},
+                            ]
+                        }
+                    ],
+                },
+            )
+
+        settings = RagasSettings.from_env(
+            {
+                "LLM_BASE_URL": "https://llm.example/v1",
+                "LLM_API_KEY": "llm-key",
+                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS": "0",
+            }
+        )
+        sync_client = httpx.Client(
+            base_url="https://llm.example/v1",
+            transport=httpx.MockTransport(handler),
+        )
+        llm = OpenAICompatibleResponsesLLM(
+            base_url="https://llm.example/v1",
+            api_key="llm-key",
+            model="gpt-5.4",
+            http_settings=settings.http_settings,
+            sync_client=sync_client,
+        )
+
+        result = llm.preflight_sync()
+
+        sync_client.close()
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["structured_output"], {"status": "ok"})
 
     def test_build_http_ragas_llm_preflight_retries_retryable_failure_without_tripping_breaker(self) -> None:
         attempts = 0
@@ -1131,31 +1241,48 @@ class RagasHttpTransportTest(unittest.TestCase):
 
 
 class RagasScorerTest(unittest.TestCase):
+    def test_build_default_ragas_metrics_binds_runtime_and_uses_single_generation_answer_relevancy(self) -> None:
+        llm = object()
+        embeddings = object()
+
+        metrics = build_default_ragas_metrics(llm, embeddings)
+
+        self.assertEqual(tuple(metric.name for metric in metrics), build_default_ragas_metric_names())
+        self.assertIs(metrics[0].llm, llm)
+        self.assertIs(metrics[1].llm, llm)
+        self.assertIs(metrics[1].embeddings, embeddings)
+        self.assertEqual(metrics[1].strictness, 1)
+        self.assertIs(metrics[2].llm, llm)
+        self.assertIs(metrics[3].llm, llm)
+
     def test_build_ragas_scorer_maps_evaluation_scores_to_supplemental_results(self) -> None:
-        captured: dict[str, object] = {}
+        captured_calls: list[dict[str, object]] = []
+        score_by_metric = {
+            "faithfulness": 0.91,
+            "answer_relevancy": 0.88,
+            "context_precision": 1.0,
+            "context_recall": 0.84,
+        }
 
         class FakeMetric:
             def __init__(self, name: str) -> None:
                 self.name = name
 
         class FakeEvaluationResult:
-            def __init__(self) -> None:
-                self.scores = [
-                    {
-                        "faithfulness": 0.91,
-                        "answer_relevancy": 0.88,
-                        "context_precision": 1.0,
-                        "context_recall": 0.84,
-                    }
-                ]
+            def __init__(self, metric_name: str) -> None:
+                self.scores = [{metric_name: score_by_metric[metric_name]}]
 
         def fake_evaluate(*, dataset, metrics, llm, embeddings, **kwargs):
-            captured["dataset"] = dataset
-            captured["metrics"] = metrics
-            captured["llm"] = llm
-            captured["embeddings"] = embeddings
-            captured["kwargs"] = kwargs
-            return FakeEvaluationResult()
+            captured_calls.append(
+                {
+                    "dataset": dataset,
+                    "metrics": metrics,
+                    "llm": llm,
+                    "embeddings": embeddings,
+                    "kwargs": kwargs,
+                }
+            )
+            return FakeEvaluationResult(metrics[0].name)
 
         settings = RagasSettings.from_env(
             {
@@ -1200,43 +1327,46 @@ class RagasScorerTest(unittest.TestCase):
         self.assertTrue(all(item.adapter_id == "ragas" for item in results))
         self.assertTrue(all(item.gating is False for item in results))
 
-        dataset = captured["dataset"]
+        self.assertEqual(len(captured_calls), 4)
+        self.assertEqual(
+            [tuple(metric.name for metric in call["metrics"]) for call in captured_calls],
+            [("faithfulness",), ("answer_relevancy",), ("context_precision",), ("context_recall",)],
+        )
+
+        dataset = captured_calls[0]["dataset"]
         self.assertEqual(len(dataset.samples), 1)
         self.assertEqual(dataset.samples[0].user_input, "图书馆开放时间是什么？")
-        self.assertEqual(tuple(metric.name for metric in captured["metrics"]), build_default_ragas_metric_names())
-        self.assertEqual(captured["llm"], {"model": "qwen-reasoning", "use_responses_api": True})
-        self.assertEqual(captured["embeddings"], {"model": "Qwen3-Embedding-4B"})
-        self.assertEqual(captured["kwargs"]["show_progress"], False)
-        self.assertEqual(captured["kwargs"]["raise_exceptions"], True)
-        self.assertEqual(captured["kwargs"]["run_config"].timeout, 45)
-        self.assertEqual(captured["kwargs"]["run_config"].max_retries, 0)
-        self.assertEqual(captured["kwargs"]["run_config"].max_workers, 1)
+        self.assertEqual(captured_calls[0]["llm"], {"model": "qwen-reasoning", "use_responses_api": True})
+        self.assertEqual(captured_calls[0]["embeddings"], {"model": "Qwen3-Embedding-4B"})
+        self.assertTrue(all(call["kwargs"]["show_progress"] is False for call in captured_calls))
+        self.assertTrue(all(call["kwargs"]["raise_exceptions"] is True for call in captured_calls))
+        self.assertTrue(all(call["kwargs"]["run_config"].timeout == 45 for call in captured_calls))
+        self.assertTrue(all(call["kwargs"]["run_config"].max_retries == 0 for call in captured_calls))
+        self.assertTrue(all(call["kwargs"]["run_config"].max_workers == 1 for call in captured_calls))
 
-    def test_build_ragas_scorer_does_not_retry_outer_evaluate_timeout(self) -> None:
-        attempts = 0
+    def test_build_ragas_scorer_marks_single_metric_timeout_as_failed_without_retrying(self) -> None:
+        attempts: dict[str, int] = {}
+        score_by_metric = {
+            "faithfulness": 0.91,
+            "context_precision": 1.0,
+            "context_recall": 0.84,
+        }
 
         class FakeMetric:
             def __init__(self, name: str) -> None:
                 self.name = name
 
         class FakeEvaluationResult:
-            def __init__(self) -> None:
-                self.scores = [
-                    {
-                        "faithfulness": 0.91,
-                        "answer_relevancy": 0.88,
-                        "context_precision": 1.0,
-                        "context_recall": 0.84,
-                    }
-                ]
+            def __init__(self, metric_name: str) -> None:
+                self.scores = [{metric_name: score_by_metric[metric_name]}]
 
         def flaky_evaluate(*, dataset, metrics, llm, embeddings, **kwargs):
-            del dataset, metrics, llm, embeddings, kwargs
-            nonlocal attempts
-            attempts += 1
-            if attempts == 1:
+            del dataset, llm, embeddings, kwargs
+            metric_name = metrics[0].name
+            attempts[metric_name] = attempts.get(metric_name, 0) + 1
+            if metric_name == "answer_relevancy":
                 raise TimeoutError("judge timed out")
-            return FakeEvaluationResult()
+            return FakeEvaluationResult(metric_name)
 
         settings = RagasSettings.from_env(
             {
@@ -1262,46 +1392,59 @@ class RagasScorerTest(unittest.TestCase):
             ),
         )
 
-        with self.assertRaisesRegex(TimeoutError, "judge timed out"):
-            scorer(
-                RagasProjection(
-                    case_id="case-retry",
-                    user_input="图书馆开放时间是什么？",
-                    response="08:00 到 22:00。",
-                    retrieved_contexts=("图书馆开放时间为 08:00-22:00。",),
-                    reference="图书馆开放时间为 08:00-22:00。",
-                )
+        results = scorer(
+            RagasProjection(
+                case_id="case-retry",
+                user_input="图书馆开放时间是什么？",
+                response="08:00 到 22:00。",
+                retrieved_contexts=("图书馆开放时间为 08:00-22:00。",),
+                reference="图书馆开放时间为 08:00-22:00。",
             )
+        )
 
-        self.assertEqual(attempts, 1)
+        self.assertEqual(tuple(item.metric_name for item in results), build_default_ragas_metric_names())
+        self.assertEqual(results[0].score, 0.91)
+        self.assertEqual(results[1].verdict, "failed")
+        self.assertIsNone(results[1].score)
+        self.assertIn("judge timed out", results[1].rationale)
+        self.assertEqual(results[1].metadata["judge_error"], "TimeoutError")
+        self.assertEqual(results[2].score, 1.0)
+        self.assertEqual(results[3].score, 0.84)
+        self.assertEqual(
+            attempts,
+            {
+                "faithfulness": 1,
+                "answer_relevancy": 1,
+                "context_precision": 1,
+                "context_recall": 1,
+            },
+        )
 
-    def test_build_ragas_scorer_does_not_retry_outer_do_request_failed_runtime_error(self) -> None:
-        attempts = 0
+    def test_build_ragas_scorer_marks_single_metric_runtime_error_as_failed_without_retrying(self) -> None:
+        attempts: dict[str, int] = {}
+        score_by_metric = {
+            "faithfulness": 0.91,
+            "answer_relevancy": 0.88,
+            "context_recall": 0.84,
+        }
 
         class FakeMetric:
             def __init__(self, name: str) -> None:
                 self.name = name
 
         class FakeEvaluationResult:
-            def __init__(self) -> None:
-                self.scores = [
-                    {
-                        "faithfulness": 0.91,
-                        "answer_relevancy": 0.88,
-                        "context_precision": 1.0,
-                        "context_recall": 0.84,
-                    }
-                ]
+            def __init__(self, metric_name: str) -> None:
+                self.scores = [{metric_name: score_by_metric[metric_name]}]
 
         def flaky_evaluate(*, dataset, metrics, llm, embeddings, **kwargs):
-            del dataset, metrics, llm, embeddings, kwargs
-            nonlocal attempts
-            attempts += 1
-            if attempts == 1:
+            del dataset, llm, embeddings, kwargs
+            metric_name = metrics[0].name
+            attempts[metric_name] = attempts.get(metric_name, 0) + 1
+            if metric_name == "context_precision":
                 raise RuntimeError(
                     '500 {"error":{"message":"upstream error: do request failed","type":"new_api_error","code":"do_request_failed"}}'
                 )
-            return FakeEvaluationResult()
+            return FakeEvaluationResult(metric_name)
 
         settings = RagasSettings.from_env(
             {
@@ -1327,18 +1470,93 @@ class RagasScorerTest(unittest.TestCase):
             ),
         )
 
-        with self.assertRaisesRegex(RuntimeError, "do request failed"):
-            scorer(
-                RagasProjection(
-                    case_id="case-retry-do-request-failed",
-                    user_input="图书馆开放时间是什么？",
-                    response="08:00 到 22:00。",
-                    retrieved_contexts=("图书馆开放时间为 08:00-22:00。",),
-                    reference="图书馆开放时间为 08:00-22:00。",
-                )
+        results = scorer(
+            RagasProjection(
+                case_id="case-retry-do-request-failed",
+                user_input="图书馆开放时间是什么？",
+                response="08:00 到 22:00。",
+                retrieved_contexts=("图书馆开放时间为 08:00-22:00。",),
+                reference="图书馆开放时间为 08:00-22:00。",
             )
+        )
 
-        self.assertEqual(attempts, 1)
+        self.assertEqual(tuple(item.metric_name for item in results), build_default_ragas_metric_names())
+        self.assertEqual(results[0].score, 0.91)
+        self.assertEqual(results[1].score, 0.88)
+        self.assertEqual(results[2].verdict, "failed")
+        self.assertIsNone(results[2].score)
+        self.assertIn("do request failed", results[2].rationale)
+        self.assertEqual(results[2].metadata["judge_error"], "RuntimeError")
+        self.assertEqual(results[3].score, 0.84)
+        self.assertEqual(
+            attempts,
+            {
+                "faithfulness": 1,
+                "answer_relevancy": 1,
+                "context_precision": 1,
+                "context_recall": 1,
+            },
+        )
+
+    def test_build_ragas_scorer_redacts_secrets_and_falls_back_to_error_type_for_empty_runtime_messages(self) -> None:
+        class FakeMetric:
+            def __init__(self, name: str) -> None:
+                self.name = name
+
+        settings = RagasSettings.from_env(
+            {
+                "LLM_BASE_URL": "https://llm.example/v1",
+                "LLM_API_KEY": "llm-key",
+                "LLM_REASONING_MODEL": "qwen-reasoning",
+                "EMBEDDING_BASE_URL": "https://embed.example/v1",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+            }
+        )
+
+        scorer = build_ragas_scorer(
+            settings,
+            evaluate_fn=lambda **kwargs: (_ for _ in ()).throw(
+                RuntimeError("circuit_open: provider origin https://llm.example::sk-secret-token is in cooldown")
+            ),
+            llm_factory=lambda resolved: {"model": resolved.llm_model},
+            embeddings_factory=lambda resolved: {"model": resolved.embedding_model},
+            metric_factory=lambda llm, embeddings: (FakeMetric("faithfulness"),),
+        )
+
+        results = scorer(
+            RagasProjection(
+                case_id="case-redaction",
+                user_input="图书馆开放时间是什么？",
+                response="08:00 到 22:00。",
+                retrieved_contexts=("图书馆开放时间为 08:00-22:00。",),
+                reference="图书馆开放时间为 08:00-22:00。",
+            )
+        )
+
+        self.assertEqual(results[0].verdict, "failed")
+        self.assertIn("circuit_open", results[0].rationale)
+        self.assertNotIn("sk-secret-token", results[0].rationale)
+
+        empty_timeout_scorer = build_ragas_scorer(
+            settings,
+            evaluate_fn=lambda **kwargs: (_ for _ in ()).throw(TimeoutError()),
+            llm_factory=lambda resolved: {"model": resolved.llm_model},
+            embeddings_factory=lambda resolved: {"model": resolved.embedding_model},
+            metric_factory=lambda llm, embeddings: (FakeMetric("faithfulness"),),
+        )
+
+        empty_timeout_results = empty_timeout_scorer(
+            RagasProjection(
+                case_id="case-timeout-empty-message",
+                user_input="图书馆开放时间是什么？",
+                response="08:00 到 22:00。",
+                retrieved_contexts=("图书馆开放时间为 08:00-22:00。",),
+                reference="图书馆开放时间为 08:00-22:00。",
+            )
+        )
+
+        self.assertIn("TimeoutError", empty_timeout_results[0].rationale)
 
 
 if __name__ == "__main__":

@@ -53,6 +53,17 @@ updated: 2026-03-30
 
 - `apps/app-api`、`apps/public-chat-web`、`apps/protected-panel-web` 的模板已经预留 `SENTRY_*` / `AXIOM_*` 槽位，但 provider-side deploy 值仍待分配；在真实值下发前，只保留模板占位，不提交任何实际 secrets
 
+## Eval Env 约定
+
+- repo root [`.env.example`](../../.env.example) 中的 eval 主入口已切到 `EVAL_*`
+- 目前长期保留的主键包括：
+  - `EVAL_LLM_*`
+  - `EVAL_RAGAS_MODEL`
+  - `EVAL_JUDGE_MODEL`
+  - `EVAL_EMBEDDING_*`
+- eval 的 HTTP timeout / retry / pacing / keep-alive / connection-pool 一类 runtime tuning 由 repo-tracked live benchmark profile config 持有，不再放在 root `.env.example`
+- 代码层仍保留 `SupplementalHTTPSettings.from_env(...)` 作为低层 helper，但这不再是长期 ownership 入口
+
 ## 本地同步便利
 
 - 如果本地把 surface-specific DSN 暂时集中存放在 root worktree `.env`，可用 `uv run --all-packages python -m scripts.sync_worker_observability_env`

@@ -48,20 +48,32 @@ supplemental adapter seam：
 - `campus_evals.ragas_adapter.RagasSupplementalAdapter` 只负责 supplemental 评分接线，不影响 `CaseResult.passed`
 - `RunReport.by_supplemental` 单独聚合 adapter 指标，和 `by_metric` 的 deterministic gate 分离
 
+live benchmark profile/core：
+
+- `campus_evals.live_benchmark.BenchmarkProfile` 负责冻结 live benchmark 的 case set、executor、supplemental adapters、policy path 与 artifact prefix
+- `BenchmarkProfile.http_settings` 是 benchmark runtime tuning 的 repo-tracked ownership，承载 timeout / retry / pacing / keep-alive / connection-pool 默认值
+- `campus_evals.live_benchmark.run_live_benchmark_profile(...)` / `repair_live_benchmark_profile(...)` 在 handbook benchmark core 之上提供 profile-based run/repair wrapper
+- `campus_evals.handbook_live_benchmark` 与 `campus_evals.curriculum_live_benchmark` 现在都只是 profile entrypoint；新增 corpus 时优先加 profile，不再复制一整套 runner
+
 ragas runtime：
 
-- `campus_evals.settings.RagasSettings.from_env()` 当前消费 `LLM_BASE_URL`、`LLM_API_KEY`、`RAGAS_LLM_MODEL`、`LLM_REASONING_MODEL`、`LLM_CHAT_MODEL`、`SUPPLEMENTAL_HTTP_*`、`RAGAS_REASONING_EFFORT`、`RAGAS_TEXT_VERBOSITY`、`RAGAS_MAX_OUTPUT_TOKENS`、`RAGAS_USE_RESPONSES_API`、`EMBEDDING_BASE_URL`、`EMBEDDING_API_KEY`、`EMBEDDING_MODEL`
-- ragas judge model 选择优先级固定为 `RAGAS_LLM_MODEL > LLM_REASONING_MODEL > LLM_CHAT_MODEL`
-- 默认运行面走 `build_http_ragas_llm()` + `build_http_ragas_embeddings()`，直接对 OpenAI-compatible `/responses` 与 `/embeddings` 发原生 HTTP 请求；实现边界固定在 `campus_evals.supplemental_http`
+- `campus_evals.settings.RagasSettings.from_env()` 长期主入口只消费 `EVAL_LLM_*`、`EVAL_RAGAS_MODEL`、`EVAL_EMBEDDING_*`
+- `campus_evals.settings.JudgeLLMSettings.from_env()` 长期主入口只消费 `EVAL_LLM_*`、`EVAL_JUDGE_MODEL`
+- repo 主路径里的 ragas / judge HTTP runtime tuning 不再从 env 读取，而是由 `BenchmarkProfile.http_settings` 显式注入
+- low-level helper 仍保留 `SupplementalHTTPSettings.from_env(...)`，仅用于显式本地实验或测试，不再作为长期 benchmark ownership
+- ragas model 选择优先级固定为 `EVAL_RAGAS_MODEL > RAGAS_LLM_MODEL > LLM_REASONING_MODEL > LLM_CHAT_MODEL`
+- judge model 若未单独配置，则回退到 `EVAL_RAGAS_MODEL > RAGAS_LLM_MODEL > LLM_REASONING_MODEL > LLM_CHAT_MODEL`
+- 默认运行面走 `build_http_ragas_llm()` + `build_http_ragas_embeddings()`，直接对 OpenAI-compatible `/responses` 与 `/embeddings` 发原生 HTTP 请求；其中 ragas LLM 固定走 text-first `/responses`，rubric judge 才保留 structured `/responses`，实现边界固定在 `campus_evals.supplemental_http`
 - 这样做的直接原因是：当前 provider 对原生 HTTP `Responses API` 可用，但会阻断 OpenAI Python SDK / LangChain transport；因此 LangChain 兼容 helper 只保留在内部测试模块 `campus_evals._langchain_compat`，不再作为默认或公开 runtime surface
 - `RAGAS_USE_RESPONSES_API` 仍保留在 settings 中，用于 LangChain compatibility helper 的回归测试；默认值仍为 `true`
-- `SUPPLEMENTAL_HTTP_*` 是 ragas + rubric judge 共享的 supplemental provider runtime，分别控制 connect/read/write/pool timeout、单层 retry、provider runtime circuit breaker、preflight timeout、request pacing 与 keep-alive
+- `BenchmarkProfile.http_settings` 现在统一控制 ragas + rubric judge 共享的 supplemental provider runtime，包括 connect/read/write/pool timeout、单层 retry、provider runtime circuit breaker、preflight timeout、request pacing 与 keep-alive
 - pacing / breaker 的共享粒度已经收口到 `provider origin + api key`，避免不同 credential 互相污染 rate budget
-- `SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS` 可显式指定最小请求间隔；若只知道 provider 配额，也可改填 `SUPPLEMENTAL_HTTP_REQUESTS_PER_MINUTE`，runtime 会自动派生 `60 / rpm`
+- 若需要针对某类 benchmark profile 单独调整 pacing，应修改 repo-tracked profile config，而不是再向 root `.env` 添加新键
 - internal shared transport 现在会复用 sync/async HTTP client，并把 keep-alive expiry 提升到适配低 RPM provider 的窗口；重复 preflight 会命中同一 runtime signature 的缓存，不再重复消耗 provider 预算
 - preflight 现在承担 run-level availability gate：
   - `transient_retryable` / `hard_unavailable` 会把对应 supplemental adapter 标成 `skip_adapter`
   - `non_retryable_request` 会在写出 `supplemental-preflight.json` 后直接中止 benchmark，避免继续生成误导性 0 分 artifact
+- ragas preflight 只探测 text `/responses` + `/embeddings` 可用性，不再把 structured `json_schema` 探针失败误判成 ragas runtime 整体不可用
 - preflight 失败现在会写出 `failure_disposition` 与 `run_action`，并同步把 runtime breaker / preflight cache 置入 fast-fail 状态
 - Responses judge payload 支持独立低延迟 profile：`RAGAS_REASONING_EFFORT`、`RAGAS_TEXT_VERBOSITY`、`RAGAS_MAX_OUTPUT_TOKENS`
 - `n>1` 的 ragas judge 调用现在会在同一 async transport 上并发发出，不再串行放大单 metric 延迟
@@ -87,7 +99,10 @@ student handbook formal benchmark：
   - `summary.json`
   - `gate-report.json`
   - `SUMMARY.md`
-- `campus_evals.handbook_benchmark.collect_repairable_handbook_benchmark_targets(...)` 会从既有 artifact 中筛出可修复的 transient infra failure；当前只接受运行面失败，不接受低分 case
+- `campus_evals.handbook_benchmark.collect_repairable_handbook_benchmark_targets(...)` 会从既有 artifact 中筛出可修复的 supplemental infra failure：
+  - 已写入 case 结果的 transient runtime failure
+  - `supplemental-preflight.json` 中被 `skip_adapter` 跳过、后续可 backfill 的 unavailable metrics
+  - 不接受低分 case 作为 repair target
 - `campus_evals.handbook_benchmark.repair_handbook_formal_benchmark(...)` 会在新目录里生成 repair artifact，不会改写原 formal benchmark 目录：
   - `repair-config.json`
   - `repair-plan.json`
@@ -115,4 +130,21 @@ student handbook formal benchmark：
 - handbook live runner 现已固定为 `campus_evals.handbook_live_benchmark`：
   - `uv run --all-packages python -m campus_evals.handbook_live_benchmark run --reruns 3`
   - `uv run --all-packages python -m campus_evals.handbook_live_benchmark repair --benchmark-dir <formal-benchmark-dir>`
+  - `uv run --all-packages python -m campus_evals.handbook_live_benchmark accept --reruns 3 --verbose --log-jsonl .tmp/evals/handbook-runtime-events.jsonl`
   - 该入口直接复用当前 `delegate_to_rag_agent` + `retrieve_sources` 真链路，把 `GoldenCase` 收口为 live `ExecutionResult`
+- curriculum live runner 现已固定为 `campus_evals.curriculum_live_benchmark`：
+  - `uv run --all-packages python -m campus_evals.curriculum_live_benchmark run --reruns 3`
+  - `uv run --all-packages python -m campus_evals.curriculum_live_benchmark repair --benchmark-dir <formal-benchmark-dir>`
+  - `uv run --all-packages python -m campus_evals.curriculum_live_benchmark accept --reruns 3 --verbose --log-jsonl .tmp/evals/curriculum-runtime-events.jsonl`
+  - 该入口通过 shared `BenchmarkProfile` core 显式绑定 `curriculum_plan_live_gate_policy.json`，不再默认回退到 handbook policy
+
+runtime observability artifact：
+
+- `run` / `repair` 默认都会在 benchmark 目录下写：
+  - `supplemental-runtime-events.jsonl`
+  - `supplemental-provider-summary.json`
+- `accept` 会在 acceptance 根目录额外写：
+  - `accept-config.json`
+  - `final-summary.json`
+- `--log-jsonl` 会把 `accept` 的 runtime log 路径拆成 `<base>.run.jsonl` 与 `<base>.repair.jsonl`
+- `--verbose` 现在会直接打印 preflight、retrying、recovered、breaker opened / fast-fail 等高信号事件，便于 live 验收时确认瞬时 provider 错误是否已经被自动重试

@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-03-28
-updated: 2026-03-29
+updated: 2026-03-30
 ---
 
 # Curriculum Plan Eval Metrics
@@ -29,6 +29,13 @@ updated: 2026-03-29
 - fresh live release gate
   - 在真实 `curriculum_plan` serving collection 上重跑 query / workflow / release-gate 样本
   - 输出 schema、points count、query results、workflow summary 与 deterministic 汇总 artifact
+
+当前长期实现约束：
+
+- `campus_evals.curriculum_live_benchmark` 现在通过 shared `campus_evals.live_benchmark.BenchmarkProfile` core 运行，不再复制 handbook runner 逻辑
+- curriculum live gate policy fixture 固定为 `packages/evals/fixtures/curriculum_plan_live_gate_policy.json`
+- 该 policy 当前只消费 `ragas.faithfulness`、`ragas.answer_relevancy`、`ragas.context_precision`、`ragas.context_recall`
+- curriculum live gate 不再默认回退到 `student_handbook_judge_gate_policy.json`
 
 设计原因：
 
@@ -88,11 +95,23 @@ updated: 2026-03-29
 - `curriculum-workflow-status-summary.json`
 - `curriculum-answer-gate-summary.json`
 - `curriculum-error-gate-summary.json`
+- `run/supplemental-runtime-events.jsonl`
+- `run/supplemental-provider-summary.json`
 - 可选 `SUMMARY.md`
+
+如果使用 `accept`：
+
+- acceptance 根目录还应保留 `accept-config.json` 与 `final-summary.json`
+- 若触发 repair rerun，还应保留 `repair/supplemental-runtime-events.jsonl` 与 `repair/supplemental-provider-summary.json`
 
 建议目录：
 
 - `.tmp/evals/curriculum-plan-live-gate-<timestamp>/`
+
+配套 repair 入口：
+
+- `uv run --all-packages python -m campus_evals.curriculum_live_benchmark repair --benchmark-dir <formal-benchmark-dir>`
+- repair 只回补 transient supplemental infra failure；当前依赖 ragas adapter 显式暴露四个 metric key，才能从 `supplemental-preflight.json` 回推 backfill target
 
 最低必须记录的证据字段：
 

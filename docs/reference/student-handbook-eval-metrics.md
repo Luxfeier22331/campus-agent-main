@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-03-27
-updated: 2026-03-29
+updated: 2026-03-30
 ---
 
 # Student Handbook Eval Metrics
@@ -216,6 +216,17 @@ updated: 2026-03-29
 - [`.tmp/evals/student-handbook-formal-benchmark-20260328T173355/gate-report.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-20260328T173355/gate-report.json)
 - [`.tmp/evals/student-handbook-formal-benchmark-20260328T173355/SUMMARY.md`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-20260328T173355/SUMMARY.md)
 
+当前 formal benchmark / acceptance artifact contract 还包括：
+
+- `run/supplemental-runtime-events.jsonl`
+- `run/supplemental-provider-summary.json`
+- 若发生 repair rerun：
+  - `repair/supplemental-runtime-events.jsonl`
+  - `repair/supplemental-provider-summary.json`
+- 若走 `accept`：
+  - `accept-config.json`
+  - `final-summary.json`
+
 case 集：
 
 - total cases：`6`
@@ -332,23 +343,23 @@ supplemental 聚合：
   - `do_request_failed` 现已纳入 supplemental retry 边界
   - 相关实现：[`supplemental_http.py`](/home/reptilian/code/campus-agent/packages/evals/src/campus_evals/supplemental_http.py)、[`ragas_adapter.py`](/home/reptilian/code/campus-agent/packages/evals/src/campus_evals/ragas_adapter.py)
 - supplemental request pacing：
-  - 新增 `SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS`
+  - 新增 repo-tracked supplemental runtime pacing config
   - pacing scope 已按 provider origin 收口，`ragas` 与 rubric judge 的 llm / embeddings 请求共享节流
-  - 相关实现：[`settings.py`](/home/reptilian/code/campus-agent/packages/evals/src/campus_evals/settings.py)、[`supplemental_http.py`](/home/reptilian/code/campus-agent/packages/evals/src/campus_evals/supplemental_http.py)、[`judge_adapters.py`](/home/reptilian/code/campus-agent/packages/evals/src/campus_evals/judge_adapters.py)
+  - 相关实现：[`live_benchmark.py`](/home/reptilian/code/campus-agent/packages/evals/src/campus_evals/live_benchmark.py)、[`settings.py`](/home/reptilian/code/campus-agent/packages/evals/src/campus_evals/settings.py)、[`supplemental_http.py`](/home/reptilian/code/campus-agent/packages/evals/src/campus_evals/supplemental_http.py)、[`judge_adapters.py`](/home/reptilian/code/campus-agent/packages/evals/src/campus_evals/judge_adapters.py)
 
 本轮 live 运行中仍可见 `wrapped_callable_async ... was never awaited` 类 runtime warning，但它没有阻断 benchmark artifact 写盘；当前它是 supplemental runtime 的残余噪声，不影响本轮 formal benchmark 结论。
 
 2026-03-28 更新：
 
 - `packages/evals` 已新增 `RagasSettings.from_env()`、`build_ragas_dataset()`、`build_ragas_scorer()` 与 env-driven supplemental scorer 接线
-- 当前 eval runtime 消费 `.env` 中的 `LLM_*`、`EMBEDDING_*`、`RAGAS_*` 与共享 `SUPPLEMENTAL_HTTP_*` 配置；judge model 选择优先级为 `RAGAS_LLM_MODEL > LLM_REASONING_MODEL > LLM_CHAT_MODEL`；`Qwen3-Embedding-4B` 在 eval 侧默认补 `dimensions=2560`
+- 当前 eval runtime 的长期 env 主入口只保留 provider 连接信息与模型选择：`EVAL_LLM_*`、`EVAL_RAGAS_MODEL`、`EVAL_JUDGE_MODEL`、`EVAL_EMBEDDING_*`；HTTP timeout/retry/pacing/keep-alive 一类 runtime tuning 已移到 repo-tracked live benchmark profile config；judge model 优先级为 `EVAL_JUDGE_MODEL > EVAL_RAGAS_MODEL > RAGAS_LLM_MODEL > LLM_REASONING_MODEL > LLM_CHAT_MODEL`；`Qwen3-Embedding-4B` 在 eval 侧默认补 `dimensions=2560`
 - 针对 `ragas==0.4.3`，当前真实评分路径已固定为 `ragas.evaluate(...)` + legacy metric objects；默认运行面不再依赖 `LangChain/OpenAI SDK` transport，而是改成 `packages/evals` 自带的原生 HTTP `Responses` / `Embeddings` client
-- 当前 supplemental runtime 已收口为共享 `SUPPLEMENTAL_HTTP_*`：
+- 当前 supplemental runtime 已收口为 shared benchmark profile config：
   - connect/read/write/pool timeout
   - 单层 retry
   - `provider origin + api key` 作用域的 shared pacing / circuit breaker
   - preflight timeout
-  - request pacing（支持直接填最小间隔，也支持从 `SUPPLEMENTAL_HTTP_REQUESTS_PER_MINUTE` 自动派生）
+  - request pacing（支持直接填最小间隔，也支持从 `rpm` 自动派生）
   - shared keep-alive transport limits
 - 当前 formal benchmark / repair rerun 都共享同一 transient infra failure 分类边界：
   - `429`
@@ -373,7 +384,7 @@ supplemental 聚合：
   - [`.tmp/evals/student-handbook-ragas-readiness-20260328T141617/ragas-readiness-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-ragas-readiness-20260328T141617/ragas-readiness-summary.json)
   - [`.tmp/evals/student-handbook-ragas-readiness-20260328T141617/SUMMARY.md`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-ragas-readiness-20260328T141617/SUMMARY.md)
 - 本轮 readiness probe 使用当前 handbook 主链路真实 retrieval 输出，单 case 固定为 `release-gate-scholarship-title`
-- 本轮 readiness probe 的 judge 配置为：`RAGAS_LLM_MODEL=gpt-5.4`、`SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS=180`、`RAGAS_REASONING_EFFORT=none`、`RAGAS_TEXT_VERBOSITY=low`、`RAGAS_MAX_OUTPUT_TOKENS=256`
+- 本轮 readiness probe 的 judge 配置为：`RAGAS_LLM_MODEL=gpt-5.4`、显式 `read_timeout=180` runtime override、`RAGAS_REASONING_EFFORT=none`、`RAGAS_TEXT_VERBOSITY=low`、`RAGAS_MAX_OUTPUT_TOKENS=256`
 - 本轮 readiness probe 结果：
   - default `.env` 单指标验证：`answer_relevancy = 0.8790205622411746`，耗时 `29.994s`
   - 完整四指标验证：`faithfulness = 0.9761904761904762`（`91.749s`）、`answer_relevancy = 0.8652808340936117`（`47.163s`）、`context_precision = 0.9999999999666667`（`81.713s`）、`context_recall = 1.0`（`11.227s`）

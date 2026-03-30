@@ -209,3 +209,23 @@ class HandbookLiveBenchmarkCliTest(unittest.TestCase):
             benchmark_dir=benchmark_dir,
             output_dir=expected_output_dir,
         )
+
+    def test_main_runs_acceptance_against_live_chain(self) -> None:
+        case = _case()
+
+        with TemporaryDirectory() as tmpdir:
+            expected_output_dir = Path(tmpdir) / "student-handbook-formal-benchmark-accept-20260329T123456"
+            with (
+                patch("campus_evals.handbook_live_benchmark.handbook_release_gate_cases", return_value=(case,)),
+                patch(
+                    "campus_evals.handbook_live_benchmark.build_default_output_dir",
+                    return_value=expected_output_dir,
+                ),
+                patch("campus_evals.handbook_live_benchmark.accept_live_benchmark_profile") as accept_benchmark,
+            ):
+                exit_code = main(["accept", "--reruns", "3"])
+
+        self.assertEqual(exit_code, 0)
+        accept_benchmark.assert_called_once()
+        self.assertEqual(accept_benchmark.call_args.kwargs["output_dir"], expected_output_dir)
+        self.assertEqual(accept_benchmark.call_args.kwargs["reruns"], 3)
