@@ -175,19 +175,21 @@ def _render_verbose_message(record: dict[str, object]) -> str:
         )
     if event_type == "supplemental_request_failed":
         action = "retrying" if not bool(record.get("final_attempt")) else "failed"
-        return (
+        message = (
             f"[runtime] run={record.get('run_number')} case={record.get('case_id')} "
             f"metric={record.get('adapter_id')}.{record.get('metric_name')} "
             f"{action} attempt={record.get('attempt')}/{record.get('max_attempts')} "
             f"status={record.get('http_status')} disposition={record.get('failure_disposition')}"
         )
+        return _append_faithfulness_stage_details(message, record)
     if event_type == "supplemental_request_succeeded" and int(record.get("attempt") or 0) > 1:
-        return (
+        message = (
             f"[runtime] run={record.get('run_number')} case={record.get('case_id')} "
             f"metric={record.get('adapter_id')}.{record.get('metric_name')} "
             f"recovered attempt={record.get('attempt')}/{record.get('max_attempts')} "
             f"status={record.get('http_status')}"
         )
+        return _append_faithfulness_stage_details(message, record)
     if event_type == "supplemental_breaker_opened":
         return (
             f"[breaker] opened provider={record.get('provider_origin')} "
@@ -200,4 +202,25 @@ def _render_verbose_message(record: dict[str, object]) -> str:
         )
     if event_type == "acceptance_stage":
         return f"[accept] stage={record.get('stage')} status={record.get('status')}"
+    if event_type == "faithfulness_checkpoint_hit":
+        message = (
+            f"[checkpoint] run={record.get('run_number')} case={record.get('case_id')} "
+            f"metric={record.get('adapter_id')}.{record.get('metric_name')} "
+            f"stage={record.get('faithfulness_stage')}"
+        )
+        batch_index = record.get("batch_index")
+        if batch_index not in (None, ""):
+            message = f"{message} batch={batch_index}"
+        return message
     return ""
+
+
+def _append_faithfulness_stage_details(message: str, record: dict[str, object]) -> str:
+    stage = record.get("faithfulness_stage")
+    if stage in (None, ""):
+        return message
+    message = f"{message} stage={stage}"
+    batch_index = record.get("batch_index")
+    if batch_index not in (None, ""):
+        message = f"{message} batch={batch_index}"
+    return message

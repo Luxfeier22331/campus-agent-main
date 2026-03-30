@@ -5,6 +5,10 @@ from math import isnan
 from typing import Callable
 
 from campus_contracts import RagResultPayload, SpecialistResponse, SupervisorResponse
+from campus_evals.faithfulness_runtime import (
+    execute_staged_faithfulness,
+    supports_staged_faithfulness,
+)
 from campus_evals.models import ExecutionResult, GoldenCase, SupplementalResult
 from campus_evals.runtime_observability import bind_runtime_event_context
 from campus_evals.supplemental_http import (
@@ -203,6 +207,21 @@ def build_ragas_scorer(
         for metric in metric_factory(llm, embeddings):
             with bind_runtime_event_context(adapter_id="ragas", metric_name=metric.name):
                 try:
+                    if supports_staged_faithfulness(metric):
+                        staged = execute_staged_faithfulness(
+                            metric=metric,
+                            projection=projection,
+                            run_config=run_config,
+                        )
+                        results.append(
+                            _build_supplemental_result(
+                                metric_name=metric.name,
+                                value=staged.value,
+                                projection=projection,
+                                metadata=staged.metadata,
+                            )
+                        )
+                        continue
                     evaluation = evaluate_fn(
                         dataset=dataset,
                         metrics=[metric],
@@ -214,7 +233,11 @@ def build_ragas_scorer(
                     )
                     row = _extract_ragas_score_row(evaluation)
                     results.append(
-                        _build_supplemental_result(metric_name=metric.name, value=row.get(metric.name), projection=projection)
+                        _build_supplemental_result(
+                            metric_name=metric.name,
+                            value=row.get(metric.name),
+                            projection=projection,
+                        )
                     )
                 except Exception as exc:
                     results.append(
@@ -265,6 +288,7 @@ def _build_supplemental_result(
     metric_name: str,
     value: object,
     projection: RagasProjection,
+    metadata: dict[str, object] | None = None,
 ) -> SupplementalResult:
     score = _coerce_score(value)
     if score is None:
@@ -273,14 +297,20 @@ def _build_supplemental_result(
             metric_name=metric_name,
             verdict="not_applicable",
             rationale=f"ragas metric {metric_name} did not return a numeric score",
-            metadata={"case_id": projection.case_id},
+            metadata={
+                "case_id": projection.case_id,
+                **dict(metadata or {}),
+            },
         )
     return SupplementalResult(
         adapter_id="ragas",
         metric_name=metric_name,
         score=score,
         rationale=f"ragas metric {metric_name} scored projection {projection.case_id}",
-        metadata={"case_id": projection.case_id},
+        metadata={
+            "case_id": projection.case_id,
+            **dict(metadata or {}),
+        },
     )
 
 
@@ -390,4 +420,19 @@ def _runtime_failure_metadata(exc: Exception) -> dict[str, object]:
     disposition = getattr(exc, "disposition", None)
     if isinstance(disposition, str) and disposition.strip():
         metadata["failure_disposition"] = disposition
+    for attr in (
+        "provider_origin",
+        "http_status",
+        "request_id",
+        "faithfulness_stage",
+        "checkpoint_path",
+        "source_checkpoint_path",
+        "sample_hash",
+        "statement_count",
+        "completed_batch_count",
+        "remaining_batch_count",
+    ):
+        value = getattr(exc, attr, None)
+        if value not in (None, "", (), []):
+            metadata[attr] = value
     return metadata

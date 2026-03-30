@@ -8,6 +8,7 @@ from statistics import fmean
 from typing import Callable
 
 from campus_contracts import EvidenceSource, KnowledgeScope
+from campus_evals.faithfulness_runtime import bind_faithfulness_artifact_context
 from campus_evals.judge_gate import evaluate_judge_gate, load_judge_gate_policy
 from campus_evals.models import (
     CaseResult,
@@ -88,13 +89,18 @@ def run_handbook_formal_benchmark(
 
             run_reports: list[RunReport] = []
             for run_number in range(1, reruns + 1):
-                report = run_cases(
-                    cases,
-                    executor=executor,
-                    supplemental_adapters=runnable_supplemental_adapters,
+                with bind_faithfulness_artifact_context(
+                    output_dir=resolved_output_dir,
                     run_number=run_number,
                     benchmark_mode="run",
-                )
+                ):
+                    report = run_cases(
+                        cases,
+                        executor=executor,
+                        supplemental_adapters=runnable_supplemental_adapters,
+                        run_number=run_number,
+                        benchmark_mode="run",
+                    )
                 run_reports.append(report)
                 _write_run_artifacts(
                     output_dir=resolved_output_dir,
@@ -367,13 +373,19 @@ def repair_handbook_formal_benchmark(
                         supplemental_adapters=runnable_supplemental_adapters,
                         metric_keys=tuple(runnable_metric_keys),
                     )
-                    rerun_report = run_cases(
-                        (case,),
-                        executor=executor,
-                        supplemental_adapters=selected_adapters,
+                    with bind_faithfulness_artifact_context(
+                        output_dir=resolved_output_dir,
                         run_number=run_number,
                         benchmark_mode="repair",
-                    )
+                        source_output_dir=resolved_benchmark_dir,
+                    ):
+                        rerun_report = run_cases(
+                            (case,),
+                            executor=executor,
+                            supplemental_adapters=selected_adapters,
+                            run_number=run_number,
+                            benchmark_mode="repair",
+                        )
                     rerun_case_result = rerun_report.results[0]
                     replacement_by_metric_key = {
                         _supplemental_metric_key(item): item

@@ -7,6 +7,7 @@ import unittest
 
 from campus_contracts import ActorContext, EvidenceBundle, EvidenceSource, KnowledgeScope, RagResultPayload, SpecialistResponse
 from campus_evals import ExecutionResult, GoldenCase, ObservedTrace, SupplementalResult, TraceExpectation
+from campus_evals.faithfulness_runtime import current_faithfulness_artifact_context
 from campus_evals.handbook_benchmark import (
     collect_repairable_handbook_benchmark_targets,
     repair_handbook_formal_benchmark,
@@ -93,6 +94,167 @@ def _response(
 
 
 class HandbookBenchmarkRunnerTest(unittest.TestCase):
+    def test_run_handbook_formal_benchmark_binds_faithfulness_artifact_context_per_run(self) -> None:
+        cases = (_completed_case(),)
+        seen_contexts: list[tuple[str, int, str, str | None]] = []
+
+        class ContextAwareAdapter:
+            adapter_id = "judge"
+            metric_name = "answer_correctness_rubric"
+            metric_names = ("answer_correctness_rubric",)
+
+            def evaluate(self, case, execution):
+                del execution
+                context = current_faithfulness_artifact_context()
+                if context is None:
+                    seen_contexts.append(("missing", -1, "missing", None))
+                else:
+                    seen_contexts.append(
+                        (
+                            str(context.output_dir),
+                            context.run_number,
+                            context.benchmark_mode,
+                            str(context.source_output_dir) if context.source_output_dir is not None else None,
+                        )
+                    )
+                return (
+                    SupplementalResult(
+                        adapter_id="judge",
+                        metric_name="answer_correctness_rubric",
+                        score=0.9,
+                        verdict="passed",
+                        rationale=f"scored {case.case_id}",
+                    ),
+                )
+
+        with TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "benchmark"
+
+            run_handbook_formal_benchmark(
+                cases=cases,
+                executor=lambda case: ExecutionResult(
+                    response=_response(
+                        status=case.expected_status,
+                        answer_text="图书馆开放时间为 08:00 到 22:00。",
+                        sources=(_source("handbook:library"),),
+                    ),
+                    observed_trace=ObservedTrace(
+                        selected_scope=HANDBOOK_SCOPE,
+                        retrieval_called=True,
+                    ),
+                ),
+                supplemental_adapters=(ContextAwareAdapter(),),
+                output_dir=output_dir,
+                reruns=2,
+            )
+
+        self.assertEqual(
+            seen_contexts,
+            [
+                (str(output_dir), 1, "run", None),
+                (str(output_dir), 2, "run", None),
+            ],
+        )
+
+    def test_repair_handbook_formal_benchmark_binds_source_context_for_faithfulness_repair(self) -> None:
+        cases = (_completed_case(),)
+        original_adapter = type(
+            "OriginalAdapter",
+            (),
+            {
+                "adapter_id": "judge",
+                "metric_name": "answer_correctness_rubric",
+                "metric_names": ("answer_correctness_rubric",),
+                "evaluate": lambda self, case, execution: (
+                    SupplementalResult(
+                        adapter_id="judge",
+                        metric_name="answer_correctness_rubric",
+                        score=None,
+                        verdict="failed",
+                        rationale='judge runtime error: 429 {"error":{"message":"upstream error","code":"do_request_failed"}}',
+                        metadata={"judge_error": "RuntimeError"},
+                    ),
+                ),
+            },
+        )()
+        seen_contexts: list[tuple[str, int, str, str | None]] = []
+
+        class RepairContextAwareAdapter:
+            adapter_id = "judge"
+            metric_name = "answer_correctness_rubric"
+            metric_names = ("answer_correctness_rubric",)
+
+            def evaluate(self, case, execution):
+                del execution
+                context = current_faithfulness_artifact_context()
+                if context is None:
+                    seen_contexts.append(("missing", -1, "missing", None))
+                else:
+                    seen_contexts.append(
+                        (
+                            str(context.output_dir),
+                            context.run_number,
+                            context.benchmark_mode,
+                            str(context.source_output_dir) if context.source_output_dir is not None else None,
+                        )
+                    )
+                return (
+                    SupplementalResult(
+                        adapter_id="judge",
+                        metric_name="answer_correctness_rubric",
+                        score=0.95,
+                        verdict="passed",
+                        rationale=f"repaired {case.case_id}",
+                    ),
+                )
+
+        with TemporaryDirectory() as tmpdir:
+            benchmark_dir = Path(tmpdir) / "benchmark"
+            repair_dir = Path(tmpdir) / "benchmark-repair"
+
+            run_handbook_formal_benchmark(
+                cases=cases,
+                executor=lambda case: ExecutionResult(
+                    response=_response(
+                        status=case.expected_status,
+                        answer_text="图书馆开放时间为 08:00 到 22:00。",
+                        sources=(_source("handbook:library"),),
+                    ),
+                    observed_trace=ObservedTrace(
+                        selected_scope=HANDBOOK_SCOPE,
+                        retrieval_called=True,
+                    ),
+                ),
+                supplemental_adapters=(original_adapter,),
+                output_dir=benchmark_dir,
+                reruns=1,
+            )
+
+            repair_handbook_formal_benchmark(
+                cases=cases,
+                executor=lambda case: ExecutionResult(
+                    response=_response(
+                        status=case.expected_status,
+                        answer_text="图书馆开放时间为 08:00 到 22:00。",
+                        sources=(_source("handbook:library"),),
+                    ),
+                    observed_trace=ObservedTrace(
+                        selected_scope=HANDBOOK_SCOPE,
+                        retrieval_called=True,
+                    ),
+                ),
+                supplemental_adapters=(RepairContextAwareAdapter(),),
+                benchmark_dir=benchmark_dir,
+                output_dir=repair_dir,
+            )
+
+        self.assertEqual(
+            seen_contexts,
+            [
+                (str(repair_dir), 1, "repair", str(benchmark_dir)),
+            ],
+        )
+
     def test_run_handbook_formal_benchmark_skips_unavailable_supplemental_adapters_and_preserves_deterministic_runs(
         self,
     ) -> None:

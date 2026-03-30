@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
@@ -9,6 +11,7 @@ import httpx
 from langchain_core.messages import HumanMessage
 from langchain_core.prompt_values import StringPromptValue
 from ragas.llms.base import InstructorBaseRagasLLM
+from ragas.metrics._faithfulness import NLIStatementOutput, StatementFaithfulnessAnswer, StatementGeneratorOutput
 
 from campus_evals import (
     RagasProjection,
@@ -21,6 +24,7 @@ from campus_evals import (
     build_ragas_supplemental_adapter_from_env,
 )
 from campus_evals._langchain_compat import build_langchain_chat_model
+from campus_evals.faithfulness_runtime import bind_faithfulness_artifact_context
 from campus_evals.ragas_adapter import build_default_ragas_metrics
 from campus_evals.settings import SupplementalHTTPSettings
 from campus_evals.supplemental_http import (
@@ -1241,6 +1245,161 @@ class RagasHttpTransportTest(unittest.TestCase):
 
 
 class RagasScorerTest(unittest.TestCase):
+    def test_build_ragas_scorer_uses_staged_faithfulness_checkpoint_resume_on_repair(self) -> None:
+        class FakeFaithfulnessMetric:
+            name = "faithfulness"
+
+            def __init__(self, *, fail_on_verdict_call: int | None = None) -> None:
+                self.fail_on_verdict_call = fail_on_verdict_call
+                self.init_calls = 0
+                self.statement_calls = 0
+                self.verdict_calls = 0
+                self.verdict_batches: list[tuple[str, ...]] = []
+
+            def init(self, run_config) -> None:
+                del run_config
+                self.init_calls += 1
+
+            async def _create_statements(self, row, callbacks=None) -> StatementGeneratorOutput:
+                del row, callbacks
+                self.statement_calls += 1
+                return StatementGeneratorOutput(
+                    statements=[
+                        "statement-1",
+                        "statement-2",
+                        "statement-3",
+                        "statement-4",
+                        "statement-5",
+                    ]
+                )
+
+            async def _create_verdicts(self, row, statements, callbacks=None) -> NLIStatementOutput:
+                del row, callbacks
+                self.verdict_calls += 1
+                batch = tuple(str(item) for item in statements)
+                self.verdict_batches.append(batch)
+                if self.fail_on_verdict_call == self.verdict_calls:
+                    raise RuntimeError("503 upstream temporarily unavailable")
+                return NLIStatementOutput(
+                    statements=[
+                        StatementFaithfulnessAnswer(
+                            statement=statement,
+                            reason="supported by evidence",
+                            verdict=1,
+                        )
+                        for statement in batch
+                    ]
+                )
+
+            def _compute_score(self, answers) -> float:
+                total = len(answers.statements)
+                if total == 0:
+                    return float("nan")
+                faithful = sum(1 for item in answers.statements if int(item.verdict) == 1)
+                return faithful / total
+
+        settings = RagasSettings.from_env(
+            {
+                "LLM_BASE_URL": "https://llm.example/v1",
+                "LLM_API_KEY": "llm-key",
+                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EMBEDDING_BASE_URL": "https://embed.example/v1",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+            }
+        )
+        projection = RagasProjection(
+            case_id="case-faithfulness-checkpoint",
+            user_input="图书馆开放时间是什么？",
+            response="图书馆开放时间是 08:00 到 22:00。",
+            retrieved_contexts=("图书馆开放时间为 08:00-22:00。",),
+            reference="图书馆开放时间为 08:00-22:00。",
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            benchmark_dir = Path(tmpdir) / "benchmark"
+            repair_dir = Path(tmpdir) / "repair"
+            first_metric = FakeFaithfulnessMetric(fail_on_verdict_call=2)
+            first_scorer = build_ragas_scorer(
+                settings,
+                evaluate_fn=lambda **kwargs: (_ for _ in ()).throw(
+                    AssertionError("faithfulness should bypass ragas.evaluate")
+                ),
+                llm_factory=lambda resolved: {"model": resolved.llm_model},
+                embeddings_factory=lambda resolved: {"model": resolved.embedding_model},
+                metric_factory=lambda llm, embeddings: (first_metric,),
+            )
+
+            with bind_faithfulness_artifact_context(
+                output_dir=benchmark_dir,
+                run_number=1,
+                benchmark_mode="run",
+            ):
+                first_results = first_scorer(projection)
+
+            self.assertEqual(first_metric.init_calls, 1)
+            self.assertEqual(first_metric.statement_calls, 1)
+            self.assertEqual(
+                first_metric.verdict_batches,
+                [
+                    ("statement-1", "statement-2", "statement-3", "statement-4"),
+                    ("statement-5",),
+                ],
+            )
+            self.assertEqual(first_results[0].verdict, "failed")
+            self.assertEqual(first_results[0].metadata["faithfulness_stage"], "nli_verdicts")
+            self.assertEqual(first_results[0].metadata["statement_count"], 5)
+            self.assertEqual(first_results[0].metadata["completed_batch_count"], 1)
+            self.assertEqual(first_results[0].metadata["remaining_batch_count"], 1)
+            checkpoint_path = Path(str(first_results[0].metadata["checkpoint_path"]))
+            self.assertTrue(checkpoint_path.exists())
+            checkpoint_payload = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                checkpoint_payload["stages"]["statement_generation"]["status"],
+                "completed",
+            )
+            self.assertEqual(checkpoint_payload["stages"]["nli_verdicts"]["status"], "partial")
+            self.assertEqual(
+                sorted(checkpoint_payload["stages"]["nli_verdicts"]["batches"].keys()),
+                ["0"],
+            )
+
+            second_metric = FakeFaithfulnessMetric()
+            second_scorer = build_ragas_scorer(
+                settings,
+                evaluate_fn=lambda **kwargs: (_ for _ in ()).throw(
+                    AssertionError("faithfulness should bypass ragas.evaluate")
+                ),
+                llm_factory=lambda resolved: {"model": resolved.llm_model},
+                embeddings_factory=lambda resolved: {"model": resolved.embedding_model},
+                metric_factory=lambda llm, embeddings: (second_metric,),
+            )
+
+            with bind_faithfulness_artifact_context(
+                output_dir=repair_dir,
+                run_number=1,
+                benchmark_mode="repair",
+                source_output_dir=benchmark_dir,
+            ):
+                second_results = second_scorer(projection)
+
+            self.assertEqual(second_metric.init_calls, 1)
+            self.assertEqual(second_metric.statement_calls, 0)
+            self.assertEqual(second_metric.verdict_batches, [("statement-5",)])
+            self.assertAlmostEqual(second_results[0].score or 0.0, 1.0)
+            self.assertEqual(second_results[0].metadata["statement_count"], 5)
+            self.assertEqual(second_results[0].metadata["completed_batch_count"], 2)
+            self.assertEqual(second_results[0].metadata["remaining_batch_count"], 0)
+            self.assertEqual(
+                Path(str(second_results[0].metadata["source_checkpoint_path"])),
+                checkpoint_path,
+            )
+            repair_checkpoint_path = Path(str(second_results[0].metadata["checkpoint_path"]))
+            self.assertTrue(repair_checkpoint_path.exists())
+            repair_payload = json.loads(repair_checkpoint_path.read_text(encoding="utf-8"))
+            self.assertEqual(repair_payload["stages"]["nli_verdicts"]["status"], "completed")
+            self.assertEqual(repair_payload["stages"]["score_aggregation"]["status"], "completed")
+
     def test_build_default_ragas_metrics_binds_runtime_and_uses_single_generation_answer_relevancy(self) -> None:
         llm = object()
         embeddings = object()
