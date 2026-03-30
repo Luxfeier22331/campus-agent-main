@@ -1,82 +1,86 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-03-28
+**Analysis Date:** 2026-03-31
 
 ## Test Framework
 
-**Runner:**
-- `uv run --all-packages python -m unittest discover -s tests -t .` is the baseline; every package is expected to load through the workspace `tests/__init__.py` setup so the runner can import `apps/*/src` and `packages/*/src`.
-- Targeted runs (e.g., `uv run --all-packages python -m pytest tests/specialist/test_rag_specialist.py -q` as listed in `packages/rag-specialist/AGENTS.md`) use `pytest` to take advantage of its filtering flags even though the file itself defines `unittest.TestCase` subclasses.
+**Python runner:**
+- `uv run --all-packages python -m unittest discover -s tests -t .` remains the repo baseline.
+- Targeted Python runs may still use `uv run --all-packages python -m pytest ...` when a package-local workflow explicitly needs pytest filtering, but that does not replace the baseline contract.
 
-**Assertion Library:**
-- Built-in `unittest` assertions provided by `test.TestCase` (`assertEqual`, `assertIsInstance`, `assertRaises`, etc.) dominate existing suites such as `tests/ingestion/test_chunking_policy.py` and `tests/api/test_supervisor_api.py`.
-- `pytest` is used purely as a runner for targeted suites; no `pytest`-specific matcher APIs (like `expect` or fixtures) appear in current test files.
+**JS/TS runner:**
+- JS/TS surfaces are orchestrated through repo root `pnpm` + `turbo`.
+- Vitest remains the test runner for the current workspace apps.
+- `apps/app-api` now uses explicit test lanes instead of a single mixed config:
+  - `test:node`
+  - `test:worker`
+  - `test:shared-db-integration`
 
 ## Run Commands
 
 ```bash
 uv run --all-packages python -m unittest discover -s tests -t .
-uv run --all-packages python -m pytest tests/specialist/test_rag_specialist.py -q
-pnpm web:test
 pnpm web:typecheck
+pnpm web:test
+pnpm web:test:worker
+pnpm web:test:integration
 pnpm web:build
 pnpm web:check:affected
 ```
 
-The first command is the canonical “run everything” verification referenced in `AGENTS.md`. The second command is recommended when working inside `packages/rag-specialist` (`packages/rag-specialist/AGENTS.md`) to focus on the specialist logic without rerunning unrelated suites.
+Meaning:
 
-For JS/TS surfaces, the repo now uses a root `pnpm-workspace.yaml` plus `turbo.json`. Root `pnpm web:*` commands are the preferred verification entrypoint for `apps/public-consumer-chat` and `apps/public-entry-worker`, while app-local `pnpm` commands remain valid for focused work inside a single app.
+- `pnpm web:test` is the JS/TS stable default gate.
+- `pnpm web:test:worker` is the explicit Worker runtime lane.
+- `pnpm web:test:integration` is the explicit shared-db integration lane for `apps/app-api`.
+- `pnpm web:test:integration` is expected to fail closed when the connected shared DB has drifted away from the repo-owned adoption snapshot.
+
+## Current JS/TS Lane Map
+
+### apps/app-api
+
+- `pnpm --dir apps/app-api test`
+  - stable Node lane
+- `pnpm --dir apps/app-api test:all`
+  - local non-DB fanout (`node` + `worker`)
+- `pnpm --dir apps/app-api test:worker`
+  - Worker runtime lane
+- `pnpm --dir apps/app-api test:shared-db-integration`
+  - shared Postgres / Better Auth integration lane
+
+### apps/public-chat-web
+
+- `pnpm --dir apps/public-chat-web test`
+  - alias of `test:worker`
+- `pnpm --dir apps/public-chat-web test:worker`
+  - Worker runtime lane
+
+### apps/protected-panel-web
+
+- `pnpm --dir apps/protected-panel-web test`
+  - alias of `test:worker`
+- `pnpm --dir apps/protected-panel-web test:worker`
+  - Worker runtime lane
 
 ## Test File Organization
 
-- `tests/` mirrors the code layers: `tests/api/`, `tests/ingestion/`, `tests/retrieval/`, `tests/specialist/`, `tests/supervisor/`, plus `tests/contracts/` and `tests/test_workspace_layout.py` for meta-checks.
-- Files live under `tests/<layer>/test_<feature>.py`, such as `tests/api/test_supervisor_api.py` for transport behavior and `tests/ingestion/test_chunking_policy.py` for ingestion chunking logic.
-- Shared fixtures and workspace setup live in `tests/__init__.py` and `tests/conftest.py`, which are imported automatically by the runner (no separate `tests/fixtures` directory is currently used).
-
-## Test Structure
-
-- Suites are standard `unittest.TestCase` subclasses (`ChunkingPolicyTest`, `SupervisorApiTest`, `BackendQdrantTest`), with each `test_*` method focusing on a single behavior.
-- Tests follow the arrange/act/assert pattern: arrange dependencies (helper builders or `TemporaryDirectory` setups), call the system under test, and assert results (`self.assertEqual`, `self.assertRaises`, `self.assertIn`, etc.).
-- Helper methods live inside the test module (e.g., `_make_registry_record`, `_make_structured_jsonl` in `tests/retrieval/test_backend_qdrant.py`) to share common data without a separate fixture file.
-- When repeated setup is needed (such as adjusting environment variables), tests use context helpers like `patch.dict(os.environ, ...)` from `unittest.mock`.
-
-## Mocking
-
-- Use `unittest.mock.patch` liberally to isolate external dependencies (`tests/api/test_supervisor_api.py` patches the supervisor handler and environment, `tests/retrieval/test_backend_qdrant.py` patches `build_document_registry_from_env`).
-- `TemporaryDirectory` and in-memory backends (`QdrantClient(location=":memory:")`) simulate file systems and external services without hitting real infrastructure.
-- Build mock embedding behavior via helpers from the ingestion package (`MockEmbeddingSettings`, `build_mock_embedding_model` in `tests/retrieval/test_backend_qdrant.py`) so the backend can produce deterministic vectors.
-- When mocking modules, patch at import time with `patch("module.path")` and rely on `mocked_instance.return_value` to control downstream behavior while keeping assertions within the owning test.
-
-## Fixtures and Factories
-
-- `tests/__init__.py` and `tests/conftest.py` call `add_workspace_sources()` so that `uv run`/`pytest` discover the package `src/` directories—this is the only repo-wide fixture and is executed before any test file runs.
-- Tests define inline factory helpers for domain objects (`_make_registry_record`, `_make_structured_jsonl`, `StructuredUnitChunkInput` builders), keeping them close to the tests that use them.
-- Shared configuration values (e.g., chunking defaults from `packages/ingestion-core/src/campus_ingestion_core/chunking.py`) are imported directly so tests track the same runtime truth as production code.
+- Python tests still live under `tests/` and mirror repo layers such as `tests/api/`, `tests/ingestion/`, `tests/retrieval/`, `tests/specialist/`, and `tests/supervisor/`.
+- `apps/app-api/test/` now has an explicit split between:
+  - `*.test.ts` for default Node lane coverage
+  - `worker.test.ts` for Worker runtime coverage
+  - `*.integration.test.ts` for explicit shared-db integration coverage
+- `apps/public-chat-web/test/worker.test.ts` and `apps/protected-panel-web/test/worker.test.ts` remain Worker-first suites.
 
 ## Coverage Expectations
 
-- No explicit coverage target is enforced; the repo focuses on ensuring the baseline `uv run --all-packages python -m unittest discover -s tests -t .` passes before merging, plus root `pnpm web:*` verification for JS/TS surfaces and `pnpm web:*:affected` checks when validating changes against `develop`.
-- Coverage reporting is not configured in `pyproject.toml` or anywhere else, so teams treat coverage as informational and add tooling only when a future need arises.
+- The repo still treats passing baseline commands as the merge gate, not a numeric coverage percentage.
+- Default merge confidence comes from:
+  - Python baseline
+  - JS/TS stable gate
+  - any explicit worker or integration lane affected by the change
 
-## Test Types
+## Verification Notes
 
-- **Unit tests:** cover discrete helpers and dataclasses (`tests/ingestion/test_chunking_policy.py`, `tests/contracts/test_models.py`) with direct imports from `packages/*`.
-- **Integration tests:** exercise multiple layers together by building registries, invoking `QdrantRetrievalBackend`, and routing through `create_app` in `tests/api/test_supervisor_api.py`.
-- **E2E tests:** none currently exist; call `apps/supervisor-api` or `apps/ingestion-worker` manually if deeper verification is required.
-
-## Common Patterns
-
-- Arrange inputs with helpers or fixtures, run the subject, assert outcomes, and prefer `with self.assertRaises(...)` for invalid inputs (`ChunkProfile` validation uses this style).
-- Use `TemporaryDirectory` to house registries/objects and clean up automatically, which keeps tests hermetic (`tests/retrieval/test_backend_qdrant.py`).
-- Build deterministic evidence/assertion objects for each test rather than reusing global mutable state (`tests/specialist/test_rag_specialist.py` uses `_make_evidence` for reproducibility).
-- Keep mocks scoped to the test function so they do not bleed into other suites; `patch` is usually applied as a context manager inside the method.
-
-## Local Verification
-
-- Run the full suite via the canonical command; rely on `tests/__init__.py` to load all `src` paths first.
-- Target the specialist suite with `uv run --all-packages python -m pytest tests/specialist/test_rag_specialist.py -q` when working inside `packages/rag-specialist`.
-- When adding ingestion tests, focus on `tests/ingestion/` filenames and follow the chunking/cleaning helpers already present.
-
-## CI Gates
-
-- There is no dedicated CI workflow documented yet, but the repo-level `AGENTS.md` specifies that the same `uv run --all-packages python -m unittest discover -s tests -t .` command should serve as the verification gate before merging.
+- Worker lanes may require permission to bind local ports in restricted sandboxes.
+- `pnpm web:test` should not be described as “everything”; explicit worker and integration lanes remain separate by design.
+- Retired apps such as `public-consumer-chat` and `public-entry-worker` are no longer part of the current test truth.

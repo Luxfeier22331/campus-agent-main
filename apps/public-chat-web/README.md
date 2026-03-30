@@ -84,6 +84,7 @@ Local commands:
 pnpm install
 pnpm build
 pnpm test
+pnpm test:worker
 pnpm typecheck
 pnpm dev
 ```

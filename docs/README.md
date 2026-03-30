@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-03-22
-updated: 2026-03-30
+updated: 2026-03-31
 ---
 
 # Docs
@@ -146,5 +146,6 @@ updated: 2026-03-30
 - `reference/phase1-ingestion-retrieval-implementation-truth.md`
 - `reference/runtime-serving-and-index-terms.md`
 - `reference/student-handbook-eval-metrics.md`
+- `reference/testing-and-verification-lanes.md`
 - `policies/student-handbook-chunking-and-validation-policy.md`
 - `policies/student-handbook-judge-gate-policy.md`

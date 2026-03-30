@@ -137,10 +137,23 @@ pnpm db:print-auth-migration
 pnpm db:ensure-app-auth-role-search-path
 pnpm db:bootstrap
 pnpm db:adopt-shared -- --json
-pnpm test:shared-db-integration
+pnpm db:reconcile-shared-drift -- --json
 pnpm test
+pnpm test:all
+pnpm test:node
+pnpm test:worker
+pnpm test:shared-db-integration
 pnpm typecheck
 pnpm db:generate
 pnpm db:migrate
 pnpm dev
 ```
+
+Testing lanes:
+
+- `pnpm test` and `pnpm test:node` are the stable default gate for `app-api` business logic and contract tests under the Node runtime.
+- `pnpm test:all` fans out the local non-DB Vitest projects (`node` + `worker`) from a single app-owned entrypoint.
+- `pnpm test:worker` is the explicit Worker-runtime lane for the shared `app-api` shell and readiness contract.
+- `pnpm test:shared-db-integration` is the explicit shared Postgres / Better Auth integration lane and is not part of the default `pnpm test` gate.
+- `pnpm test:shared-db-integration` also fails closed when the connected shared DB no longer converges with the repo-owned `official_web/runtime/operator` snapshot.
+- When shared DB drift is detected, inspect it with `pnpm db:reconcile-shared-drift -- --json` before applying cleanup with backup and `--apply`.

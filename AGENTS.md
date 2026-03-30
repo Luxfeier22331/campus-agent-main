@@ -221,6 +221,8 @@ JS/TS surface 的默认验证命令：
 pnpm install
 pnpm web:typecheck
 pnpm web:test
+pnpm web:test:worker
+pnpm web:test:integration
 pnpm web:build
 ```
 
@@ -237,6 +239,9 @@ pnpm web:build:affected
 - 默认不要直接运行裸 `python3` 或裸 `pytest`
 - 仓库级基线验证与局部测试命令默认都通过 `uv run --all-packages ...` 执行
 - JS/TS app 的共享任务编排默认通过 repo root `pnpm` + `turbo` 入口执行，不再鼓励把跨 app 验证拆回各自目录手动串行运行
+- `pnpm web:test` 是 JS/TS 默认稳定 gate；不要把它表述成自动覆盖所有 worker / integration lane
+- `pnpm web:test:worker` 是显式 Worker runtime lane；`pnpm web:test:integration` 是显式外部依赖 integration lane
+- `apps/app-api` 默认 `pnpm test` 只跑 `test:node`；`test:worker` 与 `test:shared-db-integration` 必须显式调用
 - 如果新增局部测试或检查命令，只记录仓库里真实存在、可重复执行的命令
 - 不要把“担心腐烂”当成替代验证证据的理由
 - 当提出某种设计风险时，应尽可能区分：文档事实、代码事实，以及你的推断

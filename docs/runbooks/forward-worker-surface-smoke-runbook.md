@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-03-29
-updated: 2026-03-30
+updated: 2026-03-31
 ---
 
 # Forward Worker Surface Smoke Runbook
@@ -46,19 +46,19 @@ updated: 2026-03-30
 先验证 shared `app-api` Worker runtime：
 
 ```bash
-XDG_CONFIG_HOME=./.wrangler-home pnpm --dir apps/app-api exec vitest run test/worker.test.ts --reporter=verbose
+pnpm --dir apps/app-api test:worker -- --reporter=verbose
 ```
 
 再验证 public chat 主链路 smoke：
 
 ```bash
-XDG_CONFIG_HOME=./.wrangler-home pnpm --dir apps/public-chat-web exec vitest run test/worker.test.ts --reporter=verbose -t "smokes a chat request through public-chat-web into app-api"
+pnpm --dir apps/public-chat-web test:worker -- --reporter=verbose -t "smokes a chat request through public-chat-web into app-api"
 ```
 
 最后验证 protected panel 请求查询链路 smoke：
 
 ```bash
-XDG_CONFIG_HOME=./.wrangler-home pnpm --dir apps/protected-panel-web exec vitest run test/worker.test.ts --reporter=verbose -t "smokes request queries through protected-panel-web into app-api with internal caller admission"
+pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "smokes request queries through protected-panel-web into app-api with internal caller admission"
 ```
 
 ## 这组 smoke 证明什么

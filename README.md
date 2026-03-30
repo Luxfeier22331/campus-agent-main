@@ -85,8 +85,12 @@
 - JS/TS apps 现在通过 repo root `pnpm-workspace.yaml` 和 `turbo.json` 统一编排
 - 当前纳入 workspace 的主要 Worker/web app 是 `apps/app-api`、`apps/public-chat-web` 与 `apps/protected-panel-web`
 - repo root `package.json` 只提供 Turbo 代理脚本，不承载 app 级业务逻辑
+- `pnpm web:test` 是 JS/TS 默认稳定 gate，不等于所有可能的 worker / integration lane 全部并入
+- 显式 Worker runtime lane 使用 `pnpm web:test:worker`
+- 显式 shared-db integration lane 使用 `pnpm web:test:integration`
 - 日常全量验证使用 `pnpm web:typecheck`、`pnpm web:test`、`pnpm web:build`
 - 面向 `develop` 的增量验证使用 `pnpm web:typecheck:affected`、`pnpm web:test:affected`、`pnpm web:build:affected` 或 `pnpm web:check:affected`
+- 具体 lane 语义见 `docs/reference/testing-and-verification-lanes.md`
 
 ## 协作约定
 
@@ -115,13 +119,20 @@ uv run --all-packages python -m unittest discover -s tests -t .
 pnpm install
 pnpm web:typecheck
 pnpm web:test
+pnpm web:test:worker
+pnpm web:test:integration
 pnpm web:build
 pnpm web:check:affected
 pnpm --dir apps/app-api test
+pnpm --dir apps/app-api test:all
+pnpm --dir apps/app-api test:worker
+pnpm --dir apps/app-api test:shared-db-integration
 pnpm --dir apps/app-api typecheck
 pnpm --dir apps/public-chat-web test
+pnpm --dir apps/public-chat-web test:worker
 pnpm --dir apps/public-chat-web typecheck
 pnpm --dir apps/protected-panel-web test
+pnpm --dir apps/protected-panel-web test:worker
 pnpm --dir apps/protected-panel-web typecheck
 ```
 

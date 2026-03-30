@@ -139,6 +139,7 @@ pnpm install
 pnpm build
 pnpm preview
 pnpm test
+pnpm test:worker
 pnpm typecheck
 pnpm dev
 pnpm deploy
