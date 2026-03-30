@@ -84,8 +84,6 @@ apps/
 └── supervisor-api
 ```
 
-当前仓库已经落地这组目录；`apps/public-consumer-chat` 仅作为 04.7 历史实现参考保留，不再承担 forward backend truth。
-
 ## Web Surface Responsibilities
 
 ### `apps/public-chat-web`
@@ -202,7 +200,7 @@ apps/
 - Better Auth runtime 位于 `apps/app-api`，repo-owned schema 固定为 `app_auth.*`
 - Supabase platform `auth.*` 保持平台保留 schema，不再被 repo migration owner 接管
 - `apps/app-api` 运行时统一消费 `app_auth.*`、`chat.*`、`runtime.*`、`operator.*`
-- `apps/public-consumer-chat` 当前保留 `app_auth.*` / `chat.*` shared-db bootstrap 能力
+- `apps/app-api` shared-product bootstrap 负责 `app_auth.*` / `chat.*` 的 bootstrap / adoption
 - 在当前 Supabase session pooler 上，`app_auth.*` 通过数据库角色默认 `search_path` 收敛，而不是只依赖连接字符串 override
 - `apps/app-api` Drizzle journal 当前只拥有 `runtime.*` / `operator.*` / `official_web.*`
 - migration / schema management 使用 direct database management connection
@@ -227,7 +225,7 @@ runtime 形态已不再 deferred：
 
 以下形态不再接受：
 
-- `public-consumer-chat` 继续作为独立 full-stack app backend
+- legacy standalone public chat app backend 继续作为独立 full-stack app backend
 - `operator-query-api` 继续作为与 chat backend 并列的独立产品后端
 - `official_web` 再造独立 crawler-intake backend
 - browser 直接请求 `apps/supervisor-api`
@@ -242,8 +240,6 @@ runtime 形态已不再 deferred：
 - `protected-panel-web`
 - shared `app-api`
 - `supervisor-api` execution engine
-
-`apps/public-consumer-chat` 仍保留为历史实现参考，但它不再定义 forward product topology、backend ownership 或 panel/query boundary。
 
 同时，`official_web -> app-api` control-plane ownership 不仅已经被接受并写入 canonical docs，也已在当前实现中落地到 shared `app-api` 与 `protected-panel-web` 的 runtime-owned surface。
 

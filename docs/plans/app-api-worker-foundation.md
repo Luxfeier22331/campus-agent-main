@@ -227,7 +227,6 @@ apps/app-api/
 
 - `app-api` 是 shared Worker backend
 - `docs/contracts/` 与 `docs/data/` 已冻结第一版 API / lifecycle / schema
-- `public-consumer-chat` 是历史参考，不是 forward backend truth
 - `protected-panel-web` 是当前 protected panel web surface
 - `supervisor-api` 保持 execution engine
 

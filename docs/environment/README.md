@@ -30,8 +30,6 @@ updated: 2026-03-30
 
 - repo root [`.env.example`](../../.env.example)
   supervisor-api shared auth/audit、shared Supabase Postgres、retrieval/embedding/Qdrant、object store、OCR/raw registry、eval live benchmark profile runtime、`CAMPUS_AGENT_HTTP_HOST` / `CAMPUS_AGENT_HTTP_PORT`
-- app-local [`apps/public-consumer-chat/.env.example`](../../apps/public-consumer-chat/.env.example)
-  `public-consumer-chat` 的 app host、Supabase Postgres、Better Auth、same-site supervisor answer seam
 - app-local [`apps/app-api/.dev.vars.example`](../../apps/app-api/.dev.vars.example)
   `app-api` 的 Worker string env，包括 auth/supervisor bridge、official_web control-plane string config，以及 `SENTRY_*` / `AXIOM_*`
 - app-local [`apps/app-api/.env.example`](../../apps/app-api/.env.example)
@@ -73,10 +71,6 @@ updated: 2026-03-30
   把 `CAMPUS_SHARED_POSTGRES_URL` fan out 到 `apps/app-api/.env` 的
   `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB` 与
   `APP_API_MANAGEMENT_DATABASE_URL`
-- 如果本地希望让 `public-consumer-chat` 直接复用 root worktree `.env` 里的共享 Supabase Postgres，可用
-  `uv run --all-packages python -m scripts.sync_public_consumer_chat_local_db_env`
-  把 `CAMPUS_SHARED_POSTGRES_URL` fan out 到 `apps/public-consumer-chat/.env` 的
-  `PUBLIC_CONSUMER_CHAT_DATABASE_URL` 与 `PUBLIC_CHAT_TEST_DATABASE_URL`
 - `apps/app-api` 还会在 source `.env` 存在 `AXIOM_ENDPOINT`、`AXIOM_DATASET`、`AXIOM_TOKEN` 时同步这三个键
 - `AXIOM_ENDPOINT` 应填写 Axiom `Settings -> General -> Edge deployment` 对应的 base domain，例如 `https://us-east-1.aws.edge.axiom.co`
 - `AXIOM_DATASET` 应保持 service/env 级别命名，例如 `campus-agent-runtime-dev`，不要把多类信号混进一个 kitchen-sink dataset

@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0016
 status: accepted
 created: 2026-03-28
-updated: 2026-03-29
+updated: 2026-03-30
 ---
 
 # ADR-0016 App API Request Projection And Panel Query Ownership
@@ -96,7 +96,7 @@ updated: 2026-03-29
 以下都不是 panel `Requests` 的 canonical truth：
 
 - `chat.*` conversation / message store
-- 历史 `apps/public-consumer-chat` conversation / message store
+- 历史 standalone public chat conversation / message store
 - JSONL audit sink
 - `Axiom`、`Sentry` 或其他 telemetry sink
 - raw trace dump

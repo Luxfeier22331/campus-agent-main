@@ -16,6 +16,9 @@
     "test:integration": {
       "cache": false
     },
+    "test:shared-db-integration": {
+      "cache": false
+    },
     "dev": {
       "cache": false,
       "persistent": true

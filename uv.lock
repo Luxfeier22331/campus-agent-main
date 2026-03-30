@@ -24,7 +24,6 @@ members = [
     "campus-ingestion-worker",
     "campus-protected-panel-web",
     "campus-public-chat-web",
-    "campus-public-consumer-chat",
     "campus-public-entry-worker",
     "campus-rag-specialist",
     "campus-retrieval-core",
@@ -363,11 +362,6 @@ requires-dist = [{ name = "campus-shared", editable = "packages/shared" }]
 name = "campus-public-chat-web"
 version = "0.1.0"
 source = { virtual = "apps/public-chat-web" }
-
-[[package]]
-name = "campus-public-consumer-chat"
-version = "0.1.0"
-source = { virtual = "apps/public-consumer-chat" }
 
 [[package]]
 name = "campus-public-entry-worker"

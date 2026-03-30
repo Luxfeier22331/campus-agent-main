@@ -12,7 +12,7 @@ EXPECTED_WORKSPACES = {
     "apps/app-api",
     "apps/ingestion-worker",
     "apps/protected-panel-web",
-    "apps/public-consumer-chat",
+    "apps/public-chat-web",
     "apps/supervisor-api",
     "packages/availability-specialist",
     "packages/contracts",

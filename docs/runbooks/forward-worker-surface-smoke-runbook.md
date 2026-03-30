@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-03-29
-updated: 2026-03-29
+updated: 2026-03-30
 ---
 
 # Forward Worker Surface Smoke Runbook
@@ -32,7 +32,7 @@ updated: 2026-03-29
 
 当前 repo 还没有把 `public-chat-web -> app-api` 与 `protected-panel-web -> app-api` 的本地多 Worker 联调拓扑固化成一个统一 `pnpm smoke` 脚本。
 
-因此，当前 canonical smoke 入口是基于 Worker runtime 的 targeted vitest 用例，而不是历史 `apps/public-consumer-chat` 的 live smoke。
+因此，当前 canonical smoke 入口是基于 Worker runtime 的 targeted vitest 用例，而不是任何已退役的 standalone public chat app live smoke。
 
 ## 前置条件
 
@@ -77,8 +77,7 @@ XDG_CONFIG_HOME=./.wrangler-home pnpm --dir apps/protected-panel-web exec vitest
 - 不证明真实数据库、真实 Better Auth session 或真实 supervisor live execution 已接通
 - 不证明 retrieval、grounding 或答案质量达标
 
-## 与历史 smoke 的关系
+## 与旧 smoke 的关系
 
-- `apps/public-consumer-chat` 下的 `pnpm smoke:live` 只属于历史 04.7 实现参考
-- 它不再是 forward product topology 的 canonical smoke 入口
-- 如果未来要增加真正的 browser/live smoke，应围绕 `public-chat-web`、`protected-panel-web` 和 shared `app-api` 重新设计，而不是继续扩展历史 full-stack app 的 smoke
+- 已退役 standalone public chat app 的 live smoke 不再是 forward product topology 的 canonical smoke 入口
+- 如果未来要增加真正的 browser/live smoke，应围绕 `public-chat-web`、`protected-panel-web` 和 shared `app-api` 重新设计

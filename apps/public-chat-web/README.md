@@ -52,10 +52,6 @@ Canonical references:
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 
-Historical reference:
-
-- `apps/public-consumer-chat`
-
 Environment:
 
 - `PUBLIC_CHAT_APP_NAME`
