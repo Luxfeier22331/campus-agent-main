@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-03-28
-updated: 2026-03-29
+updated: 2026-03-30
 ---
 
 # App API Schema
@@ -34,13 +34,15 @@ updated: 2026-03-29
 - migration / schema 管理通过 direct database management connection 访问数据库
 - 逻辑 schema 分域而不是物理拆库
 - 这份 Postgres 是 repo 共享数据库，不是 `apps/app-api` 独占实例
+- Supabase platform-managed `auth.*` 不属于 repo-owned app schema
 
-固定逻辑分域：
+`apps/app-api` 当前运行时直接消费的逻辑分域：
 
-- `auth.*`
+- `app_auth.*`
 - `chat.*`
 - `runtime.*`
 - `operator.*`
+- `official_web.*`
 
 ## Global Rules
 
@@ -54,39 +56,46 @@ updated: 2026-03-29
 
 `apps/app-api` 的数据库代码组织固定为：
 
-- `auth.*`
+- `app_auth.*`
 - `chat.*`
 - `runtime.*`
 - `operator.*`
+- `official_web.*`
 
 它们共享：
 
 - 一套 Drizzle schema codebase
-- 一条 migration pipeline
-- 一份 schema 版本历史
-- `drizzle.app_api_migrations` 这张专属 migration journal table
+- 一套 runtime type 定义与 query helpers
+
+但 migration ownership 已显式拆分为：
+
+- `apps/app-api` 的 `drizzle.app_api_migrations`
+  只拥有 `runtime.*` / `operator.*` / `official_web.*`
+- `apps/public-consumer-chat`
+  当前负责 `app_auth.*` / `chat.*` 的 bootstrap，不与 `app-api` 共享 journal
 
 这意味着：
 
-- Better Auth 不单独维护另一套仓库外 migration 世界观
-- app-domain 也不应拆出第二条 migration pipeline
-- 可以按模块分文件组织 schema，但不能把 migration 真相源拆裂
+- `apps/app-api` 运行时仍可通过统一 schema codebase 访问 `app_auth.*` / `chat.*`
+- 但不能再把 `app_auth.*` / `chat.*` 误写成 `app-api` Drizzle migration ownership
+- 可以按模块分文件组织 schema，但 migration owner 必须保持显式
 
-## `auth.*`
+## `app_auth.*`
 
-`auth.*` 由 Better Auth 拥有。
+`app_auth.*` 由 Better Auth 拥有。
 
 第一版至少存在以下逻辑表：
 
-- `auth.users`
-- `auth.sessions`
-- `auth.accounts`
-- `auth.verification`
+- `app_auth.user`
+- `app_auth.session`
+- `app_auth.account`
+- `app_auth.verification`
 
 规则：
 
 - 具体物理表名允许由 Better Auth adapter 决定
-- Better Auth adapter-owned 表与 app-domain 表继续共享同一条 migration pipeline
+- Supabase platform `auth.*` 不是这里的 repo-owned Better Auth schema
+- `app-api` runtime 使用 `app_auth.*`，但当前不再由 `app-api` Drizzle journal 直接接管
 - app-domain migration 不应手写改造 Better Auth 的内部列约定，除非适配器明确支持
 - panel operator principal 在 v1 不要求持久化成独立 auth 表
 

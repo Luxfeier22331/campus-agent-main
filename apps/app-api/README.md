@@ -96,7 +96,9 @@ Database baseline:
 
 - runtime reads/writes use Hyperdrive-style runtime connection config against the shared repo Postgres
 - migration / schema management uses `APP_API_MANAGEMENT_DATABASE_URL`
-- Drizzle schema and Better Auth tables share one `app-api` migration pipeline on the shared repo Postgres
+- `apps/app-api` runtime schema code continues to cover `app_auth.*`, `chat.*`, `runtime.*`, `operator.*`, and `official_web.*`
+- `drizzle.app_api_migrations` now owns only `runtime.*`, `operator.*`, and `official_web.*`
+- Better Auth uses repo-owned `app_auth.*`; shared-db bootstrap for `app_auth.*` / `chat.*` is currently handled outside the `app-api` Drizzle journal
 - `app-api` stores migration journal rows in `drizzle.app_api_migrations`, not the default shared Drizzle table
 
 Environment:
@@ -130,6 +132,7 @@ Local commands:
 ```bash
 uv run --all-packages python -m scripts.sync_app_api_local_db_env
 pnpm db:adopt-shared -- --json
+pnpm test:shared-db-integration
 pnpm test
 pnpm typecheck
 pnpm db:generate

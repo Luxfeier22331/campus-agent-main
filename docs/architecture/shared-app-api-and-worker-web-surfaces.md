@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-28
-updated: 2026-03-29
+updated: 2026-03-30
 ---
 
 # Shared App API And Worker Web Surfaces
@@ -184,7 +184,7 @@ apps/
 
 这套设计下的推荐关系型分域是：
 
-- `auth.*`
+- `app_auth.*`
   auth、session、account 相关 truth
 - `chat.*`
   conversation、message 等 consumer product truth
@@ -199,15 +199,17 @@ apps/
 
 - 单个 Postgres 可以作为第一版共库
 - Worker runtime 通过 Hyperdrive 访问数据库
-- Better Auth 位于 `apps/app-api`
-- `auth.*`、`chat.*`、`runtime.*`、`operator.*` 共享一套 Drizzle schema codebase 与 migration pipeline
-- `official_web.*` 与上述分域共享同一 migration pipeline，但不改变 ownership
+- Better Auth runtime 位于 `apps/app-api`，repo-owned schema 固定为 `app_auth.*`
+- Supabase platform `auth.*` 保持平台保留 schema，不再被 repo migration owner 接管
+- `apps/app-api` 运行时统一消费 `app_auth.*`、`chat.*`、`runtime.*`、`operator.*`
+- `apps/public-consumer-chat` 当前保留 `app_auth.*` / `chat.*` shared-db bootstrap 能力
+- `apps/app-api` Drizzle journal 当前只拥有 `runtime.*` / `operator.*` / `official_web.*`
 - migration / schema management 使用 direct database management connection
 
 这里冻结的只有一件事：
 
 - auth/session/conversation 不再由 public chat app 自己单独持有
-- 它们进入 shared `app-api` boundary
+- 它们进入 shared `app-api` product boundary，但 bootstrap owner 必须显式写明
 
 runtime 形态已不再 deferred：
 

@@ -75,7 +75,7 @@ The repo now uses a shared root `pnpm-workspace.yaml` and `turbo.json` for JS/TS
 - `PUBLIC_CONSUMER_CHAT_APP_BASE_URL=http://127.0.0.1:3000`
 - `PUBLIC_CONSUMER_CHAT_DATABASE_URL=postgresql://postgres.<project-ref>:<url-encoded-password>@<session-pooler-host>:5432/postgres?sslmode=require`
 - `PUBLIC_CONSUMER_CHAT_DATABASE_SSLMODE=require`
-- `PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA=auth`
+- `PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA=app_auth`
 - `PUBLIC_CONSUMER_CHAT_CHAT_SCHEMA=chat`
 - `PUBLIC_CONSUMER_CHAT_INGESTION_REGISTRY_SCHEMA=ingestion_registry`
 - `PUBLIC_CHAT_TEST_DATABASE_URL=postgres://...` for real Postgres integration tests
@@ -86,6 +86,8 @@ The repo now uses a shared root `pnpm-workspace.yaml` and `turbo.json` for JS/TS
 - `BETTER_AUTH_SECRET=<generate-with-openssl-rand-base64-32>`
 
 `SUPERVISOR_API_BEARER_TOKEN` must match the repo root `API_BEARER_TOKEN` used by `apps/supervisor-api`.
+
+`PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA` 默认是 `app_auth`。共享 Supabase 的 platform-managed `auth.*` 仍属于 Supabase Auth，本仓库的 Better Auth tables 不再写进那个 schema。
 
 Production / shared-dev auth secret rule:
 
@@ -99,7 +101,7 @@ Recommended local defaults:
 PUBLIC_CHAT_MODE=mock
 PUBLIC_CONSUMER_CHAT_APP_BASE_URL=http://127.0.0.1:3000
 PUBLIC_CONSUMER_CHAT_DATABASE_SSLMODE=require
-PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA=auth
+PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA=app_auth
 PUBLIC_CONSUMER_CHAT_CHAT_SCHEMA=chat
 PUBLIC_CONSUMER_CHAT_INGESTION_REGISTRY_SCHEMA=ingestion_registry
 BETTER_AUTH_SECRET="$(openssl rand -base64 32)"
@@ -112,7 +114,7 @@ PUBLIC_CHAT_MODE=live
 PUBLIC_CONSUMER_CHAT_APP_BASE_URL=http://127.0.0.1:3000
 PUBLIC_CONSUMER_CHAT_DATABASE_URL=postgresql://postgres.<project-ref>:<url-encoded-password>@<session-pooler-host>:5432/postgres?sslmode=require
 PUBLIC_CONSUMER_CHAT_DATABASE_SSLMODE=require
-PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA=auth
+PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA=app_auth
 PUBLIC_CONSUMER_CHAT_CHAT_SCHEMA=chat
 PUBLIC_CONSUMER_CHAT_INGESTION_REGISTRY_SCHEMA=ingestion_registry
 SUPERVISOR_API_BASE_URL=http://127.0.0.1:8000
@@ -155,7 +157,7 @@ export PUBLIC_CHAT_MODE=live
 export PUBLIC_CONSUMER_CHAT_APP_BASE_URL=http://127.0.0.1:3000
 export PUBLIC_CONSUMER_CHAT_DATABASE_URL=postgresql://postgres.<project-ref>:<url-encoded-password>@<session-pooler-host>:5432/postgres?sslmode=require
 export PUBLIC_CONSUMER_CHAT_DATABASE_SSLMODE=require
-export PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA=auth
+export PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA=app_auth
 export PUBLIC_CONSUMER_CHAT_CHAT_SCHEMA=chat
 export PUBLIC_CONSUMER_CHAT_INGESTION_REGISTRY_SCHEMA=ingestion_registry
 export SUPERVISOR_API_BASE_URL=http://127.0.0.1:8000
@@ -184,7 +186,7 @@ cd apps/public-consumer-chat
 export PUBLIC_CONSUMER_CHAT_APP_BASE_URL=http://127.0.0.1:3000
 export PUBLIC_CONSUMER_CHAT_DATABASE_URL=postgresql://postgres.<project-ref>:<url-encoded-password>@<session-pooler-host>:5432/postgres?sslmode=require
 export PUBLIC_CONSUMER_CHAT_DATABASE_SSLMODE=require
-export PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA=auth
+export PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA=app_auth
 export PUBLIC_CONSUMER_CHAT_CHAT_SCHEMA=chat
 export PUBLIC_CONSUMER_CHAT_INGESTION_REGISTRY_SCHEMA=ingestion_registry
 export BETTER_AUTH_SECRET="$(openssl rand -base64 32)"
@@ -193,10 +195,12 @@ pnpm db:print-auth-migration
 pnpm db:bootstrap
 ```
 
+如果已经把 `.env.example` 复制成 `apps/public-consumer-chat/.env`，上面的两个命令会自动加载该文件。
+
 `pnpm db:bootstrap` does three things:
 
-1. creates the `auth`, `chat`, and `ingestion_registry` schemas if missing
-2. runs Better Auth migrations with `search_path=auth,public`
+1. creates the `app_auth`, `chat`, and `ingestion_registry` schemas if missing
+2. runs Better Auth migrations with `search_path=app_auth,public`
 3. applies checked-in chat SQL migrations from `db/migrations/*.sql`
 
 ## Better Auth Posture
@@ -225,7 +229,7 @@ cd apps/public-consumer-chat
 export PUBLIC_CHAT_TEST_DATABASE_URL=postgresql://postgres.<project-ref>:<url-encoded-password>@<session-pooler-host>:5432/postgres?sslmode=require
 export PUBLIC_CONSUMER_CHAT_APP_BASE_URL=http://127.0.0.1:3000
 export PUBLIC_CONSUMER_CHAT_DATABASE_SSLMODE=require
-export PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA=auth
+export PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA=app_auth
 export PUBLIC_CONSUMER_CHAT_CHAT_SCHEMA=chat
 export PUBLIC_CONSUMER_CHAT_INGESTION_REGISTRY_SCHEMA=ingestion_registry
 export BETTER_AUTH_SECRET="$(openssl rand -base64 32)"
@@ -240,6 +244,13 @@ If local development should reuse the repo root shared Supabase URL, run:
 
 ```bash
 uv run --all-packages python -m scripts.sync_public_consumer_chat_local_db_env
+```
+
+对共享库做非侵入式 bootstrap 校验时，可运行：
+
+```bash
+cd apps/public-consumer-chat
+pnpm test:shared-db-bootstrap
 ```
 
 When using Supabase, prefer the session pooler endpoint and keep `?sslmode=require` on the connection string.

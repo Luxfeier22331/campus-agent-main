@@ -20,7 +20,8 @@ import { Pool } from "pg";
 const testDatabaseUrl =
   process.env.PUBLIC_CHAT_TEST_DATABASE_URL ??
   process.env.PUBLIC_CONSUMER_CHAT_DATABASE_URL;
-const hasIntegrationDatabase = Boolean(testDatabaseUrl);
+const hasIntegrationDatabase =
+  process.env.RUN_PUBLIC_CHAT_POSTGRES_INTEGRATION === "1" && Boolean(testDatabaseUrl);
 const appBaseUrl =
   process.env.PUBLIC_CONSUMER_CHAT_APP_BASE_URL ?? "http://127.0.0.1:3000";
 const betterAuthSecret =

@@ -43,10 +43,10 @@ repo root `.env` 的 canonical key 固定为：
 
 当前共享库允许以下 repo-owned schema 共存：
 
-- `auth.*`
-  shared identity / Better Auth truth；当前由 `apps/public-consumer-chat` 与 `apps/app-api` 共同消费
+- `app_auth.*`
+  repo-owned Better Auth truth；runtime 由 `apps/app-api` 与 `apps/public-consumer-chat` 共同消费，当前 bootstrap owner 是 `apps/public-consumer-chat`
 - `chat.*`
-  consumer conversation/message truth；owner 是 `apps/public-consumer-chat` 与 `apps/app-api` 的共享 product domain
+  consumer conversation/message truth；bootstrap owner 当前是 `apps/public-consumer-chat`，product-layer owner 是 shared `apps/app-api` boundary
 - `runtime.*`
   request command-side ledger / outbox；owner 是 `apps/app-api`
 - `operator.*`
@@ -69,10 +69,12 @@ repo root `.env` 的 canonical key 固定为：
 
 ## Migration / Bootstrap Rules
 
+- Supabase platform-managed `auth.*`
+  保留给 Supabase Auth；repo 不接管，也不把它当成 Better Auth 的物理 schema
 - `apps/public-consumer-chat`
-  继续负责 `auth.*` / `chat.*` 的 bootstrap 能力
+  继续负责 `app_auth.*` / `chat.*` 的 bootstrap 能力
 - `apps/app-api`
-  负责 `runtime.*` / `operator.*` / `official_web.*`，以及它在 shared DB 上声明过的 `auth.*` / `chat.*` compatibility validation
+  负责 `runtime.*` / `operator.*` / `official_web.*` 的 Drizzle migration ownership；runtime 继续消费 `app_auth.*` / `chat.*`
 - `packages/ingestion-core`
   不接管 `app-api` 的 Drizzle migration journal；registry table 仍由自身代码路径负责 schema ensure
 

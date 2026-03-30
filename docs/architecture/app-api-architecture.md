@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-28
-updated: 2026-03-29
+updated: 2026-03-30
 ---
 
 # App API Architecture
@@ -256,7 +256,7 @@ operator query path 至少包含：
 
 `app-api` 下的推荐逻辑分域固定为：
 
-- `auth.*`
+- `app_auth.*`
 - `authorization.*`
 - `profile.*`
 - `chat.*`
