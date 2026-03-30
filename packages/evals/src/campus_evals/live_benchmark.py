@@ -40,8 +40,12 @@ class BenchmarkProfile:
 
 
 def build_default_profile_http_settings() -> SupplementalHTTPSettings:
+    # handbook/curriculum formal acceptance includes heavy report-only ragas metrics
+    # such as faithfulness/context_precision that routinely exceed low-latency judge budgets.
+    # Keep the live benchmark profile aligned with the repo-tracked readiness evidence instead
+    # of inheriting a chat-style timeout ceiling.
     return SupplementalHTTPSettings(
-        read_timeout_seconds=45.0,
+        read_timeout_seconds=180.0,
         retry_attempts=1,
         circuit_breaker_failure_threshold=5,
         circuit_breaker_cooldown_seconds=15.0,

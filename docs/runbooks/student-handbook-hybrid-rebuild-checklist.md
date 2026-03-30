@@ -119,6 +119,37 @@ accept flow 语义：
 - `accept` 会把 base path 自动拆成 `<base>.run.jsonl` 与 `<base>.repair.jsonl`
 - `--verbose` 会直接打印 preflight、retrying、recovered、breaker 等高信号事件，便于现场确认 provider 瞬时失败是否已自动重试
 
+## 2026-03-30 Live 恢复与 Acceptance 结论
+
+2026-03-30 已确认 `student_handbook` 线上 serving 经 release-managed rebuild / publish 后恢复，可继续做 live 验收与联调。
+
+当前 acceptance 根 artifact：
+
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/final-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/final-summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/run/summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/run/summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/repair/summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/repair/summary.json)
+
+本轮结果：
+
+- `deterministic_verdict = pass`
+- `supplemental_verdict = warn`
+- `final_overall_verdict = warn`
+
+当前解释边界：
+
+- 这次 `warn` 不再表示 handbook 主链路 serving 仍有 blocker
+- 当前 remaining gap 在 supplemental eval 面：
+  - `ragas.faithfulness` 在 fresh run 与 repair rerun 中都保持 `runtime_unavailable`
+  - `ragas.answer_relevancy`
+  - `ragas.context_precision`
+  - `judge.refusal_quality`
+- 因此当前 handbook 可以继续做 live acceptance / integration；后续工作重点是 supplemental runtime 与质量修复，而不是再次把问题归因到 serving alias / rebuild publish
+
+补充说明：
+
+- 这次 acceptance artifact 中的 `repair/repair-summary.json` 仍带着旧 repair 语义，会把“重跑后仍 timeout”的 target 误标为 `repaired`
+- repo 现已修正 repair artifact 语义；后续 rerun 产物会把这类 target 显式记为 `rerun_failed` 或 `partially_repaired`，不再把未恢复的 metric 计入 `repaired_metric_keys`
+
 ## Schema / Payload / Registry 检查
 
 - collection schema 中必须存在：

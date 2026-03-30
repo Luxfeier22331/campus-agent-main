@@ -166,7 +166,7 @@ class CurriculumLiveProfileTest(unittest.TestCase):
 
         self.assertEqual(profile.benchmark_type, "curriculum_live_gate")
         self.assertEqual(Path(profile.policy_path).name, "curriculum_plan_live_gate_policy.json")
-        self.assertEqual(profile.http_settings.read_timeout_seconds, 45.0)
+        self.assertEqual(profile.http_settings.read_timeout_seconds, 180.0)
         self.assertEqual(profile.http_settings.retry_attempts, 1)
         self.assertEqual(profile.http_settings.request_min_interval_seconds, 1.0)
         self.assertEqual(profile.http_settings.circuit_breaker_failure_threshold, 5)
@@ -186,7 +186,7 @@ class CurriculumLiveProfileTest(unittest.TestCase):
             }
         )
 
-        self.assertEqual(profile.http_settings.read_timeout_seconds, 45.0)
+        self.assertEqual(profile.http_settings.read_timeout_seconds, 180.0)
         self.assertEqual(profile.http_settings.request_min_interval_seconds, 1.0)
 
 

@@ -127,6 +127,10 @@ student handbook formal benchmark：
   - formal benchmark 会继续 deterministic 主链路，但不会再执行对应 supplemental adapter
   - `summary.json` 会为被跳过的 metric 合成 `overall.runtime_status=unavailable`、`preflight_failure_count=1`、`skip_reason=preflight_unavailable`
   - repair rerun 会把受影响 target 记为 `skipped_provider_unavailable`，不再盲目重放 case
+- repair rerun 如果已经执行但 replacement 仍是 `verdict=failed` 且 `score=null` 的 unresolved runtime failure：
+  - target 会记为 `rerun_failed`
+  - 只有真正恢复出分数或 `not_applicable` 的 metric 才会进入 `repaired_metric_keys`
+  - 同一 target 若只恢复部分 metric，则会记为 `partially_repaired`
 - handbook live runner 现已固定为 `campus_evals.handbook_live_benchmark`：
   - `uv run --all-packages python -m campus_evals.handbook_live_benchmark run --reruns 3`
   - `uv run --all-packages python -m campus_evals.handbook_live_benchmark repair --benchmark-dir <formal-benchmark-dir>`

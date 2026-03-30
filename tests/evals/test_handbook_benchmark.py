@@ -797,6 +797,102 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
                 ["repaired", "repaired"],
             )
 
+    def test_repair_handbook_formal_benchmark_marks_rerun_failed_when_runtime_failure_persists(self) -> None:
+        cases = (_completed_case(),)
+        original_adapter = type(
+            "OriginalAdapter",
+            (),
+            {
+                "adapter_id": "ragas",
+                "metric_name": "faithfulness",
+                "metric_names": ("faithfulness",),
+                "evaluate": lambda self, case, execution: (
+                    SupplementalResult(
+                        adapter_id="ragas",
+                        metric_name="faithfulness",
+                        score=None,
+                        verdict="failed",
+                        rationale="ragas runtime error: TimeoutError",
+                        metadata={"judge_error": "RuntimeError"},
+                    ),
+                ),
+            },
+        )()
+        repair_adapter = type(
+            "RepairAdapter",
+            (),
+            {
+                "adapter_id": "ragas",
+                "metric_name": "faithfulness",
+                "metric_names": ("faithfulness",),
+                "evaluate": lambda self, case, execution: (
+                    SupplementalResult(
+                        adapter_id="ragas",
+                        metric_name="faithfulness",
+                        score=None,
+                        verdict="failed",
+                        rationale="ragas runtime error: TimeoutError",
+                        metadata={"judge_error": "RuntimeError"},
+                    ),
+                ),
+            },
+        )()
+
+        with TemporaryDirectory() as tmpdir:
+            benchmark_dir = Path(tmpdir) / "benchmark"
+            repair_dir = Path(tmpdir) / "benchmark-repair"
+
+            run_handbook_formal_benchmark(
+                cases=cases,
+                executor=lambda case: ExecutionResult(
+                    response=_response(
+                        status=case.expected_status,
+                        answer_text="图书馆开放时间为 08:00 到 22:00。",
+                        sources=(_source("handbook:library"),),
+                    ),
+                    observed_trace=ObservedTrace(
+                        selected_scope=HANDBOOK_SCOPE,
+                        retrieval_called=True,
+                    ),
+                ),
+                supplemental_adapters=(original_adapter,),
+                output_dir=benchmark_dir,
+                reruns=1,
+            )
+
+            repaired_summary = repair_handbook_formal_benchmark(
+                cases=cases,
+                executor=lambda case: ExecutionResult(
+                    response=_response(
+                        status=case.expected_status,
+                        answer_text="图书馆开放时间为 08:00 到 22:00。",
+                        sources=(_source("handbook:library"),),
+                    ),
+                    observed_trace=ObservedTrace(
+                        selected_scope=HANDBOOK_SCOPE,
+                        retrieval_called=True,
+                    ),
+                ),
+                supplemental_adapters=(repair_adapter,),
+                benchmark_dir=benchmark_dir,
+                output_dir=repair_dir,
+            )
+
+            repaired_metric = repaired_summary["aggregate"]["supplemental"]["ragas.faithfulness"]
+            self.assertEqual(repaired_metric["applicable_runs"], 0)
+            self.assertEqual(repaired_metric["overall"]["runtime_status"], "unavailable")
+
+            repair_results = json.loads((repair_dir / "run-01-repair-results.json").read_text(encoding="utf-8"))
+            self.assertEqual(repair_results["results"][0]["status"], "rerun_failed")
+            self.assertEqual(repair_results["results"][0]["recovered_metric_keys"], [])
+            self.assertEqual(repair_results["results"][0]["remaining_metric_keys"], ["ragas.faithfulness"])
+
+            repair_summary = json.loads((repair_dir / "repair-summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(repair_summary["status_counts"], {"rerun_failed": 1})
+            self.assertEqual(repair_summary["repaired_metric_keys"], [])
+            self.assertEqual(repair_summary["failed_metric_keys"], ["ragas.faithfulness"])
+            self.assertEqual(repair_summary["remaining_metric_keys"], ["ragas.faithfulness"])
+
     def test_repair_handbook_formal_benchmark_skips_targets_when_repair_preflight_is_unavailable(self) -> None:
         cases = (_completed_case(),)
         original_adapter = type(

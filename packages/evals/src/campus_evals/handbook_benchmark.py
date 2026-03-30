@@ -391,13 +391,19 @@ def repair_handbook_formal_benchmark(
                         original_case_result,
                         replacement_by_metric_key,
                     )
+                    repair_status, recovered_metric_keys, remaining_metric_keys = _classify_repair_replacements(
+                        replacement_by_metric_key,
+                        metric_keys=tuple(runnable_metric_keys),
+                    )
                     results_by_case_id[case_id] = repaired_case_result
                     repair_entries.append(
                         {
                             "case_id": case_id,
                             "targets": case_targets,
                             "replacements": replacements,
-                            "status": "repaired",
+                            "status": repair_status,
+                            "recovered_metric_keys": recovered_metric_keys,
+                            "remaining_metric_keys": remaining_metric_keys,
                         }
                     )
                     applied_target_count += len(case_targets)
@@ -868,6 +874,34 @@ def _merge_case_result_supplemental_results(
         )
 
     return replace(original, supplemental_results=tuple(merged)), replacements
+
+
+def _classify_repair_replacements(
+    replacement_by_metric_key: dict[str, SupplementalResult],
+    *,
+    metric_keys: tuple[str, ...],
+) -> tuple[str, list[str], list[str]]:
+    recovered_metric_keys: list[str] = []
+    remaining_metric_keys: list[str] = []
+
+    for metric_key in metric_keys:
+        replacement = replacement_by_metric_key[metric_key]
+        if _supplemental_result_remains_unresolved(replacement):
+            remaining_metric_keys.append(metric_key)
+            continue
+        recovered_metric_keys.append(metric_key)
+
+    if not remaining_metric_keys:
+        status = "repaired"
+    elif not recovered_metric_keys:
+        status = "rerun_failed"
+    else:
+        status = "partially_repaired"
+    return status, recovered_metric_keys, remaining_metric_keys
+
+
+def _supplemental_result_remains_unresolved(item: SupplementalResult) -> bool:
+    return item.verdict == "failed" and item.score is None
 
 
 def _supplemental_metric_key(item: SupplementalResult) -> str:
@@ -1365,11 +1399,18 @@ def _write_repair_summary(
     )
     repaired_metric_keys = sorted(
         {
-            str(replacement.get("metric_key"))
+            str(metric_key)
             for entry in repair_entries
-            if entry.get("status") == "repaired"
-            for replacement in entry.get("replacements", [])
-            if replacement.get("metric_key") is not None
+            for metric_key in entry.get("recovered_metric_keys", [])
+            if metric_key is not None
+        }
+    )
+    failed_metric_keys = sorted(
+        {
+            str(metric_key)
+            for entry in repair_entries
+            for metric_key in entry.get("remaining_metric_keys", [])
+            if metric_key is not None
         }
     )
     skipped_metric_keys = sorted(
@@ -1392,6 +1433,7 @@ def _write_repair_summary(
             "status_counts": dict(Counter(str(entry.get("status") or "unknown") for entry in repair_entries)),
             "target_metric_keys": target_metric_keys,
             "repaired_metric_keys": repaired_metric_keys,
+            "failed_metric_keys": failed_metric_keys,
             "skipped_metric_keys": skipped_metric_keys,
             "remaining_metric_keys": remaining_metric_keys,
         },

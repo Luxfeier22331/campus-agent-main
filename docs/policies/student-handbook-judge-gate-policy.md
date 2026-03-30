@@ -190,6 +190,8 @@ repair contract：
 - 原 formal benchmark artifact 不允许被静默覆盖
 - repaired `summary.json` / `gate-report.json` 必须带 `provenance.mode=repair_rerun`
 - 如果 repair preflight 判定 provider unavailable，则对应 target 必须落为 `skipped_provider_unavailable`，而不是继续重放 case
+- 如果 repair rerun 已执行，但 replacement 仍是 unresolved runtime failure（`verdict=failed` 且 `score=null`），则该 target 不得记为 `repaired`
+- 此类 target 必须显式写成 `rerun_failed`；若同一 target 只恢复部分 metric，则必须写成 `partially_repaired`
 
 ## 2026-03-28 Snapshot
 

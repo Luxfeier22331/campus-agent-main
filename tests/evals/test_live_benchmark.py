@@ -11,6 +11,7 @@ from campus_evals import ExecutionResult, GoldenCase, TraceExpectation
 from campus_evals.live_benchmark import (
     BenchmarkProfile,
     accept_live_benchmark_profile,
+    build_default_profile_http_settings,
     repair_live_benchmark_profile,
     run_live_benchmark_profile,
 )
@@ -36,6 +37,15 @@ def _case() -> GoldenCase:
 
 
 class LiveBenchmarkProfileRunnerTest(unittest.TestCase):
+    def test_build_default_profile_http_settings_uses_extended_read_timeout_budget(self) -> None:
+        settings = build_default_profile_http_settings()
+
+        self.assertEqual(settings.read_timeout_seconds, 180.0)
+        self.assertEqual(settings.retry_attempts, 1)
+        self.assertEqual(settings.request_min_interval_seconds, 1.0)
+        self.assertEqual(settings.circuit_breaker_failure_threshold, 5)
+        self.assertEqual(settings.circuit_breaker_cooldown_seconds, 15.0)
+
     def test_run_live_benchmark_profile_passes_explicit_profile_policy_to_core(self) -> None:
         profile = BenchmarkProfile(
             profile_id="test_profile",

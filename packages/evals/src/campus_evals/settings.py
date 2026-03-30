@@ -189,7 +189,6 @@ class RagasSettings:
     embedding_base_url: str | None = None
     embedding_dimensions: int | None = None
     http_settings: SupplementalHTTPSettings = SupplementalHTTPSettings()
-    batch_size: int | None = None
     use_responses_api: bool = True
     reasoning_effort: str | None = None
     text_verbosity: str | None = None
@@ -208,8 +207,6 @@ class RagasSettings:
             object.__setattr__(self, "embedding_dimensions", 2560)
         if self.embedding_dimensions is not None and self.embedding_dimensions <= 0:
             raise ValueError("EMBEDDING_DIMENSIONS must be greater than zero")
-        if self.batch_size is not None and self.batch_size <= 0:
-            raise ValueError("RAGAS_BATCH_SIZE must be greater than zero")
         if self.reasoning_effort is not None and self.reasoning_effort not in ALLOWED_RAGAS_REASONING_EFFORTS:
             raise ValueError("RAGAS_REASONING_EFFORT must be one of minimal, low, medium, high, none")
         if self.text_verbosity is not None and self.text_verbosity not in ALLOWED_RAGAS_TEXT_VERBOSITIES:
@@ -256,7 +253,6 @@ class RagasSettings:
                 raw_dimensions=raw_embedding_dimensions,
             ),
             http_settings=http_settings or SupplementalHTTPSettings.from_env(source),
-            batch_size=_read_optional_int(source.get("RAGAS_BATCH_SIZE")),
             use_responses_api=_read_bool(source.get("RAGAS_USE_RESPONSES_API"), default=True),
             reasoning_effort=_read_optional_str(source.get("RAGAS_REASONING_EFFORT")),
             text_verbosity=_read_optional_str(source.get("RAGAS_TEXT_VERBOSITY")),

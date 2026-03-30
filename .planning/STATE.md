@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: shared app-api seam alignment is now landed on this worktree; next work is runtime observability verification and merge-readiness cleanup
-last_updated: "2026-03-29T09:30:00+08:00"
+stopped_at: handbook live serving is restored after release-managed rebuild/publish; current root-worktree follow-up is supplemental eval runtime semantics and acceptance closeout, alongside existing app-api observability verification
+last_updated: "2026-03-30T19:36:20+08:00"
 progress:
   total_phases: 17
   completed_phases: 17
@@ -19,7 +19,7 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-03-29)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 runtime-profile-driven serving surface 证明这条架构能可靠承接高频校园问答
-**Current focus:** Phase 7 handbook verification 已完成；这个 worktree 当前 follow-up 已从 `curriculum_plan` live-gate 切回 branch-local closeout：`ContextProjection` / `SupervisorResponse` shared seam 对齐已落地，后续重点是 shared `app-api` Worker runtime 的 observability verification、merge-readiness cleanup，以及已落地 `Official Web` surface 的持续 hardening。`Jobs` / `Operations` 仍不进入第一波 rollout
+**Current focus:** Phase 7 handbook verification 已完成；2026-03-30 handbook live serving 经 release-managed rebuild / publish 已恢复，当前 handbook follow-up 主要是 supplemental eval runtime / gate closeout，而不是继续排查 main-chain serving。并行中的 root-worktree 主线仍是 shared `app-api` Worker runtime 的 observability verification、merge-readiness cleanup，以及已落地 `Official Web` surface 的持续 hardening。`Jobs` / `Operations` 仍不进入第一波 rollout
 
 ## Current Position
 
@@ -153,10 +153,12 @@ Recent decisions affecting current work:
 - The current `develop` integration branch now treats `ContextProjection` + `SupervisorResponse` as the merge-ready shared seam; the pending worktree implementation must keep aligning to that seam instead of reintroducing `snapshot`.
 - Curriculum gate closeout now has canonical docs/runbook coverage in `docs/reference/curriculum-plan-eval-metrics.md` and `docs/runbooks/curriculum-plan-hybrid-rebuild-checklist.md`; fresh live evidence belongs to the root worktree rather than this branch-local follow-up.
 - shared `app-api -> supervisor-api` seam is now aligned to `ContextProjection` / `SupervisorResponse`: request payloads no longer depend on actor `snapshot`, `supervisor-api` accepts body `actor/context` after admission, and request projections keep `approval_required` / `rejected` as first-class runtime statuses.
+- 2026-03-30 `student_handbook` live acceptance 已确认 main-chain 恢复：`deterministic_verdict=pass`，当前 `warn` 来自 supplemental eval 侧的 `ragas.faithfulness` runtime-unavailable 与既有质量 gap，而不是 serving rebuild/publish blocker。
 
 ### Pending Todos
 
 - Keep handbook chunk-truth validation and handbook eval artifacts as reusable regression gates for later retrieval changes.
+- Separate `ragas.faithfulness` runtime-unavailable from real quality gaps, then rerun handbook acceptance on top of the fixed repair artifact semantics before reconsidering any soft-gate threshold discussion.
 - Keep `official_web` command/query/handoff tests and operator projections as reusable regression gates for later collector or ingestion integration changes.
 - Complete merge-readiness verification for this worktree on top of the landed Worker foundation without reopening topology ownership.
 - Keep `Jobs` and `Operations` out of the default panel rollout until product scope explicitly re-opens them.
@@ -171,6 +173,7 @@ Recent decisions affecting current work:
 - `Official Web` control-plane APIs and panel domain are now landed on `apps/app-api` + `apps/protected-panel-web`; follow-up work must extend this surface rather than reintroducing panel-side synthesis or direct infrastructure reads.
 - `Jobs` / `Operations` / `Audit` remain delayed; landed `Official Web` views do not authorize a generic ops console.
 - Observability runtime code is landed, but provider-side `SENTRY_*` / `AXIOM_*` secrets are not available yet; until they are assigned, telemetry remains unconfigured/fail-open and live sink verification cannot be closed.
+- `student_handbook` live serving itself is no longer blocked; the remaining handbook concern is eval-side supplemental behavior: 2026-03-30 acceptance still left `ragas.faithfulness` runtime-unavailable after repair, while `ragas.answer_relevancy` / `ragas.context_precision` / `judge.refusal_quality` remain genuine `warn` metrics.
 
 ## Session Continuity
 

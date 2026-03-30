@@ -395,8 +395,55 @@ supplemental 聚合：
   - `tests.evals.test_ragas_runtime tests.evals.test_supplemental_adapters tests.evals.test_golden_cases tests.evals.test_availability_smoke tests.evals.test_retrieval_benchmark`
   - `53 tests passed`
 
+## 2026-03-30 Acceptance / Repair Follow-up
+
+2026-03-30 handbook acceptance 已重新落盘到：
+
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/final-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/final-summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/run/summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/run/summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/repair/summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/repair/summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/repair/repair-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/repair/repair-summary.json)
+
+本轮 acceptance 结论：
+
+- `deterministic_verdict = pass`
+- `supplemental_verdict = warn`
+- `final_overall_verdict = warn`
+
+fresh run / final aggregate 中可稳定确认的 gap：
+
+- `ragas.faithfulness`
+  - `applicable_runs = 0`
+  - gate reasons：`insufficient_applicable_runs + runtime_unavailable`
+- `ragas.answer_relevancy`
+  - `mean_average_score = 0.711252770861219`
+  - `min_run_average_score = 0.6944160888625259`
+- `ragas.context_precision`
+  - `mean_average_score = 0.5972222222006944`
+  - `min_run_average_score = 0.49999999998333333`
+- `judge.refusal_quality`
+  - `mean_average_score = 0.7599999999999999`
+  - `min_run_average_score = 0.71`
+
+当前对 repair 的解释：
+
+- 这次 acceptance 的 `repair-summary.json` 仍沿用旧语义，把 12 个 `ragas.faithfulness` target 全部写成 `status=repaired`
+- 但 repaired aggregate 真正显示的是：
+  - `ragas.faithfulness.overall.runtime_status = unavailable`
+  - `transient_runtime_failure_count = 12`
+  - `runtime_failure_reasons = ["timeout"]`
+- 也就是说，这一轮 repair 并没有恢复 `faithfulness`，只是旧 artifact 语义把“已重跑”误记成了“已修复”
+- repo 现已修正 repair artifact 逻辑：后续相同场景会记成 `rerun_failed` 或 `partially_repaired`，并把未恢复 metric 保留在 `remaining_metric_keys`
+
+本轮对 runtime 预算的收口：
+
+- 2026-03-28 readiness artifact 已证明 `faithfulness` 在真实 handbook 主链路上可成功完成，单次耗时曾达到 `91.749s`
+- 因此 shared live benchmark profile 现在显式把 supplemental `read_timeout` 固定到 `180s`，不再继承偏 chat-style 的低超时预算
+- 这一步的目的只是把 runtime budget 对齐到 repo 已落盘证据，不等于自动消除所有 provider 侧 timeout/unavailable
+
 当前结论：
 
-- ragas supplemental runtime 的配置、retry 和 pacing 已改成和当前 provider 能力更匹配
-- handbook fixed-case formal benchmark 已形成正式 3-run artifact
-- 当前 supplemental `warn` 主要来自真实质量 gap，但 run 2 仍残留一处 `429` 级 runtime 噪声，尚未完全达到“零运行噪声”状态
+- handbook live serving 已恢复；2026-03-30 acceptance 的 `deterministic_verdict=pass` 说明当前 main-chain 不再是 blocker
+- 当前不应先调整 `student_handbook_judge_gate_policy.json` 的 soft gate 阈值
+- 应先把 `ragas.faithfulness` 的 runtime budget / provider 行为与真正的质量问题拆开，再看 fresh rerun
+- 即使暂时不看 `faithfulness`，`ragas.answer_relevancy`、`ragas.context_precision`、`judge.refusal_quality` 也仍然稳定低于现有阈值；因此当前 `warn` 不能通过放宽阈值来“修复”

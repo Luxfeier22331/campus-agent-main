@@ -211,7 +211,6 @@ def build_ragas_scorer(
                         run_config=run_config,
                         show_progress=False,
                         raise_exceptions=True,
-                        batch_size=settings.batch_size,
                     )
                     row = _extract_ragas_score_row(evaluation)
                     results.append(
