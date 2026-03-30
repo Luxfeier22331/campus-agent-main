@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
@@ -125,7 +126,7 @@ def execute_staged_faithfulness(
     from ragas.async_utils import run as ragas_run
     from ragas.metrics._faithfulness import NLIStatementOutput, StatementFaithfulnessAnswer
 
-    metric.init(run_config)
+    metric.init(_run_config_for_metric(metric, run_config))
     sample_hash = _projection_sample_hash(projection)
     prompt_version = _prompt_version(metric)
     checkpoint_context = current_faithfulness_artifact_context()
@@ -175,11 +176,14 @@ def execute_staged_faithfulness(
         )
     else:
         try:
-            with bind_runtime_event_context(
-                adapter_id="ragas",
-                metric_name="faithfulness",
-                faithfulness_stage="statement_generation",
-                checkpoint_hit=False,
+            with (
+                bind_runtime_event_context(
+                    adapter_id="ragas",
+                    metric_name="faithfulness",
+                    faithfulness_stage="statement_generation",
+                    checkpoint_hit=False,
+                ),
+                _bind_metric_stage_http_settings(metric, stage_name="statement_generation"),
             ):
                 generated = ragas_run(lambda: metric._create_statements(row, callbacks=None))
         except Exception as exc:
@@ -251,13 +255,16 @@ def execute_staged_faithfulness(
             )
             continue
         try:
-            with bind_runtime_event_context(
-                adapter_id="ragas",
-                metric_name="faithfulness",
-                faithfulness_stage="nli_verdicts",
-                checkpoint_hit=False,
-                batch_index=batch_index + 1,
-                statement_count=len(batch_statements),
+            with (
+                bind_runtime_event_context(
+                    adapter_id="ragas",
+                    metric_name="faithfulness",
+                    faithfulness_stage="nli_verdicts",
+                    checkpoint_hit=False,
+                    batch_index=batch_index + 1,
+                    statement_count=len(batch_statements),
+                ),
+                _bind_metric_stage_http_settings(metric, stage_name="nli_verdicts"),
             ):
                 verdict_output = ragas_run(
                     lambda: metric._create_verdicts(row, batch_statements, callbacks=None)
@@ -358,6 +365,46 @@ def _mark_stage_failed(state: dict[str, object], *, stage_name: str) -> None:
     stage["status"] = "failed"
     stages[stage_name] = stage
     state["stages"] = stages
+
+
+def _run_config_for_metric(metric: object, run_config: object) -> object:
+    timeout_seconds = int(getattr(run_config, "timeout", 0) or 0)
+    for stage_name in ("statement_generation", "nli_verdicts"):
+        stage_http_settings = _metric_stage_http_settings(metric, stage_name=stage_name)
+        if stage_http_settings is None:
+            continue
+        timeout_seconds = max(timeout_seconds, int(math.ceil(stage_http_settings.read_timeout_seconds)))
+    current_timeout = int(getattr(run_config, "timeout", 0) or 0)
+    if timeout_seconds <= current_timeout:
+        return run_config
+    cloned = copy.copy(run_config)
+    setattr(cloned, "timeout", timeout_seconds)
+    return cloned
+
+
+@contextmanager
+def _bind_metric_stage_http_settings(metric: object, *, stage_name: str) -> Iterator[None]:
+    llm = getattr(metric, "llm", None)
+    stage_http_settings = _metric_stage_http_settings(metric, stage_name=stage_name)
+    if llm is None or stage_http_settings is None or not hasattr(llm, "http_settings"):
+        yield
+        return
+    original_http_settings = getattr(llm, "http_settings", None)
+    if original_http_settings == stage_http_settings:
+        yield
+        return
+    setattr(llm, "http_settings", stage_http_settings)
+    try:
+        yield
+    finally:
+        setattr(llm, "http_settings", original_http_settings)
+
+
+def _metric_stage_http_settings(metric: object, *, stage_name: str):
+    stage_http_settings = getattr(metric, "_campus_stage_http_settings", None)
+    if not isinstance(stage_http_settings, dict):
+        return None
+    return stage_http_settings.get(stage_name)
 
 
 def _projection_sample_hash(projection: object) -> str:

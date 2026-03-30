@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import os
 
 
@@ -17,6 +17,7 @@ DEFAULT_SUPPLEMENTAL_HTTP_KEEPALIVE_EXPIRY_SECONDS = 30.0
 DEFAULT_SUPPLEMENTAL_HTTP_MAX_CONNECTIONS = 100
 DEFAULT_SUPPLEMENTAL_HTTP_MAX_KEEPALIVE_CONNECTIONS = 20
 DEFAULT_SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS = 0.0
+DEFAULT_FAITHFULNESS_STATEMENT_GENERATION_READ_TIMEOUT_SECONDS = 180.0
 ALLOWED_RAGAS_REASONING_EFFORTS = frozenset({"minimal", "low", "medium", "high", "none"})
 ALLOWED_RAGAS_TEXT_VERBOSITIES = frozenset({"low", "medium", "high"})
 
@@ -266,6 +267,26 @@ class RagasSettings:
     @property
     def request_min_interval_seconds(self) -> float:
         return self.http_settings.request_min_interval_seconds
+
+    def http_settings_for_metric_stage(
+        self,
+        *,
+        metric_name: str,
+        stage_name: str,
+    ) -> SupplementalHTTPSettings:
+        normalized_metric_name = metric_name.strip().lower()
+        normalized_stage_name = stage_name.strip().lower()
+        if normalized_metric_name == "faithfulness" and normalized_stage_name == "statement_generation":
+            extended_read_timeout = max(
+                self.http_settings.read_timeout_seconds,
+                DEFAULT_FAITHFULNESS_STATEMENT_GENERATION_READ_TIMEOUT_SECONDS,
+            )
+            if extended_read_timeout > self.http_settings.read_timeout_seconds:
+                return replace(
+                    self.http_settings,
+                    read_timeout_seconds=extended_read_timeout,
+                )
+        return self.http_settings
 
 
 @dataclass(frozen=True, slots=True)

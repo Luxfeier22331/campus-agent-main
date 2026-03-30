@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 import json
+import random
 import re
 from threading import Lock
 import time
@@ -1075,7 +1076,17 @@ def _request_json_sync(
                     )
             if attempt >= total_attempts or not retryable:
                 raise
-            time.sleep(_retry_delay_seconds(attempt, http_settings.retry_backoff_seconds))
+            retry_delay_seconds = _retry_delay_seconds(attempt, http_settings.retry_backoff_seconds)
+            emit_runtime_event(
+                "supplemental_request_retry_scheduled",
+                **dict(event_metadata or {}),
+                attempt=attempt,
+                max_attempts=total_attempts,
+                retry_delay_seconds=retry_delay_seconds,
+                failure_reasons=list(reasons),
+                failure_disposition=classification.disposition,
+            )
+            time.sleep(retry_delay_seconds)
         else:
             if circuit_breaker is not None:
                 circuit_breaker.record_success()
@@ -1179,7 +1190,17 @@ async def _request_json_async(
                     )
             if attempt >= total_attempts or not retryable:
                 raise
-            await asyncio.sleep(_retry_delay_seconds(attempt, http_settings.retry_backoff_seconds))
+            retry_delay_seconds = _retry_delay_seconds(attempt, http_settings.retry_backoff_seconds)
+            emit_runtime_event(
+                "supplemental_request_retry_scheduled",
+                **dict(event_metadata or {}),
+                attempt=attempt,
+                max_attempts=total_attempts,
+                retry_delay_seconds=retry_delay_seconds,
+                failure_reasons=list(reasons),
+                failure_disposition=classification.disposition,
+            )
+            await asyncio.sleep(retry_delay_seconds)
         else:
             if circuit_breaker is not None:
                 circuit_breaker.record_success()
@@ -1289,7 +1310,11 @@ def _extract_request_id(headers: httpx.Headers) -> str | None:
 
 
 def _retry_delay_seconds(attempt: int, backoff_seconds: float) -> float:
-    return backoff_seconds * attempt
+    if attempt <= 0 or backoff_seconds <= 0:
+        return 0.0
+    exponential_delay_seconds = backoff_seconds * (2 ** (attempt - 1))
+    jitter_seconds = random.uniform(0.0, backoff_seconds)
+    return exponential_delay_seconds + jitter_seconds
 
 
 def _leading_status_code(message: str) -> int | None:

@@ -154,6 +154,7 @@ def build_handbook_ragas_adapter(
             settings,
             llm_factory=lambda resolved: llm,
             embeddings_factory=lambda resolved: embeddings,
+            metric_names=resolved_metric_names,
         )
         if resolved_preflight is None:
             resolved_preflight = lambda: {

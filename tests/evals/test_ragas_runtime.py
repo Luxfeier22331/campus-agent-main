@@ -30,6 +30,7 @@ from campus_evals.settings import SupplementalHTTPSettings
 from campus_evals.supplemental_http import (
     OpenAICompatibleResponsesLLM,
     SupplementalPreflightFailedError,
+    _retry_delay_seconds,
     reset_supplemental_http_runtime_state_for_tests,
 )
 
@@ -201,6 +202,35 @@ class RagasSettingsTest(unittest.TestCase):
         )
 
         self.assertEqual(settings.http_settings.read_timeout_seconds, 45.0)
+
+    def test_from_env_extends_statement_generation_read_timeout_without_widening_other_timeouts(self) -> None:
+        settings = RagasSettings.from_env(
+            {
+                "LLM_API_KEY": "llm-key",
+                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS": "4",
+                "SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS": "30",
+                "SUPPLEMENTAL_HTTP_WRITE_TIMEOUT_SECONDS": "9",
+                "SUPPLEMENTAL_HTTP_POOL_TIMEOUT_SECONDS": "2",
+            }
+        )
+
+        statement_settings = settings.http_settings_for_metric_stage(
+            metric_name="faithfulness",
+            stage_name="statement_generation",
+        )
+        default_stage_settings = settings.http_settings_for_metric_stage(
+            metric_name="faithfulness",
+            stage_name="nli_verdicts",
+        )
+
+        self.assertEqual(statement_settings.read_timeout_seconds, 180.0)
+        self.assertEqual(statement_settings.connect_timeout_seconds, 4.0)
+        self.assertEqual(statement_settings.write_timeout_seconds, 9.0)
+        self.assertEqual(statement_settings.pool_timeout_seconds, 2.0)
+        self.assertEqual(default_stage_settings.read_timeout_seconds, 30.0)
 
     def test_from_env_requires_llm_and_embedding_secrets_and_models(self) -> None:
         with self.assertRaisesRegex(ValueError, "LLM_API_KEY is required"):
@@ -1245,6 +1275,138 @@ class RagasHttpTransportTest(unittest.TestCase):
 
 
 class RagasScorerTest(unittest.TestCase):
+    def test_build_ragas_scorer_executes_only_requested_metric_names(self) -> None:
+        executed_metrics: list[str] = []
+        factory_metric_names: list[tuple[str, ...] | None] = []
+        score_by_metric = {"faithfulness": 0.91}
+
+        class FakeMetric:
+            def __init__(self, name: str) -> None:
+                self.name = name
+
+        class FakeEvaluationResult:
+            def __init__(self, metric_name: str) -> None:
+                self.scores = [{metric_name: score_by_metric[metric_name]}]
+
+        def fake_evaluate(*, dataset, metrics, llm, embeddings, **kwargs):
+            del dataset, llm, embeddings, kwargs
+            executed_metrics.append(metrics[0].name)
+            return FakeEvaluationResult(metrics[0].name)
+
+        def metric_factory(llm, embeddings, *, metric_names=None):
+            del llm, embeddings
+            factory_metric_names.append(tuple(metric_names) if metric_names is not None else None)
+            resolved_names = tuple(metric_names or build_default_ragas_metric_names())
+            return tuple(FakeMetric(name) for name in resolved_names)
+
+        settings = RagasSettings.from_env(
+            {
+                "LLM_API_KEY": "llm-key",
+                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+            }
+        )
+
+        scorer = build_ragas_scorer(
+            settings,
+            evaluate_fn=fake_evaluate,
+            llm_factory=lambda resolved: {"model": resolved.llm_model},
+            embeddings_factory=lambda resolved: {"model": resolved.embedding_model},
+            metric_factory=metric_factory,
+            metric_names=("faithfulness",),
+        )
+
+        results = scorer(
+            RagasProjection(
+                case_id="case-single-metric",
+                user_input="图书馆开放时间是什么？",
+                response="08:00 到 22:00。",
+                retrieved_contexts=("图书馆开放时间为 08:00-22:00。",),
+                reference="图书馆开放时间为 08:00-22:00。",
+            )
+        )
+
+        self.assertEqual(factory_metric_names, [("faithfulness",)])
+        self.assertEqual(executed_metrics, ["faithfulness"])
+        self.assertEqual(tuple(item.metric_name for item in results), ("faithfulness",))
+
+    def test_build_ragas_scorer_uses_statement_generation_timeout_override_without_widening_other_timeouts(self) -> None:
+        observed_stage_settings: list[tuple[str, SupplementalHTTPSettings]] = []
+
+        class FakeFaithfulnessMetric:
+            name = "faithfulness"
+
+            def __init__(self, llm) -> None:
+                self.llm = llm
+                self.init_timeout: int | None = None
+
+            def init(self, run_config) -> None:
+                self.init_timeout = int(run_config.timeout)
+
+            async def _create_statements(self, row, callbacks=None) -> StatementGeneratorOutput:
+                del row, callbacks
+                observed_stage_settings.append(("statement_generation", self.llm.http_settings))
+                return StatementGeneratorOutput(statements=["statement-1"])
+
+            async def _create_verdicts(self, row, statements, callbacks=None) -> NLIStatementOutput:
+                del row, statements, callbacks
+                observed_stage_settings.append(("nli_verdicts", self.llm.http_settings))
+                return NLIStatementOutput(
+                    statements=[
+                        StatementFaithfulnessAnswer(
+                            statement="statement-1",
+                            reason="supported by evidence",
+                            verdict=1,
+                        )
+                    ]
+                )
+
+            def _compute_score(self, answers) -> float:
+                del answers
+                return 1.0
+
+        settings = RagasSettings.from_env(
+            {
+                "LLM_API_KEY": "llm-key",
+                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS": "4",
+                "SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS": "30",
+                "SUPPLEMENTAL_HTTP_WRITE_TIMEOUT_SECONDS": "9",
+                "SUPPLEMENTAL_HTTP_POOL_TIMEOUT_SECONDS": "2",
+            }
+        )
+
+        scorer = build_ragas_scorer(
+            settings,
+            evaluate_fn=lambda **kwargs: (_ for _ in ()).throw(AssertionError("faithfulness should bypass ragas.evaluate")),
+            llm_factory=lambda resolved: type("LLM", (), {"http_settings": resolved.http_settings})(),
+            embeddings_factory=lambda resolved: {"model": resolved.embedding_model},
+            metric_factory=lambda llm, embeddings: (FakeFaithfulnessMetric(llm),),
+            metric_names=("faithfulness",),
+        )
+
+        results = scorer(
+            RagasProjection(
+                case_id="case-stage-timeout",
+                user_input="图书馆开放时间是什么？",
+                response="08:00 到 22:00。",
+                retrieved_contexts=("图书馆开放时间为 08:00-22:00。",),
+                reference="图书馆开放时间为 08:00-22:00。",
+            )
+        )
+
+        self.assertEqual(results[0].score, 1.0)
+        self.assertEqual(observed_stage_settings[0][0], "statement_generation")
+        self.assertEqual(observed_stage_settings[0][1].read_timeout_seconds, 180.0)
+        self.assertEqual(observed_stage_settings[0][1].connect_timeout_seconds, 4.0)
+        self.assertEqual(observed_stage_settings[0][1].write_timeout_seconds, 9.0)
+        self.assertEqual(observed_stage_settings[0][1].pool_timeout_seconds, 2.0)
+        self.assertEqual(observed_stage_settings[1][0], "nli_verdicts")
+        self.assertEqual(observed_stage_settings[1][1].read_timeout_seconds, 30.0)
+
     def test_build_ragas_scorer_uses_staged_faithfulness_checkpoint_resume_on_repair(self) -> None:
         class FakeFaithfulnessMetric:
             name = "faithfulness"
@@ -1716,6 +1878,16 @@ class RagasScorerTest(unittest.TestCase):
         )
 
         self.assertIn("TimeoutError", empty_timeout_results[0].rationale)
+
+
+class SupplementalRetryPolicyTest(unittest.TestCase):
+    def test_retry_delay_seconds_uses_exponential_backoff_with_bounded_jitter(self) -> None:
+        with patch("campus_evals.supplemental_http.random.uniform", side_effect=lambda low, high: high / 2):
+            self.assertEqual(_retry_delay_seconds(1, 1.0), 1.5)
+            self.assertEqual(_retry_delay_seconds(2, 1.0), 2.5)
+            self.assertEqual(_retry_delay_seconds(3, 1.0), 4.5)
+            self.assertEqual(_retry_delay_seconds(0, 1.0), 0.0)
+            self.assertEqual(_retry_delay_seconds(2, 0.0), 0.0)
 
 
 if __name__ == "__main__":

@@ -207,6 +207,29 @@ class JudgeSettingsTest(unittest.TestCase):
 
 
 class JudgeAdapterApplicabilityTest(unittest.TestCase):
+    def test_build_handbook_ragas_adapter_passes_metric_names_to_scorer(self) -> None:
+        ragas_settings = RagasSettings.from_env(
+            {
+                "LLM_API_KEY": "llm-key",
+                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+            }
+        )
+
+        with (
+            patch("campus_evals.supplemental_http.build_http_ragas_llm", return_value=object()),
+            patch("campus_evals.supplemental_http.build_http_ragas_embeddings", return_value=object()),
+            patch("campus_evals.judge_adapters.build_ragas_scorer", return_value=lambda projection: ()) as build_scorer,
+        ):
+            adapter = build_handbook_ragas_adapter(
+                ragas_settings,
+                metric_names=("faithfulness",),
+            )
+
+        self.assertEqual(adapter.metric_names, ("faithfulness",))
+        self.assertEqual(build_scorer.call_args.kwargs["metric_names"], ("faithfulness",))
+
     def test_answer_rubric_adapter_scores_completed_case_and_marks_non_completed_not_applicable(self) -> None:
         adapter = build_answer_rubric_adapter(
             JudgeLLMSettings.from_env(

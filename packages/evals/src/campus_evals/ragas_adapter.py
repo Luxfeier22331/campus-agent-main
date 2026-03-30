@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import inspect
 from math import isnan
 from typing import Callable
 
@@ -167,18 +168,25 @@ def build_ragas_dataset(projection: RagasProjection):
     )
 
 
-def build_default_ragas_metrics(llm: object, embeddings: object):
+def build_default_ragas_metrics(
+    llm: object,
+    embeddings: object,
+    *,
+    metric_names: tuple[str, ...] | None = None,
+):
     from ragas.metrics._answer_relevance import AnswerRelevancy
     from ragas.metrics._context_precision import ContextPrecision
     from ragas.metrics._context_recall import ContextRecall
     from ragas.metrics._faithfulness import Faithfulness
 
-    return (
-        Faithfulness(llm=llm),
-        AnswerRelevancy(llm=llm, embeddings=embeddings, strictness=1),
-        ContextPrecision(llm=llm),
-        ContextRecall(llm=llm),
-    )
+    builders = {
+        "faithfulness": lambda: Faithfulness(llm=llm),
+        "answer_relevancy": lambda: AnswerRelevancy(llm=llm, embeddings=embeddings, strictness=1),
+        "context_precision": lambda: ContextPrecision(llm=llm),
+        "context_recall": lambda: ContextRecall(llm=llm),
+    }
+    resolved_metric_names = tuple(metric_names or build_default_ragas_metric_names())
+    return tuple(builders[name]() for name in resolved_metric_names if name in builders)
 
 
 def build_ragas_scorer(
@@ -188,6 +196,7 @@ def build_ragas_scorer(
     llm_factory: Callable[[RagasSettings], object] = build_http_ragas_llm,
     embeddings_factory: Callable[[RagasSettings], object] = build_http_ragas_embeddings,
     metric_factory: Callable[[object, object], tuple[object, ...]] = build_default_ragas_metrics,
+    metric_names: tuple[str, ...] | None = None,
 ) -> Callable[[RagasProjection], tuple[SupplementalResult, ...]]:
     if evaluate_fn is None:
         from ragas import evaluate as evaluate_fn
@@ -204,7 +213,13 @@ def build_ragas_scorer(
     def _score(projection: RagasProjection) -> tuple[SupplementalResult, ...]:
         dataset = build_ragas_dataset(projection)
         results: list[SupplementalResult] = []
-        for metric in metric_factory(llm, embeddings):
+        for metric in _resolve_metrics(
+            metric_factory,
+            llm=llm,
+            embeddings=embeddings,
+            metric_names=metric_names,
+        ):
+            _configure_metric_runtime(metric, settings=settings)
             with bind_runtime_event_context(adapter_id="ragas", metric_name=metric.name):
                 try:
                     if supports_staged_faithfulness(metric):
@@ -252,6 +267,57 @@ def build_ragas_scorer(
     return _score
 
 
+def _resolve_metrics(
+    metric_factory: Callable[..., tuple[object, ...]],
+    *,
+    llm: object,
+    embeddings: object,
+    metric_names: tuple[str, ...] | None,
+) -> tuple[object, ...]:
+    resolved_metric_names = tuple(metric_names or ())
+    metrics: tuple[object, ...]
+    if resolved_metric_names and _metric_factory_accepts_metric_names(metric_factory):
+        metrics = tuple(metric_factory(llm, embeddings, metric_names=resolved_metric_names))
+    else:
+        metrics = tuple(metric_factory(llm, embeddings))
+    if not resolved_metric_names:
+        return metrics
+    allowed_metric_names = set(resolved_metric_names)
+    return tuple(metric for metric in metrics if str(getattr(metric, "name", "")) in allowed_metric_names)
+
+
+def _metric_factory_accepts_metric_names(metric_factory: Callable[..., tuple[object, ...]]) -> bool:
+    try:
+        signature = inspect.signature(metric_factory)
+    except (TypeError, ValueError):
+        return False
+    for parameter in signature.parameters.values():
+        if parameter.kind == inspect.Parameter.VAR_KEYWORD:
+            return True
+        if parameter.name == "metric_names":
+            return True
+    return False
+
+
+def _configure_metric_runtime(metric: object, *, settings: RagasSettings) -> None:
+    if str(getattr(metric, "name", "")) != "faithfulness":
+        return
+    setattr(
+        metric,
+        "_campus_stage_http_settings",
+        {
+            "statement_generation": settings.http_settings_for_metric_stage(
+                metric_name="faithfulness",
+                stage_name="statement_generation",
+            ),
+            "nli_verdicts": settings.http_settings_for_metric_stage(
+                metric_name="faithfulness",
+                stage_name="nli_verdicts",
+            ),
+        },
+    )
+
+
 def build_ragas_supplemental_adapter_from_env(
     env: dict[str, str] | None = None,
     *,
@@ -267,6 +333,7 @@ def build_ragas_supplemental_adapter_from_env(
             settings,
             llm_factory=lambda resolved: llm,
             embeddings_factory=lambda resolved: embeddings,
+            metric_names=resolved_metric_names,
         ),
         metric_names=resolved_metric_names,
         preflight=lambda: {
