@@ -33,6 +33,7 @@ updated: 2026-03-29
 - Worker runtime 通过 Hyperdrive 访问数据库
 - migration / schema 管理通过 direct database management connection 访问数据库
 - 逻辑 schema 分域而不是物理拆库
+- 这份 Postgres 是 repo 共享数据库，不是 `apps/app-api` 独占实例
 
 固定逻辑分域：
 
@@ -63,6 +64,7 @@ updated: 2026-03-29
 - 一套 Drizzle schema codebase
 - 一条 migration pipeline
 - 一份 schema 版本历史
+- `drizzle.app_api_migrations` 这张专属 migration journal table
 
 这意味着：
 

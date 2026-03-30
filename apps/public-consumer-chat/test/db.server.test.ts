@@ -11,20 +11,20 @@ describe("postgres search_path connection helper", () => {
   it("adds the auth schema search_path for Better Auth migrations", () => {
     const nextUrl = buildPostgresSearchPathConnectionString(
       "postgres://postgres:secret@example.com:5432/postgres",
-      ["auth", "public"],
+      ["app_auth", "public"],
     );
 
-    expect(nextUrl).toContain("search_path%3Dauth%2Cpublic");
+    expect(nextUrl).toContain("search_path%3Dapp_auth%2Cpublic");
   });
 
   it("preserves existing query params while appending options", () => {
     const nextUrl = buildPostgresSearchPathConnectionString(
       "postgres://postgres:secret@example.com:5432/postgres?sslmode=require",
-      ["auth", "public"],
+      ["app_auth", "public"],
     );
 
     expect(nextUrl).toContain("sslmode=require");
-    expect(nextUrl).toContain("search_path%3Dauth%2Cpublic");
+    expect(nextUrl).toContain("search_path%3Dapp_auth%2Cpublic");
   });
 
   it("uses a conservative non-production pool profile for Supabase session mode", () => {

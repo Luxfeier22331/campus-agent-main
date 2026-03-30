@@ -94,12 +94,14 @@ Canonical references:
 
 Database baseline:
 
-- runtime reads/writes use Hyperdrive-style runtime connection config
+- runtime reads/writes use Hyperdrive-style runtime connection config against the shared repo Postgres
 - migration / schema management uses `APP_API_MANAGEMENT_DATABASE_URL`
-- Drizzle schema and Better Auth tables share one migration pipeline
+- Drizzle schema and Better Auth tables share one `app-api` migration pipeline on the shared repo Postgres
+- `app-api` stores migration journal rows in `drizzle.app_api_migrations`, not the default shared Drizzle table
 
 Environment:
 
+- `apps/app-api/.env` for local Wrangler / Drizzle process env
 - `APP_API_NAME`
 - `APP_API_ENVIRONMENT`
 - `APP_API_DB.connectionString`
@@ -126,6 +128,8 @@ Environment:
 Local commands:
 
 ```bash
+uv run --all-packages python -m scripts.sync_app_api_local_db_env
+pnpm db:adopt-shared -- --json
 pnpm test
 pnpm typecheck
 pnpm db:generate

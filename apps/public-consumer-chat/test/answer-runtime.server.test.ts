@@ -12,7 +12,7 @@ const baseEnv: PublicChatServerEnv = {
   databaseUrl: "postgres://postgres:secret@example.com:5432/postgres",
   databaseSslMode: "require",
   betterAuthSecret: "dev-secret-dev-secret-dev-secret",
-  authSchema: "auth",
+  authSchema: "app_auth",
   chatSchema: "chat",
   ingestionRegistrySchema: "ingestion_registry",
 };

@@ -7,3 +7,11 @@ preview_urls = false
 
 [triggers]
 crons = ["*/1 * * * *"]
+
+[[env.local.hyperdrive]]
+binding = "APP_API_DB"
+# Local development loads the actual connection string from
+# `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB`.
+# This placeholder keeps the local-only binding explicit without freezing
+# a deployed Hyperdrive resource id in repo truth.
+id = "00000000-0000-0000-0000-000000000000"

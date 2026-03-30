@@ -236,6 +236,12 @@ pnpm test:integration
 
 `test:integration` is reserved for real Postgres-backed auth/session/ownership checks. It should not be pointed at SQLite, D1, or a fake compatibility layer.
 
+If local development should reuse the repo root shared Supabase URL, run:
+
+```bash
+uv run --all-packages python -m scripts.sync_public_consumer_chat_local_db_env
+```
+
 When using Supabase, prefer the session pooler endpoint and keep `?sslmode=require` on the connection string.
 
 ## Availability Gate

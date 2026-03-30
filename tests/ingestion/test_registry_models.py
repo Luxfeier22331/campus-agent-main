@@ -535,6 +535,17 @@ class RegistryModelsTest(unittest.TestCase):
             self.assertIs(registry, instance)
             registry_cls.assert_called_once_with("postgresql://registry.example/postgres")
 
+    def test_build_document_registry_from_env_falls_back_to_shared_postgres_url(self) -> None:
+        with patch("campus_ingestion_core.registry.PostgresDocumentRegistry") as registry_cls:
+            instance = registry_cls.return_value
+
+            registry = build_document_registry_from_env(
+                {"CAMPUS_SHARED_POSTGRES_URL": "postgresql://shared.example/postgres"}
+            )
+
+            self.assertIs(registry, instance)
+            registry_cls.assert_called_once_with("postgresql://shared.example/postgres")
+
     def test_build_raw_asset_registry_from_env_uses_database_url(self) -> None:
         with patch("campus_ingestion_core.registry.PostgresRawAssetRegistry") as registry_cls:
             instance = registry_cls.return_value
@@ -559,6 +570,17 @@ class RegistryModelsTest(unittest.TestCase):
 
             self.assertIs(registry, instance)
             registry_cls.assert_called_once_with("postgresql://raw-registry.example/postgres")
+
+    def test_build_raw_asset_registry_from_env_falls_back_to_shared_postgres_url(self) -> None:
+        with patch("campus_ingestion_core.registry.PostgresRawAssetRegistry") as registry_cls:
+            instance = registry_cls.return_value
+
+            registry = build_raw_asset_registry_from_env(
+                {"CAMPUS_SHARED_POSTGRES_URL": "postgresql://shared.example/postgres"}
+            )
+
+            self.assertIs(registry, instance)
+            registry_cls.assert_called_once_with("postgresql://shared.example/postgres")
 
     def test_build_raw_asset_registry_from_env_accepts_dedicated_database_url_without_document_registry(self) -> None:
         with patch("campus_ingestion_core.registry.PostgresRawAssetRegistry") as registry_cls:
@@ -607,10 +629,16 @@ class RegistryModelsTest(unittest.TestCase):
             latest_versions.assert_not_called()
 
     def test_registry_builders_require_database_url(self) -> None:
-        with self.assertRaisesRegex(ValueError, "DOCUMENT_REGISTRY_DATABASE_URL"):
+        with self.assertRaisesRegex(
+            ValueError, "DOCUMENT_REGISTRY_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL"
+        ):
             build_document_registry_from_env({})
         with self.assertRaisesRegex(
-            ValueError, "RAW_ASSET_REGISTRY_DATABASE_URL or DOCUMENT_REGISTRY_DATABASE_URL"
+            ValueError,
+            (
+                "RAW_ASSET_REGISTRY_DATABASE_URL or DOCUMENT_REGISTRY_DATABASE_URL or "
+                "CAMPUS_SHARED_POSTGRES_URL"
+            ),
         ):
             build_raw_asset_registry_from_env({})
 

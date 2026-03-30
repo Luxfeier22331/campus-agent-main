@@ -90,7 +90,7 @@ describe.skipIf(!hasIntegrationDatabase)(
       process.env.PUBLIC_CONSUMER_CHAT_DATABASE_SSLMODE =
         process.env.PUBLIC_CONSUMER_CHAT_DATABASE_SSLMODE ?? "require";
       process.env.PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA =
-        process.env.PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA ?? "auth";
+        process.env.PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA ?? "app_auth";
       process.env.PUBLIC_CONSUMER_CHAT_CHAT_SCHEMA =
         process.env.PUBLIC_CONSUMER_CHAT_CHAT_SCHEMA ?? "chat";
       process.env.PUBLIC_CONSUMER_CHAT_INGESTION_REGISTRY_SCHEMA =

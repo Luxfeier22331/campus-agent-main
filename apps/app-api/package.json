@@ -5,9 +5,10 @@
   "description": "Shared Worker-native application backend for campus-agent v2.",
   "packageManager": "pnpm@10.26.1",
   "scripts": {
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "dev": "XDG_CONFIG_HOME=./.wrangler-home wrangler dev",
+    "db:generate": "node ./scripts/run-with-local-env.mjs drizzle-kit generate",
+    "db:migrate": "node ./scripts/run-with-local-env.mjs drizzle-kit migrate",
+    "db:adopt-shared": "node ./scripts/run-with-local-env.mjs node ./scripts/adopt-shared-database.mjs",
+    "dev": "XDG_CONFIG_HOME=./.wrangler-home node ./scripts/run-with-local-env.mjs wrangler dev -e local",
     "deploy": "XDG_CONFIG_HOME=./.wrangler-home wrangler deploy",
     "test": "XDG_CONFIG_HOME=./.wrangler-home vitest run",
     "typecheck": "tsc --noEmit"

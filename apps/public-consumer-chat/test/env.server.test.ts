@@ -13,7 +13,7 @@ describe("public chat env contract", () => {
       BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
     } as NodeJS.ProcessEnv);
 
-    expect(env.authSchema).toBe("auth");
+    expect(env.authSchema).toBe("app_auth");
     expect(env.chatSchema).toBe("chat");
     expect(env.ingestionRegistrySchema).toBe("ingestion_registry");
   });

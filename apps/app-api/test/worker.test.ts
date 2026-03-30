@@ -8,6 +8,8 @@ describe("app-api worker foundation", () => {
     expect(wranglerConfig).toContain("workers_dev = false");
     expect(wranglerConfig).toContain("preview_urls = false");
     expect(wranglerConfig).toContain('compatibility_flags = ["nodejs_compat"]');
+    expect(wranglerConfig).toContain("[[env.local.hyperdrive]]");
+    expect(wranglerConfig).toContain('binding = "APP_API_DB"');
   });
 
   it("serves healthz and readyz from the worker shell", async () => {

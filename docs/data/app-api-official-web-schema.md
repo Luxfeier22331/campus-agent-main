@@ -29,7 +29,7 @@ updated: 2026-03-29
 
 第一版接受：
 
-- 继续使用 shared `app-api` 的同一 Postgres 与同一 migration pipeline
+- 继续使用 repo 共享 Postgres 上由 `app-api` 拥有的逻辑 schema 与同一 migration pipeline
 - 新增 `official_web.*` 逻辑分域
 - 继续允许 `operator.*` 承接 panel-facing read models
 
@@ -59,6 +59,7 @@ updated: 2026-03-29
 - 一套 Drizzle schema codebase
 - 一条 migration pipeline
 - 一份 schema 版本历史
+- `drizzle.app_api_migrations` 这张 `app-api` 专属 journal table
 
 ## `official_web.crawl_runs`
 

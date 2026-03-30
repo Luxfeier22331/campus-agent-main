@@ -8,7 +8,7 @@ describe("Better Auth config", () => {
   it("freezes explicit session, password, and rate-limit policy for the app boundary", () => {
     const config = buildBetterAuthConfig({
       appBaseUrl: "https://chat.example.com",
-      authSchema: "auth",
+      authSchema: "app_auth",
       answerBaseUrl: undefined,
       answerBearerToken: undefined,
       betterAuthSecret: "prod-secret-1234567890-prod-secret-1234567890",

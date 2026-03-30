@@ -26,6 +26,9 @@ const POSTGRES_PREFIX = /^(postgres|postgresql):\/\//i;
 const IDENTIFIER = /^[a-z_][a-z0-9_]*$/;
 const LOCAL_DEV_HOSTNAMES = new Set(["127.0.0.1", "localhost", "::1"]);
 const DEV_SECRET_PREFIX = "dev-secret";
+export const PUBLIC_CHAT_AUTH_SCHEMA = "app_auth";
+export const PUBLIC_CHAT_CHAT_SCHEMA = "chat";
+export const PUBLIC_CHAT_INGESTION_REGISTRY_SCHEMA = "ingestion_registry";
 
 const readRequired = (env: NodeJS.ProcessEnv, key: string): string => {
   const value = env[key]?.trim();
@@ -152,12 +155,12 @@ export function readPublicChatServerEnv(
       appBaseUrl,
       nodeEnv,
     }),
-    authSchema: readSchema(env, "PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA", "auth"),
-    chatSchema: readSchema(env, "PUBLIC_CONSUMER_CHAT_CHAT_SCHEMA", "chat"),
+    authSchema: readSchema(env, "PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA", PUBLIC_CHAT_AUTH_SCHEMA),
+    chatSchema: readSchema(env, "PUBLIC_CONSUMER_CHAT_CHAT_SCHEMA", PUBLIC_CHAT_CHAT_SCHEMA),
     ingestionRegistrySchema: readSchema(
       env,
       "PUBLIC_CONSUMER_CHAT_INGESTION_REGISTRY_SCHEMA",
-      "ingestion_registry",
+      PUBLIC_CHAT_INGESTION_REGISTRY_SCHEMA,
     ),
     answerBaseUrl: env.SUPERVISOR_API_BASE_URL?.trim() || undefined,
     answerBearerToken: env.SUPERVISOR_API_BEARER_TOKEN?.trim() || undefined,
@@ -168,7 +171,7 @@ export function readPublicChatServerEnv(
 // Supabase Postgres remains the primary relational store for auth/chat truth.
 export const PUBLIC_CHAT_ENV_DOC = {
   relationalStore: "Supabase Postgres",
-  authSchema: "auth",
-  chatSchema: "chat",
-  ingestionRegistrySchema: "ingestion_registry",
+  authSchema: PUBLIC_CHAT_AUTH_SCHEMA,
+  chatSchema: PUBLIC_CHAT_CHAT_SCHEMA,
+  ingestionRegistrySchema: PUBLIC_CHAT_INGESTION_REGISTRY_SCHEMA,
 };

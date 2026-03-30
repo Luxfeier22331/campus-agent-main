@@ -17,6 +17,8 @@ from campus_ingestion_core.sparse import (
 )
 
 DEFAULT_QDRANT_TIMEOUT_SECONDS = 10.0
+SHARED_POSTGRES_ENV_KEY = "CAMPUS_SHARED_POSTGRES_URL"
+DOCUMENT_REGISTRY_ENV_KEY = "DOCUMENT_REGISTRY_DATABASE_URL"
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,7 +65,9 @@ class RetrievalSettings:
         if self.document_registry_database_url:
             parsed_registry = urlparse(self.document_registry_database_url)
             if parsed_registry.scheme not in {"postgresql", "postgres"}:
-                raise ValueError("DOCUMENT_REGISTRY_DATABASE_URL must be a postgres URL")
+                raise ValueError(
+                    f"{DOCUMENT_REGISTRY_ENV_KEY} or {SHARED_POSTGRES_ENV_KEY} must be a postgres URL"
+                )
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> "RetrievalSettings":
@@ -78,7 +82,9 @@ class RetrievalSettings:
                 (source.get("QDRANT_TIMEOUT_SECONDS") or str(DEFAULT_QDRANT_TIMEOUT_SECONDS)).strip()
             ),
             document_registry_database_url=(
-                source.get("DOCUMENT_REGISTRY_DATABASE_URL") or ""
+                source.get(DOCUMENT_REGISTRY_ENV_KEY)
+                or source.get(SHARED_POSTGRES_ENV_KEY)
+                or ""
             ).strip(),
             embedding_provider=(source.get("EMBEDDING_PROVIDER") or DEFAULT_EMBEDDING_PROVIDER).strip()
             or DEFAULT_EMBEDDING_PROVIDER,

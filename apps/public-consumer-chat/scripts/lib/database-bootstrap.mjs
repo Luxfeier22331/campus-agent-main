@@ -8,6 +8,9 @@ import { Pool } from "pg";
 
 const IDENTIFIER = /^[a-z_][a-z0-9_]*$/;
 const POSTGRES_PREFIX = /^(postgres|postgresql):\/\//i;
+export const PUBLIC_CHAT_AUTH_SCHEMA = "app_auth";
+export const PUBLIC_CHAT_CHAT_SCHEMA = "chat";
+export const PUBLIC_CHAT_INGESTION_REGISTRY_SCHEMA = "ingestion_registry";
 const scriptsRoot = fileURLToPath(new URL("..", import.meta.url));
 const appRoot = fileURLToPath(new URL("../..", import.meta.url));
 const migrationsRoot = join(appRoot, "db", "migrations");
@@ -52,11 +55,11 @@ export function readBootstrapEnv(env = process.env) {
       env.PUBLIC_CONSUMER_CHAT_APP_BASE_URL?.trim() || "http://127.0.0.1:3000",
     authSchema: assertIdentifier(
       "auth schema",
-      env.PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA?.trim() || "auth",
+      env.PUBLIC_CONSUMER_CHAT_AUTH_SCHEMA?.trim() || PUBLIC_CHAT_AUTH_SCHEMA,
     ),
     chatSchema: assertIdentifier(
       "chat schema",
-      env.PUBLIC_CONSUMER_CHAT_CHAT_SCHEMA?.trim() || "chat",
+      env.PUBLIC_CONSUMER_CHAT_CHAT_SCHEMA?.trim() || PUBLIC_CHAT_CHAT_SCHEMA,
     ),
     databaseSslMode:
       env.PUBLIC_CONSUMER_CHAT_DATABASE_SSLMODE?.trim() || "require",
@@ -65,7 +68,7 @@ export function readBootstrapEnv(env = process.env) {
     ingestionRegistrySchema: assertIdentifier(
       "ingestion registry schema",
       env.PUBLIC_CONSUMER_CHAT_INGESTION_REGISTRY_SCHEMA?.trim() ||
-        "ingestion_registry",
+        PUBLIC_CHAT_INGESTION_REGISTRY_SCHEMA,
     ),
   };
 }

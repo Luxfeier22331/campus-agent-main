@@ -110,6 +110,7 @@ updated: 2026-03-29
 - `contracts/app-api-supervisor-execution.md`
 - `data/app-api-official-web-schema.md`
 - `data/app-api-schema.md`
+- `data/shared-postgres-ownership.md`
 - `environment/README.md`
 - `decisions/adr-0002-local-minio-conventions.md`
 - `decisions/adr-0003-golden-dataset-governance.md`
