@@ -307,9 +307,10 @@ def _source_sort_key(feature: _SourceRankingFeatures) -> tuple[int, int, int, in
     return (
         feature.title_match_priority,
         feature.title_overlap_count,
-        feature.content_role_priority,
+        1 if feature.content_role_priority >= 0 else 0,
         feature.detail_support_count + feature.content_support_count,
         feature.answer_bearing_bonus,
+        feature.content_role_priority,
         feature.content_kind_priority,
         feature.source.score,
     )

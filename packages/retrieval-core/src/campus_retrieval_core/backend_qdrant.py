@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import re
 import time
 import unicodedata
@@ -63,6 +63,24 @@ _LOW_SIGNAL_CJK_PHRASES = (
     "课程教学计划",
     "教学计划",
     "课程地图",
+)
+_DOCUMENT_SUPPORT_QUERY_SUFFIXES = (
+    "怎么安排",
+    "如何安排",
+    "怎么修读",
+    "如何修读",
+    "怎么办理",
+    "如何办理",
+    "是多少",
+    "有多少",
+    "一共多少",
+    "怎么授予",
+    "如何授予",
+    "什么要求",
+    "几年",
+    "多少",
+    "怎么",
+    "如何",
 )
 
 
@@ -281,23 +299,32 @@ class QdrantRetrievalBackend:
         )
         if target_source is None:
             return tuple(sources)
+        support_query_text = _build_document_support_query_text(
+            query_text=request.query_text,
+            source=target_source,
+        )
+        support_request = replace(request, query_text=support_query_text)
         try:
+            support_dense_query_embedding = self._get_dense_query_embedding(
+                support_request.query_text,
+                profile=profile,
+            )
             response = self.qdrant_client.query_points(
                 collection_name=qdrant_collection_name,
                 prefetch=_build_hybrid_prefetch(
-                    request=request,
+                    request=support_request,
                     profile=profile,
                     embedding_model=self.embedding_model,
                     sparse_embedding_model=self.sparse_embedding_model,
-                    dense_query_embedding=dense_query_embedding,
+                    dense_query_embedding=support_dense_query_embedding,
                     query_filter=_build_source_scoped_qdrant_filter(
-                        request=request,
+                        request=support_request,
                         profile=profile,
                         source=target_source,
                     ),
                 ),
                 query=_build_rrf_query(profile),
-                limit=max(request.top_k, profile.document_support_limit),
+                limit=max(support_request.top_k, profile.document_support_limit),
                 with_payload=True,
                 with_vectors=False,
             )
@@ -353,6 +380,48 @@ def _build_dense_query_text(*, query_text: str, instruction: str) -> str:
     if not normalized_instruction:
         return normalized_query
     return f"Instruct: {normalized_instruction}\nQuery: {normalized_query}"
+
+
+def _build_document_support_query_text(*, query_text: str, source: EvidenceSource) -> str:
+    normalized_query = query_text.strip()
+    if not normalized_query:
+        return normalized_query
+    for candidate in _document_support_query_candidates(source):
+        if candidate and candidate in normalized_query:
+            focused_query = _strip_document_support_query_noise(
+                normalized_query.replace(candidate, "", 1)
+            )
+            if focused_query:
+                return focused_query
+    return normalized_query
+
+
+def _document_support_query_candidates(source: EvidenceSource) -> tuple[str, ...]:
+    candidates: list[str] = []
+    explicit_title = source.source_title.strip()
+    if explicit_title:
+        candidates.append(explicit_title)
+    doc_label = source.doc_id.split(":", 1)[-1].strip()
+    if doc_label:
+        candidates.append(doc_label)
+    if source.structural_path:
+        candidates.append(source.structural_path[0].strip())
+    return tuple(dict.fromkeys(candidate for candidate in candidates if candidate))
+
+
+def _strip_document_support_query_noise(text: str) -> str:
+    focused_query = text.strip().strip(" \t\r\n,，.。;；:：()（）[]【】《》\"'")
+    focused_query = focused_query.rstrip("？?").strip()
+    changed = True
+    while focused_query and changed:
+        changed = False
+        for suffix in _DOCUMENT_SUPPORT_QUERY_SUFFIXES:
+            if focused_query.endswith(suffix):
+                focused_query = focused_query[: -len(suffix)].rstrip(" \t\r\n,，.。;；:：")
+                focused_query = focused_query.rstrip("？?").strip()
+                changed = True
+                break
+    return focused_query
 
 
 def _build_rrf_query(profile: CollectionRuntimeProfile) -> qdrant_models.RrfQuery:
@@ -497,21 +566,26 @@ def _build_authorization_metadata_filter(
     entitlement_groups: tuple[str, ...],
     visibility_level: str,
 ) -> MetadataFilters:
-    return MetadataFilters(
-        filters=[
-            MetadataFilter(key="visibility_level", value=visibility_level),
+    filters: list[MetadataFilter | MetadataFilters] = [
+        MetadataFilter(key="visibility_level", value=visibility_level),
+        MetadataFilters(
+            filters=[
+                MetadataFilter(key="visibility_level", value=None, operator=FilterOperator.IS_EMPTY),
+                MetadataFilter(key="acl_level", value=visibility_level),
+            ],
+            condition=FilterCondition.AND,
+        ),
+    ]
+    if entitlement_groups:
+        filters.insert(
+            1,
             MetadataFilter(
                 key="entitlement_groups",
                 value=list(entitlement_groups),
                 operator=FilterOperator.IN,
             ),
-            MetadataFilters(
-                filters=[
-                    MetadataFilter(key="visibility_level", value=None, operator=FilterOperator.IS_EMPTY),
-                    MetadataFilter(key="acl_level", value=visibility_level),
-                ],
-                condition=FilterCondition.AND,
-            ),
+        )
+        filters.append(
             MetadataFilters(
                 filters=[
                     MetadataFilter(key="entitlement_groups", value=None, operator=FilterOperator.IS_EMPTY),
@@ -522,10 +596,9 @@ def _build_authorization_metadata_filter(
                     ),
                 ],
                 condition=FilterCondition.AND,
-            ),
-        ],
-        condition=FilterCondition.OR,
-    )
+            )
+        )
+    return MetadataFilters(filters=filters, condition=FilterCondition.OR)
 
 
 def _build_visibility_scope_metadata_filter(visibility_scope: str) -> MetadataFilters:
@@ -555,27 +628,32 @@ def _build_authorization_qdrant_filter(
     entitlement_groups: tuple[str, ...],
     visibility_level: str,
 ) -> qdrant_models.Filter:
-    return qdrant_models.Filter(
-        should=[
-            qdrant_models.FieldCondition(
-                key="visibility_level",
-                match=qdrant_models.MatchValue(value=visibility_level),
-            ),
+    should: list[qdrant_models.Condition] = [
+        qdrant_models.FieldCondition(
+            key="visibility_level",
+            match=qdrant_models.MatchValue(value=visibility_level),
+        ),
+        qdrant_models.Filter(
+            must=[
+                qdrant_models.IsEmptyCondition(
+                    is_empty=qdrant_models.PayloadField(key="visibility_level")
+                ),
+                qdrant_models.FieldCondition(
+                    key="acl_level",
+                    match=qdrant_models.MatchValue(value=visibility_level),
+                ),
+            ]
+        ),
+    ]
+    if entitlement_groups:
+        should.insert(
+            1,
             qdrant_models.FieldCondition(
                 key="entitlement_groups",
                 match=qdrant_models.MatchAny(any=list(entitlement_groups)),
             ),
-            qdrant_models.Filter(
-                must=[
-                    qdrant_models.IsEmptyCondition(
-                        is_empty=qdrant_models.PayloadField(key="visibility_level")
-                    ),
-                    qdrant_models.FieldCondition(
-                        key="acl_level",
-                        match=qdrant_models.MatchValue(value=visibility_level),
-                    ),
-                ]
-            ),
+        )
+        should.append(
             qdrant_models.Filter(
                 must=[
                     qdrant_models.IsEmptyCondition(
@@ -586,9 +664,9 @@ def _build_authorization_qdrant_filter(
                         match=qdrant_models.MatchAny(any=list(entitlement_groups)),
                     ),
                 ]
-            ),
-        ]
-    )
+            )
+        )
+    return qdrant_models.Filter(should=should)
 
 
 def _build_visibility_scope_qdrant_filter(visibility_scope: str) -> qdrant_models.Filter:
