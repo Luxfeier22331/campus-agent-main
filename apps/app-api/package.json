@@ -5,13 +5,16 @@
   "description": "Shared Worker-native application backend for campus-agent v2.",
   "packageManager": "pnpm@10.26.1",
   "scripts": {
+    "db:bootstrap": "node ./scripts/run-with-local-env.mjs node ./scripts/bootstrap-shared-product-database.mjs",
     "db:generate": "node ./scripts/run-with-local-env.mjs drizzle-kit generate",
+    "db:ensure-app-auth-role-search-path": "node ./scripts/run-with-local-env.mjs node ./scripts/ensure-app-auth-role-search-path.mjs",
     "db:migrate": "node ./scripts/run-with-local-env.mjs drizzle-kit migrate",
+    "db:print-auth-migration": "node ./scripts/run-with-local-env.mjs node ./scripts/print-shared-product-auth-migration.mjs",
     "db:adopt-shared": "node ./scripts/run-with-local-env.mjs node ./scripts/adopt-shared-database.mjs",
     "dev": "XDG_CONFIG_HOME=./.wrangler-home node ./scripts/run-with-local-env.mjs wrangler dev -e local",
     "deploy": "XDG_CONFIG_HOME=./.wrangler-home wrangler deploy",
     "test": "XDG_CONFIG_HOME=./.wrangler-home vitest run",
-    "test:shared-db-integration": "RUN_APP_API_SHARED_DB_INTEGRATION=1 node ./scripts/run-with-local-env.mjs vitest run -c vitest.node.config.mts test/official-web-shared-db.integration.test.ts",
+    "test:shared-db-integration": "RUN_APP_API_SHARED_DB_INTEGRATION=1 node ./scripts/run-with-local-env.mjs vitest run -c vitest.node.config.mts test/shared-product-db.integration.test.ts test/official-web-shared-db.integration.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

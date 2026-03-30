@@ -44,9 +44,9 @@ repo root `.env` 的 canonical key 固定为：
 当前共享库允许以下 repo-owned schema 共存：
 
 - `app_auth.*`
-  repo-owned Better Auth truth；runtime 由 `apps/app-api` 与 `apps/public-consumer-chat` 共同消费，当前 bootstrap owner 是 `apps/public-consumer-chat`
+  repo-owned Better Auth truth；runtime 与 shared-product bootstrap owner 都是 `apps/app-api`
 - `chat.*`
-  consumer conversation/message truth；bootstrap owner 当前是 `apps/public-consumer-chat`，product-layer owner 是 shared `apps/app-api` boundary
+  consumer conversation/message truth；product-layer owner 与 shared-db bootstrap owner 都是 `apps/app-api`
 - `runtime.*`
   request command-side ledger / outbox；owner 是 `apps/app-api`
 - `operator.*`
@@ -63,7 +63,6 @@ repo root `.env` 的 canonical key 固定为：
 - app-local env
   只持有当前 app runtime 直接消费的 database URL，例如：
   - `apps/app-api/.env` -> `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB` / `APP_API_MANAGEMENT_DATABASE_URL`
-  - `apps/public-consumer-chat/.env` -> `PUBLIC_CONSUMER_CHAT_DATABASE_URL` / `PUBLIC_CHAT_TEST_DATABASE_URL`
 - domain override env
   例如 `DOCUMENT_REGISTRY_DATABASE_URL`、`RAW_ASSET_REGISTRY_DATABASE_URL`，只在对应 owner 明确偏离共享库时使用
 
@@ -71,12 +70,10 @@ repo root `.env` 的 canonical key 固定为：
 
 - Supabase platform-managed `auth.*`
   保留给 Supabase Auth；repo 不接管，也不把它当成 Better Auth 的物理 schema
-- `apps/public-consumer-chat`
-  继续负责 `app_auth.*` / `chat.*` 的 bootstrap 能力
 - `app_auth.*` on Supabase session pooler
   通过数据库角色默认 `search_path=app_auth, public, extensions` 收敛；仅靠连接字符串 `options=-c search_path=...` 在当前 shared DB 上不可靠
 - `apps/app-api`
-  负责 `runtime.*` / `operator.*` / `official_web.*` 的 Drizzle migration ownership；runtime 继续消费 `app_auth.*` / `chat.*`
+  负责 shared-product bootstrap 下的 `app_auth.*` / `chat.*`，并拥有 `runtime.*` / `operator.*` / `official_web.*` 的 Drizzle migration ownership；`drizzle.app_api_migrations` 不接管 `app_auth.*` / `chat.*`
 - `packages/ingestion-core`
   不接管 `app-api` 的 Drizzle migration journal；registry table 仍由自身代码路径负责 schema ensure
 

@@ -98,13 +98,14 @@ Database baseline:
 - migration / schema management uses `APP_API_MANAGEMENT_DATABASE_URL`
 - `apps/app-api` runtime schema code continues to cover `app_auth.*`, `chat.*`, `runtime.*`, `operator.*`, and `official_web.*`
 - `drizzle.app_api_migrations` now owns only `runtime.*`, `operator.*`, and `official_web.*`
-- Better Auth uses repo-owned `app_auth.*`; shared-db bootstrap for `app_auth.*` / `chat.*` is currently handled outside the `app-api` Drizzle journal
+- Better Auth uses repo-owned `app_auth.*`; `apps/app-api` is now the shared-db bootstrap owner for `app_auth.*` / `chat.*`
 - on the current Supabase session pooler, `app_auth.*` relies on a role-level default `search_path`; connection-string `options=-c search_path=...` alone does not converge
 - `app-api` stores migration journal rows in `drizzle.app_api_migrations`, not the default shared Drizzle table
 
 Environment:
 
 - `apps/app-api/.env` for local Wrangler / Drizzle process env
+- `apps/app-api/.dev.vars` for local Worker string env consumed by runtime and shared-product bootstrap commands
 - `APP_API_NAME`
 - `APP_API_ENVIRONMENT`
 - `APP_API_DB.connectionString`
@@ -132,6 +133,9 @@ Local commands:
 
 ```bash
 uv run --all-packages python -m scripts.sync_app_api_local_db_env
+pnpm db:print-auth-migration
+pnpm db:ensure-app-auth-role-search-path
+pnpm db:bootstrap
 pnpm db:adopt-shared -- --json
 pnpm test:shared-db-integration
 pnpm test

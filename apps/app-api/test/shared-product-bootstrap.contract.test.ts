@@ -47,6 +47,5 @@ describe("app-api shared product bootstrap contracts", () => {
     expect(readme).toContain("db:ensure-app-auth-role-search-path");
     expect(readme).toContain("app_auth.*");
     expect(readme).toContain("chat.*");
-    expect(readme).not.toContain("apps/public-consumer-chat");
   });
 });

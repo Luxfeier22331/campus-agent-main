@@ -17,7 +17,7 @@ describe("app-api shared product database bootstrap", () => {
     expect(BETTER_AUTH_TABLES).toEqual(["user", "session", "account", "verification"]);
   });
 
-  it("reads bootstrap env from app-api management connection without any consumer-chat env", () => {
+  it("reads bootstrap env from the app-api management connection only", () => {
     const env = readSharedProductBootstrapEnv({
       APP_API_DATABASE_SSLMODE: "require",
       APP_API_MANAGEMENT_DATABASE_URL: "postgresql://db.example/campus_agent",

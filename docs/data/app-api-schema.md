@@ -71,14 +71,14 @@ updated: 2026-03-30
 
 - `apps/app-api` 的 `drizzle.app_api_migrations`
   只拥有 `runtime.*` / `operator.*` / `official_web.*`
-- `apps/public-consumer-chat`
-  当前负责 `app_auth.*` / `chat.*` 的 bootstrap，不与 `app-api` 共享 journal
+- `apps/app-api` shared-product bootstrap
+  负责 `app_auth.*` / `chat.*` 的 bootstrap / adoption，不与 `drizzle.app_api_migrations` 混用同一 ownership 语义
 
 这意味着：
 
 - `apps/app-api` 运行时仍可通过统一 schema codebase 访问 `app_auth.*` / `chat.*`
 - 但不能再把 `app_auth.*` / `chat.*` 误写成 `app-api` Drizzle migration ownership
-- 可以按模块分文件组织 schema，但 migration owner 必须保持显式
+- 可以按模块分文件组织 schema，但 bootstrap/adoption owner 与 Drizzle migration owner 都必须保持显式
 
 ## `app_auth.*`
 
@@ -95,7 +95,7 @@ updated: 2026-03-30
 
 - 具体物理表名允许由 Better Auth adapter 决定
 - Supabase platform `auth.*` 不是这里的 repo-owned Better Auth schema
-- `app-api` runtime 使用 `app_auth.*`，但当前不再由 `app-api` Drizzle journal 直接接管
+- `app-api` runtime 与 shared-product bootstrap 使用 `app_auth.*`，但当前不由 `app-api` Drizzle journal 直接接管
 - app-domain migration 不应手写改造 Better Auth 的内部列约定，除非适配器明确支持
 - panel operator principal 在 v1 不要求持久化成独立 auth 表
 

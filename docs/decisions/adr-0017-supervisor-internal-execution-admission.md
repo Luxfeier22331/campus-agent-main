@@ -42,7 +42,7 @@ Accepted on 2026-03-28.
 2. `apps/app-api` 负责 auth、session、principal mapping，并显式把 `actor` 交给 `apps/supervisor-api`。
 3. `apps/supervisor-api` 只负责 internal execution caller admission，不再承担 user-auth 语义。
 4. canonical request projection 采用 database outbox-first：`runtime.request_execution` 与 `runtime.projection_outbox` 是第一 durable truth，`operator.request_projection` 由 outbox 物化。
-5. Better Auth runtime 落在 `apps/app-api` 内部；repo-owned auth schema 固定为 `app_auth.*`，并显式区分 shared Postgres 上的 bootstrap owner 与 Drizzle migration owner：`apps/public-consumer-chat` 当前负责 `app_auth.*` / `chat.*` bootstrap，`apps/app-api` journal 负责 `runtime.*` / `operator.*` / `official_web.*`。
+5. Better Auth runtime 落在 `apps/app-api` 内部；repo-owned auth schema 固定为 `app_auth.*`，并显式区分 shared Postgres 上的 shared-product bootstrap owner 与 Drizzle migration owner：`apps/app-api` bootstrap 负责 `app_auth.*` / `chat.*`，`drizzle.app_api_migrations` 负责 `runtime.*` / `operator.*` / `official_web.*`。
 6. Worker runtime 的数据库访问走 Hyperdrive；schema migration 与管理动作使用 direct database management connection，而不是 Hyperdrive runtime binding。
 
 ## 边界约束

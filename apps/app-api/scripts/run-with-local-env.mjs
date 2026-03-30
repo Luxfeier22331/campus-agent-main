@@ -6,12 +6,15 @@ import { fileURLToPath } from "node:url";
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const appDir = resolve(scriptDir, "..");
 const localEnvPath = resolve(appDir, ".env");
+const localDevVarsPath = resolve(appDir, ".dev.vars");
 
-try {
-  process.loadEnvFile(localEnvPath);
-} catch (error) {
-  if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") {
-    throw error;
+for (const path of [localEnvPath, localDevVarsPath]) {
+  try {
+    process.loadEnvFile(path);
+  } catch (error) {
+    if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") {
+      throw error;
+    }
   }
 }
 
