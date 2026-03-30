@@ -10,6 +10,7 @@
     "build": "vite build",
     "start": "node scripts/start-dist-server.mjs",
     "db:bootstrap": "node scripts/run-with-local-env.mjs node scripts/bootstrap-database.mjs",
+    "db:ensure-app-auth-role-search-path": "node scripts/run-with-local-env.mjs node scripts/ensure-app-auth-role-search-path.mjs",
     "db:print-auth-migration": "node scripts/run-with-local-env.mjs node scripts/print-auth-migration.mjs",
     "smoke:live": "UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python ../../scripts/public_consumer_chat_live_smoke.py",
     "test": "vitest run",

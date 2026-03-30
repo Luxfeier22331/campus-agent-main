@@ -9,6 +9,8 @@ from unittest.mock import patch
 
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef, SourceObservation
 from campus_ingestion_core.registry import (
+    DEFAULT_DOCUMENT_REGISTRY_TABLE,
+    DEFAULT_RAW_ASSET_REGISTRY_TABLE,
     PostgresDocumentRegistry,
     _document_record_from_dict,
     _raw_asset_record_from_dict,
@@ -128,6 +130,16 @@ def _curriculum_raw_asset_record() -> RawAssetRecord:
 
 
 class RegistryModelsTest(unittest.TestCase):
+    def test_registry_defaults_are_schema_qualified_under_ingestion_registry(self) -> None:
+        self.assertEqual(
+            DEFAULT_DOCUMENT_REGISTRY_TABLE,
+            "ingestion_registry.document_registry_records",
+        )
+        self.assertEqual(
+            DEFAULT_RAW_ASSET_REGISTRY_TABLE,
+            "ingestion_registry.raw_asset_registry_records",
+        )
+
     def test_document_registry_record_serializes_required_fields(self) -> None:
         record = _handbook_document_record(
             version_id="v1:test-001",
@@ -600,7 +612,7 @@ class RegistryModelsTest(unittest.TestCase):
             registry.delete_document("handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675")
 
         execute.assert_called_once_with(
-            "delete from document_registry_records where document_id = %s",
+            "delete from ingestion_registry.document_registry_records where document_id = %s",
             ("handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675",),
         )
 

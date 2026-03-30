@@ -203,6 +203,7 @@ apps/
 - Supabase platform `auth.*` 保持平台保留 schema，不再被 repo migration owner 接管
 - `apps/app-api` 运行时统一消费 `app_auth.*`、`chat.*`、`runtime.*`、`operator.*`
 - `apps/public-consumer-chat` 当前保留 `app_auth.*` / `chat.*` shared-db bootstrap 能力
+- 在当前 Supabase session pooler 上，`app_auth.*` 通过数据库角色默认 `search_path` 收敛，而不是只依赖连接字符串 override
 - `apps/app-api` Drizzle journal 当前只拥有 `runtime.*` / `operator.*` / `official_web.*`
 - migration / schema management 使用 direct database management connection
 

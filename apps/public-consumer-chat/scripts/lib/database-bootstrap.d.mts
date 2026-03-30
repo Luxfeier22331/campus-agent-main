@@ -19,7 +19,14 @@ export function compileBetterAuthMigrationSql(
   env: BootstrapEnv,
 ): Promise<string>;
 
+export function ensureBetterAuthRoleSearchPath(
+  pool: import("pg").Pool,
+  env: BootstrapEnv,
+): Promise<boolean>;
+
 export function listChatMigrationFiles(): Promise<string[]>;
+
+export function verifyBetterAuthPoolSearchPath(env: BootstrapEnv): Promise<void>;
 
 export function bootstrapDatabase(
   envOverrides?: NodeJS.ProcessEnv,
@@ -28,3 +35,10 @@ export function bootstrapDatabase(
   chatSchema: string;
   migrationFiles: string[];
 }>;
+
+export const BETTER_AUTH_TABLES: string[];
+
+export function classifyBetterAuthTableOwnership(input: {
+  authSchemaTables: string[];
+  publicSchemaTables: string[];
+}): "fresh" | "legacy_public_schema" | "target_schema";

@@ -85,17 +85,47 @@ describe.skipIf(!RUN_INTEGRATION)("public-consumer-chat shared DB bootstrap", ()
       ];
 
       for (const relation of relations) {
+        const [schemaName, tableName] = relation.split(".", 2);
         const queryResult = await client.query(
-          "select to_regclass($1) as relation_name",
-          [relation],
+          `
+            select exists(
+              select 1
+              from information_schema.tables
+              where table_schema = $1 and table_name = $2
+            ) as present
+          `,
+          [schemaName, tableName],
         );
-        expect(queryResult.rows[0]?.relation_name).toBe(relation);
+        expect(queryResult.rows[0]?.present).toBe(true);
+      }
+
+      for (const relation of [
+        "public.user",
+        "public.session",
+        "public.account",
+        "public.verification",
+      ]) {
+        const [schemaName, tableName] = relation.split(".", 2);
+        const queryResult = await client.query(
+          `
+            select exists(
+              select 1
+              from information_schema.tables
+              where table_schema = $1 and table_name = $2
+            ) as present
+          `,
+          [schemaName, tableName],
+        );
+        expect(queryResult.rows[0]?.present).toBe(false);
       }
 
       const supabaseAuthResult = await client.query(
         "select exists(select 1 from information_schema.schemata where schema_name = 'auth') as present",
       );
       expect(supabaseAuthResult.rows[0]?.present).toBe(true);
+
+      const searchPathResult = await client.query("show search_path");
+      expect(searchPathResult.rows[0]?.search_path).toContain("app_auth");
     },
     30_000,
   );

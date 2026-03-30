@@ -197,11 +197,21 @@ pnpm db:bootstrap
 
 如果已经把 `.env.example` 复制成 `apps/public-consumer-chat/.env`，上面的两个命令会自动加载该文件。
 
+在 Supabase session pooler 上使用非默认 Better Auth schema 时，先运行：
+
+```bash
+cd apps/public-consumer-chat
+pnpm db:ensure-app-auth-role-search-path
+```
+
+这个命令会把当前数据库角色的默认 `search_path` 设置为 `app_auth, public, extensions`。仅靠连接字符串里的 `options=-c search_path=...` 在当前 pooler 上不可靠。
+
 `pnpm db:bootstrap` does three things:
 
 1. creates the `app_auth`, `chat`, and `ingestion_registry` schemas if missing
-2. runs Better Auth migrations with `search_path=app_auth,public`
-3. applies checked-in chat SQL migrations from `db/migrations/*.sql`
+2. adopts safe legacy Better Auth tables from `public.*` into `app_auth.*`
+3. runs Better Auth migrations with `app_auth` as the effective default schema
+4. applies checked-in chat SQL migrations from `db/migrations/*.sql`
 
 ## Better Auth Posture
 
@@ -250,6 +260,7 @@ uv run --all-packages python -m scripts.sync_public_consumer_chat_local_db_env
 
 ```bash
 cd apps/public-consumer-chat
+pnpm db:ensure-app-auth-role-search-path
 pnpm test:shared-db-bootstrap
 ```
 

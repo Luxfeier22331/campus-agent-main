@@ -11,6 +11,7 @@ const POSTGRES_PREFIX = /^(postgres|postgresql):\/\//i;
 export const PUBLIC_CHAT_AUTH_SCHEMA = "app_auth";
 export const PUBLIC_CHAT_CHAT_SCHEMA = "chat";
 export const PUBLIC_CHAT_INGESTION_REGISTRY_SCHEMA = "ingestion_registry";
+export const BETTER_AUTH_TABLES = ["user", "session", "account", "verification"];
 const scriptsRoot = fileURLToPath(new URL("..", import.meta.url));
 const appRoot = fileURLToPath(new URL("../..", import.meta.url));
 const migrationsRoot = join(appRoot, "db", "migrations");
@@ -128,6 +129,112 @@ function buildSchemaSql(env) {
     .join("\n");
 }
 
+export function classifyBetterAuthTableOwnership(input) {
+  const authTables = new Set(input.authSchemaTables);
+  const publicTables = new Set(input.publicSchemaTables);
+  const allAuthSchema = BETTER_AUTH_TABLES.every((tableName) => authTables.has(tableName));
+  const allPublicSchema = BETTER_AUTH_TABLES.every((tableName) => publicTables.has(tableName));
+  const anyAuthSchema = BETTER_AUTH_TABLES.some((tableName) => authTables.has(tableName));
+  const anyPublicSchema = BETTER_AUTH_TABLES.some((tableName) => publicTables.has(tableName));
+
+  if (!anyAuthSchema && !anyPublicSchema) {
+    return "fresh";
+  }
+  if (allAuthSchema && !anyPublicSchema) {
+    return "target_schema";
+  }
+  if (allPublicSchema && !anyAuthSchema) {
+    return "legacy_public_schema";
+  }
+
+  throw new Error(
+    `Conflicting Better Auth table placement detected for ${input.authSchema}. authSchema=${[...authTables].sort().join(",") || "<none>"} public=${[...publicTables].sort().join(",") || "<none>"}`,
+  );
+}
+
+async function listBetterAuthTables(pool, authSchema) {
+  const result = await pool.query(
+    `
+      select table_schema, table_name
+      from information_schema.tables
+      where table_type = 'BASE TABLE'
+        and table_schema = any($1::text[])
+        and table_name = any($2::text[])
+      order by table_schema, table_name
+    `,
+    [[authSchema, "public"], BETTER_AUTH_TABLES],
+  );
+
+  return {
+    authSchemaTables: result.rows
+      .filter((row) => row.table_schema === authSchema)
+      .map((row) => row.table_name),
+    publicSchemaTables: result.rows
+      .filter((row) => row.table_schema === "public")
+      .map((row) => row.table_name),
+  };
+}
+
+async function publicBetterAuthTablesAreEmpty(pool) {
+  for (const tableName of BETTER_AUTH_TABLES) {
+    const existsResult = await pool.query(
+      "select exists(select 1 from information_schema.tables where table_schema = 'public' and table_name = $1) as present",
+      [tableName],
+    );
+    if (!existsResult.rows[0]?.present) {
+      return false;
+    }
+
+    const countResult = await pool.query(
+      `select count(*)::int as count from "public"."${assertIdentifier("table", tableName)}"`,
+    );
+    if ((countResult.rows[0]?.count ?? 0) > 0) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+async function dropEmptyLegacyPublicBetterAuthTables(pool) {
+  for (const tableName of ["session", "account", "verification", "user"]) {
+    await pool.query(`drop table if exists "public"."${assertIdentifier("table", tableName)}"`);
+  }
+}
+
+async function adoptLegacyBetterAuthTables(pool, env) {
+  const tableInventory = await listBetterAuthTables(pool, env.authSchema);
+  let state;
+  try {
+    state = classifyBetterAuthTableOwnership(tableInventory);
+  } catch (error) {
+    const authTables = new Set(tableInventory.authSchemaTables);
+    const publicTables = new Set(tableInventory.publicSchemaTables);
+    const hasAllAuthTables = BETTER_AUTH_TABLES.every((tableName) => authTables.has(tableName));
+    const hasAllPublicTables = BETTER_AUTH_TABLES.every((tableName) => publicTables.has(tableName));
+
+    if (hasAllAuthTables && hasAllPublicTables && (await publicBetterAuthTablesAreEmpty(pool))) {
+      await dropEmptyLegacyPublicBetterAuthTables(pool);
+      return "target_schema";
+    }
+
+    throw error;
+  }
+
+  if (state !== "legacy_public_schema") {
+    return state;
+  }
+
+  await pool.query(`CREATE SCHEMA IF NOT EXISTS "${assertIdentifier("schema", env.authSchema)}";`);
+  for (const tableName of BETTER_AUTH_TABLES) {
+    await pool.query(
+      `ALTER TABLE "public"."${assertIdentifier("table", tableName)}" SET SCHEMA "${assertIdentifier("schema", env.authSchema)}";`,
+    );
+  }
+
+  return "target_schema";
+}
+
 function buildBetterAuthOptions(env, pool) {
   return {
     appName: "Campus Agent",
@@ -143,6 +250,42 @@ function buildBetterAuthOptions(env, pool) {
     },
     database: pool,
   };
+}
+
+function parseSearchPath(value) {
+  return value
+    .split(",")
+    .map((item) => item.trim().replace(/^"(.*)"$/, "$1"))
+    .filter(Boolean);
+}
+
+async function ensureBetterAuthRoleSearchPath(pool, env) {
+  const result = await pool.query("show search_path");
+  const searchPath = parseSearchPath(result.rows[0]?.search_path ?? "");
+  if (searchPath[0] === env.authSchema) {
+    return false;
+  }
+
+  await pool.query(
+    `alter role current_user set search_path to "${assertIdentifier("schema", env.authSchema)}", public, extensions`,
+  );
+  return true;
+}
+
+export async function verifyBetterAuthPoolSearchPath(env) {
+  const pool = createBetterAuthPool(env);
+
+  try {
+    const result = await pool.query("show search_path");
+    const searchPath = parseSearchPath(result.rows[0]?.search_path ?? "");
+    if (searchPath[0] !== env.authSchema) {
+      throw new Error(
+        `Better Auth pool search_path did not converge to ${env.authSchema}. Received: ${result.rows[0]?.search_path ?? "<empty>"}`,
+      );
+    }
+  } finally {
+    await pool.end();
+  }
 }
 
 export async function compileBetterAuthMigrationSql(env) {
@@ -195,6 +338,7 @@ export async function bootstrapDatabase(envOverrides = process.env) {
 
   try {
     await pool.query(buildSchemaSql(env));
+    await adoptLegacyBetterAuthTables(pool, env);
     await runBetterAuthMigrations(env);
     const migrationFiles = await runChatMigrations(pool);
     return {
@@ -207,4 +351,4 @@ export async function bootstrapDatabase(envOverrides = process.env) {
   }
 }
 
-export { scriptsRoot };
+export { ensureBetterAuthRoleSearchPath, scriptsRoot };

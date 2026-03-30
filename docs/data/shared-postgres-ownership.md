@@ -73,6 +73,8 @@ repo root `.env` 的 canonical key 固定为：
   保留给 Supabase Auth；repo 不接管，也不把它当成 Better Auth 的物理 schema
 - `apps/public-consumer-chat`
   继续负责 `app_auth.*` / `chat.*` 的 bootstrap 能力
+- `app_auth.*` on Supabase session pooler
+  通过数据库角色默认 `search_path=app_auth, public, extensions` 收敛；仅靠连接字符串 `options=-c search_path=...` 在当前 shared DB 上不可靠
 - `apps/app-api`
   负责 `runtime.*` / `operator.*` / `official_web.*` 的 Drizzle migration ownership；runtime 继续消费 `app_auth.*` / `chat.*`
 - `packages/ingestion-core`

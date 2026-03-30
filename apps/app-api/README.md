@@ -99,6 +99,7 @@ Database baseline:
 - `apps/app-api` runtime schema code continues to cover `app_auth.*`, `chat.*`, `runtime.*`, `operator.*`, and `official_web.*`
 - `drizzle.app_api_migrations` now owns only `runtime.*`, `operator.*`, and `official_web.*`
 - Better Auth uses repo-owned `app_auth.*`; shared-db bootstrap for `app_auth.*` / `chat.*` is currently handled outside the `app-api` Drizzle journal
+- on the current Supabase session pooler, `app_auth.*` relies on a role-level default `search_path`; connection-string `options=-c search_path=...` alone does not converge
 - `app-api` stores migration journal rows in `drizzle.app_api_migrations`, not the default shared Drizzle table
 
 Environment:
