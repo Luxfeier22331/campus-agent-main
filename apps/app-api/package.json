@@ -11,6 +11,7 @@
     "dev": "XDG_CONFIG_HOME=./.wrangler-home node ./scripts/run-with-local-env.mjs wrangler dev -e local",
     "deploy": "XDG_CONFIG_HOME=./.wrangler-home wrangler deploy",
     "test": "XDG_CONFIG_HOME=./.wrangler-home vitest run",
+    "test:shared-db-integration": "RUN_APP_API_SHARED_DB_INTEGRATION=1 node ./scripts/run-with-local-env.mjs vitest run -c vitest.node.config.mts test/official-web-shared-db.integration.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

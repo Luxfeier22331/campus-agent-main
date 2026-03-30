@@ -75,7 +75,7 @@ describe("app-api auth config", () => {
     });
   });
 
-  it("exposes one unified Drizzle schema object for auth/chat/official_web/runtime/operator", () => {
+  it("exposes one unified runtime schema object for app_auth/chat/official_web/runtime/operator", () => {
     expect(Object.keys(appApiSchema)).toEqual(
       expect.arrayContaining([
         "user",
