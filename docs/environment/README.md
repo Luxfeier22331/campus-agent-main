@@ -38,8 +38,6 @@ updated: 2026-03-30
   `public-chat-web` 的 Worker string env，包括 same-site app-api proxy seam 与 `SENTRY_*`
 - app-local [`apps/protected-panel-web/.dev.vars.example`](../../apps/protected-panel-web/.dev.vars.example)
   `protected-panel-web` 的 protected hostname/admission string env、panel-to-app-api bridge secret 与 `SENTRY_*`
-- app-local [`apps/public-entry-worker/.dev.vars.example`](../../apps/public-entry-worker/.dev.vars.example)
-  `public-entry-worker` 的 Cloudflare Worker 本地 bindings
 - command-scoped [`env/commands/process-raw-ingestion-job.env.example`](../../env/commands/process-raw-ingestion-job.env.example)
   `process_raw_ingestion_job` 的一次性 override
 - command-scoped [`env/commands/rebuild-local-data.env.example`](../../env/commands/rebuild-local-data.env.example)

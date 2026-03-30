@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-25
-updated: 2026-03-28
+updated: 2026-03-30
 ---
 
 # Protected Panel Boundary
@@ -11,7 +11,6 @@ updated: 2026-03-28
 
 这份文档只冻结 Phase 04.1 的 protected panel boundary，不负责定义具体 panel 功能，也不替代以下文档：
 
-- public entry 与 Cloudflare edge ownership：`docs/architecture/cloudflare-public-entry-boundary.md`
 - 长期 `apps/` 与 `packages/` 分层：`docs/architecture/long-term-architecture.md`
 - shared app backend 与 web surfaces：`docs/architecture/shared-app-api-and-worker-web-surfaces.md`
 - `app-api` runtime 与内部边界：`docs/architecture/app-api-architecture.md`

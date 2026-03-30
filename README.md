@@ -45,7 +45,6 @@
 - `apps/app-api`: shared Worker-native product backend
 - `apps/supervisor-api`: execution engine boundary
 - `apps/ingestion-worker`: ingestion runtime 壳与离线任务入口
-- `apps/public-entry-worker`: historical public-entry Worker/runtime reference
 - `apps/protected-internal-panel`: historical internal panel reference
 - `packages/supervisor-core`: user goal 路由、委派和最终响应组装
 - `packages/ingestion-core`: ingestion/data plane 逻辑消费层
@@ -85,7 +84,6 @@
 - Python workspace 继续以 `uv` 为准；不要把 `turbo` 当成 Python 主链路的替代
 - JS/TS apps 现在通过 repo root `pnpm-workspace.yaml` 和 `turbo.json` 统一编排
 - 当前纳入 workspace 的主要 Worker/web app 是 `apps/app-api`、`apps/public-chat-web` 与 `apps/protected-panel-web`
-- `apps/public-entry-worker` 仍保留在 workspace 中作为历史 runtime 参考
 - repo root `package.json` 只提供 Turbo 代理脚本，不承载 app 级业务逻辑
 - 日常全量验证使用 `pnpm web:typecheck`、`pnpm web:test`、`pnpm web:build`
 - 面向 `develop` 的增量验证使用 `pnpm web:typecheck:affected`、`pnpm web:test:affected`、`pnpm web:build:affected` 或 `pnpm web:check:affected`

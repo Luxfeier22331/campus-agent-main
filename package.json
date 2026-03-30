@@ -9,7 +9,6 @@
     "web:check": "turbo run typecheck test build",
     "web:dev": "turbo run dev",
     "web:dev:chat": "turbo run dev --filter=public-chat-web",
-    "web:dev:entry": "turbo run dev --filter=public-entry-worker",
     "web:test:affected": "TURBO_SCM_BASE=origin/develop turbo run test --affected",
     "web:test": "turbo run test",
     "web:test:integration": "turbo run test:shared-db-integration --filter=app-api",

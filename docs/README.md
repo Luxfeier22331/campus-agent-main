@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-03-22
-updated: 2026-03-29
+updated: 2026-03-30
 ---
 
 # Docs
@@ -80,10 +80,7 @@ updated: 2026-03-29
 
 - `architecture/app-api-architecture.md`
 - `architecture/authorization-and-access-control-architecture.md`
-- `architecture/cloudflare-public-entry-boundary.md`
-- `architecture/cloudflare-public-entry-integration-contract.md`
 - `architecture/cloudflare-runtime-topology.md`
-- `architecture/cloudflare-worker-consumer-entry-access-policy.md`
 - `architecture/long-term-architecture.md`
 - `architecture/official-web-crawl-policy.md`
 - `architecture/official-web-control-plane-on-app-api.md`
