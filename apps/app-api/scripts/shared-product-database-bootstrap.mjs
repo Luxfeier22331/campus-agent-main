@@ -314,9 +314,11 @@ export async function bootstrapSharedProductDatabase(envOverrides = process.env)
 
   try {
     await pool.query(buildSchemaSql(env));
-    await adoptLegacyBetterAuthTables(pool, env);
+    const betterAuthState = await adoptLegacyBetterAuthTables(pool, env);
     await ensureBetterAuthRoleSearchPath(pool, env);
-    await runBetterAuthMigrations(env);
+    if (betterAuthState === "fresh") {
+      await runBetterAuthMigrations(env);
+    }
     await verifyBetterAuthPoolSearchPath(env);
     const migrationFiles = await runChatMigrations(pool);
     return {

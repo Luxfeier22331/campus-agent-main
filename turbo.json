@@ -13,6 +13,9 @@
     "test": {
       "outputs": []
     },
+    "test:worker": {
+      "outputs": []
+    },
     "test:integration": {
       "cache": false
     },

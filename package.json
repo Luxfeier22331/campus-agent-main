@@ -11,6 +11,7 @@
     "web:dev:chat": "turbo run dev --filter=public-chat-web",
     "web:test:affected": "TURBO_SCM_BASE=origin/develop turbo run test --affected",
     "web:test": "turbo run test",
+    "web:test:worker": "turbo run test:worker",
     "web:test:integration": "turbo run test:shared-db-integration --filter=app-api",
     "web:typecheck:affected": "TURBO_SCM_BASE=origin/develop turbo run typecheck --affected",
     "web:typecheck": "turbo run typecheck"

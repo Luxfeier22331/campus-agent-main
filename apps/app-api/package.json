@@ -10,11 +10,15 @@
     "db:ensure-app-auth-role-search-path": "node ./scripts/run-with-local-env.mjs node ./scripts/ensure-app-auth-role-search-path.mjs",
     "db:migrate": "node ./scripts/run-with-local-env.mjs drizzle-kit migrate",
     "db:print-auth-migration": "node ./scripts/run-with-local-env.mjs node ./scripts/print-shared-product-auth-migration.mjs",
+    "db:reconcile-shared-drift": "node ./scripts/run-with-local-env.mjs node ./scripts/reconcile-shared-db-drift.mjs",
     "db:adopt-shared": "node ./scripts/run-with-local-env.mjs node ./scripts/adopt-shared-database.mjs",
     "dev": "XDG_CONFIG_HOME=./.wrangler-home node ./scripts/run-with-local-env.mjs wrangler dev -e local",
     "deploy": "XDG_CONFIG_HOME=./.wrangler-home wrangler deploy",
-    "test": "XDG_CONFIG_HOME=./.wrangler-home vitest run",
-    "test:shared-db-integration": "RUN_APP_API_SHARED_DB_INTEGRATION=1 node ./scripts/run-with-local-env.mjs vitest run -c vitest.node.config.mts test/shared-product-db.integration.test.ts test/official-web-shared-db.integration.test.ts",
+    "test": "pnpm run test:node",
+    "test:all": "XDG_CONFIG_HOME=./.wrangler-home vitest run -c vitest.config.mts",
+    "test:node": "vitest run -c vitest.node.config.mts",
+    "test:worker": "XDG_CONFIG_HOME=./.wrangler-home vitest run -c vitest.worker.config.mts",
+    "test:shared-db-integration": "RUN_APP_API_SHARED_DB_INTEGRATION=1 node ./scripts/run-with-local-env.mjs vitest run -c vitest.shared-db.config.mts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

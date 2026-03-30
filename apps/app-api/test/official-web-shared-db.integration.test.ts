@@ -10,6 +10,8 @@ import { Client } from "pg";
 
 import { type Env } from "../src/config";
 import { createApp } from "../src/app";
+import { runSharedDatabaseAdoption } from "../scripts/adopt-shared-database.mjs";
+import { bootstrapSharedProductDatabase } from "../scripts/shared-product-database-bootstrap.mjs";
 
 const RUN_INTEGRATION = process.env.RUN_APP_API_SHARED_DB_INTEGRATION === "1";
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -44,9 +46,17 @@ function resolveSslConfig():
     : { rejectUnauthorized: false };
 }
 
+function requireClient(client: Client | null): Client {
+  if (!client) {
+    throw new Error("Expected official-web shared DB integration client to be initialized.");
+  }
+
+  return client;
+}
+
 describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", () => {
   let app: ReturnType<typeof createApp>;
-  let client: Client;
+  let client: Client | null = null;
   let runId: string | null = null;
 
   beforeAll(async () => {
@@ -58,6 +68,21 @@ describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", 
     );
     const managementConnectionString =
       process.env.APP_API_MANAGEMENT_DATABASE_URL?.trim() || runtimeConnectionString;
+    await bootstrapSharedProductDatabase({
+      APP_API_DATABASE_SSLMODE: process.env.APP_API_DATABASE_SSLMODE?.trim() || "require",
+      APP_API_MANAGEMENT_DATABASE_URL: managementConnectionString,
+      BETTER_AUTH_SECRET:
+        process.env.BETTER_AUTH_SECRET?.trim() || "dev-secret-dev-secret-dev-secret",
+      PUBLIC_CHAT_WEB_ORIGIN:
+        process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com",
+    });
+    await runSharedDatabaseAdoption({
+      apply: true,
+      env: {
+        ...process.env,
+        APP_API_MANAGEMENT_DATABASE_URL: managementConnectionString,
+      },
+    });
 
     const env: Env = {
       APP_API_NAME: process.env.APP_API_NAME?.trim() || "campus-agent-app-api",
@@ -96,6 +121,9 @@ describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", 
   });
 
   afterAll(async () => {
+    if (!client) {
+      return;
+    }
     if (runId) {
       await client.query('delete from "official_web"."crawl_runs" where "run_id" = $1', [runId]);
     }
@@ -105,6 +133,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", 
   it(
     "writes crawl run, heartbeat, artifacts, outbox rows, and reuses the adopted migration journal",
     async () => {
+      const dbClient = requireClient(client);
       const uniqueKey = `shared-db-${Date.now()}`;
 
       const startResponse = await app.fetch(
@@ -197,7 +226,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", 
 
       expect(finalizeResponse.status).toBe(200);
 
-      const crawlRunResult = await client.query(
+      const crawlRunResult = await dbClient.query(
         `select
            "run_id",
            "site_id",
@@ -209,19 +238,19 @@ describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", 
          where "run_id" = $1`,
         [runId],
       );
-      const heartbeatCountResult = await client.query(
+      const heartbeatCountResult = await dbClient.query(
         'select count(*)::int as count from "official_web"."run_heartbeats" where "run_id" = $1',
         [runId],
       );
-      const artifactCountResult = await client.query(
+      const artifactCountResult = await dbClient.query(
         'select count(*)::int as count from "official_web"."run_artifacts" where "run_id" = $1',
         [runId],
       );
-      const outboxResult = await client.query(
+      const outboxResult = await dbClient.query(
         'select "event_type" from "official_web"."run_outbox" where "run_id" = $1 order by "occurred_at" asc',
         [runId],
       );
-      const migrationJournalResult = await client.query(
+      const migrationJournalResult = await dbClient.query(
         'select count(*)::int as count from "drizzle"."app_api_migrations"',
       );
 

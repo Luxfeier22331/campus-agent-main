@@ -22,7 +22,8 @@
     "dev": "XDG_CONFIG_HOME=./.wrangler-home vite",
     "deploy": "pnpm build && XDG_CONFIG_HOME=./.wrangler-home wrangler deploy --config dist/protected_panel_web/wrangler.json",
     "preview": "pnpm build && XDG_CONFIG_HOME=./.wrangler-home vite preview",
-    "test": "XDG_CONFIG_HOME=./.wrangler-home vitest run",
+    "test": "pnpm run test:worker",
+    "test:worker": "XDG_CONFIG_HOME=./.wrangler-home vitest run",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

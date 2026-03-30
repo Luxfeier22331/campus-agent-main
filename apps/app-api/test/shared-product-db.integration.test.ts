@@ -49,6 +49,14 @@ async function readJson(response: Response) {
   return response.json();
 }
 
+function requireClient(client: Client | null): Client {
+  if (!client) {
+    throw new Error("Expected shared DB integration client to be initialized.");
+  }
+
+  return client;
+}
+
 function buildCookieHeader(response: Response): string {
   const setCookie = response.headers.get("set-cookie");
   if (!setCookie) {
@@ -63,7 +71,7 @@ function buildCookieHeader(response: Response): string {
 
 describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () => {
   let app: ReturnType<typeof createApp>;
-  let client: Client;
+  let client: Client | null = null;
   let createdEmail: string | null = null;
 
   beforeAll(async () => {
@@ -121,6 +129,9 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
   });
 
   afterAll(async () => {
+    if (!client) {
+      return;
+    }
     if (createdEmail) {
       await client.query(
         `
@@ -137,6 +148,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
   });
 
   it("bootstraps app_auth/chat tables without leaving Better Auth tables in public", async () => {
+    const dbClient = requireClient(client);
     const relations = [
       "app_auth.user",
       "app_auth.session",
@@ -148,7 +160,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 
     for (const relation of relations) {
       const [schemaName, tableName] = relation.split(".", 2);
-      const queryResult = await client.query(
+      const queryResult = await dbClient.query(
         `
           select exists(
             select 1
@@ -168,7 +180,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
       "public.verification",
     ]) {
       const [schemaName, tableName] = relation.split(".", 2);
-      const queryResult = await client.query(
+      const queryResult = await dbClient.query(
         `
           select exists(
             select 1
