@@ -1,6 +1,6 @@
 # Technology Stack
 
-**Analysis Date:** 2026-03-29
+**Analysis Date:** 2026-03-31
 
 ## Languages
 
@@ -23,7 +23,8 @@
 
 ## Workspace Layout
 
-- Transport/runtime boundaries now span `apps/supervisor-api`, `apps/ingestion-worker`, `apps/app-api`, `apps/public-entry-worker`, and `apps/protected-internal-panel`; `apps/public-consumer-chat` remains in-tree only as a historical implementation reference.
+- Transport/runtime boundaries in the current tracked tree span `apps/supervisor-api`, `apps/ingestion-worker`, `apps/app-api`, `apps/public-chat-web`, and `apps/protected-panel-web`.
+- Historical 04.6/04.7 surfaces such as `public-entry-worker` and `public-consumer-chat` still appear in docs/planning history, but they are not current tracked app directories in merged truth.
 - Capability packages: `packages/supervisor-core`, `packages/rag-specialist`, `packages/availability-specialist`, `packages/retrieval-core`, `packages/ingestion-core`, `packages/contracts`, `packages/shared`, `packages/evals`, each with its own `pyproject.toml` and `src/` entry points.
 - Architecture framing is documented in `docs/architecture/long-term-architecture.md` and the phase-1 implementation details in `docs/architecture/phase1-ingestion-and-storage-architecture.md`, so stack decisions follow those boundaries.
 
@@ -31,10 +32,9 @@
 
 - `apps/supervisor-api` – execution API shell wiring the supervisor handler (`apps/supervisor-api/src/campus_supervisor_api/app.py` and `settings.py`).
 - `apps/ingestion-worker` – CLI shells (`apps/ingestion-worker/src/campus_ingestion_worker/*`) for importing campusRAG OCR assets, submitting ingestion jobs, and rebuilding local datasets, controlled by `apps/ingestion-worker/README.md`.
-- `apps/app-api` – current merged truth only includes the minimal Python `ContextProjection` seam; the fuller Worker app backend is still pending merge from a dedicated worktree.
-- `apps/public-entry-worker` – public Worker runtime shell that fronts trusted origin access.
-- `apps/protected-internal-panel` – protected panel shell / migration surface.
-- `apps/public-consumer-chat` – merged 04.7 historical app implementation retained as a migration source, not the forward product backend boundary.
+- `apps/app-api` – shared Worker application/control-plane backend with the TypeScript runtime, shared database/schema ownership, operator query APIs, `official_web` control-plane modules, telemetry hooks, and the retained Python `ContextProjection` seam.
+- `apps/public-chat-web` – public Worker web surface that proxies chat traffic into the shared `app-api` runtime and forwards trace headers.
+- `apps/protected-panel-web` – protected Worker operator surface that talks to runtime APIs only and now includes `Overview`, `Requests`, and `Official Web` domains.
 - `packages/supervisor-core` – superintendent agent, routing, policy, and response assembly (`packages/supervisor-core/src/...`).
 - `packages/rag-specialist` – specialist agent and confidence computation funneling to `campus_retrieval_core`.
 - `packages/availability-specialist` – typed availability-probe specialist that stays parallel to `rag-specialist`.
@@ -78,6 +78,7 @@
 
 - API shell: `apps/supervisor-api/src/campus_supervisor_api/api.py` exposes `/api/v1/answer`, `/healthz`, and `/readyz` and is wired through `apps/supervisor-api/src/campus_supervisor_api/app.py`.
 - Ingestion tooling: `apps/ingestion-worker` (`import_campusrag_existing_ocr`, `process_raw_ingestion_job`, `submit_raw_ingestion_job`, `rebuild_local_data`) is described in `apps/ingestion-worker/README.md` and relies on `campus_ingestion_core` entry points.
-- `apps/app-api/src/campus_app_api/projection.py` is the only merged `app-api` implementation slice in this worktree today.
+- `apps/app-api` now has both the retained Python projection seam and the merged TypeScript Worker runtime (`src/app.ts`, `src/index.ts`, `src/modules/*`).
+- `apps/public-chat-web/src/index.ts` and `apps/protected-panel-web/src/index.ts` are first-class tracked Worker surfaces in the current tree.
 - Tests: root `README.md` documents `uv run --all-packages python -m unittest discover -s tests -t .`, and `tests/` contains API, ingestion, retrieval, specialist, supervisor, eval, and contract suites that mirror each package boundary.
 - Trace/log surface: `apps/supervisor-api/settings.py` defaults `audit_log_path` to `./var/log/audit.log` and reads `TRACE_ENABLED`/`TRACE_EXPORTER` from `.env`.
