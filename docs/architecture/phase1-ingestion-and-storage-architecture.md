@@ -175,11 +175,13 @@ updated: 2026-03-31
 - 每个 chunk 必须回链到 `document_id`、`revision_track`、`version_id`
 - 已进入 release-managed lifecycle 的 collection 必须通过固定 serving alias 暴露，离线重建写入按 `collection_prefix__release_id` 命名的 versioned physical collection
 - 每次 chunking/embedding/indexing 发布都必须生成小型 release manifest，并落到 derived bucket 的 `{corpus}/releases/{collection}/{release_id}/` 前缀；manifest 用于审计与回滚，不保存 chunk dump
+- 旧 physical collection 的过期遵循 role-based retention：至少区分 `current`、`previous`、`migration_baseline` 与 `archive_candidate`；不得只按年龄直接删除
+- `Qdrant Cloud Standard` 环境默认以 managed backups 作为 cluster-level 恢复覆盖；当前 `Free` tier 则允许把 per-collection snapshot bundle 暂存到 derived bucket，用于过渡期恢复
 - embedding request contract 与 Qdrant schema contract 必须分离：
   `model` / `dimensions` 属于 embedding runtime；
   named dense/sparse vectors、payload metadata 与 hybrid query shape 属于 Qdrant collection schema
 - `student_handbook` 的 accepted target schema 是同一点双写 named `dense` 与 named `sparse` vectors
-- 对象存储不保留 chunking 后的全文 chunk 产物；chunk 文本、向量与检索 payload 只保留在 Qdrant 中，离线重建以 `document-units.jsonl + policy version` 为准
+- 对象存储不把 chunking 后的全文 chunk 产物当作 canonical query truth；chunk 文本、向量与检索 payload 的在线真相只保留在 Qdrant 中。`Free` tier 过渡期允许在对象存储里保存 Qdrant snapshot bundle，但它只是备份材料，离线重建仍以 `document-units.jsonl + policy version` 为准
 
 ## 当前固定流程
 

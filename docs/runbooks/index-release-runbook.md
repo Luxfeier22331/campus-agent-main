@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-03-31
 ---
 
 # Index Release Runbook
@@ -21,6 +21,9 @@ updated: 2026-03-28
 - 长期架构边界：`docs/architecture/long-term-architecture.md`
 - 数据平面分层：`docs/architecture/phase1-ingestion-and-storage-architecture.md`
 - 术语定义：`docs/reference/runtime-serving-and-index-terms.md`
+- 旧 physical collection retention 决策：`docs/decisions/adr-0019-qdrant-physical-collection-retention-and-expiration.md`
+- Qdrant Cloud 备份 / 恢复策略：`docs/decisions/adr-0020-qdrant-cloud-backup-restore-and-object-store-transition.md`
+- Qdrant Cloud 备份 / 恢复操作：`docs/runbooks/qdrant-cloud-backup-and-restore-runbook.md`
 - 当前优先级和执行状态：`.planning/PROJECT.md`、`.planning/STATE.md`
 
 ## 前置检查
@@ -168,9 +171,72 @@ uv run --all-packages python -m campus_ingestion_worker.release_index \
 - 失败 release 的 manifest
 - validation summary
 
+## 旧 Physical Collection 过期与清理
+
+当前 retention policy 不是“超过 N 天直接删”，而是先判断角色：
+
+- `current`
+  - alias 当前目标
+  - 永不自动删除
+- `previous`
+  - 最新 manifest 的 `previous_physical_collection_name`
+  - 至少保留 `7` 天，且要等更新 release 的 post-publish validation / acceptance 关闭
+- `migration_baseline`
+  - 当 release 涉及 embedding model / dimensions、vector schema、chunk profile、cleaning policy、retrieval shape 迁移时，额外保留一版迁移前基线
+  - 至少保留 `30` 天
+- `archive_candidate`
+  - 不再承担回滚或迁移保护角色的旧 collection
+
+### 推荐 Backup 基线
+
+在 Qdrant Cloud 上清理旧 collection 前，建议先确保备份窗口覆盖最长删除门禁：
+
+- `Standard` 环境：daily `14` 天、weekly `8` 周、monthly `6` 个月
+- 当前 `Free` tier：先补 `snapshot bundle -> object storage` 过渡方案，再评估删除
+
+具体操作以 `docs/runbooks/qdrant-cloud-backup-and-restore-runbook.md` 为准。
+
+### 清理前检查
+
+删除前必须同时确认：
+
+1. 目标 collection 不是任何 alias 的 `current`
+2. 目标 collection 不是最新 manifest 的 `previous`
+3. 目标 collection 不是仍在保护窗口内的 `migration_baseline`
+4. 对应 release 的 `index-release.json` 与 `validation-summary.json` 已在对象存储落盘
+5. 当前没有 active incident、回归调查或人工验收仍依赖该 release
+6. Qdrant Cloud backup 或显式 snapshot/export 已覆盖这次 release 的恢复窗口
+
+### 清理步骤
+
+1. 从最新 `index-release.json` 读取：
+   - `serving_alias`
+   - `physical_collection_name`
+   - `previous_physical_collection_name`
+2. 列出同一 `collection_prefix` 下的 physical collections。
+3. 标出：
+   - `current`
+   - `previous`
+   - `migration_baseline`
+   - `archive_candidate`
+4. 只删除通过全部门禁的 `archive_candidate`。
+5. 记录本次清理：
+   - alias
+   - 删除的 physical collection 名称
+   - 对应 release id
+   - backup / snapshot 依据
+   - 操作人和时间
+
+### 额外说明
+
+- 删除旧 physical collection 不等于删除历史文档版本；历史版本保留语义仍由 registry / object-store truth 承担
+- `offline_preparation` collection 和 `query_serving` collection 使用同一套 retention 规则
+- `--reset-index` 只用于显式硬重置，不用于日常 retention cleanup
+
 ## 禁止事项
 
 - 不要把 object storage 当在线 chunk truth
 - 不要把 physical collection 名写死进运行配置
 - 不要跳过 validation 直接 publish alias
 - 不要把 chunk dump 回写到对象存储
+- 不要把 `--reset-index` 当作 routine expiration/cleanup 入口

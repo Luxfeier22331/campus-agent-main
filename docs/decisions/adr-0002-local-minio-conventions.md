@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0002
 status: accepted
 created: 2026-03-22
-updated: 2026-03-27
+updated: 2026-03-31
 ---
 
 # ADR-0002 本地 MinIO 约束与迁移不变量
@@ -36,7 +36,7 @@ updated: 2026-03-27
   保存按 collection 派生的 canonical 文档、结构化 metadata 和其他 downstream 中间产物
 
 第一阶段不新增第三个专门 chunk bucket；chunk 文本、向量与检索 payload 统一由 Qdrant 管理。
-对象存储只保留 source-truth / document artifact 与小型 index release manifest，不保留 chunking 后的全文 chunk dump。
+对象存储只保留 source-truth / document artifact、小型 index release manifest，以及 `Free` tier 过渡期的 Qdrant snapshot backup bundle；不把 chunking 后的全文 chunk dump 当作长期对象存储真相。
 
 ## Object Key 规范
 
@@ -48,6 +48,8 @@ updated: 2026-03-27
 - derived bucket:
   - document-oriented artifact:
     `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/{artifact_filename}`
+  - qdrant backup bundle:
+    `{corpus}/backups/{collection}/{release_id}/{backup_id}/{artifact_filename}`
 - source bucket 中的 source-oriented artifact:
   - provider artifact:
     `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/provider/{model_slug}/{artifact_filename}`
@@ -61,6 +63,9 @@ updated: 2026-03-27
 - `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/source-truth/layout-elements.jsonl`
 - `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/canonical.md`
 - `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/document-units.jsonl`
+- `{corpus}/backups/{collection}/{release_id}/{backup_id}/backup-manifest.json`
+- `{corpus}/backups/{collection}/{release_id}/{backup_id}/{physical_collection_name}.snapshot`
+- `{corpus}/backups/{collection}/{release_id}/{backup_id}/restore-report.json`
 
 说明：
 
@@ -73,6 +78,9 @@ updated: 2026-03-27
 - `document-units.jsonl` 保存单篇文档的结构化清洗单元，供 registry、chunking 和去重使用
 - `{corpus}/releases/{collection}/{release_id}/validation-summary.json` 保存一次 index release 的结构性校验摘要
 - `{corpus}/releases/{collection}/{release_id}/index-release.json` 保存 serving alias、physical collection、policy version 和文档哈希等发布元数据
+- `{corpus}/backups/{collection}/{release_id}/{backup_id}/backup-manifest.json` 保存 Qdrant snapshot bundle 的 alias、release、checksum 与恢复元数据
+- `{corpus}/backups/{collection}/{release_id}/{backup_id}/{physical_collection_name}.snapshot` 保存 `Free` tier 过渡期的 collection snapshot 文件
+- `{corpus}/backups/{collection}/{release_id}/{backup_id}/restore-report.json` 保存 restore drill 或真实恢复后的验证结果
 - `provider-response.jsonl` 不得冒充 raw layer 真相源
 - `title_slug--{docid8}` 负责人工定位；`version_id` 继续留在 registry / metadata 中，不再强制单独占路径层级
 
@@ -84,11 +92,15 @@ updated: 2026-03-27
 - derived bucket 的第一层固定为长期 corpus 根名，例如 `regulations`
 - source 级来源产物固定通过 source bucket 中单一 source prefix 下的 `capture/`、`provider/` 与 `source-truth/` 保存
 - derived 的逻辑文档对象固定放在 `documents/`
+- Qdrant snapshot backup bundle 固定放在 `backups/`
 - 文档目录中的第三层固定为 `collection`
 - 文档目录中的第四层固定为 `title_slug--{docid8}`
 - 文档目录中的第五层固定为 `revision_track`
 - source bucket 中 `capture` / `provider` / `source-truth` 都位于同一份 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}` 来源前缀下
 - 文档目录中的第六层固定为人类可读版本标签，例如 `2018`
+- `backups/` 前缀中的第三层固定为 `collection`
+- `backups/` 前缀中的第四层固定为 `release_id`
+- `backups/` 前缀中的第五层固定为 `backup_id`
 - object key 中不直接编码短期来源名、兼容层术语或一次性版本层级，例如 `tracks/`、`editions/`、`v1/`
 - raw / processed 层级语义由 bucket 表达，不在 key 内重复编码
 

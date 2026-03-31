@@ -124,6 +124,8 @@ updated: 2026-03-31
 - `decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - `decisions/adr-0017-supervisor-internal-execution-admission.md`
 - `decisions/adr-0018-app-api-official-web-control-plane-ownership.md`
+- `decisions/adr-0019-qdrant-physical-collection-retention-and-expiration.md`
+- `decisions/adr-0020-qdrant-cloud-backup-restore-and-object-store-transition.md`
 - `decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
 - `plans/agentic-rag-foundation.md`
 - `plans/app-api-initial-execution-plan.md`
@@ -140,6 +142,7 @@ updated: 2026-03-31
 - `runbooks/develop-main-release-runbook.md`
 - `runbooks/forward-worker-surface-smoke-runbook.md`
 - `runbooks/index-release-runbook.md`
+- `runbooks/qdrant-cloud-backup-and-restore-runbook.md`
 - `runbooks/student-handbook-hybrid-rebuild-checklist.md`
 - `runbooks/worker-observability-smoke-runbook.md`
 - `reference/curriculum-plan-eval-metrics.md`
