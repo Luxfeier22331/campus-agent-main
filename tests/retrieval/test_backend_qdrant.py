@@ -37,6 +37,7 @@ from campus_retrieval_core.settings import (
 )
 from llama_index.core.schema import TextNode
 from qdrant_client import QdrantClient
+from qdrant_client.http.exceptions import ResponseHandlingException
 from qdrant_client.http import models as qdrant_models
 from tests.support.in_memory_registry import InMemoryDocumentRegistry
 
@@ -728,7 +729,106 @@ class BackendQdrantTest(unittest.TestCase):
             api_key="secret",
             timeout=settings.qdrant_timeout_seconds,
             cloud_inference=True,
+            check_compatibility=False,
+            trust_env=False,
         )
+
+    def test_backend_uses_collection_exists_without_alias_listing_precheck(self) -> None:
+        qdrant_client = Mock()
+        qdrant_client.collection_exists = Mock(return_value=True)
+        qdrant_client.get_aliases = Mock(side_effect=AssertionError("alias listing should not be called"))
+        qdrant_client.query_points = Mock(return_value=qdrant_models.QueryResponse(points=[]))
+        embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=InMemoryDocumentRegistry(),
+            qdrant_client=qdrant_client,
+            embedding_model=embedding_model,
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
+
+        result = backend.retrieve(
+            RetrievalRequest(
+                query_text="学生证丢了怎么办",
+                corpus="regulations",
+                collection="student_handbook",
+                acl_groups=("students",),
+                top_k=5,
+            )
+        )
+
+        self.assertEqual(result.sources, ())
+        qdrant_client.collection_exists.assert_called_once_with("student_handbook")
+        qdrant_client.query_points.assert_called_once()
+        qdrant_client.get_aliases.assert_not_called()
+
+    def test_backend_caches_positive_collection_existence_checks(self) -> None:
+        qdrant_client = Mock()
+        qdrant_client.collection_exists = Mock(return_value=True)
+        qdrant_client.query_points = Mock(return_value=qdrant_models.QueryResponse(points=[]))
+        embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=InMemoryDocumentRegistry(),
+            qdrant_client=qdrant_client,
+            embedding_model=embedding_model,
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
+        request = RetrievalRequest(
+            query_text="学生证丢了怎么办",
+            corpus="regulations",
+            collection="student_handbook",
+            acl_groups=("students",),
+            top_k=5,
+        )
+
+        backend.retrieve(request)
+        backend.retrieve(request)
+
+        qdrant_client.collection_exists.assert_called_once_with("student_handbook")
+        self.assertEqual(qdrant_client.query_points.call_count, 2)
+
+    def test_backend_retries_transient_collection_exists_failures(self) -> None:
+        qdrant_client = Mock()
+        qdrant_client.collection_exists = Mock(
+            side_effect=[
+                ResponseHandlingException(RuntimeError("_ssl.c:983: The handshake operation timed out")),
+                ResponseHandlingException(RuntimeError("_ssl.c:983: The handshake operation timed out")),
+                True,
+            ]
+        )
+        qdrant_client.query_points = Mock(return_value=qdrant_models.QueryResponse(points=[]))
+        embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=InMemoryDocumentRegistry(),
+            qdrant_client=qdrant_client,
+            embedding_model=embedding_model,
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
+
+        result = backend.retrieve(
+            RetrievalRequest(
+                query_text="学生证丢了怎么办",
+                corpus="regulations",
+                collection="student_handbook",
+                acl_groups=("students",),
+                top_k=5,
+            )
+        )
+
+        self.assertEqual(result.sources, ())
+        self.assertEqual(qdrant_client.collection_exists.call_count, 3)
+        qdrant_client.query_points.assert_called_once()
 
     def test_backend_returns_evidence_bundle_with_source_locator(self) -> None:
         registry = InMemoryDocumentRegistry()

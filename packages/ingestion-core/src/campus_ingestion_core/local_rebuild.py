@@ -555,6 +555,8 @@ def _build_qdrant_client(settings: RetrievalSettings, *, source: dict[str, str] 
             default_timeout_seconds=settings.qdrant_timeout_seconds,
         ),
         cloud_inference=True,
+        check_compatibility=False,
+        trust_env=False,
     )
 
 

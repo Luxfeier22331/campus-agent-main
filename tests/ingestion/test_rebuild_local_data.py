@@ -202,6 +202,8 @@ class RebuildLocalDataTest(unittest.TestCase):
             api_key="test-key",
             timeout=60.0,
             cloud_inference=True,
+            check_compatibility=False,
+            trust_env=False,
         )
 
     def test_rebuild_provider_response_replay_accepts_typed_request_without_source_specific_env(self) -> None:

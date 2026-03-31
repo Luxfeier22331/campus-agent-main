@@ -4,12 +4,11 @@ from dataclasses import dataclass, field, replace
 import re
 import time
 import unicodedata
-from typing import Iterable, Sequence
+from typing import Callable, Iterable, Sequence, TypeVar
 
 from campus_contracts import EvidenceBundle, EvidenceSource
 from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile, load_runtime_profile
 from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
-from campus_ingestion_core.index_release import resolve_alias_target
 from campus_ingestion_core.registry import (
     DocumentRegistry,
     build_document_registry_from_env,
@@ -22,6 +21,7 @@ from campus_ingestion_core.sparse import (
 from llama_index.core.schema import MetadataMode, TextNode
 from llama_index.core.vector_stores import FilterCondition, FilterOperator, MetadataFilter, MetadataFilters
 from qdrant_client import QdrantClient
+from qdrant_client.http.exceptions import ResponseHandlingException
 from qdrant_client.http import models as qdrant_models
 
 from campus_retrieval_core.evidence_ranking import prioritize_evidence_sources, query_targets_source_title
@@ -82,6 +82,10 @@ _DOCUMENT_SUPPORT_QUERY_SUFFIXES = (
     "怎么",
     "如何",
 )
+_QDRANT_READ_RETRY_ATTEMPTS = 3
+_QDRANT_READ_RETRY_BACKOFF_SECONDS = 0.5
+_QDRANT_TRANSIENT_ERROR_TEXT = ("timed out", "timeout", "temporarily unavailable", "connection reset", "handshake")
+_RetryResult = TypeVar("_RetryResult")
 
 
 class RetrievalBackendError(RuntimeError):
@@ -101,6 +105,7 @@ class QdrantRetrievalBackend:
     sparse_embedding_model: SparseEmbeddingModel | None = None
     dense_query_cache_ttl_seconds: float = DEFAULT_DENSE_QUERY_CACHE_TTL_SECONDS
     _dense_query_cache: dict[str, tuple[float, tuple[float, ...]]] = field(default_factory=dict, init=False)
+    _known_collection_names: set[str] = field(default_factory=set, init=False)
 
     def __post_init__(self) -> None:
         self.registry = self.registry or build_document_registry_from_env(
@@ -139,18 +144,17 @@ class QdrantRetrievalBackend:
                 collection=request.collection,
             )
         qdrant_collection_name = profile.qdrant_index_binding.alias_name
-        alias_target = resolve_alias_target(
-            qdrant_client=self.qdrant_client,
-            alias_name=qdrant_collection_name,
-        )
-        if alias_target is None and not self.qdrant_client.collection_exists(qdrant_collection_name):
-            return EvidenceBundle(
-                query_text=request.query_text,
-                corpus=request.corpus,
-                collection=request.collection,
-            )
-
         try:
+            if qdrant_collection_name not in self._known_collection_names:
+                if not _retry_qdrant_read(
+                    lambda: self.qdrant_client.collection_exists(qdrant_collection_name)
+                ):
+                    return EvidenceBundle(
+                        query_text=request.query_text,
+                        corpus=request.corpus,
+                        collection=request.collection,
+                    )
+                self._known_collection_names.add(qdrant_collection_name)
             dense_query_embedding = self._get_dense_query_embedding(query_text, profile=profile)
             response = self.qdrant_client.query_points(
                 collection_name=qdrant_collection_name,
@@ -479,7 +483,29 @@ def _build_qdrant_client(settings: RetrievalSettings) -> QdrantClient:
         api_key=settings.qdrant_api_key,
         timeout=settings.qdrant_timeout_seconds,
         cloud_inference=True,
+        check_compatibility=False,
+        trust_env=False,
     )
+
+
+def _retry_qdrant_read(operation: Callable[[], _RetryResult]) -> _RetryResult:
+    last_error: ResponseHandlingException | None = None
+    for attempt in range(1, _QDRANT_READ_RETRY_ATTEMPTS + 1):
+        try:
+            return operation()
+        except ResponseHandlingException as exc:
+            if not _looks_like_transient_qdrant_error(exc) or attempt >= _QDRANT_READ_RETRY_ATTEMPTS:
+                raise
+            last_error = exc
+            time.sleep(_QDRANT_READ_RETRY_BACKOFF_SECONDS * attempt)
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("retry helper exhausted without result")
+
+
+def _looks_like_transient_qdrant_error(error: ResponseHandlingException) -> bool:
+    normalized = str(error).strip().lower()
+    return any(fragment in normalized for fragment in _QDRANT_TRANSIENT_ERROR_TEXT)
 
 
 def _build_metadata_filters(
