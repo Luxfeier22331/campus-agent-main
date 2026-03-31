@@ -1,15 +1,30 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createApp as createAppApi } from "../../app-api/src/app";
+import packageManifestRaw from "../package.json?raw";
 import worker from "../src/index";
 import wranglerConfig from "../wrangler.toml?raw";
 
+const packageManifest = JSON.parse(packageManifestRaw) as {
+  scripts?: Record<string, string | undefined>;
+};
+
 describe("public chat web worker shell", () => {
-  it("closes workers.dev and preview urls in config", () => {
+  it("declares the app-api service binding and deploy verification gate", () => {
     expect(wranglerConfig).toContain("workers_dev = false");
     expect(wranglerConfig).toContain("preview_urls = false");
     expect(wranglerConfig).toContain('compatibility_flags = ["nodejs_compat"]');
     expect(wranglerConfig).toMatch(/routes?\s*=/);
+    expect(wranglerConfig).toContain("[[services]]");
+    expect(wranglerConfig).toContain('binding = "APP_API"');
+    expect(wranglerConfig).toContain('service = "app-api"');
+    expect(packageManifest.scripts?.deploy).toContain("deploy:verify-config");
+    expect(packageManifest.scripts?.["deploy:verify-config"]).toContain(
+      "verify-worker-deploy-config.mjs",
+    );
+    expect(packageManifest.scripts?.["deploy:verify-config"]).toContain(
+      "dist/public_chat_web/wrangler.json",
+    );
   });
 
   it("serves healthz and readyz from the worker shell", async () => {
@@ -137,6 +152,8 @@ describe("public chat web worker shell", () => {
     let forwardedBaggage: string | null = null;
     let forwardedCookie: string | null = null;
     let forwardedIdempotencyKey: string | null = null;
+    let forwardedOrigin: string | null = null;
+    let forwardedReferer: string | null = null;
     let forwardedSentryTrace: string | null = null;
     let forwardedTraceId: string | null = null;
     let forwardedUrl: string | null = null;
@@ -151,6 +168,8 @@ describe("public chat web worker shell", () => {
           "idempotency-key": "idem-001",
           baggage: "sentry-environment=test",
           "sentry-trace": "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
+          origin: "https://chat.example.com",
+          referer: "https://chat.example.com/chat",
           "x-spoofed-header": "drop-me",
           "x-trace-id": "trace-001",
         },
@@ -166,6 +185,8 @@ describe("public chat web worker shell", () => {
             forwardedBaggage = request.headers.get("baggage");
             forwardedCookie = request.headers.get("cookie");
             forwardedIdempotencyKey = request.headers.get("idempotency-key");
+            forwardedOrigin = request.headers.get("origin");
+            forwardedReferer = request.headers.get("referer");
             forwardedSentryTrace = request.headers.get("sentry-trace");
             forwardedTraceId = request.headers.get("x-trace-id");
             forwardedUrl = request.url;
@@ -208,6 +229,8 @@ describe("public chat web worker shell", () => {
     expect(forwardedCookie).toBe("better-auth.session_token=test");
     expect(forwardedIdempotencyKey).toBe("idem-001");
     expect(forwardedBaggage).toBe("sentry-environment=test");
+    expect(forwardedOrigin).toBeNull();
+    expect(forwardedReferer).toBeNull();
     expect(forwardedSentryTrace).toBe(
       "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
     );
@@ -218,6 +241,55 @@ describe("public chat web worker shell", () => {
         prompt: "图书馆开放到几点？",
       }),
     );
+  });
+
+  it("forwards origin and referer for same-site auth requests", async () => {
+    let forwardedCookie: string | null = null;
+    let forwardedOrigin: string | null = null;
+    let forwardedReferer: string | null = null;
+    let forwardedUrl: string | null = null;
+
+    const response = await worker.fetch(
+      new Request("https://chat.example.com/api/auth/sign-in/email", {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          cookie: "better-auth.session_token=test",
+          "content-type": "application/json",
+          origin: "https://chat.example.com",
+          referer: "https://chat.example.com/login",
+        },
+        body: JSON.stringify({
+          email: "jane@example.edu",
+          password: "password12345",
+        }),
+      }),
+      {
+        APP_API: {
+          fetch: async (request: Request) => {
+            forwardedCookie = request.headers.get("cookie");
+            forwardedOrigin = request.headers.get("origin");
+            forwardedReferer = request.headers.get("referer");
+            forwardedUrl = request.url;
+
+            return new Response(JSON.stringify({ ok: true }), {
+              headers: {
+                "content-type": "application/json; charset=utf-8",
+              },
+              status: 200,
+            });
+          },
+        },
+        APP_API_BASE_URL: "https://app-api.internal",
+      },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(forwardedUrl).toBe("https://app-api.internal/api/auth/sign-in/email");
+    expect(forwardedCookie).toBe("better-auth.session_token=test");
+    expect(forwardedOrigin).toBe("https://chat.example.com");
+    expect(forwardedReferer).toBe("https://chat.example.com/login");
   });
 
   it("smokes a chat request through public-chat-web into app-api", async () => {

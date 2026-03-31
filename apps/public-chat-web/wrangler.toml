@@ -9,6 +9,10 @@ routes = [
   { pattern = "chat.example.com/*", zone_name = "example.com" }
 ]
 
+[[services]]
+binding = "APP_API"
+service = "app-api"
+
 [assets]
 directory = "./dist"
 binding = "ASSETS"

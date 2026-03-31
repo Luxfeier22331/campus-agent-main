@@ -55,10 +55,22 @@ pnpm --dir apps/app-api test:worker -- --reporter=verbose
 pnpm --dir apps/public-chat-web test:worker -- --reporter=verbose -t "smokes a chat request through public-chat-web into app-api"
 ```
 
+再验证 public auth proxy 仍保留 Better Auth 所需请求头：
+
+```bash
+pnpm --dir apps/public-chat-web test:worker -- --reporter=verbose -t "forwards origin and referer for same-site auth requests"
+```
+
 最后验证 protected panel 请求查询链路 smoke：
 
 ```bash
 pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "smokes request queries through protected-panel-web into app-api with internal caller admission"
+```
+
+并验证 protected panel 在 admission 缺失时保持 fail-closed：
+
+```bash
+pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "fails closed when protected overview admission is not configured"
 ```
 
 ## 这组 smoke 证明什么
@@ -66,8 +78,10 @@ pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "smokes
 - `app-api` 的 `GET /healthz` 与 `GET /readyz` 正常
 - `app-api` 的 fail-closed readiness 门禁正常工作
 - `public-chat-web -> app-api` 的 same-site chat request 链路可用
+- `public-chat-web -> app-api` 的 Better Auth proxy 仍保留 `Origin` / `Referer`
 - `protected-panel-web -> app-api` 的 operator request query 链路可用
 - protected panel 到 `app-api` 的 trusted internal bridge admission 正常
+- protected panel 在 admission 配置缺失时不会对外暴露 shell 或 overview
 - 三个 Worker surface 的动态响应都保持 `Cache-Control: no-store`
 
 ## 这组 smoke 不证明什么

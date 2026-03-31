@@ -34,6 +34,8 @@ const JSON_HEADERS = {
   "cache-control": "no-store",
   "content-type": "application/json; charset=utf-8",
 } as const;
+const CLOUDFLARE_ACCESS_ENVELOPE = "cloudflare-access";
+const REQUIRED_PROTECTION_ENVELOPE = "PANEL_PROTECTION_ENVELOPE=cloudflare-access";
 const JWKS_BY_ISSUER = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 const FORWARDED_HEADERS = ["accept", "content-type", "x-trace-id"] as const;
 
@@ -131,7 +133,7 @@ const worker = {
       return jsonResponse(200, {
         status: "ready",
         dependencies: {
-          access: env.PANEL_PROTECTION_ENVELOPE === "cloudflare-access" ? "configured" : "not_required",
+          access: env.PANEL_PROTECTION_ENVELOPE === CLOUDFLARE_ACCESS_ENVELOPE ? "configured" : "not_configured",
           appApiBinding: "configured",
           assets: "configured",
           operatorBridge: "configured",
@@ -383,14 +385,7 @@ function getMissingRuntimeConfig(env: Env): string[] {
   if (!env.PANEL_APP_API_SHARED_SECRET?.trim()) {
     missing.push("PANEL_APP_API_SHARED_SECRET");
   }
-  if (env.PANEL_PROTECTION_ENVELOPE === "cloudflare-access") {
-    if (!env.ACCESS_TEAM_DOMAIN?.trim()) {
-      missing.push("ACCESS_TEAM_DOMAIN");
-    }
-    if (!env.ACCESS_POLICY_AUD?.trim()) {
-      missing.push("ACCESS_POLICY_AUD");
-    }
-  }
+  missing.push(...getMissingAccessConfig(env));
 
   return missing;
 }
@@ -399,8 +394,12 @@ async function validateProtectedApiRequest(
   request: Request,
   env: Env,
 ): Promise<{ error: Response | null; operatorContext: OperatorContext | null }> {
-  if (env.PANEL_PROTECTION_ENVELOPE !== "cloudflare-access") {
-    return { error: null, operatorContext: null };
+  const missingAccessConfig = getMissingAccessConfig(env);
+  if (missingAccessConfig.length > 0) {
+    return {
+      error: protectionNotConfiguredResponse(missingAccessConfig),
+      operatorContext: null,
+    };
   }
 
   if (!env.ACCESS_TEAM_DOMAIN || !env.ACCESS_POLICY_AUD) {
@@ -435,6 +434,34 @@ async function validateProtectedApiRequest(
       operatorContext: null,
     };
   }
+}
+
+function getMissingAccessConfig(env: Env): string[] {
+  const missing: string[] = [];
+
+  if (env.PANEL_PROTECTION_ENVELOPE !== CLOUDFLARE_ACCESS_ENVELOPE) {
+    missing.push(REQUIRED_PROTECTION_ENVELOPE);
+  }
+  if (!env.ACCESS_TEAM_DOMAIN?.trim()) {
+    missing.push("ACCESS_TEAM_DOMAIN");
+  }
+  if (!env.ACCESS_POLICY_AUD?.trim()) {
+    missing.push("ACCESS_POLICY_AUD");
+  }
+
+  return missing;
+}
+
+function protectionNotConfiguredResponse(missing: string[]): Response {
+  return jsonResponse(503, {
+    error: {
+      code: "dependency_not_ready",
+      details: {
+        missing,
+      },
+      message: "Protected panel admission is not configured.",
+    },
+  });
 }
 
 function mapOperatorContext(payload: JWTPayload): OperatorContext {
