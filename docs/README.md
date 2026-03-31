@@ -141,6 +141,7 @@ updated: 2026-03-31
 - `runbooks/forward-worker-surface-smoke-runbook.md`
 - `runbooks/index-release-runbook.md`
 - `runbooks/student-handbook-hybrid-rebuild-checklist.md`
+- `runbooks/worker-observability-smoke-runbook.md`
 - `reference/curriculum-plan-eval-metrics.md`
 - `reference/golden-dataset-case-matrix.md`
 - `reference/phase1-ingestion-retrieval-implementation-truth.md`

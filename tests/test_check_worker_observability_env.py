@@ -1,0 +1,163 @@
+from __future__ import annotations
+
+from pathlib import Path
+from tempfile import TemporaryDirectory
+import unittest
+
+from scripts.check_worker_observability_env import collect_worker_observability_status
+
+
+def _write(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+
+
+class CheckWorkerObservabilityEnvTest(unittest.TestCase):
+    def test_collect_worker_observability_status_reports_ready_when_root_and_targets_align(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "campus-agent"
+            _write(
+                repo_root / ".env",
+                "\n".join(
+                    [
+                        "SENTRY_DSN_API=https://api.example",
+                        "SENTRY_DSN_CHAT=https://chat.example",
+                        "SENTRY_DSN_PANEL=https://panel.example",
+                        "AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
+                        "AXIOM_DATASET=campus-agent-runtime-dev",
+                        "AXIOM_TOKEN=axiom-token",
+                    ]
+                )
+                + "\n",
+            )
+            _write(
+                repo_root / "apps/app-api/.dev.vars",
+                "\n".join(
+                    [
+                        "SENTRY_DSN=https://api.example",
+                        "SENTRY_ENVIRONMENT=development",
+                        "SENTRY_RELEASE=app-api@dev-local",
+                        "AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
+                        "AXIOM_DATASET=campus-agent-runtime-dev",
+                        "AXIOM_TOKEN=axiom-token",
+                    ]
+                )
+                + "\n",
+            )
+            _write(
+                repo_root / "apps/public-chat-web/.dev.vars",
+                "\n".join(
+                    [
+                        "SENTRY_DSN=https://chat.example",
+                        "SENTRY_ENVIRONMENT=development",
+                        "SENTRY_RELEASE=public-chat-web@dev-local",
+                    ]
+                )
+                + "\n",
+            )
+            _write(
+                repo_root / "apps/protected-panel-web/.dev.vars",
+                "\n".join(
+                    [
+                        "SENTRY_DSN=https://panel.example",
+                        "SENTRY_ENVIRONMENT=development",
+                        "SENTRY_RELEASE=protected-panel-web@dev-local",
+                    ]
+                )
+                + "\n",
+            )
+
+            status = collect_worker_observability_status(repo_root=repo_root)
+
+            self.assertTrue(status["overall_ready"])
+            self.assertTrue(status["source_ready"])
+            self.assertEqual(status["source_missing_keys"], [])
+            self.assertTrue(status["targets"]["apps/app-api/.dev.vars"]["ready"])
+            self.assertTrue(status["targets"]["apps/public-chat-web/.dev.vars"]["ready"])
+            self.assertTrue(status["targets"]["apps/protected-panel-web/.dev.vars"]["ready"])
+
+    def test_collect_worker_observability_status_reports_source_missing_keys(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "campus-agent"
+            _write(
+                repo_root / ".env",
+                "\n".join(
+                    [
+                        "SENTRY_DSN_API=https://api.example",
+                        "SENTRY_DSN_CHAT=https://chat.example",
+                    ]
+                )
+                + "\n",
+            )
+
+            status = collect_worker_observability_status(repo_root=repo_root)
+
+            self.assertFalse(status["overall_ready"])
+            self.assertFalse(status["source_ready"])
+            self.assertIn("SENTRY_DSN_PANEL", status["source_missing_keys"])
+            self.assertIn("AXIOM_ENDPOINT", status["source_missing_keys"])
+
+    def test_collect_worker_observability_status_reports_target_mismatch(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "campus-agent"
+            _write(
+                repo_root / ".env",
+                "\n".join(
+                    [
+                        "SENTRY_DSN_API=https://api.example",
+                        "SENTRY_DSN_CHAT=https://chat.example",
+                        "SENTRY_DSN_PANEL=https://panel.example",
+                        "AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
+                        "AXIOM_DATASET=campus-agent-runtime-dev",
+                        "AXIOM_TOKEN=axiom-token",
+                    ]
+                )
+                + "\n",
+            )
+            _write(
+                repo_root / "apps/app-api/.dev.vars",
+                "\n".join(
+                    [
+                        "SENTRY_DSN=https://api.other.example",
+                        "SENTRY_ENVIRONMENT=development",
+                        "SENTRY_RELEASE=app-api@dev-local",
+                        "AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
+                        "AXIOM_DATASET=campus-agent-runtime-dev",
+                        "AXIOM_TOKEN=axiom-token",
+                    ]
+                )
+                + "\n",
+            )
+            _write(
+                repo_root / "apps/public-chat-web/.dev.vars",
+                "\n".join(
+                    [
+                        "SENTRY_DSN=https://chat.example",
+                        "SENTRY_ENVIRONMENT=development",
+                        "SENTRY_RELEASE=public-chat-web@dev-local",
+                    ]
+                )
+                + "\n",
+            )
+            _write(
+                repo_root / "apps/protected-panel-web/.dev.vars",
+                "\n".join(
+                    [
+                        "SENTRY_DSN=https://panel.example",
+                        "SENTRY_ENVIRONMENT=development",
+                        "SENTRY_RELEASE=protected-panel-web@dev-local",
+                    ]
+                )
+                + "\n",
+            )
+
+            status = collect_worker_observability_status(repo_root=repo_root)
+
+            self.assertFalse(status["overall_ready"])
+            self.assertIn(
+                "SENTRY_DSN",
+                status["targets"]["apps/app-api/.dev.vars"]["mismatched_keys"],
+            )
+            self.assertFalse(status["targets"]["apps/app-api/.dev.vars"]["ready"])

@@ -58,7 +58,10 @@
 - Audit logs are written to `./var/log/audit.log` by default via `apps/supervisor-api/src/campus_supervisor_api/settings.py`.
 
 **Error tracking / analytics**
-- No third-party error/analytics services are declared in the repo; observability currently relies on local console output and the audit log path.
+- Third-party telemetry is now declared in the Worker product surfaces:
+  - `apps/app-api`, `apps/public-chat-web`, and `apps/protected-panel-web` depend on `@sentry/cloudflare`.
+  - `apps/app-api` also contains a Worker-local Axiom REST ingest adapter for minimal runtime events.
+- Current merged truth is not “no external telemetry”, but “runtime code is landed and fail-open; deploy-side `SENTRY_*` / `AXIOM_*` provision plus live sink verification are still pending”.
 
 ## CI/CD & Deployment
 

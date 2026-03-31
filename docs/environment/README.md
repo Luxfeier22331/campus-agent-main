@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-03-29
-updated: 2026-03-30
+updated: 2026-03-31
 ---
 
 # Environment
@@ -45,9 +45,11 @@ updated: 2026-03-30
 - command-scoped [`env/commands/migrate-student-handbook.env.example`](../../env/commands/migrate-student-handbook.env.example)
   `migrate_student_handbook_source_faithful` 的一次性 override
 
-## 当前待提供项
+## 当前状态
 
-- `apps/app-api`、`apps/public-chat-web`、`apps/protected-panel-web` 的模板已经预留 `SENTRY_*` / `AXIOM_*` 槽位，但 provider-side deploy 值仍待分配；在真实值下发前，只保留模板占位，不提交任何实际 secrets
+- 当前 root worktree `.env` 可以集中保存本地 surface-specific `Sentry` DSN 与 shared `Axiom` 值，当前 worktree 的 app-local `.dev.vars` 也可以同步为 ready 状态
+- 这只说明 local development 已具备 observability preflight 条件，不等于 deploy-side secret store 与 live sink verification 已关闭
+- deploy 环境仍应逐个确认 `apps/app-api`、`apps/public-chat-web`、`apps/protected-panel-web` 的 `SENTRY_*` / `AXIOM_*` 是否已正确下发
 
 ## Eval Env 约定
 
@@ -64,6 +66,7 @@ updated: 2026-03-30
 
 - 如果本地把 surface-specific DSN 暂时集中存放在 root worktree `.env`，可用 `uv run --all-packages python -m scripts.sync_worker_observability_env`
   把 `SENTRY_DSN_API`、`SENTRY_DSN_CHAT`、`SENTRY_DSN_PANEL` fan out 到当前 worktree 的 app-local `.dev.vars`
+- 如果要检查 root `.env` 与 app-local `.dev.vars` 是否已经对齐，可用 `uv run --all-packages python -m scripts.check_worker_observability_env --json`
 - 如果本地希望直接复用 root worktree `.env` 里的共享 Supabase Postgres，可用
   `uv run --all-packages python -m scripts.sync_app_api_local_db_env`
   把 `CAMPUS_SHARED_POSTGRES_URL` fan out 到 `apps/app-api/.env` 的
@@ -75,6 +78,7 @@ updated: 2026-03-30
 - `apps/protected-panel-web/.dev.vars.example` 中的 `PANEL_RUNTIME_API_BASE_URL` 应指向 shared `apps/app-api`，不是 `apps/supervisor-api`
 - `PANEL_APP_API_SHARED_SECRET` 与 `APP_API_INTERNAL_SHARED_SECRET` 必须保持同值
 - 这些脚本只是本地 convenience，不改变 ownership：运行时仍然只消费各 app 自己的 `.dev.vars` / `.env` 或 deploy secret store
+- 真正的 sink closure 仍以 `docs/runbooks/worker-observability-smoke-runbook.md` 中的 post-deploy smoke 为准
 
 ## 命令级 Override 约束
 
