@@ -17,7 +17,7 @@
 - canonical app identity、profile memory 与 session truth 归属 shared `app-api`；execution engine 只消费 typed projection
 - personalization 可以利用 verified identity / profile memory / session summary，但 memory 不得授予权限或绕过 retrieval ACL
 - 04.7 `public-consumer-chat` 现仅作为历史实现参考，不再覆盖 forward topology truth
-- 当前 `develop` 集成线已把 `ContextProjection` / `SupervisorResponse` / eval supervisor seam 收口为 merge target；当前 worktree 回 `develop` / `main` 前必须继续对齐这条 seam，不得回退到旧 `snapshot`
+- 当前 merged truth 已按 `ContextProjection` / `SupervisorResponse` / eval supervisor seam 收口；后续改动不得回退到旧 `snapshot`
 - 早期 roadmap / phase 文档主要承担历史排期与讨论存档，不应覆盖这里的当前 truth
 
 ## Core Value
@@ -46,13 +46,13 @@
 
 ### Active
 
-- [ ] 按新增 curriculum live-gate runbook 生成 fresh `curriculum_plan` live evidence，并据此决定 milestone closeout；这项执行当前由 root worktree 跟进，`campus_services` 继续保持 `offline_preparation`
-- [ ] 在已落地的 `ContextProjection` / `SupervisorResponse` shared seam 之上继续完成 merge-readiness cleanup，不得回退到旧 `snapshot`
+- [ ] 以 2026-03-31 fresh acceptance artifact 为基线，继续缩小 `student_handbook` 剩余 supplemental `warn`：`ragas.answer_relevancy`、`ragas.context_precision`、`ragas.context_recall`
+- [ ] 补齐 deploy-side `SENTRY_*` / `AXIOM_*`，并完成 `apps/app-api`、`apps/public-chat-web`、`apps/protected-panel-web` 的 post-deploy observability smoke；当前 telemetry code 已落地，但 live sink verification 仍未闭环
 
 ### Out of Scope
 
 - `campus_services` query-serving 上线 — 当前阶段不把 service taxonomy 直接放进默认查询面
-- 全 corpus 同步上线 — 当前完整 live release-gate 仍以 `student_handbook` 为主；`curriculum_plan` 已进入 query-serving，但还需要补齐更系统的 live gate
+- 全 corpus 同步上线 — 当前完整 live release-gate 仍以 `student_handbook` 为主；`curriculum_plan` 已进入 query-serving，但当前重点是维持已落盘 live gate truth，而不是扩面到更多 corpus
 - 更细粒度的角色差异化问答行为 — 当前只做到 identity / groups 透传与 retrieval 前 ACL 过滤
 - 复杂的多 specialist 串并行协作与 workflow engine — 先把显式 routing、handoff 和单条主链路骨架立住
 - 完整会话记忆、HITL / approval flow、生产级运维硬化 — 这些属于后续阶段能力，不作为当前初始化范围
@@ -105,8 +105,8 @@
 | personalization 可以影响 intent framing、retrieval planning 与 answer wording，但 memory 不能授权或扩大 retrieval ACL | 这样可以引入长期记忆而不破坏 retrieval fail-close 与 runtime-profile-driven serving policy | — Accepted on 2026-03-28 |
 | canonical request projection 采用 same-database outbox-first：`runtime.request_execution` + `runtime.projection_outbox` 是第一 durable truth | 这能避免 queue-first、日志重算或 panel 侧事后拼装造成的多真相源与时序漂移 | — Accepted on 2026-03-28 |
 | Better Auth 位于 `apps/app-api`，且 `auth/chat/runtime/operator` 共享一套 Drizzle schema codebase 与 migration pipeline | 这能避免 auth 表和 app-domain 表分裂成两套迁移世界观，同时保持 Worker runtime 与数据库管理路径清晰分离 | — Accepted on 2026-03-28 |
-| `develop` 集成线把 `ContextProjection` / `SupervisorResponse` 视为 shared seam；当前 worktree 回 `develop` / `main` 前必须继续对齐 | 这能吸收当前集成线的 typed projection / eval contract，而不把旧 `snapshot` 路径带回 merged truth | — Accepted on 2026-03-28 |
-| shared `apps/app-api` foundation 已在当前工作树落地，panel `Requests` 不再属于 blocked follow-up | 这个 worktree 的后续工作应转向 integration hardening、observability verification 与 merge readiness，而不是重复讨论 shared backend topology 是否存在，也不再把 curriculum gate 记为本分支 follow-up | — Validated on 2026-03-29 |
+| 当前 merged truth 把 `ContextProjection` / `SupervisorResponse` 视为 shared seam；后续改动不得把旧 `snapshot` 路径带回主线 | 这能吸收当前集成线的 typed projection / eval contract，并避免把历史过渡态重新写回 merged truth | — Accepted on 2026-03-28 |
+| shared `apps/app-api` foundation 已在当前 merged truth 落地，panel `Requests` 不再属于 blocked follow-up | 后续工作应转向 integration hardening、observability verification 与 stale-truth cleanup，而不是重复讨论 shared backend topology 是否存在，也不再把 curriculum gate 记为这条非 live 执行线的 follow-up | — Validated on 2026-03-29 |
 | protected panel 面向小团队 operator principal，不额外自建 end-user user system；`Jobs` / `Operations` 默认不进首发 rollout | 这能保持 panel 是受控 operator control plane，而不是用户系统、CMS、数据库控制台或万能后台 | — Accepted on 2026-03-28 |
 | `official_web` control plane 收口到 shared `apps/app-api`，而不是新建 crawler-intake backend | 这能复用现有 app-owned admission、ledger、outbox 与 operator read-model 形态，同时保持 `apps/ingestion-worker` 继续只是 offline executor | — Accepted on 2026-03-29 |
 
@@ -128,4 +128,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state (users, feedback, metrics)
 
 ---
-*Last updated: 2026-03-29 after landing the `official_web -> app-api` control-plane foundation, protected-panel `Official Web` domain, and the related planning/doc status cleanup*
+*Last updated: 2026-03-31 after aligning curriculum/handbook live-eval truth, keeping `ContextProjection` / `SupervisorResponse` as the merged seam, and promoting observability verification plus handbook metric-gap reduction as the remaining follow-up*

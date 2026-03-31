@@ -300,6 +300,10 @@ Plans:
 - [x] 07-01: Add and stabilize automated test coverage for happy-path and failure-path supervisor/rag interactions.
 - [x] 07-02: Add smoke/eval verification for `student_handbook` ingestion and query-serving behavior.
 
+Post-phase closeout note:
+- 2026-03-31 fresh `student_handbook` acceptance rerun confirmed the live path is no longer blocked by serving or supplemental runtime.
+- Current post-phase follow-up is limited to soft-gap reduction on `ragas.answer_relevancy`、`ragas.context_precision`、`ragas.context_recall`; it is not a Phase 7 completion blocker.
+
 ## Progress
 
 **Execution Order:**

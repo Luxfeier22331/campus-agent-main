@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-03-28
-updated: 2026-03-30
+updated: 2026-03-31
 ---
 
 # Curriculum Plan Eval Metrics
@@ -14,8 +14,8 @@ updated: 2026-03-30
 边界：
 
 - live rebuild 与线上 collection 验收步骤以 `docs/runbooks/curriculum-plan-hybrid-rebuild-checklist.md` 为准
-- 本文不伪造尚未 fresh rerun 的 live 指标快照
-- 本文只说明当前已存在的自动化 gate，以及 live gate 交付时必须补齐的证据形状
+- 本文只记录当前已落盘的 live / acceptance 指标快照，以及 live gate artifact contract
+- 本文不把当前 snapshot 上升为长期稳定 KPI
 
 ## Gate Topology
 
@@ -39,7 +39,7 @@ updated: 2026-03-30
 
 设计原因：
 
-- `curriculum_plan` 已进入 query-serving，但当前 `develop` 集成线目前缺的是 fresh live evidence，不是 fixture 本身
+- `curriculum_plan` 已进入 query-serving，当前 release-gate follow-up 主要是补充指标 `warn` 与 artifact/doc 归一，而不是继续补 fresh rerun
 - live gate 和 deterministic gate 要分离；`error` 终态不依赖偶发基础设施故障取样
 
 ## Repo-Tracked Automated Baseline
@@ -103,6 +103,7 @@ updated: 2026-03-30
 
 - acceptance 根目录还应保留 `accept-config.json` 与 `final-summary.json`
 - 若触发 repair rerun，还应保留 `repair/supplemental-runtime-events.jsonl` 与 `repair/supplemental-provider-summary.json`
+- 当前实现里 `accept --log-jsonl` 的 runtime logs 会由 `accept-config.json` 指向外部 `<base>.run.jsonl` / `<base>.repair.jsonl`，不再要求它们必须以内嵌文件形式存在于 acceptance root
 
 建议目录：
 
@@ -138,14 +139,35 @@ retrieval benchmark scorer：
 
 ## Current Status
 
-截至 2026-03-28：
+截至 2026-03-30：
 
 - curriculum 的 repo-tracked qrels / hybrid / golden / error-gate baseline 已存在并由测试覆盖
-- 当前 `develop` 集成线已补齐 curriculum live gate 的 reference + runbook + merge handoff 文档
-- 仍待补的是 fresh live rerun artifact，而不是新的 fixture 设计
+- root worktree 已完成一轮 fresh curriculum live verification；当前可引用 artifact 分两类：
+  - contract-shaped live gate evidence：
+    - [`.tmp/evals/curriculum-plan-live-gate-20260330T045116/curriculum-live-collection-baseline.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-20260330T045116/curriculum-live-collection-baseline.json)
+    - [`.tmp/evals/curriculum-plan-live-gate-20260330T045116/curriculum-retrieval-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-20260330T045116/curriculum-retrieval-summary.json)
+    - [`.tmp/evals/curriculum-plan-live-gate-20260330T045116/curriculum-workflow-status-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-20260330T045116/curriculum-workflow-status-summary.json)
+    - [`.tmp/evals/curriculum-plan-live-gate-20260330T045116/curriculum-error-gate-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-20260330T045116/curriculum-error-gate-summary.json)
+  - acceptance verdict evidence：
+    - [`.tmp/evals/curriculum-plan-live-gate-accept-20260330T210958/final-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-accept-20260330T210958/final-summary.json)
+    - [`.tmp/evals/curriculum-plan-live-gate-accept-20260330T210958/run/gate-report.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-accept-20260330T210958/run/gate-report.json)
+- 2026-03-30 acceptance 当前最终结论：
+  - `deterministic_verdict = pass`
+  - `supplemental_verdict = warn`
+  - `final_overall_verdict = warn`
+- 当前 `warn` 不再来自“缺 fresh rerun”，而是来自 supplemental soft-gate：
+  - `ragas.context_precision`
+    - `mean_average_score = 0.8263888888392361`
+    - `min_run_average_score = 0.7916666666104166`
+  - `ragas.context_recall`
+    - `mean_average_score = 0.75`
+    - `min_run_average_score = 0.75`
+- 当前 acceptance supplemental runtime 可用：
+  - `status_counts.available = 4`
 
 因此当前 closeout 语义是：
 
 - automated baseline：已具备
 - live artifact contract：已具备
-- fresh live evidence：待执行
+- fresh live evidence：已具备
+- 当前 follow-up：补充指标 `warn` 与 artifact/doc 归一，不再是重新声明“待 fresh rerun”

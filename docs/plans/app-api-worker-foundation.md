@@ -2,7 +2,7 @@
 doc_type: plan
 status: completed
 created: 2026-03-28
-updated: 2026-03-29
+updated: 2026-03-31
 ---
 
 # App API Worker Foundation 实施方案
@@ -15,9 +15,9 @@ updated: 2026-03-29
 
 ## 状态说明
 
-这份文档描述的是 `apps/app-api` 的 forward implementation baseline，同时也记录了当前 `protected-panel-web` worktree 已经落地的 Worker foundation。
+这份文档描述的是 `apps/app-api` 的 forward implementation baseline，同时记录当前 merged truth 已经落地的 shared Worker foundation。
 
-当前 worktree 已经具备完整 Worker runtime、auth/chat/operator API、Drizzle schema、projection data plane 与 web-surface integration；但在正式回 `develop` / `main` 之前，仍必须继续保持 `develop` 已冻结的 `ContextProjection` / `SupervisorResponse` shared seam，不得把旧 `snapshot` 合约重新带回主线。
+当前 repo merged truth 已经具备完整 Worker runtime、auth/chat/operator API、Drizzle schema、projection data plane 与 web-surface integration。`ContextProjection` / `SupervisorResponse` shared seam 已在当前实现中对齐；后续工作应继续保持这条 seam，不得把旧 `snapshot` 合约重新带回主线。
 
 ## 摘要
 

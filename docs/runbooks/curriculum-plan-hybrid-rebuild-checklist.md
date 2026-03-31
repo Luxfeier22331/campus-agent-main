@@ -148,8 +148,11 @@ workflow/status deterministic gate：
 
 ## 当前完成语义
 
-截至 2026-03-28，本 runbook 负责的不是“证明 live gate 已经重跑完成”，而是：
+截至 2026-03-30，本 runbook 负责的已经不只是“为后续 fresh rerun 提供 contract”，还承担当前 live artifact 的解释边界：
 
-- 把 curriculum live gate 的执行顺序固定下来
-- 把 repo-tracked fixture 与 live evidence 的对应关系固定下来
-- 为后续 fresh rerun 提供统一 artifact contract
+- curriculum fresh live rerun 已在 root worktree 落盘
+- 本 runbook 继续固定 curriculum live gate 的执行顺序，以及 repo-tracked fixture 与 live evidence 的对应关系
+- 当前 live evidence 需要分两类理解：
+  - contract-shaped release-gate artifact 位于 `.tmp/evals/curriculum-plan-live-gate-20260330T045116/`
+  - acceptance verdict artifact 位于 `.tmp/evals/curriculum-plan-live-gate-accept-20260330T210958/`
+- 若后续再次 rerun，应继续沿用本 runbook 的 artifact contract，而不是回退到 handbook policy 或散落命名

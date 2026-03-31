@@ -119,36 +119,43 @@ accept flow 语义：
 - `accept` 会把 base path 自动拆成 `<base>.run.jsonl` 与 `<base>.repair.jsonl`
 - `--verbose` 会直接打印 preflight、retrying、recovered、breaker 等高信号事件，便于现场确认 provider 瞬时失败是否已自动重试
 
-## 2026-03-30 Live 恢复与 Acceptance 结论
+## 2026-03-31 Live Acceptance Closeout
 
-2026-03-30 已确认 `student_handbook` 线上 serving 经 release-managed rebuild / publish 后恢复，可继续做 live 验收与联调。
+2026-03-30 已确认 `student_handbook` 线上 serving 经 release-managed rebuild / publish 后恢复；2026-03-31 fresh acceptance rerun 则进一步确认，当前 live 验收已经不再受 serving 或 supplemental runtime 阻塞。
 
 当前 acceptance 根 artifact：
 
-- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/final-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/final-summary.json)
-- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/run/summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/run/summary.json)
-- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/repair/summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/repair/summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/final-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/final-summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/supplemental-provider-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/supplemental-provider-summary.json)
 
 本轮结果：
 
 - `deterministic_verdict = pass`
 - `supplemental_verdict = warn`
 - `final_overall_verdict = warn`
+- `repair` 正确跳过：
+  - `selected_target_count = 0`
+  - `remaining_transient_failures = 0`
 
 当前解释边界：
 
-- 这次 `warn` 不再表示 handbook 主链路 serving 仍有 blocker
-- 当前 remaining gap 在 supplemental eval 面：
-  - `ragas.faithfulness` 在 fresh run 与 repair rerun 中都保持 `runtime_unavailable`
+- 这次 `warn` 不再表示 handbook 主链路 serving 仍有 blocker，也不再表示 supplemental runtime 仍不可用
+- 当前 remaining gap 已收口为真实质量问题：
   - `ragas.answer_relevancy`
   - `ragas.context_precision`
-  - `judge.refusal_quality`
-- 因此当前 handbook 可以继续做 live acceptance / integration；后续工作重点是 supplemental runtime 与质量修复，而不是再次把问题归因到 serving alias / rebuild publish
+  - `ragas.context_recall`
+- `ragas.faithfulness` 已恢复为 `pass`
+- `judge.refusal_quality` 已恢复为 `pass`
+- 因此当前 handbook 可以继续做 live acceptance / integration；后续工作重点是 answer/support shaping 与 context alignment，而不是再次把问题归因到 serving alias / rebuild publish 或 provider runtime 不稳定
 
 补充说明：
 
-- 这次 acceptance artifact 中的 `repair/repair-summary.json` 仍带着旧 repair 语义，会把“重跑后仍 timeout”的 target 误标为 `repaired`
-- repo 现已修正 repair artifact 语义；后续 rerun 产物会把这类 target 显式记为 `rerun_failed` 或 `partially_repaired`，不再把未恢复的 metric 计入 `repaired_metric_keys`
+- 本轮 supplemental preflight `3/3 passed`
+- provider summary 显示：
+  - `https://www.su8.codes /responses` 成功 `101/101`
+  - `https://ai.gitee.com /embeddings` 成功 `25/25`
+- 2026-03-30 那轮 acceptance 中关于 `faithfulness runtime-unavailable` 与 repair 旧语义的结论现在只保留为历史记录，当前真相以 2026-03-31 fresh artifact 为准
 
 ## Schema / Payload / Registry 检查
 

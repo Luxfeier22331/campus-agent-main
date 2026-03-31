@@ -1,8 +1,17 @@
 # Phase 7: Verification And Release Gate - Context
 
 **Gathered:** 2026-03-24
-**Status:** Discussion in progress
+**Status:** Historical context; phase complete
 **Source:** Derived from roadmap, eval governance docs, local planning docs, and best-practice review confirmed via official documentation on 2026-03-24
+
+## Post-Phase Closeout Note
+
+- Phase 7 的主目标已在 2026-03-27 完成：repo tests、live qrels benchmark、workflow/status 样本与 handbook collection schema 证据均已落盘。
+- 2026-03-31 fresh handbook acceptance rerun 进一步确认：
+  - live serving 已恢复并稳定通过 deterministic gate
+  - supplemental runtime 已恢复可用，`repair` 正确跳过
+  - 剩余 `warn` 只来自 `ragas.answer_relevancy`、`ragas.context_precision`、`ragas.context_recall` 的真实质量 gap
+- 因此当前 handbook follow-up 属于 phase-complete 之后的质量优化，不再属于 Phase 7 blocker 或 release-runtime unblock 工作。
 
 <domain>
 ## Phase Boundary

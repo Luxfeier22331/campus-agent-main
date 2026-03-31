@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-03-27
-updated: 2026-03-30
+updated: 2026-03-31
 ---
 
 # Student Handbook Eval Metrics
@@ -16,6 +16,52 @@ updated: 2026-03-30
 - live rebuild、collection schema、points count、query 验收证据仍以 `docs/runbooks/student-handbook-hybrid-rebuild-checklist.md` 为准
 - 本文只记录 benchmark / workflow 的指标结果、失败样例和本轮修复结论
 - 本文不是 release gate 阈值文档，也不把当前快照上升为长期稳定 KPI
+
+## 当前快照（2026-03-31）
+
+当前最新 acceptance artifact：
+
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/final-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/final-summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/supplemental-provider-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/supplemental-provider-summary.json)
+
+当前真相：
+
+- `deterministic_verdict = pass`
+- `supplemental_verdict = warn`
+- `final_overall_verdict = warn`
+- supplemental runtime 已完全恢复可用：
+  - preflight `3/3 passed`
+  - `repair` 正确跳过：`selected_target_count = 0`
+  - provider summary 显示 `https://www.su8.codes /responses` 成功 `101/101`，`https://ai.gitee.com /embeddings` 成功 `25/25`
+- 已不再属于 blocker 的旧问题：
+  - `ragas.faithfulness = pass`
+    - `mean_average_score = 0.9415584415584415`
+  - `judge.answer_correctness_rubric = pass`
+    - `mean_average_score = 0.8966666666666666`
+  - `judge.refusal_quality = pass`
+    - `mean_average_score = 0.9783333333333334`
+- 当前剩余 `warn` 只来自真实质量 gap：
+  - `ragas.answer_relevancy`
+    - `mean_average_score = 0.7890334536043656`
+  - `ragas.context_precision`
+    - `mean_average_score = 0.6666666666`
+  - `ragas.context_recall`
+    - `mean_average_score = 0.8333333333333334`
+
+case 级主要拖累：
+
+- `release-gate-dormitory-lighting`
+  - `ragas.answer_relevancy = 0.6613998730543929`（3 次一致）
+  - `ragas.context_precision = 0.0`（3 次一致）
+  - `ragas.context_recall = [0.0, 0.0, 1.0]`
+- `release-gate-student-card`
+  - `ragas.context_precision = [0.0, 1.0, 1.0]`
+
+解释：
+
+- 2026-03-31 的 fresh artifact 已经推翻 2026-03-30 “`faithfulness` 仍 runtime-unavailable”的旧结论；当前 `warn` 不能再归因于 provider/runtime 不稳定
+- 当前是否继续优化，应该聚焦 answer/support shaping 与 RAGAS context alignment，而不是继续调 timeout、repair 语义或 soft gate 阈值
 
 ## Gate Topology
 
@@ -395,7 +441,9 @@ supplemental 聚合：
   - `tests.evals.test_ragas_runtime tests.evals.test_supplemental_adapters tests.evals.test_golden_cases tests.evals.test_availability_smoke tests.evals.test_retrieval_benchmark`
   - `53 tests passed`
 
-## 2026-03-30 Acceptance / Repair Follow-up
+## 2026-03-30 Acceptance / Repair Follow-up（历史记录）
+
+这一节只保留 2026-03-30 那次 acceptance / repair 的历史 artifact 语义；当前真相以本文开头的“当前快照（2026-03-31）”和下方 `2026-03-31 Acceptance Rerun After Answer-Shaping Fix` 为准。
 
 2026-03-30 handbook acceptance 已重新落盘到：
 
@@ -447,3 +495,64 @@ fresh run / final aggregate 中可稳定确认的 gap：
 - 当前不应先调整 `student_handbook_judge_gate_policy.json` 的 soft gate 阈值
 - 应先把 `ragas.faithfulness` 的 runtime budget / provider 行为与真正的质量问题拆开，再看 fresh rerun
 - 即使暂时不看 `faithfulness`，`ragas.answer_relevancy`、`ragas.context_precision`、`judge.refusal_quality` 也仍然稳定低于现有阈值；因此当前 `warn` 不能通过放宽阈值来“修复”
+
+## 2026-03-31 Acceptance Rerun After Answer-Shaping Fix
+
+2026-03-31 answer-shaping / `no_answer` boundary 修复后的 fresh acceptance 已落盘到：
+
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/final-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/final-summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/run-01-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/run-01-summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/run-01-case-results.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/run-01-case-results.json)
+
+本轮 acceptance 结论：
+
+- `deterministic_verdict = pass`
+- `supplemental_verdict = warn`
+- `final_overall_verdict = warn`
+- `repair`
+  - `selected_target_count = 0`
+  - `applied_target_count = 0`
+  - `remaining_transient_failures = 0`
+
+与 2026-03-30 相比，已明确关闭的旧问题：
+
+- `ragas.faithfulness`
+  - 从 `runtime_unavailable` 恢复为 `pass`
+  - `run_average_scores = [0.9415584415584415, 0.9415584415584415, 0.9415584415584415]`
+- `judge.refusal_quality`
+  - 从 `warn` 恢复为 `pass`
+  - `run_average_scores = [0.965, 0.985, 0.985]`
+- repair artifact 不再被错误触发；因为没有 transient failure，所以本轮没有生成 `repair/`
+
+这轮仍保留的真实质量 gap：
+
+- `ragas.answer_relevancy`
+  - `run_average_scores = [0.807202064601255, 0.791582213816457, 0.7683160823953851]`
+  - `mean_average_score = 0.7890334536043656`
+- `ragas.context_precision`
+  - `run_average_scores = [0.49999999995, 0.749999999925, 0.749999999925]`
+  - `mean_average_score = 0.6666666666`
+  - `run_average_drift = 0.249999999975`
+- `ragas.context_recall`
+  - `run_average_scores = [0.75, 0.75, 1.0]`
+  - `mean_average_score = 0.8333333333333334`
+  - `run_average_drift = 0.25`
+
+case 级解释：
+
+- `release-gate-dormitory-lighting`
+  - 先前的 deterministic wording regression 已关闭；三轮 deterministic 全部通过
+  - 但这个 case 仍是当前 supplemental `warn` 的核心来源：
+    - `faithfulness = 1.0`
+    - `answer_relevancy = 0.6613998730543929`
+    - `context_precision = 0.0`
+    - `context_recall = [0.0, 0.0, 1.0]`
+- `release-gate-student-card`
+  - deterministic 已稳定通过
+  - `context_precision` 在三轮里出现 `[0.0, 1.0, 1.0]`，是 aggregate drift 的另一个来源
+
+当前结论：
+
+- 2026-03-31 fresh acceptance 已确认当前 handbook follow-up 不再是 provider/runtime 修复问题，而是 answer/support shaping 与 context alignment 的质量问题
+- 当前不应通过放宽 `student_handbook_judge_gate_policy.json` 阈值来“关闭”这轮 `warn`
