@@ -617,13 +617,14 @@ class RunCasesTest(unittest.TestCase):
                 )
             if case.case_id == "no-answer-fail-close":
                 return ExecutionResult(
-                    response=SpecialistResponse(
-                        target="rag-specialist",
-                        status="no_answer",
-                        result=RagResultPayload(
-                            evidence=EvidenceBundle(
-                                query_text="火星校区飞船停靠规则",
-                                corpus="regulations",
+                response=SpecialistResponse(
+                    target="rag-specialist",
+                    status="no_answer",
+                    answer_text="当前未检索到足够依据支持回答该问题，请确认它是否属于学生手册范围，或补充更具体的制度名称。",
+                    result=RagResultPayload(
+                        evidence=EvidenceBundle(
+                            query_text="火星校区飞船停靠规则",
+                            corpus="regulations",
                                 collection="student_handbook",
                                 sources=(_source(doc_id="handbook:unexpected"),),
                             )

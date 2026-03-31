@@ -289,8 +289,8 @@ def _grade_clarification_accuracy(response: SpecialistResponse | SupervisorRespo
 def _grade_no_answer_accuracy(response: SpecialistResponse | SupervisorResponse) -> DimensionResult:
     if response.status != "no_answer":
         return DimensionResult(False, f"status={response.status}")
-    if response.answer_text.strip():
-        return DimensionResult(False, "no_answer response should not contain answer_text")
+    if not response.answer_text.strip() and not response.follow_up_question.strip():
+        return DimensionResult(False, "no_answer response should include explicit boundary guidance")
     return DimensionResult(True, "ok")
 
 
