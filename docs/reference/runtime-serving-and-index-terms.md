@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-03-31
 ---
 
 # Runtime Serving And Index Terms
@@ -15,6 +15,7 @@ updated: 2026-03-28
 - 不重复数据平面全景：`docs/architecture/phase1-ingestion-and-storage-architecture.md`
 - 不重复对象存储 key 约束：`docs/decisions/adr-0002-local-minio-conventions.md`
 - 不承担当前执行状态真相：`.planning/PROJECT.md`、`.planning/STATE.md`
+- 早期 `phase-1` 文档只作为历史背景或约束来源，不再单独承担当前 phase truth
 
 ## 术语
 
