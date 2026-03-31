@@ -47,7 +47,7 @@
 ### Active
 
 - [ ] 以 2026-03-31 fresh acceptance artifact 为基线，继续缩小 `student_handbook` 剩余 supplemental `warn`：`ragas.answer_relevancy`、`ragas.context_precision`、`ragas.context_recall`
-- [ ] 补齐 deploy-side `SENTRY_*` / `AXIOM_*`，并完成 `apps/app-api`、`apps/public-chat-web`、`apps/protected-panel-web` 的 post-deploy observability smoke；当前 telemetry code 已落地，但 live sink verification 仍未闭环
+- [ ] 将 `apps/app-api`、`apps/public-chat-web`、`apps/protected-panel-web` 的 observability gate 固定为“pre-deploy readiness 已闭环，post-deploy verification 待首次真实部署时执行”；2026-03-31 已完成本地 env/preflight 与 Worker smoke 复核，后续只在真实环境拿到 hostnames、release 与 secret store 后执行 live sink smoke 并留证
 
 ### Out of Scope
 
@@ -128,4 +128,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state (users, feedback, metrics)
 
 ---
-*Last updated: 2026-03-31 after aligning curriculum/handbook live-eval truth, keeping `ContextProjection` / `SupervisorResponse` as the merged seam, and promoting observability verification plus handbook metric-gap reduction as the remaining follow-up*
+*Last updated: 2026-03-31 after aligning curriculum/handbook live-eval truth, keeping `ContextProjection` / `SupervisorResponse` as the merged seam, and reframing Worker observability as pre-deploy ready with post-deploy verification pending first real deployment*

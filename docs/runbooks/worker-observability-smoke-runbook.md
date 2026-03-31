@@ -27,15 +27,23 @@ updated: 2026-03-31
 - surface runtime smoke：`docs/runbooks/forward-worker-surface-smoke-runbook.md`
 - observability 设计边界：`docs/decisions/adr-0010-observability-and-telemetry-stack.md`
 
-## 当前目标
+## 闭环模型
 
-当前 closure 标准不是“代码里已经接了 Sentry/Axiom”，而是以下三件事同时成立：
+这条 runbook 现在明确分成两个阶段：
 
-1. root worktree `.env` 与 app-local `.dev.vars` 已经对齐
-2. 三个 Worker surface 的请求链路确实把 trace 继续向下游透传
-3. `Sentry` 与 `Axiom` 能看到最小 smoke 事件，而不是只停留在 fail-open 配置状态
+1. `Pre-Deploy Readiness`
+2. `Post-Deploy Verification`
 
-## 本地 Preflight
+判定标准不是“代码里已经接了 Sentry/Axiom”，而是：
+
+1. 在未部署前，本地 env/preflight 与 Worker smoke 可以重复通过
+2. 在首次真实部署后，真实 Worker surface、真实 release 和真实 sink 都能留下可追溯证据
+
+截至 2026-03-31，当前 root worktree 已完成 `Pre-Deploy Readiness`；`Post-Deploy Verification` 只在真实部署环境存在后执行。
+
+## Pre-Deploy Readiness
+
+### 1. 本地 Preflight
 
 先检查 root `.env` 与 app-local `.dev.vars` 是否已经对齐：
 
@@ -57,7 +65,7 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.sync_work
 
 然后再次运行 preflight。
 
-## 本地 Worker Smoke
+### 2. 本地 Worker Smoke
 
 先确认 runtime smoke 仍然正常：
 
@@ -69,7 +77,36 @@ pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "smokes
 
 这一步只证明 Worker shell、proxy seam、internal bridge 和 `no-store` 行为正常；它不证明第三方 sink 已收到事件。
 
-## Deploy-Side Smoke
+### 3. Pre-Deploy 证据
+
+建议在每轮 readiness 复核后保留：
+
+- 执行日期
+- 当前 worktree / branch
+- `check_worker_observability_env` 输出摘要
+- 三个 Worker smoke 的通过摘要
+
+当前推荐落盘位置：
+
+- `.tmp/observability-smoke/<timestamp>/`
+
+## Deployment Handoff Inputs
+
+只有在真实部署环境已存在时，才进入下一节。执行 `Post-Deploy Verification` 前，至少应具备：
+
+- 目标环境名，例如 `staging` 或 `prod`
+- 真实 `public-chat-web`、`protected-panel-web`、`app-api` hostname
+- 当次 Worker release 标识
+- deploy secret store 中的 `SENTRY_*` / `AXIOM_*` 已下发确认
+- 可访问 `Sentry` 项目与 `Axiom` dataset 的操作权限
+- 执行 smoke 的身份与凭证来源
+
+说明：
+
+- `wrangler` 远程检查可以作为辅助手段，但不是唯一 gate
+- 真正的 closure 以真实请求、真实 trace 和真实 runtime event 是否进入 sink 为准
+
+## Post-Deploy Verification
 
 ### 1. `public-chat-web -> app-api`
 
@@ -154,6 +191,10 @@ pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "smokes
 
 ## 当前判定规则
 
-- local env 已配齐，不等于 deploy smoke 已关闭
-- deploy secret store 已配置，不等于 trace / event 已真正进入 sink
-- 只有当 `public-chat-web`、`protected-panel-web`、`app-api` 三端至少各完成一轮真实 smoke，并且 `Axiom` 收到 `projection.drain` 或等价 runtime event，才可把这条 follow-up 视为关闭
+- `Pre-Deploy Readiness` 关闭条件：
+  root `.env` 与 app-local `.dev.vars` 对齐，且三个 Worker surface 的本地 smoke 全部通过
+- `Post-Deploy Verification` 触发条件：
+  已存在至少一个真实部署环境，并具备本 runbook 的 deployment handoff inputs
+- `Post-Deploy Verification` 关闭条件：
+  `public-chat-web`、`protected-panel-web`、`app-api` 三端至少各完成一轮真实 smoke，并且 `Axiom` 收到 `projection.drain` 或等价 runtime event
+- 在没有真实部署环境时，这条 follow-up 的正确状态是 `post-deploy verification pending`，不是“本地工程阻塞”

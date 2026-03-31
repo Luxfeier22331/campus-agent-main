@@ -48,8 +48,9 @@ updated: 2026-03-31
 ## 当前状态
 
 - 当前 root worktree `.env` 可以集中保存本地 surface-specific `Sentry` DSN 与 shared `Axiom` 值，当前 worktree 的 app-local `.dev.vars` 也可以同步为 ready 状态
-- 这只说明 local development 已具备 observability preflight 条件，不等于 deploy-side secret store 与 live sink verification 已关闭
-- deploy 环境仍应逐个确认 `apps/app-api`、`apps/public-chat-web`、`apps/protected-panel-web` 的 `SENTRY_*` / `AXIOM_*` 是否已正确下发
+- 2026-03-31 已完成一次本地 observability readiness 复核：`check_worker_observability_env` 通过，且 `apps/app-api`、`apps/public-chat-web`、`apps/protected-panel-web` 的 targeted Worker smoke 全部通过
+- 这意味着 `Pre-Deploy Readiness` 已闭环；它不自动推出 deploy-side secret store 与 live sink verification 已关闭
+- 对 deploy 环境的 `SENTRY_*` / `AXIOM_*` 下发确认与 live sink smoke，应在首个真实部署环境创建后作为 deployment gate 执行，而不是把“尚未部署”写成当前 repo blocker
 
 ## Eval Env 约定
 
@@ -78,7 +79,7 @@ updated: 2026-03-31
 - `apps/protected-panel-web/.dev.vars.example` 中的 `PANEL_RUNTIME_API_BASE_URL` 应指向 shared `apps/app-api`，不是 `apps/supervisor-api`
 - `PANEL_APP_API_SHARED_SECRET` 与 `APP_API_INTERNAL_SHARED_SECRET` 必须保持同值
 - 这些脚本只是本地 convenience，不改变 ownership：运行时仍然只消费各 app 自己的 `.dev.vars` / `.env` 或 deploy secret store
-- 真正的 sink closure 仍以 `docs/runbooks/worker-observability-smoke-runbook.md` 中的 post-deploy smoke 为准
+- 真正的 sink closure 仍以 `docs/runbooks/worker-observability-smoke-runbook.md` 中的 `Post-Deploy Verification` 为准
 
 ## 命令级 Override 约束
 

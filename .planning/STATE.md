@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: 2026-03-31 handbook phase-closeout docs are updated; current root-worktree follow-up is remaining handbook metric-gap analysis plus non-live app-api observability verification and stale-truth cleanup
-last_updated: "2026-03-31T08:42:03+08:00"
+stopped_at: 2026-03-31 local observability preflight and Worker smokes revalidated; pre-deploy readiness is closed and post-deploy verification now waits for the first real Worker deployment, while stale-truth cleanup continues
+last_updated: "2026-03-31T14:44:28+08:00"
 progress:
   total_phases: 17
   completed_phases: 17
@@ -19,7 +19,7 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-03-31)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 runtime-profile-driven serving surface 证明这条架构能可靠承接高频校园问答
-**Current focus:** Phase 7 handbook verification 已完成；2026-03-31 handbook fresh acceptance rerun 已把当前真相收口为“serving 与 supplemental runtime 都可用，但 `ragas.answer_relevancy` / `ragas.context_precision` / `ragas.context_recall` 仍是剩余 soft-gap”。当前 root-worktree 主线已从 docs/state 真相回写推进到下一步：继续做 handbook metric-gap 分析，并继续 shared `app-api` Worker runtime 的 observability verification、已对齐 seam 的 stale-truth cleanup，以及已落地 `Official Web` surface 的持续 hardening。`Jobs` / `Operations` 仍不进入第一波 rollout
+**Current focus:** Phase 7 handbook verification 已完成；2026-03-31 handbook fresh acceptance rerun 已把当前真相收口为“serving 与 supplemental runtime 都可用，但 `ragas.answer_relevancy` / `ragas.context_precision` / `ragas.context_recall` 仍是剩余 soft-gap”。当前 root-worktree 的 non-RAG follow-up 已进一步收口：local observability preflight 与 Worker smoke 已再次通过，Worker observability 现应视为“pre-deploy ready / post-deploy verification pending first real deployment”，同时继续清理 `.planning/codebase/*` 中仍落后于 merged truth 的映射文档。`Jobs` / `Operations` 仍不进入第一波 rollout
 
 ## Current Position
 
@@ -161,7 +161,7 @@ Recent decisions affecting current work:
 - Treat the 2026-03-31 handbook acceptance artifact as current truth, and use it to drive the next round of answer/support shaping work instead of reopening timeout / repair semantics.
 - Keep `official_web` command/query/handoff tests and operator projections as reusable regression gates for later collector or ingestion integration changes.
 - Keep `Jobs` and `Operations` out of the default panel rollout until product scope explicitly re-opens them.
-- Confirm deploy-side `SENTRY_*` / `AXIOM_*` assignment for `apps/app-api`, `apps/public-chat-web`, and `apps/protected-panel-web`, then run post-deploy smoke verification for trace propagation, error capture, and minimal runtime event ingest.
+- For the first real deployed Worker environment, confirm deploy-side `SENTRY_*` / `AXIOM_*` assignment for `apps/app-api`, `apps/public-chat-web`, and `apps/protected-panel-web`, then run post-deploy smoke verification for trace propagation, error capture, and minimal runtime event ingest. Local preflight and targeted Worker smoke were revalidated on 2026-03-31, so this is now a deployment gate rather than an active local-engineering blocker.
 
 ### Blockers/Concerns
 
@@ -171,7 +171,7 @@ Recent decisions affecting current work:
 - panel `Requests` is no longer blocked, but panel work must still avoid reading audit logs, telemetry sinks, consumer chat tables, or `apps/supervisor-api` directly.
 - `Official Web` control-plane APIs and panel domain are now landed on `apps/app-api` + `apps/protected-panel-web`; follow-up work must extend this surface rather than reintroducing panel-side synthesis or direct infrastructure reads.
 - `Jobs` / `Operations` / `Audit` remain delayed; landed `Official Web` views do not authorize a generic ops console.
-- Observability runtime code is landed, and local worktree env is now ready; what remains open is deploy-side assignment confirmation plus live sink verification.
+- Observability runtime code is landed, local worktree env is ready, and the targeted Worker smokes are green. There is no current local-engineering blocker here; the repo truth is simply that the first real deployed Worker environment does not exist yet, so deploy-side sink verification remains pending by design. When deployment exists, the smoke runner will need real hostnames, a Worker release identifier, and Sentry/Axiom access; local placeholder URLs such as `chat.example.com`, `panel.example.com`, and `app-api.internal` remain development-only values.
 - `student_handbook` live serving 与 supplemental runtime 都已不再是 blocker；剩余 handbook concern 已收口到质量层：2026-03-31 acceptance 仍对 `ragas.answer_relevancy`、`ragas.context_precision`、`ragas.context_recall` 给出 `warn`，其中 `release-gate-dormitory-lighting` 是当前最明显的 case-level 拖累。
 
 ## Session Continuity
