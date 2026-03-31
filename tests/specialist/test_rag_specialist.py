@@ -555,8 +555,8 @@ class RagSpecialistTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertNotIn("1.", response.answer_text)
-        self.assertIn("学生应提交书面申请并填写申请表。", response.answer_text)
-        self.assertIn("院系审核通过后报学校复核。", response.answer_text)
+        self.assertIn("学生应提交书面申请并填写申请表", response.answer_text)
+        self.assertIn("院系审核通过后报学校复核", response.answer_text)
         self.assertLessEqual(len(response.result.evidence.sources), 3)
         self.assertEqual(
             len({source.chunk_id for source in response.result.evidence.sources}),
@@ -754,11 +754,17 @@ class RagSpecialistTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertEqual([source.chunk_id for source in response.result.evidence.sources], ["chunk-0001"])
+        self.assertIn("先", response.answer_text)
+        self.assertIn("再", response.answer_text)
         self.assertIn("挂失", response.answer_text)
         self.assertIn("申请补办", response.answer_text)
         self.assertIn("书面申请", response.answer_text)
         self.assertIn("每周四下午", response.answer_text)
+        self.assertLess(response.answer_text.index("挂失"), response.answer_text.index("申请补办"))
         self.assertNotIn("交回学生处销毁", response.answer_text)
+        self.assertNotIn("火车票学生优惠卡", response.answer_text)
+        self.assertNotIn("不予发放", response.answer_text)
+        self.assertNotIn("不良后果", response.answer_text)
 
     def test_completed_response_keeps_only_primary_time_rule_when_it_already_answers_lighting_query(self) -> None:
         evidence = EvidenceBundle(
