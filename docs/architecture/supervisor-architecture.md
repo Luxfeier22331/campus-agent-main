@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-22
-updated: 2026-03-29
+updated: 2026-03-31
 ---
 
 # Supervisor 架构设计
@@ -12,7 +12,7 @@ updated: 2026-03-29
 定义 `campus-agent` 中 supervisor 的专属架构边界，并明确区分：
 
 - 长期架构：系统成熟后的稳定角色、职责和交互模型
-- 当期设计架构：phase-1 / 当前实现阶段应该采用的最小正确形态
+- 当前接受设计：当前 merged truth 下应采用的最小正确形态
 
 这份文档只回答 supervisor 应该如何设计，不替代全局架构文档、阶段 ADR 或实施计划。
 
@@ -29,7 +29,7 @@ updated: 2026-03-29
 - `docs/architecture/rag-specialist-architecture.md`
   定义 retrieval-specific intent framing 与 RAG 内部边界
 - `docs/architecture/phase1-ingestion-and-storage-architecture.md`
-  定义第一阶段 ingestion / serving 的 accepted data-plane truth
+  定义当前 accepted ingestion / serving data-plane constraint；文件名中的 `phase1` 仅为历史命名
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
   定义长期编排模式、specialist 准入与安全边界
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
@@ -37,9 +37,9 @@ updated: 2026-03-29
 - `docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
   定义长期授权模型与 retrieval filter projection 的 canonical 决策
 - `docs/plans/agentic-rag-foundation.md`
-  定义 phase-1 落地顺序、文件落点和验收标准
+  保留历史实施基线、文件落点和早期门禁背景，不承担当前执行顺序真相
 - 本文
-  只定义 supervisor 这个边界自身的长期形态与当期设计形态
+  只定义 supervisor 这个边界自身的长期形态与当前接受设计
 
 ## 设计原则
 
@@ -50,7 +50,7 @@ updated: 2026-03-29
 - supervisor 不直接接触 retrieval、ingestion 或基础设施细节
 - supervisor 只消费 typed identity / authorization / memory projection，不拥有 canonical identity / authorization / memory truth
 - supervisor command side 可以生成最小 audit/trace/runtime facts，但不承载 shared product API、auth/session/conversation 或 panel query serving
-- phase-1 即使只有一个 specialist，也应保留真正的 coordination 形态，而不是长期停留在透传包装
+- 即使当前只有一个 query-serving specialist，也应保留真正的 coordination 形态，而不是长期停留在透传包装
 
 ## 长期架构
 
@@ -288,11 +288,11 @@ request projection 的长期边界见：
 - 对应 routing、delegation / handoff 和 safety gate 已在 `packages/evals` 中具备可重复验证
 - 缺少 machine-grade trace 点的设计，不应被视为“已具备长期可维护性”
 
-## 当期设计架构
+## 当前接受设计
 
 ### 目标
 
-当前阶段的 supervisor 设计目标不是一步做到完整多 agent orchestration，而是在 phase-1 约束内建立最小正确骨架：
+当前阶段的 supervisor 设计目标不是一步做到完整多 agent orchestration，而是在当前 accepted constraint 下建立最小正确骨架：
 
 - 当前默认 query-serving 主线仍是 `rag-specialist`
 - 当前可以显式路由到 `availability-specialist`
@@ -351,7 +351,7 @@ request projection 的长期边界见：
 - `validation.py`
   负责 capability 归一化、冲突请求拒绝和缺失路由输入校验
 - `query_policy.py`
-  负责 phase-1 query-enabled scope gate，不把范围决策塞回 transport 壳
+  负责当前 query-enabled scope gate，不把范围决策塞回 transport 壳
 - `routing.py`
   负责当前 specialist 选择逻辑，并为未来多 specialist 扩展保留接口
 - `errors.py`
@@ -390,7 +390,7 @@ request projection 如果需要落盘或提供给 panel，应在 API/runtime bou
 - 不为“先跑通”继续扩建 pass-through 结构
 - 当前默认由 supervisor 持续控场，不让 `rag-specialist` 接管用户回合
 - 不让 specialist 返回的自由文本直接驱动下一跳控制逻辑
-- 不把 phase-1 的单 specialist 设计写成长期架构承诺
+- 不把当前单 specialist 设计写成长期架构承诺
 - 如果未来引入新的 specialist，例如 `official-web` / `availability` specialist，应通过显式 routing target 和独立 contract 接入，而不是退回成 supervisor 内联 tool bundle
 
 ### 当前允许显式延后的能力
@@ -432,7 +432,7 @@ request projection 如果需要落盘或提供给 panel，应在 API/runtime bou
 - 具体 runtime 选型细节
 - supervisor 内部最终类名或模块名
 - 某个框架下的 agent/team API 用法
-- phase-1 的逐任务实施顺序
+- 当前 phase 的逐任务实施顺序
 - 第二个 specialist 的具体引入方式
 - 任何一轮新增 routing / specialist 的具体 gate 数值
 

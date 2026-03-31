@@ -16,7 +16,7 @@
 - request projection ownership：`docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - supervisor internal execution admission：`docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 - supervisor 专项架构：`docs/architecture/supervisor-architecture.md`
-- 第一阶段数据平面架构：`docs/architecture/phase1-ingestion-and-storage-architecture.md`
+- 数据平面架构约束（历史文件名保留）：`docs/architecture/phase1-ingestion-and-storage-architecture.md`
 - 编排与安全边界：`docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - shared `apps/app-api` runtime 已冻结为 Worker；见 `docs/decisions/adr-0013-app-api-worker-runtime.md`
 - `apps/supervisor-api` 表示 execution engine boundary，不代表已经选定 FastAPI 或其他 runtime
@@ -56,9 +56,9 @@
 
 已接受的前向产品拓扑是 `public-chat-web -> app-api -> supervisor-api` 与 `protected-panel-web -> app-api -> request projection`。当前 `protected-panel-web` worktree 已落地 shared Worker backend 与 web-surface 接线；当这些改动回 `develop` / `main` 时，仍必须保持 `ContextProjection` / `SupervisorResponse` shared seam，不得回退到旧 `snapshot` 路径。
 
-## 当前基线
+## 当前接受基线
 
-仓库已经从纯 bootstrap 进入 phase-1 主链路收口阶段。
+当前执行进度、phase 排序和 pending work 以 `.planning/PROJECT.md`、`.planning/ROADMAP.md`、`.planning/STATE.md` 为准；README 只描述当前 merged truth 下已接受的架构与运行约束。
 
 - 旧 bootstrap 已从工作树移除；如需追溯请查看 git 历史
 - 当前主路径是 `supervisor-api -> supervisor-core -> rag-specialist -> retrieval-core`
@@ -74,7 +74,7 @@
 - ingestion truth 统一为 `corpus + collection`：默认入口是 `regulations/student_handbook`；source 资产位于 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...`，并在同一来源前缀下按 `capture/`、`provider/`、`source-truth/` 分层保存，清洗后的文档存放在 derived bucket 的 `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/...`
 - `curriculum/curriculum_plan` 已进入 query-serving runtime profile 的受控 surface
 - `campus_services/service_catalog` 与 `campus_services/contact_directory` 已作为离线 taxonomy 预留，当前保持 `offline_preparation`，不开放 retrieval 或默认 query-serving
-- `rag-specialist`、`supervisor-core`、`supervisor-api`、`evals` 已有可测试的 phase-1 入口
+- `rag-specialist`、`supervisor-core`、`supervisor-api`、`evals` 已形成可测试的当前主链路入口
 - `uv run --all-packages python -m unittest discover -s tests -t .` 当前通过，作为仓库级基线验证命令
 - Node / Worker app 当前统一使用 `pnpm`，不再维护 `package-lock.json`
 - 运行态 buckets、live collection 重建证据、points count 与 benchmark 结果不在 README 维护；应以 `.planning/STATE.md`、`docs/runbooks/`、`docs/reference/` 和 `docs/policies/` 为准
@@ -99,7 +99,7 @@
 
 ## 实现入口
 
-- phase-1 地基实施基线：`docs/plans/agentic-rag-foundation.md`
+- 历史地基实施基线：`docs/plans/agentic-rag-foundation.md`
 - `app-api` 实施方案：`docs/plans/app-api-worker-foundation.md`
 - identity / memory / ACL 实施方案：`docs/plans/intent-memory-acl-foundation.md`
 - `app-api` contract / lifecycle / schema：`docs/contracts/`、`docs/data/`

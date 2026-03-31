@@ -24,16 +24,20 @@
 - `README.md`
 - `docs/README.md`
 - `docs/architecture/long-term-architecture.md`
+- `docs/architecture/supervisor-architecture.md`
 - `docs/architecture/shared-app-api-and-worker-web-surfaces.md`
 - `docs/architecture/app-api-architecture.md`
 - `docs/architecture/request-projection-and-runtime-read-model.md`
 - `docs/architecture/phase1-ingestion-and-storage-architecture.md`
+- `docs/architecture/retrieval-query-strategy.md`
 - `docs/decisions/adr-0002-local-minio-conventions.md`
+- `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
+- `docs/reference/runtime-serving-and-index-terms.md`
 - `docs/plans/agentic-rag-foundation.md`
 - `docs/plans/app-api-worker-foundation.md`
 - `.planning/PROJECT.md`
@@ -44,9 +48,9 @@
 
 - `AGENTS.md` 只负责仓库入口约束、目录导航和工作协议，不重复深层设计文档
 - 这个仓库当前没有业务意义上的 `refs/` 目录；默认把 `README.md` 和 `docs/` 视为实现与架构的参考材料
-- 长期边界、阶段决策、accepted implementation baseline 与实施门禁分别以对应 `docs/` 文档为准
+- 长期边界、accepted architecture constraint、历史实施基线与术语约束分别以对应 `docs/` 文档为准
 - 当前 phase 执行状态、pending work、最新讨论结论与当前轮计划以 `.planning/` 为准
-- 不要把 `docs/plans/agentic-rag-foundation.md` 中的早期 phase-1 实施叙事直接当作当前执行状态；它是第一阶段地基的 canonical 实施基线，不是当前 GSD 进度板
+- 不要把 `docs/plans/agentic-rag-foundation.md` 中的早期实施叙事直接当作当前执行状态；它是历史实施基线，不是当前 GSD 进度板
 - 如果这里的表述和深层设计文档冲突，以深层设计文档为准，并优先修正本文件
 - 在引用 Source Of Truth 之前，先确认是否准确理解了用户当前问题；不得用文档权威覆盖对用户原意的错误理解
 
@@ -131,7 +135,7 @@
 - 不要把 online query path 和 offline ingestion/data plane 混在同一层
 - 不要把本机目录语义提升成长期对象存储真相源；当前阶段对象存储虽然可本机部署，但架构语义上仍是 `S3-compatible object storage`
 - 任何实现都应先尊重已冻结的 contract 和 package 边界，再考虑 runtime 或框架便利性
-- 第一阶段查询默认语料是 `student_handbook`；如需新增 data-plane corpus，必须同步更新决策/计划文档并保持 retrieval 范围显式不变
+- query-serving surface 由 collection runtime profile 显式控制；如需新增或收缩 serving surface，必须同步更新决策/计划文档并保持范围显式
 
 ### Architecture Over Patchwork
 
@@ -150,7 +154,7 @@
 - 优先在边界内修改；跨多个 package 改动时，先确认 `packages/contracts` 是否需要先冻结或先调整
 - 仓库仍在地基阶段；优先补最小可验证闭环，不做“未来也许会用到”的泛化设计
 - Node / Worker app 默认使用 `pnpm`，不再新增或维护 `package-lock.json`
-- 如果变更触及长期边界、phase-1 约束或对象存储/ingestion 不变量，同步检查相关 `docs/architecture` 或 `docs/decisions` 是否需要更新
+- 如果变更触及长期边界、当前 accepted retrieval/data-plane 约束或对象存储/ingestion 不变量，同步检查相关 `docs/architecture` 或 `docs/decisions` 是否需要更新
 - 不要在 repo 级 `AGENTS.md` 里写个人工作习惯、平台专属工具细则或一次性实验说明；这些内容应放到全局 agent 配置
 - 在规则、架构、文档和实现设计层面，同样禁止用“最小改法”替代长期正确的结构性修正
 
