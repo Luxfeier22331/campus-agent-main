@@ -13,6 +13,14 @@ def _curriculum_scope() -> KnowledgeScope:
     return KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
 
 
+def _reference_context_ids(*context_ids: str) -> tuple[str, ...]:
+    return tuple(context_ids)
+
+
+def _metric_overrides(**flags: bool) -> dict[str, bool]:
+    return dict(flags)
+
+
 def handbook_smoke_cases() -> tuple[GoldenCase, ...]:
     scope = _handbook_scope()
     return (
@@ -26,6 +34,8 @@ def handbook_smoke_cases() -> tuple[GoldenCase, ...]:
             expected_status="completed",
             expected_sources=(expected_source_ref("handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15"),),
             required_facts=("国家奖学金",),
+            reference_context_ids=_reference_context_ids("handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15"),
+            supplemental_metric_overrides=_metric_overrides(answer_relevancy=False),
             forbidden_claims=("研究生国家奖学金",),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -46,6 +56,7 @@ def handbook_smoke_cases() -> tuple[GoldenCase, ...]:
             expected_sources=(expected_source_ref("handbook:e90f9707387f9e232ea88ce1c7f5328242e52389"),),
             forbidden_sources=(expected_source_ref("handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15"),),
             required_facts=("学生证",),
+            reference_context_ids=_reference_context_ids("handbook:e90f9707387f9e232ea88ce1c7f5328242e52389"),
             forbidden_claims=("无需书面申请",),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -104,6 +115,8 @@ def handbook_regression_locked_cases() -> tuple[GoldenCase, ...]:
             expected_status="completed",
             expected_sources=(expected_source_ref("handbook:d0a1db59ed9a8b00c4349200916edae208d876f6"),),
             required_facts=("第二十四条",),
+            reference_context_ids=_reference_context_ids("handbook:d0a1db59ed9a8b00c4349200916edae208d876f6"),
+            supplemental_metric_overrides=_metric_overrides(answer_relevancy=False),
             forbidden_claims=("学生证补办",),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -123,6 +136,14 @@ def handbook_regression_locked_cases() -> tuple[GoldenCase, ...]:
             expected_status="completed",
             expected_sources=(expected_source_ref("handbook:2ec80263a9e7b11379281349196ceb96afa44c3b"),),
             required_facts=("宿舍照明",),
+            reference_facts=(
+                "亮灯时间: 周一至周五 每天早晨 5:30。",
+                "熄灯时间: 周日至周四 每天晚上 24:00; 23:50 提示。",
+                "每周五、周六晚上及复习考试期间不统一熄灯。",
+                "6月1日至9月30日,学生宿舍不统一熄灯。",
+            ),
+            reference_context_ids=_reference_context_ids("handbook:2ec80263a9e7b11379281349196ceb96afa44c3b"),
+            supplemental_metric_overrides=_metric_overrides(answer_relevancy=False),
             forbidden_claims=("每天20:00统一熄灯",),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -143,6 +164,14 @@ def handbook_regression_locked_cases() -> tuple[GoldenCase, ...]:
             expected_sources=(expected_source_ref("handbook:e90f9707387f9e232ea88ce1c7f5328242e52389"),),
             forbidden_sources=(expected_source_ref("handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15"),),
             required_facts=("学生证",),
+            reference_facts=(
+                "学生如将学生证遗失或损坏,应及时到学院(系)挂失。",
+                "写明遗失或损坏的原因、时间、地点等,并报学生处备案。",
+                "学生遗失学生证应及时申请补办。",
+                "学生补办学生证,必须提出书面申请。",
+                "学生证集中补办时间为每周四下午。",
+            ),
+            reference_context_ids=_reference_context_ids("handbook:e90f9707387f9e232ea88ce1c7f5328242e52389"),
             forbidden_claims=("无需书面申请",),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -201,6 +230,8 @@ def handbook_release_gate_cases() -> tuple[GoldenCase, ...]:
             expected_status="completed",
             expected_sources=(expected_source_ref("handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15"),),
             required_facts=("国家奖学金",),
+            reference_context_ids=_reference_context_ids("handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15"),
+            supplemental_metric_overrides=_metric_overrides(answer_relevancy=False),
             forbidden_claims=("研究生国家奖学金",),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -221,6 +252,14 @@ def handbook_release_gate_cases() -> tuple[GoldenCase, ...]:
             expected_sources=(expected_source_ref("handbook:e90f9707387f9e232ea88ce1c7f5328242e52389"),),
             forbidden_sources=(expected_source_ref("handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15"),),
             required_facts=("学生证",),
+            reference_facts=(
+                "学生如将学生证遗失或损坏,应及时到学院(系)挂失。",
+                "写明遗失或损坏的原因、时间、地点等,并报学生处备案。",
+                "学生遗失学生证应及时申请补办。",
+                "学生补办学生证,必须提出书面申请。",
+                "学生证集中补办时间为每周四下午。",
+            ),
+            reference_context_ids=_reference_context_ids("handbook:e90f9707387f9e232ea88ce1c7f5328242e52389"),
             forbidden_claims=("无需书面申请",),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -240,6 +279,14 @@ def handbook_release_gate_cases() -> tuple[GoldenCase, ...]:
             expected_status="completed",
             expected_sources=(expected_source_ref("handbook:2ec80263a9e7b11379281349196ceb96afa44c3b"),),
             required_facts=("宿舍照明",),
+            reference_facts=(
+                "亮灯时间: 周一至周五 每天早晨 5:30。",
+                "熄灯时间: 周日至周四 每天晚上 24:00; 23:50 提示。",
+                "每周五、周六晚上及复习考试期间不统一熄灯。",
+                "6月1日至9月30日,学生宿舍不统一熄灯。",
+            ),
+            reference_context_ids=_reference_context_ids("handbook:2ec80263a9e7b11379281349196ceb96afa44c3b"),
+            supplemental_metric_overrides=_metric_overrides(answer_relevancy=False),
             forbidden_claims=("每天20:00统一熄灯",),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -260,6 +307,8 @@ def handbook_release_gate_cases() -> tuple[GoldenCase, ...]:
             expected_sources=(expected_source_ref("handbook:b85de1cb327a26dc63488e247403ae3126d524be"),),
             forbidden_sources=(expected_source_ref("handbook:e90f9707387f9e232ea88ce1c7f5328242e52389"),),
             required_facts=("公费医疗",),
+            reference_context_ids=_reference_context_ids("handbook:b85de1cb327a26dc63488e247403ae3126d524be"),
+            supplemental_metric_overrides=_metric_overrides(answer_relevancy=False),
             forbidden_claims=("门诊全部免费",),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -381,6 +430,8 @@ def curriculum_release_gate_cases() -> tuple[GoldenCase, ...]:
             expected_status="completed",
             expected_sources=(expected_source_ref("curriculum:民族学本科人才培养方案"),),
             required_facts=("民族学本科人才培养方案",),
+            reference_context_ids=_reference_context_ids("curriculum:民族学本科人才培养方案"),
+            supplemental_metric_overrides=_metric_overrides(answer_relevancy=False),
             forbidden_claims=("学生手册",),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -400,6 +451,7 @@ def curriculum_release_gate_cases() -> tuple[GoldenCase, ...]:
             expected_status="completed",
             expected_sources=(expected_source_ref("curriculum:民族学本科第二学士学位人才培养方案"),),
             required_facts=("两年",),
+            reference_context_ids=_reference_context_ids("curriculum:民族学本科第二学士学位人才培养方案"),
             forbidden_claims=("四年", "学生手册"),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -419,6 +471,7 @@ def curriculum_release_gate_cases() -> tuple[GoldenCase, ...]:
             expected_status="completed",
             expected_sources=(expected_source_ref("curriculum:民族学本科人才培养方案"),),
             required_facts=("学分",),
+            reference_context_ids=_reference_context_ids("curriculum:民族学本科人才培养方案"),
             forbidden_claims=("学生手册",),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -438,6 +491,7 @@ def curriculum_release_gate_cases() -> tuple[GoldenCase, ...]:
             expected_status="completed",
             expected_sources=(expected_source_ref("curriculum:经济学拔尖人才创新班人才培养方案"),),
             required_facts=("课程地图",),
+            reference_context_ids=_reference_context_ids("curriculum:经济学拔尖人才创新班人才培养方案"),
             forbidden_claims=("学生手册",),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -496,6 +550,8 @@ def curriculum_smoke_cases() -> tuple[GoldenCase, ...]:
             expected_status="completed",
             expected_sources=(expected_source_ref("curriculum:民族学本科人才培养方案"),),
             required_facts=("民族学本科人才培养方案",),
+            reference_context_ids=_reference_context_ids("curriculum:民族学本科人才培养方案"),
+            supplemental_metric_overrides=_metric_overrides(answer_relevancy=False),
             forbidden_claims=("学生手册",),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -515,6 +571,7 @@ def curriculum_smoke_cases() -> tuple[GoldenCase, ...]:
             expected_status="completed",
             expected_sources=(expected_source_ref("curriculum:民族学本科第二学士学位人才培养方案"),),
             required_facts=("两年",),
+            reference_context_ids=_reference_context_ids("curriculum:民族学本科第二学士学位人才培养方案"),
             forbidden_claims=("四年", "学生手册"),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -574,6 +631,8 @@ def curriculum_regression_locked_cases() -> tuple[GoldenCase, ...]:
             expected_sources=(expected_source_ref("curriculum:历史学（强基计划）本科人才培养方案"),),
             forbidden_sources=(expected_source_ref("curriculum:历史学本科人才培养方案"),),
             required_facts=("强基计划",),
+            reference_context_ids=_reference_context_ids("curriculum:历史学（强基计划）本科人才培养方案"),
+            supplemental_metric_overrides=_metric_overrides(answer_relevancy=False),
             forbidden_claims=("普通历史学本科人才培养方案",),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -593,6 +652,7 @@ def curriculum_regression_locked_cases() -> tuple[GoldenCase, ...]:
             expected_status="completed",
             expected_sources=(expected_source_ref("curriculum:经济学拔尖人才创新班人才培养方案"),),
             required_facts=("课程地图",),
+            reference_context_ids=_reference_context_ids("curriculum:经济学拔尖人才创新班人才培养方案"),
             forbidden_claims=("学生手册",),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -613,6 +673,7 @@ def curriculum_regression_locked_cases() -> tuple[GoldenCase, ...]:
             expected_sources=(expected_source_ref("curriculum:中央民族大学通识课程“大学英语”课程教学计划"),),
             forbidden_sources=(expected_source_ref("curriculum:中央民族大学通识课程教学计划"),),
             required_facts=("学分",),
+            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程“大学英语”课程教学计划"),
             forbidden_claims=("学生手册",),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,

@@ -321,6 +321,25 @@ class RagasDatasetTest(unittest.TestCase):
         self.assertEqual(sample.reference, "图书馆开放时间为 08:00-22:00。")
         self.assertEqual(sample.retrieved_contexts, ["图书馆开放时间为 08:00-22:00。"])
 
+    def test_build_ragas_dataset_projects_reference_and_context_ids(self) -> None:
+        dataset = build_ragas_dataset(
+            RagasProjection(
+                case_id="case-with-ids",
+                user_input="学生证丢了怎么办？",
+                response="应先挂失，再申请补办。",
+                retrieved_contexts=("学生证遗失应及时挂失。",),
+                reference="学生证遗失应及时挂失。",
+                retrieved_context_ids=("handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",),
+                reference_context_ids=("handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",),
+                reference_contexts=("学生证遗失应及时挂失。",),
+            )
+        )
+
+        sample = dataset.samples[0]
+        self.assertEqual(sample.retrieved_context_ids, ["handbook:e90f9707387f9e232ea88ce1c7f5328242e52389"])
+        self.assertEqual(sample.reference_context_ids, ["handbook:e90f9707387f9e232ea88ce1c7f5328242e52389"])
+        self.assertEqual(sample.reference_contexts, ["学生证遗失应及时挂失。"])
+
 
 class RagasHttpTransportTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -1275,6 +1294,67 @@ class RagasHttpTransportTest(unittest.TestCase):
 
 
 class RagasScorerTest(unittest.TestCase):
+    def test_build_ragas_scorer_maps_id_based_context_metric_names_back_to_standard_metric_keys(self) -> None:
+        executed_metrics: list[str] = []
+
+        class FakeMetric:
+            def __init__(self, name: str) -> None:
+                self.name = name
+
+        class FakeEvaluationResult:
+            def __init__(self, metric_name: str, score: float) -> None:
+                self.scores = [{metric_name: score}]
+
+        def fake_evaluate(*, dataset, metrics, llm, embeddings, **kwargs):
+            del dataset, llm, embeddings, kwargs
+            executed_metrics.append(metrics[0].name)
+            if metrics[0].name == "id_based_context_precision":
+                return FakeEvaluationResult("id_based_context_precision", 1.0)
+            return FakeEvaluationResult("id_based_context_recall", 0.8)
+
+        def metric_factory(llm, embeddings, *, metric_names=None, projection=None):
+            del llm, embeddings, metric_names
+            self.assertIsNotNone(projection)
+            return (
+                FakeMetric("id_based_context_precision"),
+                FakeMetric("id_based_context_recall"),
+            )
+
+        settings = RagasSettings.from_env(
+            {
+                "LLM_API_KEY": "llm-key",
+                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+            }
+        )
+
+        scorer = build_ragas_scorer(
+            settings,
+            evaluate_fn=fake_evaluate,
+            llm_factory=lambda resolved: {"model": resolved.llm_model},
+            embeddings_factory=lambda resolved: {"model": resolved.embedding_model},
+            metric_factory=metric_factory,
+            metric_names=("context_precision", "context_recall"),
+        )
+
+        results = scorer(
+            RagasProjection(
+                case_id="case-id-based",
+                user_input="学生证丢了怎么办？",
+                response="应先挂失，再申请补办。",
+                retrieved_contexts=("学生证遗失应及时挂失。",),
+                reference="学生证遗失应及时挂失。",
+                retrieved_context_ids=("handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",),
+                reference_context_ids=("handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",),
+            )
+        )
+
+        self.assertEqual(executed_metrics, ["id_based_context_precision", "id_based_context_recall"])
+        self.assertEqual(tuple(item.metric_name for item in results), ("context_precision", "context_recall"))
+        self.assertEqual(results[0].score, 1.0)
+        self.assertEqual(results[1].score, 0.8)
+
     def test_build_ragas_scorer_executes_only_requested_metric_names(self) -> None:
         executed_metrics: list[str] = []
         factory_metric_names: list[tuple[str, ...] | None] = []

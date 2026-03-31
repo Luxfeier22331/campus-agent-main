@@ -22,6 +22,7 @@ from campus_contracts import (
     SpecialistResponse,
 )
 from campus_retrieval_core import CorpusQueryDisabledError, RetrievalBackendError
+from campus_rag_specialist import RagSpecialistAgent
 from campus_rag_specialist.confidence import derive_confidence
 from campus_rag_specialist.intent import frame_rag_intent
 from campus_rag_specialist.service import delegate_to_rag_agent
@@ -863,6 +864,54 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertIn("24:00", response.answer_text)
         self.assertIn("6月1日至9月30日", response.answer_text)
         self.assertNotIn("研究生宿舍", response.answer_text)
+
+    def test_answer_draft_exposes_statement_level_supporting_contexts(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="宿舍照明",
+            corpus="regulations",
+            collection="student_handbook",
+            sources=(
+                EvidenceSource(
+                    doc_id="handbook:2ec80263a9e7b11379281349196ceb96afa44c3b",
+                    revision_track="source-faithful",
+                    version_id="v1:04053b0f1ea9d0d4cbfeaf5e5381c16b67b1164f",
+                    chunk_id="chunk-0001",
+                    anchor={"page_start": 256, "page_end": 256, "section_path": ("一、时间安排",)},
+                    acl_level="public",
+                    canonical_url="https://campus.example/handbook/dormitory-lighting",
+                    latest_url="https://campus.example/handbook/dormitory-lighting",
+                    source_channel="pdf_ocr",
+                    collection="student_handbook",
+                    is_current=True,
+                    snippet=(
+                        "中央民族大学关于学生宿舍照明的管理规定 / 一、时间安排\n"
+                        "文号：民大校发[2007]299号\n"
+                        "1. 10月至次年5月31日:\n"
+                        "亮灯时间: 周一至周五 每天早晨 5:30。\n"
+                        "熄灯时间: 周日至周四 每天晚上 24:00; 23:50 提示。\n"
+                        "每周五、周六晚上及复习考试期间不统一熄灯。\n"
+                        "2. 6月1日至9月30日,学生宿舍不统一熄灯。\n"
+                        "3. 国家法定节假日不统一熄灯。"
+                    ),
+                    score=0.032522473,
+                    source_title="中央民族大学关于学生宿舍照明的管理规定",
+                    structural_path=("一、时间安排",),
+                    content_kind="policy_page",
+                    content_role="time_rule",
+                    detail_label="一、时间安排",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        draft = RagSpecialistAgent().build_answer(evidence)
+
+        self.assertEqual([source.chunk_id for source in draft.supporting_sources], ["chunk-0001"])
+        self.assertEqual(len(draft.supporting_contexts), 1)
+        self.assertIn("中央民族大学关于学生宿舍照明的管理规定：", draft.supporting_contexts[0])
+        self.assertIn("24:00", draft.supporting_contexts[0])
+        self.assertIn("6月1日至9月30日", draft.supporting_contexts[0])
+        self.assertNotIn("文号：", draft.supporting_contexts[0])
 
     def test_curriculum_completed_answer_uses_curriculum_specific_prefix(self) -> None:
         evidence = EvidenceBundle(

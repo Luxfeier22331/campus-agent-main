@@ -143,6 +143,7 @@ updated: 2026-03-31
 - `runbooks/student-handbook-hybrid-rebuild-checklist.md`
 - `runbooks/worker-observability-smoke-runbook.md`
 - `reference/curriculum-plan-eval-metrics.md`
+- `reference/eval-gold-truth-model.md`
 - `reference/golden-dataset-case-matrix.md`
 - `reference/phase1-ingestion-retrieval-implementation-truth.md`
 - `reference/runtime-serving-and-index-terms.md`

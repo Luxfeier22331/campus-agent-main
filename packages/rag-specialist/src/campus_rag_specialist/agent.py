@@ -73,6 +73,7 @@ _LOW_SIGNAL_QUERY_TOKENS = frozenset(
 class AnswerDraft:
     answer_text: str
     supporting_sources: tuple[EvidenceSource, ...]
+    supporting_contexts: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,7 +83,7 @@ class RagSpecialistAgent:
 
     def build_answer(self, evidence: EvidenceBundle) -> AnswerDraft:
         if not evidence.sources:
-            return AnswerDraft(answer_text="", supporting_sources=())
+            return AnswerDraft(answer_text="", supporting_sources=(), supporting_contexts=())
 
         candidate_sources = select_supporting_evidence_sources(
             query_text=evidence.query_text,
@@ -95,6 +96,7 @@ class RagSpecialistAgent:
             max_sources=self.max_answer_sources,
         )
         supporting_sources = tuple(source for source, _ in selected_rows)
+        supporting_contexts = _render_supporting_contexts(selected_rows)
         answer_text = _compose_direct_answer(
             evidence=evidence,
             selected_rows=selected_rows,
@@ -102,6 +104,7 @@ class RagSpecialistAgent:
         return AnswerDraft(
             answer_text=answer_text,
             supporting_sources=supporting_sources,
+            supporting_contexts=supporting_contexts,
         )
 
     def compose_answer(self, evidence: EvidenceBundle) -> str:
@@ -325,6 +328,28 @@ def _compose_direct_answer(
     if topic_label and topic_label not in _normalize_snippet(" ".join(fragments)):
         return f"{answer_prefix}，关于{topic_label}：{'；'.join(fragments)}"
     return f"{answer_prefix}，{'；'.join(fragments)}"
+
+
+def _render_supporting_contexts(
+    selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
+) -> tuple[str, ...]:
+    contexts: list[str] = []
+    for source, statements in selected_rows:
+        context = _render_supporting_context(source, statements)
+        if context:
+            contexts.append(context)
+    return tuple(contexts)
+
+
+def _render_supporting_context(source: EvidenceSource, statements: tuple[str, ...]) -> str:
+    fragments = tuple(statement for statement in statements if statement)
+    body = "；".join(fragments) if fragments else _render_source_support(source)
+    if not body:
+        return ""
+    title = _normalize_snippet(source.source_title)
+    if title and title not in body:
+        return f"{title}：{body}"
+    return body
 
 
 def _query_topic_label(query_text: str) -> str:

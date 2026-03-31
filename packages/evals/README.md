@@ -45,6 +45,9 @@ supplemental adapter seam：
 
 - `run_cases(..., supplemental_adapters=(...,))` 可在 deterministic verdict 之外附加 report-only 评分
 - `campus_evals.ragas_adapter.build_ragas_projection()` 负责把仓库自有 `GoldenCase + ExecutionResult` 投影成 `ragas` 友好的 `user_input / response / retrieved_contexts / reference`
+- `GoldenCase.required_facts` 继续服务 deterministic completeness；如需 richer supplemental reference，使用 `GoldenCase.reference_facts`
+- `GoldenCase.reference_context_ids` / `reference_contexts` 负责 supplemental context truth；当前优先 `reference_context_ids`
+- `GoldenCase.supplemental_metric_overrides` 用于显式关闭不适用的 supplemental metric，例如 title/article lookup case 的 `answer_relevancy`
 - `campus_evals.ragas_adapter.RagasSupplementalAdapter` 只负责 supplemental 评分接线，不影响 `CaseResult.passed`
 - `RunReport.by_supplemental` 单独聚合 adapter 指标，和 `by_metric` 的 deterministic gate 分离
 

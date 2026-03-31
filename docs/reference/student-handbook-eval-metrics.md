@@ -63,6 +63,38 @@ case 级主要拖累：
 - 2026-03-31 的 fresh artifact 已经推翻 2026-03-30 “`faithfulness` 仍 runtime-unavailable”的旧结论；当前 `warn` 不能再归因于 provider/runtime 不稳定
 - 当前是否继续优化，应该聚焦 answer/support shaping 与 RAGAS context alignment，而不是继续调 timeout、repair 语义或 soft gate 阈值
 
+## Repo-Head Diagnosis（2026-03-31）
+
+以下结论反映当前仓库代码状态，不等同于上面 artifact 已经重跑完成：
+
+- `packages/evals` 现在会把 handbook RAGAS `retrieved_contexts` 投影为 statement-level supporting contexts，而不是直接把完整 chunk snippet 原样喂给 RAGAS
+- `GoldenCase` 已新增 `reference_facts`：
+  - `required_facts` 继续只承担 deterministic `answer_accuracy / answer_completeness`
+  - `reference_facts` 专门承载 supplemental reference truth，避免为了软指标去扭曲 deterministic gate
+- `GoldenCase` 现已继续拆出：
+  - `reference_context_ids`
+  - `reference_contexts`
+  - `supplemental_metric_overrides`
+- `context_precision/context_recall` 现在优先走 ID-based context truth；lookup case 的 `answer_relevancy` 适用性也已显式化
+- `release-gate-student-card` / `release-gate-dormitory-lighting` 以及对应 handbook regression case 已补充 richer `reference_facts`
+
+单 case live 复验结论：
+
+- 对 `release-gate-dormitory-lighting`：
+  - 仅把 context 粒度收紧到 statement-level 时，`context_precision = 0.0`、`context_recall = 0.0` 仍然成立
+  - 在保持同一条 live supporting context 不变的前提下，只把 reference 改为真实答案事实后：
+    - `context_precision = 0.9999999999`
+    - `context_recall = 1.0`
+- 因此，2026-03-31 artifact 里这条 case 的 `context_precision/context_recall` 低分主因是 benchmark truth 过薄，而不是 provider、repair 或 retrieval runtime 不稳定
+
+当前剩余问题已进一步收敛为：
+
+- `answer_relevancy` 仍需 fresh rerun 重新确认
+- 其中 `release-gate-dormitory-lighting` 的低分更像是“短标题式 query 是否适合进入 `answer_relevancy` denominator”的 case design 问题，而不是 retrieval context 噪声问题
+- repo-head 现在已经走第二条路径：
+  - 这类 lookup case 通过 `supplemental_metric_overrides` 显式排除 `answer_relevancy`
+  - fresh rerun 后应重点确认 remaining warn 是否已经只剩真实自然问句 case
+
 ## Gate Topology
 
 当前 `student_handbook` release gate 拆成两条轨道：

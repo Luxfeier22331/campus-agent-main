@@ -75,6 +75,10 @@ class GoldenCase:
     expected_sources: tuple[ExpectedSourceRef, ...] = field(default_factory=tuple)
     forbidden_sources: tuple[ExpectedSourceRef, ...] = field(default_factory=tuple)
     required_facts: tuple[str, ...] = field(default_factory=tuple)
+    reference_facts: tuple[str, ...] = field(default_factory=tuple)
+    reference_context_ids: tuple[str, ...] = field(default_factory=tuple)
+    reference_contexts: tuple[str, ...] = field(default_factory=tuple)
+    supplemental_metric_overrides: dict[str, bool] = field(default_factory=dict)
     forbidden_claims: tuple[str, ...] = field(default_factory=tuple)
     trace_expectation: TraceExpectation | None = None
     grader_policy: GraderPolicy = field(default_factory=GraderPolicy)
@@ -95,6 +99,13 @@ class GoldenCase:
             raise ValueError(f"unsupported expected_status: {self.expected_status}")
         if not self.user_goal.strip():
             raise ValueError("user_goal must not be empty")
+        invalid_metric_keys = [
+            key
+            for key, value in self.supplemental_metric_overrides.items()
+            if not str(key).strip() or not isinstance(value, bool)
+        ]
+        if invalid_metric_keys:
+            raise ValueError("supplemental_metric_overrides must map non-empty metric names to bool values")
 
 
 @dataclass(frozen=True, slots=True)

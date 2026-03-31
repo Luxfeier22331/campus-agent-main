@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import unittest
 
 from campus_contracts import (
@@ -31,6 +32,15 @@ from campus_evals import (
 
 HANDBOOK_SCOPE = KnowledgeScope(corpus="regulations", collection="student_handbook")
 CURRICULUM_SCOPE = KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+
+
+def _is_lookup_style_goal(user_goal: str) -> bool:
+    normalized = user_goal.strip()
+    if re.search(r"第[一二三四五六七八九十百0-9]+条$", normalized):
+        return True
+    if any(token in normalized for token in ("怎么办", "怎么", "如何", "多少", "几年", "安排", "授予")):
+        return False
+    return normalized.endswith(("管理办法", "评审办法", "人才培养方案", "教学计划", "宿舍照明"))
 
 
 def _source(
@@ -110,6 +120,24 @@ class GoldenCaseSchemaTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "expected_handoff"):
             TraceExpectation(expected_handoff="supervisor-direct")
 
+    def test_case_accepts_reference_context_truth_and_metric_overrides(self) -> None:
+        case = GoldenCase(
+            case_id="case-with-supplemental-truth",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="图书馆开放时间是什么？",
+            actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
+            expected_status="completed",
+            reference_context_ids=("handbook:library",),
+            reference_contexts=("图书馆开放时间为 08:00-22:00。",),
+            supplemental_metric_overrides={"answer_relevancy": False},
+        )
+
+        self.assertEqual(case.reference_context_ids, ("handbook:library",))
+        self.assertEqual(case.reference_contexts, ("图书馆开放时间为 08:00-22:00。",))
+        self.assertEqual(case.supplemental_metric_overrides, {"answer_relevancy": False})
+
 
 class RunCasesTest(unittest.TestCase):
     def test_handbook_smoke_cases_cover_stable_terminal_statuses(self) -> None:
@@ -166,6 +194,7 @@ class RunCasesTest(unittest.TestCase):
 
     def test_handbook_release_gate_cases_cover_terminal_statuses(self) -> None:
         cases = handbook_release_gate_cases()
+        cases_by_id = {case.case_id: case for case in cases}
 
         self.assertEqual(len(cases), 6)
         self.assertEqual(
@@ -192,6 +221,41 @@ class RunCasesTest(unittest.TestCase):
         )
         self.assertTrue(all(case.split == "release_gate" for case in cases))
         self.assertTrue(all(case.scope == HANDBOOK_SCOPE for case in cases))
+        self.assertTrue(
+            any("24:00" in fact for fact in cases_by_id["release-gate-dormitory-lighting"].reference_facts)
+        )
+        self.assertTrue(
+            any("每周四下午" in fact for fact in cases_by_id["release-gate-student-card"].reference_facts)
+        )
+        self.assertEqual(
+            cases_by_id["release-gate-scholarship-title"].supplemental_metric_overrides.get("answer_relevancy"),
+            False,
+        )
+        self.assertEqual(
+            cases_by_id["release-gate-dormitory-lighting"].reference_context_ids,
+            ("handbook:2ec80263a9e7b11379281349196ceb96afa44c3b",),
+        )
+
+    def test_completed_release_and_regression_cases_define_context_truth_or_explicit_metric_skip(self) -> None:
+        cases = (
+            *handbook_release_gate_cases(),
+            *handbook_regression_locked_cases(),
+            *curriculum_release_gate_cases(),
+            *curriculum_regression_locked_cases(),
+        )
+
+        for case in cases:
+            if case.expected_status != "completed":
+                continue
+            with self.subTest(case_id=case.case_id):
+                self.assertTrue(
+                    case.reference_context_ids or case.reference_contexts,
+                    "completed case must define supplemental context truth",
+                )
+                self.assertEqual(
+                    case.supplemental_metric_overrides.get("answer_relevancy") is False,
+                    _is_lookup_style_goal(case.user_goal),
+                )
 
     def test_handbook_error_gate_cases_cover_deterministic_error_paths(self) -> None:
         cases = handbook_error_gate_cases()
