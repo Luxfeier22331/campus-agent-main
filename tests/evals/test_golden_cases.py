@@ -196,12 +196,14 @@ class RunCasesTest(unittest.TestCase):
         cases = handbook_release_gate_cases()
         cases_by_id = {case.case_id: case for case in cases}
 
-        self.assertEqual(len(cases), 6)
+        self.assertEqual(len(cases), 8)
         self.assertEqual(
             tuple(case.case_id for case in cases),
             (
                 "release-gate-scholarship-title",
                 "release-gate-student-card",
+                "release-gate-student-card-materials",
+                "release-gate-student-card-time",
                 "release-gate-dormitory-lighting",
                 "release-gate-medical-title",
                 "release-gate-no-answer",
@@ -211,6 +213,8 @@ class RunCasesTest(unittest.TestCase):
         self.assertEqual(
             tuple(case.expected_status for case in cases),
             (
+                "completed",
+                "completed",
                 "completed",
                 "completed",
                 "completed",
@@ -226,6 +230,12 @@ class RunCasesTest(unittest.TestCase):
         )
         self.assertTrue(
             any("每周四下午" in fact for fact in cases_by_id["release-gate-student-card"].reference_facts)
+        )
+        self.assertTrue(
+            any("书面申请" in fact for fact in cases_by_id["release-gate-student-card-materials"].reference_facts)
+        )
+        self.assertTrue(
+            any("每周四下午" in fact for fact in cases_by_id["release-gate-student-card-time"].reference_facts)
         )
         self.assertEqual(
             cases_by_id["release-gate-scholarship-title"].supplemental_metric_overrides.get("answer_relevancy"),
@@ -774,6 +784,53 @@ class RunCasesTest(unittest.TestCase):
         self.assertEqual(report.by_metric["error_path_correctness"].total, 0)
         self.assertIsNone(report.by_metric["error_path_correctness"].pass_rate)
         self.assertEqual(report.by_metric["error_path_correctness"].reason, "no_applicable_cases")
+
+    def test_runner_grades_procedure_directness_for_procedure_queries(self) -> None:
+        case = GoldenCase(
+            case_id="procedure-directness",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="学生证丢了怎么办",
+            actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
+            expected_status="completed",
+            expected_sources=(expected_source_ref("handbook:student-card"),),
+            required_facts=("挂失", "补办"),
+            trace_expectation=TraceExpectation(
+                selected_scope=HANDBOOK_SCOPE,
+                retrieval_called=True,
+            ),
+        )
+
+        good_report = run_cases(
+            (case,),
+            executor=lambda _: ExecutionResult(
+                response=_response(
+                    answer_text="根据学生手册相关规定，先到学院(系)挂失并报学生处备案；再提交书面申请并办理补办手续。",
+                    sources=(_source(doc_id="handbook:student-card"),),
+                ),
+                observed_trace=ObservedTrace(
+                    selected_scope=HANDBOOK_SCOPE,
+                    retrieval_called=True,
+                ),
+            ),
+        )
+        bad_report = run_cases(
+            (case,),
+            executor=lambda _: ExecutionResult(
+                response=_response(
+                    answer_text="根据学生手册相关规定，补办学生证时不予发放火车票学生优惠卡；学生证集中补办时间为每周四下午。",
+                    sources=(_source(doc_id="handbook:student-card"),),
+                ),
+                observed_trace=ObservedTrace(
+                    selected_scope=HANDBOOK_SCOPE,
+                    retrieval_called=True,
+                ),
+            ),
+        )
+
+        self.assertEqual(good_report.by_metric["procedure_directness"].passed, 1)
+        self.assertEqual(bad_report.by_metric["procedure_directness"].failed, 1)
 
     def test_runner_accepts_supervisor_clarification_without_rag_evidence(self) -> None:
         case = GoldenCase(

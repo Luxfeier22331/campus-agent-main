@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: 2026-03-31 local observability preflight and Worker smokes revalidated; pre-deploy readiness is closed and post-deploy verification now waits for the first real Worker deployment, while stale-truth cleanup continues
-last_updated: "2026-03-31T14:44:28+08:00"
+stopped_at: 2026-03-31 handbook repo-head remediation landed and verified by tests; next step is a fresh handbook live acceptance rerun to confirm the new procedure answer-shaping and expanded release-gate signal against real providers
+last_updated: "2026-03-31T18:44:39+08:00"
 progress:
   total_phases: 17
   completed_phases: 17
@@ -19,7 +19,7 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-03-31)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 runtime-profile-driven serving surface 证明这条架构能可靠承接高频校园问答
-**Current focus:** Phase 7 handbook verification 已完成；2026-03-31 handbook fresh acceptance rerun 已把当前真相收口为“serving 与 supplemental runtime 都可用，但 `ragas.answer_relevancy` / `ragas.context_precision` / `ragas.context_recall` 仍是剩余 soft-gap”。当前 root-worktree 的 non-RAG follow-up 已进一步收口：local observability preflight 与 Worker smoke 已再次通过，Worker observability 现应视为“pre-deploy ready / post-deploy verification pending first real deployment”，同时继续清理 `.planning/codebase/*` 中仍落后于 merged truth 的映射文档。`Jobs` / `Operations` 仍不进入第一波 rollout
+**Current focus:** Phase 7 handbook verification 已完成；当前 artifact truth 仍是 2026-03-31 `160402` handbook acceptance，结论为 `deterministic_verdict=pass`、`supplemental_verdict=warn`，remaining soft-gap 只落在 `ragas.answer_relevancy`。本轮 root-worktree 已继续完成 repo-head remediation：`procedure` 类答案改为 intent-aware answer shaping、`ragas` 已接入可选中文 prompt adaptation、handbook release-gate 已从单一 `student-card` 自然问句扩为 `student-card / materials / time` 三问，并新增 deterministic `procedure_directness`。当前工程上的下一步不再是继续改 provider/runtime，而是执行一次 fresh handbook live acceptance rerun，确认新回答合同与新 case inventory 在真实 provider 上是否稳定收敛；Worker observability 仍保持“pre-deploy ready / post-deploy verification pending first real deployment”，但这不再阻塞 handbook 质量线
 
 ## Current Position
 
@@ -59,7 +59,7 @@ Plan: 2 of 2
 **Recent Trend:**
 
 - Last 5 plans: 05.1-04, 06-01, 06-02, 07-01, 07-02
-- Trend: handbook mainline verification evidence is closed；2026-03-31 fresh acceptance rerun 已确认 supplemental runtime 健康，因此 live follow-up 已从 provider/runtime 恢复转为真实 metric-gap 分析。非 live 主线仍是 observability verification、stale merge-truth cleanup 与 landed `official_web` surface hardening，而不是继续承担 curriculum release-gate 执行
+- Trend: handbook mainline verification evidence is closed；2026-03-31 fresh acceptance rerun 已确认 supplemental runtime 健康，而本轮 repo-head remediation 又把 handbook follow-up 进一步收口成“rerun 验证新的 procedure answer contract 与 expanded release-gate signal”。非 handbook 主线仍是 observability deployment verification、stale merge-truth cleanup 与 landed `official_web` surface hardening，而不是继续承担 curriculum release-gate 执行
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
@@ -153,12 +153,21 @@ Recent decisions affecting current work:
 - The current merged truth now treats `ContextProjection` + `SupervisorResponse` as the shared seam; follow-up work must preserve that seam instead of reintroducing `snapshot`.
 - Curriculum gate closeout now has canonical docs/runbook coverage in `docs/reference/curriculum-plan-eval-metrics.md` and `docs/runbooks/curriculum-plan-hybrid-rebuild-checklist.md`; fresh live evidence belongs to the root worktree rather than this branch-local follow-up.
 - shared `app-api -> supervisor-api` seam is now aligned to `ContextProjection` / `SupervisorResponse`: request payloads no longer depend on actor `snapshot`, `supervisor-api` accepts body `actor/context` after admission, and request projections keep `approval_required` / `rejected` as first-class runtime statuses.
-- 2026-03-31 `student_handbook` fresh acceptance rerun 已确认 current truth：`deterministic_verdict=pass`、`supplemental_verdict=warn`、`final_overall_verdict=warn`；`ragas.faithfulness` 已恢复为 `pass`，`repair` 正确跳过，剩余 `warn` 只来自 `ragas.answer_relevancy` / `ragas.context_precision` / `ragas.context_recall` 的真实质量 gap，而不是 serving rebuild/publish 或 supplemental runtime blocker。
+- 2026-03-31 `student_handbook` fresh acceptance rerun 已确认 artifact truth：`deterministic_verdict=pass`、`supplemental_verdict=warn`、`final_overall_verdict=warn`；`ragas.faithfulness` 已恢复为 `pass`，`repair` 正确跳过，artifact 剩余 `warn` 只来自 `ragas.answer_relevancy`。
+- 2026-03-31 root-worktree 已完成 repo-head remediation：`rag-specialist` 的 `procedure` answer shaping 收口为 action-first contract，`packages/evals` 新增 deterministic `procedure_directness`，`build_default_ragas_metrics()` 新增 `EVAL_RAGAS_TARGET_LANGUAGE` / `RAGAS_ADAPT_INSTRUCTION` 接线，`handbook_release_gate_cases()` 现已扩为 `student-card / materials / time` 三个自然问句 signal。
+- 由于 `campus_evals.handbook_live_benchmark` 当前 CLI 不支持按 case 子集运行，下一次 live 验证应优先选择 fresh handbook rerun 或基于现有 artifact 的 repair，而不是尝试只跑单个新增 case。
 
 ### Pending Todos
 
 - Keep handbook chunk-truth validation and handbook eval artifacts as reusable regression gates for later retrieval changes.
-- Treat the 2026-03-31 handbook acceptance artifact as current truth, and use it to drive the next round of answer/support shaping work instead of reopening timeout / repair semantics.
+- Treat the 2026-03-31 handbook acceptance artifact as current truth until the next rerun lands, and keep repo-head remediation explicitly separated from artifact truth in docs/status.
+- Run a fresh `student_handbook` live acceptance rerun against real providers to validate repo-head remediation:
+  - `procedure` answer shaping
+  - `procedure_directness`
+  - expanded `student-card / materials / time` release-gate cases
+  - `ragas.answer_relevancy` denominator and score behavior after the new renderer
+- After the next handbook rerun lands, refresh `docs/reference/student-handbook-eval-metrics.md` with the new artifact truth instead of continuing to reason from the old `160402` snapshot.
+- If the rerun still leaves a handbook soft-gap, inspect case-level `answer_relevancy` and decide whether the next change belongs in answer shaping, metric adaptation, or case inventory expansion; do not reopen Qdrant/provider/runtime semantics unless a new runtime failure appears.
 - Keep `official_web` command/query/handoff tests and operator projections as reusable regression gates for later collector or ingestion integration changes.
 - Keep `Jobs` and `Operations` out of the default panel rollout until product scope explicitly re-opens them.
 - For the first real deployed Worker environment, confirm deploy-side `SENTRY_*` / `AXIOM_*` assignment for `apps/app-api`, `apps/public-chat-web`, and `apps/protected-panel-web`, then run post-deploy smoke verification for trace propagation, error capture, and minimal runtime event ingest. Local preflight and targeted Worker smoke were revalidated on 2026-03-31, so this is now a deployment gate rather than an active local-engineering blocker.
@@ -172,7 +181,10 @@ Recent decisions affecting current work:
 - `Official Web` control-plane APIs and panel domain are now landed on `apps/app-api` + `apps/protected-panel-web`; follow-up work must extend this surface rather than reintroducing panel-side synthesis or direct infrastructure reads.
 - `Jobs` / `Operations` / `Audit` remain delayed; landed `Official Web` views do not authorize a generic ops console.
 - Observability runtime code is landed, local worktree env is ready, and the targeted Worker smokes are green. There is no current local-engineering blocker here; the repo truth is simply that the first real deployed Worker environment does not exist yet, so deploy-side sink verification remains pending by design. When deployment exists, the smoke runner will need real hostnames, a Worker release identifier, and Sentry/Axiom access; local placeholder URLs such as `chat.example.com`, `panel.example.com`, and `app-api.internal` remain development-only values.
-- `student_handbook` live serving 与 supplemental runtime 都已不再是 blocker；剩余 handbook concern 已收口到质量层：2026-03-31 acceptance 仍对 `ragas.answer_relevancy`、`ragas.context_precision`、`ragas.context_recall` 给出 `warn`，其中 `release-gate-dormitory-lighting` 是当前最明显的 case-level 拖累。
+- `student_handbook` live serving 与 supplemental runtime 都已不再是 blocker；当前 handbook concern 已进一步收口到“repo-head remediation 尚未做 fresh live rerun 验证”的状态，而不是 provider/runtime 不稳定。
+- handbook 质量线当前最重要的事实分层是：
+  - artifact truth：`160402` acceptance 仍然只有 `ragas.answer_relevancy` remaining warn
+  - repo-head truth：procedure answer contract、Chinese prompt adaptation、expanded release-gate cases、`procedure_directness` 已落地并通过测试，但尚未形成新的 live artifact
 
 ## Session Continuity
 

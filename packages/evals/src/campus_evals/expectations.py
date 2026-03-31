@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from campus_contracts import RagResultPayload, SpecialistResponse, SupervisorResponse
 
 from campus_evals.models import CaseResult, DimensionResult, ExecutionResult, GoldenCase
@@ -12,6 +14,7 @@ KNOWN_DETERMINISTIC_METRICS = (
     "source_locator_completeness",
     "answer_accuracy",
     "answer_completeness",
+    "procedure_directness",
     "forbidden_claim_free",
     "clarification_accuracy",
     "no_answer_accuracy",
@@ -21,6 +24,10 @@ KNOWN_DETERMINISTIC_METRICS = (
     "fail_closed",
     "trace_path_correctness",
 )
+_PROCEDURE_GOAL_HINTS = ("怎么办", "如何", "怎么", "办理", "申请", "流程", "补办", "手续")
+_PROCEDURE_ACTION_HINTS = ("挂失", "申请", "补办", "办理", "提交", "填写", "备案", "审批", "审核")
+_PROCEDURE_LEAD_ACTION_HINTS = ("挂失", "申请", "办理", "提交", "填写", "备案", "审批", "审核")
+_PROCEDURE_SIDE_NOTE_HINTS = ("优惠卡", "检测", "充值", "销毁", "转借", "处分", "负责解释", "不良后果")
 
 
 def evaluate_case(case: GoldenCase, execution: ExecutionResult) -> CaseResult:
@@ -191,6 +198,8 @@ def _build_metric_results(
             metrics["answer_accuracy"] = answer_result
         if case.required_facts:
             metrics["answer_completeness"] = _grade_answer_completeness(case, response)
+        if case.expected_status == "completed" and _is_procedure_goal(case.user_goal):
+            metrics["procedure_directness"] = _grade_procedure_directness(response)
         if case.forbidden_claims:
             metrics["forbidden_claim_free"] = _grade_forbidden_claim_free(case, response)
 
@@ -278,6 +287,30 @@ def _grade_forbidden_claim_free(
     return DimensionResult(True, "ok")
 
 
+def _grade_procedure_directness(response: SpecialistResponse | SupervisorResponse) -> DimensionResult:
+    normalized_answer = _normalize_text(response.answer_text)
+    if not normalized_answer:
+        return DimensionResult(False, "answer_text is empty")
+    first_segment = re.split(r"[；。]", normalized_answer, maxsplit=1)[0]
+    if not any(_normalize_text(token) in first_segment for token in _PROCEDURE_LEAD_ACTION_HINTS):
+        return DimensionResult(False, "first segment does not lead with an action")
+    if any(_normalize_text(token) in first_segment for token in _PROCEDURE_SIDE_NOTE_HINTS):
+        return DimensionResult(False, "first segment is dominated by a side note")
+    action_positions = [
+        normalized_answer.find(_normalize_text(token))
+        for token in _PROCEDURE_ACTION_HINTS
+        if _normalize_text(token) in normalized_answer
+    ]
+    side_note_positions = [
+        normalized_answer.find(_normalize_text(token))
+        for token in _PROCEDURE_SIDE_NOTE_HINTS
+        if _normalize_text(token) in normalized_answer
+    ]
+    if side_note_positions and action_positions and min(side_note_positions) < min(action_positions):
+        return DimensionResult(False, "side note appears before procedural action")
+    return DimensionResult(True, "ok")
+
+
 def _grade_clarification_accuracy(response: SpecialistResponse | SupervisorResponse) -> DimensionResult:
     if response.status != "needs_clarification":
         return DimensionResult(False, f"status={response.status}")
@@ -347,6 +380,11 @@ def _grade_fail_closed(response: SpecialistResponse | SupervisorResponse) -> Dim
 
 def _normalize_text(value: str) -> str:
     return " ".join(value.casefold().split())
+
+
+def _is_procedure_goal(user_goal: str) -> bool:
+    normalized_goal = _normalize_text(user_goal)
+    return any(_normalize_text(token) in normalized_goal for token in _PROCEDURE_GOAL_HINTS)
 
 
 def _matches_source_ref(source_ref, source) -> bool:

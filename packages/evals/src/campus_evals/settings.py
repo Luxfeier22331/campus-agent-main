@@ -194,6 +194,8 @@ class RagasSettings:
     reasoning_effort: str | None = None
     text_verbosity: str | None = None
     max_output_tokens: int | None = None
+    target_language: str | None = None
+    adapt_instruction: bool = False
 
     def __post_init__(self) -> None:
         if not self.llm_api_key.strip():
@@ -258,6 +260,8 @@ class RagasSettings:
             reasoning_effort=_read_optional_str(source.get("RAGAS_REASONING_EFFORT")),
             text_verbosity=_read_optional_str(source.get("RAGAS_TEXT_VERBOSITY")),
             max_output_tokens=_read_optional_int(source.get("RAGAS_MAX_OUTPUT_TOKENS")),
+            target_language=_read_first_non_empty(source, "EVAL_RAGAS_TARGET_LANGUAGE", "RAGAS_TARGET_LANGUAGE"),
+            adapt_instruction=_read_bool(source.get("RAGAS_ADAPT_INSTRUCTION"), default=False),
         )
 
     @property

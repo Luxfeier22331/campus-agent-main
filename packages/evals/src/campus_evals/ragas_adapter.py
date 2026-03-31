@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 import inspect
 from math import isnan
@@ -21,6 +22,7 @@ from campus_evals.settings import RagasSettings, SupplementalHTTPSettings
 
 
 DEFAULT_RAGAS_METRIC_NAMES = ("faithfulness", "answer_relevancy", "context_precision", "context_recall")
+_PROMPT_ADAPTATION_CACHE: dict[tuple[str, str, str, bool], object] = {}
 
 
 @dataclass(frozen=True, slots=True)
@@ -352,6 +354,7 @@ def build_default_ragas_metrics(
     *,
     metric_names: tuple[str, ...] | None = None,
     projection: RagasProjection | None = None,
+    settings: RagasSettings | None = None,
 ):
     from ragas.metrics._answer_relevance import AnswerRelevancy
     from ragas.metrics._context_precision import ContextPrecision
@@ -375,7 +378,10 @@ def build_default_ragas_metrics(
             else (lambda: ContextRecall(llm=llm))
         ),
     }
-    return tuple(builders[name]() for name in resolved_metric_names if name in builders)
+    metrics = tuple(builders[name]() for name in resolved_metric_names if name in builders)
+    if settings is None or settings.target_language is None:
+        return metrics
+    return tuple(_apply_metric_language_adaptation(metric, llm=llm, settings=settings) for metric in metrics)
 
 
 def _load_id_based_context_metric_builders() -> tuple[
@@ -388,6 +394,73 @@ def _load_id_based_context_metric_builders() -> tuple[
     except ImportError:
         return None, None
     return (lambda: IDBasedContextPrecision()), (lambda: IDBasedContextRecall())
+
+
+def _apply_metric_language_adaptation(
+    metric: object,
+    *,
+    llm: object,
+    settings: RagasSettings,
+) -> object:
+    target_language = (settings.target_language or "").strip()
+    if not target_language:
+        return metric
+    metric_name = str(getattr(metric, "name", "")).strip()
+    prompt_specs: tuple[tuple[str, object | None], ...]
+    if metric_name == "answer_relevancy":
+        prompt_specs = (("question_generation", getattr(metric, "question_generation", None)),)
+    elif metric_name == "faithfulness":
+        prompt_specs = (
+            ("statement_generator_prompt", getattr(metric, "statement_generator_prompt", None)),
+            ("nli_statement_prompt", getattr(metric, "nli_statement_prompt", None)),
+        )
+    else:
+        prompt_specs = ()
+    for prompt_name, prompt in prompt_specs:
+        if prompt is None or not hasattr(prompt, "adapt"):
+            continue
+        setattr(
+            metric,
+            prompt_name,
+            _resolve_adapted_prompt(
+                metric_name=metric_name,
+                prompt_name=prompt_name,
+                prompt=prompt,
+                llm=llm,
+                settings=settings,
+            ),
+        )
+    return metric
+
+
+def _resolve_adapted_prompt(
+    *,
+    metric_name: str,
+    prompt_name: str,
+    prompt: object,
+    llm: object,
+    settings: RagasSettings,
+) -> object:
+    target_language = str(settings.target_language or "").strip()
+    cache_key = (metric_name, prompt_name, target_language, settings.adapt_instruction)
+    cached = _PROMPT_ADAPTATION_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+    adapted = _run_prompt_adaptation(
+        prompt.adapt(
+            target_language=target_language,
+            llm=llm,
+            adapt_instruction=settings.adapt_instruction,
+        )
+    )
+    _PROMPT_ADAPTATION_CACHE[cache_key] = adapted
+    return adapted
+
+
+def _run_prompt_adaptation(result: object) -> object:
+    if inspect.isawaitable(result):
+        return asyncio.run(result)
+    return result
 
 
 def build_ragas_scorer(
@@ -420,6 +493,7 @@ def build_ragas_scorer(
             llm=llm,
             embeddings=embeddings,
             projection=projection,
+            settings=settings,
             metric_names=metric_names,
         ):
             if metric_applicability.get(entry.requested_name) is False:
@@ -485,6 +559,7 @@ def _resolve_metric_entries(
     llm: object,
     embeddings: object,
     projection: RagasProjection,
+    settings: RagasSettings,
     metric_names: tuple[str, ...] | None,
 ) -> tuple[_MetricExecutionEntry, ...]:
     resolved_metric_names = tuple(metric_names or ())
@@ -493,6 +568,8 @@ def _resolve_metric_entries(
         factory_kwargs["metric_names"] = resolved_metric_names
     if _metric_factory_accepts_argument(metric_factory, "projection"):
         factory_kwargs["projection"] = projection
+    if _metric_factory_accepts_argument(metric_factory, "settings"):
+        factory_kwargs["settings"] = settings
     metrics = tuple(metric_factory(llm, embeddings, **factory_kwargs))
     if not resolved_metric_names:
         return tuple(

@@ -232,6 +232,21 @@ class RagasSettingsTest(unittest.TestCase):
         self.assertEqual(statement_settings.pool_timeout_seconds, 2.0)
         self.assertEqual(default_stage_settings.read_timeout_seconds, 30.0)
 
+    def test_from_env_reads_prompt_language_adaptation_settings(self) -> None:
+        settings = RagasSettings.from_env(
+            {
+                "LLM_API_KEY": "llm-key",
+                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "RAGAS_TARGET_LANGUAGE": "chinese",
+                "RAGAS_ADAPT_INSTRUCTION": "true",
+            }
+        )
+
+        self.assertEqual(settings.target_language, "chinese")
+        self.assertTrue(settings.adapt_instruction)
+
     def test_from_env_requires_llm_and_embedding_secrets_and_models(self) -> None:
         with self.assertRaisesRegex(ValueError, "LLM_API_KEY is required"):
             RagasSettings.from_env(
@@ -1655,6 +1670,40 @@ class RagasScorerTest(unittest.TestCase):
         self.assertEqual(metrics[1].strictness, 1)
         self.assertIs(metrics[2].llm, llm)
         self.assertIs(metrics[3].llm, llm)
+
+    def test_build_default_ragas_metrics_adapts_chinese_prompts_when_target_language_is_configured(self) -> None:
+        llm = object()
+        embeddings = object()
+        settings = RagasSettings.from_env(
+            {
+                "LLM_API_KEY": "llm-key",
+                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "RAGAS_TARGET_LANGUAGE": "chinese",
+                "RAGAS_ADAPT_INSTRUCTION": "true",
+            }
+        )
+        answer_calls: list[tuple[str, object, bool]] = []
+        faithfulness_calls: list[tuple[str, object, bool]] = []
+
+        async def fake_answer_adapt(self, *, target_language, llm, adapt_instruction=False):
+            answer_calls.append((target_language, llm, adapt_instruction))
+            return self
+
+        async def fake_faithfulness_adapt(self, *, target_language, llm, adapt_instruction=False):
+            faithfulness_calls.append((target_language, llm, adapt_instruction))
+            return self
+
+        with (
+            patch("ragas.metrics._answer_relevance.ResponseRelevancePrompt.adapt", new=fake_answer_adapt),
+            patch("ragas.metrics._faithfulness.StatementGeneratorPrompt.adapt", new=fake_faithfulness_adapt),
+        ):
+            metrics = build_default_ragas_metrics(llm, embeddings, settings=settings)
+
+        self.assertEqual(tuple(metric.name for metric in metrics), build_default_ragas_metric_names())
+        self.assertEqual(answer_calls, [("chinese", llm, True)])
+        self.assertEqual(faithfulness_calls, [("chinese", llm, True)])
 
     def test_build_ragas_scorer_maps_evaluation_scores_to_supplemental_results(self) -> None:
         captured_calls: list[dict[str, object]] = []

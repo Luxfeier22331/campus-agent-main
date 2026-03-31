@@ -21,9 +21,9 @@ updated: 2026-03-31
 
 当前最新 acceptance artifact：
 
-- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/final-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/final-summary.json)
-- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/summary.json)
-- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/supplemental-provider-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/supplemental-provider-summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T160402/final-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T160402/final-summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T160402/run/summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T160402/run/summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T160402/run/supplemental-provider-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T160402/run/supplemental-provider-summary.json)
 
 当前真相：
 
@@ -33,67 +33,121 @@ updated: 2026-03-31
 - supplemental runtime 已完全恢复可用：
   - preflight `3/3 passed`
   - `repair` 正确跳过：`selected_target_count = 0`
-  - provider summary 显示 `https://www.su8.codes /responses` 成功 `101/101`，`https://ai.gitee.com /embeddings` 成功 `25/25`
+  - provider summary 显示 `https://www.su8.codes /responses` 成功 `69/69`，`https://ai.gitee.com /embeddings` 成功 `7/7`
 - 已不再属于 blocker 的旧问题：
   - `ragas.faithfulness = pass`
     - `mean_average_score = 0.9415584415584415`
   - `judge.answer_correctness_rubric = pass`
-    - `mean_average_score = 0.8966666666666666`
+    - `mean_average_score = 0.9116666666666667`
   - `judge.refusal_quality = pass`
-    - `mean_average_score = 0.9783333333333334`
+    - `mean_average_score = 0.9666666666666667`
+  - `ragas.context_precision = pass`
+    - `mean_average_score = 1.0`
+  - `ragas.context_recall = pass`
+    - `mean_average_score = 1.0`
 - 当前剩余 `warn` 只来自真实质量 gap：
   - `ragas.answer_relevancy`
-    - `mean_average_score = 0.7890334536043656`
-  - `ragas.context_precision`
-    - `mean_average_score = 0.6666666666`
-  - `ragas.context_recall`
-    - `mean_average_score = 0.8333333333333334`
+    - `mean_average_score = 0.8078422655310442`
+    - `run_average_scores = [0.7170708042594323, 0.8396725328036027, 0.8667834595300979]`
 
 case 级主要拖累：
 
-- `release-gate-dormitory-lighting`
-  - `ragas.answer_relevancy = 0.6613998730543929`（3 次一致）
-  - `ragas.context_precision = 0.0`（3 次一致）
-  - `ragas.context_recall = [0.0, 0.0, 1.0]`
 - `release-gate-student-card`
-  - `ragas.context_precision = [0.0, 1.0, 1.0]`
+  - 当前是唯一仍进入 `answer_relevancy` denominator 的 completed case
+  - `ragas.answer_relevancy = [0.7170708042594323, 0.8396725328036027, 0.8667834595300979]`
 
 解释：
 
-- 2026-03-31 的 fresh artifact 已经推翻 2026-03-30 “`faithfulness` 仍 runtime-unavailable”的旧结论；当前 `warn` 不能再归因于 provider/runtime 不稳定
-- 当前是否继续优化，应该聚焦 answer/support shaping 与 RAGAS context alignment，而不是继续调 timeout、repair 语义或 soft gate 阈值
+- 2026-03-31 `160402` fresh artifact 已经确认：
+  - `reference_context_ids + ID-based context metrics` 已把 `context_precision/context_recall` 稳定拉到 `1.0`
+  - `supplemental_metric_overrides` 已把 lookup/title/article 型 case 从 `answer_relevancy` denominator 中排除
+  - handbook 当前 remaining warn 只剩真实自然问句 `release-gate-student-card`
+- 当前是否继续优化，应聚焦 `student-card` 这类自然问句的 answer shaping / query intent 适配，而不是继续调 Qdrant timeout、repair 语义或 soft gate 阈值
 
-## Repo-Head Diagnosis（2026-03-31）
+## Fresh Rerun Diagnosis（2026-03-31）
 
-以下结论反映当前仓库代码状态，不等同于上面 artifact 已经重跑完成：
+本轮 fresh rerun 已验证 repo-head gold-truth 改动真实生效：
 
-- `packages/evals` 现在会把 handbook RAGAS `retrieved_contexts` 投影为 statement-level supporting contexts，而不是直接把完整 chunk snippet 原样喂给 RAGAS
-- `GoldenCase` 已新增 `reference_facts`：
-  - `required_facts` 继续只承担 deterministic `answer_accuracy / answer_completeness`
-  - `reference_facts` 专门承载 supplemental reference truth，避免为了软指标去扭曲 deterministic gate
-- `GoldenCase` 现已继续拆出：
-  - `reference_context_ids`
-  - `reference_contexts`
-  - `supplemental_metric_overrides`
-- `context_precision/context_recall` 现在优先走 ID-based context truth；lookup case 的 `answer_relevancy` 适用性也已显式化
-- `release-gate-student-card` / `release-gate-dormitory-lighting` 以及对应 handbook regression case 已补充 richer `reference_facts`
+- `GoldenCase.reference_context_ids` 已成为 handbook context metric 的主 truth
+- `build_ragas_scorer()` 已把 `context_precision/context_recall` 切到 ID-based metric，并保持外部 metric key 不变
+- handbook lookup/title/article 型 case 已通过 `supplemental_metric_overrides` 显式落为 `not_applicable`
 
-单 case live 复验结论：
+fresh artifact 对应的 case 级结论：
 
-- 对 `release-gate-dormitory-lighting`：
-  - 仅把 context 粒度收紧到 statement-level 时，`context_precision = 0.0`、`context_recall = 0.0` 仍然成立
-  - 在保持同一条 live supporting context 不变的前提下，只把 reference 改为真实答案事实后：
-    - `context_precision = 0.9999999999`
-    - `context_recall = 1.0`
-- 因此，2026-03-31 artifact 里这条 case 的 `context_precision/context_recall` 低分主因是 benchmark truth 过薄，而不是 provider、repair 或 retrieval runtime 不稳定
+- `release-gate-scholarship-title`
+  - `ragas.answer_relevancy = not_applicable`（3/3）
+- `release-gate-dormitory-lighting`
+  - `ragas.answer_relevancy = not_applicable`（3/3）
+- `release-gate-medical-title`
+  - `ragas.answer_relevancy = not_applicable`（3/3）
+- `release-gate-student-card`
+  - `ragas.answer_relevancy` 仍适用，且是当前唯一进入该指标 denominator 的 completed case
 
-当前剩余问题已进一步收敛为：
+因此，当前 handbook supplemental warn 的解释已经从“truth 太薄 + metric 误用”收敛为：
 
-- `answer_relevancy` 仍需 fresh rerun 重新确认
-- 其中 `release-gate-dormitory-lighting` 的低分更像是“短标题式 query 是否适合进入 `answer_relevancy` denominator”的 case design 问题，而不是 retrieval context 噪声问题
-- repo-head 现在已经走第二条路径：
-  - 这类 lookup case 通过 `supplemental_metric_overrides` 显式排除 `answer_relevancy`
-  - fresh rerun 后应重点确认 remaining warn 是否已经只剩真实自然问句 case
+- context truth 问题已解决
+- lookup-case denominator 污染已解决
+- remaining `answer_relevancy` warn 现在代表 `release-gate-student-card` 本身仍有真实质量提升空间
+
+## Repo-Head Remediation（2026-03-31）
+
+以下变更已经在 repo-head 落地，但尚未反映到上面的 `160402` acceptance artifact：
+
+- `packages/rag-specialist` 已把 `procedure` 类回答从“证据句直接拼接”改成 `intent-aware answer shaping`
+  - 主答案固定优先输出 action path：`先做什么 -> 再做什么 -> 去哪里/由谁审批 -> 时间窗口`
+  - `火车票学生优惠卡`、`负责解释`、`不良后果`、`再次补发` 这类 side note 不再默认进入 `怎么办` 主答案
+- `packages/evals` 已新增 deterministic `procedure_directness` 指标
+  - 目标不是替代 correctness，而是补一个“procedure 首句必须先回答动作主线”的 repo-head gate
+- `handbook_release_gate_cases()` 已从单一 `student-card` 自然问句扩到同源三问：
+  - `release-gate-student-card`
+  - `release-gate-student-card-materials`
+  - `release-gate-student-card-time`
+- `build_default_ragas_metrics()` 已支持基于 `EVAL_RAGAS_TARGET_LANGUAGE` / `RAGAS_ADAPT_INSTRUCTION` 的 prompt language adaptation
+  - 当前接线覆盖 `answer_relevancy`
+  - 当前接线同时兼容 `faithfulness` 的 prompt adaptation
+
+这意味着：
+
+- 上面的 `remaining warn` 仍然是最新 artifact truth
+- 但 repo-head 的后续 rerun 不应再只由单个 `release-gate-student-card` case 决定 `answer_relevancy` denominator
+- 下一次 handbook fresh rerun 的主要观察点应变为：
+  - `procedure_directness` 是否稳定为 pass
+  - 新增 `student-card-materials/time` case 是否保持 deterministic pass
+  - `ragas.answer_relevancy` 是否随 procedure renderer 收敛
+
+## Current Progress / Next Work（2026-03-31）
+
+当前 repo-head 进度：
+
+- 已完成 `procedure` answer shaping 重构，并把 action-first contract 固定在 `packages/rag-specialist`
+- 已完成 `ragas` 语言适配接线；当前可通过 `EVAL_RAGAS_TARGET_LANGUAGE` / `RAGAS_ADAPT_INSTRUCTION` 控制 prompt adaptation
+- 已完成 handbook release-gate 自然问句扩容：`student-card / student-card-materials / student-card-time`
+- 已完成 deterministic `procedure_directness` 指标补位
+- 已完成本轮相关测试验证：
+  - `tests.specialist.test_rag_specialist`
+  - `tests.evals.test_ragas_runtime`
+  - `tests.evals.test_golden_cases`
+  - `tests.evals.test_handbook_live_benchmark`
+  - `tests.evals.test_curriculum_live_benchmark`
+
+下一步工作：
+
+1. 执行一次 fresh handbook live acceptance rerun，验证 repo-head remediation 是否在真实 provider 上成立。
+2. 重点检查新 rerun artifact 的四类信号：
+   - `procedure_directness`
+   - `student-card-materials`
+   - `student-card-time`
+   - `ragas.answer_relevancy`
+3. 如果 fresh rerun 通过并收敛 soft-gap，更新本文顶部 artifact truth 与 case-level diagnosis。
+4. 如果 fresh rerun 仍有 remaining warn，只允许沿三个方向继续排查：
+   - answer shaping
+   - metric language adaptation
+   - natural-question inventory
+
+执行注意：
+
+- `campus_evals.handbook_live_benchmark` 当前 CLI 不支持按 case 子集运行，因此 handbook live 验证要么做 full rerun，要么基于既有 artifact 做 repair
+- 在新的 rerun artifact 落地前，本文顶部 `160402` snapshot 仍是当前正式 artifact truth
 
 ## Gate Topology
 
