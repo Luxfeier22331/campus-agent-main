@@ -1,19 +1,19 @@
 ---
 doc_type: plan
-status: active
+status: completed
 created: 2026-03-22
-updated: 2026-03-29
+updated: 2026-03-31
 ---
 
-# Agentic RAG 第一阶段地基实施文档
+# Agentic RAG 历史地基实施基线（原第一阶段文档）
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 ## 文档状态说明
 
-这份文档仍然是 `campus-agent` 第一阶段地基的 canonical 实施基线之一，但它不再承担当前 GSD 执行状态、phase 进度或待办优先级的唯一真相源角色。
+这份文档保留为 `campus-agent` 早期地基实施的历史基线与背景材料，不再承担当前 GSD 执行状态、phase 进度或待办优先级的真相源角色。
 
-- 长期边界、架构方向和第一阶段 accepted implementation baseline 仍可参考这份文档
+- 长期边界、架构方向和历史 accepted implementation baseline 仍可参考这份文档
 - 当前 phase 的执行顺序、最新 pending work、讨论结论和进度状态，以 `.planning/PROJECT.md`、`.planning/ROADMAP.md`、`.planning/STATE.md` 以及对应 phase 目录下的 context / plan / validation 产物为准
 - 当这份文档中的早期 phase-1 实施叙事与 `.planning/` 中的当前执行现实不一致时，应优先更新这里的文档边界说明，并按 `.planning/` 继续推进执行，而不是把过时叙事重新提升为当前硬约束
 - 当前 retrieval accepted baseline 不再单独由本文维护；以 `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md` 与 `docs/architecture/retrieval-query-strategy.md` 为准
@@ -27,9 +27,9 @@ updated: 2026-03-29
 
 这些内容分别以 runtime profile、`.planning/PROJECT.md` / `.planning/STATE.md`、以及 operator runbook 为准。
 
-**Goal:** 在当前 `campus-agent` monorepo 中补齐第一阶段地基，以“符合最佳实践前提下跑通端到端 agentic RAG 流程”为验收标准。
+**Goal:** 以下 Goal 保留为当时的历史实施目标：在 `campus-agent` monorepo 中补齐第一阶段地基，以“符合最佳实践前提下跑通端到端 agentic RAG 流程”为验收标准。
 
-**Architecture:** 本次实施只做第一阶段可上线闭环，不保留旧 `/api/search`、`/api/answer` 兼容层。数据面按 `Source -> Derived -> Chunk/Index` 三层分离落地，当前对象存储使用本机部署的 `MinIO`；早期初始开放 collection 为 `student_handbook`。source bucket 采用 corpus-agnostic 的 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...` 前缀，并在同一来源前缀下按 `capture/`、`provider/`、`source-truth/` 分层保存来源资产；derived bucket 的命名空间固定拆成 `{corpus}/documents/...`，其中 handbook OCR truth 固定为 `provider-response.jsonl -> layout-elements.jsonl -> split-manifest -> per-document canonical.md + document-units.jsonl`，逻辑文档以 `document_id + revision_track + version_id` 建模，不再依赖 `campusRAG` 作为运行时输入。查询面采用 `Supervisor API -> Supervisor Core -> RAG Specialist -> Retrieval Core`，内部 runtime 使用 AgentOS-native，检索实现使用 `LlamaIndex + Qdrant`。当前运行态的 query-serving truth 和 index release 语义不再由本文维护，而由 collection runtime profile、`.planning/PROJECT.md` / `.planning/STATE.md` 以及 operator runbook 控制。
+**Architecture:** 以下 Architecture 保留为当时的历史实施设定：本次实施只做第一阶段可上线闭环，不保留旧 `/api/search`、`/api/answer` 兼容层。数据面按 `Source -> Derived -> Chunk/Index` 三层分离落地，当前对象存储使用本机部署的 `MinIO`；早期初始开放 collection 为 `student_handbook`。source bucket 采用 corpus-agnostic 的 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...` 前缀，并在同一来源前缀下按 `capture/`、`provider/`、`source-truth/` 分层保存来源资产；derived bucket 的命名空间固定拆成 `{corpus}/documents/...`，其中 handbook OCR truth 固定为 `provider-response.jsonl -> layout-elements.jsonl -> split-manifest -> per-document canonical.md + document-units.jsonl`，逻辑文档以 `document_id + revision_track + version_id` 建模，不再依赖 `campusRAG` 作为运行时输入。查询面采用 `Supervisor API -> Supervisor Core -> RAG Specialist -> Retrieval Core`，内部 runtime 使用 AgentOS-native，检索实现使用 `LlamaIndex + Qdrant`。当前运行态的 query-serving truth 和 index release 语义不再由本文维护，而由 collection runtime profile、`.planning/PROJECT.md` / `.planning/STATE.md` 以及 operator runbook 控制。
 
 **Tech Stack:** Python 3.12, uv workspace, Agno AgentOS, LlamaIndex, Qdrant, MinIO (local S3-compatible), pytest/unittest
 
@@ -37,7 +37,7 @@ updated: 2026-03-29
 
 ## 摘要
 
-本实施文档从架构文档中拆出，专门定义第一阶段的可执行动作、文件落点、接口、测试和验收标准。目标不是做完整产品，而是补齐项目地基：
+本实施文档从架构文档中拆出，保留为历史实施基线，用于追溯当时的可执行动作、文件落点、接口、测试和验收标准。它不再是当前 phase 推进文档。其历史目标不是做完整产品，而是补齐项目地基：
 
 - 冻结 contract 和 evidence bundle
 - 建立本机 MinIO 对象存储边界
@@ -71,7 +71,15 @@ updated: 2026-03-29
 - 第一阶段数据平面约束，留在 `docs/architecture/phase1-ingestion-and-storage-architecture.md`
 - 本机 `MinIO` 作为本地对象存储替代实现的规则，留在 `docs/decisions/adr-0002-local-minio-conventions.md`
 - 当前阶段执行状态、phase 排序、pending work 和最新讨论结论，留在 `.planning/`
-- 这份文档只负责把上面三类原则拆成第一阶段地基的实施基线、门禁、文件落点和验收标准，不再充当当前 phase-by-phase 执行日志
+- 这份文档只负责把上面三类原则拆成历史地基方案的实施基线、门禁、文件落点和验收标准，不再充当当前 phase-by-phase 执行日志
+
+## 历史阅读方式
+
+下文大部分章节保留当时的“第一阶段”原始表述，只用于追溯地基方案为何这样设计。
+
+- 可以把其中的架构约束、接口冻结点和门禁定义视为历史背景
+- 不应把其中任何“当前 / 默认 / 第一阶段”叙事重新解释成今天的执行状态
+- 需要当前 truth 时，统一回到 `.planning/*`、运行态 reference、ADR 与对应 architecture 文档
 
 ## 完成定义
 
