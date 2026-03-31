@@ -125,37 +125,33 @@ accept flow 语义：
 
 当前 acceptance 根 artifact：
 
-- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/final-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/final-summary.json)
-- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/summary.json)
-- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/supplemental-provider-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/supplemental-provider-summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T210128/final-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T210128/final-summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T210128/run/summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T210128/run/summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T210128/run/supplemental-provider-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T210128/run/supplemental-provider-summary.json)
 
 本轮结果：
 
 - `deterministic_verdict = pass`
-- `supplemental_verdict = warn`
-- `final_overall_verdict = warn`
+- `supplemental_verdict = pass`
+- `final_overall_verdict = pass`
 - `repair` 正确跳过：
   - `selected_target_count = 0`
-  - `remaining_transient_failures = 0`
+  - `applied_target_count = 0`
 
 当前解释边界：
 
-- 这次 `warn` 不再表示 handbook 主链路 serving 仍有 blocker，也不再表示 supplemental runtime 仍不可用
-- 当前 remaining gap 已收口为真实质量问题：
-  - `ragas.answer_relevancy`
-  - `ragas.context_precision`
-  - `ragas.context_recall`
-- `ragas.faithfulness` 已恢复为 `pass`
-- `judge.refusal_quality` 已恢复为 `pass`
-- 因此当前 handbook 可以继续做 live acceptance / integration；后续工作重点是 answer/support shaping 与 context alignment，而不是再次把问题归因到 serving alias / rebuild publish 或 provider runtime 不稳定
+- repo-head 的 `procedure` answer shaping、`procedure_directness` 与 expanded `student-card / materials / time` case inventory 已在真实 provider 上形成正式 artifact truth
+- handbook 当前不存在 remaining supplemental `warn`
+- serving alias、rebuild publish、provider runtime 与 repair 语义不再是当前主诊断分支
+- 后续若再出现 handbook 质量退化，应先对比 `210128` baseline，而不是沿用更早 `warn` artifact 的解释
 
 补充说明：
 
 - 本轮 supplemental preflight `3/3 passed`
 - provider summary 显示：
-  - `https://www.su8.codes /responses` 成功 `101/101`
-  - `https://ai.gitee.com /embeddings` 成功 `25/25`
-- 2026-03-30 那轮 acceptance 中关于 `faithfulness runtime-unavailable` 与 repair 旧语义的结论现在只保留为历史记录，当前真相以 2026-03-31 fresh artifact 为准
+  - `https://www.su8.codes /responses` 成功 `95/95`
+  - `https://ai.gitee.com /embeddings` 成功 `19/19`
+- 2026-03-30 与 2026-03-31 更早的 `warn` artifact 现在只保留为历史记录；当前真相以 2026-03-31 `210128` acceptance 为准
 
 ## Schema / Payload / Registry 检查
 

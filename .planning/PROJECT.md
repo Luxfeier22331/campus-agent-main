@@ -18,6 +18,7 @@
 - personalization 可以利用 verified identity / profile memory / session summary，但 memory 不得授予权限或绕过 retrieval ACL
 - 04.7 `public-consumer-chat` 现仅作为历史实现参考，不再覆盖 forward topology truth
 - 当前 merged truth 已按 `ContextProjection` / `SupervisorResponse` / eval supervisor seam 收口；后续改动不得回退到旧 `snapshot`
+- `student_handbook` 当前正式 acceptance artifact 已在 2026-03-31 `210128` 收口为 deterministic / supplemental / final 全 `pass`
 - 早期 roadmap / phase 文档主要承担历史排期与讨论存档，不应覆盖这里的当前 truth
 
 ## Core Value
@@ -41,13 +42,13 @@
 - ✓ 已完成 `public-consumer-chat` 的 04.7 app boundary / frontend host / auth-and-storage closeout，并已把实现与文档基线合入 `main`；该实现现作为历史参考而非 forward backend truth — Validated in Phase 04.7
 - ✓ 已完成 shared `apps/app-api` Worker foundation、request projection API 与 `public-chat-web` / `protected-panel-web` 接线收口 — Validated on 2026-03-29
 - ✓ 已完成 `student_handbook` 主链路的基础 eval / smoke / release-gate 验证，包含 live qrels benchmark、workflow/status 样本与 handbook collection schema 快照 — Validated in Phase 7
+- ✓ 已完成 repo-head `student_handbook` live acceptance rerun，`2026-03-31 210128` 正式 artifact 已确认 expanded release-gate、`procedure_directness` 与所有 supplemental soft gate 全量通过 — Validated on 2026-03-31
 - ✓ 已完成 `official_web -> app-api` control-plane ownership、contract、lifecycle、schema 与实施基线文档冻结 — Validated on 2026-03-29
 - ✓ 已完成 `official_web -> app-api` control-plane foundation 实现，包含 collector command/query APIs、outbox 驱动的 operator projections 与 ingestion handoff，以及 protected panel `Official Web` domain — Validated on 2026-03-29
 
 ### Active
 
-- [ ] 以 2026-03-31 fresh acceptance artifact 为基线，继续缩小 `student_handbook` 剩余 supplemental `warn`：`ragas.answer_relevancy`、`ragas.context_precision`、`ragas.context_recall`
-- [ ] 将 `apps/app-api`、`apps/public-chat-web`、`apps/protected-panel-web` 的 observability gate 固定为“pre-deploy readiness 已闭环，post-deploy verification 待首次真实部署时执行”；2026-03-31 已完成本地 env/preflight 与 Worker smoke 复核，后续只在真实环境拿到 hostnames、release 与 secret store 后执行 live sink smoke 并留证
+- [ ] 在首个真实部署的 Worker 环境到位后，执行 `apps/app-api`、`apps/public-chat-web`、`apps/protected-panel-web` 的 post-deploy observability verification；2026-03-31 已完成本地 env/preflight 与 Worker smoke 复核，当前只缺目标环境名、真实 hostnames、Worker release、已下发的 `SENTRY_*` / `AXIOM_*` 与 Sentry/Axiom 访问权限
 
 ### Out of Scope
 
@@ -128,4 +129,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state (users, feedback, metrics)
 
 ---
-*Last updated: 2026-03-31 after aligning curriculum/handbook live-eval truth, keeping `ContextProjection` / `SupervisorResponse` as the merged seam, and reframing Worker observability as pre-deploy ready with post-deploy verification pending first real deployment*
+*Last updated: 2026-03-31 after closing the `student_handbook` live acceptance rerun at `210128`, refreshing planning/docs truth, and keeping Worker observability scoped to post-deploy verification in the first real environment*
