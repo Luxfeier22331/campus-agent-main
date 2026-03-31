@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-03-31
-updated: 2026-03-31
+updated: 2026-04-01
 ---
 
 # Qdrant Cloud Backup And Restore Runbook
@@ -96,12 +96,24 @@ updated: 2026-03-31
 
 ### 备份步骤
 
+当前自动化入口：
+
+```bash
+uv run --all-packages python -m campus_ingestion_worker.qdrant_backup_create \
+  --corpus <corpus> \
+  --collection <collection> \
+  --release-id <release_id> \
+  --backup-reason <pre-gc|pre-migration|post-publish-protection> \
+  --operator <operator>
+```
+
 1. 从对应 release 的 `index-release.json` 读取：
    - `release_id`
    - `serving_alias`
    - `physical_collection_name`
    - `previous_physical_collection_name`
-2. 读取当前 alias 绑定，生成 `alias_bindings`。
+2. 按 release manifest 生成恢复用 `alias_bindings`：
+   - `{serving_alias: physical_collection_name}`
 3. 通过 Qdrant API 创建 collection snapshot。
 4. 下载 snapshot 到本地 operator 环境。
 5. 计算 snapshot 的 `sha256`。
@@ -153,6 +165,18 @@ derived bucket 下固定使用：
 
 ### 从 Free tier snapshot bundle 恢复
 
+当前自动化入口：
+
+```bash
+uv run --all-packages python -m campus_ingestion_worker.qdrant_backup_restore \
+  --corpus <corpus> \
+  --collection <collection> \
+  --release-id <release_id> \
+  --backup-id <backup_id> \
+  --target-collection-name <optional-drill-collection> \
+  --apply-alias
+```
+
 1. 从对象存储找到目标 bundle：
    - `backup-manifest.json`
    - `{physical_collection_name}.snapshot`
@@ -181,6 +205,37 @@ derived bucket 下固定使用：
 3. points count 与 release manifest 大致一致
 4. payload 中存在 `index_release_id`、`index_release_manifest_key`、`index_release_alias`
 5. retrieval 抽样通过
+
+## GC Gate Check
+
+在准备删除 `archive_candidate` 前，先跑门禁检查：
+
+```bash
+uv run --all-packages python -m campus_ingestion_worker.qdrant_gc_check \
+  --corpus <corpus> \
+  --collection <collection> \
+  --release-id <release_id>
+```
+
+如果当前还有人工保护条件，也可以显式加上：
+
+```bash
+uv run --all-packages python -m campus_ingestion_worker.qdrant_gc_check \
+  --corpus <corpus> \
+  --collection <collection> \
+  --release-id <release_id> \
+  --protected-physical-collection-name <physical_collection_name> \
+  --manual-blocker active-investigation
+```
+
+输出只负责报告：
+
+- 当前角色是否仍受保护
+- `validation-summary.json` 是否存在
+- snapshot bundle 是否存在
+- 当前是否还有显式人工 blocker
+
+当前不会自动删除 collection。
 
 ## 对象存储职责边界
 

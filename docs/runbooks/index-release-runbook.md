@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-03-28
-updated: 2026-03-31
+updated: 2026-04-01
 ---
 
 # Index Release Runbook
