@@ -117,7 +117,7 @@ Goal:
 Deliverables:
 
 - Worker app entry and static asset delivery setup
-- panel-specific env contract for protected hostname and runtime API base URL
+- Worker Custom Domain deploy config for protected hostname plus panel-specific runtime API base URL env contract
 - fail-closed default handling for unknown or unadmitted routes
 - explicit separation from `apps/supervisor-api`
 - health/readiness endpoints that survive the Worker deployment model
@@ -322,7 +322,7 @@ Goal:
 
 Deployment deliverables:
 
-- protected hostname and Route wiring
+- protected hostname and Custom Domain wiring
 - Cloudflare Access policy for the small operator group
 - Worker env and secret configuration
 - staging and production separation

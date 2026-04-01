@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-03-29
-updated: 2026-03-31
+updated: 2026-04-01
 ---
 
 # Forward Worker Surface Smoke Runbook
@@ -61,6 +61,12 @@ pnpm --dir apps/public-chat-web test:worker -- --reporter=verbose -t "smokes a c
 pnpm --dir apps/public-chat-web test:worker -- --reporter=verbose -t "forwards origin and referer for same-site auth requests"
 ```
 
+并验证 public chat shell 在 `app-api` bridge 缺失时保持 fail-closed：
+
+```bash
+pnpm --dir apps/public-chat-web test:worker -- --reporter=verbose -t "fails closed when app-api binding is not configured for the public shell"
+```
+
 最后验证 protected panel 请求查询链路 smoke：
 
 ```bash
@@ -73,15 +79,22 @@ pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "smokes
 pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "fails closed when protected overview admission is not configured"
 ```
 
+再验证 protected panel 在 trusted bridge 缺失时也保持 fail-closed：
+
+```bash
+pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "fails closed when the protected shell bridge is not configured|fails closed when protected overview bridge is not configured"
+```
+
 ## 这组 smoke 证明什么
 
 - `app-api` 的 `GET /healthz` 与 `GET /readyz` 正常
 - `app-api` 的 fail-closed readiness 门禁正常工作
 - `public-chat-web -> app-api` 的 same-site chat request 链路可用
 - `public-chat-web -> app-api` 的 Better Auth proxy 仍保留 `Origin` / `Referer`
+- public chat shell 在 `app-api` bridge 缺失时不会对外暴露一个必坏的 SPA
 - `protected-panel-web -> app-api` 的 operator request query 链路可用
 - protected panel 到 `app-api` 的 trusted internal bridge admission 正常
-- protected panel 在 admission 配置缺失时不会对外暴露 shell 或 overview
+- protected panel 在 admission 或 trusted bridge 配置缺失时不会对外暴露 shell 或 overview
 - 三个 Worker surface 的动态响应都保持 `Cache-Control: no-store`
 
 ## 这组 smoke 不证明什么

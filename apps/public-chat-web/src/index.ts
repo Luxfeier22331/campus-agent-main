@@ -170,14 +170,18 @@ function getMissingRuntimeConfig(env: Env): string[] {
   return missing;
 }
 
+function appApiBridgeNotConfiguredResponse(): Response {
+  return jsonResponse(503, {
+    error: {
+      code: "dependency_not_ready",
+      message: "App API binding is not configured.",
+    },
+  });
+}
+
 async function proxyToAppApi(request: Request, env: Env): Promise<Response> {
   if (!env.APP_API || !env.APP_API_BASE_URL) {
-    return jsonResponse(503, {
-      error: {
-        code: "dependency_not_ready",
-        message: "App API binding is not configured.",
-      },
-    });
+    return appApiBridgeNotConfiguredResponse();
   }
 
   const inboundUrl = new URL(request.url);
@@ -219,6 +223,10 @@ function shouldForwardBody(method: string): boolean {
 }
 
 async function servePublicShell(request: Request, env: Env): Promise<Response> {
+  if (!env.APP_API || !env.APP_API_BASE_URL) {
+    return appApiBridgeNotConfiguredResponse();
+  }
+
   if (!env.ASSETS) {
     return jsonResponse(503, {
       error: {

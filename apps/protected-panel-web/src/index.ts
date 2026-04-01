@@ -12,7 +12,6 @@ export interface Env {
   PANEL_APP_NAME?: string;
   PANEL_APP_API_SHARED_SECRET?: string;
   PANEL_RUNTIME_API_BASE_URL?: string;
-  PANEL_PROTECTED_HOSTNAME?: string;
   PANEL_PROTECTION_ENVELOPE?: string;
   SENTRY_DSN?: string;
   SENTRY_ENVIRONMENT?: string;
@@ -106,6 +105,7 @@ function resolveTraceHeaders(request: Request): {
 const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    const protectedHostname = url.hostname;
 
     if (request.method === "GET" && url.pathname === "/healthz") {
       return jsonResponse(200, {
@@ -139,7 +139,7 @@ const worker = {
           operatorBridge: "configured",
         },
         runtime_api_base_url: env.PANEL_RUNTIME_API_BASE_URL || "",
-        protected_hostname: env.PANEL_PROTECTED_HOSTNAME || "",
+        protected_hostname: protectedHostname,
         protection_envelope: env.PANEL_PROTECTION_ENVELOPE || "required",
         runtime: "cloudflare-worker",
       });
@@ -150,13 +150,16 @@ const worker = {
       if (admission.error) {
         return admission.error;
       }
+      if (!hasAppApiBridge(env)) {
+        return appApiBridgeNotConfiguredResponse();
+      }
 
       return jsonResponse(200, {
         status: "ok",
         app_name: env.PANEL_APP_NAME || "campus-agent-protected-panel",
         surface: "protected-panel-web",
         runtime: "cloudflare-worker",
-        protected_hostname: env.PANEL_PROTECTED_HOSTNAME || "",
+        protected_hostname: protectedHostname,
         protection_envelope: env.PANEL_PROTECTION_ENVELOPE || "required",
         runtime_api_base_url: env.PANEL_RUNTIME_API_BASE_URL || "",
         panel_domains: {
@@ -347,6 +350,9 @@ const worker = {
       if (admission.error) {
         return admission.error;
       }
+      if (!hasAppApiBridge(env)) {
+        return appApiBridgeNotConfiguredResponse();
+      }
 
       return serveProtectedShell(request, env);
     }
@@ -379,15 +385,29 @@ function getMissingRuntimeConfig(env: Env): string[] {
   if (!env.PANEL_RUNTIME_API_BASE_URL?.trim()) {
     missing.push("PANEL_RUNTIME_API_BASE_URL");
   }
-  if (!env.PANEL_PROTECTED_HOSTNAME?.trim()) {
-    missing.push("PANEL_PROTECTED_HOSTNAME");
-  }
   if (!env.PANEL_APP_API_SHARED_SECRET?.trim()) {
     missing.push("PANEL_APP_API_SHARED_SECRET");
   }
   missing.push(...getMissingAccessConfig(env));
 
   return missing;
+}
+
+function appApiBridgeNotConfiguredResponse(): Response {
+  return jsonResponse(503, {
+    error: {
+      code: "dependency_not_ready",
+      message: "App API binding is not configured.",
+    },
+  });
+}
+
+function hasAppApiBridge(env: Env): boolean {
+  return Boolean(
+    env.APP_API &&
+      env.PANEL_RUNTIME_API_BASE_URL?.trim() &&
+      env.PANEL_APP_API_SHARED_SECRET?.trim(),
+  );
 }
 
 async function validateProtectedApiRequest(
@@ -513,20 +533,15 @@ async function proxyToAppApi(input: {
   request: Request;
   targetPath: string;
 }): Promise<Response> {
-  if (
-    !input.env.APP_API ||
-    !input.env.PANEL_RUNTIME_API_BASE_URL ||
-    !input.env.PANEL_APP_API_SHARED_SECRET
-  ) {
-    return jsonResponse(503, {
-      error: {
-        code: "dependency_not_ready",
-        message: "App API binding is not configured.",
-      },
-    });
+  const appApi = input.env.APP_API;
+  const runtimeApiBaseUrl = input.env.PANEL_RUNTIME_API_BASE_URL?.trim();
+  const panelAppApiSharedSecret = input.env.PANEL_APP_API_SHARED_SECRET?.trim();
+
+  if (!appApi || !runtimeApiBaseUrl || !panelAppApiSharedSecret) {
+    return appApiBridgeNotConfiguredResponse();
   }
 
-  const targetUrl = new URL(input.targetPath, input.env.PANEL_RUNTIME_API_BASE_URL);
+  const targetUrl = new URL(input.targetPath, runtimeApiBaseUrl);
   const headers = new Headers();
 
   for (const headerName of FORWARDED_HEADERS) {
@@ -544,7 +559,7 @@ async function proxyToAppApi(input: {
   }
 
   headers.set("x-app-operator-email", input.operatorContext.email ?? input.operatorContext.operator_id);
-  headers.set("x-app-internal-auth", input.env.PANEL_APP_API_SHARED_SECRET);
+  headers.set("x-app-internal-auth", panelAppApiSharedSecret);
   headers.set("x-app-operator-id", input.operatorContext.operator_id);
 
   if (input.operatorContext.display_name) {
@@ -554,7 +569,7 @@ async function proxyToAppApi(input: {
     headers.set("x-app-operator-groups", input.operatorContext.groups.join(","));
   }
 
-  const response = await input.env.APP_API.fetch(
+  const response = await appApi.fetch(
     new Request(targetUrl.toString(), {
       headers,
       method: input.request.method,

@@ -105,10 +105,13 @@ describe("public chat web worker shell", () => {
     });
   });
 
-  it("serves the public chat app shell when frontend assets are configured", async () => {
+  it("serves the public chat app shell when frontend assets and app-api bridge are configured", async () => {
     const response = await worker.fetch(
       new Request("https://chat.example.com/"),
       {
+        APP_API: {
+          fetch: async () => new Response(null, { status: 204 }),
+        },
         ASSETS: {
           fetch: async () =>
             new Response("<!doctype html><html><body><div id=\"root\"></div></body></html>", {
@@ -129,10 +132,69 @@ describe("public chat web worker shell", () => {
     await expect(response.text()).resolves.toContain("<div id=\"root\"></div>");
   });
 
+  it("fails closed when app-api binding is not configured for the public shell", async () => {
+    const response = await worker.fetch(
+      new Request("https://chat.example.com/"),
+      {
+        ASSETS: {
+          fetch: async () =>
+            new Response("<!doctype html><html><body><div id=\"root\"></div></body></html>", {
+              headers: {
+                "content-type": "text/html; charset=utf-8",
+              },
+              status: 200,
+            }),
+        },
+        APP_API_BASE_URL: "https://app-api.internal",
+        PUBLIC_CHAT_HOSTNAME: "chat.example.com",
+      },
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: "dependency_not_ready",
+        message: "App API binding is not configured.",
+      },
+    });
+  });
+
+  it("fails closed when app-api base url is not configured for the public shell", async () => {
+    const response = await worker.fetch(
+      new Request("https://chat.example.com/"),
+      {
+        APP_API: {
+          fetch: async () => new Response(null, { status: 204 }),
+        },
+        ASSETS: {
+          fetch: async () =>
+            new Response("<!doctype html><html><body><div id=\"root\"></div></body></html>", {
+              headers: {
+                "content-type": "text/html; charset=utf-8",
+              },
+              status: 200,
+            }),
+        },
+        PUBLIC_CHAT_HOSTNAME: "chat.example.com",
+      },
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: "dependency_not_ready",
+        message: "App API binding is not configured.",
+      },
+    });
+  });
+
   it("fails closed when frontend assets are not configured for the public shell", async () => {
     const response = await worker.fetch(
       new Request("https://chat.example.com/"),
       {
+        APP_API: {
+          fetch: async () => new Response(null, { status: 204 }),
+        },
         APP_API_BASE_URL: "https://app-api.internal",
         PUBLIC_CHAT_HOSTNAME: "chat.example.com",
       },

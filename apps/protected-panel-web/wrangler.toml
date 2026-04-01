@@ -6,7 +6,7 @@ workers_dev = false
 preview_urls = false
 
 routes = [
-  { pattern = "panel.example.com/*", zone_name = "example.com" }
+  { pattern = "panel.ayafeed.com", custom_domain = true }
 ]
 
 [[services]]

@@ -63,6 +63,7 @@ The Worker also requires an internal `APP_API` service binding at runtime.
 Readiness expectations:
 
 - `GET /readyz` stays `503` until `APP_API`, `ASSETS`, `APP_API_BASE_URL`, and `PUBLIC_CHAT_HOSTNAME` are all configured
+- public chat shell routes such as `/login` and `/chat` also stay fail-closed when the `APP_API` bridge is missing, so a bad deploy does not expose a broken SPA
 - `pnpm deploy` now fails before publish if the generated Worker deploy config loses the required `APP_API` service binding
 - proxied same-site `/api/*` responses are forced to `Cache-Control: no-store`
 

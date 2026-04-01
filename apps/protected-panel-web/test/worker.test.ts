@@ -16,6 +16,8 @@ describe("protected panel web worker shell", () => {
     expect(wranglerConfig).toContain("preview_urls = false");
     expect(wranglerConfig).toContain('compatibility_flags = ["nodejs_compat"]');
     expect(wranglerConfig).toMatch(/routes?\s*=/);
+    expect(wranglerConfig).toContain('pattern = "panel.ayafeed.com"');
+    expect(wranglerConfig).toContain("custom_domain = true");
     expect(wranglerConfig).toContain("[[services]]");
     expect(wranglerConfig).toContain('binding = "APP_API"');
     expect(wranglerConfig).toContain('service = "app-api"');
@@ -41,7 +43,6 @@ describe("protected panel web worker shell", () => {
         PANEL_APP_NAME: "campus-agent-v2-protected-panel",
         PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
         PANEL_RUNTIME_API_BASE_URL: "https://supervisor.internal",
-        PANEL_PROTECTED_HOSTNAME: "panel.example.com",
         PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
         ACCESS_TEAM_DOMAIN: "https://team.cloudflareaccess.com",
         ACCESS_POLICY_AUD: "panel-audience",
@@ -59,7 +60,6 @@ describe("protected panel web worker shell", () => {
         PANEL_APP_NAME: "campus-agent-v2-protected-panel",
         PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
         PANEL_RUNTIME_API_BASE_URL: "https://supervisor.internal",
-        PANEL_PROTECTED_HOSTNAME: "panel.example.com",
         PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
         ACCESS_TEAM_DOMAIN: "https://team.cloudflareaccess.com",
         ACCESS_POLICY_AUD: "panel-audience",
@@ -109,7 +109,6 @@ describe("protected panel web worker shell", () => {
             "APP_API binding",
             "ASSETS binding",
             "PANEL_RUNTIME_API_BASE_URL",
-            "PANEL_PROTECTED_HOSTNAME",
             "PANEL_APP_API_SHARED_SECRET",
             "ACCESS_TEAM_DOMAIN",
             "ACCESS_POLICY_AUD",
@@ -132,7 +131,6 @@ describe("protected panel web worker shell", () => {
         },
         PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
         PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
-        PANEL_PROTECTED_HOSTNAME: "panel.example.com",
       },
     );
 
@@ -152,9 +150,72 @@ describe("protected panel web worker shell", () => {
     });
   });
 
-  it("serves the protected app shell from static assets after operator admission", async () => {
+  it("serves the protected app shell from static assets after operator admission and bridge readiness", async () => {
     const originalFetch = globalThis.fetch;
     const accessTeamDomain = "https://team-panel-shell.cloudflareaccess.com";
+    const certsUrl = `${accessTeamDomain}/cdn-cgi/access/certs`;
+    const { privateKey, publicKey } = await generateKeyPair("ES256");
+    const publicJwk = await exportJWK(publicKey);
+    publicJwk.kid = "panel-test-key";
+    const token = await new SignJWT({ email: "ops@example.com", sub: "operator-001" })
+      .setProtectedHeader({ alg: "ES256", kid: "panel-test-key" })
+      .setIssuer(accessTeamDomain)
+      .setAudience("panel-audience")
+      .setIssuedAt()
+      .setExpirationTime("5m")
+      .sign(privateKey);
+
+    globalThis.fetch = (async (request: Request | URL | string) => {
+      const inbound = request instanceof Request ? request : new Request(request);
+      if (inbound.url === certsUrl) {
+        return new Response(JSON.stringify({ keys: [publicJwk] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      throw new Error(`Unexpected fetch call: ${inbound.url}`);
+    }) as typeof fetch;
+
+    try {
+      const response = await worker.fetch(
+        new Request("https://panel.example.com/requests", {
+          headers: {
+            "cf-access-jwt-assertion": token,
+          },
+        }),
+        {
+          ACCESS_POLICY_AUD: "panel-audience",
+          ACCESS_TEAM_DOMAIN: accessTeamDomain,
+          APP_API: {
+            fetch: async () => new Response(null, { status: 204 }),
+          },
+          ASSETS: {
+            fetch: async () =>
+              new Response("<!doctype html><html><body><div id=\"root\"></div></body></html>", {
+                headers: {
+                  "content-type": "text/html; charset=utf-8",
+                },
+                status: 200,
+              }),
+          },
+          PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
+          PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
+          PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
+        },
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain("text/html");
+      await expect(response.text()).resolves.toContain("<div id=\"root\"></div>");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("fails closed when the protected shell bridge is not configured", async () => {
+    const originalFetch = globalThis.fetch;
+    const accessTeamDomain = "https://team-panel-bridge.cloudflareaccess.com";
     const certsUrl = `${accessTeamDomain}/cdn-cgi/access/certs`;
     const { privateKey, publicKey } = await generateKeyPair("ES256");
     const publicJwk = await exportJWK(publicKey);
@@ -199,14 +260,17 @@ describe("protected panel web worker shell", () => {
               }),
           },
           PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
-          PANEL_PROTECTED_HOSTNAME: "panel.example.com",
           PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
         },
       );
 
-      expect(response.status).toBe(200);
-      expect(response.headers.get("content-type")).toContain("text/html");
-      await expect(response.text()).resolves.toContain("<div id=\"root\"></div>");
+      expect(response.status).toBe(503);
+      await expect(response.json()).resolves.toEqual({
+        error: {
+          code: "dependency_not_ready",
+          message: "App API binding is not configured.",
+        },
+      });
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -226,7 +290,6 @@ describe("protected panel web worker shell", () => {
             }),
         },
         PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
-        PANEL_PROTECTED_HOSTNAME: "panel.example.com",
       },
     );
 
@@ -283,8 +346,11 @@ describe("protected panel web worker shell", () => {
         {
           ACCESS_POLICY_AUD: "panel-audience",
           ACCESS_TEAM_DOMAIN: accessTeamDomain,
+          APP_API: {
+            fetch: async () => new Response(null, { status: 204 }),
+          },
+          PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
           PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
-          PANEL_PROTECTED_HOSTNAME: "panel.example.com",
           PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
         },
       );
@@ -307,7 +373,6 @@ describe("protected panel web worker shell", () => {
       {
         PANEL_APP_NAME: "campus-agent-v2-protected-panel",
         PANEL_RUNTIME_API_BASE_URL: "https://supervisor.internal",
-        PANEL_PROTECTED_HOSTNAME: "panel.example.com",
       },
     );
 
@@ -332,7 +397,6 @@ describe("protected panel web worker shell", () => {
       new Request("https://panel.example.com/api/overview"),
       {
         PANEL_RUNTIME_API_BASE_URL: "https://supervisor.internal",
-        PANEL_PROTECTED_HOSTNAME: "panel.example.com",
         PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
         ACCESS_TEAM_DOMAIN: "https://team.cloudflareaccess.com",
         ACCESS_POLICY_AUD: "panel-audience",
@@ -378,9 +442,12 @@ describe("protected panel web worker shell", () => {
           },
         }),
         {
+          APP_API: {
+            fetch: async () => new Response(null, { status: 204 }),
+          },
           PANEL_APP_NAME: "campus-agent-v2-protected-panel",
+          PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
           PANEL_RUNTIME_API_BASE_URL: "https://supervisor.internal",
-          PANEL_PROTECTED_HOSTNAME: "panel.example.com",
           PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
           ACCESS_TEAM_DOMAIN: accessTeamDomain,
           ACCESS_POLICY_AUD: "panel-audience",
@@ -411,6 +478,61 @@ describe("protected panel web worker shell", () => {
           operator_id: "ops@example.com",
           principal_class: "human",
           subject: "operator-001",
+        },
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("fails closed when protected overview bridge is not configured", async () => {
+    const originalFetch = globalThis.fetch;
+    const accessTeamDomain = "https://team-overview-bridge.cloudflareaccess.com";
+    const certsUrl = `${accessTeamDomain}/cdn-cgi/access/certs`;
+    const { privateKey, publicKey } = await generateKeyPair("ES256");
+    const publicJwk = await exportJWK(publicKey);
+    publicJwk.kid = "panel-test-key";
+    const token = await new SignJWT({ sub: "operator-001", email: "ops@example.com" })
+      .setProtectedHeader({ alg: "ES256", kid: "panel-test-key" })
+      .setIssuer(accessTeamDomain)
+      .setAudience("panel-audience")
+      .setIssuedAt()
+      .setExpirationTime("5m")
+      .sign(privateKey);
+
+    globalThis.fetch = (async (request: Request | URL | string) => {
+      const inbound = request instanceof Request ? request : new Request(request);
+      if (inbound.url === certsUrl) {
+        return new Response(JSON.stringify({ keys: [publicJwk] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      throw new Error(`Unexpected fetch call: ${inbound.url}`);
+    }) as typeof fetch;
+
+    try {
+      const response = await worker.fetch(
+        new Request("https://panel.example.com/api/overview", {
+          headers: {
+            "cf-access-jwt-assertion": token,
+          },
+        }),
+        {
+          PANEL_APP_NAME: "campus-agent-v2-protected-panel",
+          PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
+          PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
+          ACCESS_TEAM_DOMAIN: accessTeamDomain,
+          ACCESS_POLICY_AUD: "panel-audience",
+        },
+      );
+
+      expect(response.status).toBe(503);
+      await expect(response.json()).resolves.toEqual({
+        error: {
+          code: "dependency_not_ready",
+          message: "App API binding is not configured.",
         },
       });
     } finally {
@@ -505,7 +627,6 @@ describe("protected panel web worker shell", () => {
           },
           PANEL_APP_NAME: "campus-agent-v2-protected-panel",
           PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
-          PANEL_PROTECTED_HOSTNAME: "panel.example.com",
           PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
           PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
         },
@@ -588,7 +709,6 @@ describe("protected panel web worker shell", () => {
               }),
           },
           PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
-          PANEL_PROTECTED_HOSTNAME: "panel.example.com",
           PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
           PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
         },
@@ -611,7 +731,6 @@ describe("protected panel web worker shell", () => {
           ACCESS_POLICY_AUD: "panel-audience",
           ACCESS_TEAM_DOMAIN: accessTeamDomain,
           PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
-          PANEL_PROTECTED_HOSTNAME: "panel.example.com",
           PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
           PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
         },
@@ -729,7 +848,6 @@ describe("protected panel web worker shell", () => {
               }),
           },
           PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
-          PANEL_PROTECTED_HOSTNAME: "panel.example.com",
           PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
           PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
         },
@@ -816,7 +934,6 @@ describe("protected panel web worker shell", () => {
             },
           },
           PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
-          PANEL_PROTECTED_HOSTNAME: "panel.example.com",
           PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
           PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
         },
