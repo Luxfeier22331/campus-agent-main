@@ -30,7 +30,7 @@ from campus_retrieval_core.backend_qdrant import (
     _build_qdrant_client,
     _build_metadata_filters,
 )
-from campus_retrieval_core.evidence_ranking import prioritize_evidence_sources
+from campus_retrieval_core.evidence_ranking import prioritize_evidence_sources, query_targets_source_title
 from campus_retrieval_core.models import RetrievalRequest
 from campus_retrieval_core.settings import (
     RetrievalSettings,
@@ -1498,6 +1498,59 @@ class BackendQdrantTest(unittest.TestCase):
         )
 
         self.assertEqual(ranked[0].chunk_id, "curriculum:economics-innovation:chunk-0023")
+
+    def test_prioritize_evidence_sources_prefers_compact_ethnic_experimental_title_over_table_bias(self) -> None:
+        ranked = prioritize_evidence_sources(
+            query_text="民族实验班",
+            sources=(
+                _make_source(
+                    doc_id="curriculum:计算机科学与技术（民族实验班）本科人才培养方案",
+                    chunk_id="curriculum:cs-ethnic-experimental:chunk-0011",
+                    snippet="培养要求表 必修课 40 学分。",
+                    score=0.91,
+                    source_title="计算机科学与技术（民族实验班）本科人才培养方案",
+                    structural_path=("计算机科学与技术（民族实验班）本科人才培养方案", "七、培养要求"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+                _make_source(
+                    doc_id="curriculum:法学（民族实验班）本科人才培养方案",
+                    chunk_id="curriculum:law-ethnic-experimental:chunk-0001",
+                    snippet="法学（民族实验班）本科人才培养方案 一、培养目标。",
+                    score=0.49,
+                    source_title="法学（民族实验班）本科人才培养方案",
+                    structural_path=("法学（民族实验班）本科人才培养方案", "一、培养目标"),
+                    content_kind="section_text",
+                ),
+                _make_source(
+                    doc_id="curriculum:信息与计算科学（民族实验班）本科人才培养方案",
+                    chunk_id="curriculum:ics-ethnic-experimental:chunk-0001",
+                    snippet="信息与计算科学（民族实验班）本科人才培养方案 一、培养目标。",
+                    score=0.48,
+                    source_title="信息与计算科学（民族实验班）本科人才培养方案",
+                    structural_path=("信息与计算科学（民族实验班）本科人才培养方案", "一、培养目标"),
+                    content_kind="section_text",
+                ),
+            ),
+        )
+
+        self.assertEqual(ranked[0].doc_id, "curriculum:法学（民族实验班）本科人才培养方案")
+
+    def test_query_targets_source_title_accepts_curriculum_title_with_inserted_direction_variant(self) -> None:
+        self.assertTrue(
+            query_targets_source_title(
+                query_text="中国少数民族语言文学强基计划本科人才培养方案",
+                source=_make_source(
+                    doc_id="curriculum:中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
+                    chunk_id="curriculum:minority-language-strong-base:chunk-0001",
+                    snippet="中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案 一、培养目标。",
+                    score=0.51,
+                    source_title="中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
+                    structural_path=("中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案", "一、培养目标"),
+                    content_kind="section_text",
+                ),
+            )
+        )
 
     def test_expand_named_document_support_uses_focused_query_for_same_document_followup(self) -> None:
         registry = InMemoryDocumentRegistry()

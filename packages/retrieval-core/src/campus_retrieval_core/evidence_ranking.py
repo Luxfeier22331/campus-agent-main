@@ -10,6 +10,7 @@ from campus_contracts import EvidenceSource
 
 _WHITESPACE_RE = re.compile(r"\s+")
 _ASCII_TOKEN_RE = re.compile(r"[a-z0-9]{3,}")
+_TITLE_BRACKETED_SEGMENT_RE = re.compile(r"[（(][^（）()]+[）)]")
 _LOW_SIGNAL_CJK_TOKENS = frozenset(
     {
         "中央",
@@ -34,6 +35,7 @@ _LOW_SIGNAL_CJK_TOKENS = frozenset(
         "流程",
     }
 )
+_QUERY_ASK_CUES = frozenset({"多少", "几年", "怎么", "如何", "安排", "什么", "哪些"})
 _NEGATIVE_CONTENT_ROLES = frozenset({"appendix", "background", "closing_provision", "navigation"})
 _CONTENT_ROLE_PRIORITY = {
     "procedure": 40,
@@ -66,6 +68,7 @@ class _SourceRankingFeatures:
     source: EvidenceSource
     title_match_priority: int
     title_overlap_count: int
+    title_compactness: int
     detail_support_count: int
     content_support_count: int
     answer_bearing_bonus: int
@@ -78,6 +81,7 @@ class _DocumentRankingFeatures:
     doc_id: str
     title_match_priority: int
     title_overlap_count: int
+    title_compactness: int
     detail_support_count: int
     content_support_count: int
     answer_bearing_count: int
@@ -251,6 +255,7 @@ def _build_ranking_features(
         source=source,
         title_match_priority=title_match_priority,
         title_overlap_count=title_overlap_count,
+        title_compactness=_title_compactness(query_key=query_key, title_keys=title_keys),
         detail_support_count=detail_support_count,
         content_support_count=content_support_count,
         answer_bearing_bonus=1 if source.is_answer_bearing else 0,
@@ -288,6 +293,7 @@ def _build_document_ranking_features(
             doc_id=doc_id,
             title_match_priority=max(item.title_match_priority for item in doc_features),
             title_overlap_count=max(item.title_overlap_count for item in doc_features),
+            title_compactness=max(item.title_compactness for item in doc_features),
             detail_support_count=max(item.detail_support_count for item in doc_features),
             content_support_count=max(item.content_support_count for item in doc_features),
             answer_bearing_count=sum(item.answer_bearing_bonus for item in doc_features),
@@ -303,10 +309,11 @@ def _query_targets_document(*, query_key: str, feature: _DocumentRankingFeatures
     return feature.title_match_priority >= 2 or (_is_short_semantic_query(query_key) and feature.title_overlap_count >= 2)
 
 
-def _source_sort_key(feature: _SourceRankingFeatures) -> tuple[int, int, int, int, int, int, float]:
+def _source_sort_key(feature: _SourceRankingFeatures) -> tuple[int, int, int, int, int, int, int, float]:
     return (
         feature.title_match_priority,
         feature.title_overlap_count,
+        feature.title_compactness,
         1 if feature.content_role_priority >= 0 else 0,
         feature.detail_support_count + feature.content_support_count,
         feature.answer_bearing_bonus,
@@ -316,10 +323,11 @@ def _source_sort_key(feature: _SourceRankingFeatures) -> tuple[int, int, int, in
     )
 
 
-def _document_sort_key(feature: _DocumentRankingFeatures) -> tuple[int, int, int, int, int, int, float]:
+def _document_sort_key(feature: _DocumentRankingFeatures) -> tuple[int, int, int, int, int, int, int, float]:
     return (
         feature.title_match_priority,
         feature.title_overlap_count,
+        feature.title_compactness,
         feature.content_role_priority,
         feature.detail_support_count + feature.content_support_count,
         feature.answer_bearing_count,
@@ -339,25 +347,29 @@ def _source_title_keys(source: EvidenceSource) -> tuple[str, ...]:
 
 
 def _source_title_candidates(source: EvidenceSource) -> tuple[str, ...]:
-    candidates: list[str] = []
+    base_candidates: list[str] = []
     explicit_title = source.source_title.strip()
     if explicit_title:
-        candidates.append(explicit_title)
+        base_candidates.append(explicit_title)
 
     doc_label = source.doc_id.split(":", 1)[-1].strip()
     if _looks_like_title(doc_label):
-        candidates.append(doc_label)
+        base_candidates.append(doc_label)
 
     for path_item in source.structural_path[:1]:
         if _looks_like_title(path_item):
-            candidates.append(path_item)
+            base_candidates.append(path_item)
 
     snippet = _normalize_text(source.snippet)
     for separator in ("\n", " / "):
         if separator in snippet:
             prefix = snippet.split(separator, 1)[0].strip()
             if _looks_like_title(prefix):
-                candidates.append(prefix)
+                base_candidates.append(prefix)
+
+    candidates: list[str] = []
+    for candidate in base_candidates:
+        candidates.extend(_title_variants(candidate))
     return tuple(dict.fromkeys(candidates))
 
 
@@ -394,6 +406,18 @@ def _focused_query_key(*, query_key: str, title_keys: Sequence[str]) -> str:
     return query_key
 
 
+def _title_compactness(*, query_key: str, title_keys: Sequence[str]) -> int:
+    if not _is_short_title_fragment_query(query_key):
+        return 0
+    extra_chars = min(
+        (len(title_key) - len(query_key) for title_key in title_keys if title_key and query_key and query_key in title_key),
+        default=None,
+    )
+    if extra_chars is None:
+        return 0
+    return -max(extra_chars, 0)
+
+
 def _query_lexical_support_count(
     *,
     normalized_query: str,
@@ -427,6 +451,20 @@ def _looks_like_title(text: str) -> bool:
     if any(_is_cjk_char(char) for char in normalized):
         return True
     return len(normalized.split()) >= 3
+
+
+def _title_variants(text: str) -> tuple[str, ...]:
+    normalized_text = _normalize_text(text)
+    if not normalized_text:
+        return ()
+    without_bracketed_segment = _normalize_text(_TITLE_BRACKETED_SEGMENT_RE.sub("", normalized_text))
+    return tuple(
+        dict.fromkeys(
+            candidate
+            for candidate in (normalized_text, without_bracketed_segment)
+            if candidate and _looks_like_title(candidate)
+        )
+    )
 
 
 def _normalize_text(text: str) -> str:
@@ -475,6 +513,15 @@ def _is_cjk_char(char: str) -> bool:
 
 def _is_short_semantic_query(query_key: str) -> bool:
     return sum(len(segment) for segment in _cjk_segments(query_key)) <= 10
+
+
+def _is_short_title_fragment_query(query_key: str) -> bool:
+    if not _is_short_semantic_query(query_key):
+        return False
+    cjk_length = sum(len(segment) for segment in _cjk_segments(query_key))
+    if cjk_length == 0 or cjk_length > 6:
+        return False
+    return not any(cue in query_key for cue in _QUERY_ASK_CUES)
 
 
 __all__ = [

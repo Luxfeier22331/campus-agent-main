@@ -322,6 +322,7 @@ class RunCasesTest(unittest.TestCase):
             (
                 "curriculum-smoke-ethnology-title",
                 "curriculum-smoke-academic-years",
+                "curriculum-smoke-hanyu-international-credits",
                 "curriculum-smoke-no-answer",
                 "curriculum-smoke-needs-clarification",
             ),
@@ -329,6 +330,7 @@ class RunCasesTest(unittest.TestCase):
         self.assertEqual(
             tuple(case.expected_status for case in cases),
             (
+                "completed",
                 "completed",
                 "completed",
                 "no_answer",
@@ -348,6 +350,9 @@ class RunCasesTest(unittest.TestCase):
                 "curriculum-regression-history-strong-base",
                 "curriculum-regression-course-map-table",
                 "curriculum-regression-general-english-credits",
+                "curriculum-regression-minority-language-strong-base",
+                "curriculum-regression-education-second-degree-years",
+                "curriculum-regression-fiscal-core-credits",
                 "curriculum-regression-no-answer-program",
                 "curriculum-regression-needs-clarification-degree",
             ),
@@ -355,6 +360,9 @@ class RunCasesTest(unittest.TestCase):
         self.assertEqual(
             tuple(case.expected_status for case in cases),
             (
+                "completed",
+                "completed",
+                "completed",
                 "completed",
                 "completed",
                 "completed",
@@ -831,6 +839,145 @@ class RunCasesTest(unittest.TestCase):
 
         self.assertEqual(good_report.by_metric["procedure_directness"].passed, 1)
         self.assertEqual(bad_report.by_metric["procedure_directness"].failed, 1)
+
+    def test_curriculum_course_map_case_accepts_table_style_answer_without_procedure_directness(self) -> None:
+        case = next(
+            item
+            for item in curriculum_release_gate_cases()
+            if item.case_id == "curriculum-release-gate-course-map-table"
+        )
+
+        report = run_cases(
+            (case,),
+            executor=lambda _: ExecutionResult(
+                response=_response(
+                    answer_text=(
+                        "根据培养方案相关内容，《经济学拔尖人才创新班人才培养方案》明确："
+                        "经济学拔尖人才创新班必修的专业核心课程 30 学分。；"
+                        "1034030157 | 博弈论与信息经济学 | 3 | 54 | / | 5；"
+                        "1034040239 | 空间经济学及应用 | 3 | 54 | / | 6"
+                    ),
+                    corpus="curriculum",
+                    collection="curriculum_plan",
+                    sources=(
+                        _source(
+                            doc_id="curriculum:经济学拔尖人才创新班人才培养方案",
+                            collection="curriculum_plan",
+                            snippet="经济学拔尖人才创新班必修的专业核心课程 30 学分。",
+                        ),
+                    ),
+                ),
+                observed_trace=ObservedTrace(
+                    selected_scope=CURRICULUM_SCOPE,
+                    retrieval_called=True,
+                    clarification_emitted=False,
+                    error_path=False,
+                    supporting_sources=(
+                        _source(
+                            doc_id="curriculum:经济学拔尖人才创新班人才培养方案",
+                            collection="curriculum_plan",
+                            snippet="经济学拔尖人才创新班必修的专业核心课程 30 学分。",
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        result = report.results[0]
+        self.assertTrue(result.passed)
+        self.assertNotIn("procedure_directness", result.metric_results)
+
+    def test_curriculum_smoke_hanyu_international_credits_case_accepts_total_credit_fact(self) -> None:
+        case = next(
+            item
+            for item in curriculum_smoke_cases()
+            if item.case_id == "curriculum-smoke-hanyu-international-credits"
+        )
+
+        report = run_cases(
+            (case,),
+            executor=lambda _: ExecutionResult(
+                response=_response(
+                    answer_text=(
+                        "根据培养方案相关内容，《汉语国际教育（国际学生）本科人才培养方案》明确："
+                        "总学分:146学分。"
+                    ),
+                    corpus="curriculum",
+                    collection="curriculum_plan",
+                    sources=(
+                        _source(
+                            doc_id="curriculum:汉语国际教育（国际学生）本科人才培养方案",
+                            collection="curriculum_plan",
+                            snippet="总学分:146学分。",
+                        ),
+                    ),
+                ),
+                observed_trace=ObservedTrace(
+                    selected_scope=CURRICULUM_SCOPE,
+                    retrieval_called=True,
+                    clarification_emitted=False,
+                    error_path=False,
+                    supporting_sources=(
+                        _source(
+                            doc_id="curriculum:汉语国际教育（国际学生）本科人才培养方案",
+                            collection="curriculum_plan",
+                            snippet="总学分:146学分。",
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        result = report.results[0]
+        self.assertTrue(result.passed)
+        self.assertEqual(report.by_metric["expected_doc_hit"].passed, 1)
+        self.assertEqual(report.by_metric["answer_accuracy"].passed, 1)
+
+    def test_curriculum_regression_fiscal_core_credits_case_accepts_structured_core_credit_fact(self) -> None:
+        case = next(
+            item
+            for item in curriculum_regression_locked_cases()
+            if item.case_id == "curriculum-regression-fiscal-core-credits"
+        )
+
+        report = run_cases(
+            (case,),
+            executor=lambda _: ExecutionResult(
+                response=_response(
+                    answer_text=(
+                        "根据培养方案相关内容，《财政学本科人才培养方案》明确："
+                        "财政学专业必修的专业核心课程 30 学分。"
+                    ),
+                    corpus="curriculum",
+                    collection="curriculum_plan",
+                    sources=(
+                        _source(
+                            doc_id="curriculum:财政学本科人才培养方案",
+                            collection="curriculum_plan",
+                            snippet="财政学专业必修的专业核心课程 30 学分。",
+                        ),
+                    ),
+                ),
+                observed_trace=ObservedTrace(
+                    selected_scope=CURRICULUM_SCOPE,
+                    retrieval_called=True,
+                    clarification_emitted=False,
+                    error_path=False,
+                    supporting_sources=(
+                        _source(
+                            doc_id="curriculum:财政学本科人才培养方案",
+                            collection="curriculum_plan",
+                            snippet="财政学专业必修的专业核心课程 30 学分。",
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        result = report.results[0]
+        self.assertTrue(result.passed)
+        self.assertEqual(report.by_metric["expected_doc_hit"].passed, 1)
+        self.assertEqual(report.by_metric["answer_accuracy"].passed, 1)
 
     def test_runner_accepts_supervisor_clarification_without_rag_evidence(self) -> None:
         case = GoldenCase(

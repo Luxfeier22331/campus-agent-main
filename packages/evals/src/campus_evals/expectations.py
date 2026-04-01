@@ -28,6 +28,7 @@ _PROCEDURE_GOAL_HINTS = ("怎么办", "如何", "怎么", "办理", "申请", "�
 _PROCEDURE_ACTION_HINTS = ("挂失", "申请", "补办", "办理", "提交", "填写", "备案", "审批", "审核")
 _PROCEDURE_LEAD_ACTION_HINTS = ("挂失", "申请", "办理", "提交", "填写", "备案", "审批", "审核")
 _PROCEDURE_SIDE_NOTE_HINTS = ("优惠卡", "检测", "充值", "销毁", "转借", "处分", "负责解释", "不良后果")
+_NON_PROCEDURE_STRUCTURED_GOAL_HINTS = ("课程地图",)
 
 
 def evaluate_case(case: GoldenCase, execution: ExecutionResult) -> CaseResult:
@@ -384,6 +385,8 @@ def _normalize_text(value: str) -> str:
 
 def _is_procedure_goal(user_goal: str) -> bool:
     normalized_goal = _normalize_text(user_goal)
+    if any(_normalize_text(token) in normalized_goal for token in _NON_PROCEDURE_STRUCTURED_GOAL_HINTS):
+        return False
     return any(_normalize_text(token) in normalized_goal for token in _PROCEDURE_GOAL_HINTS)
 
 

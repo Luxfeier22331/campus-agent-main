@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-03-29
-updated: 2026-03-29
+updated: 2026-04-02
 ---
 
 # Golden Dataset Case Matrix
@@ -84,15 +84,15 @@ updated: 2026-03-29
 
 | Lane | Status | Current evidence | Notes |
 | --- | --- | --- | --- |
-| title exact-match | covered | ethnology / digital-economy / general-english / innovation title qrels | curriculum 标题命中已形成主基线。 |
-| same-major / path disambiguation | covered | `history-strong-base-title`, `law-ethnic-experimental-total-credits` | 已覆盖相邻专业或路径区分。 |
+| title exact-match | covered | ethnology / digital-economy / general-english / innovation / minority-strong-base / hanyu-international title qrels | curriculum 标题命中已形成主基线，并扩到国际学生版本和中国少数民族语言文学强基版本。 |
+| same-major / path disambiguation | covered | `history-strong-base-title`, `minority-language-strong-base-title`, `hanyu-international-students-title`, `law-ethnic-experimental-total-credits` | 已覆盖相邻专业、培养路径与普通版/国际学生版区分。 |
 | sparse fixed phrase | covered | `fixed-phrase-ethnic-experimental-class` | curriculum 已有明确的 sparse 固定短语样本。 |
-| dense semantic paraphrase | covered | `digital-economy-plan-paraphrase`, `semantic-philosophy-strong-base-paraphrase` | 已补足更自然的跨表述问法。 |
-| short fact | covered | ethnology-second-degree-academic-years / ethnology-total-credits | 已进入 qrels。 |
-| table / structured evidence | covered | economics-course-map-table | 当前最明确的 curriculum 高风险 lane。 |
+| dense semantic paraphrase | covered | `digital-economy-plan-paraphrase`, `semantic-philosophy-strong-base-paraphrase`, `semantic-minority-language-strong-base-paraphrase` | 已补足更自然的跨表述问法，并扩到中国少数民族语言文学强基路径。 |
+| short fact | covered | ethnology-second-degree-academic-years / ethnology-total-credits / minority-language-total-credits / education-second-degree-academic-years / hanyu-international-students-total-credits | 已进入 qrels，并扩到国际学生版本与教育学第二学士学位。 |
+| table / structured evidence | covered | economics-course-map-table / fiscal-course-map-table | curriculum table retrieval 已不再只依赖单一经济学创新班样本。 |
 | no-hit fail-close | covered | impossible-query / nonexistent-program | 已具备 deterministic 基线。 |
-| forbidden-source disambiguation | covered | `history-strong-base-title`, `philosophy-strong-base-title`, `digital-economy-plan-paraphrase`, `general-english-total-credits`, `semantic-philosophy-strong-base-paraphrase` | curriculum 已有多条 canonical forbidden-source 样本。 |
-| version-sensitive retrieval | covered | `digital-economy-plan-paraphrase`, `general-english-total-credits` | 已有选定高风险 case 锁到 `doc_id + version_id`。 |
+| forbidden-source disambiguation | covered | `history-strong-base-title`, `minority-language-strong-base-title`, `semantic-minority-language-strong-base-paraphrase`, `hanyu-international-students-title`, `hanyu-international-students-total-credits`, `philosophy-strong-base-title`, `digital-economy-plan-paraphrase`, `general-english-total-credits`, `semantic-philosophy-strong-base-paraphrase` | curriculum 已形成更完整的 canonical forbidden-source 样本集。 |
+| version-sensitive retrieval | covered | `minority-language-strong-base-title`, `digital-economy-plan-paraphrase`, `general-english-total-credits`, `hanyu-international-students-total-credits`, `education-second-degree-academic-years`, `fiscal-course-map-table` | 已有 6 条选定高风险 case 锁到 `doc_id + version_id`。 |
 
 ### Workflow / Answer Matrix
 
@@ -105,16 +105,18 @@ updated: 2026-03-29
 | required facts | covered | 学制、学分、课程地图等 fixed cases | curriculum answer truth 已比 handbook 更接近结构化事实校验。 |
 | forbidden claims | covered | release-gate completed cases | 当前已防止误答成 handbook 内容。 |
 | citation completeness | covered | `curriculum-workflow-status-summary.json` 已给出 `citation_completeness = 4/4 pass`，repo-tracked deterministic gate 也已存在 | 当前剩余问题不是缺 live artifact，而是是否继续扩样到更大 curriculum case 面。 |
-| explicit smoke workflow set | covered | `curriculum_smoke_cases()` 4 条稳定 fixed cases | 已显式覆盖 `completed`、`no_answer`、`needs_clarification`。 |
-| explicit regression_locked workflow set | covered | `curriculum_regression_locked_cases()` 5 条高风险 fixed cases | 已形成 curriculum 常设高风险 workflow 集。 |
+| explicit smoke workflow set | covered | `curriculum_smoke_cases()` 5 条稳定 fixed cases | 已显式覆盖 `completed`、`no_answer`、`needs_clarification`，并新增国际学生总学分短事实样本。 |
+| explicit regression_locked workflow set | covered | `curriculum_regression_locked_cases()` 8 条高风险 fixed cases | 已形成 curriculum 常设高风险 workflow 集，并扩到中国少数民族语言文学强基路径、教育学第二学士学位和财政学专业核心课。 |
 
 ## Current Cross-Corpus Gaps
 
 当前两个 corpus 共同存在的高优先级缺口：
 
 - handbook 的 structured evidence 仍只有 list-like 样本，尚未进入表格级 canonical case
-- expanded qrels 还没有 fresh live rerun 证据
 - curriculum 的 citation completeness 已有 live artifact，但覆盖面仍以当前 4 条 completed release-gate case 为主
+- curriculum expanded qrels 已有 fresh live rerun，但仍留下少量真实 retrieval ranking gap：
+  - `fixed-phrase-ethnic-experimental-class` 仍未 hit
+  - 两条中国少数民族语言文学强基样本仍出现 forbidden top-5
 - synthetic placeholder 与 canonical fixed cases 的分层还需要进一步收口
 
 ## Immediate Priority
@@ -122,6 +124,6 @@ updated: 2026-03-29
 按当前价值排序，下一步应优先补：
 
 1. handbook 的表格级 structured evidence case
-2. expanded qrels 的 fresh live evidence 与 acceptance verdict 做单一口径归一
+2. curriculum sparse fixed phrase 与 forbidden-source suppression 的 retrieval ranking hardening
 3. answer truth / citation completeness 的继续扩样
 4. synthetic placeholder 向 canonical fixed-case 体系的晋升/淘汰规则

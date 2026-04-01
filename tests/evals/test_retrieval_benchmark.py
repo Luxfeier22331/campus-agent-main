@@ -263,6 +263,10 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         case_ids = {case.case_id for case in dataset.cases}
         self.assertTrue(
             {
+                "minority-language-strong-base-title",
+                "semantic-minority-language-strong-base-paraphrase",
+                "hanyu-international-students-title",
+                "hanyu-international-students-total-credits",
                 "philosophy-strong-base-title",
                 "digital-economy-plan-paraphrase",
                 "general-english-total-credits",
@@ -274,6 +278,10 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertTrue(
             {
                 "history-strong-base-title",
+                "minority-language-strong-base-title",
+                "semantic-minority-language-strong-base-paraphrase",
+                "hanyu-international-students-title",
+                "hanyu-international-students-total-credits",
                 "philosophy-strong-base-title",
                 "digital-economy-plan-paraphrase",
                 "general-english-total-credits",
@@ -291,17 +299,42 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         }
         self.assertTrue(
             {
+                "minority-language-strong-base-title",
                 "digital-economy-plan-paraphrase",
                 "general-english-total-credits",
+                "hanyu-international-students-total-credits",
+                "education-second-degree-academic-years",
+                "fiscal-course-map-table",
             }.issubset(version_locked_case_ids)
         )
         self.assertTrue(
             all(
                 source.chunk_id is None
                 for case in dataset.cases
-                if case.case_id in {"digital-economy-plan-paraphrase", "general-english-total-credits"}
+                if case.case_id
+                in {
+                    "minority-language-strong-base-title",
+                    "digital-economy-plan-paraphrase",
+                    "general-english-total-credits",
+                    "hanyu-international-students-total-credits",
+                    "education-second-degree-academic-years",
+                    "fiscal-course-map-table",
+                }
                 for source in case.expected_sources
             )
+        )
+
+    def test_curriculum_qrels_fixture_expands_short_fact_and_table_depth(self) -> None:
+        dataset = load_retrieval_qrels_dataset(CURRICULUM_QRELS_FIXTURE_PATH)
+
+        case_ids = {case.case_id for case in dataset.cases}
+        self.assertTrue(
+            {
+                "minority-language-total-credits",
+                "hanyu-international-students-total-credits",
+                "education-second-degree-academic-years",
+                "fiscal-course-map-table",
+            }.issubset(case_ids)
         )
 
 
