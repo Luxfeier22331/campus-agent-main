@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from campus_contracts import ActorContext, EvidenceBundle, EvidenceSource, KnowledgeScope, RagRequestPayload, RagResultPayload, SpecialistResponse
 from campus_evals import ExecutionResult, GoldenCase, TraceExpectation
-from campus_evals.handbook_live_benchmark import build_default_output_dir, build_handbook_live_executor, main
+from campus_evals.handbook_live_benchmark import build_default_output_dir, build_handbook_live_executor, build_handbook_live_profile, main
 
 
 HANDBOOK_SCOPE = KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -143,6 +143,32 @@ class HandbookLiveExecutorTest(unittest.TestCase):
         self.assertEqual(result.observed_trace.supporting_sources, ())
 
 
+class HandbookLiveProfileTest(unittest.TestCase):
+    def test_build_handbook_live_profile_uses_repo_tracked_http_settings_for_supplemental_adapters(self) -> None:
+        profile = build_handbook_live_profile(
+            env={
+                "EVAL_LLM_API_KEY": "llm-key",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
+                "EVAL_EMBEDDING_API_KEY": "embed-key",
+                "EVAL_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "EVAL_HTTP_READ_TIMEOUT_SECONDS": "90",
+            }
+        )
+
+        with patch(
+            "campus_evals.handbook_live_benchmark.build_default_handbook_supplemental_adapters_from_env",
+            return_value=("adapters",),
+        ) as build_adapters:
+            adapters = profile.supplemental_adapters_factory()
+
+        self.assertEqual(adapters, ("adapters",))
+        self.assertEqual(profile.http_settings.read_timeout_seconds, 180.0)
+        self.assertEqual(
+            build_adapters.call_args.kwargs["http_settings"].read_timeout_seconds,
+            180.0,
+        )
+
+
 class HandbookLiveBenchmarkCliTest(unittest.TestCase):
     def test_build_default_output_dir_uses_timestamped_eval_directory(self) -> None:
         path = build_default_output_dir(prefix="student-handbook-formal-benchmark", timestamp="20260329T123456")
@@ -209,3 +235,23 @@ class HandbookLiveBenchmarkCliTest(unittest.TestCase):
             benchmark_dir=benchmark_dir,
             output_dir=expected_output_dir,
         )
+
+    def test_main_runs_acceptance_against_live_chain(self) -> None:
+        case = _case()
+
+        with TemporaryDirectory() as tmpdir:
+            expected_output_dir = Path(tmpdir) / "student-handbook-formal-benchmark-accept-20260329T123456"
+            with (
+                patch("campus_evals.handbook_live_benchmark.handbook_release_gate_cases", return_value=(case,)),
+                patch(
+                    "campus_evals.handbook_live_benchmark.build_default_output_dir",
+                    return_value=expected_output_dir,
+                ),
+                patch("campus_evals.handbook_live_benchmark.accept_live_benchmark_profile") as accept_benchmark,
+            ):
+                exit_code = main(["accept", "--reruns", "3"])
+
+        self.assertEqual(exit_code, 0)
+        accept_benchmark.assert_called_once()
+        self.assertEqual(accept_benchmark.call_args.kwargs["output_dir"], expected_output_dir)
+        self.assertEqual(accept_benchmark.call_args.kwargs["reruns"], 3)

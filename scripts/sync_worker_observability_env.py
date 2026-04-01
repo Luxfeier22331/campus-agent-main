@@ -3,6 +3,13 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from scripts.env_sync import (
+    load_target_seed,
+    parse_env_file,
+    replace_or_append_env_values,
+    resolve_source_env_path,
+)
+
 
 OBSERVABILITY_TARGETS = {
     "apps/app-api/.dev.vars": {
@@ -24,57 +31,6 @@ REQUIRED_SOURCE_KEYS = (
     "SENTRY_DSN_CHAT",
     "SENTRY_DSN_PANEL",
 )
-
-
-def resolve_source_env_path(repo_root: Path) -> Path:
-    if repo_root.parent.name == ".worktrees":
-        return repo_root.parent.parent / ".env"
-    return repo_root / ".env"
-
-
-def parse_env_file(path: Path) -> dict[str, str]:
-    values: dict[str, str] = {}
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in raw_line:
-            continue
-        key, value = raw_line.split("=", 1)
-        values[key.strip()] = value.strip()
-    return values
-
-
-def _replace_or_append_env_values(existing_text: str, assignments: dict[str, str]) -> str:
-    pending = dict(assignments)
-    output_lines: list[str] = []
-
-    for raw_line in existing_text.splitlines():
-        if "=" not in raw_line:
-            output_lines.append(raw_line)
-            continue
-
-        key, _ = raw_line.split("=", 1)
-        normalized_key = key.strip()
-        if normalized_key in pending:
-            output_lines.append(f"{normalized_key}={pending.pop(normalized_key)}")
-        else:
-            output_lines.append(raw_line)
-
-    for key, value in pending.items():
-        output_lines.append(f"{key}={value}")
-
-    return "\n".join(output_lines) + "\n"
-
-
-def _load_target_seed(target_path: Path) -> str:
-    if target_path.exists():
-        return target_path.read_text(encoding="utf-8")
-
-    example_path = target_path.with_name(f"{target_path.name}.example")
-    if example_path.exists():
-        return example_path.read_text(encoding="utf-8")
-
-    return ""
-
 
 def sync_worker_observability_env(
     repo_root: Path,
@@ -101,7 +57,7 @@ def sync_worker_observability_env(
             for target_key, source_key in mapping.items()
             if source_values.get(source_key)
         }
-        content = _replace_or_append_env_values(_load_target_seed(target_path), assignments)
+        content = replace_or_append_env_values(load_target_seed(target_path), assignments)
         target_path.write_text(content, encoding="utf-8")
         written_paths.append(target_path)
 

@@ -1,23 +1,23 @@
 # Architecture
 
-**Analysis Date:** 2026-03-29
+**Analysis Date:** 2026-03-31
 
 ## Pattern Overview
 
-**Overall:** Supervisor-led layered orchestrator with dedicated execution, ingestion, and Worker/web surfaces, keeping retrieval, storage, and contracts tightly separated.
+**Overall:** Supervisor-led layered orchestrator with a dedicated execution boundary, offline ingestion/data plane, and shared Worker application/web surfaces, keeping retrieval, storage, and contracts tightly separated.
 
 **Key Characteristics:**
-- Policy-driven multi-agent path: client requests cross `apps/supervisor-api` into `packages/supervisor-core`, which frames a `SupervisorRequest`, routes to an explicit specialist target, and delegates to `packages/rag-specialist` or `packages/availability-specialist` through the shared `SupervisorRequest` / `SpecialistRequest` / `SupervisorResponse` contracts documented in `packages/contracts/src/campus_contracts/models.py` and `docs/architecture/long-term-architecture.md`.
+- Policy-driven multi-agent path: the current forward product topology is `public-chat-web -> app-api -> supervisor-api` for public chat and `protected-panel-web -> app-api` for operator read surfaces; `apps/supervisor-api` then frames a `SupervisorRequest`, routes to an explicit specialist target, and delegates to `packages/rag-specialist` or `packages/availability-specialist` through the shared `SupervisorRequest` / `SpecialistRequest` / `SupervisorResponse` contracts documented in `packages/contracts/src/campus_contracts/models.py` and `docs/architecture/long-term-architecture.md`.
 - Phase-1 data plane enforces S3-compatible object storage, registries, and Qdrant-backed chunk indexes for `student_handbook`/`curriculum_plan`, most of which is described in `docs/architecture/phase1-ingestion-and-storage-architecture.md` and implemented under `packages/ingestion-core/src/campus_ingestion_core`.
 - Explicit boundary governance: `packages/contracts` holds allowed corpora, trace contexts, and error schemas, while `packages/shared` keeps only constants that other packages may import without pulling runtime infrastructure details into coordination logic.
 
 ## Layers
 
 **Transport & Runtime Surfaces (`apps/`):**
-- Purpose: host execution, ingestion, Worker/web shells, and the minimal merged `app-api` seam.
-- Contains: `apps/supervisor-api/src/campus_supervisor_api/*`, `apps/ingestion-worker/src/campus_ingestion_worker/*`, `apps/app-api/src/campus_app_api/projection.py`, `apps/public-entry-worker`, and `apps/protected-internal-panel`.
+- Purpose: host execution, ingestion, the shared Worker application backend, and the current public/protected Worker web surfaces.
+- Contains: `apps/supervisor-api/src/campus_supervisor_api/*`, `apps/ingestion-worker/src/campus_ingestion_worker/*`, `apps/app-api/src/*`, `apps/public-chat-web/src/*`, and `apps/protected-panel-web/src/*`.
 - Depends on: `packages/supervisor-core` for orchestration, `packages/contracts` for request/response types, and `packages/ingestion-core` for ingestion behaviors.
-- Used by: HTTP/Worker clients for answers, projection handoff construction, and CLI tooling for raw ingestion jobs.
+- Used by: browser clients, operator workflows, `official_web` control-plane flows, projection handoff construction, and CLI tooling for raw ingestion jobs.
 
 **Supervisor Coordination Layer (`packages/supervisor-core`):**
 - Purpose: normalize `SupervisorRequest`, apply routing policy, audit outcomes, and assemble final responses.
@@ -53,11 +53,13 @@
 
 **Answer request flow:**
 
-1. Incoming HTTP/AgentOS requests hit `apps/supervisor-api/src/campus_supervisor_api/app.py`, where `build_routes` wires `/api/v1/answer` to `handle_answer` (`apps/supervisor-api/src/campus_supervisor_api/api.py`).
-2. `handle_answer` authenticates using `map_actor_context` (`.auth.py`), constructs a `SupervisorRequest`, and hands it to `packages/supervisor-core/src/campus_supervisor_core/agent.py`.
-3. `SupervisorAgent.handle` builds a `SupervisorRequestContext`, routes the request via `routing.route_request`, frames a `SpecialistRequest`, and invokes the configured specialist delegate.
-4. The selected specialist validates the request, performs retrieval or controlled probing, and returns a typed `SpecialistResponse`.
-5. Supervisor finalizes the specialist response into `SupervisorResponse`, audits via `packages/supervisor-core/src/campus_supervisor_core/audit.py`, and the API serializes that `SupervisorResponse`.
+1. Browser chat requests hit `apps/public-chat-web/src/index.ts`, which stays same-site to `apps/app-api`.
+2. `apps/app-api/src/app.ts` owns product-layer auth/session/principal mapping, request projection, telemetry hooks, and the internal bridge into `apps/supervisor-api` when a supervisor execution is needed.
+3. `apps/supervisor-api/src/campus_supervisor_api/app.py` wires `/api/v1/answer` to `handle_answer` (`apps/supervisor-api/src/campus_supervisor_api/api.py`).
+4. `handle_answer` authenticates using `map_actor_context` (`.auth.py`), constructs a `SupervisorRequest`, and hands it to `packages/supervisor-core/src/campus_supervisor_core/agent.py`.
+5. `SupervisorAgent.handle` builds a `SupervisorRequestContext`, routes the request via `routing.route_request`, frames a `SpecialistRequest`, and invokes the configured specialist delegate.
+6. The selected specialist validates the request, performs retrieval or controlled probing, and returns a typed `SpecialistResponse`.
+7. Supervisor finalizes the specialist response into `SupervisorResponse`, audits via `packages/supervisor-core/src/campus_supervisor_core/audit.py`, and the API serializes that `SupervisorResponse` back through `app-api`.
 
 **Ingestion/data-plane flow:**
 
@@ -93,6 +95,12 @@
 - Pattern: procedural ingestion pipeline with dataclasses for settings/records and env-backed Postgres registries.
 
 ## Entry Points
+
+**`apps/app-api/src/index.ts` & `app.ts`:**
+- Location: shared Worker backend entry; responsibilities include auth/chat/operator/official-web HTTP surfaces, runtime command/projection handling, internal bridge admission, and telemetry wiring.
+
+**`apps/public-chat-web/src/index.ts` & `apps/protected-panel-web/src/index.ts`:**
+- Location: public and protected Worker web surfaces; responsibilities include browser-facing routing, internal proxy/BFF behavior, and trace propagation into `app-api`.
 
 **`apps/supervisor-api/src/campus_supervisor_api/app.py` & `api.py`:**
 - Location: API runtime surfaces, routing `/api/v1/answer`, `/healthz`, `/readyz`, and wiring `ApiSettings`.

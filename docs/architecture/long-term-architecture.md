@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-22
-updated: 2026-03-29
+updated: 2026-03-31
 ---
 
 # campus-agent 长期架构
@@ -13,7 +13,7 @@ updated: 2026-03-29
 
 当前阶段的目标不是做一个框架示例，也不是先为所有边界选一个统一 HTTP runtime；目标是先把仓库边界和演进方向定清楚，避免后续再次整体推翻。
 
-这份文档只保存长期架构边界、职责拆分和链路形态，不冻结具体实现、部署拓扑、供应商选型或第一阶段落地细节。
+这份文档只保存长期架构边界、职责拆分和链路形态，不冻结具体实现、部署拓扑、供应商选型或某一轮历史实施细节。
 
 当前 retrieval strategy 的运行真相不由本文维护；accepted baseline 以 `docs/architecture/retrieval-query-strategy.md` 与相关 ADR 为准。
 
@@ -76,7 +76,7 @@ updated: 2026-03-29
 - Raw Asset Registry: 原始文件身份、版本和存储定位
 - Processed Layer: 清洗文本和结构化处理中间结果
 - Document Registry: 文档版本、hash、authorization filter projection、状态等元数据
-- Chunk Metadata + Vector Index: chunk 元数据和向量检索索引；phase-1 当前 ACL 字段只属于 projection carrier
+- Chunk Metadata + Vector Index: chunk 元数据和向量检索索引；当前 ACL 字段只属于 projection carrier
 
 与 shared `app-api` 配套的运行数据层至少包括：
 
@@ -171,7 +171,7 @@ execution engine runtime 选择应该延后。未来可以接受的实现包括�
 - `packages/retrieval-core` 负责执行 serving filter 与 authorization filter projection，但不拥有最终 entitlement resolution
 - document / chunk 上的 ACL metadata 属于 search-time filter projection，不是长期 canonical authorization truth
 - `visibility` 与 `applicability` 必须分层；major、cohort、recent goal 这类个性化线索默认首先属于 applicability / personalization，而不是 visibility truth
-- 当前 phase-1 的 `acl_level`、`acl_groups` 与 `campus_scope` 只属于 transitional filter shape；长期字段族应收敛到显式 `visibility` / `entitlement` projection，不应继续被提升为 canonical authz schema
+- 当前 accepted implementation 中的 `acl_level`、`acl_groups` 与 `campus_scope` 只属于 transitional filter shape；长期字段族应收敛到显式 `visibility` / `entitlement` projection，不应继续被提升为 canonical authz schema
 
 ## 观测与遥测边界
 
@@ -289,7 +289,7 @@ RAG specialist 是被委派的知识域 worker，不是一个薄薄的 tool shim
 - runtime / agent framework 可以进入 supervisor / specialist 的实现层
 - runtime / agent framework 不得泄漏进 `packages/contracts` 或 `packages/retrieval-core`
 
-phase-1 当前对 Agno / AgentOS 的具体集成深度见 `docs/architecture/supervisor-architecture.md`，而不是由本文冻结。
+当前对 Agno / AgentOS 的具体集成深度见 `docs/architecture/supervisor-architecture.md`，而不是由本文冻结。
 
 RAG specialist 的长期内部形态、`RagIntentFrame`、个性化输入边界与 authorization filter 约束，见 `docs/architecture/rag-specialist-architecture.md`。
 ### Other Specialist Types
@@ -308,7 +308,7 @@ specialist 在长期架构中表示“稳定能力边界”，不等同于“只
 - 由 supervisor 显式路由，而不是在 supervisor 内部隐式执行一组零散 tool
 - 通过 `packages/contracts` 中冻结的 delegation / handoff contract 交互，而不是暴露底层 runtime / network / infra 类型
 - 保持自身能力边界，不把 supervisor 变回“什么都自己做”的顶层 agent
-- 如果它们不是 phase-1 默认 query-serving 路径的一部分，应在当前执行计划中被单独标注，而不是偷渡进现有 `rag-specialist` 语义
+- 如果它们不是当前默认 query-serving 路径的一部分，应在当前执行计划中被单独标注，而不是偷渡进现有 `rag-specialist` 语义
 
 ### Specialist 准入规则
 
@@ -408,22 +408,22 @@ ingestion boundary 是长期存在的数据摄入边界。
 - Chunk/Index Layer
   保存在线检索所需的 chunk 文本、chunk metadata、embeddings 和向量索引。
 - Document Registry
-  保存 `document_id`、`version_id`、`content_hash`、`source_uri`、`corpus`、`collection`、status、ingestion metadata，以及指向 raw asset 的引用；同时保存 retrieval pre-filter 所需的 authorization projection metadata。phase-1 当前 carrier 仍是 `acl_groups` / `campus_scope`，但长期应收敛到显式 `visibility` / `entitlement` projection。它表达“当前逻辑文档版本是什么”，不重复承载 raw 文件身份。
+  保存 `document_id`、`version_id`、`content_hash`、`source_uri`、`corpus`、`collection`、status、ingestion metadata，以及指向 raw asset 的引用；同时保存 retrieval pre-filter 所需的 authorization projection metadata。当前 carrier 仍是 `acl_groups` / `campus_scope`，但长期应收敛到显式 `visibility` / `entitlement` projection。它表达“当前逻辑文档版本是什么”，不重复承载 raw 文件身份。
 
 其中 `packages/ingestion-core` 主要负责把 source/derived 输入推进成可追踪的 registry 与 chunk/index 产物，`packages/retrieval-core` 则负责消费这些产物形成 evidence bundle。
 
 额外约束：
 
 - `derived` 是 chunk 的可重建来源，不是对象存储中的 chunk 文件集合
-- 在线查询所消费的 canonical chunk store 是 `Chunk/Index Layer`，第一阶段具体为 `Qdrant`
+- 在线查询所消费的 canonical chunk store 是 `Chunk/Index Layer`，当前 accepted implementation 为 `Qdrant`
 - 如需把 chunk 额外导出到对象存储，该副本只能用于备份、审计或离线重建，不能成为主消费路径或第二真相源
 
-第一阶段固定约束：
+当前接受的数据平面约束：
 
 - 不长期依赖本机文件系统作为数据真相源
 - 所有 crawler 产物先进入队列和对象存储
 - 去重在摄入早期完成
-- stable document ID / version ID / chunk ID 在第一阶段建立
+- stable document ID / version ID / chunk ID 已作为当前 accepted invariant 建立
 - online query path 和 offline ingestion path 必须分离
 - 当前阶段对象存储可以先部署在本机，但在架构语义上仍按对象存储边界对待，而不是退化成“本机目录方案”
 
@@ -476,7 +476,7 @@ v2 真正变化的地方：
 - 具体 runtime 选型
 - 具体 queue / crawler / object storage / vector store 产品
 - repo 中是否新增某个 app 或 package
-- 第一阶段部署形态和实施顺序
+- 当前 phase 的部署形态和实施顺序
 
 ## 设计约束
 
@@ -489,7 +489,7 @@ v2 真正变化的地方：
 
 ## 治理边界
 
-ACL、审计和 traceability 在第一阶段按“够上线的最小闭环”建设，不按“最终硬化形态”一次做满。
+ACL、审计和 traceability 当前按“够上线的最小闭环”建设，不按“最终硬化形态”一次做满。
 
 系统治理至少需要覆盖：
 
@@ -501,7 +501,7 @@ ACL、审计和 traceability 在第一阶段按“够上线的最小闭环”建
 - 审计日志至少记录用户、路由、sources 和最终状态
 - ingestion 日志至少记录 `document_id`、`version_id`、`content_hash`、处理状态和索引写入结果
 - 观测默认遵循数据最小化：不把完整 prompt、chunk 正文和敏感认证材料直接作为长期默认日志落盘
-- 文档层和 chunk 层都带可重建的 authorization filter projection metadata；phase-1 当前仍使用 ACL carrier，但它不是 canonical authz truth
+- 文档层和 chunk 层都带可重建的 authorization filter projection metadata；当前仍使用 ACL carrier，但它不是 canonical authz truth
 - 高风险或不可逆动作必须保留 approval / HITL 介入边界
 - specialist 自由文本输出不能直接越过 deterministic gate 触发高风险动作
 
@@ -522,7 +522,7 @@ ACL、审计和 traceability 在第一阶段按“够上线的最小闭环”建
 - 授权与访问控制架构：`docs/architecture/authorization-and-access-control-architecture.md`
 - 用户身份、长期记忆与个性化边界：`docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - 授权模型与检索过滤投影：`docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
-- 第一阶段 ingestion 与存储架构：`docs/architecture/phase1-ingestion-and-storage-architecture.md`
+- 数据平面架构约束（历史文件名保留）：`docs/architecture/phase1-ingestion-and-storage-architecture.md`
 - shared app backend 与 web surface：`docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - request projection ownership：`docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - supervisor internal execution admission：`docs/decisions/adr-0017-supervisor-internal-execution-admission.md`

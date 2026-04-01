@@ -2,14 +2,14 @@
 doc_type: architecture
 status: active
 created: 2026-03-22
-updated: 2026-03-28
+updated: 2026-03-31
 ---
 
-# campus-agent 第一阶段数据平面架构
+# campus-agent 数据平面架构约束（历史文件名 phase1 保留）
 
 ## 文档边界
 
-这份文档描述的是 `campus-agent` 在 phase-1 交付范围内的 `ingestion / storage / registry / chunk-index` 数据平面架构，不是 `.planning/ROADMAP.md` 中 “Phase 1: Contract And Boundary Guardrails” 的执行说明。
+这份文档保留 `phase1` 文件名只是为了历史链接稳定；正文描述的是 `campus-agent` 当前 accepted `ingestion / storage / registry / chunk-index` 数据平面架构，而不是 `.planning/ROADMAP.md` 中任何一个当前 GSD phase 的执行说明。
 
 它只负责冻结跨 collection 共享的数据平面边界和不变量，不负责重复以下内容：
 
@@ -19,11 +19,11 @@ updated: 2026-03-28
 - OCR/source-truth shared canonical contract：`docs/architecture/source-truth-normalization-contract.md`
 - 长期版本化 serving / 历史查询目标：`docs/architecture/versioned-document-serving-and-history-query.md`
 - collection 级 runtime truth：`configs/ingestion/<corpus>/<collection>/`
-- gate、实施顺序和验收：`docs/plans/agentic-rag-foundation.md`
+- 历史实施基线与早期门禁背景：`docs/plans/agentic-rag-foundation.md`
 
 ## 目标
 
-第一阶段的数据平面目标是：
+当前接受的数据平面目标是：
 
 - 正式引入独立的 ingestion/data plane，而不是把数据导入继续塞进在线查询路径
 - 从第一天起建立 `Raw -> Processed -> Chunk/Index` 分层
@@ -37,7 +37,7 @@ updated: 2026-03-28
 当前文档体系的 ownership 固定如下：
 
 - 数据平面的长期分层、package 边界：`docs/architecture/long-term-architecture.md`
-- 第一阶段为什么采用对象存储 + registry + Qdrant：本文
+- 当前为什么采用对象存储 + registry + Qdrant：本文
 - bucket、object key、registry 字段和迁移不变量：`docs/decisions/adr-0002-local-minio-conventions.md`
 - `student_handbook` 的 source-level normalization 和 document-level cleanup truth：`docs/architecture/student-handbook-ocr-normalization-strategy.md`
 - repo 级 source-truth canonical contract：`docs/architecture/source-truth-normalization-contract.md`
@@ -47,7 +47,7 @@ updated: 2026-03-28
 
 ## 采用该数据面组合的原因
 
-phase-1 当前采用对象存储 + raw asset registry + document registry + Qdrant，不是为了把实现堆得更重，而是为了尽早固定可重建、可审计、可升级的数据面骨架：
+当前 accepted implementation 采用对象存储 + raw asset registry + document registry + Qdrant，不是为了把实现堆得更重，而是为了尽早固定可重建、可审计、可升级的数据面骨架：
 
 - 不把 ingestion 留成后续必须推倒重做的技术债
 - 从第一天建立稳定的 `raw_asset_id`、`document_id`、`version_id` 与 `chunk_id`
@@ -57,7 +57,7 @@ phase-1 当前采用对象存储 + raw asset registry + document registry + Qdra
 
 ## 架构结论
 
-第一阶段采用如下数据平面：
+当前采用如下数据平面：
 
 - `Crawler / Job`
   负责采集或登记待摄入的原始来源
@@ -123,7 +123,7 @@ phase-1 当前采用对象存储 + raw asset registry + document registry + Qdra
 
 ### Source Truth 与 Projection Boundary
 
-第一阶段对可复用 source asset 的 canonical 模型固定为：
+当前对可复用 source asset 的 canonical 模型固定为：
 
 `raw -> source truth -> declared projections -> document/chunk/index`
 
@@ -171,17 +171,19 @@ phase-1 当前采用对象存储 + raw asset registry + document registry + Qdra
 
 不变量：
 
-- 第一阶段 canonical chunk store 是 `Qdrant`
+- 当前 canonical chunk store 是 `Qdrant`
 - 每个 chunk 必须回链到 `document_id`、`revision_track`、`version_id`
 - 已进入 release-managed lifecycle 的 collection 必须通过固定 serving alias 暴露，离线重建写入按 `collection_prefix__release_id` 命名的 versioned physical collection
 - 每次 chunking/embedding/indexing 发布都必须生成小型 release manifest，并落到 derived bucket 的 `{corpus}/releases/{collection}/{release_id}/` 前缀；manifest 用于审计与回滚，不保存 chunk dump
+- 旧 physical collection 的过期遵循 role-based retention：至少区分 `current`、`previous`、`migration_baseline` 与 `archive_candidate`；不得只按年龄直接删除
+- `Qdrant Cloud Standard` 环境默认以 managed backups 作为 cluster-level 恢复覆盖；当前 `Free` tier 则允许把 per-collection snapshot bundle 暂存到 derived bucket，用于过渡期恢复
 - embedding request contract 与 Qdrant schema contract 必须分离：
   `model` / `dimensions` 属于 embedding runtime；
   named dense/sparse vectors、payload metadata 与 hybrid query shape 属于 Qdrant collection schema
 - `student_handbook` 的 accepted target schema 是同一点双写 named `dense` 与 named `sparse` vectors
-- 对象存储不保留 chunking 后的全文 chunk 产物；chunk 文本、向量与检索 payload 只保留在 Qdrant 中，离线重建以 `document-units.jsonl + policy version` 为准
+- 对象存储不把 chunking 后的全文 chunk 产物当作 canonical query truth；chunk 文本、向量与检索 payload 的在线真相只保留在 Qdrant 中。`Free` tier 过渡期允许在对象存储里保存 Qdrant snapshot bundle，但它只是备份材料，离线重建仍以 `document-units.jsonl + policy version` 为准
 
-## 第一阶段固定流程
+## 当前固定流程
 
 ### 摄入链路
 
@@ -214,7 +216,7 @@ phase-1 当前采用对象存储 + raw asset registry + document registry + Qdra
 - 当前 retrieval accepted baseline 为 `dense + sparse hybrid retrieval + RRF fusion + registry-backed evidence shaping`；`HyDE` 和 rerank 不是默认主路径
 - 当前 handbook embedding runtime 通过 `gitee` 官方 OpenAI-compatible 接口请求 `Qwen3-Embedding-4B @ 2560`，ingestion 与 retrieval query path 都必须显式发送 `dimensions=2560`
 - 当前 handbook dense query embedding 会在 retrieval time 追加英文 instruction，再送入 `Qwen3-Embedding-4B`
-- 当前 handbook 的 phase-1 sparse baseline 先采用 `Qdrant native BM25`，并以 `tokenizer=multilingual`、`language=none` 作为中文 handbook 起始配置
+- 当前 handbook sparse baseline 先采用 `Qdrant native BM25`，并以 `tokenizer=multilingual`、`language=none` 作为中文 handbook 起始配置
 - 当前 handbook 的 accepted target retrieval shape 是 Qdrant native hybrid query：同一 filter 下执行 dense prefetch 与 sparse prefetch，并使用 native `RRF` 融合；当前 runtime 冻结为 dense prefetch `20`、sparse prefetch `20`、`RrfQuery(k=60, weights=[1.0,1.0])`
 - query-serving 默认只消费 collection runtime profile 定义的 serving documents。当前 `student_handbook` 策略为 `current_only=true` 且 `serving_revision_tracks=["current-effective","source-faithful"]`；当前 `curriculum_plan` 策略为 `current_only=false` 且 `serving_revision_tracks=["source-faithful"]`
 - 当前 `student_handbook` runtime profile 默认返回 `8` 个 retrieval candidates，回答阶段再裁剪为最多 `3` 条支撑证据
@@ -224,7 +226,7 @@ phase-1 当前采用对象存储 + raw asset registry + document registry + Qdra
 
 ## 去重与版本策略
 
-第一阶段采用：
+当前采用：
 
 - exact duplicate: `content_hash`
 - stable identity: `document_id`
@@ -241,17 +243,17 @@ phase-1 当前采用对象存储 + raw asset registry + document registry + Qdra
 
 ## Authorization Filter Projection 与 Traceability
 
-第一阶段必须做到：
+当前必须做到：
 
 - 文档级 authorization filter projection metadata
 - chunk 级 authorization filter projection metadata 继承文档 metadata
-- 当前 phase-1 可继续使用 `acl_level`、`acl_groups`、`campus_scope` 作为 projection carrier
+- 当前可继续使用 `acl_level`、`acl_groups`、`campus_scope` 作为 projection carrier
 - 但这组字段只服务 retrieval pre-filter，不是 canonical authorization truth
 - retrieval/evidence 返回最小 source locator 字段
 - ingestion 和 query 都写结构化日志
 - object storage 路径从第一天起保持稳定语义，避免未来迁移云对象存储时重写数据面规则
 
-第一阶段不做到：
+当前不做到：
 
 - chunk-level field masking
 - 完整 ABAC policy engine
@@ -284,7 +286,7 @@ phase-1 当前采用对象存储 + raw asset registry + document registry + Qdra
 - `packages/ingestion-core/src/campus_ingestion_core/process.py`
 - `packages/retrieval-core/src/campus_retrieval_core/backend_qdrant.py`
 
-## 第一阶段不做的事
+## 当前不做的事
 
 - 不做旧 `/api/search`、`/api/answer` 兼容层
 - 不做本机目录长期存储

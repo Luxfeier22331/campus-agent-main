@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-28
-updated: 2026-03-29
+updated: 2026-03-30
 ---
 
 # App API Architecture
@@ -256,7 +256,7 @@ operator query path 至少包含：
 
 `app-api` 下的推荐逻辑分域固定为：
 
-- `auth.*`
+- `app_auth.*`
 - `authorization.*`
 - `profile.*`
 - `chat.*`
@@ -330,7 +330,6 @@ operator query path 至少包含：
 以下内容仍然是 canonical truth：
 
 - `apps/app-api` 是 Worker runtime
-- `apps/public-consumer-chat` 只是历史实现参考
 - `apps/protected-panel-web` 是当前受保护前端表面的 canonical app boundary
 - `apps/supervisor-api` 保持 execution engine
 - `official_web` control-plane ownership 已由 `app-api` 承接并完成首版 code path，包含 schema、collector command/query endpoints、operator projections 与 scheduled handoff dispatch

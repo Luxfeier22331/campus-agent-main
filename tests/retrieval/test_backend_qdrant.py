@@ -23,7 +23,9 @@ from campus_retrieval_core.backend_qdrant import (
     QdrantRetrievalBackend,
     RetrievalBackendError,
     _apply_no_hit_policy,
+    _build_document_support_query_text,
     _build_hybrid_prefetch,
+    _build_qdrant_filter,
     _build_rrf_query,
     _build_qdrant_client,
     _build_metadata_filters,
@@ -35,6 +37,7 @@ from campus_retrieval_core.settings import (
 )
 from llama_index.core.schema import TextNode
 from qdrant_client import QdrantClient
+from qdrant_client.http.exceptions import ResponseHandlingException
 from qdrant_client.http import models as qdrant_models
 from tests.support.in_memory_registry import InMemoryDocumentRegistry
 
@@ -214,6 +217,19 @@ def _collect_filter_keys(filter_node: object) -> list[str]:
     return keys
 
 
+def _collect_qdrant_filter_keys(filter_node: object) -> list[str]:
+    key = getattr(filter_node, "key", None)
+    if isinstance(key, str):
+        return [key]
+    is_empty = getattr(filter_node, "is_empty", None)
+    empty_key = getattr(is_empty, "key", None)
+    keys: list[str] = [empty_key] if isinstance(empty_key, str) else []
+    for attr_name in ("must", "should", "must_not"):
+        for nested in getattr(filter_node, attr_name, ()) or ():
+            keys.extend(_collect_qdrant_filter_keys(nested))
+    return keys
+
+
 class BackendQdrantTest(unittest.TestCase):
     def test_build_metadata_filters_treats_public_acl_as_public_level(self) -> None:
         filters = _build_metadata_filters(
@@ -322,7 +338,9 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertIn("entitlement_groups", auth_keys)
         self.assertIn("visibility_scope", scope_keys)
 
-    def test_build_metadata_filters_fail_closes_when_authorized_filter_has_no_acl_groups(self) -> None:
+    def test_build_metadata_filters_omit_entitlement_group_predicates_when_authorized_filter_has_no_acl_groups(
+        self,
+    ) -> None:
         filters = _build_metadata_filters(
             RetrievalRequest(
                 query_text="library hours",
@@ -340,11 +358,35 @@ class BackendQdrantTest(unittest.TestCase):
         )
 
         acl_filter = filters.filters[4]
-        entitlement_filter = next(
-            item for item in acl_filter.filters
-            if hasattr(item, "key") and item.key == "entitlement_groups"
+        auth_keys = _collect_filter_keys(acl_filter)
+        self.assertIn("visibility_level", auth_keys)
+        self.assertIn("acl_level", auth_keys)
+        self.assertNotIn("entitlement_groups", auth_keys)
+        self.assertNotIn("acl_groups", auth_keys)
+
+    def test_build_qdrant_filter_omits_entitlement_group_predicates_when_authorized_filter_has_no_acl_groups(
+        self,
+    ) -> None:
+        qdrant_filter = _build_qdrant_filter(
+            RetrievalRequest(
+                query_text="library hours",
+                corpus="regulations",
+                collection="student_handbook",
+                authorized_filter=AuthorizedRetrievalFilter(
+                    entitlement_groups=(),
+                    visibility_level="public",
+                    acl_groups=(),
+                    policy_projection_version="phase1-authorization-projection-v1",
+                ),
+            )
         )
-        self.assertEqual(entitlement_filter.value, [])
+
+        auth_filter = qdrant_filter.must[3]
+        auth_keys = _collect_qdrant_filter_keys(auth_filter)
+        self.assertIn("visibility_level", auth_keys)
+        self.assertIn("acl_level", auth_keys)
+        self.assertNotIn("entitlement_groups", auth_keys)
+        self.assertNotIn("acl_groups", auth_keys)
 
     def test_index_chunks_to_qdrant_skips_payload_indexes_for_local_backend(self) -> None:
         record = _make_registry_record(
@@ -490,6 +532,16 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertEqual(settings.sparse_model, "qdrant/bm25")
         self.assertEqual(settings.sparse_tokenizer, "multilingual")
         self.assertEqual(settings.sparse_language, "none")
+
+    def test_retrieval_settings_from_env_falls_back_to_shared_postgres_url(self) -> None:
+        settings = RetrievalSettings.from_env(
+            {
+                "QDRANT_URL": ":memory:",
+                "CAMPUS_SHARED_POSTGRES_URL": "postgresql://shared.example/postgres",
+            }
+        )
+
+        self.assertEqual(settings.document_registry_database_url, "postgresql://shared.example/postgres")
 
     def test_retrieval_settings_from_env_requires_explicit_qdrant_url(self) -> None:
         with self.assertRaisesRegex(ValueError, "QDRANT_URL is required"):
@@ -677,7 +729,106 @@ class BackendQdrantTest(unittest.TestCase):
             api_key="secret",
             timeout=settings.qdrant_timeout_seconds,
             cloud_inference=True,
+            check_compatibility=False,
+            trust_env=False,
         )
+
+    def test_backend_uses_collection_exists_without_alias_listing_precheck(self) -> None:
+        qdrant_client = Mock()
+        qdrant_client.collection_exists = Mock(return_value=True)
+        qdrant_client.get_aliases = Mock(side_effect=AssertionError("alias listing should not be called"))
+        qdrant_client.query_points = Mock(return_value=qdrant_models.QueryResponse(points=[]))
+        embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=InMemoryDocumentRegistry(),
+            qdrant_client=qdrant_client,
+            embedding_model=embedding_model,
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
+
+        result = backend.retrieve(
+            RetrievalRequest(
+                query_text="学生证丢了怎么办",
+                corpus="regulations",
+                collection="student_handbook",
+                acl_groups=("students",),
+                top_k=5,
+            )
+        )
+
+        self.assertEqual(result.sources, ())
+        qdrant_client.collection_exists.assert_called_once_with("student_handbook")
+        qdrant_client.query_points.assert_called_once()
+        qdrant_client.get_aliases.assert_not_called()
+
+    def test_backend_caches_positive_collection_existence_checks(self) -> None:
+        qdrant_client = Mock()
+        qdrant_client.collection_exists = Mock(return_value=True)
+        qdrant_client.query_points = Mock(return_value=qdrant_models.QueryResponse(points=[]))
+        embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=InMemoryDocumentRegistry(),
+            qdrant_client=qdrant_client,
+            embedding_model=embedding_model,
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
+        request = RetrievalRequest(
+            query_text="学生证丢了怎么办",
+            corpus="regulations",
+            collection="student_handbook",
+            acl_groups=("students",),
+            top_k=5,
+        )
+
+        backend.retrieve(request)
+        backend.retrieve(request)
+
+        qdrant_client.collection_exists.assert_called_once_with("student_handbook")
+        self.assertEqual(qdrant_client.query_points.call_count, 2)
+
+    def test_backend_retries_transient_collection_exists_failures(self) -> None:
+        qdrant_client = Mock()
+        qdrant_client.collection_exists = Mock(
+            side_effect=[
+                ResponseHandlingException(RuntimeError("_ssl.c:983: The handshake operation timed out")),
+                ResponseHandlingException(RuntimeError("_ssl.c:983: The handshake operation timed out")),
+                True,
+            ]
+        )
+        qdrant_client.query_points = Mock(return_value=qdrant_models.QueryResponse(points=[]))
+        embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=InMemoryDocumentRegistry(),
+            qdrant_client=qdrant_client,
+            embedding_model=embedding_model,
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
+
+        result = backend.retrieve(
+            RetrievalRequest(
+                query_text="学生证丢了怎么办",
+                corpus="regulations",
+                collection="student_handbook",
+                acl_groups=("students",),
+                top_k=5,
+            )
+        )
+
+        self.assertEqual(result.sources, ())
+        self.assertEqual(qdrant_client.collection_exists.call_count, 3)
+        qdrant_client.query_points.assert_called_once()
 
     def test_backend_returns_evidence_bundle_with_source_locator(self) -> None:
         registry = InMemoryDocumentRegistry()
@@ -1267,6 +1418,209 @@ class BackendQdrantTest(unittest.TestCase):
         )
 
         self.assertEqual(ranked[0].doc_id, "curriculum:民族学本科第二学士学位人才培养方案")
+
+    def test_prioritize_evidence_sources_prefers_same_document_academic_years_chunk_over_generic_tables(self) -> None:
+        ranked = prioritize_evidence_sources(
+            query_text="民族学本科第二学士学位人才培养方案学制几年？",
+            sources=(
+                _make_source(
+                    doc_id="curriculum:民族学本科第二学士学位人才培养方案",
+                    chunk_id="curriculum:ethnology-second-degree:chunk-0007",
+                    snippet="七、各教学环节学时学分分配表 合计 56 学分。",
+                    score=0.015873017,
+                    source_title="民族学本科第二学士学位人才培养方案",
+                    structural_path=("民族学本科第二学士学位人才培养方案", "七、各教学环节学时学分分配表"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+                _make_source(
+                    doc_id="curriculum:民族学本科第二学士学位人才培养方案",
+                    chunk_id="curriculum:ethnology-second-degree:chunk-0010",
+                    snippet="八、民族学本科专业教学进程计划表 社会研究方法。",
+                    score=0.014925373,
+                    source_title="民族学本科第二学士学位人才培养方案",
+                    structural_path=("民族学本科第二学士学位人才培养方案", "八、民族学本科专业教学进程计划表"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+                _make_source(
+                    doc_id="curriculum:民族学本科第二学士学位人才培养方案",
+                    chunk_id="curriculum:ethnology-second-degree:chunk-0005",
+                    snippet="五、学制 两年",
+                    score=0.033333335,
+                    source_title="民族学本科第二学士学位人才培养方案",
+                    structural_path=("民族学本科第二学士学位人才培养方案", "五、学制 两年"),
+                    content_kind="section_text",
+                    detail_label="五、学制",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        self.assertEqual(ranked[0].chunk_id, "curriculum:ethnology-second-degree:chunk-0005")
+
+    def test_prioritize_evidence_sources_prefers_same_document_course_map_chunk_over_generic_tables(self) -> None:
+        ranked = prioritize_evidence_sources(
+            query_text="经济学拔尖人才创新班人才培养方案课程地图怎么安排？",
+            sources=(
+                _make_source(
+                    doc_id="curriculum:经济学拔尖人才创新班人才培养方案",
+                    chunk_id="curriculum:economics-innovation:chunk-0013",
+                    snippet="五、课程设置和修读建议 1. 专业核心课程 经济学说史。",
+                    score=0.032002047,
+                    source_title="经济学拔尖人才创新班人才培养方案",
+                    structural_path=("经济学拔尖人才创新班人才培养方案", "五、课程设置和修读建议", "(二) 专业教育", "1. 专业核心课程"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+                _make_source(
+                    doc_id="curriculum:经济学拔尖人才创新班人才培养方案",
+                    chunk_id="curriculum:economics-innovation:chunk-0014",
+                    snippet="五、课程设置和修读建议 2. 专业选修课程 中国近现代经济史。",
+                    score=0.031257633,
+                    source_title="经济学拔尖人才创新班人才培养方案",
+                    structural_path=("经济学拔尖人才创新班人才培养方案", "五、课程设置和修读建议", "(二) 专业教育", "2. 专业选修课程"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+                _make_source(
+                    doc_id="curriculum:经济学拔尖人才创新班人才培养方案",
+                    chunk_id="curriculum:economics-innovation:chunk-0023",
+                    snippet="六、课程地图 经济学拔尖人才创新班本科课程结果拓扑图",
+                    score=0.033333335,
+                    source_title="经济学拔尖人才创新班人才培养方案",
+                    structural_path=("经济学拔尖人才创新班人才培养方案", "六、课程地图"),
+                    content_kind="section_text",
+                    detail_label="六、课程地图",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        self.assertEqual(ranked[0].chunk_id, "curriculum:economics-innovation:chunk-0023")
+
+    def test_expand_named_document_support_uses_focused_query_for_same_document_followup(self) -> None:
+        registry = InMemoryDocumentRegistry()
+        embedding_model = Mock()
+        embedding_model.get_query_embedding.side_effect = (
+            (0.1, 0.2, 0.3),
+            (0.4, 0.5, 0.6),
+        )
+        sparse_embedding_model = Mock()
+        sparse_embedding_model.build_query.side_effect = ("sparse-full", "sparse-focused")
+        qdrant_client = Mock()
+        qdrant_client.collection_exists.return_value = True
+        qdrant_client.get_aliases.return_value = qdrant_models.CollectionsAliasesResponse(aliases=[])
+        qdrant_client.query_points.side_effect = (
+            qdrant_models.QueryResponse(
+                points=[
+                    qdrant_models.ScoredPoint(
+                        id="point-intro",
+                        version=0,
+                        score=0.49,
+                        payload={
+                            "document_id": "curriculum:民族学本科第二学士学位人才培养方案",
+                            "revision_track": "source-faithful",
+                            "version_id": "v1:ethnology-second-degree",
+                            "chunk_id": "curriculum:民族学本科第二学士学位人才培养方案:chunk-0001",
+                            "corpus": "curriculum",
+                            "collection": "curriculum_plan",
+                            "acl_level": "public",
+                            "status": "active",
+                            "source_uri": "https://campus.example/curriculum/ethnology-second-degree",
+                            "canonical_url": "https://campus.example/curriculum/ethnology-second-degree",
+                            "latest_url": "https://campus.example/curriculum/ethnology-second-degree",
+                            "source_channel": "pdf_ocr",
+                            "is_current": True,
+                            "anchor": {"section_path": ["民族学本科第二学士学位人才培养方案", "一、培养目标"]},
+                            "text": "民族学本科第二学士学位人才培养方案 一、培养目标。",
+                        },
+                    ),
+                ]
+            ),
+            qdrant_models.QueryResponse(
+                points=[
+                    qdrant_models.ScoredPoint(
+                        id="point-years",
+                        version=0,
+                        score=0.47,
+                        payload={
+                            "document_id": "curriculum:民族学本科第二学士学位人才培养方案",
+                            "revision_track": "source-faithful",
+                            "version_id": "v1:ethnology-second-degree",
+                            "chunk_id": "curriculum:民族学本科第二学士学位人才培养方案:chunk-0005",
+                            "corpus": "curriculum",
+                            "collection": "curriculum_plan",
+                            "acl_level": "public",
+                            "status": "active",
+                            "source_uri": "https://campus.example/curriculum/ethnology-second-degree",
+                            "canonical_url": "https://campus.example/curriculum/ethnology-second-degree",
+                            "latest_url": "https://campus.example/curriculum/ethnology-second-degree",
+                            "source_channel": "pdf_ocr",
+                            "is_current": True,
+                            "anchor": {"section_path": ["民族学本科第二学士学位人才培养方案", "五、学制 两年"]},
+                            "text": "五、学制 两年",
+                        },
+                    ),
+                ]
+            ),
+        )
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=registry,
+            qdrant_client=qdrant_client,
+            embedding_model=embedding_model,
+            sparse_embedding_model=sparse_embedding_model,
+        )
+
+        backend.retrieve(
+            RetrievalRequest(
+                query_text="民族学本科第二学士学位人才培养方案学制几年？",
+                corpus="curriculum",
+                collection="curriculum_plan",
+                top_k=5,
+            )
+        )
+
+        self.assertEqual(embedding_model.get_query_embedding.call_count, 2)
+        self.assertEqual(
+            embedding_model.get_query_embedding.call_args_list[1].args[0],
+            "Instruct: Given a campus policy or handbook question, retrieve relevant passages that answer the query.\nQuery: 学制",
+        )
+        self.assertEqual(sparse_embedding_model.build_query.call_args_list[1].args[0], "学制")
+
+    def test_build_document_support_query_text_strips_short_fact_question_noise(self) -> None:
+        self.assertEqual(
+            _build_document_support_query_text(
+                query_text="民族学本科第二学士学位人才培养方案学制几年？",
+                source=_make_source(
+                    doc_id="curriculum:民族学本科第二学士学位人才培养方案",
+                    chunk_id="curriculum:ethnology-second-degree:chunk-0001",
+                    snippet="民族学本科第二学士学位人才培养方案 一、培养目标。",
+                    score=0.49,
+                    source_title="民族学本科第二学士学位人才培养方案",
+                ),
+            ),
+            "学制",
+        )
+
+    def test_build_document_support_query_text_strips_table_question_noise(self) -> None:
+        self.assertEqual(
+            _build_document_support_query_text(
+                query_text="经济学拔尖人才创新班人才培养方案课程地图怎么安排？",
+                source=_make_source(
+                    doc_id="curriculum:经济学拔尖人才创新班人才培养方案",
+                    chunk_id="curriculum:economics-innovation:chunk-0001",
+                    snippet="经济学拔尖人才创新班人才培养方案 一、培养目标。",
+                    score=0.49,
+                    source_title="经济学拔尖人才创新班人才培养方案",
+                ),
+            ),
+            "课程地图",
+        )
 
     def test_prioritize_evidence_sources_uses_explicit_source_title_when_doc_ids_are_opaque(self) -> None:
         ranked = prioritize_evidence_sources(

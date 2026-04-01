@@ -23,6 +23,27 @@ class RetrievalServiceTest(unittest.TestCase):
         from_env.assert_called_once_with()
         backend_ctor.assert_called_once_with(settings)
 
+    def test_build_retrieval_backend_reuses_env_backed_runtime_backend(self) -> None:
+        settings = Mock()
+        first_backend = Mock()
+        second_backend = Mock()
+
+        with (
+            patch("campus_retrieval_core.service._RUNTIME_BACKEND_CACHE", {}),
+            patch("campus_retrieval_core.service.RetrievalSettings.from_env", return_value=settings) as from_env,
+            patch(
+                "campus_retrieval_core.service.QdrantRetrievalBackend",
+                side_effect=(first_backend, second_backend),
+            ) as backend_ctor,
+        ):
+            first = build_retrieval_backend()
+            second = build_retrieval_backend()
+
+        self.assertIs(first, first_backend)
+        self.assertIs(second, first_backend)
+        self.assertEqual(from_env.call_count, 2)
+        backend_ctor.assert_called_once_with(settings)
+
     def test_retrieve_sources_uses_explicit_backend_without_reinitializing_runtime(self) -> None:
         backend = Mock()
         backend.retrieve.return_value = EvidenceBundle(

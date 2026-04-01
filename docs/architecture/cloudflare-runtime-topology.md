@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-25
-updated: 2026-03-28
+updated: 2026-03-30
 ---
 
 # Cloudflare Runtime Topology
@@ -11,7 +11,6 @@ updated: 2026-03-28
 
 这份文档只冻结 Phase 04.2 的 Cloudflare-to-runtime topology，不负责实现部署、IaC 或 provider 配置，也不替代以下文档：
 
-- public entry edge ownership：`docs/architecture/cloudflare-public-entry-boundary.md`
 - protected panel trust model：`docs/architecture/protected-panel-boundary.md`
 - protected panel operator access：`docs/architecture/protected-panel-operator-access.md`
 - shared app backend / product topology：`docs/architecture/shared-app-api-and-worker-web-surfaces.md`

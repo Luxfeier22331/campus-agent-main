@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import re
 import time
 import unicodedata
-from typing import Iterable, Sequence
+from typing import Callable, Iterable, Sequence, TypeVar
 
 from campus_contracts import EvidenceBundle, EvidenceSource
 from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile, load_runtime_profile
 from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
-from campus_ingestion_core.index_release import resolve_alias_target
 from campus_ingestion_core.registry import (
     DocumentRegistry,
     build_document_registry_from_env,
@@ -22,6 +21,7 @@ from campus_ingestion_core.sparse import (
 from llama_index.core.schema import MetadataMode, TextNode
 from llama_index.core.vector_stores import FilterCondition, FilterOperator, MetadataFilter, MetadataFilters
 from qdrant_client import QdrantClient
+from qdrant_client.http.exceptions import ResponseHandlingException
 from qdrant_client.http import models as qdrant_models
 
 from campus_retrieval_core.evidence_ranking import prioritize_evidence_sources, query_targets_source_title
@@ -64,6 +64,28 @@ _LOW_SIGNAL_CJK_PHRASES = (
     "教学计划",
     "课程地图",
 )
+_DOCUMENT_SUPPORT_QUERY_SUFFIXES = (
+    "怎么安排",
+    "如何安排",
+    "怎么修读",
+    "如何修读",
+    "怎么办理",
+    "如何办理",
+    "是多少",
+    "有多少",
+    "一共多少",
+    "怎么授予",
+    "如何授予",
+    "什么要求",
+    "几年",
+    "多少",
+    "怎么",
+    "如何",
+)
+_QDRANT_READ_RETRY_ATTEMPTS = 3
+_QDRANT_READ_RETRY_BACKOFF_SECONDS = 0.5
+_QDRANT_TRANSIENT_ERROR_TEXT = ("timed out", "timeout", "temporarily unavailable", "connection reset", "handshake")
+_RetryResult = TypeVar("_RetryResult")
 
 
 class RetrievalBackendError(RuntimeError):
@@ -83,6 +105,7 @@ class QdrantRetrievalBackend:
     sparse_embedding_model: SparseEmbeddingModel | None = None
     dense_query_cache_ttl_seconds: float = DEFAULT_DENSE_QUERY_CACHE_TTL_SECONDS
     _dense_query_cache: dict[str, tuple[float, tuple[float, ...]]] = field(default_factory=dict, init=False)
+    _known_collection_names: set[str] = field(default_factory=set, init=False)
 
     def __post_init__(self) -> None:
         self.registry = self.registry or build_document_registry_from_env(
@@ -121,18 +144,17 @@ class QdrantRetrievalBackend:
                 collection=request.collection,
             )
         qdrant_collection_name = profile.qdrant_index_binding.alias_name
-        alias_target = resolve_alias_target(
-            qdrant_client=self.qdrant_client,
-            alias_name=qdrant_collection_name,
-        )
-        if alias_target is None and not self.qdrant_client.collection_exists(qdrant_collection_name):
-            return EvidenceBundle(
-                query_text=request.query_text,
-                corpus=request.corpus,
-                collection=request.collection,
-            )
-
         try:
+            if qdrant_collection_name not in self._known_collection_names:
+                if not _retry_qdrant_read(
+                    lambda: self.qdrant_client.collection_exists(qdrant_collection_name)
+                ):
+                    return EvidenceBundle(
+                        query_text=request.query_text,
+                        corpus=request.corpus,
+                        collection=request.collection,
+                    )
+                self._known_collection_names.add(qdrant_collection_name)
             dense_query_embedding = self._get_dense_query_embedding(query_text, profile=profile)
             response = self.qdrant_client.query_points(
                 collection_name=qdrant_collection_name,
@@ -281,23 +303,32 @@ class QdrantRetrievalBackend:
         )
         if target_source is None:
             return tuple(sources)
+        support_query_text = _build_document_support_query_text(
+            query_text=request.query_text,
+            source=target_source,
+        )
+        support_request = replace(request, query_text=support_query_text)
         try:
+            support_dense_query_embedding = self._get_dense_query_embedding(
+                support_request.query_text,
+                profile=profile,
+            )
             response = self.qdrant_client.query_points(
                 collection_name=qdrant_collection_name,
                 prefetch=_build_hybrid_prefetch(
-                    request=request,
+                    request=support_request,
                     profile=profile,
                     embedding_model=self.embedding_model,
                     sparse_embedding_model=self.sparse_embedding_model,
-                    dense_query_embedding=dense_query_embedding,
+                    dense_query_embedding=support_dense_query_embedding,
                     query_filter=_build_source_scoped_qdrant_filter(
-                        request=request,
+                        request=support_request,
                         profile=profile,
                         source=target_source,
                     ),
                 ),
                 query=_build_rrf_query(profile),
-                limit=max(request.top_k, profile.document_support_limit),
+                limit=max(support_request.top_k, profile.document_support_limit),
                 with_payload=True,
                 with_vectors=False,
             )
@@ -355,6 +386,48 @@ def _build_dense_query_text(*, query_text: str, instruction: str) -> str:
     return f"Instruct: {normalized_instruction}\nQuery: {normalized_query}"
 
 
+def _build_document_support_query_text(*, query_text: str, source: EvidenceSource) -> str:
+    normalized_query = query_text.strip()
+    if not normalized_query:
+        return normalized_query
+    for candidate in _document_support_query_candidates(source):
+        if candidate and candidate in normalized_query:
+            focused_query = _strip_document_support_query_noise(
+                normalized_query.replace(candidate, "", 1)
+            )
+            if focused_query:
+                return focused_query
+    return normalized_query
+
+
+def _document_support_query_candidates(source: EvidenceSource) -> tuple[str, ...]:
+    candidates: list[str] = []
+    explicit_title = source.source_title.strip()
+    if explicit_title:
+        candidates.append(explicit_title)
+    doc_label = source.doc_id.split(":", 1)[-1].strip()
+    if doc_label:
+        candidates.append(doc_label)
+    if source.structural_path:
+        candidates.append(source.structural_path[0].strip())
+    return tuple(dict.fromkeys(candidate for candidate in candidates if candidate))
+
+
+def _strip_document_support_query_noise(text: str) -> str:
+    focused_query = text.strip().strip(" \t\r\n,，.。;；:：()（）[]【】《》\"'")
+    focused_query = focused_query.rstrip("？?").strip()
+    changed = True
+    while focused_query and changed:
+        changed = False
+        for suffix in _DOCUMENT_SUPPORT_QUERY_SUFFIXES:
+            if focused_query.endswith(suffix):
+                focused_query = focused_query[: -len(suffix)].rstrip(" \t\r\n,，.。;；:：")
+                focused_query = focused_query.rstrip("？?").strip()
+                changed = True
+                break
+    return focused_query
+
+
 def _build_rrf_query(profile: CollectionRuntimeProfile) -> qdrant_models.RrfQuery:
     return qdrant_models.RrfQuery(
         rrf=qdrant_models.Rrf(
@@ -410,7 +483,29 @@ def _build_qdrant_client(settings: RetrievalSettings) -> QdrantClient:
         api_key=settings.qdrant_api_key,
         timeout=settings.qdrant_timeout_seconds,
         cloud_inference=True,
+        check_compatibility=False,
+        trust_env=False,
     )
+
+
+def _retry_qdrant_read(operation: Callable[[], _RetryResult]) -> _RetryResult:
+    last_error: ResponseHandlingException | None = None
+    for attempt in range(1, _QDRANT_READ_RETRY_ATTEMPTS + 1):
+        try:
+            return operation()
+        except ResponseHandlingException as exc:
+            if not _looks_like_transient_qdrant_error(exc) or attempt >= _QDRANT_READ_RETRY_ATTEMPTS:
+                raise
+            last_error = exc
+            time.sleep(_QDRANT_READ_RETRY_BACKOFF_SECONDS * attempt)
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("retry helper exhausted without result")
+
+
+def _looks_like_transient_qdrant_error(error: ResponseHandlingException) -> bool:
+    normalized = str(error).strip().lower()
+    return any(fragment in normalized for fragment in _QDRANT_TRANSIENT_ERROR_TEXT)
 
 
 def _build_metadata_filters(
@@ -497,21 +592,26 @@ def _build_authorization_metadata_filter(
     entitlement_groups: tuple[str, ...],
     visibility_level: str,
 ) -> MetadataFilters:
-    return MetadataFilters(
-        filters=[
-            MetadataFilter(key="visibility_level", value=visibility_level),
+    filters: list[MetadataFilter | MetadataFilters] = [
+        MetadataFilter(key="visibility_level", value=visibility_level),
+        MetadataFilters(
+            filters=[
+                MetadataFilter(key="visibility_level", value=None, operator=FilterOperator.IS_EMPTY),
+                MetadataFilter(key="acl_level", value=visibility_level),
+            ],
+            condition=FilterCondition.AND,
+        ),
+    ]
+    if entitlement_groups:
+        filters.insert(
+            1,
             MetadataFilter(
                 key="entitlement_groups",
                 value=list(entitlement_groups),
                 operator=FilterOperator.IN,
             ),
-            MetadataFilters(
-                filters=[
-                    MetadataFilter(key="visibility_level", value=None, operator=FilterOperator.IS_EMPTY),
-                    MetadataFilter(key="acl_level", value=visibility_level),
-                ],
-                condition=FilterCondition.AND,
-            ),
+        )
+        filters.append(
             MetadataFilters(
                 filters=[
                     MetadataFilter(key="entitlement_groups", value=None, operator=FilterOperator.IS_EMPTY),
@@ -522,10 +622,9 @@ def _build_authorization_metadata_filter(
                     ),
                 ],
                 condition=FilterCondition.AND,
-            ),
-        ],
-        condition=FilterCondition.OR,
-    )
+            )
+        )
+    return MetadataFilters(filters=filters, condition=FilterCondition.OR)
 
 
 def _build_visibility_scope_metadata_filter(visibility_scope: str) -> MetadataFilters:
@@ -555,27 +654,32 @@ def _build_authorization_qdrant_filter(
     entitlement_groups: tuple[str, ...],
     visibility_level: str,
 ) -> qdrant_models.Filter:
-    return qdrant_models.Filter(
-        should=[
-            qdrant_models.FieldCondition(
-                key="visibility_level",
-                match=qdrant_models.MatchValue(value=visibility_level),
-            ),
+    should: list[qdrant_models.Condition] = [
+        qdrant_models.FieldCondition(
+            key="visibility_level",
+            match=qdrant_models.MatchValue(value=visibility_level),
+        ),
+        qdrant_models.Filter(
+            must=[
+                qdrant_models.IsEmptyCondition(
+                    is_empty=qdrant_models.PayloadField(key="visibility_level")
+                ),
+                qdrant_models.FieldCondition(
+                    key="acl_level",
+                    match=qdrant_models.MatchValue(value=visibility_level),
+                ),
+            ]
+        ),
+    ]
+    if entitlement_groups:
+        should.insert(
+            1,
             qdrant_models.FieldCondition(
                 key="entitlement_groups",
                 match=qdrant_models.MatchAny(any=list(entitlement_groups)),
             ),
-            qdrant_models.Filter(
-                must=[
-                    qdrant_models.IsEmptyCondition(
-                        is_empty=qdrant_models.PayloadField(key="visibility_level")
-                    ),
-                    qdrant_models.FieldCondition(
-                        key="acl_level",
-                        match=qdrant_models.MatchValue(value=visibility_level),
-                    ),
-                ]
-            ),
+        )
+        should.append(
             qdrant_models.Filter(
                 must=[
                     qdrant_models.IsEmptyCondition(
@@ -586,9 +690,9 @@ def _build_authorization_qdrant_filter(
                         match=qdrant_models.MatchAny(any=list(entitlement_groups)),
                     ),
                 ]
-            ),
-        ]
-    )
+            )
+        )
+    return qdrant_models.Filter(should=should)
 
 
 def _build_visibility_scope_qdrant_filter(visibility_scope: str) -> qdrant_models.Filter:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import unittest
 
 from campus_contracts import (
@@ -77,6 +78,7 @@ class RagasProjectionTest(unittest.TestCase):
             scope=HANDBOOK_SCOPE,
             expected_status="completed",
             required_facts=("08:00", "22:00"),
+            reference_facts=("Library opens at 08:00.", "Library closes at 22:00."),
             trace_expectation=TraceExpectation(
                 selected_scope=HANDBOOK_SCOPE,
                 retrieval_called=True,
@@ -99,9 +101,17 @@ class RagasProjectionTest(unittest.TestCase):
             projection.retrieved_contexts,
             ("Library hours are 08:00 to 22:00.", "Closed on holidays."),
         )
-        self.assertEqual(projection.reference, "08:00\n22:00")
+        self.assertEqual(projection.retrieved_context_ids, ("handbook:library", "handbook:library"))
+        self.assertEqual(projection.reference_context_ids, ())
+        self.assertEqual(projection.reference_contexts, ())
+        self.assertEqual(projection.reference, "Library opens at 08:00.\nLibrary closes at 22:00.")
         self.assertEqual(projection.metadata["collection"], "student_handbook")
         self.assertEqual(projection.metadata["expected_status"], "completed")
+        self.assertEqual(projection.metadata["reference_fact_count"], 2)
+        self.assertEqual(
+            projection.metadata["projection_context_source"],
+            "response.evidence.sources:statement_contexts",
+        )
 
     def test_build_ragas_projection_uses_supporting_evidence_for_contexts_and_trace_for_counts(self) -> None:
         case = GoldenCase(
@@ -133,8 +143,102 @@ class RagasProjectionTest(unittest.TestCase):
         projection = build_ragas_projection(case, execution)
 
         self.assertEqual(projection.retrieved_contexts, ("Library hours are 08:00 to 22:00.",))
+        self.assertEqual(
+            projection.metadata["projection_context_source"],
+            "observed_trace.supporting_sources:statement_contexts",
+        )
         self.assertEqual(projection.metadata["retrieved_source_count"], 2)
         self.assertEqual(projection.metadata["supporting_source_count"], 1)
+
+    def test_build_ragas_projection_falls_back_to_retrieved_sources_when_supporting_and_evidence_are_empty(self) -> None:
+        case = GoldenCase(
+            case_id="ragas-3",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="library hours",
+            actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
+            expected_status="completed",
+            required_facts=("08:00",),
+            trace_expectation=TraceExpectation(
+                selected_scope=HANDBOOK_SCOPE,
+                retrieval_called=True,
+            ),
+        )
+        retrieved_source = _source(chunk_id="chunk-retrieved", snippet="Library hours are 08:00 to 22:00.")
+        execution = ExecutionResult(
+            response=_response(sources=()),
+            observed_trace=ObservedTrace(
+                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                retrieval_called=True,
+                retrieved_sources=(retrieved_source,),
+                supporting_sources=(),
+            ),
+        )
+
+        projection = build_ragas_projection(case, execution)
+
+        self.assertEqual(projection.retrieved_contexts, ("Library hours are 08:00 to 22:00.",))
+        self.assertEqual(
+            projection.metadata["projection_context_source"],
+            "observed_trace.retrieved_sources",
+        )
+
+    def test_build_ragas_projection_uses_statement_level_supporting_contexts_for_multiline_sources(self) -> None:
+        case = GoldenCase(
+            case_id="ragas-4",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="宿舍照明",
+            actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
+            expected_status="completed",
+            required_facts=("24:00", "6月1日至9月30日"),
+            trace_expectation=TraceExpectation(
+                selected_scope=HANDBOOK_SCOPE,
+                retrieval_called=True,
+            ),
+        )
+        support_source = _source(
+            doc_id="handbook:lighting",
+            chunk_id="chunk-lighting",
+            snippet=(
+                "中央民族大学关于学生宿舍照明的管理规定 / 一、时间安排\n"
+                "文号：民大校发[2007]299号\n"
+                "1. 10月至次年5月31日:\n"
+                "亮灯时间: 周一至周五 每天早晨 5:30。\n"
+                "熄灯时间: 周日至周四 每天晚上 24:00; 23:50 提示。\n"
+                "每周五、周六晚上及复习考试期间不统一熄灯。\n"
+                "2. 6月1日至9月30日,学生宿舍不统一熄灯。"
+            ),
+        )
+        support_source = replace(
+            support_source,
+            source_title="中央民族大学关于学生宿舍照明的管理规定",
+            detail_label="一、时间安排",
+            content_role="time_rule",
+            is_answer_bearing=True,
+            structural_path=("一、时间安排",),
+        )
+        execution = ExecutionResult(
+            response=_response(
+                answer_text="根据学生手册相关规定，关于宿舍照明：亮灯时间: 周一至周五 每天早晨 5:30。；熄灯时间: 周日至周四 每天晚上 24:00; 23:50 提示。；每周五、周六晚上及复习考试期间不统一熄灯。；6月1日至9月30日,学生宿舍不统一熄灯。 [handbook:lighting#chunk-lighting]",
+                sources=(support_source,),
+            ),
+            observed_trace=ObservedTrace(
+                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                retrieval_called=True,
+                supporting_sources=(support_source,),
+            ),
+        )
+
+        projection = build_ragas_projection(case, execution)
+
+        self.assertEqual(len(projection.retrieved_contexts), 1)
+        self.assertIn("中央民族大学关于学生宿舍照明的管理规定：", projection.retrieved_contexts[0])
+        self.assertIn("24:00", projection.retrieved_contexts[0])
+        self.assertIn("6月1日至9月30日", projection.retrieved_contexts[0])
+        self.assertNotIn("文号：", projection.retrieved_contexts[0])
 
     def test_build_ragas_projection_accepts_supervisor_response_shape(self) -> None:
         case = GoldenCase(
@@ -176,8 +280,84 @@ class RagasProjectionTest(unittest.TestCase):
         self.assertEqual(projection.metadata["response_status"], "completed")
         self.assertEqual(projection.metadata["retrieved_source_count"], 1)
 
+    def test_build_ragas_projection_uses_case_reference_context_ids_and_contexts(self) -> None:
+        case = GoldenCase(
+            case_id="ragas-context-ids",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="学生证丢了怎么办",
+            actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
+            expected_status="completed",
+            required_facts=("学生证",),
+            reference_facts=("学生应及时挂失。",),
+            reference_context_ids=("handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",),
+            reference_contexts=("学生应及时挂失。",),
+        )
+        support_source = _source(
+            doc_id="handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
+            chunk_id="chunk-support",
+            snippet="学生证遗失后，应及时到学院挂失。",
+        )
+        execution = ExecutionResult(
+            response=_response(
+                answer_text="应及时到学院挂失。",
+                sources=(support_source,),
+            ),
+            observed_trace=ObservedTrace(
+                selected_scope=HANDBOOK_SCOPE,
+                retrieval_called=True,
+                supporting_sources=(support_source,),
+            ),
+        )
+
+        projection = build_ragas_projection(case, execution)
+
+        self.assertEqual(
+            projection.retrieved_context_ids,
+            ("handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",),
+        )
+        self.assertEqual(
+            projection.reference_context_ids,
+            ("handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",),
+        )
+        self.assertEqual(projection.reference_contexts, ("学生应及时挂失。",))
+        self.assertEqual(projection.metadata["reference_source_type"], "reference_context_ids")
+
 
 class SupplementalRunnerTest(unittest.TestCase):
+    def test_ragas_adapter_marks_case_level_overridden_metric_not_applicable(self) -> None:
+        case = GoldenCase(
+            case_id="supplemental-override",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="中央民族大学本科学生国家奖学金评审办法",
+            actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
+            expected_status="completed",
+            supplemental_metric_overrides={"answer_relevancy": False},
+        )
+        adapter = RagasSupplementalAdapter(
+            scorer=lambda projection: self.fail(f"scorer should not run for {projection.case_id}"),
+            metric_names=("answer_relevancy",),
+        )
+
+        results = adapter.evaluate(
+            case,
+            ExecutionResult(
+                response=_response(sources=(_source(),)),
+                observed_trace=ObservedTrace(
+                    selected_scope=HANDBOOK_SCOPE,
+                    retrieval_called=True,
+                ),
+            ),
+        )
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].metric_name, "answer_relevancy")
+        self.assertEqual(results[0].verdict, "not_applicable")
+        self.assertEqual(results[0].metadata["metric_applicable"], False)
+
     def test_run_cases_attaches_supplemental_results_without_changing_deterministic_pass(self) -> None:
         case = GoldenCase(
             case_id="supplemental-1",

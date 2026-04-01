@@ -1,8 +1,10 @@
-import { defineConfig } from "vitest/config";
+import { defineProject } from "vitest/config";
 
-export default defineConfig({
+export default defineProject({
   test: {
     environment: "node",
+    name: "app-api-node",
     include: ["test/**/*.test.ts"],
+    exclude: ["test/worker.test.ts", "test/**/*.integration.test.ts"],
   },
 });

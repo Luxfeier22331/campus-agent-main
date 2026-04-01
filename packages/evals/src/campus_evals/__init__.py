@@ -53,6 +53,7 @@ from campus_evals.models import (
 from campus_evals.supplemental_http import (
     OpenAICompatibleHTTPEmbeddings,
     OpenAICompatibleResponsesLLM,
+    OpenAICompatibleTextResponsesLLM,
     build_http_ragas_embeddings,
     build_http_ragas_llm,
 )
@@ -64,6 +65,11 @@ from campus_evals.ragas_adapter import (
     build_ragas_projection,
     build_ragas_scorer,
     build_ragas_supplemental_adapter_from_env,
+)
+from campus_evals.live_benchmark import (
+    BenchmarkProfile,
+    repair_live_benchmark_profile,
+    run_live_benchmark_profile,
 )
 from campus_evals.runner import run_cases
 from campus_evals.scenarios import (
@@ -78,7 +84,27 @@ from campus_evals.scenarios import (
 )
 from campus_evals.settings import JudgeLLMSettings, RagasSettings, SupplementalHTTPSettings
 
+
+def build_curriculum_live_executor(*args, **kwargs):
+    from campus_evals.curriculum_live_benchmark import build_curriculum_live_executor as _build
+
+    return _build(*args, **kwargs)
+
+
+def build_curriculum_live_profile(*args, **kwargs):
+    from campus_evals.curriculum_live_benchmark import build_curriculum_live_profile as _build
+
+    return _build(*args, **kwargs)
+
+
+def build_handbook_live_profile(*args, **kwargs):
+    from campus_evals.handbook_live_benchmark import build_handbook_live_profile as _build
+
+    return _build(*args, **kwargs)
+
+
 __all__ = [
+    "BenchmarkProfile",
     "CaseResult",
     "DimensionResult",
     "ExecutionResult",
@@ -89,6 +115,7 @@ __all__ = [
     "ObservedTrace",
     "OpenAICompatibleHTTPEmbeddings",
     "OpenAICompatibleResponsesLLM",
+    "OpenAICompatibleTextResponsesLLM",
     "RetrievalBenchmarkRun",
     "RetrievalCaseMetrics",
     "RetrievalHybridQueryCase",
@@ -108,7 +135,10 @@ __all__ = [
     "SupplementalHTTPSettings",
     "TraceExpectation",
     "build_default_ragas_metric_names",
+    "build_curriculum_live_executor",
+    "build_curriculum_live_profile",
     "build_default_handbook_supplemental_adapters_from_env",
+    "build_handbook_live_profile",
     "build_http_ragas_embeddings",
     "build_http_ragas_llm",
     "build_answer_rubric_adapter",
@@ -136,8 +166,10 @@ __all__ = [
     "load_retrieval_qrels_dataset",
     "render_retrieval_summary_text",
     "repair_handbook_formal_benchmark",
+    "repair_live_benchmark_profile",
     "run_handbook_formal_benchmark",
     "run_cases",
+    "run_live_benchmark_profile",
     "handbook_error_gate_cases",
     "handbook_regression_locked_cases",
     "handbook_release_gate_cases",

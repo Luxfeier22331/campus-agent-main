@@ -16,13 +16,14 @@ export interface Env {
   SENTRY_RELEASE?: string;
 }
 
-const FORWARDED_HEADERS = [
+const BASE_FORWARDED_HEADERS = [
   "accept",
   "content-type",
   "cookie",
   "idempotency-key",
   "x-trace-id",
 ] as const;
+const AUTH_FORWARDED_HEADERS = [...BASE_FORWARDED_HEADERS, "origin", "referer"] as const;
 
 const JSON_HEADERS = {
   "cache-control": "no-store",
@@ -183,7 +184,7 @@ async function proxyToAppApi(request: Request, env: Env): Promise<Response> {
   const appApiUrl = new URL(inboundUrl.pathname + inboundUrl.search, env.APP_API_BASE_URL);
   const headers = new Headers();
 
-  for (const headerName of FORWARDED_HEADERS) {
+  for (const headerName of getForwardedHeaders(inboundUrl.pathname)) {
     const value = request.headers.get(headerName);
     if (value) {
       headers.set(headerName, value);
@@ -207,6 +208,10 @@ async function proxyToAppApi(request: Request, env: Env): Promise<Response> {
     }),
     ),
   );
+}
+
+function getForwardedHeaders(pathname: string) {
+  return pathname.startsWith("/api/auth/") ? AUTH_FORWARDED_HEADERS : BASE_FORWARDED_HEADERS;
 }
 
 function shouldForwardBody(method: string): boolean {

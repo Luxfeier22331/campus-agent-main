@@ -102,8 +102,9 @@ Runtime bindings:
 
 Readiness expectations:
 
-- `GET /readyz` stays `503` until `APP_API`, `ASSETS`, hostname/runtime base URL, and `PANEL_APP_API_SHARED_SECRET` are all configured
-- when `PANEL_PROTECTION_ENVELOPE=cloudflare-access`, `ACCESS_TEAM_DOMAIN` and `ACCESS_POLICY_AUD` are also mandatory for readiness
+- `GET /readyz` stays `503` until `APP_API`, `ASSETS`, hostname/runtime base URL, `PANEL_APP_API_SHARED_SECRET`, `PANEL_PROTECTION_ENVELOPE=cloudflare-access`, `ACCESS_TEAM_DOMAIN`, and `ACCESS_POLICY_AUD` are all configured
+- when admission config is missing or `PANEL_PROTECTION_ENVELOPE` is not `cloudflare-access`, the Worker fails closed for the shell and `/api/overview` instead of exposing a partially protected panel surface
+- `pnpm deploy` now fails before publish if the generated Worker deploy config loses the required `APP_API` service binding
 - proxied panel API responses are forced to `Cache-Control: no-store`
 
 Current operator-access env contract for Cloudflare Access admission includes:
@@ -139,6 +140,7 @@ pnpm install
 pnpm build
 pnpm preview
 pnpm test
+pnpm test:worker
 pnpm typecheck
 pnpm dev
 pnpm deploy

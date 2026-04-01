@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-03-27
-updated: 2026-03-29
+updated: 2026-03-31
 ---
 
 # Student Handbook Eval Metrics
@@ -16,6 +16,82 @@ updated: 2026-03-29
 - live rebuild、collection schema、points count、query 验收证据仍以 `docs/runbooks/student-handbook-hybrid-rebuild-checklist.md` 为准
 - 本文只记录 benchmark / workflow 的指标结果、失败样例和本轮修复结论
 - 本文不是 release gate 阈值文档，也不把当前快照上升为长期稳定 KPI
+
+## 当前快照（2026-03-31）
+
+当前最新 acceptance artifact：
+
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T210128/final-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T210128/final-summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T210128/run/summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T210128/run/summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T210128/run/supplemental-provider-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T210128/run/supplemental-provider-summary.json)
+
+当前真相：
+
+- `deterministic_verdict = pass`
+- `supplemental_verdict = pass`
+- `final_overall_verdict = pass`
+- `repair` 正确跳过：
+  - `selected_target_count = 0`
+  - `applied_target_count = 0`
+- case set 已扩为 `8` 条 `release_gate` case：
+  - `completed = 6`
+  - `no_answer = 1`
+  - `needs_clarification = 1`
+- deterministic surface 稳定通过：
+  - `run_pass_counts = [8, 8, 8]`
+  - `mean_pass_rate = 1.0`
+  - `stable_across_runs = true`
+- supplemental runtime 已完全恢复可用：
+  - preflight `3/3 passed`
+  - provider summary 显示 `https://www.su8.codes /responses` 成功 `95/95`，`https://ai.gitee.com /embeddings` 成功 `19/19`
+- 所有 supplemental soft gate 已转为 `pass`：
+  - `ragas.faithfulness`
+    - `mean_average_score = 0.9076839826839826`
+  - `ragas.answer_relevancy`
+    - `mean_average_score = 0.8735049661543189`
+    - `run_average_scores = [0.8775421874043997, 0.8682606525061326, 0.8747120585524245]`
+  - `ragas.context_precision`
+    - `mean_average_score = 1.0`
+  - `ragas.context_recall`
+    - `mean_average_score = 1.0`
+  - `judge.answer_correctness_rubric`
+    - `mean_average_score = 0.9227777777777777`
+  - `judge.refusal_quality`
+    - `mean_average_score = 0.9783333333333334`
+
+## Fresh Rerun Diagnosis（2026-03-31）
+
+本轮 `210128` acceptance 已把 repo-head remediation 从“代码已落地”推进成“live artifact 已验证”：
+
+- `GoldenCase.reference_context_ids` + ID-based context metrics 继续把 `context_precision/context_recall` 稳定维持在 `1.0`
+- `supplemental_metric_overrides` 继续把 lookup/title/article 型 case 排除在 `answer_relevancy` denominator 之外
+- `handbook_release_gate_cases()` 当前正式 case set 已固定为 `8` 条，其中 procedure 自然问句包含：
+  - `release-gate-student-card`
+  - `release-gate-student-card-materials`
+  - `release-gate-student-card-time`
+- `procedure_directness` 已进入 deterministic surface，并在 3 轮 run 中都达到 `3/3 pass`
+- `ragas.answer_relevancy` 不再只由单个 `student-card` case 决定，而是由上述 3 个 procedure case 构成当前 denominator：
+  - `run_average_scores = [0.8775421874043997, 0.8682606525061326, 0.8747120585524245]`
+  - `mean_average_score = 0.8735049661543189`
+
+因此，当前 handbook quality line 的正式解释已经变为：
+
+- serving/runtime/provider 稳定性问题已关闭
+- context truth 与 denominator 污染问题已关闭
+- procedure renderer + expanded natural-question inventory 已通过正式 acceptance
+- 2026-03-31 `160402` 只保留为当天 earlier snapshot，不再代表当前 handbook truth
+
+## Current Baseline / Future Use（2026-03-31）
+
+当前 repo-head / artifact truth 已重新对齐：
+
+- handbook live acceptance rerun 已完成，不再存在“还需要下一次 rerun 才能确认 repo-head remediation”的待办
+- 后续 handbook 相关改动应以 `210128` artifact 作为新的回归基线
+- 若未来再次出现 supplemental 退化，应优先比较：
+  - `procedure_directness`
+  - `student-card / materials / time`
+  - `answer_relevancy` denominator
+- 在没有新的 runtime failure 证据前，不再回到 provider timeout、repair 语义或 serving alias 稳定性排查
 
 ## Gate Topology
 
@@ -43,7 +119,7 @@ updated: 2026-03-29
 
 2026-03-27 live retrieval benchmark 汇总：
 
-- 注：以下数值对应 2026-03-27 当时的 qrels 快照，不代表当前 repo 中已经扩充后的 qrels inventory；fresh live rerun 仍待补。
+- 注：以下数值对应 2026-03-27 当时的 qrels 快照；2026-03-31 `210128` acceptance 已完成，但它验证的是 formal benchmark / release-gate surface，不直接替换这里的 retrieval aggregate。
 
 - total cases：`13`
 - `Hit@1 = 1.0`
@@ -216,6 +292,17 @@ updated: 2026-03-29
 - [`.tmp/evals/student-handbook-formal-benchmark-20260328T173355/gate-report.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-20260328T173355/gate-report.json)
 - [`.tmp/evals/student-handbook-formal-benchmark-20260328T173355/SUMMARY.md`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-20260328T173355/SUMMARY.md)
 
+当前 formal benchmark / acceptance artifact contract 还包括：
+
+- `run/supplemental-runtime-events.jsonl`
+- `run/supplemental-provider-summary.json`
+- 若发生 repair rerun：
+  - `repair/supplemental-runtime-events.jsonl`
+  - `repair/supplemental-provider-summary.json`
+- 若走 `accept`：
+  - `accept-config.json`
+  - `final-summary.json`
+
 case 集：
 
 - total cases：`6`
@@ -332,23 +419,23 @@ supplemental 聚合：
   - `do_request_failed` 现已纳入 supplemental retry 边界
   - 相关实现：[`supplemental_http.py`](/home/reptilian/code/campus-agent/packages/evals/src/campus_evals/supplemental_http.py)、[`ragas_adapter.py`](/home/reptilian/code/campus-agent/packages/evals/src/campus_evals/ragas_adapter.py)
 - supplemental request pacing：
-  - 新增 `SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS`
+  - 新增 repo-tracked supplemental runtime pacing config
   - pacing scope 已按 provider origin 收口，`ragas` 与 rubric judge 的 llm / embeddings 请求共享节流
-  - 相关实现：[`settings.py`](/home/reptilian/code/campus-agent/packages/evals/src/campus_evals/settings.py)、[`supplemental_http.py`](/home/reptilian/code/campus-agent/packages/evals/src/campus_evals/supplemental_http.py)、[`judge_adapters.py`](/home/reptilian/code/campus-agent/packages/evals/src/campus_evals/judge_adapters.py)
+  - 相关实现：[`live_benchmark.py`](/home/reptilian/code/campus-agent/packages/evals/src/campus_evals/live_benchmark.py)、[`settings.py`](/home/reptilian/code/campus-agent/packages/evals/src/campus_evals/settings.py)、[`supplemental_http.py`](/home/reptilian/code/campus-agent/packages/evals/src/campus_evals/supplemental_http.py)、[`judge_adapters.py`](/home/reptilian/code/campus-agent/packages/evals/src/campus_evals/judge_adapters.py)
 
 本轮 live 运行中仍可见 `wrapped_callable_async ... was never awaited` 类 runtime warning，但它没有阻断 benchmark artifact 写盘；当前它是 supplemental runtime 的残余噪声，不影响本轮 formal benchmark 结论。
 
 2026-03-28 更新：
 
 - `packages/evals` 已新增 `RagasSettings.from_env()`、`build_ragas_dataset()`、`build_ragas_scorer()` 与 env-driven supplemental scorer 接线
-- 当前 eval runtime 消费 `.env` 中的 `LLM_*`、`EMBEDDING_*`、`RAGAS_*` 与共享 `SUPPLEMENTAL_HTTP_*` 配置；judge model 选择优先级为 `RAGAS_LLM_MODEL > LLM_REASONING_MODEL > LLM_CHAT_MODEL`；`Qwen3-Embedding-4B` 在 eval 侧默认补 `dimensions=2560`
+- 当前 eval runtime 的长期 env 主入口只保留 provider 连接信息与模型选择：`EVAL_LLM_*`、`EVAL_RAGAS_MODEL`、`EVAL_JUDGE_MODEL`、`EVAL_EMBEDDING_*`；HTTP timeout/retry/pacing/keep-alive 一类 runtime tuning 已移到 repo-tracked live benchmark profile config；judge model 优先级为 `EVAL_JUDGE_MODEL > EVAL_RAGAS_MODEL > RAGAS_LLM_MODEL > LLM_REASONING_MODEL > LLM_CHAT_MODEL`；`Qwen3-Embedding-4B` 在 eval 侧默认补 `dimensions=2560`
 - 针对 `ragas==0.4.3`，当前真实评分路径已固定为 `ragas.evaluate(...)` + legacy metric objects；默认运行面不再依赖 `LangChain/OpenAI SDK` transport，而是改成 `packages/evals` 自带的原生 HTTP `Responses` / `Embeddings` client
-- 当前 supplemental runtime 已收口为共享 `SUPPLEMENTAL_HTTP_*`：
+- 当前 supplemental runtime 已收口为 shared benchmark profile config：
   - connect/read/write/pool timeout
   - 单层 retry
   - `provider origin + api key` 作用域的 shared pacing / circuit breaker
   - preflight timeout
-  - request pacing（支持直接填最小间隔，也支持从 `SUPPLEMENTAL_HTTP_REQUESTS_PER_MINUTE` 自动派生）
+  - request pacing（支持直接填最小间隔，也支持从 `rpm` 自动派生）
   - shared keep-alive transport limits
 - 当前 formal benchmark / repair rerun 都共享同一 transient infra failure 分类边界：
   - `429`
@@ -373,7 +460,7 @@ supplemental 聚合：
   - [`.tmp/evals/student-handbook-ragas-readiness-20260328T141617/ragas-readiness-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-ragas-readiness-20260328T141617/ragas-readiness-summary.json)
   - [`.tmp/evals/student-handbook-ragas-readiness-20260328T141617/SUMMARY.md`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-ragas-readiness-20260328T141617/SUMMARY.md)
 - 本轮 readiness probe 使用当前 handbook 主链路真实 retrieval 输出，单 case 固定为 `release-gate-scholarship-title`
-- 本轮 readiness probe 的 judge 配置为：`RAGAS_LLM_MODEL=gpt-5.4`、`SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS=180`、`RAGAS_REASONING_EFFORT=none`、`RAGAS_TEXT_VERBOSITY=low`、`RAGAS_MAX_OUTPUT_TOKENS=256`
+- 本轮 readiness probe 的 judge 配置为：`RAGAS_LLM_MODEL=gpt-5.4`、显式 `read_timeout=180` runtime override、`RAGAS_REASONING_EFFORT=none`、`RAGAS_TEXT_VERBOSITY=low`、`RAGAS_MAX_OUTPUT_TOKENS=256`
 - 本轮 readiness probe 结果：
   - default `.env` 单指标验证：`answer_relevancy = 0.8790205622411746`，耗时 `29.994s`
   - 完整四指标验证：`faithfulness = 0.9761904761904762`（`91.749s`）、`answer_relevancy = 0.8652808340936117`（`47.163s`）、`context_precision = 0.9999999999666667`（`81.713s`）、`context_recall = 1.0`（`11.227s`）
@@ -384,8 +471,118 @@ supplemental 聚合：
   - `tests.evals.test_ragas_runtime tests.evals.test_supplemental_adapters tests.evals.test_golden_cases tests.evals.test_availability_smoke tests.evals.test_retrieval_benchmark`
   - `53 tests passed`
 
+## 2026-03-30 Acceptance / Repair Follow-up（历史记录）
+
+这一节只保留 2026-03-30 那次 acceptance / repair 的历史 artifact 语义；当前真相以本文开头的“当前快照（2026-03-31）”和下方 `2026-03-31 Acceptance Rerun After Answer-Shaping Fix` 为准。
+
+2026-03-30 handbook acceptance 已重新落盘到：
+
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/final-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/final-summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/run/summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/run/summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/repair/summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/repair/summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/repair/repair-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260330T181404/repair/repair-summary.json)
+
+本轮 acceptance 结论：
+
+- `deterministic_verdict = pass`
+- `supplemental_verdict = warn`
+- `final_overall_verdict = warn`
+
+fresh run / final aggregate 中可稳定确认的 gap：
+
+- `ragas.faithfulness`
+  - `applicable_runs = 0`
+  - gate reasons：`insufficient_applicable_runs + runtime_unavailable`
+- `ragas.answer_relevancy`
+  - `mean_average_score = 0.711252770861219`
+  - `min_run_average_score = 0.6944160888625259`
+- `ragas.context_precision`
+  - `mean_average_score = 0.5972222222006944`
+  - `min_run_average_score = 0.49999999998333333`
+- `judge.refusal_quality`
+  - `mean_average_score = 0.7599999999999999`
+  - `min_run_average_score = 0.71`
+
+当前对 repair 的解释：
+
+- 这次 acceptance 的 `repair-summary.json` 仍沿用旧语义，把 12 个 `ragas.faithfulness` target 全部写成 `status=repaired`
+- 但 repaired aggregate 真正显示的是：
+  - `ragas.faithfulness.overall.runtime_status = unavailable`
+  - `transient_runtime_failure_count = 12`
+  - `runtime_failure_reasons = ["timeout"]`
+- 也就是说，这一轮 repair 并没有恢复 `faithfulness`，只是旧 artifact 语义把“已重跑”误记成了“已修复”
+- repo 现已修正 repair artifact 逻辑：后续相同场景会记成 `rerun_failed` 或 `partially_repaired`，并把未恢复 metric 保留在 `remaining_metric_keys`
+
+本轮对 runtime 预算的收口：
+
+- 2026-03-28 readiness artifact 已证明 `faithfulness` 在真实 handbook 主链路上可成功完成，单次耗时曾达到 `91.749s`
+- 因此 shared live benchmark profile 现在显式把 supplemental `read_timeout` 固定到 `180s`，不再继承偏 chat-style 的低超时预算
+- 这一步的目的只是把 runtime budget 对齐到 repo 已落盘证据，不等于自动消除所有 provider 侧 timeout/unavailable
+
 当前结论：
 
-- ragas supplemental runtime 的配置、retry 和 pacing 已改成和当前 provider 能力更匹配
-- handbook fixed-case formal benchmark 已形成正式 3-run artifact
-- 当前 supplemental `warn` 主要来自真实质量 gap，但 run 2 仍残留一处 `429` 级 runtime 噪声，尚未完全达到“零运行噪声”状态
+- handbook live serving 已恢复；2026-03-30 acceptance 的 `deterministic_verdict=pass` 说明当前 main-chain 不再是 blocker
+- 当前不应先调整 `student_handbook_judge_gate_policy.json` 的 soft gate 阈值
+- 应先把 `ragas.faithfulness` 的 runtime budget / provider 行为与真正的质量问题拆开，再看 fresh rerun
+- 即使暂时不看 `faithfulness`，`ragas.answer_relevancy`、`ragas.context_precision`、`judge.refusal_quality` 也仍然稳定低于现有阈值；因此当前 `warn` 不能通过放宽阈值来“修复”
+
+## 2026-03-31 Acceptance Rerun After Answer-Shaping Fix
+
+2026-03-31 answer-shaping / `no_answer` boundary 修复后的 fresh acceptance 已落盘到：
+
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/final-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/final-summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/run-01-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/run-01-summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/run-01-case-results.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T080614/run/run-01-case-results.json)
+
+本轮 acceptance 结论：
+
+- `deterministic_verdict = pass`
+- `supplemental_verdict = warn`
+- `final_overall_verdict = warn`
+- `repair`
+  - `selected_target_count = 0`
+  - `applied_target_count = 0`
+  - `remaining_transient_failures = 0`
+
+与 2026-03-30 相比，已明确关闭的旧问题：
+
+- `ragas.faithfulness`
+  - 从 `runtime_unavailable` 恢复为 `pass`
+  - `run_average_scores = [0.9415584415584415, 0.9415584415584415, 0.9415584415584415]`
+- `judge.refusal_quality`
+  - 从 `warn` 恢复为 `pass`
+  - `run_average_scores = [0.965, 0.985, 0.985]`
+- repair artifact 不再被错误触发；因为没有 transient failure，所以本轮没有生成 `repair/`
+
+这轮仍保留的真实质量 gap：
+
+- `ragas.answer_relevancy`
+  - `run_average_scores = [0.807202064601255, 0.791582213816457, 0.7683160823953851]`
+  - `mean_average_score = 0.7890334536043656`
+- `ragas.context_precision`
+  - `run_average_scores = [0.49999999995, 0.749999999925, 0.749999999925]`
+  - `mean_average_score = 0.6666666666`
+  - `run_average_drift = 0.249999999975`
+- `ragas.context_recall`
+  - `run_average_scores = [0.75, 0.75, 1.0]`
+  - `mean_average_score = 0.8333333333333334`
+  - `run_average_drift = 0.25`
+
+case 级解释：
+
+- `release-gate-dormitory-lighting`
+  - 先前的 deterministic wording regression 已关闭；三轮 deterministic 全部通过
+  - 但这个 case 仍是当前 supplemental `warn` 的核心来源：
+    - `faithfulness = 1.0`
+    - `answer_relevancy = 0.6613998730543929`
+    - `context_precision = 0.0`
+    - `context_recall = [0.0, 0.0, 1.0]`
+- `release-gate-student-card`
+  - deterministic 已稳定通过
+  - `context_precision` 在三轮里出现 `[0.0, 1.0, 1.0]`，是 aggregate drift 的另一个来源
+
+当前结论：
+
+- 2026-03-31 fresh acceptance 已确认当前 handbook follow-up 不再是 provider/runtime 修复问题，而是 answer/support shaping 与 context alignment 的质量问题
+- 当前不应通过放宽 `student_handbook_judge_gate_policy.json` 阈值来“关闭”这轮 `warn`

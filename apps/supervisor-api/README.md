@@ -29,7 +29,7 @@
 
 - `bearer` 模式是当前 repo-local / compatibility ingress，用于在没有 `app-api` 的情况下提供 internal caller admission 与显式 actor 默认值
 - `bearer` 模式不再信任客户端提交的 `x-actor-*` header；forward canonical path 应由 `app-api` 显式提供 `actor`
-- `trusted-worker` 模式是当前 public-entry Worker 兼容入口；在验证 `x-worker-origin-auth` 后，它仍可能从转发的 `cf-access-jwt-assertion` 提取 caller claims，但这不是 shared `app-api -> supervisor-api` 的长期 contract
+- `trusted-worker` 模式是当前 generic trusted-caller compatibility ingress；在验证 `x-worker-origin-auth` 后，它仍可能从转发的 `cf-access-jwt-assertion` 提取 caller claims，但这不是 shared `app-api -> supervisor-api` 的长期 contract
 - audit 持久化由 API shell 负责落盘，但 audit record 的 shape 仍由 `packages/supervisor-core` 投影
 
 forward canonical direction 已冻结为：

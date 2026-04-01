@@ -22,6 +22,7 @@ from campus_contracts import (
     SpecialistResponse,
 )
 from campus_retrieval_core import CorpusQueryDisabledError, RetrievalBackendError
+from campus_rag_specialist import RagSpecialistAgent
 from campus_rag_specialist.confidence import derive_confidence
 from campus_rag_specialist.intent import frame_rag_intent
 from campus_rag_specialist.service import delegate_to_rag_agent
@@ -209,7 +210,8 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.target, "rag-specialist")
         self.assertEqual(response.status, "no_answer")
         self.assertEqual(response.confidence, "low")
-        self.assertFalse(response.answer_text)
+        self.assertIn("未检索到足够依据", response.answer_text)
+        self.assertIn("学生手册", response.answer_text)
         self.assertEqual(
             response.result,
             RagResultPayload(
@@ -409,7 +411,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         self.assertEqual(response.status, "no_answer")
         self.assertEqual(response.confidence, "low")
-        self.assertFalse(response.answer_text)
+        self.assertIn("未检索到足够依据", response.answer_text)
         self.assertEqual(response.result, RagResultPayload(evidence=evidence))
 
     def test_completed_response_uses_evidence_and_actor_context(self) -> None:
@@ -553,8 +555,8 @@ class RagSpecialistTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertNotIn("1.", response.answer_text)
-        self.assertIn("学生应提交书面申请并填写申请表。", response.answer_text)
-        self.assertIn("院系审核通过后报学校复核。", response.answer_text)
+        self.assertIn("学生应提交书面申请并填写申请表", response.answer_text)
+        self.assertIn("院系审核通过后报学校复核", response.answer_text)
         self.assertLessEqual(len(response.result.evidence.sources), 3)
         self.assertEqual(
             len({source.chunk_id for source in response.result.evidence.sources}),
@@ -652,6 +654,270 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertNotIn("负责解释", response.answer_text)
         self.assertNotIn("公费医疗", response.answer_text)
         self.assertNotIn("1.", response.answer_text)
+
+    def test_completed_response_focuses_student_card_reissue_on_actionable_steps(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="学生证丢了怎么办",
+            corpus="regulations",
+            collection="student_handbook",
+            sources=(
+                EvidenceSource(
+                    doc_id="handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
+                    revision_track="source-faithful",
+                    version_id="v1:f9c1621665f50ffbf0c02cf79cb5452bfd938d2e",
+                    chunk_id="chunk-0002",
+                    anchor={"page_start": 163, "page_end": 164, "section_path": ("二、学生证是",)},
+                    acl_level="public",
+                    canonical_url="https://campus.example/handbook/student-card",
+                    latest_url="https://campus.example/handbook/student-card",
+                    source_channel="pdf_ocr",
+                    collection="student_handbook",
+                    is_current=True,
+                    snippet=(
+                        "标题：中央民族大学本科(预科)学生证管理办法 | 章节：二、学生证是\n"
+                        "文号：民大学发[2013]8号\n"
+                        "学生的身份证明,学生应妥善保管,爱护使用,谨防丢失。\n"
+                        "十二、丢失的学生证在补办后又找到的,应将找到的学生证交回学生处销毁。学生不得持有两个学生证。\n"
+                        "十三、学生证转借他人者,一经发现,将视情节给予通报批评直至纪律处分,并停止享受半价火车票的资格。\n"
+                        "十四、学生办理学生证要如实填写各项内容,不得弄虚作假。凡弄虚作假者,一经查实,给予警告及以上处分,并取消当年评定各项奖、助学金的资格。"
+                    ),
+                    score=0.03306011,
+                    source_title="中央民族大学本科(预科)学生证管理办法",
+                    structural_path=("二、学生证是",),
+                    content_kind="policy_page",
+                    content_role="procedure",
+                    detail_label="二、学生证是",
+                    is_answer_bearing=True,
+                ),
+                EvidenceSource(
+                    doc_id="handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
+                    revision_track="source-faithful",
+                    version_id="v1:f9c1621665f50ffbf0c02cf79cb5452bfd938d2e",
+                    chunk_id="chunk-0001",
+                    anchor={"page_start": 163, "page_end": 164, "section_path": ("二、学生证是",)},
+                    acl_level="public",
+                    canonical_url="https://campus.example/handbook/student-card",
+                    latest_url="https://campus.example/handbook/student-card",
+                    source_channel="pdf_ocr",
+                    collection="student_handbook",
+                    is_current=True,
+                    snippet=(
+                        "标题：中央民族大学本科(预科)学生证管理办法 | 章节：二、学生证是\n"
+                        "文号：民大学发[2013]8号\n"
+                        "学生的身份证明,学生应妥善保管,爱护使用,谨防丢失。\n"
+                        "六、学生如将学生证遗失或损坏,应及时到学院(系)挂失,写明遗失或损坏的原因、时间、地点等,并报学生处备案。如遗失不报被他人使用造成不良后果,由本人负责。\n"
+                        "七、学生遗失学生证应及时申请补办。遗失或损坏的学生证,原则上可以申请补办一次。补办后如再次遗失或损坏,根据遗失或损坏的原因决定是否可以补发第二次。\n"
+                        "八、学生补办学生证,必须提出书面申请,并填写《中央民族大学补办学生证申请表》(见附表)。申请表经学院(系)领导审批,并在学生本人照片背面加盖骑缝章后,到学生处办理补办手续。学生证集中补办时间为每周四下午。"
+                    ),
+                    score=0.03306011,
+                    source_title="中央民族大学本科(预科)学生证管理办法",
+                    structural_path=("二、学生证是",),
+                    content_kind="policy_page",
+                    content_role="time_rule",
+                    detail_label="二、学生证是",
+                    is_answer_bearing=True,
+                ),
+                EvidenceSource(
+                    doc_id="handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
+                    revision_track="source-faithful",
+                    version_id="v1:f9c1621665f50ffbf0c02cf79cb5452bfd938d2e",
+                    chunk_id="chunk-0003",
+                    anchor={"page_start": 164, "page_end": 164},
+                    acl_level="public",
+                    canonical_url="https://campus.example/handbook/student-card",
+                    latest_url="https://campus.example/handbook/student-card",
+                    source_channel="pdf_ocr",
+                    collection="student_handbook",
+                    is_current=True,
+                    snippet="中央民族大学本科(预科)学生证管理办法 / 十八\n文号：民大学发[2013]8号\n十八、本办法由学生处负责解释。",
+                    score=0.032258064,
+                    source_title="中央民族大学本科(预科)学生证管理办法",
+                    structural_path=(),
+                    content_kind="policy_page",
+                    content_role="closing_provision",
+                    detail_label="十八",
+                    is_answer_bearing=False,
+                ),
+            ),
+        )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="学生证丢了怎么办",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual([source.chunk_id for source in response.result.evidence.sources], ["chunk-0001"])
+        self.assertIn("先", response.answer_text)
+        self.assertIn("再", response.answer_text)
+        self.assertIn("挂失", response.answer_text)
+        self.assertIn("申请补办", response.answer_text)
+        self.assertIn("书面申请", response.answer_text)
+        self.assertIn("每周四下午", response.answer_text)
+        self.assertLess(response.answer_text.index("挂失"), response.answer_text.index("申请补办"))
+        self.assertNotIn("交回学生处销毁", response.answer_text)
+        self.assertNotIn("火车票学生优惠卡", response.answer_text)
+        self.assertNotIn("不予发放", response.answer_text)
+        self.assertNotIn("不良后果", response.answer_text)
+
+    def test_completed_response_keeps_only_primary_time_rule_when_it_already_answers_lighting_query(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="宿舍照明",
+            corpus="regulations",
+            collection="student_handbook",
+            sources=(
+                EvidenceSource(
+                    doc_id="handbook:2ec80263a9e7b11379281349196ceb96afa44c3b",
+                    revision_track="source-faithful",
+                    version_id="v1:04053b0f1ea9d0d4cbfeaf5e5381c16b67b1164f",
+                    chunk_id="chunk-0001",
+                    anchor={"page_start": 256, "page_end": 256, "section_path": ("一、时间安排",)},
+                    acl_level="public",
+                    canonical_url="https://campus.example/handbook/dormitory-lighting",
+                    latest_url="https://campus.example/handbook/dormitory-lighting",
+                    source_channel="pdf_ocr",
+                    collection="student_handbook",
+                    is_current=True,
+                    snippet=(
+                        "中央民族大学关于学生宿舍照明的管理规定 / 一、时间安排\n"
+                        "文号：民大校发[2007]299号\n"
+                        "1. 10月至次年5月31日:\n"
+                        "亮灯时间: 周一至周五 每天早晨 5:30。\n"
+                        "熄灯时间: 周日至周四 每天晚上 24:00; 23:50 提示。\n"
+                        "每周五、周六晚上及复习考试期间不统一熄灯。\n"
+                        "2. 6月1日至9月30日,学生宿舍不统一熄灯。\n"
+                        "3. 国家法定节假日不统一熄灯。"
+                    ),
+                    score=0.032522473,
+                    source_title="中央民族大学关于学生宿舍照明的管理规定",
+                    structural_path=("一、时间安排",),
+                    content_kind="policy_page",
+                    content_role="time_rule",
+                    detail_label="一、时间安排",
+                    is_answer_bearing=True,
+                ),
+                EvidenceSource(
+                    doc_id="handbook:2ec80263a9e7b11379281349196ceb96afa44c3b",
+                    revision_track="source-faithful",
+                    version_id="v1:04053b0f1ea9d0d4cbfeaf5e5381c16b67b1164f",
+                    chunk_id="chunk-0003",
+                    anchor={"page_start": 256, "page_end": 256},
+                    acl_level="public",
+                    canonical_url="https://campus.example/handbook/dormitory-lighting",
+                    latest_url="https://campus.example/handbook/dormitory-lighting",
+                    source_channel="pdf_ocr",
+                    collection="student_handbook",
+                    is_current=True,
+                    snippet="中央民族大学关于学生宿舍照明的管理规定 / 三\n文号：民大校发[2007]299号\n三、本规定适用于本科、预科学生宿舍,研究生宿舍、留学生公寓除外。",
+                    score=0.03306011,
+                    source_title="中央民族大学关于学生宿舍照明的管理规定",
+                    structural_path=(),
+                    content_kind="policy_page",
+                    content_role="scope_rule",
+                    detail_label="三",
+                    is_answer_bearing=True,
+                ),
+                EvidenceSource(
+                    doc_id="handbook:2ec80263a9e7b11379281349196ceb96afa44c3b",
+                    revision_track="source-faithful",
+                    version_id="v1:04053b0f1ea9d0d4cbfeaf5e5381c16b67b1164f",
+                    chunk_id="chunk-0002",
+                    anchor={"page_start": 256, "page_end": 256, "section_path": ("二、要求:",)},
+                    acl_level="public",
+                    canonical_url="https://campus.example/handbook/dormitory-lighting",
+                    latest_url="https://campus.example/handbook/dormitory-lighting",
+                    source_channel="pdf_ocr",
+                    collection="student_handbook",
+                    is_current=True,
+                    snippet=(
+                        "中央民族大学关于学生宿舍照明的管理规定 / 二、要求:\n"
+                        "文号：民大校发[2007]299号\n"
+                        "1. 学生处、团委及后勤管理部门要加强对学生的教育和管理,引导学生自觉遵守学校制度。\n"
+                        "2. 加强安全防范力度。熄灯之前学生应做好就寝准备,将不用的或可能存在安全隐患的插座及电器拔下,关闭电源,熄灯之后禁止使用蜡烛及其它明火。\n"
+                        "3. 严禁私接电线及违章使用各类电器。"
+                    ),
+                    score=0.032795697,
+                    source_title="中央民族大学关于学生宿舍照明的管理规定",
+                    structural_path=("二、要求:",),
+                    content_kind="policy_page",
+                    content_role="procedure",
+                    detail_label="二、要求:",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="宿舍照明",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual([source.chunk_id for source in response.result.evidence.sources], ["chunk-0001"])
+        self.assertIn("宿舍照明", response.answer_text)
+        self.assertIn("24:00", response.answer_text)
+        self.assertIn("6月1日至9月30日", response.answer_text)
+        self.assertNotIn("研究生宿舍", response.answer_text)
+
+    def test_answer_draft_exposes_statement_level_supporting_contexts(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="宿舍照明",
+            corpus="regulations",
+            collection="student_handbook",
+            sources=(
+                EvidenceSource(
+                    doc_id="handbook:2ec80263a9e7b11379281349196ceb96afa44c3b",
+                    revision_track="source-faithful",
+                    version_id="v1:04053b0f1ea9d0d4cbfeaf5e5381c16b67b1164f",
+                    chunk_id="chunk-0001",
+                    anchor={"page_start": 256, "page_end": 256, "section_path": ("一、时间安排",)},
+                    acl_level="public",
+                    canonical_url="https://campus.example/handbook/dormitory-lighting",
+                    latest_url="https://campus.example/handbook/dormitory-lighting",
+                    source_channel="pdf_ocr",
+                    collection="student_handbook",
+                    is_current=True,
+                    snippet=(
+                        "中央民族大学关于学生宿舍照明的管理规定 / 一、时间安排\n"
+                        "文号：民大校发[2007]299号\n"
+                        "1. 10月至次年5月31日:\n"
+                        "亮灯时间: 周一至周五 每天早晨 5:30。\n"
+                        "熄灯时间: 周日至周四 每天晚上 24:00; 23:50 提示。\n"
+                        "每周五、周六晚上及复习考试期间不统一熄灯。\n"
+                        "2. 6月1日至9月30日,学生宿舍不统一熄灯。\n"
+                        "3. 国家法定节假日不统一熄灯。"
+                    ),
+                    score=0.032522473,
+                    source_title="中央民族大学关于学生宿舍照明的管理规定",
+                    structural_path=("一、时间安排",),
+                    content_kind="policy_page",
+                    content_role="time_rule",
+                    detail_label="一、时间安排",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        draft = RagSpecialistAgent().build_answer(evidence)
+
+        self.assertEqual([source.chunk_id for source in draft.supporting_sources], ["chunk-0001"])
+        self.assertEqual(len(draft.supporting_contexts), 1)
+        self.assertIn("中央民族大学关于学生宿舍照明的管理规定：", draft.supporting_contexts[0])
+        self.assertIn("24:00", draft.supporting_contexts[0])
+        self.assertIn("6月1日至9月30日", draft.supporting_contexts[0])
+        self.assertNotIn("文号：", draft.supporting_contexts[0])
 
     def test_curriculum_completed_answer_uses_curriculum_specific_prefix(self) -> None:
         evidence = EvidenceBundle(

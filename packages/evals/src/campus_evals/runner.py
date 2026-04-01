@@ -15,6 +15,7 @@ from campus_evals.models import (
     SupplementalResult,
     SummaryCount,
 )
+from campus_evals.runtime_observability import bind_runtime_event_context
 
 
 Executor = Callable[[GoldenCase], ExecutionResult]
@@ -33,23 +34,32 @@ def run_cases(
     executor: Executor,
     split: str | None = None,
     supplemental_adapters: tuple[SupplementalAdapter, ...] = (),
+    run_number: int | None = None,
+    benchmark_mode: str = "run",
 ) -> RunReport:
     selected_cases = tuple(case for case in cases if split is None or case.split == split)
     results: list[CaseResult] = []
 
     for case in selected_cases:
-        execution = executor(case)
-        result = evaluate_case(case, execution)
-        if execution.observed_trace is not None:
-            result = replace(result, observed_trace=execution.observed_trace)
-        supplemental_results = _evaluate_supplemental_results(
-            case,
-            execution,
-            supplemental_adapters=supplemental_adapters,
-        )
-        if supplemental_results:
-            result = replace(result, supplemental_results=supplemental_results)
-        results.append(result)
+        with bind_runtime_event_context(
+            run_number=run_number,
+            benchmark_mode=benchmark_mode,
+            case_id=case.case_id,
+            case_split=case.split,
+            expected_status=case.expected_status,
+        ):
+            execution = executor(case)
+            result = evaluate_case(case, execution)
+            if execution.observed_trace is not None:
+                result = replace(result, observed_trace=execution.observed_trace)
+            supplemental_results = _evaluate_supplemental_results(
+                case,
+                execution,
+                supplemental_adapters=supplemental_adapters,
+            )
+            if supplemental_results:
+                result = replace(result, supplemental_results=supplemental_results)
+            results.append(result)
     return summarize_case_results(selected_cases, tuple(results))
 
 

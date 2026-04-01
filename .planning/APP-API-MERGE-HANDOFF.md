@@ -2,11 +2,11 @@
 
 ## Status
 
-Pending merge on 2026-03-28.
+Closed on 2026-03-31 as a historical handoff record.
 
-这份 handoff 只服务于后续把 `apps/app-api` 的独立 worktree 实现先回 `develop`、再经 PR 进入 `main`。它不把 worktree 内尚未合入的实现写成当前 merged truth。
+这份 handoff 最初服务于把 `apps/app-api` 的独立 worktree 实现先回 `develop`、再经 PR 进入 `main`。当前 repo merged truth 已经落地 shared `app-api` Worker foundation 和 `ContextProjection` / `SupervisorResponse` shared seam；本文件现在只保留为历史交接与 closure 记录。
 
-截至 2026-03-29，这份 handoff 对应的 ACL/authz 过渡态仍未关闭。原因不是长期方向未定，而是 worktree 内的 `app-api` execution seam 还没有完全对齐 shared `ContextProjection + AuthorizationProjection + SupervisorResponse` contract。
+截至 2026-03-31，原先记录的 ACL/authz 过渡态已关闭。剩余 follow-up 不再是 seam 对齐，而是 deploy-side observability secrets、post-deploy smoke 与后续产品面 hardening。
 
 ## Goal
 
@@ -70,7 +70,7 @@ Pending merge on 2026-03-28.
 - auth/session 到 actor claims 的 canonical projection
 - Worker integration tests 与 contract tests
 
-## 当前审计结论（2026-03-29）
+## 历史审计结论（2026-03-29）
 
 目前独立 worktree 中至少还有以下未对齐点，因此不能直接宣称可以结束 ACL/authz 过渡态：
 
@@ -84,6 +84,27 @@ Pending merge on 2026-03-28.
   仍把 `actorSnapshot` 写入 execution path 相关记录；如需保留，只能降级为 read-model / audit material，不能继续作为 downstream execution seam 的真相。
 - `apps/app-api/test/supervisor-adapter.test.ts` 与 `tests/app_api/test_projection.py`
   当前断言仍锁定旧请求/响应形态，因此测试面也没有完成对齐。
+
+## Closure 状态（2026-03-31）
+
+上述未对齐项现已在当前 merged truth 中关闭：
+
+- `apps/app-api/src/campus_app_api/projection.py`
+  已稳定构建 `actor + authorization + profile_memory + session` 的 `ContextProjection`。
+- `apps/app-api/src/modules/integration/supervisor.ts`
+  已统一发送 `context` payload，并消费 `selected_target + status + error/result` 的 `SupervisorResponse` 语义。
+- `apps/app-api/src/modules/auth/principal.ts`
+  当前 principal path 只保留 typed actor / authorization carrier，不再存在 execution `snapshot` contract。
+- `apps/app-api/test/supervisor-adapter.test.ts`
+  已覆盖 `selected_target`、`approval_required` 与 snake_case `context` payload 断言。
+- `tests/app_api/test_projection.py`
+  已覆盖 authorization projection 默认值，以及 memory/session 不得改写 ACL groups 或 campus scope。
+
+因此这份 handoff 的关闭结论是：
+
+1. `apps/app-api` principal/auth/session path 已不再依赖 `snapshot` execution seam。
+2. `app-api -> supervisor-api` 已按 `ContextProjection` / `SupervisorResponse` 对齐。
+3. 需要继续跟进的已不再是 merge seam，而是 observability 验证与持续硬化。
 
 ## 需要补的测试
 
@@ -125,9 +146,17 @@ Pending merge on 2026-03-28.
 
 ## Merge 完成定义
 
-只有当以下条件同时满足，worktree 才可视为对齐完成：
+这批条件现已满足；当前 handoff 已转为历史 closure 记录：
 
 - `develop` 侧 `ContextProjection` / `SupervisorResponse` seam 未被回退
 - app-api Worker 代码已改到新 seam
 - app-api 相关测试通过
 - 仓库级 baseline 仍通过
+
+本轮 closure 参考验证：
+
+- `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest discover -s tests -t .`
+- `pnpm web:typecheck`
+- `pnpm web:test`
+- `pnpm web:test:worker`
+- `pnpm web:test:integration`

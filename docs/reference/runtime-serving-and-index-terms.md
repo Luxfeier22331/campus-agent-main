@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-03-31
 ---
 
 # Runtime Serving And Index Terms
@@ -14,7 +14,10 @@ updated: 2026-03-28
 - 不重复长期 package 边界：`docs/architecture/long-term-architecture.md`
 - 不重复数据平面全景：`docs/architecture/phase1-ingestion-and-storage-architecture.md`
 - 不重复对象存储 key 约束：`docs/decisions/adr-0002-local-minio-conventions.md`
+- 不重复旧 physical collection retention 决策：`docs/decisions/adr-0019-qdrant-physical-collection-retention-and-expiration.md`
+- 不重复 Qdrant Cloud 备份 / 恢复策略：`docs/decisions/adr-0020-qdrant-cloud-backup-restore-and-object-store-transition.md`
 - 不承担当前执行状态真相：`.planning/PROJECT.md`、`.planning/STATE.md`
+- 早期 `phase-1` 文档只作为历史背景或约束来源，不再单独承担当前 phase truth
 
 ## 术语
 
@@ -77,6 +80,28 @@ updated: 2026-03-28
 - physical collection 是离线发布产物，不是运行时稳定接口
 - serving alias 可以在多个 physical collection 之间切换
 
+### Physical Collection Retention Role
+
+定义：
+
+- physical collection 在过期/清理策略里的保护角色
+
+当前角色：
+
+- `current`
+  - alias 当前指向的 physical collection
+- `previous`
+  - 最新一次已发布 release 的热回滚位
+- `migration_baseline`
+  - 在 schema/model/policy/retrieval shape 迁移时额外保留的迁移前基线
+- `archive_candidate`
+  - 已脱离上述保护角色、可进入清理评估的旧 physical collection
+
+说明：
+
+- retention 采用 role-based policy，而不是 time-only deletion
+- 删除门禁以 ADR-0019 和 operator runbook 为准
+
 ### Index Release
 
 定义：
@@ -104,6 +129,35 @@ updated: 2026-03-28
 - release manifest 用于审计、回滚和追溯
 - release manifest 不保存 chunk dump
 
+### Managed Backup
+
+定义：
+
+- `Qdrant Cloud Standard` 中由 dashboard 配置的 automatic backups
+
+说明：
+
+- managed backup 是 cluster-level 恢复覆盖，不是对象存储里的导出文件
+- 在 `Standard` 环境里，它是旧 collection 清理与灾难恢复的默认 backup 主路径
+
+### Snapshot Backup Bundle
+
+定义：
+
+- 当前 `Free` tier 过渡期在对象存储里保存的一组 Qdrant collection 备份材料
+
+对象存储位置：
+
+- `{corpus}/backups/{collection}/{release_id}/{backup_id}/backup-manifest.json`
+- `{corpus}/backups/{collection}/{release_id}/{backup_id}/{physical_collection_name}.snapshot`
+- `{corpus}/backups/{collection}/{release_id}/{backup_id}/restore-report.json`
+
+说明：
+
+- snapshot bundle 至少包含 snapshot 文件和 `backup-manifest.json`
+- 因为 collection snapshot 不包含 aliases，`backup-manifest.json` 必须记录 `alias_bindings`
+- snapshot bundle 是恢复材料，不是在线 chunk truth
+
 ### Source Truth
 
 定义：
@@ -120,11 +174,14 @@ updated: 2026-03-28
 - runtime profile 声明 serving alias、collection prefix 和 vector binding
 - physical collection 由 index release 生成，不由 env 或手写固定 collection 名直接指定
 - 已进入 release-managed lifecycle 的 collection 不论当前是 `query_serving` 还是 `offline_preparation`，都应使用稳定 alias + versioned physical collection
-- 对象存储只保留 source/document artifact 与 release manifest
+- 旧 physical collection 默认先进入 `current / previous / migration_baseline / archive_candidate` 角色判断，再决定是否删除；不允许仅按年龄直接删除
+- 对象存储保留 source/document artifact、release manifest，以及 `Free` tier 过渡期的 snapshot backup bundle
 - Qdrant 承载 chunk 文本、向量与检索 payload
 
 ## 易错点
 
 - 不要把 serving alias 和 physical collection 混为一谈
+- 不要把“文档历史版本必须保留”误读成“所有历史 physical collection 必须永久留在 Qdrant Cloud”
 - 不要把 release manifest 当成 chunk store
+- 不要把 snapshot backup bundle 误读成新的在线 query store
 - 不要把早期 phase 文档中的固定 collection 或 handbook-only 叙事继续当作当前 truth

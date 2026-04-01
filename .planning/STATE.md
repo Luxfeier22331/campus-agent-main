@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: shared app-api seam alignment is now landed on this worktree; next work is runtime observability verification and merge-readiness cleanup
-last_updated: "2026-03-29T09:30:00+08:00"
+stopped_at: 2026-03-31 handbook acceptance rerun and planning/docs truth refresh are closed; next external dependency is the first real deployed Worker observability verification
+last_updated: "2026-03-31T21:17:19+08:00"
 progress:
   total_phases: 17
   completed_phases: 17
@@ -16,10 +16,10 @@ progress:
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-03-29)
+See: `.planning/PROJECT.md` (updated 2026-03-31)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 runtime-profile-driven serving surface 证明这条架构能可靠承接高频校园问答
-**Current focus:** Phase 7 handbook verification 已完成；这个 worktree 当前 follow-up 已从 `curriculum_plan` live-gate 切回 branch-local closeout：`ContextProjection` / `SupervisorResponse` shared seam 对齐已落地，后续重点是 shared `app-api` Worker runtime 的 observability verification、merge-readiness cleanup，以及已落地 `Official Web` surface 的持续 hardening。`Jobs` / `Operations` 仍不进入第一波 rollout
+**Current focus:** 所有 phase 计划已完成，且 2026-03-31 `210128` handbook acceptance rerun 已把 repo-head remediation 正式收口为 live artifact truth：expanded `8`-case release gate、`procedure_directness`、`ragas.answer_relevancy` 与全部 supplemental soft gate 均为 `pass`，`repair` 继续跳过。当前剩余的唯一外部化 follow-up 是 Worker observability 的 `Post-Deploy Verification`：本地 pre-deploy readiness 与 targeted Worker smoke 已于 2026-03-31 复核通过，但仍需首个真实部署环境提供环境名、真实 hostnames、Worker release、已下发的 `SENTRY_*` / `AXIOM_*` 与 Sentry/Axiom 访问权限后才能执行 live sink smoke
 
 ## Current Position
 
@@ -59,7 +59,7 @@ Plan: 2 of 2
 **Recent Trend:**
 
 - Last 5 plans: 05.1-04, 06-01, 06-02, 07-01, 07-02
-- Trend: handbook mainline verification evidence is closed; this worktree’s current follow-up now centers on shared seam closeout、runtime observability verification 与 landed `official_web` surface hardening，而不是继续承担 curriculum release-gate 执行
+- Trend: handbook mainline verification evidence 已在 `210128` acceptance artifact 上完全闭环；当前主线之外的剩余事项只剩 deployment-gated observability verification，以及把已落盘 truth 持续保持为 merged-truth 文档基线
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
@@ -141,7 +141,7 @@ Recent decisions affecting current work:
 - canonical request projection is now explicitly same-database outbox-first: `runtime.request_execution` plus `runtime.projection_outbox` are the first durable truth, while queues are optional later acceleration only.
 - Better Auth is now fixed inside `apps/app-api`, and `auth/chat/runtime/operator` are expected to share one Drizzle schema codebase plus one migration pipeline; Worker runtime DB access remains Hyperdrive-based while migrations use a direct management connection.
 - Protected panel operator access is now explicitly documented as a small-team operator surface without a self-serve end-user account system; `Jobs` and `Operations` remain delayed pending re-discussion.
-- shared `apps/app-api` Worker foundation, request projection APIs, and current web-surface wiring are now implemented in this worktree; remaining work is follow-up hardening rather than topology bootstrap.
+- shared `apps/app-api` Worker foundation, request projection APIs, and current web-surface wiring are now implemented in merged truth; remaining work is follow-up hardening rather than topology bootstrap.
 - `official_web` control plane is now implemented on `apps/app-api` with dedicated schema, collector command/query endpoints, outbox-driven operator projections, and scheduled ingestion handoff dispatch; `apps/protected-panel-web` now consumes the owned site/run/detail APIs instead of treating `Official Web` as a blocked next domain.
 - Phase 05.1 froze curriculum source-truth quality gates, split-manifest review fail-close behavior, and explicit chunking runtime truth.
 - Phase 06 added `provider_response_replay` rebuild support for `curriculum_plan`, and the current refactor promotes its serving policy into the profile-driven query surface.
@@ -150,17 +150,19 @@ Recent decisions affecting current work:
 - `app-api` 第一版产品层 HTTP contract、`app-api -> supervisor-api` execution contract、request lifecycle、error model 与 logical schema 现已冻结在 `docs/contracts/` 与 `docs/data/`。
 - The accepted long-term split now separates verified identity, profile memory, session memory, and institutional knowledge into distinct truth layers.
 - Personalization may influence intent framing, retrieval planning, clarification, and answer wording, but memory does not grant permissions or widen retrieval ACL.
-- The current `develop` integration branch now treats `ContextProjection` + `SupervisorResponse` as the merge-ready shared seam; the pending worktree implementation must keep aligning to that seam instead of reintroducing `snapshot`.
+- The current merged truth now treats `ContextProjection` + `SupervisorResponse` as the shared seam; follow-up work must preserve that seam instead of reintroducing `snapshot`.
 - Curriculum gate closeout now has canonical docs/runbook coverage in `docs/reference/curriculum-plan-eval-metrics.md` and `docs/runbooks/curriculum-plan-hybrid-rebuild-checklist.md`; fresh live evidence belongs to the root worktree rather than this branch-local follow-up.
 - shared `app-api -> supervisor-api` seam is now aligned to `ContextProjection` / `SupervisorResponse`: request payloads no longer depend on actor `snapshot`, `supervisor-api` accepts body `actor/context` after admission, and request projections keep `approval_required` / `rejected` as first-class runtime statuses.
+- 2026-03-31 `210128` `student_handbook` acceptance rerun 已确认 live artifact truth：`deterministic_verdict=pass`、`supplemental_verdict=pass`、`final_overall_verdict=pass`，`repair` 跳过且无 applied targets，expanded `8`-case release gate 在真实 provider 上稳定通过。
+- handbook post-phase quality line 现已正式关闭：`procedure` action-first answer contract、`procedure_directness`、`student-card / materials / time` 三个自然问句 signal、ID-based context metrics 与 prompt adaptation 都已经形成新的 live baseline，而不是仅停留在 repo-head 测试真相。
 
 ### Pending Todos
 
 - Keep handbook chunk-truth validation and handbook eval artifacts as reusable regression gates for later retrieval changes.
+- Treat the 2026-03-31 `210128` handbook acceptance artifact as the new regression baseline for future handbook answer-path or eval-surface changes.
 - Keep `official_web` command/query/handoff tests and operator projections as reusable regression gates for later collector or ingestion integration changes.
-- Complete merge-readiness verification for this worktree on top of the landed Worker foundation without reopening topology ownership.
 - Keep `Jobs` and `Operations` out of the default panel rollout until product scope explicitly re-opens them.
-- Provision deploy-side `SENTRY_*` / `AXIOM_*` values for `apps/app-api`, `apps/public-chat-web`, and `apps/protected-panel-web`, then run post-deploy smoke verification for trace propagation, error capture, and minimal runtime event ingest.
+- For the first real deployed Worker environment, confirm deploy-side `SENTRY_*` / `AXIOM_*` assignment for `apps/app-api`, `apps/public-chat-web`, and `apps/protected-panel-web`, then run post-deploy smoke verification for trace propagation, error capture, and minimal runtime event ingest. Local preflight and targeted Worker smoke were revalidated on 2026-03-31, so this is now a deployment gate rather than an active local-engineering blocker.
 
 ### Blockers/Concerns
 
@@ -170,10 +172,11 @@ Recent decisions affecting current work:
 - panel `Requests` is no longer blocked, but panel work must still avoid reading audit logs, telemetry sinks, consumer chat tables, or `apps/supervisor-api` directly.
 - `Official Web` control-plane APIs and panel domain are now landed on `apps/app-api` + `apps/protected-panel-web`; follow-up work must extend this surface rather than reintroducing panel-side synthesis or direct infrastructure reads.
 - `Jobs` / `Operations` / `Audit` remain delayed; landed `Official Web` views do not authorize a generic ops console.
-- Observability runtime code is landed, but provider-side `SENTRY_*` / `AXIOM_*` secrets are not available yet; until they are assigned, telemetry remains unconfigured/fail-open and live sink verification cannot be closed.
+- Observability runtime code is landed, local worktree env is ready, and the targeted Worker smokes are green. There is no current local-engineering blocker here; the repo truth is simply that the first real deployed Worker environment does not exist yet, so deploy-side sink verification remains pending by design. When deployment exists, the smoke runner will need real hostnames, a Worker release identifier, and Sentry/Axiom access; local placeholder URLs such as `chat.example.com`, `panel.example.com`, and `app-api.internal` remain development-only values.
+- `student_handbook` handbook 质量线已在 `210128` acceptance artifact 上闭环；若后续再出现 handbook 退化，应从这个 baseline 出发分析，而不是回退到更早 `warn` artifact 的诊断框架。
 
 ## Session Continuity
 
 Last session: 2026-03-29T12:00:00+08:00
-Stopped at: shared app-api seam alignment is now landed on this worktree; next work is runtime observability verification and merge-readiness cleanup
+Stopped at: handbook acceptance rerun and stale-truth cleanup are closed; next work is runtime observability verification in the first real deployed Worker environment
 Resume file: None

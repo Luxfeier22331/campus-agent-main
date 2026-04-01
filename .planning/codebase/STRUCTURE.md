@@ -1,6 +1,6 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-03-29
+**Analysis Date:** 2026-03-31
 
 ## Directory Layout
 
@@ -8,12 +8,11 @@
 [project-root]/
 ├── AGENTS.md                 # Work rules, guardrails, and repo snapshot
 ├── README.md                 # High-level orientation and phase goals
-├── apps/                     # Runtime adapters, Worker/web shells, and historical app references
-│   ├── app-api/              # Minimal merged projection seam for the shared app backend
+├── apps/                     # Runtime adapters and current Worker/web surfaces
+│   ├── app-api/              # Shared Worker application/control-plane backend
 │   ├── ingestion-worker/     # Ingestion shells (`src/campus_ingestion_worker/`)
-│   ├── protected-internal-panel/  # Protected panel shell / migration surface
-│   ├── public-consumer-chat/ # Historical merged 04.7 app implementation reference
-│   ├── public-entry-worker/  # Public Worker runtime shell
+│   ├── protected-panel-web/  # Protected panel Worker surface
+│   ├── public-chat-web/      # Public chat Worker surface
 │   └── supervisor-api/       # API routes + execution engine glue (`src/campus_supervisor_api/`)
 ├── configs/                  # Static corpus/runtime profiles for ingestion
 │   └── ingestion/
@@ -56,10 +55,10 @@
 ## Directory Purposes
 
 **apps/**
-- Purpose: surface runtime adapters, Worker/web shells, and a small number of retained historical implementation references.
-- Contains: `apps/supervisor-api/src/campus_supervisor_api/*`, `apps/ingestion-worker/src/campus_ingestion_worker/*`, `apps/app-api/src/campus_app_api/projection.py`, Worker/web shells under `apps/public-entry-worker` and `apps/protected-internal-panel`, plus the historical `apps/public-consumer-chat`.
-- Key files: `build_routes` + `handle_answer` route definitions, ingestion worker shells that call `campus_ingestion_core.process_raw_ingestion_job`, and `apps/app-api/src/campus_app_api/projection.py`.
-- Subdirectories: only `supervisor-api`, `ingestion-worker`, `app-api`, and Worker/web surfaces should be treated as current merged-truth boundaries; `public-consumer-chat` is not forward topology truth.
+- Purpose: surface runtime adapters plus the current shared Worker/web product surfaces.
+- Contains: `apps/supervisor-api/src/campus_supervisor_api/*`, `apps/ingestion-worker/src/campus_ingestion_worker/*`, `apps/app-api/src/*`, `apps/public-chat-web/src/*`, and `apps/protected-panel-web/src/*`.
+- Key files: `build_routes` + `handle_answer` route definitions, ingestion worker shells that call `campus_ingestion_core.process_raw_ingestion_job`, `apps/app-api/src/app.ts`, `apps/app-api/src/index.ts`, `apps/public-chat-web/src/index.ts`, and `apps/protected-panel-web/src/index.ts`.
+- Subdirectories: treat only tracked app directories as current merged-truth boundaries; historical 04.6/04.7 app references now live in docs/planning history rather than current `apps/` inventory.
 
 **configs/**
 - Purpose: housing per-corpus runtime profiles consumed by retrieval and ingestion code.
@@ -109,7 +108,11 @@
 **Entry Points:**
 - `apps/supervisor-api/src/campus_supervisor_api/app.py` – builds `SupervisorApiApp` and wires HTTP/AgentOS runtime.
 - `apps/supervisor-api/src/campus_supervisor_api/api.py` – defines `/api/v1/answer`, `/healthz`, `/readyz`, error handling, and tracing.
-- `apps/app-api/src/campus_app_api/projection.py` – current merged `ContextProjection` seam for shared app-api alignment.
+- `apps/app-api/src/index.ts` – Worker fetch/scheduled entrypoint for the shared app backend.
+- `apps/app-api/src/app.ts` – HTTP route composition for auth/chat/operator/official-web/runtime modules.
+- `apps/app-api/src/campus_app_api/projection.py` – retained Python `ContextProjection` seam used by shared contract-alignment tests.
+- `apps/public-chat-web/src/index.ts` – public Worker shell that proxies browser chat traffic into `app-api`.
+- `apps/protected-panel-web/src/index.ts` – protected Worker shell and internal bridge into `app-api`.
 - `packages/supervisor-core/src/campus_supervisor_core/agent.py` – supervisor handle loop that delegates to specialists.
 - `apps/ingestion-worker/src/campus_ingestion_worker/process_raw_ingestion_job.py` – ingestion worker shell that prints `ImportReport`.
 
@@ -178,6 +181,8 @@
 **Runtime Shells & Scripts:**
 - API adjustments: `apps/supervisor-api/src/campus_supervisor_api/`.
 - Ingestion shells: `apps/ingestion-worker/src/campus_ingestion_worker/`.
+- Shared app/backend runtime: `apps/app-api/src/`.
+- Worker web surfaces: `apps/public-chat-web/src/` and `apps/protected-panel-web/src/`.
 
 ## Special Directories
 

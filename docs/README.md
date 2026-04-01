@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-03-22
-updated: 2026-03-29
+updated: 2026-03-31
 ---
 
 # Docs
@@ -80,10 +80,7 @@ updated: 2026-03-29
 
 - `architecture/app-api-architecture.md`
 - `architecture/authorization-and-access-control-architecture.md`
-- `architecture/cloudflare-public-entry-boundary.md`
-- `architecture/cloudflare-public-entry-integration-contract.md`
 - `architecture/cloudflare-runtime-topology.md`
-- `architecture/cloudflare-worker-consumer-entry-access-policy.md`
 - `architecture/long-term-architecture.md`
 - `architecture/official-web-crawl-policy.md`
 - `architecture/official-web-control-plane-on-app-api.md`
@@ -110,6 +107,7 @@ updated: 2026-03-29
 - `contracts/app-api-supervisor-execution.md`
 - `data/app-api-official-web-schema.md`
 - `data/app-api-schema.md`
+- `data/shared-postgres-ownership.md`
 - `environment/README.md`
 - `decisions/adr-0002-local-minio-conventions.md`
 - `decisions/adr-0003-golden-dataset-governance.md`
@@ -126,6 +124,8 @@ updated: 2026-03-29
 - `decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - `decisions/adr-0017-supervisor-internal-execution-admission.md`
 - `decisions/adr-0018-app-api-official-web-control-plane-ownership.md`
+- `decisions/adr-0019-qdrant-physical-collection-retention-and-expiration.md`
+- `decisions/adr-0020-qdrant-cloud-backup-restore-and-object-store-transition.md`
 - `decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
 - `plans/agentic-rag-foundation.md`
 - `plans/app-api-initial-execution-plan.md`
@@ -142,11 +142,15 @@ updated: 2026-03-29
 - `runbooks/develop-main-release-runbook.md`
 - `runbooks/forward-worker-surface-smoke-runbook.md`
 - `runbooks/index-release-runbook.md`
+- `runbooks/qdrant-cloud-backup-and-restore-runbook.md`
 - `runbooks/student-handbook-hybrid-rebuild-checklist.md`
+- `runbooks/worker-observability-smoke-runbook.md`
 - `reference/curriculum-plan-eval-metrics.md`
+- `reference/eval-gold-truth-model.md`
 - `reference/golden-dataset-case-matrix.md`
 - `reference/phase1-ingestion-retrieval-implementation-truth.md`
 - `reference/runtime-serving-and-index-terms.md`
 - `reference/student-handbook-eval-metrics.md`
+- `reference/testing-and-verification-lanes.md`
 - `policies/student-handbook-chunking-and-validation-policy.md`
 - `policies/student-handbook-judge-gate-policy.md`

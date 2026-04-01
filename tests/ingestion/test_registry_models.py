@@ -9,6 +9,8 @@ from unittest.mock import patch
 
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef, SourceObservation
 from campus_ingestion_core.registry import (
+    DEFAULT_DOCUMENT_REGISTRY_TABLE,
+    DEFAULT_RAW_ASSET_REGISTRY_TABLE,
     PostgresDocumentRegistry,
     _document_record_from_dict,
     _raw_asset_record_from_dict,
@@ -128,6 +130,16 @@ def _curriculum_raw_asset_record() -> RawAssetRecord:
 
 
 class RegistryModelsTest(unittest.TestCase):
+    def test_registry_defaults_are_schema_qualified_under_ingestion_registry(self) -> None:
+        self.assertEqual(
+            DEFAULT_DOCUMENT_REGISTRY_TABLE,
+            "ingestion_registry.document_registry_records",
+        )
+        self.assertEqual(
+            DEFAULT_RAW_ASSET_REGISTRY_TABLE,
+            "ingestion_registry.raw_asset_registry_records",
+        )
+
     def test_document_registry_record_serializes_required_fields(self) -> None:
         record = _handbook_document_record(
             version_id="v1:test-001",
@@ -535,6 +547,17 @@ class RegistryModelsTest(unittest.TestCase):
             self.assertIs(registry, instance)
             registry_cls.assert_called_once_with("postgresql://registry.example/postgres")
 
+    def test_build_document_registry_from_env_falls_back_to_shared_postgres_url(self) -> None:
+        with patch("campus_ingestion_core.registry.PostgresDocumentRegistry") as registry_cls:
+            instance = registry_cls.return_value
+
+            registry = build_document_registry_from_env(
+                {"CAMPUS_SHARED_POSTGRES_URL": "postgresql://shared.example/postgres"}
+            )
+
+            self.assertIs(registry, instance)
+            registry_cls.assert_called_once_with("postgresql://shared.example/postgres")
+
     def test_build_raw_asset_registry_from_env_uses_database_url(self) -> None:
         with patch("campus_ingestion_core.registry.PostgresRawAssetRegistry") as registry_cls:
             instance = registry_cls.return_value
@@ -560,6 +583,17 @@ class RegistryModelsTest(unittest.TestCase):
             self.assertIs(registry, instance)
             registry_cls.assert_called_once_with("postgresql://raw-registry.example/postgres")
 
+    def test_build_raw_asset_registry_from_env_falls_back_to_shared_postgres_url(self) -> None:
+        with patch("campus_ingestion_core.registry.PostgresRawAssetRegistry") as registry_cls:
+            instance = registry_cls.return_value
+
+            registry = build_raw_asset_registry_from_env(
+                {"CAMPUS_SHARED_POSTGRES_URL": "postgresql://shared.example/postgres"}
+            )
+
+            self.assertIs(registry, instance)
+            registry_cls.assert_called_once_with("postgresql://shared.example/postgres")
+
     def test_build_raw_asset_registry_from_env_accepts_dedicated_database_url_without_document_registry(self) -> None:
         with patch("campus_ingestion_core.registry.PostgresRawAssetRegistry") as registry_cls:
             instance = registry_cls.return_value
@@ -578,7 +612,7 @@ class RegistryModelsTest(unittest.TestCase):
             registry.delete_document("handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675")
 
         execute.assert_called_once_with(
-            "delete from document_registry_records where document_id = %s",
+            "delete from ingestion_registry.document_registry_records where document_id = %s",
             ("handbook:bf03f0bd6930e89bcc6d2733c1e87a423b510675",),
         )
 
@@ -607,10 +641,16 @@ class RegistryModelsTest(unittest.TestCase):
             latest_versions.assert_not_called()
 
     def test_registry_builders_require_database_url(self) -> None:
-        with self.assertRaisesRegex(ValueError, "DOCUMENT_REGISTRY_DATABASE_URL"):
+        with self.assertRaisesRegex(
+            ValueError, "DOCUMENT_REGISTRY_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL"
+        ):
             build_document_registry_from_env({})
         with self.assertRaisesRegex(
-            ValueError, "RAW_ASSET_REGISTRY_DATABASE_URL or DOCUMENT_REGISTRY_DATABASE_URL"
+            ValueError,
+            (
+                "RAW_ASSET_REGISTRY_DATABASE_URL or DOCUMENT_REGISTRY_DATABASE_URL or "
+                "CAMPUS_SHARED_POSTGRES_URL"
+            ),
         ):
             build_raw_asset_registry_from_env({})
 

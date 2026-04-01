@@ -13,7 +13,13 @@
     "test": {
       "outputs": []
     },
+    "test:worker": {
+      "outputs": []
+    },
     "test:integration": {
+      "cache": false
+    },
+    "test:shared-db-integration": {
       "cache": false
     },
     "dev": {

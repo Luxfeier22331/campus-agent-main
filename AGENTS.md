@@ -24,16 +24,20 @@
 - `README.md`
 - `docs/README.md`
 - `docs/architecture/long-term-architecture.md`
+- `docs/architecture/supervisor-architecture.md`
 - `docs/architecture/shared-app-api-and-worker-web-surfaces.md`
 - `docs/architecture/app-api-architecture.md`
 - `docs/architecture/request-projection-and-runtime-read-model.md`
 - `docs/architecture/phase1-ingestion-and-storage-architecture.md`
+- `docs/architecture/retrieval-query-strategy.md`
 - `docs/decisions/adr-0002-local-minio-conventions.md`
+- `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
+- `docs/reference/runtime-serving-and-index-terms.md`
 - `docs/plans/agentic-rag-foundation.md`
 - `docs/plans/app-api-worker-foundation.md`
 - `.planning/PROJECT.md`
@@ -44,9 +48,9 @@
 
 - `AGENTS.md` 只负责仓库入口约束、目录导航和工作协议，不重复深层设计文档
 - 这个仓库当前没有业务意义上的 `refs/` 目录；默认把 `README.md` 和 `docs/` 视为实现与架构的参考材料
-- 长期边界、阶段决策、accepted implementation baseline 与实施门禁分别以对应 `docs/` 文档为准
+- 长期边界、accepted architecture constraint、历史实施基线与术语约束分别以对应 `docs/` 文档为准
 - 当前 phase 执行状态、pending work、最新讨论结论与当前轮计划以 `.planning/` 为准
-- 不要把 `docs/plans/agentic-rag-foundation.md` 中的早期 phase-1 实施叙事直接当作当前执行状态；它是第一阶段地基的 canonical 实施基线，不是当前 GSD 进度板
+- 不要把 `docs/plans/agentic-rag-foundation.md` 中的早期实施叙事直接当作当前执行状态；它是历史实施基线，不是当前 GSD 进度板
 - 如果这里的表述和深层设计文档冲突，以深层设计文档为准，并优先修正本文件
 - 在引用 Source Of Truth 之前，先确认是否准确理解了用户当前问题；不得用文档权威覆盖对用户原意的错误理解
 
@@ -59,6 +63,23 @@
 - 解释错误优先级高于架构错误。
 - 如果对用户原意的理解是错的，那么后续所有基于边界、架构、最佳实践的纠偏都会失真。
 - 出现冲突时，先修正理解，再应用架构规则。
+
+### Question Type Detection
+
+- 先判断用户在问哪一类问题，再决定是否需要调用架构约束。
+- 至少区分以下几类：
+  - `architecture truth`
+    例如仓库当前 accepted topology、merged truth、长期边界是否已冻结
+  - `deployment substrate`
+    例如某个 app 先跑在 Docker、Worker、VM、本机进程还是 tunnel 后面
+  - `local dev / test path`
+    例如为了联调、验证或 smoke，临时怎样把链路跑通
+  - `implementation change`
+    例如是否需要改代码、改 contract、改 docs、改 runtime shell
+- 不要把 `deployment substrate` 自动解释成 `architecture truth` 变更。
+- 不要把 `local dev / test path` 自动解释成用户在主张修改 forward topology。
+- 不要把“我自己怎么部署 / 怎么联调”自动解释成“仓库应该把这个部署方式冻结为长期真相”。
+- 只有当用户明确在问 accepted topology、冻结决策、merged truth 或 repo-level 方案时，才按架构问题回答。
 
 ### User Intent First
 
@@ -74,13 +95,24 @@
 - 不要把“加一个 panel backend”自动解释成“复制第二套业务后端”。
 - 不要把“先套 react-admin”自动解释成“放弃 Worker shell 边界”。
 - 不要把“是否符合最佳实践”自动改写成“如果把它做成最坏版本是否还合理”。
+- 不要把“能不能先用 Docker / tunnel / 本机进程测试”自动解释成“是不是要改仓库 topology / merged truth”。
 - 反驳时只能反驳用户实际提出的方案，或明确标注为额外扩展分支的方案。
+
+### No Rewrite Of User Input
+
+- 不要静默改写用户的问题，再去回答你改写后的版本。
+- 不要把用户的部署问题改写成架构问题，不要把用户的评审问题改写成实施方案问题，不要把用户的判断题改写成风险演习题。
+- 如果需要复述用户问题，复述后的名词、边界和判断力度必须与原问保持一致。
+- 如果你的回答依赖额外假设，必须显式写出“以下回答基于 X 假设”，不能把假设伪装成用户原意。
+- 如果用户是在纠正你，先吸收纠正，再回答；不要继续沿着旧误解重写用户的意思。
 
 ### Clarification Threshold
 
 - 如果自然解释已经足够回答问题，不要为了防腐烂而额外追问。
 - 如果自然解释和高风险解释会导出完全不同结论，先用一句话明确你当前采用的解释。
 - 澄清问题时，应围绕语义分歧本身，不要预设对方在主张更差方案。
+- 追问的代价小于猜错返工的代价时，优先追问。
+- 如果不追问也能给出高置信判断，就直接回答，并显式标注关键假设。
 
 ### Interpretation Priority
 
@@ -101,6 +133,17 @@
 - 先回答用户实际问的问题。
 - 不要先把问题改写成另一个更坏的问题再回答。
 - 判断题、评审题、设计辨析题，先给结论，再给依据。
+- 如果用户问的是“哪些”“能不能”“是不是”，先直接给列表、是/否或判断，不要先写背景综述。
+
+### Output Contract
+
+- 不要写不影响用户做决策的话。
+- 直接给出结论或方案，不要铺垫。
+- 省略显而易见的上下文和已知信息。
+- 只在对理解关键逻辑有帮助时才举例。
+- 默认优先给最短可用答案，而不是“完整但绕”的答案。
+- 如果答案分为“文档事实 / 代码事实 / 推断”，只在这种区分会影响决策时再拆开写。
+- 如果用户问题本身是窄问题，就保持窄回答；不要擅自扩成综述、路线图或风险清单。
 
 ### Scope Discipline
 
@@ -108,6 +151,8 @@
 - 只有当额外说明是当前答案成立所必需时，才加入额外风险或额外约束。
 - 当用户在询问、评审、辨析、比较或校正时，不要默认追加下一步建议。
 - 不要用“如果你要，我可以继续……”作为默认收尾。
+- 不要为了显得周全而重写用户的问题范围。
+- 用户只问当前判断时，不要抢先回答“长期也许怎么做更好”。
 
 ### Risk Branch Labeling
 
@@ -121,6 +166,13 @@
 - 不要把规则设计、架构设计或仓库协议设计回答成默认的工程折中术。
 - 只有当用户明确要求比较不同实施力度时，才允许给出分层方案。
 
+### No Rewrite Of The Answer
+
+- 回答结构要贴合用户原问题，而不是贴合你更熟悉的另一个问题模板。
+- 不要把一个可以一句话回答的问题，重写成一段防御式架构宣讲。
+- 不要用“先澄清一个更大的问题”来替代当前问题的直接答案，除非当前问题在语义上确实无法成立。
+- 如果你发现自己正在回答一个用户没问的问题，立即停下，回到原问题。
+
 ## Architecture Guardrails
 
 以下规则只在“用户原意已经被准确理解之后”生效。
@@ -131,7 +183,7 @@
 - 不要把 online query path 和 offline ingestion/data plane 混在同一层
 - 不要把本机目录语义提升成长期对象存储真相源；当前阶段对象存储虽然可本机部署，但架构语义上仍是 `S3-compatible object storage`
 - 任何实现都应先尊重已冻结的 contract 和 package 边界，再考虑 runtime 或框架便利性
-- 第一阶段查询默认语料是 `student_handbook`；如需新增 data-plane corpus，必须同步更新决策/计划文档并保持 retrieval 范围显式不变
+- query-serving surface 由 collection runtime profile 显式控制；如需新增或收缩 serving surface，必须同步更新决策/计划文档并保持范围显式
 
 ### Architecture Over Patchwork
 
@@ -150,7 +202,7 @@
 - 优先在边界内修改；跨多个 package 改动时，先确认 `packages/contracts` 是否需要先冻结或先调整
 - 仓库仍在地基阶段；优先补最小可验证闭环，不做“未来也许会用到”的泛化设计
 - Node / Worker app 默认使用 `pnpm`，不再新增或维护 `package-lock.json`
-- 如果变更触及长期边界、phase-1 约束或对象存储/ingestion 不变量，同步检查相关 `docs/architecture` 或 `docs/decisions` 是否需要更新
+- 如果变更触及长期边界、当前 accepted retrieval/data-plane 约束或对象存储/ingestion 不变量，同步检查相关 `docs/architecture` 或 `docs/decisions` 是否需要更新
 - 不要在 repo 级 `AGENTS.md` 里写个人工作习惯、平台专属工具细则或一次性实验说明；这些内容应放到全局 agent 配置
 - 在规则、架构、文档和实现设计层面，同样禁止用“最小改法”替代长期正确的结构性修正
 
@@ -221,6 +273,8 @@ JS/TS surface 的默认验证命令：
 pnpm install
 pnpm web:typecheck
 pnpm web:test
+pnpm web:test:worker
+pnpm web:test:integration
 pnpm web:build
 ```
 
@@ -237,6 +291,9 @@ pnpm web:build:affected
 - 默认不要直接运行裸 `python3` 或裸 `pytest`
 - 仓库级基线验证与局部测试命令默认都通过 `uv run --all-packages ...` 执行
 - JS/TS app 的共享任务编排默认通过 repo root `pnpm` + `turbo` 入口执行，不再鼓励把跨 app 验证拆回各自目录手动串行运行
+- `pnpm web:test` 是 JS/TS 默认稳定 gate；不要把它表述成自动覆盖所有 worker / integration lane
+- `pnpm web:test:worker` 是显式 Worker runtime lane；`pnpm web:test:integration` 是显式外部依赖 integration lane
+- `apps/app-api` 默认 `pnpm test` 只跑 `test:node`；`test:worker` 与 `test:shared-db-integration` 必须显式调用
 - 如果新增局部测试或检查命令，只记录仓库里真实存在、可重复执行的命令
 - 不要把“担心腐烂”当成替代验证证据的理由
 - 当提出某种设计风险时，应尽可能区分：文档事实、代码事实，以及你的推断

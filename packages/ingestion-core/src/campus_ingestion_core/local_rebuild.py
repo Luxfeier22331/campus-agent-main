@@ -172,6 +172,45 @@ class S3ObjectStoreAdmin:
             ContentType=content_type,
         )
 
+    def upload_file(
+        self,
+        *,
+        bucket: str,
+        key: str,
+        file_path: str,
+        content_type: str,
+    ) -> None:
+        self._client.upload_file(
+            Filename=file_path,
+            Bucket=bucket,
+            Key=key,
+            ExtraArgs={"ContentType": content_type},
+        )
+
+    def download_file(self, *, bucket: str, key: str, file_path: str) -> None:
+        self._client.download_file(
+            Bucket=bucket,
+            Key=key,
+            Filename=file_path,
+        )
+
+    def head_object(self, *, bucket: str, key: str) -> dict[str, object]:
+        return self._client.head_object(Bucket=bucket, Key=key)
+
+    def list_keys(self, *, bucket: str, prefix: str) -> tuple[str, ...]:
+        keys: list[str] = []
+        continuation_token: str | None = None
+        while True:
+            request: dict[str, object] = {"Bucket": bucket, "Prefix": prefix}
+            if continuation_token is not None:
+                request["ContinuationToken"] = continuation_token
+            response = self._client.list_objects_v2(**request)
+            keys.extend(str(item["Key"]) for item in response.get("Contents") or ())
+            if not response.get("IsTruncated"):
+                break
+            continuation_token = response.get("NextContinuationToken")
+        return tuple(keys)
+
     def copy_bytes(
         self,
         *,
@@ -555,6 +594,8 @@ def _build_qdrant_client(settings: RetrievalSettings, *, source: dict[str, str] 
             default_timeout_seconds=settings.qdrant_timeout_seconds,
         ),
         cloud_inference=True,
+        check_compatibility=False,
+        trust_env=False,
     )
 
 

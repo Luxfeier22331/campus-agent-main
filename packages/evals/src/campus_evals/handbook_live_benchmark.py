@@ -1,13 +1,20 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
 from campus_contracts import EvidenceBundle, RagRequestPayload, RagResultPayload, SpecialistRequest, SpecialistResponse
 from campus_evals.handbook_benchmark import repair_handbook_formal_benchmark, run_handbook_formal_benchmark
 from campus_evals.judge_adapters import build_default_handbook_supplemental_adapters_from_env
+from campus_evals.live_benchmark import (
+    BenchmarkProfile,
+    accept_live_benchmark_profile,
+    build_default_profile_http_settings,
+    build_default_output_dir as build_shared_default_output_dir,
+    build_parser_for_profile,
+    main_for_profile,
+)
 from campus_evals.models import ExecutionResult, GoldenCase, ObservedTrace
 from campus_evals.scenarios import handbook_release_gate_cases
 from campus_rag_specialist import delegate_to_rag_agent
@@ -16,14 +23,16 @@ from campus_retrieval_core import retrieve_sources
 
 RUN_PREFIX = "student-handbook-formal-benchmark"
 REPAIR_PREFIX = "student-handbook-formal-benchmark-repair"
+STUDENT_HANDBOOK_JUDGE_GATE_POLICY_PATH = (
+    Path(__file__).resolve().parents[2] / "fixtures" / "student_handbook_judge_gate_policy.json"
+)
 
 Retriever = Callable[..., EvidenceBundle]
 Delegate = Callable[..., SpecialistResponse]
 
 
 def build_default_output_dir(*, prefix: str, timestamp: str | None = None) -> Path:
-    resolved_timestamp = timestamp or datetime.now().strftime("%Y%m%dT%H%M%S")
-    return Path(".tmp/evals") / f"{prefix}-{resolved_timestamp}"
+    return build_shared_default_output_dir(prefix=prefix, timestamp=timestamp)
 
 
 def build_handbook_live_executor(
@@ -65,48 +74,41 @@ def build_handbook_live_executor(
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run or repair student_handbook formal benchmark against the live chain.")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    return build_parser_for_profile(build_handbook_live_profile())
 
-    run_parser = subparsers.add_parser("run", help="Run a fresh handbook formal benchmark.")
-    run_parser.add_argument("--reruns", type=int, default=3, help="Number of reruns for the formal benchmark.")
-    run_parser.add_argument("--output-dir", help="Optional output directory. Defaults to timestamped .tmp/evals path.")
 
-    repair_parser = subparsers.add_parser("repair", help="Repair transient infra failures from an existing benchmark dir.")
-    repair_parser.add_argument("--benchmark-dir", required=True, help="Path to an existing benchmark artifact directory.")
-    repair_parser.add_argument("--output-dir", help="Optional output directory. Defaults to timestamped .tmp/evals path.")
-
-    return parser
+def build_handbook_live_profile(env: dict[str, str] | None = None) -> BenchmarkProfile:
+    http_settings = build_default_profile_http_settings()
+    return BenchmarkProfile(
+        profile_id="student_handbook",
+        benchmark_type="formal_benchmark",
+        repair_benchmark_type="formal_benchmark_repair",
+        run_prefix=RUN_PREFIX,
+        repair_prefix=REPAIR_PREFIX,
+        description="Run or repair student_handbook formal benchmark against the live chain.",
+        policy_path=STUDENT_HANDBOOK_JUDGE_GATE_POLICY_PATH,
+        http_settings=http_settings,
+        cases_factory=lambda: handbook_release_gate_cases(),
+        executor_factory=build_handbook_live_executor,
+        supplemental_adapters_factory=lambda: build_default_handbook_supplemental_adapters_from_env(
+            env,
+            http_settings=http_settings,
+        ),
+        pass_policy_path_to_core=False,
+        pass_benchmark_type_to_core=False,
+        pass_repair_benchmark_type_to_core=False,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
-    cases = handbook_release_gate_cases()
-    supplemental_adapters = build_default_handbook_supplemental_adapters_from_env()
-    executor = build_handbook_live_executor()
-
-    if args.command == "run":
-        output_dir = Path(args.output_dir) if args.output_dir else build_default_output_dir(prefix=RUN_PREFIX)
-        run_handbook_formal_benchmark(
-            cases=cases,
-            executor=executor,
-            supplemental_adapters=supplemental_adapters,
-            output_dir=output_dir,
-            reruns=args.reruns,
-        )
-        print(output_dir)
-        return 0
-
-    output_dir = Path(args.output_dir) if args.output_dir else build_default_output_dir(prefix=REPAIR_PREFIX)
-    repair_handbook_formal_benchmark(
-        cases=cases,
-        executor=executor,
-        supplemental_adapters=supplemental_adapters,
-        benchmark_dir=Path(args.benchmark_dir),
-        output_dir=output_dir,
+    return main_for_profile(
+        profile=build_handbook_live_profile(),
+        argv=argv,
+        output_dir_builder=build_default_output_dir,
+        run_benchmark_fn=run_handbook_formal_benchmark,
+        repair_benchmark_fn=repair_handbook_formal_benchmark,
+        accept_benchmark_fn=accept_live_benchmark_profile,
     )
-    print(output_dir)
-    return 0
 
 
 if __name__ == "__main__":

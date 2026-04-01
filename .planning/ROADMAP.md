@@ -300,6 +300,11 @@ Plans:
 - [x] 07-01: Add and stabilize automated test coverage for happy-path and failure-path supervisor/rag interactions.
 - [x] 07-02: Add smoke/eval verification for `student_handbook` ingestion and query-serving behavior.
 
+Post-phase closeout note:
+- 2026-03-31 `210128` fresh `student_handbook` acceptance rerun confirmed the expanded `8`-case release gate on real providers.
+- The rerun kept deterministic gating stable, validated `procedure_directness` across the three procedure questions, and closed all supplemental soft gates as `pass`.
+- Phase 7 remains complete; the remaining follow-up outside this phase is only the first real deployed Worker observability verification.
+
 ## Progress
 
 **Execution Order:**

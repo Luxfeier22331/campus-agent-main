@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-03-29
+updated: 2026-03-30
 ---
 
 # App API HTTP Contract
@@ -419,7 +419,7 @@ updated: 2026-03-29
 
 ## Explicit Non-Goals
 
-- 不把 `public-consumer-chat` 的旧 `/api/answer` 继续提升为 forward contract
+- 不把已退役 standalone chat app 的旧 `/api/answer` 继续提升为 forward contract
 - 不为 panel 暴露 database/admin-console 风格 API
 - 不让 operator endpoints 旁路读取 `runtime.request_execution`
 - 不把 `packages/contracts` 直接当 browser product API

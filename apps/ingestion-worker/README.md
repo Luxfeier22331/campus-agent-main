@@ -194,6 +194,75 @@ Behavior:
 - Only switches the serving alias when `--publish-alias` is enabled.
 - Never writes chunk dumps back to object storage.
 
+### `qdrant_backup_create`
+
+Operator-facing backup shell for one release-managed Qdrant collection snapshot bundle.
+
+Required CLI args:
+
+- `--corpus`
+- `--collection`
+- `--release-id`
+- `--backup-reason`
+
+Optional CLI args:
+
+- `--operator`
+
+Behavior:
+
+- Reads `{corpus}/releases/{collection}/{release_id}/index-release.json`.
+- Creates a collection snapshot for that release's physical collection.
+- Uploads the snapshot to `{corpus}/backups/{collection}/{release_id}/{backup_id}/...`.
+- Writes `backup-manifest.json` with alias binding, checksum, manifest key, and operator metadata.
+
+### `qdrant_backup_restore`
+
+Operator-facing restore shell for one previously exported snapshot bundle.
+
+Required CLI args:
+
+- `--corpus`
+- `--collection`
+- `--release-id`
+- `--backup-id`
+
+Optional CLI args:
+
+- `--operator`
+- `--target-collection-name`
+- `--apply-alias`
+
+Behavior:
+
+- Downloads one snapshot bundle from derived bucket.
+- Restores the physical collection into Qdrant Cloud.
+- Verifies collection existence, points count, and release payload metadata.
+- Only reapplies serving alias when `--apply-alias` is enabled and verification passes.
+- Writes `restore-report.json` back to the same backup prefix.
+
+### `qdrant_gc_check`
+
+Operator-facing gate check for old physical collection cleanup.
+
+Required CLI args:
+
+- `--corpus`
+- `--collection`
+- `--release-id`
+
+Optional CLI args:
+
+- `--protected-physical-collection-name`
+- `--manual-blocker`
+
+Behavior:
+
+- Loads the target release manifest and compares it with live alias state.
+- Evaluates whether the target is `current` / `previous` / `migration_baseline` / `archive_candidate`.
+- Requires validation summary and snapshot bundle evidence before reporting `eligible=true`.
+- Does not delete anything; it only emits a structured gate report.
+
 ### Source-Truth Fan-Out Rule
 
 Phase 03.2 freezes the worker/runtime direction as:

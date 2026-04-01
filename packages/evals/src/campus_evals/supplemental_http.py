@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 import json
+import random
 import re
 from threading import Lock
 import time
@@ -17,6 +18,7 @@ from pydantic import BaseModel, ValidationError
 from ragas.embeddings.base import BaseRagasEmbeddings
 from ragas.llms.base import BaseRagasLLM, InstructorBaseRagasLLM
 
+from campus_evals.runtime_observability import emit_runtime_event
 from campus_evals.settings import RagasSettings, SupplementalHTTPSettings
 
 
@@ -78,6 +80,9 @@ _FAST_FAIL_ERROR_MARKERS = (
     "circuit_open",
     "preflight_failed",
 )
+_BEARER_TOKEN_RE = re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._-]+\b")
+_RUNTIME_SCOPE_SECRET_RE = re.compile(r"::[A-Za-z0-9._-]{6,}")
+_SK_LIKE_TOKEN_RE = re.compile(r"\bsk-[A-Za-z0-9._-]{6,}\b")
 _REQUEST_PACERS: dict[tuple[str, float], "RequestPacer"] = {}
 _REQUEST_PACERS_LOCK = Lock()
 _PROVIDER_CIRCUIT_BREAKERS: dict[tuple[str, int, float], "ProviderCircuitBreaker"] = {}
@@ -232,7 +237,7 @@ class ProviderCircuitBreaker:
             self._opened_until = time.monotonic() + self.cooldown_seconds
 
 
-class OpenAICompatibleResponsesLLM(BaseRagasLLM, InstructorBaseRagasLLM):
+class OpenAICompatibleTextResponsesLLM(BaseRagasLLM):
     def __init__(
         self,
         *,
@@ -294,23 +299,6 @@ class OpenAICompatibleResponsesLLM(BaseRagasLLM, InstructorBaseRagasLLM):
             llm_output={"provider": "responses_http", "model": self.model},
         )
 
-    def generate(
-        self,
-        prompt: str,
-        response_model: type[StructuredOutputModel],
-    ) -> StructuredOutputModel:
-        payload = _build_responses_structured_payload(
-            model=self.model,
-            prompt=prompt,
-            response_model=response_model,
-            reasoning_effort=self.reasoning_effort,
-            max_output_tokens=self.max_output_tokens,
-        )
-        return _extract_structured_output_model(
-            self._post_json_sync("/responses", payload),
-            response_model=response_model,
-        )
-
     async def agenerate_text(
         self,
         prompt,
@@ -346,6 +334,160 @@ class OpenAICompatibleResponsesLLM(BaseRagasLLM, InstructorBaseRagasLLM):
             llm_output={"provider": "responses_http", "model": self.model},
         )
 
+    def is_finished(self, response: LLMResult) -> bool:
+        return True
+
+    def preflight_sync(self) -> dict[str, object]:
+        payload = _build_responses_payload(
+            model=self.model,
+            prompt="Reply with OK only.",
+            temperature=0.0,
+            reasoning_effort=self.reasoning_effort,
+            text_verbosity=self.text_verbosity,
+            max_output_tokens=min(self.max_output_tokens or 16, 16),
+        )
+        cache_key = _preflight_cache_key(
+            base_url=self.base_url,
+            api_key=self.api_key,
+            endpoint="/responses",
+            payload=payload,
+        )
+        cached = _get_cached_preflight_entry(cache_key)
+        if cached is not None:
+            if cached.status == "passed" and cached.result is not None:
+                return dict(cached.result)
+            raise SupplementalPreflightFailedError(
+                cached.error_message or "preflight_failed",
+                reasons=cached.error_reasons,
+                disposition=cached.failure_disposition,
+            )
+        try:
+            output_text = _extract_output_text(
+                _request_json_sync(
+                    lambda: self._get_sync_client().post(
+                        "/responses",
+                        json=payload,
+                        headers=_build_headers(self.api_key),
+                        timeout=_build_httpx_timeout(self.http_settings, preflight=True),
+                    ),
+                    http_settings=self.http_settings,
+                    circuit_breaker=self.circuit_breaker,
+                    retry_attempts=self.http_settings.retry_attempts,
+                    request_pacer=self.request_pacer,
+                    event_metadata=_build_runtime_event_metadata(
+                        base_url=self.base_url,
+                        endpoint="/responses",
+                        model=self.model,
+                        request_kind="llm",
+                        preflight=True,
+                    ),
+                )
+            )
+        except Exception as exc:
+            classification = classify_runtime_failure(str(exc), error_type=type(exc).__name__)
+            reasons = ("preflight_failed", *classification.reasons)
+            error_message = f"preflight_failed: {format_runtime_exception_message(exc)}"
+            _store_preflight_entry(
+                cache_key,
+                _PreflightCacheEntry(
+                    status="failed",
+                    error_message=error_message,
+                    error_reasons=reasons,
+                    failure_disposition=classification.disposition,
+                    expires_at=time.monotonic() + self.http_settings.circuit_breaker_cooldown_seconds,
+                ),
+            )
+            raise SupplementalPreflightFailedError(
+                error_message,
+                reasons=reasons,
+                disposition=classification.disposition,
+            ) from exc
+        result = {
+            "status": "passed",
+            "endpoint": "/responses",
+            "model": self.model,
+            "output_text": output_text,
+        }
+        _store_preflight_entry(
+            cache_key,
+            _PreflightCacheEntry(
+                status="passed",
+                result=result,
+            ),
+        )
+        return result
+
+    def _post_json_sync(self, path: str, payload: dict[str, t.Any]) -> dict[str, t.Any]:
+        return _request_json_sync(
+            lambda: self._get_sync_client().post(path, json=payload, headers=_build_headers(self.api_key)),
+            http_settings=self.http_settings,
+            circuit_breaker=self.circuit_breaker,
+            request_pacer=self.request_pacer,
+            event_metadata=_build_runtime_event_metadata(
+                base_url=self.base_url,
+                endpoint=path,
+                model=self.model,
+                request_kind="llm",
+                preflight=False,
+            ),
+        )
+
+    async def _post_json_async(self, path: str, payload: dict[str, t.Any]) -> dict[str, t.Any]:
+        return await _request_json_async(
+            lambda: self._get_async_client().post(path, json=payload, headers=_build_headers(self.api_key)),
+            http_settings=self.http_settings,
+            circuit_breaker=self.circuit_breaker,
+            request_pacer=self.request_pacer,
+            event_metadata=_build_runtime_event_metadata(
+                base_url=self.base_url,
+                endpoint=path,
+                model=self.model,
+                request_kind="llm",
+                preflight=False,
+            ),
+        )
+
+    def _get_sync_client(self) -> httpx.Client:
+        if self._sync_client is not None:
+            return self._sync_client
+        return get_shared_sync_client(
+            base_url=self.base_url,
+            api_key=self.api_key,
+            settings=self.http_settings,
+        )
+
+    def _get_async_client(self) -> httpx.AsyncClient:
+        if self._async_client is not None:
+            return self._async_client
+        return get_shared_async_client(
+            base_url=self.base_url,
+            api_key=self.api_key,
+            settings=self.http_settings,
+        )
+
+
+class OpenAICompatibleResponsesLLM(OpenAICompatibleTextResponsesLLM, InstructorBaseRagasLLM):
+    @property
+    def is_async(self) -> bool:
+        return True
+
+    def generate(
+        self,
+        prompt: str,
+        response_model: type[StructuredOutputModel],
+    ) -> StructuredOutputModel:
+        payload = _build_responses_structured_payload(
+            model=self.model,
+            prompt=prompt,
+            response_model=response_model,
+            reasoning_effort=self.reasoning_effort,
+            max_output_tokens=self.max_output_tokens,
+        )
+        return _extract_structured_output_model(
+            self._post_json_sync("/responses", payload),
+            response_model=response_model,
+        )
+
     async def agenerate(
         self,
         prompt: str,
@@ -362,9 +504,6 @@ class OpenAICompatibleResponsesLLM(BaseRagasLLM, InstructorBaseRagasLLM):
             await self._post_json_async("/responses", payload),
             response_model=response_model,
         )
-
-    def is_finished(self, response: LLMResult) -> bool:
-        return True
 
     def preflight_sync(self) -> dict[str, object]:
         payload = _build_responses_structured_payload(
@@ -402,13 +541,20 @@ class OpenAICompatibleResponsesLLM(BaseRagasLLM, InstructorBaseRagasLLM):
                     circuit_breaker=self.circuit_breaker,
                     retry_attempts=self.http_settings.retry_attempts,
                     request_pacer=self.request_pacer,
+                    event_metadata=_build_runtime_event_metadata(
+                        base_url=self.base_url,
+                        endpoint="/responses",
+                        model=self.model,
+                        request_kind="llm",
+                        preflight=True,
+                    ),
                 ),
                 response_model=_ResponsesStructuredPreflightModel,
             )
         except Exception as exc:
             classification = _classify_preflight_exception(exc)
             reasons = ("preflight_failed", *classification.reasons)
-            error_message = f"preflight_failed: {exc}"
+            error_message = f"preflight_failed: {format_runtime_exception_message(exc)}"
             _store_preflight_entry(
                 cache_key,
                 _PreflightCacheEntry(
@@ -438,40 +584,6 @@ class OpenAICompatibleResponsesLLM(BaseRagasLLM, InstructorBaseRagasLLM):
             ),
         )
         return result
-
-    def _post_json_sync(self, path: str, payload: dict[str, t.Any]) -> dict[str, t.Any]:
-        return _request_json_sync(
-            lambda: self._get_sync_client().post(path, json=payload, headers=_build_headers(self.api_key)),
-            http_settings=self.http_settings,
-            circuit_breaker=self.circuit_breaker,
-            request_pacer=self.request_pacer,
-        )
-
-    async def _post_json_async(self, path: str, payload: dict[str, t.Any]) -> dict[str, t.Any]:
-        return await _request_json_async(
-            lambda: self._get_async_client().post(path, json=payload, headers=_build_headers(self.api_key)),
-            http_settings=self.http_settings,
-            circuit_breaker=self.circuit_breaker,
-            request_pacer=self.request_pacer,
-        )
-
-    def _get_sync_client(self) -> httpx.Client:
-        if self._sync_client is not None:
-            return self._sync_client
-        return get_shared_sync_client(
-            base_url=self.base_url,
-            api_key=self.api_key,
-            settings=self.http_settings,
-        )
-
-    def _get_async_client(self) -> httpx.AsyncClient:
-        if self._async_client is not None:
-            return self._async_client
-        return get_shared_async_client(
-            base_url=self.base_url,
-            api_key=self.api_key,
-            settings=self.http_settings,
-        )
 
 
 class OpenAICompatibleHTTPEmbeddings(BaseRagasEmbeddings):
@@ -515,6 +627,13 @@ class OpenAICompatibleHTTPEmbeddings(BaseRagasEmbeddings):
                 http_settings=self.http_settings,
                 circuit_breaker=self.circuit_breaker,
                 request_pacer=self.request_pacer,
+                event_metadata=_build_runtime_event_metadata(
+                    base_url=self.base_url,
+                    endpoint="/embeddings",
+                    model=self.model,
+                    request_kind="embeddings",
+                    preflight=False,
+                ),
             )
         )
 
@@ -533,6 +652,13 @@ class OpenAICompatibleHTTPEmbeddings(BaseRagasEmbeddings):
                 http_settings=self.http_settings,
                 circuit_breaker=self.circuit_breaker,
                 request_pacer=self.request_pacer,
+                event_metadata=_build_runtime_event_metadata(
+                    base_url=self.base_url,
+                    endpoint="/embeddings",
+                    model=self.model,
+                    request_kind="embeddings",
+                    preflight=False,
+                ),
             )
         )
 
@@ -569,11 +695,18 @@ class OpenAICompatibleHTTPEmbeddings(BaseRagasEmbeddings):
                 circuit_breaker=self.circuit_breaker,
                 retry_attempts=self.http_settings.retry_attempts,
                 request_pacer=self.request_pacer,
+                event_metadata=_build_runtime_event_metadata(
+                    base_url=self.base_url,
+                    endpoint="/embeddings",
+                    model=self.model,
+                    request_kind="embeddings",
+                    preflight=True,
+                ),
             )
         except Exception as exc:
             classification = classify_runtime_failure(str(exc), error_type=type(exc).__name__)
             reasons = ("preflight_failed", *classification.reasons)
-            error_message = f"preflight_failed: {exc}"
+            error_message = f"preflight_failed: {format_runtime_exception_message(exc)}"
             _store_preflight_entry(
                 cache_key,
                 _PreflightCacheEntry(
@@ -623,7 +756,7 @@ def build_http_ragas_llm(
     *,
     sync_client: httpx.Client | None = None,
     async_client: httpx.AsyncClient | None = None,
-) -> OpenAICompatibleResponsesLLM:
+) -> OpenAICompatibleTextResponsesLLM:
     request_pacer = get_request_pacer(
         base_url=settings.llm_base_url or "https://api.openai.com/v1",
         api_key=settings.llm_api_key,
@@ -634,7 +767,7 @@ def build_http_ragas_llm(
         api_key=settings.llm_api_key,
         settings=settings.http_settings,
     )
-    return OpenAICompatibleResponsesLLM(
+    return OpenAICompatibleTextResponsesLLM(
         base_url=settings.llm_base_url or "https://api.openai.com/v1",
         api_key=settings.llm_api_key,
         model=settings.llm_model,
@@ -719,6 +852,7 @@ def _build_responses_structured_payload(
     reasoning_effort: str | None,
     max_output_tokens: int | None,
 ) -> dict[str, t.Any]:
+    schema = _close_json_schema_objects(response_model.model_json_schema())
     payload: dict[str, t.Any] = {
         "model": model,
         "stream": False,
@@ -733,7 +867,7 @@ def _build_responses_structured_payload(
             "format": {
                 "type": "json_schema",
                 "name": response_model.__name__,
-                "schema": response_model.model_json_schema(),
+                "schema": schema,
                 "strict": True,
             }
         },
@@ -743,6 +877,20 @@ def _build_responses_structured_payload(
     if max_output_tokens is not None:
         payload["max_output_tokens"] = max_output_tokens
     return payload
+
+
+def _close_json_schema_objects(schema: t.Any) -> t.Any:
+    if isinstance(schema, dict):
+        normalized = {
+            key: _close_json_schema_objects(value)
+            for key, value in schema.items()
+        }
+        if normalized.get("type") == "object" and "additionalProperties" not in normalized:
+            normalized["additionalProperties"] = False
+        return normalized
+    if isinstance(schema, list):
+        return [_close_json_schema_objects(item) for item in schema]
+    return schema
 
 
 def _build_embeddings_payload(
@@ -760,7 +908,32 @@ def _build_embeddings_payload(
     return payload
 
 
+def _build_runtime_event_metadata(
+    *,
+    base_url: str,
+    endpoint: str,
+    model: str,
+    request_kind: str,
+    preflight: bool,
+) -> dict[str, t.Any]:
+    return {
+        "provider_origin": _pacer_scope_key(base_url),
+        "endpoint": endpoint,
+        "model": model,
+        "request_kind": request_kind,
+        "preflight": preflight,
+    }
+
+
 def _prompt_to_responses_input(prompt) -> list[dict[str, t.Any]]:
+    if isinstance(prompt, str):
+        return [
+            {
+                "role": "user",
+                "type": "message",
+                "content": prompt,
+            }
+        ]
     messages = prompt.to_messages()
     items: list[dict[str, t.Any]] = []
     for message in messages:
@@ -823,15 +996,30 @@ def _request_json_sync(
     circuit_breaker: ProviderCircuitBreaker | None,
     retry_attempts: int | None = None,
     request_pacer: RequestPacer | None = None,
+    event_metadata: dict[str, t.Any] | None = None,
 ) -> dict[str, t.Any]:
     total_attempts = 1 + (http_settings.retry_attempts if retry_attempts is None else retry_attempts)
     if circuit_breaker is not None:
-        circuit_breaker.ensure_request_allowed()
+        try:
+            circuit_breaker.ensure_request_allowed()
+        except SupplementalCircuitOpenError as exc:
+            emit_runtime_event(
+                "supplemental_breaker_fast_failed",
+                **dict(event_metadata or {}),
+                failure_reasons=list(getattr(exc, "reasons", ()) or ()),
+                failure_disposition=getattr(exc, "disposition", None),
+            )
+            raise
     for attempt in range(1, total_attempts + 1):
+        http_status: int | None = None
+        request_id: str | None = None
+        started_at = time.perf_counter()
         try:
             if request_pacer is not None:
                 request_pacer.wait_sync()
             response = request_fn()
+            http_status = response.status_code
+            request_id = _extract_request_id(response.headers)
             if request_pacer is not None:
                 request_pacer.observe_response_headers(response.headers)
             payload = _decode_json_response(response)
@@ -840,29 +1028,77 @@ def _request_json_sync(
                 raise
             classification = classify_runtime_failure(str(exc), error_type=type(exc).__name__)
             reasons = classification.reasons or ("provider_error",)
+            formatted_message = format_runtime_exception_message(exc)
+            final_attempt = attempt >= total_attempts or classification.disposition != "transient_retryable"
+            emit_runtime_event(
+                "supplemental_request_failed",
+                **dict(event_metadata or {}),
+                attempt=attempt,
+                max_attempts=total_attempts,
+                final_attempt=final_attempt,
+                elapsed_ms=round((time.perf_counter() - started_at) * 1000, 2),
+                http_status=http_status,
+                request_id=request_id,
+                failure_reasons=list(reasons),
+                failure_disposition=classification.disposition,
+                error_type=type(exc).__name__,
+                error_message=formatted_message,
+            )
             if classification.disposition == "hard_unavailable":
                 if circuit_breaker is not None:
                     circuit_breaker.trip(reasons=reasons, disposition=classification.disposition)
+                    emit_runtime_event(
+                        "supplemental_breaker_opened",
+                        **dict(event_metadata or {}),
+                        failure_reasons=list(reasons),
+                        failure_disposition=classification.disposition,
+                    )
                 raise SupplementalProviderUnavailableError(
-                    str(exc),
+                    formatted_message,
                     reasons=reasons,
                     disposition=classification.disposition,
                 ) from exc
             if classification.disposition == "non_retryable_request":
                 raise SupplementalNonRetryableRequestError(
-                    str(exc),
+                    formatted_message,
                     reasons=reasons,
                     disposition=classification.disposition,
                 ) from exc
             retryable = classification.disposition == "transient_retryable"
             if circuit_breaker is not None and retryable:
-                circuit_breaker.record_failure(reasons=reasons, disposition=classification.disposition)
+                breaker_opened = circuit_breaker.record_failure(reasons=reasons, disposition=classification.disposition)
+                if breaker_opened:
+                    emit_runtime_event(
+                        "supplemental_breaker_opened",
+                        **dict(event_metadata or {}),
+                        failure_reasons=list(reasons),
+                        failure_disposition=classification.disposition,
+                    )
             if attempt >= total_attempts or not retryable:
                 raise
-            time.sleep(_retry_delay_seconds(attempt, http_settings.retry_backoff_seconds))
+            retry_delay_seconds = _retry_delay_seconds(attempt, http_settings.retry_backoff_seconds)
+            emit_runtime_event(
+                "supplemental_request_retry_scheduled",
+                **dict(event_metadata or {}),
+                attempt=attempt,
+                max_attempts=total_attempts,
+                retry_delay_seconds=retry_delay_seconds,
+                failure_reasons=list(reasons),
+                failure_disposition=classification.disposition,
+            )
+            time.sleep(retry_delay_seconds)
         else:
             if circuit_breaker is not None:
                 circuit_breaker.record_success()
+            emit_runtime_event(
+                "supplemental_request_succeeded",
+                **dict(event_metadata or {}),
+                attempt=attempt,
+                max_attempts=total_attempts,
+                elapsed_ms=round((time.perf_counter() - started_at) * 1000, 2),
+                http_status=http_status,
+                request_id=request_id,
+            )
             return payload
     raise RuntimeError("unreachable retry loop")
 
@@ -874,15 +1110,30 @@ async def _request_json_async(
     circuit_breaker: ProviderCircuitBreaker | None,
     retry_attempts: int | None = None,
     request_pacer: RequestPacer | None = None,
+    event_metadata: dict[str, t.Any] | None = None,
 ) -> dict[str, t.Any]:
     total_attempts = 1 + (http_settings.retry_attempts if retry_attempts is None else retry_attempts)
     if circuit_breaker is not None:
-        circuit_breaker.ensure_request_allowed()
+        try:
+            circuit_breaker.ensure_request_allowed()
+        except SupplementalCircuitOpenError as exc:
+            emit_runtime_event(
+                "supplemental_breaker_fast_failed",
+                **dict(event_metadata or {}),
+                failure_reasons=list(getattr(exc, "reasons", ()) or ()),
+                failure_disposition=getattr(exc, "disposition", None),
+            )
+            raise
     for attempt in range(1, total_attempts + 1):
+        http_status: int | None = None
+        request_id: str | None = None
+        started_at = time.perf_counter()
         try:
             if request_pacer is not None:
                 await request_pacer.wait_async()
             response = await request_fn()
+            http_status = response.status_code
+            request_id = _extract_request_id(response.headers)
             if request_pacer is not None:
                 request_pacer.observe_response_headers(response.headers)
             payload = _decode_json_response(response)
@@ -891,29 +1142,77 @@ async def _request_json_async(
                 raise
             classification = classify_runtime_failure(str(exc), error_type=type(exc).__name__)
             reasons = classification.reasons or ("provider_error",)
+            formatted_message = format_runtime_exception_message(exc)
+            final_attempt = attempt >= total_attempts or classification.disposition != "transient_retryable"
+            emit_runtime_event(
+                "supplemental_request_failed",
+                **dict(event_metadata or {}),
+                attempt=attempt,
+                max_attempts=total_attempts,
+                final_attempt=final_attempt,
+                elapsed_ms=round((time.perf_counter() - started_at) * 1000, 2),
+                http_status=http_status,
+                request_id=request_id,
+                failure_reasons=list(reasons),
+                failure_disposition=classification.disposition,
+                error_type=type(exc).__name__,
+                error_message=formatted_message,
+            )
             if classification.disposition == "hard_unavailable":
                 if circuit_breaker is not None:
                     circuit_breaker.trip(reasons=reasons, disposition=classification.disposition)
+                    emit_runtime_event(
+                        "supplemental_breaker_opened",
+                        **dict(event_metadata or {}),
+                        failure_reasons=list(reasons),
+                        failure_disposition=classification.disposition,
+                    )
                 raise SupplementalProviderUnavailableError(
-                    str(exc),
+                    formatted_message,
                     reasons=reasons,
                     disposition=classification.disposition,
                 ) from exc
             if classification.disposition == "non_retryable_request":
                 raise SupplementalNonRetryableRequestError(
-                    str(exc),
+                    formatted_message,
                     reasons=reasons,
                     disposition=classification.disposition,
                 ) from exc
             retryable = classification.disposition == "transient_retryable"
             if circuit_breaker is not None and retryable:
-                circuit_breaker.record_failure(reasons=reasons, disposition=classification.disposition)
+                breaker_opened = circuit_breaker.record_failure(reasons=reasons, disposition=classification.disposition)
+                if breaker_opened:
+                    emit_runtime_event(
+                        "supplemental_breaker_opened",
+                        **dict(event_metadata or {}),
+                        failure_reasons=list(reasons),
+                        failure_disposition=classification.disposition,
+                    )
             if attempt >= total_attempts or not retryable:
                 raise
-            await asyncio.sleep(_retry_delay_seconds(attempt, http_settings.retry_backoff_seconds))
+            retry_delay_seconds = _retry_delay_seconds(attempt, http_settings.retry_backoff_seconds)
+            emit_runtime_event(
+                "supplemental_request_retry_scheduled",
+                **dict(event_metadata or {}),
+                attempt=attempt,
+                max_attempts=total_attempts,
+                retry_delay_seconds=retry_delay_seconds,
+                failure_reasons=list(reasons),
+                failure_disposition=classification.disposition,
+            )
+            await asyncio.sleep(retry_delay_seconds)
         else:
             if circuit_breaker is not None:
                 circuit_breaker.record_success()
+            emit_runtime_event(
+                "supplemental_request_succeeded",
+                **dict(event_metadata or {}),
+                attempt=attempt,
+                max_attempts=total_attempts,
+                elapsed_ms=round((time.perf_counter() - started_at) * 1000, 2),
+                http_status=http_status,
+                request_id=request_id,
+            )
             return payload
     raise RuntimeError("unreachable retry loop")
 
@@ -985,8 +1284,37 @@ def is_retryable_provider_exception(exc: Exception) -> bool:
     return classification.disposition == "transient_retryable"
 
 
+def sanitize_runtime_message(message: str) -> str:
+    sanitized = (message or "").strip()
+    if not sanitized:
+        return ""
+    sanitized = _BEARER_TOKEN_RE.sub("Bearer <redacted>", sanitized)
+    sanitized = _RUNTIME_SCOPE_SECRET_RE.sub("::<redacted>", sanitized)
+    sanitized = _SK_LIKE_TOKEN_RE.sub("sk-<redacted>", sanitized)
+    return sanitized
+
+
+def format_runtime_exception_message(exc: Exception) -> str:
+    message = sanitize_runtime_message(str(exc))
+    if message:
+        return message
+    return type(exc).__name__
+
+
+def _extract_request_id(headers: httpx.Headers) -> str | None:
+    for key in ("x-request-id", "request-id", "openai-request-id", "cf-ray"):
+        value = headers.get(key)
+        if value:
+            return value
+    return None
+
+
 def _retry_delay_seconds(attempt: int, backoff_seconds: float) -> float:
-    return backoff_seconds * attempt
+    if attempt <= 0 or backoff_seconds <= 0:
+        return 0.0
+    exponential_delay_seconds = backoff_seconds * (2 ** (attempt - 1))
+    jitter_seconds = random.uniform(0.0, backoff_seconds)
+    return exponential_delay_seconds + jitter_seconds
 
 
 def _leading_status_code(message: str) -> int | None:
@@ -1125,7 +1453,7 @@ def get_provider_circuit_breaker(
         if existing is not None:
             return existing
         breaker = ProviderCircuitBreaker(
-            origin=key[0],
+            origin=_pacer_scope_key(base_url),
             failure_threshold=settings.circuit_breaker_failure_threshold,
             cooldown_seconds=settings.circuit_breaker_cooldown_seconds,
         )

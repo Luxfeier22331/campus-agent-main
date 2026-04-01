@@ -14,10 +14,127 @@ from campus_ingestion_core.artifacts import (
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef, SourceObservation
 
 
-DEFAULT_DOCUMENT_REGISTRY_TABLE = "document_registry_records"
-DEFAULT_RAW_ASSET_REGISTRY_TABLE = "raw_asset_registry_records"
+DEFAULT_REGISTRY_SCHEMA = "ingestion_registry"
+DEFAULT_DOCUMENT_REGISTRY_BASENAME = "document_registry_records"
+DEFAULT_RAW_ASSET_REGISTRY_BASENAME = "raw_asset_registry_records"
+DEFAULT_DOCUMENT_REGISTRY_TABLE = (
+    f"{DEFAULT_REGISTRY_SCHEMA}.{DEFAULT_DOCUMENT_REGISTRY_BASENAME}"
+)
+DEFAULT_RAW_ASSET_REGISTRY_TABLE = (
+    f"{DEFAULT_REGISTRY_SCHEMA}.{DEFAULT_RAW_ASSET_REGISTRY_BASENAME}"
+)
 _INITIALIZED_DOCUMENT_TABLES: set[tuple[str, str]] = set()
 _INITIALIZED_RAW_ASSET_TABLES: set[tuple[str, str]] = set()
+SHARED_POSTGRES_ENV_KEY = "CAMPUS_SHARED_POSTGRES_URL"
+DOCUMENT_REGISTRY_ENV_KEY = "DOCUMENT_REGISTRY_DATABASE_URL"
+RAW_ASSET_REGISTRY_ENV_KEY = "RAW_ASSET_REGISTRY_DATABASE_URL"
+_IDENTIFIER = "abcdefghijklmnopqrstuvwxyz_0123456789"
+
+
+def _assert_identifier(label: str, value: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError(f"{label} is required")
+    if normalized[0] not in "abcdefghijklmnopqrstuvwxyz_":
+        raise ValueError(f"{label} must be a lowercase PostgreSQL identifier")
+    if any(character not in _IDENTIFIER for character in normalized):
+        raise ValueError(f"{label} must be a lowercase PostgreSQL identifier")
+    return normalized
+
+
+def _parse_table_name(table_name: str) -> tuple[str | None, str]:
+    parts = [part.strip() for part in table_name.split(".")]
+    if len(parts) == 1:
+        return None, _assert_identifier("table name", parts[0])
+    if len(parts) == 2:
+        return (
+            _assert_identifier("schema name", parts[0]),
+            _assert_identifier("table name", parts[1]),
+        )
+    raise ValueError(f"table name must be <table> or <schema>.<table>: {table_name}")
+
+
+def _qualified_table_sql(table_name: str) -> str:
+    schema_name, relation_name = _parse_table_name(table_name)
+    if schema_name is None:
+        return f'"{relation_name}"'
+    return f'"{schema_name}"."{relation_name}"'
+
+
+def _table_index_suffix(table_name: str) -> str:
+    _, relation_name = _parse_table_name(table_name)
+    return relation_name
+
+
+def _ensure_table_schema(cursor, *, table_name: str) -> None:
+    schema_name, _ = _parse_table_name(table_name)
+    if schema_name is None:
+        return
+    cursor.execute(f'create schema if not exists "{schema_name}"')
+
+
+def _public_table_exists(cursor, *, relation_name: str) -> bool:
+    cursor.execute(
+        """
+        select exists(
+            select 1
+            from information_schema.tables
+            where table_schema = 'public' and table_name = %s
+        )
+        """,
+        (relation_name,),
+    )
+    row = cursor.fetchone()
+    return bool(row[0]) if row is not None else False
+
+
+def _target_table_exists(cursor, *, schema_name: str, relation_name: str) -> bool:
+    cursor.execute(
+        """
+        select exists(
+            select 1
+            from information_schema.tables
+            where table_schema = %s and table_name = %s
+        )
+        """,
+        (schema_name, relation_name),
+    )
+    row = cursor.fetchone()
+    return bool(row[0]) if row is not None else False
+
+
+def _table_row_count(cursor, *, schema_name: str, relation_name: str) -> int:
+    cursor.execute(f'select count(*) from "{schema_name}"."{relation_name}"')
+    row = cursor.fetchone()
+    return int(row[0]) if row is not None else 0
+
+
+def _adopt_legacy_public_table(cursor, *, table_name: str) -> None:
+    schema_name, relation_name = _parse_table_name(table_name)
+    if schema_name is None or schema_name == "public":
+        return
+
+    target_exists = _target_table_exists(
+        cursor,
+        schema_name=schema_name,
+        relation_name=relation_name,
+    )
+    public_exists = _public_table_exists(cursor, relation_name=relation_name)
+
+    if not public_exists:
+        return
+    if not target_exists:
+        cursor.execute(
+            f'alter table "public"."{relation_name}" set schema "{schema_name}"'
+        )
+        return
+    if _table_row_count(cursor, schema_name="public", relation_name=relation_name) == 0:
+        cursor.execute(f'drop table "public"."{relation_name}"')
+        return
+    raise RuntimeError(
+        f'legacy public.{relation_name} still contains rows while {schema_name}.{relation_name} already exists; '
+        "resolve registry ownership before startup"
+    )
 
 
 class DocumentRegistry(Protocol):
@@ -238,8 +355,10 @@ class PostgresDocumentRegistry:
         cache_key = (self.database_url, self.table_name)
         if cache_key in _INITIALIZED_DOCUMENT_TABLES:
             return
+        table_sql = _qualified_table_sql(self.table_name)
+        table_index_suffix = _table_index_suffix(self.table_name)
         create_table_statement = f"""
-            create table if not exists {self.table_name} (
+            create table if not exists {table_sql} (
                 document_id text not null,
                 revision_track text not null,
                 version_id text not null,
@@ -252,19 +371,21 @@ class PostgresDocumentRegistry:
             """
         with _postgres_connection(self.database_url) as conn:
             with conn.cursor() as cursor:
+                _ensure_table_schema(cursor, table_name=self.table_name)
+                _adopt_legacy_public_table(cursor, table_name=self.table_name)
                 cursor.execute(create_table_statement)
-                cursor.execute(f"alter table {self.table_name} add column if not exists revision_track text")
-                cursor.execute(f"alter table {self.table_name} add column if not exists collection text")
+                cursor.execute(f"alter table {table_sql} add column if not exists revision_track text")
+                cursor.execute(f"alter table {table_sql} add column if not exists collection text")
                 cursor.execute(
-                    f"update {self.table_name} set revision_track = 'source-faithful' "
+                    f"update {table_sql} set revision_track = 'source-faithful' "
                     "where revision_track is null or revision_track = ''"
                 )
                 cursor.execute(
-                    f"update {self.table_name} set collection = coalesce(nullif(record->>'collection', ''), collection, '')"
+                    f"update {table_sql} set collection = coalesce(nullif(record->>'collection', ''), collection, '')"
                 )
-                _require_explicit_collection_column(cursor=cursor, table_name=self.table_name)
-                cursor.execute(f"alter table {self.table_name} alter column revision_track set not null")
-                cursor.execute(f"alter table {self.table_name} alter column collection set not null")
+                _require_explicit_collection_column(cursor=cursor, table_name=table_sql)
+                cursor.execute(f"alter table {table_sql} alter column revision_track set not null")
+                cursor.execute(f"alter table {table_sql} alter column collection set not null")
                 cursor.execute(
                     f"""
                     do $$
@@ -276,9 +397,9 @@ class PostgresDocumentRegistry:
                         where conrelid = '{self.table_name}'::regclass
                           and contype = 'p';
                         if constraint_name is not null then
-                            execute format('alter table {self.table_name} drop constraint %I', constraint_name);
+                            execute format('alter table {table_sql} drop constraint %I', constraint_name);
                         end if;
-                        execute 'alter table {self.table_name} add primary key (document_id, revision_track, version_id)';
+                        execute 'alter table {table_sql} add primary key (document_id, revision_track, version_id)';
                     exception
                         when duplicate_object then
                             null;
@@ -287,20 +408,20 @@ class PostgresDocumentRegistry:
                 )
                 cursor.execute(
                     f"""
-                    create index if not exists idx_{self.table_name}_corpus
-                    on {self.table_name} (corpus, collection, document_id, revision_track, version_id)
+                    create index if not exists idx_{table_index_suffix}_corpus
+                    on {table_sql} (corpus, collection, document_id, revision_track, version_id)
                     """
                 )
                 cursor.execute(
                     f"""
-                    create index if not exists idx_{self.table_name}_latest
-                    on {self.table_name} (document_id, revision_track, ingestion_timestamp desc)
+                    create index if not exists idx_{table_index_suffix}_latest
+                    on {table_sql} (document_id, revision_track, ingestion_timestamp desc)
                     """
                 )
                 cursor.execute(
                     f"""
-                    create index if not exists idx_{self.table_name}_current
-                    on {self.table_name} (document_id, ingestion_timestamp desc)
+                    create index if not exists idx_{table_index_suffix}_current
+                    on {table_sql} (document_id, ingestion_timestamp desc)
                     where (record->>'is_current')::boolean = true
                     """
                 )
@@ -441,8 +562,10 @@ class PostgresRawAssetRegistry:
         cache_key = (self.database_url, self.table_name)
         if cache_key in _INITIALIZED_RAW_ASSET_TABLES:
             return
+        table_sql = _qualified_table_sql(self.table_name)
+        table_index_suffix = _table_index_suffix(self.table_name)
         create_table_statement = f"""
-            create table if not exists {self.table_name} (
+            create table if not exists {table_sql} (
                 raw_asset_id text not null,
                 raw_version_id text not null,
                 corpus text not null,
@@ -454,17 +577,19 @@ class PostgresRawAssetRegistry:
             """
         with _postgres_connection(self.database_url) as conn:
             with conn.cursor() as cursor:
+                _ensure_table_schema(cursor, table_name=self.table_name)
+                _adopt_legacy_public_table(cursor, table_name=self.table_name)
                 cursor.execute(create_table_statement)
-                cursor.execute(f"alter table {self.table_name} add column if not exists collection text")
+                cursor.execute(f"alter table {table_sql} add column if not exists collection text")
                 cursor.execute(
-                    f"update {self.table_name} set collection = coalesce(nullif(record->>'collection', ''), collection, '')"
+                    f"update {table_sql} set collection = coalesce(nullif(record->>'collection', ''), collection, '')"
                 )
-                _require_explicit_collection_column(cursor=cursor, table_name=self.table_name)
-                cursor.execute(f"alter table {self.table_name} alter column collection set not null")
+                _require_explicit_collection_column(cursor=cursor, table_name=table_sql)
+                cursor.execute(f"alter table {table_sql} alter column collection set not null")
                 cursor.execute(
                     f"""
-                    create index if not exists idx_{self.table_name}_corpus
-                    on {self.table_name} (corpus, collection, raw_asset_id, raw_version_id)
+                    create index if not exists idx_{table_index_suffix}_corpus
+                    on {table_sql} (corpus, collection, raw_asset_id, raw_version_id)
                     """
                 )
         _INITIALIZED_RAW_ASSET_TABLES.add(cache_key)
@@ -500,19 +625,28 @@ def build_raw_asset_registry_from_env(env: dict[str, str] | None = None) -> RawA
 
 
 def _required_document_registry_database_url(source: dict[str, str]) -> str:
-    database_url = (source.get("DOCUMENT_REGISTRY_DATABASE_URL") or "").strip()
+    database_url = (
+        (source.get(DOCUMENT_REGISTRY_ENV_KEY) or "").strip()
+        or (source.get(SHARED_POSTGRES_ENV_KEY) or "").strip()
+    )
     if not database_url:
-        raise ValueError("DOCUMENT_REGISTRY_DATABASE_URL is required")
+        raise ValueError(
+            f"{DOCUMENT_REGISTRY_ENV_KEY} or {SHARED_POSTGRES_ENV_KEY} is required"
+        )
     return database_url
 
 
 def _required_raw_asset_registry_database_url(source: dict[str, str]) -> str:
     database_url = (
-        (source.get("RAW_ASSET_REGISTRY_DATABASE_URL") or "").strip()
-        or (source.get("DOCUMENT_REGISTRY_DATABASE_URL") or "").strip()
+        (source.get(RAW_ASSET_REGISTRY_ENV_KEY) or "").strip()
+        or (source.get(DOCUMENT_REGISTRY_ENV_KEY) or "").strip()
+        or (source.get(SHARED_POSTGRES_ENV_KEY) or "").strip()
     )
     if not database_url:
-        raise ValueError("RAW_ASSET_REGISTRY_DATABASE_URL or DOCUMENT_REGISTRY_DATABASE_URL is required")
+        raise ValueError(
+            f"{RAW_ASSET_REGISTRY_ENV_KEY} or {DOCUMENT_REGISTRY_ENV_KEY} or "
+            f"{SHARED_POSTGRES_ENV_KEY} is required"
+        )
     return database_url
 
 

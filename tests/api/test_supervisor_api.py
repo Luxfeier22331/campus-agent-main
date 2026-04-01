@@ -517,8 +517,8 @@ class SupervisorApiTest(unittest.TestCase):
             settings=ApiSettings(
                 auth_mode="trusted-worker",
                 worker_shared_secret="worker-secret",
-                worker_actor_id="public-entry-worker",
-                default_actor_groups=("public-entry",),
+                worker_actor_id="trusted-worker",
+                default_actor_groups=("trusted-runtime",),
                 default_actor_roles=("runtime",),
                 default_campus_scope="north",
                 trusted_jwt_groups_claims=("groups",),
@@ -576,8 +576,8 @@ class SupervisorApiTest(unittest.TestCase):
             settings=ApiSettings(
                 auth_mode="trusted-worker",
                 worker_shared_secret="worker-secret",
-                worker_actor_id="public-entry-worker",
-                default_actor_groups=("public-entry",),
+                worker_actor_id="trusted-worker",
+                default_actor_groups=("trusted-runtime",),
                 default_actor_roles=("runtime",),
                 default_campus_scope="north",
             ),
@@ -712,7 +712,7 @@ class SupervisorApiTest(unittest.TestCase):
             settings=ApiSettings(
                 auth_mode="trusted-worker",
                 worker_shared_secret="worker-secret",
-                worker_actor_id="public-entry-worker",
+                worker_actor_id="trusted-worker",
             ),
         )
 
@@ -882,7 +882,7 @@ class SupervisorApiTest(unittest.TestCase):
             "API_AUTH_MODE": "trusted-worker",
             "API_BEARER_TOKEN": "secret-token",
             "API_WORKER_SHARED_SECRET": "worker-secret",
-            "API_WORKER_ACTOR_ID": "public-entry-worker",
+            "API_WORKER_ACTOR_ID": "trusted-worker",
             "API_DEFAULT_ACTOR_ID": "runtime-bearer-user",
             "AGENT_RUNTIME_PROVIDER": "agent-os",
             "API_DEFAULT_ACTOR_GROUPS": "students,library",
@@ -903,7 +903,7 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(settings.auth_mode, "trusted-worker")
         self.assertEqual(settings.bearer_token, "secret-token")
         self.assertEqual(settings.worker_shared_secret, "worker-secret")
-        self.assertEqual(settings.worker_actor_id, "public-entry-worker")
+        self.assertEqual(settings.worker_actor_id, "trusted-worker")
         self.assertEqual(settings.default_actor_id, "runtime-bearer-user")
         self.assertEqual(settings.runtime_provider, "agent-os")
         self.assertEqual(settings.default_actor_groups, ("students", "library"))

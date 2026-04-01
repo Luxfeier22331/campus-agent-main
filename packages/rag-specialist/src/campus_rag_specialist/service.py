@@ -89,6 +89,7 @@ def delegate_to_rag_agent(
         return SpecialistResponse(
             target="rag-specialist",
             status="no_answer",
+            answer_text=_build_no_answer_response(evidence),
             confidence="low",
             result=RagResultPayload(evidence=evidence),
         )
@@ -110,6 +111,7 @@ def delegate_to_rag_agent(
         return SpecialistResponse(
             target="rag-specialist",
             status="no_answer",
+            answer_text=_build_no_answer_response(supporting_evidence),
             confidence="low",
             result=RagResultPayload(evidence=supporting_evidence),
         )
@@ -119,17 +121,25 @@ def delegate_to_rag_agent(
         return SpecialistResponse(
             target="rag-specialist",
             status="no_answer",
+            answer_text=_build_no_answer_response(supporting_evidence),
             confidence="low",
             result=RagResultPayload(evidence=supporting_evidence),
         )
 
     agent = RagSpecialistAgent()
+    answer_draft = agent.build_answer(supporting_evidence)
+    finalized_evidence = EvidenceBundle(
+        query_text=supporting_evidence.query_text,
+        corpus=supporting_evidence.corpus,
+        collection=supporting_evidence.collection,
+        sources=answer_draft.supporting_sources,
+    )
     return SpecialistResponse(
         target="rag-specialist",
         status="completed",
-        answer_text=agent.compose_answer(supporting_evidence),
+        answer_text=answer_draft.answer_text,
         confidence=confidence,
-        result=RagResultPayload(evidence=supporting_evidence),
+        result=RagResultPayload(evidence=finalized_evidence),
     )
 
 
@@ -152,6 +162,12 @@ def _build_supporting_evidence(evidence: EvidenceBundle) -> EvidenceBundle:
             max_sources=DEFAULT_MAX_ANSWER_SOURCES,
         ),
     )
+
+
+def _build_no_answer_response(evidence: EvidenceBundle) -> str:
+    if evidence.corpus == "curriculum" and evidence.collection == "curriculum_plan":
+        return "当前未检索到足够依据支持回答这个培养方案问题，请补充更具体的培养方案名称、学位要求或课程表名称。"
+    return "当前未检索到足够依据支持回答这个学生手册问题，请确认它是否属于学生手册范围，或补充更具体的制度名称。"
 
 
 def _with_query_text(evidence: EvidenceBundle, query_text: str) -> EvidenceBundle:

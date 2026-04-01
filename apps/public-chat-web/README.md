@@ -52,10 +52,6 @@ Canonical references:
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 
-Historical reference:
-
-- `apps/public-consumer-chat`
-
 Environment:
 
 - `PUBLIC_CHAT_APP_NAME`
@@ -67,12 +63,14 @@ The Worker also requires an internal `APP_API` service binding at runtime.
 Readiness expectations:
 
 - `GET /readyz` stays `503` until `APP_API`, `ASSETS`, `APP_API_BASE_URL`, and `PUBLIC_CHAT_HOSTNAME` are all configured
+- `pnpm deploy` now fails before publish if the generated Worker deploy config loses the required `APP_API` service binding
 - proxied same-site `/api/*` responses are forced to `Cache-Control: no-store`
 
 Observability:
 
 - this Worker attaches Sentry at the runtime shell only; `app-api` remains the main observability owner
 - outgoing same-site `/api/*` proxy requests preserve `x-trace-id` and also propagate `sentry-trace` / `baggage` into `app-api`
+- proxied `/api/auth/*` requests also preserve browser `Origin` and `Referer` so shared Better Auth origin / CSRF checks stay effective; other `/api/*` routes keep the narrower header allowlist
 - Sentry stays fail-open when `SENTRY_DSN` is unset
 - raw cookies, raw prompt/answer text, and other auth material are not intended to enter the sink
 
@@ -88,6 +86,7 @@ Local commands:
 pnpm install
 pnpm build
 pnpm test
+pnpm test:worker
 pnpm typecheck
 pnpm dev
 ```

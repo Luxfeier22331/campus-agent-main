@@ -2,15 +2,30 @@ import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { describe, expect, it, vi } from "vitest";
 
 import { createApp as createAppApi } from "../../app-api/src/app";
+import packageManifestRaw from "../package.json?raw";
 import worker from "../src/index";
 import wranglerConfig from "../wrangler.toml?raw";
 
+const packageManifest = JSON.parse(packageManifestRaw) as {
+  scripts?: Record<string, string | undefined>;
+};
+
 describe("protected panel web worker shell", () => {
-  it("closes workers.dev and preview urls in config", () => {
+  it("declares the app-api service binding and deploy verification gate", () => {
     expect(wranglerConfig).toContain("workers_dev = false");
     expect(wranglerConfig).toContain("preview_urls = false");
     expect(wranglerConfig).toContain('compatibility_flags = ["nodejs_compat"]');
     expect(wranglerConfig).toMatch(/routes?\s*=/);
+    expect(wranglerConfig).toContain("[[services]]");
+    expect(wranglerConfig).toContain('binding = "APP_API"');
+    expect(wranglerConfig).toContain('service = "app-api"');
+    expect(packageManifest.scripts?.deploy).toContain("deploy:verify-config");
+    expect(packageManifest.scripts?.["deploy:verify-config"]).toContain(
+      "verify-worker-deploy-config.mjs",
+    );
+    expect(packageManifest.scripts?.["deploy:verify-config"]).toContain(
+      "dist/protected_panel_web/wrangler.json",
+    );
   });
 
   it("serves healthz and readyz from the worker shell", async () => {
@@ -105,6 +120,38 @@ describe("protected panel web worker shell", () => {
     });
   });
 
+  it("fails readyz closed when cloudflare access admission is not configured", async () => {
+    const response = await worker.fetch(
+      new Request("https://panel.example.com/readyz"),
+      {
+        APP_API: {
+          fetch: async () => new Response(null, { status: 204 }),
+        },
+        ASSETS: {
+          fetch: async () => new Response("ok", { status: 200 }),
+        },
+        PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
+        PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
+        PANEL_PROTECTED_HOSTNAME: "panel.example.com",
+      },
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: "dependency_not_ready",
+        details: {
+          missing: [
+            "PANEL_PROTECTION_ENVELOPE=cloudflare-access",
+            "ACCESS_TEAM_DOMAIN",
+            "ACCESS_POLICY_AUD",
+          ],
+        },
+        message: "Runtime configuration is incomplete.",
+      },
+    });
+  });
+
   it("serves the protected app shell from static assets after operator admission", async () => {
     const originalFetch = globalThis.fetch;
     const accessTeamDomain = "https://team-panel-shell.cloudflareaccess.com";
@@ -165,52 +212,117 @@ describe("protected panel web worker shell", () => {
     }
   });
 
-  it("fails closed when frontend assets are not configured for the protected shell", async () => {
+  it("fails closed when protected shell admission is not configured", async () => {
     const response = await worker.fetch(
       new Request("https://panel.example.com/"),
       {
+        ASSETS: {
+          fetch: async () =>
+            new Response("<!doctype html><html><body><div id=\"root\"></div></body></html>", {
+              headers: {
+                "content-type": "text/html; charset=utf-8",
+              },
+              status: 200,
+            }),
+        },
         PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
         PANEL_PROTECTED_HOSTNAME: "panel.example.com",
-        PANEL_PROTECTION_ENVELOPE: "required",
       },
     );
 
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({
       error: {
-        code: "frontend_assets_not_ready",
-        message: "Protected panel frontend assets are not configured.",
+        code: "dependency_not_ready",
+        details: {
+          missing: [
+            "PANEL_PROTECTION_ENVELOPE=cloudflare-access",
+            "ACCESS_TEAM_DOMAIN",
+            "ACCESS_POLICY_AUD",
+          ],
+        },
+        message: "Protected panel admission is not configured.",
       },
     });
   });
 
-  it("returns a first-pass overview api projection and marks blocked domains explicitly", async () => {
+  it("fails closed when frontend assets are not configured for the protected shell", async () => {
+    const originalFetch = globalThis.fetch;
+    const accessTeamDomain = "https://team-panel-assets.cloudflareaccess.com";
+    const certsUrl = `${accessTeamDomain}/cdn-cgi/access/certs`;
+    const { privateKey, publicKey } = await generateKeyPair("ES256");
+    const publicJwk = await exportJWK(publicKey);
+    publicJwk.kid = "panel-test-key";
+    const token = await new SignJWT({ email: "ops@example.com", sub: "operator-001" })
+      .setProtectedHeader({ alg: "ES256", kid: "panel-test-key" })
+      .setIssuer(accessTeamDomain)
+      .setAudience("panel-audience")
+      .setIssuedAt()
+      .setExpirationTime("5m")
+      .sign(privateKey);
+
+    globalThis.fetch = (async (request: Request | URL | string) => {
+      const inbound = request instanceof Request ? request : new Request(request);
+      if (inbound.url === certsUrl) {
+        return new Response(JSON.stringify({ keys: [publicJwk] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      throw new Error(`Unexpected fetch call: ${inbound.url}`);
+    }) as typeof fetch;
+
+    try {
+      const response = await worker.fetch(
+        new Request("https://panel.example.com/", {
+          headers: {
+            "cf-access-jwt-assertion": token,
+          },
+        }),
+        {
+          ACCESS_POLICY_AUD: "panel-audience",
+          ACCESS_TEAM_DOMAIN: accessTeamDomain,
+          PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
+          PANEL_PROTECTED_HOSTNAME: "panel.example.com",
+          PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
+        },
+      );
+
+      expect(response.status).toBe(503);
+      await expect(response.json()).resolves.toEqual({
+        error: {
+          code: "frontend_assets_not_ready",
+          message: "Protected panel frontend assets are not configured.",
+        },
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("fails closed when protected overview admission is not configured", async () => {
     const response = await worker.fetch(
       new Request("https://panel.example.com/api/overview"),
       {
         PANEL_APP_NAME: "campus-agent-v2-protected-panel",
         PANEL_RUNTIME_API_BASE_URL: "https://supervisor.internal",
         PANEL_PROTECTED_HOSTNAME: "panel.example.com",
-        PANEL_PROTECTION_ENVELOPE: "required",
       },
     );
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({
-      status: "ok",
-      app_name: "campus-agent-v2-protected-panel",
-      surface: "protected-panel-web",
-      runtime: "cloudflare-worker",
-      protected_hostname: "panel.example.com",
-      protection_envelope: "required",
-      runtime_api_base_url: "https://supervisor.internal",
-      panel_domains: {
-        overview: "ready",
-        requests: "ready",
-        official_web: "ready",
-        jobs: "blocked",
-        operations: "deferred",
-        audit: "blocked",
+      error: {
+        code: "dependency_not_ready",
+        details: {
+          missing: [
+            "PANEL_PROTECTION_ENVELOPE=cloudflare-access",
+            "ACCESS_TEAM_DOMAIN",
+            "ACCESS_POLICY_AUD",
+          ],
+        },
+        message: "Protected panel admission is not configured.",
       },
     });
   });

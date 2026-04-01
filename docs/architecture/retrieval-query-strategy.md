@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-26
-updated: 2026-03-29
+updated: 2026-03-31
 ---
 
 # Retrieval Query Strategy
@@ -28,7 +28,7 @@ updated: 2026-03-29
 
 ## 当前 baseline
 
-当前 phase-1 `student_handbook` retrieval baseline 为：
+当前 `student_handbook` 主路径的 accepted retrieval baseline 为：
 
 `query normalization -> dense retrieval + sparse retrieval -> RRF fusion -> registry-backed evidence shaping`
 
@@ -48,7 +48,7 @@ updated: 2026-03-29
 - embedding request contract
   属于 embedding provider / model runtime；当前固定请求字段是 `model=Qwen3-Embedding-4B` 与 `dimensions=2560`
 - Qdrant collection schema contract
-  属于 chunk/index store；当前关心的是 named dense/sparse vectors、payload metadata 与 hybrid query shape，例如 `document_id`、`chunk_id`、`corpus`、`collection`、serving metadata，以及 authorization filter projection metadata。phase-1 当前 carrier 仍包括 `acl_level`、`acl_groups`、`campus_scope`
+  属于 chunk/index store；当前关心的是 named dense/sparse vectors、payload metadata 与 hybrid query shape，例如 `document_id`、`chunk_id`、`corpus`、`collection`、serving metadata，以及 authorization filter projection metadata。当前 transitional carrier 仍包括 `acl_level`、`acl_groups`、`campus_scope`
 
 两层不允许混写：
 
@@ -78,7 +78,7 @@ updated: 2026-03-29
 
 ### 2. Dense retrieval
 
-- 使用 phase-1 当前 embedding baseline：`Qwen3-Embedding-4B @ 2560`
+- 使用当前 embedding baseline：`Qwen3-Embedding-4B @ 2560`
 - 当前项目通过 `gitee` 官方 OpenAI-compatible 接口请求 embeddings
 - 当前项目运行契约要求 ingestion 与 retrieval query path 都显式发送 `dimensions=2560`
 - `gitee` + `Qwen3-Embedding-4B @ 2560` 已在本项目中验证通过，不再把 `2560` 视为待确认假设
@@ -91,7 +91,7 @@ updated: 2026-03-29
 
 - sparse candidate retrieval 的目标是覆盖术语、条款号、文号、固定措辞和标题关键词等 exact-match / sparse-match 信号
 - `Qwen3-Embedding-4B` 只负责 dense embeddings；sparse vector 必须由独立 sparse path 生成
-- phase-1 当前推荐 sparse baseline 固定为 `Qdrant native BM25`
+- 当前推荐 sparse baseline 固定为 `Qdrant native BM25`
 - `qdrant/bm25` 在当前 Qdrant Cloud Inference 模型列表中标记为 `Cost: Free`
 - handbook 中文语料的 sparse tokenization 起始配置固定为：`tokenizer=multilingual`、`language=none`
 - live / remote 路径里，`tokenizer=multilingual` 由 Qdrant native `qdrant/bm25` sparse path 提供；仓库本地不会为它下载或缓存额外 tokenizer 文件
@@ -175,7 +175,7 @@ authorization filter 负责表达“在当前 request context 下，哪些 evide
 - filter 缺失、冲突或不可安全判定时必须 fail-closed
 - retrieval payload 长期只应保留稳定、可重建、可索引的 visibility / entitlement projection；不承载 memory、raw token claims 或 personalized profile fields
 
-当前 phase-1 的 transitional filter carrier 仍包括：
+当前 transitional filter carrier 仍包括：
 
 - `acl_level`
 - `acl_groups`
@@ -240,7 +240,7 @@ authorization filter 负责表达“在当前 request context 下，哪些 evide
 
 ## Native Sparse Index 目标形态
 
-当前 phase-1 对 native sparse index 的目标形态固定为：
+当前对 native sparse index 的目标形态固定为：
 
 - collection schema 使用 named vectors：
   `dense`
@@ -248,11 +248,11 @@ authorization filter 负责表达“在当前 request context 下，哪些 evide
 - ingestion / rebuild 对同一 `chunk_id` 双写 dense 与 sparse vectors
 - retrieval query 对同一 filter 集合同时发起 dense prefetch 与 sparse prefetch
 - dense / sparse 融合默认使用 Qdrant native `RRF`
-- 当前 phase-1 handbook runtime 已显式冻结 prefetch / fusion baseline：
+- 当前 handbook runtime 已显式冻结 prefetch / fusion baseline：
   - dense prefetch limit = `20`
   - sparse prefetch limit = `20`
   - `RrfQuery(k=60, weights=[1.0, 1.0])`
-- registry back-link、`EvidenceBundle` 与 authorization filter projection contract 保持最小执行语义不变；phase-1 当前 ACL carrier 继续受控兼容
+- registry back-link、`EvidenceBundle` 与 authorization filter projection contract 保持最小执行语义不变；当前 ACL carrier 继续受控兼容
 - serving 所需的 payload metadata 至少包括 `revision_track`、`status`、`is_current`
 
 当前不冻结 sparse model 的具体品牌或 provider，但冻结以下边界：
@@ -261,7 +261,7 @@ authorization filter 负责表达“在当前 request context 下，哪些 evide
 - sparse generation 必须进入 replay / rebuild 主链路，不能只存在于在线 query 临时分支
 - sparse path 必须支持 `student_handbook` 中文语料的 exact-match / fixed-phrase 场景验证
 
-当前已接受的 phase-1 选型结论：
+当前已接受的选型结论：
 
 - sparse baseline 先采用 `Qdrant native BM25`
 - handbook 中文语料的 sparse tokenizer 不替换 Qwen tokenizer；它只属于 sparse index 内部 analyzer 路径

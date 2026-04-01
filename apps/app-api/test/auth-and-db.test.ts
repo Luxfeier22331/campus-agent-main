@@ -9,6 +9,7 @@ import {
 } from "../src/db/runtime";
 import { buildBetterAuthConfig } from "../src/modules/auth/auth";
 import { appApiSchema } from "../src/db/schema";
+import migration0000 from "../drizzle/0000_funny_tiger_shark.sql?raw";
 
 describe("app-api database config", () => {
   it("uses Hyperdrive connectionString for runtime database access", () => {
@@ -74,7 +75,7 @@ describe("app-api auth config", () => {
     });
   });
 
-  it("exposes one unified Drizzle schema object for auth/chat/official_web/runtime/operator", () => {
+  it("exposes one unified runtime schema object for app_auth/chat/official_web/runtime/operator", () => {
     expect(Object.keys(appApiSchema)).toEqual(
       expect.arrayContaining([
         "user",
@@ -94,6 +95,10 @@ describe("app-api auth config", () => {
         "officialWebSiteProjection",
       ]),
     );
+  });
+
+  it("creates the official_web schema in the baseline migration before official_web tables", () => {
+    expect(migration0000).toContain('CREATE SCHEMA IF NOT EXISTS "official_web";');
   });
 });
 

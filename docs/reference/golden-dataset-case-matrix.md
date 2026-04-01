@@ -104,7 +104,7 @@ updated: 2026-03-29
 | error | covered | `curriculum_error_gate_cases()` 3 条 | 通过 deterministic 故障注入覆盖。 |
 | required facts | covered | 学制、学分、课程地图等 fixed cases | curriculum answer truth 已比 handbook 更接近结构化事实校验。 |
 | forbidden claims | covered | release-gate completed cases | 当前已防止误答成 handbook 内容。 |
-| citation completeness | partial | deterministic gate 语义已存在，但 fresh curriculum live artifact 尚待补齐 | 自动化基线有，live evidence 仍待补。 |
+| citation completeness | covered | `curriculum-workflow-status-summary.json` 已给出 `citation_completeness = 4/4 pass`，repo-tracked deterministic gate 也已存在 | 当前剩余问题不是缺 live artifact，而是是否继续扩样到更大 curriculum case 面。 |
 | explicit smoke workflow set | covered | `curriculum_smoke_cases()` 4 条稳定 fixed cases | 已显式覆盖 `completed`、`no_answer`、`needs_clarification`。 |
 | explicit regression_locked workflow set | covered | `curriculum_regression_locked_cases()` 5 条高风险 fixed cases | 已形成 curriculum 常设高风险 workflow 集。 |
 
@@ -114,7 +114,7 @@ updated: 2026-03-29
 
 - handbook 的 structured evidence 仍只有 list-like 样本，尚未进入表格级 canonical case
 - expanded qrels 还没有 fresh live rerun 证据
-- curriculum 的 citation completeness 仍缺 fresh live artifact
+- curriculum 的 citation completeness 已有 live artifact，但覆盖面仍以当前 4 条 completed release-gate case 为主
 - synthetic placeholder 与 canonical fixed cases 的分层还需要进一步收口
 
 ## Immediate Priority
@@ -122,6 +122,6 @@ updated: 2026-03-29
 按当前价值排序，下一步应优先补：
 
 1. handbook 的表格级 structured evidence case
-2. expanded qrels 的 fresh live rerun 与 evidence 落盘
+2. expanded qrels 的 fresh live evidence 与 acceptance verdict 做单一口径归一
 3. answer truth / citation completeness 的继续扩样
 4. synthetic placeholder 向 canonical fixed-case 体系的晋升/淘汰规则

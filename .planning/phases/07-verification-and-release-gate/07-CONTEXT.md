@@ -1,8 +1,18 @@
 # Phase 7: Verification And Release Gate - Context
 
 **Gathered:** 2026-03-24
-**Status:** Discussion in progress
+**Status:** Historical context; phase complete
 **Source:** Derived from roadmap, eval governance docs, local planning docs, and best-practice review confirmed via official documentation on 2026-03-24
+
+## Post-Phase Closeout Note
+
+- Phase 7 的主目标已在 2026-03-27 完成：repo tests、live qrels benchmark、workflow/status 样本与 handbook collection schema 证据均已落盘。
+- 2026-03-31 `210128` fresh handbook acceptance rerun 进一步确认：
+  - live serving 在 expanded `8`-case release gate 上稳定通过 deterministic gate
+  - supplemental runtime 全量可用，`repair` 正确跳过且无 applied targets
+  - `procedure_directness` 与 `student-card / materials / time` 三个 procedure signal 已进入正式 artifact truth
+  - 当前 artifact truth 的 supplemental soft gate 已全量收口为 `pass`
+- 因此当前 handbook follow-up 已不再是 rerun 验证，而是把 `210128` 作为后续 handbook 变更的回归基线；Phase 7 之外剩余的外部 follow-up 只剩真实部署后的 Worker observability verification。
 
 <domain>
 ## Phase Boundary

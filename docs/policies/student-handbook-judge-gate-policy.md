@@ -123,27 +123,20 @@ gate 解释规则：
 
 ## Runtime Notes
 
-当前 judge/ragas runtime 已支持独立 pacing 配置：
+当前 judge/ragas runtime 的 HTTP tuning 由 repo-tracked live benchmark profile config 持有，不再把这些 knobs 暴露成 root `.env`：
 
-- `SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS`
-- `SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS`
-- `SUPPLEMENTAL_HTTP_WRITE_TIMEOUT_SECONDS`
-- `SUPPLEMENTAL_HTTP_POOL_TIMEOUT_SECONDS`
-- `SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS`
-- `SUPPLEMENTAL_HTTP_RETRY_BACKOFF_SECONDS`
-- `SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_FAILURE_THRESHOLD`
-- `SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_COOLDOWN_SECONDS`
-- `SUPPLEMENTAL_HTTP_PREFLIGHT_TIMEOUT_SECONDS`
-- `SUPPLEMENTAL_HTTP_REQUESTS_PER_MINUTE`
-- `SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS`
-- `SUPPLEMENTAL_HTTP_KEEPALIVE_EXPIRY_SECONDS`
-- `SUPPLEMENTAL_HTTP_MAX_CONNECTIONS`
-- `SUPPLEMENTAL_HTTP_MAX_KEEPALIVE_CONNECTIONS`
+- connect/read/write/pool timeout
+- retry attempts / backoff
+- circuit breaker failure threshold / cooldown
+- preflight timeout
+- requests per minute / min interval
+- keep-alive expiry
+- max connections / max keepalive connections
 - `RAGAS_REASONING_EFFORT`
 - `RAGAS_TEXT_VERBOSITY`
 - `RAGAS_MAX_OUTPUT_TOKENS`
 
-`SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS` / `SUPPLEMENTAL_HTTP_REQUESTS_PER_MINUTE` 的语义：
+其中 request pacing 的语义：
 
 - pacing 的共享粒度是 `provider origin + api key`
 - 可直接指定最小间隔，也可只给 `rpm`，由 runtime 自动派生 `60 / rpm`
@@ -197,6 +190,8 @@ repair contract：
 - 原 formal benchmark artifact 不允许被静默覆盖
 - repaired `summary.json` / `gate-report.json` 必须带 `provenance.mode=repair_rerun`
 - 如果 repair preflight 判定 provider unavailable，则对应 target 必须落为 `skipped_provider_unavailable`，而不是继续重放 case
+- 如果 repair rerun 已执行，但 replacement 仍是 unresolved runtime failure（`verdict=failed` 且 `score=null`），则该 target 不得记为 `repaired`
+- 此类 target 必须显式写成 `rerun_failed`；若同一 target 只恢复部分 metric，则必须写成 `partially_repaired`
 
 ## 2026-03-28 Snapshot
 

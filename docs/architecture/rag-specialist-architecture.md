@@ -59,6 +59,7 @@ updated: 2026-03-29
 - evidence collection 与 normalization
 - evidence-aware clarification / no-answer / completed 判定
 - grounded answer synthesis
+- intent-aware answer shaping；至少允许 `procedure`、`deadline/time`、`generic` 这类稳定 response mode 对回答合同施加不同约束
 
 `rag-specialist` 不应该拥有：
 
@@ -112,6 +113,22 @@ updated: 2026-03-29
 - 静默绕过 runtime-profile-driven serving scope
 - 静默改写顶层 capability / specialist route
 - 在 retrieval 之后再事后裁掉本应 pre-filter 拦下的受限内容
+
+## Answer Shaping
+
+长期上，`rag-specialist` 的 retrieval-specific intent 不只作用于 query planning，也作用于 answer shaping contract。
+
+当前应固定的最小规则：
+
+- `procedure` 类问句优先输出“先做什么 -> 再做什么 -> 去哪里/由谁审批 -> 时间窗口”
+- `deadline/time` 类问句优先输出时间、频率、适用例外，而不是展开无关背景
+- `generic` 类问句可以继续沿 grounded synthesis 输出
+
+附加约束：
+
+- `procedure` 主答案应优先保留 action path，不应让 side note 抢占首句
+- 例如优惠卡、处分、解释权、再次补发限制等信息默认属于 side note，而不是 “怎么办” 的主线答案
+- citation contract 可以因 answer mode 不同而不同，但必须保持 grounded 且可回链
 
 ## Personalization Inputs
 

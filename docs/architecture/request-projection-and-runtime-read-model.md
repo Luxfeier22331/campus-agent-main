@@ -128,7 +128,6 @@ updated: 2026-03-29
 以下数据面都不是 canonical request projection truth：
 
 - `chat.*` conversation / message store
-- 历史 `apps/public-consumer-chat` conversation / message store
 - JSONL audit sink
 - `Axiom`、`Sentry` 或其他 telemetry sink
 - raw trace dump
@@ -186,7 +185,7 @@ updated: 2026-03-29
 
 - panel `Requests` 已解锁
 - panel 仍不得绕过 `app-api` 读取 audit log、telemetry sink、consumer chat tables 或 `apps/supervisor-api`
-- 历史 `public-consumer-chat` 与其会话存储只能继续作为关联参考，不承担 operator-facing request truth
+- consumer 会话存储只能继续作为关联参考，不承担 operator-facing request truth
 
 ## Non-Goals
 

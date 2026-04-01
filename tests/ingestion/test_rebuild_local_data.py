@@ -202,6 +202,8 @@ class RebuildLocalDataTest(unittest.TestCase):
             api_key="test-key",
             timeout=60.0,
             cloud_inference=True,
+            check_compatibility=False,
+            trust_env=False,
         )
 
     def test_rebuild_provider_response_replay_accepts_typed_request_without_source_specific_env(self) -> None:
@@ -782,7 +784,9 @@ class RebuildLocalDataTest(unittest.TestCase):
             )
 
     def test_rebuild_local_data_requires_canonical_registry_env_when_runtime_registries_are_not_injected(self) -> None:
-        with self.assertRaisesRegex(ValueError, "DOCUMENT_REGISTRY_DATABASE_URL is required"):
+        with self.assertRaisesRegex(
+            ValueError, "DOCUMENT_REGISTRY_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL is required"
+        ):
             rebuild_local_data(
                 env={
                     "OBJECT_STORE_ENDPOINT": "http://localhost:9000",

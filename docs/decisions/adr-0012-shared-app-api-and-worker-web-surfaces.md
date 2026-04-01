@@ -16,7 +16,7 @@ Accepted on 2026-03-28.
 
 此前仓库已经先后冻结了两条方向：
 
-- `public-consumer-chat` 作为独立 full-stack app boundary，拥有 auth/session/conversation
+- legacy standalone public chat app 作为独立 full-stack app boundary，拥有 auth/session/conversation
 - `apps/operator-query-api` 作为独立 operator query backend
 
 这会把 public chat 与 protected panel 继续分裂成两套产品后端。
@@ -53,7 +53,7 @@ Accepted on 2026-03-28.
 
 - 需要一份新的 canonical architecture doc 来描述 shared `app-api` 与两个 Worker web surfaces
 - `apps/operator-query-api` 作为独立长期边界的设计被放弃
-- `public-consumer-chat` 作为独立 full-stack app boundary 的设计被放弃
+- legacy standalone public chat app 作为独立 full-stack app boundary 的设计被放弃
 - 详细 API、lifecycle、error model 与 schema 由后续 contract/data 文档冻结
 - `app-api` runtime freeze 后续由 `ADR-0013` 单独记录
 
@@ -61,7 +61,7 @@ Accepted on 2026-03-28.
 
 这项决策 supersedes 以下此前结论：
 
-- the former public-consumer auth/storage split-backend direction
-- the former public-consumer frontend-host split-backend direction
+- the former standalone public-chat auth/storage split-backend direction
+- the former standalone public-chat frontend-host split-backend direction
 - the former operator-query-api/request-projection split-backend direction
 - the earlier `operator-query-api` split-backend direction; forward request-projection ownership is now recorded in `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`

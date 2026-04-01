@@ -4,6 +4,8 @@ import type { Pool } from "pg";
 import { resolveDatabaseSslMode, resolveEnvironment, type DatabaseSslMode, type Env } from "../config";
 import { appApiSchema } from "./schema";
 
+export const APP_AUTH_SCHEMA = "app_auth";
+
 const IDENTIFIER = /^[a-z_][a-z0-9_]*$/;
 const DEVELOPMENT_POOL_MAX = 1;
 const PRODUCTION_POOL_MAX = 4;
@@ -156,7 +158,7 @@ export async function createBetterAuthPool(env: Env): Promise<Pool> {
   const databaseSslMode = resolveDatabaseSslMode(env);
   const environment = resolveEnvironment(env);
   const connectionString = buildPostgresSearchPathConnectionString(config.connectionString, [
-    "auth",
+    APP_AUTH_SCHEMA,
     "public",
   ]);
 
