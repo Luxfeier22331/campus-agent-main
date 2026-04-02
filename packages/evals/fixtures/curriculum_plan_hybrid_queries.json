@@ -76,6 +76,21 @@
       "notes": "验证表格/课程地图相关检索。"
     },
     {
+      "case_id": "law-ethnic-class-fourth-semester-courses",
+      "category": "short_fact_section",
+      "query": "法学民族班培养方案里大二下有什么课",
+      "expected_keywords": [
+        "法学（民族实验班）本科人才培养方案",
+        "第四学期"
+      ],
+      "forbidden_doc_ids": [
+        "curriculum:法学本科人才培养方案",
+        "curriculum:信息与计算科学（民族实验班）本科人才培养方案",
+        "curriculum:计算机科学与技术（民族实验班）本科人才培养方案"
+      ],
+      "notes": "验证口语 alias + semester alias 可以唯一收敛到法学民族实验班。"
+    },
+    {
       "case_id": "cross-major-disambiguation",
       "category": "semantic_dense_win",
       "query": "历史学强基计划本科人才培养方案",
@@ -94,6 +109,14 @@
       "expected_keywords": [],
       "forbidden_doc_ids": [],
       "notes": "验证 curriculum 泛化问题应触发澄清，而不是误答到单一方案。"
+    },
+    {
+      "case_id": "generic-base-class-needs-clarification",
+      "category": "needs_clarification",
+      "query": "基地班",
+      "expected_keywords": [],
+      "forbidden_doc_ids": [],
+      "notes": "验证 generic family alias 必须 fail-close 到 clarification，而不是锁定单一强基计划培养方案。"
     },
     {
       "case_id": "no-hit-impossible-query",

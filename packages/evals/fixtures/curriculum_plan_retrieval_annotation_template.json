@@ -8,7 +8,8 @@
     "主相关 source 标记到 expected_sources，使用 grade=2。",
     "可接受相关 source 标记到 expected_sources，使用 grade=1。",
     "不应命中的 source 标记到 forbidden_sources。",
-    "curriculum qrels 默认锁到 doc_id；已确认版本语义稳定的高风险 regression_locked case 可以补 version_id，chunk_id 仍只在边界和表格锚点长期稳定后再补。"
+    "curriculum qrels 默认锁到 doc_id；已确认版本语义稳定的高风险 regression_locked case 可以补 version_id，chunk_id 仍只在边界和表格锚点长期稳定后再补。",
+    "像 基地班 / 实验班 / 创新班 / 民族班 这类 generic family alias 默认不应直接写进 canonical qrels；若 query 仍需澄清，应改放 workflow/golden case。"
   ],
   "cases": [
     {
@@ -150,6 +151,13 @@
       "expected_sources": [],
       "forbidden_sources": [],
       "notes": "括号标题和相邻专业区分样本。"
+    },
+    {
+      "case_id": "law-ethnic-class-fourth-semester-courses",
+      "query": "法学民族班培养方案里大二下有什么课",
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "口语 alias + semester alias 的 unique resolution 样本。"
     },
     {
       "case_id": "semantic-philosophy-strong-base-paraphrase",

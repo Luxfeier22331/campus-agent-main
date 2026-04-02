@@ -352,6 +352,7 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
                 "hanyu-international-students-total-credits",
                 "education-second-degree-academic-years",
                 "fiscal-course-map-table",
+                "law-ethnic-class-fourth-semester-courses",
             }.issubset(case_ids)
         )
 
@@ -589,7 +590,9 @@ class CurriculumHybridFixtureTest(unittest.TestCase):
                 "ethnology-plan-title",
                 "academic-years-short-fact",
                 "course-map-table-hit",
+                "law-ethnic-class-fourth-semester-courses",
                 "cross-major-disambiguation",
+                "generic-base-class-needs-clarification",
                 "no-hit-impossible-query",
             }.issubset(case_ids)
         )

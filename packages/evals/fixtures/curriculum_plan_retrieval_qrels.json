@@ -341,6 +341,36 @@
       "notes": "带括号标题的课程方案区分样本。"
     },
     {
+      "case_id": "law-ethnic-class-fourth-semester-courses",
+      "split": "regression_locked",
+      "query": "法学民族班培养方案里大二下有什么课",
+      "expected_sources": [
+        {
+          "doc_id": "curriculum:法学（民族实验班）本科人才培养方案",
+          "grade": 2,
+          "rationale": "口语 alias + semester alias 应收敛到法学民族实验班版本。"
+        }
+      ],
+      "forbidden_sources": [
+        {
+          "doc_id": "curriculum:法学本科人才培养方案",
+          "grade": 1,
+          "rationale": "普通法学本科方案不应压过民族实验班版本。"
+        },
+        {
+          "doc_id": "curriculum:信息与计算科学（民族实验班）本科人才培养方案",
+          "grade": 1,
+          "rationale": "相邻民族实验班方案不应混入法学问题。"
+        },
+        {
+          "doc_id": "curriculum:计算机科学与技术（民族实验班）本科人才培养方案",
+          "grade": 1,
+          "rationale": "相邻民族实验班方案不应混入法学问题。"
+        }
+      ],
+      "notes": "口语 alias + semester alias 的 unique resolution 样本。"
+    },
+    {
       "case_id": "semantic-philosophy-strong-base-paraphrase",
       "split": "smoke",
       "query": "想看哲学强基方向的培养方案",
