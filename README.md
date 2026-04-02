@@ -1,35 +1,34 @@
 # campus-agent v2
 
-新一代 campus 入口 agent 的 monorepo。
+校园助理系统 v2 的入口 monorepo。
 
-## 先定架构
+## 架构入口
 
-这个仓库正在围绕长期的 `supervisor-led hybrid orchestration` 架构重建。
+这个仓库的默认阅读顺序是：
 
+- 当前 merged truth：`docs/architecture/current-architecture.md`
+- 目标架构：`docs/architecture/target-architecture.md`
+- supporting architecture：`docs/architecture/product-runtime-architecture.md`、`docs/architecture/execution-and-specialists-architecture.md`、`docs/architecture/identity-and-authorization-architecture.md`、`docs/architecture/retrieval-serving-architecture.md`、`docs/architecture/data-plane-architecture.md`、`docs/architecture/official-web-architecture.md`
 - 文档索引与标识规则：`docs/README.md`
-- 长期架构文档：`docs/architecture/long-term-architecture.md`
-- `app-api` 架构文档：`docs/architecture/app-api-architecture.md`
 - `app-api` 产品层 contract：`docs/contracts/app-api-http.md`
 - `app-api -> supervisor-api` 执行契约：`docs/contracts/app-api-supervisor-execution.md`
 - `app-api` 数据模型：`docs/data/app-api-schema.md`
 - identity / memory / personalization 边界：`docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - request projection ownership：`docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - supervisor internal execution admission：`docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
-- supervisor 专项架构：`docs/architecture/supervisor-architecture.md`
-- 数据平面架构约束（历史文件名保留）：`docs/architecture/phase1-ingestion-and-storage-architecture.md`
 - 编排与安全边界：`docs/decisions/adr-0006-agent-orchestration-and-safety.md`
-- shared `apps/app-api` runtime 已冻结为 Worker；见 `docs/decisions/adr-0013-app-api-worker-runtime.md`
-- `apps/supervisor-api` 表示 execution engine boundary，不代表已经选定 FastAPI 或其他 runtime
-- execution engine runtime 选择仍保持未冻结；当前实现取舍与 Agno 集成边界见 `docs/architecture/supervisor-architecture.md`
-
-## 导航
-
-- 当前运行面、已开放 serving surface、当前优先级：`.planning/PROJECT.md`、`.planning/REQUIREMENTS.md`、`.planning/STATE.md`
-- 长期边界和冻结决策：`docs/architecture/`、`docs/decisions/`
-- 环境配置 ownership 与模板索引：`docs/environment/README.md`
+- 当前 phase / pending work：`.planning/PROJECT.md`、`.planning/REQUIREMENTS.md`、`.planning/STATE.md`
 - 历史 phase 排期与存档：`.planning/ROADMAP.md`、`.planning/phases/`
-- 当前 index / serving 术语：`docs/reference/runtime-serving-and-index-terms.md`
-- 分支集成与稳定发布流程：`docs/runbooks/develop-main-release-runbook.md`
+
+## 当前 merged truth
+
+- 当前主执行链路是 `app-api -> supervisor-api -> supervisor-core -> specialist -> retrieval-core`
+- 当前前向产品拓扑是 `public-chat-web -> app-api -> supervisor-api` 与 `protected-panel-web -> app-api -> request projection`
+- 当前 query-enabled surface 是 `regulations/student_handbook` 与 `curriculum/curriculum_plan`
+- `curriculum/course_facts` 已作为 specialist internal retrieval surface 落地，但不属于默认公开 query surface
+- `campus_services/*` 当前保持 `offline_preparation`
+- `apps/app-api` 是唯一 product-layer auth/session/principal owner；`apps/supervisor-api` 只做 internal execution admission
+- shared seam 以 `ContextProjection` / `SupervisorResponse` 为准；后续改动不得回退到旧 `snapshot`
 
 ## 分支模型
 
@@ -45,6 +44,7 @@
 - `apps/app-api`: shared Worker-native product backend
 - `apps/supervisor-api`: execution engine boundary
 - `apps/ingestion-worker`: ingestion runtime 壳与离线任务入口
+- `apps/official-web-collector`: official web collector runtime
 - `apps/protected-internal-panel`: historical internal panel reference
 - `packages/supervisor-core`: user goal 路由、委派和最终响应组装
 - `packages/ingestion-core`: ingestion/data plane 逻辑消费层
@@ -54,30 +54,18 @@
 - `packages/evals`: 评测辅助和 smoke 场景
 - `packages/shared`: 轻量共享常量和工具
 
-已接受的前向产品拓扑是 `public-chat-web -> app-api -> supervisor-api` 与 `protected-panel-web -> app-api -> request projection`。当前 `protected-panel-web` worktree 已落地 shared Worker backend 与 web-surface 接线；当这些改动回 `develop` / `main` 时，仍必须保持 `ContextProjection` / `SupervisorResponse` shared seam，不得回退到旧 `snapshot` 路径。
+当前 merged-truth 架构快照以 `docs/architecture/current-architecture.md` 为准；目标方向与不变量以 `docs/architecture/target-architecture.md` 和对应 ADR 为准；执行进度、phase 排序和 pending work 以 `.planning/PROJECT.md`、`.planning/ROADMAP.md`、`.planning/STATE.md` 为准。
 
-## 当前接受基线
+## 实施文档
 
-当前执行进度、phase 排序和 pending work 以 `.planning/PROJECT.md`、`.planning/ROADMAP.md`、`.planning/STATE.md` 为准；README 只描述当前 merged truth 下已接受的架构与运行约束。
+- execution / supervisor：`docs/plans/supervisor-current-design-implementation.md`
+- identity / memory / ACL：`docs/plans/intent-memory-acl-foundation.md`
+- restricted documents：`docs/plans/campus-identity-and-restricted-document-foundation.md`、`docs/plans/restricted-document-rollout-and-verification.md`
+- versioned query：`docs/plans/versioned-history-query-foundation.md`
+- eval / dataset：`docs/plans/golden-dataset-execution-plan.md`
+- env / provider governance：`docs/plans/env-bootstrap-and-provider-configuration-governance.md`
 
-- 旧 bootstrap 已从工作树移除；如需追溯请查看 git 历史
-- 当前主路径是 `supervisor-api -> supervisor-core -> rag-specialist -> retrieval-core`
-- forward product topology 已落地为 `public-chat-web -> app-api -> supervisor-api` 与 `protected-panel-web -> app-api -> request projection`
-- `apps/app-api` 已正式落地为 shared Worker runtime，并已接上 `public-chat-web` 与 `protected-panel-web`
-- `app-api` 是唯一的产品层 auth/session/principal owner；`supervisor-api` 只做 internal execution caller admission
-- identity / memory truth 已冻结为 `verified identity`、`profile memory`、`session memory`、`institutional knowledge` 四层；memory 只能个性化，不能授权
-- canonical request projection 由 `app-api` command path 一次产出，并通过 runtime-owned operator request APIs 提供给 panel
-- `develop` 新增的 shared seam / curriculum gate / supplemental runtime 文档与评测更新已并入当前 worktree，后续合流不得回退这些约束
-- 架构目标是 `supervisor-led hybrid orchestration`，而不是把 RAG 降级成顶层产品路径里的扁平 tool adapter
-- ingestion/object-store/registry/retrieval 地基已落地
-- 查询链路当前由 collection runtime profile 控制；当前 query-enabled surface 是 `regulations/student_handbook` 和 `curriculum/curriculum_plan`
-- ingestion truth 统一为 `corpus + collection`：默认入口是 `regulations/student_handbook`；source 资产位于 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...`，并在同一来源前缀下按 `capture/`、`provider/`、`source-truth/` 分层保存，清洗后的文档存放在 derived bucket 的 `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/...`
-- `curriculum/curriculum_plan` 已进入 query-serving runtime profile 的受控 surface
-- `campus_services/service_catalog` 与 `campus_services/contact_directory` 已作为离线 taxonomy 预留，当前保持 `offline_preparation`，不开放 retrieval 或默认 query-serving
-- `rag-specialist`、`supervisor-core`、`supervisor-api`、`evals` 已形成可测试的当前主链路入口
-- `uv run --all-packages python -m unittest discover -s tests -t .` 当前通过，作为仓库级基线验证命令
-- Node / Worker app 当前统一使用 `pnpm`，不再维护 `package-lock.json`
-- 运行态 buckets、live collection 重建证据、points count 与 benchmark 结果不在 README 维护；应以 `.planning/STATE.md`、`docs/runbooks/`、`docs/reference/` 和 `docs/policies/` 为准
+`docs/plans/` 只保留仍对前向实施有指导价值的计划文档；已完成的历史 bootstrap / baseline 不再作为默认入口，必要时请看 `.planning/` 或 git history。
 
 ## JS/TS Workspace
 
@@ -96,20 +84,6 @@
 
 - 提交标题默认使用 `Conventional Commit` 前缀加中文结果描述，例如：`feat: 完成 Phase 2A 工作流补全（resume/apply-choice + navigation_mode）`
 - 详细工作协议与提交标题规则以根 `AGENTS.md` 为准
-
-## 实现入口
-
-- 历史地基实施基线：`docs/plans/agentic-rag-foundation.md`
-- `app-api` 实施方案：`docs/plans/app-api-worker-foundation.md`
-- identity / memory / ACL 实施方案：`docs/plans/intent-memory-acl-foundation.md`
-- `app-api` contract / lifecycle / schema：`docs/contracts/`、`docs/data/`
-- 当前执行状态与 phase 推进：`.planning/PROJECT.md`、`.planning/ROADMAP.md`、`.planning/STATE.md`
-- ingestion/data plane：`apps/ingestion-worker`、`packages/ingestion-core`
-- retrieval kernel：`packages/retrieval-core`
-- specialist / supervisor：`packages/rag-specialist`、`packages/supervisor-core`
-- API shell：`apps/supervisor-api`
-- baseline / smoke：`packages/evals`、`tests/`
-- forward Worker smoke runbook：`docs/runbooks/forward-worker-surface-smoke-runbook.md`
 
 ## 本地验证
 
@@ -136,4 +110,4 @@ pnpm --dir apps/protected-panel-web test:worker
 pnpm --dir apps/protected-panel-web typecheck
 ```
 
-当前 forward Worker topology 的 targeted smoke 命令与验证边界见 `docs/runbooks/forward-worker-surface-smoke-runbook.md`。
+当前 forward Worker topology 的 targeted smoke 命令与验证边界见 `docs/runbooks/forward-worker-surface-smoke-runbook.md`；当前 index / serving 术语见 `docs/reference/runtime-serving-and-index-terms.md`。

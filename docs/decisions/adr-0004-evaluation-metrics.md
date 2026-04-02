@@ -172,7 +172,7 @@ split 和指标族的对应关系在长期上固定，但每个 split 的具体�
 
 ## 决策 9：文档分层关系
 
-- `docs/architecture/long-term-architecture.md`
+- `docs/architecture/target-architecture.md`
   只保留 `evals` 边界与可替换性原则
 - `docs/decisions/adr-0003-golden-dataset-governance.md`
   负责 golden dataset 的真值治理

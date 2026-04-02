@@ -19,11 +19,11 @@ updated: 2026-03-29
 
 对应 source of truth：
 
-- 长期边界：`docs/architecture/long-term-architecture.md`
-- 授权长期边界：`docs/architecture/authorization-and-access-control-architecture.md`
-- supervisor 长期职责：`docs/architecture/supervisor-architecture.md`
-- rag specialist 长期职责：`docs/architecture/rag-specialist-architecture.md`
-- app-layer identity / memory ownership：`docs/architecture/app-api-architecture.md`
+- 长期边界：`docs/architecture/target-architecture.md`
+- 授权长期边界：`docs/architecture/identity-and-authorization-architecture.md`
+- supervisor 长期职责：`docs/architecture/execution-and-specialists-architecture.md`
+- rag specialist 长期职责：`docs/architecture/execution-and-specialists-architecture.md`
+- app-layer identity / memory ownership：`docs/architecture/product-runtime-architecture.md`
 - 编排与安全边界：`docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - identity / memory / personalization 决策：`docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - authorization model / retrieval filter projection：`docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
@@ -97,11 +97,11 @@ updated: 2026-03-29
 
 文件落点：
 
-- `docs/architecture/authorization-and-access-control-architecture.md`
-- `docs/architecture/long-term-architecture.md`
-- `docs/architecture/supervisor-architecture.md`
-- `docs/architecture/rag-specialist-architecture.md`
-- `docs/architecture/app-api-architecture.md`
+- `docs/architecture/identity-and-authorization-architecture.md`
+- `docs/architecture/target-architecture.md`
+- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - `docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
 

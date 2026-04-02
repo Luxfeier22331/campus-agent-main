@@ -13,8 +13,8 @@ updated: 2026-04-02
 
 它补充但不替代以下文档：
 
-- `app-api` runtime 与边界：`docs/architecture/app-api-architecture.md`
-- request projection ownership：`docs/architecture/request-projection-and-runtime-read-model.md`
+- `app-api` runtime 与边界：`docs/architecture/product-runtime-architecture.md`
+- request projection ownership：`docs/architecture/product-runtime-architecture.md`
 - 产品层 HTTP contract：`docs/contracts/app-api-http.md`
 - request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
 

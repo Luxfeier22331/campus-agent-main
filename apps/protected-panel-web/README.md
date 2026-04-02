@@ -26,12 +26,12 @@ The root route and protected SPA routes now serve the `react-admin` shell once u
 
 Canonical references:
 
-- `docs/architecture/protected-panel-boundary.md`
-- `docs/architecture/shared-app-api-and-worker-web-surfaces.md`
-- `docs/architecture/app-api-architecture.md`
-- `docs/architecture/protected-panel-operator-access.md`
-- `docs/architecture/protected-panel-runtime-shell.md`
-- `docs/architecture/request-projection-and-runtime-read-model.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
 - `docs/decisions/adr-0011-protected-panel-worker-runtime.md`

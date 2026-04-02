@@ -67,12 +67,19 @@ class DocsStructureTest(unittest.TestCase):
             front_matter = _read_front_matter(path)
             self.assertTrue(front_matter.get("decision_id"), path)
 
-    def test_completed_bootstrap_plans_do_not_remain_active(self) -> None:
-        eval_bootstrap = _read_front_matter(DOCS_ROOT / "plans" / "student-handbook-retrieval-eval-bootstrap.md")
-        golden_bootstrap = _read_front_matter(DOCS_ROOT / "plans" / "golden-dataset-schema-and-bootstrap.md")
+    def test_historical_bootstrap_plans_are_removed_from_active_docs_path(self) -> None:
+        historical_plan_names = {
+            "agentic-rag-foundation.md",
+            "app-api-initial-execution-plan.md",
+            "app-api-worker-foundation.md",
+            "golden-dataset-schema-and-bootstrap.md",
+            "official-web-app-api-control-plane-foundation.md",
+            "source-truth-normalization-refactor.md",
+            "student-handbook-retrieval-eval-bootstrap.md",
+        }
 
-        self.assertEqual(eval_bootstrap.get("status"), "completed")
-        self.assertEqual(golden_bootstrap.get("status"), "completed")
+        actual_plan_names = {path.name for path in (DOCS_ROOT / "plans").glob("*.md")}
+        self.assertTrue(historical_plan_names.isdisjoint(actual_plan_names))
 
     def test_docs_index_lists_env_provider_governance_docs(self) -> None:
         docs_index = (DOCS_ROOT / "README.md").read_text(encoding="utf-8")

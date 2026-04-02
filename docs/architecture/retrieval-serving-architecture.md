@@ -1,0 +1,127 @@
+---
+doc_type: architecture
+status: active
+created: 2026-04-02
+updated: 2026-04-02
+---
+
+# Retrieval Serving Architecture
+
+## 文档边界
+
+本文冻结 retrieval / serving 的 supporting architecture。
+
+它回答的是：
+
+- 当前 serving surface 与 retrieval baseline 是什么
+- retrieval pipeline 如何分层
+- 当前版本 serving 与未来历史查询如何统一在一套模型下
+
+## 当前 Baseline
+
+当前 serving surface 由 runtime profile 显式控制。
+
+当前开放：
+
+- `regulations/student_handbook`
+- `curriculum/curriculum_plan`
+
+当前非默认公开查询面：
+
+- `curriculum/course_facts`
+  internal specialist retrieval surface
+
+当前 accepted retrieval baseline 是：
+
+- dense + sparse hybrid
+- registry-backed evidence
+- metadata pre-filter
+- evidence bundle 回链
+
+## Retrieval Pipeline
+
+retrieval path 固定拆成：
+
+`query framing -> version / surface selection -> metadata filter -> candidate retrieval -> fusion / ranking -> evidence shaping`
+
+owner 分层固定为：
+
+- specialist：query framing、ambiguity handling、surface / entity planning
+- retrieval-core：candidate retrieval、fusion、evidence shaping
+- registry / serving profile：version / visibility / serving scope truth
+
+## Serving Policy
+
+serving truth 不写死在 supervisor、API shell 或 env 默认值里。
+
+它由以下信息共同决定：
+
+- collection runtime profile
+- serving alias / release manifest
+- current query-enabled scope
+- explicit authz projection
+
+## Filter Layers
+
+当前与长期都保留以下过滤层：
+
+- serving-surface filter
+- current-version filter
+- authz / visibility filter
+- collection / entity / family filter
+
+`major`、`cohort`、`program`、recent goal 等 personalization signal 只允许影响 applicability / preference / clarification，不得静默改写 visibility truth。
+
+## Versioned Serving Model
+
+长期查询模型固定拆成：
+
+- `current`
+- `historical`
+- `as_of`
+- `compare`
+
+长期硬约束：
+
+- 版本选择发生在 retrieval 之前
+- 普通 query-serving 默认只查当前有效版本
+- 历史版本查询必须显式化
+- 多来源等价内容归并为一个逻辑 document version
+
+## Current Status Vs Target
+
+当前已经具备：
+
+- 默认只服务当前有效版本
+- current-version serving
+- 多来源等价内容归并
+
+当前尚未完成：
+
+- explicit historical query
+- as-of query
+- compare query
+
+这些属于目标架构的一部分，而不是当前默认 surface。
+
+## Course Facts Internal Surface
+
+`curriculum/course_facts` 的长期定位保持为：
+
+- specialist internal retrieval surface
+- 用于课程 / 课程族实体与 alias governance
+- 不自动提升成默认公开 query-serving collection
+
+## Forbidden Shapes
+
+- 不把 serving surface 写死在 supervisor 或 entry shell
+- 不让 retrieval backend 自行猜测用户是不是要查历史版本
+- 不把历史版本先全量检索再由回答层事后丢弃
+- 不把 alias / family resolution 静默下沉成 retrieval backend 的黑盒字符串替换
+
+## 相关稳定文档
+
+- `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`
+- `docs/decisions/adr-0014-versioned-document-serving-and-history-query.md`
+- `docs/decisions/adr-0021-institution-scoped-entity-alias-governance.md`
+- `docs/reference/runtime-serving-and-index-terms.md`

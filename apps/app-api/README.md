@@ -76,10 +76,10 @@ Observability data policy:
 
 Canonical references:
 
-- `docs/architecture/shared-app-api-and-worker-web-surfaces.md`
-- `docs/architecture/app-api-architecture.md`
-- `docs/architecture/official-web-control-plane-on-app-api.md`
-- `docs/architecture/request-projection-and-runtime-read-model.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/official-web-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`

@@ -124,7 +124,7 @@ split 的职责边界在长期上固定，但每个 split 的样本数、命中�
 
 ## 决策 8：文档分层关系
 
-- `docs/architecture/long-term-architecture.md`
+- `docs/architecture/target-architecture.md`
   只保留 `evals` 边界与可替换性原则
 - 本 ADR
   负责 golden dataset 的长期治理、不变量与边界

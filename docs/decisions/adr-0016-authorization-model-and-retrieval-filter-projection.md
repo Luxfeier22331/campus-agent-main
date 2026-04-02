@@ -157,8 +157,8 @@ Accepted on 2026-03-29.
 
 ## 相关文档
 
-- `docs/architecture/authorization-and-access-control-architecture.md`
-- `docs/architecture/long-term-architecture.md`
-- `docs/architecture/app-api-architecture.md`
-- `docs/architecture/retrieval-query-strategy.md`
+- `docs/architecture/identity-and-authorization-architecture.md`
+- `docs/architecture/target-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/retrieval-serving-architecture.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`

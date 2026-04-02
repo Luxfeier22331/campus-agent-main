@@ -212,11 +212,11 @@ updated: 2026-04-02
 
 这项决策 complements：
 
-- `docs/architecture/authorization-and-access-control-architecture.md`
+- `docs/architecture/identity-and-authorization-architecture.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - `docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
-- `docs/architecture/app-api-architecture.md`
-- `docs/architecture/retrieval-query-strategy.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/retrieval-serving-architecture.md`
 
 ## 外部依据
 

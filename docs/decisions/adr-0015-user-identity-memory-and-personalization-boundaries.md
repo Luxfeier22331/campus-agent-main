@@ -160,15 +160,15 @@ Accepted on 2026-03-28.
 
 ## 决策 8：文档分层关系
 
-- `docs/architecture/long-term-architecture.md`
+- `docs/architecture/target-architecture.md`
   负责 repo 级 identity / memory / knowledge truth 分层
-- `docs/architecture/authorization-and-access-control-architecture.md`
+- `docs/architecture/identity-and-authorization-architecture.md`
   负责 canonical authz truth、retrieval filter projection 与 visibility / applicability 分层
-- `docs/architecture/app-api-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
   负责 canonical identity、authorization 与 memory ownership 所在的 app boundary
-- `docs/architecture/supervisor-architecture.md`
+- `docs/architecture/execution-and-specialists-architecture.md`
   负责 supervisor 如何消费 typed identity / authorization / memory projection
-- `docs/architecture/rag-specialist-architecture.md`
+- `docs/architecture/execution-and-specialists-architecture.md`
   负责 retrieval-specific personalization 与 `RagIntentFrame`
 - `docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
   负责长期 authorization model 与 retrieval filter projection 决策
@@ -191,11 +191,11 @@ Accepted on 2026-03-28.
 
 ## 相关文档
 
-- `docs/architecture/long-term-architecture.md`
-- `docs/architecture/app-api-architecture.md`
-- `docs/architecture/authorization-and-access-control-architecture.md`
-- `docs/architecture/supervisor-architecture.md`
-- `docs/architecture/rag-specialist-architecture.md`
+- `docs/architecture/target-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/identity-and-authorization-architecture.md`
+- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-specialists-architecture.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - `docs/decisions/adr-0010-observability-and-telemetry-stack.md`
 - `docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`

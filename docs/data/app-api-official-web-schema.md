@@ -14,7 +14,7 @@ updated: 2026-03-29
 它补充但不替代以下文档：
 
 - `app-api` 基础 schema：`docs/data/app-api-schema.md`
-- `official_web` control-plane 架构：`docs/architecture/official-web-control-plane-on-app-api.md`
+- `official_web` control-plane 架构：`docs/architecture/official-web-architecture.md`
 - `official_web` HTTP contract：`docs/contracts/app-api-official-web-http.md`
 - run lifecycle：`docs/contracts/app-api-official-web-run-lifecycle.md`
 

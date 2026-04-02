@@ -15,7 +15,7 @@ updated: 2026-03-30
 
 - `app-api` 逻辑 schema：`docs/data/app-api-schema.md`
 - `official_web` control-plane schema：`docs/data/app-api-official-web-schema.md`
-- `app-api` runtime/ownership：`docs/architecture/app-api-architecture.md`
+- `app-api` runtime/ownership：`docs/architecture/product-runtime-architecture.md`
 - env ownership：`docs/environment/README.md`
 
 这份文档不冻结：

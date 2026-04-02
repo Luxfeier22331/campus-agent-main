@@ -19,9 +19,9 @@ updated: 2026-04-02
 
 对应 source of truth：
 
-- `docs/architecture/authorization-and-access-control-architecture.md`
-- `docs/architecture/app-api-architecture.md`
-- `docs/architecture/retrieval-query-strategy.md`
+- `docs/architecture/identity-and-authorization-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/retrieval-serving-architecture.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - `docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
@@ -75,7 +75,7 @@ updated: 2026-04-02
 
 落点：
 
-- `docs/architecture/app-api-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
 - `apps/app-api/src/modules/auth/principal.ts`
 - `apps/app-api/src/campus_app_api/projection.py`
 - `packages/contracts`

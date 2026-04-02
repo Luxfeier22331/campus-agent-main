@@ -28,7 +28,7 @@ updated: 2026-03-30
 
 ## 前置真相源
 
-- `docs/architecture/retrieval-query-strategy.md`
+- `docs/architecture/retrieval-serving-architecture.md`
 - `docs/reference/curriculum-plan-eval-metrics.md`
 - `packages/evals/fixtures/curriculum_plan_hybrid_queries.json`
 - `packages/evals/fixtures/curriculum_plan_retrieval_qrels.json`

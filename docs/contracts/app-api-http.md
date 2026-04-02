@@ -13,8 +13,8 @@ updated: 2026-03-30
 
 它补充但不替代以下文档：
 
-- shared product topology：`docs/architecture/shared-app-api-and-worker-web-surfaces.md`
-- `app-api` runtime 与内部边界：`docs/architecture/app-api-architecture.md`
+- shared product topology：`docs/architecture/product-runtime-architecture.md`
+- `app-api` runtime 与内部边界：`docs/architecture/product-runtime-architecture.md`
 - `app-api -> supervisor-api` 内部执行契约：`docs/contracts/app-api-supervisor-execution.md`
 - `official_web` collector/control-plane HTTP contract：`docs/contracts/app-api-official-web-http.md`
 - request lifecycle：`docs/contracts/app-api-request-lifecycle.md`

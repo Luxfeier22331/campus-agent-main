@@ -202,7 +202,7 @@ updated: 2026-03-29
 
 ## 相关文档
 
-- `docs/architecture/long-term-architecture.md`
-- `docs/architecture/supervisor-architecture.md`
+- `docs/architecture/target-architecture.md`
+- `docs/architecture/execution-and-specialists-architecture.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`

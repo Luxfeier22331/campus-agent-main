@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-04-02
 ---
 
 # Official Web Source-Truth Contract
@@ -27,9 +27,10 @@ updated: 2026-03-28
 
 对应文档：
 
-- source channel 边界：`docs/architecture/official-web-source-channel.md`
-- crawl policy：`docs/architecture/official-web-crawl-policy.md`
-- shared replay / rebuild boundary：`docs/architecture/source-truth-normalization-contract.md`
+- 当前架构入口：`docs/architecture/current-architecture.md`
+- `official_web` repo-level supporting architecture：`docs/architecture/official-web-architecture.md`
+- crawl policy：`docs/policies/official-web-crawl-policy.md`
+- shared replay / rebuild boundary：`docs/architecture/data-plane-architecture.md`
 
 ## 目标
 
@@ -367,9 +368,9 @@ web source-truth 不等于逻辑文档真相。
 
 ## 与其他文档的关系
 
-- source channel 运行边界：`docs/architecture/official-web-source-channel.md`
-- crawl scope 与 URL policy：`docs/architecture/official-web-crawl-policy.md`
-- shared source-truth principles：`docs/architecture/source-truth-normalization-contract.md`
+- source channel 运行边界：`docs/architecture/official-web-architecture.md`
+- crawl scope 与 URL policy：`docs/policies/official-web-crawl-policy.md`
+- shared source-truth principles：`docs/architecture/data-plane-architecture.md`
 - object storage key 约定：`docs/decisions/adr-0002-local-minio-conventions.md`
 
 ## 参考

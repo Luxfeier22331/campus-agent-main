@@ -14,7 +14,7 @@ updated: 2026-03-31
 
 - 本文 supersede 早期 `phase-1` 文档中未显式冻结 retrieval strategy 的旧表述
 - handbook embedding / chunking 的运行真相仍以 `docs/policies/student-handbook-chunking-and-validation-policy.md` 为准
-- retrieval runtime truth 以 `docs/architecture/retrieval-query-strategy.md` 为准
+- retrieval runtime truth 以 `docs/architecture/retrieval-serving-architecture.md` 为准
 - serving alias / physical collection / index release 运行真相以 `docs/reference/runtime-serving-and-index-terms.md` 和 operator runbook 为准
 - 当前 phase 进度、执行顺序和 gate 状态以 `.planning/*` 为准，不由本文维护
 
@@ -73,4 +73,4 @@ updated: 2026-03-31
 - 把 retrieval strategy 留空，只冻结 `LlamaIndex + Qdrant`
 - 把 retrieval-core 内部 sparse 本地算分误认为长期 accepted shape
 
-当前 retrieval baseline 应以本文和 `docs/architecture/retrieval-query-strategy.md` 为准。
+当前 retrieval baseline 应以本文和 `docs/architecture/retrieval-serving-architecture.md` 为准。

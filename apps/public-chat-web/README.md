@@ -43,9 +43,9 @@ UI behavior:
 
 Canonical references:
 
-- `docs/architecture/shared-app-api-and-worker-web-surfaces.md`
-- `docs/architecture/app-api-architecture.md`
-- `docs/architecture/long-term-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/target-architecture.md`
 - `docs/contracts/app-api-http.md`
 - `docs/contracts/app-api-request-lifecycle.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`

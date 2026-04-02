@@ -11,8 +11,8 @@ updated: 2026-03-31
 
 这份文档只负责解释当前运行面里最容易被混用的 serving / indexing 术语。
 
-- 不重复长期 package 边界：`docs/architecture/long-term-architecture.md`
-- 不重复数据平面全景：`docs/architecture/phase1-ingestion-and-storage-architecture.md`
+- 不重复长期 package 边界：`docs/architecture/target-architecture.md`
+- 不重复数据平面全景：`docs/architecture/data-plane-architecture.md`
 - 不重复对象存储 key 约束：`docs/decisions/adr-0002-local-minio-conventions.md`
 - 不重复旧 physical collection retention 决策：`docs/decisions/adr-0019-qdrant-physical-collection-retention-and-expiration.md`
 - 不重复 Qdrant Cloud 备份 / 恢复策略：`docs/decisions/adr-0020-qdrant-cloud-backup-restore-and-object-store-transition.md`

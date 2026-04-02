@@ -18,8 +18,8 @@ updated: 2026-04-01
 
 它不重复：
 
-- 长期架构边界：`docs/architecture/long-term-architecture.md`
-- 数据平面分层：`docs/architecture/phase1-ingestion-and-storage-architecture.md`
+- 长期架构边界：`docs/architecture/target-architecture.md`
+- 数据平面分层：`docs/architecture/data-plane-architecture.md`
 - 术语定义：`docs/reference/runtime-serving-and-index-terms.md`
 - 旧 physical collection retention 决策：`docs/decisions/adr-0019-qdrant-physical-collection-retention-and-expiration.md`
 - Qdrant Cloud 备份 / 恢复策略：`docs/decisions/adr-0020-qdrant-cloud-backup-restore-and-object-store-transition.md`

@@ -1,5 +1,5 @@
 ---
-doc_type: architecture
+doc_type: policy
 status: active
 created: 2026-03-28
 updated: 2026-03-28
@@ -27,7 +27,7 @@ updated: 2026-03-28
 
 对应文档：
 
-- source channel 边界：`docs/architecture/official-web-source-channel.md`
+- `official_web` supporting architecture：`docs/architecture/official-web-architecture.md`
 - source-truth schema：`docs/architecture/official-web-source-truth-contract.md`
 
 ## 目标

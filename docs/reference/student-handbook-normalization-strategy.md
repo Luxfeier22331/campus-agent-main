@@ -1,11 +1,11 @@
 ---
-doc_type: architecture
+doc_type: reference
 status: active
 created: 2026-03-22
 updated: 2026-03-28
 ---
 
-# `student_handbook` Collection OCR 归一化与拆分策略
+# Student Handbook Normalization Strategy
 
 ## 目标
 
@@ -445,7 +445,7 @@ Unit normalization 必须满足以下边界：
 
 本地参考：
 
-- `docs/architecture/phase1-ingestion-and-storage-architecture.md`
-- `docs/plans/source-truth-normalization-refactor.md`
+- `docs/architecture/data-plane-architecture.md`
+- `docs/architecture/data-plane-architecture.md`
 - `/home/reptilian/code/campusRag/docs/rag/student-handbook-canonical-schema.md`
 - `/home/reptilian/code/campusRag/packages/rag-core/src/campusrag/pipelines/ingest/build_structured_from_clean_markdown.py`

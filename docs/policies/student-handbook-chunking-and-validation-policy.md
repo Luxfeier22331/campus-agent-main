@@ -21,7 +21,7 @@ updated: 2026-03-28
 - handbook validation 的通过条件与诊断指标
 - 何时允许继续调整预算
 
-本文不重复 source-level OCR normalization 与 split-manifest 设计；这些内容以 [student-handbook-ocr-normalization-strategy.md](../architecture/student-handbook-ocr-normalization-strategy.md) 为准。
+本文不重复 source-level OCR normalization 与 split-manifest 设计；这些内容以 [student-handbook-normalization-strategy.md](../reference/student-handbook-normalization-strategy.md) 为准。
 
 ## 适用范围
 
@@ -402,7 +402,7 @@ handbook validation 的职责是卡住“仍然明显错误的 chunking 结果�
 
 - [configs/ingestion/regulations/student_handbook/runtime-profile.json](../../configs/ingestion/regulations/student_handbook/runtime-profile.json)
 - [configs/ingestion/regulations/student_handbook/chunk-profile.json](../../configs/ingestion/regulations/student_handbook/chunk-profile.json)
-- [docs/architecture/student-handbook-ocr-normalization-strategy.md](./student-handbook-ocr-normalization-strategy.md)
+- [docs/reference/student-handbook-normalization-strategy.md](../reference/student-handbook-normalization-strategy.md)
 - [packages/ingestion-core/src/campus_ingestion_core/chunking.py](../../packages/ingestion-core/src/campus_ingestion_core/chunking.py)
 - [packages/ingestion-core/src/campus_ingestion_core/process.py](../../packages/ingestion-core/src/campus_ingestion_core/process.py)
 - [packages/ingestion-core/src/campus_ingestion_core/handbook_chunking_validation.py](../../packages/ingestion-core/src/campus_ingestion_core/handbook_chunking_validation.py)

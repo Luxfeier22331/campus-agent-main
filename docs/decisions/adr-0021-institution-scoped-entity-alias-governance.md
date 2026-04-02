@@ -256,11 +256,11 @@ canonical golden/eval truth 必须同步遵守：
 
 ## 文档分层
 
-- `docs/architecture/long-term-architecture.md`
+- `docs/architecture/target-architecture.md`
   只记录 alias/entity resolution 的 owner boundary
-- `docs/architecture/rag-specialist-architecture.md`
+- `docs/architecture/execution-and-specialists-architecture.md`
   负责 specialist 对 alias/entity resolution 的长期职责
-- `docs/architecture/retrieval-query-strategy.md`
+- `docs/architecture/retrieval-serving-architecture.md`
   负责 retrieval 如何消费 canonical entity/filter truth
 - `docs/reference/eval-gold-truth-model.md`
   负责 family alias / partial-answer 的 golden truth authoring 规则

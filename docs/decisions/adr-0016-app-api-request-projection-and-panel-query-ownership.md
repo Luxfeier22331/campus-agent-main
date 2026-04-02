@@ -136,9 +136,9 @@ updated: 2026-03-30
 
 ## 相关文档
 
-- `docs/architecture/request-projection-and-runtime-read-model.md`
-- `docs/architecture/shared-app-api-and-worker-web-surfaces.md`
-- `docs/architecture/app-api-architecture.md`
-- `docs/architecture/long-term-architecture.md`
-- `docs/architecture/supervisor-architecture.md`
-- `docs/architecture/protected-panel-runtime-shell.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/target-architecture.md`
+- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`

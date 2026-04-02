@@ -13,8 +13,8 @@ updated: 2026-03-29
 
 它补充但不替代以下文档：
 
-- `official_web` control-plane 形态：`docs/architecture/official-web-control-plane-on-app-api.md`
-- source-channel 总边界：`docs/architecture/official-web-source-channel.md`
+- `official_web` control-plane 形态：`docs/architecture/official-web-architecture.md`
+- source-channel 总边界：`docs/architecture/official-web-architecture.md`
 - run lifecycle：`docs/contracts/app-api-official-web-run-lifecycle.md`
 - logical schema：`docs/data/app-api-official-web-schema.md`
 - browser/product HTTP contract：`docs/contracts/app-api-http.md`

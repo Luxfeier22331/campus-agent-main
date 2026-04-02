@@ -23,9 +23,9 @@ updated: 2026-04-01
 
 它不替代：
 
-- 长期拓扑边界：`docs/architecture/shared-app-api-and-worker-web-surfaces.md`
-- `app-api` 内部边界：`docs/architecture/app-api-architecture.md`
-- protected panel operator access：`docs/architecture/protected-panel-operator-access.md`
+- 长期拓扑边界：`docs/architecture/product-runtime-architecture.md`
+- `app-api` 内部边界：`docs/architecture/product-runtime-architecture.md`
+- protected panel operator access：`docs/architecture/product-runtime-architecture.md`
 - 当前 phase 状态：`.planning/PROJECT.md`、`.planning/STATE.md`
 
 ## 当前 smoke 形态

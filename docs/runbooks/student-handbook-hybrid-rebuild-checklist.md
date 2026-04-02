@@ -33,8 +33,8 @@ updated: 2026-03-30
 
 ## 前置真相源
 
-- `docs/architecture/retrieval-query-strategy.md`
-- `docs/architecture/phase1-ingestion-and-storage-architecture.md`
+- `docs/architecture/retrieval-serving-architecture.md`
+- `docs/architecture/data-plane-architecture.md`
 - `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`
 - `.planning/STATE.md`
 - `packages/evals/fixtures/student_handbook_hybrid_queries.json`

@@ -39,9 +39,9 @@ updated: 2026-03-28
 
 关系固定如下：
 
-- `docs/architecture/long-term-architecture.md`
+- `docs/architecture/target-architecture.md`
   定义整个仓库的长期架构边界
-- `docs/architecture/supervisor-architecture.md`
+- `docs/architecture/execution-and-specialists-architecture.md`
   定义 supervisor 的长期架构与当期设计架构，以及当前 execution engine runtime / Agno 集成边界
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
   定义长期编排模式、specialist 准入与安全边界

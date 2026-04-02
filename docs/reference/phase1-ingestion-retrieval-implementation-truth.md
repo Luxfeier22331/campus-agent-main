@@ -11,8 +11,11 @@ updated: 2026-03-29
 
 本文不定义长期架构，只记录当前代码已经落地的 phase-1 实现真相，供文档对齐、验收和跨会话协作使用。
 
+当前 accepted merged-truth topology、已开放 serving surface 与 app/runtime shape 不由本文维护；当前快照以 `docs/architecture/current-architecture.md` 为准。
+
 当本文与以下文档冲突时：
 
+- 当前接受架构快照以 `docs/architecture/current-architecture.md` 为准
 - 长期边界以 `docs/architecture/` 为准
 - 已接受决策以 `docs/decisions/` 为准
 - 当前执行状态以 `.planning/STATE.md` 为准

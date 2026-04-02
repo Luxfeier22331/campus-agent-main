@@ -134,13 +134,13 @@ updated: 2026-03-28
 
 ## 决策 7：文档分层关系
 
-- `docs/architecture/long-term-architecture.md`
+- `docs/architecture/target-architecture.md`
   负责长期编排边界、角色分工与系统形态
-- `docs/architecture/supervisor-architecture.md`
+- `docs/architecture/execution-and-specialists-architecture.md`
   负责 supervisor 如何承接这些长期规则，以及当前 execution engine runtime / Agno 集成边界
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
   负责 identity / memory / personalization 如何作为 typed context 进入编排，而不稀释 ACL 或权限边界
-- `docs/architecture/phase1-ingestion-and-storage-architecture.md`
+- `docs/architecture/data-plane-architecture.md`
   负责 phase-1 数据平面约束，以及对象存储 + registry + Qdrant 组合理由
 - 本 ADR
   负责长期编排模式、specialist 准入与安全边界

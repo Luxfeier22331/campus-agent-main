@@ -17,7 +17,7 @@ updated: 2026-03-29
 - `app-api -> supervisor-api` 契约：`docs/contracts/app-api-supervisor-execution.md`
 - error model：`docs/contracts/app-api-error-model.md`
 - 数据模型：`docs/data/app-api-schema.md`
-- request projection ownership：`docs/architecture/request-projection-and-runtime-read-model.md`
+- request projection ownership：`docs/architecture/product-runtime-architecture.md`
 
 ## Lifecycle Conclusion
 

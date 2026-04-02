@@ -122,14 +122,14 @@ updated: 2026-03-28
 
 ### 新增
 
-- `docs/architecture/versioned-document-serving-and-history-query.md`
+- `docs/architecture/retrieval-serving-architecture.md`
 - `docs/decisions/adr-0014-versioned-document-serving-and-history-query.md`
 - `docs/plans/versioned-history-query-foundation.md`
 
 ### 修改
 
-- `docs/architecture/retrieval-query-strategy.md`
-- `docs/architecture/phase1-ingestion-and-storage-architecture.md`
+- `docs/architecture/retrieval-serving-architecture.md`
+- `docs/architecture/data-plane-architecture.md`
 - `docs/reference/phase1-ingestion-retrieval-implementation-truth.md`
 - `docs/README.md`
 
