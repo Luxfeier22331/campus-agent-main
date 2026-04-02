@@ -25,9 +25,11 @@ from campus_rag_specialist.confidence import derive_confidence
 from campus_rag_specialist.intent import build_personalization_hint, frame_rag_intent
 from campus_rag_specialist.query_planning import (
     CurriculumCourseQueryPlan,
+    CurriculumProgramFamilyQueryPlan,
     CurriculumQueryPlan,
     HandbookQueryPlan,
     plan_curriculum_course_query,
+    plan_curriculum_program_family_query,
     plan_curriculum_query,
     plan_student_handbook_query,
 )
@@ -43,6 +45,10 @@ _GENERIC_TOPIC_QUALIFIERS = {
 }
 _WHITESPACE_RE = re.compile(r"\s+")
 _QUERY_ASK_CUES = frozenset({"多少", "几年", "怎么", "如何", "安排", "什么", "哪些"})
+_UNSUPPORTED_HANDBOOK_CLAUSE_CUE_GROUPS = (
+    ("本校", "单位", "作者单位", "署名单位"),
+    ("几分", "多少分", "加分", "得分", "分值", "第二作者的分", "拿分", "给分"),
+)
 
 
 def delegate_to_rag_agent(
@@ -61,9 +67,11 @@ def delegate_to_rag_agent(
     handbook_plan = _plan_handbook_query(request, user_goal)
     curriculum_plan = _plan_curriculum_query(request, user_goal)
     curriculum_course_plan = _plan_curriculum_course_query(request, user_goal)
+    curriculum_program_family_plan = _plan_curriculum_program_family_query(request, user_goal)
     if intent_frame.response_mode == "clarify" and not _has_resolved_query_plan(
         handbook_plan=handbook_plan,
         curriculum_plan=curriculum_plan,
+        curriculum_program_family_plan=curriculum_program_family_plan,
     ):
         empty_evidence = _build_empty_evidence(request, user_goal)
         return SpecialistResponse(
@@ -80,6 +88,7 @@ def delegate_to_rag_agent(
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
                 curriculum_course_plan=curriculum_course_plan,
+                curriculum_program_family_plan=curriculum_program_family_plan,
             ),
         )
     if handbook_plan is not None and handbook_plan.status == "needs_clarification":
@@ -99,9 +108,38 @@ def delegate_to_rag_agent(
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
                 curriculum_course_plan=curriculum_course_plan,
+                curriculum_program_family_plan=curriculum_program_family_plan,
             ),
         )
-    if curriculum_plan is not None and curriculum_plan.status == "needs_clarification":
+    if (
+        curriculum_program_family_plan is not None
+        and curriculum_program_family_plan.resolution_mode == "needs_clarification"
+    ):
+        empty_evidence = _build_empty_evidence(request, user_goal)
+        return SpecialistResponse(
+            target="rag-specialist",
+            status="needs_clarification",
+            confidence="low",
+            follow_up_question=_build_clarification_question(
+                user_goal,
+                empty_evidence,
+                recent_goal=personalization_hint.recent_goal,
+                clarification_reason=curriculum_program_family_plan.clarification_reason,
+                clarification_candidates=curriculum_program_family_plan.clarification_candidates,
+            ),
+            result=_build_rag_result_payload(
+                evidence=empty_evidence,
+                handbook_plan=handbook_plan,
+                curriculum_plan=curriculum_plan,
+                curriculum_course_plan=curriculum_course_plan,
+                curriculum_program_family_plan=curriculum_program_family_plan,
+            ),
+        )
+    if (
+        curriculum_program_family_plan is None
+        and curriculum_plan is not None
+        and curriculum_plan.status == "needs_clarification"
+    ):
         empty_evidence = _build_empty_evidence(request, user_goal)
         return SpecialistResponse(
             target="rag-specialist",
@@ -119,6 +157,7 @@ def delegate_to_rag_agent(
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
                 curriculum_course_plan=curriculum_course_plan,
+                curriculum_program_family_plan=curriculum_program_family_plan,
             ),
         )
 
@@ -129,8 +168,17 @@ def delegate_to_rag_agent(
         retrieval_collection = request.payload.scope.collection
         canonical_course_ids: tuple[str, ...] = ()
         canonical_course_family_ids: tuple[str, ...] = ()
+        canonical_program_family_ids: tuple[str, ...] = ()
         if request.payload.scope.corpus == "curriculum" and request.payload.scope.collection == "curriculum_plan":
-            if curriculum_course_plan is not None:
+            if (
+                curriculum_program_family_plan is not None
+                and curriculum_program_family_plan.resolution_mode == "resolved_family"
+            ):
+                retrieval_collection = curriculum_program_family_plan.internal_collection
+                canonical_program_family_ids = (
+                    curriculum_program_family_plan.canonical_program_family_id,
+                )
+            elif curriculum_course_plan is not None:
                 retrieval_collection = curriculum_course_plan.internal_collection
                 canonical_course_ids = (
                     (curriculum_course_plan.canonical_course_id,)
@@ -162,6 +210,7 @@ def delegate_to_rag_agent(
             preferred_document_ids=preferred_document_ids,
             canonical_course_ids=canonical_course_ids,
             canonical_course_family_ids=canonical_course_family_ids,
+            canonical_program_family_ids=canonical_program_family_ids,
             authorized_filter=request.context.authorization.retrieval_filter,
             personalization_hint=personalization_hint,
         )
@@ -176,6 +225,7 @@ def delegate_to_rag_agent(
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
                 curriculum_course_plan=curriculum_course_plan,
+                curriculum_program_family_plan=curriculum_program_family_plan,
             ),
             error=ErrorInfo(code="corpus_not_query_enabled", message=str(exc), retryable=False),
         )
@@ -206,6 +256,7 @@ def delegate_to_rag_agent(
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
                 curriculum_course_plan=curriculum_course_plan,
+                curriculum_program_family_plan=curriculum_program_family_plan,
                 no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
             ),
         )
@@ -243,6 +294,7 @@ def delegate_to_rag_agent(
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
                 curriculum_course_plan=curriculum_course_plan,
+                curriculum_program_family_plan=curriculum_program_family_plan,
                 no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
             ),
         )
@@ -265,8 +317,36 @@ def delegate_to_rag_agent(
                 no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
             ),
         )
+    if _should_fail_closed_resolved_policy_clause(
+        user_goal=user_goal,
+        evidence=supporting_evidence,
+        handbook_plan=handbook_plan,
+    ):
+        return SpecialistResponse(
+            target="rag-specialist",
+            status="no_answer",
+            answer_text=_build_no_answer_response(
+                _build_empty_evidence(request, user_goal),
+                resolved_policy_title=_resolved_policy_title(handbook_plan),
+            ),
+            confidence="low",
+            result=_build_rag_result_payload(
+                evidence=_build_empty_evidence(request, user_goal),
+                handbook_plan=handbook_plan,
+                curriculum_plan=curriculum_plan,
+                curriculum_course_plan=curriculum_course_plan,
+                curriculum_program_family_plan=curriculum_program_family_plan,
+                no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
+            ),
+        )
 
-    if curriculum_course_plan is not None:
+    if curriculum_program_family_plan is not None:
+        answer_text = _build_curriculum_program_family_answer(
+            evidence=supporting_evidence,
+            plan=curriculum_program_family_plan,
+        )
+        finalized_evidence = supporting_evidence
+    elif curriculum_course_plan is not None:
         answer_text = _build_curriculum_course_answer(
             evidence=supporting_evidence,
             plan=curriculum_course_plan,
@@ -292,6 +372,7 @@ def delegate_to_rag_agent(
             handbook_plan=handbook_plan,
             curriculum_plan=curriculum_plan,
             curriculum_course_plan=curriculum_course_plan,
+            curriculum_program_family_plan=curriculum_program_family_plan,
         ),
     )
 
@@ -324,6 +405,8 @@ def _build_no_answer_response(
 ) -> str:
     if evidence.corpus == "curriculum" and evidence.collection == "course_facts":
         return "当前未检索到足够依据支持回答这个课程问题，请补充更具体的课程名称、课程类别或修读字段。"
+    if evidence.corpus == "curriculum" and evidence.collection == "program_family_facts":
+        return "我还不能稳定确认你想问的是哪一类项目班；你可以直接说民族班、基地班，或者补充更具体的班型。"
     if evidence.corpus == "curriculum" and evidence.collection == "curriculum_plan":
         return "当前未检索到足够依据支持回答这个培养方案问题，请补充更具体的培养方案名称、学位要求或课程表名称。"
     if resolved_policy_title:
@@ -417,6 +500,10 @@ def _build_clarification_question(
         if "奖学金" in user_goal or "scholarship" in user_goal.lower():
             return "请说明你想咨询哪一类奖学金或对应的评审办法。"
         return "请具体说明你想咨询哪一项制度；当前问题可能同时对应多个学生手册制度。"
+    if clarification_reason.startswith("program_family:"):
+        if clarification_candidates:
+            return f"你想问哪一种？比如：{'、'.join(clarification_candidates)}。"
+        return "你想问哪一种项目班？请再说具体一点。"
     if evidence.corpus == "curriculum" and evidence.collection == "curriculum_plan":
         if clarification_candidates:
             return (
@@ -487,12 +574,27 @@ def _plan_curriculum_course_query(
     return plan_curriculum_course_query(user_goal)
 
 
+def _plan_curriculum_program_family_query(
+    request: SpecialistRequest,
+    user_goal: str,
+) -> CurriculumProgramFamilyQueryPlan | None:
+    if request.payload.scope.corpus != "curriculum" or request.payload.scope.collection != "curriculum_plan":
+        return None
+    return plan_curriculum_program_family_query(user_goal)
+
+
 def _has_resolved_query_plan(
     *,
     handbook_plan: HandbookQueryPlan | None,
     curriculum_plan: CurriculumQueryPlan | None,
+    curriculum_program_family_plan: CurriculumProgramFamilyQueryPlan | None,
 ) -> bool:
     if handbook_plan is not None and handbook_plan.status == "resolved":
+        return True
+    if (
+        curriculum_program_family_plan is not None
+        and curriculum_program_family_plan.resolution_mode == "resolved_family"
+    ):
         return True
     return curriculum_plan is not None and curriculum_plan.status == "resolved"
 
@@ -509,12 +611,49 @@ def _resolved_policy_no_answer_reason(handbook_plan: HandbookQueryPlan | None) -
     return "resolved_policy_clause_not_found"
 
 
+def _should_fail_closed_resolved_policy_clause(
+    *,
+    user_goal: str,
+    evidence: EvidenceBundle,
+    handbook_plan: HandbookQueryPlan | None,
+) -> bool:
+    if handbook_plan is None or handbook_plan.status != "resolved":
+        return False
+    if not evidence.sources:
+        return False
+    normalized_goal = _normalize_text(user_goal).lower()
+    normalized_support = _normalize_text(
+        " ".join(
+            " ".join(
+                fragment
+                for fragment in (
+                    source.source_title,
+                    source.detail_label,
+                    source.snippet,
+                )
+                if fragment
+            )
+            for source in evidence.sources
+        )
+    ).lower()
+    matched_group_count = 0
+    for cue_group in _UNSUPPORTED_HANDBOOK_CLAUSE_CUE_GROUPS:
+        if not any(cue in normalized_goal for cue in cue_group):
+            continue
+        matched_group_count += 1
+        if any(cue in normalized_support for cue in cue_group):
+            continue
+        return True
+    return matched_group_count >= 2
+
+
 def _build_rag_result_payload(
     *,
     evidence: EvidenceBundle,
     handbook_plan: HandbookQueryPlan | None,
     curriculum_plan: CurriculumQueryPlan | None = None,
     curriculum_course_plan: CurriculumCourseQueryPlan | None = None,
+    curriculum_program_family_plan: CurriculumProgramFamilyQueryPlan | None = None,
     no_answer_reason: str = "",
 ) -> RagResultPayload:
     diagnostics = _build_rag_result_diagnostics(
@@ -522,6 +661,7 @@ def _build_rag_result_payload(
         handbook_plan=handbook_plan,
         curriculum_plan=curriculum_plan,
         curriculum_course_plan=curriculum_course_plan,
+        curriculum_program_family_plan=curriculum_program_family_plan,
         no_answer_reason=no_answer_reason,
     )
     return RagResultPayload(
@@ -536,10 +676,25 @@ def _build_rag_result_diagnostics(
     handbook_plan: HandbookQueryPlan | None,
     curriculum_plan: CurriculumQueryPlan | None = None,
     curriculum_course_plan: CurriculumCourseQueryPlan | None = None,
+    curriculum_program_family_plan: CurriculumProgramFamilyQueryPlan | None = None,
     no_answer_reason: str = "",
 ) -> RagResultDiagnostics | None:
-    if handbook_plan is None and curriculum_plan is None and curriculum_course_plan is None:
+    if (
+        handbook_plan is None
+        and curriculum_plan is None
+        and curriculum_course_plan is None
+        and curriculum_program_family_plan is None
+    ):
         return None
+    if curriculum_program_family_plan is not None:
+        return RagResultDiagnostics(
+            no_answer_reason=no_answer_reason,
+            retrieved_title_summary=_summarize_retrieved_titles(evidence),
+            resolution_mode=curriculum_program_family_plan.resolution_mode,
+            resolved_entity_type="program_family",
+            resolved_program_family_id=curriculum_program_family_plan.canonical_program_family_id,
+            resolved_program_family_title=curriculum_program_family_plan.canonical_program_family_title,
+        )
     if curriculum_course_plan is not None:
         return RagResultDiagnostics(
             no_answer_reason=no_answer_reason,
@@ -610,6 +765,25 @@ def _build_curriculum_course_answer(
             return f"{answer}；{suffix}"
         return f"{answer}{suffix}"
     return answer if answer.endswith("。") else f"{answer}。"
+
+
+def _build_curriculum_program_family_answer(
+    *,
+    evidence: EvidenceBundle,
+    plan: CurriculumProgramFamilyQueryPlan,
+) -> str:
+    snippets = [
+        source.snippet.strip()
+        for source in evidence.sources
+        if source.snippet.strip()
+    ]
+    for snippet in snippets:
+        if plan.canonical_program_family_title and plan.canonical_program_family_title in snippet:
+            return snippet if snippet.endswith("。") else f"{snippet}。"
+    if snippets:
+        snippet = snippets[0]
+        return snippet if snippet.endswith("。") else f"{snippet}。"
+    return f"我还不能稳定确认{plan.canonical_program_family_title}对应的项目班信息。"
 
 
 def _summarize_retrieved_titles(evidence: EvidenceBundle) -> tuple[str, ...]:

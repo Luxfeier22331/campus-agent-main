@@ -498,6 +498,41 @@ class BackendQdrantTest(unittest.TestCase):
             ["course_family:muc.ideological_political_theory"],
         )
 
+    def test_build_metadata_filters_adds_canonical_program_family_filter_when_present(self) -> None:
+        filters = _build_metadata_filters(
+            RetrievalRequest(
+                query_text="民族班有哪些",
+                corpus="curriculum",
+                collection="program_family_facts",
+                canonical_program_family_ids=("program_family:muc.ethnic_experimental_class",),
+            )
+        )
+
+        filter_keys = _collect_filter_keys(filters)
+        self.assertIn("canonical_program_family_id", filter_keys)
+
+    def test_build_qdrant_filter_adds_canonical_program_family_constraint_when_present(self) -> None:
+        qdrant_filter = _build_qdrant_filter(
+            RetrievalRequest(
+                query_text="基地班有哪些",
+                corpus="curriculum",
+                collection="program_family_facts",
+                canonical_program_family_ids=("program_family:muc.base_class",),
+            )
+        )
+
+        family_conditions = [
+            condition
+            for condition in qdrant_filter.must or ()
+            if getattr(condition, "key", None) == "canonical_program_family_id"
+        ]
+
+        self.assertEqual(len(family_conditions), 1)
+        self.assertEqual(
+            getattr(getattr(family_conditions[0], "match", None), "any", None),
+            ["program_family:muc.base_class"],
+        )
+
     def test_build_metadata_filters_ignore_preferred_document_ids(self) -> None:
         filters = _build_metadata_filters(
             RetrievalRequest(
@@ -620,6 +655,7 @@ class BackendQdrantTest(unittest.TestCase):
                 "collection",
                 "canonical_course_id",
                 "canonical_course_family_id",
+                "canonical_program_family_id",
                 "visibility_scope",
                 "entitlement_groups",
                 "visibility_level",

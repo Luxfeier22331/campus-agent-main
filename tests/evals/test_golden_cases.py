@@ -876,6 +876,44 @@ class RunCasesTest(unittest.TestCase):
         self.assertEqual(good_report.by_metric["procedure_directness"].passed, 1)
         self.assertEqual(bad_report.by_metric["procedure_directness"].failed, 1)
 
+    def test_requirement_style_how_query_does_not_trigger_procedure_directness(self) -> None:
+        case = GoldenCase(
+            case_id="requirement-style-how-query",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="国奖第九条里对论文和著作怎么要求的？",
+            actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
+            expected_status="completed",
+            expected_sources=(expected_source_ref("handbook:national-scholarship"),),
+            required_facts=("第一作者", "第一、二作者"),
+            trace_expectation=TraceExpectation(
+                selected_scope=HANDBOOK_SCOPE,
+                retrieval_called=True,
+            ),
+        )
+
+        report = run_cases(
+            (case,),
+            executor=lambda _: ExecutionResult(
+                response=_response(
+                    answer_text=(
+                        "根据学生手册相关规定，在学术研究上取得显著成绩，以第一作者发表的论文被SCI、EI、ISTP、SSCI全文收录，"
+                        "以第一、二作者出版学术专著(须通过专家鉴定)。"
+                    ),
+                    sources=(_source(doc_id="handbook:national-scholarship"),),
+                ),
+                observed_trace=ObservedTrace(
+                    selected_scope=HANDBOOK_SCOPE,
+                    retrieval_called=True,
+                ),
+            ),
+        )
+
+        result = report.results[0]
+        self.assertTrue(result.passed)
+        self.assertNotIn("procedure_directness", result.metric_results)
+
     def test_curriculum_course_map_case_accepts_table_style_answer_without_procedure_directness(self) -> None:
         case = next(
             item

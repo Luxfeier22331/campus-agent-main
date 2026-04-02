@@ -996,6 +996,184 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             ),
         )
 
+    def test_program_family_membership_query_uses_program_family_facts_for_ethnic_class(self) -> None:
+        retriever_call: dict[str, object] = {}
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
+            return EvidenceBundle(
+                query_text=query_text,
+                corpus="curriculum",
+                collection="program_family_facts",
+                sources=(
+                    EvidenceSource(
+                        doc_id="program_family_facts:ethnic-class-membership",
+                        revision_track="source-faithful",
+                        version_id="v1:program-family-facts",
+                        chunk_id="program-family-facts:ethnic-class-membership",
+                        anchor={"fact_type": "family_membership"},
+                        acl_level="public",
+                        canonical_url="https://campus.example/curriculum/program-family/ethnic-class",
+                        latest_url="https://campus.example/curriculum/program-family/ethnic-class",
+                        source_channel="pdf_ocr",
+                        collection="program_family_facts",
+                        is_current=False,
+                        snippet="民大的民族班有法学、信息与计算科学、计算机科学与技术。",
+                        score=0.96,
+                        source_title="中央民族大学民族班项目一览",
+                        structural_path=("民族班",),
+                        detail_label="成员专业",
+                        content_kind="program_family_fact",
+                        content_role="family_membership",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="民族班有哪些",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(retriever_call["collection"], "program_family_facts")
+        self.assertEqual(
+            retriever_call["canonical_program_family_ids"],
+            ("program_family:muc.ethnic_experimental_class",),
+        )
+        self.assertIn("法学", response.answer_text)
+        self.assertIn("计算机科学与技术", response.answer_text)
+        self.assertNotIn("当前已采集", response.answer_text)
+        self.assertEqual(
+            response.result.diagnostics,
+            RagResultDiagnostics(
+                resolution_mode="resolved_family",
+                resolved_entity_type="program_family",
+                resolved_program_family_id="program_family:muc.ethnic_experimental_class",
+                resolved_program_family_title="民族班",
+                retrieved_title_summary=("中央民族大学民族班项目一览",),
+            ),
+        )
+
+    def test_program_family_membership_query_uses_program_family_facts_for_base_class(self) -> None:
+        retriever_call: dict[str, object] = {}
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
+            return EvidenceBundle(
+                query_text=query_text,
+                corpus="curriculum",
+                collection="program_family_facts",
+                sources=(
+                    EvidenceSource(
+                        doc_id="program_family_facts:base-class-membership",
+                        revision_track="source-faithful",
+                        version_id="v1:program-family-facts",
+                        chunk_id="program-family-facts:base-class-membership",
+                        anchor={"fact_type": "family_membership"},
+                        acl_level="public",
+                        canonical_url="https://campus.example/curriculum/program-family/base-class",
+                        latest_url="https://campus.example/curriculum/program-family/base-class",
+                        source_channel="pdf_ocr",
+                        collection="program_family_facts",
+                        is_current=False,
+                        snippet="民大的基地班有历史学、哲学、中国少数民族语言文学（古文字学方向）。",
+                        score=0.95,
+                        source_title="中央民族大学基地班项目一览",
+                        structural_path=("基地班",),
+                        detail_label="成员专业",
+                        content_kind="program_family_fact",
+                        content_role="family_membership",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="基地班有哪些",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(retriever_call["collection"], "program_family_facts")
+        self.assertEqual(
+            retriever_call["canonical_program_family_ids"],
+            ("program_family:muc.base_class",),
+        )
+        self.assertIn("历史学", response.answer_text)
+        self.assertIn("哲学", response.answer_text)
+        self.assertNotIn("当前已采集", response.answer_text)
+
+    def test_program_family_generic_experimental_class_requires_option_clarification(self) -> None:
+        retriever_called = False
+
+        def fake_retriever(*args: object, **kwargs: object) -> EvidenceBundle:
+            nonlocal retriever_called
+            retriever_called = True
+            return EvidenceBundle(
+                query_text="实验班有哪些",
+                corpus="curriculum",
+                collection="curriculum_plan",
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="实验班有哪些",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "needs_clarification")
+        self.assertFalse(retriever_called)
+        self.assertIn("民族班", response.follow_up_question)
+        self.assertIn("孝通实验班", response.follow_up_question)
+
+    def test_program_family_generic_innovation_class_requires_option_clarification(self) -> None:
+        retriever_called = False
+
+        def fake_retriever(*args: object, **kwargs: object) -> EvidenceBundle:
+            nonlocal retriever_called
+            retriever_called = True
+            return EvidenceBundle(
+                query_text="创新班有哪些",
+                corpus="curriculum",
+                collection="curriculum_plan",
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="创新班有哪些",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "needs_clarification")
+        self.assertFalse(retriever_called)
+        self.assertIn("创新班", response.follow_up_question)
+        self.assertIn("创新实验班", response.follow_up_question)
+
     def test_low_support_evidence_maps_to_no_answer_instead_of_completed(self) -> None:
         evidence = _make_evidence(
             scores=(0.41,),
@@ -2086,6 +2264,59 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                 no_answer_reason="resolved_policy_clause_not_found",
             ),
         )
+
+    def test_handbook_resolved_policy_with_unsupported_clause_evidence_fail_closes(self) -> None:
+        target_doc_id = "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15"
+        target_title = "中央民族大学本科学生国家奖学金评审办法"
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            return EvidenceBundle(
+                query_text=query_text,
+                corpus="regulations",
+                collection="student_handbook",
+                sources=(
+                    EvidenceSource(
+                        doc_id=target_doc_id,
+                        revision_track="source-faithful",
+                        version_id="v1:national-scholarship",
+                        chunk_id=f"{target_doc_id}:chunk-0005",
+                        anchor={},
+                        acl_level="public",
+                        canonical_url="https://campus.example/handbook/national-scholarship",
+                        latest_url="https://campus.example/handbook/national-scholarship",
+                        source_channel="pdf_ocr",
+                        collection="student_handbook",
+                        is_current=True,
+                        source_title=target_title,
+                        snippet=(
+                            "标题：中央民族大学本科学生国家奖学金评审办法 | 章节：第三章 评选条件 | 条款：第九条\n"
+                            "2. 在学术研究上取得显著成绩,以第一作者发表的论文被SCI、EI、ISTP、SSCI全文收录,"
+                            "以第一、二作者出版学术专著(须通过专家鉴定)。"
+                        ),
+                        score=0.92,
+                        structural_path=("第三章 评选条件",),
+                        detail_label="第九条",
+                        content_role="eligibility",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "no_answer")
+        self.assertIn(target_title, response.answer_text)
+        self.assertEqual(response.result.evidence.sources, ())
+        self.assertEqual(response.result.diagnostics.no_answer_reason, "resolved_policy_clause_not_found")
 
     def test_confidence_derivation_prefers_stronger_and_more_consistent_support(self) -> None:
         self.assertEqual(

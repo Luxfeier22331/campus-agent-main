@@ -17,6 +17,7 @@ class RetrievalRequest:
     preferred_document_ids: tuple[str, ...] = field(default_factory=tuple)
     canonical_course_ids: tuple[str, ...] = field(default_factory=tuple)
     canonical_course_family_ids: tuple[str, ...] = field(default_factory=tuple)
+    canonical_program_family_ids: tuple[str, ...] = field(default_factory=tuple)
     authorized_filter: AuthorizedRetrievalFilter | None = None
     personalization_hint: PersonalizationHint | None = None
     top_k: int = 3
@@ -53,6 +54,13 @@ class RetrievalRequest:
         )
         if normalized_canonical_course_family_ids != self.canonical_course_family_ids:
             object.__setattr__(self, "canonical_course_family_ids", normalized_canonical_course_family_ids)
+        normalized_canonical_program_family_ids = tuple(
+            value.strip()
+            for value in self.canonical_program_family_ids
+            if isinstance(value, str) and value.strip()
+        )
+        if normalized_canonical_program_family_ids != self.canonical_program_family_ids:
+            object.__setattr__(self, "canonical_program_family_ids", normalized_canonical_program_family_ids)
 
     def effective_authorized_filter(self) -> AuthorizedRetrievalFilter:
         if self.authorized_filter is not None:

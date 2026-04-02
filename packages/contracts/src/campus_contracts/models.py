@@ -262,6 +262,8 @@ class RagResultDiagnostics:
     resolved_course_title: str = ""
     resolved_course_family_id: str = ""
     resolved_course_family_title: str = ""
+    resolved_program_family_id: str = ""
+    resolved_program_family_title: str = ""
     unsupported_fields: tuple[str, ...] = field(default_factory=tuple)
     partial_answer: bool = False
 

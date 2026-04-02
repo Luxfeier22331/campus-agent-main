@@ -105,10 +105,17 @@ class IndexableChunk:
 
     def __post_init__(self) -> None:
         entitlement_groups = self.entitlement_groups or self.acl_groups
-        acl_groups = self.acl_groups or self.entitlement_groups
+        acl_groups = self.entitlement_groups if self.entitlement_groups else self.acl_groups
         visibility_scope = self.visibility_scope or self.campus_scope
-        campus_scope = self.campus_scope or self.visibility_scope
-        visibility_level = self.visibility_level.strip() or self.acl_level.strip() or "public"
+        campus_scope = self.visibility_scope if self.visibility_scope is not None else self.campus_scope
+        visibility_level = self.visibility_level.strip()
+        if not visibility_level and self.entitlement_groups:
+            visibility_level = "restricted"
+        if not visibility_level:
+            visibility_level = self.acl_level.strip() or "public"
+        acl_level = self.acl_level.strip() or visibility_level
+        if self.visibility_level.strip() or self.entitlement_groups:
+            acl_level = visibility_level
         policy_projection_version = (
             self.policy_projection_version.strip() or DEFAULT_POLICY_PROJECTION_VERSION
         )
@@ -123,6 +130,8 @@ class IndexableChunk:
             object.__setattr__(self, "campus_scope", campus_scope)
         if visibility_level != self.visibility_level:
             object.__setattr__(self, "visibility_level", visibility_level)
+        if acl_level != self.acl_level:
+            object.__setattr__(self, "acl_level", acl_level)
         if policy_projection_version != self.policy_projection_version:
             object.__setattr__(self, "policy_projection_version", policy_projection_version)
 
@@ -1784,6 +1793,7 @@ def _ensure_payload_indexes(*, qdrant_client: QdrantClient, collection_name: str
         ("collection", qdrant_models.PayloadSchemaType.KEYWORD),
         ("canonical_course_id", qdrant_models.PayloadSchemaType.KEYWORD),
         ("canonical_course_family_id", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("canonical_program_family_id", qdrant_models.PayloadSchemaType.KEYWORD),
         ("visibility_scope", qdrant_models.PayloadSchemaType.KEYWORD),
         ("entitlement_groups", qdrant_models.PayloadSchemaType.KEYWORD),
         ("visibility_level", qdrant_models.PayloadSchemaType.KEYWORD),

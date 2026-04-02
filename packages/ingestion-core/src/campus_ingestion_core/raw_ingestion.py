@@ -29,6 +29,9 @@ from campus_ingestion_core.curriculum_provider_normalize import normalize_curric
 from campus_ingestion_core.curriculum_course_facts_projection import (
     build_curriculum_course_facts_scope_refresh_documents,
 )
+from campus_ingestion_core.curriculum_program_family_facts_projection import (
+    build_curriculum_program_family_facts_scope_refresh_documents,
+)
 from campus_ingestion_core.curriculum_title_normalization import canonicalize_curriculum_manifest_heading
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.handbook_source_projections import build_handbook_projection_import_documents
@@ -585,6 +588,17 @@ def _build_handbook_split_manifest_documents(
             )
         except Exception as exc:
             errors.append(f"{raw_asset_record.object_key}#course-facts-projection: {exc}")
+        try:
+            documents.extend(
+                build_curriculum_program_family_facts_scope_refresh_documents(
+                    raw_asset_record=raw_asset_record,
+                    source_pdf=raw_asset_record.source_filename,
+                    split_manifest_documents=split_manifest.documents,
+                    import_source="raw_online_ocr",
+                )
+            )
+        except Exception as exc:
+            errors.append(f"{raw_asset_record.object_key}#program-family-facts-projection: {exc}")
     return documents, errors
 
 

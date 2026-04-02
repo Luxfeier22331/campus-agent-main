@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import fields
+import inspect
 import unittest
 from unittest.mock import Mock, patch
 
@@ -229,6 +231,13 @@ class RetrievalServiceTest(unittest.TestCase):
         self.assertEqual(
             request.canonical_course_family_ids,
             ("course_family:muc.ideological_political_theory",),
+        )
+
+    def test_retrieve_sources_exposes_program_family_filter_surface(self) -> None:
+        self.assertIn("canonical_program_family_ids", inspect.signature(retrieve_sources).parameters)
+        self.assertIn(
+            "canonical_program_family_ids",
+            {field.name for field in fields(RetrievalRequest)},
         )
 
 

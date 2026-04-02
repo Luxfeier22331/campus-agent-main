@@ -247,10 +247,18 @@ class ContractModelsTest(unittest.TestCase):
                 "resolved_course_title": "习近平新时代中国特色社会主义思想概论",
                 "resolved_course_family_id": "course_family:muc.ideological_political_theory",
                 "resolved_course_family_title": "思想政治理论课",
+                "resolved_program_family_id": "",
+                "resolved_program_family_title": "",
                 "unsupported_fields": ("offering_unit",),
                 "partial_answer": True,
             },
         )
+
+    def test_rag_result_diagnostics_exposes_program_family_fields(self) -> None:
+        field_names = {field.name for field in fields(RagResultDiagnostics)}
+
+        self.assertIn("resolved_program_family_id", field_names)
+        self.assertIn("resolved_program_family_title", field_names)
     def test_specialist_request_requires_explicit_payload(self) -> None:
         request = SpecialistRequest(
             target="rag-specialist",

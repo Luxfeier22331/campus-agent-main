@@ -26,6 +26,20 @@ _DEICTIC_MAJOR_CUES = ("我这个专业", "本专业")
 _COURSE_LIST_CUES = ("包括哪些课", "包括什么课")
 _COURSE_AUDIENCE_CUES = ("哪些专业要上", "谁要上", "哪些人要上")
 _COURSE_UNSUPPORTED_FIELD_CUES = {"offering_unit": ("哪个学院", "哪个系", "谁开", "开课学院")}
+_PROGRAM_FAMILY_MEMBERSHIP_CUES = ("有哪些", "有哪几个", "都有哪些", "包括哪些")
+_PROGRAM_FAMILY_QUERY_BLOCKERS = (
+    "培养方案",
+    "第",
+    "学期",
+    "大一",
+    "大二",
+    "大三",
+    "大四",
+    "大五",
+    "课程",
+    "课表",
+    "总学分",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +61,16 @@ class CurriculumCourseQueryPlan:
     internal_collection: str = "course_facts"
     unsupported_fields: tuple[str, ...] = ()
     partial_answer: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class CurriculumProgramFamilyQueryPlan:
+    resolution_mode: Literal["resolved_family", "needs_clarification"]
+    canonical_program_family_id: str = ""
+    canonical_program_family_title: str = ""
+    internal_collection: str = "program_family_facts"
+    clarification_reason: str = ""
+    clarification_candidates: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +104,15 @@ class CurriculumQueryPlanningConfig:
     family_aliases: tuple[CurriculumFamilyAliasConfig, ...]
     scoped_aliases: tuple[tuple[str, str], ...]
     forbidden_generic_aliases: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ProgramFamilyConfig:
+    canonical_program_family_id: str
+    canonical_program_family_title: str
+    match_aliases: tuple[str, ...]
+    mode: Literal["direct_answer_family", "clarify_first_family"]
+    clarification_options: tuple[str, ...] = ()
 
 
 def plan_curriculum_query(
@@ -147,6 +180,29 @@ def plan_curriculum_course_query(query_text: str) -> CurriculumCourseQueryPlan |
         unsupported_fields=unsupported_fields,
         partial_answer=bool(unsupported_fields),
     )
+
+
+def plan_curriculum_program_family_query(query_text: str) -> CurriculumProgramFamilyQueryPlan | None:
+    interpretation = interpret_curriculum_query(query_text)
+    normalized_query = interpretation.normalized_query_text
+    if not _is_program_family_membership_query(normalized_query):
+        return None
+    for family in _load_program_family_configs():
+        if not any(alias in normalized_query for alias in family.match_aliases):
+            continue
+        if family.mode == "direct_answer_family":
+            return CurriculumProgramFamilyQueryPlan(
+                resolution_mode="resolved_family",
+                canonical_program_family_id=family.canonical_program_family_id,
+                canonical_program_family_title=family.canonical_program_family_title,
+            )
+        return CurriculumProgramFamilyQueryPlan(
+            resolution_mode="needs_clarification",
+            canonical_program_family_title=family.canonical_program_family_title,
+            clarification_reason=f"program_family:{family.canonical_program_family_id}",
+            clarification_candidates=family.clarification_options,
+        )
+    return None
 
 
 @lru_cache(maxsize=1)
@@ -239,6 +295,48 @@ def _load_query_planning_config() -> CurriculumQueryPlanningConfig:
         scoped_aliases=scoped_aliases,
         forbidden_generic_aliases=forbidden_generic_aliases,
     )
+
+
+@lru_cache(maxsize=1)
+def _load_program_family_configs() -> tuple[ProgramFamilyConfig, ...]:
+    config_path = (
+        Path(__file__).resolve().parents[4]
+        / "configs"
+        / "ingestion"
+        / "curriculum"
+        / "program_family_facts"
+        / "family-governance.json"
+    )
+    payload = json.loads(config_path.read_text(encoding="utf-8"))
+    results: list[ProgramFamilyConfig] = []
+    for item in payload.get("families", ()):
+        if not isinstance(item, dict):
+            continue
+        canonical_program_family_id = str(item.get("canonical_program_family_id", "")).strip()
+        canonical_program_family_title = str(item.get("canonical_program_family_title", "")).strip()
+        mode = str(item.get("mode", "")).strip()
+        if not canonical_program_family_id or not canonical_program_family_title:
+            continue
+        if mode not in {"direct_answer_family", "clarify_first_family"}:
+            continue
+        results.append(
+            ProgramFamilyConfig(
+                canonical_program_family_id=canonical_program_family_id,
+                canonical_program_family_title=canonical_program_family_title,
+                match_aliases=tuple(
+                    value.strip()
+                    for value in item.get("match_aliases", ())
+                    if isinstance(value, str) and value.strip()
+                ),
+                mode=mode,
+                clarification_options=tuple(
+                    value.strip()
+                    for value in item.get("clarification_options", ())
+                    if isinstance(value, str) and value.strip()
+                ),
+            )
+        )
+    return tuple(results)
 
 
 def _match_explicit_documents(normalized_query: str) -> tuple[CurriculumDocument, ...]:
@@ -361,6 +459,14 @@ def _resolve_unsupported_course_fields(normalized_query: str) -> tuple[str, ...]
     return tuple(fields)
 
 
+def _is_program_family_membership_query(normalized_query: str) -> bool:
+    if not any(cue in normalized_query for cue in _PROGRAM_FAMILY_MEMBERSHIP_CUES):
+        return False
+    if any(blocker in normalized_query for blocker in _PROGRAM_FAMILY_QUERY_BLOCKERS):
+        return False
+    return True
+
+
 @lru_cache(maxsize=1)
 def _course_entities() -> tuple[CurriculumCourseEntity, ...]:
     return (
@@ -459,7 +565,9 @@ def _is_cjk_char(char: str) -> bool:
 
 __all__ = [
     "CurriculumCourseQueryPlan",
+    "CurriculumProgramFamilyQueryPlan",
     "CurriculumQueryPlan",
     "plan_curriculum_course_query",
+    "plan_curriculum_program_family_query",
     "plan_curriculum_query",
 ]

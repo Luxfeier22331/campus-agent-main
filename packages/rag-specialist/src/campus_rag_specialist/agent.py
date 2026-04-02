@@ -13,6 +13,7 @@ _ASCII_TOKEN_RE = re.compile(r"[a-z0-9]{3,}")
 _CJK_SEGMENT_RE = re.compile(r"[\u4e00-\u9fff]+")
 _LEADING_ENUM_RE = re.compile(r"^(?:[0-9]{1,2}[.、]\s*|[一二三四五六七八九十百]+[、.]\s*)")
 _PROCEDURE_QUERY_HINTS = ("怎么办", "如何", "怎么", "办理", "申请", "流程", "补办", "手续", "replace")
+_NON_PROCEDURE_REQUIREMENT_QUERY_HINTS = ("怎么要求", "如何要求", "怎么规定", "如何规定")
 _TIME_QUERY_HINTS = ("时间", "几点", "多久", "几年", "哪天", "学制", "照明", "熄灯", "亮灯", "hours")
 _ACTION_STATEMENT_HINTS = (
     "挂失",
@@ -184,6 +185,8 @@ def _extract_source_statements(source: EvidenceSource) -> tuple[str, ...]:
 
 def _query_mode(query_text: str) -> str:
     normalized = _normalize_snippet(query_text).lower()
+    if any(hint in normalized for hint in _NON_PROCEDURE_REQUIREMENT_QUERY_HINTS):
+        return "generic"
     if any(hint in normalized for hint in _PROCEDURE_QUERY_HINTS):
         return "procedure"
     if any(hint in normalized for hint in _TIME_QUERY_HINTS):
