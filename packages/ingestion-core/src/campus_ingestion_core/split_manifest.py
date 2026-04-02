@@ -19,6 +19,9 @@ class SplitManifestDocument:
     page_end: int
     source_uri: str | None = None
     handbook_section: str | None = None
+    entitlement_groups: tuple[str, ...] = field(default_factory=tuple)
+    visibility_scope: str | None = None
+    visibility_level: str = ""
     acl_groups: tuple[str, ...] = field(default_factory=tuple)
     campus_scope: str | None = None
     status: str = "active"
@@ -36,6 +39,24 @@ class SplitManifestDocument:
             raise ValueError("source_uri must not be blank")
         if not self.status:
             raise ValueError("status is required")
+
+    def resolved_entitlement_groups(self) -> tuple[str, ...]:
+        if self.entitlement_groups:
+            return self.entitlement_groups
+        return self.acl_groups
+
+    def resolved_visibility_scope(self, default_scope: str | None = None) -> str | None:
+        if self.visibility_scope is not None:
+            return self.visibility_scope
+        if self.campus_scope is not None:
+            return self.campus_scope
+        return default_scope
+
+    def resolved_visibility_level(self) -> str:
+        normalized = self.visibility_level.strip()
+        if normalized:
+            return normalized
+        return "restricted" if self.resolved_entitlement_groups() else "public"
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,9 +95,10 @@ def load_split_manifest(
             page_end=int(item["page_end"]),
             source_uri=_optional_string(item.get("source_uri")),
             handbook_section=_optional_string(item.get("handbook_section")),
-            acl_groups=tuple(
-                _optional_string(value) or "" for value in list(item.get("acl_groups") or []) if _optional_string(value)
-            ),
+            entitlement_groups=_string_tuple(item.get("entitlement_groups")),
+            visibility_scope=_optional_string(item.get("visibility_scope")),
+            visibility_level=_optional_string(item.get("visibility_level")) or "",
+            acl_groups=_string_tuple(item.get("acl_groups")),
             campus_scope=_optional_string(item.get("campus_scope")),
             status=_optional_string(item.get("status")) or "active",
         )
@@ -129,6 +151,17 @@ def _optional_string(value: object) -> str | None:
         return None
     normalized = value.strip()
     return normalized or None
+
+
+def _string_tuple(value: object) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        return ()
+    normalized: list[str] = []
+    for item in value:
+        text = _optional_string(item)
+        if text is not None:
+            normalized.append(text)
+    return tuple(normalized)
 
 
 def _validate_student_handbook_manifest(manifest: SplitManifest) -> None:

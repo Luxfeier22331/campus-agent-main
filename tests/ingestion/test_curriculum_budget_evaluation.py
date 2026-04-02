@@ -28,6 +28,8 @@ def _make_curriculum_record(*, document_id: str, version_id: str, title: str) ->
         corpus="curriculum",
         collection="curriculum_plan",
         cleaning_policy_version="curriculum_plan_cleaning_v1",
+        entitlement_groups=("students",),
+        visibility_scope="main",
         acl_groups=("students",),
         campus_scope="main",
         status="active",

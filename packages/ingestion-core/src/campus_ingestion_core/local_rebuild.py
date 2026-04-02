@@ -17,6 +17,7 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     ImportReport,
     ObjectStoreWriter,
     PersistImportStats,
+    apply_authorization_projection_metadata,
     collect_import_document_stats,
     load_metadata_from_bytes,
     persist_import_documents,
@@ -1199,7 +1200,12 @@ def _build_handbook_replay_document_input(
     document_units_bytes = serialize_handbook_document_units(cleanup_result.document_units)
     metadata = load_metadata_from_bytes(document_units_bytes)
     metadata["title"] = cleanup_result.title
-    metadata["campus_scope"] = manifest_document.campus_scope
+    apply_authorization_projection_metadata(
+        metadata,
+        entitlement_groups=manifest_document.resolved_entitlement_groups(),
+        visibility_scope=manifest_document.resolved_visibility_scope(),
+        visibility_level=manifest_document.resolved_visibility_level(),
+    )
     metadata["status"] = manifest_document.status
     return DocumentImportInput(
         source_label=source_label,
@@ -1213,7 +1219,7 @@ def _build_handbook_replay_document_input(
         is_current=True,
         corpus=corpus,
         collection=collection,
-        campus_scope=manifest_document.campus_scope,
+        campus_scope=manifest_document.resolved_visibility_scope(),
         status=manifest_document.status,
         raw_path=None,
         raw_source_uri=None,

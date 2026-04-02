@@ -33,6 +33,8 @@ def _make_registry_record() -> DocumentRegistryRecord:
         content_hash="sha256:test-001",
         corpus="regulations",
         collection="student_handbook",
+        entitlement_groups=("students", "staff"),
+        visibility_scope=None,
         acl_groups=("students", "staff"),
         campus_scope=None,
         status="active",
@@ -76,6 +78,8 @@ def _make_curriculum_registry_record() -> DocumentRegistryRecord:
         corpus="curriculum",
         collection="curriculum_plan",
         cleaning_policy_version=CURRICULUM_CLEANING_POLICY_VERSION,
+        entitlement_groups=("students",),
+        visibility_scope="main",
         acl_groups=("students",),
         campus_scope="main",
         status="active",
@@ -338,6 +342,84 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertEqual(chunks[0].metadata["strategy_name"], "curriculum_plan_structure_v2")
         self.assertEqual(chunks[0].metadata["unit_type"], "section_text")
 
+    def test_build_indexable_chunks_from_jsonl_prefers_new_document_authorization_projection(self) -> None:
+        record = DocumentRegistryRecord(
+            document_id="handbook:test-authz",
+            revision_track="source-faithful",
+            version_id="v1:test-authz",
+            source_uri="https://campus.example/handbook/test-authz",
+            content_hash="sha256:test-authz",
+            corpus="regulations",
+            collection="student_handbook",
+            entitlement_groups=("students",),
+            visibility_scope="main",
+            acl_groups=("legacy-staff",),
+            campus_scope="south",
+            status="active",
+            ingestion_timestamp="2026-04-02T10:00:00+00:00",
+            parser_version="campusrag-import-v1",
+            embedding_model="Qwen3-Embedding-4B",
+            source_channel="pdf_ocr",
+            document_units_object_key=build_processed_artifact_key(
+                corpus="regulations",
+                collection="student_handbook",
+                document_id="handbook:test-authz",
+                revision_track="source-faithful",
+                version_id="v1:test-authz",
+                title=None,
+                year=None,
+                filename="document-units.jsonl",
+            ),
+            processed_object_keys=(
+                build_processed_artifact_key(
+                    corpus="regulations",
+                    collection="student_handbook",
+                    document_id="handbook:test-authz",
+                    revision_track="source-faithful",
+                    version_id="v1:test-authz",
+                    title=None,
+                    year=None,
+                    filename="document-units.jsonl",
+                ),
+            ),
+            import_source="raw_online_ocr",
+        )
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "legacy-chunk-001",
+                        "row_id": "legacy-chunk-001",
+                        "row_type": "policy_page",
+                        "clean_text": "Campus notice for enrolled students only.",
+                        "page_start": 1,
+                        "page_end": 1,
+                        "source_pdf": "authz.pdf",
+                        "source_url": record.source_uri,
+                        "acl": {"level": "public", "allow_groups": []},
+                    },
+                    ensure_ascii=False,
+                )
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=ChunkProfile(chunk_size=128, max_chunk_size=192, chunk_overlap=16, min_chunk_size=32),
+            embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        chunk = chunks[0]
+        self.assertEqual(chunk.entitlement_groups, ("students",))
+        self.assertEqual(chunk.visibility_scope, "main")
+        self.assertEqual(chunk.visibility_level, "restricted")
+        self.assertEqual(chunk.acl_groups, ("students",))
+        self.assertEqual(chunk.campus_scope, "main")
+
     def test_build_indexable_chunks_from_jsonl_rewrites_parent_table_html_to_placeholder(self) -> None:
         record = _make_registry_record()
         structured_payload = "\n".join(
@@ -561,6 +643,8 @@ class ProcessingPipelineTest(unittest.TestCase):
             corpus="regulations",
             collection="student_handbook",
             cleaning_policy_version="student_handbook_cleaning_v1",
+            entitlement_groups=("students",),
+            visibility_scope="main",
             acl_groups=("students",),
             campus_scope="main",
             status="active",
@@ -643,6 +727,8 @@ class ProcessingPipelineTest(unittest.TestCase):
             corpus="regulations",
             collection="student_handbook",
             cleaning_policy_version="student_handbook_cleaning_v1",
+            entitlement_groups=("students",),
+            visibility_scope="main",
             acl_groups=("students",),
             campus_scope="main",
             status="active",

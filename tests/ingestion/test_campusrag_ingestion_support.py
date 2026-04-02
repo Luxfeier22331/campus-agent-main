@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import unittest
 
+from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 from campus_ingestion_core.campusrag_ingestion_support import (
     DocumentImportInput,
     collect_import_document_stats,
@@ -72,6 +73,8 @@ def _record(
         corpus="regulations",
         collection="student_handbook",
         cleaning_policy_version="student_handbook_cleaning_v1",
+        entitlement_groups=(),
+        visibility_scope=None,
         acl_groups=(),
         campus_scope=None,
         status=status,
@@ -376,6 +379,48 @@ class CampusragIngestionSupportTest(unittest.TestCase):
         self.assertEqual(stats.skipped_document_ids, ("handbook:doc-a",))
         self.assertIn((self.object_store.bucket_derived, expected_key), writer.puts)
         self.assertEqual(len(registry.upsert_many_calls), 1)
+
+    def test_collect_import_document_stats_prefers_new_authorization_projection_metadata(self) -> None:
+        document = _document_input(
+            document_id="handbook:doc-authz",
+            version_id="v1:doc-authz",
+            body='{"type":"paragraph","text":"Authz"}\n',
+        )
+        document.metadata.update(
+            {
+                "entitlement_groups": ["students"],
+                "visibility_scope": "main",
+                "visibility_level": "restricted",
+                "acl_groups": ["legacy-staff"],
+                "campus_scope": "south",
+            }
+        )
+        registry = _SpyDocumentRegistry(records=())
+
+        stats = collect_import_document_stats(
+            documents=[document],
+            registry=registry,
+            raw_asset_registry=_FakeRawAssetRegistry(),
+            writer=_FakeWriter(),
+            object_store=self.object_store,
+            parser_version="campusrag-import-v1",
+            embedding_model="Qwen3-Embedding-4B",
+            cleaning_policy_version="student_handbook_cleaning_v1",
+            default_campus_scope="fallback-campus",
+        )
+
+        self.assertEqual(stats.success_count, 1)
+        self.assertEqual(len(registry.upsert_many_calls), 1)
+        created_record = registry.upsert_many_calls[0][0]
+        self.assertEqual(created_record.entitlement_groups, ("students",))
+        self.assertEqual(created_record.visibility_scope, "main")
+        self.assertEqual(created_record.visibility_level, "restricted")
+        self.assertEqual(
+            created_record.policy_projection_version,
+            DEFAULT_POLICY_PROJECTION_VERSION,
+        )
+        self.assertEqual(created_record.acl_groups, ("students",))
+        self.assertEqual(created_record.campus_scope, "main")
 
 
 if __name__ == "__main__":

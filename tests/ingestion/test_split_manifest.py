@@ -10,7 +10,7 @@ from campus_ingestion_core.raw_ingestion import (
     _build_split_manifest_document_input,
     _load_layout_elements_rows,
 )
-from campus_ingestion_core.split_manifest import load_split_manifest
+from campus_ingestion_core.split_manifest import SplitManifestDocument, load_split_manifest
 
 
 def _curriculum_raw_asset_record(*, raw_version_id: str) -> RawAssetRecord:
@@ -391,6 +391,52 @@ class SplitManifestTest(unittest.TestCase):
             self.assertEqual(manifest.documents[1].campus_scope, "main")
             self.assertIsNone(manifest.documents[0].source_uri)
 
+    def test_load_split_manifest_accepts_new_authorization_projection_fields(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "split-manifest.v1.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "curriculum_plan_split_manifest_v1",
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "raw_asset_id": "asset:curriculum-plan-2022",
+                        "documents": [
+                            {
+                                "document_id": "curriculum:plan-001",
+                                "title": "Plan 001",
+                                "page_start": 1,
+                                "page_end": 12,
+                                "entitlement_groups": ["students"],
+                                "visibility_scope": "main",
+                                "visibility_level": "restricted",
+                                "acl_groups": ["legacy-staff"],
+                                "campus_scope": "south",
+                            },
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            manifest = load_split_manifest(
+                path,
+                expected_corpus="curriculum",
+                expected_collection="curriculum_plan",
+            )
+
+            self.assertEqual(manifest.documents[0].entitlement_groups, ("students",))
+            self.assertEqual(manifest.documents[0].visibility_scope, "main")
+            self.assertEqual(manifest.documents[0].visibility_level, "restricted")
+            self.assertEqual(
+                manifest.documents[0].resolved_entitlement_groups(),
+                ("students",),
+            )
+            self.assertEqual(manifest.documents[0].resolved_visibility_scope(), "main")
+            self.assertEqual(manifest.documents[0].resolved_visibility_level(), "restricted")
+
     def test_load_split_manifest_requires_handbook_section_for_student_handbook(self) -> None:
         with TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "split-manifest.v1.json"
@@ -461,6 +507,57 @@ class SplitManifestTest(unittest.TestCase):
                     expected_corpus="curriculum",
                     expected_collection="curriculum_plan",
                 )
+
+    def test_build_split_manifest_document_input_prefers_new_authorization_projection_fields(self) -> None:
+        manifest_document = SplitManifestDocument(
+            document_id="curriculum:plan-002",
+            title="Plan 002",
+            page_start=13,
+            page_end=20,
+            entitlement_groups=("students",),
+            visibility_scope="main",
+            visibility_level="restricted",
+            acl_groups=("legacy-staff",),
+            campus_scope="south",
+        )
+        structured_rows = [
+            {
+                "row_id": "page-0013-block-0001",
+                "row_type": "paragraph",
+                "text_raw": "测试培养方案正文",
+                "text_normalized": "测试培养方案正文",
+                "page_start": 13,
+                "page_end": 13,
+                "html": None,
+                "table_cells": None,
+                "acl": {"level": "public", "allow_groups": []},
+            },
+        ]
+
+        document_input = _build_split_manifest_document_input(
+            raw_asset_record=_curriculum_raw_asset_record(raw_version_id="sha256:test"),
+            manifest_version="curriculum_plan_split_manifest_v1",
+            manifest_document=manifest_document,
+            structured_rows=structured_rows,
+            provider_response_key=(
+                "official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl"
+            ),
+            layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
+            default_campus_scope="fallback-campus",
+            corpus="curriculum",
+            collection="curriculum_plan",
+        )
+
+        self.assertEqual(document_input.metadata["entitlement_groups"], ["students"])
+        self.assertEqual(document_input.metadata["visibility_scope"], "main")
+        self.assertEqual(document_input.metadata["visibility_level"], "restricted")
+        self.assertEqual(
+            document_input.metadata["policy_projection_version"],
+            "phase1-authorization-projection-v1",
+        )
+        self.assertEqual(document_input.metadata["acl_groups"], ["students"])
+        self.assertEqual(document_input.metadata["campus_scope"], "main")
+        self.assertEqual(document_input.campus_scope, "main")
 
 
 if __name__ == "__main__":

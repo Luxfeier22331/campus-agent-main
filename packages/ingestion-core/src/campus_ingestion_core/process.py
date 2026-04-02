@@ -480,6 +480,8 @@ def build_indexable_chunks_from_jsonl(
     )
 
     chunks: list[IndexableChunk] = []
+    document_entitlement_groups = record.entitlement_groups or record.acl_groups
+    document_visibility_scope = record.visibility_scope or record.campus_scope
     chunk_order = 0
     for candidate, embedding in zip(chunk_candidates, dense_embeddings, strict=True):
         chunk_order += 1
@@ -488,7 +490,7 @@ def build_indexable_chunks_from_jsonl(
         )
         effective_visibility_level = _resolve_effective_acl_level(
             unit_acl_level=candidate.acl_level,
-            document_acl_groups=record.entitlement_groups or record.acl_groups,
+            document_acl_groups=document_entitlement_groups,
         )
         chunks.append(
             IndexableChunk(
@@ -499,8 +501,8 @@ def build_indexable_chunks_from_jsonl(
                 chunk_order=chunk_order,
                 corpus=record.corpus,
                 collection=record.collection,
-                acl_groups=record.acl_groups,
-                campus_scope=record.campus_scope,
+                acl_groups=document_entitlement_groups,
+                campus_scope=document_visibility_scope,
                 source_uri=record.source_uri,
                 canonical_url=record.source_uri,
                 latest_url=record.source_uri,
@@ -513,8 +515,8 @@ def build_indexable_chunks_from_jsonl(
                 is_current=record.is_current,
                 parser_version=record.parser_version,
                 embedding_model=record.embedding_model,
-                entitlement_groups=record.entitlement_groups,
-                visibility_scope=record.visibility_scope,
+                entitlement_groups=document_entitlement_groups,
+                visibility_scope=document_visibility_scope,
                 visibility_level=effective_visibility_level,
                 policy_projection_version=record.policy_projection_version,
                 embedding=embedding,

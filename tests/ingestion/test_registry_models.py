@@ -46,6 +46,8 @@ def _handbook_document_record(*, version_id: str, content_hash: str, ingestion_t
         corpus="regulations",
         collection="student_handbook",
         cleaning_policy_version="student_handbook_cleaning_v1",
+        entitlement_groups=("students",),
+        visibility_scope=None,
         acl_groups=("students",),
         campus_scope=None,
         status="active",
@@ -80,6 +82,8 @@ def _curriculum_document_record() -> DocumentRegistryRecord:
         content_hash="sha256:doc-001",
         corpus="curriculum",
         collection="curriculum_plan",
+        entitlement_groups=(),
+        visibility_scope="main",
         acl_groups=(),
         campus_scope="main",
         status="active",
@@ -173,11 +177,27 @@ class RegistryModelsTest(unittest.TestCase):
             HANDBOOK_CANONICAL_KEY,
         )
 
-    def test_document_registry_record_backfills_projection_fields_from_legacy_acl(self) -> None:
-        record = _curriculum_document_record()
+    def test_document_registry_record_does_not_backfill_projection_fields_from_legacy_acl(self) -> None:
+        record = DocumentRegistryRecord(
+            document_id="curriculum:plan-legacy",
+            revision_track="source-faithful",
+            version_id="sha256:raw-legacy",
+            source_uri="https://campus.example/curriculum/legacy",
+            content_hash="sha256:legacy",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            acl_groups=(),
+            campus_scope="main",
+            status="active",
+            ingestion_timestamp="2026-03-22T10:00:00+00:00",
+            parser_version="curriculum-plan-ocr-v1",
+            embedding_model="Qwen3-Embedding-4B",
+            source_channel="pdf_ocr",
+            import_source="raw_online_ocr",
+        )
 
         self.assertEqual(record.entitlement_groups, ())
-        self.assertEqual(record.visibility_scope, "main")
+        self.assertIsNone(record.visibility_scope)
         self.assertEqual(record.visibility_level, "public")
         self.assertEqual(
             record.policy_projection_version,
@@ -387,7 +407,7 @@ class RegistryModelsTest(unittest.TestCase):
                 curriculum_record,
             )
 
-    def test_file_document_registry_backfills_explicit_processed_keys_from_payload(self) -> None:
+    def test_file_document_registry_requires_explicit_artifact_keys_in_payload(self) -> None:
         with TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "registry.json"
             path.write_text(
@@ -402,6 +422,8 @@ class RegistryModelsTest(unittest.TestCase):
                             "corpus": "regulations",
                             "collection": "student_handbook",
                             "cleaning_policy_version": "student_handbook_cleaning_v1",
+                            "entitlement_groups": ["students"],
+                            "visibility_scope": None,
                             "acl_groups": ["students"],
                             "campus_scope": None,
                             "status": "active",
@@ -427,21 +449,12 @@ class RegistryModelsTest(unittest.TestCase):
                 "handbook:test-001", "source-faithful", "v1:test-001"
             )
 
-            self.assertEqual(
-                loaded.provider_response_object_key,
-                "student_handbook/documents/handbook/test-001/tracks/source-faithful/v1/test-001/provider-response.jsonl",
-            )
+            self.assertIsNone(loaded.provider_response_object_key)
             self.assertEqual(loaded.corpus, "regulations")
             self.assertEqual(loaded.collection, "student_handbook")
             self.assertEqual(loaded.cleaning_policy_version, "student_handbook_cleaning_v1")
-            self.assertEqual(
-                loaded.canonical_markdown_object_key,
-                "student_handbook/documents/handbook/test-001/tracks/source-faithful/v1/test-001/canonical.md",
-            )
-            self.assertEqual(
-                loaded.document_units_object_key,
-                "student_handbook/documents/handbook/test-001/tracks/source-faithful/v1/test-001/document-units.jsonl",
-            )
+            self.assertIsNone(loaded.canonical_markdown_object_key)
+            self.assertIsNone(loaded.document_units_object_key)
             self.assertEqual(len(loaded.source_observations), 1)
             self.assertTrue(loaded.source_observations[0].is_primary)
             self.assertEqual(loaded.source_observations[0].source_channel, "pdf_ocr")
@@ -460,6 +473,24 @@ class RegistryModelsTest(unittest.TestCase):
                     "ingestion_timestamp": "2026-03-22T10:00:00+00:00",
                     "parser_version": "campusrag-import-v1",
                     "embedding_model": "Qwen3-Embedding-4B",
+                    "import_source": "raw_online_ocr",
+                }
+            )
+
+        with self.assertRaisesRegex(KeyError, "revision_track"):
+            _document_record_from_dict(
+                {
+                    "document_id": "handbook:test-001",
+                    "version_id": "v1:test-001",
+                    "source_uri": "campusrag://canonical/regulations/student_handbook/docs/test-001.md",
+                    "content_hash": "sha256:test-001",
+                    "corpus": "regulations",
+                    "collection": "student_handbook",
+                    "status": "active",
+                    "ingestion_timestamp": "2026-03-22T10:00:00+00:00",
+                    "parser_version": "campusrag-import-v1",
+                    "embedding_model": "Qwen3-Embedding-4B",
+                    "source_channel": "pdf_ocr",
                     "import_source": "raw_online_ocr",
                 }
             )

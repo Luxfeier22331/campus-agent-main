@@ -90,7 +90,7 @@ def build_manifest_document_rows(
             version_id=version_id,
             source_pdf=source_pdf,
             source_uri=source_uri,
-            acl_groups=tuple(acl_groups) or manifest_document.acl_groups,
+            acl_groups=tuple(acl_groups) or manifest_document.resolved_entitlement_groups(),
         )
         for row in selected_rows
     ]

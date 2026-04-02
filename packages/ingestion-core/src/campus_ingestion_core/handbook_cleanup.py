@@ -333,7 +333,7 @@ def cleanup_handbook_document(
         version_id=version_id,
         source_pdf=source_doc,
         source_url=manifest_document.source_uri,
-        acl_groups=manifest_document.acl_groups,
+        acl_groups=manifest_document.resolved_entitlement_groups(),
         title=title,
         policy_doc_no=policy_doc_no,
         preface_text=preface_text,

@@ -499,6 +499,8 @@ def _load_runtime_fixture_documents() -> tuple[CurriculumBudgetEvaluationDocumen
             corpus="curriculum",
             collection="curriculum_plan",
         )
+        acl_groups = tuple(document_input.metadata.get("acl_groups") or ())
+        campus_scope = str(document_input.metadata.get("campus_scope") or "main")
         record = DocumentRegistryRecord(
             document_id=manifest_document.document_id,
             revision_track="source-faithful",
@@ -508,8 +510,10 @@ def _load_runtime_fixture_documents() -> tuple[CurriculumBudgetEvaluationDocumen
             corpus="curriculum",
             collection="curriculum_plan",
             cleaning_policy_version=CURRICULUM_CLEANING_POLICY_VERSION,
-            acl_groups=tuple(document_input.metadata.get("acl_groups") or ()),
-            campus_scope=str(document_input.metadata.get("campus_scope") or "main"),
+            entitlement_groups=acl_groups,
+            visibility_scope=campus_scope,
+            acl_groups=acl_groups,
+            campus_scope=campus_scope,
             status=str(document_input.metadata.get("status") or "active"),
             ingestion_timestamp="2026-03-27T12:00:00+00:00",
             parser_version="raw-online-ocr-v1",
@@ -544,6 +548,8 @@ def _load_historical_sample_documents() -> tuple[CurriculumBudgetEvaluationDocum
             path.read_bytes(),
             document_title=title,
         )
+        acl_groups = ("students",)
+        campus_scope = "main"
         record = DocumentRegistryRecord(
             document_id=str(sample["document_id"]),
             revision_track="source-faithful",
@@ -553,8 +559,10 @@ def _load_historical_sample_documents() -> tuple[CurriculumBudgetEvaluationDocum
             corpus="curriculum",
             collection="curriculum_plan",
             cleaning_policy_version=CURRICULUM_CLEANING_POLICY_VERSION,
-            acl_groups=("students",),
-            campus_scope="main",
+            entitlement_groups=acl_groups,
+            visibility_scope=campus_scope,
+            acl_groups=acl_groups,
+            campus_scope=campus_scope,
             status="active",
             ingestion_timestamp="2026-03-27T12:00:00+00:00",
             parser_version="provider-response-replay",

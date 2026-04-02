@@ -21,6 +21,8 @@ def _registry_record() -> DocumentRegistryRecord:
         corpus="regulations",
         collection="student_handbook",
         cleaning_policy_version="student_handbook_cleaning_v1",
+        entitlement_groups=("students",),
+        visibility_scope="main",
         acl_groups=("students",),
         campus_scope="main",
         status="active",

@@ -18,6 +18,7 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     ImportReport,
     ObjectStoreWriter,
     S3ObjectStoreWriter,
+    apply_authorization_projection_metadata,
     build_registered_raw_asset_ref,
     load_metadata_from_bytes,
     persist_import_documents,
@@ -634,7 +635,12 @@ def _build_handbook_manifest_document_input(
     metadata["title"] = cleanup_result.title
     metadata["raw_page_start"] = manifest_document.page_start
     metadata["raw_page_end"] = manifest_document.page_end
-    metadata["campus_scope"] = manifest_document.campus_scope or default_campus_scope
+    apply_authorization_projection_metadata(
+        metadata,
+        entitlement_groups=manifest_document.resolved_entitlement_groups(),
+        visibility_scope=manifest_document.resolved_visibility_scope(default_campus_scope),
+        visibility_level=manifest_document.resolved_visibility_level(),
+    )
     metadata["status"] = manifest_document.status
     return DocumentImportInput(
         source_label=f"{raw_asset_record.object_key}#{manifest_document.document_id}",
@@ -648,7 +654,7 @@ def _build_handbook_manifest_document_input(
         is_current=True,
         corpus=corpus,
         collection=collection,
-        campus_scope=manifest_document.campus_scope or default_campus_scope,
+        campus_scope=manifest_document.resolved_visibility_scope(default_campus_scope),
         status=manifest_document.status,
         raw_path=None,
         raw_source_uri=raw_asset_record.raw_source_uri,
@@ -695,7 +701,12 @@ def _build_split_manifest_document_input(
     document_units_bytes = _serialize_rows(split_rows)
     metadata = load_metadata_from_bytes(document_units_bytes)
     metadata["title"] = manifest_document.title
-    metadata["campus_scope"] = manifest_document.campus_scope or default_campus_scope
+    apply_authorization_projection_metadata(
+        metadata,
+        entitlement_groups=manifest_document.resolved_entitlement_groups(),
+        visibility_scope=manifest_document.resolved_visibility_scope(default_campus_scope),
+        visibility_level=manifest_document.resolved_visibility_level(),
+    )
     metadata["status"] = manifest_document.status
     return DocumentImportInput(
         source_label=f"{raw_asset_record.object_key}#{manifest_document.document_id}",
@@ -709,7 +720,7 @@ def _build_split_manifest_document_input(
         is_current=True,
         corpus=corpus,
         collection=collection,
-        campus_scope=manifest_document.campus_scope or default_campus_scope,
+        campus_scope=manifest_document.resolved_visibility_scope(default_campus_scope),
         status=manifest_document.status,
         raw_path=None,
         raw_source_uri=raw_asset_record.raw_source_uri,
@@ -855,7 +866,7 @@ def _slice_structured_rows_for_manifest_document(
                 version_id=version_id,
                 source_pdf=source_pdf,
                 source_uri=source_uri,
-                acl_groups=manifest_document.acl_groups,
+                acl_groups=manifest_document.resolved_entitlement_groups(),
             ),
         )
         if transformed is not None

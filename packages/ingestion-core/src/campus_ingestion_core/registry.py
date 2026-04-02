@@ -6,11 +6,6 @@ import json
 import os
 from typing import Protocol
 
-from campus_ingestion_core.artifacts import (
-    CANONICAL_MARKDOWN_FILENAME,
-    DOCUMENT_UNITS_FILENAME,
-    PROVIDER_RESPONSE_FILENAME,
-)
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef, SourceObservation
 
 
@@ -71,70 +66,6 @@ def _ensure_table_schema(cursor, *, table_name: str) -> None:
     if schema_name is None:
         return
     cursor.execute(f'create schema if not exists "{schema_name}"')
-
-
-def _public_table_exists(cursor, *, relation_name: str) -> bool:
-    cursor.execute(
-        """
-        select exists(
-            select 1
-            from information_schema.tables
-            where table_schema = 'public' and table_name = %s
-        )
-        """,
-        (relation_name,),
-    )
-    row = cursor.fetchone()
-    return bool(row[0]) if row is not None else False
-
-
-def _target_table_exists(cursor, *, schema_name: str, relation_name: str) -> bool:
-    cursor.execute(
-        """
-        select exists(
-            select 1
-            from information_schema.tables
-            where table_schema = %s and table_name = %s
-        )
-        """,
-        (schema_name, relation_name),
-    )
-    row = cursor.fetchone()
-    return bool(row[0]) if row is not None else False
-
-
-def _table_row_count(cursor, *, schema_name: str, relation_name: str) -> int:
-    cursor.execute(f'select count(*) from "{schema_name}"."{relation_name}"')
-    row = cursor.fetchone()
-    return int(row[0]) if row is not None else 0
-
-
-def _adopt_legacy_public_table(cursor, *, table_name: str) -> None:
-    schema_name, relation_name = _parse_table_name(table_name)
-    if schema_name is None or schema_name == "public":
-        return
-
-    target_exists = _target_table_exists(
-        cursor,
-        schema_name=schema_name,
-        relation_name=relation_name,
-    )
-    public_exists = _public_table_exists(cursor, relation_name=relation_name)
-
-    if not public_exists:
-        return
-    if not target_exists:
-        cursor.execute(
-            f'alter table "public"."{relation_name}" set schema "{schema_name}"'
-        )
-        return
-    if _table_row_count(cursor, schema_name="public", relation_name=relation_name) == 0:
-        cursor.execute(f'drop table "public"."{relation_name}"')
-        return
-    raise RuntimeError(
-        f'legacy public.{relation_name} still contains rows while {schema_name}.{relation_name} already exists; '
-        "resolve registry ownership before startup"
-    )
 
 
 class DocumentRegistry(Protocol):
@@ -363,7 +294,7 @@ class PostgresDocumentRegistry:
                 revision_track text not null,
                 version_id text not null,
                 corpus text not null,
-                collection text not null default '',
+                collection text not null,
                 ingestion_timestamp timestamptz not null,
                 record jsonb not null,
                 primary key (document_id, revision_track, version_id)
@@ -372,40 +303,7 @@ class PostgresDocumentRegistry:
         with _postgres_connection(self.database_url) as conn:
             with conn.cursor() as cursor:
                 _ensure_table_schema(cursor, table_name=self.table_name)
-                _adopt_legacy_public_table(cursor, table_name=self.table_name)
                 cursor.execute(create_table_statement)
-                cursor.execute(f"alter table {table_sql} add column if not exists revision_track text")
-                cursor.execute(f"alter table {table_sql} add column if not exists collection text")
-                cursor.execute(
-                    f"update {table_sql} set revision_track = 'source-faithful' "
-                    "where revision_track is null or revision_track = ''"
-                )
-                cursor.execute(
-                    f"update {table_sql} set collection = coalesce(nullif(record->>'collection', ''), collection, '')"
-                )
-                _require_explicit_collection_column(cursor=cursor, table_name=table_sql)
-                cursor.execute(f"alter table {table_sql} alter column revision_track set not null")
-                cursor.execute(f"alter table {table_sql} alter column collection set not null")
-                cursor.execute(
-                    f"""
-                    do $$
-                    declare
-                        constraint_name text;
-                    begin
-                        select conname into constraint_name
-                        from pg_constraint
-                        where conrelid = '{self.table_name}'::regclass
-                          and contype = 'p';
-                        if constraint_name is not null then
-                            execute format('alter table {table_sql} drop constraint %I', constraint_name);
-                        end if;
-                        execute 'alter table {table_sql} add primary key (document_id, revision_track, version_id)';
-                    exception
-                        when duplicate_object then
-                            null;
-                    end $$;
-                    """
-                )
                 cursor.execute(
                     f"""
                     create index if not exists idx_{table_index_suffix}_corpus
@@ -569,7 +467,7 @@ class PostgresRawAssetRegistry:
                 raw_asset_id text not null,
                 raw_version_id text not null,
                 corpus text not null,
-                collection text not null default '',
+                collection text not null,
                 ingestion_timestamp timestamptz not null,
                 record jsonb not null,
                 primary key (raw_asset_id, raw_version_id)
@@ -578,14 +476,7 @@ class PostgresRawAssetRegistry:
         with _postgres_connection(self.database_url) as conn:
             with conn.cursor() as cursor:
                 _ensure_table_schema(cursor, table_name=self.table_name)
-                _adopt_legacy_public_table(cursor, table_name=self.table_name)
                 cursor.execute(create_table_statement)
-                cursor.execute(f"alter table {table_sql} add column if not exists collection text")
-                cursor.execute(
-                    f"update {table_sql} set collection = coalesce(nullif(record->>'collection', ''), collection, '')"
-                )
-                _require_explicit_collection_column(cursor=cursor, table_name=table_sql)
-                cursor.execute(f"alter table {table_sql} alter column collection set not null")
                 cursor.execute(
                     f"""
                     create index if not exists idx_{table_index_suffix}_corpus
@@ -672,36 +563,22 @@ def _coerce_json_payload(value: object) -> dict[str, object]:
     raise TypeError(f"unexpected registry payload type: {type(value)!r}")
 
 
-def _require_explicit_collection_column(*, cursor, table_name: str) -> None:
-    cursor.execute(
-        f"select count(*) from {table_name} where collection is null or btrim(collection) = ''"
-    )
-    row = cursor.fetchone()
-    missing_count = int(row[0]) if row is not None else 0
-    if missing_count > 0:
-        raise RuntimeError(
-            f"{table_name} contains {missing_count} legacy rows without explicit collection; "
-            "migrate registry records to canonical corpus + collection before startup"
-        )
-
-
 def _document_record_from_dict(raw: dict[str, object]) -> DocumentRegistryRecord:
-    revision_track = str(raw.get("revision_track") or "source-faithful")
     processed_object_keys = tuple(str(item) for item in list(raw.get("processed_object_keys") or []))
     provider_response_object_key = (
         str(raw["provider_response_object_key"])
         if raw.get("provider_response_object_key") is not None
-        else _find_processed_artifact(processed_object_keys, PROVIDER_RESPONSE_FILENAME)
+        else None
     )
     document_units_object_key = (
         str(raw["document_units_object_key"])
         if raw.get("document_units_object_key") is not None
-        else _find_processed_artifact(processed_object_keys, DOCUMENT_UNITS_FILENAME)
+        else None
     )
     canonical_markdown_object_key = (
         str(raw["canonical_markdown_object_key"])
         if raw.get("canonical_markdown_object_key") is not None
-        else _find_processed_artifact(processed_object_keys, CANONICAL_MARKDOWN_FILENAME)
+        else None
     )
     raw_asset_payload = raw.get("raw_asset")
     raw_asset = None
@@ -718,7 +595,7 @@ def _document_record_from_dict(raw: dict[str, object]) -> DocumentRegistryRecord
     )
     return DocumentRegistryRecord(
         document_id=str(raw["document_id"]),
-        revision_track=revision_track,
+        revision_track=str(raw["revision_track"]),
         version_id=str(raw["version_id"]),
         source_uri=source_uri,
         content_hash=str(raw["content_hash"]),
@@ -766,15 +643,6 @@ def _raw_asset_record_from_dict(raw: dict[str, object]) -> RawAssetRecord:
         ingestion_timestamp=str(raw["ingestion_timestamp"]),
         import_source=str(raw["import_source"]),
     )
-
-
-def _find_processed_artifact(processed_object_keys: tuple[str, ...], filename: str) -> str | None:
-    for key in processed_object_keys:
-        if key.endswith(f"/{filename}"):
-            return key
-    return None
-
-
 def _raw_asset_ref_from_dict(raw: dict[str, object]) -> RawAssetRef:
     return RawAssetRef(
         raw_asset_id=str(raw["raw_asset_id"]),

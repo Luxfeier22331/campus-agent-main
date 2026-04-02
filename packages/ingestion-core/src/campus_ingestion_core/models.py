@@ -141,25 +141,13 @@ class DocumentRegistryRecord:
         if sum(1 for observation in self.source_observations if observation.is_primary) > 1:
             raise ValueError("source_observations must not contain more than one primary observation")
 
-        entitlement_groups = self.entitlement_groups or self.acl_groups
-        acl_groups = self.acl_groups or self.entitlement_groups
-        visibility_scope = self.visibility_scope or self.campus_scope
-        campus_scope = self.campus_scope or self.visibility_scope
         visibility_level = self.visibility_level.strip() or (
-            "restricted" if entitlement_groups else "public"
+            "restricted" if self.entitlement_groups else "public"
         )
         policy_projection_version = (
             self.policy_projection_version.strip() or DEFAULT_POLICY_PROJECTION_VERSION
         )
 
-        if entitlement_groups != self.entitlement_groups:
-            object.__setattr__(self, "entitlement_groups", entitlement_groups)
-        if acl_groups != self.acl_groups:
-            object.__setattr__(self, "acl_groups", acl_groups)
-        if visibility_scope != self.visibility_scope:
-            object.__setattr__(self, "visibility_scope", visibility_scope)
-        if campus_scope != self.campus_scope:
-            object.__setattr__(self, "campus_scope", campus_scope)
         if visibility_level != self.visibility_level:
             object.__setattr__(self, "visibility_level", visibility_level)
         if policy_projection_version != self.policy_projection_version:
