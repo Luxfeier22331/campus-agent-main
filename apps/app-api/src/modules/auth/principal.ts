@@ -3,7 +3,14 @@ import { timingSafeEqual } from "node:crypto";
 import { parseCsvList, type Env } from "../../config";
 import { getAppAuth } from "./auth";
 
-export type AppPrincipalType = "public_user" | "operator";
+export type AppPrincipalType =
+  | "public_user"
+  | "campus_member"
+  | "student"
+  | "staff"
+  | "faculty"
+  | "operator"
+  | "service";
 
 export interface OfficialWebCollectorPrincipal {
   kind: "service";
@@ -79,7 +86,27 @@ export type BetterAuthSessionPayload =
     }
   | null;
 
+export interface CampusIdentityClaimsInput {
+  actorGroups?: string[];
+  actorRoles?: string[];
+  applicabilityScope?: string;
+  departments?: string[];
+  entitlementGroups?: string[];
+  entitlementSnapshotId?: string;
+  ownershipScopes?: string[];
+  principalType?: Exclude<AppPrincipalType, "operator" | "service">;
+  visibilityLevel?: string;
+  visibilityScope?: string | null;
+}
+
 const DEFAULT_POLICY_PROJECTION_VERSION = "phase1-authorization-projection-v1";
+const ALLOWED_END_USER_PRINCIPAL_TYPES = new Set<AppPrincipalType>([
+  "public_user",
+  "campus_member",
+  "student",
+  "staff",
+  "faculty",
+]);
 
 function normalizeHeaderValue(value: string | null): string | null {
   const normalized = value?.trim();
@@ -112,6 +139,20 @@ function hasMatchingInternalSecret(
 
 function parseHeaderList(request: Request, headerName: string): string[] {
   return parseCsvList(request.headers.get(headerName) ?? undefined);
+}
+
+function normalizeStringList(values: readonly string[] | undefined): string[] {
+  if (!values) {
+    return [];
+  }
+
+  return values
+    .map((value) => normalizeHeaderValue(value) ?? "")
+    .filter((value) => Boolean(value));
+}
+
+function isCampusEndUserPrincipalType(value: string): value is Exclude<AppPrincipalType, "operator" | "service"> {
+  return ALLOWED_END_USER_PRINCIPAL_TYPES.has(value as AppPrincipalType);
 }
 
 function hasMatchingBearerToken(
@@ -156,17 +197,45 @@ export function buildExecutionAuthorizationContext(
   return {
     principalId: actor.principalId || actor.userId,
     entitlementSnapshotId: "",
-    entitlementGroups: actor.groups,
-    visibilityScope: actor.campusScope,
+    entitlementGroups: [],
+    visibilityScope: null,
     ownershipScopes: [],
     approvalState: "",
     retrievalFilter: {
-      aclGroups: actor.groups,
-      campusScope: actor.campusScope,
-      entitlementGroups: actor.groups,
+      aclGroups: [],
+      campusScope: null,
+      entitlementGroups: [],
       policyProjectionVersion: DEFAULT_POLICY_PROJECTION_VERSION,
       visibilityLevel: "public",
-      visibilityScope: actor.campusScope,
+      visibilityScope: null,
+    },
+  };
+}
+
+function buildCampusAuthorizationContext(input: {
+  actor: ExecutionActorContext;
+  applicabilityScope?: string;
+  entitlementGroups: string[];
+  entitlementSnapshotId: string;
+  ownershipScopes?: string[];
+  visibilityLevel?: string;
+  visibilityScope: string | null;
+}): ExecutionAuthorizationContext {
+  return {
+    principalId: input.actor.principalId || input.actor.userId,
+    entitlementSnapshotId: input.entitlementSnapshotId,
+    entitlementGroups: input.entitlementGroups,
+    visibilityScope: input.visibilityScope,
+    applicabilityScope: input.applicabilityScope,
+    ownershipScopes: input.ownershipScopes ?? [],
+    approvalState: "",
+    retrievalFilter: {
+      aclGroups: [],
+      campusScope: null,
+      entitlementGroups: input.entitlementGroups,
+      policyProjectionVersion: DEFAULT_POLICY_PROJECTION_VERSION,
+      visibilityLevel: input.visibilityLevel?.trim() || "public",
+      visibilityScope: input.visibilityScope,
     },
   };
 }
@@ -214,6 +283,119 @@ export function mapSessionToPublicUserPrincipal(
     actor,
     authorization: buildExecutionAuthorizationContext(actor),
   };
+}
+
+export function mapSessionToAppPrincipal(
+  session: BetterAuthSessionPayload,
+  campusIdentity?: CampusIdentityClaimsInput,
+): ResolvedAppPrincipal | null {
+  const publicPrincipal = mapSessionToPublicUserPrincipal(session);
+  if (!publicPrincipal) {
+    return null;
+  }
+  if (!campusIdentity) {
+    return publicPrincipal;
+  }
+
+  const principalType = campusIdentity.principalType ?? "public_user";
+  if (!ALLOWED_END_USER_PRINCIPAL_TYPES.has(principalType)) {
+    return publicPrincipal;
+  }
+  if (principalType === "public_user") {
+    return publicPrincipal;
+  }
+
+  const actorGroups = normalizeStringList(campusIdentity.actorGroups);
+  const actorRoles = normalizeStringList(campusIdentity.actorRoles);
+  const departments = normalizeStringList(campusIdentity.departments);
+  const entitlementGroups = normalizeStringList(campusIdentity.entitlementGroups);
+  const ownershipScopes = normalizeStringList(campusIdentity.ownershipScopes);
+  const visibilityScope = normalizeHeaderValue(campusIdentity.visibilityScope ?? null);
+  const entitlementSnapshotId =
+    normalizeHeaderValue(campusIdentity.entitlementSnapshotId ?? null) ?? "";
+  const applicabilityScope =
+    normalizeHeaderValue(campusIdentity.applicabilityScope ?? null) ?? undefined;
+
+  const actor: ExecutionActorContext = {
+    userId: publicPrincipal.actor.userId,
+    principalId: publicPrincipal.actor.principalId,
+    roles: actorRoles.length > 0 ? actorRoles : [principalType],
+    departments,
+    groups: actorGroups,
+    campusScope: visibilityScope,
+  };
+
+  return {
+    ...publicPrincipal,
+    principal: {
+      ...publicPrincipal.principal,
+      type: principalType,
+    },
+    actor,
+    authorization: buildCampusAuthorizationContext({
+      actor,
+      applicabilityScope,
+      entitlementGroups,
+      entitlementSnapshotId,
+      ownershipScopes,
+      visibilityLevel: campusIdentity.visibilityLevel,
+      visibilityScope,
+    }),
+  };
+}
+
+function parseCampusIdentityClaims(
+  request: Request,
+  env: Pick<Env, "APP_API_INTERNAL_SHARED_SECRET">,
+): CampusIdentityClaimsInput | undefined {
+  if (!hasMatchingInternalSecret(request, env)) {
+    return undefined;
+  }
+
+  const principalType = normalizeHeaderValue(request.headers.get("x-app-campus-principal-type"));
+  const entitlementSnapshotId = normalizeHeaderValue(
+    request.headers.get("x-app-campus-entitlement-snapshot-id"),
+  );
+  const visibilityScope = normalizeHeaderValue(
+    request.headers.get("x-app-campus-visibility-scope"),
+  );
+  const applicabilityScope = normalizeHeaderValue(
+    request.headers.get("x-app-campus-applicability-scope"),
+  );
+  const visibilityLevel = normalizeHeaderValue(
+    request.headers.get("x-app-campus-visibility-level"),
+  );
+
+  const claims: CampusIdentityClaimsInput = {
+    actorGroups: parseHeaderList(request, "x-app-campus-actor-groups"),
+    actorRoles: parseHeaderList(request, "x-app-campus-actor-roles"),
+    applicabilityScope: applicabilityScope ?? undefined,
+    departments: parseHeaderList(request, "x-app-campus-departments"),
+    entitlementGroups: parseHeaderList(request, "x-app-campus-entitlement-groups"),
+    entitlementSnapshotId: entitlementSnapshotId ?? undefined,
+    ownershipScopes: parseHeaderList(request, "x-app-campus-ownership-scopes"),
+    visibilityLevel: visibilityLevel ?? undefined,
+    visibilityScope,
+  };
+
+  if (principalType && isCampusEndUserPrincipalType(principalType)) {
+    claims.principalType = principalType;
+  }
+
+  const hasMaterialClaims = Boolean(
+    claims.principalType ||
+      claims.entitlementSnapshotId ||
+      claims.visibilityScope ||
+      claims.applicabilityScope ||
+      claims.visibilityLevel ||
+      claims.actorGroups?.length ||
+      claims.actorRoles?.length ||
+      claims.departments?.length ||
+      claims.entitlementGroups?.length ||
+      claims.ownershipScopes?.length,
+  );
+
+  return hasMaterialClaims ? claims : undefined;
 }
 
 export function mapOperatorHeadersToPrincipal(
@@ -299,5 +481,5 @@ export async function resolveRequestPrincipal(
     headers: request.headers,
   });
 
-  return mapSessionToPublicUserPrincipal(session);
+  return mapSessionToAppPrincipal(session, parseCampusIdentityClaims(request, env));
 }

@@ -254,8 +254,11 @@ describe("chat command service", () => {
         eventType: "request.accepted",
       },
       requestExecution: {
+        applicabilityScope: "undergraduate",
         actorPrincipalId: "user_01HQ",
         actorUserId: "user_01HQ",
+        entitlementGroups: ["students"],
+        entitlementSnapshotId: "entitlements-2026-03-29",
         idempotencyKey: "idem-001",
         principalLabel: "Jane Doe",
         principalType: "public_user",
@@ -263,6 +266,7 @@ describe("chat command service", () => {
         requestId: "req_0001",
         status: "accepted",
         traceId: "trace_0001",
+        visibilityScope: "main",
       },
     });
     expect(
@@ -281,11 +285,15 @@ describe("chat command service", () => {
       },
       requestExecution: {
         answerPreview: "图书馆开放到 22:00。",
+        applicabilityScope: "undergraduate",
         actorPrincipalId: "user_01HQ",
+        entitlementGroups: ["students"],
+        entitlementSnapshotId: "entitlements-2026-03-29",
         requestId: "req_0001",
         selectedTarget: "rag-specialist",
         sourceDocIds: ["handbook:library-hours"],
         status: "completed",
+        visibilityScope: "main",
       },
     });
     expect(response).toMatchObject({

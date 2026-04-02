@@ -82,18 +82,17 @@ def handle_answer(
     try:
         body_actor = _parse_request_actor_projection(
             payload.get("actor"),
-            authenticated_actor=authenticated_actor,
             auth_mode=settings.auth_mode,
         )
         body_context = _parse_context_projection(
             payload.get("context"),
-            authenticated_actor=authenticated_actor,
             auth_mode=settings.auth_mode,
         )
         actor, context = _resolve_request_identity_projection(
             authenticated_actor=authenticated_actor,
             body_actor=body_actor,
             body_context=body_context,
+            auth_mode=settings.auth_mode,
         )
         request = SupervisorRequest(
             user_goal=user_goal,
@@ -157,7 +156,25 @@ def _resolve_request_identity_projection(
     authenticated_actor: ActorContext,
     body_actor: ActorContext | None,
     body_context: ContextProjection | None,
+    auth_mode: str,
 ) -> tuple[ActorContext, ContextProjection]:
+    if auth_mode == "trusted-worker":
+        if body_context is None:
+            raise ValueError("trusted-worker requests must provide context")
+        if body_actor is None and body_context.actor == ActorContext():
+            raise ValueError("context.actor is required in trusted-worker mode")
+        if body_actor is not None and body_context.actor == ActorContext():
+            body_context = ContextProjection(
+                actor=body_actor,
+                authorization=body_context.authorization,
+                profile_memory=body_context.profile_memory,
+                session=body_context.session,
+            )
+        if body_actor is not None and body_context.actor != body_actor:
+            raise ValueError("actor and context.actor must match")
+        actor = body_actor or body_context.actor
+        return actor, body_context
+
     if body_actor is None and body_context is None:
         return authenticated_actor, ContextProjection(
             actor=authenticated_actor,
@@ -320,25 +337,18 @@ def _parse_follow_redirects(raw_value: object) -> bool:
 def _parse_request_actor_projection(
     raw_actor: object,
     *,
-    authenticated_actor: ActorContext,
     auth_mode: str,
 ) -> ActorContext | None:
     if raw_actor is None:
         return None
     if auth_mode != "trusted-worker":
         raise ValueError("actor projection is only accepted in trusted-worker mode")
-    projected_actor = _parse_actor_context(raw_actor, field_prefix="actor")
-    return _merge_projected_actor(
-        projected_actor,
-        authenticated_actor,
-        field_prefix="actor",
-    )
+    return _parse_actor_context(raw_actor, field_prefix="actor")
 
 
 def _parse_context_projection(
     raw_context: object,
     *,
-    authenticated_actor: ActorContext,
     auth_mode: str,
 ) -> ContextProjection | None:
     if raw_context is None:
@@ -348,45 +358,17 @@ def _parse_context_projection(
     if not isinstance(raw_context, dict):
         raise ValueError("context must be an object")
 
-    merged_actor = _merge_projected_actor(
-        _parse_actor_context(raw_context.get("actor"), field_prefix="context.actor"),
-        authenticated_actor,
-        field_prefix="context.actor",
-    )
+    projected_actor = _parse_actor_context(raw_context.get("actor"), field_prefix="context.actor")
     authorization = _parse_authorization_projection(
         raw_context.get("authorization"),
-        actor=merged_actor,
+        actor=projected_actor,
+        require_explicit_filter=True,
     )
     return ContextProjection(
-        actor=merged_actor,
+        actor=projected_actor,
         authorization=authorization,
         profile_memory=_parse_profile_memory_summary(raw_context.get("profile_memory")),
         session=_parse_session_summary(raw_context.get("session")),
-    )
-
-
-def _merge_projected_actor(
-    projected_actor: ActorContext,
-    authenticated_actor: ActorContext,
-    *,
-    field_prefix: str,
-) -> ActorContext:
-    if (
-        projected_actor.user_id
-        and authenticated_actor.user_id
-        and projected_actor.user_id != authenticated_actor.user_id
-    ):
-        raise ValueError(f"{field_prefix}.user_id must match authenticated actor.user_id")
-    return ActorContext(
-        user_id=projected_actor.user_id or authenticated_actor.user_id,
-        principal_id=projected_actor.principal_id,
-        roles=projected_actor.roles or authenticated_actor.roles,
-        departments=projected_actor.departments,
-        groups=projected_actor.groups or authenticated_actor.groups,
-        campus_scope=projected_actor.campus_scope or authenticated_actor.campus_scope,
-        cohort=projected_actor.cohort,
-        major=projected_actor.major,
-        program=projected_actor.program,
     )
 
 
@@ -415,8 +397,11 @@ def _parse_authorization_projection(
     raw_authorization: object,
     *,
     actor: ActorContext,
+    require_explicit_filter: bool = False,
 ) -> AuthorizationProjection:
     if raw_authorization is None:
+        if require_explicit_filter:
+            raise ValueError("context.authorization is required")
         return _default_authorization_projection(actor)
     if not isinstance(raw_authorization, dict):
         raise ValueError("context.authorization must be an object")
@@ -428,9 +413,7 @@ def _parse_authorization_projection(
     visibility_scope = _parse_optional_string(raw_authorization.get("visibility_scope"))
     retrieval_filter = _parse_authorized_retrieval_filter(
         raw_authorization.get("retrieval_filter"),
-        fallback_entitlement_groups=entitlement_groups,
-        fallback_visibility_scope=visibility_scope,
-        fallback_campus_scope=actor.campus_scope,
+        require_explicit=require_explicit_filter,
     )
     return AuthorizationProjection(
         principal_id=_parse_optional_string(raw_authorization.get("principal_id")) or actor.principal_id or actor.user_id,
@@ -450,57 +433,27 @@ def _parse_authorization_projection(
 def _parse_authorized_retrieval_filter(
     raw_filter: object,
     *,
-    fallback_entitlement_groups: tuple[str, ...],
-    fallback_visibility_scope: str | None,
-    fallback_campus_scope: str | None,
+    require_explicit: bool = False,
 ) -> AuthorizedRetrievalFilter:
     if raw_filter is None:
-        return AuthorizedRetrievalFilter(
-            entitlement_groups=fallback_entitlement_groups,
-            acl_groups=fallback_entitlement_groups,
-            visibility_scope=fallback_visibility_scope,
-            campus_scope=fallback_campus_scope,
-        )
+        if require_explicit:
+            raise ValueError("context.authorization.retrieval_filter is required")
+        return AuthorizedRetrievalFilter()
     if not isinstance(raw_filter, dict):
         raise ValueError("context.authorization.retrieval_filter must be an object")
 
-    entitlement_groups = raw_filter.get("entitlement_groups")
-    acl_groups = raw_filter.get("acl_groups")
     return AuthorizedRetrievalFilter(
-        entitlement_groups=(
-            _parse_string_tuple(
-                entitlement_groups,
-                field_name="context.authorization.retrieval_filter.entitlement_groups",
-            )
-            if entitlement_groups is not None
-            else (
-                _parse_string_tuple(
-                    acl_groups,
-                    field_name="context.authorization.retrieval_filter.acl_groups",
-                )
-                if acl_groups is not None
-                else fallback_entitlement_groups
-            )
+        entitlement_groups=_parse_string_tuple(
+            raw_filter.get("entitlement_groups"),
+            field_name="context.authorization.retrieval_filter.entitlement_groups",
         ),
         visibility_level=_parse_optional_string(raw_filter.get("visibility_level")) or "public",
-        acl_groups=(
-            _parse_string_tuple(
-                acl_groups,
-                field_name="context.authorization.retrieval_filter.acl_groups",
-            )
-            if acl_groups is not None
-            else fallback_entitlement_groups
+        acl_groups=_parse_string_tuple(
+            raw_filter.get("acl_groups"),
+            field_name="context.authorization.retrieval_filter.acl_groups",
         ),
-        visibility_scope=(
-            _parse_optional_string(raw_filter.get("visibility_scope"))
-            if raw_filter.get("visibility_scope") is not None
-            else fallback_visibility_scope
-        ),
-        campus_scope=(
-            _parse_optional_string(raw_filter.get("campus_scope"))
-            if raw_filter.get("campus_scope") is not None
-            else fallback_campus_scope
-        ),
+        visibility_scope=_parse_optional_string(raw_filter.get("visibility_scope")),
+        campus_scope=_parse_optional_string(raw_filter.get("campus_scope")),
         policy_projection_version=_parse_optional_string(raw_filter.get("policy_projection_version")) or "",
     )
 
@@ -509,12 +462,12 @@ def _default_authorization_projection(actor: ActorContext) -> AuthorizationProje
     principal_id = actor.principal_id or actor.user_id
     return AuthorizationProjection(
         principal_id=principal_id,
-        entitlement_groups=actor.groups,
-        visibility_scope=actor.campus_scope,
+        entitlement_groups=(),
+        visibility_scope=None,
         retrieval_filter=AuthorizedRetrievalFilter(
-            entitlement_groups=actor.groups,
-            acl_groups=actor.groups,
-            visibility_scope=actor.campus_scope,
-            campus_scope=actor.campus_scope,
+            entitlement_groups=(),
+            acl_groups=(),
+            visibility_scope=None,
+            campus_scope=None,
         ),
     )

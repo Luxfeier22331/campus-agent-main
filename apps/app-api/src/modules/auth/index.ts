@@ -1,6 +1,7 @@
 export { buildBetterAuthConfig, createAppAuth, getAppAuth, handleAuthRequest } from "./auth";
 export {
   buildExecutionAuthorizationContext,
+  mapSessionToAppPrincipal,
   mapOperatorHeadersToPrincipal,
   mapSessionToPublicUserPrincipal,
   resolveOfficialWebCollectorPrincipal,
@@ -11,6 +12,7 @@ export type {
   AppPrincipalPayload,
   AppSessionPayload,
   BetterAuthSessionPayload,
+  CampusIdentityClaimsInput,
   ExecutionAuthorizationContext,
   ExecutionAuthorizationRetrievalFilter,
   ExecutionActorContext,

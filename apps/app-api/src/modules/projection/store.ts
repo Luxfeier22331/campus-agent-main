@@ -36,6 +36,8 @@ function toExecutionProjectionSource(
     diagnostics: row.diagnosticsJson ?? null,
     durationMs: row.durationMs ?? null,
     errorCode: row.errorCode ?? null,
+    entitlementGroups: row.entitlementGroupsJson ?? [],
+    entitlementSnapshotId: row.entitlementSnapshotId ?? null,
     principalId: row.actorPrincipalId,
     principalLabel: row.principalLabel ?? null,
     principalType: row.principalType,
@@ -49,6 +51,8 @@ function toExecutionProjectionSource(
     status: row.status as RequestExecutionProjectionSource["status"],
     surface: row.surface,
     traceId: row.traceId,
+    visibilityScope: row.visibilityScope ?? null,
+    applicabilityScope: row.applicabilityScope ?? null,
   };
 }
 
@@ -112,6 +116,8 @@ export function createPgProjectionStore(env: Env): RequestProjectionProjectorSto
           conversationId: projection.conversationId,
           durationMs: projection.durationMs,
           errorCode: projection.errorCode,
+          entitlementGroupsJson: projection.entitlementGroups,
+          entitlementSnapshotId: projection.entitlementSnapshotId,
           principalId: projection.principalId,
           principalLabel: projection.principalLabel,
           principalType: projection.principalType,
@@ -127,6 +133,8 @@ export function createPgProjectionStore(env: Env): RequestProjectionProjectorSto
           status: projection.status,
           surface: projection.surface,
           traceId: projection.traceId,
+          visibilityScope: projection.visibilityScope,
+          applicabilityScope: projection.applicabilityScope,
         })
         .onConflictDoUpdate({
           set: {
@@ -135,6 +143,8 @@ export function createPgProjectionStore(env: Env): RequestProjectionProjectorSto
             conversationId: projection.conversationId,
             durationMs: projection.durationMs,
             errorCode: projection.errorCode,
+            entitlementGroupsJson: projection.entitlementGroups,
+            entitlementSnapshotId: projection.entitlementSnapshotId,
             principalId: projection.principalId,
             principalLabel: projection.principalLabel,
             principalType: projection.principalType,
@@ -149,6 +159,8 @@ export function createPgProjectionStore(env: Env): RequestProjectionProjectorSto
             status: projection.status,
             surface: projection.surface,
             traceId: projection.traceId,
+            visibilityScope: projection.visibilityScope,
+            applicabilityScope: projection.applicabilityScope,
           },
           target: requestProjection.requestId,
         });

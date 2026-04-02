@@ -109,6 +109,26 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(captured_requests[0].actor.roles, ("student",))
         self.assertEqual(captured_requests[0].actor.campus_scope, "north")
         self.assertEqual(
+            captured_requests[0].context.authorization,
+            AuthorizationProjection(
+                principal_id="api-bearer-user",
+                entitlement_snapshot_id="",
+                entitlement_groups=(),
+                visibility_scope=None,
+                applicability_scope=None,
+                ownership_scopes=(),
+                approval_state="",
+                retrieval_filter=AuthorizedRetrievalFilter(
+                    entitlement_groups=(),
+                    visibility_level="public",
+                    acl_groups=(),
+                    visibility_scope=None,
+                    campus_scope=None,
+                    policy_projection_version="phase1-authorization-projection-v1",
+                ),
+            ),
+        )
+        self.assertEqual(
             captured_requests[0].requested_scope,
             KnowledgeScope(
                 corpus="regulations",
@@ -501,7 +521,7 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(captured_specialist_requests[0].actor.user_id, "runtime-bearer-user")
         self.assertEqual(captured_specialist_requests[0].actor.groups, ("students",))
         self.assertEqual(captured_specialist_requests[0].actor.campus_scope, "north")
-    def test_answer_route_accepts_trusted_worker_origin_auth(self) -> None:
+    def test_answer_route_rejects_trusted_worker_requests_without_projected_context(self) -> None:
         captured_requests: list[SupervisorRequest] = []
 
         def fake_supervisor(request: SupervisorRequest) -> SupervisorResponse:
@@ -517,12 +537,9 @@ class SupervisorApiTest(unittest.TestCase):
             settings=ApiSettings(
                 auth_mode="trusted-worker",
                 worker_shared_secret="worker-secret",
-                worker_actor_id="trusted-worker",
                 default_actor_groups=("trusted-runtime",),
                 default_actor_roles=("runtime",),
                 default_campus_scope="north",
-                trusted_jwt_groups_claims=("groups",),
-                trusted_jwt_roles_claims=("roles",),
             ),
             supervisor_handler=fake_supervisor,
         )
@@ -532,18 +549,6 @@ class SupervisorApiTest(unittest.TestCase):
             "/api/v1/answer",
             headers={
                 "x-worker-origin-auth": "worker-secret",
-                "x-actor-id": "spoofed-user",
-                "x-actor-groups": "spoofed-group",
-                "x-actor-roles": "spoofed-role",
-                "x-campus-scope": "spoofed-scope",
-                "cf-access-jwt-assertion": _make_jwt(
-                    {
-                        "email": "student@example.edu",
-                        "sub": "student-sub-001",
-                        "groups": ["students", "library"],
-                        "roles": ["member"],
-                    }
-                ),
             },
             json_body={
                 "user_goal": "library hours",
@@ -554,11 +559,10 @@ class SupervisorApiTest(unittest.TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(captured_requests[0].actor.user_id, "student@example.edu")
-        self.assertEqual(captured_requests[0].actor.groups, ("students", "library"))
-        self.assertEqual(captured_requests[0].actor.roles, ("member",))
-        self.assertEqual(captured_requests[0].actor.campus_scope, "north")
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json_body["error"]["code"], "invalid_request")
+        self.assertIn("context", response.json_body["error"]["message"])
+        self.assertEqual(captured_requests, [])
 
     def test_answer_route_accepts_projected_context_in_trusted_worker_mode(self) -> None:
         captured_requests: list[SupervisorRequest] = []
@@ -576,7 +580,6 @@ class SupervisorApiTest(unittest.TestCase):
             settings=ApiSettings(
                 auth_mode="trusted-worker",
                 worker_shared_secret="worker-secret",
-                worker_actor_id="trusted-worker",
                 default_actor_groups=("trusted-runtime",),
                 default_actor_roles=("runtime",),
                 default_campus_scope="north",
@@ -591,7 +594,7 @@ class SupervisorApiTest(unittest.TestCase):
                 "x-worker-origin-auth": "worker-secret",
                 "cf-access-jwt-assertion": _make_jwt(
                     {
-                        "email": "student@example.edu",
+                        "email": "other-student@example.edu",
                     }
                 ),
             },
@@ -707,12 +710,13 @@ class SupervisorApiTest(unittest.TestCase):
         )
         self.assertEqual(captured_requests[0].actor, captured_requests[0].context.actor)
 
-    def test_answer_route_rejects_projected_context_with_mismatched_trusted_worker_identity(self) -> None:
+    def test_answer_route_rejects_trusted_worker_actor_projection_that_conflicts_with_context_actor(
+        self,
+    ) -> None:
         app = create_app(
             settings=ApiSettings(
                 auth_mode="trusted-worker",
                 worker_shared_secret="worker-secret",
-                worker_actor_id="trusted-worker",
             ),
         )
 
@@ -721,11 +725,6 @@ class SupervisorApiTest(unittest.TestCase):
             "/api/v1/answer",
             headers={
                 "x-worker-origin-auth": "worker-secret",
-                "cf-access-jwt-assertion": _make_jwt(
-                    {
-                        "email": "student@example.edu",
-                    }
-                ),
             },
             json_body={
                 "user_goal": "保研政策怎么准备？",
@@ -735,15 +734,28 @@ class SupervisorApiTest(unittest.TestCase):
                 },
                 "context": {
                     "actor": {
-                        "user_id": "other-student@example.edu",
-                    }
+                        "user_id": "student@example.edu",
+                    },
+                    "authorization": {
+                        "retrieval_filter": {
+                            "entitlement_groups": [],
+                            "visibility_level": "public",
+                            "acl_groups": [],
+                            "visibility_scope": "north",
+                            "campus_scope": "north",
+                            "policy_projection_version": "phase1-authorization-projection-v1",
+                        }
+                    },
+                },
+                "actor": {
+                    "user_id": "other-student@example.edu",
                 },
             },
         )
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json_body["error"]["code"], "invalid_request")
-        self.assertIn("context.actor.user_id", response.json_body["error"]["message"])
+        self.assertIn("actor and context.actor must match", response.json_body["error"]["message"])
     def test_answer_route_rejects_missing_trusted_worker_secret(self) -> None:
         app = create_app(
             settings=ApiSettings(
@@ -882,15 +894,11 @@ class SupervisorApiTest(unittest.TestCase):
             "API_AUTH_MODE": "trusted-worker",
             "API_BEARER_TOKEN": "secret-token",
             "API_WORKER_SHARED_SECRET": "worker-secret",
-            "API_WORKER_ACTOR_ID": "trusted-worker",
             "API_DEFAULT_ACTOR_ID": "runtime-bearer-user",
             "AGENT_RUNTIME_PROVIDER": "agent-os",
             "API_DEFAULT_ACTOR_GROUPS": "students,library",
             "API_DEFAULT_ACTOR_ROLES": "student",
             "API_DEFAULT_CAMPUS_SCOPE": "north",
-            "API_TRUSTED_JWT_USER_ID_CLAIMS": "email,sub",
-            "API_TRUSTED_JWT_GROUPS_CLAIMS": "groups,custom_groups",
-            "API_TRUSTED_JWT_ROLES_CLAIMS": "roles",
             "AGNO_SUPERVISOR_MODEL": "gpt-supervisor",
             "AGNO_SPECIALIST_MODEL": "gpt-specialist",
             "AUDIT_LOG_PATH": "./var/log/custom-audit.log",
@@ -903,15 +911,11 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(settings.auth_mode, "trusted-worker")
         self.assertEqual(settings.bearer_token, "secret-token")
         self.assertEqual(settings.worker_shared_secret, "worker-secret")
-        self.assertEqual(settings.worker_actor_id, "trusted-worker")
         self.assertEqual(settings.default_actor_id, "runtime-bearer-user")
         self.assertEqual(settings.runtime_provider, "agent-os")
         self.assertEqual(settings.default_actor_groups, ("students", "library"))
         self.assertEqual(settings.default_actor_roles, ("student",))
         self.assertEqual(settings.default_campus_scope, "north")
-        self.assertEqual(settings.trusted_jwt_user_id_claims, ("email", "sub"))
-        self.assertEqual(settings.trusted_jwt_groups_claims, ("groups", "custom_groups"))
-        self.assertEqual(settings.trusted_jwt_roles_claims, ("roles",))
         self.assertEqual(settings.agno_supervisor_model, "gpt-supervisor")
         self.assertEqual(settings.agno_specialist_model, "gpt-specialist")
         self.assertEqual(str(settings.audit_log_path), "var/log/custom-audit.log")
@@ -940,7 +944,7 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(response.status_code, 500)
         self.assertEqual(response.json_body["error"]["code"], "auth_not_configured")
 
-    def test_answer_route_rejects_missing_trusted_worker_identity_fallback(self) -> None:
+    def test_answer_route_rejects_missing_trusted_worker_context(self) -> None:
         app = create_app(
             settings=ApiSettings(
                 auth_mode="trusted-worker",
@@ -953,7 +957,6 @@ class SupervisorApiTest(unittest.TestCase):
             "/api/v1/answer",
             headers={
                 "x-worker-origin-auth": "worker-secret",
-                "cf-access-jwt-assertion": _make_jwt({}),
             },
             json_body={
                 "user_goal": "library hours",
@@ -964,8 +967,8 @@ class SupervisorApiTest(unittest.TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 500)
-        self.assertEqual(response.json_body["error"]["code"], "auth_not_configured")
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json_body["error"]["code"], "invalid_request")
 
 
 def _make_jwt(payload: dict[str, object]) -> str:

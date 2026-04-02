@@ -31,6 +31,10 @@ export interface RequestExecutionWrite {
   actorCampusScope: string | null;
   principalType: string;
   principalLabel: string | null;
+  entitlementSnapshotId: string | null;
+  entitlementGroups: string[];
+  visibilityScope: string | null;
+  applicabilityScope: string | null;
   idempotencyKey: string | null;
   requestFingerprintSha256: string | null;
   traceId: string;
@@ -288,6 +292,10 @@ export function createPgChatCommandStore(env: Env): ChatCommandStore {
             actorCampusScope: input.requestExecution.actorCampusScope,
             principalType: input.requestExecution.principalType,
             principalLabel: input.requestExecution.principalLabel,
+            entitlementSnapshotId: input.requestExecution.entitlementSnapshotId,
+            entitlementGroupsJson: input.requestExecution.entitlementGroups,
+            visibilityScope: input.requestExecution.visibilityScope,
+            applicabilityScope: input.requestExecution.applicabilityScope,
             idempotencyKey: input.requestExecution.idempotencyKey,
             requestFingerprintSha256: input.requestExecution.requestFingerprintSha256,
             traceId: input.requestExecution.traceId,

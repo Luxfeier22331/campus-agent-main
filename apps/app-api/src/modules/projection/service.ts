@@ -19,6 +19,10 @@ export interface RequestExecutionProjectionSource {
   principalId: string;
   principalType: string;
   principalLabel: string | null;
+  entitlementSnapshotId: string | null;
+  entitlementGroups: string[];
+  visibilityScope: string | null;
+  applicabilityScope: string | null;
   requestedCapability: string | null;
   requestedScope: Record<string, unknown> | null;
   selectedTarget: string | null;
@@ -42,6 +46,10 @@ export interface RequestProjectionMaterialization {
   principalType: string;
   principalId: string;
   principalLabel: string | null;
+  entitlementSnapshotId: string | null;
+  entitlementGroups: string[];
+  visibilityScope: string | null;
+  applicabilityScope: string | null;
   requestedCapability: string | null;
   requestedScope: Record<string, unknown> | null;
   selectedTarget: string | null;
@@ -105,6 +113,10 @@ export function toRequestProjectionMaterialization(input: {
     principalId: input.execution.principalId,
     principalLabel: input.execution.principalLabel,
     principalType: input.execution.principalType,
+    entitlementSnapshotId: input.execution.entitlementSnapshotId,
+    entitlementGroups: input.execution.entitlementGroups,
+    visibilityScope: input.execution.visibilityScope,
+    applicabilityScope: input.execution.applicabilityScope,
     projectedAt: input.projectedAt,
     questionPreview: input.execution.questionPreview,
     requestId: input.execution.requestId,

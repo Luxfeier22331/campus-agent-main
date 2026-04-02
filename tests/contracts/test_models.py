@@ -158,7 +158,7 @@ class ContractModelsTest(unittest.TestCase):
         self.assertEqual(request.context.profile_memory.items[0].value, "咨询保研")
         self.assertEqual(request.context.session.confirmed_slots[0].value, "推免资格")
 
-    def test_supervisor_request_actor_only_projects_transitional_authorization_filter(self) -> None:
+    def test_supervisor_request_actor_only_no_longer_projects_authorization_filter(self) -> None:
         request = SupervisorRequest(
             user_goal="保研政策怎么准备？",
             actor=ActorContext(
@@ -172,25 +172,25 @@ class ContractModelsTest(unittest.TestCase):
         self.assertEqual(
             request.context.authorization,
             AuthorizationProjection(
-                principal_id="principal-001",
+                principal_id="",
                 entitlement_snapshot_id="",
-                entitlement_groups=("students",),
-                visibility_scope="north",
+                entitlement_groups=(),
+                visibility_scope=None,
                 applicability_scope=None,
                 ownership_scopes=(),
                 approval_state="",
                 retrieval_filter=AuthorizedRetrievalFilter(
-                    entitlement_groups=("students",),
+                    entitlement_groups=(),
                     visibility_level="public",
-                    acl_groups=("students",),
-                    visibility_scope="north",
-                    campus_scope="north",
+                    acl_groups=(),
+                    visibility_scope=None,
+                    campus_scope=None,
                     policy_projection_version="phase1-authorization-projection-v1",
                 ),
             ),
         )
 
-    def test_authorized_retrieval_filter_backfills_projection_and_legacy_fields(self) -> None:
+    def test_authorized_retrieval_filter_does_not_backfill_projection_and_legacy_fields(self) -> None:
         projection_first = AuthorizedRetrievalFilter(
             entitlement_groups=("students",),
             visibility_scope="north",
@@ -201,18 +201,18 @@ class ContractModelsTest(unittest.TestCase):
         )
 
         self.assertEqual(projection_first.entitlement_groups, ("students",))
-        self.assertEqual(projection_first.acl_groups, ("students",))
+        self.assertEqual(projection_first.acl_groups, ())
         self.assertEqual(projection_first.visibility_scope, "north")
-        self.assertEqual(projection_first.campus_scope, "north")
+        self.assertIsNone(projection_first.campus_scope)
         self.assertEqual(projection_first.visibility_level, "public")
         self.assertEqual(
             projection_first.policy_projection_version,
             "phase1-authorization-projection-v1",
         )
 
-        self.assertEqual(legacy_first.entitlement_groups, ("staff",))
+        self.assertEqual(legacy_first.entitlement_groups, ())
         self.assertEqual(legacy_first.acl_groups, ("staff",))
-        self.assertEqual(legacy_first.visibility_scope, "south")
+        self.assertIsNone(legacy_first.visibility_scope)
         self.assertEqual(legacy_first.campus_scope, "south")
         self.assertEqual(legacy_first.visibility_level, "public")
         self.assertEqual(

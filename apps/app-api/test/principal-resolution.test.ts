@@ -1,12 +1,21 @@
 // @vitest-environment node
 
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("../src/modules/auth/auth", () => ({
+  getAppAuth: vi.fn(),
+}));
 
 import {
+  mapSessionToAppPrincipal,
   mapOperatorHeadersToPrincipal,
   mapSessionToPublicUserPrincipal,
   resolveOfficialWebCollectorPrincipal,
+  resolveRequestPrincipal,
 } from "../src/modules/auth/principal";
+import { getAppAuth } from "../src/modules/auth/auth";
+
+const mockedGetAppAuth = vi.mocked(getAppAuth);
 
 describe("operator bridge principal resolution", () => {
   it("does not trust operator headers without a matching internal shared secret", () => {
@@ -48,12 +57,12 @@ describe("operator bridge principal resolution", () => {
         userId: "operator-001",
       },
       authorization: {
-        entitlementGroups: ["panel", "ops"],
+        entitlementGroups: [],
         principalId: "operator-001",
         retrievalFilter: {
-          aclGroups: ["panel", "ops"],
+          aclGroups: [],
           campusScope: null,
-          entitlementGroups: ["panel", "ops"],
+          entitlementGroups: [],
           policyProjectionVersion: "phase1-authorization-projection-v1",
           visibilityLevel: "public",
           visibilityScope: null,
@@ -76,7 +85,7 @@ describe("operator bridge principal resolution", () => {
 });
 
 describe("public user principal projection", () => {
-  it("projects authorization from verified identity without using memory as an auth source", () => {
+  it("does not auto-promote a signed-in public user into campus entitlements", () => {
     expect(
       mapSessionToPublicUserPrincipal({
         session: {
@@ -94,20 +103,183 @@ describe("public user principal projection", () => {
         campusScope: null,
         groups: ["public_chat_users"],
         principalId: "user_01HQ",
+        roles: ["public_user"],
         userId: "user_01HQ",
       },
       authorization: {
-        entitlementGroups: ["public_chat_users"],
+        entitlementGroups: [],
         principalId: "user_01HQ",
         retrievalFilter: {
-          aclGroups: ["public_chat_users"],
+          aclGroups: [],
           campusScope: null,
-          entitlementGroups: ["public_chat_users"],
+          entitlementGroups: [],
           policyProjectionVersion: "phase1-authorization-projection-v1",
           visibilityLevel: "public",
           visibilityScope: null,
         },
         visibilityScope: null,
+      },
+      principal: {
+        type: "public_user",
+      },
+    });
+  });
+
+  it("maps explicit campus identity claims into a campus student principal with an entitlement snapshot", () => {
+    expect(
+      mapSessionToAppPrincipal(
+        {
+          session: {
+            expiresAt: "2026-03-29T08:00:00.000Z",
+            id: "sess_01HQ",
+          },
+          user: {
+            email: "student@example.edu",
+            id: "user_01HQ",
+            name: "Jane Doe",
+          },
+        },
+        {
+          actorGroups: ["campus_members", "students"],
+          actorRoles: ["campus_member", "student"],
+          applicabilityScope: "undergraduate",
+          departments: ["philosophy"],
+          entitlementGroups: ["campus_members", "students"],
+          entitlementSnapshotId: "entitlements-2026-04-02",
+          principalType: "student",
+          visibilityScope: "north",
+        },
+      ),
+    ).toMatchObject({
+      actor: {
+        campusScope: "north",
+        departments: ["philosophy"],
+        groups: ["campus_members", "students"],
+        principalId: "user_01HQ",
+        roles: ["campus_member", "student"],
+        userId: "user_01HQ",
+      },
+      authorization: {
+        applicabilityScope: "undergraduate",
+        entitlementGroups: ["campus_members", "students"],
+        entitlementSnapshotId: "entitlements-2026-04-02",
+        principalId: "user_01HQ",
+        retrievalFilter: {
+          aclGroups: [],
+          campusScope: null,
+          entitlementGroups: ["campus_members", "students"],
+          policyProjectionVersion: "phase1-authorization-projection-v1",
+          visibilityLevel: "public",
+          visibilityScope: "north",
+        },
+        visibilityScope: "north",
+      },
+      principal: {
+        type: "student",
+      },
+    });
+  });
+});
+
+describe("request principal resolution", () => {
+  beforeEach(() => {
+    mockedGetAppAuth.mockReset();
+  });
+
+  it("ignores campus identity headers without a matching internal shared secret", async () => {
+    mockedGetAppAuth.mockResolvedValue({
+      api: {
+        getSession: vi.fn().mockResolvedValue({
+          session: {
+            expiresAt: "2026-03-29T08:00:00.000Z",
+            id: "sess_01HQ",
+          },
+          user: {
+            email: "student@example.edu",
+            id: "user_01HQ",
+            name: "Jane Doe",
+          },
+        }),
+      },
+    } as never);
+
+    const principal = await resolveRequestPrincipal(
+      new Request("https://app-api.internal/api/chat/requests", {
+        headers: {
+          "x-app-campus-entitlement-groups": "campus_members,students",
+          "x-app-campus-entitlement-snapshot-id": "entitlements-2026-04-02",
+          "x-app-campus-principal-type": "student",
+          "x-app-campus-visibility-scope": "north",
+        },
+      }),
+      {
+        APP_API_INTERNAL_SHARED_SECRET: "trusted-secret",
+      },
+    );
+
+    expect(principal).toMatchObject({
+      principal: {
+        type: "public_user",
+      },
+      authorization: {
+        entitlementGroups: [],
+        entitlementSnapshotId: "",
+        visibilityScope: null,
+      },
+    });
+  });
+
+  it("projects campus identity headers only for trusted internal requests", async () => {
+    mockedGetAppAuth.mockResolvedValue({
+      api: {
+        getSession: vi.fn().mockResolvedValue({
+          session: {
+            expiresAt: "2026-03-29T08:00:00.000Z",
+            id: "sess_01HQ",
+          },
+          user: {
+            email: "student@example.edu",
+            id: "user_01HQ",
+            name: "Jane Doe",
+          },
+        }),
+      },
+    } as never);
+
+    const principal = await resolveRequestPrincipal(
+      new Request("https://app-api.internal/api/chat/requests", {
+        headers: {
+          "x-app-campus-actor-groups": "campus_members,students",
+          "x-app-campus-actor-roles": "campus_member,student",
+          "x-app-campus-applicability-scope": "undergraduate",
+          "x-app-campus-departments": "philosophy",
+          "x-app-campus-entitlement-groups": "campus_members,students",
+          "x-app-campus-entitlement-snapshot-id": "entitlements-2026-04-02",
+          "x-app-campus-principal-type": "student",
+          "x-app-campus-visibility-scope": "north",
+          "x-app-internal-auth": "trusted-secret",
+        },
+      }),
+      {
+        APP_API_INTERNAL_SHARED_SECRET: "trusted-secret",
+      },
+    );
+
+    expect(principal).toMatchObject({
+      actor: {
+        campusScope: "north",
+        departments: ["philosophy"],
+        groups: ["campus_members", "students"],
+        roles: ["campus_member", "student"],
+      },
+      authorization: {
+        applicabilityScope: "undergraduate",
+        entitlementGroups: ["campus_members", "students"],
+        entitlementSnapshotId: "entitlements-2026-04-02",
+        visibilityScope: "north",
+      },
+      principal: {
+        type: "student",
       },
     });
   });

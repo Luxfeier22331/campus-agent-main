@@ -15,6 +15,13 @@
       "when": 1775079469197,
       "tag": "0001_stormy_zzzax",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1775117066382,
+      "tag": "0002_silky_triathlon",
+      "breakpoints": true
     }
   ]
 }

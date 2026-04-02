@@ -283,6 +283,10 @@ function buildAcceptedWrite(input: {
       actorCampusScope: input.principal.actor.campusScope,
       principalType: input.principal.principal.type,
       principalLabel: input.principal.principal.displayName,
+      entitlementSnapshotId: input.principal.authorization?.entitlementSnapshotId || null,
+      entitlementGroups: input.principal.authorization?.entitlementGroups ?? [],
+      visibilityScope: input.principal.authorization?.visibilityScope ?? null,
+      applicabilityScope: input.principal.authorization?.applicabilityScope ?? null,
       idempotencyKey: input.idempotencyKey,
       requestFingerprintSha256: input.requestFingerprintSha256,
       traceId: input.traceId,
@@ -495,6 +499,10 @@ function buildFinalizedWrite(input: {
       actorCampusScope: null,
       principalType: "public_user",
       principalLabel: null,
+      entitlementSnapshotId: null,
+      entitlementGroups: [],
+      visibilityScope: null,
+      applicabilityScope: null,
       idempotencyKey: null,
       requestFingerprintSha256: null,
       traceId: normalizedTraceId,
@@ -787,6 +795,14 @@ export function buildChatCommandService(
       finalized.write.requestExecution.actorCampusScope = input.principal.actor.campusScope;
       finalized.write.requestExecution.principalType = input.principal.principal.type;
       finalized.write.requestExecution.principalLabel = input.principal.principal.displayName;
+      finalized.write.requestExecution.entitlementSnapshotId =
+        input.principal.authorization?.entitlementSnapshotId || null;
+      finalized.write.requestExecution.entitlementGroups =
+        input.principal.authorization?.entitlementGroups ?? [];
+      finalized.write.requestExecution.visibilityScope =
+        input.principal.authorization?.visibilityScope ?? null;
+      finalized.write.requestExecution.applicabilityScope =
+        input.principal.authorization?.applicabilityScope ?? null;
       finalized.write.requestExecution.idempotencyKey = idempotencyKey;
       finalized.write.requestExecution.requestFingerprintSha256 = requestFingerprintSha256;
       finalized.write.requestExecution.questionPreview = previewText(validatedPayload.prompt);

@@ -11,6 +11,10 @@ export interface RequestProjectionRecord {
   principalType: string;
   principalId: string;
   principalLabel: string | null;
+  entitlementSnapshotId: string | null;
+  entitlementGroups: string[];
+  visibilityScope: string | null;
+  applicabilityScope: string | null;
   requestedCapability: string | null;
   requestedScope: Record<string, unknown> | null;
   selectedTarget: string | null;

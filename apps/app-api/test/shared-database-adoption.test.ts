@@ -50,6 +50,14 @@ describe("shared database adoption", () => {
     });
     expect(
       parseMigrationStatement(
+        'ALTER TABLE "runtime"."request_execution" ADD COLUMN "entitlement_snapshot_id" text;',
+      ),
+    ).toMatchObject({
+      existsKey: "runtime.request_execution:entitlement_snapshot_id",
+      kind: "column",
+    });
+    expect(
+      parseMigrationStatement(
         'ALTER TABLE "official_web"."run_outbox" ADD CONSTRAINT "run_outbox_run_id_crawl_runs_run_id_fk" FOREIGN KEY ("run_id") REFERENCES "official_web"."crawl_runs"("run_id") ON DELETE cascade ON UPDATE no action;',
       ),
     ).toMatchObject({

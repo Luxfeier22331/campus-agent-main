@@ -14,11 +14,14 @@ function createExecutionSource(
 ): RequestExecutionProjectionSource {
   return {
     answerPreview: "图书馆开放到 22:00。",
+    applicabilityScope: "undergraduate",
     completedAt: "2026-03-28T08:00:01.000Z",
     conversationId: "conv_01HQ",
     diagnostics: null,
     durationMs: 842,
     errorCode: null,
+    entitlementGroups: ["students"],
+    entitlementSnapshotId: "entitlements-2026-03-29",
     principalId: "user_01HQ",
     principalLabel: "Jane Doe",
     principalType: "public_user",
@@ -36,6 +39,7 @@ function createExecutionSource(
     status: "completed",
     surface: "public_chat_web",
     traceId: "trace_01HQ",
+    visibilityScope: "main",
     ...overrides,
   };
 }
@@ -77,11 +81,14 @@ describe("request projection projector", () => {
     });
     expect(store.upsertProjection).toHaveBeenCalledWith({
       answerPreview: "图书馆开放到 22:00。",
+      applicabilityScope: "undergraduate",
       completedAt: "2026-03-28T08:00:01.000Z",
       conversationId: "conv_01HQ",
       diagnostics: null,
       durationMs: 842,
       errorCode: null,
+      entitlementGroups: ["students"],
+      entitlementSnapshotId: "entitlements-2026-03-29",
       principalId: "user_01HQ",
       principalLabel: "Jane Doe",
       principalType: "public_user",
@@ -99,6 +106,7 @@ describe("request projection projector", () => {
       status: "completed",
       surface: "public_chat_web",
       traceId: "trace_01HQ",
+      visibilityScope: "main",
     });
     expect(store.markEventProcessed).toHaveBeenCalledWith({
       eventId: "evt_accepted",

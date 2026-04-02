@@ -131,21 +131,9 @@ class AuthorizedRetrievalFilter:
     policy_projection_version: str = DEFAULT_POLICY_PROJECTION_VERSION
 
     def __post_init__(self) -> None:
-        entitlement_groups = self.entitlement_groups or self.acl_groups
-        acl_groups = self.acl_groups or self.entitlement_groups
-        visibility_scope = self.visibility_scope or self.campus_scope
-        campus_scope = self.campus_scope or self.visibility_scope
         visibility_level = self.visibility_level.strip() or "public"
         policy_projection_version = self.policy_projection_version.strip() or DEFAULT_POLICY_PROJECTION_VERSION
 
-        if entitlement_groups != self.entitlement_groups:
-            object.__setattr__(self, "entitlement_groups", entitlement_groups)
-        if acl_groups != self.acl_groups:
-            object.__setattr__(self, "acl_groups", acl_groups)
-        if visibility_scope != self.visibility_scope:
-            object.__setattr__(self, "visibility_scope", visibility_scope)
-        if campus_scope != self.campus_scope:
-            object.__setattr__(self, "campus_scope", campus_scope)
         if visibility_level != self.visibility_level:
             object.__setattr__(self, "visibility_level", visibility_level)
         if policy_projection_version != self.policy_projection_version:
@@ -394,10 +382,7 @@ def _coerce_context_projection(request: SupervisorRequest | SpecialistRequest) -
         object.__setattr__(
             request,
             "context",
-            ContextProjection(
-                actor=request.actor,
-                authorization=_build_authorization_projection_from_actor(request.actor),
-            ),
+            ContextProjection(actor=request.actor),
         )
         return
     if request.actor == default_actor:
@@ -405,23 +390,6 @@ def _coerce_context_projection(request: SupervisorRequest | SpecialistRequest) -
         return
     if request.actor != request.context.actor:
         raise ValueError("actor and context.actor must match")
-
-
-def _build_authorization_projection_from_actor(actor: ActorContext) -> AuthorizationProjection:
-    if actor == ActorContext():
-        return AuthorizationProjection()
-    principal_id = actor.principal_id or actor.user_id
-    return AuthorizationProjection(
-        principal_id=principal_id,
-        entitlement_groups=actor.groups,
-        visibility_scope=actor.campus_scope,
-        retrieval_filter=AuthorizedRetrievalFilter(
-            entitlement_groups=actor.groups,
-            visibility_scope=actor.campus_scope,
-            acl_groups=actor.groups,
-            campus_scope=actor.campus_scope,
-        ),
-    )
 
 
 def _validate_corpus(corpus: str) -> None:

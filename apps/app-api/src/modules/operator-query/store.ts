@@ -29,6 +29,8 @@ function toRequestProjectionRecord(
     ...(row.diagnosticsJson ? { diagnostics: row.diagnosticsJson } : {}),
     durationMs: row.durationMs ?? null,
     errorCode: row.errorCode ?? null,
+    entitlementGroups: row.entitlementGroupsJson ?? [],
+    entitlementSnapshotId: row.entitlementSnapshotId ?? null,
     principalId: row.principalId,
     principalLabel: row.principalLabel ?? null,
     principalType: row.principalType,
@@ -43,6 +45,8 @@ function toRequestProjectionRecord(
     status: row.status as RequestProjectionRecord["status"],
     surface: row.surface,
     traceId: row.traceId,
+    visibilityScope: row.visibilityScope ?? null,
+    applicabilityScope: row.applicabilityScope ?? null,
   };
 }
 

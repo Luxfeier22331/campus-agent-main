@@ -81,10 +81,13 @@ describe("GET /api/operator/requests", () => {
         requests: [
           {
             answerPreview: "图书馆开放到 22:00。",
+            applicabilityScope: "undergraduate",
             completedAt: "2026-03-28T08:00:01.000Z",
             conversationId: "conv_01HQ",
             durationMs: 842,
             errorCode: null,
+            entitlementGroups: ["students"],
+            entitlementSnapshotId: "entitlements-2026-03-29",
             principalId: "user_01HQ",
             principalLabel: "Jane Doe",
             principalType: "public_user",
@@ -102,6 +105,7 @@ describe("GET /api/operator/requests", () => {
             status: "completed",
             surface: "public_chat_web",
             traceId: "trace_01HQ",
+            visibilityScope: "main",
           },
         ],
       }),
@@ -126,10 +130,13 @@ describe("GET /api/operator/requests", () => {
       requests: [
         {
           answerPreview: "图书馆开放到 22:00。",
+          applicabilityScope: "undergraduate",
           completedAt: "2026-03-28T08:00:01.000Z",
           conversationId: "conv_01HQ",
           durationMs: 842,
           errorCode: null,
+          entitlementGroups: ["students"],
+          entitlementSnapshotId: "entitlements-2026-03-29",
           principalId: "user_01HQ",
           principalLabel: "Jane Doe",
           principalType: "public_user",
@@ -147,6 +154,7 @@ describe("GET /api/operator/requests", () => {
           status: "completed",
           surface: "public_chat_web",
           traceId: "trace_01HQ",
+          visibilityScope: "main",
         },
       ],
     });
@@ -219,10 +227,13 @@ describe("GET /api/operator/requests/:requestId", () => {
     const service: OperatorQueryService = {
       getById: vi.fn().mockResolvedValue({
         answerPreview: "图书馆开放到 22:00。",
+        applicabilityScope: "undergraduate",
         completedAt: "2026-03-28T08:00:01.000Z",
         conversationId: "conv_01HQ",
         durationMs: 842,
         errorCode: null,
+        entitlementGroups: ["students"],
+        entitlementSnapshotId: "entitlements-2026-03-29",
         principalId: "user_01HQ",
         principalLabel: "Jane Doe",
         principalType: "public_user",
@@ -240,6 +251,7 @@ describe("GET /api/operator/requests/:requestId", () => {
         status: "completed",
         surface: "public_chat_web",
         traceId: "trace_01HQ",
+        visibilityScope: "main",
       }),
       list: vi.fn(),
     };
@@ -257,10 +269,13 @@ describe("GET /api/operator/requests/:requestId", () => {
     await expect(response.json()).resolves.toEqual({
       request: {
         answerPreview: "图书馆开放到 22:00。",
+        applicabilityScope: "undergraduate",
         completedAt: "2026-03-28T08:00:01.000Z",
         conversationId: "conv_01HQ",
         durationMs: 842,
         errorCode: null,
+        entitlementGroups: ["students"],
+        entitlementSnapshotId: "entitlements-2026-03-29",
         principalId: "user_01HQ",
         principalLabel: "Jane Doe",
         principalType: "public_user",
@@ -278,6 +293,7 @@ describe("GET /api/operator/requests/:requestId", () => {
         status: "completed",
         surface: "public_chat_web",
         traceId: "trace_01HQ",
+        visibilityScope: "main",
       },
     });
     expect(service.getById).toHaveBeenCalledWith({
