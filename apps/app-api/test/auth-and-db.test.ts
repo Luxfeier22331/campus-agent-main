@@ -4,12 +4,29 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app";
 import {
+  createBetterAuthPool,
+  createRuntimePool,
   buildManagementDatabaseConfig,
   buildRuntimeDatabaseConfig,
 } from "../src/db/runtime";
 import { buildBetterAuthConfig } from "../src/modules/auth/auth";
 import { appApiSchema } from "../src/db/schema";
 import migration0000 from "../drizzle/0000_funny_tiger_shark.sql?raw";
+
+const { createdPoolOptions } = vi.hoisted(() => ({
+  createdPoolOptions: [] as Array<Record<string, unknown>>,
+}));
+
+vi.mock("pg", () => ({
+  Pool: class MockPool {
+    readonly options: Record<string, unknown>;
+
+    constructor(options: Record<string, unknown>) {
+      this.options = options;
+      createdPoolOptions.push(options);
+    }
+  },
+}));
 
 describe("app-api database config", () => {
   it("uses Hyperdrive connectionString for runtime database access", () => {
@@ -41,6 +58,54 @@ describe("app-api database config", () => {
     expect(config.ssl).toEqual({
       rejectUnauthorized: false,
     });
+  });
+
+  it("creates a fresh runtime pool for each call", async () => {
+    createdPoolOptions.length = 0;
+
+    const env = {
+      APP_API_ENVIRONMENT: "test" as const,
+      APP_API_DB: {
+        connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
+      },
+    };
+
+    const first = await createRuntimePool(env);
+    const second = await createRuntimePool(env);
+
+    expect(first).not.toBe(second);
+    expect(createdPoolOptions).toHaveLength(2);
+    expect(createdPoolOptions[0]).toMatchObject({
+      allowExitOnIdle: true,
+      connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
+      idleTimeoutMillis: 5_000,
+      max: 1,
+      ssl: {
+        rejectUnauthorized: false,
+      },
+    });
+  });
+
+  it("creates a fresh auth pool for each call with the app_auth search_path", async () => {
+    createdPoolOptions.length = 0;
+
+    const env = {
+      APP_API_ENVIRONMENT: "test" as const,
+      APP_API_DB: {
+        connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
+      },
+    };
+
+    const first = await createBetterAuthPool(env);
+    const second = await createBetterAuthPool(env);
+
+    expect(first).not.toBe(second);
+    expect(createdPoolOptions).toHaveLength(2);
+
+    const connectionString = String(createdPoolOptions[0]?.connectionString ?? "");
+    const options = decodeURIComponent(new URL(connectionString).searchParams.get("options") ?? "");
+
+    expect(options).toContain("search_path=app_auth,public");
   });
 });
 

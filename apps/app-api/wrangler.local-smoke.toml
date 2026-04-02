@@ -1,0 +1,17 @@
+name = "app-api"
+main = "src/index.ts"
+compatibility_date = "2026-03-17"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+preview_urls = false
+
+[triggers]
+crons = ["*/1 * * * *"]
+
+[vars]
+PUBLIC_CHAT_WEB_ORIGIN = "http://127.0.0.1:5173"
+SUPERVISOR_API_BASE_URL = "http://127.0.0.1:8081"
+
+[[hyperdrive]]
+binding = "APP_API_DB"
+id = "00000000-0000-0000-0000-000000000000"

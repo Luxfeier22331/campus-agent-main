@@ -12,11 +12,6 @@ const PRODUCTION_POOL_MAX = 4;
 const DEVELOPMENT_IDLE_TIMEOUT_MS = 5_000;
 const PRODUCTION_IDLE_TIMEOUT_MS = 30_000;
 
-const cacheHost = globalThis as typeof globalThis & {
-  __appApiPoolCache?: Map<string, Pool>;
-  __appApiDatabaseCache?: Map<string, NodePgDatabase<typeof appApiSchema>>;
-};
-
 export function assertPgIdentifier(label: string, value: string): string {
   if (!IDENTIFIER.test(value)) {
     throw new Error(`${label} must be a lowercase PostgreSQL identifier.`);
@@ -53,22 +48,6 @@ function resolveSslConfig(
     : {
         rejectUnauthorized: false,
       };
-}
-
-function getPoolCache(): Map<string, Pool> {
-  if (!cacheHost.__appApiPoolCache) {
-    cacheHost.__appApiPoolCache = new Map<string, Pool>();
-  }
-
-  return cacheHost.__appApiPoolCache;
-}
-
-function getDatabaseCache(): Map<string, NodePgDatabase<typeof appApiSchema>> {
-  if (!cacheHost.__appApiDatabaseCache) {
-    cacheHost.__appApiDatabaseCache = new Map<string, NodePgDatabase<typeof appApiSchema>>();
-  }
-
-  return cacheHost.__appApiDatabaseCache;
 }
 
 export function buildRuntimeDatabaseConfig(env: Env) {
@@ -115,29 +94,19 @@ function buildPoolOptions(input: {
   };
 }
 
-async function createCachedPool(input: {
-  cacheKey: string;
+async function createPool(input: {
   connectionString: string;
   databaseSslMode: DatabaseSslMode;
   environment: Env["APP_API_ENVIRONMENT"];
 }): Promise<Pool> {
-  const cache = getPoolCache();
-  const cachedPool = cache.get(input.cacheKey);
-  if (cachedPool) {
-    return cachedPool;
-  }
-
   const { Pool } = await import("pg");
-  const pool = new Pool(
+  return new Pool(
     buildPoolOptions({
       connectionString: input.connectionString,
       databaseSslMode: input.databaseSslMode,
       environment: input.environment,
     }),
   );
-
-  cache.set(input.cacheKey, pool);
-  return pool;
 }
 
 export async function createRuntimePool(env: Env): Promise<Pool> {
@@ -145,8 +114,7 @@ export async function createRuntimePool(env: Env): Promise<Pool> {
   const databaseSslMode = resolveDatabaseSslMode(env);
   const environment = resolveEnvironment(env);
 
-  return createCachedPool({
-    cacheKey: `runtime:${config.connectionString}|${databaseSslMode}|${environment}`,
+  return createPool({
     connectionString: config.connectionString,
     databaseSslMode,
     environment,
@@ -162,8 +130,7 @@ export async function createBetterAuthPool(env: Env): Promise<Pool> {
     "public",
   ]);
 
-  return createCachedPool({
-    cacheKey: `auth:${connectionString}|${databaseSslMode}|${environment}`,
+  return createPool({
     connectionString,
     databaseSslMode,
     environment,
@@ -173,18 +140,8 @@ export async function createBetterAuthPool(env: Env): Promise<Pool> {
 export async function createRuntimeDatabase(
   env: Env,
 ): Promise<NodePgDatabase<typeof appApiSchema>> {
-  const config = buildRuntimeDatabaseConfig(env);
-  const cache = getDatabaseCache();
-  const cacheKey = `runtime-db:${config.connectionString}`;
-  const cached = cache.get(cacheKey);
-  if (cached) {
-    return cached;
-  }
-
   const { drizzle } = await import("drizzle-orm/node-postgres");
-  const database = drizzle(await createRuntimePool(env), {
+  return drizzle(await createRuntimePool(env), {
     schema: appApiSchema,
   });
-  cache.set(cacheKey, database);
-  return database;
 }

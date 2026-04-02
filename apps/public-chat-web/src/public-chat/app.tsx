@@ -203,7 +203,7 @@ export function PublicChatApp() {
 
   useEffect(() => {
     void refreshSession();
-  }, [refreshSession]);
+  }, []);
 
   useEffect(() => {
     if (session.kind === "authenticated" && session.principal.permissions.chat) {
@@ -218,7 +218,7 @@ export function PublicChatApp() {
         setHistoryError(null);
       });
     }
-  }, [refreshConversations, session]);
+  }, [session]);
 
   const contextValue = useMemo<PublicChatAppContextValue>(
     () => ({
@@ -240,7 +240,7 @@ export function PublicChatApp() {
         });
       },
     }),
-    [conversations, historyError, historyLoading, refreshConversations, refreshSession, session],
+    [conversations, historyError, historyLoading, session],
   );
 
   return (
@@ -566,7 +566,7 @@ function ChatThreadPage() {
 
   useEffect(() => {
     void loadConversation();
-  }, [conversationId, loadConversation]);
+  }, [conversationId]);
 
   const handleSendPrompt = async (prompt: string) => {
     if (!conversationId) {

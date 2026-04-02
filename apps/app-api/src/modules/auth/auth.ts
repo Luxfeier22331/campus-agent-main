@@ -66,45 +66,9 @@ export async function createAppAuth(env: Env) {
 }
 
 type AppAuth = Awaited<ReturnType<typeof createAppAuth>>;
-const authCacheHost = globalThis as typeof globalThis & {
-  __appApiAuthInstanceCache?: Map<string, Promise<AppAuth>>;
-};
-
-function getAuthInstanceCache(): Map<string, Promise<AppAuth>> {
-  if (!authCacheHost.__appApiAuthInstanceCache) {
-    authCacheHost.__appApiAuthInstanceCache = new Map<string, Promise<AppAuth>>();
-  }
-
-  return authCacheHost.__appApiAuthInstanceCache;
-}
 
 export async function getAppAuth(env: Env): Promise<AppAuth> {
-  const config = readAppApiConfig(env);
-  const publicChatOrigin = readPublicChatOrigin(env);
-  const cacheKey = [
-    config.appName,
-    config.environment,
-    config.databaseConnectionString,
-    config.databaseSslMode,
-    publicChatOrigin,
-    config.betterAuthSecret,
-  ].join("|");
-
-  const cache = getAuthInstanceCache();
-  const cached = cache.get(cacheKey);
-  if (cached) {
-    return cached;
-  }
-
-  const authPromise = createAppAuth(env);
-  cache.set(cacheKey, authPromise);
-
-  try {
-    return await authPromise;
-  } catch (error) {
-    cache.delete(cacheKey);
-    throw error;
-  }
+  return createAppAuth(env);
 }
 
 export async function handleAuthRequest(request: Request, env: Env): Promise<Response> {
