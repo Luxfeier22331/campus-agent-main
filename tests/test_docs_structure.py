@@ -74,6 +74,12 @@ class DocsStructureTest(unittest.TestCase):
         self.assertEqual(eval_bootstrap.get("status"), "completed")
         self.assertEqual(golden_bootstrap.get("status"), "completed")
 
+    def test_docs_index_lists_env_provider_governance_docs(self) -> None:
+        docs_index = (DOCS_ROOT / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn("plans/env-bootstrap-and-provider-configuration-governance.md", docs_index)
+        self.assertIn("runbooks/provider-secret-governance.md", docs_index)
+
     def test_historical_roadmap_does_not_assert_current_runtime_truth(self) -> None:
         roadmap = (PLANNING_ROOT / "ROADMAP.md").read_text(encoding="utf-8")
 

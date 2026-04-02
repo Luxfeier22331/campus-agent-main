@@ -221,21 +221,19 @@ updated: 2026-03-29
 当前已经成立的是：
 
 - shared contract 已显式拥有 `AuthorizationProjection` 与 `AuthorizedRetrievalFilter`
-- `supervisor-api` 已能在受控前提下接收 typed `ContextProjection`
-- `retrieval-core` 与 `rag-specialist` 已优先消费 authz projection，并仅在兼容场景下回退到 `acl_groups` / `campus_scope`
+- `apps/app-api` 已成为产品 execution path 的 canonical authz projection owner
+- `supervisor-api` 的 `trusted-worker` ingress 只做 caller admission，最终 actor / authz 由 typed `ContextProjection` 显式提供
+- `retrieval-core` 与 `rag-specialist` 已只消费显式 authz projection；不再从 top-level actor `groups/campus_scope` 派生 retrieval filter
 
 当前仍然保留过渡态的原因是：
 
-- `apps/app-api` 还没有成为所有产品执行面的唯一 authz projection owner
-- 尚未全部切换到 `app-api -> supervisor-api` 的 canonical `ContextProjection.authorization` 路径
-- 仍有未合入或未对齐的 app/worktree 实现继续使用 top-level `actor` carrier、`snapshot` 字段和 legacy `groups/campus_scope` 语义
-- 因此当前主线仍必须保留少量 compatibility fallback，避免打断 phase-1 已在运行的 query path
+- retrieval/index schema 仍保留 phase-1 `acl_groups` / `campus_scope` payload carrier，与长期 `visibility_*` / `entitlement_*` 词汇并存
+- retrieval backend 仍需要兼容已存在 index payload 的 query-time metadata shape
 
 这里的关键结论是：
 
-- 当前过渡态不是长期设计不清楚
-- 当前过渡态是调用方迁移尚未完成
-- 在调用方全部切到 canonical projection 之前，legacy carrier 只能作为 migration carrier，不能再扩成新的长期真相源
+- 当前剩余过渡态已经收缩到 retrieval/index payload 本身，而不是 product execution caller contract
+- legacy carrier 只能作为 index/query projection carrier，不能重新扩回 app/supervisor/retrieval request seam 的真相源
 
 ## Exit Conditions For Transitional State
 

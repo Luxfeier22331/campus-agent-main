@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-03-22
-updated: 2026-03-31
+updated: 2026-04-02
 ---
 
 # Docs
@@ -126,14 +126,19 @@ updated: 2026-03-31
 - `decisions/adr-0018-app-api-official-web-control-plane-ownership.md`
 - `decisions/adr-0019-qdrant-physical-collection-retention-and-expiration.md`
 - `decisions/adr-0020-qdrant-cloud-backup-restore-and-object-store-transition.md`
+- `decisions/adr-0021-institution-scoped-entity-alias-governance.md`
+- `decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
 - `decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
 - `plans/agentic-rag-foundation.md`
 - `plans/app-api-initial-execution-plan.md`
 - `plans/app-api-worker-foundation.md`
+- `plans/campus-identity-and-restricted-document-foundation.md`
+- `plans/env-bootstrap-and-provider-configuration-governance.md`
 - `plans/golden-dataset-execution-plan.md`
 - `plans/golden-dataset-schema-and-bootstrap.md`
 - `plans/intent-memory-acl-foundation.md`
 - `plans/official-web-app-api-control-plane-foundation.md`
+- `plans/restricted-document-rollout-and-verification.md`
 - `plans/source-truth-normalization-refactor.md`
 - `plans/student-handbook-retrieval-eval-bootstrap.md`
 - `plans/supervisor-current-design-implementation.md`
@@ -142,6 +147,7 @@ updated: 2026-03-31
 - `runbooks/develop-main-release-runbook.md`
 - `runbooks/forward-worker-surface-smoke-runbook.md`
 - `runbooks/index-release-runbook.md`
+- `runbooks/provider-secret-governance.md`
 - `runbooks/qdrant-cloud-backup-and-restore-runbook.md`
 - `runbooks/student-handbook-hybrid-rebuild-checklist.md`
 - `runbooks/worker-observability-smoke-runbook.md`

@@ -36,6 +36,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 7: Verification And Release Gate** - Prove the main path and failure semantics with automated tests and smoke/eval coverage. (completed 2026-03-27)
 - [ ] **Phase 8: Student Handbook Ambiguous Policy Query Hardening** - Harden ambiguous `student_handbook` policy-object queries with targeted retrieval, fail-closed clarification/no-answer semantics, and operator-facing diagnostics.
 - [ ] **Phase 9: Curriculum Ambiguous Program Query Hardening** - Harden ambiguous `curriculum_plan` program-family queries with alias-tier governance, soft personalization bias, and clarification-first truth.
+- [ ] **Phase 09.1: Env Bootstrap And Provider Configuration Governance** - Freeze and implement explicit local/deploy env bootstrap, provider precedence, and fail-fast diagnostics so provider credentials no longer depend on implicit shell state. (INSERTED)
 
 ## Phase Details
 
@@ -374,6 +375,24 @@ Verification note:
 
 Plans:
 - [ ] Run phase planning and break the implementation into execution waves once Phase 9 becomes the active workstream.
+
+### Phase 09.1: Env Bootstrap And Provider Configuration Governance (INSERTED)
+
+**Goal:** Freeze and implement explicit env bootstrap, provider precedence, and fail-fast configuration diagnostics so repo-shipped entrypoints, eval/live benchmark lanes, and future deploy surfaces resolve credentials from one explicit contract instead of implicit shell state.
+**Requirements**: []
+**Depends on:** Phase 9
+**Success Criteria** (what must be TRUE):
+  1. Repo-shipped Python entrypoints bootstrap only explicit local env sources for the current worktree or current app and do not silently fall back to another worktree.
+  2. Shared provider resolution is centralized, with one precedence contract for `EVAL_LLM_* > LLM_*` and `EVAL_EMBEDDING_* > EMBEDDING_*`.
+  3. Missing-config failures can distinguish missing secret, missing bootstrap, and wrong owner/surface without printing secret values.
+  4. Local `.env` convenience and deploy secret-store ownership are explicitly separated in docs and runtime expectations.
+**Plans:** 4 plans
+
+Plans:
+- [x] 09.1-01: Freeze the shared bootstrap and provider-resolution foundation.
+- [x] 09.1-02: Migrate eval settings and adapters to the shared provider contract.
+- [x] 09.1-03: Align repo entrypoints and ship an env/provider doctor command.
+- [x] 09.1-04: Close docs/examples and deploy-side provider secret governance.
 
 ### Phase 10: Official Web Repo Hardening And Expansion
 

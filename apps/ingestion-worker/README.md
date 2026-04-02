@@ -5,9 +5,9 @@ Runtime shell for campus-agent v2 ingestion commands.
 Env bootstrap rule:
 
 - Worker CLI first reads `./.env` from the current repo/worktree root.
-- If the current worktree has no `./.env`, worker CLI falls back to the root worktree `.env`.
+- Worker CLI does not fall back to another worktree's `.env`; missing local env should be fixed explicitly in the current worktree.
 - Do not introduce local mock backends or file-registry compatibility paths just because a feature worktree is missing `.env`.
-- repo root `.env` only owns shared runtime config such as `OBJECT_STORE_*`, retrieval, OCR provider, and shared registry settings.
+- current worktree `.env` owns the runtime config consumed by local worker commands.
 - Per-command override examples live under `env/commands/*.env.example`.
 
 ## Commands

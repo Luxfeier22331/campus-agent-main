@@ -129,6 +129,28 @@ updated: 2026-04-02
   - active candidates 被安全收敛到唯一当前有效 doc
 - 否则正确归宿仍是 clarification case 或 preflight error，而不是 retrieval qrels
 
+对更长期的 institution-scoped entity alias / course-family truth，进一步冻结如下：
+
+- `course_family` alias 不得默认写成单一课程或单一 doc 的 canonical retrieval qrels
+- `resolved_family` 可以是 completed truth，但 answer truth 必须按 family 语义书写
+- family query 的 `expected_sources` 可以是 family-aware facts / member facts 的受控集合，但不得伪装成单一成员课程 truth
+- `思政课`、`思修课` 这类 institution-scoped family alias 的 canonical truth，不得在 authoring 时被 collapse 到 `习近平新时代中国特色社会主义思想概论`、`思想道德与法治` 或其他任意单课
+- mixed query 若同时包含当前已支持字段和当前未采集字段，允许 partial-answer truth
+- partial-answer truth 必须显式携带 forbidden claim：不得为 unsupported subfield 补猜事实
+
+当前课程型 case 的 authoring posture 固定如下：
+
+- `习概有哪些专业要上`
+  可写成单课 completed truth
+- `思政课有哪些专业要上`
+  可写成 family completed truth
+- `思政课包括哪些课`
+  可写成 family-membership completed truth
+- `思政课是哪个学院开的`
+  在 `offering_unit` truth 尚未进入 serving surface 前，不得写成 completed factual truth
+- `思政课是哪个学院开的，有哪些专业要上`
+  若当前系统接受 partial answer，则应把“可回答 audience/cohort、不可回答 offering_unit”写成明确 truth，而不是把 completed/no-answer 二选一硬化
+
 ## RAGAS Projection 规则
 
 当前 `build_ragas_projection()` 固定为：
@@ -158,6 +180,8 @@ context metric 路由：
 - 若是 title/article/topic lookup，应显式关闭 `answer_relevancy`
 - 若保留 `answer_relevancy`，`user_goal` 应是自然问题句，而不是纯标题或纯条款号
 - 若是 curriculum 的 resolved course/semester query，retrieved/supporting context truth 应明确约束为单一 `doc_id`；当 case 本身包含学期槽位时，context truth 还应只覆盖目标学期对应的 row/context
+- 若是 institution-scoped `course_family` query，`required_facts` 应按 family 语义书写，不得要求回答伪装成单课
+- 若 case 允许 partial answer，`required_facts` 与 `forbidden_claims` 必须同时覆盖“哪些字段要答、哪些字段不得补猜”
 
 ## 当前 Handbook / Curriculum 约束
 

@@ -130,6 +130,44 @@ updated: 2026-04-02
 - 若 personalization 只提供弱 prior，则 specialist 只能把它用于 candidate ranking bias 或 clarification 候选排序，不得静默硬解析
 - curriculum 的 operator-facing diagnostics 也应复用这一 resolution/clarification 语义，而不是继续复用 handbook-only 的命名心智
 
+对更长期的 institution-scoped entity alias 治理，进一步冻结如下：
+
+- `rag-specialist` 解析的长期对象应是 canonical entity，而不是单纯 rewritten query text
+- specialist 当前可接受的 alias tier 只是第一版实现载体；长期语义上至少应区分：
+  - `safe_alias`
+  - `family_alias`
+  - `scoped_alias`
+  - `deprecated_alias`
+  - `pattern_alias`
+  - `forbidden_alias`
+- specialist 当前可接受的 entity type 至少包括：
+  - `course`
+  - `course_family`
+  - `program`
+  - `semester`
+  - `cohort`
+- specialist 当前可接受的 resolution 终态至少包括：
+  - `resolved_single`
+  - `resolved_family`
+  - `needs_clarification`
+  - `rejected`
+
+对中央民族大学课程域，当前 accepted institution-scoped truth 包括：
+
+- `习概 -> 习近平新时代中国特色社会主义思想概论`
+  作为 `safe_alias`
+- `思政课 -> 思想政治理论课`
+  作为 `family_alias`
+- `思修课 -> 思想政治理论课`
+  作为 `family_alias`
+
+这里进一步冻结：
+
+- `思修课` 在本项目中不是单课 alias
+- `思修课` 也不是 repo-wide 通用词义
+- `思修课` 只能在中央民族大学课程域、且命中允许的 course-family intent 时生效
+- family alias 不得静默坍缩为单一课程；除非 query wording 已显式指向某个成员，否则正确终态应是 `resolved_family` 或 `needs_clarification`
+
 ## Answer Shaping
 
 长期上，`rag-specialist` 的 retrieval-specific intent 不只作用于 query planning，也作用于 answer shaping contract。
@@ -139,6 +177,22 @@ updated: 2026-04-02
 - `procedure` 类问句优先输出“先做什么 -> 再做什么 -> 去哪里/由谁审批 -> 时间窗口”
 - `deadline/time` 类问句优先输出时间、频率、适用例外，而不是展开无关背景
 - `generic` 类问句可以继续沿 grounded synthesis 输出
+
+对课程型 query，当前进一步接受一条 entity-aware answer shaping contract：
+
+- 当 canonical truth 是单一课程时，可以直接回答该课程的 audience / cohort / semester 等已采集字段
+- 当 canonical truth 是课程 family 时，回答必须按 family 语义生成，而不是伪装成单课答案
+- 当问题同时包含当前已支持字段和当前未采集字段时，允许 partial answer
+- partial answer 必须显式标注 unsupported subfield，而不是由模型补猜
+
+示例：
+
+- `习概有哪些专业要上`
+  可落到单一课程 audience/cohort truth
+- `思政课有哪些专业要上`
+  应先落到 `course_family`，再按 family audience 语义回答
+- `思政课是哪个学院开的`
+  若 `offering_unit` truth 尚未采集，应返回 unsupported-subfield 或 partial answer，而不是猜测学院
 
 附加约束：
 

@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: 2026-04-02 phase 8 implementation and local verification remain complete but handbook live accept is still blocked on `LLM_API_KEY`; phase 9 planning docs were added as a separate curriculum follow-up that is not logically blocked by handbook live accept
-last_updated: "2026-04-02T11:57:49+08:00"
+stopped_at: 2026-04-02 phase 09.1 was inserted after confirming current worktree `.env` already contains provider credentials, while ad-hoc processes still fail because they do not auto-bootstrap local env
+last_updated: "2026-04-02T16:28:20+08:00"
 progress:
-  total_phases: 19
+  total_phases: 20
   completed_phases: 17
-  total_plans: 45
+  total_plans: 49
   completed_plans: 45
 ---
 
@@ -19,11 +19,11 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-03-31)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 runtime-profile-driven serving surface 证明这条架构能可靠承接高频校园问答
-**Current focus:** Phase 8 的 4 个执行 plan 已完成：`student_handbook` 歧义政策问句现在具备制度对象解析、目标文档收窄检索、对象内 `needs_clarification` / `no_answer` 语义、eval 回归覆盖，以及 `app-api` owned request diagnostics。当前剩余动作不是改拓扑，而是补 live handbook accept 所需的 eval 凭据并重跑 acceptance。与此同时，Phase 9 已作为独立 curriculum follow-up 进入 roadmap，并已记录 repo-level 设计；它复用 handbook hardening 的经验，但不应被 handbook live accept 阻塞。
+**Current focus:** Phase 09.1 的 4 个执行 plan 已完成：shared bootstrap state、shared provider resolver、surface-aware typed error、`doctor_env` 与 deploy-side provider secret runbook 都已落地。当前 handbook live accept 的阻塞已从“代码/文档漂移”收窄为“需要通过受控入口重跑并产出 fresh acceptance artifact”；下一步应先用 `uv run --all-packages python -m scripts.doctor_env evals --json` 确认当前 worktree 可见性，再重跑 handbook live accept。
 
 ## Current Position
 
-Phase: 08 (Student Handbook Ambiguous Policy Query Hardening) — BLOCKED ON LIVE ACCEPT ENV
+Phase: 09.1 (Env Bootstrap And Provider Configuration Governance) — IMPLEMENTED LOCALLY
 Plan: 4 of 4
 
 ## Performance Metrics
@@ -122,6 +122,9 @@ Plan: 4 of 4
 - Phase 8 added: Student Handbook Ambiguous Policy Query Hardening
 - Phase 8 execution completed locally, but phase closeout remains blocked on live handbook accept credentials
 - Phase 9 added: Curriculum Ambiguous Program Query Hardening
+- Phase 9 implementation now includes internal `course_facts` serving surface, canonical course/course-family specialist planning, partial-answer diagnostics, and eval/qrels fast-fail coverage for family alias collapse
+- Phase 09.1 inserted after Phase 9: Env Bootstrap And Provider Configuration Governance (URGENT)
+- Phase 09.1 implementation now includes explicit bootstrap state, shared provider precedence resolution, eval-side surface-aware provider errors, and a non-secret-leaking `doctor_env` command
 
 ### Decisions
 
@@ -136,7 +139,7 @@ Recent decisions affecting current work:
 - Phase 04 froze `rag-specialist` answer semantics on top of the accepted hybrid retrieval baseline with grounded citations plus `needs_clarification` / `no_answer` / `error` fail-close behavior.
 - Phase 04.6 closed the Worker-to-origin seam: `apps/public-entry-worker -> apps/supervisor-api` with trusted-worker origin auth.
 - Phase 04.7 is now completed on `main`; `apps/public-consumer-chat` implementation is a historical reference rather than the forward backend topology truth.
-- Phase 05 removed bearer actor spoofing, projected caller claims from forwarded Access JWT payload, and moved durable audit persistence to the API shell boundary.
+- Phase 05 removed bearer actor spoofing, requires canonical `ContextProjection` on the trusted-worker path, and keeps durable audit persistence at the API shell boundary.
 - The accepted forward design is now `public-chat-web` + `protected-panel-web` + shared `app-api`; auth/session/conversation, chat ingress, and operator query move into `app-api`, while `apps/supervisor-api` remains the execution engine.
 - `apps/app-api` runtime is now frozen to Worker rather than remaining runtime-agnostic.
 - `apps/app-api` is now the only product-layer auth/session/principal owner; `apps/supervisor-api` should be read as internal execution admission plus execution transport, not user-auth ownership.
@@ -163,8 +166,8 @@ Recent decisions affecting current work:
 
 - Keep handbook chunk-truth validation and handbook eval artifacts as reusable regression gates for later retrieval changes.
 - Treat the 2026-03-31 `210128` handbook acceptance artifact as the new regression baseline for future handbook answer-path or eval-surface changes.
-- Provide `LLM_API_KEY` (and any related eval credentials if needed), then rerun handbook live accept to close Phase 8 with a fresh acceptance artifact.
-- Plan and execute Phase 9 (`curriculum` ambiguous program query hardening) using the repo-level design captured in `.planning/phases/09-curriculum-ambiguous-program-query-hardening/09-CONTEXT.md`.
+- Rerun handbook live accept through a repo-shipped or `doctor_env`-verified env path; the current blocker is no longer provider bootstrap design drift, but the absence of a fresh post-refactor acceptance artifact.
+- Run full repo verification after the Phase 9 worktree stabilizes, then decide whether to produce fresh curriculum live acceptance artifacts in addition to the current automated evidence.
 - Keep `official_web` command/query/handoff tests and operator projections as reusable regression gates for later collector or ingestion integration changes.
 - Keep `Jobs` and `Operations` out of the default panel rollout until product scope explicitly re-opens them.
 - For the first real deployed Worker environment, confirm deploy-side `SENTRY_*` / `AXIOM_*` assignment for `apps/app-api`, `apps/public-chat-web`, and `apps/protected-panel-web`, then run post-deploy smoke verification for trace propagation, error capture, and minimal runtime event ingest. Local preflight and targeted Worker smoke were revalidated on 2026-03-31, so this is now a deployment gate rather than an active local-engineering blocker.
@@ -179,10 +182,10 @@ Recent decisions affecting current work:
 - `Jobs` / `Operations` / `Audit` remain delayed; landed `Official Web` views do not authorize a generic ops console.
 - Observability runtime code is landed, local worktree env is ready, and the targeted Worker smokes are green. There is no current local-engineering blocker here; the repo truth is simply that the first real deployed Worker environment does not exist yet, so deploy-side sink verification remains pending by design. When deployment exists, the smoke runner will need real hostnames, a Worker release identifier, and Sentry/Axiom access; local placeholder URLs such as `chat.example.com`, `panel.example.com`, and `app-api.internal` remain development-only values.
 - `student_handbook` handbook 质量线已在 `210128` acceptance artifact 上闭环；若后续再出现 handbook 退化，应从这个 baseline 出发分析，而不是回退到更早 `warn` artifact 的诊断框架。
-- Phase 8 的本地 automated gates 已全部通过，但 live acceptance 目前被环境变量阻塞；在补齐 `LLM_API_KEY` 前，不要把该 phase 记为 completed truth。
+- Phase 8 的本地 automated gates 已全部通过，Phase 09.1 也已补齐 env/bootstrap/provider contract；但在 handbook live accept 通过受控入口重跑并产出 fresh acceptance artifact 前，仍不要把 Phase 8 记为 completed truth。
 - Phase 9 与 handbook live accept 是两条独立工作流：它复用已落地的 handbook ambiguous-object posture，但本身不依赖新的 handbook acceptance artifact 才能开始规划或执行。
 - curriculum canonical eval truth 现已明确禁止把未裁决短标题歧义锁成单目标 qrels；`民族实验班` 已退出 canonical retrieval qrels，改由 `needs_clarification` workflow case 承担，`campus_evals.retrieval_benchmark` 会在评分前按 split manifest fast-fail 这类坏 truth。
-- Phase 9 的 planning truth 已明确把 `基地班` / `实验班` / `创新班` / `民族班` 这类 family alias 视为 clarification-first 问题域；typed personalization 只可作为 bias，不可单独收窄成单一 curriculum doc truth。
+- Phase 9 现在还额外引入了 `course_facts` internal serving surface；课程型问句已不再强行复用 `curriculum_plan` 单-doc evidence 心智，但 external default query scope 仍旧只开放 `curriculum_plan`。
 
 ## Session Continuity
 

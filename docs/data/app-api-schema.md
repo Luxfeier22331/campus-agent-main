@@ -179,6 +179,10 @@ updated: 2026-04-02
 - `actor_campus_scope` nullable
 - `principal_type`
 - `principal_label` nullable
+- `entitlement_snapshot_id` nullable
+- `entitlement_groups_json`
+- `visibility_scope` nullable
+- `applicability_scope` nullable
 - `idempotency_key` nullable
 - `request_fingerprint_sha256` nullable
 - `trace_id`
@@ -219,6 +223,7 @@ updated: 2026-04-02
 - 首轮 lazy-create 请求在分配 canonical conversation id 之前，允许用稳定的 new-conversation discriminator 参与 `request_fingerprint_sha256` 计算
 - `question_preview` / `answer_preview` 是 projection-friendly 摘要，不要求保存 raw full prompt / raw full answer
 - `principal_type` / `principal_label` 是 command-side 落盘后的最小 operator projection metadata；不要再把 raw auth/session snapshot 宽 JSON 写入这里
+- `entitlement_snapshot_id` / `entitlement_groups_json` / `visibility_scope` / `applicability_scope` 只保存 app-layer 已收口的最小授权摘要，用于 request projection 与 operator-facing restricted request diagnostics；不要把 raw provider claims、raw cookie、raw session 或宽 auth snapshot 落进这里
 - `requested_scope_json` 与 `source_doc_ids_json` 使用结构化 JSON，不把 Python-side payload 原样塞进宽 JSON dump
 - `diagnostics_json` 只保存 operator-facing summary diagnostics，例如 resolved policy object、rewritten query、clarification/no-answer reason 与 retrieved title summary；不要写 raw evidence snippet、score 或 backend payload
 
@@ -273,6 +278,10 @@ updated: 2026-04-02
 - `principal_type`
 - `principal_id`
 - `principal_label` nullable
+- `entitlement_snapshot_id` nullable
+- `entitlement_groups_json`
+- `visibility_scope` nullable
+- `applicability_scope` nullable
 - `requested_capability` nullable
 - `requested_scope_json` nullable
 - `selected_target` nullable
@@ -300,6 +309,7 @@ updated: 2026-04-02
 - `request_id` 与 `runtime.request_execution.request_id` 一一对应
 - 这是 panel-facing materialized view，不要求与 command-side 列完全相同
 - 不从 `chat.messages` 反推生成
+- 这层允许展示 app-layer 已物化的最小授权摘要，但不承担 canonical authz store，也不回放 provider/session 原始材料
 - `diagnostics_json` 只承载 panel 可直接消费的 summary-level explanation，不承载 retrieval internals
 
 ## Ownership Notes

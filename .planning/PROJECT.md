@@ -8,6 +8,7 @@
 
 - 当前 serving surface 由 collection runtime profile 控制，不再由早期 `phase-1` 路由文案单独定义
 - 当前 query-enabled scope 是 `regulations/student_handbook` 与 `curriculum/curriculum_plan`
+- `curriculum/course_facts` 已作为 specialist 内部检索面落地，用于课程/课程族 audience、membership、semester 等实体型问句；它保持 `retrieval_enabled=true` 但 `query_enabled_by_default=false`
 - `campus_services/*` 仍为 `offline_preparation`
 - 当前分支模型固定为：`develop` 承担长期集成，`main` 承担稳定发布，`main` 上的改动只通过 PR 进入
 - retrieval 读取 serving alias；离线索引发布写入 versioned physical collection，并以 release manifest 保留追溯信息
@@ -91,7 +92,7 @@
 | handbook embedding baseline 固定为 `Qwen3-Embedding-4B @ 2560`，不得依赖兼容 API 默认 `1024` 维返回 | 当前 collection/query runtime 必须围绕统一向量宽度重建和验证，不能继续容忍 provider 默认维度漂移 | — Accepted on 2026-03-26 |
 | handbook chunk-truth 调整必须先经过真实 validation 与 sample markdown 复核，再允许继续 embedding 或进入 retrieval/eval 调参 | 这次问题说明仅靠单元测试不足以覆盖 handbook 的真实 cleanup/chunking 退化；必须把 live validation 和真实样本内容作为阶段门禁 | — Re-confirmed on 2026-03-26 |
 | `rag-specialist` answer path now fail-closes ambiguous, empty-support, and retrieval-failure outcomes while composing grounded chunk-cited answers from the accepted hybrid evidence bundle | Phase 4 must close handbook answer semantics without reopening retrieval strategy or shifting policy back into supervisor | — Validated in Phase 4 |
-| `bearer` auth is now runtime-owned and no longer trusts client-supplied `x-actor-*` headers; `trusted-worker` projects final caller actor claims from forwarded Access JWT payload after origin trust is verified | Phase 5 must close actor propagation and ACL safety without moving auth/provider semantics into `packages/*` | — Validated in Phase 5 |
+| `bearer` auth is now runtime-owned and no longer trusts client-supplied `x-actor-*` headers; `trusted-worker` only performs origin admission, while final actor/authz must arrive via canonical `ContextProjection` | Phase 5 must close actor propagation and ACL safety without moving auth/provider semantics into `packages/*` | — Re-confirmed on 2026-04-02 |
 | durable audit logging lives at the API shell boundary while supervisor-core remains the owner of audit record shape | This preserves runtime ownership for persistence and package ownership for schema/projection | — Validated in Phase 5 |
 | Cloudflare 并行后续工作拆成 `04.2` / `04.3` / `04.4` 三个 inserted phase | 主线被 chunk-truth 阻塞时，可以继续推进 edge/runtime/panel-shell 冻结，但必须避免把 provider、identity、ACL、audit 语义推入 `packages/*` 或提前吃掉 Phase 5 | — Pending in Phase 04.x |
 | Cloudflare public answer path now runs through `apps/public-entry-worker -> apps/supervisor-api` with explicit trusted-worker origin auth | 先把 public-entry runtime seam 做成真实可验证代码，再把 app-layer actor/ACL/audit留给 Phase 5 | — Validated in Phase 04.6 |
@@ -110,6 +111,7 @@
 | shared `apps/app-api` foundation 已在当前 merged truth 落地，panel `Requests` 不再属于 blocked follow-up | 后续工作应转向 integration hardening、observability verification 与 stale-truth cleanup，而不是重复讨论 shared backend topology 是否存在，也不再把 curriculum gate 记为这条非 live 执行线的 follow-up | — Validated on 2026-03-29 |
 | protected panel 面向小团队 operator principal，不额外自建 end-user user system；`Jobs` / `Operations` 默认不进首发 rollout | 这能保持 panel 是受控 operator control plane，而不是用户系统、CMS、数据库控制台或万能后台 | — Accepted on 2026-03-28 |
 | `official_web` control plane 收口到 shared `apps/app-api`，而不是新建 crawler-intake backend | 这能复用现有 app-owned admission、ledger、outbox 与 operator read-model 形态，同时保持 `apps/ingestion-worker` 继续只是 offline executor | — Accepted on 2026-03-29 |
+| curriculum 课程 alias 治理的离线/在线 split 收口为 `ingestion-core` 派生 `course_facts`、`rag-specialist` 做 canonical course/course-family resolve、`retrieval-core` 仅消费 canonical filters | 这样可以让 `习概` / `思政课` / `思修课` 这类 institution-scoped alias 落到实体真相，同时避免把 alias 语义泄漏进 retrieval backend 或 canonical qrels | — Validated on 2026-04-02 |
 
 ## Evolution
 

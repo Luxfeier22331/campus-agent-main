@@ -63,9 +63,14 @@ updated: 2026-04-02
 - 只有在 eval 需要独立 provider、独立预算或独立限流时，才使用：
   - `EVAL_LLM_*`
   - `EVAL_EMBEDDING_*`
-- `packages/evals` settings 仍只读取进程环境；repo-shipped Python CLI entrypoint 会在本地自动 bootstrap 当前 worktree `.env`，必要时回退根 worktree `.env`
+- `packages/evals` settings 仍只读取进程环境；repo-shipped Python CLI entrypoint 只会在本地自动 bootstrap 当前 worktree `.env`
+- 当前实现与测试都不接受 silent fallback 到根 worktree `.env`
+- ad-hoc `uv run ... python - <<'PY'` / REPL 默认不会自动 bootstrap `.env`；这类临时脚本必须先显式注入环境，或显式调用 `campus_shared.load_repo_env()`
+- 如果要判断当前 worktree 的 provider/env 是否真的对 eval surface 可见，优先使用
+  `uv run --all-packages python -m scripts.doctor_env evals --json`
 - eval 的 HTTP timeout / retry / pacing / keep-alive / connection-pool 一类 runtime tuning 由 repo-tracked live benchmark profile config 持有，不再放在 root `.env.example`
 - 代码层仍保留 `SupplementalHTTPSettings.from_env(...)` 作为低层 helper，但这不再是长期 ownership 入口
+- 这条链路的长期重构计划见 [`docs/plans/env-bootstrap-and-provider-configuration-governance.md`](../plans/env-bootstrap-and-provider-configuration-governance.md)
 
 ## 本地同步便利
 

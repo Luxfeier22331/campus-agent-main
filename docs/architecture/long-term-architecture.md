@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-22
-updated: 2026-03-31
+updated: 2026-04-02
 ---
 
 # campus-agent 长期架构
@@ -203,6 +203,19 @@ execution engine runtime 选择应该延后。未来可以接受的实现包括�
 - evidence shaping / registry back-link
 
 `packages/rag-specialist` 负责 retrieval strategy selection 和答案语义，而不拥有底层 retrieval backend 细节。
+
+对 institution-scoped alias / entity resolution，长期 owner 进一步冻结如下：
+
+- `packages/rag-specialist` 拥有 alias/entity resolution、ambiguity handling 与 answer contract
+- `packages/retrieval-core` 只消费 canonical entity/filter truth，不拥有 alias 业务语义
+- `packages/ingestion-core` 负责构建离线派生的 entity facts，例如 `course_facts` / `course_family_facts`
+- `packages/evals` 负责验证 alias resolution 的 deterministic truth 与 fail-close truth
+
+因此：
+
+- alias 的长期对象应是 canonical entity，而不是 repo-wide 全局字符串替换
+- institution-scoped family alias 不得在 retrieval backend 内静默坍缩成单一实体
+- retrieval 消费的是 canonical entity facts，而不是 alias 文本本身
 
 ## 编排模式
 
@@ -522,6 +535,7 @@ ACL、审计和 traceability 当前按“够上线的最小闭环”建设，不
 - 授权与访问控制架构：`docs/architecture/authorization-and-access-control-architecture.md`
 - 用户身份、长期记忆与个性化边界：`docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - 授权模型与检索过滤投影：`docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
+- institution-scoped alias 与 entity resolution 治理：`docs/decisions/adr-0021-institution-scoped-entity-alias-governance.md`
 - 数据平面架构约束（历史文件名保留）：`docs/architecture/phase1-ingestion-and-storage-architecture.md`
 - shared app backend 与 web surface：`docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - request projection ownership：`docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`

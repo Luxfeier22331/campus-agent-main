@@ -13,6 +13,9 @@ Evaluation helpers for campus-agent v2.
 - curriculum live fixture 必须跟随当前 `curriculum/curriculum_plan` 的真实 manifest 边界收口；重点覆盖标题命中、短事实 section、table retrieval、同专业不同方案区分、needs-clarification 与 no-hit
 - `policy_title_exact_match` 与 `fixed_phrase_sparse_win` 类 live 样本必须至少能锚定到当前 handbook manifest 的标题关键词；相关 drift guard 由 `tests/evals/test_retrieval_benchmark.py` 覆盖
 - curriculum qrels 当前同样采取 `doc_id-level truth first`，第二学士学位、强基计划、创新班与课程教学计划是首批固定回归样本
+- curriculum 课程 alias / family alias 现在额外有一条 internal `course_facts` serving surface：它不属于默认 external query-enabled scope，但 golden/scenario truth 会要求 specialist 在课程型问句上内部切换到这个 collection
+- `习概有哪些专业要上`、`思政课有哪些专业要上`、`思政课包括哪些课` 与 mixed partial-answer case 现在属于固定 curriculum regression lanes；family alias 不得 collapse 到单课 qrels truth
+- retrieval qrels preflight 现在还会 fast-fail `思政课` / `思修课` 这类 family alias 被 author 成单 doc canonical truth 的 fixture
 - selected `regression_locked` retrieval qrels 现在已经开始锁到 `doc_id + version_id`；`chunk_id` 仍只在边界长期稳定后使用
 - `campus_evals.scenarios` 现在同时提供 handbook / curriculum 的 `smoke`、`regression_locked`、`release_gate` 与 `error_gate` 固定 case 集；`release_gate` 继续服务 live gate，`smoke` / `regression_locked` 负责 repo-tracked 常设回归样本
 - handbook / curriculum 的 retrieval annotation template 现在都需要与各自 qrels case inventory 保持一一对应，避免人工标注模板和 canonical qrels 漂移
@@ -82,8 +85,11 @@ ragas runtime：
 - `n>1` 的 ragas judge 调用现在会在同一 async transport 上并发发出，不再串行放大单 metric 延迟
 - `Qwen3-Embedding-4B` 未显式配置 `EMBEDDING_DIMENSIONS` 时，eval 侧默认补成 `2560`
 - pinned `ragas==0.4.3` 当前通过 `ragas.evaluate(...)` + legacy metric objects 执行真实评分；默认 scorer 现在直接接 `BaseRagasLLM` / `BaseRagasEmbeddings` 的原生 HTTP 实现
-- repo-shipped eval CLI 会在本地自动 bootstrap 当前 worktree `.env`，必要时回退根 worktree `.env`
+- repo-shipped eval CLI 会在本地自动 bootstrap 当前 worktree `.env`
 - ad-hoc `uv run ... python - <<'PY'` / REPL 仍不会自动读取 `.env`；这类临时脚本需要先 `set -a && source .env && set +a`，或显式调用 `campus_shared.load_repo_env()`
+- 如果要确认当前 worktree 的 eval provider/env 是否真正可见，优先使用：
+  - `uv run --all-packages python -m scripts.doctor_env evals --json`
+  - 该命令会报告 bootstrap state、checked key order、resolved key source 与 model presence，但不会打印 raw secret values
 
 最小 smoke（ad-hoc inline Python）：
 
@@ -93,6 +99,14 @@ ragas runtime：
 - `scorer = build_ragas_scorer(settings)`
 - `print(scorer(RagasProjection(case_id="smoke", user_input="学校图书馆开放时间是什么？", response="图书馆开放时间为 08:00 到 22:00。", retrieved_contexts=("图书馆开放时间为 08:00-22:00。",), reference="图书馆开放时间为 08:00-22:00。")))`
 - `PY`
+
+provider 诊断约定：
+
+- shared provider precedence 已收口到 `campus_shared.provider_config`
+- eval LLM provider key 优先级固定为 `EVAL_LLM_API_KEY > LLM_API_KEY`
+- eval embedding provider key 优先级固定为 `EVAL_EMBEDDING_API_KEY > EMBEDDING_API_KEY`
+- provider key 缺失现在会给出 surface-aware typed error，而不是只报笼统 `LLM_API_KEY is required`
+- deploy-side provider secret 治理见 `docs/runbooks/provider-secret-governance.md`
 
 student handbook formal benchmark：
 

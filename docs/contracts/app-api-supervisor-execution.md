@@ -80,14 +80,6 @@ JSON 命名保持 `snake_case`，原因如下：
   "request_id": "req_01HQ...",
   "conversation_id": "conv_01HQ...",
   "user_goal": "图书馆开放到几点？",
-  "actor": {
-    "user_id": "user_01HQ...",
-    "principal_id": "principal_01HQ...",
-    "roles": ["student"],
-    "departments": [],
-    "groups": ["students"],
-    "campus_scope": "main"
-  },
   "context": {
     "actor": {
       "user_id": "user_01HQ...",
@@ -96,6 +88,19 @@ JSON 命名保持 `snake_case`，原因如下：
       "departments": [],
       "groups": ["students"],
       "campus_scope": "main"
+    },
+    "authorization": {
+      "principal_id": "principal_01HQ...",
+      "entitlement_groups": ["students"],
+      "visibility_scope": "main",
+      "retrieval_filter": {
+        "entitlement_groups": ["students"],
+        "acl_groups": ["students"],
+        "visibility_level": "public",
+        "visibility_scope": "main",
+        "campus_scope": "main",
+        "policy_projection_version": "phase1-authorization-projection-v1"
+      }
     },
     "profile_memory": {
       "items": []
@@ -121,10 +126,8 @@ JSON 命名保持 `snake_case`，原因如下：
   来自 chat domain truth
 - `user_goal`
   来自产品层 prompt
-- `actor`
-  由 `app-api` 从 session / trusted operator identity 映射而来，对齐 `packages/contracts.ActorContext`
 - `context`
-  由 `app-api` 显式投影的最小 `ContextProjection`；当前至少包含 `actor`、空的 `profile_memory.items` 与 `session.confirmed_slots`，以及 turn count 摘要
+  由 `app-api` 显式投影的最小 `ContextProjection`；当前至少包含 `actor`、`authorization.retrieval_filter`、空的 `profile_memory.items` 与 `session.confirmed_slots`，以及 turn count 摘要
 - `requested_capability`
   当前允许 `knowledge` 或 `availability`
 - `requested_scope`
@@ -190,18 +193,12 @@ JSON 命名保持 `snake_case`，原因如下：
 
 ## Current Compatibility Note
 
-当前仓库里的 `apps/supervisor-api` 仍主要通过 bearer / trusted-worker header 来构造 `SupervisorRequest.actor`。
+当前仓库里的 `apps/supervisor-api` 仍保留 `bearer` / `trusted-worker` admission mode，但 shared product path 已收口为：
 
-shared `app-api` 落地时，需要把 execution-side caller contract 收口为：
-
-- internal caller admission 仍由 runtime header 保证
-- `actor` 与最小 `context` 由 `app-api` 显式提供
-- `supervisor-api` 不再依赖 Cloudflare Access JWT 或 edge identity header 来恢复最终业务 actor
-
-因此：
-
-- `bearer` / `trusted-worker` 是当前实现与本地调试的 compatibility ingress
-- 它们不是 forward product identity ownership 的长期依据
+- internal caller admission 继续由 runtime header 保证
+- `context` 由 `app-api` 显式提供，并携带最终 `actor` 与 `authorization`
+- `trusted-worker` 不再依赖 Cloudflare Access JWT 或 edge identity header 来恢复最终业务 actor
+- top-level `actor` 不是 canonical request body 的必需字段；如果出现在 trusted-worker 请求里，只能作为与 `context.actor` 一致的冗余投影
 
 这不重开 `packages/contracts`，因为 `ActorContext` 本身已经是 accepted shared contract。
 

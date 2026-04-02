@@ -98,6 +98,14 @@ updated: 2026-04-02
 - `verified identity`、session-confirmed slot 与 profile memory 只允许作为 typed personalization hint 影响 bias / clarification；其中只有显式 query wording 或足够强的 verified-identity 条件才允许进入 hard resolve
 - 未来若为 curriculum 引入 soft preferred-candidate bias，应与当前 `target_document_ids` 的 hard metadata pre-filter 分开建模，不得混成一个字段
 
+对更长期的 institution-scoped entity alias 治理，retrieval-facing contract 进一步冻结如下：
+
+- alias 的 owner 在 `rag-specialist`，而不在 `retrieval-core`
+- `retrieval-core` 只消费 canonical entity/filter truth，不拥有“某个 alias 到底代表什么”的业务语义
+- 当 query 已被 specialist 解析为单一 canonical entity 时，retrieval 应优先消费 entity-aware metadata pre-filter，而不是继续把 alias 文本当作开放式 query rewrite truth
+- 当 query 已被 specialist 解析为 entity family 时，retrieval 可以消费 family-aware serving surface 或 family-aware filter/group truth，但不得把 family alias 静默坍缩成任意单目标 retrieval truth
+- 高歧义 alias 不得通过 retrieval top1 结果倒推出 resolved truth
+
 当前 repo-head 对 `regulations/student_handbook` 另外接受一条更保守的 document-targeting hook：
 
 - 当 `rag-specialist` 已保守解析到单一制度对象时，可以把 `target_document_ids` 下发给 `retrieval-core`
@@ -165,6 +173,13 @@ fusion 后的候选必须继续通过 `DocumentRegistry` 回链，补齐：
 
 - 当 query 已能唯一解析到单一培养方案时，supporting evidence 必须收敛到单一 `doc_id`
 - 当 query 还显式包含学期槽位时，supporting evidence 还必须继续收敛到目标学期对应的 `detail_label` / `structural_path` / row-like snippet；若目标 doc 内未命中该学期，则返回对象内 `no_answer`，而不是跨 doc 补答案
+
+对未来课程型 entity-aware retrieval，accepted direction 进一步记录如下：
+
+- 若后续新增 `course_facts` / `course_family_facts` 一类 serving surface，evidence shaping 应跟随 canonical entity truth，而不是继续复用 `curriculum_plan` 的“单 doc 内定位”心智
+- 当 query truth 是单一课程时，supporting evidence 应收敛到该 canonical course entity 对应的 facts/occurrences
+- 当 query truth 是课程 family 时，supporting evidence 可以是 family-aware 聚合结果，但不得伪装成单课证据
+- 当 answer 允许 partial answer 时，retrieval 不应为缺失字段补造“最像”的旁证；unsupported subfield 应在 specialist answer contract 中显式保留为空
 
 ## Serving Policy
 
