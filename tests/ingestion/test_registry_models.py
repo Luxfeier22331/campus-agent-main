@@ -204,6 +204,33 @@ class RegistryModelsTest(unittest.TestCase):
             "phase1-authorization-projection-v1",
         )
 
+    def test_document_registry_record_treats_legacy_projection_fields_as_canonical_mirrors(self) -> None:
+        record = DocumentRegistryRecord(
+            document_id="curriculum:plan-authz",
+            revision_track="source-faithful",
+            version_id="sha256:raw-authz",
+            source_uri="https://campus.example/curriculum/authz",
+            content_hash="sha256:authz",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            entitlement_groups=("students",),
+            visibility_scope="main",
+            acl_groups=("legacy-staff",),
+            campus_scope="south",
+            status="active",
+            ingestion_timestamp="2026-03-22T10:00:00+00:00",
+            parser_version="curriculum-plan-ocr-v1",
+            embedding_model="Qwen3-Embedding-4B",
+            source_channel="pdf_ocr",
+            import_source="raw_online_ocr",
+        )
+
+        self.assertEqual(record.entitlement_groups, ("students",))
+        self.assertEqual(record.visibility_scope, "main")
+        self.assertEqual(record.acl_groups, ("students",))
+        self.assertEqual(record.campus_scope, "main")
+        self.assertEqual(record.visibility_level, "restricted")
+
     def test_file_document_registry_upsert_and_get_are_stable(self) -> None:
         with TemporaryDirectory() as temp_dir:
             registry = InMemoryDocumentRegistry(backing_path=Path(temp_dir) / "registry.json")

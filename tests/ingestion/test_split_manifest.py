@@ -555,6 +555,7 @@ class SplitManifestTest(unittest.TestCase):
             document_input.metadata["policy_projection_version"],
             "phase1-authorization-projection-v1",
         )
+        self.assertEqual(document_input.metadata["acl_level"], "restricted")
         self.assertEqual(document_input.metadata["acl_groups"], ["students"])
         self.assertEqual(document_input.metadata["campus_scope"], "main")
         self.assertEqual(document_input.campus_scope, "main")

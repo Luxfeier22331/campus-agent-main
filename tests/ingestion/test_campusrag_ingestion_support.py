@@ -6,6 +6,7 @@ import unittest
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 from campus_ingestion_core.campusrag_ingestion_support import (
     DocumentImportInput,
+    apply_authorization_projection_metadata,
     collect_import_document_stats,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
@@ -421,6 +422,29 @@ class CampusragIngestionSupportTest(unittest.TestCase):
         )
         self.assertEqual(created_record.acl_groups, ("students",))
         self.assertEqual(created_record.campus_scope, "main")
+
+    def test_apply_authorization_projection_metadata_treats_acl_level_as_legacy_mirror(self) -> None:
+        metadata = {
+            "document_id": "handbook:doc-authz",
+            "version_id": "v1:doc-authz",
+            "acl_level": "public",
+            "acl_groups": ["legacy-staff"],
+            "campus_scope": "south",
+        }
+
+        apply_authorization_projection_metadata(
+            metadata,
+            entitlement_groups=("students",),
+            visibility_scope="main",
+            visibility_level="restricted",
+        )
+
+        self.assertEqual(metadata["entitlement_groups"], ["students"])
+        self.assertEqual(metadata["visibility_scope"], "main")
+        self.assertEqual(metadata["visibility_level"], "restricted")
+        self.assertEqual(metadata["acl_level"], "restricted")
+        self.assertEqual(metadata["acl_groups"], ["students"])
+        self.assertEqual(metadata["campus_scope"], "main")
 
 
 if __name__ == "__main__":

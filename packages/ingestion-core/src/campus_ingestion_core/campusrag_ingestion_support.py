@@ -331,6 +331,7 @@ def apply_authorization_projection_metadata(
     metadata["visibility_scope"] = normalized_scope
     metadata["visibility_level"] = resolved_visibility_level
     metadata["policy_projection_version"] = normalized_policy_projection_version
+    metadata["acl_level"] = resolved_visibility_level
     metadata["acl_groups"] = list(normalized_groups)
     metadata["campus_scope"] = normalized_scope
 
