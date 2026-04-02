@@ -1,4 +1,5 @@
 import type { RequestExecutionStatus } from "../runtime-command";
+import type { RequestDiagnosticsSummary } from "../request-diagnostics";
 
 export interface ProjectionOutboxEvent {
   eventId: string;
@@ -25,6 +26,7 @@ export interface RequestExecutionProjectionSource {
   errorCode: string | null;
   questionPreview: string;
   answerPreview: string | null;
+  diagnostics: RequestDiagnosticsSummary | null;
   sourceDocIds: string[];
   startedAt: string;
   completedAt: string | null;
@@ -47,6 +49,7 @@ export interface RequestProjectionMaterialization {
   errorCode: string | null;
   questionPreview: string;
   answerPreview: string | null;
+  diagnostics: RequestDiagnosticsSummary | null;
   sourceDocIds: string[];
   startedAt: string;
   completedAt: string | null;
@@ -108,6 +111,7 @@ export function toRequestProjectionMaterialization(input: {
     requestedCapability: input.execution.requestedCapability,
     requestedScope: input.execution.requestedScope,
     selectedTarget: input.execution.selectedTarget,
+    diagnostics: input.execution.diagnostics,
     sourceDocIds: input.execution.sourceDocIds,
     startedAt: input.execution.startedAt,
     status: input.execution.status,

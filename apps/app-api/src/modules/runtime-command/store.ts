@@ -5,6 +5,7 @@ import { createRuntimeDatabase } from "../../db/runtime";
 import { conversations, messages, projectionOutbox, requestExecution } from "../../db/schema";
 import type { ChatConversation, ChatMessage } from "../chat";
 import type { RequestedScope } from "../integration";
+import type { RequestDiagnosticsSummary } from "../request-diagnostics";
 import type { ChatCommandResponse } from "./service";
 
 export type RequestExecutionStatus =
@@ -40,6 +41,7 @@ export interface RequestExecutionWrite {
   errorCode: string | null;
   questionPreview: string;
   answerPreview: string | null;
+  diagnostics: RequestDiagnosticsSummary | null;
   sourceDocIds: string[];
   startedAt: string;
   completedAt: string | null;
@@ -297,6 +299,7 @@ export function createPgChatCommandStore(env: Env): ChatCommandStore {
             errorCode: null,
             questionPreview: input.requestExecution.questionPreview,
             answerPreview: null,
+            diagnosticsJson: null,
             sourceDocIdsJson: [],
             startedAt: new Date(input.requestExecution.startedAt),
             completedAt: null,
@@ -358,6 +361,7 @@ export function createPgChatCommandStore(env: Env): ChatCommandStore {
             status: input.requestExecution.status,
             errorCode: input.requestExecution.errorCode,
             answerPreview: input.requestExecution.answerPreview,
+            diagnosticsJson: input.requestExecution.diagnostics,
             sourceDocIdsJson: input.requestExecution.sourceDocIds,
             completedAt: input.requestExecution.completedAt
               ? new Date(input.requestExecution.completedAt)

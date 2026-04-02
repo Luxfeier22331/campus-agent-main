@@ -1,4 +1,5 @@
 import { AppApiRouteError } from "../../http";
+import type { RequestDiagnosticsSummary } from "../request-diagnostics";
 import type { ResolvedAppPrincipal } from "../auth";
 import type { RequestExecutionStatus } from "../runtime-command";
 
@@ -17,6 +18,7 @@ export interface RequestProjectionRecord {
   errorCode: string | null;
   questionPreview: string;
   answerPreview: string | null;
+  diagnostics?: RequestDiagnosticsSummary;
   sourceDocIds: string[];
   startedAt: string;
   completedAt: string | null;

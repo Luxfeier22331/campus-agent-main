@@ -42,6 +42,14 @@ describe("shared database adoption", () => {
     });
     expect(
       parseMigrationStatement(
+        'ALTER TABLE "runtime"."request_execution" ADD COLUMN "diagnostics_json" jsonb;',
+      ),
+    ).toMatchObject({
+      existsKey: "runtime.request_execution:diagnostics_json",
+      kind: "column",
+    });
+    expect(
+      parseMigrationStatement(
         'ALTER TABLE "official_web"."run_outbox" ADD CONSTRAINT "run_outbox_run_id_crawl_runs_run_id_fk" FOREIGN KEY ("run_id") REFERENCES "official_web"."crawl_runs"("run_id") ON DELETE cascade ON UPDATE no action;',
       ),
     ).toMatchObject({
@@ -87,9 +95,9 @@ describe("shared database adoption", () => {
     expect(plan.statements.some((item) => item.target.existsKey === "runtime.request_execution")).toBe(true);
     expect(plan.statements.some((item) => item.target.existsKey === "operator.request_projection")).toBe(true);
     expect(plan.statements.some((item) => item.target.existsKey === "official_web.crawl_runs")).toBe(true);
-    expect(plan.journalRowsToInsert.map((item: { tag: string }) => item.tag)).toEqual([
-      "0000_funny_tiger_shark",
-    ]);
+    expect(plan.journalRowsToInsert.map((item: { tag: string }) => item.tag)).toEqual(
+      migrationContext.migrations.map((item) => item.tag),
+    );
   });
 
   it("fails closed when an existing app-api-owned table diverges from the repo snapshot", () => {

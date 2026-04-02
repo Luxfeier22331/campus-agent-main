@@ -56,6 +56,35 @@
       "notes": "验证非标题原文问法仍能命中当前 handbook 的真实制度文档。"
     },
     {
+      "case_id": "policy-alias-national-scholarship-article-nine",
+      "category": "policy_alias_targeted",
+      "query": "国奖第九条里对论文和著作怎么要求的？",
+      "expected_keywords": [
+        "国家奖学金",
+        "第九条",
+        "第一作者",
+        "第一、二作者"
+      ],
+      "forbidden_doc_ids": [
+        "handbook:651a8dbf99f52b997bc74ae8fd6cd287887f74a7"
+      ],
+      "notes": "验证 informal alias 会被收敛到国家奖学金评审办法，而不是被综测表格词汇带偏。"
+    },
+    {
+      "case_id": "policy-alias-national-scholarship-author-affiliation",
+      "category": "policy_alias_targeted",
+      "query": "民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+      "expected_keywords": [
+        "国家奖学金",
+        "第一作者",
+        "第二作者"
+      ],
+      "forbidden_doc_ids": [
+        "handbook:651a8dbf99f52b997bc74ae8fd6cd287887f74a7"
+      ],
+      "notes": "验证高词面污染问题仍然锁定国奖文档，而不是被综合素质测评办法吸走。"
+    },
+    {
       "case_id": "no-hit-impossible-query",
       "category": "no_hit",
       "query": "火星校区飞船停靠规则",

@@ -47,9 +47,9 @@ updated: 2026-04-02
 当前已落盘的 curriculum 基线包括：
 
 - retrieval qrels：`packages/evals/fixtures/curriculum_plan_retrieval_qrels.json`
-  - total cases：`24`
+  - total cases：`23`
   - split：
-    - `smoke = 16`
+    - `smoke = 15`
     - `regression_locked = 8`
 - hybrid live query fixture：`packages/evals/fixtures/curriculum_plan_hybrid_queries.json`
   - total cases：`9`
@@ -63,7 +63,7 @@ updated: 2026-04-02
 - workflow/status golden cases：`packages/evals/src/campus_evals/scenarios.py`
   - release gate：`6`
   - smoke：`5`
-  - regression_locked：`8`
+  - regression_locked：`9`
   - error gate：`3`
 
 当前 automated gate 覆盖的 release-gate 终态：
@@ -79,15 +79,32 @@ updated: 2026-04-02
 - 同专业不同方案区分
 - 第二学士学位短事实
 - table / 课程地图 retrieval
+- 口语 program alias normalization（例如 `民族班 -> 民族实验班`）
+- semester-grounded course retrieval（例如 `大二下 -> 第四学期`）
 - 国际学生版本与普通版本区分
 - 同专业强基计划与普通培养路径区分
 - selected `doc_id + version_id` regression locks
 - no-hit fail-close
+- retrieval-informed ambiguity clarification
+
+已记录但尚未并入 automated denominator 的下一轮 high-risk workstream：
+
+- generic family alias clarification-first truth（例如 `基地班` / `实验班` / `创新班`）
+- deictic query + verified-identity curriculum resolution
+- memory-only over-personalization fail-close
 
 补充说明：
 
 - `packages/evals` 现在已经能同时评估 `SpecialistResponse` 与 `SupervisorResponse`
 - supervisor-only 终态指标 `approval_required_accuracy` / `rejection_accuracy` 已进入 deterministic metric surface，但当前 curriculum repo-tracked case 仍主要覆盖 RAG 主路径
+- `campus_evals.retrieval_benchmark` 现在会在评分前自动按 split manifest 预检 qrels；未裁决的短标题歧义 truth 会 fast-fail
+- 对 resolved curriculum program/semester query，repo-head 还要求 supporting evidence 不得跨 doc、跨 semester；这类污染属于 deterministic regression，不进入“靠 soft metric 解释”的空间
+
+Phase 9 planning 已进一步冻结一条 truth posture：
+
+- `基地班` 这类 family alias 不能再通过“给它找一个看起来最像的 top1”来维持假 canonical truth
+- `verified identity` 可以进入 curriculum disambiguation eval，但只在 query 自身带 deictic 语义且候选唯一时才允许形成 completed truth
+- `profile memory` 只可进入 ranking/clarification 语义，不进入 canonical qrels collapse 语义
 
 ## Live Gate Artifact Contract
 
@@ -161,6 +178,10 @@ case-level context diagnostics：
     - `curriculum-regression-minority-language-strong-base`
     - `curriculum-regression-education-second-degree-years`
     - `curriculum-regression-fiscal-core-credits`
+  - 2026-04-02 truth governance refresh：
+    - retired canonical qrels case：`fixed-phrase-ethnic-experimental-class`
+    - added regression clarification case：`curriculum-regression-needs-clarification-ethnic-experimental-class`
+    - `民族实验班` 不再被视为单目标 retrieval truth；canonical runner 会对这类 unresolved ambiguity preflight fast-fail
   - repo-tracked 自动化验证：
     - `tests.evals.test_retrieval_benchmark`
     - `tests.evals.test_golden_cases`
@@ -255,9 +276,33 @@ case-level context diagnostics：
     - `smoke.hit@1 = 0.9375`
     - `smoke.forbidden_hit_rate = 0.0625`
   - 当前新增样本本身都已 `hit@1 = 1.0`
-  - 当前 residual retrieval gaps 已从“缺 fresh rerun”收敛为两类真实排序问题：
-    - legacy sparse fixed-phrase `fixed-phrase-ethnic-experimental-class` 仍未命中目标文档
-    - `minority-language-strong-base-title` 与 `semantic-minority-language-strong-base-paraphrase` 虽已 top1 命中目标强基方案，但 forbidden 普通方案仍进入 top-5，导致 `forbidden_hit = true`
+  - 该 artifact 仍包含现已退役的 `fixed-phrase-ethnic-experimental-class`，因此它只能作为历史诊断证据，不能继续当作当前 canonical denominator
+  - 当前 canonical truth 已调整为：
+    - repo-tracked qrels denominator = `23`
+    - `民族实验班` 改走 clarification workflow，不再通过 top1 命中单一 doc 评估
+- 2026-04-02 retrieval ranking hardening 后的 fresh qrels rerun evidence：
+  - [`.tmp/evals/curriculum-plan-live-gate-20260402T032546/curriculum-live-collection-baseline.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-20260402T032546/curriculum-live-collection-baseline.json)
+  - [`.tmp/evals/curriculum-plan-live-gate-20260402T032546/curriculum-retrieval-run.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-20260402T032546/curriculum-retrieval-run.json)
+  - [`.tmp/evals/curriculum-plan-live-gate-20260402T032546/curriculum-retrieval-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-20260402T032546/curriculum-retrieval-summary.json)
+  - [`.tmp/evals/curriculum-plan-live-gate-20260402T032546/curriculum-retrieval-case-metrics.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-20260402T032546/curriculum-retrieval-case-metrics.json)
+  - aggregate：
+    - `total_cases = 24`
+    - `hit@1 = 1.0`
+    - `hit@3 = 1.0`
+    - `recall@5 = 1.0`
+    - `precision@5 = 0.26666666666666666`
+    - `mrr@5 = 1.0`
+    - `forbidden_hit_rate = 0.0`
+  - by split：
+    - `regression_locked.hit@1 = 1.0`
+    - `regression_locked.forbidden_hit_rate = 0.0`
+    - `smoke.hit@1 = 1.0`
+    - `smoke.forbidden_hit_rate = 0.0`
+  - 本轮 ranking hardening 关闭了上一轮 live qrels 中的全部 residual retrieval gap：
+    - `fixed-phrase-ethnic-experimental-class` 已稳定回到 `curriculum:法学（民族实验班）本科人才培养方案`
+    - `minority-language-strong-base-title` 已由同文档 support expansion 挤出普通版本
+    - `semantic-minority-language-strong-base-paraphrase` 的 top-5 已全部收口到目标强基方案
+  - 当前 expanded curriculum qrels 的 repo-head canonical truth 已恢复为 full green，不再存在 live retrieval 残余 fail case
 - 2026-04-02 fresh acceptance evidence：
   - [`.tmp/evals/curriculum-plan-live-gate-accept-20260402T012008/final-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-accept-20260402T012008/final-summary.json)
   - [`.tmp/evals/curriculum-plan-live-gate-accept-20260402T012008/run/summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-accept-20260402T012008/run/summary.json)
@@ -283,4 +328,15 @@ case-level context diagnostics：
 - `context_precision/context_recall` 的历史 `warn` 已完成归因，不再是当前 follow-up 主问题
 - `course-map-table` 的 deterministic truth 修复已在 fresh acceptance 中正式闭环
 - 当前 curriculum live gate 的 repo-head canonical 结论在 2026-04-02 rerun 下仍然是：`final_overall_verdict = pass`
-- expanded curriculum qrels 的 fresh rerun evidence 也已补齐；当前 follow-up 已从“缺 benchmark 证据”切到少量 retrieval 排序残留问题
+- expanded curriculum qrels 的 fresh rerun evidence 已在 `20260402T032546` 收口为 full green；当前 follow-up 主轴已回到 answer truth / citation completeness 的继续扩样，而不是 retrieval ranking 修补
+
+## Planned Phase 9 Follow-Up
+
+2026-04-02 已把下一轮 curriculum ambiguity hardening 记录为独立 roadmap phase，而不是继续混入 handbook live-accept follow-up。当前已记录的 repo-level 实施方向如下：
+
+- 在 `rag-specialist` 为 curriculum 新增 program-family resolve / bias / clarify lane
+- 把 alias 治理升级为 tiered config，而不是继续扩大全局字符串替换
+- 在 `retrieval-core` 区分 hard `target_document_ids` 与未来 soft preferred-candidate bias
+- 在 `packages/evals` 增补 clarification / verified-identity / memory-overfit fail-close case
+
+这些内容当前属于 planned truth，不代表 repo-head 已完成实现；在 Phase 9 真正执行前，不应把它们表述成当前 automated baseline 已覆盖的事实。

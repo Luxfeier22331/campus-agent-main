@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-03-31
-updated: 2026-03-31
+updated: 2026-04-02
 ---
 
 # Eval Gold Truth Model
@@ -98,6 +98,37 @@ updated: 2026-03-31
 - metric-name -> bool
 - `False` 表示该 case 不进入该 supplemental metric denominator
 
+## 歧义 Truth 治理
+
+当 query 的自然语义仍对应多个当前有效候选时：
+
+- 不要把它继续写成 canonical retrieval qrels 的单目标 `expected_sources`
+- authoring / review 阶段可以先以 `warn` 暴露问题
+- canonical benchmark / CI / release gate 必须把未裁决歧义升级为 `error` 并 fast-fail
+- 正确归宿通常是：
+  - `needs_clarification` workflow case
+  - 或 diagnostic / annotation fixture
+
+判断标准：
+
+- 当前 active title / source truth 下是否存在多个可成立候选
+- query 是否缺少足够限定词，无法唯一落到单一 doc truth
+- 如果继续优化 retrieval 排序，只是在迎合坏 truth，而不是提升系统真实性
+
+当前 repo 约束：
+
+- `campus_evals.validate_retrieval_qrels_fixture()` 会基于 split manifest 检查这类短标题片段歧义
+- `campus_evals.retrieval_benchmark` canonical runner 默认在评分前做 preflight；未裁决歧义直接返回非零退出码
+
+对 curriculum family alias，repo 级 truth authoring 进一步冻结如下：
+
+- `基地班`、`实验班`、`创新班`、`民族班` 这类 generic family alias 默认不应写成单目标 `expected_sources`
+- 不允许用 `profile memory` 或 `recent_goal` 作为 canonical single-doc truth 的唯一依据
+- 若 case 使用 `verified identity` 参与 disambiguation，必须同时满足：
+  - query 本身带有 deictic/actor-grounded 语义
+  - active candidates 被安全收敛到唯一当前有效 doc
+- 否则正确归宿仍是 clarification case 或 preflight error，而不是 retrieval qrels
+
 ## RAGAS Projection 规则
 
 当前 `build_ragas_projection()` 固定为：
@@ -126,9 +157,12 @@ context metric 路由：
 - 若要进入 context metric，必须提供 `reference_context_ids` 或 `reference_contexts`
 - 若是 title/article/topic lookup，应显式关闭 `answer_relevancy`
 - 若保留 `answer_relevancy`，`user_goal` 应是自然问题句，而不是纯标题或纯条款号
+- 若是 curriculum 的 resolved course/semester query，retrieved/supporting context truth 应明确约束为单一 `doc_id`；当 case 本身包含学期槽位时，context truth 还应只覆盖目标学期对应的 row/context
 
 ## 当前 Handbook / Curriculum 约束
 
 - `student_handbook` 与 `curriculum_plan` 的 completed release/regression cases 现在都应显式携带 context truth
 - handbook `宿舍照明`、奖学金/公费医疗标题类 case 已按 lookup case 处理，不再默认进入 `answer_relevancy`
 - curriculum 纯标题/方案名 exact-match case 同样按 lookup case 处理
+- curriculum 的短标题片段歧义不得再锁成单目标 retrieval truth；`民族实验班` 现已迁移为 clarification lane，而不是 canonical qrels
+- curriculum 的 resolved program/semester 问句不得再接受跨 doc、跨学期拼接出来的 answer/context truth；这类污染应视为 deterministic failure，而不是 soft metric 波动

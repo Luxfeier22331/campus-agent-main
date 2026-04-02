@@ -24,6 +24,10 @@ from qdrant_client import QdrantClient
 from qdrant_client.http.exceptions import ResponseHandlingException
 from qdrant_client.http import models as qdrant_models
 
+from campus_retrieval_core.curriculum_query_resolution import (
+    build_curriculum_document_support_query_text,
+    interpret_curriculum_query,
+)
 from campus_retrieval_core.evidence_ranking import prioritize_evidence_sources, query_targets_source_title
 from campus_retrieval_core.models import RetrievalRequest
 from campus_retrieval_core.settings import RetrievalSettings
@@ -137,6 +141,8 @@ class QdrantRetrievalBackend:
                 f"{request.corpus}/{request.collection} retrieval is disabled by runtime profile"
             )
         query_text = request.query_text.strip()
+        if request.corpus == "curriculum" and request.collection == "curriculum_plan":
+            query_text = interpret_curriculum_query(query_text).normalized_query_text
         if not query_text:
             return EvidenceBundle(
                 query_text=request.query_text,
@@ -182,6 +188,10 @@ class QdrantRetrievalBackend:
             query_text=query_text,
             sources=initial_sources,
         )
+        ranked_sources = _apply_preferred_document_bias(
+            sources=ranked_sources,
+            preferred_document_ids=request.preferred_document_ids,
+        )
         expanded_sources = self._expand_named_document_support(
             request=request,
             profile=profile,
@@ -193,10 +203,13 @@ class QdrantRetrievalBackend:
             query_text=request.query_text,
             corpus=request.corpus,
             collection=request.collection,
-            sources=prioritize_evidence_sources(
-                query_text=query_text,
-                sources=expanded_sources,
-            )[: request.top_k],
+            sources=_apply_preferred_document_bias(
+                sources=prioritize_evidence_sources(
+                    query_text=query_text,
+                    sources=expanded_sources,
+                )[: request.top_k],
+                preferred_document_ids=request.preferred_document_ids,
+            ),
         )
 
     def _build_evidence_sources(self, points: Sequence[qdrant_models.ScoredPoint]) -> tuple[EvidenceSource, ...]:
@@ -390,6 +403,13 @@ def _build_document_support_query_text(*, query_text: str, source: EvidenceSourc
     normalized_query = query_text.strip()
     if not normalized_query:
         return normalized_query
+    if source.collection == "curriculum_plan" or source.doc_id.startswith("curriculum:"):
+        focused_query = build_curriculum_document_support_query_text(
+            query_text=normalized_query,
+            source=source,
+        )
+        if focused_query != normalized_query:
+            return _strip_document_support_query_noise(focused_query)
     for candidate in _document_support_query_candidates(source):
         if candidate and candidate in normalized_query:
             focused_query = _strip_document_support_query_noise(
@@ -530,6 +550,14 @@ def _build_metadata_filters(
             )
         )
     filters.append(MetadataFilter(key="status", value=DEFAULT_SERVING_STATUS))
+    if request.target_document_ids:
+        filters.append(
+            MetadataFilter(
+                key="document_id",
+                value=list(request.target_document_ids),
+                operator=FilterOperator.IN,
+            )
+        )
     filters.append(
         _build_authorization_metadata_filter(
             entitlement_groups=effective_entitlement_groups,
@@ -582,9 +610,35 @@ def _build_qdrant_filter(
                 match=qdrant_models.MatchValue(value=True),
             )
         )
+    if request.target_document_ids:
+        must.append(
+            qdrant_models.FieldCondition(
+                key="document_id",
+                match=qdrant_models.MatchAny(any=list(request.target_document_ids)),
+            )
+        )
     if effective_visibility_scope is not None:
         must.append(_build_visibility_scope_qdrant_filter(effective_visibility_scope))
     return qdrant_models.Filter(must=must)
+
+
+def _apply_preferred_document_bias(
+    *,
+    sources: Sequence[EvidenceSource],
+    preferred_document_ids: tuple[str, ...],
+) -> tuple[EvidenceSource, ...]:
+    if not preferred_document_ids:
+        return tuple(sources)
+    preferred_set = {doc_id for doc_id in preferred_document_ids if doc_id}
+    if not preferred_set:
+        return tuple(sources)
+    return tuple(
+        sorted(
+            sources,
+            key=lambda source: (1 if source.doc_id in preferred_set else 0, source.score),
+            reverse=True,
+        )
+    )
 
 
 def _build_authorization_metadata_filter(

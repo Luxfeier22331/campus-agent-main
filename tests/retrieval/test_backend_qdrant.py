@@ -22,6 +22,7 @@ from campus_retrieval_core.backend_qdrant import (
     CorpusQueryDisabledError,
     QdrantRetrievalBackend,
     RetrievalBackendError,
+    _apply_preferred_document_bias,
     _apply_no_hit_policy,
     _build_document_support_query_text,
     _build_hybrid_prefetch,
@@ -387,6 +388,73 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertIn("acl_level", auth_keys)
         self.assertNotIn("entitlement_groups", auth_keys)
         self.assertNotIn("acl_groups", auth_keys)
+
+    def test_build_qdrant_filter_adds_target_document_constraint_when_present(self) -> None:
+        qdrant_filter = _build_qdrant_filter(
+            RetrievalRequest(
+                query_text="国奖评审办法里的论文要求是什么？",
+                corpus="regulations",
+                collection="student_handbook",
+                acl_groups=("students",),
+                target_document_ids=(
+                    "handbook:national-scholarship",
+                    "handbook:professional-scholarship",
+                ),
+            )
+        )
+
+        document_conditions = [
+            condition
+            for condition in qdrant_filter.must or ()
+            if getattr(condition, "key", None) == "document_id"
+        ]
+
+        self.assertEqual(len(document_conditions), 1)
+        self.assertEqual(
+            getattr(getattr(document_conditions[0], "match", None), "any", None),
+            ["handbook:national-scholarship", "handbook:professional-scholarship"],
+        )
+
+    def test_build_metadata_filters_ignore_preferred_document_ids(self) -> None:
+        filters = _build_metadata_filters(
+            RetrievalRequest(
+                query_text="基地班培养方案",
+                corpus="curriculum",
+                collection="curriculum_plan",
+                preferred_document_ids=("curriculum:历史学（强基计划）本科人才培养方案",),
+            )
+        )
+
+        filter_keys = _collect_filter_keys(filters)
+        self.assertNotIn("preferred_document_ids", filter_keys)
+        self.assertNotIn("document_id", filter_keys)
+
+    def test_apply_preferred_document_bias_promotes_preferred_doc_at_ranking_time(self) -> None:
+        biased_sources = _apply_preferred_document_bias(
+            sources=(
+                _make_source(
+                    doc_id="curriculum:法学（民族实验班）本科人才培养方案",
+                    chunk_id="curriculum:law:chunk-0004",
+                    snippet="第四学期 国际公法、知识产权法。",
+                    score=0.92,
+                ),
+                _make_source(
+                    doc_id="curriculum:历史学（强基计划）本科人才培养方案",
+                    chunk_id="curriculum:history-strong-base:chunk-0004",
+                    snippet="第四学期 中国史学史、史学理论专题。",
+                    score=0.88,
+                ),
+            ),
+            preferred_document_ids=("curriculum:历史学（强基计划）本科人才培养方案",),
+        )
+
+        self.assertEqual(
+            [source.doc_id for source in biased_sources],
+            [
+                "curriculum:历史学（强基计划）本科人才培养方案",
+                "curriculum:法学（民族实验班）本科人才培养方案",
+            ],
+        )
 
     def test_index_chunks_to_qdrant_skips_payload_indexes_for_local_backend(self) -> None:
         record = _make_registry_record(
@@ -1499,7 +1567,7 @@ class BackendQdrantTest(unittest.TestCase):
 
         self.assertEqual(ranked[0].chunk_id, "curriculum:economics-innovation:chunk-0023")
 
-    def test_prioritize_evidence_sources_prefers_compact_ethnic_experimental_title_over_table_bias(self) -> None:
+    def test_prioritize_evidence_sources_does_not_force_shortest_title_for_ambiguous_ethnic_experimental_fragment(self) -> None:
         ranked = prioritize_evidence_sources(
             query_text="民族实验班",
             sources=(
@@ -1534,12 +1602,28 @@ class BackendQdrantTest(unittest.TestCase):
             ),
         )
 
-        self.assertEqual(ranked[0].doc_id, "curriculum:法学（民族实验班）本科人才培养方案")
+        self.assertEqual(ranked[0].doc_id, "curriculum:计算机科学与技术（民族实验班）本科人才培养方案")
 
     def test_query_targets_source_title_accepts_curriculum_title_with_inserted_direction_variant(self) -> None:
         self.assertTrue(
             query_targets_source_title(
                 query_text="中国少数民族语言文学强基计划本科人才培养方案",
+                source=_make_source(
+                    doc_id="curriculum:中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
+                    chunk_id="curriculum:minority-language-strong-base:chunk-0001",
+                    snippet="中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案 一、培养目标。",
+                    score=0.51,
+                    source_title="中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
+                    structural_path=("中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案", "一、培养目标"),
+                    content_kind="section_text",
+                ),
+            )
+        )
+
+    def test_query_targets_source_title_accepts_long_semantic_curriculum_title_paraphrase(self) -> None:
+        self.assertTrue(
+            query_targets_source_title(
+                query_text="想看中国少数民族语言文学古文字学方向强基计划培养方案",
                 source=_make_source(
                     doc_id="curriculum:中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
                     chunk_id="curriculum:minority-language-strong-base:chunk-0001",
@@ -1673,6 +1757,23 @@ class BackendQdrantTest(unittest.TestCase):
                 ),
             ),
             "课程地图",
+        )
+
+    def test_build_document_support_query_text_normalizes_curriculum_alias_and_semester_noise(self) -> None:
+        self.assertEqual(
+            _build_document_support_query_text(
+                query_text="法学民族班培养方案里大二下有什么课",
+                source=_make_source(
+                    doc_id="curriculum:法学（民族实验班）本科人才培养方案",
+                    chunk_id="curriculum:law-ethnic-experimental:chunk-0004",
+                    snippet="第四学期 国际公法、知识产权法。",
+                    score=0.49,
+                    source_title="法学（民族实验班）本科人才培养方案",
+                    structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
+                    detail_label="第四学期",
+                ),
+            ),
+            "第四学期",
         )
 
     def test_prioritize_evidence_sources_uses_explicit_source_title_when_doc_ids_are_opaque(self) -> None:

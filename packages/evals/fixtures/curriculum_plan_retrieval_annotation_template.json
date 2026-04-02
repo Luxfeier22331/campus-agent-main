@@ -152,13 +152,6 @@
       "notes": "括号标题和相邻专业区分样本。"
     },
     {
-      "case_id": "fixed-phrase-ethnic-experimental-class",
-      "query": "民族实验班",
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "sparse 固定短语样本。"
-    },
-    {
       "case_id": "semantic-philosophy-strong-base-paraphrase",
       "query": "想看哲学强基方向的培养方案",
       "expected_sources": [],

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 import io
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 
 import campus_evals
 from campus_contracts import EvidenceSource, KnowledgeScope
@@ -23,6 +24,7 @@ from campus_evals import (
     load_retrieval_qrels_dataset,
     render_retrieval_summary_text,
     summarize_retrieval_metrics,
+    validate_retrieval_qrels_fixture,
 )
 from campus_evals.retrieval_benchmark import main as benchmark_main
 
@@ -129,13 +131,28 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertIn("article-number-degree-procedure", case_ids)
         self.assertIn("fixed-phrase-medical-reimbursement", case_ids)
         self.assertIn("policy-title-national-encouragement-scholarship", case_ids)
+        self.assertIn("policy-alias-national-scholarship-article-nine", case_ids)
+        self.assertIn("policy-alias-national-scholarship-author-affiliation", case_ids)
         self.assertIn("semantic-disciplinary-relief", case_ids)
         self.assertIn("short-fact-attendance-discipline-threshold", case_ids)
         self.assertIn("structured-disciplinary-relief-materials", case_ids)
         article_case = next(case for case in dataset.cases if case.case_id == "article-number-degree-procedure")
         fixed_phrase_case = next(case for case in dataset.cases if case.case_id == "fixed-phrase-medical-reimbursement")
+        policy_alias_case = next(
+            case
+            for case in dataset.cases
+            if case.case_id == "policy-alias-national-scholarship-author-affiliation"
+        )
         self.assertTrue(all(source.chunk_id is None for source in article_case.expected_sources))
         self.assertTrue(all(source.chunk_id is None for source in fixed_phrase_case.expected_sources))
+        self.assertEqual(
+            tuple(source.doc_id for source in policy_alias_case.expected_sources),
+            ("handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",),
+        )
+        self.assertEqual(
+            tuple(source.doc_id for source in policy_alias_case.forbidden_sources),
+            ("handbook:651a8dbf99f52b997bc74ae8fd6cd287887f74a7",),
+        )
 
     def test_handbook_qrels_fixture_contains_multiple_forbidden_source_cases(self) -> None:
         dataset = load_retrieval_qrels_dataset(FIXTURE_PATH)
@@ -144,6 +161,8 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertTrue(
             {
                 "policy-title-national-encouragement-scholarship",
+                "policy-alias-national-scholarship-article-nine",
+                "policy-alias-national-scholarship-author-affiliation",
                 "semantic-disciplinary-relief",
                 "structured-disciplinary-relief-materials",
             }.issubset(forbidden_case_ids)
@@ -270,7 +289,6 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
                 "philosophy-strong-base-title",
                 "digital-economy-plan-paraphrase",
                 "general-english-total-credits",
-                "fixed-phrase-ethnic-experimental-class",
                 "semantic-philosophy-strong-base-paraphrase",
             }.issubset(case_ids)
         )
@@ -337,6 +355,54 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
             }.issubset(case_ids)
         )
 
+    def test_curriculum_qrels_fixture_validation_has_no_issues(self) -> None:
+        issues = validate_retrieval_qrels_fixture(
+            CURRICULUM_QRELS_FIXTURE_PATH,
+            manifest_path=CURRICULUM_MANIFEST_PATH,
+        )
+
+        self.assertEqual(issues, ())
+
+    def test_validate_retrieval_qrels_fixture_flags_ambiguous_title_fragment_truth(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            qrels_path = Path(temp_dir) / "ambiguous-qrels.json"
+            qrels_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "baseline": {},
+                        "cases": [
+                            {
+                                "case_id": "fixed-phrase-ethnic-experimental-class",
+                                "split": "smoke",
+                                "query": "民族实验班",
+                                "expected_sources": [
+                                    {
+                                        "doc_id": "curriculum:法学（民族实验班）本科人才培养方案",
+                                        "grade": 2,
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            issues = validate_retrieval_qrels_fixture(
+                qrels_path,
+                manifest_path=CURRICULUM_MANIFEST_PATH,
+                ambiguity_severity="error",
+            )
+
+        self.assertEqual(len(issues), 1)
+        self.assertIn("fixed-phrase-ethnic-experimental-class", issues[0])
+        self.assertIn("ambiguously matches", issues[0])
+        self.assertIn("needs_clarification", issues[0])
+
 
 class StudentHandbookHybridFixtureTest(unittest.TestCase):
     def test_load_hybrid_fixture_reads_phase1_baseline(self) -> None:
@@ -354,7 +420,7 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
         self.assertEqual(dataset.baseline["dense_model"], "Qwen3-Embedding-4B")
         self.assertEqual(dataset.baseline["sparse_model"], "qdrant/bm25")
         self.assertEqual(dataset.baseline["fusion"], "rrf")
-        self.assertEqual(len(dataset.cases), 5)
+        self.assertEqual(len(dataset.cases), 7)
 
     def test_hybrid_fixture_stays_within_current_handbook_boundary(self) -> None:
         fixture = json.loads(HYBRID_FIXTURE_PATH.read_text(encoding="utf-8"))
@@ -366,6 +432,8 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
             {
                 "article-number-degree-procedure",
                 "policy-title-scholarship",
+                "policy-alias-national-scholarship-article-nine",
+                "policy-alias-national-scholarship-author-affiliation",
                 "fixed-phrase-dormitory-lighting",
                 "semantic-student-card-reissue",
                 "no-hit-impossible-query",
@@ -376,6 +444,7 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
             {
                 "article_number_exact_match",
                 "policy_title_exact_match",
+                "policy_alias_targeted",
                 "fixed_phrase_sparse_win",
                 "semantic_dense_win",
                 "no_hit",
@@ -413,6 +482,14 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
         self.assertEqual(
             cases_by_id["semantic-student-card-reissue"]["query"],
             "学生证丢了怎么办",
+        )
+        self.assertEqual(
+            cases_by_id["policy-alias-national-scholarship-article-nine"]["forbidden_doc_ids"],
+            ["handbook:651a8dbf99f52b997bc74ae8fd6cd287887f74a7"],
+        )
+        self.assertEqual(
+            cases_by_id["policy-alias-national-scholarship-author-affiliation"]["expected_keywords"],
+            ["国家奖学金", "第一作者", "第二作者"],
         )
 
     def test_validate_hybrid_fixture_rejects_acl_campus_and_titleless_fixed_phrase_drift(self) -> None:
@@ -793,6 +870,86 @@ class RetrievalBenchmarkCliTest(unittest.TestCase):
         self.assertEqual(json_exit_code, 0)
         self.assertIn("Retrieval Benchmark Summary", text_buffer.getvalue())
         self.assertEqual(json.loads(json_buffer.getvalue())["hit_at_1"], 1.0)
+
+    def test_benchmark_main_fast_fails_when_qrels_fixture_has_unresolved_ambiguity(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            qrels_path = Path(temp_dir) / "qrels.json"
+            qrels_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "baseline": {},
+                        "cases": [
+                            {
+                                "case_id": "fixed-phrase-ethnic-experimental-class",
+                                "split": "smoke",
+                                "query": "民族实验班",
+                                "expected_sources": [
+                                    {
+                                        "doc_id": "curriculum:法学（民族实验班）本科人才培养方案",
+                                        "grade": 2,
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            run_path = Path(temp_dir) / "run.json"
+            run_path.write_text(
+                json.dumps({"schema_version": 1, "cases": []}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+            stderr_buffer = io.StringIO()
+            with redirect_stderr(stderr_buffer):
+                exit_code = benchmark_main(["--qrels", str(qrels_path), "--results", str(run_path)])
+
+        self.assertEqual(exit_code, 2)
+        self.assertIn("ambiguously matches", stderr_buffer.getvalue())
+
+    def test_benchmark_main_loads_repo_env(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            qrels_path = Path(temp_dir) / "qrels.json"
+            qrels_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "corpus": "regulations",
+                        "collection": "student_handbook",
+                        "baseline": {},
+                        "cases": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            run_path = Path(temp_dir) / "run.json"
+            run_path.write_text(json.dumps({"schema_version": 1, "cases": []}), encoding="utf-8")
+            manifest_path = Path(temp_dir) / "manifest.json"
+            manifest_path.write_text(json.dumps({"schema_version": 1, "documents": []}), encoding="utf-8")
+
+            stdout_buffer = io.StringIO()
+            with (
+                patch("campus_evals.retrieval_benchmark.load_repo_env") as load_repo_env,
+                redirect_stdout(stdout_buffer),
+            ):
+                exit_code = benchmark_main(
+                    [
+                        "--qrels",
+                        str(qrels_path),
+                        "--results",
+                        str(run_path),
+                        "--manifest",
+                        str(manifest_path),
+                    ]
+                )
+
+        self.assertEqual(exit_code, 0)
+        load_repo_env.assert_called_once_with()
 
 
 if __name__ == "__main__":

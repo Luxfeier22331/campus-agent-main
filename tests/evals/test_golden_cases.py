@@ -36,7 +36,7 @@ CURRICULUM_SCOPE = KnowledgeScope(corpus="curriculum", collection="curriculum_pl
 
 def _is_lookup_style_goal(user_goal: str) -> bool:
     normalized = user_goal.strip()
-    if re.search(r"第[一二三四五六七八九十百0-9]+条$", normalized):
+    if re.search(r"第[一二三四五六七八九十百0-9]+条", normalized):
         return True
     if any(token in normalized for token in ("怎么办", "怎么", "如何", "多少", "几年", "安排", "授予")):
         return False
@@ -176,6 +176,8 @@ class RunCasesTest(unittest.TestCase):
                 "handbook-regression-student-card-reissue",
                 "handbook-regression-no-answer-visa",
                 "handbook-regression-needs-clarification-scholarship",
+                "handbook-regression-needs-clarification-policy-object",
+                "handbook-regression-national-scholarship-no-answer-author-affiliation",
             ),
         )
         self.assertEqual(
@@ -186,6 +188,8 @@ class RunCasesTest(unittest.TestCase):
                 "completed",
                 "no_answer",
                 "needs_clarification",
+                "needs_clarification",
+                "no_answer",
             ),
         )
         self.assertTrue(all(case.source_type == "expert_authored" for case in cases))
@@ -196,7 +200,7 @@ class RunCasesTest(unittest.TestCase):
         cases = handbook_release_gate_cases()
         cases_by_id = {case.case_id: case for case in cases}
 
-        self.assertEqual(len(cases), 8)
+        self.assertEqual(len(cases), 11)
         self.assertEqual(
             tuple(case.case_id for case in cases),
             (
@@ -206,6 +210,9 @@ class RunCasesTest(unittest.TestCase):
                 "release-gate-student-card-time",
                 "release-gate-dormitory-lighting",
                 "release-gate-medical-title",
+                "release-gate-national-scholarship-alias",
+                "release-gate-national-scholarship-no-answer-author-affiliation",
+                "release-gate-needs-clarification-policy-object",
                 "release-gate-no-answer",
                 "release-gate-needs-clarification",
             ),
@@ -219,6 +226,9 @@ class RunCasesTest(unittest.TestCase):
                 "completed",
                 "completed",
                 "completed",
+                "completed",
+                "no_answer",
+                "needs_clarification",
                 "no_answer",
                 "needs_clarification",
             ),
@@ -240,6 +250,10 @@ class RunCasesTest(unittest.TestCase):
         self.assertEqual(
             cases_by_id["release-gate-scholarship-title"].supplemental_metric_overrides.get("answer_relevancy"),
             False,
+        )
+        self.assertEqual(
+            cases_by_id["release-gate-national-scholarship-alias"].forbidden_sources[0].doc_id,
+            "handbook:651a8dbf99f52b997bc74ae8fd6cd287887f74a7",
         )
         self.assertEqual(
             cases_by_id["release-gate-dormitory-lighting"].reference_context_ids,
@@ -355,6 +369,7 @@ class RunCasesTest(unittest.TestCase):
                 "curriculum-regression-fiscal-core-credits",
                 "curriculum-regression-no-answer-program",
                 "curriculum-regression-needs-clarification-degree",
+                "curriculum-regression-needs-clarification-ethnic-experimental-class",
             ),
         )
         self.assertEqual(
@@ -367,6 +382,7 @@ class RunCasesTest(unittest.TestCase):
                 "completed",
                 "completed",
                 "no_answer",
+                "needs_clarification",
                 "needs_clarification",
             ),
         )

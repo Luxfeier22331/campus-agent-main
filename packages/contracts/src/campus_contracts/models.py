@@ -261,6 +261,16 @@ class RagRequestPayload:
 
 
 @dataclass(frozen=True, slots=True)
+class RagResultDiagnostics:
+    resolved_policy_document_id: str = ""
+    resolved_policy_title: str = ""
+    rewritten_query: str = ""
+    clarification_reason: str = ""
+    no_answer_reason: str = ""
+    retrieved_title_summary: tuple[str, ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True, slots=True)
 class AvailabilityCheckPayload:
     target_id: str
     follow_redirects: bool = True
@@ -273,6 +283,7 @@ class AvailabilityCheckPayload:
 @dataclass(frozen=True, slots=True)
 class RagResultPayload:
     evidence: EvidenceBundle
+    diagnostics: RagResultDiagnostics | None = None
 
 
 @dataclass(frozen=True, slots=True)

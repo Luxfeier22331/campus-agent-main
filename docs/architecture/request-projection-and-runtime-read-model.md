@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-28
-updated: 2026-03-29
+updated: 2026-04-02
 ---
 
 # Request Projection And Runtime Read Model
@@ -162,12 +162,18 @@ updated: 2026-03-29
 
 - no-answer / clarification / failure reason summary
 - answer summary 或问题摘要
+- handbook policy-object resolution summary，例如 resolved policy title / doc id、rewritten query、clarification/no-answer reason code 与 retrieved title summary
 
 默认不要求：
 
 - raw prompt 全量暴露
 - raw answer 全量暴露
 - package-internal trace 结构直接暴露给 panel
+
+补充规则：
+
+- 这类 summary diagnostics 由 `apps/app-api` 在 command / projection path 内从 supervisor result 提取并物化
+- `apps/protected-panel-web` 只能展示已物化字段，不能自行回放 retrieval 或从 evidence bundle 逆向合成诊断解释
 
 ## Current Repo Mapping
 

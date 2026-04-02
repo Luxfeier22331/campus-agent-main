@@ -1,5 +1,7 @@
 import { index, integer, jsonb, pgSchema, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
+import type { RequestDiagnosticsSummary } from "../../modules/request-diagnostics";
+
 const runtime = pgSchema("runtime");
 
 export const requestExecution = runtime.table(
@@ -28,6 +30,7 @@ export const requestExecution = runtime.table(
     errorCode: text("error_code"),
     questionPreview: text("question_preview").notNull(),
     answerPreview: text("answer_preview"),
+    diagnosticsJson: jsonb("diagnostics_json").$type<RequestDiagnosticsSummary | null>(),
     sourceDocIdsJson: jsonb("source_doc_ids_json").$type<string[] | null>(),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
     completedAt: timestamp("completed_at", { withTimezone: true }),

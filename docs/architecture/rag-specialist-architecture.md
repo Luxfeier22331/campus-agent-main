@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-28
-updated: 2026-03-29
+updated: 2026-04-02
 ---
 
 # RAG Specialist Architecture
@@ -114,6 +114,22 @@ updated: 2026-03-29
 - 静默改写顶层 capability / specialist route
 - 在 retrieval 之后再事后裁掉本应 pre-filter 拦下的受限内容
 
+当前 `student_handbook` 已落地一条 collection-specific policy-object lane：
+
+- `rag-specialist` 负责基于 repo-tracked alias/title config 做保守制度对象解析
+- 若制度对象缺失或仍存在多个候选，必须在 retrieval 前返回 `needs_clarification`
+- 若制度对象已唯一解析，则把目标 `document_id` 作为受控 retrieval planning 输入交给 `retrieval-core`
+- 若目标制度内没有足够支撑证据，则返回对象内 `no_answer`，而不是借用相邻制度补答
+- operator-facing summary diagnostics 只作为 `app-api` request projection 的下游消费物，不属于 `rag-specialist` 对 panel 的直接 contract
+
+已记录但尚未落地的下一条同类 lane 是 `curriculum/curriculum_plan` 的 program-family ambiguity hardening：
+
+- `rag-specialist` 将基于 repo-tracked MUC curriculum alias governance config 进行 resolve / bias / clarify 规划
+- family alias（例如 `基地班`、`实验班`、`创新班`、`民族班`）默认不作为单一培养方案 truth，而是先生成候选并决定是否澄清
+- 若 query 自身已足够明确，或 `verified identity` 只在 deictic query 下把 active candidates 收窄到唯一 doc，则 specialist 可以把 resolved `document_id` 下发给 `retrieval-core`
+- 若 personalization 只提供弱 prior，则 specialist 只能把它用于 candidate ranking bias 或 clarification 候选排序，不得静默硬解析
+- curriculum 的 operator-facing diagnostics 也应复用这一 resolution/clarification 语义，而不是继续复用 handbook-only 的命名心智
+
 ## Answer Shaping
 
 长期上，`rag-specialist` 的 retrieval-specific intent 不只作用于 query planning，也作用于 answer shaping contract。
@@ -155,6 +171,13 @@ updated: 2026-03-29
 - authorization filter projection，包括当前过渡期 `acl_level` / `acl_groups` / `campus_scope` 与后续 `visibility_*` / `entitlement_*` payload
 - runtime profile 中未开放 collection 的准入
 - approval-required deterministic gate
+
+对 curriculum ambiguity lane，进一步冻结以下姿态：
+
+- `verified identity` 可作为 stronger hint，但仍不是自动授权或自动 doc truth
+- `profile memory` 和 `recent_goal` 只能作为 weaker hint
+- `基地班` 这类 family alias 不得仅凭用户长期记忆直接落到某一培养方案
+- 如果 personalization 不能把候选安全收敛到唯一 doc，正确行为仍是 `needs_clarification`
 
 ## Clarification / No-Answer / Completed Policy
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import json
 from pathlib import Path
+import re
 from typing import Literal
 
 from campus_contracts import EvidenceSource, KnowledgeScope
@@ -12,6 +13,7 @@ from campus_evals.models import ALLOWED_CASE_SPLITS, CaseSplit
 HybridQueryCategory = Literal[
     "article_number_exact_match",
     "policy_title_exact_match",
+    "policy_alias_targeted",
     "fixed_phrase_sparse_win",
     "semantic_dense_win",
     "short_fact_section",
@@ -24,6 +26,7 @@ HybridQueryCategory = Literal[
 ALLOWED_HYBRID_QUERY_CATEGORIES = (
     "article_number_exact_match",
     "policy_title_exact_match",
+    "policy_alias_targeted",
     "fixed_phrase_sparse_win",
     "semantic_dense_win",
     "short_fact_section",
@@ -33,6 +36,9 @@ ALLOWED_HYBRID_QUERY_CATEGORIES = (
     "campus_scope_filter",
     "no_hit",
 )
+FixtureValidationSeverity = Literal["warn", "error"]
+_QRELS_QUERY_ASK_CUES = frozenset({"多少", "几年", "怎么", "如何", "安排", "什么", "哪些"})
+_QRELS_WHITESPACE_RE = re.compile(r"\s+")
 
 
 @dataclass(frozen=True, slots=True)
@@ -195,6 +201,33 @@ def validate_retrieval_hybrid_query_fixture(
                 f"case {case.case_id} category {case.category} is not grounded in any current {scope_label} title keyword"
             )
     return tuple(errors)
+
+
+def validate_retrieval_qrels_fixture(
+    path: str | Path,
+    *,
+    manifest_path: str | Path,
+    ambiguity_severity: FixtureValidationSeverity = "warn",
+) -> tuple[str, ...]:
+    dataset = load_retrieval_qrels_dataset(path)
+    manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+    documents = tuple(manifest.get("documents") or ())
+    scope_label = f"{dataset.scope.corpus}/{dataset.scope.collection}"
+
+    issues: list[str] = []
+    for case in dataset.cases:
+        matched_titles = _find_ambiguous_manifest_title_matches(case.query, documents=documents)
+        if len(matched_titles) < 2 or not case.expected_sources:
+            continue
+        issues.append(
+            (
+                f"{ambiguity_severity}: case {case.case_id} query {case.query!r} ambiguously matches "
+                f"{len(matched_titles)} current {scope_label} titles "
+                f"({', '.join(item.title for item in matched_titles[:3])}); canonical qrels must not lock this "
+                f"to a single retrieval truth. Move it to a needs_clarification workflow case or diagnostic fixture."
+            )
+        )
+    return tuple(issues)
 
 
 def load_retrieval_qrels_dataset(path: str | Path) -> RetrievalQrelsDataset:
@@ -368,6 +401,74 @@ def _case_is_grounded_in_titles(case: RetrievalHybridQueryCase, *, titles: tuple
     return any(term in title for title in titles for term in normalized_terms)
 
 
+@dataclass(frozen=True, slots=True)
+class _ManifestTitleMatch:
+    doc_id: str
+    title: str
+
+
+def _find_ambiguous_manifest_title_matches(
+    query: str,
+    *,
+    documents: tuple[dict[str, object], ...],
+) -> tuple[_ManifestTitleMatch, ...]:
+    query_key = _fixture_query_key(query)
+    if not _query_can_lock_ambiguous_title_truth(query_key):
+        return ()
+
+    matches: list[_ManifestTitleMatch] = []
+    for item in documents:
+        title = _manifest_document_title(item)
+        if not title:
+            continue
+        if any(query_key in title_key for title_key in _fixture_title_keys(title)):
+            matches.append(
+                _ManifestTitleMatch(
+                    doc_id=str(item.get("document_id") or "").strip(),
+                    title=title,
+                )
+            )
+    return tuple(dict.fromkeys(matches))
+
+
+def _manifest_document_title(payload: dict[str, object]) -> str:
+    title = _optional_string(payload.get("title"))
+    if title is not None:
+        return title
+    doc_id = _optional_string(payload.get("document_id"))
+    if doc_id is None:
+        return ""
+    return doc_id.split(":", 1)[-1]
+
+
+def _query_can_lock_ambiguous_title_truth(query_key: str) -> bool:
+    if not query_key:
+        return False
+    if any(cue in query_key for cue in _QRELS_QUERY_ASK_CUES):
+        return False
+    cjk_length = sum(1 for char in query_key if _is_cjk_char(char))
+    return 0 < cjk_length <= 8
+
+
+def _fixture_query_key(text: str) -> str:
+    normalized = _QRELS_WHITESPACE_RE.sub(" ", text).strip().lower()
+    return "".join(char for char in normalized if char.isalnum() or _is_cjk_char(char))
+
+
+def _fixture_title_keys(text: str) -> tuple[str, ...]:
+    key = _fixture_query_key(text)
+    return (key,) if key else ()
+
+
+def _is_cjk_char(char: str) -> bool:
+    code_point = ord(char)
+    return (
+        0x3400 <= code_point <= 0x4DBF
+        or 0x4E00 <= code_point <= 0x9FFF
+        or 0xF900 <= code_point <= 0xFAFF
+    )
+
+
 def _source_identity(source_ref: RetrievalQrelsSourceRef) -> tuple[str, str | None, str | None]:
     return (source_ref.doc_id, source_ref.version_id, source_ref.chunk_id)
 
@@ -395,6 +496,22 @@ def load_retrieval_benchmark_run(path: str | Path) -> RetrievalBenchmarkRun:
         schema_version=int(payload["schema_version"]),
         cases=tuple(_load_run_case(item) for item in payload.get("cases") or ()),
     )
+
+
+def resolve_retrieval_fixture_manifest_path(path: str | Path) -> Path:
+    dataset = load_retrieval_qrels_dataset(path)
+    repo_root = Path(__file__).resolve().parents[4]
+    manifest_path = (
+        repo_root
+        / "configs"
+        / "ingestion"
+        / dataset.scope.corpus
+        / dataset.scope.collection
+        / "split-manifest.v1.json"
+    )
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"unable to resolve split manifest for {dataset.scope}: {manifest_path}")
+    return manifest_path
 
 
 def evaluate_retrieval_run(

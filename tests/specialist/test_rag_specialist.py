@@ -15,6 +15,7 @@ from campus_contracts import (
     ProfileMemoryItem,
     ProfileMemorySummary,
     RagRequestPayload,
+    RagResultDiagnostics,
     RagResultPayload,
     SessionSlot,
     SessionSummary,
@@ -26,6 +27,7 @@ from campus_rag_specialist import RagSpecialistAgent
 from campus_rag_specialist.confidence import derive_confidence
 from campus_rag_specialist.intent import frame_rag_intent
 from campus_rag_specialist.service import delegate_to_rag_agent
+from campus_rag_specialist.query_planning import plan_curriculum_query
 
 
 def _make_evidence(
@@ -62,6 +64,39 @@ def _make_evidence(
         corpus="regulations",
         collection="student_handbook",
         sources=sources,
+    )
+
+
+def _make_handbook_source(
+    *,
+    doc_id: str,
+    title: str,
+    snippet: str,
+    score: float,
+    chunk_id_suffix: str,
+    detail_label: str = "",
+    content_role: str = "",
+    is_answer_bearing: bool = False,
+) -> EvidenceSource:
+    return EvidenceSource(
+        doc_id=doc_id,
+        revision_track="source-faithful",
+        version_id=f"v1:{chunk_id_suffix}",
+        chunk_id=f"{doc_id}:source-faithful:v1:{chunk_id_suffix}",
+        anchor={"page_start": 1, "page_end": 1},
+        acl_level="public",
+        canonical_url=f"https://campus.example/handbook/{doc_id}",
+        latest_url=f"https://campus.example/handbook/{doc_id}",
+        source_channel="pdf_ocr",
+        collection="student_handbook",
+        is_current=True,
+        snippet=snippet,
+        score=score,
+        source_title=title,
+        structural_path=(title,),
+        detail_label=detail_label,
+        content_role=content_role,
+        is_answer_bearing=is_answer_bearing,
     )
 
 
@@ -367,15 +402,20 @@ class RagSpecialistTest(unittest.TestCase):
         )
 
     def test_ambiguous_multi_policy_evidence_maps_to_needs_clarification(self) -> None:
-        evidence = _make_evidence(
-            scores=(0.68, 0.66),
-            doc_ids=("handbook:national-scholarship", "handbook:professional-scholarship"),
-            snippets=(
-                "中央民族大学本科学生国家奖学金评审办法 / 第一章 总则 国家奖学金每学年评定一次。",
-                "中央民族大学本科学生专业奖学金评定办法 / 第一章 总则 专业奖学金面向普通培养类型学生。",
-            ),
-            query_text="国家奖学金还是专业奖学金怎么申请？",
-        )
+        retriever_called = False
+
+        def fake_retriever(*args: object, **kwargs: object) -> EvidenceBundle:
+            nonlocal retriever_called
+            retriever_called = True
+            return _make_evidence(
+                scores=(0.68, 0.66),
+                doc_ids=("handbook:national-scholarship", "handbook:professional-scholarship"),
+                snippets=(
+                    "中央民族大学本科学生国家奖学金评审办法 / 第一章 总则 国家奖学金每学年评定一次。",
+                    "中央民族大学本科学生专业奖学金评定办法 / 第一章 总则 专业奖学金面向普通培养类型学生。",
+                ),
+                query_text="国家奖学金还是专业奖学金怎么申请？",
+            )
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
@@ -385,12 +425,381 @@ class RagSpecialistTest(unittest.TestCase):
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
                 ),
             ),
-            retriever=lambda *args, **kwargs: evidence,
+            retriever=fake_retriever,
         )
 
         self.assertEqual(response.status, "needs_clarification")
         self.assertIn("奖学金", response.follow_up_question)
+        self.assertFalse(retriever_called)
+        self.assertEqual(
+            response.result.diagnostics,
+            RagResultDiagnostics(
+                clarification_reason="policy_object_conflict",
+            ),
+        )
+
+    def test_curriculum_ambiguous_title_fragment_maps_to_needs_clarification(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="民族实验班",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                EvidenceSource(
+                    doc_id="curriculum:法学（民族实验班）本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:law-ethnic-experimental",
+                    chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0001",
+                    anchor={"page_start": 1, "page_end": 1},
+                    acl_level="public",
+                    canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
+                    latest_url="https://campus.example/curriculum/law-ethnic-experimental",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet="法学（民族实验班）本科人才培养方案 一、培养目标。",
+                    score=0.49,
+                    source_title="法学（民族实验班）本科人才培养方案",
+                    structural_path=("法学（民族实验班）本科人才培养方案", "一、培养目标"),
+                ),
+                EvidenceSource(
+                    doc_id="curriculum:信息与计算科学（民族实验班）本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:ics-ethnic-experimental",
+                    chunk_id="curriculum:信息与计算科学（民族实验班）本科人才培养方案:chunk-0001",
+                    anchor={"page_start": 1, "page_end": 1},
+                    acl_level="public",
+                    canonical_url="https://campus.example/curriculum/ics-ethnic-experimental",
+                    latest_url="https://campus.example/curriculum/ics-ethnic-experimental",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet="信息与计算科学（民族实验班）本科人才培养方案 一、培养目标。",
+                    score=0.48,
+                    source_title="信息与计算科学（民族实验班）本科人才培养方案",
+                    structural_path=("信息与计算科学（民族实验班）本科人才培养方案", "一、培养目标"),
+                ),
+                EvidenceSource(
+                    doc_id="curriculum:计算机科学与技术（民族实验班）本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:cs-ethnic-experimental",
+                    chunk_id="curriculum:计算机科学与技术（民族实验班）本科人才培养方案:chunk-0001",
+                    anchor={"page_start": 1, "page_end": 1},
+                    acl_level="public",
+                    canonical_url="https://campus.example/curriculum/cs-ethnic-experimental",
+                    latest_url="https://campus.example/curriculum/cs-ethnic-experimental",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet="计算机科学与技术（民族实验班）本科人才培养方案 一、培养目标。",
+                    score=0.47,
+                    source_title="计算机科学与技术（民族实验班）本科人才培养方案",
+                    structural_path=("计算机科学与技术（民族实验班）本科人才培养方案", "一、培养目标"),
+                ),
+            ),
+        )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="民族实验班",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+        )
+
+        self.assertEqual(response.status, "needs_clarification")
+        self.assertIn("民族实验班", response.follow_up_question)
         self.assertEqual(response.result, RagResultPayload(evidence=evidence))
+
+    def test_curriculum_semester_course_query_normalizes_alias_and_avoids_cross_doc_contamination(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="法学民族实验班培养方案里第四学期有什么课",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                EvidenceSource(
+                    doc_id="curriculum:法学（民族实验班）本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:law-ethnic-experimental",
+                    chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0004",
+                    anchor={"page_start": 24, "page_end": 24},
+                    acl_level="public",
+                    canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
+                    latest_url="https://campus.example/curriculum/law-ethnic-experimental",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=True,
+                    snippet="第四学期 习近平法治思想概论、国际公法、刑法学总论、知识产权法。",
+                    score=0.92,
+                    source_title="法学（民族实验班）本科人才培养方案",
+                    structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
+                    detail_label="第四学期",
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                    is_answer_bearing=True,
+                ),
+                EvidenceSource(
+                    doc_id="curriculum:法学（民族实验班）本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:law-ethnic-experimental",
+                    chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0005",
+                    anchor={"page_start": 25, "page_end": 25},
+                    acl_level="public",
+                    canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
+                    latest_url="https://campus.example/curriculum/law-ethnic-experimental",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=True,
+                    snippet="第四学期 法律职业伦理、毛泽东思想和中国特色社会主义理论体系概论。",
+                    score=0.90,
+                    source_title="法学（民族实验班）本科人才培养方案",
+                    structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
+                    detail_label="第四学期",
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                    is_answer_bearing=True,
+                ),
+                EvidenceSource(
+                    doc_id="curriculum:信息与计算科学（民族实验班）本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:ics-ethnic-experimental",
+                    chunk_id="curriculum:信息与计算科学（民族实验班）本科人才培养方案:chunk-0004",
+                    anchor={"page_start": 24, "page_end": 24},
+                    acl_level="public",
+                    canonical_url="https://campus.example/curriculum/ics-ethnic-experimental",
+                    latest_url="https://campus.example/curriculum/ics-ethnic-experimental",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=True,
+                    snippet="第四学期 常微分方程、概率论、数学分析II。",
+                    score=0.88,
+                    source_title="信息与计算科学（民族实验班）本科人才培养方案",
+                    structural_path=("信息与计算科学（民族实验班）本科人才培养方案", "第四学期"),
+                    detail_label="第四学期",
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+        retriever_calls: list[str] = []
+
+        def fake_retriever(query_text: str, *args: object, **kwargs: object) -> EvidenceBundle:
+            retriever_calls.append(query_text)
+            return evidence
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="法学民族班培养方案里大二下有什么课",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(retriever_calls, ["法学民族实验班培养方案里第四学期有什么课"])
+        self.assertEqual(response.status, "completed")
+        self.assertIn("国际公法", response.answer_text)
+        self.assertNotIn("常微分方程", response.answer_text)
+        self.assertEqual(
+            tuple(source.doc_id for source in response.result.evidence.sources),
+            (
+                "curriculum:法学（民族实验班）本科人才培养方案",
+                "curriculum:法学（民族实验班）本科人才培养方案",
+            ),
+        )
+        self.assertEqual(
+            tuple(source.chunk_id for source in response.result.evidence.sources),
+            (
+                "curriculum:法学（民族实验班）本科人才培养方案:chunk-0004",
+                "curriculum:法学（民族实验班）本科人才培养方案:chunk-0005",
+            ),
+        )
+
+    def test_curriculum_semester_course_query_without_program_resolution_maps_to_needs_clarification(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="民族实验班培养方案里第四学期有什么课",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                EvidenceSource(
+                    doc_id="curriculum:法学（民族实验班）本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:law-ethnic-experimental",
+                    chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0004",
+                    anchor={"page_start": 24, "page_end": 24},
+                    acl_level="public",
+                    canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
+                    latest_url="https://campus.example/curriculum/law-ethnic-experimental",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=True,
+                    snippet="第四学期 国际公法、知识产权法。",
+                    score=0.92,
+                    source_title="法学（民族实验班）本科人才培养方案",
+                    structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
+                    detail_label="第四学期",
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                    is_answer_bearing=True,
+                ),
+                EvidenceSource(
+                    doc_id="curriculum:信息与计算科学（民族实验班）本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:ics-ethnic-experimental",
+                    chunk_id="curriculum:信息与计算科学（民族实验班）本科人才培养方案:chunk-0004",
+                    anchor={"page_start": 24, "page_end": 24},
+                    acl_level="public",
+                    canonical_url="https://campus.example/curriculum/ics-ethnic-experimental",
+                    latest_url="https://campus.example/curriculum/ics-ethnic-experimental",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=True,
+                    snippet="第四学期 常微分方程、概率论、数学分析II。",
+                    score=0.91,
+                    source_title="信息与计算科学（民族实验班）本科人才培养方案",
+                    structural_path=("信息与计算科学（民族实验班）本科人才培养方案", "第四学期"),
+                    detail_label="第四学期",
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="民族班培养方案里大二下有什么课",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+        )
+
+        self.assertEqual(response.status, "needs_clarification")
+        self.assertIn("培养方案", response.follow_up_question)
+
+    def test_curriculum_generic_base_class_with_verified_major_prefers_clarification_over_silent_resolution(self) -> None:
+        retriever_called = False
+
+        def fake_retriever(*args: object, **kwargs: object) -> EvidenceBundle:
+            nonlocal retriever_called
+            retriever_called = True
+            return _make_evidence(query_text="基地班")
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="基地班",
+                context=ContextProjection(
+                    actor=ActorContext(
+                        user_id="student-001",
+                        principal_id="principal-001",
+                        major="历史学",
+                    ),
+                ),
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "needs_clarification")
+        self.assertFalse(retriever_called)
+
+    def test_curriculum_deictic_query_with_verified_major_prefers_major_scoped_candidate(self) -> None:
+        retriever_call: dict[str, object] = {}
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
+            return EvidenceBundle(
+                query_text=query_text,
+                corpus="curriculum",
+                collection="curriculum_plan",
+                sources=(
+                    EvidenceSource(
+                        doc_id="curriculum:历史学（强基计划）本科人才培养方案",
+                        revision_track="source-faithful",
+                        version_id="v1:history-strong-base",
+                        chunk_id="curriculum:历史学（强基计划）本科人才培养方案:chunk-0004",
+                        anchor={"page_start": 24, "page_end": 24},
+                        acl_level="public",
+                        canonical_url="https://campus.example/curriculum/history-strong-base",
+                        latest_url="https://campus.example/curriculum/history-strong-base",
+                        source_channel="pdf_ocr",
+                        collection="curriculum_plan",
+                        is_current=True,
+                        snippet="第四学期 中国史学史、史学理论专题。",
+                        score=0.92,
+                        source_title="历史学（强基计划）本科人才培养方案",
+                        structural_path=("历史学（强基计划）本科人才培养方案", "第四学期"),
+                        detail_label="第四学期",
+                        content_kind="table_unit",
+                        content_role="table_fact",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="我这个专业的基地班大二下有什么课",
+                context=ContextProjection(
+                    actor=ActorContext(
+                        user_id="student-001",
+                        principal_id="principal-001",
+                        major="历史学",
+                    ),
+                ),
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(
+            retriever_call["target_document_ids"],
+            ("curriculum:历史学（强基计划）本科人才培养方案",),
+        )
+        self.assertEqual(retriever_call["preferred_document_ids"], ())
+        self.assertIn("中国史学史", response.answer_text)
+
+
+class CurriculumQueryPlanningTest(unittest.TestCase):
+    def test_plan_curriculum_query_clarifies_generic_base_class_even_with_verified_major(self) -> None:
+        plan = plan_curriculum_query(
+            "基地班",
+            verified_major="历史学",
+        )
+
+        self.assertEqual(plan.status, "needs_clarification")
+        self.assertEqual(plan.target_document_ids, ())
+        self.assertEqual(plan.preferred_document_ids, ("curriculum:历史学（强基计划）本科人才培养方案",))
+
+    def test_plan_curriculum_query_uses_verified_major_for_deictic_query_soft_preference(self) -> None:
+        plan = plan_curriculum_query(
+            "我这个专业的基地班大二下有什么课",
+            verified_major="历史学",
+        )
+
+        self.assertEqual(plan.status, "resolved")
+        self.assertEqual(
+            plan.target_document_ids,
+            ("curriculum:历史学（强基计划）本科人才培养方案",),
+        )
+        self.assertEqual(plan.preferred_document_ids, ())
+        self.assertIn("历史学（强基计划）本科人才培养方案", plan.rewritten_query_text)
 
     def test_low_support_evidence_maps_to_no_answer_instead_of_completed(self) -> None:
         evidence = _make_evidence(
@@ -1351,6 +1760,139 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.status, "completed")
         self.assertEqual(response.confidence, "medium")
         self.assertIn("学分", response.answer_text)
+
+    def test_handbook_missing_policy_object_clarifies_before_retrieval(self) -> None:
+        retriever_called = False
+
+        def fake_retriever(*args: object, **kwargs: object) -> EvidenceBundle:
+            nonlocal retriever_called
+            retriever_called = True
+            return _make_evidence()
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="评审办法里第一作者不是本校也能拿第二作者的分吧？",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "needs_clarification")
+        self.assertFalse(retriever_called)
+        self.assertEqual(
+            response.result.diagnostics,
+            RagResultDiagnostics(
+                clarification_reason="policy_object_missing",
+            ),
+        )
+
+    def test_handbook_policy_alias_passes_target_document_ids_to_retriever(self) -> None:
+        retriever_call: dict[str, object] = {}
+        target_doc_id = "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15"
+        target_title = "中央民族大学本科学生国家奖学金评审办法"
+        evidence = EvidenceBundle(
+            query_text="unused",
+            corpus="regulations",
+            collection="student_handbook",
+            sources=(
+                _make_handbook_source(
+                    doc_id=target_doc_id,
+                    title=target_title,
+                    snippet="第九条 在学术研究上取得显著成绩，以第一作者发表的通过鉴定的学术论文，可以优先考虑。",
+                    score=0.93,
+                    chunk_id_suffix="article-9-paper",
+                    detail_label="第九条",
+                    content_role="requirement",
+                    is_answer_bearing=True,
+                ),
+                _make_handbook_source(
+                    doc_id=target_doc_id,
+                    title=target_title,
+                    snippet="第九条 以第一、二作者出版的通过鉴定的学术专著，可以优先考虑。",
+                    score=0.91,
+                    chunk_id_suffix="article-9-book",
+                    detail_label="第九条",
+                    content_role="requirement",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
+            return evidence
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="国奖第九条里对论文和著作怎么要求的？",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(
+            retriever_call["target_document_ids"],
+            (target_doc_id,),
+        )
+        self.assertIn(target_title, retriever_call["query_text"])
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(
+            response.result.diagnostics,
+            RagResultDiagnostics(
+                resolved_policy_document_id=target_doc_id,
+                resolved_policy_title=target_title,
+                rewritten_query=retriever_call["query_text"],
+                retrieved_title_summary=(target_title,),
+            ),
+        )
+
+    def test_handbook_resolved_policy_without_supported_clause_maps_to_object_scoped_no_answer(self) -> None:
+        retriever_call: dict[str, object] = {}
+        target_doc_id = "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15"
+        target_title = "中央民族大学本科学生国家奖学金评审办法"
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
+            return EvidenceBundle(
+                query_text=query_text,
+                corpus="regulations",
+                collection="student_handbook",
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(
+            retriever_call["target_document_ids"],
+            (target_doc_id,),
+        )
+        self.assertEqual(response.status, "no_answer")
+        self.assertIn(target_title, response.answer_text)
+        self.assertEqual(
+            response.result.diagnostics,
+            RagResultDiagnostics(
+                resolved_policy_document_id=target_doc_id,
+                resolved_policy_title=target_title,
+                rewritten_query=retriever_call["query_text"],
+                no_answer_reason="resolved_policy_clause_not_found",
+            ),
+        )
 
     def test_confidence_derivation_prefers_stronger_and_more_consistent_support(self) -> None:
         self.assertEqual(

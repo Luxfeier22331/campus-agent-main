@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { formatStatusLabel } from "../src/panel/requests/request-formatters";
+import {
+  buildRequestDiagnosticEntries,
+  formatRequestDiagnosticReason,
+  formatStatusLabel,
+} from "../src/panel/requests/request-formatters";
 import { RequestStatusChip } from "../src/panel/requests/request-presenters";
 import * as requestListModule from "../src/panel/requests/request-list";
 
@@ -35,6 +39,56 @@ describe("protected panel request status ui", () => {
       "rejected",
       "no_answer",
       "error",
+    ]);
+  });
+
+  it("formats handbook diagnostic reason codes into operator-facing labels", () => {
+    expect(formatRequestDiagnosticReason("policy_object_missing")).toBe(
+      "Policy object missing",
+    );
+    expect(formatRequestDiagnosticReason("policy_object_conflict")).toBe(
+      "Policy object conflict",
+    );
+    expect(formatRequestDiagnosticReason("resolved_policy_clause_not_found")).toBe(
+      "Resolved policy clause not found",
+    );
+  });
+
+  it("builds display rows for handbook request diagnostics only when values are present", () => {
+    expect(
+      buildRequestDiagnosticEntries({
+        clarificationReason: null,
+        noAnswerReason: "resolved_policy_clause_not_found",
+        resolvedPolicyDocumentId:
+          "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+        resolvedPolicyTitle: "中央民族大学本科学生国家奖学金评审办法",
+        retrievedTitleSummary: [
+          "中央民族大学本科学生国家奖学金评审办法",
+          "中央民族大学本科学生综合素质测评办法",
+        ],
+        rewrittenQuery:
+          "中央民族大学本科学生国家奖学金评审办法 民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+      }),
+    ).toEqual([
+      {
+        label: "Resolved Policy",
+        value:
+          "中央民族大学本科学生国家奖学金评审办法 (handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15)",
+      },
+      {
+        label: "Rewritten Query",
+        value:
+          "中央民族大学本科学生国家奖学金评审办法 民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+      },
+      {
+        label: "No-answer Reason",
+        value: "Resolved policy clause not found",
+      },
+      {
+        label: "Retrieved Titles",
+        value:
+          "中央民族大学本科学生国家奖学金评审办法 · 中央民族大学本科学生综合素质测评办法",
+      },
     ]);
   });
 });

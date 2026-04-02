@@ -26,6 +26,7 @@ function toRequestProjectionRecord(
     answerPreview: row.answerPreview ?? null,
     completedAt: toIsoString(row.completedAt),
     conversationId: row.conversationId,
+    ...(row.diagnosticsJson ? { diagnostics: row.diagnosticsJson } : {}),
     durationMs: row.durationMs ?? null,
     errorCode: row.errorCode ?? null,
     principalId: row.principalId,

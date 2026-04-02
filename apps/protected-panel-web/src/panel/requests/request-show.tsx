@@ -4,6 +4,7 @@ import { Show, useRecordContext } from "react-admin";
 
 import type { RequestProjectionRecord } from "../types";
 import {
+  buildRequestDiagnosticEntries,
   formatDuration,
   formatStatusLabel,
   formatSurfaceLabel,
@@ -36,6 +37,8 @@ function RequestShowContent() {
   if (!record) {
     return null;
   }
+
+  const diagnosticEntries = buildRequestDiagnosticEntries(record.diagnostics);
 
   return (
     <Box sx={{ p: 3 }}>
@@ -145,6 +148,24 @@ function RequestShowContent() {
               </Stack>
             </CardContent>
           </Card>
+
+          {diagnosticEntries.length > 0 ? (
+            <Card sx={{ gridColumn: { lg: "1 / -1", xs: "auto" } }}>
+              <CardContent>
+                <Stack spacing={2}>
+                  <Typography variant="h6">Diagnostics</Typography>
+                  <Divider />
+                  {diagnosticEntries.map((entry) => (
+                    <RequestFieldRow
+                      key={entry.label}
+                      label={entry.label}
+                      value={entry.value}
+                    />
+                  ))}
+                </Stack>
+              </CardContent>
+            </Card>
+          ) : null}
 
           <Card sx={{ gridColumn: { lg: "1 / -1", xs: "auto" } }}>
             <CardContent>

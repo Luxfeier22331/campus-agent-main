@@ -1,3 +1,5 @@
+import type { RequestProjectionDiagnostics } from "../types";
+
 export function formatDuration(durationMs: number | null) {
   if (durationMs === null) {
     return "Pending";
@@ -67,4 +69,76 @@ export function formatTimestamp(value: string | null) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function formatCodeLabel(value: string) {
+  return value
+    .split("_")
+    .filter(Boolean)
+    .map((segment) => segment[0]?.toUpperCase() + segment.slice(1))
+    .join(" ");
+}
+
+export function formatRequestDiagnosticReason(reason: string | null | undefined) {
+  if (!reason) {
+    return "Unspecified";
+  }
+
+  switch (reason) {
+    case "policy_object_missing":
+      return "Policy object missing";
+    case "policy_object_conflict":
+      return "Policy object conflict";
+    case "resolved_policy_clause_not_found":
+      return "Resolved policy clause not found";
+    default:
+      return formatCodeLabel(reason);
+  }
+}
+
+export function buildRequestDiagnosticEntries(
+  diagnostics: RequestProjectionDiagnostics | undefined,
+) {
+  if (!diagnostics) {
+    return [];
+  }
+
+  const entries: Array<{ label: string; value: string }> = [];
+  const resolvedPolicy =
+    diagnostics.resolvedPolicyTitle && diagnostics.resolvedPolicyDocumentId
+      ? `${diagnostics.resolvedPolicyTitle} (${diagnostics.resolvedPolicyDocumentId})`
+      : diagnostics.resolvedPolicyTitle || diagnostics.resolvedPolicyDocumentId;
+
+  if (resolvedPolicy) {
+    entries.push({
+      label: "Resolved Policy",
+      value: resolvedPolicy,
+    });
+  }
+  if (diagnostics.rewrittenQuery) {
+    entries.push({
+      label: "Rewritten Query",
+      value: diagnostics.rewrittenQuery,
+    });
+  }
+  if (diagnostics.clarificationReason) {
+    entries.push({
+      label: "Clarification Reason",
+      value: formatRequestDiagnosticReason(diagnostics.clarificationReason),
+    });
+  }
+  if (diagnostics.noAnswerReason) {
+    entries.push({
+      label: "No-answer Reason",
+      value: formatRequestDiagnosticReason(diagnostics.noAnswerReason),
+    });
+  }
+  if (diagnostics.retrievedTitleSummary.length > 0) {
+    entries.push({
+      label: "Retrieved Titles",
+      value: diagnostics.retrievedTitleSummary.join(" · "),
+    });
+  }
+
+  return entries;
 }

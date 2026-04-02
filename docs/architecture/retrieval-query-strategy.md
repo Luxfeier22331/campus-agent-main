@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-26
-updated: 2026-03-31
+updated: 2026-04-02
 ---
 
 # Retrieval Query Strategy
@@ -76,6 +76,40 @@ updated: 2026-03-31
 
 这些能力只允许作为后续 gated enhancement 进入。
 
+当前 repo-head 对 `curriculum/curriculum_plan` 额外接受一类受控、确定性的 collection-specific normalization：
+
+- 只在 curriculum query path 内生效
+- 目标是把自然语言别名和学期口语化映射到稳定 retrieval 词面，而不是引入开放式 query rewrite
+- 当前已落地的 normalization 包括：
+  - `民族班 -> 民族实验班`
+  - `大一上/大一下/大二上/大二下/... -> 第一学期/第二学期/第三学期/第四学期/...`
+- 该 normalization 仍保留原始 query text 作为对外 evidence / trace truth；只影响 retrieval planning 和同文档 support follow-up
+- 如果 normalization 后仍不能唯一解析到单一培养方案，则正确终态是 `needs_clarification`，而不是默认锁定某个 doc
+
+已记录但尚未落地的 Phase 9 curriculum follow-up 方向如下：
+
+- 当前 `民族班 -> 民族实验班` 这类单表替换不应继续扩展成更多 generic family alias 的全局 hard alias
+- curriculum alias 治理将升级为 tiered planning config：
+  - `safe alias`
+  - `family alias`
+  - `scoped alias`
+  - `forbidden generic alias`
+- `基地班` / `实验班` / `创新班` / `民族班` 这类 family alias 的默认终态将是“生成候选并触发 clarification”，而不是单靠 alias 或 profile memory 直接锁定某一份培养方案
+- `verified identity`、session-confirmed slot 与 profile memory 只允许作为 typed personalization hint 影响 bias / clarification；其中只有显式 query wording 或足够强的 verified-identity 条件才允许进入 hard resolve
+- 未来若为 curriculum 引入 soft preferred-candidate bias，应与当前 `target_document_ids` 的 hard metadata pre-filter 分开建模，不得混成一个字段
+
+当前 repo-head 对 `regulations/student_handbook` 另外接受一条更保守的 document-targeting hook：
+
+- 当 `rag-specialist` 已保守解析到单一制度对象时，可以把 `target_document_ids` 下发给 `retrieval-core`
+- `retrieval-core` 必须把它实现成 dense / sparse candidate retrieval 之前的附加 metadata pre-filter，而不是 retrieval 之后的事后裁剪
+- 这条 hook 只能收窄到显式 resolved doc；如果制度对象仍不明确，正确终态仍是 specialist 先 `needs_clarification`
+
+同一思路已被记录为 curriculum Phase 9 的 repo-level 设计，但当前还不是 repo-head 已实现 truth：
+
+- hard resolved curriculum doc 仍应通过 document-targeting pre-filter 收窄
+- soft personalization bias 若后续引入，应只作用于 ranking，不得伪装成 hard target filter
+- unresolved family alias 仍应 fail-close 到 clarification，而不是让 retrieval top1 代替 resolution truth
+
 ### 2. Dense retrieval
 
 - 使用当前 embedding baseline：`Qwen3-Embedding-4B @ 2560`
@@ -126,6 +160,11 @@ fusion 后的候选必须继续通过 `DocumentRegistry` 回链，补齐：
 - `latest_url` 只在 registry 中存在 current 版本时回链到 current source；若当前版本不存在，不再用 latest fallback 伪装 current，而是回落到命中文档自身 `source_uri`
 
 最终输出固定为 `EvidenceBundle`。
+
+对 `curriculum/curriculum_plan`，repo-head 另外冻结两条 evidence shaping 规则：
+
+- 当 query 已能唯一解析到单一培养方案时，supporting evidence 必须收敛到单一 `doc_id`
+- 当 query 还显式包含学期槽位时，supporting evidence 还必须继续收敛到目标学期对应的 `detail_label` / `structural_path` / row-like snippet；若目标 doc 内未命中该学期，则返回对象内 `no_answer`，而不是跨 doc 补答案
 
 ## Serving Policy
 
@@ -237,6 +276,12 @@ authorization filter 负责表达“在当前 request context 下，哪些 evide
 - 未开放 collection 的准入
 
 如果 personalization hint 过弱、过旧或与 evidence 冲突，允许的正确行为是澄清或保持 no-answer，而不是静默把 query 收窄成某一份文档。
+
+对 Phase 9 已冻结的 curriculum planning posture，repo-tracked docs 进一步要求：
+
+- `profile memory` 不得单独把 `基地班` 这类 generic family alias 收窄为单一 curriculum doc
+- `verified identity` 只有在 query 自身带有“我这个专业”“本专业”等 deictic 语义，且 active candidate 变为唯一时，才可参与 hard resolution
+- 若 active candidate 仍大于 1，则 personalization 的正确用途是候选排序和 clarification wording，而不是静默定案
 
 ## Native Sparse Index 目标形态
 

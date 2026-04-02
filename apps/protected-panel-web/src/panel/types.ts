@@ -45,6 +45,7 @@ export interface RawRequestProjectionRecord {
   answerPreview: string | null;
   completedAt: string | null;
   conversationId: string;
+  diagnostics?: RequestProjectionDiagnostics;
   durationMs: number | null;
   errorCode: string | null;
   principalId: string;
@@ -61,6 +62,15 @@ export interface RawRequestProjectionRecord {
   status: string;
   surface: string;
   traceId: string;
+}
+
+export interface RequestProjectionDiagnostics {
+  clarificationReason: string | null;
+  noAnswerReason: string | null;
+  resolvedPolicyDocumentId: string | null;
+  resolvedPolicyTitle: string | null;
+  retrievedTitleSummary: string[];
+  rewrittenQuery: string | null;
 }
 
 export interface RequestProjectionRecord extends RawRequestProjectionRecord {

@@ -15,6 +15,7 @@ import {
   type SupervisorExecutionClient,
   type SupervisorExecutionResponse,
 } from "../integration";
+import { extractRequestDiagnosticsSummary } from "../request-diagnostics";
 import type { AppTelemetry } from "../telemetry";
 import type {
   AcceptRequestWrite,
@@ -292,6 +293,7 @@ function buildAcceptedWrite(input: {
       errorCode: null,
       questionPreview: previewText(input.prompt),
       answerPreview: null,
+      diagnostics: null,
       sourceDocIds: [],
       startedAt: input.now,
       completedAt: null,
@@ -384,6 +386,7 @@ function buildFinalizedWrite(input: {
   write: FinalizeRequestWrite;
 } {
   const normalizedTraceId = input.response.traceId || input.traceId;
+  const diagnostics = extractRequestDiagnosticsSummary(input.response.result);
   const sourceDocIds = extractSourceDocIds(input.response.result);
 
   let assistantKind: ChatMessage["kind"];
@@ -502,6 +505,7 @@ function buildFinalizedWrite(input: {
       errorCode,
       questionPreview: "",
       answerPreview: previewText(assistantText),
+      diagnostics,
       sourceDocIds,
       startedAt: input.startedAt,
       completedAt: input.completedAt,
@@ -521,6 +525,7 @@ function buildFinalizedWrite(input: {
         selectedTarget: input.response.selectedTarget,
         answerPreview: previewText(assistantText),
         errorCode,
+        ...(diagnostics ? { diagnostics } : {}),
         sourceDocIds,
       },
       occurredAt: input.completedAt,

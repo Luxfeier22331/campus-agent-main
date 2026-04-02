@@ -17,6 +17,7 @@ from campus_contracts import (
     KnowledgeScope,
     ProfileMemoryItem,
     ProfileMemorySummary,
+    RagResultDiagnostics,
     SessionSlot,
     SessionSummary,
     RagRequestPayload,
@@ -358,6 +359,43 @@ class ContractModelsTest(unittest.TestCase):
         self.assertEqual(payload["target"], "availability-specialist")
         self.assertEqual(payload["result"]["observed_status"], "timeout")
         self.assertEqual(payload["result"]["failure_classification"], "timeout")
+
+    def test_response_serializes_rag_result_diagnostics_shape(self) -> None:
+        response = SpecialistResponse(
+            target="rag-specialist",
+            status="no_answer",
+            confidence="low",
+            result=RagResultPayload(
+                evidence=EvidenceBundle(
+                    query_text="国奖看第一作者单位吗？",
+                    corpus="regulations",
+                    collection="student_handbook",
+                ),
+                diagnostics=RagResultDiagnostics(
+                    resolved_policy_document_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+                    resolved_policy_title="中央民族大学本科学生国家奖学金评审办法",
+                    rewritten_query="中央民族大学本科学生国家奖学金评审办法 国奖看第一作者单位吗？",
+                    clarification_reason="",
+                    no_answer_reason="resolved_policy_clause_not_found",
+                    retrieved_title_summary=("中央民族大学本科学生国家奖学金评审办法",),
+                ),
+            ),
+        )
+
+        payload = asdict(response)
+
+        self.assertEqual(
+            payload["result"]["diagnostics"]["resolved_policy_title"],
+            "中央民族大学本科学生国家奖学金评审办法",
+        )
+        self.assertEqual(
+            payload["result"]["diagnostics"]["no_answer_reason"],
+            "resolved_policy_clause_not_found",
+        )
+        self.assertEqual(
+            tuple(payload["result"]["diagnostics"]["retrieved_title_summary"]),
+            ("中央民族大学本科学生国家奖学金评审办法",),
+        )
 
     def test_supervisor_response_serializes_selected_target_and_context_free_shape(self) -> None:
         response = SupervisorResponse(

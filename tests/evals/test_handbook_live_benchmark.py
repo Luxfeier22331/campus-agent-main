@@ -142,6 +142,69 @@ class HandbookLiveExecutorTest(unittest.TestCase):
         self.assertEqual(result.observed_trace.retrieved_sources, ())
         self.assertEqual(result.observed_trace.supporting_sources, ())
 
+    def test_build_handbook_live_executor_marks_retrieval_backed_no_answer_without_clarification(self) -> None:
+        retrieved_bundle = EvidenceBundle(
+            query_text="民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+            corpus="regulations",
+            collection="student_handbook",
+            sources=(
+                _source("handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15", chunk_id="chunk-a", score=0.88),
+            ),
+        )
+
+        def fake_delegate(request, *, retriever):
+            bundle = retriever(
+                request.user_goal,
+                corpus=request.payload.scope.corpus,
+                collection=request.payload.scope.collection,
+                campus_scope=request.actor.campus_scope,
+                acl_groups=request.actor.groups,
+                personalization_hint=None,
+            )
+            self.assertEqual(bundle, retrieved_bundle)
+            return SpecialistResponse(
+                target="rag-specialist",
+                status="no_answer",
+                answer_text="在《中央民族大学本科学生国家奖学金评审办法》中，当前未检索到足够依据支持回答这个问题；请确认是否有更具体的条款表述。",
+                confidence="low",
+                result=RagResultPayload(
+                    evidence=EvidenceBundle(
+                        query_text=request.user_goal,
+                        corpus=bundle.corpus,
+                        collection=bundle.collection,
+                    )
+                ),
+            )
+
+        executor = build_handbook_live_executor(
+            retriever=lambda *args, **kwargs: retrieved_bundle,
+            delegate=fake_delegate,
+        )
+
+        result = executor(
+            GoldenCase(
+                case_id="release-gate-national-scholarship-no-answer-author-affiliation",
+                split="release_gate",
+                source_type="expert_authored",
+                user_goal="民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+                actor=ActorContext(),
+                scope=HANDBOOK_SCOPE,
+                expected_status="no_answer",
+                trace_expectation=TraceExpectation(
+                    selected_scope=HANDBOOK_SCOPE,
+                    retrieval_called=True,
+                    clarification_expected=False,
+                    error_expected=False,
+                ),
+            )
+        )
+
+        self.assertTrue(result.observed_trace.retrieval_called)
+        self.assertFalse(result.observed_trace.clarification_emitted)
+        self.assertFalse(result.observed_trace.error_path)
+        self.assertEqual(result.observed_trace.retrieved_sources, retrieved_bundle.sources)
+        self.assertEqual(result.observed_trace.supporting_sources, ())
+
 
 class HandbookLiveProfileTest(unittest.TestCase):
     def test_build_handbook_live_profile_uses_repo_tracked_http_settings_for_supplemental_adapters(self) -> None:
@@ -203,6 +266,30 @@ class HandbookLiveBenchmarkCliTest(unittest.TestCase):
             output_dir=expected_output_dir,
             reruns=3,
         )
+
+    def test_main_loads_repo_env_before_running_profile(self) -> None:
+        case = _case()
+
+        with TemporaryDirectory() as tmpdir:
+            expected_output_dir = Path(tmpdir) / "student-handbook-formal-benchmark-20260329T123456"
+            with (
+                patch("campus_evals.live_benchmark.load_repo_env") as load_repo_env,
+                patch("campus_evals.handbook_live_benchmark.handbook_release_gate_cases", return_value=(case,)),
+                patch(
+                    "campus_evals.handbook_live_benchmark.build_default_handbook_supplemental_adapters_from_env",
+                    return_value=(object(),),
+                ),
+                patch(
+                    "campus_evals.handbook_live_benchmark.build_default_output_dir",
+                    return_value=expected_output_dir,
+                ),
+                patch("campus_evals.handbook_live_benchmark.build_handbook_live_executor", return_value="executor"),
+                patch("campus_evals.handbook_live_benchmark.run_handbook_formal_benchmark"),
+            ):
+                exit_code = main(["run", "--reruns", "1"])
+
+        self.assertEqual(exit_code, 0)
+        load_repo_env.assert_called_once_with()
 
     def test_main_runs_repair_against_existing_benchmark_dir(self) -> None:
         case = _case()

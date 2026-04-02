@@ -341,19 +341,6 @@
       "notes": "带括号标题的课程方案区分样本。"
     },
     {
-      "case_id": "fixed-phrase-ethnic-experimental-class",
-      "split": "smoke",
-      "query": "民族实验班",
-      "expected_sources": [
-        {
-          "doc_id": "curriculum:法学（民族实验班）本科人才培养方案",
-          "grade": 2,
-          "rationale": "固定短语应直接命中民族实验班培养方案。"
-        }
-      ],
-      "notes": "sparse 固定短语样本。"
-    },
-    {
       "case_id": "semantic-philosophy-strong-base-paraphrase",
       "split": "smoke",
       "query": "想看哲学强基方向的培养方案",

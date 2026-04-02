@@ -16,6 +16,7 @@ function createExecutionSource(
     answerPreview: "图书馆开放到 22:00。",
     completedAt: "2026-03-28T08:00:01.000Z",
     conversationId: "conv_01HQ",
+    diagnostics: null,
     durationMs: 842,
     errorCode: null,
     principalId: "user_01HQ",
@@ -78,6 +79,7 @@ describe("request projection projector", () => {
       answerPreview: "图书馆开放到 22:00。",
       completedAt: "2026-03-28T08:00:01.000Z",
       conversationId: "conv_01HQ",
+      diagnostics: null,
       durationMs: 842,
       errorCode: null,
       principalId: "user_01HQ",
@@ -133,6 +135,56 @@ describe("request projection projector", () => {
     });
     expect(store.upsertProjection).not.toHaveBeenCalled();
     expect(store.markEventProcessed).not.toHaveBeenCalled();
+  });
+
+  it("carries summary diagnostics from request_execution into operator.request_projection", async () => {
+    const store: RequestProjectionProjectorStore = {
+      getRequestExecution: vi.fn().mockResolvedValue(
+        createExecutionSource({
+          diagnostics: {
+            clarificationReason: "policy_object_conflict",
+            noAnswerReason: null,
+            resolvedPolicyDocumentId:
+              "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+            resolvedPolicyTitle: "中央民族大学本科学生国家奖学金评审办法",
+            retrievedTitleSummary: [
+              "中央民族大学本科学生国家奖学金评审办法",
+              "中央民族大学本科学生综合素质测评办法",
+            ],
+            rewrittenQuery:
+              "中央民族大学本科学生国家奖学金评审办法 国奖第九条里对论文和著作怎么要求的？",
+          },
+        }),
+      ),
+      listPendingEvents: vi.fn().mockResolvedValue([createPendingEvent()]),
+      markEventFailed: vi.fn(),
+      markEventProcessed: vi.fn(),
+      upsertProjection: vi.fn(),
+    };
+    const projector = buildRequestProjectionProjector({
+      now: () => new Date("2026-03-28T08:00:03.000Z"),
+      store,
+    });
+
+    await projector.drain();
+
+    expect(store.upsertProjection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        diagnostics: {
+          clarificationReason: "policy_object_conflict",
+          noAnswerReason: null,
+          resolvedPolicyDocumentId:
+            "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+          resolvedPolicyTitle: "中央民族大学本科学生国家奖学金评审办法",
+          retrievedTitleSummary: [
+            "中央民族大学本科学生国家奖学金评审办法",
+            "中央民族大学本科学生综合素质测评办法",
+          ],
+          rewrittenQuery:
+            "中央民族大学本科学生国家奖学金评审办法 国奖第九条里对论文和著作怎么要求的？",
+        },
+      }),
+    );
   });
 
   it("marks terminal projector failures as processed after the retry budget is exhausted", async () => {

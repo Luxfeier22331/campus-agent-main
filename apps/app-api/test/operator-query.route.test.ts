@@ -318,4 +318,91 @@ describe("GET /api/operator/requests/:requestId", () => {
       },
     });
   });
+
+  it("includes summary diagnostics in request detail when projection carries them", async () => {
+    const app = createApp(env, {
+      getPrincipal: vi.fn().mockResolvedValue(createOperatorPrincipal()),
+      operatorQueryService: {
+        getById: vi.fn().mockResolvedValue({
+          answerPreview:
+            "在《中央民族大学本科学生国家奖学金评审办法》中，当前未检索到足够依据支持回答这个问题；请确认是否有更具体的条款表述。",
+          completedAt: "2026-03-28T08:00:01.000Z",
+          conversationId: "conv_01HQ",
+          diagnostics: {
+            clarificationReason: null,
+            noAnswerReason: "resolved_policy_clause_not_found",
+            resolvedPolicyDocumentId:
+              "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+            resolvedPolicyTitle: "中央民族大学本科学生国家奖学金评审办法",
+            retrievedTitleSummary: ["中央民族大学本科学生国家奖学金评审办法"],
+            rewrittenQuery:
+              "中央民族大学本科学生国家奖学金评审办法 民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+          },
+          durationMs: 842,
+          errorCode: null,
+          principalId: "user_01HQ",
+          principalLabel: "Jane Doe",
+          principalType: "public_user",
+          projectedAt: "2026-03-28T08:00:02.000Z",
+          questionPreview: "民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+          requestId: "req_01HQ",
+          requestedCapability: "knowledge",
+          requestedScope: {
+            collection: "student_handbook",
+            corpus: "regulations",
+          },
+          selectedTarget: "rag-specialist",
+          sourceDocIds: ["handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15"],
+          startedAt: "2026-03-28T08:00:00.000Z",
+          status: "no_answer",
+          surface: "public_chat_web",
+          traceId: "trace_01HQ",
+        }),
+        list: vi.fn(),
+      },
+    });
+
+    const response = await app.fetch(
+      new Request("https://app-api.internal/api/operator/requests/req_01HQ"),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      request: {
+        answerPreview:
+          "在《中央民族大学本科学生国家奖学金评审办法》中，当前未检索到足够依据支持回答这个问题；请确认是否有更具体的条款表述。",
+        completedAt: "2026-03-28T08:00:01.000Z",
+        conversationId: "conv_01HQ",
+        diagnostics: {
+          clarificationReason: null,
+          noAnswerReason: "resolved_policy_clause_not_found",
+          resolvedPolicyDocumentId:
+            "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+          resolvedPolicyTitle: "中央民族大学本科学生国家奖学金评审办法",
+          retrievedTitleSummary: ["中央民族大学本科学生国家奖学金评审办法"],
+          rewrittenQuery:
+            "中央民族大学本科学生国家奖学金评审办法 民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+        },
+        durationMs: 842,
+        errorCode: null,
+        principalId: "user_01HQ",
+        principalLabel: "Jane Doe",
+        principalType: "public_user",
+        projectedAt: "2026-03-28T08:00:02.000Z",
+        questionPreview: "民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+        requestId: "req_01HQ",
+        requestedCapability: "knowledge",
+        requestedScope: {
+          collection: "student_handbook",
+          corpus: "regulations",
+        },
+        selectedTarget: "rag-specialist",
+        sourceDocIds: ["handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15"],
+        startedAt: "2026-03-28T08:00:00.000Z",
+        status: "no_answer",
+        surface: "public_chat_web",
+        traceId: "trace_01HQ",
+      },
+    });
+  });
 });

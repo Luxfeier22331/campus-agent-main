@@ -433,6 +433,84 @@ describe("chat command service", () => {
     });
   });
 
+  it("extracts summary diagnostics from rag results into runtime projection writes", async () => {
+    const { store, finalWrites } = createCommandStore();
+    const { store: conversationStore } = createConversationStore();
+    const service = buildChatCommandService({
+      generateId: createDeterministicIdGenerator(),
+      now: () => new Date("2026-03-28T08:00:00.000Z"),
+      conversationStore,
+      store,
+      supervisor: {
+        execute: vi.fn().mockResolvedValue({
+          answerText:
+            "在《中央民族大学本科学生国家奖学金评审办法》中，当前未检索到足够依据支持回答这个问题；请确认是否有更具体的条款表述。",
+          error: null,
+          followUpQuestion: "",
+          result: {
+            diagnostics: {
+              clarification_reason: "",
+              no_answer_reason: "resolved_policy_clause_not_found",
+              resolved_policy_document_id:
+                "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+              resolved_policy_title: "中央民族大学本科学生国家奖学金评审办法",
+              retrieved_title_summary: ["中央民族大学本科学生国家奖学金评审办法"],
+              rewritten_query:
+                "中央民族大学本科学生国家奖学金评审办法 民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+            },
+            evidence: {
+              sources: [
+                {
+                  doc_id: "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+                },
+              ],
+            },
+          },
+          selectedTarget: "rag-specialist",
+          status: "no_answer",
+          traceId: "trace_0002",
+        }),
+      },
+    });
+
+    await service.submit({
+      payload: {
+        conversationId: "conv_01HQ",
+        prompt: "民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+      },
+      principal: createPrincipal(),
+    });
+
+    expect(finalWrites[0]).toMatchObject({
+      outboxEvent: {
+        payload: {
+          diagnostics: {
+            clarificationReason: null,
+            noAnswerReason: "resolved_policy_clause_not_found",
+            resolvedPolicyDocumentId:
+              "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+            resolvedPolicyTitle: "中央民族大学本科学生国家奖学金评审办法",
+            retrievedTitleSummary: ["中央民族大学本科学生国家奖学金评审办法"],
+            rewrittenQuery:
+              "中央民族大学本科学生国家奖学金评审办法 民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+          },
+        },
+      },
+      requestExecution: {
+        diagnostics: {
+          clarificationReason: null,
+          noAnswerReason: "resolved_policy_clause_not_found",
+          resolvedPolicyDocumentId:
+            "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+          resolvedPolicyTitle: "中央民族大学本科学生国家奖学金评审办法",
+          retrievedTitleSummary: ["中央民族大学本科学生国家奖学金评审办法"],
+          rewrittenQuery:
+            "中央民族大学本科学生国家奖学金评审办法 民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+        },
+      },
+    });
+  });
+
   it("maps approval_required and rejected into chat-visible errors while preserving runtime statuses", async () => {
     const approvalStore = createCommandStore();
     const rejectedStore = createCommandStore();

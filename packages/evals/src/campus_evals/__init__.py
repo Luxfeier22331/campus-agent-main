@@ -14,8 +14,10 @@ from campus_evals.benchmark import (
     load_retrieval_qrels_dataset,
     load_retrieval_benchmark_run,
     render_retrieval_summary_text,
+    resolve_retrieval_fixture_manifest_path,
     summarize_retrieval_metrics,
     validate_retrieval_hybrid_query_fixture,
+    validate_retrieval_qrels_fixture,
 )
 from campus_evals.expectations import evaluate_case
 from campus_evals.handbook_benchmark import (
@@ -165,6 +167,7 @@ __all__ = [
     "load_judge_gate_policy",
     "load_retrieval_qrels_dataset",
     "render_retrieval_summary_text",
+    "resolve_retrieval_fixture_manifest_path",
     "repair_handbook_formal_benchmark",
     "repair_live_benchmark_profile",
     "run_handbook_formal_benchmark",
@@ -176,4 +179,5 @@ __all__ = [
     "handbook_smoke_cases",
     "summarize_retrieval_metrics",
     "validate_retrieval_hybrid_query_fixture",
+    "validate_retrieval_qrels_fixture",
 ]

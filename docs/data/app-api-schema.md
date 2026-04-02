@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-03-28
-updated: 2026-03-30
+updated: 2026-04-02
 ---
 
 # App API Schema
@@ -189,6 +189,7 @@ updated: 2026-03-30
 - `error_code` nullable
 - `question_preview`
 - `answer_preview` nullable
+- `diagnostics_json` nullable
 - `source_doc_ids_json` nullable
 - `started_at`
 - `completed_at` nullable
@@ -219,6 +220,7 @@ updated: 2026-03-30
 - `question_preview` / `answer_preview` 是 projection-friendly 摘要，不要求保存 raw full prompt / raw full answer
 - `principal_type` / `principal_label` 是 command-side 落盘后的最小 operator projection metadata；不要再把 raw auth/session snapshot 宽 JSON 写入这里
 - `requested_scope_json` 与 `source_doc_ids_json` 使用结构化 JSON，不把 Python-side payload 原样塞进宽 JSON dump
+- `diagnostics_json` 只保存 operator-facing summary diagnostics，例如 resolved policy object、rewritten query、clarification/no-answer reason 与 retrieved title summary；不要写 raw evidence snippet、score 或 backend payload
 
 ## `runtime.projection_outbox`
 
@@ -279,6 +281,7 @@ updated: 2026-03-30
 - `error_message` nullable
 - `question_preview`
 - `answer_preview` nullable
+- `diagnostics_json` nullable
 - `source_doc_ids_json`
 - `started_at`
 - `completed_at` nullable
@@ -297,6 +300,7 @@ updated: 2026-03-30
 - `request_id` 与 `runtime.request_execution.request_id` 一一对应
 - 这是 panel-facing materialized view，不要求与 command-side 列完全相同
 - 不从 `chat.messages` 反推生成
+- `diagnostics_json` 只承载 panel 可直接消费的 summary-level explanation，不承载 retrieval internals
 
 ## Ownership Notes
 

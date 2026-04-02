@@ -98,6 +98,46 @@
       "notes": "奖学金同主题制度区分。"
     },
     {
+      "case_id": "policy-alias-national-scholarship-article-nine",
+      "split": "regression_locked",
+      "query": "国奖第九条里对论文和著作怎么要求的？",
+      "expected_sources": [
+        {
+          "doc_id": "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+          "grade": 2,
+          "rationale": "informal alias + 条款问法应收敛到国家奖学金评审办法。"
+        }
+      ],
+      "forbidden_sources": [
+        {
+          "doc_id": "handbook:651a8dbf99f52b997bc74ae8fd6cd287887f74a7",
+          "grade": 1,
+          "rationale": "综合素质测评办法与论文/著作表述相邻，但不应压过国奖制度。"
+        }
+      ],
+      "notes": "informal alias 命中目标国奖制度，并显式约束不被综测文档吸走。"
+    },
+    {
+      "case_id": "policy-alias-national-scholarship-author-affiliation",
+      "split": "regression_locked",
+      "query": "民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+      "expected_sources": [
+        {
+          "doc_id": "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+          "grade": 2,
+          "rationale": "高词面污染问法仍应锁定国家奖学金评审办法。"
+        }
+      ],
+      "forbidden_sources": [
+        {
+          "doc_id": "handbook:651a8dbf99f52b997bc74ae8fd6cd287887f74a7",
+          "grade": 1,
+          "rationale": "综合素质测评办法不应被当作该问题的主相关制度。"
+        }
+      ],
+      "notes": "高污染词面国奖问法的 wrong-document attraction 回归。"
+    },
+    {
       "case_id": "fixed-phrase-dormitory-lighting",
       "split": "regression_locked",
       "query": "宿舍照明",

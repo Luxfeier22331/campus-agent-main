@@ -162,6 +162,49 @@ class RetrievalServiceTest(unittest.TestCase):
         self.assertEqual(request.acl_groups, ("legacy-group",))
         self.assertEqual(request.campus_scope, "legacy-campus")
 
+    def test_retrieve_sources_passes_target_document_ids_through_request(self) -> None:
+        backend = Mock()
+        backend.retrieve.return_value = EvidenceBundle(
+            query_text="国奖评审办法里的论文要求是什么？",
+            corpus="regulations",
+            collection="student_handbook",
+        )
+
+        retrieve_sources(
+            "国奖评审办法里的论文要求是什么？",
+            corpus="regulations",
+            collection="student_handbook",
+            target_document_ids=("handbook:national-scholarship",),
+            backend=backend,
+        )
+
+        request = backend.retrieve.call_args.args[0]
+        self.assertIsInstance(request, RetrievalRequest)
+        self.assertEqual(request.target_document_ids, ("handbook:national-scholarship",))
+
+    def test_retrieve_sources_passes_preferred_document_ids_through_request(self) -> None:
+        backend = Mock()
+        backend.retrieve.return_value = EvidenceBundle(
+            query_text="基地班培养方案",
+            corpus="curriculum",
+            collection="curriculum_plan",
+        )
+
+        retrieve_sources(
+            "基地班培养方案",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            preferred_document_ids=("curriculum:历史学（强基计划）本科人才培养方案",),
+            backend=backend,
+        )
+
+        request = backend.retrieve.call_args.args[0]
+        self.assertIsInstance(request, RetrievalRequest)
+        self.assertEqual(
+            request.preferred_document_ids,
+            ("curriculum:历史学（强基计划）本科人才培养方案",),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

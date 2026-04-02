@@ -231,6 +231,16 @@ describe("protected panel data provider", () => {
           answerPreview: "图书馆开放到 22:00。",
           completedAt: "2026-03-28T08:00:01.000Z",
           conversationId: "conv_01HQ",
+          diagnostics: {
+            clarificationReason: null,
+            noAnswerReason: "resolved_policy_clause_not_found",
+            resolvedPolicyDocumentId:
+              "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+            resolvedPolicyTitle: "中央民族大学本科学生国家奖学金评审办法",
+            retrievedTitleSummary: ["中央民族大学本科学生国家奖学金评审办法"],
+            rewrittenQuery:
+              "中央民族大学本科学生国家奖学金评审办法 民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+          },
           durationMs: 812,
           errorCode: null,
           principalId: "user_01HQ",
@@ -259,6 +269,10 @@ describe("protected panel data provider", () => {
       }),
     ).resolves.toMatchObject({
       data: {
+        diagnostics: {
+          noAnswerReason: "resolved_policy_clause_not_found",
+          resolvedPolicyTitle: "中央民族大学本科学生国家奖学金评审办法",
+        },
         id: "req_01HQ",
       },
     });
