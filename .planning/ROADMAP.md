@@ -34,6 +34,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 05.1: Curriculum Chunking Boundary Freeze** - Freeze `curriculum_plan` source-truth quality gates, split boundaries, and offline chunking runtime truth without opening query-serving. (INSERTED) (completed 2026-03-27)
 - [x] **Phase 6: Curriculum Offline Preparation** - Prepare `curriculum_plan` ingestion outputs without opening query-serving. (completed 2026-03-27)
 - [x] **Phase 7: Verification And Release Gate** - Prove the main path and failure semantics with automated tests and smoke/eval coverage. (completed 2026-03-27)
+- [ ] **Phase 8: Student Handbook Ambiguous Policy Query Hardening** - Harden ambiguous `student_handbook` policy-object queries with targeted retrieval, fail-closed clarification/no-answer semantics, and operator-facing diagnostics.
+- [ ] **Phase 9: Curriculum Ambiguous Program Query Hardening** - Harden ambiguous `curriculum_plan` program-family queries with alias-tier governance, soft personalization bias, and clarification-first truth.
 
 ## Phase Details
 
@@ -329,3 +331,56 @@ Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 03.2 → 4 → 04.1 
 | 05.1. Curriculum Chunking Boundary Freeze | 4/4 | Complete | 2026-03-27 |
 | 6. Curriculum Offline Preparation | 2/2 | Complete | 2026-03-27 |
 | 7. Verification And Release Gate | 2/2 | Complete | 2026-03-27 |
+| 8. Student Handbook Ambiguous Policy Query Hardening | 4/4 | Blocked | live handbook accept still needs `LLM_API_KEY` |
+| 9. Curriculum Ambiguous Program Query Hardening | 0/0 | Not started | repo-level design recorded in `.planning/phases/09-curriculum-ambiguous-program-query-hardening/09-CONTEXT.md` |
+
+### Phase 8: Student Handbook Ambiguous Policy Query Hardening
+
+**Goal:** Harden `student_handbook` ambiguous policy questions so informal aliases, missing policy objects, and cross-policy lexical contamination no longer silently drag retrieval onto the wrong制度.
+**Requirements**: []
+**Depends on:** Phase 7
+**Success Criteria** (what must be TRUE):
+  1. `rag-specialist` can resolve handbook policy objects conservatively and clarify when the target制度 is still ambiguous.
+  2. `retrieval-core` can restrict handbook retrieval to resolved target document IDs without weakening existing ACL/current/revision filters.
+  3. Resolved-but-unsupported questions return object-scoped `no_answer` instead of silently borrowing rules from another制度.
+  4. handbook evals and retrieval benchmarks permanently cover the ambiguous-policy regression cases.
+  5. operator-facing request projection exposes summary diagnostics for clarification/no-answer/object targeting through `app-api` owned APIs.
+**Plans:** 4 plans
+
+Plans:
+- [x] 08-01: Add retrieval-core document-targeted retrieval for resolved handbook policy objects.
+- [x] 08-02: Add `rag-specialist` policy-object resolution, clarification, and object-scoped no-answer behavior.
+- [x] 08-03: Extend handbook eval and retrieval benchmark coverage for ambiguous policy queries.
+- [x] 08-04: Persist/request-display summary diagnostics and update architecture/planning truth after verification.
+
+Verification note:
+
+- local automated verification is green: `pnpm web:typecheck`, `pnpm web:test`, and `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest discover -s tests -t .`
+- live handbook accept is not yet green because `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m campus_evals.handbook_live_benchmark accept --reruns 3 --verbose --log-jsonl .tmp/evals/handbook-runtime-events.jsonl` currently stops at `ValueError: LLM_API_KEY is required`
+- phase 8 must not be marked complete until that env-backed live acceptance reruns successfully
+
+### Phase 9: Curriculum Ambiguous Program Query Hardening
+
+**Goal:** Harden ambiguous `curriculum/curriculum_plan` queries that refer to short program fragments or family aliases so the system uses clarification-first truth, preserves same-doc curriculum answering, and allows personalization only as typed bias rather than silent hard resolution.
+**Requirements**: [AORC-03]
+**Depends on:** Phase 7
+**Success Criteria** (what must be TRUE):
+  1. `rag-specialist` owns a curriculum-specific resolve / bias / clarify planning lane that is separate from handbook policy-object logic.
+  2. Curriculum alias handling is governed by repo-tracked tiered config (`safe alias`, `family alias`, `scoped alias`, `forbidden generic alias`) rather than a single global replacement table.
+  3. `retrieval-core` can distinguish hard resolved document targeting from soft preferred-candidate bias without changing ACL/current/revision-serving semantics.
+  4. Generic family aliases such as `基地班` do not become canonical single-doc truth, and unresolved cases fail closed into `needs_clarification`.
+  5. Eval truth and workflow cases explicitly cover `profile memory` / `verified identity` assisted curriculum disambiguation without allowing memory-only silent collapse.
+**Plans:** 0 plans recorded; repo-level design is captured in `.planning/phases/09-curriculum-ambiguous-program-query-hardening/09-CONTEXT.md`
+
+Plans:
+- [ ] Run phase planning and break the implementation into execution waves once Phase 9 becomes the active workstream.
+
+### Phase 10: Official Web Repo Hardening And Expansion
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 9
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 10 to break down)

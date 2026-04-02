@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: 2026-03-31 handbook acceptance rerun and planning/docs truth refresh are closed; next external dependency is the first real deployed Worker observability verification
-last_updated: "2026-03-31T21:17:19+08:00"
+stopped_at: 2026-04-02 phase 8 implementation and local verification remain complete but handbook live accept is still blocked on `LLM_API_KEY`; phase 9 planning docs were added as a separate curriculum follow-up that is not logically blocked by handbook live accept
+last_updated: "2026-04-02T11:57:49+08:00"
 progress:
-  total_phases: 17
+  total_phases: 19
   completed_phases: 17
-  total_plans: 41
-  completed_plans: 41
+  total_plans: 45
+  completed_plans: 45
 ---
 
 # Project State
@@ -19,18 +19,18 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-03-31)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 runtime-profile-driven serving surface 证明这条架构能可靠承接高频校园问答
-**Current focus:** 所有 phase 计划已完成，且 2026-03-31 `210128` handbook acceptance rerun 已把 repo-head remediation 正式收口为 live artifact truth：expanded `8`-case release gate、`procedure_directness`、`ragas.answer_relevancy` 与全部 supplemental soft gate 均为 `pass`，`repair` 继续跳过。当前剩余的唯一外部化 follow-up 是 Worker observability 的 `Post-Deploy Verification`：本地 pre-deploy readiness 与 targeted Worker smoke 已于 2026-03-31 复核通过，但仍需首个真实部署环境提供环境名、真实 hostnames、Worker release、已下发的 `SENTRY_*` / `AXIOM_*` 与 Sentry/Axiom 访问权限后才能执行 live sink smoke
+**Current focus:** Phase 8 的 4 个执行 plan 已完成：`student_handbook` 歧义政策问句现在具备制度对象解析、目标文档收窄检索、对象内 `needs_clarification` / `no_answer` 语义、eval 回归覆盖，以及 `app-api` owned request diagnostics。当前剩余动作不是改拓扑，而是补 live handbook accept 所需的 eval 凭据并重跑 acceptance。与此同时，Phase 9 已作为独立 curriculum follow-up 进入 roadmap，并已记录 repo-level 设计；它复用 handbook hardening 的经验，但不应被 handbook live accept 阻塞。
 
 ## Current Position
 
-Phase: 07 (Verification And Release Gate) — COMPLETE
-Plan: 2 of 2
+Phase: 08 (Student Handbook Ambiguous Policy Query Hardening) — BLOCKED ON LIVE ACCEPT ENV
+Plan: 4 of 4
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 41
+- Total plans completed: 45
 - Average duration: mixed agent-run and inline execution; see per-plan summaries
 - Total execution time: 0.2 hours + 2026-03-24 inline Phase 2/3 execution
 
@@ -58,8 +58,8 @@ Plan: 2 of 2
 
 **Recent Trend:**
 
-- Last 5 plans: 05.1-04, 06-01, 06-02, 07-01, 07-02
-- Trend: handbook mainline verification evidence 已在 `210128` acceptance artifact 上完全闭环；当前主线之外的剩余事项只剩 deployment-gated observability verification，以及把已落盘 truth 持续保持为 merged-truth 文档基线
+- Last 5 plans: 07-02, 08-01, 08-02, 08-03, 08-04
+- Trend: handbook 主链路 hardening 已在 repo 内落地并通过本地 automated gates；当前阻塞点不是实现或架构，而是缺少 `LLM_API_KEY` 导致 live handbook accept 还不能产出新的 acceptance artifact
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
@@ -119,6 +119,9 @@ Plan: 2 of 2
 - Phase 04.6 inserted after Phase 4: Cloudflare Worker Runtime Implementation (URGENT)
 - Phase 04.7 inserted after Phase 4: Public Consumer Chat App Design (URGENT)
 - Phase 05.1 inserted after Phase 5: 研究 curriculum 的 chunking 策略 (URGENT)
+- Phase 8 added: Student Handbook Ambiguous Policy Query Hardening
+- Phase 8 execution completed locally, but phase closeout remains blocked on live handbook accept credentials
+- Phase 9 added: Curriculum Ambiguous Program Query Hardening
 
 ### Decisions
 
@@ -160,6 +163,8 @@ Recent decisions affecting current work:
 
 - Keep handbook chunk-truth validation and handbook eval artifacts as reusable regression gates for later retrieval changes.
 - Treat the 2026-03-31 `210128` handbook acceptance artifact as the new regression baseline for future handbook answer-path or eval-surface changes.
+- Provide `LLM_API_KEY` (and any related eval credentials if needed), then rerun handbook live accept to close Phase 8 with a fresh acceptance artifact.
+- Plan and execute Phase 9 (`curriculum` ambiguous program query hardening) using the repo-level design captured in `.planning/phases/09-curriculum-ambiguous-program-query-hardening/09-CONTEXT.md`.
 - Keep `official_web` command/query/handoff tests and operator projections as reusable regression gates for later collector or ingestion integration changes.
 - Keep `Jobs` and `Operations` out of the default panel rollout until product scope explicitly re-opens them.
 - For the first real deployed Worker environment, confirm deploy-side `SENTRY_*` / `AXIOM_*` assignment for `apps/app-api`, `apps/public-chat-web`, and `apps/protected-panel-web`, then run post-deploy smoke verification for trace propagation, error capture, and minimal runtime event ingest. Local preflight and targeted Worker smoke were revalidated on 2026-03-31, so this is now a deployment gate rather than an active local-engineering blocker.
@@ -174,6 +179,10 @@ Recent decisions affecting current work:
 - `Jobs` / `Operations` / `Audit` remain delayed; landed `Official Web` views do not authorize a generic ops console.
 - Observability runtime code is landed, local worktree env is ready, and the targeted Worker smokes are green. There is no current local-engineering blocker here; the repo truth is simply that the first real deployed Worker environment does not exist yet, so deploy-side sink verification remains pending by design. When deployment exists, the smoke runner will need real hostnames, a Worker release identifier, and Sentry/Axiom access; local placeholder URLs such as `chat.example.com`, `panel.example.com`, and `app-api.internal` remain development-only values.
 - `student_handbook` handbook 质量线已在 `210128` acceptance artifact 上闭环；若后续再出现 handbook 退化，应从这个 baseline 出发分析，而不是回退到更早 `warn` artifact 的诊断框架。
+- Phase 8 的本地 automated gates 已全部通过，但 live acceptance 目前被环境变量阻塞；在补齐 `LLM_API_KEY` 前，不要把该 phase 记为 completed truth。
+- Phase 9 与 handbook live accept 是两条独立工作流：它复用已落地的 handbook ambiguous-object posture，但本身不依赖新的 handbook acceptance artifact 才能开始规划或执行。
+- curriculum canonical eval truth 现已明确禁止把未裁决短标题歧义锁成单目标 qrels；`民族实验班` 已退出 canonical retrieval qrels，改由 `needs_clarification` workflow case 承担，`campus_evals.retrieval_benchmark` 会在评分前按 split manifest fast-fail 这类坏 truth。
+- Phase 9 的 planning truth 已明确把 `基地班` / `实验班` / `创新班` / `民族班` 这类 family alias 视为 clarification-first 问题域；typed personalization 只可作为 bias，不可单独收窄成单一 curriculum doc truth。
 
 ## Session Continuity
 
