@@ -602,12 +602,10 @@ def _document_record_from_dict(raw: dict[str, object]) -> DocumentRegistryRecord
         corpus=_required_registry_text(raw, "corpus"),
         collection=_required_registry_text(raw, "collection"),
         cleaning_policy_version=str(raw.get("cleaning_policy_version") or ""),
-        entitlement_groups=tuple(str(item) for item in list(raw.get("entitlement_groups") or [])),
-        visibility_scope=str(raw["visibility_scope"]) if raw.get("visibility_scope") is not None else None,
+        entitlement_groups=_resolved_record_entitlement_groups(raw),
+        visibility_scope=_resolved_record_visibility_scope(raw),
         visibility_level=str(raw.get("visibility_level") or ""),
         policy_projection_version=str(raw.get("policy_projection_version") or ""),
-        acl_groups=tuple(str(item) for item in list(raw.get("acl_groups") or [])),
-        campus_scope=str(raw["campus_scope"]) if raw.get("campus_scope") is not None else None,
         status=str(raw["status"]),
         ingestion_timestamp=str(raw["ingestion_timestamp"]),
         parser_version=str(raw["parser_version"]),
@@ -697,3 +695,18 @@ def _required_registry_text(raw: dict[str, object], field_name: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"registry payload is missing required {field_name}")
     return value.strip()
+
+
+def _resolved_record_entitlement_groups(raw: dict[str, object]) -> tuple[str, ...]:
+    groups = tuple(str(item) for item in list(raw.get("entitlement_groups") or []))
+    if groups:
+        return groups
+    return tuple(str(item) for item in list(raw.get("acl_groups") or []))
+
+
+def _resolved_record_visibility_scope(raw: dict[str, object]) -> str | None:
+    if raw.get("visibility_scope") is not None:
+        return str(raw["visibility_scope"])
+    if raw.get("campus_scope") is not None:
+        return str(raw["campus_scope"])
+    return None

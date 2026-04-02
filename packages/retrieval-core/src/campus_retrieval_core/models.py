@@ -11,8 +11,6 @@ class RetrievalRequest:
     query_text: str
     corpus: str
     collection: str
-    campus_scope: str | None = None
-    acl_groups: tuple[str, ...] = field(default_factory=tuple)
     target_document_ids: tuple[str, ...] = field(default_factory=tuple)
     preferred_document_ids: tuple[str, ...] = field(default_factory=tuple)
     canonical_course_ids: tuple[str, ...] = field(default_factory=tuple)
@@ -70,11 +68,44 @@ class RetrievalRequest:
     def effective_entitlement_groups(self) -> tuple[str, ...]:
         return self.effective_authorized_filter().entitlement_groups
 
-    def effective_acl_groups(self) -> tuple[str, ...]:
-        return self.effective_authorized_filter().acl_groups
-
     def effective_visibility_scope(self) -> str | None:
         return self.effective_authorized_filter().visibility_scope
 
     def effective_visibility_level(self) -> str:
         return self.effective_authorized_filter().visibility_level or "public"
+
+    def allows_document_access(
+        self,
+        *,
+        visibility_level: str,
+        entitlement_groups: tuple[str, ...] = (),
+        visibility_scope: str | None = None,
+    ) -> bool:
+        normalized_visibility_level = visibility_level.strip() or "public"
+        normalized_visibility_scope = visibility_scope.strip() if isinstance(visibility_scope, str) else None
+        normalized_visibility_scope = normalized_visibility_scope or None
+
+        if not self._allows_visibility_scope(normalized_visibility_scope):
+            return False
+        if normalized_visibility_level == "public":
+            return True
+        if normalized_visibility_level != "restricted":
+            return False
+
+        allowed_entitlements = set(self.effective_entitlement_groups())
+        if not allowed_entitlements:
+            return False
+        normalized_entitlement_groups = {
+            group.strip() for group in entitlement_groups if isinstance(group, str) and group.strip()
+        }
+        if not normalized_entitlement_groups:
+            return False
+        return bool(allowed_entitlements.intersection(normalized_entitlement_groups))
+
+    def _allows_visibility_scope(self, document_visibility_scope: str | None) -> bool:
+        if document_visibility_scope is None:
+            return True
+        request_visibility_scope = self.effective_visibility_scope()
+        if request_visibility_scope is None:
+            return False
+        return request_visibility_scope == document_visibility_scope

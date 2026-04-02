@@ -59,7 +59,7 @@ describe("supervisor execution adapter", () => {
     vi.useRealTimers();
   });
 
-  it("sends snake_case execution payload and maps the typed response", async () => {
+  it("sends canonical snake_case execution payload without legacy retrieval carrier fields", async () => {
     const fetchImplementation = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -120,9 +120,7 @@ describe("supervisor execution adapter", () => {
     expect(JSON.parse(fetchImplementation.mock.calls[0]![1]!.body as string)).toEqual({
       context: {
         actor: {
-          campus_scope: "main",
           departments: [],
-          groups: ["students"],
           principal_id: "principal_01HQ",
           principal_type: "student",
           roles: ["student"],
@@ -137,8 +135,6 @@ describe("supervisor execution adapter", () => {
           principal_id: "principal_01HQ",
           projection_source: "campus_identity",
           retrieval_filter: {
-            acl_groups: ["students"],
-            campus_scope: "main",
             entitlement_groups: ["students"],
             policy_projection_version: "phase1-authorization-projection-v1",
             visibility_level: "public",
@@ -167,6 +163,7 @@ describe("supervisor execution adapter", () => {
       answerText: "图书馆开放到 22:00。",
       error: null,
       followUpQuestion: "",
+      observability: null,
       result: {
         evidence: {
           sources: [{ doc_id: "handbook:library-hours" }],
@@ -215,6 +212,7 @@ describe("supervisor execution adapter", () => {
       answerText: "图书馆开放到 22:00。",
       error: null,
       followUpQuestion: "",
+      observability: null,
       result: null,
       selectedTarget: null,
       status: "completed",
@@ -259,9 +257,98 @@ describe("supervisor execution adapter", () => {
       answerText: "该请求涉及需要人工确认的操作，必须先经过审批。",
       error: null,
       followUpQuestion: "",
+      observability: null,
       result: null,
       selectedTarget: null,
       status: "approval_required",
+      traceId: "trace_01HQ",
+    });
+  });
+
+  it("parses typed request observability facts from the supervisor response", async () => {
+    const client = createSupervisorExecutionClient(
+      {
+        SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+        SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+      },
+      {
+        fetchImplementation: vi.fn().mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              answer_text: "图书馆开放到 22:00。",
+              error: null,
+              follow_up_question: "",
+              observability: {
+                acl_decision: "allowed",
+                acl_anomaly_code: null,
+                cached_input_tokens: 120,
+                candidate_count: 5,
+                citation_count: 2,
+                citation_expected: true,
+                citation_missing: false,
+                estimated_cost_microusd: 3810,
+                fail_closed: false,
+                input_tokens: 812,
+                model_name: "gpt-5.2-mini",
+                model_provider: "openai",
+                output_tokens: 229,
+                refusal_class: null,
+                retrieved_source_count: 2,
+                retrieval_attempted: true,
+              },
+              result: {
+                evidence: {
+                  sources: [{ doc_id: "handbook:library-hours" }],
+                },
+              },
+              selected_target: "rag-specialist",
+              status: "completed",
+              trace_id: "trace_01HQ",
+            }),
+            { status: 200 },
+          ),
+        ),
+      },
+    );
+
+    await expect(
+      client.execute({
+        actor: createActor(),
+        context: createContext(),
+        conversationId: "conv_01HQ",
+        requestId: "req_01HQ",
+        traceId: "trace_01HQ",
+        userGoal: "图书馆开放到几点？",
+      }),
+    ).resolves.toEqual({
+      answerText: "图书馆开放到 22:00。",
+      error: null,
+      followUpQuestion: "",
+      observability: {
+        aclAnomalyCode: null,
+        aclDecision: "allowed",
+        cachedInputTokens: 120,
+        candidateCount: 5,
+        citationCount: 2,
+        citationExpected: true,
+        citationMissing: false,
+        estimatedCostMicrousd: 3810,
+        failClosed: false,
+        inputTokens: 812,
+        modelName: "gpt-5.2-mini",
+        modelProvider: "openai",
+        outputTokens: 229,
+        refusalClass: null,
+        retrievedSourceCount: 2,
+        retrievalAttempted: true,
+      },
+      result: {
+        evidence: {
+          sources: [{ doc_id: "handbook:library-hours" }],
+        },
+      },
+      selectedTarget: "rag-specialist",
+      status: "completed",
       traceId: "trace_01HQ",
     });
   });

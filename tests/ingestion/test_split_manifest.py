@@ -88,6 +88,17 @@ class SplitManifestTest(unittest.TestCase):
         titles = {document.title for document in manifest.documents}
         self.assertNotIn("各类课程教学计划", titles)
 
+    def test_repo_curriculum_plan_manifests_use_canonical_authorization_projection_keys(self) -> None:
+        root = Path(__file__).resolve().parents[2] / "configs" / "ingestion" / "curriculum" / "curriculum_plan"
+
+        for filename in ("split-manifest.v1.json", "split-manifest.candidate.v1.json"):
+            payload = json.loads((root / filename).read_text(encoding="utf-8"))
+            for document in payload["documents"]:
+                self.assertNotIn("acl_groups", document, msg=f"{filename} still uses acl_groups")
+                self.assertNotIn("campus_scope", document, msg=f"{filename} still uses campus_scope")
+                self.assertIn("entitlement_groups", document, msg=f"{filename} is missing entitlement_groups")
+                self.assertIn("visibility_scope", document, msg=f"{filename} is missing visibility_scope")
+
     def test_load_split_manifest_rejects_overlapping_curriculum_page_ranges(self) -> None:
         with TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "split-manifest.overlap.json"
@@ -366,8 +377,8 @@ class SplitManifestTest(unittest.TestCase):
                                 "title": "Plan 002",
                                 "page_start": 13,
                                 "page_end": 20,
-                                "acl_groups": ["students"],
-                                "campus_scope": "main",
+                                "entitlement_groups": ["students"],
+                                "visibility_scope": "main",
                             },
                         ],
                     },
@@ -387,8 +398,8 @@ class SplitManifestTest(unittest.TestCase):
             self.assertEqual(manifest.collection, "curriculum_plan")
             self.assertEqual(manifest.raw_asset_id, "asset:curriculum-plan-2022")
             self.assertEqual(len(manifest.documents), 2)
-            self.assertEqual(manifest.documents[1].acl_groups, ("students",))
-            self.assertEqual(manifest.documents[1].campus_scope, "main")
+            self.assertEqual(manifest.documents[1].entitlement_groups, ("students",))
+            self.assertEqual(manifest.documents[1].visibility_scope, "main")
             self.assertIsNone(manifest.documents[0].source_uri)
 
     def test_load_split_manifest_accepts_new_authorization_projection_fields(self) -> None:
@@ -517,8 +528,6 @@ class SplitManifestTest(unittest.TestCase):
             entitlement_groups=("students",),
             visibility_scope="main",
             visibility_level="restricted",
-            acl_groups=("legacy-staff",),
-            campus_scope="south",
         )
         structured_rows = [
             {
@@ -555,9 +564,6 @@ class SplitManifestTest(unittest.TestCase):
             document_input.metadata["policy_projection_version"],
             "phase1-authorization-projection-v1",
         )
-        self.assertEqual(document_input.metadata["acl_level"], "restricted")
-        self.assertEqual(document_input.metadata["acl_groups"], ["students"])
-        self.assertEqual(document_input.metadata["campus_scope"], "main")
         self.assertEqual(document_input.campus_scope, "main")
 
 

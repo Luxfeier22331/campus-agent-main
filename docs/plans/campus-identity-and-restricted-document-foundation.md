@@ -25,6 +25,7 @@ updated: 2026-04-02
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - `docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
+- `docs/plans/legacy-acl-carrier-compatibility-sunset.md`
 
 ## 目标
 
@@ -177,6 +178,9 @@ updated: 2026-04-02
 - product path 不再把 `ActorContext.groups/campus_scope` 视为 canonical authz truth
 - retrieval 不再依赖 `acl_level`、`acl_groups`、`campus_scope` fallback
 - `EvidenceSource` / eval fixtures / benchmark fixtures 不再把 legacy ACL 词汇当默认 contract
+
+兼容层下线的详细波次、验证门槛与回滚约束，统一见
+`docs/plans/legacy-acl-carrier-compatibility-sunset.md`。
 
 ## 文件与模块建议
 

@@ -14,6 +14,7 @@ from campus_contracts import (
     SpecialistResponse,
 )
 from campus_retrieval_core import CorpusQueryDisabledError, RetrievalBackendError, retrieve_sources
+from campus_retrieval_core import RestrictedDocumentAccessDeniedError
 from campus_retrieval_core.curriculum_query_resolution import (
     interpret_curriculum_query,
     matching_curriculum_doc_ids,
@@ -82,6 +83,7 @@ def delegate_to_rag_agent(
                 user_goal,
                 empty_evidence,
                 recent_goal=personalization_hint.recent_goal,
+                confirmed_slot_terms=personalization_hint.confirmed_slot_terms,
             ),
             result=_build_rag_result_payload(
                 evidence=empty_evidence,
@@ -101,6 +103,7 @@ def delegate_to_rag_agent(
                 user_goal,
                 empty_evidence,
                 recent_goal=personalization_hint.recent_goal,
+                confirmed_slot_terms=personalization_hint.confirmed_slot_terms,
                 clarification_reason=handbook_plan.clarification_reason,
             ),
             result=_build_rag_result_payload(
@@ -124,6 +127,7 @@ def delegate_to_rag_agent(
                 user_goal,
                 empty_evidence,
                 recent_goal=personalization_hint.recent_goal,
+                confirmed_slot_terms=personalization_hint.confirmed_slot_terms,
                 clarification_reason=curriculum_program_family_plan.clarification_reason,
                 clarification_candidates=curriculum_program_family_plan.clarification_candidates,
             ),
@@ -149,6 +153,7 @@ def delegate_to_rag_agent(
                 user_goal,
                 empty_evidence,
                 recent_goal=personalization_hint.recent_goal,
+                confirmed_slot_terms=personalization_hint.confirmed_slot_terms,
                 clarification_reason=curriculum_plan.clarification_reason,
                 clarification_candidates=curriculum_plan.clarification_candidates,
             ),
@@ -229,6 +234,18 @@ def delegate_to_rag_agent(
             ),
             error=ErrorInfo(code="corpus_not_query_enabled", message=str(exc), retryable=False),
         )
+    except RestrictedDocumentAccessDeniedError:
+        empty_evidence = _build_empty_evidence(request, user_goal)
+        return SpecialistResponse(
+            target="rag-specialist",
+            status="no_answer",
+            answer_text=_build_restricted_access_denied_response(request, empty_evidence),
+            confidence="low",
+            result=RagResultPayload(
+                evidence=empty_evidence,
+                diagnostics=RagResultDiagnostics(no_answer_reason="restricted_access_denied"),
+            ),
+        )
     except RetrievalBackendError as exc:
         return SpecialistResponse(
             target="rag-specialist",
@@ -269,6 +286,7 @@ def delegate_to_rag_agent(
                 user_goal,
                 evidence,
                 recent_goal=personalization_hint.recent_goal,
+                confirmed_slot_terms=personalization_hint.confirmed_slot_terms,
                 clarification_candidates=curriculum_plan.clarification_candidates if curriculum_plan is not None else (),
             ),
             result=_build_rag_result_payload(
@@ -417,6 +435,23 @@ def _build_no_answer_response(
     return "当前未检索到足够依据支持回答这个学生手册问题，请确认它是否属于学生手册范围，或补充更具体的制度名称。"
 
 
+def _build_restricted_access_denied_response(
+    request: SpecialistRequest,
+    evidence: EvidenceBundle,
+) -> str:
+    principal_type = (
+        request.context.actor.principal_type.strip()
+        or request.actor.principal_type.strip()
+    )
+    if principal_type == "operator":
+        return "当前请求命中了受限内容，但当前 operator 投影无权读取；请检查最小授权投影。"
+    if principal_type == "service":
+        return "当前 service principal 无权访问该受限内容。"
+    if principal_type in {"campus_member", "student", "staff", "faculty"}:
+        return "当前身份无权访问该受限内容；如需继续，请确认校内身份与授权范围。"
+    return _build_no_answer_response(evidence)
+
+
 def _with_query_text(evidence: EvidenceBundle, query_text: str) -> EvidenceBundle:
     return EvidenceBundle(
         query_text=query_text,
@@ -489,11 +524,15 @@ def _build_clarification_question(
     evidence: EvidenceBundle,
     *,
     recent_goal: str = "",
+    confirmed_slot_terms: tuple[str, ...] = (),
     clarification_reason: str = "",
     clarification_candidates: tuple[str, ...] = (),
 ) -> str:
     if recent_goal:
         return f"按当前记录理解，你最近在咨询{recent_goal}相关事项；请再具体说明你想确认的政策对象。"
+    slot_subject = _clarification_slot_subject(user_goal, confirmed_slot_terms)
+    if slot_subject and not clarification_reason:
+        return f"按当前对话上下文理解，你现在想确认{slot_subject}相关事项；请再具体说明你想确认的政策对象。"
     if clarification_reason == "policy_object_missing":
         return "请具体说明你想咨询哪一项评审、评定或测评办法。"
     if clarification_reason == "policy_object_conflict":
@@ -542,6 +581,17 @@ def _source_label(source: EvidenceSource) -> str:
 
 def _normalize_text(text: str) -> str:
     return _WHITESPACE_RE.sub(" ", text).strip()
+
+
+def _clarification_slot_subject(user_goal: str, confirmed_slot_terms: tuple[str, ...]) -> str:
+    for slot_term in confirmed_slot_terms:
+        normalized_slot_term = _normalize_text(slot_term)
+        if not normalized_slot_term:
+            continue
+        if normalized_slot_term in _normalize_text(user_goal):
+            continue
+        return normalized_slot_term
+    return ""
 
 
 def _plan_handbook_query(

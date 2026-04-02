@@ -105,9 +105,14 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(captured_requests[0].request_id, "req-001")
         self.assertEqual(captured_requests[0].trace, TraceContext(trace_id="trace-001"))
         self.assertEqual(captured_requests[0].actor.user_id, "api-bearer-user")
-        self.assertEqual(captured_requests[0].actor.groups, ("students",))
         self.assertEqual(captured_requests[0].actor.roles, ("student",))
-        self.assertEqual(captured_requests[0].actor.campus_scope, "north")
+        self.assertEqual(
+            captured_requests[0].actor,
+            ActorContext(
+                user_id="api-bearer-user",
+                roles=("student",),
+            ),
+        )
         self.assertEqual(
             captured_requests[0].context.authorization,
             AuthorizationProjection(
@@ -121,9 +126,7 @@ class SupervisorApiTest(unittest.TestCase):
                 retrieval_filter=AuthorizedRetrievalFilter(
                     entitlement_groups=(),
                     visibility_level="public",
-                    acl_groups=(),
                     visibility_scope=None,
-                    campus_scope=None,
                     policy_projection_version="phase1-authorization-projection-v1",
                 ),
             ),
@@ -322,9 +325,13 @@ class SupervisorApiTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(captured_requests[0].actor.user_id, "runtime-bearer-user")
-        self.assertEqual(captured_requests[0].actor.groups, ("students",))
-        self.assertEqual(captured_requests[0].actor.roles, ("student",))
-        self.assertEqual(captured_requests[0].actor.campus_scope, "north")
+        self.assertEqual(
+            captured_requests[0].actor,
+            ActorContext(
+                user_id="runtime-bearer-user",
+                roles=("student",),
+            ),
+        )
 
     def test_answer_route_rejects_invalid_bearer_token(self) -> None:
         app = create_app(settings=ApiSettings(bearer_token="secret-token"))
@@ -390,6 +397,11 @@ class SupervisorApiTest(unittest.TestCase):
             self.assertEqual(payload["request_id"], "req-audit-001")
             self.assertEqual(payload["trace_id"], "trace-audit-001")
             self.assertEqual(payload["user_id"], "runtime-bearer-user")
+            self.assertEqual(payload["principal_type"], "")
+            self.assertEqual(payload["authorization_projection_source"], "")
+            self.assertEqual(payload["entitlement_snapshot_id"], "")
+            self.assertEqual(payload["policy_projection_version"], "phase1-authorization-projection-v1")
+            self.assertEqual(payload["personalization_mode"], "generic")
             self.assertEqual(payload["selected_target"], "rag-specialist")
             self.assertEqual(payload["status"], "completed")
             self.assertIsNone(payload["error_code"])
@@ -403,6 +415,11 @@ class SupervisorApiTest(unittest.TestCase):
                     "request_id",
                     "trace_id",
                     "user_id",
+                    "principal_type",
+                    "authorization_projection_source",
+                    "entitlement_snapshot_id",
+                    "policy_projection_version",
+                    "personalization_mode",
                     "selected_target",
                     "requested_capability",
                     "requested_scope_corpus",
@@ -426,6 +443,115 @@ class SupervisorApiTest(unittest.TestCase):
                 "raw_transcript",
             ):
                 self.assertNotIn(forbidden_key, payload)
+
+    def test_answer_route_writes_projected_authz_summary_without_sensitive_context(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            audit_path = Path(tempdir) / "audit.log"
+            app = create_app(
+                settings=ApiSettings(
+                    auth_mode="trusted-worker",
+                    worker_shared_secret="worker-secret",
+                    audit_log_path=audit_path,
+                ),
+                supervisor_handler=lambda request: SupervisorResponse(
+                    selected_target="rag-specialist",
+                    status="completed",
+                    answer_text="按当前投影处理完成。",
+                    confidence="high",
+                    result=RagResultPayload(
+                        evidence=EvidenceBundle(
+                            query_text=request.user_goal,
+                            corpus="regulations",
+                            collection="student_handbook",
+                        )
+                    ),
+                ),
+            )
+
+            response = app.handle(
+                "POST",
+                "/api/v1/answer",
+                headers={
+                    "x-worker-origin-auth": "worker-secret",
+                    "x-trace-id": "trace-projected-audit-001",
+                },
+                json_body={
+                    "user_goal": "保研政策怎么准备？",
+                    "request_id": "req-projected-audit-001",
+                    "requested_scope": {
+                        "corpus": "regulations",
+                        "collection": "student_handbook",
+                    },
+                    "context": {
+                        "actor": {
+                            "user_id": "student@example.edu",
+                            "principal_id": "principal-001",
+                            "principal_type": "student",
+                            "roles": ["student"],
+                            "groups": ["students", "library"],
+                            "campus_scope": "north",
+                            "cohort": "2023",
+                            "major": "philosophy",
+                        },
+                        "authorization": {
+                            "principal_id": "principal-001",
+                            "projection_source": "campus_identity",
+                            "entitlement_snapshot_id": "entitlements-2026-03-29",
+                            "entitlement_groups": ["students", "library"],
+                            "visibility_scope": "north",
+                            "applicability_scope": "undergraduate",
+                            "ownership_scopes": ["conversation:student@example.edu"],
+                            "approval_state": "not_required",
+                            "retrieval_filter": {
+                                "entitlement_groups": ["students", "library"],
+                                "visibility_level": "restricted",
+                                "acl_groups": ["students", "library"],
+                                "visibility_scope": "north",
+                                "campus_scope": "north",
+                                "policy_projection_version": "phase1-authorization-projection-v1",
+                            },
+                        },
+                        "profile_memory": {
+                            "items": [
+                                {
+                                    "item_id": "memory-001",
+                                    "key": "recent_goal",
+                                    "value": "咨询保研",
+                                    "source_type": "user_declared",
+                                    "confidence": "high",
+                                    "visibility": "user_visible",
+                                    "last_verified_at": "2026-03-28",
+                                }
+                            ]
+                        },
+                        "session": {
+                            "confirmed_slots": [
+                                {"name": "policy_topic", "value": "推免资格", "confirmed": True}
+                            ],
+                            "turn_count": 2,
+                        },
+                    },
+                },
+            )
+
+            self.assertEqual(response.status_code, 200)
+            lines = audit_path.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(lines), 1)
+            payload = json.loads(lines[0])
+            self.assertEqual(payload["request_id"], "req-projected-audit-001")
+            self.assertEqual(payload["trace_id"], "trace-projected-audit-001")
+            self.assertEqual(payload["user_id"], "student@example.edu")
+            self.assertEqual(payload["principal_type"], "student")
+            self.assertEqual(payload["authorization_projection_source"], "campus_identity")
+            self.assertEqual(payload["entitlement_snapshot_id"], "entitlements-2026-03-29")
+            self.assertEqual(payload["policy_projection_version"], "phase1-authorization-projection-v1")
+            self.assertEqual(payload["personalization_mode"], "user_grounded")
+            self.assertEqual(payload["selected_target"], "rag-specialist")
+            self.assertNotIn("entitlement_groups", payload)
+            self.assertNotIn("visibility_scope", payload)
+            self.assertNotIn("approval_state", payload)
+            self.assertNotIn("profile_memory", payload)
+            self.assertNotIn("session", payload)
 
     def test_answer_route_writes_error_audit_log_for_supervisor_error(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
@@ -463,6 +589,11 @@ class SupervisorApiTest(unittest.TestCase):
             self.assertEqual(len(lines), 1)
             payload = json.loads(lines[0])
             self.assertEqual(payload["request_id"], "req-audit-err")
+            self.assertEqual(payload["principal_type"], "")
+            self.assertEqual(payload["authorization_projection_source"], "")
+            self.assertEqual(payload["entitlement_snapshot_id"], "")
+            self.assertEqual(payload["policy_projection_version"], "phase1-authorization-projection-v1")
+            self.assertEqual(payload["personalization_mode"], "generic")
             self.assertEqual(payload["selected_target"], "rag-specialist")
             self.assertEqual(payload["status"], "error")
             self.assertEqual(payload["error_code"], "disallowed_knowledge_scope")
@@ -519,8 +650,13 @@ class SupervisorApiTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(captured_specialist_requests[0].actor.user_id, "runtime-bearer-user")
-        self.assertEqual(captured_specialist_requests[0].actor.groups, ("students",))
-        self.assertEqual(captured_specialist_requests[0].actor.campus_scope, "north")
+        self.assertEqual(
+            captured_specialist_requests[0].actor,
+            ActorContext(
+                user_id="runtime-bearer-user",
+                roles=("student",),
+            ),
+        )
     def test_answer_route_rejects_trusted_worker_requests_without_projected_context(self) -> None:
         captured_requests: list[SupervisorRequest] = []
 
@@ -564,7 +700,7 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertIn("context", response.json_body["error"]["message"])
         self.assertEqual(captured_requests, [])
 
-    def test_answer_route_accepts_projected_context_in_trusted_worker_mode(self) -> None:
+    def test_answer_route_accepts_projected_context_in_trusted_worker_mode_without_legacy_retrieval_carrier(self) -> None:
         captured_requests: list[SupervisorRequest] = []
 
         def fake_supervisor(request: SupervisorRequest) -> SupervisorResponse:
@@ -667,8 +803,6 @@ class SupervisorApiTest(unittest.TestCase):
                     principal_type="student",
                     roles=("student",),
                     departments=(),
-                    groups=("students", "library"),
-                    campus_scope="north",
                     cohort="2023",
                     major="philosophy",
                     program="undergraduate",
@@ -685,9 +819,7 @@ class SupervisorApiTest(unittest.TestCase):
                     retrieval_filter=AuthorizedRetrievalFilter(
                         entitlement_groups=("students", "library"),
                         visibility_level="public",
-                        acl_groups=("students", "library"),
                         visibility_scope="north",
-                        campus_scope="north",
                         policy_projection_version="phase1-authorization-projection-v1",
                     ),
                 ),

@@ -53,9 +53,7 @@ class SessionSlotRecord:
 class AuthorizedRetrievalFilterInput:
     entitlement_groups: tuple[str, ...] = field(default_factory=tuple)
     visibility_level: str = "public"
-    acl_groups: tuple[str, ...] = field(default_factory=tuple)
     visibility_scope: str | None = None
-    campus_scope: str | None = None
     policy_projection_version: str = DEFAULT_POLICY_PROJECTION_VERSION
 
     def __post_init__(self) -> None:
@@ -114,8 +112,6 @@ def build_context_projection(
             principal_type=identity.principal_type,
             roles=identity.roles,
             departments=identity.departments,
-            groups=identity.groups,
-            campus_scope=identity.campus_scope,
             cohort=identity.cohort,
             major=identity.major,
             program=identity.program,
@@ -143,8 +139,6 @@ def _build_authorization_projection(
             retrieval_filter=AuthorizedRetrievalFilter(
                 entitlement_groups=(),
                 visibility_scope=None,
-                acl_groups=(),
-                campus_scope=None,
             ),
         )
 
@@ -165,9 +159,7 @@ def _build_authorization_projection(
         retrieval_filter=AuthorizedRetrievalFilter(
             entitlement_groups=retrieval_filter.entitlement_groups,
             visibility_level=retrieval_filter.visibility_level,
-            acl_groups=retrieval_filter.acl_groups,
             visibility_scope=retrieval_filter.visibility_scope,
-            campus_scope=retrieval_filter.campus_scope,
             policy_projection_version=retrieval_filter.policy_projection_version,
         ),
     )

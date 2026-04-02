@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from campus_contracts import AuthorizedRetrievalFilter, EvidenceBundle, PersonalizationHint
+from campus_retrieval_core.backend_qdrant import RestrictedDocumentAccessDeniedError
 from campus_retrieval_core.models import RetrievalRequest
 from campus_retrieval_core.service import build_retrieval_backend, retrieve_sources
 
@@ -60,7 +61,6 @@ class RetrievalServiceTest(unittest.TestCase):
             collection="student_handbook",
             authorized_filter=AuthorizedRetrievalFilter(
                 entitlement_groups=("students",),
-                acl_groups=("students",),
                 visibility_level="public",
                 policy_projection_version="phase1-authorization-projection-v1",
             ),
@@ -148,9 +148,8 @@ class RetrievalServiceTest(unittest.TestCase):
             collection="student_handbook",
         )
         authorized_filter = AuthorizedRetrievalFilter(
-            acl_groups=("entitled-students",),
+            entitlement_groups=("entitled-students",),
             visibility_scope="north",
-            campus_scope="north",
         )
 
         retrieve_sources(
@@ -164,6 +163,21 @@ class RetrievalServiceTest(unittest.TestCase):
         request = backend.retrieve.call_args.args[0]
         self.assertIsInstance(request, RetrievalRequest)
         self.assertEqual(request.authorized_filter, authorized_filter)
+
+    def test_retrieve_sources_propagates_restricted_access_denied(self) -> None:
+        backend = Mock()
+        backend.retrieve.side_effect = RestrictedDocumentAccessDeniedError(
+            "restricted document access denied"
+        )
+
+        with self.assertRaises(RestrictedDocumentAccessDeniedError):
+            retrieve_sources(
+                "这条通知写了什么？",
+                corpus="regulations",
+                collection="student_handbook",
+                target_document_ids=("handbook:restricted-notice",),
+                backend=backend,
+            )
 
     def test_retrieve_sources_passes_target_document_ids_through_request(self) -> None:
         backend = Mock()
@@ -239,6 +253,15 @@ class RetrievalServiceTest(unittest.TestCase):
             "canonical_program_family_ids",
             {field.name for field in fields(RetrievalRequest)},
         )
+
+    def test_retrieval_request_removes_legacy_top_level_authz_carriers(self) -> None:
+        field_names = {field.name for field in fields(RetrievalRequest)}
+        parameter_names = set(inspect.signature(RetrievalRequest).parameters)
+
+        self.assertNotIn("acl_groups", field_names)
+        self.assertNotIn("campus_scope", field_names)
+        self.assertNotIn("acl_groups", parameter_names)
+        self.assertNotIn("campus_scope", parameter_names)
 
 
 if __name__ == "__main__":

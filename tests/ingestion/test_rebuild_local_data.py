@@ -893,7 +893,8 @@ class RebuildLocalDataTest(unittest.TestCase):
                                 "title": "Plan 001",
                                 "page_start": 1,
                                 "page_end": 1,
-                                "campus_scope": "main",
+                                "entitlement_groups": [],
+                                "visibility_scope": "main",
                                 "status": "active",
                             }
                         ],

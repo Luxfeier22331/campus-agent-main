@@ -17,7 +17,7 @@ def _metadata(document_id: str, version_id: str) -> dict[str, object]:
     return {
         "document_id": document_id,
         "version_id": version_id,
-        "acl_groups": (),
+        "entitlement_groups": [],
     }
 
 
@@ -76,8 +76,6 @@ def _record(
         cleaning_policy_version="student_handbook_cleaning_v1",
         entitlement_groups=(),
         visibility_scope=None,
-        acl_groups=(),
-        campus_scope=None,
         status=status,
         ingestion_timestamp=ingestion_timestamp,
         parser_version="campusrag-import-v1",
@@ -420,10 +418,8 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             created_record.policy_projection_version,
             DEFAULT_POLICY_PROJECTION_VERSION,
         )
-        self.assertEqual(created_record.acl_groups, ("students",))
-        self.assertEqual(created_record.campus_scope, "main")
 
-    def test_apply_authorization_projection_metadata_treats_acl_level_as_legacy_mirror(self) -> None:
+    def test_apply_authorization_projection_metadata_clears_legacy_acl_carriers(self) -> None:
         metadata = {
             "document_id": "handbook:doc-authz",
             "version_id": "v1:doc-authz",
@@ -442,9 +438,9 @@ class CampusragIngestionSupportTest(unittest.TestCase):
         self.assertEqual(metadata["entitlement_groups"], ["students"])
         self.assertEqual(metadata["visibility_scope"], "main")
         self.assertEqual(metadata["visibility_level"], "restricted")
-        self.assertEqual(metadata["acl_level"], "restricted")
-        self.assertEqual(metadata["acl_groups"], ["students"])
-        self.assertEqual(metadata["campus_scope"], "main")
+        self.assertNotIn("acl_level", metadata)
+        self.assertNotIn("acl_groups", metadata)
+        self.assertNotIn("campus_scope", metadata)
 
 
 if __name__ == "__main__":

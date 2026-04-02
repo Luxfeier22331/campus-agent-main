@@ -23,7 +23,7 @@ class SupervisorRoutingTest(unittest.TestCase):
             conversation_id="conv-001",
             request_id="req-001",
             trace=TraceContext(trace_id="trace-001"),
-            actor=ActorContext(user_id="student-001", groups=("students",)),
+            actor=ActorContext(user_id="student-001"),
             requested_scope=KnowledgeScope(
                 corpus="regulations",
                 collection="student_handbook",
@@ -75,7 +75,7 @@ class SupervisorRoutingTest(unittest.TestCase):
             conversation_id="conv-availability",
             request_id="req-availability",
             trace=TraceContext(trace_id="trace-availability"),
-            actor=ActorContext(user_id="student-001", groups=("students",)),
+            actor=ActorContext(user_id="student-001"),
             requested_capability="availability",
             availability_target_id="official-homepage",
         )

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from campus_contracts import ErrorInfo, SpecialistResponse, SupervisorResponse
+from campus_contracts import ErrorInfo, SpecialistResponse, SupervisorObservability, SupervisorResponse
 
 from campus_supervisor_core.routing import RoutingDecision
+from campus_supervisor_core.response import build_supervisor_observability_from_specialist_response
 
 
 def finalize_routing_decision(decision: RoutingDecision) -> SupervisorResponse | None:
@@ -21,12 +22,34 @@ def finalize_routing_decision(decision: RoutingDecision) -> SupervisorResponse |
             status="approval_required",
             answer_text="该请求涉及需要人工确认的操作，必须先经过审批。",
             confidence="low",
+            observability=SupervisorObservability(
+                retrieval_attempted=False,
+                candidate_count=0,
+                retrieved_source_count=0,
+                citation_expected=False,
+                citation_count=0,
+                citation_missing=False,
+                refusal_class="approval_required",
+                acl_decision="approval_required",
+                fail_closed=True,
+            ),
         )
     return SupervisorResponse(
         selected_target=None,
         status="rejected",
         confidence="low",
         error=ErrorInfo(code="request_rejected", message="request was rejected by supervisor policy"),
+        observability=SupervisorObservability(
+            retrieval_attempted=False,
+            candidate_count=0,
+            retrieved_source_count=0,
+            citation_expected=False,
+            citation_count=0,
+            citation_missing=False,
+            refusal_class="rejected",
+            acl_decision="denied",
+            fail_closed=True,
+        ),
     )
 
 
@@ -40,6 +63,7 @@ def finalize_specialist_response(response: SpecialistResponse) -> SupervisorResp
             confidence=response.confidence,
             result=response.result,
             error=response.error,
+            observability=build_supervisor_observability_from_specialist_response(response),
         )
     if response.status == "needs_clarification":
         return SupervisorResponse(
@@ -50,6 +74,7 @@ def finalize_specialist_response(response: SpecialistResponse) -> SupervisorResp
             confidence=response.confidence,
             result=response.result,
             error=response.error,
+            observability=build_supervisor_observability_from_specialist_response(response),
         )
     if response.status == "no_answer":
         return SupervisorResponse(
@@ -60,6 +85,7 @@ def finalize_specialist_response(response: SpecialistResponse) -> SupervisorResp
             confidence=response.confidence,
             result=response.result,
             error=response.error,
+            observability=build_supervisor_observability_from_specialist_response(response),
         )
     if response.status == "error":
         return SupervisorResponse(
@@ -70,12 +96,18 @@ def finalize_specialist_response(response: SpecialistResponse) -> SupervisorResp
             confidence=response.confidence,
             result=response.result,
             error=response.error,
+            observability=build_supervisor_observability_from_specialist_response(response),
         )
     raise ValueError(f"unsupported delegate status: {response.status}")
 
 
 def _clarification_question(decision: RoutingDecision) -> str:
     if "requested_scope" in decision.intent_frame.missing_slots:
+        if decision.intent_frame.clarification_subject:
+            return (
+                f"按当前对话上下文理解，你现在想继续问{decision.intent_frame.clarification_subject}相关事项；"
+                "请先说明你想查询的知识范围或资料集合。"
+            )
         return "请先说明你想查询的知识范围或资料集合。"
     if "availability_target_id" in decision.intent_frame.missing_slots:
         return "请先说明你想检查的站点或服务目标。"

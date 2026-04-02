@@ -11,6 +11,7 @@ from campus_supervisor_core.context import SupervisorRequestContext
 IntentTaskKind = Literal["knowledge_lookup", "availability_check", "unknown"]
 IntentRiskLevel = Literal["low", "medium", "high"]
 IntentNextAction = Literal["delegate", "clarify", "rejected", "approval_required"]
+IntentPersonalizationMode = Literal["generic", "cohort_grounded", "user_grounded"]
 
 _HIGH_RISK_PATTERNS = (
     "帮我提交",
@@ -34,6 +35,8 @@ class IntentFrame:
     risk_level: IntentRiskLevel
     needs_clarification: bool
     suggested_next_action: IntentNextAction
+    personalization_mode: IntentPersonalizationMode = "generic"
+    clarification_subject: str = ""
 
 
 def frame_intent(
@@ -42,6 +45,8 @@ def frame_intent(
     capability: RequestedCapability,
 ) -> IntentFrame:
     normalized_goal = context.user_goal.strip()
+    personalization_hint = context.personalization_hint
+    personalization_mode = _personalization_mode(context)
     if capability == "availability":
         missing_slots = () if context.availability_target_id is not None else ("availability_target_id",)
         return IntentFrame(
@@ -52,6 +57,7 @@ def frame_intent(
             risk_level="low",
             needs_clarification=bool(missing_slots),
             suggested_next_action="clarify" if missing_slots else "delegate",
+            personalization_mode=personalization_mode,
         )
 
     if any(pattern in normalized_goal for pattern in _HIGH_RISK_PATTERNS):
@@ -63,6 +69,7 @@ def frame_intent(
             risk_level="high",
             needs_clarification=False,
             suggested_next_action="approval_required",
+            personalization_mode=personalization_mode,
         )
 
     missing_slots = () if context.requested_scope is not None else ("requested_scope",)
@@ -74,6 +81,11 @@ def frame_intent(
         risk_level="low",
         needs_clarification=bool(missing_slots),
         suggested_next_action="clarify" if missing_slots else "delegate",
+        personalization_mode=personalization_mode,
+        clarification_subject=_clarification_subject(
+            normalized_goal,
+            clarification_subject=personalization_hint.clarification_subject,
+        ),
     )
 
 
@@ -81,3 +93,25 @@ def _knowledge_domains(context: SupervisorRequestContext) -> tuple[str, ...]:
     if context.requested_scope is not None:
         return (f"{context.requested_scope.corpus}/{context.requested_scope.collection}",)
     return ("knowledge",)
+
+
+def _personalization_mode(context: SupervisorRequestContext) -> IntentPersonalizationMode:
+    personalization_hint = context.personalization_hint
+    if personalization_hint.recent_goal or personalization_hint.confirmed_slot_terms:
+        return "user_grounded"
+    if personalization_hint.actor_claim_terms:
+        return "cohort_grounded"
+    return "generic"
+
+
+def _clarification_subject(
+    user_goal: str,
+    *,
+    clarification_subject: str,
+) -> str:
+    subject = clarification_subject.strip()
+    if not subject:
+        return ""
+    if subject in user_goal:
+        return ""
+    return subject

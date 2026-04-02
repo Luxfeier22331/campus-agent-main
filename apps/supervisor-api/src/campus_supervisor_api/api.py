@@ -386,8 +386,6 @@ def _parse_actor_context(raw_actor: object, *, field_prefix: str) -> ActorContex
             raw_actor.get("departments"),
             field_name=f"{field_prefix}.departments",
         ),
-        groups=_parse_string_tuple(raw_actor.get("groups"), field_name=f"{field_prefix}.groups"),
-        campus_scope=_parse_optional_string(raw_actor.get("campus_scope")),
         cohort=_parse_optional_string(raw_actor.get("cohort")),
         major=_parse_optional_string(raw_actor.get("major")),
         program=_parse_optional_string(raw_actor.get("program")),
@@ -450,12 +448,7 @@ def _parse_authorized_retrieval_filter(
             field_name="context.authorization.retrieval_filter.entitlement_groups",
         ),
         visibility_level=_parse_optional_string(raw_filter.get("visibility_level")) or "public",
-        acl_groups=_parse_string_tuple(
-            raw_filter.get("acl_groups"),
-            field_name="context.authorization.retrieval_filter.acl_groups",
-        ),
         visibility_scope=_parse_optional_string(raw_filter.get("visibility_scope")),
-        campus_scope=_parse_optional_string(raw_filter.get("campus_scope")),
         policy_projection_version=_parse_optional_string(raw_filter.get("policy_projection_version")) or "",
     )
 
@@ -468,8 +461,6 @@ def _default_authorization_projection(actor: ActorContext) -> AuthorizationProje
         visibility_scope=None,
         retrieval_filter=AuthorizedRetrievalFilter(
             entitlement_groups=(),
-            acl_groups=(),
             visibility_scope=None,
-            campus_scope=None,
         ),
     )

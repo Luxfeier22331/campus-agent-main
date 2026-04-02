@@ -625,8 +625,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                                 "page_start": 3,
                                 "page_end": 3,
                                 "source_uri": "https://campus.example/handbook/discipline-policy",
-                                "acl_groups": ["students"],
-                                "campus_scope": "main",
+                                "entitlement_groups": ["students"],
+                                "visibility_scope": "main",
+                                "visibility_level": "restricted",
                             },
                         ],
                     },
@@ -725,8 +726,8 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             self.assertEqual(discipline_record["raw_asset"]["page_end"], 3)
             self.assertEqual(scholarship_record["source_uri"], "https://campus.example/handbook/scholarship-policy")
             self.assertEqual(discipline_record["source_uri"], "https://campus.example/handbook/discipline-policy")
-            self.assertEqual(discipline_record["acl_groups"], ["students"])
-            self.assertEqual(discipline_record["campus_scope"], "main")
+            self.assertEqual(discipline_record["entitlement_groups"], ["students"])
+            self.assertEqual(discipline_record["visibility_scope"], "main")
             self.assertEqual(scholarship_record["cleaning_policy_version"], "student_handbook_cleaning_v1")
             self.assertEqual(discipline_record["cleaning_policy_version"], "student_handbook_cleaning_v1")
             self.assertEqual(scholarship_record["parser_version"], "paddleocr-vl-1.5")
@@ -1404,8 +1405,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                         "title": "Plan 002",
                         "page_start": 2,
                         "page_end": 2,
-                        "acl_groups": ["students"],
-                        "campus_scope": "main",
+                        "entitlement_groups": ["students"],
+                        "visibility_scope": "main",
+                        "visibility_level": "restricted",
                     },
                 ],
             }
@@ -1559,8 +1561,8 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             )
             self.assertEqual(plan_001["cleaning_policy_version"], "curriculum_plan_cleaning_v1")
             self.assertEqual(plan_002["cleaning_policy_version"], "curriculum_plan_cleaning_v1")
-            self.assertEqual(plan_002["campus_scope"], "main")
-            self.assertEqual(plan_002["acl_groups"], ["students"])
+            self.assertEqual(plan_002["visibility_scope"], "main")
+            self.assertEqual(plan_002["entitlement_groups"], ["students"])
             self.assertEqual(plan_001["revision_track"], "source-faithful")
             self.assertEqual(plan_001["source_channel"], "pdf_ocr")
             self.assertEqual(plan_001["source_uri"], source_uri_1)

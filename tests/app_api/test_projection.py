@@ -48,9 +48,7 @@ class AppApiProjectionTest(unittest.TestCase):
                 retrieval_filter=AuthorizedRetrievalFilterInput(
                     entitlement_groups=("students",),
                     visibility_level="public",
-                    acl_groups=("students",),
                     visibility_scope="north",
-                    campus_scope="north",
                     policy_projection_version="phase1-authorization-projection-v1",
                 ),
             ),
@@ -80,8 +78,6 @@ class AppApiProjectionTest(unittest.TestCase):
                     principal_type="student",
                     roles=("student",),
                     departments=(),
-                    groups=("students",),
-                    campus_scope="north",
                     cohort="2023",
                     major="philosophy",
                     program="undergraduate",
@@ -98,9 +94,7 @@ class AppApiProjectionTest(unittest.TestCase):
                     retrieval_filter=AuthorizedRetrievalFilter(
                         entitlement_groups=("students",),
                         visibility_level="public",
-                        acl_groups=("students",),
                         visibility_scope="north",
-                        campus_scope="north",
                         policy_projection_version="phase1-authorization-projection-v1",
                     ),
                 ),
@@ -136,6 +130,19 @@ class AppApiProjectionTest(unittest.TestCase):
         )
 
         self.assertEqual(
+            projection.actor,
+            ActorContext(
+                user_id="student-001",
+                principal_id="principal-001",
+                principal_type="student",
+                roles=(),
+                departments=(),
+                cohort=None,
+                major=None,
+                program=None,
+            ),
+        )
+        self.assertEqual(
             projection.authorization,
             AuthorizationProjection(
                 principal_id="principal-001",
@@ -149,9 +156,7 @@ class AppApiProjectionTest(unittest.TestCase):
                 retrieval_filter=AuthorizedRetrievalFilter(
                     entitlement_groups=(),
                     visibility_level="public",
-                    acl_groups=(),
                     visibility_scope=None,
-                    campus_scope=None,
                     policy_projection_version="phase1-authorization-projection-v1",
                 ),
             ),
@@ -201,11 +206,22 @@ class AppApiProjectionTest(unittest.TestCase):
                 retrieval_filter=AuthorizedRetrievalFilter(
                     entitlement_groups=("campus_members", "students"),
                     visibility_level="public",
-                    acl_groups=(),
                     visibility_scope="north",
-                    campus_scope=None,
                     policy_projection_version="phase1-authorization-projection-v1",
                 ),
+            ),
+        )
+        self.assertEqual(
+            projection.actor,
+            ActorContext(
+                user_id="student-001",
+                principal_id="principal-001",
+                principal_type="student",
+                roles=("campus_member", "student"),
+                departments=("philosophy",),
+                cohort="2023",
+                major="philosophy",
+                program="undergraduate",
             ),
         )
 
@@ -249,9 +265,7 @@ class AppApiProjectionTest(unittest.TestCase):
                 retrieval_filter=AuthorizedRetrievalFilterInput(
                     entitlement_groups=("students",),
                     visibility_level="public",
-                    acl_groups=("students",),
                     visibility_scope="north",
-                    campus_scope="north",
                     policy_projection_version="phase1-authorization-projection-v1",
                 ),
             ),
@@ -277,7 +291,6 @@ class AppApiProjectionTest(unittest.TestCase):
             ("students",),
         )
         self.assertEqual(projection.authorization.retrieval_filter.visibility_level, "public")
-        self.assertEqual(projection.authorization.retrieval_filter.campus_scope, "north")
         self.assertEqual(projection.authorization.retrieval_filter.visibility_scope, "north")
         self.assertEqual(projection.profile_memory.items[0].value, "admins")
         self.assertEqual(projection.session.confirmed_slots[0].value, "south")
@@ -304,9 +317,7 @@ class AppApiProjectionTest(unittest.TestCase):
             AuthorizedRetrievalFilter(
                 entitlement_groups=("students",),
                 visibility_level="public",
-                acl_groups=(),
                 visibility_scope="north",
-                campus_scope=None,
                 policy_projection_version="phase1-authorization-projection-v1",
             ),
         )

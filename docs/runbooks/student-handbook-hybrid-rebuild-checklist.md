@@ -51,7 +51,7 @@ updated: 2026-03-30
 - `index_chunks_to_qdrant()` 不再依赖 `QdrantVectorStore.add()` 单向量默认行为
 - retrieval 不再走本地 lexical fallback，不再用 `scroll + local sparse score`
 - retrieval query 已使用 Qdrant native `prefetch + RrfQuery(...)`
-- payload contract 未丢失：`document_id`、`revision_track`、`version_id`、`chunk_id`、ACL、`campus_scope`、`anchor`
+- payload contract 未丢失：`document_id`、`revision_track`、`version_id`、`chunk_id`、`entitlement_groups`、`visibility_scope`、`visibility_level`、`anchor`
 - `DocumentRegistry` 回链仍是最终 source shaping 的真相源
 
 ## Live Rebuild 前检查
@@ -167,8 +167,8 @@ accept flow 语义：
   - `chunk_id`
   - `corpus`
   - `collection`
-  - `acl_level`
-  - `acl_groups`
+  - `visibility_level`
+  - `entitlement_groups`
   - `anchor`
 - 任意抽样命中回链后，`canonical_url` / `latest_url` / `is_current` 必须来自 registry truth，而不是直接取 Qdrant payload
 
@@ -179,8 +179,8 @@ accept flow 语义：
   - 先不要把它归因到 LLM provider 或 supplemental adapter
   - 这表示当前 serving alias 指向的 remote Qdrant collection 缺少 authorization projection 需要的 payload index
   - 当前 ingestion/indexing 代码对 remote Qdrant 已要求创建
-    `entitlement_groups` / `visibility_level` / `policy_projection_version` / `campus_scope` /
-    `acl_groups` / `acl_level` 等 payload index；出现该错误通常意味着 alias 仍指向旧 schema collection
+    `entitlement_groups` / `visibility_scope` / `visibility_level` / `policy_projection_version`
+    等 payload index；出现该错误通常意味着 alias 仍指向旧 schema collection
   - 正确处置是核对 serving alias、physical collection 和最近一次 release manifest，必要时重做 release-managed rebuild / publish
   - 当前 retrieval 代码已经避免在 `entitlement_groups=()` 的 public-only 请求上额外发送空 group 谓词，但这不替代 serving collection 应具备的完整 authorization projection schema
 
@@ -202,9 +202,9 @@ accept flow 语义：
 当前 handbook live fixture 额外约束：
 
 - 样本必须只覆盖当前 `regulations/student_handbook` collection 的真实语料边界，不把 `campus_services` 或历史 handbook 服务/导航页样本混入
-- 如果当前 handbook manifest 不包含 `acl_groups` 或 `campus_scope` 真相，官方 handbook live fixture 不应继续保留 `acl_filter` / `campus_scope_filter` case
+- 如果当前 handbook manifest 不包含 `entitlement_groups` 或 `visibility_scope` 真相，官方 handbook live fixture 不应继续保留 restricted filter case
 - `policy_title_exact_match` 与 `fixed_phrase_sparse_win` 样本必须至少能回连到当前 handbook manifest 的标题关键词，避免出现 collection 已纯化但旧样本未更新的 fixture drift
-- 如需验证 ACL 或 `campus_scope` 检索行为，应在真实承载这些 payload 维度的 collection 上维护单独 fixture，而不是继续塞在 handbook live 样本里
+- 如需验证 restricted entitlement 或 `visibility_scope` 检索行为，应在真实承载这些 payload 维度的 collection 上维护单独 fixture，而不是继续塞在 handbook live 样本里
 
 ## Gate 3 / Gate 4 证据模板
 
@@ -347,4 +347,4 @@ accept flow 语义：
 - live collection 中所有 handbook 点均带有 named `dense` 与 named `sparse`
 - native hybrid query 能稳定返回 registry-backed `EvidenceBundle`
 - exact-match / fixed-phrase 场景相较 dense-only 更稳
-- ACL / `campus_scope` / no-hit 行为未回退
+- restricted projection / `visibility_scope` / no-hit 行为未回退

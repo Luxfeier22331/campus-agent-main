@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-03-29
+updated: 2026-04-03
 ---
 
 # App API Supervisor Execution Contract
@@ -95,10 +95,8 @@ JSON 命名保持 `snake_case`，原因如下：
       "visibility_scope": "main",
       "retrieval_filter": {
         "entitlement_groups": ["students"],
-        "acl_groups": ["students"],
         "visibility_level": "public",
         "visibility_scope": "main",
-        "campus_scope": "main",
         "policy_projection_version": "phase1-authorization-projection-v1"
       }
     },
@@ -148,6 +146,17 @@ JSON 命名保持 `snake_case`，原因如下：
   "confidence": "high",
   "result": null,
   "error": null,
+  "observability": {
+    "retrieval_attempted": true,
+    "candidate_count": 2,
+    "retrieved_source_count": 2,
+    "citation_expected": true,
+    "citation_count": 2,
+    "citation_missing": false,
+    "refusal_class": "",
+    "acl_decision": "allowed",
+    "fail_closed": false
+  },
   "trace_id": "trace_01HQ..."
 }
 ```
@@ -170,11 +179,15 @@ JSON 命名保持 `snake_case`，原因如下：
 - `follow_up_question`
 - `error`
 - `result`
+- `observability` optional
 
 其中：
 
 - `result` 仍由 specialist / shared contract 拥有，不在这里完整重定义
 - `app-api` 可以从 `result` 中提取 source identifiers 进入 projection，但不得把 specialist payload 直接当 browser contract 暴露
+- `observability` 是 execution-side typed summary seam，用于 `runtime.request_observability_fact` 的 seed / finalize；字段继续保持 Python-side `snake_case`
+- `observability` 不返回 raw prompt、raw answer、raw transcript、raw retrieval payload 或 raw auth material
+- token / model / cost 字段如果出现，必须来自 execution-side typed telemetry seam，而不是 panel-side 或 sink-side 反推
 
 ## HTTP Status Rule
 

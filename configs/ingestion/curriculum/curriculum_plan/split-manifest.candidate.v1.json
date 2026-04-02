@@ -9,8 +9,8 @@
       "title": "中央民族大学通识课程教学计划",
       "page_start": 20,
       "page_end": 21,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -18,8 +18,8 @@
       "title": "中央民族大学通识课程思想政治理论课教学计划",
       "page_start": 22,
       "page_end": 26,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -27,8 +27,8 @@
       "title": "中央民族大学通识课程“大学英语”课程教学计划",
       "page_start": 27,
       "page_end": 29,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -36,8 +36,8 @@
       "title": "中央民族大学通识课程“信息素养”课程教学计划",
       "page_start": 30,
       "page_end": 31,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -45,8 +45,8 @@
       "title": "中央民族大学通识课程“大学体育”课程教学计划",
       "page_start": 32,
       "page_end": 36,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -54,8 +54,8 @@
       "title": "中央民族大学通识课程“大学数学”课程教学计划",
       "page_start": 37,
       "page_end": 38,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -63,8 +63,8 @@
       "title": "中央民族大学通识课程“中华文化”课程教学计划",
       "page_start": 39,
       "page_end": 40,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -72,8 +72,8 @@
       "title": "中央民族大学通识课程“国家安全教育”课程教学计划",
       "page_start": 41,
       "page_end": 43,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -81,8 +81,8 @@
       "title": "中央民族大学通识课程“心理健康”课程教学计划",
       "page_start": 44,
       "page_end": 46,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -90,8 +90,8 @@
       "title": "中央民族大学通识课程综合素养课建设方案",
       "page_start": 47,
       "page_end": 51,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -99,8 +99,8 @@
       "title": "社会学类本科人才培养方案",
       "page_start": 52,
       "page_end": 64,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -108,8 +108,8 @@
       "title": "民族学本科人才培养方案",
       "page_start": 65,
       "page_end": 76,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -117,8 +117,8 @@
       "title": "文物与博物馆学本科人才培养方案",
       "page_start": 77,
       "page_end": 86,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -126,8 +126,8 @@
       "title": "孝通实验班本科人才培养方案",
       "page_start": 87,
       "page_end": 102,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -135,8 +135,8 @@
       "title": "中国少数民族语言文学本科人才培养方案",
       "page_start": 103,
       "page_end": 115,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -144,8 +144,8 @@
       "title": "中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
       "page_start": 116,
       "page_end": 125,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -153,8 +153,8 @@
       "title": "汉语言文学本科人才培养方案",
       "page_start": 126,
       "page_end": 134,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -162,8 +162,8 @@
       "title": "历史学本科人才培养方案",
       "page_start": 135,
       "page_end": 147,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -171,8 +171,8 @@
       "title": "历史学（强基计划）本科人才培养方案",
       "page_start": 148,
       "page_end": 158,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -180,8 +180,8 @@
       "title": "哲学类本科人才培养方案",
       "page_start": 159,
       "page_end": 174,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -189,8 +189,8 @@
       "title": "哲学（强基计划）本科人才培养方案",
       "page_start": 175,
       "page_end": 184,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -198,8 +198,8 @@
       "title": "新闻传播学类本科人才培养方案",
       "page_start": 185,
       "page_end": 197,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -207,8 +207,8 @@
       "title": "英语本科人才培养方案",
       "page_start": 198,
       "page_end": 207,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -216,8 +216,8 @@
       "title": "俄语（俄语、中亚语）本科人才培养方案",
       "page_start": 208,
       "page_end": 219,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -225,8 +225,8 @@
       "title": "日语本科人才培养方案",
       "page_start": 220,
       "page_end": 228,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -234,8 +234,8 @@
       "title": "翻译本科人才培养方案",
       "page_start": 229,
       "page_end": 238,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -243,8 +243,8 @@
       "title": "经济学本科人才培养方案",
       "page_start": 239,
       "page_end": 247,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -252,8 +252,8 @@
       "title": "数字经济本科人才培养方案",
       "page_start": 248,
       "page_end": 257,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -261,8 +261,8 @@
       "title": "财政学本科人才培养方案",
       "page_start": 258,
       "page_end": 268,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -270,8 +270,8 @@
       "title": "金融学本科人才培养方案",
       "page_start": 269,
       "page_end": 277,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -279,8 +279,8 @@
       "title": "国际经济与贸易本科人才培养方案",
       "page_start": 278,
       "page_end": 288,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -288,8 +288,8 @@
       "title": "经济学拔尖人才创新班人才培养方案",
       "page_start": 289,
       "page_end": 297,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -297,8 +297,8 @@
       "title": "工商管理类本科人才培养方案",
       "page_start": 298,
       "page_end": 314,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -306,8 +306,8 @@
       "title": "公共管理类本科人才培养方案",
       "page_start": 315,
       "page_end": 324,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -315,8 +315,8 @@
       "title": "法学本科人才培养方案",
       "page_start": 325,
       "page_end": 338,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -324,8 +324,8 @@
       "title": "法学（民族实验班）本科人才培养方案",
       "page_start": 339,
       "page_end": 350,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -333,8 +333,8 @@
       "title": "生物科学类本科人才培养方案",
       "page_start": 351,
       "page_end": 363,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -342,8 +342,8 @@
       "title": "环境科学与工程类本科人才培养方案",
       "page_start": 364,
       "page_end": 381,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -351,8 +351,8 @@
       "title": "理工科交叉创新人才培养实验班本科人才培养方案",
       "page_start": 382,
       "page_end": 392,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -360,8 +360,8 @@
       "title": "环境科学（中外合作办学）本科人才培养方案",
       "page_start": 393,
       "page_end": 400,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -369,8 +369,8 @@
       "title": "信息与计算科学本科人才培养方案",
       "page_start": 401,
       "page_end": 409,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -378,8 +378,8 @@
       "title": "统计学类本科人才培养方案",
       "page_start": 410,
       "page_end": 419,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -387,8 +387,8 @@
       "title": "光电信息科学与工程本科人才培养方案",
       "page_start": 420,
       "page_end": 429,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -396,8 +396,8 @@
       "title": "纳米材料与技术本科人才培养方案",
       "page_start": 430,
       "page_end": 439,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -405,8 +405,8 @@
       "title": "光电科学与工程创新实验班本科人才培养方案",
       "page_start": 440,
       "page_end": 451,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -414,8 +414,8 @@
       "title": "信息与计算科学（民族实验班）本科人才培养方案",
       "page_start": 452,
       "page_end": 461,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -423,8 +423,8 @@
       "title": "电子信息类本科人才培养方案",
       "page_start": 462,
       "page_end": 478,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -432,8 +432,8 @@
       "title": "计算机类本科人才培养方案",
       "page_start": 479,
       "page_end": 515,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -441,8 +441,8 @@
       "title": "计算机科学与技术（民族实验班）本科人才培养方案",
       "page_start": 516,
       "page_end": 526,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -450,8 +450,8 @@
       "title": "音乐与舞蹈学类（音乐类专业）本科人才培养方案",
       "page_start": 527,
       "page_end": 551,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -459,8 +459,8 @@
       "title": "音乐与舞蹈学类（舞蹈类专业）本科人才培养方案",
       "page_start": 552,
       "page_end": 572,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -468,8 +468,8 @@
       "title": "美术学类本科人才培养方案",
       "page_start": 573,
       "page_end": 586,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -477,8 +477,8 @@
       "title": "设计学类本科人才培养方案",
       "page_start": 587,
       "page_end": 603,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -486,8 +486,8 @@
       "title": "美术学（美术教育师范）本科人才培养方案",
       "page_start": 604,
       "page_end": 614,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -495,8 +495,8 @@
       "title": "体育教育本科人才培养方案",
       "page_start": 615,
       "page_end": 624,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -504,8 +504,8 @@
       "title": "教育学本科人才培养方案",
       "page_start": 625,
       "page_end": 641,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -513,8 +513,8 @@
       "title": "汉语国际教育本科人才培养方案",
       "page_start": 642,
       "page_end": 652,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -522,8 +522,8 @@
       "title": "汉语国际教育（国际学生）本科人才培养方案",
       "page_start": 653,
       "page_end": 660,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -531,8 +531,8 @@
       "title": "少数民族预科教育人才培养方案",
       "page_start": 661,
       "page_end": 666,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -540,8 +540,8 @@
       "title": "民族学本科第二学士学位人才培养方案",
       "page_start": 667,
       "page_end": 670,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -549,8 +549,8 @@
       "title": "社会学本科第二学士学位人才培养方案",
       "page_start": 671,
       "page_end": 674,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -558,8 +558,8 @@
       "title": "文物与博物馆学本科第二学士学位人才培养方案",
       "page_start": 675,
       "page_end": 677,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -567,8 +567,8 @@
       "title": "金融学本科第二学士学位人才培养方案",
       "page_start": 678,
       "page_end": 681,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -576,8 +576,8 @@
       "title": "会计学本科第二学士学位人才培养方案",
       "page_start": 682,
       "page_end": 684,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -585,8 +585,8 @@
       "title": "法学本科第二学士学位人才培养方案",
       "page_start": 685,
       "page_end": 687,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -594,8 +594,8 @@
       "title": "环境工程本科第二学士学位人才培养方案",
       "page_start": 688,
       "page_end": 693,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -603,8 +603,8 @@
       "title": "应用统计学本科专业第二学位人才培养方案",
       "page_start": 694,
       "page_end": 698,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -612,8 +612,8 @@
       "title": "数据科学与大数据技术本科第二学士学位人才培养方案",
       "page_start": 699,
       "page_end": 703,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     },
     {
@@ -621,8 +621,8 @@
       "title": "教育学本科第二学士学位人才培养方案",
       "page_start": 704,
       "page_end": 710,
-      "acl_groups": [],
-      "campus_scope": "main",
+      "entitlement_groups": [],
+      "visibility_scope": "main",
       "status": "active"
     }
   ]

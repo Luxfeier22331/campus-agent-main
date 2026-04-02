@@ -1,6 +1,7 @@
 from campus_retrieval_core.backend_qdrant import (
     CorpusQueryDisabledError,
     QdrantRetrievalBackend,
+    RestrictedDocumentAccessDeniedError,
     RetrievalBackendError,
 )
 from campus_retrieval_core.models import RetrievalRequest
@@ -11,6 +12,7 @@ __all__ = [
     "build_retrieval_backend",
     "QdrantRetrievalBackend",
     "CorpusQueryDisabledError",
+    "RestrictedDocumentAccessDeniedError",
     "RetrievalBackendError",
     "RetrievalRequest",
     "RetrievalSettings",

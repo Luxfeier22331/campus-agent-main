@@ -5,6 +5,7 @@ from typing import Union
 
 from campus_contracts import (
     AvailabilityCheckPayload,
+    DEFAULT_POLICY_PROJECTION_VERSION,
     RagResultPayload,
     RagRequestPayload,
     RequestedCapability,
@@ -25,6 +26,11 @@ class SupervisorAuditRecord:
     request_id: str
     trace_id: str
     user_id: str
+    principal_type: str
+    authorization_projection_source: str
+    entitlement_snapshot_id: str
+    policy_projection_version: str
+    personalization_mode: str
     selected_target: SpecialistTarget | None
     requested_capability: RequestedCapability | None
     requested_scope_corpus: AllowedCorpus | None
@@ -47,6 +53,11 @@ def build_audit_record(
         request_id=request.request_id,
         trace_id=request.trace.trace_id,
         user_id=request.actor.user_id,
+        principal_type=_principal_type_from_request(request),
+        authorization_projection_source=_authorization_projection_source_from_request(request),
+        entitlement_snapshot_id=_entitlement_snapshot_id_from_request(request),
+        policy_projection_version=_policy_projection_version_from_request(request),
+        personalization_mode=_personalization_mode_from_request(request),
         selected_target=_selected_target_from_response(response),
         requested_capability=requested_capability,
         requested_scope_corpus=None if requested_scope is None else requested_scope.corpus,
@@ -71,6 +82,11 @@ def build_error_audit_record(
         request_id=request.request_id,
         trace_id=request.trace.trace_id,
         user_id=request.actor.user_id,
+        principal_type=_principal_type_from_request(request),
+        authorization_projection_source=_authorization_projection_source_from_request(request),
+        entitlement_snapshot_id=_entitlement_snapshot_id_from_request(request),
+        policy_projection_version=_policy_projection_version_from_request(request),
+        personalization_mode=_personalization_mode_from_request(request),
         selected_target=_selected_target_from_request(request),
         requested_capability=requested_capability,
         requested_scope_corpus=None if requested_scope is None else requested_scope.corpus,
@@ -134,3 +150,66 @@ def _evidence_source_count_from_response(response: SpecialistResponse | Supervis
 
 def _is_fail_closed_status(status: SupervisorStatus) -> bool:
     return status in {"no_answer", "error"}
+
+
+def _principal_type_from_request(
+    request: Union[SupervisorRequest, SpecialistRequest],
+) -> str:
+    return (
+        request.context.actor.principal_type.strip()
+        or request.actor.principal_type.strip()
+    )
+
+
+def _authorization_projection_source_from_request(
+    request: Union[SupervisorRequest, SpecialistRequest],
+) -> str:
+    return request.context.authorization.projection_source.strip()
+
+
+def _entitlement_snapshot_id_from_request(
+    request: Union[SupervisorRequest, SpecialistRequest],
+) -> str:
+    return request.context.authorization.entitlement_snapshot_id.strip()
+
+
+def _policy_projection_version_from_request(
+    request: Union[SupervisorRequest, SpecialistRequest],
+) -> str:
+    version = request.context.authorization.retrieval_filter.policy_projection_version.strip()
+    return version or DEFAULT_POLICY_PROJECTION_VERSION
+
+
+def _personalization_mode_from_request(
+    request: Union[SupervisorRequest, SpecialistRequest],
+) -> str:
+    if _has_user_grounded_personalization(request):
+        return "user_grounded"
+    if _has_actor_claim_personalization(request):
+        return "cohort_grounded"
+    return "generic"
+
+
+def _has_user_grounded_personalization(
+    request: Union[SupervisorRequest, SpecialistRequest],
+) -> bool:
+    for item in request.context.profile_memory.items:
+        if item.visibility != "user_visible":
+            continue
+        if item.key == "recent_goal" and item.value.strip():
+            return True
+    return any(
+        slot.confirmed and slot.value.strip()
+        for slot in request.context.session.confirmed_slots
+    )
+
+
+def _has_actor_claim_personalization(
+    request: Union[SupervisorRequest, SpecialistRequest],
+) -> bool:
+    actor = request.context.actor
+    visibility_scope = request.context.authorization.visibility_scope
+    return any(
+        isinstance(value, str) and value.strip()
+        for value in (visibility_scope, actor.cohort, actor.major, actor.program)
+    )

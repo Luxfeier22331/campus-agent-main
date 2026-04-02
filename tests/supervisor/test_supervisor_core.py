@@ -6,6 +6,8 @@ from unittest.mock import patch
 
 from campus_contracts import (
     ActorContext,
+    AuthorizedRetrievalFilter,
+    AuthorizationProjection,
     AvailabilityCheckPayload,
     AvailabilityObservation,
     ContextProjection,
@@ -21,6 +23,7 @@ from campus_contracts import (
     SessionSummary,
     SpecialistRequest,
     SpecialistResponse,
+    SupervisorObservability,
     SupervisorResponse,
     SupervisorRequest,
     TraceContext,
@@ -53,7 +56,6 @@ def _make_rag_completed_response() -> SpecialistResponse:
                         version_id="v1:test-001",
                         chunk_id="handbook:test-001:source-faithful:v1:test-001:chunk-0001",
                         anchor={"page_start": 12, "page_end": 12},
-                        acl_level="public",
                         canonical_url="https://campus.example/handbook/test-001",
                         latest_url="https://campus.example/handbook/test-001",
                         source_channel="pdf_ocr",
@@ -92,7 +94,7 @@ class SupervisorCoreTest(unittest.TestCase):
             conversation_id="conv-001",
             request_id="req-001",
             trace=TraceContext(trace_id="trace-001"),
-            actor=ActorContext(user_id="student-001", groups=("students",)),
+            actor=ActorContext(user_id="student-001"),
             requested_scope=KnowledgeScope(
                 corpus="regulations",
                 collection="student_handbook",
@@ -123,7 +125,7 @@ class SupervisorCoreTest(unittest.TestCase):
             user_goal="library hours",
             request_id="req-001",
             trace=TraceContext(trace_id="trace-001"),
-            actor=ActorContext(user_id="student-001", groups=("students",)),
+            actor=ActorContext(user_id="student-001"),
             requested_scope=KnowledgeScope(
                 corpus="regulations",
                 collection="student_handbook",
@@ -156,6 +158,11 @@ class SupervisorCoreTest(unittest.TestCase):
                 "request_id": "req-001",
                 "trace_id": "trace-001",
                 "user_id": "student-001",
+                "principal_type": "",
+                "authorization_projection_source": "",
+                "entitlement_snapshot_id": "",
+                "policy_projection_version": "phase1-authorization-projection-v1",
+                "personalization_mode": "generic",
                 "selected_target": "rag-specialist",
                 "requested_capability": "knowledge",
                 "requested_scope_corpus": "regulations",
@@ -175,7 +182,7 @@ class SupervisorCoreTest(unittest.TestCase):
             user_goal="官网现在能打开吗？",
             request_id="req-availability",
             trace=TraceContext(trace_id="trace-availability"),
-            actor=ActorContext(user_id="student-001", groups=("students",)),
+            actor=ActorContext(user_id="student-001"),
             requested_capability="availability",
             availability_target_id="official-homepage",
         )
@@ -252,6 +259,16 @@ class SupervisorCoreTest(unittest.TestCase):
                 answer_text=expected_response.answer_text,
                 confidence=expected_response.confidence,
                 result=expected_response.result,
+                observability=SupervisorObservability(
+                    retrieval_attempted=False,
+                    candidate_count=0,
+                    retrieved_source_count=0,
+                    citation_expected=False,
+                    citation_count=0,
+                    citation_missing=False,
+                    acl_decision="allowed",
+                    fail_closed=False,
+                ),
             ),
         )
 
@@ -286,8 +303,6 @@ class SupervisorCoreTest(unittest.TestCase):
                     actor=ActorContext(
                         user_id="student-001",
                         principal_id="principal-001",
-                        groups=("students",),
-                        campus_scope="north",
                     ),
                     session=SessionSummary(
                         confirmed_slots=(SessionSlot(name="policy_topic", value="奖学金", confirmed=True),),
@@ -308,6 +323,76 @@ class SupervisorCoreTest(unittest.TestCase):
             ),
         )
 
+    def test_handle_request_uses_safe_personalization_hint_in_scope_clarification(self) -> None:
+        response = handle_request(
+            SupervisorRequest(
+                user_goal="这个流程怎么办？",
+                requested_capability="knowledge",
+                context=ContextProjection(
+                    actor=ActorContext(
+                        user_id="student-001",
+                        principal_id="principal-001",
+                    ),
+                    profile_memory=ProfileMemorySummary(
+                        items=(
+                            ProfileMemoryItem(
+                                item_id="memory-001",
+                                key="recent_goal",
+                                value="奖学金申请",
+                                source_type="user_declared",
+                                confidence="high",
+                                visibility="user_visible",
+                                last_verified_at="2026-04-02",
+                            ),
+                        ),
+                    ),
+                    session=SessionSummary(
+                        confirmed_slots=(SessionSlot(name="policy_topic", value="奖学金", confirmed=True),),
+                        turn_count=2,
+                    ),
+                ),
+            ),
+            specialist_delegates={},
+        )
+
+        self.assertEqual(response.selected_target, None)
+        self.assertEqual(response.status, "needs_clarification")
+        self.assertIn("奖学金", response.follow_up_question)
+        self.assertIn("知识范围或资料集合", response.follow_up_question)
+
+    def test_handle_request_does_not_use_internal_only_memory_in_scope_clarification(self) -> None:
+        response = handle_request(
+            SupervisorRequest(
+                user_goal="这个流程怎么办？",
+                requested_capability="knowledge",
+                context=ContextProjection(
+                    actor=ActorContext(
+                        user_id="student-001",
+                        principal_id="principal-001",
+                    ),
+                    profile_memory=ProfileMemorySummary(
+                        items=(
+                            ProfileMemoryItem(
+                                item_id="memory-001",
+                                key="recent_goal",
+                                value="处分申诉",
+                                source_type="system_inferred",
+                                confidence="high",
+                                visibility="internal_only",
+                                last_verified_at="2026-04-02",
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            specialist_delegates={},
+        )
+
+        self.assertEqual(response.selected_target, None)
+        self.assertEqual(response.status, "needs_clarification")
+        self.assertEqual(response.follow_up_question, "请先说明你想查询的知识范围或资料集合。")
+        self.assertNotIn("处分申诉", response.follow_up_question)
+
     def test_handle_request_returns_approval_required_without_delegate_for_high_risk_request(self) -> None:
         audit_records: list[SupervisorAuditRecord] = []
 
@@ -322,8 +407,6 @@ class SupervisorCoreTest(unittest.TestCase):
                     actor=ActorContext(
                         user_id="student-001",
                         principal_id="principal-001",
-                        groups=("students",),
-                        campus_scope="north",
                     ),
                     profile_memory=ProfileMemorySummary(),
                     session=SessionSummary(turn_count=1),
@@ -340,6 +423,17 @@ class SupervisorCoreTest(unittest.TestCase):
                 status="approval_required",
                 answer_text="该请求涉及需要人工确认的操作，必须先经过审批。",
                 confidence="low",
+                observability=SupervisorObservability(
+                    retrieval_attempted=False,
+                    candidate_count=0,
+                    retrieved_source_count=0,
+                    citation_expected=False,
+                    citation_count=0,
+                    citation_missing=False,
+                    refusal_class="approval_required",
+                    acl_decision="approval_required",
+                    fail_closed=True,
+                ),
             ),
         )
         self.assertEqual(len(audit_records), 1)
@@ -399,6 +493,11 @@ class SupervisorCoreTest(unittest.TestCase):
             request_id="req-123",
             trace_id="trace-123",
             user_id="student-123",
+            principal_type="student",
+            authorization_projection_source="campus_identity",
+            entitlement_snapshot_id="entitlements-2026-03-29",
+            policy_projection_version="phase1-authorization-projection-v1",
+            personalization_mode="user_grounded",
             selected_target="rag-specialist",
             requested_capability="knowledge",
             requested_scope_corpus="regulations",
@@ -417,6 +516,11 @@ class SupervisorCoreTest(unittest.TestCase):
                 "request_id": "req-123",
                 "trace_id": "trace-123",
                 "user_id": "student-123",
+                "principal_type": "student",
+                "authorization_projection_source": "campus_identity",
+                "entitlement_snapshot_id": "entitlements-2026-03-29",
+                "policy_projection_version": "phase1-authorization-projection-v1",
+                "personalization_mode": "user_grounded",
                 "selected_target": "rag-specialist",
                 "requested_capability": "knowledge",
                 "requested_scope_corpus": "regulations",
@@ -435,6 +539,11 @@ class SupervisorCoreTest(unittest.TestCase):
                 "request_id",
                 "trace_id",
                 "user_id",
+                "principal_type",
+                "authorization_projection_source",
+                "entitlement_snapshot_id",
+                "policy_projection_version",
+                "personalization_mode",
                 "selected_target",
                 "requested_capability",
                 "requested_scope_corpus",
@@ -457,10 +566,22 @@ class SupervisorCoreTest(unittest.TestCase):
                 actor=ActorContext(
                     user_id="student-001",
                     principal_id="principal-001",
-                    groups=("students",),
-                    campus_scope="north",
+                    principal_type="student",
                     cohort="2023",
                     major="philosophy",
+                ),
+                authorization=AuthorizationProjection(
+                    principal_id="principal-001",
+                    projection_source="campus_identity",
+                    entitlement_snapshot_id="entitlements-2026-03-29",
+                    entitlement_groups=("students",),
+                    visibility_scope="north",
+                    retrieval_filter=AuthorizedRetrievalFilter(
+                        entitlement_groups=("students",),
+                        visibility_level="restricted",
+                        visibility_scope="north",
+                        policy_projection_version="phase1-authorization-projection-v1",
+                    ),
                 ),
                 profile_memory=ProfileMemorySummary(
                     items=(
@@ -504,6 +625,11 @@ class SupervisorCoreTest(unittest.TestCase):
                 "request_id": "req-context-001",
                 "trace_id": "trace-context-001",
                 "user_id": "student-001",
+                "principal_type": "student",
+                "authorization_projection_source": "campus_identity",
+                "entitlement_snapshot_id": "entitlements-2026-03-29",
+                "policy_projection_version": "phase1-authorization-projection-v1",
+                "personalization_mode": "user_grounded",
                 "selected_target": None,
                 "requested_capability": "knowledge",
                 "requested_scope_corpus": "regulations",
@@ -525,6 +651,10 @@ class SupervisorCoreTest(unittest.TestCase):
             "major",
             "program",
             "context",
+            "entitlement_groups",
+            "visibility_scope",
+            "approval_state",
+            "retrieval_filter",
             "profile_memory",
             "session",
             "memory",
@@ -538,7 +668,7 @@ class SupervisorCoreTest(unittest.TestCase):
             user_goal="官网现在能打开吗？",
             request_id="req-123",
             trace=TraceContext(trace_id="trace-123"),
-            actor=ActorContext(user_id="student-123", groups=("students",)),
+            actor=ActorContext(user_id="student-123"),
             requested_capability="availability",
             availability_target_id="official-homepage",
         )
@@ -557,6 +687,11 @@ class SupervisorCoreTest(unittest.TestCase):
                 "request_id": "req-123",
                 "trace_id": "trace-123",
                 "user_id": "student-123",
+                "principal_type": "",
+                "authorization_projection_source": "",
+                "entitlement_snapshot_id": "",
+                "policy_projection_version": "phase1-authorization-projection-v1",
+                "personalization_mode": "generic",
                 "selected_target": "availability-specialist",
                 "requested_capability": "availability",
                 "requested_scope_corpus": None,
@@ -575,7 +710,31 @@ class SupervisorCoreTest(unittest.TestCase):
             user_goal="培养方案要求",
             request_id="req-err-001",
             trace=TraceContext(trace_id="trace-err-001"),
-            actor=ActorContext(user_id="student-001", groups=("students",)),
+            actor=ActorContext(
+                user_id="student-001",
+                principal_id="principal-001",
+                principal_type="student",
+            ),
+            context=ContextProjection(
+                actor=ActorContext(
+                    user_id="student-001",
+                    principal_id="principal-001",
+                    principal_type="student",
+                ),
+                authorization=AuthorizationProjection(
+                    principal_id="principal-001",
+                    projection_source="campus_identity",
+                    entitlement_snapshot_id="entitlements-2026-03-29",
+                    entitlement_groups=("students",),
+                    visibility_scope="north",
+                    retrieval_filter=AuthorizedRetrievalFilter(
+                        entitlement_groups=("students",),
+                        visibility_level="restricted",
+                        visibility_scope="north",
+                        policy_projection_version="phase1-authorization-projection-v1",
+                    ),
+                ),
+            ),
             requested_scope=KnowledgeScope(
                 corpus="curriculum",
                 collection="curriculum_plan",
@@ -593,6 +752,11 @@ class SupervisorCoreTest(unittest.TestCase):
                 "request_id": "req-err-001",
                 "trace_id": "trace-err-001",
                 "user_id": "student-001",
+                "principal_type": "student",
+                "authorization_projection_source": "campus_identity",
+                "entitlement_snapshot_id": "entitlements-2026-03-29",
+                "policy_projection_version": "phase1-authorization-projection-v1",
+                "personalization_mode": "cohort_grounded",
                 "selected_target": "rag-specialist",
                 "requested_capability": "knowledge",
                 "requested_scope_corpus": "curriculum",
@@ -611,7 +775,7 @@ class SupervisorCoreTest(unittest.TestCase):
             user_goal="奖学金怎么申请？",
             request_id="req-clarify-001",
             trace=TraceContext(trace_id="trace-clarify-001"),
-            actor=ActorContext(user_id="student-001", groups=("students",)),
+            actor=ActorContext(user_id="student-001"),
             requested_scope=KnowledgeScope(
                 corpus="regulations",
                 collection="student_handbook",
@@ -644,7 +808,7 @@ class SupervisorCoreTest(unittest.TestCase):
             user_goal="校内宇宙签证办理处",
             request_id="req-no-answer-001",
             trace=TraceContext(trace_id="trace-no-answer-001"),
-            actor=ActorContext(user_id="student-001", groups=("students",)),
+            actor=ActorContext(user_id="student-001"),
             requested_scope=KnowledgeScope(
                 corpus="regulations",
                 collection="student_handbook",

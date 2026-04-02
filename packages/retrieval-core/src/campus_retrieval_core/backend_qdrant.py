@@ -100,6 +100,10 @@ class CorpusQueryDisabledError(RetrievalBackendError):
     pass
 
 
+class RestrictedDocumentAccessDeniedError(RetrievalBackendError):
+    pass
+
+
 @dataclass
 class QdrantRetrievalBackend:
     settings: RetrievalSettings
@@ -149,6 +153,7 @@ class QdrantRetrievalBackend:
                 corpus=request.corpus,
                 collection=request.collection,
             )
+        self._fail_closed_on_denied_target_documents(request=request, profile=profile)
         qdrant_collection_name = profile.qdrant_index_binding.alias_name
         try:
             if qdrant_collection_name not in self._known_collection_names:
@@ -259,7 +264,6 @@ class QdrantRetrievalBackend:
                     version_id=version_id,
                     chunk_id=str(metadata.get("chunk_id") or node.node_id),
                     anchor=anchor,
-                    acl_level=str(metadata.get("acl_level") or "public"),
                     canonical_url=canonical_url,
                     latest_url=latest_url,
                     source_channel=source_channel,
@@ -276,6 +280,35 @@ class QdrantRetrievalBackend:
                 )
             )
         return tuple(sources)
+
+    def _fail_closed_on_denied_target_documents(
+        self,
+        *,
+        request: RetrievalRequest,
+        profile: CollectionRuntimeProfile,
+    ) -> None:
+        if not request.target_document_ids:
+            return
+
+        denied_target_found = False
+        for document_id in request.target_document_ids:
+            record = self.registry.current_version(
+                document_id,
+                preferred_revision_tracks=profile.serving_revision_tracks or DEFAULT_LATEST_REVISION_TRACKS,
+            )
+            if record is None:
+                continue
+            if request.allows_document_access(
+                visibility_level=record.visibility_level,
+                entitlement_groups=record.entitlement_groups,
+                visibility_scope=record.visibility_scope,
+            ):
+                return
+            if _record_has_restricted_visibility(record):
+                denied_target_found = True
+
+        if denied_target_found:
+            raise RestrictedDocumentAccessDeniedError("restricted document access denied")
 
     def _get_dense_query_embedding(
         self,
@@ -536,7 +569,6 @@ def _build_metadata_filters(
     runtime_profile = profile or load_runtime_profile(request.corpus, request.collection)
     effective_entitlement_groups = request.effective_entitlement_groups()
     effective_visibility_scope = request.effective_visibility_scope()
-    effective_visibility_level = request.effective_visibility_level()
     filters: list[MetadataFilter | MetadataFilters] = [
         MetadataFilter(key="corpus", value=request.corpus),
         MetadataFilter(key="collection", value=request.collection),
@@ -585,11 +617,9 @@ def _build_metadata_filters(
     filters.append(
         _build_authorization_metadata_filter(
             entitlement_groups=effective_entitlement_groups,
-            visibility_level=effective_visibility_level,
+            visibility_scope=effective_visibility_scope,
         )
     )
-    if effective_visibility_scope is not None:
-        filters.append(_build_visibility_scope_metadata_filter(effective_visibility_scope))
     return MetadataFilters(filters=filters, condition=FilterCondition.AND)
 
 
@@ -600,8 +630,6 @@ def _build_qdrant_filter(
 ) -> qdrant_models.Filter:
     runtime_profile = profile or load_runtime_profile(request.corpus, request.collection)
     effective_entitlement_groups = request.effective_entitlement_groups()
-    effective_visibility_scope = request.effective_visibility_scope()
-    effective_visibility_level = request.effective_visibility_level()
     must: list[qdrant_models.Condition] = [
         qdrant_models.FieldCondition(
             key="corpus",
@@ -617,7 +645,7 @@ def _build_qdrant_filter(
         ),
         _build_authorization_qdrant_filter(
             entitlement_groups=effective_entitlement_groups,
-            visibility_level=effective_visibility_level,
+            visibility_scope=request.effective_visibility_scope(),
         ),
     ]
     if runtime_profile.serving_revision_tracks:
@@ -662,8 +690,6 @@ def _build_qdrant_filter(
                 match=qdrant_models.MatchAny(any=list(request.canonical_program_family_ids)),
             )
         )
-    if effective_visibility_scope is not None:
-        must.append(_build_visibility_scope_qdrant_filter(effective_visibility_scope))
     return qdrant_models.Filter(must=must)
 
 
@@ -689,36 +715,28 @@ def _apply_preferred_document_bias(
 def _build_authorization_metadata_filter(
     *,
     entitlement_groups: tuple[str, ...],
-    visibility_level: str,
+    visibility_scope: str | None,
 ) -> MetadataFilters:
     filters: list[MetadataFilter | MetadataFilters] = [
-        MetadataFilter(key="visibility_level", value=visibility_level),
         MetadataFilters(
             filters=[
-                MetadataFilter(key="visibility_level", value=None, operator=FilterOperator.IS_EMPTY),
-                MetadataFilter(key="acl_level", value=visibility_level),
+                MetadataFilter(key="visibility_level", value="public"),
+                _build_visibility_scope_metadata_filter(visibility_scope),
             ],
             condition=FilterCondition.AND,
         ),
     ]
     if entitlement_groups:
-        filters.insert(
-            1,
-            MetadataFilter(
-                key="entitlement_groups",
-                value=list(entitlement_groups),
-                operator=FilterOperator.IN,
-            ),
-        )
         filters.append(
             MetadataFilters(
                 filters=[
-                    MetadataFilter(key="entitlement_groups", value=None, operator=FilterOperator.IS_EMPTY),
+                    MetadataFilter(key="visibility_level", value="restricted"),
                     MetadataFilter(
-                        key="acl_groups",
+                        key="entitlement_groups",
                         value=list(entitlement_groups),
                         operator=FilterOperator.IN,
                     ),
+                    _build_visibility_scope_metadata_filter(visibility_scope),
                 ],
                 condition=FilterCondition.AND,
             )
@@ -726,23 +744,13 @@ def _build_authorization_metadata_filter(
     return MetadataFilters(filters=filters, condition=FilterCondition.OR)
 
 
-def _build_visibility_scope_metadata_filter(visibility_scope: str) -> MetadataFilters:
+def _build_visibility_scope_metadata_filter(visibility_scope: str | None) -> MetadataFilter | MetadataFilters:
+    if visibility_scope is None:
+        return MetadataFilter(key="visibility_scope", value=None, operator=FilterOperator.IS_EMPTY)
     return MetadataFilters(
         filters=[
+            MetadataFilter(key="visibility_scope", value=None, operator=FilterOperator.IS_EMPTY),
             MetadataFilter(key="visibility_scope", value=visibility_scope),
-            MetadataFilters(
-                filters=[
-                    MetadataFilter(key="visibility_scope", value=None, operator=FilterOperator.IS_EMPTY),
-                    MetadataFilters(
-                        filters=[
-                            MetadataFilter(key="campus_scope", value=None, operator=FilterOperator.IS_EMPTY),
-                            MetadataFilter(key="campus_scope", value=visibility_scope),
-                        ],
-                        condition=FilterCondition.OR,
-                    ),
-                ],
-                condition=FilterCondition.AND,
-            ),
         ],
         condition=FilterCondition.OR,
     )
@@ -751,75 +759,61 @@ def _build_visibility_scope_metadata_filter(visibility_scope: str) -> MetadataFi
 def _build_authorization_qdrant_filter(
     *,
     entitlement_groups: tuple[str, ...],
-    visibility_level: str,
+    visibility_scope: str | None,
 ) -> qdrant_models.Filter:
     should: list[qdrant_models.Condition] = [
-        qdrant_models.FieldCondition(
-            key="visibility_level",
-            match=qdrant_models.MatchValue(value=visibility_level),
-        ),
         qdrant_models.Filter(
             must=[
-                qdrant_models.IsEmptyCondition(
-                    is_empty=qdrant_models.PayloadField(key="visibility_level")
-                ),
                 qdrant_models.FieldCondition(
-                    key="acl_level",
-                    match=qdrant_models.MatchValue(value=visibility_level),
+                    key="visibility_level",
+                    match=qdrant_models.MatchValue(value="public"),
                 ),
+                _build_visibility_scope_qdrant_filter(visibility_scope),
             ]
         ),
     ]
     if entitlement_groups:
-        should.insert(
-            1,
-            qdrant_models.FieldCondition(
-                key="entitlement_groups",
-                match=qdrant_models.MatchAny(any=list(entitlement_groups)),
-            ),
-        )
         should.append(
             qdrant_models.Filter(
                 must=[
-                    qdrant_models.IsEmptyCondition(
-                        is_empty=qdrant_models.PayloadField(key="entitlement_groups")
+                    qdrant_models.FieldCondition(
+                        key="visibility_level",
+                        match=qdrant_models.MatchValue(value="restricted"),
                     ),
                     qdrant_models.FieldCondition(
-                        key="acl_groups",
+                        key="entitlement_groups",
                         match=qdrant_models.MatchAny(any=list(entitlement_groups)),
                     ),
+                    _build_visibility_scope_qdrant_filter(visibility_scope),
                 ]
             )
         )
     return qdrant_models.Filter(should=should)
 
 
-def _build_visibility_scope_qdrant_filter(visibility_scope: str) -> qdrant_models.Filter:
+def _build_visibility_scope_qdrant_filter(visibility_scope: str | None) -> qdrant_models.Condition:
+    if visibility_scope is None:
+        return qdrant_models.IsEmptyCondition(
+            is_empty=qdrant_models.PayloadField(key="visibility_scope")
+        )
     return qdrant_models.Filter(
         should=[
+            qdrant_models.IsEmptyCondition(
+                is_empty=qdrant_models.PayloadField(key="visibility_scope")
+            ),
             qdrant_models.FieldCondition(
                 key="visibility_scope",
                 match=qdrant_models.MatchValue(value=visibility_scope),
             ),
-            qdrant_models.Filter(
-                must=[
-                    qdrant_models.IsEmptyCondition(
-                        is_empty=qdrant_models.PayloadField(key="visibility_scope")
-                    ),
-                    qdrant_models.Filter(
-                        should=[
-                            qdrant_models.IsEmptyCondition(
-                                is_empty=qdrant_models.PayloadField(key="campus_scope")
-                            ),
-                            qdrant_models.FieldCondition(
-                                key="campus_scope",
-                                match=qdrant_models.MatchValue(value=visibility_scope),
-                            ),
-                        ]
-                    ),
-                ]
-            ),
         ]
+    )
+
+
+def _record_has_restricted_visibility(record: DocumentRegistryRecord) -> bool:
+    return (
+        record.visibility_level == "restricted"
+        or bool(record.entitlement_groups)
+        or record.visibility_scope is not None
     )
 
 

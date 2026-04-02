@@ -59,6 +59,25 @@ export interface SupervisorExecutionInput {
   userGoal: string;
 }
 
+export interface SupervisorExecutionObservability {
+  aclAnomalyCode: string | null;
+  aclDecision: string | null;
+  cachedInputTokens: number | null;
+  candidateCount: number | null;
+  citationCount: number | null;
+  citationExpected: boolean | null;
+  citationMissing: boolean | null;
+  estimatedCostMicrousd: number | null;
+  failClosed: boolean | null;
+  inputTokens: number | null;
+  modelName: string | null;
+  modelProvider: string | null;
+  outputTokens: number | null;
+  refusalClass: string | null;
+  retrievedSourceCount: number | null;
+  retrievalAttempted: boolean | null;
+}
+
 export interface SupervisorExecutionResponse {
   answerText: string;
   error: {
@@ -67,6 +86,7 @@ export interface SupervisorExecutionResponse {
     retryable?: boolean;
   } | null;
   followUpQuestion: string;
+  observability?: SupervisorExecutionObservability | null;
   result: unknown;
   selectedTarget: string | null;
   status:
@@ -109,8 +129,6 @@ function toSupervisorActor(actor: ExecutionActorContext) {
     principal_type: actor.principalType,
     roles: actor.roles,
     departments: actor.departments,
-    groups: actor.groups,
-    campus_scope: actor.campusScope,
   };
 }
 
@@ -127,8 +145,6 @@ function toSupervisorContext(context: SupervisorContextProjection) {
       ownership_scopes: context.authorization.ownershipScopes,
       approval_state: context.authorization.approvalState,
       retrieval_filter: {
-        acl_groups: context.authorization.retrievalFilter.aclGroups,
-        campus_scope: context.authorization.retrievalFilter.campusScope,
         entitlement_groups: context.authorization.retrievalFilter.entitlementGroups,
         policy_projection_version:
           context.authorization.retrievalFilter.policyProjectionVersion,
@@ -164,6 +180,58 @@ function mapStatusCodeToErrorCode(status: number): string {
   }
 
   return "supervisor_unavailable";
+}
+
+function getRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function normalizeNullableBoolean(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null;
+}
+
+function normalizeNullableNumber(value: unknown): number | null {
+  return Number.isFinite(value) ? Number(value) : null;
+}
+
+function normalizeNullableString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function parseExecutionObservability(
+  value: unknown,
+): SupervisorExecutionObservability | null {
+  const record = getRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const parsed: SupervisorExecutionObservability = {
+    aclAnomalyCode: normalizeNullableString(record.acl_anomaly_code),
+    aclDecision: normalizeNullableString(record.acl_decision),
+    cachedInputTokens: normalizeNullableNumber(record.cached_input_tokens),
+    candidateCount: normalizeNullableNumber(record.candidate_count),
+    citationCount: normalizeNullableNumber(record.citation_count),
+    citationExpected: normalizeNullableBoolean(record.citation_expected),
+    citationMissing: normalizeNullableBoolean(record.citation_missing),
+    estimatedCostMicrousd: normalizeNullableNumber(record.estimated_cost_microusd),
+    failClosed: normalizeNullableBoolean(record.fail_closed),
+    inputTokens: normalizeNullableNumber(record.input_tokens),
+    modelName: normalizeNullableString(record.model_name),
+    modelProvider: normalizeNullableString(record.model_provider),
+    outputTokens: normalizeNullableNumber(record.output_tokens),
+    refusalClass: normalizeNullableString(record.refusal_class),
+    retrievedSourceCount: normalizeNullableNumber(record.retrieved_source_count),
+    retrievalAttempted: normalizeNullableBoolean(record.retrieval_attempted),
+  };
+
+  if (Object.values(parsed).every((item) => item === null)) {
+    return null;
+  }
+
+  return parsed;
 }
 
 export function createSupervisorExecutionClient(
@@ -330,6 +398,7 @@ export function createSupervisorExecutionClient(
             : null,
         followUpQuestion:
           typeof parsed?.follow_up_question === "string" ? parsed.follow_up_question : "",
+        observability: parseExecutionObservability(parsed?.observability),
         result: parsed?.result ?? null,
         selectedTarget: typeof parsed?.selected_target === "string" ? parsed.selected_target : null,
         status:

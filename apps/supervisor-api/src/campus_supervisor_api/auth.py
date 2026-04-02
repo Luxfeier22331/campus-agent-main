@@ -40,8 +40,6 @@ def _map_bearer_actor_context(headers: Mapping[str, str], settings: ApiSettings)
     return ActorContext(
         user_id=settings.default_actor_id,
         roles=settings.default_actor_roles,
-        groups=settings.default_actor_groups,
-        campus_scope=settings.default_campus_scope,
     )
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 import unittest
 import uuid
@@ -27,6 +28,7 @@ from campus_ingestion_core.sparse import (
 from campus_retrieval_core.backend_qdrant import (
     CorpusQueryDisabledError,
     QdrantRetrievalBackend,
+    RestrictedDocumentAccessDeniedError,
     RetrievalBackendError,
     _apply_preferred_document_bias,
     _apply_no_hit_policy,
@@ -74,7 +76,6 @@ def _make_source(
         version_id=f"v1:{chunk_id}",
         chunk_id=chunk_id,
         anchor=anchor or {},
-        acl_level="public",
         canonical_url=f"https://campus.example/{chunk_id}",
         latest_url=f"https://campus.example/{chunk_id}",
         source_channel="pdf_ocr",
@@ -94,18 +95,14 @@ def _make_source(
 def _authorized_filter(
     *,
     entitlement_groups: tuple[str, ...] = ("students",),
-    acl_groups: tuple[str, ...] = ("students",),
     visibility_scope: str | None = "north",
-    campus_scope: str | None = "north",
     visibility_level: str = "public",
     policy_projection_version: str = DEFAULT_POLICY_PROJECTION_VERSION,
 ) -> AuthorizedRetrievalFilter:
     return AuthorizedRetrievalFilter(
         entitlement_groups=entitlement_groups,
         visibility_level=visibility_level,
-        acl_groups=acl_groups,
         visibility_scope=visibility_scope,
-        campus_scope=campus_scope,
         policy_projection_version=policy_projection_version,
     )
 
@@ -172,8 +169,6 @@ def _make_registry_record(
         collection="student_handbook",
         entitlement_groups=acl_groups,
         visibility_scope=None,
-        acl_groups=acl_groups,
-        campus_scope=None,
         status=status,
         ingestion_timestamp="2026-03-22T10:00:00+00:00",
         parser_version="campusrag-import-v1",
@@ -207,7 +202,7 @@ def _make_structured_jsonl_with_acl(
     document_id: str,
     version_id: str,
     text: str,
-    acl_level: str,
+    acl_level: str = "public",
 ) -> bytes:
     return (
         f'{{"doc_id":"{document_id}","version_id":"{version_id}","chunk_id":"legacy-{document_id}",'
@@ -223,7 +218,7 @@ def _make_structured_jsonl_with_acl_groups(
     document_id: str,
     version_id: str,
     text: str,
-    acl_level: str,
+    acl_level: str = "public",
     acl_groups: tuple[str, ...],
 ) -> bytes:
     allow_groups = ",".join(f'"{group}"' for group in acl_groups)
@@ -268,7 +263,6 @@ class BackendQdrantTest(unittest.TestCase):
                 authorized_filter=AuthorizedRetrievalFilter(
                     entitlement_groups=("students",),
                     visibility_level="public",
-                    acl_groups=("students",),
                     policy_projection_version="phase1-authorization-projection-v1",
                 ),
             )
@@ -290,8 +284,8 @@ class BackendQdrantTest(unittest.TestCase):
         auth_keys = _collect_filter_keys(acl_filter)
         self.assertIn("visibility_level", auth_keys)
         self.assertIn("entitlement_groups", auth_keys)
-        self.assertIn("acl_level", auth_keys)
-        self.assertIn("acl_groups", auth_keys)
+        self.assertNotIn("acl_level", auth_keys)
+        self.assertNotIn("acl_groups", auth_keys)
 
     def test_build_metadata_filters_ignore_personalization_hint_for_acl_and_serving_scope(self) -> None:
         filters = _build_metadata_filters(
@@ -302,7 +296,6 @@ class BackendQdrantTest(unittest.TestCase):
                 authorized_filter=AuthorizedRetrievalFilter(
                     entitlement_groups=("students",),
                     visibility_level="public",
-                    acl_groups=("students",),
                     policy_projection_version="phase1-authorization-projection-v1",
                 ),
                 personalization_hint=PersonalizationHint(
@@ -334,9 +327,7 @@ class BackendQdrantTest(unittest.TestCase):
                 authorized_filter=AuthorizedRetrievalFilter(
                     entitlement_groups=("students",),
                     visibility_level="public",
-                    acl_groups=("students",),
                     visibility_scope="north",
-                    campus_scope="north",
                     policy_projection_version="phase1-authorization-projection-v1",
                 ),
             )
@@ -345,10 +336,8 @@ class BackendQdrantTest(unittest.TestCase):
         acl_filter = filters.filters[4]
         auth_keys = _collect_filter_keys(acl_filter)
         self.assertIn("entitlement_groups", auth_keys)
-        campus_filter = filters.filters[5]
-        scope_keys = _collect_filter_keys(campus_filter)
-        self.assertIn("visibility_scope", scope_keys)
-        self.assertIn("campus_scope", scope_keys)
+        self.assertIn("visibility_scope", auth_keys)
+        self.assertNotIn("campus_scope", auth_keys)
 
     def test_build_metadata_filters_uses_projection_payload_keys_before_legacy_carriers(self) -> None:
         filters = _build_metadata_filters(
@@ -367,14 +356,11 @@ class BackendQdrantTest(unittest.TestCase):
 
         auth_filter = filters.filters[4]
         auth_keys = _collect_filter_keys(auth_filter)
-        scope_filter = filters.filters[5]
-        scope_keys = _collect_filter_keys(scope_filter)
-
         self.assertIn("visibility_level", auth_keys)
         self.assertIn("entitlement_groups", auth_keys)
-        self.assertIn("visibility_scope", scope_keys)
+        self.assertIn("visibility_scope", auth_keys)
 
-    def test_build_metadata_filters_omit_entitlement_group_predicates_when_authorized_filter_has_no_acl_groups(
+    def test_build_metadata_filters_omit_entitlement_group_predicates_when_authorized_filter_has_no_entitlement_groups(
         self,
     ) -> None:
         filters = _build_metadata_filters(
@@ -385,9 +371,7 @@ class BackendQdrantTest(unittest.TestCase):
                 authorized_filter=AuthorizedRetrievalFilter(
                     entitlement_groups=(),
                     visibility_level="public",
-                    acl_groups=(),
                     visibility_scope="north",
-                    campus_scope="north",
                     policy_projection_version="phase1-authorization-projection-v1",
                 ),
             )
@@ -396,11 +380,11 @@ class BackendQdrantTest(unittest.TestCase):
         acl_filter = filters.filters[4]
         auth_keys = _collect_filter_keys(acl_filter)
         self.assertIn("visibility_level", auth_keys)
-        self.assertIn("acl_level", auth_keys)
+        self.assertNotIn("acl_level", auth_keys)
         self.assertNotIn("entitlement_groups", auth_keys)
         self.assertNotIn("acl_groups", auth_keys)
 
-    def test_build_qdrant_filter_omits_entitlement_group_predicates_when_authorized_filter_has_no_acl_groups(
+    def test_build_qdrant_filter_omits_entitlement_group_predicates_when_authorized_filter_has_no_entitlement_groups(
         self,
     ) -> None:
         qdrant_filter = _build_qdrant_filter(
@@ -411,7 +395,6 @@ class BackendQdrantTest(unittest.TestCase):
                 authorized_filter=AuthorizedRetrievalFilter(
                     entitlement_groups=(),
                     visibility_level="public",
-                    acl_groups=(),
                     policy_projection_version="phase1-authorization-projection-v1",
                 ),
             )
@@ -420,9 +403,104 @@ class BackendQdrantTest(unittest.TestCase):
         auth_filter = qdrant_filter.must[3]
         auth_keys = _collect_qdrant_filter_keys(auth_filter)
         self.assertIn("visibility_level", auth_keys)
-        self.assertIn("acl_level", auth_keys)
+        self.assertNotIn("acl_level", auth_keys)
         self.assertNotIn("entitlement_groups", auth_keys)
         self.assertNotIn("acl_groups", auth_keys)
+
+    def test_backend_fail_closes_scoped_restricted_documents_when_request_has_no_visibility_scope(self) -> None:
+        registry = InMemoryDocumentRegistry()
+        restricted = replace(
+            _make_registry_record(
+                document_id="handbook:north-campus",
+                version_id="v1:north-campus",
+                acl_groups=("students",),
+            ),
+            visibility_scope="north",
+        )
+        registry.upsert(restricted)
+
+        embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
+        restricted_chunks = build_indexable_chunks_from_jsonl(
+            record=restricted,
+            structured_jsonl_bytes=_make_structured_jsonl_with_acl_groups(
+                document_id=restricted.document_id,
+                version_id=restricted.version_id,
+                text="North campus student office hours are restricted.",
+                acl_groups=("students",),
+            ),
+            chunk_profile=ChunkProfile(chunk_size=128, chunk_overlap=16),
+            embedding_model=embedding_model,
+        )
+
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=registry,
+            qdrant_client=QdrantClient(location=":memory:"),
+            embedding_model=embedding_model,
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
+        index_chunks_to_qdrant(
+            chunks=restricted_chunks,
+            qdrant_client=backend.qdrant_client,
+            collection_name=STUDENT_HANDBOOK_QDRANT_COLLECTION,
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
+
+        result = backend.retrieve(
+            RetrievalRequest(
+                query_text="Tell me about north campus office hours",
+                corpus="regulations",
+                collection="student_handbook",
+                authorized_filter=_authorized_filter(
+                    entitlement_groups=("students",),
+                    visibility_scope=None,
+                ),
+                top_k=5,
+            )
+        )
+
+        self.assertEqual(result.sources, ())
+
+    def test_backend_raises_access_denied_for_targeted_restricted_document_without_authorization(self) -> None:
+        registry = InMemoryDocumentRegistry()
+        restricted = replace(
+            _make_registry_record(
+                document_id="handbook:restricted-notice",
+                version_id="v1:restricted-notice",
+                acl_groups=("students",),
+            ),
+            visibility_level="restricted",
+        )
+        registry.upsert(restricted)
+
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=registry,
+            qdrant_client=QdrantClient(location=":memory:"),
+            embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
+
+        with self.assertRaises(RestrictedDocumentAccessDeniedError):
+            backend.retrieve(
+                RetrievalRequest(
+                    query_text="这条通知写了什么？",
+                    corpus="regulations",
+                    collection="student_handbook",
+                    target_document_ids=(restricted.document_id,),
+                    authorized_filter=AuthorizedRetrievalFilter(
+                        entitlement_groups=(),
+                        visibility_level="public",
+                        visibility_scope=None,
+                    ),
+                )
+            )
 
     def test_build_qdrant_filter_adds_target_document_constraint_when_present(self) -> None:
         qdrant_filter = _build_qdrant_filter(
@@ -660,9 +738,6 @@ class BackendQdrantTest(unittest.TestCase):
                 "entitlement_groups",
                 "visibility_level",
                 "policy_projection_version",
-                "campus_scope",
-                "acl_groups",
-                "acl_level",
                 "status",
                 "source_channel",
                 "is_current",
@@ -1324,7 +1399,6 @@ class BackendQdrantTest(unittest.TestCase):
                 document_id=blocked.document_id,
                 version_id=blocked.version_id,
                 text="Staff office hours are private.",
-                acl_level="restricted",
             ),
             chunk_profile=ChunkProfile(chunk_size=128, chunk_overlap=16),
             embedding_model=embedding_model,
@@ -1375,7 +1449,6 @@ class BackendQdrantTest(unittest.TestCase):
                 document_id=restricted.document_id,
                 version_id=restricted.version_id,
                 text="Staff office hours are private.",
-                acl_level="public",
                 acl_groups=("staff",),
             ),
             chunk_profile=ChunkProfile(chunk_size=128, chunk_overlap=16),
@@ -2244,7 +2317,6 @@ class BackendQdrantTest(unittest.TestCase):
                 version_id="v1:loan",
                 chunk_id="chunk-loan",
                 anchor={},
-                acl_level="public",
                 canonical_url="https://campus.example/loan",
                 latest_url="https://campus.example/loan",
                 source_channel="pdf_ocr",
@@ -2259,7 +2331,6 @@ class BackendQdrantTest(unittest.TestCase):
                 version_id="v1:order",
                 chunk_id="chunk-order",
                 anchor={},
-                acl_level="public",
                 canonical_url="https://campus.example/order",
                 latest_url="https://campus.example/order",
                 source_channel="pdf_ocr",
@@ -2287,7 +2358,6 @@ class BackendQdrantTest(unittest.TestCase):
                 version_id="v1:discipline",
                 chunk_id="chunk-discipline",
                 anchor={},
-                acl_level="public",
                 canonical_url="https://campus.example/discipline",
                 latest_url="https://campus.example/discipline",
                 source_channel="pdf_ocr",
@@ -2305,7 +2375,6 @@ class BackendQdrantTest(unittest.TestCase):
                 version_id="v1:campus-order",
                 chunk_id="chunk-campus-order",
                 anchor={},
-                acl_level="public",
                 canonical_url="https://campus.example/campus-order",
                 latest_url="https://campus.example/campus-order",
                 source_channel="pdf_ocr",
@@ -2333,7 +2402,6 @@ class BackendQdrantTest(unittest.TestCase):
                 version_id="v1:student-card",
                 chunk_id="chunk-card",
                 anchor={},
-                acl_level="public",
                 canonical_url="https://campus.example/student-card",
                 latest_url="https://campus.example/student-card",
                 source_channel="pdf_ocr",
@@ -2348,7 +2416,6 @@ class BackendQdrantTest(unittest.TestCase):
                 version_id="v1:other",
                 chunk_id="chunk-other",
                 anchor={},
-                acl_level="public",
                 canonical_url="https://campus.example/other",
                 latest_url="https://campus.example/other",
                 source_channel="pdf_ocr",

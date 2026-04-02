@@ -331,9 +331,9 @@ def apply_authorization_projection_metadata(
     metadata["visibility_scope"] = normalized_scope
     metadata["visibility_level"] = resolved_visibility_level
     metadata["policy_projection_version"] = normalized_policy_projection_version
-    metadata["acl_level"] = resolved_visibility_level
-    metadata["acl_groups"] = list(normalized_groups)
-    metadata["campus_scope"] = normalized_scope
+    metadata.pop("acl_level", None)
+    metadata.pop("acl_groups", None)
+    metadata.pop("campus_scope", None)
 
 
 def _resolve_entitlement_groups(metadata: dict[str, object]) -> tuple[str, ...]:
@@ -991,8 +991,6 @@ def _build_registry_record(
         visibility_scope=visibility_scope,
         visibility_level=visibility_level,
         policy_projection_version=policy_projection_version,
-        acl_groups=entitlement_groups,
-        campus_scope=visibility_scope,
         status=_resolve_status(metadata=metadata, document=document),
         ingestion_timestamp=timestamp,
         parser_version=parser_version,

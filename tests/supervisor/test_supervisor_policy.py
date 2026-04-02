@@ -20,15 +20,15 @@ class SupervisorPolicyTest(unittest.TestCase):
             confidence="high",
         )
 
-        self.assertEqual(
-            finalize_specialist_response(response),
-            SupervisorResponse(
-                selected_target="rag-specialist",
-                status="completed",
-                answer_text="The library is open.",
-                confidence="high",
-            ),
-        )
+        finalized = finalize_specialist_response(response)
+
+        self.assertEqual(finalized.selected_target, "rag-specialist")
+        self.assertEqual(finalized.status, "completed")
+        self.assertEqual(finalized.answer_text, "The library is open.")
+        self.assertEqual(finalized.confidence, "high")
+        self.assertIsNotNone(finalized.observability)
+        self.assertTrue(finalized.observability.citation_expected)
+        self.assertTrue(finalized.observability.retrieval_attempted)
 
     def test_finalize_needs_clarification_response_keeps_follow_up(self) -> None:
         response = SpecialistResponse(
@@ -42,6 +42,8 @@ class SupervisorPolicyTest(unittest.TestCase):
         self.assertEqual(finalized.selected_target, "rag-specialist")
         self.assertEqual(finalized.status, "needs_clarification")
         self.assertEqual(finalized.follow_up_question, "Which campus are you asking about?")
+        self.assertIsNotNone(finalized.observability)
+        self.assertFalse(finalized.observability.retrieval_attempted)
 
     def test_finalize_no_answer_response_keeps_no_answer_semantics(self) -> None:
         response = SpecialistResponse(
@@ -55,6 +57,8 @@ class SupervisorPolicyTest(unittest.TestCase):
         self.assertEqual(finalized.selected_target, "rag-specialist")
         self.assertEqual(finalized.status, "no_answer")
         self.assertEqual(finalized.confidence, "low")
+        self.assertIsNotNone(finalized.observability)
+        self.assertTrue(finalized.observability.retrieval_attempted)
 
     def test_finalize_error_response_keeps_error_payload(self) -> None:
         response = SpecialistResponse(
@@ -81,6 +85,8 @@ class SupervisorPolicyTest(unittest.TestCase):
                 retryable=False,
             ),
         )
+        self.assertIsNotNone(finalized.observability)
+        self.assertIsNone(finalized.observability.retrieval_attempted)
 
     def test_finalize_availability_completion_keeps_non_rag_target(self) -> None:
         response = SpecialistResponse(
@@ -98,6 +104,8 @@ class SupervisorPolicyTest(unittest.TestCase):
 
         self.assertEqual(finalized.selected_target, "availability-specialist")
         self.assertEqual(finalized.status, "completed")
+        self.assertIsNotNone(finalized.observability)
+        self.assertFalse(finalized.observability.retrieval_attempted)
 
     def test_finalize_availability_connect_failure_keeps_completed_semantics(self) -> None:
         response = SpecialistResponse(
@@ -116,6 +124,8 @@ class SupervisorPolicyTest(unittest.TestCase):
         self.assertEqual(finalized.selected_target, "availability-specialist")
         self.assertEqual(finalized.status, "completed")
         self.assertEqual(finalized.result.observed_status, "connect_failure")
+        self.assertIsNotNone(finalized.observability)
+        self.assertFalse(finalized.observability.retrieval_attempted)
 
 
 if __name__ == "__main__":

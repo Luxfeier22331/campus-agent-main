@@ -51,8 +51,6 @@ class ContractModelsTest(unittest.TestCase):
                 principal_id="",
                 roles=(),
                 departments=(),
-                groups=(),
-                campus_scope=None,
                 cohort=None,
                 major=None,
                 program=None,
@@ -66,8 +64,6 @@ class ContractModelsTest(unittest.TestCase):
                     principal_id="",
                     roles=(),
                     departments=(),
-                    groups=(),
-                    campus_scope=None,
                     cohort=None,
                     major=None,
                     program=None,
@@ -83,9 +79,7 @@ class ContractModelsTest(unittest.TestCase):
                     retrieval_filter=AuthorizedRetrievalFilter(
                         entitlement_groups=(),
                         visibility_level="public",
-                        acl_groups=(),
                         visibility_scope=None,
-                        campus_scope=None,
                         policy_projection_version="phase1-authorization-projection-v1",
                     ),
                 ),
@@ -103,8 +97,6 @@ class ContractModelsTest(unittest.TestCase):
                     principal_id="principal-001",
                     principal_type="student",
                     roles=("student",),
-                    groups=("students",),
-                    campus_scope="north",
                     cohort="2023",
                     major="philosophy",
                 ),
@@ -120,9 +112,7 @@ class ContractModelsTest(unittest.TestCase):
                     retrieval_filter=AuthorizedRetrievalFilter(
                         entitlement_groups=("students",),
                         visibility_level="public",
-                        acl_groups=("students",),
                         visibility_scope="north",
-                        campus_scope="north",
                         policy_projection_version="phase1-authorization-projection-v1",
                     ),
                 ),
@@ -158,7 +148,6 @@ class ContractModelsTest(unittest.TestCase):
             ("students",),
         )
         self.assertEqual(request.context.authorization.retrieval_filter.visibility_level, "public")
-        self.assertEqual(request.context.authorization.retrieval_filter.acl_groups, ("students",))
         self.assertEqual(request.context.profile_memory.items[0].value, "咨询保研")
         self.assertEqual(request.context.session.confirmed_slots[0].value, "推免资格")
 
@@ -168,8 +157,6 @@ class ContractModelsTest(unittest.TestCase):
             actor=ActorContext(
                 user_id="student-001",
                 principal_id="principal-001",
-                groups=("students",),
-                campus_scope="north",
             ),
         )
 
@@ -186,43 +173,42 @@ class ContractModelsTest(unittest.TestCase):
                 retrieval_filter=AuthorizedRetrievalFilter(
                     entitlement_groups=(),
                     visibility_level="public",
-                    acl_groups=(),
                     visibility_scope=None,
-                    campus_scope=None,
                     policy_projection_version="phase1-authorization-projection-v1",
                 ),
             ),
         )
 
-    def test_authorized_retrieval_filter_does_not_backfill_projection_and_legacy_fields(self) -> None:
+    def test_authorized_retrieval_filter_exposes_canonical_fields_only(self) -> None:
         projection_first = AuthorizedRetrievalFilter(
             entitlement_groups=("students",),
             visibility_scope="north",
         )
-        legacy_first = AuthorizedRetrievalFilter(
-            acl_groups=("staff",),
-            campus_scope="south",
-        )
+        field_names = {field.name for field in fields(AuthorizedRetrievalFilter)}
 
         self.assertEqual(projection_first.entitlement_groups, ("students",))
-        self.assertEqual(projection_first.acl_groups, ())
         self.assertEqual(projection_first.visibility_scope, "north")
-        self.assertIsNone(projection_first.campus_scope)
         self.assertEqual(projection_first.visibility_level, "public")
         self.assertEqual(
             projection_first.policy_projection_version,
             "phase1-authorization-projection-v1",
         )
+        self.assertNotIn("acl_groups", field_names)
+        self.assertNotIn("campus_scope", field_names)
+        with self.assertRaises(TypeError):
+            AuthorizedRetrievalFilter(acl_groups=("staff",))
+        with self.assertRaises(TypeError):
+            AuthorizedRetrievalFilter(campus_scope="south")
 
-        self.assertEqual(legacy_first.entitlement_groups, ())
-        self.assertEqual(legacy_first.acl_groups, ("staff",))
-        self.assertIsNone(legacy_first.visibility_scope)
-        self.assertEqual(legacy_first.campus_scope, "south")
-        self.assertEqual(legacy_first.visibility_level, "public")
-        self.assertEqual(
-            legacy_first.policy_projection_version,
-            "phase1-authorization-projection-v1",
-        )
+    def test_actor_context_exposes_canonical_identity_fields_only(self) -> None:
+        field_names = {field.name for field in fields(ActorContext)}
+
+        self.assertNotIn("groups", field_names)
+        self.assertNotIn("campus_scope", field_names)
+        with self.assertRaises(TypeError):
+            ActorContext(groups=("students",))
+        with self.assertRaises(TypeError):
+            ActorContext(campus_scope="north")
 
     def test_rag_result_diagnostics_course_fields_are_serializable(self) -> None:
         diagnostics = RagResultDiagnostics(
@@ -245,7 +231,10 @@ class ContractModelsTest(unittest.TestCase):
                 "clarification_reason": "",
                 "no_answer_reason": "",
                 "retrieved_title_summary": (),
+                "candidate_title_summary": (),
                 "resolution_mode": "resolved_family",
+                "used_verified_identity": False,
+                "used_soft_preference": False,
                 "resolved_entity_type": "course_family",
                 "resolved_course_id": "course:muc.xigai",
                 "resolved_course_title": "习近平新时代中国特色社会主义思想概论",
@@ -263,6 +252,9 @@ class ContractModelsTest(unittest.TestCase):
 
         self.assertIn("resolved_program_family_id", field_names)
         self.assertIn("resolved_program_family_title", field_names)
+        self.assertIn("candidate_title_summary", field_names)
+        self.assertIn("used_verified_identity", field_names)
+        self.assertIn("used_soft_preference", field_names)
     def test_specialist_request_requires_explicit_payload(self) -> None:
         request = SpecialistRequest(
             target="rag-specialist",
@@ -329,7 +321,6 @@ class ContractModelsTest(unittest.TestCase):
                             version_id="v2026-03-19",
                             chunk_id="chunk-001",
                             anchor={"section": "hours"},
-                            acl_level="public",
                             canonical_url="https://campus.example/library#hours",
                             latest_url="https://campus.example/library#hours",
                             source_channel="pdf_ocr",
@@ -370,6 +361,28 @@ class ContractModelsTest(unittest.TestCase):
         )
         self.assertEqual(payload["result"]["evidence"]["sources"][0]["content_role"], "time_rule")
         self.assertTrue(payload["result"]["evidence"]["sources"][0]["is_answer_bearing"])
+        self.assertNotIn("acl_level", payload["result"]["evidence"]["sources"][0])
+
+    def test_evidence_source_exposes_canonical_fields_only(self) -> None:
+        field_names = {field.name for field in fields(EvidenceSource)}
+
+        self.assertNotIn("acl_level", field_names)
+        with self.assertRaises(TypeError):
+            EvidenceSource(
+                doc_id="doc-library-hours",
+                revision_track="source-faithful",
+                version_id="v2026-03-19",
+                chunk_id="chunk-001",
+                anchor={"section": "hours"},
+                acl_level="public",
+                canonical_url="https://campus.example/library#hours",
+                latest_url="https://campus.example/library#hours",
+                source_channel="pdf_ocr",
+                collection="student_handbook",
+                is_current=False,
+                snippet="The library is open from 08:00 to 22:00.",
+                score=0.98,
+            )
         self.assertEqual(
             tuple(field.name for field in fields(SpecialistResponse)),
             (

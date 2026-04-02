@@ -80,11 +80,8 @@ class IndexableChunk:
     chunk_order: int
     corpus: str
     collection: str
-    acl_groups: tuple[str, ...]
-    campus_scope: str | None
     source_uri: str
     source_chunk_id: str | None
-    acl_level: str
     anchor: dict[str, object]
     text: str
     source_channel: str
@@ -104,34 +101,17 @@ class IndexableChunk:
     metadata: dict[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        entitlement_groups = self.entitlement_groups or self.acl_groups
-        acl_groups = self.entitlement_groups if self.entitlement_groups else self.acl_groups
-        visibility_scope = self.visibility_scope or self.campus_scope
-        campus_scope = self.visibility_scope if self.visibility_scope is not None else self.campus_scope
         visibility_level = self.visibility_level.strip()
         if not visibility_level and self.entitlement_groups:
             visibility_level = "restricted"
         if not visibility_level:
-            visibility_level = self.acl_level.strip() or "public"
-        acl_level = self.acl_level.strip() or visibility_level
-        if self.visibility_level.strip() or self.entitlement_groups:
-            acl_level = visibility_level
+            visibility_level = "public"
         policy_projection_version = (
             self.policy_projection_version.strip() or DEFAULT_POLICY_PROJECTION_VERSION
         )
 
-        if entitlement_groups != self.entitlement_groups:
-            object.__setattr__(self, "entitlement_groups", entitlement_groups)
-        if acl_groups != self.acl_groups:
-            object.__setattr__(self, "acl_groups", acl_groups)
-        if visibility_scope != self.visibility_scope:
-            object.__setattr__(self, "visibility_scope", visibility_scope)
-        if campus_scope != self.campus_scope:
-            object.__setattr__(self, "campus_scope", campus_scope)
         if visibility_level != self.visibility_level:
             object.__setattr__(self, "visibility_level", visibility_level)
-        if acl_level != self.acl_level:
-            object.__setattr__(self, "acl_level", acl_level)
         if policy_projection_version != self.policy_projection_version:
             object.__setattr__(self, "policy_projection_version", policy_projection_version)
 
@@ -151,13 +131,10 @@ class IndexableChunk:
                 "visibility_scope": self.visibility_scope,
                 "visibility_level": self.visibility_level,
                 "policy_projection_version": self.policy_projection_version,
-                "acl_groups": list(self.acl_groups),
-                "campus_scope": self.campus_scope,
                 "source_uri": self.source_uri,
                 "canonical_url": self.canonical_url or self.source_uri,
                 "latest_url": self.latest_url or self.canonical_url or self.source_uri,
                 "source_chunk_id": self.source_chunk_id,
-                "acl_level": self.acl_level,
                 "status": self.status,
                 "anchor": self.anchor,
                 "source_channel": self.source_channel,
@@ -489,8 +466,8 @@ def build_indexable_chunks_from_jsonl(
     )
 
     chunks: list[IndexableChunk] = []
-    document_entitlement_groups = record.entitlement_groups or record.acl_groups
-    document_visibility_scope = record.visibility_scope or record.campus_scope
+    document_entitlement_groups = record.entitlement_groups
+    document_visibility_scope = record.visibility_scope
     chunk_order = 0
     for candidate, embedding in zip(chunk_candidates, dense_embeddings, strict=True):
         chunk_order += 1
@@ -510,13 +487,10 @@ def build_indexable_chunks_from_jsonl(
                 chunk_order=chunk_order,
                 corpus=record.corpus,
                 collection=record.collection,
-                acl_groups=document_entitlement_groups,
-                campus_scope=document_visibility_scope,
                 source_uri=record.source_uri,
                 canonical_url=record.source_uri,
                 latest_url=record.source_uri,
                 source_chunk_id=candidate.source_chunk_id,
-                acl_level=effective_visibility_level,
                 status=record.status,
                 anchor=candidate.anchor,
                 text=candidate.chunk_assembly.text,
@@ -1798,9 +1772,6 @@ def _ensure_payload_indexes(*, qdrant_client: QdrantClient, collection_name: str
         ("entitlement_groups", qdrant_models.PayloadSchemaType.KEYWORD),
         ("visibility_level", qdrant_models.PayloadSchemaType.KEYWORD),
         ("policy_projection_version", qdrant_models.PayloadSchemaType.KEYWORD),
-        ("campus_scope", qdrant_models.PayloadSchemaType.KEYWORD),
-        ("acl_groups", qdrant_models.PayloadSchemaType.KEYWORD),
-        ("acl_level", qdrant_models.PayloadSchemaType.KEYWORD),
         ("status", qdrant_models.PayloadSchemaType.KEYWORD),
         ("source_channel", qdrant_models.PayloadSchemaType.KEYWORD),
         ("is_current", qdrant_models.PayloadSchemaType.BOOL),

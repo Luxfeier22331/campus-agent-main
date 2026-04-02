@@ -62,8 +62,6 @@ class ActorContext:
     principal_type: str = ""
     roles: tuple[str, ...] = field(default_factory=tuple)
     departments: tuple[str, ...] = field(default_factory=tuple)
-    groups: tuple[str, ...] = field(default_factory=tuple)
-    campus_scope: str | None = None
     cohort: str | None = None
     major: str | None = None
     program: str | None = None
@@ -126,9 +124,7 @@ class SessionSummary:
 class AuthorizedRetrievalFilter:
     entitlement_groups: tuple[str, ...] = field(default_factory=tuple)
     visibility_level: str = "public"
-    acl_groups: tuple[str, ...] = field(default_factory=tuple)
     visibility_scope: str | None = None
-    campus_scope: str | None = None
     policy_projection_version: str = DEFAULT_POLICY_PROJECTION_VERSION
 
     def __post_init__(self) -> None:
@@ -204,7 +200,6 @@ class EvidenceSource:
     version_id: str
     chunk_id: str
     anchor: dict[str, object]
-    acl_level: str
     canonical_url: str
     latest_url: str
     source_channel: SourceChannel
@@ -258,7 +253,10 @@ class RagResultDiagnostics:
     clarification_reason: str = ""
     no_answer_reason: str = ""
     retrieved_title_summary: tuple[str, ...] = field(default_factory=tuple)
+    candidate_title_summary: tuple[str, ...] = field(default_factory=tuple)
     resolution_mode: str = ""
+    used_verified_identity: bool = False
+    used_soft_preference: bool = False
     resolved_entity_type: str = ""
     resolved_course_id: str = ""
     resolved_course_title: str = ""
@@ -284,6 +282,26 @@ class AvailabilityCheckPayload:
 class RagResultPayload:
     evidence: EvidenceBundle
     diagnostics: RagResultDiagnostics | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SupervisorObservability:
+    retrieval_attempted: bool | None = None
+    candidate_count: int | None = None
+    retrieved_source_count: int | None = None
+    citation_expected: bool | None = None
+    citation_count: int | None = None
+    citation_missing: bool | None = None
+    refusal_class: str = ""
+    acl_decision: str = ""
+    acl_anomaly_code: str = ""
+    fail_closed: bool | None = None
+    model_provider: str = ""
+    model_name: str = ""
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cached_input_tokens: int | None = None
+    estimated_cost_microusd: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -375,6 +393,7 @@ class SupervisorResponse:
     confidence: ConfidenceLevel = "low"
     result: RagResultPayload | AvailabilityObservation | None = None
     error: ErrorInfo | None = None
+    observability: SupervisorObservability | None = None
 
     def __post_init__(self) -> None:
         if self.selected_target is not None and self.selected_target not in ALLOWED_SPECIALIST_TARGETS:
