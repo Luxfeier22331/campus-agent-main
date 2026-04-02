@@ -30,8 +30,6 @@ def _make_curriculum_record(*, document_id: str, version_id: str, title: str) ->
         cleaning_policy_version="curriculum_plan_cleaning_v1",
         entitlement_groups=("students",),
         visibility_scope="main",
-        acl_groups=("students",),
-        campus_scope="main",
         status="active",
         ingestion_timestamp="2026-03-27T12:00:00+00:00",
         parser_version="raw-online-ocr-v1",

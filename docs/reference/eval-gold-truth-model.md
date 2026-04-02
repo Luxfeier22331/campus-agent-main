@@ -135,6 +135,8 @@ updated: 2026-04-02
 - `resolved_family` 可以是 completed truth，但 answer truth 必须按 family 语义书写
 - family query 的 `expected_sources` 可以是 family-aware facts / member facts 的受控集合，但不得伪装成单一成员课程 truth
 - `思政课`、`思修课` 这类 institution-scoped family alias 的 canonical truth，不得在 authoring 时被 collapse 到 `习近平新时代中国特色社会主义思想概论`、`思想道德与法治` 或其他任意单课
+- `实验班有哪些`、`创新班有哪些`、`创新实验班有哪些` 这类 program-family membership 问句可以 author 成 family completed truth，但 answer/reference 必须按“当前已采集的名称集合”书写，不得伪装成任意单一培养方案
+- `强基有哪些专业`、`二学位有哪些专业` 这类 program-family membership 问句同样可以 author 成 family completed truth，但 short-fragment / deictic 单 doc 语义仍不得被静默 author 成 single-doc qrels
 - mixed query 若同时包含当前已支持字段和当前未采集字段，允许 partial-answer truth
 - partial-answer truth 必须显式携带 forbidden claim：不得为 unsupported subfield 补猜事实
 

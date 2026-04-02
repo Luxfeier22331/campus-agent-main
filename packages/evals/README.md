@@ -9,13 +9,18 @@ Evaluation helpers for campus-agent v2.
 - `student_handbook_hybrid_queries.json` 负责 live hybrid rebuild/query 验收样本，不承担 canonical retrieval qrels
 - `curriculum_plan_hybrid_queries.json` 负责 `curriculum/curriculum_plan` 的 live hybrid/query 验收样本，不承担 canonical retrieval qrels
 - retrieval 数值指标所需的 ground truth 应独立维护为专用 qrels fixture，避免与 live 抽样验收样本混用
-- handbook live fixture 必须跟随当前 `regulations/student_handbook` 的真实 collection 边界收口；如果 handbook manifest 不再包含 ACL、`campus_scope`、服务导航页等真相，这些 case 不应继续留在 handbook fixture 中
+- handbook live fixture 必须跟随当前 `regulations/student_handbook` 的真实 collection 边界收口；如果 handbook manifest 不再包含 `entitlement_groups`、`visibility_scope` 或服务导航页等真相，这些 case 不应继续留在 handbook fixture 中
 - curriculum live fixture 必须跟随当前 `curriculum/curriculum_plan` 的真实 manifest 边界收口；重点覆盖标题命中、短事实 section、table retrieval、同专业不同方案区分、needs-clarification 与 no-hit
 - `policy_title_exact_match` 与 `fixed_phrase_sparse_win` 类 live 样本必须至少能锚定到当前 handbook manifest 的标题关键词；相关 drift guard 由 `tests/evals/test_retrieval_benchmark.py` 覆盖
 - curriculum qrels 当前同样采取 `doc_id-level truth first`，第二学士学位、强基计划、创新班与课程教学计划是首批固定回归样本
 - curriculum 课程 alias / family alias 现在额外有一条 internal `course_facts` serving surface：它不属于默认 external query-enabled scope，但 golden/scenario truth 会要求 specialist 在课程型问句上内部切换到这个 collection
+- curriculum program-family alias 现在额外有一条 internal `program_family_facts` serving surface：`民族班有哪些` / `基地班有哪些` / `强基有哪些专业` / `二学位有哪些专业` / `实验班有哪些` / `创新班有哪些` 这类问句都应走 family-aware completed；其中 `实验班` / `创新班` 的 truth 是“当前已采集、名称模式命中的培养方案集合”，不是官方统一 family taxonomy
 - `习概有哪些专业要上`、`思政课有哪些专业要上`、`思政课包括哪些课` 与 mixed partial-answer case 现在属于固定 curriculum regression lanes；family alias 不得 collapse 到单课 qrels truth
-- retrieval qrels preflight 现在还会 fast-fail `思政课` / `思修课` 这类 family alias 被 author 成单 doc canonical truth 的 fixture
+- curriculum deterministic gate 现在接受 `curriculum_plan -> course_facts/program_family_facts` 的内部切换；selected scope 仍保持 `curriculum_plan`
+- retrieval qrels preflight 现在会 fast-fail `思政课` / `思修课` 这类 course-family alias，以及 `民族班有哪些` / `基地班有哪些` / `强基有哪些专业` / `二学位有哪些专业` / `实验班有哪些` / `创新班有哪些` / `创新实验班有哪些` 这类 program-family membership alias 被 author 成单 doc canonical truth 的 fixture
+- `我这个专业的实验班大二下有什么课` 这类 deictic curriculum 问句仍然不应因为 generic family alias 而静默落单 doc；当前正确行为依旧是 clarification-first
+- deictic curriculum truth 现在固定为：只有 `verified major + unique candidate` 才允许像 `我这个专业的基地班大二下有什么课` 这样的问题进入 single-doc completed lane
+- `recent_goal` / `confirmed_slot_terms` / profile-memory-only request overrides 不得被 author 成 curriculum family alias 的 canonical single-doc qrels；这类 truth 现在同样由 preflight fast-fail
 - selected `regression_locked` retrieval qrels 现在已经开始锁到 `doc_id + version_id`；`chunk_id` 仍只在边界长期稳定后使用
 - `campus_evals.scenarios` 现在同时提供 handbook / curriculum 的 `smoke`、`regression_locked`、`release_gate` 与 `error_gate` 固定 case 集；`release_gate` 继续服务 live gate，`smoke` / `regression_locked` 负责 repo-tracked 常设回归样本
 - handbook / curriculum 的 retrieval annotation template 现在都需要与各自 qrels case inventory 保持一一对应，避免人工标注模板和 canonical qrels 漂移

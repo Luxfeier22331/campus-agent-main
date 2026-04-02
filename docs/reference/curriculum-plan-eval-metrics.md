@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-03-28
-updated: 2026-04-02
+updated: 2026-04-03
 ---
 
 # Curriculum Plan Eval Metrics
@@ -47,28 +47,29 @@ updated: 2026-04-02
 当前已落盘的 curriculum 基线包括：
 
 - retrieval qrels：`packages/evals/fixtures/curriculum_plan_retrieval_qrels.json`
-  - total cases：`23`
+  - total cases：`25`
   - split：
-    - `smoke = 15`
-    - `regression_locked = 8`
+    - `smoke = 16`
+    - `regression_locked = 9`
 - hybrid live query fixture：`packages/evals/fixtures/curriculum_plan_hybrid_queries.json`
-  - total cases：`9`
+  - total cases：`12`
   - categories：
     - `policy_title_exact_match`
+    - `fixed_phrase_sparse_win`
     - `short_fact_section`
     - `table_retrieval`
     - `semantic_dense_win`
     - `needs_clarification`
     - `no_hit`
 - workflow/status golden cases：`packages/evals/src/campus_evals/scenarios.py`
-  - release gate：`6`
-  - smoke：`5`
-  - regression_locked：`9`
+  - release gate：`9`
+  - smoke：`8`
+  - regression_locked：`21`
   - error gate：`3`
 
 当前 automated gate 覆盖的 release-gate 终态：
 
-- `completed = 4`
+- `completed = 7`
 - `no_answer = 1`
 - `needs_clarification = 1`
 - deterministic `error = 3`
@@ -79,7 +80,8 @@ updated: 2026-04-02
 - 同专业不同方案区分
 - 第二学士学位短事实
 - table / 课程地图 retrieval
-- 口语 program alias normalization（例如 `民族班 -> 民族实验班`）
+- uniquely grounded sparse fixed-phrase retrieval
+- program-family membership / doc-fragment split（例如 `民族班有哪些` 走 family answer，而 `民族实验班` 短片段仍按 ambiguity workflow 治理）
 - semester-grounded course retrieval（例如 `大二下 -> 第四学期`）
 - 国际学生版本与普通版本区分
 - 同专业强基计划与普通培养路径区分
@@ -87,11 +89,11 @@ updated: 2026-04-02
 - no-hit fail-close
 - retrieval-informed ambiguity clarification
 
-已记录但尚未并入 automated denominator 的下一轮 high-risk workstream：
+已记录但尚未并入更大 automated denominator 的下一轮 high-risk workstream：
 
-- generic family alias clarification-first truth（例如 `基地班` / `实验班` / `创新班`）
-- deictic query + verified-identity curriculum resolution
-- memory-only over-personalization fail-close
+- 当前高频 inventory 之外的长尾 program-family / course alias 扩表
+- 更多 family-aware completed answer 的 citation/context truth 扩样
+- 更多 uniquely grounded sparse fixed-phrase retrieval case 扩样，而不是继续只依赖单一样本
 
 补充说明：
 
@@ -103,6 +105,8 @@ updated: 2026-04-02
 Phase 9 planning 已进一步冻结一条 truth posture：
 
 - `基地班` 这类 family alias 不能再通过“给它找一个看起来最像的 top1”来维持假 canonical truth
+- `强基有哪些专业` 与 `二学位有哪些专业` 这类 membership query 现在也允许进入 `program_family_facts` completed truth，但仍不得 author 成单 doc canonical qrels
+- `实验班` / `创新班` / `创新实验班` 这类 membership query 现在允许进入 `program_family_facts` completed truth，但仍不得 author 成单 doc canonical qrels
 - `verified identity` 可以进入 curriculum disambiguation eval，但只在 query 自身带 deictic 语义且候选唯一时才允许形成 completed truth
 - `profile memory` 只可进入 ranking/clarification 语义，不进入 canonical qrels collapse 语义
 
@@ -278,8 +282,9 @@ case-level context diagnostics：
   - 当前新增样本本身都已 `hit@1 = 1.0`
   - 该 artifact 仍包含现已退役的 `fixed-phrase-ethnic-experimental-class`，因此它只能作为历史诊断证据，不能继续当作当前 canonical denominator
   - 当前 canonical truth 已调整为：
-    - repo-tracked qrels denominator = `23`
+    - repo-tracked qrels denominator = `25`
     - `民族实验班` 改走 clarification workflow，不再通过 top1 命中单一 doc 评估
+    - `古文字学方向强基计划` 已进入唯一 grounding 的 sparse fixed-phrase canonical qrels / hybrid lane
 - 2026-04-02 retrieval ranking hardening 后的 fresh qrels rerun evidence：
   - [`.tmp/evals/curriculum-plan-live-gate-20260402T032546/curriculum-live-collection-baseline.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-20260402T032546/curriculum-live-collection-baseline.json)
   - [`.tmp/evals/curriculum-plan-live-gate-20260402T032546/curriculum-retrieval-run.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-20260402T032546/curriculum-retrieval-run.json)

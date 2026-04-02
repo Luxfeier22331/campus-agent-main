@@ -114,8 +114,6 @@ def _registry_record(*, document_id: str, version_id: str, title: str) -> Docume
         cleaning_policy_version="student_handbook_cleaning_v1",
         entitlement_groups=("students",),
         visibility_scope="main",
-        acl_groups=("students",),
-        campus_scope="main",
         status="active",
         ingestion_timestamp="2026-03-24T00:00:00+00:00",
         parser_version="paddleocr-vl-1.5",

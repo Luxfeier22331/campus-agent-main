@@ -35,8 +35,6 @@ def _make_registry_record() -> DocumentRegistryRecord:
         collection="student_handbook",
         entitlement_groups=("students", "staff"),
         visibility_scope=None,
-        acl_groups=("students", "staff"),
-        campus_scope=None,
         status="active",
         ingestion_timestamp="2026-03-22T10:00:00+00:00",
         parser_version="campusrag-import-v1",
@@ -80,8 +78,6 @@ def _make_curriculum_registry_record() -> DocumentRegistryRecord:
         cleaning_policy_version=CURRICULUM_CLEANING_POLICY_VERSION,
         entitlement_groups=("students",),
         visibility_scope="main",
-        acl_groups=("students",),
-        campus_scope="main",
         status="active",
         ingestion_timestamp="2026-03-27T10:00:00+00:00",
         parser_version="raw-online-ocr-v1",
@@ -265,8 +261,6 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertIsNone(chunk.visibility_scope)
         self.assertEqual(chunk.visibility_level, "restricted")
         self.assertEqual(chunk.policy_projection_version, "phase1-authorization-projection-v1")
-        self.assertEqual(chunk.acl_groups, ("students", "staff"))
-        self.assertIsNone(chunk.campus_scope)
         self.assertEqual(chunk.source_chunk_id, "legacy-chunk-001")
         self.assertEqual(chunk.anchor["page_start"], 12)
         self.assertEqual(chunk.source_channel, "pdf_ocr")
@@ -292,7 +286,9 @@ class ProcessingPipelineTest(unittest.TestCase):
             node.metadata["policy_projection_version"],
             "phase1-authorization-projection-v1",
         )
-        self.assertEqual(node.metadata["acl_groups"], ["students", "staff"])
+        self.assertNotIn("acl_groups", node.metadata)
+        self.assertNotIn("campus_scope", node.metadata)
+        self.assertNotIn("acl_level", node.metadata)
 
     def test_build_indexable_chunks_from_jsonl_defaults_to_runtime_curriculum_profile(self) -> None:
         record = _make_curriculum_registry_record()
@@ -342,7 +338,7 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertEqual(chunks[0].metadata["strategy_name"], "curriculum_plan_structure_v2")
         self.assertEqual(chunks[0].metadata["unit_type"], "section_text")
 
-    def test_build_indexable_chunks_from_jsonl_prefers_new_document_authorization_projection(self) -> None:
+    def test_build_indexable_chunks_from_jsonl_prefers_canonical_document_authorization_projection(self) -> None:
         record = DocumentRegistryRecord(
             document_id="handbook:test-authz",
             revision_track="source-faithful",
@@ -353,8 +349,6 @@ class ProcessingPipelineTest(unittest.TestCase):
             collection="student_handbook",
             entitlement_groups=("students",),
             visibility_scope="main",
-            acl_groups=("legacy-staff",),
-            campus_scope="south",
             status="active",
             ingestion_timestamp="2026-04-02T10:00:00+00:00",
             parser_version="campusrag-import-v1",
@@ -417,10 +411,8 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertEqual(chunk.entitlement_groups, ("students",))
         self.assertEqual(chunk.visibility_scope, "main")
         self.assertEqual(chunk.visibility_level, "restricted")
-        self.assertEqual(chunk.acl_groups, ("students",))
-        self.assertEqual(chunk.campus_scope, "main")
 
-    def test_indexable_chunk_treats_legacy_acl_fields_as_canonical_mirrors(self) -> None:
+    def test_indexable_chunk_defaults_visibility_level_from_entitlements(self) -> None:
         chunk = IndexableChunk(
             document_id="handbook:test-authz",
             revision_track="source-faithful",
@@ -429,11 +421,8 @@ class ProcessingPipelineTest(unittest.TestCase):
             chunk_order=1,
             corpus="regulations",
             collection="student_handbook",
-            acl_groups=("legacy-staff",),
-            campus_scope="south",
             source_uri="https://campus.example/handbook/test-authz",
             source_chunk_id="legacy-chunk-001",
-            acl_level="public",
             anchor={"page_start": 1, "page_end": 1},
             text="Campus notice for enrolled students only.",
             source_channel="pdf_ocr",
@@ -448,9 +437,6 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertEqual(chunk.entitlement_groups, ("students",))
         self.assertEqual(chunk.visibility_scope, "main")
         self.assertEqual(chunk.visibility_level, "restricted")
-        self.assertEqual(chunk.acl_groups, ("students",))
-        self.assertEqual(chunk.campus_scope, "main")
-        self.assertEqual(chunk.acl_level, "restricted")
 
     def test_build_indexable_chunks_from_jsonl_rewrites_parent_table_html_to_placeholder(self) -> None:
         record = _make_registry_record()
@@ -662,7 +648,7 @@ class ProcessingPipelineTest(unittest.TestCase):
                 page_end=2,
                 source_uri="https://campus.example/handbook/scholarship-policy",
                 handbook_section="中央民族大学学生奖励管理规定",
-                acl_groups=("students",),
+                entitlement_groups=("students",),
             ),
             source_doc="student-handbook.pdf",
         )
@@ -677,8 +663,6 @@ class ProcessingPipelineTest(unittest.TestCase):
             cleaning_policy_version="student_handbook_cleaning_v1",
             entitlement_groups=("students",),
             visibility_scope="main",
-            acl_groups=("students",),
-            campus_scope="main",
             status="active",
             ingestion_timestamp="2026-03-23T10:00:00+00:00",
             parser_version="paddleocr-vl-1.5",
@@ -746,7 +730,7 @@ class ProcessingPipelineTest(unittest.TestCase):
                 page_end=1,
                 source_uri="https://campus.example/handbook/scholarship-policy",
                 handbook_section="中央民族大学学生奖励管理规定",
-                acl_groups=("students",),
+                entitlement_groups=("students",),
             ),
             source_doc="student-handbook.pdf",
         )
@@ -761,8 +745,6 @@ class ProcessingPipelineTest(unittest.TestCase):
             cleaning_policy_version="student_handbook_cleaning_v1",
             entitlement_groups=("students",),
             visibility_scope="main",
-            acl_groups=("students",),
-            campus_scope="main",
             status="active",
             ingestion_timestamp="2026-03-23T10:00:00+00:00",
             parser_version="paddleocr-vl-1.5",

@@ -89,6 +89,9 @@ class CurriculumQueryPlan:
     clarification_reason: str = ""
     clarification_candidates: tuple[str, ...] = ()
     resolved_document_title: str = ""
+    used_verified_identity: bool = False
+    used_soft_preference: bool = False
+    candidate_title_summary: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,11 +138,13 @@ def plan_curriculum_query(
             resolved_document_title=target_document.title,
         )
     if len(matched_documents) > 1:
+        clarification_candidates = tuple(document.title for document in matched_documents[:3])
         return CurriculumQueryPlan(
             status="needs_clarification",
             rewritten_query_text=normalized_query,
             clarification_reason="curriculum_program_conflict",
-            clarification_candidates=tuple(document.title for document in matched_documents[:3]),
+            clarification_candidates=clarification_candidates,
+            candidate_title_summary=clarification_candidates,
         )
 
     family_resolution = _resolve_family_alias(
@@ -148,6 +153,10 @@ def plan_curriculum_query(
     )
     if family_resolution is not None:
         return family_resolution
+
+    forbidden_family_resolution = _resolve_forbidden_generic_family_alias(normalized_query)
+    if forbidden_family_resolution is not None:
+        return forbidden_family_resolution
 
     return CurriculumQueryPlan(
         status="pass_through",
@@ -187,7 +196,12 @@ def plan_curriculum_program_family_query(query_text: str) -> CurriculumProgramFa
     normalized_query = interpretation.normalized_query_text
     if not _is_program_family_membership_query(normalized_query):
         return None
-    for family in _load_program_family_configs():
+    families = sorted(
+        _load_program_family_configs(),
+        key=lambda item: max((len(alias) for alias in item.match_aliases), default=0),
+        reverse=True,
+    )
+    for family in families:
         if not any(alias in normalized_query for alias in family.match_aliases):
             continue
         if family.mode == "direct_answer_family":
@@ -372,8 +386,11 @@ def _resolve_family_alias(
         alias = family_alias.alias
         if alias not in normalized_query:
             continue
-        clarification_candidates = _family_candidate_titles(family_alias)
         preferred_document_ids = _major_scoped_candidates(family_alias, verified_major)
+        clarification_candidates = _prioritize_clarification_candidates(
+            clarification_candidates=_family_candidate_titles(family_alias),
+            preferred_document_ids=preferred_document_ids,
+        )
         if any(cue in normalized_query for cue in _DEICTIC_MAJOR_CUES) and len(preferred_document_ids) == 1:
             target_document = _document_by_id(preferred_document_ids[0])
             if target_document is not None:
@@ -386,6 +403,7 @@ def _resolve_family_alias(
                     target_document_ids=(target_document.document_id,),
                     clarification_candidates=clarification_candidates,
                     resolved_document_title=target_document.title,
+                    used_verified_identity=True,
                 )
         return CurriculumQueryPlan(
             status="needs_clarification",
@@ -393,6 +411,25 @@ def _resolve_family_alias(
             preferred_document_ids=preferred_document_ids,
             clarification_reason="curriculum_program_family_alias",
             clarification_candidates=clarification_candidates,
+            used_soft_preference=bool(preferred_document_ids),
+            candidate_title_summary=clarification_candidates,
+        )
+    return None
+
+
+def _resolve_forbidden_generic_family_alias(normalized_query: str) -> CurriculumQueryPlan | None:
+    for alias in _load_query_planning_config().forbidden_generic_aliases:
+        if alias not in normalized_query:
+            continue
+        if _query_contains_more_specific_family_alias(normalized_query, alias):
+            continue
+        clarification_candidates = _clarification_options_for_program_family_alias(alias)
+        return CurriculumQueryPlan(
+            status="needs_clarification",
+            rewritten_query_text=normalized_query,
+            clarification_reason="curriculum_program_family_alias",
+            clarification_candidates=clarification_candidates,
+            candidate_title_summary=clarification_candidates,
         )
     return None
 
@@ -418,6 +455,25 @@ def _family_candidate_titles(family_alias: CurriculumFamilyAliasConfig) -> tuple
         if any(term in document.title for term in family_alias.candidate_terms)
     ]
     return tuple(dict.fromkeys(titles[:3]))
+
+
+def _prioritize_clarification_candidates(
+    *,
+    clarification_candidates: tuple[str, ...],
+    preferred_document_ids: tuple[str, ...],
+) -> tuple[str, ...]:
+    if not preferred_document_ids:
+        return clarification_candidates
+    prioritized: list[str] = []
+    for document_id in preferred_document_ids:
+        document = _document_by_id(document_id)
+        if document is None or document.title in prioritized:
+            continue
+        prioritized.append(document.title)
+    for title in clarification_candidates:
+        if title not in prioritized:
+            prioritized.append(title)
+    return tuple(prioritized)
 
 
 def _document_by_id(document_id: str) -> CurriculumDocument | None:
@@ -469,62 +525,71 @@ def _is_program_family_membership_query(normalized_query: str) -> bool:
 
 @lru_cache(maxsize=1)
 def _course_entities() -> tuple[CurriculumCourseEntity, ...]:
-    return (
-        CurriculumCourseEntity(
-            entity_type="course",
-            canonical_id="course:muc.marxist_basic_principles",
-            title="马克思主义基本原理",
-            aliases=("马原",),
-        ),
-        CurriculumCourseEntity(
-            entity_type="course",
-            canonical_id="course:muc.modern_chinese_history_outline",
-            title="中国近现代史纲要",
-            aliases=("史纲",),
-        ),
-        CurriculumCourseEntity(
-            entity_type="course",
-            canonical_id="course:muc.mao_zedong_thought_and_theoretical_system",
-            title="毛泽东思想和中国特色社会主义理论体系概论",
-            aliases=("毛概",),
-        ),
-        CurriculumCourseEntity(
-            entity_type="course",
-            canonical_id="course:muc.xigai",
-            title="习近平新时代中国特色社会主义思想概论",
-            aliases=("习概",),
-        ),
-        CurriculumCourseEntity(
-            entity_type="course",
-            canonical_id="course:muc.ideological_morality_and_rule_of_law",
-            title="思想道德与法治",
-            aliases=("思修",),
-        ),
-        CurriculumCourseEntity(
-            entity_type="course",
-            canonical_id="course:muc.situation_and_policy",
-            title="形势与政策",
-            aliases=("形策",),
-        ),
-        CurriculumCourseEntity(
-            entity_type="course",
-            canonical_id="course:muc.community_for_chinese_nation",
-            title="中华民族共同体概论",
-            aliases=("民概",),
-        ),
-    )
+    return tuple(entity for entity in _load_course_alias_entities() if entity.entity_type == "course")
 
 
 @lru_cache(maxsize=1)
 def _course_family_entities() -> tuple[CurriculumCourseEntity, ...]:
-    return (
-        CurriculumCourseEntity(
-            entity_type="course_family",
-            canonical_id="course_family:muc.ideological_political_theory",
-            title="思想政治理论课",
-            aliases=("思政课", "思修课", "思政", "思修课", "思政课程"),
-        ),
+    return tuple(entity for entity in _load_course_alias_entities() if entity.entity_type == "course_family")
+
+
+@lru_cache(maxsize=1)
+def _load_course_alias_entities() -> tuple[CurriculumCourseEntity, ...]:
+    config_path = (
+        Path(__file__).resolve().parents[4]
+        / "configs"
+        / "ingestion"
+        / "curriculum"
+        / "course_facts"
+        / "alias-governance.json"
     )
+    payload = json.loads(config_path.read_text(encoding="utf-8"))
+    results: list[CurriculumCourseEntity] = []
+    for item in payload.get("entities", ()):
+        if not isinstance(item, dict):
+            continue
+        entity_type = str(item.get("entity_type", "")).strip()
+        canonical_id = str(item.get("canonical_id", "")).strip()
+        title = str(item.get("title", "")).strip()
+        if entity_type not in {"course", "course_family"}:
+            continue
+        if not canonical_id or not title:
+            continue
+        results.append(
+            CurriculumCourseEntity(
+                entity_type=entity_type,
+                canonical_id=canonical_id,
+                title=title,
+                aliases=tuple(
+                    value.strip()
+                    for value in item.get("aliases", ())
+                    if isinstance(value, str) and value.strip()
+                ),
+            )
+    )
+    return tuple(results)
+
+
+def _clarification_options_for_program_family_alias(alias: str) -> tuple[str, ...]:
+    normalized_alias = _normalize_text(alias)
+    for family in _load_program_family_configs():
+        if family.mode != "clarify_first_family":
+            continue
+        if any(_normalize_text(value) == normalized_alias for value in family.match_aliases):
+            return family.clarification_options
+    return ()
+
+
+def _query_contains_more_specific_family_alias(normalized_query: str, alias: str) -> bool:
+    normalized_alias = _normalize_text(alias)
+    for family in _load_program_family_configs():
+        for match_alias in family.match_aliases:
+            normalized_match_alias = _normalize_text(match_alias)
+            if normalized_match_alias == normalized_alias:
+                continue
+            if normalized_alias in normalized_match_alias and normalized_match_alias in normalized_query:
+                return True
+    return False
 
 
 def _prepend_title_if_missing(*, normalized_query: str, title: str) -> str:

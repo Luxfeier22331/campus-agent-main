@@ -57,7 +57,6 @@ def _source(
         version_id=version_id,
         chunk_id=chunk_id,
         anchor={"page": 1},
-        acl_level="public",
         canonical_url="https://example.edu/handbook/library",
         latest_url="https://example.edu/handbook/library",
         source_channel="pdf_ocr",
@@ -301,7 +300,7 @@ class RunCasesTest(unittest.TestCase):
     def test_curriculum_release_gate_cases_cover_terminal_statuses(self) -> None:
         cases = curriculum_release_gate_cases()
 
-        self.assertEqual(len(cases), 6)
+        self.assertEqual(len(cases), 9)
         self.assertEqual(
             tuple(case.case_id for case in cases),
             (
@@ -309,6 +308,9 @@ class RunCasesTest(unittest.TestCase):
                 "curriculum-release-gate-academic-years",
                 "curriculum-release-gate-total-credits",
                 "curriculum-release-gate-course-map-table",
+                "curriculum-release-gate-course-family-membership",
+                "curriculum-release-gate-program-family-membership",
+                "curriculum-release-gate-program-family-experimental-membership",
                 "curriculum-release-gate-no-answer",
                 "curriculum-release-gate-needs-clarification",
             ),
@@ -316,6 +318,9 @@ class RunCasesTest(unittest.TestCase):
         self.assertEqual(
             tuple(case.expected_status for case in cases),
             (
+                "completed",
+                "completed",
+                "completed",
                 "completed",
                 "completed",
                 "completed",
@@ -337,6 +342,9 @@ class RunCasesTest(unittest.TestCase):
                 "curriculum-smoke-ethnology-title",
                 "curriculum-smoke-academic-years",
                 "curriculum-smoke-hanyu-international-credits",
+                "curriculum-smoke-program-family-membership",
+                "curriculum-smoke-program-family-innovation-membership",
+                "curriculum-smoke-program-family-strong-base-membership",
                 "curriculum-smoke-no-answer",
                 "curriculum-smoke-needs-clarification",
             ),
@@ -344,6 +352,9 @@ class RunCasesTest(unittest.TestCase):
         self.assertEqual(
             tuple(case.expected_status for case in cases),
             (
+                "completed",
+                "completed",
+                "completed",
                 "completed",
                 "completed",
                 "completed",
@@ -369,11 +380,17 @@ class RunCasesTest(unittest.TestCase):
                 "curriculum-regression-education-second-degree-years",
                 "curriculum-regression-fiscal-core-credits",
                 "curriculum-regression-course-family-membership",
+                "curriculum-regression-course-family-membership-sixiuke",
                 "curriculum-regression-course-family-audience",
                 "curriculum-regression-course-family-partial-answer",
                 "curriculum-regression-course-single-audience",
+                "curriculum-regression-program-family-base-class-membership",
+                "curriculum-regression-program-family-second-degree-membership",
+                "curriculum-regression-program-family-generic-experimental-membership",
+                "curriculum-regression-program-family-generic-innovation-membership",
                 "curriculum-regression-no-answer-program",
                 "curriculum-regression-needs-clarification-degree",
+                "curriculum-regression-needs-clarification-deictic-experimental-class-with-verified-major",
                 "curriculum-regression-needs-clarification-base-class-with-verified-major",
                 "curriculum-regression-needs-clarification-ethnic-experimental-class",
             ),
@@ -392,7 +409,13 @@ class RunCasesTest(unittest.TestCase):
                 "completed",
                 "completed",
                 "completed",
+                "completed",
+                "completed",
+                "completed",
+                "completed",
+                "completed",
                 "no_answer",
+                "needs_clarification",
                 "needs_clarification",
                 "needs_clarification",
                 "needs_clarification",
@@ -409,6 +432,136 @@ class RunCasesTest(unittest.TestCase):
             "不得猜测开课学院",
             " ".join(cases["curriculum-regression-course-family-partial-answer"].forbidden_claims),
         )
+
+    def test_curriculum_release_gate_course_family_case_accepts_internal_course_facts_surface(self) -> None:
+        case = next(
+            item
+            for item in curriculum_release_gate_cases()
+            if item.case_id == "curriculum-release-gate-course-family-membership"
+        )
+
+        report = run_cases(
+            (case,),
+            executor=lambda _: ExecutionResult(
+                response=_response(
+                    answer_text=(
+                        "根据课程教学计划相关内容，思想政治理论课包括马克思主义基本原理、"
+                        "中国近现代史纲要、毛泽东思想和中国特色社会主义理论体系概论、"
+                        "习近平新时代中国特色社会主义思想概论、思想道德与法治、形势与政策、中华民族共同体概论。"
+                    ),
+                    corpus="curriculum",
+                    collection="course_facts",
+                    sources=(
+                        _source(
+                            doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                            collection="course_facts",
+                            snippet="思想政治理论课包括马克思主义基本原理、习近平新时代中国特色社会主义思想概论、中华民族共同体概论等课程。",
+                        ),
+                    ),
+                ),
+                observed_trace=ObservedTrace(
+                    selected_scope=CURRICULUM_SCOPE,
+                    retrieval_called=True,
+                    clarification_emitted=False,
+                    error_path=False,
+                    supporting_sources=(
+                        _source(
+                            doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                            collection="course_facts",
+                            snippet="思想政治理论课包括马克思主义基本原理、习近平新时代中国特色社会主义思想概论、中华民族共同体概论等课程。",
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        result = report.results[0]
+        self.assertTrue(result.passed)
+        self.assertEqual(report.by_metric["answer_accuracy"].passed, 1)
+
+    def test_curriculum_release_gate_program_family_case_accepts_internal_program_family_facts_surface(self) -> None:
+        case = next(
+            item
+            for item in curriculum_release_gate_cases()
+            if item.case_id == "curriculum-release-gate-program-family-membership"
+        )
+
+        report = run_cases(
+            (case,),
+            executor=lambda _: ExecutionResult(
+                response=_response(
+                    answer_text="民大的民族班有法学、信息与计算科学、计算机科学与技术。",
+                    corpus="curriculum",
+                    collection="program_family_facts",
+                    sources=(
+                        _source(
+                            doc_id="program_family_facts:ethnic-class-membership",
+                            collection="program_family_facts",
+                            snippet="民大的民族班有法学、信息与计算科学、计算机科学与技术。",
+                        ),
+                    ),
+                ),
+                observed_trace=ObservedTrace(
+                    selected_scope=CURRICULUM_SCOPE,
+                    retrieval_called=True,
+                    clarification_emitted=False,
+                    error_path=False,
+                    supporting_sources=(
+                        _source(
+                            doc_id="program_family_facts:ethnic-class-membership",
+                            collection="program_family_facts",
+                            snippet="民大的民族班有法学、信息与计算科学、计算机科学与技术。",
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        result = report.results[0]
+        self.assertTrue(result.passed)
+        self.assertEqual(report.by_metric["answer_accuracy"].passed, 1)
+
+    def test_curriculum_smoke_strong_base_program_family_case_accepts_internal_program_family_facts_surface(self) -> None:
+        case = next(
+            item
+            for item in curriculum_smoke_cases()
+            if item.case_id == "curriculum-smoke-program-family-strong-base-membership"
+        )
+
+        report = run_cases(
+            (case,),
+            executor=lambda _: ExecutionResult(
+                response=_response(
+                    answer_text="按当前已采集的培养方案，强基计划有历史学、哲学、中国少数民族语言文学（古文字学方向）。",
+                    corpus="curriculum",
+                    collection="program_family_facts",
+                    sources=(
+                        _source(
+                            doc_id="program_family_facts:strong-base-membership",
+                            collection="program_family_facts",
+                            snippet="按当前已采集的培养方案，强基计划有历史学、哲学、中国少数民族语言文学（古文字学方向）。",
+                        ),
+                    ),
+                ),
+                observed_trace=ObservedTrace(
+                    selected_scope=CURRICULUM_SCOPE,
+                    retrieval_called=True,
+                    clarification_emitted=False,
+                    error_path=False,
+                    supporting_sources=(
+                        _source(
+                            doc_id="program_family_facts:strong-base-membership",
+                            collection="program_family_facts",
+                            snippet="按当前已采集的培养方案，强基计划有历史学、哲学、中国少数民族语言文学（古文字学方向）。",
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        result = report.results[0]
+        self.assertTrue(result.passed)
+        self.assertEqual(report.by_metric["answer_accuracy"].passed, 1)
 
     def test_curriculum_error_gate_cases_cover_deterministic_error_paths(self) -> None:
         cases = curriculum_error_gate_cases()

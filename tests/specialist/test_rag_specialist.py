@@ -22,12 +22,19 @@ from campus_contracts import (
     SpecialistRequest,
     SpecialistResponse,
 )
-from campus_retrieval_core import CorpusQueryDisabledError, RetrievalBackendError
+from campus_retrieval_core import (
+    CorpusQueryDisabledError,
+    RestrictedDocumentAccessDeniedError,
+    RetrievalBackendError,
+)
 from campus_rag_specialist import RagSpecialistAgent
 from campus_rag_specialist.confidence import derive_confidence
 from campus_rag_specialist.intent import frame_rag_intent
 from campus_rag_specialist.service import delegate_to_rag_agent
-from campus_rag_specialist.query_planning import plan_curriculum_query
+from campus_rag_specialist.query_planning import (
+    plan_curriculum_program_family_query,
+    plan_curriculum_query,
+)
 
 
 def _make_evidence(
@@ -44,7 +51,6 @@ def _make_evidence(
             version_id=f"v1:test-{index + 1}",
             chunk_id=f"{(doc_ids[index] if doc_ids is not None else f'handbook:test-{index + 1}')}:source-faithful:v1:test-{index + 1}:chunk-0001",
             anchor={"page_start": index + 1, "page_end": index + 1},
-            acl_level="public",
             canonical_url=f"https://campus.example/handbook/test-{index + 1}",
             latest_url=f"https://campus.example/handbook/test-{index + 1}",
             source_channel="pdf_ocr",
@@ -84,7 +90,6 @@ def _make_handbook_source(
         version_id=f"v1:{chunk_id_suffix}",
         chunk_id=f"{doc_id}:source-faithful:v1:{chunk_id_suffix}",
         anchor={"page_start": 1, "page_end": 1},
-        acl_level="public",
         canonical_url=f"https://campus.example/handbook/{doc_id}",
         latest_url=f"https://campus.example/handbook/{doc_id}",
         source_channel="pdf_ocr",
@@ -109,7 +114,6 @@ class RagSpecialistTest(unittest.TestCase):
                 actor=ActorContext(
                     user_id="student-001",
                     principal_id="principal-001",
-                    campus_scope="north",
                     cohort="2023",
                     major="philosophy",
                 ),
@@ -346,6 +350,65 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.status, "needs_clarification")
         self.assertIn("保研", response.follow_up_question)
 
+    def test_contextual_clarification_mentions_confirmed_slot_when_recent_goal_absent(self) -> None:
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="这个申请条件是什么？",
+                context=ContextProjection(
+                    actor=ActorContext(user_id="student-001", principal_id="principal-001"),
+                    session=SessionSummary(
+                        confirmed_slots=(
+                            SessionSlot(name="policy_topic", value="推免资格", confirmed=True),
+                        ),
+                        turn_count=2,
+                    ),
+                ),
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: _make_evidence(),
+        )
+
+        self.assertEqual(response.status, "needs_clarification")
+        self.assertIn("推免资格", response.follow_up_question)
+
+    def test_frame_rag_intent_ignores_internal_only_profile_memory(self) -> None:
+        request = SpecialistRequest(
+            target="rag-specialist",
+            user_goal="这个申请条件是什么？",
+            context=ContextProjection(
+                actor=ActorContext(user_id="student-001", principal_id="principal-001"),
+                profile_memory=ProfileMemorySummary(
+                    items=(
+                        ProfileMemoryItem(
+                            item_id="memory-001",
+                            key="recent_goal",
+                            value="处分申诉",
+                            source_type="system_inferred",
+                            confidence="high",
+                            visibility="internal_only",
+                            last_verified_at="2026-04-02",
+                        ),
+                    ),
+                ),
+            ),
+            payload=RagRequestPayload(
+                scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+            ),
+        )
+
+        frame = frame_rag_intent(request)
+
+        self.assertEqual(frame.personalization_mode, "generic")
+        self.assertEqual(frame.retrieval_plan, "default_rewrite")
+
+        response = delegate_to_rag_agent(request, retriever=lambda *args, **kwargs: _make_evidence())
+
+        self.assertEqual(response.status, "needs_clarification")
+        self.assertNotIn("处分申诉", response.follow_up_question)
+
     def test_completed_response_passes_typed_personalization_hint_to_retriever(self) -> None:
         captured_kwargs: dict[str, object] = {}
 
@@ -361,10 +424,12 @@ class RagSpecialistTest(unittest.TestCase):
                 actor=ActorContext(
                     user_id="student-001",
                     principal_id="principal-001",
-                    groups=("students",),
-                    campus_scope="north",
                     cohort="2023",
                     major="philosophy",
+                ),
+                authorization=AuthorizationProjection(
+                    visibility_scope="north",
+                    retrieval_filter=AuthorizedRetrievalFilter(visibility_scope="north"),
                 ),
                 profile_memory=ProfileMemorySummary(
                     items=(
@@ -450,7 +515,6 @@ class RagSpecialistTest(unittest.TestCase):
                     version_id="v1:law-ethnic-experimental",
                     chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0001",
                     anchor={"page_start": 1, "page_end": 1},
-                    acl_level="public",
                     canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
                     latest_url="https://campus.example/curriculum/law-ethnic-experimental",
                     source_channel="pdf_ocr",
@@ -467,7 +531,6 @@ class RagSpecialistTest(unittest.TestCase):
                     version_id="v1:ics-ethnic-experimental",
                     chunk_id="curriculum:信息与计算科学（民族实验班）本科人才培养方案:chunk-0001",
                     anchor={"page_start": 1, "page_end": 1},
-                    acl_level="public",
                     canonical_url="https://campus.example/curriculum/ics-ethnic-experimental",
                     latest_url="https://campus.example/curriculum/ics-ethnic-experimental",
                     source_channel="pdf_ocr",
@@ -484,7 +547,6 @@ class RagSpecialistTest(unittest.TestCase):
                     version_id="v1:cs-ethnic-experimental",
                     chunk_id="curriculum:计算机科学与技术（民族实验班）本科人才培养方案:chunk-0001",
                     anchor={"page_start": 1, "page_end": 1},
-                    acl_level="public",
                     canonical_url="https://campus.example/curriculum/cs-ethnic-experimental",
                     latest_url="https://campus.example/curriculum/cs-ethnic-experimental",
                     source_channel="pdf_ocr",
@@ -525,7 +587,6 @@ class RagSpecialistTest(unittest.TestCase):
                     version_id="v1:law-ethnic-experimental",
                     chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0004",
                     anchor={"page_start": 24, "page_end": 24},
-                    acl_level="public",
                     canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
                     latest_url="https://campus.example/curriculum/law-ethnic-experimental",
                     source_channel="pdf_ocr",
@@ -546,7 +607,6 @@ class RagSpecialistTest(unittest.TestCase):
                     version_id="v1:law-ethnic-experimental",
                     chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0005",
                     anchor={"page_start": 25, "page_end": 25},
-                    acl_level="public",
                     canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
                     latest_url="https://campus.example/curriculum/law-ethnic-experimental",
                     source_channel="pdf_ocr",
@@ -567,7 +627,6 @@ class RagSpecialistTest(unittest.TestCase):
                     version_id="v1:ics-ethnic-experimental",
                     chunk_id="curriculum:信息与计算科学（民族实验班）本科人才培养方案:chunk-0004",
                     anchor={"page_start": 24, "page_end": 24},
-                    acl_level="public",
                     canonical_url="https://campus.example/curriculum/ics-ethnic-experimental",
                     latest_url="https://campus.example/curriculum/ics-ethnic-experimental",
                     source_channel="pdf_ocr",
@@ -632,7 +691,6 @@ class RagSpecialistTest(unittest.TestCase):
                     version_id="v1:law-ethnic-experimental",
                     chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0004",
                     anchor={"page_start": 24, "page_end": 24},
-                    acl_level="public",
                     canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
                     latest_url="https://campus.example/curriculum/law-ethnic-experimental",
                     source_channel="pdf_ocr",
@@ -653,7 +711,6 @@ class RagSpecialistTest(unittest.TestCase):
                     version_id="v1:ics-ethnic-experimental",
                     chunk_id="curriculum:信息与计算科学（民族实验班）本科人才培养方案:chunk-0004",
                     anchor={"page_start": 24, "page_end": 24},
-                    acl_level="public",
                     canonical_url="https://campus.example/curriculum/ics-ethnic-experimental",
                     latest_url="https://campus.example/curriculum/ics-ethnic-experimental",
                     source_channel="pdf_ocr",
@@ -731,7 +788,6 @@ class RagSpecialistTest(unittest.TestCase):
                         version_id="v1:history-strong-base",
                         chunk_id="curriculum:历史学（强基计划）本科人才培养方案:chunk-0004",
                         anchor={"page_start": 24, "page_end": 24},
-                        acl_level="public",
                         canonical_url="https://campus.example/curriculum/history-strong-base",
                         latest_url="https://campus.example/curriculum/history-strong-base",
                         source_channel="pdf_ocr",
@@ -775,8 +831,144 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(retriever_call["preferred_document_ids"], ())
         self.assertIn("中国史学史", response.answer_text)
 
+    def test_curriculum_generic_base_class_clarification_records_soft_bias_without_identity_resolution(self) -> None:
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="基地班",
+                context=ContextProjection(
+                    actor=ActorContext(
+                        user_id="student-001",
+                        principal_id="principal-001",
+                        major="历史学",
+                    ),
+                ),
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: _make_evidence(query_text="基地班"),
+        )
+
+        self.assertEqual(response.status, "needs_clarification")
+        self.assertEqual(response.result.diagnostics.clarification_reason, "curriculum_program_family_alias")
+        self.assertEqual(response.result.diagnostics.resolution_mode, "needs_clarification")
+        self.assertFalse(response.result.diagnostics.used_verified_identity)
+        self.assertTrue(response.result.diagnostics.used_soft_preference)
+        self.assertEqual(
+            response.result.diagnostics.candidate_title_summary[0],
+            "历史学（强基计划）本科人才培养方案",
+        )
+        self.assertIn(
+            "哲学（强基计划）本科人才培养方案",
+            response.result.diagnostics.candidate_title_summary,
+        )
+        self.assertIn(
+            "中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
+            response.result.diagnostics.candidate_title_summary,
+        )
+
+    def test_curriculum_deictic_resolution_records_verified_identity_diagnostics(self) -> None:
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="我这个专业的基地班大二下有什么课",
+                context=ContextProjection(
+                    actor=ActorContext(
+                        user_id="student-001",
+                        principal_id="principal-001",
+                        major="历史学",
+                    ),
+                ),
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: EvidenceBundle(
+                query_text="我这个专业的基地班大二下有什么课",
+                corpus="curriculum",
+                collection="curriculum_plan",
+                sources=(),
+            ),
+        )
+
+        self.assertEqual(response.status, "no_answer")
+        self.assertEqual(
+            response.result.diagnostics,
+            RagResultDiagnostics(
+                resolved_policy_document_id="curriculum:历史学（强基计划）本科人才培养方案",
+                resolved_policy_title="历史学（强基计划）本科人才培养方案",
+                rewritten_query="历史学（强基计划）本科人才培养方案 我这个专业的基地班第四学期有什么课",
+                resolution_mode="resolved_single",
+                used_verified_identity=True,
+                used_soft_preference=False,
+            ),
+        )
+
+    def test_curriculum_deictic_experimental_class_with_verified_major_still_needs_clarification(self) -> None:
+        retriever_called = False
+
+        def fake_retriever(*args: object, **kwargs: object) -> EvidenceBundle:
+            nonlocal retriever_called
+            retriever_called = True
+            return _make_evidence(query_text="我这个专业的实验班大二下有什么课")
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="我这个专业的实验班大二下有什么课",
+                context=ContextProjection(
+                    actor=ActorContext(
+                        user_id="student-001",
+                        principal_id="principal-001",
+                        major="历史学",
+                    ),
+                ),
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "needs_clarification")
+        self.assertFalse(retriever_called)
+
 
 class CurriculumQueryPlanningTest(unittest.TestCase):
+    def test_plan_curriculum_program_family_query_resolves_innovation_experimental_alias(self) -> None:
+        plan = plan_curriculum_program_family_query("创新实验班有哪些")
+
+        self.assertIsNotNone(plan)
+        assert plan is not None
+        self.assertEqual(plan.resolution_mode, "resolved_family")
+        self.assertEqual(
+            plan.canonical_program_family_id,
+            "program_family:muc.innovation_class_generic",
+        )
+
+    def test_plan_curriculum_program_family_query_resolves_strong_base_alias(self) -> None:
+        plan = plan_curriculum_program_family_query("强基有哪些专业")
+
+        self.assertIsNotNone(plan)
+        assert plan is not None
+        self.assertEqual(plan.resolution_mode, "resolved_family")
+        self.assertEqual(
+            plan.canonical_program_family_id,
+            "program_family:muc.strong_base_plan",
+        )
+
+    def test_plan_curriculum_program_family_query_resolves_second_degree_alias(self) -> None:
+        plan = plan_curriculum_program_family_query("二学位有哪些专业")
+
+        self.assertIsNotNone(plan)
+        assert plan is not None
+        self.assertEqual(plan.resolution_mode, "resolved_family")
+        self.assertEqual(
+            plan.canonical_program_family_id,
+            "program_family:muc.second_bachelor_degree",
+        )
+
     def test_plan_curriculum_query_clarifies_generic_base_class_even_with_verified_major(self) -> None:
         plan = plan_curriculum_query(
             "基地班",
@@ -818,7 +1010,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                         version_id="v1:course-facts",
                         chunk_id="course-facts:xigai:audience",
                         anchor={"fact_type": "audience"},
-                        acl_level="public",
                         canonical_url="https://campus.example/curriculum/ideological-political-theory",
                         latest_url="https://campus.example/curriculum/ideological-political-theory",
                         source_channel="pdf_ocr",
@@ -881,7 +1072,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                         version_id="v1:course-facts",
                         chunk_id="course-facts:family:members",
                         anchor={"fact_type": "family_membership"},
-                        acl_level="public",
                         canonical_url="https://campus.example/curriculum/ideological-political-theory",
                         latest_url="https://campus.example/curriculum/ideological-political-theory",
                         source_channel="pdf_ocr",
@@ -950,7 +1140,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                         version_id="v1:course-facts",
                         chunk_id="course-facts:family:audience",
                         anchor={"fact_type": "audience"},
-                        acl_level="public",
                         canonical_url="https://campus.example/curriculum/ideological-political-theory",
                         latest_url="https://campus.example/curriculum/ideological-political-theory",
                         source_channel="pdf_ocr",
@@ -1013,7 +1202,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                         version_id="v1:program-family-facts",
                         chunk_id="program-family-facts:ethnic-class-membership",
                         anchor={"fact_type": "family_membership"},
-                        acl_level="public",
                         canonical_url="https://campus.example/curriculum/program-family/ethnic-class",
                         latest_url="https://campus.example/curriculum/program-family/ethnic-class",
                         source_channel="pdf_ocr",
@@ -1079,7 +1267,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                         version_id="v1:program-family-facts",
                         chunk_id="program-family-facts:base-class-membership",
                         anchor={"fact_type": "family_membership"},
-                        acl_level="public",
                         canonical_url="https://campus.example/curriculum/program-family/base-class",
                         latest_url="https://campus.example/curriculum/program-family/base-class",
                         source_channel="pdf_ocr",
@@ -1118,16 +1305,42 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertIn("哲学", response.answer_text)
         self.assertNotIn("当前已采集", response.answer_text)
 
-    def test_program_family_generic_experimental_class_requires_option_clarification(self) -> None:
-        retriever_called = False
+    def test_program_family_generic_experimental_class_returns_membership_answer(self) -> None:
+        retriever_call: dict[str, object] = {}
 
-        def fake_retriever(*args: object, **kwargs: object) -> EvidenceBundle:
-            nonlocal retriever_called
-            retriever_called = True
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
             return EvidenceBundle(
-                query_text="实验班有哪些",
+                query_text=query_text,
                 corpus="curriculum",
-                collection="curriculum_plan",
+                collection="program_family_facts",
+                sources=(
+                    EvidenceSource(
+                        doc_id="program_family_facts:experimental-class-membership",
+                        revision_track="source-faithful",
+                        version_id="v1:program-family-facts",
+                        chunk_id="program-family-facts:experimental-class-membership",
+                        anchor={"fact_type": "family_membership"},
+                        canonical_url="https://campus.example/curriculum/program-family/experimental-class",
+                        latest_url="https://campus.example/curriculum/program-family/experimental-class",
+                        source_channel="pdf_ocr",
+                        collection="program_family_facts",
+                        is_current=False,
+                        snippet=(
+                            "按当前已采集的培养方案，名称里带“实验班”的有孝通实验班、法学（民族实验班）、"
+                            "信息与计算科学（民族实验班）、计算机科学与技术（民族实验班）、"
+                            "理工科交叉创新人才培养实验班、光电科学与工程创新实验班。"
+                        ),
+                        score=0.95,
+                        source_title="中央民族大学实验班相关培养方案一览",
+                        structural_path=("实验班相关培养方案",),
+                        detail_label="成员培养方案",
+                        content_kind="program_family_fact",
+                        content_role="family_membership",
+                        is_answer_bearing=True,
+                    ),
+                ),
             )
 
         response = delegate_to_rag_agent(
@@ -1141,21 +1354,51 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             retriever=fake_retriever,
         )
 
-        self.assertEqual(response.status, "needs_clarification")
-        self.assertFalse(retriever_called)
-        self.assertIn("民族班", response.follow_up_question)
-        self.assertIn("孝通实验班", response.follow_up_question)
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(retriever_call["collection"], "program_family_facts")
+        self.assertEqual(
+            retriever_call["canonical_program_family_ids"],
+            ("program_family:muc.experimental_class_generic",),
+        )
+        self.assertIn("当前已采集", response.answer_text)
+        self.assertIn("孝通实验班", response.answer_text)
+        self.assertIn("光电科学与工程创新实验班", response.answer_text)
 
-    def test_program_family_generic_innovation_class_requires_option_clarification(self) -> None:
-        retriever_called = False
+    def test_program_family_generic_innovation_class_returns_membership_answer(self) -> None:
+        retriever_call: dict[str, object] = {}
 
-        def fake_retriever(*args: object, **kwargs: object) -> EvidenceBundle:
-            nonlocal retriever_called
-            retriever_called = True
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
             return EvidenceBundle(
-                query_text="创新班有哪些",
+                query_text=query_text,
                 corpus="curriculum",
-                collection="curriculum_plan",
+                collection="program_family_facts",
+                sources=(
+                    EvidenceSource(
+                        doc_id="program_family_facts:innovation-class-membership",
+                        revision_track="source-faithful",
+                        version_id="v1:program-family-facts",
+                        chunk_id="program-family-facts:innovation-class-membership",
+                        anchor={"fact_type": "family_membership"},
+                        canonical_url="https://campus.example/curriculum/program-family/innovation-class",
+                        latest_url="https://campus.example/curriculum/program-family/innovation-class",
+                        source_channel="pdf_ocr",
+                        collection="program_family_facts",
+                        is_current=False,
+                        snippet=(
+                            "按当前已采集的培养方案，名称里带“创新班”或“创新实验班”的有经济学拔尖人才创新班、"
+                            "理工科交叉创新人才培养实验班、光电科学与工程创新实验班。"
+                        ),
+                        score=0.95,
+                        source_title="中央民族大学创新班相关培养方案一览",
+                        structural_path=("创新班相关培养方案",),
+                        detail_label="成员培养方案",
+                        content_kind="program_family_fact",
+                        content_role="family_membership",
+                        is_answer_bearing=True,
+                    ),
+                ),
             )
 
         response = delegate_to_rag_agent(
@@ -1169,10 +1412,128 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             retriever=fake_retriever,
         )
 
-        self.assertEqual(response.status, "needs_clarification")
-        self.assertFalse(retriever_called)
-        self.assertIn("创新班", response.follow_up_question)
-        self.assertIn("创新实验班", response.follow_up_question)
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(retriever_call["collection"], "program_family_facts")
+        self.assertEqual(
+            retriever_call["canonical_program_family_ids"],
+            ("program_family:muc.innovation_class_generic",),
+        )
+        self.assertIn("当前已采集", response.answer_text)
+        self.assertIn("经济学拔尖人才创新班", response.answer_text)
+        self.assertIn("光电科学与工程创新实验班", response.answer_text)
+
+    def test_program_family_strong_base_returns_membership_answer(self) -> None:
+        retriever_call: dict[str, object] = {}
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
+            return EvidenceBundle(
+                query_text=query_text,
+                corpus="curriculum",
+                collection="program_family_facts",
+                sources=(
+                    EvidenceSource(
+                        doc_id="program_family_facts:strong-base-membership",
+                        revision_track="source-faithful",
+                        version_id="v1:program-family-facts",
+                        chunk_id="program-family-facts:strong-base-membership",
+                        anchor={"fact_type": "family_membership"},
+                        canonical_url="https://campus.example/curriculum/program-family/strong-base",
+                        latest_url="https://campus.example/curriculum/program-family/strong-base",
+                        source_channel="pdf_ocr",
+                        collection="program_family_facts",
+                        is_current=False,
+                        snippet="按当前已采集的培养方案，强基计划有历史学、哲学、中国少数民族语言文学（古文字学方向）。",
+                        score=0.95,
+                        source_title="中央民族大学强基计划项目一览",
+                        structural_path=("强基计划",),
+                        detail_label="成员培养方案",
+                        content_kind="program_family_fact",
+                        content_role="family_membership",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="强基有哪些专业",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(retriever_call["collection"], "program_family_facts")
+        self.assertEqual(
+            retriever_call["canonical_program_family_ids"],
+            ("program_family:muc.strong_base_plan",),
+        )
+        self.assertIn("当前已采集", response.answer_text)
+        self.assertIn("历史学", response.answer_text)
+        self.assertIn("中国少数民族语言文学", response.answer_text)
+
+    def test_program_family_second_degree_returns_membership_answer(self) -> None:
+        retriever_call: dict[str, object] = {}
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
+            return EvidenceBundle(
+                query_text=query_text,
+                corpus="curriculum",
+                collection="program_family_facts",
+                sources=(
+                    EvidenceSource(
+                        doc_id="program_family_facts:second-degree-membership",
+                        revision_track="source-faithful",
+                        version_id="v1:program-family-facts",
+                        chunk_id="program-family-facts:second-degree-membership",
+                        anchor={"fact_type": "family_membership"},
+                        canonical_url="https://campus.example/curriculum/program-family/second-degree",
+                        latest_url="https://campus.example/curriculum/program-family/second-degree",
+                        source_channel="pdf_ocr",
+                        collection="program_family_facts",
+                        is_current=False,
+                        snippet=(
+                            "按当前已采集的培养方案，第二学士学位项目有民族学、社会学、文物与博物馆学、"
+                            "金融学、会计学、法学、环境工程、数据科学与大数据技术、教育学。"
+                        ),
+                        score=0.95,
+                        source_title="中央民族大学第二学士学位项目一览",
+                        structural_path=("第二学士学位",),
+                        detail_label="成员培养方案",
+                        content_kind="program_family_fact",
+                        content_role="family_membership",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="二学位有哪些专业",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(retriever_call["collection"], "program_family_facts")
+        self.assertEqual(
+            retriever_call["canonical_program_family_ids"],
+            ("program_family:muc.second_bachelor_degree",),
+        )
+        self.assertIn("当前已采集", response.answer_text)
+        self.assertIn("民族学", response.answer_text)
+        self.assertIn("教育学", response.answer_text)
 
     def test_low_support_evidence_maps_to_no_answer_instead_of_completed(self) -> None:
         evidence = _make_evidence(
@@ -1209,8 +1570,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             user_goal="What are the library hours?",
             actor=ActorContext(
                 user_id="student-001",
-                groups=("students",),
-                campus_scope="north",
             ),
             payload=RagRequestPayload(
                 scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -1230,16 +1589,14 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             AuthorizedRetrievalFilter(
                 entitlement_groups=(),
                 visibility_level="public",
-                acl_groups=(),
                 visibility_scope=None,
-                campus_scope=None,
                 policy_projection_version="phase1-authorization-projection-v1",
             ),
         )
         self.assertEqual(
             captured_kwargs["personalization_hint"],
             PersonalizationHint(
-                actor_claim_terms=("north campus",),
+                actor_claim_terms=(),
                 recent_goal="",
                 confirmed_slot_terms=(),
             ),
@@ -1271,8 +1628,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     actor=ActorContext(
                         user_id="student-001",
                         principal_id="principal-001",
-                        groups=("legacy-group",),
-                        campus_scope="legacy-campus",
                     ),
                     authorization=AuthorizationProjection(
                         principal_id="principal-001",
@@ -1282,9 +1637,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                         retrieval_filter=AuthorizedRetrievalFilter(
                             entitlement_groups=("students",),
                             visibility_level="public",
-                            acl_groups=("students",),
                             visibility_scope="north",
-                            campus_scope="north",
                             policy_projection_version="phase1-authorization-projection-v1",
                         ),
                     ),
@@ -1302,9 +1655,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             AuthorizedRetrievalFilter(
                 entitlement_groups=("students",),
                 visibility_level="public",
-                acl_groups=("students",),
                 visibility_scope="north",
-                campus_scope="north",
                 policy_projection_version="phase1-authorization-projection-v1",
             ),
         )
@@ -1356,7 +1707,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:student-card",
                     chunk_id="student-card-procedure",
                     anchor={"section_path": ["第三章 学籍管理"], "article_label": "第十二条"},
-                    acl_level="public",
                     canonical_url="https://campus.example/handbook/student-card",
                     latest_url="https://campus.example/handbook/student-card",
                     source_channel="pdf_ocr",
@@ -1377,7 +1727,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:student-card",
                     chunk_id="student-card-closing",
                     anchor={"section_path": ["附则"], "provision_label": "附则"},
-                    acl_level="public",
                     canonical_url="https://campus.example/handbook/student-card",
                     latest_url="https://campus.example/handbook/student-card",
                     source_channel="pdf_ocr",
@@ -1397,7 +1746,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:medical",
                     chunk_id="medical-background",
                     anchor={"section_path": ["公费医疗"]},
-                    acl_level="public",
                     canonical_url="https://campus.example/handbook/medical",
                     latest_url="https://campus.example/handbook/medical",
                     source_channel="pdf_ocr",
@@ -1447,7 +1795,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:f9c1621665f50ffbf0c02cf79cb5452bfd938d2e",
                     chunk_id="chunk-0002",
                     anchor={"page_start": 163, "page_end": 164, "section_path": ("二、学生证是",)},
-                    acl_level="public",
                     canonical_url="https://campus.example/handbook/student-card",
                     latest_url="https://campus.example/handbook/student-card",
                     source_channel="pdf_ocr",
@@ -1475,7 +1822,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:f9c1621665f50ffbf0c02cf79cb5452bfd938d2e",
                     chunk_id="chunk-0001",
                     anchor={"page_start": 163, "page_end": 164, "section_path": ("二、学生证是",)},
-                    acl_level="public",
                     canonical_url="https://campus.example/handbook/student-card",
                     latest_url="https://campus.example/handbook/student-card",
                     source_channel="pdf_ocr",
@@ -1503,7 +1849,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:f9c1621665f50ffbf0c02cf79cb5452bfd938d2e",
                     chunk_id="chunk-0003",
                     anchor={"page_start": 164, "page_end": 164},
-                    acl_level="public",
                     canonical_url="https://campus.example/handbook/student-card",
                     latest_url="https://campus.example/handbook/student-card",
                     source_channel="pdf_ocr",
@@ -1558,7 +1903,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:04053b0f1ea9d0d4cbfeaf5e5381c16b67b1164f",
                     chunk_id="chunk-0001",
                     anchor={"page_start": 256, "page_end": 256, "section_path": ("一、时间安排",)},
-                    acl_level="public",
                     canonical_url="https://campus.example/handbook/dormitory-lighting",
                     latest_url="https://campus.example/handbook/dormitory-lighting",
                     source_channel="pdf_ocr",
@@ -1588,7 +1932,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:04053b0f1ea9d0d4cbfeaf5e5381c16b67b1164f",
                     chunk_id="chunk-0003",
                     anchor={"page_start": 256, "page_end": 256},
-                    acl_level="public",
                     canonical_url="https://campus.example/handbook/dormitory-lighting",
                     latest_url="https://campus.example/handbook/dormitory-lighting",
                     source_channel="pdf_ocr",
@@ -1609,7 +1952,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:04053b0f1ea9d0d4cbfeaf5e5381c16b67b1164f",
                     chunk_id="chunk-0002",
                     anchor={"page_start": 256, "page_end": 256, "section_path": ("二、要求:",)},
-                    acl_level="public",
                     canonical_url="https://campus.example/handbook/dormitory-lighting",
                     latest_url="https://campus.example/handbook/dormitory-lighting",
                     source_channel="pdf_ocr",
@@ -1663,7 +2005,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:04053b0f1ea9d0d4cbfeaf5e5381c16b67b1164f",
                     chunk_id="chunk-0001",
                     anchor={"page_start": 256, "page_end": 256, "section_path": ("一、时间安排",)},
-                    acl_level="public",
                     canonical_url="https://campus.example/handbook/dormitory-lighting",
                     latest_url="https://campus.example/handbook/dormitory-lighting",
                     source_channel="pdf_ocr",
@@ -1711,7 +2052,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:test-curriculum",
                     chunk_id="curriculum:民族学本科人才培养方案:chunk-0001",
                     anchor={"page_start": 65, "page_end": 65},
-                    acl_level="public",
                     canonical_url="https://campus.example/curriculum/ethnology",
                     latest_url="https://campus.example/curriculum/ethnology",
                     source_channel="pdf_ocr",
@@ -1726,7 +2066,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:test-curriculum",
                     chunk_id="curriculum:民族学本科人才培养方案:chunk-0002",
                     anchor={"page_start": 66, "page_end": 66},
-                    acl_level="public",
                     canonical_url="https://campus.example/curriculum/ethnology",
                     latest_url="https://campus.example/curriculum/ethnology",
                     source_channel="pdf_ocr",
@@ -1781,7 +2120,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:law-intro",
                     chunk_id="curriculum:法学本科人才培养方案:chunk-0001",
                     anchor={"page_start": 1, "page_end": 1},
-                    acl_level="public",
                     canonical_url="https://campus.example/curriculum/law",
                     latest_url="https://campus.example/curriculum/law",
                     source_channel="pdf_ocr",
@@ -1796,7 +2134,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:ethnology-intro",
                     chunk_id="curriculum:民族学本科人才培养方案:chunk-0001",
                     anchor={"page_start": 1, "page_end": 1},
-                    acl_level="public",
                     canonical_url="https://campus.example/curriculum/ethnology",
                     latest_url="https://campus.example/curriculum/ethnology",
                     source_channel="pdf_ocr",
@@ -1811,7 +2148,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:chinese-intro",
                     chunk_id="curriculum:汉语言文学本科人才培养方案:chunk-0001",
                     anchor={"page_start": 1, "page_end": 1},
-                    acl_level="public",
                     canonical_url="https://campus.example/curriculum/chinese",
                     latest_url="https://campus.example/curriculum/chinese",
                     source_channel="pdf_ocr",
@@ -1826,7 +2162,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:ethnology-credits",
                     chunk_id="curriculum:民族学本科人才培养方案:chunk-0011",
                     anchor={"page_start": 72, "page_end": 72},
-                    acl_level="public",
                     canonical_url="https://campus.example/curriculum/ethnology",
                     latest_url="https://campus.example/curriculum/ethnology",
                     source_channel="pdf_ocr",
@@ -1866,7 +2201,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:ethnology-intro",
                     chunk_id="curriculum:民族学本科人才培养方案:chunk-0001",
                     anchor={"page_start": 1, "page_end": 1},
-                    acl_level="public",
                     canonical_url="https://campus.example/curriculum/ethnology",
                     latest_url="https://campus.example/curriculum/ethnology",
                     source_channel="pdf_ocr",
@@ -1881,7 +2215,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:ethnology-second-degree-intro",
                     chunk_id="curriculum:民族学本科第二学士学位人才培养方案:chunk-0001",
                     anchor={"page_start": 1, "page_end": 1},
-                    acl_level="public",
                     canonical_url="https://campus.example/curriculum/ethnology-second-degree",
                     latest_url="https://campus.example/curriculum/ethnology-second-degree",
                     source_channel="pdf_ocr",
@@ -1920,7 +2253,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:education-years",
                     chunk_id="curriculum:教育学本科第二学士学位人才培养方案:chunk-0005",
                     anchor={"page_start": 12, "page_end": 12},
-                    acl_level="public",
                     canonical_url="https://campus.example/curriculum/education-second-degree",
                     latest_url="https://campus.example/curriculum/education-second-degree",
                     source_channel="pdf_ocr",
@@ -1935,7 +2267,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:stats-years",
                     chunk_id="curriculum:应用统计学本科专业第二学位人才培养方案:chunk-0005",
                     anchor={"page_start": 8, "page_end": 8},
-                    acl_level="public",
                     canonical_url="https://campus.example/curriculum/stats-second-degree",
                     latest_url="https://campus.example/curriculum/stats-second-degree",
                     source_channel="pdf_ocr",
@@ -1950,7 +2281,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:ethnology-intro",
                     chunk_id="curriculum:民族学本科第二学士学位人才培养方案:chunk-0001",
                     anchor={"page_start": 1, "page_end": 1},
-                    acl_level="public",
                     canonical_url="https://campus.example/curriculum/ethnology-second-degree",
                     latest_url="https://campus.example/curriculum/ethnology-second-degree",
                     source_channel="pdf_ocr",
@@ -1965,7 +2295,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:ethnology-years",
                     chunk_id="curriculum:民族学本科第二学士学位人才培养方案:chunk-0005",
                     anchor={"page_start": 5, "page_end": 5},
-                    acl_level="public",
                     canonical_url="https://campus.example/curriculum/ethnology-second-degree",
                     latest_url="https://campus.example/curriculum/ethnology-second-degree",
                     source_channel="pdf_ocr",
@@ -2006,7 +2335,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:ethnology-years",
                     chunk_id="curriculum:民族学本科第二学士学位人才培养方案:chunk-0005",
                     anchor={"page_start": 5, "page_end": 5},
-                    acl_level="public",
                     canonical_url="https://campus.example/curriculum/ethnology-second-degree",
                     latest_url="https://campus.example/curriculum/ethnology-second-degree",
                     source_channel="pdf_ocr",
@@ -2021,7 +2349,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:ethnology-intro",
                     chunk_id="curriculum:民族学本科第二学士学位人才培养方案:chunk-0001",
                     anchor={"page_start": 1, "page_end": 1},
-                    acl_level="public",
                     canonical_url="https://campus.example/curriculum/ethnology-second-degree",
                     latest_url="https://campus.example/curriculum/ethnology-second-degree",
                     source_channel="pdf_ocr",
@@ -2036,7 +2363,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:ethnology-degree",
                     chunk_id="curriculum:民族学本科第二学士学位人才培养方案:chunk-0006",
                     anchor={"page_start": 6, "page_end": 6},
-                    acl_level="public",
                     canonical_url="https://campus.example/curriculum/ethnology-second-degree",
                     latest_url="https://campus.example/curriculum/ethnology-second-degree",
                     source_channel="pdf_ocr",
@@ -2075,7 +2401,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:ethnology-credits-table",
                     chunk_id="curriculum:民族学本科人才培养方案:chunk-0007",
                     anchor={"page_start": 7, "page_end": 7},
-                    acl_level="public",
                     canonical_url="https://campus.example/curriculum/ethnology",
                     latest_url="https://campus.example/curriculum/ethnology",
                     source_channel="pdf_ocr",
@@ -2090,7 +2415,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:ethnology-credits",
                     chunk_id="curriculum:民族学本科人才培养方案:chunk-0005",
                     anchor={"page_start": 5, "page_end": 5},
-                    acl_level="public",
                     canonical_url="https://campus.example/curriculum/ethnology",
                     latest_url="https://campus.example/curriculum/ethnology",
                     source_channel="pdf_ocr",
@@ -2105,7 +2429,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     version_id="v1:ethnology-course-settings",
                     chunk_id="curriculum:民族学本科人才培养方案:chunk-0011",
                     anchor={"page_start": 11, "page_end": 11},
-                    acl_level="public",
                     canonical_url="https://campus.example/curriculum/ethnology",
                     latest_url="https://campus.example/curriculum/ethnology",
                     source_channel="pdf_ocr",
@@ -2281,7 +2604,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                         version_id="v1:national-scholarship",
                         chunk_id=f"{target_doc_id}:chunk-0005",
                         anchor={},
-                        acl_level="public",
                         canonical_url="https://campus.example/handbook/national-scholarship",
                         latest_url="https://campus.example/handbook/national-scholarship",
                         source_channel="pdf_ocr",
@@ -2318,6 +2640,55 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertEqual(response.result.evidence.sources, ())
         self.assertEqual(response.result.diagnostics.no_answer_reason, "resolved_policy_clause_not_found")
 
+    def test_restricted_access_denied_for_public_user_does_not_leak_resolved_policy_title(self) -> None:
+        target_title = "中央民族大学本科学生国家奖学金评审办法"
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            raise RestrictedDocumentAccessDeniedError("restricted document access denied")
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+                context=ContextProjection(actor=ActorContext(principal_type="public_user")),
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "no_answer")
+        self.assertNotIn(target_title, response.answer_text)
+        self.assertEqual(response.result.evidence.sources, ())
+        self.assertIsNotNone(response.result.diagnostics)
+        self.assertEqual(response.result.diagnostics.no_answer_reason, "restricted_access_denied")
+        self.assertEqual(response.result.diagnostics.resolved_policy_title, "")
+        self.assertEqual(response.result.diagnostics.retrieved_title_summary, ())
+
+    def test_restricted_access_denied_for_operator_uses_explicit_safe_deny_copy(self) -> None:
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            raise RestrictedDocumentAccessDeniedError("restricted document access denied")
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+                context=ContextProjection(actor=ActorContext(principal_type="operator")),
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "no_answer")
+        self.assertIn("受限内容", response.answer_text)
+        self.assertEqual(response.result.evidence.sources, ())
+        self.assertIsNotNone(response.result.diagnostics)
+        self.assertEqual(response.result.diagnostics.no_answer_reason, "restricted_access_denied")
+        self.assertEqual(response.result.diagnostics.retrieved_title_summary, ())
+
     def test_confidence_derivation_prefers_stronger_and_more_consistent_support(self) -> None:
         self.assertEqual(
             derive_confidence(
@@ -2345,7 +2716,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                             version_id="v1:ethnology-intro",
                             chunk_id="curriculum:民族学本科人才培养方案:chunk-0001",
                             anchor={},
-                            acl_level="public",
                             canonical_url="https://campus.example/curriculum/ethnology",
                             latest_url="https://campus.example/curriculum/ethnology",
                             source_channel="pdf_ocr",

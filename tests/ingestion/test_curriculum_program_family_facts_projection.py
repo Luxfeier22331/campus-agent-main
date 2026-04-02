@@ -62,16 +62,108 @@ class CurriculumProgramFamilyFactsProjectionTest(unittest.TestCase):
                     page_start=51,
                     page_end=60,
                 ),
+                SplitManifestDocument(
+                    document_id="curriculum:孝通实验班本科人才培养方案",
+                    title="孝通实验班本科人才培养方案",
+                    page_start=61,
+                    page_end=70,
+                ),
+                SplitManifestDocument(
+                    document_id="curriculum:理工科交叉创新人才培养实验班本科人才培养方案",
+                    title="理工科交叉创新人才培养实验班本科人才培养方案",
+                    page_start=71,
+                    page_end=80,
+                ),
+                SplitManifestDocument(
+                    document_id="curriculum:光电科学与工程创新实验班本科人才培养方案",
+                    title="光电科学与工程创新实验班本科人才培养方案",
+                    page_start=81,
+                    page_end=90,
+                ),
+                SplitManifestDocument(
+                    document_id="curriculum:经济学拔尖人才创新班人才培养方案",
+                    title="经济学拔尖人才创新班人才培养方案",
+                    page_start=91,
+                    page_end=100,
+                ),
+                SplitManifestDocument(
+                    document_id="curriculum:民族学本科第二学士学位人才培养方案",
+                    title="民族学本科第二学士学位人才培养方案",
+                    page_start=101,
+                    page_end=110,
+                ),
+                SplitManifestDocument(
+                    document_id="curriculum:社会学本科第二学士学位人才培养方案",
+                    title="社会学本科第二学士学位人才培养方案",
+                    page_start=111,
+                    page_end=120,
+                ),
+                SplitManifestDocument(
+                    document_id="curriculum:文物与博物馆学本科第二学士学位人才培养方案",
+                    title="文物与博物馆学本科第二学士学位人才培养方案",
+                    page_start=121,
+                    page_end=130,
+                ),
+                SplitManifestDocument(
+                    document_id="curriculum:金融学本科第二学士学位人才培养方案",
+                    title="金融学本科第二学士学位人才培养方案",
+                    page_start=131,
+                    page_end=140,
+                ),
+                SplitManifestDocument(
+                    document_id="curriculum:会计学本科第二学士学位人才培养方案",
+                    title="会计学本科第二学士学位人才培养方案",
+                    page_start=141,
+                    page_end=150,
+                ),
+                SplitManifestDocument(
+                    document_id="curriculum:法学本科第二学士学位人才培养方案",
+                    title="法学本科第二学士学位人才培养方案",
+                    page_start=151,
+                    page_end=160,
+                ),
+                SplitManifestDocument(
+                    document_id="curriculum:环境工程本科第二学士学位人才培养方案",
+                    title="环境工程本科第二学士学位人才培养方案",
+                    page_start=161,
+                    page_end=170,
+                ),
+                SplitManifestDocument(
+                    document_id="curriculum:数据科学与大数据技术本科第二学士学位人才培养方案",
+                    title="数据科学与大数据技术本科第二学士学位人才培养方案",
+                    page_start=171,
+                    page_end=180,
+                ),
+                SplitManifestDocument(
+                    document_id="curriculum:教育学本科第二学士学位人才培养方案",
+                    title="教育学本科第二学士学位人才培养方案",
+                    page_start=181,
+                    page_end=190,
+                ),
             ),
         )
 
         self.assertEqual(
             [document.collection for document in documents],
-            ["program_family_facts", "program_family_facts"],
+            [
+                "program_family_facts",
+                "program_family_facts",
+                "program_family_facts",
+                "program_family_facts",
+                "program_family_facts",
+                "program_family_facts",
+            ],
         )
         self.assertEqual(
             [document.title for document in documents],
-            ["中央民族大学民族班项目一览", "中央民族大学基地班项目一览"],
+            [
+                "中央民族大学民族班项目一览",
+                "中央民族大学基地班项目一览",
+                "中央民族大学强基计划项目一览",
+                "中央民族大学第二学士学位项目一览",
+                "中央民族大学实验班相关培养方案一览",
+                "中央民族大学创新班相关培养方案一览",
+            ],
         )
 
 

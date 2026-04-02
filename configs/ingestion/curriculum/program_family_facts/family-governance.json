@@ -40,18 +40,94 @@
       "answer_snippet": "民大的基地班有历史学、哲学、中国少数民族语言文学（古文字学方向）。"
     },
     {
+      "canonical_program_family_id": "program_family:muc.strong_base_plan",
+      "canonical_program_family_title": "强基计划",
+      "match_aliases": ["强基计划", "强基"],
+      "mode": "direct_answer_family",
+      "source_title": "中央民族大学强基计划项目一览",
+      "member_program_ids": [
+        "curriculum:历史学（强基计划）本科人才培养方案",
+        "curriculum:哲学（强基计划）本科人才培养方案",
+        "curriculum:中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案"
+      ],
+      "member_program_titles": [
+        "历史学",
+        "哲学",
+        "中国少数民族语言文学（古文字学方向）"
+      ],
+      "answer_snippet": "按当前已采集的培养方案，强基计划有历史学、哲学、中国少数民族语言文学（古文字学方向）。"
+    },
+    {
+      "canonical_program_family_id": "program_family:muc.second_bachelor_degree",
+      "canonical_program_family_title": "第二学士学位",
+      "match_aliases": ["第二学士学位", "第二学位", "二学位"],
+      "mode": "direct_answer_family",
+      "source_title": "中央民族大学第二学士学位项目一览",
+      "member_program_ids": [
+        "curriculum:民族学本科第二学士学位人才培养方案",
+        "curriculum:社会学本科第二学士学位人才培养方案",
+        "curriculum:文物与博物馆学本科第二学士学位人才培养方案",
+        "curriculum:金融学本科第二学士学位人才培养方案",
+        "curriculum:会计学本科第二学士学位人才培养方案",
+        "curriculum:法学本科第二学士学位人才培养方案",
+        "curriculum:环境工程本科第二学士学位人才培养方案",
+        "curriculum:数据科学与大数据技术本科第二学士学位人才培养方案",
+        "curriculum:教育学本科第二学士学位人才培养方案"
+      ],
+      "member_program_titles": [
+        "民族学",
+        "社会学",
+        "文物与博物馆学",
+        "金融学",
+        "会计学",
+        "法学",
+        "环境工程",
+        "数据科学与大数据技术",
+        "教育学"
+      ],
+      "answer_snippet": "按当前已采集的培养方案，第二学士学位项目有民族学、社会学、文物与博物馆学、金融学、会计学、法学、环境工程、数据科学与大数据技术、教育学。"
+    },
+    {
       "canonical_program_family_id": "program_family:muc.experimental_class_generic",
       "canonical_program_family_title": "实验班",
       "match_aliases": ["实验班"],
-      "mode": "clarify_first_family",
-      "clarification_options": ["民族班", "孝通实验班", "名称里带“实验班”的培养方案"]
+      "mode": "direct_answer_family",
+      "source_title": "中央民族大学实验班相关培养方案一览",
+      "member_program_ids": [
+        "curriculum:孝通实验班本科人才培养方案",
+        "curriculum:法学（民族实验班）本科人才培养方案",
+        "curriculum:信息与计算科学（民族实验班）本科人才培养方案",
+        "curriculum:计算机科学与技术（民族实验班）本科人才培养方案",
+        "curriculum:理工科交叉创新人才培养实验班本科人才培养方案",
+        "curriculum:光电科学与工程创新实验班本科人才培养方案"
+      ],
+      "member_program_titles": [
+        "孝通实验班",
+        "法学（民族实验班）",
+        "信息与计算科学（民族实验班）",
+        "计算机科学与技术（民族实验班）",
+        "理工科交叉创新人才培养实验班",
+        "光电科学与工程创新实验班"
+      ],
+      "answer_snippet": "按当前已采集的培养方案，名称里带“实验班”的有孝通实验班、法学（民族实验班）、信息与计算科学（民族实验班）、计算机科学与技术（民族实验班）、理工科交叉创新人才培养实验班、光电科学与工程创新实验班。"
     },
     {
       "canonical_program_family_id": "program_family:muc.innovation_class_generic",
       "canonical_program_family_title": "创新班",
-      "match_aliases": ["创新班"],
-      "mode": "clarify_first_family",
-      "clarification_options": ["创新班", "创新实验班", "名称里带“创新班”的培养方案"]
+      "match_aliases": ["创新实验班", "创新班"],
+      "mode": "direct_answer_family",
+      "source_title": "中央民族大学创新班相关培养方案一览",
+      "member_program_ids": [
+        "curriculum:经济学拔尖人才创新班人才培养方案",
+        "curriculum:理工科交叉创新人才培养实验班本科人才培养方案",
+        "curriculum:光电科学与工程创新实验班本科人才培养方案"
+      ],
+      "member_program_titles": [
+        "经济学拔尖人才创新班",
+        "理工科交叉创新人才培养实验班",
+        "光电科学与工程创新实验班"
+      ],
+      "answer_snippet": "按当前已采集的培养方案，名称里带“创新班”或“创新实验班”的有经济学拔尖人才创新班、理工科交叉创新人才培养实验班、光电科学与工程创新实验班。"
     }
   ]
 }

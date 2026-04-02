@@ -221,7 +221,7 @@ def _serialize_projection_row(
 def _resolved_entitlement_groups(documents: Sequence[SplitManifestDocument]) -> tuple[str, ...]:
     groups: list[str] = []
     for document in documents:
-        for group in document.resolved_entitlement_groups():
+        for group in document.entitlement_groups:
             if group not in groups:
                 groups.append(group)
     return tuple(groups)
@@ -229,7 +229,7 @@ def _resolved_entitlement_groups(documents: Sequence[SplitManifestDocument]) -> 
 
 def _resolved_visibility_scope(documents: Sequence[SplitManifestDocument]) -> str | None:
     for document in documents:
-        scope = document.resolved_visibility_scope()
+        scope = document.visibility_scope
         if scope is not None:
             return scope
     return None
@@ -237,7 +237,7 @@ def _resolved_visibility_scope(documents: Sequence[SplitManifestDocument]) -> st
 
 def _resolved_visibility_level(documents: Sequence[SplitManifestDocument]) -> str:
     for document in documents:
-        level = document.resolved_visibility_level()
+        level = document.visibility_level
         if level:
             return level
     return "public"

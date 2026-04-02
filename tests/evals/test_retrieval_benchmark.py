@@ -101,7 +101,6 @@ def _source(
         version_id=version_id,
         chunk_id=chunk_id,
         anchor={"page": 1},
-        acl_level="public",
         canonical_url=f"https://example.edu/{doc_id}",
         latest_url=f"https://example.edu/{doc_id}",
         source_channel="pdf_ocr",
@@ -219,19 +218,19 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertTrue(referenced_doc_ids)
         self.assertTrue(referenced_doc_ids.issubset(manifest_doc_ids))
 
-    def test_qrels_fixture_does_not_require_acl_or_campus_cases_without_source_truth(self) -> None:
+    def test_qrels_fixture_does_not_require_restricted_scope_cases_without_source_truth(self) -> None:
         dataset = load_retrieval_qrels_dataset(FIXTURE_PATH)
         manifest = json.loads(HANDBOOK_MANIFEST_PATH.read_text(encoding="utf-8"))
-        manifest_has_acl = any(item.get("acl_groups") for item in manifest["documents"])
-        manifest_has_campus_scope = any(item.get("campus_scope") for item in manifest["documents"])
+        manifest_has_entitlement_projection = any(item.get("entitlement_groups") for item in manifest["documents"])
+        manifest_has_visibility_scope = any(item.get("visibility_scope") for item in manifest["documents"])
 
-        if manifest_has_acl or manifest_has_campus_scope:
-            self.skipTest("student_handbook manifest now carries ACL or campus-scoped source truth")
+        if manifest_has_entitlement_projection or manifest_has_visibility_scope:
+            self.skipTest("student_handbook manifest now carries restricted source truth")
 
         overridden_case_ids = {
             case.case_id
             for case in dataset.cases
-            if case.request_overrides.get("acl_groups") or case.request_overrides.get("campus_scope")
+            if case.request_overrides.get("entitlement_groups") or case.request_overrides.get("visibility_scope")
         }
 
         self.assertEqual(overridden_case_ids, set())
@@ -283,6 +282,7 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertTrue(
             {
                 "minority-language-strong-base-title",
+                "minority-language-strong-base-fixed-phrase",
                 "semantic-minority-language-strong-base-paraphrase",
                 "hanyu-international-students-title",
                 "hanyu-international-students-total-credits",
@@ -355,6 +355,16 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
                 "law-ethnic-class-fourth-semester-courses",
             }.issubset(case_ids)
         )
+
+    def test_curriculum_qrels_fixture_contains_uniquely_grounded_sparse_fixed_phrase_case(self) -> None:
+        dataset = load_retrieval_qrels_dataset(CURRICULUM_QRELS_FIXTURE_PATH)
+        cases = {case.case_id: case for case in dataset.cases}
+
+        case = cases["minority-language-strong-base-fixed-phrase"]
+        self.assertEqual(case.query, "古文字学方向强基计划")
+        self.assertEqual(case.split, "smoke")
+        self.assertEqual(case.expected_sources[0].doc_id, "curriculum:中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案")
+        self.assertEqual(case.forbidden_sources[0].doc_id, "curriculum:中国少数民族语言文学本科人才培养方案")
 
     def test_curriculum_qrels_fixture_validation_has_no_issues(self) -> None:
         issues = validate_retrieval_qrels_fixture(
@@ -444,6 +454,250 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertIn("course-family-alias-collapsed", issues[0])
         self.assertIn("canonical qrels must not lock this", issues[0])
 
+    def test_validate_retrieval_qrels_fixture_flags_program_family_membership_alias_truth(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            qrels_path = Path(temp_dir) / "program-family-qrels.json"
+            qrels_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "baseline": {},
+                        "cases": [
+                            {
+                                "case_id": "program-family-membership-collapsed",
+                                "split": "smoke",
+                                "query": "基地班有哪些",
+                                "expected_sources": [
+                                    {
+                                        "doc_id": "curriculum:历史学（强基计划）本科人才培养方案",
+                                        "grade": 2,
+                                    }
+                                ],
+                                "notes": "program-family membership must not collapse to a single curriculum doc qrels truth",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            issues = validate_retrieval_qrels_fixture(
+                qrels_path,
+                manifest_path=CURRICULUM_MANIFEST_PATH,
+                ambiguity_severity="error",
+            )
+
+        self.assertEqual(len(issues), 1)
+        self.assertIn("program-family-membership-collapsed", issues[0])
+        self.assertIn("family-aware completed case", issues[0])
+
+    def test_validate_retrieval_qrels_fixture_flags_generic_experimental_membership_alias_truth(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            qrels_path = Path(temp_dir) / "program-family-experimental-qrels.json"
+            qrels_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "baseline": {},
+                        "cases": [
+                            {
+                                "case_id": "program-family-experimental-collapsed",
+                                "split": "smoke",
+                                "query": "实验班有哪些",
+                                "expected_sources": [
+                                    {
+                                        "doc_id": "curriculum:孝通实验班本科人才培养方案",
+                                        "grade": 2,
+                                    }
+                                ],
+                                "notes": "generic experimental-class membership must not collapse to a single curriculum doc qrels truth",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            issues = validate_retrieval_qrels_fixture(
+                qrels_path,
+                manifest_path=CURRICULUM_MANIFEST_PATH,
+                ambiguity_severity="error",
+            )
+
+        self.assertEqual(len(issues), 1)
+        self.assertIn("program-family-experimental-collapsed", issues[0])
+        self.assertIn("family-aware completed case", issues[0])
+
+    def test_validate_retrieval_qrels_fixture_flags_strong_base_membership_alias_truth(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            qrels_path = Path(temp_dir) / "program-family-strong-base-qrels.json"
+            qrels_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "baseline": {},
+                        "cases": [
+                            {
+                                "case_id": "program-family-strong-base-collapsed",
+                                "split": "smoke",
+                                "query": "强基有哪些专业",
+                                "expected_sources": [
+                                    {
+                                        "doc_id": "curriculum:历史学（强基计划）本科人才培养方案",
+                                        "grade": 2,
+                                    }
+                                ],
+                                "notes": "strong-base membership must not collapse to a single curriculum doc qrels truth",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            issues = validate_retrieval_qrels_fixture(
+                qrels_path,
+                manifest_path=CURRICULUM_MANIFEST_PATH,
+                ambiguity_severity="error",
+            )
+
+        self.assertEqual(len(issues), 1)
+        self.assertIn("program-family-strong-base-collapsed", issues[0])
+        self.assertIn("family-aware completed case", issues[0])
+
+    def test_validate_retrieval_qrels_fixture_flags_second_degree_membership_alias_truth(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            qrels_path = Path(temp_dir) / "program-family-second-degree-qrels.json"
+            qrels_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "baseline": {},
+                        "cases": [
+                            {
+                                "case_id": "program-family-second-degree-collapsed",
+                                "split": "smoke",
+                                "query": "二学位有哪些专业",
+                                "expected_sources": [
+                                    {
+                                        "doc_id": "curriculum:民族学本科第二学士学位人才培养方案",
+                                        "grade": 2,
+                                    }
+                                ],
+                                "notes": "second-degree membership must not collapse to a single curriculum doc qrels truth",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            issues = validate_retrieval_qrels_fixture(
+                qrels_path,
+                manifest_path=CURRICULUM_MANIFEST_PATH,
+                ambiguity_severity="error",
+            )
+
+        self.assertEqual(len(issues), 1)
+        self.assertIn("program-family-second-degree-collapsed", issues[0])
+        self.assertIn("family-aware completed case", issues[0])
+
+    def test_validate_retrieval_qrels_fixture_flags_innovation_experimental_alias_truth(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            qrels_path = Path(temp_dir) / "program-family-innovation-qrels.json"
+            qrels_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "baseline": {},
+                        "cases": [
+                            {
+                                "case_id": "program-family-innovation-collapsed",
+                                "split": "smoke",
+                                "query": "创新实验班有哪些",
+                                "expected_sources": [
+                                    {
+                                        "doc_id": "curriculum:光电科学与工程创新实验班本科人才培养方案",
+                                        "grade": 2,
+                                    }
+                                ],
+                                "notes": "innovation-class membership must not collapse to a single curriculum doc qrels truth",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            issues = validate_retrieval_qrels_fixture(
+                qrels_path,
+                manifest_path=CURRICULUM_MANIFEST_PATH,
+                ambiguity_severity="error",
+            )
+
+        self.assertEqual(len(issues), 1)
+        self.assertIn("program-family-innovation-collapsed", issues[0])
+        self.assertIn("family-aware completed case", issues[0])
+
+    def test_validate_retrieval_qrels_fixture_flags_soft_personalization_only_single_doc_truth(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            qrels_path = Path(temp_dir) / "soft-personalization-qrels.json"
+            qrels_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "baseline": {},
+                        "cases": [
+                            {
+                                "case_id": "soft-personalization-collapsed",
+                                "split": "smoke",
+                                "query": "基地班",
+                                "request_overrides": {
+                                    "recent_goal": "我刚刚在看历史学强基计划培养方案",
+                                    "confirmed_slot_terms": ["历史学"],
+                                },
+                                "expected_sources": [
+                                    {
+                                        "doc_id": "curriculum:历史学（强基计划）本科人才培养方案",
+                                        "grade": 2,
+                                    }
+                                ],
+                                "notes": "soft personalization alone must not justify canonical single-doc curriculum truth",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            issues = validate_retrieval_qrels_fixture(
+                qrels_path,
+                manifest_path=CURRICULUM_MANIFEST_PATH,
+                ambiguity_severity="error",
+            )
+
+        self.assertEqual(len(issues), 1)
+        self.assertIn("soft-personalization-collapsed", issues[0])
+        self.assertIn("soft personalization alone", issues[0])
+
 
 class StudentHandbookHybridFixtureTest(unittest.TestCase):
     def test_load_hybrid_fixture_reads_phase1_baseline(self) -> None:
@@ -462,6 +716,63 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
         self.assertEqual(dataset.baseline["sparse_model"], "qdrant/bm25")
         self.assertEqual(dataset.baseline["fusion"], "rrf")
         self.assertEqual(len(dataset.cases), 7)
+
+    def test_load_hybrid_fixture_rejects_legacy_category_aliases(self) -> None:
+        load_fixture = getattr(campus_evals, "load_retrieval_hybrid_query_dataset")
+
+        with TemporaryDirectory() as temp_dir:
+            fixture_path = Path(temp_dir) / "hybrid.json"
+            fixture_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "corpus": "regulations",
+                        "collection": "student_handbook",
+                        "baseline": {"dense_model": "Qwen3-Embedding-4B"},
+                        "cases": [
+                            {
+                                "case_id": "legacy-category",
+                                "category": "acl_filter",
+                                "query": "办公室值班时间",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "unsupported hybrid query category"):
+                load_fixture(fixture_path)
+
+    def test_load_hybrid_fixture_rejects_legacy_scope_keys(self) -> None:
+        load_fixture = getattr(campus_evals, "load_retrieval_hybrid_query_dataset")
+
+        with TemporaryDirectory() as temp_dir:
+            fixture_path = Path(temp_dir) / "hybrid.json"
+            fixture_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "corpus": "regulations",
+                        "collection": "student_handbook",
+                        "baseline": {"dense_model": "Qwen3-Embedding-4B"},
+                        "cases": [
+                            {
+                                "case_id": "legacy-scope",
+                                "category": "restricted_entitlement_filter",
+                                "query": "办公室值班时间",
+                                "scope": {"acl_groups": ["students"]},
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "legacy hybrid fixture scope keys are not allowed"):
+                load_fixture(fixture_path)
 
     def test_hybrid_fixture_stays_within_current_handbook_boundary(self) -> None:
         fixture = json.loads(HYBRID_FIXTURE_PATH.read_text(encoding="utf-8"))
@@ -492,19 +803,19 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
             },
         )
 
-    def test_hybrid_fixture_does_not_require_acl_or_campus_scope_when_manifest_has_none(self) -> None:
+    def test_hybrid_fixture_does_not_require_restricted_scope_when_manifest_has_none(self) -> None:
         fixture = json.loads(HYBRID_FIXTURE_PATH.read_text(encoding="utf-8"))
         manifest = json.loads(HANDBOOK_MANIFEST_PATH.read_text(encoding="utf-8"))
-        manifest_has_acl = any(item.get("acl_groups") for item in manifest["documents"])
-        manifest_has_campus_scope = any(item.get("campus_scope") for item in manifest["documents"])
+        manifest_has_entitlement_projection = any(item.get("entitlement_groups") for item in manifest["documents"])
+        manifest_has_visibility_scope = any(item.get("visibility_scope") for item in manifest["documents"])
 
-        if manifest_has_acl or manifest_has_campus_scope:
-            self.skipTest("student_handbook manifest now carries ACL or campus-scoped source truth")
+        if manifest_has_entitlement_projection or manifest_has_visibility_scope:
+            self.skipTest("student_handbook manifest now carries restricted source truth")
 
         scoped_case_ids = {
             case["case_id"]
             for case in fixture["cases"]
-            if (case.get("scope") or {}).get("acl_groups") or (case.get("scope") or {}).get("campus_scope")
+            if (case.get("scope") or {}).get("entitlement_groups") or (case.get("scope") or {}).get("visibility_scope")
         }
         self.assertEqual(scoped_case_ids, set())
 
@@ -533,7 +844,7 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
             ["国家奖学金", "第一作者", "第二作者"],
         )
 
-    def test_validate_hybrid_fixture_rejects_acl_campus_and_titleless_fixed_phrase_drift(self) -> None:
+    def test_validate_hybrid_fixture_rejects_restricted_scope_and_titleless_fixed_phrase_drift(self) -> None:
         self.assertTrue(hasattr(campus_evals, "validate_retrieval_hybrid_query_fixture"))
         validate_fixture = getattr(campus_evals, "validate_retrieval_hybrid_query_fixture")
 
@@ -549,17 +860,17 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
                         "baseline": {"dense_model": "Qwen3-Embedding-4B"},
                         "cases": [
                             {
-                                "case_id": "acl-case",
-                                "category": "acl_filter",
+                                "case_id": "restricted-entitlement-case",
+                                "category": "restricted_entitlement_filter",
                                 "query": "办公室值班时间",
-                                "scope": {"acl_groups": ["students"]},
+                                "scope": {"entitlement_groups": ["students"]},
                                 "expected_keywords": [],
                             },
                             {
-                                "case_id": "campus-case",
-                                "category": "campus_scope_filter",
+                                "case_id": "restricted-visibility-case",
+                                "category": "restricted_visibility_scope_filter",
                                 "query": "南沙校区 图书馆 开放",
-                                "scope": {"campus_scope": "nansha"},
+                                "scope": {"visibility_scope": "nansha"},
                                 "expected_keywords": ["南沙"],
                             },
                             {
@@ -592,8 +903,8 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
         self.assertEqual(
             errors,
             (
-                "case acl-case requires ACL scope, but the manifest has no ACL-bearing regulations/student_handbook documents",
-                "case campus-case requires campus_scope, but the manifest has no campus-scoped regulations/student_handbook documents",
+                "case restricted-entitlement-case requires entitlement scope, but the manifest has no entitlement-projected regulations/student_handbook documents",
+                "case restricted-visibility-case requires visibility_scope, but the manifest has no visibility-scoped regulations/student_handbook documents",
                 "case fixed-case category fixed_phrase_sparse_win is not grounded in any current regulations/student_handbook title keyword",
             ),
         )
@@ -630,6 +941,7 @@ class CurriculumHybridFixtureTest(unittest.TestCase):
                 "ethnology-plan-title",
                 "academic-years-short-fact",
                 "course-map-table-hit",
+                "minority-language-strong-base-fixed-phrase",
                 "law-ethnic-class-fourth-semester-courses",
                 "cross-major-disambiguation",
                 "generic-base-class-needs-clarification",
@@ -639,6 +951,7 @@ class CurriculumHybridFixtureTest(unittest.TestCase):
         self.assertTrue(
             {
                 "policy_title_exact_match",
+                "fixed_phrase_sparse_win",
                 "short_fact_section",
                 "table_retrieval",
                 "needs_clarification",

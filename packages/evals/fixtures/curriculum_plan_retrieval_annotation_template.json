@@ -48,6 +48,13 @@
       "notes": "中国少数民族语言文学强基计划与普通方案区分。"
     },
     {
+      "case_id": "minority-language-strong-base-fixed-phrase",
+      "query": "古文字学方向强基计划",
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "唯一 grounding 的 sparse fixed-phrase 样本。"
+    },
+    {
       "case_id": "data-science-second-degree-title",
       "query": "数据科学与大数据技术本科第二学士学位人才培养方案",
       "expected_sources": [],

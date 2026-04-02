@@ -739,7 +739,9 @@ def _build_rag_result_diagnostics(
     if curriculum_program_family_plan is not None:
         return RagResultDiagnostics(
             no_answer_reason=no_answer_reason,
+            clarification_reason=curriculum_program_family_plan.clarification_reason,
             retrieved_title_summary=_summarize_retrieved_titles(evidence),
+            candidate_title_summary=curriculum_program_family_plan.clarification_candidates,
             resolution_mode=curriculum_program_family_plan.resolution_mode,
             resolved_entity_type="program_family",
             resolved_program_family_id=curriculum_program_family_plan.canonical_program_family_id,
@@ -786,7 +788,21 @@ def _build_rag_result_diagnostics(
         clarification_reason=curriculum_plan.clarification_reason,
         no_answer_reason=no_answer_reason,
         retrieved_title_summary=_summarize_retrieved_titles(evidence),
+        candidate_title_summary=curriculum_plan.candidate_title_summary,
+        resolution_mode=_curriculum_resolution_mode(curriculum_plan),
+        used_verified_identity=curriculum_plan.used_verified_identity,
+        used_soft_preference=curriculum_plan.used_soft_preference,
     )
+
+
+def _curriculum_resolution_mode(plan: CurriculumQueryPlan) -> str:
+    if plan.status == "resolved":
+        return "resolved_single"
+    if plan.status == "soft_preference":
+        return "soft_preference"
+    if plan.status == "needs_clarification":
+        return "needs_clarification"
+    return ""
 
 
 def _build_curriculum_course_answer(

@@ -92,6 +92,26 @@
       "notes": "相邻同专业不同培养路径的高风险区分样本。"
     },
     {
+      "case_id": "minority-language-strong-base-fixed-phrase",
+      "split": "smoke",
+      "query": "古文字学方向强基计划",
+      "expected_sources": [
+        {
+          "doc_id": "curriculum:中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
+          "grade": 2,
+          "rationale": "固定短语应唯一收敛到古文字学方向强基计划方案。"
+        }
+      ],
+      "forbidden_sources": [
+        {
+          "doc_id": "curriculum:中国少数民族语言文学本科人才培养方案",
+          "grade": 1,
+          "rationale": "普通中国少数民族语言文学方案不应压过古文字学方向强基版本。"
+        }
+      ],
+      "notes": "uniquely grounded sparse fixed-phrase 样本。"
+    },
+    {
       "case_id": "data-science-second-degree-title",
       "split": "smoke",
       "query": "数据科学与大数据技术本科第二学士学位人才培养方案",

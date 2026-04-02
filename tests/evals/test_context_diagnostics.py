@@ -26,7 +26,6 @@ def _source(
         version_id="v1",
         chunk_id=chunk_id,
         anchor={"page": 1},
-        acl_level="public",
         canonical_url=f"https://example.edu/{doc_id}",
         latest_url=f"https://example.edu/{doc_id}",
         source_channel="pdf_ocr",

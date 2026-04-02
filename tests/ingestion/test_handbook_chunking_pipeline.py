@@ -23,8 +23,6 @@ def _registry_record() -> DocumentRegistryRecord:
         cleaning_policy_version="student_handbook_cleaning_v1",
         entitlement_groups=("students",),
         visibility_scope="main",
-        acl_groups=("students",),
-        campus_scope="main",
         status="active",
         ingestion_timestamp="2026-03-23T12:00:00+00:00",
         parser_version="paddleocr-vl-1.5",

@@ -30,6 +30,7 @@ _PROCEDURE_LEAD_ACTION_HINTS = ("挂失", "申请", "办理", "提交", "填写"
 _PROCEDURE_SIDE_NOTE_HINTS = ("优惠卡", "检测", "充值", "销毁", "转借", "处分", "负责解释", "不良后果")
 _NON_PROCEDURE_STRUCTURED_GOAL_HINTS = ("课程地图",)
 _NON_PROCEDURE_REQUIREMENT_GOAL_HINTS = ("怎么要求", "如何要求", "怎么规定", "如何规定")
+_CURRICULUM_INTERNAL_COLLECTIONS = ("course_facts", "program_family_facts")
 
 
 def evaluate_case(case: GoldenCase, execution: ExecutionResult) -> CaseResult:
@@ -82,7 +83,7 @@ def _grade_retrieval(case: GoldenCase, response: SpecialistResponse | Supervisor
         if not _response_targets_rag(response):
             return DimensionResult(True, "retrieval not applicable")
         return DimensionResult(False, "response missing rag evidence payload")
-    if evidence.corpus != case.scope.corpus or evidence.collection != case.scope.collection:
+    if not _evidence_scope_matches_case(case, evidence.corpus, evidence.collection):
         return DimensionResult(
             False,
             f"evidence.scope={evidence.corpus}/{evidence.collection}",
@@ -110,6 +111,16 @@ def _grade_retrieval(case: GoldenCase, response: SpecialistResponse | Supervisor
             if not source.doc_id or not source.version_id or not source.chunk_id:
                 return DimensionResult(False, "source locator is incomplete")
     return DimensionResult(True, "ok")
+
+
+def _evidence_scope_matches_case(case: GoldenCase, corpus: str, collection: str) -> bool:
+    if corpus != case.scope.corpus:
+        return False
+    if collection == case.scope.collection:
+        return True
+    if case.scope.corpus == "curriculum" and case.scope.collection == "curriculum_plan":
+        return collection in _CURRICULUM_INTERNAL_COLLECTIONS
+    return False
 
 
 def _grade_answer(case: GoldenCase, response: SpecialistResponse | SupervisorResponse) -> DimensionResult:

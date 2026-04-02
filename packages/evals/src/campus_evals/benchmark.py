@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from functools import lru_cache
 import json
 from pathlib import Path
 import re
@@ -19,8 +20,8 @@ HybridQueryCategory = Literal[
     "short_fact_section",
     "table_retrieval",
     "needs_clarification",
-    "acl_filter",
-    "campus_scope_filter",
+    "restricted_entitlement_filter",
+    "restricted_visibility_scope_filter",
     "no_hit",
 ]
 ALLOWED_HYBRID_QUERY_CATEGORIES = (
@@ -32,13 +33,14 @@ ALLOWED_HYBRID_QUERY_CATEGORIES = (
     "short_fact_section",
     "table_retrieval",
     "needs_clarification",
-    "acl_filter",
-    "campus_scope_filter",
+    "restricted_entitlement_filter",
+    "restricted_visibility_scope_filter",
     "no_hit",
 )
 FixtureValidationSeverity = Literal["warn", "error"]
 _QRELS_QUERY_ASK_CUES = frozenset({"多少", "几年", "怎么", "如何", "安排", "什么", "哪些"})
 _QRELS_WHITESPACE_RE = re.compile(r"\s+")
+_PROGRAM_FAMILY_MEMBERSHIP_CUES = ("有哪些", "有哪几个", "都有哪些", "包括哪些")
 
 
 @dataclass(frozen=True, slots=True)
@@ -179,19 +181,33 @@ def validate_retrieval_hybrid_query_fixture(
     manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
     documents = tuple(manifest.get("documents") or ())
     titles = tuple(_optional_string(item.get("title")) or "" for item in documents)
-    manifest_has_acl = any(bool(item.get("acl_groups")) for item in documents)
-    manifest_has_campus_scope = any(bool(item.get("campus_scope")) for item in documents)
+    manifest_has_entitlement_projection = any(
+        bool(item.get("entitlement_groups"))
+        for item in documents
+    )
+    manifest_has_visibility_scope = any(
+        item.get("visibility_scope") is not None
+        for item in documents
+    )
 
     errors: list[str] = []
     scope_label = f"{dataset.scope.corpus}/{dataset.scope.collection}"
     for case in dataset.cases:
-        if (case.category == "acl_filter" or case.scope.get("acl_groups")) and not manifest_has_acl:
+        if (
+            case.category == "restricted_entitlement_filter"
+            or case.scope.get("entitlement_groups")
+        ) and not manifest_has_entitlement_projection:
             errors.append(
-                f"case {case.case_id} requires ACL scope, but the manifest has no ACL-bearing {scope_label} documents"
+                f"case {case.case_id} requires entitlement scope, but the manifest has no "
+                f"entitlement-projected {scope_label} documents"
             )
-        if (case.category == "campus_scope_filter" or case.scope.get("campus_scope")) and not manifest_has_campus_scope:
+        if (
+            case.category == "restricted_visibility_scope_filter"
+            or case.scope.get("visibility_scope")
+        ) and not manifest_has_visibility_scope:
             errors.append(
-                f"case {case.case_id} requires campus_scope, but the manifest has no campus-scoped {scope_label} documents"
+                f"case {case.case_id} requires visibility_scope, but the manifest has no "
+                f"visibility-scoped {scope_label} documents"
             )
         if case.category in {"policy_title_exact_match", "fixed_phrase_sparse_win"} and not _case_is_grounded_in_titles(
             case,
@@ -219,6 +235,12 @@ def validate_retrieval_qrels_fixture(
         family_alias_issue = _find_course_family_alias_qrels_issue(case)
         if family_alias_issue is not None:
             issues.append(f"{ambiguity_severity}: {family_alias_issue}")
+        program_family_alias_issue = _find_program_family_alias_qrels_issue(case)
+        if program_family_alias_issue is not None:
+            issues.append(f"{ambiguity_severity}: {program_family_alias_issue}")
+        soft_personalization_issue = _find_soft_personalization_qrels_issue(case)
+        if soft_personalization_issue is not None:
+            issues.append(f"{ambiguity_severity}: {soft_personalization_issue}")
         matched_titles = _find_ambiguous_manifest_title_matches(case.query, documents=documents)
         if len(matched_titles) < 2 or not case.expected_sources:
             continue
@@ -235,7 +257,7 @@ def validate_retrieval_qrels_fixture(
 
 def _find_course_family_alias_qrels_issue(case: RetrievalQrelsCase) -> str | None:
     normalized_query = _fixture_query_key(case.query)
-    if not any(alias in normalized_query for alias in ("思政课", "思修课")):
+    if not any(alias in normalized_query for alias in _load_course_family_aliases()):
         return None
     if not any(cue in case.query for cue in ("哪些专业要上", "包括哪些课", "哪些课", "谁要上")):
         return None
@@ -250,6 +272,131 @@ def _find_course_family_alias_qrels_issue(case: RetrievalQrelsCase) -> str | Non
         f"case {case.case_id} query {case.query!r} uses course-family alias truth; canonical qrels must not lock this "
         "to a single-course or single-doc retrieval truth. Move it to a family-aware completed case or needs_clarification fixture."
     )
+
+
+def _find_program_family_alias_qrels_issue(case: RetrievalQrelsCase) -> str | None:
+    normalized_query = _fixture_query_key(case.query)
+    if not any(cue in normalized_query for cue in _PROGRAM_FAMILY_MEMBERSHIP_CUES):
+        return None
+    if not any(any(alias in normalized_query for alias in aliases) for aliases in _load_program_family_aliases()):
+        return None
+    if not case.expected_sources:
+        return None
+    return (
+        f"case {case.case_id} query {case.query!r} uses program-family alias truth; canonical qrels must not lock this "
+        "to a single program doc truth. Move it to a family-aware completed case or needs_clarification fixture."
+    )
+
+
+def _find_soft_personalization_qrels_issue(case: RetrievalQrelsCase) -> str | None:
+    normalized_query = _fixture_query_key(case.query)
+    if len(case.expected_sources) != 1:
+        return None
+    if not _request_uses_soft_personalization_only(case.request_overrides):
+        return None
+    if not _query_uses_family_alias(normalized_query):
+        return None
+
+    return (
+        f"case {case.case_id} query {case.query!r} uses soft personalization alone; canonical qrels must not let "
+        "recent_goal, confirmed_slot_terms, or profile memory collapse family alias ambiguity into single-doc truth."
+    )
+
+
+def _request_uses_soft_personalization_only(request_overrides: dict[str, object]) -> bool:
+    if not isinstance(request_overrides, dict):
+        return False
+    has_soft_personalization = _mapping_contains_non_empty_key(
+        request_overrides,
+        {"recent_goal", "confirmed_slot_terms", "confirmed_slots", "profile_memory"},
+    )
+    if not has_soft_personalization:
+        return False
+    if _mapping_contains_non_empty_key(request_overrides, {"verified_major"}):
+        return False
+    actor = request_overrides.get("actor")
+    if isinstance(actor, dict):
+        actor_major = actor.get("major")
+        if isinstance(actor_major, str) and actor_major.strip():
+            return False
+    return True
+
+
+def _mapping_contains_non_empty_key(payload: object, keys: set[str]) -> bool:
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            if key in keys and _value_is_non_empty(value):
+                return True
+            if _mapping_contains_non_empty_key(value, keys):
+                return True
+        return False
+    if isinstance(payload, (list, tuple)):
+        return any(_mapping_contains_non_empty_key(item, keys) for item in payload)
+    return False
+
+
+def _value_is_non_empty(value: object) -> bool:
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, dict):
+        return any(_value_is_non_empty(item) for item in value.values())
+    if isinstance(value, (list, tuple, set)):
+        return any(_value_is_non_empty(item) for item in value)
+    return value is not None
+
+
+def _query_uses_family_alias(normalized_query: str) -> bool:
+    if any(alias in normalized_query for alias in _load_course_family_aliases()):
+        return True
+    return any(any(alias in normalized_query for alias in aliases) for aliases in _load_program_family_aliases())
+
+
+@lru_cache(maxsize=1)
+def _load_course_family_aliases() -> tuple[str, ...]:
+    config_path = (
+        Path(__file__).resolve().parents[4]
+        / "configs"
+        / "ingestion"
+        / "curriculum"
+        / "course_facts"
+        / "alias-governance.json"
+    )
+    payload = json.loads(config_path.read_text(encoding="utf-8"))
+    aliases: list[str] = []
+    for item in payload.get("entities", ()):
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("entity_type", "")).strip() != "course_family":
+            continue
+        for alias in item.get("aliases", ()):
+            if isinstance(alias, str) and alias.strip():
+                aliases.append(alias.strip())
+    return tuple(dict.fromkeys(aliases))
+
+
+@lru_cache(maxsize=1)
+def _load_program_family_aliases() -> tuple[tuple[str, ...], ...]:
+    config_path = (
+        Path(__file__).resolve().parents[4]
+        / "configs"
+        / "ingestion"
+        / "curriculum"
+        / "program_family_facts"
+        / "family-governance.json"
+    )
+    payload = json.loads(config_path.read_text(encoding="utf-8"))
+    aliases: list[tuple[str, ...]] = []
+    for item in payload.get("families", ()):
+        if not isinstance(item, dict):
+            continue
+        match_aliases = tuple(
+            value.strip()
+            for value in item.get("match_aliases", ())
+            if isinstance(value, str) and value.strip()
+        )
+        if match_aliases:
+            aliases.append(match_aliases)
+    return tuple(aliases)
 
 
 def load_retrieval_qrels_dataset(path: str | Path) -> RetrievalQrelsDataset:
@@ -389,11 +536,16 @@ def _load_case(payload: dict[str, object], *, default_scope: KnowledgeScope) -> 
 
 
 def _load_hybrid_query_case(payload: dict[str, object]) -> RetrievalHybridQueryCase:
+    category = str(payload["category"])
+    scope = dict(payload.get("scope") or {})
+    if "acl_groups" in scope or "campus_scope" in scope:
+        raise ValueError("legacy hybrid fixture scope keys are not allowed")
+
     return RetrievalHybridQueryCase(
         case_id=str(payload["case_id"]),
-        category=str(payload["category"]),
+        category=category,
         query=str(payload["query"]),
-        scope=dict(payload.get("scope") or {}),
+        scope=scope,
         expected_keywords=tuple(str(item) for item in payload.get("expected_keywords") or ()),
         forbidden_doc_ids=tuple(str(item) for item in payload.get("forbidden_doc_ids") or ()),
         notes=str(payload.get("notes") or ""),
@@ -554,7 +706,6 @@ def evaluate_retrieval_run(
                     version_id=source.version_id or "",
                     chunk_id=source.chunk_id or "",
                     anchor={},
-                    acl_level="public",
                     canonical_url="",
                     latest_url="",
                     source_channel="pdf_ocr",

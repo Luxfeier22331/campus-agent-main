@@ -48,8 +48,6 @@ def _handbook_document_record(*, version_id: str, content_hash: str, ingestion_t
         cleaning_policy_version="student_handbook_cleaning_v1",
         entitlement_groups=("students",),
         visibility_scope=None,
-        acl_groups=("students",),
-        campus_scope=None,
         status="active",
         ingestion_timestamp=ingestion_timestamp,
         parser_version="campusrag-import-v1",
@@ -84,8 +82,6 @@ def _curriculum_document_record() -> DocumentRegistryRecord:
         collection="curriculum_plan",
         entitlement_groups=(),
         visibility_scope="main",
-        acl_groups=(),
-        campus_scope="main",
         status="active",
         ingestion_timestamp="2026-03-22T10:00:00+00:00",
         parser_version="curriculum-plan-ocr-v1",
@@ -177,7 +173,7 @@ class RegistryModelsTest(unittest.TestCase):
             HANDBOOK_CANONICAL_KEY,
         )
 
-    def test_document_registry_record_does_not_backfill_projection_fields_from_legacy_acl(self) -> None:
+    def test_document_registry_record_defaults_to_public_without_projection(self) -> None:
         record = DocumentRegistryRecord(
             document_id="curriculum:plan-legacy",
             revision_track="source-faithful",
@@ -186,8 +182,6 @@ class RegistryModelsTest(unittest.TestCase):
             content_hash="sha256:legacy",
             corpus="curriculum",
             collection="curriculum_plan",
-            acl_groups=(),
-            campus_scope="main",
             status="active",
             ingestion_timestamp="2026-03-22T10:00:00+00:00",
             parser_version="curriculum-plan-ocr-v1",
@@ -204,7 +198,7 @@ class RegistryModelsTest(unittest.TestCase):
             "phase1-authorization-projection-v1",
         )
 
-    def test_document_registry_record_treats_legacy_projection_fields_as_canonical_mirrors(self) -> None:
+    def test_document_registry_record_uses_canonical_projection_fields(self) -> None:
         record = DocumentRegistryRecord(
             document_id="curriculum:plan-authz",
             revision_track="source-faithful",
@@ -215,8 +209,6 @@ class RegistryModelsTest(unittest.TestCase):
             collection="curriculum_plan",
             entitlement_groups=("students",),
             visibility_scope="main",
-            acl_groups=("legacy-staff",),
-            campus_scope="south",
             status="active",
             ingestion_timestamp="2026-03-22T10:00:00+00:00",
             parser_version="curriculum-plan-ocr-v1",
@@ -227,8 +219,6 @@ class RegistryModelsTest(unittest.TestCase):
 
         self.assertEqual(record.entitlement_groups, ("students",))
         self.assertEqual(record.visibility_scope, "main")
-        self.assertEqual(record.acl_groups, ("students",))
-        self.assertEqual(record.campus_scope, "main")
         self.assertEqual(record.visibility_level, "restricted")
 
     def test_file_document_registry_upsert_and_get_are_stable(self) -> None:

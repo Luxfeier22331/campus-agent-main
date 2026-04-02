@@ -275,7 +275,6 @@ def _deserialize_evidence_source(payload: dict[str, object]) -> EvidenceSource:
         version_id=str(payload.get("version_id") or ""),
         chunk_id=str(payload.get("chunk_id") or ""),
         anchor=dict(payload.get("anchor") or {}),
-        acl_level=str(payload.get("acl_level") or "public"),
         canonical_url=str(payload.get("canonical_url") or ""),
         latest_url=str(payload.get("latest_url") or ""),
         source_channel=str(payload.get("source_channel") or "pdf_ocr"),

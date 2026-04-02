@@ -76,6 +76,19 @@
       "notes": "验证表格/课程地图相关检索。"
     },
     {
+      "case_id": "minority-language-strong-base-fixed-phrase",
+      "category": "fixed_phrase_sparse_win",
+      "query": "古文字学方向强基计划",
+      "expected_keywords": [
+        "古文字学方向",
+        "强基计划"
+      ],
+      "forbidden_doc_ids": [
+        "curriculum:中国少数民族语言文学本科人才培养方案"
+      ],
+      "notes": "验证唯一 grounding 的 sparse fixed-phrase 检索。"
+    },
+    {
       "case_id": "law-ethnic-class-fourth-semester-courses",
       "category": "short_fact_section",
       "query": "法学民族班培养方案里大二下有什么课",

@@ -26,7 +26,6 @@ def _source(doc_id: str) -> EvidenceSource:
         version_id="v1",
         chunk_id="chunk-1",
         anchor={"page": 1},
-        acl_level="public",
         canonical_url=f"https://example.edu/{doc_id}",
         latest_url=f"https://example.edu/{doc_id}",
         source_channel="pdf_ocr",
