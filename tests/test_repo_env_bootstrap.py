@@ -26,7 +26,7 @@ class RepoEnvBootstrapTest(unittest.TestCase):
 
             self.assertEqual(loaded, current_env)
 
-    def test_load_repo_env_falls_back_to_root_worktree_dotenv(self) -> None:
+    def test_load_repo_env_does_not_fall_back_to_root_worktree_dotenv(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / ".worktrees" / "feature-a"
             root.mkdir(parents=True)
@@ -37,9 +37,9 @@ class RepoEnvBootstrapTest(unittest.TestCase):
 
             with patch.dict(os.environ, {}, clear=True):
                 loaded = load_repo_env(repo_root=root)
-                self.assertEqual(os.environ["LLM_API_KEY"], "root-key")
+                self.assertNotIn("LLM_API_KEY", os.environ)
 
-            self.assertEqual(loaded, root_env)
+            self.assertIsNone(loaded)
 
     def test_load_repo_env_does_not_override_existing_environment(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -53,7 +53,7 @@ class RepoEnvBootstrapTest(unittest.TestCase):
                 loaded = load_repo_env(repo_root=root)
                 self.assertEqual(os.environ["LLM_API_KEY"], "runtime-key")
 
-            self.assertEqual(loaded, root_worktree / ".env")
+            self.assertIsNone(loaded)
 
 
 if __name__ == "__main__":
