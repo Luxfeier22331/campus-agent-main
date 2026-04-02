@@ -122,7 +122,7 @@ class JudgeSettingsTest(unittest.TestCase):
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS": "120",
                 "SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS": "4",
                 "RAGAS_REASONING_EFFORT": "none",
@@ -147,13 +147,20 @@ class JudgeSettingsTest(unittest.TestCase):
                 "EVAL_JUDGE_MODEL": "gpt-5.4-judge",
                 "LLM_BASE_URL": "https://shared-llm.example/v1",
                 "LLM_API_KEY": "shared-llm-key",
-                "RAGAS_LLM_MODEL": "gpt-4.1-shared",
             }
         )
 
         self.assertEqual(settings.llm_base_url, "https://eval-llm.example/v1")
         self.assertEqual(settings.llm_api_key, "eval-llm-key")
         self.assertEqual(settings.llm_model, "gpt-5.4-judge")
+
+    def test_judge_settings_from_env_requires_eval_judge_or_ragas_model(self) -> None:
+        with self.assertRaisesRegex(ValueError, "EVAL_JUDGE_MODEL or EVAL_RAGAS_MODEL is required"):
+            JudgeLLMSettings.from_env(
+                {
+                    "LLM_API_KEY": "llm-key",
+                }
+            )
 
     def test_judge_settings_from_env_accept_repo_tracked_http_settings_override(self) -> None:
         settings = JudgeLLMSettings.from_env(
@@ -171,7 +178,7 @@ class JudgeSettingsTest(unittest.TestCase):
         settings = JudgeLLMSettings.from_env(
             {
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS": "15",
             }
         )
@@ -183,7 +190,7 @@ class JudgeSettingsTest(unittest.TestCase):
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS": "12.5",
             }
         )
@@ -211,7 +218,7 @@ class JudgeAdapterApplicabilityTest(unittest.TestCase):
         ragas_settings = RagasSettings.from_env(
             {
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
@@ -235,7 +242,7 @@ class JudgeAdapterApplicabilityTest(unittest.TestCase):
             JudgeLLMSettings.from_env(
                 {
                     "LLM_API_KEY": "llm-key",
-                    "RAGAS_LLM_MODEL": "gpt-5.4",
+                    "EVAL_RAGAS_MODEL": "gpt-5.4",
                 }
             ),
             judge_fn=lambda prompt: {
@@ -275,7 +282,7 @@ class JudgeAdapterApplicabilityTest(unittest.TestCase):
             JudgeLLMSettings.from_env(
                 {
                     "LLM_API_KEY": "llm-key",
-                    "RAGAS_LLM_MODEL": "gpt-5.4",
+                    "EVAL_RAGAS_MODEL": "gpt-5.4",
                 }
             ),
             judge_fn=lambda prompt: {
@@ -329,7 +336,7 @@ class JudgeAdapterApplicabilityTest(unittest.TestCase):
         ragas_settings = RagasSettings.from_env(
             {
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
@@ -357,7 +364,7 @@ class JudgeAdapterApplicabilityTest(unittest.TestCase):
         ragas_settings = RagasSettings.from_env(
             {
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
@@ -389,7 +396,7 @@ class JudgeAdapterApplicabilityTest(unittest.TestCase):
             JudgeLLMSettings.from_env(
                 {
                     "LLM_API_KEY": "llm-key",
-                    "RAGAS_LLM_MODEL": "gpt-5.4",
+                    "EVAL_RAGAS_MODEL": "gpt-5.4",
                 }
             ),
             judge_fn=lambda prompt: (_ for _ in ()).throw(TimeoutError(prompt[:12])),

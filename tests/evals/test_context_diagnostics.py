@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 
 from campus_contracts import EvidenceSource
 from campus_evals.context_diagnostics import build_context_diagnostics, main as context_diagnostics_main
@@ -191,6 +192,36 @@ class ContextDiagnosticsTest(unittest.TestCase):
         rendered = json.loads(buffer.getvalue())
         self.assertEqual(rendered["scenario_set"], "curriculum_live_gate")
         self.assertEqual(rendered["case_count"], 0)
+
+    def test_context_diagnostics_main_loads_repo_env(self) -> None:
+        payload = {
+            "schema_version": 1,
+            "benchmark_type": "curriculum_live_gate",
+            "run_number": 1,
+            "results": [],
+        }
+        with TemporaryDirectory() as temp_dir:
+            case_results_path = Path(temp_dir) / "run-01-case-results.json"
+            case_results_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+            buffer = io.StringIO()
+            with (
+                patch("campus_evals.context_diagnostics.load_repo_env") as load_repo_env,
+                redirect_stdout(buffer),
+            ):
+                exit_code = context_diagnostics_main(
+                    [
+                        "--case-results",
+                        str(case_results_path),
+                        "--scenario-set",
+                        "curriculum_live_gate",
+                        "--format",
+                        "json",
+                    ]
+                )
+
+        self.assertEqual(exit_code, 0)
+        load_repo_env.assert_called_once_with()
 
 
 if __name__ == "__main__":

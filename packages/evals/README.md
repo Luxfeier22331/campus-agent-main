@@ -60,15 +60,15 @@ live benchmark profile/core：
 
 ragas runtime：
 
-- `campus_evals.settings.RagasSettings.from_env()` 长期主入口只消费 `EVAL_LLM_*`、`EVAL_RAGAS_MODEL`、`EVAL_EMBEDDING_*`
-- `campus_evals.settings.JudgeLLMSettings.from_env()` 长期主入口只消费 `EVAL_LLM_*`、`EVAL_JUDGE_MODEL`
+- 共享 provider 真相默认来自 `LLM_*` 与 `EMBEDDING_*`
+- `campus_evals.settings.RagasSettings.from_env()` 的 provider 解析优先级固定为 `EVAL_LLM_* > LLM_*` 与 `EVAL_EMBEDDING_* > EMBEDDING_*`
+- `campus_evals.settings.JudgeLLMSettings.from_env()` 的 provider 解析优先级固定为 `EVAL_LLM_* > LLM_*`
+- `EVAL_LLM_*` / `EVAL_EMBEDDING_*` 只用于 eval 需要独立 provider、独立预算或独立限流的场景；默认不再作为 root `.env` 主真相
 - repo 主路径里的 ragas / judge HTTP runtime tuning 不再从 env 读取，而是由 `BenchmarkProfile.http_settings` 显式注入
 - low-level helper 仍保留 `SupplementalHTTPSettings.from_env(...)`，仅用于显式本地实验或测试，不再作为长期 benchmark ownership
-- ragas model 选择优先级固定为 `EVAL_RAGAS_MODEL > RAGAS_LLM_MODEL > LLM_REASONING_MODEL > LLM_CHAT_MODEL`
-- judge model 若未单独配置，则回退到 `EVAL_RAGAS_MODEL > RAGAS_LLM_MODEL > LLM_REASONING_MODEL > LLM_CHAT_MODEL`
+- ragas model 现在只接受 `EVAL_RAGAS_MODEL`
+- judge model 现在只接受 `EVAL_JUDGE_MODEL`，未单独配置时回退到 `EVAL_RAGAS_MODEL`
 - 默认运行面走 `build_http_ragas_llm()` + `build_http_ragas_embeddings()`，直接对 OpenAI-compatible `/responses` 与 `/embeddings` 发原生 HTTP 请求；其中 ragas LLM 固定走 text-first `/responses`，rubric judge 才保留 structured `/responses`，实现边界固定在 `campus_evals.supplemental_http`
-- 这样做的直接原因是：当前 provider 对原生 HTTP `Responses API` 可用，但会阻断 OpenAI Python SDK / LangChain transport；因此 LangChain 兼容 helper 只保留在内部测试模块 `campus_evals._langchain_compat`，不再作为默认或公开 runtime surface
-- `RAGAS_USE_RESPONSES_API` 仍保留在 settings 中，用于 LangChain compatibility helper 的回归测试；默认值仍为 `true`
 - `BenchmarkProfile.http_settings` 现在统一控制 ragas + rubric judge 共享的 supplemental provider runtime，包括 connect/read/write/pool timeout、单层 retry、provider runtime circuit breaker、preflight timeout、request pacing 与 keep-alive
 - pacing / breaker 的共享粒度已经收口到 `provider origin + api key`，避免不同 credential 互相污染 rate budget
 - 若需要针对某类 benchmark profile 单独调整 pacing，应修改 repo-tracked profile config，而不是再向 root `.env` 添加新键
@@ -82,9 +82,10 @@ ragas runtime：
 - `n>1` 的 ragas judge 调用现在会在同一 async transport 上并发发出，不再串行放大单 metric 延迟
 - `Qwen3-Embedding-4B` 未显式配置 `EMBEDDING_DIMENSIONS` 时，eval 侧默认补成 `2560`
 - pinned `ragas==0.4.3` 当前通过 `ragas.evaluate(...)` + legacy metric objects 执行真实评分；默认 scorer 现在直接接 `BaseRagasLLM` / `BaseRagasEmbeddings` 的原生 HTTP 实现
-- `uv run` 不会自动读取 `.env`；本地运行前需先 `set -a && source .env && set +a`
+- repo-shipped eval CLI 会在本地自动 bootstrap 当前 worktree `.env`，必要时回退根 worktree `.env`
+- ad-hoc `uv run ... python - <<'PY'` / REPL 仍不会自动读取 `.env`；这类临时脚本需要先 `set -a && source .env && set +a`，或显式调用 `campus_shared.load_repo_env()`
 
-最小 smoke：
+最小 smoke（ad-hoc inline Python）：
 
 - `set -a && source .env && set +a && env UV_CACHE_DIR=/tmp/uv-cache uv run --package campus-evals python - <<'PY'`
 - `from campus_evals import RagasProjection, RagasSettings, build_ragas_scorer`

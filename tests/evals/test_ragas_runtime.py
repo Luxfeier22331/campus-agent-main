@@ -8,7 +8,6 @@ import unittest
 from unittest.mock import patch
 
 import httpx
-from langchain_core.messages import HumanMessage
 from langchain_core.prompt_values import StringPromptValue
 from ragas.llms.base import InstructorBaseRagasLLM
 from ragas.metrics._faithfulness import NLIStatementOutput, StatementFaithfulnessAnswer, StatementGeneratorOutput
@@ -23,7 +22,6 @@ from campus_evals import (
     build_ragas_scorer,
     build_ragas_supplemental_adapter_from_env,
 )
-from campus_evals._langchain_compat import build_langchain_chat_model
 from campus_evals.faithfulness_runtime import bind_faithfulness_artifact_context
 from campus_evals.ragas_adapter import build_default_ragas_metrics
 from campus_evals.settings import SupplementalHTTPSettings
@@ -89,8 +87,7 @@ class RagasSettingsTest(unittest.TestCase):
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
-                "LLM_CHAT_MODEL": "qwen-chat",
-                "LLM_REASONING_MODEL": "qwen-reasoning",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_BASE_URL": "https://embed.example/v1",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
@@ -106,8 +103,7 @@ class RagasSettingsTest(unittest.TestCase):
 
         self.assertEqual(settings.llm_base_url, "https://llm.example/v1")
         self.assertEqual(settings.llm_api_key, "llm-key")
-        self.assertEqual(settings.llm_model, "qwen-reasoning")
-        self.assertTrue(settings.use_responses_api)
+        self.assertEqual(settings.llm_model, "gpt-5.4")
         self.assertEqual(settings.embedding_base_url, "https://embed.example/v1")
         self.assertEqual(settings.embedding_api_key, "embed-key")
         self.assertEqual(settings.embedding_model, "Qwen3-Embedding-4B")
@@ -125,7 +121,7 @@ class RagasSettingsTest(unittest.TestCase):
         settings = RagasSettings.from_env(
             {
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 "SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS": "12.5",
@@ -138,7 +134,7 @@ class RagasSettingsTest(unittest.TestCase):
         settings = RagasSettings.from_env(
             {
                 "LLM_API_KEY": "llm-key",
-                "LLM_REASONING_MODEL": "qwen-reasoning",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 "RAGAS_REQUEST_TIMEOUT_SECONDS": "180",
@@ -151,13 +147,21 @@ class RagasSettingsTest(unittest.TestCase):
         self.assertEqual(settings.http_settings.preflight_timeout_seconds, 20.0)
         self.assertEqual(settings.http_settings.request_min_interval_seconds, 0.0)
 
-    def test_from_env_prefers_ragas_llm_model_over_reasoning_and_chat_model(self) -> None:
+    def test_from_env_requires_eval_ragas_model(self) -> None:
+        with self.assertRaisesRegex(ValueError, "EVAL_RAGAS_MODEL is required"):
+            RagasSettings.from_env(
+                {
+                    "LLM_API_KEY": "llm-key",
+                    "EMBEDDING_API_KEY": "embed-key",
+                    "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                }
+            )
+
+    def test_from_env_uses_eval_ragas_model_as_single_model_entrypoint(self) -> None:
         settings = RagasSettings.from_env(
             {
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
-                "LLM_REASONING_MODEL": "gpt-5.4-mini",
-                "LLM_CHAT_MODEL": "gpt-4.1-mini",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
@@ -173,7 +177,6 @@ class RagasSettingsTest(unittest.TestCase):
                 "EVAL_RAGAS_MODEL": "gpt-5.4-eval",
                 "LLM_BASE_URL": "https://shared-llm.example/v1",
                 "LLM_API_KEY": "shared-llm-key",
-                "RAGAS_LLM_MODEL": "gpt-4.1-shared",
                 "EVAL_EMBEDDING_BASE_URL": "https://eval-embed.example/v1",
                 "EVAL_EMBEDDING_API_KEY": "eval-embed-key",
                 "EVAL_EMBEDDING_MODEL": "text-embedding-3-large",
@@ -207,7 +210,7 @@ class RagasSettingsTest(unittest.TestCase):
         settings = RagasSettings.from_env(
             {
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 "SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS": "4",
@@ -236,10 +239,10 @@ class RagasSettingsTest(unittest.TestCase):
         settings = RagasSettings.from_env(
             {
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
-                "RAGAS_TARGET_LANGUAGE": "chinese",
+                "EVAL_RAGAS_TARGET_LANGUAGE": "chinese",
                 "RAGAS_ADAPT_INSTRUCTION": "true",
             }
         )
@@ -251,57 +254,11 @@ class RagasSettingsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "LLM_API_KEY is required"):
             RagasSettings.from_env(
                 {
-                    "LLM_CHAT_MODEL": "qwen-chat",
+                    "EVAL_RAGAS_MODEL": "gpt-5.4",
                     "EMBEDDING_API_KEY": "embed-key",
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 }
             )
-
-    def test_build_langchain_chat_model_uses_responses_api(self) -> None:
-        settings = RagasSettings.from_env(
-            {
-                "LLM_BASE_URL": "https://llm.example/v1",
-                "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
-                "EMBEDDING_API_KEY": "embed-key",
-                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
-            }
-        )
-
-        model = build_langchain_chat_model(settings)
-
-        self.assertEqual(model.model_name, "gpt-5.4")
-        self.assertTrue(model.use_responses_api)
-
-    def test_from_env_allows_explicit_responses_api_opt_out(self) -> None:
-        settings = RagasSettings.from_env(
-            {
-                "LLM_API_KEY": "llm-key",
-                "LLM_REASONING_MODEL": "gpt-5.4",
-                "RAGAS_USE_RESPONSES_API": "false",
-                "EMBEDDING_API_KEY": "embed-key",
-                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
-            }
-        )
-
-        self.assertFalse(settings.use_responses_api)
-
-    def test_build_langchain_chat_model_strips_n_from_responses_payload(self) -> None:
-        settings = RagasSettings.from_env(
-            {
-                "LLM_BASE_URL": "https://llm.example/v1",
-                "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
-                "EMBEDDING_API_KEY": "embed-key",
-                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
-            }
-        )
-
-        model = build_langchain_chat_model(settings)
-        payload = model._get_request_payload([HumanMessage(content="只回复 OK")], n=1)
-
-        self.assertIn("input", payload)
-        self.assertNotIn("n", payload)
 
     def test_build_ragas_supplemental_adapter_from_env_exposes_default_metric_names(self) -> None:
         adapter = build_ragas_supplemental_adapter_from_env(
@@ -365,7 +322,7 @@ class RagasHttpTransportTest(unittest.TestCase):
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
@@ -392,7 +349,7 @@ class RagasHttpTransportTest(unittest.TestCase):
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 "SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS": "0",
@@ -441,7 +398,7 @@ class RagasHttpTransportTest(unittest.TestCase):
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "RAGAS_REASONING_EFFORT": "none",
                 "RAGAS_TEXT_VERBOSITY": "low",
                 "RAGAS_MAX_OUTPUT_TOKENS": "128",
@@ -503,7 +460,7 @@ class RagasHttpTransportTest(unittest.TestCase):
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
@@ -551,7 +508,7 @@ class RagasHttpTransportTest(unittest.TestCase):
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
@@ -607,7 +564,7 @@ class RagasHttpTransportTest(unittest.TestCase):
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
@@ -652,7 +609,7 @@ class RagasHttpTransportTest(unittest.TestCase):
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
@@ -698,7 +655,7 @@ class RagasHttpTransportTest(unittest.TestCase):
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
@@ -743,7 +700,7 @@ class RagasHttpTransportTest(unittest.TestCase):
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
@@ -761,7 +718,7 @@ class RagasHttpTransportTest(unittest.TestCase):
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 "SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS": "12.5",
@@ -805,7 +762,7 @@ class RagasHttpTransportTest(unittest.TestCase):
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 "SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS": "0",
@@ -843,7 +800,7 @@ class RagasHttpTransportTest(unittest.TestCase):
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 "SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS": "1",
@@ -889,7 +846,7 @@ class RagasHttpTransportTest(unittest.TestCase):
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
@@ -943,7 +900,7 @@ class RagasHttpTransportTest(unittest.TestCase):
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 "SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS": "0",
@@ -1001,7 +958,7 @@ class RagasHttpTransportTest(unittest.TestCase):
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 "SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS": "0",
@@ -1074,7 +1031,7 @@ class RagasHttpTransportTest(unittest.TestCase):
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 "SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS": "1",
@@ -1100,7 +1057,7 @@ class RagasHttpTransportTest(unittest.TestCase):
             {
                 "LLM_BASE_URL": "https://provider.example/v1",
                 "LLM_API_KEY": "shared-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_BASE_URL": "https://provider.example/embeddings",
                 "EMBEDDING_API_KEY": "shared-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
@@ -1119,7 +1076,7 @@ class RagasHttpTransportTest(unittest.TestCase):
             {
                 "LLM_BASE_URL": "https://provider.example/v1",
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_BASE_URL": "https://provider.example/embeddings",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
@@ -1165,7 +1122,7 @@ class RagasHttpTransportTest(unittest.TestCase):
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
@@ -1199,7 +1156,7 @@ class RagasHttpTransportTest(unittest.TestCase):
             {
                 "EMBEDDING_BASE_URL": "https://embed.example/v1",
                 "LLM_API_KEY": "llm-key",
-                "LLM_REASONING_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
@@ -1253,7 +1210,7 @@ class RagasHttpTransportTest(unittest.TestCase):
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
             }
         )
 
@@ -1292,7 +1249,7 @@ class RagasHttpTransportTest(unittest.TestCase):
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
             }
         )
         async_client = httpx.AsyncClient(
@@ -1338,7 +1295,7 @@ class RagasScorerTest(unittest.TestCase):
         settings = RagasSettings.from_env(
             {
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
@@ -1397,7 +1354,7 @@ class RagasScorerTest(unittest.TestCase):
         settings = RagasSettings.from_env(
             {
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
@@ -1464,7 +1421,7 @@ class RagasScorerTest(unittest.TestCase):
         settings = RagasSettings.from_env(
             {
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 "SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS": "4",
@@ -1559,7 +1516,7 @@ class RagasScorerTest(unittest.TestCase):
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_BASE_URL": "https://embed.example/v1",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
@@ -1677,10 +1634,10 @@ class RagasScorerTest(unittest.TestCase):
         settings = RagasSettings.from_env(
             {
                 "LLM_API_KEY": "llm-key",
-                "RAGAS_LLM_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
-                "RAGAS_TARGET_LANGUAGE": "chinese",
+                "EVAL_RAGAS_TARGET_LANGUAGE": "chinese",
                 "RAGAS_ADAPT_INSTRUCTION": "true",
             }
         )
@@ -1738,7 +1695,7 @@ class RagasScorerTest(unittest.TestCase):
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
-                "LLM_REASONING_MODEL": "qwen-reasoning",
+                "EVAL_RAGAS_MODEL": "qwen-reasoning",
                 "EMBEDDING_BASE_URL": "https://embed.example/v1",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
@@ -1749,7 +1706,7 @@ class RagasScorerTest(unittest.TestCase):
         scorer = build_ragas_scorer(
             settings,
             evaluate_fn=fake_evaluate,
-            llm_factory=lambda resolved: {"model": resolved.llm_model, "use_responses_api": resolved.use_responses_api},
+            llm_factory=lambda resolved: {"model": resolved.llm_model},
             embeddings_factory=lambda resolved: {"model": resolved.embedding_model},
             metric_factory=lambda llm, embeddings: (
                 FakeMetric("faithfulness"),
@@ -1786,7 +1743,7 @@ class RagasScorerTest(unittest.TestCase):
         dataset = captured_calls[0]["dataset"]
         self.assertEqual(len(dataset.samples), 1)
         self.assertEqual(dataset.samples[0].user_input, "图书馆开放时间是什么？")
-        self.assertEqual(captured_calls[0]["llm"], {"model": "qwen-reasoning", "use_responses_api": True})
+        self.assertEqual(captured_calls[0]["llm"], {"model": "qwen-reasoning"})
         self.assertEqual(captured_calls[0]["embeddings"], {"model": "Qwen3-Embedding-4B"})
         self.assertTrue(all(call["kwargs"]["show_progress"] is False for call in captured_calls))
         self.assertTrue(all(call["kwargs"]["raise_exceptions"] is True for call in captured_calls))
@@ -1822,7 +1779,7 @@ class RagasScorerTest(unittest.TestCase):
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
-                "LLM_REASONING_MODEL": "qwen-reasoning",
+                "EVAL_RAGAS_MODEL": "qwen-reasoning",
                 "EMBEDDING_BASE_URL": "https://embed.example/v1",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
@@ -1900,7 +1857,7 @@ class RagasScorerTest(unittest.TestCase):
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
-                "LLM_REASONING_MODEL": "qwen-reasoning",
+                "EVAL_RAGAS_MODEL": "qwen-reasoning",
                 "EMBEDDING_BASE_URL": "https://embed.example/v1",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
@@ -1957,7 +1914,7 @@ class RagasScorerTest(unittest.TestCase):
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
-                "LLM_REASONING_MODEL": "qwen-reasoning",
+                "EVAL_RAGAS_MODEL": "qwen-reasoning",
                 "EMBEDDING_BASE_URL": "https://embed.example/v1",
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",

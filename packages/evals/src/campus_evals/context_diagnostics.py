@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
+from campus_shared import load_repo_env
 from campus_contracts import EvidenceBundle, EvidenceSource, KnowledgeScope, RagResultPayload, SpecialistResponse
 from campus_evals.models import ExecutionResult, GoldenCase, ObservedTrace
 from campus_evals.ragas_adapter import build_ragas_projection
@@ -119,6 +120,7 @@ def render_context_diagnostics_text(diagnostics: dict[str, object]) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    load_repo_env()
     args = build_parser().parse_args(argv)
     payload = json.loads(Path(args.case_results).read_text(encoding="utf-8"))
     diagnostics = build_context_diagnostics(

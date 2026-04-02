@@ -8,6 +8,7 @@ import os
 from typing import Mapping
 from urllib.parse import urlsplit
 
+from campus_shared import load_repo_env
 from campus_supervisor_core import handle_request
 
 from campus_supervisor_api.api import HttpResponse
@@ -161,6 +162,7 @@ def serve(
 
 
 def main() -> None:
+    load_repo_env()
     serve()
 
 

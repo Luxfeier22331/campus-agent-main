@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-03-29
-updated: 2026-03-31
+updated: 2026-04-02
 ---
 
 # Environment
@@ -12,7 +12,7 @@ updated: 2026-03-31
 ## 分层规则
 
 - repo root `.env` / [`.env.example`](../../.env.example)
-  只承载 repo-root shared runtime config，例如 `apps/supervisor-api`、retrieval/Qdrant、object store、OCR provider、eval judge 与本地 dev server 监听地址
+  只承载 repo-root shared runtime config，例如 `apps/supervisor-api`、shared LLM/embedding provider、retrieval/Qdrant、object store、OCR provider、eval model selection 与本地 dev server 监听地址
 - app-local env template
   每个 app 在自己的 runtime boundary 下维护自己的本地模板，不再由 repo root `.env.example` 代管
 - command-scoped override template
@@ -29,7 +29,7 @@ updated: 2026-03-31
 ## 当前 Ownership
 
 - repo root [`.env.example`](../../.env.example)
-  supervisor-api shared auth/audit、shared Supabase Postgres、retrieval/embedding/Qdrant、object store、OCR/raw registry、eval live benchmark profile runtime、`CAMPUS_AGENT_HTTP_HOST` / `CAMPUS_AGENT_HTTP_PORT`
+  supervisor-api shared auth/audit、shared LLM/embedding provider、shared Supabase Postgres、retrieval/embedding/Qdrant、object store、OCR/raw registry、eval live benchmark model selection、`CAMPUS_AGENT_HTTP_HOST` / `CAMPUS_AGENT_HTTP_PORT`
 - app-local [`apps/app-api/.dev.vars.example`](../../apps/app-api/.dev.vars.example)
   `app-api` 的 Worker string env，包括 auth/supervisor bridge、official_web control-plane string config，以及 `SENTRY_*` / `AXIOM_*`
 - app-local [`apps/app-api/.env.example`](../../apps/app-api/.env.example)
@@ -54,12 +54,16 @@ updated: 2026-03-31
 
 ## Eval Env 约定
 
-- repo root [`.env.example`](../../.env.example) 中的 eval 主入口已切到 `EVAL_*`
-- 目前长期保留的主键包括：
-  - `EVAL_LLM_*`
+- repo root [`.env.example`](../../.env.example) 中的共享 provider 真相默认来自：
+  - `LLM_*`
+  - `EMBEDDING_*`
+- eval 长期保留的链路级键包括：
   - `EVAL_RAGAS_MODEL`
   - `EVAL_JUDGE_MODEL`
+- 只有在 eval 需要独立 provider、独立预算或独立限流时，才使用：
+  - `EVAL_LLM_*`
   - `EVAL_EMBEDDING_*`
+- `packages/evals` settings 仍只读取进程环境；repo-shipped Python CLI entrypoint 会在本地自动 bootstrap 当前 worktree `.env`，必要时回退根 worktree `.env`
 - eval 的 HTTP timeout / retry / pacing / keep-alive / connection-pool 一类 runtime tuning 由 repo-tracked live benchmark profile config 持有，不再放在 root `.env.example`
 - 代码层仍保留 `SupplementalHTTPSettings.from_env(...)` 作为低层 helper，但这不再是长期 ownership 入口
 

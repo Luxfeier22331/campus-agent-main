@@ -293,6 +293,7 @@ version = "0.1.0"
 source = { editable = "packages/evals" }
 dependencies = [
     { name = "campus-contracts" },
+    { name = "campus-shared" },
     { name = "httpx" },
     { name = "ragas" },
 ]
@@ -300,6 +301,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "campus-contracts", editable = "packages/contracts" },
+    { name = "campus-shared", editable = "packages/shared" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "ragas", specifier = ">=0.4.3" },
 ]
@@ -341,10 +343,14 @@ version = "0.1.0"
 source = { editable = "apps/ingestion-worker" }
 dependencies = [
     { name = "campus-ingestion-core" },
+    { name = "campus-shared" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "campus-ingestion-core", editable = "packages/ingestion-core" }]
+requires-dist = [
+    { name = "campus-ingestion-core", editable = "packages/ingestion-core" },
+    { name = "campus-shared", editable = "packages/shared" },
+]
 
 [[package]]
 name = "campus-protected-panel-web"

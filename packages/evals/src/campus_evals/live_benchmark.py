@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from typing import Callable
 
+from campus_shared import load_repo_env
 from campus_evals.handbook_benchmark import (
     collect_repairable_handbook_benchmark_targets,
     repair_handbook_formal_benchmark,
@@ -258,6 +259,7 @@ def main_for_profile(
     repair_benchmark_fn=None,
     accept_benchmark_fn=None,
 ) -> int:
+    load_repo_env()
     args = build_parser_for_profile(profile).parse_args(argv)
     resolved_accept_benchmark_fn = accept_benchmark_fn or accept_live_benchmark_profile
 

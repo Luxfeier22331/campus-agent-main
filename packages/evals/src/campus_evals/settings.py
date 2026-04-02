@@ -190,7 +190,6 @@ class RagasSettings:
     embedding_base_url: str | None = None
     embedding_dimensions: int | None = None
     http_settings: SupplementalHTTPSettings = SupplementalHTTPSettings()
-    use_responses_api: bool = True
     reasoning_effort: str | None = None
     text_verbosity: str | None = None
     max_output_tokens: int | None = None
@@ -201,7 +200,7 @@ class RagasSettings:
         if not self.llm_api_key.strip():
             raise ValueError("LLM_API_KEY is required")
         if not self.llm_model.strip():
-            raise ValueError("RAGAS_LLM_MODEL, LLM_REASONING_MODEL, or LLM_CHAT_MODEL is required")
+            raise ValueError("EVAL_RAGAS_MODEL is required")
         if not self.embedding_api_key.strip():
             raise ValueError("EMBEDDING_API_KEY is required")
         if not self.embedding_model.strip():
@@ -256,11 +255,10 @@ class RagasSettings:
                 raw_dimensions=raw_embedding_dimensions,
             ),
             http_settings=http_settings or SupplementalHTTPSettings.from_env(source),
-            use_responses_api=_read_bool(source.get("RAGAS_USE_RESPONSES_API"), default=True),
             reasoning_effort=_read_optional_str(source.get("RAGAS_REASONING_EFFORT")),
             text_verbosity=_read_optional_str(source.get("RAGAS_TEXT_VERBOSITY")),
             max_output_tokens=_read_optional_int(source.get("RAGAS_MAX_OUTPUT_TOKENS")),
-            target_language=_read_first_non_empty(source, "EVAL_RAGAS_TARGET_LANGUAGE", "RAGAS_TARGET_LANGUAGE"),
+            target_language=_read_first_non_empty(source, "EVAL_RAGAS_TARGET_LANGUAGE"),
             adapt_instruction=_read_bool(source.get("RAGAS_ADAPT_INSTRUCTION"), default=False),
         )
 
@@ -307,7 +305,7 @@ class JudgeLLMSettings:
         if not self.llm_api_key.strip():
             raise ValueError("LLM_API_KEY is required")
         if not self.llm_model.strip():
-            raise ValueError("RAGAS_LLM_MODEL, LLM_REASONING_MODEL, or LLM_CHAT_MODEL is required")
+            raise ValueError("EVAL_JUDGE_MODEL or EVAL_RAGAS_MODEL is required")
         if self.reasoning_effort is not None and self.reasoning_effort not in ALLOWED_RAGAS_REASONING_EFFORTS:
             raise ValueError("RAGAS_REASONING_EFFORT must be one of minimal, low, medium, high, none")
         if self.text_verbosity is not None and self.text_verbosity not in ALLOWED_RAGAS_TEXT_VERBOSITIES:
@@ -371,7 +369,7 @@ def _read_bool(value: str | None, *, default: bool) -> bool:
         return True
     if normalized in {"0", "false", "no", "off"}:
         return False
-    raise ValueError("RAGAS_USE_RESPONSES_API must be a boolean")
+    raise ValueError("expected boolean env value")
 
 
 def _read_optional_str(value: str | None) -> str | None:
@@ -407,17 +405,10 @@ def _read_first_non_empty(source: dict[str, str], *keys: str) -> str | None:
 
 
 def _resolve_ragas_model(source: dict[str, str]) -> str:
-    eval_ragas_model = _read_first_non_empty(source, "EVAL_RAGAS_MODEL")
-    ragas_llm_model = _read_first_non_empty(source, "RAGAS_LLM_MODEL")
-    llm_reasoning_model = _read_first_non_empty(source, "LLM_REASONING_MODEL")
-    llm_chat_model = _read_first_non_empty(source, "LLM_CHAT_MODEL")
-    return eval_ragas_model or ragas_llm_model or llm_reasoning_model or llm_chat_model or ""
+    return _read_first_non_empty(source, "EVAL_RAGAS_MODEL") or ""
 
 
 def _resolve_judge_model(source: dict[str, str]) -> str:
     eval_judge_model = _read_first_non_empty(source, "EVAL_JUDGE_MODEL")
     eval_ragas_model = _read_first_non_empty(source, "EVAL_RAGAS_MODEL")
-    ragas_llm_model = _read_first_non_empty(source, "RAGAS_LLM_MODEL")
-    llm_reasoning_model = _read_first_non_empty(source, "LLM_REASONING_MODEL")
-    llm_chat_model = _read_first_non_empty(source, "LLM_CHAT_MODEL")
-    return eval_judge_model or eval_ragas_model or ragas_llm_model or llm_reasoning_model or llm_chat_model or ""
+    return eval_judge_model or eval_ragas_model or ""
