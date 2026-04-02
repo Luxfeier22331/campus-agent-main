@@ -107,6 +107,7 @@ updated: 2026-04-02
 - explicit historical / as-of / compare query
 - restricted document rollout
 - 更完整的 identity / authz / memory productization
+- operator observability / audit control plane
 - deploy-side observability hardening
 
 这些能力的推进以对应 supporting architecture、ADR 与 active plans 为准。

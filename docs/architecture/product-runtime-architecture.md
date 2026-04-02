@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-02
+updated: 2026-04-03
 ---
 
 # Product Runtime Architecture
@@ -80,6 +80,12 @@ panel `Requests` 的 canonical read path 固定为：
 - 直接读取 audit logs 或 telemetry sink 作为 request truth
 - 让 panel 通过 `apps/supervisor-api` 旁路获取 operator list/detail
 
+future operator-facing observability 域也遵循同一 ownership rule：
+
+- audit / quality / safety / cost surface 仍由 `apps/app-api` 物化与提供
+- panel 只能读取 runtime-owned projection / aggregate APIs
+- `Sentry`、`Axiom` 与其他 sink 继续只是 debugging / analysis / grading surface，不反向成为 canonical panel read model
+
 ## Protected Surface And Operator Access
 
 protected panel 的长期 access model 固定为：
@@ -110,6 +116,7 @@ protected panel 的长期 access model 固定为：
 ## 相关稳定文档
 
 - `docs/contracts/app-api-http.md`
+- `docs/contracts/app-api-operator-observability-http.md`
 - `docs/contracts/app-api-request-lifecycle.md`
 - `docs/contracts/app-api-supervisor-execution.md`
 - `docs/data/app-api-schema.md`
@@ -118,3 +125,5 @@ protected panel 的长期 access model 固定为：
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
 - `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
+- `docs/decisions/adr-0023-operator-observability-control-plane-and-sink-participation.md`
+- `docs/architecture/operator-observability-architecture.md`

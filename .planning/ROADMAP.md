@@ -35,7 +35,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 6: Curriculum Offline Preparation** - Prepare `curriculum_plan` ingestion outputs without opening query-serving. (completed 2026-03-27)
 - [x] **Phase 7: Verification And Release Gate** - Prove the main path and failure semantics with automated tests and smoke/eval coverage. (completed 2026-03-27)
 - [x] **Phase 8: Student Handbook Ambiguous Policy Query Hardening** - Harden ambiguous `student_handbook` policy-object queries with targeted retrieval, fail-closed clarification/no-answer semantics, and operator-facing diagnostics. (completed 2026-04-02)
-- [ ] **Phase 9: Curriculum Ambiguous Program Query Hardening** - Harden ambiguous `curriculum_plan` program-family queries with alias-tier governance, soft personalization bias, and clarification-first truth.
+- [x] **Phase 9: Curriculum Ambiguous Program Query Hardening** - Harden ambiguous `curriculum_plan` program-family queries with alias-tier governance, family-aware membership truth, and fail-closed deictic/doc resolution. (completed 2026-04-02)
 - [x] **Phase 09.1: Env Bootstrap And Provider Configuration Governance** - Freeze and implement explicit local/deploy env bootstrap, provider precedence, and fail-fast diagnostics so provider credentials no longer depend on implicit shell state. (INSERTED) (completed 2026-04-02)
 - [ ] **Phase 10: Official Web Repo Hardening And Expansion** - Expand and harden the `official_web` repo-level source channel, control plane, and operator workflow after the current curriculum hardening wave.
 
@@ -367,19 +367,21 @@ Verification note:
 
 ### Phase 9: Curriculum Ambiguous Program Query Hardening
 
-**Goal:** Harden ambiguous `curriculum/curriculum_plan` queries that refer to short program fragments or family aliases so the system uses clarification-first truth, preserves same-doc curriculum answering, and allows personalization only as typed bias rather than silent hard resolution.
+**Goal:** Harden ambiguous `curriculum/curriculum_plan` queries that refer to short program fragments or family aliases so generic membership questions can return controlled family-aware answers, short doc-fragment/deictic queries still fail closed when unresolved, and personalization only acts as typed bias rather than silent hard resolution.
 **Requirements**: [AORC-03]
 **Depends on:** Phase 7
 **Success Criteria** (what must be TRUE):
   1. `rag-specialist` owns a curriculum-specific resolve / bias / clarify planning lane that is separate from handbook policy-object logic.
   2. Curriculum alias handling is governed by repo-tracked tiered config (`safe alias`, `family alias`, `scoped alias`, `forbidden generic alias`) rather than a single global replacement table.
   3. `retrieval-core` can distinguish hard resolved document targeting from soft preferred-candidate bias without changing ACL/current/revision-serving semantics.
-  4. Generic family aliases such as `基地班` do not become canonical single-doc truth, and unresolved cases fail closed into `needs_clarification`.
+  4. Generic family aliases do not become canonical single-doc truth; membership questions can resolve to controlled family answers, while unresolved doc-fragment/deictic cases still fail closed into `needs_clarification`.
   5. Eval truth and workflow cases explicitly cover `profile memory` / `verified identity` assisted curriculum disambiguation without allowing memory-only silent collapse.
-**Plans:** 0 plans recorded; repo-level design is captured in `.planning/phases/09-curriculum-ambiguous-program-query-hardening/09-CONTEXT.md`
+**Plans:** 3/3 plans complete
 
 Plans:
-- [ ] Run phase planning and break the implementation into execution waves once Phase 9 becomes the active workstream.
+- [x] 09-01: Freeze program-family collection truth, specialist planning lane, and retrieval filter seam.
+- [x] 09-02: Externalize course/course-family alias governance and add high-frequency alias gates.
+- [x] 09-03: Close deictic verified-identity truth, soft-personalization fast-fail, and diagnostics coverage.
 
 ### Phase 09.1: Env Bootstrap And Provider Configuration Governance (INSERTED)
 
@@ -409,6 +411,11 @@ Plans:
 Plans:
 - [ ] TBD (run /gsd:plan-phase 10 to break down)
 
+Coordination note:
+
+- `Phase 10` / `official-web` 当前由其他 worktree 处理。
+- 除非该 worktree 显式回交，否则这里不要再把它重复当作当前执行项。
+
 ### Phase 11: Campus Identity, Authorization, Memory, And Restricted Document Foundation
 
 **Goal:** Close the app-owned campus identity / authorization / memory foundation so restricted document rollout can proceed on a canonical principal and projection seam instead of the current transitional ACL carrier.
@@ -419,14 +426,14 @@ Plans:
   2. `packages/contracts` plus the `app-api -> supervisor-api` seam preserve `principal_type` and authorization `projection_source` inside `ContextProjection`.
   3. restricted-document rollout has explicit follow-up execution waves for data-plane projection, retrieval fail-close behavior, personalization wiring, and compatibility cleanup.
   4. memory and personalization remain non-authorizing throughout the phase; they may bias planning or wording later, but may not widen retrieval visibility.
-**Plans:** 2/5 plans complete
+**Plans:** 5/5 plans complete
 
 Plans:
 - [x] 11-01: Freeze canonical principal taxonomy and projection metadata in `app-api` / shared contracts.
 - [x] 11-02: Project restricted-document visibility and entitlement fields through ingestion/data plane.
-- [ ] 11-03: Enforce restricted-document fail-closed retrieval behavior and surface-safe deny semantics.
-- [ ] 11-04: Wire typed memory / personalization through supervisor and `rag-specialist` without granting permissions.
-- [ ] 11-05: Remove transitional ACL truth, expand eval coverage, and close telemetry / compatibility gates.
+- [x] 11-03: Enforce restricted-document fail-closed retrieval behavior and surface-safe deny semantics.
+- [x] 11-04: Wire typed memory / personalization through supervisor and `rag-specialist` without granting permissions.
+- [x] 11-05: Remove transitional ACL truth, expand eval coverage, and close telemetry / compatibility gates.
 
 Verification note:
 
@@ -436,3 +443,14 @@ Verification note:
 - `11-02` is now implemented and verified
 - restricted-document registry / chunk / import metadata now treat `visibility_* + entitlement_*` as canonical truth and keep `acl_level / acl_groups / campus_scope` only as controlled mirrors
 - targeted ingestion verification is green: `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.ingestion.test_registry_models tests.ingestion.test_campusrag_ingestion_support tests.ingestion.test_processing_pipeline tests.ingestion.test_split_manifest tests.ingestion.test_provider_result_replay_rebuild`
+- `11-05` is now implemented and verified
+- `RetrievalRequest` no longer exposes top-level `acl_groups` / `campus_scope`, supervisor audit now persists only minimal authz/personalization summary, and eval validators now use canonical restricted vocabulary while rejecting program-family / soft-personalization single-doc truth collapse
+- targeted cleanup verification is green: `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.retrieval.test_backend_qdrant tests.retrieval.test_service tests.supervisor.test_supervisor_core tests.api.test_supervisor_api tests.evals.test_retrieval_benchmark`
+- focused diff hygiene is green: `git diff --check -- packages/retrieval-core/src/campus_retrieval_core/models.py packages/supervisor-core/src/campus_supervisor_core/audit.py packages/evals/src/campus_evals/benchmark.py tests/retrieval/test_service.py tests/supervisor/test_supervisor_core.py tests/api/test_supervisor_api.py tests/evals/test_retrieval_benchmark.py`
+- `11-04` is now implemented and verified
+- supervisor scope clarification now has an explicit safe personalization seam, while `rag-specialist` only consumes user-visible profile memory plus confirmed session slots for clarification bias
+- targeted supervisor/specialist verification is green: `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.supervisor.test_supervisor_core tests.supervisor.test_supervisor_routing tests.supervisor.test_supervisor_policy tests.specialist.test_rag_specialist`
+- `11-03` is now implemented and verified
+- retrieval pre-filter now uses only canonical `visibility_level` / `entitlement_groups` / `visibility_scope`, and targeted restricted docs fail-close before candidate retrieval
+- `rag-specialist` now maps targeted restricted deny to safe `no_answer` without leaking resolved policy title, snippet, citation, anchor, or retrieved-title summary
+- targeted retrieval/specialist verification is green: `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.retrieval.test_backend_qdrant tests.retrieval.test_service tests.specialist.test_rag_specialist`

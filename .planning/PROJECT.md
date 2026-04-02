@@ -10,6 +10,7 @@
 - 当前 serving surface 由 collection runtime profile 控制，不再由早期 `phase-1` 路由文案单独定义
 - 当前 query-enabled scope 是 `regulations/student_handbook` 与 `curriculum/curriculum_plan`
 - `curriculum/course_facts` 已作为 specialist 内部检索面落地，用于课程/课程族 audience、membership、semester 等实体型问句；它保持 `retrieval_enabled=true` 但 `query_enabled_by_default=false`
+- `curriculum/program_family_facts` 已作为 specialist 内部检索面落地，用于 `民族班` / `基地班` / `实验班` / `创新班` 这类项目 family membership 问句；它保持 `retrieval_enabled=true` 但 `query_enabled_by_default=false`，其中 `实验班` / `创新班` 的 truth 代表当前已采集、名称模式命中的培养方案集合
 - `campus_services/*` 仍为 `offline_preparation`
 - 当前分支模型固定为：`develop` 承担长期集成，`main` 承担稳定发布，`main` 上的改动只通过 PR 进入
 - retrieval 读取 serving alias；离线索引发布写入 versioned physical collection，并以 release manifest 保留追溯信息
@@ -50,7 +51,7 @@
 
 ### Active
 
-- [ ] 在首个真实部署的 Worker 环境到位后，执行 `apps/app-api`、`apps/public-chat-web`、`apps/protected-panel-web` 的 post-deploy observability verification；2026-03-31 已完成本地 env/preflight 与 Worker smoke 复核，当前只缺目标环境名、真实 hostnames、Worker release、已下发的 `SENTRY_*` / `AXIOM_*` 与 Sentry/Axiom 访问权限
+- [ ] 在首个真实部署的 Worker 环境到位后，执行 `apps/app-api`、`apps/public-chat-web`、`apps/protected-panel-web` 的 post-deploy observability verification；2026-04-02 已再次完成本地 env/preflight 与 Worker smoke 复核，并补齐 `docs/runbooks/worker-observability-smoke-artifact-template.md` 与 `.tmp/observability-smoke/20260402T233916-local-readiness/`，当前只缺目标环境名、真实 hostnames、Worker release、已下发的 `SENTRY_*` / `AXIOM_*` 与 Sentry/Axiom 访问权限
 
 ### Out of Scope
 
@@ -113,6 +114,8 @@
 | protected panel 面向小团队 operator principal，不额外自建 end-user user system；`Jobs` / `Operations` 默认不进首发 rollout | 这能保持 panel 是受控 operator control plane，而不是用户系统、CMS、数据库控制台或万能后台 | — Accepted on 2026-03-28 |
 | `official_web` control plane 收口到 shared `apps/app-api`，而不是新建 crawler-intake backend | 这能复用现有 app-owned admission、ledger、outbox 与 operator read-model 形态，同时保持 `apps/ingestion-worker` 继续只是 offline executor | — Accepted on 2026-03-29 |
 | curriculum 课程 alias 治理的离线/在线 split 收口为 `ingestion-core` 派生 `course_facts`、`rag-specialist` 做 canonical course/course-family resolve、`retrieval-core` 仅消费 canonical filters | 这样可以让 `习概` / `思政课` / `思修课` 这类 institution-scoped alias 落到实体真相，同时避免把 alias 语义泄漏进 retrieval backend 或 canonical qrels | — Validated on 2026-04-02 |
+| `实验班` / `创新班` 面向 C 端按“当前已采集的名称集合”返回 program-family answer，而不是继续一律澄清 | 当前 manifest 已有稳定的相关培养方案集合；产品层需要回答真实高频问法，但仍不得把这类 alias 写成单 doc canonical qrels 或宣称学校存在官方统一 family taxonomy | — Accepted on 2026-04-03 |
+| `强基/强基计划` 与 `二学位/第二学位/第二学士学位` 的 membership 问句现进入 `program_family_facts` family-aware completed lane；但短片段 / deictic 单 doc 语义仍保持 fail-closed | 当前 manifest 已有稳定成员集合，适合回答“有哪些专业”；但这不等于允许 bare alias 或 memory-only 语义坍缩成单一培养方案 truth | — Accepted on 2026-04-03 |
 
 ## Evolution
 
@@ -132,4 +135,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state (users, feedback, metrics)
 
 ---
-*Last updated: 2026-04-02 after refreshing the latest `student_handbook` live acceptance artifact to `182346`, collapsing architecture docs into current/target plus supporting architecture, and keeping Worker observability scoped to post-deploy verification in the first real environment*
+*Last updated: 2026-04-03 after accepting the `实验班` / `创新班` generic membership lane as `program_family_facts` completed truth, while keeping deploy-side sink closure scoped to the first real environment*

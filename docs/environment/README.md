@@ -48,9 +48,10 @@ updated: 2026-04-02
 ## 当前状态
 
 - 当前 root worktree `.env` 可以集中保存本地 surface-specific `Sentry` DSN 与 shared `Axiom` 值，当前 worktree 的 app-local `.dev.vars` 也可以同步为 ready 状态
-- 2026-03-31 已完成一次本地 observability readiness 复核：`check_worker_observability_env` 通过，且 `apps/app-api`、`apps/public-chat-web`、`apps/protected-panel-web` 的 targeted Worker smoke 全部通过
+- 2026-04-02 已再次完成一次本地 observability readiness 复核：`check_worker_observability_env --json` 仍为 `overall_ready=true`，且 `apps/app-api`、`apps/public-chat-web`、`apps/protected-panel-web` 的 targeted Worker smoke 再次通过
 - 这意味着 `Pre-Deploy Readiness` 已闭环；它不自动推出 deploy-side secret store 与 live sink verification 已关闭
 - 对 deploy 环境的 `SENTRY_*` / `AXIOM_*` 下发确认与 live sink smoke，应在首个真实部署环境创建后作为 deployment gate 执行，而不是把“尚未部署”写成当前 repo blocker
+- 真实环境 smoke 的 handoff / evidence 骨架现已落在 `docs/runbooks/worker-observability-smoke-artifact-template.md`
 
 ## Eval Env 约定
 

@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-03-22
-updated: 2026-04-02
+updated: 2026-04-03
 ---
 
 # Docs
@@ -69,7 +69,7 @@ updated: 2026-04-02
 
 - 当前架构：`architecture/current-architecture.md`
 - 目标架构：`architecture/target-architecture.md`
-- supporting architecture：`architecture/product-runtime-architecture.md`、`architecture/execution-and-specialists-architecture.md`、`architecture/identity-and-authorization-architecture.md`、`architecture/retrieval-serving-architecture.md`、`architecture/data-plane-architecture.md`、`architecture/official-web-architecture.md`
+- supporting architecture：`architecture/product-runtime-architecture.md`、`architecture/execution-and-specialists-architecture.md`、`architecture/identity-and-authorization-architecture.md`、`architecture/retrieval-serving-architecture.md`、`architecture/data-plane-architecture.md`、`architecture/official-web-architecture.md`、`architecture/operator-observability-architecture.md`
 - 当前 phase 状态与 pending work：`.planning/PROJECT.md`、`.planning/STATE.md`
 - 稳定 contract / schema：`contracts/`、`data/`
 - 当前 runbook / reference / policy：`runbooks/`、`reference/`、`policies/`
@@ -105,6 +105,7 @@ updated: 2026-04-02
 - `architecture/official-web-source-truth-contract.md`
 - `contracts/app-api-error-model.md`
 - `contracts/app-api-http.md`
+- `contracts/app-api-operator-observability-http.md`
 - `contracts/app-api-official-web-http.md`
 - `contracts/app-api-official-web-run-lifecycle.md`
 - `contracts/app-api-request-lifecycle.md`
@@ -132,11 +133,14 @@ updated: 2026-04-02
 - `decisions/adr-0020-qdrant-cloud-backup-restore-and-object-store-transition.md`
 - `decisions/adr-0021-institution-scoped-entity-alias-governance.md`
 - `decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
+- `decisions/adr-0023-operator-observability-control-plane-and-sink-participation.md`
 - `decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
 - `plans/campus-identity-and-restricted-document-foundation.md`
 - `plans/env-bootstrap-and-provider-configuration-governance.md`
 - `plans/golden-dataset-execution-plan.md`
 - `plans/intent-memory-acl-foundation.md`
+- `plans/legacy-acl-carrier-compatibility-sunset.md`
+- `plans/operator-observability-control-plane-foundation.md`
 - `plans/restricted-document-rollout-and-verification.md`
 - `plans/supervisor-current-design-implementation.md`
 - `plans/versioned-history-query-foundation.md`
@@ -148,6 +152,7 @@ updated: 2026-04-02
 - `runbooks/qdrant-cloud-backup-and-restore-runbook.md`
 - `runbooks/student-handbook-hybrid-rebuild-checklist.md`
 - `runbooks/worker-observability-smoke-runbook.md`
+- `runbooks/worker-observability-smoke-artifact-template.md`
 - `reference/curriculum-plan-eval-metrics.md`
 - `reference/eval-gold-truth-model.md`
 - `reference/golden-dataset-case-matrix.md`

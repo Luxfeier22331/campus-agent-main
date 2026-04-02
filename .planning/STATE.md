@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: 2026-04-02 Phase 11 `11-02` has canonicalized restricted-document data-plane projection and legacy mirror normalization; next active work is `11-03` retrieval fail-close behavior, while Phase 9, Phase 10, and deploy-side observability remain pending workstreams
-last_updated: "2026-04-02T20:39:33+08:00"
+stopped_at: 2026-04-02 local Worker observability readiness was revalidated, a repo-tracked smoke artifact template was added, and this worktree remains focused on post-deploy observability plus curriculum deferred work while `official-web` / Phase 10 stays in a separate worktree
+last_updated: "2026-04-02T23:39:16+08:00"
 progress:
   total_phases: 22
-  completed_phases: 19
-  total_plans: 53
-  completed_plans: 47
+  completed_phases: 21
+  total_plans: 54
+  completed_plans: 51
 ---
 
 # Project State
@@ -19,19 +19,19 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-04-02)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 runtime-profile-driven serving surface 证明这条架构能可靠承接高频校园问答
-**Current focus:** Phase 11 已完成前两段执行：`11-01` 把 canonical `principal_type` 与 authorization `projection_source` 接到 `ContextProjection` shared seam，`11-02` 把 restricted-document registry / chunk / import metadata 收口到 canonical `visibility_* + entitlement_*` 语义。下一步是 `11-03` restricted retrieval fail-close；Phase 9 curriculum hardening、Phase 10 official-web hardening 与首个真实 Worker 环境的 deploy-side observability verification 仍保持 pending。
+**Current focus:** Phase 11 与 Phase 9 现已全部完成：Phase 11 已收口 canonical principal/projection seam、restricted data-plane projection、retrieval fail-close / deny-path safety、safe personalization wiring，以及 compatibility / eval / telemetry closure；Phase 9 则补齐了 curriculum alias governance、deictic verified-identity truth、soft-personalization fast-fail 与 eval closeout。`official-web` / Phase 10 当前由其他 worktree 处理，不应在这里被反复重新提议；这个 worktree 的非 web 后续应聚焦首个真实 Worker 环境的 deploy-side observability verification，以及 curriculum deferred follow-ups。
 
 ## Current Position
 
-Phase: 11 (Campus Identity, Authorization, Memory, And Restricted Document Foundation) — IN PROGRESS
-Plan: 2 of 5 completed (`11-01`, `11-02` verified)
-Next active workstream: `11-03` restricted-document fail-closed retrieval behavior
+Phase: 09 (Curriculum Ambiguous Program Query Hardening) — COMPLETED
+Plan: 3 of 3 completed (`09-01` ~ `09-03` verified)
+Next active workstream: deploy-side observability verification, followed by curriculum deferred follow-ups; `official-web` / Phase 10 is tracked in a separate worktree
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 47
+- Total plans completed: 50
 - Average duration: mixed agent-run and inline execution; see per-plan summaries
 - Total execution time: 0.2 hours + 2026-03-24 inline Phase 2/3 execution
 
@@ -59,8 +59,8 @@ Next active workstream: `11-03` restricted-document fail-closed retrieval behavi
 
 **Recent Trend:**
 
-- Last 5 plans: 09.1-02, 09.1-03, 09.1-04, 11-01, 11-02
-- Trend: Phase 11 已从 shared seam freeze 推进到 data-plane canonicalization；当前主线风险从 projection carrier 分叉转移到 retrieval deny-path fail-close 与 memory-safe wiring
+- Last 5 plans: 11-01, 11-02, 11-03, 11-04, 11-05
+- Trend: Phase 11 与 Phase 9 已完成 closeout；当前这个 worktree 的主线风险转为 deploy-side observability 与 curriculum deferred work，`official-web` / Phase 10 由其他 worktree 承接
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
@@ -123,7 +123,7 @@ Next active workstream: `11-03` restricted-document fail-closed retrieval behavi
 - Phase 8 added: Student Handbook Ambiguous Policy Query Hardening
 - Phase 8 closeout 已完成；fresh handbook live accept 已在 repo bootstrap path 下重新通过，并形成最新 release-truth artifact
 - Phase 9 added: Curriculum Ambiguous Program Query Hardening
-- Phase 9 implementation now includes internal `course_facts` serving surface, canonical course/course-family specialist planning, partial-answer diagnostics, and eval/qrels fast-fail coverage for family alias collapse
+- Phase 9 implementation now includes internal `course_facts` serving surface, canonical course/course-family specialist planning, program-family direct-answer/clarification truth, deictic verified-major resolution, forbidden generic alias fail-close, richer curriculum diagnostics, and eval/qrels fast-fail coverage for family alias collapse plus soft-personalization-only single-doc truth
 - Phase 09.1 inserted after Phase 9: Env Bootstrap And Provider Configuration Governance (URGENT)
 - Phase 09.1 implementation now includes explicit bootstrap state, shared provider precedence resolution, eval-side surface-aware provider errors, and a non-secret-leaking `doctor_env` command
 - Phase 11 added: Campus Identity, Authorization, Memory, And Restricted Document Foundation
@@ -161,6 +161,9 @@ Recent decisions affecting current work:
 - The current merged truth now treats `ContextProjection` + `SupervisorResponse` as the shared seam; follow-up work must preserve that seam instead of reintroducing `snapshot`.
 - Phase 11 `11-01` now makes canonical `principal_type` and authorization `projection_source` explicit on the shared `ContextProjection` seam, so public, campus, and operator paths are distinguishable without raw auth payloads.
 - Phase 11 `11-02` now treats `visibility_* + entitlement_*` as the primary restricted-document data-plane projection, with legacy `acl_level / acl_groups / campus_scope` retained only as canonical-derived compatibility mirrors.
+- Phase 11 `11-03` now enforces canonical-only restricted retrieval pre-filtering, fail-closes targeted restricted doc access before candidate retrieval, and keeps deny paths free of resolved titles and evidence leakage by default.
+- Phase 11 `11-04` now treats supervisor/specialist personalization as an explicit safe-consumption seam: supervisor only uses typed memory for clarification wording, `rag-specialist` only consumes `user_visible` profile memory plus confirmed session slots, and `internal_only` memory no longer enters personalization framing.
+- Phase 11 `11-05` now removes top-level retrieval ACL carrier truth, persists only minimal authz/personalization audit summary, and upgrades eval fixture validation to canonical restricted vocabulary plus program-family / soft-personalization collapse guards.
 - Current merged-truth architecture snapshot is now centralized in `docs/architecture/current-architecture.md`; README、docs index、architecture topic docs 与 `.planning/PROJECT.md` 只在各自边界内说明当前真相、长期约束、历史基线和 phase 状态，不再各自维护竞争性的 merged-truth 叙述。
 - Repo-level architecture docs are now collapsed to `current-architecture.md`、`target-architecture.md` plus a small supporting set; merged-away architecture notes and completed bootstrap baselines have exited the active docs path.
 - Curriculum gate closeout now has canonical docs/runbook coverage in `docs/reference/curriculum-plan-eval-metrics.md` and `docs/runbooks/curriculum-plan-hybrid-rebuild-checklist.md`; fresh live evidence belongs to the root worktree rather than this branch-local follow-up.
@@ -172,11 +175,10 @@ Recent decisions affecting current work:
 
 - Keep handbook chunk-truth validation and handbook eval artifacts as reusable regression gates for later retrieval changes.
 - Treat the 2026-04-02 `182346` handbook acceptance artifact as the current regression baseline for future handbook answer-path or eval-surface changes.
-- Run full repo verification after the Phase 9 worktree stabilizes, then decide whether to produce fresh curriculum live acceptance artifacts in addition to the current automated evidence.
+- Do not re-propose `official-web` / Phase 10 as the next task in this worktree unless the separate worktree explicitly hands work back; that stream is currently being handled elsewhere.
 - Keep `official_web` command/query/handoff tests and operator projections as reusable regression gates for later collector or ingestion integration changes.
 - Keep `Jobs` and `Operations` out of the default panel rollout until product scope explicitly re-opens them.
-- For the first real deployed Worker environment, confirm deploy-side `SENTRY_*` / `AXIOM_*` assignment for `apps/app-api`, `apps/public-chat-web`, and `apps/protected-panel-web`, then run post-deploy smoke verification for trace propagation, error capture, and minimal runtime event ingest. Local preflight and targeted Worker smoke were revalidated on 2026-03-31, so this is now a deployment gate rather than an active local-engineering blocker.
-- Execute `11-03` to enforce restricted-document fail-closed retrieval and deny-path leakage prevention on top of the new canonical projection.
+- For the first real deployed Worker environment, confirm deploy-side `SENTRY_*` / `AXIOM_*` assignment for `apps/app-api`, `apps/public-chat-web`, and `apps/protected-panel-web`, then run post-deploy smoke verification for trace propagation, error capture, and minimal runtime event ingest. Local preflight and targeted Worker smoke were revalidated again on 2026-04-02, and the handoff/evidence skeleton now lives in `docs/runbooks/worker-observability-smoke-artifact-template.md`, so this is a deployment gate rather than an active local-engineering blocker.
 
 ### Blockers/Concerns
 
@@ -186,13 +188,13 @@ Recent decisions affecting current work:
 - panel `Requests` is no longer blocked, but panel work must still avoid reading audit logs, telemetry sinks, consumer chat tables, or `apps/supervisor-api` directly.
 - `Official Web` control-plane APIs and panel domain are now landed on `apps/app-api` + `apps/protected-panel-web`; follow-up work must extend this surface rather than reintroducing panel-side synthesis or direct infrastructure reads.
 - `Jobs` / `Operations` / `Audit` remain delayed; landed `Official Web` views do not authorize a generic ops console.
-- Observability runtime code is landed, local worktree env is ready, and the targeted Worker smokes are green. There is no current local-engineering blocker here; the repo truth is simply that the first real deployed Worker environment does not exist yet, so deploy-side sink verification remains pending by design. When deployment exists, the smoke runner will need real hostnames, a Worker release identifier, and Sentry/Axiom access; local placeholder URLs such as `chat.example.com`, `panel.example.com`, and `app-api.internal` remain development-only values.
+- Observability runtime code is landed, local worktree env is ready, and the targeted Worker smokes are green. The latest local evidence now lives at `.tmp/observability-smoke/20260402T233916-local-readiness/`. There is no current local-engineering blocker here; the repo truth is simply that the first real deployed Worker environment does not exist yet, so deploy-side sink verification remains pending by design. When deployment exists, the smoke runner will need real hostnames, a Worker release identifier, and Sentry/Axiom access; local placeholder URLs such as `chat.example.com`, `panel.example.com`, and `app-api.internal` remain development-only values.
 - `student_handbook` 当前最新 release-truth artifact 已更新为 `.tmp/evals/student-handbook-formal-benchmark-accept-20260402T182346`；`181247` 与 `210128` 仍可作为历史健康 baseline 对照，但不再是最新 closeout 证据。
 - Phase 8 的本地 automated gates 与 fresh handbook live accept 现已全部通过，Phase 09.1 也已补齐 env/bootstrap/provider contract；因此 handbook Phase 8 closeout 现可视为 completed truth。
-- Phase 9 与 handbook live accept 是两条独立工作流：它复用已落地的 handbook ambiguous-object posture，但本身不依赖新的 handbook acceptance artifact 才能开始规划或执行。
+- Phase 9 与 handbook live accept 是两条独立工作流：它复用已落地的 handbook ambiguous-object posture，但本身不依赖新的 handbook acceptance artifact 才能开始规划或执行；当前 09-03 closeout 已把 deictic verified-identity truth、soft-bias-only qrels fast-fail 与 diagnostics 收口为 completed truth。
 - curriculum canonical eval truth 现已明确禁止把未裁决短标题歧义锁成单目标 qrels；`民族实验班` 已退出 canonical retrieval qrels，改由 `needs_clarification` workflow case 承担，`campus_evals.retrieval_benchmark` 会在评分前按 split manifest fast-fail 这类坏 truth。
-- Phase 9 现在还额外引入了 `course_facts` internal serving surface；课程型问句已不再强行复用 `curriculum_plan` 单-doc evidence 心智，但 external default query scope 仍旧只开放 `curriculum_plan`。
-- Phase 11 has now closed the principal/projection seam and the data-plane canonicalization slice, but retrieval fail-close, deny-path leakage prevention, memory wiring, and compatibility cleanup are still open.
+- Phase 9 现在额外固定了两条关键后置约束：`verified major + unique candidate` 才允许 deictic curriculum single-doc resolve，而 `recent_goal` / `confirmed_slot_terms` / profile memory 只能作为 soft bias 或 clarification input；external default query scope 仍旧只开放 `curriculum_plan`。
+- Phase 11 is now fully closed: the principal/projection seam, data-plane canonicalization, retrieval fail-close / deny-path leakage prevention, safe personalization wiring, and compatibility / eval / telemetry closure are all landed.
 
 ## Recent Verification
 
@@ -200,10 +202,20 @@ Recent decisions affecting current work:
 - `pnpm --filter app-api test:node -- test/principal-resolution.test.ts test/supervisor-adapter.test.ts test/chat-command.service.test.ts test/chat-conversations.service.test.ts test/operator-query.route.test.ts test/projection.service.test.ts test/official-web-e2e.test.ts test/official-web-query.route.test.ts test/chat-requests.route.test.ts test/chat-conversations.route.test.ts`
 - `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.app_api.test_projection tests.contracts.test_models tests.api.test_supervisor_api`
 - `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.ingestion.test_registry_models tests.ingestion.test_campusrag_ingestion_support tests.ingestion.test_processing_pipeline tests.ingestion.test_split_manifest tests.ingestion.test_provider_result_replay_rebuild`
+- `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.retrieval.test_backend_qdrant tests.retrieval.test_service tests.specialist.test_rag_specialist`
+- `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.supervisor.test_supervisor_core tests.supervisor.test_supervisor_routing tests.supervisor.test_supervisor_policy tests.specialist.test_rag_specialist`
+- `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.retrieval.test_service tests.supervisor.test_supervisor_core tests.api.test_supervisor_api tests.evals.test_retrieval_benchmark`
+- `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.retrieval.test_backend_qdrant tests.retrieval.test_service tests.supervisor.test_supervisor_core tests.api.test_supervisor_api tests.evals.test_retrieval_benchmark`
+- `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.check_worker_observability_env --json`
+- `pnpm --dir apps/app-api test:worker -- --reporter=verbose`
+- `pnpm --dir apps/public-chat-web test:worker -- --reporter=verbose -t "smokes a chat request through public-chat-web into app-api"`
+- `pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "smokes request queries through protected-panel-web into app-api with internal caller admission"`
 - `git diff --check -- apps/app-api/src/modules/auth/principal.ts apps/app-api/src/modules/auth/index.ts apps/app-api/src/modules/integration/supervisor.ts apps/app-api/src/campus_app_api/projection.py apps/supervisor-api/src/campus_supervisor_api/api.py packages/contracts/src/campus_contracts/models.py apps/app-api/test/principal-resolution.test.ts apps/app-api/test/supervisor-adapter.test.ts apps/app-api/test/chat-command.service.test.ts apps/app-api/test/chat-conversations.service.test.ts apps/app-api/test/operator-query.route.test.ts apps/app-api/test/projection.service.test.ts apps/app-api/test/official-web-e2e.test.ts apps/app-api/test/official-web-query.route.test.ts apps/app-api/test/chat-requests.route.test.ts apps/app-api/test/chat-conversations.route.test.ts tests/app_api/test_projection.py tests/contracts/test_models.py tests/api/test_supervisor_api.py .planning/ROADMAP.md .planning/phases/11-campus-identity-authorization-memory-and-restricted-document-foundation`
+- `git diff --check -- packages/supervisor-core/src/campus_supervisor_core/context.py packages/supervisor-core/src/campus_supervisor_core/intent.py packages/supervisor-core/src/campus_supervisor_core/policy.py packages/rag-specialist/src/campus_rag_specialist/intent.py packages/rag-specialist/src/campus_rag_specialist/service.py tests/supervisor/test_supervisor_core.py tests/specialist/test_rag_specialist.py .planning/ROADMAP.md .planning/STATE.md .planning/phases/11-campus-identity-authorization-memory-and-restricted-document-foundation/11-04-SUMMARY.md`
+- `git diff --check -- packages/retrieval-core/src/campus_retrieval_core/models.py packages/supervisor-core/src/campus_supervisor_core/audit.py packages/evals/src/campus_evals/benchmark.py tests/retrieval/test_service.py tests/supervisor/test_supervisor_core.py tests/api/test_supervisor_api.py tests/evals/test_retrieval_benchmark.py`
 
 ## Session Continuity
 
 Last session: 2026-03-29T12:00:00+08:00
-Stopped at: architecture cleanup, handbook acceptance closeout, and Phase 09.1 verification are all closed; next work is Phase 9 plus runtime observability verification in the first real deployed Worker environment
+Stopped at: local Worker observability readiness has been revalidated and templated; next work here is the first real post-deploy sink verification once environment inputs exist, plus curriculum deferred follow-ups
 Resume file: None

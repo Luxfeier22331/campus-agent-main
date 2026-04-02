@@ -118,6 +118,7 @@ updated: 2026-04-02
 - retrieval / serving supporting architecture：`docs/architecture/retrieval-serving-architecture.md`
 - data plane supporting architecture：`docs/architecture/data-plane-architecture.md`
 - `official_web` supporting architecture：`docs/architecture/official-web-architecture.md`
+- operator observability supporting architecture：`docs/architecture/operator-observability-architecture.md`
 - 当前 phase / pending work：`.planning/PROJECT.md`、`.planning/STATE.md`
 
 ## 不在本文维护的真相
