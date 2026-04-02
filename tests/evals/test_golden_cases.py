@@ -362,6 +362,7 @@ class RunCasesTest(unittest.TestCase):
             tuple(case.case_id for case in cases),
             (
                 "curriculum-regression-history-strong-base",
+                "curriculum-regression-history-strong-base-deictic-major",
                 "curriculum-regression-course-map-table",
                 "curriculum-regression-general-english-credits",
                 "curriculum-regression-minority-language-strong-base",
@@ -369,6 +370,7 @@ class RunCasesTest(unittest.TestCase):
                 "curriculum-regression-fiscal-core-credits",
                 "curriculum-regression-no-answer-program",
                 "curriculum-regression-needs-clarification-degree",
+                "curriculum-regression-needs-clarification-base-class-with-verified-major",
                 "curriculum-regression-needs-clarification-ethnic-experimental-class",
             ),
         )
@@ -381,7 +383,9 @@ class RunCasesTest(unittest.TestCase):
                 "completed",
                 "completed",
                 "completed",
+                "completed",
                 "no_answer",
+                "needs_clarification",
                 "needs_clarification",
                 "needs_clarification",
             ),
