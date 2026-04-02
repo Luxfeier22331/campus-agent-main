@@ -452,8 +452,8 @@ If this order is inverted, the likely result is boundary rework rather than forw
 
 - `apps/protected-panel-web/README.md`
 - `apps/protected-panel-web/REACT-ADMIN-REFERENCE.md`
-- `docs/architecture/protected-panel-boundary.md`
-- `docs/architecture/protected-panel-runtime-shell.md`
-- `docs/architecture/protected-panel-operator-access.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
 - `docs/decisions/adr-0011-protected-panel-worker-runtime.md`
 - `.planning/phases/04.4-protected-internal-panel-runtime-shell-inserted/04.4-IMPLEMENTATION-HANDOFF.md`

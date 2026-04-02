@@ -67,7 +67,7 @@
 ## CI/CD & Deployment
 
 **Hosting:**
-- No hosted platform is codified; the repo intentionally keeps runtime choices open (`docs/architecture/long-term-architecture.md` emphasizes boundary-first design).
+- No hosted platform is codified; the repo intentionally keeps runtime choices open (`docs/architecture/target-architecture.md` emphasizes boundary-first design).
 - Local runs are expected through the `uv` workspace entrypoints (for example `uv run --all-packages campus-supervisor-api-dev`), with `apps/supervisor-api` acting purely as a transport shim.
 
 **CI Pipeline:**

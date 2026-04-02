@@ -89,7 +89,7 @@ No current query-scope crash is recorded here: the old `student_handbook`-only r
 - Implementation complexity: Low to medium—replace or wrap the current sink with structured log shipping or a managed audit store.
 
 **Ingestion orchestration and monitoring (`packages/ingestion-core/src/campus_ingestion_core` & `apps/ingestion-worker`) still manual:**
-- Problem: There is no scheduler, queue, or observability for ingestion jobs described in `docs/plans/agentic-rag-foundation.md`; helpers such as `submit_raw_ingestion_job` and `process_raw_ingestion_job` only work with CLI env vars and print JSON reports.
+- Problem: There is no scheduler, queue, or observability for ingestion jobs described in `docs/architecture/target-architecture.md`; helpers such as `submit_raw_ingestion_job` and `process_raw_ingestion_job` only work with CLI env vars and print JSON reports.
 - Current workaround: Engineers run these scripts manually and inspect stdout, so ingestion is not production-grade.
 - Blocks: Automating new corpora uploads, scaling with multiple campuses, or recovering from ingestion failures.
 - Implementation complexity: Medium—add a job registry table/queue, expose a structured ingestion API, and plug in monitoring/alerts.

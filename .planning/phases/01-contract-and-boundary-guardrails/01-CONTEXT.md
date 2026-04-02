@@ -57,8 +57,8 @@ The phase delivers three things:
 - `packages/rag-specialist/AGENTS.md` — specialist-side boundary and phase-1 query-serving constraints
 
 ### Architecture and phase-1 decisions
-- `docs/architecture/long-term-architecture.md` — long-term package boundaries and system layering
-- `docs/architecture/supervisor-architecture.md` — supervisor long-term role, current-design module split, and current execution engine boundary
+- `docs/architecture/target-architecture.md` — long-term package boundaries and system layering
+- `docs/architecture/execution-and-specialists-architecture.md` — supervisor long-term role, current-design module split, and current execution engine boundary
 - `docs/plans/supervisor-current-design-implementation.md` — supervisor current-design implementation order, file targets, and acceptance criteria
 
 ### Shared contract and current code

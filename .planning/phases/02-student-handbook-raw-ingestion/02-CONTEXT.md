@@ -81,10 +81,10 @@ The phase delivers three things:
 - `.planning/phases/01-contract-and-boundary-guardrails/01-CONTEXT.md` — prior locked decisions about phase-1 scope, contract boundaries, and `student_handbook`-only query policy
 
 ### Ingestion architecture and decisions
-- `docs/architecture/phase1-ingestion-and-storage-architecture.md` — canonical raw/processed/registry/object-store rules for phase 1
-- `docs/architecture/student-handbook-ocr-normalization-strategy.md` — handbook-specific normalization, split, `document_id`, and `version_id` truth
+- `docs/architecture/data-plane-architecture.md` — canonical raw/processed/registry/object-store rules for phase 1
+- `docs/reference/student-handbook-normalization-strategy.md` — handbook-specific normalization, split, `document_id`, and `version_id` truth
 - `docs/decisions/adr-0002-local-minio-conventions.md` — MinIO/S3-compatible storage semantics and bucket conventions
-- `docs/plans/agentic-rag-foundation.md` — milestone implementation order, raw-ingestion gate, and acceptance framing
+- `docs/architecture/target-architecture.md` — milestone implementation order, raw-ingestion gate, and acceptance framing
 
 ### Corpus runtime truth
 - `configs/ingestion/student_handbook/README.md` — handbook ingestion artifact layout and config purpose

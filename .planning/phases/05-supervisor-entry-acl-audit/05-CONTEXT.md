@@ -50,7 +50,7 @@ The phase does not reopen retrieval strategy, specialist answer semantics, Cloud
 - `.planning/STATE.md`
 - `.planning/REQUIREMENTS.md`
 - `.planning/phases/04.1-cloudflare-entry-and-protected-internal-panel-design/04.1-PHASE5-HANDOFF.md`
-- `docs/architecture/supervisor-architecture.md`
+- `docs/architecture/execution-and-specialists-architecture.md`
 - `apps/supervisor-api/src/campus_supervisor_api/api.py`
 - `apps/supervisor-api/src/campus_supervisor_api/auth.py`
 - `apps/supervisor-api/src/campus_supervisor_api/settings.py`

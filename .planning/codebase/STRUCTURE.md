@@ -68,8 +68,8 @@
 
 **docs/**
 - Purpose: persistent architecture, decision, plan, runbook, reference, and policy docs.
-- Contains: `docs/architecture/long-term-architecture.md`, `docs/architecture/supervisor-architecture.md`, `docs/architecture/phase1-ingestion-and-storage-architecture.md`, `docs/plans/agentic-rag-foundation.md`, `docs/reference/*`, `docs/runbooks/*`, `docs/policies/*`.
-- Key files: architecture/phase-1 docs describe goals and constraints; plans track future phases.
+- Contains: `docs/architecture/current-architecture.md`, `docs/architecture/target-architecture.md`, `docs/architecture/product-runtime-architecture.md`, `docs/architecture/execution-and-specialists-architecture.md`, `docs/architecture/identity-and-authorization-architecture.md`, `docs/architecture/retrieval-serving-architecture.md`, `docs/architecture/data-plane-architecture.md`, `docs/architecture/official-web-architecture.md`, `docs/reference/*`, `docs/runbooks/*`, `docs/policies/*`.
+- Key files: `current-architecture.md` is the merged-truth architecture snapshot, `target-architecture.md` holds long-term shape/invariants, supporting architecture docs expand specific boundaries, and `plans/*` only keeps forward-looking implementation handoffs that still guide work.
 
 **infra/**
 - Purpose: descriptions of local infrastructure used during development (`infra/local` for MinIO/Qdrant placeholder configs).

@@ -72,12 +72,12 @@ The phase delivers three things:
 - `.planning/phases/02-student-handbook-raw-ingestion/02-CONTEXT.md` — raw-ingestion truths and provenance guarantees that Phase 3 must consume rather than redesign
 
 ### Ingestion and retrieval architecture
-- `docs/architecture/phase1-ingestion-and-storage-architecture.md` — canonical Raw -> Processed -> Chunk/Index layering, registry truth, chunk metadata requirements, and Qdrant ownership
-- `docs/architecture/student-handbook-ocr-normalization-strategy.md` — `provider-response.jsonl -> layout-elements.jsonl -> split-manifest -> canonical.md -> document-units.jsonl -> chunks` truth for `student_handbook`
-- `docs/architecture/long-term-architecture.md` — long-term package boundaries across supervisor, specialist, retrieval, and ingestion layers
-- `docs/architecture/phase1-ingestion-and-storage-architecture.md` — accepted phase-1 scope, data-plane, and package-boundary constraints
+- `docs/architecture/data-plane-architecture.md` — canonical Raw -> Processed -> Chunk/Index layering, registry truth, chunk metadata requirements, and Qdrant ownership
+- `docs/reference/student-handbook-normalization-strategy.md` — `provider-response.jsonl -> layout-elements.jsonl -> split-manifest -> canonical.md -> document-units.jsonl -> chunks` truth for `student_handbook`
+- `docs/architecture/target-architecture.md` — long-term package boundaries across supervisor, specialist, retrieval, and ingestion layers
+- `docs/architecture/data-plane-architecture.md` — accepted phase-1 scope, data-plane, and package-boundary constraints
 - `docs/decisions/adr-0002-local-minio-conventions.md` — S3-compatible object-store semantics and bucket conventions
-- `docs/plans/agentic-rag-foundation.md` — implementation gates, processed/chunk/index expectations, and phase-1 completion framing
+- `docs/architecture/target-architecture.md` — implementation gates, processed/chunk/index expectations, and phase-1 completion framing
 
 ### Corpus runtime truth
 - `configs/ingestion/regulations/student_handbook/README.md` — collection-level artifact chain and config purpose

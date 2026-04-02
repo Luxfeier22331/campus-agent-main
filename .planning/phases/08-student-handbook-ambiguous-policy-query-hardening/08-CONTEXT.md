@@ -90,11 +90,11 @@ The phase does not:
 - `.planning/REQUIREMENTS.md`
 
 ### Architecture and policy boundaries
-- `docs/architecture/long-term-architecture.md`
-- `docs/architecture/supervisor-architecture.md`
-- `docs/architecture/rag-specialist-architecture.md`
-- `docs/architecture/retrieval-query-strategy.md`
-- `docs/architecture/request-projection-and-runtime-read-model.md`
+- `docs/architecture/target-architecture.md`
+- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/retrieval-serving-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`

@@ -6,6 +6,7 @@
 
 ## Current Truth
 
+- 当前 accepted merged-truth architecture snapshot 见 `docs/architecture/current-architecture.md`
 - 当前 serving surface 由 collection runtime profile 控制，不再由早期 `phase-1` 路由文案单独定义
 - 当前 query-enabled scope 是 `regulations/student_handbook` 与 `curriculum/curriculum_plan`
 - `curriculum/course_facts` 已作为 specialist 内部检索面落地，用于课程/课程族 audience、membership、semester 等实体型问句；它保持 `retrieval_enabled=true` 但 `query_enabled_by_default=false`
@@ -19,7 +20,7 @@
 - personalization 可以利用 verified identity / profile memory / session summary，但 memory 不得授予权限或绕过 retrieval ACL
 - 04.7 `public-consumer-chat` 现仅作为历史实现参考，不再覆盖 forward topology truth
 - 当前 merged truth 已按 `ContextProjection` / `SupervisorResponse` / eval supervisor seam 收口；后续改动不得回退到旧 `snapshot`
-- `student_handbook` 当前正式 acceptance artifact 已在 2026-03-31 `210128` 收口为 deterministic / supplemental / final 全 `pass`
+- `student_handbook` 当前正式 acceptance artifact 已在 2026-04-02 `182346` 收口为 deterministic / supplemental / final 全 `pass`
 - 早期 roadmap / phase 文档主要承担历史排期与讨论存档，不应覆盖这里的当前 truth
 
 ## Core Value
@@ -43,7 +44,7 @@
 - ✓ 已完成 `public-consumer-chat` 的 04.7 app boundary / frontend host / auth-and-storage closeout，并已把实现与文档基线合入 `main`；该实现现作为历史参考而非 forward backend truth — Validated in Phase 04.7
 - ✓ 已完成 shared `apps/app-api` Worker foundation、request projection API 与 `public-chat-web` / `protected-panel-web` 接线收口 — Validated on 2026-03-29
 - ✓ 已完成 `student_handbook` 主链路的基础 eval / smoke / release-gate 验证，包含 live qrels benchmark、workflow/status 样本与 handbook collection schema 快照 — Validated in Phase 7
-- ✓ 已完成 repo-head `student_handbook` live acceptance rerun，`2026-03-31 210128` 正式 artifact 已确认 expanded release-gate、`procedure_directness` 与所有 supplemental soft gate 全量通过 — Validated on 2026-03-31
+- ✓ 已完成 repo-head `student_handbook` live acceptance rerun，`2026-04-02 182346` 正式 artifact 已确认 expanded `11`-case release gate、`procedure_directness` 与所有 supplemental soft gate 全量通过 — Validated on 2026-04-02
 - ✓ 已完成 `official_web -> app-api` control-plane ownership、contract、lifecycle、schema 与实施基线文档冻结 — Validated on 2026-03-29
 - ✓ 已完成 `official_web -> app-api` control-plane foundation 实现，包含 collector command/query APIs、outbox 驱动的 operator projections 与 ingestion handoff，以及 protected panel `Official Web` domain — Validated on 2026-03-29
 
@@ -61,7 +62,7 @@
 
 ## Context
 
-当前真人答疑群里存在大量校园相关问题，需要人工持续回答，已经形成明显的人力消耗；这个项目的直接业务背景就是用结构正确的校园问答助理承接这些高频问答。仓库本身是 brownfield：`docs/` 中已有长期架构、phase-1、supervisor 架构与实施计划文档，`.planning/codebase/` 也已经记录了当前代码地图。技术上，新仓库采用 supervisor-led multi-agent 方向，`../campusRAG` 是旧的 RAG 实现，只作为迁移参考；迁移目标不是复制旧接口，而是用新的 contract、retrieval abstraction 和 supervisor/specialist 边界重建主链路。
+当前真人答疑群里存在大量校园相关问题，需要人工持续回答，已经形成明显的人力消耗；这个项目的直接业务背景就是用结构正确的校园问答助理承接这些高频问答。仓库本身是 brownfield：`docs/` 已经收口为当前架构、目标架构、supporting architecture 与活跃实施文档，`.planning/codebase/` 也已经记录了当前代码地图。技术上，新仓库采用 supervisor-led multi-agent 方向，`../campusRAG` 是旧的 RAG 实现，只作为迁移参考；迁移目标不是复制旧接口，而是用新的 contract、retrieval abstraction 和 supervisor/specialist 边界重建主链路。
 
 ## Constraints
 
@@ -131,4 +132,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state (users, feedback, metrics)
 
 ---
-*Last updated: 2026-03-31 after closing the `student_handbook` live acceptance rerun at `210128`, refreshing planning/docs truth, and keeping Worker observability scoped to post-deploy verification in the first real environment*
+*Last updated: 2026-04-02 after refreshing the latest `student_handbook` live acceptance artifact to `182346`, collapsing architecture docs into current/target plus supporting architecture, and keeping Worker observability scoped to post-deploy verification in the first real environment*

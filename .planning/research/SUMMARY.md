@@ -104,8 +104,8 @@ The architecture layers runtime, orchestration, and data-plane boundaries: `apps
 ## Sources
 
 ### Primary (HIGH confidence)
-- `docs/architecture/long-term-architecture.md` — architecture guardrails, boundaries, and contracts.
-- `docs/architecture/phase1-ingestion-and-storage-architecture.md` — Phase 1 scope, ingestion/data-plane expectations, and storage semantics.
+- `docs/architecture/target-architecture.md` — architecture guardrails, boundaries, and contracts.
+- `docs/architecture/data-plane-architecture.md` — Phase 1 scope, ingestion/data-plane expectations, and storage semantics.
 
 ### Secondary (MEDIUM confidence)
 - `.planning/PROJECT.md` — project mission, phase requirements, active constraints, and goals.

@@ -13,7 +13,7 @@ The phase names below are retained as execution-history labels. They must not be
 
 **Phase Numbering:**
 - Integer phases (1, 2, 3): Planned milestone work
-- Decimal phases (03.1, 04.1, 04.2, 04.3, 04.4, 04.5, 04.6, 04.7, 05.1): Urgent insertions (marked with INSERTED)
+- Decimal phases (03.1, 04.1, 04.2, 04.3, 04.4, 04.5, 04.6, 04.7, 05.1, 09.1): Urgent insertions (marked with INSERTED)
 
 Decimal phases appear between their surrounding integers in numeric order.
 
@@ -34,9 +34,10 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 05.1: Curriculum Chunking Boundary Freeze** - Freeze `curriculum_plan` source-truth quality gates, split boundaries, and offline chunking runtime truth without opening query-serving. (INSERTED) (completed 2026-03-27)
 - [x] **Phase 6: Curriculum Offline Preparation** - Prepare `curriculum_plan` ingestion outputs without opening query-serving. (completed 2026-03-27)
 - [x] **Phase 7: Verification And Release Gate** - Prove the main path and failure semantics with automated tests and smoke/eval coverage. (completed 2026-03-27)
-- [ ] **Phase 8: Student Handbook Ambiguous Policy Query Hardening** - Harden ambiguous `student_handbook` policy-object queries with targeted retrieval, fail-closed clarification/no-answer semantics, and operator-facing diagnostics.
+- [x] **Phase 8: Student Handbook Ambiguous Policy Query Hardening** - Harden ambiguous `student_handbook` policy-object queries with targeted retrieval, fail-closed clarification/no-answer semantics, and operator-facing diagnostics. (completed 2026-04-02)
 - [ ] **Phase 9: Curriculum Ambiguous Program Query Hardening** - Harden ambiguous `curriculum_plan` program-family queries with alias-tier governance, soft personalization bias, and clarification-first truth.
-- [ ] **Phase 09.1: Env Bootstrap And Provider Configuration Governance** - Freeze and implement explicit local/deploy env bootstrap, provider precedence, and fail-fast diagnostics so provider credentials no longer depend on implicit shell state. (INSERTED)
+- [x] **Phase 09.1: Env Bootstrap And Provider Configuration Governance** - Freeze and implement explicit local/deploy env bootstrap, provider precedence, and fail-fast diagnostics so provider credentials no longer depend on implicit shell state. (INSERTED) (completed 2026-04-02)
+- [ ] **Phase 10: Official Web Repo Hardening And Expansion** - Expand and harden the `official_web` repo-level source channel, control plane, and operator workflow after the current curriculum hardening wave.
 
 ## Phase Details
 
@@ -304,14 +305,14 @@ Plans:
 - [x] 07-02: Add smoke/eval verification for `student_handbook` ingestion and query-serving behavior.
 
 Post-phase closeout note:
-- 2026-03-31 `210128` fresh `student_handbook` acceptance rerun confirmed the expanded `8`-case release gate on real providers.
-- The rerun kept deterministic gating stable, validated `procedure_directness` across the three procedure questions, and closed all supplemental soft gates as `pass`.
+- 2026-04-02 `182346` fresh `student_handbook` acceptance rerun confirmed the expanded `11`-case release gate on real providers.
+- The rerun kept deterministic gating stable across all 3 runs, validated `procedure_directness` across the procedure questions, and closed all supplemental soft gates as `pass`.
 - Phase 7 remains complete; the remaining follow-up outside this phase is only the first real deployed Worker observability verification.
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 03.2 → 4 → 04.1 → 04.2 → 04.3 → 04.4 → 04.5 → 04.6 → 04.7 → 5 → 05.1 → 6 → 7
+Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 03.2 → 4 → 04.1 → 04.2 → 04.3 → 04.4 → 04.5 → 04.6 → 04.7 → 5 → 05.1 → 6 → 7 → 8 → 9 → 09.1 → 10
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -332,8 +333,10 @@ Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 03.2 → 4 → 04.1 
 | 05.1. Curriculum Chunking Boundary Freeze | 4/4 | Complete | 2026-03-27 |
 | 6. Curriculum Offline Preparation | 2/2 | Complete | 2026-03-27 |
 | 7. Verification And Release Gate | 2/2 | Complete | 2026-03-27 |
-| 8. Student Handbook Ambiguous Policy Query Hardening | 4/4 | Blocked | live handbook accept still needs `LLM_API_KEY` |
-| 9. Curriculum Ambiguous Program Query Hardening | 0/0 | Not started | repo-level design recorded in `.planning/phases/09-curriculum-ambiguous-program-query-hardening/09-CONTEXT.md` |
+| 8. Student Handbook Ambiguous Policy Query Hardening | 4/4 | Complete | 2026-04-02 |
+| 9. Curriculum Ambiguous Program Query Hardening | 0/0 | Not started |  |
+| 09.1. Env Bootstrap And Provider Configuration Governance | 4/4 | Complete | 2026-04-02 |
+| 10. Official Web Repo Hardening And Expansion | 0/0 | Not started |  |
 
 ### Phase 8: Student Handbook Ambiguous Policy Query Hardening
 
@@ -346,7 +349,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 03.2 → 4 → 04.1 
   3. Resolved-but-unsupported questions return object-scoped `no_answer` instead of silently borrowing rules from another制度.
   4. handbook evals and retrieval benchmarks permanently cover the ambiguous-policy regression cases.
   5. operator-facing request projection exposes summary diagnostics for clarification/no-answer/object targeting through `app-api` owned APIs.
-**Plans:** 4 plans
+**Plans:** 4/4 plans complete
 
 Plans:
 - [x] 08-01: Add retrieval-core document-targeted retrieval for resolved handbook policy objects.
@@ -357,8 +360,10 @@ Plans:
 Verification note:
 
 - local automated verification is green: `pnpm web:typecheck`, `pnpm web:test`, and `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest discover -s tests -t .`
-- live handbook accept is not yet green because `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m campus_evals.handbook_live_benchmark accept --reruns 3 --verbose --log-jsonl .tmp/evals/handbook-runtime-events.jsonl` currently stops at `ValueError: LLM_API_KEY is required`
-- phase 8 must not be marked complete until that env-backed live acceptance reruns successfully
+- fresh handbook accept rerun now succeeds through the repo-shipped bootstrap path and produced `.tmp/evals/student-handbook-formal-benchmark-accept-20260402T182346`
+- live acceptance is green again: `final_overall_verdict=pass`, deterministic lane is stably `11/11` across all 3 reruns, and repair stays skipped with `selected_targets=0`
+- supplemental gate is also `pass`; key means are `judge.refusal_quality=0.9658`, `ragas.faithfulness=0.9241`, and `ragas.answer_relevancy=0.8652`
+- phase 8 closeout is now validated and can be treated as completed truth using the `20260402T182346` artifact as the latest baseline
 
 ### Phase 9: Curriculum Ambiguous Program Query Hardening
 
@@ -386,7 +391,7 @@ Plans:
   2. Shared provider resolution is centralized, with one precedence contract for `EVAL_LLM_* > LLM_*` and `EVAL_EMBEDDING_* > EMBEDDING_*`.
   3. Missing-config failures can distinguish missing secret, missing bootstrap, and wrong owner/surface without printing secret values.
   4. Local `.env` convenience and deploy secret-store ownership are explicitly separated in docs and runtime expectations.
-**Plans:** 4 plans
+**Plans:** 4/4 plans complete
 
 Plans:
 - [x] 09.1-01: Freeze the shared bootstrap and provider-resolution foundation.
@@ -403,3 +408,31 @@ Plans:
 
 Plans:
 - [ ] TBD (run /gsd:plan-phase 10 to break down)
+
+### Phase 11: Campus Identity, Authorization, Memory, And Restricted Document Foundation
+
+**Goal:** Close the app-owned campus identity / authorization / memory foundation so restricted document rollout can proceed on a canonical principal and projection seam instead of the current transitional ACL carrier.
+**Requirements**: []
+**Depends on:** Phase 09.1
+**Success Criteria** (what must be TRUE):
+  1. `apps/app-api` can project canonical principal class, authorization projection source, entitlement snapshot marker, profile memory summary, and session summary without promoting raw auth input into downstream truth.
+  2. `packages/contracts` plus the `app-api -> supervisor-api` seam preserve `principal_type` and authorization `projection_source` inside `ContextProjection`.
+  3. restricted-document rollout has explicit follow-up execution waves for data-plane projection, retrieval fail-close behavior, personalization wiring, and compatibility cleanup.
+  4. memory and personalization remain non-authorizing throughout the phase; they may bias planning or wording later, but may not widen retrieval visibility.
+**Plans:** 2/5 plans complete
+
+Plans:
+- [x] 11-01: Freeze canonical principal taxonomy and projection metadata in `app-api` / shared contracts.
+- [x] 11-02: Project restricted-document visibility and entitlement fields through ingestion/data plane.
+- [ ] 11-03: Enforce restricted-document fail-closed retrieval behavior and surface-safe deny semantics.
+- [ ] 11-04: Wire typed memory / personalization through supervisor and `rag-specialist` without granting permissions.
+- [ ] 11-05: Remove transitional ACL truth, expand eval coverage, and close telemetry / compatibility gates.
+
+Verification note:
+
+- `11-01` is now implemented and verified
+- the shared seam explicitly carries `principal_type` and authorization `projection_source`
+- targeted verification is green: `pnpm --filter app-api typecheck`, targeted `app-api` node tests, `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.app_api.test_projection tests.contracts.test_models tests.api.test_supervisor_api`, and focused `git diff --check`
+- `11-02` is now implemented and verified
+- restricted-document registry / chunk / import metadata now treat `visibility_* + entitlement_*` as canonical truth and keep `acl_level / acl_groups / campus_scope` only as controlled mirrors
+- targeted ingestion verification is green: `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.ingestion.test_registry_models tests.ingestion.test_campusrag_ingestion_support tests.ingestion.test_processing_pipeline tests.ingestion.test_split_manifest tests.ingestion.test_provider_result_replay_rebuild`

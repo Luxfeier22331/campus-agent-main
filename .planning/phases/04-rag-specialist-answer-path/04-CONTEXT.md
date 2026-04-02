@@ -94,13 +94,13 @@ The phase delivers four things:
 - `.planning/phases/03.2-source-truth-fan-out-and-attachment-projection/03.2-CONTEXT.md`
 
 ### Architecture and retrieval truth
-- `docs/architecture/long-term-architecture.md`
-- `docs/architecture/supervisor-architecture.md`
-- `docs/architecture/phase1-ingestion-and-storage-architecture.md`
-- `docs/architecture/student-handbook-ocr-normalization-strategy.md`
-- `docs/architecture/retrieval-query-strategy.md`
+- `docs/architecture/target-architecture.md`
+- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/data-plane-architecture.md`
+- `docs/reference/student-handbook-normalization-strategy.md`
+- `docs/architecture/retrieval-serving-architecture.md`
 - `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`
-- `docs/plans/agentic-rag-foundation.md`
+- `docs/architecture/target-architecture.md`
 - `docs/runbooks/student-handbook-hybrid-rebuild-checklist.md`
 - `docs/reference/phase1-ingestion-retrieval-implementation-truth.md`
 
