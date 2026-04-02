@@ -22,6 +22,7 @@ function createAuthorization() {
     entitlementSnapshotId: "entitlements-2026-03-29",
     ownershipScopes: ["conversation:user_01HQ"],
     principalId: "user_01HQ",
+    projectionSource: "campus_identity" as const,
     retrievalFilter: {
       aclGroups: ["students"],
       campusScope: "main",
@@ -37,7 +38,7 @@ function createAuthorization() {
 function createPrincipal(): ResolvedAppPrincipal {
   return {
     principal: {
-      type: "public_user",
+      type: "student",
       principalId: "user_01HQ",
       displayName: "Jane Doe",
       email: "jane@example.edu",
@@ -54,6 +55,7 @@ function createPrincipal(): ResolvedAppPrincipal {
     actor: {
       userId: "user_01HQ",
       principalId: "user_01HQ",
+      principalType: "student",
       roles: ["student"],
       departments: [],
       groups: ["students"],
@@ -261,7 +263,7 @@ describe("chat command service", () => {
         entitlementSnapshotId: "entitlements-2026-03-29",
         idempotencyKey: "idem-001",
         principalLabel: "Jane Doe",
-        principalType: "public_user",
+        principalType: "student",
         questionPreview: "图书馆开放到几点？",
         requestId: "req_0001",
         status: "accepted",

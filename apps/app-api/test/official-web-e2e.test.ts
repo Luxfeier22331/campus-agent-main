@@ -59,6 +59,7 @@ function createOperatorPrincipal(): ResolvedAppPrincipal {
       departments: ["ops"],
       groups: ["panel"],
       principalId: "ops@example.com",
+      principalType: "operator",
       roles: ["operator"],
       userId: "ops@example.com",
     },

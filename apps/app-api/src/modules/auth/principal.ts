@@ -12,6 +12,12 @@ export type AppPrincipalType =
   | "operator"
   | "service";
 
+export type AuthorizationProjectionSource =
+  | "public_session"
+  | "campus_identity"
+  | "operator_headers"
+  | "service_auth";
+
 export interface OfficialWebCollectorPrincipal {
   kind: "service";
   serviceClass: "official_web_collector";
@@ -38,6 +44,7 @@ export interface AppSessionPayload {
 export interface ExecutionActorContext {
   userId: string;
   principalId: string;
+  principalType: AppPrincipalType;
   roles: string[];
   departments: string[];
   groups: string[];
@@ -55,6 +62,7 @@ export interface ExecutionAuthorizationRetrievalFilter {
 
 export interface ExecutionAuthorizationContext {
   principalId: string;
+  projectionSource: AuthorizationProjectionSource;
   entitlementSnapshotId: string;
   entitlementGroups: string[];
   visibilityScope: string | null;
@@ -191,11 +199,31 @@ function toIsoString(value: string | Date | null | undefined): string | null {
   return Number.isNaN(date.valueOf()) ? null : date.toISOString();
 }
 
+function toAuthorizationProjectionSource(
+  principalType: AppPrincipalType,
+): AuthorizationProjectionSource {
+  switch (principalType) {
+    case "campus_member":
+    case "student":
+    case "staff":
+    case "faculty":
+      return "campus_identity";
+    case "operator":
+      return "operator_headers";
+    case "service":
+      return "service_auth";
+    case "public_user":
+    default:
+      return "public_session";
+  }
+}
+
 export function buildExecutionAuthorizationContext(
   actor: ExecutionActorContext,
 ): ExecutionAuthorizationContext {
   return {
     principalId: actor.principalId || actor.userId,
+    projectionSource: toAuthorizationProjectionSource(actor.principalType),
     entitlementSnapshotId: "",
     entitlementGroups: [],
     visibilityScope: null,
@@ -223,6 +251,7 @@ function buildCampusAuthorizationContext(input: {
 }): ExecutionAuthorizationContext {
   return {
     principalId: input.actor.principalId || input.actor.userId,
+    projectionSource: toAuthorizationProjectionSource(input.actor.principalType),
     entitlementSnapshotId: input.entitlementSnapshotId,
     entitlementGroups: input.entitlementGroups,
     visibilityScope: input.visibilityScope,
@@ -256,6 +285,7 @@ export function mapSessionToPublicUserPrincipal(
   const actor: ExecutionActorContext = {
     userId,
     principalId: userId,
+    principalType: "public_user",
     roles: ["public_user"],
     departments: [],
     groups: ["public_chat_users"],
@@ -319,6 +349,7 @@ export function mapSessionToAppPrincipal(
   const actor: ExecutionActorContext = {
     userId: publicPrincipal.actor.userId,
     principalId: publicPrincipal.actor.principalId,
+    principalType,
     roles: actorRoles.length > 0 ? actorRoles : [principalType],
     departments,
     groups: actorGroups,
@@ -429,6 +460,7 @@ export function mapOperatorHeadersToPrincipal(
   const actor: ExecutionActorContext = {
     userId: principalId,
     principalId,
+    principalType: "operator",
     roles,
     departments,
     groups,

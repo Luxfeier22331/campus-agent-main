@@ -54,11 +54,13 @@ describe("operator bridge principal resolution", () => {
       actor: {
         groups: ["panel", "ops"],
         principalId: "operator-001",
+        principalType: "operator",
         userId: "operator-001",
       },
       authorization: {
         entitlementGroups: [],
         principalId: "operator-001",
+        projectionSource: "operator_headers",
         retrievalFilter: {
           aclGroups: [],
           campusScope: null,
@@ -103,12 +105,14 @@ describe("public user principal projection", () => {
         campusScope: null,
         groups: ["public_chat_users"],
         principalId: "user_01HQ",
+        principalType: "public_user",
         roles: ["public_user"],
         userId: "user_01HQ",
       },
       authorization: {
         entitlementGroups: [],
         principalId: "user_01HQ",
+        projectionSource: "public_session",
         retrievalFilter: {
           aclGroups: [],
           campusScope: null,
@@ -156,6 +160,7 @@ describe("public user principal projection", () => {
         departments: ["philosophy"],
         groups: ["campus_members", "students"],
         principalId: "user_01HQ",
+        principalType: "student",
         roles: ["campus_member", "student"],
         userId: "user_01HQ",
       },
@@ -164,6 +169,7 @@ describe("public user principal projection", () => {
         entitlementGroups: ["campus_members", "students"],
         entitlementSnapshotId: "entitlements-2026-04-02",
         principalId: "user_01HQ",
+        projectionSource: "campus_identity",
         retrievalFilter: {
           aclGroups: [],
           campusScope: null,
@@ -224,6 +230,7 @@ describe("request principal resolution", () => {
       authorization: {
         entitlementGroups: [],
         entitlementSnapshotId: "",
+        projectionSource: "public_session",
         visibilityScope: null,
       },
     });
@@ -270,12 +277,14 @@ describe("request principal resolution", () => {
         campusScope: "north",
         departments: ["philosophy"],
         groups: ["campus_members", "students"],
+        principalType: "student",
         roles: ["campus_member", "student"],
       },
       authorization: {
         applicabilityScope: "undergraduate",
         entitlementGroups: ["campus_members", "students"],
         entitlementSnapshotId: "entitlements-2026-04-02",
+        projectionSource: "campus_identity",
         visibilityScope: "north",
       },
       principal: {

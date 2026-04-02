@@ -608,6 +608,7 @@ class SupervisorApiTest(unittest.TestCase):
                     "actor": {
                         "user_id": "student@example.edu",
                         "principal_id": "principal-001",
+                        "principal_type": "student",
                         "roles": ["student"],
                         "groups": ["students", "library"],
                         "campus_scope": "north",
@@ -617,6 +618,7 @@ class SupervisorApiTest(unittest.TestCase):
                     },
                     "authorization": {
                         "principal_id": "principal-001",
+                        "projection_source": "campus_identity",
                         "entitlement_snapshot_id": "entitlements-2026-03-29",
                         "entitlement_groups": ["students", "library"],
                         "visibility_scope": "north",
@@ -662,6 +664,7 @@ class SupervisorApiTest(unittest.TestCase):
                 actor=ActorContext(
                     user_id="student@example.edu",
                     principal_id="principal-001",
+                    principal_type="student",
                     roles=("student",),
                     departments=(),
                     groups=("students", "library"),
@@ -672,6 +675,7 @@ class SupervisorApiTest(unittest.TestCase):
                 ),
                 authorization=AuthorizationProjection(
                     principal_id="principal-001",
+                    projection_source="campus_identity",
                     entitlement_snapshot_id="entitlements-2026-03-29",
                     entitlement_groups=("students", "library"),
                     visibility_scope="north",

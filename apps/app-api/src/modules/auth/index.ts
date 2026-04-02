@@ -11,6 +11,7 @@ export type {
   AppPermissions,
   AppPrincipalPayload,
   AppSessionPayload,
+  AuthorizationProjectionSource,
   BetterAuthSessionPayload,
   CampusIdentityClaimsInput,
   ExecutionAuthorizationContext,

@@ -28,6 +28,7 @@ class AppApiProjectionTest(unittest.TestCase):
             identity=VerifiedIdentityInput(
                 user_id="student-001",
                 principal_id="principal-001",
+                principal_type="student",
                 roles=("student",),
                 groups=("students",),
                 campus_scope="north",
@@ -37,6 +38,7 @@ class AppApiProjectionTest(unittest.TestCase):
             ),
             authorization=AuthorizationInput(
                 principal_id="principal-001",
+                projection_source="campus_identity",
                 entitlement_snapshot_id="entitlements-2026-03-29",
                 entitlement_groups=("students",),
                 visibility_scope="north",
@@ -75,6 +77,7 @@ class AppApiProjectionTest(unittest.TestCase):
                 actor=ActorContext(
                     user_id="student-001",
                     principal_id="principal-001",
+                    principal_type="student",
                     roles=("student",),
                     departments=(),
                     groups=("students",),
@@ -85,6 +88,7 @@ class AppApiProjectionTest(unittest.TestCase):
                 ),
                 authorization=AuthorizationProjection(
                     principal_id="principal-001",
+                    projection_source="campus_identity",
                     entitlement_snapshot_id="entitlements-2026-03-29",
                     entitlement_groups=("students",),
                     visibility_scope="north",
@@ -125,6 +129,7 @@ class AppApiProjectionTest(unittest.TestCase):
             identity=VerifiedIdentityInput(
                 user_id="student-001",
                 principal_id="principal-001",
+                principal_type="student",
                 groups=("students",),
                 campus_scope="north",
             ),
@@ -134,6 +139,7 @@ class AppApiProjectionTest(unittest.TestCase):
             projection.authorization,
             AuthorizationProjection(
                 principal_id="principal-001",
+                projection_source="campus_identity",
                 entitlement_snapshot_id="",
                 entitlement_groups=(),
                 visibility_scope=None,
@@ -156,6 +162,7 @@ class AppApiProjectionTest(unittest.TestCase):
             identity=VerifiedIdentityInput(
                 user_id="student-001",
                 principal_id="principal-001",
+                principal_type="student",
                 roles=("campus_member", "student"),
                 departments=("philosophy",),
                 groups=("campus_members", "students"),
@@ -166,6 +173,7 @@ class AppApiProjectionTest(unittest.TestCase):
             ),
             authorization=AuthorizationInput(
                 principal_id="principal-001",
+                projection_source="campus_identity",
                 entitlement_snapshot_id="entitlements-2026-04-02",
                 entitlement_groups=("campus_members", "students"),
                 visibility_scope="north",
@@ -183,6 +191,7 @@ class AppApiProjectionTest(unittest.TestCase):
             projection.authorization,
             AuthorizationProjection(
                 principal_id="principal-001",
+                projection_source="campus_identity",
                 entitlement_snapshot_id="entitlements-2026-04-02",
                 entitlement_groups=("campus_members", "students"),
                 visibility_scope="north",
@@ -224,11 +233,13 @@ class AppApiProjectionTest(unittest.TestCase):
             identity=VerifiedIdentityInput(
                 user_id="student-001",
                 principal_id="principal-001",
+                principal_type="student",
                 groups=("students",),
                 campus_scope="north",
             ),
             authorization=AuthorizationInput(
                 principal_id="principal-001",
+                projection_source="campus_identity",
                 entitlement_snapshot_id="entitlements-2026-03-29",
                 entitlement_groups=("students",),
                 visibility_scope="north",
@@ -260,6 +271,7 @@ class AppApiProjectionTest(unittest.TestCase):
         )
 
         self.assertEqual(projection.authorization.entitlement_groups, ("students",))
+        self.assertEqual(projection.authorization.projection_source, "campus_identity")
         self.assertEqual(
             projection.authorization.retrieval_filter.entitlement_groups,
             ("students",),

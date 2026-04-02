@@ -59,6 +59,7 @@ class TraceContext:
 class ActorContext:
     user_id: str = ""
     principal_id: str = ""
+    principal_type: str = ""
     roles: tuple[str, ...] = field(default_factory=tuple)
     departments: tuple[str, ...] = field(default_factory=tuple)
     groups: tuple[str, ...] = field(default_factory=tuple)
@@ -143,6 +144,7 @@ class AuthorizedRetrievalFilter:
 @dataclass(frozen=True, slots=True)
 class AuthorizationProjection:
     principal_id: str = ""
+    projection_source: str = ""
     entitlement_snapshot_id: str = ""
     entitlement_groups: tuple[str, ...] = field(default_factory=tuple)
     visibility_scope: str | None = None

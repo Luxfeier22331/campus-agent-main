@@ -106,6 +106,7 @@ function toSupervisorActor(actor: ExecutionActorContext) {
   return {
     user_id: actor.userId,
     principal_id: actor.principalId,
+    principal_type: actor.principalType,
     roles: actor.roles,
     departments: actor.departments,
     groups: actor.groups,
@@ -118,6 +119,7 @@ function toSupervisorContext(context: SupervisorContextProjection) {
     actor: toSupervisorActor(context.actor),
     authorization: {
       principal_id: context.authorization.principalId,
+      projection_source: context.authorization.projectionSource,
       entitlement_snapshot_id: context.authorization.entitlementSnapshotId,
       entitlement_groups: context.authorization.entitlementGroups,
       visibility_scope: context.authorization.visibilityScope,

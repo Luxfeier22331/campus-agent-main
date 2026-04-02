@@ -13,6 +13,7 @@ function createActor() {
     departments: [],
     groups: ["students"],
     principalId: "principal_01HQ",
+    principalType: "student" as const,
     roles: ["student"],
     userId: "user_01HQ",
   };
@@ -26,6 +27,7 @@ function createAuthorization() {
     entitlementSnapshotId: "entitlements-2026-03-29",
     ownershipScopes: ["conversation:user_01HQ"],
     principalId: "principal_01HQ",
+    projectionSource: "campus_identity" as const,
     retrievalFilter: {
       aclGroups: ["students"],
       campusScope: "main",
@@ -122,6 +124,7 @@ describe("supervisor execution adapter", () => {
           departments: [],
           groups: ["students"],
           principal_id: "principal_01HQ",
+          principal_type: "student",
           roles: ["student"],
           user_id: "user_01HQ",
         },
@@ -132,6 +135,7 @@ describe("supervisor execution adapter", () => {
           entitlement_snapshot_id: "entitlements-2026-03-29",
           ownership_scopes: ["conversation:user_01HQ"],
           principal_id: "principal_01HQ",
+          projection_source: "campus_identity",
           retrieval_filter: {
             acl_groups: ["students"],
             campus_scope: "main",

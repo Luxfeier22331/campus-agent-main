@@ -24,6 +24,7 @@ function createPublicPrincipal() {
       departments: [],
       groups: ["public_chat_users"],
       principalId: "user_01HQ",
+      principalType: "public_user",
       roles: ["public_user"],
       userId: "user_01HQ",
     },

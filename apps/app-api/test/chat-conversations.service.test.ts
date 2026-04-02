@@ -12,30 +12,37 @@ import type { ResolvedAppPrincipal } from "../src/modules/auth";
 function createPrincipal(
   input: Partial<ResolvedAppPrincipal> = {},
 ): ResolvedAppPrincipal {
+  const principalType = input.principal?.type ?? input.actor?.principalType ?? "public_user";
   return {
     actor: {
-      campusScope: "main",
+      campusScope: null,
       departments: [],
-      groups: ["students"],
+      groups: ["public_chat_users"],
       principalId: "user_01HQ",
-      roles: ["student"],
+      principalType,
+      roles: ["public_user"],
       userId: "user_01HQ",
+      ...input.actor,
     },
     permissions: {
       chat: true,
       operator: false,
+      ...input.permissions,
     },
     principal: {
       displayName: "Jane Doe",
       email: "jane@example.edu",
       principalId: "user_01HQ",
-      type: "public_user",
+      type: principalType,
+      ...input.principal,
     },
-    session: {
-      expiresAt: "2026-03-29T07:00:00.000Z",
-      sessionId: "sess_01HQ",
-    },
-    ...input,
+    authorization: input.authorization,
+    session: input.session === undefined
+      ? {
+          expiresAt: "2026-03-29T07:00:00.000Z",
+          sessionId: "sess_01HQ",
+        }
+      : input.session,
   };
 }
 

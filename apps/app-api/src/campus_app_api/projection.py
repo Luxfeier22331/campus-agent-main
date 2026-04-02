@@ -21,6 +21,7 @@ from campus_contracts import (
 class VerifiedIdentityInput:
     user_id: str
     principal_id: str = ""
+    principal_type: str = ""
     roles: tuple[str, ...] = field(default_factory=tuple)
     departments: tuple[str, ...] = field(default_factory=tuple)
     groups: tuple[str, ...] = field(default_factory=tuple)
@@ -70,6 +71,7 @@ class AuthorizedRetrievalFilterInput:
 @dataclass(frozen=True, slots=True)
 class AuthorizationInput:
     principal_id: str = ""
+    projection_source: str = ""
     entitlement_snapshot_id: str = ""
     entitlement_groups: tuple[str, ...] = field(default_factory=tuple)
     visibility_scope: str | None = None
@@ -109,6 +111,7 @@ def build_context_projection(
         actor=ActorContext(
             user_id=identity.user_id,
             principal_id=identity.principal_id,
+            principal_type=identity.principal_type,
             roles=identity.roles,
             departments=identity.departments,
             groups=identity.groups,
@@ -134,6 +137,7 @@ def _build_authorization_projection(
         principal_id = identity.principal_id or identity.user_id
         return AuthorizationProjection(
             principal_id=principal_id,
+            projection_source=_default_projection_source(identity.principal_type),
             entitlement_groups=(),
             visibility_scope=None,
             retrieval_filter=AuthorizedRetrievalFilter(
@@ -151,6 +155,7 @@ def _build_authorization_projection(
     principal_id = authorization.principal_id or identity.principal_id or identity.user_id
     return AuthorizationProjection(
         principal_id=principal_id,
+        projection_source=authorization.projection_source or _default_projection_source(identity.principal_type),
         entitlement_snapshot_id=authorization.entitlement_snapshot_id,
         entitlement_groups=authorization.entitlement_groups,
         visibility_scope=authorization.visibility_scope,
@@ -166,3 +171,14 @@ def _build_authorization_projection(
             policy_projection_version=retrieval_filter.policy_projection_version,
         ),
     )
+
+
+def _default_projection_source(principal_type: str) -> str:
+    normalized = principal_type.strip()
+    if normalized in {"campus_member", "student", "staff", "faculty"}:
+        return "campus_identity"
+    if normalized == "operator":
+        return "operator_headers"
+    if normalized == "service":
+        return "service_auth"
+    return "public_session"

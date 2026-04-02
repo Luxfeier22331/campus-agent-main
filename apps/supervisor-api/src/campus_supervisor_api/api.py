@@ -380,6 +380,7 @@ def _parse_actor_context(raw_actor: object, *, field_prefix: str) -> ActorContex
     return ActorContext(
         user_id=_parse_optional_string(raw_actor.get("user_id")) or "",
         principal_id=_parse_optional_string(raw_actor.get("principal_id")) or "",
+        principal_type=_parse_optional_string(raw_actor.get("principal_type")) or "",
         roles=_parse_string_tuple(raw_actor.get("roles"), field_name=f"{field_prefix}.roles"),
         departments=_parse_string_tuple(
             raw_actor.get("departments"),
@@ -417,6 +418,7 @@ def _parse_authorization_projection(
     )
     return AuthorizationProjection(
         principal_id=_parse_optional_string(raw_authorization.get("principal_id")) or actor.principal_id or actor.user_id,
+        projection_source=_parse_optional_string(raw_authorization.get("projection_source")) or "",
         entitlement_snapshot_id=_parse_optional_string(raw_authorization.get("entitlement_snapshot_id")) or "",
         entitlement_groups=entitlement_groups,
         visibility_scope=visibility_scope,

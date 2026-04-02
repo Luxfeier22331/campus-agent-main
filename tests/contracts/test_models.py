@@ -101,6 +101,7 @@ class ContractModelsTest(unittest.TestCase):
                 actor=ActorContext(
                     user_id="student-001",
                     principal_id="principal-001",
+                    principal_type="student",
                     roles=("student",),
                     groups=("students",),
                     campus_scope="north",
@@ -109,6 +110,7 @@ class ContractModelsTest(unittest.TestCase):
                 ),
                 authorization=AuthorizationProjection(
                     principal_id="principal-001",
+                    projection_source="campus_identity",
                     entitlement_snapshot_id="entitlements-2026-03-29",
                     entitlement_groups=("students",),
                     visibility_scope="north",
@@ -148,7 +150,9 @@ class ContractModelsTest(unittest.TestCase):
 
         self.assertEqual(request.actor.user_id, "student-001")
         self.assertEqual(request.context.actor.major, "philosophy")
+        self.assertEqual(request.context.actor.principal_type, "student")
         self.assertEqual(request.context.authorization.entitlement_snapshot_id, "entitlements-2026-03-29")
+        self.assertEqual(request.context.authorization.projection_source, "campus_identity")
         self.assertEqual(
             request.context.authorization.retrieval_filter.entitlement_groups,
             ("students",),
