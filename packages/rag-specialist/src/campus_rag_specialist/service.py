@@ -24,8 +24,10 @@ from campus_rag_specialist.agent import DEFAULT_MAX_ANSWER_SOURCES, RagSpecialis
 from campus_rag_specialist.confidence import derive_confidence
 from campus_rag_specialist.intent import build_personalization_hint, frame_rag_intent
 from campus_rag_specialist.query_planning import (
+    CurriculumCourseQueryPlan,
     CurriculumQueryPlan,
     HandbookQueryPlan,
+    plan_curriculum_course_query,
     plan_curriculum_query,
     plan_student_handbook_query,
 )
@@ -58,6 +60,7 @@ def delegate_to_rag_agent(
     personalization_hint = build_personalization_hint(request)
     handbook_plan = _plan_handbook_query(request, user_goal)
     curriculum_plan = _plan_curriculum_query(request, user_goal)
+    curriculum_course_plan = _plan_curriculum_course_query(request, user_goal)
     if intent_frame.response_mode == "clarify" and not _has_resolved_query_plan(
         handbook_plan=handbook_plan,
         curriculum_plan=curriculum_plan,
@@ -76,6 +79,7 @@ def delegate_to_rag_agent(
                 evidence=empty_evidence,
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
+                curriculum_course_plan=curriculum_course_plan,
             ),
         )
     if handbook_plan is not None and handbook_plan.status == "needs_clarification":
@@ -94,6 +98,7 @@ def delegate_to_rag_agent(
                 evidence=empty_evidence,
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
+                curriculum_course_plan=curriculum_course_plan,
             ),
         )
     if curriculum_plan is not None and curriculum_plan.status == "needs_clarification":
@@ -113,6 +118,7 @@ def delegate_to_rag_agent(
                 evidence=empty_evidence,
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
+                curriculum_course_plan=curriculum_course_plan,
             ),
         )
 
@@ -120,8 +126,26 @@ def delegate_to_rag_agent(
         retrieval_goal = user_goal
         target_document_ids: tuple[str, ...] = ()
         preferred_document_ids: tuple[str, ...] = ()
+        retrieval_collection = request.payload.scope.collection
+        canonical_course_ids: tuple[str, ...] = ()
+        canonical_course_family_ids: tuple[str, ...] = ()
         if request.payload.scope.corpus == "curriculum" and request.payload.scope.collection == "curriculum_plan":
-            if curriculum_plan is not None and curriculum_plan.status in {"resolved", "soft_preference"}:
+            if curriculum_course_plan is not None:
+                retrieval_collection = curriculum_course_plan.internal_collection
+                canonical_course_ids = (
+                    (curriculum_course_plan.canonical_course_id,)
+                    if curriculum_course_plan.canonical_course_id
+                    else ()
+                )
+                canonical_course_family_ids = (
+                    (curriculum_course_plan.canonical_course_family_id,)
+                    if (
+                        curriculum_course_plan.entity_type == "course_family"
+                        and curriculum_course_plan.canonical_course_family_id
+                    )
+                    else ()
+                )
+            elif curriculum_plan is not None and curriculum_plan.status in {"resolved", "soft_preference"}:
                 retrieval_goal = curriculum_plan.rewritten_query_text
                 target_document_ids = curriculum_plan.target_document_ids
                 preferred_document_ids = curriculum_plan.preferred_document_ids
@@ -133,11 +157,11 @@ def delegate_to_rag_agent(
         evidence = retriever(
             retrieval_goal,
             corpus=request.payload.scope.corpus,
-            collection=request.payload.scope.collection,
-            campus_scope=request.actor.campus_scope,
-            acl_groups=request.actor.groups,
+            collection=retrieval_collection,
             target_document_ids=target_document_ids,
             preferred_document_ids=preferred_document_ids,
+            canonical_course_ids=canonical_course_ids,
+            canonical_course_family_ids=canonical_course_family_ids,
             authorized_filter=request.context.authorization.retrieval_filter,
             personalization_hint=personalization_hint,
         )
@@ -151,6 +175,7 @@ def delegate_to_rag_agent(
                 evidence=_build_empty_evidence(request, user_goal),
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
+                curriculum_course_plan=curriculum_course_plan,
             ),
             error=ErrorInfo(code="corpus_not_query_enabled", message=str(exc), retryable=False),
         )
@@ -163,6 +188,7 @@ def delegate_to_rag_agent(
                 evidence=_build_empty_evidence(request, user_goal),
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
+                curriculum_course_plan=curriculum_course_plan,
             ),
             error=ErrorInfo(code="retrieval_failed", message=str(exc), retryable=False),
         )
@@ -179,6 +205,7 @@ def delegate_to_rag_agent(
                 evidence=evidence,
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
+                curriculum_course_plan=curriculum_course_plan,
                 no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
             ),
         )
@@ -197,6 +224,7 @@ def delegate_to_rag_agent(
                 evidence=evidence,
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
+                curriculum_course_plan=curriculum_course_plan,
             ),
         )
 
@@ -214,6 +242,7 @@ def delegate_to_rag_agent(
                 evidence=supporting_evidence,
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
+                curriculum_course_plan=curriculum_course_plan,
                 no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
             ),
         )
@@ -232,27 +261,37 @@ def delegate_to_rag_agent(
                 evidence=supporting_evidence,
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
+                curriculum_course_plan=curriculum_course_plan,
                 no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
             ),
         )
 
-    agent = RagSpecialistAgent()
-    answer_draft = agent.build_answer(supporting_evidence)
-    finalized_evidence = EvidenceBundle(
-        query_text=supporting_evidence.query_text,
-        corpus=supporting_evidence.corpus,
-        collection=supporting_evidence.collection,
-        sources=answer_draft.supporting_sources,
-    )
+    if curriculum_course_plan is not None:
+        answer_text = _build_curriculum_course_answer(
+            evidence=supporting_evidence,
+            plan=curriculum_course_plan,
+        )
+        finalized_evidence = supporting_evidence
+    else:
+        agent = RagSpecialistAgent()
+        answer_draft = agent.build_answer(supporting_evidence)
+        finalized_evidence = EvidenceBundle(
+            query_text=supporting_evidence.query_text,
+            corpus=supporting_evidence.corpus,
+            collection=supporting_evidence.collection,
+            sources=answer_draft.supporting_sources,
+        )
+        answer_text = answer_draft.answer_text
     return SpecialistResponse(
         target="rag-specialist",
         status="completed",
-        answer_text=answer_draft.answer_text,
+        answer_text=answer_text,
         confidence=confidence,
         result=_build_rag_result_payload(
             evidence=finalized_evidence,
             handbook_plan=handbook_plan,
             curriculum_plan=curriculum_plan,
+            curriculum_course_plan=curriculum_course_plan,
         ),
     )
 
@@ -283,6 +322,8 @@ def _build_no_answer_response(
     *,
     resolved_policy_title: str = "",
 ) -> str:
+    if evidence.corpus == "curriculum" and evidence.collection == "course_facts":
+        return "当前未检索到足够依据支持回答这个课程问题，请补充更具体的课程名称、课程类别或修读字段。"
     if evidence.corpus == "curriculum" and evidence.collection == "curriculum_plan":
         return "当前未检索到足够依据支持回答这个培养方案问题，请补充更具体的培养方案名称、学位要求或课程表名称。"
     if resolved_policy_title:
@@ -437,6 +478,15 @@ def _plan_curriculum_query(
     )
 
 
+def _plan_curriculum_course_query(
+    request: SpecialistRequest,
+    user_goal: str,
+) -> CurriculumCourseQueryPlan | None:
+    if request.payload.scope.corpus != "curriculum" or request.payload.scope.collection != "curriculum_plan":
+        return None
+    return plan_curriculum_course_query(user_goal)
+
+
 def _has_resolved_query_plan(
     *,
     handbook_plan: HandbookQueryPlan | None,
@@ -464,12 +514,14 @@ def _build_rag_result_payload(
     evidence: EvidenceBundle,
     handbook_plan: HandbookQueryPlan | None,
     curriculum_plan: CurriculumQueryPlan | None = None,
+    curriculum_course_plan: CurriculumCourseQueryPlan | None = None,
     no_answer_reason: str = "",
 ) -> RagResultPayload:
     diagnostics = _build_rag_result_diagnostics(
         evidence=evidence,
         handbook_plan=handbook_plan,
         curriculum_plan=curriculum_plan,
+        curriculum_course_plan=curriculum_course_plan,
         no_answer_reason=no_answer_reason,
     )
     return RagResultPayload(
@@ -483,10 +535,24 @@ def _build_rag_result_diagnostics(
     evidence: EvidenceBundle,
     handbook_plan: HandbookQueryPlan | None,
     curriculum_plan: CurriculumQueryPlan | None = None,
+    curriculum_course_plan: CurriculumCourseQueryPlan | None = None,
     no_answer_reason: str = "",
 ) -> RagResultDiagnostics | None:
-    if handbook_plan is None and curriculum_plan is None:
+    if handbook_plan is None and curriculum_plan is None and curriculum_course_plan is None:
         return None
+    if curriculum_course_plan is not None:
+        return RagResultDiagnostics(
+            no_answer_reason=no_answer_reason,
+            retrieved_title_summary=_summarize_retrieved_titles(evidence),
+            resolution_mode=curriculum_course_plan.resolution_mode,
+            resolved_entity_type=curriculum_course_plan.entity_type,
+            resolved_course_id=curriculum_course_plan.canonical_course_id,
+            resolved_course_title=curriculum_course_plan.canonical_course_title,
+            resolved_course_family_id=curriculum_course_plan.canonical_course_family_id,
+            resolved_course_family_title=curriculum_course_plan.canonical_course_family_title,
+            unsupported_fields=curriculum_course_plan.unsupported_fields,
+            partial_answer=curriculum_course_plan.partial_answer,
+        )
     if handbook_plan is not None and handbook_plan.status != "pass_through":
         return RagResultDiagnostics(
             resolved_policy_document_id=handbook_plan.resolved_policy_document_id,
@@ -516,6 +582,34 @@ def _build_rag_result_diagnostics(
         no_answer_reason=no_answer_reason,
         retrieved_title_summary=_summarize_retrieved_titles(evidence),
     )
+
+
+def _build_curriculum_course_answer(
+    *,
+    evidence: EvidenceBundle,
+    plan: CurriculumCourseQueryPlan,
+) -> str:
+    snippets = [
+        source.snippet.strip().rstrip("。")
+        for source in evidence.sources
+        if source.snippet.strip()
+    ]
+    unique_snippets: list[str] = []
+    for snippet in snippets:
+        if snippet not in unique_snippets:
+            unique_snippets.append(snippet)
+    body = "；".join(unique_snippets[:3])
+    if plan.entity_type == "course":
+        lead = f"根据当前已采集的课程事实，{plan.canonical_course_title}{'：' if body else '。'}"
+    else:
+        lead = f"根据当前已采集的课程事实，{plan.canonical_course_family_title}{'：' if body else '。'}"
+    answer = f"{lead}{body}" if body else lead
+    if plan.partial_answer and "offering_unit" in plan.unsupported_fields:
+        suffix = "当前还不能稳定确认开课学院。"
+        if "所有本预科学生" in answer:
+            return f"{answer}；{suffix}"
+        return f"{answer}{suffix}"
+    return answer if answer.endswith("。") else f"{answer}。"
 
 
 def _summarize_retrieved_titles(evidence: EvidenceBundle) -> tuple[str, ...]:

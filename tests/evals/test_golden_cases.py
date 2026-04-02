@@ -368,6 +368,10 @@ class RunCasesTest(unittest.TestCase):
                 "curriculum-regression-minority-language-strong-base",
                 "curriculum-regression-education-second-degree-years",
                 "curriculum-regression-fiscal-core-credits",
+                "curriculum-regression-course-family-membership",
+                "curriculum-regression-course-family-audience",
+                "curriculum-regression-course-family-partial-answer",
+                "curriculum-regression-course-single-audience",
                 "curriculum-regression-no-answer-program",
                 "curriculum-regression-needs-clarification-degree",
                 "curriculum-regression-needs-clarification-base-class-with-verified-major",
@@ -384,6 +388,10 @@ class RunCasesTest(unittest.TestCase):
                 "completed",
                 "completed",
                 "completed",
+                "completed",
+                "completed",
+                "completed",
+                "completed",
                 "no_answer",
                 "needs_clarification",
                 "needs_clarification",
@@ -393,6 +401,14 @@ class RunCasesTest(unittest.TestCase):
         self.assertTrue(all(case.source_type == "expert_authored" for case in cases))
         self.assertTrue(all(case.split == "regression_locked" for case in cases))
         self.assertTrue(all(case.scope == CURRICULUM_SCOPE for case in cases))
+
+    def test_curriculum_course_family_cases_forbid_unsupported_offering_unit_guess(self) -> None:
+        cases = {case.case_id: case for case in curriculum_regression_locked_cases()}
+
+        self.assertIn(
+            "不得猜测开课学院",
+            " ".join(cases["curriculum-regression-course-family-partial-answer"].forbidden_claims),
+        )
 
     def test_curriculum_error_gate_cases_cover_deterministic_error_paths(self) -> None:
         cases = curriculum_error_gate_cases()

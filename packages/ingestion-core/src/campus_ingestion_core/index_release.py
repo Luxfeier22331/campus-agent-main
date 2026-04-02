@@ -90,8 +90,6 @@ def resolve_alias_target(
     for alias in aliases:
         if alias.alias_name == alias_name:
             return alias.collection_name
-    if qdrant_client.collection_exists(alias_name):
-        return alias_name
     return None
 
 

@@ -1782,6 +1782,8 @@ def _ensure_payload_indexes(*, qdrant_client: QdrantClient, collection_name: str
         ("version_id", qdrant_models.PayloadSchemaType.KEYWORD),
         ("corpus", qdrant_models.PayloadSchemaType.KEYWORD),
         ("collection", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("canonical_course_id", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("canonical_course_family_id", qdrant_models.PayloadSchemaType.KEYWORD),
         ("visibility_scope", qdrant_models.PayloadSchemaType.KEYWORD),
         ("entitlement_groups", qdrant_models.PayloadSchemaType.KEYWORD),
         ("visibility_level", qdrant_models.PayloadSchemaType.KEYWORD),

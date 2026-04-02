@@ -26,6 +26,9 @@ from campus_ingestion_core.campusrag_ingestion_support import (
 from campus_ingestion_core.collection_config import CollectionTruthConfig, resolve_collection_truth_config
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.curriculum_provider_normalize import normalize_curriculum_provider_result
+from campus_ingestion_core.curriculum_course_facts_projection import (
+    build_curriculum_course_facts_scope_refresh_documents,
+)
 from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
 from campus_ingestion_core.handbook_cleanup import cleanup_handbook_document, serialize_handbook_document_units
 from campus_ingestion_core.handbook_source_projections import (
@@ -263,6 +266,13 @@ def _resolve_rebuild_target_qdrant_bindings(
                     collection=projection.target_collection,
                 )
             )
+    if request.import_mode == "provider_response_replay" and request.collection == "curriculum_plan":
+        target_bindings.append(
+            _resolve_target_qdrant_binding(
+                corpus="curriculum",
+                collection="course_facts",
+            )
+        )
     deduped: list[QdrantIndexBinding] = []
     seen: set[tuple[str, str]] = set()
     for binding in target_bindings:
@@ -855,17 +865,29 @@ def replay_provider_response_rebuild(
         ingestion_timestamp="1970-01-01T00:00:00+00:00",
         import_source="provider_response_replay",
     )
-    documents.extend(
-        build_handbook_projection_import_documents(
-            source=source,
-            config_path=collection_config.source_projections_path,
-            raw_asset_record=raw_asset_ref,
-            provider_response_key=provider_response_key,
-            layout_elements_key=layout_elements_key,
-            structured_rows=structured_rows,
-            split_manifest_documents=split_manifest.documents,
+    if collection == "student_handbook":
+        documents.extend(
+            build_handbook_projection_import_documents(
+                source=source,
+                config_path=collection_config.source_projections_path,
+                raw_asset_record=raw_asset_ref,
+                provider_response_key=provider_response_key,
+                layout_elements_key=layout_elements_key,
+                structured_rows=structured_rows,
+                split_manifest_documents=split_manifest.documents,
+            )
         )
-    )
+    if collection == "curriculum_plan":
+        documents.extend(
+            build_curriculum_course_facts_scope_refresh_documents(
+                raw_asset_record=raw_asset_ref,
+                source_pdf=source_pdf,
+                split_manifest_documents=split_manifest.documents,
+                structured_rows=structured_rows,
+                provider_response_key=provider_response_key,
+                layout_elements_key=layout_elements_key,
+            )
+        )
     runtime_registry = registry or _build_document_registry_for_rebuild(source, corpus)
     runtime_raw_asset_registry = raw_asset_registry or _build_raw_asset_registry_for_rebuild(source, corpus)
     stats = _collect_projection_aware_import_stats(

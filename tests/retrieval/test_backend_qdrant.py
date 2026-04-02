@@ -5,7 +5,13 @@ import unittest
 import uuid
 from unittest.mock import Mock, patch
 
-from campus_contracts import AuthorizedRetrievalFilter, EvidenceBundle, EvidenceSource, PersonalizationHint
+from campus_contracts import (
+    AuthorizedRetrievalFilter,
+    DEFAULT_POLICY_PROJECTION_VERSION,
+    EvidenceBundle,
+    EvidenceSource,
+    PersonalizationHint,
+)
 from campus_ingestion_core.chunking import ChunkProfile
 from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile, load_runtime_profile
 from campus_ingestion_core.embed import MockEmbeddingSettings, build_mock_embedding_model
@@ -85,6 +91,25 @@ def _make_source(
     )
 
 
+def _authorized_filter(
+    *,
+    entitlement_groups: tuple[str, ...] = ("students",),
+    acl_groups: tuple[str, ...] = ("students",),
+    visibility_scope: str | None = "north",
+    campus_scope: str | None = "north",
+    visibility_level: str = "public",
+    policy_projection_version: str = DEFAULT_POLICY_PROJECTION_VERSION,
+) -> AuthorizedRetrievalFilter:
+    return AuthorizedRetrievalFilter(
+        entitlement_groups=entitlement_groups,
+        visibility_level=visibility_level,
+        acl_groups=acl_groups,
+        visibility_scope=visibility_scope,
+        campus_scope=campus_scope,
+        policy_projection_version=policy_projection_version,
+    )
+
+
 def _make_runtime_profile(
     *,
     corpus: str = "regulations",
@@ -145,6 +170,8 @@ def _make_registry_record(
         content_hash=f"sha256:{document_id}",
         corpus="regulations",
         collection="student_handbook",
+        entitlement_groups=acl_groups,
+        visibility_scope=None,
         acl_groups=acl_groups,
         campus_scope=None,
         status=status,
@@ -238,7 +265,12 @@ class BackendQdrantTest(unittest.TestCase):
                 query_text="library hours",
                 corpus="regulations",
                 collection="student_handbook",
-                acl_groups=("students",),
+                authorized_filter=AuthorizedRetrievalFilter(
+                    entitlement_groups=("students",),
+                    visibility_level="public",
+                    acl_groups=("students",),
+                    policy_projection_version="phase1-authorization-projection-v1",
+                ),
             )
         )
 
@@ -267,7 +299,12 @@ class BackendQdrantTest(unittest.TestCase):
                 query_text="保研流程",
                 corpus="regulations",
                 collection="student_handbook",
-                acl_groups=("students",),
+                authorized_filter=AuthorizedRetrievalFilter(
+                    entitlement_groups=("students",),
+                    visibility_level="public",
+                    acl_groups=("students",),
+                    policy_projection_version="phase1-authorization-projection-v1",
+                ),
                 personalization_hint=PersonalizationHint(
                     actor_claim_terms=("2023 cohort", "philosophy major"),
                     recent_goal="咨询保研",
@@ -294,8 +331,6 @@ class BackendQdrantTest(unittest.TestCase):
                 query_text="library hours",
                 corpus="regulations",
                 collection="student_handbook",
-                campus_scope="legacy-campus",
-                acl_groups=("legacy-group",),
                 authorized_filter=AuthorizedRetrievalFilter(
                     entitlement_groups=("students",),
                     visibility_level="public",
@@ -347,12 +382,12 @@ class BackendQdrantTest(unittest.TestCase):
                 query_text="library hours",
                 corpus="regulations",
                 collection="student_handbook",
-                acl_groups=("students",),
                 authorized_filter=AuthorizedRetrievalFilter(
                     entitlement_groups=(),
                     visibility_level="public",
                     acl_groups=(),
                     visibility_scope="north",
+                    campus_scope="north",
                     policy_projection_version="phase1-authorization-projection-v1",
                 ),
             )
@@ -395,7 +430,7 @@ class BackendQdrantTest(unittest.TestCase):
                 query_text="国奖评审办法里的论文要求是什么？",
                 corpus="regulations",
                 collection="student_handbook",
-                acl_groups=("students",),
+                authorized_filter=_authorized_filter(),
                 target_document_ids=(
                     "handbook:national-scholarship",
                     "handbook:professional-scholarship",
@@ -413,6 +448,54 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertEqual(
             getattr(getattr(document_conditions[0], "match", None), "any", None),
             ["handbook:national-scholarship", "handbook:professional-scholarship"],
+        )
+
+    def test_build_metadata_filters_adds_canonical_course_filters_when_present(self) -> None:
+        filters = _build_metadata_filters(
+            RetrievalRequest(
+                query_text="思政课有哪些专业要上",
+                corpus="curriculum",
+                collection="course_facts",
+                canonical_course_ids=("course:muc.xigai",),
+                canonical_course_family_ids=("course_family:muc.ideological_political_theory",),
+            )
+        )
+
+        filter_keys = _collect_filter_keys(filters)
+        self.assertIn("canonical_course_id", filter_keys)
+        self.assertIn("canonical_course_family_id", filter_keys)
+
+    def test_build_qdrant_filter_adds_canonical_course_constraints_when_present(self) -> None:
+        qdrant_filter = _build_qdrant_filter(
+            RetrievalRequest(
+                query_text="思政课有哪些专业要上",
+                corpus="curriculum",
+                collection="course_facts",
+                canonical_course_ids=("course:muc.xigai",),
+                canonical_course_family_ids=("course_family:muc.ideological_political_theory",),
+            )
+        )
+
+        course_conditions = [
+            condition
+            for condition in qdrant_filter.must or ()
+            if getattr(condition, "key", None) == "canonical_course_id"
+        ]
+        family_conditions = [
+            condition
+            for condition in qdrant_filter.must or ()
+            if getattr(condition, "key", None) == "canonical_course_family_id"
+        ]
+
+        self.assertEqual(len(course_conditions), 1)
+        self.assertEqual(
+            getattr(getattr(course_conditions[0], "match", None), "any", None),
+            ["course:muc.xigai"],
+        )
+        self.assertEqual(len(family_conditions), 1)
+        self.assertEqual(
+            getattr(getattr(family_conditions[0], "match", None), "any", None),
+            ["course_family:muc.ideological_political_theory"],
         )
 
     def test_build_metadata_filters_ignore_preferred_document_ids(self) -> None:
@@ -535,6 +618,8 @@ class BackendQdrantTest(unittest.TestCase):
                 "version_id",
                 "corpus",
                 "collection",
+                "canonical_course_id",
+                "canonical_course_family_id",
                 "visibility_scope",
                 "entitlement_groups",
                 "visibility_level",
@@ -677,7 +762,7 @@ class BackendQdrantTest(unittest.TestCase):
                 query_text="scholarship office hours",
                 corpus="regulations",
                 collection="student_handbook",
-                acl_groups=("students",),
+                authorized_filter=_authorized_filter(),
                 top_k=3,
             ),
             profile=profile,
@@ -768,7 +853,7 @@ class BackendQdrantTest(unittest.TestCase):
             query_text="library hours",
             corpus="regulations",
             collection="student_handbook",
-            acl_groups=("students",),
+            authorized_filter=_authorized_filter(),
         )
         backend.retrieve(request)
         backend.retrieve(request)
@@ -823,7 +908,7 @@ class BackendQdrantTest(unittest.TestCase):
                 query_text="学生证丢了怎么办",
                 corpus="regulations",
                 collection="student_handbook",
-                acl_groups=("students",),
+                authorized_filter=_authorized_filter(),
                 top_k=5,
             )
         )
@@ -852,7 +937,7 @@ class BackendQdrantTest(unittest.TestCase):
             query_text="学生证丢了怎么办",
             corpus="regulations",
             collection="student_handbook",
-            acl_groups=("students",),
+            authorized_filter=_authorized_filter(),
             top_k=5,
         )
 
@@ -889,7 +974,7 @@ class BackendQdrantTest(unittest.TestCase):
                 query_text="学生证丢了怎么办",
                 corpus="regulations",
                 collection="student_handbook",
-                acl_groups=("students",),
+                authorized_filter=_authorized_filter(),
                 top_k=5,
             )
         )
@@ -941,7 +1026,7 @@ class BackendQdrantTest(unittest.TestCase):
                 query_text="What are the library hours?",
                 corpus="regulations",
                 collection="student_handbook",
-                acl_groups=("students",),
+                authorized_filter=_authorized_filter(),
             )
         )
 
@@ -1014,7 +1099,7 @@ class BackendQdrantTest(unittest.TestCase):
                 query_text="scholarship office hours",
                 corpus="regulations",
                 collection="student_handbook",
-                acl_groups=("students",),
+                authorized_filter=_authorized_filter(),
                 top_k=3,
             )
         )
@@ -1098,7 +1183,7 @@ class BackendQdrantTest(unittest.TestCase):
                 query_text="library hours",
                 corpus="regulations",
                 collection="student_handbook",
-                acl_groups=("students",),
+                authorized_filter=_authorized_filter(),
             )
         )
 
@@ -1160,7 +1245,7 @@ class BackendQdrantTest(unittest.TestCase):
                 query_text="library hours",
                 corpus="regulations",
                 collection="student_handbook",
-                acl_groups=("students",),
+                authorized_filter=_authorized_filter(),
             )
         )
 
@@ -1231,7 +1316,7 @@ class BackendQdrantTest(unittest.TestCase):
                 query_text="Tell me about office or library hours",
                 corpus="regulations",
                 collection="student_handbook",
-                acl_groups=("students",),
+                authorized_filter=_authorized_filter(),
                 top_k=5,
             )
         )
@@ -1283,7 +1368,7 @@ class BackendQdrantTest(unittest.TestCase):
                 query_text="Tell me about office hours",
                 corpus="regulations",
                 collection="student_handbook",
-                acl_groups=("students",),
+                authorized_filter=_authorized_filter(),
                 top_k=5,
             )
         )
@@ -1309,7 +1394,7 @@ class BackendQdrantTest(unittest.TestCase):
                 query_text="unknown question",
                 corpus="regulations",
                 collection="student_handbook",
-                acl_groups=("students",),
+                authorized_filter=_authorized_filter(),
             )
         )
 
@@ -1392,7 +1477,7 @@ class BackendQdrantTest(unittest.TestCase):
                 query_text="校内宇宙签证办理处",
                 corpus="regulations",
                 collection="student_handbook",
-                acl_groups=("students",),
+                authorized_filter=_authorized_filter(),
                 top_k=5,
             )
         )
@@ -2289,7 +2374,7 @@ class BackendQdrantTest(unittest.TestCase):
                     query_text="library hours",
                     corpus="regulations",
                     collection="student_handbook",
-                    acl_groups=("students",),
+                    authorized_filter=_authorized_filter(),
                 )
             )
 

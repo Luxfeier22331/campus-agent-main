@@ -404,6 +404,46 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertIn("ambiguously matches", issues[0])
         self.assertIn("needs_clarification", issues[0])
 
+    def test_validate_retrieval_qrels_fixture_flags_course_family_alias_collapsed_to_single_course(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            qrels_path = Path(temp_dir) / "course-family-qrels.json"
+            qrels_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "baseline": {},
+                        "cases": [
+                            {
+                                "case_id": "course-family-alias-collapsed",
+                                "split": "smoke",
+                                "query": "思政课有哪些专业要上",
+                                "expected_sources": [
+                                    {
+                                        "doc_id": "curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                                        "grade": 2,
+                                    }
+                                ],
+                                "notes": "思政课 family alias should not collapse to a single-course qrels truth",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            issues = validate_retrieval_qrels_fixture(
+                qrels_path,
+                manifest_path=CURRICULUM_MANIFEST_PATH,
+                ambiguity_severity="error",
+            )
+
+        self.assertEqual(len(issues), 1)
+        self.assertIn("course-family-alias-collapsed", issues[0])
+        self.assertIn("canonical qrels must not lock this", issues[0])
+
 
 class StudentHandbookHybridFixtureTest(unittest.TestCase):
     def test_load_hybrid_fixture_reads_phase1_baseline(self) -> None:

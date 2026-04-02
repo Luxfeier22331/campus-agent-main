@@ -216,6 +216,9 @@ def validate_retrieval_qrels_fixture(
 
     issues: list[str] = []
     for case in dataset.cases:
+        family_alias_issue = _find_course_family_alias_qrels_issue(case)
+        if family_alias_issue is not None:
+            issues.append(f"{ambiguity_severity}: {family_alias_issue}")
         matched_titles = _find_ambiguous_manifest_title_matches(case.query, documents=documents)
         if len(matched_titles) < 2 or not case.expected_sources:
             continue
@@ -228,6 +231,25 @@ def validate_retrieval_qrels_fixture(
             )
         )
     return tuple(issues)
+
+
+def _find_course_family_alias_qrels_issue(case: RetrievalQrelsCase) -> str | None:
+    normalized_query = _fixture_query_key(case.query)
+    if not any(alias in normalized_query for alias in ("思政课", "思修课")):
+        return None
+    if not any(cue in case.query for cue in ("哪些专业要上", "包括哪些课", "哪些课", "谁要上")):
+        return None
+    if not case.expected_sources:
+        return None
+    if len(case.expected_sources) != 1:
+        return None
+    expected = case.expected_sources[0]
+    if expected.doc_id != "curriculum:中央民族大学通识课程思想政治理论课教学计划":
+        return None
+    return (
+        f"case {case.case_id} query {case.query!r} uses course-family alias truth; canonical qrels must not lock this "
+        "to a single-course or single-doc retrieval truth. Move it to a family-aware completed case or needs_clarification fixture."
+    )
 
 
 def load_retrieval_qrels_dataset(path: str | Path) -> RetrievalQrelsDataset:

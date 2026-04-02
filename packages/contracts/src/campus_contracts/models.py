@@ -256,6 +256,14 @@ class RagResultDiagnostics:
     clarification_reason: str = ""
     no_answer_reason: str = ""
     retrieved_title_summary: tuple[str, ...] = field(default_factory=tuple)
+    resolution_mode: str = ""
+    resolved_entity_type: str = ""
+    resolved_course_id: str = ""
+    resolved_course_title: str = ""
+    resolved_course_family_id: str = ""
+    resolved_course_family_title: str = ""
+    unsupported_fields: tuple[str, ...] = field(default_factory=tuple)
+    partial_answer: bool = False
 
 
 @dataclass(frozen=True, slots=True)

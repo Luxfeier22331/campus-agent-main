@@ -558,6 +558,22 @@ def _build_metadata_filters(
                 operator=FilterOperator.IN,
             )
         )
+    if request.canonical_course_ids:
+        filters.append(
+            MetadataFilter(
+                key="canonical_course_id",
+                value=list(request.canonical_course_ids),
+                operator=FilterOperator.IN,
+            )
+        )
+    if request.canonical_course_family_ids:
+        filters.append(
+            MetadataFilter(
+                key="canonical_course_family_id",
+                value=list(request.canonical_course_family_ids),
+                operator=FilterOperator.IN,
+            )
+        )
     filters.append(
         _build_authorization_metadata_filter(
             entitlement_groups=effective_entitlement_groups,
@@ -615,6 +631,20 @@ def _build_qdrant_filter(
             qdrant_models.FieldCondition(
                 key="document_id",
                 match=qdrant_models.MatchAny(any=list(request.target_document_ids)),
+            )
+        )
+    if request.canonical_course_ids:
+        must.append(
+            qdrant_models.FieldCondition(
+                key="canonical_course_id",
+                match=qdrant_models.MatchAny(any=list(request.canonical_course_ids)),
+            )
+        )
+    if request.canonical_course_family_ids:
+        must.append(
+            qdrant_models.FieldCondition(
+                key="canonical_course_family_id",
+                match=qdrant_models.MatchAny(any=list(request.canonical_course_family_ids)),
             )
         )
     if effective_visibility_scope is not None:

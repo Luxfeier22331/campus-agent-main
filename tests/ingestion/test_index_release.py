@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import Mock
 
-from campus_ingestion_core.index_release import validate_scope_release
+from campus_ingestion_core.index_release import resolve_alias_target, validate_scope_release
 from campus_ingestion_core.process import IndexableChunk
 
 
@@ -42,6 +43,18 @@ def _make_chunk(
 
 
 class IndexReleaseValidationTest(unittest.TestCase):
+    def test_resolve_alias_target_does_not_fall_back_to_same_named_collection(self) -> None:
+        qdrant_client = Mock()
+        qdrant_client.get_aliases.return_value.aliases = []
+        qdrant_client.collection_exists.return_value = True
+
+        self.assertIsNone(
+            resolve_alias_target(
+                qdrant_client=qdrant_client,
+                alias_name="curriculum_plan",
+            )
+        )
+
     def test_curriculum_validation_allows_concise_fact_sections(self) -> None:
         validation = validate_scope_release(
             corpus="curriculum",

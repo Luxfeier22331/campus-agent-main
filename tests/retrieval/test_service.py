@@ -56,7 +56,12 @@ class RetrievalServiceTest(unittest.TestCase):
             "library hours",
             corpus="regulations",
             collection="student_handbook",
-            acl_groups=("students",),
+            authorized_filter=AuthorizedRetrievalFilter(
+                entitlement_groups=("students",),
+                acl_groups=("students",),
+                visibility_level="public",
+                policy_projection_version="phase1-authorization-projection-v1",
+            ),
             backend=backend,
         )
 
@@ -133,7 +138,7 @@ class RetrievalServiceTest(unittest.TestCase):
             ),
         )
 
-    def test_retrieve_sources_passes_authorized_filter_with_legacy_compatibility_fields(self) -> None:
+    def test_retrieve_sources_passes_authorized_filter_through_request(self) -> None:
         backend = Mock()
         backend.retrieve.return_value = EvidenceBundle(
             query_text="保研流程",
@@ -150,8 +155,6 @@ class RetrievalServiceTest(unittest.TestCase):
             "保研流程",
             corpus="regulations",
             collection="student_handbook",
-            campus_scope="legacy-campus",
-            acl_groups=("legacy-group",),
             authorized_filter=authorized_filter,
             backend=backend,
         )
@@ -159,8 +162,6 @@ class RetrievalServiceTest(unittest.TestCase):
         request = backend.retrieve.call_args.args[0]
         self.assertIsInstance(request, RetrievalRequest)
         self.assertEqual(request.authorized_filter, authorized_filter)
-        self.assertEqual(request.acl_groups, ("legacy-group",))
-        self.assertEqual(request.campus_scope, "legacy-campus")
 
     def test_retrieve_sources_passes_target_document_ids_through_request(self) -> None:
         backend = Mock()
@@ -203,6 +204,31 @@ class RetrievalServiceTest(unittest.TestCase):
         self.assertEqual(
             request.preferred_document_ids,
             ("curriculum:历史学（强基计划）本科人才培养方案",),
+        )
+
+    def test_retrieve_sources_passes_canonical_course_filters_through_request(self) -> None:
+        backend = Mock()
+        backend.retrieve.return_value = EvidenceBundle(
+            query_text="习概有哪些专业要上",
+            corpus="curriculum",
+            collection="course_facts",
+        )
+
+        retrieve_sources(
+            "习概有哪些专业要上",
+            corpus="curriculum",
+            collection="course_facts",
+            canonical_course_ids=("course:muc.xigai",),
+            canonical_course_family_ids=("course_family:muc.ideological_political_theory",),
+            backend=backend,
+        )
+
+        request = backend.retrieve.call_args.args[0]
+        self.assertIsInstance(request, RetrievalRequest)
+        self.assertEqual(request.canonical_course_ids, ("course:muc.xigai",))
+        self.assertEqual(
+            request.canonical_course_family_ids,
+            ("course_family:muc.ideological_political_theory",),
         )
 
 

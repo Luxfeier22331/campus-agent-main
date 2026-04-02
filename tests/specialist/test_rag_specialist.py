@@ -801,6 +801,201 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertEqual(plan.preferred_document_ids, ())
         self.assertIn("历史学（强基计划）本科人才培养方案", plan.rewritten_query_text)
 
+    def test_course_single_audience_query_uses_course_facts_collection(self) -> None:
+        retriever_call: dict[str, object] = {}
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
+            return EvidenceBundle(
+                query_text=query_text,
+                corpus="curriculum",
+                collection="course_facts",
+                sources=(
+                    EvidenceSource(
+                        doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                        revision_track="source-faithful",
+                        version_id="v1:course-facts",
+                        chunk_id="course-facts:xigai:audience",
+                        anchor={"fact_type": "audience"},
+                        acl_level="public",
+                        canonical_url="https://campus.example/curriculum/ideological-political-theory",
+                        latest_url="https://campus.example/curriculum/ideological-political-theory",
+                        source_channel="pdf_ocr",
+                        collection="course_facts",
+                        is_current=False,
+                        snippet="习近平新时代中国特色社会主义思想概论面向所有本预科学生。",
+                        score=0.93,
+                        source_title="中央民族大学通识课程思想政治理论课教学计划",
+                        structural_path=("思想政治理论课",),
+                        detail_label="修读要求",
+                        content_kind="course_fact",
+                        content_role="audience",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="习概有哪些专业要上",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(retriever_call["corpus"], "curriculum")
+        self.assertEqual(retriever_call["collection"], "course_facts")
+        self.assertEqual(retriever_call["canonical_course_ids"], ("course:muc.xigai",))
+        self.assertEqual(retriever_call["canonical_course_family_ids"], ())
+        self.assertIn("所有本预科学生", response.answer_text)
+        self.assertEqual(
+            response.result.diagnostics,
+            RagResultDiagnostics(
+                resolution_mode="resolved_single",
+                resolved_entity_type="course",
+                resolved_course_id="course:muc.xigai",
+                resolved_course_title="习近平新时代中国特色社会主义思想概论",
+                retrieved_title_summary=("中央民族大学通识课程思想政治理论课教学计划",),
+            ),
+        )
+
+    def test_course_family_membership_query_does_not_collapse_to_single_course(self) -> None:
+        retriever_call: dict[str, object] = {}
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
+            return EvidenceBundle(
+                query_text=query_text,
+                corpus="curriculum",
+                collection="course_facts",
+                sources=(
+                    EvidenceSource(
+                        doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                        revision_track="source-faithful",
+                        version_id="v1:course-facts",
+                        chunk_id="course-facts:family:members",
+                        anchor={"fact_type": "family_membership"},
+                        acl_level="public",
+                        canonical_url="https://campus.example/curriculum/ideological-political-theory",
+                        latest_url="https://campus.example/curriculum/ideological-political-theory",
+                        source_channel="pdf_ocr",
+                        collection="course_facts",
+                        is_current=False,
+                        snippet=(
+                            "思想政治理论课包括马克思主义基本原理、中国近现代史纲要、毛泽东思想和中国特色社会主义理论体系概论、"
+                            "习近平新时代中国特色社会主义思想概论、思想道德与法治、形势与政策、中华民族共同体概论。"
+                        ),
+                        score=0.95,
+                        source_title="中央民族大学通识课程思想政治理论课教学计划",
+                        structural_path=("思想政治理论课",),
+                        detail_label="课程内容",
+                        content_kind="course_fact",
+                        content_role="family_membership",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="思政课包括哪些课",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(retriever_call["collection"], "course_facts")
+        self.assertEqual(retriever_call["canonical_course_ids"], ())
+        self.assertEqual(
+            retriever_call["canonical_course_family_ids"],
+            ("course_family:muc.ideological_political_theory",),
+        )
+        self.assertIn("习近平新时代中国特色社会主义思想概论", response.answer_text)
+        self.assertIn("中华民族共同体概论", response.answer_text)
+        self.assertEqual(
+            response.result.diagnostics,
+            RagResultDiagnostics(
+                resolution_mode="resolved_family",
+                resolved_entity_type="course_family",
+                resolved_course_family_id="course_family:muc.ideological_political_theory",
+                resolved_course_family_title="思想政治理论课",
+                retrieved_title_summary=("中央民族大学通识课程思想政治理论课教学计划",),
+            ),
+        )
+
+    def test_course_family_partial_answer_marks_unsupported_offering_unit(self) -> None:
+        retriever_call: dict[str, object] = {}
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
+            return EvidenceBundle(
+                query_text=query_text,
+                corpus="curriculum",
+                collection="course_facts",
+                sources=(
+                    EvidenceSource(
+                        doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                        revision_track="source-faithful",
+                        version_id="v1:course-facts",
+                        chunk_id="course-facts:family:audience",
+                        anchor={"fact_type": "audience"},
+                        acl_level="public",
+                        canonical_url="https://campus.example/curriculum/ideological-political-theory",
+                        latest_url="https://campus.example/curriculum/ideological-political-theory",
+                        source_channel="pdf_ocr",
+                        collection="course_facts",
+                        is_current=False,
+                        snippet="思想政治理论课为全校性公共必修课，所有本预科学生应认真完成上述7门课程设置的各教学环节。",
+                        score=0.92,
+                        source_title="中央民族大学通识课程思想政治理论课教学计划",
+                        structural_path=("思想政治理论课",),
+                        detail_label="修读要求",
+                        content_kind="course_fact",
+                        content_role="audience",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="思政课是哪个学院开的，有哪些专业要上",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(retriever_call["collection"], "course_facts")
+        self.assertIn("所有本预科学生", response.answer_text)
+        self.assertIn("当前还不能稳定确认开课学院", response.answer_text)
+        self.assertEqual(
+            response.result.diagnostics,
+            RagResultDiagnostics(
+                resolution_mode="resolved_family",
+                resolved_entity_type="course_family",
+                resolved_course_family_id="course_family:muc.ideological_political_theory",
+                resolved_course_family_title="思想政治理论课",
+                unsupported_fields=("offering_unit",),
+                partial_answer=True,
+                retrieved_title_summary=("中央民族大学通识课程思想政治理论课教学计划",),
+            ),
+        )
+
     def test_low_support_evidence_maps_to_no_answer_instead_of_completed(self) -> None:
         evidence = _make_evidence(
             scores=(0.41,),
@@ -852,16 +1047,14 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertEqual(captured_kwargs["query"], "What are the library hours?")
         self.assertEqual(captured_kwargs["corpus"], "regulations")
         self.assertEqual(captured_kwargs["collection"], "student_handbook")
-        self.assertEqual(captured_kwargs["acl_groups"], ("students",))
-        self.assertEqual(captured_kwargs["campus_scope"], "north")
         self.assertEqual(
             captured_kwargs["authorized_filter"],
             AuthorizedRetrievalFilter(
-                entitlement_groups=("students",),
+                entitlement_groups=(),
                 visibility_level="public",
-                acl_groups=("students",),
-                visibility_scope="north",
-                campus_scope="north",
+                acl_groups=(),
+                visibility_scope=None,
+                campus_scope=None,
                 policy_projection_version="phase1-authorization-projection-v1",
             ),
         )
@@ -937,8 +1130,8 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                 policy_projection_version="phase1-authorization-projection-v1",
             ),
         )
-        self.assertEqual(captured_kwargs["acl_groups"], ("legacy-group",))
-        self.assertEqual(captured_kwargs["campus_scope"], "legacy-campus")
+        self.assertNotIn("acl_groups", captured_kwargs)
+        self.assertNotIn("campus_scope", captured_kwargs)
 
     def test_completed_answer_uses_small_deduplicated_supporting_evidence_budget(self) -> None:
         evidence = _make_evidence(

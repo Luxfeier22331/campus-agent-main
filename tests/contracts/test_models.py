@@ -219,6 +219,38 @@ class ContractModelsTest(unittest.TestCase):
             legacy_first.policy_projection_version,
             "phase1-authorization-projection-v1",
         )
+
+    def test_rag_result_diagnostics_course_fields_are_serializable(self) -> None:
+        diagnostics = RagResultDiagnostics(
+            resolution_mode="resolved_family",
+            resolved_entity_type="course_family",
+            resolved_course_id="course:muc.xigai",
+            resolved_course_title="习近平新时代中国特色社会主义思想概论",
+            resolved_course_family_id="course_family:muc.ideological_political_theory",
+            resolved_course_family_title="思想政治理论课",
+            unsupported_fields=("offering_unit",),
+            partial_answer=True,
+        )
+
+        self.assertEqual(
+            asdict(diagnostics),
+            {
+                "resolved_policy_document_id": "",
+                "resolved_policy_title": "",
+                "rewritten_query": "",
+                "clarification_reason": "",
+                "no_answer_reason": "",
+                "retrieved_title_summary": (),
+                "resolution_mode": "resolved_family",
+                "resolved_entity_type": "course_family",
+                "resolved_course_id": "course:muc.xigai",
+                "resolved_course_title": "习近平新时代中国特色社会主义思想概论",
+                "resolved_course_family_id": "course_family:muc.ideological_political_theory",
+                "resolved_course_family_title": "思想政治理论课",
+                "unsupported_fields": ("offering_unit",),
+                "partial_answer": True,
+            },
+        )
     def test_specialist_request_requires_explicit_payload(self) -> None:
         request = SpecialistRequest(
             target="rag-specialist",

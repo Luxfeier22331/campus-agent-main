@@ -1,4 +1,9 @@
-from campus_rag_specialist.curriculum_query_planning import CurriculumQueryPlan, plan_curriculum_query
+from campus_rag_specialist.curriculum_query_planning import (
+    CurriculumCourseQueryPlan,
+    CurriculumQueryPlan,
+    plan_curriculum_course_query,
+    plan_curriculum_query,
+)
 from campus_rag_specialist.handbook_query_planning import (
     HandbookPolicyObject,
     HandbookQueryPlan,
@@ -6,7 +11,9 @@ from campus_rag_specialist.handbook_query_planning import (
 )
 
 __all__ = [
+    "CurriculumCourseQueryPlan",
     "CurriculumQueryPlan",
+    "plan_curriculum_course_query",
     "HandbookPolicyObject",
     "HandbookQueryPlan",
     "plan_curriculum_query",

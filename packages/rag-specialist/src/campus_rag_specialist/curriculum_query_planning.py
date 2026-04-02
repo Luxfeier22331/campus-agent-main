@@ -23,6 +23,30 @@ _DOC_NOISE = (
     "课程教学计划",
 )
 _DEICTIC_MAJOR_CUES = ("我这个专业", "本专业")
+_COURSE_LIST_CUES = ("包括哪些课", "包括什么课")
+_COURSE_AUDIENCE_CUES = ("哪些专业要上", "谁要上", "哪些人要上")
+_COURSE_UNSUPPORTED_FIELD_CUES = {"offering_unit": ("哪个学院", "哪个系", "谁开", "开课学院")}
+
+
+@dataclass(frozen=True, slots=True)
+class CurriculumCourseEntity:
+    entity_type: Literal["course", "course_family"]
+    canonical_id: str
+    title: str
+    aliases: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class CurriculumCourseQueryPlan:
+    resolution_mode: Literal["resolved_single", "resolved_family"]
+    entity_type: Literal["course", "course_family"]
+    canonical_course_id: str = ""
+    canonical_course_title: str = ""
+    canonical_course_family_id: str = ""
+    canonical_course_family_title: str = ""
+    internal_collection: str = "course_facts"
+    unsupported_fields: tuple[str, ...] = ()
+    partial_answer: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +119,33 @@ def plan_curriculum_query(
     return CurriculumQueryPlan(
         status="pass_through",
         rewritten_query_text=normalized_query,
+    )
+
+
+def plan_curriculum_course_query(query_text: str) -> CurriculumCourseQueryPlan | None:
+    normalized_query = interpret_curriculum_query(query_text).normalized_query_text
+    resolved_course = _resolve_course_entity(normalized_query)
+    if resolved_course is not None:
+        unsupported_fields = _resolve_unsupported_course_fields(normalized_query)
+        return CurriculumCourseQueryPlan(
+            resolution_mode="resolved_single",
+            entity_type="course",
+            canonical_course_id=resolved_course.canonical_id,
+            canonical_course_title=resolved_course.title,
+            unsupported_fields=unsupported_fields,
+            partial_answer=bool(unsupported_fields),
+        )
+    resolved_family = _resolve_course_family_entity(normalized_query)
+    if resolved_family is None:
+        return None
+    unsupported_fields = _resolve_unsupported_course_fields(normalized_query)
+    return CurriculumCourseQueryPlan(
+        resolution_mode="resolved_family",
+        entity_type="course_family",
+        canonical_course_family_id=resolved_family.canonical_id,
+        canonical_course_family_title=resolved_family.title,
+        unsupported_fields=unsupported_fields,
+        partial_answer=bool(unsupported_fields),
     )
 
 
@@ -278,6 +329,98 @@ def _document_by_id(document_id: str) -> CurriculumDocument | None:
     return None
 
 
+def _resolve_course_entity(normalized_query: str) -> CurriculumCourseEntity | None:
+    if _resolve_course_family_entity(normalized_query) is not None:
+        if any(cue in normalized_query for cue in _COURSE_LIST_CUES):
+            return None
+        if "思政课" in normalized_query or "思修课" in normalized_query:
+            return None
+    for entity in _course_entities():
+        for alias in entity.aliases:
+            if alias in normalized_query:
+                return entity
+        if entity.title in normalized_query:
+            return entity
+    return None
+
+
+def _resolve_course_family_entity(normalized_query: str) -> CurriculumCourseEntity | None:
+    for entity in _course_family_entities():
+        if entity.title in normalized_query:
+            return entity
+        if any(alias in normalized_query for alias in entity.aliases):
+            return entity
+    return None
+
+
+def _resolve_unsupported_course_fields(normalized_query: str) -> tuple[str, ...]:
+    fields = []
+    for field_name, cues in _COURSE_UNSUPPORTED_FIELD_CUES.items():
+        if any(cue in normalized_query for cue in cues):
+            fields.append(field_name)
+    return tuple(fields)
+
+
+@lru_cache(maxsize=1)
+def _course_entities() -> tuple[CurriculumCourseEntity, ...]:
+    return (
+        CurriculumCourseEntity(
+            entity_type="course",
+            canonical_id="course:muc.marxist_basic_principles",
+            title="马克思主义基本原理",
+            aliases=("马原",),
+        ),
+        CurriculumCourseEntity(
+            entity_type="course",
+            canonical_id="course:muc.modern_chinese_history_outline",
+            title="中国近现代史纲要",
+            aliases=("史纲",),
+        ),
+        CurriculumCourseEntity(
+            entity_type="course",
+            canonical_id="course:muc.mao_zedong_thought_and_theoretical_system",
+            title="毛泽东思想和中国特色社会主义理论体系概论",
+            aliases=("毛概",),
+        ),
+        CurriculumCourseEntity(
+            entity_type="course",
+            canonical_id="course:muc.xigai",
+            title="习近平新时代中国特色社会主义思想概论",
+            aliases=("习概",),
+        ),
+        CurriculumCourseEntity(
+            entity_type="course",
+            canonical_id="course:muc.ideological_morality_and_rule_of_law",
+            title="思想道德与法治",
+            aliases=("思修",),
+        ),
+        CurriculumCourseEntity(
+            entity_type="course",
+            canonical_id="course:muc.situation_and_policy",
+            title="形势与政策",
+            aliases=("形策",),
+        ),
+        CurriculumCourseEntity(
+            entity_type="course",
+            canonical_id="course:muc.community_for_chinese_nation",
+            title="中华民族共同体概论",
+            aliases=("民概",),
+        ),
+    )
+
+
+@lru_cache(maxsize=1)
+def _course_family_entities() -> tuple[CurriculumCourseEntity, ...]:
+    return (
+        CurriculumCourseEntity(
+            entity_type="course_family",
+            canonical_id="course_family:muc.ideological_political_theory",
+            title="思想政治理论课",
+            aliases=("思政课", "思修课", "思政", "思修课", "思政课程"),
+        ),
+    )
+
+
 def _prepend_title_if_missing(*, normalized_query: str, title: str) -> str:
     if title in normalized_query:
         return normalized_query
@@ -315,6 +458,8 @@ def _is_cjk_char(char: str) -> bool:
 
 
 __all__ = [
+    "CurriculumCourseQueryPlan",
     "CurriculumQueryPlan",
+    "plan_curriculum_course_query",
     "plan_curriculum_query",
 ]

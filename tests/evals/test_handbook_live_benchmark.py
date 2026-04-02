@@ -70,8 +70,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
                 request.user_goal,
                 corpus=request.payload.scope.corpus,
                 collection=request.payload.scope.collection,
-                campus_scope=request.actor.campus_scope,
-                acl_groups=request.actor.groups,
+                authorized_filter=request.context.authorization.retrieval_filter,
                 personalization_hint=None,
             )
             self.assertEqual(bundle, retrieved_bundle)
@@ -157,8 +156,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
                 request.user_goal,
                 corpus=request.payload.scope.corpus,
                 collection=request.payload.scope.collection,
-                campus_scope=request.actor.campus_scope,
-                acl_groups=request.actor.groups,
+                authorized_filter=request.context.authorization.retrieval_filter,
                 personalization_hint=None,
             )
             self.assertEqual(bundle, retrieved_bundle)
