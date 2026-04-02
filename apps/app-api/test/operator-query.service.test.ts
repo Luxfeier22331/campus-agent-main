@@ -64,8 +64,10 @@ describe("operator query service aggregate summaries", () => {
           to: "2026-03-28T08:00:10.000Z",
         },
       }),
+      getAuditById: vi.fn(),
       getSafetySummary: vi.fn(),
       getCostSummary: vi.fn(),
+      listAudit: vi.fn(),
       list: vi.fn(),
     };
     const service = buildOperatorQueryService({
@@ -103,6 +105,7 @@ describe("operator query service aggregate summaries", () => {
       getObservabilityById: vi.fn(),
       getOverview: vi.fn(),
       getQualitySummary: vi.fn(),
+      getAuditById: vi.fn(),
       getSafetySummary: vi.fn().mockResolvedValue({
         asOf: "2026-03-28T08:00:10.000Z",
         summary: {
@@ -135,6 +138,7 @@ describe("operator query service aggregate summaries", () => {
         },
       }),
       getCostSummary: vi.fn(),
+      listAudit: vi.fn(),
       list: vi.fn(),
     };
     const service = buildOperatorQueryService({
@@ -167,6 +171,7 @@ describe("operator query service aggregate summaries", () => {
       getObservabilityById: vi.fn(),
       getOverview: vi.fn(),
       getQualitySummary: vi.fn(),
+      getAuditById: vi.fn(),
       getSafetySummary: vi.fn(),
       getCostSummary: vi.fn().mockResolvedValue({
         asOf: "2026-03-28T08:00:10.000Z",
@@ -201,6 +206,7 @@ describe("operator query service aggregate summaries", () => {
           to: "2026-03-28T08:00:10.000Z",
         },
       }),
+      listAudit: vi.fn(),
       list: vi.fn(),
     };
     const service = buildOperatorQueryService({
@@ -226,5 +232,55 @@ describe("operator query service aggregate summaries", () => {
       window: "1h",
     });
     expect(result.summary.tokens.input).toBe(812);
+  });
+
+  it("normalizes audit list filters before delegating to the store", async () => {
+    const store = {
+      getById: vi.fn(),
+      getObservabilityById: vi.fn(),
+      getOverview: vi.fn(),
+      getQualitySummary: vi.fn(),
+      getAuditById: vi.fn(),
+      getSafetySummary: vi.fn(),
+      getCostSummary: vi.fn(),
+      listAudit: vi.fn().mockResolvedValue({
+        events: [],
+        page: {
+          nextCursor: "cursor_01HQ",
+        },
+      }),
+      list: vi.fn(),
+    };
+    const service = buildOperatorQueryService({
+      store: store as never,
+    }) as any;
+
+    const result = await service.listAudit({
+      filters: {
+        cursor: " cursor_01HQ ",
+        eventType: " request.completed ",
+        limit: 10,
+        principalType: " public_user ",
+        requestId: " req_01HQ ",
+        selectedTarget: " rag-specialist ",
+        status: " completed ",
+        surface: " public_chat_web ",
+        traceId: " trace_01HQ ",
+      },
+      principal: createOperatorPrincipal(),
+    });
+
+    expect(store.listAudit).toHaveBeenCalledWith({
+      cursor: "cursor_01HQ",
+      eventType: "request.completed",
+      limit: 10,
+      principalType: "public_user",
+      requestId: "req_01HQ",
+      selectedTarget: "rag-specialist",
+      status: "completed",
+      surface: "public_chat_web",
+      traceId: "trace_01HQ",
+    });
+    expect(result.page.nextCursor).toBe("cursor_01HQ");
   });
 });

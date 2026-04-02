@@ -532,6 +532,64 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     );
   });
 
+  app.get("/api/operator/audit", async (c) => {
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await getPrincipal(c.req.raw, env);
+    } catch {
+      return dependencyNotReadyResponse();
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+    if (!principal.permissions.operator) {
+      return operatorAccessForbiddenResponse();
+    }
+
+    return jsonResponse(
+      await operatorQueryService.listAudit({
+        filters: {
+          cursor: c.req.query("cursor") ?? null,
+          eventType: c.req.query("eventType") ?? null,
+          limit: parseLimit(c.req.query("limit")),
+          principalType: c.req.query("principalType") ?? null,
+          requestId: c.req.query("requestId") ?? null,
+          selectedTarget: c.req.query("selectedTarget") ?? null,
+          status: c.req.query("status") ?? null,
+          surface: c.req.query("surface") ?? null,
+          traceId: c.req.query("traceId") ?? null,
+        },
+        principal,
+      }),
+    );
+  });
+
+  app.get("/api/operator/audit/:auditEventId", async (c) => {
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await getPrincipal(c.req.raw, env);
+    } catch {
+      return dependencyNotReadyResponse();
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+    if (!principal.permissions.operator) {
+      return operatorAccessForbiddenResponse();
+    }
+
+    return jsonResponse(
+      await operatorQueryService.getAuditById({
+        auditEventId: c.req.param("auditEventId"),
+        principal,
+      }),
+    );
+  });
+
   app.get("/api/operator/requests", async (c) => {
     let principal: ResolvedAppPrincipal | null = null;
 

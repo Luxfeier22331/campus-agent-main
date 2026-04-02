@@ -76,11 +76,13 @@ describe("GET /api/operator/requests", () => {
   it("returns request projections for operator principals only", async () => {
     const service: OperatorQueryService = {
       getById: vi.fn(),
+      getAuditById: vi.fn(),
       getObservabilityById: vi.fn(),
       getOverview: vi.fn(),
       getQualitySummary: vi.fn(),
       getSafetySummary: vi.fn(),
       getCostSummary: vi.fn(),
+      listAudit: vi.fn(),
       list: vi.fn().mockResolvedValue({
         page: {
           nextCursor: "cursor_01HQ",
@@ -183,11 +185,13 @@ describe("GET /api/operator/requests", () => {
       getPrincipal: vi.fn().mockResolvedValue(null),
       operatorQueryService: {
         getById: vi.fn(),
+        getAuditById: vi.fn(),
         getObservabilityById: vi.fn(),
         getOverview: vi.fn(),
         getQualitySummary: vi.fn(),
         getSafetySummary: vi.fn(),
         getCostSummary: vi.fn(),
+        listAudit: vi.fn(),
         list: vi.fn(),
       },
     });
@@ -212,11 +216,13 @@ describe("GET /api/operator/requests", () => {
       getPrincipal: vi.fn().mockResolvedValue(createPublicPrincipal()),
       operatorQueryService: {
         getById: vi.fn(),
+        getAuditById: vi.fn(),
         getObservabilityById: vi.fn(),
         getOverview: vi.fn(),
         getQualitySummary: vi.fn(),
         getSafetySummary: vi.fn(),
         getCostSummary: vi.fn(),
+        listAudit: vi.fn(),
         list: vi.fn(),
       },
     });
@@ -270,11 +276,13 @@ describe("GET /api/operator/requests/:requestId", () => {
         traceId: "trace_01HQ",
         visibilityScope: "main",
       }),
+      getAuditById: vi.fn(),
       getObservabilityById: vi.fn(),
       getOverview: vi.fn(),
       getQualitySummary: vi.fn(),
       getSafetySummary: vi.fn(),
       getCostSummary: vi.fn(),
+      listAudit: vi.fn(),
       list: vi.fn(),
     };
     const principal = createOperatorPrincipal();
@@ -336,11 +344,13 @@ describe("GET /api/operator/requests/:requestId", () => {
             status: 404,
           }),
         ),
+        getAuditById: vi.fn(),
         getObservabilityById: vi.fn(),
         getOverview: vi.fn(),
         getQualitySummary: vi.fn(),
         getSafetySummary: vi.fn(),
         getCostSummary: vi.fn(),
+        listAudit: vi.fn(),
         list: vi.fn(),
       },
     });
@@ -401,11 +411,13 @@ describe("GET /api/operator/requests/:requestId", () => {
           surface: "public_chat_web",
           traceId: "trace_01HQ",
         }),
+        getAuditById: vi.fn(),
         getObservabilityById: vi.fn(),
         getOverview: vi.fn(),
         getQualitySummary: vi.fn(),
         getSafetySummary: vi.fn(),
         getCostSummary: vi.fn(),
+        listAudit: vi.fn(),
         list: vi.fn(),
       },
     });
@@ -459,6 +471,7 @@ describe("GET /api/operator/requests/:requestId/observability", () => {
   it("returns request-scoped observability detail for operator principals", async () => {
     const service = {
       getById: vi.fn(),
+      getAuditById: vi.fn(),
       getObservabilityById: vi.fn().mockResolvedValue({
         auditSummary: {
           auditEventCount: 0,
@@ -514,6 +527,7 @@ describe("GET /api/operator/requests/:requestId/observability", () => {
         },
       }),
       getOverview: vi.fn(),
+      listAudit: vi.fn(),
       list: vi.fn(),
     } as unknown as OperatorQueryService;
     const principal = createOperatorPrincipal();
@@ -592,6 +606,7 @@ describe("GET /api/operator/overview", () => {
   it("returns an operator overview snapshot for operator principals", async () => {
     const service = {
       getById: vi.fn(),
+      getAuditById: vi.fn(),
       getObservabilityById: vi.fn(),
       getOverview: vi.fn().mockResolvedValue({
         alerts: [],
@@ -651,6 +666,7 @@ describe("GET /api/operator/overview", () => {
           to: "2026-03-28T08:00:10.000Z",
         },
       }),
+      listAudit: vi.fn(),
       list: vi.fn(),
     } as unknown as OperatorQueryService;
     const principal = createOperatorPrincipal();
@@ -741,6 +757,7 @@ describe("GET /api/operator/quality/summary", () => {
   it("returns a quality summary snapshot for operator principals", async () => {
     const service = {
       getById: vi.fn(),
+      getAuditById: vi.fn(),
       getObservabilityById: vi.fn(),
       getOverview: vi.fn(),
       getQualitySummary: vi.fn().mockResolvedValue({
@@ -773,6 +790,7 @@ describe("GET /api/operator/quality/summary", () => {
       }),
       getSafetySummary: vi.fn(),
       getCostSummary: vi.fn(),
+      listAudit: vi.fn(),
       list: vi.fn(),
     };
     const principal = createOperatorPrincipal();
@@ -835,6 +853,7 @@ describe("GET /api/operator/safety/summary", () => {
   it("returns a safety summary snapshot for operator principals", async () => {
     const service = {
       getById: vi.fn(),
+      getAuditById: vi.fn(),
       getObservabilityById: vi.fn(),
       getOverview: vi.fn(),
       getQualitySummary: vi.fn(),
@@ -870,6 +889,7 @@ describe("GET /api/operator/safety/summary", () => {
         },
       }),
       getCostSummary: vi.fn(),
+      listAudit: vi.fn(),
       list: vi.fn(),
     };
     const principal = createOperatorPrincipal();
@@ -933,6 +953,7 @@ describe("GET /api/operator/cost/summary", () => {
   it("returns a cost summary snapshot for operator principals", async () => {
     const service = {
       getById: vi.fn(),
+      getAuditById: vi.fn(),
       getObservabilityById: vi.fn(),
       getOverview: vi.fn(),
       getQualitySummary: vi.fn(),
@@ -970,6 +991,7 @@ describe("GET /api/operator/cost/summary", () => {
           to: "2026-03-28T08:00:10.000Z",
         },
       }),
+      listAudit: vi.fn(),
       list: vi.fn(),
     };
     const principal = createOperatorPrincipal();
@@ -1028,6 +1050,172 @@ describe("GET /api/operator/cost/summary", () => {
         surface: null,
         window: "1h",
       },
+      principal,
+    });
+  });
+});
+
+describe("GET /api/operator/audit", () => {
+  it("returns an audit event list for operator principals", async () => {
+    const service = {
+      getById: vi.fn(),
+      getAuditById: vi.fn(),
+      getObservabilityById: vi.fn(),
+      getOverview: vi.fn(),
+      getQualitySummary: vi.fn(),
+      getSafetySummary: vi.fn(),
+      getCostSummary: vi.fn(),
+      listAudit: vi.fn().mockResolvedValue({
+        events: [
+          {
+            auditEventId: "aevt_01HQ",
+            eventType: "request.completed",
+            occurredAt: "2026-03-28T08:00:01.000Z",
+            principalType: "public_user",
+            requestId: "req_01HQ",
+            selectedTarget: "rag-specialist",
+            status: "completed",
+            summary: "Knowledge request completed via rag-specialist.",
+            surface: "public_chat_web",
+            traceId: "trace_01HQ",
+          },
+        ],
+        page: {
+          nextCursor: "cursor_01HQ",
+        },
+      }),
+      list: vi.fn(),
+    };
+    const principal = createOperatorPrincipal();
+    const app = createApp(env, {
+      getPrincipal: vi.fn().mockResolvedValue(principal),
+      operatorQueryService: service as unknown as OperatorQueryService,
+    });
+
+    const response = await app.fetch(
+      new Request(
+        "https://app-api.internal/api/operator/audit?limit=10&requestId=req_01HQ&eventType=request.completed",
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      events: [
+        {
+          auditEventId: "aevt_01HQ",
+          eventType: "request.completed",
+          occurredAt: "2026-03-28T08:00:01.000Z",
+          principalType: "public_user",
+          requestId: "req_01HQ",
+          selectedTarget: "rag-specialist",
+          status: "completed",
+          summary: "Knowledge request completed via rag-specialist.",
+          surface: "public_chat_web",
+          traceId: "trace_01HQ",
+        },
+      ],
+      page: {
+        nextCursor: "cursor_01HQ",
+      },
+    });
+    expect(service.listAudit).toHaveBeenCalledWith({
+      filters: {
+        cursor: null,
+        eventType: "request.completed",
+        limit: 10,
+        principalType: null,
+        requestId: "req_01HQ",
+        selectedTarget: null,
+        status: null,
+        surface: null,
+        traceId: null,
+      },
+      principal,
+    });
+  });
+});
+
+describe("GET /api/operator/audit/:auditEventId", () => {
+  it("returns one audit event detail for operator principals", async () => {
+    const service = {
+      getById: vi.fn(),
+      getAuditById: vi.fn().mockResolvedValue({
+        event: {
+          auditEventId: "aevt_01HQ",
+          diagnostics: {
+            aclAnomalyCode: null,
+            failClosed: false,
+            sourceDocIds: ["handbook:library-hours"],
+          },
+          entitlementSnapshotId: "entitlements-2026-03-29",
+          eventType: "request.completed",
+          occurredAt: "2026-03-28T08:00:01.000Z",
+          policyProjectionVersion: "2026-03-29",
+          principalType: "public_user",
+          requestId: "req_01HQ",
+          requestedCapability: "knowledge",
+          selectedTarget: "rag-specialist",
+          status: "completed",
+          summary: "Knowledge request completed via rag-specialist.",
+          surface: "public_chat_web",
+          terminalCode: "completed",
+          traceId: "trace_01HQ",
+        },
+        links: {
+          issueFingerprint: null,
+          issueLink: null,
+          traceLink: null,
+        },
+      }),
+      getObservabilityById: vi.fn(),
+      getOverview: vi.fn(),
+      getQualitySummary: vi.fn(),
+      getSafetySummary: vi.fn(),
+      getCostSummary: vi.fn(),
+      listAudit: vi.fn(),
+      list: vi.fn(),
+    };
+    const principal = createOperatorPrincipal();
+    const app = createApp(env, {
+      getPrincipal: vi.fn().mockResolvedValue(principal),
+      operatorQueryService: service as unknown as OperatorQueryService,
+    });
+
+    const response = await app.fetch(
+      new Request("https://app-api.internal/api/operator/audit/aevt_01HQ"),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      event: {
+        auditEventId: "aevt_01HQ",
+        diagnostics: {
+          aclAnomalyCode: null,
+          failClosed: false,
+          sourceDocIds: ["handbook:library-hours"],
+        },
+        entitlementSnapshotId: "entitlements-2026-03-29",
+        eventType: "request.completed",
+        occurredAt: "2026-03-28T08:00:01.000Z",
+        policyProjectionVersion: "2026-03-29",
+        principalType: "public_user",
+        requestId: "req_01HQ",
+        requestedCapability: "knowledge",
+        selectedTarget: "rag-specialist",
+        status: "completed",
+        summary: "Knowledge request completed via rag-specialist.",
+        surface: "public_chat_web",
+        terminalCode: "completed",
+        traceId: "trace_01HQ",
+      },
+      links: {
+        issueFingerprint: null,
+        issueLink: null,
+        traceLink: null,
+      },
+    });
+    expect(service.getAuditById).toHaveBeenCalledWith({
+      auditEventId: "aevt_01HQ",
       principal,
     });
   });

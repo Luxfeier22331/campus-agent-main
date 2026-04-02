@@ -375,6 +375,47 @@ updated: 2026-04-03
 - 这层允许展示 app-layer 已物化的最小授权摘要，但不承担 canonical authz store，也不回放 provider/session 原始材料
 - `diagnostics_json` 只承载 panel 可直接消费的 summary-level explanation，不承载 retrieval internals
 
+## `operator.request_audit_projection`
+
+用途：
+
+- panel `Audit` 域的 curated request-scoped timeline
+- request observability detail 的 `auditSummary` 上游
+
+最小列：
+
+- `audit_event_id`
+- `request_id`
+- `trace_id`
+- `occurred_at`
+- `event_type`
+- `surface`
+- `principal_type`
+- `entitlement_snapshot_id` nullable
+- `policy_projection_version` nullable
+- `requested_capability` nullable
+- `selected_target` nullable
+- `status`
+- `terminal_code` nullable
+- `summary`
+- `diagnostics_json`
+- `projected_at`
+
+最小索引：
+
+- `(request_id, occurred_at desc)`
+- `(trace_id, occurred_at desc)`
+- `(event_type, occurred_at desc)`
+- `(status, occurred_at desc)`
+
+规则：
+
+- `audit_event_id` 默认与 `runtime.projection_outbox.event_id` 对齐，保证幂等 timeline 物化
+- 这是 curated governance-safe audit projection，不是 raw JSONL replay
+- `status` 表示该 audit event 自身的阶段语义；`terminal_code` 表示当前请求最终 terminal outcome，二者不得混写
+- `diagnostics_json` 只保存受控最小摘要，例如 `fail_closed`、`acl_anomaly_code`、`source_doc_ids`
+- 不保存 raw JWT、raw cookie、raw prompt、raw answer、raw retrieval payload 或 vendor sink blob
+
 ## Ownership Notes
 
 ### Chat Ownership
@@ -406,10 +447,12 @@ updated: 2026-04-03
 ### Operator Ownership
 
 - `operator.request_projection`
+- `operator.request_audit_projection`
 
 只服务：
 
 - panel list/detail
+- panel audit timeline
 - pagination / filtering / detail view
 
 不服务：

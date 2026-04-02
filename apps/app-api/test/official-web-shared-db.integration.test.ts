@@ -11,6 +11,7 @@ import { Client } from "pg";
 import { type Env } from "../src/config";
 import { createApp } from "../src/app";
 import { runSharedDatabaseAdoption } from "../scripts/adopt-shared-database.mjs";
+import { runSharedDatabaseDriftReconcile } from "../scripts/reconcile-shared-db-drift.mjs";
 import { bootstrapSharedProductDatabase } from "../scripts/shared-product-database-bootstrap.mjs";
 
 const RUN_INTEGRATION = process.env.RUN_APP_API_SHARED_DB_INTEGRATION === "1";
@@ -75,6 +76,14 @@ describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", 
         process.env.BETTER_AUTH_SECRET?.trim() || "dev-secret-dev-secret-dev-secret",
       PUBLIC_CHAT_WEB_ORIGIN:
         process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com",
+    });
+    await runSharedDatabaseDriftReconcile({
+      allowNonEmptyDriftTables: true,
+      apply: true,
+      env: {
+        ...process.env,
+        APP_API_MANAGEMENT_DATABASE_URL: managementConnectionString,
+      },
     });
     await runSharedDatabaseAdoption({
       apply: true,

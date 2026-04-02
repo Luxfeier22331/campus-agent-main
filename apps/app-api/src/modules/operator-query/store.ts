@@ -2,10 +2,14 @@ import { and, desc, eq, gte, lt, lte, or } from "drizzle-orm";
 
 import type { Env } from "../../config";
 import { createRuntimeDatabase } from "../../db/runtime";
-import { requestObservabilityFact, requestProjection } from "../../db/schema";
+import { requestAuditProjection, requestObservabilityFact, requestProjection } from "../../db/schema";
 import type {
   MetricRatio,
+  NormalizedOperatorAuditListFilters,
   OperatorCostSummaryResult,
+  OperatorAuditEventDetail,
+  OperatorAuditEventListItem,
+  OperatorAuditListResult,
   NormalizedOperatorOverviewFilters,
   NormalizedOperatorRequestListFilters,
   OperatorOverviewResult,
@@ -21,6 +25,11 @@ import type {
 interface RequestProjectionCursor {
   requestId: string;
   startedAt: string;
+}
+
+interface AuditProjectionCursor {
+  auditEventId: string;
+  occurredAt: string;
 }
 
 type RequestObservabilityFactRow = typeof requestObservabilityFact.$inferSelect;
@@ -60,7 +69,28 @@ function toRequestProjectionRecord(
   };
 }
 
+function toAuditListItem(
+  row: typeof requestAuditProjection.$inferSelect,
+): OperatorAuditEventListItem {
+  return {
+    auditEventId: row.auditEventId,
+    eventType: row.eventType,
+    occurredAt: row.occurredAt.toISOString(),
+    principalType: row.principalType,
+    requestId: row.requestId,
+    selectedTarget: row.selectedTarget ?? null,
+    status: row.status,
+    summary: row.summary,
+    surface: row.surface,
+    traceId: row.traceId,
+  };
+}
+
 function encodeCursor(input: RequestProjectionCursor): string {
+  return Buffer.from(JSON.stringify(input), "utf8").toString("base64url");
+}
+
+function encodeAuditCursor(input: AuditProjectionCursor): string {
   return Buffer.from(JSON.stringify(input), "utf8").toString("base64url");
 }
 
@@ -82,6 +112,30 @@ function decodeCursor(cursor: string): RequestProjectionCursor | null {
     return {
       requestId: parsed.requestId,
       startedAt: parsed.startedAt,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function decodeAuditCursor(cursor: string): AuditProjectionCursor | null {
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(cursor, "base64url").toString("utf8"),
+    ) as Partial<AuditProjectionCursor>;
+
+    if (
+      typeof parsed.auditEventId !== "string" ||
+      !parsed.auditEventId ||
+      typeof parsed.occurredAt !== "string" ||
+      !parsed.occurredAt
+    ) {
+      return null;
+    }
+
+    return {
+      auditEventId: parsed.auditEventId,
+      occurredAt: parsed.occurredAt,
     };
   } catch {
     return null;
@@ -265,6 +319,44 @@ export function createPgOperatorQueryStore(
       return rows[0] ? toRequestProjectionRecord(rows[0]) : null;
     },
 
+    async getAuditById(auditEventId) {
+      const db = await createRuntimeDatabase(env);
+      const rows = await db
+        .select()
+        .from(requestAuditProjection)
+        .where(eq(requestAuditProjection.auditEventId, auditEventId))
+        .limit(1);
+      const row = rows[0];
+      if (!row) {
+        return null;
+      }
+
+      return {
+        event: {
+          auditEventId: row.auditEventId,
+          diagnostics: row.diagnosticsJson,
+          entitlementSnapshotId: row.entitlementSnapshotId ?? null,
+          eventType: row.eventType,
+          occurredAt: row.occurredAt.toISOString(),
+          policyProjectionVersion: row.policyProjectionVersion ?? null,
+          principalType: row.principalType,
+          requestId: row.requestId,
+          requestedCapability: row.requestedCapability ?? null,
+          selectedTarget: row.selectedTarget ?? null,
+          status: row.status,
+          summary: row.summary,
+          surface: row.surface,
+          terminalCode: row.terminalCode ?? null,
+          traceId: row.traceId,
+        },
+        links: {
+          issueFingerprint: null,
+          issueLink: null,
+          traceLink: null,
+        },
+      } satisfies OperatorAuditEventDetail;
+    },
+
     async getObservabilityById(requestId) {
       const db = await createRuntimeDatabase(env);
       const projectionRows = await db
@@ -283,12 +375,18 @@ export function createPgOperatorQueryStore(
         .where(eq(requestObservabilityFact.requestId, requestId))
         .limit(1);
       const fact = factRows[0] ?? null;
+      const auditRows = await db
+        .select()
+        .from(requestAuditProjection)
+        .where(eq(requestAuditProjection.requestId, requestId))
+        .orderBy(desc(requestAuditProjection.occurredAt), desc(requestAuditProjection.auditEventId));
       const sourceDocIds = projection.sourceDocIdsJson ?? [];
 
       return {
         auditSummary: {
-          auditEventCount: 0,
-          latestTerminalCode: projection.status,
+          auditEventCount: auditRows.length,
+          latestTerminalCode:
+            auditRows.find((row) => row.terminalCode)?.terminalCode ?? projection.status,
         },
         links: {
           issueFingerprint: null,
@@ -540,6 +638,71 @@ export function createPgOperatorQueryStore(
         },
         requests: items,
       } satisfies OperatorQueryListResult;
+    },
+
+    async listAudit(filters: NormalizedOperatorAuditListFilters) {
+      const db = await createRuntimeDatabase(env);
+      const conditions = [];
+
+      if (filters.requestId) {
+        conditions.push(eq(requestAuditProjection.requestId, filters.requestId));
+      }
+      if (filters.traceId) {
+        conditions.push(eq(requestAuditProjection.traceId, filters.traceId));
+      }
+      if (filters.principalType) {
+        conditions.push(eq(requestAuditProjection.principalType, filters.principalType));
+      }
+      if (filters.surface) {
+        conditions.push(eq(requestAuditProjection.surface, filters.surface));
+      }
+      if (filters.selectedTarget) {
+        conditions.push(eq(requestAuditProjection.selectedTarget, filters.selectedTarget));
+      }
+      if (filters.eventType) {
+        conditions.push(eq(requestAuditProjection.eventType, filters.eventType));
+      }
+      if (filters.status) {
+        conditions.push(eq(requestAuditProjection.status, filters.status));
+      }
+
+      if (filters.cursor) {
+        const cursor = decodeAuditCursor(filters.cursor);
+        if (cursor) {
+          conditions.push(
+            or(
+              lt(requestAuditProjection.occurredAt, new Date(cursor.occurredAt)),
+              and(
+                eq(requestAuditProjection.occurredAt, new Date(cursor.occurredAt)),
+                lt(requestAuditProjection.auditEventId, cursor.auditEventId),
+              ),
+            )!,
+          );
+        }
+      }
+
+      const baseQuery =
+        conditions.length > 0
+          ? db.select().from(requestAuditProjection).where(and(...conditions))
+          : db.select().from(requestAuditProjection);
+      const rows = await baseQuery
+        .orderBy(desc(requestAuditProjection.occurredAt), desc(requestAuditProjection.auditEventId))
+        .limit(filters.limit + 1);
+
+      const items = rows.slice(0, filters.limit).map(toAuditListItem);
+      const nextRow = rows[filters.limit];
+
+      return {
+        events: items,
+        page: {
+          nextCursor: nextRow
+            ? encodeAuditCursor({
+                auditEventId: nextRow.auditEventId,
+                occurredAt: nextRow.occurredAt.toISOString(),
+              })
+            : null,
+        },
+      } satisfies OperatorAuditListResult;
     },
   };
 }

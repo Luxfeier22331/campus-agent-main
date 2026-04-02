@@ -10,6 +10,7 @@ export type {
   RequestedScope,
   SupervisorExecutionClient,
   SupervisorExecutionInput,
+  SupervisorExecutionObservability,
   SupervisorExecutionResponse,
 } from "./supervisor";
 export type {

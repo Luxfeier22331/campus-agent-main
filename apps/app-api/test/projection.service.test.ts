@@ -14,6 +14,8 @@ function createExecutionSource(
 ): RequestExecutionProjectionSource {
   return {
     answerPreview: "图书馆开放到 22:00。",
+    aclAnomalyCode: null,
+    aclDecision: "allowed",
     applicabilityScope: "undergraduate",
     completedAt: "2026-03-28T08:00:01.000Z",
     conversationId: "conv_01HQ",
@@ -22,6 +24,8 @@ function createExecutionSource(
     errorCode: null,
     entitlementGroups: ["students"],
     entitlementSnapshotId: "entitlements-2026-03-29",
+    failClosed: false,
+    policyProjectionVersion: "2026-03-29",
     principalId: "user_01HQ",
     principalLabel: "Jane Doe",
     principalType: "student",
@@ -67,6 +71,7 @@ describe("request projection projector", () => {
       markEventFailed: vi.fn(),
       markEventProcessed: vi.fn(),
       markObservabilityProjected: vi.fn(),
+      upsertAuditProjection: vi.fn(),
       upsertProjection: vi.fn(),
     };
     const projector = buildRequestProjectionProjector({
@@ -109,6 +114,28 @@ describe("request projection projector", () => {
       traceId: "trace_01HQ",
       visibilityScope: "main",
     });
+    expect(store.upsertAuditProjection).toHaveBeenCalledWith({
+      auditEventId: "evt_accepted",
+      diagnostics: {
+        aclAnomalyCode: null,
+        failClosed: false,
+        sourceDocIds: ["handbook:library-hours"],
+      },
+      entitlementSnapshotId: "entitlements-2026-03-29",
+      eventType: "request.completed",
+      occurredAt: "2026-03-28T08:00:02.000Z",
+      policyProjectionVersion: "2026-03-29",
+      principalType: "student",
+      projectedAt: "2026-03-28T08:00:03.000Z",
+      requestId: "req_01HQ",
+      requestedCapability: "knowledge",
+      selectedTarget: "rag-specialist",
+      status: "completed",
+      summary: "Knowledge request completed via rag-specialist.",
+      surface: "public_chat_web",
+      terminalCode: "completed",
+      traceId: "trace_01HQ",
+    });
     expect(store.markObservabilityProjected).toHaveBeenCalledWith({
       measuredAt: "2026-03-28T08:00:03.000Z",
       projectionLagMs: 3000,
@@ -128,6 +155,7 @@ describe("request projection projector", () => {
       markEventFailed: vi.fn(),
       markEventProcessed: vi.fn(),
       markObservabilityProjected: vi.fn(),
+      upsertAuditProjection: vi.fn(),
       upsertProjection: vi.fn(),
     };
     const projector = buildRequestProjectionProjector({
@@ -149,6 +177,7 @@ describe("request projection projector", () => {
       processedAt: null,
     });
     expect(store.upsertProjection).not.toHaveBeenCalled();
+    expect(store.upsertAuditProjection).not.toHaveBeenCalled();
     expect(store.markObservabilityProjected).not.toHaveBeenCalled();
     expect(store.markEventProcessed).not.toHaveBeenCalled();
   });
@@ -176,6 +205,7 @@ describe("request projection projector", () => {
       markEventFailed: vi.fn(),
       markEventProcessed: vi.fn(),
       markObservabilityProjected: vi.fn(),
+      upsertAuditProjection: vi.fn(),
       upsertProjection: vi.fn(),
     };
     const projector = buildRequestProjectionProjector({
@@ -204,6 +234,42 @@ describe("request projection projector", () => {
     );
   });
 
+  it("keeps audit event status aligned with the outbox event type instead of the latest request row", async () => {
+    const store: RequestProjectionProjectorStore = {
+      getRequestExecution: vi.fn().mockResolvedValue(
+        createExecutionSource({
+          status: "completed",
+        }),
+      ),
+      listPendingEvents: vi.fn().mockResolvedValue([
+        createPendingEvent({
+          eventId: "evt_accept",
+          eventType: "request.accepted",
+        }),
+      ]),
+      markEventFailed: vi.fn(),
+      markEventProcessed: vi.fn(),
+      markObservabilityProjected: vi.fn(),
+      upsertAuditProjection: vi.fn(),
+      upsertProjection: vi.fn(),
+    };
+    const projector = buildRequestProjectionProjector({
+      now: () => new Date("2026-03-28T08:00:03.000Z"),
+      store,
+    });
+
+    await projector.drain();
+
+    expect(store.upsertAuditProjection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        auditEventId: "evt_accept",
+        eventType: "request.accepted",
+        status: "accepted",
+        terminalCode: "completed",
+      }),
+    );
+  });
+
   it("marks terminal projector failures as processed after the retry budget is exhausted", async () => {
     const store: RequestProjectionProjectorStore = {
       getRequestExecution: vi.fn().mockResolvedValue(null),
@@ -216,6 +282,7 @@ describe("request projection projector", () => {
       markEventFailed: vi.fn(),
       markEventProcessed: vi.fn(),
       markObservabilityProjected: vi.fn(),
+      upsertAuditProjection: vi.fn(),
       upsertProjection: vi.fn(),
     };
     const projector = buildRequestProjectionProjector({

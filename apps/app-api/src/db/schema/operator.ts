@@ -12,6 +12,12 @@ interface OfficialWebArtifactProjectionJson {
   recordCount: number | null;
 }
 
+interface RequestAuditDiagnosticsJson {
+  aclAnomalyCode: string | null;
+  failClosed: boolean | null;
+  sourceDocIds: string[];
+}
+
 export const requestProjection = operator.table(
   "request_projection",
   {
@@ -48,6 +54,46 @@ export const requestProjection = operator.table(
     conversationStartedAtIndex: index("operator_request_projection_conversation_started_at_idx").on(
       table.conversationId,
       table.startedAt,
+    ),
+  }),
+);
+
+export const requestAuditProjection = operator.table(
+  "request_audit_projection",
+  {
+    auditEventId: text("audit_event_id").primaryKey(),
+    requestId: text("request_id").notNull(),
+    traceId: text("trace_id").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    eventType: text("event_type").notNull(),
+    surface: text("surface").notNull(),
+    principalType: text("principal_type").notNull(),
+    entitlementSnapshotId: text("entitlement_snapshot_id"),
+    policyProjectionVersion: text("policy_projection_version"),
+    requestedCapability: text("requested_capability"),
+    selectedTarget: text("selected_target"),
+    status: text("status").notNull(),
+    terminalCode: text("terminal_code"),
+    summary: text("summary").notNull(),
+    diagnosticsJson: jsonb("diagnostics_json").$type<RequestAuditDiagnosticsJson>().notNull(),
+    projectedAt: timestamp("projected_at", { withTimezone: true }).notNull(),
+  },
+  (table) => ({
+    requestOccurredAtIndex: index("operator_request_audit_projection_request_occurred_at_idx").on(
+      table.requestId,
+      table.occurredAt,
+    ),
+    traceOccurredAtIndex: index("operator_request_audit_projection_trace_occurred_at_idx").on(
+      table.traceId,
+      table.occurredAt,
+    ),
+    eventTypeOccurredAtIndex: index("operator_request_audit_projection_event_type_occurred_at_idx").on(
+      table.eventType,
+      table.occurredAt,
+    ),
+    statusOccurredAtIndex: index("operator_request_audit_projection_status_occurred_at_idx").on(
+      table.status,
+      table.occurredAt,
     ),
   }),
 );

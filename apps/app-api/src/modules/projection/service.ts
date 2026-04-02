@@ -12,6 +12,8 @@ export interface ProjectionOutboxEvent {
 }
 
 export interface RequestExecutionProjectionSource {
+  aclAnomalyCode: string | null;
+  aclDecision: string | null;
   requestId: string;
   traceId: string;
   surface: string;
@@ -31,6 +33,8 @@ export interface RequestExecutionProjectionSource {
   questionPreview: string;
   answerPreview: string | null;
   diagnostics: RequestDiagnosticsSummary | null;
+  failClosed: boolean | null;
+  policyProjectionVersion: string | null;
   sourceDocIds: string[];
   startedAt: string;
   completedAt: string | null;
@@ -65,6 +69,29 @@ export interface RequestProjectionMaterialization {
   projectedAt: string;
 }
 
+export interface RequestAuditProjectionMaterialization {
+  auditEventId: string;
+  requestId: string;
+  traceId: string;
+  occurredAt: string;
+  eventType: string;
+  surface: string;
+  principalType: string;
+  entitlementSnapshotId: string | null;
+  policyProjectionVersion: string | null;
+  requestedCapability: string | null;
+  selectedTarget: string | null;
+  status: RequestExecutionStatus;
+  terminalCode: RequestExecutionStatus | null;
+  summary: string;
+  diagnostics: {
+    failClosed: boolean | null;
+    aclAnomalyCode: string | null;
+    sourceDocIds: string[];
+  };
+  projectedAt: string;
+}
+
 export interface RequestProjectionProjectorStore {
   getRequestExecution(requestId: string): Promise<RequestExecutionProjectionSource | null>;
   listPendingEvents(limit: number, now: Date): Promise<ProjectionOutboxEvent[]>;
@@ -81,6 +108,7 @@ export interface RequestProjectionProjectorStore {
     projectionLagMs: number | null;
     measuredAt: string;
   }): Promise<void>;
+  upsertAuditProjection(projection: RequestAuditProjectionMaterialization): Promise<void>;
   upsertProjection(projection: RequestProjectionMaterialization): Promise<void>;
 }
 
@@ -118,6 +146,68 @@ function computeProjectionLagMs(input: {
   return Math.max(0, projectedAtMs - startedAtMs);
 }
 
+function resolveAuditEventStatus(
+  eventType: string,
+  execution: RequestExecutionProjectionSource,
+): RequestExecutionStatus {
+  switch (eventType) {
+    case "request.accepted":
+      return "accepted";
+    case "request.completed":
+      return "completed";
+    case "request.needs_clarification":
+      return "needs_clarification";
+    case "request.no_answer":
+      return "no_answer";
+    case "request.error":
+      return "error";
+    case "request.approval_required":
+      return "approval_required";
+    case "request.rejected":
+      return "rejected";
+    default:
+      return execution.status;
+  }
+}
+
+function toAuditCapabilityLabel(requestedCapability: string | null): string {
+  if (!requestedCapability) {
+    return "Request";
+  }
+
+  return `${requestedCapability.slice(0, 1).toUpperCase()}${requestedCapability.slice(1)} request`;
+}
+
+function buildAuditSummary(input: {
+  eventType: string;
+  execution: RequestExecutionProjectionSource;
+  status: RequestExecutionStatus;
+}): string {
+  const capabilityLabel = toAuditCapabilityLabel(input.execution.requestedCapability);
+  const targetSuffix = input.execution.selectedTarget
+    ? ` via ${input.execution.selectedTarget}`
+    : "";
+
+  switch (input.status) {
+    case "accepted":
+      return `${capabilityLabel} accepted.`;
+    case "completed":
+      return `${capabilityLabel} completed${targetSuffix}.`;
+    case "needs_clarification":
+      return `${capabilityLabel} requires clarification.`;
+    case "no_answer":
+      return `${capabilityLabel} returned no answer.`;
+    case "approval_required":
+      return `${capabilityLabel} requires approval before execution continues.`;
+    case "rejected":
+      return `${capabilityLabel} was rejected by supervisor policy.`;
+    case "error":
+      return `${capabilityLabel} ended with ${input.execution.errorCode ?? "internal_error"}.`;
+    default:
+      return `${capabilityLabel} recorded audit event ${input.eventType}.`;
+  }
+}
+
 export function toRequestProjectionMaterialization(input: {
   execution: RequestExecutionProjectionSource;
   projectedAt: string;
@@ -150,6 +240,44 @@ export function toRequestProjectionMaterialization(input: {
   };
 }
 
+export function toRequestAuditProjectionMaterialization(input: {
+  event: ProjectionOutboxEvent;
+  execution: RequestExecutionProjectionSource;
+  projectedAt: string;
+}): RequestAuditProjectionMaterialization {
+  const status = resolveAuditEventStatus(input.event.eventType, input.execution);
+
+  return {
+    auditEventId: input.event.eventId,
+    diagnostics: {
+      aclAnomalyCode: input.execution.aclAnomalyCode,
+      failClosed: input.execution.failClosed,
+      sourceDocIds: input.execution.sourceDocIds,
+    },
+    entitlementSnapshotId: input.execution.entitlementSnapshotId,
+    eventType: input.event.eventType,
+    occurredAt: input.event.occurredAt,
+    policyProjectionVersion: input.execution.policyProjectionVersion,
+    principalType: input.execution.principalType,
+    projectedAt: input.projectedAt,
+    requestId: input.execution.requestId,
+    requestedCapability: input.execution.requestedCapability,
+    selectedTarget: input.execution.selectedTarget,
+    status,
+    summary: buildAuditSummary({
+      eventType: input.event.eventType,
+      execution: input.execution,
+      status,
+    }),
+    surface: input.execution.surface,
+    terminalCode:
+      input.execution.status === "accepted"
+        ? null
+        : input.execution.status,
+    traceId: input.execution.traceId,
+  };
+}
+
 export function buildRequestProjectionProjector(
   dependencies: RequestProjectionProjectorDependencies,
 ): RequestProjectionProjector {
@@ -173,6 +301,13 @@ export function buildRequestProjectionProjector(
 
           await dependencies.store.upsertProjection(
             toRequestProjectionMaterialization({
+              execution,
+              projectedAt,
+            }),
+          );
+          await dependencies.store.upsertAuditProjection(
+            toRequestAuditProjectionMaterialization({
+              event,
               execution,
               projectedAt,
             }),

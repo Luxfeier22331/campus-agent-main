@@ -1,7 +1,12 @@
 export {
   buildOperatorQueryService,
+  type OperatorAuditEventDetail,
+  type OperatorAuditEventListItem,
+  type OperatorAuditListFilters,
+  type OperatorAuditListResult,
   type MetricRatio,
   type OperatorCostSummaryResult,
+  type NormalizedOperatorAuditListFilters,
   type NormalizedOperatorOverviewFilters,
   type NormalizedOperatorRequestListFilters,
   type OperatorOverviewFilters,

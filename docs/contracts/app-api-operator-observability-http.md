@@ -692,6 +692,8 @@ list endpoints 额外支持：
 
 - 返回 curated audit timeline summary，不是 raw JSONL replay
 - `summary` 必须是 governance-safe 文本，不回显 raw auth material 或 raw answer
+- 当前 merged truth 第一版事件类型先以 request lifecycle 为主，例如 `request.accepted`、`request.completed`、`request.no_answer`、`request.needs_clarification`、`request.error`、`request.approval_required`、`request.rejected`
+- 更细粒度的 `authz.decision`、`retrieval.summary`、`operator.action` 后续可以在不破坏 owner 模型的前提下追加，但不能回退成 raw log query
 
 ### `GET /api/operator/audit/:auditEventId`
 
@@ -732,6 +734,7 @@ list endpoints 额外支持：
 
 - detail 允许比 list 多出 `entitlementSnapshotId`、`policyProjectionVersion`、`diagnostics`
 - 仍不返回 raw JWT、raw cookies、raw prompt、raw answer、raw retrieval payload
+- 第一版 `links` 允许全部为 `null`；后续再把 `Sentry`/sink backlink 稳定接入 detail 面
 
 ## Explicit Non-Goals
 

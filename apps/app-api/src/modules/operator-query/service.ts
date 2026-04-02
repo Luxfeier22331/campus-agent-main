@@ -39,6 +39,18 @@ export interface OperatorRequestListFilters {
   requestId?: string | null;
 }
 
+export interface OperatorAuditListFilters {
+  limit?: number | null;
+  cursor?: string | null;
+  requestId?: string | null;
+  traceId?: string | null;
+  principalType?: string | null;
+  surface?: string | null;
+  selectedTarget?: string | null;
+  eventType?: string | null;
+  status?: string | null;
+}
+
 export interface NormalizedOperatorRequestListFilters {
   limit: number;
   cursor: string | null;
@@ -46,6 +58,18 @@ export interface NormalizedOperatorRequestListFilters {
   surface: string | null;
   conversationId: string | null;
   requestId: string | null;
+}
+
+export interface NormalizedOperatorAuditListFilters {
+  limit: number;
+  cursor: string | null;
+  requestId: string | null;
+  traceId: string | null;
+  principalType: string | null;
+  surface: string | null;
+  selectedTarget: string | null;
+  eventType: string | null;
+  status: string | null;
 }
 
 export interface OperatorOverviewFilters {
@@ -179,6 +203,55 @@ export interface OperatorOverviewResult {
   asOf: string;
 }
 
+export interface OperatorAuditEventListItem {
+  auditEventId: string;
+  requestId: string;
+  traceId: string;
+  occurredAt: string;
+  eventType: string;
+  surface: string;
+  principalType: string;
+  selectedTarget: string | null;
+  status: string;
+  summary: string;
+}
+
+export interface OperatorAuditEventDetail {
+  event: {
+    auditEventId: string;
+    requestId: string;
+    traceId: string;
+    occurredAt: string;
+    eventType: string;
+    surface: string;
+    principalType: string;
+    entitlementSnapshotId: string | null;
+    policyProjectionVersion: string | null;
+    requestedCapability: string | null;
+    selectedTarget: string | null;
+    status: string;
+    terminalCode: string | null;
+    summary: string;
+    diagnostics: {
+      failClosed: boolean | null;
+      aclAnomalyCode: string | null;
+      sourceDocIds: string[];
+    };
+  };
+  links: {
+    traceLink: string | null;
+    issueLink: string | null;
+    issueFingerprint: string | null;
+  };
+}
+
+export interface OperatorAuditListResult {
+  events: OperatorAuditEventListItem[];
+  page: {
+    nextCursor: string | null;
+  };
+}
+
 export interface OperatorQualitySummaryResult {
   window: OperatorResultWindow;
   runtime: {
@@ -246,11 +319,13 @@ export interface OperatorCostSummaryResult {
 
 export interface OperatorQueryStore {
   getById(requestId: string): Promise<RequestProjectionRecord | null>;
+  getAuditById(auditEventId: string): Promise<OperatorAuditEventDetail | null>;
   getObservabilityById(requestId: string): Promise<OperatorRequestObservabilityRecord | null>;
   getOverview(filters: NormalizedOperatorOverviewFilters): Promise<OperatorOverviewResult>;
   getQualitySummary(filters: NormalizedOperatorOverviewFilters): Promise<OperatorQualitySummaryResult>;
   getSafetySummary(filters: NormalizedOperatorOverviewFilters): Promise<OperatorSafetySummaryResult>;
   getCostSummary(filters: NormalizedOperatorOverviewFilters): Promise<OperatorCostSummaryResult>;
+  listAudit(filters: NormalizedOperatorAuditListFilters): Promise<OperatorAuditListResult>;
   list(filters: NormalizedOperatorRequestListFilters): Promise<OperatorQueryListResult>;
 }
 
@@ -263,6 +338,10 @@ export interface OperatorQueryService {
     principal: ResolvedAppPrincipal;
     requestId: string;
   }): Promise<OperatorRequestObservabilityRecord>;
+  getAuditById(input: {
+    principal: ResolvedAppPrincipal;
+    auditEventId: string;
+  }): Promise<OperatorAuditEventDetail>;
   getOverview(input: {
     principal: ResolvedAppPrincipal;
     filters: OperatorOverviewFilters;
@@ -283,6 +362,10 @@ export interface OperatorQueryService {
     principal: ResolvedAppPrincipal;
     filters: OperatorRequestListFilters;
   }): Promise<OperatorQueryListResult>;
+  listAudit(input: {
+    principal: ResolvedAppPrincipal;
+    filters: OperatorAuditListFilters;
+  }): Promise<OperatorAuditListResult>;
 }
 
 export interface OperatorQueryServiceDependencies {
@@ -327,6 +410,22 @@ function normalizeOverviewFilters(
     selectedTarget: normalizeOptionalString(filters.selectedTarget),
     surface: normalizeOptionalString(filters.surface),
     window: normalizeOverviewWindow(filters.window),
+  };
+}
+
+function normalizeAuditListFilters(
+  filters: OperatorAuditListFilters,
+): NormalizedOperatorAuditListFilters {
+  return {
+    cursor: normalizeOptionalString(filters.cursor),
+    eventType: normalizeOptionalString(filters.eventType),
+    limit: normalizeLimit(filters.limit),
+    principalType: normalizeOptionalString(filters.principalType),
+    requestId: normalizeOptionalString(filters.requestId),
+    selectedTarget: normalizeOptionalString(filters.selectedTarget),
+    status: normalizeOptionalString(filters.status),
+    surface: normalizeOptionalString(filters.surface),
+    traceId: normalizeOptionalString(filters.traceId),
   };
 }
 
@@ -395,6 +494,31 @@ export function buildOperatorQueryService(
       return projection;
     },
 
+    async getAuditById(input) {
+      ensureOperatorPrincipal(input.principal);
+      const auditEventId = normalizeOptionalString(input.auditEventId);
+      if (!auditEventId) {
+        throw new AppApiRouteError({
+          code: "invalid_audit_event_id",
+          message: "auditEventId is required.",
+          retryable: false,
+          status: 400,
+        });
+      }
+
+      const event = await dependencies.store.getAuditById(auditEventId);
+      if (!event) {
+        throw new AppApiRouteError({
+          code: "audit_event_not_found",
+          message: "Audit event not found.",
+          retryable: false,
+          status: 404,
+        });
+      }
+
+      return event;
+    },
+
     async getOverview(input) {
       ensureOperatorPrincipal(input.principal);
 
@@ -430,6 +554,12 @@ export function buildOperatorQueryService(
         status: normalizeOptionalString(input.filters.status),
         surface: normalizeOptionalString(input.filters.surface),
       } satisfies NormalizedOperatorRequestListFilters);
+    },
+
+    async listAudit(input) {
+      ensureOperatorPrincipal(input.principal);
+
+      return dependencies.store.listAudit(normalizeAuditListFilters(input.filters));
     },
   };
 }

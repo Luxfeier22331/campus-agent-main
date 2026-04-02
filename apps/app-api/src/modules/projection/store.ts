@@ -6,6 +6,7 @@ import {
   projectionOutbox,
   requestExecution,
   requestObservabilityFact,
+  requestAuditProjection,
   requestProjection,
 } from "../../db/schema";
 import type {
@@ -33,8 +34,11 @@ function toProjectionEvent(row: typeof projectionOutbox.$inferSelect): Projectio
 
 function toExecutionProjectionSource(
   row: typeof requestExecution.$inferSelect,
+  observability: typeof requestObservabilityFact.$inferSelect | null,
 ): RequestExecutionProjectionSource {
   return {
+    aclAnomalyCode: observability?.aclAnomalyCode ?? null,
+    aclDecision: observability?.aclDecision ?? null,
     answerPreview: row.answerPreview ?? null,
     completedAt: toIsoString(row.completedAt),
     conversationId: row.conversationId,
@@ -43,6 +47,8 @@ function toExecutionProjectionSource(
     errorCode: row.errorCode ?? null,
     entitlementGroups: row.entitlementGroupsJson ?? [],
     entitlementSnapshotId: row.entitlementSnapshotId ?? null,
+    failClosed: observability?.failClosed ?? null,
+    policyProjectionVersion: observability?.policyProjectionVersion ?? null,
     principalId: row.actorPrincipalId,
     principalLabel: row.principalLabel ?? null,
     principalType: row.principalType,
@@ -65,13 +71,23 @@ export function createPgProjectionStore(env: Env): RequestProjectionProjectorSto
   return {
     async getRequestExecution(requestIdValue) {
       const db = await createRuntimeDatabase(env);
-      const rows = await db
+      const executionRows = await db
         .select()
         .from(requestExecution)
         .where(eq(requestExecution.requestId, requestIdValue))
         .limit(1);
+      const execution = executionRows[0];
+      if (!execution) {
+        return null;
+      }
 
-      return rows[0] ? toExecutionProjectionSource(rows[0]) : null;
+      const observabilityRows = await db
+        .select()
+        .from(requestObservabilityFact)
+        .where(eq(requestObservabilityFact.requestId, requestIdValue))
+        .limit(1);
+
+      return toExecutionProjectionSource(execution, observabilityRows[0] ?? null);
     },
 
     async listPendingEvents(limit, now) {
@@ -121,6 +137,50 @@ export function createPgProjectionStore(env: Env): RequestProjectionProjectorSto
           updatedAt: new Date(input.measuredAt),
         })
         .where(eq(requestObservabilityFact.requestId, input.requestId));
+    },
+
+    async upsertAuditProjection(projection) {
+      const db = await createRuntimeDatabase(env);
+      await db
+        .insert(requestAuditProjection)
+        .values({
+          auditEventId: projection.auditEventId,
+          diagnosticsJson: projection.diagnostics,
+          entitlementSnapshotId: projection.entitlementSnapshotId,
+          eventType: projection.eventType,
+          occurredAt: new Date(projection.occurredAt),
+          policyProjectionVersion: projection.policyProjectionVersion,
+          principalType: projection.principalType,
+          projectedAt: new Date(projection.projectedAt),
+          requestId: projection.requestId,
+          requestedCapability: projection.requestedCapability,
+          selectedTarget: projection.selectedTarget,
+          status: projection.status,
+          summary: projection.summary,
+          surface: projection.surface,
+          terminalCode: projection.terminalCode,
+          traceId: projection.traceId,
+        })
+        .onConflictDoUpdate({
+          set: {
+            diagnosticsJson: projection.diagnostics,
+            entitlementSnapshotId: projection.entitlementSnapshotId,
+            eventType: projection.eventType,
+            occurredAt: new Date(projection.occurredAt),
+            policyProjectionVersion: projection.policyProjectionVersion,
+            principalType: projection.principalType,
+            projectedAt: new Date(projection.projectedAt),
+            requestId: projection.requestId,
+            requestedCapability: projection.requestedCapability,
+            selectedTarget: projection.selectedTarget,
+            status: projection.status,
+            summary: projection.summary,
+            surface: projection.surface,
+            terminalCode: projection.terminalCode,
+            traceId: projection.traceId,
+          },
+          target: requestAuditProjection.auditEventId,
+        });
     },
 
     async upsertProjection(projection) {

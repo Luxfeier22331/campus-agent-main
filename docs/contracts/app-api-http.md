@@ -80,6 +80,8 @@ updated: 2026-04-03
 - `GET /api/operator/quality/summary`
 - `GET /api/operator/safety/summary`
 - `GET /api/operator/cost/summary`
+- `GET /api/operator/audit`
+- `GET /api/operator/audit/:auditEventId`
 - `GET /api/operator/requests`
 - `GET /api/operator/requests/:requestId`
 - `GET /api/operator/requests/:requestId/observability`

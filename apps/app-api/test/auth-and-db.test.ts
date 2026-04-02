@@ -156,6 +156,7 @@ describe("app-api auth config", () => {
         "requestExecution",
         "projectionOutbox",
         "requestProjection",
+        "requestAuditProjection",
         "officialWebRunProjection",
         "officialWebSiteProjection",
       ]),
