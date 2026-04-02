@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 import os
 
+from campus_shared import resolve_embedding_provider_config, resolve_llm_provider_config
+
 
 DEFAULT_SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS = 10.0
 DEFAULT_SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS = 30.0
@@ -224,6 +226,8 @@ class RagasSettings:
         http_settings: SupplementalHTTPSettings | None = None,
     ) -> "RagasSettings":
         source = env if env is not None else os.environ
+        llm_provider = resolve_llm_provider_config("eval.ragas", env=source)
+        embedding_provider = resolve_embedding_provider_config("eval.ragas", env=source)
         embedding_model = _read_first_non_empty(
             source,
             "EVAL_EMBEDDING_MODEL",
@@ -235,21 +239,12 @@ class RagasSettings:
             "EMBEDDING_DIMENSIONS",
         ) or ""
         return cls(
-            llm_api_key=_read_first_non_empty(source, "EVAL_LLM_API_KEY", "LLM_API_KEY") or "",
+            llm_api_key=llm_provider.api_key,
             llm_model=_resolve_ragas_model(source),
-            embedding_api_key=_read_first_non_empty(
-                source,
-                "EVAL_EMBEDDING_API_KEY",
-                "EMBEDDING_API_KEY",
-            )
-            or "",
+            embedding_api_key=embedding_provider.api_key,
             embedding_model=embedding_model,
-            llm_base_url=_read_first_non_empty(source, "EVAL_LLM_BASE_URL", "LLM_BASE_URL"),
-            embedding_base_url=_read_first_non_empty(
-                source,
-                "EVAL_EMBEDDING_BASE_URL",
-                "EMBEDDING_BASE_URL",
-            ),
+            llm_base_url=llm_provider.base_url,
+            embedding_base_url=embedding_provider.base_url,
             embedding_dimensions=_resolve_embedding_dimensions(
                 model=embedding_model,
                 raw_dimensions=raw_embedding_dimensions,
@@ -321,10 +316,11 @@ class JudgeLLMSettings:
         http_settings: SupplementalHTTPSettings | None = None,
     ) -> "JudgeLLMSettings":
         source = env if env is not None else os.environ
+        llm_provider = resolve_llm_provider_config("eval.judge", env=source)
         return cls(
-            llm_api_key=_read_first_non_empty(source, "EVAL_LLM_API_KEY", "LLM_API_KEY") or "",
+            llm_api_key=llm_provider.api_key,
             llm_model=_resolve_judge_model(source),
-            llm_base_url=_read_first_non_empty(source, "EVAL_LLM_BASE_URL", "LLM_BASE_URL"),
+            llm_base_url=llm_provider.base_url,
             http_settings=http_settings or SupplementalHTTPSettings.from_env(source),
             reasoning_effort=_read_optional_str(source.get("RAGAS_REASONING_EFFORT")),
             text_verbosity=_read_optional_str(source.get("RAGAS_TEXT_VERBOSITY")),

@@ -12,6 +12,7 @@ from langchain_core.prompt_values import StringPromptValue
 from ragas.llms.base import InstructorBaseRagasLLM
 from ragas.metrics._faithfulness import NLIStatementOutput, StatementFaithfulnessAnswer, StatementGeneratorOutput
 
+from campus_shared.provider_config import ProviderConfigResolutionError
 from campus_evals import (
     RagasProjection,
     RagasSettings,
@@ -251,7 +252,7 @@ class RagasSettingsTest(unittest.TestCase):
         self.assertTrue(settings.adapt_instruction)
 
     def test_from_env_requires_llm_and_embedding_secrets_and_models(self) -> None:
-        with self.assertRaisesRegex(ValueError, "LLM_API_KEY is required"):
+        with self.assertRaises(ProviderConfigResolutionError) as raised:
             RagasSettings.from_env(
                 {
                     "EVAL_RAGAS_MODEL": "gpt-5.4",
@@ -259,6 +260,10 @@ class RagasSettingsTest(unittest.TestCase):
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 }
             )
+        self.assertEqual(raised.exception.surface_name, "eval.ragas")
+        self.assertEqual(raised.exception.checked_keys, ("EVAL_LLM_API_KEY", "LLM_API_KEY"))
+        self.assertIn("eval.ragas", str(raised.exception))
+        self.assertIn("EVAL_LLM_API_KEY", str(raised.exception))
 
     def test_build_ragas_supplemental_adapter_from_env_exposes_default_metric_names(self) -> None:
         adapter = build_ragas_supplemental_adapter_from_env(

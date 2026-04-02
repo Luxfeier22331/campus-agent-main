@@ -4,6 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from campus_contracts import ActorContext, EvidenceBundle, EvidenceSource, KnowledgeScope, RagResultPayload, SpecialistResponse
+from campus_shared.provider_config import ProviderConfigResolutionError
 from campus_evals import ExecutionResult, GoldenCase, ObservedTrace, TraceExpectation
 from campus_evals.judge_adapters import (
     build_answer_rubric_adapter,
@@ -161,6 +162,19 @@ class JudgeSettingsTest(unittest.TestCase):
                     "LLM_API_KEY": "llm-key",
                 }
             )
+
+    def test_judge_settings_from_env_requires_provider_key_with_surface_aware_error(self) -> None:
+        with self.assertRaises(ProviderConfigResolutionError) as raised:
+            JudgeLLMSettings.from_env(
+                {
+                    "EVAL_JUDGE_MODEL": "gpt-5.4-judge",
+                }
+            )
+
+        self.assertEqual(raised.exception.surface_name, "eval.judge")
+        self.assertEqual(raised.exception.checked_keys, ("EVAL_LLM_API_KEY", "LLM_API_KEY"))
+        self.assertIn("eval.judge", str(raised.exception))
+        self.assertIn("EVAL_LLM_API_KEY", str(raised.exception))
 
     def test_judge_settings_from_env_accept_repo_tracked_http_settings_override(self) -> None:
         settings = JudgeLLMSettings.from_env(
