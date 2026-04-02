@@ -66,6 +66,7 @@ describe("request projection projector", () => {
       listPendingEvents: vi.fn().mockResolvedValue([createPendingEvent()]),
       markEventFailed: vi.fn(),
       markEventProcessed: vi.fn(),
+      markObservabilityProjected: vi.fn(),
       upsertProjection: vi.fn(),
     };
     const projector = buildRequestProjectionProjector({
@@ -108,6 +109,11 @@ describe("request projection projector", () => {
       traceId: "trace_01HQ",
       visibilityScope: "main",
     });
+    expect(store.markObservabilityProjected).toHaveBeenCalledWith({
+      measuredAt: "2026-03-28T08:00:03.000Z",
+      projectionLagMs: 3000,
+      requestId: "req_01HQ",
+    });
     expect(store.markEventProcessed).toHaveBeenCalledWith({
       eventId: "evt_accepted",
       processedAt: "2026-03-28T08:00:03.000Z",
@@ -121,6 +127,7 @@ describe("request projection projector", () => {
       listPendingEvents: vi.fn().mockResolvedValue([createPendingEvent()]),
       markEventFailed: vi.fn(),
       markEventProcessed: vi.fn(),
+      markObservabilityProjected: vi.fn(),
       upsertProjection: vi.fn(),
     };
     const projector = buildRequestProjectionProjector({
@@ -142,6 +149,7 @@ describe("request projection projector", () => {
       processedAt: null,
     });
     expect(store.upsertProjection).not.toHaveBeenCalled();
+    expect(store.markObservabilityProjected).not.toHaveBeenCalled();
     expect(store.markEventProcessed).not.toHaveBeenCalled();
   });
 
@@ -167,6 +175,7 @@ describe("request projection projector", () => {
       listPendingEvents: vi.fn().mockResolvedValue([createPendingEvent()]),
       markEventFailed: vi.fn(),
       markEventProcessed: vi.fn(),
+      markObservabilityProjected: vi.fn(),
       upsertProjection: vi.fn(),
     };
     const projector = buildRequestProjectionProjector({
@@ -206,6 +215,7 @@ describe("request projection projector", () => {
       ]),
       markEventFailed: vi.fn(),
       markEventProcessed: vi.fn(),
+      markObservabilityProjected: vi.fn(),
       upsertProjection: vi.fn(),
     };
     const projector = buildRequestProjectionProjector({

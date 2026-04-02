@@ -2,7 +2,13 @@ import { and, asc, desc, eq } from "drizzle-orm";
 
 import type { Env } from "../../config";
 import { createRuntimeDatabase } from "../../db/runtime";
-import { conversations, messages, projectionOutbox, requestExecution } from "../../db/schema";
+import {
+  conversations,
+  messages,
+  projectionOutbox,
+  requestExecution,
+  requestObservabilityFact,
+} from "../../db/schema";
 import type { ChatConversation, ChatMessage } from "../chat";
 import type { RequestedScope } from "../integration";
 import type { RequestDiagnosticsSummary } from "../request-diagnostics";
@@ -66,6 +72,46 @@ export interface ProjectionOutboxWrite {
   lastError: string | null;
 }
 
+export interface RequestObservabilityFactWrite {
+  requestId: string;
+  traceId: string;
+  conversationId: string;
+  surface: string;
+  principalType: string;
+  entitlementSnapshotId: string | null;
+  policyProjectionVersion: string | null;
+  requestedCapability: string | null;
+  requestedScopeSummary: string | null;
+  collection: string | null;
+  selectedTarget: string | null;
+  status: RequestExecutionStatus;
+  errorCode: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  durationMs: number | null;
+  retrievalAttempted: boolean | null;
+  candidateCount: number | null;
+  retrievedSourceCount: number | null;
+  emptyRecall: boolean | null;
+  citationExpected: boolean | null;
+  citationCount: number | null;
+  citationMissing: boolean | null;
+  refusalClass: string | null;
+  aclDecision: string | null;
+  aclAnomalyCode: string | null;
+  failClosed: boolean | null;
+  modelProvider: string | null;
+  modelName: string | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cachedInputTokens: number | null;
+  estimatedCostMicrousd: number | null;
+  traceAvailable: boolean;
+  projectionLagMs: number | null;
+  measuredAt: string;
+  updatedAt: string;
+}
+
 export interface AcceptRequestWrite {
   conversationSeed?: {
     id: string;
@@ -77,6 +123,7 @@ export interface AcceptRequestWrite {
   conversationTitle: string;
   ownerUserId: string;
   outboxEvent: ProjectionOutboxWrite;
+  requestObservabilityFact: RequestObservabilityFactWrite;
   requestExecution: RequestExecutionWrite;
   userMessage: ChatMessage;
 }
@@ -86,6 +133,7 @@ export interface FinalizeRequestWrite {
   conversationTitle: string;
   ownerUserId: string;
   outboxEvent: ProjectionOutboxWrite;
+  requestObservabilityFact: RequestObservabilityFactWrite;
   requestExecution: RequestExecutionWrite;
 }
 
@@ -330,6 +378,48 @@ export function createPgChatCommandStore(env: Env): ChatCommandStore {
             lastError: null,
           });
 
+        await tx.insert(requestObservabilityFact).values({
+          aclAnomalyCode: input.requestObservabilityFact.aclAnomalyCode,
+          aclDecision: input.requestObservabilityFact.aclDecision,
+          cachedInputTokens: input.requestObservabilityFact.cachedInputTokens,
+          candidateCount: input.requestObservabilityFact.candidateCount,
+          citationCount: input.requestObservabilityFact.citationCount,
+          citationExpected: input.requestObservabilityFact.citationExpected,
+          citationMissing: input.requestObservabilityFact.citationMissing,
+          collection: input.requestObservabilityFact.collection,
+          completedAt: input.requestObservabilityFact.completedAt
+            ? new Date(input.requestObservabilityFact.completedAt)
+            : null,
+          conversationId: input.requestObservabilityFact.conversationId,
+          durationMs: input.requestObservabilityFact.durationMs,
+          emptyRecall: input.requestObservabilityFact.emptyRecall,
+          entitlementSnapshotId: input.requestObservabilityFact.entitlementSnapshotId,
+          errorCode: input.requestObservabilityFact.errorCode,
+          estimatedCostMicrousd: input.requestObservabilityFact.estimatedCostMicrousd,
+          failClosed: input.requestObservabilityFact.failClosed,
+          inputTokens: input.requestObservabilityFact.inputTokens,
+          measuredAt: new Date(input.requestObservabilityFact.measuredAt),
+          modelName: input.requestObservabilityFact.modelName,
+          modelProvider: input.requestObservabilityFact.modelProvider,
+          outputTokens: input.requestObservabilityFact.outputTokens,
+          policyProjectionVersion: input.requestObservabilityFact.policyProjectionVersion,
+          principalType: input.requestObservabilityFact.principalType,
+          projectionLagMs: input.requestObservabilityFact.projectionLagMs,
+          requestId: input.requestObservabilityFact.requestId,
+          requestedCapability: input.requestObservabilityFact.requestedCapability,
+          requestedScopeSummary: input.requestObservabilityFact.requestedScopeSummary,
+          refusalClass: input.requestObservabilityFact.refusalClass,
+          retrievedSourceCount: input.requestObservabilityFact.retrievedSourceCount,
+          retrievalAttempted: input.requestObservabilityFact.retrievalAttempted,
+          selectedTarget: input.requestObservabilityFact.selectedTarget,
+          startedAt: new Date(input.requestObservabilityFact.startedAt),
+          status: input.requestObservabilityFact.status,
+          surface: input.requestObservabilityFact.surface,
+          traceAvailable: input.requestObservabilityFact.traceAvailable,
+          traceId: input.requestObservabilityFact.traceId,
+          updatedAt: new Date(input.requestObservabilityFact.updatedAt),
+        });
+
         await tx
           .update(conversations)
           .set({
@@ -391,6 +481,93 @@ export function createPgChatCommandStore(env: Env): ChatCommandStore {
             processedAt: null,
             attemptCount: input.outboxEvent.attemptCount,
             lastError: null,
+          });
+
+        await tx
+          .insert(requestObservabilityFact)
+          .values({
+            aclAnomalyCode: input.requestObservabilityFact.aclAnomalyCode,
+            aclDecision: input.requestObservabilityFact.aclDecision,
+            cachedInputTokens: input.requestObservabilityFact.cachedInputTokens,
+            candidateCount: input.requestObservabilityFact.candidateCount,
+            citationCount: input.requestObservabilityFact.citationCount,
+            citationExpected: input.requestObservabilityFact.citationExpected,
+            citationMissing: input.requestObservabilityFact.citationMissing,
+            collection: input.requestObservabilityFact.collection,
+            completedAt: input.requestObservabilityFact.completedAt
+              ? new Date(input.requestObservabilityFact.completedAt)
+              : null,
+            conversationId: input.requestObservabilityFact.conversationId,
+            durationMs: input.requestObservabilityFact.durationMs,
+            emptyRecall: input.requestObservabilityFact.emptyRecall,
+            entitlementSnapshotId: input.requestObservabilityFact.entitlementSnapshotId,
+            errorCode: input.requestObservabilityFact.errorCode,
+            estimatedCostMicrousd: input.requestObservabilityFact.estimatedCostMicrousd,
+            failClosed: input.requestObservabilityFact.failClosed,
+            inputTokens: input.requestObservabilityFact.inputTokens,
+            measuredAt: new Date(input.requestObservabilityFact.measuredAt),
+            modelName: input.requestObservabilityFact.modelName,
+            modelProvider: input.requestObservabilityFact.modelProvider,
+            outputTokens: input.requestObservabilityFact.outputTokens,
+            policyProjectionVersion: input.requestObservabilityFact.policyProjectionVersion,
+            principalType: input.requestObservabilityFact.principalType,
+            projectionLagMs: input.requestObservabilityFact.projectionLagMs,
+            requestId: input.requestObservabilityFact.requestId,
+            requestedCapability: input.requestObservabilityFact.requestedCapability,
+            requestedScopeSummary: input.requestObservabilityFact.requestedScopeSummary,
+            refusalClass: input.requestObservabilityFact.refusalClass,
+            retrievedSourceCount: input.requestObservabilityFact.retrievedSourceCount,
+            retrievalAttempted: input.requestObservabilityFact.retrievalAttempted,
+            selectedTarget: input.requestObservabilityFact.selectedTarget,
+            startedAt: new Date(input.requestObservabilityFact.startedAt),
+            status: input.requestObservabilityFact.status,
+            surface: input.requestObservabilityFact.surface,
+            traceAvailable: input.requestObservabilityFact.traceAvailable,
+            traceId: input.requestObservabilityFact.traceId,
+            updatedAt: new Date(input.requestObservabilityFact.updatedAt),
+          })
+          .onConflictDoUpdate({
+            set: {
+              aclAnomalyCode: input.requestObservabilityFact.aclAnomalyCode,
+              aclDecision: input.requestObservabilityFact.aclDecision,
+              cachedInputTokens: input.requestObservabilityFact.cachedInputTokens,
+              candidateCount: input.requestObservabilityFact.candidateCount,
+              citationCount: input.requestObservabilityFact.citationCount,
+              citationExpected: input.requestObservabilityFact.citationExpected,
+              citationMissing: input.requestObservabilityFact.citationMissing,
+              collection: input.requestObservabilityFact.collection,
+              completedAt: input.requestObservabilityFact.completedAt
+                ? new Date(input.requestObservabilityFact.completedAt)
+                : null,
+              conversationId: input.requestObservabilityFact.conversationId,
+              durationMs: input.requestObservabilityFact.durationMs,
+              emptyRecall: input.requestObservabilityFact.emptyRecall,
+              entitlementSnapshotId: input.requestObservabilityFact.entitlementSnapshotId,
+              errorCode: input.requestObservabilityFact.errorCode,
+              estimatedCostMicrousd: input.requestObservabilityFact.estimatedCostMicrousd,
+              failClosed: input.requestObservabilityFact.failClosed,
+              inputTokens: input.requestObservabilityFact.inputTokens,
+              measuredAt: new Date(input.requestObservabilityFact.measuredAt),
+              modelName: input.requestObservabilityFact.modelName,
+              modelProvider: input.requestObservabilityFact.modelProvider,
+              outputTokens: input.requestObservabilityFact.outputTokens,
+              policyProjectionVersion: input.requestObservabilityFact.policyProjectionVersion,
+              principalType: input.requestObservabilityFact.principalType,
+              projectionLagMs: input.requestObservabilityFact.projectionLagMs,
+              requestedCapability: input.requestObservabilityFact.requestedCapability,
+              requestedScopeSummary: input.requestObservabilityFact.requestedScopeSummary,
+              refusalClass: input.requestObservabilityFact.refusalClass,
+              retrievedSourceCount: input.requestObservabilityFact.retrievedSourceCount,
+              retrievalAttempted: input.requestObservabilityFact.retrievalAttempted,
+              selectedTarget: input.requestObservabilityFact.selectedTarget,
+              startedAt: new Date(input.requestObservabilityFact.startedAt),
+              status: input.requestObservabilityFact.status,
+              surface: input.requestObservabilityFact.surface,
+              traceAvailable: input.requestObservabilityFact.traceAvailable,
+              traceId: input.requestObservabilityFact.traceId,
+              updatedAt: new Date(input.requestObservabilityFact.updatedAt),
+            },
+            target: requestObservabilityFact.requestId,
           });
 
         await tx

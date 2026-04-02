@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-03-30
+updated: 2026-04-03
 ---
 
 # App API HTTP Contract
@@ -16,6 +16,7 @@ updated: 2026-03-30
 - shared product topology：`docs/architecture/product-runtime-architecture.md`
 - `app-api` runtime 与内部边界：`docs/architecture/product-runtime-architecture.md`
 - `app-api -> supervisor-api` 内部执行契约：`docs/contracts/app-api-supervisor-execution.md`
+- operator observability query contract：`docs/contracts/app-api-operator-observability-http.md`
 - `official_web` collector/control-plane HTTP contract：`docs/contracts/app-api-official-web-http.md`
 - request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
 - error model：`docs/contracts/app-api-error-model.md`
@@ -75,8 +76,15 @@ updated: 2026-03-30
 
 ### Operator
 
+- `GET /api/operator/overview`
+- `GET /api/operator/quality/summary`
+- `GET /api/operator/safety/summary`
+- `GET /api/operator/cost/summary`
 - `GET /api/operator/requests`
 - `GET /api/operator/requests/:requestId`
+- `GET /api/operator/requests/:requestId/observability`
+
+expanded observability / quality / safety / cost / audit query surfaces 另见 `docs/contracts/app-api-operator-observability-http.md`
 
 第一版不冻结：
 

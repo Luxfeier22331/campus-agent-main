@@ -76,6 +76,11 @@ describe("GET /api/operator/requests", () => {
   it("returns request projections for operator principals only", async () => {
     const service: OperatorQueryService = {
       getById: vi.fn(),
+      getObservabilityById: vi.fn(),
+      getOverview: vi.fn(),
+      getQualitySummary: vi.fn(),
+      getSafetySummary: vi.fn(),
+      getCostSummary: vi.fn(),
       list: vi.fn().mockResolvedValue({
         page: {
           nextCursor: "cursor_01HQ",
@@ -178,6 +183,11 @@ describe("GET /api/operator/requests", () => {
       getPrincipal: vi.fn().mockResolvedValue(null),
       operatorQueryService: {
         getById: vi.fn(),
+        getObservabilityById: vi.fn(),
+        getOverview: vi.fn(),
+        getQualitySummary: vi.fn(),
+        getSafetySummary: vi.fn(),
+        getCostSummary: vi.fn(),
         list: vi.fn(),
       },
     });
@@ -202,6 +212,11 @@ describe("GET /api/operator/requests", () => {
       getPrincipal: vi.fn().mockResolvedValue(createPublicPrincipal()),
       operatorQueryService: {
         getById: vi.fn(),
+        getObservabilityById: vi.fn(),
+        getOverview: vi.fn(),
+        getQualitySummary: vi.fn(),
+        getSafetySummary: vi.fn(),
+        getCostSummary: vi.fn(),
         list: vi.fn(),
       },
     });
@@ -255,6 +270,11 @@ describe("GET /api/operator/requests/:requestId", () => {
         traceId: "trace_01HQ",
         visibilityScope: "main",
       }),
+      getObservabilityById: vi.fn(),
+      getOverview: vi.fn(),
+      getQualitySummary: vi.fn(),
+      getSafetySummary: vi.fn(),
+      getCostSummary: vi.fn(),
       list: vi.fn(),
     };
     const principal = createOperatorPrincipal();
@@ -316,6 +336,11 @@ describe("GET /api/operator/requests/:requestId", () => {
             status: 404,
           }),
         ),
+        getObservabilityById: vi.fn(),
+        getOverview: vi.fn(),
+        getQualitySummary: vi.fn(),
+        getSafetySummary: vi.fn(),
+        getCostSummary: vi.fn(),
         list: vi.fn(),
       },
     });
@@ -376,6 +401,11 @@ describe("GET /api/operator/requests/:requestId", () => {
           surface: "public_chat_web",
           traceId: "trace_01HQ",
         }),
+        getObservabilityById: vi.fn(),
+        getOverview: vi.fn(),
+        getQualitySummary: vi.fn(),
+        getSafetySummary: vi.fn(),
+        getCostSummary: vi.fn(),
         list: vi.fn(),
       },
     });
@@ -421,6 +451,584 @@ describe("GET /api/operator/requests/:requestId", () => {
         surface: "public_chat_web",
         traceId: "trace_01HQ",
       },
+    });
+  });
+});
+
+describe("GET /api/operator/requests/:requestId/observability", () => {
+  it("returns request-scoped observability detail for operator principals", async () => {
+    const service = {
+      getById: vi.fn(),
+      getObservabilityById: vi.fn().mockResolvedValue({
+        auditSummary: {
+          auditEventCount: 0,
+          latestTerminalCode: "completed",
+        },
+        links: {
+          issueFingerprint: null,
+          issueLink: null,
+          traceLink: null,
+        },
+        observability: {
+          aclAnomalyCode: null,
+          aclDecision: "allowed",
+          cachedInputTokens: 0,
+          candidateCount: 4,
+          citationCount: 2,
+          citationExpected: true,
+          citationMissing: false,
+          durationMs: 842,
+          emptyRecall: false,
+          estimatedCost: {
+            currency: "USD",
+            microusd: 3810,
+          },
+          failClosed: false,
+          inputTokens: 812,
+          measuredAt: "2026-03-28T08:00:01.000Z",
+          model: {
+            name: "gpt-5.2-mini",
+            provider: "openai",
+          },
+          outputTokens: 229,
+          projectionLagMs: 420,
+          refusalClass: null,
+          retrievedSourceCount: 2,
+          retrievalAttempted: true,
+          traceAvailable: true,
+        },
+        request: {
+          completedAt: "2026-03-28T08:00:01.000Z",
+          conversationId: "conv_01HQ",
+          requestId: "req_01HQ",
+          requestedCapability: "knowledge",
+          requestedScope: {
+            collection: "student_handbook",
+            corpus: "regulations",
+          },
+          selectedTarget: "rag-specialist",
+          startedAt: "2026-03-28T08:00:00.000Z",
+          status: "completed",
+          surface: "public_chat_web",
+          traceId: "trace_01HQ",
+        },
+      }),
+      getOverview: vi.fn(),
+      list: vi.fn(),
+    } as unknown as OperatorQueryService;
+    const principal = createOperatorPrincipal();
+    const app = createApp(env, {
+      getPrincipal: vi.fn().mockResolvedValue(principal),
+      operatorQueryService: service,
+    });
+
+    const response = await app.fetch(
+      new Request("https://app-api.internal/api/operator/requests/req_01HQ/observability"),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      auditSummary: {
+        auditEventCount: 0,
+        latestTerminalCode: "completed",
+      },
+      links: {
+        issueFingerprint: null,
+        issueLink: null,
+        traceLink: null,
+      },
+      observability: {
+        aclAnomalyCode: null,
+        aclDecision: "allowed",
+        cachedInputTokens: 0,
+        candidateCount: 4,
+        citationCount: 2,
+        citationExpected: true,
+        citationMissing: false,
+        durationMs: 842,
+        emptyRecall: false,
+        estimatedCost: {
+          currency: "USD",
+          microusd: 3810,
+        },
+        failClosed: false,
+        inputTokens: 812,
+        measuredAt: "2026-03-28T08:00:01.000Z",
+        model: {
+          name: "gpt-5.2-mini",
+          provider: "openai",
+        },
+        outputTokens: 229,
+        projectionLagMs: 420,
+        refusalClass: null,
+        retrievedSourceCount: 2,
+        retrievalAttempted: true,
+        traceAvailable: true,
+      },
+      request: {
+        completedAt: "2026-03-28T08:00:01.000Z",
+        conversationId: "conv_01HQ",
+        requestId: "req_01HQ",
+        requestedCapability: "knowledge",
+        requestedScope: {
+          collection: "student_handbook",
+          corpus: "regulations",
+        },
+        selectedTarget: "rag-specialist",
+        startedAt: "2026-03-28T08:00:00.000Z",
+        status: "completed",
+        surface: "public_chat_web",
+        traceId: "trace_01HQ",
+      },
+    });
+    expect(service.getObservabilityById).toHaveBeenCalledWith({
+      principal,
+      requestId: "req_01HQ",
+    });
+  });
+});
+
+describe("GET /api/operator/overview", () => {
+  it("returns an operator overview snapshot for operator principals", async () => {
+    const service = {
+      getById: vi.fn(),
+      getObservabilityById: vi.fn(),
+      getOverview: vi.fn().mockResolvedValue({
+        alerts: [],
+        asOf: "2026-03-28T08:00:10.000Z",
+        overview: {
+          aclAnomalyRate: {
+            count: 0,
+            eligibleCount: 4,
+            value: 0,
+          },
+          citationMissRate: {
+            count: 1,
+            eligibleCount: 3,
+            value: 0.3333,
+          },
+          emptyRecallRate: {
+            count: 1,
+            eligibleCount: 4,
+            value: 0.25,
+          },
+          estimatedCost: {
+            currency: "USD",
+            microusd: 7620,
+          },
+          failureRate: {
+            count: 1,
+            eligibleCount: 4,
+            value: 0.25,
+          },
+          latency: {
+            p50Ms: 842,
+            p95Ms: 1600,
+            p99Ms: 1600,
+          },
+          refusalRate: {
+            count: 1,
+            eligibleCount: 4,
+            value: 0.25,
+          },
+          requestVolume: {
+            accepted: 4,
+            completed: 3,
+            errored: 1,
+          },
+          sinkHealth: {
+            missingTraceRate: {
+              count: 0,
+              eligibleCount: 4,
+              value: 0,
+            },
+            projectionFailureCount: 0,
+          },
+        },
+        window: {
+          from: "2026-03-27T08:00:10.000Z",
+          granularity: "1h",
+          to: "2026-03-28T08:00:10.000Z",
+        },
+      }),
+      list: vi.fn(),
+    } as unknown as OperatorQueryService;
+    const principal = createOperatorPrincipal();
+    const app = createApp(env, {
+      getPrincipal: vi.fn().mockResolvedValue(principal),
+      operatorQueryService: service,
+    });
+
+    const response = await app.fetch(
+      new Request("https://app-api.internal/api/operator/overview?window=24h"),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      alerts: [],
+      asOf: "2026-03-28T08:00:10.000Z",
+      overview: {
+        aclAnomalyRate: {
+          count: 0,
+          eligibleCount: 4,
+          value: 0,
+        },
+        citationMissRate: {
+          count: 1,
+          eligibleCount: 3,
+          value: 0.3333,
+        },
+        emptyRecallRate: {
+          count: 1,
+          eligibleCount: 4,
+          value: 0.25,
+        },
+        estimatedCost: {
+          currency: "USD",
+          microusd: 7620,
+        },
+        failureRate: {
+          count: 1,
+          eligibleCount: 4,
+          value: 0.25,
+        },
+        latency: {
+          p50Ms: 842,
+          p95Ms: 1600,
+          p99Ms: 1600,
+        },
+        refusalRate: {
+          count: 1,
+          eligibleCount: 4,
+          value: 0.25,
+        },
+        requestVolume: {
+          accepted: 4,
+          completed: 3,
+          errored: 1,
+        },
+        sinkHealth: {
+          missingTraceRate: {
+            count: 0,
+            eligibleCount: 4,
+            value: 0,
+          },
+          projectionFailureCount: 0,
+        },
+      },
+      window: {
+        from: "2026-03-27T08:00:10.000Z",
+        granularity: "1h",
+        to: "2026-03-28T08:00:10.000Z",
+      },
+    });
+    expect(service.getOverview).toHaveBeenCalledWith({
+      filters: {
+        collection: null,
+        modelName: null,
+        principalType: null,
+        requestedCapability: null,
+        selectedTarget: null,
+        surface: null,
+        window: "24h",
+      },
+      principal,
+    });
+  });
+});
+
+describe("GET /api/operator/quality/summary", () => {
+  it("returns a quality summary snapshot for operator principals", async () => {
+    const service = {
+      getById: vi.fn(),
+      getObservabilityById: vi.fn(),
+      getOverview: vi.fn(),
+      getQualitySummary: vi.fn().mockResolvedValue({
+        asOf: "2026-03-28T08:00:10.000Z",
+        runtime: {
+          citationMissRate: {
+            count: 1,
+            eligibleCount: 2,
+            value: 0.5,
+          },
+          emptyRecallRate: {
+            count: 1,
+            eligibleCount: 3,
+            value: 0.3333,
+          },
+          refusalDistribution: {
+            approvalRequired: 1,
+            needsClarification: 1,
+            noAnswer: 1,
+            rejected: 0,
+          },
+          requestCount: 4,
+        },
+        sampledGrades: null,
+        window: {
+          from: "2026-03-27T08:00:10.000Z",
+          granularity: "1h",
+          to: "2026-03-28T08:00:10.000Z",
+        },
+      }),
+      getSafetySummary: vi.fn(),
+      getCostSummary: vi.fn(),
+      list: vi.fn(),
+    };
+    const principal = createOperatorPrincipal();
+    const app = createApp(env, {
+      getPrincipal: vi.fn().mockResolvedValue(principal),
+      operatorQueryService: service as unknown as OperatorQueryService,
+    });
+
+    const response = await app.fetch(
+      new Request(
+        "https://app-api.internal/api/operator/quality/summary?window=24h&surface=public_chat_web",
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      asOf: "2026-03-28T08:00:10.000Z",
+      runtime: {
+        citationMissRate: {
+          count: 1,
+          eligibleCount: 2,
+          value: 0.5,
+        },
+        emptyRecallRate: {
+          count: 1,
+          eligibleCount: 3,
+          value: 0.3333,
+        },
+        refusalDistribution: {
+          approvalRequired: 1,
+          needsClarification: 1,
+          noAnswer: 1,
+          rejected: 0,
+        },
+        requestCount: 4,
+      },
+      sampledGrades: null,
+      window: {
+        from: "2026-03-27T08:00:10.000Z",
+        granularity: "1h",
+        to: "2026-03-28T08:00:10.000Z",
+      },
+    });
+    expect(service.getQualitySummary).toHaveBeenCalledWith({
+      filters: {
+        collection: null,
+        modelName: null,
+        principalType: null,
+        requestedCapability: null,
+        selectedTarget: null,
+        surface: "public_chat_web",
+        window: "24h",
+      },
+      principal,
+    });
+  });
+});
+
+describe("GET /api/operator/safety/summary", () => {
+  it("returns a safety summary snapshot for operator principals", async () => {
+    const service = {
+      getById: vi.fn(),
+      getObservabilityById: vi.fn(),
+      getOverview: vi.fn(),
+      getQualitySummary: vi.fn(),
+      getSafetySummary: vi.fn().mockResolvedValue({
+        asOf: "2026-03-28T08:00:10.000Z",
+        summary: {
+          aclAnomalyRate: {
+            count: 1,
+            eligibleCount: 4,
+            value: 0.25,
+          },
+          decisionDistribution: {
+            allowed: 2,
+            approvalRequired: 1,
+            denied: 1,
+            failClosed: 1,
+          },
+          failClosedRate: {
+            count: 1,
+            eligibleCount: 4,
+            value: 0.25,
+          },
+          restrictedDenyRate: {
+            count: 1,
+            eligibleCount: 4,
+            value: 0.25,
+          },
+        },
+        window: {
+          from: "2026-03-27T08:00:10.000Z",
+          granularity: "1h",
+          to: "2026-03-28T08:00:10.000Z",
+        },
+      }),
+      getCostSummary: vi.fn(),
+      list: vi.fn(),
+    };
+    const principal = createOperatorPrincipal();
+    const app = createApp(env, {
+      getPrincipal: vi.fn().mockResolvedValue(principal),
+      operatorQueryService: service as unknown as OperatorQueryService,
+    });
+
+    const response = await app.fetch(
+      new Request("https://app-api.internal/api/operator/safety/summary?window=7d"),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      asOf: "2026-03-28T08:00:10.000Z",
+      summary: {
+        aclAnomalyRate: {
+          count: 1,
+          eligibleCount: 4,
+          value: 0.25,
+        },
+        decisionDistribution: {
+          allowed: 2,
+          approvalRequired: 1,
+          denied: 1,
+          failClosed: 1,
+        },
+        failClosedRate: {
+          count: 1,
+          eligibleCount: 4,
+          value: 0.25,
+        },
+        restrictedDenyRate: {
+          count: 1,
+          eligibleCount: 4,
+          value: 0.25,
+        },
+      },
+      window: {
+        from: "2026-03-27T08:00:10.000Z",
+        granularity: "1h",
+        to: "2026-03-28T08:00:10.000Z",
+      },
+    });
+    expect(service.getSafetySummary).toHaveBeenCalledWith({
+      filters: {
+        collection: null,
+        modelName: null,
+        principalType: null,
+        requestedCapability: null,
+        selectedTarget: null,
+        surface: null,
+        window: "7d",
+      },
+      principal,
+    });
+  });
+});
+
+describe("GET /api/operator/cost/summary", () => {
+  it("returns a cost summary snapshot for operator principals", async () => {
+    const service = {
+      getById: vi.fn(),
+      getObservabilityById: vi.fn(),
+      getOverview: vi.fn(),
+      getQualitySummary: vi.fn(),
+      getSafetySummary: vi.fn(),
+      getCostSummary: vi.fn().mockResolvedValue({
+        asOf: "2026-03-28T08:00:10.000Z",
+        summary: {
+          byModel: [
+            {
+              estimatedCostMicrousd: 3810,
+              modelName: "gpt-5.2-mini",
+              requestCount: 1,
+            },
+          ],
+          bySurface: [
+            {
+              estimatedCostMicrousd: 3810,
+              requestCount: 1,
+              surface: "public_chat_web",
+            },
+          ],
+          estimatedCost: {
+            currency: "USD",
+            microusd: 3810,
+          },
+          tokens: {
+            cachedInput: 0,
+            input: 812,
+            output: 229,
+          },
+        },
+        window: {
+          from: "2026-03-27T08:00:10.000Z",
+          granularity: "15m",
+          to: "2026-03-28T08:00:10.000Z",
+        },
+      }),
+      list: vi.fn(),
+    };
+    const principal = createOperatorPrincipal();
+    const app = createApp(env, {
+      getPrincipal: vi.fn().mockResolvedValue(principal),
+      operatorQueryService: service as unknown as OperatorQueryService,
+    });
+
+    const response = await app.fetch(
+      new Request(
+        "https://app-api.internal/api/operator/cost/summary?window=1h&modelName=gpt-5.2-mini",
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      asOf: "2026-03-28T08:00:10.000Z",
+      summary: {
+        byModel: [
+          {
+            estimatedCostMicrousd: 3810,
+            modelName: "gpt-5.2-mini",
+            requestCount: 1,
+          },
+        ],
+        bySurface: [
+          {
+            estimatedCostMicrousd: 3810,
+            requestCount: 1,
+            surface: "public_chat_web",
+          },
+        ],
+        estimatedCost: {
+          currency: "USD",
+          microusd: 3810,
+        },
+        tokens: {
+          cachedInput: 0,
+          input: 812,
+          output: 229,
+        },
+      },
+      window: {
+        from: "2026-03-27T08:00:10.000Z",
+        granularity: "15m",
+        to: "2026-03-28T08:00:10.000Z",
+      },
+    });
+    expect(service.getCostSummary).toHaveBeenCalledWith({
+      filters: {
+        collection: null,
+        modelName: "gpt-5.2-mini",
+        principalType: null,
+        requestedCapability: null,
+        selectedTarget: null,
+        surface: null,
+        window: "1h",
+      },
+      principal,
     });
   });
 });

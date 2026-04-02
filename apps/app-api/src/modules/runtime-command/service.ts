@@ -16,6 +16,10 @@ import {
   type SupervisorExecutionResponse,
 } from "../integration";
 import { extractRequestDiagnosticsSummary } from "../request-diagnostics";
+import {
+  buildAcceptedRequestObservabilityFact,
+  buildFinalizedRequestObservabilityFact,
+} from "../request-observability";
 import type { AppTelemetry } from "../telemetry";
 import type {
   AcceptRequestWrite,
@@ -305,6 +309,15 @@ function buildAcceptedWrite(input: {
       createdAt: input.now,
       updatedAt: input.now,
     },
+    requestObservabilityFact: buildAcceptedRequestObservabilityFact({
+      conversationId: input.conversation.id,
+      principal: input.principal,
+      requestId: input.requestId,
+      requestedCapability: input.requestedCapability,
+      requestedScope: input.requestedScope,
+      startedAt: input.now,
+      traceId: input.traceId,
+    }),
     outboxEvent: {
       eventId: input.outboxEventId,
       requestId: input.requestId,
@@ -381,7 +394,10 @@ function buildFinalizedWrite(input: {
   completedAt: string;
   durationMs: number;
   outboxEventId: string;
+  principal: ResolvedAppPrincipal;
   requestId: string;
+  requestedCapability: string;
+  requestedScope: RequestedScope;
   response: SupervisorExecutionResponse;
   startedAt: string;
   traceId: string;
@@ -521,6 +537,22 @@ function buildFinalizedWrite(input: {
       createdAt: input.startedAt,
       updatedAt: input.completedAt,
     },
+    requestObservabilityFact: buildFinalizedRequestObservabilityFact({
+      completedAt: input.completedAt,
+      conversationId: input.conversation.id,
+      diagnostics,
+      durationMs: input.durationMs,
+      errorCode,
+      principal: input.principal,
+      requestId: input.requestId,
+      requestedCapability: input.requestedCapability,
+      requestedScope: input.requestedScope,
+      response: input.response,
+      sourceDocIds,
+      startedAt: input.startedAt,
+      status,
+      traceId: normalizedTraceId,
+    }),
     outboxEvent: {
       eventId: input.outboxEventId,
       requestId: input.requestId,
@@ -780,7 +812,10 @@ export function buildChatCommandService(
         conversationTitle,
         durationMs,
         outboxEventId: finalEventId,
+        principal: input.principal,
         requestId,
+        requestedCapability: validatedPayload.requestedCapability,
+        requestedScope: validatedPayload.requestedScope,
         response: executionResponse,
         startedAt: acceptedAt,
         traceId,

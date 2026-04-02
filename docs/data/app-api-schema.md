@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-03-28
-updated: 2026-04-02
+updated: 2026-04-03
 ---
 
 # App API Schema
@@ -263,6 +263,71 @@ updated: 2026-04-02
 - projector 必须按 `event_id` 做幂等消费
 - outbox payload 只携带 projection 所需字段，不承担 raw audit dump 角色
 
+## `runtime.request_observability_fact`
+
+用途：
+
+- request-scoped operator observability foundation
+
+最小列：
+
+- `request_id`
+- `trace_id`
+- `conversation_id`
+- `surface`
+- `principal_type`
+- `entitlement_snapshot_id` nullable
+- `policy_projection_version` nullable
+- `requested_capability` nullable
+- `requested_scope_summary` nullable
+- `collection` nullable
+- `selected_target` nullable
+- `status`
+- `error_code` nullable
+- `started_at`
+- `completed_at` nullable
+- `duration_ms` nullable
+- `retrieval_attempted` nullable
+- `candidate_count` nullable
+- `retrieved_source_count` nullable
+- `empty_recall` nullable
+- `citation_expected` nullable
+- `citation_count` nullable
+- `citation_missing` nullable
+- `refusal_class` nullable
+- `acl_decision` nullable
+- `acl_anomaly_code` nullable
+- `fail_closed` nullable
+- `model_provider` nullable
+- `model_name` nullable
+- `input_tokens` nullable
+- `output_tokens` nullable
+- `cached_input_tokens` nullable
+- `estimated_cost_microusd` nullable
+- `trace_available`
+- `projection_lag_ms` nullable
+- `measured_at`
+- `updated_at`
+
+最小索引：
+
+- `(started_at desc)`
+- `(status, started_at desc)`
+- `(surface, started_at desc)`
+- `(selected_target, started_at desc)`
+- `(principal_type, started_at desc)`
+- `(model_name, started_at desc)`
+- `(collection, started_at desc)`
+
+规则：
+
+- `request_id` 与 `runtime.request_execution.request_id` 一一对应
+- `accepted` 阶段必须先 seed 这张表；`finalized` 阶段必须 upsert typed execution outcome
+- `projection materialization` 负责更新 `projection_lag_ms`、`measured_at` 与 projection health summary，不回写 `runtime.request_execution`
+- 这是 app-owned summary fact family，不保存 raw prompt、raw answer、raw transcript、raw retrieval payload、raw auth material
+- token / model / cost 字段只能来自 execution-side typed telemetry seam，不从 panel 或 sink query 反推
+- panel 和 aggregate APIs 只能读 app-owned projection/fact family，不得直连 `Sentry` / `Axiom` 原始 sink
+
 ## `operator.request_projection`
 
 用途：
@@ -287,7 +352,6 @@ updated: 2026-04-02
 - `selected_target` nullable
 - `status`
 - `error_code` nullable
-- `error_message` nullable
 - `question_preview`
 - `answer_preview` nullable
 - `diagnostics_json` nullable
@@ -295,7 +359,6 @@ updated: 2026-04-02
 - `started_at`
 - `completed_at` nullable
 - `duration_ms` nullable
-- `last_event_id`
 - `projected_at`
 
 最小索引：
@@ -332,6 +395,7 @@ updated: 2026-04-02
 
 - `runtime.request_execution`
 - `runtime.projection_outbox`
+- `runtime.request_observability_fact`
 
 只服务：
 

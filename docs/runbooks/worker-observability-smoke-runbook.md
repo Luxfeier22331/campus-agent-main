@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-03-31
-updated: 2026-03-31
+updated: 2026-04-02
 ---
 
 # Worker Observability Smoke Runbook
@@ -39,7 +39,7 @@ updated: 2026-03-31
 1. 在未部署前，本地 env/preflight 与 Worker smoke 可以重复通过
 2. 在首次真实部署后，真实 Worker surface、真实 release 和真实 sink 都能留下可追溯证据
 
-截至 2026-03-31，当前 root worktree 已完成 `Pre-Deploy Readiness`；`Post-Deploy Verification` 只在真实部署环境存在后执行。
+截至 2026-04-02，当前 root worktree 已再次完成 `Pre-Deploy Readiness` 复核，并新增 repo-tracked artifact template：`docs/runbooks/worker-observability-smoke-artifact-template.md`；`Post-Deploy Verification` 仍只在真实部署环境存在后执行。
 
 ## Pre-Deploy Readiness
 
@@ -90,6 +90,10 @@ pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "smokes
 
 - `.tmp/observability-smoke/<timestamp>/`
 
+建议直接从模板起手：
+
+- `docs/runbooks/worker-observability-smoke-artifact-template.md`
+
 ## Deployment Handoff Inputs
 
 只有在真实部署环境已存在时，才进入下一节。执行 `Post-Deploy Verification` 前，至少应具备：
@@ -105,6 +109,7 @@ pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "smokes
 
 - `wrangler` 远程检查可以作为辅助手段，但不是唯一 gate
 - 真正的 closure 以真实请求、真实 trace 和真实 runtime event 是否进入 sink 为准
+- 建议先用 `docs/runbooks/worker-observability-smoke-artifact-template.md` 填完 handoff 与 evidence 字段，再执行真实环境 smoke
 
 ## Post-Deploy Verification
 
@@ -188,6 +193,10 @@ pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "smokes
 - `SUMMARY.md`
 - `sentry-trace-notes.md`
 - `axiom-runtime-events.md`
+
+建议直接复制的骨架：
+
+- `docs/runbooks/worker-observability-smoke-artifact-template.md`
 
 ## 当前判定规则
 

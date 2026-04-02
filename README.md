@@ -8,9 +8,10 @@
 
 - 当前 merged truth：`docs/architecture/current-architecture.md`
 - 目标架构：`docs/architecture/target-architecture.md`
-- supporting architecture：`docs/architecture/product-runtime-architecture.md`、`docs/architecture/execution-and-specialists-architecture.md`、`docs/architecture/identity-and-authorization-architecture.md`、`docs/architecture/retrieval-serving-architecture.md`、`docs/architecture/data-plane-architecture.md`、`docs/architecture/official-web-architecture.md`
+- supporting architecture：`docs/architecture/product-runtime-architecture.md`、`docs/architecture/execution-and-specialists-architecture.md`、`docs/architecture/identity-and-authorization-architecture.md`、`docs/architecture/retrieval-serving-architecture.md`、`docs/architecture/data-plane-architecture.md`、`docs/architecture/official-web-architecture.md`、`docs/architecture/operator-observability-architecture.md`
 - 文档索引与标识规则：`docs/README.md`
 - `app-api` 产品层 contract：`docs/contracts/app-api-http.md`
+- `app-api` operator observability contract：`docs/contracts/app-api-operator-observability-http.md`
 - `app-api -> supervisor-api` 执行契约：`docs/contracts/app-api-supervisor-execution.md`
 - `app-api` 数据模型：`docs/data/app-api-schema.md`
 - identity / memory / personalization 边界：`docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`

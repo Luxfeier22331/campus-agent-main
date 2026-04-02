@@ -1,4 +1,13 @@
-import { index, integer, jsonb, pgSchema, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgSchema,
+  text,
+  timestamp,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 
 import type { RequestDiagnosticsSummary } from "../../modules/request-diagnostics";
 
@@ -79,6 +88,74 @@ export const projectionOutbox = runtime.table(
     requestOccurredIndex: index("runtime_projection_outbox_request_occurred_idx").on(
       table.requestId,
       table.occurredAt,
+    ),
+  }),
+);
+
+export const requestObservabilityFact = runtime.table(
+  "request_observability_fact",
+  {
+    requestId: text("request_id").primaryKey(),
+    traceId: text("trace_id").notNull(),
+    conversationId: text("conversation_id").notNull(),
+    surface: text("surface").notNull(),
+    principalType: text("principal_type").notNull(),
+    entitlementSnapshotId: text("entitlement_snapshot_id"),
+    policyProjectionVersion: text("policy_projection_version"),
+    requestedCapability: text("requested_capability"),
+    requestedScopeSummary: text("requested_scope_summary"),
+    collection: text("collection"),
+    selectedTarget: text("selected_target"),
+    status: text("status").notNull(),
+    errorCode: text("error_code"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    durationMs: integer("duration_ms"),
+    retrievalAttempted: boolean("retrieval_attempted"),
+    candidateCount: integer("candidate_count"),
+    retrievedSourceCount: integer("retrieved_source_count"),
+    emptyRecall: boolean("empty_recall"),
+    citationExpected: boolean("citation_expected"),
+    citationCount: integer("citation_count"),
+    citationMissing: boolean("citation_missing"),
+    refusalClass: text("refusal_class"),
+    aclDecision: text("acl_decision"),
+    aclAnomalyCode: text("acl_anomaly_code"),
+    failClosed: boolean("fail_closed"),
+    modelProvider: text("model_provider"),
+    modelName: text("model_name"),
+    inputTokens: integer("input_tokens"),
+    outputTokens: integer("output_tokens"),
+    cachedInputTokens: integer("cached_input_tokens"),
+    estimatedCostMicrousd: integer("estimated_cost_microusd"),
+    traceAvailable: boolean("trace_available").notNull().default(false),
+    projectionLagMs: integer("projection_lag_ms"),
+    measuredAt: timestamp("measured_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => ({
+    startedAtIndex: index("runtime_request_observability_started_at_idx").on(table.startedAt),
+    statusStartedAtIndex: index("runtime_request_observability_status_started_at_idx").on(
+      table.status,
+      table.startedAt,
+    ),
+    surfaceStartedAtIndex: index("runtime_request_observability_surface_started_at_idx").on(
+      table.surface,
+      table.startedAt,
+    ),
+    selectedTargetStartedAtIndex: index(
+      "runtime_request_observability_selected_target_started_at_idx",
+    ).on(table.selectedTarget, table.startedAt),
+    principalTypeStartedAtIndex: index(
+      "runtime_request_observability_principal_type_started_at_idx",
+    ).on(table.principalType, table.startedAt),
+    modelNameStartedAtIndex: index("runtime_request_observability_model_name_started_at_idx").on(
+      table.modelName,
+      table.startedAt,
+    ),
+    collectionStartedAtIndex: index("runtime_request_observability_collection_started_at_idx").on(
+      table.collection,
+      table.startedAt,
     ),
   }),
 );

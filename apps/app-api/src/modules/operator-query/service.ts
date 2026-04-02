@@ -48,6 +48,26 @@ export interface NormalizedOperatorRequestListFilters {
   requestId: string | null;
 }
 
+export interface OperatorOverviewFilters {
+  window?: string | null;
+  surface?: string | null;
+  selectedTarget?: string | null;
+  requestedCapability?: string | null;
+  principalType?: string | null;
+  collection?: string | null;
+  modelName?: string | null;
+}
+
+export interface NormalizedOperatorOverviewFilters {
+  window: OperatorOverviewWindow;
+  surface: string | null;
+  selectedTarget: string | null;
+  requestedCapability: string | null;
+  principalType: string | null;
+  collection: string | null;
+  modelName: string | null;
+}
+
 export interface OperatorQueryListResult {
   requests: RequestProjectionRecord[];
   page: {
@@ -55,8 +75,182 @@ export interface OperatorQueryListResult {
   };
 }
 
+export type OperatorOverviewWindow = "15m" | "1h" | "24h" | "7d" | "30d";
+
+export interface MetricRatio {
+  value: number;
+  count: number;
+  eligibleCount: number | null;
+}
+
+export interface OperatorResultWindow {
+  from: string;
+  to: string;
+  granularity: "5m" | "15m" | "1h" | "1d";
+}
+
+export interface OperatorRequestObservabilityRecord {
+  request: {
+    requestId: string;
+    traceId: string;
+    conversationId: string;
+    surface: string;
+    status: RequestExecutionStatus;
+    requestedCapability: string | null;
+    requestedScope: Record<string, unknown> | null;
+    selectedTarget: string | null;
+    startedAt: string;
+    completedAt: string | null;
+  };
+  observability: {
+    durationMs: number | null;
+    retrievalAttempted: boolean | null;
+    candidateCount: number | null;
+    retrievedSourceCount: number | null;
+    emptyRecall: boolean | null;
+    citationExpected: boolean | null;
+    citationCount: number | null;
+    citationMissing: boolean | null;
+    refusalClass: string | null;
+    aclDecision: string | null;
+    aclAnomalyCode: string | null;
+    failClosed: boolean | null;
+    model: {
+      provider: string | null;
+      name: string | null;
+    };
+    inputTokens: number | null;
+    outputTokens: number | null;
+    cachedInputTokens: number | null;
+    estimatedCost: {
+      microusd: number | null;
+      currency: "USD";
+    };
+    traceAvailable: boolean;
+    projectionLagMs: number | null;
+    measuredAt: string | null;
+  };
+  links: {
+    traceLink: string | null;
+    issueLink: string | null;
+    issueFingerprint: string | null;
+  };
+  auditSummary: {
+    auditEventCount: number;
+    latestTerminalCode: string | null;
+  };
+}
+
+export interface OperatorOverviewResult {
+  window: OperatorResultWindow;
+  overview: {
+    requestVolume: {
+      accepted: number;
+      completed: number;
+      errored: number;
+    };
+    latency: {
+      p50Ms: number | null;
+      p95Ms: number | null;
+      p99Ms: number | null;
+    };
+    failureRate: MetricRatio;
+    emptyRecallRate: MetricRatio;
+    citationMissRate: MetricRatio;
+    refusalRate: MetricRatio;
+    aclAnomalyRate: MetricRatio;
+    estimatedCost: {
+      microusd: number;
+      currency: "USD";
+    };
+    sinkHealth: {
+      missingTraceRate: MetricRatio;
+      projectionFailureCount: number;
+    };
+  };
+  alerts: Array<{
+    alertId: string;
+    domain: string;
+    severity: string;
+    code: string;
+    status: string;
+    startedAt: string;
+  }>;
+  asOf: string;
+}
+
+export interface OperatorQualitySummaryResult {
+  window: OperatorResultWindow;
+  runtime: {
+    requestCount: number;
+    emptyRecallRate: MetricRatio;
+    citationMissRate: MetricRatio;
+    refusalDistribution: {
+      noAnswer: number;
+      needsClarification: number;
+      approvalRequired: number;
+      rejected: number;
+    };
+  };
+  sampledGrades: {
+    coverageRate: MetricRatio | null;
+    groundingPassRate: MetricRatio | null;
+    citationPassRate: MetricRatio | null;
+    policyPassRate: MetricRatio | null;
+    badcaseOpenCount: number | null;
+  } | null;
+  asOf: string;
+}
+
+export interface OperatorSafetySummaryResult {
+  window: OperatorResultWindow;
+  summary: {
+    decisionDistribution: {
+      allowed: number;
+      approvalRequired: number;
+      denied: number;
+      failClosed: number;
+    };
+    aclAnomalyRate: MetricRatio;
+    restrictedDenyRate: MetricRatio;
+    failClosedRate: MetricRatio;
+  };
+  asOf: string;
+}
+
+export interface OperatorCostSummaryResult {
+  window: OperatorResultWindow;
+  summary: {
+    tokens: {
+      input: number;
+      output: number;
+      cachedInput: number;
+    };
+    estimatedCost: {
+      microusd: number;
+      currency: "USD";
+    };
+    byModel: Array<{
+      modelName: string;
+      requestCount: number;
+      estimatedCostMicrousd: number;
+    }>;
+    bySurface: Array<{
+      surface: string;
+      requestCount: number;
+      estimatedCostMicrousd: number;
+    }>;
+  };
+  asOf: string;
+}
+
 export interface OperatorQueryStore {
   getById(requestId: string): Promise<RequestProjectionRecord | null>;
+  getObservabilityById(requestId: string): Promise<OperatorRequestObservabilityRecord | null>;
+  getOverview(filters: NormalizedOperatorOverviewFilters): Promise<OperatorOverviewResult>;
+  getQualitySummary(filters: NormalizedOperatorOverviewFilters): Promise<OperatorQualitySummaryResult>;
+  getSafetySummary(filters: NormalizedOperatorOverviewFilters): Promise<OperatorSafetySummaryResult>;
+  getCostSummary(filters: NormalizedOperatorOverviewFilters): Promise<OperatorCostSummaryResult>;
   list(filters: NormalizedOperatorRequestListFilters): Promise<OperatorQueryListResult>;
 }
 
@@ -65,6 +259,26 @@ export interface OperatorQueryService {
     principal: ResolvedAppPrincipal;
     requestId: string;
   }): Promise<RequestProjectionRecord>;
+  getObservabilityById(input: {
+    principal: ResolvedAppPrincipal;
+    requestId: string;
+  }): Promise<OperatorRequestObservabilityRecord>;
+  getOverview(input: {
+    principal: ResolvedAppPrincipal;
+    filters: OperatorOverviewFilters;
+  }): Promise<OperatorOverviewResult>;
+  getQualitySummary(input: {
+    principal: ResolvedAppPrincipal;
+    filters: OperatorOverviewFilters;
+  }): Promise<OperatorQualitySummaryResult>;
+  getSafetySummary(input: {
+    principal: ResolvedAppPrincipal;
+    filters: OperatorOverviewFilters;
+  }): Promise<OperatorSafetySummaryResult>;
+  getCostSummary(input: {
+    principal: ResolvedAppPrincipal;
+    filters: OperatorOverviewFilters;
+  }): Promise<OperatorCostSummaryResult>;
   list(input: {
     principal: ResolvedAppPrincipal;
     filters: OperatorRequestListFilters;
@@ -77,6 +291,8 @@ export interface OperatorQueryServiceDependencies {
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
+const DEFAULT_WINDOW: OperatorOverviewWindow = "24h";
+const OPERATOR_WINDOWS = new Set<OperatorOverviewWindow>(["15m", "1h", "24h", "7d", "30d"]);
 
 function normalizeOptionalString(value: string | null | undefined): string | null {
   const normalized = value?.trim();
@@ -89,6 +305,29 @@ function normalizeLimit(value: number | null | undefined): number {
   }
 
   return Math.min(Math.floor(value), MAX_LIMIT);
+}
+
+function normalizeOverviewWindow(value: string | null | undefined): OperatorOverviewWindow {
+  const normalized = normalizeOptionalString(value);
+  if (normalized && OPERATOR_WINDOWS.has(normalized as OperatorOverviewWindow)) {
+    return normalized as OperatorOverviewWindow;
+  }
+
+  return DEFAULT_WINDOW;
+}
+
+function normalizeOverviewFilters(
+  filters: OperatorOverviewFilters,
+): NormalizedOperatorOverviewFilters {
+  return {
+    collection: normalizeOptionalString(filters.collection),
+    modelName: normalizeOptionalString(filters.modelName),
+    principalType: normalizeOptionalString(filters.principalType),
+    requestedCapability: normalizeOptionalString(filters.requestedCapability),
+    selectedTarget: normalizeOptionalString(filters.selectedTarget),
+    surface: normalizeOptionalString(filters.surface),
+    window: normalizeOverviewWindow(filters.window),
+  };
 }
 
 function ensureOperatorPrincipal(principal: ResolvedAppPrincipal): void {
@@ -129,6 +368,55 @@ export function buildOperatorQueryService(
       }
 
       return projection;
+    },
+
+    async getObservabilityById(input) {
+      ensureOperatorPrincipal(input.principal);
+      const requestId = normalizeOptionalString(input.requestId);
+      if (!requestId) {
+        throw new AppApiRouteError({
+          code: "invalid_request_id",
+          message: "requestId is required.",
+          retryable: false,
+          status: 400,
+        });
+      }
+
+      const projection = await dependencies.store.getObservabilityById(requestId);
+      if (!projection) {
+        throw new AppApiRouteError({
+          code: "request_not_found",
+          message: "Request observability not found.",
+          retryable: false,
+          status: 404,
+        });
+      }
+
+      return projection;
+    },
+
+    async getOverview(input) {
+      ensureOperatorPrincipal(input.principal);
+
+      return dependencies.store.getOverview(normalizeOverviewFilters(input.filters));
+    },
+
+    async getQualitySummary(input) {
+      ensureOperatorPrincipal(input.principal);
+
+      return dependencies.store.getQualitySummary(normalizeOverviewFilters(input.filters));
+    },
+
+    async getSafetySummary(input) {
+      ensureOperatorPrincipal(input.principal);
+
+      return dependencies.store.getSafetySummary(normalizeOverviewFilters(input.filters));
+    },
+
+    async getCostSummary(input) {
+      ensureOperatorPrincipal(input.principal);
+
+      return dependencies.store.getCostSummary(normalizeOverviewFilters(input.filters));
     },
 
     async list(input) {

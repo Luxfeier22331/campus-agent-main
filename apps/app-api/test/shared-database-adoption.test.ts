@@ -101,6 +101,9 @@ describe("shared database adoption", () => {
     expect(plan.mismatches).toEqual([]);
     expect(plan.state).toBe("fresh");
     expect(plan.statements.some((item) => item.target.existsKey === "runtime.request_execution")).toBe(true);
+    expect(
+      plan.statements.some((item) => item.target.existsKey === "runtime.request_observability_fact"),
+    ).toBe(true);
     expect(plan.statements.some((item) => item.target.existsKey === "operator.request_projection")).toBe(true);
     expect(plan.statements.some((item) => item.target.existsKey === "official_web.crawl_runs")).toBe(true);
     expect(plan.journalRowsToInsert.map((item: { tag: string }) => item.tag)).toEqual(

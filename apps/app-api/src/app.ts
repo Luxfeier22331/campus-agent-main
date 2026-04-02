@@ -101,6 +101,20 @@ function parseLimit(value: string | null | undefined): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function readOperatorAggregateFilters(request: {
+  query(name: string): string | undefined;
+}) {
+  return {
+    collection: request.query("collection") ?? null,
+    modelName: request.query("modelName") ?? null,
+    principalType: request.query("principalType") ?? null,
+    requestedCapability: request.query("requestedCapability") ?? null,
+    selectedTarget: request.query("selectedTarget") ?? null,
+    surface: request.query("surface") ?? null,
+    window: request.query("window") ?? null,
+  };
+}
+
 function operatorAccessForbiddenResponse() {
   return routeErrorResponse(
     new AppApiRouteError({
@@ -422,6 +436,102 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     return jsonResponse(response);
   });
 
+  app.get("/api/operator/overview", async (c) => {
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await getPrincipal(c.req.raw, env);
+    } catch {
+      return dependencyNotReadyResponse();
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+    if (!principal.permissions.operator) {
+      return operatorAccessForbiddenResponse();
+    }
+
+    return jsonResponse(
+      await operatorQueryService.getOverview({
+        filters: readOperatorAggregateFilters(c.req),
+        principal,
+      }),
+    );
+  });
+
+  app.get("/api/operator/quality/summary", async (c) => {
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await getPrincipal(c.req.raw, env);
+    } catch {
+      return dependencyNotReadyResponse();
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+    if (!principal.permissions.operator) {
+      return operatorAccessForbiddenResponse();
+    }
+
+    return jsonResponse(
+      await operatorQueryService.getQualitySummary({
+        filters: readOperatorAggregateFilters(c.req),
+        principal,
+      }),
+    );
+  });
+
+  app.get("/api/operator/safety/summary", async (c) => {
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await getPrincipal(c.req.raw, env);
+    } catch {
+      return dependencyNotReadyResponse();
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+    if (!principal.permissions.operator) {
+      return operatorAccessForbiddenResponse();
+    }
+
+    return jsonResponse(
+      await operatorQueryService.getSafetySummary({
+        filters: readOperatorAggregateFilters(c.req),
+        principal,
+      }),
+    );
+  });
+
+  app.get("/api/operator/cost/summary", async (c) => {
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await getPrincipal(c.req.raw, env);
+    } catch {
+      return dependencyNotReadyResponse();
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+    if (!principal.permissions.operator) {
+      return operatorAccessForbiddenResponse();
+    }
+
+    return jsonResponse(
+      await operatorQueryService.getCostSummary({
+        filters: readOperatorAggregateFilters(c.req),
+        principal,
+      }),
+    );
+  });
+
   app.get("/api/operator/requests", async (c) => {
     let principal: ResolvedAppPrincipal | null = null;
 
@@ -475,6 +585,30 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     });
 
     return jsonResponse({ request });
+  });
+
+  app.get("/api/operator/requests/:requestId/observability", async (c) => {
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await getPrincipal(c.req.raw, env);
+    } catch {
+      return dependencyNotReadyResponse();
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+    if (!principal.permissions.operator) {
+      return operatorAccessForbiddenResponse();
+    }
+
+    return jsonResponse(
+      await operatorQueryService.getObservabilityById({
+        principal,
+        requestId: c.req.param("requestId"),
+      }),
+    );
   });
 
   app.get("/api/operator/official-web/sites", async (c) => {

@@ -76,6 +76,11 @@ export interface RequestProjectionProjectorStore {
     processedAt: string | null;
   }): Promise<void>;
   markEventProcessed(input: { eventId: string; processedAt: string }): Promise<void>;
+  markObservabilityProjected(input: {
+    requestId: string;
+    projectionLagMs: number | null;
+    measuredAt: string;
+  }): Promise<void>;
   upsertProjection(projection: RequestProjectionMaterialization): Promise<void>;
 }
 
@@ -98,6 +103,19 @@ function computeRetryDelayMs(attemptCount: number): number {
     PROJECTION_RETRY_BASE_DELAY_MS * 2 ** Math.max(0, attemptCount - 1),
     PROJECTION_RETRY_MAX_DELAY_MS,
   );
+}
+
+function computeProjectionLagMs(input: {
+  projectedAt: string;
+  startedAt: string;
+}): number | null {
+  const projectedAtMs = Date.parse(input.projectedAt);
+  const startedAtMs = Date.parse(input.startedAt);
+  if (!Number.isFinite(projectedAtMs) || !Number.isFinite(startedAtMs)) {
+    return null;
+  }
+
+  return Math.max(0, projectedAtMs - startedAtMs);
 }
 
 export function toRequestProjectionMaterialization(input: {
@@ -159,6 +177,14 @@ export function buildRequestProjectionProjector(
               projectedAt,
             }),
           );
+          await dependencies.store.markObservabilityProjected({
+            measuredAt: projectedAt,
+            projectionLagMs: computeProjectionLagMs({
+              projectedAt,
+              startedAt: execution.startedAt,
+            }),
+            requestId: execution.requestId,
+          });
           await dependencies.store.markEventProcessed({
             eventId: event.eventId,
             processedAt: projectedAt,

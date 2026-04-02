@@ -2,7 +2,12 @@ import { and, asc, eq, isNull, lte, sql } from "drizzle-orm";
 
 import type { Env } from "../../config";
 import { createRuntimeDatabase } from "../../db/runtime";
-import { projectionOutbox, requestExecution, requestProjection } from "../../db/schema";
+import {
+  projectionOutbox,
+  requestExecution,
+  requestObservabilityFact,
+  requestProjection,
+} from "../../db/schema";
 import type {
   ProjectionOutboxEvent,
   RequestExecutionProjectionSource,
@@ -104,6 +109,18 @@ export function createPgProjectionStore(env: Env): RequestProjectionProjectorSto
           processedAt: new Date(input.processedAt),
         })
         .where(eq(projectionOutbox.eventId, input.eventId));
+    },
+
+    async markObservabilityProjected(input) {
+      const db = await createRuntimeDatabase(env);
+      await db
+        .update(requestObservabilityFact)
+        .set({
+          measuredAt: new Date(input.measuredAt),
+          projectionLagMs: input.projectionLagMs,
+          updatedAt: new Date(input.measuredAt),
+        })
+        .where(eq(requestObservabilityFact.requestId, input.requestId));
     },
 
     async upsertProjection(projection) {
