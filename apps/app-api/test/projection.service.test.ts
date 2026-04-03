@@ -73,6 +73,7 @@ describe("request projection projector", () => {
     const store: RequestProjectionProjectorStore = {
       getRequestExecution: vi.fn().mockResolvedValue(createExecutionSource()),
       listPendingEvents: vi.fn().mockResolvedValue([createPendingEvent()]),
+      listPendingEventsForRequest: vi.fn(),
       markEventFailed: vi.fn(),
       markEventProcessed: vi.fn(),
       markObservabilityProjected: vi.fn(),
@@ -270,6 +271,43 @@ describe("request projection projector", () => {
       processedAt: "2026-03-28T08:00:03.000Z",
     });
     expect(store.markEventFailed).not.toHaveBeenCalled();
+  });
+
+  it("drains pending events for a single request without scanning the global backlog", async () => {
+    const store: RequestProjectionProjectorStore = {
+      getRequestExecution: vi.fn().mockResolvedValue(createExecutionSource()),
+      listPendingEvents: vi.fn().mockResolvedValue([createPendingEvent({ requestId: "req_other" })]),
+      listPendingEventsForRequest: vi
+        .fn()
+        .mockResolvedValue([createPendingEvent({ eventId: "evt_target", requestId: "req_target" })]),
+      markEventFailed: vi.fn(),
+      markEventProcessed: vi.fn(),
+      markObservabilityProjected: vi.fn(),
+      replaceQualityBadcases: vi.fn(),
+      replaceQualityRollups: vi.fn(),
+      upsertAuditProjection: vi.fn(),
+      upsertProjection: vi.fn(),
+    };
+    const projector = buildRequestProjectionProjector({
+      now: () => new Date("2026-03-28T08:00:03.000Z"),
+      store,
+    });
+
+    const result = await projector.drainRequest("req_target");
+
+    expect(result).toEqual({
+      failed: 0,
+      processed: 1,
+    });
+    expect(store.listPendingEventsForRequest).toHaveBeenCalledWith(
+      "req_target",
+      new Date("2026-03-28T08:00:03.000Z"),
+    );
+    expect(store.listPendingEvents).not.toHaveBeenCalled();
+    expect(store.markEventProcessed).toHaveBeenCalledWith({
+      eventId: "evt_target",
+      processedAt: "2026-03-28T08:00:03.000Z",
+    });
   });
 
   it("records a retryable projector failure when request_execution is missing", async () => {

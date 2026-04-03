@@ -142,6 +142,7 @@ export interface QualityBadcaseProjectionMaterialization {
 export interface RequestProjectionProjectorStore {
   getRequestExecution(requestId: string): Promise<RequestExecutionProjectionSource | null>;
   listPendingEvents(limit: number, now: Date): Promise<ProjectionOutboxEvent[]>;
+  listPendingEventsForRequest?(requestId: string, now: Date): Promise<ProjectionOutboxEvent[]>;
   markEventFailed(input: {
     eventId: string;
     attemptCount: number;
@@ -166,6 +167,7 @@ export interface RequestProjectionProjectorStore {
 
 export interface RequestProjectionProjector {
   drain(input?: { limit?: number }): Promise<{ processed: number; failed: number }>;
+  drainRequest(requestId: string): Promise<{ processed: number; failed: number }>;
 }
 
 export interface RequestProjectionProjectorDependencies {
@@ -491,82 +493,96 @@ export function buildRequestProjectionProjector(
 ): RequestProjectionProjector {
   const now = dependencies.now ?? (() => new Date());
 
+  async function materializeEvents(events: ProjectionOutboxEvent[]) {
+    let processed = 0;
+    let failed = 0;
+
+    for (const event of events) {
+      const projectedAt = now().toISOString();
+
+      try {
+        const execution = await dependencies.store.getRequestExecution(event.requestId);
+        if (!execution) {
+          throw new Error(`Missing request_execution for ${event.requestId}.`);
+        }
+
+        await dependencies.store.upsertProjection(
+          toRequestProjectionMaterialization({
+            execution,
+            projectedAt,
+          }),
+        );
+        await dependencies.store.upsertAuditProjection(
+          toRequestAuditProjectionMaterialization({
+            event,
+            execution,
+            projectedAt,
+          }),
+        );
+        await dependencies.store.replaceQualityRollups({
+          requestId: execution.requestId,
+          rollups: buildQualityRollups({
+            execution,
+            projectedAt,
+          }),
+        });
+        await dependencies.store.replaceQualityBadcases({
+          badcases: buildQualityBadcases({
+            execution,
+            projectedAt,
+          }),
+          requestId: execution.requestId,
+        });
+        await dependencies.store.markObservabilityProjected({
+          measuredAt: projectedAt,
+          projectionLagMs: computeProjectionLagMs({
+            projectedAt,
+            startedAt: execution.startedAt,
+          }),
+          requestId: execution.requestId,
+        });
+        await dependencies.store.markEventProcessed({
+          eventId: event.eventId,
+          processedAt: projectedAt,
+        });
+        processed += 1;
+      } catch (error) {
+        const nextAttemptCount = event.attemptCount + 1;
+        const terminalFailure = nextAttemptCount >= MAX_PROJECTION_ATTEMPTS;
+        await dependencies.store.markEventFailed({
+          attemptCount: nextAttemptCount,
+          availableAt: terminalFailure
+            ? projectedAt
+            : new Date(now().valueOf() + computeRetryDelayMs(nextAttemptCount)).toISOString(),
+          eventId: event.eventId,
+          lastError:
+            error instanceof Error
+              ? error.message
+              : "Unexpected projection materialization failure.",
+          processedAt: terminalFailure ? projectedAt : null,
+        });
+        failed += 1;
+      }
+    }
+
+    return { failed, processed };
+  }
+
   return {
     async drain(input) {
       const limit = input?.limit && input.limit > 0 ? Math.floor(input.limit) : DEFAULT_DRAIN_LIMIT;
       const events = await dependencies.store.listPendingEvents(limit, now());
-      let processed = 0;
-      let failed = 0;
+      return materializeEvents(events);
+    },
 
-      for (const event of events) {
-        const projectedAt = now().toISOString();
-
-        try {
-          const execution = await dependencies.store.getRequestExecution(event.requestId);
-          if (!execution) {
-            throw new Error(`Missing request_execution for ${event.requestId}.`);
-          }
-
-          await dependencies.store.upsertProjection(
-            toRequestProjectionMaterialization({
-              execution,
-              projectedAt,
-            }),
+    async drainRequest(requestId) {
+      const events = dependencies.store.listPendingEventsForRequest
+        ? await dependencies.store.listPendingEventsForRequest(requestId, now())
+        : (await dependencies.store.listPendingEvents(DEFAULT_DRAIN_LIMIT, now())).filter(
+            (event) => event.requestId === requestId,
           );
-          await dependencies.store.upsertAuditProjection(
-            toRequestAuditProjectionMaterialization({
-              event,
-              execution,
-              projectedAt,
-            }),
-          );
-          await dependencies.store.replaceQualityRollups({
-            requestId: execution.requestId,
-            rollups: buildQualityRollups({
-              execution,
-              projectedAt,
-            }),
-          });
-          await dependencies.store.replaceQualityBadcases({
-            badcases: buildQualityBadcases({
-              execution,
-              projectedAt,
-            }),
-            requestId: execution.requestId,
-          });
-          await dependencies.store.markObservabilityProjected({
-            measuredAt: projectedAt,
-            projectionLagMs: computeProjectionLagMs({
-              projectedAt,
-              startedAt: execution.startedAt,
-            }),
-            requestId: execution.requestId,
-          });
-          await dependencies.store.markEventProcessed({
-            eventId: event.eventId,
-            processedAt: projectedAt,
-          });
-          processed += 1;
-        } catch (error) {
-          const nextAttemptCount = event.attemptCount + 1;
-          const terminalFailure = nextAttemptCount >= MAX_PROJECTION_ATTEMPTS;
-          await dependencies.store.markEventFailed({
-            attemptCount: nextAttemptCount,
-            availableAt: terminalFailure
-              ? projectedAt
-              : new Date(now().valueOf() + computeRetryDelayMs(nextAttemptCount)).toISOString(),
-            eventId: event.eventId,
-            lastError:
-              error instanceof Error
-                ? error.message
-                : "Unexpected projection materialization failure.",
-            processedAt: terminalFailure ? projectedAt : null,
-          });
-          failed += 1;
-        }
-      }
 
-      return { failed, processed };
+      return materializeEvents(events);
     },
   };
 }

@@ -296,6 +296,95 @@ describe("protected panel data provider", () => {
     });
   });
 
+  it("loads request observability detail from the protected same-site seam", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      createJsonResponse({
+        auditSummary: {
+          auditEventCount: 2,
+          latestTerminalCode: "completed",
+        },
+        links: {
+          issueFingerprint: "timeout:supervisor-api",
+          issueLink: "https://sentry.example/issues/123",
+          traceLink: "https://sentry.example/traces/trace_01HQ",
+        },
+        observability: {
+          aclAnomalyCode: null,
+          aclDecision: "allowed",
+          cachedInputTokens: 0,
+          candidateCount: 4,
+          citationCount: 2,
+          citationExpected: true,
+          citationMissing: false,
+          durationMs: 842,
+          emptyRecall: false,
+          estimatedCost: {
+            currency: "USD",
+            microusd: 3810,
+          },
+          failClosed: false,
+          inputTokens: 812,
+          measuredAt: "2026-03-28T08:00:01.000Z",
+          model: {
+            name: "gpt-5.2-mini",
+            provider: "openai",
+          },
+          outputTokens: 229,
+          projectionLagMs: 420,
+          refusalClass: null,
+          retrievedSourceCount: 2,
+          retrievalAttempted: true,
+          traceAvailable: true,
+        },
+        request: {
+          completedAt: "2026-03-28T08:00:01.000Z",
+          conversationId: "conv_01HQ",
+          requestId: "req_01HQ",
+          requestedCapability: "knowledge",
+          requestedScope: {
+            collection: "student_handbook",
+            corpus: "regulations",
+          },
+          selectedTarget: "rag-specialist",
+          startedAt: "2026-03-28T08:00:00.000Z",
+          status: "completed",
+          surface: "public_chat_web",
+          traceId: "trace_01HQ",
+        },
+      }),
+    );
+
+    await expect(
+      protectedPanelDataProvider.getRequestObservability({
+        requestId: "req_01HQ",
+      }),
+    ).resolves.toMatchObject({
+      data: {
+        links: {
+          issueFingerprint: "timeout:supervisor-api",
+          traceLink: "https://sentry.example/traces/trace_01HQ",
+        },
+        observability: {
+          candidateCount: 4,
+          durationMs: 842,
+        },
+        request: {
+          requestId: "req_01HQ",
+        },
+      },
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/requests/req_01HQ/observability",
+      expect.objectContaining({
+        headers: {
+          accept: "application/json",
+        },
+        method: "GET",
+      }),
+    );
+  });
+
   it("maps official web run filters onto the protected same-site runtime seam", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       createJsonResponse({

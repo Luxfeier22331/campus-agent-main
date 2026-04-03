@@ -745,6 +745,83 @@ describe("protected panel web worker shell", () => {
     }
   });
 
+  it("proxies request observability detail queries to the app-api observability seam", async () => {
+    const originalFetch = globalThis.fetch;
+    const accessTeamDomain = "https://team-observability.cloudflareaccess.com";
+    const certsUrl = `${accessTeamDomain}/cdn-cgi/access/certs`;
+    const { privateKey, publicKey } = await generateKeyPair("ES256");
+    const publicJwk = await exportJWK(publicKey);
+    publicJwk.kid = "panel-test-key";
+    const token = await new SignJWT({ email: "ops@example.com", sub: "operator-001" })
+      .setProtectedHeader({ alg: "ES256", kid: "panel-test-key" })
+      .setIssuer(accessTeamDomain)
+      .setAudience("panel-audience")
+      .setIssuedAt()
+      .setExpirationTime("5m")
+      .sign(privateKey);
+
+    let forwardedUrl: string | null = null;
+
+    globalThis.fetch = (async (request: Request | URL | string) => {
+      const inbound = request instanceof Request ? request : new Request(request);
+      if (inbound.url === certsUrl) {
+        return new Response(JSON.stringify({ keys: [publicJwk] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      throw new Error(`Unexpected fetch call: ${inbound.url}`);
+    }) as typeof fetch;
+
+    try {
+      const response = await worker.fetch(
+        new Request("https://panel.example.com/api/requests/req_01HQ/observability", {
+          headers: {
+            "cf-access-jwt-assertion": token,
+          },
+        }),
+        {
+          ACCESS_POLICY_AUD: "panel-audience",
+          ACCESS_TEAM_DOMAIN: accessTeamDomain,
+          APP_API: {
+            fetch: async (request: Request) => {
+              forwardedUrl = request.url;
+              return new Response(
+                JSON.stringify({
+                  request: {
+                    requestId: "req_01HQ",
+                  },
+                }),
+                {
+                  headers: {
+                    "content-type": "application/json; charset=utf-8",
+                  },
+                  status: 200,
+                },
+              );
+            },
+          },
+          PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
+          PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
+          PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
+        },
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        request: {
+          requestId: "req_01HQ",
+        },
+      });
+      expect(forwardedUrl).toBe(
+        "https://app-api.internal/api/operator/requests/req_01HQ/observability",
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("smokes request queries through protected-panel-web into app-api with internal caller admission", async () => {
     const originalFetch = globalThis.fetch;
     const accessTeamDomain = "https://team-smoke.cloudflareaccess.com";

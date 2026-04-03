@@ -337,6 +337,10 @@ describe("official web app-api e2e", () => {
           failed: 0,
           processed: 0,
         }),
+        drainRequest: vi.fn().mockResolvedValue({
+          failed: 0,
+          processed: 0,
+        }),
       } satisfies RequestProjectionProjector,
     });
 

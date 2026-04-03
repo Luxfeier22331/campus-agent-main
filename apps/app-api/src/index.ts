@@ -23,6 +23,10 @@ export interface WorkerRuntimeDependencies extends AppDependencies {
   requestProjector?: RequestProjectionProjector;
 }
 
+interface WaitUntilContext {
+  waitUntil(promise: Promise<unknown>): void;
+}
+
 const SENSITIVE_EVENT_FIELDS = new Set([
   "answer",
   "authorization",
@@ -82,6 +86,31 @@ function createSentryOptions(env: Env): CloudflareOptions | undefined {
   };
 }
 
+async function drainRequestProjection(input: {
+  op: "cron" | "task";
+  requestProjector: RequestProjectionProjector;
+  telemetry: ReturnType<typeof createAppTelemetry>;
+}) {
+  const result = await Sentry.startSpan(
+    {
+      name: "app-api.request-projection.drain",
+      op: input.op,
+    },
+    () => input.requestProjector.drain(),
+  );
+  if (result.processed > 0 || result.failed > 0) {
+    await input.telemetry.recordProjectionDrain({
+      failed: result.failed,
+      processed: result.processed,
+      projector: "request_projection",
+      projectorLastErrorCode: result.failed > 0 ? "projection_failed" : null,
+      surface: "app_api",
+    });
+  }
+
+  return result;
+}
+
 export function createWorkerRuntime(
   env: Env,
   dependencies: WorkerRuntimeDependencies = {},
@@ -98,19 +127,65 @@ export function createWorkerRuntime(
       handoffPublisher: createOfficialWebHandoffPublisher(env),
       store: createPgOfficialWebProjectionStore(env),
     });
+  const scheduleRequestProjectionDrain =
+    dependencies.scheduleRequestProjectionDrain ??
+    ((input: {
+      requestId: string;
+      waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
+    }) => {
+      if (!input.waitUntil) {
+        return;
+      }
+
+      input.waitUntil(
+        Promise.resolve().then(async () => {
+          try {
+            const result = await Sentry.startSpan(
+              {
+                name: "app-api.request-projection.drain",
+                op: "task",
+              },
+              () => requestProjector.drainRequest(input.requestId),
+            );
+            if (result.processed > 0 || result.failed > 0) {
+              await telemetry.recordProjectionDrain({
+                failed: result.failed,
+                processed: result.processed,
+                projector: "request_projection",
+                projectorLastErrorCode: result.failed > 0 ? "projection_failed" : null,
+                surface: "app_api",
+              });
+            }
+          } catch (error) {
+            telemetry.captureException(error, {
+              route: "/api/chat/requests",
+              surface: "app_api",
+            });
+            console.error(
+              JSON.stringify({
+                requestId: input.requestId,
+                source: "app-api.request-projection-projector.background",
+              }),
+            );
+          }
+        }),
+      );
+    });
 
   return {
-    fetch(request: Request): Promise<Response> | Response {
-      return createApp(env, { ...dependencies, telemetry }).fetch(request, env);
+    fetch(request: Request, executionCtx?: WaitUntilContext): Promise<Response> | Response {
+      return createApp(env, {
+        ...dependencies,
+        scheduleRequestProjectionDrain,
+        telemetry,
+      }).fetch(request, env, executionCtx as ExecutionContext | undefined);
     },
     async scheduled(): Promise<void> {
-      const requestResult = await Sentry.startSpan(
-        {
-          name: "app-api.request-projection.drain",
-          op: "cron",
-        },
-        () => requestProjector.drain(),
-      );
+      const requestResult = await drainRequestProjection({
+        op: "cron",
+        requestProjector,
+        telemetry,
+      });
       const officialWebResult = await Sentry.startSpan(
         {
           name: "app-api.official-web-projection.drain",
@@ -118,15 +193,6 @@ export function createWorkerRuntime(
         },
         () => officialWebProjector.drain(),
       );
-      if (requestResult.processed > 0 || requestResult.failed > 0) {
-        await telemetry.recordProjectionDrain({
-          failed: requestResult.failed,
-          processed: requestResult.processed,
-          projector: "request_projection",
-          projectorLastErrorCode: requestResult.failed > 0 ? "projection_failed" : null,
-          surface: "app_api",
-        });
-      }
       if (
         officialWebResult.processed > 0 ||
         officialWebResult.failed > 0 ||
@@ -184,8 +250,8 @@ export function createWorkerRuntime(
 }
 
 const worker = {
-  fetch(request: Request, env: Env): Promise<Response> | Response {
-    return createWorkerRuntime(env).fetch(request);
+  fetch(request: Request, env: Env, executionCtx: ExecutionContext): Promise<Response> | Response {
+    return createWorkerRuntime(env).fetch(request, executionCtx);
   },
   async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
     await createWorkerRuntime(env).scheduled();

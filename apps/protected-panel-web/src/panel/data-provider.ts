@@ -34,11 +34,17 @@ import {
   type RawPanelOverviewResponse,
   type RawRequestDetailResponse,
   type RawRequestListResponse,
+  type RawRequestObservabilityRecord,
   type RequestProjectionRecord,
+  type RequestObservabilityRecord,
 } from "./types";
 
 export interface ProtectedPanelDataProvider extends DataProvider {
   getOverview(input?: { signal?: AbortSignal }): Promise<{ data: PanelOverviewRecord }>;
+  getRequestObservability(input: {
+    requestId: Identifier;
+    signal?: AbortSignal;
+  }): Promise<{ data: RequestObservabilityRecord }>;
 }
 
 const requestPageCursors = new Map<string, Map<number, string | null>>();
@@ -303,6 +309,22 @@ async function getRequestDetail(
   };
 }
 
+async function getRequestObservabilityDetail(
+  requestId: Identifier,
+  signal?: AbortSignal,
+): Promise<{ data: RequestObservabilityRecord }> {
+  const payload = await fetchJson<RawRequestObservabilityRecord>(
+    `/api/requests/${requestId}/observability`,
+    {
+      signal,
+    },
+  );
+
+  return {
+    data: payload,
+  };
+}
+
 export const protectedPanelDataProvider: ProtectedPanelDataProvider = {
   async create(resource) {
     unsupportedMethod(resource, "create");
@@ -390,6 +412,9 @@ export const protectedPanelDataProvider: ProtectedPanelDataProvider = {
     return {
       data: normalizeOverviewRecord(payload),
     };
+  },
+  async getRequestObservability(input) {
+    return getRequestObservabilityDetail(input.requestId, input.signal);
   },
   async update(resource, _params?: UpdateParams) {
     unsupportedMethod(resource, "update");

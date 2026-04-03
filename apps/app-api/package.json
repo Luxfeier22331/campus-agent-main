@@ -12,6 +12,7 @@
     "db:print-auth-migration": "node ./scripts/run-with-local-env.mjs node ./scripts/print-shared-product-auth-migration.mjs",
     "db:reconcile-shared-drift": "node ./scripts/run-with-local-env.mjs node ./scripts/reconcile-shared-db-drift.mjs",
     "db:adopt-shared": "node ./scripts/run-with-local-env.mjs node ./scripts/adopt-shared-database.mjs",
+    "projection:drain": "node ./scripts/run-with-local-env.mjs node ./scripts/trigger-local-scheduled-drain.mjs",
     "dev": "XDG_CONFIG_HOME=./.wrangler-home node ./scripts/run-with-local-env.mjs wrangler dev -e local",
     "deploy": "XDG_CONFIG_HOME=./.wrangler-home wrangler deploy",
     "test": "pnpm run test:node",

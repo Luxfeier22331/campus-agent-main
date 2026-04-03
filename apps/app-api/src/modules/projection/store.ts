@@ -75,9 +75,11 @@ function toExecutionProjectionSource(
 }
 
 export function createPgProjectionStore(env: Env): RequestProjectionProjectorStore {
+  const dbPromise = createRuntimeDatabase(env);
+
   return {
     async getRequestExecution(requestIdValue) {
-      const db = await createRuntimeDatabase(env);
+      const db = await dbPromise;
       const executionRows = await db
         .select()
         .from(requestExecution)
@@ -98,7 +100,7 @@ export function createPgProjectionStore(env: Env): RequestProjectionProjectorSto
     },
 
     async listPendingEvents(limit, now) {
-      const db = await createRuntimeDatabase(env);
+      const db = await dbPromise;
       const rows = await db
         .select()
         .from(projectionOutbox)
@@ -109,8 +111,25 @@ export function createPgProjectionStore(env: Env): RequestProjectionProjectorSto
       return rows.map(toProjectionEvent);
     },
 
+    async listPendingEventsForRequest(requestIdValue, now) {
+      const db = await dbPromise;
+      const rows = await db
+        .select()
+        .from(projectionOutbox)
+        .where(
+          and(
+            eq(projectionOutbox.requestId, requestIdValue),
+            isNull(projectionOutbox.processedAt),
+            lte(projectionOutbox.availableAt, now),
+          ),
+        )
+        .orderBy(asc(projectionOutbox.availableAt), asc(projectionOutbox.occurredAt));
+
+      return rows.map(toProjectionEvent);
+    },
+
     async markEventFailed(input) {
-      const db = await createRuntimeDatabase(env);
+      const db = await dbPromise;
       await db
         .update(projectionOutbox)
         .set({
@@ -123,7 +142,7 @@ export function createPgProjectionStore(env: Env): RequestProjectionProjectorSto
     },
 
     async markEventProcessed(input) {
-      const db = await createRuntimeDatabase(env);
+      const db = await dbPromise;
       await db
         .update(projectionOutbox)
         .set({
@@ -135,7 +154,7 @@ export function createPgProjectionStore(env: Env): RequestProjectionProjectorSto
     },
 
     async markObservabilityProjected(input) {
-      const db = await createRuntimeDatabase(env);
+      const db = await dbPromise;
       await db
         .update(requestObservabilityFact)
         .set({
@@ -147,7 +166,7 @@ export function createPgProjectionStore(env: Env): RequestProjectionProjectorSto
     },
 
     async replaceQualityRollups(input) {
-      const db = await createRuntimeDatabase(env);
+      const db = await dbPromise;
       await db.delete(metricRollup).where(eq(metricRollup.requestId, input.requestId));
       if (input.rollups.length === 0) {
         return;
@@ -174,7 +193,7 @@ export function createPgProjectionStore(env: Env): RequestProjectionProjectorSto
     },
 
     async replaceQualityBadcases(input) {
-      const db = await createRuntimeDatabase(env);
+      const db = await dbPromise;
       await db.delete(qualityBadcaseProjection).where(eq(qualityBadcaseProjection.requestId, input.requestId));
       if (input.badcases.length === 0) {
         return;
@@ -199,7 +218,7 @@ export function createPgProjectionStore(env: Env): RequestProjectionProjectorSto
     },
 
     async upsertAuditProjection(projection) {
-      const db = await createRuntimeDatabase(env);
+      const db = await dbPromise;
       await db
         .insert(requestAuditProjection)
         .values({
@@ -243,7 +262,7 @@ export function createPgProjectionStore(env: Env): RequestProjectionProjectorSto
     },
 
     async upsertProjection(projection) {
-      const db = await createRuntimeDatabase(env);
+      const db = await dbPromise;
       await db
         .insert(requestProjection)
         .values({

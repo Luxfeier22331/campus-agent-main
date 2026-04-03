@@ -65,6 +65,10 @@ export interface AppDependencies {
   officialWebQueryService?: OfficialWebQueryService;
   operatorObservabilityCommandService?: OperatorObservabilityCommandService;
   operatorQueryService?: OperatorQueryService;
+  scheduleRequestProjectionDrain?: (input: {
+    requestId: string;
+    waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
+  }) => void;
   telemetry?: AppTelemetry;
 }
 
@@ -243,6 +247,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     buildOperatorObservabilityCommandService({
       store: createPgOperatorObservabilityCommandStore(env),
     });
+  const scheduleRequestProjectionDrain = dependencies.scheduleRequestProjectionDrain;
 
   app.use("*", async (c, next) => {
     telemetry.configureHttpRequestScope({
@@ -365,6 +370,10 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
       payload,
       principal,
     });
+    scheduleRequestProjectionDrain?.({
+      requestId: response.requestId,
+      waitUntil: c.executionCtx?.waitUntil.bind(c.executionCtx),
+    });
 
     return jsonResponse(
       {
@@ -458,6 +467,10 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
       payload: await readJsonRequestBody(c.req.raw),
       principal: buildInternalEvalPrincipalFromRequest(c.req.raw),
       surface: "eval_benchmark",
+    });
+    scheduleRequestProjectionDrain?.({
+      requestId: response.requestId,
+      waitUntil: c.executionCtx?.waitUntil.bind(c.executionCtx),
     });
 
     return jsonResponse(

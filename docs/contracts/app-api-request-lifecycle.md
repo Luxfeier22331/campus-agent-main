@@ -177,6 +177,7 @@ projection 的长期规则固定为：
 实现说明：
 
 - 第一版优先采用 scheduled projector 或 Worker 内异步消费者直接消费数据库 outbox
+- 当前 `app-api` merged truth 采用 `request success -> Worker waitUntil bounded drain` 与 `scheduled projector` 并存；前者负责收敛常规请求写后延迟，后者负责补偿/恢复与 deploy-side observability
 - queue 只可以在 outbox commit 之后作为 fan-out / 加速手段引入
 - 不接受 queue-first 再反补数据库 truth 的形态
 - 但它必须仍属于 `app-api` boundary

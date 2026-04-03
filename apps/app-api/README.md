@@ -57,6 +57,7 @@ Runtime hardening baseline:
 - Better Auth keeps origin / CSRF checks enabled and turns on production rate limiting
 - the protected panel operator bridge is accepted only when allowlisted operator headers arrive with a matching internal shared secret
 - `app-api -> supervisor-api` uses a bounded timeout budget and typed invalid-response handling
+- successful chat/eval request ingress now opportunistically triggers a bounded request-projection drain via Worker `waitUntil`; scheduled drain remains the recovery/backstop path
 - the request projector now retries with backoff and marks exhausted events terminally instead of spinning forever
 - the `official_web` projector now dispatches terminal run handoff payloads before marking outbox events processed, and it projects `queued` / `dispatched` / `ingestion_failed` explicitly for panel consumers
 - Worker `fetch` and `scheduled` are wrapped by Sentry; `app-api` is the primary observability owner for this product topology
@@ -147,6 +148,7 @@ pnpm db:ensure-app-auth-role-search-path
 pnpm db:bootstrap
 pnpm db:adopt-shared -- --json
 pnpm db:reconcile-shared-drift -- --json
+pnpm projection:drain
 pnpm test
 pnpm test:all
 pnpm test:node
@@ -166,3 +168,4 @@ Testing lanes:
 - `pnpm test:shared-db-integration` is the explicit shared Postgres / Better Auth integration lane and is not part of the default `pnpm test` gate.
 - `pnpm test:shared-db-integration` also fails closed when the connected shared DB no longer converges with the repo-owned `official_web/runtime/operator` snapshot.
 - When shared DB drift is detected, inspect it with `pnpm db:reconcile-shared-drift -- --json` before applying cleanup with backup and `--apply`.
+- `pnpm projection:drain` hits the repo-local Worker scheduled test route (`/cdn-cgi/handler/scheduled`), so local dev should be running with `pnpm dev -- --test-scheduled` or an equivalent Wrangler flag before using it.
