@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: 2026-04-03 repo-local curriculum/handbook live accept reruns exposed local runtime/data-plane drift: supervisor auth mode initially mismatched the Worker bridge, and after correcting that the local registry current rows still contained legacy authz payload (`acl_groups`, `campus_scope`), so the next work here is canonical local rebuild plus accept recovery rather than more eval interpretation
-last_updated: "2026-04-03T23:45:34+08:00"
+stopped_at: 2026-04-04 offline canonical-registry recovery code is now landed for local rebuild cleanup and import prefetch; the next work here is to rerun handbook/curriculum preview rebuild with tighter operational instrumentation, because the legacy parser fail-fast is fixed but the handbook preview rebuild was manually stopped after entering long-running external Qdrant/object-store I/O
+last_updated: "2026-04-04T00:26:02+08:00"
 progress:
   total_phases: 22
   completed_phases: 21
@@ -19,7 +19,7 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-04-02)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 runtime-profile-driven serving surface 证明这条架构能可靠承接高频校园问答
-**Current focus:** Phase 11 与 Phase 9 现已全部完成：Phase 11 已收口 canonical principal/projection seam、restricted data-plane projection、retrieval fail-close / deny-path safety、safe personalization wiring，以及 compatibility / eval / telemetry closure；Phase 9 则补齐了 curriculum alias governance、deictic verified-identity truth、soft-personalization fast-fail 与 eval closeout。`official-web` / Phase 10 当前由其他 worktree 处理，不应在这里被反复重新提议；这个 worktree 当前的非 web 优先项是先恢复 repo-local handbook/curriculum live accept 的有效性，方法是纠正本地 supervisor trusted-worker bootstrap、重建 canonical local registry/index truth、再 rerun accept，然后再回到 deploy-side observability verification 与其他 curriculum deferred follow-ups。
+**Current focus:** Phase 11 与 Phase 9 现已全部完成：Phase 11 已收口 canonical principal/projection seam、restricted data-plane projection、retrieval fail-close / deny-path safety、safe personalization wiring，以及 compatibility / eval / telemetry closure；Phase 9 则补齐了 curriculum alias governance、deictic verified-identity truth、soft-personalization fast-fail 与 eval closeout。`official-web` / Phase 10 当前由其他 worktree 处理，不应在这里被反复重新提议；这个 worktree 当前的非 web 优先项仍是恢复 repo-local handbook/curriculum live accept 的有效性，但其中“legacy registry parser fail-fast”代码阻塞已经解除，下一步是带操作级观测重新跑 preview rebuild、确认 handbook/curriculum release artifacts 落盘，再继续 alias publish 与 accept recovery。
 
 ## Current Position
 
@@ -175,7 +175,8 @@ Recent decisions affecting current work:
 
 - Keep handbook chunk-truth validation and handbook eval artifacts as reusable regression gates for later retrieval changes.
 - Treat the 2026-04-02 `182346` handbook acceptance artifact as the current regression baseline for future handbook answer-path or eval-surface changes.
-- Recover the repo-local handbook/curriculum live accept path by replay rebuild plus alias re-publish; the 2026-04-03 local fail artifacts are currently runtime-polluted and must not be read as product-quality regression evidence until canonical local data-plane truth is restored.
+- Recover the repo-local handbook/curriculum live accept path by replay rebuild plus alias re-publish; the 2026-04-03 local fail artifacts remain runtime-polluted and must not be read as product-quality regression evidence until canonical local data-plane truth is restored.
+- Rerun `student_handbook` and `curriculum_plan` preview rebuild now that offline cleanup/prefetch can skip legacy registry payloads; capture where long-running external I/O is spent before attempting publish/accept again.
 - Do not re-propose `official-web` / Phase 10 as the next task in this worktree unless the separate worktree explicitly hands work back; that stream is currently being handled elsewhere.
 - Keep `official_web` command/query/handoff tests and operator projections as reusable regression gates for later collector or ingestion integration changes.
 - Keep `Jobs` and `Operations` out of the default panel rollout until product scope explicitly re-opens them.
@@ -192,7 +193,7 @@ Recent decisions affecting current work:
 - Observability runtime code is landed, local worktree env is ready, and the targeted Worker smokes are green. The latest local evidence now lives at `.tmp/observability-smoke/20260402T233916-local-readiness/`. There is no current local-engineering blocker here; the repo truth is simply that the first real deployed Worker environment does not exist yet, so deploy-side sink verification remains pending by design. When deployment exists, the smoke runner will need real hostnames, a Worker release identifier, and Sentry/Axiom access; local placeholder URLs such as `chat.example.com`, `panel.example.com`, and `app-api.internal` remain development-only values.
 - `student_handbook` 当前最新 release-truth artifact 已更新为 `.tmp/evals/student-handbook-formal-benchmark-accept-20260402T182346`；`181247` 与 `210128` 仍可作为历史健康 baseline 对照，但不再是最新 closeout 证据。
 - Phase 8 的本地 automated gates 与 fresh handbook live accept 现已全部通过，Phase 09.1 也已补齐 env/bootstrap/provider contract；因此 handbook Phase 8 closeout 现可视为 completed truth。
-- 2026-04-03 的 repo-local curriculum / handbook accept rerun 当前不能被直接解读成质量退化：先是本地 `supervisor-api` 按 `bearer + 8080` 误启动，随后即便切到 `trusted-worker + 8081`，runtime 仍会因为 local registry current rows 含 `acl_groups` / `campus_scope` 而在 retrieval path 抛异常；下一步应走 canonical local rebuild / alias re-publish，而不是给 runtime query path 加回 legacy carrier 兼容。
+- 2026-04-03 的 repo-local curriculum / handbook accept rerun 当前不能被直接解读成质量退化：先是本地 `supervisor-api` 按 `bearer + 8080` 误启动，随后即便切到 `trusted-worker + 8081`，runtime 仍会因为 local registry current rows 含 `acl_groups` / `campus_scope` 而在 retrieval path 抛异常；当前离线 rebuild cleanup / import prefetch 的 legacy parser fail-fast 已修掉，但 preview rebuild 还需要继续收口到 release artifact，而不是给 runtime query path 加回 legacy carrier 兼容。
 - Phase 9 与 handbook live accept 是两条独立工作流：它复用已落地的 handbook ambiguous-object posture，但本身不依赖新的 handbook acceptance artifact 才能开始规划或执行；当前 09-03 closeout 已把 deictic verified-identity truth、soft-bias-only qrels fast-fail 与 diagnostics 收口为 completed truth。
 - curriculum canonical eval truth 现已明确禁止把未裁决短标题歧义锁成单目标 qrels；`民族实验班` 已退出 canonical retrieval qrels，改由 `needs_clarification` workflow case 承担，`campus_evals.retrieval_benchmark` 会在评分前按 split manifest fast-fail 这类坏 truth。
 - Phase 9 现在额外固定了两条关键后置约束：`verified major + unique candidate` 才允许 deictic curriculum single-doc resolve，而 `recent_goal` / `confirmed_slot_terms` / profile memory 只能作为 soft bias 或 clarification input；external default query scope 仍旧只开放 `curriculum_plan`。
@@ -204,6 +205,7 @@ Recent decisions affecting current work:
 - `pnpm --filter app-api test:node -- test/principal-resolution.test.ts test/supervisor-adapter.test.ts test/chat-command.service.test.ts test/chat-conversations.service.test.ts test/operator-query.route.test.ts test/projection.service.test.ts test/official-web-e2e.test.ts test/official-web-query.route.test.ts test/chat-requests.route.test.ts test/chat-conversations.route.test.ts`
 - `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.app_api.test_projection tests.contracts.test_models tests.api.test_supervisor_api`
 - `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.ingestion.test_registry_models tests.ingestion.test_campusrag_ingestion_support tests.ingestion.test_processing_pipeline tests.ingestion.test_split_manifest tests.ingestion.test_provider_result_replay_rebuild`
+- `uv run --all-packages python -m unittest tests.ingestion.test_campusrag_ingestion_support tests.ingestion.test_rebuild_local_data tests.ingestion.test_provider_result_replay_rebuild tests.ingestion.test_registry_models`
 - `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.retrieval.test_backend_qdrant tests.retrieval.test_service tests.specialist.test_rag_specialist`
 - `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.supervisor.test_supervisor_core tests.supervisor.test_supervisor_routing tests.supervisor.test_supervisor_policy tests.specialist.test_rag_specialist`
 - `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.retrieval.test_service tests.supervisor.test_supervisor_core tests.api.test_supervisor_api tests.evals.test_retrieval_benchmark`
