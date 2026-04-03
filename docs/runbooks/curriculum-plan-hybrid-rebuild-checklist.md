@@ -57,6 +57,12 @@ updated: 2026-03-30
 
 推荐直接走 shared live benchmark acceptance flow：
 
+- 先启动 repo-local `supervisor-api` 与 `app-api` dev runtime
+- root `.env` 需要补齐本地 eval ingress 参数，而不是远端部署变量：
+  - `APP_API_BASE_URL`
+  - `APP_API_INTERNAL_SHARED_SECRET`
+  - `APP_API_EVAL_USER_EMAIL`
+- 其中 `APP_API_INTERNAL_SHARED_SECRET` 必须与本地 `apps/app-api/.dev.vars` 保持同值
 - `set -a && source .env && set +a`
 - `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m campus_evals.curriculum_live_benchmark accept --reruns 3 --verbose --log-jsonl .tmp/evals/curriculum-runtime-events.jsonl`
 

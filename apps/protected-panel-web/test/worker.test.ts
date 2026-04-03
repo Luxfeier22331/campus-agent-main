@@ -788,7 +788,14 @@ describe("protected panel web worker shell", () => {
       };
       const appApi = createAppApi(appApiEnv, {
         operatorQueryService: {
+          getAuditById: vi.fn(),
           getById: vi.fn(),
+          getCostSummary: vi.fn(),
+          getObservabilityById: vi.fn(),
+          getOverview: vi.fn(),
+          getQualitySummary: vi.fn(),
+          getQualityTimeseries: vi.fn(),
+          getSafetySummary: vi.fn(),
           list: vi.fn().mockResolvedValue({
             page: {
               nextCursor: null,
@@ -820,6 +827,8 @@ describe("protected panel web worker shell", () => {
               },
             ],
           }),
+          listAudit: vi.fn(),
+          listQualityBadcases: vi.fn(),
         },
       });
 

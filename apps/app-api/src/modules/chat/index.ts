@@ -6,6 +6,7 @@ export type {
   ChatConversationSummaryResponse,
   ChatMessage,
   ChatMessageRole,
+  ChatSessionSlot,
 } from "./model";
 export {
   DRAFT_CONVERSATION_TITLE,

@@ -29,7 +29,7 @@ updated: 2026-04-02
 ## 当前 Ownership
 
 - repo root [`.env.example`](../../.env.example)
-  supervisor-api shared auth/audit、shared LLM/embedding provider、shared Supabase Postgres、retrieval/embedding/Qdrant、object store、OCR/raw registry、eval live benchmark model selection、`CAMPUS_AGENT_HTTP_HOST` / `CAMPUS_AGENT_HTTP_PORT`
+  supervisor-api shared auth/audit、shared LLM/embedding provider、shared Supabase Postgres、retrieval/embedding/Qdrant、object store、OCR/raw registry、eval live benchmark model selection、本地 Python eval runner 连接 `app-api` 的 ingress 参数、`CAMPUS_AGENT_HTTP_HOST` / `CAMPUS_AGENT_HTTP_PORT`
 - app-local [`apps/app-api/.dev.vars.example`](../../apps/app-api/.dev.vars.example)
   `app-api` 的 Worker string env，包括 auth/supervisor bridge、official_web control-plane string config，以及 `SENTRY_*` / `AXIOM_*`
 - app-local [`apps/app-api/.env.example`](../../apps/app-api/.env.example)

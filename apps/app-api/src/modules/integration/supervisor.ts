@@ -126,9 +126,12 @@ export class SupervisorTransportError extends Error {
 
 function toSupervisorActor(actor: ExecutionActorContext) {
   return {
+    cohort: actor.cohort,
     user_id: actor.userId,
+    major: actor.major,
     principal_id: actor.principalId,
     principal_type: actor.principalType,
+    program: actor.program,
     roles: actor.roles,
     departments: actor.departments,
   };

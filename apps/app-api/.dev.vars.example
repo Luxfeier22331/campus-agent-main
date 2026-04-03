@@ -11,6 +11,8 @@ SUPERVISOR_API_EVAL_TIMEOUT_MS=30000
 # Comma-separated exact operator emails allowed through the panel bridge.
 APP_API_OPERATOR_EMAIL_ALLOWLIST=ops@example.com
 # Must match `PANEL_APP_API_SHARED_SECRET` in `apps/protected-panel-web`.
+# 本地 Python live benchmark runner 走 internal eval ingress 时，root `.env`
+# 里的 `APP_API_INTERNAL_SHARED_SECRET` 也必须复用这个值。
 APP_API_INTERNAL_SHARED_SECRET=replace-with-panel-bridge-secret
 APP_API_DATABASE_SSLMODE=prefer
 APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN=

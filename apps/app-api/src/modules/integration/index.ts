@@ -9,6 +9,7 @@ export {
 export type {
   RequestedScope,
   SupervisorExecutionClient,
+  SupervisorContextProjection,
   SupervisorExecutionInput,
   SupervisorExecutionObservability,
   SupervisorExecutionResponse,

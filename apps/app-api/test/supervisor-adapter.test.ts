@@ -9,9 +9,12 @@ import {
 
 function createActor() {
   return {
+    cohort: "2024",
     departments: [],
+    major: "历史学",
     principalId: "principal_01HQ",
     principalType: "student" as const,
+    program: "历史学强基计划",
     roles: ["student"],
     userId: "user_01HQ",
   };
@@ -116,9 +119,12 @@ describe("supervisor execution adapter", () => {
     expect(JSON.parse(fetchImplementation.mock.calls[0]![1]!.body as string)).toEqual({
       context: {
         actor: {
+          cohort: "2024",
           departments: [],
+          major: "历史学",
           principal_id: "principal_01HQ",
           principal_type: "student",
+          program: "历史学强基计划",
           roles: ["student"],
           user_id: "user_01HQ",
         },

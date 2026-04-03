@@ -47,6 +47,9 @@ export interface ExecutionActorContext {
   principalType: AppPrincipalType;
   roles: string[];
   departments: string[];
+  cohort?: string;
+  major?: string;
+  program?: string;
 }
 
 export interface ExecutionAuthorizationRetrievalFilter {
@@ -83,6 +86,9 @@ export interface InternalEvalPrincipalInput {
   principalType?: Extract<AppPrincipalType, "public_user" | "campus_member" | "student" | "staff" | "faculty">;
   actorRoles?: string[];
   departments?: string[];
+  cohort?: string;
+  major?: string;
+  program?: string;
   entitlementGroups?: string[];
   entitlementSnapshotId?: string;
   visibilityLevel?: string;
@@ -134,6 +140,24 @@ function normalizeHeaderValue(value: string | null): string | null {
 function normalizeEmail(value: string | null): string | null {
   const normalized = normalizeHeaderValue(value);
   return normalized ? normalized.toLowerCase() : null;
+}
+
+function decodeOptionalHeaderValue(value: string | null): string | null {
+  const normalized = normalizeHeaderValue(value);
+  if (!normalized) {
+    return null;
+  }
+
+  if (!normalized.toLowerCase().startsWith("b64:")) {
+    return normalized;
+  }
+
+  try {
+    const decoded = Buffer.from(normalized.slice(4), "base64").toString("utf8").trim();
+    return decoded || null;
+  } catch {
+    return null;
+  }
 }
 
 export function hasMatchingInternalSecret(
@@ -294,6 +318,9 @@ export function buildInternalEvalPrincipal(
     principalType,
     roles: roles.length > 0 ? roles : [principalType],
     departments,
+    cohort: decodeOptionalHeaderValue(input.cohort ?? null) ?? undefined,
+    major: decodeOptionalHeaderValue(input.major ?? null) ?? undefined,
+    program: decodeOptionalHeaderValue(input.program ?? null) ?? undefined,
   };
 
   const entitlementGroups = normalizeStringList(input.entitlementGroups);

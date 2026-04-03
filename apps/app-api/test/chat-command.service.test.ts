@@ -10,6 +10,7 @@ import {
   SupervisorTransportError,
   type ChatConversationStore,
   type ChatCommandStore,
+  type FinalizeRequestWrite,
 } from "../src/modules/runtime-command";
 import type { SupervisorExecutionClient } from "../src/modules/integration/supervisor";
 import type { AppTelemetry } from "../src/modules/telemetry";
@@ -146,11 +147,11 @@ function createCommandStore(input?: {
         retryable: null,
       });
     }),
-    finalizeRequest: vi.fn(async (input) => {
+    finalizeRequest: vi.fn(async (input: FinalizeRequestWrite) => {
       finalWrites.push(input);
       conversation.updatedAt = input.assistantMessage.createdAt;
       if (input.sessionSlots) {
-        const nextSlots = input.sessionSlots.map((slot) => ({
+        const nextSlots = input.sessionSlots.map((slot: FinalizeRequestWrite["sessionSlots"][number]) => ({
           ...slot,
         }));
         conversation.sessionSlots = nextSlots;
@@ -701,6 +702,54 @@ describe("chat command service", () => {
       payload: {
         conversationId: "conv_01HQ",
         prompt: "民族班有哪些",
+        requestedScope: {
+          collection: "curriculum_plan",
+          corpus: "curriculum",
+        },
+      },
+      principal: createPrincipal(),
+    });
+
+    expect(commandStore.finalWrites[0]).toMatchObject({
+      sessionSlots: [],
+    });
+  });
+
+  it("does not write curriculum follow-up session slots for completed course-family answers", async () => {
+    const commandStore = createCommandStore();
+    const { store: conversationStore } = createConversationStore();
+    const service = buildChatCommandService({
+      generateId: createDeterministicIdGenerator(),
+      now: () => new Date("2026-03-28T08:00:00.000Z"),
+      conversationStore,
+      store: commandStore.store,
+      supervisor: {
+        execute: vi.fn().mockResolvedValue({
+          answerText:
+            "思想政治理论课包括习近平新时代中国特色社会主义思想概论、马克思主义基本原理、中华民族共同体概论等课程。",
+          error: null,
+          followUpQuestion: "",
+          result: {
+            diagnostics: {
+              resolved_course_family_title: "思修课",
+              resolved_entity_type: "course_family_membership",
+              rewritten_query: "思修课包括哪些课",
+            },
+            evidence: {
+              sources: [{ doc_id: "curriculum:中央民族大学通识课程思想政治理论课教学计划" }],
+            },
+          },
+          selectedTarget: "rag-specialist",
+          status: "completed",
+          traceId: "trace_0002",
+        }),
+      },
+    });
+
+    await service.submit({
+      payload: {
+        conversationId: "conv_01HQ",
+        prompt: "思修课包括哪些课",
         requestedScope: {
           collection: "curriculum_plan",
           corpus: "curriculum",

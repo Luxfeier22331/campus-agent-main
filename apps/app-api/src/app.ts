@@ -105,9 +105,11 @@ function buildInternalEvalPrincipalFromRequest(request: Request): ResolvedAppPri
   return buildInternalEvalPrincipal({
     actorRoles: parseCsvList(request.headers.get("x-eval-actor-roles") ?? undefined),
     applicabilityScope: request.headers.get("x-eval-applicability-scope") ?? undefined,
+    cohort: request.headers.get("x-eval-cohort") ?? undefined,
     departments: parseCsvList(request.headers.get("x-eval-departments") ?? undefined),
     displayName: request.headers.get("x-eval-user-name") ?? undefined,
     email: request.headers.get("x-eval-user-email") ?? "",
+    major: request.headers.get("x-eval-major") ?? undefined,
     entitlementGroups: parseCsvList(request.headers.get("x-eval-entitlement-groups") ?? undefined),
     entitlementSnapshotId: request.headers.get("x-eval-entitlement-snapshot-id") ?? undefined,
     ownershipScopes: parseCsvList(request.headers.get("x-eval-ownership-scopes") ?? undefined),
@@ -120,6 +122,7 @@ function buildInternalEvalPrincipalFromRequest(request: Request): ResolvedAppPri
         | "staff"
         | "faculty"
         | null) ?? undefined,
+    program: request.headers.get("x-eval-program") ?? undefined,
     visibilityLevel: request.headers.get("x-eval-visibility-level") ?? undefined,
     visibilityScope: request.headers.get("x-eval-visibility-scope"),
   });

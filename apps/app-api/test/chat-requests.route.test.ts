@@ -372,6 +372,16 @@ describe("POST /api/internal/evals/chat/requests", () => {
         },
       },
       principal: expect.objectContaining({
+        actor: {
+          departments: [],
+          major: undefined,
+          principalId: "eval_user_01HQ",
+          principalType: "public_user",
+          program: undefined,
+          roles: ["public_user"],
+          cohort: undefined,
+          userId: "eval_user_01HQ",
+        },
         permissions: {
           chat: true,
           operator: false,
@@ -380,6 +390,87 @@ describe("POST /api/internal/evals/chat/requests", () => {
           principalId: "eval_user_01HQ",
           type: "public_user",
         }),
+      }),
+      surface: "eval_benchmark",
+    });
+  });
+
+  it("maps internal eval verified identity headers onto principal actor fields", async () => {
+    const service: ChatCommandService = {
+      submit: vi.fn().mockResolvedValue({
+        answer: {
+          conversation: {
+            createdAt: "2026-03-28T07:59:00.000Z",
+            id: "conv_eval_identity_01HQ",
+            messages: [],
+            title: "历史学强基计划培养方案",
+            updatedAt: "2026-03-28T08:00:01.000Z",
+          },
+          result: {
+            kind: "answer",
+            requestId: "req_eval_identity_01HQ",
+            text: "第四学期有中国史学史、史学理论专题。",
+            traceId: "trace_eval_identity_01HQ",
+          },
+        },
+        requestId: "req_eval_identity_01HQ",
+        traceId: "trace_eval_identity_01HQ",
+      }),
+    };
+    const app = createApp(
+      {
+        ...env,
+        APP_API_INTERNAL_SHARED_SECRET: "trusted-secret",
+      },
+      {
+        chatCommandService: service,
+      },
+    );
+
+    const response = await app.fetch(
+      new Request("https://app-api.internal/api/internal/evals/chat/requests", {
+        body: JSON.stringify({
+          prompt: "我这个专业的基地班大二下有什么课",
+          requestedScope: {
+            corpus: "curriculum",
+            collection: "curriculum_plan",
+          },
+        }),
+        headers: {
+          "content-type": "application/json",
+          "x-app-internal-auth": "trusted-secret",
+          "x-eval-user-email": "eval-benchmark@example.edu",
+          "x-eval-user-id": "eval_user_01HQ",
+          "x-eval-principal-type": "student",
+          "x-eval-major": "b64:5Y6G5Y+y5a2m",
+          "x-eval-program": "b64:5Y6G5Y+y5a2m5by65Z+66K6h5YiS",
+          "x-eval-cohort": "2024",
+        },
+        method: "POST",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(service.submit).toHaveBeenCalledWith({
+      idempotencyKey: null,
+      payload: {
+        prompt: "我这个专业的基地班大二下有什么课",
+        requestedScope: {
+          collection: "curriculum_plan",
+          corpus: "curriculum",
+        },
+      },
+      principal: expect.objectContaining({
+        actor: {
+          departments: [],
+          major: "历史学",
+          principalId: "eval_user_01HQ",
+          principalType: "student",
+          program: "历史学强基计划",
+          roles: ["student"],
+          cohort: "2024",
+          userId: "eval_user_01HQ",
+        },
       }),
       surface: "eval_benchmark",
     });

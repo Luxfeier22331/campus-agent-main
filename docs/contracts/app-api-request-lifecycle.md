@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-03-29
+updated: 2026-04-03
 ---
 
 # App API Request Lifecycle
@@ -122,6 +122,7 @@ updated: 2026-03-29
 - assistant message 或 safe failure message
 - `runtime.request_execution` 最终状态
 - 对应最终状态的 `runtime.projection_outbox` 事件
+- conversation-scoped `chat.session_slots` 当前快照（仅在存在 typed confirmed session truth 时）
 
 最终状态写回规则：
 
@@ -131,6 +132,35 @@ updated: 2026-03-29
 - `error` 写 error code / retryable
 - `approval_required` 写审批提示与最终 supervisor 状态，不把它折叠成 command-side `error`
 - `rejected` 写拒绝原因与最终 supervisor 状态，不把它折叠成 command-side `error`
+
+### Session Slot Finalize Rule
+
+`chat.session_slots` 的第一版只承载 conversation-scoped typed session truth，不承载 transcript 恢复、展示 alias 或自由文本总结。
+
+冻结规则：
+
+- `app-api` 只能根据 typed diagnostics 写 session truth，不能解析 assistant 文本、clarification 文本或历史 transcript 反推 slot
+- 第一版仅 curriculum follow-up lane 可以在 finalized `completed` 时写 slot
+- 当前允许写入的 truth 仅限：
+  - `curriculum_program_family`
+  - `curriculum_program`
+  - `curriculum_semester`
+- 写入语义是 replace-write 当前快照，不是追加历史 slot
+- 如果本轮 diagnostics 只产出部分 slot，可以与已有 confirmed slot 合并后写回，但结果仍表现为当前快照
+- `app-api` 在下一轮请求里只回放这些 confirmed typed slots 到 `context.session.confirmed_slots`
+
+明确不写 slot 的 finalized lane：
+
+- `needs_clarification`
+- `no_answer`
+- `error`
+- `approval_required`
+- `rejected`
+- curriculum completed 但没有 typed follow-up truth
+- curriculum `program_family_membership` completed
+- curriculum `course_family` completed
+
+因此，`chat.session_slots` 不是通用 conversation summary，也不是 `runtime.request_execution` 的派生缓存；它只保存后续 specialist 安全可消费的 typed confirmed state。
 
 ## Projection Rule
 
