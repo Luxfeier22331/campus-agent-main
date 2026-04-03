@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 from dataclasses import dataclass
 import hashlib
 import json
@@ -196,7 +197,10 @@ def _serialize_projection_row(
         },
         "page_start": page_start,
         "page_end": page_end,
-        "acl": {"level": "public", "allow_groups": []},
+        "entitlement_groups": list(_resolved_entitlement_groups(member_documents)),
+        "visibility_scope": _resolved_visibility_scope(member_documents),
+        "visibility_level": _resolved_visibility_level(member_documents),
+        "policy_projection_version": DEFAULT_POLICY_PROJECTION_VERSION,
         "anchor": {
             "fact_type": "family_membership",
             "section_path": [family.canonical_program_family_title],

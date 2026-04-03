@@ -64,5 +64,9 @@
   - 首轮 completed curriculum answer 写入 conversation-scoped session truth
   - 第二轮 follow-up 通过同一 `conversationId` 复用 slot 回灌
   - release gate 已新增 `curriculum-release-gate-program-follow-up-session-replay`
+  - 2026-04-03 尝试重跑 `campus_evals.curriculum_live_benchmark accept` 时仍被环境阻塞：
+    - 缺少 `APP_API_BASE_URL`
+    - 缺少 `APP_API_INTERNAL_SHARED_SECRET`
+    - 因此当前未产出新的 live accept artifact，阻塞点不是代码失败，而是 eval ingress 配置未就绪
 - 但更长期的产品策略仍待补齐：例如除 curriculum 之外的 session slot family、slot 生命周期治理、以及未来是否需要 panel/operator 可见的 slot diagnostics 仍未单独展开。
 - curriculum live acceptance artifact 是否需要在这轮 closeout 后重跑，仍取决于后续是否要把当前 automated evidence 再提升成新的 release artifact。

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from dataclasses import dataclass
 import os
 
@@ -100,6 +101,7 @@ class AppApiEvalClient:
         turns = case.conversation_turns or (case.user_goal,)
         conversation_key = self._resolve_conversation_key(case)
         conversation_id = self._conversation_ids.get(conversation_key)
+        headers = self._build_eval_headers_for_case(case)
         execution: AppApiEvalExecution | None = None
 
         for prompt in turns:
@@ -113,7 +115,7 @@ class AppApiEvalClient:
             }
             if conversation_id is not None:
                 body["conversationId"] = conversation_id
-            response = self._post_chat_request(body)
+            response = self._post_chat_request(body, headers=headers)
             execution = self._decode_execution(
                 response=response,
                 case_id=case.case_id,
@@ -130,17 +132,7 @@ class AppApiEvalClient:
             self._conversation_ids[conversation_key] = conversation_id
         return execution
 
-    def _post_chat_request(self, body: dict[str, object]) -> httpx.Response:
-        headers = {
-            "x-app-internal-auth": self.settings.internal_shared_secret,
-            "x-eval-user-email": self.settings.eval_user_email,
-            "x-eval-principal-type": self.settings.eval_principal_type,
-        }
-        if self.settings.eval_user_id is not None:
-            headers["x-eval-user-id"] = self.settings.eval_user_id
-        if self.settings.eval_user_name is not None:
-            headers["x-eval-user-name"] = self.settings.eval_user_name
-
+    def _post_chat_request(self, body: dict[str, object], *, headers: dict[str, str]) -> httpx.Response:
         if self._client is not None:
             response = self._client.post(
                 "/api/internal/evals/chat/requests",
@@ -167,6 +159,32 @@ class AppApiEvalClient:
             message=str(error_payload.get("message") or response.text or "request failed"),
             details=error_payload.get("details"),
         )
+
+    def _build_eval_headers_for_case(self, case: GoldenCase) -> dict[str, str]:
+        headers = {
+            "x-app-internal-auth": self.settings.internal_shared_secret,
+            "x-eval-user-email": self.settings.eval_user_email,
+            "x-eval-principal-type": self.settings.eval_principal_type,
+        }
+        if self.settings.eval_user_id is not None:
+            headers["x-eval-user-id"] = self.settings.eval_user_id
+        if self.settings.eval_user_name is not None:
+            headers["x-eval-user-name"] = self.settings.eval_user_name
+
+        actor = case.actor
+        if actor.principal_type:
+            headers["x-eval-principal-type"] = actor.principal_type
+        if actor.major:
+            headers["x-eval-major"] = _encode_eval_header_value(actor.major)
+        if actor.program:
+            headers["x-eval-program"] = _encode_eval_header_value(actor.program)
+        if actor.cohort:
+            headers["x-eval-cohort"] = _encode_eval_header_value(actor.cohort)
+        if actor.roles:
+            headers["x-eval-actor-roles"] = ",".join(actor.roles)
+        if actor.departments:
+            headers["x-eval-departments"] = ",".join(actor.departments)
+        return headers
 
     def _decode_execution(
         self,
@@ -466,6 +484,17 @@ def _required_string(value: object, field: str) -> str:
 def _optional_string(value: object) -> str | None:
     normalized = str(value or "").strip()
     return normalized or None
+
+
+def _encode_eval_header_value(value: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        return ""
+    try:
+        normalized.encode("ascii")
+    except UnicodeEncodeError:
+        return f"b64:{base64.b64encode(normalized.encode('utf-8')).decode('ascii')}"
+    return normalized
 
 
 def _decode_json(response: httpx.Response) -> dict[str, object]:

@@ -300,7 +300,7 @@ class RunCasesTest(unittest.TestCase):
     def test_curriculum_release_gate_cases_cover_terminal_statuses(self) -> None:
         cases = curriculum_release_gate_cases()
 
-        self.assertEqual(len(cases), 15)
+        self.assertEqual(len(cases), 16)
         self.assertEqual(
             tuple(case.case_id for case in cases),
             (
@@ -317,6 +317,7 @@ class RunCasesTest(unittest.TestCase):
                 "curriculum-release-gate-program-family-strong-base-membership-full-alias",
                 "curriculum-release-gate-program-family-name-pattern-experimental-membership",
                 "curriculum-release-gate-program-follow-up-session-replay",
+                "curriculum-release-gate-strong-base-follow-up-session-replay",
                 "curriculum-release-gate-no-answer",
                 "curriculum-release-gate-needs-clarification",
             ),
@@ -337,6 +338,7 @@ class RunCasesTest(unittest.TestCase):
                 "completed",
                 "completed",
                 "completed",
+                "completed",
                 "no_answer",
                 "needs_clarification",
             ),
@@ -344,6 +346,29 @@ class RunCasesTest(unittest.TestCase):
         self.assertTrue(all(case.split == "release_gate" for case in cases))
         self.assertTrue(all(case.scope == CURRICULUM_SCOPE for case in cases))
         self.assertTrue(all("curriculum" in case.tags for case in cases))
+
+    def test_curriculum_release_gate_follow_up_cases_keep_resolved_semantic_user_goal(self) -> None:
+        cases = {case.case_id: case for case in curriculum_release_gate_cases()}
+
+        law_case = cases["curriculum-release-gate-program-follow-up-session-replay"]
+        self.assertEqual(law_case.user_goal, "法学民族班培养方案里大二下有什么课")
+        self.assertEqual(
+            law_case.conversation_turns,
+            (
+                "法学民族班培养方案里大一上有什么课",
+                "那大二下呢",
+            ),
+        )
+
+        history_case = cases["curriculum-release-gate-strong-base-follow-up-session-replay"]
+        self.assertEqual(history_case.user_goal, "历史学强基计划培养方案里大二下有什么课")
+        self.assertEqual(
+            history_case.conversation_turns,
+            (
+                "历史学强基计划培养方案里大一上有什么课",
+                "那大二下呢",
+            ),
+        )
 
     def test_curriculum_smoke_cases_cover_stable_terminal_statuses(self) -> None:
         cases = curriculum_smoke_cases()

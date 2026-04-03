@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 from dataclasses import dataclass
 import hashlib
 import json
@@ -92,6 +93,7 @@ def build_curriculum_course_facts_import_documents(
             version_id=version_id,
             projection=projection,
             source_pdf=source_pdf,
+            source_document=source_document,
         )
         metadata = load_metadata_from_bytes(document_units_bytes)
         metadata["title"] = _projection_title(projection)
@@ -274,6 +276,7 @@ def _serialize_projection_row(
     version_id: str,
     projection: _CourseFactProjection,
     source_pdf: str,
+    source_document: SplitManifestDocument,
 ) -> bytes:
     payload = {
         "doc_id": document_id,
@@ -285,7 +288,10 @@ def _serialize_projection_row(
         "source": {"id": f"campusrag://rag-data/canonical/curriculum_plan/docs/{_SOURCE_TITLE}.md"},
         "page_start": 22,
         "page_end": 26,
-        "acl": {"level": "public", "allow_groups": []},
+        "entitlement_groups": list(source_document.resolved_entitlement_groups()),
+        "visibility_scope": source_document.resolved_visibility_scope(),
+        "visibility_level": source_document.resolved_visibility_level(),
+        "policy_projection_version": DEFAULT_POLICY_PROJECTION_VERSION,
         "anchor": {
             "fact_type": projection.fact_type,
             "section_path": list(projection.section_path),
