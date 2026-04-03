@@ -347,7 +347,7 @@ def _evaluate_document(
                     unit_type=piece.unit_type,
                     root_unit_id=piece.root_unit_id,
                     source_chunk_id=unit.source_chunk_id,
-                    acl_level=unit.acl_level,
+                    visibility_level=unit.visibility_level,
                     anchor=dict(unit.anchor),
                     metadata=dict(unit.metadata),
                     piece=piece,
@@ -495,7 +495,7 @@ def _load_runtime_fixture_documents() -> tuple[CurriculumBudgetEvaluationDocumen
             structured_rows=layout_rows,
             provider_response_key="official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl",
             layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
-            default_campus_scope="main",
+            default_visibility_scope="main",
             corpus="curriculum",
             collection="curriculum_plan",
         )

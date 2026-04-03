@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0007
 status: accepted
 created: 2026-03-26
-updated: 2026-03-31
+updated: 2026-04-03
 ---
 
 # ADR-0007 Retrieval Baseline 更新（phase1 为历史命名）
@@ -33,7 +33,7 @@ updated: 2026-03-31
   `Given a campus policy or handbook question, retrieve relevant passages that answer the query.`
 - accepted target shape 固定为 Qdrant native sparse index + native hybrid query，而不是 retrieval-core 内部 sparse 本地算分长期保留
 - 当前 sparse baseline 固定为 `Qdrant native BM25`，handbook 中文语料的起始 analyzer 配置为 `tokenizer=multilingual`、`language=none`
-- metadata pre-filter（`corpus`、`collection`、serving metadata，以及当前 ACL / `campus_scope` projection carrier）仍为必做前置条件
+- metadata pre-filter（`corpus`、`collection`、serving metadata，以及 `visibility_*` / `entitlement_*` projection carrier）仍为必做前置条件
 - retrieval 输出仍然必须通过 `DocumentRegistry` 回链形成 `EvidenceBundle`
 - `student_handbook` 当前 runtime profile 默认返回 `8` 个 retrieval candidates；最终回答最多引用 `3` 条证据
 

@@ -85,9 +85,7 @@ JSON 命名保持 `snake_case`，原因如下：
       "user_id": "user_01HQ...",
       "principal_id": "principal_01HQ...",
       "roles": ["student"],
-      "departments": [],
-      "groups": ["students"],
-      "campus_scope": "main"
+      "departments": []
     },
     "authorization": {
       "principal_id": "principal_01HQ...",

@@ -564,6 +564,7 @@ def _coerce_json_payload(value: object) -> dict[str, object]:
 
 
 def _document_record_from_dict(raw: dict[str, object]) -> DocumentRegistryRecord:
+    _assert_canonical_authorization_projection_payload(raw)
     processed_object_keys = tuple(str(item) for item in list(raw.get("processed_object_keys") or []))
     provider_response_object_key = (
         str(raw["provider_response_object_key"])
@@ -690,6 +691,41 @@ def _source_observations_from_raw(
     return tuple(observations)
 
 
+def _assert_canonical_authorization_projection_payload(raw: dict[str, object]) -> None:
+    unsupported_keys = tuple(
+        key
+        for key in raw
+        if _looks_like_authorization_projection_key(key)
+        and key not in _SUPPORTED_AUTHORIZATION_PROJECTION_KEYS
+    )
+    if unsupported_keys:
+        joined = ", ".join(unsupported_keys)
+        raise ValueError(
+            f"registry payload contains unsupported authorization projection keys: {joined}"
+        )
+
+
+_SUPPORTED_AUTHORIZATION_PROJECTION_KEYS = frozenset(
+    {
+        "entitlement_groups",
+        "visibility_scope",
+        "visibility_level",
+        "policy_projection_version",
+    }
+)
+
+
+def _looks_like_authorization_projection_key(key: str) -> bool:
+    return (
+        key.startswith("entitlement_")
+        or key.startswith("visibility_")
+        or key.startswith("policy_projection_")
+        or key.endswith("_groups")
+        or key.endswith("_scope")
+        or key.endswith("_level")
+    )
+
+
 def _required_registry_text(raw: dict[str, object], field_name: str) -> str:
     value = raw.get(field_name)
     if not isinstance(value, str) or not value.strip():
@@ -698,15 +734,10 @@ def _required_registry_text(raw: dict[str, object], field_name: str) -> str:
 
 
 def _resolved_record_entitlement_groups(raw: dict[str, object]) -> tuple[str, ...]:
-    groups = tuple(str(item) for item in list(raw.get("entitlement_groups") or []))
-    if groups:
-        return groups
-    return tuple(str(item) for item in list(raw.get("acl_groups") or []))
+    return tuple(str(item) for item in list(raw.get("entitlement_groups") or []))
 
 
 def _resolved_record_visibility_scope(raw: dict[str, object]) -> str | None:
     if raw.get("visibility_scope") is not None:
         return str(raw["visibility_scope"])
-    if raw.get("campus_scope") is not None:
-        return str(raw["campus_scope"])
     return None

@@ -8,6 +8,7 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     DocumentImportInput,
     apply_authorization_projection_metadata,
     collect_import_document_stats,
+    load_metadata_from_bytes,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.settings import ObjectStoreSettings
@@ -182,7 +183,7 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             parser_version="campusrag-import-v1",
             embedding_model="Qwen3-Embedding-4B",
             cleaning_policy_version="student_handbook_cleaning_v1",
-            default_campus_scope=None,
+            default_visibility_scope=None,
         )
 
         self.assertEqual(stats.success_count, 2)
@@ -233,7 +234,7 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             parser_version="campusrag-import-v1",
             embedding_model="Qwen3-Embedding-4B",
             cleaning_policy_version="student_handbook_cleaning_v1",
-            default_campus_scope=None,
+            default_visibility_scope=None,
             scope_refresh=("regulations", "student_handbook"),
         )
 
@@ -278,7 +279,7 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             parser_version="campusrag-import-v1",
             embedding_model="Qwen3-Embedding-4B",
             cleaning_policy_version="student_handbook_cleaning_v1",
-            default_campus_scope=None,
+            default_visibility_scope=None,
             scope_refresh=("regulations", "student_handbook"),
         )
 
@@ -324,7 +325,7 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             parser_version="campusrag-import-v1",
             embedding_model="Qwen3-Embedding-4B",
             cleaning_policy_version="student_handbook_cleaning_v1",
-            default_campus_scope=None,
+            default_visibility_scope=None,
         )
 
         self.assertEqual(stats.success_count, 0)
@@ -365,7 +366,7 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             parser_version="campusrag-import-v1",
             embedding_model="Qwen3-Embedding-4B",
             cleaning_policy_version="student_handbook_cleaning_v1",
-            default_campus_scope=None,
+            default_visibility_scope=None,
         )
 
         expected_key = (
@@ -390,6 +391,42 @@ class CampusragIngestionSupportTest(unittest.TestCase):
                 "entitlement_groups": ["students"],
                 "visibility_scope": "main",
                 "visibility_level": "restricted",
+            }
+        )
+        registry = _SpyDocumentRegistry(records=())
+
+        stats = collect_import_document_stats(
+            documents=[document],
+            registry=registry,
+            raw_asset_registry=_FakeRawAssetRegistry(),
+            writer=_FakeWriter(),
+            object_store=self.object_store,
+            parser_version="campusrag-import-v1",
+            embedding_model="Qwen3-Embedding-4B",
+            cleaning_policy_version="student_handbook_cleaning_v1",
+            default_visibility_scope="fallback-campus",
+        )
+
+        self.assertEqual(stats.success_count, 1)
+        self.assertEqual(len(registry.upsert_many_calls), 1)
+        created_record = registry.upsert_many_calls[0][0]
+        self.assertEqual(created_record.entitlement_groups, ("students",))
+        self.assertEqual(created_record.visibility_scope, "main")
+        self.assertEqual(created_record.visibility_level, "restricted")
+        self.assertEqual(
+            created_record.policy_projection_version,
+            DEFAULT_POLICY_PROJECTION_VERSION,
+        )
+
+    def test_collect_import_document_stats_rejects_unsupported_authorization_metadata_keys(self) -> None:
+        document = _document_input(
+            document_id="handbook:doc-authz",
+            version_id="v1:doc-authz",
+            body='{"type":"paragraph","text":"Authz"}\n',
+        )
+        document.metadata.update(
+            {
+                "acl_level": "restricted",
                 "acl_groups": ["legacy-staff"],
                 "campus_scope": "south",
             }
@@ -405,27 +442,21 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             parser_version="campusrag-import-v1",
             embedding_model="Qwen3-Embedding-4B",
             cleaning_policy_version="student_handbook_cleaning_v1",
-            default_campus_scope="fallback-campus",
+            default_visibility_scope="fallback-campus",
         )
 
-        self.assertEqual(stats.success_count, 1)
-        self.assertEqual(len(registry.upsert_many_calls), 1)
-        created_record = registry.upsert_many_calls[0][0]
-        self.assertEqual(created_record.entitlement_groups, ("students",))
-        self.assertEqual(created_record.visibility_scope, "main")
-        self.assertEqual(created_record.visibility_level, "restricted")
-        self.assertEqual(
-            created_record.policy_projection_version,
-            DEFAULT_POLICY_PROJECTION_VERSION,
+        self.assertEqual(stats.success_count, 0)
+        self.assertEqual(stats.failed_count, 1)
+        self.assertEqual(len(registry.upsert_many_calls), 0)
+        self.assertRegex(
+            stats.errors[0],
+            "unsupported authorization metadata keys",
         )
 
-    def test_apply_authorization_projection_metadata_clears_legacy_acl_carriers(self) -> None:
+    def test_apply_authorization_projection_metadata_writes_canonical_projection_fields(self) -> None:
         metadata = {
             "document_id": "handbook:doc-authz",
             "version_id": "v1:doc-authz",
-            "acl_level": "public",
-            "acl_groups": ["legacy-staff"],
-            "campus_scope": "south",
         }
 
         apply_authorization_projection_metadata(
@@ -438,9 +469,60 @@ class CampusragIngestionSupportTest(unittest.TestCase):
         self.assertEqual(metadata["entitlement_groups"], ["students"])
         self.assertEqual(metadata["visibility_scope"], "main")
         self.assertEqual(metadata["visibility_level"], "restricted")
+        self.assertEqual(
+            metadata["policy_projection_version"],
+            DEFAULT_POLICY_PROJECTION_VERSION,
+        )
+
+    def test_apply_authorization_projection_metadata_rejects_unsupported_authorization_metadata_keys(self) -> None:
+        metadata = {
+            "document_id": "handbook:doc-authz",
+            "version_id": "v1:doc-authz",
+            "acl_level": "public",
+            "acl_groups": ["legacy-staff"],
+            "campus_scope": "south",
+        }
+
+        with self.assertRaisesRegex(ValueError, "unsupported authorization metadata keys"):
+            apply_authorization_projection_metadata(
+                metadata,
+                entitlement_groups=("students",),
+                visibility_scope="main",
+                visibility_level="restricted",
+            )
+
+    def test_load_metadata_from_bytes_reads_canonical_row_authorization_projection(self) -> None:
+        metadata = load_metadata_from_bytes(
+            (
+                '{"doc_id":"handbook:doc-authz","version_id":"v1:doc-authz",'
+                '"entitlement_groups":["students"],'
+                '"visibility_scope":"main",'
+                '"visibility_level":"restricted",'
+                '"policy_projection_version":"phase1-authorization-projection-v1"}\n'
+            ).encode("utf-8")
+        )
+
+        self.assertEqual(metadata["entitlement_groups"], ("students",))
+        self.assertEqual(metadata["visibility_scope"], "main")
+        self.assertEqual(metadata["visibility_level"], "restricted")
+        self.assertEqual(
+            metadata["policy_projection_version"],
+            "phase1-authorization-projection-v1",
+        )
         self.assertNotIn("acl_level", metadata)
         self.assertNotIn("acl_groups", metadata)
-        self.assertNotIn("campus_scope", metadata)
+
+    def test_load_metadata_from_bytes_rejects_legacy_acl_row_metadata(self) -> None:
+        with self.assertRaisesRegex(ValueError, "legacy row authorization metadata is not allowed"):
+            load_metadata_from_bytes(
+                (
+                    '{"doc_id":"handbook:doc-authz","version_id":"v1:doc-authz",'
+                    '"entitlement_groups":["students"],'
+                    '"visibility_scope":"main",'
+                    '"visibility_level":"restricted",'
+                    '"acl":{"level":"public","allow_groups":["legacy-staff"]}}\n'
+                ).encode("utf-8")
+            )
 
 
 if __name__ == "__main__":

@@ -693,7 +693,7 @@ def _build_raw_ingestion_request(
             else None
         ),
         report_dir=Path((source.get("IMPORT_REPORT_DIR") or "./var/import-reports").strip()),
-        default_campus_scope=(source.get("INGESTION_DEFAULT_CAMPUS_SCOPE") or "").strip() or None,
+        default_visibility_scope=_read_default_visibility_scope(source),
     )
 
 
@@ -847,7 +847,7 @@ def replay_provider_response_rebuild(
             ingestion_timestamp="1970-01-01T00:00:00+00:00",
             import_source="provider_response_replay",
         )
-        default_campus_scope = (source.get("INGESTION_DEFAULT_CAMPUS_SCOPE") or "").strip() or None
+        default_visibility_scope = _read_default_visibility_scope(source)
         documents = [
             _build_split_manifest_document_input(
                 raw_asset_record=raw_asset_ref,
@@ -856,7 +856,7 @@ def replay_provider_response_rebuild(
                 structured_rows=structured_rows,
                 provider_response_key=provider_response_key,
                 layout_elements_key=layout_elements_key,
-                default_campus_scope=default_campus_scope,
+                default_visibility_scope=default_visibility_scope,
                 corpus=corpus,
                 collection=collection,
             )
@@ -915,7 +915,7 @@ def replay_provider_response_rebuild(
         object_store=object_store_settings,
         parser_version=DEFAULT_RAW_ONLINE_OCR_PARSER_VERSION,
         embedding_model=_read_embedding_model_name(source),
-        default_campus_scope=(source.get("INGESTION_DEFAULT_CAMPUS_SCOPE") or "").strip() or None,
+        default_visibility_scope=_read_default_visibility_scope(source),
         primary_scope=(corpus, collection),
     )
     errors = list(stats.errors)
@@ -1014,7 +1014,7 @@ def _collect_projection_aware_import_stats(
     object_store: ObjectStoreSettings,
     parser_version: str,
     embedding_model: str,
-    default_campus_scope: str | None,
+    default_visibility_scope: str | None,
     primary_scope: tuple[str, str],
 ) -> PersistImportStats:
     grouped: dict[tuple[str, str], list[DocumentImportInput]] = {}
@@ -1043,7 +1043,7 @@ def _collect_projection_aware_import_stats(
             parser_version=parser_version,
             embedding_model=embedding_model,
             cleaning_policy_version=profile.cleaning_policy_version,
-            default_campus_scope=default_campus_scope,
+            default_visibility_scope=default_visibility_scope,
             scope_refresh=scope if scope == primary_scope else None,
         )
         timestamp = stats.timestamp
@@ -1124,6 +1124,13 @@ def _read_required_scope_part(source: dict[str, str], field_name: str) -> str:
     if not value:
         raise ValueError(f"{field_name} is required")
     return value
+
+
+def _read_default_visibility_scope(source: dict[str, str]) -> str | None:
+    return (
+        (source.get("INGESTION_DEFAULT_VISIBILITY_SCOPE") or source.get("INGESTION_DEFAULT_CAMPUS_SCOPE") or "").strip()
+        or None
+    )
 
 
 def _normalize_optional_text(value: object) -> str | None:
@@ -1257,7 +1264,7 @@ def _build_handbook_replay_document_input(
         is_current=True,
         corpus=corpus,
         collection=collection,
-        campus_scope=manifest_document.resolved_visibility_scope(),
+        visibility_scope=manifest_document.resolved_visibility_scope(),
         status=manifest_document.status,
         raw_path=None,
         raw_source_uri=None,

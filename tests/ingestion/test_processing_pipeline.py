@@ -66,6 +66,48 @@ def _make_registry_record() -> DocumentRegistryRecord:
     )
 
 
+def _make_public_registry_record() -> DocumentRegistryRecord:
+    return DocumentRegistryRecord(
+        document_id="handbook:test-public",
+        revision_track="source-faithful",
+        version_id="v1:test-public",
+        source_uri="https://campus.example/handbook/test-public",
+        content_hash="sha256:test-public",
+        corpus="regulations",
+        collection="student_handbook",
+        entitlement_groups=(),
+        visibility_scope=None,
+        status="active",
+        ingestion_timestamp="2026-03-22T10:00:00+00:00",
+        parser_version="campusrag-import-v1",
+        embedding_model="Qwen3-Embedding-4B",
+        source_channel="pdf_ocr",
+        document_units_object_key=build_processed_artifact_key(
+            corpus="regulations",
+            collection="student_handbook",
+            document_id="handbook:test-public",
+            revision_track="source-faithful",
+            version_id="v1:test-public",
+            title=None,
+            year=None,
+            filename="document-units.jsonl",
+        ),
+        processed_object_keys=(
+            build_processed_artifact_key(
+                corpus="regulations",
+                collection="student_handbook",
+                document_id="handbook:test-public",
+                revision_track="source-faithful",
+                version_id="v1:test-public",
+                title=None,
+                year=None,
+                filename="document-units.jsonl",
+            ),
+        ),
+        import_source="raw_online_ocr",
+    )
+
+
 def _make_curriculum_registry_record() -> DocumentRegistryRecord:
     return DocumentRegistryRecord(
         document_id="curriculum:test-001",
@@ -412,6 +454,77 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertEqual(chunk.visibility_scope, "main")
         self.assertEqual(chunk.visibility_level, "restricted")
 
+    def test_build_indexable_chunks_from_jsonl_reads_canonical_row_authorization_projection(self) -> None:
+        record = _make_registry_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "canonical-row-001",
+                        "row_id": "canonical-row-001",
+                        "row_type": "policy_page",
+                        "clean_text": "Campus notice for enrolled students only.",
+                        "page_start": 1,
+                        "page_end": 1,
+                        "source_pdf": "authz.pdf",
+                        "source_url": record.source_uri,
+                        "entitlement_groups": ["students"],
+                        "visibility_scope": "main",
+                        "visibility_level": "restricted",
+                        "policy_projection_version": "phase1-authorization-projection-v1",
+                    },
+                    ensure_ascii=False,
+                )
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=ChunkProfile(chunk_size=128, max_chunk_size=192, chunk_overlap=16, min_chunk_size=32),
+            embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        chunk = chunks[0]
+        self.assertEqual(chunk.entitlement_groups, ("students", "staff"))
+        self.assertIsNone(chunk.visibility_scope)
+        self.assertEqual(chunk.visibility_level, "restricted")
+
+    def test_build_indexable_chunks_from_jsonl_does_not_read_non_canonical_row_visibility_metadata(self) -> None:
+        record = _make_public_registry_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "legacy-acl-row-001",
+                        "row_id": "legacy-acl-row-001",
+                        "row_type": "policy_page",
+                        "clean_text": "This row should remain public without canonical authz projection.",
+                        "page_start": 1,
+                        "page_end": 1,
+                        "acl": {"level": "restricted", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                )
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=ChunkProfile(chunk_size=128, max_chunk_size=192, chunk_overlap=16, min_chunk_size=32),
+            embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0].entitlement_groups, ())
+        self.assertEqual(chunks[0].visibility_level, "public")
+
     def test_indexable_chunk_defaults_visibility_level_from_entitlements(self) -> None:
         chunk = IndexableChunk(
             document_id="handbook:test-authz",
@@ -715,6 +828,14 @@ class ProcessingPipelineTest(unittest.TestCase):
             {"article_body", "table_unit"},
         )
         self.assertTrue(all(1 <= int(chunk.anchor["page_start"]) <= 2 for chunk in chunks))
+        document_unit_rows = [
+            json.loads(line)
+            for line in serialize_handbook_document_units(cleanup_result.document_units).decode("utf-8").splitlines()
+            if line.strip()
+        ]
+        self.assertTrue(all("acl" not in row for row in document_unit_rows))
+        self.assertTrue(all(row["entitlement_groups"] == ["students"] for row in document_unit_rows))
+        self.assertTrue(all(row["visibility_level"] == "restricted" for row in document_unit_rows))
 
     def test_build_indexable_chunks_contextualizes_handbook_text_with_document_metadata(self) -> None:
         cleanup_result = cleanup_handbook_document(

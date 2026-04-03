@@ -75,7 +75,7 @@ class DocumentImportInput:
     is_current: bool = False
     corpus: str = ""
     collection: str = ""
-    campus_scope: str | None = None
+    visibility_scope: str | None = None
     status: str = "active"
     raw_path: Path | None = None
     raw_source_uri: str | None = None
@@ -290,8 +290,18 @@ def load_metadata_from_bytes(file_bytes: bytes) -> dict[str, object]:
     version_id = str(raw.get("version_id") or "")
     if not document_id or not version_id:
         raise ValueError("doc_id and version_id are required in OCR JSONL")
-    acl = raw.get("acl") or {}
+    _assert_canonical_row_authorization_metadata(raw)
     source = raw.get("source") or {}
+    entitlement_groups = _resolve_row_entitlement_groups(raw)
+    visibility_scope = normalize_optional_text(raw.get("visibility_scope"))
+    visibility_level = _resolve_row_visibility_level(
+        raw=raw,
+        entitlement_groups=entitlement_groups,
+    )
+    policy_projection_version = (
+        normalize_optional_text(raw.get("policy_projection_version"))
+        or DEFAULT_POLICY_PROJECTION_VERSION
+    )
     return {
         "document_id": document_id,
         "version_id": version_id,
@@ -302,8 +312,10 @@ def load_metadata_from_bytes(file_bytes: bytes) -> dict[str, object]:
         "source_pdf": normalize_optional_text(raw.get("source_pdf")),
         "raw_page_start": normalize_optional_int(raw.get("page_start")),
         "raw_page_end": normalize_optional_int(raw.get("page_end")),
-        "acl_level": normalize_optional_text(acl.get("level")),
-        "acl_groups": tuple(str(item) for item in list(acl.get("allow_groups") or [])),
+        "entitlement_groups": entitlement_groups,
+        "visibility_scope": visibility_scope,
+        "visibility_level": visibility_level,
+        "policy_projection_version": policy_projection_version,
     }
 
 
@@ -315,6 +327,7 @@ def apply_authorization_projection_metadata(
     visibility_level: str | None = None,
     policy_projection_version: str = DEFAULT_POLICY_PROJECTION_VERSION,
 ) -> None:
+    _assert_canonical_authorization_metadata(metadata)
     normalized_groups = _normalize_group_values(entitlement_groups)
     normalized_scope = normalize_optional_text(visibility_scope)
     normalized_visibility_level = normalize_optional_text(visibility_level)
@@ -331,33 +344,24 @@ def apply_authorization_projection_metadata(
     metadata["visibility_scope"] = normalized_scope
     metadata["visibility_level"] = resolved_visibility_level
     metadata["policy_projection_version"] = normalized_policy_projection_version
-    metadata.pop("acl_level", None)
-    metadata.pop("acl_groups", None)
-    metadata.pop("campus_scope", None)
 
 
 def _resolve_entitlement_groups(metadata: dict[str, object]) -> tuple[str, ...]:
-    groups = _normalize_group_values(metadata.get("entitlement_groups"))
-    if groups:
-        return groups
-    return _normalize_group_values(metadata.get("acl_groups"))
+    return _normalize_group_values(metadata.get("entitlement_groups"))
 
 
 def _resolve_visibility_scope(
     *,
     metadata: dict[str, object],
     document: DocumentImportInput,
-    default_campus_scope: str | None,
+    default_visibility_scope: str | None,
 ) -> str | None:
     metadata_scope = normalize_optional_text(metadata.get("visibility_scope"))
     if metadata_scope is not None:
         return metadata_scope
-    metadata_scope = normalize_optional_text(metadata.get("campus_scope"))
-    if metadata_scope is not None:
-        return metadata_scope
-    if document.campus_scope is not None:
-        return document.campus_scope
-    return default_campus_scope
+    if document.visibility_scope is not None:
+        return document.visibility_scope
+    return default_visibility_scope
 
 
 def _resolve_visibility_level(
@@ -368,9 +372,6 @@ def _resolve_visibility_level(
     metadata_visibility_level = normalize_optional_text(metadata.get("visibility_level"))
     if metadata_visibility_level is not None:
         return metadata_visibility_level
-    legacy_acl_level = normalize_optional_text(metadata.get("acl_level"))
-    if legacy_acl_level is not None:
-        return legacy_acl_level
     return "restricted" if entitlement_groups else "public"
 
 
@@ -392,6 +393,26 @@ def _normalize_group_values(value: object) -> tuple[str, ...]:
     return tuple(normalized)
 
 
+def _resolve_row_entitlement_groups(raw: dict[str, object]) -> tuple[str, ...]:
+    return _normalize_group_values(raw.get("entitlement_groups"))
+
+
+def _resolve_row_visibility_level(
+    *,
+    raw: dict[str, object],
+    entitlement_groups: tuple[str, ...],
+) -> str:
+    visibility_level = normalize_optional_text(raw.get("visibility_level"))
+    if visibility_level is not None:
+        return visibility_level
+    return "restricted" if entitlement_groups else "public"
+
+
+def _assert_canonical_row_authorization_metadata(raw: dict[str, object]) -> None:
+    if raw.get("acl") is not None:
+        raise ValueError("legacy row authorization metadata is not allowed: acl")
+
+
 def persist_import_documents(
     *,
     documents: list[DocumentImportInput],
@@ -402,7 +423,7 @@ def persist_import_documents(
     parser_version: str,
     embedding_model: str,
     cleaning_policy_version: str,
-    default_campus_scope: str | None,
+    default_visibility_scope: str | None,
     import_mode: str,
     report_dir: Path,
     report_prefix: str,
@@ -418,7 +439,7 @@ def persist_import_documents(
         parser_version=parser_version,
         embedding_model=embedding_model,
         cleaning_policy_version=cleaning_policy_version,
-        default_campus_scope=default_campus_scope,
+        default_visibility_scope=default_visibility_scope,
         unresolved_source_pdfs=unresolved_source_pdfs,
         initial_errors=initial_errors,
     )
@@ -451,7 +472,7 @@ def collect_import_document_stats(
     parser_version: str,
     embedding_model: str,
     cleaning_policy_version: str,
-    default_campus_scope: str | None,
+    default_visibility_scope: str | None,
     unresolved_source_pdfs: tuple[str, ...] = (),
     initial_errors: list[str] | None = None,
     scope_refresh: tuple[str, str] | None = None,
@@ -654,7 +675,7 @@ def collect_import_document_stats(
                         metadata=metadata,
                         content_hash=content_hash,
                         document=document,
-                        default_campus_scope=default_campus_scope,
+                        default_visibility_scope=default_visibility_scope,
                         parser_version=parser_version,
                         embedding_model=embedding_model,
                         cleaning_policy_version=cleaning_policy_version,
@@ -773,7 +794,7 @@ def collect_import_document_stats(
                 metadata=metadata,
                 content_hash=content_hash,
                 document=document,
-                default_campus_scope=default_campus_scope,
+                default_visibility_scope=default_visibility_scope,
                 parser_version=parser_version,
                 embedding_model=embedding_model,
                 cleaning_policy_version=cleaning_policy_version,
@@ -950,7 +971,7 @@ def _build_registry_record(
     metadata: dict[str, object],
     content_hash: str,
     document: DocumentImportInput,
-    default_campus_scope: str | None,
+    default_visibility_scope: str | None,
     parser_version: str,
     embedding_model: str,
     cleaning_policy_version: str,
@@ -961,6 +982,7 @@ def _build_registry_record(
     processed_object_keys: tuple[str, ...],
     timestamp: str,
 ) -> DocumentRegistryRecord:
+    _assert_canonical_authorization_metadata(metadata)
     source_uri = derive_source_uri(metadata)
     registry_raw_asset = _resolve_registry_raw_asset_ref(
         raw_asset=raw_asset,
@@ -971,7 +993,7 @@ def _build_registry_record(
     visibility_scope = _resolve_visibility_scope(
         metadata=metadata,
         document=document,
-        default_campus_scope=default_campus_scope,
+        default_visibility_scope=default_visibility_scope,
     )
     visibility_level = _resolve_visibility_level(
         metadata=metadata,
@@ -1014,6 +1036,41 @@ def _build_registry_record(
         canonical_markdown_object_key=canonical_markdown_key,
         processed_object_keys=processed_object_keys,
         import_source=document.import_source,
+    )
+
+
+def _assert_canonical_authorization_metadata(metadata: dict[str, object]) -> None:
+    unsupported_keys = tuple(
+        key
+        for key in metadata
+        if _looks_like_authorization_projection_key(key)
+        and key not in _SUPPORTED_AUTHORIZATION_METADATA_KEYS
+    )
+    if unsupported_keys:
+        joined = ", ".join(unsupported_keys)
+        raise ValueError(
+            f"unsupported authorization metadata keys are not allowed: {joined}"
+        )
+
+
+_SUPPORTED_AUTHORIZATION_METADATA_KEYS = frozenset(
+    {
+        "entitlement_groups",
+        "visibility_scope",
+        "visibility_level",
+        "policy_projection_version",
+    }
+)
+
+
+def _looks_like_authorization_projection_key(key: str) -> bool:
+    return (
+        key.startswith("entitlement_")
+        or key.startswith("visibility_")
+        or key.startswith("policy_projection_")
+        or key.endswith("_groups")
+        or key.endswith("_scope")
+        or key.endswith("_level")
     )
 
 
@@ -1225,12 +1282,12 @@ def _resolve_campus_scope(
     *,
     metadata: dict[str, object],
     document: DocumentImportInput,
-    default_campus_scope: str | None,
+    default_visibility_scope: str | None,
 ) -> str | None:
     return _resolve_visibility_scope(
         metadata=metadata,
         document=document,
-        default_campus_scope=default_campus_scope,
+        default_visibility_scope=default_visibility_scope,
     )
 
 

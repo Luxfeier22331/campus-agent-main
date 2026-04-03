@@ -25,7 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--artifact-mode", default="normalized", choices=("normalized", "source_truth_only"))
     parser.add_argument("--split-manifest-path")
     parser.add_argument("--report-dir", default="./var/import-reports")
-    parser.add_argument("--default-campus-scope")
+    parser.add_argument("--default-visibility-scope")
     return parser
 
 
@@ -41,7 +41,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             artifact_mode=args.artifact_mode,
             split_manifest_path=(Path(args.split_manifest_path).resolve() if args.split_manifest_path else None),
             report_dir=Path(args.report_dir),
-            default_campus_scope=args.default_campus_scope,
+            default_visibility_scope=args.default_visibility_scope,
         )
     )
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))

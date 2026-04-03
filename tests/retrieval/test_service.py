@@ -254,7 +254,7 @@ class RetrievalServiceTest(unittest.TestCase):
             {field.name for field in fields(RetrievalRequest)},
         )
 
-    def test_retrieval_request_removes_legacy_top_level_authz_carriers(self) -> None:
+    def test_retrieval_request_omits_non_canonical_top_level_authz_fields(self) -> None:
         field_names = {field.name for field in fields(RetrievalRequest)}
         parameter_names = set(inspect.signature(RetrievalRequest).parameters)
 

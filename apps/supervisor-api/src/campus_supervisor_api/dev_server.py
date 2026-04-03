@@ -74,7 +74,10 @@ class _RequestHandler(BaseHTTPRequestHandler):
         for key, value in response.headers.items():
             self.send_header(key, value)
         self.end_headers()
-        self.wfile.write(payload)
+        try:
+            self.wfile.write(payload)
+        except BrokenPipeError:
+            return
 
 
 def dispatch_http_request(

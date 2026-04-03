@@ -70,7 +70,6 @@ class SupervisorApiDevServerTest(unittest.TestCase):
                 auth_mode="bearer",
                 bearer_token="secret-token",
                 default_actor_id="runtime-bearer-user",
-                default_actor_groups=("students",),
                 default_actor_roles=("student",),
             ),
             supervisor_handler=fake_supervisor,

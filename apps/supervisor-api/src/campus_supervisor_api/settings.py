@@ -5,12 +5,6 @@ import os
 from pathlib import Path
 
 from campus_shared import APP_NAME
-
-
-def _split_csv(value: str) -> tuple[str, ...]:
-    return tuple(part.strip() for part in value.split(",") if part.strip())
-
-
 @dataclass(frozen=True, slots=True)
 class ApiSettings:
     app_name: str = APP_NAME
@@ -19,9 +13,7 @@ class ApiSettings:
     worker_shared_secret: str = ""
     default_actor_id: str = ""
     runtime_provider: str = ""
-    default_actor_groups: tuple[str, ...] = field(default_factory=tuple)
     default_actor_roles: tuple[str, ...] = field(default_factory=tuple)
-    default_campus_scope: str | None = None
     audit_log_path: Path = Path("./var/log/audit.log")
     agno_supervisor_model: str = ""
     agno_specialist_model: str = ""
@@ -35,9 +27,11 @@ class ApiSettings:
             worker_shared_secret=os.getenv("API_WORKER_SHARED_SECRET", ""),
             default_actor_id=os.getenv("API_DEFAULT_ACTOR_ID", "").strip(),
             runtime_provider=os.getenv("AGENT_RUNTIME_PROVIDER", ""),
-            default_actor_groups=_split_csv(os.getenv("API_DEFAULT_ACTOR_GROUPS", "")),
-            default_actor_roles=_split_csv(os.getenv("API_DEFAULT_ACTOR_ROLES", "")),
-            default_campus_scope=os.getenv("API_DEFAULT_CAMPUS_SCOPE") or None,
+            default_actor_roles=tuple(
+                part.strip()
+                for part in os.getenv("API_DEFAULT_ACTOR_ROLES", "").split(",")
+                if part.strip()
+            ),
             audit_log_path=Path(os.getenv("AUDIT_LOG_PATH", "./var/log/audit.log")),
             agno_supervisor_model=os.getenv("AGNO_SUPERVISOR_MODEL", ""),
             agno_specialist_model=os.getenv("AGNO_SPECIALIST_MODEL", ""),

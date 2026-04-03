@@ -441,8 +441,6 @@ class RegistryModelsTest(unittest.TestCase):
                             "cleaning_policy_version": "student_handbook_cleaning_v1",
                             "entitlement_groups": ["students"],
                             "visibility_scope": None,
-                            "acl_groups": ["students"],
-                            "campus_scope": None,
                             "status": "active",
                             "ingestion_timestamp": "2026-03-22T10:00:00+00:00",
                             "parser_version": "campusrag-import-v1",
@@ -475,6 +473,100 @@ class RegistryModelsTest(unittest.TestCase):
             self.assertEqual(len(loaded.source_observations), 1)
             self.assertTrue(loaded.source_observations[0].is_primary)
             self.assertEqual(loaded.source_observations[0].source_channel, "pdf_ocr")
+
+    def test_file_document_registry_rejects_unsupported_authz_payload_keys(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "registry.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "handbook:test-001::source-faithful::v1:test-001": {
+                            "document_id": "handbook:test-001",
+                            "revision_track": "source-faithful",
+                            "version_id": "v1:test-001",
+                            "source_uri": "campusrag://canonical/regulations/student_handbook/docs/test-001.md",
+                            "content_hash": "sha256:test-001",
+                            "corpus": "regulations",
+                            "collection": "student_handbook",
+                            "cleaning_policy_version": "student_handbook_cleaning_v1",
+                            "acl_groups": ["students"],
+                            "campus_scope": "main",
+                            "status": "active",
+                            "ingestion_timestamp": "2026-03-22T10:00:00+00:00",
+                            "parser_version": "campusrag-import-v1",
+                            "embedding_model": "Qwen3-Embedding-4B",
+                            "source_channel": "pdf_ocr",
+                            "raw_asset": None,
+                            "processed_object_keys": [
+                                "student_handbook/documents/handbook/test-001/tracks/source-faithful/v1/test-001/document-units.jsonl"
+                            ],
+                            "import_source": "raw_online_ocr",
+                        }
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "unsupported authorization projection keys"):
+                InMemoryDocumentRegistry.from_json_file(path)
+
+    def test_document_registry_payload_prefers_canonical_projection_over_conflicting_legacy_fields(self) -> None:
+        record = _document_record_from_dict(
+            {
+                "document_id": "handbook:test-001",
+                "revision_track": "source-faithful",
+                "version_id": "v1:test-001",
+                "source_uri": "campusrag://canonical/regulations/student_handbook/docs/test-001.md",
+                "content_hash": "sha256:test-001",
+                "corpus": "regulations",
+                "collection": "student_handbook",
+                "cleaning_policy_version": "student_handbook_cleaning_v1",
+                "entitlement_groups": ["students"],
+                "visibility_scope": "main",
+                "visibility_level": "restricted",
+                "status": "active",
+                "ingestion_timestamp": "2026-03-22T10:00:00+00:00",
+                "parser_version": "campusrag-import-v1",
+                "embedding_model": "Qwen3-Embedding-4B",
+                "source_channel": "pdf_ocr",
+                "raw_asset": None,
+                "processed_object_keys": (),
+                "import_source": "raw_online_ocr",
+            }
+        )
+
+        self.assertEqual(record.entitlement_groups, ("students",))
+        self.assertEqual(record.visibility_scope, "main")
+        self.assertEqual(record.visibility_level, "restricted")
+
+    def test_document_registry_payload_rejects_unsupported_authz_projection_keys(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported authorization projection keys"):
+            _document_record_from_dict(
+                {
+                    "document_id": "handbook:test-001",
+                    "revision_track": "source-faithful",
+                    "version_id": "v1:test-001",
+                    "source_uri": "campusrag://canonical/regulations/student_handbook/docs/test-001.md",
+                    "content_hash": "sha256:test-001",
+                    "corpus": "regulations",
+                    "collection": "student_handbook",
+                    "cleaning_policy_version": "student_handbook_cleaning_v1",
+                    "entitlement_groups": ["students"],
+                    "visibility_scope": "main",
+                    "visibility_level": "restricted",
+                    "acl_groups": ["legacy-staff"],
+                    "campus_scope": "south",
+                    "status": "active",
+                    "ingestion_timestamp": "2026-03-22T10:00:00+00:00",
+                    "parser_version": "campusrag-import-v1",
+                    "embedding_model": "Qwen3-Embedding-4B",
+                    "source_channel": "pdf_ocr",
+                    "raw_asset": None,
+                    "processed_object_keys": (),
+                    "import_source": "raw_online_ocr",
+                }
+            )
 
     def test_document_registry_payload_requires_explicit_corpus_collection_and_source_channel(self) -> None:
         with self.assertRaisesRegex(ValueError, "source_channel"):

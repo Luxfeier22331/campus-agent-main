@@ -2,7 +2,7 @@
 doc_type: policy
 status: active
 created: 2026-03-25
-updated: 2026-03-28
+updated: 2026-04-03
 ---
 
 # `student_handbook` Chunking 与 Validation 规则
@@ -53,7 +53,7 @@ updated: 2026-03-28
 字段边界：
 
 - `model`、`dimensions` 属于 embedding request contract
-- `document_id`、`chunk_id`、`corpus`、`collection`、ACL、`campus_scope` 属于 Qdrant chunk/index schema
+- `document_id`、`chunk_id`、`corpus`、`collection`、`visibility_level`、`visibility_scope`、`entitlement_groups`、`policy_projection_version` 属于 Qdrant chunk/index schema
 - 不允许把 embedding 请求字段和 retrieval payload schema 混为同一层设计
 - handbook 已冻结的 `Qwen/Qwen3-Embedding-4B` tokenizer 只服务 chunk budgeting 与 dense embedding，不因 sparse index 路径引入而替换
 - 如果后续为 sparse retrieval 引入 BM25 或其他 sparse analyzer，那是 sparse path 自己的内部 tokenization，不改变 handbook 的 dense/chunking tokenizer truth
@@ -284,7 +284,7 @@ handbook chunk 必须带最小必要上下文，但不允许让冗长路径压�
 聚合仅在相邻且兼容时发生。兼容条件包括：
 
 - `unit_type` 相同
-- ACL 相同
+- 授权投影一致（`visibility_level`、`visibility_scope`、`entitlement_groups`）
 - `title` / `policy_doc_no` 一致
 - 未触发结构拆分或多 segment
 

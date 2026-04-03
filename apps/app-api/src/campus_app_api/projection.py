@@ -24,8 +24,6 @@ class VerifiedIdentityInput:
     principal_type: str = ""
     roles: tuple[str, ...] = field(default_factory=tuple)
     departments: tuple[str, ...] = field(default_factory=tuple)
-    groups: tuple[str, ...] = field(default_factory=tuple)
-    campus_scope: str | None = None
     cohort: str | None = None
     major: str | None = None
     program: str | None = None

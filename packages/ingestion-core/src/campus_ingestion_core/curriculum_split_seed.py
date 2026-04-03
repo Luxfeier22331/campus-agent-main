@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 from dataclasses import dataclass
 import json
 from pathlib import Path
@@ -64,7 +65,7 @@ def build_manifest_document_rows(
     version_id: str,
     source_pdf: str,
     source_uri: str,
-    acl_groups: Sequence[str] = (),
+    entitlement_groups: Sequence[str] = (),
 ) -> list[dict[str, object]]:
     page_rows = [
         dict(row)
@@ -90,7 +91,7 @@ def build_manifest_document_rows(
             version_id=version_id,
             source_pdf=source_pdf,
             source_uri=source_uri,
-            acl_groups=tuple(acl_groups) or manifest_document.resolved_entitlement_groups(),
+            entitlement_groups=tuple(entitlement_groups) or manifest_document.resolved_entitlement_groups(),
         )
         for row in selected_rows
     ]
@@ -353,7 +354,7 @@ def _transform_split_row(
     version_id: str,
     source_pdf: str,
     source_uri: str,
-    acl_groups: tuple[str, ...],
+    entitlement_groups: tuple[str, ...],
 ) -> dict[str, object]:
     clean_text = _row_text(row)
     if not clean_text:
@@ -387,7 +388,10 @@ def _transform_split_row(
         "source": {"id": source_uri},
         "page_start": page_start,
         "page_end": page_end,
-        "acl": {"level": "public", "allow_groups": list(acl_groups)},
+        "entitlement_groups": list(entitlement_groups),
+        "visibility_scope": None,
+        "visibility_level": "restricted" if entitlement_groups else "public",
+        "policy_projection_version": DEFAULT_POLICY_PROJECTION_VERSION,
     }
     return projected
 

@@ -65,9 +65,7 @@ class SupervisorApiTest(unittest.TestCase):
                 auth_mode="bearer",
                 bearer_token="secret-token",
                 default_actor_id="api-bearer-user",
-                default_actor_groups=("students",),
                 default_actor_roles=("student",),
-                default_campus_scope="north",
             ),
             supervisor_handler=fake_supervisor,
         )
@@ -249,7 +247,6 @@ class SupervisorApiTest(unittest.TestCase):
                 auth_mode="bearer",
                 bearer_token="secret-token",
                 default_actor_id="api-bearer-user",
-                default_actor_groups=("students",),
                 default_actor_roles=("student",),
             ),
             supervisor_handler=fake_supervisor,
@@ -297,9 +294,7 @@ class SupervisorApiTest(unittest.TestCase):
                 auth_mode="bearer",
                 bearer_token="secret-token",
                 default_actor_id="runtime-bearer-user",
-                default_actor_groups=("students",),
                 default_actor_roles=("student",),
-                default_campus_scope="north",
             ),
             supervisor_handler=fake_supervisor,
         )
@@ -354,9 +349,8 @@ class SupervisorApiTest(unittest.TestCase):
                     auth_mode="bearer",
                     bearer_token="secret-token",
                     default_actor_id="runtime-bearer-user",
-                default_actor_groups=("students",),
-                audit_log_path=audit_path,
-            ),
+                    audit_log_path=audit_path,
+                ),
                 supervisor_handler=lambda request: SupervisorResponse(
                     selected_target="rag-specialist",
                     status="completed",
@@ -488,8 +482,6 @@ class SupervisorApiTest(unittest.TestCase):
                             "principal_id": "principal-001",
                             "principal_type": "student",
                             "roles": ["student"],
-                            "groups": ["students", "library"],
-                            "campus_scope": "north",
                             "cohort": "2023",
                             "major": "philosophy",
                         },
@@ -505,9 +497,7 @@ class SupervisorApiTest(unittest.TestCase):
                             "retrieval_filter": {
                                 "entitlement_groups": ["students", "library"],
                                 "visibility_level": "restricted",
-                                "acl_groups": ["students", "library"],
                                 "visibility_scope": "north",
-                                "campus_scope": "north",
                                 "policy_projection_version": "phase1-authorization-projection-v1",
                             },
                         },
@@ -603,7 +593,7 @@ class SupervisorApiTest(unittest.TestCase):
             self.assertNotIn("context", payload)
             self.assertNotIn("profile_memory", payload)
 
-    def test_actor_groups_reach_specialist_handoff_for_acl_filtering(self) -> None:
+    def test_bearer_mode_does_not_promote_legacy_actor_headers_into_specialist_handoff(self) -> None:
         captured_specialist_requests: list[SpecialistRequest] = []
 
         def fake_rag_specialist(request):
@@ -620,9 +610,7 @@ class SupervisorApiTest(unittest.TestCase):
                 auth_mode="bearer",
                 bearer_token="secret-token",
                 default_actor_id="runtime-bearer-user",
-                default_actor_groups=("students",),
                 default_actor_roles=("student",),
-                default_campus_scope="north",
             ),
             supervisor_handler=partial(
                 handle_request,
@@ -673,9 +661,7 @@ class SupervisorApiTest(unittest.TestCase):
             settings=ApiSettings(
                 auth_mode="trusted-worker",
                 worker_shared_secret="worker-secret",
-                default_actor_groups=("trusted-runtime",),
                 default_actor_roles=("runtime",),
-                default_campus_scope="north",
             ),
             supervisor_handler=fake_supervisor,
         )
@@ -716,9 +702,7 @@ class SupervisorApiTest(unittest.TestCase):
             settings=ApiSettings(
                 auth_mode="trusted-worker",
                 worker_shared_secret="worker-secret",
-                default_actor_groups=("trusted-runtime",),
                 default_actor_roles=("runtime",),
-                default_campus_scope="north",
             ),
             supervisor_handler=fake_supervisor,
         )
@@ -746,8 +730,6 @@ class SupervisorApiTest(unittest.TestCase):
                         "principal_id": "principal-001",
                         "principal_type": "student",
                         "roles": ["student"],
-                        "groups": ["students", "library"],
-                        "campus_scope": "north",
                         "cohort": "2023",
                         "major": "philosophy",
                         "program": "undergraduate",
@@ -764,9 +746,7 @@ class SupervisorApiTest(unittest.TestCase):
                         "retrieval_filter": {
                             "entitlement_groups": ["students", "library"],
                             "visibility_level": "public",
-                            "acl_groups": ["students", "library"],
                             "visibility_scope": "north",
-                            "campus_scope": "north",
                             "policy_projection_version": "phase1-authorization-projection-v1",
                         },
                     },
@@ -846,6 +826,104 @@ class SupervisorApiTest(unittest.TestCase):
         )
         self.assertEqual(captured_requests[0].actor, captured_requests[0].context.actor)
 
+    def test_answer_route_rejects_unsupported_actor_context_fields_in_trusted_worker_context(self) -> None:
+        app = create_app(
+            settings=ApiSettings(
+                auth_mode="trusted-worker",
+                worker_shared_secret="worker-secret",
+                default_actor_roles=("runtime",),
+            )
+        )
+
+        response = app.handle(
+            "POST",
+            "/api/v1/answer",
+            headers={
+                "x-worker-origin-auth": "worker-secret",
+            },
+            json_body={
+                "user_goal": "保研政策怎么准备？",
+                "requested_scope": {
+                    "corpus": "regulations",
+                    "collection": "student_handbook",
+                },
+                "context": {
+                    "actor": {
+                        "user_id": "student@example.edu",
+                        "principal_id": "principal-001",
+                        "principal_type": "student",
+                        "roles": ["student"],
+                        "groups": ["students", "library"],
+                        "campus_scope": "north",
+                    },
+                    "authorization": {
+                        "principal_id": "principal-001",
+                        "entitlement_groups": ["students", "library"],
+                        "visibility_scope": "north",
+                        "retrieval_filter": {
+                            "entitlement_groups": ["students", "library"],
+                            "visibility_level": "public",
+                            "visibility_scope": "north",
+                            "policy_projection_version": "phase1-authorization-projection-v1",
+                        },
+                    },
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json_body["error"]["code"], "invalid_request")
+        self.assertIn("unsupported actor context fields", response.json_body["error"]["message"])
+
+    def test_answer_route_rejects_unsupported_retrieval_filter_fields_in_trusted_worker_context(self) -> None:
+        app = create_app(
+            settings=ApiSettings(
+                auth_mode="trusted-worker",
+                worker_shared_secret="worker-secret",
+                default_actor_roles=("runtime",),
+            )
+        )
+
+        response = app.handle(
+            "POST",
+            "/api/v1/answer",
+            headers={
+                "x-worker-origin-auth": "worker-secret",
+            },
+            json_body={
+                "user_goal": "保研政策怎么准备？",
+                "requested_scope": {
+                    "corpus": "regulations",
+                    "collection": "student_handbook",
+                },
+                "context": {
+                    "actor": {
+                        "user_id": "student@example.edu",
+                        "principal_id": "principal-001",
+                        "principal_type": "student",
+                        "roles": ["student"],
+                    },
+                    "authorization": {
+                        "principal_id": "principal-001",
+                        "entitlement_groups": ["students", "library"],
+                        "visibility_scope": "north",
+                        "retrieval_filter": {
+                            "entitlement_groups": ["students", "library"],
+                            "visibility_level": "public",
+                            "acl_groups": ["students", "library"],
+                            "visibility_scope": "north",
+                            "campus_scope": "north",
+                            "policy_projection_version": "phase1-authorization-projection-v1",
+                        },
+                    },
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json_body["error"]["code"], "invalid_request")
+        self.assertIn("unsupported retrieval filter fields", response.json_body["error"]["message"])
+
     def test_answer_route_rejects_trusted_worker_actor_projection_that_conflicts_with_context_actor(
         self,
     ) -> None:
@@ -876,9 +954,7 @@ class SupervisorApiTest(unittest.TestCase):
                         "retrieval_filter": {
                             "entitlement_groups": [],
                             "visibility_level": "public",
-                            "acl_groups": [],
                             "visibility_scope": "north",
-                            "campus_scope": "north",
                             "policy_projection_version": "phase1-authorization-projection-v1",
                         }
                     },
@@ -1032,9 +1108,7 @@ class SupervisorApiTest(unittest.TestCase):
             "API_WORKER_SHARED_SECRET": "worker-secret",
             "API_DEFAULT_ACTOR_ID": "runtime-bearer-user",
             "AGENT_RUNTIME_PROVIDER": "agent-os",
-            "API_DEFAULT_ACTOR_GROUPS": "students,library",
             "API_DEFAULT_ACTOR_ROLES": "student",
-            "API_DEFAULT_CAMPUS_SCOPE": "north",
             "AGNO_SUPERVISOR_MODEL": "gpt-supervisor",
             "AGNO_SPECIALIST_MODEL": "gpt-specialist",
             "AUDIT_LOG_PATH": "./var/log/custom-audit.log",
@@ -1049,9 +1123,7 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(settings.worker_shared_secret, "worker-secret")
         self.assertEqual(settings.default_actor_id, "runtime-bearer-user")
         self.assertEqual(settings.runtime_provider, "agent-os")
-        self.assertEqual(settings.default_actor_groups, ("students", "library"))
         self.assertEqual(settings.default_actor_roles, ("student",))
-        self.assertEqual(settings.default_campus_scope, "north")
         self.assertEqual(settings.agno_supervisor_model, "gpt-supervisor")
         self.assertEqual(settings.agno_specialist_model, "gpt-specialist")
         self.assertEqual(str(settings.audit_log_path), "var/log/custom-audit.log")

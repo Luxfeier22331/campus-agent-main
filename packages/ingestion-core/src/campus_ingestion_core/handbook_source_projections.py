@@ -188,7 +188,7 @@ def build_handbook_projection_import_documents(
                 is_current=False,
                 corpus=projection.target_corpus,
                 collection=projection.target_collection,
-                campus_scope=manifest_document.resolved_visibility_scope(),
+                visibility_scope=manifest_document.resolved_visibility_scope(),
                 status=manifest_document.status,
                 raw_path=None,
                 raw_source_uri=raw_asset_record.raw_source_uri,

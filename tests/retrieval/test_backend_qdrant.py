@@ -154,7 +154,7 @@ def _make_registry_record(
     *,
     document_id: str,
     version_id: str,
-    acl_groups: tuple[str, ...],
+    entitlement_groups: tuple[str, ...],
     revision_track: str = "source-faithful",
     is_current: bool = True,
     status: str = "active",
@@ -167,7 +167,7 @@ def _make_registry_record(
         content_hash=f"sha256:{document_id}",
         corpus="regulations",
         collection="student_handbook",
-        entitlement_groups=acl_groups,
+        entitlement_groups=entitlement_groups,
         visibility_scope=None,
         status=status,
         ingestion_timestamp="2026-03-22T10:00:00+00:00",
@@ -191,41 +191,41 @@ def _make_structured_jsonl(*, document_id: str, version_id: str, text: str) -> b
     return (
         f'{{"doc_id":"{document_id}","version_id":"{version_id}","chunk_id":"legacy-{document_id}",'
         f'"clean_text":{text!r},"anchor":{{"section_path":["Student Handbook","Library"],"page_start":5,"page_end":5}},'
-        f'"acl":{{"level":"public","allow_groups":[]}}}}'
+        f'"visibility_level":"public","entitlement_groups":[]}}'
         .replace("'", '"')
         .encode("utf-8")
     )
 
 
-def _make_structured_jsonl_with_acl(
+def _make_structured_jsonl_with_visibility_level(
     *,
     document_id: str,
     version_id: str,
     text: str,
-    acl_level: str = "public",
+    visibility_level: str = "public",
 ) -> bytes:
     return (
         f'{{"doc_id":"{document_id}","version_id":"{version_id}","chunk_id":"legacy-{document_id}",'
         f'"clean_text":{text!r},"anchor":{{"section_path":["Student Handbook","Library"],"page_start":5,"page_end":5}},'
-        f'"acl":{{"level":"{acl_level}","allow_groups":[]}}}}'
+        f'"visibility_level":"{visibility_level}","entitlement_groups":[]}}'
         .replace("'", '"')
         .encode("utf-8")
     )
 
 
-def _make_structured_jsonl_with_acl_groups(
+def _make_structured_jsonl_with_entitlement_groups(
     *,
     document_id: str,
     version_id: str,
     text: str,
-    acl_level: str = "public",
-    acl_groups: tuple[str, ...],
+    visibility_level: str = "public",
+    entitlement_groups: tuple[str, ...],
 ) -> bytes:
-    allow_groups = ",".join(f'"{group}"' for group in acl_groups)
+    serialized_groups = ",".join(f'"{group}"' for group in entitlement_groups)
     return (
         f'{{"doc_id":"{document_id}","version_id":"{version_id}","chunk_id":"legacy-{document_id}",'
         f'"clean_text":{text!r},"anchor":{{"section_path":["Student Handbook","Library"],"page_start":5,"page_end":5}},'
-        f'"acl":{{"level":"{acl_level}","allow_groups":[{allow_groups}]}}}}'
+        f'"visibility_level":"{visibility_level}","entitlement_groups":[{serialized_groups}]}}'
         .replace("'", '"')
         .encode("utf-8")
     )
@@ -254,7 +254,7 @@ def _collect_qdrant_filter_keys(filter_node: object) -> list[str]:
 
 
 class BackendQdrantTest(unittest.TestCase):
-    def test_build_metadata_filters_treats_public_acl_as_public_level(self) -> None:
+    def test_build_metadata_filters_treats_public_visibility_as_public_level(self) -> None:
         filters = _build_metadata_filters(
             RetrievalRequest(
                 query_text="library hours",
@@ -279,15 +279,15 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertEqual(filters.filters[2].value, ["current-effective", "source-faithful"])
         self.assertEqual(filters.filters[3].key, "status")
         self.assertEqual(filters.filters[3].value, "active")
-        acl_filter = filters.filters[4]
-        self.assertEqual(acl_filter.condition.value, "or")
-        auth_keys = _collect_filter_keys(acl_filter)
+        authz_filter = filters.filters[4]
+        self.assertEqual(authz_filter.condition.value, "or")
+        auth_keys = _collect_filter_keys(authz_filter)
         self.assertIn("visibility_level", auth_keys)
         self.assertIn("entitlement_groups", auth_keys)
         self.assertNotIn("acl_level", auth_keys)
         self.assertNotIn("acl_groups", auth_keys)
 
-    def test_build_metadata_filters_ignore_personalization_hint_for_acl_and_serving_scope(self) -> None:
+    def test_build_metadata_filters_ignore_personalization_hint_for_authz_and_serving_scope(self) -> None:
         filters = _build_metadata_filters(
             RetrievalRequest(
                 query_text="保研流程",
@@ -312,13 +312,13 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertEqual(filters.filters[1].key, "collection")
         self.assertEqual(filters.filters[2].key, "revision_track")
         self.assertEqual(filters.filters[3].key, "status")
-        acl_filter = filters.filters[4]
-        self.assertEqual(acl_filter.condition.value, "or")
-        auth_keys = _collect_filter_keys(acl_filter)
+        authz_filter = filters.filters[4]
+        self.assertEqual(authz_filter.condition.value, "or")
+        auth_keys = _collect_filter_keys(authz_filter)
         self.assertIn("visibility_level", auth_keys)
         self.assertIn("entitlement_groups", auth_keys)
 
-    def test_build_metadata_filters_prefers_authorized_filter_over_legacy_fields(self) -> None:
+    def test_build_metadata_filters_prefers_authorized_filter_fields(self) -> None:
         filters = _build_metadata_filters(
             RetrievalRequest(
                 query_text="library hours",
@@ -333,13 +333,13 @@ class BackendQdrantTest(unittest.TestCase):
             )
         )
 
-        acl_filter = filters.filters[4]
-        auth_keys = _collect_filter_keys(acl_filter)
+        authz_filter = filters.filters[4]
+        auth_keys = _collect_filter_keys(authz_filter)
         self.assertIn("entitlement_groups", auth_keys)
         self.assertIn("visibility_scope", auth_keys)
         self.assertNotIn("campus_scope", auth_keys)
 
-    def test_build_metadata_filters_uses_projection_payload_keys_before_legacy_carriers(self) -> None:
+    def test_build_metadata_filters_uses_projection_payload_keys(self) -> None:
         filters = _build_metadata_filters(
             RetrievalRequest(
                 query_text="保研流程",
@@ -377,8 +377,8 @@ class BackendQdrantTest(unittest.TestCase):
             )
         )
 
-        acl_filter = filters.filters[4]
-        auth_keys = _collect_filter_keys(acl_filter)
+        authz_filter = filters.filters[4]
+        auth_keys = _collect_filter_keys(authz_filter)
         self.assertIn("visibility_level", auth_keys)
         self.assertNotIn("acl_level", auth_keys)
         self.assertNotIn("entitlement_groups", auth_keys)
@@ -413,7 +413,7 @@ class BackendQdrantTest(unittest.TestCase):
             _make_registry_record(
                 document_id="handbook:north-campus",
                 version_id="v1:north-campus",
-                acl_groups=("students",),
+                entitlement_groups=("students",),
             ),
             visibility_scope="north",
         )
@@ -422,11 +422,11 @@ class BackendQdrantTest(unittest.TestCase):
         embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
         restricted_chunks = build_indexable_chunks_from_jsonl(
             record=restricted,
-            structured_jsonl_bytes=_make_structured_jsonl_with_acl_groups(
+            structured_jsonl_bytes=_make_structured_jsonl_with_entitlement_groups(
                 document_id=restricted.document_id,
                 version_id=restricted.version_id,
                 text="North campus student office hours are restricted.",
-                acl_groups=("students",),
+                entitlement_groups=("students",),
             ),
             chunk_profile=ChunkProfile(chunk_size=128, chunk_overlap=16),
             embedding_model=embedding_model,
@@ -470,7 +470,7 @@ class BackendQdrantTest(unittest.TestCase):
             _make_registry_record(
                 document_id="handbook:restricted-notice",
                 version_id="v1:restricted-notice",
-                acl_groups=("students",),
+                entitlement_groups=("students",),
             ),
             visibility_level="restricted",
         )
@@ -656,7 +656,7 @@ class BackendQdrantTest(unittest.TestCase):
         record = _make_registry_record(
             document_id="handbook:test-001",
             version_id="v1:test-001",
-            acl_groups=("students",),
+            entitlement_groups=("students",),
         )
         embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
         chunks = build_indexable_chunks_from_jsonl(
@@ -685,7 +685,7 @@ class BackendQdrantTest(unittest.TestCase):
         record = _make_registry_record(
             document_id="handbook:test-remote",
             version_id="v1:test-remote",
-            acl_groups=("students",),
+            entitlement_groups=("students",),
         )
         embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
         chunks = build_indexable_chunks_from_jsonl(
@@ -693,7 +693,7 @@ class BackendQdrantTest(unittest.TestCase):
             structured_jsonl_bytes=_make_structured_jsonl(
                 document_id=record.document_id,
                 version_id=record.version_id,
-                text="Remote qdrant indexing should create acl_level payload indexes.",
+                text="Remote qdrant indexing should create visibility payload indexes.",
             ),
             chunk_profile=ChunkProfile(chunk_size=128, chunk_overlap=16),
             embedding_model=embedding_model,
@@ -1099,7 +1099,7 @@ class BackendQdrantTest(unittest.TestCase):
         record = _make_registry_record(
             document_id="handbook:test-001",
             version_id="v1:test-001",
-            acl_groups=("students",),
+            entitlement_groups=("students",),
         )
         registry.upsert(record)
 
@@ -1162,7 +1162,7 @@ class BackendQdrantTest(unittest.TestCase):
         record = _make_registry_record(
             document_id="handbook:hybrid-winner",
             version_id="v1:hybrid-winner",
-            acl_groups=("students",),
+            entitlement_groups=("students",),
         )
         registry.upsert(record)
 
@@ -1193,7 +1193,7 @@ class BackendQdrantTest(unittest.TestCase):
                                     "version_id": record.version_id,
                                     "chunk_id": "chunk-hybrid-001",
                                     "anchor": {"page_start": 3, "page_end": 3},
-                                    "acl_level": "public",
+                                    "visibility_level": "public",
                                     "source_channel": "pdf_ocr",
                                     "collection": "student_handbook",
                                     "is_current": False,
@@ -1236,7 +1236,7 @@ class BackendQdrantTest(unittest.TestCase):
         record = _make_registry_record(
             document_id="handbook:test-skip",
             version_id="v1:test-skip",
-            acl_groups=("students",),
+            entitlement_groups=("students",),
         )
         registry.upsert(record)
 
@@ -1305,7 +1305,7 @@ class BackendQdrantTest(unittest.TestCase):
         record = _make_registry_record(
             document_id="handbook:payload-complete",
             version_id="v1:payload-complete",
-            acl_groups=("students",),
+            entitlement_groups=("students",),
             is_current=True,
         )
         registry.upsert(record)
@@ -1337,7 +1337,7 @@ class BackendQdrantTest(unittest.TestCase):
                                     "version_id": "v1:payload-complete",
                                     "chunk_id": "chunk-payload-001",
                                     "anchor": {"page_start": 5, "page_end": 5},
-                                    "acl_level": "public",
+                                    "visibility_level": "public",
                                     "source_channel": "pdf_ocr",
                                     "collection": "student_handbook",
                                     "is_current": True,
@@ -1367,17 +1367,17 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertEqual(source.canonical_url, "https://payload.example/should-not-win")
         self.assertEqual(source.latest_url, "https://payload.example/should-not-win")
 
-    def test_backend_applies_acl_filter_before_returning_sources(self) -> None:
+    def test_backend_applies_authz_filter_before_returning_sources(self) -> None:
         registry = InMemoryDocumentRegistry()
         allowed = _make_registry_record(
             document_id="handbook:students",
             version_id="v1:students",
-            acl_groups=("students",),
+            entitlement_groups=("students",),
         )
         blocked = _make_registry_record(
             document_id="handbook:staff",
             version_id="v1:staff",
-            acl_groups=("staff",),
+            entitlement_groups=("staff",),
         )
         registry.upsert(allowed)
         registry.upsert(blocked)
@@ -1395,7 +1395,7 @@ class BackendQdrantTest(unittest.TestCase):
         )
         blocked_chunks = build_indexable_chunks_from_jsonl(
             record=blocked,
-            structured_jsonl_bytes=_make_structured_jsonl_with_acl(
+            structured_jsonl_bytes=_make_structured_jsonl_with_visibility_level(
                 document_id=blocked.document_id,
                 version_id=blocked.version_id,
                 text="Staff office hours are private.",
@@ -1433,23 +1433,23 @@ class BackendQdrantTest(unittest.TestCase):
 
         self.assertEqual([source.doc_id for source in result.sources], ["handbook:students"])
 
-    def test_backend_fail_closes_when_document_has_acl_groups_even_if_structured_acl_level_is_public(self) -> None:
+    def test_backend_fail_closes_when_document_has_entitlement_groups_even_if_structured_visibility_is_public(self) -> None:
         registry = InMemoryDocumentRegistry()
         restricted = _make_registry_record(
             document_id="handbook:staff-only",
             version_id="v1:staff-only",
-            acl_groups=("staff",),
+            entitlement_groups=("staff",),
         )
         registry.upsert(restricted)
 
         embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
         restricted_chunks = build_indexable_chunks_from_jsonl(
             record=restricted,
-            structured_jsonl_bytes=_make_structured_jsonl_with_acl_groups(
+            structured_jsonl_bytes=_make_structured_jsonl_with_entitlement_groups(
                 document_id=restricted.document_id,
                 version_id=restricted.version_id,
                 text="Staff office hours are private.",
-                acl_groups=("staff",),
+                entitlement_groups=("staff",),
             ),
             chunk_profile=ChunkProfile(chunk_size=128, chunk_overlap=16),
             embedding_model=embedding_model,
@@ -1544,7 +1544,7 @@ class BackendQdrantTest(unittest.TestCase):
                                     "version_id": "v1:nohit-a",
                                     "chunk_id": "chunk-nohit-001",
                                     "anchor": {"page_start": 1, "page_end": 1},
-                                    "acl_level": "public",
+                                    "visibility_level": "public",
                                     "source_channel": "pdf_ocr",
                                     "collection": "student_handbook",
                                     "is_current": True,
@@ -1567,7 +1567,7 @@ class BackendQdrantTest(unittest.TestCase):
                                     "version_id": "v1:nohit-b",
                                     "chunk_id": "chunk-nohit-002",
                                     "anchor": {"page_start": 2, "page_end": 2},
-                                    "acl_level": "public",
+                                    "visibility_level": "public",
                                     "source_channel": "pdf_ocr",
                                     "collection": "student_handbook",
                                     "is_current": True,
@@ -1856,7 +1856,7 @@ class BackendQdrantTest(unittest.TestCase):
                             "chunk_id": "curriculum:民族学本科第二学士学位人才培养方案:chunk-0001",
                             "corpus": "curriculum",
                             "collection": "curriculum_plan",
-                            "acl_level": "public",
+                            "visibility_level": "public",
                             "status": "active",
                             "source_uri": "https://campus.example/curriculum/ethnology-second-degree",
                             "canonical_url": "https://campus.example/curriculum/ethnology-second-degree",
@@ -1882,7 +1882,7 @@ class BackendQdrantTest(unittest.TestCase):
                             "chunk_id": "curriculum:民族学本科第二学士学位人才培养方案:chunk-0005",
                             "corpus": "curriculum",
                             "collection": "curriculum_plan",
-                            "acl_level": "public",
+                            "visibility_level": "public",
                             "status": "active",
                             "source_uri": "https://campus.example/curriculum/ethnology-second-degree",
                             "canonical_url": "https://campus.example/curriculum/ethnology-second-degree",
@@ -2093,7 +2093,7 @@ class BackendQdrantTest(unittest.TestCase):
                         "version_id": "v1:student-card",
                         "chunk_id": "student-card-procedure",
                         "collection": "student_handbook",
-                        "acl_level": "public",
+                        "visibility_level": "public",
                         "canonical_url": "https://campus.example/handbook/student-card",
                         "latest_url": "https://campus.example/handbook/student-card",
                         "source_channel": "pdf_ocr",
@@ -2141,7 +2141,7 @@ class BackendQdrantTest(unittest.TestCase):
                                 "chunk_id": "curriculum:民族学本科第二学士学位人才培养方案:chunk-0001",
                                 "corpus": "curriculum",
                                 "collection": "curriculum_plan",
-                                "acl_level": "public",
+                                "visibility_level": "public",
                                 "status": "active",
                                 "source_uri": "https://campus.example/curriculum/ethnology-second-degree",
                                 "canonical_url": "https://campus.example/curriculum/ethnology-second-degree",
@@ -2163,7 +2163,7 @@ class BackendQdrantTest(unittest.TestCase):
                                 "chunk_id": "curriculum:教育学本科第二学士学位人才培养方案:chunk-0005",
                                 "corpus": "curriculum",
                                 "collection": "curriculum_plan",
-                                "acl_level": "public",
+                                "visibility_level": "public",
                                 "status": "active",
                                 "source_uri": "https://campus.example/curriculum/education-second-degree",
                                 "canonical_url": "https://campus.example/curriculum/education-second-degree",
@@ -2189,7 +2189,7 @@ class BackendQdrantTest(unittest.TestCase):
                                 "chunk_id": "curriculum:民族学本科第二学士学位人才培养方案:chunk-0001",
                                 "corpus": "curriculum",
                                 "collection": "curriculum_plan",
-                                "acl_level": "public",
+                                "visibility_level": "public",
                                 "status": "active",
                                 "source_uri": "https://campus.example/curriculum/ethnology-second-degree",
                                 "canonical_url": "https://campus.example/curriculum/ethnology-second-degree",
@@ -2211,7 +2211,7 @@ class BackendQdrantTest(unittest.TestCase):
                                 "chunk_id": "curriculum:民族学本科第二学士学位人才培养方案:chunk-0005",
                                 "corpus": "curriculum",
                                 "collection": "curriculum_plan",
-                                "acl_level": "public",
+                                "visibility_level": "public",
                                 "status": "active",
                                 "source_uri": "https://campus.example/curriculum/ethnology-second-degree",
                                 "canonical_url": "https://campus.example/curriculum/ethnology-second-degree",
@@ -2440,7 +2440,7 @@ class BackendQdrantTest(unittest.TestCase):
         record = _make_registry_record(
             document_id="handbook:error-case",
             version_id="v1:error-case",
-            acl_groups=("students",),
+            entitlement_groups=("students",),
         )
         registry.upsert(record)
         backend = QdrantRetrievalBackend(

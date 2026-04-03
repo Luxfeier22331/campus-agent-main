@@ -377,6 +377,7 @@ def _parse_actor_context(raw_actor: object, *, field_prefix: str) -> ActorContex
         return ActorContext()
     if not isinstance(raw_actor, dict):
         raise ValueError(f"{field_prefix} must be an object")
+    _assert_supported_actor_context_fields(raw_actor, field_prefix=field_prefix)
     return ActorContext(
         user_id=_parse_optional_string(raw_actor.get("user_id")) or "",
         principal_id=_parse_optional_string(raw_actor.get("principal_id")) or "",
@@ -441,6 +442,7 @@ def _parse_authorized_retrieval_filter(
         return AuthorizedRetrievalFilter()
     if not isinstance(raw_filter, dict):
         raise ValueError("context.authorization.retrieval_filter must be an object")
+    _assert_supported_retrieval_filter_fields(raw_filter)
 
     return AuthorizedRetrievalFilter(
         entitlement_groups=_parse_string_tuple(
@@ -464,3 +466,49 @@ def _default_authorization_projection(actor: ActorContext) -> AuthorizationProje
             visibility_scope=None,
         ),
     )
+
+
+def _assert_supported_actor_context_fields(raw_actor: dict[str, object], *, field_prefix: str) -> None:
+    supported_fields = (
+        "user_id",
+        "principal_id",
+        "principal_type",
+        "roles",
+        "departments",
+        "cohort",
+        "major",
+        "program",
+    )
+    unsupported_fields = tuple(
+        field_name
+        for field_name in raw_actor
+        if field_name not in supported_fields
+    )
+    if unsupported_fields:
+        joined = ", ".join(
+            f"{field_prefix}.{field_name}"
+            for field_name in unsupported_fields
+        )
+        raise ValueError(f"unsupported actor context fields are not allowed: {joined}")
+
+
+def _assert_supported_retrieval_filter_fields(raw_filter: dict[str, object]) -> None:
+    supported_fields = (
+        "entitlement_groups",
+        "visibility_level",
+        "visibility_scope",
+        "policy_projection_version",
+    )
+    unsupported_fields = tuple(
+        field_name
+        for field_name in raw_filter
+        if field_name not in supported_fields
+    )
+    if unsupported_fields:
+        joined = ", ".join(
+            f"context.authorization.retrieval_filter.{field_name}"
+            for field_name in unsupported_fields
+        )
+        raise ValueError(
+            f"unsupported retrieval filter fields are not allowed: {joined}"
+        )

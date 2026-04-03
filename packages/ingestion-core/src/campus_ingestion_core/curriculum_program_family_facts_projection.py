@@ -104,7 +104,7 @@ def build_curriculum_program_family_facts_scope_refresh_documents(
                 is_current=False,
                 corpus=corpus,
                 collection=collection,
-                campus_scope=_resolved_visibility_scope(member_documents),
+                visibility_scope=_resolved_visibility_scope(member_documents),
                 status="active",
                 raw_path=None,
                 raw_source_uri=raw_asset_record.raw_source_uri,

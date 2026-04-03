@@ -69,9 +69,7 @@ export API_DEFAULT_ACTOR_ID=local-dev-bearer-user
 推荐本地 bearer compatibility 默认值：
 
 ```bash
-export API_DEFAULT_ACTOR_GROUPS=students
 export API_DEFAULT_ACTOR_ROLES=student
-export API_DEFAULT_CAMPUS_SCOPE=main
 ```
 
 `ApiSettings.from_env()` 本身只读取当前进程环境；`campus-supervisor-api-dev` 这个 repo-shipped 本地入口会先 bootstrap 当前 worktree `.env`，必要时回退根 worktree `.env`，然后再读取 `AGNO_SUPERVISOR_MODEL`、`AGNO_SPECIALIST_MODEL`、object store access 与 retrieval backend settings。

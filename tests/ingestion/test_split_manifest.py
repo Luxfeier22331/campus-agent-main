@@ -156,7 +156,7 @@ class SplitManifestTest(unittest.TestCase):
                 "official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl"
             ),
             layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
-            default_campus_scope="main",
+            default_visibility_scope="main",
             corpus="curriculum",
             collection="curriculum_plan",
         )
@@ -169,7 +169,7 @@ class SplitManifestTest(unittest.TestCase):
                 "official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl"
             ),
             layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
-            default_campus_scope="main",
+            default_visibility_scope="main",
             corpus="curriculum",
             collection="curriculum_plan",
         )
@@ -256,7 +256,7 @@ class SplitManifestTest(unittest.TestCase):
                 "official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl"
             ),
             layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
-            default_campus_scope="main",
+            default_visibility_scope="main",
             corpus="curriculum",
             collection="curriculum_plan",
         )
@@ -338,7 +338,7 @@ class SplitManifestTest(unittest.TestCase):
                 "official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl"
             ),
             layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
-            default_campus_scope="main",
+            default_visibility_scope="main",
             corpus="curriculum",
             collection="curriculum_plan",
         )
@@ -402,7 +402,7 @@ class SplitManifestTest(unittest.TestCase):
             self.assertEqual(manifest.documents[1].visibility_scope, "main")
             self.assertIsNone(manifest.documents[0].source_uri)
 
-    def test_load_split_manifest_accepts_new_authorization_projection_fields(self) -> None:
+    def test_load_split_manifest_rejects_unsupported_authorization_projection_keys(self) -> None:
         with TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "split-manifest.v1.json"
             path.write_text(
@@ -432,21 +432,12 @@ class SplitManifestTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            manifest = load_split_manifest(
-                path,
-                expected_corpus="curriculum",
-                expected_collection="curriculum_plan",
-            )
-
-            self.assertEqual(manifest.documents[0].entitlement_groups, ("students",))
-            self.assertEqual(manifest.documents[0].visibility_scope, "main")
-            self.assertEqual(manifest.documents[0].visibility_level, "restricted")
-            self.assertEqual(
-                manifest.documents[0].resolved_entitlement_groups(),
-                ("students",),
-            )
-            self.assertEqual(manifest.documents[0].resolved_visibility_scope(), "main")
-            self.assertEqual(manifest.documents[0].resolved_visibility_level(), "restricted")
+            with self.assertRaisesRegex(ValueError, "unsupported authorization projection keys"):
+                load_split_manifest(
+                    path,
+                    expected_corpus="curriculum",
+                    expected_collection="curriculum_plan",
+                )
 
     def test_load_split_manifest_requires_handbook_section_for_student_handbook(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -552,7 +543,7 @@ class SplitManifestTest(unittest.TestCase):
                 "official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl"
             ),
             layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
-            default_campus_scope="fallback-campus",
+            default_visibility_scope="fallback-campus",
             corpus="curriculum",
             collection="curriculum_plan",
         )
@@ -564,7 +555,7 @@ class SplitManifestTest(unittest.TestCase):
             document_input.metadata["policy_projection_version"],
             "phase1-authorization-projection-v1",
         )
-        self.assertEqual(document_input.campus_scope, "main")
+        self.assertEqual(document_input.visibility_scope, "main")
 
 
 if __name__ == "__main__":

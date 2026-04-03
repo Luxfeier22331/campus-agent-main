@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 from dataclasses import dataclass
 import hashlib
 import json
@@ -86,7 +87,7 @@ class RawIngestionRequest:
     artifact_mode: str = DEFAULT_RAW_INGESTION_ARTIFACT_MODE
     split_manifest_path: Path | None = None
     report_dir: Path = Path("./var/import-reports")
-    default_campus_scope: str | None = None
+    default_visibility_scope: str | None = None
 
     def __post_init__(self) -> None:
         if not self.raw_asset_id:
@@ -212,7 +213,7 @@ class RawIngestionProcessSettings:
     parser_version: str
     embedding_model: str
     cleaning_policy_version: str
-    default_campus_scope: str | None
+    default_visibility_scope: str | None
     online_ocr: OnlineOcrSettings
     object_store: ObjectStoreSettings
 
@@ -252,7 +253,7 @@ class RawIngestionProcessSettings:
             parser_version=DEFAULT_RAW_ONLINE_OCR_PARSER_VERSION,
             embedding_model=(source.get("INGESTION_EMBEDDING_MODEL") or source.get("EMBEDDING_MODEL") or "").strip(),
             cleaning_policy_version=profile.cleaning_policy_version,
-            default_campus_scope=request.default_campus_scope,
+            default_visibility_scope=request.default_visibility_scope,
             online_ocr=online_ocr,
             object_store=ObjectStoreSettings.from_env(source),
         )
@@ -322,7 +323,7 @@ def process_raw_ingestion_job(
                 split_manifest=split_manifest,
                 writer=writer,
                 object_store=settings.object_store,
-                default_campus_scope=settings.default_campus_scope,
+                default_visibility_scope=settings.default_visibility_scope,
                 corpus=settings.corpus,
                 collection=settings.collection,
                 ocr_model=settings.online_ocr.model,
@@ -338,7 +339,7 @@ def process_raw_ingestion_job(
                     split_manifest=split_manifest,
                     writer=writer,
                     object_store=settings.object_store,
-                    default_campus_scope=settings.default_campus_scope,
+                    default_visibility_scope=settings.default_visibility_scope,
                     corpus=settings.corpus,
                     collection=settings.collection,
                     ocr_model=settings.online_ocr.model,
@@ -356,7 +357,7 @@ def process_raw_ingestion_job(
         parser_version=settings.parser_version,
         embedding_model=settings.embedding_model,
         cleaning_policy_version=settings.cleaning_policy_version,
-        default_campus_scope=settings.default_campus_scope,
+        default_visibility_scope=settings.default_visibility_scope,
         import_mode="raw_ingestion",
         report_dir=settings.report_dir,
         report_prefix="process-raw-ingestion-job",
@@ -458,7 +459,7 @@ def _build_split_manifest_documents(
     split_manifest: SplitManifest,
     writer: ObjectStoreWriter,
     object_store: ObjectStoreSettings,
-    default_campus_scope: str | None,
+    default_visibility_scope: str | None,
     corpus: str,
     collection: str,
     ocr_model: str,
@@ -501,7 +502,7 @@ def _build_split_manifest_documents(
             structured_rows=structured_rows,
             provider_response_key=provider_response_key,
             layout_elements_key=layout_elements_key,
-            default_campus_scope=default_campus_scope,
+            default_visibility_scope=default_visibility_scope,
             corpus=corpus,
             collection=collection,
         )
@@ -517,7 +518,7 @@ def _build_handbook_split_manifest_documents(
     split_manifest: SplitManifest,
     writer: ObjectStoreWriter,
     object_store: ObjectStoreSettings,
-    default_campus_scope: str | None,
+    default_visibility_scope: str | None,
     corpus: str,
     collection: str,
     ocr_model: str,
@@ -552,7 +553,7 @@ def _build_handbook_split_manifest_documents(
                     structured_rows=structured_rows,
                     provider_response_key=provider_response_key,
                     layout_elements_key=layout_elements_key,
-                    default_campus_scope=default_campus_scope,
+                    default_visibility_scope=default_visibility_scope,
                     corpus=corpus,
                     collection=collection,
                 )
@@ -650,7 +651,7 @@ def _build_handbook_manifest_document_input(
     structured_rows: list[dict[str, object]],
     provider_response_key: str,
     layout_elements_key: str,
-    default_campus_scope: str | None,
+    default_visibility_scope: str | None,
     corpus: str,
     collection: str,
 ) -> DocumentImportInput:
@@ -671,7 +672,7 @@ def _build_handbook_manifest_document_input(
     apply_authorization_projection_metadata(
         metadata,
         entitlement_groups=manifest_document.resolved_entitlement_groups(),
-        visibility_scope=manifest_document.resolved_visibility_scope(default_campus_scope),
+        visibility_scope=manifest_document.resolved_visibility_scope(default_visibility_scope),
         visibility_level=manifest_document.resolved_visibility_level(),
     )
     metadata["status"] = manifest_document.status
@@ -687,7 +688,7 @@ def _build_handbook_manifest_document_input(
         is_current=True,
         corpus=corpus,
         collection=collection,
-        campus_scope=manifest_document.resolved_visibility_scope(default_campus_scope),
+        visibility_scope=manifest_document.resolved_visibility_scope(default_visibility_scope),
         status=manifest_document.status,
         raw_path=None,
         raw_source_uri=raw_asset_record.raw_source_uri,
@@ -707,7 +708,7 @@ def _build_split_manifest_document_input(
     structured_rows: list[dict[str, object]],
     provider_response_key: str,
     layout_elements_key: str,
-    default_campus_scope: str | None,
+    default_visibility_scope: str | None,
     corpus: str,
     collection: str,
 ) -> DocumentImportInput:
@@ -737,7 +738,7 @@ def _build_split_manifest_document_input(
     apply_authorization_projection_metadata(
         metadata,
         entitlement_groups=manifest_document.resolved_entitlement_groups(),
-        visibility_scope=manifest_document.resolved_visibility_scope(default_campus_scope),
+        visibility_scope=manifest_document.resolved_visibility_scope(default_visibility_scope),
         visibility_level=manifest_document.resolved_visibility_level(),
     )
     metadata["status"] = manifest_document.status
@@ -753,7 +754,7 @@ def _build_split_manifest_document_input(
         is_current=True,
         corpus=corpus,
         collection=collection,
-        campus_scope=manifest_document.resolved_visibility_scope(default_campus_scope),
+        visibility_scope=manifest_document.resolved_visibility_scope(default_visibility_scope),
         status=manifest_document.status,
         raw_path=None,
         raw_source_uri=raw_asset_record.raw_source_uri,
@@ -899,7 +900,7 @@ def _slice_structured_rows_for_manifest_document(
                 version_id=version_id,
                 source_pdf=source_pdf,
                 source_uri=source_uri,
-                acl_groups=manifest_document.resolved_entitlement_groups(),
+                entitlement_groups=manifest_document.resolved_entitlement_groups(),
             ),
         )
         if transformed is not None
@@ -919,7 +920,7 @@ def _transform_split_row(
     version_id: str,
     source_pdf: str,
     source_uri: str,
-    acl_groups: tuple[str, ...],
+    entitlement_groups: tuple[str, ...],
 ) -> dict[str, object] | None:
     page_start = int(row["page_start"])
     page_end = int(row["page_end"])
@@ -954,10 +955,10 @@ def _transform_split_row(
         "source": {"id": source_uri},
         "page_start": page_start,
         "page_end": page_end,
-        "acl": {
-            "level": "restricted" if acl_groups else "public",
-            "allow_groups": list(acl_groups),
-        },
+        "entitlement_groups": list(entitlement_groups),
+        "visibility_scope": None,
+        "visibility_level": "restricted" if entitlement_groups else "public",
+        "policy_projection_version": DEFAULT_POLICY_PROJECTION_VERSION,
     }
 
 

@@ -18,7 +18,7 @@ class DerivedStructuredUnit:
     source_chunk_id: str | None
     text: str
     anchor: dict[str, object]
-    acl_level: str
+    visibility_level: str
     metadata: dict[str, object] = field(default_factory=dict)
 
 
@@ -304,7 +304,7 @@ def _build_section_unit(
             "heading_level": heading_level,
             "section_hint": section_hint,
         },
-        acl_level=_normalize_acl_level(narrative_rows[0].get("acl")),
+        visibility_level=_resolve_row_visibility_level(narrative_rows[0]),
         metadata={
             "source_row_ids": [_row_id(row) for row in narrative_rows],
             "source_row_types": [str(row.get("row_type") or "") for row in narrative_rows],
@@ -368,7 +368,7 @@ def _build_table_unit(
             "section_path": list(section_path),
             "table_group_id": root_unit_id,
         },
-        acl_level=_normalize_acl_level(table_rows[0].get("acl")) if table_rows else "public",
+        visibility_level=_resolve_row_visibility_level(table_rows[0]) if table_rows else "public",
         metadata={
             "caption_lines": caption_lines,
             "note_lines": note_lines,
@@ -479,7 +479,7 @@ def _replace_derived_unit_text(unit: DerivedStructuredUnit, text: str) -> Derive
         source_chunk_id=unit.source_chunk_id,
         text=text.strip(),
         anchor=dict(unit.anchor),
-        acl_level=unit.acl_level,
+        visibility_level=unit.visibility_level,
         metadata=dict(unit.metadata),
     )
 
@@ -526,13 +526,17 @@ def _row_id(row: dict[str, object]) -> str:
     return row_id
 
 
-def _normalize_acl_level(value: object) -> str:
-    if not isinstance(value, dict):
-        return "public"
-    acl_level = value.get("level")
-    if not isinstance(acl_level, str) or not acl_level.strip():
-        return "public"
-    return acl_level.strip()
+def _resolve_row_visibility_level(row: dict[str, object]) -> str:
+    visibility_level = _normalize_optional_text(row.get("visibility_level"))
+    if visibility_level is not None:
+        return visibility_level
+    entitlement_groups = row.get("entitlement_groups")
+    if isinstance(entitlement_groups, list) and any(
+        isinstance(item, str) and item.strip()
+        for item in entitlement_groups
+    ):
+        return "restricted"
+    return "public"
 
 
 def _normalize_heading_level(value: object) -> int | None:

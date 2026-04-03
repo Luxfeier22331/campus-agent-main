@@ -65,7 +65,7 @@ class StructuredUnit:
     text: str
     source_chunk_id: str | None
     anchor: dict[str, object]
-    acl_level: str
+    visibility_level: str
     unit_type: str
     root_unit_id: str
     metadata: dict[str, object] = field(default_factory=dict)
@@ -176,7 +176,7 @@ class _ChunkCandidate:
     unit_type: str
     root_unit_id: str
     source_chunk_id: str | None
-    acl_level: str
+    visibility_level: str
     anchor: dict[str, object]
     metadata: dict[str, object]
     piece: SemanticChunkPiece
@@ -254,7 +254,7 @@ def _load_default_structured_units(
                 text=text,
                 source_chunk_id=_normalize_optional_text(raw.get("chunk_id")),
                 anchor=_normalize_anchor(raw.get("anchor")),
-                acl_level=_normalize_acl_level(raw.get("acl")),
+                visibility_level=_resolve_structured_visibility_level(raw),
                 unit_type=_normalize_unit_type(raw.get("unit_type")),
                 root_unit_id=_normalize_root_unit_id(raw),
                 metadata=_normalize_unit_metadata(raw),
@@ -474,9 +474,9 @@ def build_indexable_chunks_from_jsonl(
         chunk_id = (
             f"{record.document_id}:{record.revision_track}:{record.version_id}:chunk-{chunk_order:04d}"
         )
-        effective_visibility_level = _resolve_effective_acl_level(
-            unit_acl_level=candidate.acl_level,
-            document_acl_groups=document_entitlement_groups,
+        effective_visibility_level = _resolve_effective_visibility_level(
+            unit_visibility_level=candidate.visibility_level,
+            document_entitlement_groups=document_entitlement_groups,
         )
         chunks.append(
             IndexableChunk(
@@ -568,7 +568,7 @@ def _build_chunk_candidates(
                     unit_type=piece.unit_type,
                     root_unit_id=piece.root_unit_id,
                     source_chunk_id=unit.source_chunk_id,
-                    acl_level=unit.acl_level,
+                    visibility_level=unit.visibility_level,
                     anchor=dict(unit.anchor),
                     metadata={
                         "strategy_name": resolved_chunk_profile.strategy_name,
@@ -781,7 +781,7 @@ def _try_merge_curriculum_table_candidates(
 ) -> _ChunkCandidate | None:
     if current.unit_type != "table_unit" or incoming.unit_type != "table_unit":
         return None
-    if current.acl_level != incoming.acl_level:
+    if current.visibility_level != incoming.visibility_level:
         return None
     if not _curriculum_table_section_paths_are_compatible(current=current, incoming=incoming):
         return None
@@ -809,7 +809,7 @@ def _try_merge_curriculum_table_candidates(
         unit_type=current.unit_type,
         root_unit_id=current.root_unit_id,
         source_chunk_id=current.source_chunk_id,
-        acl_level=current.acl_level,
+        visibility_level=current.visibility_level,
         anchor=aggregated_anchor,
         metadata=aggregated_metadata,
         piece=SemanticChunkPiece(
@@ -854,7 +854,7 @@ def _try_merge_curriculum_section_context_candidates(
         unit_type=base_candidate.unit_type,
         root_unit_id=base_candidate.root_unit_id,
         source_chunk_id=base_candidate.source_chunk_id,
-        acl_level=base_candidate.acl_level,
+        visibility_level=base_candidate.visibility_level,
         anchor=aggregated_anchor,
         metadata=aggregated_metadata,
         piece=SemanticChunkPiece(
@@ -894,7 +894,7 @@ def _curriculum_section_context_candidates_are_compatible(
         return False
     if incoming.unit_type not in {"section_text", "table_unit"}:
         return False
-    if current.acl_level != incoming.acl_level:
+    if current.visibility_level != incoming.visibility_level:
         return False
     current_path = _normalize_section_path(current.anchor)
     incoming_path = _normalize_section_path(incoming.anchor)
@@ -997,7 +997,7 @@ def _try_merge_short_textual_candidates(
         unit_type=current.unit_type,
         root_unit_id=current.root_unit_id,
         source_chunk_id=current.source_chunk_id,
-        acl_level=current.acl_level,
+        visibility_level=current.visibility_level,
         anchor=aggregated_anchor,
         metadata=aggregated_metadata,
         piece=SemanticChunkPiece(
@@ -1016,7 +1016,7 @@ def _short_textual_candidates_are_compatible(
 ) -> bool:
     if current.unit_type != incoming.unit_type:
         return False
-    if current.acl_level != incoming.acl_level:
+    if current.visibility_level != incoming.visibility_level:
         return False
     if current.unit_type == "policy_page" and _policy_page_label_shape_conflicts(current=current, incoming=incoming):
         return False
@@ -1655,26 +1655,27 @@ def _normalize_anchor(value: object) -> dict[str, object]:
     return dict(value) if isinstance(value, dict) else {}
 
 
-def _normalize_acl_level(value: object) -> str:
-    if not isinstance(value, dict):
-        return "public"
-    allow_groups = value.get("allow_groups")
-    if isinstance(allow_groups, list) and any(isinstance(item, str) and item.strip() for item in allow_groups):
+def _resolve_structured_visibility_level(raw: dict[str, object]) -> str:
+    visibility_level = raw.get("visibility_level")
+    if isinstance(visibility_level, str) and visibility_level.strip():
+        return visibility_level.strip()
+    entitlement_groups = raw.get("entitlement_groups")
+    if isinstance(entitlement_groups, list) and any(
+        isinstance(item, str) and item.strip()
+        for item in entitlement_groups
+    ):
         return "restricted"
-    acl_level = value.get("level")
-    if not isinstance(acl_level, str) or not acl_level.strip():
-        return "public"
-    return acl_level.strip()
+    return "public"
 
 
-def _resolve_effective_acl_level(
+def _resolve_effective_visibility_level(
     *,
-    unit_acl_level: str,
-    document_acl_groups: tuple[str, ...],
+    unit_visibility_level: str,
+    document_entitlement_groups: tuple[str, ...],
 ) -> str:
-    if document_acl_groups and unit_acl_level == "public":
+    if document_entitlement_groups and unit_visibility_level == "public":
         return "restricted"
-    return unit_acl_level
+    return unit_visibility_level
 
 
 def _normalize_unit_type(value: object) -> str:

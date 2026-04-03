@@ -43,7 +43,10 @@ def process_raw_ingestion_job(**kwargs):
                 else None
             ),
             report_dir=Path((env.get("IMPORT_REPORT_DIR") or "./var/import-reports").strip()),
-            default_campus_scope=(env.get("INGESTION_DEFAULT_CAMPUS_SCOPE") or "").strip() or None,
+            default_visibility_scope=(
+                (env.get("INGESTION_DEFAULT_VISIBILITY_SCOPE") or env.get("INGESTION_DEFAULT_CAMPUS_SCOPE") or "").strip()
+                or None
+            ),
         )
     return _process_raw_ingestion_job(request=request, **kwargs)
 
