@@ -44,6 +44,31 @@ updated: 2026-04-03
 
 因此当前失败不是“评测框架坏掉了”，也不是“模型质量直接退化了”，而是本地 data plane 与 canonical runtime query path 不一致。
 
+## 2026-04-03 执行进展
+
+本轮已确认并修复两个更深一层的离线阻塞点：
+
+1. `local_rebuild.rebuild_local_data()` 在删除旧 derived artifacts 之前，会先枚举 scope 下的 registry rows 收集 `processed_object_keys`；legacy rows 会在 `_document_record_from_dict()` 处提前抛错。
+2. `campusrag_ingestion_support.collect_import_document_stats()` 在真正写入新 import 结果前，也会先 `list_by_scope()` 预取 existing records；如果 scope 内仍有 legacy payload，provider replay rebuild 依旧会在导入阶段失败。
+
+已落地的 repo 修复保持了 runtime canonical-only fail-fast，不把 legacy 兼容重新带回 query path：
+
+- `registry` 新增离线辅助读取：
+  - `list_processed_object_keys_by_scope`：直接从原始 payload 提取 `processed_object_keys`
+  - `list_importable_scope_records_by_scope`：逐行跳过 legacy authz payload，只返回仍可作为导入对比基线的 canonical rows
+- `local_rebuild` 现在优先使用原始 `processed_object_keys` 入口做 rebuild 前清理，不再要求 scope rows 先能完整反序列化
+- `collect_import_document_stats` 现在优先使用 importable prefetch；若是 `scope_refresh` 主 scope 且 registry 只剩 legacy rows，也允许按空旧 scope 继续 full-scope replace
+
+本轮已通过的回归验证：
+
+- `uv run --all-packages python -m unittest tests.ingestion.test_campusrag_ingestion_support tests.ingestion.test_rebuild_local_data tests.ingestion.test_provider_result_replay_rebuild tests.ingestion.test_registry_models`
+
+当前操作状态：
+
+- `student_handbook` preview rebuild 已不再在 `unsupported authorization projection keys` 处秒退
+- 它会继续进入 object store / Qdrant 外部 I/O 阶段；由于这轮执行中超过 5 分钟仍未收口，已手动停止，避免在 worktree 留下无限后台任务
+- 因此 Wave 2 的“legacy parser fail-fast”阻塞已解除，但 preview rebuild / alias publish / live accept 仍未完成
+
 ## 目标
 
 恢复一条有效的 repo-local live accept 路径，使 handbook / curriculum 的 accept 结果重新可用于产品判断。
