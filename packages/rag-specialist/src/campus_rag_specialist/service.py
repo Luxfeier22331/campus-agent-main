@@ -4,6 +4,7 @@ import re
 from typing import Callable
 
 from campus_contracts import (
+    CurriculumFollowUpSlots,
     ErrorInfo,
     EvidenceBundle,
     EvidenceSource,
@@ -29,6 +30,7 @@ from campus_rag_specialist.query_planning import (
     CurriculumProgramFamilyQueryPlan,
     CurriculumQueryPlan,
     HandbookQueryPlan,
+    course_family_member_titles,
     plan_curriculum_course_query,
     plan_curriculum_program_family_query,
     plan_curriculum_query,
@@ -50,6 +52,41 @@ _UNSUPPORTED_HANDBOOK_CLAUSE_CUE_GROUPS = (
     ("本校", "单位", "作者单位", "署名单位"),
     ("几分", "多少分", "加分", "得分", "分值", "第二作者的分", "拿分", "给分"),
 )
+_COURSE_FAMILY_SCHEDULE_TOP_K = 8
+_COURSE_USER_FACING_LEAD = "根据培养方案和课程教学计划"
+_CURRICULUM_SESSION_PROGRAM_FAMILIES = (
+    "民族实验班",
+    "强基计划",
+    "第二学士学位",
+)
+_CURRICULUM_PROGRAM_TITLE_SUFFIXES = (
+    "本科第二学士学位人才培养方案",
+    "第二学士学位人才培养方案",
+    "本科专业人才培养方案",
+    "本科专业培养方案",
+    "本科人才培养方案",
+    "人才培养方案",
+)
+_CURRICULUM_FOLLOW_UP_PREFIXES = ("那如果是", "如果是", "那如果", "那就", "换成", "还有", "那")
+_CURRICULUM_FOLLOW_UP_TRAILING_PARTICLES = "呢呀啊吧嘛的"
+_CURRICULUM_FOLLOW_UP_PROGRAM_BLOCKERS = frozenset(
+    {
+        "培养方案",
+        "课程教学计划",
+        "第",
+        "学期",
+        "课程",
+        "课表",
+        "什么",
+        "哪些",
+        "多少",
+        "几年",
+        "怎么",
+        "如何",
+        "学院",
+        "专业要上",
+    }
+)
 
 
 def delegate_to_rag_agent(
@@ -65,10 +102,16 @@ def delegate_to_rag_agent(
     user_goal = request.user_goal.strip()
     intent_frame = frame_rag_intent(request)
     personalization_hint = build_personalization_hint(request)
+    effective_user_goal = _resolve_effective_curriculum_user_goal(
+        request,
+        user_goal=user_goal,
+        curriculum_follow_up=personalization_hint.curriculum_follow_up,
+        recent_goal=personalization_hint.recent_goal,
+    )
     handbook_plan = _plan_handbook_query(request, user_goal)
-    curriculum_plan = _plan_curriculum_query(request, user_goal)
-    curriculum_course_plan = _plan_curriculum_course_query(request, user_goal)
-    curriculum_program_family_plan = _plan_curriculum_program_family_query(request, user_goal)
+    curriculum_plan = _plan_curriculum_query(request, effective_user_goal)
+    curriculum_course_plan = _plan_curriculum_course_query(request, effective_user_goal)
+    curriculum_program_family_plan = _plan_curriculum_program_family_query(request, effective_user_goal)
     if intent_frame.response_mode == "clarify" and not _has_resolved_query_plan(
         handbook_plan=handbook_plan,
         curriculum_plan=curriculum_plan,
@@ -174,6 +217,7 @@ def delegate_to_rag_agent(
         canonical_course_ids: tuple[str, ...] = ()
         canonical_course_family_ids: tuple[str, ...] = ()
         canonical_program_family_ids: tuple[str, ...] = ()
+        retrieval_top_k: int | None = None
         if request.payload.scope.corpus == "curriculum" and request.payload.scope.collection == "curriculum_plan":
             if (
                 curriculum_program_family_plan is not None
@@ -198,12 +242,17 @@ def delegate_to_rag_agent(
                     )
                     else ()
                 )
+                if (
+                    curriculum_course_plan.entity_type == "course_family"
+                    and curriculum_course_plan.fact_intent == "schedule"
+                ):
+                    retrieval_top_k = _COURSE_FAMILY_SCHEDULE_TOP_K
             elif curriculum_plan is not None and curriculum_plan.status in {"resolved", "soft_preference"}:
                 retrieval_goal = curriculum_plan.rewritten_query_text
                 target_document_ids = curriculum_plan.target_document_ids
                 preferred_document_ids = curriculum_plan.preferred_document_ids
             else:
-                retrieval_goal = interpret_curriculum_query(user_goal).normalized_query_text
+                retrieval_goal = interpret_curriculum_query(effective_user_goal).normalized_query_text
         elif handbook_plan is not None and handbook_plan.status == "resolved":
             retrieval_goal = handbook_plan.rewritten_query_text
             target_document_ids = handbook_plan.target_document_ids
@@ -218,8 +267,14 @@ def delegate_to_rag_agent(
             canonical_program_family_ids=canonical_program_family_ids,
             authorized_filter=request.context.authorization.retrieval_filter,
             personalization_hint=personalization_hint,
+            top_k=retrieval_top_k,
         )
-        evidence = _with_query_text(evidence, user_goal)
+        evidence = _with_query_text(
+            evidence,
+            effective_user_goal
+            if request.payload.scope.corpus == "curriculum" and request.payload.scope.collection == "curriculum_plan"
+            else user_goal,
+        )
     except CorpusQueryDisabledError as exc:
         return SpecialistResponse(
             target="rag-specialist",
@@ -277,7 +332,7 @@ def delegate_to_rag_agent(
                 no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
             ),
         )
-    if _should_clarify_with_evidence(user_goal, evidence):
+    if _should_clarify_with_evidence(effective_user_goal, evidence):
         return SpecialistResponse(
             target="rag-specialist",
             status="needs_clarification",
@@ -297,7 +352,10 @@ def delegate_to_rag_agent(
             ),
         )
 
-    supporting_evidence = _build_supporting_evidence(evidence)
+    supporting_evidence = _build_supporting_evidence(
+        evidence,
+        curriculum_course_plan=curriculum_course_plan,
+    )
     if not supporting_evidence.sources:
         return SpecialistResponse(
             target="rag-specialist",
@@ -391,8 +449,121 @@ def delegate_to_rag_agent(
             curriculum_plan=curriculum_plan,
             curriculum_course_plan=curriculum_course_plan,
             curriculum_program_family_plan=curriculum_program_family_plan,
+            allow_session_follow_up=True,
         ),
     )
+
+
+def _resolve_effective_curriculum_user_goal(
+    request: SpecialistRequest,
+    *,
+    user_goal: str,
+    curriculum_follow_up: CurriculumFollowUpSlots,
+    recent_goal: str,
+) -> str:
+    if request.payload.scope.corpus != "curriculum" or request.payload.scope.collection != "curriculum_plan":
+        return user_goal
+    rewritten_goal = _rewrite_curriculum_follow_up_goal(
+        user_goal=user_goal,
+        curriculum_follow_up=curriculum_follow_up,
+    )
+    if rewritten_goal:
+        return rewritten_goal
+    if not recent_goal.strip():
+        return user_goal
+    rewritten_goal = _rewrite_curriculum_follow_up_goal_from_recent_goal(
+        user_goal=user_goal,
+        recent_goal=recent_goal,
+    )
+    return rewritten_goal or user_goal
+
+
+def _rewrite_curriculum_follow_up_goal(
+    *,
+    user_goal: str,
+    curriculum_follow_up: CurriculumFollowUpSlots,
+) -> str:
+    current_interpretation = interpret_curriculum_query(user_goal)
+    if current_interpretation.program_query_fragment:
+        return ""
+
+    if current_interpretation.semester_labels:
+        if curriculum_follow_up.program:
+            return f"{curriculum_follow_up.program}培养方案里{current_interpretation.semester_labels[0]}有什么课"
+        return ""
+
+    follow_up_program_fragment = _extract_curriculum_follow_up_program_fragment(
+        current_interpretation.normalized_query_text,
+    )
+    if not follow_up_program_fragment or not curriculum_follow_up.program_family:
+        return ""
+    resolved_program = f"{follow_up_program_fragment}{curriculum_follow_up.program_family}"
+    if curriculum_follow_up.semester:
+        return f"{resolved_program}培养方案里{curriculum_follow_up.semester}有什么课"
+    return f"{resolved_program}培养方案"
+
+
+def _rewrite_curriculum_follow_up_goal_from_recent_goal(*, user_goal: str, recent_goal: str) -> str:
+    recent_interpretation = interpret_curriculum_query(recent_goal)
+    if not recent_interpretation.program_query_fragment:
+        return ""
+
+    current_interpretation = interpret_curriculum_query(user_goal)
+    if current_interpretation.program_query_fragment:
+        return ""
+
+    if current_interpretation.semester_labels:
+        return _rewrite_curriculum_follow_up_semester_goal(
+            recent_goal=recent_interpretation.normalized_query_text,
+            recent_program_fragment=recent_interpretation.program_query_fragment,
+            recent_semester_labels=recent_interpretation.semester_labels,
+            current_semester_label=current_interpretation.semester_labels[0],
+            recent_intent_kind=recent_interpretation.intent_kind,
+        )
+
+    follow_up_program_fragment = _extract_curriculum_follow_up_program_fragment(
+        current_interpretation.normalized_query_text,
+    )
+    if not follow_up_program_fragment:
+        return ""
+    return recent_interpretation.normalized_query_text.replace(
+        recent_interpretation.program_query_fragment,
+        f"{follow_up_program_fragment}{recent_interpretation.program_query_fragment}",
+        1,
+    )
+
+
+def _rewrite_curriculum_follow_up_semester_goal(
+    *,
+    recent_goal: str,
+    recent_program_fragment: str,
+    recent_semester_labels: tuple[str, ...],
+    current_semester_label: str,
+    recent_intent_kind: str,
+) -> str:
+    if recent_semester_labels:
+        return recent_goal.replace(recent_semester_labels[0], current_semester_label, 1)
+    if recent_intent_kind == "course_list":
+        return f"{recent_program_fragment}里{current_semester_label}有什么课"
+    return f"{recent_program_fragment} {current_semester_label}".strip()
+
+
+def _extract_curriculum_follow_up_program_fragment(normalized_query: str) -> str:
+    compact_query = _normalize_text(normalized_query)
+    if not compact_query:
+        return ""
+    for prefix in _CURRICULUM_FOLLOW_UP_PREFIXES:
+        if compact_query.startswith(prefix):
+            compact_query = compact_query[len(prefix):].strip()
+            break
+    compact_query = compact_query.strip("，,。！？?!.；;：: ")
+    while compact_query and compact_query[-1] in _CURRICULUM_FOLLOW_UP_TRAILING_PARTICLES:
+        compact_query = compact_query[:-1].strip()
+    if not compact_query:
+        return ""
+    if any(blocker in compact_query for blocker in _CURRICULUM_FOLLOW_UP_PROGRAM_BLOCKERS):
+        return ""
+    return compact_query
 
 
 def _build_empty_evidence(request: SpecialistRequest, user_goal: str) -> EvidenceBundle:
@@ -403,7 +574,18 @@ def _build_empty_evidence(request: SpecialistRequest, user_goal: str) -> Evidenc
     )
 
 
-def _build_supporting_evidence(evidence: EvidenceBundle) -> EvidenceBundle:
+def _build_supporting_evidence(
+    evidence: EvidenceBundle,
+    *,
+    curriculum_course_plan: CurriculumCourseQueryPlan | None = None,
+) -> EvidenceBundle:
+    max_sources = DEFAULT_MAX_ANSWER_SOURCES
+    if (
+        curriculum_course_plan is not None
+        and curriculum_course_plan.entity_type == "course_family"
+        and curriculum_course_plan.fact_intent == "schedule"
+    ):
+        max_sources = _COURSE_FAMILY_SCHEDULE_TOP_K
     return EvidenceBundle(
         query_text=evidence.query_text,
         corpus=evidence.corpus,
@@ -411,7 +593,7 @@ def _build_supporting_evidence(evidence: EvidenceBundle) -> EvidenceBundle:
         sources=select_supporting_evidence_sources(
             query_text=evidence.query_text,
             sources=evidence.sources,
-            max_sources=DEFAULT_MAX_ANSWER_SOURCES,
+            max_sources=max_sources,
         ),
     )
 
@@ -705,6 +887,7 @@ def _build_rag_result_payload(
     curriculum_course_plan: CurriculumCourseQueryPlan | None = None,
     curriculum_program_family_plan: CurriculumProgramFamilyQueryPlan | None = None,
     no_answer_reason: str = "",
+    allow_session_follow_up: bool = False,
 ) -> RagResultPayload:
     diagnostics = _build_rag_result_diagnostics(
         evidence=evidence,
@@ -713,6 +896,7 @@ def _build_rag_result_payload(
         curriculum_course_plan=curriculum_course_plan,
         curriculum_program_family_plan=curriculum_program_family_plan,
         no_answer_reason=no_answer_reason,
+        allow_session_follow_up=allow_session_follow_up,
     )
     return RagResultPayload(
         evidence=evidence,
@@ -728,6 +912,7 @@ def _build_rag_result_diagnostics(
     curriculum_course_plan: CurriculumCourseQueryPlan | None = None,
     curriculum_program_family_plan: CurriculumProgramFamilyQueryPlan | None = None,
     no_answer_reason: str = "",
+    allow_session_follow_up: bool = False,
 ) -> RagResultDiagnostics | None:
     if (
         handbook_plan is None
@@ -773,6 +958,10 @@ def _build_rag_result_diagnostics(
         )
     if curriculum_plan is None or curriculum_plan.status == "pass_through":
         return None
+    session_follow_up = _resolve_curriculum_diagnostics_follow_up(
+        curriculum_plan=curriculum_plan,
+        allow_session_follow_up=allow_session_follow_up,
+    )
     return RagResultDiagnostics(
         resolved_policy_document_id=(
             curriculum_plan.target_document_ids[0] if curriculum_plan.target_document_ids else ""
@@ -792,6 +981,9 @@ def _build_rag_result_diagnostics(
         resolution_mode=_curriculum_resolution_mode(curriculum_plan),
         used_verified_identity=curriculum_plan.used_verified_identity,
         used_soft_preference=curriculum_plan.used_soft_preference,
+        session_program_family=session_follow_up.program_family,
+        session_program=session_follow_up.program,
+        session_semester=session_follow_up.semester,
     )
 
 
@@ -805,7 +997,99 @@ def _curriculum_resolution_mode(plan: CurriculumQueryPlan) -> str:
     return ""
 
 
+def _resolve_curriculum_diagnostics_follow_up(
+    *,
+    curriculum_plan: CurriculumQueryPlan,
+    allow_session_follow_up: bool,
+) -> CurriculumFollowUpSlots:
+    if not allow_session_follow_up or curriculum_plan.status != "resolved":
+        return CurriculumFollowUpSlots()
+    program_family = _derive_curriculum_session_program_family(curriculum_plan.resolved_document_title)
+    semester = _derive_curriculum_session_semester(curriculum_plan.rewritten_query_text)
+    program = _derive_curriculum_session_program(
+        document_title=curriculum_plan.resolved_document_title,
+        program_family=program_family,
+    )
+    if not program_family or not program or not semester:
+        return CurriculumFollowUpSlots()
+    return CurriculumFollowUpSlots(
+        program_family=program_family,
+        program=program,
+        semester=semester,
+    )
+
+
+def _derive_curriculum_session_program_family(document_title: str) -> str:
+    normalized_title = _normalize_text(document_title)
+    for family in _CURRICULUM_SESSION_PROGRAM_FAMILIES:
+        if _normalize_text(family) in normalized_title:
+            return family
+    return ""
+
+
+def _derive_curriculum_session_program(
+    *,
+    document_title: str,
+    program_family: str,
+) -> str:
+    core_title = _strip_curriculum_program_title(document_title)
+    if not core_title:
+        return ""
+    if program_family and f"（{program_family}）" in core_title:
+        return core_title.replace(f"（{program_family}）", program_family).strip()
+    if program_family and f"({program_family})" in core_title:
+        return core_title.replace(f"({program_family})", program_family).strip()
+    if program_family and program_family not in core_title:
+        return f"{core_title}{program_family}".strip()
+    return core_title
+
+
+def _strip_curriculum_program_title(document_title: str) -> str:
+    title = document_title.strip()
+    for suffix in _CURRICULUM_PROGRAM_TITLE_SUFFIXES:
+        if title.endswith(suffix):
+            return title[: -len(suffix)].strip()
+    return title
+
+
+def _derive_curriculum_session_semester(rewritten_query: str) -> str:
+    interpretation = interpret_curriculum_query(rewritten_query)
+    if interpretation.semester_labels:
+        return interpretation.semester_labels[0]
+    return ""
+
+
 def _build_curriculum_course_answer(
+    *,
+    evidence: EvidenceBundle,
+    plan: CurriculumCourseQueryPlan,
+) -> str:
+    if plan.fact_intent == "schedule":
+        return _build_curriculum_course_schedule_answer(evidence=evidence, plan=plan)
+    snippets = [
+        source.snippet.strip().rstrip("。")
+        for source in evidence.sources
+        if source.snippet.strip()
+    ]
+    unique_snippets: list[str] = []
+    for snippet in snippets:
+        if snippet not in unique_snippets:
+            unique_snippets.append(snippet)
+    body = "；".join(unique_snippets[:3])
+    if plan.entity_type == "course":
+        lead = f"{_COURSE_USER_FACING_LEAD}，{plan.canonical_course_title}{'：' if body else '。'}"
+    else:
+        lead = f"{_COURSE_USER_FACING_LEAD}，{plan.canonical_course_family_title}{'：' if body else '。'}"
+    answer = f"{lead}{body}" if body else lead
+    if plan.partial_answer and "offering_unit" in plan.unsupported_fields:
+        return _append_course_partial_answer_suffix(
+            answer=answer,
+            unsupported_fields=plan.unsupported_fields,
+        )
+    return answer if answer.endswith("。") else f"{answer}。"
+
+
+def _build_curriculum_course_schedule_answer(
     *,
     evidence: EvidenceBundle,
     plan: CurriculumCourseQueryPlan,
@@ -819,18 +1103,89 @@ def _build_curriculum_course_answer(
     for snippet in snippets:
         if snippet not in unique_snippets:
             unique_snippets.append(snippet)
-    body = "；".join(unique_snippets[:3])
+
     if plan.entity_type == "course":
-        lead = f"根据当前已采集的课程事实，{plan.canonical_course_title}{'：' if body else '。'}"
-    else:
-        lead = f"根据当前已采集的课程事实，{plan.canonical_course_family_title}{'：' if body else '。'}"
-    answer = f"{lead}{body}" if body else lead
-    if plan.partial_answer and "offering_unit" in plan.unsupported_fields:
-        suffix = "当前还不能稳定确认开课学院。"
-        if "所有本预科学生" in answer:
-            return f"{answer}；{suffix}"
-        return f"{answer}{suffix}"
-    return answer if answer.endswith("。") else f"{answer}。"
+        if unique_snippets:
+            answer = f"{_COURSE_USER_FACING_LEAD}，{unique_snippets[0]}。"
+            if plan.partial_answer:
+                return _append_course_partial_answer_suffix(
+                    answer=answer,
+                    unsupported_fields=plan.unsupported_fields,
+                )
+            return answer
+        answer = f"当前还不能稳定确认{plan.canonical_course_title}的开设学期。"
+        if plan.partial_answer:
+            return _append_course_partial_answer_suffix(
+                answer=answer,
+                unsupported_fields=plan.unsupported_fields,
+            )
+        return answer
+
+    schedule_by_course: dict[str, str] = {}
+    for snippet in unique_snippets:
+        if "开设学期：" not in snippet:
+            continue
+        course_title, semester_text = snippet.split("开设学期：", 1)
+        course_title = course_title.strip("：: ")
+        semester_text = semester_text.strip()
+        if not course_title or not semester_text:
+            continue
+        schedule_by_course.setdefault(course_title, semester_text)
+    schedule_lines = _order_course_family_schedule_lines(
+        plan=plan,
+        schedule_by_course=schedule_by_course,
+    )
+    if schedule_lines:
+        canonical_titles = course_family_member_titles(plan.canonical_course_family_id)
+        is_complete_family_schedule = bool(canonical_titles) and len(schedule_lines) >= len(canonical_titles)
+        if is_complete_family_schedule:
+            answer = (
+                f"{_COURSE_USER_FACING_LEAD}，{plan.canonical_course_family_title}各课程开设学期如下："
+                f"{'；'.join(schedule_lines)}。"
+            )
+        else:
+            answer = (
+                f"{_COURSE_USER_FACING_LEAD}，{plan.canonical_course_family_title}目前能确认的有："
+                f"{'；'.join(schedule_lines)}。"
+            )
+        if plan.partial_answer:
+            return _append_course_partial_answer_suffix(
+                answer=answer,
+                unsupported_fields=plan.unsupported_fields,
+            )
+        return answer
+    answer = f"当前还不能稳定确认{plan.canonical_course_family_title}的开设学期安排。"
+    if plan.partial_answer:
+        return _append_course_partial_answer_suffix(
+            answer=answer,
+            unsupported_fields=plan.unsupported_fields,
+        )
+    return answer
+
+
+def _order_course_family_schedule_lines(
+    *,
+    plan: CurriculumCourseQueryPlan,
+    schedule_by_course: dict[str, str],
+) -> list[str]:
+    ordered_lines: list[str] = []
+    canonical_titles = course_family_member_titles(plan.canonical_course_family_id)
+    for title in canonical_titles:
+        semester_text = schedule_by_course.pop(title, "")
+        if semester_text:
+            ordered_lines.append(f"{title}：{semester_text}")
+    for title, semester_text in schedule_by_course.items():
+        ordered_lines.append(f"{title}：{semester_text}")
+    return ordered_lines
+
+
+def _append_course_partial_answer_suffix(*, answer: str, unsupported_fields: tuple[str, ...]) -> str:
+    normalized_answer = answer if answer.endswith("。") else f"{answer}。"
+    if "offering_unit" not in unsupported_fields:
+        return normalized_answer
+    suffix = "当前还不能稳定确认开课学院。"
+    trimmed = normalized_answer.rstrip("。")
+    return f"{trimmed}；{suffix}"
 
 
 def _build_curriculum_program_family_answer(

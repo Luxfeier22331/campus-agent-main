@@ -109,6 +109,7 @@ def build_personalization_hint(request: SpecialistRequest) -> PersonalizationHin
         actor_claim_terms=tuple(actor_terms),
         recent_goal=recent_goal,
         confirmed_slot_terms=confirmed_slot_terms,
+        curriculum_follow_up=request.context.session.curriculum_follow_up,
     )
 
 

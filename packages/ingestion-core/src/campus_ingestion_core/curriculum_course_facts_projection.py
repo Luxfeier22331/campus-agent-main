@@ -19,7 +19,7 @@ _FAMILY_ID = "course_family:muc.ideological_political_theory"
 _FAMILY_TITLE = "思想政治理论课"
 _SOURCE_TITLE = "中央民族大学通识课程思想政治理论课教学计划"
 _SOURCE_DOCUMENT_ID = "curriculum:中央民族大学通识课程思想政治理论课教学计划"
-_FAMILY_ALIASES = ("思政课", "思修课")
+_FAMILY_ALIASES = ("思政课", "思修课", "思政", "思政课程")
 _YEAR_RE = re.compile(r"(20[0-9]{2})")
 _WHITESPACE_RE = re.compile(r"\s+")
 _HTML_BREAK_RE = re.compile(r"<br\s*/?>", re.IGNORECASE)
@@ -115,7 +115,7 @@ def build_curriculum_course_facts_import_documents(
                 is_current=False,
                 corpus=corpus,
                 collection=collection,
-                campus_scope=source_document.resolved_visibility_scope(),
+                visibility_scope=source_document.resolved_visibility_scope(),
                 status=source_document.status,
                 raw_path=None,
                 raw_source_uri=raw_asset_record.raw_source_uri,

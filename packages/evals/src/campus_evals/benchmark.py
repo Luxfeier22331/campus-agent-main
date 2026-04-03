@@ -37,6 +37,10 @@ ALLOWED_HYBRID_QUERY_CATEGORIES = (
     "restricted_visibility_scope_filter",
     "no_hit",
 )
+ALLOWED_HYBRID_QUERY_SCOPE_KEYS = (
+    "entitlement_groups",
+    "visibility_scope",
+)
 FixtureValidationSeverity = Literal["warn", "error"]
 _QRELS_QUERY_ASK_CUES = frozenset({"多少", "几年", "怎么", "如何", "安排", "什么", "哪些"})
 _QRELS_WHITESPACE_RE = re.compile(r"\s+")
@@ -259,7 +263,7 @@ def _find_course_family_alias_qrels_issue(case: RetrievalQrelsCase) -> str | Non
     normalized_query = _fixture_query_key(case.query)
     if not any(alias in normalized_query for alias in _load_course_family_aliases()):
         return None
-    if not any(cue in case.query for cue in ("哪些专业要上", "包括哪些课", "哪些课", "谁要上")):
+    if not any(cue in case.query for cue in ("哪些专业要上", "包括哪些课", "哪些课", "谁要上", "第几学期开", "什么学期开", "哪学期开", "开设学期")):
         return None
     if not case.expected_sources:
         return None
@@ -538,8 +542,14 @@ def _load_case(payload: dict[str, object], *, default_scope: KnowledgeScope) -> 
 def _load_hybrid_query_case(payload: dict[str, object]) -> RetrievalHybridQueryCase:
     category = str(payload["category"])
     scope = dict(payload.get("scope") or {})
-    if "acl_groups" in scope or "campus_scope" in scope:
-        raise ValueError("legacy hybrid fixture scope keys are not allowed")
+    unsupported_scope_keys = tuple(
+        key
+        for key in scope
+        if key not in ALLOWED_HYBRID_QUERY_SCOPE_KEYS
+    )
+    if unsupported_scope_keys:
+        joined = ", ".join(unsupported_scope_keys)
+        raise ValueError(f"unsupported hybrid fixture scope keys: {joined}")
 
     return RetrievalHybridQueryCase(
         case_id=str(payload["case_id"]),

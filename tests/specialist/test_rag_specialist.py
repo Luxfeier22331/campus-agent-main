@@ -7,6 +7,9 @@ from campus_contracts import (
     AuthorizedRetrievalFilter,
     AuthorizationProjection,
     ContextProjection,
+    CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
+    CURRICULUM_PROGRAM_SLOT_NAME,
+    CURRICULUM_SEMESTER_SLOT_NAME,
     ErrorInfo,
     EvidenceBundle,
     EvidenceSource,
@@ -32,6 +35,7 @@ from campus_rag_specialist.confidence import derive_confidence
 from campus_rag_specialist.intent import frame_rag_intent
 from campus_rag_specialist.service import delegate_to_rag_agent
 from campus_rag_specialist.query_planning import (
+    plan_curriculum_course_query,
     plan_curriculum_program_family_query,
     plan_curriculum_query,
 )
@@ -678,6 +682,9 @@ class RagSpecialistTest(unittest.TestCase):
                 "curriculum:法学（民族实验班）本科人才培养方案:chunk-0005",
             ),
         )
+        self.assertEqual(response.result.diagnostics.session_program_family, "民族实验班")
+        self.assertEqual(response.result.diagnostics.session_program, "法学民族实验班")
+        self.assertEqual(response.result.diagnostics.session_semester, "第四学期")
 
     def test_curriculum_semester_course_query_without_program_resolution_maps_to_needs_clarification(self) -> None:
         evidence = EvidenceBundle(
@@ -741,6 +748,319 @@ class RagSpecialistTest(unittest.TestCase):
 
         self.assertEqual(response.status, "needs_clarification")
         self.assertIn("培养方案", response.follow_up_question)
+
+    def test_curriculum_follow_up_program_fragment_uses_recent_goal_to_resolve_family_then_semester(self) -> None:
+        retriever_call: dict[str, object] = {}
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
+            return EvidenceBundle(
+                query_text=query_text,
+                corpus="curriculum",
+                collection="curriculum_plan",
+                sources=(
+                    EvidenceSource(
+                        doc_id="curriculum:法学（民族实验班）本科人才培养方案",
+                        revision_track="source-faithful",
+                        version_id="v1:law-ethnic-experimental",
+                        chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0004",
+                        anchor={"page_start": 24, "page_end": 24},
+                        canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
+                        latest_url="https://campus.example/curriculum/law-ethnic-experimental",
+                        source_channel="pdf_ocr",
+                        collection="curriculum_plan",
+                        is_current=True,
+                        snippet="第四学期 习近平法治思想概论、国际公法、刑法学总论、知识产权法。",
+                        score=0.92,
+                        source_title="法学（民族实验班）本科人才培养方案",
+                        structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
+                        detail_label="第四学期",
+                        content_kind="table_unit",
+                        content_role="table_fact",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="法学",
+                context=ContextProjection(
+                    actor=ActorContext(user_id="student-001", principal_id="principal-001"),
+                    profile_memory=ProfileMemorySummary(
+                        items=(
+                            ProfileMemoryItem(
+                                item_id="memory-001",
+                                key="recent_goal",
+                                value="民族班培养方案里大二下有什么课",
+                                source_type="user_declared",
+                                confidence="high",
+                                visibility="user_visible",
+                                last_verified_at="2026-04-03",
+                            ),
+                        ),
+                    ),
+                ),
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(
+            retriever_call["query_text"],
+            "法学民族实验班培养方案里第四学期有什么课",
+        )
+        self.assertEqual(
+            retriever_call["target_document_ids"],
+            ("curriculum:法学（民族实验班）本科人才培养方案",),
+        )
+        self.assertIn("国际公法", response.answer_text)
+
+    def test_curriculum_follow_up_semester_fragment_uses_recent_goal_to_continue_same_program(self) -> None:
+        retriever_call: dict[str, object] = {}
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
+            return EvidenceBundle(
+                query_text=query_text,
+                corpus="curriculum",
+                collection="curriculum_plan",
+                sources=(
+                    EvidenceSource(
+                        doc_id="curriculum:法学（民族实验班）本科人才培养方案",
+                        revision_track="source-faithful",
+                        version_id="v1:law-ethnic-experimental",
+                        chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0004",
+                        anchor={"page_start": 24, "page_end": 24},
+                        canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
+                        latest_url="https://campus.example/curriculum/law-ethnic-experimental",
+                        source_channel="pdf_ocr",
+                        collection="curriculum_plan",
+                        is_current=True,
+                        snippet="第四学期 习近平法治思想概论、国际公法、刑法学总论、知识产权法。",
+                        score=0.92,
+                        source_title="法学（民族实验班）本科人才培养方案",
+                        structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
+                        detail_label="第四学期",
+                        content_kind="table_unit",
+                        content_role="table_fact",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="那大二下呢",
+                context=ContextProjection(
+                    actor=ActorContext(user_id="student-001", principal_id="principal-001"),
+                    profile_memory=ProfileMemorySummary(
+                        items=(
+                            ProfileMemoryItem(
+                                item_id="memory-001",
+                                key="recent_goal",
+                                value="法学民族班培养方案里大一上有什么课",
+                                source_type="user_declared",
+                                confidence="high",
+                                visibility="user_visible",
+                                last_verified_at="2026-04-03",
+                            ),
+                        ),
+                    ),
+                ),
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(
+            retriever_call["query_text"],
+            "法学民族实验班培养方案里第四学期有什么课",
+        )
+        self.assertEqual(
+            retriever_call["target_document_ids"],
+            ("curriculum:法学（民族实验班）本科人才培养方案",),
+        )
+        self.assertIn("习近平法治思想概论", response.answer_text)
+
+    def test_curriculum_follow_up_program_fragment_prefers_typed_session_slots_over_stale_recent_goal(self) -> None:
+        retriever_call: dict[str, object] = {}
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
+            return EvidenceBundle(
+                query_text=query_text,
+                corpus="curriculum",
+                collection="curriculum_plan",
+                sources=(
+                    EvidenceSource(
+                        doc_id="curriculum:法学（民族实验班）本科人才培养方案",
+                        revision_track="source-faithful",
+                        version_id="v1:law-ethnic-experimental",
+                        chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0004",
+                        anchor={"page_start": 24, "page_end": 24},
+                        canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
+                        latest_url="https://campus.example/curriculum/law-ethnic-experimental",
+                        source_channel="pdf_ocr",
+                        collection="curriculum_plan",
+                        is_current=True,
+                        snippet="第四学期 习近平法治思想概论、国际公法、刑法学总论、知识产权法。",
+                        score=0.92,
+                        source_title="法学（民族实验班）本科人才培养方案",
+                        structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
+                        detail_label="第四学期",
+                        content_kind="table_unit",
+                        content_role="table_fact",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="法学",
+                context=ContextProjection(
+                    actor=ActorContext(user_id="student-001", principal_id="principal-001"),
+                    profile_memory=ProfileMemorySummary(
+                        items=(
+                            ProfileMemoryItem(
+                                item_id="memory-001",
+                                key="recent_goal",
+                                value="民族班培养方案里大一上有什么课",
+                                source_type="user_declared",
+                                confidence="high",
+                                visibility="user_visible",
+                                last_verified_at="2026-04-03",
+                            ),
+                        ),
+                    ),
+                    session=SessionSummary(
+                        confirmed_slots=(
+                            SessionSlot(
+                                name=CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
+                                value="民族实验班",
+                                confirmed=True,
+                            ),
+                            SessionSlot(
+                                name=CURRICULUM_SEMESTER_SLOT_NAME,
+                                value="第四学期",
+                                confirmed=True,
+                            ),
+                        ),
+                        turn_count=4,
+                    ),
+                ),
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(retriever_call["query_text"], "法学民族实验班培养方案里第四学期有什么课")
+        self.assertEqual(
+            retriever_call["target_document_ids"],
+            ("curriculum:法学（民族实验班）本科人才培养方案",),
+        )
+        self.assertEqual(response.result.diagnostics.session_program_family, "民族实验班")
+        self.assertEqual(response.result.diagnostics.session_program, "法学民族实验班")
+        self.assertEqual(response.result.diagnostics.session_semester, "第四学期")
+
+    def test_curriculum_follow_up_semester_fragment_prefers_typed_program_slot_over_stale_recent_goal(self) -> None:
+        retriever_call: dict[str, object] = {}
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
+            return EvidenceBundle(
+                query_text=query_text,
+                corpus="curriculum",
+                collection="curriculum_plan",
+                sources=(
+                    EvidenceSource(
+                        doc_id="curriculum:法学（民族实验班）本科人才培养方案",
+                        revision_track="source-faithful",
+                        version_id="v1:law-ethnic-experimental",
+                        chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0004",
+                        anchor={"page_start": 24, "page_end": 24},
+                        canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
+                        latest_url="https://campus.example/curriculum/law-ethnic-experimental",
+                        source_channel="pdf_ocr",
+                        collection="curriculum_plan",
+                        is_current=True,
+                        snippet="第四学期 习近平法治思想概论、国际公法、刑法学总论、知识产权法。",
+                        score=0.92,
+                        source_title="法学（民族实验班）本科人才培养方案",
+                        structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
+                        detail_label="第四学期",
+                        content_kind="table_unit",
+                        content_role="table_fact",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="那大二下呢",
+                context=ContextProjection(
+                    actor=ActorContext(user_id="student-001", principal_id="principal-001"),
+                    profile_memory=ProfileMemorySummary(
+                        items=(
+                            ProfileMemoryItem(
+                                item_id="memory-001",
+                                key="recent_goal",
+                                value="信息与计算科学民族班培养方案里大一上有什么课",
+                                source_type="user_declared",
+                                confidence="high",
+                                visibility="user_visible",
+                                last_verified_at="2026-04-03",
+                            ),
+                        ),
+                    ),
+                    session=SessionSummary(
+                        confirmed_slots=(
+                            SessionSlot(
+                                name=CURRICULUM_PROGRAM_SLOT_NAME,
+                                value="法学民族实验班",
+                                confirmed=True,
+                            ),
+                            SessionSlot(
+                                name=CURRICULUM_SEMESTER_SLOT_NAME,
+                                value="第一学期",
+                                confirmed=True,
+                            ),
+                        ),
+                        turn_count=5,
+                    ),
+                ),
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(retriever_call["query_text"], "法学民族实验班培养方案里第四学期有什么课")
+        self.assertEqual(
+            retriever_call["target_document_ids"],
+            ("curriculum:法学（民族实验班）本科人才培养方案",),
+        )
 
     def test_curriculum_generic_base_class_with_verified_major_prefers_clarification_over_silent_resolution(self) -> None:
         retriever_called = False
@@ -830,6 +1150,9 @@ class RagSpecialistTest(unittest.TestCase):
         )
         self.assertEqual(retriever_call["preferred_document_ids"], ())
         self.assertIn("中国史学史", response.answer_text)
+        self.assertEqual(response.result.diagnostics.session_program_family, "强基计划")
+        self.assertEqual(response.result.diagnostics.session_program, "历史学强基计划")
+        self.assertEqual(response.result.diagnostics.session_semester, "第四学期")
 
     def test_curriculum_generic_base_class_clarification_records_soft_bias_without_identity_resolution(self) -> None:
         response = delegate_to_rag_agent(
@@ -936,6 +1259,90 @@ class RagSpecialistTest(unittest.TestCase):
 
 
 class CurriculumQueryPlanningTest(unittest.TestCase):
+    def test_plan_curriculum_course_query_resolves_short_family_alias(self) -> None:
+        plan = plan_curriculum_course_query("思政有哪些专业要上")
+
+        self.assertIsNotNone(plan)
+        assert plan is not None
+        self.assertEqual(plan.resolution_mode, "resolved_family")
+        self.assertEqual(plan.entity_type, "course_family")
+        self.assertEqual(
+            plan.canonical_course_family_id,
+            "course_family:muc.ideological_political_theory",
+        )
+
+    def test_plan_curriculum_course_query_resolves_family_alias_variant(self) -> None:
+        plan = plan_curriculum_course_query("思政课程包括哪些课")
+
+        self.assertIsNotNone(plan)
+        assert plan is not None
+        self.assertEqual(plan.resolution_mode, "resolved_family")
+        self.assertEqual(plan.entity_type, "course_family")
+        self.assertEqual(
+            plan.canonical_course_family_id,
+            "course_family:muc.ideological_political_theory",
+        )
+
+    def test_plan_curriculum_course_query_marks_schedule_partial_answer_for_unsupported_offering_unit(self) -> None:
+        plan = plan_curriculum_course_query("思政课哪个学院开，第几学期开")
+
+        self.assertIsNotNone(plan)
+        assert plan is not None
+        self.assertEqual(plan.resolution_mode, "resolved_family")
+        self.assertEqual(plan.entity_type, "course_family")
+        self.assertEqual(plan.fact_intent, "schedule")
+        self.assertEqual(plan.unsupported_fields, ("offering_unit",))
+        self.assertTrue(plan.partial_answer)
+
+    def test_plan_curriculum_course_query_resolves_short_family_schedule_alias_variant(self) -> None:
+        plan = plan_curriculum_course_query("思政第几学期开")
+
+        self.assertIsNotNone(plan)
+        assert plan is not None
+        self.assertEqual(plan.resolution_mode, "resolved_family")
+        self.assertEqual(plan.entity_type, "course_family")
+        self.assertEqual(plan.fact_intent, "schedule")
+        self.assertEqual(
+            plan.canonical_course_family_id,
+            "course_family:muc.ideological_political_theory",
+        )
+
+    def test_plan_curriculum_course_query_resolves_family_schedule_alias_variant(self) -> None:
+        plan = plan_curriculum_course_query("思政课程第几学期开")
+
+        self.assertIsNotNone(plan)
+        assert plan is not None
+        self.assertEqual(plan.resolution_mode, "resolved_family")
+        self.assertEqual(plan.entity_type, "course_family")
+        self.assertEqual(plan.fact_intent, "schedule")
+        self.assertEqual(
+            plan.canonical_course_family_id,
+            "course_family:muc.ideological_political_theory",
+        )
+
+    def test_plan_curriculum_course_query_resolves_sixiuke_schedule_alias(self) -> None:
+        plan = plan_curriculum_course_query("思修课第几学期开")
+
+        self.assertIsNotNone(plan)
+        assert plan is not None
+        self.assertEqual(plan.resolution_mode, "resolved_family")
+        self.assertEqual(plan.entity_type, "course_family")
+        self.assertEqual(plan.fact_intent, "schedule")
+        self.assertEqual(
+            plan.canonical_course_family_id,
+            "course_family:muc.ideological_political_theory",
+        )
+
+    def test_plan_curriculum_course_query_resolves_single_course_schedule_alias_variant(self) -> None:
+        plan = plan_curriculum_course_query("习概开设学期")
+
+        self.assertIsNotNone(plan)
+        assert plan is not None
+        self.assertEqual(plan.resolution_mode, "resolved_single")
+        self.assertEqual(plan.entity_type, "course")
+        self.assertEqual(plan.fact_intent, "schedule")
+        self.assertEqual(plan.canonical_course_id, "course:muc.xigai")
+
     def test_plan_curriculum_program_family_query_resolves_innovation_experimental_alias(self) -> None:
         plan = plan_curriculum_program_family_query("创新实验班有哪些")
 
@@ -947,8 +1354,30 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             "program_family:muc.innovation_class_generic",
         )
 
+    def test_plan_curriculum_program_family_query_resolves_ethnic_experimental_membership_alias(self) -> None:
+        plan = plan_curriculum_program_family_query("民族实验班有哪些")
+
+        self.assertIsNotNone(plan)
+        assert plan is not None
+        self.assertEqual(plan.resolution_mode, "resolved_family")
+        self.assertEqual(
+            plan.canonical_program_family_id,
+            "program_family:muc.ethnic_experimental_class",
+        )
+
     def test_plan_curriculum_program_family_query_resolves_strong_base_alias(self) -> None:
         plan = plan_curriculum_program_family_query("强基有哪些专业")
+
+        self.assertIsNotNone(plan)
+        assert plan is not None
+        self.assertEqual(plan.resolution_mode, "resolved_family")
+        self.assertEqual(
+            plan.canonical_program_family_id,
+            "program_family:muc.strong_base_plan",
+        )
+
+    def test_plan_curriculum_program_family_query_resolves_full_strong_base_alias(self) -> None:
+        plan = plan_curriculum_program_family_query("强基计划有哪些专业")
 
         self.assertIsNotNone(plan)
         assert plan is not None
@@ -967,6 +1396,50 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertEqual(
             plan.canonical_program_family_id,
             "program_family:muc.second_bachelor_degree",
+        )
+
+    def test_plan_curriculum_program_family_query_resolves_second_degree_alias_variant(self) -> None:
+        plan = plan_curriculum_program_family_query("第二学位有哪些专业")
+
+        self.assertIsNotNone(plan)
+        assert plan is not None
+        self.assertEqual(plan.resolution_mode, "resolved_family")
+        self.assertEqual(
+            plan.canonical_program_family_id,
+            "program_family:muc.second_bachelor_degree",
+        )
+
+    def test_plan_curriculum_program_family_query_resolves_full_second_degree_alias(self) -> None:
+        plan = plan_curriculum_program_family_query("第二学士学位有哪些专业")
+
+        self.assertIsNotNone(plan)
+        assert plan is not None
+        self.assertEqual(plan.resolution_mode, "resolved_family")
+        self.assertEqual(
+            plan.canonical_program_family_id,
+            "program_family:muc.second_bachelor_degree",
+        )
+
+    def test_plan_curriculum_program_family_query_resolves_experimental_name_pattern_query(self) -> None:
+        plan = plan_curriculum_program_family_query("名称里带实验班的培养方案有哪些")
+
+        self.assertIsNotNone(plan)
+        assert plan is not None
+        self.assertEqual(plan.resolution_mode, "resolved_family")
+        self.assertEqual(
+            plan.canonical_program_family_id,
+            "program_family:muc.experimental_class_generic",
+        )
+
+    def test_plan_curriculum_program_family_query_resolves_innovation_name_pattern_query(self) -> None:
+        plan = plan_curriculum_program_family_query("名称里带创新班的培养方案有哪些")
+
+        self.assertIsNotNone(plan)
+        assert plan is not None
+        self.assertEqual(plan.resolution_mode, "resolved_family")
+        self.assertEqual(
+            plan.canonical_program_family_id,
+            "program_family:muc.innovation_class_generic",
         )
 
     def test_plan_curriculum_query_clarifies_generic_base_class_even_with_verified_major(self) -> None:
@@ -1185,6 +1658,683 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             ),
         )
 
+    def test_course_single_schedule_query_uses_course_facts_collection(self) -> None:
+        retriever_call: dict[str, object] = {}
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
+            return EvidenceBundle(
+                query_text=query_text,
+                corpus="curriculum",
+                collection="course_facts",
+                sources=(
+                    EvidenceSource(
+                        doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                        revision_track="source-faithful",
+                        version_id="v1:course-facts",
+                        chunk_id="course-facts:xigai:semester",
+                        anchor={"fact_type": "semester"},
+                        canonical_url="https://campus.example/curriculum/ideological-political-theory",
+                        latest_url="https://campus.example/curriculum/ideological-political-theory",
+                        source_channel="pdf_ocr",
+                        collection="course_facts",
+                        is_current=False,
+                        snippet="习近平新时代中国特色社会主义思想概论开设学期：第1学期(理工/艺体)；第2学期(文科)。",
+                        score=0.94,
+                        source_title="中央民族大学通识课程思想政治理论课教学计划",
+                        structural_path=("思想政治理论课", "习近平新时代中国特色社会主义思想概论"),
+                        detail_label="开设学期",
+                        content_kind="course_fact",
+                        content_role="semester",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="习概第几学期开",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(retriever_call["collection"], "course_facts")
+        self.assertEqual(retriever_call["canonical_course_ids"], ("course:muc.xigai",))
+        self.assertEqual(retriever_call["canonical_course_family_ids"], ())
+        self.assertIn("第1学期(理工/艺体)", response.answer_text)
+        self.assertIn("第2学期(文科)", response.answer_text)
+        self.assertEqual(
+            response.result.diagnostics,
+            RagResultDiagnostics(
+                resolution_mode="resolved_single",
+                resolved_entity_type="course",
+                resolved_course_id="course:muc.xigai",
+                resolved_course_title="习近平新时代中国特色社会主义思想概论",
+                retrieved_title_summary=("中央民族大学通识课程思想政治理论课教学计划",),
+            ),
+        )
+
+    def test_course_single_schedule_partial_answer_marks_unsupported_offering_unit(self) -> None:
+        retriever_call: dict[str, object] = {}
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
+            return EvidenceBundle(
+                query_text=query_text,
+                corpus="curriculum",
+                collection="course_facts",
+                sources=(
+                    EvidenceSource(
+                        doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                        revision_track="source-faithful",
+                        version_id="v1:course-facts",
+                        chunk_id="course-facts:xigai-semester",
+                        anchor={"fact_type": "semester"},
+                        canonical_url="https://campus.example/curriculum/ideological-political-theory",
+                        latest_url="https://campus.example/curriculum/ideological-political-theory",
+                        source_channel="pdf_ocr",
+                        collection="course_facts",
+                        is_current=False,
+                        snippet="习近平新时代中国特色社会主义思想概论开设学期：第1学期(理工/艺体)；第2学期(文科)。",
+                        score=0.94,
+                        source_title="中央民族大学通识课程思想政治理论课教学计划",
+                        structural_path=("思想政治理论课", "习近平新时代中国特色社会主义思想概论"),
+                        detail_label="开设学期",
+                        content_kind="course_fact",
+                        content_role="semester",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="习概哪个学院开，第几学期开",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(retriever_call["collection"], "course_facts")
+        self.assertIn("习近平新时代中国特色社会主义思想概论开设学期：第1学期(理工/艺体)；第2学期(文科)", response.answer_text)
+        self.assertIn("当前还不能稳定确认开课学院", response.answer_text)
+        self.assertEqual(
+            response.result.diagnostics,
+            RagResultDiagnostics(
+                resolution_mode="resolved_single",
+                resolved_entity_type="course",
+                resolved_course_id="course:muc.xigai",
+                resolved_course_title="习近平新时代中国特色社会主义思想概论",
+                unsupported_fields=("offering_unit",),
+                partial_answer=True,
+                retrieved_title_summary=("中央民族大学通识课程思想政治理论课教学计划",),
+            ),
+        )
+
+    def test_course_schedule_answer_uses_user_facing_wording_without_internal_course_fact_phrase(self) -> None:
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="习概开设学期",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=lambda query_text, **kwargs: EvidenceBundle(
+                query_text=query_text,
+                corpus="curriculum",
+                collection="course_facts",
+                sources=(
+                    EvidenceSource(
+                        doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                        revision_track="source-faithful",
+                        version_id="v1:course-facts",
+                        chunk_id="course-facts:xigai-semester",
+                        anchor={"fact_type": "semester"},
+                        canonical_url="https://campus.example/curriculum/ideological-political-theory",
+                        latest_url="https://campus.example/curriculum/ideological-political-theory",
+                        source_channel="pdf_ocr",
+                        collection="course_facts",
+                        is_current=False,
+                        snippet="习近平新时代中国特色社会主义思想概论开设学期：第1学期(理工/艺体)；第2学期(文科)。",
+                        score=0.94,
+                        source_title="中央民族大学通识课程思想政治理论课教学计划",
+                        structural_path=("思想政治理论课", "习近平新时代中国特色社会主义思想概论"),
+                        detail_label="开设学期",
+                        content_kind="course_fact",
+                        content_role="semester",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            ),
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertNotIn("当前已采集的课程事实", response.answer_text)
+        self.assertNotIn("课程事实", response.answer_text)
+
+    def test_course_family_schedule_answer_uses_user_facing_wording_without_internal_course_fact_phrase(self) -> None:
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="思政第几学期开",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=lambda query_text, **kwargs: EvidenceBundle(
+                query_text=query_text,
+                corpus="curriculum",
+                collection="course_facts",
+                sources=(
+                    EvidenceSource(
+                        doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                        revision_track="source-faithful",
+                        version_id="v1:course-facts",
+                        chunk_id="course-facts:xigai-semester",
+                        anchor={"fact_type": "semester"},
+                        canonical_url="https://campus.example/curriculum/ideological-political-theory",
+                        latest_url="https://campus.example/curriculum/ideological-political-theory",
+                        source_channel="pdf_ocr",
+                        collection="course_facts",
+                        is_current=False,
+                        snippet="习近平新时代中国特色社会主义思想概论开设学期：第1学期(理工/艺体)；第2学期(文科)。",
+                        score=0.94,
+                        source_title="中央民族大学通识课程思想政治理论课教学计划",
+                        structural_path=("思想政治理论课", "习近平新时代中国特色社会主义思想概论"),
+                        detail_label="开设学期",
+                        content_kind="course_fact",
+                        content_role="semester",
+                        is_answer_bearing=True,
+                    ),
+                    EvidenceSource(
+                        doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                        revision_track="source-faithful",
+                        version_id="v1:course-facts",
+                        chunk_id="course-facts:marxist-semester",
+                        anchor={"fact_type": "semester"},
+                        canonical_url="https://campus.example/curriculum/ideological-political-theory",
+                        latest_url="https://campus.example/curriculum/ideological-political-theory",
+                        source_channel="pdf_ocr",
+                        collection="course_facts",
+                        is_current=False,
+                        snippet="马克思主义基本原理开设学期：第3学期(文科)；第4学期(理工/艺体)。",
+                        score=0.93,
+                        source_title="中央民族大学通识课程思想政治理论课教学计划",
+                        structural_path=("思想政治理论课", "马克思主义基本原理"),
+                        detail_label="开设学期",
+                        content_kind="course_fact",
+                        content_role="semester",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            ),
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertNotIn("当前已采集的课程事实", response.answer_text)
+        self.assertNotIn("课程事实", response.answer_text)
+
+    def test_course_family_schedule_query_returns_structured_multi_course_answer(self) -> None:
+        retriever_call: dict[str, object] = {}
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
+            return EvidenceBundle(
+                query_text=query_text,
+                corpus="curriculum",
+                collection="course_facts",
+                sources=(
+                    EvidenceSource(
+                        doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                        revision_track="source-faithful",
+                        version_id="v1:course-facts",
+                        chunk_id="course-facts:history:outline-semester",
+                        anchor={"fact_type": "semester"},
+                        canonical_url="https://campus.example/curriculum/ideological-political-theory",
+                        latest_url="https://campus.example/curriculum/ideological-political-theory",
+                        source_channel="pdf_ocr",
+                        collection="course_facts",
+                        is_current=False,
+                        snippet="中国近现代史纲要开设学期：第1学期(文科)；第2学期(理工/艺体)。",
+                        score=0.96,
+                        source_title="中央民族大学通识课程思想政治理论课教学计划",
+                        structural_path=("思想政治理论课", "中国近现代史纲要"),
+                        detail_label="开设学期",
+                        content_kind="course_fact",
+                        content_role="semester",
+                        is_answer_bearing=True,
+                    ),
+                    EvidenceSource(
+                        doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                        revision_track="source-faithful",
+                        version_id="v1:course-facts",
+                        chunk_id="course-facts:ideological-rule-law-semester",
+                        anchor={"fact_type": "semester"},
+                        canonical_url="https://campus.example/curriculum/ideological-political-theory",
+                        latest_url="https://campus.example/curriculum/ideological-political-theory",
+                        source_channel="pdf_ocr",
+                        collection="course_facts",
+                        is_current=False,
+                        snippet="思想道德与法治开设学期：第1学期(理工/艺体)；第2学期(文科)。",
+                        score=0.95,
+                        source_title="中央民族大学通识课程思想政治理论课教学计划",
+                        structural_path=("思想政治理论课", "思想道德与法治"),
+                        detail_label="开设学期",
+                        content_kind="course_fact",
+                        content_role="semester",
+                        is_answer_bearing=True,
+                    ),
+                    EvidenceSource(
+                        doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                        revision_track="source-faithful",
+                        version_id="v1:course-facts",
+                        chunk_id="course-facts:xigai-semester",
+                        anchor={"fact_type": "semester"},
+                        canonical_url="https://campus.example/curriculum/ideological-political-theory",
+                        latest_url="https://campus.example/curriculum/ideological-political-theory",
+                        source_channel="pdf_ocr",
+                        collection="course_facts",
+                        is_current=False,
+                        snippet="习近平新时代中国特色社会主义思想概论开设学期：第1学期(理工/艺体)；第2学期(文科)。",
+                        score=0.94,
+                        source_title="中央民族大学通识课程思想政治理论课教学计划",
+                        structural_path=("思想政治理论课", "习近平新时代中国特色社会主义思想概论"),
+                        detail_label="开设学期",
+                        content_kind="course_fact",
+                        content_role="semester",
+                        is_answer_bearing=True,
+                    ),
+                    EvidenceSource(
+                        doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                        revision_track="source-faithful",
+                        version_id="v1:course-facts",
+                        chunk_id="course-facts:marxist-semester",
+                        anchor={"fact_type": "semester"},
+                        canonical_url="https://campus.example/curriculum/ideological-political-theory",
+                        latest_url="https://campus.example/curriculum/ideological-political-theory",
+                        source_channel="pdf_ocr",
+                        collection="course_facts",
+                        is_current=False,
+                        snippet="马克思主义基本原理开设学期：第3学期(文科)；第4学期(理工/艺体)。",
+                        score=0.93,
+                        source_title="中央民族大学通识课程思想政治理论课教学计划",
+                        structural_path=("思想政治理论课", "马克思主义基本原理"),
+                        detail_label="开设学期",
+                        content_kind="course_fact",
+                        content_role="semester",
+                        is_answer_bearing=True,
+                    ),
+                    EvidenceSource(
+                        doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                        revision_track="source-faithful",
+                        version_id="v1:course-facts",
+                        chunk_id="course-facts:mao-semester",
+                        anchor={"fact_type": "semester"},
+                        canonical_url="https://campus.example/curriculum/ideological-political-theory",
+                        latest_url="https://campus.example/curriculum/ideological-political-theory",
+                        source_channel="pdf_ocr",
+                        collection="course_facts",
+                        is_current=False,
+                        snippet="毛泽东思想和中国特色社会主义理论体系概论开设学期：第3学期。",
+                        score=0.92,
+                        source_title="中央民族大学通识课程思想政治理论课教学计划",
+                        structural_path=("思想政治理论课", "毛泽东思想和中国特色社会主义理论体系概论"),
+                        detail_label="开设学期",
+                        content_kind="course_fact",
+                        content_role="semester",
+                        is_answer_bearing=True,
+                    ),
+                    EvidenceSource(
+                        doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                        revision_track="source-faithful",
+                        version_id="v1:course-facts",
+                        chunk_id="course-facts:situation-policy-semester",
+                        anchor={"fact_type": "semester"},
+                        canonical_url="https://campus.example/curriculum/ideological-political-theory",
+                        latest_url="https://campus.example/curriculum/ideological-political-theory",
+                        source_channel="pdf_ocr",
+                        collection="course_facts",
+                        is_current=False,
+                        snippet="形势与政策开设学期：第1至第8学期。",
+                        score=0.91,
+                        source_title="中央民族大学通识课程思想政治理论课教学计划",
+                        structural_path=("思想政治理论课", "形势与政策"),
+                        detail_label="开设学期",
+                        content_kind="course_fact",
+                        content_role="semester",
+                        is_answer_bearing=True,
+                    ),
+                    EvidenceSource(
+                        doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                        revision_track="source-faithful",
+                        version_id="v1:course-facts",
+                        chunk_id="course-facts:minzuguailun-semester",
+                        anchor={"fact_type": "semester"},
+                        canonical_url="https://campus.example/curriculum/ideological-political-theory",
+                        latest_url="https://campus.example/curriculum/ideological-political-theory",
+                        source_channel="pdf_ocr",
+                        collection="course_facts",
+                        is_current=False,
+                        snippet="中华民族共同体概论开设学期：第2学期。",
+                        score=0.90,
+                        source_title="中央民族大学通识课程思想政治理论课教学计划",
+                        structural_path=("思想政治理论课", "中华民族共同体概论"),
+                        detail_label="开设学期",
+                        content_kind="course_fact",
+                        content_role="semester",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="思政课第几学期开",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(retriever_call["collection"], "course_facts")
+        self.assertEqual(retriever_call["canonical_course_ids"], ())
+        self.assertEqual(
+            retriever_call["canonical_course_family_ids"],
+            ("course_family:muc.ideological_political_theory",),
+        )
+        self.assertGreaterEqual(retriever_call["top_k"], 7)
+        self.assertIn("思想政治理论课各课程开设学期如下", response.answer_text)
+        self.assertIn("中国近现代史纲要：第1学期(文科)；第2学期(理工/艺体)", response.answer_text)
+        self.assertIn("马克思主义基本原理：第3学期(文科)；第4学期(理工/艺体)", response.answer_text)
+        self.assertIn("毛泽东思想和中国特色社会主义理论体系概论：第3学期", response.answer_text)
+        self.assertIn("形势与政策：第1至第8学期", response.answer_text)
+        self.assertIn("中华民族共同体概论：第2学期", response.answer_text)
+        self.assertNotIn("根据当前已采集的课程事实，思想政治理论课：", response.answer_text)
+        self.assertEqual(
+            response.result.diagnostics,
+            RagResultDiagnostics(
+                resolution_mode="resolved_family",
+                resolved_entity_type="course_family",
+                resolved_course_family_id="course_family:muc.ideological_political_theory",
+                resolved_course_family_title="思想政治理论课",
+                retrieved_title_summary=("中央民族大学通识课程思想政治理论课教学计划",),
+            ),
+        )
+
+    def test_course_family_schedule_query_uses_partial_completeness_wording_when_family_members_are_missing(self) -> None:
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="思政课第几学期开",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=lambda query_text, **kwargs: EvidenceBundle(
+                query_text=query_text,
+                corpus="curriculum",
+                collection="course_facts",
+                sources=(
+                    EvidenceSource(
+                        doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                        revision_track="source-faithful",
+                        version_id="v1:course-facts",
+                        chunk_id="course-facts:xigai-semester",
+                        anchor={"fact_type": "semester"},
+                        canonical_url="https://campus.example/curriculum/ideological-political-theory",
+                        latest_url="https://campus.example/curriculum/ideological-political-theory",
+                        source_channel="pdf_ocr",
+                        collection="course_facts",
+                        is_current=False,
+                        snippet="习近平新时代中国特色社会主义思想概论开设学期：第1学期(理工/艺体)；第2学期(文科)。",
+                        score=0.94,
+                        source_title="中央民族大学通识课程思想政治理论课教学计划",
+                        structural_path=("思想政治理论课", "习近平新时代中国特色社会主义思想概论"),
+                        detail_label="开设学期",
+                        content_kind="course_fact",
+                        content_role="semester",
+                        is_answer_bearing=True,
+                    ),
+                    EvidenceSource(
+                        doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                        revision_track="source-faithful",
+                        version_id="v1:course-facts",
+                        chunk_id="course-facts:marxist-semester",
+                        anchor={"fact_type": "semester"},
+                        canonical_url="https://campus.example/curriculum/ideological-political-theory",
+                        latest_url="https://campus.example/curriculum/ideological-political-theory",
+                        source_channel="pdf_ocr",
+                        collection="course_facts",
+                        is_current=False,
+                        snippet="马克思主义基本原理开设学期：第3学期(文科)；第4学期(理工/艺体)。",
+                        score=0.93,
+                        source_title="中央民族大学通识课程思想政治理论课教学计划",
+                        structural_path=("思想政治理论课", "马克思主义基本原理"),
+                        detail_label="开设学期",
+                        content_kind="course_fact",
+                        content_role="semester",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            ),
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIn("目前能确认的有", response.answer_text)
+        self.assertNotIn("各课程开设学期如下", response.answer_text)
+        self.assertIn("马克思主义基本原理：第3学期(文科)；第4学期(理工/艺体)", response.answer_text)
+        self.assertIn("习近平新时代中国特色社会主义思想概论：第1学期(理工/艺体)；第2学期(文科)", response.answer_text)
+
+    def test_course_family_schedule_query_orders_courses_by_canonical_family_order(self) -> None:
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            return EvidenceBundle(
+                query_text=query_text,
+                corpus="curriculum",
+                collection="course_facts",
+                sources=(
+                    EvidenceSource(
+                        doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                        revision_track="source-faithful",
+                        version_id="v1:course-facts",
+                        chunk_id="course-facts:history:outline-semester",
+                        anchor={"fact_type": "semester"},
+                        canonical_url="https://campus.example/curriculum/ideological-political-theory",
+                        latest_url="https://campus.example/curriculum/ideological-political-theory",
+                        source_channel="pdf_ocr",
+                        collection="course_facts",
+                        is_current=False,
+                        snippet="中国近现代史纲要开设学期：第1学期(文科)；第2学期(理工/艺体)。",
+                        score=0.96,
+                        source_title="中央民族大学通识课程思想政治理论课教学计划",
+                        structural_path=("思想政治理论课", "中国近现代史纲要"),
+                        detail_label="开设学期",
+                        content_kind="course_fact",
+                        content_role="semester",
+                        is_answer_bearing=True,
+                    ),
+                    EvidenceSource(
+                        doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                        revision_track="source-faithful",
+                        version_id="v1:course-facts",
+                        chunk_id="course-facts:ideological-rule-law-semester",
+                        anchor={"fact_type": "semester"},
+                        canonical_url="https://campus.example/curriculum/ideological-political-theory",
+                        latest_url="https://campus.example/curriculum/ideological-political-theory",
+                        source_channel="pdf_ocr",
+                        collection="course_facts",
+                        is_current=False,
+                        snippet="思想道德与法治开设学期：第1学期(理工/艺体)；第2学期(文科)。",
+                        score=0.95,
+                        source_title="中央民族大学通识课程思想政治理论课教学计划",
+                        structural_path=("思想政治理论课", "思想道德与法治"),
+                        detail_label="开设学期",
+                        content_kind="course_fact",
+                        content_role="semester",
+                        is_answer_bearing=True,
+                    ),
+                    EvidenceSource(
+                        doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                        revision_track="source-faithful",
+                        version_id="v1:course-facts",
+                        chunk_id="course-facts:xigai-semester",
+                        anchor={"fact_type": "semester"},
+                        canonical_url="https://campus.example/curriculum/ideological-political-theory",
+                        latest_url="https://campus.example/curriculum/ideological-political-theory",
+                        source_channel="pdf_ocr",
+                        collection="course_facts",
+                        is_current=False,
+                        snippet="习近平新时代中国特色社会主义思想概论开设学期：第1学期(理工/艺体)；第2学期(文科)。",
+                        score=0.94,
+                        source_title="中央民族大学通识课程思想政治理论课教学计划",
+                        structural_path=("思想政治理论课", "习近平新时代中国特色社会主义思想概论"),
+                        detail_label="开设学期",
+                        content_kind="course_fact",
+                        content_role="semester",
+                        is_answer_bearing=True,
+                    ),
+                    EvidenceSource(
+                        doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                        revision_track="source-faithful",
+                        version_id="v1:course-facts",
+                        chunk_id="course-facts:marxist-semester",
+                        anchor={"fact_type": "semester"},
+                        canonical_url="https://campus.example/curriculum/ideological-political-theory",
+                        latest_url="https://campus.example/curriculum/ideological-political-theory",
+                        source_channel="pdf_ocr",
+                        collection="course_facts",
+                        is_current=False,
+                        snippet="马克思主义基本原理开设学期：第3学期(文科)；第4学期(理工/艺体)。",
+                        score=0.93,
+                        source_title="中央民族大学通识课程思想政治理论课教学计划",
+                        structural_path=("思想政治理论课", "马克思主义基本原理"),
+                        detail_label="开设学期",
+                        content_kind="course_fact",
+                        content_role="semester",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="思政课第几学期开",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        marxist_index = response.answer_text.index("马克思主义基本原理：")
+        history_index = response.answer_text.index("中国近现代史纲要：")
+        xigai_index = response.answer_text.index("习近平新时代中国特色社会主义思想概论：")
+        rule_of_law_index = response.answer_text.index("思想道德与法治：")
+        self.assertLess(marxist_index, history_index)
+        self.assertLess(history_index, xigai_index)
+        self.assertLess(xigai_index, rule_of_law_index)
+
+    def test_course_family_schedule_partial_answer_marks_unsupported_offering_unit(self) -> None:
+        retriever_call: dict[str, object] = {}
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
+            return EvidenceBundle(
+                query_text=query_text,
+                corpus="curriculum",
+                collection="course_facts",
+                sources=(
+                    EvidenceSource(
+                        doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                        revision_track="source-faithful",
+                        version_id="v1:course-facts",
+                        chunk_id="course-facts:xigai-semester",
+                        anchor={"fact_type": "semester"},
+                        canonical_url="https://campus.example/curriculum/ideological-political-theory",
+                        latest_url="https://campus.example/curriculum/ideological-political-theory",
+                        source_channel="pdf_ocr",
+                        collection="course_facts",
+                        is_current=False,
+                        snippet="习近平新时代中国特色社会主义思想概论开设学期：第1学期(理工/艺体)；第2学期(文科)。",
+                        score=0.94,
+                        source_title="中央民族大学通识课程思想政治理论课教学计划",
+                        structural_path=("思想政治理论课", "习近平新时代中国特色社会主义思想概论"),
+                        detail_label="开设学期",
+                        content_kind="course_fact",
+                        content_role="semester",
+                        is_answer_bearing=True,
+                    ),
+                    EvidenceSource(
+                        doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                        revision_track="source-faithful",
+                        version_id="v1:course-facts",
+                        chunk_id="course-facts:marxist-semester",
+                        anchor={"fact_type": "semester"},
+                        canonical_url="https://campus.example/curriculum/ideological-political-theory",
+                        latest_url="https://campus.example/curriculum/ideological-political-theory",
+                        source_channel="pdf_ocr",
+                        collection="course_facts",
+                        is_current=False,
+                        snippet="马克思主义基本原理开设学期：第3学期(文科)；第4学期(理工/艺体)。",
+                        score=0.93,
+                        source_title="中央民族大学通识课程思想政治理论课教学计划",
+                        structural_path=("思想政治理论课", "马克思主义基本原理"),
+                        detail_label="开设学期",
+                        content_kind="course_fact",
+                        content_role="semester",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="思政课哪个学院开，第几学期开",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(retriever_call["collection"], "course_facts")
+        self.assertIn("思想政治理论课目前能确认的有", response.answer_text)
+        self.assertNotIn("思想政治理论课各课程开设学期如下", response.answer_text)
+        self.assertIn("马克思主义基本原理：第3学期(文科)；第4学期(理工/艺体)", response.answer_text)
+        self.assertIn("当前还不能稳定确认开课学院", response.answer_text)
+        self.assertEqual(
+            response.result.diagnostics,
+            RagResultDiagnostics(
+                resolution_mode="resolved_family",
+                resolved_entity_type="course_family",
+                resolved_course_family_id="course_family:muc.ideological_political_theory",
+                resolved_course_family_title="思想政治理论课",
+                unsupported_fields=("offering_unit",),
+                partial_answer=True,
+                retrieved_title_summary=("中央民族大学通识课程思想政治理论课教学计划",),
+            ),
+        )
+
     def test_program_family_membership_query_uses_program_family_facts_for_ethnic_class(self) -> None:
         retriever_call: dict[str, object] = {}
 
@@ -1249,6 +2399,61 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                 retrieved_title_summary=("中央民族大学民族班项目一览",),
             ),
         )
+
+    def test_program_family_membership_query_uses_program_family_facts_for_ethnic_experimental_alias(self) -> None:
+        retriever_call: dict[str, object] = {}
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
+            return EvidenceBundle(
+                query_text=query_text,
+                corpus="curriculum",
+                collection="program_family_facts",
+                sources=(
+                    EvidenceSource(
+                        doc_id="program_family_facts:ethnic-class-membership",
+                        revision_track="source-faithful",
+                        version_id="v1:program-family-facts",
+                        chunk_id="program-family-facts:ethnic-class-membership",
+                        anchor={"fact_type": "family_membership"},
+                        canonical_url="https://campus.example/curriculum/program-family/ethnic-class",
+                        latest_url="https://campus.example/curriculum/program-family/ethnic-class",
+                        source_channel="pdf_ocr",
+                        collection="program_family_facts",
+                        is_current=False,
+                        snippet="民大的民族班有法学、信息与计算科学、计算机科学与技术。",
+                        score=0.96,
+                        source_title="中央民族大学民族班项目一览",
+                        structural_path=("民族班",),
+                        detail_label="成员专业",
+                        content_kind="program_family_fact",
+                        content_role="family_membership",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="民族实验班有哪些",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(retriever_call["collection"], "program_family_facts")
+        self.assertEqual(
+            retriever_call["canonical_program_family_ids"],
+            ("program_family:muc.ethnic_experimental_class",),
+        )
+        self.assertIn("法学", response.answer_text)
+        self.assertIn("计算机科学与技术", response.answer_text)
+
 
     def test_program_family_membership_query_uses_program_family_facts_for_base_class(self) -> None:
         retriever_call: dict[str, object] = {}
@@ -1422,6 +2627,64 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertIn("经济学拔尖人才创新班", response.answer_text)
         self.assertIn("光电科学与工程创新实验班", response.answer_text)
 
+    def test_program_family_innovation_experimental_alias_returns_membership_answer(self) -> None:
+        retriever_call: dict[str, object] = {}
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
+            return EvidenceBundle(
+                query_text=query_text,
+                corpus="curriculum",
+                collection="program_family_facts",
+                sources=(
+                    EvidenceSource(
+                        doc_id="program_family_facts:innovation-class-membership",
+                        revision_track="source-faithful",
+                        version_id="v1:program-family-facts",
+                        chunk_id="program-family-facts:innovation-class-membership",
+                        anchor={"fact_type": "family_membership"},
+                        canonical_url="https://campus.example/curriculum/program-family/innovation-class",
+                        latest_url="https://campus.example/curriculum/program-family/innovation-class",
+                        source_channel="pdf_ocr",
+                        collection="program_family_facts",
+                        is_current=False,
+                        snippet=(
+                            "按当前已采集的培养方案，名称里带“创新班”或“创新实验班”的有经济学拔尖人才创新班、"
+                            "理工科交叉创新人才培养实验班、光电科学与工程创新实验班。"
+                        ),
+                        score=0.95,
+                        source_title="中央民族大学创新班相关培养方案一览",
+                        structural_path=("创新班相关培养方案",),
+                        detail_label="成员培养方案",
+                        content_kind="program_family_fact",
+                        content_role="family_membership",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="创新实验班有哪些",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(retriever_call["collection"], "program_family_facts")
+        self.assertEqual(
+            retriever_call["canonical_program_family_ids"],
+            ("program_family:muc.innovation_class_generic",),
+        )
+        self.assertIn("当前已采集", response.answer_text)
+        self.assertIn("经济学拔尖人才创新班", response.answer_text)
+        self.assertIn("光电科学与工程创新实验班", response.answer_text)
+
     def test_program_family_strong_base_returns_membership_answer(self) -> None:
         retriever_call: dict[str, object] = {}
 
@@ -1534,6 +2797,121 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertIn("当前已采集", response.answer_text)
         self.assertIn("民族学", response.answer_text)
         self.assertIn("教育学", response.answer_text)
+
+    def test_program_family_experimental_name_pattern_query_returns_membership_answer(self) -> None:
+        retriever_call: dict[str, object] = {}
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
+            return EvidenceBundle(
+                query_text=query_text,
+                corpus="curriculum",
+                collection="program_family_facts",
+                sources=(
+                    EvidenceSource(
+                        doc_id="program_family_facts:experimental-class-membership",
+                        revision_track="source-faithful",
+                        version_id="v1:program-family-facts",
+                        chunk_id="program-family-facts:experimental-class-membership",
+                        anchor={"fact_type": "family_membership"},
+                        canonical_url="https://campus.example/curriculum/program-family/experimental-class",
+                        latest_url="https://campus.example/curriculum/program-family/experimental-class",
+                        source_channel="pdf_ocr",
+                        collection="program_family_facts",
+                        is_current=False,
+                        snippet=(
+                            "按当前已采集的培养方案，名称里带“实验班”的有孝通实验班、法学（民族实验班）、"
+                            "信息与计算科学（民族实验班）、计算机科学与技术（民族实验班）、"
+                            "理工科交叉创新人才培养实验班、光电科学与工程创新实验班。"
+                        ),
+                        score=0.95,
+                        source_title="中央民族大学实验班相关培养方案一览",
+                        structural_path=("实验班相关培养方案",),
+                        detail_label="成员培养方案",
+                        content_kind="program_family_fact",
+                        content_role="family_membership",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="名称里带实验班的培养方案有哪些",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(retriever_call["collection"], "program_family_facts")
+        self.assertEqual(
+            retriever_call["canonical_program_family_ids"],
+            ("program_family:muc.experimental_class_generic",),
+        )
+        self.assertIn("名称里带“实验班”", response.answer_text)
+        self.assertIn("孝通实验班", response.answer_text)
+
+    def test_program_family_innovation_name_pattern_query_returns_membership_answer(self) -> None:
+        retriever_call: dict[str, object] = {}
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
+            return EvidenceBundle(
+                query_text=query_text,
+                corpus="curriculum",
+                collection="program_family_facts",
+                sources=(
+                    EvidenceSource(
+                        doc_id="program_family_facts:innovation-class-membership",
+                        revision_track="source-faithful",
+                        version_id="v1:program-family-facts",
+                        chunk_id="program-family-facts:innovation-class-membership",
+                        anchor={"fact_type": "family_membership"},
+                        canonical_url="https://campus.example/curriculum/program-family/innovation-class",
+                        latest_url="https://campus.example/curriculum/program-family/innovation-class",
+                        source_channel="pdf_ocr",
+                        collection="program_family_facts",
+                        is_current=False,
+                        snippet=(
+                            "按当前已采集的培养方案，名称里带“创新班”或“创新实验班”的有经济学拔尖人才创新班、"
+                            "理工科交叉创新人才培养实验班、光电科学与工程创新实验班。"
+                        ),
+                        score=0.95,
+                        source_title="中央民族大学创新班相关培养方案一览",
+                        structural_path=("创新班相关培养方案",),
+                        detail_label="成员培养方案",
+                        content_kind="program_family_fact",
+                        content_role="family_membership",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="名称里带创新班的培养方案有哪些",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(retriever_call["collection"], "program_family_facts")
+        self.assertEqual(
+            retriever_call["canonical_program_family_ids"],
+            ("program_family:muc.innovation_class_generic",),
+        )
+        self.assertIn("名称里带“创新班”或“创新实验班”", response.answer_text)
+        self.assertIn("光电科学与工程创新实验班", response.answer_text)
 
     def test_low_support_evidence_maps_to_no_answer_instead_of_completed(self) -> None:
         evidence = _make_evidence(

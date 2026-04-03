@@ -4,8 +4,8 @@
 
 - `curriculum/program_family_facts` 已作为新的 internal serving surface 落地。
 - `民族班有哪些` 与 `基地班有哪些` 现在可通过 canonical program-family path 直接回答，而不是继续依赖 `curriculum_plan` 泛检索。
-- `实验班有哪些` 与 `创新班有哪些` 现在在 retrieval 前 fail-close 为选项式澄清，不再落成 `no_answer` 或静默检索。
-- C 端 program-family 回答不再暴露 `当前已采集`、`官方统一 family 分类` 等内部措辞。
+- `实验班有哪些` 与 `创新班有哪些` 的当前 accepted truth 已在后续 follow-up 中收口为 family-aware completed；09-01 当时的 clarification-first 已不再是 repo-head 行为。
+- C 端 program-family 回答不再表述成“官方统一 family 分类”，但可以明确这是按当前已采集培养方案得到的集合回答。
 
 ## Main Changes
 
@@ -49,6 +49,6 @@
 
 ## Deferred
 
-- `名称里带“实验班”/“创新班”` 的 name-pattern query 还未形成正式 completed lane。
+- `名称里带“实验班”/“创新班”` 的 name-pattern query 已在后续 follow-up 中形成正式 completed lane。
 - family -> single program -> semester 的多轮澄清承接还未补齐。
 - eval/golden case 还可以继续把 program-family query authoring 提升到 release-gate truth。

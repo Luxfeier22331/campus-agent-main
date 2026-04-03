@@ -61,15 +61,15 @@ updated: 2026-04-03
     - `semantic_dense_win`
     - `needs_clarification`
     - `no_hit`
-- workflow/status golden cases：`packages/evals/src/campus_evals/scenarios.py`
-  - release gate：`9`
-  - smoke：`8`
-  - regression_locked：`21`
+  - workflow/status golden cases：`packages/evals/src/campus_evals/scenarios.py`
+  - release gate：`14`
+  - smoke：`10`
+  - regression_locked：`35`
   - error gate：`3`
 
 当前 automated gate 覆盖的 release-gate 终态：
 
-- `completed = 7`
+- `completed = 12`
 - `no_answer = 1`
 - `needs_clarification = 1`
 - deterministic `error = 3`
@@ -82,10 +82,12 @@ updated: 2026-04-03
 - table / 课程地图 retrieval
 - uniquely grounded sparse fixed-phrase retrieval
 - program-family membership / doc-fragment split（例如 `民族班有哪些` 走 family answer，而 `民族实验班` 短片段仍按 ambiguity workflow 治理）
+- program-family full alias / name-pattern completed answer（例如 `强基计划有哪些专业`、`第二学士学位有哪些专业`、`名称里带实验班的培养方案有哪些`）
 - semester-grounded course retrieval（例如 `大二下 -> 第四学期`）
 - 国际学生版本与普通版本区分
 - 同专业强基计划与普通培养路径区分
 - selected `doc_id + version_id` regression locks
+- course / course-family schedule answer（单课学期与 family 多课程学期）
 - no-hit fail-close
 - retrieval-informed ambiguity clarification
 
@@ -127,6 +129,7 @@ Phase 9 planning 已进一步冻结一条 truth posture：
 如果使用 `accept`：
 
 - acceptance 根目录还应保留 `accept-config.json` 与 `final-summary.json`
+- 若显式启用 operator publish，还应保留 `operator-observability-publish-summary.json`
 - 若触发 repair rerun，还应保留 `repair/supplemental-runtime-events.jsonl` 与 `repair/supplemental-provider-summary.json`
 - 当前实现里 `accept --log-jsonl` 的 runtime logs 会由 `accept-config.json` 指向外部 `<base>.run.jsonl` / `<base>.repair.jsonl`，不再要求它们必须以内嵌文件形式存在于 acceptance root
 
@@ -168,7 +171,7 @@ case-level context diagnostics：
 
 ## Current Status
 
-截至 2026-04-02：
+截至 2026-04-03：
 
 - curriculum 的 repo-tracked qrels / hybrid / golden / error-gate baseline 已存在并由测试覆盖
 - 2026-04-02 已完成 curriculum-only canonical 扩样：
@@ -193,6 +196,18 @@ case-level context diagnostics：
     - `tests.evals.test_curriculum_live_benchmark`
     - `tests.evals.test_ragas_runtime`
     共 `120` tests，`OK`
+- 2026-04-03 已完成 program-family alias 第二波扩样：
+  - workflow fixed cases 新增 `9` 条，覆盖：
+    - `curriculum-smoke-program-family-ethnic-experimental-membership`
+    - `curriculum-smoke-program-family-second-degree-membership-full-alias`
+    - `curriculum-release-gate-program-family-strong-base-membership-full-alias`
+    - `curriculum-release-gate-program-family-name-pattern-experimental-membership`
+    - `curriculum-regression-program-family-second-degree-membership-full-alias`
+    - `curriculum-regression-program-family-ethnic-experimental-membership`
+    - `curriculum-regression-program-family-strong-base-membership-full-alias`
+    - `curriculum-regression-program-family-name-pattern-experimental-membership`
+    - `curriculum-regression-program-family-name-pattern-innovation-membership`
+  - qrels preflight 回归新增 full alias / 显式 name-pattern membership fast-fail
 - root worktree 已完成一轮 fresh curriculum live verification；当前可引用 artifact 分两类：
   - contract-shaped live gate evidence：
     - [`.tmp/evals/curriculum-plan-live-gate-20260330T045116/curriculum-live-collection-baseline.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-20260330T045116/curriculum-live-collection-baseline.json)

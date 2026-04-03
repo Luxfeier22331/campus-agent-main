@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-03-31
-updated: 2026-04-02
+updated: 2026-04-03
 ---
 
 # Eval Gold Truth Model
@@ -134,9 +134,9 @@ updated: 2026-04-02
 - `course_family` alias 不得默认写成单一课程或单一 doc 的 canonical retrieval qrels
 - `resolved_family` 可以是 completed truth，但 answer truth 必须按 family 语义书写
 - family query 的 `expected_sources` 可以是 family-aware facts / member facts 的受控集合，但不得伪装成单一成员课程 truth
-- `思政课`、`思修课` 这类 institution-scoped family alias 的 canonical truth，不得在 authoring 时被 collapse 到 `习近平新时代中国特色社会主义思想概论`、`思想道德与法治` 或其他任意单课
-- `实验班有哪些`、`创新班有哪些`、`创新实验班有哪些` 这类 program-family membership 问句可以 author 成 family completed truth，但 answer/reference 必须按“当前已采集的名称集合”书写，不得伪装成任意单一培养方案
-- `强基有哪些专业`、`二学位有哪些专业` 这类 program-family membership 问句同样可以 author 成 family completed truth，但 short-fragment / deictic 单 doc 语义仍不得被静默 author 成 single-doc qrels
+- `思政课`、`思修课`、`思政`、`思政课程` 这类 institution-scoped family alias 的 canonical truth，不得在 authoring 时被 collapse 到 `习近平新时代中国特色社会主义思想概论`、`思想道德与法治` 或其他任意单课
+- `民族实验班有哪些`、`实验班有哪些`、`创新班有哪些`、`创新实验班有哪些`、`名称里带实验班的培养方案有哪些`、`名称里带创新班的培养方案有哪些` 这类 program-family membership / name-pattern 问句可以 author 成 family completed truth，但 answer/reference 必须按“当前已采集的名称集合”书写，不得伪装成任意单一培养方案
+- `强基有哪些专业`、`强基计划有哪些专业`、`二学位有哪些专业`、`第二学位有哪些专业`、`第二学士学位有哪些专业` 这类 program-family membership 问句同样可以 author 成 family completed truth，但 short-fragment / deictic 单 doc 语义仍不得被静默 author 成 single-doc qrels
 - mixed query 若同时包含当前已支持字段和当前未采集字段，允许 partial-answer truth
 - partial-answer truth 必须显式携带 forbidden claim：不得为 unsupported subfield 补猜事实
 
@@ -146,12 +146,40 @@ updated: 2026-04-02
   可写成单课 completed truth
 - `思政课有哪些专业要上`
   可写成 family completed truth
+- `思政有哪些专业要上`
+  可写成 family completed truth
 - `思政课包括哪些课`
   可写成 family-membership completed truth
+- `思政课程包括哪些课`
+  可写成 family-membership completed truth
+- `习概第几学期开`
+  可写成单课 schedule completed truth
+- `习概开设学期`
+  可写成单课 schedule completed truth
+- `思政课第几学期开`
+  可写成 family schedule completed truth，但回答应按多课程结构化语义书写，不得捏成单值
+- `思政第几学期开`
+  可写成 family schedule completed truth，但回答仍应按多课程结构化语义书写
+- `思政课程第几学期开`
+  可写成 family schedule completed truth，但回答仍应按多课程结构化语义书写
+- `民族实验班有哪些`
+  可写成 program-family completed truth
+- `强基计划有哪些专业`
+  可写成 program-family completed truth
+- `第二学士学位有哪些专业`
+  可写成 program-family completed truth
+- `名称里带实验班的培养方案有哪些`
+  可写成 program-family name-pattern completed truth
+- `名称里带创新班的培养方案有哪些`
+  可写成 program-family name-pattern completed truth
 - `思政课是哪个学院开的`
   在 `offering_unit` truth 尚未进入 serving surface 前，不得写成 completed factual truth
+- `习概哪个学院开，第几学期开`
+  若当前系统接受 partial answer，则应把“可回答单课 schedule、不可回答 offering_unit”写成明确 truth；回答既不得猜学院，也不得把未支持字段补成确定事实
 - `思政课是哪个学院开的，有哪些专业要上`
   若当前系统接受 partial answer，则应把“可回答 audience/cohort、不可回答 offering_unit”写成明确 truth，而不是把 completed/no-answer 二选一硬化
+- `思政课哪个学院开，第几学期开`
+  若当前系统接受 partial answer，则应把“可回答 family schedule、不可回答 offering_unit”写成明确 truth；回答既不得猜学院，也不得把 family schedule 捏成单值
 
 ## RAGAS Projection 规则
 

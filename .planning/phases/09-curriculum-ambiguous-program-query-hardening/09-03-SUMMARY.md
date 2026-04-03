@@ -44,5 +44,25 @@
 ## Deferred
 
 - 中央民族大学长尾 alias 与 pattern alias 仍未全量建库。
-- `创新实验班` / `名称里带“实验班/创新班”` 的 name-pattern completed lane 仍未建立。
+- `创新实验班` / `名称里带“实验班/创新班”` 的 name-pattern completed lane 已在后续 follow-up 中建立。
+- `family -> single program -> semester` 的 follow-up 承接现已从纯 `recent_goal` 过渡到显式 session slot contract：
+  - `curriculum_program_family`
+  - `curriculum_program`
+  - `curriculum_semester`
+  - specialist 现优先消费这些 confirmed slot；缺失时才回退到 `recent_goal`
+  - `SessionSummary.curriculum_follow_up` / `resolve_curriculum_follow_up_slots(...)` 已作为 repo 级单一读取真相
+- 上游 app-layer/session-layer 的最小写入闭环现也已落地：
+  - `apps/app-api` 新增 `chat.session_slots` conversation-scoped session truth
+  - `runtime-command` 会在 finalized curriculum completion 时，根据 typed diagnostics 同事务替换写入当前 slot 快照，而不是追加历史 slot
+  - `packages/rag-specialist` 的 curriculum single-program completed diagnostics 现在会显式产出：
+    - `session_program_family`
+    - `session_program`
+    - `session_semester`
+  - 后续同一 conversation 的 supervisor 请求会把这些 confirmed slot 回灌进 `context.session.confirmed_slots`
+  - `needs_clarification` / 无 typed follow-up truth 的请求不会写 slot
+- app-api live eval 现在也能在单个 benchmark case 内重放多轮 conversation：
+  - 首轮 completed curriculum answer 写入 conversation-scoped session truth
+  - 第二轮 follow-up 通过同一 `conversationId` 复用 slot 回灌
+  - release gate 已新增 `curriculum-release-gate-program-follow-up-session-replay`
+- 但更长期的产品策略仍待补齐：例如除 curriculum 之外的 session slot family、slot 生命周期治理、以及未来是否需要 panel/operator 可见的 slot diagnostics 仍未单独展开。
 - curriculum live acceptance artifact 是否需要在这轮 closeout 后重跑，仍取决于后续是否要把当前 automated evidence 再提升成新的 release artifact。

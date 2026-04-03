@@ -98,15 +98,15 @@ updated: 2026-04-03
 
 | Lane | Status | Current evidence | Notes |
 | --- | --- | --- | --- |
-| completed | covered | `curriculum_release_gate_cases()` 7 条 completed | 已覆盖标题、学制、总学分、课程地图、course-family 与 program-family completed。 |
+| completed | covered | `curriculum_release_gate_cases()` 12 条 completed | 已覆盖标题、学制、总学分、课程地图、course-family 与 program-family completed，并包含 course-family alias 变体、单课 schedule、`强基计划` full alias 与显式 `名称里带实验班` name-pattern 问句。 |
 | needs_clarification | covered | `curriculum-release-gate-needs-clarification`, `curriculum-regression-needs-clarification-ethnic-experimental-class` | 现已同时覆盖跨语料模糊问法与 retrieval-informed title ambiguity。 |
 | no_answer | covered | `curriculum-release-gate-no-answer` | 已绑定 fail-close expectation。 |
 | error | covered | `curriculum_error_gate_cases()` 3 条 | 通过 deterministic 故障注入覆盖。 |
 | required facts | covered | 学制、学分、课程地图等 fixed cases | curriculum answer truth 已比 handbook 更接近结构化事实校验。 |
 | forbidden claims | covered | release-gate completed cases | 当前已防止误答成 handbook 内容。 |
 | citation completeness | covered | `curriculum-workflow-status-summary.json` 已给出 `citation_completeness = 4/4 pass`，repo-tracked deterministic gate 也已存在 | 当前剩余问题不是有没有 citation gate，而是要不要继续把更多 family-aware completed answer 扩进 denominator。 |
-| explicit smoke workflow set | covered | `curriculum_smoke_cases()` 8 条稳定 fixed cases | 已显式覆盖 `completed`、`no_answer`、`needs_clarification`，并把 program-family membership 扩到 `民族班`、`创新班`、`强基`。 |
-| explicit regression_locked workflow set | covered | `curriculum_regression_locked_cases()` 21 条高风险 fixed cases | 已形成 curriculum 常设高风险 workflow 集，并把 course-family、program-family、deictic clarification lane 一起纳入。 |
+| explicit smoke workflow set | covered | `curriculum_smoke_cases()` 10 条稳定 fixed cases | 已显式覆盖 `completed`、`no_answer`、`needs_clarification`，并把 program-family membership 扩到 `民族班`、`民族实验班`、`创新班`、`强基` 与 `第二学士学位` full alias。 |
+| explicit regression_locked workflow set | covered | `curriculum_regression_locked_cases()` 35 条高风险 fixed cases | 已形成 curriculum 常设高风险 workflow 集，并把 course-family、course-family schedule、course schedule partial-answer、program-family、program-family full alias、显式 name-pattern query 与 deictic clarification lane 一起纳入。 |
 
 ## Current Cross-Corpus Gaps
 

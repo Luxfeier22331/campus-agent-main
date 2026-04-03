@@ -32,6 +32,8 @@
 | `实验班` | 当前已采集的“名称里带实验班”的培养方案集合 | `program_family` | `resolved_family` | `program_family_facts` | forbidden as single-doc qrels | 面向 C 端返回当前已采集集合，不表述成官方统一分类 |
 | `创新班` | 当前已采集的“名称里带创新班/创新实验班”的培养方案集合 | `program_family` | `resolved_family` | `program_family_facts` | forbidden as single-doc qrels | 面向 C 端返回当前已采集集合，不表述成官方统一分类 |
 | `创新实验班` | 当前已采集的“名称里带创新班/创新实验班”的培养方案集合 | `program_family` | `resolved_family` | `program_family_facts` | forbidden as single-doc qrels | 优先落到创新班集合，而不是被 `实验班` 泛匹配抢占 |
+| `名称里带实验班` / `名字里带实验班` | 当前已采集的“名称里带实验班”的培养方案集合 | `program_family` | `resolved_family` | `program_family_facts` | forbidden as single-doc qrels | 显式 name-pattern membership query |
+| `名称里带创新班` / `名字里带创新班` | 当前已采集的“名称里带创新班/创新实验班”的培养方案集合 | `program_family` | `resolved_family` | `program_family_facts` | forbidden as single-doc qrels | 显式 name-pattern membership query |
 
 ## Resolution Notes
 
@@ -45,8 +47,31 @@
 - `context_dependent`
   action 取决于 intent。
   - 例如 `基地班有哪些` 是 family answer
-  - `强基有哪些专业`、`二学位有哪些专业` 也是 family answer
+  - `强基有哪些专业`、`强基计划有哪些专业`、`二学位有哪些专业`、`第二学士学位有哪些专业` 也是 family answer
+  - `名称里带实验班的培养方案有哪些`、`名称里带创新班的培养方案有哪些` 也是 family answer
   - `我这个专业的基地班大二下有什么课` 才可能在 verified major 下硬解析
+
+## Course Alias Status
+
+- accepted
+  - `习概`
+  - `马原`
+  - `毛概`
+  - `史纲`
+  - `形策`
+  - `民概`
+  - `思修`
+  - `思政课`
+  - `思修课`
+  - `思政`
+  - `思政课程`
+- forbidden
+  - 当前没有新增 repo 级 `course` forbidden oral alias；高风险做法仍是把 `course_family` alias author 成单 doc canonical qrels
+- pending_evidence
+  - `毛中特`
+  - `近纲`
+  - `道法`
+  - 这些口语当前未进入 repo accepted inventory；在拿到 repo-grounded 证据前，只能记录，不能实现
 
 ## Serving Surface Ownership
 
@@ -54,6 +79,7 @@
   负责 single-doc curriculum query 的 doc alias、safe alias、deictic family alias
 - `course_facts/alias-governance.json`
   负责课程 / 课程 family alias
+  - 其离线派生 `course_facts` metadata 中的 `family_aliases` 必须与这里保持同一份已接受 inventory，避免在线 planner 与 retrieval payload 漂移
 - `program_family_facts/family-governance.json`
   负责项目 family answer / clarification
 

@@ -25,11 +25,12 @@ _DOC_NOISE = (
 _DEICTIC_MAJOR_CUES = ("我这个专业", "本专业")
 _COURSE_LIST_CUES = ("包括哪些课", "包括什么课")
 _COURSE_AUDIENCE_CUES = ("哪些专业要上", "谁要上", "哪些人要上")
+_COURSE_SCHEDULE_CUES = ("第几学期开", "什么学期开", "哪学期开", "开设学期", "开课学期")
 _COURSE_UNSUPPORTED_FIELD_CUES = {"offering_unit": ("哪个学院", "哪个系", "谁开", "开课学院")}
 _PROGRAM_FAMILY_MEMBERSHIP_CUES = ("有哪些", "有哪几个", "都有哪些", "包括哪些")
+_PROGRAM_FAMILY_NAME_PATTERN_PREFIXES = ("名称里带", "名字里带")
 _PROGRAM_FAMILY_QUERY_BLOCKERS = (
     "培养方案",
-    "第",
     "学期",
     "大一",
     "大二",
@@ -54,6 +55,7 @@ class CurriculumCourseEntity:
 class CurriculumCourseQueryPlan:
     resolution_mode: Literal["resolved_single", "resolved_family"]
     entity_type: Literal["course", "course_family"]
+    fact_intent: Literal["generic", "audience", "family_membership", "schedule"] = "generic"
     canonical_course_id: str = ""
     canonical_course_title: str = ""
     canonical_course_family_id: str = ""
@@ -166,12 +168,14 @@ def plan_curriculum_query(
 
 def plan_curriculum_course_query(query_text: str) -> CurriculumCourseQueryPlan | None:
     normalized_query = interpret_curriculum_query(query_text).normalized_query_text
+    fact_intent = _resolve_course_fact_intent(normalized_query)
     resolved_course = _resolve_course_entity(normalized_query)
     if resolved_course is not None:
         unsupported_fields = _resolve_unsupported_course_fields(normalized_query)
         return CurriculumCourseQueryPlan(
             resolution_mode="resolved_single",
             entity_type="course",
+            fact_intent=fact_intent,
             canonical_course_id=resolved_course.canonical_id,
             canonical_course_title=resolved_course.title,
             unsupported_fields=unsupported_fields,
@@ -184,6 +188,7 @@ def plan_curriculum_course_query(query_text: str) -> CurriculumCourseQueryPlan |
     return CurriculumCourseQueryPlan(
         resolution_mode="resolved_family",
         entity_type="course_family",
+        fact_intent=fact_intent,
         canonical_course_family_id=resolved_family.canonical_id,
         canonical_course_family_title=resolved_family.title,
         unsupported_fields=unsupported_fields,
@@ -515,9 +520,23 @@ def _resolve_unsupported_course_fields(normalized_query: str) -> tuple[str, ...]
     return tuple(fields)
 
 
+def _resolve_course_fact_intent(
+    normalized_query: str,
+) -> Literal["generic", "audience", "family_membership", "schedule"]:
+    if any(cue in normalized_query for cue in _COURSE_LIST_CUES):
+        return "family_membership"
+    if any(cue in normalized_query for cue in _COURSE_AUDIENCE_CUES):
+        return "audience"
+    if any(cue in normalized_query for cue in _COURSE_SCHEDULE_CUES):
+        return "schedule"
+    return "generic"
+
+
 def _is_program_family_membership_query(normalized_query: str) -> bool:
     if not any(cue in normalized_query for cue in _PROGRAM_FAMILY_MEMBERSHIP_CUES):
         return False
+    if any(prefix in normalized_query for prefix in _PROGRAM_FAMILY_NAME_PATTERN_PREFIXES):
+        return True
     if any(blocker in normalized_query for blocker in _PROGRAM_FAMILY_QUERY_BLOCKERS):
         return False
     return True
@@ -531,6 +550,19 @@ def _course_entities() -> tuple[CurriculumCourseEntity, ...]:
 @lru_cache(maxsize=1)
 def _course_family_entities() -> tuple[CurriculumCourseEntity, ...]:
     return tuple(entity for entity in _load_course_alias_entities() if entity.entity_type == "course_family")
+
+
+@lru_cache(maxsize=1)
+def _course_family_member_titles() -> dict[str, tuple[str, ...]]:
+    if "course_family:muc.ideological_political_theory" not in {
+        entity.canonical_id for entity in _course_family_entities()
+    }:
+        return {}
+    return {
+        "course_family:muc.ideological_political_theory": tuple(
+            entity.title for entity in _course_entities()
+        )
+    }
 
 
 @lru_cache(maxsize=1)
@@ -628,10 +660,15 @@ def _is_cjk_char(char: str) -> bool:
     )
 
 
+def course_family_member_titles(canonical_course_family_id: str) -> tuple[str, ...]:
+    return _course_family_member_titles().get(canonical_course_family_id, ())
+
+
 __all__ = [
     "CurriculumCourseQueryPlan",
     "CurriculumProgramFamilyQueryPlan",
     "CurriculumQueryPlan",
+    "course_family_member_titles",
     "plan_curriculum_course_query",
     "plan_curriculum_program_family_query",
     "plan_curriculum_query",

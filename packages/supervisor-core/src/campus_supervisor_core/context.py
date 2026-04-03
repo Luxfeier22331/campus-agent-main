@@ -1,8 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
-from campus_contracts import ContextProjection, KnowledgeScope, RequestedCapability, SupervisorRequest
+from campus_contracts import (
+    ContextProjection,
+    CurriculumFollowUpSlots,
+    KnowledgeScope,
+    RequestedCapability,
+    SupervisorRequest,
+)
 from campus_contracts.models import AllowedCorpus
 
 
@@ -11,6 +17,7 @@ class SupervisorPersonalizationHint:
     actor_claim_terms: tuple[str, ...] = ()
     recent_goal: str = ""
     confirmed_slot_terms: tuple[str, ...] = ()
+    curriculum_follow_up: CurriculumFollowUpSlots = field(default_factory=CurriculumFollowUpSlots)
 
     @property
     def clarification_subject(self) -> str:
@@ -75,6 +82,7 @@ class SupervisorRequestContext:
             actor_claim_terms=actor_claim_terms,
             recent_goal=recent_goal,
             confirmed_slot_terms=confirmed_slot_terms,
+            curriculum_follow_up=self.context.session.curriculum_follow_up,
         )
 
     @classmethod

@@ -55,5 +55,5 @@
 ## Deferred
 
 - 这轮 inventory 仍然只覆盖当前高频、已讨论过的 alias，不是中央民族大学全量术语库。
-- `创新实验班` / `名称里带“实验班/创新班”` 的 name-pattern completed lane 仍未建立。
+- `创新实验班`、`民族实验班`、`强基计划`、`第二学士学位` 与 `名称里带“实验班/创新班”` 的 completed lane 已在后续 follow-up 中建立。
 - 如果后续要把更多 alias 提升到 release gate，下一步应继续扩 inventory，再决定是 `hard_canonical`、`resolved_family`、`clarify_first` 还是 `soft_hint_only`。

@@ -11,6 +11,10 @@ from campus_contracts import (
     AvailabilityCheckPayload,
     AvailabilityObservation,
     ContextProjection,
+    CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
+    CURRICULUM_PROGRAM_SLOT_NAME,
+    CURRICULUM_SEMESTER_SLOT_NAME,
+    CurriculumFollowUpSlots,
     ErrorInfo,
     EvidenceBundle,
     EvidenceSource,
@@ -87,6 +91,38 @@ def _make_availability_completed_response(
     )
 
 
+def _make_curriculum_course_facts_response() -> SpecialistResponse:
+    return SpecialistResponse(
+        target="rag-specialist",
+        status="completed",
+        answer_text="根据培养方案和课程教学计划，习近平新时代中国特色社会主义思想概论开设学期：第1学期(理工/艺体)；第2学期(文科)；当前还不能稳定确认开课学院。",
+        confidence="high",
+        result=RagResultPayload(
+            evidence=EvidenceBundle(
+                query_text="习概哪个学院开，第几学期开",
+                corpus="curriculum",
+                collection="course_facts",
+                sources=(
+                    EvidenceSource(
+                        doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                        revision_track="source-faithful",
+                        version_id="v1:course-facts",
+                        chunk_id="course-facts:xigai-semester",
+                        anchor={"fact_type": "semester"},
+                        canonical_url="https://campus.example/curriculum/ideological-political-theory",
+                        latest_url="https://campus.example/curriculum/ideological-political-theory",
+                        source_channel="pdf_ocr",
+                        collection="course_facts",
+                        is_current=False,
+                        snippet="习近平新时代中国特色社会主义思想概论开设学期：第1学期(理工/艺体)；第2学期(文科)。",
+                        score=0.96,
+                    ),
+                ),
+            )
+        ),
+    )
+
+
 class SupervisorCoreTest(unittest.TestCase):
     def test_request_context_projects_minimum_supervisor_fields(self) -> None:
         request = SupervisorRequest(
@@ -112,6 +148,37 @@ class SupervisorCoreTest(unittest.TestCase):
         self.assertEqual(context.primary_collection, "student_handbook")
         self.assertEqual(context.user_goal, "library hours")
         self.assertEqual(context.context.actor.user_id, "student-001")
+
+    def test_request_context_personalization_hint_exposes_curriculum_follow_up_slots(self) -> None:
+        request = SupervisorRequest(
+            user_goal="法学",
+            conversation_id="conv-001",
+            request_id="req-001",
+            trace=TraceContext(trace_id="trace-001"),
+            context=ContextProjection(
+                actor=ActorContext(user_id="student-001", principal_id="principal-001"),
+                session=SessionSummary(
+                    confirmed_slots=(
+                        SessionSlot(name=CURRICULUM_PROGRAM_FAMILY_SLOT_NAME, value="民族实验班", confirmed=True),
+                        SessionSlot(name=CURRICULUM_PROGRAM_SLOT_NAME, value="法学民族实验班", confirmed=True),
+                        SessionSlot(name=CURRICULUM_SEMESTER_SLOT_NAME, value="第四学期", confirmed=True),
+                    ),
+                    turn_count=4,
+                ),
+            ),
+            requested_scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan"),
+        )
+
+        context = SupervisorRequestContext.from_request(request)
+
+        self.assertEqual(
+            context.personalization_hint.curriculum_follow_up,
+            CurriculumFollowUpSlots(
+                program_family="民族实验班",
+                program="法学民族实验班",
+                semester="第四学期",
+            ),
+        )
 
     def test_handle_request_routes_rag_request_and_emits_audit_record(self) -> None:
         captured_requests: list[SpecialistRequest] = []
@@ -175,6 +242,39 @@ class SupervisorCoreTest(unittest.TestCase):
                 "fail_closed": False,
             },
         )
+
+    def test_handle_request_keeps_curriculum_scope_but_allows_internal_course_facts_evidence(self) -> None:
+        captured_requests: list[SpecialistRequest] = []
+
+        def fake_rag_specialist(request: SpecialistRequest) -> SpecialistResponse:
+            captured_requests.append(request)
+            return _make_curriculum_course_facts_response()
+
+        response = handle_request(
+            SupervisorRequest(
+                user_goal="习概哪个学院开，第几学期开",
+                request_id="req-curriculum-course-facts-001",
+                trace=TraceContext(trace_id="trace-curriculum-course-facts-001"),
+                actor=ActorContext(user_id="student-001"),
+                requested_scope=KnowledgeScope(
+                    corpus="curriculum",
+                    collection="curriculum_plan",
+                ),
+            ),
+            specialist_delegates={"rag-specialist": fake_rag_specialist},
+        )
+
+        self.assertEqual(len(captured_requests), 1)
+        self.assertEqual(
+            captured_requests[0].payload,
+            RagRequestPayload(scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")),
+        )
+        self.assertEqual(response.selected_target, "rag-specialist")
+        self.assertEqual(response.status, "completed")
+        assert isinstance(response.result, RagResultPayload)
+        self.assertEqual(response.result.evidence.collection, "course_facts")
+        self.assertEqual(response.result.evidence.corpus, "curriculum")
+        self.assertIn("当前还不能稳定确认开课学院", response.answer_text)
 
     def test_handle_request_keeps_source_doc_ids_empty_for_availability_completion(self) -> None:
         audit_records: list[SupervisorAuditRecord] = []
