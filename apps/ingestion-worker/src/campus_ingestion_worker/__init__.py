@@ -12,6 +12,10 @@ from campus_ingestion_worker.process_raw_ingestion_job import (
 )
 from campus_ingestion_worker.register_raw_asset import RawAssetRegistrationResult, register_raw_asset
 from campus_ingestion_worker.rebuild_local_data import LocalDataRebuildReport, rebuild_local_data
+from campus_ingestion_worker.import_authenticated_notice_export import (
+    AuthenticatedNoticeImportRequest,
+    import_authenticated_notice_export,
+)
 from campus_ingestion_worker.release_index import main as release_index_main
 from campus_ingestion_worker.validate_student_handbook_chunking import (
     StudentHandbookChunkingValidationReport,
@@ -23,11 +27,13 @@ __all__ = [
     "LocalDataRebuildReport",
     "OnlineOcrClient",
     "OnlineOcrProviderResult",
+    "AuthenticatedNoticeImportRequest",
     "RawAssetRegistrationResult",
     "StudentHandbookChunkingValidationReport",
     "StudentHandbookMigrationReport",
     "StudentHandbookSourceAssetRequest",
     "load_worker_env",
+    "import_authenticated_notice_export",
     "migrate_student_handbook_source_faithful",
     "process_raw_ingestion_job",
     "register_raw_asset",

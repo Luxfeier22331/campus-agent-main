@@ -1,0 +1,19 @@
+{
+  "corpus": "campus_notices",
+  "collection": "internal_notice",
+  "chunk_profile_version": "authenticated_notice_semantic_v1",
+  "structured_input": "document_units_jsonl",
+  "runtime_defaults": {
+    "strategy_name": "internal_notice_generic_v1",
+    "chunk_size": 220,
+    "max_chunk_size": 320,
+    "chunk_overlap": 32,
+    "min_chunk_size": 32
+  },
+  "cleaning_policy_version": "authenticated_notice_projection_v1",
+  "notes": [
+    "Bootstrap importer emits generic structured units derived from notice-level source truth.",
+    "Keep attachment references and source-level artifacts out of chunk identity; only document units are chunked.",
+    "This profile remains offline until restricted rollout and retrieval leakage guards are complete."
+  ]
+}

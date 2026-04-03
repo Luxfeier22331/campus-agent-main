@@ -1,0 +1,715 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime, timezone
+import hashlib
+from html import unescape
+import json
+import re
+from typing import Any
+
+
+AUTHENTICATED_NOTICE_SOURCE_CHANNEL = "authenticated_notice_portal"
+AUTHENTICATED_NOTICE_MANIFEST_SCHEMA = "authenticated_notice_manifest_v1"
+AUTHENTICATED_NOTICE_BLOCK_SCHEMA = "authenticated_notice_block_v1"
+AUTHENTICATED_NOTICE_ATTACHMENT_REF_SCHEMA = "authenticated_notice_attachment_ref_v1"
+
+_HTML_BLOCK_RE = re.compile(r"<(h[1-6]|p|li|table)\b[^>]*>(.*?)</\1>", re.IGNORECASE | re.DOTALL)
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+_WHITESPACE_RE = re.compile(r"\s+")
+
+
+@dataclass(frozen=True, slots=True)
+class AuthenticatedNoticeSourceMaterial:
+    notice_id: str
+    raw_asset_id: str
+    raw_version_id: str
+    source_uri: str
+    source_home_url: str
+    title: str
+    year: str | None
+    capture_artifacts: dict[str, bytes]
+    provider_artifacts: dict[str, bytes]
+    source_truth_artifacts: dict[str, bytes]
+    content_blocks: tuple[dict[str, Any], ...]
+    attachment_refs: tuple[dict[str, Any], ...]
+    canonical_markdown_bytes: bytes
+    document_units_bytes: bytes
+
+
+def build_authenticated_notice_raw_asset_id(site_id: str, notice_id: str | int) -> str:
+    return f"asset:authenticated-notice:{site_id.strip()}:{str(notice_id).strip()}"
+
+
+def build_authenticated_notice_raw_version_id(bundle_record: dict[str, Any]) -> str:
+    notice = _notice_payload(bundle_record)
+    categories = tuple(_category_pairs(notice))
+    attachments = tuple(
+        sorted(
+            (
+                str(attachment.get("normalized_source_url") or attachment.get("source_url") or "").strip(),
+                str(relation.get("resource_role") or "").strip(),
+            )
+            for attachment, relation in _joined_attachments(bundle_record)
+        )
+    )
+    payload = {
+        "title": str(notice.get("notice_title") or "").strip(),
+        "html": str(notice.get("notice_content") or ""),
+        "categories": categories,
+        "attachments": attachments,
+    }
+    digest = hashlib.sha256(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+    return f"sha256:{digest}"
+
+
+def prepare_authenticated_notice_source_material(
+    *,
+    bundle_record: dict[str, Any],
+    export_manifest: dict[str, Any] | None,
+    site_id: str,
+    source_home_url: str,
+) -> AuthenticatedNoticeSourceMaterial:
+    notice = _notice_payload(bundle_record)
+    notice_id = str(notice.get("notice_id") or bundle_record.get("notice_id") or "").strip()
+    if not notice_id:
+        raise ValueError("notice_id is required")
+    title = str(notice.get("notice_title") or "").strip()
+    if not title:
+        raise ValueError("notice_title is required")
+    raw_asset_id = build_authenticated_notice_raw_asset_id(site_id, notice_id)
+    raw_version_id = build_authenticated_notice_raw_version_id(bundle_record)
+    source_uri = str(notice.get("notice_link") or f"campusnotice://{site_id}/notice/{notice_id}").strip()
+    source_home_url = source_home_url.strip()
+    if not source_home_url:
+        raise ValueError("source_home_url is required")
+    year = _infer_year_label(notice.get("notice_release_time") or notice.get("notice_create_time"))
+
+    content_blocks = _build_content_blocks(
+        title=title,
+        html_value=str(notice.get("notice_content") or ""),
+        links=tuple(_links_payload(bundle_record)),
+        raw_asset_id=raw_asset_id,
+        raw_version_id=raw_version_id,
+    )
+    attachment_refs = _build_attachment_refs(
+        bundle_record=bundle_record,
+        raw_asset_id=raw_asset_id,
+        raw_version_id=raw_version_id,
+        notice_id=notice_id,
+    )
+    capture_artifacts = _build_capture_artifacts(bundle_record=bundle_record, export_manifest=export_manifest)
+    provider_artifacts = _build_provider_artifacts(bundle_record=bundle_record)
+    source_truth_artifacts = _build_source_truth_artifacts(
+        raw_asset_id=raw_asset_id,
+        raw_version_id=raw_version_id,
+        site_id=site_id,
+        notice_id=notice_id,
+        source_uri=source_uri,
+        source_home_url=source_home_url,
+        title=title,
+        notice=notice,
+        export_manifest=export_manifest,
+        content_blocks=content_blocks,
+        attachment_refs=attachment_refs,
+    )
+    canonical_markdown_bytes = _build_canonical_markdown(
+        title=title,
+        content_blocks=content_blocks,
+        attachment_refs=attachment_refs,
+    )
+    document_units_bytes = _build_document_units(
+        document_id=f"notice:{site_id}:{notice_id}",
+        version_id=raw_version_id,
+        source_uri=source_uri,
+        content_blocks=content_blocks,
+        attachment_refs=attachment_refs,
+    )
+    return AuthenticatedNoticeSourceMaterial(
+        notice_id=notice_id,
+        raw_asset_id=raw_asset_id,
+        raw_version_id=raw_version_id,
+        source_uri=source_uri,
+        source_home_url=source_home_url,
+        title=title,
+        year=year,
+        capture_artifacts=capture_artifacts,
+        provider_artifacts=provider_artifacts,
+        source_truth_artifacts=source_truth_artifacts,
+        content_blocks=content_blocks,
+        attachment_refs=attachment_refs,
+        canonical_markdown_bytes=canonical_markdown_bytes,
+        document_units_bytes=document_units_bytes,
+    )
+
+
+def _build_capture_artifacts(
+    *,
+    bundle_record: dict[str, Any],
+    export_manifest: dict[str, Any] | None,
+) -> dict[str, bytes]:
+    notice = _notice_payload(bundle_record)
+    list_payload = {
+        "notice_id": notice.get("notice_id") or bundle_record.get("notice_id"),
+        "notice_title": notice.get("notice_title"),
+        "organization_name": notice.get("organization_name"),
+        "organization_id": notice.get("organization_id"),
+        "notice_release_time": notice.get("notice_release_time"),
+        "notice_create_time": notice.get("notice_create_time"),
+        "notice_first_time": notice.get("notice_first_time"),
+        "notice_link": notice.get("notice_link"),
+        "notice_source": notice.get("notice_source"),
+        "notice_link_state": notice.get("notice_link_state"),
+        "notice_state": notice.get("notice_state"),
+        "notice_stick": notice.get("notice_stick"),
+        "categories": notice.get("categories") or [],
+    }
+    detail_payload = {
+        "notice": notice,
+        "links": list(_links_payload(bundle_record)),
+        "notice_attachments": list(_notice_attachments_payload(bundle_record)),
+        "attachments": list(_attachments_payload(bundle_record)),
+    }
+    fetch_metadata = {
+        "schema_version": "authenticated_notice_fetch_metadata_v1",
+        "captured_at": _exported_at(export_manifest),
+        "export_manifest": export_manifest or {},
+    }
+    return {
+        "capture/list-response.json": _json_bytes(list_payload),
+        "capture/detail-response.json": _json_bytes(detail_payload),
+        "capture/fetch-metadata.json": _json_bytes(fetch_metadata),
+    }
+
+
+def _build_provider_artifacts(
+    *,
+    bundle_record: dict[str, Any],
+) -> dict[str, bytes]:
+    notice = _notice_payload(bundle_record)
+    normalized_notice = {
+        "schema_version": "authenticated_notice_normalized_notice_v1",
+        "notice_id": notice.get("notice_id") or bundle_record.get("notice_id"),
+        "notice_title": notice.get("notice_title"),
+        "organization_name": notice.get("organization_name"),
+        "organization_id": notice.get("organization_id"),
+        "notice_release_time": notice.get("notice_release_time"),
+        "notice_create_time": notice.get("notice_create_time"),
+        "notice_first_time": notice.get("notice_first_time"),
+        "notice_link": notice.get("notice_link"),
+        "notice_source": notice.get("notice_source"),
+        "notice_link_state": notice.get("notice_link_state"),
+        "notice_state": notice.get("notice_state"),
+        "notice_stick": notice.get("notice_stick"),
+        "notice_type_ids": [item[0] for item in _category_pairs(notice)],
+        "notice_type_names": [item[1] for item in _category_pairs(notice)],
+        "notice_content_html": notice.get("notice_content"),
+    }
+    discovered_links = tuple(_links_payload(bundle_record))
+    attachment_observations = tuple(
+        {
+            "attachment_id": attachment.get("attachment_id"),
+            "link_id": relation.get("link_id"),
+            "source_url": attachment.get("source_url"),
+            "normalized_source_url": attachment.get("normalized_source_url"),
+            "final_url": attachment.get("final_url"),
+            "resource_role": relation.get("resource_role"),
+            "relation_source": relation.get("relation_source"),
+            "anchor_text": relation.get("anchor_text"),
+            "object_key": attachment.get("object_key"),
+            "content_sha256": attachment.get("sha256"),
+            "mime_type": attachment.get("mime_type"),
+            "byte_size": attachment.get("byte_size"),
+            "origin_scope": attachment.get("origin_scope"),
+            "provenance_status": attachment.get("provenance_status"),
+        }
+        for attachment, relation in _joined_attachments(bundle_record)
+    )
+    return {
+        "provider/normalized-notice.json": _json_bytes(normalized_notice),
+        "provider/discovered-links.jsonl": _jsonl_bytes(discovered_links),
+        "provider/attachment-observations.jsonl": _jsonl_bytes(attachment_observations),
+    }
+
+
+def _build_source_truth_artifacts(
+    *,
+    raw_asset_id: str,
+    raw_version_id: str,
+    site_id: str,
+    notice_id: str,
+    source_uri: str,
+    source_home_url: str,
+    title: str,
+    notice: dict[str, Any],
+    export_manifest: dict[str, Any] | None,
+    content_blocks: tuple[dict[str, Any], ...],
+    attachment_refs: tuple[dict[str, Any], ...],
+) -> dict[str, bytes]:
+    category_pairs = _category_pairs(notice)
+    notice_manifest = {
+        "schema_version": AUTHENTICATED_NOTICE_MANIFEST_SCHEMA,
+        "source_channel": AUTHENTICATED_NOTICE_SOURCE_CHANNEL,
+        "site_id": site_id,
+        "notice_id": notice_id,
+        "raw_asset_id": raw_asset_id,
+        "raw_version_id": raw_version_id,
+        "captured_at": _exported_at(export_manifest),
+        "list_observed_at": _optional_text(notice.get("last_seen_at")) or _exported_at(export_manifest),
+        "detail_observed_at": _optional_text(notice.get("enrich_attempted_at")) or _exported_at(export_manifest),
+        "fetcher_name": "authenticated_notice_bundle_import",
+        "fetcher_version": str((export_manifest or {}).get("schema_version") or "unknown"),
+        "collector_version": str((export_manifest or {}).get("schema_version") or "unknown"),
+        "credentials_mode": "authenticated",
+        "notice_title_raw": title,
+        "notice_title_normalized": title,
+        "organization_name": _optional_text(notice.get("organization_name")),
+        "organization_id": _optional_text(notice.get("organization_id")),
+        "notice_release_time": _optional_text(notice.get("notice_release_time")),
+        "notice_create_time": _optional_text(notice.get("notice_create_time")),
+        "notice_first_time": _optional_text(notice.get("notice_first_time")),
+        "notice_source": notice.get("notice_source"),
+        "notice_link_state": notice.get("notice_link_state"),
+        "notice_state": notice.get("notice_state"),
+        "notice_stick": notice.get("notice_stick"),
+        "notice_type_ids": [item[0] for item in category_pairs],
+        "notice_type_names": [item[1] for item in category_pairs],
+        "source_notice_link": source_uri,
+        "source_home_url": source_home_url,
+        "body_html_hash": hashlib.sha256(str(notice.get("notice_content") or "").encode("utf-8")).hexdigest(),
+        "block_count": len(content_blocks),
+        "link_count": sum(1 for row in content_blocks if row.get("block_role") == "link"),
+        "attachment_ref_count": len(attachment_refs),
+    }
+    return {
+        "source-truth/notice-manifest.json": _json_bytes(notice_manifest),
+        "source-truth/content-blocks.jsonl": _jsonl_bytes(content_blocks),
+        "source-truth/attachment-refs.jsonl": _jsonl_bytes(attachment_refs),
+    }
+
+
+def _build_content_blocks(
+    *,
+    title: str,
+    html_value: str,
+    links: tuple[dict[str, Any], ...],
+    raw_asset_id: str,
+    raw_version_id: str,
+) -> tuple[dict[str, Any], ...]:
+    rows: list[dict[str, Any]] = []
+    heading_path: list[str] = []
+
+    def append_block(
+        *,
+        block_role: str,
+        text: str,
+        heading_level: int | None = None,
+        link_target: str | None = None,
+        link_text: str | None = None,
+    ) -> None:
+        normalized_text = _normalize_text(text)
+        if not normalized_text:
+            return
+        row_id = f"block-{len(rows) + 1:04d}"
+        parent_heading_path = tuple(heading_path)
+        rows.append(
+            {
+                "schema_version": AUTHENTICATED_NOTICE_BLOCK_SCHEMA,
+                "raw_asset_id": raw_asset_id,
+                "raw_version_id": raw_version_id,
+                "row_id": row_id,
+                "row_index": len(rows),
+                "block_order": len(rows) + 1,
+                "block_role": block_role,
+                "heading_level": heading_level,
+                "parent_heading_path": list(parent_heading_path),
+                "list_level": None,
+                "table_id": None,
+                "table_row_index": None,
+                "table_col_index": None,
+                "text_raw": text.strip(),
+                "text_normalized": normalized_text,
+                "html_fragment": None,
+                "link_target": link_target,
+                "link_text": link_text,
+                "table_html": None,
+                "table_cells": None,
+            }
+        )
+
+    append_block(block_role="title", text=title, heading_level=1)
+
+    parsed_blocks = _html_blocks(html_value)
+    for block in parsed_blocks:
+        if block["text_normalized"] == _normalize_text(title):
+            continue
+        if block["block_role"] == "heading":
+            heading_level = int(block.get("heading_level") or 2)
+            while len(heading_path) >= heading_level:
+                heading_path.pop()
+            heading_path.append(block["text_normalized"])
+            append_block(
+                block_role="heading",
+                text=block["text_raw"],
+                heading_level=heading_level,
+            )
+            continue
+        append_block(
+            block_role=str(block["block_role"]),
+            text=str(block["text_raw"]),
+        )
+
+    for link in links:
+        link_target = _optional_text(link.get("final_url")) or _optional_text(link.get("url"))
+        link_text = _optional_text(link.get("link_text")) or link_target
+        if not link_target:
+            continue
+        append_block(
+            block_role="link",
+            text=link_text or link_target,
+            link_target=link_target,
+            link_text=link_text,
+        )
+
+    return tuple(rows)
+
+
+def _build_attachment_refs(
+    *,
+    bundle_record: dict[str, Any],
+    raw_asset_id: str,
+    raw_version_id: str,
+    notice_id: str,
+) -> tuple[dict[str, Any], ...]:
+    rows: list[dict[str, Any]] = []
+    for index, (attachment, relation) in enumerate(_joined_attachments(bundle_record), start=1):
+        rows.append(
+            {
+                "schema_version": AUTHENTICATED_NOTICE_ATTACHMENT_REF_SCHEMA,
+                "raw_asset_id": raw_asset_id,
+                "raw_version_id": raw_version_id,
+                "attachment_ref_id": f"attachment-{index:04d}",
+                "ref_order": index,
+                "notice_id": notice_id,
+                "relation_source": relation.get("relation_source"),
+                "resource_role": relation.get("resource_role"),
+                "content_kind": _content_kind_for_relation(
+                    bundle_record=bundle_record,
+                    relation=relation,
+                ),
+                "anchor_text": _optional_text(relation.get("anchor_text")),
+                "source_url": _optional_text(attachment.get("source_url")),
+                "normalized_source_url": _optional_text(attachment.get("normalized_source_url")),
+                "final_url": _optional_text(attachment.get("final_url")),
+                "origin_scope": _optional_text(attachment.get("origin_scope")),
+                "object_key": _optional_text(attachment.get("object_key")),
+                "content_sha256": _optional_text(attachment.get("sha256")),
+                "mime_type": _optional_text(attachment.get("mime_type")),
+                "byte_size": attachment.get("byte_size"),
+            }
+        )
+    return tuple(rows)
+
+
+def _build_canonical_markdown(
+    *,
+    title: str,
+    content_blocks: tuple[dict[str, Any], ...],
+    attachment_refs: tuple[dict[str, Any], ...],
+) -> bytes:
+    lines = [f"# {title}"]
+    for block in content_blocks[1:]:
+        role = str(block.get("block_role") or "")
+        text = str(block.get("text_normalized") or "").strip()
+        if not text:
+            continue
+        if role == "heading":
+            level = int(block.get("heading_level") or 2)
+            lines.append(f"{'#' * max(level, 2)} {text}")
+        elif role == "list_item":
+            lines.append(f"- {text}")
+        elif role == "link":
+            target = str(block.get("link_target") or "").strip()
+            if target:
+                lines.append(f"- [{text}]({target})")
+            else:
+                lines.append(f"- {text}")
+        else:
+            lines.append(text)
+    if attachment_refs:
+        lines.append("")
+        lines.append("## 附件")
+        for row in attachment_refs:
+            anchor_text = str(row.get("anchor_text") or "").strip()
+            source_url = str(row.get("final_url") or row.get("source_url") or "").strip()
+            if anchor_text and source_url:
+                lines.append(f"- [{anchor_text}]({source_url})")
+            elif anchor_text:
+                lines.append(f"- {anchor_text}")
+            elif source_url:
+                lines.append(f"- {source_url}")
+    return ("\n\n".join(lines).strip() + "\n").encode("utf-8")
+
+
+def _build_document_units(
+    *,
+    document_id: str,
+    version_id: str,
+    source_uri: str,
+    content_blocks: tuple[dict[str, Any], ...],
+    attachment_refs: tuple[dict[str, Any], ...],
+) -> bytes:
+    rows: list[dict[str, Any]] = []
+    for block in content_blocks:
+        text = str(block.get("text_normalized") or "").strip()
+        if not text:
+            continue
+        role = str(block.get("block_role") or "policy_page")
+        rows.append(
+            {
+                "doc_id": document_id,
+                "version_id": version_id,
+                "chunk_id": str(block.get("row_id") or ""),
+                "root_unit_id": str(block.get("row_id") or ""),
+                "unit_type": _unit_type_for_block(role),
+                "text": text,
+                "raw_text": str(block.get("text_raw") or text),
+                "clean_text": text,
+                "anchor": {
+                    "block_order": block.get("block_order"),
+                    "block_role": role,
+                    "parent_heading_path": block.get("parent_heading_path") or [],
+                    "source_uri": source_uri,
+                    "link_target": block.get("link_target"),
+                },
+                "metadata": {
+                    "block_role": role,
+                    "heading_level": block.get("heading_level"),
+                    "link_target": block.get("link_target"),
+                    "link_text": block.get("link_text"),
+                },
+            }
+        )
+    for row in attachment_refs:
+        text = (
+            str(row.get("anchor_text") or "").strip()
+            or str(row.get("final_url") or row.get("source_url") or "").strip()
+        )
+        if not text:
+            continue
+        chunk_id = str(row.get("attachment_ref_id") or "")
+        rows.append(
+            {
+                "doc_id": document_id,
+                "version_id": version_id,
+                "chunk_id": chunk_id,
+                "root_unit_id": chunk_id,
+                "unit_type": "attachment_ref",
+                "text": text,
+                "raw_text": text,
+                "clean_text": text,
+                "anchor": {
+                    "resource_role": row.get("resource_role"),
+                    "source_uri": source_uri,
+                    "attachment_ref_id": chunk_id,
+                },
+                "metadata": {
+                    "block_role": "attachment_ref",
+                    "resource_role": row.get("resource_role"),
+                    "object_key": row.get("object_key"),
+                    "mime_type": row.get("mime_type"),
+                },
+            }
+        )
+    return _jsonl_bytes(rows)
+
+
+def _json_bytes(payload: object) -> bytes:
+    return (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+
+
+def _jsonl_bytes(rows: tuple[dict[str, Any], ...] | list[dict[str, Any]]) -> bytes:
+    return (
+        "\n".join(json.dumps(row, ensure_ascii=False) for row in rows).strip() + "\n"
+        if rows
+        else ""
+    ).encode("utf-8")
+
+
+def _notice_payload(bundle_record: dict[str, Any]) -> dict[str, Any]:
+    notice = bundle_record.get("notice")
+    if not isinstance(notice, dict):
+        raise ValueError("bundle record is missing notice payload")
+    return notice
+
+
+def _links_payload(bundle_record: dict[str, Any]) -> tuple[dict[str, Any], ...]:
+    links = bundle_record.get("links") or ()
+    return tuple(item for item in links if isinstance(item, dict))
+
+
+def _attachments_payload(bundle_record: dict[str, Any]) -> tuple[dict[str, Any], ...]:
+    attachments = bundle_record.get("attachments") or ()
+    return tuple(item for item in attachments if isinstance(item, dict))
+
+
+def _notice_attachments_payload(bundle_record: dict[str, Any]) -> tuple[dict[str, Any], ...]:
+    relations = bundle_record.get("notice_attachments") or ()
+    return tuple(item for item in relations if isinstance(item, dict))
+
+
+def _joined_attachments(bundle_record: dict[str, Any]) -> tuple[tuple[dict[str, Any], dict[str, Any]], ...]:
+    attachments_by_id = {
+        item.get("attachment_id"): item
+        for item in _attachments_payload(bundle_record)
+        if item.get("attachment_id") is not None
+    }
+    joined: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    for relation in _notice_attachments_payload(bundle_record):
+        attachment = attachments_by_id.get(relation.get("attachment_id"))
+        if attachment is None:
+            continue
+        joined.append((attachment, relation))
+    return tuple(joined)
+
+
+def _category_pairs(notice: dict[str, Any]) -> tuple[tuple[str, str], ...]:
+    categories = notice.get("categories") or ()
+    pairs: list[tuple[str, str]] = []
+    for category in categories:
+        if not isinstance(category, dict):
+            continue
+        category_id = str(category.get("notice_type") or "").strip()
+        category_name = str(category.get("notice_type_name") or "").strip()
+        if category_id or category_name:
+            pairs.append((category_id, category_name))
+    return tuple(pairs)
+
+
+def _exported_at(export_manifest: dict[str, Any] | None) -> str:
+    candidate = _optional_text((export_manifest or {}).get("exported_at"))
+    if candidate is not None:
+        return candidate
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _content_kind_for_relation(
+    *,
+    bundle_record: dict[str, Any],
+    relation: dict[str, Any],
+) -> str | None:
+    link_id = relation.get("link_id")
+    if link_id is None:
+        return None
+    for link in _links_payload(bundle_record):
+        if link.get("id") == link_id:
+            return _optional_text(link.get("content_kind"))
+    return None
+
+
+def _infer_year_label(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    match = re.search(r"(?<!\d)((?:19|20)\d{2})(?!\d)", value)
+    if match is None:
+        return None
+    return match.group(1)
+
+
+def _html_blocks(html_value: str) -> tuple[dict[str, Any], ...]:
+    if not html_value.strip():
+        return ()
+    rows: list[dict[str, Any]] = []
+    for match in _HTML_BLOCK_RE.finditer(html_value):
+        tag = match.group(1).lower()
+        inner_html = match.group(2)
+        text = _strip_html(inner_html)
+        if not text:
+            continue
+        if tag.startswith("h"):
+            rows.append(
+                {
+                    "block_role": "heading",
+                    "heading_level": int(tag[1]),
+                    "text_raw": text,
+                    "text_normalized": _normalize_text(text),
+                }
+            )
+        elif tag == "li":
+            rows.append(
+                {
+                    "block_role": "list_item",
+                    "heading_level": None,
+                    "text_raw": text,
+                    "text_normalized": _normalize_text(text),
+                }
+            )
+        elif tag == "table":
+            rows.append(
+                {
+                    "block_role": "table",
+                    "heading_level": None,
+                    "text_raw": text,
+                    "text_normalized": _normalize_text(text),
+                }
+            )
+        else:
+            rows.append(
+                {
+                    "block_role": "paragraph",
+                    "heading_level": None,
+                    "text_raw": text,
+                    "text_normalized": _normalize_text(text),
+                }
+            )
+    if rows:
+        return tuple(rows)
+    text = _strip_html(html_value)
+    if not text:
+        return ()
+    return (
+        {
+            "block_role": "paragraph",
+            "heading_level": None,
+            "text_raw": text,
+            "text_normalized": _normalize_text(text),
+        },
+    )
+
+
+def _strip_html(value: str) -> str:
+    normalized = value.replace("<br/>", "\n").replace("<br />", "\n").replace("<br>", "\n")
+    stripped = _HTML_TAG_RE.sub("", normalized)
+    decoded = unescape(stripped).replace("\xa0", " ")
+    lines = [_WHITESPACE_RE.sub(" ", line).strip() for line in decoded.splitlines()]
+    return "\n".join(line for line in lines if line)
+
+
+def _normalize_text(value: str) -> str:
+    return _WHITESPACE_RE.sub(" ", value.replace("\xa0", " ")).strip()
+
+
+def _optional_text(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
+def _unit_type_for_block(block_role: str) -> str:
+    if block_role in {"title", "heading"}:
+        return "policy_page"
+    if block_role == "table":
+        return "table_unit"
+    return "article_body"
+
+
+__all__ = [
+    "AUTHENTICATED_NOTICE_SOURCE_CHANNEL",
+    "AuthenticatedNoticeSourceMaterial",
+    "build_authenticated_notice_raw_asset_id",
+    "build_authenticated_notice_raw_version_id",
+    "prepare_authenticated_notice_source_material",
+]

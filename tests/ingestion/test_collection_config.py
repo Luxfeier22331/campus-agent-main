@@ -22,6 +22,23 @@ class CollectionTruthConfigTest(unittest.TestCase):
         self.assertTrue(config.split_manifest_path.exists())
         self.assertTrue(config.source_projections_path.exists())
 
+    def test_resolve_internal_notice_collection_truth_uses_repo_tracked_paths(self) -> None:
+        config = resolve_collection_truth_config("campus_notices", "internal_notice")
+
+        self.assertEqual(config.corpus, "campus_notices")
+        self.assertEqual(config.collection, "internal_notice")
+        self.assertEqual(
+            config.config_root,
+            Path("configs/ingestion/campus_notices/internal_notice").resolve(),
+        )
+        self.assertEqual(config.runtime_profile_path, config.config_root / "runtime-profile.json")
+        self.assertEqual(config.canonical_profile_path, config.config_root / "canonical-profile.json")
+        self.assertEqual(config.chunk_profile_path, config.config_root / "chunk-profile.json")
+        self.assertIsNone(config.source_projections_path)
+        self.assertTrue(config.runtime_profile_path.exists())
+        self.assertTrue(config.canonical_profile_path.exists())
+        self.assertTrue(config.chunk_profile_path.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

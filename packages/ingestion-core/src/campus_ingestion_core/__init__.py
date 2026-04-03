@@ -85,6 +85,13 @@ from campus_ingestion_core.handbook_chunking_validation import (
     scan_student_handbook_chunking,
     validate_student_handbook_chunking,
 )
+from campus_ingestion_core.authenticated_notice_import import (
+    AuthenticatedNoticeBundleImportResult,
+    AuthenticatedNoticeImportRequest,
+    AuthenticatedNoticePreparedImport,
+    import_authenticated_notice_bundle,
+    import_authenticated_notice_export,
+)
 from campus_ingestion_core.index_release import (
     IndexReleaseArtifacts,
     IndexReleaseDocumentRef,
@@ -179,6 +186,9 @@ __all__ = [
     "IndexReleaseManifest",
     "IndexReleaseValidationResult",
     "ChunkValidationFailure",
+    "AuthenticatedNoticeBundleImportResult",
+    "AuthenticatedNoticeImportRequest",
+    "AuthenticatedNoticePreparedImport",
     "StudentHandbookChunkingScanResult",
     "StudentHandbookMigrationReport",
     "StudentHandbookSourceAssetRequest",
@@ -189,6 +199,8 @@ __all__ = [
     "build_handbook_version_id",
     "build_student_handbook_chunking_validation_report",
     "cleanup_handbook_document",
+    "import_authenticated_notice_bundle",
+    "import_authenticated_notice_export",
     "normalize_handbook_provider_result",
     "normalize_handbook_body_text",
     "normalize_handbook_title",

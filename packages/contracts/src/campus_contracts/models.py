@@ -6,7 +6,7 @@ from typing import Literal, TypeAlias
 
 AllowedCorpus: TypeAlias = str
 RevisionTrack = Literal["source-faithful", "current-effective", "editorial"]
-SourceChannel = Literal["pdf_ocr", "official_web", "manual_curated"]
+SourceChannel = Literal["pdf_ocr", "official_web", "manual_curated", "authenticated_notice_portal"]
 DelegateStatus = Literal["completed", "needs_clarification", "no_answer", "error"]
 ConfidenceLevel = Literal["high", "medium", "low"]
 SpecialistTarget = Literal["rag-specialist", "availability-specialist"]
@@ -23,7 +23,7 @@ MemorySourceType = Literal["verified_record", "user_declared", "conversation_sum
 MemoryVisibility = Literal["user_visible", "internal_only"]
 
 ALLOWED_REVISION_TRACKS = ("source-faithful", "current-effective", "editorial")
-ALLOWED_SOURCE_CHANNELS = ("pdf_ocr", "official_web", "manual_curated")
+ALLOWED_SOURCE_CHANNELS = ("pdf_ocr", "official_web", "manual_curated", "authenticated_notice_portal")
 DEFAULT_REVISION_TRACK = "source-faithful"
 DEFAULT_SOURCE_CHANNEL = "pdf_ocr"
 ALLOWED_DELEGATE_STATUSES = ("completed", "needs_clarification", "no_answer", "error")

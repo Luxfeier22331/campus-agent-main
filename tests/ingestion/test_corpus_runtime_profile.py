@@ -155,6 +155,24 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.qdrant_index_binding.alias_name, "contact_directory")
         self.assertEqual(profile.qdrant_index_binding.collection_prefix, "contact_directory")
 
+    def test_load_internal_notice_runtime_profile(self) -> None:
+        profile = load_runtime_profile("campus_notices", "internal_notice")
+
+        self.assertEqual(profile.corpus, "campus_notices")
+        self.assertEqual(profile.collection, "internal_notice")
+        self.assertEqual(profile.serving_stage, "offline_preparation")
+        self.assertEqual(profile.allowed_artifact_modes, ("normalized", "source_truth_only"))
+        self.assertFalse(profile.split_manifest_required)
+        self.assertFalse(profile.retrieval_enabled)
+        self.assertFalse(profile.query_enabled_by_default)
+        self.assertFalse(profile.current_only)
+        self.assertEqual(profile.serving_revision_tracks, ("source-faithful",))
+        self.assertEqual(profile.retrieval_top_k, 3)
+        self.assertEqual(profile.cleaning_policy_version, "authenticated_notice_projection_v1")
+        self.assertEqual(profile.chunk_profile_version, "authenticated_notice_semantic_v1")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "internal_notice")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "internal_notice")
+
     def test_default_query_scopes_include_all_query_enabled_profiles(self) -> None:
         self.assertEqual(
             default_query_scopes(),
