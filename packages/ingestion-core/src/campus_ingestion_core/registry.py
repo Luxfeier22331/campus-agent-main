@@ -194,6 +194,59 @@ class PostgresDocumentRegistry:
         rows = self._fetchall(query, params)
         return tuple(_document_record_from_dict(_coerce_json_payload(row[0])) for row in rows)
 
+    def list_processed_object_keys_by_scope(
+        self,
+        corpus: str,
+        collection: str | None = None,
+    ) -> tuple[str, ...]:
+        if collection is None:
+            query = (
+                f"select record from {self.table_name} "
+                "where corpus = %s order by document_id asc, revision_track asc, version_id asc"
+            )
+            params: tuple[object, ...] = (corpus,)
+        else:
+            query = (
+                f"select record from {self.table_name} "
+                "where corpus = %s and collection = %s order by document_id asc, revision_track asc, version_id asc"
+            )
+            params = (corpus, collection)
+        rows = self._fetchall(query, params)
+        keys: list[str] = []
+        for row in rows:
+            raw = _coerce_json_payload(row[0])
+            keys.extend(str(item) for item in list(raw.get("processed_object_keys") or []) if item)
+        return tuple(keys)
+
+    def list_importable_scope_records_by_scope(
+        self,
+        corpus: str,
+        collection: str | None = None,
+    ) -> tuple[DocumentRegistryRecord, ...]:
+        if collection is None:
+            query = (
+                f"select record from {self.table_name} "
+                "where corpus = %s order by document_id asc, revision_track asc, version_id asc"
+            )
+            params: tuple[object, ...] = (corpus,)
+        else:
+            query = (
+                f"select record from {self.table_name} "
+                "where corpus = %s and collection = %s order by document_id asc, revision_track asc, version_id asc"
+            )
+            params = (corpus, collection)
+        rows = self._fetchall(query, params)
+        records: list[DocumentRegistryRecord] = []
+        for row in rows:
+            raw = _coerce_json_payload(row[0])
+            try:
+                records.append(_document_record_from_dict(raw))
+            except ValueError as exc:
+                if _is_unsupported_authorization_projection_error(exc):
+                    continue
+                raise
+        return tuple(records)
+
     def latest_versions(
         self,
         document_id: str,
@@ -703,6 +756,10 @@ def _assert_canonical_authorization_projection_payload(raw: dict[str, object]) -
         raise ValueError(
             f"registry payload contains unsupported authorization projection keys: {joined}"
         )
+
+
+def _is_unsupported_authorization_projection_error(exc: ValueError) -> bool:
+    return "registry payload contains unsupported authorization projection keys" in str(exc)
 
 
 _SUPPORTED_AUTHORIZATION_PROJECTION_KEYS = frozenset(

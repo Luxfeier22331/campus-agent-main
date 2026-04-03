@@ -140,6 +140,7 @@ updated: 2026-04-03
 - `plans/golden-dataset-execution-plan.md`
 - `plans/intent-memory-acl-foundation.md`
 - `plans/legacy-acl-carrier-compatibility-sunset.md`
+- `plans/local-live-eval-canonical-registry-recovery.md`
 - `plans/operator-observability-control-plane-foundation.md`
 - `plans/restricted-document-rollout-and-verification.md`
 - `plans/supervisor-current-design-implementation.md`

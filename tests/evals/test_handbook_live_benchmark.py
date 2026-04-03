@@ -254,6 +254,73 @@ class HandbookLiveExecutorTest(unittest.TestCase):
             result.response.result.evidence.sources,
         )
 
+    def test_build_app_api_handbook_live_executor_renders_trace_backlink_from_template(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                request=request,
+                headers={
+                    "x-request-id": "req_eval_01HQ",
+                    "x-trace-id": "trace_eval_01HQ",
+                },
+                json={
+                    "answer": {
+                        "conversation": {
+                            "id": "conv_eval_01HQ",
+                            "title": "图书馆开放时间",
+                            "createdAt": "2026-04-03T00:00:00.000Z",
+                            "updatedAt": "2026-04-03T00:00:01.000Z",
+                            "messages": [],
+                        },
+                        "result": {
+                            "kind": "answer",
+                            "text": "图书馆开放到 22:00。",
+                            "requestId": "req_eval_01HQ",
+                            "traceId": "trace_eval_01HQ",
+                        },
+                    },
+                    "supervisor": {
+                        "answerText": "图书馆开放到 22:00。",
+                        "followUpQuestion": "",
+                        "selectedTarget": "rag-specialist",
+                        "status": "completed",
+                        "traceId": "trace_eval_01HQ",
+                        "result": None,
+                        "observability": None,
+                        "error": None,
+                    },
+                },
+            )
+
+        settings = AppApiEvalClientSettings(
+            app_api_base_url="https://app-api.internal",
+            internal_shared_secret="trusted-secret",
+            eval_user_email="eval-benchmark@example.edu",
+            trace_link_template="https://sentry.example/organizations/campus/traces/{trace_id}",
+        )
+        transport = httpx.MockTransport(handler)
+        client = httpx.Client(base_url="https://app-api.internal", transport=transport)
+
+        try:
+            executor = build_app_api_handbook_live_executor(
+                settings=settings,
+                client=client,
+            )
+            result = executor(_case())
+        finally:
+            client.close()
+
+        self.assertEqual(
+            result.request_correlation,
+            OperatorRequestCorrelation(
+                case_id="release-gate-student-card",
+                request_id="req_eval_01HQ",
+                trace_id="trace_eval_01HQ",
+                sampled_at="2026-04-03T00:00:01.000Z",
+                trace_link="https://sentry.example/organizations/campus/traces/trace_eval_01HQ",
+            ),
+        )
+
     def test_build_handbook_live_executor_marks_pre_retrieval_clarification(self) -> None:
         def fake_delegate(request, *, retriever):
             del retriever

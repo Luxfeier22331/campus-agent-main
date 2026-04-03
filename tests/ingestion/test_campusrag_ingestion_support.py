@@ -153,6 +153,47 @@ class _SpyDocumentRegistry:
         self.replace_scope_calls.append((corpus, collection, records))
 
 
+class _LegacyProjectionBlockedScopeRefreshRegistry(_SpyDocumentRegistry):
+    def list_by_scope(
+        self,
+        corpus: str,
+        collection: str | None = None,
+    ) -> tuple[DocumentRegistryRecord, ...]:
+        self.list_by_scope_calls.append((corpus, collection))
+        raise ValueError(
+            "registry payload contains unsupported authorization projection keys: acl_groups, campus_scope"
+        )
+
+    def list_processed_object_keys_by_scope(
+        self,
+        corpus: str,
+        collection: str | None = None,
+    ) -> tuple[str, ...]:
+        return ()
+
+
+class _ImportablePrefetchRegistry(_SpyDocumentRegistry):
+    def __init__(self, records: tuple[DocumentRegistryRecord, ...] = ()) -> None:
+        super().__init__(records=records)
+        self.importable_scope_calls: list[tuple[str, str | None]] = []
+
+    def list_by_scope(
+        self,
+        corpus: str,
+        collection: str | None = None,
+    ) -> tuple[DocumentRegistryRecord, ...]:
+        self.list_by_scope_calls.append((corpus, collection))
+        raise AssertionError("list_by_scope should not be used when importable scope prefetch is available")
+
+    def list_importable_scope_records_by_scope(
+        self,
+        corpus: str,
+        collection: str | None = None,
+    ) -> tuple[DocumentRegistryRecord, ...]:
+        self.importable_scope_calls.append((corpus, collection))
+        return self.records
+
+
 class CampusragIngestionSupportTest(unittest.TestCase):
     def setUp(self) -> None:
         self.object_store = ObjectStoreSettings(
@@ -250,6 +291,65 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             tuple(record.document_id for record in registry.replace_scope_calls[0][2]),
             ("handbook:doc-keep", "handbook:doc-new"),
         )
+
+    def test_collect_import_document_stats_scope_refresh_can_recover_from_legacy_registry_rows(self) -> None:
+        doc_keep = _document_input(
+            document_id="handbook:doc-keep",
+            version_id="v1:doc-keep",
+            body='{"type":"paragraph","text":"keep"}\n',
+        )
+        doc_new = _document_input(
+            document_id="handbook:doc-new",
+            version_id="v2:doc-new",
+            body='{"type":"paragraph","text":"new"}\n',
+        )
+        registry = _LegacyProjectionBlockedScopeRefreshRegistry(records=())
+
+        stats = collect_import_document_stats(
+            documents=[doc_keep, doc_new],
+            registry=registry,
+            raw_asset_registry=_FakeRawAssetRegistry(),
+            writer=_FakeWriter(),
+            object_store=self.object_store,
+            parser_version="campusrag-import-v1",
+            embedding_model="Qwen3-Embedding-4B",
+            cleaning_policy_version="student_handbook_cleaning_v1",
+            default_visibility_scope=None,
+            scope_refresh=("regulations", "student_handbook"),
+        )
+
+        self.assertEqual(stats.success_count, 2)
+        self.assertEqual(stats.failed_count, 0)
+        self.assertEqual(registry.list_by_scope_calls, [("regulations", "student_handbook")])
+        self.assertEqual(len(registry.replace_scope_calls), 1)
+        self.assertEqual(
+            tuple(record.document_id for record in registry.replace_scope_calls[0][2]),
+            ("handbook:doc-keep", "handbook:doc-new"),
+        )
+
+    def test_collect_import_document_stats_prefers_importable_scope_prefetch(self) -> None:
+        doc_new = _document_input(
+            document_id="handbook:doc-new",
+            version_id="v1:doc-new",
+            body='{"type":"paragraph","text":"new"}\n',
+        )
+        registry = _ImportablePrefetchRegistry(records=())
+
+        stats = collect_import_document_stats(
+            documents=[doc_new],
+            registry=registry,
+            raw_asset_registry=_FakeRawAssetRegistry(),
+            writer=_FakeWriter(),
+            object_store=self.object_store,
+            parser_version="campusrag-import-v1",
+            embedding_model="Qwen3-Embedding-4B",
+            cleaning_policy_version="student_handbook_cleaning_v1",
+            default_visibility_scope=None,
+        )
+
+        self.assertEqual(stats.success_count, 1)
+        self.assertEqual(registry.importable_scope_calls, [("regulations", "student_handbook")])
+        self.assertEqual(registry.list_by_scope_calls, [])
 
     def test_collect_import_document_stats_demotes_prior_current_version_when_new_current_is_imported(self) -> None:
         doc_new_current = _document_input(

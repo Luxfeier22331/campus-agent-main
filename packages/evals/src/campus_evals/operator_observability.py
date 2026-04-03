@@ -13,6 +13,7 @@ from campus_shared import load_repo_env
 
 _DEFAULT_METRIC_DOMAIN_MAP = {
     "ragas.faithfulness": "grounding",
+    "ragas.answer_relevancy": "grounding",
     "judge.answer_correctness_rubric": "grounding",
     "ragas.context_precision": "citation",
     "ragas.context_recall": "citation",

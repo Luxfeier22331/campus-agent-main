@@ -263,6 +263,57 @@ class OperatorObservabilityBatchBuilderTest(unittest.TestCase):
         )
         self.assertEqual(batch.skipped, ())
 
+    def test_build_case_results_publish_batch_maps_answer_relevancy_into_grounding(self) -> None:
+        payload = {
+            "results": [
+                {
+                    "case_id": "case-1",
+                    "supplemental_results": [
+                        {
+                            "adapter_id": "ragas",
+                            "metric_name": "answer_relevancy",
+                            "score": 0.81,
+                            "rationale": "answer stayed aligned with the user ask",
+                            "metadata": {"case_id": "case-1"},
+                        },
+                    ],
+                }
+            ]
+        }
+        correlations = {
+            "case-1": OperatorRequestCorrelation(
+                case_id="case-1",
+                request_id="req_01HQ",
+                trace_id="trace_01HQ",
+                sampled_at="2026-04-03T00:10:00.000Z",
+            )
+        }
+
+        batch = build_case_results_publish_batch(
+            case_results_payload=payload,
+            correlations=correlations,
+            grade_source="judge_runtime",
+            grader_version="judge@2026-04-03",
+        )
+
+        self.assertEqual(
+            batch.grades,
+            (
+                OperatorQualityGrade(
+                    request_id="req_01HQ",
+                    trace_id="trace_01HQ",
+                    grade_source="judge_runtime",
+                    grade_domain="grounding",
+                    verdict="pass",
+                    score=0.81,
+                    grader_version="judge@2026-04-03",
+                    sampled_at="2026-04-03T00:10:00.000Z",
+                    rationale_summary="answer stayed aligned with the user ask",
+                ),
+            ),
+        )
+        self.assertEqual(batch.skipped, ())
+
     def test_build_case_results_publish_batch_coalesces_override_metrics_into_single_domain_grade(self) -> None:
         payload = {
             "results": [

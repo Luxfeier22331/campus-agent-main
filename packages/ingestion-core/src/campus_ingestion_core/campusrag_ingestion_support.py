@@ -491,7 +491,11 @@ def collect_import_document_stats(
     uploaded_raw_assets: set[tuple[str, str]] = set()
     documents_by_scope = _group_documents_by_scope(documents)
     existing_records_by_scope = {
-        scope: registry.list_by_scope(scope[0], scope[1])
+        scope: _prefetch_existing_scope_records(
+            registry=registry,
+            scope=scope,
+            scope_refresh=scope_refresh,
+        )
         for scope in documents_by_scope
     }
     if scope_refresh is not None:
@@ -880,6 +884,37 @@ def collect_import_document_stats(
         unresolved_source_pdfs=unresolved_source_pdfs,
         errors=tuple(errors),
         timestamp=timestamp,
+    )
+
+
+def _prefetch_existing_scope_records(
+    *,
+    registry: DocumentRegistry,
+    scope: tuple[str, str],
+    scope_refresh: tuple[str, str] | None,
+) -> tuple[DocumentRegistryRecord, ...]:
+    list_importable_scope_records = getattr(registry, "list_importable_scope_records_by_scope", None)
+    if callable(list_importable_scope_records):
+        return tuple(list_importable_scope_records(scope[0], scope[1]))
+    try:
+        return registry.list_by_scope(scope[0], scope[1])
+    except ValueError as exc:
+        if scope_refresh == scope and _can_recover_scope_refresh_from_legacy_registry_rows(
+            registry=registry,
+            exc=exc,
+        ):
+            return ()
+        raise
+
+
+def _can_recover_scope_refresh_from_legacy_registry_rows(
+    *,
+    registry: DocumentRegistry,
+    exc: ValueError,
+) -> bool:
+    list_processed_object_keys = getattr(registry, "list_processed_object_keys_by_scope", None)
+    return callable(list_processed_object_keys) and (
+        "registry payload contains unsupported authorization projection keys" in str(exc)
     )
 
 

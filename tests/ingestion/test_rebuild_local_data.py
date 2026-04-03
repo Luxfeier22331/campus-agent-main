@@ -135,6 +135,30 @@ class _FakeDocumentRegistryWithRecords(_FakeDocumentRegistry):
         )
 
 
+class _LegacyProjectionBlockedDocumentRegistry(_FakeDocumentRegistry):
+    def __init__(self, *, scope_keys: dict[tuple[str, str], tuple[str, ...]]) -> None:
+        super().__init__()
+        self.scope_keys = scope_keys
+
+    def list_by_scope(self, corpus: str, collection: str | None = None) -> tuple[object, ...]:
+        raise ValueError(
+            "registry payload contains unsupported authorization projection keys: acl_groups, campus_scope"
+        )
+
+    def list_processed_object_keys_by_scope(
+        self,
+        corpus: str,
+        collection: str | None = None,
+    ) -> tuple[str, ...]:
+        if collection is None:
+            keys: list[str] = []
+            for (scope_corpus, _), scope_keys in self.scope_keys.items():
+                if scope_corpus == corpus:
+                    keys.extend(scope_keys)
+            return tuple(keys)
+        return self.scope_keys.get((corpus, collection), ())
+
+
 class _MutableFakeDocumentRegistry(_FakeDocumentRegistry):
     def __init__(self, *records: DocumentRegistryRecord) -> None:
         super().__init__()
@@ -339,6 +363,57 @@ class RebuildLocalDataTest(unittest.TestCase):
         self.assertEqual(calls[0]["REBUILD_PUBLISH_ALIAS"], "0")
         self.assertEqual(report.import_context["REBUILD_PUBLISH_ALIAS"], "0")
 
+    def test_rebuild_provider_response_replay_uses_raw_processed_keys_when_scope_rows_have_legacy_auth_projection(
+        self,
+    ) -> None:
+        object_store = _FakeObjectStoreAdmin()
+        document_registry = _LegacyProjectionBlockedDocumentRegistry(
+            scope_keys={
+                (
+                    "curriculum",
+                    "curriculum_plan",
+                ): (
+                    "curriculum/documents/curriculum_plan/plan-001/source-faithful/2022/canonical.md",
+                    "curriculum/documents/curriculum_plan/plan-001/source-faithful/2022/document-units.jsonl",
+                )
+            }
+        )
+
+        rebuild_local_data(
+            env={
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+            },
+            request=RebuildRequest(
+                corpus="curriculum",
+                collection="curriculum_plan",
+                import_mode="provider_response_replay",
+                raw_version_id="sha256:curriculum-replay-001",
+            ),
+            object_store=object_store,
+            document_registry=document_registry,
+            raw_asset_registry=_FakeRawAssetRegistry(),
+            import_runner=lambda **kwargs: {"status": "replay"},
+        )
+
+        self.assertEqual(
+            object_store.cleared_prefixes,
+            [
+                (
+                    DERIVED_BUCKET,
+                    "curriculum/documents/curriculum_plan/plan-001/source-faithful/2022/canonical.md",
+                    (),
+                ),
+                (
+                    DERIVED_BUCKET,
+                    "curriculum/documents/curriculum_plan/plan-001/source-faithful/2022/document-units.jsonl",
+                    (),
+                ),
+            ],
+        )
+        self.assertEqual(document_registry.deleted_scopes, [("curriculum", "curriculum_plan")])
+
     def test_rebuild_provider_response_replay_clears_declared_downstream_projection_artifacts(self) -> None:
         object_store = _FakeObjectStoreAdmin()
         projection_config = {
@@ -418,6 +493,124 @@ class RebuildLocalDataTest(unittest.TestCase):
                         "regulations/documents/student_handbook/doc-a/source-faithful/2018/document-units.jsonl",
                     ),
                 ),
+            )
+
+            rebuild_local_data(
+                env={
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    "REBUILD_CORPUS": "regulations",
+                    "REBUILD_COLLECTION": "student_handbook",
+                    "REBUILD_IMPORT_MODE": "provider_response_replay",
+                    "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
+                    "HANDBOOK_SOURCE_PROJECTIONS_PATH": str(projection_config_path),
+                },
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=_FakeRawAssetRegistry(),
+                import_runner=lambda **kwargs: {"status": "replay"},
+            )
+
+        cleared_prefixes = [prefix for _, prefix, _ in object_store.cleared_prefixes]
+        self.assertIn(
+            "campus_services/documents/service_catalog/"
+            "中央民族大学学生公寓管理工作流程--66f91543/source-faithful/2018/canonical.md",
+            cleared_prefixes,
+        )
+        self.assertIn(
+            "campus_services/documents/service_catalog/"
+            "中央民族大学学生公寓管理工作流程--66f91543/source-faithful/2018/document-units.jsonl",
+            cleared_prefixes,
+        )
+
+    def test_rebuild_provider_response_replay_clears_declared_downstream_projection_artifacts_when_scope_rows_are_legacy(
+        self,
+    ) -> None:
+        object_store = _FakeObjectStoreAdmin()
+        projection_config = {
+            "schema_version": "student_handbook_source_projections_v1",
+            "source_corpus": "regulations",
+            "source_collection": "student_handbook",
+            "raw_asset_id": "asset:student-handbook-pdf",
+            "source_truth_artifacts": [
+                "provider-response.jsonl",
+                "layout-elements.jsonl",
+                "split-manifest.v1.json",
+                "per-document source rows",
+            ],
+            "rebuild_boundary": "source_truth",
+            "rebuild_rule": "When canonical source truth exists, downstream rebuild must reuse source truth and must not return to raw.",
+            "derived_document_fields": [
+                "projection_name",
+                "derived_from_raw_asset_id",
+                "derived_from_raw_version_id",
+                "derived_from",
+                "derived_from_document_id",
+                "parent_document_id",
+                "source_title",
+                "source_handbook_section",
+                "source_page_start",
+                "source_page_end",
+                "attachment_kind",
+                "attachment_role",
+            ],
+            "projections": [
+                {
+                    "projection_name": "student_handbook_primary_documents",
+                    "target_corpus": "regulations",
+                    "target_collection": "student_handbook",
+                    "projection_family": "primary_documents",
+                    "replay_from_source_truth": True,
+                    "derived_from": "source_truth",
+                    "derived_from_document_id": None,
+                    "parent_document_id": None,
+                    "attachment_kind": None,
+                    "attachment_role": None,
+                },
+                {
+                    "projection_name": "handbook_navigation_service_catalog",
+                    "target_corpus": "campus_services",
+                    "target_collection": "service_catalog",
+                    "projection_family": "derived_documents",
+                    "replay_from_source_truth": True,
+                    "derived_from": "source_truth",
+                    "derived_from_document_id": None,
+                    "parent_document_id": None,
+                    "source_title": "中央民族大学公寓及公费医疗管理规定",
+                    "source_handbook_section": "中央民族大学公寓及公费医疗管理规定",
+                    "source_page_start": 252,
+                    "source_page_end": 255,
+                    "attachment_kind": "navigation_like",
+                    "attachment_role": "service_navigation_document",
+                    "target_title": "中央民族大学学生公寓管理工作流程",
+                    "migration_reason": "handbook_navigation_document",
+                },
+            ],
+        }
+        with TemporaryDirectory() as temp_dir:
+            projection_config_path = Path(temp_dir) / "source-projections.v1.json"
+            projection_config_path.write_text(
+                json.dumps(projection_config, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            document_registry = _LegacyProjectionBlockedDocumentRegistry(
+                scope_keys={
+                    (
+                        "regulations",
+                        "student_handbook",
+                    ): (
+                        "regulations/documents/student_handbook/doc-a/source-faithful/2018/canonical.md",
+                        "regulations/documents/student_handbook/doc-a/source-faithful/2018/document-units.jsonl",
+                    ),
+                    (
+                        "campus_services",
+                        "service_catalog",
+                    ): (
+                        "campus_services/documents/service_catalog/中央民族大学学生公寓管理工作流程--66f91543/source-faithful/2018/canonical.md",
+                        "campus_services/documents/service_catalog/中央民族大学学生公寓管理工作流程--66f91543/source-faithful/2018/document-units.jsonl",
+                    ),
+                }
             )
 
             rebuild_local_data(

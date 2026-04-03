@@ -66,6 +66,23 @@ class InMemoryDocumentRegistry:
             )
         )
 
+    def list_processed_object_keys_by_scope(
+        self,
+        corpus: str,
+        collection: str | None = None,
+    ) -> tuple[str, ...]:
+        keys: list[str] = []
+        for record in self.list_by_scope(corpus, collection):
+            keys.extend(str(key) for key in record.processed_object_keys if key)
+        return tuple(keys)
+
+    def list_importable_scope_records_by_scope(
+        self,
+        corpus: str,
+        collection: str | None = None,
+    ) -> tuple[DocumentRegistryRecord, ...]:
+        return self.list_by_scope(corpus, collection)
+
     def latest_versions(
         self,
         document_id: str,

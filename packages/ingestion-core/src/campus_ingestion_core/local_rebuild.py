@@ -345,7 +345,6 @@ def rebuild_local_data(
         collection=collection,
         import_mode=import_mode,
     )
-    document_records = _list_document_records_for_scope(runtime_document_registry, corpus, collection)
     _delete_object_keys(
         object_store_admin=object_store_admin,
         bucket=object_store_settings.bucket_derived,
@@ -355,7 +354,6 @@ def rebuild_local_data(
             collection=collection,
             import_mode=import_mode,
             registry=runtime_document_registry,
-            document_records=document_records,
         ),
         exclude_keys=processed_exclude_keys,
     )
@@ -559,13 +557,12 @@ def _collect_processed_rebuild_keys(
     collection: str,
     import_mode: str,
     registry: DocumentRegistry,
-    document_records: tuple[Any, ...],
 ) -> tuple[str, ...]:
-    keys: list[str] = []
-    for record in document_records:
-        for key in tuple(getattr(record, "processed_object_keys", ()) or ()):
-            if key and _is_derived_artifact_key(key):
-                keys.append(key)
+    keys = [
+        key
+        for key in _list_processed_object_keys_for_scope(registry, corpus, collection)
+        if key and _is_derived_artifact_key(key)
+    ]
     keys.extend(
         _extra_processed_rebuild_keys(
             source=source,
@@ -573,7 +570,6 @@ def _collect_processed_rebuild_keys(
             collection=collection,
             import_mode=import_mode,
             registry=registry,
-            document_records=document_records,
         )
     )
     return tuple(dict.fromkeys(keys))
@@ -586,7 +582,6 @@ def _extra_processed_rebuild_keys(
     collection: str,
     import_mode: str,
     registry: DocumentRegistry,
-    document_records: tuple[Any, ...],
 ) -> tuple[str, ...]:
     if import_mode != "provider_response_replay" or collection != "student_handbook":
         return ()
@@ -594,7 +589,6 @@ def _extra_processed_rebuild_keys(
         *_declared_projection_processed_keys(
             source=source,
             registry=registry,
-            current_document_records=document_records,
         ),
     )
 
@@ -1078,7 +1072,6 @@ def _declared_projection_processed_keys(
     *,
     source: dict[str, str],
     registry: DocumentRegistry,
-    current_document_records: tuple[Any, ...],
 ) -> tuple[str, ...]:
     path_value = (source.get("HANDBOOK_SOURCE_PROJECTIONS_PATH") or "").strip()
     if not path_value:
@@ -1094,21 +1087,26 @@ def _declared_projection_processed_keys(
             source_pdf=source_pdf,
         )
     )
-    seen_scope_records: dict[tuple[str | None, str | None], tuple[Any, ...]] = {}
-    for record in current_document_records:
-        seen_scope_records[(getattr(record, "corpus", None), getattr(record, "collection", None))] = current_document_records
     for projection in config.projections:
         scope = (projection.target_corpus, projection.target_collection)
         if scope == (config.source_corpus, config.source_collection):
             continue
-        scope_records = seen_scope_records.get(scope)
-        if scope_records is None:
-            scope_records = _list_document_records_for_scope(registry, scope[0], scope[1])
-            seen_scope_records[scope] = scope_records
-        for record in scope_records:
-            for key in tuple(getattr(record, "processed_object_keys", ()) or ()):
-                if key:
-                    keys.append(key)
+        keys.extend(_list_processed_object_keys_for_scope(registry, scope[0], scope[1]))
+    return tuple(dict.fromkeys(keys))
+
+
+def _list_processed_object_keys_for_scope(
+    registry: DocumentRegistry,
+    corpus: str,
+    collection: str,
+) -> tuple[str, ...]:
+    list_scope_keys = getattr(registry, "list_processed_object_keys_by_scope", None)
+    if callable(list_scope_keys):
+        return tuple(str(key) for key in list_scope_keys(corpus, collection) if key)
+
+    keys: list[str] = []
+    for record in _list_document_records_for_scope(registry, corpus, collection):
+        keys.extend(str(key) for key in tuple(getattr(record, "processed_object_keys", ()) or ()) if key)
     return tuple(dict.fromkeys(keys))
 
 

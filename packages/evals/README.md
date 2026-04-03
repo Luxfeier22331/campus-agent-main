@@ -164,6 +164,11 @@ student handbook formal benchmark：
   - 默认入口现在优先通过 `app-api` internal eval ingress 进入真实产品 command path，生成 canonical `request_id` / `trace_id`
   - 本地运行前，需要先启动 repo-local `supervisor-api` 与 `app-api` dev runtime，并在 root `.env` 提供 `APP_API_BASE_URL`、`APP_API_INTERNAL_SHARED_SECRET`、`APP_API_EVAL_USER_EMAIL`
   - 这些 `APP_API_*` 只描述当前 worktree 的本地 eval ingress，不是远端部署环境真相；其中 `APP_API_INTERNAL_SHARED_SECRET` 必须与本地 `apps/app-api/.dev.vars` 保持同值
+  - 如需让 acceptance artifact 直接产出 panel-safe backlink，可选配置：
+    - `APP_API_EVAL_TRACE_LINK_TEMPLATE`
+    - `APP_API_EVAL_ISSUE_LINK_TEMPLATE`
+    - `APP_API_EVAL_ISSUE_FINGERPRINT_TEMPLATE`
+  - 当前模板变量固定为 `case_id`、`request_id`、`trace_id`、`conversation_id`、`status`、`selected_target`、`corpus`、`collection`
   - 如需保留 trace-rich specialist/retrieval 单元行为，测试或局部调试应显式使用 `build_legacy_handbook_live_executor(...)`
 - curriculum live runner 现已固定为 `campus_evals.curriculum_live_benchmark`：
   - `uv run --all-packages python -m campus_evals.curriculum_live_benchmark run --reruns 3`
@@ -172,6 +177,7 @@ student handbook formal benchmark：
   - 该入口通过 shared `BenchmarkProfile` core 显式绑定 `curriculum_plan_live_gate_policy.json`，不再默认回退到 handbook policy
   - 默认入口同样优先走 `app-api` internal eval ingress；包含 deterministic `failure_mode` 的 case 仍显式回退 legacy executor，保证错误注入可控
   - 本地运行前提与 handbook live runner 相同；root `.env` 里的 `APP_API_*` 仍只表示本地 eval ingress 参数
+  - backlink 模板配置同 handbook live runner
 
 runtime observability artifact：
 

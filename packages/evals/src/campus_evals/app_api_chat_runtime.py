@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 from dataclasses import dataclass
 import os
+from string import Formatter
 
 import httpx
 
@@ -19,6 +20,19 @@ from campus_evals.models import GoldenCase, ObservedTrace
 from campus_evals.runtime_observability import current_runtime_event_context
 from campus_evals.operator_observability import OperatorRequestCorrelation
 
+_ALLOWED_CORRELATION_TEMPLATE_FIELDS = frozenset(
+    {
+        "case_id",
+        "collection",
+        "conversation_id",
+        "corpus",
+        "request_id",
+        "selected_target",
+        "status",
+        "trace_id",
+    }
+)
+
 
 @dataclass(frozen=True, slots=True)
 class AppApiEvalClientSettings:
@@ -28,6 +42,9 @@ class AppApiEvalClientSettings:
     eval_user_id: str | None = None
     eval_user_name: str | None = None
     eval_principal_type: str = "public_user"
+    trace_link_template: str | None = None
+    issue_link_template: str | None = None
+    issue_fingerprint_template: str | None = None
     timeout_seconds: float = 15.0
 
     def __post_init__(self) -> None:
@@ -37,6 +54,15 @@ class AppApiEvalClientSettings:
             raise ValueError("internal_shared_secret is required")
         if not self.eval_user_email.strip():
             raise ValueError("eval_user_email is required")
+        for field in (
+            "trace_link_template",
+            "issue_link_template",
+            "issue_fingerprint_template",
+        ):
+            template = _normalize_optional_string(getattr(self, field))
+            if template is not None:
+                _validate_correlation_template(field=field, template=template)
+            object.__setattr__(self, field, template)
         if self.timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be greater than zero")
 
@@ -55,6 +81,11 @@ class AppApiEvalClientSettings:
             eval_user_id=_optional_string(source.get("APP_API_EVAL_USER_ID")),
             eval_user_name=_optional_string(source.get("APP_API_EVAL_USER_NAME")),
             eval_principal_type=str(source.get("APP_API_EVAL_PRINCIPAL_TYPE") or "public_user").strip() or "public_user",
+            trace_link_template=_optional_string(source.get("APP_API_EVAL_TRACE_LINK_TEMPLATE")),
+            issue_link_template=_optional_string(source.get("APP_API_EVAL_ISSUE_LINK_TEMPLATE")),
+            issue_fingerprint_template=_optional_string(
+                source.get("APP_API_EVAL_ISSUE_FINGERPRINT_TEMPLATE")
+            ),
             timeout_seconds=timeout_seconds,
         )
 
@@ -219,17 +250,40 @@ class AppApiEvalClient:
             scope=scope,
             response=execution_response,
         )
+        conversation_id = _optional_string(conversation.get("id"))
+        correlation_template_values = {
+            "case_id": case_id,
+            "collection": scope["collection"],
+            "conversation_id": conversation_id or "",
+            "corpus": scope["corpus"],
+            "request_id": request_id,
+            "selected_target": execution_response.selected_target or "",
+            "status": execution_response.status,
+            "trace_id": trace_id,
+        }
         correlation = OperatorRequestCorrelation(
             case_id=case_id,
             request_id=request_id,
             trace_id=trace_id,
             sampled_at=sampled_at,
+            trace_link=_render_correlation_template(
+                self.settings.trace_link_template,
+                correlation_template_values,
+            ),
+            issue_link=_render_correlation_template(
+                self.settings.issue_link_template,
+                correlation_template_values,
+            ),
+            issue_fingerprint=_render_correlation_template(
+                self.settings.issue_fingerprint_template,
+                correlation_template_values,
+            ),
         )
         return AppApiEvalExecution(
             response=execution_response,
             observed_trace=observed_trace,
             request_correlation=correlation,
-            conversation_id=_optional_string(conversation.get("id")),
+            conversation_id=conversation_id,
         )
 
     def _resolve_conversation_key(self, case: GoldenCase) -> str:
@@ -293,6 +347,29 @@ def _build_supervisor_response(result: dict[str, object]) -> SupervisorResponse:
             result=None,
         )
     raise ValueError(f"unsupported app-api result kind: {kind}")
+
+
+def _validate_correlation_template(*, field: str, template: str) -> None:
+    unsupported_fields = sorted(
+        {
+            name
+            for _, name, _, _ in Formatter().parse(template)
+            if name and name not in _ALLOWED_CORRELATION_TEMPLATE_FIELDS
+        }
+    )
+    if unsupported_fields:
+        joined = ", ".join(unsupported_fields)
+        raise ValueError(f"{field} contains unsupported template fields: {joined}")
+
+
+def _render_correlation_template(
+    template: str | None,
+    values: dict[str, str],
+) -> str | None:
+    if template is None:
+        return None
+    rendered = template.format(**values).strip()
+    return rendered or None
 
 
 def _build_supervisor_response_from_internal_eval(payload: dict[str, object]) -> SupervisorResponse:
@@ -482,6 +559,11 @@ def _required_string(value: object, field: str) -> str:
 
 
 def _optional_string(value: object) -> str | None:
+    normalized = str(value or "").strip()
+    return normalized or None
+
+
+def _normalize_optional_string(value: object) -> str | None:
     normalized = str(value or "").strip()
     return normalized or None
 
