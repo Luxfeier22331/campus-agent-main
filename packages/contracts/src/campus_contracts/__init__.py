@@ -15,6 +15,10 @@ from campus_contracts.models import (
     AvailabilityObservation,
     ConfidenceLevel,
     ContextProjection,
+    CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
+    CURRICULUM_PROGRAM_SLOT_NAME,
+    CURRICULUM_SEMESTER_SLOT_NAME,
+    CurriculumFollowUpSlots,
     DEFAULT_POLICY_PROJECTION_VERSION,
     DEFAULT_REVISION_TRACK,
     DEFAULT_SOURCE_CHANNEL,
@@ -43,6 +47,7 @@ from campus_contracts.models import (
     SupervisorStatus,
     SupervisorRequest,
     TraceContext,
+    resolve_curriculum_follow_up_slots,
 )
 
 __all__ = [
@@ -62,6 +67,10 @@ __all__ = [
     "AvailabilityObservation",
     "ConfidenceLevel",
     "ContextProjection",
+    "CURRICULUM_PROGRAM_FAMILY_SLOT_NAME",
+    "CURRICULUM_PROGRAM_SLOT_NAME",
+    "CURRICULUM_SEMESTER_SLOT_NAME",
+    "CurriculumFollowUpSlots",
     "DEFAULT_POLICY_PROJECTION_VERSION",
     "DEFAULT_REVISION_TRACK",
     "DEFAULT_SOURCE_CHANNEL",
@@ -90,4 +99,5 @@ __all__ = [
     "SupervisorStatus",
     "SupervisorRequest",
     "TraceContext",
+    "resolve_curriculum_follow_up_slots",
 ]

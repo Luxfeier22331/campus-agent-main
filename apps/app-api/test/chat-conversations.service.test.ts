@@ -15,9 +15,7 @@ function createPrincipal(
   const principalType = input.principal?.type ?? input.actor?.principalType ?? "public_user";
   return {
     actor: {
-      campusScope: null,
       departments: [],
-      groups: ["public_chat_users"],
       principalId: "user_01HQ",
       principalType,
       roles: ["public_user"],

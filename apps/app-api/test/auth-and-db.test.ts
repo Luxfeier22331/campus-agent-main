@@ -149,6 +149,7 @@ describe("app-api auth config", () => {
         "verification",
         "conversations",
         "messages",
+        "sessionSlots",
         "crawlRuns",
         "runHeartbeats",
         "runArtifacts",

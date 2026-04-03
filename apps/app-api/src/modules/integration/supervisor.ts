@@ -1,4 +1,5 @@
 import {
+  DEFAULT_SUPERVISOR_API_EVAL_TIMEOUT_MS,
   DEFAULT_SUPERVISOR_API_TIMEOUT_MS,
   parsePositiveInteger,
   type Env,
@@ -54,6 +55,7 @@ export interface SupervisorExecutionInput {
   requestId: string;
   requestedCapability?: string;
   requestedScope?: RequestedScope;
+  surface?: string;
   traceHeaders?: TracePropagationHeaders;
   traceId: string;
   userGoal: string;
@@ -237,7 +239,10 @@ function parseExecutionObservability(
 export function createSupervisorExecutionClient(
   env: Pick<
     Env,
-    "SUPERVISOR_API_BASE_URL" | "SUPERVISOR_API_SHARED_SECRET" | "SUPERVISOR_API_TIMEOUT_MS"
+    | "SUPERVISOR_API_BASE_URL"
+    | "SUPERVISOR_API_SHARED_SECRET"
+    | "SUPERVISOR_API_TIMEOUT_MS"
+    | "SUPERVISOR_API_EVAL_TIMEOUT_MS"
   >,
   input: {
     fetchImplementation?: typeof fetch;
@@ -251,10 +256,15 @@ export function createSupervisorExecutionClient(
     async execute(payload: SupervisorExecutionInput): Promise<SupervisorExecutionResponse> {
       const baseUrl = env.SUPERVISOR_API_BASE_URL?.trim();
       const sharedSecret = env.SUPERVISOR_API_SHARED_SECRET?.trim();
-      const timeoutMs = parsePositiveInteger(
+      const defaultTimeoutMs = parsePositiveInteger(
         env.SUPERVISOR_API_TIMEOUT_MS,
         DEFAULT_SUPERVISOR_API_TIMEOUT_MS,
       );
+      const evalTimeoutMs = parsePositiveInteger(
+        env.SUPERVISOR_API_EVAL_TIMEOUT_MS,
+        DEFAULT_SUPERVISOR_API_EVAL_TIMEOUT_MS,
+      );
+      const timeoutMs = payload.surface === "eval_benchmark" ? evalTimeoutMs : defaultTimeoutMs;
       if (!baseUrl || !sharedSecret) {
         throw new SupervisorTransportError({
           code: "dependency_not_ready",

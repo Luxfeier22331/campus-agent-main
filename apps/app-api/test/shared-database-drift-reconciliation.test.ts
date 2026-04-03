@@ -180,4 +180,44 @@ describe("shared database drift reconciliation", () => {
       "Unknown extra column outside current repo truth: official_web.crawl_runs.mystery_column",
     ]);
   });
+
+  it("plans cleanup for retired runtime request_execution columns", () => {
+    const inventory = makeInventory({
+      journalRows: [],
+      schemas: ["runtime"],
+      tables: [
+        {
+          ...buildTableFromExpected("runtime.request_execution"),
+          columns: [
+            ...buildTableFromExpected("runtime.request_execution").columns,
+            {
+              name: "actor_campus_scope",
+              notNull: false,
+              primaryKey: false,
+              type: "text",
+            },
+            {
+              name: "actor_groups_json",
+              notNull: true,
+              primaryKey: false,
+              type: "jsonb",
+            },
+          ],
+        },
+      ],
+    });
+
+    const plan = buildSharedDatabaseDriftReconcilePlan({
+      extraTableRowCounts: new Map(),
+      inventory,
+      migrationContext,
+    });
+
+    expect(plan.blockedReasons).toEqual([]);
+    expect(plan.extraColumns).toEqual([
+      { columnName: "actor_campus_scope", qualifiedName: "runtime.request_execution" },
+      { columnName: "actor_groups_json", qualifiedName: "runtime.request_execution" },
+    ]);
+    expect(plan.operations.map((operation) => operation.kind)).toEqual(["drop_column", "drop_column"]);
+  });
 });

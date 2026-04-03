@@ -41,3 +41,22 @@ export const messages = chat.table(
     requestIdIndex: index("chat_messages_request_id_idx").on(table.requestId),
   }),
 );
+
+export const sessionSlots = chat.table(
+  "session_slots",
+  {
+    conversationId: text("conversation_id")
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    value: text("value").notNull(),
+    confirmed: boolean("confirmed").notNull().default(true),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => ({
+    conversationNameIndex: index("chat_session_slots_conversation_name_idx").on(
+      table.conversationId,
+      table.name,
+    ),
+  }),
+);

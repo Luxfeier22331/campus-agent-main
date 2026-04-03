@@ -158,6 +158,43 @@ updated: 2026-04-03
 - `request_id` 只在 assistant-side message 上出现
 - `trace_id` 不强制冗余写进 `chat.messages`
 
+## `chat.session_slots`
+
+用途：
+
+- conversation-scoped session truth
+- 当前会话可确认的 typed follow-up slots
+
+最小列：
+
+- `conversation_id`
+- `name`
+- `value`
+- `confirmed`
+- `updated_at`
+
+主键：
+
+- `(conversation_id, name)`
+
+最小索引：
+
+- `(conversation_id, name)`
+
+规则：
+
+- 它属于 `chat.*` 的当前会话状态，不属于 `runtime.request_execution`
+- 第一版只承载可回灌到 supervisor 的 typed confirmed slots；不承载 raw transcript、模型摘要或未确认草稿
+- 当前已冻结的 curriculum slot contract：
+  - `curriculum_program_family`
+  - `curriculum_program`
+  - `curriculum_semester`
+- 这些 slot 只有在 `app-api` 从 finalized supervisor/rag diagnostics 中拿到 resolved curriculum follow-up truth 时才写入
+- `needs_clarification`、generic alias conflict、soft preference 或无 typed follow-up truth 的请求不得写入这些 slot
+- finalize 时按 `(conversation_id, name)` 维护当前 confirmed slot 快照：当前 turn 会先清空该 conversation 既有 slot，再写入本次推导出的最新集合，而不是追加历史 slot
+- 因此同一 conversation 的后续 curriculum completed turn 可以显式替换旧 semester / program truth，避免过期 follow-up 状态继续回灌
+- `chat` API response 不把 `session_slots` 作为 C 端公开 contract 暴露；它是 app-layer session projection
+
 ## `runtime.request_execution`
 
 用途：
@@ -175,8 +212,6 @@ updated: 2026-04-03
 - `actor_principal_id`
 - `actor_roles_json`
 - `actor_departments_json`
-- `actor_groups_json`
-- `actor_campus_scope` nullable
 - `principal_type`
 - `principal_label` nullable
 - `entitlement_snapshot_id` nullable
@@ -416,6 +451,156 @@ updated: 2026-04-03
 - `diagnostics_json` 只保存受控最小摘要，例如 `fail_closed`、`acl_anomaly_code`、`source_doc_ids`
 - 不保存 raw JWT、raw cookie、raw prompt、raw answer、raw retrieval payload 或 vendor sink blob
 
+## `operator.metric_rollup`
+
+用途：
+
+- operator aggregate / timeseries read-model family
+- 当前第一版支撑 `Overview` / `Quality` / `Safety` / `Cost` 中可由 app-owned rollup 提供的聚合面
+- 当前 merged truth 已先落地 `Quality` timeseries bucket
+
+最小列：
+
+- `rollup_id`
+- `request_id`
+- `domain`
+- `granularity`
+- `bucket_start`
+- `bucket_end`
+- `surface`
+- `selected_target` nullable
+- `requested_capability` nullable
+- `principal_type`
+- `collection` nullable
+- `model_name` nullable
+- `metrics_json`
+- `projected_at`
+
+最小索引：
+
+- `(domain, granularity, bucket_start)`
+- `(request_id, granularity, bucket_start)`
+- `(domain, surface, bucket_start)`
+- `(domain, selected_target, bucket_start)`
+
+规则：
+
+- 这是 app-owned aggregate contribution family，不是不可逆 counter table
+- projector 采用“每 request / 每 bucket / 每 granularity 一条可重算贡献行”的物化语义，允许按 `request_id` 全量替换后重放
+- `rollup_id` 必须包含 `request_id` 与 bucket/filter 维度，避免不同 request 落在同一 bucket 时发生主键冲突
+- 当前 merged truth 仅冻结 `domain=quality` 的 rollup shape
+- `metrics_json` 只保存受控聚合贡献，不保存 raw request payload、raw sink blob 或 grader 原始结果
+
+## `operator.quality_badcase_projection`
+
+用途：
+
+- operator `Quality` 域的 app-owned badcase queue
+- 当前 merged truth 支撑 `GET /api/operator/quality/badcases`
+
+最小列：
+
+- `badcase_id`
+- `request_id`
+- `trace_id`
+- `surface`
+- `selected_target` nullable
+- `status`
+- `cause_class`
+- `detected_by`
+- `opened_at`
+- `summary`
+- `grade_json` nullable
+- `projected_at`
+
+最小索引：
+
+- `(status, opened_at desc)`
+- `(cause_class, opened_at desc)`
+- `(detected_by, opened_at desc)`
+- `(request_id, opened_at desc)`
+
+规则：
+
+- 这是 app-owned curated queue，不是 grader 原始输出表，也不是 sink issue 列表
+- 当前 merged truth 第一版仅由 runtime monitor 生成 badcase，`detected_by` 固定为 `runtime_monitor`
+- 当前 merged truth 第一版仅开放 `citation_missing` 与 `empty_recall` 两类 `cause_class`
+- `badcase_id` 采用 request-scoped stable id，保证 projector 重放时幂等替换
+- `grade_json` 为 sampled grading / 人工复核的后续回流保留；当前 merged truth 允许为 `null`
+- `summary` 必须是 panel-safe 安全摘要，不得回放 raw prompt、raw answer、raw retrieval payload
+
+## `operator.quality_grade_projection`
+
+用途：
+
+- operator `Quality` 域的 sampled grade read model
+- `quality summary.sampledGrades`、`quality timeseries.sampledGroundingPassRate` 与 `quality badcases.grade` 的 app-owned 上游
+
+最小列：
+
+- `grade_id`
+- `request_id`
+- `trace_id`
+- `surface`
+- `request_started_at`
+- `selected_target` nullable
+- `requested_capability` nullable
+- `principal_type`
+- `collection` nullable
+- `model_name` nullable
+- `grade_source`
+- `grade_domain`
+- `verdict`
+- `score_milli` nullable
+- `grader_version`
+- `rationale_summary` nullable
+- `sampled_at`
+- `projected_at`
+
+最小索引：
+
+- `(request_id, grade_domain)`
+- `(grade_domain, request_started_at desc)`
+- `(grade_domain, surface, request_started_at desc)`
+- `(grade_source, sampled_at desc)`
+
+规则：
+
+- 这是 app-owned projection，不是 grader sink query cache
+- `grade_id` 必须稳定地绑定 `request_id + grade_source + grade_domain`，保证重复回流时 upsert 幂等
+- `request_started_at` 保留 request window 对齐语义；aggregate query 不按 grader 到达时间反向定义 request bucket
+- 第一版 `grade_domain` 固定至少覆盖 `grounding`、`citation`、`policy`
+- 第一版 `verdict` 固定至少允许 `pass`、`fail`、`needs_review`
+- `score_milli` 只保存 panel 可展示的轻量分值；不保存 grader 原始 token-by-token 判断材料
+
+## `operator.trace_backlink_projection`
+
+用途：
+
+- operator-facing request trace / issue deep link projection
+- request observability detail、audit detail、quality badcase queue 的 `links.*` 上游
+
+最小列：
+
+- `request_id`
+- `trace_id`
+- `trace_link` nullable
+- `issue_link` nullable
+- `issue_fingerprint` nullable
+- `projected_at`
+
+最小索引：
+
+- `(trace_id)`
+- `(projected_at desc)`
+
+规则：
+
+- 这是 app-owned backlink projection，不是 raw sink event cache
+- `request_id` 与 request-facing operator surfaces 一一对应
+- deep link / fingerprint 可以来自 sink reconciliation 或 trace system，但必须先写入这里，panel 不得直连 sink
+- 不允许保存 raw trace payload、raw issue body、raw vendor event blob
+
 ## Ownership Notes
 
 ### Chat Ownership
@@ -448,17 +633,26 @@ updated: 2026-04-03
 
 - `operator.request_projection`
 - `operator.request_audit_projection`
+- `operator.metric_rollup`
+- `operator.quality_badcase_projection`
+- `operator.quality_grade_projection`
+- `operator.trace_backlink_projection`
 
 只服务：
 
 - panel list/detail
 - panel audit timeline
+- panel aggregate / timeseries
+- panel quality badcase queue
+- panel sampled grade summary
+- panel-safe trace / issue deep links
 - pagination / filtering / detail view
 
 不服务：
 
 - replay execution
 - chat history
+- raw sink explorer
 
 ## Migration Rules
 

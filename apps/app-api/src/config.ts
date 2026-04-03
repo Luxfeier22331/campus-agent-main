@@ -1,6 +1,7 @@
 export type AppApiEnvironment = "development" | "test" | "production";
 export type DatabaseSslMode = "disable" | "prefer" | "require";
 export const DEFAULT_SUPERVISOR_API_TIMEOUT_MS = 8_000;
+export const DEFAULT_SUPERVISOR_API_EVAL_TIMEOUT_MS = 30_000;
 export const DEFAULT_OFFICIAL_WEB_HANDOFF_TIMEOUT_MS = 8_000;
 
 export interface HyperdriveBindingLike {
@@ -19,6 +20,7 @@ export interface Env {
   SUPERVISOR_API_BASE_URL?: string;
   SUPERVISOR_API_SHARED_SECRET?: string;
   SUPERVISOR_API_TIMEOUT_MS?: string;
+  SUPERVISOR_API_EVAL_TIMEOUT_MS?: string;
   APP_API_MANAGEMENT_DATABASE_URL?: string;
   APP_API_DATABASE_SSLMODE?: DatabaseSslMode;
   APP_API_OPERATOR_EMAIL_ALLOWLIST?: string;
@@ -45,6 +47,7 @@ export interface AppApiConfig {
   supervisorApiBaseUrl: string;
   supervisorApiSharedSecret: string;
   supervisorApiTimeoutMs: number;
+  supervisorApiEvalTimeoutMs: number;
 }
 
 const DEFAULT_APP_NAME = "app-api";
@@ -169,6 +172,10 @@ export function readAppApiConfig(env: Env): AppApiConfig {
     supervisorApiTimeoutMs: parsePositiveInteger(
       env.SUPERVISOR_API_TIMEOUT_MS,
       DEFAULT_SUPERVISOR_API_TIMEOUT_MS,
+    ),
+    supervisorApiEvalTimeoutMs: parsePositiveInteger(
+      env.SUPERVISOR_API_EVAL_TIMEOUT_MS,
+      DEFAULT_SUPERVISOR_API_EVAL_TIMEOUT_MS,
     ),
   };
 }

@@ -70,8 +70,32 @@ from campus_evals.ragas_adapter import (
 )
 from campus_evals.live_benchmark import (
     BenchmarkProfile,
+    OperatorObservabilityPublishConfig,
+    accept_live_benchmark_profile,
     repair_live_benchmark_profile,
     run_live_benchmark_profile,
+)
+from campus_evals.operator_observability import (
+    OperatorObservabilityClient,
+    OperatorObservabilityClientError,
+    OperatorObservabilityClientSettings,
+    OperatorPublishBatch,
+    OperatorQualityGrade,
+    OperatorRequestCorrelation,
+    OperatorSkippedPublishItem,
+    OperatorTraceBacklink,
+    build_publish_parser,
+    build_case_results_publish_batch,
+    load_request_correlation_manifest,
+    main as operator_observability_main,
+    publish_case_results_artifact,
+    render_publish_summary_text,
+)
+from campus_evals.app_api_chat_runtime import (
+    AppApiEvalClient,
+    AppApiEvalClientError,
+    AppApiEvalClientSettings,
+    AppApiEvalExecution,
 )
 from campus_evals.runner import run_cases
 from campus_evals.scenarios import (
@@ -93,6 +117,18 @@ def build_curriculum_live_executor(*args, **kwargs):
     return _build(*args, **kwargs)
 
 
+def build_app_api_curriculum_live_executor(*args, **kwargs):
+    from campus_evals.curriculum_live_benchmark import build_app_api_curriculum_live_executor as _build
+
+    return _build(*args, **kwargs)
+
+
+def build_legacy_curriculum_live_executor(*args, **kwargs):
+    from campus_evals.curriculum_live_benchmark import build_legacy_curriculum_live_executor as _build
+
+    return _build(*args, **kwargs)
+
+
 def build_curriculum_live_profile(*args, **kwargs):
     from campus_evals.curriculum_live_benchmark import build_curriculum_live_profile as _build
 
@@ -105,7 +141,29 @@ def build_handbook_live_profile(*args, **kwargs):
     return _build(*args, **kwargs)
 
 
+def build_handbook_live_executor(*args, **kwargs):
+    from campus_evals.handbook_live_benchmark import build_handbook_live_executor as _build
+
+    return _build(*args, **kwargs)
+
+
+def build_app_api_handbook_live_executor(*args, **kwargs):
+    from campus_evals.handbook_live_benchmark import build_app_api_handbook_live_executor as _build
+
+    return _build(*args, **kwargs)
+
+
+def build_legacy_handbook_live_executor(*args, **kwargs):
+    from campus_evals.handbook_live_benchmark import build_legacy_handbook_live_executor as _build
+
+    return _build(*args, **kwargs)
+
+
 __all__ = [
+    "AppApiEvalClient",
+    "AppApiEvalClientError",
+    "AppApiEvalClientSettings",
+    "AppApiEvalExecution",
     "BenchmarkProfile",
     "CaseResult",
     "DimensionResult",
@@ -115,9 +173,18 @@ __all__ = [
     "GraderPolicy",
     "JudgeLLMSettings",
     "ObservedTrace",
+    "OperatorObservabilityPublishConfig",
     "OpenAICompatibleHTTPEmbeddings",
     "OpenAICompatibleResponsesLLM",
     "OpenAICompatibleTextResponsesLLM",
+    "OperatorObservabilityClient",
+    "OperatorObservabilityClientError",
+    "OperatorObservabilityClientSettings",
+    "OperatorPublishBatch",
+    "OperatorQualityGrade",
+    "OperatorRequestCorrelation",
+    "OperatorSkippedPublishItem",
+    "OperatorTraceBacklink",
     "RetrievalBenchmarkRun",
     "RetrievalCaseMetrics",
     "RetrievalHybridQueryCase",
@@ -136,11 +203,18 @@ __all__ = [
     "SupplementalResult",
     "SupplementalHTTPSettings",
     "TraceExpectation",
+    "build_app_api_handbook_live_executor",
+    "build_app_api_curriculum_live_executor",
     "build_default_ragas_metric_names",
     "build_curriculum_live_executor",
     "build_curriculum_live_profile",
     "build_default_handbook_supplemental_adapters_from_env",
+    "build_handbook_live_executor",
     "build_handbook_live_profile",
+    "build_legacy_curriculum_live_executor",
+    "build_legacy_handbook_live_executor",
+    "build_case_results_publish_batch",
+    "build_publish_parser",
     "build_http_ragas_embeddings",
     "build_http_ragas_llm",
     "build_answer_rubric_adapter",
@@ -165,8 +239,13 @@ __all__ = [
     "load_retrieval_benchmark_run",
     "load_handbook_judge_rubrics",
     "load_judge_gate_policy",
+    "load_request_correlation_manifest",
     "load_retrieval_qrels_dataset",
+    "operator_observability_main",
+    "publish_case_results_artifact",
+    "accept_live_benchmark_profile",
     "render_retrieval_summary_text",
+    "render_publish_summary_text",
     "resolve_retrieval_fixture_manifest_path",
     "repair_handbook_formal_benchmark",
     "repair_live_benchmark_profile",

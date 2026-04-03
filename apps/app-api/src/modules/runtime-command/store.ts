@@ -8,8 +8,9 @@ import {
   projectionOutbox,
   requestExecution,
   requestObservabilityFact,
+  sessionSlots,
 } from "../../db/schema";
-import type { ChatConversation, ChatMessage } from "../chat";
+import type { ChatConversation, ChatMessage, ChatSessionSlot } from "../chat";
 import type { RequestedScope } from "../integration";
 import type { RequestDiagnosticsSummary } from "../request-diagnostics";
 import type { ChatCommandResponse } from "./service";
@@ -33,8 +34,6 @@ export interface RequestExecutionWrite {
   actorPrincipalId: string;
   actorRoles: string[];
   actorDepartments: string[];
-  actorGroups: string[];
-  actorCampusScope: string | null;
   principalType: string;
   principalLabel: string | null;
   entitlementSnapshotId: string | null;
@@ -135,6 +134,7 @@ export interface FinalizeRequestWrite {
   outboxEvent: ProjectionOutboxWrite;
   requestObservabilityFact: RequestObservabilityFactWrite;
   requestExecution: RequestExecutionWrite;
+  sessionSlots: ChatSessionSlot[];
 }
 
 export interface StoredIdempotentRequest {
@@ -172,6 +172,7 @@ function toChatMessage(row: typeof messages.$inferSelect): ChatMessage {
 function toChatConversation(
   row: typeof conversations.$inferSelect,
   messageRows: Array<typeof messages.$inferSelect>,
+  sessionSlotRows: Array<typeof sessionSlots.$inferSelect>,
 ): ChatConversation {
   return {
     id: row.id,
@@ -179,6 +180,12 @@ function toChatConversation(
     title: row.title,
     createdAt: toIsoString(row.createdAt),
     updatedAt: toIsoString(row.updatedAt),
+    sessionSlots: sessionSlotRows.map((slot) => ({
+      confirmed: slot.confirmed,
+      name: slot.name,
+      updatedAt: toIsoString(slot.updatedAt),
+      value: slot.value,
+    })),
     messages: messageRows.map(toChatMessage),
   };
 }
@@ -204,8 +211,13 @@ export function createPgChatCommandStore(env: Env): ChatCommandStore {
       .from(messages)
       .where(eq(messages.conversationId, conversationId))
       .orderBy(asc(messages.createdAt));
+    const sessionSlotRows = await db
+      .select()
+      .from(sessionSlots)
+      .where(eq(sessionSlots.conversationId, conversationId))
+      .orderBy(asc(sessionSlots.name));
 
-    return toChatConversation(conversationRow, messageRows);
+    return toChatConversation(conversationRow, messageRows, sessionSlotRows);
   }
 
   return {
@@ -282,14 +294,15 @@ export function createPgChatCommandStore(env: Env): ChatCommandStore {
         requestFingerprintSha256: executionRow.requestFingerprintSha256 ?? "",
         response: {
           answer: {
-            conversation: {
-              id: conversation.id,
-              title: conversation.title,
-              createdAt: conversation.createdAt,
-              updatedAt: conversation.updatedAt,
-              messages: conversation.messages,
-            },
-            result,
+              conversation: {
+                id: conversation.id,
+                title: conversation.title,
+                createdAt: conversation.createdAt,
+                updatedAt: conversation.updatedAt,
+                sessionSlots: conversation.sessionSlots,
+                messages: conversation.messages,
+              },
+              result,
           },
           requestId: executionRow.requestId,
           traceId: executionRow.traceId,
@@ -336,8 +349,6 @@ export function createPgChatCommandStore(env: Env): ChatCommandStore {
             actorPrincipalId: input.requestExecution.actorPrincipalId,
             actorRolesJson: input.requestExecution.actorRoles,
             actorDepartmentsJson: input.requestExecution.actorDepartments,
-            actorGroupsJson: input.requestExecution.actorGroups,
-            actorCampusScope: input.requestExecution.actorCampusScope,
             principalType: input.requestExecution.principalType,
             principalLabel: input.requestExecution.principalLabel,
             entitlementSnapshotId: input.requestExecution.entitlementSnapshotId,
@@ -582,6 +593,22 @@ export function createPgChatCommandStore(env: Env): ChatCommandStore {
               eq(conversations.ownerUserId, input.ownerUserId),
             ),
           );
+
+        await tx
+          .delete(sessionSlots)
+          .where(eq(sessionSlots.conversationId, input.requestExecution.conversationId));
+
+        if (input.sessionSlots.length > 0) {
+          await tx.insert(sessionSlots).values(
+            input.sessionSlots.map((slot) => ({
+              conversationId: input.requestExecution.conversationId,
+              name: slot.name,
+              value: slot.value,
+              confirmed: slot.confirmed,
+              updatedAt: new Date(slot.updatedAt),
+            })),
+          );
+        }
       });
 
       const conversation = await loadConversation(

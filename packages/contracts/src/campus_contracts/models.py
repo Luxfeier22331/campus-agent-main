@@ -46,6 +46,9 @@ ALLOWED_MEMORY_SOURCE_TYPES = (
 )
 ALLOWED_MEMORY_VISIBILITIES = ("user_visible", "internal_only")
 DEFAULT_POLICY_PROJECTION_VERSION = "phase1-authorization-projection-v1"
+CURRICULUM_PROGRAM_FAMILY_SLOT_NAME = "curriculum_program_family"
+CURRICULUM_PROGRAM_SLOT_NAME = "curriculum_program"
+CURRICULUM_SEMESTER_SLOT_NAME = "curriculum_semester"
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +101,13 @@ class ProfileMemorySummary:
 
 
 @dataclass(frozen=True, slots=True)
+class CurriculumFollowUpSlots:
+    program_family: str = ""
+    program: str = ""
+    semester: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class SessionSlot:
     name: str
     value: str
@@ -118,6 +128,10 @@ class SessionSummary:
     def __post_init__(self) -> None:
         if self.turn_count < 0:
             raise ValueError("turn_count must not be negative")
+
+    @property
+    def curriculum_follow_up(self) -> CurriculumFollowUpSlots:
+        return resolve_curriculum_follow_up_slots(self.confirmed_slots)
 
 
 @dataclass(frozen=True, slots=True)
@@ -163,6 +177,7 @@ class PersonalizationHint:
     actor_claim_terms: tuple[str, ...] = field(default_factory=tuple)
     recent_goal: str = ""
     confirmed_slot_terms: tuple[str, ...] = field(default_factory=tuple)
+    curriculum_follow_up: CurriculumFollowUpSlots = field(default_factory=CurriculumFollowUpSlots)
 
 
 @dataclass(frozen=True, slots=True)
@@ -264,6 +279,9 @@ class RagResultDiagnostics:
     resolved_course_family_title: str = ""
     resolved_program_family_id: str = ""
     resolved_program_family_title: str = ""
+    session_program_family: str = ""
+    session_program: str = ""
+    session_semester: str = ""
     unsupported_fields: tuple[str, ...] = field(default_factory=tuple)
     partial_answer: bool = False
 
@@ -438,6 +456,31 @@ def _validate_collection_scope(corpus: str, collection: str) -> None:
         raise ValueError("corpus is required")
     if not collection.strip():
         raise ValueError("collection is required")
+
+
+def resolve_curriculum_follow_up_slots(
+    confirmed_slots: tuple[SessionSlot, ...],
+) -> CurriculumFollowUpSlots:
+    program_family = ""
+    program = ""
+    semester = ""
+    for slot in confirmed_slots:
+        if not slot.confirmed:
+            continue
+        value = slot.value.strip()
+        if not value:
+            continue
+        if slot.name == CURRICULUM_PROGRAM_FAMILY_SLOT_NAME:
+            program_family = value
+        elif slot.name == CURRICULUM_PROGRAM_SLOT_NAME:
+            program = value
+        elif slot.name == CURRICULUM_SEMESTER_SLOT_NAME:
+            semester = value
+    return CurriculumFollowUpSlots(
+        program_family=program_family,
+        program=program,
+        semester=semester,
+    )
 
 
 def _validate_revision_track(revision_track: str) -> None:

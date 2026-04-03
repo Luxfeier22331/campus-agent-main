@@ -2,8 +2,8 @@ import { and, asc, desc, eq } from "drizzle-orm";
 
 import type { Env } from "../../config";
 import { createRuntimeDatabase } from "../../db/runtime";
-import { conversations, messages } from "../../db/schema";
-import type { ChatConversation, ChatConversationSummary, ChatMessage } from "./model";
+import { conversations, messages, sessionSlots } from "../../db/schema";
+import type { ChatConversation, ChatConversationSummary, ChatMessage, ChatSessionSlot } from "./model";
 
 export interface ChatConversationDraftWrite {
   conversationId: string;
@@ -52,6 +52,7 @@ function toChatConversationSummary(row: typeof conversations.$inferSelect): Chat
 function toChatConversation(
   row: typeof conversations.$inferSelect,
   messageRows: Array<typeof messages.$inferSelect>,
+  sessionSlotRows: Array<typeof sessionSlots.$inferSelect>,
 ): ChatConversation {
   return {
     id: row.id,
@@ -59,6 +60,12 @@ function toChatConversation(
     title: row.title,
     createdAt: toIsoString(row.createdAt),
     updatedAt: toIsoString(row.updatedAt),
+    sessionSlots: sessionSlotRows.map((slot): ChatSessionSlot => ({
+      confirmed: slot.confirmed,
+      name: slot.name,
+      updatedAt: toIsoString(slot.updatedAt),
+      value: slot.value,
+    })),
     messages: messageRows.map(toChatMessage),
   };
 }
@@ -85,7 +92,13 @@ export function createPgChatConversationStore(env: Env): ChatConversationStore {
       .where(eq(messages.conversationId, conversationId))
       .orderBy(asc(messages.createdAt));
 
-    return toChatConversation(conversationRow, messageRows);
+    const sessionSlotRows = await db
+      .select()
+      .from(sessionSlots)
+      .where(eq(sessionSlots.conversationId, conversationId))
+      .orderBy(asc(sessionSlots.name));
+
+    return toChatConversation(conversationRow, messageRows, sessionSlotRows);
   }
 
   return {

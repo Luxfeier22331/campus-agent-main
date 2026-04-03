@@ -78,6 +78,7 @@ export function buildAcceptedRequestObservabilityFact(input: {
   requestId: string;
   requestedCapability: string | null;
   requestedScope: RequestedScope | null;
+  surface: string;
   startedAt: string;
   traceId: string;
 }): RequestObservabilityFactWrite {
@@ -116,7 +117,7 @@ export function buildAcceptedRequestObservabilityFact(input: {
     selectedTarget: null,
     startedAt: input.startedAt,
     status: "accepted",
-    surface: "public_chat_web",
+    surface: input.surface,
     traceAvailable: Boolean(input.traceId),
     traceId: input.traceId,
     updatedAt: input.startedAt,
@@ -136,6 +137,7 @@ export function buildFinalizedRequestObservabilityFact(input: {
   sourceDocIds: string[];
   startedAt: string;
   status: RequestExecutionStatus;
+  surface: string;
   traceId: string;
   conversationId: string;
 }): RequestObservabilityFactWrite {
@@ -200,7 +202,7 @@ export function buildFinalizedRequestObservabilityFact(input: {
     selectedTarget: input.response.selectedTarget,
     startedAt: input.startedAt,
     status: input.status,
-    surface: "public_chat_web",
+    surface: input.surface,
     traceAvailable: Boolean(input.traceId),
     traceId: input.traceId,
     updatedAt: input.completedAt,

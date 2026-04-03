@@ -18,6 +18,30 @@ interface RequestAuditDiagnosticsJson {
   sourceDocIds: string[];
 }
 
+interface MetricRollupMetricsJson {
+  approvalRequiredCount: number;
+  citationEligibleCount: number;
+  citationMissCount: number;
+  emptyRecallCount: number;
+  needsClarificationCount: number;
+  noAnswerCount: number;
+  rejectedCount: number;
+  requestCount: number;
+  retrievalEligibleCount: number;
+}
+
+interface QualityBadcaseGradeJson {
+  graderVersion: string;
+  result: string;
+  score: number | null;
+}
+
+interface QualityGradeProjectionVerdictJson {
+  graderVersion: string;
+  result: string;
+  score: number | null;
+}
+
 export const requestProjection = operator.table(
   "request_projection",
   {
@@ -94,6 +118,141 @@ export const requestAuditProjection = operator.table(
     statusOccurredAtIndex: index("operator_request_audit_projection_status_occurred_at_idx").on(
       table.status,
       table.occurredAt,
+    ),
+  }),
+);
+
+export const metricRollup = operator.table(
+  "metric_rollup",
+  {
+    rollupId: text("rollup_id").primaryKey(),
+    requestId: text("request_id").notNull(),
+    domain: text("domain").notNull(),
+    granularity: text("granularity").notNull(),
+    bucketStart: timestamp("bucket_start", { withTimezone: true }).notNull(),
+    bucketEnd: timestamp("bucket_end", { withTimezone: true }).notNull(),
+    surface: text("surface").notNull(),
+    selectedTarget: text("selected_target"),
+    requestedCapability: text("requested_capability"),
+    principalType: text("principal_type").notNull(),
+    collection: text("collection"),
+    modelName: text("model_name"),
+    metricsJson: jsonb("metrics_json").$type<MetricRollupMetricsJson>().notNull(),
+    projectedAt: timestamp("projected_at", { withTimezone: true }).notNull(),
+  },
+  (table) => ({
+    domainGranularityBucketStartIndex: index("operator_metric_rollup_domain_granularity_bucket_idx").on(
+      table.domain,
+      table.granularity,
+      table.bucketStart,
+    ),
+    requestGranularityBucketStartIndex: index("operator_metric_rollup_request_granularity_bucket_idx").on(
+      table.requestId,
+      table.granularity,
+      table.bucketStart,
+    ),
+    domainSurfaceBucketStartIndex: index("operator_metric_rollup_domain_surface_bucket_idx").on(
+      table.domain,
+      table.surface,
+      table.bucketStart,
+    ),
+    domainTargetBucketStartIndex: index("operator_metric_rollup_domain_target_bucket_idx").on(
+      table.domain,
+      table.selectedTarget,
+      table.bucketStart,
+    ),
+  }),
+);
+
+export const qualityBadcaseProjection = operator.table(
+  "quality_badcase_projection",
+  {
+    badcaseId: text("badcase_id").primaryKey(),
+    requestId: text("request_id").notNull(),
+    traceId: text("trace_id").notNull(),
+    surface: text("surface").notNull(),
+    selectedTarget: text("selected_target"),
+    status: text("status").notNull(),
+    causeClass: text("cause_class").notNull(),
+    detectedBy: text("detected_by").notNull(),
+    openedAt: timestamp("opened_at", { withTimezone: true }).notNull(),
+    summary: text("summary").notNull(),
+    gradeJson: jsonb("grade_json").$type<QualityBadcaseGradeJson | null>(),
+    projectedAt: timestamp("projected_at", { withTimezone: true }).notNull(),
+  },
+  (table) => ({
+    statusOpenedAtIndex: index("operator_quality_badcase_projection_status_opened_at_idx").on(
+      table.status,
+      table.openedAt,
+    ),
+    causeClassOpenedAtIndex: index("operator_quality_badcase_projection_cause_opened_at_idx").on(
+      table.causeClass,
+      table.openedAt,
+    ),
+    detectedByOpenedAtIndex: index("operator_quality_badcase_projection_detected_by_opened_at_idx").on(
+      table.detectedBy,
+      table.openedAt,
+    ),
+    requestOpenedAtIndex: index("operator_quality_badcase_projection_request_opened_at_idx").on(
+      table.requestId,
+      table.openedAt,
+    ),
+  }),
+);
+
+export const qualityGradeProjection = operator.table(
+  "quality_grade_projection",
+  {
+    gradeId: text("grade_id").primaryKey(),
+    requestId: text("request_id").notNull(),
+    traceId: text("trace_id").notNull(),
+    surface: text("surface").notNull(),
+    requestStartedAt: timestamp("request_started_at", { withTimezone: true }).notNull(),
+    selectedTarget: text("selected_target"),
+    requestedCapability: text("requested_capability"),
+    principalType: text("principal_type").notNull(),
+    collection: text("collection"),
+    modelName: text("model_name"),
+    gradeSource: text("grade_source").notNull(),
+    gradeDomain: text("grade_domain").notNull(),
+    verdict: text("verdict").notNull(),
+    scoreMilli: integer("score_milli"),
+    graderVersion: text("grader_version").notNull(),
+    rationaleSummary: text("rationale_summary"),
+    sampledAt: timestamp("sampled_at", { withTimezone: true }).notNull(),
+    projectedAt: timestamp("projected_at", { withTimezone: true }).notNull(),
+  },
+  (table) => ({
+    requestStartedAtIndex: index("operator_quality_grade_projection_request_started_at_idx").on(
+      table.requestStartedAt,
+    ),
+    domainRequestStartedAtIndex: index(
+      "operator_quality_grade_projection_domain_started_at_idx",
+    ).on(table.gradeDomain, table.requestStartedAt),
+    requestSampledAtIndex: index("operator_quality_grade_projection_request_sampled_at_idx").on(
+      table.requestId,
+      table.sampledAt,
+    ),
+    domainSurfaceStartedAtIndex: index(
+      "operator_quality_grade_projection_domain_surface_started_at_idx",
+    ).on(table.gradeDomain, table.surface, table.requestStartedAt),
+  }),
+);
+
+export const traceBacklinkProjection = operator.table(
+  "trace_backlink_projection",
+  {
+    requestId: text("request_id").primaryKey(),
+    traceId: text("trace_id").notNull(),
+    traceLink: text("trace_link"),
+    issueLink: text("issue_link"),
+    issueFingerprint: text("issue_fingerprint"),
+    projectedAt: timestamp("projected_at", { withTimezone: true }).notNull(),
+  },
+  (table) => ({
+    traceProjectedAtIndex: index("operator_trace_backlink_projection_trace_projected_at_idx").on(
+      table.traceId,
+      table.projectedAt,
     ),
   }),
 );

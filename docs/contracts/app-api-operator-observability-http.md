@@ -42,6 +42,7 @@ updated: 2026-04-03
 - operator principal admission 继续复用 shared `app-api` operator access model
 - panel 继续只消费 runtime-owned projections / rollups
 - `Sentry`、`Axiom`、sampled grading / eval tooling 继续只是 sink 或输入来源，不直接充当 query backend
+- grader / sink 如果要让 panel 消费结果，必须先通过 `app-api` owned internal ingest seam 写入 projection
 
 ## 当前状态说明
 
@@ -162,6 +163,7 @@ list endpoints 额外支持：
 - `traceLink`、`issueLink`、`issueFingerprint` 都是 panel-friendly backlink
 - 没有关联对象时允许返回 `null`
 - 不返回 sink 原始 payload 或 query 语句
+- 当前 forward contract 接受这些字段最终由 `operator.trace_backlink_projection` 提供
 
 ### Metric Ratio
 
@@ -336,6 +338,7 @@ list endpoints 额外支持：
 - 不返回 raw prompt、raw answer、raw transcript、raw auth material、raw retrieval payload
 - `retrievalAttempted`、`citationExpected`、`aclDecision` 必须来自 typed execution seam 或 app-owned runtime fact family
 - token / model 字段必须来自 execution-side typed telemetry seam，不从 sink query 反推
+- `links.*` 必须来自 app-owned backlink projection，而不是 route-time sink query
 
 ## Quality Endpoints
 
@@ -400,6 +403,8 @@ list endpoints 额外支持：
 
 - `runtime` 与 `sampledGrades` 必须分块返回，不混成单一 truth
 - sampled grading 缺失时，`sampledGrades` 允许为空块或 `null` 值，不得用 runtime 指标冒充 grader 结果
+- 当前 merged truth 第一版返回 `sampledGrades: null`
+- forward contract 上，`sampledGrades` 的上游固定为 `operator.quality_grade_projection`
 
 ### `GET /api/operator/quality/timeseries`
 
@@ -432,6 +437,9 @@ list endpoints 额外支持：
 
 - timeseries bucket 只返回 app-owned aggregate，不内嵌 raw request rows
 - sampled grade 相关曲线允许出现 `null`，表示该 bucket 没有足够样本
+- 当前 merged truth 第一版由 `operator.metric_rollup` 重建 `requestCount`、`emptyRecallRate`、`citationMissRate`、`noAnswerRate`、`needsClarificationRate`
+- 当前 merged truth 第一版 `sampledGroundingPassRate` 固定为 `null`
+- forward contract 上，`sampledGroundingPassRate` 的上游固定为 `operator.quality_grade_projection` 与 request bucket join
 
 ### `GET /api/operator/quality/badcases`
 
@@ -481,6 +489,11 @@ list endpoints 额外支持：
 
 - 这是 app-owned badcase queue，不是 grader 原始输出列表
 - `summary` 必须是安全摘要，不暴露 raw prompt / answer
+- 当前 merged truth 第一版只支持 `status` / `causeClass` / `detectedBy` 过滤，不按 sink backlink 或 grader 结果过滤
+- 当前 merged truth 第一版 `detectedBy` 固定来自 `runtime_monitor`
+- 当前 merged truth 第一版 `causeClass` 仅已落地 `citation_missing`、`empty_recall`
+- 当前 merged truth 第一版 `grade` 与 `links` 允许全部为 `null`
+- forward contract 上，`grade` 的上游固定为 `operator.quality_grade_projection`，`links.*` 的上游固定为 `operator.trace_backlink_projection`
 
 ## Safety/Authz Endpoints
 
@@ -735,6 +748,72 @@ list endpoints 额外支持：
 - detail 允许比 list 多出 `entitlementSnapshotId`、`policyProjectionVersion`、`diagnostics`
 - 仍不返回 raw JWT、raw cookies、raw prompt、raw answer、raw retrieval payload
 - 第一版 `links` 允许全部为 `null`；后续再把 `Sentry`/sink backlink 稳定接入 detail 面
+- `links.*` 稳定接入后也必须继续经过 app-owned projection，不允许 detail route 直接查询 sink
+
+## Internal Ingest Endpoints
+
+以下 endpoint 是 app-owned internal command seam，不是 browser-facing panel API：
+
+- `POST /api/internal/operator/quality/grades`
+- `POST /api/internal/operator/trace-backlinks`
+
+适用前提：
+
+- 调用方必须携带 `x-app-internal-auth`
+- 这是 internal producer（grader worker / sink reconciliation worker）写入 projection 的入口
+- 这些 endpoint 不向 panel 暴露，不支持 ad-hoc query
+
+### `POST /api/internal/operator/quality/grades`
+
+请求体：
+
+```json
+{
+  "grades": [
+    {
+      "requestId": "req_01HQ",
+      "traceId": "trace_01HQ",
+      "gradeSource": "openai_trace_grader",
+      "gradeDomain": "grounding",
+      "verdict": "pass",
+      "score": 0.913,
+      "graderVersion": "grader@2026-04-03",
+      "sampledAt": "2026-04-03T00:10:00.000Z",
+      "rationaleSummary": "grounded to cited handbook passages"
+    }
+  ]
+}
+```
+
+规则：
+
+- `requestId` 必须已存在于 app-owned request truth
+- 调用时允许只传最小 grading payload；route/service 可以通过 app-owned request fact family 回填 `surface`、`collection`、`modelName` 等维度
+- 不接受 raw grader transcript、raw prompt、raw answer、raw span payload
+
+### `POST /api/internal/operator/trace-backlinks`
+
+请求体：
+
+```json
+{
+  "backlinks": [
+    {
+      "requestId": "req_01HQ",
+      "traceId": "trace_01HQ",
+      "traceLink": "https://sentry.example/organizations/campus/traces/trace_01HQ",
+      "issueLink": "https://sentry.example/organizations/campus/issues/123",
+      "issueFingerprint": "timeout:supervisor-api"
+    }
+  ]
+}
+```
+
+规则：
+
+- payload 只允许 panel-safe deep link / fingerprint
+- 不接受 raw issue body、raw trace body、sink query 语句
+- `requestId` 与 `traceId` 必须保持 request-scoped correlation
 
 ## Explicit Non-Goals
 

@@ -9,9 +9,7 @@ import {
 
 function createActor() {
   return {
-    campusScope: "main",
     departments: [],
-    groups: ["students"],
     principalId: "principal_01HQ",
     principalType: "student" as const,
     roles: ["student"],
@@ -29,8 +27,6 @@ function createAuthorization() {
     principalId: "principal_01HQ",
     projectionSource: "campus_identity" as const,
     retrievalFilter: {
-      aclGroups: ["students"],
-      campusScope: "main",
       entitlementGroups: ["students"],
       policyProjectionVersion: "phase1-authorization-projection-v1",
       visibilityLevel: "public",
@@ -353,6 +349,160 @@ describe("supervisor execution adapter", () => {
     });
   });
 
+  it("preserves curriculum requested scope while exposing internal course_facts evidence from supervisor response", async () => {
+    const fetchImplementation = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          answer_text:
+            "根据培养方案和课程教学计划，习近平新时代中国特色社会主义思想概论开设学期：第1学期(理工/艺体)；第2学期(文科)；当前还不能稳定确认开课学院。",
+          error: null,
+          follow_up_question: "",
+          result: {
+            evidence: {
+              collection: "course_facts",
+              corpus: "curriculum",
+              sources: [
+                {
+                  collection: "course_facts",
+                  doc_id: "curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                },
+              ],
+            },
+          },
+          selected_target: "rag-specialist",
+          status: "completed",
+          trace_id: "trace_01HQ",
+        }),
+        { status: 200 },
+      ),
+    );
+    const client = createSupervisorExecutionClient(
+      {
+        SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+        SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+      },
+      { fetchImplementation },
+    );
+
+    const result = await client.execute({
+      actor: createActor(),
+      context: createContext(),
+      conversationId: "conv_01HQ",
+      requestId: "req_01HQ",
+      requestedCapability: "knowledge",
+      requestedScope: {
+        collection: "curriculum_plan",
+        corpus: "curriculum",
+      },
+      traceId: "trace_01HQ",
+      userGoal: "习概哪个学院开，第几学期开",
+    });
+
+    expect(JSON.parse(fetchImplementation.mock.calls[0]![1]!.body as string)).toMatchObject({
+      requested_scope: {
+        collection: "curriculum_plan",
+        corpus: "curriculum",
+      },
+      user_goal: "习概哪个学院开，第几学期开",
+    });
+    expect(result).toMatchObject({
+      answerText:
+        "根据培养方案和课程教学计划，习近平新时代中国特色社会主义思想概论开设学期：第1学期(理工/艺体)；第2学期(文科)；当前还不能稳定确认开课学院。",
+      selectedTarget: "rag-specialist",
+      status: "completed",
+      result: {
+        evidence: {
+          collection: "course_facts",
+          corpus: "curriculum",
+          sources: [
+            {
+              collection: "course_facts",
+              doc_id: "curriculum:中央民族大学通识课程思想政治理论课教学计划",
+            },
+          ],
+        },
+      },
+      traceId: "trace_01HQ",
+    });
+  });
+
+  it("preserves curriculum typed diagnostics fields from supervisor response", async () => {
+    const client = createSupervisorExecutionClient(
+      {
+        SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+        SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+      },
+      {
+        fetchImplementation: vi.fn().mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              answer_text: "第四学期有习近平法治思想概论、国际公法。",
+              error: null,
+              follow_up_question: "",
+              result: {
+                diagnostics: {
+                  resolved_entity_type: "program",
+                  resolved_program_family_title: "民族班",
+                  rewritten_query: "法学民族实验班培养方案里第四学期有什么课",
+                  session_program_family: "民族实验班",
+                  session_program: "法学民族实验班",
+                  session_semester: "第四学期",
+                },
+                evidence: {
+                  sources: [
+                    {
+                      doc_id: "curriculum:法学（民族实验班）本科人才培养方案",
+                    },
+                  ],
+                },
+              },
+              selected_target: "rag-specialist",
+              status: "completed",
+              trace_id: "trace_01HQ",
+            }),
+            { status: 200 },
+          ),
+        ),
+      },
+    );
+
+    await expect(
+      client.execute({
+        actor: createActor(),
+        context: createContext(),
+        conversationId: "conv_01HQ",
+        requestId: "req_01HQ",
+        requestedCapability: "knowledge",
+        requestedScope: {
+          collection: "curriculum_plan",
+          corpus: "curriculum",
+        },
+        traceId: "trace_01HQ",
+        userGoal: "法学民族班培养方案里大二下有什么课",
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        result: {
+          diagnostics: {
+            resolved_entity_type: "program",
+            resolved_program_family_title: "民族班",
+            rewritten_query: "法学民族实验班培养方案里第四学期有什么课",
+            session_program_family: "民族实验班",
+            session_program: "法学民族实验班",
+            session_semester: "第四学期",
+          },
+          evidence: {
+            sources: [
+              {
+                doc_id: "curriculum:法学（民族实验班）本科人才培养方案",
+              },
+            ],
+          },
+        },
+      }),
+    );
+  });
+
   it("raises a typed transport error for non-200 upstream responses", async () => {
     const client = createSupervisorExecutionClient(
       {
@@ -419,6 +569,40 @@ describe("supervisor execution adapter", () => {
 
     await vi.advanceTimersByTimeAsync(25);
     await assertion;
+  });
+
+  it("gives eval_benchmark requests a longer timeout budget than the default chat ceiling", async () => {
+    vi.useFakeTimers();
+    const client = createSupervisorExecutionClient(
+      {
+        SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+        SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+        SUPERVISOR_API_TIMEOUT_MS: "25",
+      },
+      {
+        fetchImplementation: vi.fn().mockImplementation(
+          () => new Promise<Response>(() => undefined),
+        ),
+      },
+    );
+
+    const pending = client.execute({
+      actor: createActor(),
+      context: createContext(),
+      conversationId: "conv_01HQ",
+      requestId: "req_01HQ",
+      surface: "eval_benchmark",
+      traceId: "trace_01HQ",
+      userGoal: "图书馆开放到几点？",
+    });
+
+    await vi.advanceTimersByTimeAsync(25);
+    await vi.advanceTimersByTimeAsync(1);
+    const marker = Symbol("pending");
+    expect(
+      await Promise.race([pending.catch(() => "rejected"), Promise.resolve(marker)]),
+    ).toBe(marker);
+    pending.catch(() => undefined);
   });
 
   it("raises supervisor_invalid_response when the upstream body is not valid json", async () => {

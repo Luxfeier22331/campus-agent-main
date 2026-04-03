@@ -5,6 +5,11 @@ export interface RequestDiagnosticsSummary {
   clarificationReason: string | null;
   noAnswerReason: string | null;
   retrievedTitleSummary: string[];
+  resolvedEntityType: string | null;
+  resolvedProgramFamilyTitle: string | null;
+  sessionProgramFamily: string | null;
+  sessionProgram: string | null;
+  sessionSemester: string | null;
 }
 
 function normalizeOptionalString(value: unknown): string | null {
@@ -64,6 +69,25 @@ export function extractRequestDiagnosticsSummary(
     retrievedTitleSummary: normalizeStringList(
       readField(diagnosticsRecord, "retrieved_title_summary", "retrievedTitleSummary"),
     ),
+    resolvedEntityType: normalizeOptionalString(
+      readField(diagnosticsRecord, "resolved_entity_type", "resolvedEntityType"),
+    ),
+    resolvedProgramFamilyTitle: normalizeOptionalString(
+      readField(
+        diagnosticsRecord,
+        "resolved_program_family_title",
+        "resolvedProgramFamilyTitle",
+      ),
+    ),
+    sessionProgramFamily: normalizeOptionalString(
+      readField(diagnosticsRecord, "session_program_family", "sessionProgramFamily"),
+    ),
+    sessionProgram: normalizeOptionalString(
+      readField(diagnosticsRecord, "session_program", "sessionProgram"),
+    ),
+    sessionSemester: normalizeOptionalString(
+      readField(diagnosticsRecord, "session_semester", "sessionSemester"),
+    ),
     rewrittenQuery: normalizeOptionalString(
       readField(diagnosticsRecord, "rewritten_query", "rewrittenQuery"),
     ),
@@ -75,6 +99,11 @@ export function extractRequestDiagnosticsSummary(
     !summary.rewrittenQuery &&
     !summary.clarificationReason &&
     !summary.noAnswerReason &&
+    !summary.resolvedEntityType &&
+    !summary.resolvedProgramFamilyTitle &&
+    !summary.sessionProgramFamily &&
+    !summary.sessionProgram &&
+    !summary.sessionSemester &&
     summary.retrievedTitleSummary.length === 0
   ) {
     return null;

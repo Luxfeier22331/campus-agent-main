@@ -343,6 +343,81 @@ updated: 2026-04-03
 
 这里的关键目标不是一次把所有字段都做完，而是先冻结 family 和 ownership，再分波补字段。
 
+当前继续向前推进时，新增 family 固定为：
+
+- `operator.quality_grade_projection`
+- `operator.trace_backlink_projection`
+
+它们分别承担：
+
+- sampled grading / reviewer truth 的 app-owned 回流面
+- panel-safe sink backlink 的 app-owned 回流面
+
+它们都不允许退化成：
+
+- panel 直连 grader / sink 的 query passthrough
+- raw grader payload / raw sink blob dump
+
+## 当前执行补充：Grade Projection And Backlink Projection
+
+在已完成 `request_observability_fact`、`request_audit_projection`、`metric_rollup`、`quality_badcase_projection` 的基础上，下一波最小前向实现固定为：
+
+### `operator.quality_grade_projection`
+
+职责：
+
+- 接住 sampled trace grading / eval tooling 的回流结果
+- 作为 `quality summary.sampledGrades`、`quality timeseries.sampledGroundingPassRate`、`quality badcases.grade` 的唯一 app-owned 上游
+
+写入规则：
+
+- 不回写 `runtime.request_execution`
+- 不把 grader sink 结果直接暴露给 panel
+- 每条 grade 必须与单个 `request_id` 对齐
+- grade 维度至少拆成 `grounding`、`citation`、`policy`
+- 第一版只接受一条 request / source / domain 的最新 grade projection；重复到达通过 stable id upsert 覆盖
+
+字段最小化：
+
+- 允许 `request_id`、`trace_id`、`surface`、`request_started_at`、`selected_target`
+- 允许 `requested_capability`、`principal_type`、`collection`、`model_name`
+- 允许 `grade_source`、`grade_domain`、`verdict`、`score`、`grader_version`
+- 允许 `sampled_at`、`projected_at`
+- 允许 `rationale_summary`
+- 不允许 raw prompt、raw answer、raw grader transcript、raw span payload
+
+### `operator.trace_backlink_projection`
+
+职责：
+
+- 接住 `Sentry` / sink reconciliation 后的 panel-safe deep link
+- 作为 request observability detail、audit detail、quality badcase queue 的 `links.*` 上游
+
+写入规则：
+
+- 一条 request 最多一条 backlink projection
+- `trace_link`、`issue_link`、`issue_fingerprint` 允许为空
+- 只保存安全 deep link / fingerprint，不保存 raw issue JSON 或 raw trace payload
+
+### Internal Ingest Seam
+
+`app-api` 需要一个受 internal shared secret 保护的 app-owned command seam，用于写入：
+
+- quality grades
+- trace backlinks
+
+当前前向默认 workflow 约束：
+
+- release-gate / acceptance eval 应优先直接消费 final `run-XX-case-results.json` 内嵌的 `request_correlation`
+- 仅在历史 artifact 仍缺 inline correlation 时，才继续传外部 correlation manifest
+- publish summary / evidence 应落回 acceptance artifact root，避免 release 证据与 app-owned 回流结果脱节
+
+边界规则：
+
+- 这是 internal producer -> `app-api` 的写入 seam，不是 browser-facing API
+- 它只接受最小 payload，并优先通过 `request_observability_fact` 回填 request 维度
+- 它的存在是为了保持 `panel -> app-api` 与 `sink/grader -> app-api projection` 两条链路分离，而不是给 panel 新增 side door
+
 ## 验证闭环
 
 至少验证以下五类证据：

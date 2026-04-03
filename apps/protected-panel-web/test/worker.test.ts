@@ -561,7 +561,6 @@ describe("protected panel web worker shell", () => {
       .sign(privateKey);
 
     let forwardedOperatorEmail: string | null = null;
-    let forwardedOperatorGroups: string | null = null;
     let forwardedOperatorId: string | null = null;
     let forwardedInternalAuth: string | null = null;
     let forwardedOperatorName: string | null = null;
@@ -597,7 +596,6 @@ describe("protected panel web worker shell", () => {
             fetch: async (request: Request) => {
               forwardedUrl = request.url;
               forwardedOperatorEmail = request.headers.get("x-app-operator-email");
-              forwardedOperatorGroups = request.headers.get("x-app-operator-groups");
               forwardedOperatorId = request.headers.get("x-app-operator-id");
               forwardedInternalAuth = request.headers.get("x-app-internal-auth");
               forwardedOperatorName = request.headers.get("x-app-operator-name");
@@ -651,7 +649,6 @@ describe("protected panel web worker shell", () => {
       expect(forwardedOperatorEmail).toBe("ops@example.com");
       expect(forwardedOperatorId).toBe("ops@example.com");
       expect(forwardedOperatorName).toBe("Ops Team");
-      expect(forwardedOperatorGroups).toBe("panel,ops");
       expect(forwardedInternalAuth).toBe("panel-bridge-secret");
       expect(forwardedBaggage).toBe("sentry-environment=test");
       expect(forwardedSentryTrace).toBe(

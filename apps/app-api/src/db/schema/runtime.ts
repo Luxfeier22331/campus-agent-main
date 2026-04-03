@@ -25,8 +25,6 @@ export const requestExecution = runtime.table(
     actorPrincipalId: text("actor_principal_id").notNull(),
     actorRolesJson: jsonb("actor_roles_json").$type<string[]>().notNull(),
     actorDepartmentsJson: jsonb("actor_departments_json").$type<string[]>().notNull(),
-    actorGroupsJson: jsonb("actor_groups_json").$type<string[]>().notNull(),
-    actorCampusScope: text("actor_campus_scope"),
     principalType: text("principal_type").notNull(),
     principalLabel: text("principal_label"),
     entitlementSnapshotId: text("entitlement_snapshot_id"),

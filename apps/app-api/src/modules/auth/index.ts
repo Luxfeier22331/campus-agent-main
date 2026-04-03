@@ -1,6 +1,8 @@
 export { buildBetterAuthConfig, createAppAuth, getAppAuth, handleAuthRequest } from "./auth";
 export {
+  buildInternalEvalPrincipal,
   buildExecutionAuthorizationContext,
+  hasMatchingInternalSecret,
   mapSessionToAppPrincipal,
   mapOperatorHeadersToPrincipal,
   mapSessionToPublicUserPrincipal,
@@ -17,6 +19,7 @@ export type {
   ExecutionAuthorizationContext,
   ExecutionAuthorizationRetrievalFilter,
   ExecutionActorContext,
+  InternalEvalPrincipalInput,
   OfficialWebCollectorPrincipal,
   ResolvedAppPrincipal,
 } from "./principal";

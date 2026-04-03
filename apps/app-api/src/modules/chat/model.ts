@@ -2,6 +2,13 @@ export type AssistantMessageKind = "answer" | "clarification" | "no_answer" | "e
 export type ChatMessageRole = "user" | "assistant";
 export const DRAFT_CONVERSATION_TITLE = "New conversation";
 
+export interface ChatSessionSlot {
+  confirmed: boolean;
+  name: string;
+  updatedAt: string;
+  value: string;
+}
+
 export interface ChatMessage {
   id: string;
   conversationId: string;
@@ -19,6 +26,7 @@ export interface ChatConversation {
   title: string;
   createdAt: string;
   updatedAt: string;
+  sessionSlots: ChatSessionSlot[];
   messages: ChatMessage[];
 }
 

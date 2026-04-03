@@ -74,6 +74,7 @@ export interface NormalizedOperatorAuditListFilters {
 
 export interface OperatorOverviewFilters {
   window?: string | null;
+  granularity?: string | null;
   surface?: string | null;
   selectedTarget?: string | null;
   requestedCapability?: string | null;
@@ -84,6 +85,7 @@ export interface OperatorOverviewFilters {
 
 export interface NormalizedOperatorOverviewFilters {
   window: OperatorOverviewWindow;
+  granularity: OperatorResultWindow["granularity"] | null;
   surface: string | null;
   selectedTarget: string | null;
   requestedCapability: string | null;
@@ -252,6 +254,65 @@ export interface OperatorAuditListResult {
   };
 }
 
+export interface OperatorQualityTimeseriesResult {
+  window: OperatorResultWindow;
+  series: Array<{
+    bucketStart: string;
+    bucketEnd: string;
+    requestCount: number;
+    emptyRecallRate: number;
+    citationMissRate: number;
+    noAnswerRate: number;
+    needsClarificationRate: number;
+    sampledGroundingPassRate: number | null;
+  }>;
+  asOf: string;
+}
+
+export interface OperatorQualityBadcaseListFilters {
+  limit?: number | null;
+  cursor?: string | null;
+  status?: string | null;
+  causeClass?: string | null;
+  detectedBy?: string | null;
+}
+
+export interface NormalizedOperatorQualityBadcaseListFilters {
+  limit: number;
+  cursor: string | null;
+  status: string | null;
+  causeClass: string | null;
+  detectedBy: string | null;
+}
+
+export interface OperatorQualityBadcaseListResult {
+  badcases: Array<{
+    badcaseId: string;
+    requestId: string;
+    traceId: string;
+    surface: string;
+    selectedTarget: string | null;
+    status: string;
+    causeClass: string;
+    detectedBy: string;
+    openedAt: string;
+    summary: string;
+    grade: {
+      result: string;
+      score: number | null;
+      graderVersion: string;
+    } | null;
+    links: {
+      traceLink: string | null;
+      issueLink: string | null;
+      issueFingerprint: string | null;
+    };
+  }>;
+  page: {
+    nextCursor: string | null;
+  };
+}
+
 export interface OperatorQualitySummaryResult {
   window: OperatorResultWindow;
   runtime: {
@@ -323,8 +384,12 @@ export interface OperatorQueryStore {
   getObservabilityById(requestId: string): Promise<OperatorRequestObservabilityRecord | null>;
   getOverview(filters: NormalizedOperatorOverviewFilters): Promise<OperatorOverviewResult>;
   getQualitySummary(filters: NormalizedOperatorOverviewFilters): Promise<OperatorQualitySummaryResult>;
+  getQualityTimeseries(filters: NormalizedOperatorOverviewFilters): Promise<OperatorQualityTimeseriesResult>;
   getSafetySummary(filters: NormalizedOperatorOverviewFilters): Promise<OperatorSafetySummaryResult>;
   getCostSummary(filters: NormalizedOperatorOverviewFilters): Promise<OperatorCostSummaryResult>;
+  listQualityBadcases(
+    filters: NormalizedOperatorQualityBadcaseListFilters,
+  ): Promise<OperatorQualityBadcaseListResult>;
   listAudit(filters: NormalizedOperatorAuditListFilters): Promise<OperatorAuditListResult>;
   list(filters: NormalizedOperatorRequestListFilters): Promise<OperatorQueryListResult>;
 }
@@ -350,6 +415,10 @@ export interface OperatorQueryService {
     principal: ResolvedAppPrincipal;
     filters: OperatorOverviewFilters;
   }): Promise<OperatorQualitySummaryResult>;
+  getQualityTimeseries(input: {
+    principal: ResolvedAppPrincipal;
+    filters: OperatorOverviewFilters;
+  }): Promise<OperatorQualityTimeseriesResult>;
   getSafetySummary(input: {
     principal: ResolvedAppPrincipal;
     filters: OperatorOverviewFilters;
@@ -366,6 +435,10 @@ export interface OperatorQueryService {
     principal: ResolvedAppPrincipal;
     filters: OperatorAuditListFilters;
   }): Promise<OperatorAuditListResult>;
+  listQualityBadcases(input: {
+    principal: ResolvedAppPrincipal;
+    filters: OperatorQualityBadcaseListFilters;
+  }): Promise<OperatorQualityBadcaseListResult>;
 }
 
 export interface OperatorQueryServiceDependencies {
@@ -376,6 +449,7 @@ const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 const DEFAULT_WINDOW: OperatorOverviewWindow = "24h";
 const OPERATOR_WINDOWS = new Set<OperatorOverviewWindow>(["15m", "1h", "24h", "7d", "30d"]);
+const OPERATOR_GRANULARITIES = new Set<OperatorResultWindow["granularity"]>(["5m", "15m", "1h", "1d"]);
 
 function normalizeOptionalString(value: string | null | undefined): string | null {
   const normalized = value?.trim();
@@ -402,8 +476,14 @@ function normalizeOverviewWindow(value: string | null | undefined): OperatorOver
 function normalizeOverviewFilters(
   filters: OperatorOverviewFilters,
 ): NormalizedOperatorOverviewFilters {
+  const granularity = normalizeOptionalString(filters.granularity);
+
   return {
     collection: normalizeOptionalString(filters.collection),
+    granularity:
+      granularity && OPERATOR_GRANULARITIES.has(granularity as OperatorResultWindow["granularity"])
+        ? (granularity as OperatorResultWindow["granularity"])
+        : null,
     modelName: normalizeOptionalString(filters.modelName),
     principalType: normalizeOptionalString(filters.principalType),
     requestedCapability: normalizeOptionalString(filters.requestedCapability),
@@ -427,6 +507,44 @@ function normalizeAuditListFilters(
     surface: normalizeOptionalString(filters.surface),
     traceId: normalizeOptionalString(filters.traceId),
   };
+}
+
+function normalizeQualityBadcaseListFilters(
+  filters: OperatorQualityBadcaseListFilters,
+): NormalizedOperatorQualityBadcaseListFilters {
+  return {
+    causeClass: normalizeOptionalString(filters.causeClass),
+    cursor: normalizeOptionalString(filters.cursor),
+    detectedBy: normalizeOptionalString(filters.detectedBy),
+    limit: normalizeLimit(filters.limit),
+    status: normalizeOptionalString(filters.status),
+  };
+}
+
+function validateTimeseriesGranularity(filters: NormalizedOperatorOverviewFilters): void {
+  if (!filters.granularity) {
+    return;
+  }
+
+  const allowed =
+    filters.window === "15m"
+      ? new Set(["5m"])
+      : filters.window === "1h"
+        ? new Set(["5m", "15m"])
+        : filters.window === "24h"
+          ? new Set(["15m", "1h"])
+          : filters.window === "7d"
+            ? new Set(["1h", "1d"])
+            : new Set(["1d"]);
+
+  if (!allowed.has(filters.granularity)) {
+    throw new AppApiRouteError({
+      code: "validation_failed",
+      message: "window and granularity combination is invalid.",
+      retryable: false,
+      status: 400,
+    });
+  }
 }
 
 function ensureOperatorPrincipal(principal: ResolvedAppPrincipal): void {
@@ -531,6 +649,14 @@ export function buildOperatorQueryService(
       return dependencies.store.getQualitySummary(normalizeOverviewFilters(input.filters));
     },
 
+    async getQualityTimeseries(input) {
+      ensureOperatorPrincipal(input.principal);
+      const filters = normalizeOverviewFilters(input.filters);
+      validateTimeseriesGranularity(filters);
+
+      return dependencies.store.getQualityTimeseries(filters);
+    },
+
     async getSafetySummary(input) {
       ensureOperatorPrincipal(input.principal);
 
@@ -560,6 +686,14 @@ export function buildOperatorQueryService(
       ensureOperatorPrincipal(input.principal);
 
       return dependencies.store.listAudit(normalizeAuditListFilters(input.filters));
+    },
+
+    async listQualityBadcases(input) {
+      ensureOperatorPrincipal(input.principal);
+
+      return dependencies.store.listQualityBadcases(
+        normalizeQualityBadcaseListFilters(input.filters),
+      );
     },
   };
 }

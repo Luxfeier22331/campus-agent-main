@@ -40,19 +40,19 @@ describe("operator bridge principal resolution", () => {
         "x-app-internal-auth": "trusted-secret",
         "x-app-operator-email": "ops@example.com",
         "x-app-operator-groups": "panel,ops",
+        "x-app-operator-campus-scope": "main",
         "x-app-operator-id": "operator-001",
         "x-app-operator-name": "Ops Team",
       },
     });
 
-    expect(
-      mapOperatorHeadersToPrincipal(request, {
-        APP_API_INTERNAL_SHARED_SECRET: "trusted-secret",
-        APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
-      }),
-    ).toMatchObject({
+    const principal = mapOperatorHeadersToPrincipal(request, {
+      APP_API_INTERNAL_SHARED_SECRET: "trusted-secret",
+      APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
+    });
+
+    expect(principal).toMatchObject({
       actor: {
-        groups: ["panel", "ops"],
         principalId: "operator-001",
         principalType: "operator",
         userId: "operator-001",
@@ -62,8 +62,6 @@ describe("operator bridge principal resolution", () => {
         principalId: "operator-001",
         projectionSource: "operator_headers",
         retrievalFilter: {
-          aclGroups: [],
-          campusScope: null,
           entitlementGroups: [],
           policyProjectionVersion: "phase1-authorization-projection-v1",
           visibilityLevel: "public",
@@ -83,27 +81,29 @@ describe("operator bridge principal resolution", () => {
       },
       session: null,
     });
+    expect(principal?.actor).not.toHaveProperty("groups");
+    expect(principal?.actor).not.toHaveProperty("campusScope");
+    expect(principal?.authorization?.retrievalFilter).not.toHaveProperty("aclGroups");
+    expect(principal?.authorization?.retrievalFilter).not.toHaveProperty("campusScope");
   });
 });
 
 describe("public user principal projection", () => {
   it("does not auto-promote a signed-in public user into campus entitlements", () => {
-    expect(
-      mapSessionToPublicUserPrincipal({
-        session: {
-          expiresAt: "2026-03-29T08:00:00.000Z",
-          id: "sess_01HQ",
-        },
-        user: {
-          email: "student@example.edu",
-          id: "user_01HQ",
-          name: "Jane Doe",
-        },
-      }),
-    ).toMatchObject({
+    const principal = mapSessionToPublicUserPrincipal({
+      session: {
+        expiresAt: "2026-03-29T08:00:00.000Z",
+        id: "sess_01HQ",
+      },
+      user: {
+        email: "student@example.edu",
+        id: "user_01HQ",
+        name: "Jane Doe",
+      },
+    });
+
+    expect(principal).toMatchObject({
       actor: {
-        campusScope: null,
-        groups: ["public_chat_users"],
         principalId: "user_01HQ",
         principalType: "public_user",
         roles: ["public_user"],
@@ -114,8 +114,6 @@ describe("public user principal projection", () => {
         principalId: "user_01HQ",
         projectionSource: "public_session",
         retrievalFilter: {
-          aclGroups: [],
-          campusScope: null,
           entitlementGroups: [],
           policyProjectionVersion: "phase1-authorization-projection-v1",
           visibilityLevel: "public",
@@ -127,38 +125,39 @@ describe("public user principal projection", () => {
         type: "public_user",
       },
     });
+    expect(principal?.actor).not.toHaveProperty("groups");
+    expect(principal?.actor).not.toHaveProperty("campusScope");
+    expect(principal?.authorization?.retrievalFilter).not.toHaveProperty("aclGroups");
+    expect(principal?.authorization?.retrievalFilter).not.toHaveProperty("campusScope");
   });
 
   it("maps explicit campus identity claims into a campus student principal with an entitlement snapshot", () => {
-    expect(
-      mapSessionToAppPrincipal(
-        {
-          session: {
-            expiresAt: "2026-03-29T08:00:00.000Z",
-            id: "sess_01HQ",
-          },
-          user: {
-            email: "student@example.edu",
-            id: "user_01HQ",
-            name: "Jane Doe",
-          },
+    const principal = mapSessionToAppPrincipal(
+      {
+        session: {
+          expiresAt: "2026-03-29T08:00:00.000Z",
+          id: "sess_01HQ",
         },
-        {
-          actorGroups: ["campus_members", "students"],
-          actorRoles: ["campus_member", "student"],
-          applicabilityScope: "undergraduate",
-          departments: ["philosophy"],
-          entitlementGroups: ["campus_members", "students"],
-          entitlementSnapshotId: "entitlements-2026-04-02",
-          principalType: "student",
-          visibilityScope: "north",
+        user: {
+          email: "student@example.edu",
+          id: "user_01HQ",
+          name: "Jane Doe",
         },
-      ),
-    ).toMatchObject({
-      actor: {
-        campusScope: "north",
+      },
+      {
+        actorRoles: ["campus_member", "student"],
+        applicabilityScope: "undergraduate",
         departments: ["philosophy"],
-        groups: ["campus_members", "students"],
+        entitlementGroups: ["campus_members", "students"],
+        entitlementSnapshotId: "entitlements-2026-04-02",
+        principalType: "student",
+        visibilityScope: "north",
+      },
+    );
+
+    expect(principal).toMatchObject({
+      actor: {
+        departments: ["philosophy"],
         principalId: "user_01HQ",
         principalType: "student",
         roles: ["campus_member", "student"],
@@ -171,8 +170,6 @@ describe("public user principal projection", () => {
         principalId: "user_01HQ",
         projectionSource: "campus_identity",
         retrievalFilter: {
-          aclGroups: [],
-          campusScope: null,
           entitlementGroups: ["campus_members", "students"],
           policyProjectionVersion: "phase1-authorization-projection-v1",
           visibilityLevel: "public",
@@ -184,6 +181,10 @@ describe("public user principal projection", () => {
         type: "student",
       },
     });
+    expect(principal?.actor).not.toHaveProperty("groups");
+    expect(principal?.actor).not.toHaveProperty("campusScope");
+    expect(principal?.authorization?.retrievalFilter).not.toHaveProperty("aclGroups");
+    expect(principal?.authorization?.retrievalFilter).not.toHaveProperty("campusScope");
   });
 });
 
@@ -274,9 +275,7 @@ describe("request principal resolution", () => {
 
     expect(principal).toMatchObject({
       actor: {
-        campusScope: "north",
         departments: ["philosophy"],
-        groups: ["campus_members", "students"],
         principalType: "student",
         roles: ["campus_member", "student"],
       },
@@ -291,6 +290,10 @@ describe("request principal resolution", () => {
         type: "student",
       },
     });
+    expect(principal?.actor).not.toHaveProperty("groups");
+    expect(principal?.actor).not.toHaveProperty("campusScope");
+    expect(principal?.authorization?.retrievalFilter).not.toHaveProperty("aclGroups");
+    expect(principal?.authorization?.retrievalFilter).not.toHaveProperty("campusScope");
   });
 });
 

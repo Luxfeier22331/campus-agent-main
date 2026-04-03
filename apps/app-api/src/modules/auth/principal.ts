@@ -47,13 +47,9 @@ export interface ExecutionActorContext {
   principalType: AppPrincipalType;
   roles: string[];
   departments: string[];
-  groups: string[];
-  campusScope: string | null;
 }
 
 export interface ExecutionAuthorizationRetrievalFilter {
-  aclGroups: string[];
-  campusScope: string | null;
   entitlementGroups: string[];
   policyProjectionVersion: string;
   visibilityLevel: string;
@@ -80,6 +76,21 @@ export interface ResolvedAppPrincipal {
   authorization?: ExecutionAuthorizationContext;
 }
 
+export interface InternalEvalPrincipalInput {
+  email: string;
+  principalId?: string;
+  displayName?: string;
+  principalType?: Extract<AppPrincipalType, "public_user" | "campus_member" | "student" | "staff" | "faculty">;
+  actorRoles?: string[];
+  departments?: string[];
+  entitlementGroups?: string[];
+  entitlementSnapshotId?: string;
+  visibilityLevel?: string;
+  visibilityScope?: string | null;
+  applicabilityScope?: string;
+  ownershipScopes?: string[];
+}
+
 export type BetterAuthSessionPayload =
   | {
       session?: {
@@ -95,7 +106,6 @@ export type BetterAuthSessionPayload =
   | null;
 
 export interface CampusIdentityClaimsInput {
-  actorGroups?: string[];
   actorRoles?: string[];
   applicabilityScope?: string;
   departments?: string[];
@@ -126,7 +136,7 @@ function normalizeEmail(value: string | null): string | null {
   return normalized ? normalized.toLowerCase() : null;
 }
 
-function hasMatchingInternalSecret(
+export function hasMatchingInternalSecret(
   request: Request,
   env: Pick<Env, "APP_API_INTERNAL_SHARED_SECRET">,
 ): boolean {
@@ -230,8 +240,6 @@ export function buildExecutionAuthorizationContext(
     ownershipScopes: [],
     approvalState: "",
     retrievalFilter: {
-      aclGroups: [],
-      campusScope: null,
       entitlementGroups: [],
       policyProjectionVersion: DEFAULT_POLICY_PROJECTION_VERSION,
       visibilityLevel: "public",
@@ -259,13 +267,74 @@ function buildCampusAuthorizationContext(input: {
     ownershipScopes: input.ownershipScopes ?? [],
     approvalState: "",
     retrievalFilter: {
-      aclGroups: [],
-      campusScope: null,
       entitlementGroups: input.entitlementGroups,
       policyProjectionVersion: DEFAULT_POLICY_PROJECTION_VERSION,
       visibilityLevel: input.visibilityLevel?.trim() || "public",
       visibilityScope: input.visibilityScope,
     },
+  };
+}
+
+export function buildInternalEvalPrincipal(
+  input: InternalEvalPrincipalInput,
+): ResolvedAppPrincipal {
+  const principalType = input.principalType ?? "public_user";
+  const normalizedEmail = normalizeEmail(input.email);
+  if (!normalizedEmail) {
+    throw new Error("internal eval principal email is required");
+  }
+
+  const principalId = normalizeHeaderValue(input.principalId ?? null) ?? normalizedEmail;
+  const displayName = normalizeHeaderValue(input.displayName ?? null) ?? normalizedEmail;
+  const roles = normalizeStringList(input.actorRoles);
+  const departments = normalizeStringList(input.departments);
+  const actor: ExecutionActorContext = {
+    userId: principalId,
+    principalId,
+    principalType,
+    roles: roles.length > 0 ? roles : [principalType],
+    departments,
+  };
+
+  const entitlementGroups = normalizeStringList(input.entitlementGroups);
+  const entitlementSnapshotId = normalizeHeaderValue(input.entitlementSnapshotId ?? null) ?? "";
+  const visibilityScope = normalizeHeaderValue(input.visibilityScope ?? null);
+  const visibilityLevel = normalizeHeaderValue(input.visibilityLevel ?? null) ?? "public";
+  const applicabilityScope = normalizeHeaderValue(input.applicabilityScope ?? null) ?? undefined;
+  const ownershipScopes = normalizeStringList(input.ownershipScopes);
+
+  const authorization =
+    entitlementSnapshotId ||
+    entitlementGroups.length > 0 ||
+    visibilityScope !== null ||
+    applicabilityScope !== undefined ||
+    ownershipScopes.length > 0 ||
+    principalType !== "public_user"
+      ? buildCampusAuthorizationContext({
+          actor,
+          applicabilityScope,
+          entitlementGroups,
+          entitlementSnapshotId,
+          ownershipScopes,
+          visibilityLevel,
+          visibilityScope,
+        })
+      : buildExecutionAuthorizationContext(actor);
+
+  return {
+    principal: {
+      type: principalType,
+      principalId,
+      displayName,
+      email: normalizedEmail,
+    },
+    session: null,
+    permissions: {
+      chat: true,
+      operator: false,
+    },
+    actor,
+    authorization,
   };
 }
 
@@ -288,8 +357,6 @@ export function mapSessionToPublicUserPrincipal(
     principalType: "public_user",
     roles: ["public_user"],
     departments: [],
-    groups: ["public_chat_users"],
-    campusScope: null,
   };
 
   return {
@@ -335,7 +402,6 @@ export function mapSessionToAppPrincipal(
     return publicPrincipal;
   }
 
-  const actorGroups = normalizeStringList(campusIdentity.actorGroups);
   const actorRoles = normalizeStringList(campusIdentity.actorRoles);
   const departments = normalizeStringList(campusIdentity.departments);
   const entitlementGroups = normalizeStringList(campusIdentity.entitlementGroups);
@@ -352,8 +418,6 @@ export function mapSessionToAppPrincipal(
     principalType,
     roles: actorRoles.length > 0 ? actorRoles : [principalType],
     departments,
-    groups: actorGroups,
-    campusScope: visibilityScope,
   };
 
   return {
@@ -398,7 +462,6 @@ function parseCampusIdentityClaims(
   );
 
   const claims: CampusIdentityClaimsInput = {
-    actorGroups: parseHeaderList(request, "x-app-campus-actor-groups"),
     actorRoles: parseHeaderList(request, "x-app-campus-actor-roles"),
     applicabilityScope: applicabilityScope ?? undefined,
     departments: parseHeaderList(request, "x-app-campus-departments"),
@@ -419,7 +482,6 @@ function parseCampusIdentityClaims(
       claims.visibilityScope ||
       claims.applicabilityScope ||
       claims.visibilityLevel ||
-      claims.actorGroups?.length ||
       claims.actorRoles?.length ||
       claims.departments?.length ||
       claims.entitlementGroups?.length ||
@@ -452,10 +514,8 @@ export function mapOperatorHeadersToPrincipal(
     normalizeHeaderValue(request.headers.get("x-app-operator-id")) ?? email;
   const displayName =
     normalizeHeaderValue(request.headers.get("x-app-operator-name")) ?? email;
-  const groups = parseHeaderList(request, "x-app-operator-groups");
   const roles = parseHeaderList(request, "x-app-operator-roles");
   const departments = parseHeaderList(request, "x-app-operator-departments");
-  const campusScope = normalizeHeaderValue(request.headers.get("x-app-operator-campus-scope"));
 
   const actor: ExecutionActorContext = {
     userId: principalId,
@@ -463,8 +523,6 @@ export function mapOperatorHeadersToPrincipal(
     principalType: "operator",
     roles,
     departments,
-    groups,
-    campusScope,
   };
 
   return {

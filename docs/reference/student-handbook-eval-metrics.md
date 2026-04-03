@@ -314,6 +314,7 @@ updated: 2026-04-02
 - 若走 `accept`：
   - `accept-config.json`
   - `final-summary.json`
+  - 显式启用 operator publish 时还会多出 `operator-observability-publish-summary.json`
 
 case 集：
 

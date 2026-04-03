@@ -72,6 +72,14 @@ describe("shared database adoption", () => {
       existsKey: "runtime.request_execution@runtime_request_execution_actor_idempotency_idx",
       kind: "index",
     });
+    expect(
+      parseMigrationStatement(
+        'ALTER TABLE "runtime"."request_execution" DROP COLUMN "actor_groups_json";',
+      ),
+    ).toMatchObject({
+      existsKey: "runtime.request_execution:actor_groups_json",
+      kind: "drop_column",
+    });
   });
 
   it("classifies non-owned shared schemas as fresh for app-api adoption", () => {
@@ -132,5 +140,25 @@ describe("shared database adoption", () => {
     });
 
     expect(plan.mismatches[0]).toContain("runtime.request_execution");
+  });
+
+  it("treats retired drop-column migrations as already satisfied once the latest snapshot is present", () => {
+    const inventory = makeInventory({
+      schemas: [...new Set([...latestSpecs.values()].map((spec) => spec.schema))],
+      tables: [...latestSpecs.keys()].map((qualifiedName) => buildTableFromExpected(qualifiedName)),
+    });
+
+    const plan = buildAdoptionPlan({
+      inventory,
+      migrationContext,
+    });
+
+    expect(plan.mismatches).toEqual([]);
+    expect(plan.statements.some((item) => item.statement.includes('DROP COLUMN "actor_groups_json"'))).toBe(
+      false,
+    );
+    expect(plan.statements.some((item) => item.statement.includes('DROP COLUMN "actor_campus_scope"'))).toBe(
+      false,
+    );
   });
 });

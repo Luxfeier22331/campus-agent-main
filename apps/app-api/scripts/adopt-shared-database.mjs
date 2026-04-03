@@ -13,6 +13,7 @@ export const APP_API_KNOWN_SCHEMAS = ["runtime", "operator", "official_web"];
 const CREATE_SCHEMA_RE = /^CREATE SCHEMA IF NOT EXISTS "([^"]+)";?$/i;
 const CREATE_TABLE_RE = /^CREATE TABLE "([^"]+)"\."([^"]+)" \(/i;
 const ALTER_TABLE_ADD_COLUMN_RE = /^ALTER TABLE "([^"]+)"\."([^"]+)" ADD COLUMN "([^"]+)"/i;
+const ALTER_TABLE_DROP_COLUMN_RE = /^ALTER TABLE "([^"]+)"\."([^"]+)" DROP COLUMN(?: IF EXISTS)? "([^"]+)"/i;
 const ALTER_TABLE_CONSTRAINT_RE = /^ALTER TABLE "([^"]+)"\."([^"]+)" ADD CONSTRAINT "([^"]+)"/i;
 const CREATE_INDEX_RE = /^CREATE (?:UNIQUE )?INDEX "([^"]+)" ON "([^"]+)"\."([^"]+)"/i;
 
@@ -155,6 +156,17 @@ export function parseMigrationStatement(statement) {
       column: match[3],
       existsKey: `${qualifyTable(match[1], match[2])}:${match[3]}`,
       kind: "column",
+      schema: match[1],
+      statement: trimmed,
+      table: match[2],
+    };
+  }
+  match = trimmed.match(ALTER_TABLE_DROP_COLUMN_RE);
+  if (match) {
+    return {
+      column: match[3],
+      existsKey: `${qualifyTable(match[1], match[2])}:${match[3]}`,
+      kind: "drop_column",
       schema: match[1],
       statement: trimmed,
       table: match[2],
@@ -310,6 +322,9 @@ function targetExists(inventory, target) {
   }
   if (target.kind === "column") {
     return table.columns.has(target.column);
+  }
+  if (target.kind === "drop_column") {
+    return !table.columns.has(target.column);
   }
   if (target.kind === "constraint") {
     return table.constraints.has(target.constraint);

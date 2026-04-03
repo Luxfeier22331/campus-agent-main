@@ -21,9 +21,7 @@ const env = {
 function createOperatorPrincipal(): ResolvedAppPrincipal {
   return {
     actor: {
-      campusScope: "main",
       departments: ["ops"],
-      groups: ["panel"],
       principalId: "ops@example.com",
       principalType: "operator",
       roles: ["operator"],
@@ -46,9 +44,7 @@ function createOperatorPrincipal(): ResolvedAppPrincipal {
 function createPublicPrincipal(): ResolvedAppPrincipal {
   return {
     actor: {
-      campusScope: null,
       departments: [],
-      groups: ["public_chat_users"],
       principalId: "user_01HQ",
       principalType: "public_user",
       roles: ["public_user"],

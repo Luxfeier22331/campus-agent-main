@@ -3,7 +3,9 @@ import { and, asc, eq, isNull, lte, sql } from "drizzle-orm";
 import type { Env } from "../../config";
 import { createRuntimeDatabase } from "../../db/runtime";
 import {
+  metricRollup,
   projectionOutbox,
+  qualityBadcaseProjection,
   requestExecution,
   requestObservabilityFact,
   requestAuditProjection,
@@ -48,12 +50,17 @@ function toExecutionProjectionSource(
     entitlementGroups: row.entitlementGroupsJson ?? [],
     entitlementSnapshotId: row.entitlementSnapshotId ?? null,
     failClosed: observability?.failClosed ?? null,
+    citationExpected: observability?.citationExpected ?? null,
+    citationMissing: observability?.citationMissing ?? null,
+    emptyRecall: observability?.emptyRecall ?? null,
+    modelName: observability?.modelName ?? null,
     policyProjectionVersion: observability?.policyProjectionVersion ?? null,
     principalId: row.actorPrincipalId,
     principalLabel: row.principalLabel ?? null,
     principalType: row.principalType,
     questionPreview: row.questionPreview,
     requestId: row.requestId,
+    retrievalAttempted: observability?.retrievalAttempted ?? null,
     requestedCapability: row.requestedCapability ?? null,
     requestedScope: row.requestedScopeJson ?? null,
     selectedTarget: row.selectedTarget ?? null,
@@ -137,6 +144,58 @@ export function createPgProjectionStore(env: Env): RequestProjectionProjectorSto
           updatedAt: new Date(input.measuredAt),
         })
         .where(eq(requestObservabilityFact.requestId, input.requestId));
+    },
+
+    async replaceQualityRollups(input) {
+      const db = await createRuntimeDatabase(env);
+      await db.delete(metricRollup).where(eq(metricRollup.requestId, input.requestId));
+      if (input.rollups.length === 0) {
+        return;
+      }
+
+      await db.insert(metricRollup).values(
+        input.rollups.map((rollup) => ({
+          bucketEnd: new Date(rollup.bucketEnd),
+          bucketStart: new Date(rollup.bucketStart),
+          collection: rollup.collection,
+          domain: rollup.domain,
+          granularity: rollup.granularity,
+          metricsJson: rollup.metrics,
+          modelName: rollup.modelName,
+          principalType: rollup.principalType,
+          projectedAt: new Date(rollup.projectedAt),
+          requestId: rollup.requestId,
+          requestedCapability: rollup.requestedCapability,
+          rollupId: rollup.rollupId,
+          selectedTarget: rollup.selectedTarget,
+          surface: rollup.surface,
+        })),
+      );
+    },
+
+    async replaceQualityBadcases(input) {
+      const db = await createRuntimeDatabase(env);
+      await db.delete(qualityBadcaseProjection).where(eq(qualityBadcaseProjection.requestId, input.requestId));
+      if (input.badcases.length === 0) {
+        return;
+      }
+
+      await db.insert(qualityBadcaseProjection).values(
+        input.badcases.map((badcase) => ({
+          badcaseId: badcase.badcaseId,
+          causeClass: badcase.causeClass,
+          detectedBy: badcase.detectedBy,
+          gradeJson: badcase.grade,
+          openedAt: new Date(badcase.openedAt),
+          projectedAt: new Date(badcase.projectedAt),
+          requestId: badcase.requestId,
+          selectedTarget: badcase.selectedTarget,
+          status: badcase.status,
+          summary: badcase.summary,
+          surface: badcase.surface,
+          traceId: badcase.traceId,
+        })),
+      );
     },
 
     async upsertAuditProjection(projection) {

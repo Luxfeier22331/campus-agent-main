@@ -15,9 +15,11 @@ Evaluation helpers for campus-agent v2.
 - curriculum qrels 当前同样采取 `doc_id-level truth first`，第二学士学位、强基计划、创新班与课程教学计划是首批固定回归样本
 - curriculum 课程 alias / family alias 现在额外有一条 internal `course_facts` serving surface：它不属于默认 external query-enabled scope，但 golden/scenario truth 会要求 specialist 在课程型问句上内部切换到这个 collection
 - curriculum program-family alias 现在额外有一条 internal `program_family_facts` serving surface：`民族班有哪些` / `基地班有哪些` / `强基有哪些专业` / `二学位有哪些专业` / `实验班有哪些` / `创新班有哪些` 这类问句都应走 family-aware completed；其中 `实验班` / `创新班` 的 truth 是“当前已采集、名称模式命中的培养方案集合”，不是官方统一 family taxonomy
-- `习概有哪些专业要上`、`思政课有哪些专业要上`、`思政课包括哪些课` 与 mixed partial-answer case 现在属于固定 curriculum regression lanes；family alias 不得 collapse 到单课 qrels truth
+- `民族实验班有哪些`、`强基计划有哪些专业`、`第二学士学位有哪些专业`、`名称里带实验班的培养方案有哪些`、`名称里带创新班的培养方案有哪些` 现在也属于固定 program-family completed lanes；full alias 与显式 name-pattern 问句都不能再退回 doc-level qrels truth
+- `习概有哪些专业要上`、`习概第几学期开`、`习概开设学期`、`思政课有哪些专业要上`、`思政课包括哪些课`、`思政课程包括哪些课`、`思政课第几学期开`、`思政第几学期开`、`思政课程第几学期开`、`思修课第几学期开` 与 mixed partial-answer case 现在属于固定 curriculum regression lanes；family alias 不得 collapse 到单课 qrels truth
+- `民族班有哪些`、`民族实验班有哪些`、`基地班有哪些`、`强基有哪些专业`、`强基计划有哪些专业`、`二学位有哪些专业`、`第二学位有哪些专业`、`第二学士学位有哪些专业`、`实验班有哪些`、`创新班有哪些`、`创新实验班有哪些`、`名称里带实验班的培养方案有哪些`、`名称里带创新班的培养方案有哪些` 现在都属于固定 program-family completed lanes；其中 full alias 与显式 name-pattern query 也必须持续留在 regression gate
 - curriculum deterministic gate 现在接受 `curriculum_plan -> course_facts/program_family_facts` 的内部切换；selected scope 仍保持 `curriculum_plan`
-- retrieval qrels preflight 现在会 fast-fail `思政课` / `思修课` 这类 course-family alias，以及 `民族班有哪些` / `基地班有哪些` / `强基有哪些专业` / `二学位有哪些专业` / `实验班有哪些` / `创新班有哪些` / `创新实验班有哪些` 这类 program-family membership alias 被 author 成单 doc canonical truth 的 fixture
+- retrieval qrels preflight 现在会 fast-fail `思政课` / `思修课` / `思政` / `思政课程` 这类 course-family alias，以及 `民族班有哪些` / `民族实验班有哪些` / `基地班有哪些` / `强基有哪些专业` / `强基计划有哪些专业` / `二学位有哪些专业` / `第二学位有哪些专业` / `第二学士学位有哪些专业` / `实验班有哪些` / `创新班有哪些` / `创新实验班有哪些` / `名称里带实验班的培养方案有哪些` / `名称里带创新班的培养方案有哪些` 这类 program-family membership alias 被 author 成单 doc canonical truth 的 fixture
 - `我这个专业的实验班大二下有什么课` 这类 deictic curriculum 问句仍然不应因为 generic family alias 而静默落单 doc；当前正确行为依旧是 clarification-first
 - deictic curriculum truth 现在固定为：只有 `verified major + unique candidate` 才允许像 `我这个专业的基地班大二下有什么课` 这样的问题进入 single-doc completed lane
 - `recent_goal` / `confirmed_slot_terms` / profile-memory-only request overrides 不得被 author 成 curriculum family alias 的 canonical single-doc qrels；这类 truth 现在同样由 preflight fast-fail
@@ -122,6 +124,7 @@ student handbook formal benchmark：
   - `summary.json`
   - `gate-report.json`
   - `SUMMARY.md`
+- `run-XX-case-results.json` 现在会直接内嵌每个 case 的 `request_correlation`；如果 live executor 走 `app-api` internal eval ingress，这里会包含 canonical `request_id` / `trace_id`，后续 operator publisher 可直接消费，不再强依赖额外 manifest
 - `campus_evals.handbook_benchmark.collect_repairable_handbook_benchmark_targets(...)` 会从既有 artifact 中筛出可修复的 supplemental infra failure：
   - 已写入 case 结果的 transient runtime failure
   - `supplemental-preflight.json` 中被 `skip_adapter` 跳过、后续可 backfill 的 unavailable metrics
@@ -158,12 +161,14 @@ student handbook formal benchmark：
   - `uv run --all-packages python -m campus_evals.handbook_live_benchmark run --reruns 3`
   - `uv run --all-packages python -m campus_evals.handbook_live_benchmark repair --benchmark-dir <formal-benchmark-dir>`
   - `uv run --all-packages python -m campus_evals.handbook_live_benchmark accept --reruns 3 --verbose --log-jsonl .tmp/evals/handbook-runtime-events.jsonl`
-  - 该入口直接复用当前 `delegate_to_rag_agent` + `retrieve_sources` 真链路，把 `GoldenCase` 收口为 live `ExecutionResult`
+  - 默认入口现在优先通过 `app-api` internal eval ingress 进入真实产品 command path，生成 canonical `request_id` / `trace_id`
+  - 如需保留 trace-rich specialist/retrieval 单元行为，测试或局部调试应显式使用 `build_legacy_handbook_live_executor(...)`
 - curriculum live runner 现已固定为 `campus_evals.curriculum_live_benchmark`：
   - `uv run --all-packages python -m campus_evals.curriculum_live_benchmark run --reruns 3`
   - `uv run --all-packages python -m campus_evals.curriculum_live_benchmark repair --benchmark-dir <formal-benchmark-dir>`
   - `uv run --all-packages python -m campus_evals.curriculum_live_benchmark accept --reruns 3 --verbose --log-jsonl .tmp/evals/curriculum-runtime-events.jsonl`
   - 该入口通过 shared `BenchmarkProfile` core 显式绑定 `curriculum_plan_live_gate_policy.json`，不再默认回退到 handbook policy
+  - 默认入口同样优先走 `app-api` internal eval ingress；包含 deterministic `failure_mode` 的 case 仍显式回退 legacy executor，保证错误注入可控
 
 runtime observability artifact：
 
@@ -173,5 +178,14 @@ runtime observability artifact：
 - `accept` 会在 acceptance 根目录额外写：
   - `accept-config.json`
   - `final-summary.json`
+- 若 `accept` 显式启用 operator publish，还会额外写：
+  - `operator-observability-publish-summary.json`
+- `accept` 现已支持把最终使用的 `run-XX-case-results.json` 直接回流到 `app-api` 的 operator observability ingest seam：
+  - `--publish-operator-observability`
+  - `--publish-operator-observability-dry-run`
+  - `--publish-grade-source <stable-source-id>`
+  - `--publish-grader-version <stable-version>`
+  - `--publish-metric-domain-override adapter.metric=grounding|citation|policy`
+  - `--publish-request-correlations <path>` 仅在仍需外部 manifest 时使用；默认优先消费 case-results 内嵌 `request_correlation`
 - `--log-jsonl` 会把 `accept` 的 runtime log 路径拆成 `<base>.run.jsonl` 与 `<base>.repair.jsonl`
 - `--verbose` 现在会直接打印 preflight、retrying、recovered、breaker opened / fast-fail 等高信号事件，便于 live 验收时确认瞬时 provider 错误是否已经被自动重试

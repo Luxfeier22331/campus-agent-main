@@ -10,6 +10,10 @@ from campus_contracts import (
     AvailabilityCheckPayload,
     AvailabilityObservation,
     ContextProjection,
+    CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
+    CURRICULUM_PROGRAM_SLOT_NAME,
+    CURRICULUM_SEMESTER_SLOT_NAME,
+    CurriculumFollowUpSlots,
     DocumentRef,
     ErrorInfo,
     EvidenceBundle,
@@ -151,6 +155,27 @@ class ContractModelsTest(unittest.TestCase):
         self.assertEqual(request.context.profile_memory.items[0].value, "咨询保研")
         self.assertEqual(request.context.session.confirmed_slots[0].value, "推免资格")
 
+    def test_session_summary_exposes_curriculum_follow_up_slots_with_last_confirmed_precedence(self) -> None:
+        summary = SessionSummary(
+            confirmed_slots=(
+                SessionSlot(name=CURRICULUM_PROGRAM_FAMILY_SLOT_NAME, value="民族实验班", confirmed=True),
+                SessionSlot(name=CURRICULUM_SEMESTER_SLOT_NAME, value="第二学期", confirmed=True),
+                SessionSlot(name=CURRICULUM_PROGRAM_SLOT_NAME, value="新闻学民族实验班", confirmed=False),
+                SessionSlot(name=CURRICULUM_PROGRAM_SLOT_NAME, value="法学民族实验班", confirmed=True),
+                SessionSlot(name=CURRICULUM_SEMESTER_SLOT_NAME, value="第四学期", confirmed=True),
+            ),
+            turn_count=3,
+        )
+
+        self.assertEqual(
+            summary.curriculum_follow_up,
+            CurriculumFollowUpSlots(
+                program_family="民族实验班",
+                program="法学民族实验班",
+                semester="第四学期",
+            ),
+        )
+
     def test_supervisor_request_actor_only_no_longer_projects_authorization_filter(self) -> None:
         request = SupervisorRequest(
             user_goal="保研政策怎么准备？",
@@ -179,7 +204,7 @@ class ContractModelsTest(unittest.TestCase):
             ),
         )
 
-    def test_authorized_retrieval_filter_exposes_canonical_fields_only(self) -> None:
+    def test_authorized_retrieval_filter_rejects_non_canonical_fields(self) -> None:
         projection_first = AuthorizedRetrievalFilter(
             entitlement_groups=("students",),
             visibility_scope="north",
@@ -200,7 +225,7 @@ class ContractModelsTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             AuthorizedRetrievalFilter(campus_scope="south")
 
-    def test_actor_context_exposes_canonical_identity_fields_only(self) -> None:
+    def test_actor_context_rejects_non_canonical_identity_fields(self) -> None:
         field_names = {field.name for field in fields(ActorContext)}
 
         self.assertNotIn("groups", field_names)
@@ -242,6 +267,9 @@ class ContractModelsTest(unittest.TestCase):
                 "resolved_course_family_title": "思想政治理论课",
                 "resolved_program_family_id": "",
                 "resolved_program_family_title": "",
+                "session_program_family": "",
+                "session_program": "",
+                "session_semester": "",
                 "unsupported_fields": ("offering_unit",),
                 "partial_answer": True,
             },
@@ -252,6 +280,9 @@ class ContractModelsTest(unittest.TestCase):
 
         self.assertIn("resolved_program_family_id", field_names)
         self.assertIn("resolved_program_family_title", field_names)
+        self.assertIn("session_program_family", field_names)
+        self.assertIn("session_program", field_names)
+        self.assertIn("session_semester", field_names)
         self.assertIn("candidate_title_summary", field_names)
         self.assertIn("used_verified_identity", field_names)
         self.assertIn("used_soft_preference", field_names)
@@ -363,7 +394,7 @@ class ContractModelsTest(unittest.TestCase):
         self.assertTrue(payload["result"]["evidence"]["sources"][0]["is_answer_bearing"])
         self.assertNotIn("acl_level", payload["result"]["evidence"]["sources"][0])
 
-    def test_evidence_source_exposes_canonical_fields_only(self) -> None:
+    def test_evidence_source_rejects_non_canonical_fields(self) -> None:
         field_names = {field.name for field in fields(EvidenceSource)}
 
         self.assertNotIn("acl_level", field_names)

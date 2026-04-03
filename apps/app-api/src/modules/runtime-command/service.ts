@@ -21,6 +21,10 @@ import {
   buildFinalizedRequestObservabilityFact,
 } from "../request-observability";
 import type { AppTelemetry } from "../telemetry";
+import {
+  buildSupervisorSessionProjection,
+  deriveCurriculumSessionSlots,
+} from "./curriculum-session";
 import type {
   AcceptRequestWrite,
   ChatCommandStore,
@@ -64,6 +68,7 @@ export interface ChatCommandResponse {
     result: ChatCommandResult;
   };
   requestId: string;
+  supervisor?: SupervisorExecutionResponse;
   traceId: string;
 }
 
@@ -72,6 +77,7 @@ export interface ChatCommandService {
     idempotencyKey?: string | null;
     payload: ChatCommandPayload;
     principal: ResolvedAppPrincipal;
+    surface?: string;
   }): Promise<ChatCommandResponse>;
 }
 
@@ -151,6 +157,7 @@ function buildConversationTitle(currentTitle: string, prompt: string): string {
 function buildSupervisorContextProjection(input: {
   actor: ResolvedAppPrincipal["actor"];
   authorization?: ResolvedAppPrincipal["authorization"];
+  sessionSlots: ChatConversation["sessionSlots"];
   turnCount: number;
 }) {
   return {
@@ -159,10 +166,10 @@ function buildSupervisorContextProjection(input: {
     profileMemory: {
       items: [],
     },
-    session: {
-      confirmedSlots: [],
-      turnCount: Math.max(0, Math.floor(input.turnCount)),
-    },
+    session: buildSupervisorSessionProjection({
+      sessionSlots: input.sessionSlots,
+      turnCount: input.turnCount,
+    }),
   };
 }
 
@@ -253,6 +260,7 @@ function buildAcceptedWrite(input: {
   requestId: string;
   requestedCapability: string;
   requestedScope: RequestedScope;
+  surface: string;
   traceId: string;
   userMessageId: string;
   outboxEventId: string;
@@ -278,13 +286,11 @@ function buildAcceptedWrite(input: {
       conversationId: input.conversation.id,
       userMessageId: input.userMessageId,
       assistantMessageId: null,
-      surface: "public_chat_web",
+      surface: input.surface,
       actorUserId: input.principal.actor.userId,
       actorPrincipalId: input.principal.actor.principalId,
       actorRoles: input.principal.actor.roles,
       actorDepartments: input.principal.actor.departments,
-      actorGroups: input.principal.actor.groups,
-      actorCampusScope: input.principal.actor.campusScope,
       principalType: input.principal.principal.type,
       principalLabel: input.principal.principal.displayName,
       entitlementSnapshotId: input.principal.authorization?.entitlementSnapshotId || null,
@@ -316,6 +322,7 @@ function buildAcceptedWrite(input: {
       requestedCapability: input.requestedCapability,
       requestedScope: input.requestedScope,
       startedAt: input.now,
+      surface: input.surface,
       traceId: input.traceId,
     }),
     outboxEvent: {
@@ -330,7 +337,7 @@ function buildAcceptedWrite(input: {
         questionPreview: previewText(input.prompt),
         requestedCapability: input.requestedCapability,
         requestedScope: input.requestedScope,
-        surface: "public_chat_web",
+        surface: input.surface,
       },
       occurredAt: input.now,
       availableAt: input.now,
@@ -399,6 +406,7 @@ function buildFinalizedWrite(input: {
   requestedCapability: string;
   requestedScope: RequestedScope;
   response: SupervisorExecutionResponse;
+  surface: string;
   startedAt: string;
   traceId: string;
 }): {
@@ -406,6 +414,10 @@ function buildFinalizedWrite(input: {
   write: FinalizeRequestWrite;
 } {
   const normalizedTraceId = input.response.traceId || input.traceId;
+  const normalizedSupervisorResponse = {
+    ...input.response,
+    traceId: normalizedTraceId,
+  } satisfies SupervisorExecutionResponse;
   const diagnostics = extractRequestDiagnosticsSummary(input.response.result);
   const sourceDocIds = extractSourceDocIds(input.response.result);
 
@@ -506,13 +518,11 @@ function buildFinalizedWrite(input: {
       conversationId: input.conversation.id,
       userMessageId: "",
       assistantMessageId: input.assistantMessageId,
-      surface: "public_chat_web",
+      surface: input.surface,
       actorUserId: input.conversation.ownerUserId,
       actorPrincipalId: input.conversation.ownerUserId,
       actorRoles: [],
       actorDepartments: [],
-      actorGroups: [],
-      actorCampusScope: null,
       principalType: "public_user",
       principalLabel: null,
       entitlementSnapshotId: null,
@@ -547,10 +557,11 @@ function buildFinalizedWrite(input: {
       requestId: input.requestId,
       requestedCapability: input.requestedCapability,
       requestedScope: input.requestedScope,
-      response: input.response,
+      response: normalizedSupervisorResponse,
       sourceDocIds,
       startedAt: input.startedAt,
       status,
+      surface: input.surface,
       traceId: normalizedTraceId,
     }),
     outboxEvent: {
@@ -574,6 +585,12 @@ function buildFinalizedWrite(input: {
       attemptCount: 0,
       lastError: null,
     },
+    sessionSlots: deriveCurriculumSessionSlots({
+      diagnostics,
+      existingSlots: input.conversation.sessionSlots,
+      finalizedAt: input.completedAt,
+      status,
+    }),
   };
 
   return {
@@ -583,6 +600,7 @@ function buildFinalizedWrite(input: {
         result,
       },
       requestId: input.requestId,
+      supervisor: normalizedSupervisorResponse,
       traceId: normalizedTraceId,
     },
     write,
@@ -607,6 +625,7 @@ export function buildChatCommandService(
         });
       }
 
+      const surface = input.surface?.trim() || "public_chat_web";
       const validatedPayload = resolveValidatedPayload(input.payload);
       const ownerUserId = input.principal.principal.principalId;
 
@@ -696,6 +715,7 @@ export function buildChatCommandService(
           title,
           createdAt: acceptedAt,
           updatedAt: acceptedAt,
+          sessionSlots: [],
           messages: [],
         };
       }
@@ -713,6 +733,7 @@ export function buildChatCommandService(
         requestId,
         requestedCapability: validatedPayload.requestedCapability,
         requestedScope: validatedPayload.requestedScope,
+        surface,
         traceId,
         userMessageId,
         outboxEventId: acceptedEventId,
@@ -727,7 +748,7 @@ export function buildChatCommandService(
         requestId,
         requestedCapability: validatedPayload.requestedCapability,
         requestedScope: validatedPayload.requestedScope,
-        surface: "public_chat_web",
+        surface,
         traceId,
       });
 
@@ -743,7 +764,7 @@ export function buildChatCommandService(
         requestedCapability: validatedPayload.requestedCapability,
         requestedScope: validatedPayload.requestedScope,
         status: "accepted",
-        surface: "public_chat_web",
+        surface,
         traceId,
       });
       await telemetry?.recordProjectionEnqueued({
@@ -752,7 +773,7 @@ export function buildChatCommandService(
         requestId,
         requestedCapability: validatedPayload.requestedCapability,
         requestedScope: validatedPayload.requestedScope,
-        surface: "public_chat_web",
+        surface,
         traceId,
       });
 
@@ -769,12 +790,14 @@ export function buildChatCommandService(
           context: buildSupervisorContextProjection({
             actor: input.principal.actor,
             authorization: input.principal.authorization,
+            sessionSlots: conversation.sessionSlots,
             turnCount: conversation.messages.length,
           }),
           conversationId: conversation.id,
           requestId,
           requestedCapability: validatedPayload.requestedCapability,
           requestedScope: validatedPayload.requestedScope,
+          surface,
           traceHeaders: telemetry?.getTraceHeaders(),
           traceId,
           userGoal: validatedPayload.prompt,
@@ -796,7 +819,7 @@ export function buildChatCommandService(
           requestedCapability: validatedPayload.requestedCapability,
           requestedScope: validatedPayload.requestedScope,
           retryable: transportError.retryable,
-          surface: "public_chat_web",
+          surface,
           traceId,
         });
       }
@@ -817,6 +840,7 @@ export function buildChatCommandService(
         requestedCapability: validatedPayload.requestedCapability,
         requestedScope: validatedPayload.requestedScope,
         response: executionResponse,
+        surface,
         startedAt: acceptedAt,
         traceId,
       });
@@ -826,8 +850,6 @@ export function buildChatCommandService(
       finalized.write.requestExecution.actorPrincipalId = input.principal.actor.principalId;
       finalized.write.requestExecution.actorRoles = input.principal.actor.roles;
       finalized.write.requestExecution.actorDepartments = input.principal.actor.departments;
-      finalized.write.requestExecution.actorGroups = input.principal.actor.groups;
-      finalized.write.requestExecution.actorCampusScope = input.principal.actor.campusScope;
       finalized.write.requestExecution.principalType = input.principal.principal.type;
       finalized.write.requestExecution.principalLabel = input.principal.principal.displayName;
       finalized.write.requestExecution.entitlementSnapshotId =
@@ -851,7 +873,7 @@ export function buildChatCommandService(
         requestId,
         requestedCapability: validatedPayload.requestedCapability,
         requestedScope: validatedPayload.requestedScope,
-        surface: "public_chat_web",
+        surface,
         traceId: finalized.write.requestExecution.traceId,
       });
       await telemetry?.recordRequestFinalized({
@@ -871,7 +893,7 @@ export function buildChatCommandService(
           | "no_answer"
           | "approval_required"
           | "rejected",
-        surface: "public_chat_web",
+        surface,
         traceId: finalized.write.requestExecution.traceId,
       });
 

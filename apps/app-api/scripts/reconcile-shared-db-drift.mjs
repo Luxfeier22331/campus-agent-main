@@ -23,6 +23,7 @@ const RECONCILABLE_EXTRA_TABLES = new Set([
 const RECONCILABLE_EXTRA_COLUMNS = new Map([
   ["official_web.crawl_runs", new Set(["run_intent"])],
   ["operator.official_web_run_projection", new Set(["run_intent"])],
+  ["runtime.request_execution", new Set(["actor_campus_scope", "actor_groups_json"])],
 ]);
 const CRAWL_RUNS_SITE_SCHEDULER_INDEX = "official_web_crawl_runs_site_scheduler_idx";
 

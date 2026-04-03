@@ -55,9 +55,7 @@ const env = {
 function createOperatorPrincipal(): ResolvedAppPrincipal {
   return {
     actor: {
-      campusScope: "main",
       departments: ["ops"],
-      groups: ["panel"],
       principalId: "ops@example.com",
       principalType: "operator",
       roles: ["operator"],

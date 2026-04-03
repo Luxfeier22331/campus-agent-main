@@ -34,7 +34,12 @@ export interface RequestExecutionProjectionSource {
   answerPreview: string | null;
   diagnostics: RequestDiagnosticsSummary | null;
   failClosed: boolean | null;
+  citationExpected: boolean | null;
+  citationMissing: boolean | null;
+  emptyRecall: boolean | null;
+  modelName: string | null;
   policyProjectionVersion: string | null;
+  retrievalAttempted: boolean | null;
   sourceDocIds: string[];
   startedAt: string;
   completedAt: string | null;
@@ -92,6 +97,48 @@ export interface RequestAuditProjectionMaterialization {
   projectedAt: string;
 }
 
+export interface MetricRollupMaterialization {
+  rollupId: string;
+  requestId: string;
+  domain: "quality";
+  granularity: "5m" | "15m" | "1h" | "1d";
+  bucketStart: string;
+  bucketEnd: string;
+  surface: string;
+  selectedTarget: string | null;
+  requestedCapability: string | null;
+  principalType: string;
+  collection: string | null;
+  modelName: string | null;
+  metrics: {
+    approvalRequiredCount: number;
+    citationEligibleCount: number;
+    citationMissCount: number;
+    emptyRecallCount: number;
+    needsClarificationCount: number;
+    noAnswerCount: number;
+    rejectedCount: number;
+    requestCount: number;
+    retrievalEligibleCount: number;
+  };
+  projectedAt: string;
+}
+
+export interface QualityBadcaseProjectionMaterialization {
+  badcaseId: string;
+  requestId: string;
+  traceId: string;
+  surface: string;
+  selectedTarget: string | null;
+  status: "open";
+  causeClass: string;
+  detectedBy: "runtime_monitor";
+  openedAt: string;
+  summary: string;
+  grade: null;
+  projectedAt: string;
+}
+
 export interface RequestProjectionProjectorStore {
   getRequestExecution(requestId: string): Promise<RequestExecutionProjectionSource | null>;
   listPendingEvents(limit: number, now: Date): Promise<ProjectionOutboxEvent[]>;
@@ -107,6 +154,11 @@ export interface RequestProjectionProjectorStore {
     requestId: string;
     projectionLagMs: number | null;
     measuredAt: string;
+  }): Promise<void>;
+  replaceQualityRollups(input: { requestId: string; rollups: MetricRollupMaterialization[] }): Promise<void>;
+  replaceQualityBadcases(input: {
+    requestId: string;
+    badcases: QualityBadcaseProjectionMaterialization[];
   }): Promise<void>;
   upsertAuditProjection(projection: RequestAuditProjectionMaterialization): Promise<void>;
   upsertProjection(projection: RequestProjectionMaterialization): Promise<void>;
@@ -206,6 +258,162 @@ function buildAuditSummary(input: {
     default:
       return `${capabilityLabel} recorded audit event ${input.eventType}.`;
   }
+}
+
+function parseRequestedCollection(requestedScope: Record<string, unknown> | null): string | null {
+  const collection = requestedScope?.collection;
+  return typeof collection === "string" && collection ? collection : null;
+}
+
+function resolveBucketStart(timestamp: string, granularity: MetricRollupMaterialization["granularity"]): Date {
+  const value = new Date(timestamp);
+  if (granularity === "5m") {
+    value.setUTCMinutes(Math.floor(value.getUTCMinutes() / 5) * 5, 0, 0);
+    return value;
+  }
+  if (granularity === "15m") {
+    value.setUTCMinutes(Math.floor(value.getUTCMinutes() / 15) * 15, 0, 0);
+    return value;
+  }
+  if (granularity === "1h") {
+    value.setUTCMinutes(0, 0, 0);
+    return value;
+  }
+  value.setUTCHours(0, 0, 0, 0);
+  return value;
+}
+
+function addGranularity(bucketStart: Date, granularity: MetricRollupMaterialization["granularity"]): Date {
+  const next = new Date(bucketStart);
+  if (granularity === "5m") {
+    next.setUTCMinutes(next.getUTCMinutes() + 5);
+    return next;
+  }
+  if (granularity === "15m") {
+    next.setUTCMinutes(next.getUTCMinutes() + 15);
+    return next;
+  }
+  if (granularity === "1h") {
+    next.setUTCHours(next.getUTCHours() + 1);
+    return next;
+  }
+  next.setUTCDate(next.getUTCDate() + 1);
+  return next;
+}
+
+function buildMetricRollupId(input: {
+  domain: "quality";
+  granularity: MetricRollupMaterialization["granularity"];
+  bucketStart: string;
+  surface: string;
+  selectedTarget: string | null;
+  requestedCapability: string | null;
+  principalType: string;
+  collection: string | null;
+  modelName: string | null;
+  requestId: string;
+}): string {
+  return [
+    input.domain,
+    input.granularity,
+    input.bucketStart,
+    input.surface,
+    input.selectedTarget ?? "_",
+    input.requestedCapability ?? "_",
+    input.principalType,
+    input.collection ?? "_",
+    input.modelName ?? "_",
+    input.requestId,
+  ].join("|");
+}
+
+function buildQualityRollups(input: {
+  execution: RequestExecutionProjectionSource;
+  projectedAt: string;
+}): MetricRollupMaterialization[] {
+  const metrics = {
+    approvalRequiredCount: input.execution.status === "approval_required" ? 1 : 0,
+    citationEligibleCount: input.execution.citationExpected === true ? 1 : 0,
+    citationMissCount: input.execution.citationMissing === true ? 1 : 0,
+    emptyRecallCount: input.execution.emptyRecall === true ? 1 : 0,
+    needsClarificationCount: input.execution.status === "needs_clarification" ? 1 : 0,
+    noAnswerCount: input.execution.status === "no_answer" ? 1 : 0,
+    rejectedCount: input.execution.status === "rejected" ? 1 : 0,
+    requestCount: 1,
+    retrievalEligibleCount: input.execution.retrievalAttempted === true ? 1 : 0,
+  };
+
+  return ([
+    "5m",
+    "15m",
+    "1h",
+    "1d",
+  ] as const).map((granularity) => {
+    const bucketStart = resolveBucketStart(input.execution.startedAt, granularity);
+    const bucketStartIso = bucketStart.toISOString();
+    return {
+      bucketEnd: addGranularity(bucketStart, granularity).toISOString(),
+      bucketStart: bucketStartIso,
+      collection: parseRequestedCollection(input.execution.requestedScope),
+      domain: "quality",
+      granularity,
+      metrics,
+      modelName: input.execution.modelName ?? null,
+      principalType: input.execution.principalType,
+      projectedAt: input.projectedAt,
+      requestId: input.execution.requestId,
+      requestedCapability: input.execution.requestedCapability,
+      rollupId: buildMetricRollupId({
+        bucketStart: bucketStartIso,
+        collection: parseRequestedCollection(input.execution.requestedScope),
+        domain: "quality",
+        granularity,
+        modelName: input.execution.modelName ?? null,
+        principalType: input.execution.principalType,
+        requestId: input.execution.requestId,
+        requestedCapability: input.execution.requestedCapability,
+        selectedTarget: input.execution.selectedTarget,
+        surface: input.execution.surface,
+      }),
+      selectedTarget: input.execution.selectedTarget,
+      surface: input.execution.surface,
+    };
+  });
+}
+
+function buildQualityBadcases(input: {
+  execution: RequestExecutionProjectionSource;
+  projectedAt: string;
+}): QualityBadcaseProjectionMaterialization[] {
+  const badcases: Array<{ causeClass: string; summary: string }> = [];
+
+  if (input.execution.citationExpected === true && input.execution.citationMissing === true) {
+    badcases.push({
+      causeClass: "citation_missing",
+      summary: "citationExpected=true 但 citationCount=0",
+    });
+  }
+  if (input.execution.retrievalAttempted === true && input.execution.emptyRecall === true) {
+    badcases.push({
+      causeClass: "empty_recall",
+      summary: "retrievalAttempted=true 但 retrievedSourceCount=0",
+    });
+  }
+
+  return badcases.map((badcase) => ({
+    badcaseId: `${input.execution.requestId}:${badcase.causeClass}`,
+    causeClass: badcase.causeClass,
+    detectedBy: "runtime_monitor",
+    grade: null,
+    openedAt: input.execution.completedAt ?? input.execution.startedAt,
+    projectedAt: input.projectedAt,
+    requestId: input.execution.requestId,
+    selectedTarget: input.execution.selectedTarget,
+    status: "open",
+    summary: badcase.summary,
+    surface: input.execution.surface,
+    traceId: input.execution.traceId,
+  }));
 }
 
 export function toRequestProjectionMaterialization(input: {
@@ -312,6 +520,20 @@ export function buildRequestProjectionProjector(
               projectedAt,
             }),
           );
+          await dependencies.store.replaceQualityRollups({
+            requestId: execution.requestId,
+            rollups: buildQualityRollups({
+              execution,
+              projectedAt,
+            }),
+          });
+          await dependencies.store.replaceQualityBadcases({
+            badcases: buildQualityBadcases({
+              execution,
+              projectedAt,
+            }),
+            requestId: execution.requestId,
+          });
           await dependencies.store.markObservabilityProjected({
             measuredAt: projectedAt,
             projectionLagMs: computeProjectionLagMs({

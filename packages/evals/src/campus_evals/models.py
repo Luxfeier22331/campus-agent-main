@@ -12,6 +12,7 @@ from campus_contracts import (
     SupervisorStatus,
 )
 from campus_contracts.models import ALLOWED_SUPERVISOR_STATUSES
+from campus_evals.operator_observability import OperatorRequestCorrelation
 
 
 CaseSplit = Literal["smoke", "regression_locked", "exploratory", "release_gate"]
@@ -72,6 +73,7 @@ class GoldenCase:
     actor: ActorContext
     expected_status: SupervisorStatus
     scope: KnowledgeScope
+    conversation_turns: tuple[str, ...] = field(default_factory=tuple)
     expected_sources: tuple[ExpectedSourceRef, ...] = field(default_factory=tuple)
     forbidden_sources: tuple[ExpectedSourceRef, ...] = field(default_factory=tuple)
     required_facts: tuple[str, ...] = field(default_factory=tuple)
@@ -99,6 +101,8 @@ class GoldenCase:
             raise ValueError(f"unsupported expected_status: {self.expected_status}")
         if not self.user_goal.strip():
             raise ValueError("user_goal must not be empty")
+        if any(not turn.strip() for turn in self.conversation_turns):
+            raise ValueError("conversation_turns must not contain empty turns")
         invalid_metric_keys = [
             key
             for key, value in self.supplemental_metric_overrides.items()
@@ -122,6 +126,7 @@ class ObservedTrace:
 class ExecutionResult:
     response: SpecialistResponse | SupervisorResponse
     observed_trace: ObservedTrace | None = None
+    request_correlation: OperatorRequestCorrelation | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,6 +145,7 @@ class CaseResult:
     trace_result: DimensionResult
     metric_results: dict[str, DimensionResult] = field(default_factory=dict)
     observed_trace: ObservedTrace | None = None
+    request_correlation: OperatorRequestCorrelation | None = None
     supplemental_results: tuple["SupplementalResult", ...] = field(default_factory=tuple)
 
 

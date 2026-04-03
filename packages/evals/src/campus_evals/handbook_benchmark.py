@@ -20,6 +20,7 @@ from campus_evals.models import (
     SupplementalResult,
     SummaryCount,
 )
+from campus_evals.operator_observability import OperatorRequestCorrelation
 from campus_evals.runtime_observability import (
     RuntimeEventWriter,
     bind_runtime_event_context,
@@ -629,6 +630,11 @@ def _serialize_case_result(result: CaseResult) -> dict[str, object]:
             if result.observed_trace is not None
             else None
         ),
+        "request_correlation": (
+            _serialize_dataclass(result.request_correlation)
+            if result.request_correlation is not None
+            else None
+        ),
         "supplemental_results": [
             _serialize_dataclass(item)
             for item in result.supplemental_results
@@ -678,6 +684,7 @@ def _deserialize_case_result(payload: dict[str, object]) -> CaseResult:
         trace_result=_deserialize_dimension_result(payload["trace_result"]),
         metric_results=metric_results,
         observed_trace=_deserialize_observed_trace(payload.get("observed_trace")),
+        request_correlation=_deserialize_request_correlation(payload.get("request_correlation")),
         supplemental_results=supplemental_results,
     )
 
@@ -724,6 +731,20 @@ def _deserialize_observed_trace(payload: object) -> ObservedTrace | None:
     )
 
 
+def _deserialize_request_correlation(payload: object) -> OperatorRequestCorrelation | None:
+    if not isinstance(payload, dict):
+        return None
+    return OperatorRequestCorrelation(
+        case_id=str(payload.get("case_id") or ""),
+        request_id=str(payload.get("request_id") or ""),
+        trace_id=str(payload.get("trace_id") or ""),
+        sampled_at=str(payload.get("sampled_at") or ""),
+        trace_link=_deserialize_optional_string(payload.get("trace_link")),
+        issue_link=_deserialize_optional_string(payload.get("issue_link")),
+        issue_fingerprint=_deserialize_optional_string(payload.get("issue_fingerprint")),
+    )
+
+
 def _deserialize_evidence_sources(payload: object) -> tuple[EvidenceSource, ...]:
     if not isinstance(payload, list):
         return ()
@@ -762,6 +783,11 @@ def _deserialize_optional_bool(value: object) -> bool | None:
     if value is None:
         return None
     return bool(value)
+
+
+def _deserialize_optional_string(value: object) -> str | None:
+    normalized = str(value or "").strip()
+    return normalized or None
 
 
 def _load_run_case_result_payloads(benchmark_dir: str | Path) -> list[dict[str, object]]:

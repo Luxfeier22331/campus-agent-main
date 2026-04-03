@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 import json
 from pathlib import Path
@@ -14,6 +14,7 @@ from campus_evals.handbook_benchmark import (
     run_handbook_formal_benchmark,
 )
 from campus_evals.models import GoldenCase
+from campus_evals.operator_observability import publish_case_results_artifact
 from campus_evals.runner import Executor, SupplementalAdapter
 from campus_evals.settings import SupplementalHTTPSettings
 
@@ -38,6 +39,15 @@ class BenchmarkProfile:
     pass_policy_path_to_core: bool = True
     pass_benchmark_type_to_core: bool = True
     pass_repair_benchmark_type_to_core: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class OperatorObservabilityPublishConfig:
+    grade_source: str
+    grader_version: str
+    request_correlations_path: Path | None = None
+    metric_domain_overrides: dict[str, str] = field(default_factory=dict)
+    dry_run: bool = False
 
 
 def build_default_profile_http_settings() -> SupplementalHTTPSettings:
@@ -88,6 +98,34 @@ def build_parser_for_profile(profile: BenchmarkProfile) -> argparse.ArgumentPars
     accept_parser.add_argument(
         "--log-jsonl",
         help="Optional runtime event JSONL base path. Accept mode derives separate run/repair event logs from it.",
+    )
+    accept_parser.add_argument(
+        "--publish-operator-observability",
+        action="store_true",
+        help="Publish final acceptance case-results into app-api operator observability ingest seams.",
+    )
+    accept_parser.add_argument(
+        "--publish-operator-observability-dry-run",
+        action="store_true",
+        help="Build and persist the operator observability publish batch without POSTing to app-api.",
+    )
+    accept_parser.add_argument(
+        "--publish-grade-source",
+        help="Stable source id for operator observability grade upserts. Required when publish is enabled.",
+    )
+    accept_parser.add_argument(
+        "--publish-grader-version",
+        help="Stable grader/runtime version label for published grades. Required when publish is enabled.",
+    )
+    accept_parser.add_argument(
+        "--publish-request-correlations",
+        help="Optional explicit request correlation manifest path. Defaults to inline request_correlation from case-results.",
+    )
+    accept_parser.add_argument(
+        "--publish-metric-domain-override",
+        action="append",
+        default=[],
+        help="Optional metric-to-domain override for publish in the form adapter.metric=grounding|citation|policy.",
     )
 
     return parser
@@ -156,6 +194,7 @@ def accept_live_benchmark_profile(
     output_dir: str | Path,
     run_benchmark_fn=None,
     repair_benchmark_fn=None,
+    operator_observability_publish: OperatorObservabilityPublishConfig | None = None,
     verbose: bool = False,
     runtime_events_path: str | Path | None = None,
 ) -> dict[str, object]:
@@ -199,6 +238,29 @@ def accept_live_benchmark_profile(
     elif verbose:
         print("[accept] stage=repair status=skipped selected_targets=0")
 
+    operator_publish_result = None
+    if operator_observability_publish is not None:
+        final_case_results_dir = resolved_repair_dir or initial_run_dir
+        final_case_results_path = _resolve_latest_case_results_path(final_case_results_dir)
+        publish_summary = publish_case_results_artifact(
+            case_results_path=final_case_results_path,
+            request_correlations_path=operator_observability_publish.request_correlations_path,
+            grade_source=operator_observability_publish.grade_source,
+            grader_version=operator_observability_publish.grader_version,
+            metric_domain_overrides=operator_observability_publish.metric_domain_overrides or None,
+            dry_run=operator_observability_publish.dry_run,
+        )
+        publish_summary_path = resolved_output_dir / "operator-observability-publish-summary.json"
+        publish_summary_path.write_text(
+            json.dumps(publish_summary, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        operator_publish_result = {
+            "case_results_path": str(final_case_results_path),
+            "summary_path": str(publish_summary_path),
+            "summary": publish_summary,
+        }
+
     final_summary = {
         "schema_version": 1,
         "benchmark_type": profile.benchmark_type,
@@ -222,6 +284,7 @@ def accept_live_benchmark_profile(
             run_events_path=run_events_path,
             repair_events_path=repair_events_path,
         ),
+        "operator_observability_publish": operator_publish_result,
     }
     (resolved_output_dir / "accept-config.json").write_text(
         json.dumps(
@@ -235,6 +298,9 @@ def accept_live_benchmark_profile(
                     "run": str(run_events_path) if run_events_path is not None else None,
                     "repair": str(repair_events_path) if repair_events_path is not None else None,
                 },
+                "operator_observability_publish": _serialize_operator_observability_publish_config(
+                    operator_observability_publish
+                ),
             },
             ensure_ascii=False,
             indent=2,
@@ -260,7 +326,8 @@ def main_for_profile(
     accept_benchmark_fn=None,
 ) -> int:
     load_repo_env()
-    args = build_parser_for_profile(profile).parse_args(argv)
+    parser = build_parser_for_profile(profile)
+    args = parser.parse_args(argv)
     resolved_accept_benchmark_fn = accept_benchmark_fn or accept_live_benchmark_profile
 
     if args.command == "run":
@@ -282,12 +349,17 @@ def main_for_profile(
             if args.output_dir
             else output_dir_builder(prefix=f"{profile.run_prefix}-accept")
         )
+        operator_observability_publish = _build_operator_observability_publish_config(
+            parser=parser,
+            args=args,
+        )
         resolved_accept_benchmark_fn(
             profile=profile,
             reruns=args.reruns,
             output_dir=output_dir,
             run_benchmark_fn=run_benchmark_fn,
             repair_benchmark_fn=repair_benchmark_fn,
+            operator_observability_publish=operator_observability_publish,
             verbose=bool(args.verbose),
             runtime_events_path=args.log_jsonl,
         )
@@ -318,6 +390,80 @@ def _resolve_accept_runtime_event_paths(
     run_path = base.with_name(f"{stem}.run{suffix}")
     repair_path = base.with_name(f"{stem}.repair{suffix}")
     return run_path, repair_path
+
+
+def _resolve_latest_case_results_path(output_dir: Path) -> Path:
+    candidates = sorted(output_dir.glob("run-*-case-results.json"))
+    if not candidates:
+        raise FileNotFoundError(f"no run-XX-case-results.json found under {output_dir}")
+    return candidates[-1]
+
+
+def _serialize_operator_observability_publish_config(
+    config: OperatorObservabilityPublishConfig | None,
+) -> dict[str, object]:
+    if config is None:
+        return {"enabled": False}
+    return {
+        "enabled": True,
+        "dry_run": config.dry_run,
+        "grade_source": config.grade_source,
+        "grader_version": config.grader_version,
+        "request_correlations_path": (
+            str(config.request_correlations_path)
+            if config.request_correlations_path is not None
+            else None
+        ),
+        "metric_domain_overrides": dict(config.metric_domain_overrides),
+    }
+
+
+def _build_operator_observability_publish_config(
+    *,
+    parser: argparse.ArgumentParser,
+    args: argparse.Namespace,
+) -> OperatorObservabilityPublishConfig | None:
+    if getattr(args, "command", None) != "accept" or not bool(
+        getattr(args, "publish_operator_observability", False)
+    ):
+        return None
+    grade_source = str(getattr(args, "publish_grade_source", "") or "").strip()
+    grader_version = str(getattr(args, "publish_grader_version", "") or "").strip()
+    if not grade_source:
+        parser.error("--publish-grade-source is required when --publish-operator-observability is set")
+    if not grader_version:
+        parser.error("--publish-grader-version is required when --publish-operator-observability is set")
+    request_correlations = getattr(args, "publish_request_correlations", None)
+    return OperatorObservabilityPublishConfig(
+        grade_source=grade_source,
+        grader_version=grader_version,
+        request_correlations_path=Path(request_correlations) if request_correlations else None,
+        metric_domain_overrides=_parse_metric_domain_overrides(
+            tuple(getattr(args, "publish_metric_domain_override", ()) or ()),
+            parser=parser,
+        ),
+        dry_run=bool(getattr(args, "publish_operator_observability_dry_run", False)),
+    )
+
+
+def _parse_metric_domain_overrides(
+    items: tuple[str, ...],
+    *,
+    parser: argparse.ArgumentParser | None = None,
+) -> dict[str, str]:
+    overrides: dict[str, str] = {}
+    for item in items:
+        normalized = str(item or "").strip()
+        if not normalized:
+            continue
+        metric_key, separator, domain = normalized.partition("=")
+        if separator != "=" or not metric_key.strip() or not domain.strip():
+            message = "publish metric domain override must use adapter.metric=grounding|citation|policy"
+            if parser is not None:
+                parser.error(message)
+            raise ValueError(message)
+        overrides[metric_key.strip()] = domain.strip()
+    return overrides
 
 
 def _deterministic_verdict(summary: dict[str, object]) -> str:

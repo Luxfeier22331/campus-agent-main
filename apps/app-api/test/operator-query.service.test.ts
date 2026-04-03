@@ -8,9 +8,7 @@ import { buildOperatorQueryService } from "../src/modules/operator-query";
 function createOperatorPrincipal(): ResolvedAppPrincipal {
   return {
     actor: {
-      campusScope: "main",
       departments: ["ops"],
-      groups: ["panel"],
       principalId: "ops@example.com",
       principalType: "operator",
       roles: ["operator"],
@@ -57,16 +55,40 @@ describe("operator query service aggregate summaries", () => {
           },
           requestCount: 4,
         },
-        sampledGrades: null,
+        sampledGrades: {
+          badcaseOpenCount: 1,
+          citationPassRate: {
+            count: 1,
+            eligibleCount: 2,
+            value: 0.5,
+          },
+          coverageRate: {
+            count: 2,
+            eligibleCount: 4,
+            value: 0.5,
+          },
+          groundingPassRate: {
+            count: 1,
+            eligibleCount: 2,
+            value: 0.5,
+          },
+          policyPassRate: {
+            count: 2,
+            eligibleCount: 2,
+            value: 1,
+          },
+        },
         window: {
           from: "2026-03-27T08:00:10.000Z",
           granularity: "1h",
           to: "2026-03-28T08:00:10.000Z",
         },
       }),
+      getQualityTimeseries: vi.fn(),
       getAuditById: vi.fn(),
       getSafetySummary: vi.fn(),
       getCostSummary: vi.fn(),
+      listQualityBadcases: vi.fn(),
       listAudit: vi.fn(),
       list: vi.fn(),
     };
@@ -89,6 +111,7 @@ describe("operator query service aggregate summaries", () => {
 
     expect(store.getQualitySummary).toHaveBeenCalledWith({
       collection: "student_handbook",
+      granularity: null,
       modelName: "gpt-5.2-mini",
       principalType: "public_user",
       requestedCapability: "knowledge",
@@ -97,6 +120,7 @@ describe("operator query service aggregate summaries", () => {
       window: "24h",
     });
     expect(result.runtime.requestCount).toBe(4);
+    expect(result.sampledGrades?.coverageRate?.value).toBe(0.5);
   });
 
   it("normalizes safety summary filters before delegating to the store", async () => {
@@ -105,6 +129,7 @@ describe("operator query service aggregate summaries", () => {
       getObservabilityById: vi.fn(),
       getOverview: vi.fn(),
       getQualitySummary: vi.fn(),
+      getQualityTimeseries: vi.fn(),
       getAuditById: vi.fn(),
       getSafetySummary: vi.fn().mockResolvedValue({
         asOf: "2026-03-28T08:00:10.000Z",
@@ -138,6 +163,7 @@ describe("operator query service aggregate summaries", () => {
         },
       }),
       getCostSummary: vi.fn(),
+      listQualityBadcases: vi.fn(),
       listAudit: vi.fn(),
       list: vi.fn(),
     };
@@ -155,6 +181,7 @@ describe("operator query service aggregate summaries", () => {
 
     expect(store.getSafetySummary).toHaveBeenCalledWith({
       collection: null,
+      granularity: null,
       modelName: null,
       principalType: null,
       requestedCapability: null,
@@ -171,6 +198,7 @@ describe("operator query service aggregate summaries", () => {
       getObservabilityById: vi.fn(),
       getOverview: vi.fn(),
       getQualitySummary: vi.fn(),
+      getQualityTimeseries: vi.fn(),
       getAuditById: vi.fn(),
       getSafetySummary: vi.fn(),
       getCostSummary: vi.fn().mockResolvedValue({
@@ -206,6 +234,7 @@ describe("operator query service aggregate summaries", () => {
           to: "2026-03-28T08:00:10.000Z",
         },
       }),
+      listQualityBadcases: vi.fn(),
       listAudit: vi.fn(),
       list: vi.fn(),
     };
@@ -224,6 +253,7 @@ describe("operator query service aggregate summaries", () => {
 
     expect(store.getCostSummary).toHaveBeenCalledWith({
       collection: null,
+      granularity: null,
       modelName: "gpt-5.2-mini",
       principalType: null,
       requestedCapability: null,
@@ -240,9 +270,11 @@ describe("operator query service aggregate summaries", () => {
       getObservabilityById: vi.fn(),
       getOverview: vi.fn(),
       getQualitySummary: vi.fn(),
+      getQualityTimeseries: vi.fn(),
       getAuditById: vi.fn(),
       getSafetySummary: vi.fn(),
       getCostSummary: vi.fn(),
+      listQualityBadcases: vi.fn(),
       listAudit: vi.fn().mockResolvedValue({
         events: [],
         page: {
@@ -280,6 +312,147 @@ describe("operator query service aggregate summaries", () => {
       status: "completed",
       surface: "public_chat_web",
       traceId: "trace_01HQ",
+    });
+    expect(result.page.nextCursor).toBe("cursor_01HQ");
+  });
+
+  it("normalizes quality timeseries filters before delegating to the store", async () => {
+    const store = {
+      getById: vi.fn(),
+      getObservabilityById: vi.fn(),
+      getOverview: vi.fn(),
+      getQualitySummary: vi.fn(),
+      getQualityTimeseries: vi.fn().mockResolvedValue({
+        asOf: "2026-03-28T08:00:10.000Z",
+        series: [
+          {
+            bucketEnd: "2026-03-28T08:00:00.000Z",
+            bucketStart: "2026-03-28T07:00:00.000Z",
+            citationMissRate: 0.5,
+            needsClarificationRate: 0.25,
+            noAnswerRate: 0.25,
+            requestCount: 4,
+            emptyRecallRate: 0.25,
+            sampledGroundingPassRate: null,
+          },
+        ],
+        window: {
+          from: "2026-03-27T08:00:00.000Z",
+          granularity: "1h",
+          to: "2026-03-28T08:00:00.000Z",
+        },
+      }),
+      getAuditById: vi.fn(),
+      getSafetySummary: vi.fn(),
+      getCostSummary: vi.fn(),
+      listQualityBadcases: vi.fn(),
+      listAudit: vi.fn(),
+      list: vi.fn(),
+    };
+    const service = buildOperatorQueryService({
+      store: store as never,
+    }) as any;
+
+    const result = await service.getQualityTimeseries({
+      filters: {
+        collection: " student_handbook ",
+        granularity: " 1h ",
+        modelName: " gpt-5.2-mini ",
+        principalType: " public_user ",
+        requestedCapability: " knowledge ",
+        selectedTarget: " rag-specialist ",
+        surface: " public_chat_web ",
+        window: "24h",
+      },
+      principal: createOperatorPrincipal(),
+    });
+
+    expect(store.getQualityTimeseries).toHaveBeenCalledWith({
+      collection: "student_handbook",
+      granularity: "1h",
+      modelName: "gpt-5.2-mini",
+      principalType: "public_user",
+      requestedCapability: "knowledge",
+      selectedTarget: "rag-specialist",
+      surface: "public_chat_web",
+      window: "24h",
+    });
+    expect(result.series).toHaveLength(1);
+  });
+
+  it("rejects invalid quality timeseries window and granularity combinations", async () => {
+    const store = {
+      getById: vi.fn(),
+      getObservabilityById: vi.fn(),
+      getOverview: vi.fn(),
+      getQualitySummary: vi.fn(),
+      getQualityTimeseries: vi.fn(),
+      getAuditById: vi.fn(),
+      getSafetySummary: vi.fn(),
+      getCostSummary: vi.fn(),
+      listQualityBadcases: vi.fn(),
+      listAudit: vi.fn(),
+      list: vi.fn(),
+    };
+    const service = buildOperatorQueryService({
+      store: store as never,
+    }) as any;
+
+    await expect(
+      service.getQualityTimeseries({
+        filters: {
+          granularity: "5m",
+          window: "7d",
+        },
+        principal: createOperatorPrincipal(),
+      }),
+    ).rejects.toMatchObject({
+      code: "validation_failed",
+      status: 400,
+    });
+    expect(store.getQualityTimeseries).not.toHaveBeenCalled();
+  });
+
+  it("normalizes quality badcase list filters before delegating to the store", async () => {
+    const store = {
+      getById: vi.fn(),
+      getObservabilityById: vi.fn(),
+      getOverview: vi.fn(),
+      getQualitySummary: vi.fn(),
+      getQualityTimeseries: vi.fn(),
+      getAuditById: vi.fn(),
+      getSafetySummary: vi.fn(),
+      getCostSummary: vi.fn(),
+      listQualityBadcases: vi.fn().mockResolvedValue({
+        badcases: [],
+        page: {
+          nextCursor: "cursor_01HQ",
+        },
+      }),
+      listAudit: vi.fn(),
+      list: vi.fn(),
+    };
+    const service = buildOperatorQueryService({
+      store: store as never,
+    }) as any;
+
+    const result = await service.listQualityBadcases({
+      filters: {
+        causeClass: " citation_missing ",
+        cursor: " cursor_01HQ ",
+        detectedBy: " runtime_monitor ",
+        limit: 10,
+        status: " open ",
+      },
+      principal: createOperatorPrincipal(),
+    });
+
+    expect(store.listQualityBadcases).toHaveBeenCalledWith({
+      causeClass: "citation_missing",
+      cursor: "cursor_01HQ",
+      detectedBy: "runtime_monitor",
+      limit: 10,
+      status: "open",
     });
     expect(result.page.nextCursor).toBe("cursor_01HQ");
   });

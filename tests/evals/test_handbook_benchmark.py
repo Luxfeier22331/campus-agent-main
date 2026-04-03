@@ -14,6 +14,7 @@ from campus_evals.handbook_benchmark import (
     run_handbook_formal_benchmark,
 )
 from campus_evals.judge_gate import evaluate_judge_gate, load_judge_gate_policy
+from campus_evals.operator_observability import OperatorRequestCorrelation
 
 
 HANDBOOK_SCOPE = KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -93,6 +94,52 @@ def _response(
 
 
 class HandbookBenchmarkRunnerTest(unittest.TestCase):
+    def test_run_handbook_formal_benchmark_persists_case_level_request_correlation(self) -> None:
+        cases = (_completed_case(),)
+
+        with TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "benchmark"
+
+            run_handbook_formal_benchmark(
+                cases=cases,
+                executor=lambda case: ExecutionResult(
+                    response=_response(
+                        status=case.expected_status,
+                        answer_text="图书馆开放时间为 08:00 到 22:00。",
+                        sources=(_source("handbook:library"),),
+                    ),
+                    observed_trace=ObservedTrace(
+                        selected_scope=HANDBOOK_SCOPE,
+                        retrieval_called=True,
+                    ),
+                    request_correlation=OperatorRequestCorrelation(
+                        case_id=case.case_id,
+                        request_id="req_eval_01HQ",
+                        trace_id="trace_eval_01HQ",
+                        sampled_at="2026-04-03T00:10:00.000Z",
+                        trace_link="https://sentry.example/traces/trace_eval_01HQ",
+                    ),
+                ),
+                supplemental_adapters=(),
+                output_dir=output_dir,
+                reruns=1,
+            )
+
+            payload = json.loads((output_dir / "run-01-case-results.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(
+            payload["results"][0]["request_correlation"],
+            {
+                "case_id": "benchmark-completed",
+                "request_id": "req_eval_01HQ",
+                "trace_id": "trace_eval_01HQ",
+                "sampled_at": "2026-04-03T00:10:00.000Z",
+                "trace_link": "https://sentry.example/traces/trace_eval_01HQ",
+                "issue_link": None,
+                "issue_fingerprint": None,
+            },
+        )
+
     def test_run_handbook_formal_benchmark_binds_faithfulness_artifact_context_per_run(self) -> None:
         cases = (_completed_case(),)
         seen_contexts: list[tuple[str, int, str, str | None]] = []

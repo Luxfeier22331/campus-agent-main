@@ -2,6 +2,7 @@ import { Hono } from "hono";
 
 import {
   getMissingRuntimeConfig,
+  parseCsvList,
   readAppApiConfig,
   resolveAppName,
   type Env,
@@ -25,6 +26,11 @@ import {
   type OfficialWebCommandService,
 } from "./modules/official-web-command";
 import {
+  buildOperatorObservabilityCommandService,
+  createPgOperatorObservabilityCommandStore,
+  type OperatorObservabilityCommandService,
+} from "./modules/operator-observability-command";
+import {
   buildOfficialWebQueryService,
   createPgOfficialWebQueryStore,
   type OfficialWebQueryService,
@@ -41,7 +47,9 @@ import {
 } from "./modules/runtime-command";
 import { createAppTelemetry, type AppTelemetry } from "./modules/telemetry";
 import {
+  buildInternalEvalPrincipal,
   buildBetterAuthConfig,
+  hasMatchingInternalSecret,
   handleAuthRequest,
   resolveOfficialWebCollectorPrincipal,
   resolveRequestPrincipal,
@@ -55,6 +63,7 @@ export interface AppDependencies {
   getPrincipal?: (request: Request, env: Env) => Promise<ResolvedAppPrincipal | null>;
   officialWebCommandService?: OfficialWebCommandService;
   officialWebQueryService?: OfficialWebQueryService;
+  operatorObservabilityCommandService?: OperatorObservabilityCommandService;
   operatorQueryService?: OperatorQueryService;
   telemetry?: AppTelemetry;
 }
@@ -92,6 +101,30 @@ function serviceCredentialRequiredResponse() {
   );
 }
 
+function buildInternalEvalPrincipalFromRequest(request: Request): ResolvedAppPrincipal {
+  return buildInternalEvalPrincipal({
+    actorRoles: parseCsvList(request.headers.get("x-eval-actor-roles") ?? undefined),
+    applicabilityScope: request.headers.get("x-eval-applicability-scope") ?? undefined,
+    departments: parseCsvList(request.headers.get("x-eval-departments") ?? undefined),
+    displayName: request.headers.get("x-eval-user-name") ?? undefined,
+    email: request.headers.get("x-eval-user-email") ?? "",
+    entitlementGroups: parseCsvList(request.headers.get("x-eval-entitlement-groups") ?? undefined),
+    entitlementSnapshotId: request.headers.get("x-eval-entitlement-snapshot-id") ?? undefined,
+    ownershipScopes: parseCsvList(request.headers.get("x-eval-ownership-scopes") ?? undefined),
+    principalId: request.headers.get("x-eval-user-id") ?? undefined,
+    principalType:
+      (request.headers.get("x-eval-principal-type") as
+        | "public_user"
+        | "campus_member"
+        | "student"
+        | "staff"
+        | "faculty"
+        | null) ?? undefined,
+    visibilityLevel: request.headers.get("x-eval-visibility-level") ?? undefined,
+    visibilityScope: request.headers.get("x-eval-visibility-scope"),
+  });
+}
+
 function parseLimit(value: string | null | undefined): number | null {
   if (!value) {
     return null;
@@ -106,6 +139,7 @@ function readOperatorAggregateFilters(request: {
 }) {
   return {
     collection: request.query("collection") ?? null,
+    granularity: request.query("granularity") ?? null,
     modelName: request.query("modelName") ?? null,
     principalType: request.query("principalType") ?? null,
     requestedCapability: request.query("requestedCapability") ?? null,
@@ -200,6 +234,11 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     dependencies.operatorQueryService ??
     buildOperatorQueryService({
       store: createPgOperatorQueryStore(env),
+    });
+  const operatorObservabilityCommandService =
+    dependencies.operatorObservabilityCommandService ??
+    buildOperatorObservabilityCommandService({
+      store: createPgOperatorObservabilityCommandStore(env),
     });
 
   app.use("*", async (c, next) => {
@@ -382,6 +421,57 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     return jsonResponse(response);
   });
 
+  app.post("/api/internal/operator/quality/grades", async (c) => {
+    if (!hasMatchingInternalSecret(c.req.raw, env)) {
+      return serviceCredentialRequiredResponse();
+    }
+
+    return jsonResponse(
+      await operatorObservabilityCommandService.ingestGrades({
+        payload: await readJsonRequestBody(c.req.raw),
+      }),
+    );
+  });
+
+  app.post("/api/internal/operator/trace-backlinks", async (c) => {
+    if (!hasMatchingInternalSecret(c.req.raw, env)) {
+      return serviceCredentialRequiredResponse();
+    }
+
+    return jsonResponse(
+      await operatorObservabilityCommandService.ingestTraceBacklinks({
+        payload: await readJsonRequestBody(c.req.raw),
+      }),
+    );
+  });
+
+  app.post("/api/internal/evals/chat/requests", async (c) => {
+    if (!hasMatchingInternalSecret(c.req.raw, env)) {
+      return serviceCredentialRequiredResponse();
+    }
+
+    const response = await chatCommandService.submit({
+      idempotencyKey: c.req.header("idempotency-key") ?? null,
+      payload: await readJsonRequestBody(c.req.raw),
+      principal: buildInternalEvalPrincipalFromRequest(c.req.raw),
+      surface: "eval_benchmark",
+    });
+
+    return jsonResponse(
+      {
+        answer: response.answer,
+        supervisor: response.supervisor ?? null,
+      },
+      {
+        headers: {
+          "x-request-id": response.requestId,
+          "x-trace-id": response.traceId,
+        },
+        status: 200,
+      },
+    );
+  });
+
   app.get("/api/chat/conversations", async (c) => {
     let principal: ResolvedAppPrincipal | null = null;
 
@@ -479,6 +569,60 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     return jsonResponse(
       await operatorQueryService.getQualitySummary({
         filters: readOperatorAggregateFilters(c.req),
+        principal,
+      }),
+    );
+  });
+
+  app.get("/api/operator/quality/timeseries", async (c) => {
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await getPrincipal(c.req.raw, env);
+    } catch {
+      return dependencyNotReadyResponse();
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+    if (!principal.permissions.operator) {
+      return operatorAccessForbiddenResponse();
+    }
+
+    return jsonResponse(
+      await operatorQueryService.getQualityTimeseries({
+        filters: readOperatorAggregateFilters(c.req),
+        principal,
+      }),
+    );
+  });
+
+  app.get("/api/operator/quality/badcases", async (c) => {
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await getPrincipal(c.req.raw, env);
+    } catch {
+      return dependencyNotReadyResponse();
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+    if (!principal.permissions.operator) {
+      return operatorAccessForbiddenResponse();
+    }
+
+    return jsonResponse(
+      await operatorQueryService.listQualityBadcases({
+        filters: {
+          causeClass: c.req.query("causeClass") ?? null,
+          cursor: c.req.query("cursor") ?? null,
+          detectedBy: c.req.query("detectedBy") ?? null,
+          limit: parseLimit(c.req.query("limit")),
+          status: c.req.query("status") ?? null,
+        },
         principal,
       }),
     );

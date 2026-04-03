@@ -22,9 +22,7 @@ const env = {
 function createOperatorPrincipal(): ResolvedAppPrincipal {
   return {
     actor: {
-      campusScope: "main",
       departments: ["ops"],
-      groups: ["panel"],
       principalId: "ops@example.com",
       principalType: "operator",
       roles: ["operator"],
@@ -47,9 +45,7 @@ function createOperatorPrincipal(): ResolvedAppPrincipal {
 function createPublicPrincipal(): ResolvedAppPrincipal {
   return {
     actor: {
-      campusScope: null,
       departments: [],
-      groups: ["public_chat_users"],
       principalId: "user_01HQ",
       principalType: "public_user",
       roles: ["public_user"],
@@ -80,8 +76,10 @@ describe("GET /api/operator/requests", () => {
       getObservabilityById: vi.fn(),
       getOverview: vi.fn(),
       getQualitySummary: vi.fn(),
+      getQualityTimeseries: vi.fn(),
       getSafetySummary: vi.fn(),
       getCostSummary: vi.fn(),
+      listQualityBadcases: vi.fn(),
       listAudit: vi.fn(),
       list: vi.fn().mockResolvedValue({
         page: {
@@ -189,8 +187,10 @@ describe("GET /api/operator/requests", () => {
         getObservabilityById: vi.fn(),
         getOverview: vi.fn(),
         getQualitySummary: vi.fn(),
+        getQualityTimeseries: vi.fn(),
         getSafetySummary: vi.fn(),
         getCostSummary: vi.fn(),
+        listQualityBadcases: vi.fn(),
         listAudit: vi.fn(),
         list: vi.fn(),
       },
@@ -220,8 +220,10 @@ describe("GET /api/operator/requests", () => {
         getObservabilityById: vi.fn(),
         getOverview: vi.fn(),
         getQualitySummary: vi.fn(),
+        getQualityTimeseries: vi.fn(),
         getSafetySummary: vi.fn(),
         getCostSummary: vi.fn(),
+        listQualityBadcases: vi.fn(),
         listAudit: vi.fn(),
         list: vi.fn(),
       },
@@ -280,8 +282,10 @@ describe("GET /api/operator/requests/:requestId", () => {
       getObservabilityById: vi.fn(),
       getOverview: vi.fn(),
       getQualitySummary: vi.fn(),
+      getQualityTimeseries: vi.fn(),
       getSafetySummary: vi.fn(),
       getCostSummary: vi.fn(),
+      listQualityBadcases: vi.fn(),
       listAudit: vi.fn(),
       list: vi.fn(),
     };
@@ -348,8 +352,10 @@ describe("GET /api/operator/requests/:requestId", () => {
         getObservabilityById: vi.fn(),
         getOverview: vi.fn(),
         getQualitySummary: vi.fn(),
+        getQualityTimeseries: vi.fn(),
         getSafetySummary: vi.fn(),
         getCostSummary: vi.fn(),
+        listQualityBadcases: vi.fn(),
         listAudit: vi.fn(),
         list: vi.fn(),
       },
@@ -415,8 +421,10 @@ describe("GET /api/operator/requests/:requestId", () => {
         getObservabilityById: vi.fn(),
         getOverview: vi.fn(),
         getQualitySummary: vi.fn(),
+        getQualityTimeseries: vi.fn(),
         getSafetySummary: vi.fn(),
         getCostSummary: vi.fn(),
+        listQualityBadcases: vi.fn(),
         listAudit: vi.fn(),
         list: vi.fn(),
       },
@@ -478,9 +486,9 @@ describe("GET /api/operator/requests/:requestId/observability", () => {
           latestTerminalCode: "completed",
         },
         links: {
-          issueFingerprint: null,
-          issueLink: null,
-          traceLink: null,
+          issueFingerprint: "timeout:supervisor-api",
+          issueLink: "https://sentry.example/issues/123",
+          traceLink: "https://sentry.example/traces/trace_01HQ",
         },
         observability: {
           aclAnomalyCode: null,
@@ -547,9 +555,9 @@ describe("GET /api/operator/requests/:requestId/observability", () => {
         latestTerminalCode: "completed",
       },
       links: {
-        issueFingerprint: null,
-        issueLink: null,
-        traceLink: null,
+        issueFingerprint: "timeout:supervisor-api",
+        issueLink: "https://sentry.example/issues/123",
+        traceLink: "https://sentry.example/traces/trace_01HQ",
       },
       observability: {
         aclAnomalyCode: null,
@@ -741,6 +749,7 @@ describe("GET /api/operator/overview", () => {
     expect(service.getOverview).toHaveBeenCalledWith({
       filters: {
         collection: null,
+        granularity: null,
         modelName: null,
         principalType: null,
         requestedCapability: null,
@@ -781,15 +790,39 @@ describe("GET /api/operator/quality/summary", () => {
           },
           requestCount: 4,
         },
-        sampledGrades: null,
+        sampledGrades: {
+          badcaseOpenCount: 1,
+          citationPassRate: {
+            count: 1,
+            eligibleCount: 2,
+            value: 0.5,
+          },
+          coverageRate: {
+            count: 2,
+            eligibleCount: 4,
+            value: 0.5,
+          },
+          groundingPassRate: {
+            count: 1,
+            eligibleCount: 2,
+            value: 0.5,
+          },
+          policyPassRate: {
+            count: 2,
+            eligibleCount: 2,
+            value: 1,
+          },
+        },
         window: {
           from: "2026-03-27T08:00:10.000Z",
           granularity: "1h",
           to: "2026-03-28T08:00:10.000Z",
         },
       }),
+      getQualityTimeseries: vi.fn(),
       getSafetySummary: vi.fn(),
       getCostSummary: vi.fn(),
+      listQualityBadcases: vi.fn(),
       listAudit: vi.fn(),
       list: vi.fn(),
     };
@@ -827,7 +860,29 @@ describe("GET /api/operator/quality/summary", () => {
         },
         requestCount: 4,
       },
-      sampledGrades: null,
+      sampledGrades: {
+        badcaseOpenCount: 1,
+        citationPassRate: {
+          count: 1,
+          eligibleCount: 2,
+          value: 0.5,
+        },
+        coverageRate: {
+          count: 2,
+          eligibleCount: 4,
+          value: 0.5,
+        },
+        groundingPassRate: {
+          count: 1,
+          eligibleCount: 2,
+          value: 0.5,
+        },
+        policyPassRate: {
+          count: 2,
+          eligibleCount: 2,
+          value: 1,
+        },
+      },
       window: {
         from: "2026-03-27T08:00:10.000Z",
         granularity: "1h",
@@ -837,12 +892,194 @@ describe("GET /api/operator/quality/summary", () => {
     expect(service.getQualitySummary).toHaveBeenCalledWith({
       filters: {
         collection: null,
+        granularity: null,
         modelName: null,
         principalType: null,
         requestedCapability: null,
         selectedTarget: null,
         surface: "public_chat_web",
         window: "24h",
+      },
+      principal,
+    });
+  });
+});
+
+describe("GET /api/operator/quality/timeseries", () => {
+  it("returns a quality timeseries snapshot for operator principals", async () => {
+    const service = {
+      getById: vi.fn(),
+      getAuditById: vi.fn(),
+      getObservabilityById: vi.fn(),
+      getOverview: vi.fn(),
+      getQualitySummary: vi.fn(),
+      getQualityTimeseries: vi.fn().mockResolvedValue({
+        asOf: "2026-03-28T08:00:10.000Z",
+        series: [
+          {
+            bucketEnd: "2026-03-28T08:00:00.000Z",
+            bucketStart: "2026-03-28T07:00:00.000Z",
+            citationMissRate: 0.5,
+            emptyRecallRate: 0.25,
+            needsClarificationRate: 0.25,
+            noAnswerRate: 0.25,
+            requestCount: 4,
+            sampledGroundingPassRate: 0.5,
+          },
+        ],
+        window: {
+          from: "2026-03-27T08:00:10.000Z",
+          granularity: "1h",
+          to: "2026-03-28T08:00:10.000Z",
+        },
+      }),
+      getSafetySummary: vi.fn(),
+      getCostSummary: vi.fn(),
+      listQualityBadcases: vi.fn(),
+      listAudit: vi.fn(),
+      list: vi.fn(),
+    };
+    const principal = createOperatorPrincipal();
+    const app = createApp(env, {
+      getPrincipal: vi.fn().mockResolvedValue(principal),
+      operatorQueryService: service as unknown as OperatorQueryService,
+    });
+
+    const response = await app.fetch(
+      new Request(
+        "https://app-api.internal/api/operator/quality/timeseries?window=24h&granularity=1h&surface=public_chat_web",
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      asOf: "2026-03-28T08:00:10.000Z",
+      series: [
+        {
+          bucketEnd: "2026-03-28T08:00:00.000Z",
+          bucketStart: "2026-03-28T07:00:00.000Z",
+          citationMissRate: 0.5,
+          emptyRecallRate: 0.25,
+          needsClarificationRate: 0.25,
+          noAnswerRate: 0.25,
+          requestCount: 4,
+          sampledGroundingPassRate: 0.5,
+        },
+      ],
+      window: {
+        from: "2026-03-27T08:00:10.000Z",
+        granularity: "1h",
+        to: "2026-03-28T08:00:10.000Z",
+      },
+    });
+    expect(service.getQualityTimeseries).toHaveBeenCalledWith({
+      filters: {
+        collection: null,
+        granularity: "1h",
+        modelName: null,
+        principalType: null,
+        requestedCapability: null,
+        selectedTarget: null,
+        surface: "public_chat_web",
+        window: "24h",
+      },
+      principal,
+    });
+  });
+});
+
+describe("GET /api/operator/quality/badcases", () => {
+  it("returns a quality badcase queue for operator principals", async () => {
+    const service = {
+      getById: vi.fn(),
+      getAuditById: vi.fn(),
+      getObservabilityById: vi.fn(),
+      getOverview: vi.fn(),
+      getQualitySummary: vi.fn(),
+      getQualityTimeseries: vi.fn(),
+      getSafetySummary: vi.fn(),
+      getCostSummary: vi.fn(),
+      listQualityBadcases: vi.fn().mockResolvedValue({
+        badcases: [
+          {
+            badcaseId: "qbad_01HQ",
+            causeClass: "citation_missing",
+            detectedBy: "runtime_monitor",
+            grade: {
+              graderVersion: "grader@2026-04-03",
+              result: "fail",
+              score: 0.42,
+            },
+            links: {
+              issueFingerprint: "citation-missing",
+              issueLink: "https://sentry.example/issues/456",
+              traceLink: "https://sentry.example/traces/trace_01HQ",
+            },
+            openedAt: "2026-03-28T08:00:10.000Z",
+            requestId: "req_01HQ",
+            selectedTarget: "rag-specialist",
+            status: "open",
+            summary: "citationExpected=true 但 citationCount=0",
+            surface: "public_chat_web",
+            traceId: "trace_01HQ",
+          },
+        ],
+        page: {
+          nextCursor: null,
+        },
+      }),
+      listAudit: vi.fn(),
+      list: vi.fn(),
+    };
+    const principal = createOperatorPrincipal();
+    const app = createApp(env, {
+      getPrincipal: vi.fn().mockResolvedValue(principal),
+      operatorQueryService: service as unknown as OperatorQueryService,
+    });
+
+    const response = await app.fetch(
+      new Request(
+        "https://app-api.internal/api/operator/quality/badcases?status=open&causeClass=citation_missing&detectedBy=runtime_monitor",
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      badcases: [
+        {
+          badcaseId: "qbad_01HQ",
+          causeClass: "citation_missing",
+          detectedBy: "runtime_monitor",
+          grade: {
+            graderVersion: "grader@2026-04-03",
+            result: "fail",
+            score: 0.42,
+          },
+          links: {
+            issueFingerprint: "citation-missing",
+            issueLink: "https://sentry.example/issues/456",
+            traceLink: "https://sentry.example/traces/trace_01HQ",
+          },
+          openedAt: "2026-03-28T08:00:10.000Z",
+          requestId: "req_01HQ",
+          selectedTarget: "rag-specialist",
+          status: "open",
+          summary: "citationExpected=true 但 citationCount=0",
+          surface: "public_chat_web",
+          traceId: "trace_01HQ",
+        },
+      ],
+      page: {
+        nextCursor: null,
+      },
+    });
+    expect(service.listQualityBadcases).toHaveBeenCalledWith({
+      filters: {
+        causeClass: "citation_missing",
+        cursor: null,
+        detectedBy: "runtime_monitor",
+        limit: null,
+        status: "open",
       },
       principal,
     });
@@ -857,6 +1094,7 @@ describe("GET /api/operator/safety/summary", () => {
       getObservabilityById: vi.fn(),
       getOverview: vi.fn(),
       getQualitySummary: vi.fn(),
+      getQualityTimeseries: vi.fn(),
       getSafetySummary: vi.fn().mockResolvedValue({
         asOf: "2026-03-28T08:00:10.000Z",
         summary: {
@@ -888,6 +1126,7 @@ describe("GET /api/operator/safety/summary", () => {
           to: "2026-03-28T08:00:10.000Z",
         },
       }),
+      listQualityBadcases: vi.fn(),
       getCostSummary: vi.fn(),
       listAudit: vi.fn(),
       list: vi.fn(),
@@ -937,6 +1176,7 @@ describe("GET /api/operator/safety/summary", () => {
     expect(service.getSafetySummary).toHaveBeenCalledWith({
       filters: {
         collection: null,
+        granularity: null,
         modelName: null,
         principalType: null,
         requestedCapability: null,
@@ -957,6 +1197,7 @@ describe("GET /api/operator/cost/summary", () => {
       getObservabilityById: vi.fn(),
       getOverview: vi.fn(),
       getQualitySummary: vi.fn(),
+      getQualityTimeseries: vi.fn(),
       getSafetySummary: vi.fn(),
       getCostSummary: vi.fn().mockResolvedValue({
         asOf: "2026-03-28T08:00:10.000Z",
@@ -991,6 +1232,7 @@ describe("GET /api/operator/cost/summary", () => {
           to: "2026-03-28T08:00:10.000Z",
         },
       }),
+      listQualityBadcases: vi.fn(),
       listAudit: vi.fn(),
       list: vi.fn(),
     };
@@ -1043,6 +1285,7 @@ describe("GET /api/operator/cost/summary", () => {
     expect(service.getCostSummary).toHaveBeenCalledWith({
       filters: {
         collection: null,
+        granularity: null,
         modelName: "gpt-5.2-mini",
         principalType: null,
         requestedCapability: null,
@@ -1162,18 +1405,20 @@ describe("GET /api/operator/audit/:auditEventId", () => {
           traceId: "trace_01HQ",
         },
         links: {
-          issueFingerprint: null,
-          issueLink: null,
-          traceLink: null,
+          issueFingerprint: "timeout:supervisor-api",
+          issueLink: "https://sentry.example/issues/123",
+          traceLink: "https://sentry.example/traces/trace_01HQ",
         },
       }),
       getObservabilityById: vi.fn(),
       getOverview: vi.fn(),
       getQualitySummary: vi.fn(),
+      getQualityTimeseries: vi.fn(),
       getSafetySummary: vi.fn(),
       getCostSummary: vi.fn(),
-      listAudit: vi.fn(),
-      list: vi.fn(),
+      listQualityBadcases: vi.fn(),
+        listAudit: vi.fn(),
+        list: vi.fn(),
     };
     const principal = createOperatorPrincipal();
     const app = createApp(env, {
@@ -1209,9 +1454,9 @@ describe("GET /api/operator/audit/:auditEventId", () => {
         traceId: "trace_01HQ",
       },
       links: {
-        issueFingerprint: null,
-        issueLink: null,
-        traceLink: null,
+        issueFingerprint: "timeout:supervisor-api",
+        issueLink: "https://sentry.example/issues/123",
+        traceLink: "https://sentry.example/traces/trace_01HQ",
       },
     });
     expect(service.getAuditById).toHaveBeenCalledWith({

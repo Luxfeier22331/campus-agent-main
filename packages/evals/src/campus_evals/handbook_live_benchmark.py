@@ -4,7 +4,10 @@ import argparse
 from pathlib import Path
 from typing import Callable
 
+import httpx
+
 from campus_contracts import EvidenceBundle, RagRequestPayload, RagResultPayload, SpecialistRequest, SpecialistResponse
+from campus_evals.app_api_chat_runtime import AppApiEvalClient, AppApiEvalClientSettings
 from campus_evals.handbook_benchmark import repair_handbook_formal_benchmark, run_handbook_formal_benchmark
 from campus_evals.judge_adapters import build_default_handbook_supplemental_adapters_from_env
 from campus_evals.live_benchmark import (
@@ -36,6 +39,18 @@ def build_default_output_dir(*, prefix: str, timestamp: str | None = None) -> Pa
 
 
 def build_handbook_live_executor(
+    *,
+    settings: AppApiEvalClientSettings | None = None,
+    env: dict[str, str] | None = None,
+    client: httpx.Client | None = None,
+) -> Callable[[GoldenCase], ExecutionResult]:
+    return build_app_api_handbook_live_executor(
+        settings=settings or AppApiEvalClientSettings.from_env(env),
+        client=client,
+    )
+
+
+def build_legacy_handbook_live_executor(
     *,
     retriever: Retriever = retrieve_sources,
     delegate: Delegate = delegate_to_rag_agent,
@@ -73,6 +88,24 @@ def build_handbook_live_executor(
     return _execute
 
 
+def build_app_api_handbook_live_executor(
+    *,
+    settings: AppApiEvalClientSettings,
+    client: httpx.Client | None = None,
+) -> Callable[[GoldenCase], ExecutionResult]:
+    app_api_client = AppApiEvalClient(settings=settings, client=client)
+
+    def _execute(case: GoldenCase) -> ExecutionResult:
+        execution = app_api_client.execute_knowledge_request(case=case)
+        return ExecutionResult(
+            response=execution.response,
+            observed_trace=execution.observed_trace,
+            request_correlation=execution.request_correlation,
+        )
+
+    return _execute
+
+
 def build_parser() -> argparse.ArgumentParser:
     return build_parser_for_profile(build_handbook_live_profile())
 
@@ -89,7 +122,7 @@ def build_handbook_live_profile(env: dict[str, str] | None = None) -> BenchmarkP
         policy_path=STUDENT_HANDBOOK_JUDGE_GATE_POLICY_PATH,
         http_settings=http_settings,
         cases_factory=lambda: handbook_release_gate_cases(),
-        executor_factory=build_handbook_live_executor,
+        executor_factory=lambda: build_handbook_live_executor(env=env),
         supplemental_adapters_factory=lambda: build_default_handbook_supplemental_adapters_from_env(
             env,
             http_settings=http_settings,

@@ -5,9 +5,20 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
+import httpx
+
 from campus_contracts import ActorContext, EvidenceBundle, EvidenceSource, KnowledgeScope, RagRequestPayload, RagResultPayload, SpecialistResponse
 from campus_evals import ExecutionResult, GoldenCase, TraceExpectation
-from campus_evals.handbook_live_benchmark import build_default_output_dir, build_handbook_live_executor, build_handbook_live_profile, main
+from campus_evals.operator_observability import OperatorRequestCorrelation
+from campus_evals.handbook_live_benchmark import (
+    AppApiEvalClientSettings,
+    build_app_api_handbook_live_executor,
+    build_legacy_handbook_live_executor,
+    build_default_output_dir,
+    build_handbook_live_executor,
+    build_handbook_live_profile,
+    main,
+)
 
 
 HANDBOOK_SCOPE = KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -88,7 +99,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
                 ),
             )
 
-        executor = build_handbook_live_executor(
+        executor = build_legacy_handbook_live_executor(
             retriever=lambda *args, **kwargs: retrieved_bundle,
             delegate=fake_delegate,
         )
@@ -104,6 +115,144 @@ class HandbookLiveExecutorTest(unittest.TestCase):
         self.assertFalse(result.observed_trace.error_path)
         self.assertEqual(result.observed_trace.retrieved_sources, retrieved_bundle.sources)
         self.assertEqual(result.observed_trace.supporting_sources, (supporting_source,))
+
+    def test_build_app_api_handbook_live_executor_captures_request_correlation_from_app_api(self) -> None:
+        captured: dict[str, object] = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured["url"] = str(request.url)
+            captured["header"] = request.headers.get("x-app-internal-auth")
+            captured["body"] = request.content.decode("utf-8")
+            return httpx.Response(
+                200,
+                request=request,
+                headers={
+                    "x-request-id": "req_eval_01HQ",
+                    "x-trace-id": "trace_eval_01HQ",
+                },
+                json={
+                    "answer": {
+                        "conversation": {
+                            "id": "conv_eval_01HQ",
+                            "title": "图书馆开放时间",
+                            "createdAt": "2026-04-03T00:00:00.000Z",
+                            "updatedAt": "2026-04-03T00:00:01.000Z",
+                            "messages": [],
+                        },
+                        "result": {
+                            "kind": "answer",
+                            "text": "图书馆开放到 22:00。",
+                            "requestId": "req_eval_01HQ",
+                            "traceId": "trace_eval_01HQ",
+                        },
+                    },
+                    "supervisor": {
+                        "answerText": "图书馆开放到 22:00。",
+                        "followUpQuestion": "",
+                        "selectedTarget": "rag-specialist",
+                        "status": "completed",
+                        "traceId": "trace_eval_01HQ",
+                        "result": {
+                            "evidence": {
+                                "query_text": "学生证丢了怎么办",
+                                "corpus": "regulations",
+                                "collection": "student_handbook",
+                                "sources": [
+                                    {
+                                        "doc_id": "handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
+                                        "revision_track": "source-faithful",
+                                        "version_id": "v1",
+                                        "chunk_id": "chunk-a",
+                                        "anchor": {"page": 1},
+                                        "canonical_url": "https://example.edu/handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
+                                        "latest_url": "https://example.edu/handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
+                                        "source_channel": "pdf_ocr",
+                                        "collection": "student_handbook",
+                                        "is_current": True,
+                                        "snippet": "学生如将学生证遗失或损坏,应及时到学院(系)挂失。",
+                                        "score": 0.97,
+                                        "source_title": "学生证管理",
+                                    }
+                                ],
+                            }
+                        },
+                        "observability": {
+                            "candidateCount": 4,
+                            "citationCount": 1,
+                            "citationExpected": True,
+                            "citationMissing": False,
+                            "retrievedSourceCount": 1,
+                            "retrievalAttempted": True,
+                        },
+                        "error": None,
+                    },
+                },
+            )
+
+        settings = AppApiEvalClientSettings(
+            app_api_base_url="https://app-api.internal",
+            internal_shared_secret="trusted-secret",
+            eval_user_email="eval-benchmark@example.edu",
+            eval_user_id="eval_user_01HQ",
+            eval_user_name="Eval Benchmark",
+        )
+        transport = httpx.MockTransport(handler)
+        client = httpx.Client(base_url="https://app-api.internal", transport=transport)
+
+        try:
+            executor = build_app_api_handbook_live_executor(
+                settings=settings,
+                client=client,
+            )
+            result = executor(_case())
+        finally:
+            client.close()
+
+        self.assertIsInstance(result, ExecutionResult)
+        self.assertEqual(captured["url"], "https://app-api.internal/api/internal/evals/chat/requests")
+        self.assertEqual(captured["header"], "trusted-secret")
+        self.assertEqual(
+            result.request_correlation,
+            OperatorRequestCorrelation(
+                case_id="release-gate-student-card",
+                request_id="req_eval_01HQ",
+                trace_id="trace_eval_01HQ",
+                sampled_at="2026-04-03T00:00:01.000Z",
+            ),
+        )
+        self.assertEqual(result.response.status, "completed")
+        self.assertEqual(result.response.answer_text, "图书馆开放到 22:00。")
+        self.assertIsInstance(result.response.result, RagResultPayload)
+        self.assertEqual(
+            result.response.result.evidence.sources,
+            (
+                EvidenceSource(
+                    doc_id="handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
+                    revision_track="source-faithful",
+                    version_id="v1",
+                    chunk_id="chunk-a",
+                    anchor={"page": 1},
+                    canonical_url="https://example.edu/handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
+                    latest_url="https://example.edu/handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
+                    source_channel="pdf_ocr",
+                    collection="student_handbook",
+                    is_current=True,
+                    snippet="学生如将学生证遗失或损坏,应及时到学院(系)挂失。",
+                    score=0.97,
+                    source_title="学生证管理",
+                ),
+            ),
+        )
+        self.assertEqual(result.observed_trace.selected_scope, HANDBOOK_SCOPE)
+        self.assertTrue(result.observed_trace.retrieval_called)
+        self.assertEqual(
+            result.observed_trace.retrieved_sources,
+            result.response.result.evidence.sources,
+        )
+        self.assertEqual(
+            result.observed_trace.supporting_sources,
+            result.response.result.evidence.sources,
+        )
 
     def test_build_handbook_live_executor_marks_pre_retrieval_clarification(self) -> None:
         def fake_delegate(request, *, retriever):
@@ -122,7 +271,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
                 ),
             )
 
-        executor = build_handbook_live_executor(
+        executor = build_legacy_handbook_live_executor(
             retriever=lambda *args, **kwargs: self.fail("retriever should not be called"),
             delegate=fake_delegate,
         )
@@ -173,7 +322,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
                 ),
             )
 
-        executor = build_handbook_live_executor(
+        executor = build_legacy_handbook_live_executor(
             retriever=lambda *args, **kwargs: retrieved_bundle,
             delegate=fake_delegate,
         )

@@ -52,6 +52,8 @@ def run_cases(
             result = evaluate_case(case, execution)
             if execution.observed_trace is not None:
                 result = replace(result, observed_trace=execution.observed_trace)
+            if execution.request_correlation is not None:
+                result = replace(result, request_correlation=execution.request_correlation)
             supplemental_results = _evaluate_supplemental_results(
                 case,
                 execution,

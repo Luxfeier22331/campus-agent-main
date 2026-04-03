@@ -565,10 +565,6 @@ async function proxyToAppApi(input: {
   if (input.operatorContext.display_name) {
     headers.set("x-app-operator-name", input.operatorContext.display_name);
   }
-  if (input.operatorContext.groups.length > 0) {
-    headers.set("x-app-operator-groups", input.operatorContext.groups.join(","));
-  }
-
   const response = await appApi.fetch(
     new Request(targetUrl.toString(), {
       headers,

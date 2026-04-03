@@ -14,6 +14,10 @@ import {
 import type { SupervisorExecutionClient } from "../src/modules/integration/supervisor";
 import type { AppTelemetry } from "../src/modules/telemetry";
 
+const CURRICULUM_PROGRAM_FAMILY_SLOT_NAME = "curriculum_program_family";
+const CURRICULUM_PROGRAM_SLOT_NAME = "curriculum_program";
+const CURRICULUM_SEMESTER_SLOT_NAME = "curriculum_semester";
+
 function createAuthorization() {
   return {
     applicabilityScope: "undergraduate",
@@ -24,8 +28,6 @@ function createAuthorization() {
     principalId: "user_01HQ",
     projectionSource: "campus_identity" as const,
     retrievalFilter: {
-      aclGroups: ["students"],
-      campusScope: "main",
       entitlementGroups: ["students"],
       policyProjectionVersion: "phase1-authorization-projection-v1",
       visibilityLevel: "public",
@@ -58,8 +60,6 @@ function createPrincipal(): ResolvedAppPrincipal {
       principalType: "student",
       roles: ["student"],
       departments: [],
-      groups: ["students"],
-      campusScope: "main",
     },
   };
 }
@@ -71,6 +71,12 @@ function createConversation() {
     title: "图书馆开放时间",
     createdAt: "2026-03-28T07:59:00.000Z",
     updatedAt: "2026-03-28T07:59:00.000Z",
+    sessionSlots: [] as Array<{
+      confirmed: boolean;
+      name: string;
+      updatedAt: string;
+      value: string;
+    }>,
     messages: [] as Array<{
       id: string;
       conversationId: string;
@@ -102,7 +108,7 @@ function createConversationStore(input?: {
     createConversationDraft: vi.fn(),
     getConversationByOwner: vi.fn(async (ownerUserId: string, conversationId: string) => {
       if (ownerUserId !== conversation.ownerUserId || conversationId !== conversation.id) {
-        return null;
+      return null;
       }
 
       return structuredClone(conversation);
@@ -117,8 +123,10 @@ function createConversationStore(input?: {
   };
 }
 
-function createCommandStore() {
-  const conversation = createConversation();
+function createCommandStore(input?: {
+  conversation?: ReturnType<typeof createConversation>;
+}) {
+  const conversation = input?.conversation ?? createConversation();
   const acceptedWrites: unknown[] = [];
   const finalWrites: unknown[] = [];
   const store: ChatCommandStore = {
@@ -141,6 +149,12 @@ function createCommandStore() {
     finalizeRequest: vi.fn(async (input) => {
       finalWrites.push(input);
       conversation.updatedAt = input.assistantMessage.createdAt;
+      if (input.sessionSlots) {
+        const nextSlots = input.sessionSlots.map((slot) => ({
+          ...slot,
+        }));
+        conversation.sessionSlots = nextSlots;
+      }
       conversation.messages.push(input.assistantMessage);
       return structuredClone(conversation);
     }),
@@ -215,6 +229,7 @@ describe("chat command service", () => {
         },
       },
       principal: createPrincipal(),
+      surface: "public_chat_web",
     });
 
     expect(supervisor.execute).toHaveBeenCalledWith({
@@ -236,6 +251,7 @@ describe("chat command service", () => {
         collection: "student_handbook",
         corpus: "regulations",
       },
+      surface: "public_chat_web",
       traceHeaders: {
         baggage: "sentry-environment=test",
         sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
@@ -274,6 +290,12 @@ describe("chat command service", () => {
     expect(
       (acceptedWrites[0] as { requestExecution: Record<string, unknown> }).requestExecution,
     ).not.toHaveProperty("actorSnapshot");
+    expect(
+      (acceptedWrites[0] as { requestExecution: Record<string, unknown> }).requestExecution,
+    ).not.toHaveProperty("actorGroups");
+    expect(
+      (acceptedWrites[0] as { requestExecution: Record<string, unknown> }).requestExecution,
+    ).not.toHaveProperty("actorCampusScope");
     expect(finalWrites).toHaveLength(1);
     expect(finalWrites[0]).toMatchObject({
       assistantMessage: {
@@ -298,6 +320,12 @@ describe("chat command service", () => {
         visibilityScope: "main",
       },
     });
+    expect(
+      (finalWrites[0] as { requestExecution: Record<string, unknown> }).requestExecution,
+    ).not.toHaveProperty("actorGroups");
+    expect(
+      (finalWrites[0] as { requestExecution: Record<string, unknown> }).requestExecution,
+    ).not.toHaveProperty("actorCampusScope");
     expect(response).toMatchObject({
       answer: {
         conversation: {
@@ -354,6 +382,336 @@ describe("chat command service", () => {
       }),
     );
     expect(telemetry.recordRequestTransportError).not.toHaveBeenCalled();
+  });
+
+  it("normalizes supervisor traceId in finalized responses when upstream payload omits it", async () => {
+    const { store, finalWrites } = createCommandStore();
+    const { store: conversationStore } = createConversationStore();
+    const service = buildChatCommandService({
+      generateId: createDeterministicIdGenerator(),
+      now: () => new Date("2026-03-28T08:00:00.000Z"),
+      conversationStore,
+      store,
+      supervisor: {
+        execute: vi.fn().mockResolvedValue({
+          answerText: "图书馆开放到 22:00。",
+          error: null,
+          followUpQuestion: "",
+          result: {
+            evidence: {
+              sources: [{ doc_id: "handbook:library-hours" }],
+            },
+          },
+          selectedTarget: "rag-specialist",
+          status: "completed",
+          traceId: "",
+        }),
+      },
+    });
+
+    const response = await service.submit({
+      payload: {
+        conversationId: "conv_01HQ",
+        prompt: "图书馆开放到几点？",
+      },
+      principal: createPrincipal(),
+      surface: "eval_benchmark",
+    });
+
+    expect(response.traceId).toBe("trace_0001");
+    expect(response.answer.result.traceId).toBe("trace_0001");
+    expect(response.supervisor).toMatchObject({
+      status: "completed",
+      traceId: "trace_0001",
+    });
+    expect(finalWrites[0]).toMatchObject({
+      requestExecution: {
+        surface: "eval_benchmark",
+        traceId: "trace_0001",
+      },
+      requestObservabilityFact: {
+        surface: "eval_benchmark",
+        traceId: "trace_0001",
+      },
+    });
+  });
+
+  it("passes eval_benchmark surface through to the supervisor client", async () => {
+    const { store } = createCommandStore();
+    const { store: conversationStore } = createConversationStore();
+    const supervisor: SupervisorExecutionClient = {
+      execute: vi.fn().mockResolvedValue({
+        answerText: "图书馆开放到 22:00。",
+        error: null,
+        followUpQuestion: "",
+        result: {
+          evidence: {
+            sources: [{ doc_id: "handbook:library-hours" }],
+          },
+        },
+        selectedTarget: "rag-specialist",
+        status: "completed",
+        traceId: "trace_0002",
+      }),
+    };
+    const service = buildChatCommandService({
+      generateId: createDeterministicIdGenerator(),
+      now: () => new Date("2026-03-28T08:00:00.000Z"),
+      conversationStore,
+      store,
+      supervisor,
+    });
+
+    await service.submit({
+      payload: {
+        conversationId: "conv_01HQ",
+        prompt: "图书馆开放到几点？",
+      },
+      principal: createPrincipal(),
+      surface: "eval_benchmark",
+    });
+
+    expect(supervisor.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestId: "req_0001",
+        surface: "eval_benchmark",
+      }),
+    );
+  });
+
+  it("writes curriculum follow-up session slots from resolved curriculum completion and replays them into the next supervisor request", async () => {
+    const conversation = {
+      ...createConversation(),
+      title: "培养方案",
+    };
+    const commandStore = createCommandStore({ conversation });
+    const { store: conversationStore } = createConversationStore({ conversation });
+    const supervisor: SupervisorExecutionClient = {
+      execute: vi
+        .fn()
+        .mockResolvedValueOnce({
+          answerText: "第四学期有习近平法治思想概论、国际公法。",
+          error: null,
+          followUpQuestion: "",
+          result: {
+            diagnostics: {
+              resolved_program_family_title: "民族班",
+              resolved_entity_type: "program",
+              rewritten_query: "法学民族实验班培养方案里第四学期有什么课",
+              session_program_family: "民族实验班",
+              session_program: "法学民族实验班",
+              session_semester: "第四学期",
+            },
+            evidence: {
+              sources: [{ doc_id: "curriculum:法学（民族实验班）本科人才培养方案" }],
+            },
+          },
+          selectedTarget: "rag-specialist",
+          status: "completed",
+          traceId: "trace_0002",
+        })
+        .mockResolvedValueOnce({
+          answerText: "第二学期有中国法制史。",
+          error: null,
+          followUpQuestion: "",
+          result: {
+            diagnostics: {
+              resolved_program_family_title: "民族班",
+              resolved_entity_type: "program",
+              rewritten_query: "法学民族实验班培养方案里第二学期有什么课",
+              session_program_family: "民族实验班",
+              session_program: "法学民族实验班",
+              session_semester: "第二学期",
+            },
+            evidence: {
+              sources: [{ doc_id: "curriculum:法学（民族实验班）本科人才培养方案" }],
+            },
+          },
+          selectedTarget: "rag-specialist",
+          status: "completed",
+          traceId: "trace_0004",
+        }),
+    };
+    const service = buildChatCommandService({
+      generateId: createDeterministicIdGenerator(),
+      now: () => new Date("2026-03-28T08:00:00.000Z"),
+      conversationStore,
+      store: commandStore.store,
+      supervisor,
+    });
+
+    await service.submit({
+      payload: {
+        conversationId: conversation.id,
+        prompt: "法学民族班培养方案里大二下有什么课",
+        requestedScope: {
+          collection: "curriculum_plan",
+          corpus: "curriculum",
+        },
+      },
+      principal: createPrincipal(),
+    });
+
+    expect(commandStore.finalWrites[0]).toMatchObject({
+      sessionSlots: [
+        {
+          confirmed: true,
+          name: CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
+          value: "民族实验班",
+        },
+        {
+          confirmed: true,
+          name: CURRICULUM_PROGRAM_SLOT_NAME,
+          value: "法学民族实验班",
+        },
+        {
+          confirmed: true,
+          name: CURRICULUM_SEMESTER_SLOT_NAME,
+          value: "第四学期",
+        },
+      ],
+    });
+
+    await service.submit({
+      payload: {
+        conversationId: conversation.id,
+        prompt: "那大一下呢",
+        requestedScope: {
+          collection: "curriculum_plan",
+          corpus: "curriculum",
+        },
+      },
+      principal: createPrincipal(),
+    });
+
+    expect(commandStore.finalWrites[1]).toMatchObject({
+      sessionSlots: [
+        {
+          confirmed: true,
+          name: CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
+          value: "民族实验班",
+        },
+        {
+          confirmed: true,
+          name: CURRICULUM_PROGRAM_SLOT_NAME,
+          value: "法学民族实验班",
+        },
+        {
+          confirmed: true,
+          name: CURRICULUM_SEMESTER_SLOT_NAME,
+          value: "第二学期",
+        },
+      ],
+    });
+
+    expect(supervisor.execute).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        context: expect.objectContaining({
+          session: {
+            confirmedSlots: [
+              { confirmed: true, name: CURRICULUM_PROGRAM_FAMILY_SLOT_NAME, value: "民族实验班" },
+              { confirmed: true, name: CURRICULUM_PROGRAM_SLOT_NAME, value: "法学民族实验班" },
+              { confirmed: true, name: CURRICULUM_SEMESTER_SLOT_NAME, value: "第四学期" },
+            ],
+            turnCount: 2,
+          },
+        }),
+      }),
+    );
+  });
+
+  it("does not write curriculum follow-up session slots for clarification responses", async () => {
+    const commandStore = createCommandStore();
+    const { store: conversationStore } = createConversationStore();
+    const service = buildChatCommandService({
+      generateId: createDeterministicIdGenerator(),
+      now: () => new Date("2026-03-28T08:00:00.000Z"),
+      conversationStore,
+      store: commandStore.store,
+      supervisor: {
+        execute: vi.fn().mockResolvedValue({
+          answerText: "",
+          error: null,
+          followUpQuestion: "你想看哪个民族班？",
+          result: {
+            diagnostics: {
+              clarification_reason: "curriculum_program_conflict",
+              candidate_title_summary: [
+                "法学（民族实验班）本科人才培养方案",
+                "信息与计算科学（民族实验班）本科人才培养方案",
+              ],
+            },
+          },
+          selectedTarget: "rag-specialist",
+          status: "needs_clarification",
+          traceId: "trace_0002",
+        }),
+      },
+    });
+
+    await service.submit({
+      payload: {
+        conversationId: "conv_01HQ",
+        prompt: "民族班培养方案里大二下有什么课",
+        requestedScope: {
+          collection: "curriculum_plan",
+          corpus: "curriculum",
+        },
+      },
+      principal: createPrincipal(),
+    });
+
+    expect(commandStore.finalWrites[0]).toMatchObject({
+      sessionSlots: [],
+    });
+  });
+
+  it("does not write curriculum follow-up session slots for completed program-family membership answers", async () => {
+    const commandStore = createCommandStore();
+    const { store: conversationStore } = createConversationStore();
+    const service = buildChatCommandService({
+      generateId: createDeterministicIdGenerator(),
+      now: () => new Date("2026-03-28T08:00:00.000Z"),
+      conversationStore,
+      store: commandStore.store,
+      supervisor: {
+        execute: vi.fn().mockResolvedValue({
+          answerText: "民大的民族班有法学、信息与计算科学、计算机科学与技术。",
+          error: null,
+          followUpQuestion: "",
+          result: {
+            diagnostics: {
+              resolved_program_family_title: "民族班",
+              resolved_entity_type: "program_family_membership",
+              rewritten_query: "民族班有哪些",
+            },
+            evidence: {
+              sources: [{ doc_id: "curriculum:program-family-membership" }],
+            },
+          },
+          selectedTarget: "rag-specialist",
+          status: "completed",
+          traceId: "trace_0002",
+        }),
+      },
+    });
+
+    await service.submit({
+      payload: {
+        conversationId: "conv_01HQ",
+        prompt: "民族班有哪些",
+        requestedScope: {
+          collection: "curriculum_plan",
+          corpus: "curriculum",
+        },
+      },
+      principal: createPrincipal(),
+    });
+
+    expect(commandStore.finalWrites[0]).toMatchObject({
+      sessionSlots: [],
+    });
   });
 
   it("maps clarification and no-answer statuses into chat-visible result kinds", async () => {
