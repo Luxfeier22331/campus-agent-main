@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-02
+updated: 2026-04-03
 ---
 
 # Data Plane Architecture
@@ -38,6 +38,17 @@ source truth 的长期硬约束：
 - 一份 source truth 可以 fan-out 到多份 projection / collection / corpus
 - source truth 不提前携带 document / chunk / retrieval 语义
 - 后续 replay / rebuild 从 source truth 继续，而不是返回 raw 重消费
+
+不同 `source_channel` 可以拥有各自的 source-specific contract 与 canonical source unit，只要不破坏这条 shared chain。
+
+当前已接受的 source-specific contract 包括：
+
+- `official_web`
+  page-level source truth，详见 `docs/architecture/official-web-source-truth-contract.md`
+- `authenticated_notice_portal`
+  notice-level source truth，详见 `docs/architecture/authenticated-notice-source-truth-contract.md`
+
+这不表示它们都已进入当前 merged truth；当前已落地范围仍以下文 `Current Scope` 为准。
 
 ## Layer Ownership
 
@@ -87,12 +98,14 @@ source truth 的长期硬约束：
 - handbook-specific normalization / split / cleanup 细节
 - curriculum-specific chunking / serving nuances
 - official web page-level source-truth schema 细节
+- authenticated notice notice-level source-truth schema 细节
 
 这些分别以：
 
 - `docs/reference/student-handbook-normalization-strategy.md`
 - `configs/ingestion/*`
 - `docs/architecture/official-web-source-truth-contract.md`
+- `docs/architecture/authenticated-notice-source-truth-contract.md`
 
 为准。
 
@@ -117,3 +130,4 @@ source truth 的长期硬约束：
 - `docs/decisions/adr-0002-local-minio-conventions.md`
 - `docs/decisions/adr-0019-qdrant-physical-collection-retention-and-expiration.md`
 - `docs/decisions/adr-0020-qdrant-cloud-backup-restore-and-object-store-transition.md`
+- `docs/architecture/authenticated-notice-source-truth-contract.md`

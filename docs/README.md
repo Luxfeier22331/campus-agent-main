@@ -69,7 +69,7 @@ updated: 2026-04-03
 
 - 当前架构：`architecture/current-architecture.md`
 - 目标架构：`architecture/target-architecture.md`
-- supporting architecture：`architecture/product-runtime-architecture.md`、`architecture/execution-and-specialists-architecture.md`、`architecture/identity-and-authorization-architecture.md`、`architecture/retrieval-serving-architecture.md`、`architecture/data-plane-architecture.md`、`architecture/official-web-architecture.md`、`architecture/operator-observability-architecture.md`
+- supporting architecture：`architecture/product-runtime-architecture.md`、`architecture/execution-and-specialists-architecture.md`、`architecture/identity-and-authorization-architecture.md`、`architecture/retrieval-serving-architecture.md`、`architecture/data-plane-architecture.md`、`architecture/official-web-architecture.md`、`architecture/authenticated-notice-source-architecture.md`、`architecture/operator-observability-architecture.md`
 - 当前 phase 状态与 pending work：`.planning/PROJECT.md`、`.planning/STATE.md`
 - 稳定 contract / schema：`contracts/`、`data/`
 - 当前 runbook / reference / policy：`runbooks/`、`reference/`、`policies/`
@@ -103,6 +103,8 @@ updated: 2026-04-03
 - `architecture/data-plane-architecture.md`
 - `architecture/official-web-architecture.md`
 - `architecture/official-web-source-truth-contract.md`
+- `architecture/authenticated-notice-source-architecture.md`
+- `architecture/authenticated-notice-source-truth-contract.md`
 - `contracts/app-api-error-model.md`
 - `contracts/app-api-http.md`
 - `contracts/app-api-operator-observability-http.md`
@@ -134,7 +136,9 @@ updated: 2026-04-03
 - `decisions/adr-0021-institution-scoped-entity-alias-governance.md`
 - `decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
 - `decisions/adr-0023-operator-observability-control-plane-and-sink-participation.md`
+- `decisions/adr-0024-authenticated-notice-source-channel.md`
 - `decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
+- `plans/authenticated-notice-source-foundation.md`
 - `plans/campus-identity-and-restricted-document-foundation.md`
 - `plans/env-bootstrap-and-provider-configuration-governance.md`
 - `plans/golden-dataset-execution-plan.md`

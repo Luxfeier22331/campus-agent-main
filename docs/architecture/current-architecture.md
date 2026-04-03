@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-02
+updated: 2026-04-03
 ---
 
 # 当前架构
@@ -118,6 +118,7 @@ updated: 2026-04-02
 - retrieval / serving supporting architecture：`docs/architecture/retrieval-serving-architecture.md`
 - data plane supporting architecture：`docs/architecture/data-plane-architecture.md`
 - `official_web` supporting architecture：`docs/architecture/official-web-architecture.md`
+- authenticated notice source supporting architecture：`docs/architecture/authenticated-notice-source-architecture.md`
 - operator observability supporting architecture：`docs/architecture/operator-observability-architecture.md`
 - 当前 phase / pending work：`.planning/PROJECT.md`、`.planning/STATE.md`
 

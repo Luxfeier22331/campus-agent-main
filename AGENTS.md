@@ -32,6 +32,8 @@
 - `docs/architecture/retrieval-serving-architecture.md`
 - `docs/architecture/official-web-architecture.md`
 - `docs/architecture/official-web-source-truth-contract.md`
+- `docs/architecture/authenticated-notice-source-architecture.md`
+- `docs/architecture/authenticated-notice-source-truth-contract.md`
 - `docs/decisions/adr-0002-local-minio-conventions.md`
 - `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
@@ -42,6 +44,7 @@
 - `docs/decisions/adr-0018-app-api-official-web-control-plane-ownership.md`
 - `docs/decisions/adr-0021-institution-scoped-entity-alias-governance.md`
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
+- `docs/decisions/adr-0024-authenticated-notice-source-channel.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `docs/policies/official-web-crawl-policy.md`
 - `.planning/PROJECT.md`

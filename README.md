@@ -8,7 +8,7 @@
 
 - 当前 merged truth：`docs/architecture/current-architecture.md`
 - 目标架构：`docs/architecture/target-architecture.md`
-- supporting architecture：`docs/architecture/product-runtime-architecture.md`、`docs/architecture/execution-and-specialists-architecture.md`、`docs/architecture/identity-and-authorization-architecture.md`、`docs/architecture/retrieval-serving-architecture.md`、`docs/architecture/data-plane-architecture.md`、`docs/architecture/official-web-architecture.md`、`docs/architecture/operator-observability-architecture.md`
+- supporting architecture：`docs/architecture/product-runtime-architecture.md`、`docs/architecture/execution-and-specialists-architecture.md`、`docs/architecture/identity-and-authorization-architecture.md`、`docs/architecture/retrieval-serving-architecture.md`、`docs/architecture/data-plane-architecture.md`、`docs/architecture/official-web-architecture.md`、`docs/architecture/authenticated-notice-source-architecture.md`、`docs/architecture/operator-observability-architecture.md`
 - 文档索引与标识规则：`docs/README.md`
 - `app-api` 产品层 contract：`docs/contracts/app-api-http.md`
 - `app-api` operator observability contract：`docs/contracts/app-api-operator-observability-http.md`
@@ -62,6 +62,7 @@
 - execution / supervisor：`docs/plans/supervisor-current-design-implementation.md`
 - identity / memory / ACL：`docs/plans/intent-memory-acl-foundation.md`
 - restricted documents：`docs/plans/campus-identity-and-restricted-document-foundation.md`、`docs/plans/restricted-document-rollout-and-verification.md`
+- authenticated notice source：`docs/plans/authenticated-notice-source-foundation.md`
 - versioned query：`docs/plans/versioned-history-query-foundation.md`
 - eval / dataset：`docs/plans/golden-dataset-execution-plan.md`
 - env / provider governance：`docs/plans/env-bootstrap-and-provider-configuration-governance.md`
