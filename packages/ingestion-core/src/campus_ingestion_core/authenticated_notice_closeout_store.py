@@ -711,10 +711,12 @@ class PostgresAuthenticatedNoticeCloseoutStore:
     ) -> CloseoutBatch:
         with _postgres_connection(self.database_url, autocommit=False) as conn:
             with conn.cursor() as cursor:
-                batch = self._require_batch_cursor(cursor, run_id, batch_id)
-                shard = self._require_shard_cursor(cursor, run_id, batch.shard_id)
-                worker = self._require_worker_cursor(cursor, run_id, worker_id)
-                run = self._require_run_cursor(cursor, run_id)
+                run, batch, worker, shard = self._lock_batch_worker_context_cursor(
+                    cursor=cursor,
+                    run_id=run_id,
+                    batch_id=batch_id,
+                    worker_id=worker_id,
+                )
                 for stage in stages:
                     self._stage_notice_cursor(
                         cursor=cursor,
@@ -785,10 +787,12 @@ class PostgresAuthenticatedNoticeCloseoutStore:
     ) -> CloseoutBatch:
         with _postgres_connection(self.database_url, autocommit=False) as conn:
             with conn.cursor() as cursor:
-                batch = self._require_batch_cursor(cursor, run_id, batch_id)
-                shard = self._require_shard_cursor(cursor, run_id, batch.shard_id)
-                worker = self._require_worker_cursor(cursor, run_id, worker_id)
-                run = self._require_run_cursor(cursor, run_id)
+                run, batch, worker, shard = self._lock_batch_worker_context_cursor(
+                    cursor=cursor,
+                    run_id=run_id,
+                    batch_id=batch_id,
+                    worker_id=worker_id,
+                )
                 failed_batch = batch.fail(error)
                 self._save_batch_cursor(cursor, run_id, failed_batch)
                 previous_shard_state = shard.state
@@ -807,12 +811,12 @@ class PostgresAuthenticatedNoticeCloseoutStore:
     def finish_worker(self, run_id: str, worker_id: str) -> CloseoutWorker:
         with _postgres_connection(self.database_url, autocommit=False) as conn:
             with conn.cursor() as cursor:
+                run = self._require_run_cursor(cursor, run_id)
                 worker = self._get_worker_cursor(cursor, run_id, worker_id)
                 if worker is None:
                     worker = CloseoutWorker(worker_id=worker_id)
                 worker = worker.finish()
                 self._save_worker_cursor(cursor, run_id, worker)
-                run = self._require_run_cursor(cursor, run_id)
                 self._save_run_cursor(
                     cursor,
                     run.with_progress(
@@ -1237,6 +1241,20 @@ class PostgresAuthenticatedNoticeCloseoutStore:
         if row is None:
             raise ValueError(f"closeout shard not found: {run_id}/{shard_id}")
         return CloseoutShard.from_dict(_coerce_json_payload(row[0]))
+
+    def _lock_batch_worker_context_cursor(
+        self,
+        *,
+        cursor,
+        run_id: str,
+        batch_id: int,
+        worker_id: str,
+    ) -> tuple[CloseoutRun, CloseoutBatch, CloseoutWorker, CloseoutShard]:
+        run = self._require_run_cursor(cursor, run_id)
+        batch = self._require_batch_cursor(cursor, run_id, batch_id)
+        worker = self._require_worker_cursor(cursor, run_id, worker_id)
+        shard = self._require_shard_cursor(cursor, run_id, batch.shard_id)
+        return run, batch, worker, shard
 
     def _require_batch_cursor(
         self,
