@@ -29,6 +29,7 @@
 - `docs/architecture/product-runtime-architecture.md`
 - `docs/architecture/identity-and-authorization-architecture.md`
 - `docs/architecture/data-plane-architecture.md`
+- `docs/architecture/navigation-and-wayfinding-architecture.md`
 - `docs/architecture/retrieval-serving-architecture.md`
 - `docs/architecture/official-web-architecture.md`
 - `docs/architecture/official-web-source-truth-contract.md`
@@ -45,6 +46,7 @@
 - `docs/decisions/adr-0021-institution-scoped-entity-alias-governance.md`
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`
+- `docs/decisions/adr-0027-navigation-specialist-and-spatial-truth.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `docs/policies/official-web-crawl-policy.md`
 - `.planning/PROJECT.md`

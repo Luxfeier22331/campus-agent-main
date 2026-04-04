@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-03-22
-updated: 2026-04-04
+updated: 2026-04-05
 ---
 
 # Docs
@@ -69,10 +69,12 @@ updated: 2026-04-04
 
 - 当前架构：`architecture/current-architecture.md`
 - 目标架构：`architecture/target-architecture.md`
-- supporting architecture：`architecture/product-runtime-architecture.md`、`architecture/execution-and-specialists-architecture.md`、`architecture/identity-and-authorization-architecture.md`、`architecture/retrieval-serving-architecture.md`、`architecture/data-plane-architecture.md`、`architecture/official-web-architecture.md`、`architecture/authenticated-notice-source-architecture.md`、`architecture/operator-observability-architecture.md`
+- supporting architecture：`architecture/product-runtime-architecture.md`、`architecture/execution-and-specialists-architecture.md`、`architecture/identity-and-authorization-architecture.md`、`architecture/retrieval-serving-architecture.md`、`architecture/data-plane-architecture.md`、`architecture/navigation-and-wayfinding-architecture.md`、`architecture/official-web-architecture.md`、`architecture/authenticated-notice-source-architecture.md`、`architecture/operator-observability-architecture.md`
+- 导航长期边界与底图策略：`architecture/navigation-and-wayfinding-architecture.md`、`decisions/adr-0027-navigation-specialist-and-spatial-truth.md`、`decisions/adr-0028-campus-navigation-basemap-and-provider-strategy.md`
 - 当前 phase 状态与 pending work：`.planning/PROJECT.md`、`.planning/STATE.md`
 - 稳定 contract / schema：`contracts/`、`data/`
 - 当前 runbook / reference / policy：`runbooks/`、`reference/`、`policies/`
+- 地点寻找一期实施：`plans/campus-place-finding-foundation.md`
 - 首个真实 Worker 部署准备：`runbooks/staging-worker-deploy-runbook.md`
 - 当前 `dev-backed supervisor` staging 验收：`runbooks/dev-backed-supervisor-staging-smoke-runbook.md`
 
@@ -103,6 +105,7 @@ updated: 2026-04-04
 - `architecture/identity-and-authorization-architecture.md`
 - `architecture/retrieval-serving-architecture.md`
 - `architecture/data-plane-architecture.md`
+- `architecture/navigation-and-wayfinding-architecture.md`
 - `architecture/official-web-architecture.md`
 - `architecture/official-web-source-truth-contract.md`
 - `architecture/authenticated-notice-source-architecture.md`
@@ -140,8 +143,12 @@ updated: 2026-04-04
 - `decisions/adr-0023-operator-observability-control-plane-and-sink-participation.md`
 - `decisions/adr-0024-authenticated-notice-source-channel.md`
 - `decisions/adr-0025-authenticated-notice-async-staged-closeout.md`
+- `decisions/adr-0026-authenticated-notice-batch-leased-closeout-throughput.md`
+- `decisions/adr-0027-navigation-specialist-and-spatial-truth.md`
+- `decisions/adr-0028-campus-navigation-basemap-and-provider-strategy.md`
 - `decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
 - `plans/authenticated-notice-source-foundation.md`
+- `plans/campus-place-finding-foundation.md`
 - `plans/campus-identity-and-restricted-document-foundation.md`
 - `plans/env-bootstrap-and-provider-configuration-governance.md`
 - `plans/golden-dataset-execution-plan.md`

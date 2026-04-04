@@ -12,6 +12,7 @@
 - `curriculum/course_facts` 已作为 specialist 内部检索面落地，用于课程/课程族 audience、membership、semester 等实体型问句；它保持 `retrieval_enabled=true` 但 `query_enabled_by_default=false`
 - `curriculum/program_family_facts` 已作为 specialist 内部检索面落地，用于 `民族班` / `基地班` / `实验班` / `创新班` 这类项目 family membership 问句；它保持 `retrieval_enabled=true` 但 `query_enabled_by_default=false`，其中 `实验班` / `创新班` 的 truth 代表当前已采集、名称模式命中的培养方案集合
 - `campus_services/*` 仍为 `offline_preparation`
+- 导航 / wayfinding 仍未进入当前 merged-truth serving surface；最新前向编排结论是首个 slice 先做 `place_lookup` / `place_finding`，例如“xx楼在哪里”“补卡机在哪里”，`route_planning` 后置
 - 当前分支模型固定为：`develop` 承担长期集成，`main` 承担稳定发布，`main` 上的改动只通过 PR 进入
 - retrieval 读取 serving alias；离线索引发布写入 versioned physical collection，并以 release manifest 保留追溯信息
 - shared `apps/app-api` Worker backend、`apps/public-chat-web`、`apps/protected-panel-web` 已在当前工作树落地
@@ -52,11 +53,13 @@
 ### Active
 
 - [ ] 首个真实部署环境现已固定为 `staging@rag.ayafeed.com`：`apps/app-api=https://api-staging.rag.ayafeed.com`、`apps/public-chat-web=https://chat-staging.rag.ayafeed.com`、`apps/protected-panel-web=https://panel-staging.rag.ayafeed.com`。repo 内 `env.staging` 配置、deploy scripts 与 `docs/runbooks/staging-worker-deploy-runbook.md` 已落地；当前剩余阻塞项只包括 Cloudflare custom domains / service bindings / Hyperdrive / Access、deploy-side `SENTRY_*` / `AXIOM_*`、当次 Worker release，以及 Sentry/Axiom 访问权限，完成后执行 post-deploy observability verification
+- [ ] 导航相关首个前向 slice 固定为 `place_lookup` / `place_finding`，先覆盖建筑、服务点与周边关键地点问法；`route_planning`、入口选择、无障碍路径与地图内路线交互后置到后续 phase
 
 ### Out of Scope
 
 - `campus_services` query-serving 上线 — 当前阶段不把 service taxonomy 直接放进默认查询面
 - 全 corpus 同步上线 — 当前完整 live release-gate 仍以 `student_handbook` 为主；`curriculum_plan` 已进入 query-serving，但当前重点是维持已落盘 live gate truth，而不是扩面到更多 corpus
+- 校园路线规划 / wayfinding 首发上线 — 当前导航相关首个交付只收敛到地点寻找，不把 route graph、路线搜索和路线交互一起并入第一期
 - 更细粒度的角色差异化问答行为 — 当前只做到 identity / groups 透传与 retrieval 前 ACL 过滤
 - 复杂的多 specialist 串并行协作与 workflow engine — 先把显式 routing、handoff 和单条主链路骨架立住
 - 完整会话记忆、HITL / approval flow、生产级运维硬化 — 这些属于后续阶段能力，不作为当前初始化范围
@@ -81,6 +84,7 @@
 |----------|-----------|---------|
 | query-serving surface 由 runtime profile 控制 | 避免把 serving policy 写死在 supervisor、API shell、worker env 默认值或 handbook-only 约束里 | — Accepted |
 | `curriculum_plan` 已进入 query-serving，`campus_services` 继续保持 `offline_preparation` | curriculum 已具备 source-truth、chunking 与 retrieval 入口；service taxonomy 仍需后续独立验证 | — Accepted |
+| 导航相关首个前向 slice 固定为 `place_lookup` / `place_finding`，`route_planning` 后置 | 当前最近用户价值是回答“xx楼在哪里”“补卡机在哪里”这类高频地点问题；先冻结 `place_catalog`、alias resolve 与地点答案 contract，比先做完整路线规划更低风险且更符合当前数据完备度 | — Accepted on 2026-04-05 |
 | 权限最小闭环只做到 identity / groups 透传与 retrieval 前 ACL 过滤 | 先满足多类用户的最小访问控制，再延后更细粒度角色行为 | — Pending |
 | 旧 `../campusRAG` 仅作为迁移参考 | 新仓库目标是新架构落地，不是继续扩展旧实现 | — Pending |
 | phase-1 先优先架构边界正确、handoff 清晰、tracing / audit / ACL 最小闭环 | 这是“符合最佳实践”的核心，也是后续扩展多 specialist 的前置条件 | — Pending |
@@ -135,4 +139,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state (users, feedback, metrics)
 
 ---
-*Last updated: 2026-04-04 after freezing the first real Worker deployment target as `staging@rag.ayafeed.com` and landing repo-owned `env.staging` deploy config / runbook truth*
+*Last updated: 2026-04-05 after freezing place-finding as the first navigation-related rollout slice and keeping route planning deferred*

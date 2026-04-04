@@ -8,7 +8,7 @@
 
 - 当前 merged truth：`docs/architecture/current-architecture.md`
 - 目标架构：`docs/architecture/target-architecture.md`
-- supporting architecture：`docs/architecture/product-runtime-architecture.md`、`docs/architecture/execution-and-specialists-architecture.md`、`docs/architecture/identity-and-authorization-architecture.md`、`docs/architecture/retrieval-serving-architecture.md`、`docs/architecture/data-plane-architecture.md`、`docs/architecture/official-web-architecture.md`、`docs/architecture/authenticated-notice-source-architecture.md`、`docs/architecture/operator-observability-architecture.md`
+- supporting architecture：`docs/architecture/product-runtime-architecture.md`、`docs/architecture/execution-and-specialists-architecture.md`、`docs/architecture/identity-and-authorization-architecture.md`、`docs/architecture/retrieval-serving-architecture.md`、`docs/architecture/data-plane-architecture.md`、`docs/architecture/navigation-and-wayfinding-architecture.md`、`docs/architecture/official-web-architecture.md`、`docs/architecture/authenticated-notice-source-architecture.md`、`docs/architecture/operator-observability-architecture.md`
 - 文档索引与标识规则：`docs/README.md`
 - `app-api` 产品层 contract：`docs/contracts/app-api-http.md`
 - `app-api` operator observability contract：`docs/contracts/app-api-operator-observability-http.md`
@@ -18,6 +18,8 @@
 - request projection ownership：`docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - supervisor internal execution admission：`docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 - 编排与安全边界：`docs/decisions/adr-0006-agent-orchestration-and-safety.md`
+- 导航空间真相边界：`docs/decisions/adr-0027-navigation-specialist-and-spatial-truth.md`
+- 导航底图 / provider 策略：`docs/decisions/adr-0028-campus-navigation-basemap-and-provider-strategy.md`
 - 当前 phase / pending work：`.planning/PROJECT.md`、`.planning/REQUIREMENTS.md`、`.planning/STATE.md`
 - 历史 phase 排期与存档：`.planning/ROADMAP.md`、`.planning/phases/`
 
@@ -64,6 +66,7 @@
 - restricted documents：`docs/plans/campus-identity-and-restricted-document-foundation.md`、`docs/plans/restricted-document-rollout-and-verification.md`
 - authenticated notice source：`docs/plans/authenticated-notice-source-foundation.md`
 - versioned query：`docs/plans/versioned-history-query-foundation.md`
+- place finding：`docs/plans/campus-place-finding-foundation.md`
 - eval / dataset：`docs/plans/golden-dataset-execution-plan.md`
 - env / provider governance：`docs/plans/env-bootstrap-and-provider-configuration-governance.md`
 

@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-02
+updated: 2026-04-05
 ---
 
 # 目标架构
@@ -104,6 +104,7 @@ updated: 2026-04-02
 当前尚未完成但属于目标架构一部分的能力包括：
 
 - richer specialist families
+- campus navigation / wayfinding
 - explicit historical / as-of / compare query
 - restricted document rollout
 - 更完整的 identity / authz / memory productization

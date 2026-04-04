@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: in_progress
 stopped_at: 2026-04-05 repo-local full curriculum live accept rerun has completed at `.tmp/evals/curriculum-plan-live-gate-accept-20260404T200443Z`: the semester course-list answer repair is now live-verified, all three deterministic runs pass `19/19`, repair stays skipped, and the only remaining gate issue is supplemental soft-warn quality drift
-last_updated: "2026-04-05T04:42:03+08:00"
+last_updated: "2026-04-05T11:30:00+08:00"
 progress:
   total_phases: 22
   completed_phases: 21
@@ -16,7 +16,7 @@ progress:
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-04-02)
+See: `.planning/PROJECT.md` (updated 2026-04-05)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 runtime-profile-driven serving surface 证明这条架构能可靠承接高频校园问答
 **Current focus:** Phase 11 与 Phase 9 现已全部完成：Phase 11 已收口 canonical principal/projection seam、restricted data-plane projection、retrieval fail-close / deny-path safety、safe personalization wiring，以及 compatibility / eval / telemetry closure；Phase 9 则补齐了 curriculum alias governance、deictic verified-identity truth、soft-personalization fast-fail 与 eval closeout。`official-web` / Phase 10 当前由其他 worktree 处理，不应在这里被反复重新提议；这个 worktree 当前的非 web 主线已经把 repo-local eval truth 收口到新的稳定基线：`student_handbook` 当前 pass artifact 为 `20260404T072912Z`，`curriculum_plan` 当前 latest completed full artifact 为 `20260404T200443Z`。其 live accept 现已达到 deterministic `19/19` pass，law follow-up completeness 缺口已经在 live artifact 中关闭；当前剩余的只是 supplemental soft-warn，而不是 deterministic release gate failure。deploy 侧目前只有 repo-owned staging config / runbook / secret inventory 准备完成，远端 Cloudflare 资源、secret store 与真实 smoke 仍未外部 provision，因此这里不再把任何“staging live 故障”当作当前事实。
@@ -154,6 +154,7 @@ Recent decisions affecting current work:
 - The accepted forward design is now `public-chat-web` + `protected-panel-web` + shared `app-api`; auth/session/conversation, chat ingress, and operator query move into `app-api`, while `apps/supervisor-api` remains the execution engine.
 - `apps/app-api` runtime is now frozen to Worker rather than remaining runtime-agnostic.
 - `apps/app-api` is now the only product-layer auth/session/principal owner; `apps/supervisor-api` should be read as internal execution admission plus execution transport, not user-auth ownership.
+- Navigation-related first rollout sequencing is now fixed as `place_lookup` / `place_finding` first, with route planning, entrance selection, accessibility routing, and route interaction explicitly deferred to a later phase.
 - Protected panel request visibility is now fixed on shared `apps/app-api`: panel `Requests` must consume the shipped runtime-owned query surface and must not route around it through `apps/supervisor-api`, audit logs, telemetry sinks, or consumer chat tables.
 - canonical request projection is now explicitly same-database outbox-first: `runtime.request_execution` plus `runtime.projection_outbox` are the first durable truth, while queues are optional later acceleration only.
 - Better Auth is now fixed inside `apps/app-api`, and `auth/chat/runtime/operator` are expected to share one Drizzle schema codebase plus one migration pipeline; Worker runtime DB access remains Hyperdrive-based while migrations use a direct management connection.
