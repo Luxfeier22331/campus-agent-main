@@ -57,12 +57,14 @@ updated: 2026-04-03
 
 ### Wave 1：Collection Config And Import Contract Freeze
 
-在 repo 内新增：
+当前 repo 已经存在：
 
 - `configs/ingestion/campus_notices/internal_notice/runtime-profile.json`
 - `configs/ingestion/campus_notices/internal_notice/canonical-profile.json`
 - `configs/ingestion/campus_notices/internal_notice/chunk-profile.json`
 - collection README
+
+这一 wave 的任务不再是“从零新增 config”，而是把现有 config 与 import contract 一起正式纳入 phase truth，并补齐 focused verification 与 `.planning` 记录。
 
 要求：
 
@@ -101,6 +103,28 @@ updated: 2026-04-03
 - backfill 一次性导入
 - 局部重跑某个 notice 或某批 bundle
 
+当前这条 wave 已具备 repo-local importer 与 worker 入口，但下一步重点是：
+
+- historical export first
+- 按 `1 -> 50 -> 240 -> 6694` 做 staged replay
+- 每轮把 smoke summary 落到 `.tmp/authenticated-notice-smoke/<timestamp>/summary.json`
+- 记录 created / updated / skipped / raw_uploaded / raw_reused / errors，而不是只看 exit code
+- authenticated notice 的空 `attachment-observations.jsonl` / `attachment-refs.jsonl` 属于合法 source-truth 产物；repo-local MinIO 如在 zero-byte `put_object` 后拖慢复用连接，worker 侧应隔离空对象写入，而不是把 empty artifact 语义偷偷改掉
+- collector bootstrap export 应至少产出 typed reference-only `links / notice_attachments / attachments`，但不得把 `local_path` 或临时文件系统布局提升成长期 object-storage truth
+
+当前 worktree 已完成的 bounded replay 证据：
+
+- `2` 条：`.tmp/authenticated-notice-smoke/20260404T131900-2-timed/summary.json`
+- `10` 条：`.tmp/authenticated-notice-smoke/20260404T131350-10/summary.json`
+- `50` 条：`.tmp/authenticated-notice-smoke/20260404T131544-50/summary.json`
+- `240` 条：`.tmp/authenticated-notice-smoke/20260404T152745-240/summary.json`
+
+当前明确 deferred：
+
+- `6694` 及更大 backfill
+- live portal 恢复后的 scheduled run / incremental sync
+- authenticated notice control plane
+
 ### Wave 3：Restricted Document Projection
 
 把 importer 生成的 document import inputs 接到 registry / chunk pipeline。
@@ -132,6 +156,12 @@ updated: 2026-04-03
 
 迁入后 collector 应直接产出 repo 认可的 typed artifacts，而不是继续要求 ingestion 只认旧 bundle shape。
 
+当前收敛方向：
+
+- collector export manifest 要显式携带 notice-type policy snapshot，而不是只留下 type id 列表
+- 正文 link / attachment observation 默认允许停留在 reference-only 语义
+- reference-only attachment 允许 `object_key=null`，但 `normalized_source_url` / `origin_scope` / `resource_role` 必须显式
+
 ### Wave 5：Optional Control Plane
 
 如果后续需要持续调度、run ledger、operator read model，再新增 dedicated control-plane domain。
@@ -155,6 +185,7 @@ updated: 2026-04-03
 - `packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_import.py`
 - `packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_source_truth.py`
 - `apps/ingestion-worker/src/campus_ingestion_worker/import_authenticated_notice_export.py`
+- `apps/ingestion-worker/src/campus_ingestion_worker/smoke_authenticated_notice_bootstrap.py`
 
 ### Config
 
@@ -171,6 +202,10 @@ updated: 2026-04-03
 
 至少补齐以下验证：
 
+- collection config tests
+  - `internal_notice` 使用 repo-tracked runtime / canonical / chunk profiles
+  - `retrieval_enabled=false`
+  - `query_enabled_by_default=false`
 - importer unit tests
   - stable `raw_asset_id` / `raw_version_id`
   - HTML -> content blocks conversion
@@ -183,20 +218,29 @@ updated: 2026-04-03
 - leakage guards
   - restricted collection 未授权时不得进入公开 query path
 
+对应 runbook：
+
+- `docs/runbooks/authenticated-notice-bootstrap-smoke-runbook.md`
+
 ## 推荐验证命令
 
 Python baseline:
 
 ```bash
-uv run --all-packages python -m unittest discover -s tests -t .
+uv run --package campus-ingestion-worker python -m unittest \
+  tests.ingestion.test_collection_config \
+  tests.ingestion.test_corpus_runtime_profile \
+  tests.ingestion.test_authenticated_notice_import \
+  tests.ingestion.test_import_authenticated_notice_export_worker \
+  tests.ingestion.test_smoke_authenticated_notice_bootstrap_worker
 ```
 
 JS/TS baseline:
 
 ```bash
-pnpm web:typecheck
-pnpm web:test
-pnpm web:build
+pnpm --dir apps/authenticated-notice-collector typecheck
+pnpm --dir apps/authenticated-notice-collector test
+pnpm --dir apps/authenticated-notice-collector build
 ```
 
 ## 当前不做

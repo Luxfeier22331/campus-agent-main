@@ -454,3 +454,31 @@ Verification note:
 - retrieval pre-filter now uses only canonical `visibility_level` / `entitlement_groups` / `visibility_scope`, and targeted restricted docs fail-close before candidate retrieval
 - `rag-specialist` now maps targeted restricted deny to safe `no_answer` without leaking resolved policy title, snippet, citation, anchor, or retrieved-title summary
 - targeted retrieval/specialist verification is green: `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.retrieval.test_backend_qdrant tests.retrieval.test_service tests.specialist.test_rag_specialist`
+
+### Phase 12: Authenticated Notice Source Foundation
+
+**Goal:** Close a repo-native foundation for `authenticated_notice_portal` by formalizing the existing worktree-local importer/config/smoke slice, proving historical export bundles can replay into canonical `capture -> provider -> source-truth -> document import` artifacts for `campus_notices/internal_notice`, and converging the collector shell on repo-compatible typed artifacts without opening query-serving, `official_web` reuse, or authenticated control-plane scope.
+**Requirements**: []
+**Depends on:** Phase 11
+**Success Criteria** (what must be TRUE):
+  1. `campus_notices/internal_notice` is frozen as a restricted `offline_preparation` collection with explicit runtime, canonical, and chunk profiles, and `notice` remains the primary source unit.
+  2. A typed historical export bundle can be imported through the worker path into object-store-backed `capture/*`, `provider/*`, `source-truth/*`, plus restricted document import inputs keyed by stable `site_id + notice_id`.
+  3. Historical export replay is proven as a first-class lane through bounded staged smoke evidence up to `240` notices, without requiring live portal access, while larger `6694` backfills remain explicit follow-on work.
+  4. `apps/authenticated-notice-collector` remains the owner of auth/list/detail/export runtime concerns only; it does not take over registry, chunk, index, `app-api`, or query-serving responsibilities.
+**Plans:** 4/4 plans complete
+
+Plans:
+- [x] 12-01-PLAN.md — Formalize and verify the already-landed authenticated-notice foundation slice.
+- [x] 12-02-PLAN.md — Run staged historical replay, fix the zero-byte object-store replay stall, and capture bounded real-bundle evidence.
+- [x] 12-03-PLAN.md — Converge the collector shell on repo-compatible typed artifacts and workspace hygiene.
+- [x] 12-04-PLAN.md — Close the phase and freeze deferred live-run/control-plane boundaries.
+
+### Phase 13: Official Web Serving Surface Stratification And Fresh News Readiness
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 12
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 13 to break down)
