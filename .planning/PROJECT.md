@@ -54,7 +54,7 @@
 
 ### Active
 
-- [ ] 首个真实部署环境现已固定为 `staging@rag.ayafeed.com`：`apps/app-api=https://api-staging.rag.ayafeed.com`、`apps/public-chat-web=https://chat-staging.rag.ayafeed.com`、`apps/protected-panel-web=https://panel-staging.rag.ayafeed.com`。repo 内 `env.staging` 配置、deploy scripts 与 `docs/runbooks/staging-worker-deploy-runbook.md` 已落地；当前剩余阻塞项只包括 Cloudflare custom domains / service bindings / Hyperdrive / Access、deploy-side `SENTRY_*` / `AXIOM_*`、当次 Worker release，以及 Sentry/Axiom 访问权限，完成后执行 post-deploy observability verification
+- [ ] 首个真实部署环境现已固定为 `staging@ayafeed.com` 的一级子域方案：`apps/app-api=https://api-staging.ayafeed.com`、`apps/public-chat-web=https://chat-staging.ayafeed.com`、`apps/protected-panel-web=https://panel-staging.ayafeed.com`。当前 Cloudflare tier 不再依赖 `*.rag.ayafeed.com` 这类深一级 staging custom domain 的 SSL 可用性；repo 文档真相已切到一级子域，`wrangler.toml` / tests 中残留的 nested hostnames 仍需随 staging implementation migration 一并收口。当前剩余阻塞项包括 Cloudflare custom domains / service bindings / Hyperdrive / Access、repo 内 hostname migration、deploy-side `SENTRY_*` / `AXIOM_*`、当次 Worker release，以及 Sentry/Axiom 访问权限，完成后执行 post-deploy observability verification
 - [ ] 导航相关首个前向 slice 固定为 `place_lookup` / `place_finding`，先覆盖建筑、服务点与周边关键地点问法；`route_planning`、入口选择、无障碍路径与地图内路线交互后置到后续 phase
 
 ### Out of Scope

@@ -22,13 +22,13 @@ const env = {
   },
 };
 
-function createPublicPrincipal() {
+function createCampusPrincipal() {
   return {
     actor: {
       departments: [],
       principalId: "user_01HQ",
-      principalType: "public_user" as const,
-      roles: ["public_user"],
+      principalType: "campus_member" as const,
+      roles: ["campus_member"],
       userId: "user_01HQ",
     },
     permissions: {
@@ -39,7 +39,7 @@ function createPublicPrincipal() {
       displayName: "Jane Doe",
       email: "jane@example.edu",
       principalId: "user_01HQ",
-      type: "public_user" as const,
+      type: "campus_member" as const,
     },
     session: {
       expiresAt: "2026-03-29T07:00:00.000Z",
@@ -78,16 +78,16 @@ describe("app-api worker foundation", () => {
     expect(wranglerConfig).toContain("[[env.local.hyperdrive]]");
     expect(wranglerConfig).toContain('binding = "APP_API_DB"');
     expect(wranglerConfig).toContain("[[env.staging.routes]]");
-    expect(wranglerConfig).toContain('pattern = "api-staging.rag.ayafeed.com"');
+    expect(wranglerConfig).toContain('pattern = "api-staging.ayafeed.com"');
     expect(wranglerConfig).toContain("custom_domain = true");
     expect(wranglerConfig).toContain("[[env.staging.hyperdrive]]");
     expect(wranglerConfig).toContain("[env.staging.vars]");
     expect(wranglerConfig).toContain('APP_API_ENVIRONMENT = "staging"');
-    expect(wranglerConfig).toContain('PUBLIC_CHAT_WEB_ORIGIN = "https://chat-staging.rag.ayafeed.com"');
+    expect(wranglerConfig).toContain('PUBLIC_CHAT_WEB_ORIGIN = "https://chat-staging.ayafeed.com"');
     expect(wranglerConfig).not.toContain("SUPERVISOR_API_BASE_URL");
     expect(wranglerConfig).toContain('APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com"');
     expect(wranglerConfig).toContain('SENTRY_ENVIRONMENT = "staging"');
-    expect(wranglerConfig).toContain('SENTRY_RELEASE = "app-api@staging-initial"');
+    expect(wranglerConfig).toContain('SENTRY_RELEASE = "app-api@staging-20260405-05c3d45"');
     expect(wranglerConfig).toContain('AXIOM_ENDPOINT = "https://us-east-1.aws.edge.axiom.co"');
     expect(wranglerConfig).toContain('AXIOM_DATASET = "campus-agent-runtime-dev"');
     expect(packageManifest.scripts?.deploy).not.toContain("XDG_CONFIG_HOME=./.wrangler-home");
@@ -238,7 +238,7 @@ describe("app-api worker foundation", () => {
     const waitUntil = vi.fn();
     const runtime = createWorkerRuntime(env, {
       chatCommandService,
-      getPrincipal: vi.fn().mockResolvedValue(createPublicPrincipal()),
+      getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
       requestProjector,
     });
 
@@ -343,7 +343,7 @@ describe("app-api worker foundation", () => {
     };
     const runtime = createWorkerRuntime(env, {
       chatCommandService,
-      getPrincipal: vi.fn().mockResolvedValue(createPublicPrincipal()),
+      getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
       requestProjector,
     });
 

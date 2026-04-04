@@ -57,17 +57,19 @@ updated: 2026-04-05
 
 - 当前首个真实部署环境固定为 `staging`
 - 当前 staging hostname mapping 固定为：
-  - `apps/app-api` -> `https://api-staging.rag.ayafeed.com`
-  - `apps/public-chat-web` -> `https://chat-staging.rag.ayafeed.com`
-  - `apps/protected-panel-web` -> `https://panel-staging.rag.ayafeed.com`
+  - `apps/app-api` -> `https://api-staging.ayafeed.com`
+  - `apps/public-chat-web` -> `https://chat-staging.ayafeed.com`
+  - `apps/protected-panel-web` -> `https://panel-staging.ayafeed.com`
+- 当前 Cloudflare tier 下，不再把 `*.rag.ayafeed.com` 这类深一级 staging custom domain 作为可依赖的 SSL deploy truth；forward staging hostnames 必须统一使用 `ayafeed.com` 下一级子域
 - 当前阶段不冻结 `apps/supervisor-api` 的 staging hostname；`app-api` deploy 时必须显式注入当轮可达的 `STAGING_SUPERVISOR_API_BASE_URL`
-- 这些 deploy hostnames 由各 app 自己的 `wrangler.toml` 中 `env.staging` 持有，不写回 `.dev.vars.example`
+- 这些 deploy hostnames 由各 app 自己的 `wrangler.toml` 中 `env.staging` 持有，不写回 `.dev.vars.example`；repo 中若仍残留 `*.rag.ayafeed.com`，应视为待迁移实现残留，不再代表 staging deploy truth
 - `apps/app-api` 这类直接由 Wrangler 发布的 Worker 使用 `STAGING_SUPERVISOR_API_BASE_URL=... pnpm --dir apps/app-api deploy:staging`
 - 真实 deploy 命令直接消费当前 shell 的 `wrangler` 登录态；repo-local `.wrangler-home` 只保留给 dev / test / local build
 - `apps/protected-panel-web` staging deploy 还必须显式注入 `STAGING_ACCESS_TEAM_DOMAIN` 与 `STAGING_ACCESS_POLICY_AUD`；这两个值不再写进 `wrangler.toml`，且占位默认值会被 deploy 脚本拒绝
 - `apps/public-chat-web` 与 `apps/protected-panel-web` 这类 Vite Worker 使用 `CLOUDFLARE_ENV=staging vite build` 选择 deploy env，并发布生成后的 `dist/*/wrangler.json`
 - deploy secret truth 仍在 Cloudflare secret store，不在 repo-tracked `.dev.vars.example`
 - 具体 staging 资源、secret matrix、deploy order 与 post-deploy smoke 见 `docs/runbooks/staging-worker-deploy-runbook.md`
+- 外部依据：Cloudflare 对 subdomain / Universal SSL 的说明见 <https://developers.cloudflare.com/fundamentals/setup/manage-domains/manage-subdomains/>
 
 ## Eval Env 约定
 

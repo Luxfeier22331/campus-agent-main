@@ -14,6 +14,8 @@ files:
 
 当前 staging 还没有完成一轮真正闭环的 live smoke。`app-api-staging` auth runtime 仍不稳定，`chat-staging` 因上游未 ready 而失败，`panel-staging` 也还没有真实 Access 入口。因此当前证据只能证明“部署后暴露出了哪些真实问题”，不能证明 staging 已可作为前向联调环境，也没有形成完整的 Sentry / Axiom / request trace 证据闭环。
 
+当前这条 todo 的前向 hostname truth 以一级子域为准：`api-staging.ayafeed.com`、`chat-staging.ayafeed.com`、`panel-staging.ayafeed.com`；旧的 `*.rag.ayafeed.com` 仅视为待迁移实现残留。
+
 ## Solution
 
 按依赖顺序完成一轮完整 live smoke：

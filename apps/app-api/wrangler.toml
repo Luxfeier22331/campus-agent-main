@@ -9,15 +9,15 @@ preview_urls = false
 crons = ["*/1 * * * *"]
 
 [[env.staging.routes]]
-pattern = "api-staging.rag.ayafeed.com"
+pattern = "api-staging.ayafeed.com"
 custom_domain = true
 
 [env.staging.vars]
 APP_API_ENVIRONMENT = "staging"
-PUBLIC_CHAT_WEB_ORIGIN = "https://chat-staging.rag.ayafeed.com"
+PUBLIC_CHAT_WEB_ORIGIN = "https://chat-staging.ayafeed.com"
 APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com"
 SENTRY_ENVIRONMENT = "staging"
-SENTRY_RELEASE = "app-api@staging-initial"
+SENTRY_RELEASE = "app-api@staging-20260405-05c3d45"
 AXIOM_ENDPOINT = "https://us-east-1.aws.edge.axiom.co"
 AXIOM_DATASET = "campus-agent-runtime-dev"
 

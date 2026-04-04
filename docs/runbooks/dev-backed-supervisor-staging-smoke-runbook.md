@@ -23,6 +23,12 @@ updated: 2026-04-05
 
 它不把当前 `supervisor-api` upstream 写成稳定部署 truth。
 
+## Hostname Constraint
+
+- staging smoke 的 forward hostname truth 已切到 `api-staging.ayafeed.com`、`chat-staging.ayafeed.com`、`panel-staging.ayafeed.com`
+- 当前 Cloudflare tier 下，不再依赖 `*.rag.ayafeed.com` 这类深一级 staging custom domain 的 SSL 可用性
+- 因此本 runbook 中涉及 staging surface 的外部 URL 一律使用 `ayafeed.com` 下一级子域；repo 中残留的 nested hostnames 仅视为待迁移实现残留
+
 ## 当前适用场景
 
 适用于以下模式：
@@ -125,8 +131,8 @@ pnpm --dir apps/app-api deploy:staging
 然后检查：
 
 ```bash
-curl --noproxy '*' -sS -i https://api-staging.rag.ayafeed.com/healthz
-curl --noproxy '*' -sS -i https://api-staging.rag.ayafeed.com/readyz
+curl --noproxy '*' -sS -i https://api-staging.ayafeed.com/healthz
+curl --noproxy '*' -sS -i https://api-staging.ayafeed.com/readyz
 ```
 
 通过标准：
@@ -139,10 +145,10 @@ curl --noproxy '*' -sS -i https://api-staging.rag.ayafeed.com/readyz
 确认三个 staging surface 在线：
 
 ```bash
-curl --noproxy '*' -sS -i https://chat-staging.rag.ayafeed.com/healthz
-curl --noproxy '*' -sS -i https://chat-staging.rag.ayafeed.com/readyz
-curl --noproxy '*' -sS -i https://panel-staging.rag.ayafeed.com/healthz
-curl --noproxy '*' -sS -i https://panel-staging.rag.ayafeed.com/readyz
+curl --noproxy '*' -sS -i https://chat-staging.ayafeed.com/healthz
+curl --noproxy '*' -sS -i https://chat-staging.ayafeed.com/readyz
+curl --noproxy '*' -sS -i https://panel-staging.ayafeed.com/healthz
+curl --noproxy '*' -sS -i https://panel-staging.ayafeed.com/readyz
 ```
 
 ## Step 5. Browser chat smoke
@@ -197,7 +203,7 @@ curl --noproxy '*' -sS -i https://panel-staging.rag.ayafeed.com/readyz
 - `operator.request_projection` list/detail smoke
 - `Sentry` trace smoke
 - `Axiom` runtime event smoke
-- 如果直接访问 `https://panel-staging.rag.ayafeed.com/` 仍然得到 worker 返回的 `Missing Access JWT.`，则这一轮必须继续标记为 `blocked by missing Access provisioning`，不能把它视为已完成的 panel 保护
+- 如果直接访问 `https://panel-staging.ayafeed.com/` 仍然得到 worker 返回的 `Missing Access JWT.`，则这一轮必须继续标记为 `blocked by missing Access provisioning`，不能把它视为已完成的 panel 保护
 
 如果 Access 仍未配置完成：
 

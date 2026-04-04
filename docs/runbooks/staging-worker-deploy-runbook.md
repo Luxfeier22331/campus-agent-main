@@ -13,10 +13,10 @@ updated: 2026-04-05
 
 - environment: `staging`
 - zone: `ayafeed.com`
-- delegated staging subdomain: `rag.ayafeed.com`
-- `apps/app-api`: `https://api-staging.rag.ayafeed.com`
-- `apps/public-chat-web`: `https://chat-staging.rag.ayafeed.com`
-- `apps/protected-panel-web`: `https://panel-staging.rag.ayafeed.com`
+- staging hostname shape: `ayafeed.com` 下一级子域
+- `apps/app-api`: `https://api-staging.ayafeed.com`
+- `apps/public-chat-web`: `https://chat-staging.ayafeed.com`
+- `apps/protected-panel-web`: `https://panel-staging.ayafeed.com`
 
 它只回答：
 
@@ -26,28 +26,38 @@ updated: 2026-04-05
 
 它不回答长期 production hostname；未来切换到 `muc.wiki` 时，应新增 `production` env，而不是覆写这里的 `staging` truth。
 
+## Hostname Constraint
+
+- 当前 Cloudflare tier 下，不再把 `*.rag.ayafeed.com` 这类深一级 staging custom domain 视为可依赖的 SSL deploy truth
+- staging forward truth 必须统一使用 `ayafeed.com` 下的一级子域：`api-staging.ayafeed.com`、`chat-staging.ayafeed.com`、`panel-staging.ayafeed.com`
+- repo 中仍残留的 `*.rag.ayafeed.com` staging 配置、脚本断言或测试断言，只能视为待迁移实现残留，不能继续作为新资源 provision 或 deploy 目标
+- 依据：Cloudflare 官方文档说明 Universal SSL 默认覆盖 apex 与一级子域，更深层级需依赖不同证书能力，因此当前 tier 下不再继续使用嵌套 staging 子域
+  - <https://developers.cloudflare.com/fundamentals/setup/manage-domains/manage-subdomains/>
+
 ## Repo-Owned Config
 
+当前 repo 仍存在旧的 `*.rag.ayafeed.com` staging 引用；本节描述的是必须收敛到的前向 deploy truth，而不是这些旧值的继续合法化。
+
 - `apps/app-api/wrangler.toml`
-  - `env.staging` 持有 `api-staging.rag.ayafeed.com`
+  - `env.staging` 应收敛到 `api-staging.ayafeed.com`
   - `env.staging.hyperdrive` 持有 `APP_API_DB`（cached/read-mostly）与 `APP_API_DB_FRESH`（no-cache/auth-sensitive）两条 staging binding
-  - `env.staging.vars.PUBLIC_CHAT_WEB_ORIGIN=https://chat-staging.rag.ayafeed.com`
+  - `env.staging.vars.PUBLIC_CHAT_WEB_ORIGIN=https://chat-staging.ayafeed.com`
 - `apps/app-api/package.json`
   - `pnpm deploy:staging` 要求显式注入 `STAGING_SUPERVISOR_API_BASE_URL`
   - deploy 时通过 `--var SUPERVISOR_API_BASE_URL:<url>` 注入当前 dev-backed supervisor upstream
   - 真实 deploy 直接使用当前 shell 的 `wrangler` 登录态；repo-local `.wrangler-home` 只保留给 dev/test
 - `apps/public-chat-web/wrangler.toml`
-  - `env.staging` 持有 `chat-staging.rag.ayafeed.com`
+  - `env.staging` 应收敛到 `chat-staging.ayafeed.com`
   - `env.staging.services.APP_API -> app-api-staging`
-  - `env.staging.vars.APP_API_BASE_URL=https://api-staging.rag.ayafeed.com`
+  - `env.staging.vars.APP_API_BASE_URL=https://api-staging.ayafeed.com`
 - `apps/public-chat-web/package.json`
   - `pnpm build:staging` 使用 `CLOUDFLARE_ENV=staging`
   - `pnpm deploy:staging` 发布 staging build artifact
   - deploy 使用当前 shell 的 `wrangler` 登录态，不再强绑 repo-local `.wrangler-home`
 - `apps/protected-panel-web/wrangler.toml`
-  - `env.staging` 持有 `panel-staging.rag.ayafeed.com`
+  - `env.staging` 应收敛到 `panel-staging.ayafeed.com`
   - `env.staging.services.APP_API -> app-api-staging`
-  - `env.staging.vars.PANEL_RUNTIME_API_BASE_URL=https://api-staging.rag.ayafeed.com`
+  - `env.staging.vars.PANEL_RUNTIME_API_BASE_URL=https://api-staging.ayafeed.com`
   - `env.staging.vars` 只保留 non-secret runtime truth；`ACCESS_TEAM_DOMAIN` / `ACCESS_POLICY_AUD` 不再硬编码在 repo
 - `apps/protected-panel-web/package.json`
   - `pnpm build:staging` 使用 `CLOUDFLARE_ENV=staging`
@@ -65,9 +75,9 @@ updated: 2026-04-05
 
 ### 1. Worker hostnames
 
-- 创建 `api-staging.rag.ayafeed.com` custom domain，绑定到 `app-api-staging`
-- 创建 `chat-staging.rag.ayafeed.com` custom domain，绑定到 `public-chat-web-staging`
-- 创建 `panel-staging.rag.ayafeed.com` custom domain，绑定到 `protected-panel-web-staging`
+- 创建 `api-staging.ayafeed.com` custom domain，绑定到 `app-api-staging`
+- 创建 `chat-staging.ayafeed.com` custom domain，绑定到 `public-chat-web-staging`
+- 创建 `panel-staging.ayafeed.com` custom domain，绑定到 `protected-panel-web-staging`
 
 ### 2. Internal service bindings
 
@@ -86,7 +96,7 @@ updated: 2026-04-05
 
 ### 4. Access
 
-- 为 `panel-staging.rag.ayafeed.com` 建 Cloudflare Access application
+- 为 `panel-staging.ayafeed.com` 建 Cloudflare Access application
 - 生成并记录：
   - `ACCESS_TEAM_DOMAIN`
   - `ACCESS_POLICY_AUD`
@@ -160,9 +170,9 @@ wrangler secret put SENTRY_DSN --env staging
 
 ## Cross-App Invariants
 
-- `PUBLIC_CHAT_WEB_ORIGIN` 必须精确等于 `https://chat-staging.rag.ayafeed.com`
+- `PUBLIC_CHAT_WEB_ORIGIN` 必须精确等于 `https://chat-staging.ayafeed.com`
 - `APP_API_INTERNAL_SHARED_SECRET` 必须精确等于 `PANEL_APP_API_SHARED_SECRET`
-- `APP_API_BASE_URL` 与 `PANEL_RUNTIME_API_BASE_URL` 必须都指向 `https://api-staging.rag.ayafeed.com`
+- `APP_API_BASE_URL` 与 `PANEL_RUNTIME_API_BASE_URL` 必须都指向 `https://api-staging.ayafeed.com`
 - `APP_API_DB_FRESH` 必须绑定到 caching-disabled Hyperdrive config；staging auth smoke 必须覆盖 `sign-up -> immediate sign-in`
 - `SUPERVISOR_API_BASE_URL` 在每次 staging deploy 时都必须显式注入，且当次值必须真实可达
 - `STAGING_ACCESS_TEAM_DOMAIN` / `STAGING_ACCESS_POLICY_AUD` 必须都是真实 Access 值，不能使用 repo 占位默认值
@@ -211,8 +221,8 @@ pnpm --dir apps/app-api deploy:staging
 
 确认：
 
-- `https://api-staging.rag.ayafeed.com/healthz`
-- `https://api-staging.rag.ayafeed.com/readyz`
+- `https://api-staging.ayafeed.com/healthz`
+- `https://api-staging.ayafeed.com/readyz`
 
 ### 2. `apps/public-chat-web`
 
@@ -222,8 +232,8 @@ pnpm --dir apps/public-chat-web deploy:staging
 
 确认：
 
-- `https://chat-staging.rag.ayafeed.com/healthz`
-- `https://chat-staging.rag.ayafeed.com/readyz`
+- `https://chat-staging.ayafeed.com/healthz`
+- `https://chat-staging.ayafeed.com/readyz`
 
 ### 3. `apps/protected-panel-web`
 
@@ -235,8 +245,8 @@ pnpm --dir apps/protected-panel-web deploy:staging
 
 确认：
 
-- `https://panel-staging.rag.ayafeed.com/healthz`
-- `https://panel-staging.rag.ayafeed.com/readyz`
+- `https://panel-staging.ayafeed.com/healthz`
+- `https://panel-staging.ayafeed.com/readyz`
 
 ## Post-Deploy Verification
 
@@ -256,9 +266,9 @@ pnpm --dir apps/protected-panel-web deploy:staging
 这轮 staging 的 `SUMMARY.md` 至少应写明：
 
 - Environment: `staging`
-- `public-chat-web` hostname: `chat-staging.rag.ayafeed.com`
-- `protected-panel-web` hostname: `panel-staging.rag.ayafeed.com`
-- `app-api` hostname: `api-staging.rag.ayafeed.com`
+- `public-chat-web` hostname: `chat-staging.ayafeed.com`
+- `protected-panel-web` hostname: `panel-staging.ayafeed.com`
+- `app-api` hostname: `api-staging.ayafeed.com`
 - Worker release: `<release>`
 
 ## Exit Criteria
