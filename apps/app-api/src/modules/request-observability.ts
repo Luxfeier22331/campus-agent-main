@@ -3,7 +3,7 @@ import type { RequestedScope, SupervisorExecutionResponse } from "./integration"
 import type { RequestDiagnosticsSummary } from "./request-diagnostics";
 import type { RequestExecutionStatus, RequestObservabilityFactWrite } from "./runtime-command/store";
 
-function toRequestedScopeSummary(scope: RequestedScope | null | undefined): string | null {
+function toScopeSummary(scope: RequestedScope | null | undefined): string | null {
   if (!scope?.corpus || !scope?.collection) {
     return null;
   }
@@ -78,6 +78,7 @@ export function buildAcceptedRequestObservabilityFact(input: {
   requestId: string;
   requestedCapability: string | null;
   requestedScope: RequestedScope | null;
+  resolvedScope: RequestedScope | null;
   surface: string;
   startedAt: string;
   traceId: string;
@@ -90,7 +91,7 @@ export function buildAcceptedRequestObservabilityFact(input: {
     citationCount: null,
     citationExpected: null,
     citationMissing: null,
-    collection: input.requestedScope?.collection ?? null,
+    collection: input.resolvedScope?.collection ?? null,
     completedAt: null,
     conversationId: input.conversationId,
     durationMs: null,
@@ -110,7 +111,8 @@ export function buildAcceptedRequestObservabilityFact(input: {
     projectionLagMs: null,
     requestId: input.requestId,
     requestedCapability: input.requestedCapability,
-    requestedScopeSummary: toRequestedScopeSummary(input.requestedScope),
+    requestedScopeSummary: toScopeSummary(input.requestedScope),
+    resolvedScopeSummary: toScopeSummary(input.resolvedScope),
     refusalClass: null,
     retrievedSourceCount: null,
     retrievalAttempted: null,
@@ -133,6 +135,7 @@ export function buildFinalizedRequestObservabilityFact(input: {
   requestId: string;
   requestedCapability: string | null;
   requestedScope: RequestedScope | null;
+  resolvedScope: RequestedScope | null;
   response: SupervisorExecutionResponse;
   sourceDocIds: string[];
   startedAt: string;
@@ -170,7 +173,7 @@ export function buildFinalizedRequestObservabilityFact(input: {
         : citationExpected === true
           ? citationCount === 0
           : null,
-    collection: input.requestedScope?.collection ?? null,
+    collection: input.resolvedScope?.collection ?? null,
     completedAt: input.completedAt,
     conversationId: input.conversationId,
     durationMs: input.durationMs,
@@ -195,7 +198,8 @@ export function buildFinalizedRequestObservabilityFact(input: {
     projectionLagMs: null,
     requestId: input.requestId,
     requestedCapability: input.requestedCapability,
-    requestedScopeSummary: toRequestedScopeSummary(input.requestedScope),
+    requestedScopeSummary: toScopeSummary(input.requestedScope),
+    resolvedScopeSummary: toScopeSummary(input.resolvedScope),
     refusalClass: normalizeRefusalClass(input.response, input.status),
     retrievedSourceCount,
     retrievalAttempted,
@@ -210,5 +214,5 @@ export function buildFinalizedRequestObservabilityFact(input: {
 }
 
 export function summarizeRequestedScope(scope: RequestedScope | null | undefined): string | null {
-  return toRequestedScopeSummary(scope);
+  return toScopeSummary(scope);
 }

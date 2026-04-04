@@ -109,6 +109,19 @@ def _make_handbook_source(
     )
 
 
+def _resolved_scope_diagnostics(
+    *,
+    corpus: str,
+    collection: str,
+    **kwargs: object,
+) -> RagResultDiagnostics:
+    return RagResultDiagnostics(
+        resolved_scope_corpus=corpus,
+        resolved_scope_collection=collection,
+        **kwargs,
+    )
+
+
 class RagSpecialistTest(unittest.TestCase):
     def test_frame_rag_intent_marks_user_grounded_personalization_when_context_exists(self) -> None:
         request = SpecialistRequest(
@@ -264,7 +277,11 @@ class RagSpecialistTest(unittest.TestCase):
                     query_text="宿舍报修流程",
                     corpus="campus_services",
                     collection="service_catalog",
-                )
+                ),
+                diagnostics=_resolved_scope_diagnostics(
+                    corpus="campus_services",
+                    collection="service_catalog",
+                ),
             ),
         )
 
@@ -536,7 +553,9 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertFalse(retriever_called)
         self.assertEqual(
             response.result.diagnostics,
-            RagResultDiagnostics(
+            _resolved_scope_diagnostics(
+                corpus="regulations",
+                collection="student_handbook",
                 clarification_reason="policy_object_conflict",
             ),
         )
@@ -1253,7 +1272,9 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.status, "no_answer")
         self.assertEqual(
             response.result.diagnostics,
-            RagResultDiagnostics(
+            _resolved_scope_diagnostics(
+                corpus="curriculum",
+                collection="curriculum_plan",
                 resolved_policy_document_id="curriculum:历史学（强基计划）本科人才培养方案",
                 resolved_policy_title="历史学（强基计划）本科人才培养方案",
                 rewritten_query="历史学（强基计划）本科人才培养方案 我这个专业的基地班第四学期有什么课",
@@ -1554,7 +1575,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertIn("所有本预科学生", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
-            RagResultDiagnostics(
+            _resolved_scope_diagnostics(
+                corpus="curriculum",
+                collection="curriculum_plan",
                 resolution_mode="resolved_single",
                 resolved_entity_type="course",
                 resolved_course_id="course:muc.xigai",
@@ -1622,7 +1645,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertIn("中华民族共同体概论", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
-            RagResultDiagnostics(
+            _resolved_scope_diagnostics(
+                corpus="curriculum",
+                collection="curriculum_plan",
                 resolution_mode="resolved_family",
                 resolved_entity_type="course_family",
                 resolved_course_family_id="course_family:muc.ideological_political_theory",
@@ -1682,7 +1707,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertIn("当前还不能稳定确认开课学院", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
-            RagResultDiagnostics(
+            _resolved_scope_diagnostics(
+                corpus="curriculum",
+                collection="curriculum_plan",
                 resolution_mode="resolved_family",
                 resolved_entity_type="course_family",
                 resolved_course_family_id="course_family:muc.ideological_political_theory",
@@ -1746,7 +1773,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertIn("第2学期(文科)", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
-            RagResultDiagnostics(
+            _resolved_scope_diagnostics(
+                corpus="curriculum",
+                collection="curriculum_plan",
                 resolution_mode="resolved_single",
                 resolved_entity_type="course",
                 resolved_course_id="course:muc.xigai",
@@ -1806,7 +1835,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertIn("当前还不能稳定确认开课学院", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
-            RagResultDiagnostics(
+            _resolved_scope_diagnostics(
+                corpus="curriculum",
+                collection="curriculum_plan",
                 resolution_mode="resolved_single",
                 resolved_entity_type="course",
                 resolved_course_id="course:muc.xigai",
@@ -2103,7 +2134,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertNotIn("根据当前已采集的课程事实，思想政治理论课：", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
-            RagResultDiagnostics(
+            _resolved_scope_diagnostics(
+                corpus="curriculum",
+                collection="curriculum_plan",
                 resolution_mode="resolved_family",
                 resolved_entity_type="course_family",
                 resolved_course_family_id="course_family:muc.ideological_political_theory",
@@ -2359,7 +2392,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertIn("当前还不能稳定确认开课学院", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
-            RagResultDiagnostics(
+            _resolved_scope_diagnostics(
+                corpus="curriculum",
+                collection="curriculum_plan",
                 resolution_mode="resolved_family",
                 resolved_entity_type="course_family",
                 resolved_course_family_id="course_family:muc.ideological_political_theory",
@@ -2426,7 +2461,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertNotIn("当前已采集", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
-            RagResultDiagnostics(
+            _resolved_scope_diagnostics(
+                corpus="curriculum",
+                collection="curriculum_plan",
                 resolution_mode="resolved_family",
                 resolved_entity_type="program_family",
                 resolved_program_family_id="program_family:muc.ethnic_experimental_class",
@@ -4404,7 +4441,9 @@ class RagSpecialistCurriculumSemesterSelectionTest(unittest.TestCase):
         self.assertFalse(retriever_called)
         self.assertEqual(
             response.result.diagnostics,
-            RagResultDiagnostics(
+            _resolved_scope_diagnostics(
+                corpus="regulations",
+                collection="student_handbook",
                 clarification_reason="policy_object_missing",
             ),
         )
@@ -4465,7 +4504,9 @@ class RagSpecialistCurriculumSemesterSelectionTest(unittest.TestCase):
         self.assertEqual(response.status, "completed")
         self.assertEqual(
             response.result.diagnostics,
-            RagResultDiagnostics(
+            _resolved_scope_diagnostics(
+                corpus="regulations",
+                collection="student_handbook",
                 resolved_policy_document_id=target_doc_id,
                 resolved_policy_title=target_title,
                 rewritten_query=retriever_call["query_text"],
@@ -4506,7 +4547,9 @@ class RagSpecialistCurriculumSemesterSelectionTest(unittest.TestCase):
         self.assertIn(target_title, response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
-            RagResultDiagnostics(
+            _resolved_scope_diagnostics(
+                corpus="regulations",
+                collection="student_handbook",
                 resolved_policy_document_id=target_doc_id,
                 resolved_policy_title=target_title,
                 rewritten_query=retriever_call["query_text"],

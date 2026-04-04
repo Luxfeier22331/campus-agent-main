@@ -17,6 +17,7 @@ export interface RequestProjectionRecord {
   applicabilityScope: string | null;
   requestedCapability: string | null;
   requestedScope: Record<string, unknown> | null;
+  resolvedScope: Record<string, unknown> | null;
   selectedTarget: string | null;
   status: RequestExecutionStatus;
   errorCode: string | null;
@@ -124,6 +125,7 @@ export interface OperatorRequestObservabilityRecord {
     status: RequestExecutionStatus;
     requestedCapability: string | null;
     requestedScope: Record<string, unknown> | null;
+    resolvedScope: Record<string, unknown> | null;
     selectedTarget: string | null;
     startedAt: string;
     completedAt: string | null;

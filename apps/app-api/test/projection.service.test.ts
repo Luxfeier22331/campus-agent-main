@@ -42,6 +42,10 @@ function createExecutionSource(
       collection: "student_handbook",
       corpus: "regulations",
     },
+    resolvedScope: {
+      collection: "student_handbook",
+      corpus: "regulations",
+    },
     selectedTarget: "rag-specialist",
     sourceDocIds: ["handbook:library-hours"],
     startedAt: "2026-03-28T08:00:00.000Z",
@@ -111,6 +115,10 @@ describe("request projection projector", () => {
       requestId: "req_01HQ",
       requestedCapability: "knowledge",
       requestedScope: {
+        collection: "student_handbook",
+        corpus: "regulations",
+      },
+      resolvedScope: {
         collection: "student_handbook",
         corpus: "regulations",
       },

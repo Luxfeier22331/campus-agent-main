@@ -27,6 +27,7 @@ export interface RequestExecutionProjectionSource {
   applicabilityScope: string | null;
   requestedCapability: string | null;
   requestedScope: Record<string, unknown> | null;
+  resolvedScope: Record<string, unknown> | null;
   selectedTarget: string | null;
   status: RequestExecutionStatus;
   errorCode: string | null;
@@ -61,6 +62,7 @@ export interface RequestProjectionMaterialization {
   applicabilityScope: string | null;
   requestedCapability: string | null;
   requestedScope: Record<string, unknown> | null;
+  resolvedScope: Record<string, unknown> | null;
   selectedTarget: string | null;
   status: RequestExecutionStatus;
   errorCode: string | null;
@@ -262,8 +264,8 @@ function buildAuditSummary(input: {
   }
 }
 
-function parseRequestedCollection(requestedScope: Record<string, unknown> | null): string | null {
-  const collection = requestedScope?.collection;
+function parseScopeCollection(scope: Record<string, unknown> | null): string | null {
+  const collection = scope?.collection;
   return typeof collection === "string" && collection ? collection : null;
 }
 
@@ -356,7 +358,7 @@ function buildQualityRollups(input: {
     return {
       bucketEnd: addGranularity(bucketStart, granularity).toISOString(),
       bucketStart: bucketStartIso,
-      collection: parseRequestedCollection(input.execution.requestedScope),
+      collection: parseScopeCollection(input.execution.resolvedScope),
       domain: "quality",
       granularity,
       metrics,
@@ -367,7 +369,7 @@ function buildQualityRollups(input: {
       requestedCapability: input.execution.requestedCapability,
       rollupId: buildMetricRollupId({
         bucketStart: bucketStartIso,
-        collection: parseRequestedCollection(input.execution.requestedScope),
+        collection: parseScopeCollection(input.execution.resolvedScope),
         domain: "quality",
         granularity,
         modelName: input.execution.modelName ?? null,
@@ -440,6 +442,7 @@ export function toRequestProjectionMaterialization(input: {
     requestId: input.execution.requestId,
     requestedCapability: input.execution.requestedCapability,
     requestedScope: input.execution.requestedScope,
+    resolvedScope: input.execution.resolvedScope,
     selectedTarget: input.execution.selectedTarget,
     diagnostics: input.execution.diagnostics,
     sourceDocIds: input.execution.sourceDocIds,

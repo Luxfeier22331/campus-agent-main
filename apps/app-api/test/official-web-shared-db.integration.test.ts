@@ -3,49 +3,23 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { dirname, resolve } from "node:path";
-import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { Client } from "pg";
 
 import { type Env } from "../src/config";
 import { createApp } from "../src/app";
-import { runSharedDatabaseAdoption } from "../scripts/adopt-shared-database.mjs";
-import { runSharedDatabaseDriftReconcile } from "../scripts/reconcile-shared-db-drift.mjs";
-import { bootstrapSharedProductDatabase } from "../scripts/shared-product-database-bootstrap.mjs";
+import {
+  buildSharedDbIntegrationEnv,
+  convergeSharedDbForAppApiIntegration,
+  readRequiredSharedDbEnv,
+  resolveSharedDbSslConfig,
+} from "./shared-db-integration-helpers";
 
 const RUN_INTEGRATION = process.env.RUN_APP_API_SHARED_DB_INTEGRATION === "1";
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const envFilePath = resolve(appRoot, ".env");
 const devVarsFilePath = resolve(appRoot, ".dev.vars");
-
-function loadOptionalEnvFile(filePath: string): void {
-  try {
-    process.loadEnvFile(filePath);
-  } catch (error) {
-    if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") {
-      throw error;
-    }
-  }
-}
-
-function readRequiredEnv(key: string): string {
-  const value = process.env[key]?.trim();
-  if (!value) {
-    throw new Error(`${key} is required for the app-api shared DB integration test.`);
-  }
-  return value;
-}
-
-function resolveSslConfig():
-  | false
-  | {
-      rejectUnauthorized: false;
-    } {
-  return process.env.APP_API_DATABASE_SSLMODE?.trim() === "disable"
-    ? false
-    : { rejectUnauthorized: false };
-}
 
 function requireClient(client: Client | null): Client {
   if (!client) {
@@ -61,70 +35,28 @@ describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", 
   let runId: string | null = null;
 
   beforeAll(async () => {
-    loadOptionalEnvFile(envFilePath);
-    loadOptionalEnvFile(devVarsFilePath);
+    const { managementConnectionString, runtimeConnectionString } =
+      await convergeSharedDbForAppApiIntegration({
+        contextLabel: "the app-api shared DB integration test",
+        devVarsFilePath,
+        envFilePath,
+      });
 
-    const runtimeConnectionString = readRequiredEnv(
-      "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB",
-    );
-    const managementConnectionString =
-      process.env.APP_API_MANAGEMENT_DATABASE_URL?.trim() || runtimeConnectionString;
-    await bootstrapSharedProductDatabase({
-      APP_API_DATABASE_SSLMODE: process.env.APP_API_DATABASE_SSLMODE?.trim() || "require",
-      APP_API_MANAGEMENT_DATABASE_URL: managementConnectionString,
-      BETTER_AUTH_SECRET:
-        process.env.BETTER_AUTH_SECRET?.trim() || "dev-secret-dev-secret-dev-secret",
-      PUBLIC_CHAT_WEB_ORIGIN:
-        process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com",
-    });
-    await runSharedDatabaseDriftReconcile({
-      allowNonEmptyDriftTables: true,
-      apply: true,
-      env: {
-        ...process.env,
-        APP_API_MANAGEMENT_DATABASE_URL: managementConnectionString,
+    const env: Env = buildSharedDbIntegrationEnv({
+      managementConnectionString,
+      runtimeConnectionString,
+      overrides: {
+        APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN: readRequiredSharedDbEnv(
+          "APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN",
+          "the app-api shared DB integration test",
+        ),
       },
     });
-    await runSharedDatabaseAdoption({
-      apply: true,
-      env: {
-        ...process.env,
-        APP_API_MANAGEMENT_DATABASE_URL: managementConnectionString,
-      },
-    });
-
-    const env: Env = {
-      APP_API_NAME: process.env.APP_API_NAME?.trim() || "campus-agent-app-api",
-      APP_API_ENVIRONMENT: "test",
-      APP_API_DATABASE_SSLMODE:
-        process.env.APP_API_DATABASE_SSLMODE?.trim() === "disable"
-          ? "disable"
-          : process.env.APP_API_DATABASE_SSLMODE?.trim() === "prefer"
-            ? "prefer"
-            : "require",
-      APP_API_DB: {
-        connectionString: runtimeConnectionString,
-      },
-      APP_API_INTERNAL_SHARED_SECRET:
-        process.env.APP_API_INTERNAL_SHARED_SECRET?.trim() || "shared-db-integration-secret",
-      APP_API_MANAGEMENT_DATABASE_URL: managementConnectionString,
-      APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN: readRequiredEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN"),
-      APP_API_OPERATOR_EMAIL_ALLOWLIST:
-        process.env.APP_API_OPERATOR_EMAIL_ALLOWLIST?.trim() || "ops@example.com",
-      BETTER_AUTH_SECRET:
-        process.env.BETTER_AUTH_SECRET?.trim() || "dev-secret-dev-secret-dev-secret",
-      PUBLIC_CHAT_WEB_ORIGIN:
-        process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com",
-      SUPERVISOR_API_BASE_URL:
-        process.env.SUPERVISOR_API_BASE_URL?.trim() || "https://supervisor.internal",
-      SUPERVISOR_API_SHARED_SECRET:
-        process.env.SUPERVISOR_API_SHARED_SECRET?.trim() || "shared-db-integration-secret",
-    };
 
     app = createApp(env);
     client = new Client({
       connectionString: managementConnectionString,
-      ssl: resolveSslConfig(),
+      ssl: resolveSharedDbSslConfig(),
     });
     await client.connect();
   });
@@ -159,7 +91,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", 
             triggerType: "scheduled",
           }),
           headers: {
-            authorization: `Bearer ${readRequiredEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN")}`,
+            authorization: `Bearer ${readRequiredSharedDbEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN", "the app-api shared DB integration test")}`,
             "content-type": "application/json",
           },
           method: "POST",
@@ -188,7 +120,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", 
             sequence: 1,
           }),
           headers: {
-            authorization: `Bearer ${readRequiredEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN")}`,
+            authorization: `Bearer ${readRequiredSharedDbEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN", "the app-api shared DB integration test")}`,
             "content-type": "application/json",
           },
           method: "POST",
@@ -226,7 +158,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", 
             terminalStatus: "completed",
           }),
           headers: {
-            authorization: `Bearer ${readRequiredEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN")}`,
+            authorization: `Bearer ${readRequiredSharedDbEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN", "the app-api shared DB integration test")}`,
             "content-type": "application/json",
           },
           method: "POST",

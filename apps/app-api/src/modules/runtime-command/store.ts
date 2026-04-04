@@ -47,6 +47,7 @@ export interface RequestExecutionWrite {
   traceId: string;
   requestedCapability: string | null;
   requestedScope: RequestedScope | null;
+  resolvedScope: RequestedScope | null;
   selectedTarget: string | null;
   status: RequestExecutionStatus;
   errorCode: string | null;
@@ -83,6 +84,7 @@ export interface RequestObservabilityFactWrite {
   policyProjectionVersion: string | null;
   requestedCapability: string | null;
   requestedScopeSummary: string | null;
+  resolvedScopeSummary: string | null;
   collection: string | null;
   selectedTarget: string | null;
   status: RequestExecutionStatus;
@@ -370,6 +372,8 @@ export function createPgChatCommandStore(
             requestedCapability: input.requestExecution.requestedCapability,
             requestedScopeJson:
               (input.requestExecution.requestedScope as Record<string, unknown> | null) ?? null,
+            resolvedScopeJson:
+              (input.requestExecution.resolvedScope as Record<string, unknown> | null) ?? null,
             selectedTarget: null,
             status: input.requestExecution.status,
             errorCode: null,
@@ -428,6 +432,7 @@ export function createPgChatCommandStore(
           requestId: input.requestObservabilityFact.requestId,
           requestedCapability: input.requestObservabilityFact.requestedCapability,
           requestedScopeSummary: input.requestObservabilityFact.requestedScopeSummary,
+          resolvedScopeSummary: input.requestObservabilityFact.resolvedScopeSummary,
           refusalClass: input.requestObservabilityFact.refusalClass,
           retrievedSourceCount: input.requestObservabilityFact.retrievedSourceCount,
           retrievalAttempted: input.requestObservabilityFact.retrievalAttempted,
@@ -478,6 +483,10 @@ export function createPgChatCommandStore(
             selectedTarget: input.requestExecution.selectedTarget,
             status: input.requestExecution.status,
             errorCode: input.requestExecution.errorCode,
+            requestedScopeJson:
+              (input.requestExecution.requestedScope as Record<string, unknown> | null) ?? null,
+            resolvedScopeJson:
+              (input.requestExecution.resolvedScope as Record<string, unknown> | null) ?? null,
             answerPreview: input.requestExecution.answerPreview,
             diagnosticsJson: input.requestExecution.diagnostics,
             sourceDocIdsJson: input.requestExecution.sourceDocIds,
@@ -535,6 +544,7 @@ export function createPgChatCommandStore(
             requestId: input.requestObservabilityFact.requestId,
             requestedCapability: input.requestObservabilityFact.requestedCapability,
             requestedScopeSummary: input.requestObservabilityFact.requestedScopeSummary,
+            resolvedScopeSummary: input.requestObservabilityFact.resolvedScopeSummary,
             refusalClass: input.requestObservabilityFact.refusalClass,
             retrievedSourceCount: input.requestObservabilityFact.retrievedSourceCount,
             retrievalAttempted: input.requestObservabilityFact.retrievalAttempted,
@@ -576,6 +586,7 @@ export function createPgChatCommandStore(
               projectionLagMs: input.requestObservabilityFact.projectionLagMs,
               requestedCapability: input.requestObservabilityFact.requestedCapability,
               requestedScopeSummary: input.requestObservabilityFact.requestedScopeSummary,
+              resolvedScopeSummary: input.requestObservabilityFact.resolvedScopeSummary,
               refusalClass: input.requestObservabilityFact.refusalClass,
               retrievedSourceCount: input.requestObservabilityFact.retrievedSourceCount,
               retrievalAttempted: input.requestObservabilityFact.retrievalAttempted,

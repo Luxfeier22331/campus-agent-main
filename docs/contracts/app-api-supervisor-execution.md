@@ -106,11 +106,7 @@ JSON 命名保持 `snake_case`，原因如下：
       "turn_count": 0
     }
   },
-  "requested_capability": "knowledge",
-  "requested_scope": {
-    "corpus": "regulations",
-    "collection": "student_handbook"
-  }
+  "requested_capability": "knowledge"
 }
 ```
 
@@ -127,7 +123,7 @@ JSON 命名保持 `snake_case`，原因如下：
 - `requested_capability`
   当前允许 `knowledge` 或 `availability`
 - `requested_scope`
-  当前用于知识问答范围约束
+  可选；如果上游已经显式约束 serving surface，则传入这个字段。若缺失，execution path 必须允许 specialist 自主解析最终 serving surface，而不是由 `app-api` 或 `supervisor-core` 伪造默认 collection
 - `availability_target_id` / `follow_redirects`
   仅在 availability execution 时出现
 
@@ -151,6 +147,8 @@ JSON 命名保持 `snake_case`，原因如下：
     "citation_expected": true,
     "citation_count": 2,
     "citation_missing": false,
+    "resolved_scope_corpus": "regulations",
+    "resolved_scope_collection": "student_handbook",
     "refusal_class": "",
     "acl_decision": "allowed",
     "fail_closed": false
@@ -184,6 +182,7 @@ JSON 命名保持 `snake_case`，原因如下：
 - `result` 仍由 specialist / shared contract 拥有，不在这里完整重定义
 - `app-api` 可以从 `result` 中提取 source identifiers 进入 projection，但不得把 specialist payload 直接当 browser contract 暴露
 - `observability` 是 execution-side typed summary seam，用于 `runtime.request_observability_fact` 的 seed / finalize；字段继续保持 Python-side `snake_case`
+- 当 execution side 解析了最终 serving surface 时，`observability.resolved_scope_*` 必须显式回传给 `app-api`
 - `observability` 不返回 raw prompt、raw answer、raw transcript、raw retrieval payload 或 raw auth material
 - token / model / cost 字段如果出现，必须来自 execution-side typed telemetry seam，而不是 panel-side 或 sink-side 反推
 

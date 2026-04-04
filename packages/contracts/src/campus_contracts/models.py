@@ -257,11 +257,13 @@ class ErrorInfo:
 
 @dataclass(frozen=True, slots=True)
 class RagRequestPayload:
-    scope: KnowledgeScope
+    scope: KnowledgeScope | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class RagResultDiagnostics:
+    resolved_scope_corpus: AllowedCorpus | None = None
+    resolved_scope_collection: str = ""
     resolved_policy_document_id: str = ""
     resolved_policy_title: str = ""
     rewritten_query: str = ""
@@ -320,6 +322,8 @@ class SupervisorObservability:
     output_tokens: int | None = None
     cached_input_tokens: int | None = None
     estimated_cost_microusd: int | None = None
+    resolved_scope_corpus: AllowedCorpus | None = None
+    resolved_scope_collection: str = ""
 
 
 @dataclass(frozen=True, slots=True)

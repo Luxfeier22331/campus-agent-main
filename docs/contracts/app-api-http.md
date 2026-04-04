@@ -155,6 +155,10 @@ expanded observability / quality / safety / cost / audit query surfaces 另见 `
     "corpus": "regulations",
     "collection": "student_handbook"
   },
+  "resolvedScope": {
+    "corpus": "regulations",
+    "collection": "student_handbook"
+  },
   "selectedTarget": "rag-specialist",
   "questionPreview": "图书馆开放到几点？",
   "answerPreview": "图书馆开放到 22:00。",
@@ -342,7 +346,8 @@ expanded observability / quality / safety / cost / audit query surfaces 另见 `
 - `conversationId` 可选；如果提供，必须属于当前 user
 - 如果未提供 `conversationId`，`app-api` 必须在同一条 command path 内 lazy create conversation，并返回 canonical conversation id
 - `prompt` 必填，服务端会 trim 并做最小长度校验
-- `requestedCapability` / `requestedScope` 可选；未提供时由 `app-api` runtime policy 决定默认值
+- `requestedCapability` 可选；当前 public chat 只接受 `knowledge`
+- `requestedScope` 可选；未提供时 `app-api` 不得伪造默认 serving surface，最终 scope 由 downstream specialist 解析，并在 finalized projection / observability 中回填 `resolvedScope`
 
 成功响应：
 
@@ -432,6 +437,10 @@ expanded observability / quality / safety / cost / audit query surfaces 另见 `
       "corpus": "regulations",
       "collection": "student_handbook"
     },
+    "resolvedScope": {
+      "corpus": "regulations",
+      "collection": "student_handbook"
+    },
     "selectedTarget": "rag-specialist",
     "questionPreview": "图书馆开放到几点？",
     "answerPreview": "图书馆开放到 22:00。",
@@ -448,6 +457,8 @@ expanded observability / quality / safety / cost / audit query surfaces 另见 `
 规则：
 
 - 这是 projection detail，不是 raw execution dump
+- `requestedScope` 表示调用方显式请求的 scope，可为 `null`
+- `resolvedScope` 表示 specialist 最终解析并执行的 serving scope，是 operator/panel 侧的前向真相
 - 细节页允许比 list 多出 `errorMessage`、`followUpQuestion`、`confidence` 或 `sourceDocIds`
 - v1 不暴露 raw prompt、raw answer 全量、raw audit JSONL 或 specialist-internal payload
 

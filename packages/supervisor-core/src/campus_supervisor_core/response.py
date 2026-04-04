@@ -83,6 +83,10 @@ def build_supervisor_observability_from_specialist_response(
         ),
         acl_decision="denied" if denied else "allowed",
         fail_closed=True if denied else False,
+        resolved_scope_corpus=diagnostics.resolved_scope_corpus if diagnostics is not None else None,
+        resolved_scope_collection=(
+            diagnostics.resolved_scope_collection if diagnostics is not None else ""
+        ),
     )
 
 

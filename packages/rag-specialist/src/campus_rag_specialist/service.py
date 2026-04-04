@@ -8,6 +8,7 @@ from campus_contracts import (
     ErrorInfo,
     EvidenceBundle,
     EvidenceSource,
+    KnowledgeScope,
     RagRequestPayload,
     RagResultDiagnostics,
     RagResultPayload,
@@ -67,6 +68,16 @@ _CURRICULUM_PROGRAM_TITLE_SUFFIXES = (
     "本科人才培养方案",
     "人才培养方案",
 )
+_CURRICULUM_SCOPE_CUES = (
+    "培养方案",
+    "课程教学计划",
+    "总学分",
+    "毕业要求",
+    "学期",
+    "什么课",
+    "哪些课",
+    "课表",
+)
 _CURRICULUM_FOLLOW_UP_PREFIXES = ("那如果是", "如果是", "那如果", "那就", "换成", "还有", "那")
 _CURRICULUM_FOLLOW_UP_TRAILING_PARTICLES = "呢呀啊吧嘛的"
 _CURRICULUM_FOLLOW_UP_PROGRAM_BLOCKERS = frozenset(
@@ -100,24 +111,28 @@ def delegate_to_rag_agent(
         raise TypeError("rag-specialist requires RagRequestPayload")
 
     user_goal = request.user_goal.strip()
+    effective_scope = _resolve_request_scope(request, user_goal=user_goal)
     intent_frame = frame_rag_intent(request)
     personalization_hint = build_personalization_hint(request)
     effective_user_goal = _resolve_effective_curriculum_user_goal(
-        request,
+        effective_scope,
         user_goal=user_goal,
         curriculum_follow_up=personalization_hint.curriculum_follow_up,
         recent_goal=personalization_hint.recent_goal,
     )
-    handbook_plan = _plan_handbook_query(request, user_goal)
-    curriculum_plan = _plan_curriculum_query(request, effective_user_goal)
-    curriculum_course_plan = _plan_curriculum_course_query(request, effective_user_goal)
-    curriculum_program_family_plan = _plan_curriculum_program_family_query(request, effective_user_goal)
+    handbook_plan = _plan_handbook_query(effective_scope, user_goal)
+    curriculum_plan = _plan_curriculum_query(request, effective_scope, effective_user_goal)
+    curriculum_course_plan = _plan_curriculum_course_query(effective_scope, effective_user_goal)
+    curriculum_program_family_plan = _plan_curriculum_program_family_query(
+        effective_scope,
+        effective_user_goal,
+    )
     if intent_frame.response_mode == "clarify" and not _has_resolved_query_plan(
         handbook_plan=handbook_plan,
         curriculum_plan=curriculum_plan,
         curriculum_program_family_plan=curriculum_program_family_plan,
     ):
-        empty_evidence = _build_empty_evidence(request, user_goal)
+        empty_evidence = _build_empty_evidence(effective_scope, user_goal)
         return SpecialistResponse(
             target="rag-specialist",
             status="needs_clarification",
@@ -130,6 +145,7 @@ def delegate_to_rag_agent(
             ),
             result=_build_rag_result_payload(
                 evidence=empty_evidence,
+                resolved_scope=effective_scope,
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
                 curriculum_course_plan=curriculum_course_plan,
@@ -137,7 +153,7 @@ def delegate_to_rag_agent(
             ),
         )
     if handbook_plan is not None and handbook_plan.status == "needs_clarification":
-        empty_evidence = _build_empty_evidence(request, user_goal)
+        empty_evidence = _build_empty_evidence(effective_scope, user_goal)
         return SpecialistResponse(
             target="rag-specialist",
             status="needs_clarification",
@@ -151,6 +167,7 @@ def delegate_to_rag_agent(
             ),
             result=_build_rag_result_payload(
                 evidence=empty_evidence,
+                resolved_scope=effective_scope,
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
                 curriculum_course_plan=curriculum_course_plan,
@@ -161,7 +178,7 @@ def delegate_to_rag_agent(
         curriculum_program_family_plan is not None
         and curriculum_program_family_plan.resolution_mode == "needs_clarification"
     ):
-        empty_evidence = _build_empty_evidence(request, user_goal)
+        empty_evidence = _build_empty_evidence(effective_scope, user_goal)
         return SpecialistResponse(
             target="rag-specialist",
             status="needs_clarification",
@@ -176,6 +193,7 @@ def delegate_to_rag_agent(
             ),
             result=_build_rag_result_payload(
                 evidence=empty_evidence,
+                resolved_scope=effective_scope,
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
                 curriculum_course_plan=curriculum_course_plan,
@@ -187,7 +205,7 @@ def delegate_to_rag_agent(
         and curriculum_plan is not None
         and curriculum_plan.status == "needs_clarification"
     ):
-        empty_evidence = _build_empty_evidence(request, user_goal)
+        empty_evidence = _build_empty_evidence(effective_scope, user_goal)
         return SpecialistResponse(
             target="rag-specialist",
             status="needs_clarification",
@@ -202,6 +220,7 @@ def delegate_to_rag_agent(
             ),
             result=_build_rag_result_payload(
                 evidence=empty_evidence,
+                resolved_scope=effective_scope,
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
                 curriculum_course_plan=curriculum_course_plan,
@@ -213,12 +232,12 @@ def delegate_to_rag_agent(
         retrieval_goal = user_goal
         target_document_ids: tuple[str, ...] = ()
         preferred_document_ids: tuple[str, ...] = ()
-        retrieval_collection = request.payload.scope.collection
+        retrieval_collection = effective_scope.collection
         canonical_course_ids: tuple[str, ...] = ()
         canonical_course_family_ids: tuple[str, ...] = ()
         canonical_program_family_ids: tuple[str, ...] = ()
         retrieval_top_k: int | None = None
-        if request.payload.scope.corpus == "curriculum" and request.payload.scope.collection == "curriculum_plan":
+        if effective_scope.corpus == "curriculum" and effective_scope.collection == "curriculum_plan":
             if (
                 curriculum_program_family_plan is not None
                 and curriculum_program_family_plan.resolution_mode == "resolved_family"
@@ -258,7 +277,7 @@ def delegate_to_rag_agent(
             target_document_ids = handbook_plan.target_document_ids
         evidence = retriever(
             retrieval_goal,
-            corpus=request.payload.scope.corpus,
+            corpus=effective_scope.corpus,
             collection=retrieval_collection,
             target_document_ids=target_document_ids,
             preferred_document_ids=preferred_document_ids,
@@ -272,7 +291,7 @@ def delegate_to_rag_agent(
         evidence = _with_query_text(
             evidence,
             effective_user_goal
-            if request.payload.scope.corpus == "curriculum" and request.payload.scope.collection == "curriculum_plan"
+            if effective_scope.corpus == "curriculum" and effective_scope.collection == "curriculum_plan"
             else user_goal,
         )
     except CorpusQueryDisabledError as exc:
@@ -281,7 +300,8 @@ def delegate_to_rag_agent(
             status="error",
             confidence="low",
             result=_build_rag_result_payload(
-                evidence=_build_empty_evidence(request, user_goal),
+                evidence=_build_empty_evidence(effective_scope, user_goal),
+                resolved_scope=effective_scope,
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
                 curriculum_course_plan=curriculum_course_plan,
@@ -290,7 +310,7 @@ def delegate_to_rag_agent(
             error=ErrorInfo(code="corpus_not_query_enabled", message=str(exc), retryable=False),
         )
     except RestrictedDocumentAccessDeniedError:
-        empty_evidence = _build_empty_evidence(request, user_goal)
+        empty_evidence = _build_empty_evidence(effective_scope, user_goal)
         return SpecialistResponse(
             target="rag-specialist",
             status="no_answer",
@@ -298,7 +318,11 @@ def delegate_to_rag_agent(
             confidence="low",
             result=RagResultPayload(
                 evidence=empty_evidence,
-                diagnostics=RagResultDiagnostics(no_answer_reason="restricted_access_denied"),
+                diagnostics=RagResultDiagnostics(
+                    no_answer_reason="restricted_access_denied",
+                    resolved_scope_corpus=effective_scope.corpus,
+                    resolved_scope_collection=effective_scope.collection,
+                ),
             ),
         )
     except RetrievalBackendError as exc:
@@ -307,7 +331,8 @@ def delegate_to_rag_agent(
             status="error",
             confidence="low",
             result=_build_rag_result_payload(
-                evidence=_build_empty_evidence(request, user_goal),
+                evidence=_build_empty_evidence(effective_scope, user_goal),
+                resolved_scope=effective_scope,
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
                 curriculum_course_plan=curriculum_course_plan,
@@ -325,6 +350,7 @@ def delegate_to_rag_agent(
             confidence="low",
             result=_build_rag_result_payload(
                 evidence=evidence,
+                resolved_scope=effective_scope,
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
                 curriculum_course_plan=curriculum_course_plan,
@@ -346,6 +372,7 @@ def delegate_to_rag_agent(
             ),
             result=_build_rag_result_payload(
                 evidence=evidence,
+                resolved_scope=effective_scope,
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
                 curriculum_course_plan=curriculum_course_plan,
@@ -367,6 +394,7 @@ def delegate_to_rag_agent(
             confidence="low",
             result=_build_rag_result_payload(
                 evidence=supporting_evidence,
+                resolved_scope=effective_scope,
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
                 curriculum_course_plan=curriculum_course_plan,
@@ -387,9 +415,11 @@ def delegate_to_rag_agent(
             confidence="low",
             result=_build_rag_result_payload(
                 evidence=supporting_evidence,
+                resolved_scope=effective_scope,
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
                 curriculum_course_plan=curriculum_course_plan,
+                curriculum_program_family_plan=curriculum_program_family_plan,
                 no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
             ),
         )
@@ -402,12 +432,13 @@ def delegate_to_rag_agent(
             target="rag-specialist",
             status="no_answer",
             answer_text=_build_no_answer_response(
-                _build_empty_evidence(request, user_goal),
+                _build_empty_evidence(effective_scope, user_goal),
                 resolved_policy_title=_resolved_policy_title(handbook_plan),
             ),
             confidence="low",
             result=_build_rag_result_payload(
-                evidence=_build_empty_evidence(request, user_goal),
+                evidence=_build_empty_evidence(effective_scope, user_goal),
+                resolved_scope=effective_scope,
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
                 curriculum_course_plan=curriculum_course_plan,
@@ -445,6 +476,7 @@ def delegate_to_rag_agent(
         confidence=confidence,
         result=_build_rag_result_payload(
             evidence=finalized_evidence,
+            resolved_scope=effective_scope,
             handbook_plan=handbook_plan,
             curriculum_plan=curriculum_plan,
             curriculum_course_plan=curriculum_course_plan,
@@ -454,14 +486,64 @@ def delegate_to_rag_agent(
     )
 
 
-def _resolve_effective_curriculum_user_goal(
+def _resolve_request_scope(
     request: SpecialistRequest,
+    *,
+    user_goal: str,
+) -> KnowledgeScope:
+    if request.payload.scope is not None:
+        return request.payload.scope
+
+    handbook_plan = plan_student_handbook_query(user_goal)
+    curriculum_plan = plan_curriculum_query(
+        user_goal,
+        verified_major=request.context.actor.major,
+    )
+    curriculum_course_plan = plan_curriculum_course_query(user_goal)
+    curriculum_program_family_plan = plan_curriculum_program_family_query(user_goal)
+
+    has_curriculum_signal = _has_curriculum_scope_signal(
+        user_goal=user_goal,
+        curriculum_plan=curriculum_plan,
+        curriculum_course_plan=curriculum_course_plan,
+        curriculum_program_family_plan=curriculum_program_family_plan,
+    )
+    has_handbook_signal = handbook_plan.status != "pass_through"
+
+    if has_curriculum_signal and not has_handbook_signal:
+        return KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+    if has_handbook_signal and not has_curriculum_signal:
+        return KnowledgeScope(corpus="regulations", collection="student_handbook")
+    if has_curriculum_signal and has_handbook_signal:
+        if handbook_plan.status == "resolved":
+            return KnowledgeScope(corpus="regulations", collection="student_handbook")
+        return KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+    return KnowledgeScope(corpus="regulations", collection="student_handbook")
+
+
+def _has_curriculum_scope_signal(
+    *,
+    user_goal: str,
+    curriculum_plan: CurriculumQueryPlan,
+    curriculum_course_plan: CurriculumCourseQueryPlan | None,
+    curriculum_program_family_plan: CurriculumProgramFamilyQueryPlan | None,
+) -> bool:
+    if curriculum_course_plan is not None or curriculum_program_family_plan is not None:
+        return True
+    if curriculum_plan.status != "pass_through":
+        return True
+    normalized_goal = _normalize_text(user_goal)
+    return any(cue in normalized_goal for cue in _CURRICULUM_SCOPE_CUES)
+
+
+def _resolve_effective_curriculum_user_goal(
+    scope: KnowledgeScope,
     *,
     user_goal: str,
     curriculum_follow_up: CurriculumFollowUpSlots,
     recent_goal: str,
 ) -> str:
-    if request.payload.scope.corpus != "curriculum" or request.payload.scope.collection != "curriculum_plan":
+    if scope.corpus != "curriculum" or scope.collection != "curriculum_plan":
         return user_goal
     rewritten_goal = _rewrite_curriculum_follow_up_goal(
         user_goal=user_goal,
@@ -566,11 +648,11 @@ def _extract_curriculum_follow_up_program_fragment(normalized_query: str) -> str
     return compact_query
 
 
-def _build_empty_evidence(request: SpecialistRequest, user_goal: str) -> EvidenceBundle:
+def _build_empty_evidence(scope: KnowledgeScope, user_goal: str) -> EvidenceBundle:
     return EvidenceBundle(
         query_text=user_goal,
-        corpus=request.payload.scope.corpus,
-        collection=request.payload.scope.collection,
+        corpus=scope.corpus,
+        collection=scope.collection,
     )
 
 
@@ -777,19 +859,20 @@ def _clarification_slot_subject(user_goal: str, confirmed_slot_terms: tuple[str,
 
 
 def _plan_handbook_query(
-    request: SpecialistRequest,
+    scope: KnowledgeScope,
     user_goal: str,
 ) -> HandbookQueryPlan | None:
-    if request.payload.scope.corpus != "regulations" or request.payload.scope.collection != "student_handbook":
+    if scope.corpus != "regulations" or scope.collection != "student_handbook":
         return None
     return plan_student_handbook_query(user_goal)
 
 
 def _plan_curriculum_query(
     request: SpecialistRequest,
+    scope: KnowledgeScope,
     user_goal: str,
 ) -> CurriculumQueryPlan | None:
-    if request.payload.scope.corpus != "curriculum" or request.payload.scope.collection != "curriculum_plan":
+    if scope.corpus != "curriculum" or scope.collection != "curriculum_plan":
         return None
     return plan_curriculum_query(
         user_goal,
@@ -798,19 +881,19 @@ def _plan_curriculum_query(
 
 
 def _plan_curriculum_course_query(
-    request: SpecialistRequest,
+    scope: KnowledgeScope,
     user_goal: str,
 ) -> CurriculumCourseQueryPlan | None:
-    if request.payload.scope.corpus != "curriculum" or request.payload.scope.collection != "curriculum_plan":
+    if scope.corpus != "curriculum" or scope.collection != "curriculum_plan":
         return None
     return plan_curriculum_course_query(user_goal)
 
 
 def _plan_curriculum_program_family_query(
-    request: SpecialistRequest,
+    scope: KnowledgeScope,
     user_goal: str,
 ) -> CurriculumProgramFamilyQueryPlan | None:
-    if request.payload.scope.corpus != "curriculum" or request.payload.scope.collection != "curriculum_plan":
+    if scope.corpus != "curriculum" or scope.collection != "curriculum_plan":
         return None
     return plan_curriculum_program_family_query(user_goal)
 
@@ -882,6 +965,7 @@ def _should_fail_closed_resolved_policy_clause(
 def _build_rag_result_payload(
     *,
     evidence: EvidenceBundle,
+    resolved_scope: KnowledgeScope | None,
     handbook_plan: HandbookQueryPlan | None,
     curriculum_plan: CurriculumQueryPlan | None = None,
     curriculum_course_plan: CurriculumCourseQueryPlan | None = None,
@@ -891,6 +975,7 @@ def _build_rag_result_payload(
 ) -> RagResultPayload:
     diagnostics = _build_rag_result_diagnostics(
         evidence=evidence,
+        resolved_scope=resolved_scope,
         handbook_plan=handbook_plan,
         curriculum_plan=curriculum_plan,
         curriculum_course_plan=curriculum_course_plan,
@@ -907,6 +992,7 @@ def _build_rag_result_payload(
 def _build_rag_result_diagnostics(
     *,
     evidence: EvidenceBundle,
+    resolved_scope: KnowledgeScope | None,
     handbook_plan: HandbookQueryPlan | None,
     curriculum_plan: CurriculumQueryPlan | None = None,
     curriculum_course_plan: CurriculumCourseQueryPlan | None = None,
@@ -915,14 +1001,27 @@ def _build_rag_result_diagnostics(
     allow_session_follow_up: bool = False,
 ) -> RagResultDiagnostics | None:
     if (
-        handbook_plan is None
+        resolved_scope is None
+        and handbook_plan is None
         and curriculum_plan is None
         and curriculum_course_plan is None
         and curriculum_program_family_plan is None
     ):
         return None
+    if (
+        handbook_plan is None
+        and curriculum_plan is None
+        and curriculum_course_plan is None
+        and curriculum_program_family_plan is None
+    ):
+        return RagResultDiagnostics(
+            resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
+            resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
+        )
     if curriculum_program_family_plan is not None:
         return RagResultDiagnostics(
+            resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
+            resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
             no_answer_reason=no_answer_reason,
             clarification_reason=curriculum_program_family_plan.clarification_reason,
             retrieved_title_summary=_summarize_retrieved_titles(evidence),
@@ -934,6 +1033,8 @@ def _build_rag_result_diagnostics(
         )
     if curriculum_course_plan is not None:
         return RagResultDiagnostics(
+            resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
+            resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
             no_answer_reason=no_answer_reason,
             retrieved_title_summary=_summarize_retrieved_titles(evidence),
             resolution_mode=curriculum_course_plan.resolution_mode,
@@ -947,6 +1048,8 @@ def _build_rag_result_diagnostics(
         )
     if handbook_plan is not None and handbook_plan.status != "pass_through":
         return RagResultDiagnostics(
+            resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
+            resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
             resolved_policy_document_id=handbook_plan.resolved_policy_document_id,
             resolved_policy_title=handbook_plan.resolved_policy_title,
             rewritten_query=(
@@ -963,6 +1066,8 @@ def _build_rag_result_diagnostics(
         allow_session_follow_up=allow_session_follow_up,
     )
     return RagResultDiagnostics(
+        resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
+        resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
         resolved_policy_document_id=(
             curriculum_plan.target_document_ids[0] if curriculum_plan.target_document_ids else ""
         ),

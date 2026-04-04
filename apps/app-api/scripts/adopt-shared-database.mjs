@@ -267,7 +267,15 @@ function compareColumnSpec(actual, expected) {
   );
 }
 
-export function validateInventoryAgainstExpectedTables(inventory, expectedTables) {
+function hasPlannedTarget(plannedTargetKeys, expectedKey, qualifiedName) {
+  return plannedTargetKeys.has(expectedKey) || plannedTargetKeys.has(qualifiedName);
+}
+
+export function validateInventoryAgainstExpectedTables(
+  inventory,
+  expectedTables,
+  plannedTargetKeys = new Set(),
+) {
   const mismatches = [];
   for (const [qualifiedName, actualTable] of inventory.tables.entries()) {
     const expectedTable = expectedTables.get(qualifiedName);
@@ -276,16 +284,12 @@ export function validateInventoryAgainstExpectedTables(inventory, expectedTables
     }
     const actualColumns = actualTable.columns;
     const expectedColumns = expectedTable.columns;
-    if (actualColumns.size !== expectedColumns.size) {
-      mismatches.push(
-        `${qualifiedName} column set mismatch: expected ${expectedColumns.size}, got ${actualColumns.size}`,
-      );
-      continue;
-    }
     for (const [columnName, expectedColumn] of expectedColumns.entries()) {
       const actualColumn = actualColumns.get(columnName);
       if (!actualColumn) {
-        mismatches.push(`${qualifiedName} missing column ${columnName}`);
+        if (!hasPlannedTarget(plannedTargetKeys, `${qualifiedName}:${columnName}`, qualifiedName)) {
+          mismatches.push(`${qualifiedName} missing column ${columnName}`);
+        }
         continue;
       }
       if (!compareColumnSpec(actualColumn, expectedColumn)) {
@@ -294,13 +298,21 @@ export function validateInventoryAgainstExpectedTables(inventory, expectedTables
         );
       }
     }
+    for (const columnName of actualColumns.keys()) {
+      if (!expectedColumns.has(columnName)
+        && !hasPlannedTarget(plannedTargetKeys, `${qualifiedName}:${columnName}`, qualifiedName)) {
+        mismatches.push(`${qualifiedName} unexpected column ${columnName}`);
+      }
+    }
     for (const constraint of expectedTable.constraints) {
-      if (!actualTable.constraints.has(constraint)) {
+      if (!actualTable.constraints.has(constraint)
+        && !hasPlannedTarget(plannedTargetKeys, `${qualifiedName}#${constraint}`, qualifiedName)) {
         mismatches.push(`${qualifiedName} missing constraint ${constraint}`);
       }
     }
     for (const index of expectedTable.indexes) {
-      if (!actualTable.indexes.has(index)) {
+      if (!actualTable.indexes.has(index)
+        && !hasPlannedTarget(plannedTargetKeys, `${qualifiedName}@${index}`, qualifiedName)) {
         mismatches.push(`${qualifiedName} missing index ${index}`);
       }
     }
@@ -341,7 +353,6 @@ export function buildAdoptionPlan({ inventory, migrationContext }) {
     throw new Error("Missing baseline drizzle snapshot for shared-db adoption");
   }
   const expectedLatestTables = buildExpectedTableSpecs(migrationContext.latestSnapshot);
-  const mismatches = validateInventoryAgainstExpectedTables(inventory, expectedLatestTables);
   const state = classifySharedDatabaseState({
     inventory,
     snapshot0000,
@@ -360,6 +371,12 @@ export function buildAdoptionPlan({ inventory, migrationContext }) {
       }
     }
   }
+  const plannedTargetKeys = new Set(statements.map((item) => item.target.existsKey));
+  const mismatches = validateInventoryAgainstExpectedTables(
+    inventory,
+    expectedLatestTables,
+    plannedTargetKeys,
+  );
   const journalRowsToInsert = migrationContext.migrations.filter(
     (migration) => !inventory.journalRows.some((row) => row.hash === migration.hash),
   );

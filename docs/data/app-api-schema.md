@@ -223,6 +223,7 @@ updated: 2026-04-03
 - `trace_id`
 - `requested_capability` nullable
 - `requested_scope_json` nullable
+- `resolved_scope_json` nullable
 - `selected_target` nullable
 - `status`
 - `error_code` nullable
@@ -260,6 +261,8 @@ updated: 2026-04-03
 - `principal_type` / `principal_label` 是 command-side 落盘后的最小 operator projection metadata；不要再把 raw auth/session snapshot 宽 JSON 写入这里
 - `entitlement_snapshot_id` / `entitlement_groups_json` / `visibility_scope` / `applicability_scope` 只保存 app-layer 已收口的最小授权摘要，用于 request projection 与 operator-facing restricted request diagnostics；不要把 raw provider claims、raw cookie、raw session 或宽 auth snapshot 落进这里
 - `requested_scope_json` 与 `source_doc_ids_json` 使用结构化 JSON，不把 Python-side payload 原样塞进宽 JSON dump
+- `requested_scope_json` 表示 accept 时上游显式请求的 scope，可为空
+- `resolved_scope_json` 表示 finalized execution 实际命中的 serving scope；如果 specialist 自主解析 surface，这里必须落最终解析结果
 - `diagnostics_json` 只保存 operator-facing summary diagnostics，例如 resolved policy object、rewritten query、clarification/no-answer reason 与 retrieved title summary；不要写 raw evidence snippet、score 或 backend payload
 
 ## `runtime.projection_outbox`
@@ -315,6 +318,7 @@ updated: 2026-04-03
 - `policy_projection_version` nullable
 - `requested_capability` nullable
 - `requested_scope_summary` nullable
+- `resolved_scope_summary` nullable
 - `collection` nullable
 - `selected_target` nullable
 - `status`
@@ -358,6 +362,8 @@ updated: 2026-04-03
 
 - `request_id` 与 `runtime.request_execution.request_id` 一一对应
 - `accepted` 阶段必须先 seed 这张表；`finalized` 阶段必须 upsert typed execution outcome
+- `accepted` 阶段的 `resolved_scope_summary` 与 `collection` 必须保持 `null`
+- `finalized` 阶段的 `collection` 必须按 `resolved_scope_summary` 对应的最终 collection 回填，不能继续拿 `requested_scope_summary` 充当真实执行 collection
 - `projection materialization` 负责更新 `projection_lag_ms`、`measured_at` 与 projection health summary，不回写 `runtime.request_execution`
 - 这是 app-owned summary fact family，不保存 raw prompt、raw answer、raw transcript、raw retrieval payload、raw auth material
 - token / model / cost 字段只能来自 execution-side typed telemetry seam，不从 panel 或 sink query 反推
@@ -384,6 +390,7 @@ updated: 2026-04-03
 - `applicability_scope` nullable
 - `requested_capability` nullable
 - `requested_scope_json` nullable
+- `resolved_scope_json` nullable
 - `selected_target` nullable
 - `status`
 - `error_code` nullable
@@ -406,6 +413,7 @@ updated: 2026-04-03
 
 - `request_id` 与 `runtime.request_execution.request_id` 一一对应
 - 这是 panel-facing materialized view，不要求与 command-side 列完全相同
+- `requested_scope_json` 用于展示调用方显式约束；`resolved_scope_json` 用于展示 specialist 最终解析的 serving scope
 - 不从 `chat.messages` 反推生成
 - 这层允许展示 app-layer 已物化的最小授权摘要，但不承担 canonical authz store，也不回放 provider/session 原始材料
 - `diagnostics_json` 只承载 panel 可直接消费的 summary-level explanation，不承载 retrieval internals

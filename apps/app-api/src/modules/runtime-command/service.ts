@@ -32,11 +32,6 @@ import type {
   RequestExecutionStatus,
 } from "./store";
 
-const DEFAULT_REQUESTED_SCOPE = {
-  corpus: "regulations",
-  collection: "student_handbook",
-} satisfies RequestedScope;
-
 const NEW_CONVERSATION_FINGERPRINT_SCOPE = "__new__";
 
 export interface ChatCommandPayload {
@@ -86,7 +81,7 @@ export interface ChatCommandServiceDependencies {
     conversationDiscriminator: string;
     prompt: string;
     requestedCapability: string;
-    requestedScope: RequestedScope;
+    requestedScope: RequestedScope | null;
   }) => string;
   conversationStore: ChatConversationStore;
   generateId?: (prefix: string) => string;
@@ -104,7 +99,7 @@ function defaultComputeFingerprint(input: {
   conversationDiscriminator: string;
   prompt: string;
   requestedCapability: string;
-  requestedScope: RequestedScope;
+  requestedScope: RequestedScope | null;
 }): string {
   return createHash("sha256")
     .update(
@@ -209,7 +204,7 @@ function resolveValidatedPayload(payload: ChatCommandPayload): {
   conversationId: string | null;
   prompt: string;
   requestedCapability: string;
-  requestedScope: RequestedScope;
+  requestedScope: RequestedScope | null;
 } {
   const conversationId = normalizeString(payload.conversationId) || null;
 
@@ -233,7 +228,7 @@ function resolveValidatedPayload(payload: ChatCommandPayload): {
     });
   }
 
-  const requestedScope = normalizeRequestedScope(payload.requestedScope) ?? DEFAULT_REQUESTED_SCOPE;
+  const requestedScope = normalizeRequestedScope(payload.requestedScope);
   return {
     conversationId,
     prompt,
@@ -259,7 +254,7 @@ function buildAcceptedWrite(input: {
   requestFingerprintSha256: string | null;
   requestId: string;
   requestedCapability: string;
-  requestedScope: RequestedScope;
+  requestedScope: RequestedScope | null;
   surface: string;
   traceId: string;
   userMessageId: string;
@@ -302,6 +297,7 @@ function buildAcceptedWrite(input: {
       traceId: input.traceId,
       requestedCapability: input.requestedCapability,
       requestedScope: input.requestedScope,
+      resolvedScope: null,
       selectedTarget: null,
       status: "accepted",
       errorCode: null,
@@ -321,6 +317,7 @@ function buildAcceptedWrite(input: {
       requestId: input.requestId,
       requestedCapability: input.requestedCapability,
       requestedScope: input.requestedScope,
+      resolvedScope: null,
       startedAt: input.now,
       surface: input.surface,
       traceId: input.traceId,
@@ -404,7 +401,7 @@ function buildFinalizedWrite(input: {
   principal: ResolvedAppPrincipal;
   requestId: string;
   requestedCapability: string;
-  requestedScope: RequestedScope;
+  requestedScope: RequestedScope | null;
   response: SupervisorExecutionResponse;
   surface: string;
   startedAt: string;
@@ -420,6 +417,10 @@ function buildFinalizedWrite(input: {
   } satisfies SupervisorExecutionResponse;
   const diagnostics = extractRequestDiagnosticsSummary(input.response.result);
   const sourceDocIds = extractSourceDocIds(input.response.result);
+  const resolvedScope = resolveFinalizedScope({
+    requestedScope: input.requestedScope,
+    response: normalizedSupervisorResponse,
+  });
 
   let assistantKind: ChatMessage["kind"];
   let assistantText: string;
@@ -533,7 +534,8 @@ function buildFinalizedWrite(input: {
       requestFingerprintSha256: null,
       traceId: normalizedTraceId,
       requestedCapability: "knowledge",
-      requestedScope: DEFAULT_REQUESTED_SCOPE,
+      requestedScope: input.requestedScope,
+      resolvedScope,
       selectedTarget: input.response.selectedTarget,
       status,
       errorCode,
@@ -557,6 +559,7 @@ function buildFinalizedWrite(input: {
       requestId: input.requestId,
       requestedCapability: input.requestedCapability,
       requestedScope: input.requestedScope,
+      resolvedScope,
       response: normalizedSupervisorResponse,
       sourceDocIds,
       startedAt: input.startedAt,
@@ -605,6 +608,19 @@ function buildFinalizedWrite(input: {
     },
     write,
   };
+}
+
+function resolveFinalizedScope(input: {
+  requestedScope: RequestedScope | null;
+  response: SupervisorExecutionResponse;
+}): RequestedScope | null {
+  const corpus = input.response.observability?.resolvedScopeCorpus?.trim();
+  const collection = input.response.observability?.resolvedScopeCollection?.trim();
+  if (corpus && collection) {
+    return { collection, corpus };
+  }
+
+  return input.requestedScope;
 }
 
 export function buildChatCommandService(
@@ -873,6 +889,7 @@ export function buildChatCommandService(
         requestId,
         requestedCapability: validatedPayload.requestedCapability,
         requestedScope: validatedPayload.requestedScope,
+        resolvedScope: finalized.write.requestExecution.resolvedScope,
         surface,
         traceId: finalized.write.requestExecution.traceId,
       });
@@ -883,6 +900,7 @@ export function buildChatCommandService(
         requestId,
         requestedCapability: validatedPayload.requestedCapability,
         requestedScope: validatedPayload.requestedScope,
+        resolvedScope: finalized.write.requestExecution.resolvedScope,
         retryable: finalized.write.assistantMessage.retryable,
         selectedTarget: finalized.write.requestExecution.selectedTarget,
         sourceDocIds: finalized.write.requestExecution.sourceDocIds,

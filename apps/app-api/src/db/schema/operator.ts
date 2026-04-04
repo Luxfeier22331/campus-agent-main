@@ -58,6 +58,7 @@ export const requestProjection = operator.table(
     applicabilityScope: text("applicability_scope"),
     requestedCapability: text("requested_capability"),
     requestedScopeJson: jsonb("requested_scope_json").$type<Record<string, unknown> | null>(),
+    resolvedScopeJson: jsonb("resolved_scope_json").$type<Record<string, unknown> | null>(),
     selectedTarget: text("selected_target"),
     status: text("status").notNull(),
     errorCode: text("error_code"),

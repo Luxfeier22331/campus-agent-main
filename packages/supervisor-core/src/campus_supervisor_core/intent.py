@@ -72,15 +72,14 @@ def frame_intent(
             personalization_mode=personalization_mode,
         )
 
-    missing_slots = () if context.requested_scope is not None else ("requested_scope",)
     return IntentFrame(
         capability="knowledge",
         task_kind="knowledge_lookup",
         domain_candidates=_knowledge_domains(context),
-        missing_slots=missing_slots,
+        missing_slots=(),
         risk_level="low",
-        needs_clarification=bool(missing_slots),
-        suggested_next_action="clarify" if missing_slots else "delegate",
+        needs_clarification=False,
+        suggested_next_action="delegate",
         personalization_mode=personalization_mode,
         clarification_subject=_clarification_subject(
             normalized_goal,

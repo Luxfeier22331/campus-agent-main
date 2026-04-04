@@ -102,7 +102,7 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertIsNone(decision.primary_collection)
         self.assertEqual(decision.intent_frame.task_kind, "availability_check")
 
-    def test_route_request_returns_clarification_decision_when_knowledge_scope_is_missing(self) -> None:
+    def test_route_request_delegates_knowledge_when_scope_is_missing(self) -> None:
         request = SupervisorRequest(
             user_goal="奖学金怎么申请？",
             requested_capability="knowledge",
@@ -110,12 +110,12 @@ class SupervisorRoutingTest(unittest.TestCase):
 
         decision = route_request(SupervisorRequestContext.from_request(request))
 
-        self.assertIsNone(decision.target)
+        self.assertEqual(decision.target, "rag-specialist")
         self.assertIsNone(decision.primary_corpus)
         self.assertIsNone(decision.primary_collection)
-        self.assertTrue(decision.intent_frame.needs_clarification)
-        self.assertEqual(decision.intent_frame.suggested_next_action, "clarify")
-        self.assertEqual(decision.intent_frame.missing_slots, ("requested_scope",))
+        self.assertFalse(decision.intent_frame.needs_clarification)
+        self.assertEqual(decision.intent_frame.suggested_next_action, "delegate")
+        self.assertEqual(decision.intent_frame.missing_slots, ())
 
     def test_route_request_returns_approval_required_for_high_risk_knowledge_request(self) -> None:
         request = SupervisorRequest(

@@ -282,9 +282,10 @@ list endpoints 额外支持：
     "surface": "public_chat_web",
     "status": "completed",
     "requestedCapability": "knowledge",
-    "requestedScope": {
-      "corpus": "regulations",
-      "collection": "student_handbook"
+    "requestedScope": null,
+    "resolvedScope": {
+      "corpus": "curriculum",
+      "collection": "curriculum_plan"
     },
     "selectedTarget": "rag-specialist",
     "startedAt": "2026-04-03T00:00:00.000Z",
@@ -336,6 +337,8 @@ list endpoints 额外支持：
 
 - 这是 request-scoped observability summary，不是 raw execution dump
 - 不返回 raw prompt、raw answer、raw transcript、raw auth material、raw retrieval payload
+- `requestedScope` 反映 accept 时上游是否显式约束 scope，可为 `null`
+- `resolvedScope` 反映 execution side 最终命中的 serving surface，是 panel 侧 quality / collection 归因的真相源
 - `retrievalAttempted`、`citationExpected`、`aclDecision` 必须来自 typed execution seam 或 app-owned runtime fact family
 - token / model 字段必须来自 execution-side typed telemetry seam，不从 sink query 反推
 - `links.*` 必须来自 app-owned backlink projection，而不是 route-time sink query

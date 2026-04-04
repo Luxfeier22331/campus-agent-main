@@ -398,8 +398,8 @@ export async function runSharedDatabaseDriftReconcile({
       );
     }
 
-    const adoptionResult = await runSharedDatabaseAdoption({ apply: false, env });
-    if (adoptionResult.plan.mismatches.length > 0 || adoptionResult.plan.statements.length > 0) {
+    let adoptionResult = await runSharedDatabaseAdoption({ apply: false, env });
+    if (adoptionResult.plan.mismatches.length > 0) {
       throw new Error(
         `Shared database drift reconciliation did not converge to repo truth:\n${JSON.stringify(
           {
@@ -410,6 +410,22 @@ export async function runSharedDatabaseDriftReconcile({
           2,
         )}`,
       );
+    }
+    if (adoptionResult.plan.statements.length > 0 || adoptionResult.plan.journalRowsToInsert.length > 0) {
+      await runSharedDatabaseAdoption({ apply: true, env });
+      adoptionResult = await runSharedDatabaseAdoption({ apply: false, env });
+      if (adoptionResult.plan.mismatches.length > 0 || adoptionResult.plan.statements.length > 0) {
+        throw new Error(
+          `Shared database drift reconciliation did not converge to repo truth:\n${JSON.stringify(
+            {
+              mismatches: adoptionResult.plan.mismatches,
+              statements: adoptionResult.plan.statements.map((item) => item.target.existsKey),
+            },
+            null,
+            2,
+          )}`,
+        );
+      }
     }
 
     return {

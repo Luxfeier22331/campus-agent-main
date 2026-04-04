@@ -39,7 +39,8 @@ def route_request(context: SupervisorRequestContext) -> RoutingDecision:
             intent_frame=intent_frame,
         )
 
-    assert_scope_is_query_enabled(context.requested_scope)
+    if context.requested_scope is not None:
+        assert_scope_is_query_enabled(context.requested_scope)
 
     return RoutingDecision(
         target="rag-specialist",

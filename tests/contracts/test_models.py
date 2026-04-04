@@ -250,6 +250,8 @@ class ContractModelsTest(unittest.TestCase):
         self.assertEqual(
             asdict(diagnostics),
             {
+                "resolved_scope_corpus": None,
+                "resolved_scope_collection": "",
                 "resolved_policy_document_id": "",
                 "resolved_policy_title": "",
                 "rewritten_query": "",

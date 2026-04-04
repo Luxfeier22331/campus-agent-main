@@ -3,7 +3,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { dirname, resolve } from "node:path";
-import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { Client } from "pg";
@@ -17,40 +16,16 @@ import {
   type SupervisorTransportError,
 } from "../src/modules/runtime-command";
 import type { SupervisorExecutionClient } from "../src/modules/integration/supervisor";
-import { bootstrapSharedProductDatabase } from "../scripts/shared-product-database-bootstrap.mjs";
+import {
+  buildSharedDbIntegrationEnv,
+  convergeSharedDbForAppApiIntegration,
+  resolveSharedDbSslConfig,
+} from "./shared-db-integration-helpers";
 
 const RUN_INTEGRATION = process.env.RUN_APP_API_SHARED_DB_INTEGRATION === "1";
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const envFilePath = resolve(appRoot, ".env");
 const devVarsFilePath = resolve(appRoot, ".dev.vars");
-
-function loadOptionalEnvFile(filePath: string): void {
-  try {
-    process.loadEnvFile(filePath);
-  } catch (error) {
-    if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") {
-      throw error;
-    }
-  }
-}
-
-function readRequiredEnv(key: string): string {
-  const value = process.env[key]?.trim();
-  if (!value) {
-    throw new Error(`${key} is required for the app-api shared product DB integration test.`);
-  }
-  return value;
-}
-
-function resolveSslConfig():
-  | false
-  | {
-      rejectUnauthorized: false;
-    } {
-  return process.env.APP_API_DATABASE_SSLMODE?.trim() === "disable"
-    ? false
-    : { rejectUnauthorized: false };
-}
 
 async function readJson(response: Response) {
   return response.json();
@@ -83,55 +58,22 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
   let env: Env;
 
   beforeAll(async () => {
-    loadOptionalEnvFile(envFilePath);
-    loadOptionalEnvFile(devVarsFilePath);
+    const { managementConnectionString, runtimeConnectionString } =
+      await convergeSharedDbForAppApiIntegration({
+        contextLabel: "the app-api shared product DB integration test",
+        devVarsFilePath,
+        envFilePath,
+      });
 
-    const runtimeConnectionString = readRequiredEnv(
-      "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB",
-    );
-    const managementConnectionString =
-      process.env.APP_API_MANAGEMENT_DATABASE_URL?.trim() || runtimeConnectionString;
-
-    await bootstrapSharedProductDatabase({
-      APP_API_DATABASE_SSLMODE: process.env.APP_API_DATABASE_SSLMODE?.trim() || "require",
-      APP_API_MANAGEMENT_DATABASE_URL: managementConnectionString,
-      BETTER_AUTH_SECRET:
-        process.env.BETTER_AUTH_SECRET?.trim() || "dev-secret-dev-secret-dev-secret",
-      PUBLIC_CHAT_WEB_ORIGIN:
-        process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com",
+    env = buildSharedDbIntegrationEnv({
+      managementConnectionString,
+      runtimeConnectionString,
     });
-
-    env = {
-      APP_API_NAME: process.env.APP_API_NAME?.trim() || "campus-agent-app-api",
-      APP_API_ENVIRONMENT: "test",
-      APP_API_DATABASE_SSLMODE:
-        process.env.APP_API_DATABASE_SSLMODE?.trim() === "disable"
-          ? "disable"
-          : process.env.APP_API_DATABASE_SSLMODE?.trim() === "prefer"
-            ? "prefer"
-            : "require",
-      APP_API_DB: {
-        connectionString: runtimeConnectionString,
-      },
-      APP_API_INTERNAL_SHARED_SECRET:
-        process.env.APP_API_INTERNAL_SHARED_SECRET?.trim() || "shared-db-integration-secret",
-      APP_API_MANAGEMENT_DATABASE_URL: managementConnectionString,
-      APP_API_OPERATOR_EMAIL_ALLOWLIST:
-        process.env.APP_API_OPERATOR_EMAIL_ALLOWLIST?.trim() || "ops@example.com",
-      BETTER_AUTH_SECRET:
-        process.env.BETTER_AUTH_SECRET?.trim() || "dev-secret-dev-secret-dev-secret",
-      PUBLIC_CHAT_WEB_ORIGIN:
-        process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com",
-      SUPERVISOR_API_BASE_URL:
-        process.env.SUPERVISOR_API_BASE_URL?.trim() || "https://supervisor.internal",
-      SUPERVISOR_API_SHARED_SECRET:
-        process.env.SUPERVISOR_API_SHARED_SECRET?.trim() || "shared-db-integration-secret",
-    };
 
     app = createApp(env);
     client = new Client({
       connectionString: managementConnectionString,
-      ssl: resolveSslConfig(),
+      ssl: resolveSharedDbSslConfig(),
     });
     await client.connect();
   });

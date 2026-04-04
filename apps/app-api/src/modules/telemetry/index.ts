@@ -29,7 +29,8 @@ interface BaseRequestTelemetry {
   conversationId: string;
   requestId: string;
   requestedCapability: string;
-  requestedScope: RequestedScope;
+  requestedScope?: RequestedScope | null;
+  resolvedScope?: RequestedScope | null;
   surface: string;
   traceId: string;
 }
@@ -107,7 +108,11 @@ function hashIdentifier(value: string | null): string | null {
   return createHash("sha256").update(value).digest("hex").slice(0, 16);
 }
 
-function toRequestedScopeSummary(scope: RequestedScope): string {
+function toScopeSummary(scope: RequestedScope | null | undefined): string | null {
+  if (!scope) {
+    return null;
+  }
+
   return `${scope.corpus}/${scope.collection}`;
 }
 
@@ -122,6 +127,7 @@ function toSourceDocIdsSummary(sourceDocIds: string[]): string | null {
 function applyRequestTags(input: {
   requestedCapability?: string | null;
   requestedScope?: RequestedScope | null;
+  resolvedScope?: RequestedScope | null;
   requestId?: string | null;
   route?: string | null;
   selectedTarget?: string | null;
@@ -151,7 +157,10 @@ function applyRequestTags(input: {
     Sentry.setTag("requested_capability", input.requestedCapability);
   }
   if (input.requestedScope) {
-    Sentry.setTag("requested_scope", toRequestedScopeSummary(input.requestedScope));
+    Sentry.setTag("requested_scope", toScopeSummary(input.requestedScope));
+  }
+  if (input.resolvedScope) {
+    Sentry.setTag("resolved_scope", toScopeSummary(input.resolvedScope));
   }
 }
 
@@ -243,7 +252,8 @@ export function createAppTelemetry(
         projection_stage: input.projectionStage,
         request_id: input.requestId,
         requested_capability: input.requestedCapability,
-        requested_scope_summary: toRequestedScopeSummary(input.requestedScope),
+        requested_scope_summary: toScopeSummary(input.requestedScope),
+        resolved_scope_summary: toScopeSummary(input.resolvedScope),
         surface: input.surface,
         trace_id: input.traceId,
       });
@@ -266,7 +276,7 @@ export function createAppTelemetry(
         event_type: "request.accepted",
         request_id: input.requestId,
         requested_capability: input.requestedCapability,
-        requested_scope_summary: toRequestedScopeSummary(input.requestedScope),
+        requested_scope_summary: toScopeSummary(input.requestedScope),
         status: input.status,
         surface: input.surface,
         trace_id: input.traceId,
@@ -278,6 +288,7 @@ export function createAppTelemetry(
         requestId: input.requestId,
         requestedCapability: input.requestedCapability,
         requestedScope: input.requestedScope,
+        resolvedScope: input.resolvedScope,
         selectedTarget: input.selectedTarget,
         status: input.status,
         surface: input.surface,
@@ -291,7 +302,8 @@ export function createAppTelemetry(
         event_type: "request.finalized",
         request_id: input.requestId,
         requested_capability: input.requestedCapability,
-        requested_scope_summary: toRequestedScopeSummary(input.requestedScope),
+        requested_scope_summary: toScopeSummary(input.requestedScope),
+        resolved_scope_summary: toScopeSummary(input.resolvedScope),
         retryable: input.retryable,
         selected_target: input.selectedTarget,
         source_doc_ids_count: input.sourceDocIds.length,
@@ -318,7 +330,7 @@ export function createAppTelemetry(
         event_type: "request.transport_error",
         request_id: input.requestId,
         requested_capability: input.requestedCapability,
-        requested_scope_summary: toRequestedScopeSummary(input.requestedScope),
+        requested_scope_summary: toScopeSummary(input.requestedScope),
         retryable: input.retryable,
         status: "error",
         surface: input.surface,

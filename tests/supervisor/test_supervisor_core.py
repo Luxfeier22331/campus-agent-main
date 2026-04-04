@@ -278,6 +278,29 @@ class SupervisorCoreTest(unittest.TestCase):
 
     def test_handle_request_delegates_knowledge_without_explicit_scope_to_rag_specialist(self) -> None:
         captured_requests: list[SpecialistRequest] = []
+        request_context = ContextProjection(
+            actor=ActorContext(
+                user_id="student-001",
+                principal_id="principal-001",
+            ),
+            profile_memory=ProfileMemorySummary(
+                items=(
+                    ProfileMemoryItem(
+                        item_id="memory-001",
+                        key="recent_goal",
+                        value="奖学金申请",
+                        source_type="user_declared",
+                        confidence="high",
+                        visibility="user_visible",
+                        last_verified_at="2026-04-02",
+                    ),
+                ),
+            ),
+            session=SessionSummary(
+                confirmed_slots=(SessionSlot(name="policy_topic", value="奖学金", confirmed=True),),
+                turn_count=2,
+            ),
+        )
 
         def fake_rag_specialist(request: SpecialistRequest) -> SpecialistResponse:
             captured_requests.append(request)
@@ -288,8 +311,12 @@ class SupervisorCoreTest(unittest.TestCase):
                 user_goal="民族学本科人才培养方案总学分要求是多少？",
                 request_id="req-unscoped-knowledge-001",
                 trace=TraceContext(trace_id="trace-unscoped-knowledge-001"),
-                actor=ActorContext(user_id="student-001"),
+                actor=ActorContext(
+                    user_id="student-001",
+                    principal_id="principal-001",
+                ),
                 requested_capability="knowledge",
+                context=request_context,
             ),
             specialist_delegates={"rag-specialist": fake_rag_specialist},
             audit_sink=lambda _record: None,
@@ -298,6 +325,7 @@ class SupervisorCoreTest(unittest.TestCase):
         self.assertEqual(response.selected_target, "rag-specialist")
         self.assertEqual(len(captured_requests), 1)
         self.assertEqual(captured_requests[0].payload, RagRequestPayload(scope=None))
+        self.assertEqual(captured_requests[0].context, request_context)
 
     def test_handle_request_keeps_source_doc_ids_empty_for_availability_completion(self) -> None:
         audit_records: list[SupervisorAuditRecord] = []
@@ -417,104 +445,110 @@ class SupervisorCoreTest(unittest.TestCase):
         self.assertEqual(response.status, "needs_clarification")
         self.assertEqual(response.follow_up_question, "Which campus are you asking about?")
 
-    def test_handle_request_returns_supervisor_clarification_without_delegate_when_scope_is_missing(self) -> None:
-        response = handle_request(
-            SupervisorRequest(
-                user_goal="奖学金怎么申请？",
-                requested_capability="knowledge",
-                context=ContextProjection(
-                    actor=ActorContext(
-                        user_id="student-001",
-                        principal_id="principal-001",
+    def test_handle_request_raises_missing_rag_delegate_when_scope_is_missing(self) -> None:
+        with self.assertRaisesRegex(
+            MissingSpecialistDelegateError,
+            "missing delegate for specialist target: rag-specialist",
+        ):
+            handle_request(
+                SupervisorRequest(
+                    user_goal="奖学金怎么申请？",
+                    requested_capability="knowledge",
+                    context=ContextProjection(
+                        actor=ActorContext(
+                            user_id="student-001",
+                            principal_id="principal-001",
+                        ),
+                        session=SessionSummary(
+                            confirmed_slots=(SessionSlot(name="policy_topic", value="奖学金", confirmed=True),),
+                            turn_count=2,
+                        ),
                     ),
-                    session=SessionSummary(
-                        confirmed_slots=(SessionSlot(name="policy_topic", value="奖学金", confirmed=True),),
-                        turn_count=2,
+                ),
+                specialist_delegates={},
+            )
+
+    def test_handle_request_preserves_specialist_clarification_when_scope_is_missing(self) -> None:
+        captured_requests: list[SpecialistRequest] = []
+        request_context = ContextProjection(
+            actor=ActorContext(
+                user_id="student-001",
+                principal_id="principal-001",
+            ),
+            profile_memory=ProfileMemorySummary(
+                items=(
+                    ProfileMemoryItem(
+                        item_id="memory-001",
+                        key="recent_goal",
+                        value="奖学金申请",
+                        source_type="user_declared",
+                        confidence="high",
+                        visibility="user_visible",
+                        last_verified_at="2026-04-02",
                     ),
                 ),
             ),
-            specialist_delegates={},
+            session=SessionSummary(
+                confirmed_slots=(SessionSlot(name="policy_topic", value="奖学金", confirmed=True),),
+                turn_count=2,
+            ),
         )
 
-        self.assertEqual(
-            response,
-            SupervisorResponse(
-                selected_target=None,
+        def fake_rag_specialist(request: SpecialistRequest) -> SpecialistResponse:
+            captured_requests.append(request)
+            return SpecialistResponse(
+                target="rag-specialist",
                 status="needs_clarification",
-                follow_up_question="请先说明你想查询的知识范围或资料集合。",
-                confidence="low",
-            ),
-        )
+                follow_up_question="请说明你想咨询哪一类奖学金。",
+            )
 
-    def test_handle_request_uses_safe_personalization_hint_in_scope_clarification(self) -> None:
         response = handle_request(
             SupervisorRequest(
                 user_goal="这个流程怎么办？",
                 requested_capability="knowledge",
-                context=ContextProjection(
-                    actor=ActorContext(
-                        user_id="student-001",
-                        principal_id="principal-001",
-                    ),
-                    profile_memory=ProfileMemorySummary(
-                        items=(
-                            ProfileMemoryItem(
-                                item_id="memory-001",
-                                key="recent_goal",
-                                value="奖学金申请",
-                                source_type="user_declared",
-                                confidence="high",
-                                visibility="user_visible",
-                                last_verified_at="2026-04-02",
-                            ),
-                        ),
-                    ),
-                    session=SessionSummary(
-                        confirmed_slots=(SessionSlot(name="policy_topic", value="奖学金", confirmed=True),),
-                        turn_count=2,
-                    ),
-                ),
+                context=request_context,
             ),
-            specialist_delegates={},
+            specialist_delegates={"rag-specialist": fake_rag_specialist},
         )
 
-        self.assertEqual(response.selected_target, None)
+        self.assertEqual(response.selected_target, "rag-specialist")
         self.assertEqual(response.status, "needs_clarification")
-        self.assertIn("奖学金", response.follow_up_question)
-        self.assertIn("知识范围或资料集合", response.follow_up_question)
+        self.assertEqual(response.follow_up_question, "请说明你想咨询哪一类奖学金。")
+        self.assertEqual(len(captured_requests), 1)
+        self.assertEqual(captured_requests[0].payload, RagRequestPayload(scope=None))
+        self.assertEqual(captured_requests[0].context, request_context)
 
-    def test_handle_request_does_not_use_internal_only_memory_in_scope_clarification(self) -> None:
-        response = handle_request(
-            SupervisorRequest(
-                user_goal="这个流程怎么办？",
-                requested_capability="knowledge",
-                context=ContextProjection(
-                    actor=ActorContext(
-                        user_id="student-001",
-                        principal_id="principal-001",
-                    ),
-                    profile_memory=ProfileMemorySummary(
-                        items=(
-                            ProfileMemoryItem(
-                                item_id="memory-001",
-                                key="recent_goal",
-                                value="处分申诉",
-                                source_type="system_inferred",
-                                confidence="high",
-                                visibility="internal_only",
-                                last_verified_at="2026-04-02",
+    def test_handle_request_does_not_fallback_to_supervisor_clarification_for_internal_only_memory(self) -> None:
+        with self.assertRaisesRegex(
+            MissingSpecialistDelegateError,
+            "missing delegate for specialist target: rag-specialist",
+        ):
+            handle_request(
+                SupervisorRequest(
+                    user_goal="这个流程怎么办？",
+                    requested_capability="knowledge",
+                    context=ContextProjection(
+                        actor=ActorContext(
+                            user_id="student-001",
+                            principal_id="principal-001",
+                        ),
+                        profile_memory=ProfileMemorySummary(
+                            items=(
+                                ProfileMemoryItem(
+                                    item_id="memory-001",
+                                    key="recent_goal",
+                                    value="处分申诉",
+                                    source_type="system_inferred",
+                                    confidence="high",
+                                    visibility="internal_only",
+                                    last_verified_at="2026-04-02",
+                                ),
                             ),
                         ),
                     ),
                 ),
-            ),
-            specialist_delegates={},
-        )
-
-        self.assertEqual(response.selected_target, None)
-        self.assertEqual(response.status, "needs_clarification")
-        self.assertEqual(response.follow_up_question, "请先说明你想查询的知识范围或资料集合。")
-        self.assertNotIn("处分申诉", response.follow_up_question)
+                specialist_delegates={},
+            )
 
     def test_handle_request_returns_approval_required_without_delegate_for_high_risk_request(self) -> None:
         audit_records: list[SupervisorAuditRecord] = []

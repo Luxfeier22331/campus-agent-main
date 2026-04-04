@@ -3,47 +3,22 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { dirname, resolve } from "node:path";
-import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { Client } from "pg";
 
 import { createApp } from "../src/app";
 import { type Env } from "../src/config";
-import { bootstrapSharedProductDatabase } from "../scripts/shared-product-database-bootstrap.mjs";
+import {
+  buildSharedDbIntegrationEnv,
+  convergeSharedDbForAppApiIntegration,
+  resolveSharedDbSslConfig,
+} from "./shared-db-integration-helpers";
 
 const RUN_INTEGRATION = process.env.RUN_APP_API_SHARED_DB_INTEGRATION === "1";
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const envFilePath = resolve(appRoot, ".env");
 const devVarsFilePath = resolve(appRoot, ".dev.vars");
-
-function loadOptionalEnvFile(filePath: string): void {
-  try {
-    process.loadEnvFile(filePath);
-  } catch (error) {
-    if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") {
-      throw error;
-    }
-  }
-}
-
-function readRequiredEnv(key: string): string {
-  const value = process.env[key]?.trim();
-  if (!value) {
-    throw new Error(`${key} is required for the operator observability shared DB integration test.`);
-  }
-  return value;
-}
-
-function resolveSslConfig():
-  | false
-  | {
-      rejectUnauthorized: false;
-    } {
-  return process.env.APP_API_DATABASE_SSLMODE?.trim() === "disable"
-    ? false
-    : { rejectUnauthorized: false };
-}
 
 function requireClient(client: Client | null): Client {
   if (!client) {
@@ -61,50 +36,17 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
   let conversationId: string | null = null;
 
   beforeAll(async () => {
-    loadOptionalEnvFile(envFilePath);
-    loadOptionalEnvFile(devVarsFilePath);
+    const { managementConnectionString, runtimeConnectionString } =
+      await convergeSharedDbForAppApiIntegration({
+        contextLabel: "the operator observability shared DB integration test",
+        devVarsFilePath,
+        envFilePath,
+      });
 
-    const runtimeConnectionString = readRequiredEnv(
-      "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB",
-    );
-    const managementConnectionString =
-      process.env.APP_API_MANAGEMENT_DATABASE_URL?.trim() || runtimeConnectionString;
-
-    await bootstrapSharedProductDatabase({
-      APP_API_DATABASE_SSLMODE: process.env.APP_API_DATABASE_SSLMODE?.trim() || "require",
-      APP_API_MANAGEMENT_DATABASE_URL: managementConnectionString,
-      BETTER_AUTH_SECRET:
-        process.env.BETTER_AUTH_SECRET?.trim() || "dev-secret-dev-secret-dev-secret",
-      PUBLIC_CHAT_WEB_ORIGIN:
-        process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com",
+    const env: Env = buildSharedDbIntegrationEnv({
+      managementConnectionString,
+      runtimeConnectionString,
     });
-
-    const env: Env = {
-      APP_API_NAME: process.env.APP_API_NAME?.trim() || "campus-agent-app-api",
-      APP_API_ENVIRONMENT: "test",
-      APP_API_DATABASE_SSLMODE:
-        process.env.APP_API_DATABASE_SSLMODE?.trim() === "disable"
-          ? "disable"
-          : process.env.APP_API_DATABASE_SSLMODE?.trim() === "prefer"
-            ? "prefer"
-            : "require",
-      APP_API_DB: {
-        connectionString: runtimeConnectionString,
-      },
-      APP_API_INTERNAL_SHARED_SECRET:
-        process.env.APP_API_INTERNAL_SHARED_SECRET?.trim() || "shared-db-integration-secret",
-      APP_API_MANAGEMENT_DATABASE_URL: managementConnectionString,
-      APP_API_OPERATOR_EMAIL_ALLOWLIST:
-        process.env.APP_API_OPERATOR_EMAIL_ALLOWLIST?.trim() || "ops@example.com",
-      BETTER_AUTH_SECRET:
-        process.env.BETTER_AUTH_SECRET?.trim() || "dev-secret-dev-secret-dev-secret",
-      PUBLIC_CHAT_WEB_ORIGIN:
-        process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com",
-      SUPERVISOR_API_BASE_URL:
-        process.env.SUPERVISOR_API_BASE_URL?.trim() || "https://supervisor.internal",
-      SUPERVISOR_API_SHARED_SECRET:
-        process.env.SUPERVISOR_API_SHARED_SECRET?.trim() || "shared-db-integration-secret",
-    };
 
     app = createApp(env, {
       getPrincipal: async (request) => {
@@ -157,7 +99,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
 
     client = new Client({
       connectionString: managementConnectionString,
-      ssl: resolveSslConfig(),
+      ssl: resolveSharedDbSslConfig(),
     });
     await client.connect();
   });
@@ -201,6 +143,17 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
   it("ingests grades/backlinks through internal routes and exposes app-owned operator joins", async () => {
     const dbClient = requireClient(client);
     const suffix = `${Date.now()}`;
+    const requestStartedAt = new Date(Date.now() - 30 * 60_000);
+    const requestCompletedAt = new Date(requestStartedAt.getTime() + 1_000);
+    const requestProjectedAt = new Date(requestCompletedAt.getTime() + 1_000);
+    const qualityBucketStart = new Date(requestStartedAt);
+    qualityBucketStart.setMinutes(0, 0, 0);
+    const qualityBucketEnd = new Date(qualityBucketStart.getTime() + 60 * 60_000);
+    const badcaseOpenedAt = new Date(requestStartedAt.getTime() + 10 * 60_000);
+    const firstGradeSampledAt = new Date(requestStartedAt.getTime() + 10 * 60_000);
+    const secondGradeSampledAt = new Date(requestStartedAt.getTime() + 10 * 60_000 + 10_000);
+    const thirdGradeSampledAt = new Date(requestStartedAt.getTime() + 10 * 60_000 + 20_000);
+    const modelName = `gpt-5.2-mini-integration-${suffix}`;
     requestId = `req_obs_${suffix}`;
     conversationId = `conv_obs_${suffix}`;
     auditEventId = `aevt_obs_${suffix}`;
@@ -252,8 +205,8 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
           'main', 'undergraduate', null, null,
           $5, 'knowledge', '{"corpus":"regulations","collection":"student_handbook"}'::jsonb, 'rag-specialist',
           'completed', null, '图书馆开放到几点？', '图书馆开放到 22:00。', null,
-          '["handbook:library-hours","handbook:holiday-hours"]'::jsonb, '2026-04-03T00:00:00.000Z',
-          '2026-04-03T00:00:01.000Z', 842, '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:01.000Z'
+          '["handbook:library-hours","handbook:holiday-hours"]'::jsonb, '${requestStartedAt.toISOString()}',
+          '${requestCompletedAt.toISOString()}', 842, '${requestStartedAt.toISOString()}', '${requestCompletedAt.toISOString()}'
         )
       `,
       [requestId, conversationId, userMessageId, assistantMessageId, traceId],
@@ -273,11 +226,11 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
           $1, $2, $3, 'public_chat_web', 'student',
           'entitlements-2026-04-03', 'phase1-authorization-projection-v1', 'knowledge',
           'regulations/student_handbook', 'student_handbook', 'rag-specialist', 'completed', null,
-          '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:01.000Z', 842, true, 4,
-          2, false, true, 2,
-          false, null, 'allowed', null, false,
-          'openai', 'gpt-5.2-mini', 812, 229, 0,
-          3810, true, 420, '2026-04-03T00:00:01.000Z', '2026-04-03T00:00:01.000Z'
+          '${requestStartedAt.toISOString()}', '${requestCompletedAt.toISOString()}', 842, true, 4,
+          2, false, true, 0,
+          true, null, 'allowed', null, false,
+          'openai', '${modelName}', 812, 229, 0,
+          3810, true, 420, '${requestCompletedAt.toISOString()}', '${requestCompletedAt.toISOString()}'
         )
       `,
       [requestId, traceId, conversationId],
@@ -296,7 +249,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
           'main', 'undergraduate', 'knowledge', '{"corpus":"regulations","collection":"student_handbook"}'::jsonb,
           'rag-specialist', 'completed', null, '图书馆开放到几点？', '图书馆开放到 22:00。',
           null, '["handbook:library-hours","handbook:holiday-hours"]'::jsonb,
-          '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:01.000Z', 842, '2026-04-03T00:00:02.000Z'
+          '${requestStartedAt.toISOString()}', '${requestCompletedAt.toISOString()}', 842, '${requestProjectedAt.toISOString()}'
         )
       `,
       [requestId, traceId, conversationId],
@@ -308,11 +261,11 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
           "principal_type", "entitlement_snapshot_id", "policy_projection_version", "requested_capability",
           "selected_target", "status", "terminal_code", "summary", "diagnostics_json", "projected_at"
         ) values (
-          $1, $2, $3, '2026-04-03T00:00:01.000Z', 'request.completed', 'public_chat_web',
+          $1, $2, $3, '${requestCompletedAt.toISOString()}', 'request.completed', 'public_chat_web',
           'student', 'entitlements-2026-04-03', 'phase1-authorization-projection-v1', 'knowledge',
           'rag-specialist', 'completed', 'completed', 'Knowledge request completed via rag-specialist.',
           '{"aclAnomalyCode":null,"failClosed":false,"sourceDocIds":["handbook:library-hours","handbook:holiday-hours"]}'::jsonb,
-          '2026-04-03T00:00:02.000Z'
+          '${requestProjectedAt.toISOString()}'
         )
       `,
       [auditEventId, requestId, traceId],
@@ -324,10 +277,10 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
           "selected_target", "requested_capability", "principal_type", "collection", "model_name",
           "metrics_json", "projected_at"
         ) values (
-          $1, $2, 'quality', '1h', '2026-04-03T00:00:00.000Z', '2026-04-03T01:00:00.000Z', 'public_chat_web',
-          'rag-specialist', 'knowledge', 'student', 'student_handbook', 'gpt-5.2-mini',
+          $1, $2, 'quality', '1h', '${qualityBucketStart.toISOString()}', '${qualityBucketEnd.toISOString()}', 'public_chat_web',
+          'rag-specialist', 'knowledge', 'student', 'student_handbook', '${modelName}',
           '{"approvalRequiredCount":0,"citationEligibleCount":2,"citationMissCount":1,"emptyRecallCount":0,"needsClarificationCount":0,"noAnswerCount":0,"rejectedCount":0,"requestCount":4,"retrievalEligibleCount":4}'::jsonb,
-          '2026-04-03T00:00:02.000Z'
+          '${requestProjectedAt.toISOString()}'
         )
       `,
       [`quality_rollup_${suffix}`, requestId],
@@ -339,8 +292,8 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
           "cause_class", "detected_by", "opened_at", "summary", "grade_json", "projected_at"
         ) values (
           $1, $2, $3, 'public_chat_web', 'rag-specialist', 'open',
-          'citation_missing', 'runtime_monitor', '2026-04-03T00:00:10.000Z',
-          'citationExpected=true 但 citationCount=0', null, '2026-04-03T00:00:10.000Z'
+          'citation_missing', 'runtime_monitor', '${badcaseOpenedAt.toISOString()}',
+          'citationExpected=true 但 citationCount=0', null, '${badcaseOpenedAt.toISOString()}'
         )
       `,
       [`qbad_${suffix}`, requestId, traceId],
@@ -362,7 +315,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
               graderVersion: "grader@2026-04-03",
               rationaleSummary: "grounded to cited handbook passages",
               requestId,
-              sampledAt: "2026-04-03T00:10:00.000Z",
+              sampledAt: firstGradeSampledAt.toISOString(),
               score: 0.913,
               traceId,
               verdict: "pass",
@@ -373,7 +326,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
               graderVersion: "grader@2026-04-03",
               rationaleSummary: "citation missing in rendered answer",
               requestId,
-              sampledAt: "2026-04-03T00:10:10.000Z",
+              sampledAt: secondGradeSampledAt.toISOString(),
               score: 0.42,
               traceId,
               verdict: "fail",
@@ -384,7 +337,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
               graderVersion: "grader@2026-04-03",
               rationaleSummary: "policy constraints respected",
               requestId,
-              sampledAt: "2026-04-03T00:10:20.000Z",
+              sampledAt: thirdGradeSampledAt.toISOString(),
               score: 1,
               traceId,
               verdict: "pass",
@@ -443,9 +396,12 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
     });
 
     const qualitySummaryResponse = await app.fetch(
-      new Request("https://app-api.internal/api/operator/quality/summary?window=24h&surface=public_chat_web", {
-        headers: authHeaders,
-      }),
+      new Request(
+        `https://app-api.internal/api/operator/quality/summary?window=24h&surface=public_chat_web&modelName=${encodeURIComponent(modelName)}`,
+        {
+          headers: authHeaders,
+        },
+      ),
     );
     expect(qualitySummaryResponse.status).toBe(200);
     await expect(qualitySummaryResponse.json()).resolves.toMatchObject({
@@ -476,7 +432,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
 
     const qualityTimeseriesResponse = await app.fetch(
       new Request(
-        "https://app-api.internal/api/operator/quality/timeseries?window=24h&granularity=1h&surface=public_chat_web",
+        `https://app-api.internal/api/operator/quality/timeseries?window=24h&granularity=1h&surface=public_chat_web&modelName=${encodeURIComponent(modelName)}`,
         {
           headers: authHeaders,
         },
@@ -497,22 +453,35 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
       }),
     );
     expect(badcasesResponse.status).toBe(200);
-    await expect(badcasesResponse.json()).resolves.toMatchObject({
-      badcases: [
-        {
-          grade: {
-            graderVersion: "grader@2026-04-03",
-            result: "fail",
-            score: 0.42,
-          },
-          links: {
-            issueFingerprint: "citation-missing",
-            issueLink: "https://sentry.example/issues/456",
-            traceLink: `https://sentry.example/traces/${traceId}`,
-          },
-          requestId,
-        },
-      ],
+    const badcasesPayload = (await badcasesResponse.json()) as {
+      badcases: Array<{
+        grade: {
+          graderVersion: string;
+          result: string;
+          score: number | null;
+        } | null;
+        links: {
+          issueFingerprint: string | null;
+          issueLink: string | null;
+          traceLink: string | null;
+        };
+        requestId: string;
+      }>;
+    };
+    expect(
+      badcasesPayload.badcases.find((item) => item.requestId === requestId),
+    ).toMatchObject({
+      grade: {
+        graderVersion: "grader@2026-04-03",
+        result: "fail",
+        score: 0.42,
+      },
+      links: {
+        issueFingerprint: "citation-missing",
+        issueLink: "https://sentry.example/issues/456",
+        traceLink: `https://sentry.example/traces/${traceId}`,
+      },
+      requestId,
     });
 
     const auditDetailResponse = await app.fetch(

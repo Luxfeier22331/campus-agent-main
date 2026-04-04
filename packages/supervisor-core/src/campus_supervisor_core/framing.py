@@ -28,11 +28,11 @@ def frame_specialist_request(
             follow_redirects=context.follow_redirects,
         )
     else:
-        if context.requested_scope is None:
-            raise MissingRoutingInputError(
-                "requested_scope is required for knowledge requests"
-            )
-        payload = RagRequestPayload(scope=_copy_scope(context.requested_scope))
+        payload = (
+            RagRequestPayload(scope=_copy_scope(context.requested_scope))
+            if context.requested_scope is not None
+            else RagRequestPayload(scope=None)
+        )
 
     return SpecialistRequest(
         target=decision.target,

@@ -54,7 +54,7 @@ export interface SupervisorExecutionInput {
   conversationId: string;
   requestId: string;
   requestedCapability?: string;
-  requestedScope?: RequestedScope;
+  requestedScope?: RequestedScope | null;
   surface?: string;
   traceHeaders?: TracePropagationHeaders;
   traceId: string;
@@ -75,6 +75,8 @@ export interface SupervisorExecutionObservability {
   modelName: string | null;
   modelProvider: string | null;
   outputTokens: number | null;
+  resolvedScopeCollection?: string | null;
+  resolvedScopeCorpus?: string | null;
   refusalClass: string | null;
   retrievedSourceCount: number | null;
   retrievalAttempted: boolean | null;
@@ -302,6 +304,8 @@ function parseExecutionObservability(
     return null;
   }
 
+  const resolvedScopeCollection = normalizeNullableString(record.resolved_scope_collection);
+  const resolvedScopeCorpus = normalizeNullableString(record.resolved_scope_corpus);
   const parsed: SupervisorExecutionObservability = {
     aclAnomalyCode: normalizeNullableString(record.acl_anomaly_code),
     aclDecision: normalizeNullableString(record.acl_decision),
@@ -319,6 +323,8 @@ function parseExecutionObservability(
     refusalClass: normalizeNullableString(record.refusal_class),
     retrievedSourceCount: normalizeNullableNumber(record.retrieved_source_count),
     retrievalAttempted: normalizeNullableBoolean(record.retrieval_attempted),
+    ...(resolvedScopeCollection ? { resolvedScopeCollection } : {}),
+    ...(resolvedScopeCorpus ? { resolvedScopeCorpus } : {}),
   };
 
   if (Object.values(parsed).every((item) => item === null)) {
@@ -397,17 +403,19 @@ export function createSupervisorExecutionClient(
             applyTracePropagationHeaders(headers, payload.traceHeaders);
           }
 
+          const requestBody = {
+            context: toSupervisorContext(payload.context),
+            conversation_id: payload.conversationId,
+            request_id: payload.requestId,
+            requested_capability: payload.requestedCapability,
+            ...(payload.requestedScope ? { requested_scope: payload.requestedScope } : {}),
+            user_goal: payload.userGoal,
+          };
+
           fetchImplementation(`${baseUrl}/api/v1/answer`, {
             method: "POST",
             headers: Object.fromEntries(headers.entries()),
-            body: JSON.stringify({
-              context: toSupervisorContext(payload.context),
-              conversation_id: payload.conversationId,
-              request_id: payload.requestId,
-              requested_capability: payload.requestedCapability,
-              requested_scope: payload.requestedScope,
-              user_goal: payload.userGoal,
-            }),
+            body: JSON.stringify(requestBody),
             signal: controller.signal,
           })
             .then(resolve)

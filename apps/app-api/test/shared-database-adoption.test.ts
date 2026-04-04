@@ -142,6 +142,55 @@ describe("shared database adoption", () => {
     expect(plan.mismatches[0]).toContain("runtime.request_execution");
   });
 
+  it("treats pending add-column migrations as repairable rather than schema divergence", () => {
+    const inventory = makeInventory({
+      schemas: ["operator", "runtime"],
+      tables: [
+        {
+          ...buildTableFromExpected("runtime.request_execution"),
+          columns: buildTableFromExpected("runtime.request_execution").columns.filter(
+            (column) => column.name !== "resolved_scope_json",
+          ),
+        },
+        {
+          ...buildTableFromExpected("runtime.request_observability_fact"),
+          columns: buildTableFromExpected("runtime.request_observability_fact").columns.filter(
+            (column) => column.name !== "resolved_scope_summary",
+          ),
+        },
+        {
+          ...buildTableFromExpected("operator.request_projection"),
+          columns: buildTableFromExpected("operator.request_projection").columns.filter(
+            (column) => column.name !== "resolved_scope_json",
+          ),
+        },
+      ],
+    });
+
+    const plan = buildAdoptionPlan({
+      inventory,
+      migrationContext,
+    });
+
+    expect(plan.mismatches).toEqual([]);
+    expect(
+      plan.statements.some(
+        (item) => item.target.existsKey === "runtime.request_execution:resolved_scope_json",
+      ),
+    ).toBe(true);
+    expect(
+      plan.statements.some(
+        (item) =>
+          item.target.existsKey === "runtime.request_observability_fact:resolved_scope_summary",
+      ),
+    ).toBe(true);
+    expect(
+      plan.statements.some(
+        (item) => item.target.existsKey === "operator.request_projection:resolved_scope_json",
+      ),
+    ).toBe(true);
+  });
+
   it("treats retired drop-column migrations as already satisfied once the latest snapshot is present", () => {
     const inventory = makeInventory({
       schemas: [...new Set([...latestSpecs.values()].map((spec) => spec.schema))],
