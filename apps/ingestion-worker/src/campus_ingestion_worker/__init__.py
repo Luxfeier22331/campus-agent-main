@@ -16,6 +16,10 @@ from campus_ingestion_worker.import_authenticated_notice_export import (
     AuthenticatedNoticeImportRequest,
     import_authenticated_notice_export,
 )
+from campus_ingestion_worker.smoke_authenticated_notice_bootstrap import (
+    build_smoke_summary as build_authenticated_notice_smoke_summary,
+    main as smoke_authenticated_notice_bootstrap_main,
+)
 from campus_ingestion_worker.release_index import main as release_index_main
 from campus_ingestion_worker.validate_student_handbook_chunking import (
     StudentHandbookChunkingValidationReport,
@@ -32,6 +36,7 @@ __all__ = [
     "StudentHandbookChunkingValidationReport",
     "StudentHandbookMigrationReport",
     "StudentHandbookSourceAssetRequest",
+    "build_authenticated_notice_smoke_summary",
     "load_worker_env",
     "import_authenticated_notice_export",
     "migrate_student_handbook_source_faithful",
@@ -39,5 +44,6 @@ __all__ = [
     "register_raw_asset",
     "release_index_main",
     "rebuild_local_data",
+    "smoke_authenticated_notice_bootstrap_main",
     "validate_student_handbook_chunking",
 ]

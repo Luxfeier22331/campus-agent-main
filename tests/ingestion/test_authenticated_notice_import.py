@@ -321,6 +321,105 @@ class AuthenticatedNoticeImportTest(unittest.TestCase):
         self.assertTrue(any(key.endswith("/source-truth/notice-manifest.json") for key in uploaded_keys))
         self.assertTrue(any(key.endswith("/document-units.jsonl") for key in uploaded_keys))
 
+    def test_import_authenticated_notice_bundle_supports_reference_only_attachment_refs(self) -> None:
+        bundle = _sample_notice_bundle()
+        bundle[0]["notice"]["notice_content"] = (
+            '<p>请下载<a href="https://portal.example.edu/files/application.docx">报名表.docx</a>。</p>'
+        )
+        bundle[0]["links"] = [
+            {
+                "id": 1,
+                "notice_id": 355119,
+                "run_id": None,
+                "source": "content",
+                "content_kind": "attachment_list",
+                "url": "https://portal.example.edu/files/application.docx",
+                "url_scheme": "https",
+                "link_host": "portal.example.edu",
+                "link_scope": "internal",
+                "collect_policy": "reference_only",
+                "skip_reason": None,
+                "link_text": "报名表.docx",
+                "final_url": "https://portal.example.edu/files/application.docx",
+                "title": None,
+                "status_code": None,
+                "content_type": None,
+                "downloaded": False,
+                "download_path": None,
+                "file_size": None,
+                "fetched_at": "2026-04-02T23:58:26.053Z",
+                "error_message": None,
+            }
+        ]
+        bundle[0]["notice_attachments"] = [
+            {
+                "notice_id": 355119,
+                "attachment_id": 1,
+                "link_id": 1,
+                "relation_source": "content",
+                "resource_role": "attachment",
+                "anchor_text": "报名表.docx",
+                "discovered_at": "2026-04-02T23:58:26.053Z",
+            }
+        ]
+        bundle[0]["attachments"] = [
+            {
+                "attachment_id": 1,
+                "source_url": "https://portal.example.edu/files/application.docx",
+                "normalized_source_url": "https://portal.example.edu/files/application.docx",
+                "final_url": "https://portal.example.edu/files/application.docx",
+                "original_filename": "application.docx",
+                "mime_type": None,
+                "byte_size": None,
+                "sha256": None,
+                "storage_provider": "reference_only",
+                "bucket": None,
+                "object_key": None,
+                "etag": None,
+                "version_id": None,
+                "origin_url_scheme": "https",
+                "origin_host": "portal.example.edu",
+                "origin_scope": "internal",
+                "provenance_status": "reference_only",
+                "ingest_status": "reference_only",
+                "local_path": None,
+                "downloaded_at": None,
+                "uploaded_at": None,
+                "last_error": None,
+                "created_at": "2026-04-02T23:58:26.053Z",
+                "updated_at": "2026-04-02T23:58:26.053Z",
+            }
+        ]
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            result = import_authenticated_notice_bundle(
+                AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                )
+            )
+
+        imported = result.notice_imports[0]
+        attachment_refs = [
+            json.loads(line)
+            for line in imported.source_truth_artifacts["source-truth/attachment-refs.jsonl"].decode("utf-8").splitlines()
+            if line.strip()
+        ]
+        self.assertEqual(len(attachment_refs), 1)
+        self.assertIsNone(attachment_refs[0]["object_key"])
+        self.assertEqual(
+            attachment_refs[0]["normalized_source_url"],
+            "https://portal.example.edu/files/application.docx",
+        )
+        self.assertEqual(attachment_refs[0]["resource_role"], "attachment")
+
 
 if __name__ == "__main__":
     unittest.main()
