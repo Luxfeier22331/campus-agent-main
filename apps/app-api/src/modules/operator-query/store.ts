@@ -1,7 +1,8 @@
 import { and, desc, eq, gte, inArray, lt, lte, or } from "drizzle-orm";
 
+import { decodeBase64UrlJson, encodeBase64UrlJson } from "../../base64url";
 import type { Env } from "../../config";
-import { createRuntimeDatabase } from "../../db/runtime";
+import { createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
 import {
   metricRollup,
   qualityBadcaseProjection,
@@ -48,6 +49,7 @@ type MetricRollupRow = typeof metricRollup.$inferSelect;
 type QualityGradeProjectionRow = typeof qualityGradeProjection.$inferSelect;
 type TraceBacklinkProjectionRow = typeof traceBacklinkProjection.$inferSelect;
 type RuntimeDatabase = Awaited<ReturnType<typeof createRuntimeDatabase>>;
+type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 
 function toIsoString(value: Date | null): string | null {
   return value ? value.toISOString() : null;
@@ -102,18 +104,16 @@ function toAuditListItem(
 }
 
 function encodeCursor(input: RequestProjectionCursor): string {
-  return Buffer.from(JSON.stringify(input), "utf8").toString("base64url");
+  return encodeBase64UrlJson(input);
 }
 
 function encodeAuditCursor(input: AuditProjectionCursor): string {
-  return Buffer.from(JSON.stringify(input), "utf8").toString("base64url");
+  return encodeBase64UrlJson(input);
 }
 
 function decodeCursor(cursor: string): RequestProjectionCursor | null {
   try {
-    const parsed = JSON.parse(
-      Buffer.from(cursor, "base64url").toString("utf8"),
-    ) as Partial<RequestProjectionCursor>;
+    const parsed = decodeBase64UrlJson<Partial<RequestProjectionCursor>>(cursor);
 
     if (
       typeof parsed.requestId !== "string" ||
@@ -135,9 +135,7 @@ function decodeCursor(cursor: string): RequestProjectionCursor | null {
 
 function decodeAuditCursor(cursor: string): AuditProjectionCursor | null {
   try {
-    const parsed = JSON.parse(
-      Buffer.from(cursor, "base64url").toString("utf8"),
-    ) as Partial<AuditProjectionCursor>;
+    const parsed = decodeBase64UrlJson<Partial<AuditProjectionCursor>>(cursor);
 
     if (
       typeof parsed.auditEventId !== "string" ||
@@ -432,13 +430,15 @@ function aggregateCostBySurface(rows: RequestObservabilityFactRow[]) {
 export function createPgOperatorQueryStore(
   env: Env,
   input: {
+    getDb?: RuntimeDbGetter;
     now?: () => Date;
   } = {},
 ): OperatorQueryStore {
+  const getDb = input.getDb ?? createRuntimeDbGetter(env);
   const now = input.now ?? (() => new Date());
 
   async function loadObservabilityRows(filters: NormalizedOperatorOverviewFilters) {
-    const db = await createRuntimeDatabase(env);
+    const db = await getDb();
     const bounds = resolveWindowBounds(filters.window, now());
     const rows = await db
       .select()
@@ -454,7 +454,7 @@ export function createPgOperatorQueryStore(
       gradeDomain?: string;
     } = {},
   ) {
-    const db = await createRuntimeDatabase(env);
+    const db = await getDb();
     const bounds = resolveWindowBounds(filters.window, now());
     const rows = await db
       .select()
@@ -470,7 +470,7 @@ export function createPgOperatorQueryStore(
   }
 
   async function loadQualityRollupRows(filters: NormalizedOperatorOverviewFilters) {
-    const db = await createRuntimeDatabase(env);
+    const db = await getDb();
     const bounds = resolveWindowBounds(filters.window, now());
     const granularity = resolveResultGranularity(filters, bounds);
     const conditions = [
@@ -510,7 +510,7 @@ export function createPgOperatorQueryStore(
 
   return {
     async getById(requestId) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const rows = await db
         .select()
         .from(requestProjection)
@@ -521,7 +521,7 @@ export function createPgOperatorQueryStore(
     },
 
     async getAuditById(auditEventId) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const rows = await db
         .select()
         .from(requestAuditProjection)
@@ -562,7 +562,7 @@ export function createPgOperatorQueryStore(
     },
 
     async getObservabilityById(requestId) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const projectionRows = await db
         .select()
         .from(requestProjection)
@@ -959,7 +959,7 @@ export function createPgOperatorQueryStore(
     },
 
     async listQualityBadcases(filters: NormalizedOperatorQualityBadcaseListFilters) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const conditions = [];
 
       if (filters.status) {
@@ -1044,7 +1044,7 @@ export function createPgOperatorQueryStore(
     },
 
     async list(filters: NormalizedOperatorRequestListFilters) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const conditions = [];
 
       if (filters.status) {
@@ -1100,7 +1100,7 @@ export function createPgOperatorQueryStore(
     },
 
     async listAudit(filters: NormalizedOperatorAuditListFilters) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const conditions = [];
 
       if (filters.requestId) {

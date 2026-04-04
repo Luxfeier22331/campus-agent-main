@@ -1,4 +1,5 @@
 const DEFAULT_AXIOM_ENDPOINT = "https://api.axiom.co";
+const DEFAULT_AXIOM_INGEST_TIMEOUT_MS = 250;
 
 const FORBIDDEN_FIELD_NAMES = new Set([
   "answer",
@@ -65,6 +66,7 @@ export function createAxiomRuntimeEventSink(
   input: {
     fetchImplementation?: typeof fetch;
     logger?: Pick<Console, "warn">;
+    timeoutMs?: number;
   } = {},
 ): AxiomRuntimeEventSink {
   const dataset = env.AXIOM_DATASET?.trim();
@@ -72,6 +74,10 @@ export function createAxiomRuntimeEventSink(
   const endpoint = (env.AXIOM_ENDPOINT?.trim() || DEFAULT_AXIOM_ENDPOINT).replace(/\/$/, "");
   const fetchImplementation = input.fetchImplementation ?? fetch;
   const logger = input.logger ?? console;
+  const timeoutMs =
+    typeof input.timeoutMs === "number" && Number.isFinite(input.timeoutMs) && input.timeoutMs > 0
+      ? Math.floor(input.timeoutMs)
+      : DEFAULT_AXIOM_INGEST_TIMEOUT_MS;
 
   return {
     async emit(payload) {
@@ -80,13 +86,33 @@ export function createAxiomRuntimeEventSink(
       }
 
       try {
-        const response = await fetchImplementation(buildAxiomIngestUrl(endpoint, dataset), {
-          body: JSON.stringify([sanitizeAxiomEventPayload(payload)]),
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          method: "POST",
+        const response = await new Promise<Response>((resolve, reject) => {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => {
+            controller.abort();
+            reject(new Error(`Axiom ingest timed out after ${timeoutMs}ms.`));
+          }, timeoutMs);
+
+          fetchImplementation(buildAxiomIngestUrl(endpoint, dataset), {
+            body: JSON.stringify([sanitizeAxiomEventPayload(payload)]),
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            method: "POST",
+            signal: controller.signal,
+          })
+            .then(resolve)
+            .catch((error) => {
+              if (error instanceof Error && error.name === "AbortError") {
+                reject(new Error(`Axiom ingest timed out after ${timeoutMs}ms.`));
+                return;
+              }
+              reject(error);
+            })
+            .finally(() => {
+              clearTimeout(timeoutId);
+            });
         });
 
         if (!response.ok) {

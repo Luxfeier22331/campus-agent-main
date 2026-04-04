@@ -1,4 +1,4 @@
-export { account, session, user, verification } from "./auth";
+export { account, appAuthSchema, session, user, verification } from "./auth";
 export { conversations, messages, sessionSlots } from "./chat";
 export { crawlRuns, runArtifacts, runHeartbeats, runOutbox } from "./official-web";
 export {

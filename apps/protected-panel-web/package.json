@@ -19,9 +19,12 @@
   },
   "scripts": {
     "build": "XDG_CONFIG_HOME=./.wrangler-home vite build",
+    "build:staging": "CLOUDFLARE_ENV=staging XDG_CONFIG_HOME=./.wrangler-home vite build",
     "dev": "XDG_CONFIG_HOME=./.wrangler-home vite",
-    "deploy": "pnpm build && pnpm deploy:verify-config && XDG_CONFIG_HOME=./.wrangler-home wrangler deploy --config dist/protected_panel_web/wrangler.json",
+    "deploy": "pnpm build && pnpm deploy:verify-config && wrangler deploy --config dist/protected_panel_web/wrangler.json",
     "deploy:verify-config": "node ../../scripts/verify-worker-deploy-config.mjs dist/protected_panel_web/wrangler.json APP_API=app-api",
+    "deploy:staging": "pnpm build:staging && pnpm deploy:verify-config:staging && node ./scripts/deploy-staging.mjs",
+    "deploy:verify-config:staging": "node ../../scripts/verify-worker-deploy-config.mjs dist/protected_panel_web/wrangler.json APP_API=app-api-staging",
     "preview": "pnpm build && XDG_CONFIG_HOME=./.wrangler-home vite preview",
     "test": "pnpm run test:worker",
     "test:worker": "XDG_CONFIG_HOME=./.wrangler-home vitest run",

@@ -115,11 +115,25 @@ const worker = {
         });
       }
 
+      const appApiRuntimeError = await probeAppApiRuntime(env);
+      if (appApiRuntimeError) {
+        return jsonResponse(503, {
+          error: {
+            code: "dependency_not_ready",
+            details: {
+              appApiRuntime: appApiRuntimeError,
+            },
+            message: "Runtime configuration is incomplete.",
+          },
+        });
+      }
+
       return jsonResponse(200, {
         status: "ready",
         app_api_base_url: env.APP_API_BASE_URL || "",
         dependencies: {
           appApiBinding: "configured",
+          appApiRuntime: "ready",
           assets: "configured",
         },
         public_hostname: env.PUBLIC_CHAT_HOSTNAME || "",
@@ -148,6 +162,19 @@ function jsonResponse(status: number, payload: Record<string, unknown>): Respons
   return new Response(JSON.stringify(payload), {
     status,
     headers: JSON_HEADERS,
+  });
+}
+
+function appApiUpstreamUnavailableResponse(): Response {
+  return jsonResponse(503, {
+    error: {
+      code: "dependency_not_ready",
+      message: "App API upstream is unavailable.",
+      retryable: true,
+      traceId: null,
+      requestId: null,
+      details: null,
+    },
   });
 }
 
@@ -202,16 +229,20 @@ async function proxyToAppApi(request: Request, env: Env): Promise<Response> {
     headers.set("baggage", traceHeaders.baggage);
   }
 
-  return withNoStore(
-    await env.APP_API.fetch(
-    new Request(appApiUrl.toString(), {
-      body: shouldForwardBody(request.method) ? request.body : undefined,
-      headers,
-      method: request.method,
-      redirect: request.redirect,
-    }),
-    ),
-  );
+  try {
+    return withNoStore(
+      await env.APP_API.fetch(
+        new Request(appApiUrl.toString(), {
+          body: shouldForwardBody(request.method) ? request.body : undefined,
+          headers,
+          method: request.method,
+          redirect: request.redirect,
+        }),
+      ),
+    );
+  } catch {
+    return appApiUpstreamUnavailableResponse();
+  }
 }
 
 function getForwardedHeaders(pathname: string) {
@@ -260,6 +291,32 @@ function withNoStore(response: Response): Response {
     status: response.status,
     statusText: response.statusText,
   });
+}
+
+async function probeAppApiRuntime(env: Env): Promise<string | null> {
+  if (!env.APP_API || !env.APP_API_BASE_URL) {
+    return "App API binding is not configured.";
+  }
+
+  try {
+    const response = await env.APP_API.fetch(
+      new Request(new URL("/readyz", env.APP_API_BASE_URL).toString(), {
+        method: "GET",
+      }),
+    );
+    if (response.status !== 200) {
+      return `app-api readyz returned ${response.status}`;
+    }
+
+    const payload = (await response.json().catch(() => null)) as { status?: unknown } | null;
+    if (payload?.status !== "ready") {
+      return "app-api readyz returned an invalid payload";
+    }
+
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : "app-api readyz probe failed";
+  }
 }
 
 export default Sentry.withSentry(createSentryOptions, worker);

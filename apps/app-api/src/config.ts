@@ -1,4 +1,4 @@
-export type AppApiEnvironment = "development" | "test" | "production";
+export type AppApiEnvironment = "development" | "test" | "staging" | "production";
 export type DatabaseSslMode = "disable" | "prefer" | "require";
 export const DEFAULT_SUPERVISOR_API_TIMEOUT_MS = 8_000;
 export const DEFAULT_SUPERVISOR_API_EVAL_TIMEOUT_MS = 30_000;
@@ -32,6 +32,7 @@ export interface Env {
   SENTRY_ENVIRONMENT?: string;
   SENTRY_RELEASE?: string;
   APP_API_DB?: HyperdriveBindingLike;
+  APP_API_DB_FRESH?: HyperdriveBindingLike;
 }
 
 export interface AppApiConfig {
@@ -69,10 +70,19 @@ export function resolveEnvironment(env: Env): AppApiEnvironment {
   if (env.APP_API_ENVIRONMENT === "production") {
     return "production";
   }
+  if (env.APP_API_ENVIRONMENT === "staging") {
+    return "staging";
+  }
   if (env.APP_API_ENVIRONMENT === "test") {
     return "test";
   }
   return "development";
+}
+
+export function isDeployedEnvironment(
+  environment: AppApiEnvironment | undefined,
+): boolean {
+  return environment === "production" || environment === "staging";
 }
 
 export function resolveDatabaseSslMode(env: Pick<Env, "APP_API_DATABASE_SSLMODE">): DatabaseSslMode {

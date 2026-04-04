@@ -5,6 +5,7 @@ export {
 export {
   SupervisorTransportError,
   createSupervisorExecutionClient,
+  probeSupervisorApiReady,
 } from "./supervisor";
 export type {
   RequestedScope,

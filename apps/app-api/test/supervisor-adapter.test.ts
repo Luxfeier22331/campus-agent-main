@@ -442,7 +442,7 @@ describe("supervisor execution adapter", () => {
         fetchImplementation: vi.fn().mockResolvedValue(
           new Response(
             JSON.stringify({
-              answer_text: "第四学期有习近平法治思想概论、国际公法。",
+              answer_text: "第四学期有中国少数民族文字学、侵权责任法、翻译学导论。",
               error: null,
               follow_up_question: "",
               result: {
@@ -642,6 +642,66 @@ describe("supervisor execution adapter", () => {
       code: "supervisor_invalid_response",
       retryable: true,
       status: 502,
+    });
+  });
+
+  it("omits requested_scope when app-api has not resolved the serving surface and parses resolved scope from observability", async () => {
+    const fetchImplementation = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          answer_text: "民族学本科人才培养方案总学分要求以培养方案正文为准。",
+          error: null,
+          follow_up_question: "",
+          observability: {
+            acl_decision: "allowed",
+            citation_count: 1,
+            citation_expected: true,
+            citation_missing: false,
+            resolved_scope_collection: "curriculum_plan",
+            resolved_scope_corpus: "curriculum",
+            retrieved_source_count: 1,
+            retrieval_attempted: true,
+          },
+          result: {
+            diagnostics: {
+              resolved_scope_collection: "curriculum_plan",
+              resolved_scope_corpus: "curriculum",
+            },
+            evidence: {
+              sources: [{ doc_id: "curriculum:民族学本科人才培养方案" }],
+            },
+          },
+          selected_target: "rag-specialist",
+          status: "completed",
+          trace_id: "trace_01HQ",
+        }),
+        { status: 200 },
+      ),
+    );
+    const client = createSupervisorExecutionClient(
+      {
+        SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+        SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+      },
+      { fetchImplementation },
+    );
+
+    const result = await client.execute({
+      actor: createActor(),
+      context: createContext(),
+      conversationId: "conv_01HQ",
+      requestId: "req_01HQ",
+      requestedCapability: "knowledge",
+      traceId: "trace_01HQ",
+      userGoal: "民族学本科人才培养方案总学分要求是多少？",
+    });
+
+    expect(JSON.parse(fetchImplementation.mock.calls[0]![1]!.body as string)).not.toHaveProperty(
+      "requested_scope",
+    );
+    expect(result.observability).toMatchObject({
+      resolvedScopeCollection: "curriculum_plan",
+      resolvedScopeCorpus: "curriculum",
     });
   });
 });

@@ -71,7 +71,11 @@ repo root `.env` 的 canonical key 固定为：
 - Supabase platform-managed `auth.*`
   保留给 Supabase Auth；repo 不接管，也不把它当成 Better Auth 的物理 schema
 - `app_auth.*` on Supabase session pooler
-  通过数据库角色默认 `search_path=app_auth, public, extensions` 收敛；仅靠连接字符串 `options=-c search_path=...` 在当前 shared DB 上不可靠
+  shared-product bootstrap 仍通过数据库角色默认 `search_path=app_auth, public, extensions` 收敛；仅靠连接字符串 `options=-c search_path=...` 在当前 shared DB 上不可靠，而 `apps/app-api` runtime 现已改为通过 Drizzle adapter + schema-qualified metadata 访问 `app_auth.*`
+- deployed Worker runtimes
+  `staging` / `production` 会重新缓存静态 Worker/app assembly，但不会跨请求复用 repo-local `pg.Pool` / Drizzle runtime handle / Better Auth runtime state；Hyperdrive 负责底层连接复用，而 app runtime 只在单次 request scope 内持有 client state
+- deployed `app-api` runtime Hyperdrive lanes
+  `APP_API_DB` 继续承接 cached/read-mostly queries；`APP_API_DB_FRESH` 承接 auth 与其他 read-after-write-sensitive product paths，并要求在 Cloudflare 侧关闭 SQL response caching，避免 `sign-up` / command write 后立刻读回时命中 stale negative cache
 - `apps/app-api`
   负责 shared-product bootstrap 下的 `app_auth.*` / `chat.*`，并拥有 `runtime.*` / `operator.*` / `official_web.*` 的 Drizzle migration ownership；`drizzle.app_api_migrations` 不接管 `app_auth.*` / `chat.*`
 - `packages/ingestion-core`

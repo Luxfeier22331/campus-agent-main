@@ -14,12 +14,13 @@ import {
   routeErrorResponse,
   withNoStore,
 } from "./http";
+import { probeRuntimeDatabase } from "./db/runtime";
 import {
   buildChatConversationService,
   createPgChatConversationStore,
   type ChatConversationService,
 } from "./modules/chat";
-import { createSupervisorExecutionClient } from "./modules/integration";
+import { createSupervisorExecutionClient, probeSupervisorApiReady } from "./modules/integration";
 import {
   buildOfficialWebCommandService,
   createPgOfficialWebCommandStore,
@@ -51,16 +52,23 @@ import {
   buildBetterAuthConfig,
   hasMatchingInternalSecret,
   handleAuthRequest,
+  probeAppAuthRuntime,
   resolveOfficialWebCollectorPrincipal,
   resolveRequestPrincipal,
+  type AppAuthResolutionInput,
   type ResolvedAppPrincipal,
 } from "./modules/auth";
+import { createRequestRuntimeScope } from "./request-runtime-scope";
 
 export interface AppDependencies {
-  authHandler?: (request: Request, env: Env) => Promise<Response> | Response;
+  authHandler?: (request: Request, env: Env, input?: AppAuthResolutionInput) => Promise<Response> | Response;
   chatConversationService?: ChatConversationService;
   chatCommandService?: ChatCommandService;
-  getPrincipal?: (request: Request, env: Env) => Promise<ResolvedAppPrincipal | null>;
+  getPrincipal?: (
+    request: Request,
+    env: Env,
+    input?: AppAuthResolutionInput,
+  ) => Promise<ResolvedAppPrincipal | null>;
   officialWebCommandService?: OfficialWebCommandService;
   officialWebQueryService?: OfficialWebQueryService;
   operatorObservabilityCommandService?: OperatorObservabilityCommandService;
@@ -70,6 +78,20 @@ export interface AppDependencies {
     waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
   }) => void;
   telemetry?: AppTelemetry;
+  runtimeReadinessProbe?: () => Promise<AppRuntimeReadinessResult>;
+}
+type AppRuntimeDependencyName = "auth" | "database" | "supervisorApi";
+
+export interface AppRuntimeReadinessResult {
+  dependencies: {
+    auth: "ready" | "not_ready";
+    database: "ready" | "not_ready";
+    officialWebHandoff: "configured" | "not_configured";
+    operatorBridge: "configured";
+    publicChatOrigin: "configured";
+    supervisorApi: "ready" | "not_ready";
+  };
+  failed: Partial<Record<AppRuntimeDependencyName, string>>;
 }
 
 function dependencyNotReadyResponse() {
@@ -208,46 +230,188 @@ async function readJsonRequestBody(request: Request): Promise<Record<string, unk
     : {};
 }
 
+function resolveWaitUntil(
+  context: { executionCtx?: { waitUntil(promise: Promise<unknown>): void } } | null | undefined,
+): ((promise: Promise<unknown>) => void) | undefined {
+  try {
+    return context?.executionCtx?.waitUntil.bind(context.executionCtx);
+  } catch {
+    return undefined;
+  }
+}
+
+function formatRuntimeDependencyFailure(error: unknown): string {
+  return error instanceof Error ? error.message : "Unknown dependency probe failure.";
+}
+
+async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntimeReadinessResult> {
+  const dependencies: AppRuntimeReadinessResult["dependencies"] = {
+    auth: "not_ready",
+    database: "not_ready",
+    officialWebHandoff:
+      env.APP_API_OFFICIAL_WEB_HANDOFF_URL?.trim() && env.APP_API_OFFICIAL_WEB_HANDOFF_TOKEN?.trim()
+        ? "configured"
+        : "not_configured",
+    operatorBridge: "configured",
+    publicChatOrigin: "configured",
+    supervisorApi: "not_ready",
+  };
+  const failed: AppRuntimeReadinessResult["failed"] = {};
+
+  try {
+    const config = readAppApiConfig(env);
+    buildBetterAuthConfig({
+      appName: config.appName,
+      betterAuthSecret: config.betterAuthSecret,
+      database: {},
+      environment: config.environment,
+      publicChatOrigin: config.publicChatOrigin,
+    });
+  } catch (error) {
+    return {
+      dependencies,
+      failed: {
+        auth: formatRuntimeDependencyFailure(error),
+        database: formatRuntimeDependencyFailure(error),
+        supervisorApi: formatRuntimeDependencyFailure(error),
+      },
+    };
+  }
+
+  try {
+    await probeRuntimeDatabase(env);
+    dependencies.database = "ready";
+  } catch (error) {
+    failed.database = formatRuntimeDependencyFailure(error);
+  }
+
+  try {
+    await probeAppAuthRuntime(env);
+    dependencies.auth = "ready";
+  } catch (error) {
+    failed.auth = formatRuntimeDependencyFailure(error);
+  }
+
+  try {
+    await probeSupervisorApiReady(env);
+    dependencies.supervisorApi = "ready";
+  } catch (error) {
+    failed.supervisorApi = formatRuntimeDependencyFailure(error);
+  }
+
+  return {
+    dependencies,
+    failed,
+  };
+}
+
 export function createApp(env: Env, dependencies: AppDependencies = {}) {
   const app = new Hono<{ Bindings: Env }>();
   const authHandler = dependencies.authHandler ?? handleAuthRequest;
   const telemetry = dependencies.telemetry ?? createAppTelemetry(env);
-  const chatConversationStore = createPgChatConversationStore(env);
-  const chatConversationService =
-    dependencies.chatConversationService ??
-    buildChatConversationService({
-      store: chatConversationStore,
-    });
-  const chatCommandService =
-    dependencies.chatCommandService ??
-    buildChatCommandService({
-      conversationStore: chatConversationStore,
-      store: createPgChatCommandStore(env),
-      supervisor: createSupervisorExecutionClient(env),
-      telemetry,
-    });
   const getPrincipal = dependencies.getPrincipal ?? resolveRequestPrincipal;
-  const officialWebCommandService =
-    dependencies.officialWebCommandService ??
-    buildOfficialWebCommandService({
-      store: createPgOfficialWebCommandStore(env),
-    });
-  const officialWebQueryService =
-    dependencies.officialWebQueryService ??
-    buildOfficialWebQueryService({
-      store: createPgOfficialWebQueryStore(env),
-    });
-  const operatorQueryService =
-    dependencies.operatorQueryService ??
-    buildOperatorQueryService({
-      store: createPgOperatorQueryStore(env),
-    });
-  const operatorObservabilityCommandService =
-    dependencies.operatorObservabilityCommandService ??
-    buildOperatorObservabilityCommandService({
-      store: createPgOperatorObservabilityCommandStore(env),
-    });
+  const runtimeReadinessProbe = dependencies.runtimeReadinessProbe ?? (() => defaultRuntimeReadinessProbe(env));
   const scheduleRequestProjectionDrain = dependencies.scheduleRequestProjectionDrain;
+
+  function createRequestScope() {
+    const runtime = createRequestRuntimeScope(env);
+    let chatConversationService = dependencies.chatConversationService ?? null;
+    let chatCommandService = dependencies.chatCommandService ?? null;
+    let officialWebCommandService = dependencies.officialWebCommandService ?? null;
+    let officialWebQueryService = dependencies.officialWebQueryService ?? null;
+    let operatorObservabilityCommandService =
+      dependencies.operatorObservabilityCommandService ?? null;
+    let operatorQueryService = dependencies.operatorQueryService ?? null;
+
+    function resolveChatConversationService(): ChatConversationService {
+      if (chatConversationService) {
+        return chatConversationService;
+      }
+
+      chatConversationService = buildChatConversationService({
+        store: createPgChatConversationStore(env, { getDb: runtime.getFreshDb }),
+      });
+      return chatConversationService;
+    }
+
+    function resolveChatCommandService(): ChatCommandService {
+      if (chatCommandService) {
+        return chatCommandService;
+      }
+
+      const chatConversationStore = createPgChatConversationStore(env, { getDb: runtime.getFreshDb });
+      chatCommandService = buildChatCommandService({
+        conversationStore: chatConversationStore,
+        store: createPgChatCommandStore(env, { getDb: runtime.getFreshDb }),
+        supervisor: createSupervisorExecutionClient(env),
+        telemetry,
+      });
+      return chatCommandService;
+    }
+
+    function resolveOfficialWebCommandService(): OfficialWebCommandService {
+      if (officialWebCommandService) {
+        return officialWebCommandService;
+      }
+
+      officialWebCommandService = buildOfficialWebCommandService({
+        store: createPgOfficialWebCommandStore(env, { getDb: runtime.getFreshDb }),
+      });
+      return officialWebCommandService;
+    }
+
+    function resolveOfficialWebQueryService(): OfficialWebQueryService {
+      if (officialWebQueryService) {
+        return officialWebQueryService;
+      }
+
+      officialWebQueryService = buildOfficialWebQueryService({
+        store: createPgOfficialWebQueryStore(env, { getDb: runtime.getDb }),
+      });
+      return officialWebQueryService;
+    }
+
+    function resolveOperatorQueryService(): OperatorQueryService {
+      if (operatorQueryService) {
+        return operatorQueryService;
+      }
+
+      operatorQueryService = buildOperatorQueryService({
+        store: createPgOperatorQueryStore(env, { getDb: runtime.getDb }),
+      });
+      return operatorQueryService;
+    }
+
+    function resolveOperatorObservabilityCommandService(): OperatorObservabilityCommandService {
+      if (operatorObservabilityCommandService) {
+        return operatorObservabilityCommandService;
+      }
+
+      operatorObservabilityCommandService = buildOperatorObservabilityCommandService({
+        store: createPgOperatorObservabilityCommandStore(env, { getDb: runtime.getFreshDb }),
+      });
+      return operatorObservabilityCommandService;
+    }
+
+    return {
+      getAppAuth: runtime.getAppAuth,
+      resolveChatCommandService,
+      resolveChatConversationService,
+      resolveOfficialWebCommandService,
+      resolveOfficialWebQueryService,
+      resolveOperatorObservabilityCommandService,
+      resolveOperatorQueryService,
+    };
+  }
+
+  async function resolvePrincipalForScope(
+    request: Request,
+    scope: ReturnType<typeof createRequestScope>,
+  ): Promise<ResolvedAppPrincipal | null> {
+    return getPrincipal(request, env, {
+      getAppAuth: scope.getAppAuth,
+    });
+  }
 
   app.use("*", async (c, next) => {
     telemetry.configureHttpRequestScope({
@@ -282,24 +446,15 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
       );
     }
 
-    try {
-      const config = readAppApiConfig(env);
-      buildBetterAuthConfig({
-        appName: config.appName,
-        betterAuthSecret: config.betterAuthSecret,
-        database: {},
-        environment: config.environment,
-        publicChatOrigin: config.publicChatOrigin,
-      });
-    } catch (error) {
+    const readiness = await runtimeReadinessProbe();
+    if (Object.keys(readiness.failed).length > 0) {
       return jsonResponse(
         errorEnvelope({
           code: "dependency_not_ready",
-          message: "Runtime configuration is incomplete.",
+          message: "Runtime dependencies are not ready.",
           retryable: true,
           details: {
-            reason:
-              error instanceof Error ? error.message : "Unable to initialize app-api runtime.",
+            failed: readiness.failed,
           },
         }),
         { status: 503 },
@@ -308,33 +463,30 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     return jsonResponse({
       status: "ready",
-      dependencies: {
-        auth: "configured",
-        database: "configured",
-        officialWebHandoff:
-          env.APP_API_OFFICIAL_WEB_HANDOFF_URL?.trim() && env.APP_API_OFFICIAL_WEB_HANDOFF_TOKEN?.trim()
-            ? "configured"
-            : "not_configured",
-        operatorBridge: "configured",
-        publicChatOrigin: "configured",
-        supervisorApi: "configured",
-      },
+      dependencies: readiness.dependencies,
     });
   });
 
   app.all("/api/auth/*", async (c) => {
+    const scope = createRequestScope();
+
     try {
-      return withNoStore(await authHandler(c.req.raw, env));
+      return withNoStore(
+        await authHandler(c.req.raw, env, {
+          getAppAuth: scope.getAppAuth,
+        }),
+      );
     } catch {
       return dependencyNotReadyResponse();
     }
   });
 
   app.get("/api/me", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
     } catch {
       return dependencyNotReadyResponse();
     }
@@ -351,10 +503,11 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
   });
 
   app.post("/api/chat/requests", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
     } catch {
       return dependencyNotReadyResponse();
     }
@@ -365,14 +518,14 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     const payload = await readJsonRequestBody(c.req.raw);
 
-    const response = await chatCommandService.submit({
+    const response = await scope.resolveChatCommandService().submit({
       idempotencyKey: c.req.header("idempotency-key") ?? null,
       payload,
       principal,
     });
     scheduleRequestProjectionDrain?.({
       requestId: response.requestId,
-      waitUntil: c.executionCtx?.waitUntil.bind(c.executionCtx),
+      waitUntil: resolveWaitUntil(c),
     });
 
     return jsonResponse(
@@ -390,12 +543,13 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
   });
 
   app.post("/api/official-web/runs", async (c) => {
+    const scope = createRequestScope();
     const principal = await resolveOfficialWebCollectorPrincipal(c.req.raw, env);
     if (!principal) {
       return serviceCredentialRequiredResponse();
     }
 
-    const response = await officialWebCommandService.start({
+    const response = await scope.resolveOfficialWebCommandService().start({
       payload: await readJsonRequestBody(c.req.raw),
       principal,
     });
@@ -404,12 +558,13 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
   });
 
   app.post("/api/official-web/runs/:runId/heartbeats", async (c) => {
+    const scope = createRequestScope();
     const principal = await resolveOfficialWebCollectorPrincipal(c.req.raw, env);
     if (!principal) {
       return serviceCredentialRequiredResponse();
     }
 
-    const response = await officialWebCommandService.heartbeat({
+    const response = await scope.resolveOfficialWebCommandService().heartbeat({
       payload: await readJsonRequestBody(c.req.raw),
       principal,
       runId: c.req.param("runId"),
@@ -419,12 +574,13 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
   });
 
   app.post("/api/official-web/runs/:runId/finalize", async (c) => {
+    const scope = createRequestScope();
     const principal = await resolveOfficialWebCollectorPrincipal(c.req.raw, env);
     if (!principal) {
       return serviceCredentialRequiredResponse();
     }
 
-    const response = await officialWebCommandService.finalize({
+    const response = await scope.resolveOfficialWebCommandService().finalize({
       payload: await readJsonRequestBody(c.req.raw),
       principal,
       runId: c.req.param("runId"),
@@ -434,43 +590,42 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
   });
 
   app.post("/api/internal/operator/quality/grades", async (c) => {
+    const scope = createRequestScope();
     if (!hasMatchingInternalSecret(c.req.raw, env)) {
       return serviceCredentialRequiredResponse();
     }
 
     return jsonResponse(
-      await operatorObservabilityCommandService.ingestGrades({
+      await scope.resolveOperatorObservabilityCommandService().ingestGrades({
         payload: await readJsonRequestBody(c.req.raw),
       }),
     );
   });
 
   app.post("/api/internal/operator/trace-backlinks", async (c) => {
+    const scope = createRequestScope();
     if (!hasMatchingInternalSecret(c.req.raw, env)) {
       return serviceCredentialRequiredResponse();
     }
 
     return jsonResponse(
-      await operatorObservabilityCommandService.ingestTraceBacklinks({
+      await scope.resolveOperatorObservabilityCommandService().ingestTraceBacklinks({
         payload: await readJsonRequestBody(c.req.raw),
       }),
     );
   });
 
   app.post("/api/internal/evals/chat/requests", async (c) => {
+    const scope = createRequestScope();
     if (!hasMatchingInternalSecret(c.req.raw, env)) {
       return serviceCredentialRequiredResponse();
     }
 
-    const response = await chatCommandService.submit({
+    const response = await scope.resolveChatCommandService().submit({
       idempotencyKey: c.req.header("idempotency-key") ?? null,
       payload: await readJsonRequestBody(c.req.raw),
       principal: buildInternalEvalPrincipalFromRequest(c.req.raw),
       surface: "eval_benchmark",
-    });
-    scheduleRequestProjectionDrain?.({
-      requestId: response.requestId,
-      waitUntil: c.executionCtx?.waitUntil.bind(c.executionCtx),
     });
 
     return jsonResponse(
@@ -489,10 +644,11 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
   });
 
   app.get("/api/chat/conversations", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
     } catch {
       return dependencyNotReadyResponse();
     }
@@ -501,15 +657,16 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
       return sessionRequiredResponse();
     }
 
-    const response = await chatConversationService.list({ principal });
+    const response = await scope.resolveChatConversationService().list({ principal });
     return jsonResponse(response);
   });
 
   app.post("/api/chat/conversations", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
     } catch {
       return dependencyNotReadyResponse();
     }
@@ -518,15 +675,16 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
       return sessionRequiredResponse();
     }
 
-    const response = await chatConversationService.createDraft({ principal });
+    const response = await scope.resolveChatConversationService().createDraft({ principal });
     return jsonResponse(response, { status: 201 });
   });
 
   app.get("/api/chat/conversations/:conversationId", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
     } catch {
       return dependencyNotReadyResponse();
     }
@@ -535,7 +693,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
       return sessionRequiredResponse();
     }
 
-    const response = await chatConversationService.getById({
+    const response = await scope.resolveChatConversationService().getById({
       conversationId: c.req.param("conversationId"),
       principal,
     });
@@ -543,10 +701,11 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
   });
 
   app.get("/api/operator/overview", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
     } catch {
       return dependencyNotReadyResponse();
     }
@@ -559,7 +718,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     }
 
     return jsonResponse(
-      await operatorQueryService.getOverview({
+      await scope.resolveOperatorQueryService().getOverview({
         filters: readOperatorAggregateFilters(c.req),
         principal,
       }),
@@ -567,10 +726,11 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
   });
 
   app.get("/api/operator/quality/summary", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
     } catch {
       return dependencyNotReadyResponse();
     }
@@ -583,7 +743,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     }
 
     return jsonResponse(
-      await operatorQueryService.getQualitySummary({
+      await scope.resolveOperatorQueryService().getQualitySummary({
         filters: readOperatorAggregateFilters(c.req),
         principal,
       }),
@@ -591,10 +751,11 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
   });
 
   app.get("/api/operator/quality/timeseries", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
     } catch {
       return dependencyNotReadyResponse();
     }
@@ -607,7 +768,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     }
 
     return jsonResponse(
-      await operatorQueryService.getQualityTimeseries({
+      await scope.resolveOperatorQueryService().getQualityTimeseries({
         filters: readOperatorAggregateFilters(c.req),
         principal,
       }),
@@ -615,10 +776,11 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
   });
 
   app.get("/api/operator/quality/badcases", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
     } catch {
       return dependencyNotReadyResponse();
     }
@@ -631,7 +793,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     }
 
     return jsonResponse(
-      await operatorQueryService.listQualityBadcases({
+      await scope.resolveOperatorQueryService().listQualityBadcases({
         filters: {
           causeClass: c.req.query("causeClass") ?? null,
           cursor: c.req.query("cursor") ?? null,
@@ -645,10 +807,11 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
   });
 
   app.get("/api/operator/safety/summary", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
     } catch {
       return dependencyNotReadyResponse();
     }
@@ -661,7 +824,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     }
 
     return jsonResponse(
-      await operatorQueryService.getSafetySummary({
+      await scope.resolveOperatorQueryService().getSafetySummary({
         filters: readOperatorAggregateFilters(c.req),
         principal,
       }),
@@ -669,10 +832,11 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
   });
 
   app.get("/api/operator/cost/summary", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
     } catch {
       return dependencyNotReadyResponse();
     }
@@ -685,7 +849,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     }
 
     return jsonResponse(
-      await operatorQueryService.getCostSummary({
+      await scope.resolveOperatorQueryService().getCostSummary({
         filters: readOperatorAggregateFilters(c.req),
         principal,
       }),
@@ -693,10 +857,11 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
   });
 
   app.get("/api/operator/audit", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
     } catch {
       return dependencyNotReadyResponse();
     }
@@ -709,7 +874,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     }
 
     return jsonResponse(
-      await operatorQueryService.listAudit({
+      await scope.resolveOperatorQueryService().listAudit({
         filters: {
           cursor: c.req.query("cursor") ?? null,
           eventType: c.req.query("eventType") ?? null,
@@ -727,10 +892,11 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
   });
 
   app.get("/api/operator/audit/:auditEventId", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
     } catch {
       return dependencyNotReadyResponse();
     }
@@ -743,7 +909,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     }
 
     return jsonResponse(
-      await operatorQueryService.getAuditById({
+      await scope.resolveOperatorQueryService().getAuditById({
         auditEventId: c.req.param("auditEventId"),
         principal,
       }),
@@ -751,10 +917,11 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
   });
 
   app.get("/api/operator/requests", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
     } catch {
       return dependencyNotReadyResponse();
     }
@@ -766,7 +933,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
       return operatorAccessForbiddenResponse();
     }
 
-    const response = await operatorQueryService.list({
+    const response = await scope.resolveOperatorQueryService().list({
       filters: {
         conversationId: c.req.query("conversationId") ?? null,
         cursor: c.req.query("cursor") ?? null,
@@ -782,10 +949,11 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
   });
 
   app.get("/api/operator/requests/:requestId", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
     } catch {
       return dependencyNotReadyResponse();
     }
@@ -797,7 +965,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
       return operatorAccessForbiddenResponse();
     }
 
-    const request = await operatorQueryService.getById({
+    const request = await scope.resolveOperatorQueryService().getById({
       principal,
       requestId: c.req.param("requestId"),
     });
@@ -806,10 +974,11 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
   });
 
   app.get("/api/operator/requests/:requestId/observability", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
     } catch {
       return dependencyNotReadyResponse();
     }
@@ -822,7 +991,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     }
 
     return jsonResponse(
-      await operatorQueryService.getObservabilityById({
+      await scope.resolveOperatorQueryService().getObservabilityById({
         principal,
         requestId: c.req.param("requestId"),
       }),
@@ -830,10 +999,11 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
   });
 
   app.get("/api/operator/official-web/sites", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
     } catch {
       return dependencyNotReadyResponse();
     }
@@ -846,17 +1016,18 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     }
 
     return jsonResponse(
-      await officialWebQueryService.listSites({
+      await scope.resolveOfficialWebQueryService().listSites({
         principal,
       }),
     );
   });
 
   app.get("/api/operator/official-web/sites/:siteId", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
     } catch {
       return dependencyNotReadyResponse();
     }
@@ -869,7 +1040,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     }
 
     return jsonResponse(
-      await officialWebQueryService.getSiteById({
+      await scope.resolveOfficialWebQueryService().getSiteById({
         principal,
         siteId: c.req.param("siteId"),
       }),
@@ -877,10 +1048,11 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
   });
 
   app.get("/api/operator/official-web/runs", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
     } catch {
       return dependencyNotReadyResponse();
     }
@@ -893,7 +1065,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     }
 
     return jsonResponse(
-      await officialWebQueryService.listRuns({
+      await scope.resolveOfficialWebQueryService().listRuns({
         filters: {
           cursor: c.req.query("cursor") ?? null,
           ingestionDispatchStatus: c.req.query("ingestionDispatchStatus") ?? null,
@@ -909,10 +1081,11 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
   });
 
   app.get("/api/operator/official-web/runs/:runId", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
     } catch {
       return dependencyNotReadyResponse();
     }
@@ -925,7 +1098,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     }
 
     return jsonResponse({
-      run: await officialWebQueryService.getRunById({
+      run: await scope.resolveOfficialWebQueryService().getRunById({
         principal,
         runId: c.req.param("runId"),
       }),
@@ -936,6 +1109,24 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     if (error instanceof AppApiRouteError) {
       return routeErrorResponse(error);
     }
+
+    console.error(
+      JSON.stringify({
+        error:
+          error instanceof Error
+            ? {
+                message: error.message,
+                name: error.name,
+              }
+            : {
+                message: String(error),
+                name: "UnknownError",
+              },
+        route: c.req.path,
+        source: "app-api.onError",
+        surface: resolveRequestSurface(c.req.raw),
+      }),
+    );
 
     telemetry.captureException(error, {
       route: c.req.path,

@@ -2,7 +2,7 @@ import type { CloudflareOptions } from "@sentry/cloudflare";
 import * as Sentry from "@sentry/cloudflare";
 
 import { createApp, type AppDependencies } from "./app";
-import { resolveAppName, type Env } from "./config";
+import { isDeployedEnvironment, resolveAppName, resolveEnvironment, type Env } from "./config";
 import { createOfficialWebHandoffPublisher } from "./modules/integration";
 import {
   buildOfficialWebProjectionProjector,
@@ -25,6 +25,11 @@ export interface WorkerRuntimeDependencies extends AppDependencies {
 
 interface WaitUntilContext {
   waitUntil(promise: Promise<unknown>): void;
+}
+
+interface WorkerRuntime {
+  fetch(request: Request, executionCtx?: WaitUntilContext): Promise<Response> | Response;
+  scheduled(): Promise<void>;
 }
 
 const SENSITIVE_EVENT_FIELDS = new Set([
@@ -114,7 +119,7 @@ async function drainRequestProjection(input: {
 export function createWorkerRuntime(
   env: Env,
   dependencies: WorkerRuntimeDependencies = {},
-) {
+): WorkerRuntime {
   const telemetry = dependencies.telemetry ?? createAppTelemetry(env);
   const requestProjector =
     dependencies.requestProjector ??
@@ -133,12 +138,7 @@ export function createWorkerRuntime(
       requestId: string;
       waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
     }) => {
-      if (!input.waitUntil) {
-        return;
-      }
-
-      input.waitUntil(
-        Promise.resolve().then(async () => {
+      const runDrain = Promise.resolve().then(async () => {
           try {
             const result = await Sentry.startSpan(
               {
@@ -163,22 +163,39 @@ export function createWorkerRuntime(
             });
             console.error(
               JSON.stringify({
+                error:
+                  error instanceof Error
+                    ? {
+                        message: error.message,
+                        name: error.name,
+                      }
+                    : {
+                        message: String(error),
+                        name: "UnknownError",
+                      },
                 requestId: input.requestId,
                 source: "app-api.request-projection-projector.background",
               }),
             );
           }
-        }),
-      );
+        });
+
+      if (input.waitUntil) {
+        input.waitUntil(runDrain);
+        return;
+      }
+
+      void runDrain;
     });
+  const app = createApp(env, {
+    ...dependencies,
+    scheduleRequestProjectionDrain,
+    telemetry,
+  });
 
   return {
     fetch(request: Request, executionCtx?: WaitUntilContext): Promise<Response> | Response {
-      return createApp(env, {
-        ...dependencies,
-        scheduleRequestProjectionDrain,
-        telemetry,
-      }).fetch(request, env, executionCtx as ExecutionContext | undefined);
+      return app.fetch(request, env, executionCtx as ExecutionContext | undefined);
     },
     async scheduled(): Promise<void> {
       const requestResult = await drainRequestProjection({
@@ -249,12 +266,34 @@ export function createWorkerRuntime(
   };
 }
 
+const runtimeCache = new WeakMap<Env, WorkerRuntime>();
+
+function shouldCacheWorkerRuntime(env: Env): boolean {
+  const environment = resolveEnvironment(env);
+  return environment === "test" || isDeployedEnvironment(environment);
+}
+
+function resolveWorkerRuntime(env: Env): WorkerRuntime {
+  if (!shouldCacheWorkerRuntime(env)) {
+    return createWorkerRuntime(env);
+  }
+
+  const cachedRuntime = runtimeCache.get(env);
+  if (cachedRuntime) {
+    return cachedRuntime;
+  }
+
+  const runtime = createWorkerRuntime(env);
+  runtimeCache.set(env, runtime);
+  return runtime;
+}
+
 const worker = {
   fetch(request: Request, env: Env, executionCtx: ExecutionContext): Promise<Response> | Response {
-    return createWorkerRuntime(env).fetch(request, executionCtx);
+    return resolveWorkerRuntime(env).fetch(request, executionCtx);
   },
   async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
-    await createWorkerRuntime(env).scheduled();
+    await resolveWorkerRuntime(env).scheduled();
   },
 };
 

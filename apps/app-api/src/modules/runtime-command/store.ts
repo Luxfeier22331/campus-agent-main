@@ -1,7 +1,7 @@
 import { and, asc, desc, eq } from "drizzle-orm";
 
 import type { Env } from "../../config";
-import { createRuntimeDatabase } from "../../db/runtime";
+import { createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
 import {
   conversations,
   messages,
@@ -14,6 +14,8 @@ import type { ChatConversation, ChatMessage, ChatSessionSlot } from "../chat";
 import type { RequestedScope } from "../integration";
 import type { RequestDiagnosticsSummary } from "../request-diagnostics";
 import type { ChatCommandResponse } from "./service";
+
+type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 
 export type RequestExecutionStatus =
   | "accepted"
@@ -190,12 +192,19 @@ function toChatConversation(
   };
 }
 
-export function createPgChatCommandStore(env: Env): ChatCommandStore {
+export function createPgChatCommandStore(
+  env: Env,
+  input: {
+    getDb?: RuntimeDbGetter;
+  } = {},
+): ChatCommandStore {
+  const getDb = input.getDb ?? createRuntimeDbGetter(env);
+
   async function loadConversation(
     ownerUserId: string,
     conversationId: string,
   ): Promise<ChatConversation | null> {
-    const db = await createRuntimeDatabase(env);
+    const db = await getDb();
     const conversationRows = await db
       .select()
       .from(conversations)
@@ -222,7 +231,7 @@ export function createPgChatCommandStore(env: Env): ChatCommandStore {
 
   return {
     async findIdempotentRequest(input) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const executionRows = await db
         .select()
         .from(requestExecution)
@@ -312,7 +321,7 @@ export function createPgChatCommandStore(env: Env): ChatCommandStore {
     },
 
     async acceptRequest(input) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       await db.transaction(async (tx) => {
         if (input.conversationSeed) {
           await tx.insert(conversations).values({
@@ -447,7 +456,7 @@ export function createPgChatCommandStore(env: Env): ChatCommandStore {
     },
 
     async finalizeRequest(input) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       await db.transaction(async (tx) => {
         await tx
           .insert(messages)

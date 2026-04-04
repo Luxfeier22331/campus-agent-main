@@ -310,7 +310,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
       execute: vi
         .fn()
         .mockResolvedValueOnce({
-          answerText: "第四学期有习近平法治思想概论、国际公法。",
+          answerText: "第四学期有中国少数民族文字学、侵权责任法、翻译学导论。",
           error: null,
           followUpQuestion: "",
           result: {

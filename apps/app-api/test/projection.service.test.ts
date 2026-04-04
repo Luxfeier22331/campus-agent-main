@@ -310,6 +310,52 @@ describe("request projection projector", () => {
     });
   });
 
+  it("uses resolved serving scope for operator projection and quality rollups when request scope was unresolved at accept time", async () => {
+    const store: RequestProjectionProjectorStore = {
+      getRequestExecution: vi.fn().mockResolvedValue(
+        createExecutionSource({
+          requestedScope: null,
+          resolvedScope: {
+            collection: "curriculum_plan",
+            corpus: "curriculum",
+          },
+        }),
+      ),
+      listPendingEvents: vi.fn().mockResolvedValue([createPendingEvent()]),
+      markEventFailed: vi.fn(),
+      markEventProcessed: vi.fn(),
+      markObservabilityProjected: vi.fn(),
+      replaceQualityBadcases: vi.fn(),
+      replaceQualityRollups: vi.fn(),
+      upsertAuditProjection: vi.fn(),
+      upsertProjection: vi.fn(),
+    };
+    const projector = buildRequestProjectionProjector({
+      now: () => new Date("2026-03-28T08:00:03.000Z"),
+      store,
+    });
+
+    await projector.drain();
+
+    expect(store.upsertProjection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestedScope: null,
+        resolvedScope: {
+          collection: "curriculum_plan",
+          corpus: "curriculum",
+        },
+      }),
+    );
+    expect(store.replaceQualityRollups).toHaveBeenCalledWith({
+      requestId: "req_01HQ",
+      rollups: expect.arrayContaining([
+        expect.objectContaining({
+          collection: "curriculum_plan",
+        }),
+      ]),
+    });
+  });
+
   it("records a retryable projector failure when request_execution is missing", async () => {
     const store: RequestProjectionProjectorStore = {
       getRequestExecution: vi.fn().mockResolvedValue(null),

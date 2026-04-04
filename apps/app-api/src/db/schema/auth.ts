@@ -76,3 +76,10 @@ export const verification = auth.table(
     identifierIndex: index("verification_identifier_idx").on(table.identifier),
   }),
 );
+
+export const appAuthSchema = {
+  user,
+  session,
+  account,
+  verification,
+};

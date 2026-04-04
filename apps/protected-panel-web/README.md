@@ -97,6 +97,7 @@ Environment:
 Hostname mapping:
 
 - the protected hostname is owned by `wrangler.toml` Custom Domain deploy config, not by runtime env
+- staging `ACCESS_TEAM_DOMAIN` / `ACCESS_POLICY_AUD` are deploy-time injected and must not be hardcoded into `wrangler.toml`
 
 Runtime bindings:
 
@@ -106,9 +107,12 @@ Runtime bindings:
 Readiness expectations:
 
 - `GET /readyz` stays `503` until `APP_API`, `ASSETS`, runtime base URL, `PANEL_APP_API_SHARED_SECRET`, `PANEL_PROTECTION_ENVELOPE=cloudflare-access`, `ACCESS_TEAM_DOMAIN`, and `ACCESS_POLICY_AUD` are all configured
+- placeholder Access defaults such as `https://team.cloudflareaccess.com` and `panel-audience` are treated as not configured
+- `GET /readyz` also probes shared `app-api /readyz`; panel readiness is not green until shared runtime dependencies are actually ready
 - shell routes and `/api/overview` stay fail-closed until upstream admission, the trusted `APP_API` bridge, and frontend assets are all configured
 - when admission config is missing or `PANEL_PROTECTION_ENVELOPE` is not `cloudflare-access`, the Worker fails closed for the shell and `/api/overview` instead of exposing a partially protected panel surface
 - `pnpm deploy` now fails before publish if the generated Worker deploy config loses the required `APP_API` service binding
+- `pnpm deploy:staging` also fails before publish unless `STAGING_ACCESS_TEAM_DOMAIN` and `STAGING_ACCESS_POLICY_AUD` are explicitly provided
 - proxied panel API responses are forced to `Cache-Control: no-store`
 
 Current operator-access env contract for Cloudflare Access admission includes:

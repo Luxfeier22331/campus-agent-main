@@ -1,8 +1,10 @@
 import { and, eq } from "drizzle-orm";
 
 import type { Env } from "../../config";
-import { createRuntimeDatabase } from "../../db/runtime";
+import { createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
 import { crawlRuns, runArtifacts, runHeartbeats, runOutbox } from "../../db/schema";
+
+type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 
 export type OfficialWebRunStatus =
   | "accepted"
@@ -131,10 +133,17 @@ function toStoredOfficialWebRun(
   };
 }
 
-export function createPgOfficialWebCommandStore(env: Env): OfficialWebCommandStore {
+export function createPgOfficialWebCommandStore(
+  env: Env,
+  input: {
+    getDb?: RuntimeDbGetter;
+  } = {},
+): OfficialWebCommandStore {
+  const getDb = input.getDb ?? createRuntimeDbGetter(env);
+
   return {
     async acceptRun(input) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       await db.transaction(async (tx) => {
         await tx.insert(crawlRuns).values({
           collectorVersion: input.run.collectorVersion,
@@ -182,7 +191,7 @@ export function createPgOfficialWebCommandStore(env: Env): OfficialWebCommandSto
     },
 
     async appendHeartbeat(input) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       await db.transaction(async (tx) => {
         await tx.insert(runHeartbeats).values({
           countsJson: input.heartbeat.counts,
@@ -209,7 +218,7 @@ export function createPgOfficialWebCommandStore(env: Env): OfficialWebCommandSto
     },
 
     async finalizeRun(input) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       await db.transaction(async (tx) => {
         await tx
           .update(crawlRuns)
@@ -263,14 +272,14 @@ export function createPgOfficialWebCommandStore(env: Env): OfficialWebCommandSto
     },
 
     async getRunById(runId) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const rows = await db.select().from(crawlRuns).where(eq(crawlRuns.runId, runId)).limit(1);
 
       return rows[0] ? toStoredOfficialWebRun(rows[0]) : null;
     },
 
     async getRunBySchedulerKey(siteId, schedulerRunKey) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const rows = await db
         .select()
         .from(crawlRuns)

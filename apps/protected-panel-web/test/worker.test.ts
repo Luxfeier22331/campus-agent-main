@@ -11,22 +11,39 @@ const packageManifest = JSON.parse(packageManifestRaw) as {
 };
 
 describe("protected panel web worker shell", () => {
-  it("declares the app-api service binding and deploy verification gate", () => {
+  it("declares the staging custom domain, app-api staging binding, and deploy gates", () => {
     expect(wranglerConfig).toContain("workers_dev = false");
     expect(wranglerConfig).toContain("preview_urls = false");
     expect(wranglerConfig).toContain('compatibility_flags = ["nodejs_compat"]');
-    expect(wranglerConfig).toMatch(/routes?\s*=/);
-    expect(wranglerConfig).toContain('pattern = "panel.ayafeed.com"');
+    expect(wranglerConfig).toContain("[[env.staging.routes]]");
+    expect(wranglerConfig).toContain('pattern = "panel-staging.rag.ayafeed.com"');
     expect(wranglerConfig).toContain("custom_domain = true");
-    expect(wranglerConfig).toContain("[[services]]");
+    expect(wranglerConfig).toContain("[[env.staging.services]]");
     expect(wranglerConfig).toContain('binding = "APP_API"');
-    expect(wranglerConfig).toContain('service = "app-api"');
-    expect(packageManifest.scripts?.deploy).toContain("deploy:verify-config");
-    expect(packageManifest.scripts?.["deploy:verify-config"]).toContain(
+    expect(wranglerConfig).toContain('service = "app-api-staging"');
+    expect(wranglerConfig).toContain("[env.staging.vars]");
+    expect(wranglerConfig).toContain('PANEL_RUNTIME_API_BASE_URL = "https://api-staging.rag.ayafeed.com"');
+    expect(wranglerConfig).toContain('PANEL_PROTECTION_ENVELOPE = "cloudflare-access"');
+    expect(wranglerConfig).not.toContain("ACCESS_TEAM_DOMAIN");
+    expect(wranglerConfig).not.toContain("ACCESS_POLICY_AUD");
+    expect(wranglerConfig).toContain('SENTRY_ENVIRONMENT = "staging"');
+    expect(wranglerConfig).toContain('SENTRY_RELEASE = "protected-panel-web@staging-initial"');
+    expect(packageManifest.scripts?.["build:staging"]).toContain("CLOUDFLARE_ENV=staging");
+    expect(packageManifest.scripts?.deploy).not.toContain("XDG_CONFIG_HOME=./.wrangler-home");
+    expect(packageManifest.scripts?.["deploy:staging"]).toContain("deploy-staging.mjs");
+    expect(packageManifest.scripts?.["deploy:staging"]).toContain("pnpm build:staging");
+    expect(packageManifest.scripts?.["deploy:staging"]).toContain("pnpm deploy:verify-config:staging");
+    expect(packageManifest.scripts?.["deploy:staging"]).not.toContain(
+      "XDG_CONFIG_HOME=./.wrangler-home",
+    );
+    expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
       "verify-worker-deploy-config.mjs",
     );
-    expect(packageManifest.scripts?.["deploy:verify-config"]).toContain(
+    expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
       "dist/protected_panel_web/wrangler.json",
+    );
+    expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
+      "APP_API=app-api-staging",
     );
   });
 
@@ -35,34 +52,72 @@ describe("protected panel web worker shell", () => {
       new Request("https://panel.example.com/healthz"),
       {
         APP_API: {
-          fetch: async () => new Response(null, { status: 204 }),
+          fetch: async () =>
+            new Response(
+              JSON.stringify({
+                status: "ready",
+                dependencies: {
+                  auth: "ready",
+                  database: "ready",
+                  officialWebHandoff: "not_configured",
+                  operatorBridge: "configured",
+                  publicChatOrigin: "configured",
+                  supervisorApi: "ready",
+                },
+              }),
+              {
+                status: 200,
+                headers: {
+                  "content-type": "application/json",
+                },
+              },
+            ),
         },
         ASSETS: {
           fetch: async () => new Response("ok", { status: 200 }),
         },
         PANEL_APP_NAME: "campus-agent-v2-protected-panel",
         PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
-        PANEL_RUNTIME_API_BASE_URL: "https://supervisor.internal",
+        PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
         PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
-        ACCESS_TEAM_DOMAIN: "https://team.cloudflareaccess.com",
-        ACCESS_POLICY_AUD: "panel-audience",
+        ACCESS_TEAM_DOMAIN: "https://team-readyz.cloudflareaccess.com",
+        ACCESS_POLICY_AUD: "panel-readyz-audience",
       },
     );
     const ready = await worker.fetch(
       new Request("https://panel.example.com/readyz"),
       {
         APP_API: {
-          fetch: async () => new Response(null, { status: 204 }),
+          fetch: async () =>
+            new Response(
+              JSON.stringify({
+                status: "ready",
+                dependencies: {
+                  auth: "ready",
+                  database: "ready",
+                  officialWebHandoff: "not_configured",
+                  operatorBridge: "configured",
+                  publicChatOrigin: "configured",
+                  supervisorApi: "ready",
+                },
+              }),
+              {
+                status: 200,
+                headers: {
+                  "content-type": "application/json",
+                },
+              },
+            ),
         },
         ASSETS: {
           fetch: async () => new Response("ok", { status: 200 }),
         },
         PANEL_APP_NAME: "campus-agent-v2-protected-panel",
         PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
-        PANEL_RUNTIME_API_BASE_URL: "https://supervisor.internal",
+        PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
         PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
-        ACCESS_TEAM_DOMAIN: "https://team.cloudflareaccess.com",
-        ACCESS_POLICY_AUD: "panel-audience",
+        ACCESS_TEAM_DOMAIN: "https://team-readyz.cloudflareaccess.com",
+        ACCESS_POLICY_AUD: "panel-readyz-audience",
       },
     );
 
@@ -80,12 +135,13 @@ describe("protected panel web worker shell", () => {
     await expect(ready.json()).resolves.toEqual({
       status: "ready",
       dependencies: {
-        access: "configured",
+        accessOriginAdmission: "configured",
         appApiBinding: "configured",
+        appApiRuntime: "ready",
         assets: "configured",
         operatorBridge: "configured",
       },
-      runtime_api_base_url: "https://supervisor.internal",
+      runtime_api_base_url: "https://app-api.internal",
       protected_hostname: "panel.example.com",
       protection_envelope: "cloudflare-access",
       runtime: "cloudflare-worker",
@@ -150,6 +206,80 @@ describe("protected panel web worker shell", () => {
     });
   });
 
+  it("fails readyz closed when staging still uses placeholder access values", async () => {
+    const response = await worker.fetch(
+      new Request("https://panel.example.com/readyz"),
+      {
+        APP_API: {
+          fetch: async () => new Response("ok", { status: 200 }),
+        },
+        ASSETS: {
+          fetch: async () => new Response("ok", { status: 200 }),
+        },
+        PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
+        PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
+        PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
+        ACCESS_TEAM_DOMAIN: "https://team.cloudflareaccess.com",
+        ACCESS_POLICY_AUD: "panel-audience",
+      },
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: "dependency_not_ready",
+        details: {
+          missing: ["ACCESS_TEAM_DOMAIN", "ACCESS_POLICY_AUD"],
+        },
+        message: "Runtime configuration is incomplete.",
+      },
+    });
+  });
+
+  it("fails readyz closed when the shared app-api runtime is not ready", async () => {
+    const response = await worker.fetch(
+      new Request("https://panel.example.com/readyz"),
+      {
+        APP_API: {
+          fetch: async () =>
+            new Response(
+              JSON.stringify({
+                error: {
+                  code: "dependency_not_ready",
+                  message: "Runtime dependencies are not ready.",
+                },
+              }),
+              {
+                status: 503,
+                headers: {
+                  "content-type": "application/json",
+                },
+              },
+            ),
+        },
+        ASSETS: {
+          fetch: async () => new Response("ok", { status: 200 }),
+        },
+        PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
+        PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
+        PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
+        ACCESS_TEAM_DOMAIN: "https://team-readyz.cloudflareaccess.com",
+        ACCESS_POLICY_AUD: "panel-readyz-audience",
+      },
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: "dependency_not_ready",
+        details: {
+          appApiRuntime: "app-api readyz returned 503",
+        },
+        message: "Runtime configuration is incomplete.",
+      },
+    });
+  });
+
   it("serves the protected app shell from static assets after operator admission and bridge readiness", async () => {
     const originalFetch = globalThis.fetch;
     const accessTeamDomain = "https://team-panel-shell.cloudflareaccess.com";
@@ -160,7 +290,7 @@ describe("protected panel web worker shell", () => {
     const token = await new SignJWT({ email: "ops@example.com", sub: "operator-001" })
       .setProtectedHeader({ alg: "ES256", kid: "panel-test-key" })
       .setIssuer(accessTeamDomain)
-      .setAudience("panel-audience")
+      .setAudience("panel-operator-audience")
       .setIssuedAt()
       .setExpirationTime("5m")
       .sign(privateKey);
@@ -185,7 +315,7 @@ describe("protected panel web worker shell", () => {
           },
         }),
         {
-          ACCESS_POLICY_AUD: "panel-audience",
+          ACCESS_POLICY_AUD: "panel-operator-audience",
           ACCESS_TEAM_DOMAIN: accessTeamDomain,
           APP_API: {
             fetch: async () => new Response(null, { status: 204 }),
@@ -223,7 +353,7 @@ describe("protected panel web worker shell", () => {
     const token = await new SignJWT({ email: "ops@example.com", sub: "operator-001" })
       .setProtectedHeader({ alg: "ES256", kid: "panel-test-key" })
       .setIssuer(accessTeamDomain)
-      .setAudience("panel-audience")
+      .setAudience("panel-operator-audience")
       .setIssuedAt()
       .setExpirationTime("5m")
       .sign(privateKey);
@@ -248,7 +378,7 @@ describe("protected panel web worker shell", () => {
           },
         }),
         {
-          ACCESS_POLICY_AUD: "panel-audience",
+          ACCESS_POLICY_AUD: "panel-operator-audience",
           ACCESS_TEAM_DOMAIN: accessTeamDomain,
           ASSETS: {
             fetch: async () =>
@@ -319,7 +449,7 @@ describe("protected panel web worker shell", () => {
     const token = await new SignJWT({ email: "ops@example.com", sub: "operator-001" })
       .setProtectedHeader({ alg: "ES256", kid: "panel-test-key" })
       .setIssuer(accessTeamDomain)
-      .setAudience("panel-audience")
+      .setAudience("panel-operator-audience")
       .setIssuedAt()
       .setExpirationTime("5m")
       .sign(privateKey);
@@ -344,7 +474,7 @@ describe("protected panel web worker shell", () => {
           },
         }),
         {
-          ACCESS_POLICY_AUD: "panel-audience",
+          ACCESS_POLICY_AUD: "panel-operator-audience",
           ACCESS_TEAM_DOMAIN: accessTeamDomain,
           APP_API: {
             fetch: async () => new Response(null, { status: 204 }),
@@ -372,7 +502,7 @@ describe("protected panel web worker shell", () => {
       new Request("https://panel.example.com/api/overview"),
       {
         PANEL_APP_NAME: "campus-agent-v2-protected-panel",
-        PANEL_RUNTIME_API_BASE_URL: "https://supervisor.internal",
+        PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
       },
     );
 
@@ -396,10 +526,10 @@ describe("protected panel web worker shell", () => {
     const response = await worker.fetch(
       new Request("https://panel.example.com/api/overview"),
       {
-        PANEL_RUNTIME_API_BASE_URL: "https://supervisor.internal",
+        PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
         PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
-        ACCESS_TEAM_DOMAIN: "https://team.cloudflareaccess.com",
-        ACCESS_POLICY_AUD: "panel-audience",
+        ACCESS_TEAM_DOMAIN: "https://team-overview-token.cloudflareaccess.com",
+        ACCESS_POLICY_AUD: "panel-operator-audience",
       },
     );
 
@@ -417,7 +547,7 @@ describe("protected panel web worker shell", () => {
     const token = await new SignJWT({ sub: "operator-001", email: "ops@example.com" })
       .setProtectedHeader({ alg: "ES256", kid: "panel-test-key" })
       .setIssuer(accessTeamDomain)
-      .setAudience("panel-audience")
+      .setAudience("panel-operator-audience")
       .setIssuedAt()
       .setExpirationTime("5m")
       .sign(privateKey);
@@ -447,10 +577,10 @@ describe("protected panel web worker shell", () => {
           },
           PANEL_APP_NAME: "campus-agent-v2-protected-panel",
           PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
-          PANEL_RUNTIME_API_BASE_URL: "https://supervisor.internal",
+          PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
           PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
           ACCESS_TEAM_DOMAIN: accessTeamDomain,
-          ACCESS_POLICY_AUD: "panel-audience",
+          ACCESS_POLICY_AUD: "panel-operator-audience",
         },
       );
 
@@ -462,7 +592,7 @@ describe("protected panel web worker shell", () => {
         runtime: "cloudflare-worker",
         protected_hostname: "panel.example.com",
         protection_envelope: "cloudflare-access",
-        runtime_api_base_url: "https://supervisor.internal",
+        runtime_api_base_url: "https://app-api.internal",
         panel_domains: {
           overview: "ready",
           requests: "ready",
@@ -495,7 +625,7 @@ describe("protected panel web worker shell", () => {
     const token = await new SignJWT({ sub: "operator-001", email: "ops@example.com" })
       .setProtectedHeader({ alg: "ES256", kid: "panel-test-key" })
       .setIssuer(accessTeamDomain)
-      .setAudience("panel-audience")
+      .setAudience("panel-operator-audience")
       .setIssuedAt()
       .setExpirationTime("5m")
       .sign(privateKey);
@@ -524,7 +654,7 @@ describe("protected panel web worker shell", () => {
           PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
           PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
           ACCESS_TEAM_DOMAIN: accessTeamDomain,
-          ACCESS_POLICY_AUD: "panel-audience",
+          ACCESS_POLICY_AUD: "panel-operator-audience",
         },
       );
 
@@ -555,7 +685,7 @@ describe("protected panel web worker shell", () => {
     })
       .setProtectedHeader({ alg: "ES256", kid: "panel-test-key" })
       .setIssuer(accessTeamDomain)
-      .setAudience("panel-audience")
+      .setAudience("panel-operator-audience")
       .setIssuedAt()
       .setExpirationTime("5m")
       .sign(privateKey);
@@ -590,7 +720,7 @@ describe("protected panel web worker shell", () => {
           },
         }),
         {
-          ACCESS_POLICY_AUD: "panel-audience",
+          ACCESS_POLICY_AUD: "panel-operator-audience",
           ACCESS_TEAM_DOMAIN: accessTeamDomain,
           APP_API: {
             fetch: async (request: Request) => {
@@ -661,7 +791,7 @@ describe("protected panel web worker shell", () => {
 
   it("proxies request detail queries to app-api and fails closed without an app-api binding", async () => {
     const originalFetch = globalThis.fetch;
-    const accessTeamDomain = "https://team.cloudflareaccess.com";
+    const accessTeamDomain = "https://team-request-detail.cloudflareaccess.com";
     const certsUrl = `${accessTeamDomain}/cdn-cgi/access/certs`;
     const { privateKey, publicKey } = await generateKeyPair("ES256");
     const publicJwk = await exportJWK(publicKey);
@@ -669,7 +799,7 @@ describe("protected panel web worker shell", () => {
     const token = await new SignJWT({ email: "ops@example.com", sub: "operator-001" })
       .setProtectedHeader({ alg: "ES256", kid: "panel-test-key" })
       .setIssuer(accessTeamDomain)
-      .setAudience("panel-audience")
+      .setAudience("panel-operator-audience")
       .setIssuedAt()
       .setExpirationTime("5m")
       .sign(privateKey);
@@ -694,7 +824,7 @@ describe("protected panel web worker shell", () => {
           },
         }),
         {
-          ACCESS_POLICY_AUD: "panel-audience",
+          ACCESS_POLICY_AUD: "panel-operator-audience",
           ACCESS_TEAM_DOMAIN: accessTeamDomain,
           APP_API: {
             fetch: async () =>
@@ -725,7 +855,7 @@ describe("protected panel web worker shell", () => {
           },
         }),
         {
-          ACCESS_POLICY_AUD: "panel-audience",
+          ACCESS_POLICY_AUD: "panel-operator-audience",
           ACCESS_TEAM_DOMAIN: accessTeamDomain,
           PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
           PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
@@ -745,6 +875,70 @@ describe("protected panel web worker shell", () => {
     }
   });
 
+  it("returns a contract-shaped dependency error when the app-api binding throws", async () => {
+    const originalFetch = globalThis.fetch;
+    const accessTeamDomain = "https://team-request-throw.cloudflareaccess.com";
+    const certsUrl = `${accessTeamDomain}/cdn-cgi/access/certs`;
+    const { privateKey, publicKey } = await generateKeyPair("ES256");
+    const publicJwk = await exportJWK(publicKey);
+    publicJwk.kid = "panel-test-key";
+    const token = await new SignJWT({ email: "ops@example.com", sub: "operator-001" })
+      .setProtectedHeader({ alg: "ES256", kid: "panel-test-key" })
+      .setIssuer(accessTeamDomain)
+      .setAudience("panel-operator-audience")
+      .setIssuedAt()
+      .setExpirationTime("5m")
+      .sign(privateKey);
+
+    globalThis.fetch = (async (request: Request | URL | string) => {
+      const inbound = request instanceof Request ? request : new Request(request);
+      if (inbound.url === certsUrl) {
+        return new Response(JSON.stringify({ keys: [publicJwk] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      throw new Error(`Unexpected fetch call: ${inbound.url}`);
+    }) as typeof fetch;
+
+    try {
+      const response = await worker.fetch(
+        new Request("https://panel.example.com/api/requests/req_01HQ", {
+          headers: {
+            "cf-access-jwt-assertion": token,
+          },
+        }),
+        {
+          ACCESS_POLICY_AUD: "panel-operator-audience",
+          ACCESS_TEAM_DOMAIN: accessTeamDomain,
+          APP_API: {
+            fetch: async () => {
+              throw new Error("service binding failure");
+            },
+          },
+          PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
+          PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
+          PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
+        },
+      );
+
+      expect(response.status).toBe(503);
+      await expect(response.json()).resolves.toEqual({
+        error: {
+          code: "dependency_not_ready",
+          details: null,
+          message: "App API upstream is unavailable.",
+          requestId: null,
+          retryable: true,
+          traceId: null,
+        },
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("proxies request observability detail queries to the app-api observability seam", async () => {
     const originalFetch = globalThis.fetch;
     const accessTeamDomain = "https://team-observability.cloudflareaccess.com";
@@ -755,7 +949,7 @@ describe("protected panel web worker shell", () => {
     const token = await new SignJWT({ email: "ops@example.com", sub: "operator-001" })
       .setProtectedHeader({ alg: "ES256", kid: "panel-test-key" })
       .setIssuer(accessTeamDomain)
-      .setAudience("panel-audience")
+      .setAudience("panel-operator-audience")
       .setIssuedAt()
       .setExpirationTime("5m")
       .sign(privateKey);
@@ -782,7 +976,7 @@ describe("protected panel web worker shell", () => {
           },
         }),
         {
-          ACCESS_POLICY_AUD: "panel-audience",
+          ACCESS_POLICY_AUD: "panel-operator-audience",
           ACCESS_TEAM_DOMAIN: accessTeamDomain,
           APP_API: {
             fetch: async (request: Request) => {
@@ -832,7 +1026,7 @@ describe("protected panel web worker shell", () => {
     const token = await new SignJWT({ email: "ops@example.com", sub: "operator-001" })
       .setProtectedHeader({ alg: "ES256", kid: "panel-test-key" })
       .setIssuer(accessTeamDomain)
-      .setAudience("panel-audience")
+      .setAudience("panel-operator-audience")
       .setIssuedAt()
       .setExpirationTime("5m")
       .sign(privateKey);
@@ -916,7 +1110,7 @@ describe("protected panel web worker shell", () => {
           },
         }),
         {
-          ACCESS_POLICY_AUD: "panel-audience",
+          ACCESS_POLICY_AUD: "panel-operator-audience",
           ACCESS_TEAM_DOMAIN: accessTeamDomain,
           APP_API: {
             fetch: async (request: Request) => appApi.fetch(request, appApiEnv),
@@ -966,7 +1160,7 @@ describe("protected panel web worker shell", () => {
     })
       .setProtectedHeader({ alg: "ES256", kid: "panel-test-key" })
       .setIssuer(accessTeamDomain)
-      .setAudience("panel-audience")
+      .setAudience("panel-operator-audience")
       .setIssuedAt()
       .setExpirationTime("5m")
       .sign(privateKey);
@@ -993,7 +1187,7 @@ describe("protected panel web worker shell", () => {
           },
         }),
         {
-          ACCESS_POLICY_AUD: "panel-audience",
+          ACCESS_POLICY_AUD: "panel-operator-audience",
           ACCESS_TEAM_DOMAIN: accessTeamDomain,
           APP_API: {
             fetch: async (request: Request) => {

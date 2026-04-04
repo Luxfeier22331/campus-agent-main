@@ -1,7 +1,7 @@
 import { and, asc, eq, isNull, lte, sql } from "drizzle-orm";
 
 import type { Env } from "../../config";
-import { createRuntimeDatabase } from "../../db/runtime";
+import { createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
 import {
   metricRollup,
   projectionOutbox,
@@ -17,6 +17,8 @@ import type {
   RequestProjectionMaterialization,
   RequestProjectionProjectorStore,
 } from "./service";
+
+type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 
 function toIsoString(value: Date | null): string | null {
   return value ? value.toISOString() : null;
@@ -74,13 +76,13 @@ function toExecutionProjectionSource(
   };
 }
 
-export function createPgProjectionStore(env: Env): RequestProjectionProjectorStore {
-  let dbPromise: ReturnType<typeof createRuntimeDatabase> | null = null;
-
-  function getDb() {
-    dbPromise ??= createRuntimeDatabase(env);
-    return dbPromise;
-  }
+export function createPgProjectionStore(
+  env: Env,
+  input: {
+    getDb?: RuntimeDbGetter;
+  } = {},
+): RequestProjectionProjectorStore {
+  const getDb = input.getDb ?? createRuntimeDbGetter(env);
 
   return {
     async getRequestExecution(requestIdValue) {

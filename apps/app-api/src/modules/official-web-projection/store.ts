@@ -2,7 +2,7 @@ import { and, asc, desc, eq, inArray, isNull, lte, or } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
 import type { Env } from "../../config";
-import { createRuntimeDatabase } from "../../db/runtime";
+import { createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
 import {
   crawlRuns,
   officialWebRunProjection,
@@ -20,6 +20,8 @@ import type {
   OfficialWebSiteProjectionMaterialization,
   OfficialWebSiteProjectionSource,
 } from "./service";
+
+type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 
 function toIsoString(value: Date | null): string | null {
   return value ? value.toISOString() : null;
@@ -93,10 +95,17 @@ function toRunProjectionSource(
   };
 }
 
-export function createPgOfficialWebProjectionStore(env: Env): OfficialWebProjectionProjectorStore {
+export function createPgOfficialWebProjectionStore(
+  env: Env,
+  input: {
+    getDb?: RuntimeDbGetter;
+  } = {},
+): OfficialWebProjectionProjectorStore {
+  const getDb = input.getDb ?? createRuntimeDbGetter(env);
+
   return {
     async getRunProjectionSource(runId) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const runRows = await db.select().from(crawlRuns).where(eq(crawlRuns.runId, runId)).limit(1);
       const runRow = runRows[0];
       if (!runRow) {
@@ -113,7 +122,7 @@ export function createPgOfficialWebProjectionStore(env: Env): OfficialWebProject
     },
 
     async getSiteProjectionSource(siteId) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const latestRows = await db
         .select()
         .from(crawlRuns)
@@ -164,7 +173,7 @@ export function createPgOfficialWebProjectionStore(env: Env): OfficialWebProject
     },
 
     async listPendingEvents(limit, now) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const rows = await db
         .select()
         .from(runOutbox)
@@ -176,7 +185,7 @@ export function createPgOfficialWebProjectionStore(env: Env): OfficialWebProject
     },
 
     async markEventFailed(input) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       await db
         .update(runOutbox)
         .set({
@@ -189,7 +198,7 @@ export function createPgOfficialWebProjectionStore(env: Env): OfficialWebProject
     },
 
     async markEventProcessed(input) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       await db
         .update(runOutbox)
         .set({
@@ -201,7 +210,7 @@ export function createPgOfficialWebProjectionStore(env: Env): OfficialWebProject
     },
 
     async markTimedOutRunsAsAbandoned(input) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const cutoff = new Date(new Date(input.now).valueOf() - input.heartbeatTimeoutSeconds * 1000);
       const rows = await db
         .select()
@@ -254,7 +263,7 @@ export function createPgOfficialWebProjectionStore(env: Env): OfficialWebProject
     },
 
     async updateRunDispatchStatus(input) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       await db
         .update(crawlRuns)
         .set({
@@ -267,7 +276,7 @@ export function createPgOfficialWebProjectionStore(env: Env): OfficialWebProject
     },
 
     async upsertRunProjection(projection) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       await db
         .insert(officialWebRunProjection)
         .values({
@@ -307,7 +316,7 @@ export function createPgOfficialWebProjectionStore(env: Env): OfficialWebProject
     },
 
     async upsertSiteProjection(projection) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       await db
         .insert(officialWebSiteProjection)
         .values({

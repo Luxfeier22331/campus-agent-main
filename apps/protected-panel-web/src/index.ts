@@ -34,6 +34,8 @@ const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",
 } as const;
 const CLOUDFLARE_ACCESS_ENVELOPE = "cloudflare-access";
+const PLACEHOLDER_ACCESS_POLICY_AUD = "panel-audience";
+const PLACEHOLDER_ACCESS_TEAM_DOMAIN = "https://team.cloudflareaccess.com";
 const REQUIRED_PROTECTION_ENVELOPE = "PANEL_PROTECTION_ENVELOPE=cloudflare-access";
 const JWKS_BY_ISSUER = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 const FORWARDED_HEADERS = ["accept", "content-type", "x-trace-id"] as const;
@@ -130,11 +132,25 @@ const worker = {
         });
       }
 
+      const appApiRuntimeError = await probeAppApiRuntime(env);
+      if (appApiRuntimeError) {
+        return jsonResponse(503, {
+          error: {
+            code: "dependency_not_ready",
+            details: {
+              appApiRuntime: appApiRuntimeError,
+            },
+            message: "Runtime configuration is incomplete.",
+          },
+        });
+      }
+
       return jsonResponse(200, {
         status: "ready",
         dependencies: {
-          access: env.PANEL_PROTECTION_ENVELOPE === CLOUDFLARE_ACCESS_ENVELOPE ? "configured" : "not_configured",
+          accessOriginAdmission: "configured",
           appApiBinding: "configured",
+          appApiRuntime: "ready",
           assets: "configured",
           operatorBridge: "configured",
         },
@@ -373,6 +389,19 @@ function jsonResponse(status: number, payload: Record<string, unknown>): Respons
   });
 }
 
+function appApiUpstreamUnavailableResponse(): Response {
+  return jsonResponse(503, {
+    error: {
+      code: "dependency_not_ready",
+      message: "App API upstream is unavailable.",
+      retryable: true,
+      traceId: null,
+      requestId: null,
+      details: null,
+    },
+  });
+}
+
 function getMissingRuntimeConfig(env: Env): string[] {
   const missing: string[] = [];
 
@@ -410,6 +439,38 @@ function hasAppApiBridge(env: Env): boolean {
   );
 }
 
+function normalizeConfiguredAccessTeamDomain(teamDomain: string | undefined): string | null {
+  const trimmed = teamDomain?.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  let normalized: string;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return null;
+    }
+    parsed.pathname = "";
+    parsed.search = "";
+    parsed.hash = "";
+    normalized = parsed.toString().replace(/\/$/, "");
+  } catch {
+    return null;
+  }
+
+  return normalized === PLACEHOLDER_ACCESS_TEAM_DOMAIN ? null : normalized;
+}
+
+function normalizeConfiguredAccessPolicyAud(audience: string | undefined): string | null {
+  const trimmed = audience?.trim();
+  if (!trimmed || trimmed === PLACEHOLDER_ACCESS_POLICY_AUD) {
+    return null;
+  }
+
+  return trimmed;
+}
+
 async function validateProtectedApiRequest(
   request: Request,
   env: Env,
@@ -422,13 +483,6 @@ async function validateProtectedApiRequest(
     };
   }
 
-  if (!env.ACCESS_TEAM_DOMAIN || !env.ACCESS_POLICY_AUD) {
-    return {
-      error: textResponse("Missing Access configuration.", 403),
-      operatorContext: null,
-    };
-  }
-
   const token = request.headers.get("cf-access-jwt-assertion");
   if (!token) {
     return {
@@ -437,12 +491,19 @@ async function validateProtectedApiRequest(
     };
   }
 
-  const issuer = normalizeIssuer(env.ACCESS_TEAM_DOMAIN);
+  const issuer = normalizeConfiguredAccessTeamDomain(env.ACCESS_TEAM_DOMAIN);
+  const audience = normalizeConfiguredAccessPolicyAud(env.ACCESS_POLICY_AUD);
+  if (!issuer || !audience) {
+    return {
+      error: protectionNotConfiguredResponse(getMissingAccessConfig(env)),
+      operatorContext: null,
+    };
+  }
 
   try {
     const { payload } = await jwtVerify(token, getRemoteJwks(issuer), {
       issuer,
-      audience: env.ACCESS_POLICY_AUD,
+      audience,
     });
     return {
       error: null,
@@ -462,10 +523,10 @@ function getMissingAccessConfig(env: Env): string[] {
   if (env.PANEL_PROTECTION_ENVELOPE !== CLOUDFLARE_ACCESS_ENVELOPE) {
     missing.push(REQUIRED_PROTECTION_ENVELOPE);
   }
-  if (!env.ACCESS_TEAM_DOMAIN?.trim()) {
+  if (!normalizeConfiguredAccessTeamDomain(env.ACCESS_TEAM_DOMAIN)) {
     missing.push("ACCESS_TEAM_DOMAIN");
   }
-  if (!env.ACCESS_POLICY_AUD?.trim()) {
+  if (!normalizeConfiguredAccessPolicyAud(env.ACCESS_POLICY_AUD)) {
     missing.push("ACCESS_POLICY_AUD");
   }
 
@@ -510,10 +571,6 @@ function textResponse(message: string, status: number): Response {
       "content-type": "text/plain; charset=utf-8",
     },
   });
-}
-
-function normalizeIssuer(teamDomain: string): string {
-  return teamDomain.endsWith("/") ? teamDomain.slice(0, -1) : teamDomain;
 }
 
 function getRemoteJwks(issuer: string) {
@@ -565,15 +622,21 @@ async function proxyToAppApi(input: {
   if (input.operatorContext.display_name) {
     headers.set("x-app-operator-name", input.operatorContext.display_name);
   }
-  const response = await appApi.fetch(
-    new Request(targetUrl.toString(), {
-      headers,
-      method: input.request.method,
-      redirect: input.request.redirect,
-    }),
-  );
 
-  return withNoStore(response);
+  try {
+    const response = await appApi.fetch(
+      new Request(targetUrl.toString(), {
+        body: shouldForwardBody(input.request.method) ? input.request.body : undefined,
+        headers,
+        method: input.request.method,
+        redirect: input.request.redirect,
+      }),
+    );
+
+    return withNoStore(response);
+  } catch {
+    return appApiUpstreamUnavailableResponse();
+  }
 }
 
 async function serveProtectedShell(request: Request, env: Env): Promise<Response> {
@@ -610,6 +673,36 @@ function withNoStore(response: Response): Response {
     status: response.status,
     statusText: response.statusText,
   });
+}
+
+function shouldForwardBody(method: string): boolean {
+  return method !== "GET" && method !== "HEAD";
+}
+
+async function probeAppApiRuntime(env: Env): Promise<string | null> {
+  if (!hasAppApiBridge(env)) {
+    return "App API binding is not configured.";
+  }
+
+  try {
+    const response = await env.APP_API!.fetch(
+      new Request(new URL("/readyz", env.PANEL_RUNTIME_API_BASE_URL).toString(), {
+        method: "GET",
+      }),
+    );
+    if (response.status !== 200) {
+      return `app-api readyz returned ${response.status}`;
+    }
+
+    const payload = (await response.json().catch(() => null)) as { status?: unknown } | null;
+    if (payload?.status !== "ready") {
+      return "app-api readyz returned an invalid payload";
+    }
+
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : "app-api readyz probe failed";
+  }
 }
 
 export default Sentry.withSentry(createSentryOptions, worker);

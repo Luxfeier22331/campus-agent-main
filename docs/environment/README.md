@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-03-29
-updated: 2026-04-02
+updated: 2026-04-05
 ---
 
 # Environment
@@ -37,7 +37,7 @@ updated: 2026-04-02
 - app-local [`apps/public-chat-web/.dev.vars.example`](../../apps/public-chat-web/.dev.vars.example)
   `public-chat-web` 的 Worker string env，包括 same-site app-api proxy seam 与 `SENTRY_*`
 - app-local [`apps/protected-panel-web/.dev.vars.example`](../../apps/protected-panel-web/.dev.vars.example)
-  `protected-panel-web` 的 admission string env、panel-to-app-api bridge secret 与 `SENTRY_*`；protected hostname 由 `wrangler.toml` Custom Domain deploy config 持有
+  `protected-panel-web` 的本地 admission string env、panel-to-app-api bridge secret 与 `SENTRY_*`；protected hostname 由 `wrangler.toml` Custom Domain deploy config 持有，staging `ACCESS_TEAM_DOMAIN` / `ACCESS_POLICY_AUD` 不再作为 repo-tracked 默认值硬编码
 - command-scoped [`env/commands/process-raw-ingestion-job.env.example`](../../env/commands/process-raw-ingestion-job.env.example)
   `process_raw_ingestion_job` 的一次性 override
 - command-scoped [`env/commands/rebuild-local-data.env.example`](../../env/commands/rebuild-local-data.env.example)
@@ -52,6 +52,22 @@ updated: 2026-04-02
 - 这意味着 `Pre-Deploy Readiness` 已闭环；它不自动推出 deploy-side secret store 与 live sink verification 已关闭
 - 对 deploy 环境的 `SENTRY_*` / `AXIOM_*` 下发确认与 live sink smoke，应在首个真实部署环境创建后作为 deployment gate 执行，而不是把“尚未部署”写成当前 repo blocker
 - 真实环境 smoke 的 handoff / evidence 骨架现已落在 `docs/runbooks/worker-observability-smoke-artifact-template.md`
+
+## Deploy Env 约定
+
+- 当前首个真实部署环境固定为 `staging`
+- 当前 staging hostname mapping 固定为：
+  - `apps/app-api` -> `https://api-staging.rag.ayafeed.com`
+  - `apps/public-chat-web` -> `https://chat-staging.rag.ayafeed.com`
+  - `apps/protected-panel-web` -> `https://panel-staging.rag.ayafeed.com`
+- 当前阶段不冻结 `apps/supervisor-api` 的 staging hostname；`app-api` deploy 时必须显式注入当轮可达的 `STAGING_SUPERVISOR_API_BASE_URL`
+- 这些 deploy hostnames 由各 app 自己的 `wrangler.toml` 中 `env.staging` 持有，不写回 `.dev.vars.example`
+- `apps/app-api` 这类直接由 Wrangler 发布的 Worker 使用 `STAGING_SUPERVISOR_API_BASE_URL=... pnpm --dir apps/app-api deploy:staging`
+- 真实 deploy 命令直接消费当前 shell 的 `wrangler` 登录态；repo-local `.wrangler-home` 只保留给 dev / test / local build
+- `apps/protected-panel-web` staging deploy 还必须显式注入 `STAGING_ACCESS_TEAM_DOMAIN` 与 `STAGING_ACCESS_POLICY_AUD`；这两个值不再写进 `wrangler.toml`，且占位默认值会被 deploy 脚本拒绝
+- `apps/public-chat-web` 与 `apps/protected-panel-web` 这类 Vite Worker 使用 `CLOUDFLARE_ENV=staging vite build` 选择 deploy env，并发布生成后的 `dist/*/wrangler.json`
+- deploy secret truth 仍在 Cloudflare secret store，不在 repo-tracked `.dev.vars.example`
+- 具体 staging 资源、secret matrix、deploy order 与 post-deploy smoke 见 `docs/runbooks/staging-worker-deploy-runbook.md`
 
 ## Eval Env 约定
 

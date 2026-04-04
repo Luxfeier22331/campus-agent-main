@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 
 import { parseCsvList, type Env } from "../../config";
-import { getAppAuth } from "./auth";
+import { getAppAuth, type AppAuthResolutionInput } from "./auth";
 
 export type AppPrincipalType =
   | "public_user"
@@ -587,13 +587,14 @@ export async function resolveOfficialWebCollectorPrincipal(
 export async function resolveRequestPrincipal(
   request: Request,
   env: Env,
+  input: AppAuthResolutionInput = {},
 ): Promise<ResolvedAppPrincipal | null> {
   const operatorPrincipal = mapOperatorHeadersToPrincipal(request, env);
   if (operatorPrincipal) {
     return operatorPrincipal;
   }
 
-  const auth = await getAppAuth(env);
+  const auth = input.getAppAuth ? await input.getAppAuth() : await getAppAuth(env);
   const session = await auth.api.getSession({
     headers: request.headers,
   });

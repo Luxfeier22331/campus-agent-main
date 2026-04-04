@@ -191,6 +191,7 @@ describe("POST /api/chat/requests", () => {
 
 describe("POST /api/internal/evals/chat/requests", () => {
   it("accepts internal eval requests with shared secret and returns request correlation headers", async () => {
+    const scheduleRequestProjectionDrain = vi.fn();
     const service: ChatCommandService = {
       submit: vi.fn().mockResolvedValue({
         answer: {
@@ -269,6 +270,7 @@ describe("POST /api/internal/evals/chat/requests", () => {
       },
       {
         chatCommandService: service,
+        scheduleRequestProjectionDrain,
       },
     );
 
@@ -293,6 +295,7 @@ describe("POST /api/internal/evals/chat/requests", () => {
     );
 
     expect(response.status).toBe(200);
+    expect(scheduleRequestProjectionDrain).not.toHaveBeenCalled();
     expect(response.headers.get("x-request-id")).toBe("req_eval_01HQ");
     expect(response.headers.get("x-trace-id")).toBe("trace_eval_01HQ");
     await expect(response.json()).resolves.toEqual({
@@ -409,7 +412,7 @@ describe("POST /api/internal/evals/chat/requests", () => {
           result: {
             kind: "answer",
             requestId: "req_eval_identity_01HQ",
-            text: "第四学期有中国史学史、史学理论专题。",
+            text: "第四学期有大学英语(四)、中华民族共同体概论、中国近代边疆民族史料研读、世界现当代史。",
             traceId: "trace_eval_identity_01HQ",
           },
         },

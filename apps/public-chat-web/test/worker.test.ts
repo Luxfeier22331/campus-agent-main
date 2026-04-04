@@ -10,20 +10,36 @@ const packageManifest = JSON.parse(packageManifestRaw) as {
 };
 
 describe("public chat web worker shell", () => {
-  it("declares the app-api service binding and deploy verification gate", () => {
+  it("declares the staging custom domain, app-api staging binding, and deploy gates", () => {
     expect(wranglerConfig).toContain("workers_dev = false");
     expect(wranglerConfig).toContain("preview_urls = false");
     expect(wranglerConfig).toContain('compatibility_flags = ["nodejs_compat"]');
-    expect(wranglerConfig).toMatch(/routes?\s*=/);
-    expect(wranglerConfig).toContain("[[services]]");
+    expect(wranglerConfig).toContain("[[env.staging.routes]]");
+    expect(wranglerConfig).toContain('pattern = "chat-staging.rag.ayafeed.com"');
+    expect(wranglerConfig).toContain("custom_domain = true");
+    expect(wranglerConfig).toContain("[[env.staging.services]]");
     expect(wranglerConfig).toContain('binding = "APP_API"');
-    expect(wranglerConfig).toContain('service = "app-api"');
-    expect(packageManifest.scripts?.deploy).toContain("deploy:verify-config");
-    expect(packageManifest.scripts?.["deploy:verify-config"]).toContain(
+    expect(wranglerConfig).toContain('service = "app-api-staging"');
+    expect(wranglerConfig).toContain("[env.staging.vars]");
+    expect(wranglerConfig).toContain('PUBLIC_CHAT_HOSTNAME = "chat-staging.rag.ayafeed.com"');
+    expect(wranglerConfig).toContain('APP_API_BASE_URL = "https://api-staging.rag.ayafeed.com"');
+    expect(wranglerConfig).toContain('SENTRY_ENVIRONMENT = "staging"');
+    expect(wranglerConfig).toContain('SENTRY_RELEASE = "public-chat-web@staging-initial"');
+    expect(packageManifest.scripts?.["build:staging"]).toContain("CLOUDFLARE_ENV=staging");
+    expect(packageManifest.scripts?.deploy).not.toContain("XDG_CONFIG_HOME=./.wrangler-home");
+    expect(packageManifest.scripts?.["deploy:staging"]).toContain("pnpm build:staging");
+    expect(packageManifest.scripts?.["deploy:staging"]).toContain("deploy:verify-config:staging");
+    expect(packageManifest.scripts?.["deploy:staging"]).not.toContain(
+      "XDG_CONFIG_HOME=./.wrangler-home",
+    );
+    expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
       "verify-worker-deploy-config.mjs",
     );
-    expect(packageManifest.scripts?.["deploy:verify-config"]).toContain(
+    expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
       "dist/public_chat_web/wrangler.json",
+    );
+    expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
+      "APP_API=app-api-staging",
     );
   });
 
@@ -32,7 +48,26 @@ describe("public chat web worker shell", () => {
       new Request("https://chat.example.com/healthz"),
       {
         APP_API: {
-          fetch: async () => new Response(null, { status: 204 }),
+          fetch: async () =>
+            new Response(
+              JSON.stringify({
+                status: "ready",
+                dependencies: {
+                  auth: "ready",
+                  database: "ready",
+                  officialWebHandoff: "not_configured",
+                  operatorBridge: "configured",
+                  publicChatOrigin: "configured",
+                  supervisorApi: "ready",
+                },
+              }),
+              {
+                status: 200,
+                headers: {
+                  "content-type": "application/json",
+                },
+              },
+            ),
         },
         APP_API_BASE_URL: "https://app-api.internal",
         ASSETS: {
@@ -46,7 +81,26 @@ describe("public chat web worker shell", () => {
       new Request("https://chat.example.com/readyz"),
       {
         APP_API: {
-          fetch: async () => new Response(null, { status: 204 }),
+          fetch: async () =>
+            new Response(
+              JSON.stringify({
+                status: "ready",
+                dependencies: {
+                  auth: "ready",
+                  database: "ready",
+                  officialWebHandoff: "not_configured",
+                  operatorBridge: "configured",
+                  publicChatOrigin: "configured",
+                  supervisorApi: "ready",
+                },
+              }),
+              {
+                status: 200,
+                headers: {
+                  "content-type": "application/json",
+                },
+              },
+            ),
         },
         APP_API_BASE_URL: "https://app-api.internal",
         ASSETS: {
@@ -73,6 +127,7 @@ describe("public chat web worker shell", () => {
       app_api_base_url: "https://app-api.internal",
       dependencies: {
         appApiBinding: "configured",
+        appApiRuntime: "ready",
         assets: "configured",
       },
       public_hostname: "chat.example.com",
@@ -99,6 +154,47 @@ describe("public chat web worker shell", () => {
             "APP_API_BASE_URL",
             "PUBLIC_CHAT_HOSTNAME",
           ],
+        },
+        message: "Runtime configuration is incomplete.",
+      },
+    });
+  });
+
+  it("fails readyz closed when the app-api runtime is not ready", async () => {
+    const response = await worker.fetch(
+      new Request("https://chat.example.com/readyz"),
+      {
+        APP_API: {
+          fetch: async () =>
+            new Response(
+              JSON.stringify({
+                error: {
+                  code: "dependency_not_ready",
+                  message: "Runtime dependencies are not ready.",
+                },
+              }),
+              {
+                status: 503,
+                headers: {
+                  "content-type": "application/json",
+                },
+              },
+            ),
+        },
+        APP_API_BASE_URL: "https://app-api.internal",
+        ASSETS: {
+          fetch: async () => new Response("ok", { status: 200 }),
+        },
+        PUBLIC_CHAT_HOSTNAME: "chat.example.com",
+      },
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: "dependency_not_ready",
+        details: {
+          appApiRuntime: "app-api readyz returned 503",
         },
         message: "Runtime configuration is incomplete.",
       },
@@ -303,6 +399,44 @@ describe("public chat web worker shell", () => {
         prompt: "图书馆开放到几点？",
       }),
     );
+  });
+
+  it("returns a contract-shaped dependency error when the app-api binding throws", async () => {
+    const response = await worker.fetch(
+      new Request("https://chat.example.com/api/chat/requests", {
+        body: JSON.stringify({
+          prompt: "图书馆开放到几点？",
+        }),
+        headers: {
+          "content-type": "application/json",
+        },
+        method: "POST",
+      }),
+      {
+        APP_API: {
+          fetch: async () => {
+            throw new Error("service binding failure");
+          },
+        },
+        APP_API_BASE_URL: "https://app-api.internal",
+        ASSETS: {
+          fetch: async () => new Response("ok", { status: 200 }),
+        },
+        PUBLIC_CHAT_HOSTNAME: "chat.example.com",
+      },
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: "dependency_not_ready",
+        details: null,
+        message: "App API upstream is unavailable.",
+        requestId: null,
+        retryable: true,
+        traceId: null,
+      },
+    });
   });
 
   it("forwards origin and referer for same-site auth requests", async () => {

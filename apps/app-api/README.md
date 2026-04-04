@@ -96,11 +96,15 @@ Canonical references:
 Database baseline:
 
 - runtime reads/writes use Hyperdrive-style runtime connection config against the shared repo Postgres
+- runtime now distinguishes `APP_API_DB` for cached/read-mostly access and optional `APP_API_DB_FRESH` for auth/fresh read-after-write access
 - migration / schema management uses `APP_API_MANAGEMENT_DATABASE_URL`
 - `apps/app-api` runtime schema code continues to cover `app_auth.*`, `chat.*`, `runtime.*`, `operator.*`, and `official_web.*`
 - `drizzle.app_api_migrations` now owns only `runtime.*`, `operator.*`, and `official_web.*`
 - Better Auth uses repo-owned `app_auth.*`; `apps/app-api` is now the shared-db bootstrap owner for `app_auth.*` / `chat.*`
-- on the current Supabase session pooler, `app_auth.*` relies on a role-level default `search_path`; connection-string `options=-c search_path=...` alone does not converge
+- Better Auth runtime now uses the shared Drizzle/runtime DB seam with explicit `app_auth.*` schema metadata instead of a dedicated auth-only `pg.Pool`
+- when `APP_API_DB_FRESH` is provisioned, Better Auth and request-scoped command-side services read/write through the no-cache Hyperdrive lane so `sign-up -> immediate sign-in` does not get trapped behind stale negative auth lookups
+- on the current Supabase session pooler, role-level `search_path=app_auth, public, extensions` remains a shared-product bootstrap convention, but runtime auth no longer depends on connection-string `options=-c search_path=...`
+- deployed Worker envs (`staging` / `production`) cache the static Worker/app assembly again, but runtime DB handles and Better Auth state are now rebuilt per request scope instead of being held across invocations; only the `test` harness keeps global runtime caches
 - `app-api` stores migration journal rows in `drizzle.app_api_migrations`, not the default shared Drizzle table
 
 Environment:
@@ -110,6 +114,7 @@ Environment:
 - `APP_API_NAME`
 - `APP_API_ENVIRONMENT`
 - `APP_API_DB.connectionString`
+- `APP_API_DB_FRESH.connectionString`
 - `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN`
 - `APP_API_OFFICIAL_WEB_HANDOFF_URL`
 - `APP_API_OFFICIAL_WEB_HANDOFF_TOKEN`
@@ -134,6 +139,7 @@ Environment:
 Deployment minimum gate:
 
 - `APP_API_DB.connectionString` must resolve from the provisioned Worker `APP_API_DB` binding or `GET /readyz` remains `503`
+- `APP_API_DB_FRESH.connectionString` should resolve from a caching-disabled Hyperdrive binding in deployed envs so auth-sensitive read-after-write paths stay fresh
 - `PUBLIC_CHAT_WEB_ORIGIN` must exactly match the deployed `public-chat-web` origin because Better Auth keeps origin / CSRF checks enabled for proxied `/api/auth/*`
 - `APP_API_INTERNAL_SHARED_SECRET` must exactly match `PANEL_APP_API_SHARED_SECRET` in `apps/protected-panel-web`
 - `APP_API_OPERATOR_EMAIL_ALLOWLIST` must contain the real operator emails expected to use the protected panel bridge

@@ -182,14 +182,38 @@ expanded observability / quality / safety / cost / audit query surfaces 另见 `
 
 ### `GET /readyz`
 
-返回最小 readiness 信息。
+返回 runtime dependency readiness 信息。
 
 ```json
 {
   "status": "ready",
   "dependencies": {
-    "database": "configured",
-    "supervisorApi": "configured"
+    "auth": "ready",
+    "database": "ready",
+    "officialWebHandoff": "not_configured",
+    "operatorBridge": "configured",
+    "publicChatOrigin": "configured",
+    "supervisorApi": "ready"
+  }
+}
+```
+
+当 runtime config 缺失时，返回 `503 dependency_not_ready`，并在 `details.missing` 中列出缺失键。
+
+当 config 已齐但实际依赖未 ready 时，返回 `503 dependency_not_ready`，并在 `details.failed` 中列出失败 probe，例如：
+
+```json
+{
+  "error": {
+    "code": "dependency_not_ready",
+    "message": "Runtime dependencies are not ready.",
+    "retryable": true,
+    "details": {
+      "failed": {
+        "auth": "better-auth session runtime failed probe",
+        "supervisorApi": "supervisor /readyz returned 503"
+      }
+    }
   }
 }
 ```

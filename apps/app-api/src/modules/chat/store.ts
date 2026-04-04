@@ -1,9 +1,11 @@
 import { and, asc, desc, eq } from "drizzle-orm";
 
 import type { Env } from "../../config";
-import { createRuntimeDatabase } from "../../db/runtime";
+import { createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
 import { conversations, messages, sessionSlots } from "../../db/schema";
 import type { ChatConversation, ChatConversationSummary, ChatMessage, ChatSessionSlot } from "./model";
+
+type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 
 export interface ChatConversationDraftWrite {
   conversationId: string;
@@ -70,12 +72,19 @@ function toChatConversation(
   };
 }
 
-export function createPgChatConversationStore(env: Env): ChatConversationStore {
+export function createPgChatConversationStore(
+  env: Env,
+  input: {
+    getDb?: RuntimeDbGetter;
+  } = {},
+): ChatConversationStore {
+  const getDb = input.getDb ?? createRuntimeDbGetter(env);
+
   async function loadConversation(
     ownerUserId: string,
     conversationId: string,
   ): Promise<ChatConversation | null> {
-    const db = await createRuntimeDatabase(env);
+    const db = await getDb();
     const conversationRows = await db
       .select()
       .from(conversations)
@@ -103,7 +112,7 @@ export function createPgChatConversationStore(env: Env): ChatConversationStore {
 
   return {
     async listConversationSummariesByOwner(ownerUserId) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const rows = await db
         .select()
         .from(conversations)
@@ -114,7 +123,7 @@ export function createPgChatConversationStore(env: Env): ChatConversationStore {
     },
 
     async createConversationDraft(input) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       await db.insert(conversations).values({
         id: input.conversationId,
         ownerUserId: input.ownerUserId,

@@ -1,4 +1,13 @@
-export { buildBetterAuthConfig, createAppAuth, getAppAuth, handleAuthRequest } from "./auth";
+export {
+  buildBetterAuthConfig,
+  createAppAuth,
+  getAppAuth,
+  handleAuthRequest,
+  hashAppPassword,
+  probeAppAuthRuntime,
+  verifyAppPassword,
+} from "./auth";
+export type { AppAuth, AppAuthGetter, AppAuthResolutionInput, CreateAppAuthInput } from "./auth";
 export {
   buildInternalEvalPrincipal,
   buildExecutionAuthorizationContext,

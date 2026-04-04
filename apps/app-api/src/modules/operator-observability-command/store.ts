@@ -1,12 +1,14 @@
 import { eq } from "drizzle-orm";
 
 import type { Env } from "../../config";
-import { createRuntimeDatabase } from "../../db/runtime";
+import { createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
 import {
   qualityGradeProjection,
   requestObservabilityFact,
   traceBacklinkProjection,
 } from "../../db/schema";
+
+type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 
 export interface StoredRequestObservabilitySeed {
   requestId: string;
@@ -74,10 +76,15 @@ function toStoredRequestObservabilitySeed(
 
 export function createPgOperatorObservabilityCommandStore(
   env: Env,
+  input: {
+    getDb?: RuntimeDbGetter;
+  } = {},
 ): OperatorObservabilityCommandStore {
+  const getDb = input.getDb ?? createRuntimeDbGetter(env);
+
   return {
     async getRequestObservabilitySeed(requestId) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const rows = await db
         .select()
         .from(requestObservabilityFact)
@@ -92,7 +99,7 @@ export function createPgOperatorObservabilityCommandStore(
         return;
       }
 
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       await db.transaction(async (tx) => {
         for (const grade of input.grades) {
           await tx
@@ -148,7 +155,7 @@ export function createPgOperatorObservabilityCommandStore(
         return;
       }
 
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       await db.transaction(async (tx) => {
         for (const backlink of input.backlinks) {
           await tx

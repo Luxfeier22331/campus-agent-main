@@ -1,7 +1,8 @@
 import { and, desc, eq, gt, lt, or } from "drizzle-orm";
 
+import { decodeBase64UrlJson, encodeBase64UrlJson } from "../../base64url";
 import type { Env } from "../../config";
-import { createRuntimeDatabase } from "../../db/runtime";
+import { createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
 import { officialWebRunProjection, officialWebSiteProjection } from "../../db/schema";
 import type {
   NormalizedOfficialWebRunListFilters,
@@ -9,6 +10,8 @@ import type {
   OfficialWebRunRecord,
   OfficialWebSiteRecord,
 } from "./service";
+
+type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 
 interface OfficialWebRunCursor {
   runId: string;
@@ -20,12 +23,12 @@ function toIsoString(value: Date | null): string | null {
 }
 
 function encodeCursor(input: OfficialWebRunCursor): string {
-  return Buffer.from(JSON.stringify(input), "utf8").toString("base64url");
+  return encodeBase64UrlJson(input);
 }
 
 function decodeCursor(cursor: string): OfficialWebRunCursor | null {
   try {
-    const parsed = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")) as Partial<OfficialWebRunCursor>;
+    const parsed = decodeBase64UrlJson<Partial<OfficialWebRunCursor>>(cursor);
     if (
       typeof parsed.runId !== "string" ||
       !parsed.runId ||
@@ -81,10 +84,17 @@ function toSiteRecord(row: typeof officialWebSiteProjection.$inferSelect): Offic
   };
 }
 
-export function createPgOfficialWebQueryStore(env: Env): OfficialWebQueryStore {
+export function createPgOfficialWebQueryStore(
+  env: Env,
+  input: {
+    getDb?: RuntimeDbGetter;
+  } = {},
+): OfficialWebQueryStore {
+  const getDb = input.getDb ?? createRuntimeDbGetter(env);
+
   return {
     async getRunById(runId) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const rows = await db
         .select()
         .from(officialWebRunProjection)
@@ -95,7 +105,7 @@ export function createPgOfficialWebQueryStore(env: Env): OfficialWebQueryStore {
     },
 
     async getSiteById(siteId) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const rows = await db
         .select()
         .from(officialWebSiteProjection)
@@ -106,7 +116,7 @@ export function createPgOfficialWebQueryStore(env: Env): OfficialWebQueryStore {
     },
 
     async listRecentRunsBySiteId(siteId, limit) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const rows = await db
         .select()
         .from(officialWebRunProjection)
@@ -118,7 +128,7 @@ export function createPgOfficialWebQueryStore(env: Env): OfficialWebQueryStore {
     },
 
     async listRuns(filters) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const conditions = [];
 
       if (filters.siteId) {
@@ -178,7 +188,7 @@ export function createPgOfficialWebQueryStore(env: Env): OfficialWebQueryStore {
     },
 
     async listSites() {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const rows = await db
         .select()
         .from(officialWebSiteProjection)

@@ -491,7 +491,7 @@ describe("chat command service", () => {
       execute: vi
         .fn()
         .mockResolvedValueOnce({
-          answerText: "第四学期有习近平法治思想概论、国际公法。",
+          answerText: "第四学期有中国少数民族文字学、侵权责任法、翻译学导论。",
           error: null,
           followUpQuestion: "",
           result: {
@@ -1038,6 +1038,85 @@ describe("chat command service", () => {
         status: "completed",
         traceAvailable: true,
         traceId: "trace_0002",
+      },
+    });
+  });
+
+  it("keeps requested scope empty and records resolved curriculum scope when supervisor selects the serving surface", async () => {
+    const { store, acceptedWrites, finalWrites } = createCommandStore();
+    const { store: conversationStore } = createConversationStore();
+    const service = buildChatCommandService({
+      generateId: createDeterministicIdGenerator(),
+      now: () => new Date("2026-03-28T08:00:00.000Z"),
+      conversationStore,
+      store,
+      supervisor: {
+        execute: vi.fn().mockResolvedValue({
+          answerText: "民族学本科人才培养方案总学分要求以培养方案正文为准。",
+          error: null,
+          followUpQuestion: "",
+          observability: {
+            aclAnomalyCode: null,
+            aclDecision: "allowed",
+            cachedInputTokens: 0,
+            candidateCount: 1,
+            citationCount: 1,
+            citationExpected: true,
+            citationMissing: false,
+            estimatedCostMicrousd: 1234,
+            failClosed: false,
+            inputTokens: 256,
+            modelName: "gpt-5.2-mini",
+            modelProvider: "openai",
+            outputTokens: 64,
+            refusalClass: null,
+            resolvedScopeCollection: "curriculum_plan",
+            resolvedScopeCorpus: "curriculum",
+            retrievedSourceCount: 1,
+            retrievalAttempted: true,
+          },
+          result: {
+            evidence: {
+              sources: [{ doc_id: "curriculum:民族学本科人才培养方案" }],
+            },
+          },
+          selectedTarget: "rag-specialist",
+          status: "completed",
+          traceId: "trace_0002",
+        }),
+      },
+    });
+
+    await service.submit({
+      payload: {
+        conversationId: "conv_01HQ",
+        prompt: "民族学本科人才培养方案总学分要求是多少？",
+      },
+      principal: createPrincipal(),
+    });
+
+    expect(acceptedWrites[0]).toMatchObject({
+      requestExecution: {
+        requestedScope: null,
+      },
+      requestObservabilityFact: {
+        collection: null,
+        requestedScopeSummary: null,
+        resolvedScopeSummary: null,
+      },
+    });
+    expect(finalWrites[0]).toMatchObject({
+      requestExecution: {
+        requestedScope: null,
+        resolvedScope: {
+          collection: "curriculum_plan",
+          corpus: "curriculum",
+        },
+      },
+      requestObservabilityFact: {
+        collection: "curriculum_plan",
+        requestedScopeSummary: null,
+        resolvedScopeSummary: "curriculum/curriculum_plan",
       },
     });
   });
