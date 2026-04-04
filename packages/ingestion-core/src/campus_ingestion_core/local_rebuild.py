@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, is_dataclass, replace
 from datetime import datetime, timezone
+import json
 import os
 from pathlib import Path
+import sys
+import time
 from typing import Any, Callable, Protocol
 
 from qdrant_client import QdrantClient
@@ -129,6 +132,28 @@ class RebuildRequest:
     publish_qdrant_alias: bool = True
 
 
+@dataclass(frozen=True, slots=True)
+class _RebuildTraceRecorder:
+    jsonl_path: Path | None
+    stderr_enabled: bool
+
+    def emit(self, *, stage: str, event: str, **fields: object) -> None:
+        payload = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "stage": stage,
+            "event": event,
+            **fields,
+        }
+        line = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        if self.jsonl_path is not None:
+            self.jsonl_path.parent.mkdir(parents=True, exist_ok=True)
+            with self.jsonl_path.open("a", encoding="utf-8") as handle:
+                handle.write(line)
+                handle.write("\n")
+        if self.stderr_enabled:
+            print(line, file=sys.stderr, flush=True)
+
+
 class S3ObjectStoreAdmin:
     def __init__(self, settings: ObjectStoreSettings) -> None:
         self._client = S3ObjectStoreClientFactory(settings).create()
@@ -238,6 +263,81 @@ class QdrantCollectionAdmin:
         return reset_index_binding(qdrant_client=self._client, binding=binding)
 
 
+def _build_rebuild_trace_recorder(source: dict[str, str]) -> _RebuildTraceRecorder | None:
+    jsonl_path = _normalize_optional_text(source.get("REBUILD_TRACE_JSONL_PATH"))
+    stderr_enabled = _parse_bool(source.get("REBUILD_TRACE_STDERR"), default=False)
+    if jsonl_path is None and not stderr_enabled:
+        return None
+    return _RebuildTraceRecorder(
+        jsonl_path=Path(jsonl_path).resolve() if jsonl_path is not None else None,
+        stderr_enabled=stderr_enabled,
+    )
+
+
+def _run_traced_stage(
+    trace_recorder: _RebuildTraceRecorder | None,
+    stage: str,
+    func: Callable[[], Any],
+    *,
+    fields: dict[str, object] | None = None,
+    result_fields: Callable[[Any], dict[str, object]] | None = None,
+) -> Any:
+    if trace_recorder is None:
+        return func()
+    payload = dict(fields or {})
+    trace_recorder.emit(stage=stage, event="start", **payload)
+    started = time.monotonic()
+    try:
+        result = func()
+    except Exception as exc:
+        trace_recorder.emit(
+            stage=stage,
+            event="error",
+            duration_ms=round((time.monotonic() - started) * 1000, 3),
+            error_type=type(exc).__name__,
+            error_message=str(exc),
+            **payload,
+        )
+        raise
+    completed_payload = dict(payload)
+    if result_fields is not None:
+        completed_payload.update(result_fields(result))
+    trace_recorder.emit(
+        stage=stage,
+        event="end",
+        duration_ms=round((time.monotonic() - started) * 1000, 3),
+        **completed_payload,
+    )
+    return result
+
+
+def _summarize_rebuild_import_result(result: object) -> dict[str, object]:
+    if is_dataclass(result):
+        payload = asdict(result)
+        return {
+            key: payload[key]
+            for key in ("success_count", "skipped_count", "failed_count", "document_ids")
+            if key in payload
+        }
+    if isinstance(result, dict):
+        return {
+            key: result[key]
+            for key in ("status", "success_count", "skipped_count", "failed_count")
+            if key in result
+        }
+    return {}
+
+
+def _summarize_persist_stats(result: PersistImportStats) -> dict[str, object]:
+    return {
+        "success_count": result.success_count,
+        "skipped_count": result.skipped_count,
+        "failed_count": result.failed_count,
+        "created_count": len(result.created_document_ids),
+        "updated_count": len(result.updated_document_ids),
+    }
+
+
 def _resolve_target_qdrant_binding(
     *,
     corpus: str,
@@ -326,11 +426,6 @@ def rebuild_local_data(
         runtime_request.corpus,
         runtime_request.collection,
     )
-    import_env = _build_rebuild_import_env(
-        source=source,
-        request=runtime_request,
-        collection_config=runtime_collection_config,
-    )
     corpus = runtime_request.corpus
     collection = runtime_request.collection
     import_mode = runtime_request.import_mode
@@ -339,48 +434,113 @@ def rebuild_local_data(
     object_store_admin = object_store or S3ObjectStoreAdmin(object_store_settings)
     runtime_document_registry = document_registry or _build_document_registry_for_rebuild(source, corpus)
     runtime_raw_asset_registry = raw_asset_registry or _build_raw_asset_registry_for_rebuild(source, corpus)
+    runtime_request = replace(
+        runtime_request,
+        source_pdf=_resolve_replay_source_pdf(
+            source=source,
+            request=runtime_request,
+            collection_config=runtime_collection_config,
+            raw_asset_registry=runtime_raw_asset_registry,
+        ),
+    )
+    import_env = _build_rebuild_import_env(
+        source=source,
+        request=runtime_request,
+        collection_config=runtime_collection_config,
+    )
+    trace_recorder = _build_rebuild_trace_recorder(import_env)
     processed_exclude_keys = _processed_bucket_exclude_keys(
         source=import_env,
         corpus=corpus,
         collection=collection,
         import_mode=import_mode,
     )
-    _delete_object_keys(
-        object_store_admin=object_store_admin,
-        bucket=object_store_settings.bucket_derived,
-        object_keys=_collect_processed_rebuild_keys(
+    processed_object_keys = _run_traced_stage(
+        trace_recorder,
+        "rebuild.cleanup.collect_processed_keys",
+        lambda: _collect_processed_rebuild_keys(
             source=import_env,
             corpus=corpus,
             collection=collection,
             import_mode=import_mode,
             registry=runtime_document_registry,
         ),
-        exclude_keys=processed_exclude_keys,
+        fields={
+            "corpus": corpus,
+            "collection": collection,
+            "import_mode": import_mode,
+        },
+        result_fields=lambda object_keys: {"processed_key_count": len(object_keys)},
+    )
+    _run_traced_stage(
+        trace_recorder,
+        "rebuild.cleanup.delete_processed_objects",
+        lambda: _delete_object_keys(
+            object_store_admin=object_store_admin,
+            bucket=object_store_settings.bucket_derived,
+            object_keys=processed_object_keys,
+            exclude_keys=processed_exclude_keys,
+        ),
+        fields={
+            "corpus": corpus,
+            "collection": collection,
+            "object_key_count": len(processed_object_keys),
+            "exclude_key_count": len(processed_exclude_keys),
+        },
     )
     if _should_delete_document_registry_scope(collection=collection, import_mode=import_mode):
-        runtime_document_registry.delete_by_scope(corpus, collection)
+        _run_traced_stage(
+            trace_recorder,
+            "rebuild.cleanup.delete_registry_scope",
+            lambda: runtime_document_registry.delete_by_scope(corpus, collection),
+            fields={
+                "corpus": corpus,
+                "collection": collection,
+            },
+        )
 
     if runtime_request.reset_qdrant:
         retrieval_settings = RetrievalSettings.from_env(source)
         qdrant_collection_admin = qdrant_admin or QdrantCollectionAdmin(
             _build_qdrant_client(retrieval_settings, source=source)
         )
-        for binding in _resolve_rebuild_target_qdrant_bindings(
+        bindings = _resolve_rebuild_target_qdrant_bindings(
             source=source,
             request=runtime_request,
             collection_config=runtime_collection_config,
-        ):
-            qdrant_collection_admin.reset_index_binding(binding)
+        )
+        _run_traced_stage(
+            trace_recorder,
+            "rebuild.reset_qdrant_bindings",
+            lambda: tuple(qdrant_collection_admin.reset_index_binding(binding) for binding in bindings),
+            fields={
+                "corpus": corpus,
+                "collection": collection,
+                "binding_count": len(bindings),
+                "aliases": tuple(binding.alias_name for binding in bindings),
+            },
+        )
 
     runtime_import_runner = import_runner or _resolve_import_runner(import_mode)
-
-    return LocalDataRebuildReport(
-        import_context=_build_rebuild_report_context(import_env),
-        import_result=_invoke_import_runner(
+    import_result = _run_traced_stage(
+        trace_recorder,
+        "rebuild.import_runner",
+        lambda: _invoke_import_runner(
             runtime_import_runner=runtime_import_runner,
             source=import_env,
             request=runtime_request,
         ),
+        fields={
+            "corpus": corpus,
+            "collection": collection,
+            "import_mode": import_mode,
+        },
+        result_fields=_summarize_rebuild_import_result,
+    )
+
+    return LocalDataRebuildReport(
+        import_context=_build_rebuild_report_context(import_env),
+        import_result=import_result,
     )
 
 
@@ -737,23 +897,159 @@ def replay_provider_response_rebuild(
     qdrant_client: QdrantClient | None = None,
 ) -> ImportReport:
     source = dict(env if env is not None else os.environ)
+    trace_recorder = _build_rebuild_trace_recorder(source)
     runtime_request = request or _build_replay_request_from_env(source)
     corpus = runtime_request.corpus
     collection = runtime_request.collection
     collection_config = _resolve_runtime_collection_config(source=source, corpus=corpus, collection=collection)
     if collection not in {"student_handbook", "curriculum_plan"}:
         raise ValueError("provider_response_replay only supports student_handbook or curriculum_plan")
+    runtime_raw_asset_registry = raw_asset_registry or _build_raw_asset_registry_for_rebuild(source, corpus)
+    runtime_request = replace(
+        runtime_request,
+        source_pdf=_resolve_replay_source_pdf(
+            source=source,
+            request=runtime_request,
+            collection_config=collection_config,
+            raw_asset_registry=runtime_raw_asset_registry,
+        ),
+    )
     source_pdf = runtime_request.source_pdf or _default_replay_source_pdf(collection)
 
     object_store_settings = ObjectStoreSettings.from_env(source)
     runtime_object_store = object_store or S3ObjectStoreAdmin(object_store_settings)
+    source_artifacts = _run_traced_stage(
+        trace_recorder,
+        "replay.load_source_artifacts",
+        lambda: _load_replay_source_artifacts(
+            source=source,
+            request=runtime_request,
+            collection_config=collection_config,
+            object_store_settings=object_store_settings,
+            object_store=runtime_object_store,
+            source_pdf=source_pdf,
+        ),
+        fields={
+            "corpus": corpus,
+            "collection": collection,
+            "source_pdf": source_pdf,
+        },
+        result_fields=lambda payload: {
+            "split_document_count": len(payload["split_manifest"].documents),
+            "structured_row_count": len(payload["structured_rows"]),
+        },
+    )
+    split_manifest = source_artifacts["split_manifest"]
+    raw_asset_id = source_artifacts["raw_asset_id"]
+    raw_version_id = source_artifacts["raw_version_id"]
+    provider_response_key = source_artifacts["provider_response_key"]
+    structured_rows = source_artifacts["structured_rows"]
+    layout_elements_key = source_artifacts["layout_elements_key"]
+
+    documents = _run_traced_stage(
+        trace_recorder,
+        "replay.build_documents",
+        lambda: _build_replay_documents(
+            source=source,
+            collection_config=collection_config,
+            split_manifest=split_manifest,
+            corpus=corpus,
+            collection=collection,
+            source_pdf=source_pdf,
+            raw_asset_id=raw_asset_id,
+            raw_version_id=raw_version_id,
+            provider_response_key=provider_response_key,
+            layout_elements_key=layout_elements_key,
+            structured_rows=structured_rows,
+        ),
+        fields={
+            "corpus": corpus,
+            "collection": collection,
+            "split_document_count": len(split_manifest.documents),
+        },
+        result_fields=lambda built_documents: {"document_count": len(built_documents)},
+    )
+    runtime_registry = registry or _build_document_registry_for_rebuild(source, corpus)
+    stats = _run_traced_stage(
+        trace_recorder,
+        "replay.persist_documents",
+        lambda: _collect_projection_aware_import_stats(
+            source=source,
+            documents=documents,
+            registry=runtime_registry,
+            raw_asset_registry=runtime_raw_asset_registry,
+            writer=runtime_object_store,
+            object_store=object_store_settings,
+            parser_version=DEFAULT_RAW_ONLINE_OCR_PARSER_VERSION,
+            embedding_model=_read_embedding_model_name(source),
+            default_visibility_scope=_read_default_visibility_scope(source),
+            primary_scope=(corpus, collection),
+            trace_recorder=trace_recorder,
+        ),
+        fields={
+            "corpus": corpus,
+            "collection": collection,
+            "document_count": len(documents),
+        },
+        result_fields=_summarize_persist_stats,
+    )
+    errors = list(stats.errors)
+    failed_count = stats.failed_count
+    if _should_index_qdrant_for_replay(source):
+        try:
+            _run_traced_stage(
+                trace_recorder,
+                "replay.index_documents",
+                lambda: _index_replayed_documents(
+                    source=source,
+                    registry=runtime_registry,
+                    documents=documents,
+                    object_store=runtime_object_store,
+                    qdrant_client=qdrant_client,
+                    trace_recorder=trace_recorder,
+                ),
+                fields={
+                    "scope_count": len({(document.corpus, document.collection) for document in documents}),
+                    "document_count": len(documents),
+                },
+            )
+        except Exception as exc:
+            failed_count += 1
+            errors.append(f"replay indexing failed: {exc}")
+    return write_import_report(
+        import_mode="provider_response_replay",
+        report_dir=Path((source.get("IMPORT_REPORT_DIR") or "./var/import-reports").strip()),
+        report_prefix="replay-provider-response-rebuild",
+        success_count=stats.success_count,
+        skipped_count=stats.skipped_count,
+        failed_count=failed_count,
+        raw_uploaded_count=stats.raw_uploaded_count,
+        raw_reused_count=stats.raw_reused_count,
+        document_ids=stats.document_ids,
+        unresolved_source_pdfs=stats.unresolved_source_pdfs,
+        errors=tuple(errors),
+        timestamp=stats.timestamp,
+    )
+
+
+def _load_replay_source_artifacts(
+    *,
+    source: dict[str, str],
+    request: RebuildRequest,
+    collection_config: CollectionTruthConfig,
+    object_store_settings: ObjectStoreSettings,
+    object_store: ReplayObjectStore,
+    source_pdf: str,
+) -> dict[str, object]:
+    corpus = request.corpus
+    collection = request.collection
     split_manifest = load_split_manifest(
         collection_config.split_manifest_path,
         expected_corpus=corpus,
         expected_collection=collection,
     )
-    raw_asset_id = _resolve_collection_raw_asset_id(request=runtime_request, collection_config=collection_config)
-    raw_version_id = runtime_request.raw_version_id
+    raw_asset_id = _resolve_collection_raw_asset_id(request=request, collection_config=collection_config)
+    raw_version_id = request.raw_version_id
     if raw_version_id is None:
         raise ValueError("RAW_VERSION_ID is required")
     provider_response_key = build_source_ocr_artifact_key(
@@ -766,7 +1062,7 @@ def replay_provider_response_rebuild(
         ),
         year=infer_year_label(source_pdf),
     )
-    provider_response_bytes = runtime_object_store.get_bytes(
+    provider_response_bytes = object_store.get_bytes(
         bucket=object_store_settings.bucket_source,
         key=provider_response_key,
     )
@@ -794,26 +1090,49 @@ def replay_provider_response_rebuild(
         source_channel=DEFAULT_RAW_SOURCE_CHANNEL,
         year=infer_year_label(source_pdf),
     )
-    runtime_object_store.put_bytes(
+    object_store.put_bytes(
         bucket=object_store_settings.bucket_source,
         key=provider_response_key,
         data=provider_response_bytes,
         content_type="application/x-ndjson",
     )
-    runtime_object_store.put_bytes(
+    object_store.put_bytes(
         bucket=object_store_settings.bucket_source,
         key=layout_elements_key,
         data=layout_elements_bytes,
         content_type="application/x-ndjson",
     )
     _cleanup_replay_source_artifact_collisions(
-        object_store=runtime_object_store,
+        object_store=object_store,
         object_store_settings=object_store_settings,
         source_provider_response_key=provider_response_key,
         canonical_provider_response_key=provider_response_key,
         canonical_layout_elements_key=layout_elements_key,
     )
+    return {
+        "split_manifest": split_manifest,
+        "raw_asset_id": raw_asset_id,
+        "raw_version_id": raw_version_id,
+        "provider_response_key": provider_response_key,
+        "structured_rows": structured_rows,
+        "layout_elements_key": layout_elements_key,
+    }
 
+
+def _build_replay_documents(
+    *,
+    source: dict[str, str],
+    collection_config: CollectionTruthConfig,
+    split_manifest: SplitManifestDocument,
+    corpus: str,
+    collection: str,
+    source_pdf: str,
+    raw_asset_id: str,
+    raw_version_id: str,
+    provider_response_key: str,
+    layout_elements_key: str,
+    structured_rows: list[dict[str, object]],
+) -> list[DocumentImportInput]:
     if collection == "student_handbook":
         documents = [
             _build_handbook_replay_document_input(
@@ -898,48 +1217,7 @@ def replay_provider_response_rebuild(
                 split_manifest_documents=split_manifest.documents,
             )
         )
-    runtime_registry = registry or _build_document_registry_for_rebuild(source, corpus)
-    runtime_raw_asset_registry = raw_asset_registry or _build_raw_asset_registry_for_rebuild(source, corpus)
-    stats = _collect_projection_aware_import_stats(
-        source=source,
-        documents=documents,
-        registry=runtime_registry,
-        raw_asset_registry=runtime_raw_asset_registry,
-        writer=runtime_object_store,
-        object_store=object_store_settings,
-        parser_version=DEFAULT_RAW_ONLINE_OCR_PARSER_VERSION,
-        embedding_model=_read_embedding_model_name(source),
-        default_visibility_scope=_read_default_visibility_scope(source),
-        primary_scope=(corpus, collection),
-    )
-    errors = list(stats.errors)
-    failed_count = stats.failed_count
-    if _should_index_qdrant_for_replay(source):
-        try:
-            _index_replayed_documents(
-                source=source,
-                registry=runtime_registry,
-                documents=documents,
-                object_store=runtime_object_store,
-                qdrant_client=qdrant_client,
-            )
-        except Exception as exc:
-            failed_count += 1
-            errors.append(f"replay indexing failed: {exc}")
-    return write_import_report(
-        import_mode="provider_response_replay",
-        report_dir=Path((source.get("IMPORT_REPORT_DIR") or "./var/import-reports").strip()),
-        report_prefix="replay-provider-response-rebuild",
-        success_count=stats.success_count,
-        skipped_count=stats.skipped_count,
-        failed_count=failed_count,
-        raw_uploaded_count=stats.raw_uploaded_count,
-        raw_reused_count=stats.raw_reused_count,
-        document_ids=stats.document_ids,
-        unresolved_source_pdfs=stats.unresolved_source_pdfs,
-        errors=tuple(errors),
-        timestamp=stats.timestamp,
-    )
+    return documents
 
 
 def _processed_bucket_exclude_keys(
@@ -992,6 +1270,27 @@ def _should_publish_qdrant_alias_for_replay(source: dict[str, str]) -> bool:
     return _parse_bool(source.get("REBUILD_PUBLISH_ALIAS"), default=True)
 
 
+def _resolve_replay_source_pdf(
+    *,
+    source: dict[str, str],
+    request: RebuildRequest,
+    collection_config: CollectionTruthConfig,
+    raw_asset_registry: RawAssetRegistry,
+) -> str | None:
+    if request.import_mode != "provider_response_replay":
+        return request.source_pdf
+    if request.source_pdf is not None:
+        return request.source_pdf
+    raw_version_id = request.raw_version_id
+    if raw_version_id is None:
+        return _default_replay_source_pdf(request.collection)
+    raw_asset_id = _resolve_collection_raw_asset_id(request=request, collection_config=collection_config)
+    raw_asset_record = raw_asset_registry.get(raw_asset_id, raw_version_id)
+    if raw_asset_record is not None and raw_asset_record.source_filename.strip():
+        return raw_asset_record.source_filename.strip()
+    return _default_replay_source_pdf(request.collection)
+
+
 def _default_replay_source_pdf(collection: str) -> str:
     if collection == "curriculum_plan":
         return DEFAULT_CURRICULUM_PLAN_REPLAY_SOURCE_PDF
@@ -1010,6 +1309,7 @@ def _collect_projection_aware_import_stats(
     embedding_model: str,
     default_visibility_scope: str | None,
     primary_scope: tuple[str, str],
+    trace_recorder: _RebuildTraceRecorder | None = None,
 ) -> PersistImportStats:
     grouped: dict[tuple[str, str], list[DocumentImportInput]] = {}
     for document in documents:
@@ -1028,17 +1328,28 @@ def _collect_projection_aware_import_stats(
     timestamp = "1970-01-01T00:00:00+00:00"
     for scope, scope_documents in grouped.items():
         profile = load_runtime_profile(scope[0], scope[1])
-        stats = collect_import_document_stats(
-            documents=scope_documents,
-            registry=registry,
-            raw_asset_registry=raw_asset_registry,
-            writer=writer,
-            object_store=object_store,
-            parser_version=parser_version,
-            embedding_model=embedding_model,
-            cleaning_policy_version=profile.cleaning_policy_version,
-            default_visibility_scope=default_visibility_scope,
-            scope_refresh=scope if scope == primary_scope else None,
+        scope_refresh = scope if scope == primary_scope else None
+        stats = _run_traced_stage(
+            trace_recorder,
+            "replay.persist_scope",
+            lambda: collect_import_document_stats(
+                documents=scope_documents,
+                registry=registry,
+                raw_asset_registry=raw_asset_registry,
+                writer=writer,
+                object_store=object_store,
+                parser_version=parser_version,
+                embedding_model=embedding_model,
+                cleaning_policy_version=profile.cleaning_policy_version,
+                default_visibility_scope=default_visibility_scope,
+                scope_refresh=scope_refresh,
+            ),
+            fields={
+                "scope": f"{scope[0]}/{scope[1]}",
+                "document_count": len(scope_documents),
+                "scope_refresh": scope_refresh is not None,
+            },
+            result_fields=_summarize_persist_stats,
         )
         timestamp = stats.timestamp
         success_count += stats.success_count
@@ -1280,6 +1591,7 @@ def _index_replayed_documents(
     documents: list[DocumentImportInput],
     object_store: ReplayObjectStore,
     qdrant_client: QdrantClient | None,
+    trace_recorder: _RebuildTraceRecorder | None = None,
 ) -> None:
     runtime_qdrant_client = qdrant_client or _build_qdrant_client(RetrievalSettings.from_env(source), source=source)
     object_store_settings = ObjectStoreSettings.from_env(source)
@@ -1300,44 +1612,41 @@ def _index_replayed_documents(
             qdrant_client=runtime_qdrant_client,
             alias_name=binding.alias_name,
         )
-        records = []
-        chunks = []
-        missing_registry_documents: list[str] = []
-        empty_chunk_documents: list[str] = []
-        for document in scope_documents:
-            document_id = str(document.metadata["document_id"])
-            version_id = str(document.metadata["version_id"])
-            document_label = f"{corpus}/{collection} {document_id}@{version_id}"
-            record = registry.get(document_id, document.revision_track, version_id)
-            if record is None:
-                missing_registry_documents.append(document_label)
-                continue
-            records.append(record)
-            document_chunks = build_indexable_chunks_from_jsonl(
-                record=record,
-                structured_jsonl_bytes=document.document_units_bytes,
+        records, chunks = _run_traced_stage(
+            trace_recorder,
+            "replay.index_scope.prepare",
+            lambda: _prepare_replay_scope_chunks(
+                corpus=corpus,
+                collection=collection,
+                scope_documents=scope_documents,
+                registry=registry,
                 embedding_model=embedding_model,
                 sparse_embedding_model=sparse_embedding_model,
-            )
-            if not document_chunks:
-                empty_chunk_documents.append(document_label)
-                continue
-            chunks.extend(document_chunks)
-        if missing_registry_documents:
-            raise ValueError(
-                "missing registry record for replayed document "
-                + "; ".join(missing_registry_documents)
-            )
-        if empty_chunk_documents:
-            raise ValueError(
-                "replayed document "
-                + "; ".join(empty_chunk_documents)
-                + " produced no chunks"
-            )
+            ),
+            fields={
+                "scope": f"{corpus}/{collection}",
+                "document_count": len(scope_documents),
+                "alias_name": binding.alias_name,
+                "physical_collection_name": physical_collection_name,
+            },
+            result_fields=lambda payload: {
+                "record_count": len(payload[0]),
+                "chunk_count": len(payload[1]),
+            },
+        )
         if not chunks:
             continue
 
-        validation = validate_scope_release(corpus=corpus, collection=collection, chunks=tuple(chunks))
+        validation = _run_traced_stage(
+            trace_recorder,
+            "replay.index_scope.validate",
+            lambda: validate_scope_release(corpus=corpus, collection=collection, chunks=tuple(chunks)),
+            fields={
+                "scope": f"{corpus}/{collection}",
+                "chunk_count": len(chunks),
+            },
+            result_fields=lambda result: {"validation_status": result.status},
+        )
         validation_summary_object_key = build_index_release_artifact_key(
             corpus=corpus,
             collection=collection,
@@ -1391,22 +1700,41 @@ def _index_replayed_documents(
             should_ensure_collection = False
 
         try:
-            for chunk in chunks:
-                pending_chunks.append(chunk)
-                if len(pending_chunks) >= upsert_batch_size:
-                    flush_pending_chunks()
-            flush_pending_chunks()
+            _run_traced_stage(
+                trace_recorder,
+                "replay.index_scope.upsert_qdrant",
+                lambda: _upsert_replay_scope_chunks(
+                    chunks=chunks,
+                    upsert_batch_size=upsert_batch_size,
+                    add_pending_chunk=lambda chunk: pending_chunks.append(chunk),
+                    flush_pending_chunks=flush_pending_chunks,
+                ),
+                fields={
+                    "scope": f"{corpus}/{collection}",
+                    "chunk_count": len(chunks),
+                    "upsert_batch_size": upsert_batch_size,
+                    "physical_collection_name": physical_collection_name,
+                },
+            )
         except Exception:
             if runtime_qdrant_client.collection_exists(physical_collection_name):
                 runtime_qdrant_client.delete_collection(collection_name=physical_collection_name)
             raise
 
         if validation.status != "passed":
-            write_index_release_artifacts(
-                writer=object_store,
-                bucket=object_store_settings.bucket_derived,
-                manifest=prepublish_manifest,
-                validation_summary=validation.summary,
+            _run_traced_stage(
+                trace_recorder,
+                "replay.index_scope.write_artifacts_preview",
+                lambda: write_index_release_artifacts(
+                    writer=object_store,
+                    bucket=object_store_settings.bucket_derived,
+                    manifest=prepublish_manifest,
+                    validation_summary=validation.summary,
+                ),
+                fields={
+                    "scope": f"{corpus}/{collection}",
+                    "publish_alias": False,
+                },
             )
             if runtime_qdrant_client.collection_exists(physical_collection_name):
                 runtime_qdrant_client.delete_collection(collection_name=physical_collection_name)
@@ -1415,11 +1743,19 @@ def _index_replayed_documents(
             )
 
         if not should_publish_alias:
-            write_index_release_artifacts(
-                writer=object_store,
-                bucket=object_store_settings.bucket_derived,
-                manifest=prepublish_manifest,
-                validation_summary=validation.summary,
+            _run_traced_stage(
+                trace_recorder,
+                "replay.index_scope.write_artifacts_preview",
+                lambda: write_index_release_artifacts(
+                    writer=object_store,
+                    bucket=object_store_settings.bucket_derived,
+                    manifest=prepublish_manifest,
+                    validation_summary=validation.summary,
+                ),
+                fields={
+                    "scope": f"{corpus}/{collection}",
+                    "publish_alias": False,
+                },
             )
             continue
 
@@ -1440,17 +1776,34 @@ def _index_replayed_documents(
         )
         alias_published = False
         try:
-            publish_release_alias(
-                qdrant_client=runtime_qdrant_client,
-                binding=binding,
-                physical_collection_name=physical_collection_name,
+            _run_traced_stage(
+                trace_recorder,
+                "replay.index_scope.publish_alias",
+                lambda: publish_release_alias(
+                    qdrant_client=runtime_qdrant_client,
+                    binding=binding,
+                    physical_collection_name=physical_collection_name,
+                ),
+                fields={
+                    "scope": f"{corpus}/{collection}",
+                    "alias_name": binding.alias_name,
+                    "physical_collection_name": physical_collection_name,
+                },
             )
             alias_published = True
-            write_index_release_artifacts(
-                writer=object_store,
-                bucket=object_store_settings.bucket_derived,
-                manifest=published_manifest,
-                validation_summary=validation.summary,
+            _run_traced_stage(
+                trace_recorder,
+                "replay.index_scope.write_artifacts_published",
+                lambda: write_index_release_artifacts(
+                    writer=object_store,
+                    bucket=object_store_settings.bucket_derived,
+                    manifest=published_manifest,
+                    validation_summary=validation.summary,
+                ),
+                fields={
+                    "scope": f"{corpus}/{collection}",
+                    "publish_alias": True,
+                },
             )
         except Exception:
             if alias_published and previous_physical_collection_name is not None:
@@ -1467,6 +1820,69 @@ def _index_replayed_documents(
             if runtime_qdrant_client.collection_exists(physical_collection_name):
                 runtime_qdrant_client.delete_collection(collection_name=physical_collection_name)
             raise
+
+
+def _prepare_replay_scope_chunks(
+    *,
+    corpus: str,
+    collection: str,
+    scope_documents: list[DocumentImportInput],
+    registry: DocumentRegistry,
+    embedding_model: object,
+    sparse_embedding_model: object,
+) -> tuple[list[object], list[object]]:
+    records = []
+    chunks = []
+    missing_registry_documents: list[str] = []
+    empty_chunk_documents: list[str] = []
+    for document in scope_documents:
+        document_id = str(document.metadata["document_id"])
+        version_id = str(document.metadata["version_id"])
+        document_label = f"{corpus}/{collection} {document_id}@{version_id}"
+        record = registry.get(document_id, document.revision_track, version_id)
+        if record is None:
+            missing_registry_documents.append(document_label)
+            continue
+        records.append(record)
+        document_chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=document.document_units_bytes,
+            embedding_model=embedding_model,
+            sparse_embedding_model=sparse_embedding_model,
+        )
+        if not document_chunks:
+            empty_chunk_documents.append(document_label)
+            continue
+        chunks.extend(document_chunks)
+    if missing_registry_documents:
+        raise ValueError(
+            "missing registry record for replayed document "
+            + "; ".join(missing_registry_documents)
+        )
+    if empty_chunk_documents:
+        raise ValueError(
+            "replayed document "
+            + "; ".join(empty_chunk_documents)
+            + " produced no chunks"
+        )
+    return records, chunks
+
+
+def _upsert_replay_scope_chunks(
+    *,
+    chunks: list[object],
+    upsert_batch_size: int,
+    add_pending_chunk: Callable[[object], None],
+    flush_pending_chunks: Callable[[], None],
+) -> None:
+    pending_count = 0
+    for chunk in chunks:
+        add_pending_chunk(chunk)
+        pending_count += 1
+        if pending_count >= upsert_batch_size:
+            flush_pending_chunks()
+            pending_count = 0
+    flush_pending_chunks()
 
 
 def _read_embedding_model_name(source: dict[str, str]) -> str:

@@ -25,6 +25,18 @@ _SEMESTER_ALIASES = (
     ("大五上", "第九学期"),
     ("大五下", "第十学期"),
 )
+_SEMESTER_NUMERIC_LABELS = {
+    "第一学期": "1",
+    "第二学期": "2",
+    "第三学期": "3",
+    "第四学期": "4",
+    "第五学期": "5",
+    "第六学期": "6",
+    "第七学期": "7",
+    "第八学期": "8",
+    "第九学期": "9",
+    "第十学期": "10",
+}
 _COURSE_LIST_CUES = ("什么课", "哪些课", "有哪些课", "有什么课", "课程", "课表", "修什么")
 _GENERIC_QUERY_NOISE = (
     "请问",
@@ -227,7 +239,18 @@ def _source_matches_semester(source: EvidenceSource, semester_labels: tuple[str,
         if part.strip()
     )
     normalized_source_text = _normalize_text(source_text)
-    return any(_normalize_text(label) in normalized_source_text for label in semester_labels)
+    for label in semester_labels:
+        normalized_label = _normalize_text(label)
+        if normalized_label in normalized_source_text:
+            return True
+        numeric_label = _SEMESTER_NUMERIC_LABELS.get(label, "")
+        if not numeric_label:
+            continue
+        if f"第{numeric_label}学期" in normalized_source_text:
+            return True
+        if re.search(rf"(?:(?<=\|)|(?<=\s)|^){re.escape(numeric_label)}(?:(?=\|)|(?=\s)|$)", normalized_source_text):
+            return True
+    return False
 
 
 def _source_title_candidates(source: EvidenceSource) -> tuple[str, ...]:

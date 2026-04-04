@@ -97,7 +97,18 @@ class SplitManifestTest(unittest.TestCase):
                 self.assertNotIn("acl_groups", document, msg=f"{filename} still uses acl_groups")
                 self.assertNotIn("campus_scope", document, msg=f"{filename} still uses campus_scope")
                 self.assertIn("entitlement_groups", document, msg=f"{filename} is missing entitlement_groups")
-                self.assertIn("visibility_scope", document, msg=f"{filename} is missing visibility_scope")
+                if document["entitlement_groups"]:
+                    self.assertIn(
+                        "visibility_scope",
+                        document,
+                        msg=f"{filename} restricted document should keep explicit visibility_scope",
+                    )
+                else:
+                    self.assertNotIn(
+                        "visibility_scope",
+                        document,
+                        msg=f"{filename} public curriculum document should not carry visibility_scope",
+                    )
 
     def test_load_split_manifest_rejects_overlapping_curriculum_page_ranges(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -556,6 +567,62 @@ class SplitManifestTest(unittest.TestCase):
             "phase1-authorization-projection-v1",
         )
         self.assertEqual(document_input.visibility_scope, "main")
+
+    def test_build_split_manifest_document_input_keeps_public_curriculum_visibility_scope_null(self) -> None:
+        manifest_document = SplitManifestDocument(
+            document_id="curriculum:plan-public",
+            title="Plan Public",
+            page_start=13,
+            page_end=20,
+            entitlement_groups=(),
+            visibility_scope=None,
+            visibility_level="public",
+        )
+        structured_rows = [
+            {
+                "row_id": "page-0013-block-0001",
+                "row_type": "paragraph",
+                "text_raw": "公开培养方案正文",
+                "text_normalized": "公开培养方案正文",
+                "page_start": 13,
+                "page_end": 13,
+                "html": None,
+                "table_cells": None,
+                "acl": {"level": "public", "allow_groups": []},
+            },
+        ]
+
+        document_input = _build_split_manifest_document_input(
+            raw_asset_record=_curriculum_raw_asset_record(raw_version_id="sha256:test"),
+            manifest_version="curriculum_plan_split_manifest_v1",
+            manifest_document=manifest_document,
+            structured_rows=structured_rows,
+            provider_response_key=(
+                "official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl"
+            ),
+            layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
+            default_visibility_scope=None,
+            corpus="curriculum",
+            collection="curriculum_plan",
+        )
+
+        self.assertEqual(document_input.metadata["entitlement_groups"], [])
+        self.assertEqual(document_input.metadata["visibility_level"], "public")
+        self.assertIsNone(document_input.metadata["visibility_scope"])
+        self.assertIsNone(document_input.visibility_scope)
+
+    def test_public_curriculum_manifest_document_does_not_inherit_default_visibility_scope(self) -> None:
+        manifest_document = SplitManifestDocument(
+            document_id="curriculum:plan-public",
+            title="Plan Public",
+            page_start=1,
+            page_end=2,
+            entitlement_groups=(),
+            visibility_scope=None,
+            visibility_level="public",
+        )
+
+        self.assertIsNone(manifest_document.resolved_visibility_scope("main"))
 
 
 if __name__ == "__main__":

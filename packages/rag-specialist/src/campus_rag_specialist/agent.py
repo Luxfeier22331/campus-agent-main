@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import re
 
 from campus_contracts import EvidenceBundle, EvidenceSource
+from campus_retrieval_core.curriculum_query_resolution import interpret_curriculum_query
 from campus_retrieval_core.evidence_ranking import select_supporting_evidence_sources
 
 
@@ -15,6 +16,7 @@ _LEADING_ENUM_RE = re.compile(r"^(?:[0-9]{1,2}[.、]\s*|[一二三四五六七�
 _PROCEDURE_QUERY_HINTS = ("怎么办", "如何", "怎么", "办理", "申请", "流程", "补办", "手续", "replace")
 _NON_PROCEDURE_REQUIREMENT_QUERY_HINTS = ("怎么要求", "如何要求", "怎么规定", "如何规定")
 _TIME_QUERY_HINTS = ("时间", "几点", "多久", "几年", "哪天", "学制", "照明", "熄灯", "亮灯", "hours")
+_CURRICULUM_COURSE_LIST_QUERY_HINTS = ("什么课", "哪些课", "有什么课", "有哪些课", "修什么")
 _ACTION_STATEMENT_HINTS = (
     "挂失",
     "申请",
@@ -48,6 +50,20 @@ _TIME_STATEMENT_HINTS = (
     "日",
     ":",
 )
+_ACADEMIC_YEARS_FACT_RE = re.compile(r"学制[:： ]*(?:\d+|[一二三四五六七八九十两]+)年")
+_CURRICULUM_SEMESTER_NUMERIC_LABELS = {
+    "第一学期": "1",
+    "第二学期": "2",
+    "第三学期": "3",
+    "第四学期": "4",
+    "第五学期": "5",
+    "第六学期": "6",
+    "第七学期": "7",
+    "第八学期": "8",
+    "第九学期": "9",
+    "第十学期": "10",
+}
+_CURRICULUM_EMPTY_TABLE_CELLS = frozenset({"", "-", "—", "/", "／"})
 _LOW_SIGNAL_QUERY_TOKENS = frozenset(
     {
         "中央",
@@ -127,6 +143,12 @@ class RagSpecialistAgent:
 
     def compose_answer(self, evidence: EvidenceBundle) -> str:
         return self.build_answer(evidence).answer_text
+
+
+@dataclass(frozen=True, slots=True)
+class _CurriculumSemesterTableLayout:
+    single_semester_index: int = -1
+    distribution_semester_indexes: tuple[tuple[str, int], ...] = ()
 
 
 def _normalize_snippet(snippet: str) -> str:
@@ -222,10 +244,14 @@ def _score_statement(
     keywords: tuple[str, ...],
 ) -> int:
     normalized = _normalize_snippet(statement).lower()
+    if _is_curriculum_table_heading(source, statement):
+        return 0
     score = 0
     for keyword in keywords:
         if keyword in normalized:
             score += 3 if len(keyword) >= 3 else 1
+    if _is_curriculum_course_list_query(query_text) and _is_curriculum_course_row(source, statement):
+        score += 4
     if mode == "procedure":
         score += sum(2 for token in _ACTION_STATEMENT_HINTS if token in normalized)
         if source.content_role == "procedure":
@@ -234,11 +260,257 @@ def _score_statement(
         score += sum(2 for token in _TIME_STATEMENT_HINTS if token in normalized)
         if source.content_role == "time_rule":
             score += 2
+        if ("学制" in query_text or "几年" in query_text) and _ACADEMIC_YEARS_FACT_RE.search(normalized):
+            score += 8
     if "负责解释" in normalized:
         score -= 6
     if "研究生宿舍" in normalized and "研究生" not in _normalize_snippet(query_text):
         score -= 2
     return score
+
+
+def _is_curriculum_course_list_query(query_text: str) -> bool:
+    normalized_query = _normalize_snippet(query_text)
+    return any(hint in normalized_query for hint in _CURRICULUM_COURSE_LIST_QUERY_HINTS)
+
+
+def _curriculum_semester_labels(query_text: str) -> tuple[str, ...]:
+    interpretation = interpret_curriculum_query(query_text)
+    if interpretation.intent_kind != "course_list" or not interpretation.semester_labels:
+        return ()
+    return tuple(dict.fromkeys(interpretation.semester_labels))
+
+
+def _curriculum_target_semesters(query_text: str) -> tuple[str, ...]:
+    semester_labels = _curriculum_semester_labels(query_text)
+    if not semester_labels:
+        return ()
+    return tuple(
+        dict.fromkeys(
+            _CURRICULUM_SEMESTER_NUMERIC_LABELS.get(label, "")
+            for label in semester_labels
+            if _CURRICULUM_SEMESTER_NUMERIC_LABELS.get(label, "")
+        )
+    )
+
+
+def _is_curriculum_semester_course_list_query(query_text: str) -> bool:
+    return bool(_curriculum_semester_labels(query_text))
+
+
+def _is_curriculum_course_row(source: EvidenceSource, statement: str) -> bool:
+    if source.collection != "curriculum_plan" or source.content_role != "table_fact":
+        return False
+    normalized = _normalize_snippet(statement)
+    if normalized.count("|") < 5:
+        return False
+    return "课程号" not in normalized and "课程名称" not in normalized
+
+
+def _is_curriculum_table_heading(source: EvidenceSource, statement: str) -> bool:
+    if source.collection != "curriculum_plan" or source.content_role != "table_fact":
+        return False
+    normalized = _normalize_snippet(statement)
+    if not normalized:
+        return False
+    if normalized.endswith("教学进程计划表"):
+        return True
+    if normalized in {"大类培养", "学科基础教育", "专业教育", "专业选修课程"}:
+        return True
+    if "课程清单如下" in normalized:
+        return True
+    if normalized.startswith("课程类别 |") or normalized.startswith("专业方向 |"):
+        return True
+    return False
+
+
+def _candidate_source_statements(query_text: str, source: EvidenceSource) -> tuple[tuple[str, ...], bool]:
+    scoped_statements = _extract_curriculum_semester_scoped_statements(
+        query_text=query_text,
+        source=source,
+    )
+    if scoped_statements is not None:
+        return scoped_statements, True
+    return _extract_source_statements(source), False
+
+
+def _extract_curriculum_semester_scoped_statements(
+    *,
+    query_text: str,
+    source: EvidenceSource,
+) -> tuple[str, ...] | None:
+    if source.collection != "curriculum_plan" or source.content_role != "table_fact":
+        return None
+    if not _is_curriculum_semester_course_list_query(query_text):
+        return None
+    if "|" not in source.snippet:
+        return None
+    target_semesters = _curriculum_target_semesters(query_text)
+    if not target_semesters:
+        return None
+
+    title = _normalize_snippet(source.source_title)
+    ignored_lines = {
+        title,
+        *(_normalize_snippet(item) for item in source.structural_path if item.strip()),
+    }
+    if source.detail_label.strip():
+        ignored_lines.add(_normalize_snippet(source.detail_label))
+
+    matched_rows: list[str] = []
+    table_layout: _CurriculumSemesterTableLayout | None = None
+    for raw_line in re.split(r"[\r\n]+", source.snippet):
+        line = _normalize_snippet(raw_line)
+        if not line or line in ignored_lines or line.startswith("文号："):
+            continue
+        cells = _split_curriculum_table_cells(line)
+        resolved_layout = _resolve_curriculum_semester_table_layout(cells)
+        if resolved_layout is not None:
+            table_layout = resolved_layout
+            continue
+        if _is_curriculum_table_heading(source, line) or not _is_curriculum_course_row(source, line):
+            continue
+        if _curriculum_row_matches_target_semester(
+            cells=cells,
+            layout=table_layout,
+            target_semesters=target_semesters,
+        ):
+            matched_rows.append(line)
+    return tuple(dict.fromkeys(matched_rows))
+
+
+def _extract_curriculum_semester_course_titles_from_statement(
+    statement: str,
+    *,
+    semester_labels: tuple[str, ...],
+) -> tuple[str, ...]:
+    normalized = _normalize_snippet(statement)
+    if not normalized or "|" in normalized:
+        return ()
+    cleaned = normalized
+    for label in semester_labels:
+        cleaned = cleaned.replace(label, "")
+    cleaned = re.sub(r"^(?:有|包括|课程有|课程包括|课程为|主要有)\s*", "", cleaned)
+    cleaned = cleaned.strip("：:，,；;。 ")
+    if not cleaned:
+        return ()
+    return tuple(
+        dict.fromkeys(
+            fragment.strip("：:，,；;。 ")
+            for fragment in re.split(r"[、，,；;]", cleaned)
+            if fragment.strip("：:，,；;。 ")
+        )
+    )
+
+
+def _extract_curriculum_semester_course_titles(
+    *,
+    query_text: str,
+    source: EvidenceSource,
+    statements: tuple[str, ...],
+) -> tuple[str, ...]:
+    semester_labels = _curriculum_semester_labels(query_text)
+    target_semesters = _curriculum_target_semesters(query_text)
+    if not semester_labels or not target_semesters or source.collection != "curriculum_plan":
+        return ()
+
+    if "|" in source.snippet and source.content_role == "table_fact":
+        title = _normalize_snippet(source.source_title)
+        ignored_lines = {
+            title,
+            *(_normalize_snippet(item) for item in source.structural_path if item.strip()),
+        }
+        if source.detail_label.strip():
+            ignored_lines.add(_normalize_snippet(source.detail_label))
+
+        table_layout: _CurriculumSemesterTableLayout | None = None
+        course_name_index = -1
+        course_titles: list[str] = []
+        for raw_line in re.split(r"[\r\n]+", source.snippet):
+            line = _normalize_snippet(raw_line)
+            if not line or line in ignored_lines or line.startswith("文号："):
+                continue
+            cells = _split_curriculum_table_cells(line)
+            if "课程名称" in cells:
+                course_name_index = cells.index("课程名称")
+            resolved_layout = _resolve_curriculum_semester_table_layout(cells)
+            if resolved_layout is not None:
+                table_layout = resolved_layout
+                continue
+            if _is_curriculum_table_heading(source, line) or not _is_curriculum_course_row(source, line):
+                continue
+            if course_name_index < 0 or course_name_index >= len(cells):
+                continue
+            if not _curriculum_row_matches_target_semester(
+                cells=cells,
+                layout=table_layout,
+                target_semesters=target_semesters,
+            ):
+                continue
+            course_name = _normalize_snippet(cells[course_name_index])
+            if course_name and course_name != "课程名称":
+                course_titles.append(course_name)
+        if course_titles:
+            return tuple(dict.fromkeys(course_titles))
+
+    fallback_titles: list[str] = []
+    for statement in statements:
+        fallback_titles.extend(
+            _extract_curriculum_semester_course_titles_from_statement(
+                statement,
+                semester_labels=semester_labels,
+            )
+        )
+    return tuple(dict.fromkeys(fallback_titles))
+
+
+def _split_curriculum_table_cells(line: str) -> tuple[str, ...]:
+    return tuple(_normalize_snippet(cell) for cell in line.split("|"))
+
+
+def _resolve_curriculum_semester_table_layout(
+    cells: tuple[str, ...],
+) -> _CurriculumSemesterTableLayout | None:
+    if "课程名称" not in cells:
+        return None
+    for index, cell in enumerate(cells):
+        if cell.endswith("学期") and "各学期" not in cell:
+            return _CurriculumSemesterTableLayout(single_semester_index=index)
+    distribution_indexes = tuple(
+        (cell, index)
+        for index, cell in enumerate(cells)
+        if cell in _CURRICULUM_SEMESTER_NUMERIC_LABELS.values()
+    )
+    if len(distribution_indexes) >= 2:
+        return _CurriculumSemesterTableLayout(
+            distribution_semester_indexes=distribution_indexes,
+        )
+    return None
+
+
+def _curriculum_row_matches_target_semester(
+    *,
+    cells: tuple[str, ...],
+    layout: _CurriculumSemesterTableLayout | None,
+    target_semesters: tuple[str, ...],
+) -> bool:
+    if not cells:
+        return False
+    if layout is not None and layout.single_semester_index >= 0:
+        if layout.single_semester_index >= len(cells):
+            return False
+        return cells[layout.single_semester_index] in target_semesters
+    if layout is not None and layout.distribution_semester_indexes:
+        return any(
+            column_index < len(cells) and _curriculum_table_cell_has_value(cells[column_index])
+            for semester_label, column_index in layout.distribution_semester_indexes
+            if semester_label in target_semesters
+        )
+    return cells[-1] in target_semesters
+
+
+def _curriculum_table_cell_has_value(value: str) -> bool:
+    return _normalize_snippet(value) not in _CURRICULUM_EMPTY_TABLE_CELLS
 
 
 def _score_source_statements(
@@ -249,7 +521,8 @@ def _score_source_statements(
 ) -> tuple[tuple[int, str], ...]:
     keywords = _query_keywords(query_text)
     scored: list[tuple[int, str]] = []
-    for statement in _extract_source_statements(source):
+    statements, _ = _candidate_source_statements(query_text, source)
+    for statement in statements:
         score = _score_statement(query_text, source, statement, mode=mode, keywords=keywords)
         if score > 0:
             scored.append((score, statement))
@@ -257,11 +530,17 @@ def _score_source_statements(
 
 
 def _rank_source_statements(query_text: str, source: EvidenceSource, *, mode: str) -> tuple[str, ...]:
+    statements, scoped = _candidate_source_statements(query_text, source)
+    statement_limit = 4 if mode == "time" else 3
+    if scoped and _is_curriculum_semester_course_list_query(query_text):
+        return statements
+    if scoped and _is_curriculum_course_list_query(query_text):
+        return statements[:statement_limit]
     scored = _score_source_statements(query_text, source, mode=mode)
     if not scored:
-        fallback = _extract_source_statements(source)
-        return fallback[:1]
-    statement_limit = 4 if mode == "time" else 3
+        if scoped:
+            return ()
+        return statements[:1]
     return tuple(statement for _, statement in scored[:statement_limit])
 
 
@@ -275,10 +554,18 @@ def _select_answer_support_rows(
         return ()
 
     mode = _query_mode(query_text)
-    ranked_sources = sorted(
-        sources,
-        key=lambda source: _answer_source_sort_key(query_text, source, mode=mode),
-        reverse=True,
+    course_list_query = _is_curriculum_course_list_query(query_text)
+    max_seen_statements = 6 if course_list_query else 3
+    ranked_sources = (
+        tuple(sources)
+        if course_list_query
+        else tuple(
+            sorted(
+                sources,
+                key=lambda source: _answer_source_sort_key(query_text, source, mode=mode),
+                reverse=True,
+            )
+        )
     )
     rows: list[tuple[EvidenceSource, tuple[str, ...]]] = []
     seen_statements: set[str] = set()
@@ -294,9 +581,13 @@ def _select_answer_support_rows(
             continue
         rows.append((source, novel_statements))
         seen_statements.update(_normalize_snippet(statement).lower() for statement in novel_statements)
-        if index == 0 and len(novel_statements) >= 2:
+        if not course_list_query and index == 0 and len(novel_statements) >= 2:
             break
-        if len(rows) >= max_sources or len(seen_statements) >= 3:
+        if course_list_query and len(rows) >= 2 and len(seen_statements) >= 5:
+            break
+        if index == 0 and mode == "time" and any("学制" in statement for statement in novel_statements):
+            break
+        if len(rows) >= max_sources or len(seen_statements) >= max_seen_statements:
             break
 
     if rows:
@@ -359,6 +650,40 @@ def _compose_generic_answer(
     if topic_label and topic_label not in _normalize_snippet(' '.join(fragments)):
         return f"{answer_prefix}，关于{topic_label}：{'；'.join(fragments)}"
     return f"{answer_prefix}，{'；'.join(fragments)}"
+
+
+def _compose_curriculum_semester_course_list_answer(
+    *,
+    evidence: EvidenceBundle,
+    selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
+) -> str:
+    if evidence.collection != "curriculum_plan":
+        return ""
+    semester_labels = _curriculum_semester_labels(evidence.query_text)
+    if len(semester_labels) != 1:
+        return ""
+
+    course_titles: list[str] = []
+    seen_titles: set[str] = set()
+    for source, statements in selected_rows:
+        for course_title in _extract_curriculum_semester_course_titles(
+            query_text=evidence.query_text,
+            source=source,
+            statements=statements,
+        ):
+            normalized = _normalize_snippet(course_title).lower()
+            if not normalized or normalized in seen_titles:
+                continue
+            seen_titles.add(normalized)
+            course_titles.append(course_title)
+    if not course_titles:
+        return ""
+
+    answer = f"{_answer_prefix(evidence)}，{semester_labels[0]}有{'、'.join(course_titles)}。"
+    citation = _format_source_citation(tuple(source for source, _ in selected_rows))
+    if citation:
+        return f"{answer} {citation}"
+    return answer
 
 
 def _compose_procedure_answer(
@@ -562,6 +887,13 @@ def _compose_direct_answer(
     mode = _query_mode(evidence.query_text)
     if mode == "procedure":
         return _compose_procedure_answer(evidence=evidence, selected_rows=selected_rows)
+    if _is_curriculum_semester_course_list_query(evidence.query_text):
+        semester_course_list_answer = _compose_curriculum_semester_course_list_answer(
+            evidence=evidence,
+            selected_rows=selected_rows,
+        )
+        if semester_course_list_answer:
+            return semester_course_list_answer
     return _compose_generic_answer(evidence=evidence, selected_rows=selected_rows)
 
 

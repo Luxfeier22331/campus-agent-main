@@ -796,7 +796,7 @@ def curriculum_release_gate_cases() -> tuple[GoldenCase, ...]:
             scope=scope,
             expected_status="completed",
             expected_sources=(expected_source_ref("curriculum:法学（民族实验班）本科人才培养方案"),),
-            required_facts=("习近平法治思想概论", "国际公法"),
+            required_facts=("中国少数民族文字学", "侵权责任法"),
             reference_context_ids=_reference_context_ids("curriculum:法学（民族实验班）本科人才培养方案"),
             conversation_turns=(
                 "法学民族班培养方案里大一上有什么课",
@@ -820,7 +820,7 @@ def curriculum_release_gate_cases() -> tuple[GoldenCase, ...]:
             scope=scope,
             expected_status="completed",
             expected_sources=(expected_source_ref("curriculum:历史学（强基计划）本科人才培养方案"),),
-            required_facts=("中国史学史", "史学理论专题"),
+            required_facts=("大学英语(四)", "中国近代边疆民族史料研读"),
             reference_context_ids=_reference_context_ids("curriculum:历史学（强基计划）本科人才培养方案"),
             conversation_turns=(
                 "历史学强基计划培养方案里大一上有什么课",

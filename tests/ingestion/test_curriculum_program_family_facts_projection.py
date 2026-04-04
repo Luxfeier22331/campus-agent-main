@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import unittest
 
 from campus_ingestion_core.curriculum_program_family_facts_projection import (
@@ -165,6 +166,55 @@ class CurriculumProgramFamilyFactsProjectionTest(unittest.TestCase):
                 "中央民族大学创新班相关培养方案一览",
             ],
         )
+
+    def test_scope_refresh_document_units_embed_program_family_semantics_in_metadata(self) -> None:
+        documents = build_curriculum_program_family_facts_scope_refresh_documents(
+            raw_asset_record=RawAssetRecord(
+                raw_asset_id="asset:curriculum-plan-master-pdf",
+                raw_version_id="sha256:program-family-facts-001",
+                corpus="curriculum",
+                collection="curriculum_plan",
+                raw_source_uri="campusrag://source/curriculum/curriculum-plan.pdf",
+                content_hash="program-family-facts-001",
+                source_filename="curriculum-plan.pdf",
+                object_key="official_pdf/curriculum-plan-master/provider-response.jsonl",
+                ingestion_timestamp="2026-04-02T00:00:00+00:00",
+                import_source="provider_response_replay",
+            ),
+            source_pdf="curriculum-plan.pdf",
+            split_manifest_documents=(
+                SplitManifestDocument(
+                    document_id="curriculum:法学（民族实验班）本科人才培养方案",
+                    title="法学（民族实验班）本科人才培养方案",
+                    page_start=1,
+                    page_end=10,
+                ),
+                SplitManifestDocument(
+                    document_id="curriculum:信息与计算科学（民族实验班）本科人才培养方案",
+                    title="信息与计算科学（民族实验班）本科人才培养方案",
+                    page_start=11,
+                    page_end=20,
+                ),
+                SplitManifestDocument(
+                    document_id="curriculum:计算机科学与技术（民族实验班）本科人才培养方案",
+                    title="计算机科学与技术（民族实验班）本科人才培养方案",
+                    page_start=21,
+                    page_end=30,
+                ),
+            ),
+        )
+
+        first_row = json.loads(documents[0].document_units_bytes.decode("utf-8").splitlines()[0])
+
+        self.assertIn("metadata", first_row)
+        self.assertEqual(
+            first_row["metadata"]["canonical_program_family_id"],
+            "program_family:muc.ethnic_experimental_class",
+        )
+        self.assertEqual(first_row["metadata"]["content_role"], "family_membership")
+        self.assertEqual(first_row["metadata"]["detail_label"], "成员专业")
+        self.assertEqual(first_row["metadata"]["member_program_titles"], ["法学", "信息与计算科学", "计算机科学与技术"])
+        self.assertTrue(first_row["metadata"]["is_answer_bearing"])
 
 
 if __name__ == "__main__":

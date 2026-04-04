@@ -49,6 +49,8 @@ class SplitManifestDocument:
     def resolved_visibility_scope(self, default_scope: str | None = None) -> str | None:
         if self.visibility_scope is not None:
             return self.visibility_scope
+        if not self.entitlement_groups:
+            return None
         return default_scope
 
     def resolved_visibility_level(self) -> str:

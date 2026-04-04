@@ -26,7 +26,9 @@ from qdrant_client.http import models as qdrant_models
 
 from campus_retrieval_core.curriculum_query_resolution import (
     build_curriculum_document_support_query_text,
+    filter_curriculum_query_sources,
     interpret_curriculum_query,
+    matching_curriculum_doc_ids,
 )
 from campus_retrieval_core.evidence_ranking import prioritize_evidence_sources, query_targets_source_title
 from campus_retrieval_core.models import RetrievalRequest
@@ -89,6 +91,8 @@ _DOCUMENT_SUPPORT_QUERY_SUFFIXES = (
 _QDRANT_READ_RETRY_ATTEMPTS = 3
 _QDRANT_READ_RETRY_BACKOFF_SECONDS = 0.5
 _QDRANT_TRANSIENT_ERROR_TEXT = ("timed out", "timeout", "temporarily unavailable", "connection reset", "handshake")
+_SAME_DOC_SCROLL_BATCH_LIMIT = 64
+_SAME_DOC_SCROLL_MAX_RECORDS = 256
 _RetryResult = TypeVar("_RetryResult")
 
 
@@ -167,19 +171,21 @@ class QdrantRetrievalBackend:
                     )
                 self._known_collection_names.add(qdrant_collection_name)
             dense_query_embedding = self._get_dense_query_embedding(query_text, profile=profile)
-            response = self.qdrant_client.query_points(
-                collection_name=qdrant_collection_name,
-                prefetch=_build_hybrid_prefetch(
-                    request=request,
-                    profile=profile,
-                    embedding_model=self.embedding_model,
-                    sparse_embedding_model=self.sparse_embedding_model,
-                    dense_query_embedding=dense_query_embedding,
-                ),
-                query=_build_rrf_query(profile),
-                limit=request.top_k,
-                with_payload=True,
-                with_vectors=False,
+            response = _retry_qdrant_read(
+                lambda: self.qdrant_client.query_points(
+                    collection_name=qdrant_collection_name,
+                    prefetch=_build_hybrid_prefetch(
+                        request=request,
+                        profile=profile,
+                        embedding_model=self.embedding_model,
+                        sparse_embedding_model=self.sparse_embedding_model,
+                        dense_query_embedding=dense_query_embedding,
+                    ),
+                    query=_build_rrf_query(profile),
+                    limit=request.top_k,
+                    with_payload=True,
+                    with_vectors=False,
+                )
             )
         except Exception as exc:  # pragma: no cover - exercised by error mapping test
             raise RetrievalBackendError("qdrant retrieval failed") from exc
@@ -204,17 +210,23 @@ class QdrantRetrievalBackend:
             dense_query_embedding=dense_query_embedding,
             sources=ranked_sources,
         )
+        ranked_final_sources = prioritize_evidence_sources(
+            query_text=query_text,
+            sources=expanded_sources,
+        )
+        ranked_final_sources = _apply_preferred_document_bias(
+            sources=ranked_final_sources,
+            preferred_document_ids=request.preferred_document_ids,
+        )
+        ranked_final_sources = _prefer_curriculum_semester_course_list_sources(
+            query_text=request.query_text,
+            sources=ranked_final_sources,
+        )
         return EvidenceBundle(
             query_text=request.query_text,
             corpus=request.corpus,
             collection=request.collection,
-            sources=_apply_preferred_document_bias(
-                sources=prioritize_evidence_sources(
-                    query_text=query_text,
-                    sources=expanded_sources,
-                )[: request.top_k],
-                preferred_document_ids=request.preferred_document_ids,
-            ),
+            sources=ranked_final_sources[: request.top_k],
         )
 
     def _build_evidence_sources(self, points: Sequence[qdrant_models.ScoredPoint]) -> tuple[EvidenceSource, ...]:
@@ -273,13 +285,49 @@ class QdrantRetrievalBackend:
                     score=float(point.score),
                     source_title=_resolve_source_title(metadata, document_id=document_id, anchor=anchor),
                     structural_path=_coerce_structural_path(anchor.get("section_path")),
-                    content_kind=_resolve_content_kind(metadata),
-                    content_role=_resolve_content_role(metadata, anchor=anchor),
+                    content_kind=_resolve_content_kind(
+                        metadata,
+                        collection=collection,
+                        snippet=node.get_content(metadata_mode=MetadataMode.NONE),
+                        anchor=anchor,
+                    ),
+                    content_role=_resolve_content_role(
+                        metadata,
+                        collection=collection,
+                        snippet=node.get_content(metadata_mode=MetadataMode.NONE),
+                        anchor=anchor,
+                    ),
                     detail_label=_resolve_detail_label(metadata, anchor=anchor),
-                    is_answer_bearing=_resolve_is_answer_bearing(metadata, anchor=anchor),
+                    is_answer_bearing=_resolve_is_answer_bearing(
+                        metadata,
+                        collection=collection,
+                        snippet=node.get_content(metadata_mode=MetadataMode.NONE),
+                        anchor=anchor,
+                    ),
                 )
             )
         return tuple(sources)
+
+    def _build_evidence_sources_from_records(
+        self,
+        records: Sequence[qdrant_models.Record],
+        *,
+        default_score: float,
+    ) -> tuple[EvidenceSource, ...]:
+        return self._build_evidence_sources(
+            tuple(
+                qdrant_models.ScoredPoint(
+                    id=record.id,
+                    version=0,
+                    score=default_score,
+                    payload=record.payload,
+                    vector=record.vector,
+                    shard_key=record.shard_key,
+                    order_value=record.order_value,
+                )
+                for record in records
+            )
+        )
 
     def _fail_closed_on_denied_target_documents(
         self,
@@ -359,30 +407,101 @@ class QdrantRetrievalBackend:
                 support_request.query_text,
                 profile=profile,
             )
-            response = self.qdrant_client.query_points(
-                collection_name=qdrant_collection_name,
-                prefetch=_build_hybrid_prefetch(
-                    request=support_request,
-                    profile=profile,
-                    embedding_model=self.embedding_model,
-                    sparse_embedding_model=self.sparse_embedding_model,
-                    dense_query_embedding=support_dense_query_embedding,
-                    query_filter=_build_source_scoped_qdrant_filter(
+            source_scoped_filter = _build_source_scoped_qdrant_filter(
+                request=support_request,
+                profile=profile,
+                source=target_source,
+            )
+            response = _retry_qdrant_read(
+                lambda: self.qdrant_client.query_points(
+                    collection_name=qdrant_collection_name,
+                    prefetch=_build_hybrid_prefetch(
                         request=support_request,
                         profile=profile,
-                        source=target_source,
+                        embedding_model=self.embedding_model,
+                        sparse_embedding_model=self.sparse_embedding_model,
+                        dense_query_embedding=support_dense_query_embedding,
+                        query_filter=source_scoped_filter,
                     ),
-                ),
-                query=_build_rrf_query(profile),
-                limit=max(support_request.top_k, profile.document_support_limit),
-                with_payload=True,
-                with_vectors=False,
+                    query=_build_rrf_query(profile),
+                    limit=max(support_request.top_k, profile.document_support_limit),
+                    with_payload=True,
+                    with_vectors=False,
+                )
             )
         except Exception:
             return tuple(sources)
+        additional_sources = self._build_evidence_sources(response.points or ())
+        curriculum_semester_sources = self._supplement_curriculum_same_doc_semester_sources(
+            request=request,
+            qdrant_collection_name=qdrant_collection_name,
+            source_scoped_filter=source_scoped_filter,
+            default_score=target_source.score,
+        )
         return _merge_evidence_sources(
             preferred=sources,
-            additional=self._build_evidence_sources(response.points or ()),
+            additional=_merge_evidence_sources(
+                preferred=additional_sources,
+                additional=curriculum_semester_sources,
+            ),
+        )
+
+    def _supplement_curriculum_same_doc_semester_sources(
+        self,
+        *,
+        request: RetrievalRequest,
+        qdrant_collection_name: str,
+        source_scoped_filter: qdrant_models.Filter,
+        default_score: float,
+    ) -> tuple[EvidenceSource, ...]:
+        if request.corpus != "curriculum" or request.collection != "curriculum_plan":
+            return ()
+        interpretation = interpret_curriculum_query(request.query_text)
+        if interpretation.intent_kind != "course_list" or not interpretation.semester_labels:
+            return ()
+
+        offset: int | str | None = None
+        records: list[qdrant_models.Record] = []
+        while len(records) < _SAME_DOC_SCROLL_MAX_RECORDS:
+            remaining = _SAME_DOC_SCROLL_MAX_RECORDS - len(records)
+            limit = min(_SAME_DOC_SCROLL_BATCH_LIMIT, remaining)
+            try:
+                batch, offset = _retry_qdrant_read(
+                    lambda: self.qdrant_client.scroll(
+                        collection_name=qdrant_collection_name,
+                        scroll_filter=source_scoped_filter,
+                        limit=limit,
+                        offset=offset,
+                        with_payload=True,
+                        with_vectors=False,
+                    )
+                )
+            except Exception:
+                return ()
+            if not batch:
+                break
+            records.extend(batch)
+            if offset is None:
+                break
+
+        same_doc_sources = self._build_evidence_sources_from_records(
+            records,
+            default_score=default_score,
+        )
+        scoped_sources, scope_applied = filter_curriculum_query_sources(
+            query_text=request.query_text,
+            sources=same_doc_sources,
+        )
+        if not scope_applied:
+            return ()
+        course_list_sources = tuple(
+            source for source in scoped_sources if _is_curriculum_course_list_table_source(source)
+        )
+        selected_sources = course_list_sources or scoped_sources
+        boosted_score = max(default_score, 1.0)
+        return tuple(
+            replace(source, score=max(source.score, boosted_score))
+            for source in selected_sources
         )
 
 
@@ -501,6 +620,157 @@ def _merge_evidence_sources(
         if existing is None or source.score > existing.score:
             merged[source.chunk_id] = source
     return tuple(merged.values())
+
+
+def _prefer_curriculum_semester_course_list_sources(
+    *,
+    query_text: str,
+    sources: Sequence[EvidenceSource],
+) -> tuple[EvidenceSource, ...]:
+    interpretation = interpret_curriculum_query(query_text)
+    if interpretation.intent_kind != "course_list" or not interpretation.semester_labels:
+        return tuple(sources)
+    scoped_sources, scope_applied = filter_curriculum_query_sources(
+        query_text=query_text,
+        sources=sources,
+    )
+    if not scope_applied or not scoped_sources:
+        return tuple(sources)
+    preferred_chunk_ids = {
+        source.chunk_id
+        for source in scoped_sources
+        if _is_curriculum_course_list_table_source(source)
+    }
+    if not preferred_chunk_ids:
+        return tuple(sources)
+    preferred_sources = tuple(source for source in sources if source.chunk_id in preferred_chunk_ids)
+    ordered_preferred_sources = _order_curriculum_semester_course_list_sources(
+        semester_labels=interpretation.semester_labels,
+        sources=preferred_sources,
+    )
+    remaining_sources = tuple(source for source in sources if source.chunk_id not in preferred_chunk_ids)
+    return tuple((*ordered_preferred_sources, *remaining_sources))
+
+
+def _order_curriculum_semester_course_list_sources(
+    *,
+    semester_labels: tuple[str, ...],
+    sources: Sequence[EvidenceSource],
+) -> tuple[EvidenceSource, ...]:
+    if len(sources) <= 1:
+        return tuple(sources)
+
+    ranked_sources = sorted(
+        enumerate(sources),
+        key=lambda item: (
+            -_curriculum_exact_semester_row_count(item[1], semester_labels=semester_labels),
+            -_curriculum_related_semester_row_count(item[1], semester_labels=semester_labels),
+            item[0],
+        ),
+    )
+    primary: list[EvidenceSource] = []
+    secondary: list[EvidenceSource] = []
+    seen_sections: set[str] = set()
+    for _, source in ranked_sources:
+        section_key = _curriculum_course_list_section_key(source)
+        if section_key not in seen_sections:
+            primary.append(source)
+            seen_sections.add(section_key)
+            continue
+        secondary.append(source)
+    return tuple((*primary, *secondary))
+
+
+def _curriculum_course_list_section_key(source: EvidenceSource) -> str:
+    if source.structural_path:
+        return source.structural_path[-1].strip() or source.chunk_id
+    return source.chunk_id
+
+
+def _curriculum_exact_semester_row_count(
+    source: EvidenceSource,
+    *,
+    semester_labels: tuple[str, ...],
+) -> int:
+    if not semester_labels:
+        return 0
+    numeric_labels = _curriculum_semester_numeric_labels(semester_labels)
+    if not numeric_labels:
+        return 0
+    count = 0
+    for cell in _curriculum_semester_cells(source):
+        if cell in numeric_labels:
+            count += 1
+    return count
+
+
+def _curriculum_related_semester_row_count(
+    source: EvidenceSource,
+    *,
+    semester_labels: tuple[str, ...],
+) -> int:
+    if not semester_labels:
+        return 0
+    normalized_labels = {unicodedata.normalize("NFKC", label).strip() for label in semester_labels if label.strip()}
+    numeric_labels = _curriculum_semester_numeric_labels(semester_labels)
+    if not normalized_labels and not numeric_labels:
+        return 0
+    count = 0
+    for cell in _curriculum_semester_cells(source):
+        normalized_cell = unicodedata.normalize("NFKC", cell).strip()
+        if not normalized_cell:
+            continue
+        if normalized_cell in numeric_labels:
+            continue
+        if normalized_cell in normalized_labels:
+            count += 1
+            continue
+        if any(label in normalized_cell for label in normalized_labels):
+            count += 1
+            continue
+        if any(
+            re.search(rf"(?<!\d){re.escape(label)}(?!\d)", normalized_cell)
+            for label in numeric_labels
+        ):
+            count += 1
+    return count
+
+
+def _curriculum_semester_cells(source: EvidenceSource) -> tuple[str, ...]:
+    cells: list[str] = []
+    for line in unicodedata.normalize("NFKC", source.snippet).splitlines():
+        if "|" not in line:
+            continue
+        columns = [part.strip() for part in line.split("|")]
+        if len(columns) < 2:
+            continue
+        last_cell = columns[-1].strip()
+        if not last_cell or "学期" in last_cell:
+            continue
+        cells.append(last_cell)
+    return tuple(cells)
+
+
+def _curriculum_semester_numeric_labels(semester_labels: tuple[str, ...]) -> tuple[str, ...]:
+    numerals = {
+        "第一学期": "1",
+        "第二学期": "2",
+        "第三学期": "3",
+        "第四学期": "4",
+        "第五学期": "5",
+        "第六学期": "6",
+        "第七学期": "7",
+        "第八学期": "8",
+        "第九学期": "9",
+        "第十学期": "10",
+    }
+    return tuple(
+        dict.fromkeys(
+            numerals[label]
+            for label in semester_labels
+            if label in numerals
+        )
+    )
 
 
 def _record_to_text_node(point_id: object, payload: dict[str, object]) -> TextNode | None:
@@ -881,13 +1151,26 @@ def _resolve_source_title(
     return document_id.split(":", 1)[-1].strip()
 
 
-def _resolve_content_kind(metadata: dict[str, object]) -> str:
-    return str(metadata.get("unit_type") or "").strip()
+def _resolve_content_kind(
+    metadata: dict[str, object],
+    *,
+    collection: str,
+    snippet: str,
+    anchor: dict[str, object],
+) -> str:
+    explicit_kind = _optional_text(metadata.get("unit_type"))
+    if explicit_kind is not None:
+        return explicit_kind
+    if _looks_like_curriculum_table_unit(collection=collection, snippet=snippet, anchor=anchor):
+        return "table_unit"
+    return ""
 
 
 def _resolve_content_role(
     metadata: dict[str, object],
     *,
+    collection: str,
+    snippet: str,
     anchor: dict[str, object],
 ) -> str:
     explicit_role = _optional_text(metadata.get("content_role"))
@@ -896,7 +1179,12 @@ def _resolve_content_role(
     structural_path = _coerce_structural_path(anchor.get("section_path"))
     if any(segment.endswith("附则") or segment == "附则" for segment in structural_path):
         return "closing_provision"
-    content_kind = _resolve_content_kind(metadata)
+    content_kind = _resolve_content_kind(
+        metadata,
+        collection=collection,
+        snippet=snippet,
+        anchor=anchor,
+    )
     if content_kind == "table_unit":
         return "table_fact"
     return ""
@@ -920,17 +1208,58 @@ def _resolve_detail_label(
 def _resolve_is_answer_bearing(
     metadata: dict[str, object],
     *,
+    collection: str,
+    snippet: str,
     anchor: dict[str, object],
 ) -> bool:
     explicit_value = _optional_bool(metadata.get("is_answer_bearing"))
     if explicit_value is not None:
         return explicit_value
-    content_role = _resolve_content_role(metadata, anchor=anchor)
+    content_role = _resolve_content_role(
+        metadata,
+        collection=collection,
+        snippet=snippet,
+        anchor=anchor,
+    )
     if content_role == "closing_provision":
         return False
     detail_label = _resolve_detail_label(metadata, anchor=anchor)
-    content_kind = _resolve_content_kind(metadata)
+    content_kind = _resolve_content_kind(
+        metadata,
+        collection=collection,
+        snippet=snippet,
+        anchor=anchor,
+    )
+    if content_role == "table_fact":
+        return True
     return bool(detail_label) and content_kind in {"article_body", "policy_page", "section_text", "table_unit"}
+
+
+def _looks_like_curriculum_table_unit(
+    *,
+    collection: str,
+    snippet: str,
+    anchor: dict[str, object],
+) -> bool:
+    if collection != "curriculum_plan":
+        return False
+    normalized_snippet = unicodedata.normalize("NFKC", snippet)
+    if "|" not in normalized_snippet:
+        return False
+    if "课程名称" not in normalized_snippet:
+        return False
+    if "修读学期" in normalized_snippet or "开设学期" in normalized_snippet:
+        return True
+    if "table_group_id" in anchor and "课程清单如下" in normalized_snippet:
+        return True
+    return False
+
+
+def _is_curriculum_course_list_table_source(source: EvidenceSource) -> bool:
+    if source.collection != "curriculum_plan" or source.content_role != "table_fact":
+        return False
+    normalized_snippet = unicodedata.normalize("NFKC", source.snippet)
+    return "|" in normalized_snippet and "课程名称" in normalized_snippet
 
 
 def _optional_text(value: object) -> str | None:
@@ -967,6 +1296,8 @@ def _apply_no_hit_policy(
         snippets=tuple(source.snippet for source in sources),
     ):
         return sources
+    if _has_unique_curriculum_doc_match(query_text=query_text, sources=sources):
+        return sources
     return ()
 
 
@@ -982,6 +1313,17 @@ def _has_query_lexical_support(*, query_text: str, snippets: str | Sequence[str]
         if _segment_has_strong_lexical_support(segment=segment, normalized_snippets=normalized_snippets):
             return True
     return False
+
+
+def _has_unique_curriculum_doc_match(
+    *,
+    query_text: str,
+    sources: Sequence[EvidenceSource],
+) -> bool:
+    interpretation = interpret_curriculum_query(query_text)
+    if not interpretation.program_compact_key:
+        return False
+    return len(matching_curriculum_doc_ids(query_text=query_text, sources=sources)) == 1
 
 
 def _normalize_snippets(snippets: str | Sequence[str]) -> tuple[str, ...]:

@@ -276,7 +276,51 @@ class RebuildLocalDataTest(unittest.TestCase):
         )
         self.assertNotIn("OBJECT_STORE_SECRET_KEY", report.import_context)
 
-    def test_rebuild_provider_response_replay_uses_curriculum_default_source_pdf(self) -> None:
+    def test_rebuild_provider_response_replay_uses_curriculum_raw_asset_source_pdf_when_available(self) -> None:
+        object_store = _FakeObjectStoreAdmin()
+        document_registry = _FakeDocumentRegistry()
+        raw_asset_registry = _FakeRawAssetRegistry()
+        raw_asset_registry.upsert(
+            RawAssetRecord(
+                raw_asset_id="asset:curriculum-plan-2022",
+                raw_version_id="sha256:curriculum-replay-001",
+                corpus="curriculum",
+                collection="curriculum_plan",
+                raw_source_uri="s3://upstream/curriculum-plan-2022.pdf",
+                content_hash="curriculum-replay-001",
+                source_filename="curriculum-plan-2022.pdf",
+                object_key="official_pdf/curriculum-plan/2022/sha256/curriculum-replay-001/capture/curriculum-plan-2022.pdf",
+                ingestion_timestamp="2026-04-03T00:00:00+00:00",
+                import_source="raw_online_ocr",
+            )
+        )
+        calls: list[dict[str, str]] = []
+
+        report = rebuild_local_data(
+            env={
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+            },
+            request=RebuildRequest(
+                corpus="curriculum",
+                collection="curriculum_plan",
+                import_mode="provider_response_replay",
+                raw_version_id="sha256:curriculum-replay-001",
+            ),
+            object_store=object_store,
+            document_registry=document_registry,
+            raw_asset_registry=raw_asset_registry,
+            import_runner=lambda **kwargs: calls.append(kwargs["env"]) or {"status": "replay"},
+        )
+
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["REPLAY_SOURCE_PDF"], "curriculum-plan-2022.pdf")
+        self.assertEqual(report.import_context["REPLAY_SOURCE_PDF"], "curriculum-plan-2022.pdf")
+
+    def test_rebuild_provider_response_replay_falls_back_to_curriculum_default_source_pdf_without_raw_asset_record(
+        self,
+    ) -> None:
         object_store = _FakeObjectStoreAdmin()
         document_registry = _FakeDocumentRegistry()
         raw_asset_registry = _FakeRawAssetRegistry()
@@ -334,6 +378,45 @@ class RebuildLocalDataTest(unittest.TestCase):
         )
         self.assertEqual(report.import_context["INGESTION_SPLIT_MANIFEST_PATH"], expected_manifest)
         self.assertEqual(calls[0]["INGESTION_SPLIT_MANIFEST_PATH"], expected_manifest)
+
+    def test_rebuild_local_data_writes_trace_events_when_trace_path_is_configured(self) -> None:
+        object_store = _FakeObjectStoreAdmin()
+        with TemporaryDirectory() as temp_dir:
+            trace_path = Path(temp_dir) / "rebuild-trace.jsonl"
+
+            rebuild_local_data(
+                env={
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    "REBUILD_TRACE_JSONL_PATH": str(trace_path),
+                },
+                request=RebuildRequest(
+                    corpus="regulations",
+                    collection="student_handbook",
+                    import_mode="raw_online_ocr",
+                ),
+                object_store=object_store,
+                document_registry=_FakeDocumentRegistry(),
+                raw_asset_registry=_FakeRawAssetRegistry(),
+                import_runner=lambda **kwargs: {"status": "ok"},
+            )
+
+            events = [
+                json.loads(line)
+                for line in trace_path.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertTrue(events)
+        self.assertEqual(events[0]["stage"], "rebuild.cleanup.collect_processed_keys")
+        self.assertEqual(events[0]["event"], "start")
+        self.assertEqual(events[-1]["stage"], "rebuild.import_runner")
+        self.assertEqual(events[-1]["event"], "end")
+        self.assertIn(
+            ("rebuild.cleanup.delete_registry_scope", "end"),
+            {(event["stage"], event["event"]) for event in events},
+        )
 
     def test_rebuild_provider_response_replay_can_disable_alias_publish_in_import_context(self) -> None:
         object_store = _FakeObjectStoreAdmin()

@@ -596,7 +596,7 @@ class RagSpecialistTest(unittest.TestCase):
                     source_channel="pdf_ocr",
                     collection="curriculum_plan",
                     is_current=True,
-                    snippet="第四学期 习近平法治思想概论、国际公法、刑法学总论、知识产权法。",
+                    snippet="第四学期 侵权责任法、公司法。",
                     score=0.92,
                     source_title="法学（民族实验班）本科人才培养方案",
                     structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
@@ -616,7 +616,7 @@ class RagSpecialistTest(unittest.TestCase):
                     source_channel="pdf_ocr",
                     collection="curriculum_plan",
                     is_current=True,
-                    snippet="第四学期 法律职业伦理、毛泽东思想和中国特色社会主义理论体系概论。",
+                    snippet="第四学期 翻译学导论、中国少数民族文字学。",
                     score=0.90,
                     source_title="法学（民族实验班）本科人才培养方案",
                     structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
@@ -666,7 +666,8 @@ class RagSpecialistTest(unittest.TestCase):
 
         self.assertEqual(retriever_calls, ["法学民族实验班培养方案里第四学期有什么课"])
         self.assertEqual(response.status, "completed")
-        self.assertIn("国际公法", response.answer_text)
+        self.assertIn("侵权责任法", response.answer_text)
+        self.assertIn("中国少数民族文字学", response.answer_text)
         self.assertNotIn("常微分方程", response.answer_text)
         self.assertEqual(
             tuple(source.doc_id for source in response.result.evidence.sources),
@@ -703,7 +704,7 @@ class RagSpecialistTest(unittest.TestCase):
                     source_channel="pdf_ocr",
                     collection="curriculum_plan",
                     is_current=True,
-                    snippet="第四学期 国际公法、知识产权法。",
+                    snippet="第四学期 侵权责任法、中国少数民族文字学。",
                     score=0.92,
                     source_title="法学（民族实验班）本科人才培养方案",
                     structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
@@ -766,17 +767,17 @@ class RagSpecialistTest(unittest.TestCase):
                         version_id="v1:law-ethnic-experimental",
                         chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0004",
                         anchor={"page_start": 24, "page_end": 24},
-                        canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
-                        latest_url="https://campus.example/curriculum/law-ethnic-experimental",
-                        source_channel="pdf_ocr",
-                        collection="curriculum_plan",
-                        is_current=True,
-                        snippet="第四学期 习近平法治思想概论、国际公法、刑法学总论、知识产权法。",
-                        score=0.92,
-                        source_title="法学（民族实验班）本科人才培养方案",
-                        structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
-                        detail_label="第四学期",
-                        content_kind="table_unit",
+                    canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
+                    latest_url="https://campus.example/curriculum/law-ethnic-experimental",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=True,
+                    snippet="第四学期 侵权责任法、翻译学导论、中国少数民族文字学。",
+                    score=0.92,
+                    source_title="法学（民族实验班）本科人才培养方案",
+                    structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
+                    detail_label="第四学期",
+                    content_kind="table_unit",
                         content_role="table_fact",
                         is_answer_bearing=True,
                     ),
@@ -819,7 +820,7 @@ class RagSpecialistTest(unittest.TestCase):
             retriever_call["target_document_ids"],
             ("curriculum:法学（民族实验班）本科人才培养方案",),
         )
-        self.assertIn("国际公法", response.answer_text)
+        self.assertIn("侵权责任法", response.answer_text)
 
     def test_curriculum_follow_up_semester_fragment_uses_recent_goal_to_continue_same_program(self) -> None:
         retriever_call: dict[str, object] = {}
@@ -838,17 +839,17 @@ class RagSpecialistTest(unittest.TestCase):
                         version_id="v1:law-ethnic-experimental",
                         chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0004",
                         anchor={"page_start": 24, "page_end": 24},
-                        canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
-                        latest_url="https://campus.example/curriculum/law-ethnic-experimental",
-                        source_channel="pdf_ocr",
-                        collection="curriculum_plan",
-                        is_current=True,
-                        snippet="第四学期 习近平法治思想概论、国际公法、刑法学总论、知识产权法。",
-                        score=0.92,
-                        source_title="法学（民族实验班）本科人才培养方案",
-                        structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
-                        detail_label="第四学期",
-                        content_kind="table_unit",
+                    canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
+                    latest_url="https://campus.example/curriculum/law-ethnic-experimental",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=True,
+                    snippet="第四学期 侵权责任法、翻译学导论、中国少数民族文字学。",
+                    score=0.92,
+                    source_title="法学（民族实验班）本科人才培养方案",
+                    structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
+                    detail_label="第四学期",
+                    content_kind="table_unit",
                         content_role="table_fact",
                         is_answer_bearing=True,
                     ),
@@ -891,7 +892,7 @@ class RagSpecialistTest(unittest.TestCase):
             retriever_call["target_document_ids"],
             ("curriculum:法学（民族实验班）本科人才培养方案",),
         )
-        self.assertIn("习近平法治思想概论", response.answer_text)
+        self.assertIn("中国少数民族文字学", response.answer_text)
 
     def test_curriculum_follow_up_program_fragment_prefers_typed_session_slots_over_stale_recent_goal(self) -> None:
         retriever_call: dict[str, object] = {}
@@ -910,17 +911,17 @@ class RagSpecialistTest(unittest.TestCase):
                         version_id="v1:law-ethnic-experimental",
                         chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0004",
                         anchor={"page_start": 24, "page_end": 24},
-                        canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
-                        latest_url="https://campus.example/curriculum/law-ethnic-experimental",
-                        source_channel="pdf_ocr",
-                        collection="curriculum_plan",
-                        is_current=True,
-                        snippet="第四学期 习近平法治思想概论、国际公法、刑法学总论、知识产权法。",
-                        score=0.92,
-                        source_title="法学（民族实验班）本科人才培养方案",
-                        structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
-                        detail_label="第四学期",
-                        content_kind="table_unit",
+                    canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
+                    latest_url="https://campus.example/curriculum/law-ethnic-experimental",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=True,
+                    snippet="第四学期 侵权责任法、翻译学导论、中国少数民族文字学。",
+                    score=0.92,
+                    source_title="法学（民族实验班）本科人才培养方案",
+                    structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
+                    detail_label="第四学期",
+                    content_kind="table_unit",
                         content_role="table_fact",
                         is_answer_bearing=True,
                     ),
@@ -996,17 +997,17 @@ class RagSpecialistTest(unittest.TestCase):
                         version_id="v1:law-ethnic-experimental",
                         chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0004",
                         anchor={"page_start": 24, "page_end": 24},
-                        canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
-                        latest_url="https://campus.example/curriculum/law-ethnic-experimental",
-                        source_channel="pdf_ocr",
-                        collection="curriculum_plan",
-                        is_current=True,
-                        snippet="第四学期 习近平法治思想概论、国际公法、刑法学总论、知识产权法。",
-                        score=0.92,
-                        source_title="法学（民族实验班）本科人才培养方案",
-                        structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
-                        detail_label="第四学期",
-                        content_kind="table_unit",
+                    canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
+                    latest_url="https://campus.example/curriculum/law-ethnic-experimental",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=True,
+                    snippet="第四学期 侵权责任法、翻译学导论、中国少数民族文字学。",
+                    score=0.92,
+                    source_title="法学（民族实验班）本科人才培养方案",
+                    structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
+                    detail_label="第四学期",
+                    content_kind="table_unit",
                         content_role="table_fact",
                         is_answer_bearing=True,
                     ),
@@ -3470,6 +3471,519 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertIn("根据培养方案相关内容", response.answer_text)
         self.assertNotIn("学生手册", response.answer_text)
 
+    def test_curriculum_table_semester_query_accepts_numeric_semester_columns(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="法学民族实验班培养方案里第一学期有什么课",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                EvidenceSource(
+                    doc_id="curriculum:法学（民族实验班）本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:law-intro",
+                    chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0001",
+                    anchor={"page_start": 147, "page_end": 147},
+                    canonical_url="https://campus.example/curriculum/law-ethnic",
+                    latest_url="https://campus.example/curriculum/law-ethnic",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet="法学（民族实验班）本科人才培养方案 法学专业 1979 年开始招生。",
+                    score=0.99,
+                    source_title="法学（民族实验班）本科人才培养方案",
+                ),
+                EvidenceSource(
+                    doc_id="curriculum:法学（民族实验班）本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:law-semester-1",
+                    chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0002",
+                    anchor={"page_start": 150, "page_end": 150},
+                    canonical_url="https://campus.example/curriculum/law-ethnic",
+                    latest_url="https://campus.example/curriculum/law-ethnic",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet=(
+                        "五、课程设置和修读建议\n\n"
+                        "(一)大类培养\n\n"
+                        "2. 学科基础教育\n\n"
+                        "课程清单如下:\n"
+                        "专业方向 | 课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 修读学期\n"
+                        "民族班 | 1036030166 | 习近平法治思想概论 | 2 | 36 | / | 1\n"
+                        "民族班 | 1036030001 | 法学导论 | 2 | 36 | / | 1"
+                    ),
+                    score=0.97,
+                    source_title="法学（民族实验班）本科人才培养方案",
+                    structural_path=("法学（民族实验班）本科人才培养方案", "五、课程设置和修读建议"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+                EvidenceSource(
+                    doc_id="curriculum:法学（民族实验班）本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:law-semester-4",
+                    chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0003",
+                    anchor={"page_start": 153, "page_end": 153},
+                    canonical_url="https://campus.example/curriculum/law-ethnic",
+                    latest_url="https://campus.example/curriculum/law-ethnic",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet=(
+                        "五、课程设置和修读建议\n\n"
+                        "(二)专业教育\n\n"
+                        "2. 专业选修课程\n\n"
+                        "课程清单如下:\n"
+                        "专业方向 | 课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 开设学期\n"
+                        "民族班 | 1036040175 | 侵权责任法 | 2 | 36 | / | 4\n"
+                        "民族班 | 1036040023 | 公司法 | 2 | 36 | / | 4"
+                    ),
+                    score=0.96,
+                    source_title="法学（民族实验班）本科人才培养方案",
+                    structural_path=("法学（民族实验班）本科人才培养方案", "五、课程设置和修读建议"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+            ),
+        )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="法学民族实验班培养方案里第一学期有什么课",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIn("习近平法治思想概论", response.answer_text)
+        self.assertIn("法学导论", response.answer_text)
+        self.assertNotIn("侵权责任法", response.answer_text)
+
+    def test_curriculum_time_answer_prefers_direct_academic_year_statement(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="民族学本科第二学士学位人才培养方案学制几年？",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                EvidenceSource(
+                    doc_id="curriculum:民族学本科第二学士学位人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:ethnology-years",
+                    chunk_id="curriculum:民族学本科第二学士学位人才培养方案:chunk-0005",
+                    anchor={"page_start": 5, "page_end": 5},
+                    canonical_url="https://campus.example/curriculum/ethnology-second-degree",
+                    latest_url="https://campus.example/curriculum/ethnology-second-degree",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet="五、学制 两年",
+                    score=0.35,
+                    source_title="民族学本科第二学士学位人才培养方案",
+                ),
+                EvidenceSource(
+                    doc_id="curriculum:民族学本科第二学士学位人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:ethnology-table",
+                    chunk_id="curriculum:民族学本科第二学士学位人才培养方案:chunk-0009",
+                    anchor={"page_start": 668, "page_end": 669},
+                    canonical_url="https://campus.example/curriculum/ethnology-second-degree",
+                    latest_url="https://campus.example/curriculum/ethnology-second-degree",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet=(
+                        "八、民族学本科专业教学进程计划表\n\n"
+                        "课程类别 | — | 课程编号 | 课程名称 | 学分 | 学时 | — | 各学期周学时分配\n"
+                        "课程类别 | — | 课程编号 | 课程名称 | 学分 | 总计 | 其中实践 | 1 | 2 | 3 | 4\n"
+                        "专业教育 | 专业必修课共30学分 | 1026030031 | 民族学导论 | 2 | 36 | — | 2\n"
+                        "专业教育 | 专业必修课共30学分 | 1026030067 | 人类学导论 | 2 | 36 | — | — | 2\n"
+                        "专业教育 | 专业必修课共30学分 | 1026030047 | 民族学人类学经典导读 | 2 | 36 | — | — | — | 2"
+                    ),
+                    score=0.48,
+                    source_title="民族学本科第二学士学位人才培养方案",
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+            ),
+        )
+
+        draft = RagSpecialistAgent().build_answer(evidence)
+
+        self.assertEqual(
+            [source.chunk_id for source in draft.supporting_sources],
+            ["curriculum:民族学本科第二学士学位人才培养方案:chunk-0005"],
+        )
+        self.assertIn("两年", draft.answer_text)
+        self.assertNotIn("民族学导论", draft.answer_text)
+
+    def test_curriculum_semester_answer_filters_other_semester_rows_within_same_source(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="法学民族实验班培养方案里第四学期有什么课",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                EvidenceSource(
+                    doc_id="curriculum:法学（民族实验班）本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:law-semester-mixed",
+                    chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0016",
+                    anchor={"page_start": 153, "page_end": 153},
+                    canonical_url="https://campus.example/curriculum/law-ethnic",
+                    latest_url="https://campus.example/curriculum/law-ethnic",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet=(
+                        "五、课程设置和修读建议\n\n"
+                        "(二)专业教育\n\n"
+                        "2. 专业选修课程\n\n"
+                        "课程清单如下:\n"
+                        "专业方向 | 课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 开设学期\n"
+                        "民族班 | 1036040243 | 法学论文写作(初阶) | 2 | 36 | / | 1\n"
+                        "民族班 | 1036040003 | 中国法律思想史 | 2 | 36 | / | 2\n"
+                        "民族班 | 1036040175 | 侵权责任法 | 2 | 36 | / | 4\n"
+                        "民族班 | 1036040023 | 公司法 | 2 | 36 | / | 4\n"
+                        "民族班 | 1036040205 | 消费者权益保护法 | 2 | 36 | / | 5"
+                    ),
+                    score=0.97,
+                    source_title="法学（民族实验班）本科人才培养方案",
+                    structural_path=("法学（民族实验班）本科人才培养方案", "五、课程设置和修读建议"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+            ),
+        )
+
+        draft = RagSpecialistAgent().build_answer(evidence)
+
+        self.assertIn("侵权责任法", draft.answer_text)
+        self.assertIn("公司法", draft.answer_text)
+        self.assertNotIn("法学论文写作(初阶)", draft.answer_text)
+        self.assertNotIn("中国法律思想史", draft.answer_text)
+        self.assertNotIn("消费者权益保护法", draft.answer_text)
+
+    def test_curriculum_semester_answer_filters_rows_by_numeric_semester_columns(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="民族学本科第二学士学位人才培养方案里第二学期有什么课",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                EvidenceSource(
+                    doc_id="curriculum:民族学本科第二学士学位人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:ethnology-semester-mixed",
+                    chunk_id="curriculum:民族学本科第二学士学位人才培养方案:chunk-0009",
+                    anchor={"page_start": 668, "page_end": 669},
+                    canonical_url="https://campus.example/curriculum/ethnology-second-degree",
+                    latest_url="https://campus.example/curriculum/ethnology-second-degree",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet=(
+                        "八、民族学本科专业教学进程计划表\n\n"
+                        "课程类别 | — | 课程编号 | 课程名称 | 学分 | 学时 | — | 各学期周学时分配\n"
+                        "课程类别 | — | 课程编号 | 课程名称 | 学分 | 总计 | 其中实践 | 1 | 2 | 3 | 4\n"
+                        "专业教育 | 专业必修课共30学分 | 1026030031 | 民族学导论 | 2 | 36 | — | 2\n"
+                        "专业教育 | 专业必修课共30学分 | 1026030067 | 人类学导论 | 2 | 36 | — | — | 2\n"
+                        "专业教育 | 专业必修课共30学分 | 1026030361 | 中国民族志 | 3 | 54 | — | 3\n"
+                        "专业教育 | 专业必修课共30学分 | 1026030081 | 民族学田野调查方法 | 2 | 36 | 9 | — | 2\n"
+                        "专业教育 | 专业必修课共30学分 | 1026030047 | 民族学人类学经典导读 | 2 | 36 | — | — | — | 2"
+                    ),
+                    score=0.95,
+                    source_title="民族学本科第二学士学位人才培养方案",
+                    structural_path=("民族学本科第二学士学位人才培养方案", "八、民族学本科专业教学进程计划表"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+            ),
+        )
+
+        draft = RagSpecialistAgent().build_answer(evidence)
+
+        self.assertIn("人类学导论", draft.answer_text)
+        self.assertIn("民族学田野调查方法", draft.answer_text)
+        self.assertNotIn("民族学导论", draft.answer_text)
+        self.assertNotIn("中国民族志", draft.answer_text)
+
+    def test_curriculum_semester_answer_merges_same_semester_rows_across_multiple_sources(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="历史学强基计划培养方案里第四学期有什么课",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                EvidenceSource(
+                    doc_id="curriculum:历史学（强基计划）本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:history-general-education",
+                    chunk_id="curriculum:历史学（强基计划）本科人才培养方案:chunk-0010",
+                    anchor={"page_start": 93, "page_end": 93},
+                    canonical_url="https://campus.example/curriculum/history-strong-base",
+                    latest_url="https://campus.example/curriculum/history-strong-base",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet=(
+                        "五、课程设置和修读建议\n\n"
+                        "(一)大类培养\n\n"
+                        "1. 通识教育\n\n"
+                        "课程清单如下:\n"
+                        "类别 | 课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 修读学期\n"
+                        "思政课 | 1037010044 | 中华民族共同体概论 | 2 | 36 | 12 | 4\n"
+                        "培养课 | 1042010082 | 大学英语(四) | 2 | 54 | 36 | 4"
+                    ),
+                    score=0.97,
+                    source_title="历史学（强基计划）本科人才培养方案",
+                    structural_path=("历史学（强基计划）本科人才培养方案", "五、课程设置和修读建议"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+                EvidenceSource(
+                    doc_id="curriculum:历史学（强基计划）本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:history-core-courses",
+                    chunk_id="curriculum:历史学（强基计划）本科人才培养方案:chunk-0014",
+                    anchor={"page_start": 95, "page_end": 96},
+                    canonical_url="https://campus.example/curriculum/history-strong-base",
+                    latest_url="https://campus.example/curriculum/history-strong-base",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet=(
+                        "五、课程设置和修读建议\n\n"
+                        "(二)专业教育\n\n"
+                        "1. 专业核心课程\n\n"
+                        "课程清单如下:\n"
+                        "课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 修读学期\n"
+                        "1040030131 | 中国近代边疆民族史料研读 | 3 | 54 | 6 | 4\n"
+                        "1040030127 | 世界现当代史 | 3 | 54 | / | 4\n"
+                        "1040030019 | 西方史学史 | 2 | 36 | / | 4\n"
+                        "1040030015 | 中国史学史 | 2 | 36 | / | 5"
+                    ),
+                    score=0.96,
+                    source_title="历史学（强基计划）本科人才培养方案",
+                    structural_path=("历史学（强基计划）本科人才培养方案", "五、课程设置和修读建议"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+            ),
+        )
+
+        draft = RagSpecialistAgent().build_answer(evidence)
+
+        self.assertIn("大学英语(四)", draft.answer_text)
+        self.assertIn("中国近代边疆民族史料研读", draft.answer_text)
+        self.assertNotIn("中国史学史", draft.answer_text)
+        self.assertEqual(
+            {source.chunk_id for source in draft.supporting_sources},
+            {
+                "curriculum:历史学（强基计划）本科人才培养方案:chunk-0010",
+                "curriculum:历史学（强基计划）本科人才培养方案:chunk-0014",
+            },
+        )
+        self.assertNotIn("民族学人类学经典导读", draft.answer_text)
+
+    def test_curriculum_semester_answer_lists_all_semester_courses_without_table_row_truncation(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="法学民族实验班培养方案里第四学期有什么课",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                EvidenceSource(
+                    doc_id="curriculum:法学（民族实验班）本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:law-semester-4a",
+                    chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0015",
+                    anchor={"page_start": 152, "page_end": 152},
+                    canonical_url="https://campus.example/curriculum/law-ethnic",
+                    latest_url="https://campus.example/curriculum/law-ethnic",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet=(
+                        "五、课程设置和修读建议\n\n"
+                        "(二)专业教育\n\n"
+                        "2. 专业选修课程\n\n"
+                        "课程清单如下:\n"
+                        "专业方向 | 课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 开设学期\n"
+                        "民族班 | 1036040100 | 合同法 | 2 | 36 | / | 4\n"
+                        "民族班 | 1036040101 | 人格权法 | 2 | 36 | / | 4\n"
+                        "民族班 | 1036040102 | 物权法 | 2 | 36 | / | 4"
+                    ),
+                    score=0.98,
+                    source_title="法学（民族实验班）本科人才培养方案",
+                    structural_path=("法学（民族实验班）本科人才培养方案", "五、课程设置和修读建议"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+                EvidenceSource(
+                    doc_id="curriculum:法学（民族实验班）本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:law-semester-4b",
+                    chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0016",
+                    anchor={"page_start": 153, "page_end": 153},
+                    canonical_url="https://campus.example/curriculum/law-ethnic",
+                    latest_url="https://campus.example/curriculum/law-ethnic",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet=(
+                        "五、课程设置和修读建议\n\n"
+                        "(二)专业教育\n\n"
+                        "2. 专业选修课程\n\n"
+                        "课程清单如下:\n"
+                        "专业方向 | 课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 开设学期\n"
+                        "民族班 | 1036040175 | 侵权责任法 | 2 | 36 | / | 4\n"
+                        "民族班 | 1036040023 | 公司法 | 2 | 36 | / | 4\n"
+                        "民族班 | 1036040201 | 翻译学导论 | 2 | 36 | / | 4\n"
+                        "民族班 | 1036040202 | 中国少数民族文字学 | 2 | 36 | / | 4"
+                    ),
+                    score=0.97,
+                    source_title="法学（民族实验班）本科人才培养方案",
+                    structural_path=("法学（民族实验班）本科人才培养方案", "五、课程设置和修读建议"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+            ),
+        )
+
+        draft = RagSpecialistAgent().build_answer(evidence)
+
+        self.assertIn("第四学期有", draft.answer_text)
+        self.assertIn("合同法", draft.answer_text)
+        self.assertIn("侵权责任法", draft.answer_text)
+        self.assertIn("中国少数民族文字学", draft.answer_text)
+        self.assertNotIn("|", draft.answer_text)
+        self.assertEqual(
+            {source.chunk_id for source in draft.supporting_sources},
+            {
+                "curriculum:法学（民族实验班）本科人才培养方案:chunk-0015",
+                "curriculum:法学（民族实验班）本科人才培养方案:chunk-0016",
+            },
+        )
+
+class RagSpecialistCurriculumSemesterSelectionTest(unittest.TestCase):
+    def test_curriculum_semester_answer_keeps_general_and_core_sections_ahead_of_elective_duplicates(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="历史学强基计划培养方案里第四学期有什么课",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                EvidenceSource(
+                    doc_id="curriculum:历史学（强基计划）本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:history-general-education",
+                    chunk_id="curriculum:历史学（强基计划）本科人才培养方案:chunk-0010",
+                    anchor={"page_start": 93, "page_end": 93},
+                    canonical_url="https://campus.example/curriculum/history-strong-base",
+                    latest_url="https://campus.example/curriculum/history-strong-base",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet=(
+                        "五、课程设置和修读建议\n\n"
+                        "(一)大类培养\n\n"
+                        "1. 通识教育\n\n"
+                        "课程清单如下:\n"
+                        "类别 | 课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 修读学期\n"
+                        "思政课 | 1037010044 | 中华民族共同体概论 | 2 | 36 | 12 | 4\n"
+                        "培养课 | 1042010082 | 大学英语(四) | 2 | 54 | 36 | 4"
+                    ),
+                    score=0.95,
+                    source_title="历史学（强基计划）本科人才培养方案",
+                    structural_path=(
+                        "历史学（强基计划）本科人才培养方案",
+                        "五、课程设置和修读建议",
+                        "(一)大类培养",
+                        "1. 通识教育",
+                    ),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+                EvidenceSource(
+                    doc_id="curriculum:历史学（强基计划）本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:history-core-courses",
+                    chunk_id="curriculum:历史学（强基计划）本科人才培养方案:chunk-0014",
+                    anchor={"page_start": 95, "page_end": 96},
+                    canonical_url="https://campus.example/curriculum/history-strong-base",
+                    latest_url="https://campus.example/curriculum/history-strong-base",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet=(
+                        "五、课程设置和修读建议\n\n"
+                        "(二)专业教育\n\n"
+                        "1. 专业核心课程\n"
+                        "课程清单如下:\n"
+                        "课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 修读学期\n"
+                        "1040030131 | 中国近代边疆民族史料研读 | 3 | 54 | 6 | 4\n"
+                        "1040030127 | 世界现当代史 | 3 | 54 | / | 4\n"
+                        "1040030019 | 西方史学史 | 2 | 36 | / | 4\n"
+                        "1040030017 | 中国历史地理 | 2 | 36 | 4 | 4\n"
+                        "1040030122 | 史学经典研读(三) | 1 | 18 | / | 4"
+                    ),
+                    score=0.97,
+                    source_title="历史学（强基计划）本科人才培养方案",
+                    structural_path=(
+                        "历史学（强基计划）本科人才培养方案",
+                        "五、课程设置和修读建议",
+                        "(二)专业教育",
+                        "1. 专业核心课程",
+                    ),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+                EvidenceSource(
+                    doc_id="curriculum:历史学（强基计划）本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:history-elective-courses",
+                    chunk_id="curriculum:历史学（强基计划）本科人才培养方案:chunk-0018",
+                    anchor={"page_start": 97, "page_end": 98},
+                    canonical_url="https://campus.example/curriculum/history-strong-base",
+                    latest_url="https://campus.example/curriculum/history-strong-base",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet=(
+                        "五、课程设置和修读建议\n\n"
+                        "(二)专业教育\n\n"
+                        "2. 专业选修课程\n\n"
+                        "课程清单如下:\n"
+                        "专业方向名称 | 课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 开设学期\n"
+                        "强基班 | 1040040061 | 满族史 | 2 | 36 | / | 4\n"
+                        "强基班 | 1040040228 | 满文文献选读 | 2 | 36 | / | 4\n"
+                        "强基班 | 1040040239 | 中国传统村落概要 | 2 | 36 | / | 4"
+                    ),
+                    score=0.96,
+                    source_title="历史学（强基计划）本科人才培养方案",
+                    structural_path=(
+                        "历史学（强基计划）本科人才培养方案",
+                        "五、课程设置和修读建议",
+                        "(二)专业教育",
+                        "2. 专业选修课程",
+                    ),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+            ),
+        )
+
+        draft = RagSpecialistAgent().build_answer(evidence)
+
+        self.assertIn("大学英语(四)", draft.answer_text)
+        self.assertIn("中国近代边疆民族史料研读", draft.answer_text)
+        self.assertEqual(
+            {source.chunk_id for source in draft.supporting_sources},
+            {
+                "curriculum:历史学（强基计划）本科人才培养方案:chunk-0010",
+                "curriculum:历史学（强基计划）本科人才培养方案:chunk-0014",
+            },
+        )
+
     def test_curriculum_generic_degree_question_uses_curriculum_specific_clarification(self) -> None:
         response = delegate_to_rag_agent(
             SpecialistRequest(
@@ -4081,6 +4595,73 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertEqual(derive_confidence(_make_evidence(scores=(0.41,))), "low")
         self.assertEqual(derive_confidence(_make_evidence(scores=(0.58,))), "medium")
         self.assertEqual(derive_confidence(_make_evidence(scores=(0.92, 0.89))), "high")
+        self.assertEqual(
+            derive_confidence(
+                EvidenceBundle(
+                    query_text="思政课包括哪些课",
+                    corpus="curriculum",
+                    collection="course_facts",
+                    sources=(
+                        EvidenceSource(
+                            doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                            revision_track="source-faithful",
+                            version_id="v1:course-facts",
+                            chunk_id="course-facts:family-membership",
+                            anchor={"fact_type": "family_membership"},
+                            canonical_url="https://campus.example/curriculum/ideological-political-theory",
+                            latest_url="https://campus.example/curriculum/ideological-political-theory",
+                            source_channel="pdf_ocr",
+                            collection="course_facts",
+                            is_current=False,
+                            snippet=(
+                                "思想政治理论课包括马克思主义基本原理、中国近现代史纲要、毛泽东思想和中国特色社会主义理论体系概论、"
+                                "习近平新时代中国特色社会主义思想概论、思想道德与法治、形势与政策、中华民族共同体概论。"
+                            ),
+                            score=0.03,
+                            source_title="中央民族大学通识课程思想政治理论课教学计划",
+                            structural_path=("思想政治理论课",),
+                            detail_label="课程内容",
+                            content_kind="course_fact",
+                            content_role="family_membership",
+                            is_answer_bearing=True,
+                        ),
+                    ),
+                )
+            ),
+            "medium",
+        )
+        self.assertEqual(
+            derive_confidence(
+                EvidenceBundle(
+                    query_text="民族班有哪些",
+                    corpus="curriculum",
+                    collection="program_family_facts",
+                    sources=(
+                        EvidenceSource(
+                            doc_id="program_family_facts:ethnic-class-membership",
+                            revision_track="source-faithful",
+                            version_id="v1:program-family-facts",
+                            chunk_id="program-family-facts:ethnic-class-membership",
+                            anchor={"fact_type": "family_membership"},
+                            canonical_url="https://campus.example/curriculum/program-family/ethnic-class",
+                            latest_url="https://campus.example/curriculum/program-family/ethnic-class",
+                            source_channel="pdf_ocr",
+                            collection="program_family_facts",
+                            is_current=False,
+                            snippet="民大的民族班有法学、信息与计算科学、计算机科学与技术。",
+                            score=0.03,
+                            source_title="中央民族大学民族班项目一览",
+                            structural_path=("民族班",),
+                            detail_label="成员专业",
+                            content_kind="program_family_fact",
+                            content_role="family_membership",
+                            is_answer_bearing=True,
+                        ),
+                    ),
+                )
+            ),
+            "medium",
+        )
         self.assertEqual(
             derive_confidence(
                 EvidenceBundle(

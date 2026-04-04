@@ -359,6 +359,14 @@ class RunCasesTest(unittest.TestCase):
                 "那大二下呢",
             ),
         )
+        self.assertEqual(
+            law_case.expected_sources[0].doc_id,
+            "curriculum:法学（民族实验班）本科人才培养方案",
+        )
+        self.assertEqual(
+            law_case.required_facts,
+            ("中国少数民族文字学", "侵权责任法"),
+        )
 
         history_case = cases["curriculum-release-gate-strong-base-follow-up-session-replay"]
         self.assertEqual(history_case.user_goal, "历史学强基计划培养方案里大二下有什么课")
@@ -368,6 +376,14 @@ class RunCasesTest(unittest.TestCase):
                 "历史学强基计划培养方案里大一上有什么课",
                 "那大二下呢",
             ),
+        )
+        self.assertEqual(
+            history_case.expected_sources[0].doc_id,
+            "curriculum:历史学（强基计划）本科人才培养方案",
+        )
+        self.assertEqual(
+            history_case.required_facts,
+            ("大学英语(四)", "中国近代边疆民族史料研读"),
         )
 
     def test_curriculum_smoke_cases_cover_stable_terminal_statuses(self) -> None:

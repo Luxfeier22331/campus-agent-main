@@ -254,6 +254,8 @@ class CurriculumBudgetEvaluationTest(unittest.TestCase):
         self.assertIn("经济学拔尖人才创新班人才培养方案", runtime_titles)
         self.assertTrue(all(document.probe_cases for document in documents))
         self.assertTrue(all(document.tier == "runtime" for document in documents))
+        self.assertTrue(all(document.record.visibility_level == "public" for document in documents))
+        self.assertTrue(all(document.record.visibility_scope is None for document in documents))
 
     def test_historical_curriculum_budget_documents_require_explicit_opt_in(self) -> None:
         documents = load_historical_curriculum_budget_evaluation_documents()

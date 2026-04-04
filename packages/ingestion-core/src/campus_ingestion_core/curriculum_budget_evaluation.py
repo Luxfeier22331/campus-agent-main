@@ -495,12 +495,16 @@ def _load_runtime_fixture_documents() -> tuple[CurriculumBudgetEvaluationDocumen
             structured_rows=layout_rows,
             provider_response_key="official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl",
             layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
-            default_visibility_scope="main",
+            default_visibility_scope=None,
             corpus="curriculum",
             collection="curriculum_plan",
         )
         entitlement_groups = tuple(document_input.metadata.get("entitlement_groups") or ())
-        visibility_scope = str(document_input.metadata.get("visibility_scope") or "main")
+        visibility_scope = (
+            str(document_input.metadata["visibility_scope"])
+            if document_input.metadata.get("visibility_scope") is not None
+            else None
+        )
         record = DocumentRegistryRecord(
             document_id=manifest_document.document_id,
             revision_track="source-faithful",
@@ -547,8 +551,8 @@ def _load_historical_sample_documents() -> tuple[CurriculumBudgetEvaluationDocum
             path.read_bytes(),
             document_title=title,
         )
-        entitlement_groups = ("students",)
-        visibility_scope = "main"
+        entitlement_groups = ()
+        visibility_scope = None
         record = DocumentRegistryRecord(
             document_id=str(sample["document_id"]),
             revision_track="source-faithful",

@@ -65,7 +65,7 @@ class CurriculumQueryResolutionTest(unittest.TestCase):
                 source=_source(
                     doc_id="curriculum:法学（民族实验班）本科人才培养方案",
                     chunk_id="law-1",
-                    snippet="第四学期 国际公法、知识产权法。",
+                    snippet="第四学期 侵权责任法、中国少数民族文字学。",
                     score=0.92,
                     source_title="法学（民族实验班）本科人才培养方案",
                     structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
@@ -81,7 +81,7 @@ class CurriculumQueryResolutionTest(unittest.TestCase):
                 _source(
                     doc_id="curriculum:法学（民族实验班）本科人才培养方案",
                     chunk_id="law-4",
-                    snippet="第四学期 国际公法、知识产权法。",
+                    snippet="第四学期 侵权责任法、中国少数民族文字学。",
                     score=0.92,
                     source_title="法学（民族实验班）本科人才培养方案",
                     structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
@@ -130,6 +130,48 @@ class CurriculumQueryResolutionTest(unittest.TestCase):
 
         self.assertTrue(scope_applied)
         self.assertEqual(scoped_sources, ())
+
+    def test_filter_curriculum_query_sources_accepts_numeric_semester_columns_in_tables(self) -> None:
+        scoped_sources, scope_applied = filter_curriculum_query_sources(
+            query_text="法学民族班培养方案里大一上有什么课",
+            sources=(
+                _source(
+                    doc_id="curriculum:法学（民族实验班）本科人才培养方案",
+                    chunk_id="law-1",
+                    snippet=(
+                        "五、课程设置和修读建议\n\n"
+                        "(一)大类培养\n\n"
+                        "2. 学科基础教育\n\n"
+                        "课程清单如下:\n"
+                        "专业方向 | 课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 修读学期\n"
+                        "民族班 | 1036030166 | 习近平法治思想概论 | 2 | 36 | / | 1\n"
+                        "民族班 | 1036030001 | 法学导论 | 2 | 36 | / | 1"
+                    ),
+                    score=0.92,
+                    source_title="法学（民族实验班）本科人才培养方案",
+                    structural_path=("法学（民族实验班）本科人才培养方案", "五、课程设置和修读建议"),
+                ),
+                _source(
+                    doc_id="curriculum:法学（民族实验班）本科人才培养方案",
+                    chunk_id="law-4",
+                    snippet=(
+                        "五、课程设置和修读建议\n\n"
+                        "(二)专业教育\n\n"
+                        "2. 专业选修课程\n\n"
+                        "课程清单如下:\n"
+                        "专业方向 | 课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 开设学期\n"
+                        "民族班 | 1036040175 | 侵权责任法 | 2 | 36 | / | 4\n"
+                        "民族班 | 1036040023 | 公司法 | 2 | 36 | / | 4"
+                    ),
+                    score=0.91,
+                    source_title="法学（民族实验班）本科人才培养方案",
+                    structural_path=("法学（民族实验班）本科人才培养方案", "五、课程设置和修读建议"),
+                ),
+            ),
+        )
+
+        self.assertTrue(scope_applied)
+        self.assertEqual(tuple(source.chunk_id for source in scoped_sources), ("law-1",))
 
 
 if __name__ == "__main__":

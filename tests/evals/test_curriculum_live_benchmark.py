@@ -73,7 +73,7 @@ def _follow_up_case() -> GoldenCase:
                 "doc_id": "curriculum:法学（民族实验班）本科人才培养方案",
             },
         ),
-        required_facts=("习近平法治思想概论", "国际公法"),
+        required_facts=("中国少数民族文字学", "侵权责任法"),
         reference_context_ids=("curriculum:法学（民族实验班）本科人才培养方案",),
         conversation_turns=(
             "法学民族班培养方案里大一上有什么课",
@@ -102,7 +102,7 @@ def _strong_base_follow_up_case() -> GoldenCase:
                 "doc_id": "curriculum:历史学（强基计划）本科人才培养方案",
             },
         ),
-        required_facts=("中国史学史", "史学理论专题"),
+        required_facts=("大学英语(四)", "中国近代边疆民族史料研读"),
         reference_context_ids=("curriculum:历史学（强基计划）本科人才培养方案",),
         conversation_turns=(
             "历史学强基计划培养方案里大一上有什么课",
@@ -389,13 +389,13 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
                         },
                         "result": {
                             "kind": "answer",
-                            "text": "第四学期有习近平法治思想概论、国际公法。",
+                            "text": "第四学期有中国少数民族文字学、侵权责任法、翻译学导论。",
                             "requestId": "req_curriculum_eval_followup_02",
                             "traceId": "trace_curriculum_eval_followup_02",
                         },
                     },
                     "supervisor": {
-                        "answerText": "第四学期有习近平法治思想概论、国际公法。",
+                        "answerText": "第四学期有中国少数民族文字学、侵权责任法、翻译学导论。",
                         "followUpQuestion": "",
                         "selectedTarget": "rag-specialist",
                         "status": "completed",
@@ -417,7 +417,7 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
                                         "source_channel": "pdf_ocr",
                                         "collection": "curriculum_plan",
                                         "is_current": True,
-                                        "snippet": "第四学期有习近平法治思想概论、国际公法。",
+                                        "snippet": "第四学期有中国少数民族文字学、侵权责任法、翻译学导论。",
                                         "score": 0.97,
                                         "source_title": "法学（民族实验班）本科人才培养方案",
                                     }
@@ -472,7 +472,7 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
             ),
         )
         self.assertEqual(result.response.status, "completed")
-        self.assertEqual(result.response.answer_text, "第四学期有习近平法治思想概论、国际公法。")
+        self.assertEqual(result.response.answer_text, "第四学期有中国少数民族文字学、侵权责任法、翻译学导论。")
         self.assertTrue(result.observed_trace.retrieval_called)
         self.assertEqual(len(result.response.result.evidence.sources), 1)
         self.assertEqual(
@@ -509,13 +509,13 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
                         },
                         "result": {
                             "kind": "answer",
-                            "text": "第四学期有中国史学史、史学理论专题。",
+                            "text": "第四学期有大学英语(四)、中华民族共同体概论、中国近代边疆民族史料研读、世界现当代史。",
                             "requestId": "req_curriculum_eval_followup_03",
                             "traceId": "trace_curriculum_eval_followup_03",
                         },
                     },
                     "supervisor": {
-                        "answerText": "第四学期有中国史学史、史学理论专题。",
+                        "answerText": "第四学期有大学英语(四)、中华民族共同体概论、中国近代边疆民族史料研读、世界现当代史。",
                         "followUpQuestion": "",
                         "selectedTarget": "rag-specialist",
                         "status": "completed",
@@ -537,7 +537,7 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
                                         "source_channel": "pdf_ocr",
                                         "collection": "curriculum_plan",
                                         "is_current": True,
-                                        "snippet": "第四学期有中国史学史、史学理论专题。",
+                                        "snippet": "第四学期有大学英语(四)、中华民族共同体概论、中国近代边疆民族史料研读、世界现当代史。",
                                         "score": 0.96,
                                         "source_title": "历史学（强基计划）本科人才培养方案",
                                     }
@@ -583,7 +583,10 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
         self.assertIsNone(captured_headers[0]["x-eval-program"])
         self.assertIsNone(captured_headers[0]["x-eval-cohort"])
         self.assertEqual(result.response.status, "completed")
-        self.assertEqual(result.response.answer_text, "第四学期有中国史学史、史学理论专题。")
+        self.assertEqual(
+            result.response.answer_text,
+            "第四学期有大学英语(四)、中华民族共同体概论、中国近代边疆民族史料研读、世界现当代史。",
+        )
         self.assertEqual(
             result.response.result.evidence.sources[0].doc_id,
             "curriculum:历史学（强基计划）本科人才培养方案",

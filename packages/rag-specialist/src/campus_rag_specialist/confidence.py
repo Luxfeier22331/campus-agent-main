@@ -7,6 +7,7 @@ from campus_retrieval_core.evidence_ranking import (
 )
 
 _POSITIVE_SUPPORT_ROLES = frozenset({"procedure", "requirement", "eligibility", "time_rule", "deadline", "table_fact", "definition"})
+_CURATED_FACT_COLLECTIONS = frozenset({"course_facts", "program_family_facts"})
 
 
 def derive_confidence(evidence: EvidenceBundle) -> str:
@@ -56,6 +57,12 @@ def derive_confidence(evidence: EvidenceBundle) -> str:
     if named_doc_id is not None and primary_doc_positive_support_count >= 1:
         return "medium"
     if primary_doc_positive_support_count >= 1 and primary_doc_chunk_count >= 2:
+        return "medium"
+    if (
+        evidence.collection in _CURATED_FACT_COLLECTIONS
+        and supporting_sources[0].is_answer_bearing
+        and primary_doc_positive_support_count >= 1
+    ):
         return "medium"
     if query_targets_source_title(query_text=evidence.query_text, source=supporting_sources[0]) and top_score >= 0.4:
         return "medium"
