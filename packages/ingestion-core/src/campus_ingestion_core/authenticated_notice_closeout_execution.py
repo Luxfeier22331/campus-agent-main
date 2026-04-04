@@ -1,0 +1,446 @@
+from __future__ import annotations
+
+import asyncio
+from collections.abc import Callable
+from dataclasses import asdict, dataclass
+import hashlib
+import json
+from pathlib import Path
+from typing import Any
+
+from campus_ingestion_core.authenticated_notice_closeout_artifacts import (
+    CloseoutArtifactManager,
+)
+from campus_ingestion_core.authenticated_notice_closeout_models import (
+    DEFAULT_CLOSEOUT_OPERATION,
+    CloseoutBatch,
+    CloseoutRun,
+    CloseoutWorker,
+    batch_segment,
+    document_stage_slug,
+)
+from campus_ingestion_core.authenticated_notice_closeout_store import CloseoutStore
+from campus_ingestion_core.authenticated_notice_closeout_verification import (
+    CloseoutRunVerifier,
+)
+from campus_ingestion_core.authenticated_notice_import import (
+    AuthenticatedNoticeImportRequest,
+    AuthenticatedNoticePreparedImport,
+    _materialize_document_import_for_persistence,
+    prepare_authenticated_notice_bundle_records,
+)
+from campus_ingestion_core.corpus_profiles import load_runtime_profile
+from campus_ingestion_core.object_store import (
+    build_document_artifact_key,
+    build_operations_artifact_key,
+)
+from campus_ingestion_core.settings import ObjectStoreSettings
+
+
+@dataclass(frozen=True, slots=True)
+class _PreparedNoticeStage:
+    notice: dict[str, Any]
+    raw_record: dict[str, Any]
+    source_artifact_keys: dict[str, str]
+    document: dict[str, Any]
+    artifact_keys: tuple[str, ...]
+    staged_object_keys: dict[str, str]
+    final_object_keys: dict[str, str]
+    content_hash: str
+    staged_object_metadata: dict[str, dict[str, Any]]
+
+
+class CloseoutExecutionCoordinator:
+    def __init__(
+        self,
+        *,
+        closeout_store: CloseoutStore,
+        artifacts: CloseoutArtifactManager,
+        object_store_settings: ObjectStoreSettings,
+        run_verifier: CloseoutRunVerifier,
+        build_run_summary: Callable[[str], dict[str, Any]],
+    ) -> None:
+        self.closeout_store = closeout_store
+        self.artifacts = artifacts
+        self.object_store_settings = object_store_settings
+        self.run_verifier = run_verifier
+        self.build_run_summary = build_run_summary
+
+    def run_worker(
+        self,
+        *,
+        run: CloseoutRun,
+        request: AuthenticatedNoticeImportRequest,
+        worker_id: str,
+        max_batches: int | None = None,
+        poll_interval: float | None = None,
+    ) -> dict[str, Any]:
+        del poll_interval
+        worker = self.closeout_store.get_worker(run.run_id, worker_id)
+        if worker is None:
+            worker = CloseoutWorker(worker_id=worker_id)
+            self.closeout_store.save_worker(run.run_id, worker)
+            self.artifacts.write_worker_artifact(
+                request=request,
+                run_id=run.run_id,
+                worker=worker,
+            )
+
+        processed_batches = 0
+        while True:
+            batch = self.closeout_store.claim_next_batch(
+                run.run_id,
+                worker_id=worker_id,
+                lease_seconds=run.lease_seconds,
+            )
+            if batch is None:
+                if self.closeout_store.try_begin_verification(run.run_id):
+                    staged_summary = self.build_run_summary(run.run_id)
+                    self.closeout_store.record_milestone(run.run_id, "staged", staged_summary)
+                    self.artifacts.write_json_artifact(
+                        request=request,
+                        run_id=run.run_id,
+                        filename="staged.json",
+                        payload=staged_summary,
+                        segments=("milestones",),
+                    )
+                    verification = self.run_verifier.verify_run(run.run_id)
+                    self.closeout_store.mark_run_verified(run.run_id, verification)
+                    self.closeout_store.record_milestone(run.run_id, "verified", verification)
+                    self.artifacts.write_json_artifact(
+                        request=request,
+                        run_id=run.run_id,
+                        filename="verified.json",
+                        payload=verification,
+                        segments=("milestones",),
+                    )
+                    self.artifacts.write_json_artifact(
+                        request=request,
+                        run_id=run.run_id,
+                        filename="verification.json",
+                        payload=verification,
+                        segments=("reconciliation",),
+                    )
+                finished_worker = self.closeout_store.finish_worker(run.run_id, worker_id)
+                self.artifacts.write_worker_artifact(
+                    request=request,
+                    run_id=run.run_id,
+                    worker=finished_worker,
+                )
+                return self.build_run_summary(run.run_id)
+
+            claimed_worker = self.closeout_store.get_worker(run.run_id, worker_id)
+            if claimed_worker is not None:
+                self.artifacts.write_worker_artifact(
+                    request=request,
+                    run_id=run.run_id,
+                    worker=claimed_worker,
+                )
+            try:
+                stages = asyncio.run(self._process_batch(run=run, batch=batch))
+                completed_batch = self.closeout_store.commit_batch_stage(
+                    run_id=run.run_id,
+                    worker_id=worker_id,
+                    batch_id=batch.batch_id,
+                    stages=stages,
+                )
+                self.artifacts.write_json_artifact(
+                    request=request,
+                    run_id=run.run_id,
+                    filename="manifest.json",
+                    payload=asdict(completed_batch),
+                    segments=("batches", batch_segment(batch.batch_id)),
+                )
+                committed_worker = self.closeout_store.get_worker(run.run_id, worker_id)
+                if committed_worker is not None:
+                    self.artifacts.write_worker_artifact(
+                        request=request,
+                        run_id=run.run_id,
+                        worker=committed_worker,
+                    )
+                processed_batches += 1
+                if max_batches is not None and processed_batches >= max_batches:
+                    finished_worker = self.closeout_store.finish_worker(run.run_id, worker_id)
+                    self.artifacts.write_worker_artifact(
+                        request=request,
+                        run_id=run.run_id,
+                        worker=finished_worker,
+                    )
+                    return self.build_run_summary(run.run_id)
+            except Exception as exc:
+                failed_batch = self.closeout_store.fail_batch(
+                    run_id=run.run_id,
+                    worker_id=worker_id,
+                    batch_id=batch.batch_id,
+                    error=str(exc),
+                )
+                self.closeout_store.record_milestone(
+                    run.run_id,
+                    "failed",
+                    {"run_id": run.run_id, "error": str(exc)},
+                )
+                self.artifacts.write_json_artifact(
+                    request=request,
+                    run_id=run.run_id,
+                    filename="manifest.json",
+                    payload=asdict(failed_batch),
+                    segments=("batches", batch_segment(batch.batch_id)),
+                )
+                failed_worker = self.closeout_store.get_worker(run.run_id, worker_id)
+                if failed_worker is not None:
+                    self.artifacts.write_worker_artifact(
+                        request=request,
+                        run_id=run.run_id,
+                        worker=failed_worker,
+                    )
+                raise
+
+    async def _process_batch(
+        self,
+        *,
+        run: CloseoutRun,
+        batch: CloseoutBatch,
+    ) -> tuple[dict[str, Any], ...]:
+        if batch.input_object_key is None:
+            raise ValueError(f"closeout batch {batch.batch_id} missing input_object_key")
+        payload = json.loads(
+            self.artifacts.object_store.get_bytes(
+                bucket=self.object_store_settings.bucket_derived,
+                key=batch.input_object_key,
+            ).decode("utf-8")
+        )
+        if str(payload.get("run_id")) != run.run_id:
+            raise ValueError(f"batch input run mismatch for {batch.batch_id}")
+        bundle_records = tuple(payload.get("bundle_records") or ())
+        export_manifest = self.artifacts.load_export_manifest(run)
+        request = _request_from_run(run)
+        prepared_bundle = prepare_authenticated_notice_bundle_records(
+            request=request,
+            bundle_records=bundle_records,
+            export_manifest=export_manifest,
+        )
+        by_notice_id = {
+            prepared.notice_id: prepared for prepared in prepared_bundle.notice_imports
+        }
+        cleaning_policy_version = load_runtime_profile(
+            run.corpus,
+            run.collection,
+        ).cleaning_policy_version
+        notice_semaphore = asyncio.Semaphore(max(1, run.notice_concurrency))
+        object_store_semaphore = asyncio.Semaphore(max(1, run.object_store_concurrency))
+        stages = await asyncio.gather(
+            *[
+                asyncio.create_task(
+                    self._prepare_notice_stage(
+                        request=request,
+                        run_id=run.run_id,
+                        batch=batch,
+                        prepared=by_notice_id[notice_id],
+                        notice_semaphore=notice_semaphore,
+                        object_store_semaphore=object_store_semaphore,
+                        cleaning_policy_version=cleaning_policy_version,
+                    )
+                )
+                for notice_id in batch.notice_ids
+            ]
+        )
+        return tuple(
+            sorted((asdict(stage) for stage in stages), key=lambda item: str(item["notice"]["notice_id"]))
+        )
+
+    async def _prepare_notice_stage(
+        self,
+        *,
+        request: AuthenticatedNoticeImportRequest,
+        run_id: str,
+        batch: CloseoutBatch,
+        prepared: AuthenticatedNoticePreparedImport,
+        notice_semaphore: asyncio.Semaphore,
+        object_store_semaphore: asyncio.Semaphore,
+        cleaning_policy_version: str,
+    ) -> _PreparedNoticeStage:
+        async with notice_semaphore:
+            translated_document = _materialize_document_import_for_persistence(
+                prepared.document_import,
+                prepared.source_artifact_keys,
+            )
+            await asyncio.gather(
+                *[
+                    asyncio.create_task(
+                        self.artifacts.put_bytes_limited(
+                            semaphore=object_store_semaphore,
+                            bucket=self.object_store_settings.bucket_source,
+                            key=prepared.source_artifact_keys[relative_path],
+                            data=payload,
+                            content_type=_content_type_for_key(
+                                prepared.source_artifact_keys[relative_path]
+                            ),
+                        )
+                    )
+                    for relative_path, payload in (
+                        list(prepared.capture_artifacts.items())
+                        + list(prepared.provider_artifacts.items())
+                        + list(prepared.source_truth_artifacts.items())
+                    )
+                ]
+            )
+
+            document_id = str(translated_document.metadata["document_id"])
+            version_id = str(translated_document.metadata["version_id"])
+            content_hash = hashlib.sha256(
+                translated_document.document_units_bytes
+            ).hexdigest()
+            batch_key_segment = batch_segment(batch.batch_id)
+            document_slug = document_stage_slug(document_id)
+            staged_document_units_key = build_operations_artifact_key(
+                corpus=request.corpus,
+                operation=DEFAULT_CLOSEOUT_OPERATION,
+                run_id=run_id,
+                filename="document-units.jsonl",
+                segments=("staging", "batches", batch_key_segment, "documents", document_slug),
+            )
+            final_document_units_key = build_document_artifact_key(
+                corpus=request.corpus,
+                collection=request.collection,
+                document_id=document_id,
+                revision_track=translated_document.revision_track,
+                version_id=version_id,
+                filename="document-units.jsonl",
+                title=translated_document.title,
+                year=translated_document.year,
+            )
+            staged_object_keys = {"document_units": staged_document_units_key}
+            final_object_keys = {"document_units": final_document_units_key}
+            staged_object_metadata = {
+                "document_units": {
+                    "sha256": content_hash,
+                    "content_length": len(translated_document.document_units_bytes),
+                }
+            }
+            processed_object_keys = list(translated_document.additional_processed_object_keys)
+            processed_object_keys.insert(0, final_document_units_key)
+            upload_tasks = [
+                asyncio.create_task(
+                    self.artifacts.put_bytes_limited(
+                        semaphore=object_store_semaphore,
+                        bucket=self.object_store_settings.bucket_derived,
+                        key=staged_document_units_key,
+                        data=translated_document.document_units_bytes,
+                        content_type="application/x-ndjson",
+                        metadata={"sha256": content_hash},
+                    )
+                )
+            ]
+            if translated_document.canonical_markdown_bytes is not None:
+                markdown_hash = hashlib.sha256(
+                    translated_document.canonical_markdown_bytes
+                ).hexdigest()
+                staged_markdown_key = build_operations_artifact_key(
+                    corpus=request.corpus,
+                    operation=DEFAULT_CLOSEOUT_OPERATION,
+                    run_id=run_id,
+                    filename="canonical.md",
+                    segments=("staging", "batches", batch_key_segment, "documents", document_slug),
+                )
+                final_markdown_key = build_document_artifact_key(
+                    corpus=request.corpus,
+                    collection=request.collection,
+                    document_id=document_id,
+                    revision_track=translated_document.revision_track,
+                    version_id=version_id,
+                    filename="canonical.md",
+                    title=translated_document.title,
+                    year=translated_document.year,
+                )
+                staged_object_keys["canonical_markdown"] = staged_markdown_key
+                final_object_keys["canonical_markdown"] = final_markdown_key
+                staged_object_metadata["canonical_markdown"] = {
+                    "sha256": markdown_hash,
+                    "content_length": len(translated_document.canonical_markdown_bytes),
+                }
+                processed_object_keys.insert(0, final_markdown_key)
+                upload_tasks.append(
+                    asyncio.create_task(
+                        self.artifacts.put_bytes_limited(
+                            semaphore=object_store_semaphore,
+                            bucket=self.object_store_settings.bucket_derived,
+                            key=staged_markdown_key,
+                            data=translated_document.canonical_markdown_bytes,
+                            content_type="text/markdown; charset=utf-8",
+                            metadata={"sha256": markdown_hash},
+                        )
+                    )
+                )
+            await asyncio.gather(*upload_tasks)
+
+            return _PreparedNoticeStage(
+                notice={
+                    "notice_id": prepared.notice_id,
+                    "raw_asset_id": prepared.raw_asset_id,
+                    "raw_version_id": prepared.raw_version_id,
+                    "document_id": document_id,
+                },
+                raw_record=asdict(prepared.raw_record),
+                source_artifact_keys=dict(prepared.source_artifact_keys),
+                document={
+                    "document_id": document_id,
+                    "revision_track": translated_document.revision_track,
+                    "version_id": version_id,
+                    "source_label": translated_document.source_label,
+                    "metadata": dict(translated_document.metadata),
+                    "import_source": translated_document.import_source,
+                    "source_channel": translated_document.source_channel,
+                    "is_current": translated_document.is_current,
+                    "corpus": translated_document.corpus,
+                    "collection": translated_document.collection,
+                    "visibility_scope": translated_document.visibility_scope,
+                    "status": translated_document.status,
+                    "raw_source_uri": translated_document.raw_source_uri,
+                    "raw_asset_id": translated_document.raw_asset_id,
+                    "raw_version_id": translated_document.raw_version_id,
+                    "provider_response_object_key": translated_document.provider_response_object_key,
+                    "additional_processed_object_keys": list(
+                        translated_document.additional_processed_object_keys
+                    ),
+                    "processed_object_keys": processed_object_keys,
+                    "title": translated_document.title,
+                    "year": translated_document.year,
+                    "parser_version": request.parser_version,
+                    "embedding_model": request.embedding_model,
+                    "cleaning_policy_version": cleaning_policy_version,
+                },
+                artifact_keys=tuple(prepared.source_artifact_keys.values()),
+                staged_object_keys=staged_object_keys,
+                final_object_keys=final_object_keys,
+                content_hash=content_hash,
+                staged_object_metadata=staged_object_metadata,
+            )
+
+
+def _content_type_for_key(key: str) -> str:
+    if key.endswith(".jsonl"):
+        return "application/x-ndjson"
+    if key.endswith(".json"):
+        return "application/json"
+    if key.endswith(".md"):
+        return "text/markdown; charset=utf-8"
+    return "application/octet-stream"
+
+
+def _request_from_run(run: CloseoutRun) -> AuthenticatedNoticeImportRequest:
+    return AuthenticatedNoticeImportRequest(
+        bundle_path=Path(run.bundle_path),
+        export_manifest_path=Path(run.manifest_path) if run.manifest_path else None,
+        site_id=run.site_id,
+        source_home_url=run.source_home_url,
+        corpus=run.corpus,
+        collection=run.collection,
+        default_entitlement_groups=run.default_entitlement_groups,
+        visibility_scope=run.visibility_scope,
+        parser_version=run.parser_version,
+        embedding_model=run.embedding_model,
+        import_source=run.import_source,
+    )
+
+
+__all__ = ["CloseoutExecutionCoordinator"]

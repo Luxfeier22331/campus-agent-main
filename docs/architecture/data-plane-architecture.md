@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-04
+updated: 2026-04-05
 ---
 
 # Data Plane Architecture
