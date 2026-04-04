@@ -91,14 +91,15 @@ class AuthenticatedNoticeBundleImportResult:
     notice_imports: tuple[AuthenticatedNoticePreparedImport, ...]
 
 
-def import_authenticated_notice_bundle(
+def prepare_authenticated_notice_bundle_records(
+    *,
     request: AuthenticatedNoticeImportRequest,
+    bundle_records: tuple[dict[str, Any], ...] | list[dict[str, Any]],
+    export_manifest: dict[str, Any] | None = None,
 ) -> AuthenticatedNoticeBundleImportResult:
     runtime_profile = load_runtime_profile(request.corpus, request.collection)
-    export_manifest = _load_optional_json(request.export_manifest_path)
-    bundle_payload = _load_bundle_payload(request.bundle_path)
     prepared: list[AuthenticatedNoticePreparedImport] = []
-    for bundle_record in bundle_payload:
+    for bundle_record in bundle_records:
         material = prepare_authenticated_notice_source_material(
             bundle_record=bundle_record,
             export_manifest=export_manifest,
@@ -115,6 +116,28 @@ def import_authenticated_notice_bundle(
     return AuthenticatedNoticeBundleImportResult(
         notice_count=len(prepared),
         notice_imports=tuple(prepared),
+    )
+
+
+def load_authenticated_notice_bundle_payload(path: Path) -> tuple[dict[str, Any], ...]:
+    return _load_bundle_payload(path)
+
+
+def load_authenticated_notice_export_manifest(
+    path: Path | None,
+) -> dict[str, Any] | None:
+    return _load_optional_json(path)
+
+
+def import_authenticated_notice_bundle(
+    request: AuthenticatedNoticeImportRequest,
+) -> AuthenticatedNoticeBundleImportResult:
+    export_manifest = load_authenticated_notice_export_manifest(request.export_manifest_path)
+    bundle_payload = load_authenticated_notice_bundle_payload(request.bundle_path)
+    return prepare_authenticated_notice_bundle_records(
+        request=request,
+        bundle_records=bundle_payload,
+        export_manifest=export_manifest,
     )
 
 
@@ -404,4 +427,7 @@ __all__ = [
     "AuthenticatedNoticePreparedImport",
     "import_authenticated_notice_bundle",
     "import_authenticated_notice_export",
+    "load_authenticated_notice_bundle_payload",
+    "load_authenticated_notice_export_manifest",
+    "prepare_authenticated_notice_bundle_records",
 ]

@@ -150,7 +150,7 @@ def _sample_export_manifest() -> dict[str, object]:
 class _FakeObjectStore:
     def __init__(self) -> None:
         self.uploads: list[dict[str, object]] = []
-        self.objects: dict[tuple[str, str], bytes] = {}
+        self.objects: dict[tuple[str, str], dict[str, object]] = {}
 
     def put_bytes(
         self,
@@ -159,18 +159,56 @@ class _FakeObjectStore:
         key: str,
         data: bytes,
         content_type: str,
+        metadata: dict[str, str] | None = None,
     ) -> None:
         self.uploads.append(
             {
                 "bucket": bucket,
                 "key": key,
                 "content_type": content_type,
+                "metadata": dict(metadata or {}),
             }
         )
-        self.objects[(bucket, key)] = data
+        self.objects[(bucket, key)] = {
+            "data": data,
+            "content_type": content_type,
+            "metadata": dict(metadata or {}),
+        }
 
     def get_bytes(self, *, bucket: str, key: str) -> bytes:
-        return self.objects[(bucket, key)]
+        return self.objects[(bucket, key)]["data"]  # type: ignore[index]
+
+    def head_object(self, *, bucket: str, key: str) -> dict[str, object]:
+        stored = self.objects[(bucket, key)]
+        data = stored["data"]
+        assert isinstance(data, bytes)
+        metadata = stored["metadata"]
+        assert isinstance(metadata, dict)
+        return {
+            "content_length": len(data),
+            "metadata": dict(metadata),
+            "etag": f"fake-etag:{bucket}:{key}",
+        }
+
+    def copy_object(
+        self,
+        *,
+        source_bucket: str,
+        source_key: str,
+        target_bucket: str,
+        target_key: str,
+    ) -> None:
+        stored = dict(self.objects[(source_bucket, source_key)])
+        self.uploads.append(
+            {
+                "bucket": target_bucket,
+                "key": target_key,
+                "content_type": stored["content_type"],
+                "metadata": dict(stored["metadata"]),  # type: ignore[arg-type]
+                "copy_source": {"bucket": source_bucket, "key": source_key},
+            }
+        )
+        self.objects[(target_bucket, target_key)] = stored
 
 
 class AuthenticatedNoticeImportTest(unittest.TestCase):

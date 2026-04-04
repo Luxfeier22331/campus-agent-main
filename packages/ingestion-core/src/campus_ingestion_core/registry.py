@@ -20,6 +20,7 @@ DEFAULT_RAW_ASSET_REGISTRY_TABLE = (
 )
 _INITIALIZED_DOCUMENT_TABLES: set[tuple[str, str]] = set()
 _INITIALIZED_RAW_ASSET_TABLES: set[tuple[str, str]] = set()
+_SCHEMA_BOOTSTRAP_LOCK_KEY = 174901
 SHARED_POSTGRES_ENV_KEY = "CAMPUS_SHARED_POSTGRES_URL"
 DOCUMENT_REGISTRY_ENV_KEY = "DOCUMENT_REGISTRY_DATABASE_URL"
 RAW_ASSET_REGISTRY_ENV_KEY = "RAW_ASSET_REGISTRY_DATABASE_URL"
@@ -65,7 +66,17 @@ def _ensure_table_schema(cursor, *, table_name: str) -> None:
     schema_name, _ = _parse_table_name(table_name)
     if schema_name is None:
         return
-    cursor.execute(f'create schema if not exists "{schema_name}"')
+    cursor.execute(
+        "select pg_advisory_lock(%s, hashtext(%s))",
+        (_SCHEMA_BOOTSTRAP_LOCK_KEY, schema_name),
+    )
+    try:
+        cursor.execute(f'create schema if not exists "{schema_name}"')
+    finally:
+        cursor.execute(
+            "select pg_advisory_unlock(%s, hashtext(%s))",
+            (_SCHEMA_BOOTSTRAP_LOCK_KEY, schema_name),
+        )
 
 
 class DocumentRegistry(Protocol):

@@ -12,6 +12,7 @@ from campus_ingestion_core.registry import (
     DEFAULT_DOCUMENT_REGISTRY_TABLE,
     DEFAULT_RAW_ASSET_REGISTRY_TABLE,
     PostgresDocumentRegistry,
+    _ensure_table_schema,
     _document_record_from_dict,
     _raw_asset_record_from_dict,
     build_document_registry_from_env,
@@ -779,6 +780,63 @@ class RegistryModelsTest(unittest.TestCase):
         ):
             self.assertIsNone(registry.current_version("handbook:test-001"))
             latest_versions.assert_not_called()
+
+    def test_ensure_table_schema_serializes_schema_bootstrap_with_advisory_lock(self) -> None:
+        class _RecordingCursor:
+            def __init__(self) -> None:
+                self.calls: list[tuple[str, tuple[object, ...] | None]] = []
+
+            def execute(self, sql: str, params: tuple[object, ...] | None = None) -> None:
+                self.calls.append((sql.strip(), params))
+
+        cursor = _RecordingCursor()
+
+        _ensure_table_schema(cursor, table_name="ingestion_closeout.closeout_runs")
+
+        self.assertEqual(
+            cursor.calls,
+            [
+                (
+                    "select pg_advisory_lock(%s, hashtext(%s))",
+                    (174901, "ingestion_closeout"),
+                ),
+                ('create schema if not exists "ingestion_closeout"', None),
+                (
+                    "select pg_advisory_unlock(%s, hashtext(%s))",
+                    (174901, "ingestion_closeout"),
+                ),
+            ],
+        )
+
+    def test_ensure_table_schema_releases_advisory_lock_after_create_failure(self) -> None:
+        class _FailingCursor:
+            def __init__(self) -> None:
+                self.calls: list[tuple[str, tuple[object, ...] | None]] = []
+
+            def execute(self, sql: str, params: tuple[object, ...] | None = None) -> None:
+                self.calls.append((sql.strip(), params))
+                if sql.strip().startswith("create schema if not exists"):
+                    raise RuntimeError("bootstrap failed")
+
+        cursor = _FailingCursor()
+
+        with self.assertRaisesRegex(RuntimeError, "bootstrap failed"):
+            _ensure_table_schema(cursor, table_name="ingestion_closeout.closeout_runs")
+
+        self.assertEqual(
+            cursor.calls,
+            [
+                (
+                    "select pg_advisory_lock(%s, hashtext(%s))",
+                    (174901, "ingestion_closeout"),
+                ),
+                ('create schema if not exists "ingestion_closeout"', None),
+                (
+                    "select pg_advisory_unlock(%s, hashtext(%s))",
+                    (174901, "ingestion_closeout"),
+                ),
+            ],
+        )
 
     def test_registry_builders_require_database_url(self) -> None:
         with self.assertRaisesRegex(

@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-03
-updated: 2026-04-03
+updated: 2026-04-04
 ---
 
 # Authenticated Notice Source Architecture
@@ -130,6 +130,29 @@ collector runtime 的第一 owner 固定为 repo 内独立 `apps/*` runtime shel
 
 这是一条前向约束，不表示当前 merged truth 已经实现该 control plane。
 
+## Async Staged Closeout
+
+Phase 12.2 已把 authenticated notice historical closeout 重构为 async staged pipeline，后续吞吐升级为 planning/worker split + batch-leased executor，详见：
+
+- `docs/decisions/adr-0025-authenticated-notice-async-staged-closeout.md`
+- `docs/decisions/adr-0026-authenticated-notice-batch-leased-closeout-throughput.md`
+
+固定规则：
+
+- 每次 run 的 operations truth 落在 `campus_notices/operations/authenticated-notice-closeout/{run_id}/`
+- run lifecycle 固定为 `planning -> planned -> running -> verifying -> verified -> promoting -> done|failed`
+- planner 负责读取 frozen bundle、生成 shard/batch plan，并把每个 batch 的 frozen input slice 写入 operations prefix
+- shard 负责 planning / aggregation；真正的执行单元是 leased batch
+- worker / batch 可以并发写 source-truth objects 与 staged document objects
+- worker 只允许读取自己 claim 到的 batch input，不得重新 eager prepare 整份 bundle
+- staging state 固定落在 `ingestion_closeout.closeout_*` 表，其中 batch / worker truth 由 `closeout_batches` / `closeout_workers` 持有
+- batch notice/raw/document rows 与 run/shard/batch/worker 聚合状态必须在同一事务内提交
+- shard 不得直接写 canonical `campus_notices/documents/internal_notice`
+- 所有 batch 完成后，只允许一个 finalizer 把 run 切到 `verifying` 并执行 metadata-driven verification
+- 只有单个 promoter 可以复制 staged document artifacts、构造 final registry rows、执行 `replace_scope`
+- promoter 内部允许并发 object-store native copy，但 single-writer scope mutation 语义不变
+- operator status / progress 读取 operations prefix 与 staging tables，而不是通过 rerun checkpoint 获取；`show` / `watch` 必须只读聚合 progress truth，不扫描全量 staged rows
+
 ## Current Status
 
 当前文档冻结的是前向 accepted direction。
@@ -156,4 +179,6 @@ collector runtime 的第一 owner 固定为 repo 内独立 `apps/*` runtime shel
 - `docs/architecture/data-plane-architecture.md`
 - `docs/architecture/identity-and-authorization-architecture.md`
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
+- `docs/decisions/adr-0025-authenticated-notice-async-staged-closeout.md`
+- `docs/decisions/adr-0026-authenticated-notice-batch-leased-closeout-throughput.md`
 - `docs/plans/restricted-document-rollout-and-verification.md`

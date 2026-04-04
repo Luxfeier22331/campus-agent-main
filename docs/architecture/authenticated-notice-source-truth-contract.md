@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-03
-updated: 2026-04-03
+updated: 2026-04-04
 ---
 
 # Authenticated Notice Source-Truth Contract
@@ -314,6 +314,10 @@ notice source-truth 不等于逻辑 document 真相。
 - 不在本文冻结 HTML 清洗算法实现
 - 不在本文定义 restricted entitlement policy
 - 不在本文定义 collection-specific chunking 或 index release 策略
+
+## Async Staged Closeout Integration
+
+Phase 12.2 的 async staged closeout 保持 source-truth 与 document truth 的清晰隔离：所有历史 notice artifacts 依然从 `source-truth/*` 重建，per-run 状态则落在 `campus_notices/operations/authenticated-notice-closeout/{run_id}/` 和 `ingestion_closeout.closeout_*` staging 表。后续 batch-leased throughput executor 进一步把 progress truth 明确拆到 `closeout_batches` / `closeout_workers`，但 source-truth 与 final document truth 的 ownership 不变。只有单个 promoter 读取 `closeout_document_stage`、`closeout_notice_stage` 等表、验证 staged digests、才会把 artifact 引用复制到 `campus_notices/documents/internal_notice/...` 并执行 `replace_scope`。这样在保证 source-truth 不含 document/chunk/serving 字段的前提下，仍能按阶段化 pipeline 对历史导出做 deterministic promotion，详见 `docs/decisions/adr-0025-authenticated-notice-async-staged-closeout.md` 与 `docs/decisions/adr-0026-authenticated-notice-batch-leased-closeout-throughput.md`。
 
 ## 与其他文档的关系
 

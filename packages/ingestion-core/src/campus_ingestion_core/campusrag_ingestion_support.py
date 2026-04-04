@@ -120,7 +120,8 @@ class S3ObjectStoreWriter:
     def __init__(self, settings: ObjectStoreSettings) -> None:
         from campus_ingestion_core.object_store import S3ObjectStoreClientFactory
 
-        self._client = S3ObjectStoreClientFactory(settings).create()
+        self._factory = S3ObjectStoreClientFactory(settings)
+        self._client = self._factory.create()
 
     def put_bytes(
         self,
@@ -130,12 +131,24 @@ class S3ObjectStoreWriter:
         data: bytes,
         content_type: str,
     ) -> None:
-        self._client.put_object(
-            Bucket=bucket,
-            Key=key,
-            Body=data,
-            ContentType=content_type,
-        )
+        client = self._one_shot_client_for_zero_byte_payload() if not data else self._client
+        try:
+            client.put_object(
+                Bucket=bucket,
+                Key=key,
+                Body=data,
+                ContentType=content_type,
+            )
+        finally:
+            if client is not self._client:
+                close = getattr(client, "close", None)
+                if callable(close):
+                    close()
+
+    def _one_shot_client_for_zero_byte_payload(self):
+        # Local MinIO can stall on the next reused connection after a zero-byte put_object.
+        # Isolating empty writes to a throwaway client keeps the shared client pool healthy.
+        return self._factory.create()
 
 
 def _build_source_observation(

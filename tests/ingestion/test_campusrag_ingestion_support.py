@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import unittest
+from unittest.mock import patch
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 from campus_ingestion_core.campusrag_ingestion_support import (
     DocumentImportInput,
+    S3ObjectStoreWriter,
     apply_authorization_projection_metadata,
     collect_import_document_stats,
     load_metadata_from_bytes,
@@ -194,6 +196,19 @@ class _ImportablePrefetchRegistry(_SpyDocumentRegistry):
         return self.records
 
 
+class _FakeS3Client:
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.put_calls: list[dict[str, object]] = []
+        self.closed = False
+
+    def put_object(self, **kwargs: object) -> None:
+        self.put_calls.append(kwargs)
+
+    def close(self) -> None:
+        self.closed = True
+
+
 class CampusragIngestionSupportTest(unittest.TestCase):
     def setUp(self) -> None:
         self.object_store = ObjectStoreSettings(
@@ -201,6 +216,47 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             access_key="minioadmin",
             secret_key="minioadmin",
         )
+
+    def test_s3_object_store_writer_uses_one_shot_client_for_zero_byte_payloads(self) -> None:
+        created_clients: list[_FakeS3Client] = []
+
+        class _Factory:
+            def __init__(self, settings: ObjectStoreSettings) -> None:
+                self.settings = settings
+
+            def create(self) -> _FakeS3Client:
+                client = _FakeS3Client(name=f"client-{len(created_clients) + 1}")
+                created_clients.append(client)
+                return client
+
+        with patch("campus_ingestion_core.object_store.S3ObjectStoreClientFactory", _Factory):
+            writer = S3ObjectStoreWriter(self.object_store)
+            writer.put_bytes(
+                bucket="campus-rag-source",
+                key="non-empty-before.json",
+                data=b'{"ok": 1}',
+                content_type="application/json",
+            )
+            writer.put_bytes(
+                bucket="campus-rag-source",
+                key="empty.jsonl",
+                data=b"",
+                content_type="application/x-ndjson",
+            )
+            writer.put_bytes(
+                bucket="campus-rag-source",
+                key="non-empty-after.json",
+                data=b'{"ok": 2}',
+                content_type="application/json",
+            )
+
+        self.assertEqual(len(created_clients), 2)
+        self.assertEqual(
+            [call["Key"] for call in created_clients[0].put_calls],
+            ["non-empty-before.json", "non-empty-after.json"],
+        )
+        self.assertEqual([call["Key"] for call in created_clients[1].put_calls], ["empty.jsonl"])
+        self.assertTrue(created_clients[1].closed)
 
     def test_collect_import_document_stats_batches_incremental_upserts_after_single_prefetch(self) -> None:
         doc_a = _document_input(

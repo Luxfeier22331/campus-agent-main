@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-03
+updated: 2026-04-04
 ---
 
 # Data Plane Architecture
@@ -118,6 +118,22 @@ source truth 的长期硬约束：
 - `curriculum/course_facts`
 - `official_web` source channel 的 control-plane / source-truth path
 
+## Authenticated Notice Async Staged Closeout
+
+Phase 12.2 的 staged closeout 不改变 data-plane canonical chain，只改变 historical closeout 的执行模型；ADR-0026 进一步把 executor 升级为 batch-leased pipeline。
+
+固定规则：
+
+- run metadata、workers、milestones、batch manifests、batch input slices 与 staged document objects 落在 `campus_notices/operations/authenticated-notice-closeout/{run_id}/`
+- `packages/ingestion-core` 通过 `ingestion_closeout.closeout_*` 表记录 run / shard / batch / worker / notice / raw asset / document / promotion staging truth
+- planner 只负责冻结输入与计划，不得在 planning 阶段执行整份 bundle 的 source-truth prepare
+- worker 只围绕 claimed batch 准备 source-truth 与 staged document artifacts；吞吐由 worker 数量扩展，而不是由单进程全局 bundle prepare 扩展
+- notice/raw/document staging rows 与 run/shard/batch/worker counters 必须作为 batch 级单事务提交
+- batch 围绕 canonical source-truth 与 declared document artifacts 工作，但 canonical final document scope 只允许 promoter 单写
+- promoter 在 verification 通过后，才把 staged document artifacts 复制到 `campus_notices/documents/internal_notice/...` 并执行 `replace_scope`
+
+因此被并行化的是 staging，而不是 canonical document scope mutation。
+
 ## Forbidden Shapes
 
 - 不把 raw local path 语义提升成长期 truth source
@@ -130,4 +146,6 @@ source truth 的长期硬约束：
 - `docs/decisions/adr-0002-local-minio-conventions.md`
 - `docs/decisions/adr-0019-qdrant-physical-collection-retention-and-expiration.md`
 - `docs/decisions/adr-0020-qdrant-cloud-backup-restore-and-object-store-transition.md`
+- `docs/decisions/adr-0025-authenticated-notice-async-staged-closeout.md`
+- `docs/decisions/adr-0026-authenticated-notice-batch-leased-closeout-throughput.md`
 - `docs/architecture/authenticated-notice-source-truth-contract.md`

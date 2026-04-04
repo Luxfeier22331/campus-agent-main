@@ -205,6 +205,30 @@ def build_qdrant_backup_artifact_key(
     )
 
 
+def build_operations_artifact_key(
+    *,
+    corpus: str,
+    operation: str,
+    run_id: str,
+    filename: str,
+    segments: tuple[str, ...] = (),
+) -> str:
+    _validate_corpus_and_filename(corpus=corpus, filename=filename)
+    normalized_segments = tuple(
+        _validate_path_segment(segment, field_name="segment") for segment in segments
+    )
+    return "/".join(
+        [
+            corpus,
+            "operations",
+            _validate_path_segment(operation, field_name="operation"),
+            _validate_path_segment(run_id, field_name="run_id"),
+            *normalized_segments,
+            filename,
+        ]
+    )
+
+
 def build_processed_asset_artifact_key(
     *,
     corpus: str,

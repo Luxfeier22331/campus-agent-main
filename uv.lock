@@ -17,6 +17,7 @@ resolution-markers = [
 members = [
     "campus-agent-workspace",
     "campus-app-api",
+    "campus-authenticated-notice-collector",
     "campus-availability-specialist",
     "campus-contracts",
     "campus-evals",
@@ -266,6 +267,11 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [{ name = "campus-contracts", editable = "packages/contracts" }]
+
+[[package]]
+name = "campus-authenticated-notice-collector"
+version = "0.1.0"
+source = { virtual = "apps/authenticated-notice-collector" }
 
 [[package]]
 name = "campus-availability-specialist"
