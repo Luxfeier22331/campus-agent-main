@@ -276,6 +276,29 @@ class SupervisorCoreTest(unittest.TestCase):
         self.assertEqual(response.result.evidence.corpus, "curriculum")
         self.assertIn("当前还不能稳定确认开课学院", response.answer_text)
 
+    def test_handle_request_delegates_knowledge_without_explicit_scope_to_rag_specialist(self) -> None:
+        captured_requests: list[SpecialistRequest] = []
+
+        def fake_rag_specialist(request: SpecialistRequest) -> SpecialistResponse:
+            captured_requests.append(request)
+            return _make_rag_completed_response()
+
+        response = handle_request(
+            SupervisorRequest(
+                user_goal="民族学本科人才培养方案总学分要求是多少？",
+                request_id="req-unscoped-knowledge-001",
+                trace=TraceContext(trace_id="trace-unscoped-knowledge-001"),
+                actor=ActorContext(user_id="student-001"),
+                requested_capability="knowledge",
+            ),
+            specialist_delegates={"rag-specialist": fake_rag_specialist},
+            audit_sink=lambda _record: None,
+        )
+
+        self.assertEqual(response.selected_target, "rag-specialist")
+        self.assertEqual(len(captured_requests), 1)
+        self.assertEqual(captured_requests[0].payload, RagRequestPayload(scope=None))
+
     def test_handle_request_keeps_source_doc_ids_empty_for_availability_completion(self) -> None:
         audit_records: list[SupervisorAuditRecord] = []
         request = SupervisorRequest(

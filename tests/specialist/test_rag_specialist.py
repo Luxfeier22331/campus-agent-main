@@ -161,6 +161,40 @@ class RagSpecialistTest(unittest.TestCase):
                 ),
             )
 
+    def test_missing_scope_resolves_curriculum_plan_for_curriculum_query(self) -> None:
+        captured_calls: list[dict[str, object]] = []
+
+        def fake_retriever(query: str, **kwargs: object) -> EvidenceBundle:
+            captured_calls.append(
+                {
+                    "collection": kwargs.get("collection"),
+                    "corpus": kwargs.get("corpus"),
+                    "query": query,
+                }
+            )
+            return EvidenceBundle(
+                query_text=query,
+                corpus=str(kwargs["corpus"]),
+                collection=str(kwargs["collection"]),
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="民族学本科人才培养方案总学分要求是多少？",
+                payload=RagRequestPayload(scope=None),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(captured_calls[0]["corpus"], "curriculum")
+        self.assertEqual(captured_calls[0]["collection"], "curriculum_plan")
+        assert isinstance(response.result, RagResultPayload)
+        self.assertEqual(response.result.evidence.corpus, "curriculum")
+        self.assertEqual(response.result.evidence.collection, "curriculum_plan")
+        self.assertEqual(response.result.diagnostics.resolved_scope_corpus, "curriculum")
+        self.assertEqual(response.result.diagnostics.resolved_scope_collection, "curriculum_plan")
+
     def test_retrieval_error_maps_to_error_response(self) -> None:
         def raising_retriever(*args: object, **kwargs: object) -> EvidenceBundle:
             raise RetrievalBackendError("qdrant unavailable")
