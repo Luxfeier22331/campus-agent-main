@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-03-22
-updated: 2026-04-03
+updated: 2026-04-04
 ---
 
 # Docs
@@ -73,6 +73,8 @@ updated: 2026-04-03
 - 当前 phase 状态与 pending work：`.planning/PROJECT.md`、`.planning/STATE.md`
 - 稳定 contract / schema：`contracts/`、`data/`
 - 当前 runbook / reference / policy：`runbooks/`、`reference/`、`policies/`
+- 首个真实 Worker 部署准备：`runbooks/staging-worker-deploy-runbook.md`
+- 当前 `dev-backed supervisor` staging 验收：`runbooks/dev-backed-supervisor-staging-smoke-runbook.md`
 
 ## 标识规则
 
@@ -137,6 +139,7 @@ updated: 2026-04-03
 - `decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
 - `decisions/adr-0023-operator-observability-control-plane-and-sink-participation.md`
 - `decisions/adr-0024-authenticated-notice-source-channel.md`
+- `decisions/adr-0025-authenticated-notice-async-staged-closeout.md`
 - `decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
 - `plans/authenticated-notice-source-foundation.md`
 - `plans/campus-identity-and-restricted-document-foundation.md`
@@ -151,9 +154,13 @@ updated: 2026-04-03
 - `plans/versioned-history-query-foundation.md`
 - `runbooks/curriculum-plan-hybrid-rebuild-checklist.md`
 - `runbooks/develop-main-release-runbook.md`
+- `runbooks/authenticated-notice-bootstrap-smoke-runbook.md`
+- `runbooks/authenticated-notice-async-staged-closeout-runbook.md`
+- `runbooks/dev-backed-supervisor-staging-smoke-runbook.md`
 - `runbooks/forward-worker-surface-smoke-runbook.md`
 - `runbooks/index-release-runbook.md`
 - `runbooks/provider-secret-governance.md`
+- `runbooks/staging-worker-deploy-runbook.md`
 - `runbooks/qdrant-cloud-backup-and-restore-runbook.md`
 - `runbooks/student-handbook-hybrid-rebuild-checklist.md`
 - `runbooks/worker-observability-smoke-runbook.md`

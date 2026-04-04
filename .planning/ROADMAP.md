@@ -416,6 +416,26 @@ Coordination note:
 - `Phase 10` / `official-web` 当前由其他 worktree 处理。
 - 除非该 worktree 显式回交，否则这里不要再把它重复当作当前执行项。
 
+### Phase 10.2: Official Web Release Gate Dataset Quality Improvement (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 10
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 10.2 to break down)
+
+### Phase 10.1: Official Web Current Truth Closeout And Fresh News Surface Handoff (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 10
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 10.1 to break down)
+
 ### Phase 11: Campus Identity, Authorization, Memory, And Restricted Document Foundation
 
 **Goal:** Close the app-owned campus identity / authorization / memory foundation so restricted document rollout can proceed on a canonical principal and projection seam instead of the current transitional ACL carrier.
@@ -473,11 +493,41 @@ Plans:
 - [x] 12-03-PLAN.md — Converge the collector shell on repo-compatible typed artifacts and workspace hygiene.
 - [x] 12-04-PLAN.md — Close the phase and freeze deferred live-run/control-plane boundaries.
 
+### Phase 12.1: Authenticated Notice Historical Backfill Closeout
+
+**Goal:** Close the authenticated-notice historical export backlog by freezing the full backfill input set, adding a repo-owned closeout runner, and producing replay/rerun/reconciliation evidence without reopening live portal, control-plane, or query-serving scope.
+**Requirements**: []
+**Depends on:** Phase 12
+**Success Criteria** (what must be TRUE):
+  1. The closeout runner freezes the exact bundle/manifest/count/checkpoints and staged replay uses cumulative prefix slices only.
+  2. Historical closeout produces persisted `frozen-input`, checkpoint summaries, optional final rerun summary, and a closeout reconciliation artifact for `campus_notices/internal_notice`.
+  3. Expected document identity closes exactly at scope level, expected raw asset identity closes at coverage level, and `internal_notice` remains `restricted + offline_preparation`.
+**Plans:** 1/2 plans complete
+
+Plans:
+- [x] 12.1-01-PLAN.md — Land the repo-owned closeout runner, runbook, planning docs, and focused verification.
+- [ ] 12.1-02-PLAN.md — Execute the frozen full historical closeout and freeze the final evidence package.
+
+### Phase 12.2: Authenticated Notice Async Staged Closeout
+
+**Goal:** Rebuild the authenticated-notice historical closeout path into an async staged data-plane pipeline (frozen bundle -> async shard executors -> staging state -> single promoter) so the 6,694-notice dataset can be reconciled via deterministic promotion instead of repeated cumulative replays.
+**Requirements**: []
+**Depends on:** Phase 12.1
+**Success Criteria** (what must be TRUE):
+  1. Ops‑level metadata records all frozen input plus async shard plan plus milestone heartbeats, and it is persisted under `campus_notices/operations/authenticated-notice-closeout/{run_id}`.
+  2. Staging tables capture notice/raw/document artifacts per shard while the final document scope update remains single-threaded promoter.
+  3. Runner exposes async heartbeat and milestone summaries so operators monitor progress without rerunning entire checkpoints, and verification/resume leverages staged data instead of reruns.
+**Plans:** 2/2 plans complete
+
+Plans:
+- [x] 12.2-01-PLAN.md — Research async staged closeout data-plane model, operations prefix, staging schema, single promoter, verification requirements, and codify the new architecture/ADR/runbook language.
+- [x] 12.2-02-PLAN.md — Execute the async staged pipeline: design ops directories + staging tables, implement planner/executor/promoter, add CLI status/promote commands, and lock in verification/summary artifacts.
+
 ### Phase 13: Official Web Serving Surface Stratification And Fresh News Readiness
 
 **Goal:** [To be planned]
 **Requirements**: TBD
-**Depends on:** Phase 12
+**Depends on:** Phase 12.2
 **Plans:** 0 plans
 
 Plans:

@@ -2,7 +2,7 @@
 doc_type: plan
 status: active
 created: 2026-04-03
-updated: 2026-04-03
+updated: 2026-04-05
 ---
 
 # Local Live Eval Canonical Registry Recovery
@@ -68,6 +68,256 @@ updated: 2026-04-03
 - `student_handbook` preview rebuild 已不再在 `unsupported authorization projection keys` 处秒退
 - 它会继续进入 object store / Qdrant 外部 I/O 阶段；由于这轮执行中超过 5 分钟仍未收口，已手动停止，避免在 worktree 留下无限后台任务
 - 因此 Wave 2 的“legacy parser fail-fast”阻塞已解除，但 preview rebuild / alias publish / live accept 仍未完成
+
+## 2026-04-04 执行结果
+
+### 已完成恢复
+
+- `local_rebuild` 现已对 `provider_response_replay` 统一补齐 `source_pdf` 解析：
+  - `rebuild_local_data()` 与 `replay_provider_response_rebuild()` 都会在 request 未显式传入 `source_pdf` 时，优先读取 raw asset registry 的 `source_filename`
+  - `curriculum_plan` replay 不再默认回落到错误的 `curriculum-plan.pdf -> undated` provider key
+- 在上述 recovery 基线之上，本轮又修复了 curriculum public document 错误继承 `visibility_scope=main` 的问题：
+  - `configs/ingestion/curriculum/curriculum_plan/split-manifest.v1.json` 与 `split-manifest.candidate.v1.json` 已移除 public doc 上的 `visibility_scope: "main"`
+  - `SplitManifestDocument.resolved_visibility_scope()` 现在对 public doc 返回 `None`，不再从 collection default scope 继承
+  - curriculum budget evaluation fixtures 也同步切回 public/null scope，避免继续把 `main` 固化成评测真相
+- 相关回归已补齐并通过：
+  - `./.venv/bin/python -m unittest tests.ingestion.test_rebuild_local_data tests.ingestion.test_provider_result_replay_rebuild`
+  - `./.venv/bin/python -m unittest tests.ingestion.test_rebuild_local_data tests.ingestion.test_provider_result_replay_rebuild tests.ingestion.test_campusrag_ingestion_support tests.ingestion.test_registry_models tests.ingestion.test_rebuild_local_data_worker`
+  - `./.venv/bin/python -m unittest tests.ingestion.test_split_manifest`
+  - `./.venv/bin/python -m unittest tests.ingestion.test_curriculum_budget_evaluation`
+  - `./.venv/bin/python -m unittest tests.ingestion.test_rebuild_local_data`
+  - `./.venv/bin/python -m unittest tests.ingestion.test_campusrag_ingestion_support`
+  - `./.venv/bin/python -m unittest tests.ingestion.test_process_raw_ingestion_job`
+- `curriculum_plan` preview rebuild 已成功完成：
+  - artifact: `.tmp/rebuilds/local-live-eval-recovery-20260404T010216/`
+  - trace 已确认 `replay.load_source_artifacts` 使用 `curriculum-plan-2022.pdf`
+  - preview report `failed_count=0`
+- 针对 `visibility_scope` 修复又重新执行了一轮 release-managed preview / publish：
+  - `raw_version_id=sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67`
+  - preview report: `var/import-reports/replay-provider-response-rebuild-2026-04-04T043032.709153_plus_0000.json`
+  - preview summary: `success_count=91`, `failed_count=0`
+  - publish report: `var/import-reports/replay-provider-response-rebuild-2026-04-04T044027.720446_plus_0000.json`
+  - publish summary: `success_count=69`, `skipped_count=22`, `failed_count=0`
+- 当前 worktree 额外补上了 `app-api` rerun 稳定性修复：
+  - Worker runtime 现按 `Env` 复用，不再在 repeated eval 请求中反复重建 app assembly
+  - chat/runtime stores 现按 service assembly 复用单个 runtime DB handle
+  - targeted verification 已通过：
+    - `pnpm --filter app-api test:node -- test/chat.store.test.ts test/runtime-command.store.test.ts test/worker-runtime-cache.test.ts test/worker.test.ts`
+- publish alias 已完成：
+  - handbook publish artifact: `.tmp/rebuilds/local-live-eval-recovery-publish-handbook-20260404T011422/`
+  - curriculum publish artifact: `.tmp/rebuilds/local-live-eval-recovery-publish-curriculum-20260404T012037/`
+- publish 后 alias / points count：
+  - `student_handbook -> student_handbook__r20260403_171551 (509)`
+  - `contact_directory -> contact_directory__r20260403_171551 (6)`
+  - `service_catalog -> service_catalog__r20260403_171551 (1)`
+  - `curriculum_plan -> curriculum_plan__r20260404_044030 (1728)`
+  - `course_facts -> course_facts__r20260404_044030 (16)`
+  - `program_family_facts -> program_family_facts__r20260404_044030 (6)`
+- document registry current rows 已恢复 canonical-only：
+  - `('curriculum', 'curriculum_plan', legacy_current_rows=0, current_rows=69)`
+  - `('regulations', 'student_handbook', legacy_current_rows=0, current_rows=46)`
+- curriculum public doc payload 已确认不再携带 `visibility_scope`：
+  - `select record->>'visibility_scope', count(*) from ... where corpus='curriculum' and collection='curriculum_plan' group by ...`
+  - result: `[(None, 69)]`
+
+### 本轮 runtime 结果
+
+- repo-local `supervisor-api` 已按 `trusted-worker + 8081` 启动，沿用本地 `app-api` `127.0.0.1:8787`
+- handbook smoke 已恢复为正常回答链路：
+  - prompt: `中央民族大学本科学生国家奖学金评审办法`
+  - result: `status_code=200`, `answer_kind=answer`, `supervisor_status=completed`
+- curriculum smoke 已不再 crash，但代表性自然问法仍返回 `no_answer`：
+  - prompt: `民族学本科人才培养方案`
+  - prompt: `民族学本科人才培养方案里大二下有什么课`
+  - result: `status_code=200`, `answer_kind=no_answer`, `supervisor_status=no_answer`
+- curriculum internal eval smoke 已确认本轮修复的是权限误投影，而不是把 deny 变成兼容层：
+  - public_user 与 student 两条 `POST /api/internal/evals/chat/requests` 都返回 `status_code=200`
+  - `supervisor.observability.aclDecision=allowed`
+  - `supervisor.observability.failClosed=false`
+  - 响应中不再出现 `restricted_access_denied`
+  - 当前剩余问题是 retrieval / answer quality 仍然不足，表现为 `no_answer`
+
+### 本轮 live accept 结论
+
+- `curriculum-plan-live-gate-accept-20260404T045259Z/` 不能作为最终 truth：
+  - 本地 `wrangler dev` 中途 hot reload，`app-api` 返回 `503 Service Unavailable`
+  - eval 侧错误为 `AppApiEvalClientError: Your worker restarted mid-request`
+- curriculum 首个有效 post-recovery live accept 已完整收口：
+  - artifact: `.tmp/evals/curriculum-plan-live-gate-accept-20260404T045929Z/`
+  - `final-summary.json`:
+    - `deterministic_verdict=fail`
+    - `supplemental_verdict=warn`
+    - `final_overall_verdict=fail`
+  - 三轮 deterministic run 完全稳定复现：
+    - `run_pass_counts=[8,8,8]`
+    - `run_failed_counts=[11,11,11]`
+  - 与旧 artifact `.tmp/evals/curriculum-plan-live-gate-accept-20260404T013037/` 相比，稳定通过数已从 `5/19` 提升到 `8/19`
+  - 当前失败已收敛为真实质量缺口，不再包含 `restricted_access_denied` 这类 authz false deny：
+    - `curriculum-release-gate-academic-years`
+    - `curriculum-release-gate-course-family-membership`
+    - `curriculum-release-gate-course-family-audience-short-alias`
+    - `curriculum-release-gate-course-single-schedule`
+    - `curriculum-release-gate-course-single-schedule-alias-variant`
+    - `curriculum-release-gate-program-family-membership`
+    - `curriculum-release-gate-program-family-experimental-membership`
+    - `curriculum-release-gate-program-family-strong-base-membership-full-alias`
+    - `curriculum-release-gate-program-family-name-pattern-experimental-membership`
+    - `curriculum-release-gate-program-follow-up-session-replay`
+    - `curriculum-release-gate-strong-base-follow-up-session-replay`
+  - supplemental gate 仍是稳定 soft warning：
+    - `ragas.faithfulness mean_average_score=0.22213910816851992`
+    - `ragas.answer_relevancy mean_average_score=0.24002871915163038`
+    - `ragas.context_precision mean_average_score=0.2857142857142857`
+    - `ragas.context_recall mean_average_score=0.2857142857142857`
+  - 当前结论已经从“runtime crash / ACL false deny 污染”升级为“curriculum 产品质量 gate 真失败”
+- 在上述 recovery 基线上，curriculum answer path 又额外落地了 semester row filtering 修复：
+  - `packages/rag-specialist/src/campus_rag_specialist/agent.py` 现会在 `curriculum_plan` 表格答案里按学期逐行过滤，而不是把同一 source 内其他学期的课程一并带出
+  - 同时覆盖两类表：
+    - `修读学期` / `开设学期` 这类单列学期表
+    - `1 | 2 | 3 | 4` 这类 numeric semester header 表
+  - targeted verification 已通过：
+    - `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.specialist.test_rag_specialist.CurriculumQueryPlanningTest`
+    - `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.retrieval.test_curriculum_query_resolution`
+- semester row filtering 修复后的 curriculum 当时最新有效 live accept 为：
+  - artifact: `.tmp/evals/curriculum-plan-live-gate-accept-20260404T0950Z/`
+  - `final-summary.json`:
+    - `deterministic_verdict=fail`
+    - `supplemental_verdict=warn`
+    - `final_overall_verdict=fail`
+  - 三轮 deterministic run 再次完全稳定复现：
+    - `run_pass_counts=[17,17,17]`
+    - `run_failed_counts=[2,2,2]`
+  - 与 `.tmp/evals/curriculum-plan-live-gate-accept-20260404T045929Z/` 相比，稳定通过数已从 `8/19` 提升到 `17/19`
+  - 当前 deterministic failure 已收敛到 2 个 follow-up answer completeness case：
+    - `curriculum-release-gate-program-follow-up-session-replay`
+    - `curriculum-release-gate-strong-base-follow-up-session-replay`
+  - 这轮已经不存在 status / retrieval / trace 维度失败：
+    - `status=19/19`
+    - `retrieval=19/19`
+    - `trace=19/19`
+    - `answer=17/19`
+  - 直接核查当前 `curriculum_plan` alias 的 Qdrant point 后，两个失败的性质已经可以区分：
+    - 法学民族班 case 命中的 supporting chunk 仍是 `chunk-0016`，其中确有 `侵权责任法 / 公司法 / 翻译学导论 / 中国少数民族文字学`，但没有 `习近平法治思想概论`，也没有 `国际公法`
+    - 同一 doc 内 `习近平法治思想概论` 实际存在于 `chunk-0012 / chunk-0004 / chunk-0013`，且 `chunk-0013` 明确是 `修读学期=1`
+    - 因此法学 follow-up case 当前更像 benchmark/qrels 与现行 alias truth 脱钩，而不是模型把已存在的四学期课程漏答
+    - 历史强基 case 命中的 supporting chunk 仍是 `chunk-0010`，其中有 `大学英语(四)` 与 `中华民族共同体概论` 等第四学期课程
+    - 但 `中国史学史` 实际存在于同一 doc 的 `chunk-0014`，且该 chunk 标注的 `修读学期=5`；`史学理论专题` 在当前 alias 中不存在
+    - 因此历史 follow-up case 仍保留一处真实 ranking / answer-selection gap：系统没有把已存在的 `中国史学史` chunk 提升为 supporting source，但 benchmark 对 `史学理论专题` 的期望同样已经与当前 alias truth 脱钩
+  - 在 `0950Z` 时点的结论是：repo-local curriculum live accept 仍然 fail，但 fail 的性质已经从“多维质量不足”收敛到“1 个 stale benchmark/qrel + 1 个 ranking/selection gap + 2 个 case 都带有部分 expected fact 与当前 alias 不一致”
+- 在上述 `0950Z` curriculum artifact 之后，repo-local `app-api` 还额外完成了一轮 runtime stability closeout：
+  - `apps/app-api/src/db/runtime.ts` 现在在 `development` 下不再复用 worker / runtime DB 缓存，`readyz` probe 使用隔离的短生命周期 pool，不再污染请求路径连接
+  - `apps/app-api/src/modules/auth/auth.ts` 的 auth readiness 只探活 DB，不再在 `/readyz` 上提前构建 Better Auth runtime
+  - `apps/app-api/src/app.ts` / `apps/app-api/src/index.ts` 不再让 synthetic `/api/internal/evals/chat/requests` 调度 request projection drain
+  - `apps/app-api/src/modules/telemetry/axiom.ts` 为 Axiom ingest 增加了 bounded fail-open timeout，避免 sink 挂死请求
+  - focused verification 已通过：
+    - `pnpm --dir apps/app-api test:node -- test/auth-and-db.test.ts test/chat-requests.route.test.ts test/telemetry.axiom.test.ts`
+    - `pnpm --dir apps/app-api test:worker -- --reporter=verbose test/worker.test.ts test/worker-runtime-cache.test.ts`
+    - `pnpm --dir apps/app-api typecheck`
+  - repo-local live smoke 也已复核：
+    - 对 `POST http://127.0.0.1:8787/api/internal/evals/chat/requests` 连续发送 3 次 `法学民族实验班培养方案里第四学期有什么课`，三次均返回 `HTTP 200`
+  - 在这条稳定后的本地链路上，fresh full rerun `.tmp/evals/curriculum-plan-live-gate-accept-20260404T130027Z/` 曾启动，但最终被 `AppApiEvalClientError: app_api_eval_request_failed: Your worker restarted mid-request. Please try sending the request again.` 污染
+  - 因此 `.tmp/evals/curriculum-plan-live-gate-accept-20260404T130027Z/` 只能作为新的 runtime incident record；它后续已被无重启 rerun `.tmp/evals/curriculum-plan-live-gate-accept-20260404T184401Z/` 覆盖，不再代表当前 latest completed full artifact
+- 在上述 runtime closeout 之后，本 worktree 又完成了一轮 follow-up closeout 核查：
+  - law follow-up 的 repo code/tests 真相已经与当前 alias 对齐：
+    - `packages/evals/src/campus_evals/scenarios.py` 与 `tests/evals/test_curriculum_live_benchmark.py` 当前都将 `curriculum-release-gate-program-follow-up-session-replay` 的 required facts 固定为 `中国少数民族文字学 / 侵权责任法`
+    - `tests/evals/test_golden_cases.py` 现额外显式锁定了 law/history 两个 follow-up case 的 expected doc id 与 required facts，避免后续再把历史 artifact 里的坏 truth 回写进 benchmark
+    - 需要纠正的旧描述并不是 `国际公法` 仍在 repo code 里生效，而是 `0950Z` 历史 artifact 里仍残留了对 `习近平法治思想概论` 的陈旧 completeness 期望
+  - history strong-base follow-up 的当前代码路径已完成 repo-local 直连复核：
+    - 直接调用 retrieval backend 查询 `历史学强基计划培养方案里第四学期有什么课`，当前 top-5 已返回 `chunk-0014 / chunk-0018 / chunk-0010 / chunk-0013 / chunk-0022`，其中 `chunk-0014` 位于 truncation 之前
+    - 直接调用 `delegate_to_rag_agent` 时，answer 已同时保留 `chunk-0010 + chunk-0014`，并包含 `大学英语(四)` 与 `中国近代边疆民族史料研读`
+    - 因此 history follow-up 在代码侧已不再应被当作当前 worktree 的开放缺口；当时剩余待办只是在无重启窗口里重跑 full live accept
+- 在上述 follow-up closeout 基线上，fresh no-restart full rerun 已完成并形成新的 latest completed full artifact：
+  - artifact: `.tmp/evals/curriculum-plan-live-gate-accept-20260404T184401Z/`
+  - `final-summary.json`:
+    - `deterministic_verdict=fail`
+    - `supplemental_verdict=warn`
+    - `final_overall_verdict=fail`
+    - `repair_run_dir=null`
+  - 三轮 deterministic run 现稳定收敛为：
+    - `run_pass_counts=[18,18,18]`
+    - `run_failed_counts=[1,1,1]`
+    - `stable_across_runs=true`
+  - 与 `.tmp/evals/curriculum-plan-live-gate-accept-20260404T0950Z/` 相比，稳定通过数已从 `17/19` 提升到 `18/19`
+  - 当前 deterministic failure 已收敛到单个 case：
+    - `curriculum-release-gate-program-follow-up-session-replay`
+  - 三轮 failure reason 完全一致：
+    - `answer=missing required fact=中国少数民族文字学`
+    - `status / retrieval / trace` 全部为 `ok`
+  - 这轮已经明确证明 history strong-base follow-up 不再是 live artifact failure：
+    - `curriculum-release-gate-strong-base-follow-up-session-replay` 在三轮 deterministic run 全部通过
+  - 该 law follow-up failure 的性质也已经进一步收敛：
+    - supporting sources 仍来自正确 doc `curriculum:法学（民族实验班）本科人才培养方案`
+    - supporting chunks 稳定为 `chunk-0016 + chunk-0015`
+    - 因此当前剩余问题是 correct-doc retrieval 之后的 answer completeness gap，而不是 runtime incident、错误 doc 命中，或 history case 那样的 residual ranking gap
+  - supplemental gate 仍是稳定 soft warning：
+    - `ragas.faithfulness mean_average_score=0.7839435774309723`
+    - `ragas.answer_relevancy mean_average_score=0.7982046080163911`
+    - `ragas.context_precision mean_average_score=0.7142857142571429`
+    - `ragas.context_recall mean_average_score=0.7142857142857143`
+  - 当前最新结论是：
+    - `.tmp/evals/curriculum-plan-live-gate-accept-20260404T184401Z/` 现已取代 `.tmp/evals/curriculum-plan-live-gate-accept-20260404T0950Z/` 成为 current latest completed repo-local curriculum artifact
+    - curriculum live accept 仍然 fail，但已经不再是“双 follow-up gap”；当前只剩 law follow-up answer completeness 单点缺口
+    - 这次 rerun 没有出现 `Your worker restarted mid-request`，因此它是有效的产品质量结论，而不是新的 runtime incident
+- 在上述 `184401Z` artifact 基线之上，本 worktree 当前又完成了一轮 repo-head answer-path closeout：
+  - 针对唯一剩余的 law follow-up completeness gap，`packages/rag-specialist/src/campus_rag_specialist/agent.py` 现已额外落地 semester course-list 定点修复：
+    - semester-scoped `curriculum_plan` table rows 不再被 `_rank_source_statements()` 截到前三行
+    - direct answer path 会直接从命中的 semester rows / source snippet 提取 `课程名称` 列，而不是继续把整行表格文本原样拼进答案
+    - 因此 `chunk-0015 + chunk-0016` 的第四学期课程现在会稳定包含 `合同法 / 人格权法 / 物权法 / 侵权责任法 / 公司法 / 翻译学导论 / 中国少数民族文字学`
+  - 同步新增了 answer-path 回归测试，直接锁定旧失败模式：
+    - `tests/specialist/test_rag_specialist.py::CurriculumQueryPlanningTest.test_curriculum_semester_answer_lists_all_semester_courses_without_table_row_truncation`
+  - fresh targeted verification 已通过：
+    - `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.specialist.test_rag_specialist`
+    - `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.evals.test_curriculum_live_benchmark tests.evals.test_golden_cases`
+  - 这一步先关闭了 repo-head code gap；其后又完成了 fresh rerun，新的 artifact truth 见下一个条目
+- 在上述 repo-head answer-path closeout 之后，又完成了一轮 fresh full curriculum live accept：
+  - artifact: `.tmp/evals/curriculum-plan-live-gate-accept-20260404T200443Z/`
+  - 本轮为真正的 full accept，而不是 rebuild/index 发布：
+    - 沿用当前 `curriculum_plan` alias
+    - 不重新 embedding
+    - 只重跑 `app-api -> supervisor-api -> retrieval -> rag-specialist` live benchmark
+  - 本地运行前额外补齐了 `app-api` dev 前提：
+    - `apps/app-api/.env` 中只有 `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB`
+    - 本轮本地 shell 显式将 `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH` 指向同一条连接串，满足 local Hyperdrive binding 校验
+  - `final-summary.json`:
+    - `deterministic_verdict=pass`
+    - `supplemental_verdict=warn`
+    - `final_overall_verdict=warn`
+    - `repair_run_dir=null`
+  - 三轮 deterministic run 现稳定收敛为：
+    - `run_pass_counts=[19,19,19]`
+    - `run_failed_counts=[0,0,0]`
+    - `stable_across_runs=true`
+  - 这轮已经明确证明 law/history 两个 follow-up replay case 都在 live artifact 中通过：
+    - `curriculum-release-gate-program-follow-up-session-replay` 在 `run-01`、`run-02`、`run-03` 全部 `passed=true`
+    - `curriculum-release-gate-strong-base-follow-up-session-replay` 在 `run-01`、`run-02`、`run-03` 全部 `passed=true`
+  - 因此当前 deterministic curriculum release gate 已关闭：
+    - `.tmp/evals/curriculum-plan-live-gate-accept-20260404T200443Z/` 现已取代 `.tmp/evals/curriculum-plan-live-gate-accept-20260404T184401Z/` 成为 current latest completed repo-local curriculum artifact
+    - law follow-up answer completeness 不再是 live gap
+    - repair stage 仍被跳过，说明当前 rerun 没有 transient deterministic target 需要修补
+  - 当前 remaining issue 已收敛为 supplemental soft warn：
+    - `ragas.faithfulness mean_average_score=0.7946184029167221`
+    - `ragas.answer_relevancy mean_average_score=0.7987128849797461`
+    - `ragas.context_precision mean_average_score=0.7142857142571429`
+    - `ragas.context_recall mean_average_score=0.7142857142857143`
+    - 因此当前 verdict 不是 `fail`，而是 deterministic release gate pass + overall soft warn
+- handbook live accept 现已完整收口，并形成新的 clean pass baseline：
+  - artifact: `.tmp/evals/student-handbook-formal-benchmark-accept-20260404T072912Z/`
+  - `final-summary.json`:
+    - `deterministic_verdict=pass`
+    - `supplemental_verdict=pass`
+    - `final_overall_verdict=pass`
+    - `repair_run_dir=null`
+  - 三轮 deterministic run 结果：
+    - `run_pass_counts=[11,11,11]`
+    - `run_failed_counts=[0,0,0]`
+  - supplemental gate 已恢复为 clean pass：
+    - `ragas.faithfulness mean_average_score=0.9151635401635402`
+    - `ragas.answer_relevancy mean_average_score=0.8780248495851825`
+    - `ragas.context_precision mean_average_score=1.0`
+    - `ragas.context_recall mean_average_score=1.0`
+    - `judge.answer_correctness_rubric mean_average_score=0.921904761904762`
+    - `judge.refusal_quality mean_average_score=0.9491666666666666`
+  - 因此 handbook 当前已从“rerun crash recovery”进一步收口为“新的 clean pass release baseline”
 
 ## 目标
 

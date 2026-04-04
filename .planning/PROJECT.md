@@ -51,7 +51,7 @@
 
 ### Active
 
-- [ ] 在首个真实部署的 Worker 环境到位后，执行 `apps/app-api`、`apps/public-chat-web`、`apps/protected-panel-web` 的 post-deploy observability verification；2026-04-02 已再次完成本地 env/preflight 与 Worker smoke 复核，并补齐 `docs/runbooks/worker-observability-smoke-artifact-template.md` 与 `.tmp/observability-smoke/20260402T233916-local-readiness/`，当前只缺目标环境名、真实 hostnames、Worker release、已下发的 `SENTRY_*` / `AXIOM_*` 与 Sentry/Axiom 访问权限
+- [ ] 首个真实部署环境现已固定为 `staging@rag.ayafeed.com`：`apps/app-api=https://api-staging.rag.ayafeed.com`、`apps/public-chat-web=https://chat-staging.rag.ayafeed.com`、`apps/protected-panel-web=https://panel-staging.rag.ayafeed.com`。repo 内 `env.staging` 配置、deploy scripts 与 `docs/runbooks/staging-worker-deploy-runbook.md` 已落地；当前剩余阻塞项只包括 Cloudflare custom domains / service bindings / Hyperdrive / Access、deploy-side `SENTRY_*` / `AXIOM_*`、当次 Worker release，以及 Sentry/Axiom 访问权限，完成后执行 post-deploy observability verification
 
 ### Out of Scope
 
@@ -135,4 +135,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state (users, feedback, metrics)
 
 ---
-*Last updated: 2026-04-03 after accepting the `实验班` / `创新班` generic membership lane as `program_family_facts` completed truth, while keeping deploy-side sink closure scoped to the first real environment*
+*Last updated: 2026-04-04 after freezing the first real Worker deployment target as `staging@rag.ayafeed.com` and landing repo-owned `env.staging` deploy config / runbook truth*
