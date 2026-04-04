@@ -110,6 +110,7 @@ updated: 2026-04-03
 
 ## 当前文档地图
 
+- 产品定位：`docs/architecture/product-positioning.md`
 - 当前架构：本文
 - 目标架构：`docs/architecture/target-architecture.md`
 - 产品/runtime supporting architecture：`docs/architecture/product-runtime-architecture.md`

@@ -4,6 +4,8 @@
 
 `campus-agent` 是一个面向学生、教职工和潜在考生的 multi-agent 校园问答助理仓库，长期形态是以 `supervisor` 作为唯一入口、`specialist agent` 作为能力边界的 supervisor-led orchestration system。当前 v1 的重点不是一次性做全量校园知识问答，而是在新架构下把 `supervisor -> rag-specialist -> retrieval` 主路径稳定成立，并让 serving surface 由 runtime profile 显式控制。当前 query-enabled surface 是 `student_handbook` 与 `curriculum_plan`；`campus_services` 仍保持 offline preparation。与此同时，若存在长期稳定、可复用、非 handbook-RAG 的能力边界，例如官网探活 / 外部站点可达性核验，也允许以独立 specialist 的形式作为当前里程碑中的显式 inserted phase 落地，而不是被降级成 supervisor 内联 tool。旧仓库 `../campusRAG` 只作为迁移参考，不再作为继续扩展的主实现。
 
+产品定位与长期产品边界的 canonical 文档现为 `docs/architecture/product-positioning.md`；本文继续承担当前 phase、active requirements 与 pending work 的真相源。
+
 ## Current Truth
 
 - 当前 accepted merged-truth architecture snapshot 见 `docs/architecture/current-architecture.md`

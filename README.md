@@ -6,6 +6,7 @@
 
 这个仓库的默认阅读顺序是：
 
+- 产品定位：`docs/architecture/product-positioning.md`
 - 当前 merged truth：`docs/architecture/current-architecture.md`
 - 目标架构：`docs/architecture/target-architecture.md`
 - supporting architecture：`docs/architecture/product-runtime-architecture.md`、`docs/architecture/execution-and-specialists-architecture.md`、`docs/architecture/identity-and-authorization-architecture.md`、`docs/architecture/retrieval-serving-architecture.md`、`docs/architecture/data-plane-architecture.md`、`docs/architecture/navigation-and-wayfinding-architecture.md`、`docs/architecture/official-web-architecture.md`、`docs/architecture/authenticated-notice-source-architecture.md`、`docs/architecture/operator-observability-architecture.md`

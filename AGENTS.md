@@ -23,6 +23,7 @@
 
 - `README.md`
 - `docs/README.md`
+- `docs/architecture/product-positioning.md`
 - `docs/architecture/current-architecture.md`
 - `docs/architecture/target-architecture.md`
 - `docs/architecture/execution-and-specialists-architecture.md`
@@ -57,6 +58,7 @@
 
 - `AGENTS.md` 只负责仓库入口约束、目录导航和工作协议，不重复深层设计文档
 - 这个仓库当前没有业务意义上的 `refs/` 目录；默认把 `README.md` 和 `docs/` 视为实现与架构的参考材料
+- 产品定位、目标用户与产品边界以 `docs/architecture/product-positioning.md` 为准
 - 当前 accepted merged-truth topology 与已开放 serving surface 以 `docs/architecture/current-architecture.md` 为准
 - 目标架构、supporting architecture、accepted architecture constraint 与术语约束分别以对应 `docs/` 文档为准
 - 当前 phase 执行状态、pending work、最新讨论结论与当前轮计划以 `.planning/` 为准

@@ -11,6 +11,7 @@ updated: 2026-04-05
 
 默认入口固定为：
 
+- `architecture/product-positioning.md`
 - `architecture/current-architecture.md`
 - `architecture/target-architecture.md`
 - 一组 supporting architecture 文档
@@ -19,7 +20,7 @@ updated: 2026-04-05
 
 ## 分类
 
-- `architecture/`: 当前接受架构快照、长期边界、职责划分、系统形态
+- `architecture/`: 产品定位、当前接受架构快照、长期边界、职责划分、系统形态
 - `contracts/`: 稳定 HTTP seam、生命周期、错误模型
 - `data/`: 稳定逻辑 schema、存储 ownership、读写边界
 - `decisions/`: 已接受的决策记录，使用稳定 ADR 编号
@@ -55,6 +56,7 @@ updated: 2026-04-05
 因此：
 
 - 判断长期架构边界时，优先看 `docs/architecture/` 和 `docs/decisions/`
+- 判断“这个产品是什么、服务谁、边界在哪”时，优先看 `docs/architecture/product-positioning.md`
 - 判断“现在做到哪一步、接下来做什么、当前 phase 结论是什么”时，优先看 `.planning/`
 - 判断编排模式、specialist 准入、identity/memory/authorization 边界与安全控制时，优先看 architecture 文档和对应 ADR，而不是某一轮 plan
 - 判断 HTTP contract、状态流转、错误码与 schema ownership 时，优先看 `docs/contracts/` 与 `docs/data/`
@@ -67,6 +69,7 @@ updated: 2026-04-05
 
 ## 推荐阅读顺序
 
+- 产品定位：`architecture/product-positioning.md`
 - 当前架构：`architecture/current-architecture.md`
 - 目标架构：`architecture/target-architecture.md`
 - supporting architecture：`architecture/product-runtime-architecture.md`、`architecture/execution-and-specialists-architecture.md`、`architecture/identity-and-authorization-architecture.md`、`architecture/retrieval-serving-architecture.md`、`architecture/data-plane-architecture.md`、`architecture/navigation-and-wayfinding-architecture.md`、`architecture/official-web-architecture.md`、`architecture/authenticated-notice-source-architecture.md`、`architecture/operator-observability-architecture.md`
@@ -98,6 +101,7 @@ updated: 2026-04-05
 
 ## Canonical Docs
 
+- `architecture/product-positioning.md`
 - `architecture/current-architecture.md`
 - `architecture/target-architecture.md`
 - `architecture/product-runtime-architecture.md`
