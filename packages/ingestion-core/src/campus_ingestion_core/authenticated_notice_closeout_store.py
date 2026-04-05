@@ -407,8 +407,8 @@ class InMemoryCloseoutStore:
             run = self._runs.get(run_id)
             if run is not None:
                 self._runs[run_id] = run.with_progress(
-                    active_worker_count=self._active_worker_count_unlocked(run_id)
-                )
+                        active_worker_count=self._active_worker_count_unlocked(run_id)
+                    )
             return worker
 
     def try_begin_verification(self, run_id: str) -> bool:
