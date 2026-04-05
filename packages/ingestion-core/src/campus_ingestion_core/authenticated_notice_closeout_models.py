@@ -18,6 +18,7 @@ from campus_ingestion_core.authenticated_notice_import import (
 
 
 DEFAULT_CLOSEOUT_OPERATION = "authenticated-notice-closeout"
+DEFAULT_CLOSEOUT_INPUT_KIND = "bundle_import"
 DEFAULT_CLOSEOUT_SHARD_SIZE = 250
 DEFAULT_CLOSEOUT_BATCH_SIZE = 16
 DEFAULT_CLOSEOUT_MAX_CONCURRENCY = 8
@@ -94,6 +95,11 @@ class CloseoutRun:
     manifest_path: str | None
     expected_notice_count: int
     operations_prefix: str
+    input_kind: str = DEFAULT_CLOSEOUT_INPUT_KIND
+    expected_document_count: int = 0
+    expected_attachment_document_count: int = 0
+    expected_raw_asset_count: int = 0
+    source_projections_path: str | None = None
     corpus: str = DEFAULT_AUTHENTICATED_NOTICE_CORPUS
     collection: str = DEFAULT_AUTHENTICATED_NOTICE_COLLECTION
     site_id: str = ""
@@ -607,6 +613,7 @@ def document_stage_slug(document_id: str) -> str:
 
 __all__ = [
     "DEFAULT_CLOSEOUT_BATCH_SIZE",
+    "DEFAULT_CLOSEOUT_INPUT_KIND",
     "DEFAULT_CLOSEOUT_LEASE_SECONDS",
     "DEFAULT_CLOSEOUT_MAX_CONCURRENCY",
     "DEFAULT_CLOSEOUT_NOTICE_CONCURRENCY",

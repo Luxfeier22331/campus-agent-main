@@ -33,12 +33,16 @@ from campus_ingestion_core.authenticated_notice_closeout_execution import (
 from campus_ingestion_core.authenticated_notice_import import (
     AuthenticatedNoticeImportRequest,
 )
+from campus_ingestion_core.authenticated_notice_source_truth_replay import (
+    AuthenticatedNoticeSourceTruthReplayRequest,
+)
 from campus_ingestion_core.registry import (
     DocumentRegistry,
     RawAssetRegistry,
     build_document_registry_from_env,
     build_raw_asset_registry_from_env,
 )
+from campus_ingestion_core.raw_ingestion import OnlineOcrClient
 from campus_ingestion_core.settings import ObjectStoreSettings
 
 
@@ -53,6 +57,7 @@ class AuthenticatedNoticeCloseoutService:
         raw_asset_registry: RawAssetRegistry,
         planner: CloseoutPlanner | None = None,
         verifier: CloseoutVerifier | None = None,
+        ocr_client: OnlineOcrClient | None = None,
     ) -> None:
         self.closeout_store = closeout_store
         self.object_store = object_store
@@ -75,6 +80,8 @@ class AuthenticatedNoticeCloseoutService:
             closeout_store=closeout_store,
             planner=self.planner,
             artifacts=self.artifacts,
+            document_registry=document_registry,
+            raw_asset_registry=raw_asset_registry,
             build_run_summary=self._build_run_summary,
         )
         self.execution = CloseoutExecutionCoordinator(
@@ -83,6 +90,7 @@ class AuthenticatedNoticeCloseoutService:
             object_store_settings=object_store_settings,
             run_verifier=self.run_verifier,
             build_run_summary=self._build_run_summary,
+            ocr_client=ocr_client,
         )
         self.repair = CloseoutRepairCoordinator(
             closeout_store=closeout_store,
@@ -155,6 +163,25 @@ class AuthenticatedNoticeCloseoutService:
             poll_interval=poll_interval,
         )
 
+    def plan_source_truth_replay_run(
+        self,
+        *,
+        request: AuthenticatedNoticeSourceTruthReplayRequest,
+        run_id: str,
+        max_concurrency: int = 8,
+        notice_concurrency: int = 8,
+        object_store_concurrency: int = 64,
+        lease_seconds: int = 300,
+    ) -> dict[str, Any]:
+        return self.planning.plan_source_truth_replay_run(
+            request=request,
+            run_id=run_id,
+            max_concurrency=max_concurrency,
+            notice_concurrency=notice_concurrency,
+            object_store_concurrency=object_store_concurrency,
+            lease_seconds=lease_seconds,
+        )
+
     def promote_run(self, run_id: str) -> dict[str, Any]:
         run = self.closeout_store.get_run(run_id)
         if run is None:
@@ -213,7 +240,12 @@ class AuthenticatedNoticeCloseoutService:
         summary = {
             "run_id": run.run_id,
             "state": run.state.value,
+            "input_kind": run.input_kind,
             "expected_notice_count": run.expected_notice_count,
+            "expected_document_count": run.expected_document_count,
+            "expected_attachment_document_count": run.expected_attachment_document_count,
+            "expected_raw_asset_count": run.expected_raw_asset_count,
+            "source_projections_path": run.source_projections_path,
             "operations_prefix": run.operations_prefix,
             "shard_count": run.shard_count or len(shards),
             "completed_shard_count": run.completed_shard_count,
@@ -252,7 +284,7 @@ class AuthenticatedNoticeCloseoutService:
 
     def _request_from_run(self, run) -> AuthenticatedNoticeImportRequest:
         return AuthenticatedNoticeImportRequest(
-            bundle_path=Path(run.bundle_path),
+            bundle_path=Path(run.bundle_path or "."),
             export_manifest_path=Path(run.manifest_path) if run.manifest_path else None,
             site_id=run.site_id,
             source_home_url=run.source_home_url,

@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from campus_ingestion_core.authenticated_notice_closeout_artifacts import (
     CloseoutArtifactManager,
 )
 from campus_ingestion_core.authenticated_notice_closeout_store import CloseoutStore
+from campus_ingestion_core.authenticated_notice_source_truth_replay import (
+    SOURCE_TRUTH_REPLAY_INPUT_KIND,
+)
 from campus_ingestion_core.authenticated_notice_source_truth import (
     build_authenticated_notice_raw_asset_id,
 )
@@ -81,7 +85,9 @@ class CloseoutRunVerifier:
         }
         missing_batch_ids = sorted(expected_batch_ids - persisted_batch_ids)
         unexpected_batch_ids = sorted(persisted_batch_ids - expected_batch_ids)
-        expected_notice_ids = {notice_id for shard in shards for notice_id in shard.notice_ids}
+        expected_scope = self._load_expected_scope(run_id=run_id, batches=batches, run=run)
+        expected_notice_ids = expected_scope["notice_ids"]
+        expected_parent_document_ids = expected_scope["parent_document_ids_by_notice"]
         planned_batch_notice_ids = {
             notice_id for batch in batches for notice_id in batch.notice_ids
         }
@@ -90,16 +96,11 @@ class CloseoutRunVerifier:
             planned_batch_notice_ids - expected_notice_ids
         )
         observed_notice_ids = {str(item["notice_id"]) for item in staged_notices}
-        expected_document_ids = {
-            f"notice:{run.site_id}:{notice_id}" for notice_id in expected_notice_ids
-        }
+        expected_document_ids = expected_scope["document_ids"]
         observed_document_ids = {
             str(item["document"]["document_id"]) for item in staged_documents
         }
-        expected_raw_asset_ids = {
-            build_authenticated_notice_raw_asset_id(run.site_id, notice_id)
-            for notice_id in expected_notice_ids
-        }
+        expected_raw_asset_ids = expected_scope["raw_asset_ids"]
         observed_raw_asset_ids = {
             str(item["raw_record"]["raw_asset_id"]) for item in staged_raw_assets
         }
@@ -161,13 +162,24 @@ class CloseoutRunVerifier:
         }
         mismatched_raw_versions: list[str] = []
         for staged_notice in staged_notices:
+            notice_id = str(staged_notice["notice_id"])
             raw_asset_id = str(staged_notice["raw_asset_id"])
             document_id = str(staged_notice["document_id"])
             raw_version_id = str(staged_notice["raw_version_id"])
+            expected_parent_document_id = expected_parent_document_ids.get(notice_id)
+            if (
+                expected_parent_document_id is not None
+                and document_id != expected_parent_document_id
+            ):
+                mismatched_raw_versions.append(raw_asset_id)
+                continue
             if raw_versions_by_asset.get(raw_asset_id) != raw_version_id:
                 mismatched_raw_versions.append(raw_asset_id)
                 continue
-            if documents_by_id.get(document_id) != raw_version_id:
+            if (
+                run.input_kind != SOURCE_TRUTH_REPLAY_INPUT_KIND
+                and documents_by_id.get(document_id) != raw_version_id
+            ):
                 mismatched_raw_versions.append(raw_asset_id)
 
         document_report = self.verifier.reconcile_documents(
@@ -181,8 +193,13 @@ class CloseoutRunVerifier:
         notice_missing = sorted(expected_notice_ids - observed_notice_ids)
         verification = {
             "run_id": run_id,
+            "input_kind": run.input_kind,
             "frozen_expected_notice_count": run.expected_notice_count,
+            "frozen_expected_document_count": run.expected_document_count,
+            "frozen_expected_attachment_document_count": run.expected_attachment_document_count,
+            "frozen_expected_raw_asset_count": run.expected_raw_asset_count,
             "expected_notice_count": len(expected_notice_ids),
+            "expected_attachment_document_count": expected_scope["attachment_document_count"],
             "persisted_shard_count": len(shards),
             "persisted_batch_count": len(batches),
             "missing_shard_id_count": len(missing_shard_ids),
@@ -220,6 +237,10 @@ class CloseoutRunVerifier:
             and verification["missing_batch_notice_id_count"] == 0
             and verification["unexpected_batch_notice_id_count"] == 0
             and verification["frozen_expected_notice_count"] == verification["expected_notice_count"]
+            and verification["frozen_expected_document_count"] == verification["expected_document_id_count"]
+            and verification["frozen_expected_attachment_document_count"]
+            == verification["expected_attachment_document_count"]
+            and verification["frozen_expected_raw_asset_count"] == verification["expected_raw_asset_id_count"]
             and verification["missing_notice_id_count"] == 0
             and verification["missing_notice_manifest_count"] == 0
             and verification["missing_document_units_count"] == 0
@@ -234,6 +255,62 @@ class CloseoutRunVerifier:
         if not verification["ok"]:
             raise ValueError(f"closeout verification failed for {run_id}")
         return verification
+
+    def _load_expected_scope(
+        self,
+        *,
+        run_id: str,
+        batches,
+        run,
+    ) -> dict[str, Any]:
+        expected_notice_ids: set[str] = set()
+        expected_document_ids: set[str] = set()
+        expected_raw_asset_ids: set[str] = set()
+        parent_document_ids_by_notice: dict[str, str] = {}
+        attachment_document_count = 0
+        for batch in batches:
+            if batch.input_object_key is None:
+                raise ValueError(f"closeout batch {batch.batch_id} missing input_object_key")
+            payload = json.loads(
+                self.artifacts.object_store.get_bytes(
+                    bucket=self.object_store_settings.bucket_derived,
+                    key=batch.input_object_key,
+                ).decode("utf-8")
+            )
+            if str(payload.get("run_id")) != run_id:
+                raise ValueError(f"closeout verification batch run mismatch: {batch.batch_id}")
+            input_kind = str(payload.get("input_kind") or run.input_kind or "")
+            if input_kind == SOURCE_TRUTH_REPLAY_INPUT_KIND:
+                for parent in tuple(payload.get("source_truth_parents") or ()):
+                    notice_id = str(parent["notice_id"])
+                    expected_notice_ids.add(notice_id)
+                    parent_document_id = str(parent["document_id"])
+                    expected_document_ids.add(parent_document_id)
+                    parent_document_ids_by_notice[notice_id] = parent_document_id
+                    expected_raw_asset_ids.add(str(parent["raw_record"]["raw_asset_id"]))
+                    attachment_documents = tuple(
+                        parent.get("expected_attachment_documents") or ()
+                    )
+                    attachment_document_count += len(attachment_documents)
+                    for attachment in attachment_documents:
+                        expected_document_ids.add(str(attachment["document_id"]))
+                continue
+            notice_ids = tuple(str(item) for item in payload.get("notice_ids") or ())
+            expected_notice_ids.update(notice_ids)
+            expected_document_ids.update(
+                f"notice:{run.site_id}:{notice_id}" for notice_id in notice_ids
+            )
+            expected_raw_asset_ids.update(
+                build_authenticated_notice_raw_asset_id(run.site_id, notice_id)
+                for notice_id in notice_ids
+            )
+        return {
+            "notice_ids": expected_notice_ids,
+            "document_ids": expected_document_ids,
+            "raw_asset_ids": expected_raw_asset_ids,
+            "parent_document_ids_by_notice": parent_document_ids_by_notice,
+            "attachment_document_count": attachment_document_count,
+        }
 
 
 __all__ = [

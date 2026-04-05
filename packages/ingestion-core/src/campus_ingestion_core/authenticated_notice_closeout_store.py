@@ -162,6 +162,21 @@ def build_authenticated_notice_closeout_store_from_env(
     )
 
 
+def _documents_from_stage(stage: dict[str, Any]) -> tuple[dict[str, Any], ...]:
+    documents = stage.get("documents")
+    if documents is not None:
+        return tuple(dict(item) for item in documents)
+    return (
+        {
+            "document": dict(stage["document"]),
+            "staged_object_keys": dict(stage["staged_object_keys"]),
+            "final_object_keys": dict(stage["final_object_keys"]),
+            "content_hash": str(stage["content_hash"]),
+            "staged_object_metadata": dict(stage.get("staged_object_metadata") or {}),
+        },
+    )
+
+
 class InMemoryCloseoutStore:
     def __init__(self) -> None:
         self._runs: dict[str, CloseoutRun] = {}
@@ -312,7 +327,11 @@ class InMemoryCloseoutStore:
             shard = self._require_shard_unlocked(run_id, batch.shard_id)
             worker = self._require_worker_unlocked(run_id, worker_id)
             run = self._require_run_unlocked(run_id)
+            staged_notice_ids: set[str] = set()
+            staged_raw_asset_keys: set[tuple[str, str]] = set()
+            staged_document_keys: set[tuple[str, str, str]] = set()
             for stage in stages:
+                staged_notice_ids.add(str(stage["notice"]["notice_id"]))
                 self._stage_notice_unlocked(
                     run_id=run_id,
                     shard_id=batch.shard_id,
@@ -320,6 +339,11 @@ class InMemoryCloseoutStore:
                     notice=stage["notice"],
                     artifact_keys=stage["artifact_keys"],
                 )
+                raw_asset_key = (
+                    str(stage["raw_record"]["raw_asset_id"]),
+                    str(stage["raw_record"]["raw_version_id"]),
+                )
+                staged_raw_asset_keys.add(raw_asset_key)
                 self._stage_raw_unlocked(
                     run_id=run_id,
                     shard_id=batch.shard_id,
@@ -327,38 +351,45 @@ class InMemoryCloseoutStore:
                     raw_record=stage["raw_record"],
                     source_artifact_keys=stage["source_artifact_keys"],
                 )
-                self._stage_document_unlocked(
-                    run_id=run_id,
-                    shard_id=batch.shard_id,
-                    batch_id=batch.batch_id,
-                    document=stage["document"],
-                    staged_object_keys=stage["staged_object_keys"],
-                    final_object_keys=stage["final_object_keys"],
-                    content_hash=stage["content_hash"],
-                    staged_object_metadata=stage.get("staged_object_metadata") or {},
-                )
+                for document_stage in _documents_from_stage(stage):
+                    document_key = (
+                        str(document_stage["document"]["document_id"]),
+                        str(document_stage["document"]["revision_track"]),
+                        str(document_stage["document"]["version_id"]),
+                    )
+                    staged_document_keys.add(document_key)
+                    self._stage_document_unlocked(
+                        run_id=run_id,
+                        shard_id=batch.shard_id,
+                        batch_id=batch.batch_id,
+                        document=document_stage["document"],
+                        staged_object_keys=document_stage["staged_object_keys"],
+                        final_object_keys=document_stage["final_object_keys"],
+                        content_hash=document_stage["content_hash"],
+                        staged_object_metadata=document_stage.get("staged_object_metadata") or {},
+                    )
 
             completed_batch = batch.complete(
-                staged_notice_count=len(stages),
-                staged_raw_asset_count=len(stages),
-                staged_document_count=len(stages),
+                staged_notice_count=len(staged_notice_ids),
+                staged_raw_asset_count=len(staged_raw_asset_keys),
+                staged_document_count=len(staged_document_keys),
             )
             self._batches[run_id][batch_id] = completed_batch
             previous_shard_state = shard.state
             completed_shard = shard.complete_batch(
-                processed_notice_count=len(stages),
-                staged_notice_count=len(stages),
+                processed_notice_count=len(staged_notice_ids),
+                staged_notice_count=len(staged_notice_ids),
             )
             self._shards[run_id][batch.shard_id] = completed_shard
             completed_worker = worker.complete_batch(batch_id)
             self._workers[run_id][worker_id] = completed_worker
             updated_run = run.with_progress(
-                staged_notice_delta=len(stages),
-                staged_raw_asset_delta=len(stages),
-                staged_document_delta=len(stages),
+                staged_notice_delta=len(staged_notice_ids),
+                staged_raw_asset_delta=len(staged_raw_asset_keys),
+                staged_document_delta=len(staged_document_keys),
                 completed_batch_delta=1,
                 running_batch_delta=-1,
-                processed_notice_delta=len(stages),
+                processed_notice_delta=len(staged_notice_ids),
                 completed_shard_delta=(
                     1
                     if previous_shard_state != CloseoutShardState.DONE
@@ -797,7 +828,11 @@ class PostgresAuthenticatedNoticeCloseoutStore:
                     batch_id=batch_id,
                     worker_id=worker_id,
                 )
+                staged_notice_ids: set[str] = set()
+                staged_raw_asset_keys: set[tuple[str, str]] = set()
+                staged_document_keys: set[tuple[str, str, str]] = set()
                 for stage in stages:
+                    staged_notice_ids.add(str(stage["notice"]["notice_id"]))
                     self._stage_notice_cursor(
                         cursor=cursor,
                         run_id=run_id,
@@ -806,6 +841,11 @@ class PostgresAuthenticatedNoticeCloseoutStore:
                         notice=stage["notice"],
                         artifact_keys=stage["artifact_keys"],
                     )
+                    raw_asset_key = (
+                        str(stage["raw_record"]["raw_asset_id"]),
+                        str(stage["raw_record"]["raw_version_id"]),
+                    )
+                    staged_raw_asset_keys.add(raw_asset_key)
                     self._stage_raw_cursor(
                         cursor=cursor,
                         run_id=run_id,
@@ -814,38 +854,45 @@ class PostgresAuthenticatedNoticeCloseoutStore:
                         raw_record=stage["raw_record"],
                         source_artifact_keys=stage["source_artifact_keys"],
                     )
-                    self._stage_document_cursor(
-                        cursor=cursor,
-                        run_id=run_id,
-                        shard_id=batch.shard_id,
-                        batch_id=batch.batch_id,
-                        document=stage["document"],
-                        staged_object_keys=stage["staged_object_keys"],
-                        final_object_keys=stage["final_object_keys"],
-                        content_hash=stage["content_hash"],
-                        staged_object_metadata=stage.get("staged_object_metadata") or {},
-                    )
+                    for document_stage in _documents_from_stage(stage):
+                        document_key = (
+                            str(document_stage["document"]["document_id"]),
+                            str(document_stage["document"]["revision_track"]),
+                            str(document_stage["document"]["version_id"]),
+                        )
+                        staged_document_keys.add(document_key)
+                        self._stage_document_cursor(
+                            cursor=cursor,
+                            run_id=run_id,
+                            shard_id=batch.shard_id,
+                            batch_id=batch.batch_id,
+                            document=document_stage["document"],
+                            staged_object_keys=document_stage["staged_object_keys"],
+                            final_object_keys=document_stage["final_object_keys"],
+                            content_hash=document_stage["content_hash"],
+                            staged_object_metadata=document_stage.get("staged_object_metadata") or {},
+                        )
                 completed_batch = batch.complete(
-                    staged_notice_count=len(stages),
-                    staged_raw_asset_count=len(stages),
-                    staged_document_count=len(stages),
+                    staged_notice_count=len(staged_notice_ids),
+                    staged_raw_asset_count=len(staged_raw_asset_keys),
+                    staged_document_count=len(staged_document_keys),
                 )
                 self._save_batch_cursor(cursor, run_id, completed_batch)
                 previous_shard_state = shard.state
                 completed_shard = shard.complete_batch(
-                    processed_notice_count=len(stages),
-                    staged_notice_count=len(stages),
+                    processed_notice_count=len(staged_notice_ids),
+                    staged_notice_count=len(staged_notice_ids),
                 )
                 self._save_shard_cursor(cursor, run_id, completed_shard)
                 completed_worker = worker.complete_batch(batch_id)
                 self._save_worker_cursor(cursor, run_id, completed_worker)
                 updated_run = run.with_progress(
-                    staged_notice_delta=len(stages),
-                    staged_raw_asset_delta=len(stages),
-                    staged_document_delta=len(stages),
+                    staged_notice_delta=len(staged_notice_ids),
+                    staged_raw_asset_delta=len(staged_raw_asset_keys),
+                    staged_document_delta=len(staged_document_keys),
                     completed_batch_delta=1,
                     running_batch_delta=-1,
-                    processed_notice_delta=len(stages),
+                    processed_notice_delta=len(staged_notice_ids),
                     completed_shard_delta=(
                         1
                         if previous_shard_state != CloseoutShardState.DONE

@@ -20,6 +20,10 @@ from campus_ingestion_core.authenticated_notice_closeout import (
     InMemoryCloseoutStore,
 )
 from campus_ingestion_core.authenticated_notice_import import AuthenticatedNoticeImportRequest
+from campus_ingestion_core.authenticated_notice_import import import_authenticated_notice_export
+from campus_ingestion_core.authenticated_notice_source_truth_replay import (
+    AuthenticatedNoticeSourceTruthReplayRequest,
+)
 from campus_ingestion_core.authenticated_notice_closeout_store import (
     PostgresAuthenticatedNoticeCloseoutStore,
 )
@@ -30,6 +34,12 @@ from tests.ingestion.test_authenticated_notice_import import (
     _sample_export_manifest,
     _sample_notice_bundle,
     _write_json,
+)
+from tests.ingestion.test_authenticated_notice_source_projections import (
+    _FakeAttachmentOcrClient,
+    _build_minimal_docx_bytes,
+    _build_minimal_png_bytes,
+    _sample_notice_bundle as _sample_projection_notice_bundle,
 )
 from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 
@@ -510,6 +520,7 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
         self,
         *,
         root: Path,
+        ocr_client: object | None = None,
     ) -> tuple[AuthenticatedNoticeCloseoutService, _FakeObjectStore]:
         object_store = _FakeObjectStore()
         service = AuthenticatedNoticeCloseoutService(
@@ -527,8 +538,57 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
                 backing_path=root / "registry" / "raw-assets.json"
             ),
             planner=CloseoutPlanner(shard_size=2, batch_size=1, max_shards=4),
+            ocr_client=ocr_client,
         )
         return service, object_store
+
+    def _bootstrap_source_truth_scope(
+        self,
+        *,
+        root: Path,
+        object_store: _FakeObjectStore,
+        document_registry: InMemoryDocumentRegistry,
+        raw_asset_registry: InMemoryRawAssetRegistry,
+    ) -> None:
+        bundle_path = root / "source-truth-bundle.json"
+        manifest_path = root / "source-truth-manifest.json"
+        docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表第一行", "报名表第二行"))
+        png_bytes = _build_minimal_png_bytes()
+        bundle = _sample_projection_notice_bundle(docx_bytes=docx_bytes, png_bytes=png_bytes)
+        _write_json(bundle_path, bundle)
+        _write_json(manifest_path, _sample_export_manifest())
+        import_authenticated_notice_export(
+            request=AuthenticatedNoticeImportRequest(
+                bundle_path=bundle_path,
+                export_manifest_path=manifest_path,
+                site_id="muc_internal_portal",
+                source_home_url="https://portal.example.edu/home",
+            ),
+            env={
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+            },
+            object_store=object_store,
+            document_registry=document_registry,
+            raw_asset_registry=raw_asset_registry,
+        )
+        attachment = bundle[0]["attachments"][0]
+        assert isinstance(attachment, dict)
+        object_store.put_bytes(
+            bucket="campus-rag-source",
+            key=str(attachment["object_key"]),
+            data=docx_bytes,
+            content_type=str(attachment["mime_type"]),
+        )
+        image_attachment = bundle[0]["attachments"][1]
+        assert isinstance(image_attachment, dict)
+        object_store.put_bytes(
+            bucket="campus-rag-source",
+            key=str(image_attachment["object_key"]),
+            data=png_bytes,
+            content_type=str(image_attachment["mime_type"]),
+        )
 
     def test_plan_run_writes_frozen_batch_inputs_without_staging_any_documents(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -609,6 +669,107 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
             self.assertEqual(batch_input["shard_id"], 1)
             self.assertEqual(batch_input["notice_ids"], ["355119"])
             self.assertEqual(len(batch_input["bundle_records"]), 1)
+
+    def test_plan_source_truth_replay_run_writes_frozen_parent_inventory(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            service, object_store = self._build_service(root=root)
+            self._bootstrap_source_truth_scope(
+                root=root,
+                object_store=object_store,
+                document_registry=service.document_registry,
+                raw_asset_registry=service.raw_asset_registry,
+            )
+
+            summary = service.plan_source_truth_replay_run(
+                request=AuthenticatedNoticeSourceTruthReplayRequest(),
+                run_id="source-truth-run-1",
+                max_concurrency=2,
+                notice_concurrency=4,
+                object_store_concurrency=16,
+                lease_seconds=120,
+            )
+
+            self.assertEqual(summary["state"], "planned")
+            self.assertEqual(summary["expected_notice_count"], 1)
+            self.assertEqual(summary["expected_document_count"], 3)
+            self.assertEqual(summary["expected_attachment_document_count"], 2)
+            self.assertEqual(summary["batch_count"], 1)
+
+            batch_input_key = build_operations_artifact_key(
+                corpus="campus_notices",
+                operation="authenticated-notice-closeout",
+                run_id="source-truth-run-1",
+                filename="input.json",
+                segments=("batches", "000001"),
+            )
+            batch_input = json.loads(
+                object_store.get_bytes(
+                    bucket=service.object_store_settings.bucket_derived,
+                    key=batch_input_key,
+                ).decode("utf-8")
+            )
+            self.assertEqual(batch_input["input_kind"], "source_truth_replay")
+            self.assertNotIn("bundle_records", batch_input)
+            self.assertEqual(len(batch_input["source_truth_parents"]), 1)
+            parent = batch_input["source_truth_parents"][0]
+            self.assertEqual(parent["document_id"], "notice:muc_internal_portal:355119")
+            self.assertEqual(parent["raw_record"]["raw_asset_id"], "asset:authenticated-notice:muc_internal_portal:355119")
+            self.assertEqual(
+                sorted(item["classification"] for item in parent["expected_attachment_documents"]),
+                ["ocr_required", "text_extractable"],
+            )
+
+    def test_source_truth_replay_workers_stage_parent_and_child_documents(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            service, object_store = self._build_service(
+                root=root,
+                ocr_client=_FakeAttachmentOcrClient(),
+            )
+            self._bootstrap_source_truth_scope(
+                root=root,
+                object_store=object_store,
+                document_registry=service.document_registry,
+                raw_asset_registry=service.raw_asset_registry,
+            )
+
+            service.plan_source_truth_replay_run(
+                request=AuthenticatedNoticeSourceTruthReplayRequest(),
+                run_id="source-truth-run-1",
+                max_concurrency=2,
+                notice_concurrency=4,
+                object_store_concurrency=16,
+                lease_seconds=120,
+            )
+
+            verified = service.run_worker(
+                run_id="source-truth-run-1",
+                worker_id="worker-a",
+                poll_interval=0.0,
+            )
+
+            self.assertEqual(verified["state"], "verified")
+            self.assertEqual(verified["expected_notice_count"], 1)
+            self.assertEqual(verified["expected_document_count"], 3)
+            self.assertEqual(verified["staged_notice_count"], 1)
+            self.assertEqual(verified["staged_raw_asset_count"], 1)
+            self.assertEqual(verified["staged_document_count"], 3)
+            self.assertEqual(verified["verification"]["expected_document_id_count"], 3)
+            self.assertEqual(verified["verification"]["missing_document_id_count"], 0)
+            self.assertTrue(verified["verification"]["ok"])
+
+            promotion = service.promote_run("source-truth-run-1")
+            self.assertEqual(promotion["state"], "done")
+            self.assertEqual(promotion["replaced_scope_record_count"], 3)
+            records = service.document_registry.list_by_scope(
+                "campus_notices",
+                "internal_notice",
+            )
+            self.assertEqual(len(records), 3)
+            self.assertTrue(
+                any(record.document_id.startswith("notice_attachment:") for record in records)
+            )
 
     def test_workers_can_resume_from_planned_batches_and_finalize_verification(self) -> None:
         with TemporaryDirectory() as temp_dir:
