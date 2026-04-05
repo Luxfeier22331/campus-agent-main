@@ -95,6 +95,7 @@ worker 不得重新扫描全量 bundle 以恢复自己的 notice slice。
 
 - `closeout_runs` 聚合字段
 - `closeout_shards` / `closeout_batches` / `closeout_workers` 的轻量计数查询
+- promotion 进入后继续读取 `closeout_promotions` / `closeout_promotion_batches` 的 phase 与 batch 级聚合计数
 
 禁止：
 
@@ -159,6 +160,7 @@ single-promoter 语义保持不变：
 
 - promoter 内部并发执行 staged object -> final object 的 object-store native copy
 - raw asset upsert 与 final registry row materialization 采用 bulk-friendly 路径
+- promoter 必须把自身 phase、copy batch 进度、错误与恢复点持久化到 repo-owned promotion truth；promotion restart 只重试未完成 batch，不得清空已完成 copy 结果后重来
 
 因此 single-writer 限制的是最终 scope mutation，而不是 promoter 内部的 copy throughput。
 

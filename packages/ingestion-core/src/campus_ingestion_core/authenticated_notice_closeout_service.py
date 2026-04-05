@@ -16,6 +16,9 @@ from campus_ingestion_core.authenticated_notice_closeout_planning import (
 from campus_ingestion_core.authenticated_notice_closeout_promotion import (
     CloseoutPromotionCoordinator,
 )
+from campus_ingestion_core.authenticated_notice_closeout_repair import (
+    CloseoutRepairCoordinator,
+)
 from campus_ingestion_core.authenticated_notice_closeout_store import (
     CloseoutStore,
     build_authenticated_notice_closeout_store_from_env,
@@ -79,6 +82,12 @@ class AuthenticatedNoticeCloseoutService:
             artifacts=self.artifacts,
             object_store_settings=object_store_settings,
             run_verifier=self.run_verifier,
+            build_run_summary=self._build_run_summary,
+        )
+        self.repair = CloseoutRepairCoordinator(
+            closeout_store=closeout_store,
+            artifacts=self.artifacts,
+            object_store_settings=object_store_settings,
             build_run_summary=self._build_run_summary,
         )
         self.promotion = CloseoutPromotionCoordinator(
@@ -152,11 +161,20 @@ class AuthenticatedNoticeCloseoutService:
             raise ValueError(f"closeout run not found: {run_id}")
         if run.state.value == "done":
             return self._build_run_summary(run_id)
-        if run.state.value != "verified":
+        if run.state.value not in ("verified", "promoting"):
             raise ValueError(
                 f"closeout run must be verified before promotion: {run.state.value}"
             )
         return self.promotion.promote_run(
+            run=run,
+            request=self._request_from_run(run),
+        )
+
+    def repair_run(self, run_id: str) -> dict[str, Any]:
+        run = self.closeout_store.get_run(run_id)
+        if run is None:
+            raise ValueError(f"closeout run not found: {run_id}")
+        return self.repair.repair_run(
             run=run,
             request=self._request_from_run(run),
         )
@@ -171,6 +189,27 @@ class AuthenticatedNoticeCloseoutService:
         shards = self.closeout_store.list_shards(run_id)
         batches = self.closeout_store.list_batches(run_id)
         workers = self.closeout_store.list_workers(run_id)
+        promotion = dict(run.promotion)
+        promotion_id = str(promotion.get("promotion_id") or "")
+        if promotion_id:
+            promotion_batches = self.closeout_store.list_promotion_batches(run_id, promotion_id)
+            if promotion_batches:
+                promotion["copy_batch_count"] = len(promotion_batches)
+                promotion["copy_completed_batch_count"] = sum(
+                    1 for batch in promotion_batches if batch.state.value == "done"
+                )
+                promotion["copy_running_batch_count"] = sum(
+                    1 for batch in promotion_batches if batch.state.value == "running"
+                )
+                promotion["copy_failed_batch_count"] = sum(
+                    1 for batch in promotion_batches if batch.state.value == "failed"
+                )
+                promotion["copied_document_count"] = sum(
+                    int(batch.copied_document_count) for batch in promotion_batches
+                )
+                promotion["copied_object_count"] = sum(
+                    int(batch.copied_object_count) for batch in promotion_batches
+                )
         summary = {
             "run_id": run.run_id,
             "state": run.state.value,
@@ -195,9 +234,20 @@ class AuthenticatedNoticeCloseoutService:
             "finished_at": run.finished_at,
             "failure_reason": run.failure_reason,
             "verification": dict(run.verification),
-            "promotion": dict(run.promotion),
+            "promotion": promotion,
         }
-        summary.update(run.promotion)
+        if "state" in promotion:
+            summary["promotion_state"] = promotion["state"]
+        if "phase" in promotion:
+            summary["promotion_phase"] = promotion["phase"]
+        reserved_promotion_keys = {"state", "phase", "started_at", "finished_at", "updated_at"}
+        for key, value in promotion.items():
+            if key in {"state", "phase"}:
+                continue
+            if key in summary or key in reserved_promotion_keys:
+                summary[f"promotion_{key}"] = value
+                continue
+            summary[key] = value
         return summary
 
     def _request_from_run(self, run) -> AuthenticatedNoticeImportRequest:

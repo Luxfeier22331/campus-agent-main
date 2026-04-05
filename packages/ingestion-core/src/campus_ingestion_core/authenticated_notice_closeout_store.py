@@ -9,6 +9,8 @@ from typing import Any, Protocol, Sequence
 from campus_ingestion_core.authenticated_notice_closeout_models import (
     CloseoutBatch,
     CloseoutBatchState,
+    CloseoutPromotionBatch,
+    CloseoutPromotionBatchState,
     CloseoutRun,
     CloseoutRunState,
     CloseoutShard,
@@ -39,10 +41,18 @@ DEFAULT_RAW_ASSET_STAGE_TABLE = f"{DEFAULT_CLOSEOUT_SCHEMA}.closeout_raw_asset_s
 DEFAULT_DOCUMENT_STAGE_TABLE = f"{DEFAULT_CLOSEOUT_SCHEMA}.closeout_document_stage"
 DEFAULT_MILESTONE_TABLE = f"{DEFAULT_CLOSEOUT_SCHEMA}.closeout_milestones"
 DEFAULT_PROMOTION_TABLE = f"{DEFAULT_CLOSEOUT_SCHEMA}.closeout_promotions"
+DEFAULT_PROMOTION_BATCH_TABLE = f"{DEFAULT_CLOSEOUT_SCHEMA}.closeout_promotion_batches"
 
 
 class CloseoutStore(Protocol):
     def save_run(self, run: CloseoutRun) -> None: ...
+
+    def save_plan(
+        self,
+        run: CloseoutRun,
+        shards: Sequence[CloseoutShard],
+        batches: Sequence[CloseoutBatch],
+    ) -> None: ...
 
     def get_run(self, run_id: str) -> CloseoutRun | None: ...
 
@@ -119,6 +129,18 @@ class CloseoutStore(Protocol):
 
     def record_promotion(self, run_id: str, payload: dict[str, Any]) -> None: ...
 
+    def save_promotion_batch(
+        self,
+        run_id: str,
+        batch: CloseoutPromotionBatch,
+    ) -> None: ...
+
+    def list_promotion_batches(
+        self,
+        run_id: str,
+        promotion_id: str,
+    ) -> tuple[CloseoutPromotionBatch, ...]: ...
+
 
 def build_authenticated_notice_closeout_store_from_env(
     env: dict[str, str] | None = None,
@@ -148,6 +170,7 @@ class InMemoryCloseoutStore:
         self._documents: dict[str, dict[tuple[str, str, str], dict[str, Any]]] = {}
         self._milestones: dict[str, dict[str, dict[str, Any]]] = {}
         self._promotions: dict[str, list[dict[str, Any]]] = {}
+        self._promotion_batches: dict[str, dict[str, dict[int, CloseoutPromotionBatch]]] = {}
         self._lock = RLock()
 
     def make_shard(
@@ -182,6 +205,17 @@ class InMemoryCloseoutStore:
     def save_run(self, run: CloseoutRun) -> None:
         with self._lock:
             self._runs[run.run_id] = run
+
+    def save_plan(
+        self,
+        run: CloseoutRun,
+        shards: Sequence[CloseoutShard],
+        batches: Sequence[CloseoutBatch],
+    ) -> None:
+        with self._lock:
+            self._runs[run.run_id] = run
+            self._shards[run.run_id] = {shard.shard_id: shard for shard in shards}
+            self._batches[run.run_id] = {batch.batch_id: batch for batch in batches}
 
     def get_run(self, run_id: str) -> CloseoutRun | None:
         with self._lock:
@@ -380,6 +414,14 @@ class InMemoryCloseoutStore:
             if run.state not in (CloseoutRunState.PLANNED, CloseoutRunState.RUNNING):
                 return False
             batches = tuple(self._batches.get(run_id, {}).values())
+            if len(batches) != run.batch_count:
+                return False
+            if run.completed_batch_count < run.batch_count:
+                return False
+            if run.pending_batch_count > 0:
+                return False
+            if run.running_batch_count > 0:
+                return False
             if any(
                 batch.state in (CloseoutBatchState.PENDING, CloseoutBatchState.RUNNING)
                 for batch in batches
@@ -456,6 +498,25 @@ class InMemoryCloseoutStore:
     def record_promotion(self, run_id: str, payload: dict[str, Any]) -> None:
         with self._lock:
             self._promotions.setdefault(run_id, []).append(dict(payload))
+
+    def save_promotion_batch(
+        self,
+        run_id: str,
+        batch: CloseoutPromotionBatch,
+    ) -> None:
+        with self._lock:
+            self._promotion_batches.setdefault(run_id, {}).setdefault(batch.promotion_id, {})[
+                batch.batch_id
+            ] = batch
+
+    def list_promotion_batches(
+        self,
+        run_id: str,
+        promotion_id: str,
+    ) -> tuple[CloseoutPromotionBatch, ...]:
+        with self._lock:
+            batches = self._promotion_batches.get(run_id, {}).get(promotion_id, {})
+            return tuple(batches[batch_id] for batch_id in sorted(batches))
 
     def _active_worker_count_unlocked(self, run_id: str) -> int:
         workers = self._workers.get(run_id, {})
@@ -563,6 +624,7 @@ class PostgresAuthenticatedNoticeCloseoutStore:
         document_stage_table: str = DEFAULT_DOCUMENT_STAGE_TABLE,
         milestone_table: str = DEFAULT_MILESTONE_TABLE,
         promotion_table: str = DEFAULT_PROMOTION_TABLE,
+        promotion_batch_table: str = DEFAULT_PROMOTION_BATCH_TABLE,
     ) -> None:
         self.database_url = database_url.strip()
         if not self.database_url:
@@ -576,12 +638,27 @@ class PostgresAuthenticatedNoticeCloseoutStore:
         self.document_stage_table = document_stage_table
         self.milestone_table = milestone_table
         self.promotion_table = promotion_table
+        self.promotion_batch_table = promotion_batch_table
         self._ensure_schema()
 
     def save_run(self, run: CloseoutRun) -> None:
         with _postgres_connection(self.database_url) as conn:
             with conn.cursor() as cursor:
                 self._save_run_cursor(cursor, run)
+
+    def save_plan(
+        self,
+        run: CloseoutRun,
+        shards: Sequence[CloseoutShard],
+        batches: Sequence[CloseoutBatch],
+    ) -> None:
+        with _postgres_connection(self.database_url, autocommit=False) as conn:
+            with conn.cursor() as cursor:
+                self._save_run_cursor(cursor, run)
+                for shard in shards:
+                    self._save_shard_cursor(cursor, run.run_id, shard)
+                for batch in batches:
+                    self._save_batch_cursor(cursor, run.run_id, batch)
 
     def get_run(self, run_id: str) -> CloseoutRun | None:
         row = self._fetchone(
@@ -839,6 +916,15 @@ class PostgresAuthenticatedNoticeCloseoutStore:
                     (run_id,),
                 )
                 counts = {str(state): int(count) for state, count in cursor.fetchall()}
+                total_batch_rows = sum(counts.values())
+                if total_batch_rows != run.batch_count:
+                    return False
+                if run.completed_batch_count < run.batch_count:
+                    return False
+                if run.pending_batch_count > 0:
+                    return False
+                if run.running_batch_count > 0:
+                    return False
                 if counts.get(CloseoutBatchState.PENDING.value, 0) > 0:
                     return False
                 if counts.get(CloseoutBatchState.RUNNING.value, 0) > 0:
@@ -948,6 +1034,31 @@ class PostgresAuthenticatedNoticeCloseoutStore:
                     },
                 )
 
+    def save_promotion_batch(
+        self,
+        run_id: str,
+        batch: CloseoutPromotionBatch,
+    ) -> None:
+        with _postgres_connection(self.database_url) as conn:
+            with conn.cursor() as cursor:
+                self._save_promotion_batch_cursor(cursor, run_id, batch)
+
+    def list_promotion_batches(
+        self,
+        run_id: str,
+        promotion_id: str,
+    ) -> tuple[CloseoutPromotionBatch, ...]:
+        rows = self._fetchall(
+            (
+                f"select record from {self.promotion_batch_table} "
+                "where run_id = %s and promotion_id = %s order by batch_id asc"
+            ),
+            (run_id, promotion_id),
+        )
+        return tuple(
+            CloseoutPromotionBatch.from_dict(_coerce_json_payload(row[0])) for row in rows
+        )
+
     def _ensure_schema(self) -> None:
         table_specs = {
             self.run_table: """
@@ -1044,6 +1155,17 @@ class PostgresAuthenticatedNoticeCloseoutStore:
                     primary key (run_id, promotion_id)
                 )
             """,
+            self.promotion_batch_table: """
+                create table if not exists {table_sql} (
+                    run_id text not null,
+                    promotion_id text not null,
+                    batch_id integer not null,
+                    state text not null,
+                    updated_at timestamptz not null,
+                    record jsonb not null,
+                    primary key (run_id, promotion_id, batch_id)
+                )
+            """,
         }
         with _postgres_connection(self.database_url) as conn:
             with conn.cursor() as cursor:
@@ -1112,6 +1234,26 @@ class PostgresAuthenticatedNoticeCloseoutStore:
                 "state": worker.state.value,
                 "updated_at": utc_now_dt(),
                 "record": asdict(worker),
+            },
+        )
+
+    def _save_promotion_batch_cursor(
+        self,
+        cursor,
+        run_id: str,
+        batch: CloseoutPromotionBatch,
+    ) -> None:
+        self._upsert_by_primary_key_cursor(
+            cursor=cursor,
+            table_name=self.promotion_batch_table,
+            key_columns=("run_id", "promotion_id", "batch_id"),
+            row={
+                "run_id": run_id,
+                "promotion_id": batch.promotion_id,
+                "batch_id": batch.batch_id,
+                "state": batch.state.value,
+                "updated_at": utc_now_dt(),
+                "record": asdict(batch),
             },
         )
 
@@ -1368,6 +1510,7 @@ __all__ = [
     "DEFAULT_DOCUMENT_STAGE_TABLE",
     "DEFAULT_MILESTONE_TABLE",
     "DEFAULT_NOTICE_STAGE_TABLE",
+    "DEFAULT_PROMOTION_BATCH_TABLE",
     "DEFAULT_PROMOTION_TABLE",
     "DEFAULT_RAW_ASSET_STAGE_TABLE",
     "DEFAULT_RUN_TABLE",

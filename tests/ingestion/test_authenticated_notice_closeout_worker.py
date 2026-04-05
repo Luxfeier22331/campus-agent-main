@@ -32,6 +32,9 @@ show_worker = importlib.import_module("campus_ingestion_worker.show_authenticate
 promote_worker = importlib.import_module(
     "campus_ingestion_worker.promote_authenticated_notice_closeout"
 )
+repair_worker = importlib.import_module(
+    "campus_ingestion_worker.repair_authenticated_notice_closeout"
+)
 watch_worker = importlib.import_module("campus_ingestion_worker.watch_authenticated_notice_closeout")
 
 
@@ -198,6 +201,31 @@ class AuthenticatedNoticeCloseoutWorkerCliTest(unittest.TestCase):
             if line.strip()
         ]
         self.assertEqual([item["state"] for item in rendered], ["planned", "verified"])
+
+    def test_repair_cli_invokes_service_repair(self) -> None:
+        service = Mock()
+        service.repair_run.return_value = {
+            "run_id": "run-1",
+            "state": "running",
+            "batch_count": 4,
+            "completed_batch_count": 2,
+            "pending_batch_count": 2,
+        }
+
+        with (
+            patch("campus_ingestion_worker.repair_authenticated_notice_closeout.load_worker_env"),
+            patch(
+                "campus_ingestion_worker.repair_authenticated_notice_closeout.AuthenticatedNoticeCloseoutService.from_env",
+                return_value=service,
+            ),
+            patch("sys.stdout", new_callable=io.StringIO) as stdout,
+        ):
+            repair_worker.main(["--run-id", "run-1"])
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["state"], "running")
+        self.assertEqual(payload["pending_batch_count"], 2)
+        service.repair_run.assert_called_once_with("run-1")
 
 
 if __name__ == "__main__":

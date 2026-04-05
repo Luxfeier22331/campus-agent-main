@@ -146,11 +146,12 @@ Phase 12.2 已把 authenticated notice historical closeout 重构为 async stage
 - worker / batch 可以并发写 source-truth objects 与 staged document objects
 - worker 只允许读取自己 claim 到的 batch input，不得重新 eager prepare 整份 bundle
 - staging state 固定落在 `ingestion_closeout.closeout_*` 表，其中 batch / worker truth 由 `closeout_batches` / `closeout_workers` 持有
+- promotion progress truth 由 `closeout_promotions` / `closeout_promotion_batches` 持有，`show` / `watch` 只能读这些聚合字段，不能靠 promotion stdout 或扫描 staged document rows
 - batch notice/raw/document rows 与 run/shard/batch/worker 聚合状态必须在同一事务内提交
 - shard 不得直接写 canonical `campus_notices/documents/internal_notice`
 - 所有 batch 完成后，只允许一个 finalizer 把 run 切到 `verifying` 并执行 metadata-driven verification
 - 只有单个 promoter 可以复制 staged document artifacts、构造 final registry rows、执行 `replace_scope`
-- promoter 内部允许并发 object-store native copy，但 single-writer scope mutation 语义不变
+- promoter 内部允许并发 object-store native copy，但 single-writer scope mutation 语义不变；promotion copy 必须按 repo-owned batch truth 可恢复地推进，而不是依赖单个长时黑盒进程
 - operator status / progress 读取 operations prefix 与 staging tables，而不是通过 rerun checkpoint 获取；`show` / `watch` 必须只读聚合 progress truth，不扫描全量 staged rows
 
 ## Current Status

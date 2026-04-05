@@ -199,6 +199,11 @@ class InMemoryRawAssetRegistry:
         self._records[(record.raw_asset_id, record.raw_version_id)] = record
         self._sync_backing_path()
 
+    def upsert_many(self, records: tuple[RawAssetRecord, ...]) -> None:
+        for record in records:
+            self._records[(record.raw_asset_id, record.raw_version_id)] = record
+        self._sync_backing_path()
+
     def list_by_corpus(self, corpus: str) -> tuple[RawAssetRecord, ...]:
         return self.list_by_scope(corpus)
 

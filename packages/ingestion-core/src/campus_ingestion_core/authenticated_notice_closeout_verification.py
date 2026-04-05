@@ -69,9 +69,26 @@ class CloseoutRunVerifier:
         staged_notices = self.closeout_store.get_staged_notices(run_id)
         staged_raw_assets = self.closeout_store.get_staged_raw_assets(run_id)
         staged_documents = self.closeout_store.get_staged_documents(run_id)
+        shards = self.closeout_store.list_shards(run_id)
         batches = self.closeout_store.list_batches(run_id)
 
-        expected_notice_ids = {notice_id for batch in batches for notice_id in batch.notice_ids}
+        persisted_shard_ids = {shard.shard_id for shard in shards}
+        expected_shard_ids = set(range(1, max(run.shard_count, len(shards)) + 1))
+        missing_shard_ids = sorted(expected_shard_ids - persisted_shard_ids)
+        persisted_batch_ids = {batch.batch_id for batch in batches}
+        expected_batch_ids = {
+            int(batch_id) for shard in shards for batch_id in shard.batch_ids
+        }
+        missing_batch_ids = sorted(expected_batch_ids - persisted_batch_ids)
+        unexpected_batch_ids = sorted(persisted_batch_ids - expected_batch_ids)
+        expected_notice_ids = {notice_id for shard in shards for notice_id in shard.notice_ids}
+        planned_batch_notice_ids = {
+            notice_id for batch in batches for notice_id in batch.notice_ids
+        }
+        missing_planned_notice_ids = sorted(expected_notice_ids - planned_batch_notice_ids)
+        unexpected_planned_notice_ids = sorted(
+            planned_batch_notice_ids - expected_notice_ids
+        )
         observed_notice_ids = {str(item["notice_id"]) for item in staged_notices}
         expected_document_ids = {
             f"notice:{run.site_id}:{notice_id}" for notice_id in expected_notice_ids
@@ -164,7 +181,20 @@ class CloseoutRunVerifier:
         notice_missing = sorted(expected_notice_ids - observed_notice_ids)
         verification = {
             "run_id": run_id,
+            "frozen_expected_notice_count": run.expected_notice_count,
             "expected_notice_count": len(expected_notice_ids),
+            "persisted_shard_count": len(shards),
+            "persisted_batch_count": len(batches),
+            "missing_shard_id_count": len(missing_shard_ids),
+            "missing_shard_ids_sample": missing_shard_ids[:20],
+            "missing_batch_id_count": len(missing_batch_ids),
+            "missing_batch_ids_sample": missing_batch_ids[:20],
+            "unexpected_batch_id_count": len(unexpected_batch_ids),
+            "unexpected_batch_ids_sample": unexpected_batch_ids[:20],
+            "missing_batch_notice_id_count": len(missing_planned_notice_ids),
+            "missing_batch_notice_ids_sample": missing_planned_notice_ids[:20],
+            "unexpected_batch_notice_id_count": len(unexpected_planned_notice_ids),
+            "unexpected_batch_notice_ids_sample": unexpected_planned_notice_ids[:20],
             "staged_notice_count": len(observed_notice_ids),
             "missing_notice_id_count": len(notice_missing),
             "missing_notice_ids_sample": notice_missing[:20],
@@ -184,7 +214,13 @@ class CloseoutRunVerifier:
             **raw_report,
         }
         verification["ok"] = (
-            verification["missing_notice_id_count"] == 0
+            verification["missing_shard_id_count"] == 0
+            and verification["missing_batch_id_count"] == 0
+            and verification["unexpected_batch_id_count"] == 0
+            and verification["missing_batch_notice_id_count"] == 0
+            and verification["unexpected_batch_notice_id_count"] == 0
+            and verification["frozen_expected_notice_count"] == verification["expected_notice_count"]
+            and verification["missing_notice_id_count"] == 0
             and verification["missing_notice_manifest_count"] == 0
             and verification["missing_document_units_count"] == 0
             and verification["mismatched_document_hash_count"] == 0

@@ -130,6 +130,8 @@ class RawAssetRegistry(Protocol):
 
     def upsert(self, record: RawAssetRecord) -> None: ...
 
+    def upsert_many(self, records: tuple[RawAssetRecord, ...]) -> None: ...
+
     def list_by_corpus(self, corpus: str) -> tuple[RawAssetRecord, ...]: ...
 
     def list_by_scope(
@@ -341,9 +343,9 @@ class PostgresDocumentRegistry:
             with conn.cursor() as cursor:
                 cursor.execute(delete_query, delete_params)
                 if records:
-                    cursor.executemany(
-                        self._upsert_query(),
-                        tuple(self._record_upsert_params(record) for record in records),
+                    cursor.execute(
+                        self._bulk_upsert_query(),
+                        (self._recordset_payload(records),),
                     )
 
     def _ensure_schema(self) -> None:
@@ -437,6 +439,69 @@ class PostgresDocumentRegistry:
             json.dumps(asdict(record), ensure_ascii=False),
         )
 
+    def _bulk_upsert_query(self) -> str:
+        table_sql = _qualified_table_sql(self.table_name)
+        return f"""
+            with rows as (
+                select
+                    item.document_id,
+                    item.revision_track,
+                    item.version_id,
+                    item.corpus,
+                    item.collection,
+                    item.ingestion_timestamp,
+                    item.record
+                from jsonb_to_recordset(%s::jsonb) as item(
+                    document_id text,
+                    revision_track text,
+                    version_id text,
+                    corpus text,
+                    collection text,
+                    ingestion_timestamp timestamptz,
+                    record jsonb
+                )
+            )
+            insert into {table_sql} (
+                document_id,
+                revision_track,
+                version_id,
+                corpus,
+                collection,
+                ingestion_timestamp,
+                record
+            )
+            select
+                document_id,
+                revision_track,
+                version_id,
+                corpus,
+                collection,
+                ingestion_timestamp,
+                record
+            from rows
+            on conflict (document_id, revision_track, version_id) do update set
+                corpus = excluded.corpus,
+                collection = excluded.collection,
+                ingestion_timestamp = excluded.ingestion_timestamp,
+                record = excluded.record
+        """
+
+    @staticmethod
+    def _recordset_payload(records: tuple[DocumentRegistryRecord, ...]) -> str:
+        payload = [
+            {
+                "document_id": record.document_id,
+                "revision_track": record.revision_track,
+                "version_id": record.version_id,
+                "corpus": record.corpus,
+                "collection": record.collection,
+                "ingestion_timestamp": record.ingestion_timestamp,
+                "record": asdict(record),
+            }
+            for record in records
+        ]
+        return json.dumps(payload, ensure_ascii=False)
+
 
 class PostgresRawAssetRegistry:
     def __init__(
@@ -462,28 +527,17 @@ class PostgresRawAssetRegistry:
         return _raw_asset_record_from_dict(_coerce_json_payload(row[0]))
 
     def upsert(self, record: RawAssetRecord) -> None:
-        payload = json.dumps(asdict(record), ensure_ascii=False)
-        query = (
-            f"insert into {self.table_name} "
-            "(raw_asset_id, raw_version_id, corpus, collection, ingestion_timestamp, record) "
-            "values (%s, %s, %s, %s, %s, %s::jsonb) "
-            "on conflict (raw_asset_id, raw_version_id) do update set "
-            "corpus = excluded.corpus, "
-            "collection = excluded.collection, "
-            "ingestion_timestamp = excluded.ingestion_timestamp, "
-            "record = excluded.record"
-        )
-        self._execute(
-            query,
-            (
-                record.raw_asset_id,
-                record.raw_version_id,
-                record.corpus,
-                record.collection,
-                _parse_timestamp(record.ingestion_timestamp),
-                payload,
-            ),
-        )
+        self.upsert_many((record,))
+
+    def upsert_many(self, records: tuple[RawAssetRecord, ...]) -> None:
+        if not records:
+            return
+        with _postgres_connection(self.database_url) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    self._bulk_upsert_query(),
+                    (self._recordset_payload(records),),
+                )
 
     def list_by_corpus(self, corpus: str) -> tuple[RawAssetRecord, ...]:
         return self.list_by_scope(corpus)
@@ -567,6 +621,64 @@ class PostgresRawAssetRegistry:
                 cursor.execute(query, params)
                 rows = cursor.fetchall()
         return tuple(tuple(row) for row in rows)
+
+    def _bulk_upsert_query(self) -> str:
+        table_sql = _qualified_table_sql(self.table_name)
+        return f"""
+            with rows as (
+                select
+                    item.raw_asset_id,
+                    item.raw_version_id,
+                    item.corpus,
+                    item.collection,
+                    item.ingestion_timestamp,
+                    item.record
+                from jsonb_to_recordset(%s::jsonb) as item(
+                    raw_asset_id text,
+                    raw_version_id text,
+                    corpus text,
+                    collection text,
+                    ingestion_timestamp timestamptz,
+                    record jsonb
+                )
+            )
+            insert into {table_sql} (
+                raw_asset_id,
+                raw_version_id,
+                corpus,
+                collection,
+                ingestion_timestamp,
+                record
+            )
+            select
+                raw_asset_id,
+                raw_version_id,
+                corpus,
+                collection,
+                ingestion_timestamp,
+                record
+            from rows
+            on conflict (raw_asset_id, raw_version_id) do update set
+                corpus = excluded.corpus,
+                collection = excluded.collection,
+                ingestion_timestamp = excluded.ingestion_timestamp,
+                record = excluded.record
+        """
+
+    @staticmethod
+    def _recordset_payload(records: tuple[RawAssetRecord, ...]) -> str:
+        payload = [
+            {
+                "raw_asset_id": record.raw_asset_id,
+                "raw_version_id": record.raw_version_id,
+                "corpus": record.corpus,
+                "collection": record.collection,
+                "ingestion_timestamp": record.ingestion_timestamp,
+                "record": asdict(record),
+            }
+            for record in records
+        ]
+        return json.dumps(payload, ensure_ascii=False)
 
 
 def build_document_registry_from_env(env: dict[str, str] | None = None) -> DocumentRegistry:

@@ -154,7 +154,6 @@ class CloseoutPlanningCoordinator:
             object_store_concurrency=object_store_concurrency,
             lease_seconds=lease_seconds,
         )
-        self.closeout_store.save_run(planning_run)
         try:
             bundle_payload = load_authenticated_notice_bundle_payload(request.bundle_path)
             export_manifest = load_authenticated_notice_export_manifest(
@@ -222,11 +221,7 @@ class CloseoutPlanningCoordinator:
                 batch_count=len(batches),
                 pending_batch_count=len(batches),
             ).mark_planned()
-            self.closeout_store.save_run(run)
-            for shard in shards:
-                self.closeout_store.save_shard(run_id, shard)
-            for batch in batches:
-                self.closeout_store.save_batch(run_id, batch)
+            self.closeout_store.save_plan(run, shards, batches)
 
             self.artifacts.write_json_artifact(
                 request=request,
@@ -314,12 +309,13 @@ class CloseoutPlanningCoordinator:
             )
             return planned_summary
         except Exception as exc:
-            self.closeout_store.mark_run_failed(run_id, str(exc))
-            self.closeout_store.record_milestone(
-                run_id,
-                "failed",
-                {"run_id": run_id, "error": str(exc)},
-            )
+            if self.closeout_store.get_run(run_id) is not None:
+                self.closeout_store.mark_run_failed(run_id, str(exc))
+                self.closeout_store.record_milestone(
+                    run_id,
+                    "failed",
+                    {"run_id": run_id, "error": str(exc)},
+                )
             raise
 
     def _freeze_batch_inputs(

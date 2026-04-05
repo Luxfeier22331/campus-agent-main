@@ -80,6 +80,13 @@ class CloseoutWorkerState(str, Enum):
     FAILED = "failed"
 
 
+class CloseoutPromotionBatchState(str, Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    DONE = "done"
+    FAILED = "failed"
+
+
 @dataclass(frozen=True, slots=True)
 class CloseoutRun:
     run_id: str
@@ -212,10 +219,14 @@ class CloseoutRun:
             failure_reason=None,
         )
 
-    def mark_promoting(self) -> CloseoutRun:
+    def with_promotion(self, promotion: dict[str, Any]) -> CloseoutRun:
+        return replace(self, promotion=dict(promotion))
+
+    def mark_promoting(self, promotion: dict[str, Any] | None = None) -> CloseoutRun:
         return replace(
             self,
             state=CloseoutRunState.PROMOTING,
+            promotion=dict(self.promotion if promotion is None else promotion),
             active_worker_count=0,
             failure_reason=None,
         )
@@ -494,6 +505,72 @@ class CloseoutWorker:
         )
         raw["current_batch_ids"] = tuple(
             int(item) for item in raw.get("current_batch_ids") or ()
+        )
+        return cls(**raw)
+
+
+@dataclass(frozen=True, slots=True)
+class CloseoutPromotionBatch:
+    promotion_id: str
+    batch_id: int
+    document_refs: tuple[tuple[str, str, str], ...]
+    state: CloseoutPromotionBatchState = CloseoutPromotionBatchState.PENDING
+    attempt: int = 0
+    copied_document_count: int = 0
+    copied_object_count: int = 0
+    started_at: str | None = None
+    heartbeat_at: str | None = None
+    finished_at: str | None = None
+    error: str | None = None
+
+    def mark_running(self) -> CloseoutPromotionBatch:
+        timestamp = utc_now()
+        return replace(
+            self,
+            state=CloseoutPromotionBatchState.RUNNING,
+            attempt=self.attempt + 1,
+            started_at=self.started_at or timestamp,
+            heartbeat_at=timestamp,
+            finished_at=None,
+            error=None,
+        )
+
+    def complete(
+        self,
+        *,
+        copied_document_count: int,
+        copied_object_count: int,
+    ) -> CloseoutPromotionBatch:
+        timestamp = utc_now()
+        return replace(
+            self,
+            state=CloseoutPromotionBatchState.DONE,
+            copied_document_count=copied_document_count,
+            copied_object_count=copied_object_count,
+            heartbeat_at=timestamp,
+            finished_at=timestamp,
+            error=None,
+        )
+
+    def fail(self, error: str) -> CloseoutPromotionBatch:
+        timestamp = utc_now()
+        return replace(
+            self,
+            state=CloseoutPromotionBatchState.FAILED,
+            heartbeat_at=timestamp,
+            finished_at=timestamp,
+            error=error,
+        )
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> CloseoutPromotionBatch:
+        raw = dict(payload)
+        raw["state"] = CloseoutPromotionBatchState(
+            str(raw.get("state") or CloseoutPromotionBatchState.PENDING.value)
+        )
+        raw["document_refs"] = tuple(
+            tuple(str(part) for part in item)
+            for item in raw.get("document_refs") or ()
         )
         return cls(**raw)
 

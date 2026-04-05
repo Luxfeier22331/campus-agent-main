@@ -12,6 +12,7 @@ from campus_ingestion_core.registry import (
     DEFAULT_DOCUMENT_REGISTRY_TABLE,
     DEFAULT_RAW_ASSET_REGISTRY_TABLE,
     PostgresDocumentRegistry,
+    PostgresRawAssetRegistry,
     _ensure_table_schema,
     _document_record_from_dict,
     _raw_asset_record_from_dict,
@@ -780,6 +781,126 @@ class RegistryModelsTest(unittest.TestCase):
         ):
             self.assertIsNone(registry.current_version("handbook:test-001"))
             latest_versions.assert_not_called()
+
+    def test_postgres_document_registry_replace_scope_uses_bulk_recordset_insert(self) -> None:
+        class _RecordingCursor:
+            def __init__(self) -> None:
+                self.execute_calls: list[tuple[str, tuple[object, ...] | None]] = []
+                self.executemany_calls: list[tuple[str, tuple[tuple[object, ...], ...]]] = []
+
+            def execute(self, sql: str, params: tuple[object, ...] | None = None) -> None:
+                self.execute_calls.append((sql, params))
+
+            def executemany(self, sql: str, params_seq) -> None:
+                self.executemany_calls.append((sql, tuple(params_seq)))
+
+        class _CursorContext:
+            def __init__(self, cursor: _RecordingCursor) -> None:
+                self.cursor = cursor
+
+            def __enter__(self) -> _RecordingCursor:
+                return self.cursor
+
+            def __exit__(self, exc_type, exc, tb) -> bool:
+                return False
+
+        class _ConnectionContext:
+            def __init__(self, cursor: _RecordingCursor) -> None:
+                self._cursor = cursor
+
+            def __enter__(self) -> _ConnectionContext:
+                return self
+
+            def __exit__(self, exc_type, exc, tb) -> bool:
+                return False
+
+            def cursor(self) -> _CursorContext:
+                return _CursorContext(self._cursor)
+
+        with patch.object(PostgresDocumentRegistry, "_ensure_schema", return_value=None):
+            registry = PostgresDocumentRegistry("postgresql://registry.example/postgres")
+        cursor = _RecordingCursor()
+        handbook_record = _handbook_document_record(
+            version_id="v2:test-001",
+            content_hash="sha256:test-002",
+            ingestion_timestamp="2026-03-23T10:00:00+00:00",
+        )
+        curriculum_record = _curriculum_document_record()
+
+        with patch(
+            "campus_ingestion_core.registry._postgres_connection",
+            return_value=_ConnectionContext(cursor),
+        ):
+            registry.replace_scope(
+                "regulations",
+                "student_handbook",
+                (handbook_record, curriculum_record),
+            )
+
+        self.assertEqual(cursor.executemany_calls, [])
+        self.assertTrue(
+            any("jsonb_to_recordset" in sql for sql, _params in cursor.execute_calls)
+        )
+
+    def test_postgres_raw_asset_registry_upsert_many_uses_bulk_recordset_insert(self) -> None:
+        class _RecordingCursor:
+            def __init__(self) -> None:
+                self.execute_calls: list[tuple[str, tuple[object, ...] | None]] = []
+                self.executemany_calls: list[tuple[str, tuple[tuple[object, ...], ...]]] = []
+
+            def execute(self, sql: str, params: tuple[object, ...] | None = None) -> None:
+                self.execute_calls.append((sql, params))
+
+            def executemany(self, sql: str, params_seq) -> None:
+                self.executemany_calls.append((sql, tuple(params_seq)))
+
+        class _CursorContext:
+            def __init__(self, cursor: _RecordingCursor) -> None:
+                self.cursor = cursor
+
+            def __enter__(self) -> _RecordingCursor:
+                return self.cursor
+
+            def __exit__(self, exc_type, exc, tb) -> bool:
+                return False
+
+        class _ConnectionContext:
+            def __init__(self, cursor: _RecordingCursor) -> None:
+                self._cursor = cursor
+
+            def __enter__(self) -> _ConnectionContext:
+                return self
+
+            def __exit__(self, exc_type, exc, tb) -> bool:
+                return False
+
+            def cursor(self) -> _CursorContext:
+                return _CursorContext(self._cursor)
+
+        with patch.object(PostgresRawAssetRegistry, "_ensure_schema", return_value=None):
+            registry = PostgresRawAssetRegistry("postgresql://registry.example/postgres")
+        cursor = _RecordingCursor()
+        first = replace(
+            _handbook_raw_asset_record(),
+            raw_asset_id="asset:001",
+            raw_version_id="sha256:001",
+        )
+        second = replace(
+            _curriculum_raw_asset_record(),
+            raw_asset_id="asset:002",
+            raw_version_id="sha256:002",
+        )
+
+        with patch(
+            "campus_ingestion_core.registry._postgres_connection",
+            return_value=_ConnectionContext(cursor),
+        ):
+            registry.upsert_many((first, second))
+
+        self.assertEqual(cursor.executemany_calls, [])
+        self.assertTrue(
+            any("jsonb_to_recordset" in sql for sql, _params in cursor.execute_calls)
+        )
 
     def test_ensure_table_schema_serializes_schema_bootstrap_with_advisory_lock(self) -> None:
         class _RecordingCursor:
