@@ -73,6 +73,7 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.promo
 - `OBJECT_STORE_*` 已配置
 - `DOCUMENT_REGISTRY_DATABASE_URL` / `RAW_ASSET_REGISTRY_DATABASE_URL` 已配置
 - `AUTHENTICATED_NOTICE_CLOSEOUT_DATABASE_URL` 已配置；如未单独配置，则当前实现回退到 `CAMPUS_SHARED_POSTGRES_URL`，再回退到 `DOCUMENT_REGISTRY_DATABASE_URL`
+- 当这些 URL 指向 Supabase 时，当前 accepted posture 固定为 IPv4 runtime + `session pooler`；不得把 `db.<project-ref>.supabase.co` 或 transaction pooler 用作长驻 worker 主链路
 - 当前目标 collection 仍是 `campus_notices/internal_notice`
 - posture 仍是 `restricted + offline_preparation`
 

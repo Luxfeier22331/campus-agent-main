@@ -8,6 +8,10 @@ import unittest
 from unittest.mock import patch
 
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef, SourceObservation
+from campus_ingestion_core.authenticated_notice_closeout_store import (
+    PostgresAuthenticatedNoticeCloseoutStore,
+    build_authenticated_notice_closeout_store_from_env,
+)
 from campus_ingestion_core.registry import (
     DEFAULT_DOCUMENT_REGISTRY_TABLE,
     DEFAULT_RAW_ASSET_REGISTRY_TABLE,
@@ -700,6 +704,18 @@ class RegistryModelsTest(unittest.TestCase):
             self.assertIs(registry, instance)
             registry_cls.assert_called_once_with("postgresql://shared.example/postgres")
 
+    def test_build_document_registry_from_env_rejects_supabase_direct_connection(self) -> None:
+        with patch.object(PostgresDocumentRegistry, "_ensure_schema", return_value=None):
+            with self.assertRaisesRegex(ValueError, "session pooler"):
+                build_document_registry_from_env(
+                    {
+                        "DOCUMENT_REGISTRY_DATABASE_URL": (
+                            "postgresql://postgres:secret@"
+                            "db.project-ref.supabase.co:5432/postgres?sslmode=require"
+                        )
+                    }
+                )
+
     def test_build_raw_asset_registry_from_env_uses_database_url(self) -> None:
         with patch("campus_ingestion_core.registry.PostgresRawAssetRegistry") as registry_cls:
             instance = registry_cls.return_value
@@ -736,6 +752,18 @@ class RegistryModelsTest(unittest.TestCase):
             self.assertIs(registry, instance)
             registry_cls.assert_called_once_with("postgresql://shared.example/postgres")
 
+    def test_build_raw_asset_registry_from_env_rejects_supabase_transaction_pooler(self) -> None:
+        with patch.object(PostgresRawAssetRegistry, "_ensure_schema", return_value=None):
+            with self.assertRaisesRegex(ValueError, "session pooler"):
+                build_raw_asset_registry_from_env(
+                    {
+                        "RAW_ASSET_REGISTRY_DATABASE_URL": (
+                            "postgresql://postgres:secret@"
+                            "db.project-ref.supabase.co:6543/postgres?sslmode=require"
+                        )
+                    }
+                )
+
     def test_build_raw_asset_registry_from_env_accepts_dedicated_database_url_without_document_registry(self) -> None:
         with patch("campus_ingestion_core.registry.PostgresRawAssetRegistry") as registry_cls:
             instance = registry_cls.return_value
@@ -746,6 +774,22 @@ class RegistryModelsTest(unittest.TestCase):
 
             self.assertIs(registry, instance)
             registry_cls.assert_called_once_with("postgresql://raw-registry.example/postgres")
+
+    def test_build_closeout_store_from_env_rejects_supabase_direct_connection(self) -> None:
+        with patch.object(
+            PostgresAuthenticatedNoticeCloseoutStore,
+            "_ensure_schema",
+            return_value=None,
+        ):
+            with self.assertRaisesRegex(ValueError, "session pooler"):
+                build_authenticated_notice_closeout_store_from_env(
+                    {
+                        "AUTHENTICATED_NOTICE_CLOSEOUT_DATABASE_URL": (
+                            "postgresql://postgres:secret@"
+                            "db.project-ref.supabase.co:5432/postgres?sslmode=require"
+                        )
+                    }
+                )
 
     def test_postgres_document_registry_delete_document_targets_document_id(self) -> None:
         with patch.object(PostgresDocumentRegistry, "_ensure_schema", return_value=None):

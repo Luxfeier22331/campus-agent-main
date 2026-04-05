@@ -106,6 +106,26 @@ collector runtime 的第一 owner 固定为 repo 内独立 `apps/*` runtime shel
 
 它不应反向把外部 collector 的 SQLite / JSON schema 提升成 repo 级长期 contract。
 
+## Runtime Connectivity Posture
+
+这条 source channel 的长期 runtime 连接姿态固定为：
+
+- 对象文件继续落在 `S3-compatible object storage`
+- Postgres 只承载 registry、closeout/control-plane truth 与其他关系型 metadata
+- repo-owned persistent runtime 默认按 `IPv4-only` 处理
+- 当共享 Postgres 由 Supabase 承载时，`apps/ingestion-worker` 与后续 authenticated notice control-plane runtime 默认使用 `session pooler`
+- 长驻 runtime 必须使用 application-side pooling；不把按操作建立数据库连接视为长期 accepted shape
+
+因此这条 source channel 的前向扩展方向仍是：
+
+`collector -> object storage + typed artifacts -> ingestion/control plane -> shared Postgres metadata truth`
+
+而不是：
+
+- 把对象迁入数据库或 Supabase Storage
+- 在 runtime 内做 IPv6 探测后自动切 direct connection
+- 把 transaction-mode pooler 当成长驻 worker 的主通道
+
 ## Restricted Rollout Posture
 
 这条 source channel 的首个下游 collection 默认按 restricted institutional document rollout 处理。
@@ -182,4 +202,5 @@ Phase 12.2 已把 authenticated notice historical closeout 重构为 async stage
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
 - `docs/decisions/adr-0025-authenticated-notice-async-staged-closeout.md`
 - `docs/decisions/adr-0026-authenticated-notice-batch-leased-closeout-throughput.md`
+- `docs/decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md`
 - `docs/plans/restricted-document-rollout-and-verification.md`

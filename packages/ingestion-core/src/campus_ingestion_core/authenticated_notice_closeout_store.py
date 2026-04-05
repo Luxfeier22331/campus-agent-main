@@ -28,6 +28,7 @@ from campus_ingestion_core.registry import (
     _qualified_table_sql,
     _table_index_suffix,
 )
+from campus_ingestion_core.postgres_runtime import validate_persistent_postgres_runtime_url
 
 
 DEFAULT_CLOSEOUT_SCHEMA = "ingestion_closeout"
@@ -156,7 +157,9 @@ def build_authenticated_notice_closeout_store_from_env(
         raise ValueError(
             f"{DEFAULT_CLOSEOUT_STORE_ENV_KEY} or {SHARED_POSTGRES_ENV_KEY} is required"
         )
-    return PostgresAuthenticatedNoticeCloseoutStore(database_url)
+    return PostgresAuthenticatedNoticeCloseoutStore(
+        validate_persistent_postgres_runtime_url(database_url)
+    )
 
 
 class InMemoryCloseoutStore:
@@ -626,7 +629,7 @@ class PostgresAuthenticatedNoticeCloseoutStore:
         promotion_table: str = DEFAULT_PROMOTION_TABLE,
         promotion_batch_table: str = DEFAULT_PROMOTION_BATCH_TABLE,
     ) -> None:
-        self.database_url = database_url.strip()
+        self.database_url = validate_persistent_postgres_runtime_url(database_url)
         if not self.database_url:
             raise ValueError("authenticated notice closeout database url is required")
         self.run_table = run_table

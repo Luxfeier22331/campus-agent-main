@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-03-30
-updated: 2026-03-30
+updated: 2026-04-05
 ---
 
 # Shared Postgres Ownership
@@ -38,6 +38,19 @@ repo root `.env` 的 canonical key 固定为：
 - 它是 repo 共享 Postgres truth，不是某个 app 的专属数据库
 - app-local env 可以从它 fan out，但不得反向把 app-local DSN 重新写成 repo shared truth
 - domain-specific database env 名称只保留为显式 override，不再承载“共享库 canonical name”语义
+
+## Connectivity Posture
+
+共享 Postgres 的长期连接规则见 `docs/decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md`。
+
+当前 accepted posture 固定为：
+
+- repo-owned persistent runtime 默认按 `IPv4-only` 处理
+- `CAMPUS_SHARED_POSTGRES_URL` 在 Supabase-backed runtime 下默认指向 `session pooler`
+- runtime 主链路不在 `direct connection` 与 `session pooler` 之间做自动切换
+- 长驻 Python / Node runtime 必须使用 application-side pooling，而不是每次数据库操作新建连接
+
+因此这份文档冻结的是 shared Postgres ownership，不再把“连接方式由各命令临时选择”视为允许形态。
 
 ## 逻辑 Schema Ownership
 

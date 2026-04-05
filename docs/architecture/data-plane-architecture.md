@@ -91,6 +91,16 @@ source truth 的长期硬约束：
 
 当前即使本机部署或通过 MinIO 落地，也不改变这条语义。
 
+## Registry Database Connectivity
+
+registry / control-plane database 与对象存储长期分层。
+
+固定规则：
+
+- Postgres 只承载 registry、run/progress truth 与其他关系型 metadata
+- 对象 bytes 不迁入 Postgres，也不改变 `S3-compatible object storage` 的长期语义
+- 当共享 Postgres 由 Supabase 承载且 repo-owned runtime 采用 IPv4-only 姿态时，运行时连接规则以 `docs/decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md` 为准
+
 ## Collection-Specific Rules
 
 以下内容不在本文内展开：
@@ -148,4 +158,5 @@ Phase 12.2 的 staged closeout 不改变 data-plane canonical chain，只改变 
 - `docs/decisions/adr-0020-qdrant-cloud-backup-restore-and-object-store-transition.md`
 - `docs/decisions/adr-0025-authenticated-notice-async-staged-closeout.md`
 - `docs/decisions/adr-0026-authenticated-notice-batch-leased-closeout-throughput.md`
+- `docs/decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md`
 - `docs/architecture/authenticated-notice-source-truth-contract.md`

@@ -7,6 +7,10 @@ import os
 from typing import Protocol
 
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef, SourceObservation
+from campus_ingestion_core.postgres_runtime import (
+    pooled_postgres_connection,
+    validate_persistent_postgres_runtime_url,
+)
 
 
 DEFAULT_REGISTRY_SCHEMA = "ingestion_registry"
@@ -152,7 +156,7 @@ class PostgresDocumentRegistry:
         *,
         table_name: str = DEFAULT_DOCUMENT_REGISTRY_TABLE,
     ) -> None:
-        self.database_url = database_url.strip()
+        self.database_url = validate_persistent_postgres_runtime_url(database_url)
         self.table_name = table_name
         if not self.database_url:
             raise ValueError("DOCUMENT_REGISTRY_DATABASE_URL is required")
@@ -510,7 +514,7 @@ class PostgresRawAssetRegistry:
         *,
         table_name: str = DEFAULT_RAW_ASSET_REGISTRY_TABLE,
     ) -> None:
-        self.database_url = database_url.strip()
+        self.database_url = validate_persistent_postgres_runtime_url(database_url)
         self.table_name = table_name
         if not self.database_url:
             raise ValueError("DOCUMENT_REGISTRY_DATABASE_URL is required")
@@ -700,7 +704,7 @@ def _required_document_registry_database_url(source: dict[str, str]) -> str:
         raise ValueError(
             f"{DOCUMENT_REGISTRY_ENV_KEY} or {SHARED_POSTGRES_ENV_KEY} is required"
         )
-    return database_url
+    return validate_persistent_postgres_runtime_url(database_url)
 
 
 def _required_raw_asset_registry_database_url(source: dict[str, str]) -> str:
@@ -714,17 +718,11 @@ def _required_raw_asset_registry_database_url(source: dict[str, str]) -> str:
             f"{RAW_ASSET_REGISTRY_ENV_KEY} or {DOCUMENT_REGISTRY_ENV_KEY} or "
             f"{SHARED_POSTGRES_ENV_KEY} is required"
         )
-    return database_url
+    return validate_persistent_postgres_runtime_url(database_url)
 
 
 def _postgres_connection(database_url: str, *, autocommit: bool = True):
-    try:
-        import psycopg
-    except ImportError as exc:  # pragma: no cover
-        raise RuntimeError(
-            "psycopg is required to use the Postgres document registry"
-        ) from exc
-    return psycopg.connect(database_url, autocommit=autocommit)
+    return pooled_postgres_connection(database_url, autocommit=autocommit)
 
 
 def _parse_timestamp(value: str) -> datetime:
