@@ -190,14 +190,23 @@ class CloseoutRunVerifier:
             expected_raw_asset_ids,
             observed_raw_asset_ids,
         )
+        frozen_expected_document_count = int(
+            run.expected_document_count or len(expected_document_ids)
+        )
+        frozen_expected_attachment_document_count = int(
+            run.expected_attachment_document_count
+        )
+        frozen_expected_raw_asset_count = int(
+            run.expected_raw_asset_count or len(expected_raw_asset_ids)
+        )
         notice_missing = sorted(expected_notice_ids - observed_notice_ids)
         verification = {
             "run_id": run_id,
             "input_kind": run.input_kind,
             "frozen_expected_notice_count": run.expected_notice_count,
-            "frozen_expected_document_count": run.expected_document_count,
-            "frozen_expected_attachment_document_count": run.expected_attachment_document_count,
-            "frozen_expected_raw_asset_count": run.expected_raw_asset_count,
+            "frozen_expected_document_count": frozen_expected_document_count,
+            "frozen_expected_attachment_document_count": frozen_expected_attachment_document_count,
+            "frozen_expected_raw_asset_count": frozen_expected_raw_asset_count,
             "expected_notice_count": len(expected_notice_ids),
             "expected_attachment_document_count": expected_scope["attachment_document_count"],
             "persisted_shard_count": len(shards),

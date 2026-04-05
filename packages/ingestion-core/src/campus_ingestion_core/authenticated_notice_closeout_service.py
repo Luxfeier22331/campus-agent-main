@@ -242,9 +242,13 @@ class AuthenticatedNoticeCloseoutService:
             "state": run.state.value,
             "input_kind": run.input_kind,
             "expected_notice_count": run.expected_notice_count,
-            "expected_document_count": run.expected_document_count,
+            "expected_document_count": (
+                run.expected_document_count or run.expected_notice_count
+            ),
             "expected_attachment_document_count": run.expected_attachment_document_count,
-            "expected_raw_asset_count": run.expected_raw_asset_count,
+            "expected_raw_asset_count": (
+                run.expected_raw_asset_count or run.expected_notice_count
+            ),
             "source_projections_path": run.source_projections_path,
             "operations_prefix": run.operations_prefix,
             "shard_count": run.shard_count or len(shards),
