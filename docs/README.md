@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-03-22
-updated: 2026-04-05
+updated: 2026-04-06
 ---
 
 # Docs
@@ -74,10 +74,12 @@ updated: 2026-04-05
 - 目标架构：`architecture/target-architecture.md`
 - supporting architecture：`architecture/product-runtime-architecture.md`、`architecture/execution-and-specialists-architecture.md`、`architecture/prompt-and-instruction-architecture.md`、`architecture/identity-and-authorization-architecture.md`、`architecture/retrieval-serving-architecture.md`、`architecture/data-plane-architecture.md`、`architecture/navigation-and-wayfinding-architecture.md`、`architecture/official-web-architecture.md`、`architecture/authenticated-notice-source-architecture.md`、`architecture/operator-observability-architecture.md`
 - 导航长期边界与底图策略：`architecture/navigation-and-wayfinding-architecture.md`、`decisions/adr-0027-navigation-specialist-and-spatial-truth.md`、`decisions/adr-0028-campus-navigation-basemap-and-provider-strategy.md`
+- institution-scoped 产品路径与开放域能力准入：`architecture/product-positioning.md`、`architecture/target-architecture.md`、`decisions/adr-0030-institution-scoped-product-path-and-explicit-open-domain-admission.md`
 - 共享 Postgres 连接与 IPv4 session-pooler 姿态：`data/shared-postgres-ownership.md`、`decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md`
 - 当前 phase 状态与 pending work：`.planning/PROJECT.md`、`.planning/STATE.md`
 - 稳定 contract / schema：`contracts/`、`data/`
 - 当前 runbook / reference / policy：`runbooks/`、`reference/`、`policies/`
+- 已导入 authenticated notice 历史数据消费：`runbooks/authenticated-notice-source-truth-replay-runbook.md`
 - 地点寻找一期实施：`plans/campus-place-finding-foundation.md`
 - 首个真实 Worker 部署准备：`runbooks/staging-worker-deploy-runbook.md`
 - 当前 `dev-backed supervisor` staging 验收：`runbooks/dev-backed-supervisor-staging-smoke-runbook.md`
@@ -153,6 +155,7 @@ updated: 2026-04-05
 - `decisions/adr-0027-navigation-specialist-and-spatial-truth.md`
 - `decisions/adr-0028-campus-navigation-basemap-and-provider-strategy.md`
 - `decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md`
+- `decisions/adr-0030-institution-scoped-product-path-and-explicit-open-domain-admission.md`
 - `decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
 - `plans/authenticated-notice-source-foundation.md`
 - `plans/campus-place-finding-foundation.md`
@@ -169,6 +172,7 @@ updated: 2026-04-05
 - `runbooks/curriculum-plan-hybrid-rebuild-checklist.md`
 - `runbooks/develop-main-release-runbook.md`
 - `runbooks/authenticated-notice-bootstrap-smoke-runbook.md`
+- `runbooks/authenticated-notice-source-truth-replay-runbook.md`
 - `runbooks/authenticated-notice-async-staged-closeout-runbook.md`
 - `runbooks/dev-backed-supervisor-staging-smoke-runbook.md`
 - `runbooks/forward-worker-surface-smoke-runbook.md`

@@ -1,8 +1,8 @@
 ---
 doc_type: plan
-status: active
+status: completed
 created: 2026-04-05
-updated: 2026-04-05
+updated: 2026-04-06
 ---
 
 # Domain-Bounded Answering And Refusal Foundation
@@ -26,6 +26,7 @@ updated: 2026-04-05
 - `docs/architecture/prompt-and-instruction-architecture.md`
 - `docs/decisions/adr-0004-evaluation-metrics.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
+- `docs/decisions/adr-0030-institution-scoped-product-path-and-explicit-open-domain-admission.md`
 
 ## 目标
 
@@ -238,6 +239,7 @@ updated: 2026-04-05
   - `false_refusal_rate`
   - `unsafe_false_allow_rate`
 - operator side 至少可按 `semantic_outcome` / `refusal_class` 拆 refusal distribution
+- acceptance publish 路径应把可发布的 deterministic refusal metrics 一并回流到 operator observability，而不只发布 supplemental grader 结果
 
 **Exit Criteria**
 
@@ -260,6 +262,12 @@ updated: 2026-04-05
 - 在此之前，默认产品姿态保持 `institution-scoped`
 - 不允许用“先临时 fallback 到 web”绕过前面五个波次
 
+**Decision Outcome**
+
+- 已接受 `ADR-0030`
+- 当前 repo 正式冻结为：主 campus path 不接纳开放域回答，也不允许临时 web / generalist fallback
+- 如果未来确实接受开放域能力，必须单独立项，并以独立 capability boundary、独立 routing/policy/eval/observability 接入
+
 **Exit Criteria**
 
 - repo 对“是否回答开放域问题”有明确产品决策
@@ -272,7 +280,7 @@ updated: 2026-04-05
 3. 然后做 Wave 3，收紧 `rag-specialist` 的默认回退姿态
 4. 再补 Wave 4，把用户文案和 prompt family 对齐
 5. 最后做 Wave 5，补齐 eval / observability gate
-6. Wave 6 只在前五波稳定后再判断
+6. Wave 6 已通过 `ADR-0030` 完成决策收口
 
 ## 最小验收问题集
 

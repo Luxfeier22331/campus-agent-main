@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-05
+updated: 2026-04-06
 ---
 
 # 目标架构
@@ -50,6 +50,7 @@ updated: 2026-04-05
 - `packages/contracts` 不泄漏具体 runtime、vendor、infra 类型
 - online query path 与 offline data plane 不混层
 - serving surface 由 runtime profile / explicit policy 控制，而不是硬编码在 entry shell
+- 当前 target architecture 不默认接纳开放域 generalist / web capability 进入主 campus path
 
 ## 长期产品/runtime 形态
 
@@ -64,6 +65,8 @@ updated: 2026-04-05
 - specialist 负责明确能力边界内的 planning / evidence consumption / answer shaping
 - retrieval backend、vector infra、framework 选择隐藏在 specialist / retrieval boundary 之后
 - 非 RAG capability 只要是长期稳定能力边界，也应作为 specialist 落地，而不是回退成 supervisor inline tool
+
+如果未来产品明确接受开放域能力，也必须以独立 capability boundary 或独立 specialist 接入，并拥有单独的 routing、policy、eval 与 observability 约束；它不是当前 campus path 的隐式 fallback。
 
 ## 长期 identity / authorization / memory 形态
 

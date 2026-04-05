@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-05
-updated: 2026-04-05
+updated: 2026-04-06
 ---
 
 # Product Positioning
@@ -118,6 +118,18 @@ updated: 2026-04-05
 - `full-map-optional`
 
 也就是说，地图能力长期是产品内增强视图，而不是默认把用户导向另一个独立地图站。
+
+## 关于未来开放域能力
+
+长期上的产品扩展，默认仍然指校园能力面的扩展，而不是静默转向开放域聊天产品。
+
+当前固定结论是：
+
+- 主产品路径继续保持 `institution-scoped`
+- 不把“开放域 generalist / web 回答能力”视为当前已接受的产品组成部分
+- 不允许在 campus path 内用临时 web fallback 替代 `out_of_scope`
+
+如果未来产品明确接受开放域能力，它也必须作为单独 capability boundary 进入，而不是反向改写当前 campus assistant 的产品承诺。
 
 ## 明确不是什么
 
