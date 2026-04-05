@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 
 import {
   isDeployedEnvironment,
@@ -35,6 +36,8 @@ export interface BetterAuthConfigInput {
   betterAuthSecret: string;
   environment: AppApiEnvironment;
   publicChatOrigin: string;
+  endUserEmailDomainAllowlist: string[];
+  endUserEmailAllowlist: string[];
   database: object;
 }
 
@@ -42,8 +45,110 @@ export interface CreateAppAuthInput {
   database?: Awaited<ReturnType<typeof createRuntimeDatabase>>;
 }
 
+export interface EndUserEmailAdmissionPolicy {
+  endUserEmailAllowlist: string[];
+  endUserEmailDomainAllowlist: string[];
+}
+
+const END_USER_EMAIL_PASSWORD_AUTH_PATHS = new Set(["/sign-in/email", "/sign-up/email"]);
+
+function normalizeAllowedEmail(value: string | null | undefined): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (!normalized || !normalized.includes("@")) {
+    return null;
+  }
+
+  const [localPart, domain] = normalized.split("@", 2);
+  if (!localPart || !domain) {
+    return null;
+  }
+
+  return `${localPart}@${domain}`;
+}
+
+function normalizeAllowedEmailDomainSuffix(value: string | null | undefined): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase().replace(/^@+/, "");
+  return normalized.length > 0 ? normalized : null;
+}
+
+function dedupeNormalizedValues(
+  values: string[],
+  normalize: (value: string | null | undefined) => string | null,
+): string[] {
+  return [...new Set(values.map((value) => normalize(value)).filter((value): value is string => value !== null))];
+}
+
+function extractAuthRequestEmail(body: unknown): string | null {
+  if (!body || typeof body !== "object" || !("email" in body)) {
+    return null;
+  }
+
+  const email = body.email;
+  return typeof email === "string" ? email : null;
+}
+
+export function buildEndUserEmailAdmissionPolicy(
+  input: EndUserEmailAdmissionPolicy,
+): EndUserEmailAdmissionPolicy {
+  return {
+    endUserEmailAllowlist: dedupeNormalizedValues(input.endUserEmailAllowlist, normalizeAllowedEmail),
+    endUserEmailDomainAllowlist: dedupeNormalizedValues(
+      input.endUserEmailDomainAllowlist,
+      normalizeAllowedEmailDomainSuffix,
+    ),
+  };
+}
+
+export function isEndUserEmailAllowedForAuth(
+  email: string,
+  policy: EndUserEmailAdmissionPolicy,
+): boolean {
+  const normalizedEmail = normalizeAllowedEmail(email);
+  if (!normalizedEmail) {
+    return false;
+  }
+  if (policy.endUserEmailAllowlist.includes(normalizedEmail)) {
+    return true;
+  }
+
+  const [, domain = ""] = normalizedEmail.split("@", 2);
+  return policy.endUserEmailDomainAllowlist.some(
+    (suffix) => domain === suffix || domain.endsWith(`.${suffix}`),
+  );
+}
+
+export function enforceEndUserEmailAdmission(input: {
+  path: string | undefined;
+  email: string | null;
+  policy: EndUserEmailAdmissionPolicy;
+}): void {
+  if (!input.path || !END_USER_EMAIL_PASSWORD_AUTH_PATHS.has(input.path)) {
+    return;
+  }
+  if (input.email && isEndUserEmailAllowedForAuth(input.email, input.policy)) {
+    return;
+  }
+
+  throw APIError.from("FORBIDDEN", {
+    code: "end_user_email_not_allowed",
+    message: "This email is not allowed for campus sign-in.",
+  });
+}
+
 export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
   const appOrigin = new URL(input.publicChatOrigin).origin;
+  const endUserEmailAdmissionPolicy = buildEndUserEmailAdmissionPolicy({
+    endUserEmailAllowlist: input.endUserEmailAllowlist,
+    endUserEmailDomainAllowlist: input.endUserEmailDomainAllowlist,
+  });
 
   return {
     appName: input.appName,
@@ -77,6 +182,15 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
       disableCSRFCheck: false,
       disableOriginCheck: false,
       useSecureCookies: appOrigin.startsWith("https://"),
+    },
+    hooks: {
+      before: createAuthMiddleware(async (ctx) => {
+        enforceEndUserEmailAdmission({
+          email: extractAuthRequestEmail(ctx.body),
+          path: ctx.path,
+          policy: endUserEmailAdmissionPolicy,
+        });
+      }),
     },
   };
 }
@@ -176,7 +290,9 @@ export async function createAppAuth(env: Env, input: CreateAppAuthInput = {}) {
       appName: config.appName,
       betterAuthSecret: config.betterAuthSecret,
       environment: config.environment,
-      publicChatOrigin: readPublicChatOrigin(env),
+      publicChatOrigin: config.publicChatOrigin ?? readPublicChatOrigin(env),
+      endUserEmailAllowlist: config.endUserEmailAllowlist,
+      endUserEmailDomainAllowlist: config.endUserEmailDomainAllowlist,
       database: drizzleAdapter(database, {
         camelCase: true,
         provider: "pg",

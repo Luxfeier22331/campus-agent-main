@@ -42,13 +42,13 @@ function createOperatorPrincipal(): ResolvedAppPrincipal {
   };
 }
 
-function createPublicPrincipal(): ResolvedAppPrincipal {
+function createCampusPrincipal(): ResolvedAppPrincipal {
   return {
     actor: {
       departments: [],
       principalId: "user_01HQ",
-      principalType: "public_user",
-      roles: ["public_user"],
+      principalType: "campus_member",
+      roles: ["campus_member"],
       userId: "user_01HQ",
     },
     permissions: {
@@ -59,7 +59,7 @@ function createPublicPrincipal(): ResolvedAppPrincipal {
       displayName: "Jane Doe",
       email: "jane@example.edu",
       principalId: "user_01HQ",
-      type: "public_user",
+      type: "campus_member",
     },
     session: {
       expiresAt: "2026-03-29T07:00:00.000Z",
@@ -213,7 +213,7 @@ describe("GET /api/operator/requests", () => {
     });
 
     const appWithUserPrincipal = createApp(env, {
-      getPrincipal: vi.fn().mockResolvedValue(createPublicPrincipal()),
+      getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
       operatorQueryService: {
         getById: vi.fn(),
         getAuditById: vi.fn(),
@@ -401,7 +401,7 @@ describe("GET /api/operator/requests/:requestId", () => {
           errorCode: null,
           principalId: "user_01HQ",
           principalLabel: "Jane Doe",
-          principalType: "public_user",
+          principalType: "campus_member",
           projectedAt: "2026-03-28T08:00:02.000Z",
           questionPreview: "民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
           requestId: "req_01HQ",
@@ -455,7 +455,7 @@ describe("GET /api/operator/requests/:requestId", () => {
         errorCode: null,
         principalId: "user_01HQ",
         principalLabel: "Jane Doe",
-        principalType: "public_user",
+        principalType: "campus_member",
         projectedAt: "2026-03-28T08:00:02.000Z",
         questionPreview: "民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
         requestId: "req_01HQ",
@@ -1314,7 +1314,7 @@ describe("GET /api/operator/audit", () => {
             auditEventId: "aevt_01HQ",
             eventType: "request.completed",
             occurredAt: "2026-03-28T08:00:01.000Z",
-            principalType: "public_user",
+            principalType: "campus_member",
             requestId: "req_01HQ",
             selectedTarget: "rag-specialist",
             status: "completed",
@@ -1348,7 +1348,7 @@ describe("GET /api/operator/audit", () => {
           auditEventId: "aevt_01HQ",
           eventType: "request.completed",
           occurredAt: "2026-03-28T08:00:01.000Z",
-          principalType: "public_user",
+          principalType: "campus_member",
           requestId: "req_01HQ",
           selectedTarget: "rag-specialist",
           status: "completed",
@@ -1394,7 +1394,7 @@ describe("GET /api/operator/audit/:auditEventId", () => {
           eventType: "request.completed",
           occurredAt: "2026-03-28T08:00:01.000Z",
           policyProjectionVersion: "2026-03-29",
-          principalType: "public_user",
+          principalType: "campus_member",
           requestId: "req_01HQ",
           requestedCapability: "knowledge",
           selectedTarget: "rag-specialist",
@@ -1443,7 +1443,7 @@ describe("GET /api/operator/audit/:auditEventId", () => {
         eventType: "request.completed",
         occurredAt: "2026-03-28T08:00:01.000Z",
         policyProjectionVersion: "2026-03-29",
-        principalType: "public_user",
+        principalType: "campus_member",
         requestId: "req_01HQ",
         requestedCapability: "knowledge",
         selectedTarget: "rag-specialist",

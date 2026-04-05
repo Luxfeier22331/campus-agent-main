@@ -17,13 +17,13 @@ const env = {
   },
 };
 
-function createPublicPrincipal() {
+function createCampusPrincipal() {
   return {
     actor: {
       departments: [],
       principalId: "user_01HQ",
-      principalType: "public_user",
-      roles: ["public_user"],
+      principalType: "campus_member",
+      roles: ["campus_member"],
       userId: "user_01HQ",
     },
     permissions: {
@@ -34,7 +34,7 @@ function createPublicPrincipal() {
       displayName: "Jane Doe",
       email: "jane@example.edu",
       principalId: "user_01HQ",
-      type: "public_user" as const,
+      type: "campus_member" as const,
     },
     session: {
       expiresAt: "2026-03-29T07:00:00.000Z",
@@ -68,7 +68,7 @@ describe("POST /api/chat/requests", () => {
     };
     const app = createApp(env, {
       chatCommandService: service,
-      getPrincipal: vi.fn().mockResolvedValue(createPublicPrincipal()),
+      getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
     });
 
     const response = await app.fetch(
@@ -159,7 +159,7 @@ describe("POST /api/chat/requests", () => {
           }),
         ),
       },
-      getPrincipal: vi.fn().mockResolvedValue(createPublicPrincipal()),
+      getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
     });
 
     const response = await app.fetch(
@@ -379,9 +379,9 @@ describe("POST /api/internal/evals/chat/requests", () => {
           departments: [],
           major: undefined,
           principalId: "eval_user_01HQ",
-          principalType: "public_user",
+          principalType: "campus_member",
           program: undefined,
-          roles: ["public_user"],
+          roles: ["campus_member"],
           cohort: undefined,
           userId: "eval_user_01HQ",
         },
@@ -391,7 +391,7 @@ describe("POST /api/internal/evals/chat/requests", () => {
         },
         principal: expect.objectContaining({
           principalId: "eval_user_01HQ",
-          type: "public_user",
+          type: "campus_member",
         }),
       }),
       surface: "eval_benchmark",
@@ -470,7 +470,7 @@ describe("POST /api/internal/evals/chat/requests", () => {
           principalId: "eval_user_01HQ",
           principalType: "student",
           program: "历史学强基计划",
-          roles: ["student"],
+          roles: ["campus_member", "student"],
           cohort: "2024",
           userId: "eval_user_01HQ",
         },

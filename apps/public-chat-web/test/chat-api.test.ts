@@ -75,7 +75,7 @@ describe("public chat app-api client", () => {
               displayName: "Jane Doe",
               email: "jane@example.edu",
               principalId: "user_01HQ",
-              type: "public_user",
+              type: "campus_member",
             },
             permissions: {
               chat: true,

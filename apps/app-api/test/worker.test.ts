@@ -14,6 +14,7 @@ const env = {
   PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
   SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
   SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+  APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
   APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
   APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
   APP_API_ENVIRONMENT: "test" as const,
@@ -37,7 +38,7 @@ function createCampusPrincipal() {
     },
     principal: {
       displayName: "Jane Doe",
-      email: "jane@example.edu",
+      email: "jane@muc.edu.cn",
       principalId: "user_01HQ",
       type: "campus_member" as const,
     },
@@ -84,6 +85,7 @@ describe("app-api worker foundation", () => {
     expect(wranglerConfig).toContain("[env.staging.vars]");
     expect(wranglerConfig).toContain('APP_API_ENVIRONMENT = "staging"');
     expect(wranglerConfig).toContain('PUBLIC_CHAT_WEB_ORIGIN = "https://chat-staging.ayafeed.com"');
+    expect(wranglerConfig).toContain('APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "muc.edu.cn"');
     expect(wranglerConfig).not.toContain("SUPERVISOR_API_BASE_URL");
     expect(wranglerConfig).toContain('APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com"');
     expect(wranglerConfig).toContain('SENTRY_ENVIRONMENT = "staging"');
@@ -160,6 +162,7 @@ describe("app-api worker foundation", () => {
             "PUBLIC_CHAT_WEB_ORIGIN",
             "SUPERVISOR_API_BASE_URL",
             "SUPERVISOR_API_SHARED_SECRET",
+            "APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST",
             "APP_API_OPERATOR_EMAIL_ALLOWLIST",
             "APP_API_INTERNAL_SHARED_SECRET",
           ],

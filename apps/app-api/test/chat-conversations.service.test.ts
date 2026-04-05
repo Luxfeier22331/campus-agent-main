@@ -12,13 +12,19 @@ import type { ResolvedAppPrincipal } from "../src/modules/auth";
 function createPrincipal(
   input: Partial<ResolvedAppPrincipal> = {},
 ): ResolvedAppPrincipal {
-  const principalType = input.principal?.type ?? input.actor?.principalType ?? "public_user";
+  const principalType = input.principal?.type ?? input.actor?.principalType ?? "campus_member";
+  const defaultRoles =
+    principalType === "student" ||
+    principalType === "staff" ||
+    principalType === "faculty"
+      ? ["campus_member", principalType]
+      : [principalType];
   return {
     actor: {
       departments: [],
       principalId: "user_01HQ",
       principalType,
-      roles: ["public_user"],
+      roles: defaultRoles,
       userId: "user_01HQ",
       ...input.actor,
     },
@@ -54,7 +60,7 @@ function createStore(): ChatConversationStore {
 }
 
 describe("chat conversation service", () => {
-  it("lists chat conversation summaries for public users only", async () => {
+  it("lists chat conversation summaries for chat-enabled campus principals only", async () => {
     const store = createStore();
     store.listConversationSummariesByOwner = vi.fn().mockResolvedValue([
       {

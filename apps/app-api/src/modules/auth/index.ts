@@ -13,8 +13,8 @@ export {
   buildExecutionAuthorizationContext,
   hasMatchingInternalSecret,
   mapSessionToAppPrincipal,
+  mapSessionToCampusMemberPrincipal,
   mapOperatorHeadersToPrincipal,
-  mapSessionToPublicUserPrincipal,
   resolveOfficialWebCollectorPrincipal,
   resolveRequestPrincipal,
 } from "./principal";

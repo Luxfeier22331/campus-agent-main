@@ -130,6 +130,8 @@ wrangler secret put AXIOM_TOKEN --env staging
 
 还需要在 Cloudflare env vars / secret store 中补齐：
 
+- `APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST=muc.edu.cn`
+- `APP_API_END_USER_EMAIL_ALLOWLIST=help_bot@outlook.com`
 - `APP_API_OPERATOR_EMAIL_ALLOWLIST`
 - `SENTRY_ENVIRONMENT=staging`
 - `SENTRY_RELEASE=<release>`
@@ -171,6 +173,7 @@ wrangler secret put SENTRY_DSN --env staging
 ## Cross-App Invariants
 
 - `PUBLIC_CHAT_WEB_ORIGIN` 必须精确等于 `https://chat-staging.ayafeed.com`
+- `APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST` 当前应配置为 `muc.edu.cn`；`APP_API_END_USER_EMAIL_ALLOWLIST` 当前应配置为 `help_bot@outlook.com`
 - `APP_API_INTERNAL_SHARED_SECRET` 必须精确等于 `PANEL_APP_API_SHARED_SECRET`
 - `APP_API_BASE_URL` 与 `PANEL_RUNTIME_API_BASE_URL` 必须都指向 `https://api-staging.ayafeed.com`
 - `APP_API_DB_FRESH` 必须绑定到 caching-disabled Hyperdrive config；staging auth smoke 必须覆盖 `sign-up -> immediate sign-in`

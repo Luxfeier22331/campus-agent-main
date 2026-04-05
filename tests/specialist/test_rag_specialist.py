@@ -4609,7 +4609,7 @@ class RagSpecialistCurriculumSemesterSelectionTest(unittest.TestCase):
         self.assertEqual(response.result.evidence.sources, ())
         self.assertEqual(response.result.diagnostics.no_answer_reason, "resolved_policy_clause_not_found")
 
-    def test_restricted_access_denied_for_public_user_does_not_leak_resolved_policy_title(self) -> None:
+    def test_restricted_access_denied_for_anonymous_user_does_not_leak_resolved_policy_title(self) -> None:
         target_title = "中央民族大学本科学生国家奖学金评审办法"
 
         def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
@@ -4619,7 +4619,7 @@ class RagSpecialistCurriculumSemesterSelectionTest(unittest.TestCase):
             SpecialistRequest(
                 target="rag-specialist",
                 user_goal="民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
-                context=ContextProjection(actor=ActorContext(principal_type="public_user")),
+                context=ContextProjection(actor=ActorContext(principal_type="anonymous")),
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
                 ),

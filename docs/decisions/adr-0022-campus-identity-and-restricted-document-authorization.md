@@ -19,7 +19,7 @@ updated: 2026-04-02
 
 但对于“只对校内人士开放的通知、制度或说明”这一类受限机构知识，repo 还缺一条更具体的 accepted policy：
 
-- `public_user` 与 `campus_member` 如何区分
+- 未登录访问者与 `campus_member` 如何区分
 - restricted document 应该按什么 principal / entitlement 语义治理
 - Cloudflare / IdP / app-layer authz / retrieval filter 各自承担什么职责
 - 文档 / chunk / index 应该写什么 visibility / entitlement projection
@@ -61,12 +61,11 @@ updated: 2026-04-02
 - conversation / request execution / memory / operator workflow 默认采用 ownership / relation / approval 语义
 - RBAC / group membership 允许作为 entitlement 的一种来源，但不等于完整授权模型
 
-### 决策 3：principal class 必须显式区分 `public_user` 与 `campus_member`
+### 决策 3：前向 principal class 不再保留 `public_user`
 
 长期上，至少接受以下 principal class：
 
 - `anonymous`
-- `public_user`
 - `campus_member`
 - `student`
 - `staff`
@@ -76,7 +75,8 @@ updated: 2026-04-02
 
 直接含义：
 
-- `public_user` 只表示“这是本产品已登录用户”，不自动等于“校内人士”
+- 未登录访问者保持为 `anonymous`，不再升格为独立的已登录 `public_user` principal
+- 前向 end-user 登录入口不再保留“已登录但非校内身份”的 principal 层
 - `campus_member` / `student` / `staff` / `faculty` 必须由学校权威身份源、目录同步或等价 entitlement snapshot 支撑
 - `operator` 与 end-user principal 必须分离
 - `service` 只用于受控机器调用，不可伪装成 end-user principal

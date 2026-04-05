@@ -9,7 +9,7 @@ vi.mock("../src/modules/auth/auth", () => ({
 import {
   mapSessionToAppPrincipal,
   mapOperatorHeadersToPrincipal,
-  mapSessionToPublicUserPrincipal,
+  mapSessionToCampusMemberPrincipal,
   resolveOfficialWebCollectorPrincipal,
   resolveRequestPrincipal,
 } from "../src/modules/auth/principal";
@@ -88,9 +88,9 @@ describe("operator bridge principal resolution", () => {
   });
 });
 
-describe("public user principal projection", () => {
-  it("does not auto-promote a signed-in public user into campus entitlements", () => {
-    const principal = mapSessionToPublicUserPrincipal({
+describe("campus member principal projection", () => {
+  it("projects a signed-in session as a campus member by default", () => {
+    const principal = mapSessionToCampusMemberPrincipal({
       session: {
         expiresAt: "2026-03-29T08:00:00.000Z",
         id: "sess_01HQ",
@@ -105,14 +105,14 @@ describe("public user principal projection", () => {
     expect(principal).toMatchObject({
       actor: {
         principalId: "user_01HQ",
-        principalType: "public_user",
-        roles: ["public_user"],
+        principalType: "campus_member",
+        roles: ["campus_member"],
         userId: "user_01HQ",
       },
       authorization: {
         entitlementGroups: [],
         principalId: "user_01HQ",
-        projectionSource: "public_session",
+        projectionSource: "campus_identity",
         retrievalFilter: {
           entitlementGroups: [],
           policyProjectionVersion: "phase1-authorization-projection-v1",
@@ -122,7 +122,7 @@ describe("public user principal projection", () => {
         visibilityScope: null,
       },
       principal: {
-        type: "public_user",
+        type: "campus_member",
       },
     });
     expect(principal?.actor).not.toHaveProperty("groups");
@@ -226,12 +226,12 @@ describe("request principal resolution", () => {
 
     expect(principal).toMatchObject({
       principal: {
-        type: "public_user",
+        type: "campus_member",
       },
       authorization: {
         entitlementGroups: [],
         entitlementSnapshotId: "",
-        projectionSource: "public_session",
+        projectionSource: "campus_identity",
         visibilityScope: null,
       },
     });

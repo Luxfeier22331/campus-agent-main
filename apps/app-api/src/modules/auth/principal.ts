@@ -4,7 +4,6 @@ import { parseCsvList, type Env } from "../../config";
 import { getAppAuth, type AppAuthResolutionInput } from "./auth";
 
 export type AppPrincipalType =
-  | "public_user"
   | "campus_member"
   | "student"
   | "staff"
@@ -13,7 +12,6 @@ export type AppPrincipalType =
   | "service";
 
 export type AuthorizationProjectionSource =
-  | "public_session"
   | "campus_identity"
   | "operator_headers"
   | "service_auth";
@@ -83,7 +81,7 @@ export interface InternalEvalPrincipalInput {
   email: string;
   principalId?: string;
   displayName?: string;
-  principalType?: Extract<AppPrincipalType, "public_user" | "campus_member" | "student" | "staff" | "faculty">;
+  principalType?: Extract<AppPrincipalType, "campus_member" | "student" | "staff" | "faculty">;
   actorRoles?: string[];
   departments?: string[];
   cohort?: string;
@@ -125,7 +123,6 @@ export interface CampusIdentityClaimsInput {
 
 const DEFAULT_POLICY_PROJECTION_VERSION = "phase1-authorization-projection-v1";
 const ALLOWED_END_USER_PRINCIPAL_TYPES = new Set<AppPrincipalType>([
-  "public_user",
   "campus_member",
   "student",
   "staff",
@@ -246,25 +243,64 @@ function toAuthorizationProjectionSource(
       return "operator_headers";
     case "service":
       return "service_auth";
-    case "public_user":
     default:
-      return "public_session";
+      return "campus_identity";
+  }
+}
+
+function defaultEntitlementGroups(principalType: AppPrincipalType): string[] {
+  switch (principalType) {
+    case "student":
+      return ["campus_members", "students"];
+    case "staff":
+      return ["campus_members", "staff"];
+    case "faculty":
+      return ["campus_members", "faculty"];
+    default:
+      return [];
+  }
+}
+
+function mergeEntitlementGroups(
+  principalType: AppPrincipalType,
+  entitlementGroups: readonly string[],
+): string[] {
+  return [...new Set([...defaultEntitlementGroups(principalType), ...entitlementGroups])];
+}
+
+function hasDefaultCampusAuthorization(principalType: AppPrincipalType): boolean {
+  return defaultEntitlementGroups(principalType).length > 0;
+}
+
+function buildDefaultEndUserRoles(principalType: AppPrincipalType): string[] {
+  switch (principalType) {
+    case "student":
+      return ["campus_member", "student"];
+    case "staff":
+      return ["campus_member", "staff"];
+    case "faculty":
+      return ["campus_member", "faculty"];
+    case "campus_member":
+      return ["campus_member"];
+    default:
+      return [principalType];
   }
 }
 
 export function buildExecutionAuthorizationContext(
   actor: ExecutionActorContext,
 ): ExecutionAuthorizationContext {
+  const entitlementGroups = defaultEntitlementGroups(actor.principalType);
   return {
     principalId: actor.principalId || actor.userId,
     projectionSource: toAuthorizationProjectionSource(actor.principalType),
     entitlementSnapshotId: "",
-    entitlementGroups: [],
+    entitlementGroups,
     visibilityScope: null,
     ownershipScopes: [],
     approvalState: "",
     retrievalFilter: {
-      entitlementGroups: [],
+      entitlementGroups,
       policyProjectionVersion: DEFAULT_POLICY_PROJECTION_VERSION,
       visibilityLevel: "public",
       visibilityScope: null,
@@ -281,17 +317,21 @@ function buildCampusAuthorizationContext(input: {
   visibilityLevel?: string;
   visibilityScope: string | null;
 }): ExecutionAuthorizationContext {
+  const entitlementGroups = mergeEntitlementGroups(
+    input.actor.principalType,
+    input.entitlementGroups,
+  );
   return {
     principalId: input.actor.principalId || input.actor.userId,
     projectionSource: toAuthorizationProjectionSource(input.actor.principalType),
     entitlementSnapshotId: input.entitlementSnapshotId,
-    entitlementGroups: input.entitlementGroups,
+    entitlementGroups,
     visibilityScope: input.visibilityScope,
     applicabilityScope: input.applicabilityScope,
     ownershipScopes: input.ownershipScopes ?? [],
     approvalState: "",
     retrievalFilter: {
-      entitlementGroups: input.entitlementGroups,
+      entitlementGroups,
       policyProjectionVersion: DEFAULT_POLICY_PROJECTION_VERSION,
       visibilityLevel: input.visibilityLevel?.trim() || "public",
       visibilityScope: input.visibilityScope,
@@ -302,7 +342,7 @@ function buildCampusAuthorizationContext(input: {
 export function buildInternalEvalPrincipal(
   input: InternalEvalPrincipalInput,
 ): ResolvedAppPrincipal {
-  const principalType = input.principalType ?? "public_user";
+  const principalType = input.principalType ?? "campus_member";
   const normalizedEmail = normalizeEmail(input.email);
   if (!normalizedEmail) {
     throw new Error("internal eval principal email is required");
@@ -316,7 +356,7 @@ export function buildInternalEvalPrincipal(
     userId: principalId,
     principalId,
     principalType,
-    roles: roles.length > 0 ? roles : [principalType],
+    roles: roles.length > 0 ? roles : buildDefaultEndUserRoles(principalType),
     departments,
     cohort: decodeOptionalHeaderValue(input.cohort ?? null) ?? undefined,
     major: decodeOptionalHeaderValue(input.major ?? null) ?? undefined,
@@ -336,7 +376,7 @@ export function buildInternalEvalPrincipal(
     visibilityScope !== null ||
     applicabilityScope !== undefined ||
     ownershipScopes.length > 0 ||
-    principalType !== "public_user"
+    hasDefaultCampusAuthorization(principalType)
       ? buildCampusAuthorizationContext({
           actor,
           applicabilityScope,
@@ -365,7 +405,7 @@ export function buildInternalEvalPrincipal(
   };
 }
 
-export function mapSessionToPublicUserPrincipal(
+export function mapSessionToCampusMemberPrincipal(
   session: BetterAuthSessionPayload,
 ): ResolvedAppPrincipal | null {
   const userId = normalizeHeaderValue(session?.user?.id ?? null);
@@ -381,14 +421,14 @@ export function mapSessionToPublicUserPrincipal(
   const actor: ExecutionActorContext = {
     userId,
     principalId: userId,
-    principalType: "public_user",
-    roles: ["public_user"],
+    principalType: "campus_member",
+    roles: ["campus_member"],
     departments: [],
   };
 
   return {
     principal: {
-      type: "public_user",
+      type: "campus_member",
       principalId: userId,
       displayName,
       email,
@@ -413,20 +453,17 @@ export function mapSessionToAppPrincipal(
   session: BetterAuthSessionPayload,
   campusIdentity?: CampusIdentityClaimsInput,
 ): ResolvedAppPrincipal | null {
-  const publicPrincipal = mapSessionToPublicUserPrincipal(session);
-  if (!publicPrincipal) {
+  const campusMemberPrincipal = mapSessionToCampusMemberPrincipal(session);
+  if (!campusMemberPrincipal) {
     return null;
   }
   if (!campusIdentity) {
-    return publicPrincipal;
+    return campusMemberPrincipal;
   }
 
-  const principalType = campusIdentity.principalType ?? "public_user";
+  const principalType = campusIdentity.principalType ?? "campus_member";
   if (!ALLOWED_END_USER_PRINCIPAL_TYPES.has(principalType)) {
-    return publicPrincipal;
-  }
-  if (principalType === "public_user") {
-    return publicPrincipal;
+    return campusMemberPrincipal;
   }
 
   const actorRoles = normalizeStringList(campusIdentity.actorRoles);
@@ -440,17 +477,17 @@ export function mapSessionToAppPrincipal(
     normalizeHeaderValue(campusIdentity.applicabilityScope ?? null) ?? undefined;
 
   const actor: ExecutionActorContext = {
-    userId: publicPrincipal.actor.userId,
-    principalId: publicPrincipal.actor.principalId,
+    userId: campusMemberPrincipal.actor.userId,
+    principalId: campusMemberPrincipal.actor.principalId,
     principalType,
-    roles: actorRoles.length > 0 ? actorRoles : [principalType],
+    roles: actorRoles.length > 0 ? actorRoles : buildDefaultEndUserRoles(principalType),
     departments,
   };
 
   return {
-    ...publicPrincipal,
+    ...campusMemberPrincipal,
     principal: {
-      ...publicPrincipal.principal,
+      ...campusMemberPrincipal.principal,
       type: principalType,
     },
     actor,

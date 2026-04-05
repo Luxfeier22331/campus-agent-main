@@ -41,7 +41,7 @@ class AppApiEvalClientSettings:
     eval_user_email: str
     eval_user_id: str | None = None
     eval_user_name: str | None = None
-    eval_principal_type: str = "public_user"
+    eval_principal_type: str = "campus_member"
     trace_link_template: str | None = None
     issue_link_template: str | None = None
     issue_fingerprint_template: str | None = None
@@ -80,7 +80,8 @@ class AppApiEvalClientSettings:
             eval_user_email=str(source.get("APP_API_EVAL_USER_EMAIL") or "").strip(),
             eval_user_id=_optional_string(source.get("APP_API_EVAL_USER_ID")),
             eval_user_name=_optional_string(source.get("APP_API_EVAL_USER_NAME")),
-            eval_principal_type=str(source.get("APP_API_EVAL_PRINCIPAL_TYPE") or "public_user").strip() or "public_user",
+            eval_principal_type=str(source.get("APP_API_EVAL_PRINCIPAL_TYPE") or "campus_member").strip()
+            or "campus_member",
             trace_link_template=_optional_string(source.get("APP_API_EVAL_TRACE_LINK_TEMPLATE")),
             issue_link_template=_optional_string(source.get("APP_API_EVAL_ISSUE_LINK_TEMPLATE")),
             issue_fingerprint_template=_optional_string(

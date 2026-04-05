@@ -142,7 +142,6 @@ function buildInternalEvalPrincipalFromRequest(request: Request): ResolvedAppPri
     principalId: request.headers.get("x-eval-user-id") ?? undefined,
     principalType:
       (request.headers.get("x-eval-principal-type") as
-        | "public_user"
         | "campus_member"
         | "student"
         | "staff"
@@ -264,6 +263,8 @@ async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntimeReadine
       appName: config.appName,
       betterAuthSecret: config.betterAuthSecret,
       database: {},
+      endUserEmailAllowlist: config.endUserEmailAllowlist,
+      endUserEmailDomainAllowlist: config.endUserEmailDomainAllowlist,
       environment: config.environment,
       publicChatOrigin: config.publicChatOrigin,
     });

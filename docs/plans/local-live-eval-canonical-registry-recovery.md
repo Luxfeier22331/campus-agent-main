@@ -131,7 +131,7 @@ updated: 2026-04-05
   - prompt: `民族学本科人才培养方案里大二下有什么课`
   - result: `status_code=200`, `answer_kind=no_answer`, `supervisor_status=no_answer`
 - curriculum internal eval smoke 已确认本轮修复的是权限误投影，而不是把 deny 变成兼容层：
-  - public_user 与 student 两条 `POST /api/internal/evals/chat/requests` 都返回 `status_code=200`
+  - campus_member 与 student 两条 `POST /api/internal/evals/chat/requests` 都返回 `status_code=200`
   - `supervisor.observability.aclDecision=allowed`
   - `supervisor.observability.failClosed=false`
   - 响应中不再出现 `restricted_access_denied`

@@ -1,6 +1,6 @@
 export interface SessionPrincipal {
   principal: {
-    type: "public_user" | "operator";
+    type: "campus_member" | "student" | "staff" | "faculty" | "operator";
     principalId: string;
     displayName: string;
     email: string | null;

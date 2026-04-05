@@ -15,6 +15,8 @@ custom_domain = true
 [env.staging.vars]
 APP_API_ENVIRONMENT = "staging"
 PUBLIC_CHAT_WEB_ORIGIN = "https://chat-staging.ayafeed.com"
+APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "muc.edu.cn"
+APP_API_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com"
 APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com"
 SENTRY_ENVIRONMENT = "staging"
 SENTRY_RELEASE = "app-api@staging-20260405-05c3d45"

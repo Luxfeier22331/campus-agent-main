@@ -76,7 +76,7 @@ Accepted on 2026-03-28.
 而不应再被解释为：
 
 - forward product identity ownership
-- `supervisor-api` 继续负责 public user / operator user auth 的长期依据
+- `supervisor-api` 继续负责 campus end-user / operator auth 的长期依据
 
 ## Complements
 

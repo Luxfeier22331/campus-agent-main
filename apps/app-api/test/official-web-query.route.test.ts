@@ -41,13 +41,13 @@ function createOperatorPrincipal(): ResolvedAppPrincipal {
   };
 }
 
-function createPublicPrincipal(): ResolvedAppPrincipal {
+function createCampusPrincipal(): ResolvedAppPrincipal {
   return {
     actor: {
       departments: [],
       principalId: "user_01HQ",
-      principalType: "public_user",
-      roles: ["public_user"],
+      principalType: "campus_member",
+      roles: ["campus_member"],
       userId: "user_01HQ",
     },
     permissions: {
@@ -58,7 +58,7 @@ function createPublicPrincipal(): ResolvedAppPrincipal {
       displayName: "Jane Doe",
       email: "jane@example.edu",
       principalId: "user_01HQ",
-      type: "public_user",
+      type: "campus_member",
     },
     session: {
       expiresAt: "2026-03-29T07:00:00.000Z",
@@ -259,7 +259,7 @@ describe("official web operator query routes", () => {
     expect(anonymous.status).toBe(401);
 
     const forbidden = await createApp(env, {
-      getPrincipal: vi.fn().mockResolvedValue(createPublicPrincipal()),
+      getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
       officialWebQueryService: service,
     }).fetch(new Request("https://app-api.internal/api/operator/official-web/runs"));
     expect(forbidden.status).toBe(403);

@@ -692,7 +692,7 @@ list endpoints 额外支持：
       "occurredAt": "2026-04-03T00:00:00.500Z",
       "eventType": "authz.decision",
       "surface": "public_chat_web",
-      "principalType": "public_user",
+      "principalType": "campus_member",
       "selectedTarget": "rag-specialist",
       "status": "allowed",
       "summary": "student_handbook 请求通过 authz check"
@@ -724,7 +724,7 @@ list endpoints 额外支持：
     "occurredAt": "2026-04-03T00:00:00.500Z",
     "eventType": "authz.decision",
     "surface": "public_chat_web",
-    "principalType": "public_user",
+    "principalType": "campus_member",
     "entitlementSnapshotId": "ent_01HQ",
     "policyProjectionVersion": "2026-04-02",
     "requestedCapability": "knowledge",

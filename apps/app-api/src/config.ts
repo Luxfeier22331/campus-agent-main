@@ -23,6 +23,8 @@ export interface Env {
   SUPERVISOR_API_EVAL_TIMEOUT_MS?: string;
   APP_API_MANAGEMENT_DATABASE_URL?: string;
   APP_API_DATABASE_SSLMODE?: DatabaseSslMode;
+  APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST?: string;
+  APP_API_END_USER_EMAIL_ALLOWLIST?: string;
   APP_API_OPERATOR_EMAIL_ALLOWLIST?: string;
   APP_API_INTERNAL_SHARED_SECRET?: string;
   AXIOM_DATASET?: string;
@@ -44,6 +46,8 @@ export interface AppApiConfig {
   databaseSslMode: DatabaseSslMode;
   managementDatabaseUrl?: string;
   internalSharedSecret: string;
+  endUserEmailDomainAllowlist: string[];
+  endUserEmailAllowlist: string[];
   operatorEmailAllowlist: string[];
   supervisorApiBaseUrl: string;
   supervisorApiSharedSecret: string;
@@ -58,6 +62,7 @@ const MISSING_CONFIG_KEYS = [
   "PUBLIC_CHAT_WEB_ORIGIN",
   "SUPERVISOR_API_BASE_URL",
   "SUPERVISOR_API_SHARED_SECRET",
+  "APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST",
   "APP_API_OPERATOR_EMAIL_ALLOWLIST",
   "APP_API_INTERNAL_SHARED_SECRET",
 ] as const;
@@ -140,11 +145,14 @@ export function getMissingRuntimeConfig(env: Env): string[] {
   if (!env.SUPERVISOR_API_SHARED_SECRET?.trim()) {
     missing.push(MISSING_CONFIG_KEYS[4]);
   }
-  if (parseCsvList(env.APP_API_OPERATOR_EMAIL_ALLOWLIST).length === 0) {
+  if (parseCsvList(env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST).length === 0) {
     missing.push(MISSING_CONFIG_KEYS[5]);
   }
-  if (!env.APP_API_INTERNAL_SHARED_SECRET?.trim()) {
+  if (parseCsvList(env.APP_API_OPERATOR_EMAIL_ALLOWLIST).length === 0) {
     missing.push(MISSING_CONFIG_KEYS[6]);
+  }
+  if (!env.APP_API_INTERNAL_SHARED_SECRET?.trim()) {
+    missing.push(MISSING_CONFIG_KEYS[7]);
   }
 
   return missing;
@@ -174,6 +182,12 @@ export function readAppApiConfig(env: Env): AppApiConfig {
     databaseSslMode: resolveDatabaseSslMode(env),
     internalSharedSecret: env.APP_API_INTERNAL_SHARED_SECRET!.trim(),
     managementDatabaseUrl: env.APP_API_MANAGEMENT_DATABASE_URL?.trim() || undefined,
+    endUserEmailDomainAllowlist: parseCsvList(env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST).map((item) =>
+      item.toLowerCase(),
+    ),
+    endUserEmailAllowlist: parseCsvList(env.APP_API_END_USER_EMAIL_ALLOWLIST).map((item) =>
+      item.toLowerCase(),
+    ),
     supervisorApiBaseUrl: env.SUPERVISOR_API_BASE_URL!.trim(),
     supervisorApiSharedSecret: env.SUPERVISOR_API_SHARED_SECRET!.trim(),
     operatorEmailAllowlist: parseCsvList(env.APP_API_OPERATOR_EMAIL_ALLOWLIST).map((item) =>

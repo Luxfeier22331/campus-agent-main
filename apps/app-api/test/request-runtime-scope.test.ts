@@ -13,6 +13,7 @@ const env = {
   PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
   SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
   SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+  APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
   APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
   APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
 };

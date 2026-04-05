@@ -524,7 +524,7 @@ function buildFinalizedWrite(input: {
       actorPrincipalId: input.conversation.ownerUserId,
       actorRoles: [],
       actorDepartments: [],
-      principalType: "public_user",
+      principalType: input.principal.principal.type,
       principalLabel: null,
       entitlementSnapshotId: null,
       entitlementGroups: [],

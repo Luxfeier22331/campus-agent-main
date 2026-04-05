@@ -44,8 +44,8 @@ updated: 2026-04-05
 
 - `prospective_user`
   需要了解学校、专业、制度、办事路径和基础校园信息的潜在考生或家长
-- `public_user`
-  需要查询公开校园信息的校外访问者
+- `public_visitor`
+  需要查询公开校园信息的未登录校外访问者
 - `campus_member`
   需要获取制度、培养方案、服务点位、后续校园导航能力的学生和教职工
 - `operator`

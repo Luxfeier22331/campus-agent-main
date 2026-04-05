@@ -89,7 +89,6 @@ restricted rollout 期间必须确保以下信息不会向未授权 principal �
 
 - anonymous × public
 - anonymous × restricted campus_member
-- public_user × restricted campus_member
 - campus_member × restricted campus_member
 - student × restricted students
 - staff × restricted staff
