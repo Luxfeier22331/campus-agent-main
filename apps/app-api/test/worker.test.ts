@@ -99,6 +99,12 @@ describe("app-api worker foundation", () => {
     );
   });
 
+  it("declares a local Hyperdrive binding for APP_API_DB in wrangler config", () => {
+    expect(wranglerConfig).toContain("[env.local]");
+    expect(wranglerConfig).toContain("[[env.local.hyperdrive]]");
+    expect(wranglerConfig).toContain('binding = "APP_API_DB"');
+  });
+
   it("serves healthz and readyz from the worker shell", async () => {
     const runtime = createWorkerRuntime(env, {
       runtimeReadinessProbe: vi.fn().mockResolvedValue(createRuntimeReadinessResult()),

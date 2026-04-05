@@ -10,7 +10,12 @@ import {
   runArtifacts,
   runOutbox,
 } from "../../db/schema";
-import type { OfficialWebIngestionDispatchStatus, OfficialWebRunStatus } from "../official-web-command";
+import type {
+  OfficialWebIngestionDispatchStatus,
+  OfficialWebIngestionExecutionStatus,
+  OfficialWebRunIntent,
+  OfficialWebRunStatus,
+} from "../official-web-command";
 import type {
   OfficialWebArtifactSummary,
   OfficialWebProjectionProjectorStore,
@@ -52,6 +57,7 @@ function toRunOutboxEvent(row: typeof runOutbox.$inferSelect): OfficialWebRunOut
     eventId: row.eventId,
     eventType: row.eventType,
     occurredAt: row.occurredAt.toISOString(),
+    payload: row.payloadJson,
     processedAt: toIsoString(row.processedAt),
     runId: row.runId,
   };
@@ -83,8 +89,14 @@ function toRunProjectionSource(
     hostSet: row.hostSetJson,
     ingestionDispatchRef: row.ingestionDispatchRef ?? null,
     ingestionDispatchStatus: row.ingestionDispatchStatus as OfficialWebIngestionDispatchStatus,
+    ingestionExecutionErrorCode: row.ingestionExecutionErrorCode ?? null,
+    ingestionExecutionErrorMessage: row.ingestionExecutionErrorMessage ?? null,
+    ingestionExecutionRef: row.ingestionExecutionRef ?? null,
+    ingestionExecutionStatus: row.ingestionExecutionStatus as OfficialWebIngestionExecutionStatus,
+    ingestionExecutionUpdatedAt: toIsoString(row.ingestionExecutionUpdatedAt),
     lastHeartbeatAt: toIsoString(row.lastHeartbeatAt),
     runId: row.runId,
+    runIntent: row.runIntent as OfficialWebRunIntent,
     schedulerRunKey: row.schedulerRunKey,
     seedSet: row.seedSetJson,
     siteId: row.siteId,
@@ -166,6 +178,10 @@ export function createPgOfficialWebProjectionStore(
         latestConfigVersion: latest.configVersion,
         latestIngestionDispatchStatus:
           latest.ingestionDispatchStatus as OfficialWebIngestionDispatchStatus,
+        latestIngestionExecutionErrorCode: latest.ingestionExecutionErrorCode ?? null,
+        latestIngestionExecutionStatus:
+          latest.ingestionExecutionStatus as OfficialWebIngestionExecutionStatus,
+        latestIngestionExecutionUpdatedAt: toIsoString(latest.ingestionExecutionUpdatedAt),
         latestRunId: latest.runId,
         latestRunStatus: latest.status as OfficialWebRunStatus,
         siteId: latest.siteId,
@@ -275,6 +291,24 @@ export function createPgOfficialWebProjectionStore(
         .where(eq(crawlRuns.runId, input.runId));
     },
 
+    async updateRunExecutionStatus(input) {
+      const db = await getDb();
+      const rows = await db
+        .update(crawlRuns)
+        .set({
+          ingestionExecutionErrorCode: input.errorCode,
+          ingestionExecutionErrorMessage: input.errorMessage,
+          ingestionExecutionRef: input.executionRef,
+          ingestionExecutionStatus: input.status,
+          ingestionExecutionUpdatedAt: new Date(input.updatedAt),
+          updatedAt: new Date(input.updatedAt),
+        })
+        .where(eq(crawlRuns.runId, input.runId))
+        .returning({ runId: crawlRuns.runId });
+
+      return rows.length > 0;
+    },
+
     async upsertRunProjection(projection) {
       const db = await getDb();
       await db
@@ -287,9 +321,17 @@ export function createPgOfficialWebProjectionStore(
           finishedAt: projection.finishedAt ? new Date(projection.finishedAt) : null,
           ingestionDispatchRef: projection.ingestionDispatchRef,
           ingestionDispatchStatus: projection.ingestionDispatchStatus,
+          ingestionExecutionErrorCode: projection.ingestionExecutionErrorCode,
+          ingestionExecutionErrorMessage: projection.ingestionExecutionErrorMessage,
+          ingestionExecutionRef: projection.ingestionExecutionRef,
+          ingestionExecutionStatus: projection.ingestionExecutionStatus,
+          ingestionExecutionUpdatedAt: projection.ingestionExecutionUpdatedAt
+            ? new Date(projection.ingestionExecutionUpdatedAt)
+            : null,
           lastHeartbeatAt: projection.lastHeartbeatAt ? new Date(projection.lastHeartbeatAt) : null,
           projectedAt: new Date(projection.projectedAt),
           runId: projection.runId,
+          runIntent: projection.runIntent,
           siteId: projection.siteId,
           startedAt: new Date(projection.startedAt),
           status: projection.status,
@@ -304,8 +346,16 @@ export function createPgOfficialWebProjectionStore(
             finishedAt: projection.finishedAt ? new Date(projection.finishedAt) : null,
             ingestionDispatchRef: projection.ingestionDispatchRef,
             ingestionDispatchStatus: projection.ingestionDispatchStatus,
+            ingestionExecutionErrorCode: projection.ingestionExecutionErrorCode,
+            ingestionExecutionErrorMessage: projection.ingestionExecutionErrorMessage,
+            ingestionExecutionRef: projection.ingestionExecutionRef,
+            ingestionExecutionStatus: projection.ingestionExecutionStatus,
+            ingestionExecutionUpdatedAt: projection.ingestionExecutionUpdatedAt
+              ? new Date(projection.ingestionExecutionUpdatedAt)
+              : null,
             lastHeartbeatAt: projection.lastHeartbeatAt ? new Date(projection.lastHeartbeatAt) : null,
             projectedAt: new Date(projection.projectedAt),
+            runIntent: projection.runIntent,
             siteId: projection.siteId,
             startedAt: new Date(projection.startedAt),
             status: projection.status,
@@ -327,6 +377,11 @@ export function createPgOfficialWebProjectionStore(
           latestCollectorVersion: projection.latestCollectorVersion,
           latestConfigVersion: projection.latestConfigVersion,
           latestIngestionDispatchStatus: projection.latestIngestionDispatchStatus,
+          latestIngestionExecutionErrorCode: projection.latestIngestionExecutionErrorCode,
+          latestIngestionExecutionStatus: projection.latestIngestionExecutionStatus,
+          latestIngestionExecutionUpdatedAt: projection.latestIngestionExecutionUpdatedAt
+            ? new Date(projection.latestIngestionExecutionUpdatedAt)
+            : null,
           latestRunId: projection.latestRunId,
           latestRunStatus: projection.latestRunStatus,
           projectedAt: new Date(projection.projectedAt),
@@ -341,6 +396,11 @@ export function createPgOfficialWebProjectionStore(
             latestCollectorVersion: projection.latestCollectorVersion,
             latestConfigVersion: projection.latestConfigVersion,
             latestIngestionDispatchStatus: projection.latestIngestionDispatchStatus,
+            latestIngestionExecutionErrorCode: projection.latestIngestionExecutionErrorCode,
+            latestIngestionExecutionStatus: projection.latestIngestionExecutionStatus,
+            latestIngestionExecutionUpdatedAt: projection.latestIngestionExecutionUpdatedAt
+              ? new Date(projection.latestIngestionExecutionUpdatedAt)
+              : null,
             latestRunId: projection.latestRunId,
             latestRunStatus: projection.latestRunStatus,
             projectedAt: new Date(projection.projectedAt),

@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-03-28
-updated: 2026-03-31
+updated: 2026-04-05
 ---
 
 # Runtime Serving And Index Terms
@@ -21,6 +21,26 @@ updated: 2026-03-31
 
 ## 术语
 
+### Corpus / Collection Scope
+
+定义：
+
+- retrieval/runtime 侧被显式命名和发布的 `corpus/collection` 边界
+
+真相源：
+
+- `configs/ingestion/<corpus>/<collection>/runtime-profile.json`
+- `configs/ingestion/<corpus>/<collection>/README.md`
+- `.planning/PROJECT.md`
+
+说明：
+
+- `source channel` 不等于 `corpus/collection`
+- 同一个 source channel 可以 fan-out 到多个 `corpus/collection` scope
+- `official_web` 作为 source channel，不表示它只能有一个 mixed collection
+- `official_web` 未来应拆成独立 serving scope，例如 `official_web/stable_reference`、`official_web/fresh_news`、`official_web/news_archive`
+- 正式规章与正式培养方案若已有更强语义 owner，应继续进入与 `official_web` 并列的 `regulations/*`、`curriculum/*`
+
 ### Query-Enabled Scope
 
 定义：
@@ -37,6 +57,7 @@ updated: 2026-03-31
 
 - 当前 query-enabled scope 是 `regulations/student_handbook` 与 `curriculum/curriculum_plan`
 - `campus_services/*` 当前仍是 `offline_preparation`
+- 当前 `official_web/muc_public_pages` 也是 `offline_preparation` 的 mixed bridge，不应误读成长期最终 serving scope
 
 ### Serving Alias
 
@@ -172,6 +193,7 @@ updated: 2026-03-31
 ## 当前约束
 
 - runtime profile 声明 serving alias、collection prefix 和 vector binding
+- source channel、corpus、collection、serving surface 是不同层；命名相近不表示必须一一对应
 - physical collection 由 index release 生成，不由 env 或手写固定 collection 名直接指定
 - 已进入 release-managed lifecycle 的 collection 不论当前是 `query_serving` 还是 `offline_preparation`，都应使用稳定 alias + versioned physical collection
 - 旧 physical collection 默认先进入 `current / previous / migration_baseline / archive_candidate` 角色判断，再决定是否删除；不允许仅按年龄直接删除

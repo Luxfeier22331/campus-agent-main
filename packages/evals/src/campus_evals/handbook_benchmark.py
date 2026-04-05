@@ -542,6 +542,7 @@ def _write_benchmark_summary(
     runtime_event_session_id: str | None = None,
 ) -> dict[str, object]:
     case_index = {case.case_id: case for case in cases}
+    deterministic_summary = _summarize_deterministic_runs(run_reports)
     supplemental_summary = _summarize_supplemental_across_runs(
         run_reports=run_reports,
         case_index=case_index,
@@ -549,10 +550,23 @@ def _write_benchmark_summary(
     )
     supplemental_runtime = _summarize_supplemental_runtime_health(supplemental_summary)
     gate_report = evaluate_judge_gate(policy, supplemental_summary)
+    deterministic_gate = _evaluate_optional_deterministic_gate(
+        policy=policy,
+        deterministic_summary=deterministic_summary,
+    )
     gate_report = {
         **gate_report,
         "supplemental_runtime": supplemental_runtime,
     }
+    if deterministic_gate is not None:
+        gate_report = {
+            **gate_report,
+            "overall_verdict": _merge_gate_verdict(
+                str(gate_report.get("overall_verdict") or "pass"),
+                str(deterministic_gate["verdict"]),
+            ),
+            "deterministic_gate": deterministic_gate,
+        }
     if provenance is not None:
         gate_report = {
             **gate_report,
@@ -568,7 +582,7 @@ def _write_benchmark_summary(
         "benchmark_type": benchmark_type,
         "reruns": reruns,
         "case_set": _case_set_summary(cases),
-        "deterministic": _summarize_deterministic_runs(run_reports),
+        "deterministic": deterministic_summary,
         "aggregate": {
             "supplemental": supplemental_summary,
         },
@@ -961,6 +975,82 @@ def _summarize_deterministic_runs(run_reports: list[RunReport]) -> dict[str, obj
     }
 
 
+def _evaluate_optional_deterministic_gate(
+    *,
+    policy: dict[str, object],
+    deterministic_summary: dict[str, object],
+) -> dict[str, object] | None:
+    deterministic_policy = policy.get("deterministic_gate")
+    if not isinstance(deterministic_policy, dict):
+        return None
+
+    reasons: list[str] = []
+    required_runs = int(policy["required_runs"])
+    run_count = int(deterministic_summary.get("run_count") or 0)
+    run_pass_rates = list(deterministic_summary.get("run_pass_rates") or ())
+    mean_pass_rate = _read_optional_float(deterministic_summary.get("mean_pass_rate"))
+    min_run_pass_rate = (
+        min(rate for rate in run_pass_rates if rate is not None)
+        if any(rate is not None for rate in run_pass_rates)
+        else None
+    )
+    if run_count < required_runs:
+        reasons.append("insufficient_total_runs")
+    expected_min_mean = _read_optional_float(deterministic_policy.get("min_mean_pass_rate"))
+    if mean_pass_rate is None:
+        if expected_min_mean is not None:
+            reasons.append("missing_mean_pass_rate")
+    elif expected_min_mean is not None and mean_pass_rate < expected_min_mean:
+        reasons.append("mean_pass_rate_below_threshold")
+    expected_min_run = _read_optional_float(deterministic_policy.get("min_run_pass_rate"))
+    if min_run_pass_rate is None:
+        if expected_min_run is not None:
+            reasons.append("missing_run_pass_rate")
+    elif expected_min_run is not None and min_run_pass_rate < expected_min_run:
+        reasons.append("min_run_pass_rate_below_threshold")
+    if bool(deterministic_policy.get("require_stable_across_runs")) and not bool(
+        deterministic_summary.get("stable_across_runs")
+    ):
+        reasons.append("unstable_across_runs")
+
+    gate_level = str(deterministic_policy["gate_level"])
+    verdict = "pass" if not reasons else ("fail" if gate_level == "hard_gate" else "warn")
+    return {
+        "gate_level": gate_level,
+        "verdict": verdict,
+        "thresholds": {
+            "min_mean_pass_rate": expected_min_mean,
+            "min_run_pass_rate": expected_min_run,
+            "require_stable_across_runs": bool(deterministic_policy.get("require_stable_across_runs")),
+            "required_runs": required_runs,
+        },
+        "observed": {
+            "run_count": run_count,
+            "run_pass_counts": list(deterministic_summary.get("run_pass_counts") or ()),
+            "run_failed_counts": list(deterministic_summary.get("run_failed_counts") or ()),
+            "run_pass_rates": run_pass_rates,
+            "mean_pass_rate": mean_pass_rate,
+            "min_run_pass_rate": min_run_pass_rate,
+            "stable_across_runs": bool(deterministic_summary.get("stable_across_runs")),
+        },
+        "reasons": reasons,
+    }
+
+
+def _merge_gate_verdict(current: str, candidate: str) -> str:
+    if current == "fail" or candidate == "fail":
+        return "fail"
+    if current == "warn" or candidate == "warn":
+        return "warn"
+    return "pass"
+
+
+def _read_optional_float(value: object) -> float | None:
+    if value is None:
+        return None
+    return float(value)
+
+
 def _summarize_supplemental_across_runs(
     *,
     run_reports: list[RunReport],
@@ -1137,8 +1227,10 @@ def _summarize_supplemental_runtime_health(
 def _render_summary_markdown(summary: dict[str, object]) -> str:
     deterministic = summary["deterministic"]
     gate_report = summary["gate_report"]
+    deterministic_gate = gate_report.get("deterministic_gate") if isinstance(gate_report, dict) else None
+    benchmark_title = str(summary.get("benchmark_type") or "benchmark").replace("_", " ").title()
     lines = [
-        "# Student Handbook Formal Benchmark",
+        f"# {benchmark_title}",
         "",
         f"- benchmark_type: `{summary['benchmark_type']}`",
         f"- reruns: `{summary['reruns']}`",
@@ -1175,6 +1267,21 @@ def _render_summary_markdown(summary: dict[str, object]) -> str:
             f"- run_pass_rates: `{deterministic['run_pass_rates']}`",
             f"- stable_across_runs: `{deterministic['stable_across_runs']}`",
             "",
+        )
+    )
+    if isinstance(deterministic_gate, dict):
+        lines.extend(
+            (
+                "## Deterministic Gate",
+                "",
+                f"- verdict: `{deterministic_gate['verdict']}`",
+                f"- thresholds: `{deterministic_gate['thresholds']}`",
+                f"- reasons: `{deterministic_gate['reasons']}`",
+                "",
+            )
+        )
+    lines.extend(
+        (
             "## Supplemental Metrics",
             "",
         )

@@ -1,8 +1,8 @@
 ---
-doc_type: policy
+doc_type: architecture
 status: active
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-03-30
 ---
 
 # Official Web Crawl Policy
@@ -27,7 +27,8 @@ updated: 2026-03-28
 
 对应文档：
 
-- `official_web` supporting architecture：`docs/architecture/official-web-architecture.md`
+- source channel 边界：`docs/architecture/official-web-source-channel.md`
+- freshness / 增量采集：`docs/architecture/official-web-freshness-and-incremental-crawling.md`
 - source-truth schema：`docs/architecture/official-web-source-truth-contract.md`
 
 ## 目标
@@ -43,6 +44,7 @@ updated: 2026-03-28
 - crawl scope 的真相源是 `site config + host allowlist + seed URLs`，不是“所有导航可达链接”。
 - host 是 crawl policy 的一级边界；robots、rate limit、seed URLs、allow/deny 规则都必须按 host 配置。
 - sitemap 只是 discovery signal，不是 scope truth。
+- sitemap `lastmod`、RSS/Atom 时间戳等外部更新信号只能作为 discovery / priority input，不是页面变化真相。
 - query URL 默认拒绝；只有显式白名单参数才允许进入 canonical identity。
 - `official_web` v1 只抓取 `text/html` 公共页面，不默认纳入登录态页面、应用壳、搜索结果页、动作页或非 HTML 下载页。
 
@@ -232,8 +234,10 @@ collector 应按以下顺序发现 URL：
 对 `robots.txt` 的处理规则固定为：
 
 - `4xx` 视为 unavailable，可继续 crawl
+- `4xx` 时仍可回退到 host config 中显式声明的 sitemap URLs
 - `429` 视为限流信号，当前 host 退避并可终止本轮 host crawl
 - `5xx`、DNS 失败、网络超时、连接错误视为 server-side failure，当前 host fail-closed
+- fail-closed 的 robots 失败必须进入 host failure 记录，不能默默降级为“正常可抓”
 
 这与 RFC 9309 和 Google 当前公开解释一致。
 
@@ -272,6 +276,8 @@ collector 应按以下顺序发现 URL：
 
 - 不生成新的 raw/source-truth version
 - 仍生成新的 crawl observation
+- 复用已知页面的 `response_body_hash` 与 `main_content_hash`
+- 更新 `last_seen_at`、`last_not_modified_at` 与下一次抓取资格
 
 ## Frontier Policy
 
@@ -326,6 +332,7 @@ collector 可以使用 Crawlee 的 autoscaling，但必须在 host policy 上限
 - `404`、`410`、显式 `Disallow`、内容类型不受支持不得重试为成功
 - `429` 必须带指数退避
 - redirect loop 必须终止并记为 failure
+- 已知 canonical URL 在 retryable 失败后，collector 必须上报 `fetch_failed` page observation，交给 `app-api` 写入 repair cadence
 
 ## 生命周期语义
 
@@ -335,6 +342,7 @@ collector 可以使用 Crawlee 的 autoscaling，但必须在 host policy 上限
 
 - collector 必须记录 tombstone-like observation
 - collector 不直接删除下游文档真相
+- 若该 URL 属于已知页面，observation 应显式标记为 `deleted`
 - 是否 tombstone 某个 document，由中心 ingestion 决定
 
 ### 页面从导航消失

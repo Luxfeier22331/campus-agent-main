@@ -97,6 +97,18 @@ from campus_evals.app_api_chat_runtime import (
     AppApiEvalClientSettings,
     AppApiEvalExecution,
 )
+from campus_evals.official_web_inventory import (
+    OFFICIAL_WEB_CURRENT_TRUTH_INVENTORY_PATH,
+    load_official_web_current_truth_inventory,
+    official_web_current_truth_doc_ids_by_bucket,
+    official_web_future_fresh_news_doc_ids,
+    official_web_future_fresh_news_titles,
+    official_web_inventory_only_doc_ids_by_disposition,
+    official_web_inventory_only_titles_by_disposition,
+    official_web_retain_inventory_only_doc_ids,
+    official_web_retain_inventory_only_titles,
+    official_web_release_gate_doc_ids,
+)
 from campus_evals.runner import run_cases
 from campus_evals.scenarios import (
     curriculum_error_gate_cases,
@@ -107,6 +119,11 @@ from campus_evals.scenarios import (
     handbook_regression_locked_cases,
     handbook_release_gate_cases,
     handbook_smoke_cases,
+    official_web_fresh_news_release_gate_cases,
+    official_web_fresh_news_scope,
+    official_web_release_gate_cases,
+    official_web_stable_reference_release_gate_cases,
+    official_web_stable_reference_scope,
 )
 from campus_evals.settings import JudgeLLMSettings, RagasSettings, SupplementalHTTPSettings
 
@@ -141,8 +158,20 @@ def build_handbook_live_profile(*args, **kwargs):
     return _build(*args, **kwargs)
 
 
+def build_official_web_live_executor(*args, **kwargs):
+    from campus_evals.official_web_live_benchmark import build_official_web_live_executor as _build
+
+    return _build(*args, **kwargs)
+
+
 def build_handbook_live_executor(*args, **kwargs):
     from campus_evals.handbook_live_benchmark import build_handbook_live_executor as _build
+
+    return _build(*args, **kwargs)
+
+
+def build_official_web_live_profile(*args, **kwargs):
+    from campus_evals.official_web_live_benchmark import build_official_web_live_profile as _build
 
     return _build(*args, **kwargs)
 
@@ -173,6 +202,7 @@ __all__ = [
     "GraderPolicy",
     "JudgeLLMSettings",
     "ObservedTrace",
+    "OFFICIAL_WEB_CURRENT_TRUTH_INVENTORY_PATH",
     "OperatorObservabilityPublishConfig",
     "OpenAICompatibleHTTPEmbeddings",
     "OpenAICompatibleResponsesLLM",
@@ -211,6 +241,8 @@ __all__ = [
     "build_default_handbook_supplemental_adapters_from_env",
     "build_handbook_live_executor",
     "build_handbook_live_profile",
+    "build_official_web_live_executor",
+    "build_official_web_live_profile",
     "build_legacy_curriculum_live_executor",
     "build_legacy_handbook_live_executor",
     "build_case_results_publish_batch",
@@ -235,10 +267,19 @@ __all__ = [
     "evaluate_retrieval_run",
     "evaluate_case",
     "expected_source_ref",
+    "official_web_current_truth_doc_ids_by_bucket",
+    "official_web_fresh_news_release_gate_cases",
+    "official_web_fresh_news_scope",
+    "official_web_future_fresh_news_doc_ids",
+    "official_web_future_fresh_news_titles",
+    "official_web_inventory_only_titles_by_disposition",
+    "official_web_retain_inventory_only_doc_ids",
+    "official_web_retain_inventory_only_titles",
     "load_retrieval_hybrid_query_dataset",
     "load_retrieval_benchmark_run",
     "load_handbook_judge_rubrics",
     "load_judge_gate_policy",
+    "load_official_web_current_truth_inventory",
     "load_request_correlation_manifest",
     "load_retrieval_qrels_dataset",
     "operator_observability_main",
@@ -256,6 +297,11 @@ __all__ = [
     "handbook_regression_locked_cases",
     "handbook_release_gate_cases",
     "handbook_smoke_cases",
+    "official_web_release_gate_cases",
+    "official_web_stable_reference_release_gate_cases",
+    "official_web_stable_reference_scope",
+    "official_web_inventory_only_doc_ids_by_disposition",
+    "official_web_release_gate_doc_ids",
     "summarize_retrieval_metrics",
     "validate_retrieval_hybrid_query_fixture",
     "validate_retrieval_qrels_fixture",

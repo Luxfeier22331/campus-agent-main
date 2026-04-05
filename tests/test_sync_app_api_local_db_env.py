@@ -15,7 +15,10 @@ class SyncAppApiLocalDbEnvTest(unittest.TestCase):
             feature_worktree = root_worktree / ".worktrees" / "official-web-crawler"
             feature_worktree.mkdir(parents=True)
             source_env = root_worktree / ".env"
-            source_env.write_text(f"{SHARED_POSTGRES_ENV_KEY}=postgres://db.example\n", encoding="utf-8")
+            source_env.write_text(
+                f"{SHARED_POSTGRES_ENV_KEY}=postgres://db.example\n",
+                encoding="utf-8",
+            )
 
             resolved = resolve_source_env_path(feature_worktree)
 

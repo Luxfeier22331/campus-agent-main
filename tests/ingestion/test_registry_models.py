@@ -7,6 +7,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
+from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef, SourceObservation
 from campus_ingestion_core.authenticated_notice_closeout_store import (
     PostgresAuthenticatedNoticeCloseoutStore,
@@ -673,6 +674,38 @@ class RegistryModelsTest(unittest.TestCase):
                 curriculum_record,
             )
 
+    def test_file_raw_asset_registry_replace_scope_replaces_only_target_scope(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "raw-assets.json"
+            registry = InMemoryRawAssetRegistry(backing_path=path)
+            handbook_record = _handbook_raw_asset_record()
+            curriculum_record = _curriculum_raw_asset_record()
+            handbook_replacement = RawAssetRecord(
+                raw_asset_id="asset:student-handbook-pdf-v2",
+                raw_version_id="sha256:raw-003",
+                corpus="regulations",
+                collection="student_handbook",
+                raw_source_uri="campusrag://raw/regulations/student_handbook/student-handbook-v2.pdf",
+                content_hash="raw-003",
+                source_filename="student-handbook-v2.pdf",
+                object_key="official_pdf/student-handbook/undated/sha256/raw-003/capture/student-handbook-v2.pdf",
+                ingestion_timestamp="2026-03-23T10:00:00+00:00",
+                import_source="raw_online_ocr",
+            )
+            registry.upsert(handbook_record)
+            registry.upsert(curriculum_record)
+
+            registry.replace_scope("regulations", "student_handbook", (handbook_replacement,))
+
+            self.assertEqual(
+                registry.list_by_scope("regulations", "student_handbook"),
+                (handbook_replacement,),
+            )
+            self.assertEqual(
+                registry.list_by_scope("curriculum", "curriculum_plan"),
+                (curriculum_record,),
+            )
+
     def test_curriculum_plan_records_are_supported(self) -> None:
         document_record = _curriculum_document_record()
         raw_asset_record = _curriculum_raw_asset_record()
@@ -825,6 +858,141 @@ class RegistryModelsTest(unittest.TestCase):
         ):
             self.assertIsNone(registry.current_version("handbook:test-001"))
             latest_versions.assert_not_called()
+
+    def test_postgres_document_registry_list_by_scope_canonicalizes_legacy_authz_projection_keys(self) -> None:
+        legacy_payload = {
+            "document_id": "official_web:test-001",
+            "revision_track": "source-faithful",
+            "version_id": "owdocver:test-001",
+            "source_uri": "https://www.example.edu/test-001.htm",
+            "content_hash": "sha256:test-001",
+            "corpus": "official_web",
+            "collection": "muc_public_pages",
+            "cleaning_policy_version": "official_web_cleaning_v2",
+            "acl_level": "restricted",
+            "acl_groups": ["legacy-staff"],
+            "campus_scope": "south",
+            "status": "active",
+            "ingestion_timestamp": "2026-04-04T10:00:00+00:00",
+            "parser_version": "official_web_projection_replay.v1",
+            "embedding_model": "",
+            "source_channel": "official_web",
+            "import_source": "official_web_source_truth_replay",
+        }
+
+        with patch.object(PostgresDocumentRegistry, "_ensure_schema", return_value=None):
+            registry = PostgresDocumentRegistry("postgresql://registry.example/postgres")
+
+        with patch.object(registry, "_fetchall", return_value=((json.dumps(legacy_payload),),)):
+            records = registry.list_by_scope("official_web", "muc_public_pages")
+
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].entitlement_groups, ("legacy-staff",))
+        self.assertEqual(records[0].visibility_scope, "south")
+        self.assertEqual(records[0].visibility_level, "restricted")
+        self.assertEqual(records[0].policy_projection_version, DEFAULT_POLICY_PROJECTION_VERSION)
+
+    def test_postgres_document_registry_get_canonicalizes_legacy_authz_projection_keys(self) -> None:
+        legacy_payload = {
+            "document_id": "official_web:test-001",
+            "revision_track": "source-faithful",
+            "version_id": "owdocver:test-001",
+            "source_uri": "https://www.example.edu/test-001.htm",
+            "content_hash": "sha256:test-001",
+            "corpus": "official_web",
+            "collection": "muc_public_pages",
+            "cleaning_policy_version": "official_web_cleaning_v2",
+            "acl_level": "restricted",
+            "acl_groups": ["legacy-staff"],
+            "campus_scope": "south",
+            "status": "active",
+            "ingestion_timestamp": "2026-04-04T10:00:00+00:00",
+            "parser_version": "official_web_projection_replay.v1",
+            "embedding_model": "",
+            "source_channel": "official_web",
+            "import_source": "official_web_source_truth_replay",
+        }
+
+        with patch.object(PostgresDocumentRegistry, "_ensure_schema", return_value=None):
+            registry = PostgresDocumentRegistry("postgresql://registry.example/postgres")
+
+        with patch.object(registry, "_fetchone", return_value=(json.dumps(legacy_payload),)):
+            record = registry.get("official_web:test-001", "source-faithful", "owdocver:test-001")
+
+        self.assertIsNotNone(record)
+        assert record is not None
+        self.assertEqual(record.entitlement_groups, ("legacy-staff",))
+        self.assertEqual(record.visibility_scope, "south")
+        self.assertEqual(record.visibility_level, "restricted")
+        self.assertEqual(record.policy_projection_version, DEFAULT_POLICY_PROJECTION_VERSION)
+
+    def test_postgres_document_registry_latest_versions_canonicalizes_legacy_authz_projection_keys(self) -> None:
+        legacy_payload = {
+            "document_id": "official_web:test-003",
+            "revision_track": "source-faithful",
+            "version_id": "owdocver:test-003",
+            "source_uri": "https://www.example.edu/test-003.htm",
+            "content_hash": "sha256:test-003",
+            "corpus": "official_web",
+            "collection": "muc_public_pages",
+            "cleaning_policy_version": "official_web_cleaning_v2",
+            "acl_level": "restricted",
+            "acl_groups": ["legacy-editors"],
+            "campus_scope": "north",
+            "status": "active",
+            "ingestion_timestamp": "2026-04-04T10:00:00+00:00",
+            "parser_version": "official_web_projection_replay.v1",
+            "embedding_model": "",
+            "source_channel": "official_web",
+            "import_source": "official_web_source_truth_replay",
+        }
+
+        with patch.object(PostgresDocumentRegistry, "_ensure_schema", return_value=None):
+            registry = PostgresDocumentRegistry("postgresql://registry.example/postgres")
+
+        with patch.object(registry, "_fetchone", return_value=(json.dumps(legacy_payload),)):
+            records = registry.latest_versions("official_web:test-003", "source-faithful")
+
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].entitlement_groups, ("legacy-editors",))
+        self.assertEqual(records[0].visibility_scope, "north")
+        self.assertEqual(records[0].visibility_level, "restricted")
+        self.assertEqual(records[0].policy_projection_version, DEFAULT_POLICY_PROJECTION_VERSION)
+
+    def test_postgres_document_registry_current_version_canonicalizes_legacy_authz_projection_keys(self) -> None:
+        legacy_payload = {
+            "document_id": "official_web:test-002",
+            "revision_track": "source-faithful",
+            "version_id": "owdocver:test-002",
+            "source_uri": "https://www.example.edu/test-002.htm",
+            "content_hash": "sha256:test-002",
+            "corpus": "official_web",
+            "collection": "muc_public_pages",
+            "cleaning_policy_version": "official_web_cleaning_v2",
+            "acl_level": "restricted",
+            "acl_groups": ["legacy-operators"],
+            "campus_scope": "main",
+            "status": "active",
+            "ingestion_timestamp": "2026-04-04T10:00:00+00:00",
+            "parser_version": "official_web_projection_replay.v1",
+            "embedding_model": "",
+            "source_channel": "official_web",
+            "is_current": True,
+            "import_source": "official_web_source_truth_replay",
+        }
+
+        with patch.object(PostgresDocumentRegistry, "_ensure_schema", return_value=None):
+            registry = PostgresDocumentRegistry("postgresql://registry.example/postgres")
+
+        with patch.object(registry, "_fetchone", return_value=(json.dumps(legacy_payload),)):
+            record = registry.current_version("official_web:test-002")
+
+        self.assertIsNotNone(record)
+        assert record is not None
+        self.assertEqual(record.entitlement_groups, ("legacy-operators",))
+        self.assertEqual(record.visibility_scope, "main")
+        self.assertEqual(record.visibility_level, "restricted")
+        self.assertEqual(record.policy_projection_version, DEFAULT_POLICY_PROJECTION_VERSION)
 
     def test_postgres_document_registry_replace_scope_uses_bulk_recordset_insert(self) -> None:
         class _RecordingCursor:

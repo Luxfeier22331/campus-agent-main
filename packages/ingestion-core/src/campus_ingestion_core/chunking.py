@@ -46,6 +46,13 @@ CURRICULUM_V2_TABLE_CHUNK_OVERLAP = 72
 CURRICULUM_V2_TABLE_MIN_CHUNK_SIZE = 64
 CURRICULUM_V2_STRATEGY_NAME = "curriculum_plan_structure_v2"
 CURRICULUM_CLEANING_POLICY_VERSION = "curriculum_plan_cleaning_v1"
+OFFICIAL_WEB_V2_CHUNK_POLICY_VERSION = "official_web_semantic_v2"
+OFFICIAL_WEB_CLEANING_POLICY_VERSION = "official_web_cleaning_v2"
+OFFICIAL_WEB_V2_CHUNK_SIZE = 288
+OFFICIAL_WEB_V2_MAX_CHUNK_SIZE = 384
+OFFICIAL_WEB_V2_CHUNK_OVERLAP = 48
+OFFICIAL_WEB_V2_MIN_CHUNK_SIZE = 72
+OFFICIAL_WEB_V2_STRATEGY_NAME = "official_web_structure_v2"
 
 HANDBOOK_V2_CHUNK_POLICY_VERSION = "student_handbook_semantic_v2"
 HANDBOOK_V2_CHUNK_SIZE = 384
@@ -83,6 +90,20 @@ _PREAMBLE_LINE_RE = re.compile(r"[：:]$")
 _TOP_LEVEL_CLAUSE_CONTEXT_RE = re.compile(r"^(?:[（(][一二三四五六七八九十百千万〇零两]+[)）]|[一二三四五六七八九十百千万〇零两]+、)")
 _NUMERIC_SUBCLAUSE_CONTEXT_RE = re.compile(r"^[0-9]+[.、]")
 _PAREN_NUMERIC_SUBCLAUSE_CONTEXT_RE = re.compile(r"^[（(][0-9]+[)）]")
+_OFFICIAL_WEB_PAGE_FAMILIES = frozenset(
+    {
+        "article_detail",
+        "listing_page",
+        "directory_page",
+        "generic_content_page",
+        "data_table_page",
+        "gallery_page",
+        "contact_widget_page",
+        "sitemap_navigation_page",
+        "dynamic_shell_page",
+        "structural_shell_page",
+    }
+)
 
 
 class TokenCounter(Protocol):
@@ -376,6 +397,34 @@ class CurriculumChunkingStrategy:
         return None
 
 
+class OfficialWebChunkingStrategy:
+    def split_structure_boundaries(
+        self,
+        *,
+        unit_type: str,
+        text: str,
+        chunk_profile: ChunkProfile,
+        display_budget: ResolvedDisplayBudget,
+    ) -> StructuralSplitResult | None:
+        candidate_lines = [line.strip() for line in text.splitlines() if line.strip()]
+        if len(candidate_lines) < 2:
+            return None
+        if unit_type in {"section_text", "directory_entry"}:
+            grouped = _group_lines_by_token_budget(
+                candidate_lines,
+                chunk_profile=chunk_profile,
+                display_budget=display_budget,
+                prefer_target_split=True,
+            )
+            if len(grouped) > 1 and _segments_within_budget(
+                grouped,
+                chunk_profile=chunk_profile,
+                display_budget=display_budget,
+            ):
+                return StructuralSplitResult(segments=grouped, boundary_rule="official_web_line_budget")
+        return None
+
+
 @dataclass(frozen=True, slots=True)
 class ChunkProfile:
     chunk_size: int = DEFAULT_CHUNK_SIZE
@@ -547,6 +596,29 @@ def build_curriculum_chunk_profile(
             tokenizer_name=token_counter.name,
         )
     raise ValueError(f"unsupported curriculum chunk profile version: {profile_version}")
+
+
+def build_official_web_chunk_profile(
+    *,
+    profile_version: str = OFFICIAL_WEB_V2_CHUNK_POLICY_VERSION,
+) -> ChunkProfile:
+    if profile_version != OFFICIAL_WEB_V2_CHUNK_POLICY_VERSION:
+        raise ValueError(f"unsupported official_web chunk profile version: {profile_version}")
+    return ChunkProfile(
+        chunk_size=OFFICIAL_WEB_V2_CHUNK_SIZE,
+        max_chunk_size=OFFICIAL_WEB_V2_MAX_CHUNK_SIZE,
+        chunk_overlap=OFFICIAL_WEB_V2_CHUNK_OVERLAP,
+        min_chunk_size=OFFICIAL_WEB_V2_MIN_CHUNK_SIZE,
+        split_strategy="structure_first",
+        chunk_policy_version=OFFICIAL_WEB_V2_CHUNK_POLICY_VERSION,
+        cleaning_policy_version=OFFICIAL_WEB_CLEANING_POLICY_VERSION,
+        strategy_name=OFFICIAL_WEB_V2_STRATEGY_NAME,
+        strategy=OfficialWebChunkingStrategy(),
+        token_counter=RegexApproxTokenCounter(),
+        tokenizer_name=DEFAULT_TOKENIZER_NAME,
+        final_text_aware=True,
+        safety_margin=8,
+    )
 
 
 def clean_structured_text(*, unit_type: str, text: str) -> str:
@@ -751,6 +823,10 @@ def build_chunk_text_context(
         if isinstance(section_path, list)
         else ()
     )
+    normalized_section_path = _dedupe_context_section_path(
+        title_text=title_text,
+        section_path=normalized_section_path,
+    )
     article_text = _normalize_context_text(resolved_anchor.get("article_label"))
     provision_text = _normalize_context_text(resolved_anchor.get("provision_label"))
     table_text = _normalize_context_text(resolved_anchor.get("table_context"))
@@ -758,6 +834,13 @@ def build_chunk_text_context(
         article_text=article_text,
         provision_text=provision_text,
         table_text=table_text,
+    )
+    page_family_text = _normalize_context_text(resolved_metadata.get("page_family"))
+    serving_intent_text = _normalize_context_text(resolved_metadata.get("serving_intent"))
+    is_official_web_promotable_context = (
+        page_family_text in _OFFICIAL_WEB_PAGE_FAMILIES
+        and serving_intent_text != "audit_only"
+        and page_family_text != "listing_page"
     )
 
     full_parts: list[str] = []
@@ -799,7 +882,8 @@ def build_chunk_text_context(
     variants: list[ChunkHeaderVariant] = []
     _append_header_variant(variants, mode="full_path", base_line=full_header, doc_no_line=doc_no_line)
     _append_header_variant(variants, mode="compact_path", base_line=compact_header, doc_no_line=doc_no_line)
-    _append_header_variant(variants, mode="compact_identity", base_line=compact_identity, doc_no_line=doc_no_line)
+    if not is_official_web_promotable_context:
+        _append_header_variant(variants, mode="compact_identity", base_line=compact_identity, doc_no_line=doc_no_line)
     _append_header_variant(
         variants,
         mode="title_only",
@@ -1481,6 +1565,18 @@ def _normalize_context_text(value: object) -> str | None:
     return normalized or None
 
 
+def _dedupe_context_section_path(*, title_text: str | None, section_path: tuple[str, ...]) -> tuple[str, ...]:
+    if not title_text or not section_path:
+        return section_path
+    if _context_text_equivalent(title_text, section_path[-1]):
+        return section_path[:-1]
+    return section_path
+
+
+def _context_text_equivalent(left: str, right: str) -> bool:
+    return left.strip().casefold() == right.strip().casefold()
+
+
 def _resolve_detail_label(
     *,
     article_text: str | None,
@@ -1562,8 +1658,10 @@ __all__ = [
     "StructuredUnitChunkInput",
     "StudentHandbookChunkingStrategy",
     "StudentHandbookChunkingStrategyV2",
+    "OfficialWebChunkingStrategy",
     "TiktokenTokenCounter",
     "assemble_chunk_text",
+    "build_official_web_chunk_profile",
     "build_chunk_text_context",
     "build_student_handbook_chunk_profile",
     "chunk_table_unit",

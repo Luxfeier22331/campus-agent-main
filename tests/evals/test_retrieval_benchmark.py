@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 
 import campus_evals
-from campus_contracts import EvidenceSource, KnowledgeScope
+from campus_contracts import EvidenceBundle, EvidenceSource, KnowledgeScope
 from campus_evals import (
     RetrievalBenchmarkRun,
     RetrievalCaseMetrics,
@@ -23,10 +23,12 @@ from campus_evals import (
     load_retrieval_benchmark_run,
     load_retrieval_qrels_dataset,
     render_retrieval_summary_text,
+    resolve_retrieval_fixture_manifest_path,
     summarize_retrieval_metrics,
     validate_retrieval_qrels_fixture,
 )
 from campus_evals.retrieval_benchmark import main as benchmark_main
+from campus_evals.retrieval_live_benchmark import main as live_benchmark_main
 
 
 FIXTURE_PATH = (
@@ -63,6 +65,51 @@ CURRICULUM_ANNOTATION_TEMPLATE_PATH = (
     / "evals"
     / "fixtures"
     / "curriculum_plan_retrieval_annotation_template.json"
+)
+OFFICIAL_WEB_QRELS_FIXTURE_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "packages"
+    / "evals"
+    / "fixtures"
+    / "official_web_muc_public_pages_retrieval_qrels.json"
+)
+OFFICIAL_WEB_STABLE_REFERENCE_QRELS_FIXTURE_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "packages"
+    / "evals"
+    / "fixtures"
+    / "official_web_stable_reference_retrieval_qrels.json"
+)
+OFFICIAL_WEB_FRESH_NEWS_QRELS_FIXTURE_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "packages"
+    / "evals"
+    / "fixtures"
+    / "official_web_fresh_news_retrieval_qrels.json"
+)
+OFFICIAL_WEB_MANIFEST_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "configs"
+    / "ingestion"
+    / "official_web"
+    / "muc_public_pages"
+    / "split-manifest.v1.json"
+)
+OFFICIAL_WEB_STABLE_REFERENCE_MANIFEST_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "configs"
+    / "ingestion"
+    / "official_web"
+    / "stable_reference"
+    / "split-manifest.v1.json"
+)
+OFFICIAL_WEB_FRESH_NEWS_MANIFEST_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "configs"
+    / "ingestion"
+    / "official_web"
+    / "fresh_news"
+    / "split-manifest.v1.json"
 )
 ANNOTATION_TEMPLATE_PATH = (
     Path(__file__).resolve().parents[2]
@@ -413,6 +460,249 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertIn("fixed-phrase-ethnic-experimental-class", issues[0])
         self.assertIn("ambiguously matches", issues[0])
         self.assertIn("needs_clarification", issues[0])
+
+    def test_load_official_web_retrieval_qrels_dataset_reads_current_baseline(self) -> None:
+        dataset = load_retrieval_qrels_dataset(OFFICIAL_WEB_QRELS_FIXTURE_PATH)
+
+        self.assertIsInstance(dataset, RetrievalQrelsDataset)
+        self.assertEqual(dataset.schema_version, 1)
+        self.assertEqual(dataset.scope, KnowledgeScope(corpus="official_web", collection="muc_public_pages"))
+        self.assertEqual(dataset.baseline["dense_model"], "Qwen3-Embedding-4B")
+        self.assertEqual(dataset.baseline["sparse_model"], "qdrant/bm25")
+        self.assertEqual(dataset.baseline["fusion"], "rrf")
+        self.assertEqual(
+            {case.case_id for case in dataset.cases},
+            {
+                "topic-law-interpretation",
+                "cross-host-duplicate-employment-base",
+                "stable-reference-school-profile",
+                "stable-reference-current-leadership",
+                "stable-reference-alumni-association-profile",
+                "stable-reference-foundation-profile",
+                "stable-reference-library-lecture-notice",
+                "no-hit-campus-name-generic",
+                "no-hit-unanchored-life-service",
+            },
+        )
+
+    def test_official_web_qrels_fixture_locks_expected_sources_to_current_doc_and_version_ids(self) -> None:
+        dataset = load_retrieval_qrels_dataset(OFFICIAL_WEB_QRELS_FIXTURE_PATH)
+        cases = {case.case_id: case for case in dataset.cases}
+
+        self.assertEqual(
+            cases["topic-law-interpretation"].expected_sources,
+            (
+                RetrievalQrelsSourceRef(
+                    doc_id="official_web:muc_public:article_detail:871878763a91199730493efe0cbb0358b884fe58",
+                    version_id="owdocver:fa5f1f590e722118a3800d65e8e95125af62c74a",
+                    grade=2,
+                    rationale="明确主题问法应命中当前 registry truth 中的法治解读文章。",
+                ),
+            ),
+        )
+        self.assertEqual(
+            cases["cross-host-duplicate-employment-base"].expected_sources,
+            (
+                RetrievalQrelsSourceRef(
+                    doc_id="official_web:muc_public:article_detail:ac8ea5921fa808dea152c171d6b0c6c0ba1cc62f",
+                    version_id="owdocver:9be8a3dbe619d97df54d60cbe77d8903698b8fd3",
+                    grade=2,
+                    rationale="news/xxgk 跨 host 同文在 current truth 中应只保留一个逻辑文档。",
+                ),
+            ),
+        )
+        self.assertEqual(
+            cases["stable-reference-school-profile"].expected_sources,
+            (
+                RetrievalQrelsSourceRef(
+                    doc_id="official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
+                    version_id="owdocver:934d619cea41b7add23484fa2d8c2e79c0c5666e",
+                    grade=2,
+                    rationale="学校简介 query 应命中当前稳定介绍页，而不是新闻正文。",
+                ),
+            ),
+        )
+        self.assertEqual(
+            cases["stable-reference-school-profile"].forbidden_sources,
+            (
+                RetrievalQrelsSourceRef(
+                    doc_id="official_web:muc_public:article_detail:36021906c0348aa73ed1f5467c4cb57954295e85",
+                    version_id="owdocver:f7ee81c9f937fe14f493a81e4e5b5b815f2995e6",
+                    grade=1,
+                    rationale="标题已明确指向学校简介时，不应再把学校概况作为并列 retrieval truth。",
+                ),
+            ),
+        )
+        self.assertEqual(
+            cases["stable-reference-current-leadership"].expected_sources,
+            (
+                RetrievalQrelsSourceRef(
+                    doc_id="official_web:muc_public:article_detail:43fdab9acbf0e68e67fddba209463e97d0b2fe4e",
+                    version_id="owdocver:14935f44e582597fdebffe3e8f2bcc9921e2fd06",
+                    grade=2,
+                    rationale="现任领导 query 应命中当前 roster/reference 页面。",
+                ),
+            ),
+        )
+        self.assertEqual(
+            cases["stable-reference-current-leadership"].forbidden_sources,
+            (
+                RetrievalQrelsSourceRef(
+                    doc_id="official_web:muc_public:article_detail:df9f5e313546d24c7a384598d1b676d6b005d881",
+                    version_id="owdocver:1970a7c8d052144896ffd12d5785055720c8fa82",
+                    grade=1,
+                    rationale="现任领导 query 不应误召回更泛的干部人事栏目页。",
+                ),
+            ),
+        )
+
+    def test_official_web_qrels_fixture_uses_no_hit_cases_for_low_signal_queries(self) -> None:
+        dataset = load_retrieval_qrels_dataset(OFFICIAL_WEB_QRELS_FIXTURE_PATH)
+
+        no_hit_cases = {
+            case.case_id
+            for case in dataset.cases
+            if not case.expected_sources and not case.forbidden_sources
+        }
+        self.assertEqual(
+            no_hit_cases,
+            {
+                "no-hit-campus-name-generic",
+                "no-hit-unanchored-life-service",
+            },
+        )
+
+    def test_validate_official_web_qrels_fixture_against_current_manifest_has_no_issues(self) -> None:
+        self.assertEqual(
+            validate_retrieval_qrels_fixture(
+                OFFICIAL_WEB_QRELS_FIXTURE_PATH,
+                manifest_path=OFFICIAL_WEB_MANIFEST_PATH,
+                ambiguity_severity="error",
+            ),
+            (),
+        )
+
+    def test_resolve_retrieval_fixture_manifest_path_supports_official_web_scope(self) -> None:
+        self.assertEqual(
+            resolve_retrieval_fixture_manifest_path(OFFICIAL_WEB_QRELS_FIXTURE_PATH),
+            OFFICIAL_WEB_MANIFEST_PATH,
+        )
+
+    def test_load_official_web_stable_reference_retrieval_qrels_dataset_reads_split_baseline(self) -> None:
+        dataset = load_retrieval_qrels_dataset(OFFICIAL_WEB_STABLE_REFERENCE_QRELS_FIXTURE_PATH)
+
+        self.assertIsInstance(dataset, RetrievalQrelsDataset)
+        self.assertEqual(dataset.schema_version, 1)
+        self.assertEqual(dataset.scope, KnowledgeScope(corpus="official_web", collection="stable_reference"))
+        self.assertEqual(dataset.baseline["dense_model"], "Qwen3-Embedding-4B")
+        self.assertEqual(dataset.baseline["sparse_model"], "qdrant/bm25")
+        self.assertEqual(dataset.baseline["fusion"], "rrf")
+        self.assertEqual(
+            {case.case_id for case in dataset.cases},
+            {
+                "stable-reference-school-profile",
+                "stable-reference-school-overview",
+                "stable-reference-current-leadership",
+                "stable-reference-alumni-association-profile",
+                "stable-reference-foundation-profile",
+                "stable-reference-undergraduate-education",
+                "stable-reference-graduate-education",
+                "stable-reference-postdoctoral-program",
+                "stable-reference-scholars",
+            },
+        )
+
+    def test_official_web_stable_reference_qrels_fixture_locks_expected_sources_to_split_doc_truth(self) -> None:
+        dataset = load_retrieval_qrels_dataset(OFFICIAL_WEB_STABLE_REFERENCE_QRELS_FIXTURE_PATH)
+        cases = {case.case_id: case for case in dataset.cases}
+
+        self.assertEqual(
+            cases["stable-reference-school-profile"].expected_sources,
+            (
+                RetrievalQrelsSourceRef(
+                    doc_id="official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
+                    version_id="owdocver:934d619cea41b7add23484fa2d8c2e79c0c5666e",
+                    grade=2,
+                    rationale="学校简介 query 应命中 stable_reference 的学校简介页面。",
+                ),
+            ),
+        )
+        self.assertEqual(
+            cases["stable-reference-school-overview"].forbidden_sources,
+            (
+                RetrievalQrelsSourceRef(
+                    doc_id="official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
+                    version_id="owdocver:934d619cea41b7add23484fa2d8c2e79c0c5666e",
+                    grade=1,
+                    rationale="学校概况 query 不应被学校简介页面替代。",
+                ),
+            ),
+        )
+        self.assertEqual(
+            cases["stable-reference-foundation-profile"].expected_sources,
+            (
+                RetrievalQrelsSourceRef(
+                    doc_id="official_web:muc_public:article_detail:3342689d05d43819a48bbcf7564f013f217ffe46",
+                    version_id="owdocver:b804aee18c6ba82af29a8f0dca36ac0e92f550aa",
+                    grade=2,
+                    rationale="基金会简介 query 应命中 stable_reference 的基金会页面。",
+                ),
+            ),
+        )
+        self.assertEqual(
+            cases["stable-reference-scholars"].expected_sources,
+            (
+                RetrievalQrelsSourceRef(
+                    doc_id="official_web:muc_public:article_detail:e5f0a4d0916a8a506036f1931a2f5a480e9db3f2",
+                    version_id="owdocver:80a060b7e821f9a3ca8a57d3c674f9045157b981",
+                    grade=2,
+                    rationale="学术名流 query 应命中 stable_reference 的学术名流页面。",
+                ),
+            ),
+        )
+
+    def test_validate_official_web_stable_reference_qrels_fixture_against_split_manifest_has_no_issues(self) -> None:
+        self.assertEqual(
+            validate_retrieval_qrels_fixture(
+                OFFICIAL_WEB_STABLE_REFERENCE_QRELS_FIXTURE_PATH,
+                manifest_path=OFFICIAL_WEB_STABLE_REFERENCE_MANIFEST_PATH,
+                ambiguity_severity="error",
+            ),
+            (),
+        )
+
+    def test_resolve_retrieval_fixture_manifest_path_supports_official_web_stable_reference_scope(self) -> None:
+        self.assertEqual(
+            resolve_retrieval_fixture_manifest_path(OFFICIAL_WEB_STABLE_REFERENCE_QRELS_FIXTURE_PATH),
+            OFFICIAL_WEB_STABLE_REFERENCE_MANIFEST_PATH,
+        )
+
+    def test_load_official_web_fresh_news_retrieval_qrels_dataset_reads_seed_baseline(self) -> None:
+        dataset = load_retrieval_qrels_dataset(OFFICIAL_WEB_FRESH_NEWS_QRELS_FIXTURE_PATH)
+
+        self.assertIsInstance(dataset, RetrievalQrelsDataset)
+        self.assertEqual(dataset.schema_version, 1)
+        self.assertEqual(dataset.scope, KnowledgeScope(corpus="official_web", collection="fresh_news"))
+        self.assertEqual(dataset.baseline["dense_model"], "Qwen3-Embedding-4B")
+        self.assertEqual(dataset.baseline["sparse_model"], "qdrant/bm25")
+        self.assertEqual(dataset.baseline["fusion"], "rrf")
+        self.assertEqual(len(dataset.cases), 8)
+
+    def test_validate_official_web_fresh_news_qrels_fixture_against_split_manifest_has_no_issues(self) -> None:
+        self.assertEqual(
+            validate_retrieval_qrels_fixture(
+                OFFICIAL_WEB_FRESH_NEWS_QRELS_FIXTURE_PATH,
+                manifest_path=OFFICIAL_WEB_FRESH_NEWS_MANIFEST_PATH,
+                ambiguity_severity="error",
+            ),
+            (),
+        )
+
+    def test_resolve_retrieval_fixture_manifest_path_supports_official_web_fresh_news_scope(self) -> None:
+        self.assertEqual(
+            resolve_retrieval_fixture_manifest_path(OFFICIAL_WEB_FRESH_NEWS_QRELS_FIXTURE_PATH),
+            OFFICIAL_WEB_FRESH_NEWS_MANIFEST_PATH,
+        )
 
     def test_validate_retrieval_qrels_fixture_flags_course_family_alias_collapsed_to_single_course(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -1428,6 +1718,11 @@ class RetrievalMetricsTest(unittest.TestCase):
         self.assertEqual(metrics.recall_at_5, 1.0)
         self.assertEqual(metrics.precision_at_5, 0.5)
         self.assertEqual(metrics.mrr_at_5, 1.0)
+        self.assertEqual(metrics.doc_hit_at_1, 1.0)
+        self.assertEqual(metrics.doc_hit_at_3, 1.0)
+        self.assertEqual(metrics.doc_recall_at_5, 1.0)
+        self.assertEqual(metrics.doc_precision_at_5, 0.5)
+        self.assertEqual(metrics.doc_mrr_at_5, 1.0)
         self.assertFalse(metrics.forbidden_hit)
 
     def test_evaluate_retrieval_case_supports_version_and_chunk_level_matching(self) -> None:
@@ -1460,6 +1755,11 @@ class RetrievalMetricsTest(unittest.TestCase):
         self.assertEqual(metrics.recall_at_5, 1.0)
         self.assertEqual(metrics.precision_at_5, 0.5)
         self.assertEqual(metrics.mrr_at_5, 0.5)
+        self.assertEqual(metrics.doc_hit_at_1, 1.0)
+        self.assertEqual(metrics.doc_hit_at_3, 1.0)
+        self.assertEqual(metrics.doc_recall_at_5, 1.0)
+        self.assertEqual(metrics.doc_precision_at_5, 1.0)
+        self.assertEqual(metrics.doc_mrr_at_5, 1.0)
 
     def test_evaluate_retrieval_case_flags_forbidden_hits(self) -> None:
         case = RetrievalQrelsCase(
@@ -1478,6 +1778,10 @@ class RetrievalMetricsTest(unittest.TestCase):
         self.assertEqual(metrics.recall_at_5, 0.0)
         self.assertEqual(metrics.precision_at_5, 0.0)
         self.assertEqual(metrics.mrr_at_5, 0.0)
+        self.assertEqual(metrics.doc_hit_at_1, 0.0)
+        self.assertEqual(metrics.doc_recall_at_5, 0.0)
+        self.assertEqual(metrics.doc_precision_at_5, 0.0)
+        self.assertEqual(metrics.doc_mrr_at_5, 0.0)
         self.assertTrue(metrics.forbidden_hit)
 
     def test_evaluate_retrieval_case_treats_empty_expectation_as_no_hit_contract(self) -> None:
@@ -1496,6 +1800,10 @@ class RetrievalMetricsTest(unittest.TestCase):
         self.assertEqual(empty_metrics.recall_at_5, 1.0)
         self.assertEqual(empty_metrics.precision_at_5, 1.0)
         self.assertEqual(empty_metrics.mrr_at_5, 1.0)
+        self.assertEqual(empty_metrics.doc_hit_at_1, 1.0)
+        self.assertEqual(empty_metrics.doc_recall_at_5, 1.0)
+        self.assertEqual(empty_metrics.doc_precision_at_5, 1.0)
+        self.assertEqual(empty_metrics.doc_mrr_at_5, 1.0)
         self.assertEqual(noisy_metrics.hit_at_1, 0.0)
         self.assertEqual(noisy_metrics.recall_at_5, 0.0)
         self.assertEqual(noisy_metrics.mrr_at_5, 0.0)
@@ -1510,6 +1818,11 @@ class RetrievalMetricsTest(unittest.TestCase):
                 recall_at_5=1.0,
                 precision_at_5=0.5,
                 mrr_at_5=1.0,
+                doc_hit_at_1=1.0,
+                doc_hit_at_3=1.0,
+                doc_recall_at_5=1.0,
+                doc_precision_at_5=0.5,
+                doc_mrr_at_5=1.0,
                 forbidden_hit=False,
             ),
             RetrievalCaseMetrics(
@@ -1520,6 +1833,11 @@ class RetrievalMetricsTest(unittest.TestCase):
                 recall_at_5=0.5,
                 precision_at_5=0.25,
                 mrr_at_5=0.5,
+                doc_hit_at_1=0.0,
+                doc_hit_at_3=1.0,
+                doc_recall_at_5=1.0,
+                doc_precision_at_5=0.5,
+                doc_mrr_at_5=0.5,
                 forbidden_hit=True,
             ),
         )
@@ -1533,6 +1851,11 @@ class RetrievalMetricsTest(unittest.TestCase):
         self.assertAlmostEqual(summary.recall_at_5, 0.75)
         self.assertAlmostEqual(summary.precision_at_5, 0.375)
         self.assertAlmostEqual(summary.mrr_at_5, 0.75)
+        self.assertAlmostEqual(summary.doc_hit_at_1, 0.5)
+        self.assertAlmostEqual(summary.doc_hit_at_3, 1.0)
+        self.assertAlmostEqual(summary.doc_recall_at_5, 1.0)
+        self.assertAlmostEqual(summary.doc_precision_at_5, 0.5)
+        self.assertAlmostEqual(summary.doc_mrr_at_5, 0.75)
         self.assertAlmostEqual(summary.forbidden_hit_rate, 0.5)
         self.assertIn("smoke", summary.by_split)
         self.assertAlmostEqual(summary.by_split["smoke"].mrr_at_5, 0.75)
@@ -1603,6 +1926,11 @@ class RetrievalBenchmarkCliTest(unittest.TestCase):
                 recall_at_5=0.75,
                 precision_at_5=0.375,
                 mrr_at_5=0.75,
+                doc_hit_at_1=0.5,
+                doc_hit_at_3=1.0,
+                doc_recall_at_5=1.0,
+                doc_precision_at_5=0.5,
+                doc_mrr_at_5=0.75,
                 forbidden_hit_rate=0.5,
                 by_split={},
             )
@@ -1611,6 +1939,8 @@ class RetrievalBenchmarkCliTest(unittest.TestCase):
         self.assertIn("Retrieval Benchmark Summary", text)
         self.assertIn("hit@1: 0.500", text)
         self.assertIn("mrr@5: 0.750", text)
+        self.assertIn("doc_hit@1: 0.500", text)
+        self.assertIn("doc_precision@5: 0.500", text)
 
     def test_benchmark_main_supports_text_and_json_output(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -1743,6 +2073,238 @@ class RetrievalBenchmarkCliTest(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         load_repo_env.assert_called_once_with()
+
+
+class RetrievalLiveBenchmarkCliTest(unittest.TestCase):
+    def test_live_benchmark_main_writes_run_results_and_applies_runtime_override(self) -> None:
+        class FakeBackend:
+            def __init__(self) -> None:
+                self.requests = []
+                self.observed_profiles = []
+
+            def retrieve(self, request):
+                import campus_retrieval_core.backend_qdrant as backend_qdrant_module
+
+                self.requests.append(request)
+                self.observed_profiles.append(
+                    backend_qdrant_module.load_runtime_profile(request.corpus, request.collection)
+                )
+                return EvidenceBundle(
+                    query_text=request.query_text,
+                    corpus=request.corpus,
+                    collection=request.collection,
+                    sources=(
+                        EvidenceSource(
+                            doc_id="official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
+                            revision_track="source-faithful",
+                            version_id="owdocver:934d619cea41b7add23484fa2d8c2e79c0c5666e",
+                            chunk_id="school-profile:chunk-1",
+                            anchor={"page": 1},
+                            canonical_url="https://www.muc.edu.cn/xxgk1/xxjj.htm",
+                            latest_url="https://www.muc.edu.cn/xxgk1/xxjj.htm",
+                            source_channel="official_web",
+                            collection="muc_public_pages",
+                            is_current=True,
+                            snippet="中央民族大学学校简介。",
+                            score=0.91,
+                        ),
+                    ),
+                )
+
+        with TemporaryDirectory() as temp_dir:
+            qrels_path = Path(temp_dir) / "qrels.json"
+            qrels_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "corpus": "official_web",
+                        "collection": "muc_public_pages",
+                        "baseline": {},
+                        "cases": [
+                            {
+                                "case_id": "school-profile",
+                                "split": "smoke",
+                                "query": "中央民族大学学校简介",
+                                "expected_sources": [
+                                    {
+                                        "doc_id": "official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
+                                        "version_id": "owdocver:934d619cea41b7add23484fa2d8c2e79c0c5666e",
+                                        "grade": 2,
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            manifest_path = Path(temp_dir) / "split-manifest.v1.json"
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "official_web_muc_public_pages_split_manifest_v1",
+                        "corpus": "official_web",
+                        "collection": "muc_public_pages",
+                        "raw_asset_id": "asset:official-web-muc-public-pages-current-truth-20260403",
+                        "documents": [
+                            {
+                                "document_id": "official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
+                                "title": "学校简介",
+                                "page_start": 1,
+                                "page_end": 1,
+                                "source_uri": "https://www.muc.edu.cn/xxgk1/xxjj.htm",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            output_path = Path(temp_dir) / "run-results.json"
+            fake_backend = FakeBackend()
+
+            stdout_buffer = io.StringIO()
+            with (
+                patch("campus_evals.retrieval_live_benchmark.load_repo_env") as load_repo_env,
+                patch("campus_evals.retrieval_live_benchmark.build_retrieval_backend", return_value=fake_backend),
+                redirect_stdout(stdout_buffer),
+            ):
+                exit_code = live_benchmark_main(
+                    [
+                        "--qrels",
+                        str(qrels_path),
+                        "--output",
+                        str(output_path),
+                        "--manifest",
+                        str(manifest_path),
+                        "--force-enable-retrieval",
+                        "--qdrant-collection-name",
+                        "muc_public_pages__r20260403_015529",
+                        "--format",
+                        "json",
+                    ]
+                )
+            output_payload = json.loads(output_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(exit_code, 0)
+        load_repo_env.assert_called_once_with()
+        self.assertEqual(len(fake_backend.requests), 1)
+        self.assertTrue(fake_backend.observed_profiles[0].retrieval_enabled)
+        self.assertEqual(
+            fake_backend.observed_profiles[0].qdrant_index_binding.alias_name,
+            "muc_public_pages__r20260403_015529",
+        )
+        self.assertEqual(fake_backend.requests[0].top_k, 5)
+        self.assertEqual(
+            output_payload,
+            {
+                "schema_version": 1,
+                "cases": [
+                    {
+                        "case_id": "school-profile",
+                        "retrieved_sources": [
+                            {
+                                "doc_id": "official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
+                                "version_id": "owdocver:934d619cea41b7add23484fa2d8c2e79c0c5666e",
+                                "chunk_id": "school-profile:chunk-1",
+                                "score": 0.91,
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+        self.assertEqual(json.loads(stdout_buffer.getvalue())["hit_at_1"], 1.0)
+
+    def test_live_benchmark_main_maps_canonical_authorized_filter_request_overrides(self) -> None:
+        class FakeBackend:
+            def __init__(self) -> None:
+                self.requests = []
+
+            def retrieve(self, request):
+                self.requests.append(request)
+                return EvidenceBundle(
+                    query_text=request.query_text,
+                    corpus=request.corpus,
+                    collection=request.collection,
+                    sources=(),
+                )
+
+        with TemporaryDirectory() as temp_dir:
+            qrels_path = Path(temp_dir) / "qrels.json"
+            qrels_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "corpus": "official_web",
+                        "collection": "muc_public_pages",
+                        "baseline": {},
+                        "cases": [
+                            {
+                                "case_id": "restricted-profile",
+                                "split": "smoke",
+                                "query": "南校区面向学生开放的新闻",
+                                "request_overrides": {
+                                    "entitlement_groups": ["students"],
+                                    "visibility_scope": "south",
+                                    "visibility_level": "restricted",
+                                },
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            manifest_path = Path(temp_dir) / "split-manifest.v1.json"
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "official_web_muc_public_pages_split_manifest_v1",
+                        "corpus": "official_web",
+                        "collection": "muc_public_pages",
+                        "raw_asset_id": "asset:official-web-muc-public-pages-current-truth-20260403",
+                        "documents": [
+                            {
+                                "document_id": "official_web:muc_public:article_detail:restricted",
+                                "title": "南校区学生新闻",
+                                "page_start": 1,
+                                "page_end": 1,
+                                "source_uri": "https://www.muc.edu.cn/restricted.htm",
+                                "entitlement_groups": ["students"],
+                                "visibility_scope": "south",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            output_path = Path(temp_dir) / "run-results.json"
+            fake_backend = FakeBackend()
+
+            with (
+                patch("campus_evals.retrieval_live_benchmark.load_repo_env"),
+                patch("campus_evals.retrieval_live_benchmark.build_retrieval_backend", return_value=fake_backend),
+            ):
+                exit_code = live_benchmark_main(
+                    [
+                        "--qrels",
+                        str(qrels_path),
+                        "--output",
+                        str(output_path),
+                        "--manifest",
+                        str(manifest_path),
+                    ]
+                )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(len(fake_backend.requests), 1)
+        request = fake_backend.requests[0]
+        self.assertEqual(request.effective_entitlement_groups(), ("students",))
+        self.assertEqual(request.effective_visibility_scope(), "south")
+        self.assertEqual(request.effective_visibility_level(), "restricted")
 
 
 if __name__ == "__main__":

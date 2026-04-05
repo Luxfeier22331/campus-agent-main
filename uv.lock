@@ -23,6 +23,8 @@ members = [
     "campus-evals",
     "campus-ingestion-core",
     "campus-ingestion-worker",
+    "campus-official-web-collector",
+    "campus-official-web-core",
     "campus-protected-panel-web",
     "campus-public-chat-web",
     "campus-rag-specialist",
@@ -359,6 +361,16 @@ requires-dist = [
     { name = "campus-ingestion-core", editable = "packages/ingestion-core" },
     { name = "campus-shared", editable = "packages/shared" },
 ]
+
+[[package]]
+name = "campus-official-web-collector"
+version = "0.1.0"
+source = { virtual = "apps/official-web-collector" }
+
+[[package]]
+name = "campus-official-web-core"
+version = "0.1.0"
+source = { virtual = "packages/official-web-core" }
 
 [[package]]
 name = "campus-protected-panel-web"

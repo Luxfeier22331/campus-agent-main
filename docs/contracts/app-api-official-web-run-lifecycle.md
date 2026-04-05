@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-29
-updated: 2026-03-29
+updated: 2026-03-30
 ---
 
 # App API Official Web Run Lifecycle
@@ -63,6 +63,8 @@ updated: 2026-03-29
 
 - crawl status 与 ingestion status 必须分开建模
 - `completed` / `completed_with_errors` 只表示 crawl finalize 成功，不表示 chunk/index 已完成
+- ingestion execution 当前允许 `pending -> running -> staged -> promoted/failed`
+- `staged` 表示 replay / validator / chunk audit 已完成，但 registry current truth 仍未被显式 promote
 
 ## Command-Side Sequence
 
@@ -116,6 +118,7 @@ collector 调用 finalize 时，`app-api` 至少写入：
 
 - terminal crawl status
 - terminal summary
+- page observations
 - artifact refs
 - ingestion handoff event
 
@@ -127,6 +130,10 @@ terminal finalize 规则：
   有 artifacts 且存在 URL/host/parser failures 时允许
 - `failed`
   crawl 中止、run 失效或 terminal summary 无法收口时允许
+- `pageObservations`
+  是 finalize commit 的一部分，`app-api` 会同步推进 `page_freshness` 与 `page_observations` durable truth
+- `fetch_failed`
+  只更新 freshness truth、operator summary 与 repair backlog；不单独触发 ingestion handoff page change
 
 ### Step 5: Ingestion Handoff
 
@@ -134,6 +141,8 @@ handoff 规则固定为：
 
 - 只能在 terminal finalize commit 之后触发
 - outbox/queue payload 只携带 ingestion 所需的 run identity、site identity 与 artifact refs
+- `pageChanges` 只包含 `new / changed / deleted`
+- `not_modified` 与 `fetch_failed` 只保留在 page-change summary 与 freshness truth 中
 - ingestion worker 消费 handoff 时再去对象存储读取 artifact 内容
 
 第一版推荐链路：
@@ -160,7 +169,7 @@ handoff 规则固定为：
 
 幂等范围固定为：
 
-- `siteId + schedulerRunKey`
+- `siteId + schedulerRunKey + runIntent`
 
 重放规则：
 

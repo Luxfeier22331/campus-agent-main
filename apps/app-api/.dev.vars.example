@@ -20,6 +20,8 @@ APP_API_OPERATOR_EMAIL_ALLOWLIST=ops@example.com
 # 里的 `APP_API_INTERNAL_SHARED_SECRET` 也必须复用这个值。
 APP_API_INTERNAL_SHARED_SECRET=replace-with-panel-bridge-secret
 APP_API_DATABASE_SSLMODE=prefer
+# Required for live `official_web` control-plane smoke. This must match
+# `apps/official-web-collector/.env` `OFFICIAL_WEB_SERVICE_TOKEN`.
 APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN=
 APP_API_OFFICIAL_WEB_HANDOFF_URL=
 APP_API_OFFICIAL_WEB_HANDOFF_TOKEN=

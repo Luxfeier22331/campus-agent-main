@@ -176,6 +176,13 @@ export function hasMatchingInternalSecret(
   return timingSafeEqual(expectedBytes, providedBytes);
 }
 
+export function hasTrustedInternalRequest(
+  request: Request,
+  env: Pick<Env, "APP_API_INTERNAL_SHARED_SECRET">,
+): boolean {
+  return hasMatchingInternalSecret(request, env);
+}
+
 function parseHeaderList(request: Request, headerName: string): string[] {
   return parseCsvList(request.headers.get(headerName) ?? undefined);
 }

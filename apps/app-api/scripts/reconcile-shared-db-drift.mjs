@@ -98,10 +98,6 @@ function collectOrphanedJournalRows(inventory, migrationContext) {
     .sort((left, right) => left.createdAt - right.createdAt);
 }
 
-function readAllowedExtraColumns(qualifiedName) {
-  return RECONCILABLE_EXTRA_COLUMNS.get(qualifiedName) ?? new Set();
-}
-
 function buildDropTableOperation(qualifiedName, rowCount) {
   const [schema, table] = qualifiedName.split(".", 2);
   return {
@@ -128,6 +124,10 @@ function buildDeleteJournalRowOperation(hash) {
     kind: "delete_journal_row",
     statement: `delete from ${quoteIdentifier(APP_API_MIGRATIONS_SCHEMA)}.${quoteIdentifier(APP_API_MIGRATIONS_TABLE)} where "hash" = $1`,
   };
+}
+
+function readAllowedExtraColumns(qualifiedName) {
+  return RECONCILABLE_EXTRA_COLUMNS.get(qualifiedName) ?? new Set();
 }
 
 export function buildSharedDatabaseDriftReconcilePlan({

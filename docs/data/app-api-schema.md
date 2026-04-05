@@ -17,6 +17,7 @@ updated: 2026-04-03
 - request projection ownership：`docs/architecture/product-runtime-architecture.md`
 - 产品层 HTTP contract：`docs/contracts/app-api-http.md`
 - request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
+- `official_web` control-plane schema：`docs/data/app-api-official-web-schema.md`
 
 这份文档不冻结：
 
@@ -24,6 +25,7 @@ updated: 2026-04-03
 - 具体托管商
 - Drizzle migration 文件名
 - Better Auth adapter 的全部 SQL 细节
+- `official_web` control-plane 的额外逻辑分域
 
 ## Storage Conclusion
 
@@ -44,6 +46,11 @@ updated: 2026-04-03
 - `operator.*`
 - `official_web.*`
 
+补充说明：
+
+- `official_web` control-plane 引入的额外逻辑分域单独冻结在 `docs/data/app-api-official-web-schema.md`
+- 本文继续只覆盖当前 browser-facing app surfaces 与 request projection 基线
+
 ## Global Rules
 
 - 所有业务主键使用 opaque text id；不要把自增整数暴露成长期 API 依赖
@@ -61,6 +68,8 @@ updated: 2026-04-03
 - `runtime.*`
 - `operator.*`
 - `official_web.*`
+
+`official_web` control-plane 落地时，可以在保持同一 migration pipeline 的前提下新增 `official_web.*`；具体规则另见 `docs/data/app-api-official-web-schema.md`。
 
 它们共享：
 

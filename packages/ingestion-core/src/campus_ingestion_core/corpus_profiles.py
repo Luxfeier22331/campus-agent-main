@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from functools import lru_cache
 import json
 from pathlib import Path
 
@@ -16,6 +17,9 @@ from campus_ingestion_core.scope_catalog import (
 
 
 ALLOWED_SERVING_STAGES = ("query_serving", "offline_preparation")
+ALLOWED_SERVING_SURFACES = ("mixed", "stable_reference", "fresh_news", "news_archive")
+OFFICIAL_WEB_STABLE_REFERENCE_LIKE_COLLECTIONS = frozenset({"muc_public_pages", "stable_reference"})
+OFFICIAL_WEB_STABLE_REFERENCE_LIKE_SURFACES = frozenset({"mixed", "stable_reference"})
 ALLOWED_ARTIFACT_MODES = ("normalized", "source_truth_only")
 DEFAULT_DENSE_PREFETCH_LIMIT = 20
 DEFAULT_SPARSE_PREFETCH_LIMIT = 20
@@ -39,6 +43,10 @@ class CollectionRuntimeProfile:
     chunk_profile_version: str
     retrieval_enabled: bool
     query_enabled_by_default: bool
+    serving_surface: str | None = None
+    supports_freshness_sensitive_queries: bool = False
+    freshness_max_age_hours: int | None = None
+    live_search_fallback_allowed: bool = False
     retrieval_top_k: int = 3
     current_only: bool = False
     serving_revision_tracks: tuple[str, ...] = ()
@@ -62,6 +70,8 @@ class CollectionRuntimeProfile:
             raise ValueError("collection is required")
         if self.serving_stage not in ALLOWED_SERVING_STAGES:
             raise ValueError(f"unsupported serving_stage: {self.serving_stage}")
+        if self.serving_surface is not None and self.serving_surface not in ALLOWED_SERVING_SURFACES:
+            raise ValueError(f"unsupported serving_surface: {self.serving_surface}")
         if not self.allowed_artifact_modes:
             raise ValueError("allowed_artifact_modes must not be empty")
         for mode in self.allowed_artifact_modes:
@@ -85,6 +95,8 @@ class CollectionRuntimeProfile:
             raise ValueError("rrf_sparse_weight must be greater than zero")
         if self.document_support_limit <= 0:
             raise ValueError("document_support_limit must be greater than zero")
+        if self.freshness_max_age_hours is not None and self.freshness_max_age_hours <= 0:
+            raise ValueError("freshness_max_age_hours must be greater than zero")
         for revision_track in self.serving_revision_tracks:
             if revision_track not in ALLOWED_REVISION_TRACKS:
                 raise ValueError(f"unsupported serving_revision_track: {revision_track}")
@@ -110,12 +122,16 @@ def load_runtime_profile(
         corpus=str(payload.get("corpus") or ""),
         collection=str(payload.get("collection") or ""),
         serving_stage=str(payload.get("serving_stage") or ""),
+        serving_surface=_optional_text(payload.get("serving_surface")),
         allowed_artifact_modes=tuple(str(item) for item in list(payload.get("allowed_artifact_modes") or [])),
         split_manifest_required=bool(payload.get("split_manifest_required")),
         cleaning_policy_version=str(payload.get("cleaning_policy_version") or ""),
         chunk_profile_version=str(payload.get("chunk_profile_version") or ""),
         retrieval_enabled=bool(payload.get("retrieval_enabled")),
         query_enabled_by_default=bool(payload.get("query_enabled_by_default")),
+        supports_freshness_sensitive_queries=bool(payload.get("supports_freshness_sensitive_queries", False)),
+        freshness_max_age_hours=_optional_int(payload.get("freshness_max_age_hours")),
+        live_search_fallback_allowed=bool(payload.get("live_search_fallback_allowed", False)),
         retrieval_top_k=int(payload.get("retrieval_top_k") or 3),
         current_only=bool(payload.get("current_only", False)),
         serving_revision_tracks=tuple(str(item) for item in list(payload.get("serving_revision_tracks") or [])),
@@ -155,7 +171,50 @@ def default_query_scopes(*, config_root: Path | None = None) -> tuple[tuple[str,
     return tuple(scopes)
 
 
+def is_official_web_stable_reference_like_profile(profile: CollectionRuntimeProfile) -> bool:
+    return (
+        profile.corpus == "official_web"
+        and (
+            profile.serving_surface in OFFICIAL_WEB_STABLE_REFERENCE_LIKE_SURFACES
+            or profile.collection in OFFICIAL_WEB_STABLE_REFERENCE_LIKE_COLLECTIONS
+        )
+    )
+
+
+@lru_cache(maxsize=None)
+def is_official_web_stable_reference_like_collection(
+    collection: str,
+    *,
+    config_root: Path | None = None,
+) -> bool:
+    normalized_collection = collection.strip()
+    if not normalized_collection:
+        return False
+    try:
+        profile = load_runtime_profile(
+            "official_web",
+            normalized_collection,
+            config_root=config_root,
+        )
+    except (FileNotFoundError, ValueError):
+        return False
+    return is_official_web_stable_reference_like_profile(profile)
+
+
 def _optional_float(value: object) -> float | None:
     if value is None:
         return None
     return float(value)
+
+
+def _optional_int(value: object) -> int | None:
+    if value is None:
+        return None
+    return int(value)
+
+
+def _optional_text(value: object) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    return normalized or None

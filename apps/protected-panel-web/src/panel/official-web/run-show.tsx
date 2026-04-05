@@ -7,6 +7,8 @@ import { formatTimestamp } from "./official-web-formatters";
 import {
   OfficialWebArtifactList,
   OfficialWebIngestionStatusChip,
+  OfficialWebPageChangeChip,
+  OfficialWebRunIntentChip,
   OfficialWebRunStatusChip,
 } from "./official-web-presenters";
 
@@ -56,6 +58,10 @@ function OfficialWebRunShowContent() {
                 <RunFieldRow label="Run ID" value={record.runId} />
                 <RunFieldRow label="Site ID" value={record.siteId} />
                 <RunFieldRow
+                  label="Intent"
+                  value={<OfficialWebRunIntentChip runIntent={record.runIntent} />}
+                />
+                <RunFieldRow
                   label="Status"
                   value={<OfficialWebRunStatusChip status={record.status} />}
                 />
@@ -84,7 +90,7 @@ function OfficialWebRunShowContent() {
           <Card sx={{ gridColumn: { lg: "1 / -1", xs: "auto" } }}>
             <CardContent>
               <Stack spacing={2}>
-                <Typography variant="h6">Summary</Typography>
+                <Typography variant="h6">Run Summary</Typography>
                 <Divider />
                 {record.summary ? (
                   <Stack spacing={0.75}>
@@ -95,6 +101,60 @@ function OfficialWebRunShowContent() {
                 ) : (
                   <Typography color="text.secondary" variant="body2">
                     No summary projected yet.
+                  </Typography>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card sx={{ gridColumn: { lg: "1 / -1", xs: "auto" } }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Typography variant="h6">Page Change Summary</Typography>
+                <Divider />
+                {record.pageChangeSummary ? (
+                  <Stack spacing={0.75}>
+                    {Object.entries(record.pageChangeSummary).map(([key, value]) => (
+                      <RunFieldRow key={key} label={key} value={String(value)} />
+                    ))}
+                  </Stack>
+                ) : (
+                  <Typography color="text.secondary" variant="body2">
+                    No page change summary projected yet.
+                  </Typography>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card sx={{ gridColumn: { lg: "1 / -1", xs: "auto" } }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Typography variant="h6">Page Changes</Typography>
+                <Divider />
+                {record.pageChanges && record.pageChanges.length > 0 ? (
+                  <Stack spacing={1.5}>
+                    {record.pageChanges.map((change) => (
+                      <Stack key={change.id} spacing={0.5}>
+                        <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
+                          <OfficialWebPageChangeChip change={change} />
+                          <Typography variant="body2">{change.pageTitleNormalized}</Typography>
+                          <Typography color="text.secondary" variant="caption">
+                            {change.pageFamily}
+                          </Typography>
+                        </Stack>
+                        <Typography sx={{ wordBreak: "break-all" }} variant="body2">
+                          {change.normalizedCanonicalUrl}
+                        </Typography>
+                        <Typography color="text.secondary" variant="caption">
+                          {change.lastChangeReason} at {formatTimestamp(change.observedAt)}
+                        </Typography>
+                      </Stack>
+                    ))}
+                  </Stack>
+                ) : (
+                  <Typography color="text.secondary" variant="body2">
+                    No page changes captured for this run.
                   </Typography>
                 )}
               </Stack>

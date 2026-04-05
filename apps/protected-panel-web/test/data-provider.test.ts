@@ -403,6 +403,7 @@ describe("protected panel data provider", () => {
             lastHeartbeatAt: "2026-03-29T08:05:00.000Z",
             projectedAt: "2026-03-29T08:17:33.000Z",
             runId: "owrun_01HQ",
+            runIntent: "baseline",
             siteId: "www_muc_edu_cn",
             startedAt: "2026-03-29T08:00:01.000Z",
             status: "completed",
@@ -417,6 +418,7 @@ describe("protected panel data provider", () => {
     const response = await protectedPanelDataProvider.getList("officialWebRuns", {
       filter: {
         ingestionDispatchStatus: "queued",
+        runIntent: "hot",
         siteId: "www_muc_edu_cn",
         status: "completed",
       },
@@ -435,10 +437,11 @@ describe("protected panel data provider", () => {
     expect(response.data[0]).toMatchObject({
       id: "owrun_01HQ",
       runId: "owrun_01HQ",
+      runIntent: "baseline",
       status: "completed",
     });
     expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/official-web/runs?limit=20&siteId=www_muc_edu_cn&status=completed&ingestionDispatchStatus=queued",
+      "/api/official-web/runs?limit=20&siteId=www_muc_edu_cn&status=completed&ingestionDispatchStatus=queued&runIntent=hot",
       expect.objectContaining({
         headers: {
           accept: "application/json",
@@ -451,6 +454,76 @@ describe("protected panel data provider", () => {
   it("loads official web site detail and recent runs from the runtime seam", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       createJsonResponse({
+        freshnessBacklog: {
+          deletedPages: [
+            {
+              cadenceClass: "baseline_static",
+              host: "www.muc.edu.cn",
+              lastChangeReason: "http_deleted",
+              lastChangedAt: "2026-03-29T08:17:32.000Z",
+              lastFetchDisposition: "deleted",
+              lastHttpStatus: 404,
+              lastSeenAt: "2026-03-29T08:17:32.000Z",
+              nextEligibleFetchAt: "2026-03-30T08:17:32.000Z",
+              normalizedCanonicalUrl: "https://www.muc.edu.cn/news/deleted",
+              pageFamily: "article_detail",
+              pageTitleNormalized: "Deleted Notice",
+              priorityScore: 40,
+              siteId: "www_muc_edu_cn",
+            },
+          ],
+          duePages: [
+            {
+              cadenceClass: "listing_hot",
+              host: "www.muc.edu.cn",
+              lastChangeReason: "main_content_changed",
+              lastChangedAt: "2026-03-29T08:17:32.000Z",
+              lastFetchDisposition: "fetched",
+              lastHttpStatus: 200,
+              lastSeenAt: "2026-03-29T08:17:32.000Z",
+              nextEligibleFetchAt: "2026-03-29T08:30:00.000Z",
+              normalizedCanonicalUrl: "https://www.muc.edu.cn/news/",
+              pageFamily: "listing_page",
+              pageTitleNormalized: "News",
+              priorityScore: 90,
+              siteId: "www_muc_edu_cn",
+            },
+          ],
+          failedFetchPages: [
+            {
+              cadenceClass: "repair",
+              host: "www.muc.edu.cn",
+              lastChangeReason: "fetch_failed",
+              lastChangedAt: "2026-03-29T08:17:32.000Z",
+              lastFetchDisposition: "fetch_failed",
+              lastHttpStatus: 502,
+              lastSeenAt: "2026-03-29T08:17:32.000Z",
+              nextEligibleFetchAt: "2026-03-29T09:00:00.000Z",
+              normalizedCanonicalUrl: "https://www.muc.edu.cn/news/failure",
+              pageFamily: "article_detail",
+              pageTitleNormalized: "Failed Notice",
+              priorityScore: 85,
+              siteId: "www_muc_edu_cn",
+            },
+          ],
+          hotPages: [
+            {
+              cadenceClass: "detail_recent",
+              host: "www.muc.edu.cn",
+              lastChangeReason: "new_page",
+              lastChangedAt: "2026-03-29T08:17:32.000Z",
+              lastFetchDisposition: "fetched",
+              lastHttpStatus: 200,
+              lastSeenAt: "2026-03-29T08:17:32.000Z",
+              nextEligibleFetchAt: "2026-03-29T08:35:00.000Z",
+              normalizedCanonicalUrl: "https://www.muc.edu.cn/news/2",
+              pageFamily: "article_detail",
+              pageTitleNormalized: "Hot Detail",
+              priorityScore: 88,
+              siteId: "www_muc_edu_cn",
+            },
+          ],
+        },
         recentRuns: [
           {
             artifacts: [],
@@ -463,12 +536,39 @@ describe("protected panel data provider", () => {
             lastHeartbeatAt: "2026-03-29T08:05:00.000Z",
             projectedAt: "2026-03-29T08:17:33.000Z",
             runId: "owrun_01HQ",
+            runIntent: "baseline",
             siteId: "www_muc_edu_cn",
             startedAt: "2026-03-29T08:00:01.000Z",
             status: "completed",
             summary: {
               failureCount: 0,
             },
+          },
+        ],
+        freshnessSummary: {
+          changedLast24h: 3,
+          deletedPages: 1,
+          duePages: 7,
+          failedFetchPages: 2,
+          hotPages: 9,
+          repairPages: 2,
+          totalPages: 120,
+        },
+        recentPageChanges: [
+          {
+            changeStatus: "changed",
+            fetchDisposition: "fetched",
+            host: "www.muc.edu.cn",
+            httpStatus: 200,
+            id: "owobs_01",
+            lastChangeReason: "main_content_changed",
+            normalizedCanonicalUrl: "https://www.muc.edu.cn/news/1",
+            observedAt: "2026-03-29T08:17:32.000Z",
+            pageFamily: "article_detail",
+            pageTitleNormalized: "News 1",
+            rawAssetId: "raw_01",
+            rawVersionId: "rawv_01",
+            runId: "owrun_01HQ",
           },
         ],
         site: {
@@ -495,13 +595,115 @@ describe("protected panel data provider", () => {
       }),
     ).resolves.toMatchObject({
       data: {
+        freshnessBacklog: {
+          deletedPages: [
+            expect.objectContaining({
+              normalizedCanonicalUrl: "https://www.muc.edu.cn/news/deleted",
+            }),
+          ],
+          duePages: [
+            expect.objectContaining({
+              normalizedCanonicalUrl: "https://www.muc.edu.cn/news/",
+            }),
+          ],
+          failedFetchPages: [
+            expect.objectContaining({
+              normalizedCanonicalUrl: "https://www.muc.edu.cn/news/failure",
+            }),
+          ],
+          hotPages: [
+            expect.objectContaining({
+              normalizedCanonicalUrl: "https://www.muc.edu.cn/news/2",
+            }),
+          ],
+        },
+        freshnessSummary: expect.objectContaining({
+          duePages: 7,
+        }),
         id: "www_muc_edu_cn",
+        recentPageChanges: [
+          expect.objectContaining({
+            id: "owobs_01",
+          }),
+        ],
         recentRuns: [
           expect.objectContaining({
             id: "owrun_01HQ",
           }),
         ],
         siteId: "www_muc_edu_cn",
+      },
+    });
+  });
+
+  it("loads official web run detail with page changes from the runtime seam", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      createJsonResponse({
+        pageChangeSummary: {
+          changedPages: 1,
+          deletedPages: 0,
+          failedFetchPages: 1,
+          newPages: 2,
+          notModifiedPages: 8,
+        },
+        pageChanges: [
+          {
+            changeStatus: "changed",
+            fetchDisposition: "fetched",
+            host: "www.muc.edu.cn",
+            httpStatus: 200,
+            id: "owobs_01",
+            lastChangeReason: "main_content_changed",
+            normalizedCanonicalUrl: "https://www.muc.edu.cn/news/1",
+            observedAt: "2026-03-29T08:17:32.000Z",
+            pageFamily: "article_detail",
+            pageTitleNormalized: "News 1",
+            rawAssetId: "raw_01",
+            rawVersionId: "rawv_01",
+            runId: "owrun_01HQ",
+          },
+        ],
+        run: {
+          artifacts: [],
+          collectorVersion: "official-web-collector@0.1.0",
+          configVersion: "git:abc1234",
+          failureCount: 1,
+          finishedAt: "2026-03-29T08:17:32.000Z",
+          ingestionDispatchRef: null,
+          ingestionDispatchStatus: "queued",
+          lastHeartbeatAt: "2026-03-29T08:05:00.000Z",
+          projectedAt: "2026-03-29T08:17:33.000Z",
+          runId: "owrun_01HQ",
+          runIntent: "repair",
+          siteId: "www_muc_edu_cn",
+          startedAt: "2026-03-29T08:00:01.000Z",
+          status: "completed_with_errors",
+          summary: {
+            failureCount: 1,
+          },
+        },
+      }),
+    );
+
+    await expect(
+      protectedPanelDataProvider.getOne("officialWebRuns", {
+        id: "owrun_01HQ",
+        meta: undefined,
+        signal: undefined,
+      }),
+    ).resolves.toMatchObject({
+      data: {
+        id: "owrun_01HQ",
+        pageChangeSummary: expect.objectContaining({
+          changedPages: 1,
+          failedFetchPages: 1,
+        }),
+        pageChanges: [
+          expect.objectContaining({
+            id: "owobs_01",
+          }),
+        ],
+        runIntent: "repair",
       },
     });
   });

@@ -14,11 +14,23 @@ import type { OfficialWebRunRecord } from "../types";
 import {
   OfficialWebFailureSummary,
   OfficialWebIngestionStatusChip,
+  OfficialWebRunIntentChip,
   OfficialWebRunStatusChip,
 } from "./official-web-presenters";
 
 const runFilters = [
   <TextInput alwaysOn key="siteId" label="Site ID" source="siteId" />,
+  <SelectInput
+    choices={[
+      { id: "baseline", name: "Baseline" },
+      { id: "hot", name: "Hot" },
+      { id: "repair", name: "Repair" },
+    ]}
+    emptyText="All intents"
+    key="runIntent"
+    label="Intent"
+    source="runIntent"
+  />,
   <SelectInput
     choices={[
       { id: "accepted", name: "Accepted" },
@@ -76,6 +88,10 @@ export function OfficialWebRunsListPage() {
       <Datagrid bulkActionButtons={false} rowClick="show">
         <TextField label="Run ID" source="runId" />
         <TextField label="Site" source="siteId" />
+        <FunctionField
+          label="Intent"
+          render={(record: OfficialWebRunRecord) => <OfficialWebRunIntentChip runIntent={record.runIntent} />}
+        />
         <FunctionField
           label="Status"
           render={(record: OfficialWebRunRecord) => <OfficialWebRunStatusChip status={record.status} />}

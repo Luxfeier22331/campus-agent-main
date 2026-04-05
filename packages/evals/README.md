@@ -178,6 +178,13 @@ student handbook formal benchmark：
   - 默认入口同样优先走 `app-api` internal eval ingress；包含 deterministic `failure_mode` 的 case 仍显式回退 legacy executor，保证错误注入可控
   - 本地运行前提与 handbook live runner 相同；root `.env` 里的 `APP_API_*` 仍只表示本地 eval ingress 参数
   - backlink 模板配置同 handbook live runner
+- official-web live runner 现已固定为 `campus_evals.official_web_live_benchmark`：
+  - `uv run --all-packages python -m campus_evals.official_web_live_benchmark run --reruns 1 --qdrant-collection-name <physical-collection>`
+  - `uv run --all-packages python -m campus_evals.official_web_live_benchmark repair --benchmark-dir <artifact-dir> --qdrant-collection-name <physical-collection>`
+  - `uv run --all-packages python -m campus_evals.official_web_live_benchmark accept --reruns 1 --qdrant-collection-name <physical-collection>`
+  - `uv run --all-packages python -m campus_evals.official_web_live_benchmark run --reruns 1 --official-web-scope stable_reference --qdrant-collection-name <physical-collection>`
+  - `uv run --all-packages python -m campus_evals.official_web_live_benchmark run --reruns 1 --official-web-scope fresh_news --qdrant-collection-name <physical-collection>`
+  - 该入口只做本地 deterministic 验证：通过 monkeypatch 临时打开所选 `official_web/*` scope 的 retrieval，并把 alias 指向指定 unpublished physical collection；repo-tracked `offline_preparation` truth 不会被命令行改写
 
 runtime observability artifact：
 

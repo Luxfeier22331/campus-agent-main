@@ -40,6 +40,8 @@ from campus_ingestion_core.chunking import (
 from campus_ingestion_core.corpus_profiles import (
     CollectionRuntimeProfile,
     default_query_scopes,
+    is_official_web_stable_reference_like_collection,
+    is_official_web_stable_reference_like_profile,
     load_runtime_profile,
 )
 from campus_ingestion_core.scope_catalog import (
@@ -74,6 +76,22 @@ from campus_ingestion_core.handbook_source_migration import (
     StudentHandbookMigrationReport,
     StudentHandbookSourceAssetRequest,
     migrate_student_handbook_source_faithful,
+)
+from campus_ingestion_core.official_web_projection import (
+    OfficialWebProjectionDeclaration,
+    OfficialWebProjectionDeclarationsConfig,
+    OfficialWebProjectionReplayReport,
+    OfficialWebProjectionValidationReport,
+    default_official_web_projection_declarations_path,
+    load_official_web_projection_declarations,
+    replay_official_web_source_truth_local,
+    validate_official_web_projection_output,
+)
+from campus_ingestion_core.official_web_chunking_audit import (
+    OFFICIAL_WEB_PROJECTION_CHUNKING_AUDIT_SCHEMA_VERSION,
+    OfficialWebProjectionChunkingAuditDocumentReport,
+    OfficialWebProjectionChunkingAuditReport,
+    audit_official_web_projection_chunking,
 )
 from campus_ingestion_core.handbook_chunking_validation import (
     ChunkValidationFailure,
@@ -143,6 +161,14 @@ from campus_ingestion_core.local_rebuild import (
     RebuildRequest,
     rebuild_local_data,
     replay_provider_response_rebuild,
+)
+from campus_ingestion_core.registry_scope_release import (
+    RegistryScopeReleaseReport,
+    release_registry_scope,
+)
+from campus_ingestion_core.scope_alias import (
+    ScopeAliasReport,
+    set_scope_release_alias,
 )
 from campus_ingestion_core.qdrant_backup import (
     CollectionGcCheckRequest,
@@ -253,6 +279,8 @@ __all__ = [
     "RawAssetRecord",
     "RawAssetRef",
     "RawAssetRegistry",
+    "RegistryScopeReleaseReport",
+    "ScopeAliasReport",
     "SourceObservation",
     "SnapshotBackupManifest",
     "SnapshotBackupRequest",
@@ -279,6 +307,8 @@ __all__ = [
     "chunk_structured_unit",
     "clean_structured_text",
     "default_query_scopes",
+    "is_official_web_stable_reference_like_collection",
+    "is_official_web_stable_reference_like_profile",
     "default_backup_id",
     "default_release_id",
     "AuthenticatedNoticeCloseoutService",
@@ -310,7 +340,20 @@ __all__ = [
     "PROVIDER_RESPONSE_FILENAME",
     "create_snapshot_backup",
     "migrate_student_handbook_source_faithful",
+    "OfficialWebProjectionDeclaration",
+    "OfficialWebProjectionDeclarationsConfig",
+    "OfficialWebProjectionReplayReport",
+    "OfficialWebProjectionValidationReport",
+    "OFFICIAL_WEB_PROJECTION_CHUNKING_AUDIT_SCHEMA_VERSION",
+    "OfficialWebProjectionChunkingAuditDocumentReport",
+    "OfficialWebProjectionChunkingAuditReport",
+    "default_official_web_projection_declarations_path",
+    "audit_official_web_projection_chunking",
+    "load_official_web_projection_declarations",
+    "replay_official_web_source_truth_local",
+    "validate_official_web_projection_output",
     "rebuild_local_data",
+    "release_registry_scope",
     "replay_provider_response_rebuild",
     "restore_snapshot_backup",
     "resolve_prefetched_hf_tokenizer_path",
@@ -334,6 +377,7 @@ __all__ = [
     "rollback_release_alias",
     "scan_student_handbook_chunking",
     "check_snapshot_gc_eligibility",
+    "set_scope_release_alias",
     "SparseEmbeddingSettings",
     "build_mock_sparse_embedding_model",
     "build_sparse_embedding_model",

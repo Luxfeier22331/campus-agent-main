@@ -6,6 +6,7 @@ import json
 import os
 from typing import Protocol
 
+from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef, SourceObservation
 from campus_ingestion_core.postgres_runtime import (
     pooled_postgres_connection,
@@ -148,6 +149,13 @@ class RawAssetRegistry(Protocol):
 
     def delete_by_scope(self, corpus: str, collection: str | None = None) -> None: ...
 
+    def replace_scope(
+        self,
+        corpus: str,
+        collection: str | None,
+        records: tuple[RawAssetRecord, ...],
+    ) -> None: ...
+
 
 class PostgresDocumentRegistry:
     def __init__(
@@ -175,7 +183,7 @@ class PostgresDocumentRegistry:
         row = self._fetchone(query, (document_id, revision_track, version_id))
         if row is None:
             return None
-        return _document_record_from_dict(_coerce_json_payload(row[0]))
+        return _document_record_from_persisted_payload(_coerce_json_payload(row[0]))
 
     def upsert(self, record: DocumentRegistryRecord) -> None:
         self.upsert_many((record,))
@@ -209,7 +217,7 @@ class PostgresDocumentRegistry:
             )
             params = (corpus, collection)
         rows = self._fetchall(query, params)
-        return tuple(_document_record_from_dict(_coerce_json_payload(row[0])) for row in rows)
+        return tuple(_document_record_from_persisted_payload(_coerce_json_payload(row[0])) for row in rows)
 
     def list_processed_object_keys_by_scope(
         self,
@@ -285,7 +293,7 @@ class PostgresDocumentRegistry:
         row = self._fetchone(query, params)
         if row is None:
             return ()
-        return (_document_record_from_dict(_coerce_json_payload(row[0])),)
+        return (_document_record_from_persisted_payload(_coerce_json_payload(row[0])),)
 
     def current_version(
         self,
@@ -302,7 +310,7 @@ class PostgresDocumentRegistry:
                 (document_id, revision_track),
             )
             if row is not None:
-                return _document_record_from_dict(_coerce_json_payload(row[0]))
+                return _document_record_from_persisted_payload(_coerce_json_payload(row[0]))
         row = self._fetchone(
             (
                 f"select record from {self.table_name} "
@@ -312,7 +320,7 @@ class PostgresDocumentRegistry:
             (document_id,),
         )
         if row is not None:
-            return _document_record_from_dict(_coerce_json_payload(row[0]))
+            return _document_record_from_persisted_payload(_coerce_json_payload(row[0]))
         return None
 
     def delete_document(self, document_id: str) -> None:
@@ -578,6 +586,47 @@ class PostgresRawAssetRegistry:
             params = (corpus, collection)
         self._execute(query, params)
 
+    def replace_scope(
+        self,
+        corpus: str,
+        collection: str | None,
+        records: tuple[RawAssetRecord, ...],
+    ) -> None:
+        if collection is None:
+            delete_query = f"delete from {self.table_name} where corpus = %s"
+            delete_params: tuple[object, ...] = (corpus,)
+        else:
+            delete_query = f"delete from {self.table_name} where corpus = %s and collection = %s"
+            delete_params = (corpus, collection)
+        upsert_query = (
+            f"insert into {self.table_name} "
+            "(raw_asset_id, raw_version_id, corpus, collection, ingestion_timestamp, record) "
+            "values (%s, %s, %s, %s, %s, %s::jsonb) "
+            "on conflict (raw_asset_id, raw_version_id) do update set "
+            "corpus = excluded.corpus, "
+            "collection = excluded.collection, "
+            "ingestion_timestamp = excluded.ingestion_timestamp, "
+            "record = excluded.record"
+        )
+        with _postgres_connection(self.database_url, autocommit=False) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(delete_query, delete_params)
+                if records:
+                    cursor.executemany(
+                        upsert_query,
+                        tuple(
+                            (
+                                record.raw_asset_id,
+                                record.raw_version_id,
+                                record.corpus,
+                                record.collection,
+                                _parse_timestamp(record.ingestion_timestamp),
+                                json.dumps(asdict(record), ensure_ascii=False),
+                            )
+                            for record in records
+                        ),
+                    )
+
     def _ensure_schema(self) -> None:
         cache_key = (self.database_url, self.table_name)
         if cache_key in _INITIALIZED_RAW_ASSET_TABLES:
@@ -735,6 +784,33 @@ def _coerce_json_payload(value: object) -> dict[str, object]:
     if isinstance(value, str):
         return json.loads(value)
     raise TypeError(f"unexpected registry payload type: {type(value)!r}")
+
+
+def _document_record_from_persisted_payload(raw: dict[str, object]) -> DocumentRegistryRecord:
+    return _document_record_from_dict(_canonicalize_persisted_authorization_projection_payload(raw))
+
+
+def _canonicalize_persisted_authorization_projection_payload(raw: dict[str, object]) -> dict[str, object]:
+    legacy_keys_present = tuple(
+        key
+        for key in ("acl_groups", "campus_scope", "acl_level")
+        if raw.get(key) is not None
+    )
+    if not legacy_keys_present:
+        return raw
+    normalized = dict(raw)
+    if normalized.get("entitlement_groups") is None and normalized.get("acl_groups") is not None:
+        normalized["entitlement_groups"] = normalized["acl_groups"]
+    if normalized.get("visibility_scope") is None and normalized.get("campus_scope") is not None:
+        normalized["visibility_scope"] = normalized["campus_scope"]
+    if not str(normalized.get("visibility_level") or "").strip() and normalized.get("acl_level") is not None:
+        normalized["visibility_level"] = normalized["acl_level"]
+    if not str(normalized.get("policy_projection_version") or "").strip():
+        normalized["policy_projection_version"] = DEFAULT_POLICY_PROJECTION_VERSION
+    normalized.pop("acl_groups", None)
+    normalized.pop("campus_scope", None)
+    normalized.pop("acl_level", None)
+    return normalized
 
 
 def _document_record_from_dict(raw: dict[str, object]) -> DocumentRegistryRecord:

@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-03-28
-updated: 2026-04-01
+updated: 2026-04-02
 ---
 
 # Index Release Runbook
@@ -43,7 +43,7 @@ updated: 2026-04-01
 建议先检查：
 
 ```bash
-uv run --all-packages python -m unittest tests.ingestion.test_corpus_runtime_profile tests.ingestion.test_rebuild_local_data tests.ingestion.test_provider_result_replay_rebuild tests.retrieval.test_backend_qdrant
+uv run --all-packages python -m unittest tests.ingestion.test_corpus_runtime_profile tests.ingestion.test_rebuild_local_data tests.ingestion.test_provider_result_replay_rebuild tests.ingestion.test_registry_scope_release tests.retrieval.test_backend_qdrant
 ```
 
 ## 标准入口
@@ -70,6 +70,27 @@ uv run --all-packages python -m campus_ingestion_worker.release_index \
 - `provider_response_replay`
 - `rebuild_local_data(...)`
 - release-managed Qdrant physical collection
+
+对于已经完成 import、只需要从 registry current truth 发布 release 的 scope，统一入口改为：
+
+```bash
+uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
+  --corpus official_web \
+  --collection muc_public_pages \
+  --no-publish-alias
+```
+
+可选参数：
+
+- `--reset-index`
+- `--publish-alias`
+- `--no-publish-alias`
+
+这个入口底层走的是：
+
+- `DocumentRegistry.list_by_scope(...)`
+- runtime-profile-governed serving/current selection
+- `document_units_object_key -> chunking -> embedding -> indexing -> optional alias publish`
 
 补充说明：
 
@@ -116,6 +137,32 @@ uv run --all-packages python -m campus_ingestion_worker.release_index \
 - 每个目标 scope 的 serving alias 都指向新 release
 - `index-release.json` 记录 `previous_physical_collection_name`
 - payload 中写入 release 元数据
+
+### 3. 已导入 registry scope 的发布
+
+当 source-truth replay/import 已经完成，并且 registry 中已有当前 scope truth 时，不需要再走 `provider_response_replay`。例如当前 `official_web/muc_public_pages`：
+
+```bash
+uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
+  --corpus official_web \
+  --collection muc_public_pages \
+  --no-publish-alias
+```
+
+通过后再执行：
+
+```bash
+uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
+  --corpus official_web \
+  --collection muc_public_pages \
+  --publish-alias
+```
+
+固定规则：
+
+- release 输入来自 registry + derived bucket，不回到 raw/crawl 输出
+- collection selection 仍由 `runtime-profile.json` 控制
+- `offline_preparation` scope 也应使用稳定 alias + versioned physical collection
 
 ## 发布后检查
 

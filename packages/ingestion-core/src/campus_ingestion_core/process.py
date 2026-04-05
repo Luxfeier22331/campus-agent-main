@@ -24,6 +24,7 @@ from campus_ingestion_core.chunking import (
     TEXTUAL_UNIT_TYPES,
     assemble_chunk_text,
     build_curriculum_chunk_profile,
+    build_official_web_chunk_profile,
     build_student_handbook_chunk_profile,
     build_chunk_text_context,
     chunk_table_unit,
@@ -163,6 +164,7 @@ _SHORT_TEXTUAL_DISPLAY_TOKEN_THRESHOLD = 72
 _SHORT_TEXTUAL_HEADER_RATIO_THRESHOLD = 0.4
 _SHORT_TEXTUAL_TARGET_DISPLAY_TOKENS = 120
 _SHORT_TEXTUAL_MAX_MEMBER_COUNT = 4
+_OFFICIAL_WEB_SKIPPED_CONTENT_ROLES = frozenset({"source_attribution", "boilerplate", "media_caption"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -210,6 +212,13 @@ def _build_curriculum_runtime_chunk_profile(record: DocumentRegistryRecord) -> C
     return build_curriculum_chunk_profile(
         profile_version=runtime_profile.chunk_profile_version,
         model_name=record.embedding_model,
+    )
+
+
+def _build_official_web_runtime_chunk_profile(record: DocumentRegistryRecord) -> ChunkProfile:
+    runtime_profile = load_runtime_profile(record.corpus, record.collection)
+    return build_official_web_chunk_profile(
+        profile_version=runtime_profile.chunk_profile_version,
     )
 
 
@@ -344,6 +353,12 @@ def _should_skip_curriculum_unit(unit: StructuredUnit, table_roots_with_semantic
     return _is_curriculum_course_map_noise_unit(unit)
 
 
+def _should_skip_official_web_unit(unit: StructuredUnit, table_roots_with_semantic_units: set[str]) -> bool:
+    if _should_skip_generic_unit(unit, table_roots_with_semantic_units):
+        return True
+    return str(unit.metadata.get("content_role") or "").strip() in _OFFICIAL_WEB_SKIPPED_CONTENT_ROLES
+
+
 def _should_skip_internal_notice_unit(unit: StructuredUnit, table_roots_with_semantic_units: set[str]) -> bool:
     if unit.unit_type == "attachment_ref":
         return True
@@ -426,6 +441,14 @@ _COLLECTION_CHUNK_STRATEGIES: dict[tuple[str, str], _CollectionChunkStrategy] = 
         should_skip_unit=_should_skip_curriculum_unit,
         postprocess_candidates=_postprocess_curriculum_chunk_candidates,
     ),
+    ("official_web", "muc_public_pages"): _CollectionChunkStrategy(
+        build_chunk_profile=_build_official_web_runtime_chunk_profile,
+        load_structured_units=_load_default_structured_units,
+        build_unit_pieces=_build_default_unit_pieces,
+        resolve_unit_chunk_profile=_resolve_default_unit_chunk_profile,
+        should_skip_unit=_should_skip_official_web_unit,
+        postprocess_candidates=_postprocess_default_chunk_candidates,
+    ),
     ("campus_notices", "internal_notice"): _CollectionChunkStrategy(
         build_chunk_profile=_build_generic_runtime_chunk_profile,
         load_structured_units=_load_default_structured_units,
@@ -438,6 +461,8 @@ _COLLECTION_CHUNK_STRATEGIES: dict[tuple[str, str], _CollectionChunkStrategy] = 
 
 
 def _resolve_collection_chunk_strategy(record: DocumentRegistryRecord) -> _CollectionChunkStrategy:
+    if record.corpus == "official_web":
+        return _COLLECTION_CHUNK_STRATEGIES[("official_web", "muc_public_pages")]
     return _COLLECTION_CHUNK_STRATEGIES.get((record.corpus, record.collection), _DEFAULT_COLLECTION_CHUNK_STRATEGY)
 
 

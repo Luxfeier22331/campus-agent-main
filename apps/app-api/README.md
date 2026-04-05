@@ -139,6 +139,21 @@ Environment:
 - `AXIOM_DATASET`
 - `AXIOM_TOKEN`
 
+Local development:
+
+- `pnpm dev` runs `wrangler dev -e local`
+- the local Worker runtime expects the `APP_API_DB` Hyperdrive binding from `wrangler.toml` `env.local`
+- put local Wrangler / Drizzle process env in `apps/app-api/.env`
+  - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=...`
+  - `APP_API_MANAGEMENT_DATABASE_URL=...`
+- if the root worktree `.env` already has `CAMPUS_SHARED_POSTGRES_URL`, use
+  `uv run --all-packages python -m scripts.sync_app_api_local_db_env --repo-root <current-worktree-root>`
+  to generate `apps/app-api/.env`
+- put Worker string env in `apps/app-api/.dev.vars`
+- for `official_web` live control-plane smoke,
+  `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` must be non-empty and must match
+  `apps/official-web-collector/.env` `OFFICIAL_WEB_SERVICE_TOKEN`
+
 Deployment minimum gate:
 
 - `APP_API_DB.connectionString` must resolve from the provisioned Worker `APP_API_DB` binding or `GET /readyz` remains `503`
@@ -158,6 +173,7 @@ pnpm db:ensure-app-auth-role-search-path
 pnpm db:bootstrap
 pnpm db:adopt-shared -- --json
 pnpm db:reconcile-shared-drift -- --json
+pnpm official-web:drain-projection -- --limit 50
 pnpm projection:drain
 pnpm test
 pnpm test:all

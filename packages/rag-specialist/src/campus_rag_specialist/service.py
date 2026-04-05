@@ -16,6 +16,8 @@ from campus_contracts import (
     SpecialistRequest,
     SpecialistResponse,
 )
+from campus_ingestion_core import load_runtime_profile
+from campus_ingestion_core.corpus_profiles import is_official_web_stable_reference_like_profile
 from campus_retrieval_core import CorpusQueryDisabledError, RetrievalBackendError, retrieve_sources
 from campus_retrieval_core import RestrictedDocumentAccessDeniedError
 from campus_retrieval_core.curriculum_query_resolution import (
@@ -54,6 +56,17 @@ _GENERIC_TOPIC_QUALIFIERS = {
     "学位": ("学士", "硕士", "博士", "本科"),
     "degree": ("bachelor", "master", "doctoral", "phd"),
 }
+_OFFICIAL_WEB_FRESHNESS_QUERY_TERMS = (
+    "今天",
+    "今日",
+    "最新",
+    "最近",
+    "近期",
+    "刚刚",
+    "本周",
+    "这周",
+    "本月",
+)
 _WHITESPACE_RE = re.compile(r"\s+")
 _QUERY_ASK_CUES = frozenset({"多少", "几年", "怎么", "如何", "安排", "什么", "哪些"})
 _UNSUPPORTED_HANDBOOK_CLAUSE_CUE_GROUPS = (
@@ -874,6 +887,15 @@ def _build_no_answer_response(
         return "我还不能稳定确认你想问的是哪一类项目班；你可以直接说民族班、基地班，或者补充更具体的班型。"
     if evidence.corpus == "curriculum" and evidence.collection == "curriculum_plan":
         return "当前未检索到足够依据支持回答这个培养方案问题，请补充更具体的培养方案名称、学位要求或课程表名称。"
+    if evidence.corpus == "official_web":
+        profile = load_runtime_profile(evidence.corpus, evidence.collection)
+        if is_official_web_stable_reference_like_profile(profile):
+            if (
+                not profile.supports_freshness_sensitive_queries
+                and _is_official_web_freshness_sensitive_query(evidence.query_text)
+            ):
+                return "当前本地官网页面链路还不支持回答今天/最新/最近这类时效敏感问题，请改问明确的页面标题、机构名称或文章主题。"
+            return "当前未检索到足够依据支持回答这个官网页面问题，请确认问题是否落在当前已导入的官网页面范围内，或补充更明确的页面标题、机构名称或文章主题。"
     if resolved_policy_title:
         return (
             f"在《{resolved_policy_title}》中，当前未检索到足够依据支持回答这个问题；"
@@ -906,6 +928,11 @@ def _with_query_text(evidence: EvidenceBundle, query_text: str) -> EvidenceBundl
         collection=evidence.collection,
         sources=evidence.sources,
     )
+
+
+def _is_official_web_freshness_sensitive_query(query_text: str) -> bool:
+    normalized_goal = _normalize_text(query_text).lower()
+    return any(term in normalized_goal for term in _OFFICIAL_WEB_FRESHNESS_QUERY_TERMS)
 
 
 def _should_clarify_with_evidence(user_goal: str, evidence: EvidenceBundle) -> bool:

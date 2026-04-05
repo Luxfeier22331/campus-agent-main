@@ -1,4 +1,11 @@
-export { crawlRuns, runArtifacts, runHeartbeats, runOutbox } from "./official-web";
+export {
+  crawlRuns,
+  pageFreshness,
+  pageObservations,
+  runArtifacts,
+  runHeartbeats,
+  runOutbox,
+} from "./official-web";
 export {
   metricRollup,
   officialWebRunProjection,
@@ -11,7 +18,14 @@ export {
 } from "./operator";
 export { projectionOutbox, requestExecution, requestObservabilityFact } from "./runtime";
 
-import { crawlRuns, runArtifacts, runHeartbeats, runOutbox } from "./official-web";
+import {
+  crawlRuns,
+  pageFreshness,
+  pageObservations,
+  runArtifacts,
+  runHeartbeats,
+  runOutbox,
+} from "./official-web";
 import {
   metricRollup,
   officialWebRunProjection,
@@ -26,6 +40,8 @@ import { projectionOutbox, requestExecution, requestObservabilityFact } from "./
 
 export const appApiOwnedSchema = {
   crawlRuns,
+  pageObservations,
+  pageFreshness,
   runHeartbeats,
   runArtifacts,
   runOutbox,
