@@ -299,6 +299,14 @@ class AuthenticatedNoticeImportTest(unittest.TestCase):
             document.metadata["policy_projection_version"],
             DEFAULT_POLICY_PROJECTION_VERSION,
         )
+        document_units = [
+            json.loads(line)
+            for line in document.document_units_bytes.decode("utf-8").splitlines()
+            if line.strip()
+        ]
+        self.assertNotIn("attachment_ref", [row["unit_type"] for row in document_units])
+        canonical_markdown = document.canonical_markdown_bytes.decode("utf-8")
+        self.assertNotIn("## 附件", canonical_markdown)
         self.assertIn("document-units.jsonl", document.additional_processed_object_keys)
         self.assertIn("source-truth/notice-manifest.json", document.additional_processed_object_keys)
 

@@ -140,6 +140,43 @@ collector runtime 的第一 owner 固定为 repo 内独立 `apps/*` runtime shel
 - 优先独立 restricted collection
 - document / chunk projection 以 `visibility_* + entitlement_*` 为主
 
+## Offline Attachment Consumption
+
+`campus_notices/internal_notice` 的离线消费形态固定为“两层 projection”：
+
+- 父 notice document 只承载 notice 正文与正文结构单元
+- `attachment-refs.jsonl` 只作为 source-truth relation truth，不继续并入父 notice 的 chunk input
+- 已下载附件必须 materialize 成 repo-owned derived child documents，再进入后续 split / cleanup / chunk pipeline
+
+child attachment document 的长期约束：
+
+- derived-from 固定为 authenticated notice source-truth，而不是 bootstrap bundle 或 collector 文件系统
+- child document 必须显式携带 `projection_name`、`derived_from`、`derived_from_document_id`、`derived_from_raw_asset_id`、`derived_from_raw_version_id`、`parent_document_id`、`attachment_ref_id`、`attachment_kind`、`attachment_role`
+- child document 继承父 notice 的 `visibility_*`、`entitlement_groups` 与 `policy_projection_version`
+- child document 的 identity 表达“notice 内的稳定附件关系”，version 表达“附件内容 hash + extraction policy version”
+
+attachment extraction lane 固定按类型分流，不做多套 fallback：
+
+- `reference_only`：只保留 source-truth relation，不生成 child document
+- `text_extractable`：走确定性的 native text extraction
+- `ocr_required`：走 repo 现有 online OCR provider 路径
+- `unsupported_binary`：直接 fast-fail，不静默降级为可检索文档
+
+当前 historical attachment corpus 以图片为主，因此 image OCR 是 first-class lane，不是补丁路径。
+
+## Scope Materialization Rule
+
+authenticated notice 的 attachment projection 以 source-truth replay 方式重建 canonical scope。
+
+固定规则：
+
+- projection runner 读取已落盘的 `notice-manifest.json`、`content-blocks.jsonl`、`attachment-refs.jsonl` 与附件对象
+- projection runner 生成“clean parent notice docs + derived attachment child docs”的完整 scope snapshot
+- final registry mutation 继续使用单次 `replace_scope(corpus, collection, records)` 收口
+- scope refresh 不允许只写 child rows；任何 replay 都必须把父 notice rows 与 child attachment rows一并提交
+
+这条规则服务于当前 `offline_preparation` collection，不表示 `internal_notice` 已开放 query-serving。
+
 ## Future Control Plane
 
 如果后续需要 run admission、heartbeat、operator read model 与 ingestion handoff，长期规则固定为：

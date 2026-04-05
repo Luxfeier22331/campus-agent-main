@@ -344,6 +344,12 @@ def _should_skip_curriculum_unit(unit: StructuredUnit, table_roots_with_semantic
     return _is_curriculum_course_map_noise_unit(unit)
 
 
+def _should_skip_internal_notice_unit(unit: StructuredUnit, table_roots_with_semantic_units: set[str]) -> bool:
+    if unit.unit_type == "attachment_ref":
+        return True
+    return _should_skip_generic_unit(unit, table_roots_with_semantic_units)
+
+
 def _postprocess_default_chunk_candidates(
     chunk_candidates: Sequence[_ChunkCandidate],
     record: DocumentRegistryRecord,
@@ -419,6 +425,14 @@ _COLLECTION_CHUNK_STRATEGIES: dict[tuple[str, str], _CollectionChunkStrategy] = 
         resolve_unit_chunk_profile=_resolve_curriculum_unit_chunk_profile,
         should_skip_unit=_should_skip_curriculum_unit,
         postprocess_candidates=_postprocess_curriculum_chunk_candidates,
+    ),
+    ("campus_notices", "internal_notice"): _CollectionChunkStrategy(
+        build_chunk_profile=_build_generic_runtime_chunk_profile,
+        load_structured_units=_load_default_structured_units,
+        build_unit_pieces=_build_default_unit_pieces,
+        resolve_unit_chunk_profile=_resolve_default_unit_chunk_profile,
+        should_skip_unit=_should_skip_internal_notice_unit,
+        postprocess_candidates=_postprocess_default_chunk_candidates,
     ),
 }
 

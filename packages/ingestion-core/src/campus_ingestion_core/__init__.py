@@ -93,6 +93,14 @@ from campus_ingestion_core.authenticated_notice_import import (
     import_authenticated_notice_bundle,
     import_authenticated_notice_export,
 )
+from campus_ingestion_core.authenticated_notice_source_projections import (
+    AuthenticatedNoticeAttachmentProjection,
+    AuthenticatedNoticeSourceProjectionReport,
+    AuthenticatedNoticeSourceProjectionRequest,
+    AuthenticatedNoticeSourceProjectionsConfig,
+    load_authenticated_notice_source_projections_config,
+    rebuild_authenticated_notice_source_projections,
+)
 from campus_ingestion_core.authenticated_notice_closeout import (
     AuthenticatedNoticeCloseoutService,
     CloseoutBatch,
@@ -206,6 +214,10 @@ __all__ = [
     "AuthenticatedNoticeBundleImportResult",
     "AuthenticatedNoticeImportRequest",
     "AuthenticatedNoticePreparedImport",
+    "AuthenticatedNoticeAttachmentProjection",
+    "AuthenticatedNoticeSourceProjectionReport",
+    "AuthenticatedNoticeSourceProjectionRequest",
+    "AuthenticatedNoticeSourceProjectionsConfig",
     "StudentHandbookChunkingScanResult",
     "StudentHandbookMigrationReport",
     "StudentHandbookSourceAssetRequest",
@@ -218,6 +230,7 @@ __all__ = [
     "cleanup_handbook_document",
     "import_authenticated_notice_bundle",
     "import_authenticated_notice_export",
+    "load_authenticated_notice_source_projections_config",
     "normalize_handbook_provider_result",
     "normalize_handbook_body_text",
     "normalize_handbook_title",
@@ -283,6 +296,7 @@ __all__ = [
     "MockEmbeddingSettings",
     "MockSparseEmbeddingSettings",
     "process_raw_ingestion_job",
+    "rebuild_authenticated_notice_source_projections",
     "PROVIDER_RESPONSE_FILENAME",
     "create_snapshot_backup",
     "migrate_student_handbook_source_faithful",

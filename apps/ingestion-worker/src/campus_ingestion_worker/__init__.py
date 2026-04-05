@@ -16,6 +16,10 @@ from campus_ingestion_worker.import_authenticated_notice_export import (
     AuthenticatedNoticeImportRequest,
     import_authenticated_notice_export,
 )
+from campus_ingestion_worker.rebuild_authenticated_notice_source_projections import (
+    AuthenticatedNoticeSourceProjectionRequest,
+    rebuild_authenticated_notice_source_projections,
+)
 from campus_ingestion_worker.validate_student_handbook_chunking import (
     StudentHandbookChunkingValidationReport,
     validate_student_handbook_chunking,
@@ -27,12 +31,14 @@ __all__ = [
     "OnlineOcrClient",
     "OnlineOcrProviderResult",
     "AuthenticatedNoticeImportRequest",
+    "AuthenticatedNoticeSourceProjectionRequest",
     "RawAssetRegistrationResult",
     "StudentHandbookChunkingValidationReport",
     "StudentHandbookMigrationReport",
     "StudentHandbookSourceAssetRequest",
     "load_worker_env",
     "import_authenticated_notice_export",
+    "rebuild_authenticated_notice_source_projections",
     "migrate_student_handbook_source_faithful",
     "process_raw_ingestion_job",
     "register_raw_asset",

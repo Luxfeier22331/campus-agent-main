@@ -1,0 +1,51 @@
+{
+  "schema_version": "authenticated_notice_source_projections_v1",
+  "source_corpus": "campus_notices",
+  "source_collection": "internal_notice",
+  "derived_document_fields": [
+    "projection_name",
+    "derived_from",
+    "derived_from_document_id",
+    "derived_from_raw_asset_id",
+    "derived_from_raw_version_id",
+    "parent_document_id",
+    "attachment_ref_id",
+    "attachment_kind",
+    "attachment_role",
+    "attachment_content_sha256",
+    "attachment_mime_type",
+    "attachment_object_key",
+    "attachment_filename",
+    "source_resource_role",
+    "source_relation_source",
+    "extraction_class",
+    "extraction_policy_version"
+  ],
+  "attachment_projection": {
+    "projection_name": "internal_notice_attachment_documents",
+    "target_corpus": "campus_notices",
+    "target_collection": "internal_notice",
+    "projection_family": "derived_documents",
+    "replay_from_source_truth": true,
+    "derived_from": "source_truth"
+  },
+  "attachment_role_map": {
+    "attachment": "notice_attachment_document",
+    "inline_image": "inline_image_attachment_document"
+  },
+  "attachment_kind_map": {
+    "text_extractable": "office_document_attachment",
+    "ocr_required": "ocr_image_attachment"
+  },
+  "extraction_policy_version": "authenticated_notice_attachment_extraction_v1",
+  "text_extractable_extensions": ["docx"],
+  "ocr_required_mime_types": [
+    "image/png",
+    "image/jpeg",
+    "image/bmp",
+    "image/gif"
+  ],
+  "ocr_required_extensions": ["png", "jpg", "jpeg", "bmp", "gif"],
+  "reference_only_storage_providers": ["reference_only"],
+  "reference_only_ingest_statuses": ["reference_only"]
+}
