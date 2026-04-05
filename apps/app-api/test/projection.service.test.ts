@@ -407,6 +407,7 @@ describe("request projection projector", () => {
           diagnostics: {
             clarificationReason: "policy_object_conflict",
             noAnswerReason: null,
+            policyReason: null,
             resolvedPolicyDocumentId:
               "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
             resolvedPolicyTitle: "中央民族大学本科学生国家奖学金评审办法",
@@ -416,6 +417,8 @@ describe("request projection projector", () => {
               "中央民族大学本科学生国家奖学金评审办法",
               "中央民族大学本科学生综合素质测评办法",
             ],
+            scopeClass: null,
+            semanticOutcome: null,
             sessionProgramFamily: null,
             sessionProgram: null,
             sessionSemester: null,
@@ -445,6 +448,7 @@ describe("request projection projector", () => {
         diagnostics: {
           clarificationReason: "policy_object_conflict",
           noAnswerReason: null,
+          policyReason: null,
           resolvedEntityType: null,
           resolvedPolicyDocumentId:
             "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
@@ -454,8 +458,10 @@ describe("request projection projector", () => {
             "中央民族大学本科学生国家奖学金评审办法",
             "中央民族大学本科学生综合素质测评办法",
           ],
+          scopeClass: null,
           rewrittenQuery:
             "中央民族大学本科学生国家奖学金评审办法 国奖第九条里对论文和著作怎么要求的？",
+          semanticOutcome: null,
           sessionProgram: null,
           sessionProgramFamily: null,
           sessionSemester: null,

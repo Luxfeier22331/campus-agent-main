@@ -75,11 +75,14 @@ export interface SupervisorExecutionObservability {
   modelName: string | null;
   modelProvider: string | null;
   outputTokens: number | null;
+  policyReason?: string | null;
   resolvedScopeCollection?: string | null;
   resolvedScopeCorpus?: string | null;
   refusalClass: string | null;
   retrievedSourceCount: number | null;
   retrievalAttempted: boolean | null;
+  scopeClass?: string | null;
+  semanticOutcome?: string | null;
 }
 
 export interface SupervisorExecutionResponse {
@@ -320,9 +323,12 @@ function parseExecutionObservability(
     modelName: normalizeNullableString(record.model_name),
     modelProvider: normalizeNullableString(record.model_provider),
     outputTokens: normalizeNullableNumber(record.output_tokens),
+    policyReason: normalizeNullableString(record.policy_reason),
     refusalClass: normalizeNullableString(record.refusal_class),
     retrievedSourceCount: normalizeNullableNumber(record.retrieved_source_count),
     retrievalAttempted: normalizeNullableBoolean(record.retrieval_attempted),
+    scopeClass: normalizeNullableString(record.scope_class),
+    semanticOutcome: normalizeNullableString(record.semantic_outcome),
     ...(resolvedScopeCollection ? { resolvedScopeCollection } : {}),
     ...(resolvedScopeCorpus ? { resolvedScopeCorpus } : {}),
   };

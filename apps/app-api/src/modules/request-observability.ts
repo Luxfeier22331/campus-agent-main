@@ -72,6 +72,87 @@ function normalizeRefusalClass(
   return null;
 }
 
+function normalizeSemanticOutcome(input: {
+  diagnostics: RequestDiagnosticsSummary | null;
+  response: SupervisorExecutionResponse;
+  status: RequestExecutionStatus;
+}): string | null {
+  if (input.response.observability?.semanticOutcome) {
+    return input.response.observability.semanticOutcome;
+  }
+  if (input.diagnostics?.semanticOutcome) {
+    return input.diagnostics.semanticOutcome;
+  }
+  if (input.status === "completed") {
+    return "grounded_answer";
+  }
+  if (input.status === "needs_clarification") {
+    return "needs_clarification";
+  }
+  if (input.status === "approval_required") {
+    return "approval_required";
+  }
+  if (input.status === "rejected") {
+    return "policy_refusal";
+  }
+  if (input.status === "no_answer") {
+    if (input.diagnostics?.noAnswerReason === "restricted_access_denied") {
+      return "restricted_access_denied";
+    }
+    return "unsupported_by_evidence";
+  }
+  return null;
+}
+
+function normalizeScopeClass(input: {
+  diagnostics: RequestDiagnosticsSummary | null;
+  requestedScope: RequestedScope | null;
+  resolvedScope: RequestedScope | null;
+  response: SupervisorExecutionResponse;
+  status: RequestExecutionStatus;
+}): string | null {
+  if (input.response.observability?.scopeClass) {
+    return input.response.observability.scopeClass;
+  }
+  if (input.diagnostics?.scopeClass) {
+    return input.diagnostics.scopeClass;
+  }
+  const semanticOutcome = normalizeSemanticOutcome(input);
+  if (semanticOutcome === "out_of_scope") {
+    return "out_of_scope";
+  }
+  if (
+    input.status === "completed" ||
+    input.status === "needs_clarification" ||
+    input.status === "no_answer"
+  ) {
+    if (input.resolvedScope || input.requestedScope) {
+      return "in_scope";
+    }
+  }
+  return null;
+}
+
+function normalizePolicyReason(input: {
+  diagnostics: RequestDiagnosticsSummary | null;
+  response: SupervisorExecutionResponse;
+  status: RequestExecutionStatus;
+}): string | null {
+  if (input.response.observability?.policyReason) {
+    return input.response.observability.policyReason;
+  }
+  if (input.diagnostics?.policyReason) {
+    return input.diagnostics.policyReason;
+  }
+  if (input.status === "approval_required") {
+    return "approval_required";
+  }
+  if (input.status === "rejected") {
+    return "request_rejected";
+  }
+  return null;
+}
+
 export function buildAcceptedRequestObservabilityFact(input: {
   conversationId: string;
   principal: ResolvedAppPrincipal;
@@ -107,6 +188,7 @@ export function buildAcceptedRequestObservabilityFact(input: {
     outputTokens: null,
     policyProjectionVersion:
       input.principal.authorization?.retrievalFilter.policyProjectionVersion ?? null,
+    policyReason: null,
     principalType: input.principal.principal.type,
     projectionLagMs: null,
     requestId: input.requestId,
@@ -114,6 +196,8 @@ export function buildAcceptedRequestObservabilityFact(input: {
     requestedScopeSummary: toScopeSummary(input.requestedScope),
     resolvedScopeSummary: toScopeSummary(input.resolvedScope),
     refusalClass: null,
+    scopeClass: null,
+    semanticOutcome: null,
     retrievedSourceCount: null,
     retrievalAttempted: null,
     selectedTarget: null,
@@ -194,6 +278,11 @@ export function buildFinalizedRequestObservabilityFact(input: {
     outputTokens: observability?.outputTokens ?? null,
     policyProjectionVersion:
       input.principal.authorization?.retrievalFilter.policyProjectionVersion ?? null,
+    policyReason: normalizePolicyReason({
+      diagnostics: input.diagnostics,
+      response: input.response,
+      status: input.status,
+    }),
     principalType: input.principal.principal.type,
     projectionLagMs: null,
     requestId: input.requestId,
@@ -201,6 +290,18 @@ export function buildFinalizedRequestObservabilityFact(input: {
     requestedScopeSummary: toScopeSummary(input.requestedScope),
     resolvedScopeSummary: toScopeSummary(input.resolvedScope),
     refusalClass: normalizeRefusalClass(input.response, input.status),
+    scopeClass: normalizeScopeClass({
+      diagnostics: input.diagnostics,
+      requestedScope: input.requestedScope,
+      resolvedScope: input.resolvedScope,
+      response: input.response,
+      status: input.status,
+    }),
+    semanticOutcome: normalizeSemanticOutcome({
+      diagnostics: input.diagnostics,
+      response: input.response,
+      status: input.status,
+    }),
     retrievedSourceCount,
     retrievalAttempted,
     selectedTarget: input.response.selectedTarget,
