@@ -72,7 +72,7 @@ updated: 2026-04-05
 - 产品定位：`architecture/product-positioning.md`
 - 当前架构：`architecture/current-architecture.md`
 - 目标架构：`architecture/target-architecture.md`
-- supporting architecture：`architecture/product-runtime-architecture.md`、`architecture/execution-and-specialists-architecture.md`、`architecture/identity-and-authorization-architecture.md`、`architecture/retrieval-serving-architecture.md`、`architecture/data-plane-architecture.md`、`architecture/navigation-and-wayfinding-architecture.md`、`architecture/official-web-architecture.md`、`architecture/authenticated-notice-source-architecture.md`、`architecture/operator-observability-architecture.md`
+- supporting architecture：`architecture/product-runtime-architecture.md`、`architecture/execution-and-specialists-architecture.md`、`architecture/prompt-and-instruction-architecture.md`、`architecture/identity-and-authorization-architecture.md`、`architecture/retrieval-serving-architecture.md`、`architecture/data-plane-architecture.md`、`architecture/navigation-and-wayfinding-architecture.md`、`architecture/official-web-architecture.md`、`architecture/authenticated-notice-source-architecture.md`、`architecture/operator-observability-architecture.md`
 - 导航长期边界与底图策略：`architecture/navigation-and-wayfinding-architecture.md`、`decisions/adr-0027-navigation-specialist-and-spatial-truth.md`、`decisions/adr-0028-campus-navigation-basemap-and-provider-strategy.md`
 - 共享 Postgres 连接与 IPv4 session-pooler 姿态：`data/shared-postgres-ownership.md`、`decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md`
 - 当前 phase 状态与 pending work：`.planning/PROJECT.md`、`.planning/STATE.md`
@@ -107,6 +107,7 @@ updated: 2026-04-05
 - `architecture/target-architecture.md`
 - `architecture/product-runtime-architecture.md`
 - `architecture/execution-and-specialists-architecture.md`
+- `architecture/prompt-and-instruction-architecture.md`
 - `architecture/identity-and-authorization-architecture.md`
 - `architecture/retrieval-serving-architecture.md`
 - `architecture/data-plane-architecture.md`

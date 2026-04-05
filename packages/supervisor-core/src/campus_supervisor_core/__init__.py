@@ -9,6 +9,7 @@ from campus_contracts import (
     SupervisorRequest,
     SupervisorResponse,
 )
+from campus_rag_specialist.prompt_execution import RagPromptExecutor
 
 from campus_supervisor_core.agent import SpecialistDelegate, SupervisorAgent
 from campus_supervisor_core.audit import (
@@ -24,6 +25,7 @@ from campus_supervisor_core.errors import (
     SupervisorError,
     UnsupportedCapabilityError,
 )
+from campus_supervisor_core.prompt_execution import SupervisorPromptExecutor
 
 
 AuditSink = Callable[[SupervisorAuditRecord], None]
@@ -34,8 +36,13 @@ def handle_request(
     *,
     specialist_delegates: dict[SpecialistTarget, SpecialistDelegate] | None = None,
     audit_sink: AuditSink | None = None,
+    supervisor_prompt_executor: SupervisorPromptExecutor | None = None,
+    rag_prompt_executor: RagPromptExecutor | None = None,
 ) -> SupervisorResponse:
-    agent = SupervisorAgent()
+    agent = SupervisorAgent(
+        supervisor_prompt_executor=supervisor_prompt_executor,
+        rag_prompt_executor=rag_prompt_executor,
+    )
     if specialist_delegates is not None:
         agent.specialist_delegates = dict(specialist_delegates)
     response = agent.handle(request)
@@ -48,8 +55,9 @@ def handle_specialist_request(
     request: SpecialistRequest,
     *,
     specialist_delegates: dict[SpecialistTarget, SpecialistDelegate] | None = None,
+    rag_prompt_executor: RagPromptExecutor | None = None,
 ) -> SpecialistResponse:
-    agent = SupervisorAgent()
+    agent = SupervisorAgent(rag_prompt_executor=rag_prompt_executor)
     if specialist_delegates is not None:
         agent.specialist_delegates = dict(specialist_delegates)
     return agent.handle_specialist_request(request)

@@ -17,6 +17,7 @@ from campus_contracts import (
     PersonalizationHint,
     ProfileMemoryItem,
     ProfileMemorySummary,
+    PromptTrace,
     RagRequestPayload,
     RagResultDiagnostics,
     RagResultPayload,
@@ -33,6 +34,11 @@ from campus_retrieval_core import (
 from campus_rag_specialist import RagSpecialistAgent
 from campus_rag_specialist.confidence import derive_confidence
 from campus_rag_specialist.intent import frame_rag_intent
+from campus_rag_specialist.prompt_execution import (
+    RagAnswerPromptOutput,
+    RagClarifyPromptOutput,
+    RagPromptExecutionResult,
+)
 from campus_rag_specialist.service import delegate_to_rag_agent
 from campus_rag_specialist.query_planning import (
     plan_curriculum_course_query,
@@ -317,6 +323,42 @@ class RagSpecialistTest(unittest.TestCase):
             ),
         )
 
+    def test_no_evidence_uses_injected_prompt_executor_for_no_answer(self) -> None:
+        class FakePromptExecutor:
+            def compose_no_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                return RagPromptExecutionResult(
+                    output=RagAnswerPromptOutput(
+                        answer_text="当前依据还不够，请补充更具体的制度名称。"
+                    ),
+                    prompt_trace=PromptTrace(
+                        prompt_id="rag_no_answer_v1",
+                        prompt_version="v1",
+                        template_sha256="c" * 64,
+                        variables_schema_version="v1",
+                        output_schema_version="v1",
+                    ),
+                )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="library hours",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: EvidenceBundle(
+                query_text="library hours",
+                corpus="regulations",
+                collection="student_handbook",
+            ),
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(response.status, "no_answer")
+        self.assertEqual(response.answer_text, "当前依据还不够，请补充更具体的制度名称。")
+        self.assertEqual(response.result.diagnostics.prompt_trace.prompt_id, "rag_no_answer_v1")
+
     def test_referential_question_maps_to_needs_clarification_without_retrieval(self) -> None:
         retriever_called = False
 
@@ -350,6 +392,38 @@ class RagSpecialistTest(unittest.TestCase):
             ),
         )
         self.assertFalse(retriever_called)
+
+    def test_referential_question_uses_injected_prompt_executor_for_clarification(self) -> None:
+        class FakePromptExecutor:
+            def compose_clarify(self, packet: object) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
+                return RagPromptExecutionResult(
+                    output=RagClarifyPromptOutput(
+                        follow_up_question="你具体想问哪一项制度？"
+                    ),
+                    prompt_trace=PromptTrace(
+                        prompt_id="rag_clarify_v1",
+                        prompt_version="v1",
+                        template_sha256="d" * 64,
+                        variables_schema_version="v1",
+                        output_schema_version="v1",
+                    ),
+                )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="这个规定怎么办理？",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: _make_evidence(),
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(response.status, "needs_clarification")
+        self.assertEqual(response.follow_up_question, "你具体想问哪一项制度？")
+        self.assertEqual(response.result.diagnostics.prompt_trace.prompt_id, "rag_clarify_v1")
 
     def test_generic_scholarship_question_maps_to_needs_clarification_without_retrieval(self) -> None:
         retriever_called = False
@@ -520,6 +594,40 @@ class RagSpecialistTest(unittest.TestCase):
                 confirmed_slot_terms=("推免资格",),
             ),
         )
+
+    def test_generic_completed_response_uses_injected_prompt_executor_for_answer(self) -> None:
+        evidence = _make_evidence(scores=(0.82,), query_text="library hours")
+
+        class FakePromptExecutor:
+            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                return RagPromptExecutionResult(
+                    output=RagAnswerPromptOutput(
+                        answer_text="根据学生手册，图书馆开放时间为 08:00 至 22:00。"
+                    ),
+                    prompt_trace=PromptTrace(
+                        prompt_id="rag_answer_v1",
+                        prompt_version="v1",
+                        template_sha256="e" * 64,
+                        variables_schema_version="v1",
+                        output_schema_version="v1",
+                    ),
+                )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="library hours",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(response.answer_text, "根据学生手册，图书馆开放时间为 08:00 至 22:00。")
+        self.assertEqual(response.result.diagnostics.prompt_trace.prompt_id, "rag_answer_v1")
 
     def test_ambiguous_multi_policy_evidence_maps_to_needs_clarification(self) -> None:
         retriever_called = False

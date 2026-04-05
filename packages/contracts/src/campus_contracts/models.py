@@ -269,6 +269,9 @@ class RagResultDiagnostics:
     rewritten_query: str = ""
     clarification_reason: str = ""
     no_answer_reason: str = ""
+    semantic_outcome: str = ""
+    scope_class: str = ""
+    policy_reason: str = ""
     retrieved_title_summary: tuple[str, ...] = field(default_factory=tuple)
     candidate_title_summary: tuple[str, ...] = field(default_factory=tuple)
     resolution_mode: str = ""
@@ -286,6 +289,18 @@ class RagResultDiagnostics:
     session_semester: str = ""
     unsupported_fields: tuple[str, ...] = field(default_factory=tuple)
     partial_answer: bool = False
+    prompt_trace: PromptTrace | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PromptTrace:
+    prompt_id: str = ""
+    prompt_version: str = ""
+    template_sha256: str = ""
+    variables_schema_version: str = ""
+    output_schema_version: str = ""
+    model_provider: str = ""
+    model_name: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -313,6 +328,9 @@ class SupervisorObservability:
     citation_count: int | None = None
     citation_missing: bool | None = None
     refusal_class: str = ""
+    semantic_outcome: str = ""
+    scope_class: str = ""
+    policy_reason: str = ""
     acl_decision: str = ""
     acl_anomaly_code: str = ""
     fail_closed: bool | None = None
@@ -324,6 +342,7 @@ class SupervisorObservability:
     estimated_cost_microusd: int | None = None
     resolved_scope_corpus: AllowedCorpus | None = None
     resolved_scope_collection: str = ""
+    prompt_trace: PromptTrace | None = None
 
 
 @dataclass(frozen=True, slots=True)
