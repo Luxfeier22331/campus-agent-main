@@ -84,6 +84,9 @@ class GoldenCase:
     forbidden_claims: tuple[str, ...] = field(default_factory=tuple)
     trace_expectation: TraceExpectation | None = None
     grader_policy: GraderPolicy = field(default_factory=GraderPolicy)
+    expected_semantic_outcome: str = ""
+    expected_scope_class: str = ""
+    expected_policy_reason: str = ""
     generator_name: str = ""
     generator_version: str = ""
     generation_recipe: str = ""

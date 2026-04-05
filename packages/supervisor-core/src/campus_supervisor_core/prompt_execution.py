@@ -40,6 +40,12 @@ class SupervisorPromptExecutor(Protocol):
     ) -> SupervisorPromptExecutionResult[SupervisorTerminalPromptOutput]:
         ...
 
+    def compose_out_of_scope(
+        self,
+        packet: SupervisorPromptPacket,
+    ) -> SupervisorPromptExecutionResult[SupervisorTerminalPromptOutput]:
+        ...
+
     def compose_reject(
         self,
         packet: SupervisorPromptPacket,

@@ -57,6 +57,12 @@ _PROMPT_REGISTRY: dict[str, SupervisorPromptSpec] = {
         supported_modes=("clarify",),
         eval_suite=("supervisor", "supervisor_clarify_regression"),
     ),
+    "supervisor_out_of_scope_v1": _build_spec(
+        prompt_id="supervisor_out_of_scope_v1",
+        filename="supervisor_out_of_scope_v1.md",
+        supported_modes=("out_of_scope",),
+        eval_suite=("supervisor", "supervisor_out_of_scope_regression"),
+    ),
     "supervisor_reject_v1": _build_spec(
         prompt_id="supervisor_reject_v1",
         filename="supervisor_reject_v1.md",

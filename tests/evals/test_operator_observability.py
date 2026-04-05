@@ -14,6 +14,7 @@ from campus_evals.operator_observability import (
     OperatorObservabilityClientSettings,
     OperatorQualityGrade,
     OperatorRequestCorrelation,
+    OperatorSkippedPublishItem,
     OperatorTraceBacklink,
     build_case_results_publish_batch,
     load_request_correlation_manifest,
@@ -61,6 +62,126 @@ class OperatorObservabilityManifestTest(unittest.TestCase):
 
 
 class OperatorObservabilityBatchBuilderTest(unittest.TestCase):
+    def test_build_case_results_publish_batch_publishes_deterministic_policy_metrics(self) -> None:
+        payload = {
+            "results": [
+                {
+                    "case_id": "case-1",
+                    "metric_results": {
+                        "out_of_scope_accuracy": {
+                            "passed": True,
+                            "reason": "ok",
+                        },
+                        "unsafe_false_allow_rate": {
+                            "passed": True,
+                            "reason": "ok",
+                        },
+                    },
+                }
+            ]
+        }
+        correlations = {
+            "case-1": OperatorRequestCorrelation(
+                case_id="case-1",
+                request_id="req_01",
+                trace_id="trace_01",
+                sampled_at="2026-04-03T00:10:00.000Z",
+            )
+        }
+
+        batch = build_case_results_publish_batch(
+            case_results_payload=payload,
+            correlations=correlations,
+            grade_source="deterministic_eval",
+            grader_version="deterministic@2026-04-06",
+        )
+
+        self.assertEqual(
+            batch.grades,
+            (
+                OperatorQualityGrade(
+                    request_id="req_01",
+                    trace_id="trace_01",
+                    grade_source="deterministic_eval",
+                    grade_domain="policy",
+                    verdict="pass",
+                    score=None,
+                    grader_version="deterministic@2026-04-06",
+                    sampled_at="2026-04-03T00:10:00.000Z",
+                    rationale_summary="ok",
+                ),
+            ),
+        )
+        self.assertEqual(batch.backlinks, ())
+        self.assertEqual(batch.skipped, ())
+
+    def test_build_case_results_publish_batch_skips_unsupported_deterministic_metrics(self) -> None:
+        payload = {
+            "results": [
+                {
+                    "case_id": "case-1",
+                    "metric_results": {
+                        "status_accuracy": {
+                            "passed": True,
+                            "reason": "ok",
+                        },
+                    },
+                }
+            ]
+        }
+        correlations = {
+            "case-1": OperatorRequestCorrelation(
+                case_id="case-1",
+                request_id="req_01",
+                trace_id="trace_01",
+                sampled_at="2026-04-03T00:10:00.000Z",
+            )
+        }
+
+        batch = build_case_results_publish_batch(
+            case_results_payload=payload,
+            correlations=correlations,
+            grade_source="deterministic_eval",
+            grader_version="deterministic@2026-04-06",
+        )
+
+        self.assertEqual(batch.grades, ())
+        self.assertEqual(
+            batch.skipped,
+            (
+                OperatorSkippedPublishItem(
+                    case_id="case-1",
+                    metric_key="deterministic.status_accuracy",
+                    reason="unsupported_metric_domain",
+                ),
+            ),
+        )
+
+    def test_build_case_results_publish_batch_requires_request_correlation_for_publishable_deterministic_metrics(
+        self,
+    ) -> None:
+        payload = {
+            "results": [
+                {
+                    "case_id": "case-1",
+                    "metric_results": {
+                        "false_refusal_rate": {
+                            "passed": False,
+                            "reason": "status=no_answer",
+                        },
+                    },
+                }
+            ]
+        }
+
+        with self.assertRaisesRegex(ValueError, "missing request correlations for case ids: case-1"):
+            build_case_results_publish_batch(
+                case_results_payload=payload,
+                correlations={},
+                grade_source="deterministic_eval",
+                grader_version="deterministic@2026-04-06",
+            )
+
     def test_build_case_results_publish_batch_can_use_inline_request_correlation_from_case_results(self) -> None:
         payload = {
             "results": [
@@ -551,6 +672,43 @@ class OperatorObservabilityClientTest(unittest.TestCase):
 
 
 class OperatorObservabilityCliTest(unittest.TestCase):
+    def test_publish_case_results_artifact_dry_run_includes_deterministic_policy_metrics(self) -> None:
+        case_results_payload = {
+            "results": [
+                {
+                    "case_id": "case-1",
+                    "request_correlation": {
+                        "case_id": "case-1",
+                        "request_id": "req_01",
+                        "trace_id": "trace_01",
+                        "sampled_at": "2026-04-03T00:10:00.000Z",
+                    },
+                    "metric_results": {
+                        "unsupported_abstention_accuracy": {
+                            "passed": True,
+                            "reason": "ok",
+                        },
+                    },
+                    "supplemental_results": [],
+                }
+            ]
+        }
+
+        with TemporaryDirectory() as tmpdir:
+            case_results_path = Path(tmpdir) / "run-01-case-results.json"
+            case_results_path.write_text(json.dumps(case_results_payload), encoding="utf-8")
+
+            summary = publish_case_results_artifact(
+                case_results_path=case_results_path,
+                request_correlations_path=None,
+                grade_source="deterministic_eval",
+                grader_version="deterministic@2026-04-06",
+                dry_run=True,
+            )
+
+        self.assertEqual(summary["grade_count"], 1)
+        self.assertEqual(summary["skipped"], [])
+
     def test_publish_case_results_artifact_dry_run_uses_inline_request_correlation_when_manifest_omitted(self) -> None:
         case_results_payload = {
             "results": [

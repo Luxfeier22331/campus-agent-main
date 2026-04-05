@@ -95,11 +95,12 @@ class RagPromptRegistryTest(unittest.TestCase):
 
         self.assertEqual(
             {spec.prompt_id for spec in specs},
-            {"rag_answer_v1", "rag_clarify_v1", "rag_no_answer_v1"},
+            {"rag_answer_v1", "rag_clarify_v1", "rag_no_answer_v1", "rag_unsupported_v1"},
         )
         answer = get_rag_prompt_spec("rag_answer_v1")
         clarify = get_rag_prompt_spec("rag_clarify_v1")
         no_answer = get_rag_prompt_spec("rag_no_answer_v1")
+        unsupported = get_rag_prompt_spec("rag_unsupported_v1")
 
         self.assertEqual(answer.owner_package, "campus_rag_specialist")
         self.assertEqual(clarify.owner_package, "campus_rag_specialist")
@@ -107,12 +108,15 @@ class RagPromptRegistryTest(unittest.TestCase):
         self.assertEqual(answer.supported_modes, ("answer",))
         self.assertEqual(clarify.supported_modes, ("clarify",))
         self.assertEqual(no_answer.supported_modes, ("no_answer",))
+        self.assertEqual(unsupported.supported_modes, ("no_answer",))
         self.assertIn("<role>", answer.template_text)
         self.assertIn("<role>", clarify.template_text)
         self.assertIn("<output_contract>", no_answer.template_text)
+        self.assertIn("<output_contract>", unsupported.template_text)
         self.assertRegex(answer.template_sha256, r"^[0-9a-f]{64}$")
         self.assertRegex(clarify.template_sha256, r"^[0-9a-f]{64}$")
         self.assertRegex(no_answer.template_sha256, r"^[0-9a-f]{64}$")
+        self.assertRegex(unsupported.template_sha256, r"^[0-9a-f]{64}$")
 
 
 class RagPromptPacketTest(unittest.TestCase):
@@ -146,9 +150,10 @@ class RagPromptPacketTest(unittest.TestCase):
             no_answer_reason="insufficient_grounding",
         )
 
-        self.assertEqual(packet.prompt_id, "rag_no_answer_v1")
+        self.assertEqual(packet.prompt_id, "rag_unsupported_v1")
         self.assertEqual(packet.task.mode, "no_answer")
         self.assertEqual(packet.task.no_answer_reason, "insufficient_grounding")
+        self.assertEqual(packet.task.output_schema_name, "rag_unsupported_v1")
         self.assertEqual(len(packet.evidence), 1)
         evidence_entry = packet.evidence[0]
         self.assertEqual(evidence_entry.doc_id, "handbook:test-001")

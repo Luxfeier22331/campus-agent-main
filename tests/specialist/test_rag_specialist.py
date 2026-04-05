@@ -214,6 +214,29 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.result.diagnostics.resolved_scope_corpus, "curriculum")
         self.assertEqual(response.result.diagnostics.resolved_scope_collection, "curriculum_plan")
 
+    def test_missing_scope_without_campus_signal_clarifies_before_retrieval(self) -> None:
+        retriever_called = False
+
+        def fake_retriever(*args: object, **kwargs: object) -> EvidenceBundle:
+            nonlocal retriever_called
+            retriever_called = True
+            return _make_evidence()
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="MIT的校长是谁",
+                payload=RagRequestPayload(scope=None),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertFalse(retriever_called)
+        self.assertEqual(response.status, "needs_clarification")
+        self.assertEqual(response.confidence, "low")
+        self.assertIn("知识范围", response.follow_up_question)
+        self.assertIsNone(response.result)
+
     def test_retrieval_error_maps_to_error_response(self) -> None:
         def raising_retriever(*args: object, **kwargs: object) -> EvidenceBundle:
             raise RetrievalBackendError("qdrant unavailable")
@@ -331,7 +354,7 @@ class RagSpecialistTest(unittest.TestCase):
                         answer_text="当前依据还不够，请补充更具体的制度名称。"
                     ),
                     prompt_trace=PromptTrace(
-                        prompt_id="rag_no_answer_v1",
+                        prompt_id="rag_unsupported_v1",
                         prompt_version="v1",
                         template_sha256="c" * 64,
                         variables_schema_version="v1",
@@ -357,7 +380,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         self.assertEqual(response.status, "no_answer")
         self.assertEqual(response.answer_text, "当前依据还不够，请补充更具体的制度名称。")
-        self.assertEqual(response.result.diagnostics.prompt_trace.prompt_id, "rag_no_answer_v1")
+        self.assertEqual(response.result.diagnostics.prompt_trace.prompt_id, "rag_unsupported_v1")
 
     def test_referential_question_maps_to_needs_clarification_without_retrieval(self) -> None:
         retriever_called = False

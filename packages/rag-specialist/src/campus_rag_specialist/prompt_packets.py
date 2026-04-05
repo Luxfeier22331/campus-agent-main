@@ -98,6 +98,7 @@ def build_rag_no_answer_prompt_packet(
     intent_frame: RagIntentFrame | None = None,
 ) -> RagPromptPacket:
     frame = intent_frame or frame_rag_intent(request)
+    prompt_id = _resolve_no_answer_prompt_id(no_answer_reason)
     task = RagTaskPacket(
         request_id=request.request_id,
         mode="no_answer",
@@ -115,13 +116,13 @@ def build_rag_no_answer_prompt_packet(
             "use_internal_jargon",
         ),
         response_constraints=("brief", "user_facing", "no_hidden_content_leak"),
-        output_schema_name="rag_no_answer_v1",
+        output_schema_name=prompt_id,
         ambiguity_reason=frame.ambiguity_reason,
         missing_slots=frame.missing_slots,
         no_answer_reason=no_answer_reason,
     )
     return RagPromptPacket(
-        prompt_id="rag_no_answer_v1",
+        prompt_id=prompt_id,
         task=task,
         user_input_text=request.user_goal,
         evidence=tuple(_serialize_evidence_entry(source) for source in evidence.sources),
@@ -190,6 +191,12 @@ def _safe_summary(source: EvidenceSource) -> str:
 
 def _normalize_text(text: str) -> str:
     return _WHITESPACE_RE.sub(" ", text).strip()
+
+
+def _resolve_no_answer_prompt_id(no_answer_reason: str) -> str:
+    if no_answer_reason == "restricted_access_denied":
+        return "rag_no_answer_v1"
+    return "rag_unsupported_v1"
 
 
 __all__ = [

@@ -10,8 +10,12 @@ from campus_contracts import (
     RagResultPayload,
     SpecialistResponse,
     SupervisorResponse,
+    SupervisorRequest,
 )
-from campus_supervisor_core.policy import finalize_specialist_response
+from campus_supervisor_core.context import SupervisorRequestContext
+from campus_supervisor_core.intent import IntentFrame
+from campus_supervisor_core.policy import finalize_routing_decision, finalize_specialist_response
+from campus_supervisor_core.routing import RoutingDecision
 
 
 class SupervisorPolicyTest(unittest.TestCase):
@@ -98,6 +102,40 @@ class SupervisorPolicyTest(unittest.TestCase):
         self.assertIsNotNone(finalized.observability)
         self.assertEqual(finalized.observability.semantic_outcome, "restricted_access_denied")
         self.assertEqual(finalized.observability.scope_class, "in_scope")
+
+    def test_finalize_out_of_scope_routing_projects_terminal_no_answer(self) -> None:
+        finalized = finalize_routing_decision(
+            SupervisorRequestContext.from_request(
+                SupervisorRequest(
+                    user_goal="MIT的校长是谁",
+                    requested_capability="knowledge",
+                )
+            ),
+            RoutingDecision(
+                target=None,
+                primary_corpus=None,
+                primary_collection=None,
+                intent_frame=IntentFrame(
+                    capability="knowledge",
+                    task_kind="knowledge_lookup",
+                    domain_candidates=("knowledge",),
+                    missing_slots=(),
+                    risk_level="low",
+                    needs_clarification=False,
+                    suggested_next_action="out_of_scope",
+                    personalization_mode="generic",
+                    scope_class="out_of_scope",
+                    policy_reason="product_scope_boundary",
+                ),
+            ),
+        )
+
+        self.assertEqual(finalized.status, "no_answer")
+        self.assertEqual(finalized.confidence, "low")
+        self.assertIsNotNone(finalized.observability)
+        self.assertEqual(finalized.observability.semantic_outcome, "out_of_scope")
+        self.assertEqual(finalized.observability.scope_class, "out_of_scope")
+        self.assertEqual(finalized.observability.policy_reason, "product_scope_boundary")
 
     def test_finalize_error_response_keeps_error_payload(self) -> None:
         response = SpecialistResponse(

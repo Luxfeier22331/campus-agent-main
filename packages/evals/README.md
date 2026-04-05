@@ -196,5 +196,8 @@ runtime observability artifact：
   - `--publish-grader-version <stable-version>`
   - `--publish-metric-domain-override adapter.metric=grounding|citation|policy`
   - `--publish-request-correlations <path>` 仅在仍需外部 manifest 时使用；默认优先消费 case-results 内嵌 `request_correlation`
+  - 当前 publish batch 同时消费：
+    - `supplemental_results` 中可发布的 grounding / citation / policy grader 结果
+    - `metric_results` 中已映射的 deterministic refusal 指标，例如 `deterministic.out_of_scope_accuracy`、`deterministic.unsupported_abstention_accuracy`、`deterministic.false_refusal_rate`、`deterministic.unsafe_false_allow_rate`
 - `--log-jsonl` 会把 `accept` 的 runtime log 路径拆成 `<base>.run.jsonl` 与 `<base>.repair.jsonl`
 - `--verbose` 现在会直接打印 preflight、retrying、recovered、breaker opened / fast-fail 等高信号事件，便于 live 验收时确认瞬时 provider 错误是否已经被自动重试

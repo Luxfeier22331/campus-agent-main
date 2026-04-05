@@ -608,6 +608,35 @@ class SupervisorCoreTest(unittest.TestCase):
         self.assertEqual(audit_records[0].status, "approval_required")
         self.assertIsNone(audit_records[0].selected_target)
 
+    def test_handle_request_returns_out_of_scope_without_delegate_for_obvious_external_query(self) -> None:
+        delegate_called = False
+        audit_records: list[SupervisorAuditRecord] = []
+
+        def fake_rag_specialist(_request: SpecialistRequest) -> SpecialistResponse:
+            nonlocal delegate_called
+            delegate_called = True
+            return _make_rag_completed_response()
+
+        response = handle_request(
+            SupervisorRequest(
+                user_goal="MIT的校长是谁",
+                requested_capability="knowledge",
+            ),
+            specialist_delegates={"rag-specialist": fake_rag_specialist},
+            audit_sink=audit_records.append,
+        )
+
+        self.assertFalse(delegate_called)
+        self.assertEqual(response.selected_target, None)
+        self.assertEqual(response.status, "no_answer")
+        self.assertEqual(response.confidence, "low")
+        self.assertEqual(response.observability.semantic_outcome, "out_of_scope")
+        self.assertEqual(response.observability.scope_class, "out_of_scope")
+        self.assertEqual(response.observability.policy_reason, "product_scope_boundary")
+        self.assertEqual(len(audit_records), 1)
+        self.assertEqual(audit_records[0].status, "no_answer")
+        self.assertIsNone(audit_records[0].selected_target)
+
     def test_finalize_routing_decision_uses_injected_prompt_executor_for_clarification(self) -> None:
         context = SupervisorRequestContext.from_request(
             SupervisorRequest(
@@ -707,6 +736,57 @@ class SupervisorCoreTest(unittest.TestCase):
         self.assertEqual(response.answer_text, "这个请求不在当前可执行范围内。")
         self.assertEqual(response.error.code, "request_rejected")
         self.assertEqual(response.observability.prompt_trace.prompt_id, "supervisor_reject_v1")
+
+    def test_finalize_routing_decision_uses_injected_prompt_executor_for_out_of_scope(self) -> None:
+        context = SupervisorRequestContext.from_request(
+            SupervisorRequest(
+                user_goal="MIT的校长是谁",
+                request_id="req-out-of-scope-exec-001",
+                requested_capability="knowledge",
+            )
+        )
+        decision = RoutingDecision(
+            target=None,
+            primary_corpus=None,
+            primary_collection=None,
+            intent_frame=IntentFrame(
+                capability="knowledge",
+                task_kind="knowledge_lookup",
+                domain_candidates=("out_of_scope",),
+                missing_slots=(),
+                risk_level="low",
+                needs_clarification=False,
+                suggested_next_action="out_of_scope",
+                personalization_mode="generic",
+                scope_class="out_of_scope",
+                policy_reason="product_scope_boundary",
+            ),
+        )
+
+        class FakePromptExecutor:
+            def compose_out_of_scope(self, packet: object) -> SupervisorPromptExecutionResult[SupervisorTerminalPromptOutput]:
+                return SupervisorPromptExecutionResult(
+                    output=SupervisorTerminalPromptOutput(
+                        answer_text="这个问题不属于当前支持的中央民族大学校园问答范围。"
+                    ),
+                    prompt_trace=PromptTrace(
+                        prompt_id="supervisor_out_of_scope_v1",
+                        prompt_version="v1",
+                        template_sha256="f" * 64,
+                        variables_schema_version="v1",
+                        output_schema_version="v1",
+                    ),
+                )
+
+        response = finalize_routing_decision(
+            context,
+            decision,
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(response.status, "no_answer")
+        self.assertEqual(response.answer_text, "这个问题不属于当前支持的中央民族大学校园问答范围。")
+        self.assertEqual(response.observability.prompt_trace.prompt_id, "supervisor_out_of_scope_v1")
 
     def test_handle_request_raises_for_valid_route_without_delegate(self) -> None:
         with self.assertRaisesRegex(

@@ -19,6 +19,7 @@ from campus_supervisor_core.intent import IntentFrame
 from campus_supervisor_core.prompt_packets import (
     build_supervisor_approval_required_prompt_packet,
     build_supervisor_clarify_prompt_packet,
+    build_supervisor_out_of_scope_prompt_packet,
     build_supervisor_reject_prompt_packet,
 )
 from campus_supervisor_core.prompts.registry import (
@@ -37,11 +38,13 @@ class SupervisorPromptRegistryTest(unittest.TestCase):
             {
                 "supervisor_approval_required_v1",
                 "supervisor_clarify_v1",
+                "supervisor_out_of_scope_v1",
                 "supervisor_reject_v1",
             },
         )
         spec = get_supervisor_prompt_spec("supervisor_clarify_v1")
         approval_required = get_supervisor_prompt_spec("supervisor_approval_required_v1")
+        out_of_scope = get_supervisor_prompt_spec("supervisor_out_of_scope_v1")
         rejected = get_supervisor_prompt_spec("supervisor_reject_v1")
 
         self.assertEqual(spec.prompt_id, "supervisor_clarify_v1")
@@ -54,8 +57,10 @@ class SupervisorPromptRegistryTest(unittest.TestCase):
         self.assertIn("<output_contract>", spec.template_text)
         self.assertRegex(spec.template_sha256, r"^[0-9a-f]{64}$")
         self.assertEqual(approval_required.supported_modes, ("approval_required",))
+        self.assertEqual(out_of_scope.supported_modes, ("out_of_scope",))
         self.assertEqual(rejected.supported_modes, ("reject",))
         self.assertIn("<role>", approval_required.template_text)
+        self.assertIn("<output_contract>", out_of_scope.template_text)
         self.assertIn("<output_contract>", rejected.template_text)
 
 
@@ -196,6 +201,35 @@ class SupervisorPromptPacketTest(unittest.TestCase):
         self.assertEqual(packet.task.task_kind, "policy_violation")
         self.assertIn("explain_boundary_briefly", packet.task.allowed_actions)
         self.assertIn("invent_policy_reason", packet.task.forbidden_actions)
+        self.assertEqual(packet.user_input_text, "法学民族实验班培养方案里大二下有什么课")
+
+    def test_build_supervisor_out_of_scope_prompt_packet_keeps_scope_boundary_typed(self) -> None:
+        context = self._make_context()
+        decision = RoutingDecision(
+            target=None,
+            primary_corpus=None,
+            primary_collection=None,
+            intent_frame=IntentFrame(
+                capability="knowledge",
+                task_kind="knowledge_lookup",
+                domain_candidates=("out_of_scope",),
+                missing_slots=(),
+                risk_level="low",
+                needs_clarification=False,
+                suggested_next_action="out_of_scope",
+                personalization_mode="generic",
+                scope_class="out_of_scope",
+                policy_reason="product_scope_boundary",
+            ),
+        )
+
+        packet = build_supervisor_out_of_scope_prompt_packet(context, decision)
+
+        self.assertEqual(packet.prompt_id, "supervisor_out_of_scope_v1")
+        self.assertEqual(packet.task.mode, "out_of_scope")
+        self.assertEqual(packet.task.policy_decision, "product_scope_boundary")
+        self.assertIn("explain_product_boundary_briefly", packet.task.allowed_actions)
+        self.assertIn("expand_scope", packet.task.forbidden_actions)
         self.assertEqual(packet.user_input_text, "法学民族实验班培养方案里大二下有什么课")
 
 

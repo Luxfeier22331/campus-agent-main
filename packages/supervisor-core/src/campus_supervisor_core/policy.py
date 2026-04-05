@@ -7,6 +7,7 @@ from campus_supervisor_core.prompt_execution import SupervisorPromptExecutor
 from campus_supervisor_core.prompt_packets import (
     build_supervisor_approval_required_prompt_packet,
     build_supervisor_clarify_prompt_packet,
+    build_supervisor_out_of_scope_prompt_packet,
     build_supervisor_reject_prompt_packet,
 )
 from campus_supervisor_core.routing import RoutingDecision
@@ -78,6 +79,36 @@ def finalize_routing_decision(
                 semantic_outcome="approval_required",
                 policy_reason="approval_required",
                 acl_decision="approval_required",
+                fail_closed=True,
+                prompt_trace=prompt_trace,
+            ),
+        )
+    if decision.intent_frame.suggested_next_action == "out_of_scope":
+        answer_text = "当前仅支持中央民族大学校园范围内且已开放能力面的问答，这个问题不在当前支持范围内。"
+        prompt_trace = None
+        if prompt_executor is not None:
+            execution = prompt_executor.compose_out_of_scope(
+                build_supervisor_out_of_scope_prompt_packet(context, decision)
+            )
+            answer_text = execution.output.answer_text
+            prompt_trace = execution.prompt_trace
+        return SupervisorResponse(
+            selected_target=None,
+            status="no_answer",
+            answer_text=answer_text,
+            confidence="low",
+            observability=SupervisorObservability(
+                retrieval_attempted=False,
+                candidate_count=0,
+                retrieved_source_count=0,
+                citation_expected=False,
+                citation_count=0,
+                citation_missing=False,
+                refusal_class="out_of_scope",
+                semantic_outcome="out_of_scope",
+                scope_class="out_of_scope",
+                policy_reason=decision.intent_frame.policy_reason or "product_scope_boundary",
+                acl_decision="allowed",
                 fail_closed=True,
                 prompt_trace=prompt_trace,
             ),

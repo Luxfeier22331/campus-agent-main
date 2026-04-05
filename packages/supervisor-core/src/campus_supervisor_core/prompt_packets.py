@@ -10,7 +10,7 @@ from campus_supervisor_core.intent import IntentPersonalizationMode
 from campus_supervisor_core.routing import RoutingDecision
 
 
-SupervisorPromptMode = Literal["clarify", "approval_required", "reject"]
+SupervisorPromptMode = Literal["clarify", "approval_required", "out_of_scope", "reject"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,6 +121,40 @@ def build_supervisor_approval_required_prompt_packet(
     )
 
 
+def build_supervisor_out_of_scope_prompt_packet(
+    context: SupervisorRequestContext,
+    decision: RoutingDecision,
+) -> SupervisorPromptPacket:
+    if decision.intent_frame.suggested_next_action != "out_of_scope":
+        raise ValueError(
+            "supervisor out-of-scope prompt packet requires suggested_next_action='out_of_scope'"
+        )
+
+    task = SupervisorTaskPacket(
+        request_id=context.request_id,
+        mode="out_of_scope",
+        language="zh-CN",
+        task_kind=decision.intent_frame.task_kind,
+        requested_capability=decision.intent_frame.capability,
+        personalization_mode=decision.intent_frame.personalization_mode,
+        allowed_actions=("explain_product_boundary_briefly", "use_brief_user_facing_wording"),
+        forbidden_actions=(
+            "override_authz",
+            "expand_scope",
+            "invent_supported_capability",
+            "use_internal_jargon",
+        ),
+        response_constraints=("brief", "user_facing", "fail_closed"),
+        output_schema_name="supervisor_out_of_scope_v1",
+        policy_decision=decision.intent_frame.policy_reason or "product_scope_boundary",
+    )
+    return SupervisorPromptPacket(
+        prompt_id="supervisor_out_of_scope_v1",
+        task=task,
+        user_input_text=context.user_goal,
+    )
+
+
 def build_supervisor_reject_prompt_packet(
     context: SupervisorRequestContext,
     decision: RoutingDecision,
@@ -163,5 +197,6 @@ __all__ = [
     "SupervisorTaskPacket",
     "build_supervisor_approval_required_prompt_packet",
     "build_supervisor_clarify_prompt_packet",
+    "build_supervisor_out_of_scope_prompt_packet",
     "build_supervisor_reject_prompt_packet",
 ]

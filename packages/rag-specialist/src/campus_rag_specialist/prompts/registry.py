@@ -63,6 +63,12 @@ _PROMPT_REGISTRY: dict[str, RagPromptSpec] = {
         supported_modes=("no_answer",),
         eval_suite=("rag_no_answer_regression",),
     ),
+    "rag_unsupported_v1": _build_spec(
+        prompt_id="rag_unsupported_v1",
+        filename="rag_unsupported_v1.md",
+        supported_modes=("no_answer",),
+        eval_suite=("rag_no_answer_regression", "rag_unsupported_regression"),
+    ),
 }
 
 

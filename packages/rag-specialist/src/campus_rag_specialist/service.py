@@ -119,9 +119,16 @@ def delegate_to_rag_agent(
         raise TypeError("rag-specialist requires RagRequestPayload")
 
     user_goal = request.user_goal.strip()
-    effective_scope = _resolve_request_scope(request, user_goal=user_goal)
     intent_frame = frame_rag_intent(request)
     personalization_hint = build_personalization_hint(request)
+    effective_scope = _resolve_request_scope(request, user_goal=user_goal)
+    if effective_scope is None:
+        return SpecialistResponse(
+            target="rag-specialist",
+            status="needs_clarification",
+            confidence="low",
+            follow_up_question="请先说明你想查询的校内知识范围或资料集合。",
+        )
     effective_user_goal = _resolve_effective_curriculum_user_goal(
         effective_scope,
         user_goal=user_goal,
@@ -604,7 +611,7 @@ def _resolve_request_scope(
     request: SpecialistRequest,
     *,
     user_goal: str,
-) -> KnowledgeScope:
+) -> KnowledgeScope | None:
     if request.payload.scope is not None:
         return request.payload.scope
 
@@ -632,7 +639,7 @@ def _resolve_request_scope(
         if handbook_plan.status == "resolved":
             return KnowledgeScope(corpus="regulations", collection="student_handbook")
         return KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
-    return KnowledgeScope(corpus="regulations", collection="student_handbook")
+    return None
 
 
 def _has_curriculum_scope_signal(
