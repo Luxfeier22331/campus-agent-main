@@ -20,7 +20,7 @@ from campus_ingestion_worker.rebuild_authenticated_notice_source_projections imp
     AuthenticatedNoticeSourceProjectionRequest,
     rebuild_authenticated_notice_source_projections,
 )
-from campus_ingestion_worker.plan_authenticated_notice_source_truth_replay import (
+from campus_ingestion_core.authenticated_notice_closeout import (
     AuthenticatedNoticeSourceTruthReplayRequest,
 )
 from campus_ingestion_worker.validate_student_handbook_chunking import (
