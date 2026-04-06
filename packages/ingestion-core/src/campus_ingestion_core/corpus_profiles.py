@@ -108,6 +108,53 @@ class CollectionRuntimeProfile:
             raise ValueError("embedding_query_instruction is required")
 
 
+@dataclass(frozen=True, slots=True)
+class CollectionChunkRuntimeDefaults:
+    strategy_name: str
+    chunk_size: int
+    max_chunk_size: int
+    chunk_overlap: int
+    min_chunk_size: int
+
+    def __post_init__(self) -> None:
+        if not self.strategy_name.strip():
+            raise ValueError("strategy_name is required")
+        if self.chunk_size <= 0:
+            raise ValueError("chunk_size must be greater than zero")
+        if self.max_chunk_size < self.chunk_size:
+            raise ValueError("max_chunk_size must be greater than or equal to chunk_size")
+        if self.chunk_overlap < 0:
+            raise ValueError("chunk_overlap must be greater than or equal to zero")
+        if self.chunk_overlap >= self.max_chunk_size:
+            raise ValueError("chunk_overlap must be less than max_chunk_size")
+        if self.min_chunk_size <= 0:
+            raise ValueError("min_chunk_size must be greater than zero")
+        if self.min_chunk_size >= self.max_chunk_size:
+            raise ValueError("min_chunk_size must be less than max_chunk_size")
+
+
+@dataclass(frozen=True, slots=True)
+class CollectionChunkProfile:
+    corpus: str
+    collection: str
+    chunk_profile_version: str
+    structured_input: str
+    runtime_defaults: CollectionChunkRuntimeDefaults
+    cleaning_policy_version: str
+
+    def __post_init__(self) -> None:
+        if not self.corpus:
+            raise ValueError("corpus is required")
+        if not self.collection:
+            raise ValueError("collection is required")
+        if not self.chunk_profile_version:
+            raise ValueError("chunk_profile_version is required")
+        if not self.structured_input:
+            raise ValueError("structured_input is required")
+        if not self.cleaning_policy_version:
+            raise ValueError("cleaning_policy_version is required")
+
+
 def load_runtime_profile(
     corpus: str,
     collection: str,
@@ -158,6 +205,33 @@ def load_runtime_profile(
                 or DEFAULT_QDRANT_SPARSE_VECTOR_NAME
             ),
         ),
+    )
+
+
+def load_chunk_profile(
+    corpus: str,
+    collection: str,
+    *,
+    config_root: Path | None = None,
+) -> CollectionChunkProfile:
+    root = Path(config_root) if config_root is not None else default_config_root()
+    scope = assert_known_scope(corpus, collection, config_root=root)
+    path = root / scope.corpus / scope.collection / "chunk-profile.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    runtime_defaults_payload = dict(payload.get("runtime_defaults") or {})
+    return CollectionChunkProfile(
+        corpus=str(payload.get("corpus") or ""),
+        collection=str(payload.get("collection") or ""),
+        chunk_profile_version=str(payload.get("chunk_profile_version") or ""),
+        structured_input=str(payload.get("structured_input") or ""),
+        runtime_defaults=CollectionChunkRuntimeDefaults(
+            strategy_name=str(runtime_defaults_payload.get("strategy_name") or ""),
+            chunk_size=int(runtime_defaults_payload.get("chunk_size") or 0),
+            max_chunk_size=int(runtime_defaults_payload.get("max_chunk_size") or 0),
+            chunk_overlap=int(runtime_defaults_payload.get("chunk_overlap") or 0),
+            min_chunk_size=int(runtime_defaults_payload.get("min_chunk_size") or 0),
+        ),
+        cleaning_policy_version=str(payload.get("cleaning_policy_version") or ""),
     )
 
 

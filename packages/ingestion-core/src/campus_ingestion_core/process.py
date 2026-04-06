@@ -30,7 +30,7 @@ from campus_ingestion_core.chunking import (
     chunk_table_unit,
     chunk_structured_unit,
 )
-from campus_ingestion_core.corpus_profiles import load_runtime_profile
+from campus_ingestion_core.corpus_profiles import load_chunk_profile, load_runtime_profile
 from campus_ingestion_core.curriculum_chunk_units import (
     _is_curriculum_course_map_placeholder_unit,
     _is_curriculum_course_map_title_line,
@@ -224,10 +224,27 @@ def _build_official_web_runtime_chunk_profile(record: DocumentRegistryRecord) ->
 
 def _build_generic_runtime_chunk_profile(record: DocumentRegistryRecord) -> ChunkProfile:
     runtime_profile = load_runtime_profile(record.corpus, record.collection)
+    chunk_profile = load_chunk_profile(record.corpus, record.collection)
+    if chunk_profile.chunk_profile_version != runtime_profile.chunk_profile_version:
+        raise ValueError(
+            "chunk-profile version does not match runtime-profile for "
+            f"{record.corpus}/{record.collection}: "
+            f"{chunk_profile.chunk_profile_version} != {runtime_profile.chunk_profile_version}"
+        )
+    if chunk_profile.cleaning_policy_version != runtime_profile.cleaning_policy_version:
+        raise ValueError(
+            "chunk-profile cleaning policy does not match runtime-profile for "
+            f"{record.corpus}/{record.collection}: "
+            f"{chunk_profile.cleaning_policy_version} != {runtime_profile.cleaning_policy_version}"
+        )
     return ChunkProfile(
+        chunk_size=chunk_profile.runtime_defaults.chunk_size,
+        max_chunk_size=chunk_profile.runtime_defaults.max_chunk_size,
+        chunk_overlap=chunk_profile.runtime_defaults.chunk_overlap,
+        min_chunk_size=chunk_profile.runtime_defaults.min_chunk_size,
         chunk_policy_version=runtime_profile.chunk_profile_version,
         cleaning_policy_version=runtime_profile.cleaning_policy_version,
-        strategy_name=f"{record.collection}_generic",
+        strategy_name=chunk_profile.runtime_defaults.strategy_name,
         strategy=None,
     )
 

@@ -22,7 +22,7 @@ updated: 2026-04-06
 1. planning truth refresh 与 worktree hygiene
 2. staging deployment closure
 3. curriculum supplemental soft-warn diagnosis
-4. authenticated-notice deferred follow-up
+4. authenticated-notice post-closeout consumption
 5. place-finding foundation
 
 排序理由：
@@ -30,7 +30,7 @@ updated: 2026-04-06
 - 先把 planning truth 和当前 worktree 脏状态对齐，后续执行才不会继续漂移。
 - staging 仍是上线前的真实阻塞项，优先级高于继续追加 retrieval 微调。
 - curriculum deterministic gate 已关闭，剩下的是 soft-warn 诊断，不应伪装成 release blocker。
-- authenticated-notice 当前还有一组 inventory / bulk-stage follow-up 停留在 dirty worktree，必须先收口或显式 park。
+- authenticated-notice 的历史 closeout 已真实完成；后续重心从“收口脏工作区”切到“消费已完成 closeout、推进 chunk-prep admission、offline release 与下游质量验证”。
 - place-finding 是下一条前向产品 slice，但不阻塞前面几条收口。
 
 ## Current Repo Position
@@ -49,14 +49,14 @@ updated: 2026-04-06
 
 - staging 还没有完成真实闭环 live smoke
 - Cloudflare custom domain / Access / secret / observability 证据仍依赖外部 provision
-- authenticated-notice 大 `6694` backfill、live portal scheduling、authenticated control plane 仍是 deferred
-- 当前 worktree 里仍存在一组未提交的 authenticated-notice inventory / bulk-stage follow-up 变更，需要收口
+- authenticated-notice historical closeout 已通过真实 run `authenticated-notice-replay-20260406-024405` 收口，verification / promotion 均完成；下一条可执行动作先是 `campus_notices/internal_notice` 的 offline chunk preparation，再进入 guarded registry release
+- live portal scheduling 与 authenticated control plane 仍是后续 deferred work
 
 ## Current Execution Status
 
-- Wave A 已于 2026-04-06 收口完成：repo-level follow-up order 已落盘，`.planning/PROJECT.md` / `.planning/STATE.md` 已切到 post-closeout follow-up 叙述，authenticated-notice inventory / weighted planning / bulk-stage / frozen-inventory verifier / worker rebuild follow-up 已被登记为 near-term active work
+- Wave A 已于 2026-04-06 收口完成：repo-level follow-up order 已落盘，`.planning/PROJECT.md` / `.planning/STATE.md` 已切到 post-closeout follow-up 叙述；authenticated-notice 历史 closeout 的最终 evidence 现已固定到 `docs/reference/authenticated-notice-historical-closeout-evidence.md`
 - Wave A 针对性验证当前通过：`tests.ingestion.test_authenticated_notice_import`、`tests.ingestion.test_import_authenticated_notice_export_worker`、`tests.ingestion.test_authenticated_notice_closeout_async`、`tests.ingestion.test_rebuild_authenticated_notice_source_truth_inventory_worker` 合计 `29/29` 通过
-- 下一条 active workstream 是 Wave B staging deployment closure；authenticated-notice 当前 dirty diff 则作为 Wave D 的近端前置项继续推进
+- 下一条 active workstream 仍是 Wave B staging deployment closure；与此同时，Wave D 已从“closeout 本身”前进到“closeout 之后的 offline release / retrieval-prep consumption”
 
 ## Workstreams
 
@@ -118,23 +118,26 @@ updated: 2026-04-06
 - 必要的 truth / fixture / docs 修订
 - 更新后的 `docs/reference/curriculum-plan-eval-metrics.md`
 
-## Workstream 4: Wave D - Authenticated-Notice Follow-On
+## Workstream 4: Wave D - Authenticated-Notice Post-Closeout Consumption
 
 目标：
 
-- 在历史 closeout 已完成的基础上，推进后续 replay / promotion 效率与 deferred 大任务
+- 在历史 closeout 已完成的基础上，推进 `internal_notice` 的 chunk-prep admission、offline release、release evidence 与后续 retrieval-prep consumption
 
 执行边界：
 
-- 先处理当前 worktree 中的 inventory-backed planning、weighted shards / batches、bulk stage writers、frozen inventory verification 变更
-- 之后才进入大 `6694` backfill、live portal scheduling、authenticated control plane
-- 不能把当前 worktree 进度写成 merged truth
+- closeout 当前 truth 以 real run `authenticated-notice-replay-20260406-024405` 为准，不再把 `6694` historical closeout 记为待执行项
+- 第一条 canonical 动作是 `prepare_registry_scope_chunks --corpus campus_notices --collection internal_notice --preparation-run-id <prep_id>`
+- 只有 verified chunk preparation 成功后，才允许执行 `release_registry_scope --corpus campus_notices --collection internal_notice --preparation-run-id <prep_id> --no-publish-alias`
+- release 成功后记录 preparation manifest、release manifest、validation summary、physical collection 与未发布 alias 的事实
+- live portal scheduling 与 authenticated control plane 仍后置
+- 不能把 `offline_preparation` collection 的离线 release 写成 query-serving 开放
 
 交付物：
 
-- inventory-backed replay planning 收口结果
-- 对应 docs/runbook/verification
-- deferred follow-up 的新 execution order
+- chunk preparation 与 offline release 执行结果
+- 对应 docs/runbook/reference/verification
+- post-closeout consumption 的新 execution order
 
 ## Workstream 5: Wave E - Place-Finding Foundation
 
@@ -160,13 +163,13 @@ updated: 2026-04-06
 
 - Wave A 全部
 - Wave C truth / context / evaluator 诊断
-- Wave D 当前 dirty authenticated-notice follow-up 的收口判断
+- Wave D 的 offline release 与 post-closeout consumption
 - Wave E 的 contract / source-truth / seed 设计
 
 外部阻塞：
 
 - Wave B 依赖真实 Cloudflare custom domains、Access、secret injection、release、Sentry/Axiom 访问权限
-- Wave D 的大 backfill / live portal scheduling 依赖后续执行窗口与外部数据面配合
+- Wave D 的 live portal scheduling 与 authenticated control plane 依赖后续执行窗口与外部数据面配合
 
 ## External Posture
 

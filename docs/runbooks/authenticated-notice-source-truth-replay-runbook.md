@@ -244,7 +244,18 @@ projection replay 之后，parent 与 child document 都进入 repo-owned cleanu
 - `retrieval_enabled=false`
 - `query_enabled_by_default=false`
 
-因此 chunking / embedding / index release 可以发生，但不代表该 collection 已经进入 query-serving。
+这里的 canonical 后续链路已经拆成两段：
+
+- `prepare_registry_scope_chunks --corpus campus_notices --collection internal_notice --preparation-run-id <prep_id>`
+- `release_registry_scope --corpus campus_notices --collection internal_notice --preparation-run-id <prep_id> --no-publish-alias`
+
+固定规则：
+
+- `prepare_registry_scope_chunks` 只做 registry current truth 的 split / cleanup / chunk / validation，不做 embedding，不写 Qdrant
+- `release_registry_scope` 只负责 verified chunk preparation 之后的 `embedding -> indexing -> optional alias publish`
+- `campus_notices/internal_notice` 现在要求 release 显式提供成功的 `preparation_run_id`；不能再直接跳过 chunk admission 进入 embedding
+
+因此 chunking / embedding / index release 仍然可以发生，但必须分阶段发生，而且不代表该 collection 已经进入 query-serving。
 
 ### 4.1 Typed Stage Columns & Bulk Commit
 

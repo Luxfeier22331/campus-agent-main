@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-04
-updated: 2026-04-05
+updated: 2026-04-06
 ---
 
 # Authenticated Notice Async Staged Closeout Runbook
@@ -16,6 +16,25 @@ updated: 2026-04-05
 - `docs/runbooks/authenticated-notice-bootstrap-smoke-runbook.md`
 - `docs/runbooks/authenticated-notice-historical-backfill-closeout-runbook.md` 的 legacy cumulative-prefix closeout 说明
 - live collector / control-plane runbook
+
+## Latest Completed Historical Run
+
+当前 repo-tracked 完整 historical closeout 实跑证据为：
+
+- `run_id=authenticated-notice-replay-20260406-024405`
+- `state=done`
+- `promotion_id=promotion-0001`
+- `expected_notice_count=6694`
+- `verification.ok=true`
+- `expected_document_id_count=6962`
+- `raw_asset_synced_count=6694`
+- `replaced_scope_record_count=6962`
+
+详细指标固定记录在：
+
+- `docs/reference/authenticated-notice-historical-closeout-evidence.md`
+
+这组证据只说明 async staged closeout 已成功收口，不表示 `internal_notice` 已开放 serving。
 
 ## Canonical CLI
 

@@ -7,7 +7,7 @@ from typing import Protocol, Sequence
 
 from qdrant_client import QdrantClient
 
-from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile, load_runtime_profile
+from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
 from campus_ingestion_core.index_release import (
     build_index_release_manifest,
@@ -27,13 +27,14 @@ from campus_ingestion_core.process import (
     index_chunks_to_qdrant,
 )
 from campus_ingestion_core.registry import DocumentRegistry, build_document_registry_from_env
+from campus_ingestion_core.registry_scope_chunk_preparation import require_verified_chunk_preparation
+from campus_ingestion_core.registry_scope_common import record_label, select_releasable_registry_records
 from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_core.sparse import SparseEmbeddingSettings, build_sparse_embedding_model
 from campus_retrieval_core.settings import RetrievalSettings
 
 DEFAULT_QDRANT_UPSERT_BATCH_SIZE = 128
 DEFAULT_INGESTION_QDRANT_TIMEOUT_SECONDS = 60.0
-DEFAULT_SERVING_STATUS = "active"
 
 
 class RegistryScopeObjectStore(Protocol):
@@ -76,6 +77,7 @@ def release_registry_scope(
     qdrant_client: QdrantClient | None = None,
     publish_alias: bool = True,
     reset_index: bool = False,
+    preparation_run_id: str | None = None,
 ) -> RegistryScopeReleaseReport:
     source = dict(env if env is not None else os.environ)
     runtime_profile = load_runtime_profile(corpus, collection)
@@ -96,19 +98,27 @@ def release_registry_scope(
             qdrant_client=runtime_qdrant_client,
             binding=runtime_profile.qdrant_index_binding,
         )
-    records = _select_releasable_registry_records(
+    records = select_releasable_registry_records(
         records=runtime_registry.list_by_scope(corpus, collection),
         runtime_profile=runtime_profile,
     )
     if not records:
         raise ValueError(f"no releasable registry records found for {corpus}/{collection}")
+    require_verified_chunk_preparation(
+        corpus=corpus,
+        collection=collection,
+        preparation_run_id=preparation_run_id,
+        records=records,
+        object_store=runtime_object_store,
+        bucket=object_store_settings.bucket_derived,
+    )
 
     embedding_model = build_embedding_model(EmbeddingSettings.from_env(source))
     sparse_embedding_model = build_sparse_embedding_model(SparseEmbeddingSettings.from_env(source))
     chunks: list[IndexableChunk] = []
     empty_chunk_documents: list[str] = []
     for record in records:
-        document_label = _record_label(record)
+        document_label = record_label(record)
         document_chunks = build_indexable_chunks_from_record(
             record=record,
             object_store=runtime_object_store,
@@ -308,35 +318,6 @@ def _build_release_report(artifacts) -> RegistryScopeReleaseReport:
         indexed_at=manifest.indexed_at,
         published_at=manifest.published_at,
     )
-
-
-def _select_releasable_registry_records(
-    *,
-    records: Sequence[DocumentRegistryRecord],
-    runtime_profile: CollectionRuntimeProfile,
-) -> tuple[DocumentRegistryRecord, ...]:
-    selected = [
-        record
-        for record in records
-        if record.status == DEFAULT_SERVING_STATUS
-        and (
-            not runtime_profile.serving_revision_tracks
-            or record.revision_track in runtime_profile.serving_revision_tracks
-        )
-        and (not runtime_profile.current_only or record.is_current)
-    ]
-    return tuple(
-        sorted(
-            selected,
-            key=lambda item: (item.document_id, item.revision_track, item.version_id),
-        )
-    )
-
-
-def _record_label(record: DocumentRegistryRecord) -> str:
-    return f"{record.corpus}/{record.collection} {record.document_id}@{record.version_id}"
-
-
 def _build_qdrant_client(
     settings: RetrievalSettings,
     *,

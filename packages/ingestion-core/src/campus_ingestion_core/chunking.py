@@ -745,7 +745,12 @@ def chunk_table_unit(
             text = clean_structured_text(unit_type=unit.unit_type, text=unit.text)
         if not text:
             return ()
-        return (SemanticChunkPiece(unit_type=unit.unit_type, root_unit_id=unit.root_unit_id, text=text),)
+        return _build_table_semantic_chunk_pieces(
+            unit=unit,
+            chunk_profile=chunk_profile,
+            texts=(text,),
+            split_reason=None,
+        )
 
     prefix_lines = [*caption_lines]
     if header_line:
@@ -769,32 +774,141 @@ def chunk_table_unit(
     if current_rows:
         windows.append(current_rows)
 
-    if len(windows) == 1:
-        text = serialize_table_unit_text(
+    texts = tuple(
+        serialize_table_unit_text(
             caption_lines=caption_lines,
             header_line=header_line,
-            row_lines=tuple(windows[0]),
+            row_lines=tuple(window_rows),
             note_lines=note_lines,
         )
-        return (SemanticChunkPiece(unit_type=unit.unit_type, root_unit_id=unit.root_unit_id, text=text),)
+        for window_rows in windows
+    )
+    split_reason = "table_row_window" if len(texts) > 1 else None
+    return _build_table_semantic_chunk_pieces(
+        unit=unit,
+        chunk_profile=chunk_profile,
+        texts=texts,
+        split_reason=split_reason,
+    )
 
-    total = len(windows)
+
+def _build_table_semantic_chunk_pieces(
+    *,
+    unit: StructuredUnitChunkInput,
+    chunk_profile: ChunkProfile,
+    texts: Sequence[str],
+    split_reason: str | None,
+) -> tuple[SemanticChunkPiece, ...]:
+    piece_specs: list[tuple[str, str | None]] = []
+    for text in texts:
+        normalized_text = clean_structured_text(unit_type=unit.unit_type, text=text)
+        if not normalized_text:
+            continue
+        if estimate_token_count(normalized_text, chunk_profile=chunk_profile) <= chunk_profile.max_chunk_size:
+            piece_specs.append((normalized_text, split_reason))
+            continue
+        piece_specs.extend(
+            (piece_text, "token_guardrail")
+            for piece_text in _split_table_text_to_budget(
+                text=normalized_text,
+                unit=unit,
+                chunk_profile=chunk_profile,
+            )
+        )
+
+    if not piece_specs:
+        return ()
+
+    total = len(piece_specs)
     return tuple(
         SemanticChunkPiece(
             unit_type=unit.unit_type,
             root_unit_id=unit.root_unit_id,
-            text=serialize_table_unit_text(
-                caption_lines=caption_lines,
-                header_line=header_line,
-                row_lines=tuple(window_rows),
-                note_lines=note_lines,
-            ),
+            text=piece_text,
             segment_index=index,
             segment_total=total,
-            split_reason="table_row_window",
+            split_reason=piece_split_reason,
         )
-        for index, window_rows in enumerate(windows, start=1)
+        for index, (piece_text, piece_split_reason) in enumerate(piece_specs, start=1)
     )
+
+
+def _split_table_text_to_budget(
+    *,
+    text: str,
+    unit: StructuredUnitChunkInput,
+    chunk_profile: ChunkProfile,
+) -> tuple[str, ...]:
+    display_budget = resolve_display_budget(unit=unit, chunk_profile=chunk_profile)
+    token_spans = _tokenize_text(text)
+    windows = _split_token_windows(
+        text=text,
+        token_spans=token_spans,
+        chunk_profile=chunk_profile,
+        display_budget=display_budget,
+    )
+    windows = _merge_short_tail(
+        windows,
+        chunk_profile=chunk_profile,
+        display_budget=display_budget,
+    )
+    pieces = tuple(piece_text for _, _, piece_text in windows if piece_text.strip())
+    if pieces and all(
+        estimate_token_count(piece_text, chunk_profile=chunk_profile) <= display_budget.max_tokens
+        for piece_text in pieces
+    ):
+        return pieces
+    return _split_text_by_character_budget(
+        text=text,
+        chunk_profile=chunk_profile,
+        display_budget=display_budget,
+    )
+
+
+def _split_text_by_character_budget(
+    *,
+    text: str,
+    chunk_profile: ChunkProfile,
+    display_budget: ResolvedDisplayBudget,
+) -> tuple[str, ...]:
+    segments: list[str] = []
+    start = 0
+    text_length = len(text)
+    while start < text_length:
+        while start < text_length and text[start].isspace():
+            start += 1
+        if start >= text_length:
+            break
+        low = start + 1
+        high = text_length
+        best_end: int | None = None
+        while low <= high:
+            mid = (low + high) // 2
+            candidate = text[start:mid].strip()
+            if not candidate:
+                low = mid + 1
+                continue
+            if estimate_token_count(candidate, chunk_profile=chunk_profile) <= display_budget.max_tokens:
+                best_end = mid
+                low = mid + 1
+            else:
+                high = mid - 1
+        if best_end is None or best_end <= start:
+            raise ValueError("unable to split oversized table text within chunk budget")
+        newline_boundary = text.rfind("\n", start + 1, best_end)
+        if newline_boundary > start:
+            newline_candidate = text[start:newline_boundary].strip()
+            if newline_candidate and estimate_token_count(
+                newline_candidate,
+                chunk_profile=chunk_profile,
+            ) <= display_budget.max_tokens:
+                best_end = newline_boundary
+        piece_text = text[start:best_end].strip()
+        if not piece_text:
+            raise ValueError("table text split produced empty segment")
+        segments.append(piece_text)
+        start = best_end
+    return tuple(segments)
 
 
 def estimate_token_count(text: str, *, chunk_profile: ChunkProfile | None = None) -> int:
