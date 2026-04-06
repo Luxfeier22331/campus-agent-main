@@ -1010,6 +1010,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
         conversationId: c.req.query("conversationId") ?? null,
         cursor: c.req.query("cursor") ?? null,
         limit: parseLimit(c.req.query("limit")),
+        q: c.req.query("q") ?? null,
         requestId: c.req.query("requestId") ?? null,
         status: c.req.query("status") ?? null,
         surface: c.req.query("surface") ?? null,

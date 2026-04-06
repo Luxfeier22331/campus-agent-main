@@ -21,4 +21,14 @@ describe("protected panel shell chinese copy", () => {
     expect(requestListSource).toContain("PanelListErrorState");
     expect(requestListSource).toContain("empty={<RequestListEmpty />}");
   });
+
+  it("renders requests as a triage table instead of a projection aside layout", () => {
+    expect(requestListSource).toContain("DatagridConfigurable");
+    expect(requestListSource).toContain("RequestListActions");
+    expect(requestListSource).not.toContain("aside={<RequestListAside />}");
+    expect(requestListSource).not.toContain("<PanelListActions />");
+    expect(requestListSource).toContain("source=\"q\"");
+    expect(requestListSource).toContain("PANEL_COPY.requestsList.columns.outcome");
+    expect(requestListSource).toContain("omit={[");
+  });
 });

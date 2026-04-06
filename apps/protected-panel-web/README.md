@@ -40,6 +40,7 @@ Canonical references:
 Implementation references:
 
 - `apps/protected-panel-web/REACT-ADMIN-REFERENCE.md`
+- `docs/plans/protected-panel-requests-triage-table-redesign.md`
 - `.planning/protected-panel-worker-implementation-plan.md`
 - `.planning/protected-panel-runtime-api-inventory.md`
 

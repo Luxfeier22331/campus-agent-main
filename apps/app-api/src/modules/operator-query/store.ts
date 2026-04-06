@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, lt, lte, or } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, lt, lte, or } from "drizzle-orm";
 
 import { decodeBase64UrlJson, encodeBase64UrlJson } from "../../base64url";
 import type { Env } from "../../config";
@@ -53,6 +53,10 @@ type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 
 function toIsoString(value: Date | null): string | null {
   return value ? value.toISOString() : null;
+}
+
+function escapeLikePattern(value: string): string {
+  return value.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_");
 }
 
 function toRequestProjectionRecord(
@@ -1049,6 +1053,19 @@ export function createPgOperatorQueryStore(
       const db = await getDb();
       const conditions = [];
 
+      if (filters.q) {
+        const pattern = `%${escapeLikePattern(filters.q)}%`;
+        conditions.push(
+          or(
+            ilike(requestProjection.requestId, pattern),
+            ilike(requestProjection.questionPreview, pattern),
+            ilike(requestProjection.principalId, pattern),
+            ilike(requestProjection.principalLabel, pattern),
+            ilike(requestProjection.conversationId, pattern),
+            ilike(requestProjection.errorCode, pattern),
+          )!,
+        );
+      }
       if (filters.status) {
         conditions.push(eq(requestProjection.status, filters.status));
       }

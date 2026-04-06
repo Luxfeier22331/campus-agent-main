@@ -34,6 +34,7 @@ export interface RequestProjectionRecord {
 export interface OperatorRequestListFilters {
   limit?: number | null;
   cursor?: string | null;
+  q?: string | null;
   status?: string | null;
   surface?: string | null;
   conversationId?: string | null;
@@ -55,6 +56,7 @@ export interface OperatorAuditListFilters {
 export interface NormalizedOperatorRequestListFilters {
   limit: number;
   cursor: string | null;
+  q: string | null;
   status: string | null;
   surface: string | null;
   conversationId: string | null;
@@ -678,6 +680,7 @@ export function buildOperatorQueryService(
         conversationId: normalizeOptionalString(input.filters.conversationId),
         cursor: normalizeOptionalString(input.filters.cursor),
         limit: normalizeLimit(input.filters.limit),
+        q: normalizeOptionalString(input.filters.q),
         requestId: normalizeOptionalString(input.filters.requestId),
         status: normalizeOptionalString(input.filters.status),
         surface: normalizeOptionalString(input.filters.surface),

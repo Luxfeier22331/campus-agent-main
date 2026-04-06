@@ -1,4 +1,4 @@
-import type { RequestProjectionDiagnostics } from "../types";
+import type { RequestProjectionDiagnostics, RequestProjectionRecord } from "../types";
 import { PANEL_COPY, formatPanelTimestamp } from "../panel-copy";
 
 export function formatDuration(durationMs: number | null) {
@@ -187,4 +187,82 @@ export function buildRequestDiagnosticEntries(
   }
 
   return entries;
+}
+
+export interface RequestOutcomeBadge {
+  color: "default" | "error" | "info" | "success" | "warning";
+  label: string;
+}
+
+type RequestOutcomeInput = Pick<
+  RequestProjectionRecord,
+  "answerPreview" | "diagnostics" | "errorCode" | "sourceDocIds" | "status"
+>;
+
+export function buildRequestOutcomeBadges(record: RequestOutcomeInput): RequestOutcomeBadge[] {
+  const badges: RequestOutcomeBadge[] = [];
+
+  if (record.errorCode) {
+    badges.push({
+      color: "error",
+      label: `错误码 ${record.errorCode}`,
+    });
+  }
+
+  if (record.sourceDocIds.length === 0) {
+    badges.push({
+      color: "default",
+      label: PANEL_COPY.requestsList.outcome.noSourceDocuments,
+    });
+  } else {
+    badges.push({
+      color: "default",
+      label: `命中 ${record.sourceDocIds.length} 个来源`,
+    });
+  }
+
+  if (record.status === "completed" && record.answerPreview) {
+    badges.push({
+      color: "success",
+      label: PANEL_COPY.requestsList.outcome.answerReady,
+    });
+  }
+
+  return badges;
+}
+
+export function formatRequestOutcomeDetail(record: RequestOutcomeInput): string {
+  if (record.status === "needs_clarification") {
+    return record.diagnostics?.clarificationReason
+      ? formatRequestDiagnosticReason(record.diagnostics.clarificationReason)
+      : PANEL_COPY.requestStatus.needs_clarification;
+  }
+
+  if (record.status === "approval_required") {
+    return PANEL_COPY.requestStatus.approval_required;
+  }
+
+  if (record.status === "rejected") {
+    return PANEL_COPY.requestsList.outcome.rejected;
+  }
+
+  if (record.status === "no_answer") {
+    return record.diagnostics?.noAnswerReason
+      ? formatRequestDiagnosticReason(record.diagnostics.noAnswerReason)
+      : PANEL_COPY.requestStatus.no_answer;
+  }
+
+  if (record.answerPreview?.trim()) {
+    return record.answerPreview.trim();
+  }
+
+  if (record.status === "completed") {
+    return PANEL_COPY.requestsList.outcome.completedWithoutPreview;
+  }
+
+  if (record.status === "accepted") {
+    return PANEL_COPY.requestsList.outcome.accepted;
+  }
+
+  return PANEL_COPY.requestsList.outcome.noDetail;
 }

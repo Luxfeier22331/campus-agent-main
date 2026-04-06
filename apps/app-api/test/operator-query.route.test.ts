@@ -125,7 +125,7 @@ describe("GET /api/operator/requests", () => {
 
     const response = await app.fetch(
       new Request(
-        "https://app-api.internal/api/operator/requests?limit=10&status=completed",
+        "https://app-api.internal/api/operator/requests?limit=10&q=%E5%9B%BE%E4%B9%A6%E9%A6%86&status=completed",
       ),
     );
 
@@ -170,6 +170,7 @@ describe("GET /api/operator/requests", () => {
         conversationId: null,
         cursor: null,
         limit: 10,
+        q: "图书馆",
         requestId: null,
         status: "completed",
         surface: null,

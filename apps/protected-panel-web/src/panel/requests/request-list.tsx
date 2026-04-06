@@ -1,30 +1,28 @@
+import { Alert, Box, Card, CardContent, Stack, Typography } from "@mui/material";
 import {
-  Alert,
-  Card,
-  CardContent,
-  Stack,
-  Typography,
-} from "@mui/material";
-import {
-  Datagrid,
+  DatagridConfigurable,
   DateField,
+  ExportButton,
+  FilterForm,
   FunctionField,
   List,
   SelectInput,
   ShowButton,
   TextField,
   TextInput,
+  TopToolbar,
 } from "react-admin";
 
 import { PANEL_COPY } from "../panel-copy";
 import { PanelDatagridHeader } from "../panel-datagrid-header";
 import { PanelListErrorState } from "../panel-list-error";
-import { PanelListActions } from "../panel-list-actions";
 import { PanelPagination } from "../panel-pagination";
 import type { RequestProjectionRecord } from "../types";
+import { RequestColumnSettingsButton } from "./request-column-settings-button";
 import { formatCapabilityLabel, formatDuration } from "./request-formatters";
 import {
   RequestActorSummary,
+  RequestOutcomeSummary,
   RequestPreviewText,
   RequestScopeSummary,
   RequestStatusChip,
@@ -41,37 +39,104 @@ export const REQUEST_STATUS_CHOICES = [
   { id: "error", name: PANEL_COPY.requestStatus.error },
 ];
 
+const REQUEST_LIST_PREFERENCE_KEY = "requests.triage-table";
+
 const requestFilters = [
-  <TextInput alwaysOn key="requestId" label="请求 ID" source="requestId" />,
+  <TextInput
+    alwaysOn
+    helperText={false}
+    key="q"
+    label={PANEL_COPY.requestsList.searchLabel}
+    placeholder={PANEL_COPY.requestsList.searchPlaceholder}
+    resettable
+    source="q"
+  />,
   <SelectInput
+    alwaysOn
     choices={REQUEST_STATUS_CHOICES}
-    emptyText="全部状态"
+    emptyText={PANEL_COPY.requestsList.allStatuses}
+    helperText={false}
     key="status"
-    label="状态"
+    label={PANEL_COPY.requestsList.columns.status}
     source="status"
   />,
-  <TextInput key="surface" label="接入面" source="surface" />,
-  <TextInput key="conversationId" label="会话" source="conversationId" />,
+  <TextInput
+    alwaysOn
+    helperText={false}
+    key="conversationId"
+    label={PANEL_COPY.requestsList.conversationId}
+    resettable
+    source="conversationId"
+  />,
 ];
 
-function RequestListAside() {
+function RequestListGuide() {
   return (
-    <Card sx={{ width: { lg: 320, xs: "100%" } }}>
-      <CardContent>
-        <Stack spacing={2}>
-          <Typography variant="h6">查询语义</Typography>
-          <Alert severity="info">
-            请求列表读取 app-api 维护的请求投影视图，不会回放回答运行时，也不会直接检查原始日志。
-          </Alert>
-          <Typography color="text.secondary" variant="body2">
-            分页依赖游标链路。请按顺序向后翻页；如果游标链缺失，直接跳页会按 fail-closed 处理。
+    <Alert severity="info" sx={{ alignItems: "flex-start" }}>
+      <Stack spacing={0.5}>
+        <Typography fontWeight={600} variant="subtitle2">
+          {PANEL_COPY.requestsList.title}
+        </Typography>
+        <Typography variant="body2">{PANEL_COPY.requestsList.intro}</Typography>
+        <Typography variant="body2">{PANEL_COPY.requestsList.paginationHint}</Typography>
+        <Typography variant="body2">{PANEL_COPY.requestsList.projectionLagHint}</Typography>
+      </Stack>
+    </Alert>
+  );
+}
+
+function RequestListActions() {
+  return (
+    <TopToolbar
+      sx={{
+        alignItems: "stretch",
+        display: "flex",
+        flexDirection: "column",
+        gap: 2,
+        px: 0,
+      }}
+    >
+      <Stack
+        alignItems={{ md: "center", xs: "flex-start" }}
+        direction={{ md: "row", xs: "column" }}
+        gap={1.5}
+        justifyContent="space-between"
+        sx={{ width: "100%" }}
+      >
+        <Stack spacing={0.25}>
+          <Typography fontWeight={600} variant="subtitle1">
+            {PANEL_COPY.requestsList.title}
           </Typography>
           <Typography color="text.secondary" variant="body2">
-            新完成的聊天请求可能会延迟片刻出现，因为投影器需要先物化读模型。
+            {PANEL_COPY.requestsList.summary}
           </Typography>
         </Stack>
-      </CardContent>
-    </Card>
+        <Stack direction="row" flexWrap="wrap" gap={1}>
+          <RequestColumnSettingsButton preferenceKey={REQUEST_LIST_PREFERENCE_KEY} />
+          <ExportButton label={PANEL_COPY.actions.export} />
+        </Stack>
+      </Stack>
+      <Box
+        sx={{
+          width: "100%",
+          "& .RaFilterForm-form": {
+            alignItems: "start",
+            display: "grid",
+            gap: 1,
+            gridTemplateColumns: {
+              lg: "minmax(320px, 2fr) minmax(180px, 1fr) minmax(220px, 1fr)",
+              xs: "1fr",
+            },
+          },
+          "& .MuiFormControl-root": {
+            m: 0,
+            width: "100%",
+          },
+        }}
+      >
+        <FilterForm filters={requestFilters} />
+      </Box>
+    </TopToolbar>
   );
 }
 
@@ -80,9 +145,9 @@ function RequestListEmpty() {
     <Card>
       <CardContent>
         <Stack spacing={1.5}>
-          <Typography variant="h6">暂无请求</Typography>
+          <Typography variant="h6">{PANEL_COPY.requestsList.noRequestsTitle}</Typography>
           <Typography color="text.secondary" variant="body2">
-            此表只展示 app-api 已经物化完成的请求投影。刚被受理的聊天流量可能会短暂缺席，直到投影追上。
+            {PANEL_COPY.requestsList.noRequestsDescription}
           </Typography>
         </Stack>
       </CardContent>
@@ -93,8 +158,7 @@ function RequestListEmpty() {
 export function RequestListPage() {
   return (
     <List
-      actions={<PanelListActions />}
-      aside={<RequestListAside />}
+      actions={<RequestListActions />}
       error={
         <PanelListErrorState
           description="请求页读取的是 app-api 维护的请求投影视图；当后端查询失败时，面板会直接显示错误，而不是伪装成空列表。"
@@ -107,57 +171,86 @@ export function RequestListPage() {
       pagination={<PanelPagination />}
       perPage={20}
       sort={{ field: "startedAt", order: "DESC" }}
-      title="请求"
+      title={PANEL_COPY.menu.requests}
     >
-      <Datagrid
-        bulkActionButtons={false}
-        empty={<RequestListEmpty />}
-        header={<PanelDatagridHeader />}
-        rowClick="show"
-      >
-        <TextField label="请求" source="requestId" />
-        <FunctionField
-          label="主体"
-          render={(record: RequestProjectionRecord) => <RequestActorSummary record={record} />}
-        />
-        <FunctionField
-          label="接入面"
-          render={(record: RequestProjectionRecord) => (
-            <RequestSurfaceLabel surface={record.surface} />
-          )}
-        />
-        <FunctionField
-          label="状态"
-          render={(record: RequestProjectionRecord) => (
-            <RequestStatusChip status={record.status} />
-          )}
-        />
-        <FunctionField
-          label="能力"
-          render={(record: RequestProjectionRecord) =>
-            formatCapabilityLabel(record.requestedCapability)
-          }
-        />
-        <FunctionField
-          label="范围"
-          render={(record: RequestProjectionRecord) => <RequestScopeSummary record={record} />}
-        />
-        <FunctionField
-          label="问题"
-          render={(record: RequestProjectionRecord) => (
-            <RequestPreviewText
-              emptyText="未记录问题预览。"
-              text={record.questionPreview}
-            />
-          )}
-        />
-        <FunctionField
-          label="耗时"
-          render={(record: RequestProjectionRecord) => formatDuration(record.durationMs)}
-        />
-        <DateField label="开始时间" locales="zh-CN" showTime source="startedAt" />
-        <ShowButton label={PANEL_COPY.view} />
-      </Datagrid>
+      <Stack spacing={2}>
+        <RequestListGuide />
+        <DatagridConfigurable
+          bulkActionButtons={false}
+          empty={<RequestListEmpty />}
+          header={<PanelDatagridHeader />}
+          omit={["requestId", "traceId", "conversationId", "surface", "requestedCapability"]}
+          preferenceKey={REQUEST_LIST_PREFERENCE_KEY}
+          rowClick="show"
+        >
+          <DateField
+            label={PANEL_COPY.requestsList.columns.startedAt}
+            locales="zh-CN"
+            showTime
+            source="startedAt"
+          />
+          <FunctionField
+            label={PANEL_COPY.requestsList.columns.status}
+            render={(record: RequestProjectionRecord) => (
+              <RequestStatusChip status={record.status} />
+            )}
+            source="status"
+          />
+          <FunctionField
+            label={PANEL_COPY.requestsList.columns.question}
+            render={(record: RequestProjectionRecord) => (
+              <RequestPreviewText
+                emptyText="未记录问题预览。"
+                maxLines={2}
+                text={record.questionPreview}
+              />
+            )}
+            source="questionPreview"
+          />
+          <FunctionField
+            label={PANEL_COPY.requestsList.columns.principal}
+            render={(record: RequestProjectionRecord) => <RequestActorSummary record={record} />}
+            source="principalId"
+          />
+          <FunctionField
+            label={PANEL_COPY.requestsList.columns.scope}
+            render={(record: RequestProjectionRecord) => <RequestScopeSummary record={record} />}
+            source="selectedTarget"
+          />
+          <FunctionField
+            label={PANEL_COPY.requestsList.columns.outcome}
+            render={(record: RequestProjectionRecord) => <RequestOutcomeSummary record={record} />}
+            source="answerPreview"
+          />
+          <FunctionField
+            label={PANEL_COPY.requestsList.columns.duration}
+            render={(record: RequestProjectionRecord) => formatDuration(record.durationMs)}
+            source="durationMs"
+          />
+          <ShowButton label={PANEL_COPY.view} />
+
+          <TextField label={PANEL_COPY.requestsList.columns.requestId} source="requestId" />
+          <TextField label={PANEL_COPY.requestsList.columns.traceId} source="traceId" />
+          <TextField
+            label={PANEL_COPY.requestsList.columns.conversationId}
+            source="conversationId"
+          />
+          <FunctionField
+            label={PANEL_COPY.requestsList.columns.surface}
+            render={(record: RequestProjectionRecord) => (
+              <RequestSurfaceLabel surface={record.surface} />
+            )}
+            source="surface"
+          />
+          <FunctionField
+            label={PANEL_COPY.requestsList.columns.capability}
+            render={(record: RequestProjectionRecord) =>
+              formatCapabilityLabel(record.requestedCapability)
+            }
+            source="requestedCapability"
+          />
+        </DatagridConfigurable>
+      </Stack>
     </List>
   );
 }
