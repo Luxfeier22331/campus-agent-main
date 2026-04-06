@@ -586,6 +586,32 @@ Behavior:
 - Reports manifest/registry drift, stale registry entries, read failures, chunk-build failures, non-table oversize chunks, and structure-first eligibility statistics.
 - Does not write MinIO, registry, or Qdrant state.
 
+### `validate_internal_notice_chunking`
+
+Read-only validation shell for `campus_notices/internal_notice` offline preparation quality.
+
+Required env:
+
+- `OBJECT_STORE_ENDPOINT`
+- `OBJECT_STORE_ACCESS_KEY`
+- `OBJECT_STORE_SECRET_KEY`
+- `DOCUMENT_REGISTRY_DATABASE_URL`
+
+Optional CLI args:
+
+- `--preparation-run-id`
+- `--mode full|samples`
+- `--sample-dir`
+- `--sample-seed`
+
+Behavior:
+
+- Reads current `campus_notices/internal_notice` `source-faithful` current records, or an explicit frozen preparation manifest when `--preparation-run-id` is provided.
+- Rebuilds chunks from repo-owned `document-units.jsonl` without embeddings.
+- Validates lane metadata, title/context propagation, attachment lineage, notice-body fragmentation, OCR noise suspects, and markup leakage.
+- Can export lane-specific chunk samples for operator or agent review.
+- Does not write registry, embedding, or Qdrant state.
+
 - Imports active `service_portal` documents into `campus_services/service_catalog`.
 - Imports `中央民族大学校内常用电话` into `campus_services/contact_directory`.
 - Derives handbook navigation pages declared in
