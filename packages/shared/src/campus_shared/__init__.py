@@ -12,6 +12,12 @@ from campus_shared.provider_config import (
     resolve_embedding_provider_config,
     resolve_llm_provider_config,
 )
+from campus_shared.prompt_runtime import (
+    PromptRuntimeValidationError,
+    require_non_empty_output_text,
+    validate_prompt_packet_contract,
+    validate_prompt_trace_contract,
+)
 
 __all__ = [
     "ANSWER_ROUTE",
@@ -23,10 +29,14 @@ __all__ = [
     "ResolvedLLMProviderConfig",
     "RepoEnvBootstrapState",
     "ResolvedProviderConfig",
+    "PromptRuntimeValidationError",
     "get_repo_env_bootstrap_state",
     "load_repo_env",
+    "require_non_empty_output_text",
     "resolve_embedding_provider_config",
     "resolve_llm_provider_config",
     "resolve_provider_config",
     "reset_repo_env_bootstrap_state",
+    "validate_prompt_packet_contract",
+    "validate_prompt_trace_contract",
 ]

@@ -20,6 +20,7 @@ from campus_ingestion_core import load_runtime_profile
 from campus_ingestion_core.corpus_profiles import is_official_web_stable_reference_like_profile
 from campus_retrieval_core import CorpusQueryDisabledError, RetrievalBackendError, retrieve_sources
 from campus_retrieval_core import RestrictedDocumentAccessDeniedError
+from campus_shared import PromptRuntimeValidationError
 from campus_retrieval_core.curriculum_query_resolution import (
     interpret_curriculum_query,
     matching_curriculum_doc_ids,
@@ -30,7 +31,7 @@ from campus_rag_specialist.agent import DEFAULT_MAX_ANSWER_SOURCES, RagSpecialis
 from campus_rag_specialist.confidence import derive_confidence
 from campus_rag_specialist.grounding_validation import validate_prompt_answer_grounding
 from campus_rag_specialist.intent import build_personalization_hint, frame_rag_intent
-from campus_rag_specialist.prompt_execution import RagPromptExecutor
+from campus_rag_specialist.prompt_execution import RagPromptExecutor, wrap_rag_prompt_executor
 from campus_rag_specialist.prompt_packets import (
     build_rag_answer_prompt_packet,
     build_rag_clarify_prompt_packet,
@@ -131,6 +132,7 @@ def delegate_to_rag_agent(
         raise ValueError("delegate_to_rag_agent only accepts target='rag-specialist'")
     if not isinstance(request.payload, RagRequestPayload):
         raise TypeError("rag-specialist requires RagRequestPayload")
+    prompt_executor = wrap_rag_prompt_executor(prompt_executor)
 
     user_goal = request.user_goal.strip()
     intent_frame = frame_rag_intent(request)
@@ -598,55 +600,59 @@ def delegate_to_rag_agent(
         answer_text = answer_draft.answer_text
         prompt_trace = None
         if prompt_executor is not None:
-            execution = prompt_executor.compose_answer(
-                build_rag_answer_prompt_packet(
-                    request,
-                    resolved_scope=effective_scope,
-                    evidence=finalized_evidence,
-                    intent_frame=intent_frame,
+            try:
+                execution = prompt_executor.compose_answer(
+                    build_rag_answer_prompt_packet(
+                        request,
+                        resolved_scope=effective_scope,
+                        evidence=finalized_evidence,
+                        intent_frame=intent_frame,
+                    )
                 )
-            )
-            answer_text = execution.output.answer_text
-            prompt_trace = execution.prompt_trace
-            grounding = validate_prompt_answer_grounding(
-                answer_text=answer_text,
-                evidence=finalized_evidence,
-            )
-            if grounding.verdict != "grounded":
-                downgraded_answer_text, downgraded_prompt_trace = _compose_no_answer_response(
-                    request=request,
-                    resolved_scope=effective_scope,
+            except PromptRuntimeValidationError:
+                execution = None
+            if execution is not None:
+                answer_text = execution.output.answer_text
+                prompt_trace = execution.prompt_trace
+                grounding = validate_prompt_answer_grounding(
+                    answer_text=answer_text,
                     evidence=finalized_evidence,
-                    no_answer_reason="insufficient_grounding",
-                    fallback_answer=_build_no_answer_response(
-                        finalized_evidence,
-                        resolved_policy_title=_resolved_policy_title(handbook_plan),
-                    ),
-                    prompt_executor=prompt_executor,
-                    intent_frame=intent_frame,
                 )
-                return SpecialistResponse(
-                    target="rag-specialist",
-                    status="no_answer",
-                    answer_text=downgraded_answer_text,
-                    confidence="low",
-                    result=_with_prompt_trace(
-                        _build_rag_result_payload(
-                            evidence=finalized_evidence,
-                            resolved_scope=effective_scope,
-                            handbook_plan=handbook_plan,
-                            curriculum_plan=curriculum_plan,
-                            curriculum_course_plan=curriculum_course_plan,
-                            curriculum_program_family_plan=curriculum_program_family_plan,
-                            no_answer_reason="insufficient_grounding",
-                            semantic_outcome="unsupported_by_evidence",
-                            unsupported_fields=grounding.unsupported_fields,
-                            grounding_verdict=grounding.verdict,
-                            grounding_downgraded=True,
+                if grounding.verdict != "grounded":
+                    downgraded_answer_text, downgraded_prompt_trace = _compose_no_answer_response(
+                        request=request,
+                        resolved_scope=effective_scope,
+                        evidence=finalized_evidence,
+                        no_answer_reason="insufficient_grounding",
+                        fallback_answer=_build_no_answer_response(
+                            finalized_evidence,
+                            resolved_policy_title=_resolved_policy_title(handbook_plan),
                         ),
-                        downgraded_prompt_trace,
-                    ),
-                )
+                        prompt_executor=prompt_executor,
+                        intent_frame=intent_frame,
+                    )
+                    return SpecialistResponse(
+                        target="rag-specialist",
+                        status="no_answer",
+                        answer_text=downgraded_answer_text,
+                        confidence="low",
+                        result=_with_prompt_trace(
+                            _build_rag_result_payload(
+                                evidence=finalized_evidence,
+                                resolved_scope=effective_scope,
+                                handbook_plan=handbook_plan,
+                                curriculum_plan=curriculum_plan,
+                                curriculum_course_plan=curriculum_course_plan,
+                                curriculum_program_family_plan=curriculum_program_family_plan,
+                                no_answer_reason="insufficient_grounding",
+                                semantic_outcome="unsupported_by_evidence",
+                                unsupported_fields=grounding.unsupported_fields,
+                                grounding_verdict=grounding.verdict,
+                                grounding_downgraded=True,
+                            ),
+                            downgraded_prompt_trace,
+                        ),
+                    )
     return SpecialistResponse(
         target="rag-specialist",
         status="completed",
@@ -874,13 +880,16 @@ def _compose_clarification_response(
 ) -> tuple[str, object | None]:
     if prompt_executor is None:
         return fallback_question, None
-    execution = prompt_executor.compose_clarify(
-        build_rag_clarify_prompt_packet(
-            request,
-            intent_frame=intent_frame,
-            resolved_scope=resolved_scope,
+    try:
+        execution = prompt_executor.compose_clarify(
+            build_rag_clarify_prompt_packet(
+                request,
+                intent_frame=intent_frame,
+                resolved_scope=resolved_scope,
+            )
         )
-    )
+    except PromptRuntimeValidationError:
+        return fallback_question, None
     return execution.output.follow_up_question, execution.prompt_trace
 
 
@@ -896,15 +905,18 @@ def _compose_no_answer_response(
 ) -> tuple[str, object | None]:
     if prompt_executor is None:
         return fallback_answer, None
-    execution = prompt_executor.compose_no_answer(
-        build_rag_no_answer_prompt_packet(
-            request,
-            resolved_scope=resolved_scope,
-            evidence=evidence,
-            no_answer_reason=no_answer_reason,
-            intent_frame=intent_frame,
+    try:
+        execution = prompt_executor.compose_no_answer(
+            build_rag_no_answer_prompt_packet(
+                request,
+                resolved_scope=resolved_scope,
+                evidence=evidence,
+                no_answer_reason=no_answer_reason,
+                intent_frame=intent_frame,
+            )
         )
-    )
+    except PromptRuntimeValidationError:
+        return fallback_answer, None
     return execution.output.answer_text, execution.prompt_trace
 
 

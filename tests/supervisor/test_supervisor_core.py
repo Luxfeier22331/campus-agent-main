@@ -47,8 +47,20 @@ from campus_supervisor_core.prompt_execution import (
     SupervisorPromptExecutionResult,
     SupervisorTerminalPromptOutput,
 )
+from campus_supervisor_core.prompts.registry import get_supervisor_prompt_spec
 from campus_supervisor_core.routing import RoutingDecision
 from campus_supervisor_core.intent import IntentFrame
+
+
+def _supervisor_prompt_trace(prompt_id: str) -> PromptTrace:
+    spec = get_supervisor_prompt_spec(prompt_id)
+    return PromptTrace(
+        prompt_id=prompt_id,
+        prompt_version=prompt_id.rsplit("_", 1)[-1],
+        template_sha256=spec.template_sha256,
+        variables_schema_version=spec.variables_schema_version,
+        output_schema_version=spec.output_schema_version,
+    )
 
 
 def _make_rag_completed_response() -> SpecialistResponse:
@@ -668,13 +680,7 @@ class SupervisorCoreTest(unittest.TestCase):
                     output=SupervisorClarifyPromptOutput(
                         follow_up_question="请先说清楚你想查哪一类培养方案资料。"
                     ),
-                    prompt_trace=PromptTrace(
-                        prompt_id="supervisor_clarify_v1",
-                        prompt_version="v1",
-                        template_sha256="a" * 64,
-                        variables_schema_version="v1",
-                        output_schema_version="v1",
-                    ),
+                    prompt_trace=_supervisor_prompt_trace("supervisor_clarify_v1"),
                 )
 
         response = finalize_routing_decision(
@@ -717,13 +723,7 @@ class SupervisorCoreTest(unittest.TestCase):
                     output=SupervisorTerminalPromptOutput(
                         answer_text="这个请求不在当前可执行范围内。"
                     ),
-                    prompt_trace=PromptTrace(
-                        prompt_id="supervisor_reject_v1",
-                        prompt_version="v1",
-                        template_sha256="b" * 64,
-                        variables_schema_version="v1",
-                        output_schema_version="v1",
-                    ),
+                    prompt_trace=_supervisor_prompt_trace("supervisor_reject_v1"),
                 )
 
         response = finalize_routing_decision(
@@ -769,13 +769,7 @@ class SupervisorCoreTest(unittest.TestCase):
                     output=SupervisorTerminalPromptOutput(
                         answer_text="这个问题不属于当前支持的中央民族大学校园问答范围。"
                     ),
-                    prompt_trace=PromptTrace(
-                        prompt_id="supervisor_out_of_scope_v1",
-                        prompt_version="v1",
-                        template_sha256="f" * 64,
-                        variables_schema_version="v1",
-                        output_schema_version="v1",
-                    ),
+                    prompt_trace=_supervisor_prompt_trace("supervisor_out_of_scope_v1"),
                 )
 
         response = finalize_routing_decision(

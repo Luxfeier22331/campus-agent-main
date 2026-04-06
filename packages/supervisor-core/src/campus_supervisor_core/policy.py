@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 from campus_contracts import ErrorInfo, SpecialistResponse, SupervisorObservability, SupervisorResponse
+from campus_shared import PromptRuntimeValidationError
 
 from campus_supervisor_core.context import SupervisorRequestContext
-from campus_supervisor_core.prompt_execution import SupervisorPromptExecutor
+from campus_supervisor_core.prompt_execution import (
+    SupervisorPromptExecutor,
+    wrap_supervisor_prompt_executor,
+)
 from campus_supervisor_core.prompt_packets import (
     build_supervisor_approval_required_prompt_packet,
     build_supervisor_clarify_prompt_packet,
@@ -20,17 +24,22 @@ def finalize_routing_decision(
     *,
     prompt_executor: SupervisorPromptExecutor | None = None,
 ) -> SupervisorResponse | None:
+    prompt_executor = wrap_supervisor_prompt_executor(prompt_executor)
     if decision.target is not None:
         return None
     if decision.intent_frame.suggested_next_action == "clarify":
         follow_up_question = _clarification_question(decision)
         prompt_trace = None
         if prompt_executor is not None:
-            execution = prompt_executor.compose_clarify(
-                build_supervisor_clarify_prompt_packet(context, decision)
-            )
-            follow_up_question = execution.output.follow_up_question
-            prompt_trace = execution.prompt_trace
+            try:
+                execution = prompt_executor.compose_clarify(
+                    build_supervisor_clarify_prompt_packet(context, decision)
+                )
+            except PromptRuntimeValidationError:
+                execution = None
+            if execution is not None:
+                follow_up_question = execution.output.follow_up_question
+                prompt_trace = execution.prompt_trace
         return SupervisorResponse(
             selected_target=None,
             status="needs_clarification",
@@ -58,11 +67,15 @@ def finalize_routing_decision(
         answer_text = "该请求涉及需要人工确认的操作，必须先经过审批。"
         prompt_trace = None
         if prompt_executor is not None:
-            execution = prompt_executor.compose_approval_required(
-                build_supervisor_approval_required_prompt_packet(context, decision)
-            )
-            answer_text = execution.output.answer_text
-            prompt_trace = execution.prompt_trace
+            try:
+                execution = prompt_executor.compose_approval_required(
+                    build_supervisor_approval_required_prompt_packet(context, decision)
+                )
+            except PromptRuntimeValidationError:
+                execution = None
+            if execution is not None:
+                answer_text = execution.output.answer_text
+                prompt_trace = execution.prompt_trace
         return SupervisorResponse(
             selected_target=None,
             status="approval_required",
@@ -87,11 +100,15 @@ def finalize_routing_decision(
         answer_text = "当前仅支持中央民族大学校园范围内且已开放能力面的问答，这个问题不在当前支持范围内。"
         prompt_trace = None
         if prompt_executor is not None:
-            execution = prompt_executor.compose_out_of_scope(
-                build_supervisor_out_of_scope_prompt_packet(context, decision)
-            )
-            answer_text = execution.output.answer_text
-            prompt_trace = execution.prompt_trace
+            try:
+                execution = prompt_executor.compose_out_of_scope(
+                    build_supervisor_out_of_scope_prompt_packet(context, decision)
+                )
+            except PromptRuntimeValidationError:
+                execution = None
+            if execution is not None:
+                answer_text = execution.output.answer_text
+                prompt_trace = execution.prompt_trace
         return SupervisorResponse(
             selected_target=None,
             status="no_answer",
@@ -113,14 +130,18 @@ def finalize_routing_decision(
                 prompt_trace=prompt_trace,
             ),
         )
-    answer_text = ""
+    answer_text = "这个请求不在当前可执行范围内。"
     prompt_trace = None
     if prompt_executor is not None:
-        execution = prompt_executor.compose_reject(
-            build_supervisor_reject_prompt_packet(context, decision)
-        )
-        answer_text = execution.output.answer_text
-        prompt_trace = execution.prompt_trace
+        try:
+            execution = prompt_executor.compose_reject(
+                build_supervisor_reject_prompt_packet(context, decision)
+            )
+        except PromptRuntimeValidationError:
+            execution = None
+        if execution is not None:
+            answer_text = execution.output.answer_text
+            prompt_trace = execution.prompt_trace
     return SupervisorResponse(
         selected_target=None,
         status="rejected",

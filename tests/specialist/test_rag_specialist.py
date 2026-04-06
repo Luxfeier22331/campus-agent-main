@@ -40,12 +40,24 @@ from campus_rag_specialist.prompt_execution import (
     RagClarifyPromptOutput,
     RagPromptExecutionResult,
 )
+from campus_rag_specialist.prompts.registry import get_rag_prompt_spec
 from campus_rag_specialist.service import delegate_to_rag_agent
 from campus_rag_specialist.query_planning import (
     plan_curriculum_course_query,
     plan_curriculum_program_family_query,
     plan_curriculum_query,
 )
+
+
+def _rag_prompt_trace(prompt_id: str) -> PromptTrace:
+    spec = get_rag_prompt_spec(prompt_id)
+    return PromptTrace(
+        prompt_id=prompt_id,
+        prompt_version=prompt_id.rsplit("_", 1)[-1],
+        template_sha256=spec.template_sha256,
+        variables_schema_version=spec.variables_schema_version,
+        output_schema_version=spec.output_schema_version,
+    )
 
 
 def _make_evidence(
@@ -403,13 +415,7 @@ class RagSpecialistTest(unittest.TestCase):
                     output=RagAnswerPromptOutput(
                         answer_text="当前依据还不够，请补充更具体的制度名称。"
                     ),
-                    prompt_trace=PromptTrace(
-                        prompt_id="rag_unsupported_v1",
-                        prompt_version="v1",
-                        template_sha256="c" * 64,
-                        variables_schema_version="v1",
-                        output_schema_version="v1",
-                    ),
+                    prompt_trace=_rag_prompt_trace("rag_unsupported_v1"),
                 )
 
         response = delegate_to_rag_agent(
@@ -431,6 +437,34 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.status, "no_answer")
         self.assertEqual(response.answer_text, "当前依据还不够，请补充更具体的制度名称。")
         self.assertEqual(response.result.diagnostics.prompt_trace.prompt_id, "rag_unsupported_v1")
+
+    def test_invalid_no_answer_prompt_output_falls_back_to_deterministic_copy(self) -> None:
+        class FakePromptExecutor:
+            def compose_no_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                return RagPromptExecutionResult(
+                    output=RagAnswerPromptOutput(answer_text="   "),
+                    prompt_trace=_rag_prompt_trace("rag_unsupported_v1"),
+                )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="library hours",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: EvidenceBundle(
+                query_text="library hours",
+                corpus="regulations",
+                collection="student_handbook",
+            ),
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(response.status, "no_answer")
+        self.assertIn("未检索到足够依据", response.answer_text)
+        self.assertIsNone(response.result.diagnostics)
 
     def test_prompt_answer_with_unsupported_claims_downgrades_to_no_answer(self) -> None:
         evidence = EvidenceBundle(
@@ -467,13 +501,7 @@ class RagSpecialistTest(unittest.TestCase):
                     output=RagAnswerPromptOutput(
                         answer_text="根据《学生证管理办法》，补办学生证需要携带身份证原件，并要在3个工作日内完成审核。"
                     ),
-                    prompt_trace=PromptTrace(
-                        prompt_id="rag_answer_v1",
-                        prompt_version="v1",
-                        template_sha256="d" * 64,
-                        variables_schema_version="v1",
-                        output_schema_version="v1",
-                    ),
+                    prompt_trace=_rag_prompt_trace("rag_answer_v1"),
                 )
 
             def compose_no_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
@@ -481,13 +509,7 @@ class RagSpecialistTest(unittest.TestCase):
                     output=RagAnswerPromptOutput(
                         answer_text="当前检索结果不足以支持这些补办条件，请以原文条款为准。"
                     ),
-                    prompt_trace=PromptTrace(
-                        prompt_id="rag_unsupported_v1",
-                        prompt_version="v1",
-                        template_sha256="e" * 64,
-                        variables_schema_version="v1",
-                        output_schema_version="v1",
-                    ),
+                    prompt_trace=_rag_prompt_trace("rag_unsupported_v1"),
                 )
 
             def compose_clarify(self, packet: object) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
@@ -552,13 +574,7 @@ class RagSpecialistTest(unittest.TestCase):
                     output=RagAnswerPromptOutput(
                         answer_text="根据《学生证管理办法》，学生证遗失后应及时办理挂失，再提交书面申请并到学院审核。"
                     ),
-                    prompt_trace=PromptTrace(
-                        prompt_id="rag_answer_v1",
-                        prompt_version="v1",
-                        template_sha256="f" * 64,
-                        variables_schema_version="v1",
-                        output_schema_version="v1",
-                    ),
+                    prompt_trace=_rag_prompt_trace("rag_answer_v1"),
                 )
 
             def compose_no_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
@@ -587,6 +603,65 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertFalse(response.result.diagnostics.grounding_downgraded)
         self.assertEqual(response.result.diagnostics.unsupported_fields, ())
         self.assertEqual(response.result.diagnostics.prompt_trace.prompt_id, "rag_answer_v1")
+
+    def test_invalid_answer_prompt_trace_falls_back_to_deterministic_answer(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="学生证补办流程",
+            corpus="regulations",
+            collection="student_handbook",
+            sources=(
+                _make_handbook_source(
+                    doc_id="handbook:student-card",
+                    title="学生证管理办法",
+                    snippet="补办学生证需要先提交书面申请，再到学院审核。",
+                    score=0.93,
+                    chunk_id_suffix="student-card-0201",
+                    detail_label="补办流程",
+                    content_role="procedure",
+                    is_answer_bearing=True,
+                ),
+                _make_handbook_source(
+                    doc_id="handbook:student-card",
+                    title="学生证管理办法",
+                    snippet="如学生证遗失，应及时办理挂失。",
+                    score=0.88,
+                    chunk_id_suffix="student-card-0202",
+                    detail_label="挂失要求",
+                    content_role="procedure",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+        expected_answer = RagSpecialistAgent().compose_answer(evidence)
+
+        class FakePromptExecutor:
+            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                return RagPromptExecutionResult(
+                    output=RagAnswerPromptOutput(answer_text="这是一个不该被接受的 prompt 回答。"),
+                    prompt_trace=_rag_prompt_trace("rag_unsupported_v1"),
+                )
+
+            def compose_no_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                raise AssertionError("no-answer prompt should not be used")
+
+            def compose_clarify(self, packet: object) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
+                raise AssertionError("clarify prompt should not be used")
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="学生证补办流程",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(response.answer_text, expected_answer)
+        self.assertIsNone(response.result.diagnostics.prompt_trace)
 
     def test_official_web_title_targeted_reference_page_completes_without_handbook_copy(self) -> None:
         evidence = _make_official_web_evidence(
@@ -1365,13 +1440,7 @@ class RagSpecialistTest(unittest.TestCase):
                     output=RagClarifyPromptOutput(
                         follow_up_question="你具体想问哪一项制度？"
                     ),
-                    prompt_trace=PromptTrace(
-                        prompt_id="rag_clarify_v1",
-                        prompt_version="v1",
-                        template_sha256="d" * 64,
-                        variables_schema_version="v1",
-                        output_schema_version="v1",
-                    ),
+                    prompt_trace=_rag_prompt_trace("rag_clarify_v1"),
                 )
 
         response = delegate_to_rag_agent(
@@ -1569,13 +1638,7 @@ class RagSpecialistTest(unittest.TestCase):
                     output=RagAnswerPromptOutput(
                         answer_text="根据学生手册，图书馆开放时间为 08:00 至 22:00。"
                     ),
-                    prompt_trace=PromptTrace(
-                        prompt_id="rag_answer_v1",
-                        prompt_version="v1",
-                        template_sha256="e" * 64,
-                        variables_schema_version="v1",
-                        output_schema_version="v1",
-                    ),
+                    prompt_trace=_rag_prompt_trace("rag_answer_v1"),
                 )
 
         response = delegate_to_rag_agent(

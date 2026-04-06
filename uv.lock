@@ -395,12 +395,14 @@ source = { editable = "packages/rag-specialist" }
 dependencies = [
     { name = "campus-contracts" },
     { name = "campus-retrieval-core" },
+    { name = "campus-shared" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "campus-contracts", editable = "packages/contracts" },
     { name = "campus-retrieval-core", editable = "packages/retrieval-core" },
+    { name = "campus-shared", editable = "packages/shared" },
 ]
 
 [[package]]
@@ -430,6 +432,12 @@ requires-dist = [
 name = "campus-shared"
 version = "0.1.0"
 source = { editable = "packages/shared" }
+dependencies = [
+    { name = "campus-contracts" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "campus-contracts", editable = "packages/contracts" }]
 
 [[package]]
 name = "campus-supervisor-api"
@@ -456,6 +464,7 @@ dependencies = [
     { name = "campus-availability-specialist" },
     { name = "campus-contracts" },
     { name = "campus-rag-specialist" },
+    { name = "campus-shared" },
 ]
 
 [package.metadata]
@@ -463,6 +472,7 @@ requires-dist = [
     { name = "campus-availability-specialist", editable = "packages/availability-specialist" },
     { name = "campus-contracts", editable = "packages/contracts" },
     { name = "campus-rag-specialist", editable = "packages/rag-specialist" },
+    { name = "campus-shared", editable = "packages/shared" },
 ]
 
 [[package]]

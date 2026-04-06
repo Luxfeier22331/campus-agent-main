@@ -6,6 +6,7 @@ from campus_contracts import (
     AvailabilityObservation,
     EvidenceBundle,
     ErrorInfo,
+    PromptTrace,
     RagResultDiagnostics,
     RagResultPayload,
     SpecialistResponse,
@@ -15,7 +16,19 @@ from campus_contracts import (
 from campus_supervisor_core.context import SupervisorRequestContext
 from campus_supervisor_core.intent import IntentFrame
 from campus_supervisor_core.policy import finalize_routing_decision, finalize_specialist_response
+from campus_supervisor_core.prompts.registry import get_supervisor_prompt_spec
 from campus_supervisor_core.routing import RoutingDecision
+
+
+def _supervisor_prompt_trace(prompt_id: str) -> PromptTrace:
+    spec = get_supervisor_prompt_spec(prompt_id)
+    return PromptTrace(
+        prompt_id=prompt_id,
+        prompt_version=prompt_id.rsplit("_", 1)[-1],
+        template_sha256=spec.template_sha256,
+        variables_schema_version=spec.variables_schema_version,
+        output_schema_version=spec.output_schema_version,
+    )
 
 
 class SupervisorPolicyTest(unittest.TestCase):
@@ -163,6 +176,96 @@ class SupervisorPolicyTest(unittest.TestCase):
         self.assertEqual(finalized.observability.semantic_outcome, "out_of_scope")
         self.assertEqual(finalized.observability.scope_class, "out_of_scope")
         self.assertEqual(finalized.observability.policy_reason, "product_scope_boundary")
+
+    def test_finalize_out_of_scope_with_invalid_prompt_output_falls_back_to_default_copy(self) -> None:
+        class FakePromptExecutor:
+            def compose_out_of_scope(self, packet: object):
+                from campus_supervisor_core.prompt_execution import (
+                    SupervisorPromptExecutionResult,
+                    SupervisorTerminalPromptOutput,
+                )
+
+                return SupervisorPromptExecutionResult(
+                    output=SupervisorTerminalPromptOutput(answer_text="   "),
+                    prompt_trace=_supervisor_prompt_trace("supervisor_out_of_scope_v1"),
+                )
+
+        finalized = finalize_routing_decision(
+            SupervisorRequestContext.from_request(
+                SupervisorRequest(
+                    user_goal="MIT的校长是谁",
+                    requested_capability="knowledge",
+                )
+            ),
+            RoutingDecision(
+                target=None,
+                primary_corpus=None,
+                primary_collection=None,
+                intent_frame=IntentFrame(
+                    capability="knowledge",
+                    task_kind="knowledge_lookup",
+                    domain_candidates=("knowledge",),
+                    missing_slots=(),
+                    risk_level="low",
+                    needs_clarification=False,
+                    suggested_next_action="out_of_scope",
+                    personalization_mode="generic",
+                    scope_class="out_of_scope",
+                    policy_reason="product_scope_boundary",
+                ),
+            ),
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(
+            finalized.answer_text,
+            "当前仅支持中央民族大学校园范围内且已开放能力面的问答，这个问题不在当前支持范围内。",
+        )
+        self.assertIsNone(finalized.observability.prompt_trace)
+
+    def test_finalize_rejected_with_invalid_prompt_output_falls_back_to_default_copy(self) -> None:
+        class FakePromptExecutor:
+            def compose_reject(self, packet: object):
+                from campus_supervisor_core.prompt_execution import (
+                    SupervisorPromptExecutionResult,
+                    SupervisorTerminalPromptOutput,
+                )
+
+                return SupervisorPromptExecutionResult(
+                    output=SupervisorTerminalPromptOutput(answer_text="   "),
+                    prompt_trace=_supervisor_prompt_trace("supervisor_reject_v1"),
+                )
+
+        finalized = finalize_routing_decision(
+            SupervisorRequestContext.from_request(
+                SupervisorRequest(
+                    user_goal="请执行未授权操作",
+                    requested_capability="knowledge",
+                )
+            ),
+            RoutingDecision(
+                target=None,
+                primary_corpus="regulations",
+                primary_collection="student_handbook",
+                intent_frame=IntentFrame(
+                    capability="knowledge",
+                    task_kind="unknown",
+                    domain_candidates=("knowledge",),
+                    missing_slots=(),
+                    risk_level="high",
+                    needs_clarification=False,
+                    suggested_next_action="rejected",
+                    personalization_mode="generic",
+                ),
+            ),
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(finalized.status, "rejected")
+        self.assertEqual(finalized.answer_text, "这个请求不在当前可执行范围内。")
+        self.assertIsNotNone(finalized.error)
+        self.assertEqual(finalized.error.code, "request_rejected")
+        self.assertIsNone(finalized.observability.prompt_trace)
 
     def test_finalize_error_response_keeps_error_payload(self) -> None:
         response = SpecialistResponse(
