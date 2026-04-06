@@ -165,7 +165,7 @@ curl --noproxy '*' -sS -i https://campus-panel-staging.ayafeed.com/readyz
 
 1. 打开 `/login`
 2. 使用临时测试账号注册或登录
-3. 进入 `/chat`
+3. 进入 `/chat`（当前默认 donor-derived shell）
 4. 发起一条首轮问题
 
 推荐问题：
@@ -176,7 +176,7 @@ curl --noproxy '*' -sS -i https://campus-panel-staging.ayafeed.com/readyz
 通过标准：
 
 - 页面请求 `POST /api/chat/requests` 返回 `200`
-- 页面得到 typed outcome
+- 页面得到 typed outcome，并以显式结果态渲染 `answer` / `clarification` / `no_answer` / `error`
 - outcome 可以是 `answer` / `clarification` / `no_answer`
 - 不能是 transport error、Worker proxy error、upstream unreachable
 

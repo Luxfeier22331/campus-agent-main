@@ -4,6 +4,15 @@ Cloudflare Worker-hosted public chat web surface for campus-agent v2.
 
 This app is the forward canonical public browser surface in front of shared `apps/app-api`.
 
+Implementation status:
+
+- `/login` still runs from the repo-owned surface in `src/public-chat/app.tsx`
+- the current default `/chat` + `/chat/:conversationId` routes now render the donor-derived shell from `src/chatbot-shell/`
+- the former hand-written `ChatHomePage` / `ChatThreadPage` route implementation has been removed from the runtime path; `src/styles.css` now only serves the login surface, route status cards, and boot fallback
+- the active replatform line is tracked in `docs/plans/public-chat-web-chatbot-replatform.md`
+- the donor-derived shell implementation lives under `src/chatbot-shell/`
+- the temporary `/chat/replatform-preview*` debug seam has been removed; `/chat` is now the only chat route family
+
 It owns:
 
 - public chat UI
@@ -44,10 +53,11 @@ UI behavior:
 Canonical references:
 
 - `docs/architecture/product-runtime-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
 - `docs/architecture/target-architecture.md`
 - `docs/contracts/app-api-http.md`
 - `docs/contracts/app-api-request-lifecycle.md`
+- `docs/plans/public-chat-web-chatbot-replatform.md`
+- `docs/reference/public-chat-web-chatbot-donor-baseline.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`

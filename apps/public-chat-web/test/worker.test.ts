@@ -205,6 +205,25 @@ describe("public chat web worker shell", () => {
     });
   });
 
+  it("redirects the removed preview path back to canonical /chat", async () => {
+    const response = await worker.fetch(
+      new Request("https://chat.example.com/chat/replatform-preview?from=legacy"),
+      {
+        APP_API: {
+          fetch: async () => new Response(null, { status: 204 }),
+        },
+        ASSETS: {
+          fetch: async () => new Response("should not hit assets", { status: 500 }),
+        },
+        APP_API_BASE_URL: "https://app-api.internal",
+        PUBLIC_CHAT_HOSTNAME: "chat.example.com",
+      },
+    );
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe("https://chat.example.com/chat?from=legacy");
+  });
+
   it("serves the public chat app shell when frontend assets and app-api bridge are configured", async () => {
     const response = await worker.fetch(
       new Request("https://chat.example.com/"),

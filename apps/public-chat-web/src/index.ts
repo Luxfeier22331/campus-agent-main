@@ -30,6 +30,7 @@ const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",
 } as const;
 
+const LEGACY_CHAT_PREVIEW_PATH_PREFIX = "/chat/replatform-preview";
 const SENSITIVE_EVENT_FIELDS = new Set(["authorization", "cookie", "prompt", "transcript"]);
 
 function scrubSensitiveRecord(value: unknown): void {
@@ -145,6 +146,13 @@ const worker = {
       return proxyToAppApi(request, env);
     }
 
+    if (
+      (request.method === "GET" || request.method === "HEAD") &&
+      url.pathname.startsWith(LEGACY_CHAT_PREVIEW_PATH_PREFIX)
+    ) {
+      return redirectToCanonicalChatRoute(url);
+    }
+
     if ((request.method === "GET" || request.method === "HEAD") && !url.pathname.startsWith("/api/")) {
       return servePublicShell(request, env);
     }
@@ -176,6 +184,13 @@ function appApiUpstreamUnavailableResponse(): Response {
       details: null,
     },
   });
+}
+
+function redirectToCanonicalChatRoute(url: URL): Response {
+  const redirectUrl = new URL(url.toString());
+  redirectUrl.pathname = "/chat";
+
+  return Response.redirect(redirectUrl.toString(), 302);
 }
 
 function getMissingRuntimeConfig(env: Env): string[] {
