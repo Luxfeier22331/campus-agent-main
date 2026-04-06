@@ -515,6 +515,7 @@ def delegate_to_rag_agent(
                     curriculum_course_plan=curriculum_course_plan,
                     curriculum_program_family_plan=curriculum_program_family_plan,
                     no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
+                    semantic_outcome="unsupported_by_evidence",
                 ),
                 prompt_trace,
             ),
@@ -548,6 +549,7 @@ def delegate_to_rag_agent(
                     curriculum_course_plan=curriculum_course_plan,
                     curriculum_program_family_plan=curriculum_program_family_plan,
                     no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
+                    semantic_outcome="unsupported_by_evidence",
                 ),
                 prompt_trace,
             ),
@@ -573,6 +575,7 @@ def delegate_to_rag_agent(
                 curriculum_course_plan=curriculum_course_plan,
                 curriculum_program_family_plan=curriculum_program_family_plan,
                 no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
+                semantic_outcome="unsupported_by_evidence",
             ),
         )
 
@@ -1212,7 +1215,7 @@ def _resolve_no_answer_semantics(
 ) -> tuple[str, str, bool]:
     if _is_official_web_freshness_fail_close(evidence):
         return "freshness_fail_close", "freshness_fail_close", True
-    return _resolved_policy_no_answer_reason(handbook_plan), "", False
+    return _resolved_policy_no_answer_reason(handbook_plan), "unsupported_by_evidence", False
 
 
 def _should_fail_closed_resolved_policy_clause(

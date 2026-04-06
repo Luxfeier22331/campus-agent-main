@@ -214,8 +214,15 @@ class OfficialWebLiveProfileTest(unittest.TestCase):
         self.assertIn("official-web-release-gate-freshness-sensitive-no-answer", cases)
         freshness_case = cases["official-web-release-gate-freshness-sensitive-no-answer"]
         self.assertEqual(freshness_case.expected_status, "no_answer")
+        self.assertEqual(freshness_case.expected_semantic_outcome, "freshness_fail_close")
+        self.assertEqual(freshness_case.expected_scope_class, "in_scope")
         self.assertTrue(freshness_case.trace_expectation.fail_closed_expected)
         self.assertIn("freshness_fail_close", freshness_case.tags)
+
+        unsupported_case = cases["official-web-release-gate-unanchored-life-service-no-answer"]
+        self.assertEqual(unsupported_case.expected_status, "no_answer")
+        self.assertEqual(unsupported_case.expected_semantic_outcome, "unsupported_by_evidence")
+        self.assertEqual(unsupported_case.expected_scope_class, "in_scope")
 
     def test_official_web_release_gate_cases_lock_answer_quality_constraints(self) -> None:
         cases = {case.case_id: case for case in official_web_release_gate_cases()}

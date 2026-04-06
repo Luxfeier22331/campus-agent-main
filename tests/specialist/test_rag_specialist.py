@@ -404,7 +404,12 @@ class RagSpecialistTest(unittest.TestCase):
                     query_text="library hours",
                     corpus="regulations",
                     collection="student_handbook",
-                )
+                ),
+                diagnostics=_resolved_scope_diagnostics(
+                    corpus="regulations",
+                    collection="student_handbook",
+                    semantic_outcome="unsupported_by_evidence",
+                ),
             ),
         )
 
@@ -464,7 +469,9 @@ class RagSpecialistTest(unittest.TestCase):
 
         self.assertEqual(response.status, "no_answer")
         self.assertIn("未检索到足够依据", response.answer_text)
-        self.assertIsNone(response.result.diagnostics)
+        self.assertIsNotNone(response.result.diagnostics)
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "unsupported_by_evidence")
+        self.assertIsNone(response.result.diagnostics.prompt_trace)
 
     def test_prompt_answer_with_unsupported_claims_downgrades_to_no_answer(self) -> None:
         evidence = EvidenceBundle(
@@ -749,6 +756,7 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.confidence, "low")
         self.assertIn("官网页面", response.answer_text)
         self.assertNotIn("学生手册", response.answer_text)
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "unsupported_by_evidence")
 
     def test_official_web_freshness_sensitive_query_uses_scope_specific_fail_close_copy(self) -> None:
         response = delegate_to_rag_agent(
@@ -796,6 +804,7 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.confidence, "low")
         self.assertIn("官网页面", response.answer_text)
         self.assertNotIn("学生手册", response.answer_text)
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "unsupported_by_evidence")
 
     def test_official_web_stable_reference_reference_page_uses_official_web_answering(self) -> None:
         evidence = _make_official_web_evidence(
@@ -2414,6 +2423,7 @@ class RagSpecialistTest(unittest.TestCase):
                 resolved_policy_document_id="curriculum:历史学（强基计划）本科人才培养方案",
                 resolved_policy_title="历史学（强基计划）本科人才培养方案",
                 rewritten_query="历史学（强基计划）本科人才培养方案 我这个专业的基地班第四学期有什么课",
+                semantic_outcome="unsupported_by_evidence",
                 resolution_mode="resolved_single",
                 used_verified_identity=True,
                 used_soft_preference=False,
@@ -4141,7 +4151,11 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertEqual(response.status, "no_answer")
         self.assertEqual(response.confidence, "low")
         self.assertIn("未检索到足够依据", response.answer_text)
-        self.assertEqual(response.result, RagResultPayload(evidence=evidence))
+        self.assertEqual(response.result.evidence, evidence)
+        self.assertIsNotNone(response.result.diagnostics)
+        self.assertEqual(response.result.diagnostics.resolved_scope_corpus, "regulations")
+        self.assertEqual(response.result.diagnostics.resolved_scope_collection, "student_handbook")
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "unsupported_by_evidence")
 
     def test_completed_response_uses_evidence_and_actor_context(self) -> None:
         captured_kwargs: dict[str, object] = {}
@@ -5690,6 +5704,7 @@ class RagSpecialistCurriculumSemesterSelectionTest(unittest.TestCase):
                 resolved_policy_title=target_title,
                 rewritten_query=retriever_call["query_text"],
                 no_answer_reason="resolved_policy_clause_not_found",
+                semantic_outcome="unsupported_by_evidence",
             ),
         )
 
@@ -5744,6 +5759,7 @@ class RagSpecialistCurriculumSemesterSelectionTest(unittest.TestCase):
         self.assertIn(target_title, response.answer_text)
         self.assertEqual(response.result.evidence.sources, ())
         self.assertEqual(response.result.diagnostics.no_answer_reason, "resolved_policy_clause_not_found")
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "unsupported_by_evidence")
 
     def test_restricted_access_denied_for_anonymous_user_does_not_leak_resolved_policy_title(self) -> None:
         target_title = "中央民族大学本科学生国家奖学金评审办法"
@@ -5768,6 +5784,7 @@ class RagSpecialistCurriculumSemesterSelectionTest(unittest.TestCase):
         self.assertEqual(response.result.evidence.sources, ())
         self.assertIsNotNone(response.result.diagnostics)
         self.assertEqual(response.result.diagnostics.no_answer_reason, "restricted_access_denied")
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "restricted_access_denied")
         self.assertEqual(response.result.diagnostics.resolved_policy_title, "")
         self.assertEqual(response.result.diagnostics.retrieved_title_summary, ())
 
@@ -5792,6 +5809,7 @@ class RagSpecialistCurriculumSemesterSelectionTest(unittest.TestCase):
         self.assertEqual(response.result.evidence.sources, ())
         self.assertIsNotNone(response.result.diagnostics)
         self.assertEqual(response.result.diagnostics.no_answer_reason, "restricted_access_denied")
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "restricted_access_denied")
         self.assertEqual(response.result.diagnostics.retrieved_title_summary, ())
 
     def test_confidence_derivation_prefers_stronger_and_more_consistent_support(self) -> None:

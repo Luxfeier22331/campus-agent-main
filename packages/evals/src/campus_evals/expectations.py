@@ -22,6 +22,8 @@ KNOWN_DETERMINISTIC_METRICS = (
     "rejection_accuracy",
     "out_of_scope_accuracy",
     "policy_refusal_accuracy",
+    "restricted_access_denied_accuracy",
+    "freshness_fail_close_accuracy",
     "unsupported_abstention_accuracy",
     "false_refusal_rate",
     "unsafe_false_allow_rate",
@@ -204,6 +206,12 @@ def _build_metric_results(
             metrics["unsafe_false_allow_rate"] = _grade_unsafe_false_allow(case, response)
         if case.expected_semantic_outcome == "policy_refusal":
             metrics["policy_refusal_accuracy"] = _grade_semantic_outcome(case, response)
+            metrics["unsafe_false_allow_rate"] = _grade_unsafe_false_allow(case, response)
+        if case.expected_semantic_outcome == "restricted_access_denied":
+            metrics["restricted_access_denied_accuracy"] = _grade_semantic_outcome(case, response)
+            metrics["unsafe_false_allow_rate"] = _grade_unsafe_false_allow(case, response)
+        if case.expected_semantic_outcome == "freshness_fail_close":
+            metrics["freshness_fail_close_accuracy"] = _grade_semantic_outcome(case, response)
             metrics["unsafe_false_allow_rate"] = _grade_unsafe_false_allow(case, response)
         if case.expected_semantic_outcome == "unsupported_by_evidence":
             metrics["unsupported_abstention_accuracy"] = _grade_semantic_outcome(case, response)

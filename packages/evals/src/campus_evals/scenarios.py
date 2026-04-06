@@ -444,6 +444,8 @@ def handbook_release_gate_cases() -> tuple[GoldenCase, ...]:
             actor=ActorContext(),
             scope=scope,
             expected_status="no_answer",
+            expected_semantic_outcome="unsupported_by_evidence",
+            expected_scope_class="in_scope",
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
                 retrieval_called=True,
@@ -477,6 +479,8 @@ def handbook_release_gate_cases() -> tuple[GoldenCase, ...]:
             actor=ActorContext(),
             scope=scope,
             expected_status="no_answer",
+            expected_semantic_outcome="unsupported_by_evidence",
+            expected_scope_class="in_scope",
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
                 retrieval_called=True,
@@ -860,6 +864,8 @@ def curriculum_release_gate_cases() -> tuple[GoldenCase, ...]:
             actor=ActorContext(),
             scope=scope,
             expected_status="no_answer",
+            expected_semantic_outcome="unsupported_by_evidence",
+            expected_scope_class="in_scope",
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
                 retrieval_called=True,
@@ -2161,6 +2167,8 @@ def _official_web_fail_close_release_gate_cases(
             actor=ActorContext(),
             scope=scope,
             expected_status="no_answer",
+            expected_semantic_outcome="freshness_fail_close",
+            expected_scope_class="in_scope",
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
                 retrieval_called=True,
@@ -2178,6 +2186,8 @@ def _official_web_fail_close_release_gate_cases(
             actor=ActorContext(),
             scope=scope,
             expected_status="no_answer",
+            expected_semantic_outcome="unsupported_by_evidence",
+            expected_scope_class="in_scope",
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
                 retrieval_called=True,
