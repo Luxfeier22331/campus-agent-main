@@ -69,6 +69,17 @@ _OFFICIAL_WEB_FRESHNESS_QUERY_TERMS = (
     "这周",
     "本月",
 )
+_HANDBOOK_TIME_QUERY_TERMS = (
+    "时间",
+    "几点",
+    "多久",
+    "哪天",
+    "什么时候",
+    "hours",
+    "照明",
+    "熄灯",
+    "亮灯",
+)
 _WHITESPACE_RE = re.compile(r"\s+")
 _QUERY_ASK_CUES = frozenset({"多少", "几年", "怎么", "如何", "安排", "什么", "哪些"})
 _UNSUPPORTED_HANDBOOK_CLAUSE_CUE_GROUPS = (
@@ -579,6 +590,8 @@ def delegate_to_rag_agent(
             ),
         )
 
+    should_use_prompt_answer = False
+    prompt_trace = None
     if curriculum_program_family_plan is not None:
         answer_text = _build_curriculum_program_family_answer(
             evidence=supporting_evidence,
@@ -601,8 +614,15 @@ def delegate_to_rag_agent(
             sources=answer_draft.supporting_sources,
         )
         answer_text = answer_draft.answer_text
-        prompt_trace = None
-        if prompt_executor is not None:
+        should_attempt_prompt_answer = (
+            prompt_executor is not None
+            and not _should_keep_deterministic_completed_answer(
+                resolved_scope=effective_scope,
+                intent_frame=intent_frame,
+                user_goal=user_goal,
+            )
+        )
+        if should_attempt_prompt_answer:
             try:
                 execution = prompt_executor.compose_answer(
                     build_rag_answer_prompt_packet(
@@ -615,6 +635,7 @@ def delegate_to_rag_agent(
             except PromptRuntimeValidationError:
                 execution = None
             if execution is not None:
+                should_use_prompt_answer = True
                 answer_text = execution.output.answer_text
                 prompt_trace = execution.prompt_trace
                 grounding = validate_prompt_answer_grounding(
@@ -670,10 +691,16 @@ def delegate_to_rag_agent(
                 curriculum_course_plan=curriculum_course_plan,
                 curriculum_program_family_plan=curriculum_program_family_plan,
                 allow_session_follow_up=True,
-                semantic_outcome="grounded_answer" if prompt_executor is not None else "",
-                grounding_verdict="grounded" if prompt_executor is not None else "",
+                semantic_outcome="grounded_answer" if should_use_prompt_answer else "",
+                grounding_verdict="grounded" if should_use_prompt_answer else "",
             ),
-            prompt_trace if curriculum_program_family_plan is None and curriculum_course_plan is None else None,
+            (
+                prompt_trace
+                if should_use_prompt_answer
+                and curriculum_program_family_plan is None
+                and curriculum_course_plan is None
+                else None
+            ),
         ),
     )
 
@@ -989,6 +1016,22 @@ def _with_query_text(evidence: EvidenceBundle, query_text: str) -> EvidenceBundl
         collection=evidence.collection,
         sources=evidence.sources,
     )
+
+
+def _should_keep_deterministic_completed_answer(
+    *,
+    resolved_scope: KnowledgeScope,
+    intent_frame: RagIntentFrame,
+    user_goal: str,
+) -> bool:
+    if resolved_scope.corpus == "curriculum":
+        return True
+    if resolved_scope.corpus != "regulations" or resolved_scope.collection != "student_handbook":
+        return False
+    if intent_frame.question_kind in {"procedure", "materials", "deadline"}:
+        return True
+    normalized_goal = _normalize_text(user_goal).lower()
+    return any(term in normalized_goal for term in _HANDBOOK_TIME_QUERY_TERMS)
 
 
 def _is_official_web_freshness_sensitive_query(query_text: str) -> bool:

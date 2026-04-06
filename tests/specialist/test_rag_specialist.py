@@ -475,7 +475,7 @@ class RagSpecialistTest(unittest.TestCase):
 
     def test_prompt_answer_with_unsupported_claims_downgrades_to_no_answer(self) -> None:
         evidence = EvidenceBundle(
-            query_text="学生证补办流程",
+            query_text="学生证补办要求是什么",
             corpus="regulations",
             collection="student_handbook",
             sources=(
@@ -525,7 +525,7 @@ class RagSpecialistTest(unittest.TestCase):
         response = delegate_to_rag_agent(
             SpecialistRequest(
                 target="rag-specialist",
-                user_goal="学生证补办流程",
+                user_goal="学生证补办要求是什么",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
                 ),
@@ -548,7 +548,7 @@ class RagSpecialistTest(unittest.TestCase):
 
     def test_prompt_answer_with_supported_claims_keeps_completed_status(self) -> None:
         evidence = EvidenceBundle(
-            query_text="学生证补办流程",
+            query_text="学生证补办要求是什么",
             corpus="regulations",
             collection="student_handbook",
             sources=(
@@ -593,7 +593,7 @@ class RagSpecialistTest(unittest.TestCase):
         response = delegate_to_rag_agent(
             SpecialistRequest(
                 target="rag-specialist",
-                user_goal="学生证补办流程",
+                user_goal="学生证补办要求是什么",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
                 ),
@@ -613,7 +613,7 @@ class RagSpecialistTest(unittest.TestCase):
 
     def test_invalid_answer_prompt_trace_falls_back_to_deterministic_answer(self) -> None:
         evidence = EvidenceBundle(
-            query_text="学生证补办流程",
+            query_text="学生证补办要求是什么",
             corpus="regulations",
             collection="student_handbook",
             sources=(
@@ -657,7 +657,7 @@ class RagSpecialistTest(unittest.TestCase):
         response = delegate_to_rag_agent(
             SpecialistRequest(
                 target="rag-specialist",
-                user_goal="学生证补办流程",
+                user_goal="学生证补办要求是什么",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
                 ),
@@ -668,6 +668,139 @@ class RagSpecialistTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertEqual(response.answer_text, expected_answer)
+        diagnostics = response.result.diagnostics
+        if diagnostics is not None:
+            self.assertEqual(diagnostics.semantic_outcome, "")
+            self.assertEqual(diagnostics.grounding_verdict, "")
+            self.assertIsNone(diagnostics.prompt_trace)
+
+    def test_handbook_materials_answer_keeps_deterministic_copy_even_with_prompt_executor(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="学生证补办需要什么材料",
+            corpus="regulations",
+            collection="student_handbook",
+            sources=(
+                _make_handbook_source(
+                    doc_id="handbook:student-card",
+                    title="学生证管理办法",
+                    snippet="学生补办学生证，必须提出书面申请，并填写《中央民族大学补办学生证申请表》。",
+                    score=0.93,
+                    chunk_id_suffix="student-card-materials-0001",
+                    detail_label="补办材料",
+                    content_role="procedure",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+        expected_answer = RagSpecialistAgent().compose_answer(evidence)
+
+        class FakePromptExecutor:
+            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                raise AssertionError("deterministic handbook materials path should not use prompt answer")
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="学生证补办需要什么材料",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(response.answer_text, expected_answer)
+        self.assertIsNone(response.result.diagnostics)
+
+    def test_handbook_time_answer_keeps_deterministic_copy_even_with_prompt_executor(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="学生证补办什么时候办",
+            corpus="regulations",
+            collection="student_handbook",
+            sources=(
+                _make_handbook_source(
+                    doc_id="handbook:student-card",
+                    title="学生证管理办法",
+                    snippet="学生证集中补办时间为每周四下午。",
+                    score=0.93,
+                    chunk_id_suffix="student-card-time-0001",
+                    detail_label="补办时间",
+                    content_role="time_rule",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+        expected_answer = RagSpecialistAgent().compose_answer(evidence)
+
+        class FakePromptExecutor:
+            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                raise AssertionError("deterministic handbook time path should not use prompt answer")
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="学生证补办什么时候办",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(response.answer_text, expected_answer)
+        self.assertIsNone(response.result.diagnostics)
+
+    def test_curriculum_answer_keeps_deterministic_copy_even_with_prompt_executor(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="民族学本科第二学士学位人才培养方案学制几年？",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                EvidenceSource(
+                    doc_id="curriculum:民族学本科第二学士学位人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:ethnology-years-deterministic",
+                    chunk_id="curriculum:民族学本科第二学士学位人才培养方案:chunk-9999",
+                    anchor={"page_start": 5, "page_end": 5},
+                    canonical_url="https://campus.example/curriculum/ethnology-second-degree",
+                    latest_url="https://campus.example/curriculum/ethnology-second-degree",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet="五、学制 两年",
+                    score=0.96,
+                    source_title="民族学本科第二学士学位人才培养方案",
+                    content_kind="text",
+                    content_role="time_rule",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+        expected_answer = RagSpecialistAgent().compose_answer(evidence)
+
+        class FakePromptExecutor:
+            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                raise AssertionError("deterministic curriculum path should not use prompt answer")
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="民族学本科第二学士学位人才培养方案学制几年？",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(response.answer_text, expected_answer)
+        self.assertIsNotNone(response.result.diagnostics)
         self.assertIsNone(response.result.diagnostics.prompt_trace)
 
     def test_official_web_title_targeted_reference_page_completes_without_handbook_copy(self) -> None:
@@ -1639,13 +1772,13 @@ class RagSpecialistTest(unittest.TestCase):
         )
 
     def test_generic_completed_response_uses_injected_prompt_executor_for_answer(self) -> None:
-        evidence = _make_evidence(scores=(0.82,), query_text="library hours")
+        evidence = _make_evidence(scores=(0.82,), query_text="学生支持政策是什么")
 
         class FakePromptExecutor:
             def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
                 return RagPromptExecutionResult(
                     output=RagAnswerPromptOutput(
-                        answer_text="根据学生手册，图书馆开放时间为 08:00 至 22:00。"
+                        answer_text="根据学生手册，学生支持政策以原文规定为准。"
                     ),
                     prompt_trace=_rag_prompt_trace("rag_answer_v1"),
                 )
@@ -1653,7 +1786,7 @@ class RagSpecialistTest(unittest.TestCase):
         response = delegate_to_rag_agent(
             SpecialistRequest(
                 target="rag-specialist",
-                user_goal="library hours",
+                user_goal="学生支持政策是什么",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
                 ),
@@ -1663,7 +1796,7 @@ class RagSpecialistTest(unittest.TestCase):
         )
 
         self.assertEqual(response.status, "completed")
-        self.assertEqual(response.answer_text, "根据学生手册，图书馆开放时间为 08:00 至 22:00。")
+        self.assertEqual(response.answer_text, "根据学生手册，学生支持政策以原文规定为准。")
         self.assertEqual(response.result.diagnostics.prompt_trace.prompt_id, "rag_answer_v1")
 
     def test_ambiguous_multi_policy_evidence_maps_to_needs_clarification(self) -> None:
