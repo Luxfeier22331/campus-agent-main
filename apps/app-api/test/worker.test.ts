@@ -78,14 +78,16 @@ describe("app-api worker foundation", () => {
     expect(wranglerConfig).toContain("[[env.local.hyperdrive]]");
     expect(wranglerConfig).toContain('binding = "APP_API_DB"');
     expect(wranglerConfig).toContain("[[env.staging.routes]]");
-    expect(wranglerConfig).toContain('pattern = "api-staging.ayafeed.com"');
+    expect(wranglerConfig).toContain('pattern = "campus-api-staging.ayafeed.com"');
     expect(wranglerConfig).toContain("custom_domain = true");
     expect(wranglerConfig).toContain("[[env.staging.hyperdrive]]");
     expect(wranglerConfig).toContain("[env.staging.vars]");
     expect(wranglerConfig).toContain('APP_API_ENVIRONMENT = "staging"');
-    expect(wranglerConfig).toContain('PUBLIC_CHAT_WEB_ORIGIN = "https://chat-staging.ayafeed.com"');
+    expect(wranglerConfig).toContain(
+      'PUBLIC_CHAT_WEB_ORIGIN = "https://campus-chat-staging.ayafeed.com"',
+    );
     expect(wranglerConfig).not.toContain("SUPERVISOR_API_BASE_URL");
-    expect(wranglerConfig).toContain('APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com"');
+    expect(wranglerConfig).toContain('APP_API_OPERATOR_EMAIL_ALLOWLIST = "help_bot@outlook.com"');
     expect(wranglerConfig).toContain('SENTRY_ENVIRONMENT = "staging"');
     expect(wranglerConfig).toContain('SENTRY_RELEASE = "app-api@staging-20260405-05c3d45"');
     expect(wranglerConfig).toContain('AXIOM_ENDPOINT = "https://us-east-1.aws.edge.axiom.co"');

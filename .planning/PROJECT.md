@@ -54,7 +54,7 @@
 
 ### Active
 
-- [ ] 首个真实部署环境现已固定为 `staging@ayafeed.com` 的一级子域方案：`apps/app-api=https://api-staging.ayafeed.com`、`apps/public-chat-web=https://chat-staging.ayafeed.com`、`apps/protected-panel-web=https://panel-staging.ayafeed.com`。当前 Cloudflare tier 不再依赖 `*.rag.ayafeed.com` 这类深一级 staging custom domain 的 SSL 可用性；repo 文档真相已切到一级子域，`wrangler.toml` / tests 中残留的 nested hostnames 仍需随 staging implementation migration 一并收口。当前剩余阻塞项包括 Cloudflare custom domains / service bindings / Hyperdrive / Access、repo 内 hostname migration、deploy-side `SENTRY_*` / `AXIOM_*`、当次 Worker release，以及 Sentry/Axiom 访问权限，完成后执行 post-deploy observability verification
+- [ ] 首个真实部署环境现已固定为 `staging@ayafeed.com` 的项目隔离一级子域方案：`apps/app-api=https://campus-api-staging.ayafeed.com`、`apps/public-chat-web=https://campus-chat-staging.ayafeed.com`、`apps/protected-panel-web=https://campus-panel-staging.ayafeed.com`。当前 Cloudflare tier 不再依赖 `*.rag.ayafeed.com` 这类深一级 staging custom domain 的 SSL 可用性；同时 `ayafeed.com` 是共享 zone，generic 一级子域（如 `api-staging.ayafeed.com`）已被其他 repo 占用，不能再作为本仓库 deploy truth。repo 文档、`wrangler.toml` 与 tests 已收敛到项目隔离命名，`app-api-staging` / `public-chat-web-staging` / `protected-panel-web-staging` 都已发布到新的 custom domains，且 `campus-panel-staging` 已由真实 Cloudflare Access 接管。当前剩余阻塞项收敛为 panel 浏览器登录 smoke、request/overview smoke，以及 deploy-side `SENTRY_*` / `AXIOM_*` sink access 和全链路 observability verification
 - [ ] 导航相关首个前向 slice 固定为 `place_lookup` / `place_finding`，先覆盖建筑、服务点与周边关键地点问法；`route_planning`、入口选择、无障碍路径与地图内路线交互后置到后续 phase
 
 ### Out of Scope

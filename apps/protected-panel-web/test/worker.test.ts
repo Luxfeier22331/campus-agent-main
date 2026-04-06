@@ -16,13 +16,15 @@ describe("protected panel web worker shell", () => {
     expect(wranglerConfig).toContain("preview_urls = false");
     expect(wranglerConfig).toContain('compatibility_flags = ["nodejs_compat"]');
     expect(wranglerConfig).toContain("[[env.staging.routes]]");
-    expect(wranglerConfig).toContain('pattern = "panel-staging.ayafeed.com"');
+    expect(wranglerConfig).toContain('pattern = "campus-panel-staging.ayafeed.com"');
     expect(wranglerConfig).toContain("custom_domain = true");
     expect(wranglerConfig).toContain("[[env.staging.services]]");
     expect(wranglerConfig).toContain('binding = "APP_API"');
     expect(wranglerConfig).toContain('service = "app-api-staging"');
     expect(wranglerConfig).toContain("[env.staging.vars]");
-    expect(wranglerConfig).toContain('PANEL_RUNTIME_API_BASE_URL = "https://api-staging.ayafeed.com"');
+    expect(wranglerConfig).toContain(
+      'PANEL_RUNTIME_API_BASE_URL = "https://campus-api-staging.ayafeed.com"',
+    );
     expect(wranglerConfig).toContain('PANEL_PROTECTION_ENVELOPE = "cloudflare-access"');
     expect(wranglerConfig).not.toContain("ACCESS_TEAM_DOMAIN");
     expect(wranglerConfig).not.toContain("ACCESS_POLICY_AUD");

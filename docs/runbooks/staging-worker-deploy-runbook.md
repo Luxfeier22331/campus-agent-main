@@ -14,9 +14,9 @@ updated: 2026-04-05
 - environment: `staging`
 - zone: `ayafeed.com`
 - staging hostname shape: `ayafeed.com` 下一级子域
-- `apps/app-api`: `https://api-staging.ayafeed.com`
-- `apps/public-chat-web`: `https://chat-staging.ayafeed.com`
-- `apps/protected-panel-web`: `https://panel-staging.ayafeed.com`
+- `apps/app-api`: `https://campus-api-staging.ayafeed.com`
+- `apps/public-chat-web`: `https://campus-chat-staging.ayafeed.com`
+- `apps/protected-panel-web`: `https://campus-panel-staging.ayafeed.com`
 
 它只回答：
 
@@ -29,7 +29,8 @@ updated: 2026-04-05
 ## Hostname Constraint
 
 - 当前 Cloudflare tier 下，不再把 `*.rag.ayafeed.com` 这类深一级 staging custom domain 视为可依赖的 SSL deploy truth
-- staging forward truth 必须统一使用 `ayafeed.com` 下的一级子域：`api-staging.ayafeed.com`、`chat-staging.ayafeed.com`、`panel-staging.ayafeed.com`
+- `ayafeed.com` 是共享 zone，generic 一级子域（例如 `api-staging.ayafeed.com`）不再视为本 repo 可占用的 deploy truth
+- staging forward truth 必须统一使用 `ayafeed.com` 下的项目隔离一级子域：`campus-api-staging.ayafeed.com`、`campus-chat-staging.ayafeed.com`、`campus-panel-staging.ayafeed.com`
 - repo 中仍残留的 `*.rag.ayafeed.com` staging 配置、脚本断言或测试断言，只能视为待迁移实现残留，不能继续作为新资源 provision 或 deploy 目标
 - 依据：Cloudflare 官方文档说明 Universal SSL 默认覆盖 apex 与一级子域，更深层级需依赖不同证书能力，因此当前 tier 下不再继续使用嵌套 staging 子域
   - <https://developers.cloudflare.com/fundamentals/setup/manage-domains/manage-subdomains/>

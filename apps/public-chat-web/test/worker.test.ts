@@ -15,14 +15,18 @@ describe("public chat web worker shell", () => {
     expect(wranglerConfig).toContain("preview_urls = false");
     expect(wranglerConfig).toContain('compatibility_flags = ["nodejs_compat"]');
     expect(wranglerConfig).toContain("[[env.staging.routes]]");
-    expect(wranglerConfig).toContain('pattern = "chat-staging.ayafeed.com"');
+    expect(wranglerConfig).toContain('pattern = "campus-chat-staging.ayafeed.com"');
     expect(wranglerConfig).toContain("custom_domain = true");
     expect(wranglerConfig).toContain("[[env.staging.services]]");
     expect(wranglerConfig).toContain('binding = "APP_API"');
     expect(wranglerConfig).toContain('service = "app-api-staging"');
     expect(wranglerConfig).toContain("[env.staging.vars]");
-    expect(wranglerConfig).toContain('PUBLIC_CHAT_HOSTNAME = "chat-staging.ayafeed.com"');
-    expect(wranglerConfig).toContain('APP_API_BASE_URL = "https://api-staging.ayafeed.com"');
+    expect(wranglerConfig).toContain(
+      'PUBLIC_CHAT_HOSTNAME = "campus-chat-staging.ayafeed.com"',
+    );
+    expect(wranglerConfig).toContain(
+      'APP_API_BASE_URL = "https://campus-api-staging.ayafeed.com"',
+    );
     expect(wranglerConfig).toContain('SENTRY_ENVIRONMENT = "staging"');
     expect(wranglerConfig).toContain('SENTRY_RELEASE = "public-chat-web@staging-20260405-05c3d45"');
     expect(packageManifest.scripts?.["build:staging"]).toContain("CLOUDFLARE_ENV=staging");

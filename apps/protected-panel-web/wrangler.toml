@@ -11,12 +11,12 @@ service = "app-api"
 
 [env.staging.vars]
 PANEL_PROTECTION_ENVELOPE = "cloudflare-access"
-PANEL_RUNTIME_API_BASE_URL = "https://api-staging.ayafeed.com"
+PANEL_RUNTIME_API_BASE_URL = "https://campus-api-staging.ayafeed.com"
 SENTRY_ENVIRONMENT = "staging"
 SENTRY_RELEASE = "protected-panel-web@staging-20260405-05c3d45"
 
 [[env.staging.routes]]
-pattern = "panel-staging.ayafeed.com"
+pattern = "campus-panel-staging.ayafeed.com"
 custom_domain = true
 
 [[env.staging.services]]

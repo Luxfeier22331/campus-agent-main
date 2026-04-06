@@ -25,8 +25,9 @@ updated: 2026-04-05
 
 ## Hostname Constraint
 
-- staging smoke 的 forward hostname truth 已切到 `api-staging.ayafeed.com`、`chat-staging.ayafeed.com`、`panel-staging.ayafeed.com`
+- staging smoke 的 forward hostname truth 已切到 `campus-api-staging.ayafeed.com`、`campus-chat-staging.ayafeed.com`、`campus-panel-staging.ayafeed.com`
 - 当前 Cloudflare tier 下，不再依赖 `*.rag.ayafeed.com` 这类深一级 staging custom domain 的 SSL 可用性
+- `ayafeed.com` 是共享 zone，generic 一级子域不再视为本 repo 的可依赖部署真相；staging surface 必须带 `campus-` 前缀隔离命名
 - 因此本 runbook 中涉及 staging surface 的外部 URL 一律使用 `ayafeed.com` 下一级子域；repo 中残留的 nested hostnames 仅视为待迁移实现残留
 
 ## 当前适用场景
