@@ -1,4 +1,4 @@
-import { type ReactNode, startTransition, useEffect, useEffectEvent, useState } from "react";
+import { type ReactNode, startTransition, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Box,
@@ -78,37 +78,57 @@ function RequestShowContent() {
   const [observabilityRecord, setObservabilityRecord] = useState<
     Awaited<ReturnType<ProtectedPanelDataProvider["getRequestObservability"]>>["data"] | null
   >(null);
+  const getRequestObservabilityRef = useRef(dataProvider.getRequestObservability);
 
-  const loadObservability = useEffectEvent(async (requestId: string) => {
-    startTransition(() => {
-      setIsObservabilityLoading(true);
-      setObservabilityError(null);
-      setObservabilityRecord(null);
-    });
-
-    try {
-      const response = await dataProvider.getRequestObservability({ requestId });
-      startTransition(() => {
-        setObservabilityRecord(response.data);
-        setIsObservabilityLoading(false);
-      });
-    } catch (error) {
-      startTransition(() => {
-        setObservabilityError(
-          error instanceof Error ? error.message : "Failed to load request observability detail.",
-        );
-        setIsObservabilityLoading(false);
-      });
-    }
-  });
+  useEffect(() => {
+    getRequestObservabilityRef.current = dataProvider.getRequestObservability;
+  }, [dataProvider.getRequestObservability]);
 
   useEffect(() => {
     if (!record?.requestId) {
       return;
     }
 
-    void loadObservability(record.requestId);
-  }, [loadObservability, record?.requestId]);
+    const controller = new AbortController();
+
+    startTransition(() => {
+      setIsObservabilityLoading(true);
+      setObservabilityError(null);
+      setObservabilityRecord(null);
+    });
+
+    void (async () => {
+      try {
+        const response = await getRequestObservabilityRef.current({
+          requestId: record.requestId,
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        startTransition(() => {
+          setObservabilityRecord(response.data);
+          setIsObservabilityLoading(false);
+        });
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        startTransition(() => {
+          setObservabilityError(
+            error instanceof Error ? error.message : "Failed to load request observability detail.",
+          );
+          setIsObservabilityLoading(false);
+        });
+      }
+    })();
+
+    return () => {
+      controller.abort();
+    };
+  }, [record?.requestId]);
 
   if (!record) {
     return null;

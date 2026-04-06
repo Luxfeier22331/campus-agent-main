@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useState, startTransition } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Box,
@@ -32,30 +32,49 @@ export function OverviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [record, setRecord] = useState<PanelOverviewRecord | null>(null);
+  const getOverviewRef = useRef(dataProvider.getOverview);
 
-  const loadOverview = useEffectEvent(async () => {
+  useEffect(() => {
+    getOverviewRef.current = dataProvider.getOverview;
+  }, [dataProvider.getOverview]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
     startTransition(() => {
       setError(null);
       setIsLoading(true);
     });
 
-    try {
-      const response = await dataProvider.getOverview();
-      startTransition(() => {
-        setRecord(response.data);
-        setIsLoading(false);
-      });
-    } catch (loadError) {
-      startTransition(() => {
-        setError(loadError instanceof Error ? loadError.message : "Failed to load panel overview.");
-        setIsLoading(false);
-      });
-    }
-  });
+    void (async () => {
+      try {
+        const response = await getOverviewRef.current({
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) {
+          return;
+        }
 
-  useEffect(() => {
-    void loadOverview();
-  }, [loadOverview]);
+        startTransition(() => {
+          setRecord(response.data);
+          setIsLoading(false);
+        });
+      } catch (loadError) {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        startTransition(() => {
+          setError(loadError instanceof Error ? loadError.message : "Failed to load panel overview.");
+          setIsLoading(false);
+        });
+      }
+    })();
+
+    return () => {
+      controller.abort();
+    };
+  }, []);
 
   return (
     <Box sx={{ p: 3 }}>
