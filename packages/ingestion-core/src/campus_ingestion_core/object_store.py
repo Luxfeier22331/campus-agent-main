@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass
 
@@ -383,7 +384,7 @@ def _normalize_source_asset_slug(value: str) -> str:
 def _document_directory_name(*, document_id: str, title: str | None) -> str:
     document_suffix = _document_id_suffix(document_id)
     title_slug = _slugify_path_label(title or document_suffix)
-    docid8 = _document_id_short_label(document_suffix)
+    docid8 = _document_id_short_label(document_id=document_id, document_suffix=document_suffix)
     return f"{title_slug}--{docid8}"
 
 
@@ -392,11 +393,16 @@ def _document_id_suffix(document_id: str) -> str:
     return segments[-1]
 
 
-def _document_id_short_label(value: str) -> str:
-    normalized = _slugify_path_label(value)
+def _document_id_short_label(*, document_id: str, document_suffix: str) -> str:
+    normalized_suffix = _slugify_path_label(document_suffix)
+    if _looks_like_hash(normalized_suffix) and len(normalized_suffix) > 8:
+        return normalized_suffix[:8]
+    normalized = _slugify_path_label(document_id)
     if _looks_like_hash(normalized) and len(normalized) > 8:
         return normalized[:8]
-    return normalized
+    if document_suffix.startswith("attachment-"):
+        return hashlib.sha1(document_id.encode("utf-8")).hexdigest()[:8]
+    return normalized_suffix
 
 
 def _normalize_year_label(value: str | None) -> str:

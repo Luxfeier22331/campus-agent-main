@@ -88,6 +88,60 @@ class _FakeAttachmentNoTextOcrClient:
         )
 
 
+class _FakeAttachmentStructuredOcrClient:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def parse_file(self, file_path: Path) -> OnlineOcrProviderResult:
+        self.calls.append(file_path.name)
+        payload = {
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "width": 1024,
+                            "height": 1448,
+                            "parsing_res_list": [
+                                {
+                                    "block_id": "heading-1",
+                                    "block_label": "paragraph_title",
+                                    "block_content": "班车时间安排",
+                                    "block_order": 1,
+                                    "block_bbox": [0, 0, 512, 40],
+                                },
+                                {
+                                    "block_id": "paragraph-1",
+                                    "block_label": "text",
+                                    "block_content": "工作日按以下时间发车。",
+                                    "block_order": 2,
+                                    "block_bbox": [0, 50, 512, 100],
+                                },
+                                {
+                                    "block_id": "table-1",
+                                    "block_label": "table",
+                                    "block_content": "时间 地点 08:00 海淀校区 17:30 丰台校区",
+                                    "block_order": 3,
+                                    "block_bbox": [0, 120, 512, 360],
+                                    "tableCells": [["时间", "地点"], ["08:00", "海淀校区"], ["17:30", "丰台校区"]],
+                                    "markdown": {
+                                        "text": "时间 | 地点\n08:00 | 海淀校区\n17:30 | 丰台校区",
+                                        "html": "<table><tr><th>时间</th><th>地点</th></tr><tr><td>08:00</td><td>海淀校区</td></tr><tr><td>17:30</td><td>丰台校区</td></tr></table>",
+                                    },
+                                },
+                            ],
+                        },
+                        "markdown": {
+                            "text": "班车时间安排\n工作日按以下时间发车。\n时间 | 地点\n08:00 | 海淀校区\n17:30 | 丰台校区"
+                        },
+                    }
+                ]
+            }
+        }
+        return OnlineOcrProviderResult(
+            provider_result_bytes=(json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8"),
+        )
+
+
 def _write_json(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -646,6 +700,102 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
                 "notice_attachment:muc_internal_portal:355119:attachment-0001",
             },
         )
+
+    def test_rebuild_authenticated_notice_source_projections_materializes_structured_ocr_artifacts(self) -> None:
+        docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
+        png_bytes = _build_minimal_png_bytes()
+        bundle = _sample_notice_bundle(docx_bytes=docx_bytes, png_bytes=png_bytes)
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][0]["object_key"]),
+                data=docx_bytes,
+                content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][1]["object_key"]),
+                data=png_bytes,
+                content_type="image/png",
+            )
+
+            rebuild_authenticated_notice_source_projections(
+                request=AuthenticatedNoticeSourceProjectionRequest(
+                    corpus="campus_notices",
+                    collection="internal_notice",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                ocr_client=_FakeAttachmentStructuredOcrClient(),
+            )
+
+        image_child = next(
+            record
+            for record in document_registry.list_by_scope("campus_notices", "internal_notice")
+            if record.document_id == "notice_attachment:muc_internal_portal:355119:attachment-0002"
+        )
+        self.assertIsNotNone(image_child.provider_response_object_key)
+        self.assertIsNotNone(image_child.layout_elements_object_key)
+        self.assertIsNotNone(image_child.canonical_markdown_object_key)
+
+        layout_rows = [
+            json.loads(line)
+            for line in object_store.get_bytes(
+                bucket=DERIVED_BUCKET,
+                key=str(image_child.layout_elements_object_key),
+            )
+            .decode("utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+        self.assertTrue(any(row["row_type"] == "table" for row in layout_rows))
+        self.assertTrue(any(row.get("table_cells") == [["时间", "地点"], ["08:00", "海淀校区"], ["17:30", "丰台校区"]] for row in layout_rows))
+
+        image_units = [
+            json.loads(line)
+            for line in object_store.get_bytes(bucket=DERIVED_BUCKET, key=str(image_child.document_units_object_key))
+            .decode("utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+        self.assertIn("section_text", {row["unit_type"] for row in image_units})
+        self.assertIn("table_unit", {row["unit_type"] for row in image_units})
+        self.assertFalse(
+            any("<table" in str(row.get("clean_text") or "") or "<div" in str(row.get("clean_text") or "") for row in image_units)
+        )
+
+        image_markdown = object_store.get_bytes(
+            bucket=DERIVED_BUCKET,
+            key=str(image_child.canonical_markdown_object_key),
+        ).decode("utf-8")
+        self.assertIn("班车时间安排", image_markdown)
+        self.assertIn("08:00", image_markdown)
+        self.assertNotIn("<table", image_markdown)
 
     def test_rebuild_authenticated_notice_source_projections_skips_decorative_editor_assets(self) -> None:
         docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))

@@ -15,6 +15,9 @@ from campus_ingestion_core.authenticated_notice_defaults import (
     DEFAULT_AUTHENTICATED_NOTICE_COLLECTION,
     DEFAULT_AUTHENTICATED_NOTICE_CORPUS,
 )
+from campus_ingestion_core.authenticated_notice_attachment_ocr import (
+    build_authenticated_notice_ocr_attachment_artifacts,
+)
 from campus_ingestion_core.authenticated_notice_source_truth import (
     build_authenticated_notice_notice_document_artifacts,
 )
@@ -32,7 +35,6 @@ from campus_ingestion_core.raw_ingestion import (
     OnlineOcrSettings,
     PaddleOcrAsyncClient,
     S3ObjectStoreClient,
-    extract_online_ocr_text,
 )
 from campus_ingestion_core.registry import (
     DocumentRegistry,
@@ -535,40 +537,6 @@ def _build_attachment_projection_result(
         extraction_policy_version=config.extraction_policy_version,
     )
     materialization_policy = _materialization_policy_for_classification(classification)
-    if classification == "text_extractable":
-        text_blocks = _extract_docx_text_blocks(attachment_bytes)
-        provider_response_bytes = _build_text_extractable_provider_payload(
-            attachment_ref=attachment_ref,
-            filename=filename,
-            text_blocks=text_blocks,
-            extraction_policy_version=config.extraction_policy_version,
-        )
-    elif classification == "ocr_required":
-        if ocr_client is None:
-            raise ValueError("online OCR client is required for ocr_required attachments")
-        with TemporaryDirectory() as temp_dir:
-            attachment_path = Path(temp_dir) / filename
-            attachment_path.write_bytes(attachment_bytes)
-            provider_result = ocr_client.parse_file(attachment_path)
-        provider_response_bytes = provider_result.provider_result_bytes
-        text_blocks = _extract_ocr_text_blocks(provider_result.provider_result_bytes)
-    else:  # pragma: no cover
-        raise ValueError(f"unsupported attachment classification: {classification}")
-    if not text_blocks:
-        return AuthenticatedNoticeAttachmentProjectionResult(
-            document=None,
-            outcome=AuthenticatedNoticeAttachmentProjectionOutcome(
-                attachment_ref_id=attachment_ref_id,
-                classification=classification,
-                materialization_policy=materialization_policy,
-                outcome=AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT,
-                document_id=derived_document_id,
-                attachment_object_key=object_key,
-                attachment_content_sha256=actual_attachment_sha256,
-                provider_response_bytes=provider_response_bytes,
-            ),
-        )
-
     metadata: dict[str, object] = {
         "document_id": derived_document_id,
         "version_id": version_id,
@@ -602,6 +570,56 @@ def _build_attachment_projection_result(
         visibility_level=parent_record.visibility_level,
         policy_projection_version=parent_record.policy_projection_version,
     )
+    layout_elements_bytes: bytes | None = None
+    if classification == "text_extractable":
+        text_blocks = _extract_docx_text_blocks(attachment_bytes)
+        provider_response_bytes = _build_text_extractable_provider_payload(
+            attachment_ref=attachment_ref,
+            filename=filename,
+            text_blocks=text_blocks,
+            extraction_policy_version=config.extraction_policy_version,
+        )
+    elif classification == "ocr_required":
+        if ocr_client is None:
+            raise ValueError("online OCR client is required for ocr_required attachments")
+        with TemporaryDirectory() as temp_dir:
+            attachment_path = Path(temp_dir) / filename
+            attachment_path.write_bytes(attachment_bytes)
+            provider_result = ocr_client.parse_file(attachment_path)
+        provider_response_bytes = provider_result.provider_result_bytes
+        text_blocks = ()
+    else:  # pragma: no cover
+        raise ValueError(f"unsupported attachment classification: {classification}")
+    ocr_artifacts = None
+    if classification == "ocr_required":
+        ocr_artifacts = build_authenticated_notice_ocr_attachment_artifacts(
+            document_id=derived_document_id,
+            version_id=version_id,
+            source_uri=str(
+                attachment_ref.get("final_url") or attachment_ref.get("source_url") or parent_record.source_uri
+            ),
+            title=title,
+            attachment_ref_id=attachment_ref_id,
+            provider_response_bytes=provider_response_bytes,
+            metadata=metadata,
+        )
+        if ocr_artifacts is not None:
+            layout_elements_bytes = ocr_artifacts.layout_elements_bytes
+    if not text_blocks and ocr_artifacts is None:
+        return AuthenticatedNoticeAttachmentProjectionResult(
+            document=None,
+            outcome=AuthenticatedNoticeAttachmentProjectionOutcome(
+                attachment_ref_id=attachment_ref_id,
+                classification=classification,
+                materialization_policy=materialization_policy,
+                outcome=AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT,
+                document_id=derived_document_id,
+                attachment_object_key=object_key,
+                attachment_content_sha256=actual_attachment_sha256,
+                provider_response_bytes=provider_response_bytes,
+            ),
+        )
+
     canonical_markdown_bytes = _render_canonical_markdown(
         metadata={
             key: metadata[key]
@@ -630,22 +648,31 @@ def _build_attachment_projection_result(
             )
             if key in metadata
         },
-        body=_build_attachment_markdown_body(title=title, text_blocks=text_blocks),
+        body=(
+            _build_attachment_markdown_body(title=title, text_blocks=text_blocks)
+            if ocr_artifacts is None
+            else (f"# {title}\n\n{ocr_artifacts.body_markdown}".strip() + "\n")
+        ),
     ).encode("utf-8")
-    document_units_bytes = _build_attachment_document_units_bytes(
-        document_id=derived_document_id,
-        version_id=version_id,
-        source_uri=str(metadata["source_url"]),
-        title=title,
-        text_blocks=text_blocks,
-        attachment_ref=attachment_ref,
-        metadata=metadata,
+    document_units_bytes = (
+        _build_attachment_document_units_bytes(
+            document_id=derived_document_id,
+            version_id=version_id,
+            source_uri=str(metadata["source_url"]),
+            title=title,
+            text_blocks=text_blocks,
+            attachment_ref=attachment_ref,
+            metadata=metadata,
+        )
+        if ocr_artifacts is None
+        else ocr_artifacts.document_units_bytes
     )
     return AuthenticatedNoticeAttachmentProjectionResult(
         document=DocumentImportInput(
             source_label=f"{parent_record.document_id}#{attachment_ref_id}",
             document_units_bytes=document_units_bytes,
             provider_response_bytes=provider_response_bytes,
+            layout_elements_bytes=layout_elements_bytes,
             canonical_markdown_bytes=canonical_markdown_bytes,
             metadata=metadata,
             import_source=DEFAULT_AUTHENTICATED_NOTICE_SOURCE_PROJECTION_IMPORT_SOURCE,
@@ -931,42 +958,6 @@ def _extract_docx_text_blocks(file_bytes: bytes) -> tuple[str, ...]:
     if not blocks:
         raise ValueError("docx attachment produced no extractable text")
     return tuple(blocks)
-
-
-def _extract_ocr_text_blocks(provider_result_bytes: bytes) -> tuple[str, ...]:
-    decoded = provider_result_bytes.decode("utf-8")
-    texts: list[str] = []
-    for line in decoded.splitlines():
-        normalized = line.strip()
-        if not normalized:
-            continue
-        try:
-            payload = json.loads(normalized)
-        except json.JSONDecodeError:
-            continue
-        candidate = payload.get("result") if isinstance(payload, dict) and isinstance(payload.get("result"), dict) else payload
-        if not isinstance(candidate, dict):
-            continue
-        text = _normalize_extracted_text(extract_online_ocr_text(candidate))
-        if text:
-            texts.append(text)
-    if texts:
-        return tuple(texts)
-    payload = json.loads(decoded)
-    candidate = payload.get("result") if isinstance(payload, dict) and isinstance(payload.get("result"), dict) else payload
-    if not isinstance(candidate, dict):
-        raise ValueError("ocr provider payload must be a JSON object")
-    text = _normalize_extracted_text(extract_online_ocr_text(candidate))
-    if not text:
-        return ()
-    return (text,)
-
-
-def _normalize_extracted_text(value: str) -> str:
-    normalized = value.replace("\r\n", "\n").replace("\r", "\n")
-    lines = [" ".join(line.split()).strip() for line in normalized.split("\n")]
-    return "\n".join(line for line in lines if line)
-
 
 def _parse_notice_document_id(document_id: str) -> tuple[str, str]:
     parts = [part.strip() for part in document_id.split(":")]

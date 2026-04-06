@@ -829,6 +829,7 @@ def _serialize_document_record(record: DocumentRegistryRecord) -> dict[str, Any]
         "provenance_status": record.provenance_status,
         "document_units_object_key": record.document_units_object_key,
         "provider_response_object_key": record.provider_response_object_key,
+        "layout_elements_object_key": record.layout_elements_object_key,
         "canonical_markdown_object_key": record.canonical_markdown_object_key,
         "processed_object_keys": list(record.processed_object_keys),
         "import_source": record.import_source,

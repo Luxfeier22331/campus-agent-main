@@ -110,6 +110,7 @@ class DocumentRegistryRecord:
     source_observations: tuple[SourceObservation, ...] = field(default_factory=tuple)
     document_units_object_key: str | None = None
     provider_response_object_key: str | None = None
+    layout_elements_object_key: str | None = None
     canonical_markdown_object_key: str | None = None
     processed_object_keys: tuple[str, ...] = field(default_factory=tuple)
     import_source: str = ""

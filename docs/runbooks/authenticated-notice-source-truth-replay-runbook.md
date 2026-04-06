@@ -354,6 +354,7 @@ attachment extraction lane 固定按类型分流：
   - lane outcome 固定分成两类：
     - `materialized_document`：OCR 产出非空标准化文本，生成 child document
     - `no_extractable_text`：OCR 成功返回但没有可提取正文，不生成 child document
+  - 对 `materialized_document`，worker / promoter 必须完整维护 provider payload、`layout-elements.jsonl`、canonical markdown、`document-units.jsonl` 这组 derived artifacts
   - `no_extractable_text` 不是 fallback，也不是静默跳过；它必须作为 attachment-level replay outcome 落进 staged truth，供 verification / operator 审计
 - `unsupported_binary`
   - 直接 fast-fail

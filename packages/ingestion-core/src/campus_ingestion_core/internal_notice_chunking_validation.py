@@ -23,7 +23,9 @@ DEFAULT_INTERNAL_NOTICE_SAMPLE_SEED = 20260406
 _NOTICE_BODY_LANE = "notice_body"
 _ATTACHMENT_TEXT_LANE = "attachment_text_extractable"
 _ATTACHMENT_OCR_LANE = "attachment_ocr_required"
-_TEXTUAL_CHUNK_UNIT_TYPES = frozenset({"article_body", "attachment_body"})
+_TEXTUAL_CHUNK_UNIT_TYPES = frozenset({"article_body", "attachment_body", "section_text", "table_unit"})
+_ATTACHMENT_SUBSTANTIVE_CHUNK_UNIT_TYPES = frozenset({"attachment_body", "section_text", "table_unit"})
+_ATTACHMENT_OCR_NOISE_UNIT_TYPES = frozenset({"attachment_body", "section_text"})
 _ATTACHMENT_LINEAGE_FIELDS = (
     "parent_document_id",
     "attachment_ref_id",
@@ -219,7 +221,9 @@ def build_internal_notice_chunking_validation_report(
         total_chunks += len(document.chunks)
         if not document.chunks:
             empty_document_ids.append(document.record.document_id)
-        body_chunk_count = sum(1 for chunk in document.chunks if _chunk_unit_type(chunk) == "attachment_body")
+        body_chunk_count = sum(
+            1 for chunk in document.chunks if _chunk_unit_type(chunk) in _ATTACHMENT_SUBSTANTIVE_CHUNK_UNIT_TYPES
+        )
         if document.lane in {_ATTACHMENT_TEXT_LANE, _ATTACHMENT_OCR_LANE} and body_chunk_count == 0:
             attachment_without_body_count += 1
         for chunk in document.chunks:
@@ -587,7 +591,7 @@ def _pick_sample_candidates(
         predicate=lambda document: document.lane == _ATTACHMENT_OCR_LANE and any(
             _is_header_dominant_ocr_chunk(chunk) or _looks_like_noisy_ocr_chunk(_resolve_display_text(chunk))
             for chunk in document.chunks
-            if _chunk_unit_type(chunk) == "attachment_body"
+            if _chunk_unit_type(chunk) in _ATTACHMENT_OCR_NOISE_UNIT_TYPES
         ),
     )
     pick(

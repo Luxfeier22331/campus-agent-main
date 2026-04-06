@@ -81,6 +81,7 @@ updated: 2026-04-06
 - 当前 runbook / reference / policy：`runbooks/`、`reference/`、`policies/`
 - 已导入 authenticated notice 历史数据消费：`runbooks/authenticated-notice-source-truth-replay-runbook.md`
 - internal_notice preparation 质量验收：`reference/internal-notice-offline-preparation-quality-acceptance.md`
+- internal_notice preparation 当前证据：`reference/internal-notice-offline-preparation-quality-evidence.md`
 - authenticated-notice 历史 closeout 当前证据：`reference/authenticated-notice-historical-closeout-evidence.md`
 - 地点寻找一期实施：`plans/campus-place-finding-foundation.md`
 - 当前 closeout 之后的执行优先级：`plans/post-closeout-follow-up-execution-plan.md`
@@ -192,6 +193,7 @@ updated: 2026-04-06
 - `reference/eval-gold-truth-model.md`
 - `reference/golden-dataset-case-matrix.md`
 - `reference/authenticated-notice-historical-closeout-evidence.md`
+- `reference/internal-notice-offline-preparation-quality-evidence.md`
 - `reference/internal-notice-offline-preparation-quality-acceptance.md`
 - `reference/phase1-ingestion-retrieval-implementation-truth.md`
 - `reference/runtime-serving-and-index-terms.md`

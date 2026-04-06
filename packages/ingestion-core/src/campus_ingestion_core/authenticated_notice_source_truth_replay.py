@@ -166,6 +166,7 @@ def _document_record_from_snapshot(
         source_observations=(),
         document_units_object_key=payload.get("document_units_object_key"),
         provider_response_object_key=payload.get("provider_response_object_key"),
+        layout_elements_object_key=payload.get("layout_elements_object_key"),
         canonical_markdown_object_key=payload.get("canonical_markdown_object_key"),
         processed_object_keys=processed_object_keys,
         import_source=str(payload.get("import_source") or ""),

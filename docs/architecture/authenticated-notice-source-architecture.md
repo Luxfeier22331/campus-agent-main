@@ -176,6 +176,8 @@ attachment extraction lane 固定按类型分流，不做多套 fallback：
 - OCR 返回空文本时，不得伪造空 child document，也不得把整条 notice replay 视为 source-truth 损坏
 - 这类 attachment 继续保留 source-truth relation truth，但 closeout / replay 必须显式记录 `no_extractable_text` outcome，供 verifier 与 operator 审计
 - 这不是 fallback；它是 `ocr_required` lane 的一等结果形态，典型样本包括二维码、纯图标、无正文的内联图片
+- materialized OCR child document 必须把 provider payload、`layout-elements.jsonl`、canonical markdown 与 `document-units.jsonl` 一并落成 repo-owned artifacts；`layout-elements.jsonl` 是 lane-local structure truth，不是临时调试副产物
+- OCR provider 返回的 raw html table / markup 可以保留在 `layout-elements.jsonl` 供 lane 内结构修复使用，但不得直接泄漏进 canonical markdown 或最终 document units
 
 ## Scope Materialization Rule
 

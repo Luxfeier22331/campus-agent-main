@@ -105,6 +105,31 @@ class ObjectStoreConfigTest(unittest.TestCase):
             "curriculum/documents/curriculum_plan/plan-001--plan-001/source-faithful/undated/document-units.jsonl",
         )
 
+    def test_build_processed_artifact_key_distinguishes_internal_notice_attachment_documents(self) -> None:
+        title = "关于两校区通勤班车新增班次的通知 / 附件 1 / 班次表.jpg"
+        first_key = build_processed_artifact_key(
+            corpus="campus_notices",
+            collection="internal_notice",
+            document_id="notice_attachment:muc_internal_portal:353901:attachment-0001",
+            revision_track="source-faithful",
+            version_id="sha256:attachment-a",
+            filename="document-units.jsonl",
+            title=title,
+            year="2025",
+        )
+        second_key = build_processed_artifact_key(
+            corpus="campus_notices",
+            collection="internal_notice",
+            document_id="notice_attachment:muc_internal_portal:354270:attachment-0001",
+            revision_track="source-faithful",
+            version_id="sha256:attachment-b",
+            filename="document-units.jsonl",
+            title=title,
+            year="2025",
+        )
+
+        self.assertNotEqual(first_key, second_key)
+
     def test_build_raw_asset_key_supports_curriculum_plan(self) -> None:
         object_key = build_raw_asset_key(
             corpus="curriculum",

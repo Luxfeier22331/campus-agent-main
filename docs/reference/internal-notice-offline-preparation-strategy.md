@@ -86,6 +86,9 @@ parent notice lane 的固定规则：
 - 先走 OCR / layout-aware extraction，再进入 cleanup / chunk
 - 表格、图片区块、段落区块的边界应优先保留，不以 parent notice 的 chunk 预算直接套用
 - OCR lane 的异常处理只在 lane 内收口，不得反向降低 `notice_body` lane 的默认质量
+- materialized OCR child document 的 first-class derived artifacts 固定包含：provider response、`layout-elements.jsonl`、canonical markdown、`document-units.jsonl`
+- OCR child document 的结构化单元固定优先表达为 `attachment_title`、`section_text`、`table`、`table_unit`，而不是把整份附件压平成单一 `attachment_body`
+- provider 返回的 raw html / table markup 只允许停留在 lane-local `layout-elements.jsonl`，不得直接进入 canonical markdown 或最终 chunk text
 
 这条 lane 的一等结果形态只有两类：
 
@@ -179,6 +182,12 @@ parent notice lane 的固定规则：
 - `chunk-preparation.json` 是 current scope 的 frozen preparation truth
 - `validation-summary.json` 记录这次 preparation 的 admission verdict
 - `document-reports.jsonl` 用于按 document 审计失败和异常
+
+attachment child document 的 derived artifacts 继续落在 documents prefix，但固定补充以下路径规则：
+
+- artifact directory 必须由完整 `document_id` 派生稳定 identity，而不是只看最后一级附件 ref
+- 当 `document_id` 较长时，目录短标签可以退化成稳定 hash；但不同 notice 下的同名 attachment ref 不得落进同一路径
+- 这条规则用于避免 `notice_attachment:<site>:<notice_id>:attachment-0001` 这类 historical corpus 在 derived bucket 中发生 key collision
 
 固定禁止：
 

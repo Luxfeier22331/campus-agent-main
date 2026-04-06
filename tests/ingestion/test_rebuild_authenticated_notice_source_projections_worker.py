@@ -30,6 +30,7 @@ class RebuildAuthenticatedNoticeSourceProjectionsWorkerCliTest(unittest.TestCase
                 projected_attachment_count=2,
                 text_extractable_attachment_count=1,
                 ocr_attachment_count=1,
+                ocr_no_text_attachment_count=0,
                 reference_only_attachment_count=1,
                 created_document_ids=("notice_attachment:muc_internal_portal:355119:attachment-0001",),
                 updated_document_ids=("notice:muc_internal_portal:355119",),

@@ -139,6 +139,9 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.valid
 - chunk 带稳定 `title` 和 attachment lineage metadata
 - OCR chunk 没有被标题 header 完全压住正文
 - 明显噪声块会被 validator 标出来，而不是混在“通过”里
+- materialized OCR attachment 必须能回链到 `layout-elements.jsonl`
+- OCR attachment 的 document units 至少应包含 `attachment_title` 与 `section_text` / `table_unit` 之一，不接受“只有标题 + 原样 OCR 大段文本”的退化 truth
+- canonical markdown 与最终 document units 不得直接泄漏 raw `<table>` / `<div>` / `<tr>` markup
 
 必须失败的情况：
 
@@ -146,6 +149,7 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.valid
 - OCR chunk 的正文极短、但 header 占比过高
 - chunk 正文呈现明显噪声特征，例如清洗后仍主要是乱码、装饰符号、重复垃圾行
 - 清洗后仍残留 raw html / raw markup
+- OCR child document 丢失 `layout-elements.jsonl`，导致表格/段落边界无法回审
 
 ## Cleaning Acceptance
 
@@ -191,6 +195,7 @@ sample export 至少应包含：
 
 - document identity 与 lane
 - source rows 摘要
+- OCR lane 的 layout row / structured unit 摘要
 - chunk metadata 摘要
 - final chunk text
 

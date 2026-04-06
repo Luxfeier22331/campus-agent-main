@@ -12,6 +12,7 @@ from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 from campus_ingestion_core.artifacts import (
     CANONICAL_MARKDOWN_FILENAME,
     DOCUMENT_UNITS_FILENAME,
+    LAYOUT_ELEMENTS_FILENAME,
     PROVIDER_RESPONSE_FILENAME,
 )
 from campus_ingestion_core.models import (
@@ -82,6 +83,8 @@ class DocumentImportInput:
     raw_asset_id: str | None = None
     raw_version_id: str | None = None
     provider_response_object_key: str | None = None
+    layout_elements_bytes: bytes | None = None
+    layout_elements_object_key: str | None = None
     additional_processed_object_keys: tuple[str, ...] = field(default_factory=tuple)
     title: str | None = None
     year: str | None = None
@@ -610,6 +613,7 @@ def collect_import_document_stats(
             effective_version_id = matching_content_record.version_id if matching_content_record is not None else version_id
             incoming_source_uri = derive_source_uri(metadata)
             provider_response_key = document.provider_response_object_key
+            layout_elements_key = document.layout_elements_object_key
             if document.provider_response_bytes is not None and provider_response_key is None:
                 provider_response_key = build_document_artifact_key(
                     corpus=document.corpus,
@@ -618,6 +622,17 @@ def collect_import_document_stats(
                     revision_track=document.revision_track,
                     version_id=effective_version_id,
                     filename=PROVIDER_RESPONSE_FILENAME,
+                    title=title,
+                    year=year,
+                )
+            if document.layout_elements_bytes is not None and layout_elements_key is None:
+                layout_elements_key = build_document_artifact_key(
+                    corpus=document.corpus,
+                    collection=document.collection,
+                    document_id=document_id,
+                    revision_track=document.revision_track,
+                    version_id=effective_version_id,
+                    filename=LAYOUT_ELEMENTS_FILENAME,
                     title=title,
                     year=year,
                 )
@@ -630,6 +645,17 @@ def collect_import_document_stats(
                     bucket=_artifact_bucket_for_key(object_store=object_store, key=provider_response_key),
                     key=provider_response_key,
                     data=document.provider_response_bytes,
+                    content_type="application/x-ndjson",
+                )
+            if (
+                document.layout_elements_bytes is not None
+                and layout_elements_key is not None
+                and _is_source_level_artifact_key(layout_elements_key)
+            ):
+                writer.put_bytes(
+                    bucket=_artifact_bucket_for_key(object_store=object_store, key=layout_elements_key),
+                    key=layout_elements_key,
+                    data=document.layout_elements_bytes,
                     content_type="application/x-ndjson",
                 )
 
@@ -660,6 +686,7 @@ def collect_import_document_stats(
                     key
                     for key in (
                         provider_response_key,
+                        layout_elements_key,
                         canonical_markdown_key,
                         document_units_key,
                         *document.additional_processed_object_keys,
@@ -684,6 +711,7 @@ def collect_import_document_stats(
                     existing=matching_content_record,
                     document_units_key=document_units_key,
                     provider_response_key=provider_response_key,
+                    layout_elements_key=layout_elements_key,
                     canonical_markdown_key=canonical_markdown_key,
                     processed_object_keys=processed_object_keys,
                     writer=writer,
@@ -698,6 +726,17 @@ def collect_import_document_stats(
                             bucket=_artifact_bucket_for_key(object_store=object_store, key=provider_response_key),
                             key=provider_response_key,
                             data=document.provider_response_bytes,
+                            content_type="application/x-ndjson",
+                        )
+                    if (
+                        document.layout_elements_bytes is not None
+                        and layout_elements_key is not None
+                        and not _is_source_level_artifact_key(layout_elements_key)
+                    ):
+                        writer.put_bytes(
+                            bucket=_artifact_bucket_for_key(object_store=object_store, key=layout_elements_key),
+                            key=layout_elements_key,
+                            data=document.layout_elements_bytes,
                             content_type="application/x-ndjson",
                         )
                     if document.canonical_markdown_bytes is not None and canonical_markdown_key is not None:
@@ -726,6 +765,7 @@ def collect_import_document_stats(
                         raw_asset=raw_asset,
                         document_units_key=document_units_key,
                         provider_response_key=provider_response_key,
+                        layout_elements_key=layout_elements_key,
                         canonical_markdown_key=canonical_markdown_key,
                         processed_object_keys=processed_object_keys,
                         timestamp=timestamp,
@@ -819,6 +859,17 @@ def collect_import_document_stats(
                     data=document.provider_response_bytes,
                     content_type="application/x-ndjson",
                 )
+            if (
+                document.layout_elements_bytes is not None
+                and layout_elements_key is not None
+                and not _is_source_level_artifact_key(layout_elements_key)
+            ):
+                writer.put_bytes(
+                    bucket=_artifact_bucket_for_key(object_store=object_store, key=layout_elements_key),
+                    key=layout_elements_key,
+                    data=document.layout_elements_bytes,
+                    content_type="application/x-ndjson",
+                )
             if document.canonical_markdown_bytes is not None and canonical_markdown_key is not None:
                 writer.put_bytes(
                     bucket=object_store.bucket_derived,
@@ -845,6 +896,7 @@ def collect_import_document_stats(
                 raw_asset=raw_asset,
                 document_units_key=document_units_key,
                 provider_response_key=provider_response_key,
+                layout_elements_key=layout_elements_key,
                 canonical_markdown_key=canonical_markdown_key,
                 processed_object_keys=processed_object_keys,
                 timestamp=timestamp,
@@ -1053,6 +1105,7 @@ def _build_registry_record(
     raw_asset: ResolvedRawAsset | None,
     document_units_key: str,
     provider_response_key: str | None,
+    layout_elements_key: str | None,
     canonical_markdown_key: str | None,
     processed_object_keys: tuple[str, ...],
     timestamp: str,
@@ -1108,6 +1161,7 @@ def _build_registry_record(
         ),
         document_units_object_key=document_units_key,
         provider_response_object_key=provider_response_key,
+        layout_elements_object_key=layout_elements_key,
         canonical_markdown_object_key=canonical_markdown_key,
         processed_object_keys=processed_object_keys,
         import_source=document.import_source,
@@ -1177,6 +1231,7 @@ def _registry_record_needs_refresh(
     existing: DocumentRegistryRecord,
     document_units_key: str,
     provider_response_key: str | None,
+    layout_elements_key: str | None,
     canonical_markdown_key: str | None,
     processed_object_keys: tuple[str, ...],
     writer: ObjectStoreWriter,
@@ -1185,6 +1240,8 @@ def _registry_record_needs_refresh(
     if existing.document_units_object_key != document_units_key:
         return True
     if existing.provider_response_object_key != provider_response_key:
+        return True
+    if existing.layout_elements_object_key != layout_elements_key:
         return True
     if existing.canonical_markdown_object_key != canonical_markdown_key:
         return True

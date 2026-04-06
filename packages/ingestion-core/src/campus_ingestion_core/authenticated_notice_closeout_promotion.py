@@ -429,6 +429,7 @@ def _registry_record_from_staged_document(staged_document: dict[str, Any]):
         raw_asset=None,
         document_units_key=str(final_object_keys["document_units"]),
         provider_response_key=document_stub.provider_response_object_key,
+        layout_elements_key=final_object_keys.get("layout_elements") or document_stub.layout_elements_object_key,
         canonical_markdown_key=final_object_keys.get("canonical_markdown"),
         processed_object_keys=tuple(
             str(item) for item in document_payload.get("processed_object_keys") or ()
@@ -467,6 +468,11 @@ def _document_import_from_stage_payload(payload: dict[str, Any]) -> DocumentImpo
             None
             if payload.get("provider_response_object_key") is None
             else str(payload["provider_response_object_key"])
+        ),
+        layout_elements_object_key=(
+            None
+            if payload.get("layout_elements_object_key") is None
+            else str(payload["layout_elements_object_key"])
         ),
         additional_processed_object_keys=tuple(
             str(item) for item in payload.get("additional_processed_object_keys") or ()
