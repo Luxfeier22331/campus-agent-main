@@ -28,6 +28,7 @@ from campus_retrieval_core.evidence_ranking import query_targets_source_title, s
 
 from campus_rag_specialist.agent import DEFAULT_MAX_ANSWER_SOURCES, RagSpecialistAgent
 from campus_rag_specialist.confidence import derive_confidence
+from campus_rag_specialist.grounding_validation import validate_prompt_answer_grounding
 from campus_rag_specialist.intent import build_personalization_hint, frame_rag_intent
 from campus_rag_specialist.prompt_execution import RagPromptExecutor
 from campus_rag_specialist.prompt_packets import (
@@ -600,6 +601,43 @@ def delegate_to_rag_agent(
             )
             answer_text = execution.output.answer_text
             prompt_trace = execution.prompt_trace
+            grounding = validate_prompt_answer_grounding(
+                answer_text=answer_text,
+                evidence=finalized_evidence,
+            )
+            if grounding.verdict != "grounded":
+                downgraded_answer_text, downgraded_prompt_trace = _compose_no_answer_response(
+                    request=request,
+                    resolved_scope=effective_scope,
+                    evidence=finalized_evidence,
+                    no_answer_reason="insufficient_grounding",
+                    fallback_answer=_build_no_answer_response(
+                        finalized_evidence,
+                        resolved_policy_title=_resolved_policy_title(handbook_plan),
+                    ),
+                    prompt_executor=prompt_executor,
+                    intent_frame=intent_frame,
+                )
+                return SpecialistResponse(
+                    target="rag-specialist",
+                    status="no_answer",
+                    answer_text=downgraded_answer_text,
+                    confidence="low",
+                    result=_with_prompt_trace(
+                        _build_rag_result_payload(
+                            evidence=finalized_evidence,
+                            resolved_scope=effective_scope,
+                            handbook_plan=handbook_plan,
+                            curriculum_plan=curriculum_plan,
+                            curriculum_course_plan=curriculum_course_plan,
+                            curriculum_program_family_plan=curriculum_program_family_plan,
+                            no_answer_reason="insufficient_grounding",
+                            semantic_outcome="unsupported_by_evidence",
+                            unsupported_fields=grounding.unsupported_fields,
+                        ),
+                        downgraded_prompt_trace,
+                    ),
+                )
     return SpecialistResponse(
         target="rag-specialist",
         status="completed",
@@ -614,6 +652,7 @@ def delegate_to_rag_agent(
                 curriculum_course_plan=curriculum_course_plan,
                 curriculum_program_family_plan=curriculum_program_family_plan,
                 allow_session_follow_up=True,
+                semantic_outcome="grounded_answer" if prompt_executor is not None else "",
             ),
             prompt_trace if curriculum_program_family_plan is None and curriculum_course_plan is None else None,
         ),
@@ -1182,6 +1221,8 @@ def _build_rag_result_payload(
     curriculum_program_family_plan: CurriculumProgramFamilyQueryPlan | None = None,
     no_answer_reason: str = "",
     allow_session_follow_up: bool = False,
+    semantic_outcome: str = "",
+    unsupported_fields: tuple[str, ...] = (),
 ) -> RagResultPayload:
     diagnostics = _build_rag_result_diagnostics(
         evidence=evidence,
@@ -1192,6 +1233,8 @@ def _build_rag_result_payload(
         curriculum_program_family_plan=curriculum_program_family_plan,
         no_answer_reason=no_answer_reason,
         allow_session_follow_up=allow_session_follow_up,
+        semantic_outcome=semantic_outcome,
+        unsupported_fields=unsupported_fields,
     )
     return RagResultPayload(
         evidence=evidence,
@@ -1209,6 +1252,8 @@ def _build_rag_result_diagnostics(
     curriculum_program_family_plan: CurriculumProgramFamilyQueryPlan | None = None,
     no_answer_reason: str = "",
     allow_session_follow_up: bool = False,
+    semantic_outcome: str = "",
+    unsupported_fields: tuple[str, ...] = (),
 ) -> RagResultDiagnostics | None:
     if (
         resolved_scope is None
@@ -1227,12 +1272,17 @@ def _build_rag_result_diagnostics(
         return RagResultDiagnostics(
             resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
             resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
+            no_answer_reason=no_answer_reason,
+            semantic_outcome=semantic_outcome,
+            unsupported_fields=unsupported_fields,
         )
     if curriculum_program_family_plan is not None:
         return RagResultDiagnostics(
             resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
             resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
             no_answer_reason=no_answer_reason,
+            semantic_outcome=semantic_outcome,
+            unsupported_fields=unsupported_fields,
             clarification_reason=curriculum_program_family_plan.clarification_reason,
             retrieved_title_summary=_summarize_retrieved_titles(evidence),
             candidate_title_summary=curriculum_program_family_plan.clarification_candidates,
@@ -1246,6 +1296,7 @@ def _build_rag_result_diagnostics(
             resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
             resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
             no_answer_reason=no_answer_reason,
+            semantic_outcome=semantic_outcome,
             retrieved_title_summary=_summarize_retrieved_titles(evidence),
             resolution_mode=curriculum_course_plan.resolution_mode,
             resolved_entity_type=curriculum_course_plan.entity_type,
@@ -1253,7 +1304,9 @@ def _build_rag_result_diagnostics(
             resolved_course_title=curriculum_course_plan.canonical_course_title,
             resolved_course_family_id=curriculum_course_plan.canonical_course_family_id,
             resolved_course_family_title=curriculum_course_plan.canonical_course_family_title,
-            unsupported_fields=curriculum_course_plan.unsupported_fields,
+            unsupported_fields=(
+                curriculum_course_plan.unsupported_fields or unsupported_fields
+            ),
             partial_answer=curriculum_course_plan.partial_answer,
         )
     if handbook_plan is not None and handbook_plan.status != "pass_through":
@@ -1267,10 +1320,21 @@ def _build_rag_result_diagnostics(
             ),
             clarification_reason=handbook_plan.clarification_reason,
             no_answer_reason=no_answer_reason,
+            semantic_outcome=semantic_outcome,
+            unsupported_fields=unsupported_fields,
             retrieved_title_summary=_summarize_retrieved_titles(evidence),
         )
     if curriculum_plan is None or curriculum_plan.status == "pass_through":
-        return None
+        if not (no_answer_reason or semantic_outcome or unsupported_fields):
+            return None
+        return RagResultDiagnostics(
+            resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
+            resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
+            no_answer_reason=no_answer_reason,
+            semantic_outcome=semantic_outcome,
+            unsupported_fields=unsupported_fields,
+            retrieved_title_summary=_summarize_retrieved_titles(evidence),
+        )
     session_follow_up = _resolve_curriculum_diagnostics_follow_up(
         curriculum_plan=curriculum_plan,
         allow_session_follow_up=allow_session_follow_up,
@@ -1291,6 +1355,8 @@ def _build_rag_result_diagnostics(
         ),
         clarification_reason=curriculum_plan.clarification_reason,
         no_answer_reason=no_answer_reason,
+        semantic_outcome=semantic_outcome,
+        unsupported_fields=unsupported_fields,
         retrieved_title_summary=_summarize_retrieved_titles(evidence),
         candidate_title_summary=curriculum_plan.candidate_title_summary,
         resolution_mode=_curriculum_resolution_mode(curriculum_plan),
