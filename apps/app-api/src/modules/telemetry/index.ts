@@ -10,6 +10,7 @@ import {
 } from "./axiom";
 import {
   resolveTracePropagationHeaders,
+  type TraceDataLike,
   type TracePropagationHeaders,
 } from "./trace";
 
@@ -124,6 +125,24 @@ function toSourceDocIdsSummary(sourceDocIds: string[]): string | null {
   return sourceDocIds.slice(0, 3).join(",");
 }
 
+function runSentrySafely(operation: () => void): void {
+  try {
+    operation();
+  } catch {
+    // Telemetry must never become a request-path failure source.
+  }
+}
+
+function readSentryTraceDataSafely(
+  traceDataProvider: () => TraceDataLike | null | undefined,
+): TraceDataLike {
+  try {
+    return traceDataProvider() ?? {};
+  } catch {
+    return {};
+  }
+}
+
 function applyRequestTags(input: {
   requestedCapability?: string | null;
   requestedScope?: RequestedScope | null;
@@ -173,7 +192,7 @@ export function createAppTelemetry(
   >,
   input: {
     axiomSink?: AxiomRuntimeEventSink;
-    traceDataProvider?: () => Record<string, unknown>;
+    traceDataProvider?: () => TraceDataLike | null | undefined;
   } = {},
 ): AppTelemetry {
   const axiomSink = input.axiomSink ?? createAxiomRuntimeEventSink(env);
@@ -181,56 +200,64 @@ export function createAppTelemetry(
 
   return {
     captureException(error, detail) {
-      Sentry.withScope((scope) => {
-        if (detail?.route) {
-          scope.setTag("route", detail.route);
-        }
-        if (detail?.status) {
-          scope.setTag("status", String(detail.status));
-        }
-        if (detail?.surface) {
-          scope.setTag("surface", detail.surface);
-        }
-        if (detail?.traceId) {
-          scope.setTag("trace_id", detail.traceId);
-        }
+      runSentrySafely(() => {
+        Sentry.withScope((scope) => {
+          if (detail?.route) {
+            scope.setTag("route", detail.route);
+          }
+          if (detail?.status) {
+            scope.setTag("status", String(detail.status));
+          }
+          if (detail?.surface) {
+            scope.setTag("surface", detail.surface);
+          }
+          if (detail?.traceId) {
+            scope.setTag("trace_id", detail.traceId);
+          }
 
-        Sentry.captureException(error);
+          Sentry.captureException(error);
+        });
       });
     },
 
     configureChatRequestScope(input) {
-      applyRequestTags({
-        requestId: input.requestId,
-        requestedCapability: input.requestedCapability,
-        requestedScope: input.requestedScope,
-        status: "accepted",
-        surface: input.surface,
-        traceId: input.traceId,
-      });
-      Sentry.setContext("actor", {
-        actor_id_hash: hashIdentifier(input.actor.subject),
-        principal_type: input.actor.principalType,
+      runSentrySafely(() => {
+        applyRequestTags({
+          requestId: input.requestId,
+          requestedCapability: input.requestedCapability,
+          requestedScope: input.requestedScope,
+          status: "accepted",
+          surface: input.surface,
+          traceId: input.traceId,
+        });
+        Sentry.setContext("actor", {
+          actor_id_hash: hashIdentifier(input.actor.subject),
+          principal_type: input.actor.principalType,
+        });
       });
     },
 
     configureHttpRequestScope(input) {
-      applyRequestTags({
-        route: input.route,
-        surface: input.surface,
-        traceId: input.traceId,
+      runSentrySafely(() => {
+        applyRequestTags({
+          route: input.route,
+          surface: input.surface,
+          traceId: input.traceId,
+        });
       });
     },
 
     getTraceHeaders(input) {
       return resolveTracePropagationHeaders({
         request: input?.request,
-        traceData: traceDataProvider(),
+        traceData: readSentryTraceDataSafely(traceDataProvider),
       });
     },
 
     markHttpResponseStatus(status) {
-      Sentry.setTag("status", String(status));
+      runSentrySafely(() => {
+        Sentry.setTag("status", String(status));
+      });
     },
 
     async recordProjectionDrain(input) {
