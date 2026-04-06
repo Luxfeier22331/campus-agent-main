@@ -348,6 +348,7 @@ adapter 需要把当前结果类型映射为稳定前端消息视图：
 - 默认产品入口固定为 `/chat` 与 `/chat/:conversationId`
 - `src/public-chat/` 只继续保留 `/login`、session bootstrap、route status card 与 boot fallback
 - staging browser smoke 与 repo docs/runbooks 已全部切到 donor shell 后，`/chat/replatform-preview*` 已从 repo runtime path 移除
+- legacy 直访旧 preview 前缀时，由 Worker runtime 直接 canonicalize 到 `/chat`，而不是在 SPA 内继续保留 preview branch 或把旧前缀误当成 `conversationId`
 
 ## 验证与验收
 

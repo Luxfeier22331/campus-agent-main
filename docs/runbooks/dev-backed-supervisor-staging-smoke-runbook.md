@@ -167,6 +167,7 @@ curl --noproxy '*' -sS -i https://campus-panel-staging.ayafeed.com/readyz
 2. 使用临时测试账号注册或登录
 3. 进入 `/chat`（当前默认 donor-derived shell）
 4. 发起一条首轮问题
+5. 直访旧 `/chat/replatform-preview*` 前缀，确认它会 canonicalize 回 `/chat`，而不是被当成 `conversationId`
 
 推荐问题：
 

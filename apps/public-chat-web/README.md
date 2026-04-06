@@ -12,6 +12,7 @@ Implementation status:
 - the active replatform line is tracked in `docs/plans/public-chat-web-chatbot-replatform.md`
 - the donor-derived shell implementation lives under `src/chatbot-shell/`
 - the temporary `/chat/replatform-preview*` debug seam has been removed; `/chat` is now the only chat route family
+- legacy hits to `/chat/replatform-preview*` are canonicalized by the Worker shell back to `/chat`, so the removed preview prefix cannot fall through as a fake `conversationId`
 
 It owns:
 
