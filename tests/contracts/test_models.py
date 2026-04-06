@@ -258,6 +258,9 @@ class ContractModelsTest(unittest.TestCase):
                 "clarification_reason": "",
                 "no_answer_reason": "",
                 "semantic_outcome": "",
+                "grounding_verdict": "",
+                "grounding_downgraded": False,
+                "freshness_fail_closed": False,
                 "scope_class": "",
                 "policy_reason": "",
                 "retrieved_title_summary": (),
@@ -292,6 +295,9 @@ class ContractModelsTest(unittest.TestCase):
         self.assertIn("candidate_title_summary", field_names)
         self.assertIn("used_verified_identity", field_names)
         self.assertIn("used_soft_preference", field_names)
+        self.assertIn("grounding_verdict", field_names)
+        self.assertIn("grounding_downgraded", field_names)
+        self.assertIn("freshness_fail_closed", field_names)
     def test_specialist_request_requires_explicit_payload(self) -> None:
         request = SpecialistRequest(
             target="rag-specialist",

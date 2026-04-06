@@ -87,7 +87,7 @@ def build_supervisor_observability_from_specialist_response(
         ),
         scope_class=_scope_class_from_specialist_response(response.target),
         acl_decision="denied" if denied else "allowed",
-        fail_closed=True if denied else False,
+        fail_closed=True if denied or _is_freshness_fail_closed(diagnostics) else False,
         resolved_scope_corpus=diagnostics.resolved_scope_corpus if diagnostics is not None else None,
         resolved_scope_collection=(
             diagnostics.resolved_scope_collection if diagnostics is not None else ""
@@ -102,11 +102,20 @@ def _is_restricted_access_denied(diagnostics: RagResultDiagnostics | None) -> bo
     )
 
 
+def _is_freshness_fail_closed(diagnostics: RagResultDiagnostics | None) -> bool:
+    return (
+        diagnostics is not None
+        and diagnostics.freshness_fail_closed
+    )
+
+
 def _semantic_outcome_from_specialist_response(
     status: str,
     *,
     diagnostics: RagResultDiagnostics | None,
 ) -> str:
+    if diagnostics is not None and diagnostics.semantic_outcome:
+        return diagnostics.semantic_outcome
     if status == "completed":
         return "grounded_answer"
     if status == "needs_clarification":

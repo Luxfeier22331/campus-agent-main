@@ -8,6 +8,9 @@ describe("request diagnostics", () => {
   it("extracts semantic outcome fields from rag diagnostics", () => {
     const summary = extractRequestDiagnosticsSummary({
       diagnostics: {
+        freshness_fail_closed: true,
+        grounding_downgraded: true,
+        grounding_verdict: "unsupported",
         no_answer_reason: "out_of_scope",
         policy_reason: "product_scope_boundary",
         scope_class: "out_of_scope",
@@ -17,6 +20,9 @@ describe("request diagnostics", () => {
 
     expect(summary).toEqual({
       clarificationReason: null,
+      freshnessFailClosed: true,
+      groundingDowngraded: true,
+      groundingVerdict: "unsupported",
       noAnswerReason: "out_of_scope",
       policyReason: "product_scope_boundary",
       resolvedEntityType: null,

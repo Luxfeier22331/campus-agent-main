@@ -5,6 +5,9 @@ export interface RequestDiagnosticsSummary {
   clarificationReason: string | null;
   noAnswerReason: string | null;
   semanticOutcome: string | null;
+  groundingVerdict: string | null;
+  groundingDowngraded: boolean | null;
+  freshnessFailClosed: boolean | null;
   scopeClass: string | null;
   policyReason: string | null;
   retrievedTitleSummary: string[];
@@ -27,6 +30,10 @@ function normalizeStringList(value: unknown): string[] {
   return value
     .map((item) => normalizeOptionalString(item))
     .filter((item): item is string => item !== null);
+}
+
+function normalizeOptionalBoolean(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null;
 }
 
 function getRecord(value: unknown): Record<string, unknown> | null {
@@ -58,6 +65,15 @@ export function extractRequestDiagnosticsSummary(
     ),
     noAnswerReason: normalizeOptionalString(
       readField(diagnosticsRecord, "no_answer_reason", "noAnswerReason"),
+    ),
+    groundingVerdict: normalizeOptionalString(
+      readField(diagnosticsRecord, "grounding_verdict", "groundingVerdict"),
+    ),
+    groundingDowngraded: normalizeOptionalBoolean(
+      readField(diagnosticsRecord, "grounding_downgraded", "groundingDowngraded"),
+    ),
+    freshnessFailClosed: normalizeOptionalBoolean(
+      readField(diagnosticsRecord, "freshness_fail_closed", "freshnessFailClosed"),
     ),
     policyReason: normalizeOptionalString(
       readField(diagnosticsRecord, "policy_reason", "policyReason"),
@@ -112,6 +128,9 @@ export function extractRequestDiagnosticsSummary(
     !summary.clarificationReason &&
     !summary.noAnswerReason &&
     !summary.semanticOutcome &&
+    !summary.groundingVerdict &&
+    summary.groundingDowngraded === null &&
+    summary.freshnessFailClosed === null &&
     !summary.scopeClass &&
     !summary.policyReason &&
     !summary.resolvedEntityType &&

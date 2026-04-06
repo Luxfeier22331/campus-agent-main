@@ -270,6 +270,9 @@ class RagResultDiagnostics:
     clarification_reason: str = ""
     no_answer_reason: str = ""
     semantic_outcome: str = ""
+    grounding_verdict: str = ""
+    grounding_downgraded: bool = False
+    freshness_fail_closed: bool = False
     scope_class: str = ""
     policy_reason: str = ""
     retrieved_title_summary: tuple[str, ...] = field(default_factory=tuple)

@@ -393,6 +393,7 @@ def delegate_to_rag_agent(
                 evidence=empty_evidence,
                 diagnostics=RagResultDiagnostics(
                     no_answer_reason="restricted_access_denied",
+                    semantic_outcome="restricted_access_denied",
                     resolved_scope_corpus=effective_scope.corpus,
                     resolved_scope_collection=effective_scope.collection,
                 ),
@@ -413,11 +414,15 @@ def delegate_to_rag_agent(
             error=ErrorInfo(code="retrieval_failed", message=str(exc), retryable=False),
         )
     if not evidence.sources:
+        no_answer_reason, semantic_outcome, freshness_fail_closed = _resolve_no_answer_semantics(
+            evidence=evidence,
+            handbook_plan=handbook_plan,
+        )
         answer_text, prompt_trace = _compose_no_answer_response(
             request=request,
             resolved_scope=effective_scope,
             evidence=evidence,
-            no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
+            no_answer_reason=no_answer_reason,
             fallback_answer=_build_no_answer_response(
                 evidence,
                 resolved_policy_title=_resolved_policy_title(handbook_plan),
@@ -438,7 +443,9 @@ def delegate_to_rag_agent(
                     curriculum_plan=curriculum_plan,
                     curriculum_course_plan=curriculum_course_plan,
                     curriculum_program_family_plan=curriculum_program_family_plan,
-                    no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
+                    no_answer_reason=no_answer_reason,
+                    semantic_outcome=semantic_outcome,
+                    freshness_fail_closed=freshness_fail_closed,
                 ),
                 prompt_trace,
             ),
@@ -634,6 +641,8 @@ def delegate_to_rag_agent(
                             no_answer_reason="insufficient_grounding",
                             semantic_outcome="unsupported_by_evidence",
                             unsupported_fields=grounding.unsupported_fields,
+                            grounding_verdict=grounding.verdict,
+                            grounding_downgraded=True,
                         ),
                         downgraded_prompt_trace,
                     ),
@@ -653,6 +662,7 @@ def delegate_to_rag_agent(
                 curriculum_program_family_plan=curriculum_program_family_plan,
                 allow_session_follow_up=True,
                 semantic_outcome="grounded_answer" if prompt_executor is not None else "",
+                grounding_verdict="grounded" if prompt_executor is not None else "",
             ),
             prompt_trace if curriculum_program_family_plan is None and curriculum_course_plan is None else None,
         ),
@@ -929,10 +939,7 @@ def _build_no_answer_response(
     if evidence.corpus == "official_web":
         profile = load_runtime_profile(evidence.corpus, evidence.collection)
         if is_official_web_stable_reference_like_profile(profile):
-            if (
-                not profile.supports_freshness_sensitive_queries
-                and _is_official_web_freshness_sensitive_query(evidence.query_text)
-            ):
+            if _is_official_web_freshness_fail_close(evidence):
                 return "当前本地官网页面链路还不支持回答今天/最新/最近这类时效敏感问题，请改问明确的页面标题、机构名称或文章主题。"
             return "当前未检索到足够依据支持回答这个官网页面问题，请确认问题是否落在当前已导入的官网页面范围内，或补充更明确的页面标题、机构名称或文章主题。"
     if resolved_policy_title:
@@ -972,6 +979,17 @@ def _with_query_text(evidence: EvidenceBundle, query_text: str) -> EvidenceBundl
 def _is_official_web_freshness_sensitive_query(query_text: str) -> bool:
     normalized_goal = _normalize_text(query_text).lower()
     return any(term in normalized_goal for term in _OFFICIAL_WEB_FRESHNESS_QUERY_TERMS)
+
+
+def _is_official_web_freshness_fail_close(evidence: EvidenceBundle) -> bool:
+    if evidence.corpus != "official_web":
+        return False
+    profile = load_runtime_profile(evidence.corpus, evidence.collection)
+    return (
+        is_official_web_stable_reference_like_profile(profile)
+        and not profile.supports_freshness_sensitive_queries
+        and _is_official_web_freshness_sensitive_query(evidence.query_text)
+    )
 
 
 def _should_clarify_with_evidence(user_goal: str, evidence: EvidenceBundle) -> bool:
@@ -1175,6 +1193,16 @@ def _resolved_policy_no_answer_reason(handbook_plan: HandbookQueryPlan | None) -
     return "resolved_policy_clause_not_found"
 
 
+def _resolve_no_answer_semantics(
+    *,
+    evidence: EvidenceBundle,
+    handbook_plan: HandbookQueryPlan | None,
+) -> tuple[str, str, bool]:
+    if _is_official_web_freshness_fail_close(evidence):
+        return "freshness_fail_close", "freshness_fail_close", True
+    return _resolved_policy_no_answer_reason(handbook_plan), "", False
+
+
 def _should_fail_closed_resolved_policy_clause(
     *,
     user_goal: str,
@@ -1223,6 +1251,9 @@ def _build_rag_result_payload(
     allow_session_follow_up: bool = False,
     semantic_outcome: str = "",
     unsupported_fields: tuple[str, ...] = (),
+    grounding_verdict: str = "",
+    grounding_downgraded: bool = False,
+    freshness_fail_closed: bool = False,
 ) -> RagResultPayload:
     diagnostics = _build_rag_result_diagnostics(
         evidence=evidence,
@@ -1235,6 +1266,9 @@ def _build_rag_result_payload(
         allow_session_follow_up=allow_session_follow_up,
         semantic_outcome=semantic_outcome,
         unsupported_fields=unsupported_fields,
+        grounding_verdict=grounding_verdict,
+        grounding_downgraded=grounding_downgraded,
+        freshness_fail_closed=freshness_fail_closed,
     )
     return RagResultPayload(
         evidence=evidence,
@@ -1254,6 +1288,9 @@ def _build_rag_result_diagnostics(
     allow_session_follow_up: bool = False,
     semantic_outcome: str = "",
     unsupported_fields: tuple[str, ...] = (),
+    grounding_verdict: str = "",
+    grounding_downgraded: bool = False,
+    freshness_fail_closed: bool = False,
 ) -> RagResultDiagnostics | None:
     if (
         resolved_scope is None
@@ -1274,6 +1311,9 @@ def _build_rag_result_diagnostics(
             resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
             no_answer_reason=no_answer_reason,
             semantic_outcome=semantic_outcome,
+            grounding_verdict=grounding_verdict,
+            grounding_downgraded=grounding_downgraded,
+            freshness_fail_closed=freshness_fail_closed,
             unsupported_fields=unsupported_fields,
         )
     if curriculum_program_family_plan is not None:
@@ -1282,6 +1322,9 @@ def _build_rag_result_diagnostics(
             resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
             no_answer_reason=no_answer_reason,
             semantic_outcome=semantic_outcome,
+            grounding_verdict=grounding_verdict,
+            grounding_downgraded=grounding_downgraded,
+            freshness_fail_closed=freshness_fail_closed,
             unsupported_fields=unsupported_fields,
             clarification_reason=curriculum_program_family_plan.clarification_reason,
             retrieved_title_summary=_summarize_retrieved_titles(evidence),
@@ -1297,6 +1340,9 @@ def _build_rag_result_diagnostics(
             resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
             no_answer_reason=no_answer_reason,
             semantic_outcome=semantic_outcome,
+            grounding_verdict=grounding_verdict,
+            grounding_downgraded=grounding_downgraded,
+            freshness_fail_closed=freshness_fail_closed,
             retrieved_title_summary=_summarize_retrieved_titles(evidence),
             resolution_mode=curriculum_course_plan.resolution_mode,
             resolved_entity_type=curriculum_course_plan.entity_type,
@@ -1321,17 +1367,30 @@ def _build_rag_result_diagnostics(
             clarification_reason=handbook_plan.clarification_reason,
             no_answer_reason=no_answer_reason,
             semantic_outcome=semantic_outcome,
+            grounding_verdict=grounding_verdict,
+            grounding_downgraded=grounding_downgraded,
+            freshness_fail_closed=freshness_fail_closed,
             unsupported_fields=unsupported_fields,
             retrieved_title_summary=_summarize_retrieved_titles(evidence),
         )
     if curriculum_plan is None or curriculum_plan.status == "pass_through":
-        if not (no_answer_reason or semantic_outcome or unsupported_fields):
+        if not (
+            no_answer_reason
+            or semantic_outcome
+            or unsupported_fields
+            or grounding_verdict
+            or grounding_downgraded
+            or freshness_fail_closed
+        ):
             return None
         return RagResultDiagnostics(
             resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
             resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
             no_answer_reason=no_answer_reason,
             semantic_outcome=semantic_outcome,
+            grounding_verdict=grounding_verdict,
+            grounding_downgraded=grounding_downgraded,
+            freshness_fail_closed=freshness_fail_closed,
             unsupported_fields=unsupported_fields,
             retrieved_title_summary=_summarize_retrieved_titles(evidence),
         )
@@ -1356,6 +1415,9 @@ def _build_rag_result_diagnostics(
         clarification_reason=curriculum_plan.clarification_reason,
         no_answer_reason=no_answer_reason,
         semantic_outcome=semantic_outcome,
+        grounding_verdict=grounding_verdict,
+        grounding_downgraded=grounding_downgraded,
+        freshness_fail_closed=freshness_fail_closed,
         unsupported_fields=unsupported_fields,
         retrieved_title_summary=_summarize_retrieved_titles(evidence),
         candidate_title_summary=curriculum_plan.candidate_title_summary,

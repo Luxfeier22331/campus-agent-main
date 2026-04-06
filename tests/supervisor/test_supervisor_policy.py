@@ -103,6 +103,33 @@ class SupervisorPolicyTest(unittest.TestCase):
         self.assertEqual(finalized.observability.semantic_outcome, "restricted_access_denied")
         self.assertEqual(finalized.observability.scope_class, "in_scope")
 
+    def test_finalize_freshness_fail_close_projects_fail_closed_observability(self) -> None:
+        response = SpecialistResponse(
+            target="rag-specialist",
+            status="no_answer",
+            confidence="low",
+            result=RagResultPayload(
+                evidence=EvidenceBundle(
+                    corpus="official_web",
+                    collection="muc_public_pages",
+                    query_text="中央民族大学今天有什么讲座",
+                ),
+                diagnostics=RagResultDiagnostics(
+                    no_answer_reason="freshness_fail_close",
+                    semantic_outcome="freshness_fail_close",
+                    freshness_fail_closed=True,
+                ),
+            ),
+        )
+
+        finalized = finalize_specialist_response(response)
+
+        self.assertEqual(finalized.status, "no_answer")
+        self.assertIsNotNone(finalized.observability)
+        self.assertEqual(finalized.observability.semantic_outcome, "freshness_fail_close")
+        self.assertTrue(finalized.observability.fail_closed)
+        self.assertEqual(finalized.observability.scope_class, "in_scope")
+
     def test_finalize_out_of_scope_routing_projects_terminal_no_answer(self) -> None:
         finalized = finalize_routing_decision(
             SupervisorRequestContext.from_request(

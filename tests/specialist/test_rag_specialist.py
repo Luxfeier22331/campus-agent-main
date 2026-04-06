@@ -511,6 +511,8 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertIsInstance(response.result, RagResultPayload)
         self.assertEqual(response.result.diagnostics.no_answer_reason, "insufficient_grounding")
         self.assertEqual(response.result.diagnostics.semantic_outcome, "unsupported_by_evidence")
+        self.assertEqual(response.result.diagnostics.grounding_verdict, "unsupported")
+        self.assertTrue(response.result.diagnostics.grounding_downgraded)
         self.assertIn("requirement_claims", response.result.diagnostics.unsupported_fields)
         self.assertIn("time_claims", response.result.diagnostics.unsupported_fields)
         self.assertEqual(response.result.diagnostics.prompt_trace.prompt_id, "rag_unsupported_v1")
@@ -581,6 +583,8 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.confidence, "high")
         self.assertIsInstance(response.result, RagResultPayload)
         self.assertEqual(response.result.diagnostics.semantic_outcome, "grounded_answer")
+        self.assertEqual(response.result.diagnostics.grounding_verdict, "grounded")
+        self.assertFalse(response.result.diagnostics.grounding_downgraded)
         self.assertEqual(response.result.diagnostics.unsupported_fields, ())
         self.assertEqual(response.result.diagnostics.prompt_trace.prompt_id, "rag_answer_v1")
 
@@ -693,6 +697,9 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertIn("最新", response.answer_text)
         self.assertIn("官网页面", response.answer_text)
         self.assertNotIn("学生手册", response.answer_text)
+        self.assertEqual(response.result.diagnostics.no_answer_reason, "freshness_fail_close")
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "freshness_fail_close")
+        self.assertTrue(response.result.diagnostics.freshness_fail_closed)
 
     def test_official_web_stable_reference_no_evidence_uses_scope_specific_no_answer_copy(self) -> None:
         response = delegate_to_rag_agent(
