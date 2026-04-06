@@ -56,6 +56,8 @@ updated: 2026-04-06
 
 - Wave A 已于 2026-04-06 收口完成：repo-level follow-up order 已落盘，`.planning/PROJECT.md` / `.planning/STATE.md` 已切到 post-closeout follow-up 叙述；authenticated-notice 历史 closeout 的最终 evidence 现已固定到 `docs/reference/authenticated-notice-historical-closeout-evidence.md`
 - Wave A 针对性验证当前通过：`tests.ingestion.test_authenticated_notice_import`、`tests.ingestion.test_import_authenticated_notice_export_worker`、`tests.ingestion.test_authenticated_notice_closeout_async`、`tests.ingestion.test_rebuild_authenticated_notice_source_truth_inventory_worker` 合计 `29/29` 通过
+- Wave B1 已完成当前 worktree 的 Wave 1 最小实现：`retrieval-core` 已对已解析到唯一 `target_document_ids` 的 handbook / curriculum 请求启用 targeted overfetch，并通过 `tests/ingestion/test_corpus_runtime_profile.py` 与 `tests/retrieval/test_backend_qdrant.py`
+- Wave B2 已完成当前 worktree 的结构性收口：新增仅供内部检索使用的 `curriculum/program_semester_facts` projection surface，把“已解析到唯一培养方案 + 唯一学期 + course_list intent”的课表问句从 raw `curriculum_plan` table chunk 热路径迁到 answer-shaped semester facts，并通过投影 / specialist / rebuild 定向验证
 - 下一条 active workstream 仍是 Wave B staging deployment closure；与此同时，Wave D 已从“closeout 本身”前进到“closeout 之后的 offline release / retrieval-prep consumption”
 
 ## Workstreams
@@ -99,6 +101,50 @@ updated: 2026-04-06
 - 新的 `.tmp/staging-smoke/<timestamp>/SUMMARY.md`
 - runbook / todo 状态更新
 - 真实浏览器 smoke 与 observability evidence
+
+### Wave B1 - Supervisor Retrieval Tail-Latency Remediation
+
+目标：
+
+- 收口 staging 上 `Supervisor execution exceeded 15000ms timeout.` 的已定位 retrieval tail latency
+- 仅修正在线 retrieval 形状，不回退当前 accepted app topology
+
+执行边界：
+
+- 根因已经定位为 `retrieval-core` 热路径，而不是 `public-chat-web` 或 `app-api` transport seam
+- Wave 1 只改 `packages/retrieval-core`、collection runtime profile 与对应测试；不改 `public-chat-web -> app-api -> supervisor-api` 拓扑
+- 对已经解析到唯一 `target_document_ids` 的 handbook / curriculum 问句，在线 path 改为首轮单次 targeted overfetch，并跳过 follow-up support query
+- curriculum 的 same-document `scroll` 不再作为这类已解析问句的在线补证手段
+- 不把单纯增大 `SUPERVISOR_API_TIMEOUT_MS` 当作主修复；timeout 调整只允许作为 staging 临时缓冲，而不是根因修复
+
+交付物：
+
+- 一份 repo-tracked latency diagnosis / Wave 1 remediation 文档
+- retrieval-core 行为修复与 targeted tests
+- 针对 representative handbook / curriculum prompt 的 fresh verification evidence
+
+### Wave B2 - Curriculum Program-Semester Internal Surface
+
+目标：
+
+- 收口 curriculum semester course-list 问句在 staging 上残留的 raw table retrieval 热路径
+- 不新增公开 serving surface，只在 ingestion / specialist 内部新增 answer-shaped facts projection
+
+执行边界：
+
+- 新 surface 固定为 `curriculum/program_semester_facts`
+- 仅在以下条件同时满足时切换路由：
+  - `curriculum_plan` 已解析到唯一培养方案文档
+  - query intent 为 `course_list`
+  - 只命中一个规范化学期标签
+- 它是 internal retrieval surface，不改变用户可见的 scope contract，也不把 `curriculum_plan` query-serving 默认面替换成新 collection
+- rebuild / raw ingestion / eval expectation / confidence seam 必须一起对齐，避免 internal collection 漂成 undocumented side path
+
+交付物：
+
+- `program_semester_facts` projection 与 runtime profile
+- specialist 路由与定向 `target_document_ids` 解析
+- 覆盖投影、runtime profile、rebuild alias reset、specialist follow-up/deictic 路由的 targeted tests
 
 ## Workstream 3: Wave C - Curriculum Supplemental Warn Diagnosis
 

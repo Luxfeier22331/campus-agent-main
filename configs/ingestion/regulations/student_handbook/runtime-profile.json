@@ -15,6 +15,7 @@
   "rrf_dense_weight": 1.0,
   "rrf_sparse_weight": 1.0,
   "document_support_limit": 24,
+  "document_support_strategy": "targeted_overfetch",
   "embedding_query_instruction": "Given a campus policy or handbook question, retrieve relevant passages that answer the query.",
   "qdrant_alias_name": "student_handbook",
   "qdrant_collection_prefix": "student_handbook",

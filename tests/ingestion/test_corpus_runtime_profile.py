@@ -29,6 +29,7 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.rrf_dense_weight, 1.0)
         self.assertEqual(profile.rrf_sparse_weight, 1.0)
         self.assertEqual(profile.document_support_limit, 24)
+        self.assertEqual(profile.document_support_strategy, "targeted_overfetch")
         self.assertEqual(
             profile.embedding_query_instruction,
             "Given a campus policy or handbook question, retrieve relevant passages that answer the query.",
@@ -59,6 +60,7 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.rrf_dense_weight, 1.0)
         self.assertEqual(profile.rrf_sparse_weight, 1.0)
         self.assertEqual(profile.document_support_limit, 24)
+        self.assertEqual(profile.document_support_strategy, "targeted_overfetch")
         self.assertEqual(
             profile.embedding_query_instruction,
             "Given a campus policy or handbook question, retrieve relevant passages that answer the query.",
@@ -115,6 +117,26 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.chunk_profile_version, "curriculum_program_family_facts_semantic_v1")
         self.assertEqual(profile.qdrant_index_binding.alias_name, "program_family_facts")
         self.assertEqual(profile.qdrant_index_binding.collection_prefix, "program_family_facts")
+
+    def test_load_curriculum_program_semester_facts_runtime_profile(self) -> None:
+        profile = load_runtime_profile("curriculum", "program_semester_facts")
+
+        self.assertEqual(profile.corpus, "curriculum")
+        self.assertEqual(profile.collection, "program_semester_facts")
+        self.assertEqual(profile.serving_stage, "query_serving")
+        self.assertEqual(profile.allowed_artifact_modes, ("normalized", "source_truth_only"))
+        self.assertFalse(profile.split_manifest_required)
+        self.assertTrue(profile.retrieval_enabled)
+        self.assertFalse(profile.query_enabled_by_default)
+        self.assertFalse(profile.current_only)
+        self.assertEqual(profile.serving_revision_tracks, ("source-faithful",))
+        self.assertEqual(profile.retrieval_top_k, 5)
+        self.assertEqual(profile.document_support_limit, 24)
+        self.assertEqual(profile.document_support_strategy, "targeted_overfetch")
+        self.assertEqual(profile.cleaning_policy_version, "curriculum_program_semester_facts_projection_v1")
+        self.assertEqual(profile.chunk_profile_version, "curriculum_program_semester_facts_semantic_v1")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "program_semester_facts")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "program_semester_facts")
 
     def test_load_service_catalog_runtime_profile(self) -> None:
         profile = load_runtime_profile("campus_services", "service_catalog")

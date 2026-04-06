@@ -128,6 +128,7 @@ def _make_runtime_profile(
     rrf_dense_weight: float = 1.0,
     rrf_sparse_weight: float = 1.0,
     document_support_limit: int = 24,
+    document_support_strategy: str = "followup_query",
     embedding_query_instruction: str = (
         "Given a campus policy or handbook question, retrieve relevant passages that answer the query."
     ),
@@ -155,6 +156,7 @@ def _make_runtime_profile(
         rrf_dense_weight=rrf_dense_weight,
         rrf_sparse_weight=rrf_sparse_weight,
         document_support_limit=document_support_limit,
+        document_support_strategy=document_support_strategy,
         embedding_query_instruction=embedding_query_instruction,
         no_hit_min_top_score=0.6,
         no_hit_min_score_gap=0.1,
@@ -3849,6 +3851,132 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertIn(
             "curriculum:历史学（强基计划）本科人才培养方案:chunk-0014",
             tuple(source.chunk_id for source in result.sources),
+        )
+
+    def test_backend_targeted_overfetch_strategy_avoids_followup_support_query(self) -> None:
+        embedding_model = Mock()
+        embedding_model.get_query_embedding.return_value = (0.1, 0.2, 0.3)
+        sparse_embedding_model = Mock()
+        sparse_embedding_model.build_query.return_value = "sparse-targeted"
+        qdrant_client = Mock()
+        qdrant_client.collection_exists.return_value = True
+        qdrant_client.get_aliases.return_value = qdrant_models.CollectionsAliasesResponse(aliases=[])
+        qdrant_client.query_points.return_value = qdrant_models.QueryResponse(
+            points=[
+                qdrant_models.ScoredPoint(
+                    id="point-law-0010",
+                    version=0,
+                    score=0.61,
+                    payload={
+                        "document_id": "curriculum:法学（民族实验班）本科人才培养方案",
+                        "revision_track": "source-faithful",
+                        "version_id": "v1:law-ethnic-class",
+                        "chunk_id": "curriculum:法学（民族实验班）本科人才培养方案:chunk-0010",
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "visibility_level": "public",
+                        "status": "active",
+                        "source_uri": "https://campus.example/curriculum/law-ethnic-class",
+                        "canonical_url": "https://campus.example/curriculum/law-ethnic-class",
+                        "latest_url": "https://campus.example/curriculum/law-ethnic-class",
+                        "source_channel": "pdf_ocr",
+                        "is_current": True,
+                        "anchor": {
+                            "section_path": [
+                                "法学（民族实验班）本科人才培养方案",
+                                "五、课程设置和修读建议",
+                                "(二)专业教育",
+                                "1. 专业核心课程",
+                            ]
+                        },
+                        "text": (
+                            "法学（民族实验班）本科人才培养方案\n"
+                            "五、课程设置和修读建议\n"
+                            "课程清单如下:\n"
+                            "类别 | 课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 修读学期\n"
+                            "专业核心课 | 1038030011 | 宪法学 | 3 | 54 | / | 4"
+                        ),
+                    },
+                ),
+                qdrant_models.ScoredPoint(
+                    id="point-law-0014",
+                    version=0,
+                    score=0.6,
+                    payload={
+                        "document_id": "curriculum:法学（民族实验班）本科人才培养方案",
+                        "revision_track": "source-faithful",
+                        "version_id": "v1:law-ethnic-class",
+                        "chunk_id": "curriculum:法学（民族实验班）本科人才培养方案:chunk-0014",
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "visibility_level": "public",
+                        "status": "active",
+                        "source_uri": "https://campus.example/curriculum/law-ethnic-class",
+                        "canonical_url": "https://campus.example/curriculum/law-ethnic-class",
+                        "latest_url": "https://campus.example/curriculum/law-ethnic-class",
+                        "source_channel": "pdf_ocr",
+                        "is_current": True,
+                        "anchor": {
+                            "section_path": [
+                                "法学（民族实验班）本科人才培养方案",
+                                "五、课程设置和修读建议",
+                                "(二)专业教育",
+                                "2. 专业选修课程",
+                            ]
+                        },
+                        "text": (
+                            "法学（民族实验班）本科人才培养方案\n"
+                            "五、课程设置和修读建议\n"
+                            "课程清单如下:\n"
+                            "类别 | 课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 修读学期\n"
+                            "专业选修课 | 1038030012 | 刑法学 | 3 | 54 | / | 4"
+                        ),
+                    },
+                ),
+            ]
+        )
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=InMemoryDocumentRegistry(),
+            qdrant_client=qdrant_client,
+            embedding_model=embedding_model,
+            sparse_embedding_model=sparse_embedding_model,
+        )
+
+        with patch(
+            "campus_retrieval_core.backend_qdrant.load_runtime_profile",
+            return_value=_make_runtime_profile(
+                corpus="curriculum",
+                collection="curriculum_plan",
+                retrieval_top_k=5,
+                current_only=False,
+                serving_revision_tracks=("source-faithful",),
+                document_support_limit=24,
+                document_support_strategy="targeted_overfetch",
+            ),
+        ):
+            result = backend.retrieve(
+                RetrievalRequest(
+                    query_text="法学民族班培养方案里大二下有什么课？",
+                    corpus="curriculum",
+                    collection="curriculum_plan",
+                    target_document_ids=("curriculum:法学（民族实验班）本科人才培养方案",),
+                    top_k=5,
+                )
+            )
+
+        self.assertEqual(qdrant_client.query_points.call_count, 1)
+        qdrant_client.scroll.assert_not_called()
+        self.assertEqual(qdrant_client.query_points.call_args.kwargs["limit"], 24)
+        self.assertEqual(
+            tuple(source.chunk_id for source in result.sources),
+            (
+                "curriculum:法学（民族实验班）本科人才培养方案:chunk-0010",
+                "curriculum:法学（民族实验班）本科人才培养方案:chunk-0014",
+            ),
         )
 
     def test_backend_prioritizes_same_doc_course_list_chunks_over_other_semester_tables(self) -> None:

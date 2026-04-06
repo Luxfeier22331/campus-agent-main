@@ -251,6 +251,7 @@ class QdrantRetrievalBackend:
                     )
                 self._known_collection_names.add(qdrant_collection_name)
             dense_query_embedding = self._get_dense_query_embedding(query_text, profile=profile)
+            initial_query_limit = self._resolve_initial_query_limit(request=request, profile=profile)
             response = _retry_qdrant_read(
                 lambda: self.qdrant_client.query_points(
                     collection_name=qdrant_collection_name,
@@ -262,7 +263,7 @@ class QdrantRetrievalBackend:
                         dense_query_embedding=dense_query_embedding,
                     ),
                     query=_build_rrf_query(profile),
-                    limit=request.top_k,
+                    limit=initial_query_limit,
                     with_payload=True,
                     with_vectors=False,
                 )
@@ -288,12 +289,16 @@ class QdrantRetrievalBackend:
             sources=ranked_sources,
             preferred_document_ids=request.preferred_document_ids,
         )
-        expanded_sources = self._expand_named_document_support(
-            request=request,
-            profile=profile,
-            qdrant_collection_name=qdrant_collection_name,
-            dense_query_embedding=dense_query_embedding,
-            sources=ranked_sources,
+        expanded_sources = (
+            tuple(ranked_sources)
+            if not self._should_expand_named_document_support(request=request, profile=profile)
+            else self._expand_named_document_support(
+                request=request,
+                profile=profile,
+                qdrant_collection_name=qdrant_collection_name,
+                dense_query_embedding=dense_query_embedding,
+                sources=ranked_sources,
+            )
         )
         ranked_final_sources = prioritize_evidence_sources(
             query_text=query_text,
@@ -466,6 +471,34 @@ class QdrantRetrievalBackend:
         embedding = tuple(float(item) for item in self.embedding_model.get_query_embedding(normalized_query))
         self._dense_query_cache[normalized_query] = (now + self.dense_query_cache_ttl_seconds, embedding)
         return embedding
+
+    def _resolve_initial_query_limit(
+        self,
+        *,
+        request: RetrievalRequest,
+        profile: CollectionRuntimeProfile,
+    ) -> int:
+        if self._should_use_targeted_document_overfetch(request=request, profile=profile):
+            return max(request.top_k, profile.document_support_limit)
+        return request.top_k
+
+    def _should_expand_named_document_support(
+        self,
+        *,
+        request: RetrievalRequest,
+        profile: CollectionRuntimeProfile,
+    ) -> bool:
+        return not self._should_use_targeted_document_overfetch(request=request, profile=profile)
+
+    def _should_use_targeted_document_overfetch(
+        self,
+        *,
+        request: RetrievalRequest,
+        profile: CollectionRuntimeProfile,
+    ) -> bool:
+        if profile.document_support_strategy != "targeted_overfetch":
+            return False
+        return bool(request.target_document_ids) and len(frozenset(request.target_document_ids)) == 1
 
     def _expand_named_document_support(
         self,

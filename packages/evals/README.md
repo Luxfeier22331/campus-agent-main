@@ -15,10 +15,11 @@ Evaluation helpers for campus-agent v2.
 - curriculum qrels 当前同样采取 `doc_id-level truth first`，第二学士学位、强基计划、创新班与课程教学计划是首批固定回归样本
 - curriculum 课程 alias / family alias 现在额外有一条 internal `course_facts` serving surface：它不属于默认 external query-enabled scope，但 golden/scenario truth 会要求 specialist 在课程型问句上内部切换到这个 collection
 - curriculum program-family alias 现在额外有一条 internal `program_family_facts` serving surface：`民族班有哪些` / `基地班有哪些` / `强基有哪些专业` / `二学位有哪些专业` / `实验班有哪些` / `创新班有哪些` 这类问句都应走 family-aware completed；其中 `实验班` / `创新班` 的 truth 是“当前已采集、名称模式命中的培养方案集合”，不是官方统一 family taxonomy
+- curriculum program + semester 课表问句现在额外有一条 internal `program_semester_facts` serving surface：像 `法学民族班培养方案里大二下有什么课` 这类 resolved single-doc + semester course-list 问句应优先切到这个 collection，而不是继续依赖 raw `curriculum_plan` table chunks
 - `民族实验班有哪些`、`强基计划有哪些专业`、`第二学士学位有哪些专业`、`名称里带实验班的培养方案有哪些`、`名称里带创新班的培养方案有哪些` 现在也属于固定 program-family completed lanes；full alias 与显式 name-pattern 问句都不能再退回 doc-level qrels truth
 - `习概有哪些专业要上`、`习概第几学期开`、`习概开设学期`、`思政课有哪些专业要上`、`思政课包括哪些课`、`思政课程包括哪些课`、`思政课第几学期开`、`思政第几学期开`、`思政课程第几学期开`、`思修课第几学期开` 与 mixed partial-answer case 现在属于固定 curriculum regression lanes；family alias 不得 collapse 到单课 qrels truth
 - `民族班有哪些`、`民族实验班有哪些`、`基地班有哪些`、`强基有哪些专业`、`强基计划有哪些专业`、`二学位有哪些专业`、`第二学位有哪些专业`、`第二学士学位有哪些专业`、`实验班有哪些`、`创新班有哪些`、`创新实验班有哪些`、`名称里带实验班的培养方案有哪些`、`名称里带创新班的培养方案有哪些` 现在都属于固定 program-family completed lanes；其中 full alias 与显式 name-pattern query 也必须持续留在 regression gate
-- curriculum deterministic gate 现在接受 `curriculum_plan -> course_facts/program_family_facts` 的内部切换；selected scope 仍保持 `curriculum_plan`
+- curriculum deterministic gate 现在接受 `curriculum_plan -> course_facts/program_family_facts/program_semester_facts` 的内部切换；selected scope 仍保持 `curriculum_plan`
 - retrieval qrels preflight 现在会 fast-fail `思政课` / `思修课` / `思政` / `思政课程` 这类 course-family alias，以及 `民族班有哪些` / `民族实验班有哪些` / `基地班有哪些` / `强基有哪些专业` / `强基计划有哪些专业` / `二学位有哪些专业` / `第二学位有哪些专业` / `第二学士学位有哪些专业` / `实验班有哪些` / `创新班有哪些` / `创新实验班有哪些` / `名称里带实验班的培养方案有哪些` / `名称里带创新班的培养方案有哪些` 这类 program-family membership alias 被 author 成单 doc canonical truth 的 fixture
 - `我这个专业的实验班大二下有什么课` 这类 deictic curriculum 问句仍然不应因为 generic family alias 而静默落单 doc；当前正确行为依旧是 clarification-first
 - deictic curriculum truth 现在固定为：只有 `verified major + unique candidate` 才允许像 `我这个专业的基地班大二下有什么课` 这样的问题进入 single-doc completed lane

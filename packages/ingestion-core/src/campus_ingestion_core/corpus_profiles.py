@@ -27,6 +27,11 @@ DEFAULT_RRF_K = 60
 DEFAULT_RRF_DENSE_WEIGHT = 1.0
 DEFAULT_RRF_SPARSE_WEIGHT = 1.0
 DEFAULT_DOCUMENT_SUPPORT_LIMIT = 24
+DEFAULT_DOCUMENT_SUPPORT_STRATEGY = "followup_query"
+ALLOWED_DOCUMENT_SUPPORT_STRATEGIES = (
+    "followup_query",
+    "targeted_overfetch",
+)
 DEFAULT_EMBEDDING_QUERY_INSTRUCTION = (
     "Given a campus policy or handbook question, retrieve relevant passages that answer the query."
 )
@@ -56,6 +61,7 @@ class CollectionRuntimeProfile:
     rrf_dense_weight: float = DEFAULT_RRF_DENSE_WEIGHT
     rrf_sparse_weight: float = DEFAULT_RRF_SPARSE_WEIGHT
     document_support_limit: int = DEFAULT_DOCUMENT_SUPPORT_LIMIT
+    document_support_strategy: str = DEFAULT_DOCUMENT_SUPPORT_STRATEGY
     embedding_query_instruction: str = DEFAULT_EMBEDDING_QUERY_INSTRUCTION
     no_hit_min_top_score: float | None = None
     no_hit_min_score_gap: float | None = None
@@ -95,6 +101,8 @@ class CollectionRuntimeProfile:
             raise ValueError("rrf_sparse_weight must be greater than zero")
         if self.document_support_limit <= 0:
             raise ValueError("document_support_limit must be greater than zero")
+        if self.document_support_strategy not in ALLOWED_DOCUMENT_SUPPORT_STRATEGIES:
+            raise ValueError(f"unsupported document_support_strategy: {self.document_support_strategy}")
         if self.freshness_max_age_hours is not None and self.freshness_max_age_hours <= 0:
             raise ValueError("freshness_max_age_hours must be greater than zero")
         for revision_track in self.serving_revision_tracks:
@@ -194,6 +202,9 @@ def load_runtime_profile(
         rrf_dense_weight=float(payload.get("rrf_dense_weight") or DEFAULT_RRF_DENSE_WEIGHT),
         rrf_sparse_weight=float(payload.get("rrf_sparse_weight") or DEFAULT_RRF_SPARSE_WEIGHT),
         document_support_limit=int(payload.get("document_support_limit") or DEFAULT_DOCUMENT_SUPPORT_LIMIT),
+        document_support_strategy=str(
+            payload.get("document_support_strategy") or DEFAULT_DOCUMENT_SUPPORT_STRATEGY
+        ),
         embedding_query_instruction=str(
             payload.get("embedding_query_instruction") or DEFAULT_EMBEDDING_QUERY_INSTRUCTION
         ),

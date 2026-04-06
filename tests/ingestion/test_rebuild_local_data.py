@@ -974,7 +974,10 @@ class RebuildLocalDataTest(unittest.TestCase):
             import_runner=lambda **kwargs: {"status": "replay"},
         )
 
-        self.assertEqual(qdrant.reset_aliases, ["curriculum_plan", "course_facts", "program_family_facts"])
+        self.assertEqual(
+            qdrant.reset_aliases,
+            ["curriculum_plan", "course_facts", "program_family_facts", "program_semester_facts"],
+        )
 
     def test_rebuild_uses_ingestion_corpus_prefix_for_curriculum_plan(self) -> None:
         object_store = _FakeObjectStoreAdmin()

@@ -37,7 +37,7 @@ _PROCEDURE_LEAD_ACTION_HINTS = ("挂失", "申请", "办理", "提交", "填写"
 _PROCEDURE_SIDE_NOTE_HINTS = ("优惠卡", "检测", "充值", "销毁", "转借", "处分", "负责解释", "不良后果")
 _NON_PROCEDURE_STRUCTURED_GOAL_HINTS = ("课程地图",)
 _NON_PROCEDURE_REQUIREMENT_GOAL_HINTS = ("怎么要求", "如何要求", "怎么规定", "如何规定")
-_CURRICULUM_INTERNAL_COLLECTIONS = ("course_facts", "program_family_facts")
+_CURRICULUM_INTERNAL_COLLECTIONS = ("course_facts", "program_family_facts", "program_semester_facts")
 
 
 def evaluate_case(case: GoldenCase, execution: ExecutionResult) -> CaseResult:

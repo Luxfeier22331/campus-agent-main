@@ -18,6 +18,9 @@ from campus_contracts import (
 )
 from campus_ingestion_core import load_runtime_profile
 from campus_ingestion_core.corpus_profiles import is_official_web_stable_reference_like_profile
+from campus_ingestion_core.curriculum_program_semester_facts_projection import (
+    build_curriculum_program_semester_fact_document_id,
+)
 from campus_retrieval_core import CorpusQueryDisabledError, RetrievalBackendError, retrieve_sources
 from campus_retrieval_core import RestrictedDocumentAccessDeniedError
 from campus_shared import PromptRuntimeValidationError
@@ -352,6 +355,16 @@ def delegate_to_rag_agent(
                     and curriculum_course_plan.fact_intent == "schedule"
                 ):
                     retrieval_top_k = _COURSE_FAMILY_SCHEDULE_TOP_K
+            elif _should_use_curriculum_program_semester_facts(
+                curriculum_plan=curriculum_plan,
+                user_goal=effective_user_goal,
+            ):
+                retrieval_collection = "program_semester_facts"
+                retrieval_goal = curriculum_plan.rewritten_query_text
+                target_document_ids = _resolve_curriculum_program_semester_fact_target_document_ids(
+                    curriculum_plan=curriculum_plan,
+                    user_goal=effective_user_goal,
+                )
             elif curriculum_plan is not None and curriculum_plan.status in {"resolved", "soft_preference"}:
                 retrieval_goal = curriculum_plan.rewritten_query_text
                 target_document_ids = curriculum_plan.target_document_ids
@@ -1237,6 +1250,35 @@ def _has_resolved_query_plan(
     ):
         return True
     return curriculum_plan is not None and curriculum_plan.status == "resolved"
+
+
+def _should_use_curriculum_program_semester_facts(
+    *,
+    curriculum_plan: CurriculumQueryPlan | None,
+    user_goal: str,
+) -> bool:
+    if curriculum_plan is None or curriculum_plan.status != "resolved":
+        return False
+    if len(curriculum_plan.target_document_ids) != 1:
+        return False
+    interpretation = interpret_curriculum_query(curriculum_plan.rewritten_query_text or user_goal)
+    return interpretation.intent_kind == "course_list" and len(interpretation.semester_labels) == 1
+
+
+def _resolve_curriculum_program_semester_fact_target_document_ids(
+    *,
+    curriculum_plan: CurriculumQueryPlan,
+    user_goal: str,
+) -> tuple[str, ...]:
+    interpretation = interpret_curriculum_query(curriculum_plan.rewritten_query_text or user_goal)
+    if len(curriculum_plan.target_document_ids) != 1 or len(interpretation.semester_labels) != 1:
+        return ()
+    return (
+        build_curriculum_program_semester_fact_document_id(
+            curriculum_plan.target_document_ids[0],
+            interpretation.semester_labels[0],
+        ),
+    )
 
 
 def _resolved_policy_title(handbook_plan: HandbookQueryPlan | None) -> str:

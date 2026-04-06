@@ -47,6 +47,9 @@ from campus_rag_specialist.query_planning import (
     plan_curriculum_program_family_query,
     plan_curriculum_query,
 )
+from campus_ingestion_core.curriculum_program_semester_facts_projection import (
+    build_curriculum_program_semester_fact_document_id,
+)
 
 
 def _rag_prompt_trace(prompt_id: str) -> PromptTrace:
@@ -174,6 +177,40 @@ def _make_official_web_evidence(
         corpus="official_web",
         collection=collection,
         sources=sources,
+    )
+
+
+def _make_program_semester_source(
+    *,
+    source_document_id: str,
+    semester_label: str,
+    snippet: str,
+    score: float,
+) -> EvidenceSource:
+    source_title = source_document_id.split(":", 1)[-1]
+    fact_document_id = build_curriculum_program_semester_fact_document_id(
+        source_document_id,
+        semester_label,
+    )
+    return EvidenceSource(
+        doc_id=fact_document_id,
+        revision_track="source-faithful",
+        version_id=f"v1:{source_title}:{semester_label}",
+        chunk_id=f"{fact_document_id}:row-0001",
+        anchor={"fact_type": "semester_course_list"},
+        canonical_url=f"https://campus.example/curriculum/{source_title}",
+        latest_url=f"https://campus.example/curriculum/{source_title}",
+        source_channel="pdf_ocr",
+        collection="program_semester_facts",
+        is_current=False,
+        snippet=snippet,
+        score=score,
+        source_title=f"{source_title} {semester_label}课程事实",
+        structural_path=(source_title, semester_label),
+        detail_label=f"{semester_label}课程",
+        content_kind="program_semester_fact",
+        content_role="semester_course_list",
+        is_answer_bearing=True,
     )
 
 
@@ -2018,6 +2055,83 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.result.diagnostics.session_program, "法学民族实验班")
         self.assertEqual(response.result.diagnostics.session_semester, "第四学期")
 
+    def test_curriculum_semester_course_query_uses_program_semester_facts_collection(self) -> None:
+        retriever_call: dict[str, object] = {}
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
+            return EvidenceBundle(
+                query_text=query_text,
+                corpus="curriculum",
+                collection="program_semester_facts",
+                sources=(
+                    EvidenceSource(
+                        doc_id=build_curriculum_program_semester_fact_document_id(
+                            "curriculum:法学（民族实验班）本科人才培养方案",
+                            "第四学期",
+                        ),
+                        revision_track="source-faithful",
+                        version_id="v1:law-ethnic-semester-4",
+                        chunk_id="program_semester_facts:law-ethnic:semester-4:row-0001",
+                        anchor={"fact_type": "semester_course_list"},
+                        canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
+                        latest_url="https://campus.example/curriculum/law-ethnic-experimental",
+                        source_channel="pdf_ocr",
+                        collection="program_semester_facts",
+                        is_current=False,
+                        snippet="按当前已采集的《法学（民族实验班）本科人才培养方案》，第四学期有侵权责任法、公司法、翻译学导论。",
+                        score=0.95,
+                        source_title="法学（民族实验班）本科人才培养方案 第四学期课程事实",
+                        structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
+                        detail_label="第四学期课程",
+                        content_kind="program_semester_fact",
+                        content_role="semester_course_list",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="法学民族班培养方案里大二下有什么课",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(retriever_call["collection"], "program_semester_facts")
+        self.assertEqual(
+            retriever_call["target_document_ids"],
+            (
+                build_curriculum_program_semester_fact_document_id(
+                    "curriculum:法学（民族实验班）本科人才培养方案",
+                    "第四学期",
+                ),
+            ),
+        )
+        self.assertIn("侵权责任法", response.answer_text)
+        self.assertIn("公司法", response.answer_text)
+        self.assertEqual(
+            response.result.diagnostics,
+            _resolved_scope_diagnostics(
+                corpus="curriculum",
+                collection="curriculum_plan",
+                resolved_policy_document_id="curriculum:法学（民族实验班）本科人才培养方案",
+                resolved_policy_title="法学（民族实验班）本科人才培养方案",
+                rewritten_query="法学民族实验班培养方案里第四学期有什么课",
+                retrieved_title_summary=("法学（民族实验班）本科人才培养方案 第四学期课程事实",),
+                resolution_mode="resolved_single",
+                session_program_family="民族实验班",
+                session_program="法学民族实验班",
+                session_semester="第四学期",
+            ),
+        )
+
     def test_curriculum_semester_course_query_without_program_resolution_maps_to_needs_clarification(self) -> None:
         evidence = EvidenceBundle(
             query_text="民族实验班培养方案里第四学期有什么课",
@@ -2090,27 +2204,13 @@ class RagSpecialistTest(unittest.TestCase):
             return EvidenceBundle(
                 query_text=query_text,
                 corpus="curriculum",
-                collection="curriculum_plan",
+                collection="program_semester_facts",
                 sources=(
-                    EvidenceSource(
-                        doc_id="curriculum:法学（民族实验班）本科人才培养方案",
-                        revision_track="source-faithful",
-                        version_id="v1:law-ethnic-experimental",
-                        chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0004",
-                        anchor={"page_start": 24, "page_end": 24},
-                    canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
-                    latest_url="https://campus.example/curriculum/law-ethnic-experimental",
-                    source_channel="pdf_ocr",
-                    collection="curriculum_plan",
-                    is_current=True,
-                    snippet="第四学期 侵权责任法、翻译学导论、中国少数民族文字学。",
-                    score=0.92,
-                    source_title="法学（民族实验班）本科人才培养方案",
-                    structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
-                    detail_label="第四学期",
-                    content_kind="table_unit",
-                        content_role="table_fact",
-                        is_answer_bearing=True,
+                    _make_program_semester_source(
+                        source_document_id="curriculum:法学（民族实验班）本科人才培养方案",
+                        semester_label="第四学期",
+                        snippet="按当前已采集的《法学（民族实验班）本科人才培养方案》，第四学期有侵权责任法、翻译学导论、中国少数民族文字学。",
+                        score=0.92,
                     ),
                 ),
             )
@@ -2147,9 +2247,15 @@ class RagSpecialistTest(unittest.TestCase):
             retriever_call["query_text"],
             "法学民族实验班培养方案里第四学期有什么课",
         )
+        self.assertEqual(retriever_call["collection"], "program_semester_facts")
         self.assertEqual(
             retriever_call["target_document_ids"],
-            ("curriculum:法学（民族实验班）本科人才培养方案",),
+            (
+                build_curriculum_program_semester_fact_document_id(
+                    "curriculum:法学（民族实验班）本科人才培养方案",
+                    "第四学期",
+                ),
+            ),
         )
         self.assertIn("侵权责任法", response.answer_text)
 
@@ -2162,27 +2268,13 @@ class RagSpecialistTest(unittest.TestCase):
             return EvidenceBundle(
                 query_text=query_text,
                 corpus="curriculum",
-                collection="curriculum_plan",
+                collection="program_semester_facts",
                 sources=(
-                    EvidenceSource(
-                        doc_id="curriculum:法学（民族实验班）本科人才培养方案",
-                        revision_track="source-faithful",
-                        version_id="v1:law-ethnic-experimental",
-                        chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0004",
-                        anchor={"page_start": 24, "page_end": 24},
-                    canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
-                    latest_url="https://campus.example/curriculum/law-ethnic-experimental",
-                    source_channel="pdf_ocr",
-                    collection="curriculum_plan",
-                    is_current=True,
-                    snippet="第四学期 侵权责任法、翻译学导论、中国少数民族文字学。",
-                    score=0.92,
-                    source_title="法学（民族实验班）本科人才培养方案",
-                    structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
-                    detail_label="第四学期",
-                    content_kind="table_unit",
-                        content_role="table_fact",
-                        is_answer_bearing=True,
+                    _make_program_semester_source(
+                        source_document_id="curriculum:法学（民族实验班）本科人才培养方案",
+                        semester_label="第四学期",
+                        snippet="按当前已采集的《法学（民族实验班）本科人才培养方案》，第四学期有侵权责任法、翻译学导论、中国少数民族文字学。",
+                        score=0.92,
                     ),
                 ),
             )
@@ -2219,9 +2311,15 @@ class RagSpecialistTest(unittest.TestCase):
             retriever_call["query_text"],
             "法学民族实验班培养方案里第四学期有什么课",
         )
+        self.assertEqual(retriever_call["collection"], "program_semester_facts")
         self.assertEqual(
             retriever_call["target_document_ids"],
-            ("curriculum:法学（民族实验班）本科人才培养方案",),
+            (
+                build_curriculum_program_semester_fact_document_id(
+                    "curriculum:法学（民族实验班）本科人才培养方案",
+                    "第四学期",
+                ),
+            ),
         )
         self.assertIn("中国少数民族文字学", response.answer_text)
 
@@ -2234,27 +2332,13 @@ class RagSpecialistTest(unittest.TestCase):
             return EvidenceBundle(
                 query_text=query_text,
                 corpus="curriculum",
-                collection="curriculum_plan",
+                collection="program_semester_facts",
                 sources=(
-                    EvidenceSource(
-                        doc_id="curriculum:法学（民族实验班）本科人才培养方案",
-                        revision_track="source-faithful",
-                        version_id="v1:law-ethnic-experimental",
-                        chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0004",
-                        anchor={"page_start": 24, "page_end": 24},
-                    canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
-                    latest_url="https://campus.example/curriculum/law-ethnic-experimental",
-                    source_channel="pdf_ocr",
-                    collection="curriculum_plan",
-                    is_current=True,
-                    snippet="第四学期 侵权责任法、翻译学导论、中国少数民族文字学。",
-                    score=0.92,
-                    source_title="法学（民族实验班）本科人才培养方案",
-                    structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
-                    detail_label="第四学期",
-                    content_kind="table_unit",
-                        content_role="table_fact",
-                        is_answer_bearing=True,
+                    _make_program_semester_source(
+                        source_document_id="curriculum:法学（民族实验班）本科人才培养方案",
+                        semester_label="第四学期",
+                        snippet="按当前已采集的《法学（民族实验班）本科人才培养方案》，第四学期有侵权责任法、翻译学导论、中国少数民族文字学。",
+                        score=0.92,
                     ),
                 ),
             )
@@ -2303,9 +2387,15 @@ class RagSpecialistTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertEqual(retriever_call["query_text"], "法学民族实验班培养方案里第四学期有什么课")
+        self.assertEqual(retriever_call["collection"], "program_semester_facts")
         self.assertEqual(
             retriever_call["target_document_ids"],
-            ("curriculum:法学（民族实验班）本科人才培养方案",),
+            (
+                build_curriculum_program_semester_fact_document_id(
+                    "curriculum:法学（民族实验班）本科人才培养方案",
+                    "第四学期",
+                ),
+            ),
         )
         self.assertEqual(response.result.diagnostics.session_program_family, "民族实验班")
         self.assertEqual(response.result.diagnostics.session_program, "法学民族实验班")
@@ -2320,27 +2410,13 @@ class RagSpecialistTest(unittest.TestCase):
             return EvidenceBundle(
                 query_text=query_text,
                 corpus="curriculum",
-                collection="curriculum_plan",
+                collection="program_semester_facts",
                 sources=(
-                    EvidenceSource(
-                        doc_id="curriculum:法学（民族实验班）本科人才培养方案",
-                        revision_track="source-faithful",
-                        version_id="v1:law-ethnic-experimental",
-                        chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0004",
-                        anchor={"page_start": 24, "page_end": 24},
-                    canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
-                    latest_url="https://campus.example/curriculum/law-ethnic-experimental",
-                    source_channel="pdf_ocr",
-                    collection="curriculum_plan",
-                    is_current=True,
-                    snippet="第四学期 侵权责任法、翻译学导论、中国少数民族文字学。",
-                    score=0.92,
-                    source_title="法学（民族实验班）本科人才培养方案",
-                    structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
-                    detail_label="第四学期",
-                    content_kind="table_unit",
-                        content_role="table_fact",
-                        is_answer_bearing=True,
+                    _make_program_semester_source(
+                        source_document_id="curriculum:法学（民族实验班）本科人才培养方案",
+                        semester_label="第四学期",
+                        snippet="按当前已采集的《法学（民族实验班）本科人才培养方案》，第四学期有侵权责任法、翻译学导论、中国少数民族文字学。",
+                        score=0.92,
                     ),
                 ),
             )
@@ -2389,9 +2465,15 @@ class RagSpecialistTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertEqual(retriever_call["query_text"], "法学民族实验班培养方案里第四学期有什么课")
+        self.assertEqual(retriever_call["collection"], "program_semester_facts")
         self.assertEqual(
             retriever_call["target_document_ids"],
-            ("curriculum:法学（民族实验班）本科人才培养方案",),
+            (
+                build_curriculum_program_semester_fact_document_id(
+                    "curriculum:法学（民族实验班）本科人才培养方案",
+                    "第四学期",
+                ),
+            ),
         )
 
     def test_curriculum_generic_base_class_with_verified_major_prefers_clarification_over_silent_resolution(self) -> None:
@@ -2432,27 +2514,13 @@ class RagSpecialistTest(unittest.TestCase):
             return EvidenceBundle(
                 query_text=query_text,
                 corpus="curriculum",
-                collection="curriculum_plan",
+                collection="program_semester_facts",
                 sources=(
-                    EvidenceSource(
-                        doc_id="curriculum:历史学（强基计划）本科人才培养方案",
-                        revision_track="source-faithful",
-                        version_id="v1:history-strong-base",
-                        chunk_id="curriculum:历史学（强基计划）本科人才培养方案:chunk-0004",
-                        anchor={"page_start": 24, "page_end": 24},
-                        canonical_url="https://campus.example/curriculum/history-strong-base",
-                        latest_url="https://campus.example/curriculum/history-strong-base",
-                        source_channel="pdf_ocr",
-                        collection="curriculum_plan",
-                        is_current=True,
-                        snippet="第四学期 中国史学史、史学理论专题。",
+                    _make_program_semester_source(
+                        source_document_id="curriculum:历史学（强基计划）本科人才培养方案",
+                        semester_label="第四学期",
+                        snippet="按当前已采集的《历史学（强基计划）本科人才培养方案》，第四学期有中国史学史、史学理论专题。",
                         score=0.92,
-                        source_title="历史学（强基计划）本科人才培养方案",
-                        structural_path=("历史学（强基计划）本科人才培养方案", "第四学期"),
-                        detail_label="第四学期",
-                        content_kind="table_unit",
-                        content_role="table_fact",
-                        is_answer_bearing=True,
                     ),
                 ),
             )
@@ -2476,9 +2544,15 @@ class RagSpecialistTest(unittest.TestCase):
         )
 
         self.assertEqual(response.status, "completed")
+        self.assertEqual(retriever_call["collection"], "program_semester_facts")
         self.assertEqual(
             retriever_call["target_document_ids"],
-            ("curriculum:历史学（强基计划）本科人才培养方案",),
+            (
+                build_curriculum_program_semester_fact_document_id(
+                    "curriculum:历史学（强基计划）本科人才培养方案",
+                    "第四学期",
+                ),
+            ),
         )
         self.assertEqual(retriever_call["preferred_document_ids"], ())
         self.assertIn("中国史学史", response.answer_text)

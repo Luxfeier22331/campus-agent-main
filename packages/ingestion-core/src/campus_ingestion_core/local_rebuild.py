@@ -35,6 +35,9 @@ from campus_ingestion_core.curriculum_course_facts_projection import (
 from campus_ingestion_core.curriculum_program_family_facts_projection import (
     build_curriculum_program_family_facts_scope_refresh_documents,
 )
+from campus_ingestion_core.curriculum_program_semester_facts_projection import (
+    build_curriculum_program_semester_facts_scope_refresh_documents,
+)
 from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
 from campus_ingestion_core.handbook_cleanup import cleanup_handbook_document, serialize_handbook_document_units
 from campus_ingestion_core.handbook_source_projections import (
@@ -380,6 +383,12 @@ def _resolve_rebuild_target_qdrant_bindings(
             _resolve_target_qdrant_binding(
                 corpus="curriculum",
                 collection="program_family_facts",
+            )
+        )
+        target_bindings.append(
+            _resolve_target_qdrant_binding(
+                corpus="curriculum",
+                collection="program_semester_facts",
             )
         )
     deduped: list[QdrantIndexBinding] = []
@@ -1215,6 +1224,16 @@ def _build_replay_documents(
                 raw_asset_record=raw_asset_ref,
                 source_pdf=source_pdf,
                 split_manifest_documents=split_manifest.documents,
+            )
+        )
+        documents.extend(
+            build_curriculum_program_semester_facts_scope_refresh_documents(
+                raw_asset_record=raw_asset_ref,
+                source_pdf=source_pdf,
+                split_manifest_documents=split_manifest.documents,
+                structured_rows=structured_rows,
+                provider_response_key=provider_response_key,
+                layout_elements_key=layout_elements_key,
             )
         )
     return documents

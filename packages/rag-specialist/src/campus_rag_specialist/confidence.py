@@ -8,7 +8,7 @@ from campus_retrieval_core.evidence_ranking import (
 )
 
 _POSITIVE_SUPPORT_ROLES = frozenset({"procedure", "requirement", "eligibility", "time_rule", "deadline", "table_fact", "definition"})
-_CURATED_FACT_COLLECTIONS = frozenset({"course_facts", "program_family_facts"})
+_CURATED_FACT_COLLECTIONS = frozenset({"course_facts", "program_family_facts", "program_semester_facts"})
 
 
 def derive_confidence(evidence: EvidenceBundle) -> str:
