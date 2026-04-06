@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 
 import { parseCsvList, type Env } from "../../config";
+import { AppApiRouteError } from "../../http";
 import { getAppAuth, type AppAuthResolutionInput } from "./auth";
 
 export type AppPrincipalType =
@@ -562,25 +563,21 @@ function parseCampusIdentityClaims(
   return hasMaterialClaims ? claims : undefined;
 }
 
-export function mapOperatorHeadersToPrincipal(
+type OperatorHeadersAdmission =
+  | { kind: "absent" }
+  | { kind: "internal_auth_required" }
+  | { kind: "not_admitted" }
+  | { kind: "admitted"; principal: ResolvedAppPrincipal };
+
+function isOperatorRouteRequest(request: Request): boolean {
+  const pathname = new URL(request.url).pathname;
+  return pathname.startsWith("/api/operator/");
+}
+
+function buildOperatorPrincipal(
   request: Request,
-  env: Pick<Env, "APP_API_INTERNAL_SHARED_SECRET" | "APP_API_OPERATOR_EMAIL_ALLOWLIST">,
-): ResolvedAppPrincipal | null {
-  const email = normalizeEmail(request.headers.get("x-app-operator-email"));
-  if (!email) {
-    return null;
-  }
-  if (!hasMatchingInternalSecret(request, env)) {
-    return null;
-  }
-
-  const allowlist = parseCsvList(env.APP_API_OPERATOR_EMAIL_ALLOWLIST).map((item) =>
-    item.toLowerCase(),
-  );
-  if (allowlist.length === 0 || !allowlist.includes(email)) {
-    return null;
-  }
-
+  email: string,
+): ResolvedAppPrincipal {
   const principalId =
     normalizeHeaderValue(request.headers.get("x-app-operator-id")) ?? email;
   const displayName =
@@ -613,6 +610,41 @@ export function mapOperatorHeadersToPrincipal(
   };
 }
 
+function resolveOperatorHeadersAdmission(
+  request: Request,
+  env: Pick<Env, "APP_API_INTERNAL_SHARED_SECRET" | "APP_API_OPERATOR_EMAIL_ALLOWLIST">,
+): OperatorHeadersAdmission {
+  const email = normalizeEmail(request.headers.get("x-app-operator-email"));
+  if (!email) {
+    return { kind: "absent" };
+  }
+  if (!hasMatchingInternalSecret(request, env)) {
+    return { kind: "internal_auth_required" };
+  }
+
+  const allowlist = parseCsvList(env.APP_API_OPERATOR_EMAIL_ALLOWLIST).map((item) =>
+    item.toLowerCase(),
+  );
+  if (allowlist.length === 0 || !allowlist.includes(email)) {
+    return { kind: "not_admitted" };
+  }
+
+  return {
+    kind: "admitted",
+    principal: buildOperatorPrincipal(request, email),
+  };
+}
+
+export function mapOperatorHeadersToPrincipal(
+  request: Request,
+  env: Pick<Env, "APP_API_INTERNAL_SHARED_SECRET" | "APP_API_OPERATOR_EMAIL_ALLOWLIST">,
+): ResolvedAppPrincipal | null {
+  const operatorHeadersAdmission = resolveOperatorHeadersAdmission(request, env);
+  return operatorHeadersAdmission.kind === "admitted"
+    ? operatorHeadersAdmission.principal
+    : null;
+}
+
 export async function resolveOfficialWebCollectorPrincipal(
   request: Request,
   env: Pick<Env, "APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN">,
@@ -633,9 +665,29 @@ export async function resolveRequestPrincipal(
   env: Env,
   input: AppAuthResolutionInput = {},
 ): Promise<ResolvedAppPrincipal | null> {
-  const operatorPrincipal = mapOperatorHeadersToPrincipal(request, env);
-  if (operatorPrincipal) {
-    return operatorPrincipal;
+  const operatorHeadersAdmission = resolveOperatorHeadersAdmission(request, env);
+  if (operatorHeadersAdmission.kind === "admitted") {
+    return operatorHeadersAdmission.principal;
+  }
+
+  if (isOperatorRouteRequest(request)) {
+    if (operatorHeadersAdmission.kind === "internal_auth_required") {
+      throw new AppApiRouteError({
+        code: "internal_auth_required",
+        message: "Trusted internal shared secret required.",
+        retryable: false,
+        status: 401,
+      });
+    }
+
+    if (operatorHeadersAdmission.kind === "not_admitted") {
+      throw new AppApiRouteError({
+        code: "operator_identity_not_admitted",
+        message: "Operator identity is not admitted for panel access.",
+        retryable: false,
+        status: 403,
+      });
+    }
   }
 
   const auth = input.getAppAuth ? await input.getAppAuth() : await getAppAuth(env);

@@ -14,6 +14,7 @@ import {
   resolveRequestPrincipal,
 } from "../src/modules/auth/principal";
 import { getAppAuth } from "../src/modules/auth/auth";
+import type { AppApiRouteError } from "../src/http";
 
 const mockedGetAppAuth = vi.mocked(getAppAuth);
 
@@ -294,6 +295,95 @@ describe("request principal resolution", () => {
     expect(principal?.actor).not.toHaveProperty("campusScope");
     expect(principal?.authorization?.retrievalFilter).not.toHaveProperty("aclGroups");
     expect(principal?.authorization?.retrievalFilter).not.toHaveProperty("campusScope");
+  });
+
+  it("rejects operator route requests when the trusted operator email is not admitted", async () => {
+    await expect(
+      resolveRequestPrincipal(
+        new Request("https://app-api.internal/api/operator/requests", {
+          headers: {
+            "x-app-internal-auth": "trusted-secret",
+            "x-app-operator-email": "help_bot@outlook.com",
+          },
+        }),
+        {
+          APP_API_INTERNAL_SHARED_SECRET: "trusted-secret",
+          APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: "operator_identity_not_admitted",
+      message: "Operator identity is not admitted for panel access.",
+      retryable: false,
+      status: 403,
+    } satisfies Partial<AppApiRouteError>);
+
+    expect(mockedGetAppAuth).not.toHaveBeenCalled();
+  });
+
+  it("rejects operator route requests when trusted internal auth is missing", async () => {
+    await expect(
+      resolveRequestPrincipal(
+        new Request("https://app-api.internal/api/operator/requests", {
+          headers: {
+            "x-app-operator-email": "ops@example.com",
+          },
+        }),
+        {
+          APP_API_INTERNAL_SHARED_SECRET: "trusted-secret",
+          APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: "internal_auth_required",
+      message: "Trusted internal shared secret required.",
+      retryable: false,
+      status: 401,
+    } satisfies Partial<AppApiRouteError>);
+
+    expect(mockedGetAppAuth).not.toHaveBeenCalled();
+  });
+
+  it("ignores non-admitted operator headers on non-operator surfaces and falls back to session auth", async () => {
+    mockedGetAppAuth.mockResolvedValue({
+      api: {
+        getSession: vi.fn().mockResolvedValue({
+          session: {
+            expiresAt: "2026-03-29T08:00:00.000Z",
+            id: "sess_01HQ",
+          },
+          user: {
+            email: "student@example.edu",
+            id: "user_01HQ",
+            name: "Jane Doe",
+          },
+        }),
+      },
+    } as never);
+
+    const principal = await resolveRequestPrincipal(
+      new Request("https://app-api.internal/api/chat/requests", {
+        headers: {
+          "x-app-internal-auth": "trusted-secret",
+          "x-app-operator-email": "help_bot@outlook.com",
+        },
+      }),
+      {
+        APP_API_INTERNAL_SHARED_SECRET: "trusted-secret",
+        APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
+      },
+    );
+
+    expect(principal).toMatchObject({
+      principal: {
+        principalId: "user_01HQ",
+        type: "campus_member",
+      },
+      permissions: {
+        chat: true,
+        operator: false,
+      },
+    });
   });
 });
 

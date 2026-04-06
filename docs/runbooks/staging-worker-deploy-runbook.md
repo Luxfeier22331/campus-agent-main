@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-04
-updated: 2026-04-05
+updated: 2026-04-06
 ---
 
 # Staging Worker Deploy Runbook
@@ -138,6 +138,11 @@ wrangler secret put AXIOM_TOKEN --env staging
 - `AXIOM_ENDPOINT`
 - `AXIOM_DATASET`
 
+要求：
+
+- `APP_API_OPERATOR_EMAIL_ALLOWLIST` 必须显式包含当前 panel smoke / operator Access 身份；当前 staging 至少需要 `help_bot@outlook.com`
+- 如果该 allowlist miss，`/api/operator/*` 会返回 `403 operator_identity_not_admitted`，这是 operator admission 配置问题，不是 Access session 失效
+
 ### `apps/public-chat-web`
 
 在 `apps/public-chat-web` 目录执行：
@@ -174,6 +179,7 @@ wrangler secret put SENTRY_DSN --env staging
 
 - `PUBLIC_CHAT_WEB_ORIGIN` 必须精确等于 `https://chat-staging.ayafeed.com`
 - `APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST` 当前应配置为 `muc.edu.cn`；`APP_API_END_USER_EMAIL_ALLOWLIST` 当前应配置为 `help_bot@outlook.com`
+- `APP_API_OPERATOR_EMAIL_ALLOWLIST` 必须覆盖当前真实 panel operator email；缺失时 `panel-staging` Overview 可能正常，但 `Requests` / `official-web` 会在 `/api/operator/*` 上收到 `403 operator_identity_not_admitted`
 - `APP_API_INTERNAL_SHARED_SECRET` 必须精确等于 `PANEL_APP_API_SHARED_SECRET`
 - `APP_API_BASE_URL` 与 `PANEL_RUNTIME_API_BASE_URL` 必须都指向 `https://api-staging.ayafeed.com`
 - `APP_API_DB_FRESH` 必须绑定到 caching-disabled Hyperdrive config；staging auth smoke 必须覆盖 `sign-up -> immediate sign-in`
@@ -273,6 +279,8 @@ pnpm --dir apps/protected-panel-web deploy:staging
 - `protected-panel-web` hostname: `panel-staging.ayafeed.com`
 - `app-api` hostname: `api-staging.ayafeed.com`
 - Worker release: `<release>`
+- panel operator smoke identity
+- 如果 `panel-staging` 的 `/api/operator/*` 返回 `401/403`，对应的 `error.code` 与判定结果
 
 ## Exit Criteria
 

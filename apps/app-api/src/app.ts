@@ -451,6 +451,14 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     });
   }
 
+  function principalResolutionErrorResponse(error: unknown): Response {
+    if (error instanceof AppApiRouteError) {
+      return routeErrorResponse(error);
+    }
+
+    return dependencyNotReadyResponse();
+  }
+
   app.use("*", async (c, next) => {
     telemetry.configureHttpRequestScope({
       route: c.req.path,
@@ -525,8 +533,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -546,8 +554,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -713,8 +721,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -731,8 +739,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -749,8 +757,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -770,8 +778,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -795,8 +803,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -820,8 +828,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -845,8 +853,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -876,8 +884,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -901,8 +909,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -926,8 +934,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -961,8 +969,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -986,8 +994,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -1018,8 +1026,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -1043,8 +1051,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -1068,8 +1076,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -1092,8 +1100,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -1117,8 +1125,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -1151,8 +1159,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {

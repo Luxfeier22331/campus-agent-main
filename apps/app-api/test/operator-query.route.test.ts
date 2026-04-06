@@ -245,6 +245,48 @@ describe("GET /api/operator/requests", () => {
       },
     });
   });
+
+  it("returns operator admission failures instead of collapsing them into dependency_not_ready", async () => {
+    const app = createApp(env, {
+      getPrincipal: vi.fn().mockRejectedValue(
+        new AppApiRouteError({
+          code: "operator_identity_not_admitted",
+          message: "Operator identity is not admitted for panel access.",
+          retryable: false,
+          status: 403,
+        }),
+      ),
+      operatorQueryService: {
+        getById: vi.fn(),
+        getAuditById: vi.fn(),
+        getObservabilityById: vi.fn(),
+        getOverview: vi.fn(),
+        getQualitySummary: vi.fn(),
+        getQualityTimeseries: vi.fn(),
+        getSafetySummary: vi.fn(),
+        getCostSummary: vi.fn(),
+        listQualityBadcases: vi.fn(),
+        listAudit: vi.fn(),
+        list: vi.fn(),
+      },
+    });
+
+    const response = await app.fetch(
+      new Request("https://app-api.internal/api/operator/requests"),
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: "operator_identity_not_admitted",
+        details: null,
+        message: "Operator identity is not admitted for panel access.",
+        requestId: null,
+        retryable: false,
+        traceId: null,
+      },
+    });
+  });
 });
 
 describe("GET /api/operator/requests/:requestId", () => {

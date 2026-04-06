@@ -210,6 +210,10 @@ curl --noproxy '*' -sS -i https://panel-staging.ayafeed.com/readyz
 - `operator.request_projection` list/detail smoke
 - `Sentry` trace smoke
 - `Axiom` runtime event smoke
+- 进入 `Requests` lane 之前，先确认当前 Access operator email 已包含在 `app-api-staging` 的 `APP_API_OPERATOR_EMAIL_ALLOWLIST` 中；当前 staging smoke 身份是 `help_bot@outlook.com`
+- panel `Requests` / `official-web` 相关 `/api/operator/*` 如果返回 `401/403`，必须先看 `error.code`
+- `session_required`、`session_expired`、`unauthorized` 或 Cloudflare Access plain-text `401` 才能判定为 session / Access 失效
+- `operator_identity_not_admitted`、`forbidden`、`internal_auth_required`、`dependency_not_ready` 必须标记为 operator admission / bridge config / runtime issue，不能直接解释成 Access 失效并触发 logout 结论
 - 如果直接访问 `https://panel-staging.ayafeed.com/` 返回的是 Cloudflare Access `302` 登录页，则说明真实 Access 已在前面；这时若还无法继续 smoke，正确标签应是 `blocked by smoke identity/credential`
 - 只有当 direct access 再次退化成 worker 返回的 `Missing Access JWT.` 时，才应标记为 `blocked by missing Access provisioning`
 
