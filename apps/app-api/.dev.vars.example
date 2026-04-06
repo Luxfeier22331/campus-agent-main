@@ -4,6 +4,11 @@ APP_API_ENVIRONMENT=development
 BETTER_AUTH_SECRET=replace-with-dev-secret
 # Must match the deployed origin of `apps/public-chat-web`.
 PUBLIC_CHAT_WEB_ORIGIN=https://chat.example.com
+# Comma-separated campus email domain suffixes allowed for end-user sign-up/sign-in.
+# Matches exact domains and subdomains, case-insensitively.
+APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST=muc.edu.cn
+# Optional exact email exceptions for end-user sign-up/sign-in.
+APP_API_END_USER_EMAIL_ALLOWLIST=help_bot@outlook.com
 SUPERVISOR_API_BASE_URL=https://supervisor.internal
 SUPERVISOR_API_SHARED_SECRET=replace-with-supervisor-shared-secret
 SUPERVISOR_API_TIMEOUT_MS=8000
@@ -15,6 +20,8 @@ APP_API_OPERATOR_EMAIL_ALLOWLIST=ops@example.com
 # 里的 `APP_API_INTERNAL_SHARED_SECRET` 也必须复用这个值。
 APP_API_INTERNAL_SHARED_SECRET=replace-with-panel-bridge-secret
 APP_API_DATABASE_SSLMODE=prefer
+# Required for live `official_web` control-plane smoke. This must match
+# `apps/official-web-collector/.env` `OFFICIAL_WEB_SERVICE_TOKEN`.
 APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN=
 APP_API_OFFICIAL_WEB_HANDOFF_URL=
 APP_API_OFFICIAL_WEB_HANDOFF_TOKEN=

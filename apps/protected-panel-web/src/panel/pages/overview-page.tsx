@@ -1,4 +1,4 @@
-import { useEffect, useState, startTransition } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Box,
@@ -42,19 +42,25 @@ export function OverviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [record, setRecord] = useState<PanelOverviewRecord | null>(null);
+  const getOverviewRef = useRef(dataProvider.getOverview);
 
   useEffect(() => {
-    let isActive = true;
+    getOverviewRef.current = dataProvider.getOverview;
+  }, [dataProvider.getOverview]);
 
+  useEffect(() => {
+    const controller = new AbortController();
     startTransition(() => {
       setError(null);
       setIsLoading(true);
     });
 
-    void dataProvider
-      .getOverview()
-      .then((response) => {
-        if (!isActive) {
+    void (async () => {
+      try {
+        const response = await getOverviewRef.current({
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) {
           return;
         }
 
@@ -62,9 +68,8 @@ export function OverviewPage() {
           setRecord(response.data);
           setIsLoading(false);
         });
-      })
-      .catch((loadError) => {
-        if (!isActive) {
+      } catch (loadError) {
+        if (controller.signal.aborted) {
           return;
         }
 
@@ -72,10 +77,11 @@ export function OverviewPage() {
           setError(loadError instanceof Error ? loadError.message : "加载面板总览失败。");
           setIsLoading(false);
         });
-      });
+      }
+    })();
 
     return () => {
-      isActive = false;
+      controller.abort();
     };
   }, []);
 

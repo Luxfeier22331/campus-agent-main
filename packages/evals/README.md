@@ -178,6 +178,13 @@ student handbook formal benchmark：
   - 默认入口同样优先走 `app-api` internal eval ingress；包含 deterministic `failure_mode` 的 case 仍显式回退 legacy executor，保证错误注入可控
   - 本地运行前提与 handbook live runner 相同；root `.env` 里的 `APP_API_*` 仍只表示本地 eval ingress 参数
   - backlink 模板配置同 handbook live runner
+- official-web live runner 现已固定为 `campus_evals.official_web_live_benchmark`：
+  - `uv run --all-packages python -m campus_evals.official_web_live_benchmark run --reruns 1 --qdrant-collection-name <physical-collection>`
+  - `uv run --all-packages python -m campus_evals.official_web_live_benchmark repair --benchmark-dir <artifact-dir> --qdrant-collection-name <physical-collection>`
+  - `uv run --all-packages python -m campus_evals.official_web_live_benchmark accept --reruns 1 --qdrant-collection-name <physical-collection>`
+  - `uv run --all-packages python -m campus_evals.official_web_live_benchmark run --reruns 1 --official-web-scope stable_reference --qdrant-collection-name <physical-collection>`
+  - `uv run --all-packages python -m campus_evals.official_web_live_benchmark run --reruns 1 --official-web-scope fresh_news --qdrant-collection-name <physical-collection>`
+  - 该入口只做本地 deterministic 验证：通过 monkeypatch 临时打开所选 `official_web/*` scope 的 retrieval，并把 alias 指向指定 unpublished physical collection；repo-tracked `offline_preparation` truth 不会被命令行改写
 
 runtime observability artifact：
 
@@ -196,5 +203,8 @@ runtime observability artifact：
   - `--publish-grader-version <stable-version>`
   - `--publish-metric-domain-override adapter.metric=grounding|citation|policy`
   - `--publish-request-correlations <path>` 仅在仍需外部 manifest 时使用；默认优先消费 case-results 内嵌 `request_correlation`
+  - 当前 publish batch 同时消费：
+    - `supplemental_results` 中可发布的 grounding / citation / policy grader 结果
+    - `metric_results` 中已映射的 deterministic refusal 指标，例如 `deterministic.out_of_scope_accuracy`、`deterministic.unsupported_abstention_accuracy`、`deterministic.false_refusal_rate`、`deterministic.unsafe_false_allow_rate`
 - `--log-jsonl` 会把 `accept` 的 runtime log 路径拆成 `<base>.run.jsonl` 与 `<base>.repair.jsonl`
 - `--verbose` 现在会直接打印 preflight、retrying、recovered、breaker opened / fast-fail 等高信号事件，便于 live 验收时确认瞬时 provider 错误是否已经被自动重试

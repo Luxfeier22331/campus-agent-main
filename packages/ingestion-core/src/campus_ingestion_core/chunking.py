@@ -46,6 +46,13 @@ CURRICULUM_V2_TABLE_CHUNK_OVERLAP = 72
 CURRICULUM_V2_TABLE_MIN_CHUNK_SIZE = 64
 CURRICULUM_V2_STRATEGY_NAME = "curriculum_plan_structure_v2"
 CURRICULUM_CLEANING_POLICY_VERSION = "curriculum_plan_cleaning_v1"
+OFFICIAL_WEB_V2_CHUNK_POLICY_VERSION = "official_web_semantic_v2"
+OFFICIAL_WEB_CLEANING_POLICY_VERSION = "official_web_cleaning_v2"
+OFFICIAL_WEB_V2_CHUNK_SIZE = 288
+OFFICIAL_WEB_V2_MAX_CHUNK_SIZE = 384
+OFFICIAL_WEB_V2_CHUNK_OVERLAP = 48
+OFFICIAL_WEB_V2_MIN_CHUNK_SIZE = 72
+OFFICIAL_WEB_V2_STRATEGY_NAME = "official_web_structure_v2"
 
 HANDBOOK_V2_CHUNK_POLICY_VERSION = "student_handbook_semantic_v2"
 HANDBOOK_V2_CHUNK_SIZE = 384
@@ -83,6 +90,20 @@ _PREAMBLE_LINE_RE = re.compile(r"[：:]$")
 _TOP_LEVEL_CLAUSE_CONTEXT_RE = re.compile(r"^(?:[（(][一二三四五六七八九十百千万〇零两]+[)）]|[一二三四五六七八九十百千万〇零两]+、)")
 _NUMERIC_SUBCLAUSE_CONTEXT_RE = re.compile(r"^[0-9]+[.、]")
 _PAREN_NUMERIC_SUBCLAUSE_CONTEXT_RE = re.compile(r"^[（(][0-9]+[)）]")
+_OFFICIAL_WEB_PAGE_FAMILIES = frozenset(
+    {
+        "article_detail",
+        "listing_page",
+        "directory_page",
+        "generic_content_page",
+        "data_table_page",
+        "gallery_page",
+        "contact_widget_page",
+        "sitemap_navigation_page",
+        "dynamic_shell_page",
+        "structural_shell_page",
+    }
+)
 
 
 class TokenCounter(Protocol):
@@ -376,6 +397,34 @@ class CurriculumChunkingStrategy:
         return None
 
 
+class OfficialWebChunkingStrategy:
+    def split_structure_boundaries(
+        self,
+        *,
+        unit_type: str,
+        text: str,
+        chunk_profile: ChunkProfile,
+        display_budget: ResolvedDisplayBudget,
+    ) -> StructuralSplitResult | None:
+        candidate_lines = [line.strip() for line in text.splitlines() if line.strip()]
+        if len(candidate_lines) < 2:
+            return None
+        if unit_type in {"section_text", "directory_entry"}:
+            grouped = _group_lines_by_token_budget(
+                candidate_lines,
+                chunk_profile=chunk_profile,
+                display_budget=display_budget,
+                prefer_target_split=True,
+            )
+            if len(grouped) > 1 and _segments_within_budget(
+                grouped,
+                chunk_profile=chunk_profile,
+                display_budget=display_budget,
+            ):
+                return StructuralSplitResult(segments=grouped, boundary_rule="official_web_line_budget")
+        return None
+
+
 @dataclass(frozen=True, slots=True)
 class ChunkProfile:
     chunk_size: int = DEFAULT_CHUNK_SIZE
@@ -549,6 +598,29 @@ def build_curriculum_chunk_profile(
     raise ValueError(f"unsupported curriculum chunk profile version: {profile_version}")
 
 
+def build_official_web_chunk_profile(
+    *,
+    profile_version: str = OFFICIAL_WEB_V2_CHUNK_POLICY_VERSION,
+) -> ChunkProfile:
+    if profile_version != OFFICIAL_WEB_V2_CHUNK_POLICY_VERSION:
+        raise ValueError(f"unsupported official_web chunk profile version: {profile_version}")
+    return ChunkProfile(
+        chunk_size=OFFICIAL_WEB_V2_CHUNK_SIZE,
+        max_chunk_size=OFFICIAL_WEB_V2_MAX_CHUNK_SIZE,
+        chunk_overlap=OFFICIAL_WEB_V2_CHUNK_OVERLAP,
+        min_chunk_size=OFFICIAL_WEB_V2_MIN_CHUNK_SIZE,
+        split_strategy="structure_first",
+        chunk_policy_version=OFFICIAL_WEB_V2_CHUNK_POLICY_VERSION,
+        cleaning_policy_version=OFFICIAL_WEB_CLEANING_POLICY_VERSION,
+        strategy_name=OFFICIAL_WEB_V2_STRATEGY_NAME,
+        strategy=OfficialWebChunkingStrategy(),
+        token_counter=RegexApproxTokenCounter(),
+        tokenizer_name=DEFAULT_TOKENIZER_NAME,
+        final_text_aware=True,
+        safety_margin=8,
+    )
+
+
 def clean_structured_text(*, unit_type: str, text: str) -> str:
     normalized = text.replace("\r\n", "\n").replace("\r", "\n").strip()
     if unit_type in PARENT_UNIT_TYPES and "<table" in normalized.lower():
@@ -673,7 +745,12 @@ def chunk_table_unit(
             text = clean_structured_text(unit_type=unit.unit_type, text=unit.text)
         if not text:
             return ()
-        return (SemanticChunkPiece(unit_type=unit.unit_type, root_unit_id=unit.root_unit_id, text=text),)
+        return _build_table_semantic_chunk_pieces(
+            unit=unit,
+            chunk_profile=chunk_profile,
+            texts=(text,),
+            split_reason=None,
+        )
 
     prefix_lines = [*caption_lines]
     if header_line:
@@ -697,32 +774,141 @@ def chunk_table_unit(
     if current_rows:
         windows.append(current_rows)
 
-    if len(windows) == 1:
-        text = serialize_table_unit_text(
+    texts = tuple(
+        serialize_table_unit_text(
             caption_lines=caption_lines,
             header_line=header_line,
-            row_lines=tuple(windows[0]),
+            row_lines=tuple(window_rows),
             note_lines=note_lines,
         )
-        return (SemanticChunkPiece(unit_type=unit.unit_type, root_unit_id=unit.root_unit_id, text=text),)
+        for window_rows in windows
+    )
+    split_reason = "table_row_window" if len(texts) > 1 else None
+    return _build_table_semantic_chunk_pieces(
+        unit=unit,
+        chunk_profile=chunk_profile,
+        texts=texts,
+        split_reason=split_reason,
+    )
 
-    total = len(windows)
+
+def _build_table_semantic_chunk_pieces(
+    *,
+    unit: StructuredUnitChunkInput,
+    chunk_profile: ChunkProfile,
+    texts: Sequence[str],
+    split_reason: str | None,
+) -> tuple[SemanticChunkPiece, ...]:
+    piece_specs: list[tuple[str, str | None]] = []
+    for text in texts:
+        normalized_text = clean_structured_text(unit_type=unit.unit_type, text=text)
+        if not normalized_text:
+            continue
+        if estimate_token_count(normalized_text, chunk_profile=chunk_profile) <= chunk_profile.max_chunk_size:
+            piece_specs.append((normalized_text, split_reason))
+            continue
+        piece_specs.extend(
+            (piece_text, "token_guardrail")
+            for piece_text in _split_table_text_to_budget(
+                text=normalized_text,
+                unit=unit,
+                chunk_profile=chunk_profile,
+            )
+        )
+
+    if not piece_specs:
+        return ()
+
+    total = len(piece_specs)
     return tuple(
         SemanticChunkPiece(
             unit_type=unit.unit_type,
             root_unit_id=unit.root_unit_id,
-            text=serialize_table_unit_text(
-                caption_lines=caption_lines,
-                header_line=header_line,
-                row_lines=tuple(window_rows),
-                note_lines=note_lines,
-            ),
+            text=piece_text,
             segment_index=index,
             segment_total=total,
-            split_reason="table_row_window",
+            split_reason=piece_split_reason,
         )
-        for index, window_rows in enumerate(windows, start=1)
+        for index, (piece_text, piece_split_reason) in enumerate(piece_specs, start=1)
     )
+
+
+def _split_table_text_to_budget(
+    *,
+    text: str,
+    unit: StructuredUnitChunkInput,
+    chunk_profile: ChunkProfile,
+) -> tuple[str, ...]:
+    display_budget = resolve_display_budget(unit=unit, chunk_profile=chunk_profile)
+    token_spans = _tokenize_text(text)
+    windows = _split_token_windows(
+        text=text,
+        token_spans=token_spans,
+        chunk_profile=chunk_profile,
+        display_budget=display_budget,
+    )
+    windows = _merge_short_tail(
+        windows,
+        chunk_profile=chunk_profile,
+        display_budget=display_budget,
+    )
+    pieces = tuple(piece_text for _, _, piece_text in windows if piece_text.strip())
+    if pieces and all(
+        estimate_token_count(piece_text, chunk_profile=chunk_profile) <= display_budget.max_tokens
+        for piece_text in pieces
+    ):
+        return pieces
+    return _split_text_by_character_budget(
+        text=text,
+        chunk_profile=chunk_profile,
+        display_budget=display_budget,
+    )
+
+
+def _split_text_by_character_budget(
+    *,
+    text: str,
+    chunk_profile: ChunkProfile,
+    display_budget: ResolvedDisplayBudget,
+) -> tuple[str, ...]:
+    segments: list[str] = []
+    start = 0
+    text_length = len(text)
+    while start < text_length:
+        while start < text_length and text[start].isspace():
+            start += 1
+        if start >= text_length:
+            break
+        low = start + 1
+        high = text_length
+        best_end: int | None = None
+        while low <= high:
+            mid = (low + high) // 2
+            candidate = text[start:mid].strip()
+            if not candidate:
+                low = mid + 1
+                continue
+            if estimate_token_count(candidate, chunk_profile=chunk_profile) <= display_budget.max_tokens:
+                best_end = mid
+                low = mid + 1
+            else:
+                high = mid - 1
+        if best_end is None or best_end <= start:
+            raise ValueError("unable to split oversized table text within chunk budget")
+        newline_boundary = text.rfind("\n", start + 1, best_end)
+        if newline_boundary > start:
+            newline_candidate = text[start:newline_boundary].strip()
+            if newline_candidate and estimate_token_count(
+                newline_candidate,
+                chunk_profile=chunk_profile,
+            ) <= display_budget.max_tokens:
+                best_end = newline_boundary
+        piece_text = text[start:best_end].strip()
+        if not piece_text:
+            raise ValueError("table text split produced empty segment")
+        segments.append(piece_text)
+        start = best_end
+    return tuple(segments)
 
 
 def estimate_token_count(text: str, *, chunk_profile: ChunkProfile | None = None) -> int:
@@ -751,6 +937,10 @@ def build_chunk_text_context(
         if isinstance(section_path, list)
         else ()
     )
+    normalized_section_path = _dedupe_context_section_path(
+        title_text=title_text,
+        section_path=normalized_section_path,
+    )
     article_text = _normalize_context_text(resolved_anchor.get("article_label"))
     provision_text = _normalize_context_text(resolved_anchor.get("provision_label"))
     table_text = _normalize_context_text(resolved_anchor.get("table_context"))
@@ -758,6 +948,13 @@ def build_chunk_text_context(
         article_text=article_text,
         provision_text=provision_text,
         table_text=table_text,
+    )
+    page_family_text = _normalize_context_text(resolved_metadata.get("page_family"))
+    serving_intent_text = _normalize_context_text(resolved_metadata.get("serving_intent"))
+    is_official_web_promotable_context = (
+        page_family_text in _OFFICIAL_WEB_PAGE_FAMILIES
+        and serving_intent_text != "audit_only"
+        and page_family_text != "listing_page"
     )
 
     full_parts: list[str] = []
@@ -799,7 +996,8 @@ def build_chunk_text_context(
     variants: list[ChunkHeaderVariant] = []
     _append_header_variant(variants, mode="full_path", base_line=full_header, doc_no_line=doc_no_line)
     _append_header_variant(variants, mode="compact_path", base_line=compact_header, doc_no_line=doc_no_line)
-    _append_header_variant(variants, mode="compact_identity", base_line=compact_identity, doc_no_line=doc_no_line)
+    if not is_official_web_promotable_context:
+        _append_header_variant(variants, mode="compact_identity", base_line=compact_identity, doc_no_line=doc_no_line)
     _append_header_variant(
         variants,
         mode="title_only",
@@ -1481,6 +1679,18 @@ def _normalize_context_text(value: object) -> str | None:
     return normalized or None
 
 
+def _dedupe_context_section_path(*, title_text: str | None, section_path: tuple[str, ...]) -> tuple[str, ...]:
+    if not title_text or not section_path:
+        return section_path
+    if _context_text_equivalent(title_text, section_path[-1]):
+        return section_path[:-1]
+    return section_path
+
+
+def _context_text_equivalent(left: str, right: str) -> bool:
+    return left.strip().casefold() == right.strip().casefold()
+
+
 def _resolve_detail_label(
     *,
     article_text: str | None,
@@ -1562,8 +1772,10 @@ __all__ = [
     "StructuredUnitChunkInput",
     "StudentHandbookChunkingStrategy",
     "StudentHandbookChunkingStrategyV2",
+    "OfficialWebChunkingStrategy",
     "TiktokenTokenCounter",
     "assemble_chunk_text",
+    "build_official_web_chunk_profile",
     "build_chunk_text_context",
     "build_student_handbook_chunk_profile",
     "chunk_table_unit",

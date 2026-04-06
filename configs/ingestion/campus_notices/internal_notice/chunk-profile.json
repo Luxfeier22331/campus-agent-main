@@ -12,8 +12,9 @@
   },
   "cleaning_policy_version": "authenticated_notice_projection_v1",
   "notes": [
-    "Bootstrap importer emits generic structured units derived from notice-level source truth.",
-    "Keep attachment references and source-level artifacts out of chunk identity; only document units are chunked.",
+    "Bootstrap importer emits notice-body structured units for parent notices.",
+    "Attachment refs stay in source-truth and are explicitly skipped from parent notice chunking.",
+    "Downloaded attachments are materialized as derived child documents before they enter the chunk pipeline.",
     "This profile remains offline until restricted rollout and retrieval leakage guards are complete."
   ]
 }

@@ -257,6 +257,9 @@ class ContractModelsTest(unittest.TestCase):
                 "rewritten_query": "",
                 "clarification_reason": "",
                 "no_answer_reason": "",
+                "semantic_outcome": "",
+                "scope_class": "",
+                "policy_reason": "",
                 "retrieved_title_summary": (),
                 "candidate_title_summary": (),
                 "resolution_mode": "resolved_family",
@@ -274,6 +277,7 @@ class ContractModelsTest(unittest.TestCase):
                 "session_semester": "",
                 "unsupported_fields": ("offering_unit",),
                 "partial_answer": True,
+                "prompt_trace": None,
             },
         )
 
@@ -467,6 +471,8 @@ class ContractModelsTest(unittest.TestCase):
                     rewritten_query="中央民族大学本科学生国家奖学金评审办法 国奖看第一作者单位吗？",
                     clarification_reason="",
                     no_answer_reason="resolved_policy_clause_not_found",
+                    semantic_outcome="unsupported_by_evidence",
+                    scope_class="in_scope",
                     retrieved_title_summary=("中央民族大学本科学生国家奖学金评审办法",),
                 ),
             ),
@@ -481,6 +487,14 @@ class ContractModelsTest(unittest.TestCase):
         self.assertEqual(
             payload["result"]["diagnostics"]["no_answer_reason"],
             "resolved_policy_clause_not_found",
+        )
+        self.assertEqual(
+            payload["result"]["diagnostics"]["semantic_outcome"],
+            "unsupported_by_evidence",
+        )
+        self.assertEqual(
+            payload["result"]["diagnostics"]["scope_class"],
+            "in_scope",
         )
         self.assertEqual(
             tuple(payload["result"]["diagnostics"]["retrieved_title_summary"]),

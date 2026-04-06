@@ -24,12 +24,13 @@ from campus_ingestion_core.chunking import (
     TEXTUAL_UNIT_TYPES,
     assemble_chunk_text,
     build_curriculum_chunk_profile,
+    build_official_web_chunk_profile,
     build_student_handbook_chunk_profile,
     build_chunk_text_context,
     chunk_table_unit,
     chunk_structured_unit,
 )
-from campus_ingestion_core.corpus_profiles import load_runtime_profile
+from campus_ingestion_core.corpus_profiles import load_chunk_profile, load_runtime_profile
 from campus_ingestion_core.curriculum_chunk_units import (
     _is_curriculum_course_map_placeholder_unit,
     _is_curriculum_course_map_title_line,
@@ -163,6 +164,7 @@ _SHORT_TEXTUAL_DISPLAY_TOKEN_THRESHOLD = 72
 _SHORT_TEXTUAL_HEADER_RATIO_THRESHOLD = 0.4
 _SHORT_TEXTUAL_TARGET_DISPLAY_TOKENS = 120
 _SHORT_TEXTUAL_MAX_MEMBER_COUNT = 4
+_OFFICIAL_WEB_SKIPPED_CONTENT_ROLES = frozenset({"source_attribution", "boilerplate", "media_caption"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -213,12 +215,36 @@ def _build_curriculum_runtime_chunk_profile(record: DocumentRegistryRecord) -> C
     )
 
 
+def _build_official_web_runtime_chunk_profile(record: DocumentRegistryRecord) -> ChunkProfile:
+    runtime_profile = load_runtime_profile(record.corpus, record.collection)
+    return build_official_web_chunk_profile(
+        profile_version=runtime_profile.chunk_profile_version,
+    )
+
+
 def _build_generic_runtime_chunk_profile(record: DocumentRegistryRecord) -> ChunkProfile:
     runtime_profile = load_runtime_profile(record.corpus, record.collection)
+    chunk_profile = load_chunk_profile(record.corpus, record.collection)
+    if chunk_profile.chunk_profile_version != runtime_profile.chunk_profile_version:
+        raise ValueError(
+            "chunk-profile version does not match runtime-profile for "
+            f"{record.corpus}/{record.collection}: "
+            f"{chunk_profile.chunk_profile_version} != {runtime_profile.chunk_profile_version}"
+        )
+    if chunk_profile.cleaning_policy_version != runtime_profile.cleaning_policy_version:
+        raise ValueError(
+            "chunk-profile cleaning policy does not match runtime-profile for "
+            f"{record.corpus}/{record.collection}: "
+            f"{chunk_profile.cleaning_policy_version} != {runtime_profile.cleaning_policy_version}"
+        )
     return ChunkProfile(
+        chunk_size=chunk_profile.runtime_defaults.chunk_size,
+        max_chunk_size=chunk_profile.runtime_defaults.max_chunk_size,
+        chunk_overlap=chunk_profile.runtime_defaults.chunk_overlap,
+        min_chunk_size=chunk_profile.runtime_defaults.min_chunk_size,
         chunk_policy_version=runtime_profile.chunk_profile_version,
         cleaning_policy_version=runtime_profile.cleaning_policy_version,
-        strategy_name=f"{record.collection}_generic",
+        strategy_name=chunk_profile.runtime_defaults.strategy_name,
         strategy=None,
     )
 
@@ -344,6 +370,18 @@ def _should_skip_curriculum_unit(unit: StructuredUnit, table_roots_with_semantic
     return _is_curriculum_course_map_noise_unit(unit)
 
 
+def _should_skip_official_web_unit(unit: StructuredUnit, table_roots_with_semantic_units: set[str]) -> bool:
+    if _should_skip_generic_unit(unit, table_roots_with_semantic_units):
+        return True
+    return str(unit.metadata.get("content_role") or "").strip() in _OFFICIAL_WEB_SKIPPED_CONTENT_ROLES
+
+
+def _should_skip_internal_notice_unit(unit: StructuredUnit, table_roots_with_semantic_units: set[str]) -> bool:
+    if unit.unit_type == "attachment_ref":
+        return True
+    return _should_skip_generic_unit(unit, table_roots_with_semantic_units)
+
+
 def _postprocess_default_chunk_candidates(
     chunk_candidates: Sequence[_ChunkCandidate],
     record: DocumentRegistryRecord,
@@ -420,10 +458,28 @@ _COLLECTION_CHUNK_STRATEGIES: dict[tuple[str, str], _CollectionChunkStrategy] = 
         should_skip_unit=_should_skip_curriculum_unit,
         postprocess_candidates=_postprocess_curriculum_chunk_candidates,
     ),
+    ("official_web", "muc_public_pages"): _CollectionChunkStrategy(
+        build_chunk_profile=_build_official_web_runtime_chunk_profile,
+        load_structured_units=_load_default_structured_units,
+        build_unit_pieces=_build_default_unit_pieces,
+        resolve_unit_chunk_profile=_resolve_default_unit_chunk_profile,
+        should_skip_unit=_should_skip_official_web_unit,
+        postprocess_candidates=_postprocess_default_chunk_candidates,
+    ),
+    ("campus_notices", "internal_notice"): _CollectionChunkStrategy(
+        build_chunk_profile=_build_generic_runtime_chunk_profile,
+        load_structured_units=_load_default_structured_units,
+        build_unit_pieces=_build_default_unit_pieces,
+        resolve_unit_chunk_profile=_resolve_default_unit_chunk_profile,
+        should_skip_unit=_should_skip_internal_notice_unit,
+        postprocess_candidates=_postprocess_default_chunk_candidates,
+    ),
 }
 
 
 def _resolve_collection_chunk_strategy(record: DocumentRegistryRecord) -> _CollectionChunkStrategy:
+    if record.corpus == "official_web":
+        return _COLLECTION_CHUNK_STRATEGIES[("official_web", "muc_public_pages")]
     return _COLLECTION_CHUNK_STRATEGIES.get((record.corpus, record.collection), _DEFAULT_COLLECTION_CHUNK_STRATEGY)
 
 

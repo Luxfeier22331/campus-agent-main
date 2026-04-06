@@ -133,6 +133,19 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertEqual(decision.intent_frame.risk_level, "high")
         self.assertEqual(decision.intent_frame.suggested_next_action, "approval_required")
 
+    def test_route_request_keeps_obvious_external_world_query_out_of_scope(self) -> None:
+        request = SupervisorRequest(
+            user_goal="MIT的校长是谁",
+            requested_capability="knowledge",
+        )
+
+        decision = route_request(SupervisorRequestContext.from_request(request))
+
+        self.assertIsNone(decision.target)
+        self.assertEqual(decision.intent_frame.suggested_next_action, "out_of_scope")
+        self.assertEqual(decision.intent_frame.scope_class, "out_of_scope")
+        self.assertEqual(decision.intent_frame.policy_reason, "product_scope_boundary")
+
     def test_route_request_rejects_conflicting_knowledge_and_availability_hints(self) -> None:
         request = SupervisorRequest(
             user_goal="官网能打开吗，顺便告诉我开馆时间",

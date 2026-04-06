@@ -7,11 +7,17 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
+from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef, SourceObservation
+from campus_ingestion_core.authenticated_notice_closeout_store import (
+    PostgresAuthenticatedNoticeCloseoutStore,
+    build_authenticated_notice_closeout_store_from_env,
+)
 from campus_ingestion_core.registry import (
     DEFAULT_DOCUMENT_REGISTRY_TABLE,
     DEFAULT_RAW_ASSET_REGISTRY_TABLE,
     PostgresDocumentRegistry,
+    PostgresRawAssetRegistry,
     _ensure_table_schema,
     _document_record_from_dict,
     _raw_asset_record_from_dict,
@@ -668,6 +674,38 @@ class RegistryModelsTest(unittest.TestCase):
                 curriculum_record,
             )
 
+    def test_file_raw_asset_registry_replace_scope_replaces_only_target_scope(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "raw-assets.json"
+            registry = InMemoryRawAssetRegistry(backing_path=path)
+            handbook_record = _handbook_raw_asset_record()
+            curriculum_record = _curriculum_raw_asset_record()
+            handbook_replacement = RawAssetRecord(
+                raw_asset_id="asset:student-handbook-pdf-v2",
+                raw_version_id="sha256:raw-003",
+                corpus="regulations",
+                collection="student_handbook",
+                raw_source_uri="campusrag://raw/regulations/student_handbook/student-handbook-v2.pdf",
+                content_hash="raw-003",
+                source_filename="student-handbook-v2.pdf",
+                object_key="official_pdf/student-handbook/undated/sha256/raw-003/capture/student-handbook-v2.pdf",
+                ingestion_timestamp="2026-03-23T10:00:00+00:00",
+                import_source="raw_online_ocr",
+            )
+            registry.upsert(handbook_record)
+            registry.upsert(curriculum_record)
+
+            registry.replace_scope("regulations", "student_handbook", (handbook_replacement,))
+
+            self.assertEqual(
+                registry.list_by_scope("regulations", "student_handbook"),
+                (handbook_replacement,),
+            )
+            self.assertEqual(
+                registry.list_by_scope("curriculum", "curriculum_plan"),
+                (curriculum_record,),
+            )
+
     def test_curriculum_plan_records_are_supported(self) -> None:
         document_record = _curriculum_document_record()
         raw_asset_record = _curriculum_raw_asset_record()
@@ -698,6 +736,18 @@ class RegistryModelsTest(unittest.TestCase):
 
             self.assertIs(registry, instance)
             registry_cls.assert_called_once_with("postgresql://shared.example/postgres")
+
+    def test_build_document_registry_from_env_rejects_supabase_direct_connection(self) -> None:
+        with patch.object(PostgresDocumentRegistry, "_ensure_schema", return_value=None):
+            with self.assertRaisesRegex(ValueError, "session pooler"):
+                build_document_registry_from_env(
+                    {
+                        "DOCUMENT_REGISTRY_DATABASE_URL": (
+                            "postgresql://postgres:secret@"
+                            "db.project-ref.supabase.co:5432/postgres?sslmode=require"
+                        )
+                    }
+                )
 
     def test_build_raw_asset_registry_from_env_uses_database_url(self) -> None:
         with patch("campus_ingestion_core.registry.PostgresRawAssetRegistry") as registry_cls:
@@ -735,6 +785,18 @@ class RegistryModelsTest(unittest.TestCase):
             self.assertIs(registry, instance)
             registry_cls.assert_called_once_with("postgresql://shared.example/postgres")
 
+    def test_build_raw_asset_registry_from_env_rejects_supabase_transaction_pooler(self) -> None:
+        with patch.object(PostgresRawAssetRegistry, "_ensure_schema", return_value=None):
+            with self.assertRaisesRegex(ValueError, "session pooler"):
+                build_raw_asset_registry_from_env(
+                    {
+                        "RAW_ASSET_REGISTRY_DATABASE_URL": (
+                            "postgresql://postgres:secret@"
+                            "db.project-ref.supabase.co:6543/postgres?sslmode=require"
+                        )
+                    }
+                )
+
     def test_build_raw_asset_registry_from_env_accepts_dedicated_database_url_without_document_registry(self) -> None:
         with patch("campus_ingestion_core.registry.PostgresRawAssetRegistry") as registry_cls:
             instance = registry_cls.return_value
@@ -745,6 +807,22 @@ class RegistryModelsTest(unittest.TestCase):
 
             self.assertIs(registry, instance)
             registry_cls.assert_called_once_with("postgresql://raw-registry.example/postgres")
+
+    def test_build_closeout_store_from_env_rejects_supabase_direct_connection(self) -> None:
+        with patch.object(
+            PostgresAuthenticatedNoticeCloseoutStore,
+            "_ensure_schema",
+            return_value=None,
+        ):
+            with self.assertRaisesRegex(ValueError, "session pooler"):
+                build_authenticated_notice_closeout_store_from_env(
+                    {
+                        "AUTHENTICATED_NOTICE_CLOSEOUT_DATABASE_URL": (
+                            "postgresql://postgres:secret@"
+                            "db.project-ref.supabase.co:5432/postgres?sslmode=require"
+                        )
+                    }
+                )
 
     def test_postgres_document_registry_delete_document_targets_document_id(self) -> None:
         with patch.object(PostgresDocumentRegistry, "_ensure_schema", return_value=None):
@@ -780,6 +858,261 @@ class RegistryModelsTest(unittest.TestCase):
         ):
             self.assertIsNone(registry.current_version("handbook:test-001"))
             latest_versions.assert_not_called()
+
+    def test_postgres_document_registry_list_by_scope_canonicalizes_legacy_authz_projection_keys(self) -> None:
+        legacy_payload = {
+            "document_id": "official_web:test-001",
+            "revision_track": "source-faithful",
+            "version_id": "owdocver:test-001",
+            "source_uri": "https://www.example.edu/test-001.htm",
+            "content_hash": "sha256:test-001",
+            "corpus": "official_web",
+            "collection": "muc_public_pages",
+            "cleaning_policy_version": "official_web_cleaning_v2",
+            "acl_level": "restricted",
+            "acl_groups": ["legacy-staff"],
+            "campus_scope": "south",
+            "status": "active",
+            "ingestion_timestamp": "2026-04-04T10:00:00+00:00",
+            "parser_version": "official_web_projection_replay.v1",
+            "embedding_model": "",
+            "source_channel": "official_web",
+            "import_source": "official_web_source_truth_replay",
+        }
+
+        with patch.object(PostgresDocumentRegistry, "_ensure_schema", return_value=None):
+            registry = PostgresDocumentRegistry("postgresql://registry.example/postgres")
+
+        with patch.object(registry, "_fetchall", return_value=((json.dumps(legacy_payload),),)):
+            records = registry.list_by_scope("official_web", "muc_public_pages")
+
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].entitlement_groups, ("legacy-staff",))
+        self.assertEqual(records[0].visibility_scope, "south")
+        self.assertEqual(records[0].visibility_level, "restricted")
+        self.assertEqual(records[0].policy_projection_version, DEFAULT_POLICY_PROJECTION_VERSION)
+
+    def test_postgres_document_registry_get_canonicalizes_legacy_authz_projection_keys(self) -> None:
+        legacy_payload = {
+            "document_id": "official_web:test-001",
+            "revision_track": "source-faithful",
+            "version_id": "owdocver:test-001",
+            "source_uri": "https://www.example.edu/test-001.htm",
+            "content_hash": "sha256:test-001",
+            "corpus": "official_web",
+            "collection": "muc_public_pages",
+            "cleaning_policy_version": "official_web_cleaning_v2",
+            "acl_level": "restricted",
+            "acl_groups": ["legacy-staff"],
+            "campus_scope": "south",
+            "status": "active",
+            "ingestion_timestamp": "2026-04-04T10:00:00+00:00",
+            "parser_version": "official_web_projection_replay.v1",
+            "embedding_model": "",
+            "source_channel": "official_web",
+            "import_source": "official_web_source_truth_replay",
+        }
+
+        with patch.object(PostgresDocumentRegistry, "_ensure_schema", return_value=None):
+            registry = PostgresDocumentRegistry("postgresql://registry.example/postgres")
+
+        with patch.object(registry, "_fetchone", return_value=(json.dumps(legacy_payload),)):
+            record = registry.get("official_web:test-001", "source-faithful", "owdocver:test-001")
+
+        self.assertIsNotNone(record)
+        assert record is not None
+        self.assertEqual(record.entitlement_groups, ("legacy-staff",))
+        self.assertEqual(record.visibility_scope, "south")
+        self.assertEqual(record.visibility_level, "restricted")
+        self.assertEqual(record.policy_projection_version, DEFAULT_POLICY_PROJECTION_VERSION)
+
+    def test_postgres_document_registry_latest_versions_canonicalizes_legacy_authz_projection_keys(self) -> None:
+        legacy_payload = {
+            "document_id": "official_web:test-003",
+            "revision_track": "source-faithful",
+            "version_id": "owdocver:test-003",
+            "source_uri": "https://www.example.edu/test-003.htm",
+            "content_hash": "sha256:test-003",
+            "corpus": "official_web",
+            "collection": "muc_public_pages",
+            "cleaning_policy_version": "official_web_cleaning_v2",
+            "acl_level": "restricted",
+            "acl_groups": ["legacy-editors"],
+            "campus_scope": "north",
+            "status": "active",
+            "ingestion_timestamp": "2026-04-04T10:00:00+00:00",
+            "parser_version": "official_web_projection_replay.v1",
+            "embedding_model": "",
+            "source_channel": "official_web",
+            "import_source": "official_web_source_truth_replay",
+        }
+
+        with patch.object(PostgresDocumentRegistry, "_ensure_schema", return_value=None):
+            registry = PostgresDocumentRegistry("postgresql://registry.example/postgres")
+
+        with patch.object(registry, "_fetchone", return_value=(json.dumps(legacy_payload),)):
+            records = registry.latest_versions("official_web:test-003", "source-faithful")
+
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].entitlement_groups, ("legacy-editors",))
+        self.assertEqual(records[0].visibility_scope, "north")
+        self.assertEqual(records[0].visibility_level, "restricted")
+        self.assertEqual(records[0].policy_projection_version, DEFAULT_POLICY_PROJECTION_VERSION)
+
+    def test_postgres_document_registry_current_version_canonicalizes_legacy_authz_projection_keys(self) -> None:
+        legacy_payload = {
+            "document_id": "official_web:test-002",
+            "revision_track": "source-faithful",
+            "version_id": "owdocver:test-002",
+            "source_uri": "https://www.example.edu/test-002.htm",
+            "content_hash": "sha256:test-002",
+            "corpus": "official_web",
+            "collection": "muc_public_pages",
+            "cleaning_policy_version": "official_web_cleaning_v2",
+            "acl_level": "restricted",
+            "acl_groups": ["legacy-operators"],
+            "campus_scope": "main",
+            "status": "active",
+            "ingestion_timestamp": "2026-04-04T10:00:00+00:00",
+            "parser_version": "official_web_projection_replay.v1",
+            "embedding_model": "",
+            "source_channel": "official_web",
+            "is_current": True,
+            "import_source": "official_web_source_truth_replay",
+        }
+
+        with patch.object(PostgresDocumentRegistry, "_ensure_schema", return_value=None):
+            registry = PostgresDocumentRegistry("postgresql://registry.example/postgres")
+
+        with patch.object(registry, "_fetchone", return_value=(json.dumps(legacy_payload),)):
+            record = registry.current_version("official_web:test-002")
+
+        self.assertIsNotNone(record)
+        assert record is not None
+        self.assertEqual(record.entitlement_groups, ("legacy-operators",))
+        self.assertEqual(record.visibility_scope, "main")
+        self.assertEqual(record.visibility_level, "restricted")
+        self.assertEqual(record.policy_projection_version, DEFAULT_POLICY_PROJECTION_VERSION)
+
+    def test_postgres_document_registry_replace_scope_uses_bulk_recordset_insert(self) -> None:
+        class _RecordingCursor:
+            def __init__(self) -> None:
+                self.execute_calls: list[tuple[str, tuple[object, ...] | None]] = []
+                self.executemany_calls: list[tuple[str, tuple[tuple[object, ...], ...]]] = []
+
+            def execute(self, sql: str, params: tuple[object, ...] | None = None) -> None:
+                self.execute_calls.append((sql, params))
+
+            def executemany(self, sql: str, params_seq) -> None:
+                self.executemany_calls.append((sql, tuple(params_seq)))
+
+        class _CursorContext:
+            def __init__(self, cursor: _RecordingCursor) -> None:
+                self.cursor = cursor
+
+            def __enter__(self) -> _RecordingCursor:
+                return self.cursor
+
+            def __exit__(self, exc_type, exc, tb) -> bool:
+                return False
+
+        class _ConnectionContext:
+            def __init__(self, cursor: _RecordingCursor) -> None:
+                self._cursor = cursor
+
+            def __enter__(self) -> _ConnectionContext:
+                return self
+
+            def __exit__(self, exc_type, exc, tb) -> bool:
+                return False
+
+            def cursor(self) -> _CursorContext:
+                return _CursorContext(self._cursor)
+
+        with patch.object(PostgresDocumentRegistry, "_ensure_schema", return_value=None):
+            registry = PostgresDocumentRegistry("postgresql://registry.example/postgres")
+        cursor = _RecordingCursor()
+        handbook_record = _handbook_document_record(
+            version_id="v2:test-001",
+            content_hash="sha256:test-002",
+            ingestion_timestamp="2026-03-23T10:00:00+00:00",
+        )
+        curriculum_record = _curriculum_document_record()
+
+        with patch(
+            "campus_ingestion_core.registry._postgres_connection",
+            return_value=_ConnectionContext(cursor),
+        ):
+            registry.replace_scope(
+                "regulations",
+                "student_handbook",
+                (handbook_record, curriculum_record),
+            )
+
+        self.assertEqual(cursor.executemany_calls, [])
+        self.assertTrue(
+            any("jsonb_to_recordset" in sql for sql, _params in cursor.execute_calls)
+        )
+
+    def test_postgres_raw_asset_registry_upsert_many_uses_bulk_recordset_insert(self) -> None:
+        class _RecordingCursor:
+            def __init__(self) -> None:
+                self.execute_calls: list[tuple[str, tuple[object, ...] | None]] = []
+                self.executemany_calls: list[tuple[str, tuple[tuple[object, ...], ...]]] = []
+
+            def execute(self, sql: str, params: tuple[object, ...] | None = None) -> None:
+                self.execute_calls.append((sql, params))
+
+            def executemany(self, sql: str, params_seq) -> None:
+                self.executemany_calls.append((sql, tuple(params_seq)))
+
+        class _CursorContext:
+            def __init__(self, cursor: _RecordingCursor) -> None:
+                self.cursor = cursor
+
+            def __enter__(self) -> _RecordingCursor:
+                return self.cursor
+
+            def __exit__(self, exc_type, exc, tb) -> bool:
+                return False
+
+        class _ConnectionContext:
+            def __init__(self, cursor: _RecordingCursor) -> None:
+                self._cursor = cursor
+
+            def __enter__(self) -> _ConnectionContext:
+                return self
+
+            def __exit__(self, exc_type, exc, tb) -> bool:
+                return False
+
+            def cursor(self) -> _CursorContext:
+                return _CursorContext(self._cursor)
+
+        with patch.object(PostgresRawAssetRegistry, "_ensure_schema", return_value=None):
+            registry = PostgresRawAssetRegistry("postgresql://registry.example/postgres")
+        cursor = _RecordingCursor()
+        first = replace(
+            _handbook_raw_asset_record(),
+            raw_asset_id="asset:001",
+            raw_version_id="sha256:001",
+        )
+        second = replace(
+            _curriculum_raw_asset_record(),
+            raw_asset_id="asset:002",
+            raw_version_id="sha256:002",
+        )
+
+        with patch(
+            "campus_ingestion_core.registry._postgres_connection",
+            return_value=_ConnectionContext(cursor),
+        ):
+            registry.upsert_many((first, second))
+
+        self.assertEqual(cursor.executemany_calls, [])
+        self.assertTrue(
+            any("jsonb_to_recordset" in sql for sql, _params in cursor.execute_calls)
+        )
 
     def test_ensure_table_schema_serializes_schema_bootstrap_with_advisory_lock(self) -> None:
         class _RecordingCursor:

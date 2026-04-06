@@ -11,10 +11,11 @@ export type { AppAuth, AppAuthGetter, AppAuthResolutionInput, CreateAppAuthInput
 export {
   buildInternalEvalPrincipal,
   buildExecutionAuthorizationContext,
+  hasTrustedInternalRequest,
   hasMatchingInternalSecret,
   mapSessionToAppPrincipal,
+  mapSessionToCampusMemberPrincipal,
   mapOperatorHeadersToPrincipal,
-  mapSessionToPublicUserPrincipal,
   resolveOfficialWebCollectorPrincipal,
   resolveRequestPrincipal,
 } from "./principal";

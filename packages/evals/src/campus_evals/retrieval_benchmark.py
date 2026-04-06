@@ -59,6 +59,11 @@ def main(argv: list[str] | None = None) -> int:
                     "recall_at_5": summary.recall_at_5,
                     "precision_at_5": summary.precision_at_5,
                     "mrr_at_5": summary.mrr_at_5,
+                    "doc_hit_at_1": summary.doc_hit_at_1,
+                    "doc_hit_at_3": summary.doc_hit_at_3,
+                    "doc_recall_at_5": summary.doc_recall_at_5,
+                    "doc_precision_at_5": summary.doc_precision_at_5,
+                    "doc_mrr_at_5": summary.doc_mrr_at_5,
                     "forbidden_hit_rate": summary.forbidden_hit_rate,
                     "by_split": {
                         name: {
@@ -68,6 +73,11 @@ def main(argv: list[str] | None = None) -> int:
                             "recall_at_5": item.recall_at_5,
                             "precision_at_5": item.precision_at_5,
                             "mrr_at_5": item.mrr_at_5,
+                            "doc_hit_at_1": item.doc_hit_at_1,
+                            "doc_hit_at_3": item.doc_hit_at_3,
+                            "doc_recall_at_5": item.doc_recall_at_5,
+                            "doc_precision_at_5": item.doc_precision_at_5,
+                            "doc_mrr_at_5": item.doc_mrr_at_5,
                             "forbidden_hit_rate": item.forbidden_hit_rate,
                         }
                         for name, item in summary.by_split.items()

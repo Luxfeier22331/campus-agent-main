@@ -42,13 +42,13 @@ function createOperatorPrincipal(): ResolvedAppPrincipal {
   };
 }
 
-function createPublicPrincipal(): ResolvedAppPrincipal {
+function createCampusPrincipal(): ResolvedAppPrincipal {
   return {
     actor: {
       departments: [],
       principalId: "user_01HQ",
-      principalType: "public_user",
-      roles: ["public_user"],
+      principalType: "campus_member",
+      roles: ["campus_member"],
       userId: "user_01HQ",
     },
     permissions: {
@@ -59,7 +59,7 @@ function createPublicPrincipal(): ResolvedAppPrincipal {
       displayName: "Jane Doe",
       email: "jane@example.edu",
       principalId: "user_01HQ",
-      type: "public_user",
+      type: "campus_member",
     },
     session: {
       expiresAt: "2026-03-29T07:00:00.000Z",
@@ -213,7 +213,7 @@ describe("GET /api/operator/requests", () => {
     });
 
     const appWithUserPrincipal = createApp(env, {
-      getPrincipal: vi.fn().mockResolvedValue(createPublicPrincipal()),
+      getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
       operatorQueryService: {
         getById: vi.fn(),
         getAuditById: vi.fn(),
@@ -239,6 +239,48 @@ describe("GET /api/operator/requests", () => {
         code: "forbidden",
         details: null,
         message: "Operator access is not available for this principal.",
+        requestId: null,
+        retryable: false,
+        traceId: null,
+      },
+    });
+  });
+
+  it("returns operator admission failures instead of collapsing them into dependency_not_ready", async () => {
+    const app = createApp(env, {
+      getPrincipal: vi.fn().mockRejectedValue(
+        new AppApiRouteError({
+          code: "operator_identity_not_admitted",
+          message: "Operator identity is not admitted for panel access.",
+          retryable: false,
+          status: 403,
+        }),
+      ),
+      operatorQueryService: {
+        getById: vi.fn(),
+        getAuditById: vi.fn(),
+        getObservabilityById: vi.fn(),
+        getOverview: vi.fn(),
+        getQualitySummary: vi.fn(),
+        getQualityTimeseries: vi.fn(),
+        getSafetySummary: vi.fn(),
+        getCostSummary: vi.fn(),
+        listQualityBadcases: vi.fn(),
+        listAudit: vi.fn(),
+        list: vi.fn(),
+      },
+    });
+
+    const response = await app.fetch(
+      new Request("https://app-api.internal/api/operator/requests"),
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: "operator_identity_not_admitted",
+        details: null,
+        message: "Operator identity is not admitted for panel access.",
         requestId: null,
         retryable: false,
         traceId: null,
@@ -390,18 +432,21 @@ describe("GET /api/operator/requests/:requestId", () => {
           diagnostics: {
             clarificationReason: null,
             noAnswerReason: "resolved_policy_clause_not_found",
+            policyReason: null,
             resolvedPolicyDocumentId:
               "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
             resolvedPolicyTitle: "中央民族大学本科学生国家奖学金评审办法",
             retrievedTitleSummary: ["中央民族大学本科学生国家奖学金评审办法"],
             rewrittenQuery:
               "中央民族大学本科学生国家奖学金评审办法 民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+            scopeClass: null,
+            semanticOutcome: null,
           },
           durationMs: 842,
           errorCode: null,
           principalId: "user_01HQ",
           principalLabel: "Jane Doe",
-          principalType: "public_user",
+          principalType: "campus_member",
           projectedAt: "2026-03-28T08:00:02.000Z",
           questionPreview: "民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
           requestId: "req_01HQ",
@@ -444,18 +489,21 @@ describe("GET /api/operator/requests/:requestId", () => {
         diagnostics: {
           clarificationReason: null,
           noAnswerReason: "resolved_policy_clause_not_found",
+          policyReason: null,
           resolvedPolicyDocumentId:
             "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
           resolvedPolicyTitle: "中央民族大学本科学生国家奖学金评审办法",
           retrievedTitleSummary: ["中央民族大学本科学生国家奖学金评审办法"],
           rewrittenQuery:
             "中央民族大学本科学生国家奖学金评审办法 民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+          scopeClass: null,
+          semanticOutcome: null,
         },
         durationMs: 842,
         errorCode: null,
         principalId: "user_01HQ",
         principalLabel: "Jane Doe",
-        principalType: "public_user",
+        principalType: "campus_member",
         projectedAt: "2026-03-28T08:00:02.000Z",
         questionPreview: "民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
         requestId: "req_01HQ",
@@ -1314,7 +1362,7 @@ describe("GET /api/operator/audit", () => {
             auditEventId: "aevt_01HQ",
             eventType: "request.completed",
             occurredAt: "2026-03-28T08:00:01.000Z",
-            principalType: "public_user",
+            principalType: "campus_member",
             requestId: "req_01HQ",
             selectedTarget: "rag-specialist",
             status: "completed",
@@ -1348,7 +1396,7 @@ describe("GET /api/operator/audit", () => {
           auditEventId: "aevt_01HQ",
           eventType: "request.completed",
           occurredAt: "2026-03-28T08:00:01.000Z",
-          principalType: "public_user",
+          principalType: "campus_member",
           requestId: "req_01HQ",
           selectedTarget: "rag-specialist",
           status: "completed",
@@ -1394,7 +1442,7 @@ describe("GET /api/operator/audit/:auditEventId", () => {
           eventType: "request.completed",
           occurredAt: "2026-03-28T08:00:01.000Z",
           policyProjectionVersion: "2026-03-29",
-          principalType: "public_user",
+          principalType: "campus_member",
           requestId: "req_01HQ",
           requestedCapability: "knowledge",
           selectedTarget: "rag-specialist",
@@ -1443,7 +1491,7 @@ describe("GET /api/operator/audit/:auditEventId", () => {
         eventType: "request.completed",
         occurredAt: "2026-03-28T08:00:01.000Z",
         policyProjectionVersion: "2026-03-29",
-        principalType: "public_user",
+        principalType: "campus_member",
         requestId: "req_01HQ",
         requestedCapability: "knowledge",
         selectedTarget: "rag-specialist",

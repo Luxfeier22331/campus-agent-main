@@ -2,7 +2,7 @@
 doc_type: plan
 status: active
 created: 2026-04-03
-updated: 2026-04-03
+updated: 2026-04-05
 ---
 
 # Authenticated Notice Source Foundation
@@ -139,6 +139,39 @@ updated: 2026-04-03
 
 - 先独立 restricted collection
 - 暂不混入 public collection
+
+当前这条 wave 的实现重点已经从“能导入 notice”前移到“消费已导入 source-truth”：
+
+- parent notice document 从 source-truth replay 重建，只保留 notice 正文结构单元
+- `attachment-refs.jsonl` 不再继续混入父 notice document-units
+- 已下载附件按 extraction class 生成 restricted child documents，并继承父 notice 授权投影
+- scope refresh 使用一次 `replace_scope(corpus, collection, records)` 收口父 notice 与 child attachment documents
+
+本轮固定 extraction class：
+
+- `reference_only`
+  - 只保留 attachment ref truth，不生成 child document
+- `text_extractable`
+  - 当前至少覆盖 `docx`
+- `ocr_required`
+  - 当前至少覆盖 image-heavy historical corpus：`png`、`jpg`、`jpeg`、`bmp`、`gif`
+- `unsupported_binary`
+  - 直接 fail，不做隐式降级
+
+当前历史附件现实分布决定了 wave 3 必须把 image OCR 放在主路径上，而不是先围绕 Office 文档设计：
+
+- `attachments-20260403-full.json` 总量：`2399`
+- `image/png`：`1575`
+- `image/jpeg`：`819`
+- `docx`：`1`
+
+因此本轮 implementation 目标是：
+
+- repo-native source projection config
+- attachment projection/materialization runner
+- parent/child document replay tests
+- `internal_notice` collection-specific chunk guard，显式跳过 `attachment_ref`
+- restricted scope rebuild verification
 
 ### Wave 4：Collector Repo Migration
 

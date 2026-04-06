@@ -294,9 +294,12 @@ describe("supervisor execution adapter", () => {
                 model_name: "gpt-5.2-mini",
                 model_provider: "openai",
                 output_tokens: 229,
+                policy_reason: null,
                 refusal_class: null,
                 retrieved_source_count: 2,
                 retrieval_attempted: true,
+                scope_class: "in_scope",
+                semantic_outcome: "grounded_answer",
               },
               result: {
                 evidence: {
@@ -340,9 +343,12 @@ describe("supervisor execution adapter", () => {
         modelName: "gpt-5.2-mini",
         modelProvider: "openai",
         outputTokens: 229,
+        policyReason: null,
         refusalClass: null,
         retrievedSourceCount: 2,
         retrievalAttempted: true,
+        scopeClass: "in_scope",
+        semanticOutcome: "grounded_answer",
       },
       result: {
         evidence: {

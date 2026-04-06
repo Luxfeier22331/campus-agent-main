@@ -52,6 +52,7 @@ Current runtime scope:
 Runtime hardening baseline:
 
 - `GET /readyz` now fails closed unless database binding, Better Auth origin, operator allowlist, internal bridge secret, and supervisor config are all present
+- end-user Better Auth email/password sign-up and sign-in are admitted only for configured campus email domain suffixes plus optional exact-email exceptions
 - `GET /readyz` also reports whether the optional `official_web` ingestion handoff runtime is configured
 - auth responses, chat responses, and operator query responses default to `Cache-Control: no-store`
 - Better Auth keeps origin / CSRF checks enabled and turns on production rate limiting
@@ -121,6 +122,8 @@ Environment:
 - `APP_API_OFFICIAL_WEB_HANDOFF_TIMEOUT_MS`
 - `BETTER_AUTH_SECRET`
 - `PUBLIC_CHAT_WEB_ORIGIN`
+- `APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST`
+- `APP_API_END_USER_EMAIL_ALLOWLIST`
 - `SUPERVISOR_API_BASE_URL`
 - `SUPERVISOR_API_SHARED_SECRET`
 - `SUPERVISOR_API_TIMEOUT_MS`
@@ -136,11 +139,27 @@ Environment:
 - `AXIOM_DATASET`
 - `AXIOM_TOKEN`
 
+Local development:
+
+- `pnpm dev` runs `wrangler dev -e local`
+- the local Worker runtime expects the `APP_API_DB` Hyperdrive binding from `wrangler.toml` `env.local`
+- put local Wrangler / Drizzle process env in `apps/app-api/.env`
+  - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=...`
+  - `APP_API_MANAGEMENT_DATABASE_URL=...`
+- if the root worktree `.env` already has `CAMPUS_SHARED_POSTGRES_URL`, use
+  `uv run --all-packages python -m scripts.sync_app_api_local_db_env --repo-root <current-worktree-root>`
+  to generate `apps/app-api/.env`
+- put Worker string env in `apps/app-api/.dev.vars`
+- for `official_web` live control-plane smoke,
+  `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` must be non-empty and must match
+  `apps/official-web-collector/.env` `OFFICIAL_WEB_SERVICE_TOKEN`
+
 Deployment minimum gate:
 
 - `APP_API_DB.connectionString` must resolve from the provisioned Worker `APP_API_DB` binding or `GET /readyz` remains `503`
 - `APP_API_DB_FRESH.connectionString` should resolve from a caching-disabled Hyperdrive binding in deployed envs so auth-sensitive read-after-write paths stay fresh
 - `PUBLIC_CHAT_WEB_ORIGIN` must exactly match the deployed `public-chat-web` origin because Better Auth keeps origin / CSRF checks enabled for proxied `/api/auth/*`
+- `APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST` must contain the admitted campus email suffixes for end-user auth; `APP_API_END_USER_EMAIL_ALLOWLIST` is optional for explicit exceptions
 - `APP_API_INTERNAL_SHARED_SECRET` must exactly match `PANEL_APP_API_SHARED_SECRET` in `apps/protected-panel-web`
 - `APP_API_OPERATOR_EMAIL_ALLOWLIST` must contain the real operator emails expected to use the protected panel bridge
 - `SUPERVISOR_API_BASE_URL` and `SUPERVISOR_API_SHARED_SECRET` must be present together; partial configuration does not produce a ready runtime
@@ -154,6 +173,7 @@ pnpm db:ensure-app-auth-role-search-path
 pnpm db:bootstrap
 pnpm db:adopt-shared -- --json
 pnpm db:reconcile-shared-drift -- --json
+pnpm official-web:drain-projection -- --limit 50
 pnpm projection:drain
 pnpm test
 pnpm test:all

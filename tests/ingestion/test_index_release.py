@@ -14,31 +14,41 @@ def _make_chunk(
     section_path: list[str],
     tokens: int,
     unit_type: str = "section_text",
+    corpus: str = "curriculum",
+    collection: str = "curriculum_plan",
+    document_id: str = "curriculum:test",
+    page_family: str | None = None,
+    extra_metadata: dict[str, object] | None = None,
 ) -> IndexableChunk:
+    metadata = {
+        "unit_type": unit_type,
+        "final_token_count": tokens,
+        "segment_total": 1,
+    }
+    if page_family is not None:
+        metadata["page_family"] = page_family
+    if extra_metadata:
+        metadata.update(extra_metadata)
     return IndexableChunk(
-        document_id="curriculum:test",
+        document_id=document_id,
         revision_track="source-faithful",
         version_id="sha256:test",
         chunk_id=chunk_id,
         chunk_order=1,
-        corpus="curriculum",
-        collection="curriculum_plan",
+        corpus=corpus,
+        collection=collection,
         entitlement_groups=("students",),
         visibility_scope="main",
         visibility_level="restricted",
-        source_uri="https://campus.example/curriculum:test",
+        source_uri=f"https://campus.example/{document_id}",
         source_chunk_id=None,
         anchor={"section_path": section_path, "page_start": 1, "page_end": 1},
         text=text,
-        source_channel="pdf_ocr",
+        source_channel="official_web" if corpus == "official_web" else "pdf_ocr",
         is_current=True,
-        parser_version="raw-online-ocr-v1",
+        parser_version="official_web_projection_v1" if corpus == "official_web" else "raw-online-ocr-v1",
         embedding_model="Qwen3-Embedding-4B",
-        metadata={
-            "unit_type": unit_type,
-            "final_token_count": tokens,
-            "segment_total": 1,
-        },
+        metadata=metadata,
     )
 
 
@@ -130,6 +140,204 @@ class IndexReleaseValidationTest(unittest.TestCase):
 
         self.assertEqual(validation.status, "passed")
         self.assertEqual(validation.summary["tiny_chunks_lt24"], 0)
+
+    def test_official_web_validation_fails_when_release_has_too_few_documents(self) -> None:
+        validation = validate_scope_release(
+            corpus="official_web",
+            collection="muc_public_pages",
+            chunks=(
+                _make_chunk(
+                    chunk_id="chunk-0001",
+                    text="中央民族大学召开专题工作会议，部署本学期重点任务。",
+                    section_path=["新闻详情"],
+                    tokens=32,
+                    corpus="official_web",
+                    collection="muc_public_pages",
+                    document_id="official_web:muc_public:article:doc-001",
+                    page_family="article_detail",
+                ),
+            ),
+        )
+
+        self.assertEqual(validation.status, "failed")
+        self.assertEqual(validation.summary["document_count"], 1)
+        self.assertEqual(validation.summary["documents_below_minimum"], 1)
+
+    def test_official_web_stable_reference_validation_uses_official_web_gate(self) -> None:
+        validation = validate_scope_release(
+            corpus="official_web",
+            collection="stable_reference",
+            chunks=(
+                _make_chunk(
+                    chunk_id="chunk-0001",
+                    text="中央民族大学本科教育坚持厚基础、宽口径与多学科交叉培养。",
+                    section_path=["本科培养"],
+                    tokens=30,
+                    corpus="official_web",
+                    collection="stable_reference",
+                    document_id="official_web:muc_public:article:doc-001",
+                    page_family="article_detail",
+                    extra_metadata={"serving_intent": "promotable"},
+                ),
+            ),
+        )
+
+        self.assertEqual(validation.status, "failed")
+        self.assertEqual(validation.summary["document_count"], 1)
+        self.assertEqual(validation.summary["documents_below_minimum"], 1)
+
+    def test_official_web_validation_fails_when_disallowed_page_families_are_present(self) -> None:
+        validation = validate_scope_release(
+            corpus="official_web",
+            collection="muc_public_pages",
+            chunks=(
+                _make_chunk(
+                    chunk_id="chunk-0001",
+                    text="中央民族大学召开专题工作会议，部署本学期重点任务。",
+                    section_path=["新闻详情"],
+                    tokens=32,
+                    corpus="official_web",
+                    collection="muc_public_pages",
+                    document_id="official_web:muc_public:article:doc-001",
+                    page_family="article_detail",
+                ),
+                _make_chunk(
+                    chunk_id="chunk-0002",
+                    text="学校召开就业工作推进会\n2026年招生宣传工作启动",
+                    section_path=["新闻网"],
+                    tokens=28,
+                    corpus="official_web",
+                    collection="muc_public_pages",
+                    document_id="official_web:muc_public:listing:doc-002",
+                    page_family="listing_page",
+                    unit_type="link_list",
+                ),
+            ),
+        )
+
+        self.assertEqual(validation.status, "failed")
+        self.assertEqual(validation.summary["document_count"], 2)
+        self.assertEqual(validation.summary["disallowed_page_family_chunks"], 1)
+        self.assertEqual(validation.summary["page_family_counts"]["listing_page"], 1)
+
+    def test_official_web_validation_passes_for_article_and_directory_documents(self) -> None:
+        validation = validate_scope_release(
+            corpus="official_web",
+            collection="muc_public_pages",
+            chunks=(
+                _make_chunk(
+                    chunk_id="chunk-0001",
+                    text="中央民族大学召开专题工作会议，部署本学期重点任务。",
+                    section_path=["新闻详情"],
+                    tokens=32,
+                    corpus="official_web",
+                    collection="muc_public_pages",
+                    document_id="official_web:muc_public:article:doc-001",
+                    page_family="article_detail",
+                    extra_metadata={"serving_intent": "promotable"},
+                ),
+                _make_chunk(
+                    chunk_id="chunk-0002",
+                    text="中央民族大学法学院举办专题讲座，围绕法治建设展开研讨。",
+                    section_path=["学院新闻"],
+                    tokens=34,
+                    corpus="official_web",
+                    collection="muc_public_pages",
+                    document_id="official_web:muc_public:article:doc-002",
+                    page_family="article_detail",
+                    extra_metadata={"serving_intent": "promotable"},
+                ),
+                _make_chunk(
+                    chunk_id="chunk-0003",
+                    text="法学院办公室 010-68930000",
+                    section_path=["联系方式"],
+                    tokens=14,
+                    corpus="official_web",
+                    collection="muc_public_pages",
+                    document_id="official_web:muc_public:directory:doc-003",
+                    page_family="directory_page",
+                    unit_type="directory_entry",
+                    extra_metadata={"serving_intent": "promotable"},
+                ),
+            ),
+        )
+
+        self.assertEqual(validation.status, "passed")
+        self.assertEqual(validation.summary["document_count"], 3)
+        self.assertEqual(validation.summary["documents_below_minimum"], 0)
+        self.assertEqual(validation.summary["disallowed_page_family_chunks"], 0)
+        self.assertEqual(validation.summary["page_family_counts"]["article_detail"], 2)
+        self.assertEqual(validation.summary["page_family_counts"]["directory_page"], 1)
+
+    def test_official_web_validation_fails_when_audit_only_chunks_are_present(self) -> None:
+        validation = validate_scope_release(
+            corpus="official_web",
+            collection="muc_public_pages",
+            chunks=(
+                _make_chunk(
+                    chunk_id="chunk-0001",
+                    text="中央民族大学召开专题工作会议，部署本学期重点任务。",
+                    section_path=["新闻详情"],
+                    tokens=32,
+                    corpus="official_web",
+                    collection="muc_public_pages",
+                    document_id="official_web:muc_public:article:doc-001",
+                    page_family="article_detail",
+                    extra_metadata={"serving_intent": "promotable"},
+                ),
+                _make_chunk(
+                    chunk_id="chunk-0002",
+                    text="中央民族大学法学院举办专题讲座，围绕法治建设展开研讨。",
+                    section_path=["学院新闻"],
+                    tokens=34,
+                    corpus="official_web",
+                    collection="muc_public_pages",
+                    document_id="official_web:muc_public:article:doc-002",
+                    page_family="article_detail",
+                    extra_metadata={"serving_intent": "audit_only", "promotion_block_reason": "manual_review_pending"},
+                ),
+            ),
+        )
+
+        self.assertEqual(validation.status, "failed")
+        self.assertEqual(validation.summary["audit_only_chunks"], 1)
+        self.assertEqual(validation.summary["serving_intent_counts"]["promotable"], 1)
+        self.assertEqual(validation.summary["serving_intent_counts"]["audit_only"], 1)
+
+    def test_official_web_validation_fails_when_serving_intent_is_missing(self) -> None:
+        validation = validate_scope_release(
+            corpus="official_web",
+            collection="muc_public_pages",
+            chunks=(
+                _make_chunk(
+                    chunk_id="chunk-0001",
+                    text="中央民族大学召开专题工作会议，部署本学期重点任务。",
+                    section_path=["新闻详情"],
+                    tokens=32,
+                    corpus="official_web",
+                    collection="muc_public_pages",
+                    document_id="official_web:muc_public:article:doc-001",
+                    page_family="article_detail",
+                    extra_metadata={"serving_intent": "promotable"},
+                ),
+                _make_chunk(
+                    chunk_id="chunk-0002",
+                    text="中央民族大学法学院举办专题讲座，围绕法治建设展开研讨。",
+                    section_path=["学院新闻"],
+                    tokens=34,
+                    corpus="official_web",
+                    collection="muc_public_pages",
+                    document_id="official_web:muc_public:article:doc-002",
+                    page_family="article_detail",
+                ),
+            ),
+        )
+
+        self.assertEqual(validation.status, "failed")
+        self.assertEqual(validation.summary["non_promotable_serving_intent_chunks"], 1)
+        self.assertEqual(validation.summary["unknown_serving_intent_chunks"], 1)
+        self.assertEqual(validation.summary["serving_intent_counts"]["promotable"], 1)
+        self.assertEqual(validation.summary["serving_intent_counts"]["unknown"], 1)
 
 
 if __name__ == "__main__":

@@ -6,7 +6,6 @@ from campus_contracts import KnowledgeScope, SupervisorRequest
 from campus_supervisor_core.context import SupervisorRequestContext
 from campus_supervisor_core.errors import (
     InvalidSupervisorRequestError,
-    MissingRoutingInputError,
 )
 from campus_supervisor_core.validation import resolve_requested_capability
 
@@ -39,7 +38,7 @@ class SupervisorValidationTest(unittest.TestCase):
 
         self.assertEqual(capability, "availability")
 
-    def test_resolve_requested_capability_rejects_missing_scope_for_knowledge(self) -> None:
+    def test_resolve_requested_capability_allows_missing_scope_for_knowledge(self) -> None:
         context = SupervisorRequestContext.from_request(
             SupervisorRequest(
                 user_goal="library hours",
@@ -47,11 +46,9 @@ class SupervisorValidationTest(unittest.TestCase):
             )
         )
 
-        with self.assertRaisesRegex(
-            MissingRoutingInputError,
-            "requested_scope is required for knowledge requests",
-        ):
-            resolve_requested_capability(context)
+        capability = resolve_requested_capability(context)
+
+        self.assertEqual(capability, "knowledge")
 
     def test_resolve_requested_capability_rejects_target_on_knowledge_request(self) -> None:
         context = SupervisorRequestContext.from_request(

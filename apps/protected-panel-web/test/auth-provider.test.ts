@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { protectedPanelAuthProvider } from "../src/panel/auth-provider";
@@ -17,13 +19,33 @@ function createAccessLoginHtmlResponse(): Response {
   } as unknown as Response;
 }
 
+function createPanelError(status: number, code?: string) {
+  return {
+    body: code
+      ? {
+          error: {
+            code,
+          },
+        }
+      : undefined,
+    status,
+  };
+}
+
 describe("protected panel auth provider", () => {
+  const originalWindow = globalThis.window;
+
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
   afterEach(() => {
     void protectedPanelAuthProvider.logout?.({});
+    if (originalWindow) {
+      globalThis.window = originalWindow;
+    } else {
+      delete (globalThis as Record<string, unknown>).window;
+    }
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
@@ -37,13 +59,32 @@ describe("protected panel auth provider", () => {
     });
   });
 
-  it("does not treat a 403 operator authorization failure as a login expiry", async () => {
+  it("keeps operator admission and runtime failures in place instead of logging out", async () => {
     await expect(
-      protectedPanelAuthProvider.checkError?.({
-        message: "Operator access is forbidden.",
-        status: 403,
-      }),
+      protectedPanelAuthProvider.checkError(createPanelError(403, "operator_identity_not_admitted")),
     ).resolves.toBeUndefined();
+
+    await expect(
+      protectedPanelAuthProvider.checkError(createPanelError(403, "forbidden")),
+    ).resolves.toBeUndefined();
+
+    await expect(
+      protectedPanelAuthProvider.checkError(createPanelError(401, "internal_auth_required")),
+    ).resolves.toBeUndefined();
+
+    await expect(
+      protectedPanelAuthProvider.checkError(createPanelError(503, "dependency_not_ready")),
+    ).resolves.toBeUndefined();
+  });
+
+  it("still escalates session and access failures so react-admin can logout", async () => {
+    const sessionRequired = createPanelError(401, "session_required");
+    await expect(protectedPanelAuthProvider.checkError(sessionRequired)).rejects.toBe(sessionRequired);
+
+    const accessJwtFailure = createPanelError(401);
+    await expect(protectedPanelAuthProvider.checkError(accessJwtFailure)).rejects.toBe(
+      accessJwtFailure,
+    );
   });
 
   it("keeps auth-check logout on the local login route instead of forcing upstream access logout", async () => {

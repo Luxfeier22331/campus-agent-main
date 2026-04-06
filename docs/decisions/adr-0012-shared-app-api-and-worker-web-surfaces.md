@@ -24,7 +24,7 @@ Accepted on 2026-03-28.
 在当前讨论下，团队更希望收敛为：
 
 - chat 与 panel 都是部署在 Worker 上的前端表面
-- 中间只有一层 shared app backend
+- 中间只有一层 shared application/control-plane backend
 - `apps/supervisor-api` 继续专注于 answer execution
 
 ## 决策
@@ -33,7 +33,7 @@ Accepted on 2026-03-28.
 
 1. `apps/public-chat-web` 作为 public chat 的 Worker 前端。
 2. `apps/protected-panel-web` 作为 protected panel 的 Worker 前端。
-3. `apps/app-api` 作为 shared application backend。
+3. `apps/app-api` 作为 shared application/control-plane backend。
 4. `apps/app-api` 接管 auth、session、conversation、chat ingress、request ledger / projection input、审计入口、指标记录与 operator query。
 5. `apps/supervisor-api` 退为 execution engine，不再承担产品层 auth/session/conversation 或 panel 查询 API。
 

@@ -6,12 +6,14 @@ from typing import Literal
 from campus_contracts import RequestedCapability
 
 from campus_supervisor_core.context import SupervisorRequestContext
+from campus_supervisor_core.scope_policy import evaluate_knowledge_scope
 
 
 IntentTaskKind = Literal["knowledge_lookup", "availability_check", "unknown"]
 IntentRiskLevel = Literal["low", "medium", "high"]
-IntentNextAction = Literal["delegate", "clarify", "rejected", "approval_required"]
+IntentNextAction = Literal["delegate", "clarify", "rejected", "approval_required", "out_of_scope"]
 IntentPersonalizationMode = Literal["generic", "cohort_grounded", "user_grounded"]
+IntentScopeClass = Literal["", "in_scope", "out_of_scope"]
 
 _HIGH_RISK_PATTERNS = (
     "帮我提交",
@@ -37,6 +39,8 @@ class IntentFrame:
     suggested_next_action: IntentNextAction
     personalization_mode: IntentPersonalizationMode = "generic"
     clarification_subject: str = ""
+    scope_class: IntentScopeClass = ""
+    policy_reason: str = ""
 
 
 def frame_intent(
@@ -72,6 +76,21 @@ def frame_intent(
             personalization_mode=personalization_mode,
         )
 
+    scope_decision = evaluate_knowledge_scope(context)
+    if scope_decision.scope_class == "out_of_scope":
+        return IntentFrame(
+            capability="knowledge",
+            task_kind="knowledge_lookup",
+            domain_candidates=("out_of_scope",),
+            missing_slots=(),
+            risk_level="low",
+            needs_clarification=False,
+            suggested_next_action="out_of_scope",
+            personalization_mode=personalization_mode,
+            scope_class="out_of_scope",
+            policy_reason=scope_decision.reason,
+        )
+
     return IntentFrame(
         capability="knowledge",
         task_kind="knowledge_lookup",
@@ -85,6 +104,7 @@ def frame_intent(
             normalized_goal,
             clarification_subject=personalization_hint.clarification_subject,
         ),
+        scope_class="in_scope",
     )
 
 

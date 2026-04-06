@@ -13,14 +13,27 @@ import {
 import { PANEL_COPY } from "../panel-copy";
 import { PanelPagination } from "../panel-pagination";
 import type { OfficialWebRunRecord } from "../types";
+import { formatOfficialWebRunIntentLabel } from "./official-web-formatters";
 import {
   OfficialWebFailureSummary,
   OfficialWebIngestionStatusChip,
+  OfficialWebRunIntentChip,
   OfficialWebRunStatusChip,
 } from "./official-web-presenters";
 
 const runFilters = [
   <TextInput alwaysOn key="siteId" label="站点 ID" source="siteId" />,
+  <SelectInput
+    choices={[
+      { id: "baseline", name: formatOfficialWebRunIntentLabel("baseline") },
+      { id: "hot", name: formatOfficialWebRunIntentLabel("hot") },
+      { id: "repair", name: formatOfficialWebRunIntentLabel("repair") },
+    ]}
+    emptyText="全部意图"
+    key="runIntent"
+    label="运行意图"
+    source="runIntent"
+  />,
   <SelectInput
     choices={[
       { id: "accepted", name: PANEL_COPY.officialWebStatus.accepted },
@@ -78,6 +91,10 @@ export function OfficialWebRunsListPage() {
       <Datagrid bulkActionButtons={false} rowClick="show">
         <TextField label="运行 ID" source="runId" />
         <TextField label="站点" source="siteId" />
+        <FunctionField
+          label="运行意图"
+          render={(record: OfficialWebRunRecord) => <OfficialWebRunIntentChip runIntent={record.runIntent} />}
+        />
         <FunctionField
           label="状态"
           render={(record: OfficialWebRunRecord) => <OfficialWebRunStatusChip status={record.status} />}

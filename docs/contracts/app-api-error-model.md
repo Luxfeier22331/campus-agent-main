@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-04-06
 ---
 
 # App API Error Model
@@ -65,6 +65,8 @@ updated: 2026-03-28
 - `unauthorized`
 - `session_required`
 - `session_expired`
+- `internal_auth_required`
+- `service_credential_required`
 
 ### `403 Forbidden`
 
@@ -72,6 +74,7 @@ updated: 2026-03-28
 
 - `forbidden`
 - `operator_access_required`
+- `operator_identity_not_admitted`
 
 ### `404 Not Found`
 
@@ -156,8 +159,11 @@ updated: 2026-03-28
 - `unauthorized`
 - `session_required`
 - `session_expired`
+- `internal_auth_required`
+- `service_credential_required`
 - `forbidden`
 - `operator_access_required`
+- `operator_identity_not_admitted`
 
 ### Request Validation
 

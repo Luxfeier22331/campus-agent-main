@@ -19,6 +19,7 @@ import {
 
 import { fetchJson } from "./http";
 import {
+  normalizeOfficialWebRunDetailRecord,
   normalizeOfficialWebRunRecord,
   normalizeOfficialWebSiteDetailRecord,
   normalizeOfficialWebSiteRecord,
@@ -175,6 +176,7 @@ function appendOfficialWebRunFilters(query: URLSearchParams, filter: GetListPara
   const siteId = normalizeFilterValue(filter?.siteId);
   const status = normalizeFilterValue(filter?.status);
   const ingestionDispatchStatus = normalizeFilterValue(filter?.ingestionDispatchStatus);
+  const runIntent = normalizeFilterValue(filter?.runIntent);
 
   if (siteId) {
     query.set("siteId", siteId);
@@ -184,6 +186,9 @@ function appendOfficialWebRunFilters(query: URLSearchParams, filter: GetListPara
   }
   if (ingestionDispatchStatus) {
     query.set("ingestionDispatchStatus", ingestionDispatchStatus);
+  }
+  if (runIntent) {
+    query.set("runIntent", runIntent);
   }
 }
 
@@ -257,7 +262,7 @@ async function getOfficialWebRunDetail(
   });
 
   return {
-    data: normalizeOfficialWebRunRecord(payload.run),
+    data: normalizeOfficialWebRunDetailRecord(payload),
   };
 }
 

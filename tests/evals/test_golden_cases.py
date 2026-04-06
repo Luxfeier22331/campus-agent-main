@@ -11,6 +11,7 @@ from campus_contracts import (
     KnowledgeScope,
     RagResultPayload,
     SpecialistResponse,
+    SupervisorObservability,
     SupervisorResponse,
 )
 from campus_evals import (
@@ -137,8 +138,159 @@ class GoldenCaseSchemaTest(unittest.TestCase):
         self.assertEqual(case.reference_contexts, ("图书馆开放时间为 08:00-22:00。",))
         self.assertEqual(case.supplemental_metric_overrides, {"answer_relevancy": False})
 
+    def test_case_accepts_semantic_outcome_truth(self) -> None:
+        case = GoldenCase(
+            case_id="case-semantic-truth",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="MIT的校长是谁",
+            actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
+            expected_status="no_answer",
+            expected_semantic_outcome="out_of_scope",
+            expected_scope_class="out_of_scope",
+            expected_policy_reason="product_scope_boundary",
+        )
+
+        self.assertEqual(case.expected_semantic_outcome, "out_of_scope")
+        self.assertEqual(case.expected_scope_class, "out_of_scope")
+        self.assertEqual(case.expected_policy_reason, "product_scope_boundary")
+
 
 class RunCasesTest(unittest.TestCase):
+    def test_run_cases_grades_out_of_scope_semantic_truth(self) -> None:
+        case = GoldenCase(
+            case_id="case-out-of-scope",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="MIT的校长是谁",
+            actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
+            expected_status="no_answer",
+            expected_semantic_outcome="out_of_scope",
+            expected_scope_class="out_of_scope",
+            expected_policy_reason="product_scope_boundary",
+            trace_expectation=TraceExpectation(
+                selected_scope=HANDBOOK_SCOPE,
+                retrieval_called=False,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+        )
+
+        report = run_cases(
+            (case,),
+            executor=lambda _case: ExecutionResult(
+                response=SupervisorResponse(
+                    selected_target=None,
+                    status="no_answer",
+                    answer_text="这个问题不在当前支持范围内。",
+                    confidence="low",
+                    observability=SupervisorObservability(
+                        retrieval_attempted=False,
+                        candidate_count=0,
+                        retrieved_source_count=0,
+                        citation_expected=False,
+                        citation_count=0,
+                        citation_missing=False,
+                        refusal_class="out_of_scope",
+                        semantic_outcome="out_of_scope",
+                        scope_class="out_of_scope",
+                        policy_reason="product_scope_boundary",
+                        acl_decision="allowed",
+                        fail_closed=True,
+                    ),
+                ),
+                observed_trace=ObservedTrace(
+                    selected_scope=HANDBOOK_SCOPE,
+                    retrieval_called=False,
+                    clarification_emitted=False,
+                    error_path=False,
+                ),
+            ),
+        )
+
+        result = report.results[0]
+        self.assertTrue(result.metric_results["out_of_scope_accuracy"].passed)
+        self.assertTrue(result.metric_results["unsafe_false_allow_rate"].passed)
+
+    def test_run_cases_grades_unsupported_abstention_and_false_refusal_metrics(self) -> None:
+        unsupported_case = GoldenCase(
+            case_id="case-unsupported",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="火星校区飞船停靠规则",
+            actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
+            expected_status="no_answer",
+            expected_semantic_outcome="unsupported_by_evidence",
+            expected_scope_class="in_scope",
+        )
+        completed_case = GoldenCase(
+            case_id="case-completed",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="学生证丢了怎么办",
+            actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
+            expected_status="completed",
+            expected_semantic_outcome="grounded_answer",
+            expected_scope_class="in_scope",
+            required_facts=("学生证",),
+        )
+
+        report = run_cases(
+            (unsupported_case, completed_case),
+            executor=lambda case: ExecutionResult(
+                response=(
+                    SupervisorResponse(
+                        selected_target="rag-specialist",
+                        status="no_answer",
+                        answer_text="当前未检索到足够依据支持回答这个学生手册问题。",
+                        confidence="low",
+                        observability=SupervisorObservability(
+                            retrieval_attempted=True,
+                            candidate_count=0,
+                            retrieved_source_count=0,
+                            citation_expected=False,
+                            citation_count=0,
+                            citation_missing=False,
+                            refusal_class="no_answer",
+                            semantic_outcome="unsupported_by_evidence",
+                            scope_class="in_scope",
+                            acl_decision="allowed",
+                            fail_closed=False,
+                        ),
+                    )
+                    if case.case_id == "case-unsupported"
+                    else SupervisorResponse(
+                        selected_target="rag-specialist",
+                        status="no_answer",
+                        answer_text="当前依据不足。",
+                        confidence="low",
+                        observability=SupervisorObservability(
+                            retrieval_attempted=True,
+                            candidate_count=0,
+                            retrieved_source_count=0,
+                            citation_expected=False,
+                            citation_count=0,
+                            citation_missing=False,
+                            refusal_class="no_answer",
+                            semantic_outcome="unsupported_by_evidence",
+                            scope_class="in_scope",
+                            acl_decision="allowed",
+                            fail_closed=False,
+                        ),
+                    )
+                ),
+            ),
+        )
+
+        unsupported_result = next(result for result in report.results if result.case_id == "case-unsupported")
+        completed_result = next(result for result in report.results if result.case_id == "case-completed")
+        self.assertTrue(unsupported_result.metric_results["unsupported_abstention_accuracy"].passed)
+        self.assertFalse(completed_result.metric_results["false_refusal_rate"].passed)
+
     def test_handbook_smoke_cases_cover_stable_terminal_statuses(self) -> None:
         cases = handbook_smoke_cases()
 

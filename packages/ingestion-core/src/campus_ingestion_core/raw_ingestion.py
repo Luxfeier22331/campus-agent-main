@@ -140,6 +140,7 @@ class OnlineOcrSettings:
 
 class OnlineOcrClient(Protocol):
     def parse_pdf(self, pdf_path: Path) -> OnlineOcrProviderResult: ...
+    def parse_file(self, file_path: Path) -> OnlineOcrProviderResult: ...
 
 
 class ObjectStoreReader(Protocol):
@@ -151,6 +152,9 @@ class PaddleOcrAsyncClient:
         self._settings = settings
 
     def parse_pdf(self, pdf_path: Path) -> OnlineOcrProviderResult:
+        return self.parse_file(pdf_path)
+
+    def parse_file(self, file_path: Path) -> OnlineOcrProviderResult:
         try:
             import requests
         except ImportError as exc:  # pragma: no cover
@@ -167,7 +171,7 @@ class PaddleOcrAsyncClient:
                 }
             ),
         }
-        with pdf_path.open("rb") as file_obj:
+        with file_path.open("rb") as file_obj:
             response = requests.post(
                 self._settings.base_url,
                 headers=headers,

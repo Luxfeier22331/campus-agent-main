@@ -263,9 +263,17 @@ export const officialWebRunProjection = operator.table(
   {
     runId: text("run_id").primaryKey(),
     siteId: text("site_id").notNull(),
+    runIntent: text("run_intent").notNull().default("baseline"),
     status: text("status").notNull(),
     ingestionDispatchStatus: text("ingestion_dispatch_status").notNull(),
     ingestionDispatchRef: text("ingestion_dispatch_ref"),
+    ingestionExecutionStatus: text("ingestion_execution_status").notNull().default("pending"),
+    ingestionExecutionRef: text("ingestion_execution_ref"),
+    ingestionExecutionUpdatedAt: timestamp("ingestion_execution_updated_at", {
+      withTimezone: true,
+    }),
+    ingestionExecutionErrorCode: text("ingestion_execution_error_code"),
+    ingestionExecutionErrorMessage: text("ingestion_execution_error_message"),
     collectorVersion: text("collector_version"),
     configVersion: text("config_version"),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
@@ -304,6 +312,11 @@ export const officialWebSiteProjection = operator.table(
     latestCollectorVersion: text("latest_collector_version"),
     latestConfigVersion: text("latest_config_version"),
     latestIngestionDispatchStatus: text("latest_ingestion_dispatch_status"),
+    latestIngestionExecutionStatus: text("latest_ingestion_execution_status"),
+    latestIngestionExecutionUpdatedAt: timestamp("latest_ingestion_execution_updated_at", {
+      withTimezone: true,
+    }),
+    latestIngestionExecutionErrorCode: text("latest_ingestion_execution_error_code"),
     projectedAt: timestamp("projected_at", { withTimezone: true }).notNull(),
   },
   (table) => ({

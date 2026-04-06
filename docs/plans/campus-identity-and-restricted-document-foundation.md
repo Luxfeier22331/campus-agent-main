@@ -33,7 +33,7 @@ updated: 2026-04-02
 
 这轮工作完成时，应至少做到：
 
-1. `app-api` 能区分 `public_user` 与 `campus_member` 类 principal。
+1. `app-api` 能稳定区分未登录访问者与 `campus_member` 类 principal，并且前向不再保留独立 `public_user` principal。
 2. `app-api` 可以稳定产出 restricted document 所需的 canonical entitlement projection。
 3. document registry / chunk / Qdrant payload 以 `visibility_* + entitlement_*` 为主写入。
 4. retrieval 对 restricted document 执行 fail-closed pre-filter。
@@ -50,7 +50,7 @@ updated: 2026-04-02
 
 当前尚未闭合的点包括：
 
-- principal class 仍主要停留在 `public_user`、`operator` 与 `service`
+- principal class 仍缺少“登录即 campus principal”的前向收口
 - app-layer authz projection 仍大量由 actor `groups/campus_scope` 镜像得出
 - registry / index payload 仍与 legacy `acl_* / campus_scope` 并存
 - restricted institutional documents 还没有形成完整 allow/deny rollout 与测试矩阵
@@ -71,7 +71,7 @@ updated: 2026-04-02
 
 目标：
 
-- 冻结 `public_user`、`campus_member`、`student`、`staff`、`faculty`、`operator`、`service` 的最小 principal taxonomy
+- 冻结 `anonymous`、`campus_member`、`student`、`staff`、`faculty`、`operator`、`service` 的最小 principal taxonomy
 - 明确哪些 principal 可作为 restricted document entitlement truth
 
 落点：
@@ -83,7 +83,7 @@ updated: 2026-04-02
 
 验收：
 
-- `public_user != campus_member` 的边界可测试
+- 未登录访问者与 `campus_member` 的边界可测试
 - execution projection 不把 raw auth input 直接暴露给 downstream
 
 ### Wave 2: Campus Identity Input And Entitlement Snapshot

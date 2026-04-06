@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-28
-updated: 2026-04-02
+updated: 2026-04-05
 ---
 
 # Official Web Source-Truth Contract
@@ -27,10 +27,10 @@ updated: 2026-04-02
 
 对应文档：
 
-- 当前架构入口：`docs/architecture/current-architecture.md`
-- `official_web` repo-level supporting architecture：`docs/architecture/official-web-architecture.md`
-- crawl policy：`docs/policies/official-web-crawl-policy.md`
-- shared replay / rebuild boundary：`docs/architecture/data-plane-architecture.md`
+- source channel 边界：`docs/architecture/official-web-source-channel.md`
+- crawl policy：`docs/architecture/official-web-crawl-policy.md`
+- freshness / 增量采集：`docs/architecture/official-web-freshness-and-incremental-crawling.md`
+- shared replay / rebuild boundary：`docs/architecture/source-truth-normalization-contract.md`
 
 ## 目标
 
@@ -43,6 +43,9 @@ updated: 2026-04-02
 - web source-truth 的 ownership 在 source asset，不在任何 collection。
 - web source-truth 必须同时保留 URL identity、fetch provenance、page manifest 与 block rows。
 - `official_web` source-truth 允许服务多个下游 collection / corpus，但不得提前携带 document、chunk、retrieval 或 serving 语义。
+- 这些下游 collection / corpus 可以是 `official_web/stable_reference`、`official_web/fresh_news`、`official_web/news_archive`，也可以是与 `official_web` 并列的 `regulations/*`、`curriculum/*`；具体归属由 projection / document truth 决定，而不是由 source-truth 预写死。
+- page-level family classification 与 provider-level page signals 可以作为 source-level hints 保留，用于批次审计与 projection 选择，但它们不是 chunk / retrieval contract。
+- page freshness、crawl cadence、lane priority 与 downstream dispatch status 不属于 source-truth contract；它们属于 control-plane truth。
 
 ## Canonical 形态
 
@@ -177,6 +180,9 @@ updated: 2026-04-02
 - `page_title_raw`
 - `page_title_normalized`
 - `language_hint`
+- `page_family`
+- `page_family_confidence`
+- `page_family_reason`
 - `main_content_hash`
 - `block_count`
 - `main_content_block_count`
@@ -251,6 +257,42 @@ updated: 2026-04-02
 - `classification_confidence`
 - `classification_reason`
 - `parent_heading_hint`
+
+## Provider-Level Structured Hints
+
+`provider/<parser_slug>/page-extraction.json` 除了 block candidates 外，还应保留 parser-specific 但对批次审计有价值的结构提示。
+
+第一版固定保留：
+
+- `page_family`
+- `page_family_confidence`
+- `page_family_reason`
+- `page_signals.main_content_block_count`
+- `page_signals.main_heading_count`
+- `page_signals.main_paragraph_count`
+- `page_signals.main_list_item_count`
+- `page_signals.main_link_count`
+- `page_signals.main_table_count`
+- `page_signals.listing_table_count`
+- `page_signals.gallery_table_count`
+- `page_signals.contact_like_main_block_count`
+- `page_signals.date_like_main_block_count`
+- `page_signals.repeated_non_main_block_count`
+- `page_signals.main_content_character_count`
+- `page_signals.zero_main_content`
+- `page_signals.structural_shell_signal`
+- `page_signals.dynamic_shell_signal`
+
+这些字段的用途是：
+
+- 支撑 `quality-audit.json` 这类 batch-level 审计产物
+- 区分 source-truth correctness 与 downstream usefulness
+- 让后续 browser-rendered provider / article-focused provider 可以复用同一审计框架
+
+它们不意味着：
+
+- source-truth 已经携带 document chunking 语义
+- retrieval 或 serving 会直接消费 provider hints 作为最终真相
 
 `block_role` 推荐值包括：
 
@@ -358,6 +400,7 @@ web source-truth 不等于逻辑文档真相。
 - 页面 source-truth 可以投影成一个 document，也可以投影成多个 document
 - 多个网页 source-truth 也可以被清洗为同一逻辑 document family
 - 文档边界、`document_id`、`revision_track`、`version_id` 由下游 projection / document registry 决定
+- 如果官网页面承载的是正式规章或正式培养方案，下游 document 可以进入与 `official_web` 并列的 `regulations/*` 或 `curriculum/*`，而不是被 URL 来源强行锁死在 `official_web/*`
 
 ## 非目标
 
@@ -368,9 +411,9 @@ web source-truth 不等于逻辑文档真相。
 
 ## 与其他文档的关系
 
-- source channel 运行边界：`docs/architecture/official-web-architecture.md`
-- crawl scope 与 URL policy：`docs/policies/official-web-crawl-policy.md`
-- shared source-truth principles：`docs/architecture/data-plane-architecture.md`
+- source channel 运行边界：`docs/architecture/official-web-source-channel.md`
+- crawl scope 与 URL policy：`docs/architecture/official-web-crawl-policy.md`
+- shared source-truth principles：`docs/architecture/source-truth-normalization-contract.md`
 - object storage key 约定：`docs/decisions/adr-0002-local-minio-conventions.md`
 
 ## 参考

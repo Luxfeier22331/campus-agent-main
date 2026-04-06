@@ -6,6 +6,7 @@ import unicodedata
 from typing import Sequence
 
 from campus_contracts import EvidenceSource
+from campus_ingestion_core.corpus_profiles import is_official_web_stable_reference_like_collection
 from campus_retrieval_core.curriculum_query_resolution import (
     filter_curriculum_query_sources,
     query_targets_curriculum_source_title,
@@ -40,7 +41,17 @@ _LOW_SIGNAL_CJK_TOKENS = frozenset(
     }
 )
 _QUERY_ASK_CUES = frozenset({"多少", "几年", "怎么", "如何", "安排", "什么", "哪些"})
-_NEGATIVE_CONTENT_ROLES = frozenset({"appendix", "background", "closing_provision", "navigation"})
+_NEGATIVE_CONTENT_ROLES = frozenset(
+    {
+        "appendix",
+        "background",
+        "closing_provision",
+        "navigation",
+        "source_attribution",
+        "boilerplate",
+        "media_caption",
+    }
+)
 _CONTENT_ROLE_PRIORITY = {
     "procedure": 40,
     "requirement": 32,
@@ -48,11 +59,16 @@ _CONTENT_ROLE_PRIORITY = {
     "time_rule": 32,
     "deadline": 30,
     "table_fact": 28,
+    "notice_fact": 26,
+    "reference_fact": 24,
     "scope_rule": 0,
     "definition": 0,
     "appendix": -20,
     "background": -24,
+    "media_caption": -28,
+    "source_attribution": -36,
     "closing_provision": -40,
+    "boilerplate": -48,
     "navigation": -32,
 }
 _CONTENT_KIND_PRIORITY = {
@@ -232,6 +248,9 @@ def query_targets_source_title(*, query_text: str, source: EvidenceSource) -> bo
     query_key = _match_key(normalized_query)
     if not query_key:
         return False
+    explicit_title_key = _match_key(source.source_title)
+    if _is_official_web_short_title_match(query_key=query_key, source=source, explicit_title_key=explicit_title_key):
+        return True
     title_keys = _source_title_keys(source)
     title_match_priority = _title_match_priority(query_key=query_key, title_keys=title_keys)
     title_overlap_count = max(
@@ -254,6 +273,27 @@ def query_targets_source_title(*, query_text: str, source: EvidenceSource) -> bo
         or (_is_short_semantic_query(query_key) and title_overlap_count >= 2)
         or (title_overlap_count >= 8 and semantic_title_coverage >= 0.6)
     )
+
+
+def _is_official_web_short_title_match(
+    *,
+    query_key: str,
+    source: EvidenceSource,
+    explicit_title_key: str,
+) -> bool:
+    if (
+        source.source_channel != "official_web"
+        or not is_official_web_stable_reference_like_collection(source.collection)
+    ):
+        return False
+    if len(explicit_title_key) < 2 or len(explicit_title_key) > 3:
+        return False
+    if query_key == explicit_title_key:
+        return True
+    if not query_key.endswith(explicit_title_key):
+        return False
+    prefix = query_key[: -len(explicit_title_key)]
+    return prefix in {"", "中央民族大学"}
 
 
 def _build_ranking_features(
@@ -386,6 +426,12 @@ def _source_title_candidates(source: EvidenceSource) -> tuple[str, ...]:
         base_candidates.append(doc_label)
 
     for path_item in source.structural_path[:1]:
+        if not _should_include_structural_root_as_title_candidate(
+            source=source,
+            explicit_title=explicit_title,
+            path_item=path_item,
+        ):
+            continue
         if _looks_like_title(path_item):
             base_candidates.append(path_item)
 
@@ -400,6 +446,21 @@ def _source_title_candidates(source: EvidenceSource) -> tuple[str, ...]:
     for candidate in base_candidates:
         candidates.extend(_title_variants(candidate))
     return tuple(dict.fromkeys(candidates))
+
+
+def _should_include_structural_root_as_title_candidate(
+    *,
+    source: EvidenceSource,
+    explicit_title: str,
+    path_item: str,
+) -> bool:
+    if (
+        source.source_channel == "official_web"
+        and is_official_web_stable_reference_like_collection(source.collection)
+        and explicit_title
+    ):
+        return _match_key(explicit_title) == _match_key(path_item)
+    return True
 
 
 def _source_detail_text(source: EvidenceSource) -> str:

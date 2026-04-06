@@ -2,6 +2,7 @@ import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { describe, expect, it, vi } from "vitest";
 
 import { createApp as createAppApi } from "../../app-api/src/app";
+import type { OperatorQueryService } from "../../app-api/src/modules/operator-query";
 import packageManifestRaw from "../package.json?raw";
 import worker from "../src/index";
 import wranglerConfig from "../wrangler.toml?raw";
@@ -9,6 +10,30 @@ import wranglerConfig from "../wrangler.toml?raw";
 const packageManifest = JSON.parse(packageManifestRaw) as {
   scripts?: Record<string, string | undefined>;
 };
+
+function createOperatorQueryServiceMock(
+  overrides: Partial<OperatorQueryService> = {},
+): OperatorQueryService {
+  return {
+    getById: vi.fn(),
+    getObservabilityById: vi.fn(),
+    getAuditById: vi.fn(),
+    getOverview: vi.fn(),
+    getQualitySummary: vi.fn(),
+    getQualityTimeseries: vi.fn(),
+    getSafetySummary: vi.fn(),
+    getCostSummary: vi.fn(),
+    list: vi.fn().mockResolvedValue({
+      page: {
+        nextCursor: null,
+      },
+      requests: [],
+    }),
+    listAudit: vi.fn(),
+    listQualityBadcases: vi.fn(),
+    ...overrides,
+  };
+}
 
 describe("protected panel web worker shell", () => {
   it("declares the staging custom domain, app-api staging binding, and deploy gates", () => {
@@ -1060,15 +1085,7 @@ describe("protected panel web worker shell", () => {
         },
       };
       const appApi = createAppApi(appApiEnv, {
-        operatorQueryService: {
-          getAuditById: vi.fn(),
-          getById: vi.fn(),
-          getCostSummary: vi.fn(),
-          getObservabilityById: vi.fn(),
-          getOverview: vi.fn(),
-          getQualitySummary: vi.fn(),
-          getQualityTimeseries: vi.fn(),
-          getSafetySummary: vi.fn(),
+        operatorQueryService: createOperatorQueryServiceMock({
           list: vi.fn().mockResolvedValue({
             page: {
               nextCursor: null,
@@ -1100,9 +1117,7 @@ describe("protected panel web worker shell", () => {
               },
             ],
           }),
-          listAudit: vi.fn(),
-          listQualityBadcases: vi.fn(),
-        },
+        }),
       });
 
       const response = await worker.fetch(

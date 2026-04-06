@@ -36,6 +36,16 @@ import {
   createPgOfficialWebQueryStore,
   type OfficialWebQueryService,
 } from "./modules/official-web-query";
+import { createPgOfficialWebProjectionStore } from "./modules/official-web-projection";
+import {
+  buildOfficialWebExecutionStatusService,
+  type OfficialWebExecutionStatusService,
+} from "./modules/official-web-execution";
+import {
+  buildOfficialWebPlannerService,
+  createPgOfficialWebPlannerStore,
+  type OfficialWebPlannerService,
+} from "./modules/official-web-planner";
 import {
   buildOperatorQueryService,
   createPgOperatorQueryStore,
@@ -50,6 +60,7 @@ import { createAppTelemetry, type AppTelemetry } from "./modules/telemetry";
 import {
   buildInternalEvalPrincipal,
   buildBetterAuthConfig,
+  hasTrustedInternalRequest,
   hasMatchingInternalSecret,
   handleAuthRequest,
   probeAppAuthRuntime,
@@ -70,6 +81,8 @@ export interface AppDependencies {
     input?: AppAuthResolutionInput,
   ) => Promise<ResolvedAppPrincipal | null>;
   officialWebCommandService?: OfficialWebCommandService;
+  officialWebExecutionStatusService?: OfficialWebExecutionStatusService;
+  officialWebPlannerService?: OfficialWebPlannerService;
   officialWebQueryService?: OfficialWebQueryService;
   operatorObservabilityCommandService?: OperatorObservabilityCommandService;
   operatorQueryService?: OperatorQueryService;
@@ -127,6 +140,17 @@ function serviceCredentialRequiredResponse() {
   );
 }
 
+function internalAuthRequiredResponse() {
+  return jsonResponse(
+    errorEnvelope({
+      code: "internal_auth_required",
+      message: "Trusted internal shared secret required.",
+      retryable: false,
+    }),
+    { status: 401 },
+  );
+}
+
 function buildInternalEvalPrincipalFromRequest(request: Request): ResolvedAppPrincipal {
   return buildInternalEvalPrincipal({
     actorRoles: parseCsvList(request.headers.get("x-eval-actor-roles") ?? undefined),
@@ -142,7 +166,6 @@ function buildInternalEvalPrincipalFromRequest(request: Request): ResolvedAppPri
     principalId: request.headers.get("x-eval-user-id") ?? undefined,
     principalType:
       (request.headers.get("x-eval-principal-type") as
-        | "public_user"
         | "campus_member"
         | "student"
         | "staff"
@@ -194,6 +217,9 @@ function resolveRequestSurface(request: Request): string {
 
   if (pathname.startsWith("/api/operator/")) {
     return "protected_panel_web";
+  }
+  if (pathname.startsWith("/api/internal/official-web/")) {
+    return "official_web";
   }
   if (pathname.startsWith("/api/official-web/")) {
     return "official_web";
@@ -264,6 +290,8 @@ async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntimeReadine
       appName: config.appName,
       betterAuthSecret: config.betterAuthSecret,
       database: {},
+      endUserEmailAllowlist: config.endUserEmailAllowlist,
+      endUserEmailDomainAllowlist: config.endUserEmailDomainAllowlist,
       environment: config.environment,
       publicChatOrigin: config.publicChatOrigin,
     });
@@ -310,6 +338,16 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
   const authHandler = dependencies.authHandler ?? handleAuthRequest;
   const telemetry = dependencies.telemetry ?? createAppTelemetry(env);
   const getPrincipal = dependencies.getPrincipal ?? resolveRequestPrincipal;
+  const officialWebExecutionStatusService =
+    dependencies.officialWebExecutionStatusService ??
+    buildOfficialWebExecutionStatusService({
+      store: createPgOfficialWebProjectionStore(env),
+    });
+  const officialWebPlannerService =
+    dependencies.officialWebPlannerService ??
+    buildOfficialWebPlannerService({
+      store: createPgOfficialWebPlannerStore(env),
+    });
   const runtimeReadinessProbe = dependencies.runtimeReadinessProbe ?? (() => defaultRuntimeReadinessProbe(env));
   const scheduleRequestProjectionDrain = dependencies.scheduleRequestProjectionDrain;
 
@@ -413,6 +451,14 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     });
   }
 
+  function principalResolutionErrorResponse(error: unknown): Response {
+    if (error instanceof AppApiRouteError) {
+      return routeErrorResponse(error);
+    }
+
+    return dependencyNotReadyResponse();
+  }
+
   app.use("*", async (c, next) => {
     telemetry.configureHttpRequestScope({
       route: c.req.path,
@@ -487,8 +533,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -508,8 +554,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -589,6 +635,20 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     return jsonResponse(response);
   });
 
+  app.post("/api/official-web/plans:resolve", async (c) => {
+    const principal = await resolveOfficialWebCollectorPrincipal(c.req.raw, env);
+    if (!principal) {
+      return serviceCredentialRequiredResponse();
+    }
+
+    return jsonResponse(
+      await officialWebPlannerService.resolve({
+        payload: await readJsonRequestBody(c.req.raw),
+        principal,
+      }),
+    );
+  });
+
   app.post("/api/internal/operator/quality/grades", async (c) => {
     const scope = createRequestScope();
     if (!hasMatchingInternalSecret(c.req.raw, env)) {
@@ -598,6 +658,19 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     return jsonResponse(
       await scope.resolveOperatorObservabilityCommandService().ingestGrades({
         payload: await readJsonRequestBody(c.req.raw),
+      }),
+    );
+  });
+
+  app.post("/api/internal/official-web/runs/:runId/ingestion-execution", async (c) => {
+    if (!hasTrustedInternalRequest(c.req.raw, env)) {
+      return internalAuthRequiredResponse();
+    }
+
+    return jsonResponse(
+      await officialWebExecutionStatusService.updateRunExecutionStatus({
+        payload: await readJsonRequestBody(c.req.raw),
+        runId: c.req.param("runId"),
       }),
     );
   });
@@ -642,15 +715,14 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
       },
     );
   });
-
   app.get("/api/chat/conversations", async (c) => {
     const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -667,8 +739,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -685,8 +757,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -706,8 +778,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -731,8 +803,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -756,8 +828,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -781,8 +853,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -812,8 +884,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -837,8 +909,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -862,8 +934,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -897,8 +969,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -922,8 +994,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -954,8 +1026,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -979,8 +1051,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -1004,8 +1076,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -1028,8 +1100,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -1053,8 +1125,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -1070,6 +1142,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
           cursor: c.req.query("cursor") ?? null,
           ingestionDispatchStatus: c.req.query("ingestionDispatchStatus") ?? null,
           limit: parseLimit(c.req.query("limit")),
+          runIntent: c.req.query("runIntent") ?? null,
           siteId: c.req.query("siteId") ?? null,
           startedAfter: c.req.query("startedAfter") ?? null,
           startedBefore: c.req.query("startedBefore") ?? null,
@@ -1086,8 +1159,8 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     try {
       principal = await resolvePrincipalForScope(c.req.raw, scope);
-    } catch {
-      return dependencyNotReadyResponse();
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {

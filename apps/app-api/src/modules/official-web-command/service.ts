@@ -7,8 +7,14 @@ import type {
   FinalizeOfficialWebRunWrite,
   OfficialWebArtifactRecord,
   OfficialWebCommandStore,
+  OfficialWebFetchDisposition,
+  OfficialWebPageChange,
+  OfficialWebPageChangeStatus,
+  OfficialWebRunIntent,
   OfficialWebRunStatus,
   OfficialWebTerminalRunStatus,
+  PersistedOfficialWebPageObservation,
+  StoredOfficialWebPageFreshnessState,
   StoredOfficialWebRun,
 } from "./store";
 
@@ -30,6 +36,15 @@ const ALLOWED_ARTIFACT_TYPES = new Set([
   "url_results",
   "failures",
   "source_truth_bundle",
+  "quality_audit",
+  "page_observations",
+]);
+const ALLOWED_RUN_INTENTS = new Set<OfficialWebRunIntent>(["baseline", "hot", "repair"]);
+const ALLOWED_FETCH_DISPOSITIONS = new Set<OfficialWebFetchDisposition>([
+  "fetched",
+  "not_modified",
+  "deleted",
+  "fetch_failed",
 ]);
 
 export interface OfficialWebStartPayload {
@@ -37,6 +52,7 @@ export interface OfficialWebStartPayload {
   configVersion?: unknown;
   crawlPolicyVersion?: unknown;
   hostSet?: unknown;
+  runIntent?: unknown;
   schedulerRunKey?: unknown;
   seedSet?: unknown;
   siteId?: unknown;
@@ -53,6 +69,7 @@ export interface OfficialWebHeartbeatPayload {
 export interface OfficialWebFinalizePayload {
   artifacts?: unknown;
   finishedAt?: unknown;
+  pageObservations?: unknown;
   summary?: unknown;
   terminalStatus?: unknown;
 }
@@ -109,6 +126,7 @@ interface NormalizedStartPayload {
   configVersion: string;
   crawlPolicyVersion: string;
   hostSet: string[];
+  runIntent: OfficialWebRunIntent;
   schedulerRunKey: string;
   seedSet: string[];
   siteId: string;
@@ -125,8 +143,30 @@ interface NormalizedHeartbeatPayload {
 interface NormalizedFinalizePayload {
   artifacts: OfficialWebArtifactRecord[];
   finishedAt: string;
+  pageObservations: NormalizedPageObservation[];
   summary: Record<string, number>;
   terminalStatus: OfficialWebTerminalRunStatus;
+}
+
+interface NormalizedPageObservation {
+  contentType: string | null;
+  discoveredFromUrl: string | null;
+  discoveryMethod: string;
+  etag: string | null;
+  fetchDisposition: OfficialWebFetchDisposition;
+  finalUrl: string;
+  host: string;
+  httpStatus: number | null;
+  lastModified: string | null;
+  mainContentHash: string | null;
+  normalizedCanonicalUrl: string;
+  observedAt: string;
+  pageFamily: string;
+  pageTitleNormalized: string;
+  rawAssetId: string | null;
+  rawVersionId: string | null;
+  requestedUrl: string;
+  responseBodyHash: string | null;
 }
 
 function defaultGenerateId(prefix: string): string {
@@ -297,9 +337,123 @@ function normalizeArtifacts(value: unknown): OfficialWebArtifactRecord[] {
   });
 }
 
+function normalizeNullableString(value: unknown): string | null {
+  const normalized = normalizeString(value);
+  return normalized || null;
+}
+
+function normalizeNullableInteger(value: unknown, field: string): number | null {
+  if (value == null) {
+    return null;
+  }
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+    throw new AppApiRouteError({
+      code: "validation_failed",
+      details: { field },
+      message: `${field} must be a non-negative integer when provided.`,
+      retryable: false,
+      status: 422,
+    });
+  }
+  return value;
+}
+
+function normalizePageObservations(value: unknown): NormalizedPageObservation[] {
+  if (value == null) {
+    return [];
+  }
+  if (!Array.isArray(value)) {
+    throw new AppApiRouteError({
+      code: "validation_failed",
+      details: { field: "pageObservations" },
+      message: "pageObservations must be an array.",
+      retryable: false,
+      status: 422,
+    });
+  }
+
+  return value.map((item, index) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      throw new AppApiRouteError({
+        code: "validation_failed",
+        details: { field: `pageObservations[${index}]` },
+        message: "page observation must be an object.",
+        retryable: false,
+        status: 422,
+      });
+    }
+
+    const observation = item as Record<string, unknown>;
+    const fetchDisposition = normalizeString(
+      observation.disposition ?? observation.fetchDisposition,
+    ) as OfficialWebFetchDisposition;
+    if (!ALLOWED_FETCH_DISPOSITIONS.has(fetchDisposition)) {
+      throw new AppApiRouteError({
+        code: "validation_failed",
+        details: { field: `pageObservations[${index}].disposition` },
+        message: "page observation disposition is invalid.",
+        retryable: false,
+        status: 422,
+      });
+    }
+
+    const observedAt = normalizeIsoTimestamp(
+      observation.observedAt ?? observation.fetchedAt,
+      `pageObservations[${index}].observedAt`,
+    );
+    const requestedUrl = normalizeString(observation.requestedUrl);
+    const finalUrl = normalizeString(observation.finalUrl);
+    const normalizedCanonicalUrl = normalizeString(observation.normalizedCanonicalUrl);
+    const host = normalizeString(observation.host);
+    const pageFamily = normalizeString(observation.pageFamily);
+    const pageTitleNormalized = normalizeString(observation.pageTitleNormalized);
+    const discoveryMethod = normalizeString(observation.discoveryMethod);
+    if (
+      !requestedUrl ||
+      !finalUrl ||
+      !normalizedCanonicalUrl ||
+      !host ||
+      !pageFamily ||
+      !pageTitleNormalized ||
+      !discoveryMethod
+    ) {
+      throw new AppApiRouteError({
+        code: "validation_failed",
+        details: { field: `pageObservations[${index}]` },
+        message:
+          "requestedUrl, finalUrl, normalizedCanonicalUrl, host, pageFamily, pageTitleNormalized, and discoveryMethod are required.",
+        retryable: false,
+        status: 422,
+      });
+    }
+
+    return {
+      contentType: normalizeNullableString(observation.contentType),
+      discoveredFromUrl: normalizeNullableString(observation.discoveredFromUrl),
+      discoveryMethod,
+      etag: normalizeNullableString(observation.etag),
+      fetchDisposition,
+      finalUrl,
+      host,
+      httpStatus: normalizeNullableInteger(observation.httpStatus, `pageObservations[${index}].httpStatus`),
+      lastModified: normalizeNullableString(observation.lastModified),
+      mainContentHash: normalizeNullableString(observation.mainContentHash),
+      normalizedCanonicalUrl,
+      observedAt,
+      pageFamily,
+      pageTitleNormalized,
+      rawAssetId: normalizeNullableString(observation.rawAssetId),
+      rawVersionId: normalizeNullableString(observation.rawVersionId),
+      requestedUrl,
+      responseBodyHash: normalizeNullableString(observation.responseBodyHash),
+    } satisfies NormalizedPageObservation;
+  });
+}
+
 function normalizeStartPayload(payload: OfficialWebStartPayload): NormalizedStartPayload {
   const siteId = normalizeString(payload.siteId);
   const schedulerRunKey = normalizeString(payload.schedulerRunKey);
+  const runIntent = normalizeString(payload.runIntent) as OfficialWebRunIntent;
   const triggerType = normalizeString(payload.triggerType);
   const collectorVersion = normalizeString(payload.collectorVersion);
   const configVersion = normalizeString(payload.configVersion);
@@ -308,6 +462,7 @@ function normalizeStartPayload(payload: OfficialWebStartPayload): NormalizedStar
   if (
     !siteId ||
     !schedulerRunKey ||
+    !runIntent ||
     !triggerType ||
     !collectorVersion ||
     !configVersion ||
@@ -319,6 +474,7 @@ function normalizeStartPayload(payload: OfficialWebStartPayload): NormalizedStar
         required: [
           "siteId",
           "schedulerRunKey",
+          "runIntent",
           "triggerType",
           "collectorVersion",
           "configVersion",
@@ -330,12 +486,22 @@ function normalizeStartPayload(payload: OfficialWebStartPayload): NormalizedStar
       status: 422,
     });
   }
+  if (!ALLOWED_RUN_INTENTS.has(runIntent)) {
+    throw new AppApiRouteError({
+      code: "validation_failed",
+      details: { field: "runIntent" },
+      message: "runIntent is invalid.",
+      retryable: false,
+      status: 422,
+    });
+  }
 
   return {
     collectorVersion,
     configVersion,
     crawlPolicyVersion,
     hostSet: normalizeStringList(payload.hostSet, "hostSet"),
+    runIntent,
     schedulerRunKey,
     seedSet: normalizeStringList(payload.seedSet, "seedSet"),
     siteId,
@@ -388,8 +554,250 @@ function normalizeFinalizePayload(payload: OfficialWebFinalizePayload): Normaliz
   return {
     artifacts: normalizeArtifacts(payload.artifacts ?? []),
     finishedAt: normalizeIsoTimestamp(payload.finishedAt, "finishedAt"),
+    pageObservations: normalizePageObservations(payload.pageObservations),
     summary,
     terminalStatus,
+  };
+}
+
+function classifyPageObservation(input: {
+  observation: NormalizedPageObservation;
+  previous: StoredOfficialWebPageFreshnessState | null;
+}): { changeStatus: OfficialWebPageChangeStatus; reason: string } {
+  const { observation, previous } = input;
+  if (observation.fetchDisposition === "fetch_failed") {
+    return {
+      changeStatus: "fetch_failed",
+      reason:
+        observation.httpStatus != null
+          ? `fetch_failed_http_${observation.httpStatus}`
+          : "fetch_failed",
+    };
+  }
+  if (
+    observation.fetchDisposition === "deleted" ||
+    observation.httpStatus === 404 ||
+    observation.httpStatus === 410
+  ) {
+    return {
+      changeStatus: "deleted",
+      reason: "page_deleted",
+    };
+  }
+  if (observation.fetchDisposition === "not_modified") {
+    return {
+      changeStatus: "not_modified",
+      reason: "conditional_not_modified",
+    };
+  }
+  if (!previous) {
+    return {
+      changeStatus: "new",
+      reason: "first_seen",
+    };
+  }
+  if (previous.mainContentHash !== observation.mainContentHash) {
+    return {
+      changeStatus: "changed",
+      reason: "main_content_changed",
+    };
+  }
+  if (previous.responseBodyHash !== observation.responseBodyHash) {
+    return {
+      changeStatus: "not_modified",
+      reason: "response_noise_only",
+    };
+  }
+  return {
+    changeStatus: "not_modified",
+    reason: "not_modified",
+  };
+}
+
+function deriveCadenceClass(input: {
+  fetchDisposition: OfficialWebFetchDisposition;
+  pageFamily: string;
+  runIntent: OfficialWebRunIntent;
+}): string {
+  if (input.fetchDisposition === "fetch_failed" || input.runIntent === "repair") {
+    return "repair";
+  }
+  if (input.pageFamily === "listing_page") {
+    return "listing_hot";
+  }
+  if (input.runIntent === "hot" || input.pageFamily === "article_detail") {
+    return "detail_recent";
+  }
+  return "baseline_static";
+}
+
+function derivePriorityScore(cadenceClass: string): number {
+  switch (cadenceClass) {
+    case "repair":
+      return 95;
+    case "listing_hot":
+      return 90;
+    case "detail_recent":
+      return 75;
+    default:
+      return 40;
+  }
+}
+
+function deriveNextEligibleFetchAt(input: {
+  cadenceClass: string;
+  observedAt: string;
+}): string {
+  const observedAtMs = new Date(input.observedAt).valueOf();
+  const delayMs =
+    input.cadenceClass === "repair"
+      ? 15 * 60 * 1000
+      : input.cadenceClass === "listing_hot"
+        ? 30 * 60 * 1000
+        : input.cadenceClass === "detail_recent"
+          ? 6 * 60 * 60 * 1000
+          : 24 * 60 * 60 * 1000;
+  return new Date(observedAtMs + delayMs).toISOString();
+}
+
+function deriveFreshnessState(input: {
+  changeStatus: OfficialWebPageChangeStatus;
+  observation: NormalizedPageObservation;
+  previous: StoredOfficialWebPageFreshnessState | null;
+  runId: string;
+}): PersistedOfficialWebPageObservation["freshness"] {
+  const { changeStatus, observation, previous, runId } = input;
+
+  return {
+    lastChangedAt:
+      changeStatus === "new" || changeStatus === "changed" || changeStatus === "deleted"
+        ? observation.observedAt
+        : previous?.lastChangedAt ?? null,
+    lastNotModifiedAt:
+      changeStatus === "not_modified"
+        ? observation.observedAt
+        : changeStatus === "fetch_failed"
+          ? previous?.lastNotModifiedAt ?? null
+          : null,
+    lastSuccessfulRunId:
+      changeStatus === "deleted" || changeStatus === "fetch_failed"
+        ? previous?.lastSuccessfulRunId ?? null
+        : runId,
+    mainContentHash: observation.mainContentHash ?? previous?.mainContentHash ?? null,
+    responseBodyHash: observation.responseBodyHash ?? previous?.responseBodyHash ?? null,
+  };
+}
+
+function buildPersistedPageObservations(input: {
+  existingStates: Map<string, StoredOfficialWebPageFreshnessState>;
+  generateId: (prefix: string) => string;
+  pageObservations: NormalizedPageObservation[];
+  run: StoredOfficialWebRun;
+}): {
+  observations: PersistedOfficialWebPageObservation[];
+  pageChanges: OfficialWebPageChange[];
+  summary: Record<string, number>;
+} {
+  const deduped = new Map<string, NormalizedPageObservation>();
+  for (const observation of input.pageObservations) {
+    deduped.set(observation.normalizedCanonicalUrl, observation);
+  }
+
+  const observations: PersistedOfficialWebPageObservation[] = [];
+  const pageChanges: OfficialWebPageChange[] = [];
+  const summary = {
+    changedPages: 0,
+    failedFetchPages: 0,
+    deletedPages: 0,
+    newPages: 0,
+    notModifiedPages: 0,
+  };
+
+  for (const observation of deduped.values()) {
+    const previous = input.existingStates.get(observation.normalizedCanonicalUrl) ?? null;
+    const classified = classifyPageObservation({
+      observation,
+      previous,
+    });
+    const cadenceClass = deriveCadenceClass({
+      fetchDisposition: observation.fetchDisposition,
+      pageFamily: observation.pageFamily,
+      runIntent: input.run.runIntent,
+    });
+    const priorityScore = derivePriorityScore(cadenceClass);
+    const nextEligibleFetchAt = deriveNextEligibleFetchAt({
+      cadenceClass,
+      observedAt: observation.observedAt,
+    });
+    const freshness = deriveFreshnessState({
+      changeStatus: classified.changeStatus,
+      observation,
+      previous,
+      runId: input.run.runId,
+    });
+
+    if (classified.changeStatus === "new") {
+      summary.newPages += 1;
+    } else if (classified.changeStatus === "changed") {
+      summary.changedPages += 1;
+    } else if (classified.changeStatus === "deleted") {
+      summary.deletedPages += 1;
+    } else if (classified.changeStatus === "fetch_failed") {
+      summary.failedFetchPages += 1;
+    } else {
+      summary.notModifiedPages += 1;
+    }
+
+    observations.push({
+      cadenceClass,
+      changeStatus: classified.changeStatus,
+      contentType: observation.contentType,
+      discoveredFromUrl: observation.discoveredFromUrl,
+      discoveryMethod: observation.discoveryMethod,
+      etag: observation.etag,
+      fetchDisposition: observation.fetchDisposition,
+      finalUrl: observation.finalUrl,
+      host: observation.host,
+      httpStatus: observation.httpStatus,
+      lastChangeReason: classified.reason,
+      lastModified: observation.lastModified,
+      mainContentHash: observation.mainContentHash,
+      nextEligibleFetchAt,
+      normalizedCanonicalUrl: observation.normalizedCanonicalUrl,
+      observationId: input.generateId("owobs"),
+      observedAt: observation.observedAt,
+      pageFamily: observation.pageFamily,
+      pageTitleNormalized: observation.pageTitleNormalized,
+      priorityScore,
+      rawAssetId: observation.rawAssetId,
+      rawVersionId: observation.rawVersionId,
+      requestedUrl: observation.requestedUrl,
+      responseBodyHash: observation.responseBodyHash,
+      runId: input.run.runId,
+      runIntent: input.run.runIntent,
+      siteId: input.run.siteId,
+      freshness,
+    });
+    if (
+      classified.changeStatus === "new" ||
+      classified.changeStatus === "changed" ||
+      classified.changeStatus === "deleted"
+    ) {
+      pageChanges.push({
+        changeStatus: classified.changeStatus,
+        normalizedCanonicalUrl: observation.normalizedCanonicalUrl,
+        observedAt: observation.observedAt,
+        pageFamily: observation.pageFamily,
+        rawAssetId: observation.rawAssetId,
+        rawVersionId: observation.rawVersionId,
+      });
+    }
+  }
+
+  return {
+    observations,
+    pageChanges,
+    summary,
   };
 }
 
@@ -475,6 +883,7 @@ export function buildOfficialWebCommandService(
       const existing = await dependencies.store.getRunBySchedulerKey(
         normalized.siteId,
         normalized.schedulerRunKey,
+        normalized.runIntent,
       );
 
       if (existing) {
@@ -503,6 +912,7 @@ export function buildOfficialWebCommandService(
           occurredAt: acceptedAt,
           payload: {
             runId,
+            runIntent: normalized.runIntent,
             schedulerRunKey: normalized.schedulerRunKey,
             siteId: normalized.siteId,
             startedAt: normalized.startedAt,
@@ -520,9 +930,15 @@ export function buildOfficialWebCommandService(
           ingestionDispatchRef: null,
           ingestionDispatchStatus: "pending",
           ingestionDispatchedAt: null,
+          ingestionExecutionErrorCode: null,
+          ingestionExecutionErrorMessage: null,
+          ingestionExecutionRef: null,
+          ingestionExecutionStatus: "pending",
+          ingestionExecutionUpdatedAt: null,
           lastHeartbeatAt: null,
           latestHeartbeatSequence: 0,
           runId,
+          runIntent: normalized.runIntent,
           schedulerRunKey: normalized.schedulerRunKey,
           seedSet: normalized.seedSet,
           siteId: normalized.siteId,
@@ -608,6 +1024,23 @@ export function buildOfficialWebCommandService(
       );
       const normalized = normalizeFinalizePayload(input.payload);
       const terminalPayloadSha256 = computeFinalizeFingerprint(normalized);
+      const terminalEventId = generateId("owevt_completed");
+      const existingStates = await dependencies.store.listPageFreshnessStates(
+        existing.siteId,
+        normalized.pageObservations.map((item) => item.normalizedCanonicalUrl),
+      );
+      const pageObservationResult = buildPersistedPageObservations({
+        existingStates: new Map(
+          existingStates.map((item) => [item.normalizedCanonicalUrl, item] as const),
+        ),
+        generateId,
+        pageObservations: normalized.pageObservations,
+        run: existing,
+      });
+      const mergedSummary = {
+        ...normalized.summary,
+        ...pageObservationResult.summary,
+      };
 
       if (existing.status === "abandoned") {
         throw new AppApiRouteError({
@@ -633,21 +1066,25 @@ export function buildOfficialWebCommandService(
       const finalizedAt = now().toISOString();
       const nextRun = await dependencies.store.finalizeRun({
         artifacts: normalized.artifacts,
+        observations: pageObservationResult.observations,
         outboxEvent: {
           attemptCount: 0,
           availableAt: finalizedAt,
-          eventId: generateId("owevt_completed"),
+          eventId: terminalEventId,
           eventType: buildTerminalEventType(normalized.terminalStatus),
           lastError: null,
           occurredAt: finalizedAt,
           payload: {
             artifacts: normalized.artifacts,
             finishedAt: normalized.finishedAt,
+            pageChanges: pageObservationResult.pageChanges,
+            pageChangeSummary: pageObservationResult.summary,
             runId: existing.runId,
+            runIntent: existing.runIntent,
             schedulerRunKey: existing.schedulerRunKey,
             siteId: existing.siteId,
             status: normalized.terminalStatus,
-            summary: normalized.summary,
+            summary: mergedSummary,
           },
           processedAt: null,
           runId: existing.runId,
@@ -657,7 +1094,12 @@ export function buildOfficialWebCommandService(
           finishedAt: normalized.finishedAt,
           ingestionDispatchRef: null,
           ingestionDispatchStatus: "queued",
-          summary: normalized.summary,
+          ingestionExecutionErrorCode: existing.ingestionExecutionErrorCode,
+          ingestionExecutionErrorMessage: existing.ingestionExecutionErrorMessage,
+          ingestionExecutionRef: existing.ingestionExecutionRef,
+          ingestionExecutionStatus: existing.ingestionExecutionStatus,
+          ingestionExecutionUpdatedAt: existing.ingestionExecutionUpdatedAt,
+          summary: mergedSummary,
           terminalPayloadSha256,
           status: normalized.terminalStatus,
         },

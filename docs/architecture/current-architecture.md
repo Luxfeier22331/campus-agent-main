@@ -115,6 +115,7 @@ updated: 2026-04-03
 - 目标架构：`docs/architecture/target-architecture.md`
 - 产品/runtime supporting architecture：`docs/architecture/product-runtime-architecture.md`
 - execution/specialist supporting architecture：`docs/architecture/execution-and-specialists-architecture.md`
+- prompt/instruction supporting architecture：`docs/architecture/prompt-and-instruction-architecture.md`
 - identity / authorization supporting architecture：`docs/architecture/identity-and-authorization-architecture.md`
 - retrieval / serving supporting architecture：`docs/architecture/retrieval-serving-architecture.md`
 - data plane supporting architecture：`docs/architecture/data-plane-architecture.md`

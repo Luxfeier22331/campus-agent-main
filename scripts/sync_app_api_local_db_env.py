@@ -7,8 +7,8 @@ from scripts.env_sync import (
     SHARED_POSTGRES_ENV_KEY,
     load_target_seed,
     parse_env_file,
-    require_env_value,
     replace_or_append_env_values,
+    require_env_value,
     resolve_source_env_path,
 )
 

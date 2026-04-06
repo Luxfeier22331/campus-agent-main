@@ -4,17 +4,11 @@
 
 `campus-agent` 是一个面向学生、教职工和潜在考生的 multi-agent 校园问答助理仓库，长期形态是以 `supervisor` 作为唯一入口、`specialist agent` 作为能力边界的 supervisor-led orchestration system。当前 v1 的重点不是一次性做全量校园知识问答，而是在新架构下把 `supervisor -> rag-specialist -> retrieval` 主路径稳定成立，并让 serving surface 由 runtime profile 显式控制。当前 query-enabled surface 是 `student_handbook` 与 `curriculum_plan`；`campus_services` 仍保持 offline preparation。与此同时，若存在长期稳定、可复用、非 handbook-RAG 的能力边界，例如官网探活 / 外部站点可达性核验，也允许以独立 specialist 的形式作为当前里程碑中的显式 inserted phase 落地，而不是被降级成 supervisor 内联 tool。旧仓库 `../campusRAG` 只作为迁移参考，不再作为继续扩展的主实现。
 
-产品定位与长期产品边界的 canonical 文档现为 `docs/architecture/product-positioning.md`；本文继续承担当前 phase、active requirements 与 pending work 的真相源。
-
 ## Current Truth
 
-- 当前 accepted merged-truth architecture snapshot 见 `docs/architecture/current-architecture.md`
 - 当前 serving surface 由 collection runtime profile 控制，不再由早期 `phase-1` 路由文案单独定义
 - 当前 query-enabled scope 是 `regulations/student_handbook` 与 `curriculum/curriculum_plan`
-- `curriculum/course_facts` 已作为 specialist 内部检索面落地，用于课程/课程族 audience、membership、semester 等实体型问句；它保持 `retrieval_enabled=true` 但 `query_enabled_by_default=false`
-- `curriculum/program_family_facts` 已作为 specialist 内部检索面落地，用于 `民族班` / `基地班` / `实验班` / `创新班` 这类项目 family membership 问句；它保持 `retrieval_enabled=true` 但 `query_enabled_by_default=false`，其中 `实验班` / `创新班` 的 truth 代表当前已采集、名称模式命中的培养方案集合
 - `campus_services/*` 仍为 `offline_preparation`
-- 导航 / wayfinding 仍未进入当前 merged-truth serving surface；最新前向编排结论是首个 slice 先做 `place_lookup` / `place_finding`，例如“xx楼在哪里”“补卡机在哪里”，`route_planning` 后置
 - 当前分支模型固定为：`develop` 承担长期集成，`main` 承担稳定发布，`main` 上的改动只通过 PR 进入
 - retrieval 读取 serving alias；离线索引发布写入 versioned physical collection，并以 release manifest 保留追溯信息
 - shared `apps/app-api` Worker backend、`apps/public-chat-web`、`apps/protected-panel-web` 已在当前工作树落地
@@ -24,7 +18,17 @@
 - personalization 可以利用 verified identity / profile memory / session summary，但 memory 不得授予权限或绕过 retrieval ACL
 - 04.7 `public-consumer-chat` 现仅作为历史实现参考，不再覆盖 forward topology truth
 - 当前 merged truth 已按 `ContextProjection` / `SupervisorResponse` / eval supervisor seam 收口；后续改动不得回退到旧 `snapshot`
-- `student_handbook` 当前正式 acceptance artifact 已在 2026-04-02 `182346` 收口为 deterministic / supplemental / final 全 `pass`
+- worktree-local `v1.0` evidence chain 已在 Phase 9 收口；official-web 当前不再缺 release-lifecycle plumbing。Phase 10.3 完成后的 final replay `/tmp/official-web-qc-20260401-batch-d-clean-subset-projection-v9` 现已进一步滚入本地 import/release candidate：unpublished release `r20260404_184508` 已通过 `document_count=21 / point_count=109 / validation_status=passed`、retrieval qrels `9/9` 与 deterministic live gate `13/13`；后续如需继续推进，应单独决定是否 publish alias，而不是重新争论 fixed-scope clean/chunking
+- `student_handbook` 当前最新 release-truth artifact 已更新为 `.tmp/evals/student-handbook-formal-benchmark-accept-20260404T072912Z`；deterministic / supplemental / final 全 `pass`
+- `curriculum_plan` 当前 latest completed live artifact 为 `.tmp/evals/curriculum-plan-live-gate-accept-20260404T200443Z`；deterministic reruns 已稳定为 `19/19` 全通过，剩余问题只在 supplemental soft-warn
+- `official_web/muc_public_pages` 当前 worktree-local current truth 已显式收口为 `21` 条 promotable 文档：`11` 条 `release_gate_required`、`2` 条 `retain_inventory_only`、`8` 条 `future_fresh_news_surface`；只有 `release_gate_required` 子集进入当前 answer-quality gate
+- `official_web/muc_public_pages` 已在 2026-04-02 为较早一轮 imported dataset 闭环 registry-backed release + alias lifecycle，但当前 published alias 仍停留在 1 条 listing-heavy `generic_content_page` 记录；collection 继续保持 `offline_preparation`，并且只应被视为 mixed 过渡 collection，而不是长期最终 corpus split
+- Phase 10.4 已把 `official_web` corpus split 的第一条执行链路落地：repo 现在有 `projection-routing.json` truth，stable-reference bootstrap 子集可从 replay 直接路由到 `official_web/stable_reference`，并且 mixed replay output 可以按请求 scope 单独导入
+- Phase 10.5 已把 `official_web/stable_reference` 的第一条真实 replay/import/release 证据落盘；2026-04-05 又通过 `campus_ingestion_worker.scope_alias` 把 `official_web_stable_reference` 发布到 `official_web_stable_reference__r20260404_204033`，并确认 alias-path retrieval/live gate 继续通过
+- retrieval / specialist / eval 当前已不再把 stable-reference-like official-web 语义绑死在 `muc_public_pages`；同一套规则现在同时适用于 mixed bridge 与 `stable_reference`
+- `official_web/stable_reference` 当前已有 repo-tracked split manifest、retrieval qrels 与 deterministic live-gate baseline；2026-04-05 本地实跑已确认 retrieval `hit@1=1.0 / recall@5=1.0 / forbidden_hit_rate=0.0`，deterministic live gate `11/11 pass`
+- `official_web/muc_public_pages` 的旧 serving alias 已在 2026-04-05 主动撤下；mixed bridge 继续保留为 replay/QC/regression truth，但不再维持一个误导性的 published alias
+- `official_web/fresh_news` 当前也已补齐 repo-tracked split manifest、retrieval qrels 与 deterministic live-gate seed baseline；2026-04-05 本地 `8` 文档 seed import/release 生成 `official_web_fresh_news__r20260404_222909`，retrieval `8/8 hit@1`、live gate `8/8 pass`，但 runtime truth 仍保持 `offline_preparation`
 - 早期 roadmap / phase 文档主要承担历史排期与讨论存档，不应覆盖这里的当前 truth
 
 ## Core Value
@@ -48,13 +52,19 @@
 - ✓ 已完成 `public-consumer-chat` 的 04.7 app boundary / frontend host / auth-and-storage closeout，并已把实现与文档基线合入 `main`；该实现现作为历史参考而非 forward backend truth — Validated in Phase 04.7
 - ✓ 已完成 shared `apps/app-api` Worker foundation、request projection API 与 `public-chat-web` / `protected-panel-web` 接线收口 — Validated on 2026-03-29
 - ✓ 已完成 `student_handbook` 主链路的基础 eval / smoke / release-gate 验证，包含 live qrels benchmark、workflow/status 样本与 handbook collection schema 快照 — Validated in Phase 7
-- ✓ 已完成 repo-head `student_handbook` live acceptance rerun，`2026-04-02 182346` 正式 artifact 已确认 expanded `11`-case release gate、`procedure_directness` 与所有 supplemental soft gate 全量通过 — Validated on 2026-04-02
+- ✓ 已完成 repo-head `student_handbook` live acceptance rerun，`2026-03-31 210128` 正式 artifact 已确认 expanded release-gate、`procedure_directness` 与所有 supplemental soft gate 全量通过 — Validated on 2026-03-31
 - ✓ 已完成 `official_web -> app-api` control-plane ownership、contract、lifecycle、schema 与实施基线文档冻结 — Validated on 2026-03-29
 - ✓ 已完成 `official_web -> app-api` control-plane foundation 实现，包含 collector command/query APIs、outbox 驱动的 operator projections 与 ingestion handoff，以及 protected panel `Official Web` domain — Validated on 2026-03-29
+- ✓ 已完成 `official_web` corpus split 第一阶段执行面：repo-tracked projection routing 已把首批 stable-reference 页面从 `muc_public_pages` bridge 分流到 `official_web/stable_reference`，且 mixed replay output 已支持 scope-specific import 而不放宽 single-scope refresh — Validated in Phase 10.4
+- ✓ 已完成 `official_web/stable_reference` 的首条真实 release-evidence 与 serving-side cleanup：repo 已记录真实 `stable_reference` physical release，并让 retrieval / specialist / eval 辅助逻辑支持 split scope 与 mixed bridge 共存 — Validated in Phase 10.5
 
 ### Active
 
-- [ ] 首个真实部署环境现已固定为 `staging@ayafeed.com` 的项目隔离一级子域方案：`apps/app-api=https://campus-api-staging.ayafeed.com`、`apps/public-chat-web=https://campus-chat-staging.ayafeed.com`、`apps/protected-panel-web=https://campus-panel-staging.ayafeed.com`。当前 Cloudflare tier 不再依赖 `*.rag.ayafeed.com` 这类深一级 staging custom domain 的 SSL 可用性；同时 `ayafeed.com` 是共享 zone，generic 一级子域（如 `api-staging.ayafeed.com`）已被其他 repo 占用，不能再作为本仓库 deploy truth。repo 文档、`wrangler.toml` 与 tests 已收敛到项目隔离命名，`app-api-staging` / `public-chat-web-staging` / `protected-panel-web-staging` 都已发布到新的 custom domains，且 `campus-panel-staging` 已由真实 Cloudflare Access 接管。当前剩余阻塞项收敛为 panel 浏览器登录 smoke、request/overview smoke，以及 deploy-side `SENTRY_*` / `AXIOM_*` sink access 和全链路 observability verification
+- [ ] 当前 repo 已进入 post-closeout follow-up 执行期。Wave A planning truth refresh 与 worktree hygiene 已于 2026-04-06 收口；Wave B 也已推进到真实 staging 闭环阶段：`app-api-staging` / `chat-staging` 已恢复可用，新的远端证据已落到 `.tmp/staging-smoke/20260406T032941-wave-b-closure/` 与 `.tmp/observability-smoke/20260406T032941-staging-wave-b/`。当前真正剩余的外部阻塞项已收窄为 panel Access smoke 身份与 Sentry sink-side lookup access，而不再是“staging 尚未存在”或“chat lane 未恢复”。
+- [ ] 首个真实部署环境现已固定为 `staging@ayafeed.com` 的项目隔离一级子域方案：`apps/app-api=https://campus-api-staging.ayafeed.com`、`apps/public-chat-web=https://campus-chat-staging.ayafeed.com`、`apps/protected-panel-web=https://campus-panel-staging.ayafeed.com`。当前 Cloudflare tier 不再依赖 `*.rag.ayafeed.com` 这类深一级 staging custom domain 的 SSL 可用性；同时 `ayafeed.com` 是共享 zone，generic 一级子域（如 `api-staging.ayafeed.com`）已被其他 repo 占用，不能再作为本仓库 deploy truth。repo 文档、`wrangler.toml` 与 tests 已收敛到项目隔离命名，`app-api-staging` / `public-chat-web-staging` / `protected-panel-web-staging` 都已发布到新的 custom domains，且 `campus-panel-staging` 已由真实 Cloudflare Access 接管。当前真实远端状态已前进到：`campus-api-staging` / `campus-chat-staging` readiness 为 `200`，`campus-panel-staging` readiness 为 Cloudflare Access `302` 登录页，deploy-side `SENTRY_*` / `AXIOM_*` secret 已存在，Axiom query access 已通过独立 read token 闭环；剩余待收口的是 panel interactive smoke、Sentry sink-side verification，以及 repo 内 hostname migration debt
+- [ ] curriculum deterministic release gate 已在 `.tmp/evals/curriculum-plan-live-gate-accept-20260404T200443Z` 关闭；后续如果继续投入 curriculum 线，目标应是 supplemental soft-warn 诊断与 truth 收口，而不是把 soft gate 再包装成 deterministic release blocker
+- [ ] authenticated-notice historical closeout 已通过 real run `authenticated-notice-replay-20260406-024405` 收口；当前近端 follow-up 改为消费这次已完成 closeout，先执行 `campus_notices/internal_notice` 的 offline registry release、固定 release evidence，并保持 `restricted + offline_preparation` 不发布 query-serving alias；live portal scheduling 与 authenticated control-plane work 继续后置
+- [ ] `official_web/fresh_news` / `official_web/news_archive` 的 runtime opening criteria 仍未冻结；这条工作继续留在独立 official-web worktree，不在当前 follow-up 分支直接推进 query-serving 开放
 - [ ] 导航相关首个前向 slice 固定为 `place_lookup` / `place_finding`，先覆盖建筑、服务点与周边关键地点问法；`route_planning`、入口选择、无障碍路径与地图内路线交互后置到后续 phase
 
 ### Out of Scope
@@ -68,7 +78,7 @@
 
 ## Context
 
-当前真人答疑群里存在大量校园相关问题，需要人工持续回答，已经形成明显的人力消耗；这个项目的直接业务背景就是用结构正确的校园问答助理承接这些高频问答。仓库本身是 brownfield：`docs/` 已经收口为当前架构、目标架构、supporting architecture 与活跃实施文档，`.planning/codebase/` 也已经记录了当前代码地图。技术上，新仓库采用 supervisor-led multi-agent 方向，`../campusRAG` 是旧的 RAG 实现，只作为迁移参考；迁移目标不是复制旧接口，而是用新的 contract、retrieval abstraction 和 supervisor/specialist 边界重建主链路。
+当前真人答疑群里存在大量校园相关问题，需要人工持续回答，已经形成明显的人力消耗；这个项目的直接业务背景就是用结构正确的校园问答助理承接这些高频问答。仓库本身是 brownfield：`docs/` 中已有长期架构、phase-1、supervisor 架构与实施计划文档，`.planning/codebase/` 也已经记录了当前代码地图。技术上，新仓库采用 supervisor-led multi-agent 方向，`../campusRAG` 是旧的 RAG 实现，只作为迁移参考；迁移目标不是复制旧接口，而是用新的 contract、retrieval abstraction 和 supervisor/specialist 边界重建主链路。
 
 ## Constraints
 
@@ -100,7 +110,7 @@
 | handbook embedding baseline 固定为 `Qwen3-Embedding-4B @ 2560`，不得依赖兼容 API 默认 `1024` 维返回 | 当前 collection/query runtime 必须围绕统一向量宽度重建和验证，不能继续容忍 provider 默认维度漂移 | — Accepted on 2026-03-26 |
 | handbook chunk-truth 调整必须先经过真实 validation 与 sample markdown 复核，再允许继续 embedding 或进入 retrieval/eval 调参 | 这次问题说明仅靠单元测试不足以覆盖 handbook 的真实 cleanup/chunking 退化；必须把 live validation 和真实样本内容作为阶段门禁 | — Re-confirmed on 2026-03-26 |
 | `rag-specialist` answer path now fail-closes ambiguous, empty-support, and retrieval-failure outcomes while composing grounded chunk-cited answers from the accepted hybrid evidence bundle | Phase 4 must close handbook answer semantics without reopening retrieval strategy or shifting policy back into supervisor | — Validated in Phase 4 |
-| `bearer` auth is now runtime-owned and no longer trusts client-supplied `x-actor-*` headers; `trusted-worker` only performs origin admission, while final actor/authz must arrive via canonical `ContextProjection` | Phase 5 must close actor propagation and ACL safety without moving auth/provider semantics into `packages/*` | — Re-confirmed on 2026-04-02 |
+| `bearer` auth is now runtime-owned and no longer trusts client-supplied `x-actor-*` headers; `trusted-worker` projects final caller actor claims from forwarded Access JWT payload after origin trust is verified | Phase 5 must close actor propagation and ACL safety without moving auth/provider semantics into `packages/*` | — Validated in Phase 5 |
 | durable audit logging lives at the API shell boundary while supervisor-core remains the owner of audit record shape | This preserves runtime ownership for persistence and package ownership for schema/projection | — Validated in Phase 5 |
 | Cloudflare 并行后续工作拆成 `04.2` / `04.3` / `04.4` 三个 inserted phase | 主线被 chunk-truth 阻塞时，可以继续推进 edge/runtime/panel-shell 冻结，但必须避免把 provider、identity、ACL、audit 语义推入 `packages/*` 或提前吃掉 Phase 5 | — Pending in Phase 04.x |
 | Cloudflare public answer path now runs through `apps/public-entry-worker -> apps/supervisor-api` with explicit trusted-worker origin auth | 先把 public-entry runtime seam 做成真实可验证代码，再把 app-layer actor/ACL/audit留给 Phase 5 | — Validated in Phase 04.6 |
@@ -119,9 +129,14 @@
 | shared `apps/app-api` foundation 已在当前 merged truth 落地，panel `Requests` 不再属于 blocked follow-up | 后续工作应转向 integration hardening、observability verification 与 stale-truth cleanup，而不是重复讨论 shared backend topology 是否存在，也不再把 curriculum gate 记为这条非 live 执行线的 follow-up | — Validated on 2026-03-29 |
 | protected panel 面向小团队 operator principal，不额外自建 end-user user system；`Jobs` / `Operations` 默认不进首发 rollout | 这能保持 panel 是受控 operator control plane，而不是用户系统、CMS、数据库控制台或万能后台 | — Accepted on 2026-03-28 |
 | `official_web` control plane 收口到 shared `apps/app-api`，而不是新建 crawler-intake backend | 这能复用现有 app-owned admission、ledger、outbox 与 operator read-model 形态，同时保持 `apps/ingestion-worker` 继续只是 offline executor | — Accepted on 2026-03-29 |
-| curriculum 课程 alias 治理的离线/在线 split 收口为 `ingestion-core` 派生 `course_facts`、`rag-specialist` 做 canonical course/course-family resolve、`retrieval-core` 仅消费 canonical filters | 这样可以让 `习概` / `思政课` / `思修课` 这类 institution-scoped alias 落到实体真相，同时避免把 alias 语义泄漏进 retrieval backend 或 canonical qrels | — Validated on 2026-04-02 |
-| `实验班` / `创新班` 面向 C 端按“当前已采集的名称集合”返回 program-family answer，而不是继续一律澄清 | 当前 manifest 已有稳定的相关培养方案集合；产品层需要回答真实高频问法，但仍不得把这类 alias 写成单 doc canonical qrels 或宣称学校存在官方统一 family taxonomy | — Accepted on 2026-04-03 |
-| `强基/强基计划` 与 `二学位/第二学位/第二学士学位` 的 membership 问句现进入 `program_family_facts` family-aware completed lane；但短片段 / deictic 单 doc 语义仍保持 fail-closed | 当前 manifest 已有稳定成员集合，适合回答“有哪些专业”；但这不等于允许 bare alias 或 memory-only 语义坍缩成单一培养方案 truth | — Accepted on 2026-04-03 |
+| worktree-local `v1.0` audit 已在 Phase 9 收口到 `tech_debt`，不再把缺失 planning 文件当作 blocker | 这样可以把后续 `official_web/muc_public_pages` 数据面工作与 retroactive evidence cleanup 明确拆开，避免继续混淆 archive scaffold 与能力闭环 | — Accepted on 2026-04-02 |
+| `official_web/muc_public_pages` 当前 truth 现已显式拆成 `release_gate_required` / `retain_inventory_only` / `future_fresh_news_surface` 三层 | 这能把当前 stable-reference-like 质量治理、保留型 inventory truth 与未来 news surface handoff 明确分开，避免继续把 `inventory_only` 当成默认待升格队列 | — Accepted on 2026-04-04 |
+| `official_web` support-only article lines 现保留为 source-truth unit role，但不得进入 canonical markdown、chunk/index、retrieval ranking 或 answer row selection；promotable header 对有效 section-path 固定采用 labeled contract，对 title-collapsed 页面允许 title-only labeled header | 这能在保留审计可追溯性的同时关闭 `source_only` / `terminal_boilerplate` / header drift 与 notice-fact false positive，而不是继续依赖下游猜测性过滤 | — Validated on 2026-04-04 |
+| `official_web` 的长期 retrieval split 固定为 `official_web/stable_reference`、`official_web/fresh_news`、`official_web/news_archive`，而正式规章/手册与正式培养方案继续进入并列的 `regulations/*`、`curriculum/*` | 这能避免把 source channel、官网 URL 来源与 retrieval corpus 强行绑成一层，也避免继续扩出 `official_web/regulation` / `official_web/curriculum` 这类重复语义层 | — Accepted on 2026-04-05 |
+| `official_web` corpus split 的第一条执行链路采用 repo-tracked projection routing + scope-specific import filtering；未命中的页面继续留在 `muc_public_pages` bridge | 这能先把 `official_web/stable_reference` 路由/import 跑通，同时保持 fresh-news 与后续跨 corpus fan-out 仍需单独 phase，而不是在一次 refresh 中隐式扩 scope | — Validated on 2026-04-05 |
+| stable-reference-like official-web serving semantics 由 repo helper 统一表达，并同时覆盖 mixed bridge 与 `stable_reference` split scope | 这能避免 retrieval / specialist / eval 继续把参考页逻辑绑死在 `muc_public_pages`，同时不把 `fresh_news` / `news_archive` 混进当前说明型 surface | — Validated on 2026-04-05 |
+| `official_web/stable_reference` 的 serving alias 在 split-scope qrels/live gate 通过后单独发布，而 `muc_public_pages` 的陈旧 mixed alias 直接撤下 | 这能让当前 worktree-local query-facing official-web surface 与真实可消费 collection 对齐，同时避免继续把 mixed bridge 冒充成长期 serving surface | — Validated on 2026-04-05 |
+| `official_web/fresh_news` seed import/release 允许在本地验证阶段使用 injected registry path，只要真实对象存储、真实 Qdrant、repo-tracked manifest/qrels/live gate 全部成立 | 这能在 shared Postgres pooler 短时饱和时继续验证 chunk/index/retrieval 质量，而不把一次本地基础设施波动误写成语料或 runtime 设计 blocker | — Validated on 2026-04-05 |
 
 ## Evolution
 
@@ -141,4 +156,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state (users, feedback, metrics)
 
 ---
-*Last updated: 2026-04-05 after freezing place-finding as the first navigation-related rollout slice and keeping route planning deferred*
+*Last updated: 2026-04-06 after advancing Wave B staging closure to real remote evidence and shrinking the remaining blockers to panel identity plus Sentry sink-side access*

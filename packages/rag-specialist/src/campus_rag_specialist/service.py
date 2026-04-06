@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import re
 from typing import Callable
 
@@ -15,6 +16,8 @@ from campus_contracts import (
     SpecialistRequest,
     SpecialistResponse,
 )
+from campus_ingestion_core import load_runtime_profile
+from campus_ingestion_core.corpus_profiles import is_official_web_stable_reference_like_profile
 from campus_retrieval_core import CorpusQueryDisabledError, RetrievalBackendError, retrieve_sources
 from campus_retrieval_core import RestrictedDocumentAccessDeniedError
 from campus_retrieval_core.curriculum_query_resolution import (
@@ -26,6 +29,12 @@ from campus_retrieval_core.evidence_ranking import query_targets_source_title, s
 from campus_rag_specialist.agent import DEFAULT_MAX_ANSWER_SOURCES, RagSpecialistAgent
 from campus_rag_specialist.confidence import derive_confidence
 from campus_rag_specialist.intent import build_personalization_hint, frame_rag_intent
+from campus_rag_specialist.prompt_execution import RagPromptExecutor
+from campus_rag_specialist.prompt_packets import (
+    build_rag_answer_prompt_packet,
+    build_rag_clarify_prompt_packet,
+    build_rag_no_answer_prompt_packet,
+)
 from campus_rag_specialist.query_planning import (
     CurriculumCourseQueryPlan,
     CurriculumProgramFamilyQueryPlan,
@@ -47,6 +56,17 @@ _GENERIC_TOPIC_QUALIFIERS = {
     "学位": ("学士", "硕士", "博士", "本科"),
     "degree": ("bachelor", "master", "doctoral", "phd"),
 }
+_OFFICIAL_WEB_FRESHNESS_QUERY_TERMS = (
+    "今天",
+    "今日",
+    "最新",
+    "最近",
+    "近期",
+    "刚刚",
+    "本周",
+    "这周",
+    "本月",
+)
 _WHITESPACE_RE = re.compile(r"\s+")
 _QUERY_ASK_CUES = frozenset({"多少", "几年", "怎么", "如何", "安排", "什么", "哪些"})
 _UNSUPPORTED_HANDBOOK_CLAUSE_CUE_GROUPS = (
@@ -104,6 +124,7 @@ def delegate_to_rag_agent(
     request: SpecialistRequest,
     *,
     retriever: Callable[..., object] = retrieve_sources,
+    prompt_executor: RagPromptExecutor | None = None,
 ) -> SpecialistResponse:
     if request.target != "rag-specialist":
         raise ValueError("delegate_to_rag_agent only accepts target='rag-specialist'")
@@ -111,9 +132,16 @@ def delegate_to_rag_agent(
         raise TypeError("rag-specialist requires RagRequestPayload")
 
     user_goal = request.user_goal.strip()
-    effective_scope = _resolve_request_scope(request, user_goal=user_goal)
     intent_frame = frame_rag_intent(request)
     personalization_hint = build_personalization_hint(request)
+    effective_scope = _resolve_request_scope(request, user_goal=user_goal)
+    if effective_scope is None:
+        return SpecialistResponse(
+            target="rag-specialist",
+            status="needs_clarification",
+            confidence="low",
+            follow_up_question="请先说明你想查询的校内知识范围或资料集合。",
+        )
     effective_user_goal = _resolve_effective_curriculum_user_goal(
         effective_scope,
         user_goal=user_goal,
@@ -133,45 +161,67 @@ def delegate_to_rag_agent(
         curriculum_program_family_plan=curriculum_program_family_plan,
     ):
         empty_evidence = _build_empty_evidence(effective_scope, user_goal)
-        return SpecialistResponse(
-            target="rag-specialist",
-            status="needs_clarification",
-            confidence="low",
-            follow_up_question=_build_clarification_question(
+        follow_up_question, prompt_trace = _compose_clarification_response(
+            request=request,
+            resolved_scope=effective_scope,
+            evidence=empty_evidence,
+            fallback_question=_build_clarification_question(
                 user_goal,
                 empty_evidence,
                 recent_goal=personalization_hint.recent_goal,
                 confirmed_slot_terms=personalization_hint.confirmed_slot_terms,
             ),
-            result=_build_rag_result_payload(
-                evidence=empty_evidence,
-                resolved_scope=effective_scope,
-                handbook_plan=handbook_plan,
-                curriculum_plan=curriculum_plan,
-                curriculum_course_plan=curriculum_course_plan,
-                curriculum_program_family_plan=curriculum_program_family_plan,
-            ),
+            prompt_executor=prompt_executor,
+            intent_frame=intent_frame,
         )
-    if handbook_plan is not None and handbook_plan.status == "needs_clarification":
-        empty_evidence = _build_empty_evidence(effective_scope, user_goal)
         return SpecialistResponse(
             target="rag-specialist",
             status="needs_clarification",
             confidence="low",
-            follow_up_question=_build_clarification_question(
+            follow_up_question=follow_up_question,
+            result=_with_prompt_trace(
+                _build_rag_result_payload(
+                    evidence=empty_evidence,
+                    resolved_scope=effective_scope,
+                    handbook_plan=handbook_plan,
+                    curriculum_plan=curriculum_plan,
+                    curriculum_course_plan=curriculum_course_plan,
+                    curriculum_program_family_plan=curriculum_program_family_plan,
+                ),
+                prompt_trace,
+            ),
+        )
+    if handbook_plan is not None and handbook_plan.status == "needs_clarification":
+        empty_evidence = _build_empty_evidence(effective_scope, user_goal)
+        follow_up_question, prompt_trace = _compose_clarification_response(
+            request=request,
+            resolved_scope=effective_scope,
+            evidence=empty_evidence,
+            fallback_question=_build_clarification_question(
                 user_goal,
                 empty_evidence,
                 recent_goal=personalization_hint.recent_goal,
                 confirmed_slot_terms=personalization_hint.confirmed_slot_terms,
                 clarification_reason=handbook_plan.clarification_reason,
             ),
-            result=_build_rag_result_payload(
-                evidence=empty_evidence,
-                resolved_scope=effective_scope,
-                handbook_plan=handbook_plan,
-                curriculum_plan=curriculum_plan,
-                curriculum_course_plan=curriculum_course_plan,
-                curriculum_program_family_plan=curriculum_program_family_plan,
+            prompt_executor=prompt_executor,
+            intent_frame=intent_frame,
+        )
+        return SpecialistResponse(
+            target="rag-specialist",
+            status="needs_clarification",
+            confidence="low",
+            follow_up_question=follow_up_question,
+            result=_with_prompt_trace(
+                _build_rag_result_payload(
+                    evidence=empty_evidence,
+                    resolved_scope=effective_scope,
+                    handbook_plan=handbook_plan,
+                    curriculum_plan=curriculum_plan,
+                    curriculum_course_plan=curriculum_course_plan,
+                    curriculum_program_family_plan=curriculum_program_family_plan,
+                ),
+                prompt_trace,
             ),
         )
     if (
@@ -179,11 +229,11 @@ def delegate_to_rag_agent(
         and curriculum_program_family_plan.resolution_mode == "needs_clarification"
     ):
         empty_evidence = _build_empty_evidence(effective_scope, user_goal)
-        return SpecialistResponse(
-            target="rag-specialist",
-            status="needs_clarification",
-            confidence="low",
-            follow_up_question=_build_clarification_question(
+        follow_up_question, prompt_trace = _compose_clarification_response(
+            request=request,
+            resolved_scope=effective_scope,
+            evidence=empty_evidence,
+            fallback_question=_build_clarification_question(
                 user_goal,
                 empty_evidence,
                 recent_goal=personalization_hint.recent_goal,
@@ -191,13 +241,24 @@ def delegate_to_rag_agent(
                 clarification_reason=curriculum_program_family_plan.clarification_reason,
                 clarification_candidates=curriculum_program_family_plan.clarification_candidates,
             ),
-            result=_build_rag_result_payload(
-                evidence=empty_evidence,
-                resolved_scope=effective_scope,
-                handbook_plan=handbook_plan,
-                curriculum_plan=curriculum_plan,
-                curriculum_course_plan=curriculum_course_plan,
-                curriculum_program_family_plan=curriculum_program_family_plan,
+            prompt_executor=prompt_executor,
+            intent_frame=intent_frame,
+        )
+        return SpecialistResponse(
+            target="rag-specialist",
+            status="needs_clarification",
+            confidence="low",
+            follow_up_question=follow_up_question,
+            result=_with_prompt_trace(
+                _build_rag_result_payload(
+                    evidence=empty_evidence,
+                    resolved_scope=effective_scope,
+                    handbook_plan=handbook_plan,
+                    curriculum_plan=curriculum_plan,
+                    curriculum_course_plan=curriculum_course_plan,
+                    curriculum_program_family_plan=curriculum_program_family_plan,
+                ),
+                prompt_trace,
             ),
         )
     if (
@@ -206,11 +267,11 @@ def delegate_to_rag_agent(
         and curriculum_plan.status == "needs_clarification"
     ):
         empty_evidence = _build_empty_evidence(effective_scope, user_goal)
-        return SpecialistResponse(
-            target="rag-specialist",
-            status="needs_clarification",
-            confidence="low",
-            follow_up_question=_build_clarification_question(
+        follow_up_question, prompt_trace = _compose_clarification_response(
+            request=request,
+            resolved_scope=effective_scope,
+            evidence=empty_evidence,
+            fallback_question=_build_clarification_question(
                 user_goal,
                 empty_evidence,
                 recent_goal=personalization_hint.recent_goal,
@@ -218,13 +279,24 @@ def delegate_to_rag_agent(
                 clarification_reason=curriculum_plan.clarification_reason,
                 clarification_candidates=curriculum_plan.clarification_candidates,
             ),
-            result=_build_rag_result_payload(
-                evidence=empty_evidence,
-                resolved_scope=effective_scope,
-                handbook_plan=handbook_plan,
-                curriculum_plan=curriculum_plan,
-                curriculum_course_plan=curriculum_course_plan,
-                curriculum_program_family_plan=curriculum_program_family_plan,
+            prompt_executor=prompt_executor,
+            intent_frame=intent_frame,
+        )
+        return SpecialistResponse(
+            target="rag-specialist",
+            status="needs_clarification",
+            confidence="low",
+            follow_up_question=follow_up_question,
+            result=_with_prompt_trace(
+                _build_rag_result_payload(
+                    evidence=empty_evidence,
+                    resolved_scope=effective_scope,
+                    handbook_plan=handbook_plan,
+                    curriculum_plan=curriculum_plan,
+                    curriculum_course_plan=curriculum_course_plan,
+                    curriculum_program_family_plan=curriculum_program_family_plan,
+                ),
+                prompt_trace,
             ),
         )
 
@@ -340,42 +412,65 @@ def delegate_to_rag_agent(
             error=ErrorInfo(code="retrieval_failed", message=str(exc), retryable=False),
         )
     if not evidence.sources:
-        return SpecialistResponse(
-            target="rag-specialist",
-            status="no_answer",
-            answer_text=_build_no_answer_response(
+        answer_text, prompt_trace = _compose_no_answer_response(
+            request=request,
+            resolved_scope=effective_scope,
+            evidence=evidence,
+            no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
+            fallback_answer=_build_no_answer_response(
                 evidence,
                 resolved_policy_title=_resolved_policy_title(handbook_plan),
             ),
+            prompt_executor=prompt_executor,
+            intent_frame=intent_frame,
+        )
+        return SpecialistResponse(
+            target="rag-specialist",
+            status="no_answer",
+            answer_text=answer_text,
             confidence="low",
-            result=_build_rag_result_payload(
-                evidence=evidence,
-                resolved_scope=effective_scope,
-                handbook_plan=handbook_plan,
-                curriculum_plan=curriculum_plan,
-                curriculum_course_plan=curriculum_course_plan,
-                curriculum_program_family_plan=curriculum_program_family_plan,
-                no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
+            result=_with_prompt_trace(
+                _build_rag_result_payload(
+                    evidence=evidence,
+                    resolved_scope=effective_scope,
+                    handbook_plan=handbook_plan,
+                    curriculum_plan=curriculum_plan,
+                    curriculum_course_plan=curriculum_course_plan,
+                    curriculum_program_family_plan=curriculum_program_family_plan,
+                    no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
+                ),
+                prompt_trace,
             ),
         )
     if _should_clarify_with_evidence(effective_user_goal, evidence):
-        return SpecialistResponse(
-            target="rag-specialist",
-            status="needs_clarification",
-            confidence="low",
-            follow_up_question=_build_clarification_question(
+        follow_up_question, prompt_trace = _compose_clarification_response(
+            request=request,
+            resolved_scope=effective_scope,
+            evidence=evidence,
+            fallback_question=_build_clarification_question(
                 user_goal,
                 evidence,
                 recent_goal=personalization_hint.recent_goal,
                 confirmed_slot_terms=personalization_hint.confirmed_slot_terms,
                 clarification_candidates=curriculum_plan.clarification_candidates if curriculum_plan is not None else (),
             ),
-            result=_build_rag_result_payload(
-                evidence=evidence,
-                resolved_scope=effective_scope,
-                handbook_plan=handbook_plan,
-                curriculum_plan=curriculum_plan,
-                curriculum_course_plan=curriculum_course_plan,
+            prompt_executor=prompt_executor,
+            intent_frame=intent_frame,
+        )
+        return SpecialistResponse(
+            target="rag-specialist",
+            status="needs_clarification",
+            confidence="low",
+            follow_up_question=follow_up_question,
+            result=_with_prompt_trace(
+                _build_rag_result_payload(
+                    evidence=evidence,
+                    resolved_scope=effective_scope,
+                    handbook_plan=handbook_plan,
+                    curriculum_plan=curriculum_plan,
+                    curriculum_course_plan=curriculum_course_plan,
+                ),
+                prompt_trace,
             ),
         )
 
@@ -384,43 +479,67 @@ def delegate_to_rag_agent(
         curriculum_course_plan=curriculum_course_plan,
     )
     if not supporting_evidence.sources:
-        return SpecialistResponse(
-            target="rag-specialist",
-            status="no_answer",
-            answer_text=_build_no_answer_response(
+        answer_text, prompt_trace = _compose_no_answer_response(
+            request=request,
+            resolved_scope=effective_scope,
+            evidence=supporting_evidence,
+            no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
+            fallback_answer=_build_no_answer_response(
                 supporting_evidence,
                 resolved_policy_title=_resolved_policy_title(handbook_plan),
             ),
+            prompt_executor=prompt_executor,
+            intent_frame=intent_frame,
+        )
+        return SpecialistResponse(
+            target="rag-specialist",
+            status="no_answer",
+            answer_text=answer_text,
             confidence="low",
-            result=_build_rag_result_payload(
-                evidence=supporting_evidence,
-                resolved_scope=effective_scope,
-                handbook_plan=handbook_plan,
-                curriculum_plan=curriculum_plan,
-                curriculum_course_plan=curriculum_course_plan,
-                curriculum_program_family_plan=curriculum_program_family_plan,
-                no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
+            result=_with_prompt_trace(
+                _build_rag_result_payload(
+                    evidence=supporting_evidence,
+                    resolved_scope=effective_scope,
+                    handbook_plan=handbook_plan,
+                    curriculum_plan=curriculum_plan,
+                    curriculum_course_plan=curriculum_course_plan,
+                    curriculum_program_family_plan=curriculum_program_family_plan,
+                    no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
+                ),
+                prompt_trace,
             ),
         )
 
     confidence = derive_confidence(supporting_evidence)
     if confidence == "low":
-        return SpecialistResponse(
-            target="rag-specialist",
-            status="no_answer",
-            answer_text=_build_no_answer_response(
+        answer_text, prompt_trace = _compose_no_answer_response(
+            request=request,
+            resolved_scope=effective_scope,
+            evidence=supporting_evidence,
+            no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
+            fallback_answer=_build_no_answer_response(
                 supporting_evidence,
                 resolved_policy_title=_resolved_policy_title(handbook_plan),
             ),
+            prompt_executor=prompt_executor,
+            intent_frame=intent_frame,
+        )
+        return SpecialistResponse(
+            target="rag-specialist",
+            status="no_answer",
+            answer_text=answer_text,
             confidence="low",
-            result=_build_rag_result_payload(
-                evidence=supporting_evidence,
-                resolved_scope=effective_scope,
-                handbook_plan=handbook_plan,
-                curriculum_plan=curriculum_plan,
-                curriculum_course_plan=curriculum_course_plan,
-                curriculum_program_family_plan=curriculum_program_family_plan,
-                no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
+            result=_with_prompt_trace(
+                _build_rag_result_payload(
+                    evidence=supporting_evidence,
+                    resolved_scope=effective_scope,
+                    handbook_plan=handbook_plan,
+                    curriculum_plan=curriculum_plan,
+                    curriculum_course_plan=curriculum_course_plan,
+                    curriculum_program_family_plan=curriculum_program_family_plan,
+                    no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
+                ),
+                prompt_trace,
             ),
         )
     if _should_fail_closed_resolved_policy_clause(
@@ -469,19 +588,34 @@ def delegate_to_rag_agent(
             sources=answer_draft.supporting_sources,
         )
         answer_text = answer_draft.answer_text
+        prompt_trace = None
+        if prompt_executor is not None:
+            execution = prompt_executor.compose_answer(
+                build_rag_answer_prompt_packet(
+                    request,
+                    resolved_scope=effective_scope,
+                    evidence=finalized_evidence,
+                    intent_frame=intent_frame,
+                )
+            )
+            answer_text = execution.output.answer_text
+            prompt_trace = execution.prompt_trace
     return SpecialistResponse(
         target="rag-specialist",
         status="completed",
         answer_text=answer_text,
         confidence=confidence,
-        result=_build_rag_result_payload(
-            evidence=finalized_evidence,
-            resolved_scope=effective_scope,
-            handbook_plan=handbook_plan,
-            curriculum_plan=curriculum_plan,
-            curriculum_course_plan=curriculum_course_plan,
-            curriculum_program_family_plan=curriculum_program_family_plan,
-            allow_session_follow_up=True,
+        result=_with_prompt_trace(
+            _build_rag_result_payload(
+                evidence=finalized_evidence,
+                resolved_scope=effective_scope,
+                handbook_plan=handbook_plan,
+                curriculum_plan=curriculum_plan,
+                curriculum_course_plan=curriculum_course_plan,
+                curriculum_program_family_plan=curriculum_program_family_plan,
+                allow_session_follow_up=True,
+            ),
+            prompt_trace if curriculum_program_family_plan is None and curriculum_course_plan is None else None,
         ),
     )
 
@@ -490,7 +624,7 @@ def _resolve_request_scope(
     request: SpecialistRequest,
     *,
     user_goal: str,
-) -> KnowledgeScope:
+) -> KnowledgeScope | None:
     if request.payload.scope is not None:
         return request.payload.scope
 
@@ -518,7 +652,7 @@ def _resolve_request_scope(
         if handbook_plan.status == "resolved":
             return KnowledgeScope(corpus="regulations", collection="student_handbook")
         return KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
-    return KnowledgeScope(corpus="regulations", collection="student_handbook")
+    return None
 
 
 def _has_curriculum_scope_signal(
@@ -680,6 +814,68 @@ def _build_supporting_evidence(
     )
 
 
+def _compose_clarification_response(
+    *,
+    request: SpecialistRequest,
+    resolved_scope: KnowledgeScope,
+    evidence: EvidenceBundle,
+    fallback_question: str,
+    prompt_executor: RagPromptExecutor | None,
+    intent_frame: RagIntentFrame,
+) -> tuple[str, object | None]:
+    if prompt_executor is None:
+        return fallback_question, None
+    execution = prompt_executor.compose_clarify(
+        build_rag_clarify_prompt_packet(
+            request,
+            intent_frame=intent_frame,
+            resolved_scope=resolved_scope,
+        )
+    )
+    return execution.output.follow_up_question, execution.prompt_trace
+
+
+def _compose_no_answer_response(
+    *,
+    request: SpecialistRequest,
+    resolved_scope: KnowledgeScope,
+    evidence: EvidenceBundle,
+    no_answer_reason: str,
+    fallback_answer: str,
+    prompt_executor: RagPromptExecutor | None,
+    intent_frame: RagIntentFrame,
+) -> tuple[str, object | None]:
+    if prompt_executor is None:
+        return fallback_answer, None
+    execution = prompt_executor.compose_no_answer(
+        build_rag_no_answer_prompt_packet(
+            request,
+            resolved_scope=resolved_scope,
+            evidence=evidence,
+            no_answer_reason=no_answer_reason,
+            intent_frame=intent_frame,
+        )
+    )
+    return execution.output.answer_text, execution.prompt_trace
+
+
+def _with_prompt_trace(
+    payload: RagResultPayload,
+    prompt_trace: object | None,
+) -> RagResultPayload:
+    if prompt_trace is None:
+        return payload
+    diagnostics = payload.diagnostics
+    if diagnostics is None:
+        diagnostics = RagResultDiagnostics(prompt_trace=prompt_trace)
+    else:
+        diagnostics = replace(diagnostics, prompt_trace=prompt_trace)
+    return RagResultPayload(
+        evidence=payload.evidence,
+        diagnostics=diagnostics,
+    )
+
+
 def _build_no_answer_response(
     evidence: EvidenceBundle,
     *,
@@ -691,6 +887,15 @@ def _build_no_answer_response(
         return "我还不能稳定确认你想问的是哪一类项目班；你可以直接说民族班、基地班，或者补充更具体的班型。"
     if evidence.corpus == "curriculum" and evidence.collection == "curriculum_plan":
         return "当前未检索到足够依据支持回答这个培养方案问题，请补充更具体的培养方案名称、学位要求或课程表名称。"
+    if evidence.corpus == "official_web":
+        profile = load_runtime_profile(evidence.corpus, evidence.collection)
+        if is_official_web_stable_reference_like_profile(profile):
+            if (
+                not profile.supports_freshness_sensitive_queries
+                and _is_official_web_freshness_sensitive_query(evidence.query_text)
+            ):
+                return "当前本地官网页面链路还不支持回答今天/最新/最近这类时效敏感问题，请改问明确的页面标题、机构名称或文章主题。"
+            return "当前未检索到足够依据支持回答这个官网页面问题，请确认问题是否落在当前已导入的官网页面范围内，或补充更明确的页面标题、机构名称或文章主题。"
     if resolved_policy_title:
         return (
             f"在《{resolved_policy_title}》中，当前未检索到足够依据支持回答这个问题；"
@@ -723,6 +928,11 @@ def _with_query_text(evidence: EvidenceBundle, query_text: str) -> EvidenceBundl
         collection=evidence.collection,
         sources=evidence.sources,
     )
+
+
+def _is_official_web_freshness_sensitive_query(query_text: str) -> bool:
+    normalized_goal = _normalize_text(query_text).lower()
+    return any(term in normalized_goal for term in _OFFICIAL_WEB_FRESHNESS_QUERY_TERMS)
 
 
 def _should_clarify_with_evidence(user_goal: str, evidence: EvidenceBundle) -> bool:

@@ -7,10 +7,31 @@ from pathlib import Path
 from typing import Any
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
+from campus_ingestion_core.authenticated_notice_defaults import (
+    DEFAULT_AUTHENTICATED_NOTICE_COLLECTION,
+    DEFAULT_AUTHENTICATED_NOTICE_CORPUS,
+    DEFAULT_AUTHENTICATED_NOTICE_EMBEDDING_MODEL,
+    DEFAULT_AUTHENTICATED_NOTICE_ENTITLEMENT_GROUPS,
+    DEFAULT_AUTHENTICATED_NOTICE_IMPORT_SOURCE,
+    DEFAULT_AUTHENTICATED_NOTICE_PARSER_VERSION,
+    DEFAULT_AUTHENTICATED_NOTICE_VISIBILITY_SCOPE,
+)
 from campus_ingestion_core.authenticated_notice_source_truth import (
     AUTHENTICATED_NOTICE_SOURCE_CHANNEL,
     AuthenticatedNoticeSourceMaterial,
     prepare_authenticated_notice_source_material,
+)
+from campus_ingestion_core.authenticated_notice_source_projections import (
+    _load_json_payload,
+    _load_jsonl_rows,
+    load_authenticated_notice_source_projections_config,
+    read_authenticated_notice_source_projections_config_path,
+)
+from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
+    AuthenticatedNoticeSourceTruthInventoryStore,
+    build_authenticated_notice_source_truth_inventory_store_from_env,
+    build_authenticated_notice_source_truth_parent_snapshot_from_payloads,
+    inventory_entry_from_parent_snapshot,
 )
 from campus_ingestion_core.campusrag_ingestion_support import (
     DocumentImportInput,
@@ -25,6 +46,7 @@ from campus_ingestion_core.object_store import (
     build_raw_asset_key,
     build_source_provider_artifact_key,
     build_source_truth_artifact_key,
+    is_source_object_key,
 )
 from campus_ingestion_core.registry import (
     DocumentRegistry,
@@ -35,16 +57,6 @@ from campus_ingestion_core.registry import (
 from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_core.scope_catalog import assert_known_scope
 from campus_ingestion_core.campusrag_ingestion_support import utc_now
-
-
-DEFAULT_AUTHENTICATED_NOTICE_CORPUS = "campus_notices"
-DEFAULT_AUTHENTICATED_NOTICE_COLLECTION = "internal_notice"
-DEFAULT_AUTHENTICATED_NOTICE_EMBEDDING_MODEL = "Qwen3-Embedding-4B"
-DEFAULT_AUTHENTICATED_NOTICE_PARSER_VERSION = "authenticated_notice_import_v1"
-DEFAULT_AUTHENTICATED_NOTICE_IMPORT_SOURCE = "authenticated_notice_bootstrap_import"
-DEFAULT_AUTHENTICATED_NOTICE_VISIBILITY_SCOPE = "campus"
-DEFAULT_AUTHENTICATED_NOTICE_ENTITLEMENT_GROUPS = ("campus_members",)
-
 
 @dataclass(frozen=True, slots=True)
 class AuthenticatedNoticeImportRequest:
@@ -148,12 +160,24 @@ def import_authenticated_notice_export(
     object_store: S3ObjectStoreWriter | object | None = None,
     document_registry: DocumentRegistry | None = None,
     raw_asset_registry: RawAssetRegistry | None = None,
+    source_truth_inventory_store: AuthenticatedNoticeSourceTruthInventoryStore | None = None,
 ) -> dict[str, Any]:
     source = env if env is not None else dict(os.environ)
     object_store_settings = ObjectStoreSettings.from_env(source)
     writer = object_store or S3ObjectStoreWriter(object_store_settings)
     registry = document_registry or build_document_registry_from_env(source)
     raw_registry = raw_asset_registry or build_raw_asset_registry_from_env(source)
+    inventory_store = source_truth_inventory_store
+    if inventory_store is None and any(
+        source.get(key)
+        for key in (
+            "AUTHENTICATED_NOTICE_SOURCE_TRUTH_INVENTORY_DATABASE_URL",
+            "CAMPUS_SHARED_POSTGRES_URL",
+            "DOCUMENT_REGISTRY_DATABASE_URL",
+            "RAW_ASSET_REGISTRY_DATABASE_URL",
+        )
+    ):
+        inventory_store = build_authenticated_notice_source_truth_inventory_store_from_env(source)
     prepared = import_authenticated_notice_bundle(request)
 
     raw_uploaded_count = 0
@@ -197,6 +221,50 @@ def import_authenticated_notice_export(
         default_visibility_scope=request.visibility_scope,
         scope_refresh=(request.corpus, request.collection),
     )
+    if inventory_store is not None:
+        config_path = read_authenticated_notice_source_projections_config_path(source)
+        config = load_authenticated_notice_source_projections_config(config_path)
+        inventory_entries = []
+        for notice_import in prepared.notice_imports:
+            translated = _materialize_document_import_for_persistence(
+                notice_import.document_import,
+                notice_import.source_artifact_keys,
+            )
+            parent_record = registry.get(
+                str(translated.metadata["document_id"]),
+                translated.revision_track,
+                str(translated.metadata["version_id"]),
+            )
+            if parent_record is None:
+                raise ValueError(
+                    "authenticated notice import failed to persist parent document before inventory sync: "
+                    f"{translated.metadata['document_id']}"
+                )
+            parent_snapshot = build_authenticated_notice_source_truth_parent_snapshot_from_payloads(
+                record=parent_record,
+                raw_record=notice_import.raw_record,
+                notice_manifest_key=notice_import.source_artifact_keys["source-truth/notice-manifest.json"],
+                content_blocks_key=notice_import.source_artifact_keys["source-truth/content-blocks.jsonl"],
+                attachment_refs_key=notice_import.source_artifact_keys["source-truth/attachment-refs.jsonl"],
+                source_artifact_keys=tuple(
+                    key
+                    for key in notice_import.source_artifact_keys.values()
+                    if key and is_source_object_key(str(key))
+                ),
+                notice_manifest=_load_json_payload(
+                    notice_import.source_truth_artifacts["source-truth/notice-manifest.json"]
+                ),
+                attachment_refs=_load_jsonl_rows(
+                    notice_import.source_truth_artifacts["source-truth/attachment-refs.jsonl"]
+                ),
+                config=config,
+            )
+            inventory_entries.append(inventory_entry_from_parent_snapshot(parent_snapshot))
+        inventory_store.replace_scope(
+            request.corpus,
+            request.collection,
+            tuple(inventory_entries),
+        )
     return {
         "notice_count": prepared.notice_count,
         "created_document_ids": list(stats.created_document_ids),

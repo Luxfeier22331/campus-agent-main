@@ -126,6 +126,11 @@ class RetrievalCaseMetrics:
     recall_at_5: float
     precision_at_5: float
     mrr_at_5: float
+    doc_hit_at_1: float
+    doc_hit_at_3: float
+    doc_recall_at_5: float
+    doc_precision_at_5: float
+    doc_mrr_at_5: float
     forbidden_hit: bool
 
 
@@ -137,6 +142,11 @@ class RetrievalMetricSummary:
     recall_at_5: float
     precision_at_5: float
     mrr_at_5: float
+    doc_hit_at_1: float
+    doc_hit_at_3: float
+    doc_recall_at_5: float
+    doc_precision_at_5: float
+    doc_mrr_at_5: float
     forbidden_hit_rate: float
     by_split: dict[str, "RetrievalMetricSummary"] = field(default_factory=dict)
 
@@ -425,6 +435,9 @@ def evaluate_retrieval_case(
     ranked_sources = tuple(sources)
     relevant_sources = case.expected_sources
     relevant_total = len(relevant_sources)
+    relevant_doc_ids = tuple(dict.fromkeys(source_ref.doc_id for source_ref in relevant_sources))
+    ranked_doc_sources = _dedupe_sources_by_doc_id(ranked_sources)
+    relevant_doc_total = len(relevant_doc_ids)
     forbidden_hit = any(
         _matches_expected(source_ref, source)
         for source_ref in case.forbidden_sources
@@ -441,24 +454,62 @@ def evaluate_retrieval_case(
             recall_at_5=empty_success,
             precision_at_5=empty_success,
             mrr_at_5=empty_success,
+            doc_hit_at_1=empty_success,
+            doc_hit_at_3=empty_success,
+            doc_recall_at_5=empty_success,
+            doc_precision_at_5=empty_success,
+            doc_mrr_at_5=empty_success,
             forbidden_hit=forbidden_hit,
         )
 
     def hit_at(limit: int) -> float:
-        return 1.0 if any(_matches_expected(source_ref, source) for source in ranked_sources[:limit] for source_ref in relevant_sources) else 0.0
+        return (
+            1.0
+            if any(
+                _matches_expected(source_ref, source)
+                for source in ranked_sources[:limit]
+                for source_ref in relevant_sources
+            )
+            else 0.0
+        )
+
+    def doc_hit_at(limit: int) -> float:
+        return (
+            1.0
+            if any(
+                source.doc_id == relevant_doc_id
+                for source in ranked_doc_sources[:limit]
+                for relevant_doc_id in relevant_doc_ids
+            )
+            else 0.0
+        )
 
     matched_within_5 = {
         _source_identity(source_ref)
         for source_ref in relevant_sources
         if any(_matches_expected(source_ref, source) for source in ranked_sources[:5])
     }
+    matched_doc_ids_within_5 = {
+        relevant_doc_id
+        for relevant_doc_id in relevant_doc_ids
+        if any(source.doc_id == relevant_doc_id for source in ranked_doc_sources[:5])
+    }
     relevant_hits_within_5 = len(matched_within_5)
     precision_denominator = min(len(ranked_sources), 5)
+    doc_precision_denominator = min(len(ranked_doc_sources), 5)
     first_relevant_rank = next(
         (
             index
             for index, source in enumerate(ranked_sources[:5], start=1)
             if any(_matches_expected(source_ref, source) for source_ref in relevant_sources)
+        ),
+        None,
+    )
+    first_relevant_doc_rank = next(
+        (
+            index
+            for index, source in enumerate(ranked_doc_sources[:5], start=1)
+            if source.doc_id in matched_doc_ids_within_5
         ),
         None,
     )
@@ -470,6 +521,15 @@ def evaluate_retrieval_case(
         recall_at_5=(relevant_hits_within_5 / relevant_total) if relevant_total else 0.0,
         precision_at_5=(relevant_hits_within_5 / precision_denominator) if precision_denominator else 0.0,
         mrr_at_5=(1.0 / first_relevant_rank) if first_relevant_rank is not None else 0.0,
+        doc_hit_at_1=doc_hit_at(1),
+        doc_hit_at_3=doc_hit_at(3),
+        doc_recall_at_5=(len(matched_doc_ids_within_5) / relevant_doc_total) if relevant_doc_total else 0.0,
+        doc_precision_at_5=(
+            len(matched_doc_ids_within_5) / doc_precision_denominator
+        )
+        if doc_precision_denominator
+        else 0.0,
+        doc_mrr_at_5=(1.0 / first_relevant_doc_rank) if first_relevant_doc_rank is not None else 0.0,
         forbidden_hit=forbidden_hit,
     )
 
@@ -493,6 +553,11 @@ def _summarize_retrieval_metrics(
             recall_at_5=0.0,
             precision_at_5=0.0,
             mrr_at_5=0.0,
+            doc_hit_at_1=0.0,
+            doc_hit_at_3=0.0,
+            doc_recall_at_5=0.0,
+            doc_precision_at_5=0.0,
+            doc_mrr_at_5=0.0,
             forbidden_hit_rate=0.0,
             by_split={},
         )
@@ -503,6 +568,11 @@ def _summarize_retrieval_metrics(
         recall_at_5=_average(item.recall_at_5 for item in metric_items),
         precision_at_5=_average(item.precision_at_5 for item in metric_items),
         mrr_at_5=_average(item.mrr_at_5 for item in metric_items),
+        doc_hit_at_1=_average(item.doc_hit_at_1 for item in metric_items),
+        doc_hit_at_3=_average(item.doc_hit_at_3 for item in metric_items),
+        doc_recall_at_5=_average(item.doc_recall_at_5 for item in metric_items),
+        doc_precision_at_5=_average(item.doc_precision_at_5 for item in metric_items),
+        doc_mrr_at_5=_average(item.doc_mrr_at_5 for item in metric_items),
         forbidden_hit_rate=_average(1.0 if item.forbidden_hit else 0.0 for item in metric_items),
         by_split=(
             {
@@ -657,6 +727,19 @@ def _source_identity(source_ref: RetrievalQrelsSourceRef) -> tuple[str, str | No
     return (source_ref.doc_id, source_ref.version_id, source_ref.chunk_id)
 
 
+def _dedupe_sources_by_doc_id(
+    sources: tuple[EvidenceSource, ...] | list[EvidenceSource],
+) -> tuple[EvidenceSource, ...]:
+    deduped: list[EvidenceSource] = []
+    seen_doc_ids: set[str] = set()
+    for source in sources:
+        if source.doc_id in seen_doc_ids:
+            continue
+        deduped.append(source)
+        seen_doc_ids.add(source.doc_id)
+    return tuple(deduped)
+
+
 def _matches_expected(source_ref: RetrievalQrelsSourceRef, source: EvidenceSource) -> bool:
     if source.doc_id != source_ref.doc_id:
         return False
@@ -739,6 +822,11 @@ def render_retrieval_summary_text(summary: RetrievalMetricSummary) -> str:
         f"recall@5: {summary.recall_at_5:.3f}",
         f"precision@5: {summary.precision_at_5:.3f}",
         f"mrr@5: {summary.mrr_at_5:.3f}",
+        f"doc_hit@1: {summary.doc_hit_at_1:.3f}",
+        f"doc_hit@3: {summary.doc_hit_at_3:.3f}",
+        f"doc_recall@5: {summary.doc_recall_at_5:.3f}",
+        f"doc_precision@5: {summary.doc_precision_at_5:.3f}",
+        f"doc_mrr@5: {summary.doc_mrr_at_5:.3f}",
         f"forbidden_hit_rate: {summary.forbidden_hit_rate:.3f}",
     ]
     if summary.by_split:
@@ -751,6 +839,11 @@ def render_retrieval_summary_text(summary: RetrievalMetricSummary) -> str:
                 f"recall@5={split_summary.recall_at_5:.3f}, "
                 f"precision@5={split_summary.precision_at_5:.3f}, "
                 f"mrr@5={split_summary.mrr_at_5:.3f}, "
+                f"doc_hit@1={split_summary.doc_hit_at_1:.3f}, "
+                f"doc_hit@3={split_summary.doc_hit_at_3:.3f}, "
+                f"doc_recall@5={split_summary.doc_recall_at_5:.3f}, "
+                f"doc_precision@5={split_summary.doc_precision_at_5:.3f}, "
+                f"doc_mrr@5={split_summary.doc_mrr_at_5:.3f}, "
                 f"forbidden_hit_rate={split_summary.forbidden_hit_rate:.3f}"
             )
     return "\n".join(lines)

@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-03-31
-updated: 2026-04-02
+updated: 2026-04-06
 ---
 
 # Worker Observability Smoke Runbook
@@ -109,6 +109,8 @@ pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "smokes
 
 - `wrangler` 远程检查可以作为辅助手段，但不是唯一 gate
 - 真正的 closure 以真实请求、真实 trace 和真实 runtime event 是否进入 sink 为准
+- `AXIOM_TOKEN` 可以只是 deploy-side ingest token；如果 query API 返回 `403 token does not have required permissions`，应改用独立的 read/query token。当前 repo root worktree 用 `AXIOM_SMOKE` 完成 query closure
+- `SENTRY_DSN` 只证明 deploy-side sink 配置存在；真正的 sink-side verification 仍需要 Sentry UI 或 auth token，不能把 DSN 已下发误写成“已完成 Sentry 验证”
 - 建议先用 `docs/runbooks/worker-observability-smoke-artifact-template.md` 填完 handoff 与 evidence 字段，再执行真实环境 smoke
 
 ## Post-Deploy Verification
@@ -207,3 +209,17 @@ pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "smokes
 - `Post-Deploy Verification` 关闭条件：
   `public-chat-web`、`protected-panel-web`、`app-api` 三端至少各完成一轮真实 smoke，并且 `Axiom` 收到 `projection.drain` 或等价 runtime event
 - 在没有真实部署环境时，这条 follow-up 的正确状态是 `post-deploy verification pending`，不是“本地工程阻塞”
+
+## 2026-04-06 Staging Checkpoint
+
+当前 staging 的真实 checkpoint 已经前进到：
+
+- `public-chat-web -> app-api`: closed。真实请求 `req_3f493161ae6c4c669304c4ca439dfe4a` / `trace_f3d3792b021f4118ac90a06041f9b03f` 已返回 `answer`
+- `app-api` scheduled / projection drain: closed。`Axiom` 已查到最新 `event_type=projection.drain`、`projector_name=request_projection`、`surface=app_api`、`processed_count=2`、`failed_count=0`
+- `protected-panel-web -> app-api`: pending real smoke identity。`panel-staging` 已是 Cloudflare Access 登录页，不再是缺少 Access provisioning
+- `Sentry` sink-side verification: pending access。deploy-side `SENTRY_DSN` 已存在，但 repo 侧尚无可用的 lookup token / UI access
+
+当前 checkpoint artifact：
+
+- `.tmp/staging-smoke/20260406T032941-wave-b-closure/`
+- `.tmp/observability-smoke/20260406T032941-staging-wave-b/`

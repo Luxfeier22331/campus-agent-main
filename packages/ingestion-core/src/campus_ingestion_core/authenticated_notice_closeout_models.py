@@ -6,7 +6,7 @@ from enum import Enum
 import hashlib
 from typing import Any, Sequence
 
-from campus_ingestion_core.authenticated_notice_import import (
+from campus_ingestion_core.authenticated_notice_defaults import (
     DEFAULT_AUTHENTICATED_NOTICE_COLLECTION,
     DEFAULT_AUTHENTICATED_NOTICE_CORPUS,
     DEFAULT_AUTHENTICATED_NOTICE_EMBEDDING_MODEL,
@@ -18,6 +18,7 @@ from campus_ingestion_core.authenticated_notice_import import (
 
 
 DEFAULT_CLOSEOUT_OPERATION = "authenticated-notice-closeout"
+DEFAULT_CLOSEOUT_INPUT_KIND = "bundle_import"
 DEFAULT_CLOSEOUT_SHARD_SIZE = 250
 DEFAULT_CLOSEOUT_BATCH_SIZE = 16
 DEFAULT_CLOSEOUT_MAX_CONCURRENCY = 8
@@ -80,6 +81,13 @@ class CloseoutWorkerState(str, Enum):
     FAILED = "failed"
 
 
+class CloseoutPromotionBatchState(str, Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    DONE = "done"
+    FAILED = "failed"
+
+
 @dataclass(frozen=True, slots=True)
 class CloseoutRun:
     run_id: str
@@ -87,6 +95,12 @@ class CloseoutRun:
     manifest_path: str | None
     expected_notice_count: int
     operations_prefix: str
+    input_kind: str = DEFAULT_CLOSEOUT_INPUT_KIND
+    expected_document_count: int = 0
+    expected_attachment_document_count: int = 0
+    expected_ocr_candidate_count: int = 0
+    expected_raw_asset_count: int = 0
+    source_projections_path: str | None = None
     corpus: str = DEFAULT_AUTHENTICATED_NOTICE_CORPUS
     collection: str = DEFAULT_AUTHENTICATED_NOTICE_COLLECTION
     site_id: str = ""
@@ -99,6 +113,7 @@ class CloseoutRun:
     embedding_model: str = DEFAULT_AUTHENTICATED_NOTICE_EMBEDDING_MODEL
     import_source: str = DEFAULT_AUTHENTICATED_NOTICE_IMPORT_SOURCE
     export_manifest_object_key: str | None = None
+    source_truth_inventory_object_key: str | None = None
     shard_size: int = DEFAULT_CLOSEOUT_SHARD_SIZE
     batch_size: int = DEFAULT_CLOSEOUT_BATCH_SIZE
     max_concurrency: int = DEFAULT_CLOSEOUT_MAX_CONCURRENCY
@@ -212,10 +227,14 @@ class CloseoutRun:
             failure_reason=None,
         )
 
-    def mark_promoting(self) -> CloseoutRun:
+    def with_promotion(self, promotion: dict[str, Any]) -> CloseoutRun:
+        return replace(self, promotion=dict(promotion))
+
+    def mark_promoting(self, promotion: dict[str, Any] | None = None) -> CloseoutRun:
         return replace(
             self,
             state=CloseoutRunState.PROMOTING,
+            promotion=dict(self.promotion if promotion is None else promotion),
             active_worker_count=0,
             failure_reason=None,
         )
@@ -498,6 +517,72 @@ class CloseoutWorker:
         return cls(**raw)
 
 
+@dataclass(frozen=True, slots=True)
+class CloseoutPromotionBatch:
+    promotion_id: str
+    batch_id: int
+    document_refs: tuple[tuple[str, str, str], ...]
+    state: CloseoutPromotionBatchState = CloseoutPromotionBatchState.PENDING
+    attempt: int = 0
+    copied_document_count: int = 0
+    copied_object_count: int = 0
+    started_at: str | None = None
+    heartbeat_at: str | None = None
+    finished_at: str | None = None
+    error: str | None = None
+
+    def mark_running(self) -> CloseoutPromotionBatch:
+        timestamp = utc_now()
+        return replace(
+            self,
+            state=CloseoutPromotionBatchState.RUNNING,
+            attempt=self.attempt + 1,
+            started_at=self.started_at or timestamp,
+            heartbeat_at=timestamp,
+            finished_at=None,
+            error=None,
+        )
+
+    def complete(
+        self,
+        *,
+        copied_document_count: int,
+        copied_object_count: int,
+    ) -> CloseoutPromotionBatch:
+        timestamp = utc_now()
+        return replace(
+            self,
+            state=CloseoutPromotionBatchState.DONE,
+            copied_document_count=copied_document_count,
+            copied_object_count=copied_object_count,
+            heartbeat_at=timestamp,
+            finished_at=timestamp,
+            error=None,
+        )
+
+    def fail(self, error: str) -> CloseoutPromotionBatch:
+        timestamp = utc_now()
+        return replace(
+            self,
+            state=CloseoutPromotionBatchState.FAILED,
+            heartbeat_at=timestamp,
+            finished_at=timestamp,
+            error=error,
+        )
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> CloseoutPromotionBatch:
+        raw = dict(payload)
+        raw["state"] = CloseoutPromotionBatchState(
+            str(raw.get("state") or CloseoutPromotionBatchState.PENDING.value)
+        )
+        raw["document_refs"] = tuple(
+            tuple(str(part) for part in item)
+            for item in raw.get("document_refs") or ()
+        )
+        return cls(**raw)
+
+
 def attach_batches_to_shards(
     shards: Sequence[CloseoutShard],
     batches: Sequence[CloseoutBatch],
@@ -530,6 +615,7 @@ def document_stage_slug(document_id: str) -> str:
 
 __all__ = [
     "DEFAULT_CLOSEOUT_BATCH_SIZE",
+    "DEFAULT_CLOSEOUT_INPUT_KIND",
     "DEFAULT_CLOSEOUT_LEASE_SECONDS",
     "DEFAULT_CLOSEOUT_MAX_CONCURRENCY",
     "DEFAULT_CLOSEOUT_NOTICE_CONCURRENCY",

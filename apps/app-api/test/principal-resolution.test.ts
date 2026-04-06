@@ -9,11 +9,12 @@ vi.mock("../src/modules/auth/auth", () => ({
 import {
   mapSessionToAppPrincipal,
   mapOperatorHeadersToPrincipal,
-  mapSessionToPublicUserPrincipal,
+  mapSessionToCampusMemberPrincipal,
   resolveOfficialWebCollectorPrincipal,
   resolveRequestPrincipal,
 } from "../src/modules/auth/principal";
 import { getAppAuth } from "../src/modules/auth/auth";
+import type { AppApiRouteError } from "../src/http";
 
 const mockedGetAppAuth = vi.mocked(getAppAuth);
 
@@ -88,9 +89,9 @@ describe("operator bridge principal resolution", () => {
   });
 });
 
-describe("public user principal projection", () => {
-  it("does not auto-promote a signed-in public user into campus entitlements", () => {
-    const principal = mapSessionToPublicUserPrincipal({
+describe("campus member principal projection", () => {
+  it("projects a signed-in session as a campus member by default", () => {
+    const principal = mapSessionToCampusMemberPrincipal({
       session: {
         expiresAt: "2026-03-29T08:00:00.000Z",
         id: "sess_01HQ",
@@ -105,14 +106,14 @@ describe("public user principal projection", () => {
     expect(principal).toMatchObject({
       actor: {
         principalId: "user_01HQ",
-        principalType: "public_user",
-        roles: ["public_user"],
+        principalType: "campus_member",
+        roles: ["campus_member"],
         userId: "user_01HQ",
       },
       authorization: {
         entitlementGroups: [],
         principalId: "user_01HQ",
-        projectionSource: "public_session",
+        projectionSource: "campus_identity",
         retrievalFilter: {
           entitlementGroups: [],
           policyProjectionVersion: "phase1-authorization-projection-v1",
@@ -122,7 +123,7 @@ describe("public user principal projection", () => {
         visibilityScope: null,
       },
       principal: {
-        type: "public_user",
+        type: "campus_member",
       },
     });
     expect(principal?.actor).not.toHaveProperty("groups");
@@ -226,12 +227,12 @@ describe("request principal resolution", () => {
 
     expect(principal).toMatchObject({
       principal: {
-        type: "public_user",
+        type: "campus_member",
       },
       authorization: {
         entitlementGroups: [],
         entitlementSnapshotId: "",
-        projectionSource: "public_session",
+        projectionSource: "campus_identity",
         visibilityScope: null,
       },
     });
@@ -294,6 +295,95 @@ describe("request principal resolution", () => {
     expect(principal?.actor).not.toHaveProperty("campusScope");
     expect(principal?.authorization?.retrievalFilter).not.toHaveProperty("aclGroups");
     expect(principal?.authorization?.retrievalFilter).not.toHaveProperty("campusScope");
+  });
+
+  it("rejects operator route requests when the trusted operator email is not admitted", async () => {
+    await expect(
+      resolveRequestPrincipal(
+        new Request("https://app-api.internal/api/operator/requests", {
+          headers: {
+            "x-app-internal-auth": "trusted-secret",
+            "x-app-operator-email": "help_bot@outlook.com",
+          },
+        }),
+        {
+          APP_API_INTERNAL_SHARED_SECRET: "trusted-secret",
+          APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: "operator_identity_not_admitted",
+      message: "Operator identity is not admitted for panel access.",
+      retryable: false,
+      status: 403,
+    } satisfies Partial<AppApiRouteError>);
+
+    expect(mockedGetAppAuth).not.toHaveBeenCalled();
+  });
+
+  it("rejects operator route requests when trusted internal auth is missing", async () => {
+    await expect(
+      resolveRequestPrincipal(
+        new Request("https://app-api.internal/api/operator/requests", {
+          headers: {
+            "x-app-operator-email": "ops@example.com",
+          },
+        }),
+        {
+          APP_API_INTERNAL_SHARED_SECRET: "trusted-secret",
+          APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: "internal_auth_required",
+      message: "Trusted internal shared secret required.",
+      retryable: false,
+      status: 401,
+    } satisfies Partial<AppApiRouteError>);
+
+    expect(mockedGetAppAuth).not.toHaveBeenCalled();
+  });
+
+  it("ignores non-admitted operator headers on non-operator surfaces and falls back to session auth", async () => {
+    mockedGetAppAuth.mockResolvedValue({
+      api: {
+        getSession: vi.fn().mockResolvedValue({
+          session: {
+            expiresAt: "2026-03-29T08:00:00.000Z",
+            id: "sess_01HQ",
+          },
+          user: {
+            email: "student@example.edu",
+            id: "user_01HQ",
+            name: "Jane Doe",
+          },
+        }),
+      },
+    } as never);
+
+    const principal = await resolveRequestPrincipal(
+      new Request("https://app-api.internal/api/chat/requests", {
+        headers: {
+          "x-app-internal-auth": "trusted-secret",
+          "x-app-operator-email": "help_bot@outlook.com",
+        },
+      }),
+      {
+        APP_API_INTERNAL_SHARED_SECRET: "trusted-secret",
+        APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
+      },
+    );
+
+    expect(principal).toMatchObject({
+      principal: {
+        principalId: "user_01HQ",
+        type: "campus_member",
+      },
+      permissions: {
+        chat: true,
+        operator: false,
+      },
+    });
   });
 });
 

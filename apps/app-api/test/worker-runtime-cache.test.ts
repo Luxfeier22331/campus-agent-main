@@ -76,6 +76,7 @@ const env = {
   APP_API_ENVIRONMENT: "test" as const,
   APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
   APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
+  APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
   BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
   PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
   SUPERVISOR_API_BASE_URL: "https://supervisor.internal",

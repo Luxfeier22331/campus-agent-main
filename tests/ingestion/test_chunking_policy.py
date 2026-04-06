@@ -329,6 +329,28 @@ class ChunkingPolicyTest(unittest.TestCase):
         self.assertTrue(all(piece.split_reason == "table_row_window" for piece in pieces))
         self.assertTrue(all("等级 | 分数" in piece.text for piece in pieces))
 
+    def test_table_unit_without_row_lines_splits_oversized_fallback_text(self) -> None:
+        unit = StructuredUnitChunkInput(
+            unit_type="table_unit",
+            root_unit_id="table-002",
+            text="\n".join(f"第{index}行 | {'甲' * 24}" for index in range(1, 40)),
+        )
+
+        pieces = chunk_structured_unit(
+            unit=unit,
+            chunk_profile=ChunkProfile(chunk_size=50, max_chunk_size=80, chunk_overlap=8, min_chunk_size=20),
+        )
+
+        self.assertGreater(len(pieces), 1)
+        self.assertTrue(all(piece.unit_type == "table_unit" for piece in pieces))
+        self.assertEqual(
+            tuple(piece.segment_index for piece in pieces),
+            tuple(range(1, len(pieces) + 1)),
+        )
+        self.assertTrue(all(piece.segment_total == len(pieces) for piece in pieces))
+        self.assertTrue(all(piece.split_reason == "token_guardrail" for piece in pieces))
+        self.assertTrue(all(estimate_token_count(piece.text) <= 80 for piece in pieces))
+
     def test_article_body_splits_oversized_text_with_runtime_metadata(self) -> None:
         unit = StructuredUnitChunkInput(
             unit_type="article_body",

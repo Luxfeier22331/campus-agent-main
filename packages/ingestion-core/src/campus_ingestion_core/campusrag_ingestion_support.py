@@ -103,6 +103,7 @@ DEFAULT_SOURCE_PREFERENCE = {
     "source-faithful": ("pdf_ocr", "manual_curated", "official_web"),
     "editorial": ("manual_curated", "official_web", "pdf_ocr"),
 }
+OFFICIAL_WEB_EQUIVALENT_SOURCE_CHANNELS = frozenset({"official_web"})
 
 
 class ObjectStoreWriter(Protocol):
@@ -201,6 +202,13 @@ def _source_priority(*, revision_track: str, source_channel: str) -> int:
         return len(preferences) - preferences.index(source_channel)
     except ValueError:
         return 0
+
+
+def _document_semantic_hash(*, document: DocumentImportInput) -> str:
+    explicit_hash = normalize_optional_text(document.metadata.get("semantic_content_hash"))
+    if explicit_hash is not None:
+        return explicit_hash
+    return hashlib.sha256(document.document_units_bytes).hexdigest()
 
 
 def _merge_source_observation(existing: SourceObservation, candidate: SourceObservation) -> SourceObservation:
@@ -305,6 +313,11 @@ def load_metadata_from_bytes(file_bytes: bytes) -> dict[str, object]:
         raise ValueError("doc_id and version_id are required in OCR JSONL")
     _assert_canonical_row_authorization_metadata(raw)
     source = raw.get("source") or {}
+    nested_metadata = raw.get("metadata") or {}
+    nested_metadata_dict = nested_metadata if isinstance(nested_metadata, dict) else {}
+    source_url = raw.get("source_url")
+    if not isinstance(source_url, str) or not source_url.strip():
+        source_url = nested_metadata_dict.get("source_url")
     entitlement_groups = _resolve_row_entitlement_groups(raw)
     visibility_scope = normalize_optional_text(raw.get("visibility_scope"))
     visibility_level = _resolve_row_visibility_level(
@@ -319,12 +332,17 @@ def load_metadata_from_bytes(file_bytes: bytes) -> dict[str, object]:
         "document_id": document_id,
         "version_id": version_id,
         "revision_track": str(raw.get("revision_track") or "source-faithful"),
-        "source_url": raw.get("source_url"),
+        "source_url": source_url,
         "source_md": raw.get("source_md"),
         "source_id": source.get("id"),
         "source_pdf": normalize_optional_text(raw.get("source_pdf")),
         "raw_page_start": normalize_optional_int(raw.get("page_start")),
         "raw_page_end": normalize_optional_int(raw.get("page_end")),
+        "semantic_content_hash": normalize_optional_text(nested_metadata_dict.get("semantic_content_hash")),
+        "title": normalize_optional_text(nested_metadata_dict.get("title")),
+        "page_family": normalize_optional_text(nested_metadata_dict.get("page_family")),
+        "serving_intent": normalize_optional_text(nested_metadata_dict.get("serving_intent")),
+        "content_role": normalize_optional_text(nested_metadata_dict.get("content_role")),
         "entitlement_groups": entitlement_groups,
         "visibility_scope": visibility_scope,
         "visibility_level": visibility_level,
@@ -442,6 +460,7 @@ def persist_import_documents(
     report_prefix: str,
     unresolved_source_pdfs: tuple[str, ...] = (),
     initial_errors: list[str] | None = None,
+    scope_refresh: tuple[str, str] | None = None,
 ) -> ImportReport:
     stats = collect_import_document_stats(
         documents=documents,
@@ -455,6 +474,7 @@ def persist_import_documents(
         default_visibility_scope=default_visibility_scope,
         unresolved_source_pdfs=unresolved_source_pdfs,
         initial_errors=initial_errors,
+        scope_refresh=scope_refresh,
     )
     return write_import_report(
         import_mode=import_mode,
@@ -568,7 +588,7 @@ def collect_import_document_stats(
                     raw_uploaded_count += 1
 
             document_units_bytes = document.document_units_bytes
-            content_hash = hashlib.sha256(document_units_bytes).hexdigest()
+            content_hash = _document_semantic_hash(document=document)
             title = document.title or _derive_document_title(metadata=metadata, document_id=document_id)
             year = document.year or _derive_document_year(metadata=metadata)
             scope = (document.corpus, document.collection)
@@ -580,6 +600,13 @@ def collect_import_document_stats(
                 (record for record in document_records if record.content_hash == content_hash),
                 None,
             )
+            if matching_content_record is None:
+                matching_content_record = _find_equivalent_scope_record(
+                    existing_records_by_lineage=existing_records_by_lineage,
+                    scope=scope,
+                    document=document,
+                    content_hash=content_hash,
+                )
             effective_version_id = matching_content_record.version_id if matching_content_record is not None else version_id
             incoming_source_uri = derive_source_uri(metadata)
             provider_response_key = document.provider_response_object_key
@@ -1203,6 +1230,42 @@ def _group_documents_by_scope(
         scope: tuple(scope_documents)
         for scope, scope_documents in grouped.items()
     }
+
+
+def _find_equivalent_scope_record(
+    *,
+    existing_records_by_lineage: dict[
+        tuple[str, str],
+        dict[tuple[str, str], tuple[DocumentRegistryRecord, ...]],
+    ],
+    scope: tuple[str, str],
+    document: DocumentImportInput,
+    content_hash: str,
+) -> DocumentRegistryRecord | None:
+    if document.source_channel not in OFFICIAL_WEB_EQUIVALENT_SOURCE_CHANNELS:
+        return None
+    scope_records = existing_records_by_lineage.get(scope, {})
+    candidates = [
+        record
+        for lineage_records in scope_records.values()
+        for record in lineage_records
+        if record.revision_track == document.revision_track
+        and record.content_hash == content_hash
+        and record.source_channel in OFFICIAL_WEB_EQUIVALENT_SOURCE_CHANNELS
+    ]
+    if not candidates:
+        return None
+    current_candidates = [record for record in candidates if record.is_current]
+    ranked_candidates = current_candidates or candidates
+    return max(
+        ranked_candidates,
+        key=lambda record: (
+            record.is_current,
+            record.ingestion_timestamp,
+            record.document_id,
+            record.version_id,
+        ),
+    )
 
 
 def _index_scope_records_by_lineage(

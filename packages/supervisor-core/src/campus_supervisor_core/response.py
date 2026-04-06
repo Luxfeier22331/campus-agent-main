@@ -81,6 +81,11 @@ def build_supervisor_observability_from_specialist_response(
             if response.status in {"needs_clarification", "no_answer"}
             else ""
         ),
+        semantic_outcome=_semantic_outcome_from_specialist_response(
+            response.status,
+            diagnostics=diagnostics,
+        ),
+        scope_class=_scope_class_from_specialist_response(response.target),
         acl_decision="denied" if denied else "allowed",
         fail_closed=True if denied else False,
         resolved_scope_corpus=diagnostics.resolved_scope_corpus if diagnostics is not None else None,
@@ -95,3 +100,25 @@ def _is_restricted_access_denied(diagnostics: RagResultDiagnostics | None) -> bo
         diagnostics is not None
         and diagnostics.no_answer_reason == "restricted_access_denied"
     )
+
+
+def _semantic_outcome_from_specialist_response(
+    status: str,
+    *,
+    diagnostics: RagResultDiagnostics | None,
+) -> str:
+    if status == "completed":
+        return "grounded_answer"
+    if status == "needs_clarification":
+        return "needs_clarification"
+    if status != "no_answer":
+        return ""
+    if _is_restricted_access_denied(diagnostics):
+        return "restricted_access_denied"
+    return "unsupported_by_evidence"
+
+
+def _scope_class_from_specialist_response(target: str) -> str:
+    if target == "rag-specialist":
+        return "in_scope"
+    return ""

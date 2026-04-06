@@ -22,13 +22,13 @@ const env = {
   },
 };
 
-function createPublicPrincipal() {
+function createCampusPrincipal() {
   return {
     actor: {
       departments: [],
       principalId: "user_01HQ",
-      principalType: "public_user",
-      roles: ["public_user"],
+      principalType: "campus_member",
+      roles: ["campus_member"],
       userId: "user_01HQ",
     },
     permissions: {
@@ -39,7 +39,7 @@ function createPublicPrincipal() {
       displayName: "Jane Doe",
       email: "jane@example.edu",
       principalId: "user_01HQ",
-      type: "public_user" as const,
+      type: "campus_member" as const,
     },
     session: {
       expiresAt: "2026-03-29T07:00:00.000Z",
@@ -94,7 +94,7 @@ describe("chat conversation routes", () => {
     const { service, conversations } = createConversationService();
     const app = createApp(env, {
       chatConversationService: service,
-      getPrincipal: vi.fn().mockResolvedValue(createPublicPrincipal()),
+      getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
     });
 
     const response = await app.fetch(new Request("https://app-api.internal/api/chat/conversations"));
@@ -114,7 +114,7 @@ describe("chat conversation routes", () => {
     const { service, conversation } = createConversationService();
     const app = createApp(env, {
       chatConversationService: service,
-      getPrincipal: vi.fn().mockResolvedValue(createPublicPrincipal()),
+      getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
     });
 
     const response = await app.fetch(
@@ -138,7 +138,7 @@ describe("chat conversation routes", () => {
     const { service, conversation } = createConversationService();
     const app = createApp(env, {
       chatConversationService: service,
-      getPrincipal: vi.fn().mockResolvedValue(createPublicPrincipal()),
+      getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
     });
 
     const response = await app.fetch(
@@ -191,7 +191,7 @@ describe("chat conversation routes", () => {
     );
     const app = createApp(env, {
       chatConversationService: service,
-      getPrincipal: vi.fn().mockResolvedValue(createPublicPrincipal()),
+      getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
     });
 
     const response = await app.fetch(

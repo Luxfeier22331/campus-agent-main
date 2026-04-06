@@ -96,6 +96,21 @@ specialist 是稳定能力边界，不等于某个底层框架对象。
 - orchestration 留在 `packages/supervisor-core`
 - specialist behavior 留在 specialist package
 
+## Prompt And Instruction Ownership
+
+execution path 的 prompt / instruction 继续遵循 package-owned ownership：
+
+- `packages/supervisor-core`
+  owns supervisor role instructions、clarification / reject / approval wording prompt families
+- `packages/rag-specialist`
+  owns answer / clarify / no-answer prompt families
+- `packages/retrieval-core`
+  不拥有 top-level task prompt；只拥有 evidence retrieval 与 serialization helper
+- `apps/supervisor-api`
+  不拥有长期 prompt truth；只负责 request packaging 与 execution admission
+
+prompt 不能替代 code-owned routing、authz、serving filter 或 fail-close terminal semantics。
+
 ## Forbidden Shapes
 
 - 不把 supervisor 重新写成被动转发层
@@ -107,4 +122,5 @@ specialist 是稳定能力边界，不等于某个底层框架对象。
 
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
+- `docs/architecture/prompt-and-instruction-architecture.md`
 - `docs/reference/runtime-serving-and-index-terms.md`

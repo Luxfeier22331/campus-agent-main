@@ -4,6 +4,9 @@ export interface RequestDiagnosticsSummary {
   rewrittenQuery: string | null;
   clarificationReason: string | null;
   noAnswerReason: string | null;
+  semanticOutcome: string | null;
+  scopeClass: string | null;
+  policyReason: string | null;
   retrievedTitleSummary: string[];
   resolvedEntityType: string | null;
   resolvedProgramFamilyTitle: string | null;
@@ -56,6 +59,9 @@ export function extractRequestDiagnosticsSummary(
     noAnswerReason: normalizeOptionalString(
       readField(diagnosticsRecord, "no_answer_reason", "noAnswerReason"),
     ),
+    policyReason: normalizeOptionalString(
+      readField(diagnosticsRecord, "policy_reason", "policyReason"),
+    ),
     resolvedPolicyDocumentId: normalizeOptionalString(
       readField(
         diagnosticsRecord,
@@ -68,6 +74,12 @@ export function extractRequestDiagnosticsSummary(
     ),
     retrievedTitleSummary: normalizeStringList(
       readField(diagnosticsRecord, "retrieved_title_summary", "retrievedTitleSummary"),
+    ),
+    scopeClass: normalizeOptionalString(
+      readField(diagnosticsRecord, "scope_class", "scopeClass"),
+    ),
+    semanticOutcome: normalizeOptionalString(
+      readField(diagnosticsRecord, "semantic_outcome", "semanticOutcome"),
     ),
     resolvedEntityType: normalizeOptionalString(
       readField(diagnosticsRecord, "resolved_entity_type", "resolvedEntityType"),
@@ -99,6 +111,9 @@ export function extractRequestDiagnosticsSummary(
     !summary.rewrittenQuery &&
     !summary.clarificationReason &&
     !summary.noAnswerReason &&
+    !summary.semanticOutcome &&
+    !summary.scopeClass &&
+    !summary.policyReason &&
     !summary.resolvedEntityType &&
     !summary.resolvedProgramFamilyTitle &&
     !summary.sessionProgramFamily &&

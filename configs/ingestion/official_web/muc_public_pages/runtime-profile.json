@@ -1,0 +1,20 @@
+{
+  "corpus": "official_web",
+  "collection": "muc_public_pages",
+  "serving_stage": "offline_preparation",
+  "serving_surface": "mixed",
+  "allowed_artifact_modes": ["normalized", "source_truth_only"],
+  "split_manifest_required": false,
+  "cleaning_policy_version": "official_web_cleaning_v2",
+  "chunk_profile_version": "official_web_semantic_v2",
+  "retrieval_enabled": false,
+  "query_enabled_by_default": false,
+  "supports_freshness_sensitive_queries": false,
+  "freshness_max_age_hours": null,
+  "live_search_fallback_allowed": false,
+  "retrieval_top_k": 3,
+  "qdrant_alias_name": "muc_public_pages",
+  "qdrant_collection_prefix": "muc_public_pages",
+  "qdrant_dense_vector_name": "dense",
+  "qdrant_sparse_vector_name": "sparse"
+}

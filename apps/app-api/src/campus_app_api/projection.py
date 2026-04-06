@@ -171,4 +171,4 @@ def _default_projection_source(principal_type: str) -> str:
         return "operator_headers"
     if normalized == "service":
         return "service_auth"
-    return "public_session"
+    return ""

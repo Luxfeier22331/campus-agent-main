@@ -21,6 +21,7 @@ from campus_contracts import (
     KnowledgeScope,
     ProfileMemoryItem,
     ProfileMemorySummary,
+    PromptTrace,
     RagRequestPayload,
     RagResultPayload,
     SessionSlot,
@@ -40,6 +41,14 @@ from campus_supervisor_core.audit import (
 )
 from campus_supervisor_core.context import SupervisorRequestContext
 from campus_supervisor_core.errors import DisallowedKnowledgeScopeError, MissingSpecialistDelegateError
+from campus_supervisor_core.policy import finalize_routing_decision
+from campus_supervisor_core.prompt_execution import (
+    SupervisorClarifyPromptOutput,
+    SupervisorPromptExecutionResult,
+    SupervisorTerminalPromptOutput,
+)
+from campus_supervisor_core.routing import RoutingDecision
+from campus_supervisor_core.intent import IntentFrame
 
 
 def _make_rag_completed_response() -> SpecialistResponse:
@@ -588,6 +597,8 @@ class SupervisorCoreTest(unittest.TestCase):
                     citation_count=0,
                     citation_missing=False,
                     refusal_class="approval_required",
+                    semantic_outcome="approval_required",
+                    policy_reason="approval_required",
                     acl_decision="approval_required",
                     fail_closed=True,
                 ),
@@ -596,6 +607,186 @@ class SupervisorCoreTest(unittest.TestCase):
         self.assertEqual(len(audit_records), 1)
         self.assertEqual(audit_records[0].status, "approval_required")
         self.assertIsNone(audit_records[0].selected_target)
+
+    def test_handle_request_returns_out_of_scope_without_delegate_for_obvious_external_query(self) -> None:
+        delegate_called = False
+        audit_records: list[SupervisorAuditRecord] = []
+
+        def fake_rag_specialist(_request: SpecialistRequest) -> SpecialistResponse:
+            nonlocal delegate_called
+            delegate_called = True
+            return _make_rag_completed_response()
+
+        response = handle_request(
+            SupervisorRequest(
+                user_goal="MIT的校长是谁",
+                requested_capability="knowledge",
+            ),
+            specialist_delegates={"rag-specialist": fake_rag_specialist},
+            audit_sink=audit_records.append,
+        )
+
+        self.assertFalse(delegate_called)
+        self.assertEqual(response.selected_target, None)
+        self.assertEqual(response.status, "no_answer")
+        self.assertEqual(response.confidence, "low")
+        self.assertEqual(response.observability.semantic_outcome, "out_of_scope")
+        self.assertEqual(response.observability.scope_class, "out_of_scope")
+        self.assertEqual(response.observability.policy_reason, "product_scope_boundary")
+        self.assertEqual(len(audit_records), 1)
+        self.assertEqual(audit_records[0].status, "no_answer")
+        self.assertIsNone(audit_records[0].selected_target)
+
+    def test_finalize_routing_decision_uses_injected_prompt_executor_for_clarification(self) -> None:
+        context = SupervisorRequestContext.from_request(
+            SupervisorRequest(
+                user_goal="民族实验班有什么课",
+                request_id="req-clarify-exec-001",
+                requested_capability="knowledge",
+            )
+        )
+        decision = RoutingDecision(
+            target=None,
+            primary_corpus=None,
+            primary_collection=None,
+            intent_frame=IntentFrame(
+                capability="knowledge",
+                task_kind="knowledge_lookup",
+                domain_candidates=("knowledge",),
+                missing_slots=("requested_scope",),
+                risk_level="low",
+                needs_clarification=True,
+                suggested_next_action="clarify",
+                personalization_mode="generic",
+                clarification_subject="民族实验班",
+            ),
+        )
+
+        class FakePromptExecutor:
+            def compose_clarify(self, packet: object) -> SupervisorPromptExecutionResult[SupervisorClarifyPromptOutput]:
+                return SupervisorPromptExecutionResult(
+                    output=SupervisorClarifyPromptOutput(
+                        follow_up_question="请先说清楚你想查哪一类培养方案资料。"
+                    ),
+                    prompt_trace=PromptTrace(
+                        prompt_id="supervisor_clarify_v1",
+                        prompt_version="v1",
+                        template_sha256="a" * 64,
+                        variables_schema_version="v1",
+                        output_schema_version="v1",
+                    ),
+                )
+
+        response = finalize_routing_decision(
+            context,
+            decision,
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(response.status, "needs_clarification")
+        self.assertEqual(response.follow_up_question, "请先说清楚你想查哪一类培养方案资料。")
+        self.assertEqual(response.observability.prompt_trace.prompt_id, "supervisor_clarify_v1")
+
+    def test_finalize_routing_decision_uses_injected_prompt_executor_for_rejected(self) -> None:
+        context = SupervisorRequestContext.from_request(
+            SupervisorRequest(
+                user_goal="请执行未授权操作",
+                request_id="req-reject-exec-001",
+                requested_capability="knowledge",
+            )
+        )
+        decision = RoutingDecision(
+            target=None,
+            primary_corpus="regulations",
+            primary_collection="student_handbook",
+            intent_frame=IntentFrame(
+                capability="knowledge",
+                task_kind="unknown",
+                domain_candidates=("knowledge",),
+                missing_slots=(),
+                risk_level="high",
+                needs_clarification=False,
+                suggested_next_action="rejected",
+                personalization_mode="generic",
+            ),
+        )
+
+        class FakePromptExecutor:
+            def compose_reject(self, packet: object) -> SupervisorPromptExecutionResult[SupervisorTerminalPromptOutput]:
+                return SupervisorPromptExecutionResult(
+                    output=SupervisorTerminalPromptOutput(
+                        answer_text="这个请求不在当前可执行范围内。"
+                    ),
+                    prompt_trace=PromptTrace(
+                        prompt_id="supervisor_reject_v1",
+                        prompt_version="v1",
+                        template_sha256="b" * 64,
+                        variables_schema_version="v1",
+                        output_schema_version="v1",
+                    ),
+                )
+
+        response = finalize_routing_decision(
+            context,
+            decision,
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(response.status, "rejected")
+        self.assertEqual(response.answer_text, "这个请求不在当前可执行范围内。")
+        self.assertEqual(response.error.code, "request_rejected")
+        self.assertEqual(response.observability.prompt_trace.prompt_id, "supervisor_reject_v1")
+
+    def test_finalize_routing_decision_uses_injected_prompt_executor_for_out_of_scope(self) -> None:
+        context = SupervisorRequestContext.from_request(
+            SupervisorRequest(
+                user_goal="MIT的校长是谁",
+                request_id="req-out-of-scope-exec-001",
+                requested_capability="knowledge",
+            )
+        )
+        decision = RoutingDecision(
+            target=None,
+            primary_corpus=None,
+            primary_collection=None,
+            intent_frame=IntentFrame(
+                capability="knowledge",
+                task_kind="knowledge_lookup",
+                domain_candidates=("out_of_scope",),
+                missing_slots=(),
+                risk_level="low",
+                needs_clarification=False,
+                suggested_next_action="out_of_scope",
+                personalization_mode="generic",
+                scope_class="out_of_scope",
+                policy_reason="product_scope_boundary",
+            ),
+        )
+
+        class FakePromptExecutor:
+            def compose_out_of_scope(self, packet: object) -> SupervisorPromptExecutionResult[SupervisorTerminalPromptOutput]:
+                return SupervisorPromptExecutionResult(
+                    output=SupervisorTerminalPromptOutput(
+                        answer_text="这个问题不属于当前支持的中央民族大学校园问答范围。"
+                    ),
+                    prompt_trace=PromptTrace(
+                        prompt_id="supervisor_out_of_scope_v1",
+                        prompt_version="v1",
+                        template_sha256="f" * 64,
+                        variables_schema_version="v1",
+                        output_schema_version="v1",
+                    ),
+                )
+
+        response = finalize_routing_decision(
+            context,
+            decision,
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(response.status, "no_answer")
+        self.assertEqual(response.answer_text, "这个问题不属于当前支持的中央民族大学校园问答范围。")
+        self.assertEqual(response.observability.prompt_trace.prompt_id, "supervisor_out_of_scope_v1")
 
     def test_handle_request_raises_for_valid_route_without_delegate(self) -> None:
         with self.assertRaisesRegex(

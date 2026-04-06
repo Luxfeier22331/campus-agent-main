@@ -12,6 +12,9 @@ from campus_ingestion_core.authenticated_notice_import import (
     import_authenticated_notice_bundle,
     import_authenticated_notice_export,
 )
+from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
+    InMemoryAuthenticatedNoticeSourceTruthInventoryStore,
+)
 from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 
 
@@ -299,6 +302,14 @@ class AuthenticatedNoticeImportTest(unittest.TestCase):
             document.metadata["policy_projection_version"],
             DEFAULT_POLICY_PROJECTION_VERSION,
         )
+        document_units = [
+            json.loads(line)
+            for line in document.document_units_bytes.decode("utf-8").splitlines()
+            if line.strip()
+        ]
+        self.assertNotIn("attachment_ref", [row["unit_type"] for row in document_units])
+        canonical_markdown = document.canonical_markdown_bytes.decode("utf-8")
+        self.assertNotIn("## 附件", canonical_markdown)
         self.assertIn("document-units.jsonl", document.additional_processed_object_keys)
         self.assertIn("source-truth/notice-manifest.json", document.additional_processed_object_keys)
 
@@ -358,6 +369,56 @@ class AuthenticatedNoticeImportTest(unittest.TestCase):
         self.assertTrue(any(key.endswith("/capture/detail-response.json") for key in uploaded_keys))
         self.assertTrue(any(key.endswith("/source-truth/notice-manifest.json") for key in uploaded_keys))
         self.assertTrue(any(key.endswith("/document-units.jsonl") for key in uploaded_keys))
+
+    def test_import_authenticated_notice_export_replaces_source_truth_inventory_scope(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, _sample_notice_bundle())
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+            env = {
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+            }
+
+            report = import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=env,
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                source_truth_inventory_store=inventory_store,
+            )
+
+        self.assertEqual(report["errors"], [])
+        entries = inventory_store.list_by_scope("campus_notices", "internal_notice")
+        self.assertEqual(len(entries), 1)
+        entry = entries[0]
+        self.assertEqual(entry.notice_id, "355119")
+        self.assertEqual(entry.site_id, "muc_internal_portal")
+        self.assertEqual(entry.document_id, "notice:muc_internal_portal:355119")
+        self.assertEqual(
+            entry.raw_asset_id,
+            "asset:authenticated-notice:muc_internal_portal:355119",
+        )
+        self.assertEqual(entry.source_home_url, "https://portal.example.edu/home")
+        self.assertEqual(entry.attachment_document_count, 1)
+        self.assertGreaterEqual(entry.planning_weight, 1)
+        self.assertTrue(entry.notice_manifest_key.endswith("/source-truth/notice-manifest.json"))
+        self.assertTrue(entry.content_blocks_key.endswith("/source-truth/content-blocks.jsonl"))
+        self.assertTrue(entry.attachment_refs_key.endswith("/source-truth/attachment-refs.jsonl"))
 
     def test_import_authenticated_notice_bundle_supports_reference_only_attachment_refs(self) -> None:
         bundle = _sample_notice_bundle()

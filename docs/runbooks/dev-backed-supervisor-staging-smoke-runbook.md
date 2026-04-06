@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-04
-updated: 2026-04-05
+updated: 2026-04-06
 ---
 
 # Dev-Backed Supervisor Staging Smoke Runbook
@@ -129,11 +129,18 @@ pnpm --dir apps/app-api deploy:staging
 
 `deploy:staging` 现在直接使用当前 shell 的 `wrangler` 登录态，不再强绑 repo-local `.wrangler-home`。
 
+当前 Wave B staging baseline 还额外固定了两条运行时事实：
+
+- `app-api-staging` 的 `[env.staging.vars] SUPERVISOR_API_TIMEOUT_MS` 已提升到 `15000`
+- telemetry / Sentry 调用必须 fail-open，不能再把 request-path 变成 `500`
+
+如果真实 chat 请求再次出现 `Supervisor execution exceeded 8000ms timeout.`，先检查 staging 变量或 release 是否回退，而不是优先怀疑 `public-chat-web` surface。
+
 然后检查：
 
 ```bash
-curl --noproxy '*' -sS -i https://api-staging.ayafeed.com/healthz
-curl --noproxy '*' -sS -i https://api-staging.ayafeed.com/readyz
+curl --noproxy '*' -sS -i https://campus-api-staging.ayafeed.com/healthz
+curl --noproxy '*' -sS -i https://campus-api-staging.ayafeed.com/readyz
 ```
 
 通过标准：
@@ -146,15 +153,15 @@ curl --noproxy '*' -sS -i https://api-staging.ayafeed.com/readyz
 确认三个 staging surface 在线：
 
 ```bash
-curl --noproxy '*' -sS -i https://chat-staging.ayafeed.com/healthz
-curl --noproxy '*' -sS -i https://chat-staging.ayafeed.com/readyz
-curl --noproxy '*' -sS -i https://panel-staging.ayafeed.com/healthz
-curl --noproxy '*' -sS -i https://panel-staging.ayafeed.com/readyz
+curl --noproxy '*' -sS -i https://campus-chat-staging.ayafeed.com/healthz
+curl --noproxy '*' -sS -i https://campus-chat-staging.ayafeed.com/readyz
+curl --noproxy '*' -sS -i https://campus-panel-staging.ayafeed.com/healthz
+curl --noproxy '*' -sS -i https://campus-panel-staging.ayafeed.com/readyz
 ```
 
 ## Step 5. Browser chat smoke
 
-在真实 `chat-staging` 页面执行：
+在真实 `campus-chat-staging` 页面执行：
 
 1. 打开 `/login`
 2. 使用临时测试账号注册或登录
@@ -198,16 +205,21 @@ curl --noproxy '*' -sS -i https://panel-staging.ayafeed.com/readyz
 
 ## Step 7. panel / observability smoke
 
-如果当轮已经补齐 Access，再继续做：
+如果当轮已经具备可用的 Access smoke 身份，再继续做：
 
 - `panel-staging` 登录 smoke
 - `operator.request_projection` list/detail smoke
 - `Sentry` trace smoke
 - `Axiom` runtime event smoke
-- 如果直接访问 `https://panel-staging.ayafeed.com/` 仍然得到 worker 返回的 `Missing Access JWT.`，则这一轮必须继续标记为 `blocked by missing Access provisioning`，不能把它视为已完成的 panel 保护
+- 进入 `Requests` lane 之前，先确认当前 Access operator email 已包含在 `app-api-staging` 的 `APP_API_OPERATOR_EMAIL_ALLOWLIST` 中；当前 staging smoke 身份是 `help_bot@outlook.com`
+- panel `Requests` / `official-web` 相关 `/api/operator/*` 如果返回 `401/403`，必须先看 `error.code`
+- `session_required`、`session_expired`、`unauthorized` 或 Cloudflare Access plain-text `401` 才能判定为 session / Access 失效
+- `operator_identity_not_admitted`、`forbidden`、`internal_auth_required`、`dependency_not_ready` 必须标记为 operator admission / bridge config / runtime issue，不能直接解释成 Access 失效并触发 logout 结论
+- 如果直接访问 `https://campus-panel-staging.ayafeed.com/` 返回的是 Cloudflare Access `302` 登录页，则说明真实 Access 已在前面；这时若还无法继续 smoke，正确标签应是 `blocked by smoke identity/credential`
+- 只有当 direct access 再次退化成 worker 返回的 `Missing Access JWT.` 时，才应标记为 `blocked by missing Access provisioning`
 
-如果 Access 仍未配置完成：
+如果 Access smoke 身份仍未准备好：
 
 - 可以先做 chat execution smoke
 - 但不得把 staging smoke 标记为完整关闭
-- `panel-staging` / observability lane 应明确记录为 `blocked by missing Access provisioning`
+- `campus-panel-staging` / observability lane 应明确记录为 `blocked by smoke identity/credential`

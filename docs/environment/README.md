@@ -34,6 +34,8 @@ updated: 2026-04-05
   `app-api` 的 Worker string env，包括 auth/supervisor bridge、official_web control-plane string config，以及 `SENTRY_*` / `AXIOM_*`
 - app-local [`apps/app-api/.env.example`](../../apps/app-api/.env.example)
   `app-api` 的本地 Wrangler/Drizzle process env；当前用于 Hyperdrive local connection string 与 management DB URL
+- app-local [`apps/official-web-collector/.env.example`](../../apps/official-web-collector/.env.example)
+  `official-web-collector` 的 Docker/cron runtime env，包括 `app-api` control-plane base URL、service token 与可选默认 lane/trigger/trace
 - app-local [`apps/public-chat-web/.dev.vars.example`](../../apps/public-chat-web/.dev.vars.example)
   `public-chat-web` 的 Worker string env，包括 same-site app-api proxy seam 与 `SENTRY_*`
 - app-local [`apps/protected-panel-web/.dev.vars.example`](../../apps/protected-panel-web/.dev.vars.example)
@@ -44,6 +46,14 @@ updated: 2026-04-05
   `rebuild_local_data` 的一次性 override
 - command-scoped [`env/commands/migrate-student-handbook.env.example`](../../env/commands/migrate-student-handbook.env.example)
   `migrate_student_handbook_source_faithful` 的一次性 override
+- command-scoped [`env/commands/official-web-handoff-receiver.env.example`](../../env/commands/official-web-handoff-receiver.env.example)
+  本地 `official_web` handoff receiver 的一次性 override
+- command-scoped [`env/commands/official-web-handoff-consumer.env.example`](../../env/commands/official-web-handoff-consumer.env.example)
+  本地 `official_web` handoff consumer 的一次性 override
+- command-scoped [`env/commands/official-web-history-backfill.env.example`](../../env/commands/official-web-history-backfill.env.example)
+  历史 `official_web` source-bucket 回补的命令级 override
+- command-scoped [`env/commands/release-registry-scope.env.example`](../../env/commands/release-registry-scope.env.example)
+  registry-backed index release 的命令级 override
 
 ## 当前状态
 
@@ -108,7 +118,24 @@ updated: 2026-04-05
 - `apps/protected-panel-web/.dev.vars.example` 中的 `PANEL_RUNTIME_API_BASE_URL` 应指向 shared `apps/app-api`，不是 `apps/supervisor-api`
 - `PANEL_APP_API_SHARED_SECRET` 与 `APP_API_INTERNAL_SHARED_SECRET` 必须保持同值
 - 这些脚本只是本地 convenience，不改变 ownership：运行时仍然只消费各 app 自己的 `.dev.vars` / `.env` 或 deploy secret store
+- 如果 feature worktree 需要复用 root worktree 的 app-local env，可用
+  `uv run --all-packages python -m scripts.link_worktree_app_local_env --repo-root <current-worktree-root>`
+  为当前 worktree 创建指向 root worktree app-local `.dev.vars` / `.env` 的符号链接；这只解决本地文件共享，不改变 env ownership
 - 真正的 sink closure 仍以 `docs/runbooks/worker-observability-smoke-runbook.md` 中的 `Post-Deploy Verification` 为准
+
+## App API Local Runtime
+
+- `apps/app-api` 本地 `pnpm dev` 固定走 `wrangler dev -e local`
+- `apps/app-api/wrangler.toml` 在 `env.local` 下声明 `APP_API_DB` Hyperdrive binding
+- `apps/app-api/.env` 负责 Wrangler/Drizzle process env：
+  - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB`
+  - `APP_API_MANAGEMENT_DATABASE_URL`
+- `apps/app-api/.dev.vars` 负责 Worker runtime string env，例如 `BETTER_AUTH_SECRET`、`PUBLIC_CHAT_WEB_ORIGIN`、`SUPERVISOR_API_*` 与 `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN`
+- `apps/official-web-collector/.env` 负责 collector 到 `app-api` 的 control-plane seam，其中
+  `OFFICIAL_WEB_SERVICE_TOKEN` 必须与 `apps/app-api/.dev.vars` `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` 相同
+- `campus-ingestion-consume-official-web-handoffs` 如需回写 app-owned execution status，
+  `INGESTION_WORKER_APP_API_BASE_URL` 应指向 shared `apps/app-api`，
+  `INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET` 必须与 `APP_API_INTERNAL_SHARED_SECRET` 保持同值
 
 ## 命令级 Override 约束
 

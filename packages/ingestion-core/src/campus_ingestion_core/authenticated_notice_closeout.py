@@ -11,6 +11,8 @@ from campus_ingestion_core.authenticated_notice_closeout_models import (
     DEFAULT_CLOSEOUT_SHARD_SIZE,
     CloseoutBatch,
     CloseoutBatchState,
+    CloseoutPromotionBatch,
+    CloseoutPromotionBatchState,
     CloseoutRun,
     CloseoutRunState,
     CloseoutShard,
@@ -24,6 +26,9 @@ from campus_ingestion_core.authenticated_notice_closeout_planning import (
 from campus_ingestion_core.authenticated_notice_closeout_service import (
     AuthenticatedNoticeCloseoutService,
 )
+from campus_ingestion_core.authenticated_notice_source_truth_replay import (
+    AuthenticatedNoticeSourceTruthReplayRequest,
+)
 from campus_ingestion_core.authenticated_notice_closeout_verification import (
     CloseoutVerifier,
 )
@@ -35,9 +40,12 @@ from campus_ingestion_core.authenticated_notice_closeout_store import (
 
 __all__ = [
     "AuthenticatedNoticeCloseoutService",
+    "AuthenticatedNoticeSourceTruthReplayRequest",
     "CloseoutBatch",
     "CloseoutBatchState",
     "CloseoutPlanner",
+    "CloseoutPromotionBatch",
+    "CloseoutPromotionBatchState",
     "CloseoutRun",
     "CloseoutRunState",
     "CloseoutS3ObjectStore",

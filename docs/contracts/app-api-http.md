@@ -237,7 +237,7 @@ expanded observability / quality / safety / cost / audit query surfaces 另见 `
 ```json
 {
   "principal": {
-    "type": "public_user",
+    "type": "campus_member",
     "principalId": "user_01HQ...",
     "displayName": "Jane Doe",
     "email": "jane@example.edu"
@@ -255,7 +255,7 @@ expanded observability / quality / safety / cost / audit query surfaces 另见 `
 
 规则：
 
-- `public_user` 使用 Better Auth session
+- 已登录 end-user 默认投影为 `campus_member`
 - `operator` 使用 protected surface trusted identity bridge
 - v1 不要求单独的 operator 用户系统或 operator session 表
 

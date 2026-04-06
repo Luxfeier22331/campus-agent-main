@@ -18,6 +18,11 @@ _DEFAULT_METRIC_DOMAIN_MAP = {
     "ragas.context_precision": "citation",
     "ragas.context_recall": "citation",
     "judge.refusal_quality": "policy",
+    "deterministic.out_of_scope_accuracy": "policy",
+    "deterministic.policy_refusal_accuracy": "policy",
+    "deterministic.unsupported_abstention_accuracy": "policy",
+    "deterministic.false_refusal_rate": "policy",
+    "deterministic.unsafe_false_allow_rate": "policy",
 }
 _DEFAULT_METRIC_PASS_SCORE_MAP = {
     "ragas.faithfulness": 0.85,
@@ -33,6 +38,11 @@ _DEFAULT_METRIC_PRIORITY = {
     "ragas.context_precision": 10,
     "ragas.context_recall": 20,
     "judge.refusal_quality": 10,
+    "deterministic.out_of_scope_accuracy": 10,
+    "deterministic.policy_refusal_accuracy": 10,
+    "deterministic.unsupported_abstention_accuracy": 10,
+    "deterministic.false_refusal_rate": 10,
+    "deterministic.unsafe_false_allow_rate": 5,
 }
 _ALLOWED_GRADE_DOMAINS = frozenset({"grounding", "citation", "policy"})
 _PUBLISHABLE_VERDICT_MAP = {
@@ -284,6 +294,7 @@ def build_case_results_publish_batch(
         case_id = _required_string(result.get("case_id"), "results[].case_id")
         correlation = correlations.get(case_id) or inline_correlations.get(case_id)
         supplemental_results = result.get("supplemental_results") or ()
+        metric_results = dict(result.get("metric_results") or {})
         domain_candidates: dict[str, list[_DomainGradeCandidate]] = {}
 
         for raw_supplemental in supplemental_results:
@@ -322,6 +333,46 @@ def build_case_results_publish_batch(
                     verdict=mapped_verdict,
                     score=_optional_float(supplemental.get("score")),
                     rationale_summary=_optional_string(supplemental.get("rationale")),
+                    priority=_DEFAULT_METRIC_PRIORITY.get(metric_key, 100),
+                )
+            )
+
+        for metric_name, raw_metric in metric_results.items():
+            metric = dict(raw_metric or {})
+            metric_key = f"deterministic.{str(metric_name)}"
+            mapped_verdict = _map_deterministic_publishable_verdict(metric)
+            if mapped_verdict is None:
+                skipped.append(
+                    OperatorSkippedPublishItem(
+                        case_id=case_id,
+                        metric_key=metric_key,
+                        reason="verdict_not_publishable",
+                    )
+                )
+                continue
+
+            grade_domain = domain_map.get(metric_key)
+            if grade_domain is None:
+                skipped.append(
+                    OperatorSkippedPublishItem(
+                        case_id=case_id,
+                        metric_key=metric_key,
+                        reason="unsupported_metric_domain",
+                    )
+                )
+                continue
+
+            if correlation is None:
+                missing_case_ids.add(case_id)
+                continue
+
+            domain_candidates.setdefault(grade_domain, []).append(
+                _DomainGradeCandidate(
+                    metric_key=metric_key,
+                    grade_domain=grade_domain,
+                    verdict=mapped_verdict,
+                    score=None,
+                    rationale_summary=_optional_string(metric.get("reason")),
                     priority=_DEFAULT_METRIC_PRIORITY.get(metric_key, 100),
                 )
             )
@@ -583,6 +634,13 @@ def _map_publishable_verdict(
     if threshold is None or score is None:
         return None
     return "pass" if score >= threshold else "fail"
+
+
+def _map_deterministic_publishable_verdict(payload: dict[str, object]) -> str | None:
+    passed = payload.get("passed")
+    if isinstance(passed, bool):
+        return "pass" if passed else "fail"
+    return None
 
 
 def _required_string(value: object, field: str) -> str:

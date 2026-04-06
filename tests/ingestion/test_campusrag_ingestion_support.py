@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+from pathlib import Path
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 from campus_ingestion_core.campusrag_ingestion_support import (
@@ -10,7 +11,9 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     S3ObjectStoreWriter,
     apply_authorization_projection_metadata,
     collect_import_document_stats,
+    persist_import_documents,
     load_metadata_from_bytes,
+    persist_import_documents,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.settings import ObjectStoreSettings
@@ -498,6 +501,100 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             ("official_web",),
         )
 
+    def test_collect_import_document_stats_merges_equivalent_official_web_scope_record_with_different_document_id(
+        self,
+    ) -> None:
+        body = (
+            '{"doc_id":"official_web:muc_public:article_detail:news-doc","version_id":"owdocver:news-doc",'
+            '"chunk_id":"news-doc:0001","clean_text":"中央民族大学与北京丰台人才集团共建就业实习实践基地。",'
+            '"anchor":{"section_path":["新闻"],"page_start":1,"page_end":1},'
+            '"source_url":"https://news.muc.edu.cn/info/1011/61874.htm",'
+            '"metadata":{"title":"中央民族大学与北京丰台人才集团共建就业实习实践基地",'
+            '"page_family":"article_detail","serving_intent":"promotable","content_role":"primary_content"},'
+            '"acl":{"level":"public","allow_groups":[]}}\n'
+        )
+        semantic_hash = hashlib.sha256(b"official-web-semantic-duplicate").hexdigest()
+        existing = DocumentRegistryRecord(
+            document_id="official_web:muc_public:article_detail:news-doc",
+            revision_track="source-faithful",
+            version_id="owdocver:news-doc",
+            source_uri="https://news.muc.edu.cn/info/1011/61874.htm",
+            content_hash=semantic_hash,
+            corpus="official_web",
+            collection="muc_public_pages",
+            cleaning_policy_version="official_web_cleaning_v2",
+            entitlement_groups=(),
+            visibility_scope=None,
+            status="active",
+            ingestion_timestamp="2026-04-03T00:00:00+00:00",
+            parser_version="official_web_projection_replay.v1",
+            embedding_model="",
+            source_channel="official_web",
+            is_current=True,
+            document_units_object_key=(
+                "official_web/documents/muc_public_pages/news-doc/source-faithful/undated/document-units.jsonl"
+            ),
+            processed_object_keys=(
+                "official_web/documents/muc_public_pages/news-doc/source-faithful/undated/document-units.jsonl",
+            ),
+            import_source="official_web_source_truth_replay",
+        )
+        incoming = DocumentImportInput(
+            source_label="official_web:muc_public:article_detail:xxgk-doc",
+            document_units_bytes=body.encode("utf-8"),
+            provider_response_bytes=None,
+            canonical_markdown_bytes=None,
+            metadata={
+                "document_id": "official_web:muc_public:article_detail:xxgk-doc",
+                "version_id": "owdocver:xxgk-doc",
+                "acl_groups": (),
+                "source_url": "https://xxgk.muc.edu.cn/info/1362/28641.htm",
+                "title": "中央民族大学与北京丰台人才集团共建就业实习实践基地",
+                "page_family": "article_detail",
+                "serving_intent": "promotable",
+                "content_role": "primary_content",
+                "semantic_content_hash": semantic_hash,
+            },
+            import_source="official_web_source_truth_replay",
+            revision_track="source-faithful",
+            source_channel="official_web",
+            is_current=True,
+            corpus="official_web",
+            collection="muc_public_pages",
+            title="中央民族大学与北京丰台人才集团共建就业实习实践基地",
+        )
+        registry = _SpyDocumentRegistry(records=(existing,))
+
+        stats = collect_import_document_stats(
+            documents=[incoming],
+            registry=registry,
+            raw_asset_registry=_FakeRawAssetRegistry(),
+            writer=_FakeWriter(),
+            object_store=self.object_store,
+            parser_version="official_web_projection_replay.v1",
+            embedding_model="",
+            cleaning_policy_version="official_web_cleaning_v2",
+            default_visibility_scope=None,
+            scope_refresh=("official_web", "muc_public_pages"),
+        )
+
+        self.assertEqual(stats.success_count, 0)
+        self.assertEqual(stats.skipped_count, 1)
+        self.assertEqual(len(registry.replace_scope_calls), 1)
+        refreshed_records = registry.replace_scope_calls[0][2]
+        self.assertEqual(len(refreshed_records), 1)
+        merged = refreshed_records[0]
+        self.assertEqual(merged.document_id, "official_web:muc_public:article_detail:news-doc")
+        self.assertEqual(merged.version_id, "owdocver:news-doc")
+        self.assertEqual(len(merged.source_observations), 2)
+        self.assertEqual(
+            {observation.source_uri for observation in merged.source_observations},
+            {
+                "https://news.muc.edu.cn/info/1011/61874.htm",
+                "https://xxgk.muc.edu.cn/info/1362/28641.htm",
+            },
+        )
+
     def test_collect_import_document_stats_rewrites_missing_processed_artifacts_for_matching_content(self) -> None:
         document = _document_input(
             document_id="handbook:doc-a",
@@ -535,6 +632,51 @@ class CampusragIngestionSupportTest(unittest.TestCase):
         self.assertEqual(stats.skipped_document_ids, ("handbook:doc-a",))
         self.assertIn((self.object_store.bucket_derived, expected_key), writer.puts)
         self.assertEqual(len(registry.upsert_many_calls), 1)
+
+    def test_persist_import_documents_forwards_scope_refresh_to_collect_stats(self) -> None:
+        document = _document_input(
+            document_id="handbook:doc-a",
+            version_id="v1:doc-a",
+            body='{"type":"paragraph","text":"A"}\n',
+        )
+        registry = _SpyDocumentRegistry(records=())
+        writer = _FakeWriter()
+
+        with patch("campus_ingestion_core.campusrag_ingestion_support.collect_import_document_stats") as collect_stats:
+            collect_stats.return_value = Mock(
+                success_count=1,
+                skipped_count=0,
+                failed_count=0,
+                raw_uploaded_count=0,
+                raw_reused_count=0,
+                document_ids=("handbook:doc-a",),
+                created_document_ids=("handbook:doc-a",),
+                updated_document_ids=(),
+                skipped_document_ids=(),
+                unresolved_source_pdfs=(),
+                errors=(),
+                timestamp="2026-04-03T00:00:00+00:00",
+            )
+            persist_import_documents(
+                documents=[document],
+                registry=registry,
+                raw_asset_registry=_FakeRawAssetRegistry(),
+                writer=writer,
+                object_store=self.object_store,
+                parser_version="campusrag-import-v1",
+                embedding_model="Qwen3-Embedding-4B",
+                cleaning_policy_version="student_handbook_cleaning_v1",
+                default_visibility_scope=None,
+                import_mode="test",
+                report_dir=Path("/tmp/test-import-report"),
+                report_prefix="test-import",
+                scope_refresh=("regulations", "student_handbook"),
+            )
+
+        self.assertEqual(
+            collect_stats.call_args.kwargs["scope_refresh"],
+            ("regulations", "student_handbook"),
+        )
 
     def test_collect_import_document_stats_prefers_new_authorization_projection_metadata(self) -> None:
         document = _document_input(
@@ -679,7 +821,6 @@ class CampusragIngestionSupportTest(unittest.TestCase):
                     '"acl":{"level":"public","allow_groups":["legacy-staff"]}}\n'
                 ).encode("utf-8")
             )
-
 
 if __name__ == "__main__":
     unittest.main()

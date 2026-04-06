@@ -1294,6 +1294,74 @@ class JudgeGatePolicyTest(unittest.TestCase):
             self.assertNotIn("min_run_average_score_below_threshold", metric_report["reasons"])
             self.assertNotIn("run_average_drift_above_threshold", metric_report["reasons"])
 
+    def test_load_judge_gate_policy_accepts_empty_metric_list_for_deterministic_only_profiles(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            policy_path = Path(tmpdir) / "policy.json"
+            policy_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "required_runs": 1,
+                        "metrics": [],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            policy = load_judge_gate_policy(policy_path)
+            report = evaluate_judge_gate(policy, {})
+
+        self.assertEqual(policy["metrics"], [])
+        self.assertEqual(report["overall_verdict"], "pass")
+        self.assertEqual(report["metrics"], [])
+
+    def test_run_handbook_formal_benchmark_applies_optional_deterministic_gate_policy(self) -> None:
+        cases = (_completed_case(),)
+
+        with TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "benchmark"
+            policy_path = Path(tmpdir) / "policy.json"
+            policy_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "required_runs": 1,
+                        "metrics": [],
+                        "deterministic_gate": {
+                            "gate_level": "hard_gate",
+                            "min_mean_pass_rate": 1.0,
+                            "min_run_pass_rate": 1.0,
+                        },
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            summary = run_handbook_formal_benchmark(
+                cases=cases,
+                executor=lambda case: ExecutionResult(
+                    response=_response(status="no_answer"),
+                    observed_trace=ObservedTrace(
+                        selected_scope=case.scope,
+                        retrieval_called=True,
+                    ),
+                ),
+                supplemental_adapters=(),
+                output_dir=output_dir,
+                reruns=1,
+                policy_path=policy_path,
+            )
+
+        deterministic_gate = summary["gate_report"]["deterministic_gate"]
+        self.assertEqual(summary["gate_report"]["overall_verdict"], "fail")
+        self.assertEqual(deterministic_gate["verdict"], "fail")
+        self.assertIn("mean_pass_rate_below_threshold", deterministic_gate["reasons"])
+        self.assertIn("min_run_pass_rate_below_threshold", deterministic_gate["reasons"])
+
 
 if __name__ == "__main__":
     unittest.main()

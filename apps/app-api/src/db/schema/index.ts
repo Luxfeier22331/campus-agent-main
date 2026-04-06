@@ -1,6 +1,13 @@
 export { account, appAuthSchema, session, user, verification } from "./auth";
 export { conversations, messages, sessionSlots } from "./chat";
-export { crawlRuns, runArtifacts, runHeartbeats, runOutbox } from "./official-web";
+export {
+  crawlRuns,
+  pageFreshness,
+  pageObservations,
+  runArtifacts,
+  runHeartbeats,
+  runOutbox,
+} from "./official-web";
 export {
   metricRollup,
   officialWebRunProjection,
@@ -15,7 +22,14 @@ export { projectionOutbox, requestExecution, requestObservabilityFact } from "./
 
 import { account, session, user, verification } from "./auth";
 import { conversations, messages, sessionSlots } from "./chat";
-import { crawlRuns, runArtifacts, runHeartbeats, runOutbox } from "./official-web";
+import {
+  crawlRuns,
+  pageFreshness,
+  pageObservations,
+  runArtifacts,
+  runHeartbeats,
+  runOutbox,
+} from "./official-web";
 import {
   metricRollup,
   officialWebRunProjection,
@@ -39,6 +53,8 @@ export const appApiSchema = {
   crawlRuns,
   runHeartbeats,
   runArtifacts,
+  pageObservations,
+  pageFreshness,
   runOutbox,
   requestExecution,
   projectionOutbox,

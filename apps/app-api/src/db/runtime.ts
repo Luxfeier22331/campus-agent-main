@@ -15,6 +15,7 @@ export type RuntimeDatabase = NodePgDatabase<typeof appApiSchema>;
 export type RuntimeDbGetter = () => Promise<RuntimeDatabase>;
 export type RuntimeDatabaseConsistency = "cached" | "fresh";
 
+const IDENTIFIER = /^[a-z_][a-z0-9_]*$/;
 const DEVELOPMENT_POOL_MAX = 1;
 const PRODUCTION_POOL_MAX = 4;
 const DEVELOPMENT_IDLE_TIMEOUT_MS = 5_000;
@@ -27,6 +28,37 @@ const runtimePoolCache = {
   cached: new WeakMap<Env, Promise<Pool>>(),
   fresh: new WeakMap<Env, Promise<Pool>>(),
 } as const;
+const cacheHost = globalThis as typeof globalThis & {
+  __appApiPoolCache?: Map<string, Pool>;
+};
+
+export function assertPgIdentifier(label: string, value: string): string {
+  if (!IDENTIFIER.test(value)) {
+    throw new Error(`${label} must be a lowercase PostgreSQL identifier.`);
+  }
+
+  return value;
+}
+
+export function buildPostgresSearchPathConnectionString(
+  databaseUrl: string,
+  schemaNames: string[],
+): string {
+  const normalizedSchemaNames = schemaNames.map((schemaName) =>
+    assertPgIdentifier("schema", schemaName),
+  );
+  const nextUrl = new URL(databaseUrl);
+  const searchPath = normalizedSchemaNames.join(",");
+  const currentOptions = nextUrl.searchParams.get("options");
+  const searchPathOption = `-c search_path=${searchPath}`;
+
+  nextUrl.searchParams.set(
+    "options",
+    currentOptions ? `${currentOptions} ${searchPathOption}` : searchPathOption,
+  );
+
+  return nextUrl.toString();
+}
 
 function shouldCacheRuntimeState(env: Env): boolean {
   return resolveEnvironment(env) === "test";
@@ -40,6 +72,14 @@ function resolveSslConfig(
     : {
         rejectUnauthorized: false,
       };
+}
+
+function getPoolCache(): Map<string, Pool> {
+  if (!cacheHost.__appApiPoolCache) {
+    cacheHost.__appApiPoolCache = new Map<string, Pool>();
+  }
+
+  return cacheHost.__appApiPoolCache;
 }
 
 function resolveRuntimeConnectionString(
@@ -76,9 +116,7 @@ export function buildRuntimeDatabaseConfig(
   };
 }
 
-export function buildManagementDatabaseConfig(
-  env: Env,
-) {
+export function buildManagementDatabaseConfig(env: Env) {
   const connectionString = env.APP_API_MANAGEMENT_DATABASE_URL?.trim();
   if (!connectionString) {
     throw new Error("APP_API_MANAGEMENT_DATABASE_URL is required.");
@@ -95,9 +133,7 @@ function buildPoolOptions(input: {
   databaseSslMode: DatabaseSslMode;
   environment: Env["APP_API_ENVIRONMENT"];
 }) {
-  const environment = resolveEnvironment({
-    APP_API_ENVIRONMENT: input.environment,
-  });
+  const environment = resolveEnvironment({ APP_API_ENVIRONMENT: input.environment });
   const isDeployed = isDeployedEnvironment(environment);
 
   return {
@@ -106,6 +142,17 @@ function buildPoolOptions(input: {
     connectionTimeoutMillis: 5_000,
     idleTimeoutMillis: isDeployed ? PRODUCTION_IDLE_TIMEOUT_MS : DEVELOPMENT_IDLE_TIMEOUT_MS,
     max: isDeployed ? PRODUCTION_POOL_MAX : DEVELOPMENT_POOL_MAX,
+    ssl: resolveSslConfig(input.databaseSslMode),
+  };
+}
+
+function buildClientOptions(input: {
+  connectionString: string;
+  databaseSslMode: DatabaseSslMode;
+}) {
+  return {
+    connectionString: input.connectionString,
+    connectionTimeoutMillis: 5_000,
     ssl: resolveSslConfig(input.databaseSslMode),
   };
 }
@@ -135,6 +182,31 @@ async function createPool(input: {
     );
   });
   return pool;
+}
+
+async function createCachedPool(input: {
+  cacheKey: string;
+  connectionString: string;
+  databaseSslMode: DatabaseSslMode;
+  environment: Env["APP_API_ENVIRONMENT"];
+}): Promise<Pool> {
+  const poolCache = getPoolCache();
+  const existingPool = poolCache.get(input.cacheKey);
+  if (existingPool) {
+    return existingPool;
+  }
+
+  const pool = await createPool({
+    connectionString: input.connectionString,
+    databaseSslMode: input.databaseSslMode,
+    environment: input.environment,
+  });
+  poolCache.set(input.cacheKey, pool);
+  return pool;
+}
+
+function isWorkerRuntimeDatabaseContext(): boolean {
+  return typeof WebSocketPair === "function";
 }
 
 async function withIsolatedProbePool<T>(
@@ -182,8 +254,8 @@ export async function createRuntimePool(
   const poolPromise = createPool({
     connectionString: config.connectionString,
     databaseSslMode,
-      environment,
-    });
+    environment,
+  });
   cache.set(env, poolPromise);
   return poolPromise;
 }
@@ -251,4 +323,46 @@ export async function probeBetterAuthDatabase(env: Env): Promise<void> {
   await withIsolatedProbePool(env, async (pool) => {
     await pool.query(`select 1 from "${APP_AUTH_SCHEMA}"."user" limit 1`);
   });
+}
+
+export async function withRuntimeDatabase<T>(
+  env: Env,
+  execute: (database: NodePgDatabase<typeof appApiSchema>) => Promise<T>,
+): Promise<T> {
+  const config = buildRuntimeDatabaseConfig(env);
+  const databaseSslMode = resolveDatabaseSslMode(env);
+  const environment = resolveEnvironment(env);
+  const { drizzle } = await import("drizzle-orm/node-postgres");
+
+  if (!isWorkerRuntimeDatabaseContext()) {
+    const pool = await createCachedPool({
+      cacheKey: `runtime:${config.connectionString}|${databaseSslMode}|${environment}`,
+      connectionString: config.connectionString,
+      databaseSslMode,
+      environment,
+    });
+    const database = drizzle(pool, {
+      schema: appApiSchema,
+    });
+
+    return execute(database);
+  }
+
+  const { Client } = await import("pg");
+  const client = new Client(
+    buildClientOptions({
+      connectionString: config.connectionString,
+      databaseSslMode,
+    }),
+  );
+  await client.connect();
+  const database = drizzle(client, {
+    schema: appApiSchema,
+  });
+
+  try {
+    return await execute(database);
+  } finally {
+    await client.end();
+  }
 }

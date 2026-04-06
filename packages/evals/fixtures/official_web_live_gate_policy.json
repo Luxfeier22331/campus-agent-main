@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "required_runs": 1,
+  "metrics": [],
+  "deterministic_gate": {
+    "gate_level": "hard_gate",
+    "min_mean_pass_rate": 1.0,
+    "min_run_pass_rate": 1.0,
+    "notes": "official_web live gate is deterministic-only; any failed case fails the gate."
+  }
+}

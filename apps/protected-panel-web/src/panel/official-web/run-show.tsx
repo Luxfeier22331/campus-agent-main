@@ -3,11 +3,18 @@ import { Alert, Box, Card, CardContent, Divider, Stack, Typography } from "@mui/
 import { Show, useRecordContext } from "react-admin";
 
 import type { OfficialWebRunRecord } from "../types";
-import { PANEL_COPY } from "../panel-copy";
-import { formatTimestamp } from "./official-web-formatters";
+import {
+  formatOfficialWebChangeReasonLabel,
+  formatOfficialWebPageChangeSummaryLabel,
+  formatOfficialWebPageFamilyLabel,
+  formatOfficialWebRunSummaryLabel,
+  formatTimestamp,
+} from "./official-web-formatters";
 import {
   OfficialWebArtifactList,
   OfficialWebIngestionStatusChip,
+  OfficialWebPageChangeChip,
+  OfficialWebRunIntentChip,
   OfficialWebRunStatusChip,
 } from "./official-web-presenters";
 
@@ -56,9 +63,10 @@ function OfficialWebRunShowContent() {
                 <RunFieldRow label="运行 ID" value={record.runId} />
                 <RunFieldRow label="站点 ID" value={record.siteId} />
                 <RunFieldRow
-                  label="状态"
-                  value={<OfficialWebRunStatusChip status={record.status} />}
+                  label="运行意图"
+                  value={<OfficialWebRunIntentChip runIntent={record.runIntent} />}
                 />
+                <RunFieldRow label="状态" value={<OfficialWebRunStatusChip status={record.status} />} />
                 <RunFieldRow
                   label="分发"
                   value={<OfficialWebIngestionStatusChip status={record.ingestionDispatchStatus} />}
@@ -84,17 +92,82 @@ function OfficialWebRunShowContent() {
           <Card sx={{ gridColumn: { lg: "1 / -1", xs: "auto" } }}>
             <CardContent>
               <Stack spacing={2}>
-                <Typography variant="h6">摘要</Typography>
+                <Typography variant="h6">运行摘要</Typography>
                 <Divider />
                 {record.summary ? (
                   <Stack spacing={0.75}>
                     {Object.entries(record.summary).map(([key, value]) => (
-                      <RunFieldRow key={key} label={key} value={String(value)} />
+                      <RunFieldRow
+                        key={key}
+                        label={formatOfficialWebRunSummaryLabel(key)}
+                        value={String(value)}
+                      />
                     ))}
                   </Stack>
                 ) : (
                   <Typography color="text.secondary" variant="body2">
-                    暂无摘要投影。
+                    暂无运行摘要。
+                  </Typography>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card sx={{ gridColumn: { lg: "1 / -1", xs: "auto" } }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Typography variant="h6">页面变化摘要</Typography>
+                <Divider />
+                {record.pageChangeSummary ? (
+                  <Stack spacing={0.75}>
+                    {Object.entries(record.pageChangeSummary).map(([key, value]) => (
+                      <RunFieldRow
+                        key={key}
+                        label={formatOfficialWebPageChangeSummaryLabel(key)}
+                        value={String(value)}
+                      />
+                    ))}
+                  </Stack>
+                ) : (
+                  <Typography color="text.secondary" variant="body2">
+                    暂无页面变化摘要。
+                  </Typography>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card sx={{ gridColumn: { lg: "1 / -1", xs: "auto" } }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Typography variant="h6">页面变化明细</Typography>
+                <Divider />
+                {record.pageChanges && record.pageChanges.length > 0 ? (
+                  <Stack spacing={1.5}>
+                    {record.pageChanges.map((change) => (
+                      <Stack key={change.id} spacing={0.5}>
+                        <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
+                          <OfficialWebPageChangeChip change={change} />
+                          <Typography variant="body2">
+                            {change.pageTitleNormalized || change.normalizedCanonicalUrl}
+                          </Typography>
+                          <Typography color="text.secondary" variant="caption">
+                            {formatOfficialWebPageFamilyLabel(change.pageFamily)}
+                          </Typography>
+                        </Stack>
+                        <Typography sx={{ wordBreak: "break-all" }} variant="body2">
+                          {change.normalizedCanonicalUrl}
+                        </Typography>
+                        <Typography color="text.secondary" variant="caption">
+                          {formatOfficialWebChangeReasonLabel(change.lastChangeReason)} · 观测于{" "}
+                          {formatTimestamp(change.observedAt)}
+                        </Typography>
+                      </Stack>
+                    ))}
+                  </Stack>
+                ) : (
+                  <Typography color="text.secondary" variant="body2">
+                    当前运行暂无页面变化记录。
                   </Typography>
                 )}
               </Stack>

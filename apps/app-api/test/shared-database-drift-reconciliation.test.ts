@@ -23,12 +23,12 @@ function buildTableFromExpected(qualifiedName: string) {
     table: spec.table,
     columns: [...spec.columns.values()],
     constraints: [...spec.constraints],
-    indexes: [...spec.indexes],
+    indexes: [...spec.indexes.values()],
   };
 }
 
 describe("shared database drift reconciliation", () => {
-  it("plans cleanup for the known retired official-web drift shape", () => {
+  it("plans cleanup for the known retired official-web orphaned journal shape", () => {
     const inventory = makeInventory({
       journalRows: [
         {
@@ -37,7 +37,7 @@ describe("shared database drift reconciliation", () => {
         },
         {
           createdAt: 1774879434946,
-          hash: "75c55b4033592603ded3ff1746e8261b765a5f8ac232234d4520747c314e81ee",
+          hash: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
         },
       ],
       schemas: ["official_web", "operator", "runtime"],
@@ -46,93 +46,35 @@ describe("shared database drift reconciliation", () => {
           ...buildTableFromExpected("official_web.crawl_runs"),
           columns: [
             ...buildTableFromExpected("official_web.crawl_runs").columns,
-            {
-              name: "run_intent",
-              notNull: true,
-              primaryKey: false,
-              type: "text",
-            },
           ],
         },
         {
           ...buildTableFromExpected("operator.official_web_run_projection"),
           columns: [
             ...buildTableFromExpected("operator.official_web_run_projection").columns,
-            {
-              name: "run_intent",
-              notNull: true,
-              primaryKey: false,
-              type: "text",
-            },
           ],
         },
         buildTableFromExpected("operator.official_web_site_projection"),
         buildTableFromExpected("runtime.request_execution"),
-        {
-          columns: [
-            {
-              name: "site_id",
-              notNull: true,
-              primaryKey: true,
-              type: "text",
-            },
-          ],
-          constraints: [],
-          indexes: [],
-          schema: "official_web",
-          table: "page_freshness",
-        },
-        {
-          columns: [
-            {
-              name: "observation_id",
-              notNull: true,
-              primaryKey: true,
-              type: "text",
-            },
-          ],
-          constraints: [],
-          indexes: [],
-          schema: "official_web",
-          table: "page_observations",
-        },
+        buildTableFromExpected("official_web.page_freshness"),
+        buildTableFromExpected("official_web.page_observations"),
       ],
     });
 
     const plan = buildSharedDatabaseDriftReconcilePlan({
-      extraTableRowCounts: new Map([
-        ["official_web.page_freshness", 14],
-        ["official_web.page_observations", 22],
-      ]),
+      extraTableRowCounts: new Map(),
       inventory,
       migrationContext,
     });
 
     expect(plan.blockedReasons).toEqual([]);
-    expect(plan.extraColumns).toEqual([
-      { columnName: "run_intent", qualifiedName: "official_web.crawl_runs" },
-      { columnName: "run_intent", qualifiedName: "operator.official_web_run_projection" },
-    ]);
-    expect(plan.extraTables).toEqual([
-      { qualifiedName: "official_web.page_freshness", rowCount: 14 },
-      { qualifiedName: "official_web.page_observations", rowCount: 22 },
-    ]);
+    expect(plan.extraColumns).toEqual([]);
+    expect(plan.extraTables).toEqual([]);
     expect(plan.orphanedJournalRows.map((row: { hash: string }) => row.hash)).toEqual([
-      "75c55b4033592603ded3ff1746e8261b765a5f8ac232234d4520747c314e81ee",
+      "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
     ]);
-    expect(plan.operations.map((operation) => operation.kind)).toEqual([
-      "drop_table",
-      "drop_table",
-      "drop_column",
-      "drop_index",
-      "drop_column",
-      "create_index",
-      "delete_journal_row",
-    ]);
-    expect(plan.nonEmptyDriftTables).toEqual([
-      { qualifiedName: "official_web.page_freshness", rowCount: 14 },
-      { qualifiedName: "official_web.page_observations", rowCount: 22 },
-    ]);
+    expect(plan.operations.map((operation) => operation.kind)).toEqual(["delete_journal_row"]);
+    expect(plan.nonEmptyDriftTables).toEqual([]);
   });
 
   it("blocks unknown extra columns and tables outside the retired drift shape", () => {

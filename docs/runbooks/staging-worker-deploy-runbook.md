@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-04
-updated: 2026-04-05
+updated: 2026-04-06
 ---
 
 # Staging Worker Deploy Runbook
@@ -40,25 +40,25 @@ updated: 2026-04-05
 当前 repo 仍存在旧的 `*.rag.ayafeed.com` staging 引用；本节描述的是必须收敛到的前向 deploy truth，而不是这些旧值的继续合法化。
 
 - `apps/app-api/wrangler.toml`
-  - `env.staging` 应收敛到 `api-staging.ayafeed.com`
+  - `env.staging` 应收敛到 `campus-api-staging.ayafeed.com`
   - `env.staging.hyperdrive` 持有 `APP_API_DB`（cached/read-mostly）与 `APP_API_DB_FRESH`（no-cache/auth-sensitive）两条 staging binding
-  - `env.staging.vars.PUBLIC_CHAT_WEB_ORIGIN=https://chat-staging.ayafeed.com`
+  - `env.staging.vars.PUBLIC_CHAT_WEB_ORIGIN=https://campus-chat-staging.ayafeed.com`
 - `apps/app-api/package.json`
   - `pnpm deploy:staging` 要求显式注入 `STAGING_SUPERVISOR_API_BASE_URL`
   - deploy 时通过 `--var SUPERVISOR_API_BASE_URL:<url>` 注入当前 dev-backed supervisor upstream
   - 真实 deploy 直接使用当前 shell 的 `wrangler` 登录态；repo-local `.wrangler-home` 只保留给 dev/test
 - `apps/public-chat-web/wrangler.toml`
-  - `env.staging` 应收敛到 `chat-staging.ayafeed.com`
+  - `env.staging` 应收敛到 `campus-chat-staging.ayafeed.com`
   - `env.staging.services.APP_API -> app-api-staging`
-  - `env.staging.vars.APP_API_BASE_URL=https://api-staging.ayafeed.com`
+  - `env.staging.vars.APP_API_BASE_URL=https://campus-api-staging.ayafeed.com`
 - `apps/public-chat-web/package.json`
   - `pnpm build:staging` 使用 `CLOUDFLARE_ENV=staging`
   - `pnpm deploy:staging` 发布 staging build artifact
   - deploy 使用当前 shell 的 `wrangler` 登录态，不再强绑 repo-local `.wrangler-home`
 - `apps/protected-panel-web/wrangler.toml`
-  - `env.staging` 应收敛到 `panel-staging.ayafeed.com`
+  - `env.staging` 应收敛到 `campus-panel-staging.ayafeed.com`
   - `env.staging.services.APP_API -> app-api-staging`
-  - `env.staging.vars.PANEL_RUNTIME_API_BASE_URL=https://api-staging.ayafeed.com`
+  - `env.staging.vars.PANEL_RUNTIME_API_BASE_URL=https://campus-api-staging.ayafeed.com`
   - `env.staging.vars` 只保留 non-secret runtime truth；`ACCESS_TEAM_DOMAIN` / `ACCESS_POLICY_AUD` 不再硬编码在 repo
 - `apps/protected-panel-web/package.json`
   - `pnpm build:staging` 使用 `CLOUDFLARE_ENV=staging`
@@ -76,9 +76,9 @@ updated: 2026-04-05
 
 ### 1. Worker hostnames
 
-- 创建 `api-staging.ayafeed.com` custom domain，绑定到 `app-api-staging`
-- 创建 `chat-staging.ayafeed.com` custom domain，绑定到 `public-chat-web-staging`
-- 创建 `panel-staging.ayafeed.com` custom domain，绑定到 `protected-panel-web-staging`
+- 创建 `campus-api-staging.ayafeed.com` custom domain，绑定到 `app-api-staging`
+- 创建 `campus-chat-staging.ayafeed.com` custom domain，绑定到 `public-chat-web-staging`
+- 创建 `campus-panel-staging.ayafeed.com` custom domain，绑定到 `protected-panel-web-staging`
 
 ### 2. Internal service bindings
 
@@ -97,7 +97,7 @@ updated: 2026-04-05
 
 ### 4. Access
 
-- 为 `panel-staging.ayafeed.com` 建 Cloudflare Access application
+- 为 `campus-panel-staging.ayafeed.com` 建 Cloudflare Access application
 - 生成并记录：
   - `ACCESS_TEAM_DOMAIN`
   - `ACCESS_POLICY_AUD`
@@ -131,11 +131,18 @@ wrangler secret put AXIOM_TOKEN --env staging
 
 还需要在 Cloudflare env vars / secret store 中补齐：
 
+- `APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST=muc.edu.cn`
+- `APP_API_END_USER_EMAIL_ALLOWLIST=help_bot@outlook.com`
 - `APP_API_OPERATOR_EMAIL_ALLOWLIST`
 - `SENTRY_ENVIRONMENT=staging`
 - `SENTRY_RELEASE=<release>`
 - `AXIOM_ENDPOINT`
 - `AXIOM_DATASET`
+
+要求：
+
+- `APP_API_OPERATOR_EMAIL_ALLOWLIST` 必须显式包含当前 panel smoke / operator Access 身份；当前 staging 至少需要 `help_bot@outlook.com`
+- 如果该 allowlist miss，`/api/operator/*` 会返回 `403 operator_identity_not_admitted`，这是 operator admission 配置问题，不是 Access session 失效
 
 ### `apps/public-chat-web`
 
@@ -171,9 +178,11 @@ wrangler secret put SENTRY_DSN --env staging
 
 ## Cross-App Invariants
 
-- `PUBLIC_CHAT_WEB_ORIGIN` 必须精确等于 `https://chat-staging.ayafeed.com`
+- `PUBLIC_CHAT_WEB_ORIGIN` 必须精确等于 `https://campus-chat-staging.ayafeed.com`
+- `APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST` 当前应配置为 `muc.edu.cn`；`APP_API_END_USER_EMAIL_ALLOWLIST` 当前应配置为 `help_bot@outlook.com`
+- `APP_API_OPERATOR_EMAIL_ALLOWLIST` 必须覆盖当前真实 panel operator email；缺失时 `panel-staging` Overview 可能正常，但 `Requests` / `official-web` 会在 `/api/operator/*` 上收到 `403 operator_identity_not_admitted`
 - `APP_API_INTERNAL_SHARED_SECRET` 必须精确等于 `PANEL_APP_API_SHARED_SECRET`
-- `APP_API_BASE_URL` 与 `PANEL_RUNTIME_API_BASE_URL` 必须都指向 `https://api-staging.ayafeed.com`
+- `APP_API_BASE_URL` 与 `PANEL_RUNTIME_API_BASE_URL` 必须都指向 `https://campus-api-staging.ayafeed.com`
 - `APP_API_DB_FRESH` 必须绑定到 caching-disabled Hyperdrive config；staging auth smoke 必须覆盖 `sign-up -> immediate sign-in`
 - `SUPERVISOR_API_BASE_URL` 在每次 staging deploy 时都必须显式注入，且当次值必须真实可达
 - `STAGING_ACCESS_TEAM_DOMAIN` / `STAGING_ACCESS_POLICY_AUD` 必须都是真实 Access 值，不能使用 repo 占位默认值
@@ -222,8 +231,8 @@ pnpm --dir apps/app-api deploy:staging
 
 确认：
 
-- `https://api-staging.ayafeed.com/healthz`
-- `https://api-staging.ayafeed.com/readyz`
+- `https://campus-api-staging.ayafeed.com/healthz`
+- `https://campus-api-staging.ayafeed.com/readyz`
 
 ### 2. `apps/public-chat-web`
 
@@ -233,8 +242,8 @@ pnpm --dir apps/public-chat-web deploy:staging
 
 确认：
 
-- `https://chat-staging.ayafeed.com/healthz`
-- `https://chat-staging.ayafeed.com/readyz`
+- `https://campus-chat-staging.ayafeed.com/healthz`
+- `https://campus-chat-staging.ayafeed.com/readyz`
 
 ### 3. `apps/protected-panel-web`
 
@@ -246,8 +255,8 @@ pnpm --dir apps/protected-panel-web deploy:staging
 
 确认：
 
-- `https://panel-staging.ayafeed.com/healthz`
-- `https://panel-staging.ayafeed.com/readyz`
+- `https://campus-panel-staging.ayafeed.com/healthz`
+- `https://campus-panel-staging.ayafeed.com/readyz`
 
 ## Post-Deploy Verification
 
@@ -267,10 +276,12 @@ pnpm --dir apps/protected-panel-web deploy:staging
 这轮 staging 的 `SUMMARY.md` 至少应写明：
 
 - Environment: `staging`
-- `public-chat-web` hostname: `chat-staging.ayafeed.com`
-- `protected-panel-web` hostname: `panel-staging.ayafeed.com`
-- `app-api` hostname: `api-staging.ayafeed.com`
+- `public-chat-web` hostname: `campus-chat-staging.ayafeed.com`
+- `protected-panel-web` hostname: `campus-panel-staging.ayafeed.com`
+- `app-api` hostname: `campus-api-staging.ayafeed.com`
 - Worker release: `<release>`
+- panel operator smoke identity
+- 如果 `campus-panel-staging` 的 `/api/operator/*` 返回 `401/403`，对应的 `error.code` 与判定结果
 
 ## Exit Criteria
 

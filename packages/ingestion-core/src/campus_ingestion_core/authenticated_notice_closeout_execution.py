@@ -8,10 +8,12 @@ import json
 from pathlib import Path
 from typing import Any
 
+from campus_ingestion_core.artifacts import PROVIDER_RESPONSE_FILENAME
 from campus_ingestion_core.authenticated_notice_closeout_artifacts import (
     CloseoutArtifactManager,
 )
 from campus_ingestion_core.authenticated_notice_closeout_models import (
+    DEFAULT_CLOSEOUT_INPUT_KIND,
     DEFAULT_CLOSEOUT_OPERATION,
     CloseoutBatch,
     CloseoutRun,
@@ -33,8 +35,27 @@ from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.object_store import (
     build_document_artifact_key,
     build_operations_artifact_key,
+    is_source_object_key,
+)
+from campus_ingestion_core.raw_ingestion import OnlineOcrClient
+from campus_ingestion_core.authenticated_notice_source_truth_replay import (
+    SOURCE_TRUTH_REPLAY_INPUT_KIND,
+    AuthenticatedNoticeSourceTruthReplayRequest,
+    build_authenticated_notice_source_truth_replay_documents,
+)
+from campus_ingestion_core.authenticated_notice_source_projections import (
+    AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT,
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
+
+
+@dataclass(frozen=True, slots=True)
+class _PreparedDocumentStage:
+    document: dict[str, Any]
+    staged_object_keys: dict[str, str]
+    final_object_keys: dict[str, str]
+    content_hash: str
+    staged_object_metadata: dict[str, dict[str, Any]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,12 +63,8 @@ class _PreparedNoticeStage:
     notice: dict[str, Any]
     raw_record: dict[str, Any]
     source_artifact_keys: dict[str, str]
-    document: dict[str, Any]
     artifact_keys: tuple[str, ...]
-    staged_object_keys: dict[str, str]
-    final_object_keys: dict[str, str]
-    content_hash: str
-    staged_object_metadata: dict[str, dict[str, Any]]
+    documents: tuple[_PreparedDocumentStage, ...]
 
 
 class CloseoutExecutionCoordinator:
@@ -59,12 +76,14 @@ class CloseoutExecutionCoordinator:
         object_store_settings: ObjectStoreSettings,
         run_verifier: CloseoutRunVerifier,
         build_run_summary: Callable[[str], dict[str, Any]],
+        ocr_client: OnlineOcrClient | None = None,
     ) -> None:
         self.closeout_store = closeout_store
         self.artifacts = artifacts
         self.object_store_settings = object_store_settings
         self.run_verifier = run_verifier
         self.build_run_summary = build_run_summary
+        self.ocr_client = ocr_client
 
     def run_worker(
         self,
@@ -211,44 +230,82 @@ class CloseoutExecutionCoordinator:
         )
         if str(payload.get("run_id")) != run.run_id:
             raise ValueError(f"batch input run mismatch for {batch.batch_id}")
-        bundle_records = tuple(payload.get("bundle_records") or ())
-        export_manifest = self.artifacts.load_export_manifest(run)
-        request = _request_from_run(run)
+        input_kind = str(payload.get("input_kind") or run.input_kind or DEFAULT_CLOSEOUT_INPUT_KIND)
         prepared_bundle = prepare_authenticated_notice_bundle_records(
-            request=request,
-            bundle_records=bundle_records,
-            export_manifest=export_manifest,
-        )
-        by_notice_id = {
-            prepared.notice_id: prepared for prepared in prepared_bundle.notice_imports
-        }
+            request=_request_from_run(run),
+            bundle_records=tuple(payload.get("bundle_records") or ()),
+            export_manifest=self.artifacts.load_export_manifest(run),
+        ) if input_kind == DEFAULT_CLOSEOUT_INPUT_KIND else None
         cleaning_policy_version = load_runtime_profile(
             run.corpus,
             run.collection,
         ).cleaning_policy_version
         notice_semaphore = asyncio.Semaphore(max(1, run.notice_concurrency))
         object_store_semaphore = asyncio.Semaphore(max(1, run.object_store_concurrency))
-        stages = await asyncio.gather(
-            *[
-                asyncio.create_task(
-                    self._prepare_notice_stage(
-                        request=request,
-                        run_id=run.run_id,
-                        batch=batch,
-                        prepared=by_notice_id[notice_id],
-                        notice_semaphore=notice_semaphore,
-                        object_store_semaphore=object_store_semaphore,
-                        cleaning_policy_version=cleaning_policy_version,
+        if input_kind == SOURCE_TRUTH_REPLAY_INPUT_KIND:
+            request = _source_truth_request_from_run(run)
+            artifact_request = _request_from_run(run)
+            parent_by_notice_id = {
+                str(parent["notice_id"]): parent
+                for parent in tuple(payload.get("source_truth_parents") or ())
+            }
+            stages = await asyncio.gather(
+                *[
+                    asyncio.create_task(
+                        self._prepare_source_truth_notice_stage(
+                            request=request,
+                            artifact_request=artifact_request,
+                            run_id=run.run_id,
+                            batch=batch,
+                            parent_snapshot=parent_by_notice_id[notice_id],
+                            notice_semaphore=notice_semaphore,
+                            object_store_semaphore=object_store_semaphore,
+                            cleaning_policy_version=cleaning_policy_version,
+                        )
                     )
-                )
-                for notice_id in batch.notice_ids
-            ]
-        )
+                    for notice_id in batch.notice_ids
+                ]
+            )
+        else:
+            if prepared_bundle is None:
+                raise ValueError(f"closeout batch {batch.batch_id} missing bundle input")
+            request = _request_from_run(run)
+            by_notice_id = {
+                prepared.notice_id: prepared for prepared in prepared_bundle.notice_imports
+            }
+            stages = await asyncio.gather(
+                *[
+                    asyncio.create_task(
+                        self._prepare_bundle_notice_stage(
+                            request=request,
+                            run_id=run.run_id,
+                            batch=batch,
+                            prepared=by_notice_id[notice_id],
+                            notice_semaphore=notice_semaphore,
+                            object_store_semaphore=object_store_semaphore,
+                            cleaning_policy_version=cleaning_policy_version,
+                        )
+                    )
+                    for notice_id in batch.notice_ids
+                ]
+            )
         return tuple(
-            sorted((asdict(stage) for stage in stages), key=lambda item: str(item["notice"]["notice_id"]))
+            sorted(
+                (self._serialize_notice_stage(stage) for stage in stages),
+                key=lambda item: str(item["notice"]["notice_id"]),
+            )
         )
 
-    async def _prepare_notice_stage(
+    def _serialize_notice_stage(self, stage: _PreparedNoticeStage) -> dict[str, Any]:
+        return {
+            "notice": dict(stage.notice),
+            "raw_record": dict(stage.raw_record),
+            "source_artifact_keys": dict(stage.source_artifact_keys),
+            "artifact_keys": tuple(stage.artifact_keys),
+            "documents": tuple(asdict(document) for document in stage.documents),
+        }
+
+    async def _prepare_bundle_notice_stage(
         self,
         *,
         request: AuthenticatedNoticeImportRequest,
@@ -284,137 +341,365 @@ class CloseoutExecutionCoordinator:
                     )
                 ]
             )
-
-            document_id = str(translated_document.metadata["document_id"])
-            version_id = str(translated_document.metadata["version_id"])
-            content_hash = hashlib.sha256(
-                translated_document.document_units_bytes
-            ).hexdigest()
-            batch_key_segment = batch_segment(batch.batch_id)
-            document_slug = document_stage_slug(document_id)
-            staged_document_units_key = build_operations_artifact_key(
-                corpus=request.corpus,
-                operation=DEFAULT_CLOSEOUT_OPERATION,
+            documents = await self._stage_translated_documents(
+                request=request,
                 run_id=run_id,
-                filename="document-units.jsonl",
-                segments=("staging", "batches", batch_key_segment, "documents", document_slug),
+                batch=batch,
+                translated_documents=(translated_document,),
+                object_store_semaphore=object_store_semaphore,
+                cleaning_policy_version=cleaning_policy_version,
             )
-            final_document_units_key = build_document_artifact_key(
-                corpus=request.corpus,
-                collection=request.collection,
-                document_id=document_id,
-                revision_track=translated_document.revision_track,
-                version_id=version_id,
-                filename="document-units.jsonl",
-                title=translated_document.title,
-                year=translated_document.year,
-            )
-            staged_object_keys = {"document_units": staged_document_units_key}
-            final_object_keys = {"document_units": final_document_units_key}
-            staged_object_metadata = {
-                "document_units": {
-                    "sha256": content_hash,
-                    "content_length": len(translated_document.document_units_bytes),
-                }
-            }
-            processed_object_keys = list(translated_document.additional_processed_object_keys)
-            processed_object_keys.insert(0, final_document_units_key)
-            upload_tasks = [
-                asyncio.create_task(
-                    self.artifacts.put_bytes_limited(
-                        semaphore=object_store_semaphore,
-                        bucket=self.object_store_settings.bucket_derived,
-                        key=staged_document_units_key,
-                        data=translated_document.document_units_bytes,
-                        content_type="application/x-ndjson",
-                        metadata={"sha256": content_hash},
-                    )
-                )
-            ]
-            if translated_document.canonical_markdown_bytes is not None:
-                markdown_hash = hashlib.sha256(
-                    translated_document.canonical_markdown_bytes
-                ).hexdigest()
-                staged_markdown_key = build_operations_artifact_key(
-                    corpus=request.corpus,
-                    operation=DEFAULT_CLOSEOUT_OPERATION,
-                    run_id=run_id,
-                    filename="canonical.md",
-                    segments=("staging", "batches", batch_key_segment, "documents", document_slug),
-                )
-                final_markdown_key = build_document_artifact_key(
-                    corpus=request.corpus,
-                    collection=request.collection,
-                    document_id=document_id,
-                    revision_track=translated_document.revision_track,
-                    version_id=version_id,
-                    filename="canonical.md",
-                    title=translated_document.title,
-                    year=translated_document.year,
-                )
-                staged_object_keys["canonical_markdown"] = staged_markdown_key
-                final_object_keys["canonical_markdown"] = final_markdown_key
-                staged_object_metadata["canonical_markdown"] = {
-                    "sha256": markdown_hash,
-                    "content_length": len(translated_document.canonical_markdown_bytes),
-                }
-                processed_object_keys.insert(0, final_markdown_key)
-                upload_tasks.append(
-                    asyncio.create_task(
-                        self.artifacts.put_bytes_limited(
-                            semaphore=object_store_semaphore,
-                            bucket=self.object_store_settings.bucket_derived,
-                            key=staged_markdown_key,
-                            data=translated_document.canonical_markdown_bytes,
-                            content_type="text/markdown; charset=utf-8",
-                            metadata={"sha256": markdown_hash},
-                        )
-                    )
-                )
-            await asyncio.gather(*upload_tasks)
-
             return _PreparedNoticeStage(
                 notice={
                     "notice_id": prepared.notice_id,
                     "raw_asset_id": prepared.raw_asset_id,
                     "raw_version_id": prepared.raw_version_id,
-                    "document_id": document_id,
+                    "document_id": str(translated_document.metadata["document_id"]),
                 },
                 raw_record=asdict(prepared.raw_record),
                 source_artifact_keys=dict(prepared.source_artifact_keys),
-                document={
-                    "document_id": document_id,
-                    "revision_track": translated_document.revision_track,
-                    "version_id": version_id,
-                    "source_label": translated_document.source_label,
-                    "metadata": dict(translated_document.metadata),
-                    "import_source": translated_document.import_source,
-                    "source_channel": translated_document.source_channel,
-                    "is_current": translated_document.is_current,
-                    "corpus": translated_document.corpus,
-                    "collection": translated_document.collection,
-                    "visibility_scope": translated_document.visibility_scope,
-                    "status": translated_document.status,
-                    "raw_source_uri": translated_document.raw_source_uri,
-                    "raw_asset_id": translated_document.raw_asset_id,
-                    "raw_version_id": translated_document.raw_version_id,
-                    "provider_response_object_key": translated_document.provider_response_object_key,
-                    "additional_processed_object_keys": list(
-                        translated_document.additional_processed_object_keys
-                    ),
-                    "processed_object_keys": processed_object_keys,
-                    "title": translated_document.title,
-                    "year": translated_document.year,
-                    "parser_version": request.parser_version,
-                    "embedding_model": request.embedding_model,
-                    "cleaning_policy_version": cleaning_policy_version,
-                },
                 artifact_keys=tuple(prepared.source_artifact_keys.values()),
-                staged_object_keys=staged_object_keys,
-                final_object_keys=final_object_keys,
-                content_hash=content_hash,
-                staged_object_metadata=staged_object_metadata,
+                documents=documents,
             )
+
+    async def _prepare_source_truth_notice_stage(
+        self,
+        *,
+        request: AuthenticatedNoticeSourceTruthReplayRequest,
+        artifact_request: AuthenticatedNoticeImportRequest,
+        run_id: str,
+        batch: CloseoutBatch,
+        parent_snapshot: dict[str, Any],
+        notice_semaphore: asyncio.Semaphore,
+        object_store_semaphore: asyncio.Semaphore,
+        cleaning_policy_version: str,
+    ) -> _PreparedNoticeStage:
+        async with notice_semaphore:
+            projected_notice = await asyncio.to_thread(
+                build_authenticated_notice_source_truth_replay_documents,
+                parent_snapshot=parent_snapshot,
+                request=request,
+                object_store=self.artifacts.object_store,
+                object_store_settings=self.object_store_settings,
+                ocr_client=self.ocr_client,
+            )
+            documents = await self._stage_translated_documents(
+                request=artifact_request,
+                run_id=run_id,
+                batch=batch,
+                translated_documents=projected_notice.documents,
+                object_store_semaphore=object_store_semaphore,
+                cleaning_policy_version=cleaning_policy_version,
+            )
+            attachment_outcomes, attachment_artifact_keys = await self._prepare_attachment_outcomes(
+                request=artifact_request,
+                run_id=run_id,
+                batch=batch,
+                attachment_outcomes=projected_notice.attachment_outcomes,
+                object_store_semaphore=object_store_semaphore,
+            )
+            parent_document = projected_notice.documents[0]
+            artifact_keys = tuple(
+                str(item)
+                for item in (
+                    *tuple(parent_snapshot.get("source_artifact_keys") or ()),
+                    *attachment_artifact_keys,
+                )
+            )
+            return _PreparedNoticeStage(
+                notice={
+                    "notice_id": str(parent_snapshot["notice_id"]),
+                    "raw_asset_id": str(parent_snapshot["raw_record"]["raw_asset_id"]),
+                    "raw_version_id": str(parent_snapshot["raw_record"]["raw_version_id"]),
+                    "document_id": str(parent_document.metadata["document_id"]),
+                    "attachment_outcomes": list(attachment_outcomes),
+                },
+                raw_record=dict(parent_snapshot["raw_record"]),
+                source_artifact_keys={
+                    "notice_manifest": str(parent_snapshot["notice_manifest_key"]),
+                    "content_blocks": str(parent_snapshot["content_blocks_key"]),
+                    "attachment_refs": str(parent_snapshot["attachment_refs_key"]),
+                },
+                artifact_keys=artifact_keys,
+                documents=documents,
+            )
+
+    async def _prepare_attachment_outcomes(
+        self,
+        *,
+        request: AuthenticatedNoticeImportRequest,
+        run_id: str,
+        batch: CloseoutBatch,
+        attachment_outcomes,
+        object_store_semaphore: asyncio.Semaphore,
+    ) -> tuple[tuple[dict[str, Any], ...], tuple[str, ...]]:
+        batch_key_segment = batch_segment(batch.batch_id)
+        serialized: list[dict[str, Any]] = []
+        artifact_keys: list[str] = []
+        upload_tasks: list[asyncio.Task[None]] = []
+        for outcome in attachment_outcomes:
+            payload = {
+                "attachment_ref_id": outcome.attachment_ref_id,
+                "classification": outcome.classification,
+                "materialization_policy": outcome.materialization_policy,
+                "outcome": outcome.outcome,
+                "document_id": outcome.document_id,
+                "attachment_object_key": outcome.attachment_object_key,
+                "attachment_content_sha256": outcome.attachment_content_sha256,
+            }
+            if (
+                outcome.outcome == AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT
+                and outcome.provider_response_bytes is not None
+            ):
+                staged_provider_key = build_operations_artifact_key(
+                    corpus=request.corpus,
+                    operation=DEFAULT_CLOSEOUT_OPERATION,
+                    run_id=run_id,
+                    filename=PROVIDER_RESPONSE_FILENAME,
+                    segments=(
+                        "staging",
+                        "batches",
+                        batch_key_segment,
+                        "attachments",
+                        outcome.attachment_ref_id,
+                    ),
+                )
+                provider_hash = hashlib.sha256(outcome.provider_response_bytes).hexdigest()
+                payload["provider_response_staged_object_key"] = staged_provider_key
+                payload["provider_response_sha256"] = provider_hash
+                payload["provider_response_content_length"] = len(outcome.provider_response_bytes)
+                artifact_keys.append(staged_provider_key)
+                upload_tasks.append(
+                    asyncio.create_task(
+                        self.artifacts.put_bytes_limited(
+                            semaphore=object_store_semaphore,
+                            bucket=self.object_store_settings.bucket_derived,
+                            key=staged_provider_key,
+                            data=outcome.provider_response_bytes,
+                            content_type="application/json",
+                            metadata={"sha256": provider_hash},
+                        )
+                    )
+                )
+            serialized.append(payload)
+        if upload_tasks:
+            await asyncio.gather(*upload_tasks)
+        return tuple(serialized), tuple(artifact_keys)
+
+    async def _stage_translated_documents(
+        self,
+        *,
+        request: AuthenticatedNoticeImportRequest,
+        run_id: str,
+        batch: CloseoutBatch,
+        translated_documents: tuple[Any, ...],
+        object_store_semaphore: asyncio.Semaphore,
+        cleaning_policy_version: str,
+    ) -> tuple[_PreparedDocumentStage, ...]:
+        return tuple(
+            await asyncio.gather(
+                *[
+                    asyncio.create_task(
+                        self._prepare_document_stage(
+                            request=request,
+                            run_id=run_id,
+                            batch=batch,
+                            translated_document=translated_document,
+                            object_store_semaphore=object_store_semaphore,
+                            cleaning_policy_version=cleaning_policy_version,
+                        )
+                    )
+                    for translated_document in translated_documents
+                ]
+            )
+        )
+
+    async def _prepare_document_stage(
+        self,
+        *,
+        request: AuthenticatedNoticeImportRequest,
+        run_id: str,
+        batch: CloseoutBatch,
+        translated_document,
+        object_store_semaphore: asyncio.Semaphore,
+        cleaning_policy_version: str,
+    ) -> _PreparedDocumentStage:
+        document_id = str(translated_document.metadata["document_id"])
+        version_id = str(translated_document.metadata["version_id"])
+        content_hash = hashlib.sha256(translated_document.document_units_bytes).hexdigest()
+        batch_key_segment = batch_segment(batch.batch_id)
+        document_slug = document_stage_slug(document_id)
+        staged_document_units_key = build_operations_artifact_key(
+            corpus=request.corpus,
+            operation=DEFAULT_CLOSEOUT_OPERATION,
+            run_id=run_id,
+            filename="document-units.jsonl",
+            segments=("staging", "batches", batch_key_segment, "documents", document_slug),
+        )
+        final_document_units_key = build_document_artifact_key(
+            corpus=request.corpus,
+            collection=request.collection,
+            document_id=document_id,
+            revision_track=translated_document.revision_track,
+            version_id=version_id,
+            filename="document-units.jsonl",
+            title=translated_document.title,
+            year=translated_document.year,
+        )
+        staged_object_keys = {"document_units": staged_document_units_key}
+        final_object_keys = {"document_units": final_document_units_key}
+        staged_object_metadata = {
+            "document_units": {
+                "sha256": content_hash,
+                "content_length": len(translated_document.document_units_bytes),
+            }
+        }
+        provider_response_object_key = translated_document.provider_response_object_key
+        upload_tasks = [
+            asyncio.create_task(
+                self.artifacts.put_bytes_limited(
+                    semaphore=object_store_semaphore,
+                    bucket=self.object_store_settings.bucket_derived,
+                    key=staged_document_units_key,
+                    data=translated_document.document_units_bytes,
+                    content_type="application/x-ndjson",
+                    metadata={"sha256": content_hash},
+                )
+            )
+        ]
+        if translated_document.provider_response_bytes is not None:
+            if provider_response_object_key is not None and is_source_object_key(
+                str(provider_response_object_key)
+            ):
+                raise ValueError(
+                    f"closeout staging does not accept source-level provider response writes: {document_id}"
+                )
+            if provider_response_object_key is None:
+                provider_response_object_key = build_document_artifact_key(
+                    corpus=request.corpus,
+                    collection=request.collection,
+                    document_id=document_id,
+                    revision_track=translated_document.revision_track,
+                    version_id=version_id,
+                    filename=PROVIDER_RESPONSE_FILENAME,
+                    title=translated_document.title,
+                    year=translated_document.year,
+                )
+            provider_hash = hashlib.sha256(
+                translated_document.provider_response_bytes
+            ).hexdigest()
+            staged_provider_key = build_operations_artifact_key(
+                corpus=request.corpus,
+                operation=DEFAULT_CLOSEOUT_OPERATION,
+                run_id=run_id,
+                filename=PROVIDER_RESPONSE_FILENAME,
+                segments=("staging", "batches", batch_key_segment, "documents", document_slug),
+            )
+            staged_object_keys["provider_response"] = staged_provider_key
+            final_object_keys["provider_response"] = provider_response_object_key
+            staged_object_metadata["provider_response"] = {
+                "sha256": provider_hash,
+                "content_length": len(translated_document.provider_response_bytes),
+            }
+            upload_tasks.append(
+                asyncio.create_task(
+                    self.artifacts.put_bytes_limited(
+                        semaphore=object_store_semaphore,
+                        bucket=self.object_store_settings.bucket_derived,
+                        key=staged_provider_key,
+                        data=translated_document.provider_response_bytes,
+                        content_type="application/x-ndjson",
+                        metadata={"sha256": provider_hash},
+                    )
+                )
+            )
+        final_markdown_key = None
+        if translated_document.canonical_markdown_bytes is not None:
+            markdown_hash = hashlib.sha256(
+                translated_document.canonical_markdown_bytes
+            ).hexdigest()
+            staged_markdown_key = build_operations_artifact_key(
+                corpus=request.corpus,
+                operation=DEFAULT_CLOSEOUT_OPERATION,
+                run_id=run_id,
+                filename="canonical.md",
+                segments=("staging", "batches", batch_key_segment, "documents", document_slug),
+            )
+            final_markdown_key = build_document_artifact_key(
+                corpus=request.corpus,
+                collection=request.collection,
+                document_id=document_id,
+                revision_track=translated_document.revision_track,
+                version_id=version_id,
+                filename="canonical.md",
+                title=translated_document.title,
+                year=translated_document.year,
+            )
+            staged_object_keys["canonical_markdown"] = staged_markdown_key
+            final_object_keys["canonical_markdown"] = final_markdown_key
+            staged_object_metadata["canonical_markdown"] = {
+                "sha256": markdown_hash,
+                "content_length": len(translated_document.canonical_markdown_bytes),
+            }
+            upload_tasks.append(
+                asyncio.create_task(
+                    self.artifacts.put_bytes_limited(
+                        semaphore=object_store_semaphore,
+                        bucket=self.object_store_settings.bucket_derived,
+                        key=staged_markdown_key,
+                        data=translated_document.canonical_markdown_bytes,
+                        content_type="text/markdown; charset=utf-8",
+                        metadata={"sha256": markdown_hash},
+                    )
+                )
+            )
+        await asyncio.gather(*upload_tasks)
+
+        processed_object_keys = tuple(
+            dict.fromkeys(
+                key
+                for key in (
+                    provider_response_object_key,
+                    final_markdown_key,
+                    final_document_units_key,
+                    *translated_document.additional_processed_object_keys,
+                )
+                if key is not None
+            )
+        )
+        return _PreparedDocumentStage(
+            document={
+                "document_id": document_id,
+                "revision_track": translated_document.revision_track,
+                "version_id": version_id,
+                "source_label": translated_document.source_label,
+                "metadata": dict(translated_document.metadata),
+                "import_source": translated_document.import_source,
+                "source_channel": translated_document.source_channel,
+                "is_current": translated_document.is_current,
+                "corpus": translated_document.corpus,
+                "collection": translated_document.collection,
+                "visibility_scope": translated_document.visibility_scope,
+                "status": translated_document.status,
+                "raw_source_uri": translated_document.raw_source_uri,
+                "raw_asset_id": translated_document.raw_asset_id,
+                "raw_version_id": translated_document.raw_version_id,
+                "provider_response_object_key": provider_response_object_key,
+                "additional_processed_object_keys": list(
+                    translated_document.additional_processed_object_keys
+                ),
+                "processed_object_keys": list(processed_object_keys),
+                "title": translated_document.title,
+                "year": translated_document.year,
+                "parser_version": request.parser_version,
+                "embedding_model": request.embedding_model,
+                "cleaning_policy_version": cleaning_policy_version,
+            },
+            staged_object_keys=staged_object_keys,
+            final_object_keys=final_object_keys,
+            content_hash=content_hash,
+            staged_object_metadata=staged_object_metadata,
+        )
 
 
 def _content_type_for_key(key: str) -> str:
@@ -429,7 +714,7 @@ def _content_type_for_key(key: str) -> str:
 
 def _request_from_run(run: CloseoutRun) -> AuthenticatedNoticeImportRequest:
     return AuthenticatedNoticeImportRequest(
-        bundle_path=Path(run.bundle_path),
+        bundle_path=Path(run.bundle_path or "."),
         export_manifest_path=Path(run.manifest_path) if run.manifest_path else None,
         site_id=run.site_id,
         source_home_url=run.source_home_url,
@@ -440,6 +725,21 @@ def _request_from_run(run: CloseoutRun) -> AuthenticatedNoticeImportRequest:
         parser_version=run.parser_version,
         embedding_model=run.embedding_model,
         import_source=run.import_source,
+    )
+
+
+def _source_truth_request_from_run(
+    run: CloseoutRun,
+) -> AuthenticatedNoticeSourceTruthReplayRequest:
+    return AuthenticatedNoticeSourceTruthReplayRequest(
+        corpus=run.corpus,
+        collection=run.collection,
+        source_projections_path=(
+            Path(run.source_projections_path)
+            if run.source_projections_path
+            else None
+        ),
+        default_visibility_scope=run.visibility_scope,
     )
 
 

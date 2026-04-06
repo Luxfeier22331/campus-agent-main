@@ -82,6 +82,7 @@ export interface RequestObservabilityFactWrite {
   principalType: string;
   entitlementSnapshotId: string | null;
   policyProjectionVersion: string | null;
+  policyReason: string | null;
   requestedCapability: string | null;
   requestedScopeSummary: string | null;
   resolvedScopeSummary: string | null;
@@ -100,6 +101,8 @@ export interface RequestObservabilityFactWrite {
   citationCount: number | null;
   citationMissing: boolean | null;
   refusalClass: string | null;
+  semanticOutcome: string | null;
+  scopeClass: string | null;
   aclDecision: string | null;
   aclAnomalyCode: string | null;
   failClosed: boolean | null;
@@ -427,6 +430,7 @@ export function createPgChatCommandStore(
           modelProvider: input.requestObservabilityFact.modelProvider,
           outputTokens: input.requestObservabilityFact.outputTokens,
           policyProjectionVersion: input.requestObservabilityFact.policyProjectionVersion,
+          policyReason: input.requestObservabilityFact.policyReason,
           principalType: input.requestObservabilityFact.principalType,
           projectionLagMs: input.requestObservabilityFact.projectionLagMs,
           requestId: input.requestObservabilityFact.requestId,
@@ -434,6 +438,8 @@ export function createPgChatCommandStore(
           requestedScopeSummary: input.requestObservabilityFact.requestedScopeSummary,
           resolvedScopeSummary: input.requestObservabilityFact.resolvedScopeSummary,
           refusalClass: input.requestObservabilityFact.refusalClass,
+          scopeClass: input.requestObservabilityFact.scopeClass,
+          semanticOutcome: input.requestObservabilityFact.semanticOutcome,
           retrievedSourceCount: input.requestObservabilityFact.retrievedSourceCount,
           retrievalAttempted: input.requestObservabilityFact.retrievalAttempted,
           selectedTarget: input.requestObservabilityFact.selectedTarget,
@@ -539,6 +545,7 @@ export function createPgChatCommandStore(
             modelProvider: input.requestObservabilityFact.modelProvider,
             outputTokens: input.requestObservabilityFact.outputTokens,
             policyProjectionVersion: input.requestObservabilityFact.policyProjectionVersion,
+            policyReason: input.requestObservabilityFact.policyReason,
             principalType: input.requestObservabilityFact.principalType,
             projectionLagMs: input.requestObservabilityFact.projectionLagMs,
             requestId: input.requestObservabilityFact.requestId,
@@ -546,6 +553,8 @@ export function createPgChatCommandStore(
             requestedScopeSummary: input.requestObservabilityFact.requestedScopeSummary,
             resolvedScopeSummary: input.requestObservabilityFact.resolvedScopeSummary,
             refusalClass: input.requestObservabilityFact.refusalClass,
+            scopeClass: input.requestObservabilityFact.scopeClass,
+            semanticOutcome: input.requestObservabilityFact.semanticOutcome,
             retrievedSourceCount: input.requestObservabilityFact.retrievedSourceCount,
             retrievalAttempted: input.requestObservabilityFact.retrievalAttempted,
             selectedTarget: input.requestObservabilityFact.selectedTarget,
@@ -582,12 +591,15 @@ export function createPgChatCommandStore(
               modelProvider: input.requestObservabilityFact.modelProvider,
               outputTokens: input.requestObservabilityFact.outputTokens,
               policyProjectionVersion: input.requestObservabilityFact.policyProjectionVersion,
+              policyReason: input.requestObservabilityFact.policyReason,
               principalType: input.requestObservabilityFact.principalType,
               projectionLagMs: input.requestObservabilityFact.projectionLagMs,
               requestedCapability: input.requestObservabilityFact.requestedCapability,
               requestedScopeSummary: input.requestObservabilityFact.requestedScopeSummary,
               resolvedScopeSummary: input.requestObservabilityFact.resolvedScopeSummary,
               refusalClass: input.requestObservabilityFact.refusalClass,
+              scopeClass: input.requestObservabilityFact.scopeClass,
+              semanticOutcome: input.requestObservabilityFact.semanticOutcome,
               retrievedSourceCount: input.requestObservabilityFact.retrievedSourceCount,
               retrievalAttempted: input.requestObservabilityFact.retrievalAttempted,
               selectedTarget: input.requestObservabilityFact.selectedTarget,

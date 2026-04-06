@@ -6,7 +6,12 @@ import json
 import os
 from typing import Protocol
 
+from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef, SourceObservation
+from campus_ingestion_core.postgres_runtime import (
+    pooled_postgres_connection,
+    validate_persistent_postgres_runtime_url,
+)
 
 
 DEFAULT_REGISTRY_SCHEMA = "ingestion_registry"
@@ -130,6 +135,8 @@ class RawAssetRegistry(Protocol):
 
     def upsert(self, record: RawAssetRecord) -> None: ...
 
+    def upsert_many(self, records: tuple[RawAssetRecord, ...]) -> None: ...
+
     def list_by_corpus(self, corpus: str) -> tuple[RawAssetRecord, ...]: ...
 
     def list_by_scope(
@@ -142,6 +149,13 @@ class RawAssetRegistry(Protocol):
 
     def delete_by_scope(self, corpus: str, collection: str | None = None) -> None: ...
 
+    def replace_scope(
+        self,
+        corpus: str,
+        collection: str | None,
+        records: tuple[RawAssetRecord, ...],
+    ) -> None: ...
+
 
 class PostgresDocumentRegistry:
     def __init__(
@@ -150,7 +164,7 @@ class PostgresDocumentRegistry:
         *,
         table_name: str = DEFAULT_DOCUMENT_REGISTRY_TABLE,
     ) -> None:
-        self.database_url = database_url.strip()
+        self.database_url = validate_persistent_postgres_runtime_url(database_url)
         self.table_name = table_name
         if not self.database_url:
             raise ValueError("DOCUMENT_REGISTRY_DATABASE_URL is required")
@@ -169,7 +183,7 @@ class PostgresDocumentRegistry:
         row = self._fetchone(query, (document_id, revision_track, version_id))
         if row is None:
             return None
-        return _document_record_from_dict(_coerce_json_payload(row[0]))
+        return _document_record_from_persisted_payload(_coerce_json_payload(row[0]))
 
     def upsert(self, record: DocumentRegistryRecord) -> None:
         self.upsert_many((record,))
@@ -203,7 +217,7 @@ class PostgresDocumentRegistry:
             )
             params = (corpus, collection)
         rows = self._fetchall(query, params)
-        return tuple(_document_record_from_dict(_coerce_json_payload(row[0])) for row in rows)
+        return tuple(_document_record_from_persisted_payload(_coerce_json_payload(row[0])) for row in rows)
 
     def list_processed_object_keys_by_scope(
         self,
@@ -279,7 +293,7 @@ class PostgresDocumentRegistry:
         row = self._fetchone(query, params)
         if row is None:
             return ()
-        return (_document_record_from_dict(_coerce_json_payload(row[0])),)
+        return (_document_record_from_persisted_payload(_coerce_json_payload(row[0])),)
 
     def current_version(
         self,
@@ -296,7 +310,7 @@ class PostgresDocumentRegistry:
                 (document_id, revision_track),
             )
             if row is not None:
-                return _document_record_from_dict(_coerce_json_payload(row[0]))
+                return _document_record_from_persisted_payload(_coerce_json_payload(row[0]))
         row = self._fetchone(
             (
                 f"select record from {self.table_name} "
@@ -306,7 +320,7 @@ class PostgresDocumentRegistry:
             (document_id,),
         )
         if row is not None:
-            return _document_record_from_dict(_coerce_json_payload(row[0]))
+            return _document_record_from_persisted_payload(_coerce_json_payload(row[0]))
         return None
 
     def delete_document(self, document_id: str) -> None:
@@ -341,9 +355,9 @@ class PostgresDocumentRegistry:
             with conn.cursor() as cursor:
                 cursor.execute(delete_query, delete_params)
                 if records:
-                    cursor.executemany(
-                        self._upsert_query(),
-                        tuple(self._record_upsert_params(record) for record in records),
+                    cursor.execute(
+                        self._bulk_upsert_query(),
+                        (self._recordset_payload(records),),
                     )
 
     def _ensure_schema(self) -> None:
@@ -437,6 +451,69 @@ class PostgresDocumentRegistry:
             json.dumps(asdict(record), ensure_ascii=False),
         )
 
+    def _bulk_upsert_query(self) -> str:
+        table_sql = _qualified_table_sql(self.table_name)
+        return f"""
+            with rows as (
+                select
+                    item.document_id,
+                    item.revision_track,
+                    item.version_id,
+                    item.corpus,
+                    item.collection,
+                    item.ingestion_timestamp,
+                    item.record
+                from jsonb_to_recordset(%s::jsonb) as item(
+                    document_id text,
+                    revision_track text,
+                    version_id text,
+                    corpus text,
+                    collection text,
+                    ingestion_timestamp timestamptz,
+                    record jsonb
+                )
+            )
+            insert into {table_sql} (
+                document_id,
+                revision_track,
+                version_id,
+                corpus,
+                collection,
+                ingestion_timestamp,
+                record
+            )
+            select
+                document_id,
+                revision_track,
+                version_id,
+                corpus,
+                collection,
+                ingestion_timestamp,
+                record
+            from rows
+            on conflict (document_id, revision_track, version_id) do update set
+                corpus = excluded.corpus,
+                collection = excluded.collection,
+                ingestion_timestamp = excluded.ingestion_timestamp,
+                record = excluded.record
+        """
+
+    @staticmethod
+    def _recordset_payload(records: tuple[DocumentRegistryRecord, ...]) -> str:
+        payload = [
+            {
+                "document_id": record.document_id,
+                "revision_track": record.revision_track,
+                "version_id": record.version_id,
+                "corpus": record.corpus,
+                "collection": record.collection,
+                "ingestion_timestamp": record.ingestion_timestamp,
+                "record": asdict(record),
+            }
+            for record in records
+        ]
+        return json.dumps(payload, ensure_ascii=False)
+
 
 class PostgresRawAssetRegistry:
     def __init__(
@@ -445,7 +522,7 @@ class PostgresRawAssetRegistry:
         *,
         table_name: str = DEFAULT_RAW_ASSET_REGISTRY_TABLE,
     ) -> None:
-        self.database_url = database_url.strip()
+        self.database_url = validate_persistent_postgres_runtime_url(database_url)
         self.table_name = table_name
         if not self.database_url:
             raise ValueError("DOCUMENT_REGISTRY_DATABASE_URL is required")
@@ -462,28 +539,17 @@ class PostgresRawAssetRegistry:
         return _raw_asset_record_from_dict(_coerce_json_payload(row[0]))
 
     def upsert(self, record: RawAssetRecord) -> None:
-        payload = json.dumps(asdict(record), ensure_ascii=False)
-        query = (
-            f"insert into {self.table_name} "
-            "(raw_asset_id, raw_version_id, corpus, collection, ingestion_timestamp, record) "
-            "values (%s, %s, %s, %s, %s, %s::jsonb) "
-            "on conflict (raw_asset_id, raw_version_id) do update set "
-            "corpus = excluded.corpus, "
-            "collection = excluded.collection, "
-            "ingestion_timestamp = excluded.ingestion_timestamp, "
-            "record = excluded.record"
-        )
-        self._execute(
-            query,
-            (
-                record.raw_asset_id,
-                record.raw_version_id,
-                record.corpus,
-                record.collection,
-                _parse_timestamp(record.ingestion_timestamp),
-                payload,
-            ),
-        )
+        self.upsert_many((record,))
+
+    def upsert_many(self, records: tuple[RawAssetRecord, ...]) -> None:
+        if not records:
+            return
+        with _postgres_connection(self.database_url) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    self._bulk_upsert_query(),
+                    (self._recordset_payload(records),),
+                )
 
     def list_by_corpus(self, corpus: str) -> tuple[RawAssetRecord, ...]:
         return self.list_by_scope(corpus)
@@ -519,6 +585,47 @@ class PostgresRawAssetRegistry:
             query = f"delete from {self.table_name} where corpus = %s and collection = %s"
             params = (corpus, collection)
         self._execute(query, params)
+
+    def replace_scope(
+        self,
+        corpus: str,
+        collection: str | None,
+        records: tuple[RawAssetRecord, ...],
+    ) -> None:
+        if collection is None:
+            delete_query = f"delete from {self.table_name} where corpus = %s"
+            delete_params: tuple[object, ...] = (corpus,)
+        else:
+            delete_query = f"delete from {self.table_name} where corpus = %s and collection = %s"
+            delete_params = (corpus, collection)
+        upsert_query = (
+            f"insert into {self.table_name} "
+            "(raw_asset_id, raw_version_id, corpus, collection, ingestion_timestamp, record) "
+            "values (%s, %s, %s, %s, %s, %s::jsonb) "
+            "on conflict (raw_asset_id, raw_version_id) do update set "
+            "corpus = excluded.corpus, "
+            "collection = excluded.collection, "
+            "ingestion_timestamp = excluded.ingestion_timestamp, "
+            "record = excluded.record"
+        )
+        with _postgres_connection(self.database_url, autocommit=False) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(delete_query, delete_params)
+                if records:
+                    cursor.executemany(
+                        upsert_query,
+                        tuple(
+                            (
+                                record.raw_asset_id,
+                                record.raw_version_id,
+                                record.corpus,
+                                record.collection,
+                                _parse_timestamp(record.ingestion_timestamp),
+                                json.dumps(asdict(record), ensure_ascii=False),
+                            )
+                            for record in records
+                        ),
+                    )
 
     def _ensure_schema(self) -> None:
         cache_key = (self.database_url, self.table_name)
@@ -568,6 +675,64 @@ class PostgresRawAssetRegistry:
                 rows = cursor.fetchall()
         return tuple(tuple(row) for row in rows)
 
+    def _bulk_upsert_query(self) -> str:
+        table_sql = _qualified_table_sql(self.table_name)
+        return f"""
+            with rows as (
+                select
+                    item.raw_asset_id,
+                    item.raw_version_id,
+                    item.corpus,
+                    item.collection,
+                    item.ingestion_timestamp,
+                    item.record
+                from jsonb_to_recordset(%s::jsonb) as item(
+                    raw_asset_id text,
+                    raw_version_id text,
+                    corpus text,
+                    collection text,
+                    ingestion_timestamp timestamptz,
+                    record jsonb
+                )
+            )
+            insert into {table_sql} (
+                raw_asset_id,
+                raw_version_id,
+                corpus,
+                collection,
+                ingestion_timestamp,
+                record
+            )
+            select
+                raw_asset_id,
+                raw_version_id,
+                corpus,
+                collection,
+                ingestion_timestamp,
+                record
+            from rows
+            on conflict (raw_asset_id, raw_version_id) do update set
+                corpus = excluded.corpus,
+                collection = excluded.collection,
+                ingestion_timestamp = excluded.ingestion_timestamp,
+                record = excluded.record
+        """
+
+    @staticmethod
+    def _recordset_payload(records: tuple[RawAssetRecord, ...]) -> str:
+        payload = [
+            {
+                "raw_asset_id": record.raw_asset_id,
+                "raw_version_id": record.raw_version_id,
+                "corpus": record.corpus,
+                "collection": record.collection,
+                "ingestion_timestamp": record.ingestion_timestamp,
+                "record": asdict(record),
+            }
+            for record in records
+        ]
+        return json.dumps(payload, ensure_ascii=False)
+
 
 def build_document_registry_from_env(env: dict[str, str] | None = None) -> DocumentRegistry:
     source = env if env is not None else os.environ
@@ -588,7 +753,7 @@ def _required_document_registry_database_url(source: dict[str, str]) -> str:
         raise ValueError(
             f"{DOCUMENT_REGISTRY_ENV_KEY} or {SHARED_POSTGRES_ENV_KEY} is required"
         )
-    return database_url
+    return validate_persistent_postgres_runtime_url(database_url)
 
 
 def _required_raw_asset_registry_database_url(source: dict[str, str]) -> str:
@@ -602,17 +767,11 @@ def _required_raw_asset_registry_database_url(source: dict[str, str]) -> str:
             f"{RAW_ASSET_REGISTRY_ENV_KEY} or {DOCUMENT_REGISTRY_ENV_KEY} or "
             f"{SHARED_POSTGRES_ENV_KEY} is required"
         )
-    return database_url
+    return validate_persistent_postgres_runtime_url(database_url)
 
 
 def _postgres_connection(database_url: str, *, autocommit: bool = True):
-    try:
-        import psycopg
-    except ImportError as exc:  # pragma: no cover
-        raise RuntimeError(
-            "psycopg is required to use the Postgres document registry"
-        ) from exc
-    return psycopg.connect(database_url, autocommit=autocommit)
+    return pooled_postgres_connection(database_url, autocommit=autocommit)
 
 
 def _parse_timestamp(value: str) -> datetime:
@@ -625,6 +784,33 @@ def _coerce_json_payload(value: object) -> dict[str, object]:
     if isinstance(value, str):
         return json.loads(value)
     raise TypeError(f"unexpected registry payload type: {type(value)!r}")
+
+
+def _document_record_from_persisted_payload(raw: dict[str, object]) -> DocumentRegistryRecord:
+    return _document_record_from_dict(_canonicalize_persisted_authorization_projection_payload(raw))
+
+
+def _canonicalize_persisted_authorization_projection_payload(raw: dict[str, object]) -> dict[str, object]:
+    legacy_keys_present = tuple(
+        key
+        for key in ("acl_groups", "campus_scope", "acl_level")
+        if raw.get(key) is not None
+    )
+    if not legacy_keys_present:
+        return raw
+    normalized = dict(raw)
+    if normalized.get("entitlement_groups") is None and normalized.get("acl_groups") is not None:
+        normalized["entitlement_groups"] = normalized["acl_groups"]
+    if normalized.get("visibility_scope") is None and normalized.get("campus_scope") is not None:
+        normalized["visibility_scope"] = normalized["campus_scope"]
+    if not str(normalized.get("visibility_level") or "").strip() and normalized.get("acl_level") is not None:
+        normalized["visibility_level"] = normalized["acl_level"]
+    if not str(normalized.get("policy_projection_version") or "").strip():
+        normalized["policy_projection_version"] = DEFAULT_POLICY_PROJECTION_VERSION
+    normalized.pop("acl_groups", None)
+    normalized.pop("campus_scope", None)
+    normalized.pop("acl_level", None)
+    return normalized
 
 
 def _document_record_from_dict(raw: dict[str, object]) -> DocumentRegistryRecord:

@@ -1,0 +1,136 @@
+---
+doc_type: reference
+status: active
+created: 2026-04-04
+updated: 2026-04-04
+---
+
+# Official Web Fresh News Surface Handoff
+
+## 文档边界
+
+本文冻结 `official_web/muc_public_pages` 当前 truth 与后续 `fresh_news` surface 之间的 handoff 边界。
+
+它回答的是：
+
+- 当前哪些页面仍属于 `muc_public_pages` 的 answer-quality gate
+- 当前哪些 `inventory_only` 页面只应保留为 regression / audit truth
+- 哪些新闻页已经明确成为后续 `fresh_news` workstream 的 seed set
+
+它不表示：
+
+- `fresh_news` collection 已经实现
+- 当前 mixed `muc_public_pages` collection 已经可以承担新闻 query-serving
+- `retain_inventory_only` 页面会自动进入未来 fresh-news surface
+
+对应 machine truth：
+
+- fixture：`packages/evals/fixtures/official_web_muc_public_pages_current_truth_inventory.json`
+- helpers：`packages/evals/src/campus_evals/official_web_inventory.py`
+- tests：`tests/evals/test_official_web_live_benchmark.py`
+
+## 当前 handoff truth
+
+当前 worktree-local `official_web/muc_public_pages` promotable current truth 固定为 `21` 条文档：
+
+- `release_gate_required = 11`
+- `retain_inventory_only = 2`
+- `future_fresh_news_surface = 8`
+
+固定解释：
+
+- `release_gate_required`
+  - 当前 stable-reference-like answer-quality gate
+  - 这是当前 scope 唯一允许继续做 answer-compression / retrieval-quality closeout 的子集
+- `retain_inventory_only`
+  - 保留在 current truth，只服务 regression / audit / local validation
+  - 不属于当前 stable-reference gate，也不属于 future fresh-news seed set
+- `future_fresh_news_surface`
+  - 当前保留在 current truth，只服务 regression / local validation
+  - 后续如要开放官网新闻问答，必须在单独的 `fresh_news` / `news_archive` 语义下处理
+
+## 当前 stable-reference-like gate
+
+当前 `release_gate_required` 固定包含：
+
+- `学校简介`
+- `学校概况`
+- `现任领导`
+- `基金会简介`
+- `校友会简介`
+- `本科培养`
+- `博士后`
+- `研究生培养`
+- `学术名流`
+- `“民图一小时”信息素养讲座预告`
+- `校长强世功接受“统战新语”专访 解读民族团结进步促进法`
+
+这组页面仍属于当前 scope 的 answer-quality closeout 面。
+
+## 保留型 Inventory Truth
+
+当前 `retain_inventory_only` 固定为：
+
+- `访问学者`
+- `干部人事`
+
+固定解释：
+
+- 它们继续保留在 current truth，方便 regression、inventory audit 与 local validation
+- 它们不是当前 stable-reference gate 的延迟候选
+- 它们也不是后续 `fresh_news` surface 的 seed set
+
+## Future Fresh News Seed Set
+
+当前 `future_fresh_news_surface` 固定为 `8` 条新闻页：
+
+- `西北四所高校图书馆同仁到我校丰台校区图书馆考察调研`
+- `中央民族大学党委举办树立和践行正确政绩观学习教育读书班`
+- `中央民族大学与北京丰台人才集团共建就业实习实践基地`
+- `校领导拜会北京市委组织部领导交流高质量就业工作`
+- `中央民族大学唐鑫团队在红外高光谱成像系统研究获重大突破`
+- `外国语学院学子在2026中国大学生演讲与辩论锦标赛中喜获佳绩`
+- `中央民族大学举办中国历史研究院2025年度重大招标项目开题论证会`
+- `《学习时报》孔新峰：政德何以重要`
+
+它们的当前角色固定为：
+
+- current truth 中的 regression / local validation seed set
+- future `fresh_news` surface 的 handoff input
+- 不是当前 stable-reference gate 的隐藏待升格页面
+
+## Repo-Tracked Helper Contract
+
+后续如果代码需要消费这组 handoff truth，应优先通过 helper，而不是重复解析 fixture 结构：
+
+- `official_web_future_fresh_news_doc_ids()`
+- `official_web_future_fresh_news_titles()`
+- `official_web_retain_inventory_only_doc_ids()`
+- `official_web_retain_inventory_only_titles()`
+- `official_web_inventory_only_doc_ids_by_disposition()`
+- `official_web_inventory_only_titles_by_disposition()`
+
+## 后续 fresh-news phase 至少要额外解决的问题
+
+future `fresh_news` surface 不是把这 `8` 条页面直接换个 collection 名字即可。至少还要单独解决：
+
+- freshness gate
+  - `今天 / 最新 / 最近` 风格 query 的 freshness threshold 与 fail-close 条件
+- serving surface
+  - `fresh_news` 与 `news_archive` 的运行时边界
+- metadata
+  - `published_at`、`crawled_at`、`last_seen_at` 等时间语义如何进入 serving policy
+- release gate
+  - 新闻面自己的 retrieval / answer gate，而不是复用当前 stable-reference gate
+
+## 当前明确不允许的路径
+
+- 把这 `8` 条 news 页面重新塞回当前 `release_gate_required`
+- 把 `retain_inventory_only` 页面误写成 future fresh-news seed set
+- 把当前 mixed `muc_public_pages` collection 直接包装成已具备新闻 query-serving 能力
+
+## 结论
+
+- 当前 `muc_public_pages` truth 与后续 `fresh_news` surface 现在已经有显式 handoff 边界
+- 当前 stable-reference-like gate 只消费 `release_gate_required`
+- future fresh-news 工作必须从这 `8` 条 seed set 出发，但不能跳过单独的 freshness / serving / release-gate 设计

@@ -312,7 +312,7 @@ Post-phase closeout note:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 03.2 → 4 → 04.1 → 04.2 → 04.3 → 04.4 → 04.5 → 04.6 → 04.7 → 5 → 05.1 → 6 → 7 → 8 → 9 → 09.1 → 10
+Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 03.2 → 4 → 04.1 → 04.2 → 04.3 → 04.4 → 04.5 → 04.6 → 04.7 → 5 → 05.1 → 6 → 7 → 8 → 9 → 09.1 → 10 → 10.1 → 10.2 → 10.3 → 10.4 → 10.5 → 11 → 12 → 12.1 → 12.2
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -334,9 +334,18 @@ Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 03.2 → 4 → 04.1 
 | 6. Curriculum Offline Preparation | 2/2 | Complete | 2026-03-27 |
 | 7. Verification And Release Gate | 2/2 | Complete | 2026-03-27 |
 | 8. Student Handbook Ambiguous Policy Query Hardening | 4/4 | Complete | 2026-04-02 |
-| 9. Curriculum Ambiguous Program Query Hardening | 0/0 | Not started |  |
+| 9. Curriculum Ambiguous Program Query Hardening | 3/3 | Complete | 2026-04-05 |
 | 09.1. Env Bootstrap And Provider Configuration Governance | 4/4 | Complete | 2026-04-02 |
-| 10. Official Web Repo Hardening And Expansion | 0/0 | Not started |  |
+| 10. Official Web Serving Surface Stratification And Fresh News Readiness | 3/3 | Complete | 2026-04-04 |
+| 10.1. Official Web Current Truth Closeout And Fresh News Surface Handoff | 3/3 | Complete | 2026-04-04 |
+| 10.2. Official Web Release Gate Dataset Quality Improvement | 3/3 | Complete | 2026-04-04 |
+| 10.3. Official Web Release Gate Chunk Cleanup And Header Normalization | 3/3 | Complete | 2026-04-04 |
+| 10.4. Official Web Corpus Split Routing And Stable Reference Bootstrap | 2/2 | Complete | 2026-04-05 |
+| 10.5. Official Web Stable Reference Release Evidence And Serving Surface Cleanup | 2/2 | Complete | 2026-04-05 |
+| 11. Campus Identity, Authorization, Memory, And Restricted Document Foundation | 5/5 | Complete |  |
+| 12. Authenticated Notice Source Foundation | 4/4 | Complete |  |
+| 12.1. Authenticated Notice Historical Backfill Closeout | 1/2 | In progress |  |
+| 12.2. Authenticated Notice Async Staged Closeout | 2/2 | Complete |  |
 
 ### Phase 8: Student Handbook Ambiguous Policy Query Hardening
 
@@ -401,40 +410,143 @@ Plans:
 - [x] 09.1-03: Align repo entrypoints and ship an env/provider doctor command.
 - [x] 09.1-04: Close docs/examples and deploy-side provider secret governance.
 
-### Phase 10: Official Web Repo Hardening And Expansion
+### Phase 10: Official Web Serving Surface Stratification And Fresh News Readiness
 
-**Goal:** [To be planned]
-**Requirements**: TBD
-**Depends on:** Phase 9
-**Plans:** 0 plans
-
-Plans:
-- [ ] TBD (run /gsd:plan-phase 10 to break down)
-
-Coordination note:
-
-- `Phase 10` / `official-web` 当前由其他 worktree 处理。
-- 除非该 worktree 显式回交，否则这里不要再把它重复当作当前执行项。
-
-### Phase 10.2: Official Web Release Gate Dataset Quality Improvement (INSERTED)
-
-**Goal:** [Urgent work - to be planned]
-**Requirements**: TBD
-**Depends on:** Phase 10
-**Plans:** 0 plans
+**Goal:** Freeze the current `official_web/muc_public_pages` serving-surface truth as an offline mixed collection, add canonical publication/fetch metadata for later fresh-news work, and fail-close freshness-sensitive queries under the current runtime policy.
+**Requirements**: []
+**Depends on:** Phase 09.1
+**Success Criteria** (what must be TRUE):
+  1. Runtime truth explicitly records that current `muc_public_pages` remains offline by default and is not freshness-ready for `今天/最新/最近` style questions.
+  2. Source truth and replayed document metadata carry canonical publication/fetch metadata needed for later `fresh_news` serving work.
+  3. Freshness-sensitive official-web queries fail closed under the current runtime truth, and eval coverage locks that contract.
+  4. This phase does not expand crawl scope or reopen official-web default query-serving.
+**Plans:** 3/3 plans complete; repo-level context is captured in `.planning/phases/10-official-web-serving-surface-stratification-and-fresh-news-readiness/10-CONTEXT.md`
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 10.2 to break down)
+- [x] 10-01: Freeze `official_web/muc_public_pages` runtime-profile truth for offline mixed-surface serving and freshness-sensitive query policy.
+- [x] 10-02: Add canonical `publishedAt` extraction and replay metadata propagation for official-web source truth.
+- [x] 10-03: Fail-close freshness-sensitive official-web queries and add eval coverage while keeping the collection offline by default.
+
+Post-phase closeout note:
+- Phase 10 closed the serving-surface correctness gap for the current `official_web/muc_public_pages` worktree truth without reopening crawl scope or default query-serving.
+- Runtime policy, source-truth publication metadata, replay metadata propagation, and freshness-sensitive fail-close behavior are now aligned to one explicit repo truth.
+- Follow-up work should shift back to dataset quality improvement and explicit fresh-news surface design, rather than continuing to treat the current mixed local collection as freshness-ready.
 
 ### Phase 10.1: Official Web Current Truth Closeout And Fresh News Surface Handoff (INSERTED)
 
-**Goal:** [Urgent work - to be planned]
-**Requirements**: TBD
+**Goal:** Close the current `official_web/muc_public_pages` truth cleanly by freezing the current stable-reference-like scope, freezing the future fresh-news handoff set, and aligning repo planning/docs/runbooks to that boundary without reopening query-serving.
+**Requirements**: []
 **Depends on:** Phase 10
-**Plans:** 0 plans
+**Plans:** 3/3 plans complete; repo-level context is captured in `.planning/phases/10.1-official-web-current-truth-closeout-and-fresh-news-surface-handoff/10.1-CONTEXT.md`
+
+**Success Criteria** (what must be TRUE):
+  1. Planning truth (`ROADMAP.md`, `STATE.md`, and any touched project-truth note) no longer drifts on what the next official-web workstream is after Phase 10.
+  2. The repo exposes one explicit, reusable truth for the current `inventory_only` handoff split, especially the `future_fresh_news_surface` seed set.
+  3. Human-facing docs/runbooks explicitly state that the current `muc_public_pages` truth and the future `fresh_news` surface are separate work items.
+  4. This phase does not reopen crawl scope, default query-serving, or Phase 10 freshness fail-close behavior.
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 10.1 to break down)
+- [x] 10.1-01: Align planning truth and project-level official-web workstream wording after Phase 10.
+- [x] 10.1-02: Freeze machine-checkable current-truth partition helpers and official-web handoff drift tests.
+- [x] 10.1-03: Add the fresh-news handoff note and align official-web architecture/runbooks to that boundary.
+
+Post-phase closeout note:
+- Phase 10.1 closed the remaining planning/doc drift after Phase 10 and turned the `inventory_only` split into explicit repo-tracked handoff truth.
+- Current `official_web/muc_public_pages` truth is now explicitly read as `release_gate_required` current gate, `retain_inventory_only` current-truth retention, and `future_fresh_news_surface` future handoff.
+- Follow-up work should improve fixed-scope dataset quality without reopening the current stable-reference gate or silently re-promoting the `8` future news pages.
+
+### Phase 10.2: Official Web Release Gate Dataset Quality Improvement
+
+**Goal:** Repair the fixed-scope `official_web/muc_public_pages` `release_gate_required` subset so current release-candidate quality is carried by correct source-truth projection units and chunk shape, not by downstream retrieval/answer heuristics alone.
+**Requirements**: []
+**Depends on:** Phase 10.1
+**Plans:** 3/3 plans complete; repo-level context is captured in `.planning/phases/10.2-official-web-release-gate-dataset-quality-improvement/10.2-CONTEXT.md`
+
+**Success Criteria** (what must be TRUE):
+  1. `article_detail` pages in the current `release_gate_required` subset no longer collapse long multi-paragraph sections into a single oversized `section_text` unit by default.
+  2. Notice-like pages still preserve locally grouped `topic/time/location` support so retrieval and answer compression do not regress.
+  3. Projection chunking audit can explicitly flag over-aggregated `article_detail` section units instead of only relying on generic downstream chunk symptoms.
+  4. Focused repo tests, local replay sampling, and current official-web release-gate verification all align to the repaired fixed-scope dataset truth.
+  5. This phase does not reopen `retain_inventory_only`, `future_fresh_news_surface`, crawl expansion, or default query-serving.
+
+Plans:
+- [x] 10.2-01: Add failing projection and chunking-audit tests that lock the over-aggregation bug on the `release_gate_required` subset.
+- [x] 10.2-02: Repair `article_detail` unit batching and official-web chunking audit rules without regressing notice/reference retrieval shape.
+- [x] 10.2-03: Re-run fixed-scope replay/verification, refresh QC truth, and close the phase in planning docs.
+
+Post-phase closeout note:
+- Phase 10.2 closed the current fixed-scope local clean/chunking blocker by repairing `article_detail` structured-unit batching and aligning article-specific chunk audit truth.
+- Real replay on `/tmp/official-web-qc-20260401-batch-d-clean-subset-projection-v7` now shows `学校概况 / 学校简介 = 3 units` and `本科培养 / 研究生培养 / 博士后 = 2 units`, while chunk audit returns `0 issues`.
+- This phase still did not reopen import/release promotion, fresh-news, crawl expansion, or default query-serving; any repaired replay roll-forward to registry/Qdrant remains a separate next step.
+
+### Phase 10.3: Official Web Release Gate Chunk Cleanup And Header Normalization (INSERTED)
+
+**Goal:** Remove the remaining `release_gate_required` chunk-consumption defects in `official_web/muc_public_pages` by classifying support-only article lines, suppressing source-only / boilerplate chunks, and forcing a stable labeled header contract for promotable official-web chunks.
+**Requirements**: []
+**Depends on:** Phase 10.2
+**Plans:** 3/3 plans complete; repo-level context is captured in `.planning/phases/10.3-official-web-release-gate-chunk-cleanup-and-header-normalization/10.3-CONTEXT.md`
+
+**Success Criteria** (what must be TRUE):
+  1. `release_gate_required` article pages no longer emit standalone source-attribution or terminal-boilerplate chunks into the local chunking/retrieval path.
+  2. Promotable official-web chunks stop drifting to unlabeled `compact_identity` headers and instead keep the fixed `标题：... | 章节：...` contract whenever section context exists.
+  3. Projection metadata distinguishes `notice_fact` / `reference_fact` from support-only roles such as `source_attribution` / `boilerplate`, and retrieval/answer selection treats support-only roles as non-consumable.
+  4. Official-web chunking audit explicitly covers source-only chunks, terminal boilerplate chunks, and header-context drift.
+  5. Fresh replay, focused repo tests, and sampling all confirm the repaired current gate without reopening `retain_inventory_only`, `future_fresh_news_surface`, import/release promotion, crawl expansion, or query enablement.
+
+Plans:
+- [x] 10.3-01: Add failing tests for support-only line roles, support-only chunk suppression, and official-web header normalization.
+- [x] 10.3-02: Refactor official-web article shaping, chunk header selection, and retrieval/answer role handling to remove residual chunk noise.
+- [x] 10.3-03: Re-run fixed-scope replay/verification, refresh QC and policy truth, and close the phase in planning docs.
+
+Post-phase closeout note:
+- Phase 10.3 kept support-only official-web lines in source-truth unit metadata, but removed them from canonical markdown, chunk/index, retrieval ranking, and answer row selection.
+- Final replay `/tmp/official-web-qc-20260401-batch-d-clean-subset-projection-v9` now returns `29 pages_seen / 28 emitted_documents / 1 manual_review`, projection validator `28 documents / 0 warnings`, and chunk audit `118 units / 138 chunks / 0 issues`.
+- Audit truth is now aligned to the repaired chunk contract: title-collapsed pages no longer false-positive on `header_context_drift`, and grouped `notice_fact` rows no longer false-positive on `article_section_over_aggregation`.
+- Follow-up work should no longer reopen the fixed-scope cleaning debate; the next separate decision is whether to rerun import/release candidate validation on top of replay v9.
+
+### Phase 10.4: Official Web Corpus Split Routing And Stable Reference Bootstrap
+
+**Goal:** Turn the documented `official_web` corpus split into executable repo truth by introducing machine-checkable projection routing and a scope-specific import path for the first `official_web/stable_reference` bootstrap slice.
+**Requirements**: []
+**Depends on:** Phase 10.3
+**Plans:** 2/2 plans complete; repo-level context is captured in `.planning/phases/10.4-official-web-corpus-split-routing-and-stable-reference-bootstrap/10.4-CONTEXT.md`
+
+**Success Criteria** (what must be TRUE):
+  1. Replay no longer assumes every `official_web` page is emitted to `official_web/muc_public_pages`.
+  2. The current stable-reference bootstrap subset can be routed into `official_web/stable_reference` using repo-tracked routing truth.
+  3. Mixed replay output can be imported one target scope at a time without weakening the current single-scope refresh invariant.
+  4. Unmatched pages remain on the `muc_public_pages` bridge; this phase does not reopen fresh-news serving or automatic cross-corpus fan-out.
+
+Plans:
+- [x] 10.4-01: Add repo-tracked projection routing truth and make official-web replay honor the first `stable_reference` route.
+- [x] 10.4-02: Filter mixed replay import by requested target scope before refresh so the first routed import path is executable.
+
+Post-phase closeout note:
+- `configs/sources/official_web/muc_public/projection-routing.json` is now the executable routing truth for the first corpus split slice.
+- `replay_official_web_source_truth_local()` now emits routed `official_web/stable_reference` documents and records `routing_route_id` in replay output.
+- `official_web_projection_import` now filters mixed replay output to the requested `scope_refresh`, preserving the fail-closed single-scope refresh contract.
+
+### Phase 10.5: Official Web Stable Reference Release Evidence And Serving Surface Cleanup
+
+**Goal:** Record the first real `official_web/stable_reference` physical release and clean up repo-side serving logic so stable-reference-like official-web behavior no longer depends on the literal `muc_public_pages` collection name.
+**Requirements**: []
+**Depends on:** Phase 10.4
+**Plans:** 2/2 plans complete; repo-level context is captured in `.planning/phases/10.5-official-web-stable-reference-release-evidence-and-serving-surface-cleanup/10.5-CONTEXT.md`
+
+**Success Criteria** (what must be TRUE):
+  1. The first real routed `official_web/stable_reference` replay/import/release execution is recorded as repo-tracked evidence.
+  2. Retrieval and specialist logic that belongs to the stable-reference-like official-web surface works for both `muc_public_pages` and `stable_reference`.
+  3. Eval code has an explicit `stable_reference` scope helper instead of assuming only one official-web reference collection exists.
+  4. This phase does not reopen fresh-news or claim the mixed `muc_public_pages` bridge is query-enabled.
+
+Plans:
+- [x] 10.5-01: Record routed `stable_reference` replay/import/release evidence and update the official-web replay runbook.
+- [x] 10.5-02: Add stable-reference-like official-web serving helpers and reuse them across retrieval, specialist, and eval code.
+
+Post-phase closeout note:
+- repo-tracked evidence now records real `stable_reference` replay validation, `9`-document scope-specific import, and release `r20260404_204033`
+- `campus_ingestion_core.corpus_profiles` now exposes stable-reference-like official-web helpers that cover both the mixed bridge and the split `stable_reference` scope
+- retrieval, specialist, and eval helpers no longer require the literal `muc_public_pages` collection name to apply stable-reference behavior
 
 ### Phase 11: Campus Identity, Authorization, Memory, And Restricted Document Foundation
 
@@ -522,13 +634,3 @@ Plans:
 Plans:
 - [x] 12.2-01-PLAN.md — Research async staged closeout data-plane model, operations prefix, staging schema, single promoter, verification requirements, and codify the new architecture/ADR/runbook language.
 - [x] 12.2-02-PLAN.md — Execute the async staged pipeline: design ops directories + staging tables, implement planner/executor/promoter, add CLI status/promote commands, and lock in verification/summary artifacts.
-
-### Phase 13: Official Web Serving Surface Stratification And Fresh News Readiness
-
-**Goal:** [To be planned]
-**Requirements**: TBD
-**Depends on:** Phase 12.2
-**Plans:** 0 plans
-
-Plans:
-- [ ] TBD (run /gsd:plan-phase 13 to break down)

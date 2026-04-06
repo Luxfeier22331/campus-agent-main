@@ -146,7 +146,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
   });
 
   it("creates and reads owned conversations through app-api after Better Auth sign-in", async () => {
-    createdEmail = `integration-${Date.now()}@example.com`;
+    createdEmail = `integration-${Date.now()}@muc.edu.cn`;
 
     const authResponse = await app.fetch(
       new Request("https://app-api.internal/api/auth/sign-up/email", {
@@ -214,7 +214,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
   });
 
   it("persists curriculum session slots in chat.session_slots after finalized curriculum completion", async () => {
-    createdEmail = `integration-${Date.now()}@example.com`;
+    createdEmail = `integration-${Date.now()}@muc.edu.cn`;
 
     const authResponse = await app.fetch(
       new Request("https://app-api.internal/api/auth/sign-up/email", {

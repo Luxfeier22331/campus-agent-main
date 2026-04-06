@@ -115,17 +115,12 @@ def prepare_authenticated_notice_source_material(
         content_blocks=content_blocks,
         attachment_refs=attachment_refs,
     )
-    canonical_markdown_bytes = _build_canonical_markdown(
-        title=title,
-        content_blocks=content_blocks,
-        attachment_refs=attachment_refs,
-    )
-    document_units_bytes = _build_document_units(
+    canonical_markdown_bytes, document_units_bytes = build_authenticated_notice_notice_document_artifacts(
         document_id=f"notice:{site_id}:{notice_id}",
         version_id=raw_version_id,
         source_uri=source_uri,
+        title=title,
         content_blocks=content_blocks,
-        attachment_refs=attachment_refs,
     )
     return AuthenticatedNoticeSourceMaterial(
         notice_id=notice_id,
@@ -143,6 +138,27 @@ def prepare_authenticated_notice_source_material(
         canonical_markdown_bytes=canonical_markdown_bytes,
         document_units_bytes=document_units_bytes,
     )
+
+
+def build_authenticated_notice_notice_document_artifacts(
+    *,
+    document_id: str,
+    version_id: str,
+    source_uri: str,
+    title: str,
+    content_blocks: tuple[dict[str, Any], ...],
+) -> tuple[bytes, bytes]:
+    canonical_markdown_bytes = _build_canonical_markdown(
+        title=title,
+        content_blocks=content_blocks,
+    )
+    document_units_bytes = _build_document_units(
+        document_id=document_id,
+        version_id=version_id,
+        source_uri=source_uri,
+        content_blocks=content_blocks,
+    )
+    return canonical_markdown_bytes, document_units_bytes
 
 
 def _build_capture_artifacts(
@@ -417,7 +433,6 @@ def _build_canonical_markdown(
     *,
     title: str,
     content_blocks: tuple[dict[str, Any], ...],
-    attachment_refs: tuple[dict[str, Any], ...],
 ) -> bytes:
     lines = [f"# {title}"]
     for block in content_blocks[1:]:
@@ -438,18 +453,6 @@ def _build_canonical_markdown(
                 lines.append(f"- {text}")
         else:
             lines.append(text)
-    if attachment_refs:
-        lines.append("")
-        lines.append("## 附件")
-        for row in attachment_refs:
-            anchor_text = str(row.get("anchor_text") or "").strip()
-            source_url = str(row.get("final_url") or row.get("source_url") or "").strip()
-            if anchor_text and source_url:
-                lines.append(f"- [{anchor_text}]({source_url})")
-            elif anchor_text:
-                lines.append(f"- {anchor_text}")
-            elif source_url:
-                lines.append(f"- {source_url}")
     return ("\n\n".join(lines).strip() + "\n").encode("utf-8")
 
 
@@ -459,7 +462,6 @@ def _build_document_units(
     version_id: str,
     source_uri: str,
     content_blocks: tuple[dict[str, Any], ...],
-    attachment_refs: tuple[dict[str, Any], ...],
 ) -> bytes:
     rows: list[dict[str, Any]] = []
     for block in content_blocks:
@@ -489,37 +491,6 @@ def _build_document_units(
                     "heading_level": block.get("heading_level"),
                     "link_target": block.get("link_target"),
                     "link_text": block.get("link_text"),
-                },
-            }
-        )
-    for row in attachment_refs:
-        text = (
-            str(row.get("anchor_text") or "").strip()
-            or str(row.get("final_url") or row.get("source_url") or "").strip()
-        )
-        if not text:
-            continue
-        chunk_id = str(row.get("attachment_ref_id") or "")
-        rows.append(
-            {
-                "doc_id": document_id,
-                "version_id": version_id,
-                "chunk_id": chunk_id,
-                "root_unit_id": chunk_id,
-                "unit_type": "attachment_ref",
-                "text": text,
-                "raw_text": text,
-                "clean_text": text,
-                "anchor": {
-                    "resource_role": row.get("resource_role"),
-                    "source_uri": source_uri,
-                    "attachment_ref_id": chunk_id,
-                },
-                "metadata": {
-                    "block_role": "attachment_ref",
-                    "resource_role": row.get("resource_role"),
-                    "object_key": row.get("object_key"),
-                    "mime_type": row.get("mime_type"),
                 },
             }
         )

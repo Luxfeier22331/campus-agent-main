@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-04
-updated: 2026-04-05
+updated: 2026-04-06
 ---
 
 # Authenticated Notice Async Staged Closeout Runbook
@@ -16,6 +16,25 @@ updated: 2026-04-05
 - `docs/runbooks/authenticated-notice-bootstrap-smoke-runbook.md`
 - `docs/runbooks/authenticated-notice-historical-backfill-closeout-runbook.md` 的 legacy cumulative-prefix closeout 说明
 - live collector / control-plane runbook
+
+## Latest Completed Historical Run
+
+当前 repo-tracked 完整 historical closeout 实跑证据为：
+
+- `run_id=authenticated-notice-replay-20260406-024405`
+- `state=done`
+- `promotion_id=promotion-0001`
+- `expected_notice_count=6694`
+- `verification.ok=true`
+- `expected_document_id_count=6962`
+- `raw_asset_synced_count=6694`
+- `replaced_scope_record_count=6962`
+
+详细指标固定记录在：
+
+- `docs/reference/authenticated-notice-historical-closeout-evidence.md`
+
+这组证据只说明 async staged closeout 已成功收口，不表示 `internal_notice` 已开放 serving。
 
 ## Canonical CLI
 
@@ -46,6 +65,21 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.run_a
 
 多 worker 并行时，只需要在不同进程/机器上使用不同 `worker-id` 重复执行这条命令。
 
+如果要在同一台机器上一次性拉起多个本地 worker，也可以使用：
+
+```bash
+uv run --package campus-ingestion-worker python -m campus_ingestion_worker.run_authenticated_notice_closeout_worker \
+  --run-id run-14-async \
+  --parallel-workers 8 \
+  --worker-id-prefix worker
+```
+
+这条命令的 accepted 语义固定为：
+
+- 父进程只负责编排
+- 每个 worker 都在独立子进程里执行 `--worker-id worker-XX`
+- 不再把多个 leased worker 塞进一个共享同一应用侧连接池的单进程线程池
+
 ### 3. 查询 run 状态
 
 ```bash
@@ -73,6 +107,7 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.promo
 - `OBJECT_STORE_*` 已配置
 - `DOCUMENT_REGISTRY_DATABASE_URL` / `RAW_ASSET_REGISTRY_DATABASE_URL` 已配置
 - `AUTHENTICATED_NOTICE_CLOSEOUT_DATABASE_URL` 已配置；如未单独配置，则当前实现回退到 `CAMPUS_SHARED_POSTGRES_URL`，再回退到 `DOCUMENT_REGISTRY_DATABASE_URL`
+- 当这些 URL 指向 Supabase 时，当前 accepted posture 固定为 IPv4 runtime + `session pooler`；不得把 `db.<project-ref>.supabase.co` 或 transaction pooler 用作长驻 worker 主链路
 - 当前目标 collection 仍是 `campus_notices/internal_notice`
 - posture 仍是 `restricted + offline_preparation`
 
@@ -92,10 +127,13 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.promo
 - `milestones/planned.json`
 - `milestones/staged.json`
 - `milestones/verified.json`
+- `milestones/promoting.json`
 - `milestones/promoted.json`
 - `reconciliation/verification.json`
 - `promotions/promotion-0001.json`
+- `promotions/promotion-0001/progress.json`
 - `batches/<batch>/manifest.json`
+- `promotion-batches/<batch>/manifest.json`
 - `staging/batches/<batch>/documents/...`
 
 说明：
@@ -104,6 +142,8 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.promo
 - `capture/*`、`provider/*`、`source-truth/*` 仍直接写 canonical source object key
 - worker 读取自己的 `batches/<batch>/input.json` 并只 prepare 当前 batch
 - final `documents/internal_notice/...` 只在 promote 时写入
+- promoter 会把 progress truth 持续写回 `milestones/promoting.json` 与 `promotions/promotion-0001/progress.json`
+- promoter 的 copy 进度按 promotion batch 落盘；重启后会跳过 `done` batch，只重试未完成 batch
 
 ## 数据库布局
 
@@ -118,6 +158,7 @@ closeout staging schema 固定为：
 - `ingestion_closeout.closeout_document_stage`
 - `ingestion_closeout.closeout_milestones`
 - `ingestion_closeout.closeout_promotions`
+- `ingestion_closeout.closeout_promotion_batches`
 
 这些表负责 progress / lease / manifest / staged digest / promotion truth，不负责最终 query-serving registry。
 
@@ -149,6 +190,71 @@ promotion 完成后至少要求：
 - `state=done`
 - `replaced_scope_record_count == expected_notice_count`
 - final document registry scope 与 staged document count 一致
+
+promotion 执行中，`show` / `watch` 至少应能读到：
+
+- 顶层 `state=promoting`
+- `promotion_state=running|done`
+- `promotion_phase=raw_asset_sync|copying|registry_replace|done`
+- `promotion.copy_batch_count`
+- `promotion.copy_completed_batch_count`
+- `promotion.copied_document_count`
+- `promotion.copied_object_count`
+
+## Partial Plan Repair
+
+如果某次 run 出现以下特征：
+
+- `run.expected_notice_count` / `run.batch_count` 显示 full frozen plan
+- `list_shards` 显示 shard plan 完整
+- 但实际 persisted batch rows 少于 `run.batch_count`
+- worker 只消费了已落库 batch，run 被错误推进到 `verified`
+
+则问题不是源数据缺失，而是 planner 在 batch 落库阶段被中断，留下了 partial planned run。
+
+这类 run 的 canonical 修复路径固定为：
+
+1. 不新建 delta run，不重跑已完成 batch
+2. 读取当前 run 的 shard plan 与 `batches/<batch>/input.json`
+3. 只补回缺失的 batch rows
+4. 将 run 从错误的 `verified` / `running` 结果重开为可继续执行状态
+5. 只续跑缺失 batch
+6. 以完整 frozen plan 重新 verification
+7. verification 通过后只 promote 一次
+
+如果失败原因不是 partial batch rows，而是已经完成的 batch 里存在 stale stage rows，例如：
+
+- `closeout_notice_stage` 缺少当前 verifier 需要的 `attachment_outcomes`
+- source projection rules 已更新，旧 batch stage 里还残留已经不再属于 expected scope 的 child document rows
+
+则 canonical repair 语义调整为：
+
+1. 仍然只修同一个 run
+2. 识别受影响的 completed batch
+3. 先清掉这些 batch 对应的 notice/raw/document stage rows
+4. 再把这些 completed batch 重开为 `pending`
+5. 只重跑这些 stale completed batch
+6. 重新 verification 后再继续单次 promote
+
+禁止：
+
+- 对 partial planned run 直接 promote
+- 新开一个只含缺失 notice 的 delta run 再拼 scope
+- 删除已 staged 的前缀结果后全量重跑
+
+说明：
+
+- canonical document scope 的写入语义仍然是单次 `replace_scope`
+- 对于“一次性历史导入”，正确收口方式是修复同一个 run，而不是把一次 closeout 拆成多个 promote
+
+## Planner Persistence Rules
+
+planner 必须满足以下不变量：
+
+- 只有在 frozen batch input 全部写完之后，才允许把 run 计划写入 DB
+- run / shard / batch plan 必须在同一数据库事务内提交
+- `milestones/planned.json` 只允许在完整 plan durable 后写出
+- verification 不得把“当前存在的 batch rows”误当成完整 expected scope
 
 ## 何时仍使用旧 closeout runner
 

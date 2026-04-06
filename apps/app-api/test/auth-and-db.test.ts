@@ -12,8 +12,11 @@ import {
 } from "../src/db/runtime";
 import {
   buildBetterAuthConfig,
+  buildEndUserEmailAdmissionPolicy,
+  enforceEndUserEmailAdmission,
   getAppAuth,
   hashAppPassword,
+  isEndUserEmailAllowedForAuth,
   probeAppAuthRuntime,
   verifyAppPassword,
 } from "../src/modules/auth/auth";
@@ -233,6 +236,7 @@ describe("app-api database config", () => {
       PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
       SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
       SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+      APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
       APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
       APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
       APP_API_DB: {
@@ -283,6 +287,7 @@ describe("app-api database config", () => {
       PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
       SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
       SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+      APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
       APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
       APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
       APP_API_DB: {
@@ -308,6 +313,7 @@ describe("app-api database config", () => {
       PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
       SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
       SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+      APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
       APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
       APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
       APP_API_DB: {
@@ -333,6 +339,7 @@ describe("app-api database config", () => {
       PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
       SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
       SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+      APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
       APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
       APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
       APP_API_DB: {
@@ -386,6 +393,7 @@ describe("app-api database config", () => {
       PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
       SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
       SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+      APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
       APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
       APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
       APP_API_DB: {
@@ -415,6 +423,8 @@ describe("app-api auth config", () => {
       betterAuthSecret: "prod-secret-prod-secret-prod-secret",
       environment: "production",
       publicChatOrigin: "https://chat.example.com",
+      endUserEmailDomainAllowlist: ["muc.edu.cn"],
+      endUserEmailAllowlist: ["help_bot@outlook.com"],
       database: {} as never,
     });
 
@@ -441,6 +451,7 @@ describe("app-api auth config", () => {
       storage: "memory",
       window: 60,
     });
+    expect(config.hooks?.before).toBeDefined();
   });
 
   it("hashes and verifies passwords with the app-owned PBKDF2 contract", async () => {
@@ -500,6 +511,57 @@ describe("app-api auth config", () => {
   it("creates the official_web schema in the baseline migration before official_web tables", () => {
     expect(migration0000).toContain('CREATE SCHEMA IF NOT EXISTS "official_web";');
   });
+
+  it("admits campus-domain and explicitly allowlisted end-user emails for email/password auth", () => {
+    const policy = buildEndUserEmailAdmissionPolicy({
+      endUserEmailDomainAllowlist: [" muc.edu.cn ", "@students.muc.edu.cn"],
+      endUserEmailAllowlist: [" Help_Bot@Outlook.com "],
+    });
+
+    expect(isEndUserEmailAllowedForAuth("student@muc.edu.cn", policy)).toBe(true);
+    expect(isEndUserEmailAllowedForAuth("student@sub.muc.edu.cn", policy)).toBe(true);
+    expect(isEndUserEmailAllowedForAuth("freshman@students.muc.edu.cn", policy)).toBe(true);
+    expect(isEndUserEmailAllowedForAuth("help_bot@outlook.com", policy)).toBe(true);
+    expect(isEndUserEmailAllowedForAuth("student@example.com", policy)).toBe(false);
+    expect(isEndUserEmailAllowedForAuth("student@badmuc.edu.cn", policy)).toBe(false);
+  });
+
+  it("rejects non-campus emails on email/password auth routes", () => {
+    const policy = buildEndUserEmailAdmissionPolicy({
+      endUserEmailDomainAllowlist: ["muc.edu.cn"],
+      endUserEmailAllowlist: ["help_bot@outlook.com"],
+    });
+
+    expect(() =>
+      enforceEndUserEmailAdmission({
+        email: "outsider@example.com",
+        path: "/sign-up/email",
+        policy,
+      }),
+    ).toThrowError(/not allowed/i);
+    expect(() =>
+      enforceEndUserEmailAdmission({
+        email: "outsider@example.com",
+        path: "/sign-in/email",
+        policy,
+      }),
+    ).toThrowError(/not allowed/i);
+  });
+
+  it("does not apply end-user email admission checks to unrelated auth routes", () => {
+    const policy = buildEndUserEmailAdmissionPolicy({
+      endUserEmailDomainAllowlist: ["muc.edu.cn"],
+      endUserEmailAllowlist: [],
+    });
+
+    expect(() =>
+      enforceEndUserEmailAdmission({
+        email: "outsider@example.com",
+        path: "/get-session",
+        policy,
+      }),
+    ).not.toThrow();
+  });
 });
 
 describe("/api/me", () => {
@@ -510,6 +572,7 @@ describe("/api/me", () => {
     PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
     SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
     SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+    APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
     APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
     APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
     APP_API_DB: {
@@ -565,7 +628,7 @@ describe("/api/me", () => {
     expect(response.status).toBe(204);
   });
 
-  it("returns the current public user principal and session", async () => {
+  it("returns the current campus member principal and session", async () => {
     const app = createApp(env, {
       getPrincipal: vi.fn().mockResolvedValue({
         permissions: {
@@ -574,9 +637,9 @@ describe("/api/me", () => {
         },
         principal: {
           displayName: "Jane Doe",
-          email: "jane@example.edu",
+          email: "jane@muc.edu.cn",
           principalId: "user_01HQ",
-          type: "public_user",
+          type: "campus_member",
         },
         session: {
           expiresAt: "2026-03-29T07:00:00.000Z",
@@ -595,9 +658,9 @@ describe("/api/me", () => {
       },
       principal: {
         displayName: "Jane Doe",
-        email: "jane@example.edu",
+        email: "jane@muc.edu.cn",
         principalId: "user_01HQ",
-        type: "public_user",
+        type: "campus_member",
       },
       session: {
         expiresAt: "2026-03-29T07:00:00.000Z",

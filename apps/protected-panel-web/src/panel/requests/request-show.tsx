@@ -1,4 +1,4 @@
-import { type ReactNode, startTransition, useEffect, useState } from "react";
+import { type ReactNode, startTransition, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Box,
@@ -67,13 +67,18 @@ function RequestShowContent() {
   const [observabilityRecord, setObservabilityRecord] = useState<
     Awaited<ReturnType<ProtectedPanelDataProvider["getRequestObservability"]>>["data"] | null
   >(null);
+  const getRequestObservabilityRef = useRef(dataProvider.getRequestObservability);
+
+  useEffect(() => {
+    getRequestObservabilityRef.current = dataProvider.getRequestObservability;
+  }, [dataProvider.getRequestObservability]);
 
   useEffect(() => {
     if (!record?.requestId) {
       return;
     }
 
-    let isActive = true;
+    const controller = new AbortController();
 
     startTransition(() => {
       setIsObservabilityLoading(true);
@@ -81,10 +86,13 @@ function RequestShowContent() {
       setObservabilityRecord(null);
     });
 
-    void dataProvider
-      .getRequestObservability({ requestId: record.requestId })
-      .then((response) => {
-        if (!isActive) {
+    void (async () => {
+      try {
+        const response = await getRequestObservabilityRef.current({
+          requestId: record.requestId,
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) {
           return;
         }
 
@@ -92,9 +100,8 @@ function RequestShowContent() {
           setObservabilityRecord(response.data);
           setIsObservabilityLoading(false);
         });
-      })
-      .catch((error) => {
-        if (!isActive) {
+      } catch (error) {
+        if (controller.signal.aborted) {
           return;
         }
 
@@ -104,10 +111,11 @@ function RequestShowContent() {
           );
           setIsObservabilityLoading(false);
         });
-      });
+      }
+    })();
 
     return () => {
-      isActive = false;
+      controller.abort();
     };
   }, [record?.requestId]);
 
