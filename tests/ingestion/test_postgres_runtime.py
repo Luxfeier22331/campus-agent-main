@@ -101,13 +101,20 @@ class PersistentPostgresRuntimeTest(unittest.TestCase):
 
         created: list[object] = []
 
+        class _FakeConnection:
+            def commit(self) -> None:
+                return None
+
+            def rollback(self) -> None:
+                return None
+
         class _BorrowContext:
             def __init__(self, pool: _FakePool) -> None:
                 self.pool = pool
 
-            def __enter__(self) -> object:
+            def __enter__(self) -> _FakeConnection:
                 self.pool.borrow_count += 1
-                return object()
+                return self.pool.connection_object
 
             def __exit__(self, exc_type, exc, tb) -> bool:
                 return False
@@ -118,6 +125,7 @@ class PersistentPostgresRuntimeTest(unittest.TestCase):
                 self.kwargs = kwargs
                 self.borrow_count = 0
                 self.closed = False
+                self.connection_object = _FakeConnection()
 
             def connection(self) -> _BorrowContext:
                 return _BorrowContext(self)
@@ -240,6 +248,111 @@ class PersistentPostgresRuntimeTest(unittest.TestCase):
             created[0].kwargs["max_size"],
             runtime.DEFAULT_PERSISTENT_POSTGRES_POOL_MAX_SIZE,
         )
+
+    def test_pooled_connection_commits_non_autocommit_borrow_on_success(self) -> None:
+        runtime = importlib.import_module("campus_ingestion_core.postgres_runtime")
+
+        class _FakeConnection:
+            def __init__(self) -> None:
+                self.commit_count = 0
+                self.rollback_count = 0
+
+            def commit(self) -> None:
+                self.commit_count += 1
+
+            def rollback(self) -> None:
+                self.rollback_count += 1
+
+        class _BorrowContext:
+            def __init__(self, connection: _FakeConnection) -> None:
+                self.connection = connection
+
+            def __enter__(self) -> _FakeConnection:
+                return self.connection
+
+            def __exit__(self, exc_type, exc, tb) -> bool:
+                return False
+
+        class _FakePool:
+            def __init__(self, *args, **kwargs) -> None:
+                del args, kwargs
+                self.connection_object = _FakeConnection()
+
+            def connection(self) -> _BorrowContext:
+                return _BorrowContext(self.connection_object)
+
+            def close(self) -> None:
+                return None
+
+        created: list[_FakePool] = []
+
+        def _build_pool(*args, **kwargs) -> _FakePool:
+            pool = _FakePool(*args, **kwargs)
+            created.append(pool)
+            return pool
+
+        with patch("campus_ingestion_core.postgres_runtime.ConnectionPool", side_effect=_build_pool):
+            with runtime.pooled_postgres_connection(
+                "postgresql://registry.example/postgres",
+                autocommit=False,
+            ) as conn:
+                self.assertIs(conn, created[0].connection_object)
+
+        self.assertEqual(created[0].connection_object.commit_count, 1)
+        self.assertEqual(created[0].connection_object.rollback_count, 0)
+
+    def test_pooled_connection_rolls_back_non_autocommit_borrow_on_error(self) -> None:
+        runtime = importlib.import_module("campus_ingestion_core.postgres_runtime")
+
+        class _FakeConnection:
+            def __init__(self) -> None:
+                self.commit_count = 0
+                self.rollback_count = 0
+
+            def commit(self) -> None:
+                self.commit_count += 1
+
+            def rollback(self) -> None:
+                self.rollback_count += 1
+
+        class _BorrowContext:
+            def __init__(self, connection: _FakeConnection) -> None:
+                self.connection = connection
+
+            def __enter__(self) -> _FakeConnection:
+                return self.connection
+
+            def __exit__(self, exc_type, exc, tb) -> bool:
+                return False
+
+        class _FakePool:
+            def __init__(self, *args, **kwargs) -> None:
+                del args, kwargs
+                self.connection_object = _FakeConnection()
+
+            def connection(self) -> _BorrowContext:
+                return _BorrowContext(self.connection_object)
+
+            def close(self) -> None:
+                return None
+
+        created: list[_FakePool] = []
+
+        def _build_pool(*args, **kwargs) -> _FakePool:
+            pool = _FakePool(*args, **kwargs)
+            created.append(pool)
+            return pool
+
+        with patch("campus_ingestion_core.postgres_runtime.ConnectionPool", side_effect=_build_pool):
+            with self.assertRaisesRegex(RuntimeError, "boom"):
+                with runtime.pooled_postgres_connection(
+                    "postgresql://registry.example/postgres",
+                    autocommit=False,
+                ):
+                    raise RuntimeError("boom")
+
+        self.assertEqual(created[0].connection_object.commit_count, 0)
+        self.assertEqual(created[0].connection_object.rollback_count, 1)
 
 
 if __name__ == "__main__":

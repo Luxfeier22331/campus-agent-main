@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 from threading import RLock
 from urllib.parse import parse_qs, urlparse
@@ -62,13 +63,23 @@ def validate_persistent_postgres_runtime_url(database_url: str) -> str:
     return normalized
 
 
+@contextmanager
 def pooled_postgres_connection(database_url: str, *, autocommit: bool = True):
     validated_database_url = validate_persistent_postgres_runtime_url(database_url)
     pool = _persistent_postgres_pool(
         validated_database_url,
         autocommit=autocommit,
     )
-    return pool.connection()
+    with pool.connection() as conn:
+        try:
+            yield conn
+        except BaseException:
+            if not autocommit:
+                conn.rollback()
+            raise
+        else:
+            if not autocommit:
+                conn.commit()
 
 
 def close_persistent_postgres_pools() -> None:
