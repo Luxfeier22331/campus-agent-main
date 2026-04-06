@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: 2026-04-05 completed official-web stable-reference alias publish, fresh-news seed local release validation, and merged latest develop planning/runtime truth
-last_updated: "2026-04-05T11:30:00+08:00"
+stopped_at: 2026-04-06 Wave B staging closure has advanced from generic deployment pending to real remote evidence: `app-api` and `chat` staging are healthy again, the chat lane and Axiom lane are closed, and the remaining external blockers are now panel Access smoke identity plus Sentry sink-side lookup access
+last_updated: "2026-04-06T03:34:08+08:00"
 progress:
   total_phases: 25
   completed_phases: 25
@@ -16,16 +16,16 @@ progress:
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-04-05)
+See: `.planning/PROJECT.md` (updated 2026-04-06)
 
 **Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 runtime-profile-driven serving surface 证明这条架构能可靠承接高频校园问答
-**Current focus:** `official_web/stable_reference` 已经完成 serving alias publish，`official_web/fresh_news` 也完成了首条 seed local release + retrieval/live gate 验证。接下来的 active workstream 不再是“要不要发 alias”，而是收口 `fresh_news/news_archive` 的 runtime opening policy；与此同时，merged develop truth 已把 `student_handbook` 最新 pass artifact 收口到 `20260404T072912Z`，并把 `curriculum_plan` 最新 completed full artifact 收口到 `20260404T200443Z`。
+**Current focus:** 当前 worktree 已进入 repo-level post-closeout follow-up 执行期。`official-web` / Phase 10 继续由其他 worktree 处理，这里不再反复提议；本 worktree 的优先级顺序仍是：Wave A planning/worktree hygiene、Wave B staging deployment closure、Wave C curriculum supplemental soft-warn 诊断、Wave D authenticated-notice deferred follow-up、Wave E place-finding foundation。其中 Wave A 已于 2026-04-06 完成；Wave B 也已经从“环境/部署未知”推进到“chat 与 Axiom 已闭环、panel 与 Sentry 还剩最后两个 blocker”。当前 deterministic truth 没有回退：`student_handbook` pass artifact 仍是 `20260404T072912Z`，`curriculum_plan` latest completed full artifact 仍是 `.tmp/evals/curriculum-plan-live-gate-accept-20260404T200443Z`，其 live accept 已稳定在 deterministic `19/19` pass；剩余的 curriculum 问题只在 soft-warn。
 
 ## Current Position
 
-Phase: 10.5 (Official Web Stable Reference Release Evidence And Serving Surface Cleanup) — COMPLETED
-Plan: 2 of 2
-Next active workstream: freeze `official_web/fresh_news` / `official_web/news_archive` runtime opening criteria after the current seed baseline, while keeping both scopes query-closed until freshness/archive policy is explicit
+Phase: Post-closeout follow-up execution — IN PROGRESS
+Plan: Wave A completed; Wave B-E ordered in `docs/plans/post-closeout-follow-up-execution-plan.md`
+Next active workstream: finish the remaining Wave B closure items. Wave A has already synchronized `.planning/PROJECT.md` / `.planning/STATE.md` with the new follow-up order and resolved the current authenticated-notice dirty worktree state into a verified near-term active follow-up. Wave B has now restored `chat-staging -> app-api-staging -> current supervisor upstream` to a real `answer` path, confirmed Axiom `request.finalized` plus `projection.drain`, and updated staging evidence/runbooks. The only remaining Wave B blockers are panel interactive smoke credentials and Sentry sink-side verification access; curriculum deterministic gate remains closed, and `official-web` / Phase 10 remains in a separate worktree.
 
 ## Performance Metrics
 
@@ -213,11 +213,10 @@ Recent decisions affecting current work:
 - Continue validating one already allowlisted `official_web` host at a time via low-budget expansion batch, and keep scheduler / hot-lane decisions separate from batch pass results.
 - Keep `Jobs` and `Operations` out of the default panel rollout until product scope explicitly re-opens them.
 - Treat historical authenticated-notice exports as the current Phase 12 execution substrate; the current worktree now has bounded replay evidence for `2`, `10`, `50`, and `240` notice slices, while `6694` backfill and renewed live portal access remain deferred follow-on work.
-- The first planned deployed Worker environment now converges on first-level `staging@ayafeed.com` hostnames: `api-staging.ayafeed.com`, `chat-staging.ayafeed.com`, and `panel-staging.ayafeed.com`. This replaces the earlier nested `*.rag.ayafeed.com` staging truth because the current Cloudflare tier is no longer treated as having reliable SSL coverage there; repo docs are updated, but repo config/tests still carry legacy nested hostname migration debt and remote Cloudflare resources, secret store values, and post-deploy smoke evidence still do not exist in this worktree’s accepted truth.
-- For the first real deployed Worker environment, confirm deploy-side `SENTRY_*` / `AXIOM_*` assignment for `apps/app-api`, `apps/public-chat-web`, and `apps/protected-panel-web`, then run post-deploy smoke verification for trace propagation, error capture, and minimal runtime event ingest. Local preflight and targeted Worker smoke were revalidated on 2026-03-31, so this is now a deployment gate rather than an active local-engineering blocker.
-- Pending todo: [`.planning/todos/pending/2026-04-04-redeploy-chat-staging-after-auth-runtime-fix.md`] should only execute after staging resources are actually provisioned and `app-api-staging` exists as a real remote surface.
-- Pending todo: [`.planning/todos/pending/2026-04-04-provision-real-access-for-panel-staging.md`] remains the future Cloudflare Access step once `panel-staging.ayafeed.com` is externally provisioned.
-- Pending todo: [`.planning/todos/pending/2026-04-04-run-full-staging-live-smoke-and-observability.md`] captures the final full-lane live smoke, evidence, and observability closure after `app-api` and `panel` blockers are removed.
+- The first real deployed Worker environment is now confirmed on first-level `staging@ayafeed.com` hostnames: `api-staging.ayafeed.com`, `chat-staging.ayafeed.com`, and `panel-staging.ayafeed.com`. This replaces the earlier nested `*.rag.ayafeed.com` staging truth because the current Cloudflare tier is no longer treated as having reliable SSL coverage there; repo docs are updated, but repo config/tests still carry legacy nested hostname migration debt.
+- Wave B chat closure is no longer pending: `api-staging` `/healthz` + `/readyz` and `chat-staging` `/healthz` + `/readyz` now return `200`, while `chat-staging` request `req_3f493161ae6c4c669304c4ca439dfe4a` finalized as `answer` with `trace_id=trace_f3d3792b021f4118ac90a06041f9b03f`; closure evidence now lives under `.tmp/staging-smoke/20260406T032941-wave-b-closure/` and `.tmp/observability-smoke/20260406T032941-staging-wave-b/`.
+- Pending todo: [`.planning/todos/pending/2026-04-04-provision-real-access-for-panel-staging.md`] now represents the remaining panel smoke-identity closure. Real Cloudflare Access is already in front of `panel-staging`; the blocker is no longer provisioning, but the lack of a usable GitHub/email Access identity for smoke.
+- Pending todo: [`.planning/todos/pending/2026-04-04-run-full-staging-live-smoke-and-observability.md`] now only tracks the remaining full-lane closure work after chat and Axiom are closed: panel interactive smoke, controlled-error / Sentry sink-side confirmation, and final summary refresh.
 
 ### Blockers/Concerns
 
@@ -228,7 +227,9 @@ Recent decisions affecting current work:
 - panel `Requests` is no longer blocked, but panel work must still avoid reading audit logs, telemetry sinks, consumer chat tables, or `apps/supervisor-api` directly.
 - `Official Web` control-plane APIs and panel domain are now landed on `apps/app-api` + `apps/protected-panel-web`; follow-up work must extend this surface rather than reintroducing panel-side synthesis or direct infrastructure reads.
 - `Jobs` / `Operations` / `Audit` remain delayed; landed `Official Web` views do not authorize a generic ops console.
-- Observability runtime code is landed, local worktree env is ready, and the targeted Worker smokes are green. The latest local evidence now lives at `.tmp/observability-smoke/20260402T233916-local-readiness/`. There is no current local-engineering blocker here; the repo truth is that staging remains a repo-owned deploy target definition rather than an already-provisioned remote environment. When staging deployment exists, the smoke runner should use `chat-staging.ayafeed.com`, `panel-staging.ayafeed.com`, `api-staging.ayafeed.com`, the current Worker release identifier, and Sentry/Axiom access; nested `*.rag.ayafeed.com` URLs are now legacy migration debt only, while local placeholder URLs such as `chat.example.com`, `panel.example.com`, and `app-api.internal` remain development-only values.
+- Observability runtime code is landed, local worktree env is ready, and the targeted Worker smokes are green. The latest local evidence still lives at `.tmp/observability-smoke/20260402T233916-local-readiness/`, and the latest real staging evidence now lives at `.tmp/observability-smoke/20260406T032941-staging-wave-b/`. There is no current local-engineering blocker here; the remaining blockers are remote access ones. Axiom runtime verification is now closed via a dedicated query/read token, while Sentry still lacks repo-side sink lookup access even though deploy-side DSNs are present.
+- `panel-staging` 现在已经是 Cloudflare Access 登录页，而不是 worker 直接报 `Missing Access JWT.`。因此后续如果 panel smoke 继续 blocked，正确标签应是 `blocked by smoke identity/credential`, 不是 `blocked by missing Access provisioning`。
+- `apps/app-api` Wave B closeout now includes two staging-specific hardening moves: `[env.staging.vars] SUPERVISOR_API_TIMEOUT_MS=\"15000\"` to absorb the current supervisor latency budget, and Sentry telemetry fail-open so `configureChatRequestScope` / `getTraceData` failures can no longer become request-path `500`.
 - `student_handbook` 当前最新 release-truth artifact 已更新为 `.tmp/evals/student-handbook-formal-benchmark-accept-20260404T072912Z`；较早的 `20260402T182346`、`181247` 与 `210128` 仍可作为历史健康 baseline 对照，但不再是最新 closeout 证据。
 - `student_handbook` 的 repo-local 2026-04-04 rerun 现在已经有新的 clean pass baseline：`.tmp/evals/student-handbook-formal-benchmark-accept-20260404T072912Z` 的 `deterministic_verdict=pass`、`supplemental_verdict=pass`、`final_overall_verdict=pass`，三轮 deterministic run 稳定复现 `run_pass_counts=[11,11,11]` / `run_failed_counts=[0,0,0]`。
 - Phase 8 的本地 automated gates 与 fresh handbook live accept 现已全部通过，Phase 09.1 也已补齐 env/bootstrap/provider contract；因此 handbook Phase 8 closeout 现可视为 completed truth。

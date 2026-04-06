@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-04
-updated: 2026-04-05
+updated: 2026-04-06
 ---
 
 # Dev-Backed Supervisor Staging Smoke Runbook
@@ -128,6 +128,13 @@ pnpm --dir apps/app-api deploy:staging
 
 `deploy:staging` 现在直接使用当前 shell 的 `wrangler` 登录态，不再强绑 repo-local `.wrangler-home`。
 
+当前 Wave B staging baseline 还额外固定了两条运行时事实：
+
+- `app-api-staging` 的 `[env.staging.vars] SUPERVISOR_API_TIMEOUT_MS` 已提升到 `15000`
+- telemetry / Sentry 调用必须 fail-open，不能再把 request-path 变成 `500`
+
+如果真实 chat 请求再次出现 `Supervisor execution exceeded 8000ms timeout.`，先检查 staging 变量或 release 是否回退，而不是优先怀疑 `public-chat-web` surface。
+
 然后检查：
 
 ```bash
@@ -197,16 +204,17 @@ curl --noproxy '*' -sS -i https://panel-staging.ayafeed.com/readyz
 
 ## Step 7. panel / observability smoke
 
-如果当轮已经补齐 Access，再继续做：
+如果当轮已经具备可用的 Access smoke 身份，再继续做：
 
 - `panel-staging` 登录 smoke
 - `operator.request_projection` list/detail smoke
 - `Sentry` trace smoke
 - `Axiom` runtime event smoke
-- 如果直接访问 `https://panel-staging.ayafeed.com/` 仍然得到 worker 返回的 `Missing Access JWT.`，则这一轮必须继续标记为 `blocked by missing Access provisioning`，不能把它视为已完成的 panel 保护
+- 如果直接访问 `https://panel-staging.ayafeed.com/` 返回的是 Cloudflare Access `302` 登录页，则说明真实 Access 已在前面；这时若还无法继续 smoke，正确标签应是 `blocked by smoke identity/credential`
+- 只有当 direct access 再次退化成 worker 返回的 `Missing Access JWT.` 时，才应标记为 `blocked by missing Access provisioning`
 
-如果 Access 仍未配置完成：
+如果 Access smoke 身份仍未准备好：
 
 - 可以先做 chat execution smoke
 - 但不得把 staging smoke 标记为完整关闭
-- `panel-staging` / observability lane 应明确记录为 `blocked by missing Access provisioning`
+- `panel-staging` / observability lane 应明确记录为 `blocked by smoke identity/credential`

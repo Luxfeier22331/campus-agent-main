@@ -19,7 +19,8 @@
 - 04.7 `public-consumer-chat` 现仅作为历史实现参考，不再覆盖 forward topology truth
 - 当前 merged truth 已按 `ContextProjection` / `SupervisorResponse` / eval supervisor seam 收口；后续改动不得回退到旧 `snapshot`
 - worktree-local `v1.0` evidence chain 已在 Phase 9 收口；official-web 当前不再缺 release-lifecycle plumbing。Phase 10.3 完成后的 final replay `/tmp/official-web-qc-20260401-batch-d-clean-subset-projection-v9` 现已进一步滚入本地 import/release candidate：unpublished release `r20260404_184508` 已通过 `document_count=21 / point_count=109 / validation_status=passed`、retrieval qrels `9/9` 与 deterministic live gate `13/13`；后续如需继续推进，应单独决定是否 publish alias，而不是重新争论 fixed-scope clean/chunking
-- `student_handbook` 当前正式 acceptance artifact 已在 2026-03-31 `210128` 收口为 deterministic / supplemental / final 全 `pass`
+- `student_handbook` 当前最新 release-truth artifact 已更新为 `.tmp/evals/student-handbook-formal-benchmark-accept-20260404T072912Z`；deterministic / supplemental / final 全 `pass`
+- `curriculum_plan` 当前 latest completed live artifact 为 `.tmp/evals/curriculum-plan-live-gate-accept-20260404T200443Z`；deterministic reruns 已稳定为 `19/19` 全通过，剩余问题只在 supplemental soft-warn
 - `official_web/muc_public_pages` 当前 worktree-local current truth 已显式收口为 `21` 条 promotable 文档：`11` 条 `release_gate_required`、`2` 条 `retain_inventory_only`、`8` 条 `future_fresh_news_surface`；只有 `release_gate_required` 子集进入当前 answer-quality gate
 - `official_web/muc_public_pages` 已在 2026-04-02 为较早一轮 imported dataset 闭环 registry-backed release + alias lifecycle，但当前 published alias 仍停留在 1 条 listing-heavy `generic_content_page` 记录；collection 继续保持 `offline_preparation`，并且只应被视为 mixed 过渡 collection，而不是长期最终 corpus split
 - Phase 10.4 已把 `official_web` corpus split 的第一条执行链路落地：repo 现在有 `projection-routing.json` truth，stable-reference bootstrap 子集可从 replay 直接路由到 `official_web/stable_reference`，并且 mixed replay output 可以按请求 scope 单独导入
@@ -59,11 +60,11 @@
 
 ### Active
 
-- [ ] 明确 `official_web/fresh_news` / `official_web/news_archive` 的 runtime opening criteria：freshness window、archive cutoff、fail-close 与 live-search fallback contract 仍未冻结；当前 seed baseline 只证明本地 collection 质量，不代表新闻 query-serving 已开放
-- [ ] 以 2026-04-04 `072912Z` acceptance artifact 为基线，继续缩小 `student_handbook` 剩余 supplemental `warn`：`ragas.answer_relevancy`、`ragas.context_precision`、`ragas.context_recall`
-- [ ] 将 `apps/app-api`、`apps/public-chat-web`、`apps/protected-panel-web` 的 observability gate 固定为“pre-deploy readiness 已闭环，post-deploy verification 待首次真实部署时执行”；2026-03-31 已完成本地 env/preflight 与 Worker smoke 复核，后续只在真实环境拿到 hostnames、release 与 secret store 后执行 live sink smoke 并留证
-- [ ] `official_web` 的 Phase 8 repo follow-up 已完成；`history` listing projection 的重复项 / 日期噪声已在 `qc-20260402-history-r6` 跟进验证中关闭。后续只剩按 low-budget expansion batch 逐个验证已 allowlisted host；任何 scheduler / hot lane promotion 都必须单独立项，不沿用本 phase 直接外推
-- [ ] 首个真实部署环境现已固定为 `staging@ayafeed.com` 的一级子域方案：`apps/app-api=https://api-staging.ayafeed.com`、`apps/public-chat-web=https://chat-staging.ayafeed.com`、`apps/protected-panel-web=https://panel-staging.ayafeed.com`。当前 Cloudflare tier 不再依赖 `*.rag.ayafeed.com` 这类深一级 staging custom domain 的 SSL 可用性；repo 文档真相已切到一级子域，`wrangler.toml` / tests 中残留的 nested hostnames 仍需随 staging implementation migration 一并收口。当前剩余阻塞项包括 Cloudflare custom domains / service bindings / Hyperdrive / Access、repo 内 hostname migration、deploy-side `SENTRY_*` / `AXIOM_*`、当次 Worker release，以及 Sentry/Axiom 访问权限，完成后执行 post-deploy observability verification
+- [ ] 当前 repo 已进入 post-closeout follow-up 执行期。Wave A planning truth refresh 与 worktree hygiene 已于 2026-04-06 收口；Wave B 也已推进到真实 staging 闭环阶段：`app-api-staging` / `chat-staging` 已恢复可用，新的远端证据已落到 `.tmp/staging-smoke/20260406T032941-wave-b-closure/` 与 `.tmp/observability-smoke/20260406T032941-staging-wave-b/`。当前真正剩余的外部阻塞项已收窄为 panel Access smoke 身份与 Sentry sink-side lookup access，而不再是“staging 尚未存在”或“chat lane 未恢复”。
+- [ ] 首个真实部署环境现已固定为 `staging@ayafeed.com` 的一级子域方案：`apps/app-api=https://api-staging.ayafeed.com`、`apps/public-chat-web=https://chat-staging.ayafeed.com`、`apps/protected-panel-web=https://panel-staging.ayafeed.com`。当前 Cloudflare tier 不再依赖 `*.rag.ayafeed.com` 这类深一级 staging custom domain 的 SSL 可用性；repo 文档真相已切到一级子域，`wrangler.toml` / tests 中残留的 nested hostnames 仍需随 staging implementation migration 一并收口。当前真实远端状态已前进到：`api/chat` readiness 为 `200`，`panel` readiness 为 Cloudflare Access `302` 登录页，deploy-side `SENTRY_*` / `AXIOM_*` secret 已存在，Axiom query access 已通过独立 read token 闭环；剩余待收口的是 panel interactive smoke、Sentry sink-side verification，以及 repo 内 hostname migration debt
+- [ ] curriculum deterministic release gate 已在 `.tmp/evals/curriculum-plan-live-gate-accept-20260404T200443Z` 关闭；后续如果继续投入 curriculum 线，目标应是 supplemental soft-warn 诊断与 truth 收口，而不是把 soft gate 再包装成 deterministic release blocker
+- [ ] authenticated-notice 当前 phase closeout 之后仍有两层 follow-up：近端先收口 inventory-backed replay planning / weighted shard-batch planning / bulk stage writer / frozen inventory verification；远端再推进大 `6694` backfill、live portal scheduling 与 authenticated control-plane work
+- [ ] `official_web/fresh_news` / `official_web/news_archive` 的 runtime opening criteria 仍未冻结；这条工作继续留在独立 official-web worktree，不在当前 follow-up 分支直接推进 query-serving 开放
 - [ ] 导航相关首个前向 slice 固定为 `place_lookup` / `place_finding`，先覆盖建筑、服务点与周边关键地点问法；`route_planning`、入口选择、无障碍路径与地图内路线交互后置到后续 phase
 
 ### Out of Scope
@@ -155,4 +156,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state (users, feedback, metrics)
 
 ---
-*Last updated: 2026-04-05 after `official_web/stable_reference` alias publish plus `official_web/fresh_news` local seed release validation were completed, and `place_lookup` / `place_finding` was frozen as the first navigation rollout slice*
+*Last updated: 2026-04-06 after advancing Wave B staging closure to real remote evidence and shrinking the remaining blockers to panel identity plus Sentry sink-side access*

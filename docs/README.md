@@ -81,6 +81,7 @@ updated: 2026-04-06
 - 当前 runbook / reference / policy：`runbooks/`、`reference/`、`policies/`
 - 已导入 authenticated notice 历史数据消费：`runbooks/authenticated-notice-source-truth-replay-runbook.md`
 - 地点寻找一期实施：`plans/campus-place-finding-foundation.md`
+- 当前 closeout 之后的执行优先级：`plans/post-closeout-follow-up-execution-plan.md`
 - 首个真实 Worker 部署准备：`runbooks/staging-worker-deploy-runbook.md`
 - 当前 `dev-backed supervisor` staging 验收：`runbooks/dev-backed-supervisor-staging-smoke-runbook.md`
 
@@ -166,6 +167,7 @@ updated: 2026-04-06
 - `plans/legacy-acl-carrier-compatibility-sunset.md`
 - `plans/local-live-eval-canonical-registry-recovery.md`
 - `plans/operator-observability-control-plane-foundation.md`
+- `plans/post-closeout-follow-up-execution-plan.md`
 - `plans/restricted-document-rollout-and-verification.md`
 - `plans/supervisor-current-design-implementation.md`
 - `plans/versioned-history-query-foundation.md`
