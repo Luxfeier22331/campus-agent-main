@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+from concurrent.futures import Executor
 from dataclasses import asdict
+from functools import partial
 import json
 from typing import Any, Protocol
 
@@ -135,10 +137,35 @@ class CloseoutArtifactManager:
         self.object_store.put_bytes(
             bucket=self.object_store_settings.bucket_derived,
             key=key,
-            data=json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True).encode(
-                "utf-8"
-            ),
+            data=self._json_bytes(payload),
             content_type="application/json",
+        )
+
+    async def write_json_artifact_limited(
+        self,
+        *,
+        semaphore: asyncio.Semaphore,
+        request: AuthenticatedNoticeImportRequest,
+        run_id: str,
+        filename: str,
+        payload: dict[str, Any],
+        segments: tuple[str, ...] = (),
+        executor: Executor | None = None,
+    ) -> None:
+        key = build_operations_artifact_key(
+            corpus=request.corpus,
+            operation=DEFAULT_CLOSEOUT_OPERATION,
+            run_id=run_id,
+            filename=filename,
+            segments=segments,
+        )
+        await self.put_bytes_limited(
+            semaphore=semaphore,
+            bucket=self.object_store_settings.bucket_derived,
+            key=key,
+            data=self._json_bytes(payload),
+            content_type="application/json",
+            executor=executor,
         )
 
     def write_worker_artifact(
@@ -165,15 +192,20 @@ class CloseoutArtifactManager:
         data: bytes,
         content_type: str,
         metadata: dict[str, str] | None = None,
+        executor: Executor | None = None,
     ) -> None:
         async with semaphore:
-            await asyncio.to_thread(
-                self.object_store.put_bytes,
-                bucket=bucket,
-                key=key,
-                data=data,
-                content_type=content_type,
-                metadata=metadata,
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(
+                executor,
+                partial(
+                    self.object_store.put_bytes,
+                    bucket=bucket,
+                    key=key,
+                    data=data,
+                    content_type=content_type,
+                    metadata=metadata,
+                ),
             )
 
     async def copy_object_limited(
@@ -184,14 +216,19 @@ class CloseoutArtifactManager:
         source_key: str,
         target_bucket: str,
         target_key: str,
+        executor: Executor | None = None,
     ) -> None:
         async with semaphore:
-            await asyncio.to_thread(
-                self.object_store.copy_object,
-                source_bucket=source_bucket,
-                source_key=source_key,
-                target_bucket=target_bucket,
-                target_key=target_key,
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(
+                executor,
+                partial(
+                    self.object_store.copy_object,
+                    source_bucket=source_bucket,
+                    source_key=source_key,
+                    target_bucket=target_bucket,
+                    target_key=target_key,
+                ),
             )
 
     def object_head_or_none(self, *, bucket: str, key: str) -> dict[str, object] | None:
@@ -199,6 +236,11 @@ class CloseoutArtifactManager:
             return self.object_store.head_object(bucket=bucket, key=key)
         except Exception:
             return None
+
+    def _json_bytes(self, payload: dict[str, Any]) -> bytes:
+        return json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True).encode(
+            "utf-8"
+        )
 
 
 __all__ = [

@@ -169,22 +169,14 @@ class CloseoutPromotionCoordinator:
         request: AuthenticatedNoticeImportRequest,
         raw_assets: tuple[dict[str, Any], ...],
     ) -> int:
-        existing = {
-            (record.raw_asset_id, record.raw_version_id)
-            for record in self.raw_asset_registry.list_by_scope(request.corpus, request.collection)
-        }
-        missing_records = tuple(
+        del request
+        records = tuple(
             _raw_record_from_payload(staged_raw["raw_record"])
             for staged_raw in raw_assets
-            if (
-                str(staged_raw["raw_record"]["raw_asset_id"]),
-                str(staged_raw["raw_record"]["raw_version_id"]),
-            )
-            not in existing
         )
-        if missing_records:
-            self.raw_asset_registry.upsert_many(missing_records)
-        return len(missing_records)
+        if records:
+            self.raw_asset_registry.upsert_many(records)
+        return len(records)
 
     def _ensure_copy_batches(
         self,

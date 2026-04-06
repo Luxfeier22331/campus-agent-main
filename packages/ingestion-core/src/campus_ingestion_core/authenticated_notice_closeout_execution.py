@@ -43,6 +43,9 @@ from campus_ingestion_core.authenticated_notice_source_truth_replay import (
     AuthenticatedNoticeSourceTruthReplayRequest,
     build_authenticated_notice_source_truth_replay_documents,
 )
+from campus_ingestion_core.authenticated_notice_source_projections import (
+    AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT,
+)
 from campus_ingestion_core.settings import ObjectStoreSettings
 
 
@@ -372,27 +375,36 @@ class CloseoutExecutionCoordinator:
         cleaning_policy_version: str,
     ) -> _PreparedNoticeStage:
         async with notice_semaphore:
-            translated_documents = tuple(
-                await asyncio.to_thread(
-                    build_authenticated_notice_source_truth_replay_documents,
-                    parent_snapshot=parent_snapshot,
-                    request=request,
-                    object_store=self.artifacts.object_store,
-                    object_store_settings=self.object_store_settings,
-                    ocr_client=self.ocr_client,
-                )
+            projected_notice = await asyncio.to_thread(
+                build_authenticated_notice_source_truth_replay_documents,
+                parent_snapshot=parent_snapshot,
+                request=request,
+                object_store=self.artifacts.object_store,
+                object_store_settings=self.object_store_settings,
+                ocr_client=self.ocr_client,
             )
             documents = await self._stage_translated_documents(
                 request=artifact_request,
                 run_id=run_id,
                 batch=batch,
-                translated_documents=translated_documents,
+                translated_documents=projected_notice.documents,
                 object_store_semaphore=object_store_semaphore,
                 cleaning_policy_version=cleaning_policy_version,
             )
-            parent_document = translated_documents[0]
+            attachment_outcomes, attachment_artifact_keys = await self._prepare_attachment_outcomes(
+                request=artifact_request,
+                run_id=run_id,
+                batch=batch,
+                attachment_outcomes=projected_notice.attachment_outcomes,
+                object_store_semaphore=object_store_semaphore,
+            )
+            parent_document = projected_notice.documents[0]
             artifact_keys = tuple(
-                str(item) for item in parent_snapshot.get("source_artifact_keys") or ()
+                str(item)
+                for item in (
+                    *tuple(parent_snapshot.get("source_artifact_keys") or ()),
+                    *attachment_artifact_keys,
+                )
             )
             return _PreparedNoticeStage(
                 notice={
@@ -400,6 +412,7 @@ class CloseoutExecutionCoordinator:
                     "raw_asset_id": str(parent_snapshot["raw_record"]["raw_asset_id"]),
                     "raw_version_id": str(parent_snapshot["raw_record"]["raw_version_id"]),
                     "document_id": str(parent_document.metadata["document_id"]),
+                    "attachment_outcomes": list(attachment_outcomes),
                 },
                 raw_record=dict(parent_snapshot["raw_record"]),
                 source_artifact_keys={
@@ -410,6 +423,68 @@ class CloseoutExecutionCoordinator:
                 artifact_keys=artifact_keys,
                 documents=documents,
             )
+
+    async def _prepare_attachment_outcomes(
+        self,
+        *,
+        request: AuthenticatedNoticeImportRequest,
+        run_id: str,
+        batch: CloseoutBatch,
+        attachment_outcomes,
+        object_store_semaphore: asyncio.Semaphore,
+    ) -> tuple[tuple[dict[str, Any], ...], tuple[str, ...]]:
+        batch_key_segment = batch_segment(batch.batch_id)
+        serialized: list[dict[str, Any]] = []
+        artifact_keys: list[str] = []
+        upload_tasks: list[asyncio.Task[None]] = []
+        for outcome in attachment_outcomes:
+            payload = {
+                "attachment_ref_id": outcome.attachment_ref_id,
+                "classification": outcome.classification,
+                "materialization_policy": outcome.materialization_policy,
+                "outcome": outcome.outcome,
+                "document_id": outcome.document_id,
+                "attachment_object_key": outcome.attachment_object_key,
+                "attachment_content_sha256": outcome.attachment_content_sha256,
+            }
+            if (
+                outcome.outcome == AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT
+                and outcome.provider_response_bytes is not None
+            ):
+                staged_provider_key = build_operations_artifact_key(
+                    corpus=request.corpus,
+                    operation=DEFAULT_CLOSEOUT_OPERATION,
+                    run_id=run_id,
+                    filename=PROVIDER_RESPONSE_FILENAME,
+                    segments=(
+                        "staging",
+                        "batches",
+                        batch_key_segment,
+                        "attachments",
+                        outcome.attachment_ref_id,
+                    ),
+                )
+                provider_hash = hashlib.sha256(outcome.provider_response_bytes).hexdigest()
+                payload["provider_response_staged_object_key"] = staged_provider_key
+                payload["provider_response_sha256"] = provider_hash
+                payload["provider_response_content_length"] = len(outcome.provider_response_bytes)
+                artifact_keys.append(staged_provider_key)
+                upload_tasks.append(
+                    asyncio.create_task(
+                        self.artifacts.put_bytes_limited(
+                            semaphore=object_store_semaphore,
+                            bucket=self.object_store_settings.bucket_derived,
+                            key=staged_provider_key,
+                            data=outcome.provider_response_bytes,
+                            content_type="application/json",
+                            metadata={"sha256": provider_hash},
+                        )
+                    )
+                )
+            serialized.append(payload)
+        if upload_tasks:
+            await asyncio.gather(*upload_tasks)
+        return tuple(serialized), tuple(artifact_keys)
 
     async def _stage_translated_documents(
         self,

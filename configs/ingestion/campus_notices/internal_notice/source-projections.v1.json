@@ -47,5 +47,6 @@
   ],
   "ocr_required_extensions": ["png", "jpg", "jpeg", "bmp", "gif"],
   "reference_only_storage_providers": ["reference_only"],
-  "reference_only_ingest_statuses": ["reference_only"]
+  "reference_only_ingest_statuses": ["reference_only"],
+  "reference_only_url_substrings": ["/static/index/UEditor/themes/default/images/"]
 }

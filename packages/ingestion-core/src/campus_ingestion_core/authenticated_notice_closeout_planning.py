@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 import hashlib
 import json
 import math
 from pathlib import Path
+import sys
 from typing import Any, Sequence
 
 from campus_ingestion_core.authenticated_notice_closeout_artifacts import (
@@ -41,6 +44,10 @@ from campus_ingestion_core.authenticated_notice_source_truth_replay import (
     SOURCE_TRUTH_REPLAY_INPUT_KIND,
     AuthenticatedNoticeSourceTruthReplayRequest,
     load_authenticated_notice_source_truth_replay_inventory,
+    load_authenticated_notice_source_truth_replay_inventory_from_store,
+)
+from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
+    AuthenticatedNoticeSourceTruthInventoryStore,
 )
 from campus_ingestion_core.object_store import build_operations_artifact_key
 from campus_ingestion_core.registry import DocumentRegistry, RawAssetRegistry
@@ -98,6 +105,85 @@ class CloseoutPlanner:
                 )
         return tuple(planned)
 
+    def plan_weighted_shards(
+        self,
+        notices: Sequence[dict[str, Any]],
+        *,
+        weight_by_notice_id: dict[str, int],
+    ) -> tuple[CloseoutShard, ...]:
+        notice_ids = tuple(sorted(_extract_notice_id(item) for item in notices))
+        groups = self._plan_weighted_groups(
+            notice_ids=notice_ids,
+            item_limit=self.shard_size,
+            max_groups=self.max_shards,
+            weight_by_notice_id=weight_by_notice_id,
+        )
+        return tuple(
+            CloseoutShard(shard_id=index + 1, notice_ids=group)
+            for index, group in enumerate(groups)
+        )
+
+    def plan_weighted_batches(
+        self,
+        shards: Sequence[CloseoutShard],
+        *,
+        weight_by_notice_id: dict[str, int],
+    ) -> tuple[CloseoutBatch, ...]:
+        planned: list[CloseoutBatch] = []
+        for shard in shards:
+            groups = self._plan_weighted_groups(
+                notice_ids=shard.notice_ids,
+                item_limit=self.batch_size,
+                max_groups=None,
+                weight_by_notice_id=weight_by_notice_id,
+            )
+            for notice_ids in groups:
+                planned.append(
+                    CloseoutBatch(
+                        batch_id=len(planned) + 1,
+                        shard_id=shard.shard_id,
+                        notice_ids=notice_ids,
+                    )
+                )
+        return tuple(planned)
+
+    def _plan_weighted_groups(
+        self,
+        *,
+        notice_ids: Sequence[str],
+        item_limit: int,
+        max_groups: int | None,
+        weight_by_notice_id: dict[str, int],
+    ) -> tuple[tuple[str, ...], ...]:
+        if not notice_ids:
+            return ()
+        group_count = math.ceil(len(notice_ids) / item_limit)
+        if max_groups is not None:
+            group_count = min(group_count, max_groups)
+        group_count = max(1, group_count)
+        target_group_size = math.ceil(len(notice_ids) / group_count)
+        groups: list[list[str]] = [[] for _ in range(group_count)]
+        weights = [0 for _ in range(group_count)]
+        ordered = sorted(
+            notice_ids,
+            key=lambda notice_id: (-max(1, int(weight_by_notice_id.get(notice_id, 1))), notice_id),
+        )
+        for notice_id in ordered:
+            candidate_indexes = [
+                index for index, group in enumerate(groups) if len(group) < target_group_size
+            ] or list(range(group_count))
+            target_index = min(
+                candidate_indexes,
+                key=lambda index: (weights[index], len(groups[index]), index),
+            )
+            groups[target_index].append(notice_id)
+            weights[target_index] += max(1, int(weight_by_notice_id.get(notice_id, 1)))
+        return tuple(
+            tuple(sorted(group))
+            for group in groups
+            if group
+        )
+
 
 class CloseoutPlanningCoordinator:
     def __init__(
@@ -108,6 +194,7 @@ class CloseoutPlanningCoordinator:
         artifacts: CloseoutArtifactManager,
         document_registry: DocumentRegistry,
         raw_asset_registry: RawAssetRegistry,
+        source_truth_inventory_store: AuthenticatedNoticeSourceTruthInventoryStore,
         build_run_summary: Callable[[str], dict[str, Any]],
     ) -> None:
         self.closeout_store = closeout_store
@@ -115,6 +202,7 @@ class CloseoutPlanningCoordinator:
         self.artifacts = artifacts
         self.document_registry = document_registry
         self.raw_asset_registry = raw_asset_registry
+        self.source_truth_inventory_store = source_truth_inventory_store
         self.build_run_summary = build_run_summary
 
     def plan_run(
@@ -163,6 +251,18 @@ class CloseoutPlanningCoordinator:
             object_store_concurrency=object_store_concurrency,
             lease_seconds=lease_seconds,
         )
+        self.closeout_store.save_run(planning_run)
+        self.closeout_store.record_milestone(
+            run_id,
+            "planning_started",
+            {
+                "run_id": run_id,
+                "input_kind": DEFAULT_CLOSEOUT_INPUT_KIND,
+                "bundle_path": str(request.bundle_path),
+                "corpus": request.corpus,
+                "collection": request.collection,
+            },
+        )
         try:
             bundle_payload = load_authenticated_notice_bundle_payload(request.bundle_path)
             export_manifest = load_authenticated_notice_export_manifest(
@@ -197,8 +297,20 @@ class CloseoutPlanningCoordinator:
                 run_id=run_id,
                 planned_batches=planned_batches,
                 notice_by_id=notice_by_id,
+                object_store_concurrency=object_store_concurrency,
+                input_kind=DEFAULT_CLOSEOUT_INPUT_KIND,
             )
             shards = attach_batches_to_shards(planned_shards, batches)
+            self.closeout_store.record_milestone(
+                run_id,
+                "batches_frozen",
+                {
+                    "run_id": run_id,
+                    "shard_count": len(shards),
+                    "batch_count": len(batches),
+                    "expected_notice_count": len(bundle_payload),
+                },
+            )
 
             run = CloseoutRun(
                 run_id=run_id,
@@ -307,14 +419,13 @@ class CloseoutPlanningCoordinator:
                     ],
                 },
             )
-            for batch in batches:
-                self.artifacts.write_json_artifact(
-                    request=request,
-                    run_id=run_id,
-                    filename="manifest.json",
-                    payload=asdict(batch),
-                    segments=("batches", batch_segment(batch.batch_id)),
-                )
+            self._write_batch_manifests(
+                request=request,
+                run_id=run_id,
+                batches=batches,
+                object_store_concurrency=object_store_concurrency,
+                input_kind=DEFAULT_CLOSEOUT_INPUT_KIND,
+            )
             planned_summary = self.build_run_summary(run_id)
             self.closeout_store.record_milestone(run_id, "planned", planned_summary)
             self.artifacts.write_json_artifact(
@@ -353,13 +464,6 @@ class CloseoutPlanningCoordinator:
             lease_seconds=lease_seconds,
         )
         operations_prefix = self._build_operations_prefix(request.corpus, run_id)
-        inventory = load_authenticated_notice_source_truth_replay_inventory(
-            request=request,
-            document_registry=self.document_registry,
-            raw_asset_registry=self.raw_asset_registry,
-            object_store=self.artifacts.object_store,
-            object_store_settings=self.artifacts.object_store_settings,
-        )
         planning_run = CloseoutRun(
             run_id=run_id,
             bundle_path="",
@@ -369,11 +473,11 @@ class CloseoutPlanningCoordinator:
             input_kind=SOURCE_TRUTH_REPLAY_INPUT_KIND,
             corpus=request.corpus,
             collection=request.collection,
-            site_id=inventory.site_id,
-            source_home_url=inventory.source_home_url,
+            site_id="",
+            source_home_url="",
             visibility_scope=request.default_visibility_scope,
             parser_version=DEFAULT_AUTHENTICATED_NOTICE_SOURCE_PROJECTION_PARSER_VERSION,
-            embedding_model=inventory.embedding_model,
+            embedding_model="",
             import_source=DEFAULT_AUTHENTICATED_NOTICE_SOURCE_PROJECTION_IMPORT_SOURCE,
             source_projections_path=(
                 str(request.source_projections_path)
@@ -387,19 +491,75 @@ class CloseoutPlanningCoordinator:
             object_store_concurrency=object_store_concurrency,
             lease_seconds=lease_seconds,
         )
+        self.closeout_store.save_run(planning_run)
+        self.closeout_store.record_milestone(
+            run_id,
+            "planning_started",
+            {
+                "run_id": run_id,
+                "input_kind": SOURCE_TRUTH_REPLAY_INPUT_KIND,
+                "corpus": request.corpus,
+                "collection": request.collection,
+            },
+        )
         try:
+            inventory = load_authenticated_notice_source_truth_replay_inventory_from_store(
+                request=request,
+                source_truth_inventory_store=self.source_truth_inventory_store,
+            )
+            self.closeout_store.record_milestone(
+                run_id,
+                "inventory_loaded",
+                {
+                    "run_id": run_id,
+                    "input_kind": SOURCE_TRUTH_REPLAY_INPUT_KIND,
+                    "expected_notice_count": inventory.expected_notice_count,
+                    "expected_document_count": inventory.expected_document_count,
+                    "expected_attachment_document_count": inventory.expected_attachment_document_count,
+                    "expected_ocr_candidate_count": inventory.expected_ocr_candidate_count,
+                    "expected_raw_asset_count": inventory.expected_raw_asset_count,
+                },
+            )
             parent_by_notice_id = {
                 str(parent["notice_id"]): parent for parent in inventory.parents
             }
-            planned_shards = self.planner.plan_shards(inventory.parents)
-            planned_batches = self.planner.plan_batches(planned_shards)
+            weight_by_notice_id = {
+                str(parent["notice_id"]): max(1, int(parent.get("planning_weight") or 1))
+                for parent in inventory.parents
+            }
+            planned_shards = self.planner.plan_weighted_shards(
+                inventory.parents,
+                weight_by_notice_id=weight_by_notice_id,
+            )
+            planned_batches = self.planner.plan_weighted_batches(
+                planned_shards,
+                weight_by_notice_id=weight_by_notice_id,
+            )
             batches = self._freeze_source_truth_batch_inputs(
                 request=request,
                 run_id=run_id,
                 planned_batches=planned_batches,
                 parent_by_notice_id=parent_by_notice_id,
+                object_store_concurrency=object_store_concurrency,
             )
             shards = attach_batches_to_shards(planned_shards, batches)
+            inventory_key = build_operations_artifact_key(
+                corpus=request.corpus,
+                operation=DEFAULT_CLOSEOUT_OPERATION,
+                run_id=run_id,
+                filename="ingestion_projection.json",
+                segments=("inputs",),
+            )
+            self.closeout_store.record_milestone(
+                run_id,
+                "batches_frozen",
+                {
+                    "run_id": run_id,
+                    "shard_count": len(shards),
+                    "batch_count": len(batches),
+                    "expected_notice_count": inventory.expected_notice_count,
+                },
+            )
             run = CloseoutRun(
                 run_id=run_id,
                 bundle_path="",
@@ -409,6 +569,7 @@ class CloseoutPlanningCoordinator:
                 input_kind=SOURCE_TRUTH_REPLAY_INPUT_KIND,
                 expected_document_count=inventory.expected_document_count,
                 expected_attachment_document_count=inventory.expected_attachment_document_count,
+                expected_ocr_candidate_count=inventory.expected_ocr_candidate_count,
                 expected_raw_asset_count=inventory.expected_raw_asset_count,
                 corpus=request.corpus,
                 collection=request.collection,
@@ -418,6 +579,7 @@ class CloseoutPlanningCoordinator:
                 parser_version=DEFAULT_AUTHENTICATED_NOTICE_SOURCE_PROJECTION_PARSER_VERSION,
                 embedding_model=inventory.embedding_model,
                 import_source=DEFAULT_AUTHENTICATED_NOTICE_SOURCE_PROJECTION_IMPORT_SOURCE,
+                source_truth_inventory_object_key=inventory_key,
                 source_projections_path=(
                     str(request.source_projections_path)
                     if request.source_projections_path is not None
@@ -433,13 +595,6 @@ class CloseoutPlanningCoordinator:
                 batch_count=len(batches),
                 pending_batch_count=len(batches),
             ).mark_planned()
-            inventory_key = build_operations_artifact_key(
-                corpus=request.corpus,
-                operation=DEFAULT_CLOSEOUT_OPERATION,
-                run_id=run_id,
-                filename="source-truth-replay-inventory.json",
-                segments=("inputs",),
-            )
             self.artifacts.object_store.put_bytes(
                 bucket=self.artifacts.object_store_settings.bucket_derived,
                 key=inventory_key,
@@ -453,6 +608,7 @@ class CloseoutPlanningCoordinator:
                         "expected_notice_count": inventory.expected_notice_count,
                         "expected_document_count": inventory.expected_document_count,
                         "expected_attachment_document_count": inventory.expected_attachment_document_count,
+                        "expected_ocr_candidate_count": inventory.expected_ocr_candidate_count,
                         "expected_raw_asset_count": inventory.expected_raw_asset_count,
                         "parents": list(inventory.parents),
                     },
@@ -487,6 +643,7 @@ class CloseoutPlanningCoordinator:
                     "expected_notice_count": inventory.expected_notice_count,
                     "expected_document_count": inventory.expected_document_count,
                     "expected_attachment_document_count": inventory.expected_attachment_document_count,
+                    "expected_ocr_candidate_count": inventory.expected_ocr_candidate_count,
                     "expected_raw_asset_count": inventory.expected_raw_asset_count,
                     "shard_size": self.planner.shard_size,
                     "batch_size": self.planner.batch_size,
@@ -545,14 +702,13 @@ class CloseoutPlanningCoordinator:
                     ],
                 },
             )
-            for batch in batches:
-                self.artifacts.write_json_artifact(
-                    request=artifact_request,
-                    run_id=run_id,
-                    filename="manifest.json",
-                    payload=asdict(batch),
-                    segments=("batches", batch_segment(batch.batch_id)),
-                )
+            self._write_batch_manifests(
+                request=artifact_request,
+                run_id=run_id,
+                batches=batches,
+                object_store_concurrency=object_store_concurrency,
+                input_kind=SOURCE_TRUTH_REPLAY_INPUT_KIND,
+            )
             planned_summary = self.build_run_summary(run_id)
             self.closeout_store.record_milestone(run_id, "planned", planned_summary)
             self.artifacts.write_json_artifact(
@@ -580,48 +736,28 @@ class CloseoutPlanningCoordinator:
         run_id: str,
         planned_batches: Sequence[CloseoutBatch],
         notice_by_id: dict[str, dict[str, Any]],
+        object_store_concurrency: int,
+        input_kind: str,
     ) -> tuple[CloseoutBatch, ...]:
-        frozen_batches: list[CloseoutBatch] = []
-        for batch in planned_batches:
-            batch_payload = {
-                "run_id": run_id,
-                "batch_id": batch.batch_id,
-                "shard_id": batch.shard_id,
-                "input_kind": DEFAULT_CLOSEOUT_INPUT_KIND,
-                "notice_ids": list(batch.notice_ids),
-                "bundle_records": [notice_by_id[notice_id] for notice_id in batch.notice_ids],
-            }
-            batch_bytes = json.dumps(
-                batch_payload,
-                ensure_ascii=False,
-                indent=2,
-                sort_keys=True,
-            ).encode("utf-8")
-            batch_sha256 = hashlib.sha256(batch_bytes).hexdigest()
-            input_key = build_operations_artifact_key(
+        return asyncio.run(
+            self._freeze_batches_async(
                 corpus=request.corpus,
-                operation=DEFAULT_CLOSEOUT_OPERATION,
                 run_id=run_id,
-                filename="input.json",
-                segments=("batches", batch_segment(batch.batch_id)),
+                planned_batches=planned_batches,
+                object_store_concurrency=object_store_concurrency,
+                input_kind=input_kind,
+                build_payload=lambda batch: {
+                    "run_id": run_id,
+                    "batch_id": batch.batch_id,
+                    "shard_id": batch.shard_id,
+                    "input_kind": input_kind,
+                    "notice_ids": list(batch.notice_ids),
+                    "bundle_records": [
+                        notice_by_id[notice_id] for notice_id in batch.notice_ids
+                    ],
+                },
             )
-            self.artifacts.object_store.put_bytes(
-                bucket=self.artifacts.object_store_settings.bucket_derived,
-                key=input_key,
-                data=batch_bytes,
-                content_type="application/json",
-                metadata={"sha256": batch_sha256},
-            )
-            frozen_batches.append(
-                CloseoutBatch(
-                    batch_id=batch.batch_id,
-                    shard_id=batch.shard_id,
-                    notice_ids=batch.notice_ids,
-                    input_object_key=input_key,
-                    input_sha256=batch_sha256,
-                )
-            )
-        return tuple(frozen_batches)
+        )
 
     def _freeze_source_truth_batch_inputs(
         self,
@@ -630,19 +766,49 @@ class CloseoutPlanningCoordinator:
         run_id: str,
         planned_batches: Sequence[CloseoutBatch],
         parent_by_notice_id: dict[str, dict[str, Any]],
+        object_store_concurrency: int,
     ) -> tuple[CloseoutBatch, ...]:
-        frozen_batches: list[CloseoutBatch] = []
-        for batch in planned_batches:
-            batch_payload = {
-                "run_id": run_id,
-                "batch_id": batch.batch_id,
-                "shard_id": batch.shard_id,
-                "input_kind": SOURCE_TRUTH_REPLAY_INPUT_KIND,
-                "notice_ids": list(batch.notice_ids),
-                "source_truth_parents": [
-                    parent_by_notice_id[notice_id] for notice_id in batch.notice_ids
-                ],
-            }
+        return asyncio.run(
+            self._freeze_batches_async(
+                corpus=request.corpus,
+                run_id=run_id,
+                planned_batches=planned_batches,
+                object_store_concurrency=object_store_concurrency,
+                input_kind=SOURCE_TRUTH_REPLAY_INPUT_KIND,
+                build_payload=lambda batch: {
+                    "run_id": run_id,
+                    "batch_id": batch.batch_id,
+                    "shard_id": batch.shard_id,
+                    "input_kind": SOURCE_TRUTH_REPLAY_INPUT_KIND,
+                    "notice_ids": list(batch.notice_ids),
+                    "source_truth_parents": [
+                        parent_by_notice_id[notice_id] for notice_id in batch.notice_ids
+                    ],
+                },
+            )
+        )
+
+    async def _freeze_batches_async(
+        self,
+        *,
+        corpus: str,
+        run_id: str,
+        planned_batches: Sequence[CloseoutBatch],
+        object_store_concurrency: int,
+        input_kind: str,
+        build_payload: Callable[[CloseoutBatch], dict[str, Any]],
+    ) -> tuple[CloseoutBatch, ...]:
+        if not planned_batches:
+            return ()
+        total_batches = len(planned_batches)
+        frozen_batches: list[CloseoutBatch | None] = [None] * total_batches
+        progress = {"completed": 0}
+        progress_lock = asyncio.Lock()
+        progress_step = self._progress_step(total_batches)
+        semaphore = asyncio.Semaphore(max(1, object_store_concurrency))
+
+        async def freeze_one(index: int, batch: CloseoutBatch) -> None:
+            batch_payload = build_payload(batch)
             batch_bytes = json.dumps(
                 batch_payload,
                 ensure_ascii=False,
@@ -651,29 +817,151 @@ class CloseoutPlanningCoordinator:
             ).encode("utf-8")
             batch_sha256 = hashlib.sha256(batch_bytes).hexdigest()
             input_key = build_operations_artifact_key(
-                corpus=request.corpus,
+                corpus=corpus,
                 operation=DEFAULT_CLOSEOUT_OPERATION,
                 run_id=run_id,
                 filename="input.json",
                 segments=("batches", batch_segment(batch.batch_id)),
             )
-            self.artifacts.object_store.put_bytes(
+            await self.artifacts.put_bytes_limited(
+                semaphore=semaphore,
                 bucket=self.artifacts.object_store_settings.bucket_derived,
                 key=input_key,
                 data=batch_bytes,
                 content_type="application/json",
                 metadata={"sha256": batch_sha256},
+                executor=executor,
             )
-            frozen_batches.append(
-                CloseoutBatch(
-                    batch_id=batch.batch_id,
-                    shard_id=batch.shard_id,
-                    notice_ids=batch.notice_ids,
-                    input_object_key=input_key,
-                    input_sha256=batch_sha256,
-                )
+            frozen_batches[index] = CloseoutBatch(
+                batch_id=batch.batch_id,
+                shard_id=batch.shard_id,
+                notice_ids=batch.notice_ids,
+                input_object_key=input_key,
+                input_sha256=batch_sha256,
             )
-        return tuple(frozen_batches)
+            await self._record_planning_progress(
+                run_id=run_id,
+                milestone_name="batch_inputs_progress",
+                input_kind=input_kind,
+                total_batches=total_batches,
+                completed=progress,
+                progress_lock=progress_lock,
+                progress_step=progress_step,
+            )
+
+        with ThreadPoolExecutor(
+            max_workers=max(1, object_store_concurrency),
+            thread_name_prefix="closeout-plan-put",
+        ) as executor:
+            async with asyncio.TaskGroup() as task_group:
+                for index, batch in enumerate(planned_batches):
+                    task_group.create_task(freeze_one(index, batch))
+        return tuple(batch for batch in frozen_batches if batch is not None)
+
+    def _write_batch_manifests(
+        self,
+        *,
+        request: AuthenticatedNoticeImportRequest,
+        run_id: str,
+        batches: Sequence[CloseoutBatch],
+        object_store_concurrency: int,
+        input_kind: str,
+    ) -> None:
+        asyncio.run(
+            self._write_batch_manifests_async(
+                request=request,
+                run_id=run_id,
+                batches=batches,
+                object_store_concurrency=object_store_concurrency,
+                input_kind=input_kind,
+            )
+        )
+
+    async def _write_batch_manifests_async(
+        self,
+        *,
+        request: AuthenticatedNoticeImportRequest,
+        run_id: str,
+        batches: Sequence[CloseoutBatch],
+        object_store_concurrency: int,
+        input_kind: str,
+    ) -> None:
+        if not batches:
+            return
+        total_batches = len(batches)
+        progress = {"completed": 0}
+        progress_lock = asyncio.Lock()
+        progress_step = self._progress_step(total_batches)
+        semaphore = asyncio.Semaphore(max(1, object_store_concurrency))
+
+        async def write_one(batch: CloseoutBatch) -> None:
+            await self.artifacts.write_json_artifact_limited(
+                semaphore=semaphore,
+                request=request,
+                run_id=run_id,
+                filename="manifest.json",
+                payload=asdict(batch),
+                segments=("batches", batch_segment(batch.batch_id)),
+                executor=executor,
+            )
+            await self._record_planning_progress(
+                run_id=run_id,
+                milestone_name="batch_manifests_progress",
+                input_kind=input_kind,
+                total_batches=total_batches,
+                completed=progress,
+                progress_lock=progress_lock,
+                progress_step=progress_step,
+            )
+
+        with ThreadPoolExecutor(
+            max_workers=max(1, object_store_concurrency),
+            thread_name_prefix="closeout-manifest-put",
+        ) as executor:
+            async with asyncio.TaskGroup() as task_group:
+                for batch in batches:
+                    task_group.create_task(write_one(batch))
+
+    async def _record_planning_progress(
+        self,
+        *,
+        run_id: str,
+        milestone_name: str,
+        input_kind: str,
+        total_batches: int,
+        completed: dict[str, int],
+        progress_lock: asyncio.Lock,
+        progress_step: int,
+    ) -> None:
+        payload: dict[str, Any] | None = None
+        async with progress_lock:
+            completed["completed"] += 1
+            completed_count = completed["completed"]
+            if (
+                completed_count == total_batches
+                or completed_count % progress_step == 0
+            ):
+                payload = {
+                    "run_id": run_id,
+                    "input_kind": input_kind,
+                    "completed_batch_count": completed_count,
+                    "total_batch_count": total_batches,
+                }
+        if payload is None:
+            return
+        self.closeout_store.record_milestone(run_id, milestone_name, payload)
+        print(
+            json.dumps(
+                {"event": milestone_name, **payload},
+                ensure_ascii=False,
+                sort_keys=True,
+            ),
+            file=sys.stderr,
+            flush=True,
+        )
+
+    def _progress_step(self, total_batches: int) -> int:
+        return max(1, min(32, math.ceil(total_batches / 8)))
 
     def _validate_plan_request(
         self,

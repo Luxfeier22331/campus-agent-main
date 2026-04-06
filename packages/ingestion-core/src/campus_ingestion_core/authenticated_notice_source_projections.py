@@ -11,7 +11,7 @@ from typing import Any, Protocol
 import zipfile
 from xml.etree import ElementTree
 
-from campus_ingestion_core.authenticated_notice_import import (
+from campus_ingestion_core.authenticated_notice_defaults import (
     DEFAULT_AUTHENTICATED_NOTICE_COLLECTION,
     DEFAULT_AUTHENTICATED_NOTICE_CORPUS,
 )
@@ -46,6 +46,10 @@ from campus_ingestion_core.settings import ObjectStoreSettings
 AUTHENTICATED_NOTICE_SOURCE_PROJECTIONS_SCHEMA_VERSION = "authenticated_notice_source_projections_v1"
 DEFAULT_AUTHENTICATED_NOTICE_SOURCE_PROJECTION_IMPORT_SOURCE = "authenticated_notice_source_projection"
 DEFAULT_AUTHENTICATED_NOTICE_SOURCE_PROJECTION_PARSER_VERSION = "authenticated_notice_source_projection_v1"
+AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT = "required_document"
+AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_CONDITIONAL_ON_EXTRACTED_TEXT = "conditional_on_extracted_text"
+AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MATERIALIZED_DOCUMENT = "materialized_document"
+AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT = "no_extractable_text"
 _DOCX_DOCUMENT_PATH = "word/document.xml"
 _WORDPROCESSINGML_NS = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 
@@ -87,6 +91,7 @@ class AuthenticatedNoticeSourceProjectionsConfig:
     ocr_required_extensions: tuple[str, ...]
     reference_only_storage_providers: tuple[str, ...]
     reference_only_ingest_statuses: tuple[str, ...]
+    reference_only_url_substrings: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,11 +111,36 @@ class AuthenticatedNoticeSourceProjectionReport:
     projected_attachment_count: int
     text_extractable_attachment_count: int
     ocr_attachment_count: int
+    ocr_no_text_attachment_count: int
     reference_only_attachment_count: int
     created_document_ids: tuple[str, ...]
     updated_document_ids: tuple[str, ...]
     skipped_document_ids: tuple[str, ...]
     errors: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class AuthenticatedNoticeAttachmentProjectionOutcome:
+    attachment_ref_id: str
+    classification: str
+    materialization_policy: str
+    outcome: str
+    document_id: str
+    attachment_object_key: str
+    attachment_content_sha256: str
+    provider_response_bytes: bytes | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AuthenticatedNoticeAttachmentProjectionResult:
+    document: DocumentImportInput | None
+    outcome: AuthenticatedNoticeAttachmentProjectionOutcome
+
+
+@dataclass(frozen=True, slots=True)
+class AuthenticatedNoticeProjectedNotice:
+    documents: tuple[DocumentImportInput, ...]
+    attachment_outcomes: tuple[AuthenticatedNoticeAttachmentProjectionOutcome, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -195,6 +225,11 @@ def load_authenticated_notice_source_projections_config(path: Path) -> Authentic
             for item in list(payload.get("reference_only_ingest_statuses") or [])
             if str(item).strip()
         ),
+        reference_only_url_substrings=tuple(
+            str(item).strip().lower()
+            for item in list(payload.get("reference_only_url_substrings") or [])
+            if str(item).strip()
+        ),
     )
 
 
@@ -237,50 +272,34 @@ def rebuild_authenticated_notice_source_projections(
     projected_attachment_count = 0
     text_extractable_attachment_count = 0
     ocr_attachment_count = 0
+    ocr_no_text_attachment_count = 0
     reference_only_attachment_count = 0
     documents: list[DocumentImportInput] = []
 
     for parent_source_truth in parent_source_truths:
-        documents.append(
-            _build_parent_notice_document(
-                parent_source_truth=parent_source_truth,
-                runtime_profile=runtime_profile,
-            )
+        projected_notice, runtime_ocr_client = _project_parent_source_truth(
+            parent_source_truth=parent_source_truth,
+            config=config,
+            object_store=runtime_object_store,
+            object_store_settings=object_store_settings,
+            runtime_profile=runtime_profile,
+            ocr_client=runtime_ocr_client,
+            env=source,
         )
+        documents.extend(projected_notice.documents)
         attachment_ref_count += len(parent_source_truth.attachment_refs)
-        for attachment_ref in parent_source_truth.attachment_refs:
-            classification = _classify_attachment_ref(attachment_ref=attachment_ref, config=config)
-            if classification == "reference_only":
-                reference_only_attachment_count += 1
-                continue
-            if classification == "unsupported_binary":
-                raise ValueError(
-                    "unsupported authenticated notice attachment requires an explicit extractor: "
-                    f"{parent_source_truth.record.document_id}#{attachment_ref.get('attachment_ref_id')} "
-                    f"mime_type={attachment_ref.get('mime_type')!r} object_key={attachment_ref.get('object_key')!r}"
-                )
-            if classification == "ocr_required" and runtime_ocr_client is None:
-                settings = OnlineOcrSettings.from_env(source, required=True)
-                if settings is None:  # pragma: no cover
-                    raise ValueError("OCR_BASE_URL and OCR_API_KEY must be configured together")
-                runtime_ocr_client = PaddleOcrAsyncClient(settings)
-            documents.append(
-                _build_attachment_document(
-                    parent_source_truth=parent_source_truth,
-                    attachment_ref=attachment_ref,
-                    classification=classification,
-                    config=config,
-                    object_store=runtime_object_store,
-                    object_store_settings=object_store_settings,
-                    ocr_client=runtime_ocr_client,
-                    runtime_profile=runtime_profile,
-                )
-            )
-            projected_attachment_count += 1
-            if classification == "text_extractable":
+        reference_only_attachment_count += (
+            len(parent_source_truth.attachment_refs) - len(projected_notice.attachment_outcomes)
+        )
+        for outcome in projected_notice.attachment_outcomes:
+            if outcome.outcome == AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MATERIALIZED_DOCUMENT:
+                projected_attachment_count += 1
+            if outcome.classification == "text_extractable":
                 text_extractable_attachment_count += 1
-            elif classification == "ocr_required":
+            elif outcome.classification == "ocr_required":
                 ocr_attachment_count += 1
+                if outcome.outcome == AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT:
+                    ocr_no_text_attachment_count += 1
 
     stats = collect_import_document_stats(
         documents=documents,
@@ -302,11 +321,70 @@ def rebuild_authenticated_notice_source_projections(
         projected_attachment_count=projected_attachment_count,
         text_extractable_attachment_count=text_extractable_attachment_count,
         ocr_attachment_count=ocr_attachment_count,
+        ocr_no_text_attachment_count=ocr_no_text_attachment_count,
         reference_only_attachment_count=reference_only_attachment_count,
         created_document_ids=stats.created_document_ids,
         updated_document_ids=stats.updated_document_ids,
         skipped_document_ids=stats.skipped_document_ids,
         errors=stats.errors,
+    )
+
+
+def _project_parent_source_truth(
+    *,
+    parent_source_truth: _AuthenticatedNoticeParentSourceTruth,
+    config: AuthenticatedNoticeSourceProjectionsConfig,
+    object_store: AuthenticatedNoticeProjectionObjectStore,
+    object_store_settings: ObjectStoreSettings,
+    runtime_profile,
+    ocr_client: OnlineOcrClient | None,
+    env: dict[str, str],
+) -> tuple[AuthenticatedNoticeProjectedNotice, OnlineOcrClient | None]:
+    documents: list[DocumentImportInput] = [
+        _build_parent_notice_document(
+            parent_source_truth=parent_source_truth,
+            runtime_profile=runtime_profile,
+        )
+    ]
+    attachment_outcomes: list[AuthenticatedNoticeAttachmentProjectionOutcome] = []
+    runtime_ocr_client = ocr_client
+    for attachment_ref in parent_source_truth.attachment_refs:
+        classification = _classify_attachment_ref(
+            attachment_ref=attachment_ref,
+            config=config,
+        )
+        if classification == "reference_only":
+            continue
+        if classification == "unsupported_binary":
+            raise ValueError(
+                "unsupported authenticated notice attachment requires an explicit extractor: "
+                f"{parent_source_truth.record.document_id}#{attachment_ref.get('attachment_ref_id')} "
+                f"mime_type={attachment_ref.get('mime_type')!r} object_key={attachment_ref.get('object_key')!r}"
+            )
+        if classification == "ocr_required" and runtime_ocr_client is None:
+            settings = OnlineOcrSettings.from_env(env, required=True)
+            if settings is None:  # pragma: no cover
+                raise ValueError("OCR_BASE_URL and OCR_API_KEY must be configured together")
+            runtime_ocr_client = PaddleOcrAsyncClient(settings)
+        result = _build_attachment_projection_result(
+            parent_source_truth=parent_source_truth,
+            attachment_ref=attachment_ref,
+            classification=classification,
+            config=config,
+            object_store=object_store,
+            object_store_settings=object_store_settings,
+            ocr_client=runtime_ocr_client,
+            runtime_profile=runtime_profile,
+        )
+        attachment_outcomes.append(result.outcome)
+        if result.document is not None:
+            documents.append(result.document)
+    return (
+        AuthenticatedNoticeProjectedNotice(
+            documents=tuple(documents),
+            attachment_outcomes=tuple(attachment_outcomes),
+        ),
+        runtime_ocr_client,
     )
 
 
@@ -416,7 +494,7 @@ def _build_parent_notice_document(
     )
 
 
-def _build_attachment_document(
+def _build_attachment_projection_result(
     *,
     parent_source_truth: _AuthenticatedNoticeParentSourceTruth,
     attachment_ref: dict[str, Any],
@@ -426,7 +504,7 @@ def _build_attachment_document(
     object_store_settings: ObjectStoreSettings,
     ocr_client: OnlineOcrClient | None,
     runtime_profile,
-) -> DocumentImportInput:
+) -> AuthenticatedNoticeAttachmentProjectionResult:
     manifest = parent_source_truth.manifest
     parent_record = parent_source_truth.record
     site_id, notice_id = _parse_notice_document_id(parent_record.document_id)
@@ -456,6 +534,7 @@ def _build_attachment_document(
         extraction_class=classification,
         extraction_policy_version=config.extraction_policy_version,
     )
+    materialization_policy = _materialization_policy_for_classification(classification)
     if classification == "text_extractable":
         text_blocks = _extract_docx_text_blocks(attachment_bytes)
         provider_response_bytes = _build_text_extractable_provider_payload(
@@ -476,7 +555,19 @@ def _build_attachment_document(
     else:  # pragma: no cover
         raise ValueError(f"unsupported attachment classification: {classification}")
     if not text_blocks:
-        raise ValueError(f"{parent_record.document_id}#{attachment_ref_id} produced no extractable text")
+        return AuthenticatedNoticeAttachmentProjectionResult(
+            document=None,
+            outcome=AuthenticatedNoticeAttachmentProjectionOutcome(
+                attachment_ref_id=attachment_ref_id,
+                classification=classification,
+                materialization_policy=materialization_policy,
+                outcome=AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT,
+                document_id=derived_document_id,
+                attachment_object_key=object_key,
+                attachment_content_sha256=actual_attachment_sha256,
+                provider_response_bytes=provider_response_bytes,
+            ),
+        )
 
     metadata: dict[str, object] = {
         "document_id": derived_document_id,
@@ -550,31 +641,43 @@ def _build_attachment_document(
         attachment_ref=attachment_ref,
         metadata=metadata,
     )
-    return DocumentImportInput(
-        source_label=f"{parent_record.document_id}#{attachment_ref_id}",
-        document_units_bytes=document_units_bytes,
-        provider_response_bytes=provider_response_bytes,
-        canonical_markdown_bytes=canonical_markdown_bytes,
-        metadata=metadata,
-        import_source=DEFAULT_AUTHENTICATED_NOTICE_SOURCE_PROJECTION_IMPORT_SOURCE,
-        revision_track=parent_record.revision_track,
-        source_channel=parent_record.source_channel,
-        is_current=parent_record.is_current,
-        corpus=config.attachment_projection.target_corpus,
-        collection=config.attachment_projection.target_collection,
-        visibility_scope=parent_record.visibility_scope,
-        status=parent_record.status,
-        raw_source_uri=parent_record.source_uri,
-        raw_asset_id=str(manifest.get("raw_asset_id") or ""),
-        raw_version_id=str(manifest.get("raw_version_id") or ""),
-        provider_response_object_key=None,
-        additional_processed_object_keys=(
-            parent_source_truth.notice_manifest_key,
-            parent_source_truth.content_blocks_key,
-            parent_source_truth.attachment_refs_key,
+    return AuthenticatedNoticeAttachmentProjectionResult(
+        document=DocumentImportInput(
+            source_label=f"{parent_record.document_id}#{attachment_ref_id}",
+            document_units_bytes=document_units_bytes,
+            provider_response_bytes=provider_response_bytes,
+            canonical_markdown_bytes=canonical_markdown_bytes,
+            metadata=metadata,
+            import_source=DEFAULT_AUTHENTICATED_NOTICE_SOURCE_PROJECTION_IMPORT_SOURCE,
+            revision_track=parent_record.revision_track,
+            source_channel=parent_record.source_channel,
+            is_current=parent_record.is_current,
+            corpus=config.attachment_projection.target_corpus,
+            collection=config.attachment_projection.target_collection,
+            visibility_scope=parent_record.visibility_scope,
+            status=parent_record.status,
+            raw_source_uri=parent_record.source_uri,
+            raw_asset_id=str(manifest.get("raw_asset_id") or ""),
+            raw_version_id=str(manifest.get("raw_version_id") or ""),
+            provider_response_object_key=None,
+            additional_processed_object_keys=(
+                parent_source_truth.notice_manifest_key,
+                parent_source_truth.content_blocks_key,
+                parent_source_truth.attachment_refs_key,
+            ),
+            title=title,
+            year=_derive_notice_year(manifest=manifest, runtime_profile=runtime_profile),
         ),
-        title=title,
-        year=_derive_notice_year(manifest=manifest, runtime_profile=runtime_profile),
+        outcome=AuthenticatedNoticeAttachmentProjectionOutcome(
+            attachment_ref_id=attachment_ref_id,
+            classification=classification,
+            materialization_policy=materialization_policy,
+            outcome=AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MATERIALIZED_DOCUMENT,
+            document_id=derived_document_id,
+            attachment_object_key=object_key,
+            attachment_content_sha256=actual_attachment_sha256,
+            provider_response_bytes=None,
+        ),
     )
 
 
@@ -595,6 +698,16 @@ def _classify_attachment_ref(
         return "reference_only"
     if ingest_status is not None and ingest_status.lower() in config.reference_only_ingest_statuses:
         return "reference_only"
+    for url in (
+        _normalize_optional_text(attachment_ref.get("source_url")),
+        _normalize_optional_text(attachment_ref.get("normalized_source_url")),
+        _normalize_optional_text(attachment_ref.get("final_url")),
+    ):
+        if url is None:
+            continue
+        lowered_url = url.lower()
+        if any(token in lowered_url for token in config.reference_only_url_substrings):
+            return "reference_only"
     mime_type = _normalize_optional_text(attachment_ref.get("mime_type"))
     extension = _normalize_extension(_guess_attachment_filename(attachment_ref))
     if extension is not None and extension in config.text_extractable_extensions:
@@ -604,6 +717,48 @@ def _classify_attachment_ref(
     if extension is not None and extension in config.ocr_required_extensions:
         return "ocr_required"
     return "unsupported_binary"
+
+
+def build_authenticated_notice_attachment_projection_plans(
+    *,
+    parent_document_id: str,
+    attachment_refs: tuple[dict[str, Any], ...],
+    config: AuthenticatedNoticeSourceProjectionsConfig,
+) -> tuple[dict[str, str], ...]:
+    site_id, notice_id = _parse_notice_document_id(parent_document_id)
+    plans: list[dict[str, str]] = []
+    for attachment_ref in attachment_refs:
+        classification = _classify_attachment_ref(
+            attachment_ref=attachment_ref,
+            config=config,
+        )
+        attachment_ref_id = str(attachment_ref.get("attachment_ref_id") or "").strip()
+        if classification == "reference_only":
+            continue
+        if classification == "unsupported_binary":
+            raise ValueError(
+                "unsupported authenticated notice attachment requires an explicit extractor before replay: "
+                f"{parent_document_id}#{attachment_ref_id or 'unknown'}"
+            )
+        if not attachment_ref_id:
+            raise ValueError(f"{parent_document_id} attachment_ref_id is required")
+        plans.append(
+            {
+                "attachment_ref_id": attachment_ref_id,
+                "classification": classification,
+                "document_id": f"notice_attachment:{site_id}:{notice_id}:{attachment_ref_id}",
+                "materialization_policy": _materialization_policy_for_classification(classification),
+            }
+        )
+    return tuple(plans)
+
+
+def _materialization_policy_for_classification(classification: str) -> str:
+    if classification == "text_extractable":
+        return AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT
+    if classification == "ocr_required":
+        return AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_CONDITIONAL_ON_EXTRACTED_TEXT
+    raise ValueError(f"unsupported materialization policy classification: {classification}")
 
 
 def _resolve_attachment_kind(
@@ -803,7 +958,7 @@ def _extract_ocr_text_blocks(provider_result_bytes: bytes) -> tuple[str, ...]:
         raise ValueError("ocr provider payload must be a JSON object")
     text = _normalize_extracted_text(extract_online_ocr_text(candidate))
     if not text:
-        raise ValueError("ocr attachment produced no extractable text")
+        return ()
     return (text,)
 
 
@@ -935,11 +1090,18 @@ def _jsonl_bytes(rows: list[dict[str, Any]]) -> bytes:
 
 
 __all__ = [
+    "AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MATERIALIZED_DOCUMENT",
+    "AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT",
+    "AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_CONDITIONAL_ON_EXTRACTED_TEXT",
+    "AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT",
     "AuthenticatedNoticeAttachmentProjection",
+    "AuthenticatedNoticeAttachmentProjectionOutcome",
+    "AuthenticatedNoticeProjectedNotice",
     "AuthenticatedNoticeSourceProjectionReport",
     "AuthenticatedNoticeSourceProjectionRequest",
     "AuthenticatedNoticeSourceProjectionsConfig",
     "AUTHENTICATED_NOTICE_SOURCE_PROJECTIONS_SCHEMA_VERSION",
+    "build_authenticated_notice_attachment_projection_plans",
     "load_authenticated_notice_source_projections_config",
     "read_authenticated_notice_source_projections_config_path",
     "rebuild_authenticated_notice_source_projections",

@@ -6,7 +6,7 @@ from enum import Enum
 import hashlib
 from typing import Any, Sequence
 
-from campus_ingestion_core.authenticated_notice_import import (
+from campus_ingestion_core.authenticated_notice_defaults import (
     DEFAULT_AUTHENTICATED_NOTICE_COLLECTION,
     DEFAULT_AUTHENTICATED_NOTICE_CORPUS,
     DEFAULT_AUTHENTICATED_NOTICE_EMBEDDING_MODEL,
@@ -98,6 +98,7 @@ class CloseoutRun:
     input_kind: str = DEFAULT_CLOSEOUT_INPUT_KIND
     expected_document_count: int = 0
     expected_attachment_document_count: int = 0
+    expected_ocr_candidate_count: int = 0
     expected_raw_asset_count: int = 0
     source_projections_path: str | None = None
     corpus: str = DEFAULT_AUTHENTICATED_NOTICE_CORPUS
@@ -112,6 +113,7 @@ class CloseoutRun:
     embedding_model: str = DEFAULT_AUTHENTICATED_NOTICE_EMBEDDING_MODEL
     import_source: str = DEFAULT_AUTHENTICATED_NOTICE_IMPORT_SOURCE
     export_manifest_object_key: str | None = None
+    source_truth_inventory_object_key: str | None = None
     shard_size: int = DEFAULT_CLOSEOUT_SHARD_SIZE
     batch_size: int = DEFAULT_CLOSEOUT_BATCH_SIZE
     max_concurrency: int = DEFAULT_CLOSEOUT_MAX_CONCURRENCY

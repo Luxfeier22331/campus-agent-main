@@ -17,6 +17,7 @@ from campus_ingestion_core.authenticated_notice_closeout_models import (
     CloseoutShardState,
     CloseoutWorker,
     batch_lease_expired,
+    parse_optional_timestamp,
     utc_now_dt,
 )
 from campus_ingestion_core.registry import (
@@ -123,6 +124,8 @@ class CloseoutStore(Protocol):
     def get_staged_raw_assets(self, run_id: str) -> tuple[dict[str, Any], ...]: ...
 
     def get_staged_documents(self, run_id: str) -> tuple[dict[str, Any], ...]: ...
+
+    def clear_batch_stage(self, run_id: str, batch_id: int) -> None: ...
 
     def record_milestone(self, run_id: str, name: str, payload: dict[str, Any]) -> None: ...
 
@@ -517,6 +520,24 @@ class InMemoryCloseoutStore:
                 )
             )
 
+    def clear_batch_stage(self, run_id: str, batch_id: int) -> None:
+        with self._lock:
+            self._notices[run_id] = {
+                notice_id: payload
+                for notice_id, payload in self._notices.get(run_id, {}).items()
+                if int(payload.get("batch_id") or 0) != int(batch_id)
+            }
+            self._raw_assets[run_id] = {
+                key: payload
+                for key, payload in self._raw_assets.get(run_id, {}).items()
+                if int(payload.get("batch_id") or 0) != int(batch_id)
+            }
+            self._documents[run_id] = {
+                key: payload
+                for key, payload in self._documents.get(run_id, {}).items()
+                if int(payload.get("batch_id") or 0) != int(batch_id)
+            }
+
     def record_milestone(self, run_id: str, name: str, payload: dict[str, Any]) -> None:
         with self._lock:
             self._milestones.setdefault(run_id, {})[name] = {
@@ -782,7 +803,7 @@ class PostgresAuthenticatedNoticeCloseoutStore:
                     (
                         f"select record from {self.batch_table} "
                         "where run_id = %s and (state = %s or (state = %s and "
-                        "coalesce((record->>'lease_expires_at')::timestamptz, '-infinity'::timestamptz) < now())) "
+                        "coalesce(lease_expires_at, '-infinity'::timestamptz) < now())) "
                         "order by batch_id asc limit 1 for update skip locked"
                     ),
                     (
@@ -831,28 +852,49 @@ class PostgresAuthenticatedNoticeCloseoutStore:
                 staged_notice_ids: set[str] = set()
                 staged_raw_asset_keys: set[tuple[str, str]] = set()
                 staged_document_keys: set[tuple[str, str, str]] = set()
+                notice_rows: list[dict[str, Any]] = []
+                raw_asset_rows: list[dict[str, Any]] = []
+                document_rows: list[dict[str, Any]] = []
                 for stage in stages:
-                    staged_notice_ids.add(str(stage["notice"]["notice_id"]))
-                    self._stage_notice_cursor(
-                        cursor=cursor,
-                        run_id=run_id,
-                        shard_id=batch.shard_id,
-                        batch_id=batch.batch_id,
-                        notice=stage["notice"],
-                        artifact_keys=stage["artifact_keys"],
+                    notice_id = str(stage["notice"]["notice_id"])
+                    staged_notice_ids.add(notice_id)
+                    notice_rows.append(
+                        {
+                            "run_id": run_id,
+                            "notice_id": notice_id,
+                            "shard_id": batch.shard_id,
+                            "batch_id": batch.batch_id,
+                            "updated_at": utc_now_dt(),
+                            "record": {
+                                "run_id": run_id,
+                                "shard_id": batch.shard_id,
+                                "batch_id": batch.batch_id,
+                                "notice": dict(stage["notice"]),
+                                "artifact_keys": list(stage["artifact_keys"]),
+                            },
+                        }
                     )
                     raw_asset_key = (
                         str(stage["raw_record"]["raw_asset_id"]),
                         str(stage["raw_record"]["raw_version_id"]),
                     )
                     staged_raw_asset_keys.add(raw_asset_key)
-                    self._stage_raw_cursor(
-                        cursor=cursor,
-                        run_id=run_id,
-                        shard_id=batch.shard_id,
-                        batch_id=batch.batch_id,
-                        raw_record=stage["raw_record"],
-                        source_artifact_keys=stage["source_artifact_keys"],
+                    raw_asset_rows.append(
+                        {
+                            "run_id": run_id,
+                            "raw_asset_id": raw_asset_key[0],
+                            "raw_version_id": raw_asset_key[1],
+                            "shard_id": batch.shard_id,
+                            "batch_id": batch.batch_id,
+                            "updated_at": utc_now_dt(),
+                            "record": {
+                                "run_id": run_id,
+                                "shard_id": batch.shard_id,
+                                "batch_id": batch.batch_id,
+                                "raw_record": dict(stage["raw_record"]),
+                                "source_artifact_keys": dict(stage["source_artifact_keys"]),
+                            },
+                        }
                     )
                     for document_stage in _documents_from_stage(stage):
                         document_key = (
@@ -861,17 +903,36 @@ class PostgresAuthenticatedNoticeCloseoutStore:
                             str(document_stage["document"]["version_id"]),
                         )
                         staged_document_keys.add(document_key)
-                        self._stage_document_cursor(
-                            cursor=cursor,
-                            run_id=run_id,
-                            shard_id=batch.shard_id,
-                            batch_id=batch.batch_id,
-                            document=document_stage["document"],
-                            staged_object_keys=document_stage["staged_object_keys"],
-                            final_object_keys=document_stage["final_object_keys"],
-                            content_hash=document_stage["content_hash"],
-                            staged_object_metadata=document_stage.get("staged_object_metadata") or {},
+                        document_rows.append(
+                            {
+                                "run_id": run_id,
+                                "document_id": document_key[0],
+                                "revision_track": document_key[1],
+                                "version_id": document_key[2],
+                                "shard_id": batch.shard_id,
+                                "batch_id": batch.batch_id,
+                                "updated_at": utc_now_dt(),
+                                "record": {
+                                    "run_id": run_id,
+                                    "shard_id": batch.shard_id,
+                                    "batch_id": batch.batch_id,
+                                    "document": dict(document_stage["document"]),
+                                    "staged_object_keys": dict(
+                                        document_stage["staged_object_keys"]
+                                    ),
+                                    "final_object_keys": dict(
+                                        document_stage["final_object_keys"]
+                                    ),
+                                    "content_hash": document_stage["content_hash"],
+                                    "staged_object_metadata": dict(
+                                        document_stage.get("staged_object_metadata") or {}
+                                    ),
+                                },
+                            }
                         )
+                self._stage_notices_cursor(cursor=cursor, rows=notice_rows)
+                self._stage_raw_assets_cursor(cursor=cursor, rows=raw_asset_rows)
+                self._stage_documents_cursor(cursor=cursor, rows=document_rows)
                 completed_batch = batch.complete(
                     staged_notice_count=len(staged_notice_ids),
                     staged_raw_asset_count=len(staged_raw_asset_keys),
@@ -1045,6 +1106,22 @@ class PostgresAuthenticatedNoticeCloseoutStore:
             (run_id,),
         )
         return tuple(_coerce_json_payload(row[0]) for row in rows)
+
+    def clear_batch_stage(self, run_id: str, batch_id: int) -> None:
+        with _postgres_connection(self.database_url, autocommit=False) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    f"delete from {self.notice_stage_table} where run_id = %s and batch_id = %s",
+                    (run_id, batch_id),
+                )
+                cursor.execute(
+                    f"delete from {self.raw_asset_stage_table} where run_id = %s and batch_id = %s",
+                    (run_id, batch_id),
+                )
+                cursor.execute(
+                    f"delete from {self.document_stage_table} where run_id = %s and batch_id = %s",
+                    (run_id, batch_id),
+                )
 
     def record_milestone(self, run_id: str, name: str, payload: dict[str, Any]) -> None:
         with _postgres_connection(self.database_url) as conn:
@@ -1229,6 +1306,90 @@ class PostgresAuthenticatedNoticeCloseoutStore:
                         on {table_sql} (updated_at desc)
                         """
                     )
+                self._ensure_hot_columns_and_indexes(cursor)
+
+    def _ensure_hot_columns_and_indexes(self, cursor) -> None:
+        run_table_sql = _qualified_table_sql(self.run_table)
+        batch_table_sql = _qualified_table_sql(self.batch_table)
+        worker_table_sql = _qualified_table_sql(self.worker_table)
+        notice_stage_table_sql = _qualified_table_sql(self.notice_stage_table)
+        raw_asset_stage_table_sql = _qualified_table_sql(self.raw_asset_stage_table)
+        document_stage_table_sql = _qualified_table_sql(self.document_stage_table)
+        cursor.execute(
+            f"alter table {run_table_sql} add column if not exists completed_batch_count integer"
+        )
+        cursor.execute(
+            f"alter table {run_table_sql} add column if not exists running_batch_count integer"
+        )
+        cursor.execute(
+            f"alter table {run_table_sql} add column if not exists pending_batch_count integer"
+        )
+        cursor.execute(
+            f"alter table {run_table_sql} add column if not exists active_worker_count integer"
+        )
+        cursor.execute(
+            f"alter table {batch_table_sql} add column if not exists lease_expires_at timestamptz"
+        )
+        cursor.execute(
+            f"alter table {worker_table_sql} add column if not exists active_batch_count integer"
+        )
+        cursor.execute(
+            f"update {run_table_sql} set "
+            "completed_batch_count = coalesce(completed_batch_count, coalesce((record->>'completed_batch_count')::integer, 0)), "
+            "running_batch_count = coalesce(running_batch_count, coalesce((record->>'running_batch_count')::integer, 0)), "
+            "pending_batch_count = coalesce(pending_batch_count, coalesce((record->>'pending_batch_count')::integer, 0)), "
+            "active_worker_count = coalesce(active_worker_count, coalesce((record->>'active_worker_count')::integer, 0))"
+        )
+        cursor.execute(
+            f"update {batch_table_sql} set "
+            "lease_expires_at = coalesce(lease_expires_at, nullif(record->>'lease_expires_at', '')::timestamptz)"
+        )
+        cursor.execute(
+            f"update {worker_table_sql} set "
+            "active_batch_count = coalesce(active_batch_count, coalesce((record->>'active_batch_count')::integer, 0))"
+        )
+        cursor.execute(
+            f"""
+            create index if not exists idx_{_table_index_suffix(self.run_table)}_state_batches
+            on {run_table_sql} (state, pending_batch_count, running_batch_count, active_worker_count)
+            """
+        )
+        cursor.execute(
+            f"""
+            create index if not exists idx_{_table_index_suffix(self.batch_table)}_claim_hot
+            on {batch_table_sql} (run_id, state, lease_expires_at, batch_id)
+            """
+        )
+        cursor.execute(
+            f"""
+            create index if not exists idx_{_table_index_suffix(self.batch_table)}_worker_hot
+            on {batch_table_sql} (run_id, worker_id, state)
+            """
+        )
+        cursor.execute(
+            f"""
+            create index if not exists idx_{_table_index_suffix(self.worker_table)}_active_hot
+            on {worker_table_sql} (run_id, active_batch_count, state)
+            """
+        )
+        cursor.execute(
+            f"""
+            create index if not exists idx_{_table_index_suffix(self.notice_stage_table)}_run_shard_batch
+            on {notice_stage_table_sql} (run_id, shard_id, batch_id)
+            """
+        )
+        cursor.execute(
+            f"""
+            create index if not exists idx_{_table_index_suffix(self.raw_asset_stage_table)}_run_shard_batch
+            on {raw_asset_stage_table_sql} (run_id, shard_id, batch_id)
+            """
+        )
+        cursor.execute(
+            f"""
+            create index if not exists idx_{_table_index_suffix(self.document_stage_table)}_run_shard_batch
+            on {document_stage_table_sql} (run_id, shard_id, batch_id)
+            """
+        )
 
     def _save_run_cursor(self, cursor, run: CloseoutRun) -> None:
         self._upsert_by_primary_key_cursor(
@@ -1238,6 +1399,10 @@ class PostgresAuthenticatedNoticeCloseoutStore:
             row={
                 "run_id": run.run_id,
                 "state": run.state.value,
+                "completed_batch_count": run.completed_batch_count,
+                "running_batch_count": run.running_batch_count,
+                "pending_batch_count": run.pending_batch_count,
+                "active_worker_count": run.active_worker_count,
                 "updated_at": utc_now_dt(),
                 "record": asdict(run),
             },
@@ -1268,6 +1433,7 @@ class PostgresAuthenticatedNoticeCloseoutStore:
                 "shard_id": batch.shard_id,
                 "worker_id": batch.worker_id,
                 "state": batch.state.value,
+                "lease_expires_at": parse_optional_timestamp(batch.lease_expires_at),
                 "updated_at": utc_now_dt(),
                 "record": asdict(batch),
             },
@@ -1282,6 +1448,7 @@ class PostgresAuthenticatedNoticeCloseoutStore:
                 "run_id": run_id,
                 "worker_id": worker.worker_id,
                 "state": worker.state.value,
+                "active_batch_count": worker.active_batch_count,
                 "updated_at": utc_now_dt(),
                 "record": asdict(worker),
             },
@@ -1317,25 +1484,24 @@ class PostgresAuthenticatedNoticeCloseoutStore:
         notice: dict[str, Any],
         artifact_keys: Sequence[str],
     ) -> None:
-        payload = {
-            "run_id": run_id,
-            "shard_id": shard_id,
-            "batch_id": batch_id,
-            "notice": dict(notice),
-            "artifact_keys": list(artifact_keys),
-        }
-        self._upsert_by_primary_key_cursor(
+        self._stage_notices_cursor(
             cursor=cursor,
-            table_name=self.notice_stage_table,
-            key_columns=("run_id", "notice_id"),
-            row={
-                "run_id": run_id,
-                "notice_id": str(notice["notice_id"]),
-                "shard_id": shard_id,
-                "batch_id": batch_id,
-                "updated_at": utc_now_dt(),
-                "record": payload,
-            },
+            rows=(
+                {
+                    "run_id": run_id,
+                    "notice_id": str(notice["notice_id"]),
+                    "shard_id": shard_id,
+                    "batch_id": batch_id,
+                    "updated_at": utc_now_dt(),
+                    "record": {
+                        "run_id": run_id,
+                        "shard_id": shard_id,
+                        "batch_id": batch_id,
+                        "notice": dict(notice),
+                        "artifact_keys": list(artifact_keys),
+                    },
+                },
+            ),
         )
 
     def _stage_raw_cursor(
@@ -1348,26 +1514,25 @@ class PostgresAuthenticatedNoticeCloseoutStore:
         raw_record: dict[str, Any],
         source_artifact_keys: dict[str, str],
     ) -> None:
-        payload = {
-            "run_id": run_id,
-            "shard_id": shard_id,
-            "batch_id": batch_id,
-            "raw_record": dict(raw_record),
-            "source_artifact_keys": dict(source_artifact_keys),
-        }
-        self._upsert_by_primary_key_cursor(
+        self._stage_raw_assets_cursor(
             cursor=cursor,
-            table_name=self.raw_asset_stage_table,
-            key_columns=("run_id", "raw_asset_id", "raw_version_id"),
-            row={
-                "run_id": run_id,
-                "raw_asset_id": str(raw_record["raw_asset_id"]),
-                "raw_version_id": str(raw_record["raw_version_id"]),
-                "shard_id": shard_id,
-                "batch_id": batch_id,
-                "updated_at": utc_now_dt(),
-                "record": payload,
-            },
+            rows=(
+                {
+                    "run_id": run_id,
+                    "raw_asset_id": str(raw_record["raw_asset_id"]),
+                    "raw_version_id": str(raw_record["raw_version_id"]),
+                    "shard_id": shard_id,
+                    "batch_id": batch_id,
+                    "updated_at": utc_now_dt(),
+                    "record": {
+                        "run_id": run_id,
+                        "shard_id": shard_id,
+                        "batch_id": batch_id,
+                        "raw_record": dict(raw_record),
+                        "source_artifact_keys": dict(source_artifact_keys),
+                    },
+                },
+            ),
         )
 
     def _stage_document_cursor(
@@ -1383,30 +1548,80 @@ class PostgresAuthenticatedNoticeCloseoutStore:
         content_hash: str,
         staged_object_metadata: dict[str, dict[str, Any]],
     ) -> None:
-        payload = {
-            "run_id": run_id,
-            "shard_id": shard_id,
-            "batch_id": batch_id,
-            "document": dict(document),
-            "staged_object_keys": dict(staged_object_keys),
-            "final_object_keys": dict(final_object_keys),
-            "content_hash": content_hash,
-            "staged_object_metadata": dict(staged_object_metadata),
-        }
-        self._upsert_by_primary_key_cursor(
+        self._stage_documents_cursor(
+            cursor=cursor,
+            rows=(
+                {
+                    "run_id": run_id,
+                    "document_id": str(document["document_id"]),
+                    "revision_track": str(document["revision_track"]),
+                    "version_id": str(document["version_id"]),
+                    "shard_id": shard_id,
+                    "batch_id": batch_id,
+                    "updated_at": utc_now_dt(),
+                    "record": {
+                        "run_id": run_id,
+                        "shard_id": shard_id,
+                        "batch_id": batch_id,
+                        "document": dict(document),
+                        "staged_object_keys": dict(staged_object_keys),
+                        "final_object_keys": dict(final_object_keys),
+                        "content_hash": content_hash,
+                        "staged_object_metadata": dict(staged_object_metadata),
+                    },
+                },
+            ),
+        )
+
+    def _stage_notices_cursor(self, *, cursor, rows: Sequence[dict[str, Any]]) -> None:
+        self._upsert_many_by_primary_key_cursor(
+            cursor=cursor,
+            table_name=self.notice_stage_table,
+            key_columns=("run_id", "notice_id"),
+            column_types={
+                "run_id": "text",
+                "notice_id": "text",
+                "shard_id": "integer",
+                "batch_id": "integer",
+                "updated_at": "timestamptz",
+                "record": "jsonb",
+            },
+            rows=rows,
+        )
+
+    def _stage_raw_assets_cursor(self, *, cursor, rows: Sequence[dict[str, Any]]) -> None:
+        self._upsert_many_by_primary_key_cursor(
+            cursor=cursor,
+            table_name=self.raw_asset_stage_table,
+            key_columns=("run_id", "raw_asset_id", "raw_version_id"),
+            column_types={
+                "run_id": "text",
+                "raw_asset_id": "text",
+                "raw_version_id": "text",
+                "shard_id": "integer",
+                "batch_id": "integer",
+                "updated_at": "timestamptz",
+                "record": "jsonb",
+            },
+            rows=rows,
+        )
+
+    def _stage_documents_cursor(self, *, cursor, rows: Sequence[dict[str, Any]]) -> None:
+        self._upsert_many_by_primary_key_cursor(
             cursor=cursor,
             table_name=self.document_stage_table,
             key_columns=("run_id", "document_id", "revision_track", "version_id"),
-            row={
-                "run_id": run_id,
-                "document_id": str(document["document_id"]),
-                "revision_track": str(document["revision_track"]),
-                "version_id": str(document["version_id"]),
-                "shard_id": shard_id,
-                "batch_id": batch_id,
-                "updated_at": utc_now_dt(),
-                "record": payload,
+            column_types={
+                "run_id": "text",
+                "document_id": "text",
+                "revision_track": "text",
+                "version_id": "text",
+                "shard_id": "integer",
+                "batch_id": "integer",
+                "updated_at": "timestamptz",
+                "record": "jsonb",
             },
+            rows=rows,
         )
 
     def _require_run_cursor(self, cursor, run_id: str) -> CloseoutRun:
@@ -1493,7 +1708,7 @@ class PostgresAuthenticatedNoticeCloseoutStore:
         cursor.execute(
             (
                 f"select count(*) from {self.worker_table} "
-                "where run_id = %s and coalesce((record->>'active_batch_count')::integer, 0) > 0"
+                "where run_id = %s and coalesce(active_batch_count, 0) > 0"
             ),
             (run_id,),
         )
@@ -1541,6 +1756,54 @@ class PostgresAuthenticatedNoticeCloseoutStore:
                 f"on conflict ({', '.join(key_columns)}) do update set {assignments}"
             ),
             tuple(values),
+        )
+
+    def _upsert_many_by_primary_key_cursor(
+        self,
+        *,
+        cursor,
+        table_name: str,
+        key_columns: tuple[str, ...],
+        column_types: dict[str, str],
+        rows: Sequence[dict[str, Any]],
+    ) -> None:
+        if not rows:
+            return
+        columns = tuple(rows[0].keys())
+        for row in rows[1:]:
+            if tuple(row.keys()) != columns:
+                raise ValueError("bulk upsert rows must use the same column order")
+        unknown_columns = [column for column in columns if column not in column_types]
+        if unknown_columns:
+            raise ValueError(
+                f"bulk upsert column types missing for: {', '.join(sorted(unknown_columns))}"
+            )
+        update_columns = tuple(column for column in columns if column not in key_columns)
+        assignments = ", ".join(f"{column} = excluded.{column}" for column in update_columns)
+        recordset_columns = ", ".join(
+            f"{column} {column_types[column]}" for column in columns
+        )
+        statement = (
+            f"with rows as ("
+            f"select {', '.join(f'item.{column}' for column in columns)} "
+            f"from jsonb_to_recordset(%s::jsonb) as item({recordset_columns})"
+            f") "
+            f"insert into {table_name} ({', '.join(columns)}) "
+            f"select {', '.join(columns)} from rows "
+            f"on conflict ({', '.join(key_columns)}) do update set {assignments}"
+        )
+        payload: list[dict[str, Any]] = []
+        for row in rows:
+            serialized: dict[str, Any] = {}
+            for column in columns:
+                value = row[column]
+                if column == "updated_at" and value is not None and not isinstance(value, str):
+                    value = value.isoformat()
+                serialized[column] = value
+            payload.append(serialized)
+        cursor.execute(
+            statement,
+            (json.dumps(payload, ensure_ascii=False),),
         )
 
 

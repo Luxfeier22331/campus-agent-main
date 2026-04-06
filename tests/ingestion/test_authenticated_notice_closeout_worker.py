@@ -13,6 +13,7 @@ from campus_ingestion_core.authenticated_notice_closeout import (
     CloseoutPlanner,
     InMemoryCloseoutStore,
 )
+from campus_ingestion_core.authenticated_notice_import import AuthenticatedNoticeImportRequest
 from campus_ingestion_core.settings import ObjectStoreSettings
 from tests.ingestion.test_authenticated_notice_import import (
     _FakeObjectStore,
@@ -201,6 +202,49 @@ class AuthenticatedNoticeCloseoutWorkerCliTest(unittest.TestCase):
             if line.strip()
         ]
         self.assertEqual([item["state"] for item in rendered], ["planned", "verified"])
+
+    def test_run_worker_cli_spawns_parallel_worker_processes(self) -> None:
+        service = Mock()
+        service.show_run.return_value = {
+            "run_id": "run-parallel",
+            "state": "running",
+            "completed_batch_count": 2,
+            "pending_batch_count": 0,
+        }
+
+        with (
+            patch(
+                "campus_ingestion_worker.run_authenticated_notice_closeout_worker.load_worker_env"
+            ),
+            patch(
+                "campus_ingestion_worker.run_authenticated_notice_closeout_worker.AuthenticatedNoticeCloseoutService.from_env",
+                return_value=service,
+            ),
+            patch(
+                "campus_ingestion_worker.run_authenticated_notice_closeout_worker._run_parallel_worker_subprocesses",
+                create=True,
+            ) as run_parallel,
+            patch("sys.stdout", new_callable=io.StringIO) as stdout,
+        ):
+            run_worker.main(
+                [
+                    "--run-id",
+                    "run-parallel",
+                    "--parallel-workers",
+                    "2",
+                    "--worker-id-prefix",
+                    "worker",
+                ]
+            )
+
+        run_parallel.assert_called_once_with(
+            run_id="run-parallel",
+            worker_ids=("worker-01", "worker-02"),
+        )
+        service.show_run.assert_called_once_with("run-parallel")
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["state"], "running")
+        self.assertEqual(payload["completed_batch_count"], 2)
 
     def test_repair_cli_invokes_service_repair(self) -> None:
         service = Mock()

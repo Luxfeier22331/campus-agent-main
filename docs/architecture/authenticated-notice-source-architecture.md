@@ -159,10 +159,22 @@ attachment extraction lane 固定按类型分流，不做多套 fallback：
 
 - `reference_only`：只保留 source-truth relation，不生成 child document
 - `text_extractable`：走确定性的 native text extraction
-- `ocr_required`：走 repo 现有 online OCR provider 路径
+- `ocr_required`：走 repo 现有 online OCR provider 路径；lane outcome 固定再分成 `materialized_document` 或 `no_extractable_text`
 - `unsupported_binary`：直接 fast-fail，不静默降级为可检索文档
 
+`reference_only` 的固定补充：
+
+- source-truth relation 可以保留平台编辑器或门户 chrome 观测到的静态资源，但这些 decorative asset 不进入 child document materialization
+- 当前 internal notice projection 规则必须显式排除 editor static assets，例如 UEditor 默认主题下的 `spacer.gif` 之类占位图；它们属于 relation truth，不属于 OCR candidate
+
 当前 historical attachment corpus 以图片为主，因此 image OCR 是 first-class lane，不是补丁路径。
+
+`ocr_required` 的固定语义补充：
+
+- OCR 返回非空标准化文本时，必须 materialize child document
+- OCR 返回空文本时，不得伪造空 child document，也不得把整条 notice replay 视为 source-truth 损坏
+- 这类 attachment 继续保留 source-truth relation truth，但 closeout / replay 必须显式记录 `no_extractable_text` outcome，供 verifier 与 operator 审计
+- 这不是 fallback；它是 `ocr_required` lane 的一等结果形态，典型样本包括二维码、纯图标、无正文的内联图片
 
 ## Scope Materialization Rule
 
@@ -198,16 +210,20 @@ Phase 12.2 已把 authenticated notice historical closeout 重构为 async stage
 
 - 每次 run 的 operations truth 落在 `campus_notices/operations/authenticated-notice-closeout/{run_id}/`
 - run lifecycle 固定为 `planning -> planned -> running -> verifying -> verified -> promoting -> done|failed`
-- planner 负责读取 frozen bundle、生成 shard/batch plan，并把每个 batch 的 frozen input slice 写入 operations prefix
+- planner 负责派生 repo-owned projection-only inventory（`ingestion_projection`），这个 inventory 既落在 `operations/.../ingestion_projection.json`，也写入 `ingestion_projection` 表，用来驱动 planner、verifier、promoter 对已冻结 scope 的 metadata view
+- planner 冻结的是 attachment projection plan，而不是假设所有 OCR candidate 最终都必然 materialize 为 child document；对于 `ocr_required` attachment，frozen truth 至少要区分 `required_document` 与 `conditional_on_extracted_text`
+- source-truth replay repair 必须只消费 run-owned frozen inventory 与 frozen source-truth objects，但允许用当前 projection rules 重新计算 `attachment_projection_plans`；不得回退到 live registry rescan，也不得盲目沿用已知错误的旧 plan classification
+- planner 处基于 `ingestion_projection` 派生 shard/batch plan，并在 `ingestion_closeout.closeout_runs` / `closeout_batches` / `closeout_workers` 中依次写入 `planning_started`、`inventory_loaded`、`batches_frozen`、`planned` 这几个 milestone，后续 `show` / `watch` 只读这些聚合字段
 - shard 负责 planning / aggregation；真正的执行单元是 leased batch
-- worker / batch 可以并发写 source-truth objects 与 staged document objects
-- worker 只允许读取自己 claim 到的 batch input，不得重新 eager prepare 整份 bundle
+- worker / batch 可以并发写 source-truth objects 与 staged document objects，写入时必须直接采用 `ingestion_projection` 中的 typed stage columns（`projection_name`、`attachment_kind`、`extraction_lane`、`derived_from*`、`visibility_*`、`entitlement_*`、`policy_projection_version`）确保 downstream schema 固定
+- worker 在处理 `ocr_required` attachment 时，除了 staged document rows，还必须把 attachment-level replay outcome 落进 staged notice truth；verifier 要求每个 OCR candidate 都有确定 outcome，而不是只靠 document rows 反推
+- worker 只允许读取自己 claim 到的 batch input，不得重新 eager prepare 整份 bundle；批次完成后一次性在同一事务提交所有 `closeout_notice_stage`/`closeout_raw_asset_stage`/`closeout_document_stage` rows 以及 `closeout_batches`/`closeout_shards`/`closeout_workers` 聚合状态，避免 per-notice upsert 热路径写放大
 - staging state 固定落在 `ingestion_closeout.closeout_*` 表，其中 batch / worker truth 由 `closeout_batches` / `closeout_workers` 持有
 - promotion progress truth 由 `closeout_promotions` / `closeout_promotion_batches` 持有，`show` / `watch` 只能读这些聚合字段，不能靠 promotion stdout 或扫描 staged document rows
 - batch notice/raw/document rows 与 run/shard/batch/worker 聚合状态必须在同一事务内提交
 - shard 不得直接写 canonical `campus_notices/documents/internal_notice`
-- 所有 batch 完成后，只允许一个 finalizer 把 run 切到 `verifying` 并执行 metadata-driven verification
-- 只有单个 promoter 可以复制 staged document artifacts、构造 final registry rows、执行 `replace_scope`
+- 所有 batch 完成后，只允许一个 finalizer 把 run 切到 `verifying` 并执行 metadata-driven verification；验证器只读取 frozen projections / batch inputs 与 staged metadata（`sha256`/`content_length`/`raw_version_id`）再比对 object `HEAD`，不再回到 source-truth raw objects
+- promotion 只允许单个 promoter 复制 staged document artifacts、构造 final registry rows、执行 `replace_scope`；promoter 在复制 raw assets 及 staged metadata 时直接参考 `ingestion_projection` / `closeout_raw_asset_stage` 的 scoped rows 以 bulk upsert 方式维护 `raw_asset_registry` / `raw_asset_versions`，无须做 full-scope scan
 - promoter 内部允许并发 object-store native copy，但 single-writer scope mutation 语义不变；promotion copy 必须按 repo-owned batch truth 可恢复地推进，而不是依赖单个长时黑盒进程
 - operator status / progress 读取 operations prefix 与 staging tables，而不是通过 rerun checkpoint 获取；`show` / `watch` 必须只读聚合 progress truth，不扫描全量 staged rows
 

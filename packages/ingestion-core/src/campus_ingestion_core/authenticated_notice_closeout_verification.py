@@ -7,6 +7,12 @@ from campus_ingestion_core.authenticated_notice_closeout_artifacts import (
     CloseoutArtifactManager,
 )
 from campus_ingestion_core.authenticated_notice_closeout_store import CloseoutStore
+from campus_ingestion_core.authenticated_notice_source_projections import (
+    AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MATERIALIZED_DOCUMENT,
+    AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT,
+    AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_CONDITIONAL_ON_EXTRACTED_TEXT,
+    AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT,
+)
 from campus_ingestion_core.authenticated_notice_source_truth_replay import (
     SOURCE_TRUTH_REPLAY_INPUT_KIND,
 )
@@ -96,7 +102,6 @@ class CloseoutRunVerifier:
             planned_batch_notice_ids - expected_notice_ids
         )
         observed_notice_ids = {str(item["notice_id"]) for item in staged_notices}
-        expected_document_ids = expected_scope["document_ids"]
         observed_document_ids = {
             str(item["document"]["document_id"]) for item in staged_documents
         }
@@ -104,6 +109,55 @@ class CloseoutRunVerifier:
         observed_raw_asset_ids = {
             str(item["raw_record"]["raw_asset_id"]) for item in staged_raw_assets
         }
+        attachment_plans = dict(expected_scope["attachment_projection_plans"])
+        observed_attachment_outcomes: dict[tuple[str, str], dict[str, Any]] = {}
+        for staged_notice in staged_notices:
+            notice_id = str(staged_notice["notice_id"])
+            for outcome in tuple(staged_notice.get("attachment_outcomes") or ()):
+                attachment_ref_id = str(outcome.get("attachment_ref_id") or "")
+                if not attachment_ref_id:
+                    continue
+                observed_attachment_outcomes[(notice_id, attachment_ref_id)] = dict(outcome)
+
+        missing_attachment_outcomes: list[str] = []
+        unexpected_attachment_outcomes = sorted(
+            f"{notice_id}#{attachment_ref_id}"
+            for notice_id, attachment_ref_id in (set(observed_attachment_outcomes) - set(attachment_plans))
+        )
+        invalid_attachment_outcomes: list[str] = []
+        materialized_conditional_document_ids: set[str] = set()
+        no_extractable_text_count = 0
+        for attachment_key, plan in attachment_plans.items():
+            outcome = observed_attachment_outcomes.get(attachment_key)
+            if outcome is None:
+                missing_attachment_outcomes.append(f"{attachment_key[0]}#{attachment_key[1]}")
+                continue
+            if (
+                str(outcome.get("classification") or "") != str(plan["classification"])
+                or str(outcome.get("document_id") or "") != str(plan["document_id"])
+                or str(outcome.get("materialization_policy") or "") != str(plan["materialization_policy"])
+            ):
+                invalid_attachment_outcomes.append(f"{attachment_key[0]}#{attachment_key[1]}")
+                continue
+            outcome_name = str(outcome.get("outcome") or "")
+            materialization_policy = str(plan["materialization_policy"])
+            if materialization_policy == AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT:
+                if outcome_name != AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MATERIALIZED_DOCUMENT:
+                    invalid_attachment_outcomes.append(f"{attachment_key[0]}#{attachment_key[1]}")
+                continue
+            if materialization_policy != AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_CONDITIONAL_ON_EXTRACTED_TEXT:
+                invalid_attachment_outcomes.append(f"{attachment_key[0]}#{attachment_key[1]}")
+                continue
+            if outcome_name == AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MATERIALIZED_DOCUMENT:
+                materialized_conditional_document_ids.add(str(plan["document_id"]))
+                continue
+            if outcome_name == AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT:
+                no_extractable_text_count += 1
+                continue
+            invalid_attachment_outcomes.append(f"{attachment_key[0]}#{attachment_key[1]}")
+
+        expected_document_ids = set(expected_scope["document_ids"])
+        expected_document_ids.update(materialized_conditional_document_ids)
 
         notice_manifest_missing: list[str] = []
         for staged_notice in staged_notices:
@@ -196,19 +250,40 @@ class CloseoutRunVerifier:
         frozen_expected_attachment_document_count = int(
             run.expected_attachment_document_count
         )
+        frozen_expected_ocr_candidate_count = int(
+            run.expected_ocr_candidate_count
+        )
         frozen_expected_raw_asset_count = int(
             run.expected_raw_asset_count or len(expected_raw_asset_ids)
         )
         notice_missing = sorted(expected_notice_ids - observed_notice_ids)
+        required_document_count = len(expected_scope["document_ids"])
+        required_attachment_document_count = int(expected_scope["attachment_document_count"])
+        expected_ocr_candidate_count = int(expected_scope["ocr_candidate_count"])
+        final_attachment_document_count = (
+            required_attachment_document_count + len(materialized_conditional_document_ids)
+        )
         verification = {
             "run_id": run_id,
             "input_kind": run.input_kind,
             "frozen_expected_notice_count": run.expected_notice_count,
             "frozen_expected_document_count": frozen_expected_document_count,
             "frozen_expected_attachment_document_count": frozen_expected_attachment_document_count,
+            "frozen_expected_ocr_candidate_count": frozen_expected_ocr_candidate_count,
             "frozen_expected_raw_asset_count": frozen_expected_raw_asset_count,
             "expected_notice_count": len(expected_notice_ids),
-            "expected_attachment_document_count": expected_scope["attachment_document_count"],
+            "required_document_count": required_document_count,
+            "required_attachment_document_count": required_attachment_document_count,
+            "expected_attachment_document_count": final_attachment_document_count,
+            "expected_ocr_candidate_count": expected_ocr_candidate_count,
+            "materialized_ocr_attachment_document_count": len(materialized_conditional_document_ids),
+            "no_extractable_text_attachment_count": no_extractable_text_count,
+            "missing_attachment_outcome_count": len(missing_attachment_outcomes),
+            "missing_attachment_outcomes_sample": missing_attachment_outcomes[:20],
+            "unexpected_attachment_outcome_count": len(unexpected_attachment_outcomes),
+            "unexpected_attachment_outcomes_sample": unexpected_attachment_outcomes[:20],
+            "invalid_attachment_outcome_count": len(invalid_attachment_outcomes),
+            "invalid_attachment_outcomes_sample": invalid_attachment_outcomes[:20],
             "persisted_shard_count": len(shards),
             "persisted_batch_count": len(batches),
             "missing_shard_id_count": len(missing_shard_ids),
@@ -246,9 +321,6 @@ class CloseoutRunVerifier:
             and verification["missing_batch_notice_id_count"] == 0
             and verification["unexpected_batch_notice_id_count"] == 0
             and verification["frozen_expected_notice_count"] == verification["expected_notice_count"]
-            and verification["frozen_expected_document_count"] == verification["expected_document_id_count"]
-            and verification["frozen_expected_attachment_document_count"]
-            == verification["expected_attachment_document_count"]
             and verification["frozen_expected_raw_asset_count"] == verification["expected_raw_asset_id_count"]
             and verification["missing_notice_id_count"] == 0
             and verification["missing_notice_manifest_count"] == 0
@@ -260,7 +332,26 @@ class CloseoutRunVerifier:
             and verification["missing_raw_asset_id_count"] == 0
             and verification["unexpected_document_id_count"] == 0
             and verification["unexpected_raw_asset_id_count"] == 0
+            and verification["missing_attachment_outcome_count"] == 0
+            and verification["unexpected_attachment_outcome_count"] == 0
+            and verification["invalid_attachment_outcome_count"] == 0
         )
+        if run.input_kind == SOURCE_TRUTH_REPLAY_INPUT_KIND:
+            verification["ok"] = (
+                verification["ok"]
+                and verification["frozen_expected_document_count"] == verification["required_document_count"]
+                and verification["frozen_expected_attachment_document_count"]
+                == verification["required_attachment_document_count"]
+                and verification["frozen_expected_ocr_candidate_count"]
+                == verification["expected_ocr_candidate_count"]
+            )
+        else:
+            verification["ok"] = (
+                verification["ok"]
+                and verification["frozen_expected_document_count"] == verification["expected_document_id_count"]
+                and verification["frozen_expected_attachment_document_count"]
+                == verification["expected_attachment_document_count"]
+            )
         if not verification["ok"]:
             raise ValueError(f"closeout verification failed for {run_id}")
         return verification
@@ -272,6 +363,55 @@ class CloseoutRunVerifier:
         batches,
         run,
     ) -> dict[str, Any]:
+        if run.input_kind == SOURCE_TRUTH_REPLAY_INPUT_KIND:
+            inventory_key = str(run.source_truth_inventory_object_key or "").strip()
+            if not inventory_key:
+                raise ValueError(
+                    f"source-truth replay run missing frozen inventory artifact: {run_id}"
+                )
+            payload = json.loads(
+                self.artifacts.object_store.get_bytes(
+                    bucket=self.object_store_settings.bucket_derived,
+                    key=inventory_key,
+                ).decode("utf-8")
+            )
+            expected_notice_ids: set[str] = set()
+            expected_document_ids: set[str] = set()
+            expected_raw_asset_ids: set[str] = set()
+            parent_document_ids_by_notice: dict[str, str] = {}
+            attachment_document_count = 0
+            ocr_candidate_count = 0
+            attachment_projection_plans: dict[tuple[str, str], dict[str, str]] = {}
+            for parent in tuple(payload.get("parents") or ()):
+                notice_id = str(parent["notice_id"])
+                expected_notice_ids.add(notice_id)
+                parent_document_id = str(parent["document_id"])
+                expected_document_ids.add(parent_document_id)
+                parent_document_ids_by_notice[notice_id] = parent_document_id
+                expected_raw_asset_ids.add(str(parent["raw_record"]["raw_asset_id"]))
+                for plan in _attachment_projection_plans_from_parent(parent):
+                    attachment_projection_plans[(notice_id, str(plan["attachment_ref_id"]))] = plan
+                    if (
+                        str(plan["materialization_policy"])
+                        == AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT
+                    ):
+                        attachment_document_count += 1
+                        expected_document_ids.add(str(plan["document_id"]))
+                    elif (
+                        str(plan["materialization_policy"])
+                        == AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_CONDITIONAL_ON_EXTRACTED_TEXT
+                    ):
+                        ocr_candidate_count += 1
+            return {
+                "notice_ids": expected_notice_ids,
+                "document_ids": expected_document_ids,
+                "raw_asset_ids": expected_raw_asset_ids,
+                "parent_document_ids_by_notice": parent_document_ids_by_notice,
+                "attachment_document_count": attachment_document_count,
+                "ocr_candidate_count": ocr_candidate_count,
+                "attachment_projection_plans": attachment_projection_plans,
+            }
+
         expected_notice_ids: set[str] = set()
         expected_document_ids: set[str] = set()
         expected_raw_asset_ids: set[str] = set()
@@ -289,21 +429,6 @@ class CloseoutRunVerifier:
             if str(payload.get("run_id")) != run_id:
                 raise ValueError(f"closeout verification batch run mismatch: {batch.batch_id}")
             input_kind = str(payload.get("input_kind") or run.input_kind or "")
-            if input_kind == SOURCE_TRUTH_REPLAY_INPUT_KIND:
-                for parent in tuple(payload.get("source_truth_parents") or ()):
-                    notice_id = str(parent["notice_id"])
-                    expected_notice_ids.add(notice_id)
-                    parent_document_id = str(parent["document_id"])
-                    expected_document_ids.add(parent_document_id)
-                    parent_document_ids_by_notice[notice_id] = parent_document_id
-                    expected_raw_asset_ids.add(str(parent["raw_record"]["raw_asset_id"]))
-                    attachment_documents = tuple(
-                        parent.get("expected_attachment_documents") or ()
-                    )
-                    attachment_document_count += len(attachment_documents)
-                    for attachment in attachment_documents:
-                        expected_document_ids.add(str(attachment["document_id"]))
-                continue
             notice_ids = tuple(str(item) for item in payload.get("notice_ids") or ())
             expected_notice_ids.update(notice_ids)
             expected_document_ids.update(
@@ -319,7 +444,38 @@ class CloseoutRunVerifier:
             "raw_asset_ids": expected_raw_asset_ids,
             "parent_document_ids_by_notice": parent_document_ids_by_notice,
             "attachment_document_count": attachment_document_count,
+            "ocr_candidate_count": 0,
+            "attachment_projection_plans": {},
         }
+
+
+def _attachment_projection_plans_from_parent(
+    parent: dict[str, Any],
+) -> tuple[dict[str, str], ...]:
+    plans = tuple(dict(item) for item in parent.get("attachment_projection_plans") or ())
+    if plans:
+        return plans
+    fallback: list[dict[str, str]] = []
+    for item in tuple(parent.get("expected_attachment_documents") or ()):
+        payload = dict(item)
+        classification = str(payload.get("classification") or "")
+        materialization_policy = str(payload.get("materialization_policy") or "")
+        if not materialization_policy:
+            if classification == "ocr_required":
+                materialization_policy = (
+                    AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_CONDITIONAL_ON_EXTRACTED_TEXT
+                )
+            else:
+                materialization_policy = AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT
+        fallback.append(
+            {
+                "attachment_ref_id": str(payload["attachment_ref_id"]),
+                "classification": classification,
+                "document_id": str(payload["document_id"]),
+                "materialization_policy": materialization_policy,
+            }
+        )
+    return tuple(fallback)
 
 
 __all__ = [

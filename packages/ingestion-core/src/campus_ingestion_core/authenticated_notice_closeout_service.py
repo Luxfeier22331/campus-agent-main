@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
+import json
 import os
 from pathlib import Path
 from typing import Any
@@ -34,7 +37,19 @@ from campus_ingestion_core.authenticated_notice_import import (
     AuthenticatedNoticeImportRequest,
 )
 from campus_ingestion_core.authenticated_notice_source_truth_replay import (
+    SOURCE_TRUTH_REPLAY_INPUT_KIND,
     AuthenticatedNoticeSourceTruthReplayRequest,
+    _load_parent_source_truth_from_snapshot,
+)
+from campus_ingestion_core.authenticated_notice_source_projections import (
+    build_authenticated_notice_attachment_projection_plans,
+    load_authenticated_notice_source_projections_config,
+    read_authenticated_notice_source_projections_config_path,
+)
+from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
+    AuthenticatedNoticeSourceTruthInventoryStore,
+    InMemoryAuthenticatedNoticeSourceTruthInventoryStore,
+    build_authenticated_notice_source_truth_inventory_store_from_env,
 )
 from campus_ingestion_core.registry import (
     DocumentRegistry,
@@ -55,6 +70,7 @@ class AuthenticatedNoticeCloseoutService:
         object_store_settings: ObjectStoreSettings,
         document_registry: DocumentRegistry,
         raw_asset_registry: RawAssetRegistry,
+        source_truth_inventory_store: AuthenticatedNoticeSourceTruthInventoryStore | None = None,
         planner: CloseoutPlanner | None = None,
         verifier: CloseoutVerifier | None = None,
         ocr_client: OnlineOcrClient | None = None,
@@ -64,6 +80,11 @@ class AuthenticatedNoticeCloseoutService:
         self.object_store_settings = object_store_settings
         self.document_registry = document_registry
         self.raw_asset_registry = raw_asset_registry
+        self.source_truth_inventory_store = (
+            source_truth_inventory_store
+            if source_truth_inventory_store is not None
+            else InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+        )
         self.planner = planner or CloseoutPlanner()
         self.verifier = verifier or CloseoutVerifier()
         self.artifacts = CloseoutArtifactManager(
@@ -82,6 +103,7 @@ class AuthenticatedNoticeCloseoutService:
             artifacts=self.artifacts,
             document_registry=document_registry,
             raw_asset_registry=raw_asset_registry,
+            source_truth_inventory_store=self.source_truth_inventory_store,
             build_run_summary=self._build_run_summary,
         )
         self.execution = CloseoutExecutionCoordinator(
@@ -122,6 +144,9 @@ class AuthenticatedNoticeCloseoutService:
             object_store_settings=settings,
             document_registry=build_document_registry_from_env(source),
             raw_asset_registry=build_raw_asset_registry_from_env(source),
+            source_truth_inventory_store=build_authenticated_notice_source_truth_inventory_store_from_env(
+                source
+            ),
             planner=planner,
         )
 
@@ -163,6 +188,51 @@ class AuthenticatedNoticeCloseoutService:
             poll_interval=poll_interval,
         )
 
+    def run_workers(
+        self,
+        *,
+        run_id: str,
+        worker_count: int,
+        worker_id_prefix: str,
+        max_batches: int | None = None,
+        poll_interval: float | None = None,
+    ) -> dict[str, Any]:
+        if worker_count <= 0:
+            raise ValueError("worker_count must be positive")
+        prefix = worker_id_prefix.strip()
+        if not prefix:
+            raise ValueError("worker_id_prefix is required")
+        run = self.closeout_store.get_run(run_id)
+        if run is None:
+            raise ValueError(f"closeout run not found: {run_id}")
+        request = self._request_from_run(run)
+        worker_ids = tuple(f"{prefix}-{index + 1:02d}" for index in range(worker_count))
+        failures: list[tuple[str, Exception]] = []
+        with ThreadPoolExecutor(
+            max_workers=worker_count,
+            thread_name_prefix="closeout-worker",
+        ) as executor:
+            future_by_worker = {
+                executor.submit(
+                    self.execution.run_worker,
+                    run=run,
+                    request=request,
+                    worker_id=worker_id,
+                    max_batches=max_batches,
+                    poll_interval=poll_interval,
+                ): worker_id
+                for worker_id in worker_ids
+            }
+            for future, worker_id in future_by_worker.items():
+                try:
+                    future.result()
+                except Exception as exc:
+                    failures.append((worker_id, exc))
+        if failures:
+            worker_id, exc = failures[0]
+            raise RuntimeError(f"closeout worker failed: {worker_id}: {exc}") from exc
+        return self._build_run_summary(run_id)
+
     def plan_source_truth_replay_run(
         self,
         *,
@@ -201,6 +271,8 @@ class AuthenticatedNoticeCloseoutService:
         run = self.closeout_store.get_run(run_id)
         if run is None:
             raise ValueError(f"closeout run not found: {run_id}")
+        if run.input_kind == SOURCE_TRUTH_REPLAY_INPUT_KIND:
+            run = self._refresh_source_truth_replay_frozen_inventory(run)
         return self.repair.repair_run(
             run=run,
             request=self._request_from_run(run),
@@ -246,6 +318,7 @@ class AuthenticatedNoticeCloseoutService:
                 run.expected_document_count or run.expected_notice_count
             ),
             "expected_attachment_document_count": run.expected_attachment_document_count,
+            "expected_ocr_candidate_count": run.expected_ocr_candidate_count,
             "expected_raw_asset_count": (
                 run.expected_raw_asset_count or run.expected_notice_count
             ),
@@ -300,6 +373,123 @@ class AuthenticatedNoticeCloseoutService:
             embedding_model=run.embedding_model,
             import_source=run.import_source,
         )
+
+    def _refresh_source_truth_replay_frozen_inventory(self, run):
+        inventory_key = str(run.source_truth_inventory_object_key or "").strip()
+        if not inventory_key:
+            raise ValueError(
+                f"source-truth replay run missing frozen inventory artifact: {run.run_id}"
+            )
+        payload = json.loads(
+            self.object_store.get_bytes(
+                bucket=self.object_store_settings.bucket_derived,
+                key=inventory_key,
+            ).decode("utf-8")
+        )
+        if str(payload.get("run_id") or "") != run.run_id:
+            raise ValueError(
+                f"source-truth replay frozen inventory run mismatch: {run.run_id}"
+            )
+        config_path = (
+            Path(run.source_projections_path)
+            if run.source_projections_path
+            else read_authenticated_notice_source_projections_config_path(dict(os.environ))
+        )
+        config = load_authenticated_notice_source_projections_config(config_path)
+        parents = []
+        required_attachment_document_count = 0
+        ocr_candidate_count = 0
+        for parent in tuple(payload.get("parents") or ()):
+            parent_source_truth = _load_parent_source_truth_from_snapshot(
+                parent_snapshot=dict(parent),
+                object_store=self.object_store,
+                object_store_settings=self.object_store_settings,
+            )
+            attachment_projection_plans = [
+                dict(item)
+                for item in build_authenticated_notice_attachment_projection_plans(
+                    parent_document_id=parent_source_truth.record.document_id,
+                    attachment_refs=parent_source_truth.attachment_refs,
+                    config=config,
+                )
+            ]
+            required_documents = [
+                dict(plan)
+                for plan in attachment_projection_plans
+                if str(plan.get("materialization_policy") or "") == "required_document"
+            ]
+            text_extractable_count = sum(
+                1
+                for plan in attachment_projection_plans
+                if str(plan.get("classification") or "") == "text_extractable"
+            )
+            parent_ocr_candidate_count = sum(
+                1
+                for plan in attachment_projection_plans
+                if str(plan.get("materialization_policy") or "")
+                == "conditional_on_extracted_text"
+            )
+            required_attachment_document_count += len(required_documents)
+            ocr_candidate_count += parent_ocr_candidate_count
+            parent_payload = dict(parent)
+            parent_payload["attachment_projection_plans"] = attachment_projection_plans
+            parent_payload["expected_attachment_documents"] = required_documents
+            parent_payload["attachment_document_count"] = len(required_documents)
+            parent_payload["text_extractable_count"] = text_extractable_count
+            parent_payload["ocr_required_count"] = parent_ocr_candidate_count
+            parent_payload["reference_only_count"] = max(
+                len(parent_source_truth.attachment_refs)
+                - text_extractable_count
+                - parent_ocr_candidate_count,
+                0,
+            )
+            parents.append(parent_payload)
+        notice_count = len(parents)
+        self.object_store.put_bytes(
+            bucket=self.object_store_settings.bucket_derived,
+            key=inventory_key,
+            data=json.dumps(
+                {
+                    "run_id": run.run_id,
+                    "input_kind": SOURCE_TRUTH_REPLAY_INPUT_KIND,
+                    "site_id": payload["site_id"],
+                    "source_home_url": payload["source_home_url"],
+                    "embedding_model": payload["embedding_model"],
+                    "expected_notice_count": notice_count,
+                    "expected_document_count": notice_count + required_attachment_document_count,
+                    "expected_attachment_document_count": required_attachment_document_count,
+                    "expected_ocr_candidate_count": ocr_candidate_count,
+                    "expected_raw_asset_count": int(payload.get("expected_raw_asset_count") or run.expected_raw_asset_count),
+                    "parents": parents,
+                },
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            ).encode("utf-8"),
+            content_type="application/json",
+        )
+        refreshed_run = replace(
+            run,
+            expected_document_count=notice_count + required_attachment_document_count,
+            expected_attachment_document_count=required_attachment_document_count,
+            expected_ocr_candidate_count=ocr_candidate_count,
+            expected_raw_asset_count=int(payload.get("expected_raw_asset_count") or run.expected_raw_asset_count),
+        )
+        self.closeout_store.save_run(refreshed_run)
+        self.closeout_store.record_milestone(
+            run.run_id,
+            "inventory_refreshed",
+            {
+                "run_id": run.run_id,
+                "input_kind": SOURCE_TRUTH_REPLAY_INPUT_KIND,
+                "expected_notice_count": notice_count,
+                "expected_document_count": notice_count + required_attachment_document_count,
+                "expected_attachment_document_count": required_attachment_document_count,
+                "expected_ocr_candidate_count": ocr_candidate_count,
+                "expected_raw_asset_count": int(payload.get("expected_raw_asset_count") or run.expected_raw_asset_count),
+            },
+        )
+        return refreshed_run
 
 
 __all__ = [

@@ -53,6 +53,9 @@ from campus_ingestion_worker.rebuild_authenticated_notice_source_projections imp
     AuthenticatedNoticeSourceProjectionRequest,
     rebuild_authenticated_notice_source_projections,
 )
+from campus_ingestion_worker.rebuild_authenticated_notice_source_truth_inventory import (
+    rebuild_authenticated_notice_source_truth_inventory,
+)
 from campus_ingestion_core.authenticated_notice_closeout import (
     AuthenticatedNoticeSourceTruthReplayRequest,
 )
@@ -92,6 +95,7 @@ __all__ = [
     "load_worker_env",
     "import_authenticated_notice_export",
     "rebuild_authenticated_notice_source_projections",
+    "rebuild_authenticated_notice_source_truth_inventory",
     "migrate_student_handbook_source_faithful",
     "official_web_handoff_consumer_main",
     "official_web_historical_backfill_main",

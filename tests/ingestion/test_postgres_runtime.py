@@ -145,6 +145,102 @@ class PersistentPostgresRuntimeTest(unittest.TestCase):
         )
         self.assertEqual(autocommit_values, [False, True])
 
+    def test_pooled_connection_uses_lazy_single_connection_pool_for_supabase_session_pooler(
+        self,
+    ) -> None:
+        runtime = importlib.import_module("campus_ingestion_core.postgres_runtime")
+
+        created: list[object] = []
+
+        class _BorrowContext:
+            def __init__(self, pool: _FakePool) -> None:
+                self.pool = pool
+
+            def __enter__(self) -> object:
+                self.pool.borrow_count += 1
+                return object()
+
+            def __exit__(self, exc_type, exc, tb) -> bool:
+                return False
+
+        class _FakePool:
+            def __init__(self, *args, **kwargs) -> None:
+                self.args = args
+                self.kwargs = kwargs
+                self.borrow_count = 0
+
+            def connection(self) -> _BorrowContext:
+                return _BorrowContext(self)
+
+            def close(self) -> None:
+                return None
+
+        def _build_pool(*args, **kwargs) -> _FakePool:
+            pool = _FakePool(*args, **kwargs)
+            created.append(pool)
+            return pool
+
+        with patch("campus_ingestion_core.postgres_runtime.ConnectionPool", side_effect=_build_pool):
+            with runtime.pooled_postgres_connection(SESSION_POOLER_URL):
+                pass
+
+        self.assertEqual(len(created), 1)
+        self.assertEqual(
+            created[0].kwargs["min_size"],
+            runtime.SUPABASE_SESSION_POOLER_RUNTIME_POOL_MIN_SIZE,
+        )
+        self.assertEqual(
+            created[0].kwargs["max_size"],
+            runtime.SUPABASE_SESSION_POOLER_RUNTIME_POOL_MAX_SIZE,
+        )
+
+    def test_pooled_connection_keeps_default_pool_size_for_non_supabase_runtime(self) -> None:
+        runtime = importlib.import_module("campus_ingestion_core.postgres_runtime")
+
+        created: list[object] = []
+
+        class _BorrowContext:
+            def __init__(self, pool: _FakePool) -> None:
+                self.pool = pool
+
+            def __enter__(self) -> object:
+                self.pool.borrow_count += 1
+                return object()
+
+            def __exit__(self, exc_type, exc, tb) -> bool:
+                return False
+
+        class _FakePool:
+            def __init__(self, *args, **kwargs) -> None:
+                self.args = args
+                self.kwargs = kwargs
+                self.borrow_count = 0
+
+            def connection(self) -> _BorrowContext:
+                return _BorrowContext(self)
+
+            def close(self) -> None:
+                return None
+
+        def _build_pool(*args, **kwargs) -> _FakePool:
+            pool = _FakePool(*args, **kwargs)
+            created.append(pool)
+            return pool
+
+        with patch("campus_ingestion_core.postgres_runtime.ConnectionPool", side_effect=_build_pool):
+            with runtime.pooled_postgres_connection("postgresql://registry.example/postgres"):
+                pass
+
+        self.assertEqual(len(created), 1)
+        self.assertEqual(
+            created[0].kwargs["min_size"],
+            runtime.DEFAULT_PERSISTENT_POSTGRES_POOL_MIN_SIZE,
+        )
+        self.assertEqual(
+            created[0].kwargs["max_size"],
+            runtime.DEFAULT_PERSISTENT_POSTGRES_POOL_MAX_SIZE,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

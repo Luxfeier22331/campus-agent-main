@@ -46,6 +46,21 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.run_a
 
 多 worker 并行时，只需要在不同进程/机器上使用不同 `worker-id` 重复执行这条命令。
 
+如果要在同一台机器上一次性拉起多个本地 worker，也可以使用：
+
+```bash
+uv run --package campus-ingestion-worker python -m campus_ingestion_worker.run_authenticated_notice_closeout_worker \
+  --run-id run-14-async \
+  --parallel-workers 8 \
+  --worker-id-prefix worker
+```
+
+这条命令的 accepted 语义固定为：
+
+- 父进程只负责编排
+- 每个 worker 都在独立子进程里执行 `--worker-id worker-XX`
+- 不再把多个 leased worker 塞进一个共享同一应用侧连接池的单进程线程池
+
 ### 3. 查询 run 状态
 
 ```bash
@@ -187,6 +202,20 @@ promotion 执行中，`show` / `watch` 至少应能读到：
 5. 只续跑缺失 batch
 6. 以完整 frozen plan 重新 verification
 7. verification 通过后只 promote 一次
+
+如果失败原因不是 partial batch rows，而是已经完成的 batch 里存在 stale stage rows，例如：
+
+- `closeout_notice_stage` 缺少当前 verifier 需要的 `attachment_outcomes`
+- source projection rules 已更新，旧 batch stage 里还残留已经不再属于 expected scope 的 child document rows
+
+则 canonical repair 语义调整为：
+
+1. 仍然只修同一个 run
+2. 识别受影响的 completed batch
+3. 先清掉这些 batch 对应的 notice/raw/document stage rows
+4. 再把这些 completed batch 重开为 `pending`
+5. 只重跑这些 stale completed batch
+6. 重新 verification 后再继续单次 promote
 
 禁止：
 

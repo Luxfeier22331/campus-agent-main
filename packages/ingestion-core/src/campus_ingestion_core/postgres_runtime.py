@@ -16,6 +16,8 @@ DEFAULT_PERSISTENT_POSTGRES_POOL_TIMEOUT_SECONDS = 10.0
 DEFAULT_PERSISTENT_POSTGRES_POOL_MAX_IDLE_SECONDS = 300.0
 DEFAULT_PERSISTENT_POSTGRES_POOL_MAX_LIFETIME_SECONDS = 1800.0
 SUPABASE_SESSION_POOLER_PORT = 5432
+SUPABASE_SESSION_POOLER_RUNTIME_POOL_MIN_SIZE = 0
+SUPABASE_SESSION_POOLER_RUNTIME_POOL_MAX_SIZE = 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,10 +92,11 @@ def _persistent_postgres_pool(database_url: str, *, autocommit: bool) -> object:
             raise RuntimeError(
                 "psycopg_pool is required to use pooled Postgres runtime connections"
             )
+        min_size, max_size = _persistent_postgres_pool_size(database_url)
         pool = ConnectionPool(
             conninfo=database_url,
-            min_size=DEFAULT_PERSISTENT_POSTGRES_POOL_MIN_SIZE,
-            max_size=DEFAULT_PERSISTENT_POSTGRES_POOL_MAX_SIZE,
+            min_size=min_size,
+            max_size=max_size,
             timeout=DEFAULT_PERSISTENT_POSTGRES_POOL_TIMEOUT_SECONDS,
             max_idle=DEFAULT_PERSISTENT_POSTGRES_POOL_MAX_IDLE_SECONDS,
             max_lifetime=DEFAULT_PERSISTENT_POSTGRES_POOL_MAX_LIFETIME_SECONDS,
@@ -121,6 +124,19 @@ def _resolved_sslmode(query: str) -> str:
     return str(values[-1]).strip().lower()
 
 
+def _persistent_postgres_pool_size(database_url: str) -> tuple[int, int]:
+    hostname = (urlparse(database_url).hostname or "").strip().lower()
+    if _is_supabase_session_pooler_host(hostname):
+        return (
+            SUPABASE_SESSION_POOLER_RUNTIME_POOL_MIN_SIZE,
+            SUPABASE_SESSION_POOLER_RUNTIME_POOL_MAX_SIZE,
+        )
+    return (
+        DEFAULT_PERSISTENT_POSTGRES_POOL_MIN_SIZE,
+        DEFAULT_PERSISTENT_POSTGRES_POOL_MAX_SIZE,
+    )
+
+
 __all__ = [
     "DEFAULT_PERSISTENT_POSTGRES_POOL_MAX_IDLE_SECONDS",
     "DEFAULT_PERSISTENT_POSTGRES_POOL_MAX_LIFETIME_SECONDS",
@@ -128,6 +144,8 @@ __all__ = [
     "DEFAULT_PERSISTENT_POSTGRES_POOL_MIN_SIZE",
     "DEFAULT_PERSISTENT_POSTGRES_POOL_TIMEOUT_SECONDS",
     "SUPABASE_SESSION_POOLER_PORT",
+    "SUPABASE_SESSION_POOLER_RUNTIME_POOL_MAX_SIZE",
+    "SUPABASE_SESSION_POOLER_RUNTIME_POOL_MIN_SIZE",
     "close_persistent_postgres_pools",
     "pooled_postgres_connection",
     "validate_persistent_postgres_runtime_url",

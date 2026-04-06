@@ -60,6 +60,53 @@ updated: 2026-04-06
 - export bundle JSON
 - “某个附件单独重跑”的一次性临时清单
 
+## Source Object Completeness Invariant
+
+source-truth replay 额外依赖一个不可放宽的前提：
+
+- `attachment-refs.jsonl` 里凡是带 `object_key` 的 attachment ref，对应源对象都必须已经存在于 source bucket
+
+如果 worker 在 replay attachment child document 时遇到 `NoSuchKey`，这不是 replay runner 的重试问题，而是 source bucket completeness 被破坏。
+
+处理原则固定为：
+
+- 不改 canonical input
+- 不把 collector 的 `local_path` 写回 repo contract
+- 允许把 `bundle + blob_root` 作为一次性 operator repair input，用来把缺失源对象补回 source bucket
+- 回填完成后修复同一个 run，再继续 worker；不要新开 delta run
+
+repo-owned repair 入口：
+
+```bash
+uv run --package campus-ingestion-worker python -m campus_ingestion_worker.backfill_authenticated_notice_attachment_objects \
+  --bundle-path /home/reptilian/code/rag-data/muc-notice-collector/runtime/exports/notices-bundle-20260403-full.json \
+  --blob-root /home/reptilian/code/rag-data/muc-notice-collector/runtime/blob-store \
+  --max-concurrency 8
+```
+
+如果只想针对已知失败 notice 精确回填，可重复传入 `--notice-id`：
+
+```bash
+uv run --package campus-ingestion-worker python -m campus_ingestion_worker.backfill_authenticated_notice_attachment_objects \
+  --bundle-path /home/reptilian/code/rag-data/muc-notice-collector/runtime/exports/notices-bundle-20260403-full.json \
+  --blob-root /home/reptilian/code/rag-data/muc-notice-collector/runtime/blob-store \
+  --notice-id 354605 \
+  --notice-id 353301 \
+  --notice-id 354016 \
+  --notice-id 354371 \
+  --notice-id 354954 \
+  --max-concurrency 8
+```
+
+这条命令的行为固定为 fast fail：
+
+- bundle relation 有 `object_key` 但缺 `sha256`，直接失败
+- source bucket 已有对象但内容摘要不匹配，直接失败
+- source bucket 缺对象且 `blob_root/object_key` 不存在，直接失败
+- 本地 blob 内容与 bundle `sha256` / `byte_size` 不一致，直接失败
+
+回填成功后，继续对同一个 run 执行 repair + worker resume。
+
 ## Canonical Processing Unit
 
 已导入历史数据的 canonical 处理单元固定为 `notice scope`。
@@ -86,6 +133,8 @@ updated: 2026-04-06
 
 先从 document registry 枚举 `authenticated_notice_portal` 父 notice rows，并冻结一份 run-owned notice inventory。
 
+inventory 本质上是一个 projection-only metadata snapshot：planner 不再 re-scan every `source-truth` artifact, 而是根据 `notice-manifest.json` / `content-blocks.jsonl` / `attachment-refs.jsonl` 派生出一个轻量的 `ingestion_projection` 视图。这份 projection 既落在 `campus_notices/operations/authenticated-notice-closeout/{run_id}/ingestion_projection.json`，也写入 `ingestion_projection` 表，供 planner 和 verifier 共享。
+
 inventory 至少包含：
 
 - `document_id`
@@ -95,8 +144,17 @@ inventory 至少包含：
 - source-truth object refs
 - attachment ref count
 - attachment extraction-class summary
+- attachment kind / extraction lane / projection_name / visibility projections (typed fields required for downstream stage commit)
 
-这一步的目标是把“当前要消费什么”固定下来，避免 worker 在执行中反复扫描整份 scope。
+repair frozen run 时的固定规则补充：
+
+- repair 允许刷新 `ingestion_projection.json`，但输入仍然只能是该 run 自己冻结下来的 parent snapshots 与 frozen source-truth objects
+- repair 必须用当前 source projection rules 重算 attachment projection plan，不能把旧 run 中已经证明错误的 attachment classification 原样保留
+- 这条规则尤其覆盖“平台 decorative asset 曾被误判进 OCR lane”这类情况；例如 editor static assets（`spacer.gif` 等）在 repair 后必须回到 `reference_only`
+- 如果 verifier 发现某些 completed batch 的 `closeout_notice_stage` 仍是旧 shape，缺少 `attachment_outcomes`，repair 必须重开这些 completed batch，而不是继续把它们当 done
+- 对这类 reopened batch，repair 必须先清掉该 batch 在 `closeout_notice_stage` / `closeout_raw_asset_stage` / `closeout_document_stage` 中的旧 rows，再允许 worker 重新 materialize；不能把旧 stage rows 和新 projection 结果混在一起
+
+这一步的目标是把“当前要消费什么”固定下来，避免 worker 在执行中反复扫描整份 scope，同时把 derived metadata 作为 planning 进度的 canonical truth。
 
 ### 2. Plan Batches By Notice Scope
 
@@ -108,6 +166,15 @@ planning 必须按 notice scope 生成 batch。
 - batch 只持有自己冻结后的 notice slice
 - worker 只允许读取自己 claim 到的 batch input
 - 不允许在 worker 热路径里重新 eager prepare 整个 source scope
+
+为了 operator 能感知 planner 进度，planner 会在 run manifest / `ingestion_closeout.closeout_runs` 中依次写入 `planning_started` / `inventory_loaded` / `batches_frozen` / `planned` 这几个 progress milestone。具体来说：
+
+- `planning_started`：planner 把 run manifest 写入 operations prefix，并开始读 projection inventory。
+- `inventory_loaded`：planner 读完 `ingestion_projection`，确认每个 notice 的 typed metadata 并准备分 batch；这个状态可供 `show` / `watch` 报告当前 inventory 序列。
+- `batches_frozen`：每个 batch 的 frozen input slice（manifest + inventory subset）写出到 `batches/<batch>/input.json`。
+- `planned`：全部 batch manifest / metadata 写完，run 状态刷新到 `planned`，可以启动 leased worker。
+
+这些状态都建立在 projection-only inventory 之上；planner 不允许在 `planning` 期间重新触碰 `source-truth` 对象，只能基于 `ingestion_projection` 派生的 slices。
 
 建议使用加权 batch，而不是简单平均 notice 数：
 
@@ -179,6 +246,23 @@ projection replay 之后，parent 与 child document 都进入 repo-owned cleanu
 
 因此 chunking / embedding / index release 可以发生，但不代表该 collection 已经进入 query-serving。
 
+### 4.1 Typed Stage Columns & Bulk Commit
+
+planner 与 worker 在 `closeout_notice_stage` / `closeout_raw_asset_stage` / `closeout_document_stage` 的热路径写入中，必须提前摄入 `ingestion_projection` 中的 typed fields：
+
+- `projection_name`
+- `attachment_kind`
+- `extraction_lane`
+- `derived_from` / `derived_from_document_id` 等 provenance columns
+- `visibility_*` / `entitlement_*` / `policy_projection_version`
+
+这些字段直接构成 `stage` 表的 schema，所以 planner 在 `ingestion_projection` 中 already materializes them, worker 只要 bulk stage 语义地依次写入一个 batch 的 notice/raw/document rows，避免每条 notice 多次 upsert。具体来说：
+
+- worker 在处理完 batch 时一次性 `INSERT` `closeout_*_stage`，再在同一事务内更新 `closeout_batches` / `closeout_shards` / `closeout_workers`。
+- stage rows 的 `projection_name` 与 `derived_from` 保证 verifier/promoter 能够把批次重新映射回 source-truth scope，而不再需要额外 scan raw data.
+
+以上保障了 hot path 写放大的收敛，提交本身以 batch 为单位发生。
+
 ### 5. Verify Before Scope Mutation
 
 verification 固定以 metadata-driven 方式进行，不以“把所有对象正文重新读一遍”作为默认路径。
@@ -197,6 +281,8 @@ verification 未通过时：
 - 不 promote
 - 修复同一个 run
 - 不新开 delta run 去拼 canonical scope
+
+verifier 只读 `ingestion_projection` / `batches/<batch>/input.json` 这类 frozen inventory artifact，逐条对照 staged rows 的 metadata（`sha256`/`content_length`/`raw_version_id`）与 object `HEAD`，不再重新遍历 `source-truth` raw objects。
 
 ### 6. Single Promote
 
@@ -218,6 +304,14 @@ verification 未通过时：
 - 拆成多个 delta promote
 - 先 promote parent 再 promote attachment
 
+### 7. Promotion Progress Without Full Scans
+
+single promoter 仍然唯一变更 canonical scope，但可以在 promotion stage 里以 bulk-friendly 方式处理 raw asset upsert：
+
+- promoter 读 `ingestion_projection` + `closeout_raw_asset_stage` 中的 scoped rows，直接 bulk upsert `raw_asset_registry` / `raw_asset_versions`，不再对整个 collection 做 full-scope scan。
+- promoter 的 object-store native copy / upsert 有两个阶段：先把 staged object metadata & digest 复制到 final keys，再在 promotion progress rows 中逐 batch 标记 `raw_asset_count` / `document_count`，方便后续 `show` / `watch` 直接读 aggregated progress truth。
+- 只要 `closeout_promotions` / `closeout_promotion_batches` 的 aggregation fields 可信，operator 也不需要靠 scanning staged objects 判断 promoter 是否完成。
+
 ## Attachment Handling Rules
 
 attachment extraction lane 固定按类型分流：
@@ -231,6 +325,10 @@ attachment extraction lane 固定按类型分流：
 - `ocr_required`
   - 走在线 OCR provider
   - 当前至少覆盖 image-heavy historical corpus：`png`、`jpg`、`jpeg`、`bmp`、`gif`
+  - lane outcome 固定分成两类：
+    - `materialized_document`：OCR 产出非空标准化文本，生成 child document
+    - `no_extractable_text`：OCR 成功返回但没有可提取正文，不生成 child document
+  - `no_extractable_text` 不是 fallback，也不是静默跳过；它必须作为 attachment-level replay outcome 落进 staged truth，供 verification / operator 审计
 - `unsupported_binary`
   - 直接 fast-fail
   - 不静默降级成可检索文档
@@ -249,6 +347,13 @@ child attachment document 必须携带明确的 derived metadata，包括但不�
 - `attachment_content_sha256`
 - `extraction_class`
 - `extraction_policy_version`
+
+planning / verification 口径固定补充：
+
+- frozen inventory / batch input 冻结的是 attachment projection plan，不把所有 OCR candidate 预先当成“必有 child document”
+- verifier 必须确认每个 OCR candidate 都有确定 outcome
+- final expected document scope = parent documents + `text_extractable` child documents + outcome 为 `materialized_document` 的 OCR children
+- `no_extractable_text` attachment 继续作为 source-truth relation 留存，但不进入 final document scope
 
 ## Throughput Posture
 
