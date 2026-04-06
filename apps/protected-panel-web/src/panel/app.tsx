@@ -1,16 +1,9 @@
-import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
 import FindInPageOutlinedIcon from "@mui/icons-material/FindInPageOutlined";
-import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
 import LanguageOutlinedIcon from "@mui/icons-material/LanguageOutlined";
-import PendingActionsOutlinedIcon from "@mui/icons-material/PendingActionsOutlined";
-import RuleFolderOutlinedIcon from "@mui/icons-material/RuleFolderOutlined";
 import TravelExploreOutlinedIcon from "@mui/icons-material/TravelExploreOutlined";
-import { type ReactNode } from "react";
 import {
   Admin,
   CustomRoutes,
-  Layout,
-  Menu,
   Resource,
 } from "react-admin";
 import { Route } from "react-router-dom";
@@ -19,6 +12,7 @@ import { protectedPanelAuthProvider } from "./auth-provider";
 import { protectedPanelDataProvider } from "./data-provider";
 import { DelayedDomainPage } from "./pages/delayed-domain-page";
 import { OverviewPage } from "./pages/overview-page";
+import { ProtectedPanelLayout } from "./panel-layout";
 import { PANEL_COPY } from "./panel-copy";
 import { OfficialWebRunShowPage } from "./official-web/run-show";
 import { OfficialWebRunsListPage } from "./official-web/runs-list";
@@ -27,36 +21,6 @@ import { OfficialWebSitesListPage } from "./official-web/sites-list";
 import { AccessRequiredPage } from "./pages/access-required-page";
 import { RequestListPage } from "./requests/request-list";
 import { RequestShowPage } from "./requests/request-show";
-
-function ProtectedPanelMenu() {
-  return (
-    <Menu>
-      <Menu.Item leftIcon={<DashboardOutlinedIcon />} primaryText={PANEL_COPY.menu.overview} to="/" />
-      <Menu.ResourceItem name="requests" />
-      <Menu.Item
-        leftIcon={<LanguageOutlinedIcon />}
-        primaryText={PANEL_COPY.menu.officialWebSites}
-        to="/officialWebSites"
-      />
-      <Menu.Item
-        leftIcon={<TravelExploreOutlinedIcon />}
-        primaryText={PANEL_COPY.menu.officialWebRuns}
-        to="/officialWebRuns"
-      />
-      <Menu.Item leftIcon={<RuleFolderOutlinedIcon />} primaryText={PANEL_COPY.menu.jobs} to="/jobs" />
-      <Menu.Item
-        leftIcon={<PendingActionsOutlinedIcon />}
-        primaryText={PANEL_COPY.menu.operations}
-        to="/operations"
-      />
-      <Menu.Item leftIcon={<HistoryOutlinedIcon />} primaryText={PANEL_COPY.menu.audit} to="/audit" />
-    </Menu>
-  );
-}
-
-function ProtectedPanelLayout({ children }: { children: ReactNode }) {
-  return <Layout menu={ProtectedPanelMenu}>{children}</Layout>;
-}
 
 export function ProtectedPanelAdminApp() {
   return (

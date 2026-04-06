@@ -13,7 +13,6 @@ service = "app-api"
 PANEL_PROTECTION_ENVELOPE = "cloudflare-access"
 PANEL_RUNTIME_API_BASE_URL = "https://campus-api-staging.ayafeed.com"
 SENTRY_ENVIRONMENT = "staging"
-SENTRY_RELEASE = "protected-panel-web@staging-20260405-05c3d45"
 
 [[env.staging.routes]]
 pattern = "campus-panel-staging.ayafeed.com"

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import packageManifestRaw from "../package.json?raw";
+import runWithStagingDbEnvSource from "../scripts/run-with-staging-db-env.mjs?raw";
 import worker, { createWorkerRuntime } from "../src/index";
 import wranglerConfig from "../wrangler.toml?raw";
 
@@ -103,6 +104,12 @@ describe("app-api worker foundation", () => {
     expect(packageManifest.scripts?.["deploy:staging"]).not.toContain(
       "XDG_CONFIG_HOME=./.wrangler-home",
     );
+    expect(packageManifest.scripts?.["db:migrate:staging"]).toContain("run-with-staging-db-env.mjs");
+    expect(packageManifest.scripts?.["db:reconcile-shared-drift:staging"]).toContain(
+      "run-with-staging-db-env.mjs",
+    );
+    expect(runWithStagingDbEnvSource).toContain("STAGING_APP_API_MANAGEMENT_DATABASE_URL");
+    expect(runWithStagingDbEnvSource).toContain("APP_API_MANAGEMENT_DATABASE_URL");
   });
 
   it("declares a local Hyperdrive binding for APP_API_DB in wrangler config", () => {

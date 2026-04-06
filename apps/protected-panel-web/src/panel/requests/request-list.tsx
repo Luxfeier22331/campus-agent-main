@@ -17,6 +17,9 @@ import {
 } from "react-admin";
 
 import { PANEL_COPY } from "../panel-copy";
+import { PanelDatagridHeader } from "../panel-datagrid-header";
+import { PanelListErrorState } from "../panel-list-error";
+import { PanelListActions } from "../panel-list-actions";
 import { PanelPagination } from "../panel-pagination";
 import type { RequestProjectionRecord } from "../types";
 import { formatCapabilityLabel, formatDuration } from "./request-formatters";
@@ -90,7 +93,14 @@ function RequestListEmpty() {
 export function RequestListPage() {
   return (
     <List
+      actions={<PanelListActions />}
       aside={<RequestListAside />}
+      error={
+        <PanelListErrorState
+          description="请求页读取的是 app-api 维护的请求投影视图；当后端查询失败时，面板会直接显示错误，而不是伪装成空列表。"
+          title="请求列表读取失败"
+        />
+      }
       emptyWhileLoading
       empty={<RequestListEmpty />}
       filters={requestFilters}
@@ -99,7 +109,12 @@ export function RequestListPage() {
       sort={{ field: "startedAt", order: "DESC" }}
       title="请求"
     >
-      <Datagrid bulkActionButtons={false} rowClick="show">
+      <Datagrid
+        bulkActionButtons={false}
+        empty={<RequestListEmpty />}
+        header={<PanelDatagridHeader />}
+        rowClick="show"
+      >
         <TextField label="请求" source="requestId" />
         <FunctionField
           label="主体"

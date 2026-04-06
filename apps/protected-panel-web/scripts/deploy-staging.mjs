@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 
 const PLACEHOLDER_ACCESS_POLICY_AUD = "panel-audience";
 const PLACEHOLDER_ACCESS_TEAM_DOMAIN = "https://team.cloudflareaccess.com";
+const STAGING_RELEASE_PREFIX = "protected-panel-web@staging-";
 
 function fail(message) {
   console.error(message);
@@ -51,8 +52,32 @@ function normalizeAccessPolicyAud(value) {
   return trimmed;
 }
 
+function resolveSentryRelease(override) {
+  const trimmedOverride = override?.trim();
+  if (trimmedOverride) {
+    return trimmedOverride;
+  }
+
+  const result = spawnSync("git", ["rev-parse", "--short", "HEAD"], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "inherit"],
+  });
+
+  if (result.status !== 0) {
+    fail("Unable to derive SENTRY_RELEASE from git rev-parse --short HEAD.");
+  }
+
+  const commitSha = result.stdout?.trim();
+  if (!commitSha) {
+    fail("Unable to derive SENTRY_RELEASE because git returned an empty commit SHA.");
+  }
+
+  return `${STAGING_RELEASE_PREFIX}${commitSha}`;
+}
+
 const accessTeamDomain = normalizeAccessTeamDomain(process.env.STAGING_ACCESS_TEAM_DOMAIN);
 const accessPolicyAud = normalizeAccessPolicyAud(process.env.STAGING_ACCESS_POLICY_AUD);
+const sentryRelease = resolveSentryRelease(process.env.STAGING_SENTRY_RELEASE);
 
 const result = spawnSync(
   "wrangler",
@@ -64,6 +89,8 @@ const result = spawnSync(
     `ACCESS_TEAM_DOMAIN:${accessTeamDomain}`,
     "--var",
     `ACCESS_POLICY_AUD:${accessPolicyAud}`,
+    "--var",
+    `SENTRY_RELEASE:${sentryRelease}`,
   ],
   {
     env: process.env,

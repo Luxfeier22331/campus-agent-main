@@ -57,6 +57,25 @@ describe("protected panel http copy", () => {
     });
   });
 
+  it("maps app-api internal errors to chinese operator-facing messages", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      createErrorResponse(
+        {
+          error: {
+            code: "internal_error",
+            message: "Unexpected app-api failure.",
+          },
+        },
+        500,
+      ),
+    );
+
+    await expect(fetchJson("/api/official-web/sites")).rejects.toMatchObject({
+      message: "app-api 当前返回了未预期错误，请稍后重试。",
+      status: 500,
+    });
+  });
+
   it("maps opaque access redirects to a login reentry error", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       createOpaqueRedirectResponse("https://campus-panel-staging.ayafeed.com/api/requests?limit=20"),

@@ -64,6 +64,7 @@ updated: 2026-04-06
   - `pnpm build:staging` 使用 `CLOUDFLARE_ENV=staging`
   - `pnpm deploy:staging` 通过 `scripts/deploy-staging.mjs` 发布 staging build artifact
   - deploy 时必须显式注入 `STAGING_ACCESS_TEAM_DOMAIN` 与 `STAGING_ACCESS_POLICY_AUD`
+  - deploy 脚本会自动把当前 git commit 注入 runtime `SENTRY_RELEASE=protected-panel-web@staging-<sha>`；仅在需要覆写时才显式传入 `STAGING_SENTRY_RELEASE`
   - deploy 脚本会拒绝 `https://team.cloudflareaccess.com` / `panel-audience` 这类占位值
   - deploy 使用当前 shell 的 `wrangler` 登录态，不再强绑 repo-local `.wrangler-home`
 
@@ -93,6 +94,8 @@ updated: 2026-04-06
 - 为 `app-api-staging` provision `APP_API_DB_FRESH` Hyperdrive binding，并显式关闭 SQL response caching
 - 把真实 staging Hyperdrive resource id 写入 `apps/app-api/wrangler.toml` 的 `[[env.staging.hyperdrive]]`
 - 确认 staging Postgres 对 Hyperdrive 可达
+- 单独准备 staging shared Postgres 的 direct management 连接串，供 Drizzle migration / drift reconciliation 使用
+- `Hyperdrive` 只覆盖 Worker runtime query path，不替代 deploy 前 schema migration
 - `APP_API_DB` 负责 read-mostly/cached query path；`APP_API_DB_FRESH` 负责 auth 与其他 read-after-write-sensitive product path，避免 `sign-up -> immediate sign-in` 被 stale negative lookup 污染
 
 ### 4. Access
@@ -138,6 +141,11 @@ wrangler secret put AXIOM_TOKEN --env staging
 - `SENTRY_RELEASE=<release>`
 - `AXIOM_ENDPOINT`
 - `AXIOM_DATASET`
+
+deploy shell 还需要可用的 staging shared DB 管理连接：
+
+- `STAGING_APP_API_MANAGEMENT_DATABASE_URL`
+- 可选：`STAGING_APP_API_DATABASE_SSLMODE=require`
 
 要求：
 
@@ -189,6 +197,7 @@ wrangler secret put SENTRY_DSN --env staging
 - `app-api /readyz` 必须先 ready，再允许 web surfaces 对外 smoke
 - `public-chat-web /readyz` 与 `protected-panel-web /readyz` 会继续探测 shared `app-api /readyz`；如果 shared runtime 未 ready，web surfaces 不得标记 green
 - `protected-panel-web` 只有在真实浏览器入口已经被 Cloudflare Access 接管时，才能视为 staging deploy 完成；worker 侧的 `Missing Access JWT.` 只代表入口仍未完成真实保护
+- `app-api` 的 shared Postgres schema 必须先与 repo 当前 Drizzle snapshot 对齐；`official_web` 相关列表如果在 staging 同时返回 `internal_error`，优先先检查 `db:reconcile-shared-drift:staging` / `db:migrate:staging`
 
 ## Pre-Deploy Repo Gates
 
@@ -221,6 +230,24 @@ pnpm --dir apps/app-api exec wrangler whoami
 ```
 
 ## Deploy Order
+
+### 0. `apps/app-api` shared Postgres schema
+
+先执行 drift 检查：
+
+```bash
+STAGING_APP_API_MANAGEMENT_DATABASE_URL=postgresql://<staging-management-url> \
+pnpm --dir apps/app-api db:reconcile-shared-drift:staging -- --json
+```
+
+如果输出显示 shared DB 仍落后于当前 repo schema，再执行：
+
+```bash
+STAGING_APP_API_MANAGEMENT_DATABASE_URL=postgresql://<staging-management-url> \
+pnpm --dir apps/app-api db:migrate:staging
+```
+
+这一步不是可选优化，而是 `official_web` operator surface 的 deploy gate。
 
 ### 1. `apps/app-api`
 

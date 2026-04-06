@@ -11,6 +11,9 @@ import {
 } from "react-admin";
 
 import { PANEL_COPY } from "../panel-copy";
+import { PanelDatagridHeader } from "../panel-datagrid-header";
+import { PanelListErrorState } from "../panel-list-error";
+import { PanelListActions } from "../panel-list-actions";
 import { PanelPagination } from "../panel-pagination";
 import type { OfficialWebRunRecord } from "../types";
 import { formatOfficialWebRunIntentLabel } from "./official-web-formatters";
@@ -77,18 +80,46 @@ function OfficialWebRunsAside() {
   );
 }
 
+function OfficialWebRunsEmpty() {
+  return (
+    <Card>
+      <CardContent>
+        <Stack spacing={1.5}>
+          <Typography variant="h6">{PANEL_COPY.emptyState.officialWebRuns}</Typography>
+          <Typography color="text.secondary" variant="body2">
+            该列表只展示 app-api 已物化的官网采集运行投影。若当前 staging 尚未回放样本运行或投影未完成，这里会保持为空。
+          </Typography>
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function OfficialWebRunsListPage() {
   return (
     <List
+      actions={<PanelListActions />}
       aside={<OfficialWebRunsAside />}
+      empty={<OfficialWebRunsEmpty />}
       emptyWhileLoading
+      error={
+        <PanelListErrorState
+          description="官网采集运行页读取的是 app-api 已物化的运行投影；如果查询失败，面板会直接显示后端错误，而不是退化成空态。"
+          title="官网采集运行读取失败"
+        />
+      }
       filters={runFilters}
       pagination={<PanelPagination />}
       perPage={20}
       sort={{ field: "startedAt", order: "DESC" }}
       title="官网采集运行"
     >
-      <Datagrid bulkActionButtons={false} rowClick="show">
+      <Datagrid
+        bulkActionButtons={false}
+        empty={<OfficialWebRunsEmpty />}
+        header={<PanelDatagridHeader />}
+        rowClick="show"
+      >
         <TextField label="运行 ID" source="runId" />
         <TextField label="站点" source="siteId" />
         <FunctionField

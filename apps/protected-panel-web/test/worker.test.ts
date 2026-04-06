@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createApp as createAppApi } from "../../app-api/src/app";
 import type { OperatorQueryService } from "../../app-api/src/modules/operator-query";
 import packageManifestRaw from "../package.json?raw";
+import deployStagingSource from "../scripts/deploy-staging.mjs?raw";
 import worker from "../src/index";
 import wranglerConfig from "../wrangler.toml?raw";
 
@@ -54,7 +55,10 @@ describe("protected panel web worker shell", () => {
     expect(wranglerConfig).not.toContain("ACCESS_TEAM_DOMAIN");
     expect(wranglerConfig).not.toContain("ACCESS_POLICY_AUD");
     expect(wranglerConfig).toContain('SENTRY_ENVIRONMENT = "staging"');
-    expect(wranglerConfig).toContain('SENTRY_RELEASE = "protected-panel-web@staging-20260405-05c3d45"');
+    expect(wranglerConfig).not.toContain("SENTRY_RELEASE = ");
+    expect(deployStagingSource).toContain("SENTRY_RELEASE:");
+    expect(deployStagingSource).toContain("git");
+    expect(deployStagingSource).toContain("rev-parse");
     expect(packageManifest.scripts?.["build:staging"]).toContain("CLOUDFLARE_ENV=staging");
     expect(packageManifest.scripts?.deploy).not.toContain("XDG_CONFIG_HOME=./.wrangler-home");
     expect(packageManifest.scripts?.["deploy:staging"]).toContain("deploy-staging.mjs");
@@ -596,6 +600,84 @@ describe("protected panel web worker shell", () => {
         new Request("https://panel.example.com/api/overview", {
           headers: {
             "cf-access-jwt-assertion": token,
+          },
+        }),
+        {
+          APP_API: {
+            fetch: async () => new Response(null, { status: 204 }),
+          },
+          PANEL_APP_NAME: "campus-agent-v2-protected-panel",
+          PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
+          PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
+          PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
+          ACCESS_TEAM_DOMAIN: accessTeamDomain,
+          ACCESS_POLICY_AUD: "panel-operator-audience",
+        },
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        status: "ok",
+        app_name: "campus-agent-v2-protected-panel",
+        surface: "protected-panel-web",
+        runtime: "cloudflare-worker",
+        protected_hostname: "panel.example.com",
+        protection_envelope: "cloudflare-access",
+        runtime_api_base_url: "https://app-api.internal",
+        panel_domains: {
+          overview: "ready",
+          requests: "ready",
+          official_web: "ready",
+          jobs: "blocked",
+          operations: "deferred",
+          audit: "blocked",
+        },
+        operator_context: {
+          display_name: null,
+          email: "ops@example.com",
+          groups: [],
+          operator_id: "ops@example.com",
+          principal_class: "human",
+          subject: "operator-001",
+        },
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("accepts a valid CF_Authorization cookie as an equivalent signed access assertion", async () => {
+    const originalFetch = globalThis.fetch;
+    const accessTeamDomain = "https://team-overview-cookie.cloudflareaccess.com";
+    const certsUrl = `${accessTeamDomain}/cdn-cgi/access/certs`;
+    const { privateKey, publicKey } = await generateKeyPair("ES256");
+    const publicJwk = await exportJWK(publicKey);
+    publicJwk.kid = "panel-test-key";
+    const token = await new SignJWT({ sub: "operator-001", email: "ops@example.com" })
+      .setProtectedHeader({ alg: "ES256", kid: "panel-test-key" })
+      .setIssuer(accessTeamDomain)
+      .setAudience("panel-operator-audience")
+      .setIssuedAt()
+      .setExpirationTime("5m")
+      .sign(privateKey);
+
+    globalThis.fetch = (async (request: Request | URL | string) => {
+      const inbound = request instanceof Request ? request : new Request(request);
+      if (inbound.url === certsUrl) {
+        return new Response(JSON.stringify({ keys: [publicJwk] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      throw new Error(`Unexpected fetch call: ${inbound.url}`);
+    }) as typeof fetch;
+
+    try {
+      const response = await worker.fetch(
+        new Request("https://panel.example.com/api/overview", {
+          headers: {
+            cookie: `CF_AppSession=session-id; theme=light; CF_Authorization=${token}`,
           },
         }),
         {

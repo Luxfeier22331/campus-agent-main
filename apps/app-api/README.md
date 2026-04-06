@@ -183,8 +183,18 @@ pnpm test:shared-db-integration
 pnpm typecheck
 pnpm db:generate
 pnpm db:migrate
+STAGING_APP_API_MANAGEMENT_DATABASE_URL=postgresql://<staging-management-url> pnpm db:migrate:staging
+STAGING_APP_API_MANAGEMENT_DATABASE_URL=postgresql://<staging-management-url> pnpm db:reconcile-shared-drift:staging
 pnpm dev
 ```
+
+Deploy note:
+
+- `pnpm deploy:staging` 只发布 Worker，不会替你迁移 shared Postgres
+- 在任何 staging `official_web` / operator surface smoke 之前，先执行
+  `STAGING_APP_API_MANAGEMENT_DATABASE_URL=... pnpm db:reconcile-shared-drift:staging`
+  和需要时的 `STAGING_APP_API_MANAGEMENT_DATABASE_URL=... pnpm db:migrate:staging`
+- 否则 `official_web` 投影表一旦落后于 repo schema，`/api/operator/official-web/sites` 与 `/api/operator/official-web/runs` 会一起退化成 `internal_error`
 
 Testing lanes:
 

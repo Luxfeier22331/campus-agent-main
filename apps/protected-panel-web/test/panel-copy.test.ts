@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  formatPanelSortLabel,
   formatPanelPaginationAriaLabel,
   formatPanelPaginationDisplayedRows,
+  translateRuntimeErrorMessage,
 } from "../src/panel/panel-copy";
 
 describe("protected panel chinese copy helpers", () => {
@@ -42,5 +44,22 @@ describe("protected panel chinese copy helpers", () => {
     );
     expect(formatPanelPaginationAriaLabel({ type: "next" })).toBe("前往下一页");
     expect(formatPanelPaginationAriaLabel({ type: "previous" })).toBe("前往上一页");
+  });
+
+  it("formats datagrid sort labels in chinese", () => {
+    expect(formatPanelSortLabel({ fieldLabel: "请求", order: "ASC" })).toBe("按请求排序（升序）");
+    expect(formatPanelSortLabel({ fieldLabel: "开始时间", order: "DESC" })).toBe(
+      "按开始时间排序（降序）",
+    );
+  });
+
+  it("maps internal runtime errors to chinese operator-facing copy", () => {
+    expect(
+      translateRuntimeErrorMessage({
+        code: "internal_error",
+        message: "Unexpected app-api failure.",
+        statusText: "Internal Server Error",
+      }),
+    ).toBe("app-api 当前返回了未预期错误，请稍后重试。");
   });
 });
