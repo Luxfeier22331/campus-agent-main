@@ -125,11 +125,18 @@ def prepare_registry_scope_chunks(
     document_reports: list[RegistryScopeChunkPreparationDocumentReport] = []
     documents_without_chunks: list[str] = []
     for record in records:
-        document_chunks = build_indexable_chunks_from_record(
-            record=record,
-            object_store=runtime_object_store,
-            bucket=object_store_settings.bucket_derived,
-        )
+        try:
+            document_chunks = build_indexable_chunks_from_record(
+                record=record,
+                object_store=runtime_object_store,
+                bucket=object_store_settings.bucket_derived,
+            )
+        except Exception as exc:
+            raise ValueError(
+                "chunk preparation failed for "
+                f"{record_label(record)} "
+                f"(document_units_object_key={record.document_units_object_key!r}): {exc}"
+            ) from exc
         if not document_chunks:
             documents_without_chunks.append(record_label(record))
             continue

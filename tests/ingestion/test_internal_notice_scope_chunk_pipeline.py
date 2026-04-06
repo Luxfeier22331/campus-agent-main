@@ -218,6 +218,37 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
         self.assertEqual(report.document_count, 1)
         self.assertGreater(report.point_count, 0)
 
+    def test_prepare_registry_scope_chunks_reports_record_context_on_structured_mismatch(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            object_key = (
+                "campus_notices/documents/internal_notice/"
+                "notice-355119/source-faithful/2026/document-units.jsonl"
+            )
+            record = _make_internal_notice_record(object_key=object_key)
+            registry = InMemoryDocumentRegistry((record,), backing_path=root / "registry.json")
+            object_store = _FakeObjectStore(
+                objects={
+                    ("campus-rag-derived", object_key): _make_internal_notice_document_units_bytes(
+                        document_id="notice_attachment:muc_internal_portal:355119:attachment-0001",
+                        version_id=record.version_id,
+                    ),
+                }
+            )
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "document_units_object_key=.*document-units.jsonl",
+            ):
+                prepare_registry_scope_chunks(
+                    corpus="campus_notices",
+                    collection="internal_notice",
+                    preparation_run_id="prep-20260406-0003",
+                    env=self._env(),
+                    registry=registry,
+                    object_store=object_store,
+                )
+
 
 if __name__ == "__main__":
     unittest.main()
