@@ -10,6 +10,8 @@ import {
   TextInput,
 } from "react-admin";
 
+import { PANEL_COPY } from "../panel-copy";
+import { PanelPagination } from "../panel-pagination";
 import type { OfficialWebRunRecord } from "../types";
 import {
   OfficialWebFailureSummary,
@@ -18,31 +20,31 @@ import {
 } from "./official-web-presenters";
 
 const runFilters = [
-  <TextInput alwaysOn key="siteId" label="Site ID" source="siteId" />,
+  <TextInput alwaysOn key="siteId" label="站点 ID" source="siteId" />,
   <SelectInput
     choices={[
-      { id: "accepted", name: "Accepted" },
-      { id: "running", name: "Running" },
-      { id: "completed", name: "Completed" },
-      { id: "completed_with_errors", name: "Completed with errors" },
-      { id: "failed", name: "Failed" },
-      { id: "abandoned", name: "Abandoned" },
+      { id: "accepted", name: PANEL_COPY.officialWebStatus.accepted },
+      { id: "running", name: PANEL_COPY.officialWebStatus.running },
+      { id: "completed", name: PANEL_COPY.officialWebStatus.completed },
+      { id: "completed_with_errors", name: PANEL_COPY.officialWebStatus.completed_with_errors },
+      { id: "failed", name: PANEL_COPY.officialWebStatus.failed },
+      { id: "abandoned", name: PANEL_COPY.officialWebStatus.abandoned },
     ]}
-    emptyText="All statuses"
+    emptyText="全部状态"
     key="status"
-    label="Status"
+    label="状态"
     source="status"
   />,
   <SelectInput
     choices={[
-      { id: "pending", name: "Pending" },
-      { id: "queued", name: "Queued" },
-      { id: "dispatched", name: "Dispatched" },
-      { id: "ingestion_failed", name: "Dispatch failed" },
+      { id: "pending", name: PANEL_COPY.ingestionStatus.pending },
+      { id: "queued", name: PANEL_COPY.ingestionStatus.queued },
+      { id: "dispatched", name: PANEL_COPY.ingestionStatus.dispatched },
+      { id: "ingestion_failed", name: PANEL_COPY.ingestionStatus.ingestion_failed },
     ]}
-    emptyText="All dispatch states"
+    emptyText="全部分发状态"
     key="ingestionDispatchStatus"
-    label="Dispatch"
+    label="分发"
     source="ingestionDispatchStatus"
   />,
 ];
@@ -52,10 +54,9 @@ function OfficialWebRunsAside() {
     <Card sx={{ width: { lg: 320, xs: "100%" } }}>
       <CardContent>
         <Stack spacing={2}>
-          <Typography variant="h6">Read model notes</Typography>
+          <Typography variant="h6">读模型说明</Typography>
           <Alert severity="info">
-            Crawl runs reads app-api owned projections. Cursor pagination is sequential by design and
-            does not bypass the runtime seam.
+            采集运行列表读取 app-api 维护的投影视图。游标分页按设计只能顺序前进，不会绕过运行时接缝。
           </Alert>
         </Stack>
       </CardContent>
@@ -69,30 +70,31 @@ export function OfficialWebRunsListPage() {
       aside={<OfficialWebRunsAside />}
       emptyWhileLoading
       filters={runFilters}
+      pagination={<PanelPagination />}
       perPage={20}
       sort={{ field: "startedAt", order: "DESC" }}
-      title="Official Web Crawl Runs"
+      title="官网采集运行"
     >
       <Datagrid bulkActionButtons={false} rowClick="show">
-        <TextField label="Run ID" source="runId" />
-        <TextField label="Site" source="siteId" />
+        <TextField label="运行 ID" source="runId" />
+        <TextField label="站点" source="siteId" />
         <FunctionField
-          label="Status"
+          label="状态"
           render={(record: OfficialWebRunRecord) => <OfficialWebRunStatusChip status={record.status} />}
         />
         <FunctionField
-          label="Dispatch"
+          label="分发"
           render={(record: OfficialWebRunRecord) => (
             <OfficialWebIngestionStatusChip status={record.ingestionDispatchStatus} />
           )}
         />
         <FunctionField
-          label="Failures"
+          label="失败数"
           render={(record: OfficialWebRunRecord) => <OfficialWebFailureSummary record={record} />}
         />
-        <DateField label="Started" showTime source="startedAt" />
-        <DateField label="Finished" showTime source="finishedAt" />
-        <ShowButton />
+        <DateField label="开始时间" locales="zh-CN" showTime source="startedAt" />
+        <DateField label="结束时间" locales="zh-CN" showTime source="finishedAt" />
+        <ShowButton label={PANEL_COPY.view} />
       </Datagrid>
     </List>
   );

@@ -16,8 +16,10 @@ import {
   TextInput,
 } from "react-admin";
 
+import { PANEL_COPY } from "../panel-copy";
+import { PanelPagination } from "../panel-pagination";
 import type { RequestProjectionRecord } from "../types";
-import { formatDuration } from "./request-formatters";
+import { formatCapabilityLabel, formatDuration } from "./request-formatters";
 import {
   RequestActorSummary,
   RequestPreviewText,
@@ -27,26 +29,26 @@ import {
 } from "./request-presenters";
 
 export const REQUEST_STATUS_CHOICES = [
-  { id: "accepted", name: "Accepted" },
-  { id: "completed", name: "Completed" },
-  { id: "needs_clarification", name: "Needs clarification" },
-  { id: "approval_required", name: "Approval required" },
-  { id: "rejected", name: "Rejected" },
-  { id: "no_answer", name: "No answer" },
-  { id: "error", name: "Error" },
+  { id: "accepted", name: PANEL_COPY.requestStatus.accepted },
+  { id: "completed", name: PANEL_COPY.requestStatus.completed },
+  { id: "needs_clarification", name: PANEL_COPY.requestStatus.needs_clarification },
+  { id: "approval_required", name: PANEL_COPY.requestStatus.approval_required },
+  { id: "rejected", name: PANEL_COPY.requestStatus.rejected },
+  { id: "no_answer", name: PANEL_COPY.requestStatus.no_answer },
+  { id: "error", name: PANEL_COPY.requestStatus.error },
 ];
 
 const requestFilters = [
-  <TextInput alwaysOn key="requestId" label="Request ID" source="requestId" />,
+  <TextInput alwaysOn key="requestId" label="请求 ID" source="requestId" />,
   <SelectInput
     choices={REQUEST_STATUS_CHOICES}
-    emptyText="All statuses"
+    emptyText="全部状态"
     key="status"
-    label="Status"
+    label="状态"
     source="status"
   />,
-  <TextInput key="surface" label="Surface" source="surface" />,
-  <TextInput key="conversationId" label="Conversation" source="conversationId" />,
+  <TextInput key="surface" label="接入面" source="surface" />,
+  <TextInput key="conversationId" label="会话" source="conversationId" />,
 ];
 
 function RequestListAside() {
@@ -54,18 +56,15 @@ function RequestListAside() {
     <Card sx={{ width: { lg: 320, xs: "100%" } }}>
       <CardContent>
         <Stack spacing={2}>
-          <Typography variant="h6">Query semantics</Typography>
+          <Typography variant="h6">查询语义</Typography>
           <Alert severity="info">
-            Requests reads the app-api owned request projection snapshot. It does not replay
-            the answer runtime or inspect raw logs.
+            请求列表读取 app-api 维护的请求投影视图，不会回放回答运行时，也不会直接检查原始日志。
           </Alert>
           <Typography color="text.secondary" variant="body2">
-            Pagination is cursor-backed. Move forward sequentially with Next page; direct
-            page jumps intentionally fail closed when the cursor chain is unavailable.
+            分页依赖游标链路。请按顺序向后翻页；如果游标链缺失，直接跳页会按 fail-closed 处理。
           </Typography>
           <Typography color="text.secondary" variant="body2">
-            Newly completed chat requests can appear a moment later while the projector
-            materializes the read model.
+            新完成的聊天请求可能会延迟片刻出现，因为投影器需要先物化读模型。
           </Typography>
         </Stack>
       </CardContent>
@@ -78,10 +77,9 @@ function RequestListEmpty() {
     <Card>
       <CardContent>
         <Stack spacing={1.5}>
-          <Typography variant="h6">No requests yet</Typography>
+          <Typography variant="h6">暂无请求</Typography>
           <Typography color="text.secondary" variant="body2">
-            This table only shows request projections already materialized by app-api.
-            Freshly accepted chat traffic can remain briefly absent until projection catches up.
+            此表只展示 app-api 已经物化完成的请求投影。刚被受理的聊天流量可能会短暂缺席，直到投影追上。
           </Typography>
         </Stack>
       </CardContent>
@@ -96,53 +94,54 @@ export function RequestListPage() {
       emptyWhileLoading
       empty={<RequestListEmpty />}
       filters={requestFilters}
+      pagination={<PanelPagination />}
       perPage={20}
       sort={{ field: "startedAt", order: "DESC" }}
-      title="Requests"
+      title="请求"
     >
       <Datagrid bulkActionButtons={false} rowClick="show">
-        <TextField label="Request" source="requestId" />
+        <TextField label="请求" source="requestId" />
         <FunctionField
-          label="Actor"
+          label="主体"
           render={(record: RequestProjectionRecord) => <RequestActorSummary record={record} />}
         />
         <FunctionField
-          label="Surface"
+          label="接入面"
           render={(record: RequestProjectionRecord) => (
             <RequestSurfaceLabel surface={record.surface} />
           )}
         />
         <FunctionField
-          label="Status"
+          label="状态"
           render={(record: RequestProjectionRecord) => (
             <RequestStatusChip status={record.status} />
           )}
         />
         <FunctionField
-          label="Capability"
+          label="能力"
           render={(record: RequestProjectionRecord) =>
-            record.requestedCapability || "Unspecified"
+            formatCapabilityLabel(record.requestedCapability)
           }
         />
         <FunctionField
-          label="Scope"
+          label="范围"
           render={(record: RequestProjectionRecord) => <RequestScopeSummary record={record} />}
         />
         <FunctionField
-          label="Question"
+          label="问题"
           render={(record: RequestProjectionRecord) => (
             <RequestPreviewText
-              emptyText="No question preview captured."
+              emptyText="未记录问题预览。"
               text={record.questionPreview}
             />
           )}
         />
         <FunctionField
-          label="Duration"
+          label="耗时"
           render={(record: RequestProjectionRecord) => formatDuration(record.durationMs)}
         />
-        <DateField label="Started" showTime source="startedAt" />
-        <ShowButton />
+        <DateField label="开始时间" locales="zh-CN" showTime source="startedAt" />
+        <ShowButton label={PANEL_COPY.view} />
       </Datagrid>
     </List>
   );

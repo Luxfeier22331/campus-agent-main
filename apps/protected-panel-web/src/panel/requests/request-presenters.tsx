@@ -1,6 +1,7 @@
 import { Chip, Stack, Typography } from "@mui/material";
 
 import type { RequestProjectionRecord } from "../types";
+import { PANEL_COPY } from "../panel-copy";
 import {
   formatScope,
   formatStatusLabel,
@@ -46,7 +47,7 @@ export function RequestActorSummary({
   return (
     <Stack spacing={0.25}>
       <Typography fontWeight={500} variant="body2">
-        {record.principalLabel || "Unnamed principal"}
+        {record.principalLabel || PANEL_COPY.unnamedPrincipal}
       </Typography>
       <Typography color="text.secondary" variant="caption">
         {record.principalId}
@@ -112,7 +113,7 @@ export function RequestSourceDocumentChips({
   if (sourceDocIds.length === 0) {
     return (
       <Typography color="text.secondary" variant="body2">
-        No source documents captured.
+        {PANEL_COPY.noSourceDocumentsCaptured}
       </Typography>
     );
   }

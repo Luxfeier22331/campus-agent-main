@@ -1,17 +1,19 @@
+import { PANEL_COPY, formatPanelTimestamp } from "../panel-copy";
+
 export function formatOfficialWebStatusLabel(status: string) {
   switch (status) {
     case "accepted":
-      return "Accepted";
+      return PANEL_COPY.officialWebStatus.accepted;
     case "running":
-      return "Running";
+      return PANEL_COPY.officialWebStatus.running;
     case "completed":
-      return "Completed";
+      return PANEL_COPY.officialWebStatus.completed;
     case "completed_with_errors":
-      return "Completed with errors";
+      return PANEL_COPY.officialWebStatus.completed_with_errors;
     case "failed":
-      return "Failed";
+      return PANEL_COPY.officialWebStatus.failed;
     case "abandoned":
-      return "Abandoned";
+      return PANEL_COPY.officialWebStatus.abandoned;
     default:
       return status;
   }
@@ -20,27 +22,20 @@ export function formatOfficialWebStatusLabel(status: string) {
 export function formatIngestionStatusLabel(status: string | null) {
   switch (status) {
     case "pending":
-      return "Pending";
+      return PANEL_COPY.ingestionStatus.pending;
     case "queued":
-      return "Queued";
+      return PANEL_COPY.ingestionStatus.queued;
     case "dispatched":
-      return "Dispatched";
+      return PANEL_COPY.ingestionStatus.dispatched;
     case "ingestion_failed":
-      return "Dispatch failed";
+      return PANEL_COPY.ingestionStatus.ingestion_failed;
     case null:
-      return "Not available";
+      return PANEL_COPY.notAvailable;
     default:
       return status;
   }
 }
 
 export function formatTimestamp(value: string | null) {
-  if (!value) {
-    return "Pending";
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+  return formatPanelTimestamp(value);
 }

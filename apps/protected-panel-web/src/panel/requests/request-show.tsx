@@ -1,4 +1,4 @@
-import { type ReactNode, startTransition, useEffect, useEffectEvent, useState } from "react";
+import { type ReactNode, startTransition, useEffect, useState } from "react";
 import {
   Alert,
   Box,
@@ -13,10 +13,15 @@ import {
 import { Show, useDataProvider, useRecordContext } from "react-admin";
 
 import type { ProtectedPanelDataProvider } from "../data-provider";
+import { PANEL_COPY, formatPanelBoolean, formatPanelMicrousd } from "../panel-copy";
 import type { RequestProjectionRecord } from "../types";
 import {
+  formatAclDecisionLabel,
+  formatCapabilityLabel,
   buildRequestDiagnosticEntries,
   formatDuration,
+  formatPrincipalTypeLabel,
+  formatSelectedTargetLabel,
   formatStatusLabel,
   formatSurfaceLabel,
   formatTimestamp,
@@ -29,25 +34,9 @@ import {
   RequestStatusChip,
 } from "./request-presenters";
 
-function formatBoolean(value: boolean | null) {
-  if (value === null) {
-    return "Unknown";
-  }
-
-  return value ? "Yes" : "No";
-}
-
-function formatMicrousd(value: number | null) {
-  if (value === null) {
-    return "Unknown";
-  }
-
-  return `$${(value / 1_000_000).toFixed(4)} USD`;
-}
-
 function linkValue(href: string | null, label: string) {
   if (!href) {
-    return "Not available";
+    return PANEL_COPY.notAvailable;
   }
 
   return (
@@ -79,36 +68,48 @@ function RequestShowContent() {
     Awaited<ReturnType<ProtectedPanelDataProvider["getRequestObservability"]>>["data"] | null
   >(null);
 
-  const loadObservability = useEffectEvent(async (requestId: string) => {
+  useEffect(() => {
+    if (!record?.requestId) {
+      return;
+    }
+
+    let isActive = true;
+
     startTransition(() => {
       setIsObservabilityLoading(true);
       setObservabilityError(null);
       setObservabilityRecord(null);
     });
 
-    try {
-      const response = await dataProvider.getRequestObservability({ requestId });
-      startTransition(() => {
-        setObservabilityRecord(response.data);
-        setIsObservabilityLoading(false);
-      });
-    } catch (error) {
-      startTransition(() => {
-        setObservabilityError(
-          error instanceof Error ? error.message : "Failed to load request observability detail.",
-        );
-        setIsObservabilityLoading(false);
-      });
-    }
-  });
+    void dataProvider
+      .getRequestObservability({ requestId: record.requestId })
+      .then((response) => {
+        if (!isActive) {
+          return;
+        }
 
-  useEffect(() => {
-    if (!record?.requestId) {
-      return;
-    }
+        startTransition(() => {
+          setObservabilityRecord(response.data);
+          setIsObservabilityLoading(false);
+        });
+      })
+      .catch((error) => {
+        if (!isActive) {
+          return;
+        }
 
-    void loadObservability(record.requestId);
-  }, [loadObservability, record?.requestId]);
+        startTransition(() => {
+          setObservabilityError(
+            error instanceof Error ? error.message : "加载请求观测详情失败。",
+          );
+          setIsObservabilityLoading(false);
+        });
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [record?.requestId]);
 
   if (!record) {
     return null;
@@ -123,8 +124,7 @@ function RequestShowContent() {
     <Box sx={{ p: 3 }}>
       <Stack spacing={3}>
         <Alert severity="info">
-          This view shows the app-api request projection snapshot. It is intentionally a
-          read model, not a live execution replay endpoint.
+          此视图展示 app-api 的请求投影快照。它被有意设计为读模型，而不是实时执行回放端点。
         </Alert>
 
         <Box
@@ -140,12 +140,12 @@ function RequestShowContent() {
           <Card>
             <CardContent>
               <Stack spacing={2}>
-                <Typography variant="h6">Identity</Typography>
+                <Typography variant="h6">身份标识</Typography>
                 <Divider />
-                <RequestFieldRow label="Request ID" value={record.requestId} />
-                <RequestFieldRow label="Trace ID" value={record.traceId} />
+                <RequestFieldRow label="请求 ID" value={record.requestId} />
+                <RequestFieldRow label="追踪 ID" value={record.traceId} />
                 <RequestFieldRow
-                  label="Status"
+                  label="状态"
                   value={
                     <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
                       <RequestStatusChip status={record.status} />
@@ -156,12 +156,12 @@ function RequestShowContent() {
                   }
                 />
                 <RequestFieldRow
-                  label="Surface"
+                  label="接入面"
                   value={formatSurfaceLabel(record.surface)}
                 />
                 <RequestFieldRow
-                  label="Conversation"
-                  value={record.conversationId || "Not attached"}
+                  label="会话"
+                  value={record.conversationId || PANEL_COPY.notAttached}
                 />
               </Stack>
             </CardContent>
@@ -170,24 +170,24 @@ function RequestShowContent() {
           <Card>
             <CardContent>
               <Stack spacing={2}>
-                <Typography variant="h6">Principal and Routing</Typography>
+                <Typography variant="h6">主体与路由</Typography>
                 <Divider />
                 <RequestFieldRow
-                  label="Actor"
+                  label="主体"
                   value={<RequestActorSummary record={record} />}
                 />
-                <RequestFieldRow label="Actor Type" value={record.principalType} />
+                <RequestFieldRow label="主体类型" value={formatPrincipalTypeLabel(record.principalType)} />
                 <RequestFieldRow
-                  label="Capability"
-                  value={record.requestedCapability || "Unspecified"}
+                  label="能力"
+                  value={formatCapabilityLabel(record.requestedCapability)}
                 />
                 <RequestFieldRow
-                  label="Requested Scope"
+                  label="请求范围"
                   value={<RequestScopeSummary record={record} />}
                 />
                 <RequestFieldRow
-                  label="Selected Target"
-                  value={record.selectedTarget || "Not selected"}
+                  label="选定目标"
+                  value={formatSelectedTargetLabel(record.selectedTarget)}
                 />
               </Stack>
             </CardContent>
@@ -196,32 +196,32 @@ function RequestShowContent() {
           <Card sx={{ gridColumn: { lg: "1 / -1", xs: "auto" } }}>
             <CardContent>
               <Stack spacing={2}>
-                <Typography variant="h6">Content Snapshot</Typography>
+                <Typography variant="h6">内容快照</Typography>
                 <Divider />
                 <RequestFieldRow
-                  label="Question Preview"
+                  label="问题预览"
                   value={
                     <RequestPreviewText
-                      emptyText="No question preview captured."
+                      emptyText="未记录问题预览。"
                       text={record.questionPreview}
                     />
                   }
                 />
                 <RequestFieldRow
-                  label="Answer Preview"
+                  label="回答预览"
                   value={
                     <RequestPreviewText
-                      emptyText="No answer preview captured."
+                      emptyText="未记录回答预览。"
                       text={record.answerPreview}
                     />
                   }
                 />
                 <RequestFieldRow
-                  label="Error Code"
-                  value={record.errorCode || "None"}
+                  label="错误代码"
+                  value={record.errorCode || PANEL_COPY.none}
                 />
                 <RequestFieldRow
-                  label="Source Documents"
+                  label="来源文档"
                   value={<RequestSourceDocumentChips sourceDocIds={record.sourceDocIds} />}
                 />
               </Stack>
@@ -232,7 +232,7 @@ function RequestShowContent() {
             <Card sx={{ gridColumn: { lg: "1 / -1", xs: "auto" } }}>
               <CardContent>
                 <Stack spacing={2}>
-                  <Typography variant="h6">Diagnostics</Typography>
+                  <Typography variant="h6">诊断信息</Typography>
                   <Divider />
                   {diagnosticEntries.map((entry) => (
                     <RequestFieldRow
@@ -249,7 +249,7 @@ function RequestShowContent() {
           <Card sx={{ gridColumn: { lg: "1 / -1", xs: "auto" } }}>
             <CardContent>
               <Stack spacing={2}>
-                <Typography variant="h6">Observability</Typography>
+                <Typography variant="h6">质量观测</Typography>
                 <Divider />
 
                 {isObservabilityLoading ? (
@@ -275,110 +275,110 @@ function RequestShowContent() {
                   >
                     <Stack spacing={2}>
                       <RequestFieldRow
-                        label="Retrieval Attempted"
-                        value={formatBoolean(observability.retrievalAttempted)}
+                        label="是否执行检索"
+                        value={formatPanelBoolean(observability.retrievalAttempted)}
                       />
                       <RequestFieldRow
-                        label="Candidate Count"
-                        value={observability.candidateCount ?? "Unknown"}
+                        label="候选数"
+                        value={observability.candidateCount ?? PANEL_COPY.unknown}
                       />
                       <RequestFieldRow
-                        label="Retrieved Sources"
-                        value={observability.retrievedSourceCount ?? "Unknown"}
+                        label="召回来源数"
+                        value={observability.retrievedSourceCount ?? PANEL_COPY.unknown}
                       />
                       <RequestFieldRow
-                        label="Empty Recall"
-                        value={formatBoolean(observability.emptyRecall)}
+                        label="是否空召回"
+                        value={formatPanelBoolean(observability.emptyRecall)}
                       />
                       <RequestFieldRow
-                        label="Citation Expected"
-                        value={formatBoolean(observability.citationExpected)}
+                        label="是否期望引用"
+                        value={formatPanelBoolean(observability.citationExpected)}
                       />
                       <RequestFieldRow
-                        label="Citation Missing"
-                        value={formatBoolean(observability.citationMissing)}
+                        label="是否缺失引用"
+                        value={formatPanelBoolean(observability.citationMissing)}
                       />
                       <RequestFieldRow
-                        label="Citation Count"
-                        value={observability.citationCount ?? "Unknown"}
+                        label="引用数"
+                        value={observability.citationCount ?? PANEL_COPY.unknown}
                       />
                     </Stack>
 
                     <Stack spacing={2}>
                       <RequestFieldRow
-                        label="Model"
+                        label="模型"
                         value={
                           observability.model.provider || observability.model.name
-                            ? `${observability.model.provider || "unknown"} / ${observability.model.name || "unknown"}`
-                            : "Unknown"
+                            ? `${observability.model.provider || PANEL_COPY.unknown} / ${observability.model.name || PANEL_COPY.unknown}`
+                            : PANEL_COPY.unknown
                         }
                       />
                       <RequestFieldRow
-                        label="Input Tokens"
-                        value={observability.inputTokens ?? "Unknown"}
+                        label="输入 Tokens"
+                        value={observability.inputTokens ?? PANEL_COPY.unknown}
                       />
                       <RequestFieldRow
-                        label="Output Tokens"
-                        value={observability.outputTokens ?? "Unknown"}
+                        label="输出 Tokens"
+                        value={observability.outputTokens ?? PANEL_COPY.unknown}
                       />
                       <RequestFieldRow
-                        label="Cached Input Tokens"
-                        value={observability.cachedInputTokens ?? "Unknown"}
+                        label="缓存输入 Tokens"
+                        value={observability.cachedInputTokens ?? PANEL_COPY.unknown}
                       />
                       <RequestFieldRow
-                        label="Estimated Cost"
-                        value={formatMicrousd(observability.estimatedCost.microusd)}
+                        label="预估成本"
+                        value={formatPanelMicrousd(observability.estimatedCost.microusd)}
                       />
                       <RequestFieldRow
-                        label="Projection Lag"
+                        label="投影延迟"
                         value={formatDuration(observability.projectionLagMs)}
                       />
                       <RequestFieldRow
-                        label="Measured At"
+                        label="观测时间"
                         value={formatTimestamp(observability.measuredAt)}
                       />
                     </Stack>
 
                     <Stack spacing={2}>
                       <RequestFieldRow
-                        label="ACL Decision"
-                        value={observability.aclDecision || "Unknown"}
+                        label="ACL 判定"
+                        value={formatAclDecisionLabel(observability.aclDecision)}
                       />
                       <RequestFieldRow
-                        label="ACL Anomaly"
-                        value={observability.aclAnomalyCode || "None"}
+                        label="ACL 异常"
+                        value={observability.aclAnomalyCode || PANEL_COPY.none}
                       />
                       <RequestFieldRow
-                        label="Fail Closed"
-                        value={formatBoolean(observability.failClosed)}
+                        label="是否 Fail Closed"
+                        value={formatPanelBoolean(observability.failClosed)}
                       />
                       <RequestFieldRow
-                        label="Refusal Class"
-                        value={observability.refusalClass || "None"}
+                        label="拒答类别"
+                        value={observability.refusalClass || PANEL_COPY.none}
                       />
                       <RequestFieldRow
-                        label="Trace Available"
-                        value={formatBoolean(observability.traceAvailable)}
+                        label="是否可追踪"
+                        value={formatPanelBoolean(observability.traceAvailable)}
                       />
                       <RequestFieldRow
-                        label="Trace Link"
-                        value={linkValue(links?.traceLink ?? null, "Open trace")}
+                        label="Trace 链接"
+                        value={linkValue(links?.traceLink ?? null, "打开 trace")}
                       />
                       <RequestFieldRow
-                        label="Issue Link"
-                        value={linkValue(links?.issueLink ?? null, "Open issue")}
+                        label="问题链接"
+                        value={linkValue(links?.issueLink ?? null, "打开问题")}
                       />
                       <RequestFieldRow
-                        label="Issue Fingerprint"
-                        value={links?.issueFingerprint || "Not available"}
+                        label="问题指纹"
+                        value={links?.issueFingerprint || PANEL_COPY.notAvailable}
                       />
                       <RequestFieldRow
-                        label="Audit Events"
-                        value={auditSummary?.auditEventCount ?? "Unknown"}
+                        label="审计事件数"
+                        value={auditSummary?.auditEventCount ?? PANEL_COPY.unknown}
                       />
                       <RequestFieldRow
-                        label="Latest Terminal Code"
-                        value={auditSummary?.latestTerminalCode || "Unknown"}
+                        label="最近终态代码"
+                        value={auditSummary?.latestTerminalCode || PANEL_COPY.unknown}
                       />
                     </Stack>
                   </Box>
@@ -390,7 +390,7 @@ function RequestShowContent() {
           <Card sx={{ gridColumn: { lg: "1 / -1", xs: "auto" } }}>
             <CardContent>
               <Stack spacing={2}>
-                <Typography variant="h6">Timing</Typography>
+                <Typography variant="h6">时间线</Typography>
                 <Divider />
                 <Box
                   sx={{
@@ -403,19 +403,19 @@ function RequestShowContent() {
                   }}
                 >
                   <RequestFieldRow
-                    label="Started"
+                    label="开始时间"
                     value={formatTimestamp(record.startedAt)}
                   />
                   <RequestFieldRow
-                    label="Completed"
+                    label="完成时间"
                     value={formatTimestamp(record.completedAt)}
                   />
                   <RequestFieldRow
-                    label="Projected"
+                    label="投影时间"
                     value={formatTimestamp(record.projectedAt)}
                   />
                   <RequestFieldRow
-                    label="Duration"
+                    label="耗时"
                     value={formatDuration(record.durationMs)}
                   />
                 </Box>
@@ -430,7 +430,7 @@ function RequestShowContent() {
 
 export function RequestShowPage() {
   return (
-    <Show title="Request Detail">
+    <Show title="请求详情">
       <RequestShowContent />
     </Show>
   );

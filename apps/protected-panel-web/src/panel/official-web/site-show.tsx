@@ -3,6 +3,7 @@ import { Alert, Box, Card, CardContent, Divider, Stack, Typography } from "@mui/
 import { Show, useRecordContext } from "react-admin";
 
 import type { OfficialWebSiteRecord } from "../types";
+import { PANEL_COPY } from "../panel-copy";
 import { formatTimestamp } from "./official-web-formatters";
 import {
   OfficialWebHostsSummary,
@@ -34,8 +35,7 @@ function OfficialWebSiteShowContent() {
     <Box sx={{ p: 3 }}>
       <Stack spacing={3}>
         <Alert severity="info">
-          This view shows the app-api owned official_web site projection and the latest projected
-          crawl runs. It is intentionally not an infrastructure console.
+          此视图展示 app-api 维护的 official_web 站点投影，以及最近一次投影到位的采集运行。它不是基础设施控制台。
         </Alert>
 
         <Box
@@ -51,11 +51,11 @@ function OfficialWebSiteShowContent() {
           <Card>
             <CardContent>
               <Stack spacing={2}>
-                <Typography variant="h6">Identity</Typography>
+                <Typography variant="h6">站点标识</Typography>
                 <Divider />
-                <SiteFieldRow label="Site ID" value={record.siteId} />
-                <SiteFieldRow label="Display Name" value={record.displayName} />
-                <SiteFieldRow label="Hosts" value={<OfficialWebHostsSummary hostRoots={record.hostRoots} />} />
+                <SiteFieldRow label="站点 ID" value={record.siteId} />
+                <SiteFieldRow label="显示名称" value={record.displayName} />
+                <SiteFieldRow label="主机" value={<OfficialWebHostsSummary hostRoots={record.hostRoots} />} />
               </Stack>
             </CardContent>
           </Card>
@@ -63,25 +63,25 @@ function OfficialWebSiteShowContent() {
           <Card>
             <CardContent>
               <Stack spacing={2}>
-                <Typography variant="h6">Latest Projection</Typography>
+                <Typography variant="h6">最近投影</Typography>
                 <Divider />
-                <SiteFieldRow label="Latest Run" value={record.latestRunId || "No runs"} />
+                <SiteFieldRow label="最近运行" value={record.latestRunId || PANEL_COPY.noRuns} />
                 <SiteFieldRow
-                  label="Latest Status"
+                  label="最近状态"
                   value={
                     record.latestRunStatus ? (
                       <OfficialWebRunStatusChip status={record.latestRunStatus} />
                     ) : (
-                      "No runs"
+                      PANEL_COPY.noRuns
                     )
                   }
                 />
                 <SiteFieldRow
-                  label="Dispatch"
+                  label="分发"
                   value={<OfficialWebIngestionStatusChip status={record.latestIngestionDispatchStatus} />}
                 />
-                <SiteFieldRow label="Last Success" value={formatTimestamp(record.lastSuccessAt)} />
-                <SiteFieldRow label="Last Failure" value={formatTimestamp(record.lastFailureAt)} />
+                <SiteFieldRow label="最近成功" value={formatTimestamp(record.lastSuccessAt)} />
+                <SiteFieldRow label="最近失败" value={formatTimestamp(record.lastFailureAt)} />
               </Stack>
             </CardContent>
           </Card>
@@ -89,7 +89,7 @@ function OfficialWebSiteShowContent() {
           <Card sx={{ gridColumn: { lg: "1 / -1", xs: "auto" } }}>
             <CardContent>
               <Stack spacing={2}>
-                <Typography variant="h6">Recent Runs</Typography>
+                <Typography variant="h6">最近运行</Typography>
                 <Divider />
                 {record.recentRuns && record.recentRuns.length > 0 ? (
                   <Stack spacing={1.5}>
@@ -102,7 +102,7 @@ function OfficialWebSiteShowContent() {
                           <OfficialWebRunStatusChip status={run.status} />
                           <OfficialWebIngestionStatusChip status={run.ingestionDispatchStatus} />
                           <Typography color="text.secondary" variant="caption">
-                            Started {formatTimestamp(run.startedAt)}
+                            开始于 {formatTimestamp(run.startedAt)}
                           </Typography>
                         </Stack>
                       </Stack>
@@ -110,7 +110,7 @@ function OfficialWebSiteShowContent() {
                   </Stack>
                 ) : (
                   <Typography color="text.secondary" variant="body2">
-                    No recent runs projected yet.
+                    {PANEL_COPY.noRecentRuns}
                   </Typography>
                 )}
               </Stack>
@@ -124,7 +124,7 @@ function OfficialWebSiteShowContent() {
 
 export function OfficialWebSiteShowPage() {
   return (
-    <Show title="Official Web Site">
+    <Show title="官网站点详情">
       <OfficialWebSiteShowContent />
     </Show>
   );

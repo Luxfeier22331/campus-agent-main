@@ -38,7 +38,7 @@ export function OfficialWebIngestionStatusChip({ status }: { status: string | nu
 export function OfficialWebHostsSummary({ hostRoots }: { hostRoots: string[] }) {
   return (
     <Typography variant="body2">
-      {hostRoots.length > 0 ? hostRoots.join(", ") : "No hosts projected"}
+      {hostRoots.length > 0 ? hostRoots.join(", ") : "暂无已投影主机"}
     </Typography>
   );
 }
@@ -51,7 +51,7 @@ export function OfficialWebArtifactList({ artifacts }: { artifacts: OfficialWebA
   if (artifacts.length === 0) {
     return (
       <Typography color="text.secondary" variant="body2">
-        No artifacts registered.
+        暂无已登记产物。
       </Typography>
     );
   }

@@ -1,6 +1,7 @@
 import type { AuthProvider } from "react-admin";
 
 import { fetchJson } from "./http";
+import { PANEL_COPY } from "./panel-copy";
 import { normalizeOverviewRecord, type PanelOverviewRecord, type RawPanelOverviewResponse } from "./types";
 
 let cachedOverviewPromise: Promise<PanelOverviewRecord> | null = null;
@@ -32,7 +33,7 @@ export const protectedPanelAuthProvider: AuthProvider = {
     }
   },
   async checkError(error) {
-    if (error?.status === 401 || error?.status === 403) {
+    if (error?.status === 401) {
       clearOverviewCache();
       throw error;
     }
@@ -43,7 +44,7 @@ export const protectedPanelAuthProvider: AuthProvider = {
 
     if (!operator) {
       return {
-        fullName: "Protected Operator",
+        fullName: "受保护运维身份",
         id: "protected-operator",
       };
     }
@@ -54,10 +55,17 @@ export const protectedPanelAuthProvider: AuthProvider = {
     };
   },
   async login() {},
-  async logout() {
+  async logout(params) {
     clearOverviewCache();
-    if (typeof window !== "undefined") {
-      window.location.assign("/cdn-cgi/access/logout");
+
+    if (params === null) {
+      if (typeof window !== "undefined") {
+        return new URL("/cdn-cgi/access/logout", window.location.origin).toString();
+      }
+
+      return "/cdn-cgi/access/logout";
     }
+
+    return "/login";
   },
 };
