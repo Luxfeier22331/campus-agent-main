@@ -5,8 +5,10 @@ This directory holds the repo-tracked config scaffolding for the
 
 - `runtime-profile.json`: canonical runtime gate for bootstrap import plus serving policy
 - `canonical-profile.json`: primary source unit, identity strategy, and projection notes
-- `chunk-profile.json`: default structured-unit chunking profile for future restricted rollout
+- `chunk-profile.json`: current generic runtime defaults for chunk preparation admission
 - `source-projections.v1.json`: offline source-truth replay contract for clean parent notices and derived attachment documents
+- `docs/reference/internal-notice-offline-preparation-strategy.md`: collection-specific offline preparation and lane strategy
+- `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`: collection-specific quality acceptance criteria before any index release
 
 Current runtime truth:
 
@@ -28,3 +30,11 @@ Offline source-truth replay rules:
 - parent notice documents only carry notice body structure
 - attachment refs remain in source-truth and do not participate in parent chunk identity
 - downloaded attachments are materialized as derived restricted child documents
+
+Current chunk-preparation truth:
+
+- parent notice and attachment child docs must not share one global quality target
+- the current `220/320/32/32` values are generic runtime defaults, not the final lane-specific semantic policy
+- verified chunk preparation is a separate stage from `release_registry_scope`
+- `release_registry_scope` now requires an explicit successful `preparation_run_id`
+- structural preparation pass is not quality acceptance; attachment cleanup / extraction / chunk quality must be accepted separately

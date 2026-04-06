@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-05
+updated: 2026-04-06
 ---
 
 # Data Plane Architecture
@@ -83,6 +83,15 @@ source truth 的长期硬约束：
 - serving alias 指向当前 query-serving physical collection
 - index release 通过 versioned physical collection + release manifest 追溯
 
+对部分 `offline_preparation` collection，index release 之前允许插入一个 preparation gate。
+
+固定规则：
+
+- collection-specific `chunk preparation` 属于 data-plane 内的独立阶段，不等于 index release
+- preparation 只负责 split / cleanup / chunk / validation，不负责 embedding / indexing
+- preparation truth 固定落在 operations prefix，而不是 release prefix
+- 当某个 collection 启用 hard gate 时，release 必须显式引用 verified preparation truth 才能继续
+
 ## Object Storage Semantics
 
 对象存储在架构语义上始终视为：
@@ -116,6 +125,7 @@ registry / control-plane database 与对象存储长期分层。
 - `configs/ingestion/*`
 - `docs/architecture/official-web-source-truth-contract.md`
 - `docs/architecture/authenticated-notice-source-truth-contract.md`
+- `docs/reference/internal-notice-offline-preparation-strategy.md`
 
 为准。
 
@@ -141,6 +151,7 @@ Phase 12.2 的 staged closeout 不改变 data-plane canonical chain，只改变 
 - notice/raw/document staging rows 与 run/shard/batch/worker counters 必须作为 batch 级单事务提交
 - batch 围绕 canonical source-truth 与 declared document artifacts 工作，但 canonical final document scope 只允许 promoter 单写
 - promoter 在 verification 通过后，才把 staged document artifacts 复制到 `campus_notices/documents/internal_notice/...` 并执行 `replace_scope`
+- 若 collection 额外启用了 registry-scope chunk preparation，则 preparation artifacts 固定落在 `campus_notices/operations/registry-scope-chunk-preparation/{run_id}/...`，它们属于 operations truth，不属于 release truth
 
 因此被并行化的是 staging，而不是 canonical document scope mutation。
 
@@ -160,3 +171,4 @@ Phase 12.2 的 staged closeout 不改变 data-plane canonical chain，只改变 
 - `docs/decisions/adr-0026-authenticated-notice-batch-leased-closeout-throughput.md`
 - `docs/decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md`
 - `docs/architecture/authenticated-notice-source-truth-contract.md`
+- `docs/reference/internal-notice-offline-preparation-strategy.md`

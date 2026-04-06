@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-03
-updated: 2026-04-05
+updated: 2026-04-06
 ---
 
 # Authenticated Notice Source Architecture
@@ -66,6 +66,7 @@ updated: 2026-04-05
 - source-channel 运行边界：本文
 - source-truth schema：`docs/architecture/authenticated-notice-source-truth-contract.md`
 - shared data-plane 不变量：`docs/architecture/data-plane-architecture.md`
+- `internal_notice` collection-specific offline preparation strategy：`docs/reference/internal-notice-offline-preparation-strategy.md`
 - restricted document authorization：`docs/architecture/identity-and-authorization-architecture.md`
 
 ## Collector Runtime Ownership
@@ -189,6 +190,8 @@ authenticated notice 的 attachment projection 以 source-truth replay 方式重
 
 这条规则服务于当前 `offline_preparation` collection，不表示 `internal_notice` 已开放 query-serving。
 
+对 `internal_notice` 来说，具体的 split / cleanup / chunk lane design 不在本文内展开，固定由 `docs/reference/internal-notice-offline-preparation-strategy.md` 承担。本文只冻结 parent / child 分层与 attachment lane 的 repo-level 边界，不负责决定某个 lane 的具体 chunk budget。
+
 ## Future Control Plane
 
 如果后续需要 run admission、heartbeat、operator read model 与 ingestion handoff，长期规则固定为：
@@ -251,6 +254,7 @@ Phase 12.2 已把 authenticated notice historical closeout 重构为 async stage
 
 - `docs/architecture/authenticated-notice-source-truth-contract.md`
 - `docs/architecture/data-plane-architecture.md`
+- `docs/reference/internal-notice-offline-preparation-strategy.md`
 - `docs/architecture/identity-and-authorization-architecture.md`
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
 - `docs/decisions/adr-0025-authenticated-notice-async-staged-closeout.md`

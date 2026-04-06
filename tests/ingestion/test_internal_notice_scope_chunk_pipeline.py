@@ -8,6 +8,7 @@ import unittest
 from qdrant_client import QdrantClient
 
 from campus_ingestion_core.models import DocumentRegistryRecord
+from campus_ingestion_core.process import build_indexable_chunks_from_jsonl
 from campus_ingestion_core.registry_scope_chunk_preparation import prepare_registry_scope_chunks
 from campus_ingestion_core.registry_scope_release import release_registry_scope
 from tests.support.in_memory_registry import InMemoryDocumentRegistry
@@ -49,6 +50,30 @@ def _make_internal_notice_record(*, object_key: str) -> DocumentRegistryRecord:
         version_id="sha256:test-version",
         source_uri="https://portal.example.edu/notice/355119",
         content_hash="sha256:test-content",
+        corpus="campus_notices",
+        collection="internal_notice",
+        cleaning_policy_version="authenticated_notice_projection_v1",
+        entitlement_groups=("campus_members",),
+        visibility_scope="campus",
+        visibility_level="restricted",
+        ingestion_timestamp="2026-04-06T00:00:00+00:00",
+        parser_version="authenticated_notice_import_v1",
+        embedding_model="Qwen3-Embedding-4B",
+        source_channel="authenticated_notice_portal",
+        is_current=True,
+        document_units_object_key=object_key,
+        processed_object_keys=(object_key,),
+        import_source="authenticated_notice_source_projection",
+    )
+
+
+def _make_internal_notice_attachment_record(*, object_key: str) -> DocumentRegistryRecord:
+    return DocumentRegistryRecord(
+        document_id="notice_attachment:muc_internal_portal:355119:attachment-0001",
+        revision_track="source-faithful",
+        version_id="sha256:test-attachment-version",
+        source_uri="https://portal.example.edu/notice/355119/attachments/1",
+        content_hash="sha256:test-attachment-content",
         corpus="campus_notices",
         collection="internal_notice",
         cleaning_policy_version="authenticated_notice_projection_v1",
@@ -137,6 +162,233 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
         self.assertIn(report.manifest_object_key, upload_keys)
         self.assertIn(str(report.validation_summary_object_key), upload_keys)
         self.assertIn(str(report.document_report_object_key), upload_keys)
+
+    def test_internal_notice_parent_chunks_use_notice_body_lane_strategy(self) -> None:
+        record = _make_internal_notice_record(
+            object_key=(
+                "campus_notices/documents/internal_notice/"
+                "notice-355119/source-faithful/2026/document-units.jsonl"
+            )
+        )
+        structured_payload = (
+            json.dumps(
+                {
+                    "doc_id": record.document_id,
+                    "version_id": record.version_id,
+                    "chunk_id": "title-001",
+                    "root_unit_id": "title-001",
+                    "unit_type": "policy_page",
+                    "text": "关于开放2025年度拔尖创新人才证书项目第二轮报名的通知",
+                    "raw_text": "关于开放2025年度拔尖创新人才证书项目第二轮报名的通知",
+                    "clean_text": "关于开放2025年度拔尖创新人才证书项目第二轮报名的通知",
+                    "anchor": {"source_uri": record.source_uri, "section_path": ["通知正文"]},
+                    "metadata": {"block_role": "title"},
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+            + json.dumps(
+                {
+                    "doc_id": record.document_id,
+                    "version_id": record.version_id,
+                    "chunk_id": "body-001",
+                    "root_unit_id": "body-001",
+                    "unit_type": "article_body",
+                    "text": "请同学们于4月10日前完成报名，并按照通知要求提交材料。",
+                    "raw_text": "请同学们于4月10日前完成报名，并按照通知要求提交材料。",
+                    "clean_text": "请同学们于4月10日前完成报名，并按照通知要求提交材料。",
+                    "anchor": {"source_uri": record.source_uri, "section_path": ["通知正文"]},
+                    "metadata": {"block_role": "paragraph"},
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+        )
+
+        body_chunks = [chunk for chunk in chunks if chunk.metadata["unit_type"] == "article_body"]
+        self.assertTrue(body_chunks)
+        self.assertTrue(
+            all(chunk.metadata["internal_notice_lane"] == "notice_body" for chunk in body_chunks)
+        )
+        self.assertTrue(
+            all(chunk.metadata["strategy_name"] == "internal_notice_notice_body_v2" for chunk in body_chunks)
+        )
+        self.assertTrue(
+            all(
+                chunk.metadata["title"] == "关于开放2025年度拔尖创新人才证书项目第二轮报名的通知"
+                for chunk in body_chunks
+            )
+        )
+
+    def test_internal_notice_attachment_text_chunks_use_text_lane_strategy(self) -> None:
+        record = _make_internal_notice_attachment_record(
+            object_key=(
+                "campus_notices/documents/internal_notice/"
+                "notice-355119-attachment-0001/source-faithful/2026/document-units.jsonl"
+            )
+        )
+        structured_payload = (
+            json.dumps(
+                {
+                    "doc_id": record.document_id,
+                    "version_id": record.version_id,
+                    "chunk_id": "attachment-title",
+                    "root_unit_id": "attachment-title",
+                    "unit_type": "attachment_title",
+                    "text": "关于开放2025年度拔尖创新人才证书项目第二轮报名的通知 / 附件 1 / 报名表.docx",
+                    "raw_text": "关于开放2025年度拔尖创新人才证书项目第二轮报名的通知 / 附件 1 / 报名表.docx",
+                    "clean_text": "关于开放2025年度拔尖创新人才证书项目第二轮报名的通知 / 附件 1 / 报名表.docx",
+                    "anchor": {"source_uri": record.source_uri, "attachment_ref_id": "attachment-0001"},
+                    "metadata": {
+                        "projection_name": "internal_notice_attachment_documents",
+                        "parent_document_id": "notice:muc_internal_portal:355119",
+                        "attachment_ref_id": "attachment-0001",
+                        "attachment_kind": "office_document_attachment",
+                        "attachment_role": "notice_attachment_document",
+                        "attachment_filename": "报名表.docx",
+                        "attachment_mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "extraction_class": "text_extractable",
+                    },
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+            + json.dumps(
+                {
+                    "doc_id": record.document_id,
+                    "version_id": record.version_id,
+                    "chunk_id": "attachment-body-0001",
+                    "root_unit_id": "attachment-body-0001",
+                    "unit_type": "attachment_body",
+                    "text": "姓名：张三\n学院：法学院\n联系电话：12345678",
+                    "raw_text": "姓名：张三\n学院：法学院\n联系电话：12345678",
+                    "clean_text": "姓名：张三\n学院：法学院\n联系电话：12345678",
+                    "anchor": {"source_uri": record.source_uri, "attachment_ref_id": "attachment-0001"},
+                    "metadata": {
+                        "projection_name": "internal_notice_attachment_documents",
+                        "parent_document_id": "notice:muc_internal_portal:355119",
+                        "attachment_ref_id": "attachment-0001",
+                        "attachment_kind": "office_document_attachment",
+                        "attachment_role": "notice_attachment_document",
+                        "attachment_filename": "报名表.docx",
+                        "attachment_mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "extraction_class": "text_extractable",
+                    },
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+        )
+
+        body_chunks = [chunk for chunk in chunks if chunk.metadata["unit_type"] == "attachment_body"]
+        self.assertTrue(body_chunks)
+        self.assertTrue(
+            all(
+                chunk.metadata["internal_notice_lane"] == "attachment_text_extractable"
+                for chunk in body_chunks
+            )
+        )
+        self.assertTrue(
+            all(chunk.metadata["strategy_name"] == "internal_notice_attachment_text_v2" for chunk in body_chunks)
+        )
+        self.assertTrue(
+            all(
+                chunk.metadata["title"]
+                == "关于开放2025年度拔尖创新人才证书项目第二轮报名的通知 / 附件 1 / 报名表.docx"
+                for chunk in body_chunks
+            )
+        )
+
+    def test_internal_notice_attachment_ocr_chunks_use_ocr_lane_budget(self) -> None:
+        record = _make_internal_notice_attachment_record(
+            object_key=(
+                "campus_notices/documents/internal_notice/"
+                "notice-355119-attachment-0001/source-faithful/2026/document-units-ocr.jsonl"
+            )
+        )
+        ocr_text = "\n".join(f"第{index}行 {'甲' * 40}" for index in range(1, 40))
+        structured_payload = (
+            json.dumps(
+                {
+                    "doc_id": record.document_id,
+                    "version_id": record.version_id,
+                    "chunk_id": "attachment-title",
+                    "root_unit_id": "attachment-title",
+                    "unit_type": "attachment_title",
+                    "text": "关于开放2025年度拔尖创新人才证书项目第二轮报名的通知 / 附件 1 / 现场签到图.jpg",
+                    "raw_text": "关于开放2025年度拔尖创新人才证书项目第二轮报名的通知 / 附件 1 / 现场签到图.jpg",
+                    "clean_text": "关于开放2025年度拔尖创新人才证书项目第二轮报名的通知 / 附件 1 / 现场签到图.jpg",
+                    "anchor": {"source_uri": record.source_uri, "attachment_ref_id": "attachment-0001"},
+                    "metadata": {
+                        "projection_name": "internal_notice_attachment_documents",
+                        "parent_document_id": "notice:muc_internal_portal:355119",
+                        "attachment_ref_id": "attachment-0001",
+                        "attachment_kind": "ocr_image_attachment",
+                        "attachment_role": "notice_attachment_document",
+                        "attachment_filename": "现场签到图.jpg",
+                        "attachment_mime_type": "image/jpeg",
+                        "extraction_class": "ocr_required",
+                    },
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+            + json.dumps(
+                {
+                    "doc_id": record.document_id,
+                    "version_id": record.version_id,
+                    "chunk_id": "attachment-body-0001",
+                    "root_unit_id": "attachment-body-0001",
+                    "unit_type": "attachment_body",
+                    "text": ocr_text,
+                    "raw_text": ocr_text,
+                    "clean_text": ocr_text,
+                    "anchor": {"source_uri": record.source_uri, "attachment_ref_id": "attachment-0001"},
+                    "metadata": {
+                        "projection_name": "internal_notice_attachment_documents",
+                        "parent_document_id": "notice:muc_internal_portal:355119",
+                        "attachment_ref_id": "attachment-0001",
+                        "attachment_kind": "ocr_image_attachment",
+                        "attachment_role": "notice_attachment_document",
+                        "attachment_filename": "现场签到图.jpg",
+                        "attachment_mime_type": "image/jpeg",
+                        "extraction_class": "ocr_required",
+                    },
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+        )
+
+        body_chunks = [chunk for chunk in chunks if chunk.metadata["unit_type"] == "attachment_body"]
+        self.assertGreater(len(body_chunks), 1)
+        self.assertTrue(
+            all(
+                chunk.metadata["internal_notice_lane"] == "attachment_ocr_required"
+                for chunk in body_chunks
+            )
+        )
+        self.assertTrue(
+            all(chunk.metadata["strategy_name"] == "internal_notice_attachment_ocr_v2" for chunk in body_chunks)
+        )
+        self.assertTrue(
+            all(int(chunk.metadata["final_token_count"]) <= 240 for chunk in body_chunks)
+        )
 
     def test_release_registry_scope_requires_chunk_preparation_for_internal_notice(self) -> None:
         with TemporaryDirectory() as temp_dir:

@@ -860,7 +860,7 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
         self.assertGreater(len(table_chunks), 1)
         self.assertTrue(all(chunk.metadata["split_reason"] == "token_guardrail" for chunk in table_chunks))
         self.assertTrue(all(chunk.metadata["final_token_count"] <= 320 for chunk in table_chunks))
-        self.assertTrue(all(chunk.metadata["strategy_name"] == "internal_notice_generic_v1" for chunk in table_chunks))
+        self.assertTrue(all(chunk.metadata["strategy_name"] == "internal_notice_notice_body_v2" for chunk in table_chunks))
 
 
 if __name__ == "__main__":

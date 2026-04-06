@@ -24,6 +24,8 @@ updated: 2026-04-06
 它不替代：
 
 - `docs/architecture/authenticated-notice-source-architecture.md` 的长期边界
+- `docs/reference/internal-notice-offline-preparation-strategy.md` 的 collection-specific lane strategy
+- `docs/reference/internal-notice-offline-preparation-quality-acceptance.md` 的质量验收规则
 - `docs/runbooks/authenticated-notice-bootstrap-smoke-runbook.md` 的 bundle import smoke
 - `docs/runbooks/authenticated-notice-async-staged-closeout-runbook.md` 的 run lifecycle / show / watch / promote 操作面
 - live collector / control-plane runbook
@@ -239,6 +241,16 @@ projection replay 之后，parent 与 child document 都进入 repo-owned cleanu
 - child attachment documents 各自独立 chunk
 - 不把 attachment 文本重新拼回 parent notice
 
+`internal_notice` 的 collection-specific strategy 固定以 `docs/reference/internal-notice-offline-preparation-strategy.md` 为准；runbook 这里只收口 operator 视角下的执行边界。
+
+当前 operator 应按以下理解执行：
+
+- parent notice body 是默认高质量 lane，不应因为 attachment 的脏表格或 OCR 噪声被全局缩小 chunk
+- `text_extractable` attachment 与 `ocr_required` attachment 必须分 lane 处理
+- 当前 repo-tracked `220/320/32/32` 只是 generic runtime defaults，不是 `internal_notice` 的最终 lane-specific semantic policy
+- `prepare_registry_scope_chunks` 的结构通过不代表 attachment quality、cleanup quality 和 chunk quality 已验收
+- `internal_notice` 在进入任何 embedding / Qdrant / release 之前，必须先过 `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`
+
 `internal_notice` 当前 runtime profile 已允许进入 offline preparation 的 document/chunk/index 生命周期，但仍保持：
 
 - `retrieval_enabled=false`
@@ -247,6 +259,7 @@ projection replay 之后，parent 与 child document 都进入 repo-owned cleanu
 这里的 canonical 后续链路已经拆成两段：
 
 - `prepare_registry_scope_chunks --corpus campus_notices --collection internal_notice --preparation-run-id <prep_id>`
+- `validate_internal_notice_chunking --preparation-run-id <prep_id> --sample-dir <output_dir>`
 - `release_registry_scope --corpus campus_notices --collection internal_notice --preparation-run-id <prep_id> --no-publish-alias`
 
 固定规则：
@@ -256,6 +269,8 @@ projection replay 之后，parent 与 child document 都进入 repo-owned cleanu
 - `campus_notices/internal_notice` 现在要求 release 显式提供成功的 `preparation_run_id`；不能再直接跳过 chunk admission 进入 embedding
 
 因此 chunking / embedding / index release 仍然可以发生，但必须分阶段发生，而且不代表该 collection 已经进入 query-serving。
+
+对“先消费已导入历史数据”的 operator 目标，verified chunk preparation 是自然停点；是否继续执行 release，必须作为单独决策处理，不能由 replay / preparation 自动推导。
 
 ### 4.1 Typed Stage Columns & Bulk Commit
 

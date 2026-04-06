@@ -141,6 +141,7 @@ class CollectionChunkProfile:
     structured_input: str
     runtime_defaults: CollectionChunkRuntimeDefaults
     cleaning_policy_version: str
+    lane_defaults: dict[str, CollectionChunkRuntimeDefaults] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.corpus:
@@ -153,6 +154,11 @@ class CollectionChunkProfile:
             raise ValueError("structured_input is required")
         if not self.cleaning_policy_version:
             raise ValueError("cleaning_policy_version is required")
+        for lane_name, defaults in self.lane_defaults.items():
+            if not lane_name.strip():
+                raise ValueError("lane_defaults must not contain empty lane names")
+            if not isinstance(defaults, CollectionChunkRuntimeDefaults):
+                raise ValueError("lane_defaults values must be CollectionChunkRuntimeDefaults")
 
 
 def load_runtime_profile(
@@ -219,6 +225,7 @@ def load_chunk_profile(
     path = root / scope.corpus / scope.collection / "chunk-profile.json"
     payload = json.loads(path.read_text(encoding="utf-8"))
     runtime_defaults_payload = dict(payload.get("runtime_defaults") or {})
+    lane_defaults_payload = dict(payload.get("lane_defaults") or {})
     return CollectionChunkProfile(
         corpus=str(payload.get("corpus") or ""),
         collection=str(payload.get("collection") or ""),
@@ -232,6 +239,17 @@ def load_chunk_profile(
             min_chunk_size=int(runtime_defaults_payload.get("min_chunk_size") or 0),
         ),
         cleaning_policy_version=str(payload.get("cleaning_policy_version") or ""),
+        lane_defaults={
+            str(lane_name): CollectionChunkRuntimeDefaults(
+                strategy_name=str(dict(lane_payload).get("strategy_name") or ""),
+                chunk_size=int(dict(lane_payload).get("chunk_size") or 0),
+                max_chunk_size=int(dict(lane_payload).get("max_chunk_size") or 0),
+                chunk_overlap=int(dict(lane_payload).get("chunk_overlap") or 0),
+                min_chunk_size=int(dict(lane_payload).get("min_chunk_size") or 0),
+            )
+            for lane_name, lane_payload in lane_defaults_payload.items()
+            if isinstance(lane_payload, dict)
+        },
     )
 
 
