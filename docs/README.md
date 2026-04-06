@@ -168,6 +168,7 @@ updated: 2026-04-06
 - `plans/legacy-acl-carrier-compatibility-sunset.md`
 - `plans/local-live-eval-canonical-registry-recovery.md`
 - `plans/operator-observability-control-plane-foundation.md`
+- `plans/prompt-grounding-and-hallucination-hardening-plan.md`
 - `plans/post-closeout-follow-up-execution-plan.md`
 - `plans/restricted-document-rollout-and-verification.md`
 - `plans/supervisor-current-design-implementation.md`

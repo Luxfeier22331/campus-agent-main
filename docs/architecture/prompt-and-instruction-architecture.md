@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-05
-updated: 2026-04-05
+updated: 2026-04-06
 ---
 
 # Prompt And Instruction Architecture
@@ -183,6 +183,29 @@ updated: 2026-04-05
 - citation-expected 的回答必须能回链到 explicit evidence bundle
 - high-structure deterministic answer path 继续优先于 prompt-only freeform synthesis
 
+## 幻觉分类模型
+
+当前 repo 不把 hallucination 简化成“答错了一个事实”。
+
+至少固定区分以下五类：
+
+1. `scope hallucination`
+- 把域外问题伪装成校园范围内问题
+
+2. `policy hallucination`
+- 在证据不足时编造制度、流程、限制或授权条件
+
+3. `citation hallucination`
+- 回答看起来有依据，但关键 claim 实际没有被 evidence bundle 支持
+
+4. `freshness hallucination`
+- 对 freshness-sensitive 问题假装自己掌握最新状态
+
+5. `authorization hallucination`
+- 用未授权或隐藏内容补答案，或泄漏 restricted title / snippet
+
+repo 的 hallucination control 必须分别针对这五类做 gate，而不是统一归类成“prompt 质量问题”。
+
 ## 所有权划分
 
 ### `apps/app-api`
@@ -242,6 +265,75 @@ repo 级 instruction hierarchy 固定拆成五层：
 
 - 不存在“一份 prompt 就是系统真相”
 - repo 真相始终是 `docs/architecture` + `docs/decisions` + code contracts
+
+## Repo-Global System Prompt Blueprint
+
+当前 repo 的长期正确形态不是一份覆盖所有 agent、mode 与 data-plane 的 monolithic mega prompt。
+
+repo 级只应保留一段极薄、极稳定的 global invariants；其余内容继续拆到 package-owned prompt family 与 typed packet。
+
+推荐的 repo-global system block 只包含以下语义：
+
+- 你属于一个 `institution-scoped campus assistant`
+- 你不得改写 policy / authz / serving-surface / scope truth
+- 你不得用开放域世界知识补齐 institution-specific 缺口
+- 如果请求是 `unsupported`、`ambiguous`、`unauthorized` 或 `not grounded by evidence`，必须 abstain 或要求澄清
+- 输出必须满足 typed schema，并接受 code-side finalization
+
+这段 block 的职责只有：
+
+- 固定 repo 级产品姿态
+- 固定 “prompt 不是边界” 的长期规则
+- 防止 package-local prompt family 漂移成各自的私有产品定义
+
+它不负责：
+
+- routing
+- authz
+- query-enabled surface 判定
+- retrieval planning
+- answer finalization
+- claim-level grounding judgement
+
+这些仍然必须留在 code side。
+
+## Package-Owned Prompt Shape
+
+repo 当前推荐的 system / role 设计固定为：
+
+1. `repo-global invariants`
+2. `package-owned role prompt`
+3. `typed task packet`
+4. `typed evidence packet`
+5. `post-LLM contract`
+
+直接含义：
+
+- `packages/supervisor-core` 的 prompt family 只负责 `clarify / approval_required / out_of_scope / reject` 的用户措辞
+- `packages/rag-specialist` 的 prompt family 只负责 `answer / clarify / no-answer` 的 grounded wording
+- `packages/retrieval-core` 不拥有 top-level system prompt
+- `apps/*` 不拥有 execution prompt truth，只负责 request packaging / runtime admission / product projection
+
+## Current Prompt Template Shape
+
+当前 repo 应继续保持最小模板结构：
+
+- `<role>`
+- `<invariants>`
+- `<task>`
+- `<output_contract>`
+
+如果需要 packet 注入，再额外显式拆为：
+
+- `<trusted_task_packet>`
+- `<untrusted_evidence_packet>`
+
+固定规则：
+
+- trusted packet 只放 typed fields 与 safe summaries
+- untrusted packet 只放 retrieval snippets / external text / user free text
+- untrusted packet 不得伪装成 instructions 口吻
+- system / role prompt 不得因为 snippet 内容而发生 priority inversion
 
 ## Ownership
 
@@ -395,6 +487,16 @@ RAG specialist 可额外带：
 - `clarification_reason`
 - `canonical_entity_ids`
 - `citation_expected`
+- `no_answer_reason`
+- `semantic_outcome_hint`
+
+补充推荐字段：
+
+- `grounding_required`
+- `freshness_sensitive`
+- `high_structure_mode`
+
+这些字段的目的不是把 policy judgement 交给 prompt，而是让 prompt executor 与 post-LLM validator 在同一套 typed contract 上工作。
 
 ## Evidence Packet Contract
 
@@ -507,6 +609,44 @@ prompt 变更不是纯文案改动，而是 release-relevant change。
 
 prompt version bump 必须与 eval artifact 一起进入变更记录。
 
+## Post-LLM Contract Expectations
+
+长期上，`post-LLM contract` 不应只检查“有没有返回结构化对象”。
+
+至少要补齐以下校验：
+
+1. `schema gate`
+- provider 返回是否满足 strict schema
+
+2. `citation gate`
+- `citation_expected=true` 时，`completed` 结果不得出现 `0` supporting sources
+
+3. `grounding gate`
+- 回答中的关键对象名、条件、时间、数量和制度名，必须能在 evidence packet 找到支持
+- 如果关键 claim 找不到支持，应自动降级到 `unsupported_by_evidence`
+
+4. `deny-path gate`
+- restricted / hidden / unauthorized 内容不得通过 wording 绕出站
+
+5. `freshness gate`
+- freshness-sensitive 问答不得越过 runtime opening policy 自行作答
+
+## Current Gap To Best Practice
+
+当前 repo 方向已经基本正确，但与长期最佳实践相比仍有三个明确缺口：
+
+1. provider-level strict structured outputs 还没有成为默认产品运行时能力
+- 目前有 prompt packet / typed output seam
+- 但产品主路径默认仍以 deterministic fallback 为主，尚未形成 repo-default strict output runtime
+
+2. claim-level grounding validator 还不够强
+- 当前已有 `citation_expected`、`citation_missing`、`semantic_outcome`
+- 但还没有一层更硬的 answer-to-evidence validator 来自动识别“回答包含 evidence packet 不支持的关键 claim”
+
+3. hallucination eval 还需要按 failure class 显式拆开
+- 当前 eval 已覆盖不少 failure posture
+- 但还应把 `out_of_scope`、`policy_refusal`、`restricted_access_denied`、`unsupported_by_evidence`、`freshness fail-close` 作为独立 regression lane
+
 ## First-Rollout Strategy
 
 第一版 prompt 不做“大一统重构”，而做增量落地。
@@ -547,6 +687,7 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 - supervisor prompt 应保持薄
 - rag-specialist prompt 应按 mode 拆分
 - 结构化、高精度场景继续优先 deterministic composer
+- 幻觉治理的主力仍然是 `scope/evidence/finalization/eval`，而不是继续把 system prompt 写得更长
 
 ## Current Rollout Status
 
