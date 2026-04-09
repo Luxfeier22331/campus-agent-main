@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, replace
+import hashlib
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -29,6 +30,9 @@ from campus_ingestion_core.authenticated_notice_source_truth_replay import (
 from campus_ingestion_core.authenticated_notice_closeout_store import (
     PostgresAuthenticatedNoticeCloseoutStore,
 )
+from campus_ingestion_core.authenticated_notice_closeout_models import (
+    document_stage_slug,
+)
 from campus_ingestion_core.object_store import build_operations_artifact_key
 from campus_ingestion_core.settings import ObjectStoreSettings
 from tests.ingestion.test_authenticated_notice_import import (
@@ -42,6 +46,7 @@ from tests.ingestion.test_authenticated_notice_source_projections import (
     _FakeAttachmentNoTextOcrClient,
     _build_minimal_docx_bytes,
     _build_minimal_gif_bytes,
+    _build_map_like_png_bytes,
     _build_minimal_png_bytes,
     _sample_notice_bundle as _sample_projection_notice_bundle,
     _sample_notice_bundle_with_decorative_gif,
@@ -120,6 +125,20 @@ class _SlowTrackingObjectStore(_FakeObjectStore):
 
 
 class CloseoutRunModelTest(unittest.TestCase):
+    def test_from_dict_restores_selected_notice_ids(self) -> None:
+        run = CloseoutRun.from_dict(
+            {
+                "run_id": "run-1",
+                "bundle_path": "",
+                "manifest_path": None,
+                "expected_notice_count": 1,
+                "operations_prefix": "campus_notices/operations/authenticated-notice-closeout/run-1",
+                "selected_notice_ids": ["355119", "355120"],
+            }
+        )
+
+        self.assertEqual(run.selected_notice_ids, ("355119", "355120"))
+
     def test_run_state_transitions(self) -> None:
         run = CloseoutRun(
             run_id="run-1",
@@ -737,6 +756,112 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
                 content_type=content_type,
             )
 
+    def _build_second_source_truth_notice(
+        self,
+        *,
+        docx_bytes: bytes,
+        png_bytes: bytes,
+    ) -> tuple[dict[str, object], dict[str, tuple[bytes, str]]]:
+        bundle = json.loads(
+            json.dumps(
+                _sample_projection_notice_bundle(docx_bytes=docx_bytes, png_bytes=png_bytes)[0],
+                ensure_ascii=False,
+            )
+        )
+        bundle["notice_id"] = 355120
+        notice = bundle["notice"]
+        assert isinstance(notice, dict)
+        notice["notice_id"] = 355120
+        notice["notice_title"] = "第二条 authenticated notice 测试通知"
+        notice["notice_link"] = "https://portal.example.edu/notice/355120"
+        notice["notice_content"] = (
+            "<h1>第二条 authenticated notice 测试通知</h1>"
+            "<p>第二条通知正文。</p>"
+            "<p>附件1：application-355120.docx</p>"
+            "<p>附件2：notice-355120.png</p>"
+            "<p>附件3：supplement-355120.pdf</p>"
+        )
+        categories = notice["categories"]
+        assert isinstance(categories, list)
+        for index, category in enumerate(categories):
+            assert isinstance(category, dict)
+            category["notice_id"] = 355120
+            category["category_last_run_id"] = 140 + index
+
+        links = bundle["links"]
+        assert isinstance(links, list) and len(links) == 3
+        links[0]["id"] = 134
+        links[0]["notice_id"] = 355120
+        links[0]["url"] = "https://portal.example.edu/files/application-355120.docx"
+        links[0]["final_url"] = "https://portal.example.edu/files/application-355120.docx"
+        links[0]["link_text"] = "application-355120.docx"
+        links[0]["file_size"] = len(docx_bytes)
+        links[1]["id"] = 135
+        links[1]["notice_id"] = 355120
+        links[1]["url"] = "https://portal.example.edu/files/notice-355120.png"
+        links[1]["final_url"] = "https://portal.example.edu/files/notice-355120.png"
+        links[1]["link_text"] = "notice-355120.png"
+        links[1]["file_size"] = len(png_bytes)
+        links[2]["id"] = 136
+        links[2]["notice_id"] = 355120
+        links[2]["url"] = "https://portal.example.edu/files/supplement-355120.pdf"
+        links[2]["final_url"] = "https://portal.example.edu/files/supplement-355120.pdf"
+        links[2]["link_text"] = "supplement-355120.pdf"
+
+        notice_attachments = bundle["notice_attachments"]
+        assert isinstance(notice_attachments, list) and len(notice_attachments) == 3
+        notice_attachments[0]["notice_id"] = 355120
+        notice_attachments[0]["attachment_id"] = 101
+        notice_attachments[0]["link_id"] = 134
+        notice_attachments[1]["notice_id"] = 355120
+        notice_attachments[1]["attachment_id"] = 102
+        notice_attachments[1]["link_id"] = 135
+        notice_attachments[2]["notice_id"] = 355120
+        notice_attachments[2]["attachment_id"] = 103
+        notice_attachments[2]["link_id"] = 136
+
+        attachments = bundle["attachments"]
+        assert isinstance(attachments, list) and len(attachments) == 3
+        second_docx_key = "attachments/pilot/355120/application-355120.docx"
+        second_png_key = "attachments/pilot/355120/notice-355120.png"
+        second_docx_sha256 = hashlib.sha256(docx_bytes).hexdigest()
+        second_png_sha256 = hashlib.sha256(png_bytes).hexdigest()
+        attachments[0]["attachment_id"] = 101
+        attachments[0]["source_url"] = "https://portal.example.edu/files/application-355120.docx"
+        attachments[0]["normalized_source_url"] = (
+            "https://portal.example.edu/files/application-355120.docx"
+        )
+        attachments[0]["final_url"] = "https://portal.example.edu/files/application-355120.docx"
+        attachments[0]["original_filename"] = "application-355120.docx"
+        attachments[0]["byte_size"] = len(docx_bytes)
+        attachments[0]["sha256"] = second_docx_sha256
+        attachments[0]["object_key"] = second_docx_key
+        attachments[1]["attachment_id"] = 102
+        attachments[1]["source_url"] = "https://portal.example.edu/files/notice-355120.png"
+        attachments[1]["normalized_source_url"] = (
+            "https://portal.example.edu/files/notice-355120.png"
+        )
+        attachments[1]["final_url"] = "https://portal.example.edu/files/notice-355120.png"
+        attachments[1]["original_filename"] = "notice-355120.png"
+        attachments[1]["byte_size"] = len(png_bytes)
+        attachments[1]["sha256"] = second_png_sha256
+        attachments[1]["object_key"] = second_png_key
+        attachments[2]["attachment_id"] = 103
+        attachments[2]["source_url"] = "https://portal.example.edu/files/supplement-355120.pdf"
+        attachments[2]["normalized_source_url"] = (
+            "https://portal.example.edu/files/supplement-355120.pdf"
+        )
+        attachments[2]["final_url"] = "https://portal.example.edu/files/supplement-355120.pdf"
+        attachments[2]["original_filename"] = "supplement-355120.pdf"
+
+        return bundle, {
+            second_docx_key: (
+                docx_bytes,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ),
+            second_png_key: (png_bytes, "image/png"),
+        }
+
     def test_plan_run_writes_frozen_batch_inputs_without_staging_any_documents(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -829,20 +954,35 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
                 source_truth_inventory_store=service.source_truth_inventory_store,
             )
 
-            summary = service.plan_source_truth_replay_run(
-                request=AuthenticatedNoticeSourceTruthReplayRequest(),
-                run_id="source-truth-run-1",
-                max_concurrency=2,
-                notice_concurrency=4,
-                object_store_concurrency=16,
-                lease_seconds=120,
+            from campus_ingestion_core.authenticated_notice_source_truth_replay import (
+                load_authenticated_notice_source_truth_replay_inventory_from_store,
             )
+
+            with patch(
+                "campus_ingestion_core.authenticated_notice_closeout_planning.load_authenticated_notice_source_truth_replay_inventory_from_store",
+                wraps=load_authenticated_notice_source_truth_replay_inventory_from_store,
+            ) as load_from_store:
+                summary = service.plan_source_truth_replay_run(
+                    request=AuthenticatedNoticeSourceTruthReplayRequest(),
+                    run_id="source-truth-run-1",
+                    max_concurrency=2,
+                    notice_concurrency=4,
+                    object_store_concurrency=16,
+                    lease_seconds=120,
+                )
+
+            self.assertEqual(load_from_store.call_count, 1)
 
             self.assertEqual(summary["state"], "planned")
             self.assertEqual(summary["expected_notice_count"], 1)
             self.assertEqual(summary["expected_document_count"], 2)
             self.assertEqual(summary["expected_attachment_document_count"], 1)
             self.assertEqual(summary["expected_ocr_candidate_count"], 1)
+            self.assertEqual(
+                summary["notice_risk_counts"],
+                {"body_with_text_attachments": 1},
+            )
+            self.assertEqual(summary["high_risk_notice_count"], 0)
             self.assertEqual(summary["batch_count"], 1)
 
             batch_input_key = build_operations_artifact_key(
@@ -863,6 +1003,12 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
             self.assertEqual(len(batch_input["source_truth_parents"]), 1)
             parent = batch_input["source_truth_parents"][0]
             self.assertEqual(parent["document_id"], "notice:muc_internal_portal:355119")
+            self.assertEqual(parent["notice_risk_label"], "body_with_text_attachments")
+            self.assertEqual(parent["attachment_ref_count"], 3)
+            self.assertEqual(parent["attachment_mix_score"], 5)
+            self.assertTrue(parent["has_text_table_attachment"])
+            self.assertFalse(parent["has_spatial_attachment"])
+            self.assertTrue(parent["has_reference_only_attachment"])
             self.assertEqual(parent["raw_record"]["raw_asset_id"], "asset:authenticated-notice:muc_internal_portal:355119")
             self.assertEqual(
                 sorted(item["classification"] for item in parent["attachment_projection_plans"]),
@@ -878,6 +1024,102 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
                     "attachment-0002": "conditional_on_extracted_text",
                 },
             )
+
+    def test_plan_source_truth_replay_run_filters_to_selected_notice_ids(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            service, object_store = self._build_service(root=root)
+            first_docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表第一行", "报名表第二行"))
+            first_png_bytes = _build_minimal_png_bytes()
+            second_docx_bytes = _build_minimal_docx_bytes(
+                paragraphs=("第二条报名表第一行", "第二条报名表第二行")
+            )
+            second_png_bytes = _build_minimal_png_bytes()
+            bundle = _sample_projection_notice_bundle(
+                docx_bytes=first_docx_bytes,
+                png_bytes=first_png_bytes,
+            )
+            second_notice, second_payloads = self._build_second_source_truth_notice(
+                docx_bytes=second_docx_bytes,
+                png_bytes=second_png_bytes,
+            )
+            bundle.append(second_notice)
+            attachment_payloads = {
+                str(bundle[0]["attachments"][0]["object_key"]): (
+                    first_docx_bytes,
+                    str(bundle[0]["attachments"][0]["mime_type"]),
+                ),
+                str(bundle[0]["attachments"][1]["object_key"]): (
+                    first_png_bytes,
+                    str(bundle[0]["attachments"][1]["mime_type"]),
+                ),
+                **second_payloads,
+            }
+            self._bootstrap_source_truth_scope(
+                root=root,
+                object_store=object_store,
+                document_registry=service.document_registry,
+                raw_asset_registry=service.raw_asset_registry,
+                source_truth_inventory_store=service.source_truth_inventory_store,
+                bundle=bundle,
+                attachment_payloads=attachment_payloads,
+            )
+
+            summary = service.plan_source_truth_replay_run(
+                request=AuthenticatedNoticeSourceTruthReplayRequest(
+                    notice_ids=("355120", "355120"),
+                ),
+                run_id="source-truth-run-selected-1",
+                max_concurrency=1,
+                notice_concurrency=2,
+                object_store_concurrency=8,
+                lease_seconds=120,
+            )
+
+            self.assertEqual(summary["state"], "planned")
+            self.assertEqual(summary["selected_notice_ids"], ["355120"])
+            self.assertEqual(
+                summary["notice_risk_counts"],
+                {"body_with_text_attachments": 1},
+            )
+            self.assertEqual(summary["expected_notice_count"], 1)
+
+            batch_input_key = build_operations_artifact_key(
+                corpus="campus_notices",
+                operation="authenticated-notice-closeout",
+                run_id="source-truth-run-selected-1",
+                filename="input.json",
+                segments=("batches", "000001"),
+            )
+            batch_input = json.loads(
+                object_store.get_bytes(
+                    bucket=service.object_store_settings.bucket_derived,
+                    key=batch_input_key,
+                ).decode("utf-8")
+            )
+            self.assertEqual(batch_input["notice_ids"], ["355120"])
+            self.assertEqual(
+                [item["notice_id"] for item in batch_input["source_truth_parents"]],
+                ["355120"],
+            )
+
+            run_manifest_key = build_operations_artifact_key(
+                corpus="campus_notices",
+                operation="authenticated-notice-closeout",
+                run_id="source-truth-run-selected-1",
+                filename="run-manifest.json",
+            )
+            run_manifest = json.loads(
+                object_store.get_bytes(
+                    bucket=service.object_store_settings.bucket_derived,
+                    key=run_manifest_key,
+                ).decode("utf-8")
+            )
+            self.assertEqual(run_manifest["selected_notice_ids"], ["355120"])
+
+            run = service.closeout_store.get_run("source-truth-run-selected-1")
+            assert run is not None
+            self.assertEqual(run.selected_notice_ids, ("355120",))
 
     def test_plan_run_parallelizes_batch_artifact_writes_and_records_progress(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -954,21 +1196,90 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
             )
             service.planning.source_truth_inventory_store = inventory_store
 
-            with patch(
-                "campus_ingestion_core.authenticated_notice_closeout_planning.load_authenticated_notice_source_truth_replay_inventory",
-                side_effect=AssertionError("legacy source-truth scanner must not be used"),
-            ):
-                summary = service.plan_source_truth_replay_run(
-                    request=AuthenticatedNoticeSourceTruthReplayRequest(),
-                    run_id="source-truth-run-1",
-                    max_concurrency=2,
-                    notice_concurrency=4,
-                    object_store_concurrency=16,
-                    lease_seconds=120,
-                )
+            summary = service.plan_source_truth_replay_run(
+                request=AuthenticatedNoticeSourceTruthReplayRequest(),
+                run_id="source-truth-run-1",
+                max_concurrency=2,
+                notice_concurrency=4,
+                object_store_concurrency=16,
+                lease_seconds=120,
+            )
 
             self.assertEqual(summary["state"], "planned")
             self.assertEqual(summary["expected_notice_count"], 1)
+
+    def test_rebuild_source_truth_inventory_selected_notice_ids_do_not_shrink_full_scope(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            service, object_store = self._build_service(root=root)
+            first_docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表第一行", "报名表第二行"))
+            first_png_bytes = _build_minimal_png_bytes()
+            second_docx_bytes = _build_minimal_docx_bytes(
+                paragraphs=("第二条报名表第一行", "第二条报名表第二行")
+            )
+            second_png_bytes = _build_minimal_png_bytes()
+            bundle = _sample_projection_notice_bundle(
+                docx_bytes=first_docx_bytes,
+                png_bytes=first_png_bytes,
+            )
+            second_notice, second_payloads = self._build_second_source_truth_notice(
+                docx_bytes=second_docx_bytes,
+                png_bytes=second_png_bytes,
+            )
+            bundle.append(second_notice)
+            attachment_payloads = {
+                str(bundle[0]["attachments"][0]["object_key"]): (
+                    first_docx_bytes,
+                    str(bundle[0]["attachments"][0]["mime_type"]),
+                ),
+                str(bundle[0]["attachments"][1]["object_key"]): (
+                    first_png_bytes,
+                    str(bundle[0]["attachments"][1]["mime_type"]),
+                ),
+                **second_payloads,
+            }
+            self._bootstrap_source_truth_scope(
+                root=root,
+                object_store=object_store,
+                document_registry=service.document_registry,
+                raw_asset_registry=service.raw_asset_registry,
+                source_truth_inventory_store=service.source_truth_inventory_store,
+                bundle=bundle,
+                attachment_payloads=attachment_payloads,
+            )
+
+            from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
+                InMemoryAuthenticatedNoticeSourceTruthInventoryStore,
+                rebuild_authenticated_notice_source_truth_inventory,
+            )
+
+            inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+            rebuild_authenticated_notice_source_truth_inventory(
+                request=AuthenticatedNoticeSourceTruthReplayRequest(),
+                document_registry=service.document_registry,
+                raw_asset_registry=service.raw_asset_registry,
+                object_store=object_store,
+                object_store_settings=service.object_store_settings,
+                inventory_store=inventory_store,
+            )
+            self.assertEqual(
+                tuple(entry.notice_id for entry in inventory_store.list_by_scope("campus_notices", "internal_notice")),
+                ("355119", "355120"),
+            )
+
+            rebuild_authenticated_notice_source_truth_inventory(
+                request=AuthenticatedNoticeSourceTruthReplayRequest(notice_ids=("355120",)),
+                document_registry=service.document_registry,
+                raw_asset_registry=service.raw_asset_registry,
+                object_store=object_store,
+                object_store_settings=service.object_store_settings,
+                inventory_store=inventory_store,
+            )
+
+            self.assertEqual(
+                tuple(entry.notice_id for entry in inventory_store.list_by_scope("campus_notices", "internal_notice")),
+                ("355119", "355120"),
+            )
 
     def test_repair_source_truth_replay_refreshes_frozen_inventory_counts(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -1312,7 +1623,7 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
             )
             self.assertTrue(
                 no_text_outcome["provider_response_staged_object_key"].endswith(
-                    "/attachments/attachment-0002/provider-response.jsonl"
+                    f"/attachments/{document_stage_slug(no_text_outcome['document_id'])}/provider-response.jsonl"
                 )
             )
 
@@ -1321,6 +1632,171 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
             self.assertEqual(promotion["replaced_scope_record_count"], 2)
             records = service.document_registry.list_by_scope("campus_notices", "internal_notice")
             self.assertEqual(len(records), 2)
+
+    def test_source_truth_replay_no_text_provider_response_keys_are_unique_per_notice(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            service, object_store = self._build_service(
+                root=root,
+                ocr_client=_FakeAttachmentNoTextOcrClient(),
+            )
+            service.planner = CloseoutPlanner(shard_size=2, batch_size=2, max_shards=4)
+            first_docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表第一行", "报名表第二行"))
+            first_png_bytes = _build_minimal_png_bytes()
+            second_docx_bytes = _build_minimal_docx_bytes(
+                paragraphs=("第二条报名表第一行", "第二条报名表第二行")
+            )
+            second_png_bytes = _build_minimal_png_bytes()
+            bundle = _sample_projection_notice_bundle(
+                docx_bytes=first_docx_bytes,
+                png_bytes=first_png_bytes,
+            )
+            second_notice, second_payloads = self._build_second_source_truth_notice(
+                docx_bytes=second_docx_bytes,
+                png_bytes=second_png_bytes,
+            )
+            bundle.append(second_notice)
+            attachment_payloads = {
+                str(bundle[0]["attachments"][0]["object_key"]): (
+                    first_docx_bytes,
+                    str(bundle[0]["attachments"][0]["mime_type"]),
+                ),
+                str(bundle[0]["attachments"][1]["object_key"]): (
+                    first_png_bytes,
+                    str(bundle[0]["attachments"][1]["mime_type"]),
+                ),
+                **second_payloads,
+            }
+            self._bootstrap_source_truth_scope(
+                root=root,
+                object_store=object_store,
+                document_registry=service.document_registry,
+                raw_asset_registry=service.raw_asset_registry,
+                source_truth_inventory_store=service.source_truth_inventory_store,
+                bundle=bundle,
+                attachment_payloads=attachment_payloads,
+            )
+
+            service.plan_source_truth_replay_run(
+                request=AuthenticatedNoticeSourceTruthReplayRequest(),
+                run_id="source-truth-run-unique-provider-keys",
+                max_concurrency=1,
+                notice_concurrency=2,
+                object_store_concurrency=8,
+                lease_seconds=120,
+            )
+            verified = service.run_worker(
+                run_id="source-truth-run-unique-provider-keys",
+                worker_id="worker-a",
+                poll_interval=0.0,
+            )
+
+            self.assertEqual(verified["state"], "verified")
+            staged_notices = service.closeout_store.get_staged_notices(
+                "source-truth-run-unique-provider-keys"
+            )
+            no_text_outcomes = [
+                outcome
+                for staged_notice in staged_notices
+                for outcome in staged_notice["attachment_outcomes"]
+                if outcome["outcome"] == "no_extractable_text"
+            ]
+            self.assertEqual(len(no_text_outcomes), 2)
+            provider_keys = {
+                str(outcome["document_id"]): str(outcome["provider_response_staged_object_key"])
+                for outcome in no_text_outcomes
+            }
+            self.assertEqual(len(set(provider_keys.values())), 2)
+            for document_id, key in provider_keys.items():
+                self.assertTrue(
+                    key.endswith(
+                        f"/attachments/{document_stage_slug(document_id)}/provider-response.jsonl"
+                    )
+                )
+
+    def test_source_truth_replay_workers_keep_spatial_inline_images_in_manual_review(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            service, object_store = self._build_service(
+                root=root,
+                ocr_client=_FakeAttachmentOcrClient(),
+            )
+            docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表第一行", "报名表第二行"))
+            png_bytes = _build_map_like_png_bytes()
+            bundle = _sample_projection_notice_bundle(docx_bytes=docx_bytes, png_bytes=png_bytes)
+            attachment_payloads = {
+                str(bundle[0]["attachments"][0]["object_key"]): (
+                    docx_bytes,
+                    str(bundle[0]["attachments"][0]["mime_type"]),
+                ),
+                str(bundle[0]["attachments"][1]["object_key"]): (
+                    png_bytes,
+                    str(bundle[0]["attachments"][1]["mime_type"]),
+                ),
+            }
+            self._bootstrap_source_truth_scope(
+                root=root,
+                object_store=object_store,
+                document_registry=service.document_registry,
+                raw_asset_registry=service.raw_asset_registry,
+                source_truth_inventory_store=service.source_truth_inventory_store,
+                bundle=bundle,
+                attachment_payloads=attachment_payloads,
+            )
+
+            from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
+                rebuild_authenticated_notice_source_truth_inventory,
+            )
+
+            rebuild_authenticated_notice_source_truth_inventory(
+                request=AuthenticatedNoticeSourceTruthReplayRequest(),
+                document_registry=service.document_registry,
+                raw_asset_registry=service.raw_asset_registry,
+                object_store=object_store,
+                object_store_settings=service.object_store_settings,
+                inventory_store=service.source_truth_inventory_store,
+            )
+
+            service.plan_source_truth_replay_run(
+                request=AuthenticatedNoticeSourceTruthReplayRequest(),
+                run_id="source-truth-run-1",
+                max_concurrency=2,
+                notice_concurrency=4,
+                object_store_concurrency=16,
+                lease_seconds=120,
+            )
+
+            verified = service.run_worker(
+                run_id="source-truth-run-1",
+                worker_id="worker-a",
+                poll_interval=0.0,
+            )
+
+            self.assertEqual(verified["state"], "verified")
+            self.assertEqual(verified["expected_document_count"], 2)
+            self.assertEqual(verified["expected_attachment_document_count"], 1)
+            self.assertEqual(verified["expected_ocr_candidate_count"], 0)
+            self.assertEqual(
+                verified["notice_risk_counts"],
+                {"mixed_high_risk": 1},
+            )
+            self.assertEqual(verified["high_risk_notice_count"], 1)
+            self.assertEqual(verified["staged_document_count"], 2)
+            self.assertEqual(verified["verification"]["manual_review_required_attachment_count"], 1)
+            self.assertEqual(verified["verification"]["missing_attachment_outcome_count"], 0)
+            self.assertTrue(verified["verification"]["ok"])
+
+            staged_notice = service.closeout_store.get_staged_notices("source-truth-run-1")[0]
+            self.assertEqual(len(staged_notice["attachment_outcomes"]), 2)
+            manual_outcome = staged_notice["attachment_outcomes"][1]
+            self.assertEqual(manual_outcome["classification"], "manual_review_required")
+            self.assertEqual(manual_outcome["materialization_policy"], "manual_review")
+            self.assertEqual(manual_outcome["outcome"], "manual_review_required")
+            self.assertEqual(manual_outcome["review_reason"], "spatial_visual_asset")
+
+            promotion = service.promote_run("source-truth-run-1")
+            self.assertEqual(promotion["state"], "done")
+            self.assertEqual(promotion["replaced_scope_record_count"], 2)
 
     def test_source_truth_replay_verification_reads_frozen_inventory_not_batch_inputs(self) -> None:
         with TemporaryDirectory() as temp_dir:

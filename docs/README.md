@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-03-22
-updated: 2026-04-06
+updated: 2026-04-08
 ---
 
 # Docs
@@ -80,6 +80,7 @@ updated: 2026-04-06
 - 稳定 contract / schema：`contracts/`、`data/`
 - 当前 runbook / reference / policy：`runbooks/`、`reference/`、`policies/`
 - 已导入 authenticated notice 历史数据消费：`runbooks/authenticated-notice-source-truth-replay-runbook.md`
+- authenticated notice source-truth bounded pilot：`runbooks/authenticated-notice-source-truth-replay-pilot-runbook.md`
 - internal_notice preparation 质量验收：`reference/internal-notice-offline-preparation-quality-acceptance.md`
 - internal_notice preparation 当前证据：`reference/internal-notice-offline-preparation-quality-evidence.md`
 - authenticated-notice 历史 closeout 当前证据：`reference/authenticated-notice-historical-closeout-evidence.md`
@@ -160,6 +161,7 @@ updated: 2026-04-06
 - `decisions/adr-0028-campus-navigation-basemap-and-provider-strategy.md`
 - `decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md`
 - `decisions/adr-0030-institution-scoped-product-path-and-explicit-open-domain-admission.md`
+- `decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spatial-review-boundary.md`
 - `decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
 - `plans/authenticated-notice-source-foundation.md`
 - `plans/campus-place-finding-foundation.md`
@@ -178,6 +180,7 @@ updated: 2026-04-06
 - `runbooks/curriculum-plan-hybrid-rebuild-checklist.md`
 - `runbooks/develop-main-release-runbook.md`
 - `runbooks/authenticated-notice-bootstrap-smoke-runbook.md`
+- `runbooks/authenticated-notice-source-truth-replay-pilot-runbook.md`
 - `runbooks/authenticated-notice-source-truth-replay-runbook.md`
 - `runbooks/authenticated-notice-async-staged-closeout-runbook.md`
 - `runbooks/dev-backed-supervisor-staging-smoke-runbook.md`

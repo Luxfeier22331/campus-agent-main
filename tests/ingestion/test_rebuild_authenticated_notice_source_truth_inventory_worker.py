@@ -26,6 +26,7 @@ class RebuildAuthenticatedNoticeSourceTruthInventoryWorkerCliTest(unittest.TestC
             rebuild.return_value = {
                 "corpus": "campus_notices",
                 "collection": "internal_notice",
+                "selected_notice_ids": ["353301", "354605"],
                 "notice_count": 42,
                 "expected_document_count": 84,
                 "expected_attachment_document_count": 42,
@@ -41,6 +42,12 @@ class RebuildAuthenticatedNoticeSourceTruthInventoryWorkerCliTest(unittest.TestC
                     "/tmp/internal-notice-source-projections.v1.json",
                     "--default-visibility-scope",
                     "campus",
+                    "--notice-id",
+                    "354605",
+                    "--notice-id",
+                    "353301",
+                    "--notice-id",
+                    "354605",
                 ]
             )
 
@@ -52,8 +59,10 @@ class RebuildAuthenticatedNoticeSourceTruthInventoryWorkerCliTest(unittest.TestC
             "/tmp/internal-notice-source-projections.v1.json",
         )
         self.assertEqual(request.default_visibility_scope, "campus")
+        self.assertEqual(request.notice_ids, ("353301", "354605"))
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["notice_count"], 42)
+        self.assertEqual(payload["selected_notice_ids"], ["353301", "354605"])
 
 
 if __name__ == "__main__":

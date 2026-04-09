@@ -43,7 +43,6 @@ from campus_ingestion_core.authenticated_notice_source_projections import (
 from campus_ingestion_core.authenticated_notice_source_truth_replay import (
     SOURCE_TRUTH_REPLAY_INPUT_KIND,
     AuthenticatedNoticeSourceTruthReplayRequest,
-    load_authenticated_notice_source_truth_replay_inventory,
     load_authenticated_notice_source_truth_replay_inventory_from_store,
 )
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
@@ -470,6 +469,7 @@ class CloseoutPlanningCoordinator:
             manifest_path=None,
             expected_notice_count=0,
             operations_prefix=operations_prefix,
+            selected_notice_ids=request.notice_ids,
             input_kind=SOURCE_TRUTH_REPLAY_INPUT_KIND,
             corpus=request.corpus,
             collection=request.collection,
@@ -500,6 +500,7 @@ class CloseoutPlanningCoordinator:
                 "input_kind": SOURCE_TRUTH_REPLAY_INPUT_KIND,
                 "corpus": request.corpus,
                 "collection": request.collection,
+                "selected_notice_ids": list(request.notice_ids),
             },
         )
         try:
@@ -513,6 +514,9 @@ class CloseoutPlanningCoordinator:
                 {
                     "run_id": run_id,
                     "input_kind": SOURCE_TRUTH_REPLAY_INPUT_KIND,
+                    "selected_notice_ids": list(inventory.selected_notice_ids),
+                    "notice_risk_counts": dict(inventory.notice_risk_counts),
+                    "high_risk_notice_count": inventory.high_risk_notice_count,
                     "expected_notice_count": inventory.expected_notice_count,
                     "expected_document_count": inventory.expected_document_count,
                     "expected_attachment_document_count": inventory.expected_attachment_document_count,
@@ -566,7 +570,10 @@ class CloseoutPlanningCoordinator:
                 manifest_path=None,
                 expected_notice_count=inventory.expected_notice_count,
                 operations_prefix=operations_prefix,
+                selected_notice_ids=inventory.selected_notice_ids,
                 input_kind=SOURCE_TRUTH_REPLAY_INPUT_KIND,
+                notice_risk_counts=dict(inventory.notice_risk_counts),
+                high_risk_notice_count=inventory.high_risk_notice_count,
                 expected_document_count=inventory.expected_document_count,
                 expected_attachment_document_count=inventory.expected_attachment_document_count,
                 expected_ocr_candidate_count=inventory.expected_ocr_candidate_count,
@@ -602,6 +609,9 @@ class CloseoutPlanningCoordinator:
                     {
                         "run_id": run_id,
                         "input_kind": SOURCE_TRUTH_REPLAY_INPUT_KIND,
+                        "selected_notice_ids": list(inventory.selected_notice_ids),
+                        "notice_risk_counts": dict(inventory.notice_risk_counts),
+                        "high_risk_notice_count": inventory.high_risk_notice_count,
                         "site_id": inventory.site_id,
                         "source_home_url": inventory.source_home_url,
                         "embedding_model": inventory.embedding_model,
@@ -639,6 +649,9 @@ class CloseoutPlanningCoordinator:
                     "bundle_path": None,
                     "manifest_path": None,
                     "input_kind": SOURCE_TRUTH_REPLAY_INPUT_KIND,
+                    "selected_notice_ids": list(inventory.selected_notice_ids),
+                    "notice_risk_counts": dict(inventory.notice_risk_counts),
+                    "high_risk_notice_count": inventory.high_risk_notice_count,
                     "source_truth_inventory_object_key": inventory_key,
                     "expected_notice_count": inventory.expected_notice_count,
                     "expected_document_count": inventory.expected_document_count,

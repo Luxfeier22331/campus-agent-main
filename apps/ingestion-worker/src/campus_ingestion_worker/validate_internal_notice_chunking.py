@@ -21,7 +21,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--corpus", default="campus_notices")
     parser.add_argument("--collection", default="internal_notice")
-    parser.add_argument("--preparation-run-id")
+    selection_group = parser.add_mutually_exclusive_group()
+    selection_group.add_argument("--preparation-run-id")
+    selection_group.add_argument("--closeout-run-id")
     parser.add_argument("--mode", choices=("full", "samples"), default="full")
     parser.add_argument("--sample-dir")
     parser.add_argument("--sample-seed", type=int, default=DEFAULT_INTERNAL_NOTICE_SAMPLE_SEED)
@@ -35,6 +37,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         raise ValueError("validate_internal_notice_chunking only supports campus_notices/internal_notice")
     scan_result = scan_internal_notice_chunking(
         preparation_run_id=args.preparation_run_id,
+        closeout_run_id=args.closeout_run_id,
         mode=args.mode,
         sample_seed=args.sample_seed,
     )
@@ -54,6 +57,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                     "mode": "samples",
                     "selection_mode": scan_result.inputs.selection_mode,
                     "preparation_run_id": scan_result.inputs.preparation_run_id,
+                    "closeout_run_id": scan_result.inputs.closeout_run_id,
                     "scanned_document_count": len(scan_result.documents),
                     "sample_dir": sample_dir,
                 },

@@ -258,6 +258,8 @@ def import_authenticated_notice_export(
                     notice_import.source_truth_artifacts["source-truth/attachment-refs.jsonl"]
                 ),
                 config=config,
+                object_store=writer,
+                object_store_settings=object_store_settings,
             )
             inventory_entries.append(inventory_entry_from_parent_snapshot(parent_snapshot))
         inventory_store.replace_scope(

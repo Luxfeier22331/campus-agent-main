@@ -2,14 +2,17 @@
 doc_type: reference
 status: active
 created: 2026-04-06
-updated: 2026-04-06
+updated: 2026-04-09
 ---
 
 # Internal Notice Offline Preparation Quality Evidence
 
 ## 文档边界
 
-本文记录 `campus_notices/internal_notice` 在 2026-04-06 的一次真实离线质量验收结果。
+本文记录 `campus_notices/internal_notice` 的两次真实离线质量验收证据：
+
+- 2026-04-06 的 current-scope 失败证据
+- 2026-04-09 的 verified replay pilot staged 通过证据
 
 它回答的是：
 
@@ -22,7 +25,131 @@ updated: 2026-04-06
 - `docs/reference/internal-notice-offline-preparation-quality-acceptance.md` 的验收标准
 - `docs/reference/internal-notice-offline-preparation-strategy.md` 的 lane strategy
 
-## 执行方式
+## 2026-04-09 Replay Pilot
+
+### 正式 CLI Evidence
+
+2026-04-09 这条 pilot 已经从 ad-hoc staged scan 收口到 repo-supported 正式链路：
+
+- direct staged quality scan：
+  - `run_id=authenticated-notice-source-truth-pilot-20260409-stratified-003`
+  - `selection_mode=verified_closeout_run`
+  - `sample_dir=/tmp/internal_notice_chunk_samples_authenticated_notice_source_truth_pilot_20260409_stratified_003_closeout_formal`
+- closeout-backed preparation：
+  - `preparation_run_id=prep-20260409-025125-closeout-003`
+  - `selection_mode=verified_closeout_run`
+  - `manifest_object_key=campus_notices/operations/registry-scope-chunk-preparation/prep-20260409-025125-closeout-003/internal_notice/chunk-preparation.json`
+- canonical prep-manifest validation：
+  - `selection_mode=preparation_manifest`
+  - `closeout_run_id=authenticated-notice-source-truth-pilot-20260409-stratified-003`
+  - `sample_dir=/tmp/internal_notice_chunk_samples_prep_20260409_025125_closeout_003`
+
+这三次结果当前一致：
+
+- `passed=true`
+- `validated_document_count=20`
+- `total_chunks=102`
+- `header_dominant_ocr_chunk_count=0`
+- `noisy_ocr_chunk_count=0`
+- `markup_leak_chunk_count=0`
+
+### 执行方式
+
+本次验收消费的是 verified replay pilot：
+
+- `run_id=authenticated-notice-source-truth-pilot-20260409-stratified-003`
+- `selection_scope=9 notices / 20 staged documents`
+- `sample_dir=/tmp/internal_notice_chunk_samples_20260409_stratified_003_staged_quality`
+
+因为这批 pilot truth 还没有 promote 到 current scope，也没有 canonical `preparation_run_id`，所以本次采用的是：
+
+- 基于 verified closeout staged `document-units.jsonl` 的只读 quality scan
+- in-memory pilot registry 只映射这 20 份 staged child/parent documents
+- 不向 current registry scope、derived final truth、embedding provider 或 Qdrant 写入任何数据
+
+这次 staged 验收只回答：
+
+- 当前 replay pilot 的 parent / attachment lane quality 是否可接受
+
+它不回答：
+
+- current scope 是否已经拿到 canonical `verified chunk preparation`
+- 后续 release gate 是否已经具备 `preparation_run_id`
+
+### Verdict
+
+本次 replay pilot staged evidence 固定为：
+
+- `passed`
+
+因此对这批 frozen replay subset，可以写成：
+
+- `pilot staged chunk quality accepted`
+
+不能写成：
+
+- `current scope canonical preparation accepted`
+- `可以直接进入 release_registry_scope`
+
+### Summary
+
+machine-readable summary：
+
+- `registry_record_count=20`
+- `selected_record_count=20`
+- `validated_document_count=20`
+- `total_units=331`
+- `total_chunks=102`
+
+lane 分布：
+
+- `notice_body`: `9` docs / `78` chunks
+- `attachment_ocr_required`: `10` docs / `21` chunks
+- `attachment_text_extractable`: `1` doc / `3` chunks
+
+关键通过指标：
+
+- `missing_title_chunk_count=0`
+- `missing_contextualization_count=0`
+- `missing_lane_metadata_count=0`
+- `missing_attachment_lineage_count=0`
+- `attachment_without_body_count=0`
+- `markup_leak_chunk_count=0`
+- `replacement_character_chunk_count=0`
+- `header_dominant_ocr_chunk_count=0`
+- `noisy_ocr_chunk_count=0`
+
+### Remediation That Unblocked The Pilot
+
+2026-04-09 这次 pilot 通过，依赖两类实现修复：
+
+- manifest-based validator 不再先全量扫描 `internal_notice` current scope；显式 `preparation_run_id` 现在直接按 manifest 取记录，避免 statement timeout
+- attachment title builder 改为 attachment-local identity 优先：
+  - 不再默认把完整 `final_url` 拼进 child title
+  - OCR/image attachment 在缺少高价值 label 时退化成短标题，例如 `附件 4`
+  - parent notice 长标题不再被重复塞进 child attachment title
+
+第二类修复直接消除了 2026-04-09 `stratified-002` staged pilot 中的主要 blocker：
+
+- `header_dominant_ocr_chunk_count: 6 -> 0`
+
+### Sample Evidence
+
+本次 sample buckets 为：
+
+- `notice-body`
+- `attachment-text`
+- `attachment-ocr`
+
+关键样本结论：
+
+- `notice-body` 样本保持结构完整，没有因为 attachment outlier 被整体缩小
+- `attachment-text` 样本标题已缩成 `附件 1 / 中央民族大学拔尖创新人才培养&nbsp;“证书项目”报名表`
+- `attachment-ocr` 样本标题已缩成 `附件 4`，正文 chunk 现在不再被超长 header 压住
+
+## 2026-04-06 Current Scope Failure
+
+### 执行方式
 
 本次验收通过 repo 内只读 validator 执行：
 
@@ -38,7 +165,7 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.valid
 - `collection=internal_notice`
 - 未向 Postgres、对象存储 derived truth、embedding provider 或 Qdrant 写入任何数据
 
-## Verdict
+### Verdict
 
 本次结果固定为：
 
@@ -52,7 +179,7 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.valid
 
 - `internal_notice offline preparation accepted`
 
-## Repo Remediation Status
+### Repo Remediation Status
 
 截至 2026-04-06，针对这份证据里最明确的实现级 blocker，repo 已经补上两项 remediation：
 
@@ -70,7 +197,7 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.valid
 
 因此在新的真实 replay + validator evidence 产出之前，本文仍保留这次 run 的历史失败结论。
 
-## Summary
+### Summary
 
 本次 run 的 machine-readable summary 如下：
 
@@ -93,7 +220,7 @@ lane 分布：
 
 这些指标本身不直接构成 blocker；真正 blocker 在下文。
 
-## Blocking Findings
+### Blocking Findings
 
 ### 1. Derived attachment identity mismatch
 
@@ -135,7 +262,7 @@ lane 分布：
 
 这说明 parent notice body 不是当前主瓶颈，但仍存在少量过切样本，需要和 attachment 问题分开处理。
 
-## Non-Blocking Observations
+### Non-Blocking Observations
 
 以下结果说明当前 lane separation 方向是对的：
 
@@ -152,7 +279,7 @@ lane 分布：
 - 当前主要缺口不是 metadata completeness
 - 当前主要缺口是 OCR attachment cleanup 与少量 derived artifact identity corruption
 
-## Sample Evidence
+### Sample Evidence
 
 本次 run 导出的 sample buckets 包含：
 
@@ -173,7 +300,7 @@ lane 分布：
 
 - `/tmp/internal_notice_chunk_samples_20260406`
 
-## Current Closeout
+### Current Closeout
 
 截至 2026-04-06，这次验收可收口的结论是：
 

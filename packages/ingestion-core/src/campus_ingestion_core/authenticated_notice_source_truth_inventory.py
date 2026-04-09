@@ -51,6 +51,17 @@ AUTHENTICATED_NOTICE_SOURCE_TRUTH_BASE_WEIGHT = 1
 AUTHENTICATED_NOTICE_SOURCE_TRUTH_TEXT_ATTACHMENT_WEIGHT = 1
 AUTHENTICATED_NOTICE_SOURCE_TRUTH_OCR_ATTACHMENT_WEIGHT = 3
 DEFAULT_SOURCE_TRUTH_INVENTORY_SCAN_PAGE_SIZE = 256
+NOTICE_RISK_LABEL_BODY_ONLY = "body_only"
+NOTICE_RISK_LABEL_REFERENCE_ONLY = "body_with_reference_only_attachments"
+NOTICE_RISK_LABEL_TEXT_ATTACHMENTS = "body_with_text_attachments"
+NOTICE_RISK_LABEL_SPATIAL_ATTACHMENTS = "body_with_spatial_attachments"
+NOTICE_RISK_LABEL_MIXED_HIGH_RISK = "mixed_high_risk"
+HIGH_RISK_NOTICE_LABELS = frozenset(
+    {
+        NOTICE_RISK_LABEL_SPATIAL_ATTACHMENTS,
+        NOTICE_RISK_LABEL_MIXED_HIGH_RISK,
+    }
+)
 
 
 class AuthenticatedNoticeSourceTruthInventoryObjectStore(Protocol):
@@ -74,9 +85,16 @@ class AuthenticatedNoticeSourceTruthInventoryEntry:
     content_blocks_key: str
     attachment_refs_key: str
     attachment_document_count: int
+    attachment_ref_count: int
     text_extractable_count: int
     ocr_required_count: int
     reference_only_count: int
+    manual_review_required_count: int
+    notice_risk_label: str
+    attachment_mix_score: int
+    has_text_table_attachment: bool
+    has_spatial_attachment: bool
+    has_reference_only_attachment: bool
     planning_weight: int
     updated_at: str = field(default_factory=utc_now)
     parent_snapshot: dict[str, Any] = field(default_factory=dict)
@@ -85,6 +103,21 @@ class AuthenticatedNoticeSourceTruthInventoryEntry:
     def from_dict(cls, payload: dict[str, Any]) -> AuthenticatedNoticeSourceTruthInventoryEntry:
         raw = dict(payload)
         raw["parent_snapshot"] = dict(raw.get("parent_snapshot") or {})
+        raw["attachment_ref_count"] = int(raw.get("attachment_ref_count") or 0)
+        raw["manual_review_required_count"] = int(
+            raw.get("manual_review_required_count") or 0
+        )
+        raw["notice_risk_label"] = str(
+            raw.get("notice_risk_label") or NOTICE_RISK_LABEL_BODY_ONLY
+        )
+        raw["attachment_mix_score"] = int(raw.get("attachment_mix_score") or 0)
+        raw["has_text_table_attachment"] = _coerce_bool(
+            raw.get("has_text_table_attachment")
+        )
+        raw["has_spatial_attachment"] = _coerce_bool(raw.get("has_spatial_attachment"))
+        raw["has_reference_only_attachment"] = _coerce_bool(
+            raw.get("has_reference_only_attachment")
+        )
         return cls(**raw)
 
 
@@ -105,6 +138,8 @@ class AuthenticatedNoticeSourceTruthInventoryStore(Protocol):
         self,
         corpus: str,
         collection: str,
+        *,
+        notice_ids: Sequence[str] = (),
     ) -> tuple[AuthenticatedNoticeSourceTruthInventoryEntry, ...]: ...
 
 
@@ -142,7 +177,12 @@ class InMemoryAuthenticatedNoticeSourceTruthInventoryStore:
         self,
         corpus: str,
         collection: str,
+        *,
+        notice_ids: Sequence[str] = (),
     ) -> tuple[AuthenticatedNoticeSourceTruthInventoryEntry, ...]:
+        selected_notice_ids = {
+            str(item).strip() for item in notice_ids if str(item).strip()
+        }
         with self._lock:
             return tuple(
                 sorted(
@@ -150,6 +190,10 @@ class InMemoryAuthenticatedNoticeSourceTruthInventoryStore:
                         record
                         for record in self._entries.values()
                         if record.corpus == corpus and record.collection == collection
+                        and (
+                            not selected_notice_ids
+                            or record.notice_id in selected_notice_ids
+                        )
                     ),
                     key=lambda record: record.notice_id,
                 )
@@ -206,7 +250,25 @@ class PostgresAuthenticatedNoticeSourceTruthInventoryStore:
         self,
         corpus: str,
         collection: str,
+        *,
+        notice_ids: Sequence[str] = (),
     ) -> tuple[AuthenticatedNoticeSourceTruthInventoryEntry, ...]:
+        normalized_notice_ids = tuple(
+            sorted({str(item).strip() for item in notice_ids if str(item).strip()})
+        )
+        if normalized_notice_ids:
+            query = (
+                f"select record from {self.table_name} "
+                "where corpus = %s and collection = %s and notice_id = any(%s) "
+                "order by notice_id asc"
+            )
+            rows = self._fetchall(query, (corpus, collection, list(normalized_notice_ids)))
+            return tuple(
+                AuthenticatedNoticeSourceTruthInventoryEntry.from_dict(
+                    _coerce_json_payload(row[0])
+                )
+                for row in rows
+            )
         records: list[AuthenticatedNoticeSourceTruthInventoryEntry] = []
         last_notice_id: str | None = None
         while True:
@@ -445,12 +507,17 @@ def build_authenticated_notice_source_truth_inventory_entries(
     object_store: AuthenticatedNoticeSourceTruthInventoryObjectStore,
     object_store_settings: ObjectStoreSettings,
     source_projections_path=None,
+    notice_ids: Sequence[str] = (),
     env: dict[str, str] | None = None,
 ) -> tuple[AuthenticatedNoticeSourceTruthInventoryEntry, ...]:
     config = _load_source_projections_config(
         source_projections_path=source_projections_path,
         env=env,
     )
+    normalized_notice_ids = tuple(
+        sorted({str(item).strip() for item in notice_ids if str(item).strip()})
+    )
+    notice_id_set = set(normalized_notice_ids)
     raw_by_key = {
         (record.raw_asset_id, record.raw_version_id): record
         for record in _list_raw_asset_registry_scope_records_for_inventory(
@@ -459,12 +526,30 @@ def build_authenticated_notice_source_truth_inventory_entries(
             collection=collection,
         )
     }
-    entries: list[AuthenticatedNoticeSourceTruthInventoryEntry] = []
-    for record in _list_document_registry_scope_records_for_inventory(
+    records = _list_document_registry_scope_records_for_inventory(
         document_registry,
         corpus=corpus,
         collection=collection,
-    ):
+    )
+    if normalized_notice_ids:
+        records = tuple(
+            record
+            for record in records
+            if _extract_notice_id_from_document_id(record.document_id) in notice_id_set
+        )
+        found_notice_ids = {
+            _extract_notice_id_from_document_id(record.document_id) for record in records
+        }
+        missing_notice_ids = tuple(
+            notice_id for notice_id in normalized_notice_ids if notice_id not in found_notice_ids
+        )
+        if missing_notice_ids:
+            raise ValueError(
+                "authenticated notice source inventory notice_ids not found in registry scope: "
+                + ", ".join(missing_notice_ids)
+            )
+    entries: list[AuthenticatedNoticeSourceTruthInventoryEntry] = []
+    for record in records:
         if record.source_channel != "authenticated_notice_portal":
             continue
         notice_manifest_key = _find_processed_key(record, "source-truth/notice-manifest.json")
@@ -523,18 +608,29 @@ def rebuild_authenticated_notice_source_truth_inventory(
         object_store=runtime_object_store,
         object_store_settings=runtime_object_store_settings,
         source_projections_path=getattr(request, "source_projections_path", None),
+        notice_ids=getattr(request, "notice_ids", ()),
         env=source,
     )
-    runtime_inventory_store.replace_scope(request.corpus, request.collection, entries)
+    if getattr(request, "notice_ids", ()):
+        runtime_inventory_store.upsert_many(entries)
+    else:
+        runtime_inventory_store.replace_scope(request.corpus, request.collection, entries)
     return {
         "corpus": request.corpus,
         "collection": request.collection,
+        "selected_notice_ids": list(getattr(request, "notice_ids", ())),
         "notice_count": len(entries),
         "expected_document_count": sum(1 + entry.attachment_document_count for entry in entries),
         "expected_attachment_document_count": sum(
             entry.attachment_document_count for entry in entries
         ),
         "expected_ocr_candidate_count": sum(entry.ocr_required_count for entry in entries),
+        "notice_risk_counts": _aggregate_notice_risk_counts(
+            entry.notice_risk_label for entry in entries
+        ),
+        "high_risk_notice_count": sum(
+            1 for entry in entries if entry.notice_risk_label in HIGH_RISK_NOTICE_LABELS
+        ),
     }
 
 
@@ -574,6 +670,8 @@ def build_authenticated_notice_source_truth_parent_snapshot(
         notice_manifest=notice_manifest,
         attachment_refs=attachment_refs,
         config=config,
+        object_store=object_store,
+        object_store_settings=object_store_settings,
     )
 
 
@@ -714,8 +812,11 @@ def build_authenticated_notice_source_truth_parent_snapshot_from_payloads(
     notice_manifest: dict[str, Any],
     attachment_refs: Sequence[dict[str, Any]],
     config,
+    object_store: AuthenticatedNoticeSourceTruthInventoryObjectStore | None = None,
+    object_store_settings: ObjectStoreSettings | None = None,
 ) -> dict[str, Any]:
     site_id, notice_id = str(record.document_id).split(":")[1:3]
+    attachment_ref_count = len(tuple(attachment_refs))
     reference_only_count = 0
     text_extractable_count = 0
     ocr_required_count = 0
@@ -723,6 +824,9 @@ def build_authenticated_notice_source_truth_parent_snapshot_from_payloads(
         parent_document_id=record.document_id,
         attachment_refs=tuple(attachment_refs),
         config=config,
+        object_store=object_store,
+        object_store_settings=object_store_settings,
+        parent_record=record,
     )
     for plan in attachment_projection_plans:
         classification = str(plan["classification"])
@@ -730,7 +834,16 @@ def build_authenticated_notice_source_truth_parent_snapshot_from_payloads(
             text_extractable_count += 1
         elif classification == "ocr_required":
             ocr_required_count += 1
-    reference_only_count = max(0, len(tuple(attachment_refs)) - len(attachment_projection_plans))
+    manual_review_required_count = sum(
+        1
+        for plan in attachment_projection_plans
+        if str(plan.get("classification") or "") == "manual_review_required"
+    )
+    reference_only_count = max(
+        0,
+        len(tuple(attachment_refs))
+        - len(attachment_projection_plans),
+    )
     expected_attachment_documents = [
         dict(plan)
         for plan in attachment_projection_plans
@@ -738,6 +851,26 @@ def build_authenticated_notice_source_truth_parent_snapshot_from_payloads(
     ]
     source_home_url = _normalize_non_empty_text(notice_manifest.get("source_home_url")) or _derive_source_home_url(
         record.source_uri
+    )
+    has_text_table_attachment = text_extractable_count > 0 or ocr_required_count > 0
+    has_spatial_attachment = manual_review_required_count > 0
+    has_reference_only_attachment = reference_only_count > 0
+    attachment_lane_count = sum(
+        1
+        for count in (
+            text_extractable_count,
+            ocr_required_count,
+            manual_review_required_count,
+            reference_only_count,
+        )
+        if count > 0
+    )
+    attachment_mix_score = attachment_ref_count + max(0, attachment_lane_count - 1)
+    notice_risk_label = _derive_notice_risk_label(
+        attachment_ref_count=attachment_ref_count,
+        has_text_table_attachment=has_text_table_attachment,
+        has_spatial_attachment=has_spatial_attachment,
+        has_reference_only_attachment=has_reference_only_attachment,
     )
     planning_weight = (
         AUTHENTICATED_NOTICE_SOURCE_TRUTH_BASE_WEIGHT
@@ -757,9 +890,24 @@ def build_authenticated_notice_source_truth_parent_snapshot_from_payloads(
         "attachment_projection_plans": [dict(item) for item in attachment_projection_plans],
         "expected_attachment_documents": expected_attachment_documents,
         "attachment_document_count": len(expected_attachment_documents),
+        "attachment_ref_count": attachment_ref_count,
         "text_extractable_count": text_extractable_count,
         "ocr_required_count": ocr_required_count,
         "reference_only_count": reference_only_count,
+        "manual_review_required_count": manual_review_required_count,
+        "notice_title": _normalize_non_empty_text(
+            notice_manifest.get("notice_title_normalized")
+            or notice_manifest.get("notice_title_raw")
+        )
+        or record.document_id,
+        "notice_type_names": _normalize_notice_type_names(
+            notice_manifest.get("notice_type_names")
+        ),
+        "notice_risk_label": notice_risk_label,
+        "attachment_mix_score": attachment_mix_score,
+        "has_text_table_attachment": has_text_table_attachment,
+        "has_spatial_attachment": has_spatial_attachment,
+        "has_reference_only_attachment": has_reference_only_attachment,
         "planning_weight": planning_weight,
         "source_home_url": source_home_url,
         "embedding_model": record.embedding_model,
@@ -786,9 +934,20 @@ def inventory_entry_from_parent_snapshot(
         content_blocks_key=str(parent_snapshot["content_blocks_key"]),
         attachment_refs_key=str(parent_snapshot["attachment_refs_key"]),
         attachment_document_count=int(parent_snapshot["attachment_document_count"]),
+        attachment_ref_count=int(parent_snapshot.get("attachment_ref_count") or 0),
         text_extractable_count=int(parent_snapshot["text_extractable_count"]),
         ocr_required_count=int(parent_snapshot["ocr_required_count"]),
         reference_only_count=int(parent_snapshot["reference_only_count"]),
+        manual_review_required_count=int(parent_snapshot.get("manual_review_required_count") or 0),
+        notice_risk_label=str(
+            parent_snapshot.get("notice_risk_label") or NOTICE_RISK_LABEL_BODY_ONLY
+        ),
+        attachment_mix_score=int(parent_snapshot.get("attachment_mix_score") or 0),
+        has_text_table_attachment=bool(parent_snapshot.get("has_text_table_attachment", False)),
+        has_spatial_attachment=bool(parent_snapshot.get("has_spatial_attachment", False)),
+        has_reference_only_attachment=bool(
+            parent_snapshot.get("has_reference_only_attachment", False)
+        ),
         planning_weight=int(parent_snapshot["planning_weight"]),
         parent_snapshot=dict(parent_snapshot),
     )
@@ -834,6 +993,64 @@ def _serialize_document_record(record: DocumentRegistryRecord) -> dict[str, Any]
         "processed_object_keys": list(record.processed_object_keys),
         "import_source": record.import_source,
     }
+
+
+def _extract_notice_id_from_document_id(document_id: str) -> str:
+    parts = [part.strip() for part in str(document_id).split(":")]
+    if len(parts) < 3 or parts[0] != "notice" or not parts[2]:
+        raise ValueError(
+            f"authenticated notice source inventory requires notice document ids: {document_id}"
+        )
+    return parts[2]
+
+
+def _derive_notice_risk_label(
+    *,
+    attachment_ref_count: int,
+    has_text_table_attachment: bool,
+    has_spatial_attachment: bool,
+    has_reference_only_attachment: bool,
+) -> str:
+    if attachment_ref_count <= 0:
+        return NOTICE_RISK_LABEL_BODY_ONLY
+    if has_spatial_attachment and (has_text_table_attachment or has_reference_only_attachment):
+        return NOTICE_RISK_LABEL_MIXED_HIGH_RISK
+    if has_spatial_attachment:
+        return NOTICE_RISK_LABEL_SPATIAL_ATTACHMENTS
+    if has_text_table_attachment:
+        return NOTICE_RISK_LABEL_TEXT_ATTACHMENTS
+    if has_reference_only_attachment:
+        return NOTICE_RISK_LABEL_REFERENCE_ONLY
+    return NOTICE_RISK_LABEL_BODY_ONLY
+
+
+def _aggregate_notice_risk_counts(labels: Sequence[str]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for label in labels:
+        normalized = str(label).strip() or NOTICE_RISK_LABEL_BODY_ONLY
+        counts[normalized] = counts.get(normalized, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _normalize_notice_type_names(value: object) -> list[str]:
+    normalized: list[str] = []
+    for item in value or ():
+        text = _normalize_non_empty_text(item)
+        if text is not None:
+            normalized.append(text)
+    return normalized
+
+
+def _coerce_bool(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes"}:
+            return True
+        if normalized in {"0", "false", "no", ""}:
+            return False
+    return bool(value)
 
 
 def _derive_source_home_url(source_uri: str) -> str:

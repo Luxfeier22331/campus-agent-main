@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 from dataclasses import dataclass
 import hashlib
@@ -8,7 +9,8 @@ import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import time
-from typing import Protocol
+from typing import Any, Protocol
+from urllib.parse import urlparse
 
 from campus_ingestion_core.artifacts import (
     LAYOUT_ELEMENTS_FILENAME,
@@ -69,16 +71,59 @@ from campus_ingestion_core.split_manifest import SplitManifest, SplitManifestDoc
 DEFAULT_ONLINE_OCR_MODEL = "PaddleOCR-VL-1.5"
 DEFAULT_ONLINE_OCR_POLL_SECONDS = 5
 DEFAULT_ONLINE_OCR_TIMEOUT_SECONDS = 300
+DEFAULT_ONLINE_OCR_RESULT_READY_GRACE_SECONDS = 15
 DEFAULT_RAW_ONLINE_OCR_PARSER_VERSION = "paddleocr-vl-1.5"
 DEFAULT_RAW_INGESTION_ARTIFACT_MODE = "normalized"
 ALLOWED_RAW_INGESTION_ARTIFACT_MODES = ("normalized", "source_truth_only")
-DEFAULT_ONLINE_OCR_PROVIDER = "paddleocr_async"
+ONLINE_OCR_PROVIDER_ASYNC_JOBS = "paddleocr_async_jobs"
+ONLINE_OCR_PROVIDER_LAYOUT_PARSING_SERVICE = "paddleocr_vl_service"
+DEFAULT_ONLINE_OCR_PROVIDER = ONLINE_OCR_PROVIDER_ASYNC_JOBS
+NORMALIZED_ONLINE_OCR_PROVIDER_ASYNC = "paddleocr_async"
 SPLIT_MANIFEST_LAYOUT_ELEMENTS_SCHEMA_VERSION = "split_manifest_layout_elements_v1"
 
 
 @dataclass(frozen=True, slots=True)
 class OnlineOcrProviderResult:
     provider_result_bytes: bytes
+
+
+class OnlineOcrProviderContractError(RuntimeError):
+    def __init__(
+        self,
+        *,
+        file_name: str,
+        job_id: str,
+        state: str,
+        json_url: str | None,
+        elapsed_seconds: float,
+        status_code: int | None,
+        response_text: str | None,
+        status_payload: dict[str, Any] | None = None,
+    ) -> None:
+        self.file_name = file_name
+        self.job_id = job_id
+        self.state = state
+        self.json_url = json_url
+        self.elapsed_seconds = elapsed_seconds
+        self.status_code = status_code
+        self.response_text = response_text
+        self.status_payload = status_payload
+        details: list[str] = [
+            f"file={file_name}",
+            f"job_id={job_id}",
+            f"state={state}",
+            f"elapsed_seconds={elapsed_seconds:.2f}",
+        ]
+        if status_code is not None:
+            details.append(f"status_code={status_code}")
+        if json_url:
+            details.append(f"json_url={json_url}")
+        if response_text:
+            details.append(f"response_text={response_text[:200]}")
+        super().__init__(
+            "online OCR provider returned an unusable resultUrl after reporting done: "
+            + ", ".join(details)
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,8 +152,10 @@ class OnlineOcrSettings:
     base_url: str
     api_key: str
     model: str = DEFAULT_ONLINE_OCR_MODEL
+    provider: str = DEFAULT_ONLINE_OCR_PROVIDER
     poll_seconds: int = DEFAULT_ONLINE_OCR_POLL_SECONDS
     timeout_seconds: int = DEFAULT_ONLINE_OCR_TIMEOUT_SECONDS
+    result_ready_grace_seconds: int = DEFAULT_ONLINE_OCR_RESULT_READY_GRACE_SECONDS
 
     @classmethod
     def from_env(
@@ -127,17 +174,32 @@ class OnlineOcrSettings:
         if not base_url or not api_key:
             raise ValueError("OCR_BASE_URL and OCR_API_KEY must be configured together")
         model = (source.get("OCR_MODEL") or DEFAULT_ONLINE_OCR_MODEL).strip() or DEFAULT_ONLINE_OCR_MODEL
+        provider = _resolve_online_ocr_provider_mode(
+            base_url=base_url,
+            provider_override=source.get("OCR_PROVIDER_MODE"),
+        )
         poll_seconds = max(1, int((source.get("OCR_POLL_SECONDS") or str(DEFAULT_ONLINE_OCR_POLL_SECONDS)).strip()))
         timeout_seconds = max(
             poll_seconds,
             int((source.get("OCR_TIMEOUT_SECONDS") or str(DEFAULT_ONLINE_OCR_TIMEOUT_SECONDS)).strip()),
         )
+        result_ready_grace_seconds = max(
+            poll_seconds,
+            int(
+                (
+                    source.get("OCR_RESULT_READY_GRACE_SECONDS")
+                    or str(DEFAULT_ONLINE_OCR_RESULT_READY_GRACE_SECONDS)
+                ).strip()
+            ),
+        )
         return cls(
             base_url=base_url,
             api_key=api_key,
             model=model,
+            provider=provider,
             poll_seconds=poll_seconds,
             timeout_seconds=timeout_seconds,
+            result_ready_grace_seconds=min(timeout_seconds, result_ready_grace_seconds),
         )
 
 
@@ -163,6 +225,7 @@ class PaddleOcrAsyncClient:
         except ImportError as exc:  # pragma: no cover
             raise RuntimeError("requests is required to use the online OCR service") from exc
 
+        start_monotonic = time.monotonic()
         headers = {"Authorization": f"bearer {self._settings.api_key}"}
         data = {
             "model": self._settings.model,
@@ -185,7 +248,7 @@ class PaddleOcrAsyncClient:
         response.raise_for_status()
         job_id = response.json()["data"]["jobId"]
 
-        deadline = time.monotonic() + self._settings.timeout_seconds
+        deadline = start_monotonic + self._settings.timeout_seconds
         while True:
             status_response = requests.get(
                 f"{self._settings.base_url}/{job_id}",
@@ -193,19 +256,169 @@ class PaddleOcrAsyncClient:
                 timeout=self._settings.timeout_seconds,
             )
             status_response.raise_for_status()
-            payload = status_response.json()["data"]
+            status_payload = status_response.json()
+            payload = status_payload["data"]
             state = payload["state"]
             if state == "done":
-                json_url = payload["resultUrl"]["jsonUrl"]
-                json_response = requests.get(json_url, timeout=self._settings.timeout_seconds)
-                json_response.raise_for_status()
-                return OnlineOcrProviderResult(provider_result_bytes=json_response.content)
+                result_url_payload = payload.get("resultUrl") or {}
+                json_url = result_url_payload.get("jsonUrl")
+                if not json_url:
+                    raise OnlineOcrProviderContractError(
+                        file_name=file_path.name,
+                        job_id=str(job_id),
+                        state=str(state),
+                        json_url=None,
+                        elapsed_seconds=time.monotonic() - start_monotonic,
+                        status_code=None,
+                        response_text=None,
+                        status_payload=status_payload,
+                    )
+                result_deadline = time.monotonic() + self._settings.result_ready_grace_seconds
+                while True:
+                    json_response = requests.get(
+                        json_url,
+                        timeout=self._settings.timeout_seconds,
+                    )
+                    if json_response.status_code == 404:
+                        if time.monotonic() >= result_deadline:
+                            raise OnlineOcrProviderContractError(
+                                file_name=file_path.name,
+                                job_id=str(job_id),
+                                state=str(state),
+                                json_url=str(json_url),
+                                elapsed_seconds=time.monotonic() - start_monotonic,
+                                status_code=json_response.status_code,
+                                response_text=json_response.text,
+                                status_payload=status_payload,
+                            )
+                        time.sleep(self._settings.poll_seconds)
+                        continue
+                    json_response.raise_for_status()
+                    return OnlineOcrProviderResult(
+                        provider_result_bytes=json_response.content
+                    )
             if state == "failed":
                 error_message = payload.get("errorMsg") or "online OCR job failed"
                 raise RuntimeError(error_message)
             if time.monotonic() >= deadline:
                 raise TimeoutError(f"online OCR job {job_id} did not finish before timeout")
             time.sleep(self._settings.poll_seconds)
+
+
+class PaddleOcrLayoutParsingServiceClient:
+    def __init__(self, settings: OnlineOcrSettings) -> None:
+        self._settings = settings
+
+    def parse_pdf(self, pdf_path: Path) -> OnlineOcrProviderResult:
+        return self.parse_file(pdf_path)
+
+    def parse_file(self, file_path: Path) -> OnlineOcrProviderResult:
+        try:
+            import requests
+        except ImportError as exc:  # pragma: no cover
+            raise RuntimeError("requests is required to use the online OCR service") from exc
+
+        payload = {
+            "file": base64.b64encode(file_path.read_bytes()).decode("ascii"),
+            "fileType": _layout_parsing_file_type(file_path),
+            "restructurePages": False,
+            "visualize": False,
+            "useDocOrientationClassify": False,
+            "useDocUnwarping": False,
+            "useChartRecognition": False,
+        }
+        response = requests.post(
+            _resolve_layout_parsing_url(self._settings.base_url),
+            headers={"Authorization": f"bearer {self._settings.api_key}"},
+            json=payload,
+            timeout=self._settings.timeout_seconds,
+        )
+        response.raise_for_status()
+        result_payload = _require_layout_parsing_result_payload(
+            response_payload=response.json(),
+            file_name=file_path.name,
+        )
+        return OnlineOcrProviderResult(
+            provider_result_bytes=(
+                json.dumps({"result": result_payload}, ensure_ascii=False) + "\n"
+            ).encode("utf-8")
+        )
+
+
+def build_online_ocr_client(settings: OnlineOcrSettings) -> OnlineOcrClient:
+    if settings.provider == ONLINE_OCR_PROVIDER_ASYNC_JOBS:
+        return PaddleOcrAsyncClient(settings)
+    if settings.provider == ONLINE_OCR_PROVIDER_LAYOUT_PARSING_SERVICE:
+        return PaddleOcrLayoutParsingServiceClient(settings)
+    raise ValueError(f"unsupported OCR provider mode: {settings.provider}")
+
+
+def _resolve_online_ocr_provider_mode(
+    *,
+    base_url: str,
+    provider_override: str | None,
+) -> str:
+    normalized_override = str(provider_override or "").strip().lower()
+    if normalized_override:
+        if normalized_override not in {
+            ONLINE_OCR_PROVIDER_ASYNC_JOBS,
+            ONLINE_OCR_PROVIDER_LAYOUT_PARSING_SERVICE,
+        }:
+            raise ValueError(f"unsupported OCR_PROVIDER_MODE: {provider_override}")
+        return normalized_override
+    path = urlparse(base_url).path.rstrip("/").lower()
+    if path.endswith("/jobs"):
+        return ONLINE_OCR_PROVIDER_ASYNC_JOBS
+    return ONLINE_OCR_PROVIDER_LAYOUT_PARSING_SERVICE
+
+
+def _resolve_layout_parsing_url(base_url: str) -> str:
+    normalized = base_url.rstrip("/")
+    if normalized.lower().endswith("/layout-parsing"):
+        return normalized
+    return f"{normalized}/layout-parsing"
+
+
+def normalize_online_ocr_provider_label(provider: str) -> str:
+    normalized = str(provider or "").strip().lower()
+    if normalized in {"", NORMALIZED_ONLINE_OCR_PROVIDER_ASYNC, ONLINE_OCR_PROVIDER_ASYNC_JOBS}:
+        return NORMALIZED_ONLINE_OCR_PROVIDER_ASYNC
+    if normalized == ONLINE_OCR_PROVIDER_LAYOUT_PARSING_SERVICE:
+        return ONLINE_OCR_PROVIDER_LAYOUT_PARSING_SERVICE
+    return normalized
+
+
+def _require_layout_parsing_result_payload(
+    *,
+    response_payload: object,
+    file_name: str,
+) -> dict[str, object]:
+    if not isinstance(response_payload, dict):
+        raise RuntimeError(
+            f"online OCR layout-parsing response for {file_name} must be a JSON object"
+        )
+    result_payload = response_payload.get("result")
+    if not isinstance(result_payload, dict):
+        raise RuntimeError(
+            f"online OCR layout-parsing response for {file_name} is missing result"
+        )
+    layout_results = result_payload.get("layoutParsingResults")
+    if not isinstance(layout_results, list) or not layout_results:
+        raise RuntimeError(
+            f"online OCR layout-parsing response for {file_name} is missing layoutParsingResults"
+        )
+    if not all(isinstance(item, dict) for item in layout_results):
+        raise RuntimeError(
+            f"online OCR layout-parsing response for {file_name} contains non-object layoutParsingResults entries"
+        )
+    return result_payload
+
+
+def _layout_parsing_file_type(file_path: Path) -> int:
+    suffix = file_path.suffix.strip().lower()
+    if suffix == ".pdf":
+        return 0
+    return 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -276,11 +489,12 @@ def process_raw_ingestion_job(
 ) -> ImportReport:
     source = dict(env if env is not None else os.environ)
     settings = RawIngestionProcessSettings.from_request(request, source)
+    ocr_provider = normalize_online_ocr_provider_label(settings.online_ocr.provider)
     raw_asset_registry = raw_asset_registry or build_raw_asset_registry_from_env(source)
     writer = object_store or S3ObjectStoreClient(settings.object_store)
     if not hasattr(writer, "get_bytes"):
         raise TypeError("object_store must support get_bytes for process_raw_ingestion_job")
-    ocr_client = online_ocr or PaddleOcrAsyncClient(settings.online_ocr)
+    ocr_client = online_ocr or build_online_ocr_client(settings.online_ocr)
     raw_asset_record = _resolve_registered_raw_asset(settings=settings, raw_asset_registry=raw_asset_registry)
     if settings.artifact_mode == "source_truth_only":
         return _persist_source_truth_only_ocr_results(
@@ -333,6 +547,7 @@ def process_raw_ingestion_job(
                 default_visibility_scope=settings.default_visibility_scope,
                 corpus=settings.corpus,
                 collection=settings.collection,
+                ocr_provider=ocr_provider,
                 ocr_model=settings.online_ocr.model,
                 source=source,
             )
@@ -349,6 +564,7 @@ def process_raw_ingestion_job(
                     default_visibility_scope=settings.default_visibility_scope,
                     corpus=settings.corpus,
                     collection=settings.collection,
+                    ocr_provider=ocr_provider,
                     ocr_model=settings.online_ocr.model,
                 )
             )
@@ -413,6 +629,7 @@ def _persist_source_truth_only_ocr_results(
             layout_elements_bytes = normalize_curriculum_provider_result(
                 provider_jsonl_bytes=parse_result.provider_result_bytes,
                 source_pdf=raw_asset_record.source_filename,
+                ocr_provider=normalize_online_ocr_provider_label(settings.online_ocr.provider),
                 ocr_model=settings.online_ocr.model,
             )
         elif settings.collection == "student_handbook":
@@ -420,7 +637,7 @@ def _persist_source_truth_only_ocr_results(
                 normalize_handbook_provider_result(
                     source_pdf=raw_asset_record.source_filename,
                     provider_jsonl_bytes=parse_result.provider_result_bytes,
-                    ocr_provider=DEFAULT_ONLINE_OCR_PROVIDER,
+                    ocr_provider=normalize_online_ocr_provider_label(settings.online_ocr.provider),
                     ocr_model=settings.online_ocr.model,
                     source_artifact_id=raw_asset_record.raw_asset_id,
                 )
@@ -469,6 +686,7 @@ def _build_split_manifest_documents(
     default_visibility_scope: str | None,
     corpus: str,
     collection: str,
+    ocr_provider: str,
     ocr_model: str,
 ) -> list[DocumentImportInput]:
     if collection == "curriculum_plan":
@@ -476,6 +694,7 @@ def _build_split_manifest_documents(
             normalize_curriculum_provider_result(
                 provider_jsonl_bytes=provider_result.provider_result_bytes,
                 source_pdf=raw_asset_record.source_filename,
+                ocr_provider=ocr_provider,
                 ocr_model=ocr_model,
             )
         )
@@ -485,7 +704,7 @@ def _build_split_manifest_documents(
             collection=collection,
             source_pdf=raw_asset_record.source_filename,
             provider_jsonl_bytes=provider_result.provider_result_bytes,
-            ocr_provider=DEFAULT_ONLINE_OCR_PROVIDER,
+            ocr_provider=ocr_provider,
             ocr_model=ocr_model,
             source_artifact_id=raw_asset_record.raw_asset_id,
         )
@@ -528,12 +747,13 @@ def _build_handbook_split_manifest_documents(
     default_visibility_scope: str | None,
     corpus: str,
     collection: str,
+    ocr_provider: str,
     ocr_model: str,
 ) -> tuple[list[DocumentImportInput], list[str]]:
     structured_rows = normalize_handbook_provider_result(
         source_pdf=raw_asset_record.source_filename,
         provider_jsonl_bytes=provider_result.provider_result_bytes,
-        ocr_provider=DEFAULT_ONLINE_OCR_PROVIDER,
+        ocr_provider=ocr_provider,
         ocr_model=ocr_model,
         source_artifact_id=raw_asset_record.raw_asset_id,
     )

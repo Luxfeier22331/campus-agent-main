@@ -16,6 +16,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--corpus", required=True)
     parser.add_argument("--collection", required=True)
     parser.add_argument("--preparation-run-id", required=True)
+    parser.add_argument("--closeout-run-id")
     return parser
 
 
@@ -26,6 +27,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         corpus=args.corpus,
         collection=args.collection,
         preparation_run_id=args.preparation_run_id,
+        closeout_run_id=args.closeout_run_id,
     )
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
 

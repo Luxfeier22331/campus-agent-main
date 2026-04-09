@@ -21,6 +21,7 @@ from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryR
 
 from campus_ingestion_core.authenticated_notice_source_projections import (
     AuthenticatedNoticeSourceProjectionRequest,
+    _build_attachment_title,
     rebuild_authenticated_notice_source_projections,
 )
 
@@ -142,6 +143,41 @@ class _FakeAttachmentStructuredOcrClient:
         )
 
 
+class _FailingAttachmentOcrClient:
+    def parse_file(self, file_path: Path) -> OnlineOcrProviderResult:
+        raise RuntimeError(f"provider contract breach for {file_path.name}")
+
+
+class AuthenticatedNoticeAttachmentTitleTest(unittest.TestCase):
+    def test_build_attachment_title_prefers_short_anchor_text_without_parent_title(self) -> None:
+        title = _build_attachment_title(
+            notice_title="关于2025年度研究生课程建设与教改项目拔尖创新人才“证书项目”学生招募报名的通知",
+            attachment_ref={
+                "ref_order": 1,
+                "anchor_text": "中央民族大学拔尖创新人才培养 “证书项目”报名表",
+                "final_url": "https://grs.pku.edu.cn/docs/2024-09/20240902093935948023.docx",
+            },
+            filename="20240902093935948023.docx",
+        )
+
+        self.assertEqual(title, "附件 1 / 中央民族大学拔尖创新人才培养 “证书项目”报名表")
+
+    def test_build_attachment_title_drops_url_and_uuid_like_filename(self) -> None:
+        title = _build_attachment_title(
+            notice_title="【更新】关于举办2025年北京市大学生人文知识竞赛中央民族大学校内选拔赛的通知",
+            attachment_ref={
+                "ref_order": 4,
+                "final_url": (
+                    "https://my.muc.edu.cn/comsys-portal-notice-web/upload/ueditor/202599/"
+                    "8be77b50-361d-4386-bfd3-281e34f93a9e.png"
+                ),
+            },
+            filename="8be77b50-361d-4386-bfd3-281e34f93a9e.png",
+        )
+
+        self.assertEqual(title, "附件 4")
+
+
 def _write_json(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -212,6 +248,226 @@ def _build_minimal_png_bytes() -> bytes:
 
 def _build_minimal_gif_bytes() -> bytes:
     return base64.b64decode("R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==")
+
+
+def _build_map_like_png_bytes() -> bytes:
+    from PIL import Image, ImageDraw
+
+    image = Image.new("RGB", (360, 280), "white")
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((0, 0, 360, 48), fill=(169, 215, 128))
+    draw.rectangle((24, 64, 208, 248), fill=(88, 157, 229))
+    draw.rectangle((232, 72, 336, 132), fill=(59, 167, 135))
+    draw.rectangle((232, 152, 336, 212), fill=(59, 167, 135))
+    draw.rectangle((96, 144, 128, 176), fill=(239, 124, 52))
+    draw.rectangle((136, 144, 168, 176), fill=(239, 124, 52))
+    draw.rectangle((176, 144, 208, 176), fill=(239, 124, 52))
+    draw.line((212, 60, 212, 252), fill=(255, 255, 255), width=6)
+    draw.line((32, 140, 200, 140), fill=(255, 255, 255), width=6)
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def _build_qr_like_png_bytes() -> bytes:
+    from PIL import Image, ImageDraw
+
+    module_count = 29
+    module_size = 8
+    image = Image.new(
+        "RGB",
+        (module_count * module_size, module_count * module_size),
+        "white",
+    )
+    draw = ImageDraw.Draw(image)
+
+    def fill_module(x: int, y: int, *, color: str = "black") -> None:
+        draw.rectangle(
+            (
+                x * module_size,
+                y * module_size,
+                (x + 1) * module_size - 1,
+                (y + 1) * module_size - 1,
+            ),
+            fill=color,
+        )
+
+    def draw_finder(origin_x: int, origin_y: int) -> None:
+        for dx in range(7):
+            for dy in range(7):
+                border = dx in {0, 6} or dy in {0, 6}
+                center = 2 <= dx <= 4 and 2 <= dy <= 4
+                if border or center:
+                    fill_module(origin_x + dx, origin_y + dy)
+
+    reserved: set[tuple[int, int]] = set()
+    for origin in ((0, 0), (module_count - 7, 0), (0, module_count - 7)):
+        ox, oy = origin
+        draw_finder(ox, oy)
+        for dx in range(8):
+            for dy in range(8):
+                reserved.add((ox + dx, oy + dy))
+
+    for x in range(module_count):
+        if (x, 6) not in reserved:
+            fill_module(x, 6, color="black" if x % 2 == 0 else "white")
+            reserved.add((x, 6))
+    for y in range(module_count):
+        if (6, y) not in reserved:
+            fill_module(6, y, color="black" if y % 2 == 0 else "white")
+            reserved.add((6, y))
+
+    for x in range(module_count):
+        for y in range(module_count):
+            if (x, y) in reserved:
+                continue
+            if ((x * 17) + (y * 31) + (x * y)) % 5 in {0, 1}:
+                fill_module(x, y)
+
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def _build_ui_fragment_png_bytes() -> bytes:
+    from PIL import Image, ImageDraw
+
+    image = Image.new("RGBA", (720, 48), (255, 255, 255, 255))
+    draw = ImageDraw.Draw(image)
+    for index, label_width in enumerate((96, 88, 104, 92)):
+        offset_x = 24 + index * 156
+        draw.rectangle(
+            (offset_x, 12, offset_x + label_width, 34),
+            outline=(120, 120, 120, 255),
+            fill=(248, 248, 248, 255),
+        )
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def _build_certificate_like_png_bytes() -> bytes:
+    from PIL import Image, ImageDraw
+
+    image = Image.new("RGB", (960, 640), (252, 248, 240))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((18, 18, 942, 622), outline=(148, 48, 48), width=10)
+    draw.rectangle((48, 48, 912, 592), outline=(210, 180, 120), width=4)
+    draw.rectangle((112, 162, 848, 206), fill=(240, 240, 240))
+    draw.rectangle((188, 270, 772, 294), fill=(225, 225, 225))
+    draw.rectangle((220, 334, 740, 356), fill=(225, 225, 225))
+    draw.ellipse((720, 448, 856, 584), outline=(180, 48, 48), width=10)
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def _build_mobile_screenshot_png_bytes() -> bytes:
+    from PIL import Image, ImageDraw
+
+    image = Image.new("RGB", (360, 780), (248, 242, 232))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((0, 0, 360, 64), fill=(232, 124, 56))
+    draw.rectangle((0, 716, 360, 780), fill=(255, 255, 255))
+    draw.rounded_rectangle((24, 104, 336, 180), radius=12, fill=(255, 255, 255))
+    draw.rounded_rectangle((24, 204, 336, 420), radius=12, fill=(255, 255, 255))
+    draw.rounded_rectangle((24, 448, 336, 616), radius=12, fill=(255, 255, 255))
+    draw.rounded_rectangle((32, 636, 172, 688), radius=12, fill=(230, 91, 59))
+    draw.rounded_rectangle((188, 636, 328, 688), radius=12, fill=(193, 141, 83))
+    for top in (124, 146, 228, 252, 276, 476, 500, 524):
+        draw.rectangle((48, top, 280, top + 10), fill=(222, 222, 222))
+    draw.rectangle((48, 310, 312, 394), fill=(216, 216, 216))
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def _build_compact_mobile_screenshot_png_bytes() -> bytes:
+    from PIL import Image, ImageDraw
+
+    image = Image.new("RGB", (148, 332), (246, 240, 232))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((0, 0, 148, 34), fill=(232, 124, 56))
+    draw.rectangle((0, 298, 148, 332), fill=(255, 255, 255))
+    draw.rounded_rectangle((10, 48, 138, 84), radius=6, fill=(255, 255, 255))
+    draw.rounded_rectangle((10, 96, 138, 196), radius=8, fill=(255, 255, 255))
+    draw.rounded_rectangle((10, 206, 138, 274), radius=8, fill=(255, 255, 255))
+    draw.rounded_rectangle((14, 280, 66, 314), radius=6, fill=(228, 92, 58))
+    draw.rounded_rectangle((82, 280, 134, 314), radius=6, fill=(196, 144, 83))
+    for top in (58, 68, 106, 118, 130, 216, 228, 240):
+        draw.rectangle((22, top, 118, top + 4), fill=(220, 220, 220))
+    draw.rectangle((22, 146, 126, 186), fill=(214, 214, 214))
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def _build_small_program_code_like_png_bytes() -> bytes:
+    from PIL import Image, ImageDraw
+
+    image = Image.new("RGB", (132, 132), (255, 255, 255))
+    draw = ImageDraw.Draw(image)
+    for x in range(0, 132, 8):
+        draw.rectangle((x, 0, x + 3, 12), fill=(0, 0, 0))
+        draw.rectangle((x, 120, x + 3, 132), fill=(0, 0, 0))
+    for y in range(12, 120, 8):
+        draw.rectangle((0, y, 12, y + 3), fill=(0, 0, 0))
+        draw.rectangle((120, y, 132, y + 3), fill=(0, 0, 0))
+    draw.ellipse((34, 34, 98, 98), fill=(214, 48, 44))
+    draw.ellipse((48, 48, 84, 84), fill=(255, 255, 255))
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def _build_tiny_decorative_png_bytes() -> bytes:
+    from PIL import Image, ImageDraw
+
+    image = Image.new("RGB", (37, 31), (255, 255, 255))
+    draw = ImageDraw.Draw(image)
+    draw.polygon(((2, 18), (14, 6), (28, 12), (34, 2), (34, 26), (18, 30)), fill=(255, 128, 92))
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def _build_promotional_banner_png_bytes() -> bytes:
+    from PIL import Image, ImageDraw
+
+    image = Image.new("RGB", (960, 540), (171, 18, 24))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((0, 0, 960, 160), fill=(190, 32, 36))
+    draw.rectangle((0, 160, 960, 332), fill=(182, 24, 30))
+    draw.rectangle((0, 332, 960, 540), fill=(233, 124, 86))
+    draw.rectangle((96, 118, 864, 186), fill=(255, 232, 232))
+    draw.rectangle((176, 220, 784, 262), fill=(232, 232, 255))
+    for offset in range(8):
+        center_x = 92 + offset * 108
+        draw.ellipse((center_x, 392, center_x + 48, 440), fill=(236, 222, 194))
+        draw.rectangle((center_x + 10, 438, center_x + 38, 502), fill=(62, 66, 102))
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def _build_table_like_png_bytes() -> bytes:
+    from PIL import Image, ImageDraw
+
+    image = Image.new("RGB", (720, 420), (255, 255, 255))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((8, 8, 712, 412), outline=(32, 32, 32), width=3)
+    for y in (72, 192, 312):
+        draw.line((8, y, 712, y), fill=(32, 32, 32), width=3)
+    for x in (160, 420):
+        draw.line((x, 72, x, 412), fill=(32, 32, 32), width=3)
+    draw.rectangle((248, 22, 472, 40), fill=(220, 220, 220))
+    for top in (112, 138, 232, 258, 352, 378):
+        draw.rectangle((194, top, 364, top + 12), fill=(214, 214, 214))
+    for top in (112, 138, 164, 232, 258, 284, 352, 378):
+        draw.rectangle((466, top, 648, top + 12), fill=(214, 214, 214))
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
 
 
 def _attachment_object_key(content_sha256: str, filename: str) -> str:
@@ -441,6 +697,44 @@ def _sample_notice_bundle(*, docx_bytes: bytes, png_bytes: bytes) -> list[dict[s
     ]
 
 
+def _sample_notice_bundle_with_inline_image_context(
+    *,
+    docx_bytes: bytes,
+    png_bytes: bytes,
+    notice_content: str,
+    image_link_text: str = "image.png",
+    image_url: str = "https://portal.example.edu/files/notice.png",
+) -> list[dict[str, object]]:
+    bundle = json.loads(
+        json.dumps(
+            _sample_notice_bundle(docx_bytes=docx_bytes, png_bytes=png_bytes),
+            ensure_ascii=False,
+        )
+    )
+    notice = bundle[0]["notice"]
+    assert isinstance(notice, dict)
+    notice["notice_content"] = notice_content
+
+    image_link = bundle[0]["links"][1]
+    assert isinstance(image_link, dict)
+    image_link["link_text"] = image_link_text
+    image_link["url"] = image_url
+    image_link["final_url"] = image_url
+
+    image_relation = bundle[0]["notice_attachments"][1]
+    assert isinstance(image_relation, dict)
+    image_relation["anchor_text"] = image_link_text
+
+    image_attachment = bundle[0]["attachments"][1]
+    assert isinstance(image_attachment, dict)
+    image_attachment["source_url"] = image_url
+    image_attachment["normalized_source_url"] = image_url
+    image_attachment["final_url"] = image_url
+    image_attachment["original_filename"] = Path(image_url).name
+
+    return bundle
+
+
 def _sample_notice_bundle_with_decorative_gif(
     *,
     docx_bytes: bytes,
@@ -629,6 +923,69 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             key=str(image_child.canonical_markdown_object_key),
         ).decode("utf-8")
         self.assertIn("图片附件 OCR 正文 第一行", image_markdown)
+
+    def test_rebuild_authenticated_notice_source_projections_rejects_sync_provider_on_replay_path(
+        self,
+    ) -> None:
+        docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
+        png_bytes = _build_minimal_png_bytes()
+        bundle = _sample_notice_bundle(docx_bytes=docx_bytes, png_bytes=png_bytes)
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][0]["object_key"]),
+                data=docx_bytes,
+                content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][1]["object_key"]),
+                data=png_bytes,
+                content_type="image/png",
+            )
+
+            with self.assertRaisesRegex(
+                ValueError,
+                r"OCR_PROVIDER_MODE=paddleocr_async_jobs",
+            ):
+                rebuild_authenticated_notice_source_projections(
+                    request=AuthenticatedNoticeSourceProjectionRequest(
+                        corpus="campus_notices",
+                        collection="internal_notice",
+                    ),
+                    env={
+                        **_env(),
+                        "OCR_BASE_URL": "https://example.com/layout-parsing",
+                        "OCR_API_KEY": "test-token",
+                        "OCR_PROVIDER_MODE": "paddleocr_vl_service",
+                    },
+                    object_store=object_store,
+                    document_registry=document_registry,
+                    raw_asset_registry=raw_asset_registry,
+                )
 
     def test_rebuild_authenticated_notice_source_projections_keeps_ocr_no_text_as_relation_only(self) -> None:
         docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
@@ -872,6 +1229,867 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
                 "notice_attachment:muc_internal_portal:355119:attachment-0001",
             },
         )
+
+    def test_rebuild_authenticated_notice_source_projections_routes_spatial_inline_images_to_manual_review(self) -> None:
+        docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
+        png_bytes = _build_map_like_png_bytes()
+        bundle = _sample_notice_bundle(docx_bytes=docx_bytes, png_bytes=png_bytes)
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][0]["object_key"]),
+                data=docx_bytes,
+                content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][1]["object_key"]),
+                data=png_bytes,
+                content_type="image/png",
+            )
+
+            ocr_client = _FakeAttachmentOcrClient()
+            report = rebuild_authenticated_notice_source_projections(
+                request=AuthenticatedNoticeSourceProjectionRequest(
+                    corpus="campus_notices",
+                    collection="internal_notice",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                ocr_client=ocr_client,
+            )
+
+        self.assertEqual(report.parent_notice_count, 1)
+        self.assertEqual(report.projected_attachment_count, 1)
+        self.assertEqual(report.text_extractable_attachment_count, 1)
+        self.assertEqual(report.ocr_attachment_count, 0)
+        self.assertEqual(report.reference_only_attachment_count, 1)
+        self.assertEqual(report.manual_review_attachment_count, 1)
+        self.assertEqual(ocr_client.calls, [])
+
+        records = document_registry.list_by_scope("campus_notices", "internal_notice")
+        self.assertEqual(
+            {record.document_id for record in records},
+            {
+                "notice:muc_internal_portal:355119",
+                "notice_attachment:muc_internal_portal:355119:attachment-0001",
+            },
+        )
+
+    def test_rebuild_authenticated_notice_source_projections_routes_qr_like_inline_images_to_reference_only(
+        self,
+    ) -> None:
+        docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
+        png_bytes = _build_qr_like_png_bytes()
+        bundle = _sample_notice_bundle(docx_bytes=docx_bytes, png_bytes=png_bytes)
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][0]["object_key"]),
+                data=docx_bytes,
+                content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][1]["object_key"]),
+                data=png_bytes,
+                content_type="image/png",
+            )
+
+            ocr_client = _FakeAttachmentOcrClient()
+            report = rebuild_authenticated_notice_source_projections(
+                request=AuthenticatedNoticeSourceProjectionRequest(
+                    corpus="campus_notices",
+                    collection="internal_notice",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                ocr_client=ocr_client,
+            )
+
+        self.assertEqual(report.parent_notice_count, 1)
+        self.assertEqual(report.projected_attachment_count, 1)
+        self.assertEqual(report.text_extractable_attachment_count, 1)
+        self.assertEqual(report.ocr_attachment_count, 0)
+        self.assertEqual(report.reference_only_attachment_count, 2)
+        self.assertEqual(report.manual_review_attachment_count, 0)
+        self.assertEqual(ocr_client.calls, [])
+
+        records = document_registry.list_by_scope("campus_notices", "internal_notice")
+        self.assertEqual(
+            {record.document_id for record in records},
+            {
+                "notice:muc_internal_portal:355119",
+                "notice_attachment:muc_internal_portal:355119:attachment-0001",
+            },
+        )
+
+    def test_rebuild_authenticated_notice_source_projections_routes_ui_fragment_inline_images_to_reference_only(
+        self,
+    ) -> None:
+        docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
+        png_bytes = _build_ui_fragment_png_bytes()
+        bundle = _sample_notice_bundle(docx_bytes=docx_bytes, png_bytes=png_bytes)
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][0]["object_key"]),
+                data=docx_bytes,
+                content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][1]["object_key"]),
+                data=png_bytes,
+                content_type="image/png",
+            )
+
+            ocr_client = _FakeAttachmentOcrClient()
+            report = rebuild_authenticated_notice_source_projections(
+                request=AuthenticatedNoticeSourceProjectionRequest(
+                    corpus="campus_notices",
+                    collection="internal_notice",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                ocr_client=ocr_client,
+            )
+
+        self.assertEqual(report.parent_notice_count, 1)
+        self.assertEqual(report.projected_attachment_count, 1)
+        self.assertEqual(report.text_extractable_attachment_count, 1)
+        self.assertEqual(report.ocr_attachment_count, 0)
+        self.assertEqual(report.reference_only_attachment_count, 2)
+        self.assertEqual(report.manual_review_attachment_count, 0)
+        self.assertEqual(ocr_client.calls, [])
+
+        records = document_registry.list_by_scope("campus_notices", "internal_notice")
+        self.assertEqual(
+            {record.document_id for record in records},
+            {
+                "notice:muc_internal_portal:355119",
+                "notice_attachment:muc_internal_portal:355119:attachment-0001",
+            },
+        )
+
+    def test_rebuild_authenticated_notice_source_projections_routes_certificate_example_inline_images_to_reference_only(
+        self,
+    ) -> None:
+        docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
+        png_bytes = _build_certificate_like_png_bytes()
+        bundle = _sample_notice_bundle_with_inline_image_context(
+            docx_bytes=docx_bytes,
+            png_bytes=png_bytes,
+            notice_content=(
+                "<h1>关于开放2025年度拔尖创新人才“证书项目”第二轮报名的通知</h1>"
+                "<p>城市阶段将评选出优秀选手，并颁发荣誉证书。</p>"
+                "<p>（下图为示例证书）</p>"
+                '<p><img src="https://portal.example.edu/files/notice.png" alt="image.png" /></p>'
+            ),
+        )
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][0]["object_key"]),
+                data=docx_bytes,
+                content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][1]["object_key"]),
+                data=png_bytes,
+                content_type="image/png",
+            )
+
+            ocr_client = _FakeAttachmentOcrClient()
+            report = rebuild_authenticated_notice_source_projections(
+                request=AuthenticatedNoticeSourceProjectionRequest(
+                    corpus="campus_notices",
+                    collection="internal_notice",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                ocr_client=ocr_client,
+            )
+
+        self.assertEqual(report.parent_notice_count, 1)
+        self.assertEqual(report.projected_attachment_count, 1)
+        self.assertEqual(report.text_extractable_attachment_count, 1)
+        self.assertEqual(report.ocr_attachment_count, 0)
+        self.assertEqual(report.reference_only_attachment_count, 2)
+        self.assertEqual(report.manual_review_attachment_count, 0)
+        self.assertEqual(ocr_client.calls, [])
+
+    def test_rebuild_authenticated_notice_source_projections_routes_promotional_banner_inline_images_to_reference_only(
+        self,
+    ) -> None:
+        docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
+        png_bytes = _build_promotional_banner_png_bytes()
+        bundle = _sample_notice_bundle_with_inline_image_context(
+            docx_bytes=docx_bytes,
+            png_bytes=png_bytes,
+            notice_content=(
+                "<h1>关于开放2025年度拔尖创新人才“证书项目”第二轮报名的通知</h1>"
+                "<p>第六届活动再次出发，这场文化盛会，期待你的参加。</p>"
+                '<p><img src="https://portal.example.edu/files/notice.png" alt="image.png" /></p>'
+                "<p>活动具体日程如下。</p>"
+            ),
+        )
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][0]["object_key"]),
+                data=docx_bytes,
+                content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][1]["object_key"]),
+                data=png_bytes,
+                content_type="image/png",
+            )
+
+            ocr_client = _FakeAttachmentOcrClient()
+            report = rebuild_authenticated_notice_source_projections(
+                request=AuthenticatedNoticeSourceProjectionRequest(
+                    corpus="campus_notices",
+                    collection="internal_notice",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                ocr_client=ocr_client,
+            )
+
+        self.assertEqual(report.parent_notice_count, 1)
+        self.assertEqual(report.projected_attachment_count, 1)
+        self.assertEqual(report.text_extractable_attachment_count, 1)
+        self.assertEqual(report.ocr_attachment_count, 0)
+        self.assertEqual(report.reference_only_attachment_count, 2)
+        self.assertEqual(report.manual_review_attachment_count, 0)
+        self.assertEqual(ocr_client.calls, [])
+
+    def test_rebuild_authenticated_notice_source_projections_routes_mobile_ui_screenshots_to_reference_only_when_body_already_carries_the_instruction(
+        self,
+    ) -> None:
+        docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
+        png_bytes = _build_mobile_screenshot_png_bytes()
+        bundle = _sample_notice_bundle_with_inline_image_context(
+            docx_bytes=docx_bytes,
+            png_bytes=png_bytes,
+            notice_content=(
+                "<h1>关于开放2025年度拔尖创新人才“证书项目”第二轮报名的通知</h1>"
+                "<p>请通过官方报名小程序完成作品上传。</p>"
+                '<p><img src="https://portal.example.edu/files/notice.png" alt="image.png" /></p>'
+                "<p>提交后等待审核。</p>"
+            ),
+        )
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][0]["object_key"]),
+                data=docx_bytes,
+                content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][1]["object_key"]),
+                data=png_bytes,
+                content_type="image/png",
+            )
+
+            ocr_client = _FakeAttachmentOcrClient()
+            report = rebuild_authenticated_notice_source_projections(
+                request=AuthenticatedNoticeSourceProjectionRequest(
+                    corpus="campus_notices",
+                    collection="internal_notice",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                ocr_client=ocr_client,
+            )
+
+        self.assertEqual(report.parent_notice_count, 1)
+        self.assertEqual(report.projected_attachment_count, 1)
+        self.assertEqual(report.text_extractable_attachment_count, 1)
+        self.assertEqual(report.ocr_attachment_count, 0)
+        self.assertEqual(report.reference_only_attachment_count, 2)
+        self.assertEqual(report.manual_review_attachment_count, 0)
+        self.assertEqual(ocr_client.calls, [])
+
+    def test_rebuild_authenticated_notice_source_projections_routes_compact_mobile_ui_screenshots_to_reference_only_when_body_already_carries_the_instruction(
+        self,
+    ) -> None:
+        docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
+        png_bytes = _build_compact_mobile_screenshot_png_bytes()
+        bundle = _sample_notice_bundle_with_inline_image_context(
+            docx_bytes=docx_bytes,
+            png_bytes=png_bytes,
+            notice_content=(
+                "<h1>关于开放2025年度拔尖创新人才“证书项目”第二轮报名的通知</h1>"
+                "<p>需通过官方报名小程序完成作品上传。</p>"
+                '<p><img src="https://portal.example.edu/files/notice.png" alt="image.png" /></p>'
+                "<p>提交后等待审核。</p>"
+            ),
+        )
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][0]["object_key"]),
+                data=docx_bytes,
+                content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][1]["object_key"]),
+                data=png_bytes,
+                content_type="image/png",
+            )
+
+            ocr_client = _FakeAttachmentOcrClient()
+            report = rebuild_authenticated_notice_source_projections(
+                request=AuthenticatedNoticeSourceProjectionRequest(
+                    corpus="campus_notices",
+                    collection="internal_notice",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                ocr_client=ocr_client,
+            )
+
+        self.assertEqual(report.parent_notice_count, 1)
+        self.assertEqual(report.projected_attachment_count, 1)
+        self.assertEqual(report.text_extractable_attachment_count, 1)
+        self.assertEqual(report.ocr_attachment_count, 0)
+        self.assertEqual(report.reference_only_attachment_count, 2)
+        self.assertEqual(report.manual_review_attachment_count, 0)
+        self.assertEqual(ocr_client.calls, [])
+
+    def test_rebuild_authenticated_notice_source_projections_routes_contextual_small_program_codes_to_reference_only(
+        self,
+    ) -> None:
+        docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
+        png_bytes = _build_small_program_code_like_png_bytes()
+        bundle = _sample_notice_bundle_with_inline_image_context(
+            docx_bytes=docx_bytes,
+            png_bytes=png_bytes,
+            notice_content=(
+                "<h1>关于开放2025年度拔尖创新人才“证书项目”第二轮报名的通知</h1>"
+                "<p>扫描下方二维码下载相关文本。</p>"
+                '<p><img src="https://portal.example.edu/files/notice.png" alt="image.png" /></p>'
+                "<p>请按要求完成提交。</p>"
+            ),
+        )
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][0]["object_key"]),
+                data=docx_bytes,
+                content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][1]["object_key"]),
+                data=png_bytes,
+                content_type="image/png",
+            )
+
+            ocr_client = _FakeAttachmentOcrClient()
+            report = rebuild_authenticated_notice_source_projections(
+                request=AuthenticatedNoticeSourceProjectionRequest(
+                    corpus="campus_notices",
+                    collection="internal_notice",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                ocr_client=ocr_client,
+            )
+
+        self.assertEqual(report.parent_notice_count, 1)
+        self.assertEqual(report.projected_attachment_count, 1)
+        self.assertEqual(report.text_extractable_attachment_count, 1)
+        self.assertEqual(report.ocr_attachment_count, 0)
+        self.assertEqual(report.reference_only_attachment_count, 2)
+        self.assertEqual(report.manual_review_attachment_count, 0)
+        self.assertEqual(ocr_client.calls, [])
+
+    def test_rebuild_authenticated_notice_source_projections_routes_tiny_decorative_inline_images_to_reference_only(
+        self,
+    ) -> None:
+        docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
+        png_bytes = _build_tiny_decorative_png_bytes()
+        bundle = _sample_notice_bundle_with_inline_image_context(
+            docx_bytes=docx_bytes,
+            png_bytes=png_bytes,
+            notice_content=(
+                "<h1>关于开放2025年度拔尖创新人才“证书项目”第二轮报名的通知</h1>"
+                "<p>证书与奖励</p>"
+                '<p><img src="https://portal.example.edu/files/notice.png" alt="image.png" /></p>'
+                "<p>所有城市阶段优秀选手均可获得证书。</p>"
+            ),
+        )
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][0]["object_key"]),
+                data=docx_bytes,
+                content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][1]["object_key"]),
+                data=png_bytes,
+                content_type="image/png",
+            )
+
+            ocr_client = _FakeAttachmentOcrClient()
+            report = rebuild_authenticated_notice_source_projections(
+                request=AuthenticatedNoticeSourceProjectionRequest(
+                    corpus="campus_notices",
+                    collection="internal_notice",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                ocr_client=ocr_client,
+            )
+
+        self.assertEqual(report.parent_notice_count, 1)
+        self.assertEqual(report.projected_attachment_count, 1)
+        self.assertEqual(report.text_extractable_attachment_count, 1)
+        self.assertEqual(report.ocr_attachment_count, 0)
+        self.assertEqual(report.reference_only_attachment_count, 2)
+        self.assertEqual(report.manual_review_attachment_count, 0)
+        self.assertEqual(ocr_client.calls, [])
+
+    def test_rebuild_authenticated_notice_source_projections_routes_intro_poster_inline_images_to_reference_only(
+        self,
+    ) -> None:
+        docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
+        png_bytes = _build_promotional_banner_png_bytes()
+        bundle = _sample_notice_bundle_with_inline_image_context(
+            docx_bytes=docx_bytes,
+            png_bytes=png_bytes,
+            notice_content=(
+                "<h1>关于开放2025年度拔尖创新人才“证书项目”第二轮报名的通知</h1>"
+                "<p>共同开展第六届“用英语讲中国故事大会”中央民族大学专场活动。</p>"
+                '<p><img src="https://portal.example.edu/files/notice.png" alt="image.png" /></p>'
+                "<p>“用英语讲中国故事大会”活动旨在为青年学生搭建深入理解中华文化、与世界文明对话的桥梁。</p>"
+            ),
+        )
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][0]["object_key"]),
+                data=docx_bytes,
+                content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][1]["object_key"]),
+                data=png_bytes,
+                content_type="image/png",
+            )
+
+            ocr_client = _FakeAttachmentOcrClient()
+            report = rebuild_authenticated_notice_source_projections(
+                request=AuthenticatedNoticeSourceProjectionRequest(
+                    corpus="campus_notices",
+                    collection="internal_notice",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                ocr_client=ocr_client,
+            )
+
+        self.assertEqual(report.parent_notice_count, 1)
+        self.assertEqual(report.projected_attachment_count, 1)
+        self.assertEqual(report.text_extractable_attachment_count, 1)
+        self.assertEqual(report.ocr_attachment_count, 0)
+        self.assertEqual(report.reference_only_attachment_count, 2)
+        self.assertEqual(report.manual_review_attachment_count, 0)
+        self.assertEqual(ocr_client.calls, [])
+
+    def test_rebuild_authenticated_notice_source_projections_keeps_scoring_table_inline_images_in_ocr_lane(
+        self,
+    ) -> None:
+        docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
+        png_bytes = _build_table_like_png_bytes()
+        bundle = _sample_notice_bundle_with_inline_image_context(
+            docx_bytes=docx_bytes,
+            png_bytes=png_bytes,
+            notice_content=(
+                "<h1>关于开放2025年度拔尖创新人才“证书项目”第二轮报名的通知</h1>"
+                "<p>5. 评分标准</p>"
+                "<p>本阶段注重考察选手的沟通自信与文化自信，综合评价其语言表达能力，具体维度如下：</p>"
+                '<p><img src="https://portal.example.edu/files/notice.png" alt="1769304903305.png" /></p>'
+                "<p>评审将围绕发音准确性、语调自然度、用词恰当性、表达逻辑性以及整体表现力等方面进行综合评价。</p>"
+            ),
+            image_link_text="1769304903305.png",
+        )
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][0]["object_key"]),
+                data=docx_bytes,
+                content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][1]["object_key"]),
+                data=png_bytes,
+                content_type="image/png",
+            )
+
+            ocr_client = _FakeAttachmentOcrClient()
+            report = rebuild_authenticated_notice_source_projections(
+                request=AuthenticatedNoticeSourceProjectionRequest(
+                    corpus="campus_notices",
+                    collection="internal_notice",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                ocr_client=ocr_client,
+            )
+
+        self.assertEqual(report.parent_notice_count, 1)
+        self.assertEqual(report.projected_attachment_count, 2)
+        self.assertEqual(report.text_extractable_attachment_count, 1)
+        self.assertEqual(report.ocr_attachment_count, 1)
+        self.assertEqual(report.reference_only_attachment_count, 1)
+        self.assertEqual(report.manual_review_attachment_count, 0)
+        self.assertEqual(ocr_client.calls, ["notice.png"])
+
+    def test_rebuild_authenticated_notice_source_projections_surfaces_attachment_context_when_ocr_fails(self) -> None:
+        docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
+        png_bytes = _build_minimal_png_bytes()
+        bundle = _sample_notice_bundle(docx_bytes=docx_bytes, png_bytes=png_bytes)
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][0]["object_key"]),
+                data=docx_bytes,
+                content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][1]["object_key"]),
+                data=png_bytes,
+                content_type="image/png",
+            )
+
+            with self.assertRaisesRegex(
+                RuntimeError,
+                r"notice:muc_internal_portal:355119#attachment-0002 attachment OCR failed: "
+                r"provider contract breach for",
+            ):
+                rebuild_authenticated_notice_source_projections(
+                    request=AuthenticatedNoticeSourceProjectionRequest(
+                        corpus="campus_notices",
+                        collection="internal_notice",
+                    ),
+                    env=_env(),
+                    object_store=object_store,
+                    document_registry=document_registry,
+                    raw_asset_registry=raw_asset_registry,
+                    ocr_client=_FailingAttachmentOcrClient(),
+                )
 
     def test_internal_notice_chunking_skips_attachment_ref_units(self) -> None:
         record = DocumentRegistryRecord(

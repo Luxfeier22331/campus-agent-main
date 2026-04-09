@@ -223,12 +223,18 @@ def _extract_text(block: dict[str, object]) -> str:
 def _extract_html(block: dict[str, object]) -> str | None:
     markdown = block.get("markdown")
     if isinstance(markdown, dict):
-        html = markdown.get("html")
-        if isinstance(html, str) and html.strip():
-            return html.strip()
-    html = block.get("html")
-    if isinstance(html, str) and html.strip():
-        return html.strip()
+        html = _coerce_html(markdown.get("html"))
+        if html:
+            return html
+        html = _coerce_html(markdown.get("text"))
+        if html:
+            return html
+    html = _coerce_html(block.get("html"))
+    if html:
+        return html
+    html = _coerce_html(block.get("block_content"))
+    if html:
+        return html
     return None
 
 
@@ -245,6 +251,18 @@ def _extract_table_cells(block: dict[str, object]) -> list[list[str]] | None:
     html = _extract_html(block)
     if html:
         return extract_html_table_grid(html)
+    return None
+
+
+def _coerce_html(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    if not normalized:
+        return None
+    lowered = normalized.lower()
+    if "<table" in lowered or (normalized.startswith("<") and normalized.endswith(">")):
+        return normalized
     return None
 
 

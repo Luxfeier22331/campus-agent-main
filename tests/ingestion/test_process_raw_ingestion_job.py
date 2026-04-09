@@ -4,11 +4,19 @@ import hashlib
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import types
 import unittest
 from unittest.mock import patch
 
 from campus_ingestion_core.handbook_cleanup import build_handbook_doc_id
-from campus_ingestion_core.raw_ingestion import RawIngestionRequest
+from campus_ingestion_core.raw_ingestion import (
+    OnlineOcrProviderContractError,
+    OnlineOcrSettings,
+    PaddleOcrLayoutParsingServiceClient,
+    PaddleOcrAsyncClient,
+    RawIngestionRequest,
+    build_online_ocr_client,
+)
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.object_store import (
     build_processed_artifact_key,
@@ -260,6 +268,291 @@ class _FixtureOnlineOcrClient:
         return OnlineOcrProviderResult(
             provider_result_bytes=(FIXTURE_DIR / self.fixture_name).read_bytes(),
         )
+
+
+class _FakeRequestsResponse:
+    def __init__(
+        self,
+        *,
+        status_code: int,
+        json_payload: object | None = None,
+        content: bytes = b"",
+        text: str = "",
+    ) -> None:
+        self.status_code = status_code
+        self._json_payload = json_payload
+        self.content = content
+        self.text = text
+
+    def json(self) -> object:
+        if self._json_payload is None:
+            raise ValueError("json payload not configured")
+        return self._json_payload
+
+    def raise_for_status(self) -> None:
+        if self.status_code >= 400:
+            raise RuntimeError(f"http {self.status_code}")
+
+
+class _SequencedRequestsModule:
+    def __init__(self) -> None:
+        self.post_calls: list[tuple[str, dict[str, str], dict[str, str]]] = []
+        self.get_calls: list[str] = []
+        self._json_attempts = 0
+
+    def post(self, url: str, *, headers, data, files, timeout):  # type: ignore[no-untyped-def]
+        del files, timeout
+        self.post_calls.append((url, headers, data))
+        return _FakeRequestsResponse(
+            status_code=200,
+            json_payload={"data": {"jobId": "job-1"}},
+        )
+
+    def get(self, url: str, *, headers=None, timeout=None):  # type: ignore[no-untyped-def]
+        del headers, timeout
+        self.get_calls.append(url)
+        if url.endswith("/job-1"):
+            return _FakeRequestsResponse(
+                status_code=200,
+                json_payload={
+                    "data": {
+                        "jobId": "job-1",
+                        "state": "done",
+                        "resultUrl": {"jsonUrl": "https://example.test/result.jsonl"},
+                    }
+                },
+            )
+        if url == "https://example.test/result.jsonl":
+            self._json_attempts += 1
+            if self._json_attempts == 1:
+                return _FakeRequestsResponse(
+                    status_code=404,
+                    text='{"code":"NoSuchKey"}',
+                )
+            return _FakeRequestsResponse(
+                status_code=200,
+                content=b'{"result":"ok"}\n',
+            )
+        raise AssertionError(f"unexpected GET url: {url}")
+
+
+class _AlwaysMissingResultRequestsModule:
+    def __init__(self) -> None:
+        self.post_calls: list[tuple[str, dict[str, str], dict[str, str]]] = []
+        self.get_calls: list[str] = []
+
+    def post(self, url: str, *, headers, data, files, timeout):  # type: ignore[no-untyped-def]
+        del files, timeout
+        self.post_calls.append((url, headers, data))
+        return _FakeRequestsResponse(
+            status_code=200,
+            json_payload={"data": {"jobId": "job-1"}},
+        )
+
+    def get(self, url: str, *, headers=None, timeout=None):  # type: ignore[no-untyped-def]
+        del headers, timeout
+        self.get_calls.append(url)
+        if url.endswith("/job-1"):
+            return _FakeRequestsResponse(
+                status_code=200,
+                json_payload={
+                    "traceId": "trace-404",
+                    "code": 0,
+                    "msg": "Success",
+                    "data": {
+                        "jobId": "job-1",
+                        "state": "done",
+                        "resultUrl": {"jsonUrl": "https://example.test/result.jsonl"},
+                    },
+                },
+            )
+        if url == "https://example.test/result.jsonl":
+            return _FakeRequestsResponse(
+                status_code=404,
+                text='{"code":"NoSuchKey"}',
+            )
+        raise AssertionError(f"unexpected GET url: {url}")
+
+
+class _LayoutParsingServiceRequestsModule:
+    def __init__(self) -> None:
+        self.post_calls: list[tuple[str, dict[str, str], dict[str, object]]] = []
+
+    def post(self, url: str, *, headers=None, json=None, timeout=None):  # type: ignore[no-untyped-def]
+        del timeout
+        self.post_calls.append((url, headers or {}, json or {}))
+        return _FakeRequestsResponse(
+            status_code=200,
+            json_payload={
+                "result": {
+                    "dataInfo": {"numPages": 1, "type": "image"},
+                    "layoutParsingResults": [
+                        {
+                            "markdown": {"text": "图片附件 OCR 正文 第一行\n图片附件 OCR 正文 第二行"},
+                            "prunedResult": {
+                                "parsing_res_list": [
+                                    {
+                                        "block_label": "paragraph_title",
+                                        "block_content": "图片附件 OCR 正文 第一行",
+                                        "block_order": 1,
+                                    },
+                                    {
+                                        "block_label": "text",
+                                        "block_content": "图片附件 OCR 正文 第二行",
+                                        "block_order": 2,
+                                    },
+                                ]
+                            },
+                        }
+                    ]
+                }
+            },
+        )
+
+
+class PaddleOcrAsyncClientTest(unittest.TestCase):
+    def test_parse_file_retries_result_url_when_done_state_races_object_publish(self) -> None:
+        requests_module = _SequencedRequestsModule()
+        client = PaddleOcrAsyncClient(
+            OnlineOcrSettings(
+                base_url="https://example.test/ocr",
+                api_key="secret",
+                poll_seconds=1,
+                timeout_seconds=10,
+            )
+        )
+
+        with TemporaryDirectory() as temp_dir:
+            file_path = Path(temp_dir) / "sample.png"
+            file_path.write_bytes(b"png-bytes")
+
+            with (
+                patch.dict("sys.modules", {"requests": requests_module}),
+                patch("campus_ingestion_core.raw_ingestion.time.sleep"),
+            ):
+                result = client.parse_file(file_path)
+
+        self.assertEqual(result.provider_result_bytes, b'{"result":"ok"}\n')
+        self.assertEqual(
+            requests_module.get_calls,
+            [
+                "https://example.test/ocr/job-1",
+                "https://example.test/result.jsonl",
+                "https://example.test/result.jsonl",
+            ],
+        )
+
+    def test_parse_file_raises_contract_error_when_done_result_url_stays_missing(self) -> None:
+        requests_module = _AlwaysMissingResultRequestsModule()
+        client = PaddleOcrAsyncClient(
+            OnlineOcrSettings(
+                base_url="https://example.test/ocr",
+                api_key="secret",
+                poll_seconds=1,
+                timeout_seconds=30,
+                result_ready_grace_seconds=1,
+            )
+        )
+
+        with TemporaryDirectory() as temp_dir:
+            file_path = Path(temp_dir) / "sample.png"
+            file_path.write_bytes(b"png-bytes")
+
+            with (
+                patch.dict("sys.modules", {"requests": requests_module}),
+                patch("campus_ingestion_core.raw_ingestion.time.sleep"),
+                patch(
+                    "campus_ingestion_core.raw_ingestion.time.monotonic",
+                    side_effect=(0.0, 0.0, 0.5, 1.5, 1.5),
+                ),
+            ):
+                with self.assertRaises(OnlineOcrProviderContractError) as raised:
+                    client.parse_file(file_path)
+
+        self.assertIn("file=sample.png", str(raised.exception))
+        self.assertIn("job_id=job-1", str(raised.exception))
+        self.assertIn("status_code=404", str(raised.exception))
+        self.assertIn("response_text={\"code\":\"NoSuchKey\"}", str(raised.exception))
+
+
+class PaddleOcrLayoutParsingServiceClientTest(unittest.TestCase):
+    def test_parse_file_posts_to_layout_parsing_endpoint_and_wraps_result(self) -> None:
+        requests_module = _LayoutParsingServiceRequestsModule()
+        client = PaddleOcrLayoutParsingServiceClient(
+            OnlineOcrSettings(
+                base_url="https://ocr.internal",
+                api_key="secret",
+                provider="paddleocr_vl_service",
+            )
+        )
+
+        with TemporaryDirectory() as temp_dir:
+            file_path = Path(temp_dir) / "sample.png"
+            file_path.write_bytes(b"png-bytes")
+
+            with patch.dict("sys.modules", {"requests": requests_module}):
+                result = client.parse_file(file_path)
+
+        self.assertEqual(
+            requests_module.post_calls,
+            [
+                (
+                    "https://ocr.internal/layout-parsing",
+                    {"Authorization": "bearer secret"},
+                    {
+                        "file": unittest.mock.ANY,
+                        "fileType": 1,
+                        "restructurePages": False,
+                        "visualize": False,
+                        "useDocOrientationClassify": False,
+                        "useDocUnwarping": False,
+                        "useChartRecognition": False,
+                    },
+                )
+            ],
+        )
+        decoded = result.provider_result_bytes.decode("utf-8")
+        self.assertIn('"layoutParsingResults"', decoded)
+        self.assertIn('"dataInfo"', decoded)
+
+    def test_parse_file_fast_fails_when_layout_results_are_missing(self) -> None:
+        requests_module = types.SimpleNamespace(
+            post=lambda *args, **kwargs: _FakeRequestsResponse(
+                status_code=200,
+                json_payload={"result": {"dataInfo": {"numPages": 1}}},
+            )
+        )
+        client = PaddleOcrLayoutParsingServiceClient(
+            OnlineOcrSettings(
+                base_url="https://ocr.internal",
+                api_key="secret",
+                provider="paddleocr_vl_service",
+            )
+        )
+
+        with TemporaryDirectory() as temp_dir:
+            file_path = Path(temp_dir) / "sample.png"
+            file_path.write_bytes(b"png-bytes")
+
+            with patch.dict("sys.modules", {"requests": requests_module}):
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "online OCR layout-parsing response for sample.png is missing layoutParsingResults",
+                ):
+                    client.parse_file(file_path)
+
+    def test_build_online_ocr_client_infers_service_provider_from_non_jobs_url(self) -> None:
+        settings = OnlineOcrSettings.from_env(
+            {
+                "OCR_BASE_URL": "https://ocr.internal",
+                "OCR_API_KEY": "secret",
+            },
+            required=True,
+        )
+        self.assertIsNotNone(settings)
+        assert settings is not None
+        self.assertEqual(settings.provider, "paddleocr_vl_service")
+        self.assertIsInstance(build_online_ocr_client(settings), PaddleOcrLayoutParsingServiceClient)
 
 
 def _handbook_raw_asset_record(

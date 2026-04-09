@@ -22,6 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--collection", default="internal_notice")
     parser.add_argument("--source-projections-path")
     parser.add_argument("--visibility-scope", default="campus")
+    parser.add_argument("--notice-id", action="append", dest="notice_ids", default=[])
     parser.add_argument("--shard-size", type=int, default=250)
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--max-concurrency", type=int, default=8)
@@ -50,6 +51,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                 else None
             ),
             default_visibility_scope=args.visibility_scope,
+            notice_ids=tuple(args.notice_ids),
         ),
         run_id=args.run_id,
         max_concurrency=args.max_concurrency,

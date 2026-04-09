@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-06
-updated: 2026-04-06
+updated: 2026-04-09
 ---
 
 # Internal Notice Offline Preparation Quality Acceptance
@@ -28,7 +28,7 @@ updated: 2026-04-06
 
 对 `internal_notice`：
 
-- `prepare_registry_scope_chunks` 通过，只代表 current scope 能完成 `document-units -> chunks` 的结构性 preparation
+- `prepare_registry_scope_chunks` 通过，只代表选定 document set 能完成 `document-units -> chunks` 的结构性 preparation
 - 这不等于 attachment extraction、cleanup、chunk quality 已经通过
 - 在显式质量验收完成之前，不允许把这批 preparation 继续送进 embedding、Qdrant 或 alias publish
 
@@ -83,9 +83,16 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.valid
 
 其中：
 
-- 不传 `--preparation-run-id` 时，validator 读取 current registry scope
+- 不传任何 selector 时，validator 读取 current registry scope
 - 传入 `--preparation-run-id` 时，validator 读取 frozen preparation manifest 对应的 document set
+- 传入 `--closeout-run-id` 时，validator 直接读取 verified closeout run 的 staged `document-units.jsonl`
 - `--mode samples` 只导出样本，不产出 full validation verdict
+
+对尚未 promote 到 current scope 的 verified replay pilot：
+
+- 可以先用 `--closeout-run-id` 对 staged `document-units.jsonl` 做只读 sample / quality 审查
+- 也可以基于同一个 verified closeout run 先生成正式 `preparation_run_id`，再用 `--preparation-run-id` 做 canonical preparation 验收
+- 直接 `--closeout-run-id` 的 staged 审查只用于判断 lane-quality 是否可接受；它本身不能直接作为后续 release gate
 
 ## Lane-Specific Acceptance
 
@@ -151,6 +158,25 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.valid
 - 清洗后仍残留 raw html / raw markup
 - OCR child document 丢失 `layout-elements.jsonl`，导致表格/段落边界无法回审
 
+### `manual_review_required`
+
+这类 attachment 不进入当前 document / chunk truth，因此不做 chunk 级“质量通过”判断；它的验收目标只有一个：
+
+- 分流必须正确且显式
+
+必须满足：
+
+- 空间导览图 / 位置图 / 楼宇分布图没有被误投到 `attachment_ocr_required`
+- staged truth 保留 `classification=manual_review_required`
+- staged truth 保留 `materialization_policy=manual_review`
+- staged truth 保留明确 `review_reason`
+
+必须失败的情况：
+
+- 明显位置图 / 导览图被错误送进 OCR lane
+- `manual_review_required` attachment 被伪装成 `reference_only`
+- `manual_review_required` attachment 被伪造 child document
+
 ## Cleaning Acceptance
 
 `internal_notice` 的清洗验收固定按 lane 区分，但下列问题一旦出现，任何 lane 都必须失败：
@@ -182,22 +208,48 @@ chunk 级验收固定关注四类问题：
 
 ## Sample Evidence Expectations
 
-每次质量验收都必须至少抽出以下 sample bucket：
+每次质量验收都必须至少抽出以下 validator sample bucket：
 
-- `notice_body`: 正常正文样本
-- `attachment_text_extractable`: 正常可抽文本附件样本
-- `attachment_ocr_required`: 正常 OCR 附件样本
-- `notice_body_fragmentation`: 正文过切或小碎块样本
-- `ocr_noise_suspect`: OCR 噪声疑似样本
-- `html_leak_or_markup_leak`: 清洗失败样本
+- `notice-body`: 正常正文样本
+- `attachment-text`: 正常可抽文本附件样本
+- `attachment-ocr`: 正常 OCR 附件样本
+- `notice-body-fragmentation`: 正文过切或小碎块样本
+- `ocr-noise-suspect`: OCR 噪声疑似样本
+- `html-leak-or-markup-leak`: 清洗失败样本
+
+如果当前 run 已提供 notice-level risk profile，还应优先覆盖：
+
+- `notice-risk-spatial`
+- `notice-risk-mixed-high-risk`
+
+这里固定有一个边界：
+
+- `manual_review_required` 是 attachment outcome，不是 chunk validator document lane
+- 因此空间导览图 / 位置图不会直接导出成 chunk sample
+- 这类内容在当前阶段只能通过 `notice-risk-spatial` / `notice-risk-mixed-high-risk` 样本，以及 sample markdown 里的 notice risk metadata 暴露出来
 
 sample export 至少应包含：
 
 - document identity 与 lane
+- notice identity
 - source rows 摘要
 - OCR lane 的 layout row / structured unit 摘要
 - chunk metadata 摘要
 - final chunk text
+
+如果 risk profile 可用，sample evidence 还应补充：
+
+- `notice_risk_label`
+- `attachment_mix_score`
+- `attachment_ref_count`
+- `has_text_table_attachment`
+- `has_spatial_attachment`
+- `has_reference_only_attachment`
+
+validator summary 如果成功解析到 risk profile，还应显式记录：
+
+- `notice_risk_counts`
+- `high_risk_notice_count`
 
 抽样的目标不是替代全量 validator，而是让 agent 能对失败类型做实际审阅和收口。
 

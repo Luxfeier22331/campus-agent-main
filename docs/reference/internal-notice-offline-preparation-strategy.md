@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-06
-updated: 2026-04-06
+updated: 2026-04-09
 ---
 
 # Internal Notice Offline Preparation Strategy
@@ -23,6 +23,7 @@ updated: 2026-04-06
 - `docs/architecture/authenticated-notice-source-architecture.md` 的 source-channel supporting architecture
 - `docs/architecture/authenticated-notice-source-truth-contract.md` 的 source-truth schema
 - `docs/architecture/data-plane-architecture.md` 的 repo 级 shared data-plane rules
+- `docs/decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spatial-review-boundary.md` 的 attachment typed routing governance
 - `docs/reference/internal-notice-offline-preparation-quality-acceptance.md` 的质量验收规则
 - `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md` 的 operator workflow
 
@@ -41,16 +42,61 @@ updated: 2026-04-06
 - 历史噪声主要集中在 attachments，尤其图片 OCR、脏表格和装饰性静态资源
 - 因此 collection 默认优化目标是先保住 parent notice body 质量，而不是因为 attachment outlier 全局缩小分块或全局劣化正文策略
 
+## Notice Risk Profile
+
+`internal_notice` 当前允许维护一层 notice-level 派生风险画像，但它只属于 inventory / replay / operator read model，不属于 source-truth contract。
+
+当前 Phase 1 固定字段：
+
+- `notice_risk_label`
+- `attachment_mix_score`
+- `has_text_table_attachment`
+- `has_spatial_attachment`
+- `has_reference_only_attachment`
+
+当前标签集固定为：
+
+- `body_only`
+- `body_with_reference_only_attachments`
+- `body_with_text_attachments`
+- `body_with_spatial_attachments`
+- `mixed_high_risk`
+
+固定用途：
+
+- pilot 抽样覆盖
+- batch planning / operator triage
+- quality evidence 分桶
+
+validator / sample export 的固定读取顺序：
+
+- `verified_closeout_run` 或 closeout-backed manifest：优先读取该 run 的 frozen inventory
+- `current_scope` 或普通 preparation manifest：读取当前 source-truth inventory
+- 不允许只根据当前已 materialize 的 parent / child documents 重新猜测 risk profile
+
+这样做的原因固定为：
+
+- `manual_review_required`
+- `reference_only`
+
+这两类 attachment 可能不会 materialize 成 child document；如果 validator 只看当前 chunk documents，会把真正高风险 notice 错判成低风险或 `body_only`
+
+固定禁止：
+
+- 不用 notice 标签直接决定 attachment 的 extraction lane
+- 不把 notice 标签回写为 source-truth contract 字段
+- 不因为 notice 被打成高风险，就整体降级 parent notice body 的 cleanup / chunk 策略
+
 ## Accepted Lane Model
 
-`internal_notice` 的离线 preparation 固定按四类 lane 处理：
+`internal_notice` 的离线 preparation 固定按三类 document lane + terminal outcomes 处理：
 
 - `notice_body`
 - `attachment_text_extractable`
 - `attachment_ocr_required`
-- terminal outcomes: `reference_only` / `no_extractable_text` / `unsupported_binary`
+- terminal outcomes: `reference_only` / `manual_review_required` / `no_extractable_text` / `unsupported_binary`
 
-这四类 lane 都建立在既有“两层 projection”之上：
+这些 lane / outcomes 都建立在既有“两层 projection”之上：
 
 - parent notice document 只承载 notice 正文与正文结构单元
 - attachment refs 留在 source-truth relation truth
@@ -100,16 +146,24 @@ parent notice lane 的固定规则：
 - 有非空标准化文本时，必须 materialize child document
 - OCR 结果为空时，不得伪造空 child document，也不得把整条 notice 视为 source-truth 损坏
 
+额外固定边界：
+
+- `attachment_ocr_required` 只覆盖以线性文本、表格、电话、营业时间为主的图片
+- 校园导览图、位置图、楼宇分区图这类空间关系主导的内联图片，不进入当前 OCR lane
+- 这类图片固定进入 `manual_review_required` terminal outcome，等待后续 spatial/manual lane，而不是把零散 OCR 碎字送进可检索 truth
+
 ## Reference-Only And Failure Outcomes
 
 以下结果不进入可检索 document/chunk truth：
 
 - `reference_only`
+- `manual_review_required`
 - `no_extractable_text`
 
 其中：
 
 - `reference_only` 继续只保留 source-truth relation truth
+- `manual_review_required` 继续保留 source-truth relation truth，并显式保留 `review_reason`
 - `no_extractable_text` 必须作为 attachment outcome 被显式记录，供 verifier / operator 审计
 
 以下结果直接 fast-fail：
@@ -150,7 +204,9 @@ parent notice lane 的固定规则：
 
 `chunk preparation` 在 `internal_notice` 上固定只负责：
 
-- 读取 registry current truth 下的 parent / child documents
+- 读取显式选定的 parent / child documents
+- 常规 release-prep 路径读取 registry current truth
+- bounded pilot / pre-promote 路径允许读取 verified closeout run 的 staged document truth
 - 执行 split / cleanup / chunk
 - 生成 validation summary 与 document reports
 - 产出一个可被后续 release gate 验证的 preparation manifest
@@ -179,7 +235,8 @@ parent notice lane 的固定规则：
 
 其中：
 
-- `chunk-preparation.json` 是 current scope 的 frozen preparation truth
+- `chunk-preparation.json` 是这次 selected document set 的 frozen preparation truth
+- 当 preparation 来源是 verified closeout run 时，manifest 仍冻结 final canonical document identity / final object keys；运行时读取可以来自 staged `document-units.jsonl`
 - `validation-summary.json` 记录这次 preparation 的 admission verdict
 - `document-reports.jsonl` 用于按 document 审计失败和异常
 
@@ -200,6 +257,7 @@ attachment child document 的 derived artifacts 继续落在 documents prefix，
 
 - release 必须显式引用一个成功的 `preparation_run_id`
 - release 前必须验证 preparation manifest 与 current registry scope hash 一致
+- verified closeout run 生成的 `preparation_run_id` 在 promote 前可以先用于 chunk-quality 验收；只有 promote 后 current scope 与 manifest hash 对齐，才可作为 release gate 输入
 - release 与 preparation 之间不存在“默认自动继续”的隐式跳转
 
 因此对当前 collection posture，最自然的可验证停点是：

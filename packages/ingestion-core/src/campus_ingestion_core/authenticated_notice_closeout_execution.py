@@ -447,10 +447,13 @@ class CloseoutExecutionCoordinator:
                 "attachment_object_key": outcome.attachment_object_key,
                 "attachment_content_sha256": outcome.attachment_content_sha256,
             }
+            if outcome.review_reason is not None:
+                payload["review_reason"] = outcome.review_reason
             if (
                 outcome.outcome == AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT
                 and outcome.provider_response_bytes is not None
             ):
+                attachment_slug = document_stage_slug(outcome.document_id)
                 staged_provider_key = build_operations_artifact_key(
                     corpus=request.corpus,
                     operation=DEFAULT_CLOSEOUT_OPERATION,
@@ -461,7 +464,7 @@ class CloseoutExecutionCoordinator:
                         "batches",
                         batch_key_segment,
                         "attachments",
-                        outcome.attachment_ref_id,
+                        attachment_slug,
                     ),
                 )
                 provider_hash = hashlib.sha256(outcome.provider_response_bytes).hexdigest()

@@ -81,6 +81,7 @@ from campus_ingestion_core.raw_ingestion import (
     RawIngestionRequest,
     _build_split_manifest_document_input,
     _load_layout_elements_rows,
+    normalize_online_ocr_provider_label,
     process_raw_ingestion_job,
 )
 from campus_ingestion_core.registry import (
@@ -1076,11 +1077,14 @@ def _load_replay_source_artifacts(
         key=provider_response_key,
     )
     ocr_model = (source.get("OCR_MODEL") or DEFAULT_ONLINE_OCR_MODEL).strip() or DEFAULT_ONLINE_OCR_MODEL
+    ocr_provider = normalize_online_ocr_provider_label(
+        (source.get("OCR_PROVIDER_MODE") or "").strip() or DEFAULT_ONLINE_OCR_PROVIDER
+    )
     if collection == "student_handbook":
         structured_rows = normalize_handbook_provider_result(
             source_pdf=source_pdf,
             provider_jsonl_bytes=provider_response_bytes,
-            ocr_provider=DEFAULT_ONLINE_OCR_PROVIDER,
+            ocr_provider=ocr_provider,
             ocr_model=ocr_model,
             source_artifact_id=raw_asset_id,
         )
@@ -1089,6 +1093,7 @@ def _load_replay_source_artifacts(
         layout_elements_bytes = normalize_curriculum_provider_result(
             provider_jsonl_bytes=provider_response_bytes,
             source_pdf=source_pdf,
+            ocr_provider=ocr_provider,
             ocr_model=ocr_model,
         )
         structured_rows = _load_layout_elements_rows(layout_elements_bytes)

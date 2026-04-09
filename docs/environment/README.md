@@ -146,6 +146,7 @@ updated: 2026-04-08
 ## 命令级 Override 约束
 
 - `env/commands/*.env.example` 只放 override，不重复 shared runtime secrets
+- OCR provider mode 在 operator / replay 命令里应显式写成 `OCR_PROVIDER_MODE=paddleocr_vl_service`；不要依赖 `OCR_BASE_URL` 推断 provider
 - `RAW_ASSET_ID`、`RAW_VERSION_ID`、`REPLAY_SOURCE_PDF`、`--corpus`、`--collection` 这类任务输入优先走 CLI args
 - `INGESTION_SPLIT_MANIFEST_PATH`、`HANDBOOK_SOURCE_PROJECTIONS_PATH` 只在偏离 repo-tracked truth 时作为显式 override 使用
 - `QDRANT_UPSERT_BATCH_SIZE`、`IMPORT_REPORT_DIR`、`HF_*`、`INGESTION_EMBEDDING_MODEL` 一类局部运行参数不再放回 root `.env.example`

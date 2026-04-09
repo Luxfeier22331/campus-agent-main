@@ -29,8 +29,10 @@ from campus_ingestion_core.authenticated_notice_closeout_verification import (
 )
 from campus_ingestion_core.authenticated_notice_source_projections import (
     AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MATERIALIZED_DOCUMENT,
+    AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MANUAL_REVIEW_REQUIRED,
     AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT,
     AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_CONDITIONAL_ON_EXTRACTED_TEXT,
+    AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MANUAL_REVIEW,
     AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT,
 )
 from campus_ingestion_core.authenticated_notice_source_truth_replay import (
@@ -300,6 +302,12 @@ class CloseoutRepairCoordinator:
                         outcome_name != AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MATERIALIZED_DOCUMENT
                         or document_id not in staged_document_ids
                     ):
+                        return True
+                    continue
+                if materialization_policy == AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MANUAL_REVIEW:
+                    if outcome_name != AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MANUAL_REVIEW_REQUIRED:
+                        return True
+                    if document_id in staged_document_ids:
                         return True
                     continue
                 if (

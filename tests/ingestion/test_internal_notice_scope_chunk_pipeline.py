@@ -43,6 +43,31 @@ class _FakeObjectStore:
         )
 
 
+class _CloseoutOnlyRegistry(InMemoryDocumentRegistry):
+    def list_by_scope(
+        self,
+        corpus: str,
+        collection: str | None = None,
+    ) -> tuple[DocumentRegistryRecord, ...]:
+        raise AssertionError("closeout-run preparation must not scan current registry scope")
+
+
+class _FakeCloseoutStore:
+    def __init__(self, *, run, staged_documents: tuple[dict[str, object], ...]) -> None:
+        self.run = run
+        self.staged_documents = staged_documents
+
+    def get_run(self, run_id: str):
+        if self.run is None or self.run.run_id != run_id:
+            return None
+        return self.run
+
+    def get_staged_documents(self, run_id: str) -> tuple[dict[str, object], ...]:
+        if self.run is None or self.run.run_id != run_id:
+            return ()
+        return self.staged_documents
+
+
 def _make_internal_notice_record(*, object_key: str) -> DocumentRegistryRecord:
     return DocumentRegistryRecord(
         document_id="notice:muc_internal_portal:355119",
@@ -89,6 +114,76 @@ def _make_internal_notice_attachment_record(*, object_key: str) -> DocumentRegis
         processed_object_keys=(object_key,),
         import_source="authenticated_notice_source_projection",
     )
+
+
+def _make_verified_closeout_run(*, run_id: str):
+    from campus_ingestion_core.authenticated_notice_closeout import CloseoutRun
+
+    return (
+        CloseoutRun(
+            run_id=run_id,
+            bundle_path="/tmp/not-used.json",
+            manifest_path=None,
+            expected_notice_count=1,
+            expected_document_count=1,
+            operations_prefix=f"campus_notices/operations/authenticated-notice-closeout/{run_id}",
+            corpus="campus_notices",
+            collection="internal_notice",
+        )
+        .mark_planned()
+        .mark_running()
+        .mark_verifying()
+        .mark_verified({"staged_document_count": 1})
+    )
+
+
+def _build_staged_document(
+    *,
+    record: DocumentRegistryRecord,
+    staged_document_units_key: str,
+) -> dict[str, object]:
+    return {
+        "document": {
+            "document_id": record.document_id,
+            "revision_track": record.revision_track,
+            "version_id": record.version_id,
+            "source_label": record.source_uri,
+            "metadata": {
+                "document_id": record.document_id,
+                "version_id": record.version_id,
+                "source_url": record.source_uri,
+                "entitlement_groups": list(record.entitlement_groups),
+                "visibility_scope": record.visibility_scope,
+                "visibility_level": record.visibility_level,
+                "policy_projection_version": record.policy_projection_version,
+            },
+            "import_source": record.import_source,
+            "source_channel": record.source_channel,
+            "is_current": record.is_current,
+            "corpus": record.corpus,
+            "collection": record.collection,
+            "visibility_scope": record.visibility_scope,
+            "status": record.status,
+            "raw_source_uri": record.source_uri,
+            "raw_asset_id": None,
+            "raw_version_id": None,
+            "provider_response_object_key": record.provider_response_object_key,
+            "layout_elements_object_key": record.layout_elements_object_key,
+            "additional_processed_object_keys": [],
+            "processed_object_keys": list(record.processed_object_keys),
+            "title": record.document_id,
+            "year": None,
+            "parser_version": record.parser_version,
+            "embedding_model": record.embedding_model,
+            "cleaning_policy_version": record.cleaning_policy_version,
+        },
+        "staged_object_keys": {"document_units": staged_document_units_key},
+        "final_object_keys": {"document_units": str(record.document_units_object_key)},
+        "content_hash": record.content_hash,
+        "staged_object_metadata": {
+            "document_units": {"sha256": record.content_hash, "content_length": 256}
+        },
+    }
 
 
 def _make_internal_notice_document_units_bytes(
@@ -162,6 +257,61 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
         self.assertIn(report.manifest_object_key, upload_keys)
         self.assertIn(str(report.validation_summary_object_key), upload_keys)
         self.assertIn(str(report.document_report_object_key), upload_keys)
+
+    def test_prepare_registry_scope_chunks_can_use_verified_closeout_run_without_current_scope(self) -> None:
+        closeout_run_id = "authenticated-notice-source-truth-pilot-20260409-stratified-003"
+        final_object_key = (
+            "campus_notices/documents/internal_notice/"
+            "notice-355119/source-faithful/2026/document-units.jsonl"
+        )
+        staged_object_key = (
+            "campus_notices/operations/authenticated-notice-closeout/"
+            f"{closeout_run_id}/staging/batches/batch-0001/documents/notice-355119/document-units.jsonl"
+        )
+        record = _make_internal_notice_record(object_key=final_object_key)
+        closeout_store = _FakeCloseoutStore(
+            run=_make_verified_closeout_run(run_id=closeout_run_id),
+            staged_documents=(
+                _build_staged_document(
+                    record=record,
+                    staged_document_units_key=staged_object_key,
+                ),
+            ),
+        )
+        registry = _CloseoutOnlyRegistry((record,))
+        object_store = _FakeObjectStore(
+            objects={
+                ("campus-rag-derived", staged_object_key): _make_internal_notice_document_units_bytes(
+                    document_id=record.document_id,
+                    version_id=record.version_id,
+                ),
+            }
+        )
+
+        report = prepare_registry_scope_chunks(
+            corpus="campus_notices",
+            collection="internal_notice",
+            preparation_run_id="prep-20260409-closeout-001",
+            closeout_run_id=closeout_run_id,
+            env=self._env(),
+            registry=registry,
+            object_store=object_store,
+            closeout_store=closeout_store,
+        )
+
+        self.assertEqual(report.validation_status, "passed")
+        self.assertEqual(report.document_count, 1)
+        self.assertEqual(report.selection_mode, "verified_closeout_run")
+        self.assertEqual(report.closeout_run_id, closeout_run_id)
+        self.assertEqual(object_store.reads, [("campus-rag-derived", staged_object_key)])
+        manifest_bytes = object_store.objects[("campus-rag-derived", report.manifest_object_key)]
+        manifest = json.loads(manifest_bytes.decode("utf-8"))
+        self.assertEqual(manifest["selection_mode"], "verified_closeout_run")
+        self.assertEqual(manifest["closeout_run_id"], closeout_run_id)
+        self.assertEqual(
+            manifest["documents"][0]["document_units_object_key"],
+            final_object_key,
+        )
 
     def test_internal_notice_parent_chunks_use_notice_body_lane_strategy(self) -> None:
         record = _make_internal_notice_record(

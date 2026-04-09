@@ -10,6 +10,22 @@ import random
 import re
 from typing import Literal, Protocol, Sequence
 
+from campus_ingestion_core.authenticated_notice_closeout_staged_documents import (
+    load_verified_closeout_run_document_record_pairs,
+)
+from campus_ingestion_core.authenticated_notice_closeout_store import (
+    CloseoutStore,
+    build_authenticated_notice_closeout_store_from_env,
+)
+from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
+    AuthenticatedNoticeSourceTruthInventoryStore,
+    HIGH_RISK_NOTICE_LABELS,
+    NOTICE_RISK_LABEL_BODY_ONLY,
+    NOTICE_RISK_LABEL_MIXED_HIGH_RISK,
+    NOTICE_RISK_LABEL_SPATIAL_ATTACHMENTS,
+    _aggregate_notice_risk_counts,
+    build_authenticated_notice_source_truth_inventory_store_from_env,
+)
 from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import IndexableChunk, build_indexable_chunks_from_jsonl
@@ -69,22 +85,39 @@ class InternalNoticeChunkValidationFailure:
 @dataclass(frozen=True, slots=True)
 class InternalNoticeValidationInputs:
     source: dict[str, str]
-    registry: DocumentRegistry
+    registry: DocumentRegistry | None
     object_store: InternalNoticeChunkValidationArtifactReader
     derived_bucket: str
     corpus: str
     collection: str
     records: tuple[DocumentRegistryRecord, ...]
     selected_records: tuple[DocumentRegistryRecord, ...]
-    selection_mode: Literal["current_scope", "preparation_manifest"]
+    selection_mode: Literal["current_scope", "preparation_manifest", "verified_closeout_run"]
     preparation_run_id: str | None
+    closeout_run_id: str | None
     missing_manifest_records: tuple[str, ...]
+    notice_risk_profiles: dict[str, InternalNoticeNoticeRiskProfile]
+    notice_risk_counts: dict[str, int]
+    high_risk_notice_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class InternalNoticeNoticeRiskProfile:
+    notice_id: str
+    notice_risk_label: str
+    attachment_mix_score: int
+    attachment_ref_count: int
+    has_text_table_attachment: bool
+    has_spatial_attachment: bool
+    has_reference_only_attachment: bool
 
 
 @dataclass(frozen=True, slots=True)
 class InternalNoticeScannedDocument:
     title: str
     lane: str
+    notice_id: str
+    notice_risk_profile: InternalNoticeNoticeRiskProfile | None
     record: DocumentRegistryRecord
     rows: tuple[dict[str, object], ...]
     chunks: tuple[IndexableChunk, ...]
@@ -106,6 +139,7 @@ class InternalNoticeChunkingValidationReport:
     collection: str
     selection_mode: str
     preparation_run_id: str | None
+    closeout_run_id: str | None
     registry_record_count: int
     selected_record_count: int
     validated_document_count: int
@@ -116,6 +150,8 @@ class InternalNoticeChunkingValidationReport:
     unit_type_counts: dict[str, int]
     split_reason_counts: dict[str, int]
     header_mode_counts: dict[str, int]
+    notice_risk_counts: dict[str, int]
+    high_risk_notice_count: int
     read_failures: tuple[InternalNoticeChunkValidationFailure, ...]
     chunk_failures: tuple[InternalNoticeChunkValidationFailure, ...]
     missing_manifest_records: tuple[str, ...]
@@ -145,7 +181,10 @@ def scan_internal_notice_chunking(
     env: dict[str, str] | None = None,
     registry: DocumentRegistry | None = None,
     object_store: InternalNoticeChunkValidationArtifactReader | None = None,
+    source_truth_inventory_store: AuthenticatedNoticeSourceTruthInventoryStore | None = None,
     preparation_run_id: str | None = None,
+    closeout_run_id: str | None = None,
+    closeout_store: CloseoutStore | None = None,
     mode: Literal["full", "samples"] = "full",
     sample_seed: int = DEFAULT_INTERNAL_NOTICE_SAMPLE_SEED,
 ) -> InternalNoticeChunkingScanResult:
@@ -153,7 +192,10 @@ def scan_internal_notice_chunking(
         env=env,
         registry=registry,
         object_store=object_store,
+        source_truth_inventory_store=source_truth_inventory_store,
         preparation_run_id=preparation_run_id,
+        closeout_run_id=closeout_run_id,
+        closeout_store=closeout_store,
     )
     documents = _scan_all_documents(inputs=inputs)
     if mode == "samples":
@@ -166,14 +208,20 @@ def validate_internal_notice_chunking(
     env: dict[str, str] | None = None,
     registry: DocumentRegistry | None = None,
     object_store: InternalNoticeChunkValidationArtifactReader | None = None,
+    source_truth_inventory_store: AuthenticatedNoticeSourceTruthInventoryStore | None = None,
     preparation_run_id: str | None = None,
+    closeout_run_id: str | None = None,
+    closeout_store: CloseoutStore | None = None,
     scan_result: InternalNoticeChunkingScanResult | None = None,
 ) -> InternalNoticeChunkingValidationReport:
     runtime_scan = scan_result or scan_internal_notice_chunking(
         env=env,
         registry=registry,
         object_store=object_store,
+        source_truth_inventory_store=source_truth_inventory_store,
         preparation_run_id=preparation_run_id,
+        closeout_run_id=closeout_run_id,
+        closeout_store=closeout_store,
         mode="full",
     )
     return build_internal_notice_chunking_validation_report(scan_result=runtime_scan)
@@ -281,6 +329,7 @@ def build_internal_notice_chunking_validation_report(
         collection=inputs.collection,
         selection_mode=inputs.selection_mode,
         preparation_run_id=inputs.preparation_run_id,
+        closeout_run_id=inputs.closeout_run_id,
         registry_record_count=len(inputs.records),
         selected_record_count=len(inputs.selected_records),
         validated_document_count=sum(1 for doc in scan_result.documents if doc.read_failure is None and doc.chunk_failure is None),
@@ -291,6 +340,8 @@ def build_internal_notice_chunking_validation_report(
         unit_type_counts=dict(unit_type_counts),
         split_reason_counts=dict(split_reason_counts),
         header_mode_counts=dict(header_mode_counts),
+        notice_risk_counts=dict(inputs.notice_risk_counts),
+        high_risk_notice_count=inputs.high_risk_notice_count,
         read_failures=tuple(read_failures),
         chunk_failures=tuple(chunk_failures),
         missing_manifest_records=inputs.missing_manifest_records,
@@ -315,7 +366,10 @@ def export_internal_notice_chunk_samples(
     env: dict[str, str] | None = None,
     registry: DocumentRegistry | None = None,
     object_store: InternalNoticeChunkValidationArtifactReader | None = None,
+    source_truth_inventory_store: AuthenticatedNoticeSourceTruthInventoryStore | None = None,
     preparation_run_id: str | None = None,
+    closeout_run_id: str | None = None,
+    closeout_store: CloseoutStore | None = None,
     report: InternalNoticeChunkingValidationReport | None = None,
     scan_result: InternalNoticeChunkingScanResult | None = None,
     sample_seed: int = DEFAULT_INTERNAL_NOTICE_SAMPLE_SEED,
@@ -324,7 +378,10 @@ def export_internal_notice_chunk_samples(
         env=env,
         registry=registry,
         object_store=object_store,
+        source_truth_inventory_store=source_truth_inventory_store,
         preparation_run_id=preparation_run_id,
+        closeout_run_id=closeout_run_id,
+        closeout_store=closeout_store,
         mode="full",
         sample_seed=sample_seed,
     )
@@ -356,6 +413,7 @@ def export_internal_notice_chunk_samples(
                 "mode": runtime_scan.mode,
                 "selection_mode": runtime_scan.inputs.selection_mode,
                 "preparation_run_id": runtime_scan.inputs.preparation_run_id,
+                "closeout_run_id": runtime_scan.inputs.closeout_run_id,
                 "scanned_document_count": len(runtime_scan.documents),
                 "sample_files": sample_files,
                 "report": asdict(runtime_report) if runtime_report is not None else None,
@@ -373,11 +431,16 @@ def _build_validation_inputs(
     env: dict[str, str] | None,
     registry: DocumentRegistry | None,
     object_store: InternalNoticeChunkValidationArtifactReader | None,
+    source_truth_inventory_store: AuthenticatedNoticeSourceTruthInventoryStore | None,
     preparation_run_id: str | None,
+    closeout_run_id: str | None,
+    closeout_store: CloseoutStore | None,
 ) -> InternalNoticeValidationInputs:
     source = dict(env if env is not None else os.environ)
     corpus, collection = INTERNAL_NOTICE_SCOPE
-    runtime_registry = registry or build_document_registry_from_env(source)
+    if preparation_run_id and closeout_run_id:
+        raise ValueError("preparation_run_id and closeout_run_id are mutually exclusive")
+    runtime_registry = registry
     bucket_source, bucket_derived = resolve_object_store_bucket_names(source)
     runtime_object_store = object_store or S3ObjectStoreAdmin(
         ObjectStoreSettings.from_env(
@@ -388,21 +451,55 @@ def _build_validation_inputs(
             }
         )
     )
-    records = tuple(runtime_registry.list_by_scope(corpus, collection))
     if preparation_run_id:
-        selected_records, missing_manifest_records = _select_manifest_records(
+        selected_records, missing_manifest_records, manifest_closeout_run_id = _select_manifest_records(
+            source=source,
             registry=runtime_registry,
             object_store=runtime_object_store,
             bucket=bucket_derived,
             corpus=corpus,
             collection=collection,
             preparation_run_id=preparation_run_id,
+            closeout_store=closeout_store,
         )
-        selection_mode: Literal["current_scope", "preparation_manifest"] = "preparation_manifest"
+        records = selected_records
+        selection_mode: Literal["current_scope", "preparation_manifest", "verified_closeout_run"] = (
+            "preparation_manifest"
+        )
+        resolved_closeout_run_id = manifest_closeout_run_id
+    elif closeout_run_id:
+        runtime_closeout_store = closeout_store or build_authenticated_notice_closeout_store_from_env(source)
+        selected_records = tuple(
+            pair.staged_record
+            for pair in load_verified_closeout_run_document_record_pairs(
+                run_id=closeout_run_id,
+                closeout_store=runtime_closeout_store,
+                expected_corpus=corpus,
+                expected_collection=collection,
+            )
+        )
+        records = selected_records
+        missing_manifest_records = ()
+        selection_mode = "verified_closeout_run"
+        resolved_closeout_run_id = closeout_run_id
     else:
+        runtime_registry = runtime_registry or build_document_registry_from_env(source)
+        records = tuple(runtime_registry.list_by_scope(corpus, collection))
         selected_records = _select_current_source_faithful_records(records)
         missing_manifest_records = ()
         selection_mode = "current_scope"
+        resolved_closeout_run_id = None
+    notice_risk_profiles, notice_risk_counts, high_risk_notice_count = _resolve_notice_risk_context(
+        source=source,
+        object_store=runtime_object_store,
+        derived_bucket=bucket_derived,
+        corpus=corpus,
+        collection=collection,
+        selected_records=selected_records,
+        source_truth_inventory_store=source_truth_inventory_store,
+        closeout_run_id=resolved_closeout_run_id,
+        closeout_store=closeout_store,
+    )
     return InternalNoticeValidationInputs(
         source=source,
         registry=runtime_registry,
@@ -414,19 +511,25 @@ def _build_validation_inputs(
         selected_records=selected_records,
         selection_mode=selection_mode,
         preparation_run_id=preparation_run_id,
+        closeout_run_id=resolved_closeout_run_id,
         missing_manifest_records=missing_manifest_records,
+        notice_risk_profiles=notice_risk_profiles,
+        notice_risk_counts=notice_risk_counts,
+        high_risk_notice_count=high_risk_notice_count,
     )
 
 
 def _select_manifest_records(
     *,
-    registry: DocumentRegistry,
+    source: dict[str, str],
+    registry: DocumentRegistry | None,
     object_store: InternalNoticeChunkValidationArtifactReader,
     bucket: str,
     corpus: str,
     collection: str,
     preparation_run_id: str,
-) -> tuple[tuple[DocumentRegistryRecord, ...], tuple[str, ...]]:
+    closeout_store: CloseoutStore | None,
+) -> tuple[tuple[DocumentRegistryRecord, ...], tuple[str, ...], str | None]:
     manifest = load_chunk_preparation_manifest(
         reader=object_store,
         bucket=bucket,
@@ -434,17 +537,49 @@ def _select_manifest_records(
         collection=collection,
         preparation_run_id=preparation_run_id,
     )
+    if manifest.selection_mode == "verified_closeout_run":
+        if not manifest.closeout_run_id:
+            raise ValueError(
+                "closeout-backed preparation manifest is missing closeout_run_id: "
+                f"{preparation_run_id}"
+            )
+        runtime_closeout_store = closeout_store or build_authenticated_notice_closeout_store_from_env(source)
+        pairs = load_verified_closeout_run_document_record_pairs(
+            run_id=manifest.closeout_run_id,
+            closeout_store=runtime_closeout_store,
+            expected_corpus=corpus,
+            expected_collection=collection,
+        )
+        pairs_by_key = {_record_key(pair.final_record): pair for pair in pairs}
+        selected_records: list[DocumentRegistryRecord] = []
+        missing_manifest_records: list[str] = []
+        for document in manifest.documents:
+            pair = pairs_by_key.get(
+                (document.document_id, document.revision_track, document.version_id)
+            )
+            if pair is None:
+                missing_manifest_records.append(
+                    f"{document.document_id}::{document.revision_track}::{document.version_id}"
+                )
+                continue
+            selected_records.append(pair.staged_record)
+        return (
+            tuple(selected_records),
+            tuple(sorted(missing_manifest_records)),
+            manifest.closeout_run_id,
+        )
     selected_records: list[DocumentRegistryRecord] = []
     missing_manifest_records: list[str] = []
+    runtime_registry = registry or build_document_registry_from_env(source)
     for document in manifest.documents:
-        record = registry.get(document.document_id, document.revision_track, document.version_id)
+        record = runtime_registry.get(document.document_id, document.revision_track, document.version_id)
         if record is None:
             missing_manifest_records.append(
                 f"{document.document_id}::{document.revision_track}::{document.version_id}"
             )
             continue
         selected_records.append(record)
-    return tuple(selected_records), tuple(sorted(missing_manifest_records))
+    return tuple(selected_records), tuple(sorted(missing_manifest_records)), manifest.closeout_run_id
 
 
 def _select_current_source_faithful_records(
@@ -464,6 +599,10 @@ def _select_current_source_faithful_records(
         if source_faithful:
             selected_records.append(max(source_faithful, key=lambda record: record.ingestion_timestamp))
     return tuple(selected_records)
+
+
+def _record_key(record: DocumentRegistryRecord) -> tuple[str, str, str]:
+    return (record.document_id, record.revision_track, record.version_id)
 
 
 def _scan_all_documents(
@@ -486,6 +625,8 @@ def _scan_record(
 ) -> InternalNoticeScannedDocument:
     title = record.document_id
     lane = _NOTICE_BODY_LANE if not record.document_id.startswith("notice_attachment:") else _ATTACHMENT_TEXT_LANE
+    notice_id = _resolve_notice_id_from_document_id(record.document_id)
+    notice_risk_profile = inputs.notice_risk_profiles.get(notice_id)
     try:
         structured_jsonl_bytes = inputs.object_store.get_bytes(
             bucket=inputs.derived_bucket,
@@ -498,6 +639,8 @@ def _scan_record(
         return InternalNoticeScannedDocument(
             title=title,
             lane=lane,
+            notice_id=notice_id,
+            notice_risk_profile=notice_risk_profile,
             record=record,
             rows=(),
             chunks=(),
@@ -517,6 +660,8 @@ def _scan_record(
         return InternalNoticeScannedDocument(
             title=title,
             lane=lane,
+            notice_id=notice_id,
+            notice_risk_profile=notice_risk_profile,
             record=record,
             rows=rows,
             chunks=(),
@@ -527,7 +672,15 @@ def _scan_record(
                 error=f"{type(exc).__name__}: {exc}",
             ),
         )
-    return InternalNoticeScannedDocument(title=title, lane=lane, record=record, rows=rows, chunks=chunks)
+    return InternalNoticeScannedDocument(
+        title=title,
+        lane=lane,
+        notice_id=notice_id,
+        notice_risk_profile=notice_risk_profile,
+        record=record,
+        rows=rows,
+        chunks=chunks,
+    )
 
 
 def _pick_sample_documents(
@@ -562,6 +715,20 @@ def _pick_sample_candidates(
         )
 
     pick(
+        bucket_name="notice-risk-spatial",
+        bucket_reason="notice carrying spatial/manual-review attachments",
+        predicate=lambda document: document.read_failure is None
+        and document.chunk_failure is None
+        and _notice_risk_label(document) == NOTICE_RISK_LABEL_SPATIAL_ATTACHMENTS,
+    )
+    pick(
+        bucket_name="notice-risk-mixed-high-risk",
+        bucket_reason="notice mixing spatial and text/reference attachment lanes",
+        predicate=lambda document: document.read_failure is None
+        and document.chunk_failure is None
+        and _notice_risk_label(document) == NOTICE_RISK_LABEL_MIXED_HIGH_RISK,
+    )
+    pick(
         bucket_name="notice-body",
         bucket_reason="normal parent notice body sample",
         predicate=lambda document: document.read_failure is None and document.chunk_failure is None and document.lane == _NOTICE_BODY_LANE,
@@ -569,12 +736,16 @@ def _pick_sample_candidates(
     pick(
         bucket_name="attachment-text",
         bucket_reason="normal text-extractable attachment sample",
-        predicate=lambda document: document.read_failure is None and document.chunk_failure is None and document.lane == _ATTACHMENT_TEXT_LANE,
+        predicate=lambda document: document.read_failure is None
+        and document.chunk_failure is None
+        and document.lane == _ATTACHMENT_TEXT_LANE,
     )
     pick(
         bucket_name="attachment-ocr",
         bucket_reason="normal OCR attachment sample",
-        predicate=lambda document: document.read_failure is None and document.chunk_failure is None and document.lane == _ATTACHMENT_OCR_LANE,
+        predicate=lambda document: document.read_failure is None
+        and document.chunk_failure is None
+        and document.lane == _ATTACHMENT_OCR_LANE,
     )
     pick(
         bucket_name="notice-body-fragmentation",
@@ -611,6 +782,7 @@ def _render_sample(
     candidate: _InternalNoticeChunkSampleCandidate,
 ) -> str:
     document = candidate.document
+    notice_risk_profile = document.notice_risk_profile
     row_summary = [
         {
             "chunk_id": row.get("chunk_id"),
@@ -646,6 +818,13 @@ def _render_sample(
             f"- Bucket: {candidate.bucket_name}",
             f"- Bucket Reason: {candidate.bucket_reason}",
             f"- Lane: {document.lane}",
+            f"- Notice ID: {document.notice_id}",
+            f"- Notice Risk Label: {notice_risk_profile.notice_risk_label if notice_risk_profile is not None else 'unavailable'}",
+            f"- Attachment Mix Score: {notice_risk_profile.attachment_mix_score if notice_risk_profile is not None else 'n/a'}",
+            f"- Attachment Ref Count: {notice_risk_profile.attachment_ref_count if notice_risk_profile is not None else 'n/a'}",
+            f"- Has Text/Table Attachment: {notice_risk_profile.has_text_table_attachment if notice_risk_profile is not None else 'n/a'}",
+            f"- Has Spatial Attachment: {notice_risk_profile.has_spatial_attachment if notice_risk_profile is not None else 'n/a'}",
+            f"- Has Reference-only Attachment: {notice_risk_profile.has_reference_only_attachment if notice_risk_profile is not None else 'n/a'}",
             f"- Document ID: {document.record.document_id}",
             f"- Source URI: {document.record.source_uri}",
             "",
@@ -676,6 +855,124 @@ def _resolve_document_lane(
         if extraction_class == "ocr_required":
             return _ATTACHMENT_OCR_LANE
     raise ValueError(f"attachment extraction_class is required for {record.document_id}")
+
+
+def _resolve_notice_risk_context(
+    *,
+    source: dict[str, str],
+    object_store: InternalNoticeChunkValidationArtifactReader,
+    derived_bucket: str,
+    corpus: str,
+    collection: str,
+    selected_records: Sequence[DocumentRegistryRecord],
+    source_truth_inventory_store: AuthenticatedNoticeSourceTruthInventoryStore | None,
+    closeout_run_id: str | None,
+    closeout_store: CloseoutStore | None,
+) -> tuple[dict[str, InternalNoticeNoticeRiskProfile], dict[str, int], int]:
+    notice_ids = tuple(
+        sorted(
+            {
+                notice_id
+                for record in selected_records
+                if (notice_id := _resolve_notice_id_from_document_id(record.document_id))
+            }
+        )
+    )
+    if not notice_ids:
+        return {}, {}, 0
+    if closeout_run_id:
+        runtime_closeout_store = closeout_store or build_authenticated_notice_closeout_store_from_env(source)
+        run = runtime_closeout_store.get_run(closeout_run_id)
+        if run is not None and str(getattr(run, "source_truth_inventory_object_key", "") or "").strip():
+            profiles = _load_notice_risk_profiles_from_closeout_run(
+                run_id=closeout_run_id,
+                inventory_object_key=str(run.source_truth_inventory_object_key),
+                object_store=object_store,
+                derived_bucket=derived_bucket,
+                notice_ids=notice_ids,
+            )
+            if profiles:
+                return _summarize_notice_risk_profiles(profiles)
+    runtime_inventory_store = source_truth_inventory_store
+    if runtime_inventory_store is None:
+        try:
+            runtime_inventory_store = build_authenticated_notice_source_truth_inventory_store_from_env(source)
+        except ValueError:
+            runtime_inventory_store = None
+    if runtime_inventory_store is None:
+        return {}, {}, 0
+    entries = runtime_inventory_store.list_by_scope(corpus, collection, notice_ids=notice_ids)
+    profiles = {
+        entry.notice_id: InternalNoticeNoticeRiskProfile(
+            notice_id=entry.notice_id,
+            notice_risk_label=str(entry.notice_risk_label or NOTICE_RISK_LABEL_BODY_ONLY),
+            attachment_mix_score=int(entry.attachment_mix_score or 0),
+            attachment_ref_count=int(entry.attachment_ref_count or 0),
+            has_text_table_attachment=bool(entry.has_text_table_attachment),
+            has_spatial_attachment=bool(entry.has_spatial_attachment),
+            has_reference_only_attachment=bool(entry.has_reference_only_attachment),
+        )
+        for entry in entries
+    }
+    return _summarize_notice_risk_profiles(profiles)
+
+
+def _load_notice_risk_profiles_from_closeout_run(
+    *,
+    run_id: str,
+    inventory_object_key: str,
+    object_store: InternalNoticeChunkValidationArtifactReader,
+    derived_bucket: str,
+    notice_ids: Sequence[str],
+) -> dict[str, InternalNoticeNoticeRiskProfile]:
+    payload = json.loads(
+        object_store.get_bytes(bucket=derived_bucket, key=inventory_object_key).decode("utf-8")
+    )
+    if str(payload.get("run_id") or "") != run_id:
+        raise ValueError(f"closeout frozen inventory run mismatch: {run_id}")
+    selected_notice_ids = {str(item).strip() for item in notice_ids if str(item).strip()}
+    profiles: dict[str, InternalNoticeNoticeRiskProfile] = {}
+    for parent in tuple(payload.get("parents") or ()):
+        notice_id = str(parent.get("notice_id") or "").strip()
+        if not notice_id or (selected_notice_ids and notice_id not in selected_notice_ids):
+            continue
+        profiles[notice_id] = InternalNoticeNoticeRiskProfile(
+            notice_id=notice_id,
+            notice_risk_label=str(parent.get("notice_risk_label") or NOTICE_RISK_LABEL_BODY_ONLY),
+            attachment_mix_score=int(parent.get("attachment_mix_score") or 0),
+            attachment_ref_count=int(parent.get("attachment_ref_count") or 0),
+            has_text_table_attachment=bool(parent.get("has_text_table_attachment")),
+            has_spatial_attachment=bool(parent.get("has_spatial_attachment")),
+            has_reference_only_attachment=bool(parent.get("has_reference_only_attachment")),
+        )
+    return profiles
+
+
+def _summarize_notice_risk_profiles(
+    profiles: dict[str, InternalNoticeNoticeRiskProfile],
+) -> tuple[dict[str, InternalNoticeNoticeRiskProfile], dict[str, int], int]:
+    notice_risk_counts = _aggregate_notice_risk_counts(
+        tuple(profile.notice_risk_label for profile in profiles.values())
+    )
+    high_risk_notice_count = sum(
+        1
+        for profile in profiles.values()
+        if profile.notice_risk_label in HIGH_RISK_NOTICE_LABELS
+    )
+    return profiles, notice_risk_counts, high_risk_notice_count
+
+
+def _resolve_notice_id_from_document_id(document_id: str) -> str:
+    parts = [part.strip() for part in str(document_id).split(":")]
+    if len(parts) >= 3 and parts[0] in {"notice", "notice_attachment"} and parts[2]:
+        return parts[2]
+    return str(document_id).strip()
+
+
+def _notice_risk_label(document: InternalNoticeScannedDocument) -> str:
+    if document.notice_risk_profile is None:
+        return NOTICE_RISK_LABEL_BODY_ONLY
+    return document.notice_risk_profile.notice_risk_label
 
 
 def _derive_document_title(rows: Sequence[dict[str, object]]) -> str | None:

@@ -117,9 +117,16 @@ def _inventory_entry(notice_id: str) -> AuthenticatedNoticeSourceTruthInventoryE
         content_blocks_key=f"source/{notice_id}/content-blocks.jsonl",
         attachment_refs_key=f"source/{notice_id}/attachment-refs.jsonl",
         attachment_document_count=0,
+        attachment_ref_count=0,
         text_extractable_count=0,
         ocr_required_count=0,
         reference_only_count=0,
+        manual_review_required_count=0,
+        notice_risk_label="body_only",
+        attachment_mix_score=0,
+        has_text_table_attachment=False,
+        has_spatial_attachment=False,
+        has_reference_only_attachment=False,
         planning_weight=1,
         parent_snapshot={"notice_id": notice_id},
     )
@@ -212,6 +219,67 @@ class AuthenticatedNoticeSourceTruthInventoryPagingTest(unittest.TestCase):
         self.assertIn("notice_id > %s", second_query)
         self.assertEqual(first_params[-1], 1)
         self.assertEqual(second_params[2], "000001")
+
+    def test_inventory_store_list_by_scope_pushes_down_selected_notice_ids(self) -> None:
+        store = object.__new__(PostgresAuthenticatedNoticeSourceTruthInventoryStore)
+        store.database_url = "postgresql://example.test/db"
+        store.table_name = "ingestion_projection.authenticated_notice_source_truth_inventory"
+        row_2 = (json.dumps(asdict(_inventory_entry("000002"))),)
+        row_3 = (json.dumps(asdict(_inventory_entry("000003"))),)
+        cursor = _PagedCursor([[row_2, row_3]])
+
+        with patch(
+            "campus_ingestion_core.authenticated_notice_source_truth_inventory._postgres_connection",
+            return_value=_FakeConnectionContextManager(cursor),
+        ):
+            records = store.list_by_scope(
+                "campus_notices",
+                "internal_notice",
+                notice_ids=("000003", "000002", "000003"),
+            )
+
+        self.assertEqual([record.notice_id for record in records], ["000002", "000003"])
+        self.assertEqual(len(cursor.execute_calls), 1)
+        query, params = cursor.execute_calls[0]
+        self.assertIn("notice_id = any(%s)", query)
+        self.assertNotIn("limit %s", query.lower())
+        self.assertEqual(params, ("campus_notices", "internal_notice", ["000002", "000003"]))
+
+    def test_inventory_store_list_by_scope_accepts_legacy_rows_without_new_profile_fields(
+        self,
+    ) -> None:
+        store = object.__new__(PostgresAuthenticatedNoticeSourceTruthInventoryStore)
+        store.database_url = "postgresql://example.test/db"
+        store.table_name = "ingestion_projection.authenticated_notice_source_truth_inventory"
+        legacy_payload = asdict(_inventory_entry("000004"))
+        legacy_payload.pop("attachment_ref_count")
+        legacy_payload.pop("manual_review_required_count")
+        legacy_payload.pop("notice_risk_label")
+        legacy_payload.pop("attachment_mix_score")
+        legacy_payload.pop("has_text_table_attachment")
+        legacy_payload.pop("has_spatial_attachment")
+        legacy_payload.pop("has_reference_only_attachment")
+        cursor = _PagedCursor([[(json.dumps(legacy_payload),)]])
+
+        with patch(
+            "campus_ingestion_core.authenticated_notice_source_truth_inventory._postgres_connection",
+            return_value=_FakeConnectionContextManager(cursor),
+        ):
+            records = store.list_by_scope(
+                "campus_notices",
+                "internal_notice",
+                notice_ids=("000004",),
+            )
+
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].notice_id, "000004")
+        self.assertEqual(records[0].attachment_ref_count, 0)
+        self.assertEqual(records[0].manual_review_required_count, 0)
+        self.assertEqual(records[0].notice_risk_label, "body_only")
+        self.assertEqual(records[0].attachment_mix_score, 0)
+        self.assertFalse(records[0].has_text_table_attachment)
+        self.assertFalse(records[0].has_spatial_attachment)
+        self.assertFalse(records[0].has_reference_only_attachment)
 
 
 if __name__ == "__main__":
