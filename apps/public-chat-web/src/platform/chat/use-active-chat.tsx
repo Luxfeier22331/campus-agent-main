@@ -15,7 +15,7 @@ import type { VisibilityType } from "@/components/chat/visibility-selector";
 import { generateUUID } from "@/lib/utils";
 import type { ChatMessage } from "@/lib/types";
 import { useAppRouter, useConversationRouteId } from "@platform/router";
-import { UnauthorizedError } from "../../public-chat/api";
+import { UnauthorizedError } from "./api";
 import { getShellConversationDetail } from "./conversations";
 import { submitShellChatRequest } from "./transport";
 import { useChatbotShellRuntime } from "./runtime";

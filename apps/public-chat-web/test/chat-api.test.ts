@@ -7,7 +7,7 @@ import {
   getSessionPrincipal,
   listConversations,
   submitChatRequest,
-} from "../src/public-chat/api";
+} from "../src/platform/chat/api";
 
 describe("public chat app-api client", () => {
   afterEach(() => {

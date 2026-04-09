@@ -4,7 +4,7 @@ import type {
   ConversationDetail,
   ConversationSummary,
   SessionPrincipal,
-} from "../../public-chat/types";
+} from "./api-types";
 import type {
   ShellConversationDetail,
   ShellConversationListItem,

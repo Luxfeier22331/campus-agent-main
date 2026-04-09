@@ -1,4 +1,4 @@
-import { createDraftConversation, submitChatRequest } from "../../public-chat/api";
+import { createDraftConversation, submitChatRequest } from "./api";
 import { mapChatAnswerPayload, mapConversationDetail } from "./mappers";
 
 export async function createShellDraftConversation() {

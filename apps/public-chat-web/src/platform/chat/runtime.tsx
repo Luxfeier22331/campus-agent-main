@@ -10,9 +10,9 @@ import {
 } from "react";
 
 import type { ShellConversationListItem, ShellSessionPrincipal } from "./types";
+import { UnauthorizedError } from "./api";
 import { listShellConversations } from "./conversations";
 import { loadShellSession } from "./session";
-import { UnauthorizedError } from "../../public-chat/api";
 
 export type ChatbotShellSessionState =
   | { kind: "loading" }

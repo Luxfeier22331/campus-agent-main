@@ -1,4 +1,4 @@
-import type { ChatMessageKind } from "../../public-chat/types";
+import type { ChatMessageKind } from "./api-types";
 
 export interface ShellChatUser {
   email: string | null;

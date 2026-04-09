@@ -52,6 +52,7 @@ updated: 2026-04-09
 - active runtime import graph 已移除 `react-router-dom`、`next/link`、`next/navigation`、`next-auth/react`
 - `src/chatbot-donor/` 已退役并从当前 runtime 路径删除
 - `src/chatbot-shell/` 与重复的 `src/public-chat/auth.ts` 已从 app source tree 退役
+- 剩余 `src/public-chat/api.ts` 与 `src/public-chat/types.ts` 已并入 `src/platform/chat/*`，`src/public-chat/` 目录已退役
 
 当前剩余 follow-up：
 

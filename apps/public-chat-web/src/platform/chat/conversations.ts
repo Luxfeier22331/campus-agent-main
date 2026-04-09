@@ -1,4 +1,4 @@
-import { getConversationDetail, listConversations } from "../../public-chat/api";
+import { getConversationDetail, listConversations } from "./api";
 import { mapConversationDetail, mapConversationSummary } from "./mappers";
 
 export async function listShellConversations() {

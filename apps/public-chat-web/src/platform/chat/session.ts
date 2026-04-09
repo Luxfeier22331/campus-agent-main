@@ -1,4 +1,4 @@
-import { getSessionPrincipal } from "../../public-chat/api";
+import { getSessionPrincipal } from "./api";
 import { mapSessionPrincipal } from "./mappers";
 
 export async function loadShellSession() {

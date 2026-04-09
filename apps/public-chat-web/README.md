@@ -13,6 +13,7 @@ Implementation status:
 - repo-owned chat runtime seams now live in `src/platform/`; route ownership now lives in `src/routes/` and `src/login/`
 - the former `src/chatbot-donor/` compatibility layer and its Next/Auth shims have been removed from the runtime path
 - the former `src/chatbot-shell/` transitional shell and duplicate `src/public-chat/auth.ts` client have been retired from the app source tree
+- the remaining `src/public-chat` API/types transition files have been merged into `src/platform/chat/`; the app source tree no longer keeps a separate `public-chat` directory
 - the former hand-written `ChatHomePage` / `ChatThreadPage` route implementation has been removed from the runtime path; `src/styles.css` now only serves the login surface, route status cards, and boot fallback
 - the first runtime cutover plan is recorded in `docs/plans/public-chat-web-chatbot-replatform.md`
 - the active donor-first reset plan is tracked in `docs/plans/public-chat-web-donor-first-reset.md`
