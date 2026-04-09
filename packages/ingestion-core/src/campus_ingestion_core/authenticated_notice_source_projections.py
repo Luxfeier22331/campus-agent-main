@@ -925,6 +925,11 @@ def _classify_inline_image_context_override(
         for token in ("专场活动", "活动旨在", "故事大会", "期待你的参加", "正式启动")
     ):
         return AuthenticatedNoticeAttachmentClassificationResult("reference_only")
+    if _looks_like_promotional_hero_image(attachment_bytes) and any(
+        token in normalized_context
+        for token in ("社会实践活动", "活动主题", "活动时间", "活动内容", "青春返乡行")
+    ):
+        return AuthenticatedNoticeAttachmentClassificationResult("reference_only")
     if _looks_like_mobile_ui_screenshot(attachment_bytes) and any(
         token in normalized_context
         for token in ("官方报名小程序", "报名小程序", "作品上传", "我的故事", "等待审核")
