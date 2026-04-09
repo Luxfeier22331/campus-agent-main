@@ -101,9 +101,9 @@ specialist 是稳定能力边界，不等于某个底层框架对象。
 execution path 的 prompt / instruction 继续遵循 package-owned ownership：
 
 - `packages/supervisor-core`
-  owns supervisor role instructions、clarification / reject / approval wording prompt families
+  owns supervisor role instructions、clarification / reject / approval / out-of-scope wording prompt families
 - `packages/rag-specialist`
-  owns answer / clarify / no-answer prompt families
+  owns answer / clarify / no-answer / unsupported prompt families
 - `packages/retrieval-core`
   不拥有 top-level task prompt；只拥有 evidence retrieval 与 serialization helper
 - `apps/supervisor-api`

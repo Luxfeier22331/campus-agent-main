@@ -11,12 +11,22 @@ updated: 2026-04-06
 
 **Architecture:** 继续遵守 `code-first orchestration + prompt-scoped reasoning`。`policy / scope / authz / serving truth` 保持 code-owned；prompt 只负责 wording；`post-LLM contract` 负责 strict output、grounding downgrade 与 deny-path shaping。
 
-**Current Gap:** 当前 repo 已有 package-owned prompts、typed prompt packet、prompt executor protocol、`semantic_outcome` 与 `citation_expected` substrate，但还缺：
+**Current Landed State:** 当前 repo 已经完成：
 
-- provider-backed strict structured output runtime
-- claim-level grounding validator
-- hallucination failure-class eval lane
-- repo-default prompt metadata / grounding verdict sink
+- package-owned prompt registry / typed prompt packet substrate
+- `supervisor_clarify_v1`、`supervisor_approval_required_v1`、`supervisor_reject_v1`、`supervisor_out_of_scope_v1`
+- `rag_answer_v1`、`rag_clarify_v1`、`rag_no_answer_v1`、`rag_unsupported_v1`
+- prompt packet / typed output / prompt trace strict validation seam
+- prompt-generated completed answer 的 claim-level grounding validator 与 `unsupported_by_evidence` downgrade
+- `out_of_scope`、`policy_refusal`、`restricted_access_denied`、`unsupported_by_evidence`、`freshness_fail_close` 的 failure-class eval coverage
+- `semantic_outcome`、`grounding_verdict`、`grounding_downgraded`、`freshness_fail_closed` 的 diagnostics / projection substrate
+- `curriculum` 高结构答案、`handbook procedure/materials/deadline/time` 高精度 path、restricted deny final semantics 的 deterministic-first protection
+
+**Residual Gap:** 当前剩余 gap 已收敛为：
+
+- provider-backed strict structured output runtime 还不是默认 product-path capability
+- repo-default prompt metadata sink 还没有把 `prompt_version` / `template_sha256` / `model` 端到端落进产品主链路
+- grounding validator 仍是最小可用强度，尚未覆盖更广的 claim 类型与 provider-agnostic grounded-generation runtime
 
 ## Desired End State
 
@@ -40,6 +50,8 @@ updated: 2026-04-06
 
 ## Workstream 1: Strict Structured Output Runtime
 
+状态：`partial`
+
 目标：
 
 - 让 provider-backed prompt execution 在产品路径上具备 strict schema 能力
@@ -60,6 +72,8 @@ updated: 2026-04-06
 - 失败时应显式落成 `error` 或降级到 deterministic fallback，而不是放行脏结果
 
 ## Workstream 2: Claim-Level Grounding Validator
+
+状态：`landed_baseline`
 
 目标：
 
@@ -84,7 +98,20 @@ updated: 2026-04-06
 - 若上述 claim 无法从 evidence packet 对齐支持，直接降级为 `unsupported_by_evidence`
 - restricted deny / hidden content 继续优先于普通 unsupported
 
+当前已落地基线：
+
+- prompt-generated completed answer 已执行 answer-to-evidence 校验
+- 当前最小 claim extractor 已覆盖 title / time / requirement claim
+- grounding 不通过时，结果会自动 downgrade 为 `unsupported_by_evidence`
+
+后续补强重点：
+
+- 扩大 claim 类型覆盖
+- 评估是否需要从启发式 extractor 升级到更强的 grounded-generation runtime
+
 ## Workstream 3: Freshness And Fail-Close Posture
+
+状态：`landed_baseline`
 
 目标：
 
@@ -102,7 +129,14 @@ updated: 2026-04-06
 - freshness-sensitive 且 collection 未开放时，直接 fail-close
 - 不允许 prompt 用“可能/通常/一般来说”来掩盖 freshness 缺口
 
+当前已落地基线：
+
+- official-web stable-reference-like surface 已对 freshness-sensitive 问题 fail-close
+- freshness fail-close 已进入 semantic outcome 与 eval truth
+
 ## Workstream 4: Observability And Prompt Metadata
+
+状态：`partial`
 
 目标：
 
@@ -126,7 +160,23 @@ updated: 2026-04-06
 - `grounding_downgraded`
 - `freshness_fail_closed`
 
+当前已落地基线：
+
+- `semantic_outcome`
+- `grounding_verdict`
+- `grounding_downgraded`
+- `freshness_fail_closed`
+- `prompt_trace` diagnostics seam
+
+当前主要剩余项：
+
+- `prompt_version`
+- `template_sha256`
+- `model`
+
 ## Workstream 5: Eval Lanes For Hallucination Classes
+
+状态：`landed_baseline`
 
 目标：
 
@@ -149,7 +199,23 @@ updated: 2026-04-06
 6. `clarification_instead_of_guess`
 7. `citation_required_answer`
 
+当前已落地基线：
+
+- `out_of_scope`
+- `policy_refusal`
+- `restricted_access_denied`
+- `unsupported_by_evidence`
+- `freshness_fail_close`
+
+后续补强重点：
+
+- `clarification_instead_of_guess`
+- `citation_required_answer`
+- prompt-family regression artifact retention
+
 ## Workstream 6: Deterministic Path Protection
+
+状态：`landed_baseline`
 
 目标：
 
@@ -169,34 +235,33 @@ updated: 2026-04-06
 
 ## Execution Order
 
-建议顺序：
+剩余工作建议顺序：
 
-1. strict structured output runtime
-2. claim-level grounding validator
-3. observability fields
-4. hallucination eval lanes
-5. deterministic path protection sweep
+1. 接受 product-owned provider-backed prompt runtime boundary
+2. 补齐 repo-default prompt metadata sink
+3. 强化 claim-level grounding validator
+4. 补齐剩余 prompt-family regression / quality evidence
 
 原因：
 
-- 没有 strict output 与 validator，先做 wording prompt 优化只会扩大不确定性
-- 没有 observability 和 eval，后续无法判断 hallucination control 是否真的改善
+- provider runtime boundary 未冻结前，不应把 eval-side execution 偶然性倒灌进产品主路径
+- metadata sink 不补齐，后续 prompt release 无法形成稳定 operator truth
+- grounding validator 需要继续增强，但不应推翻已经落地的 deterministic protected paths
 
 ## Verification
 
-至少应新增或补强以下验证：
+当前应继续补强以下验证：
 
-- prompt packet / prompt output schema tests
-- grounding downgrade unit tests
-- supervisor finalization tests
-- unsupported / out-of-scope / restricted deny contract tests
+- provider-backed prompt runtime schema tests
+- grounding validator 扩展回归 tests
+- prompt metadata sink contract tests
 - prompt-family regression evals with artifact retention
 
 ## Deliverables
 
-本计划完成后至少应新增：
+当前剩余交付物：
 
-- 一套 repo-accepted prompt runtime boundary
-- 一套 claim-level grounding validator
-- 一组 hallucination failure-class evals
-- 一组 operator-visible grounding verdict / downgrade metrics
+- 一套 repo-accepted product-owned prompt runtime boundary
+- 一组 repo-default prompt metadata sink 字段
+- 一套更强的 grounding validator / grounded-generation runtime
+- 一组扩展后的 prompt-family regression artifacts

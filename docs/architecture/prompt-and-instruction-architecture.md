@@ -280,6 +280,16 @@ repo 级只应保留一段极薄、极稳定的 global invariants；其余内容
 - 如果请求是 `unsupported`、`ambiguous`、`unauthorized` 或 `not grounded by evidence`，必须 abstain 或要求澄清
 - 输出必须满足 typed schema，并接受 code-side finalization
 
+可直接复用的参考 block 应保持在这个量级：
+
+```text
+You are an institution-scoped campus assistant.
+Never override policy, authorization, serving-surface, or scope truth supplied by code and typed packets.
+Never use open-world knowledge to fill institution-specific gaps.
+If the request is ambiguous, unauthorized, unsupported, or not grounded by evidence, abstain or ask for clarification.
+Return only schema-compliant output. Code-side finalization is authoritative.
+```
+
 这段 block 的职责只有：
 
 - 固定 repo 级产品姿态
@@ -310,7 +320,7 @@ repo 当前推荐的 system / role 设计固定为：
 直接含义：
 
 - `packages/supervisor-core` 的 prompt family 只负责 `clarify / approval_required / out_of_scope / reject` 的用户措辞
-- `packages/rag-specialist` 的 prompt family 只负责 `answer / clarify / no-answer` 的 grounded wording
+- `packages/rag-specialist` 的 prompt family 只负责 `answer / clarify / no-answer / unsupported` 的 grounded wording
 - `packages/retrieval-core` 不拥有 top-level system prompt
 - `apps/*` 不拥有 execution prompt truth，只负责 request packaging / runtime admission / product projection
 
@@ -352,13 +362,13 @@ repo 当前推荐的 system / role 设计固定为：
 
 - owns supervisor role instructions
 - owns supervisor task packet assembly
-- owns clarification / approval-required / reject wording prompt families
+- owns clarification / approval-required / out-of-scope / reject wording prompt families
 - 不拥有 retrieval evidence ranking 和 collection-specific answer synthesis
 
 ### `packages/rag-specialist`
 
 - owns rag-specialist role instructions
-- owns answer / clarify / no-answer prompt families
+- owns answer / clarify / no-answer / unsupported prompt families
 - owns evidence-to-answer prompt packet assembly
 - 不拥有 authz truth、serving truth、product identity truth
 
@@ -383,6 +393,7 @@ repo 当前推荐的 system / role 设计固定为：
 - `supervisor_clarify_v1`
 - `supervisor_reject_v1`
 - `supervisor_approval_required_v1`
+- `supervisor_out_of_scope_v1`
 
 说明：
 
@@ -395,6 +406,7 @@ repo 当前推荐的 system / role 设计固定为：
 - `rag_answer_v1`
 - `rag_clarify_v1`
 - `rag_no_answer_v1`
+- `rag_unsupported_v1`
 
 可选后续 family：
 
@@ -639,13 +651,18 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 - 目前有 prompt packet / typed output seam
 - 但产品主路径默认仍以 deterministic fallback 为主，尚未形成 repo-default strict output runtime
 
-2. claim-level grounding validator 还不够强
-- 当前已有 `citation_expected`、`citation_missing`、`semantic_outcome`
-- 但还没有一层更硬的 answer-to-evidence validator 来自动识别“回答包含 evidence packet 不支持的关键 claim”
+2. claim-level grounding validator 已落地，但仍是最小可用强度
+- 当前已对 prompt-generated completed answer 执行 answer-to-evidence 校验，并对 title / time / requirement claim 做最小提取
+- 但还没有覆盖更广的 claim 类型，也还不是完整的 cross-provider grounded generation runtime
 
-3. hallucination eval 还需要按 failure class 显式拆开
-- 当前 eval 已覆盖不少 failure posture
-- 但还应把 `out_of_scope`、`policy_refusal`、`restricted_access_denied`、`unsupported_by_evidence`、`freshness fail-close` 作为独立 regression lane
+3. repo-default prompt metadata sink 还没有端到端补齐
+- 当前已有 `semantic_outcome`、`grounding_verdict`、`grounding_downgraded`、`freshness_fail_closed` 与 `prompt_trace` diagnostics seam
+- 但 `prompt_version`、`template_sha256`、`model` 这类 metadata 还没有形成统一的 product-path 默认 sink
+
+补充说明：
+
+- hallucination failure-class eval lane 已经显式拆开，不再是当前主要 gap
+- 当前剩余 gap 主要集中在 provider runtime 接线、metadata sink 和 grounding validator 深化
 
 ## First-Rollout Strategy
 
@@ -691,30 +708,35 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 
 ## Current Rollout Status
 
-截至 `2026-04-05`，当前 repo 的 prompt rollout 已经落到以下状态：
+截至 `2026-04-06`，当前 repo 的 prompt / hallucination rollout 已经落到以下状态：
 
 - 已完成 package-owned prompt registry / prompt packet substrate
-- 已完成 `supervisor_clarify_v1`、`supervisor_approval_required_v1`、`supervisor_reject_v1`
-- 已完成 `rag_clarify_v1`、`rag_no_answer_v1`、`rag_answer_v1`
-- 已完成 package-local prompt executor protocol / typed output seam
+- 已完成 `supervisor_clarify_v1`、`supervisor_approval_required_v1`、`supervisor_reject_v1`、`supervisor_out_of_scope_v1`
+- 已完成 `rag_clarify_v1`、`rag_no_answer_v1`、`rag_answer_v1`、`rag_unsupported_v1`
+- 已完成 package-local prompt executor protocol，以及 prompt packet / output / trace 的 strict validation seam
 - 已完成 supervisor terminal branch 与 rag clarify / no-answer / generic answer branch 的 injected runtime seam
+- 已完成 prompt-generated completed answer 的 claim-level grounding validator，并在 unsupported 时自动降级为 `unsupported_by_evidence`
+- 已完成 `out_of_scope`、`policy_refusal`、`restricted_access_denied`、`unsupported_by_evidence`、`freshness_fail_close` 的 failure-class eval coverage
+- 已完成 `semantic_outcome`、`grounding_verdict`、`grounding_downgraded`、`freshness_fail_closed` 的 diagnostics / projection substrate
 
 当前仍未默认开启的部分是：
 
 - provider-backed prompt executor
 - prompt metadata 的 repo-default runtime sink
-- `curriculum` 高结构答案、`handbook procedure/materials/time` 高精度 path、restricted deny final semantics 的 promptified default path
+- 更强的 provider-agnostic grounding runtime
 
 原因固定为：
 
 - 当前 repo 只有 `packages/evals` 已落地的 OpenAI-compatible `Responses` HTTP runtime；产品运行时侧还没有接受一个共享、稳定的 prompt/model execution package
 - 如果在边界未冻结前直接把 eval-side runtime 倒灌进 `supervisor-core` / `rag-specialist`，会把评测实现偶然性提升成产品主路径
 - 上述高精度场景当前已有 deterministic truth，直接改成 prompt-first 会放大 regression 面并破坏现有 release gate
+- 当前 grounding validator 已可用，但仍然是最小可用的 claim extractor，而不是完整 grounded-generation stack
 
 因此当前 accepted 状态是：
 
 - 代码已经允许按 package 边界注入 prompt executor，并把 prompt trace 挂到现有 diagnostics / observability
 - 在产品运行时侧 shared `Responses` executor boundary 被接受之前，默认实现继续保持 deterministic fallback，不把 provider 调用写死进当前主路径
+- `curriculum` 高结构答案、`handbook procedure/materials/deadline/time` 高精度 path 与 restricted deny final semantics 继续保持 deterministic-first protected path，不被 prompt rollout 覆盖
 
 剩余工作何时可以继续：
 
@@ -725,6 +747,7 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
   - 默认启用 provider-backed supervisor prompt executor
   - 默认启用 rag clarify / no-answer / generic answer prompt executor
   - 在不触碰 deterministic protected paths 的前提下补齐 live gate / quality gate evidence
+  - 把 `prompt_version`、`template_sha256`、`model` 等 metadata sink 补成 repo-default product-path truth
 
 ## 外部参考
 
