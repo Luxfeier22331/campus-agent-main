@@ -145,10 +145,12 @@ Local development:
 - the local Worker runtime expects the `APP_API_DB` Hyperdrive binding from `wrangler.toml` `env.local`
 - put local Wrangler / Drizzle process env in `apps/app-api/.env`
   - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=...`
+  - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH=...`
   - `APP_API_MANAGEMENT_DATABASE_URL=...`
 - if the root worktree `.env` already has `CAMPUS_SHARED_POSTGRES_URL`, use
   `uv run --all-packages python -m scripts.sync_app_api_local_db_env --repo-root <current-worktree-root>`
-  to generate `apps/app-api/.env`
+  to generate `apps/app-api/.env`; the sync script will mirror the runtime DSN into both
+  `APP_API_DB` and `APP_API_DB_FRESH` local bindings unless you later override them manually
 - put Worker string env in `apps/app-api/.dev.vars`
 - for `official_web` live control-plane smoke,
   `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` must be non-empty and must match

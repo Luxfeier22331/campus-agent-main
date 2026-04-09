@@ -114,9 +114,14 @@ updated: 2026-04-08
   `uv run --all-packages python -m scripts.check_sentry_lookup_access --json`
 - 如果本地希望直接复用 root worktree `.env` 里的共享 Supabase Postgres，可用
   `uv run --all-packages python -m scripts.sync_app_api_local_db_env`
-  把 `CAMPUS_SHARED_POSTGRES_URL` fan out 到 `apps/app-api/.env` 的
+  把 `CAMPUS_SHARED_POSTGRES_URL` 与 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`
+  fan out 到 `apps/app-api/.env` 的
   `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB` 与
+  `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH` 以及
   `APP_API_MANAGEMENT_DATABASE_URL`
+- `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` 只用于 repo-local migration / DBA / offline ingestion operator 路径，
+  当共享库由 Supabase 承载时它必须是 `db.<project-ref>.supabase.co:5432` 这类 direct management DSN；
+  不得把 session pooler URL 复制成 management URL
 - `apps/app-api` 还会在 source `.env` 存在 `AXIOM_ENDPOINT`、`AXIOM_DATASET`、`AXIOM_TOKEN` 时同步这三个键
 - `SENTRY_API_TOKEN` 只用于 repo-local smoke / artifact collection，不同步到任何 Worker `.dev.vars`，也不构成 deploy-side runtime ownership
 - `AXIOM_ENDPOINT` 应填写 Axiom `Settings -> General -> Edge deployment` 对应的 base domain，例如 `https://us-east-1.aws.edge.axiom.co`
