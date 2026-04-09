@@ -918,6 +918,11 @@ def _classify_inline_image_context_override(
         return AuthenticatedNoticeAttachmentClassificationResult("reference_only")
     if "示例证书" in normalized_context:
         return AuthenticatedNoticeAttachmentClassificationResult("reference_only")
+    if any(token in normalized_context for token in ("社会实践活动", "知行中华")) and any(
+        token in normalized_context
+        for token in ("活动主题", "活动时间", "活动内容", "青春返乡行")
+    ):
+        return AuthenticatedNoticeAttachmentClassificationResult("reference_only")
     if any(token in normalized_context for token in ("活动再次出发", "期待你的参加", "正式启动")):
         return AuthenticatedNoticeAttachmentClassificationResult("reference_only")
     if _looks_like_promotional_hero_image(attachment_bytes) and any(
