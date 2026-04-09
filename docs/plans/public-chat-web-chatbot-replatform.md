@@ -1,11 +1,19 @@
 ---
 doc_type: plan
-status: active
+status: completed
 created: 2026-04-06
-updated: 2026-04-06
+updated: 2026-04-08
 ---
 
 # Public Chat Web Chatbot Replatform
+
+> 说明：本文记录的是较早一轮 `chatbot-derived shell` replatform 方案。
+> 当前 chat frontend 的详细前向实施，已转到 [public-chat-web-vendor-runtime-full-transplant.md](/home/reptilian/code/campus-agent/docs/plans/public-chat-web-vendor-runtime-full-transplant.md)。
+
+> 状态说明：本文记录第一轮 `public-chat-web` runtime cutover 与 donor-derived shell 接线计划。
+> 其中“把 `/chat` 切到 donor shell、把旧 hand-written chat UI 退出 runtime path”这一目标已经完成。
+> 当前前向真相已进一步推进到 `vendor/vercel-ai-chatbot/` + `src/platform/` + `src/routes/` + `src/login/`；
+> `src/chatbot-donor/`、`src/chatbot-shell/` 与 `src/public-chat/auth.ts` 都已退役。
 
 ## 文档边界
 
@@ -58,14 +66,15 @@ updated: 2026-04-06
 
 ## 现状判断
 
-当前 `apps/public-chat-web` 的实现已经不再是“Chatbot-based frontend shell 的适配版”，而是一套新的 Worker/Vite/React Router 实现。
+以下判断是本文写作时、cutover 完成前的历史背景。
+
+当时的 `apps/public-chat-web` 实现并不是“Chatbot-based frontend shell 的适配版”，而是一套新的 Worker/Vite/React Router 实现。
 
 因此本计划固定以下判断：
 
-- 当前 [apps/public-chat-web/src/public-chat/app.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/public-chat/app.tsx) 及其配套样式属于 `legacy implementation`
-- 它仍然是当前线上/前向 surface 的有效实现，但不再作为长期 UI 基底继续扩张
-- 在新 shell cutover 完成前，它保留为运行实现
-- 在新 shell cutover 完成后，它应退役为 git history / reference，而不是继续与新实现双轨长期并存
+- 当时的 [apps/public-chat-web/src/public-chat/app.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/public-chat/app.tsx) 及其配套样式属于 `legacy implementation`
+- 在当时的新 shell cutover 完成前，它仍是运行实现
+- 当前真实前向状态已经进一步演进为：`vendor/vercel-ai-chatbot/` 是唯一 chat UI 主壳；repo 只保留 `src/platform/`、`src/routes/`、`src/login/` 等平台接缝与路由职责
 
 ### Legacy 实现的处理规则
 

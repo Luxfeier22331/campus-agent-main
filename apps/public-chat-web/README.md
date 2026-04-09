@@ -6,11 +6,20 @@ This app is the forward canonical public browser surface in front of shared `app
 
 Implementation status:
 
-- `/login` still runs from the repo-owned surface in `src/public-chat/app.tsx`
-- the current default `/chat` + `/chat/:conversationId` routes now render the donor-derived shell from `src/chatbot-shell/`
+- `/login` now runs from the repo-owned route tree in `src/routes/app-router.tsx` + `src/login/page.tsx`
+- the default `/chat` + `/chat/:conversationId` routes now render the vendor chat runtime through `src/platform/chat/app-shell.tsx`
+- the vendored donor source of truth now lives in `vendor/vercel-ai-chatbot/`
+- the runtime chat shell now resolves `@/*` into the vendored donor tree; vendor-owned `ChatShell` and `AppSidebar` are the active chat UI source of truth
+- repo-owned chat runtime seams now live in `src/platform/`; route ownership now lives in `src/routes/` and `src/login/`
+- the former `src/chatbot-donor/` compatibility layer and its Next/Auth shims have been removed from the runtime path
+- the former `src/chatbot-shell/` transitional shell and duplicate `src/public-chat/auth.ts` client have been retired from the app source tree
 - the former hand-written `ChatHomePage` / `ChatThreadPage` route implementation has been removed from the runtime path; `src/styles.css` now only serves the login surface, route status cards, and boot fallback
-- the active replatform line is tracked in `docs/plans/public-chat-web-chatbot-replatform.md`
-- the donor-derived shell implementation lives under `src/chatbot-shell/`
+- the first runtime cutover plan is recorded in `docs/plans/public-chat-web-chatbot-replatform.md`
+- the active donor-first reset plan is tracked in `docs/plans/public-chat-web-donor-first-reset.md`
+- the next forward runtime convergence plan is tracked in `docs/plans/public-chat-web-vendor-runtime-full-transplant.md`; the current worktree has completed the TanStack Router + platform seam cutover and retired the old transitional shell
+- the current shell parity inventory lives in `docs/reference/public-chat-web-route-state-parity-inventory.md`
+- the current donor drift inventory lives in `docs/reference/public-chat-web-donor-drift-inventory.md`
+- the forward runtime now stays only in `vendor/vercel-ai-chatbot/` + `src/platform/` + `src/routes/` + `src/login/`
 - the temporary `/chat/replatform-preview*` debug seam has been removed; `/chat` is now the only chat route family
 - legacy hits to `/chat/replatform-preview*` are canonicalized by the Worker shell back to `/chat`, so the removed preview prefix cannot fall through as a fake `conversationId`
 

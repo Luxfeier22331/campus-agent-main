@@ -176,14 +176,89 @@ describe("POST /api/chat/requests", () => {
     );
 
     expect(response.status).toBe(404);
+    expect(response.headers.get("x-request-id")).toMatch(/^req_[0-9a-f]{32}$/);
+    expect(response.headers.get("x-trace-id")).toMatch(/^trace_[0-9a-f]{32}$/);
     await expect(response.json()).resolves.toEqual({
       error: {
         code: "conversation_not_found",
         details: null,
         message: "Conversation not found.",
-        requestId: null,
+        requestId: expect.stringMatching(/^req_[0-9a-f]{32}$/),
         retryable: false,
-        traceId: null,
+        traceId: expect.stringMatching(/^trace_[0-9a-f]{32}$/),
+      },
+    });
+  });
+
+  it("backfills correlation headers and envelope fields for route-level body validation failures", async () => {
+    const app = createApp(env, {
+      getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+    });
+
+    const response = await app.fetch(
+      new Request("https://app-api.internal/api/chat/requests", {
+        body: JSON.stringify({
+          prompt: "图书馆开放到几点？",
+        }),
+        headers: {
+          "content-type": "text/plain",
+        },
+        method: "POST",
+      }),
+    );
+
+    expect(response.status).toBe(415);
+    expect(response.headers.get("x-request-id")).toMatch(/^req_[0-9a-f]{32}$/);
+    expect(response.headers.get("x-trace-id")).toMatch(/^trace_[0-9a-f]{32}$/);
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: "unsupported_media_type",
+        details: null,
+        message: "application/json is required.",
+        requestId: expect.stringMatching(/^req_[0-9a-f]{32}$/),
+        retryable: false,
+        traceId: expect.stringMatching(/^trace_[0-9a-f]{32}$/),
+      },
+    });
+  });
+
+  it("backfills correlation headers and envelope fields for service-level validation failures", async () => {
+    const app = createApp(env, {
+      chatCommandService: {
+        submit: vi.fn().mockRejectedValue(
+          new AppApiRouteError({
+            code: "validation_failed",
+            details: { field: "prompt" },
+            message: "prompt is required.",
+            retryable: false,
+            status: 422,
+          }),
+        ),
+      },
+      getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+    });
+
+    const response = await app.fetch(
+      new Request("https://app-api.internal/api/chat/requests", {
+        body: JSON.stringify({}),
+        headers: {
+          "content-type": "application/json",
+        },
+        method: "POST",
+      }),
+    );
+
+    expect(response.status).toBe(422);
+    expect(response.headers.get("x-request-id")).toMatch(/^req_[0-9a-f]{32}$/);
+    expect(response.headers.get("x-trace-id")).toMatch(/^trace_[0-9a-f]{32}$/);
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: "validation_failed",
+        details: { field: "prompt" },
+        message: "prompt is required.",
+        requestId: expect.stringMatching(/^req_[0-9a-f]{32}$/),
+        retryable: false,
+        traceId: expect.stringMatching(/^trace_[0-9a-f]{32}$/),
       },
     });
   });

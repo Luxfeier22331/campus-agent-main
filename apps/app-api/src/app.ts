@@ -224,11 +224,44 @@ function resolveRequestSurface(request: Request): string {
   if (pathname.startsWith("/api/official-web/")) {
     return "official_web";
   }
-  if (pathname.startsWith("/api/chat/") || pathname.startsWith("/api/auth/") || pathname === "/api/me") {
+  if (
+    pathname === "/api/chat" ||
+    pathname === "/api/history" ||
+    pathname.startsWith("/api/chat/") ||
+    pathname.startsWith("/api/auth/") ||
+    pathname === "/api/me"
+  ) {
     return "public_chat_web";
   }
 
   return "app_api";
+}
+
+function createFallbackCorrelation() {
+  return {
+    requestId: `req_${crypto.randomUUID().replace(/-/g, "")}`,
+    traceId: `trace_${crypto.randomUUID().replace(/-/g, "")}`,
+  };
+}
+
+function routeErrorResponseWithFallbackCorrelation(
+  error: AppApiRouteError,
+  correlation: {
+    requestId: string;
+    traceId: string;
+  },
+): Response {
+  return routeErrorResponse(
+    new AppApiRouteError({
+      code: error.code,
+      details: error.details,
+      message: error.message,
+      requestId: error.requestId ?? correlation.requestId,
+      retryable: error.retryable,
+      status: error.status,
+      traceId: error.traceId ?? correlation.traceId,
+    }),
+  );
 }
 
 async function readJsonRequestBody(request: Request): Promise<Record<string, unknown>> {
@@ -562,30 +595,39 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
       return sessionRequiredResponse();
     }
 
-    const payload = await readJsonRequestBody(c.req.raw);
+    const fallbackCorrelation = createFallbackCorrelation();
 
-    const response = await scope.resolveChatCommandService().submit({
-      idempotencyKey: c.req.header("idempotency-key") ?? null,
-      payload,
-      principal,
-    });
-    scheduleRequestProjectionDrain?.({
-      requestId: response.requestId,
-      waitUntil: resolveWaitUntil(c),
-    });
+    try {
+      const payload = await readJsonRequestBody(c.req.raw);
 
-    return jsonResponse(
-      {
-        answer: response.answer,
-      },
-      {
-        headers: {
-          "x-request-id": response.requestId,
-          "x-trace-id": response.traceId,
+      const response = await scope.resolveChatCommandService().submit({
+        idempotencyKey: c.req.header("idempotency-key") ?? null,
+        payload,
+        principal,
+      });
+      scheduleRequestProjectionDrain?.({
+        requestId: response.requestId,
+        waitUntil: resolveWaitUntil(c),
+      });
+
+      return jsonResponse(
+        {
+          answer: response.answer,
         },
-        status: 200,
-      },
-    );
+        {
+          headers: {
+            "x-request-id": response.requestId,
+            "x-trace-id": response.traceId,
+          },
+          status: 200,
+        },
+      );
+    } catch (error) {
+      if (error instanceof AppApiRouteError) {
+        return routeErrorResponseWithFallbackCorrelation(error, fallbackCorrelation);
+      }
+      throw error;
+    }
   });
 
   app.post("/api/official-web/runs", async (c) => {
@@ -694,26 +736,35 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
       return serviceCredentialRequiredResponse();
     }
 
-    const response = await scope.resolveChatCommandService().submit({
-      idempotencyKey: c.req.header("idempotency-key") ?? null,
-      payload: await readJsonRequestBody(c.req.raw),
-      principal: buildInternalEvalPrincipalFromRequest(c.req.raw),
-      surface: "eval_benchmark",
-    });
+    const fallbackCorrelation = createFallbackCorrelation();
 
-    return jsonResponse(
-      {
-        answer: response.answer,
-        supervisor: response.supervisor ?? null,
-      },
-      {
-        headers: {
-          "x-request-id": response.requestId,
-          "x-trace-id": response.traceId,
+    try {
+      const response = await scope.resolveChatCommandService().submit({
+        idempotencyKey: c.req.header("idempotency-key") ?? null,
+        payload: await readJsonRequestBody(c.req.raw),
+        principal: buildInternalEvalPrincipalFromRequest(c.req.raw),
+        surface: "eval_benchmark",
+      });
+
+      return jsonResponse(
+        {
+          answer: response.answer,
+          supervisor: response.supervisor ?? null,
         },
-        status: 200,
-      },
-    );
+        {
+          headers: {
+            "x-request-id": response.requestId,
+            "x-trace-id": response.traceId,
+          },
+          status: 200,
+        },
+      );
+    } catch (error) {
+      if (error instanceof AppApiRouteError) {
+        return routeErrorResponseWithFallbackCorrelation(error, fallbackCorrelation);
+      }
+      throw error;
+    }
   });
   app.get("/api/chat/conversations", async (c) => {
     const scope = createRequestScope();
@@ -730,6 +781,32 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     }
 
     const response = await scope.resolveChatConversationService().list({ principal });
+    return jsonResponse(response);
+  });
+
+  app.get("/api/history", async (c) => {
+    const scope = createRequestScope();
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+
+    const limitParam = c.req.query("limit");
+    const parsedLimit = limitParam ? Number.parseInt(limitParam, 10) : 20;
+    const limit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 100) : 20;
+
+    const response = await scope.resolveChatConversationService().listHistoryPage({
+      endingBeforeConversationId: c.req.query("ending_before") ?? null,
+      limit,
+      principal,
+    });
     return jsonResponse(response);
   });
 
@@ -751,6 +828,24 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     return jsonResponse(response, { status: 201 });
   });
 
+  app.delete("/api/history", async (c) => {
+    const scope = createRequestScope();
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+
+    const response = await scope.resolveChatConversationService().deleteAll({ principal });
+    return jsonResponse(response);
+  });
+
   app.get("/api/chat/conversations/:conversationId", async (c) => {
     const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
@@ -767,6 +862,44 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     const response = await scope.resolveChatConversationService().getById({
       conversationId: c.req.param("conversationId"),
+      principal,
+    });
+    return jsonResponse(response);
+  });
+
+  app.delete("/api/chat", async (c) => {
+    const scope = createRequestScope();
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+
+    const conversationId = c.req.query("id");
+    if (!conversationId) {
+      return jsonResponse(
+        {
+          error: {
+            code: "conversation_id_required",
+            details: null,
+            message: "Conversation id is required.",
+            requestId: null,
+            retryable: false,
+            traceId: null,
+          },
+        },
+        { status: 400 },
+      );
+    }
+
+    const response = await scope.resolveChatConversationService().deleteById({
+      conversationId,
       principal,
     });
     return jsonResponse(response);

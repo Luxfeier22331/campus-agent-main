@@ -7,11 +7,14 @@ export type {
   ChatMessage,
   ChatMessageRole,
   ChatSessionSlot,
+  VendorChatHistoryItemResponse,
+  VendorChatHistoryPageResponse,
 } from "./model";
 export {
   DRAFT_CONVERSATION_TITLE,
   toConversationResponse,
   toConversationSummaryResponse,
+  toVendorChatHistoryItemResponse,
 } from "./model";
 export {
   buildChatConversationService,

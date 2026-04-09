@@ -78,7 +78,21 @@ function createConversationService() {
 
   const service: ChatConversationService = {
     createDraft: vi.fn().mockResolvedValue({ conversation }),
+    deleteAll: vi.fn().mockResolvedValue({ deletedCount: 1 }),
+    deleteById: vi.fn().mockResolvedValue({ deleted: true }),
     getById: vi.fn().mockResolvedValue({ conversation }),
+    listHistoryPage: vi.fn().mockResolvedValue({
+      chats: [
+        {
+          createdAt: "2026-03-28T08:00:00.000Z",
+          id: "conv_01HQ",
+          title: "图书馆开放时间",
+          updatedAt: "2026-03-28T08:01:00.000Z",
+          visibility: "private",
+        },
+      ],
+      hasMore: false,
+    }),
     list: vi.fn().mockResolvedValue({ conversations }),
   };
 
@@ -149,6 +163,90 @@ describe("chat conversation routes", () => {
     await expect(response.json()).resolves.toEqual({ conversation });
     expect(service.getById).toHaveBeenCalledWith({
       conversationId: "conv_01HQ",
+      principal: expect.objectContaining({
+        principal: expect.objectContaining({
+          principalId: "user_01HQ",
+        }),
+      }),
+    });
+  });
+
+  it("serves vendor-compatible paginated history through /api/history", async () => {
+    const { service } = createConversationService();
+    const app = createApp(env, {
+      chatConversationService: service,
+      getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+    });
+
+    const response = await app.fetch(
+      new Request("https://app-api.internal/api/history?limit=20"),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      chats: [
+        {
+          createdAt: "2026-03-28T08:00:00.000Z",
+          id: "conv_01HQ",
+          title: "图书馆开放时间",
+          updatedAt: "2026-03-28T08:01:00.000Z",
+          visibility: "private",
+        },
+      ],
+      hasMore: false,
+    });
+    expect(service.listHistoryPage).toHaveBeenCalledWith({
+      endingBeforeConversationId: null,
+      limit: 20,
+      principal: expect.objectContaining({
+        principal: expect.objectContaining({
+          principalId: "user_01HQ",
+        }),
+      }),
+    });
+  });
+
+  it("deletes a single chat through the vendor-compatible /api/chat?id= route", async () => {
+    const { service } = createConversationService();
+    const app = createApp(env, {
+      chatConversationService: service,
+      getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+    });
+
+    const response = await app.fetch(
+      new Request("https://app-api.internal/api/chat?id=conv_01HQ", {
+        method: "DELETE",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ deleted: true });
+    expect(service.deleteById).toHaveBeenCalledWith({
+      conversationId: "conv_01HQ",
+      principal: expect.objectContaining({
+        principal: expect.objectContaining({
+          principalId: "user_01HQ",
+        }),
+      }),
+    });
+  });
+
+  it("deletes all chats through the vendor-compatible /api/history route", async () => {
+    const { service } = createConversationService();
+    const app = createApp(env, {
+      chatConversationService: service,
+      getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+    });
+
+    const response = await app.fetch(
+      new Request("https://app-api.internal/api/history", {
+        method: "DELETE",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ deletedCount: 1 });
+    expect(service.deleteAll).toHaveBeenCalledWith({
       principal: expect.objectContaining({
         principal: expect.objectContaining({
           principalId: "user_01HQ",

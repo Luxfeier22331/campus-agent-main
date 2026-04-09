@@ -6,8 +6,10 @@ import {
   DRAFT_CONVERSATION_TITLE,
   toConversationResponse,
   toConversationSummaryResponse,
+  toVendorChatHistoryItemResponse,
   type ChatConversationResponse,
   type ChatConversationSummaryResponse,
+  type VendorChatHistoryPageResponse,
 } from "./model";
 import type { ChatConversationStore } from "./store";
 
@@ -15,9 +17,21 @@ export interface ChatConversationService {
   list(input: {
     principal: ResolvedAppPrincipal;
   }): Promise<{ conversations: ChatConversationSummaryResponse[] }>;
+  listHistoryPage(input: {
+    principal: ResolvedAppPrincipal;
+    limit: number;
+    endingBeforeConversationId: string | null;
+  }): Promise<VendorChatHistoryPageResponse>;
   createDraft(input: {
     principal: ResolvedAppPrincipal;
   }): Promise<{ conversation: ChatConversationResponse }>;
+  deleteAll(input: {
+    principal: ResolvedAppPrincipal;
+  }): Promise<{ deletedCount: number }>;
+  deleteById(input: {
+    conversationId: string;
+    principal: ResolvedAppPrincipal;
+  }): Promise<{ deleted: true }>;
   getById(input: {
     conversationId: string;
     principal: ResolvedAppPrincipal;
@@ -75,6 +89,20 @@ export function buildChatConversationService(
       };
     },
 
+    async listHistoryPage(input) {
+      const ownerUserId = assertChatPrincipal(input.principal);
+      const page = await dependencies.store.listConversationSummariesPageByOwner({
+        endingBeforeConversationId: input.endingBeforeConversationId,
+        limit: input.limit,
+        ownerUserId,
+      });
+
+      return {
+        chats: page.conversations.map(toVendorChatHistoryItemResponse),
+        hasMore: page.hasMore,
+      };
+    },
+
     async createDraft(input) {
       const ownerUserId = assertChatPrincipal(input.principal);
       const createdAt = now().toISOString();
@@ -89,6 +117,30 @@ export function buildChatConversationService(
       return {
         conversation: toConversationResponse(conversation),
       };
+    },
+
+    async deleteAll(input) {
+      const ownerUserId = assertChatPrincipal(input.principal);
+      const deletedCount = await dependencies.store.deleteConversationsByOwner(ownerUserId);
+
+      return { deletedCount };
+    },
+
+    async deleteById(input) {
+      const ownerUserId = assertChatPrincipal(input.principal);
+      const deleted = await dependencies.store.deleteConversationByOwner(
+        ownerUserId,
+        input.conversationId,
+      );
+      if (!deleted) {
+        throw createChatRouteError({
+          code: "conversation_not_found",
+          message: "Conversation not found.",
+          status: 404,
+        });
+      }
+
+      return { deleted: true as const };
     },
 
     async getById(input) {

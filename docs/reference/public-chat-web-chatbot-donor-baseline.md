@@ -2,10 +2,14 @@
 doc_type: reference
 status: active
 created: 2026-04-06
-updated: 2026-04-06
+updated: 2026-04-09
 ---
 
 # Public Chat Web Chatbot Donor Baseline
+
+> 说明：本文冻结的是第一轮 donor baseline 记录。
+> 其中 `adapt, do not mirror` 与 `compatibility overlay` 只描述第一轮 donor 落地方式，不再代表当前 forward end state。
+> 当前前向实施应以 [public-chat-web-donor-first-reset.md](/home/reptilian/code/campus-agent/docs/plans/public-chat-web-donor-first-reset.md) 与 [public-chat-web-vendor-runtime-full-transplant.md](/home/reptilian/code/campus-agent/docs/plans/public-chat-web-vendor-runtime-full-transplant.md) 为准。
 
 ## 文档边界
 
@@ -88,41 +92,49 @@ updated: 2026-04-06
 
 donor code 落地时必须遵守以下规则：
 
-- 进入 `apps/public-chat-web` 后即视为 repo-owned code，不保留 vendor mirror 目录
-- 不做整目录生搬硬套；只按 shell / component / primitive 粒度吸收
+- donor vendor tree 保留在 `apps/public-chat-web/vendor/vercel-ai-chatbot/`
+- 当前 forward target 是 `vendor-owned chat runtime + repo-owned platform seams`
+- 第一轮 `compatibility overlay` 只是 donor 首次落地方式，不再是目标终态
 - 所有 data access 必须经过 repo-owned adapter seam
 - 所有 auth/session/conversation/request assumptions 必须重新对齐 `app-api` contract
 - 所有 routes 必须服从现有 Worker shell 和 same-site `/api/*` seam
 
 ## Target Landing Zones
 
-当前固定的 repo 落点：
+当前 worktree 的 donor 落地区域如下：
 
-- shell/components/primitives: `apps/public-chat-web/src/chatbot-shell/`
-- adapters: `apps/public-chat-web/src/chatbot-shell/adapters/`
-- donor-style utilities: `apps/public-chat-web/src/chatbot-shell/lib/`
+- donor vendor tree: `apps/public-chat-web/vendor/vercel-ai-chatbot/`
+- repo-owned platform seam: `apps/public-chat-web/src/platform/`
+- repo-owned route tree and login surface: `apps/public-chat-web/src/routes/`, `apps/public-chat-web/src/login/`
 
-当前 legacy UI 仍保留在：
+当前 repo-owned browser shell 仍保留在：
 
 - `apps/public-chat-web/src/public-chat/`
 - `apps/public-chat-web/src/styles.css`
 
-其中只有登录面、session bootstrap、route status card 与 boot fallback 仍由 legacy surface 承担；
-默认 `/chat` 与 `/chat/:conversationId` 已切到 donor-derived shell。
+其中只有登录面、session bootstrap、route status card 与 boot fallback 仍由 repo-owned surface 承担；
+默认 `/chat` 与 `/chat/:conversationId` 已切到 canonical donor runtime。
+`src/chatbot-donor/` 与 `src/chatbot-shell/` 已从 app source tree 退役，不再保留兼容 overlay 或过渡壳。
 Wave 5 staging smoke 收口后，之前的 `/chat/replatform-preview*` 临时 debug seam 已被移除，不再保留额外产品外路由。
 
 ## Patch Policy
 
-本 repo 对 donor 采用 `adapt, do not mirror` policy：
+本 repo 当前对 donor 采用 `vendor, then adapt edges` policy。
+
+补充说明：
+
+- 第一轮 patch 主要落在 overlay 中
+- 当前 forward patch 目标是把 chat 可见 UI 收回 vendor tree，自身只保留 platform seams
+- `unsupported feature` 当前不要求永久切除，其源码可继续保留在 vendor tree，后续按独立 phase 重开
 
 1. 先冻结 donor snapshot。
-2. 只复制本轮明确需要的 shell / component / primitive 思路。
-3. 进入 repo 后立刻改写为：
+2. 保留 vendor tree，避免再次把 donor 退化成“设计参考”。
+3. 在 repo-owned seams 中只改这些边：
    - Worker web surface 语义
    - same-site `/api/*` seam
    - `app-api`-owned auth/session/conversation/request truth
-4. 不保留 upstream backend contracts 的兼容层。
-5. 不为了复用 donor 而反向重塑 `app-api`。
+4. 不把 upstream backend/runtime truth 带进 repo。
+5. 不为了 donor 复用而反向重塑 `app-api`。
 
 ## External References
 

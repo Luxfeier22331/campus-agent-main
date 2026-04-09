@@ -53,8 +53,11 @@ function createPrincipal(
 function createStore(): ChatConversationStore {
   return {
     createConversationDraft: vi.fn(),
+    deleteConversationByOwner: vi.fn(),
+    deleteConversationsByOwner: vi.fn(),
     getConversationByOwner: vi.fn(),
     getConversationDetailByOwner: vi.fn(),
+    listConversationSummariesPageByOwner: vi.fn(),
     listConversationSummariesByOwner: vi.fn(),
   };
 }

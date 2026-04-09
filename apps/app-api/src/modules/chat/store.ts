@@ -17,7 +17,14 @@ export interface ChatConversationDraftWrite {
 
 export interface ChatConversationStore {
   listConversationSummariesByOwner(ownerUserId: string): Promise<ChatConversationSummary[]>;
+  listConversationSummariesPageByOwner(input: {
+    ownerUserId: string;
+    limit: number;
+    endingBeforeConversationId: string | null;
+  }): Promise<{ conversations: ChatConversationSummary[]; hasMore: boolean }>;
   createConversationDraft(input: ChatConversationDraftWrite): Promise<ChatConversation>;
+  deleteConversationByOwner(ownerUserId: string, conversationId: string): Promise<boolean>;
+  deleteConversationsByOwner(ownerUserId: string): Promise<number>;
   getConversationDetailByOwner(
     ownerUserId: string,
     conversationId: string,
@@ -122,6 +129,29 @@ export function createPgChatConversationStore(
       return rows.map(toChatConversationSummary);
     },
 
+    async listConversationSummariesPageByOwner(input) {
+      const db = await getDb();
+      const rows = await db
+        .select()
+        .from(conversations)
+        .where(eq(conversations.ownerUserId, input.ownerUserId))
+        .orderBy(desc(conversations.updatedAt));
+
+      const summaries = rows.map(toChatConversationSummary);
+      const startIndex = input.endingBeforeConversationId
+        ? summaries.findIndex((conversation) => conversation.id === input.endingBeforeConversationId) + 1
+        : 0;
+
+      const normalizedStartIndex = startIndex > 0 ? startIndex : 0;
+      const page = summaries.slice(normalizedStartIndex, normalizedStartIndex + input.limit);
+      const hasMore = normalizedStartIndex + input.limit < summaries.length;
+
+      return {
+        conversations: page,
+        hasMore,
+      };
+    },
+
     async createConversationDraft(input) {
       const db = await getDb();
       await db.insert(conversations).values({
@@ -138,6 +168,26 @@ export function createPgChatConversationStore(
       }
 
       return conversation;
+    },
+
+    async deleteConversationByOwner(ownerUserId, conversationId) {
+      const db = await getDb();
+      const deletedRows = await db
+        .delete(conversations)
+        .where(and(eq(conversations.ownerUserId, ownerUserId), eq(conversations.id, conversationId)))
+        .returning({ id: conversations.id });
+
+      return deletedRows.length > 0;
+    },
+
+    async deleteConversationsByOwner(ownerUserId) {
+      const db = await getDb();
+      const deletedRows = await db
+        .delete(conversations)
+        .where(eq(conversations.ownerUserId, ownerUserId))
+        .returning({ id: conversations.id });
+
+      return deletedRows.length;
     },
 
     async getConversationDetailByOwner(ownerUserId, conversationId) {

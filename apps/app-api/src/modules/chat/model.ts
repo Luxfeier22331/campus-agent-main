@@ -52,6 +52,19 @@ export interface ChatConversationSummaryResponse {
   updatedAt: string;
 }
 
+export interface VendorChatHistoryItemResponse {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  visibility: "private" | "public";
+}
+
+export interface VendorChatHistoryPageResponse {
+  chats: VendorChatHistoryItemResponse[];
+  hasMore: boolean;
+}
+
 export function toConversationResponse(conversation: ChatConversation): ChatConversationResponse {
   return {
     id: conversation.id,
@@ -70,5 +83,14 @@ export function toConversationSummaryResponse(
     title: conversation.title,
     createdAt: conversation.createdAt,
     updatedAt: conversation.updatedAt,
+  };
+}
+
+export function toVendorChatHistoryItemResponse(
+  conversation: ChatConversationSummary,
+): VendorChatHistoryItemResponse {
+  return {
+    ...toConversationSummaryResponse(conversation),
+    visibility: "private",
   };
 }

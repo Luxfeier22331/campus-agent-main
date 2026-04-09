@@ -107,6 +107,8 @@ function createConversationStore(input?: {
   const conversation = input?.conversation ?? createConversation();
   const store: ChatConversationStore = {
     createConversationDraft: vi.fn(),
+    deleteConversationByOwner: vi.fn(),
+    deleteConversationsByOwner: vi.fn(),
     getConversationByOwner: vi.fn(async (ownerUserId: string, conversationId: string) => {
       if (ownerUserId !== conversation.ownerUserId || conversationId !== conversation.id) {
       return null;
@@ -115,6 +117,7 @@ function createConversationStore(input?: {
       return structuredClone(conversation);
     }),
     getConversationDetailByOwner: vi.fn(),
+    listConversationSummariesPageByOwner: vi.fn(),
     listConversationSummariesByOwner: vi.fn(),
   };
 
