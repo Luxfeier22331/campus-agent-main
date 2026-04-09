@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: 2026-04-10 Quick task 260410-4zq 完成；本地 Postgres 开发闭环、accepted-union 单次导入与 bounded Wave D 355119 proof 已落盘
-last_updated: "2026-04-10T04:16:06+08:00"
+stopped_at: 2026-04-10 Quick task 260410-5yl 完成；policy_regulation batch Cohort A/B/C、local-only quality pilot 与 wrapper follow-up boundary 已落盘
+last_updated: "2026-04-10T04:49:28+08:00"
 progress:
   total_phases: 25
   completed_phases: 25
@@ -252,10 +252,13 @@ Recent decisions affecting current work:
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
+| 260410-5yl | 冻结 internal notice policy/regulation Cohort A/B/C 并完成本地质量 pilot | 2026-04-10 | b1b5150 | [260410-5yl-internal-notice-policy-regulation-cohort](./quick/260410-5yl-internal-notice-policy-regulation-cohort/) |
 | 260410-4zq | 将本地开发数据库迁移到 local Postgres 并完成 Wave D 本地闭环 | 2026-04-10 | b253bb8 | [260410-4zq-postgres-shared-supabase-wave-d](./quick/260410-4zq-postgres-shared-supabase-wave-d/) |
 
 ## Recent Verification
 
+- `uv run --all-packages python .planning/quick/260410-5yl-internal-notice-policy-regulation-cohort/cohort_a_local_quality_pilot.py --cohort-manifest .planning/quick/260410-5yl-internal-notice-policy-regulation-cohort/run14-policy-regulation-cohorts.json --local-smoke-root .tmp/historical-intake/run14-policy-regulation-expanded/local-smoke --output-dir .planning/quick/260410-5yl-internal-notice-policy-regulation-cohort`
+- `uv run --all-packages python - <<'PY' ...` for `.planning/quick/260410-5yl-internal-notice-policy-regulation-cohort/cohort-a-validation-summary.json` and `.planning/quick/260410-5yl-internal-notice-policy-regulation-cohort/cohort-a-samples/samples.json`
 - `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.evals.test_golden_cases tests.evals.test_context_diagnostics tests.specialist.test_rag_specialist tests.evals.test_curriculum_live_benchmark tests.evals.test_ragas_runtime`
 - `set -a && source .env && set +a && env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m campus_evals.curriculum_live_benchmark accept --reruns 3 --verbose --log-jsonl .tmp/evals/curriculum-runtime-events-20260410-wave-c.jsonl --output-dir .tmp/evals/curriculum-plan-live-gate-accept-20260410-wave-c` (`non-retryable supplemental preflight failure`, `provider_contract_violation`)
 - `pnpm --dir apps/app-api test:node -- test/auth-and-db.test.ts test/chat-requests.route.test.ts test/telemetry.axiom.test.ts`
@@ -275,8 +278,8 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last activity: 2026-04-10 - Completed quick task 260410-4zq: 将本地开发数据库迁移到 local Postgres 并完成 Wave D 本地闭环
+Last activity: 2026-04-10 - Completed quick task 260410-5yl: 冻结 internal notice policy/regulation Cohort A/B/C 并完成本地质量 pilot
 
-Last session: 2026-04-05T06:55:00+08:00
-Stopped at: `official_web_stable_reference` alias publish, `muc_public_pages` alias unpublish, and `official_web/fresh_news` seed local release validation are complete; next step is news-serving runtime policy
+Last session: 2026-04-10T04:49:28+08:00
+Stopped at: `260410-5yl` quick task is complete; next authenticated-notice forward action remains Wave D full current-scope source-truth refresh after operator env truth is restored
 Resume file: None
