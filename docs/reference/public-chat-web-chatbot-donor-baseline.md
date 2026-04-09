@@ -107,14 +107,16 @@ donor code 落地时必须遵守以下规则：
 - repo-owned platform seam: `apps/public-chat-web/src/platform/`
 - repo-owned route tree and login surface: `apps/public-chat-web/src/routes/`, `apps/public-chat-web/src/login/`
 
-当前 repo-owned browser shell 仍保留在：
+当前 repo-owned browser shell 仅保留在：
 
-- `apps/public-chat-web/src/public-chat/`
+- `apps/public-chat-web/src/platform/`
+- `apps/public-chat-web/src/routes/`
+- `apps/public-chat-web/src/login/`
 - `apps/public-chat-web/src/styles.css`
 
-其中只有登录面、session bootstrap、route status card 与 boot fallback 仍由 repo-owned surface 承担；
+其中 repo-owned surface 只承担平台接缝、路由接线、登录面、route status card 与 boot fallback；
 默认 `/chat` 与 `/chat/:conversationId` 已切到 canonical donor runtime。
-`src/chatbot-donor/` 与 `src/chatbot-shell/` 已从 app source tree 退役，不再保留兼容 overlay 或过渡壳。
+`src/chatbot-donor/`、`src/chatbot-shell/` 与 `src/public-chat/` 已从 app source tree 退役，不再保留兼容 overlay 或过渡壳。
 Wave 5 staging smoke 收口后，之前的 `/chat/replatform-preview*` 临时 debug seam 已被移除，不再保留额外产品外路由。
 
 ## Patch Policy

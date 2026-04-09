@@ -8,7 +8,7 @@ describe("public chat legacy retirement", () => {
   it("does not keep legacy shell directories or duplicate auth clients in the app source tree", () => {
     expect(existsSync(new URL("../src/chatbot-shell", import.meta.url))).toBe(false);
     expect(existsSync(new URL("../src/chatbot-donor", import.meta.url))).toBe(false);
-    expect(existsSync(new URL("../src/public-chat/auth.ts", import.meta.url))).toBe(false);
+    expect(existsSync(new URL("../src/public-chat", import.meta.url))).toBe(false);
   });
 
   it("does not fake a conversation route before the canonical conversation id exists", () => {
