@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-03-29
-updated: 2026-04-05
+updated: 2026-04-08
 ---
 
 # Environment
@@ -57,7 +57,7 @@ updated: 2026-04-05
 
 ## 当前状态
 
-- 当前 root worktree `.env` 可以集中保存本地 surface-specific `Sentry` DSN 与 shared `Axiom` 值，当前 worktree 的 app-local `.dev.vars` 也可以同步为 ready 状态
+- 当前 root worktree `.env` 可以集中保存本地 surface-specific `Sentry` DSN、repo-local `SENTRY_API_TOKEN` 与 shared `Axiom` 值；其中只有 `SENTRY_DSN_*` / `AXIOM_*` 会参与 Worker readiness，同步到当前 worktree 的 app-local `.dev.vars`
 - 2026-04-02 已再次完成一次本地 observability readiness 复核：`check_worker_observability_env --json` 仍为 `overall_ready=true`，且 `apps/app-api`、`apps/public-chat-web`、`apps/protected-panel-web` 的 targeted Worker smoke 再次通过
 - 这意味着 `Pre-Deploy Readiness` 已闭环；它不自动推出 deploy-side secret store 与 live sink verification 已关闭
 - 对 deploy 环境的 `SENTRY_*` / `AXIOM_*` 下发确认与 live sink smoke，应在首个真实部署环境创建后作为 deployment gate 执行，而不是把“尚未部署”写成当前 repo blocker
@@ -110,12 +110,15 @@ updated: 2026-04-05
 - 如果本地把 surface-specific DSN 暂时集中存放在 root worktree `.env`，可用 `uv run --all-packages python -m scripts.sync_worker_observability_env`
   把 `SENTRY_DSN_API`、`SENTRY_DSN_CHAT`、`SENTRY_DSN_PANEL` fan out 到当前 worktree 的 app-local `.dev.vars`
 - 如果要检查 root `.env` 与 app-local `.dev.vars` 是否已经对齐，可用 `uv run --all-packages python -m scripts.check_worker_observability_env --json`
+- 如果要探测 repo-local `Sentry` lookup credential 是否可读取 org / project，可用
+  `uv run --all-packages python -m scripts.check_sentry_lookup_access --json`
 - 如果本地希望直接复用 root worktree `.env` 里的共享 Supabase Postgres，可用
   `uv run --all-packages python -m scripts.sync_app_api_local_db_env`
   把 `CAMPUS_SHARED_POSTGRES_URL` fan out 到 `apps/app-api/.env` 的
   `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB` 与
   `APP_API_MANAGEMENT_DATABASE_URL`
 - `apps/app-api` 还会在 source `.env` 存在 `AXIOM_ENDPOINT`、`AXIOM_DATASET`、`AXIOM_TOKEN` 时同步这三个键
+- `SENTRY_API_TOKEN` 只用于 repo-local smoke / artifact collection，不同步到任何 Worker `.dev.vars`，也不构成 deploy-side runtime ownership
 - `AXIOM_ENDPOINT` 应填写 Axiom `Settings -> General -> Edge deployment` 对应的 base domain，例如 `https://us-east-1.aws.edge.axiom.co`
 - `AXIOM_DATASET` 应保持 service/env 级别命名，例如 `campus-agent-runtime-dev`，不要把多类信号混进一个 kitchen-sink dataset
 - `apps/protected-panel-web/.dev.vars.example` 中的 `PANEL_RUNTIME_API_BASE_URL` 应指向 shared `apps/app-api`，不是 `apps/supervisor-api`

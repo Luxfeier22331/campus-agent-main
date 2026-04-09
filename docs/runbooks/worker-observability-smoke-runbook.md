@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-03-31
-updated: 2026-04-06
+updated: 2026-04-08
 ---
 
 # Worker Observability Smoke Runbook
@@ -102,7 +102,7 @@ pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "smokes
 - 真实 `public-chat-web`、`protected-panel-web`、`app-api` hostname
 - 当次 Worker release 标识
 - deploy secret store 中的 `SENTRY_*` / `AXIOM_*` 已下发确认
-- 可访问 `Sentry` 项目与 `Axiom` dataset 的操作权限
+- repo-local `SENTRY_API_TOKEN` 或等价 Sentry UI access，以及可访问 `Axiom` dataset 的操作权限
 - 执行 smoke 的身份与凭证来源
 
 说明：
@@ -110,7 +110,15 @@ pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "smokes
 - `wrangler` 远程检查可以作为辅助手段，但不是唯一 gate
 - 真正的 closure 以真实请求、真实 trace 和真实 runtime event 是否进入 sink 为准
 - `AXIOM_TOKEN` 可以只是 deploy-side ingest token；如果 query API 返回 `403 token does not have required permissions`，应改用独立的 read/query token。当前 repo root worktree 用 `AXIOM_SMOKE` 完成 query closure
-- `SENTRY_DSN` 只证明 deploy-side sink 配置存在；真正的 sink-side verification 仍需要 Sentry UI 或 auth token，不能把 DSN 已下发误写成“已完成 Sentry 验证”
+- `SENTRY_DSN` 只证明 deploy-side sink 配置存在；真正的 sink-side verification 仍需要 Sentry UI 或 repo-local `SENTRY_API_TOKEN`
+- `SENTRY_API_TOKEN` 是 repo-local lookup credential，不应 fan out 到任何 Worker `.dev.vars` 或 deploy secret store
+- 建议先执行：
+
+```bash
+env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.check_sentry_lookup_access --json
+```
+
+  确认 token 至少能读取目标 org / project，再进入 trace / event 证据留存
 - 建议先用 `docs/runbooks/worker-observability-smoke-artifact-template.md` 填完 handoff 与 evidence 字段，再执行真实环境 smoke
 
 ## Post-Deploy Verification
@@ -207,7 +215,7 @@ pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "smokes
 - `Post-Deploy Verification` 触发条件：
   已存在至少一个真实部署环境，并具备本 runbook 的 deployment handoff inputs
 - `Post-Deploy Verification` 关闭条件：
-  `public-chat-web`、`protected-panel-web`、`app-api` 三端至少各完成一轮真实 smoke，并且 `Axiom` 收到 `projection.drain` 或等价 runtime event
+  `public-chat-web`、`protected-panel-web`、`app-api` 三端至少各完成一轮真实 smoke，`Axiom` 收到 `projection.drain` 或等价 runtime event，并且 `Sentry` 至少保留一条 trace-linked 或 controlled-error event evidence
 - 在没有真实部署环境时，这条 follow-up 的正确状态是 `post-deploy verification pending`，不是“本地工程阻塞”
 
 ## 2026-04-06 Staging Checkpoint
@@ -216,10 +224,11 @@ pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "smokes
 
 - `public-chat-web -> app-api`: closed。真实请求 `req_3f493161ae6c4c669304c4ca439dfe4a` / `trace_f3d3792b021f4118ac90a06041f9b03f` 已返回 `answer`
 - `app-api` scheduled / projection drain: closed。`Axiom` 已查到最新 `event_type=projection.drain`、`projector_name=request_projection`、`surface=app_api`、`processed_count=2`、`failed_count=0`
-- `protected-panel-web -> app-api`: pending real smoke identity。`panel-staging` 已是 Cloudflare Access 登录页，不再是缺少 Access provisioning
-- `Sentry` sink-side verification: pending access。deploy-side `SENTRY_DSN` 已存在，但 repo 侧尚无可用的 lookup token / UI access
+- `protected-panel-web -> app-api`: closed。`.tmp/staging-smoke/20260406T115658-panel-requests-fix/SUMMARY.md` 已确认 `help_bot@outlook.com` 完成 Cloudflare Access 登录，`GET /api/overview`、`GET /api/requests?limit=20`、`GET /api/requests/:id`、`GET /api/requests/:id/observability` 全部返回 `200`
+- `Sentry` sink-side verification: lookup ready, event evidence pending。repo-local `SENTRY_API_TOKEN` 已可读取 org `linear27` 及 `campus-agent-api` / `campus-agent-chat` / `campus-agent-panel` 三个项目，但这轮 artifact 仍未追加 event-level trace / controlled-error 证据
 
 当前 checkpoint artifact：
 
 - `.tmp/staging-smoke/20260406T032941-wave-b-closure/`
+- `.tmp/staging-smoke/20260406T115658-panel-requests-fix/`
 - `.tmp/observability-smoke/20260406T032941-staging-wave-b/`

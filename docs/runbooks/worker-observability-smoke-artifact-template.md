@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-02
-updated: 2026-04-02
+updated: 2026-04-08
 ---
 
 # Worker Observability Smoke Artifact Template
@@ -43,6 +43,7 @@ updated: 2026-04-02
 - `SENTRY_*` deployed: `yes` | `no`
 - `AXIOM_*` deployed: `yes` | `no`
 - Sentry access confirmed: `yes` | `no`
+- `check_sentry_lookup_access --json`:
 - Axiom access confirmed: `yes` | `no`
 - Smoke identity / credentials source:
 
