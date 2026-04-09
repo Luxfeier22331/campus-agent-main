@@ -450,6 +450,27 @@ def _build_promotional_banner_png_bytes() -> bytes:
     return buffer.getvalue()
 
 
+def _build_activity_notice_inline_png_bytes() -> bytes:
+    from PIL import Image, ImageDraw
+
+    image = Image.new("RGB", (1327, 641), (250, 250, 250))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((0, 0, 1327, 92), fill=(236, 240, 246))
+    draw.rectangle((72, 134, 1255, 176), fill=(212, 218, 228))
+    draw.rectangle((72, 214, 1168, 234), fill=(224, 226, 232))
+    draw.rectangle((72, 252, 1184, 272), fill=(224, 226, 232))
+    draw.rectangle((72, 290, 1104, 310), fill=(224, 226, 232))
+    draw.rectangle((72, 348, 208, 376), fill=(206, 212, 222))
+    draw.rectangle((72, 398, 412, 416), fill=(224, 226, 232))
+    draw.rectangle((72, 434, 386, 452), fill=(224, 226, 232))
+    draw.rectangle((72, 490, 208, 518), fill=(206, 212, 222))
+    draw.rectangle((72, 540, 446, 558), fill=(224, 226, 232))
+    draw.rectangle((72, 576, 428, 594), fill=(224, 226, 232))
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
 def _build_table_like_png_bytes() -> bytes:
     from PIL import Image, ImageDraw
 
@@ -1962,7 +1983,7 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
         self,
     ) -> None:
         docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
-        png_bytes = _build_promotional_banner_png_bytes()
+        png_bytes = _build_activity_notice_inline_png_bytes()
         bundle = _sample_notice_bundle_with_inline_image_context(
             docx_bytes=docx_bytes,
             png_bytes=png_bytes,
