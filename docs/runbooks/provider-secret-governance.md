@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-02
-updated: 2026-04-02
+updated: 2026-04-10
 ---
 
 # Provider Secret Governance
@@ -17,8 +17,7 @@ updated: 2026-04-02
 - `packages/evals` / `packages/shared` 的 provider precedence
 - app/runtime topology
 
-这些代码与本地配置语义以 `docs/environment/README.md` 和
-`docs/plans/env-bootstrap-and-provider-configuration-governance.md` 为准。
+这些代码与本地配置语义以 `docs/environment/README.md` 为准。
 
 ## Core Rules
 

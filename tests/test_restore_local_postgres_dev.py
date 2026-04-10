@@ -9,7 +9,10 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from scripts.restore_local_postgres_dev import (
+    APP_API_DEV_VARS_BACKUP_PATH,
+    APP_API_ENV_BACKUP_PATH,
     DEFAULT_NORMALIZED_BATCH_DIRS,
+    ROOT_ENV_BACKUP_PATH,
     LOCAL_POSTGRES_DATABASE_URL,
     execute_local_postgres_recovery,
     main,
@@ -164,6 +167,50 @@ def _seed_repo_with_default_batches(repo_root: Path) -> None:
 
 
 class RestoreLocalPostgresDevTest(unittest.TestCase):
+    def test_prepare_local_postgres_recovery_captures_pre_local_env_backups_once(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "campus-agent"
+            original_root_env = "\n".join(
+                [
+                    "KEEP_ME=1",
+                    "CAMPUS_SHARED_POSTGRES_URL=postgres://remote/runtime",
+                    "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL=postgres://remote/management",
+                ]
+            ) + "\n"
+            original_app_env = "\n".join(
+                [
+                    "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=postgres://remote/runtime",
+                    "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH=postgres://remote/runtime",
+                    "APP_API_MANAGEMENT_DATABASE_URL=postgres://remote/management",
+                ]
+            ) + "\n"
+            original_dev_vars = "\n".join(
+                [
+                    "APP_API_DATABASE_SSLMODE=prefer",
+                    "APP_API_INTERNAL_SHARED_SECRET=test-secret",
+                ]
+            ) + "\n"
+            _write(repo_root / ".env", original_root_env)
+            _write(repo_root / "apps" / "app-api" / ".env", original_app_env)
+            _write(repo_root / "apps" / "app-api" / ".dev.vars", original_dev_vars)
+            _seed_repo_with_default_batches(repo_root)
+
+            prepare_local_postgres_recovery(repo_root=repo_root)
+            prepare_local_postgres_recovery(repo_root=repo_root)
+
+            self.assertEqual(
+                (repo_root / ROOT_ENV_BACKUP_PATH).read_text(encoding="utf-8"),
+                original_root_env,
+            )
+            self.assertEqual(
+                (repo_root / APP_API_ENV_BACKUP_PATH).read_text(encoding="utf-8"),
+                original_app_env,
+            )
+            self.assertEqual(
+                (repo_root / APP_API_DEV_VARS_BACKUP_PATH).read_text(encoding="utf-8"),
+                original_dev_vars,
+            )
+
     def test_prepare_local_postgres_recovery_rewrites_envs_and_builds_union_bundle(self) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"

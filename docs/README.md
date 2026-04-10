@@ -86,7 +86,7 @@ updated: 2026-04-10
 - authenticated notice 规章制度消费与后续 `regulations/*` 提升实施：`plans/internal-notice-policy-regulation-consumption-implementation.md`
 - authenticated notice source attachment key 重组：`plans/authenticated-notice-source-attachment-key-reorganization.md`
 - authenticated notice source-truth bounded pilot：`runbooks/authenticated-notice-source-truth-replay-pilot-runbook.md`
-- 本地 Docker Postgres 恢复入口：`runbooks/local-postgres-dev-recovery-runbook.md`
+- 本地 Docker Postgres 开发生命周期：`runbooks/local-postgres-dev-recovery-runbook.md`
 - internal_notice preparation 质量验收：`reference/internal-notice-offline-preparation-quality-acceptance.md`
 - internal_notice preparation 当前证据：`reference/internal-notice-offline-preparation-quality-evidence.md`
 - authenticated-notice 历史 closeout 当前证据：`reference/authenticated-notice-historical-closeout-evidence.md`

@@ -135,7 +135,17 @@ updated: 2026-04-10
   - 执行 `pnpm --dir apps/app-api db:reconcile-shared-drift -- --json`
   - 对 union bundle 做单次 `import_authenticated_notice_export`
   - 执行 `rebuild_authenticated_notice_source_truth_inventory`
-  - 默认校验本地 current scope 计数为 `20 / 21 / 1 / 5`
+  - 默认校验本地 current scope 计数为 `20 / 21 / 1 / 0`
+- 如果需要对当前 worktree 执行完整本地链路 smoke，而不是只做 restore，可用
+  `uv run --all-packages python -m scripts.local_postgres_dev_smoke --execute --json`
+  这条入口会在本地 restore 基础上继续完成：
+  - `Docker MinIO` 拉起与 bucket ensure
+  - current-scope validation
+  - bounded `355119` replay / closeout / show / validation
+  - bounded chunk preparation 与 preparation validation
+- 如果当前 worktree 已切到本地 `Docker Postgres`，需要回到 shared/cloud Postgres env 值，可用
+  `uv run --all-packages python -m scripts.restore_shared_postgres_dev --json`
+  这条入口默认优先消费 `.tmp/local-postgres-recovery/backups/*` 中的 pre-local backups；如备份不存在，也可显式传入 `--shared-root-env`、`--shared-app-api-env`、`--shared-app-api-dev-vars`
 - 这条入口是 `local dev / test path`，不改变 `docs/data/shared-postgres-ownership.md` 与 `ADR-0029` 的 deployed runtime truth
 - 这条入口默认假定本地对象存储仍按 `ADR-0002` 运行，且 `.tmp/historical-intake/.../normalized` 已存在；如果 donor normalized artifacts 尚未准备好，先按 `docs/runbooks/authenticated-notice-historical-donor-intake-runbook.md` 生成
 - `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` 只用于 repo-local migration / DBA / offline ingestion operator 路径，

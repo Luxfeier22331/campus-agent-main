@@ -9,13 +9,17 @@ updated: 2026-04-10
 
 ## 文档边界
 
-这份 runbook 只记录当前 worktree 把本地开发数据库切到 `Docker Postgres`，并恢复 authenticated-notice accepted current scope 的可重复入口。
+这份 runbook 记录当前 worktree 的本地 Postgres 开发生命周期：
+
+- 从 shared/cloud Postgres env 切到本地 `Docker Postgres`
+- 对本地 `Postgres + MinIO` 执行完整 smoke
+- 从本地模式回切到 shared/cloud Postgres env
 
 它回答的是：
 
-- 当前 repo 里哪条命令是 canonical local recovery entry
-- 这条入口会改哪些文件、执行哪些命令
-- 它证明了什么，不证明什么
+- 当前 repo 里哪几条命令是 canonical local lifecycle entries
+- 每条入口会改哪些文件、执行哪些命令
+- 它们分别证明什么，不证明什么
 
 它不替代：
 
@@ -37,6 +41,18 @@ uv run --all-packages python -m scripts.restore_local_postgres_dev --json
 uv run --all-packages python -m scripts.restore_local_postgres_dev --execute --json
 ```
 
+如果要验证完整本地链路，而不是只做 restore：
+
+```bash
+uv run --all-packages python -m scripts.local_postgres_dev_smoke --execute --json
+```
+
+如果当前 worktree 已切到本地模式，需要回到 shared/cloud Postgres env：
+
+```bash
+uv run --all-packages python -m scripts.restore_shared_postgres_dev --json
+```
+
 ## 默认前置条件
 
 - 本地可执行 `docker`、`pnpm`、`uv`
@@ -48,7 +64,7 @@ uv run --all-packages python -m scripts.restore_local_postgres_dev --execute --j
 
 如果 normalized donor batch 还没准备好，先按 `docs/runbooks/authenticated-notice-historical-donor-intake-runbook.md` 生成。
 
-## 这条入口会做什么
+## Restore 入口会做什么
 
 它会先改写本地文件：
 
@@ -96,6 +112,12 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.rebui
   --collection internal_notice
 ```
 
+同时，`restore_local_postgres_dev` 会在当前 root `.env` 仍然指向非本地 DSN 时，自动写入 pre-local backups：
+
+- `.tmp/local-postgres-recovery/backups/env.root.before-local-postgres`
+- `.tmp/local-postgres-recovery/backups/env.app-api.before-local-postgres`
+- `.tmp/local-postgres-recovery/backups/devvars.app-api.before-local-postgres`
+
 ## 为什么必须先合并再导入
 
 `import_authenticated_notice_export` 对 `campus_notices/internal_notice` 固定走 `scope_refresh=(corpus, collection)`。
@@ -113,7 +135,11 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.rebui
 - `notice_count = 20`
 - `expected_document_count = 21`
 - `expected_attachment_document_count = 1`
-- `expected_ocr_candidate_count = 5`
+- `expected_ocr_candidate_count = 0`
+- `notice_risk_counts.body_only = 16`
+- `notice_risk_counts.body_with_reference_only_attachments = 1`
+- `notice_risk_counts.body_with_spatial_attachments = 2`
+- `notice_risk_counts.body_with_text_attachments = 1`
 
 如果需要不同的 local sample，可显式覆写：
 
@@ -125,6 +151,47 @@ uv run --all-packages python -m scripts.restore_local_postgres_dev \
   --expected-ocr-candidate-count 0 \
   --json
 ```
+
+## Full Smoke 入口会做什么
+
+`local_postgres_dev_smoke` 在 restore 入口基础上，继续执行本地 smoke 所需的对象存储与 replay/preparation 步骤。
+
+顺序固定为：
+
+```bash
+docker compose -f infra/local/docker-compose.minio.yml up -d
+uv run --all-packages python -m scripts.restore_local_postgres_dev --execute --json
+uv run --package campus-ingestion-worker python -m campus_ingestion_worker.validate_internal_notice_chunking --sample-dir <current-scope-sample-dir>
+uv run --package campus-ingestion-worker python -m campus_ingestion_worker.plan_authenticated_notice_source_truth_replay --notice-id 355119 --run-id <run_id>
+uv run --package campus-ingestion-worker python -m campus_ingestion_worker.run_authenticated_notice_closeout_worker --run-id <run_id> --worker-id local-postgres-01
+uv run --package campus-ingestion-worker python -m campus_ingestion_worker.show_authenticated_notice_closeout --run-id <run_id>
+uv run --package campus-ingestion-worker python -m campus_ingestion_worker.validate_internal_notice_chunking --closeout-run-id <run_id> --sample-dir <closeout-sample-dir>
+uv run --package campus-ingestion-worker python -m campus_ingestion_worker.prepare_registry_scope_chunks --corpus campus_notices --collection internal_notice --closeout-run-id <run_id> --preparation-run-id <prep_id>
+uv run --package campus-ingestion-worker python -m campus_ingestion_worker.validate_internal_notice_chunking --preparation-run-id <prep_id> --sample-dir <prep-sample-dir>
+```
+
+固定约束：
+
+- 默认 bounded notice 是 `355119`
+- 默认只证明 bounded replay / preparation 链路，不自动推进 full release / alias publish
+- MinIO bucket 会通过 object-store client ensure `campus-rag-source` 与 `campus-rag-derived`
+
+## 回切 Shared/Cloud 入口会做什么
+
+`restore_shared_postgres_dev` 不会粗暴整文件覆盖当前 worktree 的 `.env` / `.dev.vars`。
+
+它固定执行：
+
+- 读取 pre-local backups，或显式传入的 shared source env files
+- 只恢复 root `.env` 中的 DB 相关 key
+- 恢复或重建 `apps/app-api/.env`
+- 恢复 `apps/app-api/.dev.vars` 中的 `APP_API_DATABASE_SSLMODE`
+
+默认行为：
+
+- root `.env` source 必须是真正的 shared/cloud Postgres env，不能仍指向 `127.0.0.1:5432`
+- 如果缺少 app-api 独立 backup，会从 shared root env 重新同步 `apps/app-api/.env`
+- 如果缺少 `.dev.vars` backup，`APP_API_DATABASE_SSLMODE` fallback 为 `prefer`
 
 ## 可选覆写
 
@@ -138,15 +205,21 @@ uv run --all-packages python -m scripts.restore_local_postgres_dev \
   改写本地 Postgres DSN
 - `--corpus` / `--collection`
   改写导入与 inventory rebuild 目标 scope
+- `--run-id` / `--preparation-run-id`
+  改写 full smoke 的 replay / preparation run id
+- `--shared-root-env` / `--shared-app-api-env` / `--shared-app-api-dev-vars`
+  显式指定 shared restore 的 source env files
 
-## 这条入口证明什么
+## 这些入口证明什么
 
-- 当前 worktree 已切到本地 `Docker Postgres`
-- `apps/app-api` local bootstrap / shared-drift reconcile 通过
-- accepted authenticated-notice current scope 已用单次 union import 恢复
-- 当前 source-truth inventory 计数与预期一致
+- `restore_local_postgres_dev`
+  证明当前 worktree 已切到本地 `Docker Postgres`，并且 authenticated-notice accepted current scope 已恢复到预期 inventory
+- `local_postgres_dev_smoke`
+  额外证明当前 worktree 的本地 `Postgres + MinIO + bounded replay/preparation` 链路可被真实 operator 命令消费
+- `restore_shared_postgres_dev`
+  证明当前 worktree 可以从本地模式回切到 shared/cloud Postgres env values，而不是永久停留在本地 DSN
 
-## 这条入口不证明什么
+## 这些入口不证明什么
 
 - 不证明 staging / production 数据库 truth 已变化
 - 不证明 deployed runtime posture 已从 session pooler 改成 local Postgres

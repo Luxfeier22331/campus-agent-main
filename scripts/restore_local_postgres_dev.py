@@ -11,18 +11,24 @@ from campus_ingestion_core.authenticated_notice_legacy_export import (
     build_authenticated_notice_legacy_normalized_manifest,
 )
 
-from scripts.env_sync import load_target_seed, replace_or_append_env_values
+from scripts.env_sync import load_target_seed, parse_env_file, replace_or_append_env_values
 from scripts.sync_app_api_local_db_env import sync_app_api_local_db_env
 
 LOCAL_POSTGRES_DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent"
 DEFAULT_EXPORT_SCOPE = "run14-accepted-union-local-postgres"
+DEFAULT_RECOVERY_ROOT = Path(".tmp/local-postgres-recovery")
 DEFAULT_NORMALIZED_BATCH_DIRS = (
     Path(".tmp/historical-intake/run14-policy-regulation-expanded/normalized"),
     Path(".tmp/historical-intake/run14-attachment-routing-probe/normalized"),
     Path(".tmp/historical-intake/run14-policy-regulation-core/normalized"),
 )
-DEFAULT_UNION_OUTPUT_DIR = Path(".tmp/local-postgres-recovery/accepted-union")
+DEFAULT_UNION_OUTPUT_DIR = DEFAULT_RECOVERY_ROOT / "accepted-union"
+DEFAULT_BACKUP_DIR = DEFAULT_RECOVERY_ROOT / "backups"
 DEFAULT_DOCKER_COMPOSE_FILE = Path("infra/local/docker-compose.postgres.yml")
+ROOT_ENV_BACKUP_PATH = DEFAULT_BACKUP_DIR / "env.root.before-local-postgres"
+APP_API_ENV_BACKUP_PATH = DEFAULT_BACKUP_DIR / "env.app-api.before-local-postgres"
+APP_API_DEV_VARS_BACKUP_PATH = DEFAULT_BACKUP_DIR / "devvars.app-api.before-local-postgres"
+APP_API_ENV_PATH = Path("apps/app-api/.env")
 APP_API_DEV_VARS_PATH = Path("apps/app-api/.dev.vars")
 
 _ROOT_LOCAL_POSTGRES_ENV_KEYS = (
@@ -63,6 +69,10 @@ def prepare_local_postgres_recovery(
             "expected_attachment_document_count": 1,
             "expected_ocr_candidate_count": 5,
         }
+    )
+    backup_paths = capture_pre_local_postgres_backups(
+        repo_root=resolved_repo_root,
+        local_postgres_url=local_postgres_url,
     )
 
     root_env_path = _rewrite_root_env_for_local_postgres(
@@ -165,6 +175,9 @@ def prepare_local_postgres_recovery(
             "root_env_path": str(root_env_path),
             "app_api_env_path": str(app_api_env_path),
             "app_api_dev_vars_path": str(app_api_dev_vars_path),
+            "root_env_backup_path": str(backup_paths["root_env"]),
+            "app_api_env_backup_path": str(backup_paths["app_api_env"]),
+            "app_api_dev_vars_backup_path": str(backup_paths["app_api_dev_vars"]),
             "union_output_dir": str(resolved_union_output_dir),
             "union_bundle_path": str(union_bundle_path),
             "union_manifest_path": str(union_manifest_path),
@@ -392,6 +405,37 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
+def capture_pre_local_postgres_backups(
+    *,
+    repo_root: Path,
+    local_postgres_url: str = LOCAL_POSTGRES_DATABASE_URL,
+) -> dict[str, Path]:
+    backup_targets = {
+        "root_env": repo_root / ROOT_ENV_BACKUP_PATH,
+        "app_api_env": repo_root / APP_API_ENV_BACKUP_PATH,
+        "app_api_dev_vars": repo_root / APP_API_DEV_VARS_BACKUP_PATH,
+    }
+    root_env_path = repo_root / ".env"
+    current_root_values = (
+        parse_env_file(root_env_path) if root_env_path.exists() else {}
+    )
+    current_runtime_url = current_root_values.get("CAMPUS_SHARED_POSTGRES_URL", "").strip()
+    if current_runtime_url and current_runtime_url != local_postgres_url:
+        _write_backup_snapshot(
+            source_path=root_env_path,
+            target_path=backup_targets["root_env"],
+        )
+        _write_backup_snapshot(
+            source_path=repo_root / APP_API_ENV_PATH,
+            target_path=backup_targets["app_api_env"],
+        )
+        _write_backup_snapshot(
+            source_path=repo_root / APP_API_DEV_VARS_PATH,
+            target_path=backup_targets["app_api_dev_vars"],
+        )
+    return backup_targets
+
+
 def _rewrite_root_env_for_local_postgres(
     *,
     repo_root: Path,
@@ -479,6 +523,11 @@ def _display_path(repo_root: Path, path: Path) -> str:
 
 def _resolve_repo_path(repo_root: Path, path: Path) -> Path:
     return path if path.is_absolute() else repo_root / path
+
+
+def _write_backup_snapshot(*, source_path: Path, target_path: Path) -> None:
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    target_path.write_text(load_target_seed(source_path), encoding="utf-8")
 
 
 def _load_json(path: Path) -> Any:

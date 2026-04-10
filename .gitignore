@@ -23,3 +23,11 @@ node_modules/
 .turbo/
 .wrangler-home/
 .tanstack/
+
+# Quick-task local artifacts and env snapshots
+.planning/quick/**/accepted-union/
+.planning/quick/**/closeout-samples*/
+.planning/quick/**/current-scope-samples*/
+.planning/quick/**/prep-samples*/
+.planning/quick/**/env*.before-local-postgres
+.planning/quick/**/devvars*.before-local-postgres
