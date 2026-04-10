@@ -2,48 +2,46 @@
 doc_type: plan
 status: completed
 created: 2026-04-06
-updated: 2026-04-08
+updated: 2026-04-09
 ---
 
-# Public Chat Web Chatbot Replatform
+# Public Chat Web Chatbot Replatform (Historical Cutover Record)
 
-> 说明：本文记录的是较早一轮 `chatbot-derived shell` replatform 方案。
-> 当前 chat frontend 的详细前向实施，已转到 [public-chat-web-vendor-runtime-full-transplant.md](/home/reptilian/code/campus-agent/docs/plans/public-chat-web-vendor-runtime-full-transplant.md)。
+> 历史说明：本文只保留第一轮 `public-chat-web` runtime cutover 的阶段记录，不能再作为当前 chat frontend 的实施依据。
+> 当前 canonical 实施与验收入口已转到 [public-chat-web-vendor-runtime-full-transplant.md](/home/reptilian/code/campus-agent/docs/plans/public-chat-web-vendor-runtime-full-transplant.md)、[public-chat-web-strict-donor-parity-gap-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-strict-donor-parity-gap-inventory.md)、[public-chat-web-route-state-parity-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-route-state-parity-inventory.md) 与 [public-chat-web-donor-parity-review-checklist.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-parity-review-checklist.md)。
 
-> 状态说明：本文记录第一轮 `public-chat-web` runtime cutover 与 donor-derived shell 接线计划。
-> 其中“把 `/chat` 切到 donor shell、把旧 hand-written chat UI 退出 runtime path”这一目标已经完成。
-> 当前前向真相已进一步推进到 `vendor/vercel-ai-chatbot/` + `src/platform/` + `src/routes/` + `src/login/`；
-> `src/chatbot-donor/`、`src/chatbot-shell/` 与 `src/public-chat/auth.ts` 都已退役。
+> 状态说明：本文记录的是“把 `/chat` 切到 donor runtime、把旧 hand-written chat UI 退出 runtime path”的第一轮切换计划。
+> 这部分目标已经完成；但当前前向真相已经升级为 `full donor transplant correction`，因此本文中任何 `chatbot-derived shell`、`adapter first`、`阶段一不要求 donor 全量行为` 一类表述，都只代表当时阶段判断。
 
 ## 文档边界
 
-本文只负责 `apps/public-chat-web` 的前端实现重构计划。
+本文只保留 `apps/public-chat-web` 第一轮 donor cutover 的历史背景与阶段计划。
 
 本文回答的是：
 
 - 为什么当前 `public-chat-web` 应被视为过渡实现
-- 新的 chat web 应如何以 Chatbot-derived shell 为基底接入当前 repo
+- 当时新的 chat web 准备如何以 donor runtime 为基底接入当前 repo
 - 哪些架构边界必须保留，哪些实现层可以替换
-- 这次重构应按什么波次推进、如何验收和切换
+- 这次第一轮 cutover 当时如何分波次推进、验收和切换
 
 本文不负责：
 
 - 改写当前 accepted merged-truth topology
 - 重新定义 `app-api`、`supervisor-api` 或 operator surface 的长期边界
-- 要求当前轮同时完成 streaming、attachments、artifact pane、model selector 等扩展功能
+- 定义当前 strict donor parity 的完成条件
 
 ## 目标
 
-把 `apps/public-chat-web` 从“repo 内部重新手写的一套 Worker chat UI”重构为：
+当时这轮工作把 `apps/public-chat-web` 从“repo 内部重新手写的一套 Worker chat UI”重构为：
 
 - 以 `vercel/chatbot` 为 donor 的 chat-first frontend shell
 - 保留我们自己的 `/login` 与 session UX
 - 保留 `public-chat-web -> app-api -> supervisor-api` 主链路
-- 通过 adapter 把 Chatbot-derived UI 映射到当前 `app-api` contract
+- 通过 repo-owned platform seam 对接当前 `app-api` contract
 
 简言之：
 
-`保留当前产品架构，替换当前 chat web 的实现基底`
+`保留当前产品架构，完成第一轮 donor runtime cutover`
 
 ## 固定不变的架构边界
 
@@ -83,7 +81,7 @@ updated: 2026-04-08
 - 但新的 chat UX、样式系统和复杂交互不再优先落在这套实现里
 - 后续 chat-first 产品增强默认应落在新的 Chatbot-derived shell 上
 
-## Replatform 总结论
+## 当时的阶段结论
 
 `vercel/chatbot` 在本计划中的角色固定为：
 
@@ -97,9 +95,9 @@ updated: 2026-04-08
 - `supervisor-api` 的替代者
 - 我们新的 auth/session/conversation truth owner
 
-因此，正确目标不是“把 Chatbot 整套搬进 repo”，而是：
+因此，这一轮阶段目标当时被固定为：
 
-`在 apps/public-chat-web 内重建一个 chatbot-derived frontend shell，并通过 adapter 接入我们自己的 app-api`
+`先把 donor frontend runtime 引入 apps/public-chat-web，再通过 repo-owned seam 接入 app-api`
 
 ## Upstream Donor Baseline
 
@@ -118,7 +116,7 @@ updated: 2026-04-08
 - 禁止继承的目录/模块
 - 我们的 patch policy
 
-建议后续新增：
+后续已新增：
 
 - `docs/reference/public-chat-web-chatbot-donor-baseline.md`
 
@@ -153,9 +151,10 @@ updated: 2026-04-08
 - tool approval UI
 - 任何把 open-domain provider / model exposure 直接放进最终产品 UI 的默认结构
 
-一句话概括：
+补充说明：
 
-`借 UI，不借 app boundary；借组件系统，不借 backend truth`
+- 上面这组“允许/禁止继承”规则属于第一轮 cutover 的阶段边界。
+- 当前 donor-visible path 的严格行为对齐，以 `public-chat-web-vendor-runtime-full-transplant.md` 为准，不再由本文定义。
 
 ## 目标实现形态
 
@@ -212,9 +211,9 @@ adapter 的职责是：
 - 把 `POST /api/chat/requests` 的 typed outcome 转成 Chatbot-style message state
 - 屏蔽 `app-api` 具体 contract 对 donor UI 的直接泄漏
 
-## 与当前 app-api contract 的对齐策略
+## 当时的阶段性 app-api contract 对齐策略（历史记录）
 
-第一阶段不要求 `app-api` 改成 Chatbot 默认的 `/api/chat` streaming contract。
+当时这一阶段不要求 `app-api` 改成 Chatbot 默认的 `/api/chat` streaming contract。
 
 第一阶段固定采取：
 
@@ -256,7 +255,7 @@ adapter 需要把当前结果类型映射为稳定前端消息视图：
 2. 先保证现有 request/response contract 能稳定接线
 3. 如果后续需要更高程度复用 AI SDK transport，再单独评估 streaming facade
 
-## 当前实现的退役策略
+## 当时的退役策略
 
 本计划把当前 hand-written chat shell 视为：
 
@@ -282,7 +281,7 @@ adapter 需要把当前结果类型映射为稳定前端消息视图：
 - README / runbook / tests / smoke artifact 全部切到新实现
 - 旧实现只保留在 git history 与必要文档说明中
 
-## 实施波次
+## 当时的实施波次
 
 ## Wave 1：Source Freeze And Scaffold
 
@@ -352,7 +351,7 @@ adapter 需要把当前结果类型映射为稳定前端消息视图：
 - runbook 更新
 - legacy chat shell 删除
 
-当前 Wave 5 closeout policy：
+当前这份历史计划中的 Wave 5 closeout policy：
 
 - 默认产品入口固定为 `/chat` 与 `/chat/:conversationId`
 - `src/public-chat/` 只继续保留 `/login`、session bootstrap、route status card 与 boot fallback
@@ -396,9 +395,14 @@ adapter 需要把当前结果类型映射为稳定前端消息视图：
 
 ## Summary
 
-本计划固定以下前向结论：
+本计划当时固定的结论是：
 
 - 当前 `public-chat-web` 的 UI 实现应视为过渡实现，并退役为参考实现
 - forward canonical surface 仍然是 `apps/public-chat-web`
 - `public-chat-web` 的下一版应以 Chatbot-derived shell 为基底，而不是继续扩大 hand-written chat UI
 - 主拓扑、auth/session/conversation ownership 与 `app-api` contract 在这次重构中保持不变
+
+当前补充结论：
+
+- 上述内容只解释第一轮 runtime cutover 如何成立，不再定义当前 strict donor parity 的完成标准。
+- 当前 `public-chat-web` 的 active blocker 与验收口径，必须回到 `public-chat-web-vendor-runtime-full-transplant.md` 与配套 reference 文档。

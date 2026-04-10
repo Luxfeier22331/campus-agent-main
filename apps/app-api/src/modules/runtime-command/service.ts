@@ -649,18 +649,14 @@ export function buildChatCommandService(
       let conversationDiscriminator = NEW_CONVERSATION_FINGERPRINT_SCOPE;
 
       if (validatedPayload.conversationId) {
+        conversationDiscriminator = validatedPayload.conversationId;
         conversation = await dependencies.conversationStore.getConversationByOwner(
           ownerUserId,
           validatedPayload.conversationId,
         );
-        if (!conversation) {
-          throw createPreAcceptError({
-            code: "conversation_not_found",
-            message: "Conversation not found.",
-            status: 404,
-          });
+        if (conversation) {
+          conversationDiscriminator = conversation.id;
         }
-        conversationDiscriminator = conversation.id;
       }
 
       const idempotencyKey = input.idempotencyKey?.trim() || null;
@@ -716,7 +712,7 @@ export function buildChatCommandService(
         | undefined;
 
       if (!conversation) {
-        const conversationId = generateId("conv");
+        const conversationId = validatedPayload.conversationId ?? generateId("conv");
         const title = buildConversationTitle(DRAFT_CONVERSATION_TITLE, validatedPayload.prompt);
         conversationSeed = {
           id: conversationId,

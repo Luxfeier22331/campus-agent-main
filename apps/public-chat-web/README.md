@@ -14,15 +14,18 @@ Implementation status:
 - the former `src/chatbot-donor/` compatibility layer and its Next/Auth shims have been removed from the runtime path
 - the former `src/chatbot-shell/` transitional shell and duplicate `src/public-chat/auth.ts` client have been retired from the app source tree
 - the remaining `src/public-chat` API/types transition files have been merged into `src/platform/chat/`; the app source tree no longer keeps a separate `public-chat` directory
-- the former hand-written `ChatHomePage` / `ChatThreadPage` route implementation has been removed from the runtime path; `src/styles.css` now only serves the login surface, route status cards, and boot fallback
-- the first runtime cutover plan is recorded in `docs/plans/public-chat-web-chatbot-replatform.md`
-- the active donor-first reset plan is tracked in `docs/plans/public-chat-web-donor-first-reset.md`
-- the next forward runtime convergence plan is tracked in `docs/plans/public-chat-web-vendor-runtime-full-transplant.md`; the current worktree has completed the TanStack Router + platform seam cutover and retired the old transitional shell
+- the former hand-written `ChatHomePage` / `ChatThreadPage` route implementation has been removed from the runtime path; `src/styles.css` now only serves the login surface and boot fallback
+- the first runtime cutover record is retained in `docs/plans/public-chat-web-chatbot-replatform.md` as a historical plan, not the current implementation source of truth
+- the donor-first reset record is retained in `docs/plans/public-chat-web-donor-first-reset.md` as historical closeout context
+- the strict parity closeout record is tracked in `docs/plans/public-chat-web-vendor-runtime-full-transplant.md`; `2026-04-09` fresh local gate + authenticated staging smoke have closed the strict donor parity release gate, with the authoritative evidence pack fixed at `.tmp/staging-smoke/20260409T232000+0800-public-chat-wave6-closeout-2/`
 - the current shell parity inventory lives in `docs/reference/public-chat-web-route-state-parity-inventory.md`
-- the current donor drift inventory lives in `docs/reference/public-chat-web-donor-drift-inventory.md`
+- the accepted donor diff whitelist lives in `docs/reference/public-chat-web-donor-diff-whitelist.md`
+- the historical donor drift inventory for the retired transitional shell lives in `docs/reference/public-chat-web-donor-drift-inventory.md` and is no longer an active blocker list
+- the current strict donor parity gap inventory lives in `docs/reference/public-chat-web-strict-donor-parity-gap-inventory.md`
 - the forward runtime now stays only in `vendor/vercel-ai-chatbot/` + `src/platform/` + `src/routes/` + `src/login/`
 - the temporary `/chat/replatform-preview*` debug seam has been removed; `/chat` is now the only chat route family
 - legacy hits to `/chat/replatform-preview*` are canonicalized by the Worker shell back to `/chat`, so the removed preview prefix cannot fall through as a fake `conversationId`
+- future donor-visible drift outside `docs/reference/public-chat-web-donor-diff-whitelist.md` is a regression, not an allowed continuation
 
 It owns:
 
@@ -51,8 +54,9 @@ Current chat contract assumptions:
 - the browser always talks to same-site `/api/*` routes on this Worker
 - `GET /api/me` resolves the current Better Auth session through shared `app-api`
 - `POST /api/chat/requests` is the primary chat command route
-- first-turn chat requests may omit `conversationId`; `app-api` lazy-creates the canonical conversation
+- `public-chat-web` now reserves `/chat/:conversationId` before first send and always submits that route-owned `conversationId`
 - `POST /api/chat/conversations` remains available only for explicit empty-draft creation
+- donor-style message edit trims conversation tail through `DELETE /api/chat/conversations/:conversationId/messages/:messageId/trailing`
 
 UI behavior:
 
@@ -67,8 +71,12 @@ Canonical references:
 - `docs/architecture/target-architecture.md`
 - `docs/contracts/app-api-http.md`
 - `docs/contracts/app-api-request-lifecycle.md`
-- `docs/plans/public-chat-web-chatbot-replatform.md`
+- `docs/plans/public-chat-web-vendor-runtime-full-transplant.md`
 - `docs/reference/public-chat-web-chatbot-donor-baseline.md`
+- `docs/reference/public-chat-web-donor-diff-whitelist.md`
+- `docs/reference/public-chat-web-donor-parity-review-checklist.md`
+- `docs/reference/public-chat-web-route-state-parity-inventory.md`
+- `docs/reference/public-chat-web-strict-donor-parity-gap-inventory.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
@@ -111,4 +119,10 @@ pnpm test
 pnpm test:worker
 pnpm typecheck
 pnpm dev
+pnpm dev:live-smoke
 ```
+
+Local dev notes:
+
+- `pnpm dev` keeps the SPA shell isolated to `public-chat-web`; it is useful for frontend-only iteration, but it is not the canonical browser smoke path for the `APP_API` service binding.
+- `pnpm dev:live-smoke` is the canonical local browser smoke entry. It boots `public-chat-web` on `http://127.0.0.1:5173` and brings up `apps/app-api` as a Cloudflare Vite auxiliary Worker from `../app-api/wrangler.local-smoke.toml`, so same-site `/api/*` requests resolve through the real Worker service binding instead of depending on two separate `pnpm dev` sessions finding each other.

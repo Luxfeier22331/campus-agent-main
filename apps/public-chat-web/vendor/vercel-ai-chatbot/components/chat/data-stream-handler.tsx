@@ -29,7 +29,7 @@ export function DataStreamHandler() {
       }
       const artifactDefinition = artifactDefinitions.find(
         (currentArtifactDefinition) =>
-          currentArtifactDefinition.kind === artifact.kind
+          currentArtifactDefinition.kind === artifact.kind,
       );
 
       if (artifactDefinition?.onStreamPart) {

@@ -155,8 +155,7 @@ button {
   box-shadow: 0 10px 24px rgba(22, 32, 43, 0.08);
 }
 
-.login-form,
-.route-card {
+.login-form {
   background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(22, 32, 43, 0.08);
@@ -204,55 +203,6 @@ button {
   padding-left: 1.2rem;
   display: grid;
   gap: 0.7rem;
-}
-
-.route-card {
-  width: min(32rem, calc(100vw - 2rem));
-  display: grid;
-  gap: 0.75rem;
-  padding: 2rem;
-  border-radius: 1.75rem;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow:
-    0 8px 24px rgba(15, 23, 42, 0.08),
-    0 2px 8px rgba(15, 23, 42, 0.04);
-}
-
-.route-screen {
-  min-height: 100dvh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-}
-
-.route-card__eyebrow {
-  margin: 0;
-  font-size: 0.72rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: #6b7280;
-}
-
-.route-card__title {
-  margin: 0;
-  font-size: 1.7rem;
-  line-height: 1.1;
-  letter-spacing: -0.03em;
-  font-family:
-    "Avenir Next",
-    "Segoe UI",
-    sans-serif;
-}
-
-.route-card__lede {
-  margin: 0;
-  color: #4b5563;
-  line-height: 1.65;
-}
-
-.route-card__actions {
-  margin-top: 0.5rem;
 }
 
 @media (max-width: 960px) {

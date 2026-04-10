@@ -102,7 +102,8 @@ updated: 2026-04-03
 ### Conversation Resolution Rule
 
 - `POST /api/chat/conversations` 是显式 draft create API，不是 `POST /api/chat/requests` 的前置依赖
-- `POST /api/chat/requests` 如果携带 `conversationId`，按 owned conversation 继续追加消息
+- `POST /api/chat/requests` 如果携带 `conversationId` 且该 conversation 已属于当前 user，按 owned conversation 继续追加消息
+- `POST /api/chat/requests` 如果携带 `conversationId` 但当前 user 还没有这个 conversation，则第一次 durable commit 直接用这个 id 建立新的 canonical conversation
 - `POST /api/chat/requests` 如果未携带 `conversationId`，必须在第一次 durable commit 内创建 canonical conversation，并把同一次请求绑定到新 conversation
 
 ### Step 3: Execute

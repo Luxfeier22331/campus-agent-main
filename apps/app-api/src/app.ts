@@ -867,6 +867,28 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     return jsonResponse(response);
   });
 
+  app.delete("/api/chat/conversations/:conversationId/messages/:messageId/trailing", async (c) => {
+    const scope = createRequestScope();
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+
+    await scope.resolveChatConversationService().deleteTrailingMessages({
+      conversationId: c.req.param("conversationId"),
+      messageId: c.req.param("messageId"),
+      principal,
+    });
+    return new Response(null, { status: 204 });
+  });
+
   app.delete("/api/chat", async (c) => {
     const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;

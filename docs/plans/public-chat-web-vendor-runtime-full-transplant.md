@@ -1,6 +1,6 @@
 ---
 doc_type: plan
-status: active
+status: completed
 created: 2026-04-09
 updated: 2026-04-09
 ---
@@ -9,21 +9,20 @@ updated: 2026-04-09
 
 ## 文档边界
 
-本文固定 `apps/public-chat-web` 下一轮前向实施的详细方案。
+本文固定 `apps/public-chat-web` 当前 strict donor parity 的前向实施方案。
 
 本文回答的是：
 
 - `public-chat-web` 的 chat frontend 最终应如何落地
-- 哪些目录和文件继续保留，哪些必须退役
-- 为什么当前 `vendor + overlay` 不是终态
-- 下一轮具体按什么阶段、按什么文件边界执行
-- `unsupported feature` 在当前轮应如何处理
+- 当前 strict parity 还差哪些工作
+- repo-owned seam 的允许边界是什么
+- `unsupported feature` 当前应如何处理，才不会再次污染 donor shell
 
 本文不负责：
 
-- 改写 `public-chat-web -> app-api -> supervisor-api` 主链路
+- 改写 `public-chat-web -> app-api -> supervisor-api` accepted topology
 - 把 upstream backend、Next.js server runtime、NextAuth、Vercel deployment truth 带进 repo
-- 直接宣称当前 worktree 已满足本文目标
+- 把 `/login` 纳入 donor parity 本身
 
 ## 直接结论
 
@@ -31,320 +30,213 @@ updated: 2026-04-09
 
 `vendor-owned chat runtime + repo-owned platform seams`
 
-不是：
+当前问题已经不再是“有没有 donor shell”，而是把已关闭的 donor parity 结果固定成回归基线。
 
-- `vendor shell + repo-owned visible overlays`
-- `继续在 src/chatbot-donor 里维护 donor-like clone`
-- `继续把 unsupported feature 交给本地 stub/fail-close UI 接管`
+`2026-04-09` 当前结论：
 
-一句话：
+`Wave 6 已完成，strict donor parity release gate 已关闭。`
 
-`chat 可见 UI 全部回到 vendor tree；repo 只保留平台接缝、登录页、Worker 壳和路由接线。`
+## 当前已确认真相
 
-## 2026-04-09 当前进展
-
-当前 worktree 已完成以下收口：
+以下事实已经成立，并继续保留：
 
 - `@/*` 已固定指向 `vendor/vercel-ai-chatbot/*`
-- `src/routes/app-router.tsx` 已切为 TanStack Router 入口，`src/main.tsx` 不再挂 `src/public-chat/app.tsx`
+- `src/routes/app-router.tsx` 已切为 TanStack Router 入口
 - `/login` 已迁到 `src/login/page.tsx`
 - chat runtime 已迁到 `src/platform/chat/app-shell.tsx` + `src/platform/chat/runtime.tsx`
-- active runtime import graph 已移除 `react-router-dom`、`next/link`、`next/navigation`、`next-auth/react`
-- `src/chatbot-donor/` 已退役并从当前 runtime 路径删除
-- `src/chatbot-shell/` 与重复的 `src/public-chat/auth.ts` 已从 app source tree 退役
-- 剩余 `src/public-chat/api.ts` 与 `src/public-chat/types.ts` 已并入 `src/platform/chat/*`，`src/public-chat/` 目录已退役
+- `src/chatbot-donor/`、`src/chatbot-shell/`、`src/public-chat/` 已退出当前 runtime path
+- same-site `/api/*` seam 继续成立
+- staging 上默认 `/chat` donor-derived shell、preview seam 清理、single-route cutover 都已落证
+- Wave 6 donor diff whitelist 已落盘到 [public-chat-web-donor-diff-whitelist.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-whitelist.md)
+- fresh local gate 已通过：`pnpm --dir apps/public-chat-web test:worker`、`pnpm --dir apps/public-chat-web typecheck`、`pnpm --dir apps/public-chat-web build`
+- 当前 authoritative staging evidence 已落盘到 [SUMMARY.md](/home/reptilian/code/campus-agent/.tmp/staging-smoke/20260409T232000+0800-public-chat-wave6-closeout-2/SUMMARY.md)
+- 这轮 closeout 基于真实登录会话采集；Chrome DevTools MCP 在本轮持续 `Transport closed`，因此浏览器证据改由 `Playwright MCP` 收集
+- Wave 6 过程中额外发现的 `share / visibility on launch path` blocker 已关闭；当前 campus mode 固定为 `private-only`
 
-当前剩余 follow-up：
+以下事实当前不再成立：
 
-- 更新剩余 reference 文档与 parity inventory，避免继续指向已退役文件
-- 补 staging donor parity smoke，验证实际页面与 vendor 期望一致
+- 把 `public-chat-web` 继续表述为 active strict parity blocker
+- `share / visibility` 可以继续留在 launch path 只靠 repo toast 降级
+- `public-chat-web` 还需要继续做 donor-visible patch continuation
 
-## 起始问题诊断
+## 当前 blocker 分组
 
-本文最初记录的起始问题如下；其中大部分已在本轮 worktree 内完成收口：
+### 1. Route Entry States
 
-- `@/*` 主要仍指向 `src/chatbot-donor/*`，而不是 `vendor/vercel-ai-chatbot/*`
-- 运行路径里仍有 repo-owned chat 可见组件：
-  - [chat-header.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/chatbot-donor/components/chat/chat-header.tsx)
-  - [greeting.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/chatbot-donor/components/chat/greeting.tsx)
-  - [multimodal-input.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/chatbot-donor/components/chat/multimodal-input.tsx)
-  - [messages.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/chatbot-donor/components/chat/messages.tsx)
-  - [message.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/chatbot-donor/components/chat/message.tsx)
-  - [suggested-actions.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/chatbot-donor/components/chat/suggested-actions.tsx)
-  - [constants.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/src/chatbot-donor/lib/constants.ts)
-- 运行时仍依赖 `next/*`、`next-auth/*` 和 `react-router-dom` shim / bridge
-- `src/chatbot-shell/` 与 `src/chatbot-donor/` 仍同时承载运行时语义，目录边界没有收口
+当前状态：
 
-因此当前状态只能算：
+- `2026-04-09` 当前 worktree 已完成 code-level 收口：`/chat` 主路径上的 repo-owned `RouteStatusCard` 已退出 runtime path
+- route entry gating 已前移到 route ownership：仅保留 route-level `loading` bootstrap，`session error / access blocked` 与 `authenticated but cannot chat` 全部直接回到 repo-owned `/login` ownership，`app-shell` 不再持有 redirect/fallback
+- 这一项当前已完成 closeout，不再是当前 blocker
 
-`overlay cutover in progress`
+责任文件：
 
-不能算：
+- [app-router.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/routes/app-router.tsx)
+- [app-shell.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/platform/chat/app-shell.tsx)
 
-`complete frontend transplant`
+### 2. Composer Navigation Semantics
 
-## 目标结构
+当前状态：
 
-重构完成后，`apps/public-chat-web` 应收敛为以下结构：
+- `2026-04-09` 当前 worktree 已恢复 donor-equivalent first-turn route ownership：composer 与 suggested actions 都会在发送前预占 `/chat/:conversationId`
+- `use-active-chat` 不再等待服务端 canonical redirect；`app-api` 同时接受 caller-provided `conversationId` 作为首轮会话主键
+- 这一项当前已完成 closeout，不再是当前 blocker
 
-```text
-apps/public-chat-web/
-  vendor/vercel-ai-chatbot/        # 唯一 chat UI 源码
-  src/platform/                    # app-api / session / history / router integration
-  src/routes/                      # TanStack Router route tree
-  src/login/                       # repo-owned /login
-  src/index.ts                     # Worker shell + same-site /api/*
-  src/styles.css                   # 只服务 login / route-status / boot
-```
+责任文件：
+
+- [multimodal-input.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/multimodal-input.tsx)
+- [suggested-actions.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/suggested-actions.tsx)
+- [message-editor.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/message-editor.tsx)
+- [use-active-chat.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/platform/chat/use-active-chat.tsx)
+- [service.ts](/home/reptilian/code/campus-agent/apps/app-api/src/modules/runtime-command/service.ts)
+
+### 3. Sidebar / History / User-Nav Actions
+
+当前状态：
+
+- `2026-04-09` 当前 worktree 已完成 code-level 收口：logo、新建会话、切会话、删除当前会话、退出登录现在都只保留 route/auth seam 映射，不再附带 repo-local fallback flow
+- 退出登录链上的 repo-local error toast 已移除；这组动作当前不再是已确认 blocker
+- 这一项当前已完成 closeout，不再是当前 blocker
+
+责任文件：
+
+- [app-sidebar.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/app-sidebar.tsx)
+- [sidebar-history.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/sidebar-history.tsx)
+- [sidebar-history-item.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/sidebar-history-item.tsx)
+- [sidebar-user-nav.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/sidebar-user-nav.tsx)
+
+### 4. Message / Tool Rendering
+
+当前状态：
+
+- `2026-04-09` 当前 worktree 已完成 code-level 收口：weather/document/suggestion/tool output 已移除 repo-local guards、fallback card 与 repo-owned `output-error` path，thread 内已回到 donor-equivalent direct-output behavior
+- 这一项当前已完成 closeout，不再是当前 blocker
+
+责任文件：
+
+- [message.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/message.tsx)
+- [messages.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/messages.tsx)
+
+### 5. Artifact / Document Runtime
+
+当前状态：
+
+- `2026-04-09` 当前 worktree 已完成 code-level 收口：artifact pane 已回到 donor direct import path，artifact stream ownership 已收回 `artifactDefinitions`，`document-preview` 与 `text-editor` 也已回到 donor-equivalent static editor/runtime 路径
+- 这一项当前已完成 closeout，不再是当前 blocker
+
+责任文件：
+
+- [shell.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/shell.tsx)
+- [data-stream-handler.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/data-stream-handler.tsx)
+- [document-preview.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/document-preview.tsx)
+- [text-editor.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/text-editor.tsx)
+
+### 6. Strict Parity Gates
+
+当前状态：
+
+- donor diff whitelist 已落盘
+- fresh local gate 与 fresh staging smoke 都已补齐
+- strict parity checklist 当前已为 `PASS`
+
+责任文件：
+
+- [public-chat-web-donor-diff-whitelist.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-whitelist.md)
+- [public-chat-web-donor-parity-review-checklist.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-parity-review-checklist.md)
+- [public-chat-web-route-state-parity-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-route-state-parity-inventory.md)
+- [public-chat-web-strict-donor-parity-gap-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-strict-donor-parity-gap-inventory.md)
 
 ## Ownership Matrix
 
 | 范围 | 最终 owner | 允许存在的目录 | 禁止继续承担的目录 |
 |---|---|---|---|
-| chat 可见 UI | `vendor/vercel-ai-chatbot/` | `vendor/vercel-ai-chatbot/components/chat/*` | `src/chatbot-donor/components/chat/*` |
-| chat runtime hook / lib | `vendor/vercel-ai-chatbot/` + `src/platform/*` | `vendor/vercel-ai-chatbot/hooks/*`, `vendor/vercel-ai-chatbot/lib/*`, `src/platform/*` | `src/chatbot-donor/hooks/*`, `src/chatbot-donor/lib/*` |
-| platform seam | repo-owned | `src/platform/*` | `src/chatbot-shell/*` |
+| chat 可见 UI | `vendor/vercel-ai-chatbot/` | `vendor/vercel-ai-chatbot/components/chat/*` | repo-owned chat clone、route-owned visible fallback |
+| chat runtime hook / lib | `vendor/vercel-ai-chatbot/` + `src/platform/*` | `vendor/vercel-ai-chatbot/hooks/*`, `vendor/vercel-ai-chatbot/lib/*`, `src/platform/*` | visible-behavior patch layer |
+| platform seam | repo-owned | `src/platform/*` | vendor-visible behavior owner |
 | login | repo-owned | `src/login/*` | vendor auth UI |
-| route integration | repo-owned | `src/routes/*`, `src/platform/router/*` | `src/public-chat/app.tsx`、`src/chatbot-donor/*`、`react-router-dom` route shell |
+| route integration | repo-owned | `src/routes/*`, `src/platform/router/*` | product-visible `/chat` shell owner |
 | Worker shell | repo-owned | `src/index.ts` | vendor runtime / Next server files |
 
 ## Unsupported Feature Policy
 
-这里固定一个新的产品策略：
+这里固定新的执行规则：
 
 - `unsupported feature` 当前不做永久切除
-- 这些能力未来可能重新上线，因此不要求本轮删除其源码资产
-- 当前轮不以“把这些 feature 重新接通”为目标
-- 当前轮也不允许为了这些 feature 继续保留 repo-owned clone UI
+- 这些能力未来可能重新上线，因此源码可以继续保留在 vendor tree
+- 但这不再授权任何 donor-visible patch continuation
 
-本轮的处理原则只有三条：
+本轮固定三条规则：
 
-1. 这些能力不进入当前上线验收范围。
-2. 这些能力的源码优先保留在 vendor tree，不在 repo 侧长出第二套实现。
-3. 如果其中某个能力阻塞主壳迁移，只允许把它从当前 launch route / launch affordance 中脱线，不允许把它改造成 repo-owned fallback UI。
+1. 如果某个能力仍出现在 launch path，它的样式与组件行为不能因为 repo patch 而偏离 donor。
+2. 如果某个能力当前确实无法以 donor behavior 上线，只能把 launch affordance 从当前路径脱线，不能改造成 repo-owned fallback UI。
+3. 源码保留、能力后置、未来重开，和“当前允许 donor-visible drift”是两件不同的事。
 
-这意味着：
+## 执行波次
 
-- `artifact`
-- `document preview`
-- `attachment upload`
-- `message edit`
-- `model selector`
-- `tool approval UI`
-- 其他 donor 中的非首发能力
+### Wave 1：Route Entry States 收口
 
-都应被视为：
+- 目标：去掉 `/chat` 主路径上的 repo-owned route status baseline
+- 交付物：route entry behavior 对齐 donor，或明确只保留不进入可见产品主路径的 bootstrap logic
 
-`parked capability`
+### Wave 2：Composer Navigation 还原
 
-而不是：
+- 目标：恢复 donor 的 submit / push / delete / edit 路由语义
+- 交付物：composer 与 message edit 的 donor-equivalent navigation behavior
+- `2026-04-09` 当前 worktree 已完成 code-level 收口，且同日 Wave 6 evidence 也已补齐
 
-- `必须现在删光`
-- `必须现在重新做完`
-- `允许继续靠本地兼容层长期顶着`
+### Wave 3：Sidebar / History / User-Nav 还原
 
-未来若要重新上线，必须另开独立 phase，按产品契约逐项恢复。
+- 目标：恢复 donor 的 rail action semantics
+- 交付物：新建、切换、删除、退出登录的 donor-equivalent 行为
+- `2026-04-09` 当前 worktree 已完成 code-level 收口；退出登录后的 `/login` 跳转 ownership 已收回 `@platform/auth/client`，`sidebar-user-nav` 不再手动维护本地 session/reset/replace 链，同日 Wave 6 evidence 也已补齐
 
-## 执行阶段
+### Wave 4：Message / Tool Rendering 还原
 
-### Phase 1：文档与 import ownership 重置
+- 目标：把 thread 内 repo-local fallback 清出 donor-visible path
+- 交付物：message/tool rendering 重新回到 donor behavior
+- `2026-04-09` 当前 worktree 已完成 code-level 收口；前端可见 tool contract 已在 `lib/types.ts` 收口，`message.tsx` 即使保留 TypeScript 所需的 type-only narrowing，也不再依赖 repo-owned runtime fallback branch 维持 donor visible path，同日 Wave 6 evidence 也已补齐
 
-目标：
+### Wave 5：Artifact / Document Runtime 还原
 
-- 从结构上阻止 repo-owned chat UI 继续伪装成 donor runtime
+- 目标：把 artifact/document runtime 从 patched donor 改回 donor-equivalent behavior
+- 交付物：artifact panel、document preview、editor runtime、stream handler 收口
+- `2026-04-09` 当前 worktree 已完成 code-level 收口，同日 Wave 6 evidence 也已补齐
 
-涉及文件：
+### Wave 6：Strict Parity Gate 与 Smoke 收口
 
-- [vite.config.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/vite.config.ts)
-- [tsconfig.json](/home/reptilian/code/campus-agent/apps/public-chat-web/tsconfig.json)
-- [package.json](/home/reptilian/code/campus-agent/apps/public-chat-web/package.json)
-- [chatbot-vendor-runtime-parity.test.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/test/chatbot-vendor-runtime-parity.test.ts)
-- 本文档及相关计划 / README 文档
-
-实施内容：
-
-- 把 `@/*` 从 `src/chatbot-donor/*` 改为 `vendor/vercel-ai-chatbot/*`
-- 新增明确的 repo-owned namespace：
-  - `@platform/*`
-  - `@login/*`
-  - 如有需要，`@routes/*`
-- 新增 import-graph gate，禁止 chat runtime 从 `src/chatbot-donor/*` 和 `src/chatbot-shell/*` 引可见 UI
-- 明确记录 vendor patch ledger 和当前 phase 目标
-
-验收：
-
-- `@/components/chat/*`、`@/hooks/*`、`@/lib/*` 默认都解析到 vendor tree
-- 新增测试能阻止 repo-owned chat UI 回流主路径
-
-### Phase 2：platform seam 抽离
-
-目标：
-
-- 把 repo-owned runtime 语义集中到 `src/platform/*`
-
-涉及文件：
-
-- [chat-transport.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/src/chatbot-shell/adapters/chat-transport.ts)
-- [conversations.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/src/chatbot-shell/adapters/conversations.ts)
-- [session.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/src/chatbot-shell/adapters/session.ts)
-- [runtime.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/chatbot-shell/runtime.tsx)
-- [api.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/src/public-chat/api.ts)
-- [auth.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/src/public-chat/auth.ts)
-
-实施内容：
-
-- 新建：
-  - `src/platform/chat/*`
-  - `src/platform/session/*`
-  - `src/platform/auth/*`
-  - `src/platform/router/*`
-- 把 session bootstrap、history、conversation detail、send message、sign out 收敛到 platform 层
-- 停止让 `src/public-chat/` 和 `src/chatbot-shell/` 继续同时拥有这些职责
-
-验收：
-
-- `src/chatbot-shell/adapters/*` 不再是 forward runtime 入口
-- `src/public-chat/*` 只剩登录页和极少量 route status ownership
-
-### Phase 3：路由彻底改成 TanStack Router
-
-目标：
-
-- 不再长期依赖 `react-router-dom`
-- 不再长期依赖 `next/link` / `next/navigation` shim
-
-涉及文件：
-
-- [app.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/public-chat/app.tsx)
-- [next-link.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/chatbot-donor/shims/next-link.tsx)
-- [next-navigation.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/src/chatbot-donor/shims/next-navigation.ts)
-- [use-active-chat.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/chatbot-donor/hooks/use-active-chat.tsx)
-- vendor 内所有直接依赖 `next/link` / `next/navigation` 的 chat runtime 文件
-
-实施内容：
-
-- 引入 TanStack Router route tree
-- 用 repo-owned router integration 取代 BrowserRouter
-- `/login` 继续 repo-owned
-- `/chat` 与 `/chat/$conversationId` 直接挂 vendor runtime
-- vendor 侧不再通过 `next/*` shim 获取导航能力，而是直接消费 `@platform/router`
-
-验收：
-
-- 运行时 import graph 中不再出现 `react-router-dom`
-- 运行时 import graph 中不再出现 `next/link` / `next/navigation` shim
-
-### Phase 4：vendor runtime 收敛
-
-目标：
-
-- 把 chat 可见 UI 全部收回到 vendor tree
-
-涉及的当前 repo-owned 文件：
-
-- [chat-header.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/chatbot-donor/components/chat/chat-header.tsx)
-- [greeting.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/chatbot-donor/components/chat/greeting.tsx)
-- [multimodal-input.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/chatbot-donor/components/chat/multimodal-input.tsx)
-- [messages.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/chatbot-donor/components/chat/messages.tsx)
-- [message.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/chatbot-donor/components/chat/message.tsx)
-- [suggested-actions.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/chatbot-donor/components/chat/suggested-actions.tsx)
-- [constants.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/src/chatbot-donor/lib/constants.ts)
-
-对应应回归的 vendor 文件：
-
-- [chat-header.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/chat-header.tsx)
-- [greeting.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/greeting.tsx)
-- [multimodal-input.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/multimodal-input.tsx)
-- [messages.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/messages.tsx)
-- [message.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/message.tsx)
-- [suggested-actions.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/suggested-actions.tsx)
-- [constants.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/lib/constants.ts)
-
-实施内容：
-
-- 停止运行时使用本地 clone 组件
-- 校园域 greeting / placeholder / suggestions / branding 直接改在 vendor tree
-- header、sidebar、history、message list、message card、composer 的 DOM 结构与样式回到 vendor
-
-验收：
-
-- staging 上不再出现本地 clone 痕迹
-- `Campus chat`、`新对话`、当前自写 greeting、当前自写 placeholder、当前本地 suggestion 集不再从本地 overlay 提供
-
-### Phase 5：parked capability 归位
-
-目标：
-
-- 明确 unsupported feature 的当前状态，但不做永久切除
-
-涉及文件：
-
-- [artifact.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/artifact.tsx)
-- [document-preview.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/document-preview.tsx)
-- [message-editor.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/message-editor.tsx)
-- [multimodal-input.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/multimodal-input.tsx)
-- [visibility-selector.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/visibility-selector.tsx)
-- 以及其依赖的 vendor hook / lib
-
-实施内容：
-
-- 为这些能力建立明确 inventory
-- 标注哪些保留源码、哪些未进入首发验收
-- 如某能力阻塞主壳迁移，只从 launch path 脱线，不删除源码
-- 不再为这些能力维护 repo-owned stub UI
-
-验收：
-
-- 这些能力的状态在文档和代码入口上可枚举
-- 当前首发 UI 的验收范围不再被它们污染
-- 未来要恢复时有明确 patch ledger 和重新接线入口
-
-### Phase 6：旧目录退役与 staging 收口
-
-目标：
-
-- 收掉错误目录边界，完成真实 parity smoke
-
-涉及目录：
-
-- `src/chatbot-donor/`
-- `src/chatbot-shell/`
-- `src/public-chat/` 的非登录部分
-
-实施内容：
-
-- 删除或彻底清空已退役的 chat UI 目录
-- `src/public-chat/` 只保留 `/login` 与必要 route status
-- 重跑 desktop / mobile parity smoke
-- 用 [`.tmp/vercel-ai-chatbot`](/home/reptilian/code/campus-agent/.tmp/vercel-ai-chatbot) 作为 donor baseline 对照
-
-验收：
-
-- `/chat` 主路径上不再存在 repo-owned chat UI 目录
-- 真实浏览器 smoke 在 desktop `1440x900` 和 mobile `390x844` 下都通过
+- 目标：建立 donor diff whitelist 与真实浏览器 parity evidence
+- 交付物：
+  - donor diff whitelist / targeted tests
+  - desktop `1440x900` 与 mobile `390x844` smoke
+  - strict parity checklist 更新为 `PASS`
+- `2026-04-09` 当前结果：
+  - whitelist 已落盘到 [public-chat-web-donor-diff-whitelist.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-whitelist.md)
+  - authoritative staging evidence 已落盘到 [SUMMARY.md](/home/reptilian/code/campus-agent/.tmp/staging-smoke/20260409T232000+0800-public-chat-wave6-closeout-2/SUMMARY.md)
+  - `share / visibility on launch path` blocker 已关闭并进入 whitelist regression gate
+  - `/api/models` 已由 repo-owned Worker route 稳定返回 `200`，之前浏览器看到的 `/api/history 401` 已确认只是 stale non-cookie Playwright state，不再构成 blocker
+  - strict parity checklist 当前已为 `PASS`
 
 ## Definition Of Done
 
 只有同时满足以下条件，本文目标才算完成：
 
-- chat 可见 UI 的唯一源码来自 `vendor/vercel-ai-chatbot`
-- repo 不再拥有任何 `chat` 可见 clone 组件
-- repo-owned 运行时只剩：
-  - Worker shell
-  - same-site `/api/*`
-  - `/login`
-  - platform seam
-  - route integration
-- `src/chatbot-donor/` 与 `src/chatbot-shell/` 不再作为长期真相目录存在
-- `unsupported feature` 没有被永久切除，但也没有继续强迫当前首发 UI 围着它们转
+- `/chat` 与 `/chat/:conversationId` 的样式和组件行为都与 `.tmp/vercel-ai-chatbot` 严格对齐
+- `vendor/vercel-ai-chatbot` 是唯一 chat UI owner
+- repo-owned 路由、platform、Worker seam 不再改写 donor-visible behavior
+- `/login` 之外不再存在 repo-owned visible fallback baseline
 - local gate 通过：
   - `pnpm --dir apps/public-chat-web typecheck`
   - `pnpm --dir apps/public-chat-web test:worker`
   - `pnpm --dir apps/public-chat-web build`
-- staging smoke 和 donor parity smoke 给出正向证据
+- strict donor parity checklist 关闭
+- staging smoke 与 donor parity smoke 给出正向证据
+
+`2026-04-09` 当前结果：以上条件已满足。
 
 ## 相关文档
 
 - [public-chat-web-donor-first-reset.md](/home/reptilian/code/campus-agent/docs/plans/public-chat-web-donor-first-reset.md)
 - [public-chat-web-chatbot-donor-baseline.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-chatbot-donor-baseline.md)
-- [README.md](/home/reptilian/code/campus-agent/apps/public-chat-web/README.md)
+- [public-chat-web-donor-diff-whitelist.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-whitelist.md)
+- [public-chat-web-route-state-parity-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-route-state-parity-inventory.md)
+- [public-chat-web-strict-donor-parity-gap-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-strict-donor-parity-gap-inventory.md)

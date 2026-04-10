@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  deleteTrailingMessages,
   UnauthorizedError,
   createDraftConversation,
   getConversationDetail,
@@ -211,6 +212,23 @@ describe("public chat app-api client", () => {
       "/api/chat/conversations/conv_01HQ",
       expect.objectContaining({
         method: "GET",
+      }),
+    );
+  });
+
+  it("deletes trailing messages from a conversation through the shared app-api route", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(null, {
+        status: 204,
+      }),
+    );
+
+    await expect(deleteTrailingMessages("conv_01HQ", "msg_01HQ")).resolves.toBeUndefined();
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/chat/conversations/conv_01HQ/messages/msg_01HQ/trailing",
+      expect.objectContaining({
+        method: "DELETE",
       }),
     );
   });

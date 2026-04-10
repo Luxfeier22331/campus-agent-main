@@ -1,6 +1,12 @@
 import type { CloudflareOptions } from "@sentry/cloudflare";
 import * as Sentry from "@sentry/cloudflare";
 
+import {
+  getAllGatewayModels,
+  getCapabilities,
+  isDemo,
+} from "../vendor/vercel-ai-chatbot/lib/ai/models";
+
 export interface Env {
   APP_API?: {
     fetch(request: Request): Promise<Response> | Response;
@@ -142,6 +148,10 @@ const worker = {
       });
     }
 
+    if (request.method === "GET" && url.pathname === "/api/models") {
+      return serveModelsCatalog();
+    }
+
     if (url.pathname.startsWith("/api/")) {
       return proxyToAppApi(request, env);
     }
@@ -266,6 +276,25 @@ function getForwardedHeaders(pathname: string) {
 
 function shouldForwardBody(method: string): boolean {
   return method !== "GET" && method !== "HEAD";
+}
+
+async function serveModelsCatalog(): Promise<Response> {
+  const headers = {
+    "Cache-Control": "public, max-age=86400, s-maxage=86400",
+  };
+
+  const curatedCapabilities = await getCapabilities();
+
+  if (isDemo) {
+    const models = await getAllGatewayModels();
+    const capabilities = Object.fromEntries(
+      models.map((model) => [model.id, curatedCapabilities[model.id] ?? model.capabilities]),
+    );
+
+    return Response.json({ capabilities, models }, { headers });
+  }
+
+  return Response.json(curatedCapabilities, { headers });
 }
 
 async function servePublicShell(request: Request, env: Env): Promise<Response> {

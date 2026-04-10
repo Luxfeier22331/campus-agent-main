@@ -1,3 +1,4 @@
+import type { UseChatHelpers } from "@ai-sdk/react";
 import {
   createContext,
   type Dispatch,
@@ -21,27 +22,30 @@ import { submitShellChatRequest } from "./transport";
 import { useChatbotShellRuntime } from "./runtime";
 import type { ShellConversationDetail, ShellMessage } from "./types";
 
-export type ChatStatus = "error" | "ready" | "streaming" | "submitted";
+export type ChatStatus = UseChatHelpers<ChatMessage>["status"];
+
+type SendMessageInput = Parameters<UseChatHelpers<ChatMessage>["sendMessage"]>[0];
 
 type ActiveChatContextValue = {
-  addToolApprovalResponse: (..._args: unknown[]) => void;
+  addToolApprovalResponse: UseChatHelpers<ChatMessage>["addToolApprovalResponse"];
   chatId: string;
   conversationTitle: string | null;
   currentModelId: string;
   input: string;
   isLoading: boolean;
   isReadonly: boolean;
-  messages: ChatMessage[];
-  regenerate: () => Promise<void>;
-  sendMessage: (message: { parts: Array<{ text: string; type: "text" }>; role: "user" }) => Promise<void>;
+  messages: UseChatHelpers<ChatMessage>["messages"];
+  prepareConversationRoute: (conversationId: string) => void;
+  regenerate: UseChatHelpers<ChatMessage>["regenerate"];
+  sendMessage: UseChatHelpers<ChatMessage>["sendMessage"];
   setCurrentModelId: (id: string) => void;
   setInput: Dispatch<SetStateAction<string>>;
-  setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
+  setMessages: UseChatHelpers<ChatMessage>["setMessages"];
   showCreditCardAlert: boolean;
   startNewChat: () => void;
   setShowCreditCardAlert: Dispatch<SetStateAction<boolean>>;
   status: ChatStatus;
-  stop: () => void;
+  stop: UseChatHelpers<ChatMessage>["stop"];
   threadError: string | null;
   visibilityType: VisibilityType;
   votes: undefined;
@@ -67,10 +71,35 @@ function mapShellConversationMessages(conversation: ShellConversationDetail | nu
   return conversation ? conversation.messages.map(mapShellMessage) : [];
 }
 
+function extractPromptText(message: SendMessageInput): string {
+  if (!message) {
+    return "";
+  }
+
+  if ("parts" in message) {
+    return (message.parts ?? [])
+      .filter(
+        (
+          part,
+        ): part is Extract<ChatMessage["parts"][number], { type: "text" }> => part.type === "text",
+      )
+      .map((part) => part.text)
+      .join("\n")
+      .trim();
+  }
+
+  if ("text" in message && typeof message.text === "string") {
+    return message.text.trim();
+  }
+
+  return "";
+}
+
 export function ActiveChatProvider(props: { children: ReactNode }) {
   const router = useAppRouter();
   const conversationId = useConversationRouteId();
   const tempChatIdRef = useRef(generateUUID());
+  const draftConversationIdRef = useRef<string | null>(null);
   const previousConversationIdRef = useRef<string | undefined>(conversationId);
   const { setSessionUnauthenticated, upsertConversationSummary } = useChatbotShellRuntime();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -97,6 +126,12 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
         setConversationTitle(null);
         setIsLoading(false);
         setMessages([]);
+        setThreadError(null);
+        return;
+      }
+
+      if (conversationId === draftConversationIdRef.current) {
+        setIsLoading(false);
         setThreadError(null);
         return;
       }
@@ -146,6 +181,8 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
       return;
     }
 
+    const activeConversationId = conversationId ?? tempChatIdRef.current;
+
     const optimisticMessage: ChatMessage = {
       id: generateUUID(),
       kind: "user",
@@ -162,18 +199,20 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
     setMessages((current) => [...current, optimisticMessage]);
 
     try {
-      const outcome = await submitShellChatRequest(
-        conversationId ? { conversationId, prompt: trimmedPrompt } : { prompt: trimmedPrompt },
-      );
+      const outcome = await submitShellChatRequest({
+        conversationId: activeConversationId,
+        prompt: trimmedPrompt,
+      });
+      if (outcome.conversation.id !== activeConversationId) {
+        throw new Error("Conversation identity mismatch.");
+      }
+
+      draftConversationIdRef.current = null;
       setConversationTitle(outcome.conversation.title);
       setMessages(mapShellConversationMessages(outcome.conversation));
       setStatus("ready");
       setInput("");
       upsertConversationSummary(outcome.conversation);
-
-      if (!conversationId || conversationId !== outcome.conversation.id) {
-        await router.push(`/chat/${outcome.conversation.id}`);
-      }
     } catch (error) {
       if (error instanceof UnauthorizedError) {
         setSessionUnauthenticated();
@@ -195,7 +234,7 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
 
   const value = useMemo<ActiveChatContextValue>(
     () => ({
-      addToolApprovalResponse() {},
+      async addToolApprovalResponse() {},
       chatId: conversationId ?? tempChatIdRef.current,
       conversationTitle,
       currentModelId,
@@ -203,8 +242,18 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
       isLoading,
       isReadonly: false,
       messages,
-      async regenerate() {
-        const lastUserMessage = [...messages].reverse().find((message) => message.role === "user");
+      prepareConversationRoute(nextConversationId) {
+        if (conversationId) {
+          return;
+        }
+
+        draftConversationIdRef.current = nextConversationId;
+      },
+      async regenerate(options) {
+        const targetMessageId = options?.messageId;
+        const lastUserMessage = targetMessageId
+          ? messages.find((message) => message.id === targetMessageId)
+          : [...messages].reverse().find((message) => message.role === "user");
         const lastUserText = lastUserMessage?.parts.find(
           (part): part is Extract<ChatMessage["parts"][number], { type: "text" }> =>
             part.type === "text",
@@ -214,11 +263,7 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
         }
       },
       async sendMessage(message) {
-        const prompt = message.parts
-          .filter((part) => part.type === "text")
-          .map((part) => part.text)
-          .join("\n")
-          .trim();
+        const prompt = extractPromptText(message);
         await sendPrompt(prompt);
       },
       setCurrentModelId,
@@ -227,6 +272,7 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
       showCreditCardAlert,
       startNewChat() {
         tempChatIdRef.current = generateUUID();
+        draftConversationIdRef.current = null;
         setConversationTitle(null);
         setIsLoading(false);
         setInput("");
@@ -237,7 +283,7 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
       },
       setShowCreditCardAlert,
       status,
-      stop() {
+      async stop() {
         setStatus("ready");
       },
       threadError,

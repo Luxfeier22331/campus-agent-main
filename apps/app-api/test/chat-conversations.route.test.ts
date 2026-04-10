@@ -76,10 +76,14 @@ function createConversationService() {
     updatedAt: "2026-03-28T08:01:00.000Z",
   };
 
-  const service: ChatConversationService = {
+  const deleteTrailingMessages = vi.fn().mockResolvedValue({ deleted: true });
+  const service: ChatConversationService & {
+    deleteTrailingMessages: typeof deleteTrailingMessages;
+  } = {
     createDraft: vi.fn().mockResolvedValue({ conversation }),
     deleteAll: vi.fn().mockResolvedValue({ deletedCount: 1 }),
     deleteById: vi.fn().mockResolvedValue({ deleted: true }),
+    deleteTrailingMessages,
     getById: vi.fn().mockResolvedValue({ conversation }),
     listHistoryPage: vi.fn().mockResolvedValue({
       chats: [
@@ -99,6 +103,7 @@ function createConversationService() {
   return {
     conversation,
     conversations,
+    deleteTrailingMessages,
     service,
   };
 }
@@ -247,6 +252,34 @@ describe("chat conversation routes", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ deletedCount: 1 });
     expect(service.deleteAll).toHaveBeenCalledWith({
+      principal: expect.objectContaining({
+        principal: expect.objectContaining({
+          principalId: "user_01HQ",
+        }),
+      }),
+    });
+  });
+
+  it("deletes trailing messages from an owned conversation through the chat edit route", async () => {
+    const { service, deleteTrailingMessages } = createConversationService();
+    const app = createApp(env, {
+      chatConversationService: service,
+      getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+    });
+
+    const response = await app.fetch(
+      new Request(
+        "https://app-api.internal/api/chat/conversations/conv_01HQ/messages/msg_01HQ/trailing",
+        {
+          method: "DELETE",
+        },
+      ),
+    );
+
+    expect(response.status).toBe(204);
+    expect(deleteTrailingMessages).toHaveBeenCalledWith({
+      conversationId: "conv_01HQ",
+      messageId: "msg_01HQ",
       principal: expect.objectContaining({
         principal: expect.objectContaining({
           principalId: "user_01HQ",

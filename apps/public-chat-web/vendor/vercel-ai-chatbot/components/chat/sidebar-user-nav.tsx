@@ -32,7 +32,7 @@ function emailToHue(email: string): number {
 
 export function SidebarUserNav({ user }: { user: ShellChatUser }) {
   const router = useAppRouter();
-  const { session, setSessionUnauthenticated } = useChatbotShellRuntime();
+  const { session } = useChatbotShellRuntime();
   const { setTheme, resolvedTheme } = useTheme();
   const status =
     session.kind === "loading"
@@ -110,19 +110,7 @@ export function SidebarUserNav({ user }: { user: ShellChatUser }) {
                   if (isGuest) {
                     void router.push("/login");
                   } else {
-                    void (async () => {
-                      try {
-                        await signOutChatSession();
-                        setSessionUnauthenticated();
-                        await router.replace("/login");
-                      } catch (error) {
-                        toast({
-                          description:
-                            error instanceof Error ? error.message : "Unable to sign out right now.",
-                          type: "error",
-                        });
-                      }
-                    })();
+                    void signOutChatSession({ redirectTo: "/login" });
                   }
                 }}
                 type="button"

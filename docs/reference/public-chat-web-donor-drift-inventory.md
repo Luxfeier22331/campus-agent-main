@@ -1,21 +1,21 @@
 ---
 doc_type: reference
-status: active
+status: completed
 created: 2026-04-08
 updated: 2026-04-09
 ---
 
-# Public Chat Web Donor Drift Inventory
+# Public Chat Web Historical Donor Drift Inventory
 
 ## 文档边界
 
-本文固定 `Phase 1/2` 时期识别出的 donor drift inventory。
+本文保留 `Phase 1/2` 时期识别出的 donor drift inventory，作为已退役 `src/chatbot-shell/` 的历史记录。
 
 本文回答的是：
 
 - `src/chatbot-shell/` 历史过渡壳曾经哪些地方明显偏离 donor-first shell
 - 这些偏移分别落在哪些文件
-- 后续应该在哪个阶段修正
+- 当时预计应该在哪个阶段修正
 
 本文不负责：
 
@@ -28,6 +28,7 @@ updated: 2026-04-09
 - 2026-04-09 当前 runtime 已切到 `vendor/vercel-ai-chatbot/` + `src/platform/` + `src/routes/`
 - 本文保留的 drift 主要用于解释为什么 `src/chatbot-shell/` 被降级为 deprecated reference
 - 不应再把本文里的 `src/chatbot-shell/` 问题当作当前上线主路径的 owner truth
+- 当前 `public-chat-web` 的 active blocker inventory 已转到 `public-chat-web-strict-donor-parity-gap-inventory.md`
 
 ## 判定原则
 
@@ -54,7 +55,7 @@ updated: 2026-04-09
 | route fallback copy | `Loading chat` / `Preparing chat` / `Chat unavailable` 等 route status copy 仍是 repo-owned 文案 | [app-router.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/routes/app-router.tsx) | 允许保留状态卡，但需要收敛文案 | `Phase 3` |
 | login visual separation | `/login` 仍然是 repo-owned 自定义页面 | [page.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/login/page.tsx) | 允许保留，不视为 donor drift blocker | `out-of-scope` |
 
-## P0 Drift Items
+## 当时的 P0 Drift Items
 
 以下是必须先修的 `P0`：
 
@@ -66,7 +67,7 @@ updated: 2026-04-09
 
 如果这些不先修，后续即使 adapter 继续优化，页面第一眼仍然会像 repo 自写 UI。
 
-## P1 Drift Items
+## 当时的 P1 Drift Items
 
 以下是第二层需要修的 `P1`：
 
@@ -86,7 +87,7 @@ updated: 2026-04-09
 
 这些属于架构与数据接缝，不是视觉问题。
 
-## Phase 1 Closeout Rule
+## Historical Closeout Rule
 
 Phase 1 完成的判断标准不是“drift 已修完”，而是：
 
@@ -97,5 +98,6 @@ Phase 1 完成的判断标准不是“drift 已修完”，而是：
 ## 相关文件
 
 - [public-chat-web-donor-first-reset.md](/home/reptilian/code/campus-agent/docs/plans/public-chat-web-donor-first-reset.md)
+- [public-chat-web-strict-donor-parity-gap-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-strict-donor-parity-gap-inventory.md)
 - [public-chat-web-route-state-parity-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-route-state-parity-inventory.md)
 - [README.md](/home/reptilian/code/campus-agent/apps/public-chat-web/README.md)

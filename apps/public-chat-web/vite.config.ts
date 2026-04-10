@@ -4,6 +4,20 @@ import react from "@vitejs/plugin-react";
 import path from "node:path";
 import { defineConfig } from "vite";
 
+const liveSmokeAppApiEnvPath = path.resolve(__dirname, "../app-api/.env");
+const liveSmokeAppApiConfigPath = path.resolve(__dirname, "../app-api/wrangler.local-smoke.toml");
+const useLiveSmokeAuxiliaryWorker = process.env.PUBLIC_CHAT_LIVE_SMOKE === "1";
+
+if (useLiveSmokeAuxiliaryWorker) {
+  try {
+    process.loadEnvFile(liveSmokeAppApiEnvPath);
+  } catch (error) {
+    if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") {
+      throw error;
+    }
+  }
+}
+
 export default defineConfig({
   define: {
     "process.env.CI_PLAYWRIGHT": JSON.stringify(process.env.CI_PLAYWRIGHT ?? ""),
@@ -14,7 +28,22 @@ export default defineConfig({
       process.env.PLAYWRIGHT_TEST_BASE_URL ?? "",
     ),
   },
-  plugins: [tailwindcss(), react(), cloudflare()],
+  plugins: [
+    tailwindcss(),
+    react(),
+    cloudflare({
+      ...(useLiveSmokeAuxiliaryWorker
+        ? {
+            auxiliaryWorkers: [
+              {
+                configPath: liveSmokeAppApiConfigPath,
+              },
+            ],
+            inspectorPort: false,
+          }
+        : {}),
+    }),
+  ],
   resolve: {
     alias: {
       "@/components/ai-elements": path.resolve(

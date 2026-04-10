@@ -9,63 +9,74 @@ updated: 2026-04-09
 
 ## 文档边界
 
-本文固定 `Phase 5` 的 donor parity release gate。
+本文固定当前 `apps/public-chat-web` 的 strict donor parity release gate。
 
 本文回答的是：
 
-- staging 上哪些界面必须进入 donor parity review
-- 每个 gate 的通过标准是什么
-- `2026-04-09` 最新一轮真实 staging smoke 的当前结论是什么
+- staging 与本地 donor baseline 对照时，哪些界面必须进入 strict parity review
+- 每个 gate 的当前判定是什么
+- 为什么当前 gate 已可判定完成
 
 本文不负责：
 
-- 替代 `.tmp/staging-smoke/...` 下的原始截图与网络证据
+- 替代 `.tmp/staging-smoke/...` 的原始截图与网络证据
 - 改写 `public-chat-web -> app-api -> supervisor-api` 运行边界
 - 把 `/login` 误记成 donor shell 的一部分
 
 ## Gate 说明
 
-- `PASS`：运行与视觉都满足当前 gate
-- `PARTIAL`：运行链路通过，但视觉或证据不完整
-- `FAIL`：第一眼明显不是 donor-first shell，或关键 smoke 不通过
+- `PASS`：样式与组件行为都已经满足当前 gate
+- `FAIL`：当前明确存在 strict parity blocker
 - `OUT-OF-SCOPE`：必须 smoke，但不进入 donor parity 本身
 
 ## 2026-04-09 当前结论
 
+当前 authoritative browser evidence 来自 `.tmp/staging-smoke/20260409T232000+0800-public-chat-wave6-closeout-2/`。
+这轮 evidence 基于真实登录会话采集；Chrome DevTools MCP 在本轮持续 `Transport closed`，因此改由 `Playwright MCP` 收集。
+
 | Gate | 通过标准 | 当前结论 | 当前证据 |
 |---|---|---|---|
-| desktop `/chat` first impression | 第一眼接近 `vercel/chatbot` 的 chat-first shell | `PASS` | [desktop-empty-state-with-history.png](/home/reptilian/code/campus-agent/.tmp/staging-smoke/20260409T005148+0800-public-chat-phase5-postfix-retest/desktop-empty-state-with-history.png) |
-| mobile `/chat` first impression | mobile 仍保持 donor shell，而不是把 desktop rails 堆成长页面 | `PASS` | [mobile-empty-state.png](/home/reptilian/code/campus-agent/.tmp/staging-smoke/20260409T005148+0800-public-chat-phase5-postfix-retest/mobile-empty-state.png) |
-| sidebar / history | sidebar 是 donor-first history rail，而不是 repo 说明式 app rail | `PASS` | [desktop-empty-state-with-history.png](/home/reptilian/code/campus-agent/.tmp/staging-smoke/20260409T005148+0800-public-chat-phase5-postfix-retest/desktop-empty-state-with-history.png) |
-| existing thread | 已有会话能在 donor 风格 thread 内显示 | `PASS` | [desktop-answer-state.png](/home/reptilian/code/campus-agent/.tmp/staging-smoke/20260409T005148+0800-public-chat-phase5-postfix-retest/desktop-answer-state.png) |
-| empty state | empty state 不再直讲 `app-api` / seam / Worker 语义 | `PASS` | [desktop-empty-state-with-history.png](/home/reptilian/code/campus-agent/.tmp/staging-smoke/20260409T005148+0800-public-chat-phase5-postfix-retest/desktop-empty-state-with-history.png) |
-| composer | composer copy、CTA、辅助说明接近 donor | `PASS` | [desktop-submit-in-flight.png](/home/reptilian/code/campus-agent/.tmp/staging-smoke/20260409T005148+0800-public-chat-phase5-postfix-retest/desktop-submit-in-flight.png) |
-| submit in flight | submit 过程能在真实 staging 中稳定显示 pending UX | `PASS` | [desktop-submit-in-flight.png](/home/reptilian/code/campus-agent/.tmp/staging-smoke/20260409T005148+0800-public-chat-phase5-postfix-retest/desktop-submit-in-flight.png) |
-| typed `answer` | typed `answer` 能映射到 shell message state | `PASS` | [desktop-answer-state.png](/home/reptilian/code/campus-agent/.tmp/staging-smoke/20260409T005148+0800-public-chat-phase5-postfix-retest/desktop-answer-state.png) |
-| typed `clarification` | typed `clarification` 能映射到 shell message state | `PASS` | [desktop-clarification-state.png](/home/reptilian/code/campus-agent/.tmp/staging-smoke/20260409T005148+0800-public-chat-phase5-postfix-retest/desktop-clarification-state.png) |
-| typed `no_answer` | typed `no_answer` 能映射到 shell message state | `PASS` | [desktop-no-answer-state.png](/home/reptilian/code/campus-agent/.tmp/staging-smoke/20260409T005148+0800-public-chat-phase5-postfix-retest/desktop-no-answer-state.png) |
-| typed `error` | 当前轮必须有真实 staging typed `error` 证据 | `PARTIAL` | 当前轮未复现；历史上出现过 `supervisor_unavailable`，但不能替代 current-run gate |
-| same-site `/api/*` seam | `/api/me`、`/api/chat/conversations`、`/api/chat/requests`、`/api/auth/sign-out` 仍走 same-site 且未退化 | `PASS` | [network-summary.md](/home/reptilian/code/campus-agent/.tmp/staging-smoke/20260409T005148+0800-public-chat-phase5-postfix-retest/network-summary.md) |
+| desktop `/chat` first impression | 第一眼接近 `vercel/chatbot` 的 chat-first shell | `PASS` | [desktop-empty-state.png](/home/reptilian/code/campus-agent/.tmp/staging-smoke/20260409T232000+0800-public-chat-wave6-closeout-2/staging/desktop-empty-state.png) |
+| mobile `/chat` first impression | mobile 保持 donor shell，而不是退化成 repo 自写长页面 | `PASS` | [mobile-chat-state.png](/home/reptilian/code/campus-agent/.tmp/staging-smoke/20260409T232000+0800-public-chat-wave6-closeout-2/staging/mobile-chat-state.png) |
+| route entry states | `/chat` 进入过程不得由 repo-owned status card 或 app-shell fallback/redirect 定义产品主路径行为 | `PASS` | [app-router.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/routes/app-router.tsx) [app-shell.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/platform/chat/app-shell.tsx) |
+| composer navigation semantics | 发送前 route 切换、新建/删除会话后的落点、编辑消息回链都必须与 donor 等价 | `PASS` | [multimodal-input.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/multimodal-input.tsx) [suggested-actions.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/suggested-actions.tsx) [use-active-chat.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/platform/chat/use-active-chat.tsx) |
+| sidebar / history / user-nav actions | 左 rail 的新建、切会话、删会话、退出登录必须与 donor 动作语义一致 | `PASS` | [app-sidebar.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/app-sidebar.tsx) [sidebar-history.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/sidebar-history.tsx) [sidebar-user-nav.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/sidebar-user-nav.tsx) [public-chat-sidebar-parity.test.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/test/public-chat-sidebar-parity.test.ts) |
+| existing thread visual shell | 现有会话能在 donor 风格 thread 内显示 | `PASS` | [desktop-thread-state.png](/home/reptilian/code/campus-agent/.tmp/staging-smoke/20260409T232000+0800-public-chat-wave6-closeout-2/staging/desktop-thread-state.png) |
+| message / tool rendering behavior | tool output、fallback、error state 不能因为 repo patch 明显偏离 donor thread 行为 | `PASS` | [desktop-answer-state.png](/home/reptilian/code/campus-agent/.tmp/staging-smoke/20260409T232000+0800-public-chat-wave6-closeout-2/staging/desktop-answer-state.png) [message.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/message.tsx) [public-chat-message-parity.test.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/test/public-chat-message-parity.test.ts) |
+| artifact / document runtime | artifact panel、document preview、editor runtime 的打开与流式行为必须与 donor 等价 | `PASS` | [shell.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/shell.tsx) [data-stream-handler.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/data-stream-handler.tsx) [public-chat-artifact-runtime-parity.test.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/test/public-chat-artifact-runtime-parity.test.ts) |
+| sharing / visibility off-path | campus mode 为 `private-only` 时，launch path 不得继续暴露 share / public affordance | `PASS` | [public-chat-web-donor-diff-whitelist.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-whitelist.md) [public-chat-donor-diff-whitelist.test.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/test/public-chat-donor-diff-whitelist.test.ts) |
+| strict parity smoke / evidence pack | donor diff whitelist、desktop/mobile smoke、staging parity evidence 与 local gate 必须一起闭合 | `PASS` | [public-chat-web-donor-diff-whitelist.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-whitelist.md) [SUMMARY.md](/home/reptilian/code/campus-agent/.tmp/staging-smoke/20260409T232000+0800-public-chat-wave6-closeout-2/SUMMARY.md) |
+| same-site `/api/*` seam | `/api/me`、`/api/history`、`/api/models`、`/api/chat/conversations`、`/api/chat/requests` 仍走 same-site 且未退化 | `PASS` | [network-summary.md](/home/reptilian/code/campus-agent/.tmp/staging-smoke/20260409T232000+0800-public-chat-wave6-closeout-2/staging/network-summary.md) |
 | `/login` | `/login` 可用、退出登录后可回到登录页 | `OUT-OF-SCOPE` | [login-after-signout.png](/home/reptilian/code/campus-agent/.tmp/staging-smoke/20260409T005148+0800-public-chat-phase5-postfix-retest/login-after-signout.png) |
 
 ## 当前阻塞项
 
-当前 `Phase 5` 不能判定完成，原因只剩一个：
-
-- 本轮真实 smoke 未复现 typed `error` message card；因此 `clarification / no_answer / error` 三态证据仍不完整
+当前没有剩余的 strict donor parity blocker。
 
 ## 当前 release gate 判定
 
-`2026-04-09` 当前判定：`BLOCKED`
+`2026-04-09` 当前判定：`PASS`
 
 理由：
 
-- donor parity gate 已通过
-- runtime smoke 已通过
-- Phase 5 要求的 current-run typed `error` 证据仍缺
+- Wave 1-5 的 code-level donor drift 已全部关闭
+- Wave 6 新发现的 `share / visibility on launch path` blocker 已关闭，并被 whitelist test 固定为回归门禁
+- fresh local gate 已通过：
+  - `pnpm --dir apps/public-chat-web test:worker`
+  - `pnpm --dir apps/public-chat-web typecheck`
+  - `pnpm --dir apps/public-chat-web build`
+- fresh staging smoke 已通过：
+  - [SUMMARY.md](/home/reptilian/code/campus-agent/.tmp/staging-smoke/20260409T232000+0800-public-chat-wave6-closeout-2/SUMMARY.md)
+  - [network-summary.md](/home/reptilian/code/campus-agent/.tmp/staging-smoke/20260409T232000+0800-public-chat-wave6-closeout-2/staging/network-summary.md)
+- 这轮 authenticated smoke 已确认：
+  - `GET /api/history?limit=20` 在真实 cookie session 下返回 `200`
+  - `GET /api/models` 返回 `200`
+  - `POST /api/chat/requests` 返回 `200`
+- 本轮 staging 未观测到 artifact pane 在 launch path 打开；根据 [public-chat-web-route-state-parity-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-route-state-parity-inventory.md)，`artifact/document open behavior` 只在 launch path 仍暴露该 affordance 时进入本轮 gate，因此不构成额外 blocker
 
 ## 相关文件
 
-- [public-chat-web-donor-first-reset.md](/home/reptilian/code/campus-agent/docs/plans/public-chat-web-donor-first-reset.md)
-- [public-chat-web-donor-drift-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-drift-inventory.md)
-- [SUMMARY.md](/home/reptilian/code/campus-agent/.tmp/staging-smoke/20260409T005148+0800-public-chat-phase5-postfix-retest/SUMMARY.md)
+- [public-chat-web-donor-diff-whitelist.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-whitelist.md)
+- [public-chat-web-strict-donor-parity-gap-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-strict-donor-parity-gap-inventory.md)
+- [public-chat-web-route-state-parity-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-route-state-parity-inventory.md)
+- [public-chat-web-vendor-runtime-full-transplant.md](/home/reptilian/code/campus-agent/docs/plans/public-chat-web-vendor-runtime-full-transplant.md)

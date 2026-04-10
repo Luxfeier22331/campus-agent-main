@@ -10,6 +10,10 @@ export type AuthFormState = {
   password: string;
 };
 
+export type SignOutChatSessionOptions = {
+  redirectTo?: string;
+};
+
 type ClientAuthResponse = {
   error?: {
     message?: string;
@@ -45,8 +49,19 @@ export async function submitEmailPasswordAuth(
   }
 }
 
-export async function signOutChatSession(): Promise<void> {
-  const response = await authClient.signOut();
+export async function signOutChatSession(
+  options: SignOutChatSessionOptions = {},
+): Promise<void> {
+  const { redirectTo } = options;
+  const response = await authClient.signOut({
+    fetchOptions: redirectTo
+      ? {
+          onSuccess() {
+            window.location.assign(redirectTo);
+          },
+        }
+      : undefined,
+  });
   if (response?.error) {
     throw new Error(readAuthErrorMessage(response, "Unable to sign out."));
   }

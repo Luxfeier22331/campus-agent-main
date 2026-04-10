@@ -1,18 +1,13 @@
 "use client";
 
-import { PanelLeftIcon, PenSquareIcon } from "lucide-react";
+import { PanelLeftIcon } from "lucide-react";
 import { memo } from "react";
 import { Button } from "@/components/ui/button";
 import { useSidebar } from "@/components/ui/sidebar";
-import type { VisibilityType } from "./visibility-selector";
+import { AppLink } from "@platform/router";
+import { VercelIcon } from "./icons";
 
-function PureChatHeader(props: {
-  chatId: string;
-  conversationTitle: string | null;
-  isReadonly: boolean;
-  onNewChat: () => void;
-  selectedVisibilityType: VisibilityType;
-}) {
+function PureChatHeader() {
   const { state, toggleSidebar, isMobile } = useSidebar();
 
   if (state === "collapsed" && !isMobile) {
@@ -31,30 +26,30 @@ function PureChatHeader(props: {
         <PanelLeftIcon className="size-4" />
       </Button>
 
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-[13px] font-medium text-foreground">
-          {props.conversationTitle ?? "Campus chat"}
-        </p>
-      </div>
+      <AppLink
+        className="flex size-8 items-center justify-center rounded-lg md:hidden"
+        href="https://vercel.com/templates/next.js/chatbot"
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        <VercelIcon size={14} />
+      </AppLink>
 
-      {!props.isReadonly ? (
-        <Button
-          className="hidden rounded-lg bg-foreground px-4 text-background hover:bg-foreground/90 md:ml-auto md:flex"
-          onClick={props.onNewChat}
+      <Button
+        asChild
+        className="hidden rounded-lg bg-foreground px-4 text-background hover:bg-foreground/90 md:ml-auto md:flex"
+      >
+        <AppLink
+          href="https://vercel.com/templates/next.js/chatbot"
+          rel="noopener noreferrer"
+          target="_blank"
         >
-          <PenSquareIcon className="size-4" />
-          新对话
-        </Button>
-      ) : null}
+          <VercelIcon size={16} />
+          Deploy with Vercel
+        </AppLink>
+      </Button>
     </header>
   );
 }
 
-export const ChatHeader = memo(PureChatHeader, (previous, next) => {
-  return (
-    previous.chatId === next.chatId &&
-    previous.conversationTitle === next.conversationTitle &&
-    previous.selectedVisibilityType === next.selectedVisibilityType &&
-    previous.isReadonly === next.isReadonly
-  );
-});
+export const ChatHeader = memo(PureChatHeader);

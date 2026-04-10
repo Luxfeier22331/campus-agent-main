@@ -2,48 +2,49 @@
 doc_type: reference
 status: active
 created: 2026-04-08
-updated: 2026-04-08
+updated: 2026-04-09
 ---
 
 # Public Chat Web Route State Parity Inventory
 
 ## 文档边界
 
-本文固定 `Phase 1` 需要的 route/state inventory。
+本文固定当前 `apps/public-chat-web` chat shell 的 strict donor parity route/state inventory。
 
 本文回答的是：
 
-- 当前 `public-chat-web` 有哪些用户可见 route 与状态
-- 哪些 route/state 需要 donor parity gate
-- 哪些 route/state 允许保留 repo-local 差异
+- 当前有哪些用户可见 route 与状态
+- 哪些 route/state 属于 strict donor parity gate
+- 哪些状态虽然 repo-owned，但只要出现在 `/chat` 主路径上就仍然算 parity blocker
 
 本文不负责：
 
 - 直接给出视觉实现方案
-- 替代 donor drift inventory
-- 重写 auth 或 chat transport contract
+- 替代 strict donor gap inventory
+- 改写 auth 或 chat transport contract
 
-## Parity Gate 范围
+## Strict Parity 范围
 
-`donor parity gate` 只针对 chat 主壳相关状态生效。
+`strict donor parity gate` 只针对 chat 主壳生效，但口径不再是“接近 donor”，而是“样式与组件行为都不得明显偏离 donor”。
 
-必须进入 parity gate 的范围：
+必须进入 strict parity gate 的范围：
 
 - desktop `/chat`
 - mobile `/chat`
 - desktop `/chat/:conversationId`
 - mobile `/chat/:conversationId`
-- sidebar/history
-- thread/messages
-- composer
-- empty/loading/error states inside the chat shell
+- route entry states that appear before the chat shell is ready
+- sidebar / history / user-nav actions
+- thread / messages / tool outputs
+- composer submit / navigate / edit flows
+- empty / loading / error states inside or directly in front of the chat shell
 
 不进入 donor parity gate，但必须保持边界正确的范围：
 
 - `/login`
 - Worker shell redirects
 - same-site `/api/*`
-- auth/session bootstrap truth
+- auth/session bootstrap truth as a data boundary
 
 ## Route Inventory
 
@@ -75,7 +76,7 @@ updated: 2026-04-08
 Parity 规则：
 
 - 不要求对齐 donor
-- 只要求不破坏后续 donor-first chat 入口
+- 只要求不破坏后续 chat shell 入口
 
 ### `/chat`
 
@@ -83,8 +84,8 @@ Parity 规则：
 
 - authenticated empty thread
 - create empty draft
-- first-turn prompt submit without `conversationId`
-- shell-level loading fallback
+- first-turn prompt submit with route-owned `conversationId`
+- route bootstrap fallback during session loading
 - unauthorized redirect to `/login`
 - session loading
 - session error
@@ -99,9 +100,10 @@ Parity 规则：
 
 Parity 规则：
 
-- 必须接近 donor desktop shell
-- 必须接近 donor mobile shell
-- empty state、composer、sidebar 都属于 `critical parity`
+- route entry states 仍属于 strict parity gate，但当前 code-level route baseline 已不再使用 repo-owned status card
+- empty state、composer、sidebar、submit navigation 都属于 `critical parity`
+- composer 与 suggested actions 都必须在首轮发送前先切到 `/chat/:conversationId`
+- 当前 `/chat` 主路径只允许保留 route-owned、不可见的 bootstrap logic；不得再把 fallback 放回 chat shell frame
 
 ### `/chat/:conversationId`
 
@@ -128,69 +130,75 @@ Parity 规则：
 
 Parity 规则：
 
-- header/thread/composer/history 全部属于 `critical parity`
-- outcome rendering 允许保留 repo-local data semantics
-- 但不允许因为 outcome 类型而明显偏离 donor message shell
+- header / thread / composer / history / user-nav actions 全部属于 `critical parity`
+- outcome rendering 可以保留 repo data boundary，但不能改变 donor-visible shell behavior
+- tool outputs、error fallback、artifact/document runtime 只要影响消息区实际交互，就仍属于 strict parity gate
 
 ### Cross-Route Status States
 
 当前状态：
 
-- `RouteStatusCard` loading
-- `RouteStatusCard` chat unavailable
-- `RouteStatusCard` access blocked
+- route lazy fallback: `flex h-dvh bg-sidebar`
+- redirect to `/login` for unauthenticated state
+- redirect to `/login` for session error / access blocked state
+- redirect to `/login` for authenticated-but-no-chat state
 - `Navigate` redirects for unauthenticated and fallback routes
 
 当前 owner：
 
 - [app-router.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/routes/app-router.tsx)
-- [route-status-card.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/routes/route-status-card.tsx)
 
 Parity 规则：
 
-- 这类状态不要求严格对齐 donor
-- 但必须避免扩张成新的产品视觉主基线
+- `/login` 之外的 route entry states 不再默认豁免 strict parity
+- repo-owned status card 与 app-shell redirect/fallback 已退出 runtime path；后续不得重新把它们带回 `/chat` 主路径
+- 只有 Worker/browser bootstrap redirect 仍不进入 donor parity 本身
 
 ## Desktop / Mobile Coverage Contract
 
-Phase 1 固定以下设备宽度必须进入后续 parity 验收：
+当前 strict parity 验收至少必须覆盖：
 
 - desktop: `1440x900`
 - mobile: `390x844`
 
-后续 Phase 2-5 的视觉验收，至少必须覆盖：
+并且必须覆盖以下状态：
 
+- `/chat` route entry states
 - `/chat` empty state
 - `/chat/:conversationId` existing thread
-- sidebar/history present
+- sidebar / history / user-nav actions
 - composer idle
 - composer submitting
+- composer navigation after first send
 - assistant answer
 - clarification / no_answer / error
+- artifact/document open behavior if launch path仍可见
 
 ## Route Ownership Notes
 
 - `src/routes/` 与 `src/login/` 当前拥有：
   - login
   - session bootstrap
-  - route status card
   - route gating
+  - non-visible route bootstrap
 - `src/platform/` 当前拥有：
   - main chat shell runtime path
   - platform session/history/router integration
-  - adapter-driven thread rendering
+  - runtime adapters
 - `vendor/vercel-ai-chatbot/` 当前拥有：
-  - sidebar/thread/composer/empty-state presentation
+  - sidebar / thread / composer / empty-state presentation
+  - the visible donor shell contract that launch path must converge to
 
-Phase 1 之后，默认判断应固定为：
+默认判断固定为：
 
-- `src/routes/` 不是 chat 可见 UI owner，它只负责 route integration
-- `src/platform/` 是当前 runtime seam owner
+- `src/routes/` 不是 chat 可见 UI owner；如果 route entry states 挡在 `/chat` 前面，它们也要按 parity blocker 处理
+- `2026-04-09` 当前 code-level route entry correction 已完成：entry gating 已前移到 route ownership，`app-shell` 不再持有 redirect/fallback
+- `src/platform/` 是 runtime seam owner，不是 donor-visible behavior 的长期 owner
 - `vendor/vercel-ai-chatbot/` 是当前唯一 chat UI 主壳
 
 ## 相关文件
 
-- [public-chat-web-donor-first-reset.md](/home/reptilian/code/campus-agent/docs/plans/public-chat-web-donor-first-reset.md)
-- [public-chat-web-donor-drift-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-drift-inventory.md)
+- [public-chat-web-strict-donor-parity-gap-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-strict-donor-parity-gap-inventory.md)
+- [public-chat-web-chatbot-donor-baseline.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-chatbot-donor-baseline.md)
 - [app-router.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/routes/app-router.tsx)
 - [app-shell.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/platform/chat/app-shell.tsx)

@@ -32,6 +32,11 @@ export interface ChatConversationService {
     conversationId: string;
     principal: ResolvedAppPrincipal;
   }): Promise<{ deleted: true }>;
+  deleteTrailingMessages(input: {
+    conversationId: string;
+    messageId: string;
+    principal: ResolvedAppPrincipal;
+  }): Promise<{ deleted: true }>;
   getById(input: {
     conversationId: string;
     principal: ResolvedAppPrincipal;
@@ -136,6 +141,25 @@ export function buildChatConversationService(
         throw createChatRouteError({
           code: "conversation_not_found",
           message: "Conversation not found.",
+          status: 404,
+        });
+      }
+
+      return { deleted: true as const };
+    },
+
+    async deleteTrailingMessages(input) {
+      const ownerUserId = assertChatPrincipal(input.principal);
+      const deleted = await dependencies.store.deleteTrailingMessagesFromMessageByOwner({
+        conversationId: input.conversationId,
+        messageId: input.messageId,
+        ownerUserId,
+        updatedAt: now().toISOString(),
+      });
+      if (!deleted) {
+        throw createChatRouteError({
+          code: "message_not_found",
+          message: "Message not found.",
           status: 404,
         });
       }

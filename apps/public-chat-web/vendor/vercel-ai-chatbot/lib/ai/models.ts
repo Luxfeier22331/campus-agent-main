@@ -14,6 +14,17 @@ export type ModelCapabilities = {
   reasoning: boolean;
 };
 
+type GatewayEndpointsResponse = {
+  data?: {
+    architecture?: {
+      input_modalities?: string[];
+    };
+    endpoints?: Array<{
+      supported_parameters?: string[];
+    }>;
+  };
+};
+
 export type ChatModel = {
   id: string;
   name: string;
@@ -92,13 +103,18 @@ export async function getCapabilities(): Promise<
       try {
         const res = await fetch(
           `https://ai-gateway.vercel.sh/v1/models/${model.id}/endpoints`,
-          { next: { revalidate: 86_400 } }
+          {
+            cache: "force-cache",
+            headers: {
+              accept: "application/json",
+            },
+          }
         );
         if (!res.ok) {
           return [model.id, { tools: false, vision: false, reasoning: false }];
         }
 
-        const json = await res.json();
+        const json = (await res.json()) as GatewayEndpointsResponse;
         const endpoints = json.data?.endpoints ?? [];
         const params = new Set(
           endpoints.flatMap(
@@ -136,6 +152,10 @@ type GatewayModel = {
   tags?: string[];
 };
 
+type GatewayModelsResponse = {
+  data?: GatewayModel[];
+};
+
 export type GatewayModelWithCapabilities = ChatModel & {
   capabilities: ModelCapabilities;
 };
@@ -145,13 +165,16 @@ export async function getAllGatewayModels(): Promise<
 > {
   try {
     const res = await fetch("https://ai-gateway.vercel.sh/v1/models", {
-      next: { revalidate: 86_400 },
+      cache: "force-cache",
+      headers: {
+        accept: "application/json",
+      },
     });
     if (!res.ok) {
       return [];
     }
 
-    const json = await res.json();
+    const json = (await res.json()) as GatewayModelsResponse;
     return (json.data ?? [])
       .filter((m: GatewayModel) => m.type === "language")
       .map((m: GatewayModel) => ({

@@ -462,6 +462,62 @@ describe("public chat web worker shell", () => {
     });
   });
 
+  it("serves the donor model catalog from the worker without proxying /api/models to app-api", async () => {
+    const appApiFetch = vi.fn(async () => new Response("should not proxy", { status: 418 }));
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      return new Response(
+        JSON.stringify({
+          data: {
+            architecture: {
+              input_modalities: ["text"],
+            },
+            endpoints: [
+              {
+                supported_parameters: ["tools", "reasoning"],
+              },
+            ],
+          },
+        }),
+        {
+          headers: {
+            "content-type": "application/json; charset=utf-8",
+          },
+          status: 200,
+        },
+      );
+    });
+
+    try {
+      const response = await worker.fetch(
+        new Request("https://chat.example.com/api/models"),
+        {
+          APP_API: {
+            fetch: appApiFetch,
+          },
+          APP_API_BASE_URL: "https://app-api.internal",
+          ASSETS: {
+            fetch: async () => new Response("ok", { status: 200 }),
+          },
+          PUBLIC_CHAT_HOSTNAME: "chat.example.com",
+        },
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("cache-control")).toBe("public, max-age=86400, s-maxage=86400");
+      await expect(response.json()).resolves.toMatchObject({
+        "moonshotai/kimi-k2-0905": {
+          reasoning: true,
+          tools: true,
+          vision: false,
+        },
+      });
+      expect(appApiFetch).not.toHaveBeenCalled();
+      expect(fetchSpy).toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
   it("forwards origin and referer for same-site auth requests", async () => {
     let forwardedCookie: string | null = null;
     let forwardedOrigin: string | null = null;

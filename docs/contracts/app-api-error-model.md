@@ -145,7 +145,7 @@ updated: 2026-04-06
 
 - prompt 为空
   `422 validation_failed`
-- conversation 不属于当前 user
+- `GET /api/chat/conversations/:conversationId` 命中不存在或非当前 user 所有的 conversation
   `404 conversation_not_found`
 - 幂等键冲突
   `409 idempotency_conflict`

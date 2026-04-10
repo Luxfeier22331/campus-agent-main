@@ -109,9 +109,10 @@ function createConversationStore(input?: {
     createConversationDraft: vi.fn(),
     deleteConversationByOwner: vi.fn(),
     deleteConversationsByOwner: vi.fn(),
+    deleteTrailingMessagesFromMessageByOwner: vi.fn(),
     getConversationByOwner: vi.fn(async (ownerUserId: string, conversationId: string) => {
       if (ownerUserId !== conversation.ownerUserId || conversationId !== conversation.id) {
-      return null;
+        return null;
       }
 
       return structuredClone(conversation);
@@ -1427,33 +1428,66 @@ describe("chat command service", () => {
     });
   });
 
-  it("fails closed before accept when the conversation does not belong to the caller", async () => {
-    const { store } = createCommandStore();
+  it("creates a first-turn conversation with the caller-provided conversation id", async () => {
+    const { store, acceptedWrites } = createCommandStore();
     const { store: conversationStore } = createConversationStore();
     conversationStore.getConversationByOwner = vi.fn().mockResolvedValue(null);
+    const supervisor: SupervisorExecutionClient = {
+      execute: vi.fn().mockResolvedValue({
+        answerText: "图书馆开放到 22:00。",
+        error: null,
+        followUpQuestion: "",
+        result: {
+          evidence: {
+            sources: [],
+          },
+        },
+        selectedTarget: "rag-specialist",
+        status: "completed",
+        traceId: "trace_0001",
+      }),
+    };
     const service = buildChatCommandService({
+      computeFingerprint: (input) =>
+        `fingerprint:${input.conversationDiscriminator}:${input.prompt}`,
       generateId: createDeterministicIdGenerator(),
       now: () => new Date("2026-03-28T08:00:00.000Z"),
       conversationStore,
       store,
-      supervisor: {
-        execute: vi.fn(),
-      },
+      supervisor,
     });
 
-    await expect(
-      service.submit({
-        payload: {
-          conversationId: "conv_missing",
-          prompt: "图书馆开放到几点？",
-        },
-        principal: createPrincipal(),
-      }),
-    ).rejects.toMatchObject({
-      code: "conversation_not_found",
-      status: 404,
+    const response = await service.submit({
+      payload: {
+        conversationId: "conv_client_0001",
+        prompt: "图书馆开放到几点？",
+      },
+      principal: createPrincipal(),
     });
-    expect(store.acceptRequest).not.toHaveBeenCalled();
+
+    expect(conversationStore.getConversationByOwner).toHaveBeenCalledWith(
+      "user_01HQ",
+      "conv_client_0001",
+    );
+    expect(acceptedWrites[0]).toMatchObject({
+      conversationSeed: {
+        id: "conv_client_0001",
+        ownerUserId: "user_01HQ",
+        title: "图书馆开放到几点？",
+      },
+      requestExecution: {
+        conversationId: "conv_client_0001",
+      },
+    });
+    expect(supervisor.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: "conv_client_0001",
+      }),
+    );
+    expect(response.answer.conversation).toMatchObject({
+      id: "conv_client_0001",
+      title: "图书馆开放到几点？",
+    });
   });
 
   it("creates a conversation lazily on the first chat request when conversationId is omitted", async () => {

@@ -12,11 +12,28 @@ import {
 } from "@/components/chat/icons";
 import { Editor } from "@/components/chat/text-editor";
 import type { Suggestion } from "@/lib/db/schema";
+import type { SuggestionRecord } from "@/lib/types";
 import { getSuggestions } from "../actions";
 
 type TextArtifactMetadata = {
   suggestions: Suggestion[];
 };
+
+function normalizeSuggestion(
+  suggestion: Suggestion | SuggestionRecord,
+): Suggestion {
+  return {
+    ...suggestion,
+    createdAt:
+      suggestion.createdAt instanceof Date
+        ? suggestion.createdAt
+        : new Date(suggestion.createdAt),
+    documentCreatedAt:
+      suggestion.documentCreatedAt instanceof Date
+        ? suggestion.documentCreatedAt
+        : new Date(suggestion.documentCreatedAt),
+  };
+}
 
 export const textArtifact = new Artifact<"text", TextArtifactMetadata>({
   kind: "text",
@@ -25,14 +42,17 @@ export const textArtifact = new Artifact<"text", TextArtifactMetadata>({
     const suggestions = await getSuggestions({ documentId });
 
     setMetadata({
-      suggestions,
+      suggestions: suggestions.map(normalizeSuggestion),
     });
   },
   onStreamPart: ({ streamPart, setMetadata, setArtifact }) => {
     if (streamPart.type === "data-suggestion") {
       setMetadata((metadata) => {
         return {
-          suggestions: [...metadata.suggestions, streamPart.data],
+          suggestions: [
+            ...metadata.suggestions,
+            normalizeSuggestion(streamPart.data),
+          ],
         };
       });
     }

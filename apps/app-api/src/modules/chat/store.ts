@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gte } from "drizzle-orm";
 
 import type { Env } from "../../config";
 import { createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
@@ -25,6 +25,12 @@ export interface ChatConversationStore {
   createConversationDraft(input: ChatConversationDraftWrite): Promise<ChatConversation>;
   deleteConversationByOwner(ownerUserId: string, conversationId: string): Promise<boolean>;
   deleteConversationsByOwner(ownerUserId: string): Promise<number>;
+  deleteTrailingMessagesFromMessageByOwner(input: {
+    ownerUserId: string;
+    conversationId: string;
+    messageId: string;
+    updatedAt: string;
+  }): Promise<boolean>;
   getConversationDetailByOwner(
     ownerUserId: string,
     conversationId: string,
@@ -188,6 +194,59 @@ export function createPgChatConversationStore(
         .returning({ id: conversations.id });
 
       return deletedRows.length;
+    },
+
+    async deleteTrailingMessagesFromMessageByOwner(input) {
+      const db = await getDb();
+      const conversationRows = await db
+        .select({ id: conversations.id })
+        .from(conversations)
+        .where(
+          and(
+            eq(conversations.ownerUserId, input.ownerUserId),
+            eq(conversations.id, input.conversationId),
+          ),
+        )
+        .limit(1);
+      if (!conversationRows[0]) {
+        return false;
+      }
+
+      const messageRows = await db
+        .select({
+          createdAt: messages.createdAt,
+          id: messages.id,
+        })
+        .from(messages)
+        .where(and(eq(messages.id, input.messageId), eq(messages.conversationId, input.conversationId)))
+        .limit(1);
+      const messageRow = messageRows[0];
+      if (!messageRow) {
+        return false;
+      }
+
+      await db
+        .delete(messages)
+        .where(
+          and(
+            eq(messages.conversationId, input.conversationId),
+            gte(messages.createdAt, messageRow.createdAt),
+          ),
+        );
+
+      await db
+        .update(conversations)
+        .set({
+          updatedAt: new Date(input.updatedAt),
+        })
+        .where(
+          and(
+            eq(conversations.ownerUserId, input.ownerUserId),
+            eq(conversations.id, input.conversationId),
+          ),
+        );
+
+      return true;
     },
 
     async getConversationDetailByOwner(ownerUserId, conversationId) {

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Toaster } from "sonner";
 
 import { AppSidebar } from "@/components/chat/app-sidebar";
@@ -22,22 +23,16 @@ function readDefaultSidebarOpen() {
   return cookie ? cookie.slice("sidebar_state=".length) === "true" : true;
 }
 
-export function ChatAppShell() {
-  const { session } = useChatbotShellRuntime();
-  const user: ShellChatUser | undefined =
-    session.kind === "authenticated"
-      ? {
-          email: session.principal.email,
-          name: session.principal.displayName,
-        }
-      : undefined;
-
+function ChatShellFrame(props: {
+  children: ReactNode;
+  user: ShellChatUser | undefined;
+}) {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" disableTransitionOnChange enableSystem>
       <TooltipProvider>
         <DataStreamProvider>
           <SidebarProvider defaultOpen={readDefaultSidebarOpen()}>
-            <AppSidebar user={user} />
+            <AppSidebar user={props.user} />
             <SidebarInset>
               <Toaster
                 position="top-center"
@@ -47,13 +42,32 @@ export function ChatAppShell() {
                     "!bg-card !text-foreground !border-border/50 !shadow-[var(--shadow-float)]",
                 }}
               />
-              <ActiveChatProvider>
-                <ChatShell />
-              </ActiveChatProvider>
+              {props.children}
             </SidebarInset>
           </SidebarProvider>
         </DataStreamProvider>
       </TooltipProvider>
     </ThemeProvider>
   );
+}
+
+export function ChatAppShell() {
+  const { session } = useChatbotShellRuntime();
+
+  if (session.kind === "authenticated") {
+    const user: ShellChatUser = {
+      email: session.principal.email,
+      name: session.principal.displayName,
+    };
+
+    return (
+      <ChatShellFrame user={user}>
+        <ActiveChatProvider>
+          <ChatShell />
+        </ActiveChatProvider>
+      </ChatShellFrame>
+    );
+  }
+
+  throw new Error("ChatAppShell rendered outside authenticated chat route ownership.");
 }

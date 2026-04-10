@@ -15,8 +15,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { code } from "@platform/chat/streamdown-code-plugin";
 import { cjk } from "@streamdown/cjk";
-import { code } from "@streamdown/code";
 import { math } from "@streamdown/math";
 import { mermaid } from "@streamdown/mermaid";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";

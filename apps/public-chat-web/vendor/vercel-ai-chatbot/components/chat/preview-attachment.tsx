@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { AppImage } from "@platform/ui/app-image";
 import type { Attachment } from "@/lib/types";
 import { Spinner } from "../ui/spinner";
 import { CrossSmallIcon } from "./icons";
@@ -20,7 +20,7 @@ export const PreviewAttachment = ({
       data-testid="input-attachment-preview"
     >
       {contentType?.startsWith("image") ? (
-        <Image
+        <AppImage
           alt={name ?? "attachment"}
           className="size-full object-cover"
           height={96}

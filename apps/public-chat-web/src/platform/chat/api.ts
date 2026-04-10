@@ -106,6 +106,16 @@ export async function getConversationDetail(conversationId: string): Promise<Con
   return payload.conversation;
 }
 
+export async function deleteTrailingMessages(
+  conversationId: string,
+  messageId: string,
+): Promise<void> {
+  await requestJson<void>({
+    method: "DELETE",
+    path: `/api/chat/conversations/${conversationId}/messages/${messageId}/trailing`,
+  });
+}
+
 export async function submitChatRequest(input: {
   conversationId?: string;
   prompt: string;
