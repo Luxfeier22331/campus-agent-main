@@ -175,6 +175,7 @@ pnpm db:ensure-app-auth-role-search-path
 pnpm db:bootstrap
 pnpm db:adopt-shared -- --json
 pnpm db:reconcile-shared-drift -- --json
+APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' pnpm smoke-identity:provision -- --email help_bot@outlook.com --name "Help Bot"
 pnpm official-web:drain-projection -- --limit 50
 pnpm projection:drain
 pnpm test
@@ -187,6 +188,7 @@ pnpm db:generate
 pnpm db:migrate
 STAGING_APP_API_MANAGEMENT_DATABASE_URL=postgresql://<staging-management-url> pnpm db:migrate:staging
 STAGING_APP_API_MANAGEMENT_DATABASE_URL=postgresql://<staging-management-url> pnpm db:reconcile-shared-drift:staging
+APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' STAGING_APP_API_MANAGEMENT_DATABASE_URL=postgresql://<staging-management-url> pnpm smoke-identity:provision:staging -- --email help_bot@outlook.com --name "Help Bot"
 pnpm dev
 ```
 

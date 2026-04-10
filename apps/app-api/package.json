@@ -13,6 +13,8 @@
     "db:print-auth-migration": "node ./scripts/run-with-local-env.mjs node ./scripts/print-shared-product-auth-migration.mjs",
     "db:reconcile-shared-drift": "node ./scripts/run-with-local-env.mjs node ./scripts/reconcile-shared-db-drift.mjs",
     "db:reconcile-shared-drift:staging": "node ./scripts/run-with-staging-db-env.mjs node ./scripts/reconcile-shared-db-drift.mjs",
+    "smoke-identity:provision": "node ./scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/provision-smoke-identity.ts",
+    "smoke-identity:provision:staging": "node ./scripts/run-with-staging-db-env.mjs pnpm exec tsx ./scripts/provision-smoke-identity.ts",
     "official-web:drain-projection": "node ./scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/drain-official-web-projection.ts",
     "db:adopt-shared": "node ./scripts/run-with-local-env.mjs node ./scripts/adopt-shared-database.mjs",
     "projection:drain": "node ./scripts/run-with-local-env.mjs node ./scripts/trigger-local-scheduled-drain.mjs",

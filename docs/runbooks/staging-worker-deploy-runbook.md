@@ -146,11 +146,13 @@ deploy shell 还需要可用的 staging shared DB 管理连接：
 
 - `STAGING_APP_API_MANAGEMENT_DATABASE_URL`
 - 可选：`STAGING_APP_API_DATABASE_SSLMODE=require`
+- staging smoke identity reset 时，shell 还需要 `APP_API_SMOKE_IDENTITY_PASSWORD`
 
 要求：
 
 - `APP_API_OPERATOR_EMAIL_ALLOWLIST` 必须显式包含当前 panel smoke / operator Access 身份；当前 staging 至少需要 `help_bot@outlook.com`
 - 如果该 allowlist miss，`/api/operator/*` 会返回 `403 operator_identity_not_admitted`，这是 operator admission 配置问题，不是 Access session 失效
+- `APP_API_SMOKE_IDENTITY_PASSWORD` 只作为 shell / secret store 输入供 `pnpm --dir apps/app-api smoke-identity:provision:staging` 使用；不要把它写入 repo、runbook 产物或浏览器抓包摘要
 
 ### `apps/public-chat-web`
 
@@ -198,6 +200,22 @@ wrangler secret put SENTRY_DSN --env staging
 - `public-chat-web /readyz` 与 `protected-panel-web /readyz` 会继续探测 shared `app-api /readyz`；如果 shared runtime 未 ready，web surfaces 不得标记 green
 - `protected-panel-web` 只有在真实浏览器入口已经被 Cloudflare Access 接管时，才能视为 staging deploy 完成；worker 侧的 `Missing Access JWT.` 只代表入口仍未完成真实保护
 - `app-api` 的 shared Postgres schema 必须先与 repo 当前 Drizzle snapshot 对齐；`official_web` 相关列表如果在 staging 同时返回 `internal_error`，优先先检查 `db:reconcile-shared-drift:staging` / `db:migrate:staging`
+
+## Smoke Identity Contract
+
+- `public-chat` staging smoke 不再依赖浏览器现场 sign-up；固定使用受控 smoke identity，并在需要时通过 repo-owned 脚本重置密码和清理旧聊天数据
+- 当前 repo-tracked staging explicit end-user allowlist 仍固定包含 `help_bot@outlook.com`；在 deploy env 未扩面前，它仍是 canonical chat smoke identity
+- 重置命令：
+
+```bash
+APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' \
+STAGING_APP_API_MANAGEMENT_DATABASE_URL=postgresql://<staging-management-url> \
+pnpm --dir apps/app-api smoke-identity:provision:staging -- --email help_bot@outlook.com --name "Help Bot"
+```
+
+- 该命令会先清理该邮箱名下旧 `chat` 数据与旧 `app_auth.user` 记录，再通过真实 `/api/auth/sign-up/email` 路由重建 canonical Better Auth 账号，并清掉脚本执行过程中创建的 session
+- browser smoke 只使用这个固定 identity 登录；不要在 staging 页面继续创建 ad-hoc end-user 账号
+- 如果未来 staging admit 了专用 `public-chat smoke` 邮箱，应直接复用同一脚本切换到新邮箱，不再改回浏览器临时注册
 
 ## Pre-Deploy Repo Gates
 

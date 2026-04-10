@@ -164,10 +164,19 @@ curl --noproxy '*' -sS -i https://campus-panel-staging.ayafeed.com/readyz
 在真实 `campus-chat-staging` 页面执行：
 
 1. 打开 `/login`
-2. 使用临时测试账号注册或登录
-3. 进入 `/chat`（当前默认 donor-derived shell）
-4. 发起一条首轮问题
-5. 直访旧 `/chat/replatform-preview*` 前缀，确认它会 canonicalize 回 `/chat`，而不是被当成 `conversationId`
+2. 使用固定 smoke identity 登录；如果密码漂移或历史数据需要重置，先在 shell 执行：
+
+```bash
+APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' \
+STAGING_APP_API_MANAGEMENT_DATABASE_URL=postgresql://<staging-management-url> \
+pnpm --dir apps/app-api smoke-identity:provision:staging -- --email help_bot@outlook.com --name "Help Bot"
+```
+
+3. 不要在浏览器现场创建临时 end-user 账号；当前 repo-tracked staging identity 仍以 `help_bot@outlook.com` 为准
+4. 进入 `/chat`（当前默认 donor-derived shell）
+5. 发起一条首轮问题
+6. 确认首轮成功后 sidebar/history 无需手动 reload 就能看到新会话
+7. 直访旧 `/chat/replatform-preview*` 前缀，确认它会 canonicalize 回 `/chat`，而不是被当成 `conversationId`
 
 推荐问题：
 
@@ -180,6 +189,7 @@ curl --noproxy '*' -sS -i https://campus-panel-staging.ayafeed.com/readyz
 - 页面得到 typed outcome，并以显式结果态渲染 `answer` / `clarification` / `no_answer` / `error`
 - outcome 可以是 `answer` / `clarification` / `no_answer`
 - 不能是 transport error、Worker proxy error、upstream unreachable
+- 首轮成功后不允许依赖手动刷新才能在左侧 history 看到新会话
 
 ## Step 6. 记录链路证据
 
@@ -189,11 +199,15 @@ curl --noproxy '*' -sS -i https://campus-panel-staging.ayafeed.com/readyz
 - 本地 `supervisor-api` 启动方式：`dev` 或 `docker`
 - 一条真实 `POST /api/chat/requests`
 - 当次 `conversationId`
+- 当次 `requestId`
+- 当次 `traceId`
 - 页面显示的最终 typed outcome
+- 空态、提交后、结果态、刷新后 history 四张截图
 
 建议落盘：
 
 - `.tmp/staging-smoke/<timestamp>/SUMMARY.md`
+- `docs/runbooks/public-chat-staging-smoke-artifact-template.md`
 
 建议摘要字段：
 
@@ -202,7 +216,14 @@ curl --noproxy '*' -sS -i https://campus-panel-staging.ayafeed.com/readyz
 - `app_api_version`
 - `chat_request_status`
 - `typed_outcome`
+- `request_id`
+- `trace_id`
 - `notes`
+
+脱敏约束：
+
+- 不要把 raw `cookie`、`authorization`、密码、session token 写进 `SUMMARY.md`
+- 不要把原始 request/response body 粘进产物；只记录状态码、`conversationId`、`requestId`、`traceId`、页面截图和简短说明
 
 ## Step 7. panel / observability smoke
 
