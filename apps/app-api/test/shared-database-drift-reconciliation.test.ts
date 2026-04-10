@@ -45,7 +45,7 @@ describe("shared database drift reconciliation", () => {
     const inventory = makeInventory({
       journalRows: [
         ...migrationContext.migrations.map((migration) => ({
-          createdAt: migration.when,
+          createdAt: migration.folderMillis,
           hash: migration.hash,
         })),
         {
@@ -164,7 +164,7 @@ describe("shared database drift reconciliation", () => {
       journalRows: migrationContext.migrations
         .filter((migration) => migration.tag !== "0010_windy_runaways")
         .map((migration) => ({
-          createdAt: migration.when,
+          createdAt: migration.folderMillis,
           hash: migration.hash,
         })),
       schemas: ["official_web", "operator"],

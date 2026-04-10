@@ -68,6 +68,9 @@ describe("request observability", () => {
       conversationId: "conv_01HQ",
       diagnostics: {
         clarificationReason: null,
+        freshnessFailClosed: null,
+        groundingDowngraded: null,
+        groundingVerdict: null,
         noAnswerReason: "resolved_policy_clause_not_found",
         policyReason: null,
         resolvedEntityType: null,

@@ -406,6 +406,9 @@ describe("request projection projector", () => {
         createExecutionSource({
           diagnostics: {
             clarificationReason: "policy_object_conflict",
+            freshnessFailClosed: null,
+            groundingDowngraded: null,
+            groundingVerdict: null,
             noAnswerReason: null,
             policyReason: null,
             resolvedPolicyDocumentId:
@@ -447,6 +450,9 @@ describe("request projection projector", () => {
       expect.objectContaining({
         diagnostics: {
           clarificationReason: "policy_object_conflict",
+          freshnessFailClosed: null,
+          groundingDowngraded: null,
+          groundingVerdict: null,
           noAnswerReason: null,
           policyReason: null,
           resolvedPolicyDocumentId:
