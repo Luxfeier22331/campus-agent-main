@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-03-31
-updated: 2026-04-08
+updated: 2026-04-09
 ---
 
 # Worker Observability Smoke Runbook
@@ -119,6 +119,20 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.check_sen
 ```
 
   确认 token 至少能读取目标 org / project，再进入 trace / event 证据留存
+- 如果 `organizations/.../issues` 这类 issue/event list endpoint 返回 `403 You do not have permission to perform this action.`，不要把它误判成 staging observability blocker。当前 repo 的默认 closure 路径是直接查询 Sentry Explore `spans`：
+
+```bash
+env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.query_sentry_spans \
+  --org-slug <org-slug> \
+  --project <surface-project-id-or-slug> \
+  --project <app-api-project-id-or-slug> \
+  --environment staging \
+  --stats-period 30d \
+  --query 'trace:<sentry-trace-id> span.op:http.server' \
+  --markdown-output .tmp/observability-smoke/<timestamp>/trace-query.md
+```
+
+  这条脚本复用 repo-local `SENTRY_API_TOKEN`，不需要把更高权限 scope 下发到 Worker secret store
 - 建议先用 `docs/runbooks/worker-observability-smoke-artifact-template.md` 填完 handoff 与 evidence 字段，再执行真实环境 smoke
 
 ## Post-Deploy Verification
@@ -152,12 +166,15 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.check_sen
 - `protected-panel-web` 事件标签至少包含 `surface=protected-panel-web`
 - `app-api` 不把 panel 请求降级成 telemetry truth source
 
-### 3. `app-api` 受控错误路径
+### 3. `app-api` 受控错误路径（可选）
 
-触发一个可控错误，例如：
+只在明确需要 exception evidence 时再走这条路径。
 
-- 缺失必须字段的 `POST /api/chat/requests`
-- 或一条明确的 route validation failure
+注意：
+
+- 当前 `apps/app-api` 只会把非 `AppApiRouteError` 的未处理异常送入 `telemetry.captureException(...)`
+- 缺失必须字段、`validation_failed`、`401/403/404/422` 这类 route error 会直接变成 `routeErrorResponse(...)`，不能作为 `Sentry` exception closure 证据
+- 如果当前没有显式的 non-`AppApiRouteError` probe，优先使用前两节的 trace-linked `spans` 证据完成 closure
 
 预期：
 
@@ -232,3 +249,20 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.check_sen
 - `.tmp/staging-smoke/20260406T032941-wave-b-closure/`
 - `.tmp/staging-smoke/20260406T115658-panel-requests-fix/`
 - `.tmp/observability-smoke/20260406T032941-staging-wave-b/`
+
+## 2026-04-09 Staging Closure
+
+这轮真实 staging 收口已经把 Wave B 的最后一项 `Sentry` blocker 关闭：
+
+- `campus-api-staging.ayafeed.com/readyz`: `200`
+- `campus-chat-staging.ayafeed.com/readyz`: `200`
+- `campus-panel-staging.ayafeed.com/readyz`: `302 -> Cloudflare Access login`，符合 protected surface 预期
+- `SENTRY_API_TOKEN` lookup 继续可读取 org `linear27` 与三条 `campus-agent-*` 项目
+- `Sentry` sink-side event evidence: closed。`.tmp/observability-smoke/20260409T204915-staging-wave-b-sentry-closure/` 已记录：
+  - `trace=aa87e040f4a74358aa74b62fa06b87b8` 在 `campus-agent-chat` 与 `campus-agent-api` 中同时出现，`span.description=POST /api/chat/requests`
+  - `trace=cd55de711b3244eba5b2ca5f7c496ebe` 在 `campus-agent-panel` 与 `campus-agent-api` 中同时出现，分别对应 `GET /api/requests` 与 `GET /api/operator/requests`
+- 当前 token 直接列 `issues` 仍可能返回 `403`，但这不再阻塞 closure；repo 现以 Explore `spans` event rows 作为默认 event-level evidence
+
+当前 closure artifact：
+
+- `.tmp/observability-smoke/20260409T204915-staging-wave-b-sentry-closure/`
