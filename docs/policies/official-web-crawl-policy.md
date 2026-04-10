@@ -1,8 +1,8 @@
 ---
-doc_type: architecture
+doc_type: policy
 status: active
 created: 2026-03-28
-updated: 2026-03-30
+updated: 2026-04-10
 ---
 
 # Official Web Crawl Policy

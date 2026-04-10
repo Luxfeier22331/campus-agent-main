@@ -235,7 +235,7 @@ updated: 2026-04-09
 
 ## 相关文档
 
-- [public-chat-web-donor-first-reset.md](/home/reptilian/code/campus-agent/docs/plans/public-chat-web-donor-first-reset.md)
+- [public-chat-web-donor-first-reset.md](/home/reptilian/code/campus-agent/.planning/archive-docs/docs/plans/public-chat-web-donor-first-reset.md)
 - [public-chat-web-chatbot-donor-baseline.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-chatbot-donor-baseline.md)
 - [public-chat-web-donor-diff-whitelist.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-whitelist.md)
 - [public-chat-web-route-state-parity-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-route-state-parity-inventory.md)

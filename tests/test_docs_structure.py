@@ -19,7 +19,7 @@ EXPECTED_DOC_TYPES = {
     "reference": "reference",
     "policies": "policy",
 }
-ALLOWED_STATUSES = {"active", "accepted", "completed"}
+ALLOWED_STATUSES = {"active", "accepted"}
 
 
 def _read_front_matter(path: Path) -> dict[str, str]:
@@ -62,6 +62,16 @@ class DocsStructureTest(unittest.TestCase):
                 self.assertIn(front_matter.get("status"), ALLOWED_STATUSES, path)
                 self.assertNotIn(front_matter.get("status"), {"archived", "superseded"}, path)
 
+    def test_completed_docs_are_not_kept_in_active_docs_path(self) -> None:
+        completed_docs = []
+
+        for path in sorted(DOCS_ROOT.rglob("*.md")):
+            front_matter = _read_front_matter(path)
+            if front_matter.get("status") == "completed":
+                completed_docs.append(path)
+
+        self.assertEqual(completed_docs, [])
+
     def test_decisions_include_decision_id(self) -> None:
         for path in sorted((DOCS_ROOT / "decisions").glob("*.md")):
             front_matter = _read_front_matter(path)
@@ -71,9 +81,14 @@ class DocsStructureTest(unittest.TestCase):
         historical_plan_names = {
             "agentic-rag-foundation.md",
             "app-api-initial-execution-plan.md",
+            "domain-bounded-answering-and-refusal-foundation.md",
+            "env-bootstrap-and-provider-configuration-governance.md",
             "app-api-worker-foundation.md",
             "golden-dataset-schema-and-bootstrap.md",
             "official-web-app-api-control-plane-foundation.md",
+            "public-chat-web-chatbot-replatform.md",
+            "public-chat-web-donor-first-reset.md",
+            "public-chat-web-vendor-runtime-full-transplant.md",
             "source-truth-normalization-refactor.md",
             "student-handbook-retrieval-eval-bootstrap.md",
         }
@@ -81,11 +96,21 @@ class DocsStructureTest(unittest.TestCase):
         actual_plan_names = {path.name for path in (DOCS_ROOT / "plans").glob("*.md")}
         self.assertTrue(historical_plan_names.isdisjoint(actual_plan_names))
 
-    def test_docs_index_lists_env_provider_governance_docs(self) -> None:
+    def test_docs_index_lists_current_env_governance_docs(self) -> None:
         docs_index = (DOCS_ROOT / "README.md").read_text(encoding="utf-8")
 
-        self.assertIn("plans/env-bootstrap-and-provider-configuration-governance.md", docs_index)
+        self.assertIn("environment/README.md", docs_index)
         self.assertIn("runbooks/provider-secret-governance.md", docs_index)
+
+    def test_decision_ids_are_unique(self) -> None:
+        decision_ids: dict[str, Path] = {}
+
+        for path in sorted((DOCS_ROOT / "decisions").glob("*.md")):
+            front_matter = _read_front_matter(path)
+            decision_id = front_matter.get("decision_id")
+            self.assertIsNotNone(decision_id, path)
+            self.assertNotIn(decision_id, decision_ids, f"{path} duplicates {decision_ids.get(decision_id)}")
+            decision_ids[decision_id] = path
 
     def test_historical_roadmap_does_not_assert_current_runtime_truth(self) -> None:
         roadmap = (PLANNING_ROOT / "ROADMAP.md").read_text(encoding="utf-8")

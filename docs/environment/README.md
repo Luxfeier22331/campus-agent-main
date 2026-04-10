@@ -103,7 +103,7 @@ updated: 2026-04-10
   `uv run --all-packages python -m scripts.doctor_env evals --json`
 - eval 的 HTTP timeout / retry / pacing / keep-alive / connection-pool 一类 runtime tuning 由 repo-tracked live benchmark profile config 持有，不再放在 root `.env.example`
 - 代码层仍保留 `SupplementalHTTPSettings.from_env(...)` 作为低层 helper，但这不再是长期 ownership 入口
-- 这条链路的长期重构计划见 [`docs/plans/env-bootstrap-and-provider-configuration-governance.md`](../plans/env-bootstrap-and-provider-configuration-governance.md)
+- 这条链路的当前 canonical truth 以本文和 [`docs/runbooks/provider-secret-governance.md`](../runbooks/provider-secret-governance.md) 为准；已完成的历史实施计划已归档到 `.planning/archive-docs/`
 
 ## 本地同步便利
 

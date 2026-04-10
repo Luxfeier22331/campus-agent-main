@@ -97,7 +97,7 @@ Phase 1 完成的判断标准不是“drift 已修完”，而是：
 
 ## 相关文件
 
-- [public-chat-web-donor-first-reset.md](/home/reptilian/code/campus-agent/docs/plans/public-chat-web-donor-first-reset.md)
+- [public-chat-web-donor-first-reset.md](/home/reptilian/code/campus-agent/.planning/archive-docs/docs/plans/public-chat-web-donor-first-reset.md)
 - [public-chat-web-strict-donor-parity-gap-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-strict-donor-parity-gap-inventory.md)
 - [public-chat-web-route-state-parity-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-route-state-parity-inventory.md)
 - [README.md](/home/reptilian/code/campus-agent/apps/public-chat-web/README.md)

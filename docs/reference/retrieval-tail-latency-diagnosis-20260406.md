@@ -126,7 +126,7 @@ Wave 2 约束：
 补充说明：
 
 - 这些修复只关闭 retrieval hot path 问题，不代表 `public-chat-web` donor shell 已完成 strict parity 收口。
-- 当前 chat frontend 的 active truth 继续看 `docs/plans/public-chat-web-vendor-runtime-full-transplant.md` 与 `docs/reference/public-chat-web-strict-donor-parity-gap-inventory.md`。
+- 当前 chat frontend 的 active truth 继续看 `docs/reference/public-chat-web-strict-donor-parity-gap-inventory.md` 与配套 strict parity reference 文档。
 
 ## References
 

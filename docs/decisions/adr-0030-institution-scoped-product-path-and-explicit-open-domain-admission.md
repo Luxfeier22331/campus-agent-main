@@ -108,4 +108,4 @@ Accepted on 2026-04-06.
 - `docs/architecture/target-architecture.md`
 - `docs/architecture/prompt-and-instruction-architecture.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
-- `docs/plans/domain-bounded-answering-and-refusal-foundation.md`
+- `docs/architecture/prompt-and-instruction-architecture.md`

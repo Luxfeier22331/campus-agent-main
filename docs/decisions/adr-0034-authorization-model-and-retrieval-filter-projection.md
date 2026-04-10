@@ -1,12 +1,12 @@
 ---
 doc_type: decision
-decision_id: ADR-0016
+decision_id: ADR-0034
 status: accepted
 created: 2026-03-29
-updated: 2026-03-29
+updated: 2026-04-10
 ---
 
-# ADR-0016 授权模型与检索过滤投影
+# ADR-0034 授权模型与检索过滤投影
 
 ## 状态
 

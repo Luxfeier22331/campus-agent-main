@@ -91,9 +91,10 @@ updated: 2026-04-10
 - authenticated-notice 历史 closeout 当前证据：`reference/authenticated-notice-historical-closeout-evidence.md`
 - 地点寻找一期实施：`plans/campus-place-finding-foundation.md`
 - 当前 closeout 之后的执行优先级：`plans/post-closeout-follow-up-execution-plan.md`
-- `public-chat-web` 当前 strict donor parity closeout truth：`plans/public-chat-web-vendor-runtime-full-transplant.md`、`reference/public-chat-web-donor-diff-whitelist.md`、`reference/public-chat-web-strict-donor-parity-gap-inventory.md`、`reference/public-chat-web-route-state-parity-inventory.md`、`reference/public-chat-web-donor-parity-review-checklist.md`、`reference/public-chat-web-chatbot-donor-baseline.md`
+- `public-chat-web` 当前 strict donor parity closeout truth：`reference/public-chat-web-donor-diff-whitelist.md`、`reference/public-chat-web-strict-donor-parity-gap-inventory.md`、`reference/public-chat-web-route-state-parity-inventory.md`、`reference/public-chat-web-donor-parity-review-checklist.md`、`reference/public-chat-web-chatbot-donor-baseline.md`
 - 首个真实 Worker 部署准备：`runbooks/staging-worker-deploy-runbook.md`
 - 当前 `dev-backed supervisor` staging 验收：`runbooks/dev-backed-supervisor-staging-smoke-runbook.md`
+- 已完成且退出默认入口的历史 plan/reference 已归档到 `.planning/archive-docs/`
 
 ## 标识规则
 
@@ -108,7 +109,7 @@ updated: 2026-04-10
 所有 canonical 文档在顶部使用 YAML front matter。
 
 - `doc_type`: `index`、`architecture`、`contract`、`data`、`decision`、`plan`、`runbook`、`reference`、`policy`
-- `status`: `active`、`accepted`、`completed`
+- `status`: `active`、`accepted`
 - `created`: 文档首次建立日期
 - `updated`: 最近一次实质内容更新时间
 - `decision_id`: 仅 decision 文档必填
@@ -170,13 +171,13 @@ updated: 2026-04-10
 - `decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spatial-review-boundary.md`
 - `decisions/adr-0032-internal-notice-notice-family-stratified-admission.md`
 - `decisions/adr-0033-internal-notice-pdf-cloud-ocr-default.md`
-- `decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
+- `decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
+- `decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
 - `plans/authenticated-notice-source-attachment-key-reorganization.md`
 - `plans/authenticated-notice-source-foundation.md`
 - `plans/internal-notice-policy-regulation-consumption-implementation.md`
 - `plans/campus-place-finding-foundation.md`
 - `plans/campus-identity-and-restricted-document-foundation.md`
-- `plans/env-bootstrap-and-provider-configuration-governance.md`
 - `plans/golden-dataset-execution-plan.md`
 - `plans/intent-memory-acl-foundation.md`
 - `plans/legacy-acl-carrier-compatibility-sunset.md`
@@ -184,7 +185,6 @@ updated: 2026-04-10
 - `plans/operator-observability-control-plane-foundation.md`
 - `plans/prompt-grounding-and-hallucination-hardening-plan.md`
 - `plans/post-closeout-follow-up-execution-plan.md`
-- `plans/public-chat-web-vendor-runtime-full-transplant.md`
 - `plans/restricted-document-rollout-and-verification.md`
 - `plans/supervisor-current-design-implementation.md`
 - `plans/versioned-history-query-foundation.md`
@@ -199,6 +199,7 @@ updated: 2026-04-10
 - `runbooks/forward-worker-surface-smoke-runbook.md`
 - `runbooks/index-release-runbook.md`
 - `runbooks/local-postgres-dev-recovery-runbook.md`
+- `runbooks/public-chat-staging-smoke-artifact-template.md`
 - `runbooks/provider-secret-governance.md`
 - `runbooks/staging-worker-deploy-runbook.md`
 - `runbooks/qdrant-cloud-backup-and-restore-runbook.md`

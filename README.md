@@ -69,9 +69,10 @@
 - versioned query：`docs/plans/versioned-history-query-foundation.md`
 - place finding：`docs/plans/campus-place-finding-foundation.md`
 - eval / dataset：`docs/plans/golden-dataset-execution-plan.md`
-- env / provider governance：`docs/plans/env-bootstrap-and-provider-configuration-governance.md`
+- env / provider governance：`docs/environment/README.md`、`docs/runbooks/provider-secret-governance.md`
+- local Postgres dev lifecycle：`docs/runbooks/local-postgres-dev-recovery-runbook.md`
 
-`docs/plans/` 只保留仍对前向实施有指导价值的计划文档；已完成的历史 bootstrap / baseline 不再作为默认入口，必要时请看 `.planning/` 或 git history。
+`docs/plans/` 只保留仍对前向实施有指导价值的计划文档；已完成的历史 bootstrap / baseline 已移出 active docs path，归档在 `.planning/archive-docs/`，必要时再追溯。
 
 ## JS/TS Workspace
 

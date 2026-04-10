@@ -8,7 +8,7 @@ updated: 2026-04-09
 # Public Chat Web Chatbot Replatform (Historical Cutover Record)
 
 > 历史说明：本文只保留第一轮 `public-chat-web` runtime cutover 的阶段记录，不能再作为当前 chat frontend 的实施依据。
-> 当前 canonical 实施与验收入口已转到 [public-chat-web-vendor-runtime-full-transplant.md](/home/reptilian/code/campus-agent/docs/plans/public-chat-web-vendor-runtime-full-transplant.md)、[public-chat-web-strict-donor-parity-gap-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-strict-donor-parity-gap-inventory.md)、[public-chat-web-route-state-parity-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-route-state-parity-inventory.md) 与 [public-chat-web-donor-parity-review-checklist.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-parity-review-checklist.md)。
+> 当前 canonical 实施与验收入口已转到 [public-chat-web-vendor-runtime-full-transplant.md](/home/reptilian/code/campus-agent/.planning/archive-docs/docs/plans/public-chat-web-vendor-runtime-full-transplant.md)、[public-chat-web-strict-donor-parity-gap-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-strict-donor-parity-gap-inventory.md)、[public-chat-web-route-state-parity-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-route-state-parity-inventory.md) 与 [public-chat-web-donor-parity-review-checklist.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-parity-review-checklist.md)。
 
 > 状态说明：本文记录的是“把 `/chat` 切到 donor runtime、把旧 hand-written chat UI 退出 runtime path”的第一轮切换计划。
 > 这部分目标已经完成；但当前前向真相已经升级为 `full donor transplant correction`，因此本文中任何 `chatbot-derived shell`、`adapter first`、`阶段一不要求 donor 全量行为` 一类表述，都只代表当时阶段判断。
