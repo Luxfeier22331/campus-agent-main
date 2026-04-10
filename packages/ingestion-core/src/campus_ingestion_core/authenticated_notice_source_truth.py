@@ -5,8 +5,14 @@ from datetime import datetime, timezone
 import hashlib
 from html import unescape
 import json
+from pathlib import Path
 import re
 from typing import Any
+
+from campus_ingestion_core.authenticated_notice_defaults import (
+    DEFAULT_AUTHENTICATED_NOTICE_CORPUS,
+)
+from campus_ingestion_core.object_store import build_raw_asset_key
 
 
 AUTHENTICATED_NOTICE_SOURCE_CHANNEL = "authenticated_notice_portal"
@@ -65,6 +71,53 @@ def build_authenticated_notice_raw_version_id(bundle_record: dict[str, Any]) -> 
     return f"sha256:{digest}"
 
 
+def infer_authenticated_notice_year(*, notice: dict[str, Any]) -> str | None:
+    return _infer_year_label(notice.get("notice_release_time") or notice.get("notice_create_time"))
+
+
+def build_authenticated_notice_attachment_capture_key(
+    *,
+    content_sha256: str,
+    filename: str,
+    year: str | None,
+    corpus: str = DEFAULT_AUTHENTICATED_NOTICE_CORPUS,
+) -> str:
+    digest = str(content_sha256).strip().lower()
+    if not digest:
+        raise ValueError("content_sha256 is required")
+    return build_raw_asset_key(
+        corpus=corpus,
+        raw_asset_id=f"asset:authenticated-notice-attachment:attachment-{digest[:12]}",
+        raw_version_id=f"sha256:{digest}",
+        filename=_normalize_attachment_filename(filename=filename),
+        source_channel=AUTHENTICATED_NOTICE_SOURCE_CHANNEL,
+        year=year,
+    )
+
+
+def resolve_authenticated_notice_attachment_object_key(
+    *,
+    attachment: dict[str, Any],
+    year: str | None,
+    corpus: str = DEFAULT_AUTHENTICATED_NOTICE_CORPUS,
+) -> str | None:
+    object_key = _optional_text(attachment.get("object_key"))
+    if object_key is None:
+        return None
+    content_sha256 = _optional_text(attachment.get("sha256"))
+    if content_sha256 is None:
+        return object_key
+    return build_authenticated_notice_attachment_capture_key(
+        content_sha256=content_sha256,
+        filename=_normalize_attachment_filename(
+            filename=attachment.get("original_filename"),
+            fallback_key=object_key,
+        ),
+        year=year,
+        corpus=corpus,
+    )
+
+
 def prepare_authenticated_notice_source_material(
     *,
     bundle_record: dict[str, Any],
@@ -85,7 +138,7 @@ def prepare_authenticated_notice_source_material(
     source_home_url = source_home_url.strip()
     if not source_home_url:
         raise ValueError("source_home_url is required")
-    year = _infer_year_label(notice.get("notice_release_time") or notice.get("notice_create_time"))
+    year = infer_authenticated_notice_year(notice=notice)
 
     content_blocks = _build_content_blocks(
         title=title,
@@ -234,7 +287,10 @@ def _build_provider_artifacts(
             "resource_role": relation.get("resource_role"),
             "relation_source": relation.get("relation_source"),
             "anchor_text": relation.get("anchor_text"),
-            "object_key": attachment.get("object_key"),
+            "object_key": resolve_authenticated_notice_attachment_object_key(
+                attachment=attachment,
+                year=infer_authenticated_notice_year(notice=notice),
+            ),
             "content_sha256": attachment.get("sha256"),
             "mime_type": attachment.get("mime_type"),
             "byte_size": attachment.get("byte_size"),
@@ -276,8 +332,8 @@ def _build_source_truth_artifacts(
         "list_observed_at": _optional_text(notice.get("last_seen_at")) or _exported_at(export_manifest),
         "detail_observed_at": _optional_text(notice.get("enrich_attempted_at")) or _exported_at(export_manifest),
         "fetcher_name": "authenticated_notice_bundle_import",
-        "fetcher_version": str((export_manifest or {}).get("schema_version") or "unknown"),
-        "collector_version": str((export_manifest or {}).get("schema_version") or "unknown"),
+        "fetcher_version": _fetcher_version(export_manifest),
+        "collector_version": _collector_version(export_manifest),
         "credentials_mode": "authenticated",
         "notice_title_raw": title,
         "notice_title_normalized": title,
@@ -416,14 +472,20 @@ def _build_attachment_refs(
                     relation=relation,
                 ),
                 "anchor_text": _optional_text(relation.get("anchor_text")),
+                "original_filename": _optional_text(attachment.get("original_filename")),
                 "source_url": _optional_text(attachment.get("source_url")),
                 "normalized_source_url": _optional_text(attachment.get("normalized_source_url")),
                 "final_url": _optional_text(attachment.get("final_url")),
                 "origin_scope": _optional_text(attachment.get("origin_scope")),
-                "object_key": _optional_text(attachment.get("object_key")),
+                "object_key": resolve_authenticated_notice_attachment_object_key(
+                    attachment=attachment,
+                    year=infer_authenticated_notice_year(notice=_notice_payload(bundle_record)),
+                ),
                 "content_sha256": _optional_text(attachment.get("sha256")),
                 "mime_type": _optional_text(attachment.get("mime_type")),
                 "byte_size": attachment.get("byte_size"),
+                "storage_provider": _optional_text(attachment.get("storage_provider")),
+                "ingest_status": _optional_text(attachment.get("ingest_status")),
             }
         )
     return tuple(rows)
@@ -650,6 +712,34 @@ def _html_blocks(html_value: str) -> tuple[dict[str, Any], ...]:
     )
 
 
+def _fetcher_version(export_manifest: dict[str, Any] | None) -> str:
+    manifest = dict(export_manifest or {})
+    normalizer = manifest.get("normalizer")
+    if isinstance(normalizer, dict):
+        version = str(
+            normalizer.get("normalizer_version")
+            or normalizer.get("schema_version")
+            or ""
+        ).strip()
+        if version:
+            return version
+    return str(manifest.get("schema_version") or "unknown")
+
+
+def _collector_version(export_manifest: dict[str, Any] | None) -> str:
+    manifest = dict(export_manifest or {})
+    collector = manifest.get("collector")
+    if isinstance(collector, dict):
+        version = str(
+            collector.get("export_contract_version")
+            or collector.get("runtime_shell")
+            or ""
+        ).strip()
+        if version:
+            return version
+    return str(manifest.get("schema_version") or "unknown")
+
+
 def _strip_html(value: str) -> str:
     normalized = value.replace("<br/>", "\n").replace("<br />", "\n").replace("<br>", "\n")
     stripped = _HTML_TAG_RE.sub("", normalized)
@@ -669,6 +759,14 @@ def _optional_text(value: object) -> str | None:
     return normalized or None
 
 
+def _normalize_attachment_filename(*, filename: object, fallback_key: str | None = None) -> str:
+    value = str(filename or "").strip()
+    fallback = str(fallback_key or "").strip()
+    candidate_source = value or fallback
+    candidate = Path(candidate_source.replace("\\", "/")).name.strip().replace("/", "_")
+    return candidate or "attachment"
+
+
 def _unit_type_for_block(block_role: str) -> str:
     if block_role in {"title", "heading"}:
         return "policy_page"
@@ -680,7 +778,10 @@ def _unit_type_for_block(block_role: str) -> str:
 __all__ = [
     "AUTHENTICATED_NOTICE_SOURCE_CHANNEL",
     "AuthenticatedNoticeSourceMaterial",
+    "build_authenticated_notice_attachment_capture_key",
     "build_authenticated_notice_raw_asset_id",
     "build_authenticated_notice_raw_version_id",
+    "infer_authenticated_notice_year",
     "prepare_authenticated_notice_source_material",
+    "resolve_authenticated_notice_attachment_object_key",
 ]

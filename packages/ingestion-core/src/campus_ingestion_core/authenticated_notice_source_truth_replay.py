@@ -142,8 +142,9 @@ def build_authenticated_notice_source_truth_replay_documents(
     env: dict[str, str] | None = None,
     ocr_client: OnlineOcrClient | None = None,
 ) -> AuthenticatedNoticeProjectedNotice:
+    source = env if env is not None else dict(os.environ)
     config_path = request.source_projections_path or read_authenticated_notice_source_projections_config_path(
-        env if env is not None else {}
+        source
     )
     config = load_authenticated_notice_source_projections_config(config_path)
     runtime_profile = load_runtime_profile(request.corpus, request.collection)
@@ -152,7 +153,7 @@ def build_authenticated_notice_source_truth_replay_documents(
         object_store=object_store,
         object_store_settings=object_store_settings,
     )
-    source = env if env is not None else dict(os.environ)
+    ocr_provider_response_cache: dict[str, bytes] = {}
     projected_notice, _runtime_ocr_client = _project_parent_source_truth(
         parent_source_truth=parent_source_truth,
         config=config,
@@ -160,6 +161,7 @@ def build_authenticated_notice_source_truth_replay_documents(
         object_store_settings=object_store_settings,
         runtime_profile=runtime_profile,
         ocr_client=ocr_client,
+        ocr_provider_response_cache=ocr_provider_response_cache,
         env=source,
     )
     return projected_notice

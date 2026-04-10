@@ -1,4 +1,4 @@
-import type { ApiRequestContextLike, NoticeDetailResponse, NoticeListResponse } from "./types";
+import type { ApiRequestContextLike, ApiResponseLike, NoticeDetailResponse, NoticeListResponse } from "./types";
 
 export interface FetchNoticePageInput {
   apiContext: ApiRequestContextLike;
@@ -57,7 +57,7 @@ export async function fetchNoticePage(input: FetchNoticePageInput): Promise<Noti
           "getNoticeByPage",
         );
       }
-      const json = (await response.json()) as NoticeListResponse;
+      const json = await parseJsonResponse<NoticeListResponse>(response, "getNoticeByPage");
       assertNoticeListResponse(json);
       return json;
     } catch (error) {
@@ -90,7 +90,7 @@ export async function fetchNoticeDetail(input: FetchNoticeDetailInput): Promise<
       if (!response.ok()) {
         throw buildRequestError(response.status(), response.statusText(), "getNotice");
       }
-      const json = (await response.json()) as NoticeDetailResponse;
+      const json = await parseJsonResponse<NoticeDetailResponse>(response, "getNotice");
       if (!json.state) {
         throw new Error(`getNotice rejected: ${json.msg ?? "unknown error"}`);
       }
@@ -121,6 +121,24 @@ function buildRequestError(status: number, statusText: string, operation: string
 
 function backoffDelayMs(baseMs: number, attempt: number): number {
   return baseMs * attempt;
+}
+
+async function parseJsonResponse<T extends object>(
+  response: ApiResponseLike,
+  operation: string,
+): Promise<T> {
+  if (typeof response.text === "function") {
+    const payload = (await response.text()).trim();
+    if (payload === "error_comsys_session_invalid") {
+      throw new Error(`auth-expired: ${operation} failed: session invalid`);
+    }
+    try {
+      return JSON.parse(payload) as T;
+    } catch {
+      throw new Error(`${operation} returned non-JSON payload: ${payload.slice(0, 200)}`);
+    }
+  }
+  return (await response.json()) as T;
 }
 
 function assertNoticeListResponse(

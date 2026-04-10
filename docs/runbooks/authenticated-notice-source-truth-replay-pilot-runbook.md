@@ -83,8 +83,8 @@ order by planning_weight desc, notice_id asc;
 建议按下列规则组样本：
 
 - `attachment_document_count = 0` 且 `ocr_required_count = 0`：clean parent-only
-- `text_extractable_count > 0`：native text-extractable attachment
-- `ocr_required_count > 0`：OCR candidate
+- `text_extractable_count > 0`：当前主要覆盖 native `docx` attachment
+- `ocr_required_count > 0`：OCR candidate，包括 policy / handbook `pdf` 与 text-dominant image
 - `manual_review_required_count > 0`：空间导览图 / 位置图样本
 - `reference_only_count > 0`：reference-only attachment
 
@@ -158,6 +158,7 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.run_a
 对 `ocr_required` attachment，当前 pilot 固定执行以下判定：
 
 - canonical provider 路径应指向可用的 PaddleOCR-VL async jobs endpoint
+- 对规章制度 / 手册类 `pdf`，默认也按 `ocr_required` 处理，不把 native PDF extraction 当作 canonical fallback
 - 如果 async OCR 失败，先检查 attachment 真实图片内容，并结合 notice 正文上下文判断它是否本来就应该进入 `ocr_required`
 - 对二维码、示例证书、宣传海报、正文已完整说明的小程序教程截图，应先修 projection routing 到 `reference_only` 或 `manual_review_required`
 - 只有在 attachment 已确认属于有效 OCR candidate 时，`state=done` 但 `resultUrl.jsonUrl` 在短 grace window 内持续 `404 NoSuchKey`，才视为 provider contract breach，而不是“继续长等”或“直接切同步”

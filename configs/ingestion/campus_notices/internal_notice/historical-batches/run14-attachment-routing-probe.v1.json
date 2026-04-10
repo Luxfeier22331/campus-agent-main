@@ -1,0 +1,82 @@
+{
+  "schema_version": "authenticated_notice_selected_notice_batch_v1",
+  "corpus": "campus_notices",
+  "collection": "internal_notice",
+  "source_channel": "authenticated_notice_portal",
+  "batch_id": "run14-attachment-routing-probe-v1",
+  "selection_basis": {
+    "families": ["operational_procedure", "other"],
+    "strategy": "manual_curated_attachment_routing_probe_for_second_historical_intake",
+    "bundle_path": "/home/reptilian/code/rag-data/muc-notice-collector/runtime/exports/notices-bundle-20260403-run-14.json",
+    "family_report_path": ".tmp/reports/run14-notice-family-report-tightened.json",
+    "attachment_analysis_path": ".tmp/historical-intake/run14-attachment-routing-probe/donor-attachment-routing-analysis.json",
+    "selection_notes": [
+      "covers stable ocr_required, text_extractable, and reference_only attachment routes using donor blob bytes",
+      "keeps the second intake batch small enough for local-only normalization and bootstrap smoke acceptance",
+      "does not claim manual_review_required coverage because the current donor snapshot does not provide a stable sample under current routing rules"
+    ]
+  },
+  "expected_attachment_route_totals": {
+    "attachment_ref_total": 7,
+    "text_extractable": 1,
+    "ocr_required": 5,
+    "reference_only": 1,
+    "manual_review_required": 0
+  },
+  "selected_notice_ids": [
+    "355119",
+    "354862",
+    "354192",
+    "351118"
+  ],
+  "notices": [
+    {
+      "notice_id": "355119",
+      "notice_title": "关于开放2025年度拔尖创新人才“证书项目”第二轮报名的通知",
+      "family": "other",
+      "decision": "include",
+      "expected_attachment_routes": {
+        "text_extractable": 1
+      },
+      "reason": "docx form attachment provides a clean native text-extraction sample"
+    },
+    {
+      "notice_id": "354862",
+      "notice_title": "关于组织开展2026年春季学期研究生毕业资格审核工作的通知",
+      "family": "other",
+      "decision": "include",
+      "expected_attachment_routes": {
+        "reference_only": 1
+      },
+      "reason": "editor spacer gif should remain reference_only instead of consuming OCR budget"
+    },
+    {
+      "notice_id": "354192",
+      "notice_title": "关于2025-2026学年第二学期本科生网上选课的通知",
+      "family": "operational_procedure",
+      "decision": "include",
+      "expected_attachment_routes": {
+        "ocr_required": 2
+      },
+      "reason": "inline schedule and process images are stable OCR candidates for the second probe batch"
+    },
+    {
+      "notice_id": "351118",
+      "notice_title": "关于2025-2026学年第一学期本科生网上选课的通知",
+      "family": "operational_procedure",
+      "decision": "include",
+      "expected_attachment_routes": {
+        "ocr_required": 3
+      },
+      "reason": "three inline instructional images provide multi-attachment OCR coverage without spatial-routing ambiguity"
+    }
+  ],
+  "excluded_examples": [
+    {
+      "notice_id": "351111",
+      "notice_title": "关于暑假期间办理就业相关事务的通知",
+      "family": "operational_procedure",
+      "reason": "the only attachment is a QR code image that becomes reference_only only with donor-byte-aware inline-image classification; keep it out of this local-smoke acceptance batch"
+    }
+  ]
+}

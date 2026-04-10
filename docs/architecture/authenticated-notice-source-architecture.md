@@ -43,6 +43,14 @@ updated: 2026-04-09
 - downstream serving / retrieval 继续只消费 document / chunk / registry truth
 - 当前 bootstrap seam 可以消费 typed export/import artifacts，但这些 artifacts 不是长期 canonical truth
 
+## Live Notice-Type Policy
+
+- collector runtime 可以按执行安全性只启用 portal notice types 的一个子集
+- 当前 repo-tracked live 默认 config 只启用 `5 / 办公通知`
+- 这个 live config 只表达 bounded runtime policy，不表达 source-channel scope，也不表达 notice-family truth
+- 更宽的 portal taxonomy 与 live 样本事实固定记录在 `docs/reference/authenticated-notice-portal-live-observations.md`
+- historical donor absorption 不得因为 live config 当前较窄，就反向改写 source-truth 范围
+
 ## Source Unit
 
 这条 source channel 的 canonical source unit 固定为：
@@ -159,9 +167,9 @@ child attachment document 的长期约束：
 attachment extraction lane 固定按类型分流，不做多套 fallback：
 
 - `reference_only`：只保留 source-truth relation，不生成 child document
-- `text_extractable`：走确定性的 native text extraction
+- `text_extractable`：走确定性的 native text extraction；当前 `internal_notice` 默认只把 `docx` 这类可稳定原生解析的 Office 文本附件放进这条 lane
 - `manual_review_required`：空间导览图、位置图和其他不以线性文本为主的 visual asset 不进入当前正文 OCR 主链路；只保留 relation truth，并显式记录 `review_reason`
-- `ocr_required`：走 PaddleOCR-VL provider 路径；当前 authenticated notice historical replay 的 canonical runtime shape 仍是 cloud async jobs。对 `state=done` 但 `resultUrl.jsonUrl` 持续不可读的情况，只有在 attachment 已经确认属于有效 OCR candidate，且已结合 notice 正文上下文排除错误分流后，才视为 provider contract breach
+- `ocr_required`：走 PaddleOCR-VL provider 路径；当前 authenticated notice historical replay 的 canonical runtime shape 仍是 cloud async jobs。对 `internal_notice`，规章制度 / 手册类 `pdf` 默认也进入这条 lane；native PDF extraction 最多只作为 diagnostics / probe，不是 canonical 主链路。对 `state=done` 但 `resultUrl.jsonUrl` 持续不可读的情况，只有在 attachment 已经确认属于有效 OCR candidate，且已结合 notice 正文上下文排除错误分流后，才视为 provider contract breach
 - `unsupported_binary`：直接 fast-fail，不静默降级为可检索文档
 
 `reference_only` 的固定补充：
@@ -170,8 +178,8 @@ attachment extraction lane 固定按类型分流，不做多套 fallback：
 - 当前 internal notice projection 规则必须显式排除 editor static assets，例如 UEditor 默认主题下的 `spacer.gif` 之类占位图；它们属于 relation truth，不属于 OCR candidate
 - 当前 authenticated notice 还必须显式排除“正文已经给出 canonical 文本说明”的辅助图片，例如二维码、示例证书、宣传海报、冗余的小程序/移动端操作截图；它们属于 relation truth，不属于 child document truth
 
-当前 historical attachment corpus 以图片为主，因此 image OCR 是 first-class lane，不是补丁路径。
-但这个结论只覆盖“以线性文本、表格、电话、营业时间为主的信息图”。像校园导览图、位置图、楼宇分布图这类空间关系主导的 visual asset，不属于当前 `ocr_required` lane 的 canonical 输入。
+当前 historical attachment corpus 中，image OCR 仍是 first-class lane，不是补丁路径；同时 policy / handbook 类 `pdf` 也默认走 cloud OCR。
+但这个结论不覆盖空间关系主导视觉资产。像校园导览图、位置图、楼宇分布图这类内容，不属于当前 `ocr_required` lane 的 canonical 输入。
 
 `ocr_required` 的固定语义补充：
 
@@ -179,6 +187,7 @@ attachment extraction lane 固定按类型分流，不做多套 fallback：
 - OCR 返回空文本时，不得伪造空 child document，也不得把整条 notice replay 视为 source-truth 损坏
 - 这类 attachment 继续保留 source-truth relation truth，但 closeout / replay 必须显式记录 `no_extractable_text` outcome，供 verifier 与 operator 审计
 - 这不是 fallback；它是 `ocr_required` lane 的一等结果形态，典型样本包括二维码、纯图标、无正文的内联图片
+- 对 `pdf` 来说，云端 OCR 结果是 canonical extraction truth；即使 PDF 自带 text layer，也不把 native extraction 结果视为默认通过依据
 - materialized OCR child document 必须把 provider payload、`layout-elements.jsonl`、canonical markdown 与 `document-units.jsonl` 一并落成 repo-owned artifacts；`layout-elements.jsonl` 是 lane-local structure truth，不是临时调试副产物
 - OCR provider 返回的 raw html table / markup 可以保留在 `layout-elements.jsonl` 供 lane 内结构修复使用，但不得直接泄漏进 canonical markdown 或最终 document units
 
@@ -273,5 +282,6 @@ Phase 12.2 已把 authenticated notice historical closeout 重构为 async stage
 - `docs/decisions/adr-0025-authenticated-notice-async-staged-closeout.md`
 - `docs/decisions/adr-0026-authenticated-notice-batch-leased-closeout-throughput.md`
 - `docs/decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spatial-review-boundary.md`
+- `docs/decisions/adr-0033-internal-notice-pdf-cloud-ocr-default.md`
 - `docs/decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md`
 - `docs/plans/restricted-document-rollout-and-verification.md`

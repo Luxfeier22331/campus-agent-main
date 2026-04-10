@@ -35,10 +35,15 @@ class CollectionTruthConfigTest(unittest.TestCase):
         self.assertEqual(config.canonical_profile_path, config.config_root / "canonical-profile.json")
         self.assertEqual(config.chunk_profile_path, config.config_root / "chunk-profile.json")
         self.assertEqual(config.source_projections_path, config.config_root / "source-projections.v1.json")
+        self.assertEqual(
+            config.notice_family_config_path,
+            config.config_root / "notice-family-classification.v1.json",
+        )
         self.assertTrue(config.runtime_profile_path.exists())
         self.assertTrue(config.canonical_profile_path.exists())
         self.assertTrue(config.chunk_profile_path.exists())
         self.assertTrue(config.source_projections_path.exists())
+        self.assertTrue(config.notice_family_config_path.exists())
 
 
 if __name__ == "__main__":

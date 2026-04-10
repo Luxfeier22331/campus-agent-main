@@ -35,17 +35,18 @@
   },
   "attachment_kind_map": {
     "text_extractable": "office_document_attachment",
-    "ocr_required": "ocr_image_attachment"
+    "ocr_required": "ocr_document_attachment"
   },
-  "extraction_policy_version": "authenticated_notice_attachment_extraction_v1",
+  "extraction_policy_version": "authenticated_notice_attachment_extraction_v2",
   "text_extractable_extensions": ["docx"],
   "ocr_required_mime_types": [
+    "application/pdf",
     "image/png",
     "image/jpeg",
     "image/bmp",
     "image/gif"
   ],
-  "ocr_required_extensions": ["png", "jpg", "jpeg", "bmp", "gif"],
+  "ocr_required_extensions": ["pdf", "png", "jpg", "jpeg", "bmp", "gif"],
   "reference_only_storage_providers": ["reference_only"],
   "reference_only_ingest_statuses": ["reference_only"],
   "reference_only_url_substrings": ["/static/index/UEditor/themes/default/images/"]

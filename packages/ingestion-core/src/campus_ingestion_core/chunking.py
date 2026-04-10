@@ -670,6 +670,7 @@ def chunk_structured_unit(
         )
 
     token_spans = _tokenize_text(cleaned_text)
+    boundary_indexes = _collect_soft_boundary_indexes(text=cleaned_text, token_spans=token_spans)
     windows = _split_token_windows(
         text=cleaned_text,
         token_spans=token_spans,
@@ -678,6 +679,9 @@ def chunk_structured_unit(
     )
     windows = _merge_short_tail(
         windows,
+        text=cleaned_text,
+        token_spans=token_spans,
+        boundary_indexes=boundary_indexes,
         chunk_profile=chunk_profile,
         display_budget=display_budget,
     )
@@ -849,6 +853,9 @@ def _split_table_text_to_budget(
     )
     windows = _merge_short_tail(
         windows,
+        text=text,
+        token_spans=token_spans,
+        boundary_indexes=_collect_soft_boundary_indexes(text=text, token_spans=token_spans),
         chunk_profile=chunk_profile,
         display_budget=display_budget,
     )
@@ -1179,6 +1186,9 @@ def _split_token_windows(
 def _merge_short_tail(
     windows: list[tuple[int, int, str]],
     *,
+    text: str,
+    token_spans: list[re.Match[str]],
+    boundary_indexes: tuple[int, ...],
     chunk_profile: ChunkProfile,
     display_budget: ResolvedDisplayBudget,
 ) -> list[tuple[int, int, str]]:
@@ -1190,8 +1200,51 @@ def _merge_short_tail(
     prev_start, _, prev_text = windows[-2]
     merged_text = f"{prev_text} {last_text}".strip()
     if estimate_token_count(merged_text, chunk_profile=chunk_profile) > display_budget.max_tokens:
-        return windows
+        rebalance_start = _resolve_short_tail_rebalance_start_index(
+            prev_start=prev_start,
+            last_start=last_start,
+            last_end=last_end,
+            boundary_indexes=boundary_indexes,
+            display_budget=display_budget,
+        )
+        if rebalance_start is None:
+            return windows
+        rebalanced_text = _slice_token_window(
+            text=text,
+            token_spans=token_spans,
+            start_index=rebalance_start,
+            end_index=last_end,
+        )
+        rebalanced_token_count = estimate_token_count(rebalanced_text, chunk_profile=chunk_profile)
+        if (
+            rebalanced_token_count < display_budget.min_tokens
+            or rebalanced_token_count > display_budget.max_tokens
+        ):
+            return windows
+        return [*windows[:-1], (rebalance_start, last_end, rebalanced_text)]
     return [*windows[:-2], (prev_start, last_end, merged_text)]
+
+
+def _resolve_short_tail_rebalance_start_index(
+    *,
+    prev_start: int,
+    last_start: int,
+    last_end: int,
+    boundary_indexes: tuple[int, ...],
+    display_budget: ResolvedDisplayBudget,
+) -> int | None:
+    earliest_start = max(last_end - display_budget.max_tokens, prev_start + 1)
+    latest_start = min(last_end - display_budget.min_tokens, last_start - 1)
+    if latest_start < earliest_start:
+        return None
+    boundary_start = _previous_boundary_index(
+        boundary_indexes=boundary_indexes,
+        upper_bound=latest_start,
+        lower_bound=earliest_start,
+    )
+    if boundary_start is not None:
+        return boundary_start
+    return latest_start
 
 
 def _split_structure_boundaries(

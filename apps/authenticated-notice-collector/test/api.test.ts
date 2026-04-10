@@ -49,4 +49,30 @@ describe("authenticated notice collector api", () => {
     expect(calls[0]?.form.currentPage).toBe("1");
     expect(calls[0]?.form.pageSize).toBe("3");
   });
+
+  it("treats comsys session invalid payloads as auth expiry", async () => {
+    const apiContext = {
+      async post() {
+        return {
+          json: async () => ({}),
+          ok: () => true,
+          status: () => 200,
+          statusText: () => "OK",
+          text: async () => "error_comsys_session_invalid",
+        };
+      },
+    };
+
+    await expect(
+      fetchNoticePage({
+        apiContext,
+        currentPage: 1,
+        noticeType: "5",
+        pageSize: 3,
+        requestBackoffBaseMs: 1,
+        requestMaxRetries: 1,
+        sleep: async () => {},
+      }),
+    ).rejects.toThrow("auth-expired: getNoticeByPage failed: session invalid");
+  });
 });

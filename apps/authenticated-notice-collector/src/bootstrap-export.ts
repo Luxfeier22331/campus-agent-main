@@ -16,6 +16,7 @@ import type {
   CollectorExportMetadata,
   DisposableApiContextLike,
   NoticeCategoryRecord,
+  NoticeAnnexInfo,
   NoticeDetailInfo,
   NoticeDetailResponse,
   NoticeItem,
@@ -29,7 +30,7 @@ const COLLECTOR_EXPORT_METADATA: CollectorExportMetadata = {
   runtime_shell: "repo_local_node",
   export_contract_version: EXPORT_SCHEMA_VERSION,
   link_collection_mode: "html_reference_only",
-  attachment_collection_mode: "html_reference_only",
+  attachment_collection_mode: "detail_api_and_html_reference_only",
   attachment_storage_mode: "reference_only",
 };
 const HTML_ANCHOR_RE = /<a\b[^>]*href\s*=\s*(["'])(.*?)\1[^>]*>(.*?)<\/a>/gis;
@@ -105,11 +106,13 @@ export function buildBundleRecord(input: {
 }): BundleNoticeRecord {
   const noticeId = normalizeRequiredNoticeId(input.notice.notice_id ?? input.detailInfo?.notice_id);
   const noticeTitle = normalizeRequiredText(input.notice.notice_title ?? input.detailInfo?.notice_title, "notice_title");
+  const sourceHomeUrl = normalizeNullableText(input.detailInfo?.home_url) ?? input.sourceHomeUrl;
   const artifacts = buildReferenceArtifacts({
     htmlValue: normalizeNullableText(input.detailInfo?.notice_content ?? input.notice.notice_content) ?? "",
+    noticeAnnexes: input.detailInfo?.notice_annext,
     noticeId,
     observedAt: input.observedAt,
-    sourceHomeUrl: input.sourceHomeUrl,
+    sourceHomeUrl,
   });
   return {
     notice_id: noticeId,
@@ -341,6 +344,7 @@ function mergeBundleRecord(
 
 function buildReferenceArtifacts(input: {
   htmlValue: string;
+  noticeAnnexes?: NoticeAnnexInfo[] | null;
   noticeId: number;
   observedAt: string;
   sourceHomeUrl?: string;
@@ -353,8 +357,54 @@ function buildReferenceArtifacts(input: {
   const noticeAttachments: BundleNoticeAttachmentRelation[] = [];
   const attachments: BundleAttachmentObservation[] = [];
   const attachmentIds = new Map<string, number>();
+  const htmlAttachmentIds = new Set<number>();
+  const annexAttachmentIds = new Set<number>();
   let nextLinkId = 1;
   let nextAttachmentId = 1;
+
+  function ensureAttachmentObservation(params: {
+    filenameHint: string | null;
+    finalUrl: string;
+    linkHost: string | null;
+    linkScope: "internal" | "external" | "unsupported";
+    urlScheme: string | null;
+  }): number {
+    let attachmentId = attachmentIds.get(params.finalUrl);
+    if (attachmentId !== undefined) {
+      return attachmentId;
+    }
+
+    attachmentId = nextAttachmentId;
+    nextAttachmentId += 1;
+    attachmentIds.set(params.finalUrl, attachmentId);
+    attachments.push({
+      attachment_id: attachmentId,
+      source_url: params.finalUrl,
+      normalized_source_url: params.finalUrl,
+      final_url: params.finalUrl,
+      original_filename: deriveOriginalFilename(params.finalUrl, params.filenameHint),
+      mime_type: null,
+      byte_size: null,
+      sha256: null,
+      storage_provider: "reference_only",
+      bucket: null,
+      object_key: null,
+      etag: null,
+      version_id: null,
+      origin_url_scheme: params.urlScheme,
+      origin_host: params.linkHost,
+      origin_scope: params.linkScope,
+      provenance_status: "reference_only",
+      ingest_status: "reference_only",
+      local_path: null,
+      downloaded_at: null,
+      uploaded_at: null,
+      last_error: null,
+      created_at: input.observedAt,
+      updated_at: input.observedAt,
+    });
+    return attachmentId;
+  }
 
   for (const match of input.htmlValue.matchAll(HTML_ANCHOR_RE)) {
     const rawHref = decodeHtmlAttribute(String(match[2] || ""));
@@ -406,38 +456,14 @@ function buildReferenceArtifacts(input: {
     ) {
       continue;
     }
-    let attachmentId = attachmentIds.get(resolvedLink.finalUrl);
-    if (attachmentId === undefined) {
-      attachmentId = nextAttachmentId;
-      nextAttachmentId += 1;
-      attachmentIds.set(resolvedLink.finalUrl, attachmentId);
-      attachments.push({
-        attachment_id: attachmentId,
-        source_url: resolvedLink.finalUrl,
-        normalized_source_url: resolvedLink.finalUrl,
-        final_url: resolvedLink.finalUrl,
-        original_filename: deriveOriginalFilename(resolvedLink.finalUrl, linkText),
-        mime_type: null,
-        byte_size: null,
-        sha256: null,
-        storage_provider: "reference_only",
-        bucket: null,
-        object_key: null,
-        etag: null,
-        version_id: null,
-        origin_url_scheme: resolvedLink.urlScheme,
-        origin_host: resolvedLink.linkHost,
-        origin_scope: resolvedLink.linkScope,
-        provenance_status: "reference_only",
-        ingest_status: "reference_only",
-        local_path: null,
-        downloaded_at: null,
-        uploaded_at: null,
-        last_error: null,
-        created_at: input.observedAt,
-        updated_at: input.observedAt,
-      });
-    }
+    const attachmentId = ensureAttachmentObservation({
+      filenameHint: linkText,
+      finalUrl: resolvedLink.finalUrl,
+      linkHost: resolvedLink.linkHost,
+      linkScope: resolvedLink.linkScope,
+      urlScheme: resolvedLink.urlScheme,
+    });
+    htmlAttachmentIds.add(attachmentId);
     noticeAttachments.push({
       notice_id: input.noticeId,
       attachment_id: attachmentId,
@@ -445,6 +471,49 @@ function buildReferenceArtifacts(input: {
       relation_source: "content",
       resource_role: "attachment",
       anchor_text: linkText,
+      discovered_at: input.observedAt,
+    });
+  }
+
+  for (const annex of input.noticeAnnexes ?? []) {
+    const annexId = normalizeNullableText(annex.notice_annex_id);
+    if (!annexId) {
+      continue;
+    }
+    const finalUrl = buildDetailAttachmentUrl({
+      noticeId: input.noticeId,
+      annexId,
+      sourceHomeUrl: input.sourceHomeUrl,
+    });
+    if (!finalUrl) {
+      continue;
+    }
+    const resolvedLink = resolveLinkTarget({
+      rawHref: finalUrl,
+      sourceHomeUrl: input.sourceHomeUrl,
+    });
+    if (resolvedLink.collectPolicy !== "reference_only" || resolvedLink.finalUrl === null) {
+      continue;
+    }
+    const anchorText = normalizeNullableText(annex.notice_annex_name) ?? annexId;
+    const attachmentId = ensureAttachmentObservation({
+      filenameHint: anchorText,
+      finalUrl: resolvedLink.finalUrl,
+      linkHost: resolvedLink.linkHost,
+      linkScope: resolvedLink.linkScope,
+      urlScheme: resolvedLink.urlScheme,
+    });
+    if (htmlAttachmentIds.has(attachmentId) || annexAttachmentIds.has(attachmentId)) {
+      continue;
+    }
+    annexAttachmentIds.add(attachmentId);
+    noticeAttachments.push({
+      notice_id: input.noticeId,
+      attachment_id: attachmentId,
+      link_id: null,
+      relation_source: "detail_api",
+      resource_role: "attachment",
+      anchor_text: anchorText,
       discovered_at: input.observedAt,
     });
   }
@@ -487,6 +556,24 @@ function dedupeCategories(
     }
   }
   return [...merged.values()];
+}
+
+function buildDetailAttachmentUrl(input: {
+  noticeId: number;
+  annexId: string;
+  sourceHomeUrl?: string;
+}): string | null {
+  if (!input.sourceHomeUrl) {
+    return null;
+  }
+  try {
+    const url = new URL("/comsys-portal-notice-web/download", input.sourceHomeUrl);
+    url.searchParams.set("id", input.annexId);
+    url.searchParams.set("notice_id", String(input.noticeId));
+    return url.toString();
+  } catch {
+    return null;
+  }
 }
 
 function normalizeOptionalNoticeId(value: number | string | null | undefined): number | null {
@@ -584,6 +671,9 @@ function isAttachmentLike(input: {
     if (ATTACHMENT_FILE_EXTENSIONS.has(extension)) {
       return true;
     }
+    if (parsed.pathname.toLowerCase().endsWith("/download") && parsed.searchParams.has("id")) {
+      return true;
+    }
   } catch {
     return false;
   }
@@ -594,6 +684,13 @@ function deriveOriginalFilename(finalUrl: string, linkText: string | null): stri
   try {
     const parsed = new URL(finalUrl);
     const filename = safeDecodeURIComponent(path.posix.basename(parsed.pathname));
+    const extension = path.posix.extname(filename).toLowerCase();
+    if (filename && ATTACHMENT_FILE_EXTENSIONS.has(extension)) {
+      return filename;
+    }
+    if (linkText) {
+      return linkText;
+    }
     if (filename) {
       return filename;
     }

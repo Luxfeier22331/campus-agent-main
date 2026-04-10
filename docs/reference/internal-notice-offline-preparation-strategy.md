@@ -24,8 +24,11 @@ updated: 2026-04-09
 - `docs/architecture/authenticated-notice-source-truth-contract.md` 的 source-truth schema
 - `docs/architecture/data-plane-architecture.md` 的 repo 级 shared data-plane rules
 - `docs/decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spatial-review-boundary.md` 的 attachment typed routing governance
+- `docs/decisions/adr-0033-internal-notice-pdf-cloud-ocr-default.md` 的 PDF 默认消费路径决策
+- `docs/decisions/adr-0032-internal-notice-notice-family-stratified-admission.md` 的 notice-family admission decision
 - `docs/reference/internal-notice-offline-preparation-quality-acceptance.md` 的质量验收规则
 - `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md` 的 operator workflow
+- `docs/runbooks/authenticated-notice-historical-donor-intake-runbook.md` 的 donor normalization / local smoke workflow
 
 ## 当前 Collection 姿态
 
@@ -41,6 +44,63 @@ updated: 2026-04-09
 - notice 正文整体较干净，主问题不是 parent notice body
 - 历史噪声主要集中在 attachments，尤其图片 OCR、脏表格和装饰性静态资源
 - 因此 collection 默认优化目标是先保住 parent notice body 质量，而不是因为 attachment outlier 全局缩小分块或全局劣化正文策略
+
+## Notice-Family Admission
+
+`internal_notice` 当前允许维护一层独立于 attachment risk 的 notice-family admission。
+
+这层分类固定属于：
+
+- inventory / replay / operator read model
+- bounded pilot 选样与优先级控制
+- 处理顺序收口
+
+它不属于：
+
+- source-truth contract
+- attachment typed routing
+- parent/child document identity
+
+当前 accepted decision 见：
+
+- `docs/decisions/adr-0032-internal-notice-notice-family-stratified-admission.md`
+- `configs/ingestion/campus_notices/internal_notice/notice-family-classification.v1.json`
+
+固定规则：
+
+- source-truth 继续尽量全量保留 notice
+- replay / preparation admission 可以按 notice family 控制优先级
+- 当前 `priority_now` family 固定为 `policy_regulation`
+- `event_activity`、`lecture_publicity` 默认延后，不与规章制度类争抢第一批 replay / OCR / 验收预算
+- portal `notice_type` 只作为 coarse prior，不是最终 family truth
+- repo-local live collector 当前只启用 `5 / 办公通知` 做 bounded live execution；这不影响 donor historical bundle 的全量 family analysis
+
+live taxonomy 与样本依据固定见：
+
+- `docs/reference/authenticated-notice-portal-live-observations.md`
+
+这层分类与 notice risk profile 是正交维度：
+
+- notice family 回答“这条 notice 现在值不值得优先处理”
+- notice risk 回答“这条 notice 的 attachment lane 风险有多高”
+
+固定禁止：
+
+- 用 notice family 替代 attachment lane 决策
+- 用 attachment risk 替代 notice family admission
+- 因某个 family 暂缓处理，就改写 source-truth contract 或 attachment routing contract
+
+## Historical Donor Intake Order
+
+`internal_notice` 当前处理 `rag-data` donor snapshot 时，固定按以下顺序推进：
+
+1. 先用 live 登录态确认 portal taxonomy、collector notice-type policy 与样本事实
+2. 再对 donor bundle 做 repo-tracked notice-family analysis
+3. 第一批 donor processing 只推进 `policy_regulation`
+4. `operational_procedure`、`roster_publication` 作为后续批次
+5. `event_activity`、`lecture_publicity` 默认延后
+
+这里的 donor intake order 只影响 replay / preparation admission，不改写 source-truth 全量吸纳原则。
 
 ## Notice Risk Profile
 
@@ -122,8 +182,10 @@ parent notice lane 的固定规则：
 - chunking 以 attachment 自身结构为准，不复用 parent notice body 的 anchor 和分块策略
 - 保留 page / section / heading 等 attachment 自身的定位线索
 - 不把 attachment 文本重新拼回 parent notice 的正文 chunk
+- 当前默认只覆盖可稳定原生解析的 Office 文本附件，至少包括 `docx`
+- `pdf` 不因为带 text layer 就默认进入这条 lane
 
-这条 lane 面向可稳定提取文本的 Office / PDF / 富文本附件，目标是保住附件本体结构，而不是把附件降格为 notice 正文的附属片段。
+这条 lane 面向可稳定提取文本的 Office 文本附件，目标是保住附件本体结构，而不是把附件降格为 notice 正文的附属片段。
 
 ## Attachment OCR Lane
 
@@ -132,6 +194,7 @@ parent notice lane 的固定规则：
 - 先走 OCR / layout-aware extraction，再进入 cleanup / chunk
 - 表格、图片区块、段落区块的边界应优先保留，不以 parent notice 的 chunk 预算直接套用
 - OCR lane 的异常处理只在 lane 内收口，不得反向降低 `notice_body` lane 的默认质量
+- 规章制度 / 手册类 `pdf` 默认走这条 lane；云端 async OCR 结果是 canonical extraction path，native PDF extraction 最多只作为 diagnostics / quality probe
 - materialized OCR child document 的 first-class derived artifacts 固定包含：provider response、`layout-elements.jsonl`、canonical markdown、`document-units.jsonl`
 - OCR child document 的结构化单元固定优先表达为 `attachment_title`、`section_text`、`table`、`table_unit`，而不是把整份附件压平成单一 `attachment_body`
 - provider 返回的 raw html / table markup 只允许停留在 lane-local `layout-elements.jsonl`，不得直接进入 canonical markdown 或最终 chunk text
@@ -148,7 +211,9 @@ parent notice lane 的固定规则：
 
 额外固定边界：
 
-- `attachment_ocr_required` 只覆盖以线性文本、表格、电话、营业时间为主的图片
+- `attachment_ocr_required` 当前覆盖两类输入：
+  - policy / handbook / procedure 等文档型 `pdf`
+  - 以线性文本、表格、电话、营业时间为主的图片
 - 校园导览图、位置图、楼宇分区图这类空间关系主导的内联图片，不进入当前 OCR lane
 - 这类图片固定进入 `manual_review_required` terminal outcome，等待后续 spatial/manual lane，而不是把零散 OCR 碎字送进可检索 truth
 
@@ -282,6 +347,8 @@ attachment child document 的 derived artifacts 继续落在 documents prefix，
 - `docs/architecture/authenticated-notice-source-truth-contract.md`
 - `docs/architecture/data-plane-architecture.md`
 - `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`
+- `docs/reference/authenticated-notice-historical-donor-intake-evidence.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
+- `docs/runbooks/authenticated-notice-historical-donor-intake-runbook.md`
 - `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md`
 - `configs/ingestion/campus_notices/internal_notice/README.md`

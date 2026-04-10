@@ -281,9 +281,20 @@ class AuthenticatedNoticeImportTest(unittest.TestCase):
         ]
         self.assertEqual(len(attachment_refs), 1)
         self.assertEqual(attachment_refs[0]["resource_role"], "attachment")
+        self.assertEqual(attachment_refs[0]["original_filename"], "application.docx")
         self.assertEqual(
             attachment_refs[0]["object_key"],
-            "5e/5e7a0c7675fc8dfe814e74ed3206dd461b7cac88f324a6436dfd490b2f6dd152/application.docx",
+            "authenticated_notice_portal/attachment-5e7a0c7675fc/2026/sha256/5e7a0c7675fc8dfe814e74ed3206dd461b7cac88f324a6436dfd490b2f6dd152/capture/application.docx",
+        )
+        attachment_observations = [
+            json.loads(line)
+            for line in imported.provider_artifacts["provider/attachment-observations.jsonl"].decode("utf-8").splitlines()
+            if line.strip()
+        ]
+        self.assertEqual(len(attachment_observations), 1)
+        self.assertEqual(
+            attachment_observations[0]["object_key"],
+            "authenticated_notice_portal/attachment-5e7a0c7675fc/2026/sha256/5e7a0c7675fc8dfe814e74ed3206dd461b7cac88f324a6436dfd490b2f6dd152/capture/application.docx",
         )
 
         document = imported.document_import
@@ -419,6 +430,44 @@ class AuthenticatedNoticeImportTest(unittest.TestCase):
         self.assertTrue(entry.notice_manifest_key.endswith("/source-truth/notice-manifest.json"))
         self.assertTrue(entry.content_blocks_key.endswith("/source-truth/content-blocks.jsonl"))
         self.assertTrue(entry.attachment_refs_key.endswith("/source-truth/attachment-refs.jsonl"))
+
+    def test_import_authenticated_notice_bundle_prefers_collector_export_contract_version(self) -> None:
+        manifest = _sample_export_manifest()
+        manifest["schema_version"] = "authenticated_notice_legacy_bootstrap_normalized_v1"
+        manifest["collector"] = {
+            "runtime_shell": "legacy_external_collector",
+            "export_contract_version": "legacy_authenticated_notice_export_v3",
+        }
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, _sample_notice_bundle())
+            _write_json(manifest_path, manifest)
+
+            result = import_authenticated_notice_bundle(
+                AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                )
+            )
+
+        imported = result.notice_imports[0]
+        notice_manifest = json.loads(
+            imported.source_truth_artifacts["source-truth/notice-manifest.json"].decode(
+                "utf-8"
+            )
+        )
+        self.assertEqual(
+            notice_manifest["fetcher_version"],
+            "authenticated_notice_legacy_bootstrap_normalized_v1",
+        )
+        self.assertEqual(
+            notice_manifest["collector_version"],
+            "legacy_authenticated_notice_export_v3",
+        )
 
     def test_import_authenticated_notice_bundle_supports_reference_only_attachment_refs(self) -> None:
         bundle = _sample_notice_bundle()

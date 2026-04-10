@@ -60,6 +60,9 @@ AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MATERIALIZED_DOCUMENT = "materialized_do
 AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT = "no_extractable_text"
 AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MANUAL_REVIEW_REQUIRED = "manual_review_required"
 AUTHENTICATED_NOTICE_ATTACHMENT_REVIEW_REASON_SPATIAL_VISUAL_ASSET = "spatial_visual_asset"
+AUTHENTICATED_NOTICE_ATTACHMENT_REVIEW_REASON_OPERATIONAL_SCHEDULE_GUIDE_IMAGE = (
+    "operational_schedule_guide_image"
+)
 _DOCX_DOCUMENT_PATH = "word/document.xml"
 _WORDPROCESSINGML_NS = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 _VISUAL_CLASSIFIER_SAMPLE_EDGE = 128
@@ -82,7 +85,9 @@ _NORMALIZED_NOTICE_PROVIDER_SUFFIX = "provider/bundle-import-v1/normalized-notic
 _HTML_IMG_TAG_RE = re.compile(r"<img\b[^>]*>", re.IGNORECASE)
 _HTML_ATTR_RE = re.compile(r'([A-Za-z_:][-A-Za-z0-9_:.]*)\s*=\s*"([^"]*)"')
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
-_ATTACHMENT_LABEL_PREFIX_RE = re.compile(r"^附件\s*\d+\s*[:：/、.-]?\s*")
+_ATTACHMENT_LABEL_PREFIX_RE = re.compile(
+    r"^附件(?:(?:\s*[0-9一二三四五六七八九十]+)?\s*[:：/、.-]\s*|\s+)"
+)
 _UUIDISH_ATTACHMENT_STEM_RE = re.compile(
     r"^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$",
     re.IGNORECASE,
@@ -320,6 +325,7 @@ def rebuild_authenticated_notice_source_projections(
     reference_only_attachment_count = 0
     manual_review_attachment_count = 0
     documents: list[DocumentImportInput] = []
+    ocr_provider_response_cache: dict[str, bytes] = {}
 
     for parent_source_truth in parent_source_truths:
         projected_notice, runtime_ocr_client = _project_parent_source_truth(
@@ -329,6 +335,7 @@ def rebuild_authenticated_notice_source_projections(
             object_store_settings=object_store_settings,
             runtime_profile=runtime_profile,
             ocr_client=runtime_ocr_client,
+            ocr_provider_response_cache=ocr_provider_response_cache,
             env=source,
         )
         documents.extend(projected_notice.documents)
@@ -386,6 +393,7 @@ def _project_parent_source_truth(
     object_store_settings: ObjectStoreSettings,
     runtime_profile,
     ocr_client: OnlineOcrClient | None,
+    ocr_provider_response_cache: dict[str, bytes] | None,
     env: dict[str, str],
 ) -> tuple[AuthenticatedNoticeProjectedNotice, OnlineOcrClient | None]:
     documents: list[DocumentImportInput] = [
@@ -430,6 +438,7 @@ def _project_parent_source_truth(
             object_store=object_store,
             object_store_settings=object_store_settings,
             ocr_client=runtime_ocr_client,
+            ocr_provider_response_cache=ocr_provider_response_cache,
             runtime_profile=runtime_profile,
         )
         attachment_outcomes.append(result.outcome)
@@ -575,6 +584,7 @@ def _build_attachment_projection_result(
     object_store: AuthenticatedNoticeProjectionObjectStore,
     object_store_settings: ObjectStoreSettings,
     ocr_client: OnlineOcrClient | None,
+    ocr_provider_response_cache: dict[str, bytes] | None,
     runtime_profile,
 ) -> AuthenticatedNoticeAttachmentProjectionResult:
     manifest = parent_source_truth.manifest
@@ -667,16 +677,22 @@ def _build_attachment_projection_result(
     elif classification == "ocr_required":
         if ocr_client is None:
             raise ValueError("online OCR client is required for ocr_required attachments")
-        with TemporaryDirectory() as temp_dir:
-            attachment_path = Path(temp_dir) / filename
-            attachment_path.write_bytes(attachment_bytes)
-            try:
-                provider_result = ocr_client.parse_file(attachment_path)
-            except Exception as exc:
-                raise RuntimeError(
-                    f"{parent_record.document_id}#{attachment_ref_id} attachment OCR failed: {exc}"
-                ) from exc
-        provider_response_bytes = provider_result.provider_result_bytes
+        provider_response_bytes = None
+        if ocr_provider_response_cache is not None:
+            provider_response_bytes = ocr_provider_response_cache.get(actual_attachment_sha256)
+        if provider_response_bytes is None:
+            with TemporaryDirectory() as temp_dir:
+                attachment_path = Path(temp_dir) / filename
+                attachment_path.write_bytes(attachment_bytes)
+                try:
+                    provider_result = ocr_client.parse_file(attachment_path)
+                except Exception as exc:
+                    raise RuntimeError(
+                        f"{parent_record.document_id}#{attachment_ref_id} attachment OCR failed: {exc}"
+                    ) from exc
+            provider_response_bytes = provider_result.provider_result_bytes
+            if ocr_provider_response_cache is not None:
+                ocr_provider_response_cache[actual_attachment_sha256] = provider_response_bytes
         text_blocks = ()
     else:  # pragma: no cover
         raise ValueError(f"unsupported attachment classification: {classification}")
@@ -940,6 +956,14 @@ def _classify_inline_image_context_override(
         for token in ("官方报名小程序", "报名小程序", "作品上传", "我的故事", "等待审核")
     ):
         return AuthenticatedNoticeAttachmentClassificationResult("reference_only")
+    if "网上选课" in normalized_context and any(
+        token in normalized_context
+        for token in ("选课时间安排", "选课方式", "学习时间安排", "操作流程")
+    ):
+        return AuthenticatedNoticeAttachmentClassificationResult(
+            "manual_review_required",
+            review_reason=AUTHENTICATED_NOTICE_ATTACHMENT_REVIEW_REASON_OPERATIONAL_SCHEDULE_GUIDE_IMAGE,
+        )
     return None
 
 
@@ -1661,13 +1685,29 @@ def _format_front_matter_value(value: object) -> str:
 
 
 def _guess_attachment_filename(attachment_ref: dict[str, Any]) -> str:
-    for field_name in ("final_url", "source_url", "normalized_source_url", "anchor_text", "object_key"):
+    fallback_candidate: str | None = None
+    for field_name in (
+        "original_filename",
+        "final_url",
+        "source_url",
+        "normalized_source_url",
+        "anchor_text",
+        "object_key",
+    ):
         value = _normalize_optional_text(attachment_ref.get(field_name))
         if value is None:
             continue
         candidate = Path(value.split("?", 1)[0]).name.strip()
         if candidate:
-            return candidate
+            suffix = Path(candidate).suffix.lower().strip()
+            if suffix.startswith("."):
+                suffix = suffix[1:]
+            if suffix:
+                return candidate
+            if fallback_candidate is None:
+                fallback_candidate = candidate
+    if fallback_candidate is not None:
+        return fallback_candidate
     attachment_ref_id = _normalize_optional_text(attachment_ref.get("attachment_ref_id")) or "attachment"
     return f"{attachment_ref_id}.bin"
 

@@ -149,6 +149,111 @@ describe("authenticated notice collector bootstrap export", () => {
     ]);
   });
 
+  it("extracts reference-only attachment refs from notice detail annex list", () => {
+    const record = buildBundleRecord({
+      detailInfo: {
+        home_url: "https://portal.example.edu/home",
+        notice_annext: [
+          {
+            notice_annex_id: "c46da95c-464c-4faf-8415-11974c33d3a4",
+            notice_annex_name: "附件：中央民族大学关于学生使用人工智能的指导意见（2026版）.docx",
+          },
+        ],
+        notice_content: "<p>通知正文</p>",
+        notice_id: 355282,
+      },
+      observedAt: "2026-04-04T01:23:45.000Z",
+      notice: {
+        notice_id: 355282,
+        notice_title: "关于学生使用人工智能的指导意见",
+        notice_type: "5",
+        notice_type_name: "办公通知",
+      },
+    });
+
+    expect(record.links).toEqual([]);
+    expect(record.notice_attachments).toEqual([
+      {
+        anchor_text: "附件：中央民族大学关于学生使用人工智能的指导意见（2026版）.docx",
+        attachment_id: 1,
+        discovered_at: "2026-04-04T01:23:45.000Z",
+        link_id: null,
+        notice_id: 355282,
+        relation_source: "detail_api",
+        resource_role: "attachment",
+      },
+    ]);
+    expect(record.attachments).toEqual([
+      {
+        attachment_id: 1,
+        bucket: null,
+        byte_size: null,
+        created_at: "2026-04-04T01:23:45.000Z",
+        downloaded_at: null,
+        etag: null,
+        final_url:
+          "https://portal.example.edu/comsys-portal-notice-web/download?id=c46da95c-464c-4faf-8415-11974c33d3a4&notice_id=355282",
+        ingest_status: "reference_only",
+        last_error: null,
+        local_path: null,
+        mime_type: null,
+        normalized_source_url:
+          "https://portal.example.edu/comsys-portal-notice-web/download?id=c46da95c-464c-4faf-8415-11974c33d3a4&notice_id=355282",
+        object_key: null,
+        origin_host: "portal.example.edu",
+        origin_scope: "internal",
+        origin_url_scheme: "https",
+        original_filename: "附件：中央民族大学关于学生使用人工智能的指导意见（2026版）.docx",
+        provenance_status: "reference_only",
+        sha256: null,
+        source_url:
+          "https://portal.example.edu/comsys-portal-notice-web/download?id=c46da95c-464c-4faf-8415-11974c33d3a4&notice_id=355282",
+        storage_provider: "reference_only",
+        updated_at: "2026-04-04T01:23:45.000Z",
+        uploaded_at: null,
+        version_id: null,
+      },
+    ]);
+  });
+
+  it("deduplicates detail annex attachments already linked in html", () => {
+    const record = buildBundleRecord({
+      detailInfo: {
+        home_url: "https://portal.example.edu/home",
+        notice_annext: [
+          {
+            notice_annex_id: "ac84e8d1-c32e-4023-81fa-fae84e10216b",
+            notice_annex_name: "中央民族大学新一轮本科教育教学审核评估应知应会手册.pdf",
+          },
+        ],
+        notice_content:
+          '<p>附件：<a href="/comsys-portal-notice-web/download?id=ac84e8d1-c32e-4023-81fa-fae84e10216b&notice_id=351704">中央民族大学新一轮本科教育教学审核评估应知应会手册.pdf</a></p>',
+        notice_id: 351704,
+      },
+      observedAt: "2026-04-04T01:23:45.000Z",
+      notice: {
+        notice_id: 351704,
+        notice_title: "审核评估应知应会手册",
+        notice_type: "5",
+        notice_type_name: "办公通知",
+      },
+    });
+
+    expect(record.links).toHaveLength(1);
+    expect(record.attachments).toHaveLength(1);
+    expect(record.notice_attachments).toEqual([
+      {
+        anchor_text: "中央民族大学新一轮本科教育教学审核评估应知应会手册.pdf",
+        attachment_id: 1,
+        discovered_at: "2026-04-04T01:23:45.000Z",
+        link_id: 1,
+        notice_id: 351704,
+        relation_source: "content",
+        resource_role: "attachment",
+      },
+    ]);
+  });
+
   it("collects list/detail pages into a deduplicated bootstrap bundle and disposes the api context", async () => {
     const detailCalls: number[] = [];
     let disposed = false;
@@ -308,7 +413,7 @@ describe("authenticated notice collector bootstrap export", () => {
       },
     ]);
     expect(result.exportManifest.collector).toEqual({
-      attachment_collection_mode: "html_reference_only",
+      attachment_collection_mode: "detail_api_and_html_reference_only",
       attachment_storage_mode: "reference_only",
       export_contract_version: "authenticated_notice_collector_export_v2",
       link_collection_mode: "html_reference_only",
@@ -346,7 +451,7 @@ describe("authenticated notice collector bootstrap export", () => {
           notice_types: ["5"],
         },
         collector: {
-          attachment_collection_mode: "html_reference_only",
+          attachment_collection_mode: "detail_api_and_html_reference_only",
           attachment_storage_mode: "reference_only",
           export_contract_version: "authenticated_notice_collector_export_v2",
           link_collection_mode: "html_reference_only",

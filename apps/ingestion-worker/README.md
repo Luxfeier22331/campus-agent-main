@@ -586,6 +586,84 @@ Behavior:
 - Reports manifest/registry drift, stale registry entries, read failures, chunk-build failures, non-table oversize chunks, and structure-first eligibility statistics.
 - Does not write MinIO, registry, or Qdrant state.
 
+### `analyze_authenticated_notice_notice_families`
+
+Read-only family-analysis shell for authenticated notice donor bundles.
+
+Required CLI args:
+
+- `--bundle-path`
+
+Optional CLI args:
+
+- `--config-path`
+- `--sample-limit`
+- `--output-path`
+
+Behavior:
+
+- Loads the repo-tracked `internal_notice` notice-family config by default.
+- Classifies donor bundle records into repo-owned notice families such as `policy_regulation`, `operational_procedure`, `event_activity`, and `lecture_publicity`.
+- Reports family counts, `priority_now_notice_count`, and representative matched samples.
+- Can persist one machine-readable JSON report with `--output-path`.
+- Does not write object store, registry, embedding, or Qdrant state.
+
+### `normalize_authenticated_notice_legacy_export`
+
+Local normalization shell for `rag-data` authenticated notice historical donor exports.
+
+Required CLI args:
+
+- `--bundle-path`
+- `--site-id`
+- `--source-home-url`
+- `--output-dir`
+
+Optional CLI args:
+
+- `--manifest-path`
+- `--notice-types-path`
+- `--selection-path`
+- `--notice-id`
+- `--export-scope`
+
+Behavior:
+
+- Reads a donor legacy bundle and optional donor export manifest.
+- Applies a repo-tracked selected notice set when `--selection-path` or `--notice-id` is provided.
+- Snapshots the legacy collector notice-type policy into a repo-owned normalized manifest.
+- Writes `notices-bundle.normalized.json`, `export-manifest.normalized.json`, and `normalization-summary.json` under the target output dir.
+- Does not write object store, Postgres, embedding, or Qdrant state.
+
+### `smoke_authenticated_notice_bootstrap_local`
+
+Local-only bootstrap smoke shell for one normalized authenticated notice donor batch.
+
+Required CLI args:
+
+- `--bundle-path`
+- `--site-id`
+- `--source-home-url`
+- `--local-output-dir`
+
+Optional CLI args:
+
+- `--manifest-path`
+- `--corpus`
+- `--collection`
+- `--entitlement-group`
+- `--visibility-scope`
+- `--expect-notice-count`
+- `--summary-output-path`
+
+Behavior:
+
+- Reuses the authenticated notice importer but injects a local filesystem object store and in-memory registries.
+- Materializes source-bucket and derived-bucket artifacts under `--local-output-dir` only.
+- Persists local `documents.json`, `raw-assets.json`, `source-truth-inventory.json`, and `uploads.json` for inspection.
+- Produces a smoke summary with notice/document/raw-asset outcome counts.
+- Does not touch the real object store, Postgres, embedding provider, Qdrant, or serving aliases.
+
 ### `validate_internal_notice_chunking`
 
 Read-only validation shell for `campus_notices/internal_notice` offline preparation quality.

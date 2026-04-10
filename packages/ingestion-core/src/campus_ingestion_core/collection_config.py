@@ -14,11 +14,13 @@ class CollectionTruthConfig:
     canonical_profile_path: Path
     chunk_profile_path: Path
     source_projections_path: Path | None = None
+    notice_family_config_path: Path | None = None
 
 
 def resolve_collection_truth_config(corpus: str, collection: str) -> CollectionTruthConfig:
     config_root = _repo_root() / "configs" / "ingestion" / corpus / collection
     source_projections_path = config_root / "source-projections.v1.json"
+    notice_family_config_path = config_root / "notice-family-classification.v1.json"
     return CollectionTruthConfig(
         corpus=corpus,
         collection=collection,
@@ -28,6 +30,9 @@ def resolve_collection_truth_config(corpus: str, collection: str) -> CollectionT
         canonical_profile_path=config_root / "canonical-profile.json",
         chunk_profile_path=config_root / "chunk-profile.json",
         source_projections_path=(source_projections_path if source_projections_path.exists() else None),
+        notice_family_config_path=(
+            notice_family_config_path if notice_family_config_path.exists() else None
+        ),
     )
 
 

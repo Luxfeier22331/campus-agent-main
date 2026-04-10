@@ -71,6 +71,15 @@ export interface NoticeDetailInfo {
   notice_create_time?: string | null;
   notice_first_time?: string | null;
   notice_stick?: number | null;
+  notice_annext?: NoticeAnnexInfo[] | null;
+}
+
+export interface NoticeAnnexInfo {
+  notice_annex_path?: string | null;
+  notice_annex_id?: string | null;
+  notice_annex_name?: string | null;
+  suffix?: string | null;
+  type?: string | null;
 }
 
 export interface NoticeDetailResponse {
@@ -118,7 +127,7 @@ export interface BundleNoticeAttachmentRelation {
   notice_id: number;
   attachment_id: number;
   link_id: number | null;
-  relation_source: "content";
+  relation_source: "content" | "detail_api";
   resource_role: "attachment";
   anchor_text: string | null;
   discovered_at: string;
@@ -182,7 +191,7 @@ export interface CollectorExportMetadata {
   runtime_shell: "repo_local_node";
   export_contract_version: "authenticated_notice_collector_export_v2";
   link_collection_mode: "html_reference_only";
-  attachment_collection_mode: "html_reference_only";
+  attachment_collection_mode: "detail_api_and_html_reference_only";
   attachment_storage_mode: "reference_only";
 }
 
@@ -218,6 +227,7 @@ export interface ApiResponseLike {
   ok(): boolean;
   status(): number;
   statusText(): string;
+  text?(): Promise<string>;
 }
 
 export interface ApiRequestContextLike {

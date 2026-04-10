@@ -17,11 +17,14 @@ from campus_ingestion_core.authenticated_notice_import import (
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import build_indexable_chunks_from_jsonl
 from campus_ingestion_core.raw_ingestion import OnlineOcrProviderResult
+from campus_ingestion_core.settings import ObjectStoreSettings
 from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 
 from campus_ingestion_core.authenticated_notice_source_projections import (
     AuthenticatedNoticeSourceProjectionRequest,
+    _classify_attachment_ref,
     _build_attachment_title,
+    load_authenticated_notice_source_projections_config,
     rebuild_authenticated_notice_source_projections,
 )
 
@@ -177,6 +180,58 @@ class AuthenticatedNoticeAttachmentTitleTest(unittest.TestCase):
 
         self.assertEqual(title, "附件 4")
 
+    def test_build_attachment_title_strips_plain_attachment_prefix_without_numeric_suffix(self) -> None:
+        title = _build_attachment_title(
+            notice_title="关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知",
+            attachment_ref={
+                "ref_order": 1,
+                "anchor_text": "附件：中央民族大学关于学生使用人工智能的指导意见（2026版）.docx",
+                "final_url": (
+                    "https://my.muc.edu.cn/comsys-portal-notice-web/download"
+                    "?id=c46da95c-464c-4faf-8415-11974c33d3a4&notice_id=355282"
+                ),
+            },
+            filename="中央民族大学关于学生使用人工智能的指导意见（2026版）.docx",
+        )
+
+        self.assertEqual(title, "附件 1 / 中央民族大学关于学生使用人工智能的指导意见（2026版）.docx")
+
+
+class AuthenticatedNoticeAttachmentClassificationTest(unittest.TestCase):
+    def test_classify_attachment_ref_prefers_extension_bearing_fields_over_download_url_slug(self) -> None:
+        config = load_authenticated_notice_source_projections_config(
+            Path(__file__).resolve().parents[2]
+            / "configs/ingestion/campus_notices/internal_notice/source-projections.v1.json"
+        )
+        result = _classify_attachment_ref(
+            attachment_ref={
+                "attachment_ref_id": "attachment-0001",
+                "final_url": (
+                    "https://my.muc.edu.cn/comsys-portal-notice-web/download"
+                    "?id=c46da95c-464c-4faf-8415-11974c33d3a4&notice_id=355282"
+                ),
+                "source_url": (
+                    "https://my.muc.edu.cn/comsys-portal-notice-web/download"
+                    "?id=c46da95c-464c-4faf-8415-11974c33d3a4&notice_id=355282"
+                ),
+                "normalized_source_url": (
+                    "https://my.muc.edu.cn/comsys-portal-notice-web/download"
+                    "?id=c46da95c-464c-4faf-8415-11974c33d3a4&notice_id=355282"
+                ),
+                "anchor_text": "附件：中央民族大学关于学生使用人工智能的指导意见（2026版）.docx",
+                "object_key": (
+                    "attachments/1d/1df2ea505dc7e5db04474fa3de2c44726de158e6fb215b55ce86ed375b508735/"
+                    "附件：中央民族大学关于学生使用人工智能的指导意见（2026版）.docx"
+                ),
+                "content_sha256": "1df2ea505dc7e5db04474fa3de2c44726de158e6fb215b55ce86ed375b508735",
+                "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "byte_size": 331494,
+            },
+            config=config,
+        )
+
+        self.assertEqual(result.classification, "text_extractable")
+
 
 def _write_json(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -248,6 +303,10 @@ def _build_minimal_png_bytes() -> bytes:
 
 def _build_minimal_gif_bytes() -> bytes:
     return base64.b64decode("R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==")
+
+
+def _build_minimal_pdf_bytes() -> bytes:
+    return b"%PDF-1.4 internal notice attachment\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n"
 
 
 def _build_map_like_png_bytes() -> bytes:
@@ -808,6 +867,108 @@ def _sample_notice_bundle_with_decorative_gif(
     return bundle
 
 
+def _sample_notice_bundle_with_downloaded_pdf_attachment(
+    *,
+    docx_bytes: bytes,
+    png_bytes: bytes,
+    pdf_bytes: bytes,
+) -> list[dict[str, object]]:
+    bundle = json.loads(
+        json.dumps(
+            _sample_notice_bundle(docx_bytes=docx_bytes, png_bytes=png_bytes),
+            ensure_ascii=False,
+        )
+    )
+    pdf_sha256 = hashlib.sha256(pdf_bytes).hexdigest()
+    pdf_key = _attachment_object_key(pdf_sha256, "supplement.pdf")
+
+    link = bundle[0]["links"][2]
+    assert isinstance(link, dict)
+    link["collect_policy"] = "fetch"
+    link["status_code"] = 200
+    link["downloaded"] = True
+    link["file_size"] = len(pdf_bytes)
+
+    attachment = bundle[0]["attachments"][2]
+    assert isinstance(attachment, dict)
+    attachment["byte_size"] = len(pdf_bytes)
+    attachment["sha256"] = pdf_sha256
+    attachment["storage_provider"] = "local"
+    attachment["object_key"] = pdf_key
+    attachment["provenance_status"] = "collected_internal"
+    attachment["ingest_status"] = "downloaded"
+    attachment["downloaded_at"] = "2026-04-02T23:58:26.053Z"
+
+    return bundle
+
+
+def _sample_notice_bundle_pair_with_shared_downloaded_pdf_attachment(
+    *,
+    pdf_bytes: bytes,
+) -> list[dict[str, object]]:
+    first = _sample_notice_bundle_with_downloaded_pdf_attachment(
+        docx_bytes=_build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段")),
+        png_bytes=_build_minimal_png_bytes(),
+        pdf_bytes=pdf_bytes,
+    )[0]
+    second = json.loads(json.dumps(first, ensure_ascii=False))
+
+    second["notice_id"] = 355120
+    second_notice = second["notice"]
+    assert isinstance(second_notice, dict)
+    second_notice["notice_id"] = 355120
+    second_notice["notice_title"] = "关于第二批材料提交通知"
+    second_notice["notice_link"] = "https://portal.example.edu/notice/355120"
+    second_notice["notice_content"] = (
+        "<h1>关于第二批材料提交通知</h1>"
+        "<p>请按要求提交。</p>"
+        "<p>附件1：共享手册.pdf</p>"
+    )
+    second_notice["categories"] = [
+        {
+            "notice_id": 355120,
+            "notice_type": "6",
+            "notice_type_name": "教学通知",
+            "category_first_seen_at": "2026-04-02T18:49:00.000Z",
+            "category_last_seen_at": "2026-04-02T18:49:00.000Z",
+            "category_last_run_id": 14,
+        }
+    ]
+
+    second["links"] = [json.loads(json.dumps(first["links"][2], ensure_ascii=False))]
+    second_link = second["links"][0]
+    assert isinstance(second_link, dict)
+    second_link["id"] = 44
+    second_link["notice_id"] = 355120
+    second_link["url"] = "https://portal.example.edu/files/supplement.pdf"
+    second_link["final_url"] = "https://portal.example.edu/files/supplement.pdf"
+    second_link["link_text"] = "补充材料.pdf"
+
+    second["notice_attachments"] = [
+        {
+            "notice_id": 355120,
+            "attachment_id": 1,
+            "link_id": 44,
+            "relation_source": "content",
+            "resource_role": "attachment",
+            "anchor_text": "补充材料.pdf",
+            "discovered_at": "2026-04-02T23:58:26.053Z",
+        }
+    ]
+
+    second["attachments"] = [json.loads(json.dumps(first["attachments"][2], ensure_ascii=False))]
+    second_attachment = second["attachments"][0]
+    assert isinstance(second_attachment, dict)
+    second_attachment["attachment_id"] = 1
+    second_attachment["source_url"] = "https://portal.example.edu/files/supplement.pdf"
+    second_attachment["normalized_source_url"] = "https://portal.example.edu/files/supplement.pdf"
+    second_attachment["final_url"] = "https://portal.example.edu/files/supplement.pdf"
+    second_attachment["original_filename"] = "supplement.pdf"
+    second_attachment["object_key"] = _attachment_object_key(hashlib.sha256(pdf_bytes).hexdigest(), "supplement.pdf")
+
+    return [first, second]
+
+
 def _env() -> dict[str, str]:
     return {
         "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
@@ -1174,6 +1335,172 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
         self.assertIn("班车时间安排", image_markdown)
         self.assertIn("08:00", image_markdown)
         self.assertNotIn("<table", image_markdown)
+
+    def test_rebuild_authenticated_notice_source_projections_routes_downloaded_pdf_attachments_to_ocr(self) -> None:
+        docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
+        png_bytes = _build_minimal_png_bytes()
+        pdf_bytes = _build_minimal_pdf_bytes()
+        bundle = _sample_notice_bundle_with_downloaded_pdf_attachment(
+            docx_bytes=docx_bytes,
+            png_bytes=png_bytes,
+            pdf_bytes=pdf_bytes,
+        )
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][0]["object_key"]),
+                data=docx_bytes,
+                content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][1]["object_key"]),
+                data=png_bytes,
+                content_type="image/png",
+            )
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][2]["object_key"]),
+                data=pdf_bytes,
+                content_type="application/pdf",
+            )
+
+            ocr_client = _FakeAttachmentOcrClient()
+            report = rebuild_authenticated_notice_source_projections(
+                request=AuthenticatedNoticeSourceProjectionRequest(
+                    corpus="campus_notices",
+                    collection="internal_notice",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                ocr_client=ocr_client,
+            )
+
+        self.assertEqual(report.parent_notice_count, 1)
+        self.assertEqual(report.attachment_ref_count, 3)
+        self.assertEqual(report.projected_attachment_count, 3)
+        self.assertEqual(report.text_extractable_attachment_count, 1)
+        self.assertEqual(report.ocr_attachment_count, 2)
+        self.assertEqual(report.reference_only_attachment_count, 0)
+        self.assertEqual(ocr_client.calls, ["notice.png", "supplement.pdf"])
+
+        records = document_registry.list_by_scope("campus_notices", "internal_notice")
+        pdf_child = next(
+            record
+            for record in records
+            if record.document_id == "notice_attachment:muc_internal_portal:355119:attachment-0003"
+        )
+        pdf_units = [
+            json.loads(line)
+            for line in object_store.get_bytes(bucket=DERIVED_BUCKET, key=str(pdf_child.document_units_object_key))
+            .decode("utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+        self.assertTrue(pdf_units)
+        self.assertTrue(
+            all(row["metadata"]["extraction_class"] == "ocr_required" for row in pdf_units)
+        )
+        self.assertTrue(
+            all(row["metadata"]["attachment_kind"] == "ocr_document_attachment" for row in pdf_units)
+        )
+        self.assertTrue(
+            all(row["metadata"]["attachment_filename"] == "supplement.pdf" for row in pdf_units)
+        )
+
+    def test_rebuild_authenticated_notice_source_projections_reuses_ocr_result_for_shared_pdf_payloads(self) -> None:
+        pdf_bytes = _build_minimal_pdf_bytes()
+        bundle = _sample_notice_bundle_pair_with_shared_downloaded_pdf_attachment(pdf_bytes=pdf_bytes)
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            uploaded_keys: set[str] = set()
+            for record in bundle:
+                for attachment in record["attachments"]:
+                    key = str(attachment["object_key"])
+                    if key in uploaded_keys:
+                        continue
+                    uploaded_keys.add(key)
+                    filename = str(attachment["original_filename"])
+                    if filename.endswith(".docx"):
+                        data = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
+                        content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    elif filename.endswith(".png"):
+                        data = _build_minimal_png_bytes()
+                        content_type = "image/png"
+                    else:
+                        data = pdf_bytes
+                        content_type = "application/pdf"
+                    object_store.put_bytes(
+                        bucket=SOURCE_BUCKET,
+                        key=key,
+                        data=data,
+                        content_type=content_type,
+                    )
+
+            ocr_client = _FakeAttachmentOcrClient()
+            report = rebuild_authenticated_notice_source_projections(
+                request=AuthenticatedNoticeSourceProjectionRequest(
+                    corpus="campus_notices",
+                    collection="internal_notice",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                ocr_client=ocr_client,
+            )
+
+        self.assertEqual(report.parent_notice_count, 2)
+        self.assertEqual(report.projected_attachment_count, 4)
+        self.assertEqual(report.ocr_attachment_count, 3)
+        self.assertEqual(ocr_client.calls.count("supplement.pdf"), 1)
 
     def test_rebuild_authenticated_notice_source_projections_skips_decorative_editor_assets(self) -> None:
         docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
@@ -2130,6 +2457,54 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
         self.assertEqual(report.reference_only_attachment_count, 1)
         self.assertEqual(report.manual_review_attachment_count, 0)
         self.assertEqual(ocr_client.calls, ["notice.png"])
+
+    def test_classify_attachment_ref_routes_operational_schedule_inline_images_to_manual_review(
+        self,
+    ) -> None:
+        png_bytes = _build_table_like_png_bytes()
+        config = load_authenticated_notice_source_projections_config(
+            Path(__file__).resolve().parents[2]
+            / "configs/ingestion/campus_notices/internal_notice/source-projections.v1.json"
+        )
+        settings = ObjectStoreSettings.from_env(_env())
+        object_store = _FakeObjectStore()
+        object_key = (
+            "authenticated_notice_portal/attachment-operational-schedule/2026/sha256/"
+            f"{hashlib.sha256(png_bytes).hexdigest()}/capture/notice.png"
+        )
+        object_store.put_bytes(
+            bucket=settings.bucket_source,
+            key=object_key,
+            data=png_bytes,
+            content_type="image/png",
+        )
+
+        result = _classify_attachment_ref(
+            attachment_ref={
+                "attachment_ref_id": "attachment-0002",
+                "source_url": "https://portal.example.edu/files/notice.png",
+                "normalized_source_url": "https://portal.example.edu/files/notice.png",
+                "final_url": "https://portal.example.edu/files/notice.png",
+                "anchor_text": "选课时间安排.png",
+                "resource_role": "inline_image",
+                "object_key": object_key,
+                "content_sha256": hashlib.sha256(png_bytes).hexdigest(),
+                "mime_type": "image/png",
+                "byte_size": len(png_bytes),
+            },
+            config=config,
+            object_store=object_store,
+            object_store_settings=settings,
+            attachment_context_by_ref_id={
+                "attachment-0002": (
+                    "关于2025-2026学年第二学期本科生网上选课的通知 "
+                    "附件：2025-2026学年第二学期选课时间安排 "
+                    "请同学们按照选课时间安排完成操作。"
+                )
+            },
+        )
+
+        self.assertEqual(result.classification, "manual_review_required")
 
     def test_rebuild_authenticated_notice_source_projections_surfaces_attachment_context_when_ocr_fails(self) -> None:
         docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))

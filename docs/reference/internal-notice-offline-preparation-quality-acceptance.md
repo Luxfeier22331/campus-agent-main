@@ -119,6 +119,14 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.valid
 
 这条 lane 的验收目标是确认 native text extraction 的结果仍保留附件本体结构，而不是被降格成 notice 正文附属片段。
 
+当前这条 lane 默认主要覆盖：
+
+- `docx`
+
+它不承担：
+
+- `pdf` 的 canonical 主消费路径
+
 必须满足：
 
 - materialized attachment document 至少有可消费的 `attachment_body`
@@ -132,6 +140,7 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.valid
 - chunk 丢失 title 或 attachment lineage metadata
 - 清洗后正文仍然像 raw markup / raw html
 - attachment 正文被错误并回 parent notice body
+- `pdf` attachment 被直接按 native text-extractable 通过
 
 ### `attachment_ocr_required`
 
@@ -139,6 +148,7 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.valid
 
 - OCR lane 的噪声被局部识别和收口
 - OCR 脏样本不会反向拉低 `notice_body` 的默认质量
+- 对 `pdf`，canonical 通过依据来自云端 OCR / layout-aware 结果，而不是 native PDF text layer
 
 必须满足：
 
@@ -157,6 +167,7 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.valid
 - chunk 正文呈现明显噪声特征，例如清洗后仍主要是乱码、装饰符号、重复垃圾行
 - 清洗后仍残留 raw html / raw markup
 - OCR child document 丢失 `layout-elements.jsonl`，导致表格/段落边界无法回审
+- policy / handbook `pdf` 被错误留在 `attachment_text_extractable` 并绕过 OCR 验收
 
 ### `manual_review_required`
 

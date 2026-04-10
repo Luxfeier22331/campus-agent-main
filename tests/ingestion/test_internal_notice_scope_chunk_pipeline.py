@@ -375,6 +375,87 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
             )
         )
 
+    def test_internal_notice_notice_body_avoids_short_token_guardrail_tail_chunks(self) -> None:
+        record = _make_internal_notice_record(
+            object_key=(
+                "campus_notices/documents/internal_notice/"
+                "notice-241275/source-faithful/2026/document-units.jsonl"
+            )
+        )
+        structured_payload = (
+            json.dumps(
+                {
+                    "doc_id": record.document_id,
+                    "version_id": record.version_id,
+                    "chunk_id": "title-001",
+                    "root_unit_id": "title-001",
+                    "unit_type": "policy_page",
+                    "text": "你我共同努力，终结结核流行",
+                    "raw_text": "你我共同努力，终结结核流行",
+                    "clean_text": "你我共同努力，终结结核流行",
+                    "anchor": {"source_uri": record.source_uri},
+                    "metadata": {"block_role": "title"},
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+            + json.dumps(
+                {
+                    "doc_id": record.document_id,
+                    "version_id": record.version_id,
+                    "chunk_id": "body-001",
+                    "root_unit_id": "body-001",
+                    "unit_type": "article_body",
+                    "text": (
+                        "北京市委、市政府一直高度重视结核病防控工作，不断完善结核病防治服务体系建设，"
+                        "大力保障结核病防治工作经费，在全市构建了政府主导、部门协同、专业机构分工负责、"
+                        "社会共同参与的综合防治机制。北京市目前有北京结核病控制研究与防治所、北京胸科医院、"
+                        "北京老年医院、解放军总医院第八医学中心、北京儿童医院、北京佑安医院、北京地坛医院共7家"
+                        "市级结核病定点医疗机构，以及18家区级结核病定点医疗机构，实现对耐药、疑难病例、危急重症、"
+                        "TB/HIV双重感染、儿童、孕产妇等人群肺结核患者规范治疗管理全覆盖。结核病纳入本市基本医疗保险，"
+                        "患者发生的相关医疗费用，大部分可以按相关政策予以报销。2020年将耐多药肺结核纳入本市基本医疗保险门诊特殊疾病范围。"
+                    ),
+                    "raw_text": (
+                        "北京市委、市政府一直高度重视结核病防控工作，不断完善结核病防治服务体系建设，"
+                        "大力保障结核病防治工作经费，在全市构建了政府主导、部门协同、专业机构分工负责、"
+                        "社会共同参与的综合防治机制。北京市目前有北京结核病控制研究与防治所、北京胸科医院、"
+                        "北京老年医院、解放军总医院第八医学中心、北京儿童医院、北京佑安医院、北京地坛医院共7家"
+                        "市级结核病定点医疗机构，以及18家区级结核病定点医疗机构，实现对耐药、疑难病例、危急重症、"
+                        "TB/HIV双重感染、儿童、孕产妇等人群肺结核患者规范治疗管理全覆盖。结核病纳入本市基本医疗保险，"
+                        "患者发生的相关医疗费用，大部分可以按相关政策予以报销。2020年将耐多药肺结核纳入本市基本医疗保险门诊特殊疾病范围。"
+                    ),
+                    "clean_text": (
+                        "北京市委、市政府一直高度重视结核病防控工作，不断完善结核病防治服务体系建设，"
+                        "大力保障结核病防治工作经费，在全市构建了政府主导、部门协同、专业机构分工负责、"
+                        "社会共同参与的综合防治机制。北京市目前有北京结核病控制研究与防治所、北京胸科医院、"
+                        "北京老年医院、解放军总医院第八医学中心、北京儿童医院、北京佑安医院、北京地坛医院共7家"
+                        "市级结核病定点医疗机构，以及18家区级结核病定点医疗机构，实现对耐药、疑难病例、危急重症、"
+                        "TB/HIV双重感染、儿童、孕产妇等人群肺结核患者规范治疗管理全覆盖。结核病纳入本市基本医疗保险，"
+                        "患者发生的相关医疗费用，大部分可以按相关政策予以报销。2020年将耐多药肺结核纳入本市基本医疗保险门诊特殊疾病范围。"
+                    ),
+                    "anchor": {"source_uri": record.source_uri},
+                    "metadata": {"block_role": "paragraph"},
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+        )
+
+        short_guardrail_chunks = [
+            chunk
+            for chunk in chunks
+            if chunk.metadata["unit_type"] == "article_body"
+            and chunk.metadata.get("split_reason") == "token_guardrail"
+            and int(chunk.metadata.get("final_token_count") or 0) < 48
+        ]
+
+        self.assertEqual(short_guardrail_chunks, [])
+
     def test_internal_notice_attachment_text_chunks_use_text_lane_strategy(self) -> None:
         record = _make_internal_notice_attachment_record(
             object_key=(
@@ -483,7 +564,7 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
                         "projection_name": "internal_notice_attachment_documents",
                         "parent_document_id": "notice:muc_internal_portal:355119",
                         "attachment_ref_id": "attachment-0001",
-                        "attachment_kind": "ocr_image_attachment",
+                        "attachment_kind": "ocr_document_attachment",
                         "attachment_role": "notice_attachment_document",
                         "attachment_filename": "现场签到图.jpg",
                         "attachment_mime_type": "image/jpeg",
@@ -508,7 +589,7 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
                         "projection_name": "internal_notice_attachment_documents",
                         "parent_document_id": "notice:muc_internal_portal:355119",
                         "attachment_ref_id": "attachment-0001",
-                        "attachment_kind": "ocr_image_attachment",
+                        "attachment_kind": "ocr_document_attachment",
                         "attachment_role": "notice_attachment_document",
                         "attachment_filename": "现场签到图.jpg",
                         "attachment_mime_type": "image/jpeg",
