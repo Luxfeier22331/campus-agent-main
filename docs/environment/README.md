@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-03-29
-updated: 2026-04-08
+updated: 2026-04-10
 ---
 
 # Environment
@@ -119,6 +119,25 @@ updated: 2026-04-08
   `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB` 与
   `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH` 以及
   `APP_API_MANAGEMENT_DATABASE_URL`
+- 如果本地需要把当前 worktree 从 shared Supabase 切回 `Docker Postgres`，并重建 authenticated-notice accepted current scope，可用
+  `uv run --all-packages python -m scripts.restore_local_postgres_dev --execute`
+  这条入口会：
+  - 把 root `.env` 的 shared/document/raw registry DB lane 全部改写到本地 `postgresql://postgres:postgres@127.0.0.1:5432/campus_agent`
+  - 同步 `apps/app-api/.env`
+  - 把 `apps/app-api/.dev.vars` 的 `APP_API_DATABASE_SSLMODE` 固定为 `disable`
+  - 合并默认 accepted normalized batches：
+    `.tmp/historical-intake/run14-policy-regulation-expanded/normalized`
+    `.tmp/historical-intake/run14-attachment-routing-probe/normalized`
+    `.tmp/historical-intake/run14-policy-regulation-core/normalized`
+  - 生成 `.tmp/local-postgres-recovery/accepted-union/*`
+  - 执行 `docker compose -f infra/local/docker-compose.postgres.yml up -d`
+  - 执行 `pnpm --dir apps/app-api db:bootstrap`
+  - 执行 `pnpm --dir apps/app-api db:reconcile-shared-drift -- --json`
+  - 对 union bundle 做单次 `import_authenticated_notice_export`
+  - 执行 `rebuild_authenticated_notice_source_truth_inventory`
+  - 默认校验本地 current scope 计数为 `20 / 21 / 1 / 5`
+- 这条入口是 `local dev / test path`，不改变 `docs/data/shared-postgres-ownership.md` 与 `ADR-0029` 的 deployed runtime truth
+- 这条入口默认假定本地对象存储仍按 `ADR-0002` 运行，且 `.tmp/historical-intake/.../normalized` 已存在；如果 donor normalized artifacts 尚未准备好，先按 `docs/runbooks/authenticated-notice-historical-donor-intake-runbook.md` 生成
 - `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` 只用于 repo-local migration / DBA / offline ingestion operator 路径，
   当共享库由 Supabase 承载时它必须是 `db.<project-ref>.supabase.co:5432` 这类 direct management DSN；
   不得把 session pooler URL 复制成 management URL
