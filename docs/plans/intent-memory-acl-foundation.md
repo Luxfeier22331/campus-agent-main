@@ -26,7 +26,7 @@ updated: 2026-03-29
 - app-layer identity / memory ownership：`docs/architecture/product-runtime-architecture.md`
 - 编排与安全边界：`docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - identity / memory / personalization 决策：`docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
-- authorization model / retrieval filter projection：`docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
+- authorization model / retrieval filter projection：`docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
 
 ## 目标
 
@@ -103,7 +103,7 @@ updated: 2026-03-29
 - `docs/architecture/execution-and-specialists-architecture.md`
 - `docs/architecture/product-runtime-architecture.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
-- `docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
+- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
 
 验收：
 

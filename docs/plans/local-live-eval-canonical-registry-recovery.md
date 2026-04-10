@@ -22,7 +22,7 @@ updated: 2026-04-05
 
 - `docs/architecture/identity-and-authorization-architecture.md`
 - `docs/architecture/retrieval-serving-architecture.md`
-- `docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
+- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
 - `docs/plans/legacy-acl-carrier-compatibility-sunset.md`
 - `docs/runbooks/index-release-runbook.md`

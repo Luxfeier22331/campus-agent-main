@@ -20,7 +20,7 @@ updated: 2026-04-02
 对应 source of truth：
 
 - `docs/architecture/identity-and-authorization-architecture.md`
-- `docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
+- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
 - `docs/plans/campus-identity-and-restricted-document-foundation.md`
 

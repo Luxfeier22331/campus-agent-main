@@ -23,7 +23,7 @@ updated: 2026-04-02
 - `docs/architecture/product-runtime-architecture.md`
 - `docs/architecture/retrieval-serving-architecture.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
-- `docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
+- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
 - `docs/plans/legacy-acl-carrier-compatibility-sunset.md`
 
