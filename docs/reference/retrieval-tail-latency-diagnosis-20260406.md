@@ -2,14 +2,17 @@
 doc_type: reference
 status: active
 created: 2026-04-06
-updated: 2026-04-06
+updated: 2026-04-09
 ---
 
 # Retrieval Tail-Latency Diagnosis (2026-04-06)
 
 ## Scope
 
-本文记录 `public-chat-web` replatform closeout 后剩余 staging blocker 的根因与 Wave 1 修复策略。
+本文记录 Wave B staging closure 期间暴露出来的 retrieval tail-latency 根因，以及对应的 retrieval-only 修复策略。
+
+本文不构成 `public-chat-web` chat shell closeout 证据。
+当前 `public-chat-web` donor-visible path 的真相，继续以 strict parity 文档为准。
 
 问题表征：
 
@@ -101,7 +104,7 @@ Wave 2 约束：
 
 ## Execution Status
 
-截至 2026-04-06 当前 worktree，Wave 1 已完成最小实现：
+截至 2026-04-06 当前 worktree，Wave 1 已完成 repo-tracked retrieval 修复：
 
 - `CollectionRuntimeProfile` 已增加 `document_support_strategy`
 - `student_handbook` 与 `curriculum_plan` runtime profile 已切到 `targeted_overfetch`
@@ -110,7 +113,7 @@ Wave 2 约束：
 - 定向验证已通过：
   - `uv run --all-packages python -m pytest tests/ingestion/test_corpus_runtime_profile.py tests/retrieval/test_backend_qdrant.py -q`
 
-截至 2026-04-06 当前 worktree，Wave 2 也已完成最小闭环：
+截至 2026-04-06 当前 worktree，Wave 2 也已完成 repo-tracked structured-surface correction：
 
 - `ingestion-core` 新增 `curriculum_program_semester_facts_projection.py`
 - raw ingestion / local rebuild 会同时生成并重置 `program_semester_facts`
@@ -119,6 +122,11 @@ Wave 2 约束：
 - 定向验证已通过：
   - `uv run --all-packages python -m pytest tests/ingestion/test_curriculum_program_semester_facts_projection.py tests/specialist/test_rag_specialist.py -k 'curriculum_program_semester_facts_projection or curriculum_semester_course_query_uses_program_semester_facts_collection or curriculum_follow_up_program_fragment_uses_recent_goal_to_resolve_family_then_semester or curriculum_follow_up_semester_fragment_uses_recent_goal_to_continue_same_program or curriculum_follow_up_program_fragment_prefers_typed_session_slots_over_stale_recent_goal or curriculum_follow_up_semester_fragment_prefers_typed_program_slot_over_stale_recent_goal or curriculum_deictic_query_with_verified_major_prefers_major_scoped_candidate' -q`
   - `uv run --all-packages python -m pytest tests/ingestion/test_corpus_runtime_profile.py tests/ingestion/test_rebuild_local_data.py::RebuildLocalDataTest::test_rebuild_provider_response_replay_resets_curriculum_target_qdrant_collection_only -q`
+
+补充说明：
+
+- 这些修复只关闭 retrieval hot path 问题，不代表 `public-chat-web` donor shell 已完成 strict parity 收口。
+- 当前 chat frontend 的 active truth 继续看 `docs/plans/public-chat-web-vendor-runtime-full-transplant.md` 与 `docs/reference/public-chat-web-strict-donor-parity-gap-inventory.md`。
 
 ## References
 

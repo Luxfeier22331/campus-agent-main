@@ -14,6 +14,7 @@ The phase names below are retained as execution-history labels. They must not be
 **Phase Numbering:**
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (03.1, 04.1, 04.2, 04.3, 04.4, 04.5, 04.6, 04.7, 05.1, 09.1): Urgent insertions (marked with INSERTED)
+- `999.x` phases: backlog parking-lot items that are tracked but not yet promoted into the active execution sequence
 
 Decimal phases appear between their surrounding integers in numeric order.
 
@@ -634,3 +635,14 @@ Plans:
 Plans:
 - [x] 12.2-01-PLAN.md — Research async staged closeout data-plane model, operations prefix, staging schema, single promoter, verification requirements, and codify the new architecture/ADR/runbook language.
 - [x] 12.2-02-PLAN.md — Execute the async staged pipeline: design ops directories + staging tables, implement planner/executor/promoter, add CLI status/promote commands, and lock in verification/summary artifacts.
+
+## Backlog
+
+### Phase 999.1: 集中维护待补 smoke evidence 的 deferred backlog (BACKLOG)
+
+**Goal:** 集中维护已经完成 code closeout、但仍需等待浏览器或 staging smoke 条件可用后再统一补证据的事项，避免把 evidence-only 项继续混写成 active implementation blocker。
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with `$gsd-review-backlog` when the relevant smoke lane is available)
