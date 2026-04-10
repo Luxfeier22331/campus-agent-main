@@ -133,10 +133,11 @@ UV_CACHE_DIR=/tmp/uv-cache uv run --package campus-ingestion-worker python -m ca
 - `notice_count = 20`
 - `expected_document_count = 21`
 - `expected_attachment_document_count = 1`
-- `expected_ocr_candidate_count = 5`
+- `expected_ocr_candidate_count = 0`
 - `notice_risk_counts.body_only = 16`
 - `notice_risk_counts.body_with_reference_only_attachments = 1`
-- `notice_risk_counts.body_with_text_attachments = 3`
+- `notice_risk_counts.body_with_spatial_attachments = 2`
+- `notice_risk_counts.body_with_text_attachments = 1`
 
 ## Backups
 

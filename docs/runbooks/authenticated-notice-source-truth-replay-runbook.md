@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-05
-updated: 2026-04-09
+updated: 2026-04-10
 ---
 
 # Authenticated Notice Source-Truth Replay Runbook
@@ -35,14 +35,14 @@ updated: 2026-04-09
 
 当前 authenticated notice historical replay 的活动执行面固定为：
 
-- 先按 `docs/runbooks/authenticated-notice-source-truth-replay-pilot-runbook.md` 做 bounded pilot
-- pilot 在 `verified` 停下
-- pilot 验收通过前，不继续 promote
-- pilot 验收通过前，不继续 chunk / release
-- pilot 验收通过前，不继续 embedding / Qdrant
+- source projection / attachment routing 规则有变化时，先做 bounded pilot 或 targeted routing test
+- routing 规则一旦变化，进入 full replay planning 前必须先重建 source-truth inventory
+- 当前 repo 已经在 local Postgres + local MinIO 上证明：full current-scope replay -> staged validation -> chunk preparation -> preparation validation 这条链路可完整跑通
+- verified chunk preparation 是当前默认停点；没有显式批准前，不继续 release / index / alias publish
+- 不继续 embedding / Qdrant，除非用户明确授权
 - operator 环境必须显式设置 `OCR_PROVIDER_MODE=paddleocr_async_jobs`，不依赖 `OCR_BASE_URL` 推断 provider
 
-因此本文下面涉及的 chunk / release 内容，当前只作为前向链路设计边界，不代表现在就应继续执行这些下游阶段。
+因此本文下面涉及的 chunk / release 内容，已经有 repo-supported 执行路径，但当前 operator stop 仍是 verified chunk preparation，不代表现在就应继续执行 release。
 
 ## OCR 失败判定顺序
 
@@ -51,7 +51,15 @@ updated: 2026-04-09
 - 对规章制度 / 手册类 `pdf`，默认先把它当作 `ocr_required`，不要先切本地 native PDF 路径再决定是否送 OCR
 - 先检查失败 attachment 的真实图片内容
 - 再结合该图片在 notice 正文里的上下文判断，它是否本来就应该进入 `ocr_required`
+- 如果图片上下文明确是操作指引 / 日程导览，而不是正文承载，先把它改判到 `manual_review_required`；当前已知高频关键词包括：
+  - `选课时间安排`
+  - `具体选课方式`
+  - `选课方式参考如下表格`
+  - `学习时间安排`
+  - `学习时间及考试安排`
+  - `选课操作流程`
 - 对二维码、示例证书、宣传海报、正文已完整给出说明的冗余教程截图，先修 projection routing 到 `reference_only` 或 `manual_review_required`
+- 只有在图片区块确实承载线性文本 / 评分表 / 制度正文，而不是操作流程图、时间安排图、空间导览图时，才保留 `ocr_required`
 - 只有当 attachment 已确认属于线性文本 / 表格主导的有效 OCR candidate，且 async jobs 仍然出现 `state=done` 但 `jsonUrl` 持续不可读，才把它认定为 provider contract breach
 
 固定禁止：
@@ -176,6 +184,13 @@ inventory 至少包含：
 - attachment ref count
 - attachment extraction-class summary
 - attachment kind / extraction lane / projection_name / visibility projections (typed fields required for downstream stage commit)
+
+source projection / attachment routing 规则变更后的固定补充：
+
+- planner 读取的是已经持久化的 inventory，而不是 live source objects 的临时重新扫描
+- 因此只要 projection rules、attachment classifier、manual-review routing 有变更，就必须先重新执行 `rebuild_authenticated_notice_source_truth_inventory`
+- 如果跳过这一步，planner / verifier 会继续使用旧的 `expected_document_count`、`expected_attachment_document_count`、`expected_ocr_candidate_count`
+- 这类 stale inventory 会让 run 在 verifier 阶段失败，即使新的 routing 代码已经修好
 
 repair frozen run 时的固定规则补充：
 
@@ -304,10 +319,11 @@ projection replay 之后，parent 与 child document 都进入 repo-owned cleanu
 - `release_registry_scope` 只负责 verified chunk preparation 之后的 `embedding -> indexing -> optional alias publish`
 - `campus_notices/internal_notice` 现在要求 release 显式提供成功的 `preparation_run_id`；不能再直接跳过 chunk admission 进入 embedding
 - pilot 当前仍以 verified chunk preparation 为停点；没有显式批准前，不继续 release
-- 执行 full current-scope refresh / preparation / release 之前，必须先确认 offline operator shell 已显式提供 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`
+- local Postgres dev path 是当前已验证通过的 current-scope replay / preparation operator substrate；这条路径按 `docs/runbooks/local-postgres-dev-recovery-runbook.md` 提供本地 DSN 即可
+- 如果改回 shared Supabase path，再要求 offline operator shell 显式提供 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`
 - 当共享库由 Supabase 承载时，这个 management URL 必须是 `db.<project-ref>.supabase.co:5432` 这类 direct DSN；如果仍是 `*.pooler.supabase.com`，当前 helper 会 fast-fail
-- readiness 判定是 management direct DSN 能完成实际 `psycopg.connect(...)` + `select 1`；只有 TCP `:5432` 可达或 session pooler 可连都不算 ready
-- 如果 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` 在 connect 阶段返回 `PoolTimeout` / `ConnectionTimeout` / `MaxClientsInSessionMode`，本轮 stop，不写 current scope
+- shared-path readiness 判定是 management direct DSN 能完成实际 `psycopg.connect(...)` + `select 1`；只有 TCP `:5432` 可达或 session pooler 可连都不算 ready
+- 如果 shared-path `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` 在 connect 阶段返回 `PoolTimeout` / `ConnectionTimeout` / `MaxClientsInSessionMode`，本轮 stop，不写 current scope
 
 因此 chunking / embedding / index release 仍然可以发生，但必须分阶段发生，而且不代表该 collection 已经进入 query-serving。
 

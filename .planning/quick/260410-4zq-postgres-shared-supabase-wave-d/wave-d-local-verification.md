@@ -5,7 +5,7 @@
 本次 local verification 只证明：
 
 - local Postgres + local MinIO 上的 authenticated-notice current scope 可被本地 operator 命令消费
-- bounded closeout + chunk preparation 可以不依赖 shared Supabase management DSN 完成
+- bounded closeout 与 full current-scope replay + chunk preparation 都可以不依赖 shared Supabase management DSN 完成
 
 它不证明：
 
@@ -21,6 +21,10 @@
 - `bounded_notice_id=355119`
 - `closeout_run_id=local-postgres-wave-d-355119`
 - `preparation_run_id=prep-local-postgres-wave-d-355119`
+- `full_closeout_run_id=local-postgres-wave-d-full-20260410-141615`
+- `full_preparation_run_id=prep-local-postgres-wave-d-full-20260410-141615`
+- `full_manual_review_required_attachment_count=5`
+- `full_materialized_ocr_attachment_document_count=0`
 
 选择 `355119` 的原因：
 
@@ -171,6 +175,71 @@ UV_CACHE_DIR=/tmp/uv-cache uv run --package campus-ingestion-worker python -m ca
 - `chunk_failures = []`
 - `read_failures = []`
 
+## Full Current-Scope Replay And Preparation
+
+在 `355119` bounded proof 通过后，又按当前本地 accepted union 对 full current scope 重新执行：
+
+```bash
+UV_CACHE_DIR=/tmp/uv-cache uv run --package campus-ingestion-worker python -m campus_ingestion_worker.rebuild_authenticated_notice_source_truth_inventory \
+  --corpus campus_notices \
+  --collection internal_notice
+
+UV_CACHE_DIR=/tmp/uv-cache uv run --package campus-ingestion-worker python -m campus_ingestion_worker.plan_authenticated_notice_source_truth_replay \
+  --run-id local-postgres-wave-d-full-20260410-141615 \
+  --corpus campus_notices \
+  --collection internal_notice \
+  --shard-size 250 \
+  --batch-size 16 \
+  --max-concurrency 8 \
+  --notice-concurrency 8 \
+  --object-store-concurrency 64 \
+  --lease-seconds 300
+
+UV_CACHE_DIR=/tmp/uv-cache uv run --package campus-ingestion-worker python -m campus_ingestion_worker.run_authenticated_notice_closeout_worker \
+  --run-id local-postgres-wave-d-full-20260410-141615 \
+  --worker-id local-postgres-full-04
+
+UV_CACHE_DIR=/tmp/uv-cache uv run --package campus-ingestion-worker python -m campus_ingestion_worker.validate_internal_notice_chunking \
+  --closeout-run-id local-postgres-wave-d-full-20260410-141615 \
+  --sample-dir .planning/quick/260410-4zq-postgres-shared-supabase-wave-d/current-scope-samples-full-20260410-141615
+
+UV_CACHE_DIR=/tmp/uv-cache uv run --package campus-ingestion-worker python -m campus_ingestion_worker.prepare_registry_scope_chunks \
+  --corpus campus_notices \
+  --collection internal_notice \
+  --closeout-run-id local-postgres-wave-d-full-20260410-141615 \
+  --preparation-run-id prep-local-postgres-wave-d-full-20260410-141615
+
+UV_CACHE_DIR=/tmp/uv-cache uv run --package campus-ingestion-worker python -m campus_ingestion_worker.validate_internal_notice_chunking \
+  --preparation-run-id prep-local-postgres-wave-d-full-20260410-141615 \
+  --sample-dir .planning/quick/260410-4zq-postgres-shared-supabase-wave-d/prep-samples-full-20260410-141615
+```
+
+结果：
+
+- inventory rebuild：
+  - `notice_count = 20`
+  - `expected_document_count = 21`
+  - `expected_attachment_document_count = 1`
+  - `expected_ocr_candidate_count = 0`
+  - `notice_risk_counts.body_only = 16`
+  - `notice_risk_counts.body_with_reference_only_attachments = 1`
+  - `notice_risk_counts.body_with_spatial_attachments = 2`
+  - `notice_risk_counts.body_with_text_attachments = 1`
+- closeout worker：
+  - `state = verified`
+  - `staged_document_count = 21`
+  - `manual_review_required_attachment_count = 5`
+  - `materialized_ocr_attachment_document_count = 0`
+- closeout validation：
+  - `passed = true`
+  - `sample_dir = .planning/quick/260410-4zq-postgres-shared-supabase-wave-d/current-scope-samples-full-20260410-141615`
+- preparation：
+  - `validation_status = passed`
+  - `preparation_run_id = prep-local-postgres-wave-d-full-20260410-141615`
+- preparation validation：
+  - `passed = true`
+  - `sample_dir = .planning/quick/260410-4zq-postgres-shared-supabase-wave-d/prep-samples-full-20260410-141615`
+
 ## Verdict
 
 - `local_postgres_bootstrap_ok=true`
@@ -179,4 +248,6 @@ UV_CACHE_DIR=/tmp/uv-cache uv run --package campus-ingestion-worker python -m ca
 - `current_scope_validation_ok=true`
 - `bounded_closeout_ok=true`
 - `bounded_preparation_ok=true`
+- `full_current_scope_replay_ok=true`
+- `full_current_scope_preparation_ok=true`
 - `bounded_release_not_attempted=true`

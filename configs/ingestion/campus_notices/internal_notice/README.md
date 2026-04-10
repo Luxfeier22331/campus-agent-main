@@ -8,6 +8,7 @@ This directory holds the repo-tracked config scaffolding for the
 - `chunk-profile.json`: current generic runtime defaults for chunk preparation admission
 - `source-projections.v1.json`: offline source-truth replay contract for clean parent notices and derived attachment documents
 - `notice-family-classification.v1.json`: read-only notice-family admission config for policy-first stratification
+- `promotion-routing.v1.json`: source-side scaffold for deciding which canonical documents may be promoted into `regulations/institutional_regulations`
 - `historical-batches/run14-policy-regulation-core.v1.json`: first curated donor intake batch for stable regulation/policy notices
 - `historical-batches/run14-policy-regulation-expanded.v1.json`: broader policy_regulation donor batch with body-shape stratification for policy-text handling
 - `historical-batches/run14-attachment-routing-probe.v1.json`: second curated donor intake batch for attachment route coverage (`text_extractable` / `ocr_required` / `reference_only`)
@@ -15,6 +16,7 @@ This directory holds the repo-tracked config scaffolding for the
 - `docs/reference/authenticated-notice-historical-donor-intake-evidence.md`: current accepted evidence for the donor intake batches
 - `docs/reference/internal-notice-offline-preparation-strategy.md`: collection-specific offline preparation and lane strategy
 - `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`: collection-specific quality acceptance criteria before any index release
+- `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`: freeze that `internal_notice` remains source/triage and canonical regulation text must cross a separate promotion boundary
 - `docs/plans/internal-notice-policy-regulation-consumption-implementation.md`: forward implementation plan for promoting `policy_regulation` notice content from `internal_notice` into a dedicated `regulations/*` target without rewriting current merged truth
 - `docs/plans/authenticated-notice-source-attachment-key-reorganization.md`: source bucket attachment key cleanup/reorganization plan for removing donor blob-key pollution without changing the two-bucket architecture
 
@@ -32,6 +34,10 @@ Current runtime truth:
 It is intentionally isolated from public surfaces and should not be exposed as a default
 query-serving collection until restricted document authorization, projection, and leakage
 guards are verified end-to-end.
+
+It is also explicitly a source-channel-first triage collection, not a formal regulation
+collection. Wrapper notices, attachment outcome truth, and replay evidence remain here;
+only separately promoted canonical regulation text may later enter `regulations/*`.
 
 Offline source-truth replay rules:
 

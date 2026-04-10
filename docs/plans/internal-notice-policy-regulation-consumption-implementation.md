@@ -30,6 +30,7 @@ updated: 2026-04-10
 - `docs/decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spatial-review-boundary.md`
 - `docs/decisions/adr-0032-internal-notice-notice-family-stratified-admission.md`
 - `docs/decisions/adr-0033-internal-notice-pdf-cloud-ocr-default.md`
+- `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
 
 ## 当前 Merged Truth
 
@@ -50,6 +51,7 @@ updated: 2026-04-10
   - editor static asset / decorative asset -> `reference_only`
 - `pdf` 在 `internal_notice` 中的 canonical 主链路已经冻结为云端异步 OCR；native PDF extraction 只允许作为 diagnostics / probe
 - `chunk preparation` 与 `index release` 已经被明确拆开；当前不允许把 replay/preparation 直接揉成 embedding / Qdrant side effects
+- `internal_notice` 与 `regulations/*` 的 collection 语义边界已由 ADR-0035 冻结；`internal_notice` 不是 regulation collection，wrapper notice 不得直接进入 `regulations/*`
 
 这意味着：
 
@@ -174,7 +176,7 @@ Azure AI Search 官方 chunking 文档明确建议优先按标题、章节、段
 
 ## 目标消费模型
 
-本文建议采用四层模型。
+当前 repo 已冻结四层模型；实现仍按阶段推进。
 
 ### Layer 1: Source Absorption
 
@@ -209,11 +211,11 @@ Azure AI Search 官方 chunking 文档明确建议优先按标题、章节、段
 
 - 从已经通过 replay / extraction / quality gate 的 `internal_notice` canonical documents 中，筛出真正应该提升为正式制度正文的文档
 
-这层是本文新增的前向设计，不是当前 merged truth。
+这层的 architecture boundary 已由 ADR-0035 冻结；当前 repo-tracked implementation 仍待补齐。
 
 ### Layer 4: Regulations Collection
 
-建议新增但当前尚不存在的 target collection：
+当前 repo-tracked target collection 固定为：
 
 - `regulations/institutional_regulations`
 
@@ -223,7 +225,7 @@ Azure AI Search 官方 chunking 文档明确建议优先按标题、章节、段
 - 它不绑定 `authenticated_notice_portal`
 - 后续如果同一制度正文在 `official_web` 出现镜像或 canonical source，也可以进入同一个 collection，而不是再造 source-specific regulation collection
 
-当前这个 collection 建议先保持：
+当前这个 target collection 在实现阶段固定先保持：
 
 - `serving_stage=offline_preparation`
 - `query_enabled=false`
@@ -339,9 +341,9 @@ Azure AI Search 官方 chunking 文档明确建议优先按标题、章节、段
 
 ## Regulation Promotion Contract
 
-当前建议新增一条 document-level promotion contract，而不是改写 source-truth contract。
+当前需要新增一条 document-level promotion contract，而不是改写 source-truth contract。
 
-### 建议新增的 repo-tracked config
+### 需新增的 repo-tracked config
 
 - `configs/ingestion/campus_notices/internal_notice/promotion-routing.v1.json`
   - 描述哪些 notice/document 满足 promotion gate
@@ -418,7 +420,7 @@ promotion 后的 regulation identity 不应再用 `notice_id` 派生。
 
 ### 新增 regulation promotion 后的目标路径
 
-建议新增：
+落地时固定采用以下目标路径前缀：
 
 - `regulations/documents/institutional_regulations/{title_slug}--{docid8}/{revision_track}/{year}/canonical.md`
 - `regulations/documents/institutional_regulations/{title_slug}--{docid8}/{revision_track}/{year}/document-units.jsonl`
@@ -470,6 +472,7 @@ promotion gate 必须额外验证：
 
 交付物：
 
+- `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
 - 本文
 - `configs/ingestion/campus_notices/internal_notice/README.md` 入口更新
 

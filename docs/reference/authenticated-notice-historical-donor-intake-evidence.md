@@ -67,7 +67,8 @@ selected notice ids：
 selection boundary：
 
 - `351111` 已在 donor byte-aware routing 分析中确认是二维码 `reference_only` 样本，不纳入第二批 local-smoke acceptance batch
-- 当前 donor snapshot 在现有规则下没有稳定的 `manual_review_required` 批量样本，因此第二批不宣称覆盖这一终态
+- `354192 / 351118` 里的操作指引类 inline image 现已在 donor byte-aware routing 分析中稳定落到 `manual_review_required`
+- 第二批 local smoke 已在显式传入 `attachment_blob_root=/home/reptilian/code/rag-data/muc-notice-collector/runtime/blob-store` 后与 donor byte-aware routing 分析对齐
 
 ### Batch 3
 
@@ -201,9 +202,9 @@ repo 当前 attachment classifier 已对 donor blob-store 做只读 byte-aware �
 
 结果摘要：
 
-- selected batch target totals：`ocr_required = 5`、`text_extractable = 1`、`reference_only = 1`
+- selected batch target totals：`text_extractable = 1`、`reference_only = 1`、`manual_review_required = 5`、`ocr_required = 0`
 - extra excluded sample：`351111` 的唯一附件为二维码图片，当前被 repo classifier 判定为 `reference_only`
-- `manual_review_required`：当前 donor snapshot 未形成稳定批次样本
+- `354192 / 351118` 的 `5` 个操作指引类 inline image 当前都归入 `manual_review_required`
 
 ### Batch 2 Normalization Evidence
 
@@ -241,7 +242,27 @@ machine-readable outputs：
 - `raw_uploaded_count = 4`
 - `raw_reused_count = 0`
 - `errors = []`
-- `local-smoke-summary.json mtime = 2026-04-09 17:30:37 +08:00`
+- `execution.attachment_blob_root = /home/reptilian/code/rag-data/muc-notice-collector/runtime/blob-store`
+- `object-store/uploads.json` 中新增 canonical attachment capture uploads `7`
+- `source-truth-inventory notice_count = 4`
+- `source-truth-inventory attachment_ref_total = 7`
+- `source-truth-inventory attachment_document_total = 1`
+- `source-truth-inventory text_extractable_count = 1`
+- `source-truth-inventory ocr_required_count = 0`
+- `source-truth-inventory manual_review_required_count = 5`
+- `source-truth-inventory reference_only_count = 1`
+- `source-truth-inventory notice_risk_label.body_with_spatial_attachments = 2`
+- `source-truth-inventory notice_risk_label.body_with_reference_only_attachments = 1`
+- `source-truth-inventory notice_risk_label.body_with_text_attachments = 1`
+- `local-smoke-summary.json mtime = 2026-04-10 15:33:40 +08:00`
+- `source-truth-inventory.json mtime = 2026-04-10 15:33:40 +08:00`
+- `uploads.json mtime = 2026-04-10 15:33:40 +08:00`
+
+补充说明：
+
+- 这份 local smoke 现在同时证明 donor normalization/import seam 与 attachment blob materialization seam 已闭合
+- 第二批 attachment route 的 repo 当前 truth 已可直接使用 `.tmp/historical-intake/run14-attachment-routing-probe/local-smoke/registry/source-truth-inventory.json`
+- `.tmp/historical-intake/run14-attachment-routing-probe/donor-attachment-routing-analysis.json` 仍保留为交叉校验样本，不再高于 local smoke inventory
 
 ### Batch 3 Policy Analysis Evidence
 
@@ -330,27 +351,27 @@ machine-readable outputs：
 
 ### Batch 2
 
-这批 `4` 条 donor notice 的 local smoke inventory 特征当前固定为：
+这批 `4` 条 donor notice 的 donor byte-aware routing 特征当前固定为：
 
 - `notice_count = 4`
 - `attachment_ref_total = 7`
 - `attachment_document_total = 1`
 - `text_extractable_total = 1`
-- `ocr_required_total = 5`
+- `ocr_required_total = 0`
 - `reference_only_total = 1`
-- `manual_review_required_total = 0`
-- `notice_risk_label.body_with_text_attachments = 3`
+- `manual_review_required_total = 5`
+- `notice_risk_label.body_with_text_attachments = 1`
 - `notice_risk_label.body_with_reference_only_attachments = 1`
+- `notice_risk_label.body_with_spatial_attachments = 2`
 
 这批 evidence 的作用固定是：
 
 - 证明 donor normalization/import seam 已经拿到小批量 attachment route coverage
-- 证明 `text_extractable` / `ocr_required` / `reference_only` 三类 attachment 已经各自有 repo-tracked donor batch
+- 证明 `text_extractable` / `manual_review_required` / `reference_only` 三类 attachment 已经各自有 repo-tracked donor batch
 - 证明 `internal_notice` 可以在不触碰 Postgres、Qdrant、embedding 的前提下，对 attachment-bearing notice 做受控 intake
 
 它仍然没有覆盖：
 
-- `manual_review_required`
 - 实际 OCR 执行结果
 - attachment child document 的完整 materialization 验收
 - chunk preparation / release gate
@@ -535,7 +556,8 @@ accepted strategy 固定为：
 - `run14-policy-regulation-expanded-v1 accepted as the third historical donor intake batch`
 - `legacy donor export -> normalized bundle -> local bootstrap smoke` 这条 seam 已经 repo-tracked
 - 第一批样本可以作为 parent-only governance baseline
-- 第二批样本可以作为 attachment-routing donor baseline for `text_extractable` / `ocr_required` / `reference_only`
+- 第二批样本可以作为 attachment-routing donor baseline for `text_extractable` / `manual_review_required` / `reference_only`
+- 第二批 local smoke inventory 现已与 donor byte-aware routing analysis 对齐，可直接作为 repo 当前 attachment routing acceptance evidence
 - 第三批样本可以作为更大范围的 `policy_regulation` baseline，并支持后续把 policy body 与 wrapper notice 拆开处理
 
 当前不能写成：

@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-06
-updated: 2026-04-09
+updated: 2026-04-10
 ---
 
 # Internal Notice Offline Preparation Strategy
@@ -26,6 +26,7 @@ updated: 2026-04-09
 - `docs/decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spatial-review-boundary.md` 的 attachment typed routing governance
 - `docs/decisions/adr-0033-internal-notice-pdf-cloud-ocr-default.md` 的 PDF 默认消费路径决策
 - `docs/decisions/adr-0032-internal-notice-notice-family-stratified-admission.md` 的 notice-family admission decision
+- `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md` 的 regulation owner boundary
 - `docs/reference/internal-notice-offline-preparation-quality-acceptance.md` 的质量验收规则
 - `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md` 的 operator workflow
 - `docs/runbooks/authenticated-notice-historical-donor-intake-runbook.md` 的 donor normalization / local smoke workflow
@@ -44,6 +45,28 @@ updated: 2026-04-09
 - notice 正文整体较干净，主问题不是 parent notice body
 - 历史噪声主要集中在 attachments，尤其图片 OCR、脏表格和装饰性静态资源
 - 因此 collection 默认优化目标是先保住 parent notice body 质量，而不是因为 attachment outlier 全局缩小分块或全局劣化正文策略
+
+## Collection Semantic Boundary
+
+`campus_notices/internal_notice` 当前固定是：
+
+- authenticated notice 的 source-channel-first triage collection
+- restricted replay / preparation / quality-evidence layer
+
+它不是：
+
+- formal regulation collection
+- `regulations/*` 的过渡别名
+
+因此固定规则为：
+
+- wrapper notice、attachment relation truth、`manual_review_required`、`reference_only`、`no_extractable_text` 继续留在 `internal_notice`
+- 本 collection 内的 verified replay / chunk preparation，只证明 source-channel triage 质量，不等于 regulation corpus 已成立
+- 如果某份 notice 正文或 attachment 正文已经达到独立制度消费质量，必须经过单独 promotion boundary 再进入 `regulations/*`
+
+当前 repo 级 promotion boundary 见：
+
+- `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
 
 ## Notice-Family Admission
 

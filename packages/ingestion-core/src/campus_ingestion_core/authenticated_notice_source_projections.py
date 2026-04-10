@@ -956,9 +956,16 @@ def _classify_inline_image_context_override(
         for token in ("官方报名小程序", "报名小程序", "作品上传", "我的故事", "等待审核")
     ):
         return AuthenticatedNoticeAttachmentClassificationResult("reference_only")
-    if "网上选课" in normalized_context and any(
+    if any(
         token in normalized_context
-        for token in ("选课时间安排", "选课方式", "学习时间安排", "操作流程")
+        for token in (
+            "选课时间安排",
+            "具体选课方式",
+            "选课方式参考如下表格",
+            "学习时间安排",
+            "学习时间及考试安排",
+            "选课操作流程",
+        )
     ):
         return AuthenticatedNoticeAttachmentClassificationResult(
             "manual_review_required",

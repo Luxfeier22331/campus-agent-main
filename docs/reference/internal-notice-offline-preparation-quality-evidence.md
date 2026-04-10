@@ -13,7 +13,7 @@ updated: 2026-04-10
 
 - 2026-04-06 的 current-scope 失败证据
 - 2026-04-09 的 verified replay pilot staged 通过证据
-- 2026-04-10 的 repo-head bounded replay 修复证明与 current-scope 仍未刷新结论
+- 2026-04-10 的 local Postgres full current-scope replay + preparation 通过证据
 
 它回答的是：
 
@@ -148,103 +148,123 @@ lane 分布：
 - `attachment-text` 样本标题已缩成 `附件 1 / 中央民族大学拔尖创新人才培养&nbsp;“证书项目”报名表`
 - `attachment-ocr` 样本标题已缩成 `附件 4`，正文 chunk 现在不再被超长 header 压住
 
-## 2026-04-10 Repo-Head Bounded Replay Proof
+## 2026-04-10 Local Postgres Full Current-Scope Replay And Preparation
 
-### Current-Scope Rerun 仍失败
+### 执行路径
 
-2026-04-10 对当前 `internal_notice` scope 再跑了一次 fresh validator：
+2026-04-10 这条证据消费的是 local Postgres + local MinIO 上已经恢复好的 accepted current scope，而不是 shared Supabase direct-DSN 路径。
 
-```bash
-uv run --package campus-ingestion-worker python -m campus_ingestion_worker.validate_internal_notice_chunking \
-  --sample-dir .tmp/internal_notice_chunk_samples_wave_d_current_scope_20260410
-```
+正式 CLI 路径为：
 
-结果仍是：
-
-- `passed=false`
-- `registry_record_count=6962`
-- `selected_record_count=6962`
-- `validated_document_count=6961`
-- `chunk_failures=1`
-- `notice_body_fragmentation_count=5`
-- `markup_leak_chunk_count=724`
-- `header_dominant_ocr_chunk_count=130`
-- `noisy_ocr_chunk_count=31`
-
-这说明当前 promoted/current scope 还不能写成：
-
-- `offline preparation accepted`
-- `可以直接执行 release_registry_scope`
-
-### Repo-Head 修复与 Bounded Probe
-
-同日对 repo-head 做了两项结构性修复，并用单 notice bounded replay 验证：
-
-- `authenticated_notice_source_truth_replay.py` 现在显式向 `_project_parent_source_truth(...)` 透传 `ocr_provider_response_cache`，修复了 source-truth replay worker 在 parent projection 阶段的真实崩溃
-- `chunking.py` 的 token-guardrail tail handling 不再只做“能合并就合并”；当尾段过短且直接合并会超 `max_chunk_size` 时，现改为向前扩最后一段的起点，重平衡 overlap，而不是留下短尾碎片
-
-bounded replay probe 证据：
-
-- `run_id=internal-notice-wave-d-241275-20260410-03`
-- `selected_notice_ids=["241275"]`
-- `state=verified`
-- `staged_notice_count=1`
-- `staged_raw_asset_count=1`
-- `staged_document_count=1`
-
-对应只读 validator 结果：
-
-- `selection_mode=verified_closeout_run`
-- `closeout_run_id=internal-notice-wave-d-241275-20260410-03`
-- `sample_dir=.tmp/internal_notice_chunk_samples_wave_d_241275_probe_20260410`
-- `passed=true`
-- `validated_document_count=1`
-- `notice_body_fragmentation_count=0`
-- `markup_leak_chunk_count=0`
-- `header_dominant_ocr_chunk_count=0`
-- `noisy_ocr_chunk_count=0`
-
-### 结论
-
-2026-04-10 的新证据必须拆开解释：
-
-- current scope 仍然失败，这个 verdict 还没有被推翻
-- 但 `241275` 的 `notice_body` 短尾 fragmentation 已在 repo-head 修复并经真实 bounded replay 证明
-- 2026-04-10 current-scope 失败里的大量 markup/OCR 噪声，更像是陈旧 promoted truth，而不是当前 repo-head replay 产物
-
-因此当前 Wave D 的 canonical 下一步不是直接 release，而是：
-
-1. 先对 `campus_notices/internal_notice` 发起新的 full async source-truth replay 刷新 current scope truth
-2. replay verified 后再执行 current-scope `prepare_registry_scope_chunks`
-3. preparation validator 通过后才允许 `release_registry_scope --no-publish-alias`
-
-### 2026-04-10 执行阻塞
-
-同日直接执行 full current-scope refresh 时，又遇到一条新的 runtime blocker：
-
-- repo 先完成了离线 ingestion builder/path 的 structural remediation：
-  - `authenticated_notice` full refresh / validation / chunk preparation / release 相关 builder 现已支持 `prefer_management=True`
-  - shared management env 现已冻结为 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`
-  - management helper 现已 fast-fail 拒绝把 `*.pooler.supabase.com` 冒充成 direct management DSN
-- 随后再次执行：
+- inventory refresh：
   - `uv run --package campus-ingestion-worker python -m campus_ingestion_worker.rebuild_authenticated_notice_source_truth_inventory --corpus campus_notices --collection internal_notice`
-- 这次已经越过此前的 `psycopg_pool.PoolTimeout` 代码路径，但在真正 connect 时暴露出新的 env-truth blocker：
-  - 当前本地 `APP_API_MANAGEMENT_DATABASE_URL` / 导出的 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` 仍指向 Supabase session pooler，而不是真实 direct DSN
-  - direct connect fast-fail 返回：
-    - `FATAL: MaxClientsInSessionMode: max clients reached - in Session mode max clients are limited to pool_size`
-- 按 Supabase 官方 direct DSN 规则，把现有 pooler URL 派生为 `db.<project-ref>.supabase.co` 之后再次做 `select 1` probe，当前本地 shell 又返回：
-  - `OperationalError: failed to resolve host 'db.<project-ref>.supabase.co': [Errno -5] No address associated with hostname`
-  - `getent ahosts` 只看到 AAAA 记录，说明当前本地执行环境并不具备可用的 direct reachability
+- full replay planning：
+  - `run_id=local-postgres-wave-d-full-20260410-141615`
+- full replay worker：
+  - `worker_id=local-postgres-full-04`
+- closeout validation：
+  - `validate_internal_notice_chunking --closeout-run-id local-postgres-wave-d-full-20260410-141615`
+  - `sample_dir=.planning/quick/260410-4zq-postgres-shared-supabase-wave-d/current-scope-samples-full-20260410-141615`
+- preparation：
+  - `preparation_run_id=prep-local-postgres-wave-d-full-20260410-141615`
+- preparation validation：
+  - `validate_internal_notice_chunking --preparation-run-id prep-local-postgres-wave-d-full-20260410-141615`
+  - `sample_dir=.planning/quick/260410-4zq-postgres-shared-supabase-wave-d/prep-samples-full-20260410-141615`
 
-这意味着：
+固定边界：
 
-- 当前 Wave D 的 repo code blocker 已关闭，但 operator env blocker 仍在：
-  - 本地 / 运维环境必须补齐真实的 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`
-  - 它必须指向 `db.<project-ref>.supabase.co:5432` 之类的 direct management DSN，而不是 `*.pooler.supabase.com`
-  - 执行 shell 还必须真的能连通这条 direct host；当前 WSL shell 不满足这个前提
-- 2026-04-10 这次 full current-scope refresh 仍没有真正启动
-- 当前 `internal_notice` current scope truth 仍保持 2026-04-10 rerun 看到的失败状态
-- Wave D 不能继续进入 `prepare_registry_scope_chunks` / `release_registry_scope`
+- 没有执行 `release_registry_scope`
+- 没有触发 embedding provider
+- 没有写 Qdrant
+- 没有发布 alias
+
+### Inventory Verdict
+
+inventory refresh 结果为：
+
+- `notice_count = 20`
+- `expected_document_count = 21`
+- `expected_attachment_document_count = 1`
+- `expected_ocr_candidate_count = 0`
+- `notice_risk_counts.body_only = 16`
+- `notice_risk_counts.body_with_reference_only_attachments = 1`
+- `notice_risk_counts.body_with_spatial_attachments = 2`
+- `notice_risk_counts.body_with_text_attachments = 1`
+
+这说明当前 accepted current scope 下已经没有 attachment 被默认送进 OCR lane；两条选课通知里的 `5` 个操作指引类 inline image 已全部转入 `manual_review_required`。
+
+### Closeout Verdict
+
+`run_authenticated_notice_closeout_worker` 对 `local-postgres-wave-d-full-20260410-141615` 的结果为：
+
+- `state = verified`
+- `staged_document_count = 21`
+- `manual_review_required_attachment_count = 5`
+- `materialized_ocr_attachment_document_count = 0`
+
+对应 closeout validator 结果为：
+
+- `passed = true`
+- `selection_mode = verified_closeout_run`
+
+因此当前 local current scope 至少可以写成：
+
+- `current-scope replay verified on local Postgres`
+
+不能写成：
+
+- `release completed`
+- `index release completed`
+
+### Preparation Verdict
+
+`prepare_registry_scope_chunks` 对 `prep-local-postgres-wave-d-full-20260410-141615` 的结果为：
+
+- `validation_status = passed`
+
+对应 preparation validator 结果为：
+
+- `passed = true`
+- `selection_mode = preparation_manifest`
+
+因此当前 local current scope 可以进一步写成：
+
+- `local current-scope preparation quality accepted`
+
+但仍不能写成：
+
+- `embedding / Qdrant / alias publish completed`
+
+### 执行中发现的固定操作规则
+
+同日第一次 full replay 尝试 `local-postgres-wave-d-full-20260410-141313` 曾在 verifier 失败；根因不是 worker 逻辑，而是 inventory 没有先按新 routing 规则重建。
+
+固定结论：
+
+- planner / verifier 读取的是持久化 inventory，不是 live source objects 的即时重算
+- source projection / attachment routing 规则一旦变化，就必须先执行 `rebuild_authenticated_notice_source_truth_inventory`
+- 否则 verifier 仍会沿用旧的 `expected_ocr_candidate_count` 等 frozen 计数，把已修正的 run 错判为失败
+
+### Sample Evidence
+
+当前 full current-scope sample evidence 固定见：
+
+- `.planning/quick/260410-4zq-postgres-shared-supabase-wave-d/current-scope-samples-full-20260410-141615`
+- `.planning/quick/260410-4zq-postgres-shared-supabase-wave-d/prep-samples-full-20260410-141615`
+
+关键样本结论：
+
+- `notice-risk-spatial` 样本已明确显示高风险 inline image 不再进入 OCR lane
+- `attachment-text` 样本继续保持独立 child document，不影响 parent notice body 质量
+- `notice-body` 样本未因 attachment outlier 被整体缩小或全局劣化
+
+### 当前结论
+
+2026-04-10 的这轮 evidence 现在固定说明：
+
+1. local Postgres current-scope replay + preparation 已经跑通并通过 validator。
+2. Wave D 当前 stop 已从“等待 current-scope refresh”前进到“verified chunk preparation，等待是否继续 release 的单独批准”。
+3. 选课通知里的 `5` 个操作指引类 inline image 现在已正确落到 `manual_review_required`，而不是 OCR lane。
 
 ## 2026-04-06 Current Scope Failure
 

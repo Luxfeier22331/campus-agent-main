@@ -82,6 +82,7 @@ updated: 2026-04-10
 - authenticated notice historical donor intake：`runbooks/authenticated-notice-historical-donor-intake-runbook.md`
 - authenticated notice historical donor intake 当前证据：`reference/authenticated-notice-historical-donor-intake-evidence.md`
 - 已导入 authenticated notice 历史数据消费：`runbooks/authenticated-notice-source-truth-replay-runbook.md`
+- authenticated notice 到 regulations 的提升边界：`decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
 - authenticated notice 规章制度消费与后续 `regulations/*` 提升实施：`plans/internal-notice-policy-regulation-consumption-implementation.md`
 - authenticated notice source attachment key 重组：`plans/authenticated-notice-source-attachment-key-reorganization.md`
 - authenticated notice source-truth bounded pilot：`runbooks/authenticated-notice-source-truth-replay-pilot-runbook.md`

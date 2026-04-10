@@ -11,17 +11,17 @@
     "family_report_path": ".tmp/reports/run14-notice-family-report-tightened.json",
     "attachment_analysis_path": ".tmp/historical-intake/run14-attachment-routing-probe/donor-attachment-routing-analysis.json",
     "selection_notes": [
-      "covers stable ocr_required, text_extractable, and reference_only attachment routes using donor blob bytes",
+      "covers stable text_extractable and reference_only routes, plus operational schedule/guide images that now route to manual_review_required after context-aware inline-image classification",
       "keeps the second intake batch small enough for local-only normalization and bootstrap smoke acceptance",
-      "does not claim manual_review_required coverage because the current donor snapshot does not provide a stable sample under current routing rules"
+      "does not claim stable ocr_required coverage because the current donor snapshot's candidate images in this batch are low-value operational guide images and should stay out of OCR"
     ]
   },
   "expected_attachment_route_totals": {
     "attachment_ref_total": 7,
     "text_extractable": 1,
-    "ocr_required": 5,
+    "ocr_required": 0,
     "reference_only": 1,
-    "manual_review_required": 0
+    "manual_review_required": 5
   },
   "selected_notice_ids": [
     "355119",
@@ -56,9 +56,9 @@
       "family": "operational_procedure",
       "decision": "include",
       "expected_attachment_routes": {
-        "ocr_required": 2
+        "manual_review_required": 2
       },
-      "reason": "inline schedule and process images are stable OCR candidates for the second probe batch"
+      "reason": "two inline schedule/process guide images are low-value operational guide images and should remain manual_review_required instead of consuming OCR budget"
     },
     {
       "notice_id": "351118",
@@ -66,9 +66,9 @@
       "family": "operational_procedure",
       "decision": "include",
       "expected_attachment_routes": {
-        "ocr_required": 3
+        "manual_review_required": 3
       },
-      "reason": "three inline instructional images provide multi-attachment OCR coverage without spatial-routing ambiguity"
+      "reason": "three inline schedule/operation guide images should stay in manual_review_required rather than being treated as OCR candidates"
     }
   ],
   "excluded_examples": [

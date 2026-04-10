@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-03
-updated: 2026-04-09
+updated: 2026-04-10
 ---
 
 # Authenticated Notice Source Architecture
@@ -149,6 +149,35 @@ collector runtime 的第一 owner 固定为 repo 内独立 `apps/*` runtime shel
 - 优先独立 restricted collection
 - document / chunk projection 以 `visibility_* + entitlement_*` 为主
 
+## Source-Triage Collection And Regulation Owner Boundary
+
+对 authenticated notice source channel，`campus_notices/internal_notice` 的角色固定为：
+
+- source-channel-first triage collection
+- restricted replay / preparation / quality-evidence layer
+- wrapper notice 与 attachment outcome truth 的持有层
+
+它不是：
+
+- formal regulation 的长期 semantic owner
+- `regulations/*` 的替代品
+
+因此固定规则为：
+
+- wrapper notice、relation truth、`manual_review_required`、`reference_only` 等结果继续留在 `campus_notices/internal_notice`
+- 如果 notice 正文或 attachment 正文已经具备独立制度消费语义，必须经过显式 promotion boundary 再进入独立 `regulations/*` collection
+- 这条 promotion boundary 不改写 source-truth unit；原始 notice 仍继续作为 canonical upstream provenance 保留
+
+当前 repo 级 target collection 命名固定为：
+
+- `regulations/institutional_regulations`
+
+但这条命名与边界目前仍是 architecture truth，不表示当前 merged truth 已经存在对应 collection scaffold 或 release path。
+
+对应决策见：
+
+- `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
+
 ## Offline Attachment Consumption
 
 `campus_notices/internal_notice` 的离线消费形态固定为“两层 projection”：
@@ -271,6 +300,7 @@ Phase 12.2 已把 authenticated notice historical closeout 重构为 async stage
 - 不直接把 export JSON 当 query-serving collection
 - 不让 collector 直接写 document registry、chunk 或 index
 - 不让 restricted rollout 依赖 prompt-only 软约束
+- 不把 wrapper notice 或 source-channel triage rows 直接写进 `regulations/*`
 
 ## 相关稳定文档
 
@@ -283,5 +313,6 @@ Phase 12.2 已把 authenticated notice historical closeout 重构为 async stage
 - `docs/decisions/adr-0026-authenticated-notice-batch-leased-closeout-throughput.md`
 - `docs/decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spatial-review-boundary.md`
 - `docs/decisions/adr-0033-internal-notice-pdf-cloud-ocr-default.md`
+- `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
 - `docs/decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md`
 - `docs/plans/restricted-document-rollout-and-verification.md`

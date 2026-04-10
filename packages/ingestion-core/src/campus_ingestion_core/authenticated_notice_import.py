@@ -64,6 +64,7 @@ class AuthenticatedNoticeImportRequest:
     export_manifest_path: Path | None
     site_id: str
     source_home_url: str
+    attachment_blob_root: Path | None = None
     corpus: str = DEFAULT_AUTHENTICATED_NOTICE_CORPUS
     collection: str = DEFAULT_AUTHENTICATED_NOTICE_COLLECTION
     default_entitlement_groups: tuple[str, ...] = DEFAULT_AUTHENTICATED_NOTICE_ENTITLEMENT_GROUPS
@@ -76,6 +77,8 @@ class AuthenticatedNoticeImportRequest:
         object.__setattr__(self, "bundle_path", Path(self.bundle_path))
         if self.export_manifest_path is not None:
             object.__setattr__(self, "export_manifest_path", Path(self.export_manifest_path))
+        if self.attachment_blob_root is not None:
+            object.__setattr__(self, "attachment_blob_root", Path(self.attachment_blob_root))
         object.__setattr__(self, "default_entitlement_groups", tuple(group.strip() for group in self.default_entitlement_groups if group.strip()))
         assert_known_scope(self.corpus, self.collection)
         if not self.site_id.strip():
@@ -205,6 +208,13 @@ def import_authenticated_notice_export(
                 content_type=_content_type_for_artifact(artifact_path),
             )
 
+    attachment_object_backfill_summary = _maybe_backfill_attachment_objects_for_import(
+        request=request,
+        source=source,
+        object_store=writer,
+        notice_ids=tuple(notice_import.notice_id for notice_import in prepared.notice_imports),
+    )
+
     runtime_profile = load_runtime_profile(request.corpus, request.collection)
     stats = collect_import_document_stats(
         documents=[
@@ -267,7 +277,7 @@ def import_authenticated_notice_export(
             request.collection,
             tuple(inventory_entries),
         )
-    return {
+    result = {
         "notice_count": prepared.notice_count,
         "created_document_ids": list(stats.created_document_ids),
         "updated_document_ids": list(stats.updated_document_ids),
@@ -276,6 +286,35 @@ def import_authenticated_notice_export(
         "raw_reused_count": raw_reused_count,
         "errors": list(stats.errors),
     }
+    if attachment_object_backfill_summary is not None:
+        result["attachment_object_backfill"] = attachment_object_backfill_summary
+    return result
+
+
+def _maybe_backfill_attachment_objects_for_import(
+    *,
+    request: AuthenticatedNoticeImportRequest,
+    source: dict[str, str],
+    object_store: S3ObjectStoreWriter | object,
+    notice_ids: tuple[str, ...],
+) -> dict[str, Any] | None:
+    attachment_blob_root = request.attachment_blob_root
+    if attachment_blob_root is None:
+        return None
+    from campus_ingestion_core.authenticated_notice_attachment_object_backfill import (
+        AuthenticatedNoticeAttachmentObjectBackfillRequest,
+        backfill_authenticated_notice_attachment_objects,
+    )
+
+    return backfill_authenticated_notice_attachment_objects(
+        request=AuthenticatedNoticeAttachmentObjectBackfillRequest(
+            bundle_path=request.bundle_path,
+            blob_root=attachment_blob_root,
+            notice_ids=notice_ids,
+        ),
+        env=source,
+        object_store=object_store,
+    )
 
 
 def _prepare_notice_import(

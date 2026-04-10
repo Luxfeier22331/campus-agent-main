@@ -1,6 +1,6 @@
 ---
 doc_type: plan
-status: active
+status: completed
 created: 2026-04-10
 updated: 2026-04-10
 ---
@@ -42,42 +42,67 @@ updated: 2026-04-10
 这类 key 的问题不是“看起来不好看”，而是：
 
 - 它们不符合 repo 的 source object key contract
-- 当前 `attachment-refs.jsonl` 仍可能直接引用这些 donor key
-- 后续 replay / closeout / projection 还在被迫保留 donor key 语义
+- 历史 source-truth / provider artifact 一度直接引用这些 donor key
+- 后续 replay / closeout / projection 曾被迫保留 donor key 语义
 
 ## 当前审计事实
 
-截至 2026-04-10，本地 source bucket 审计结论如下：
+截至 2026-04-10，本任务已有一轮 pre-cleanup 审计、一轮真实 cleanup 和一轮 post-cleanup 审计。
 
-- source bucket object 总数：`62,761`
-- canonical top-level prefixes 主要是：
-  - `authenticated_notice_portal`：`60,302`
-  - `official_web`
-- legacy polluted source objects：`2,410`
-- 当前仍被 authenticated-notice source-truth 引用的 legacy objects：`270`
-- 当前未被引用、可作为 cleanup candidate 的 legacy objects：`2,140`
+pre-cleanup fresh local audit：
 
-legacy 附件以图片为主：
+- evidence dir：`.tmp/authenticated-notice-attachment-key-audit-20260410-153039`
+- `audited_notice_count = 160`
+- `attachment_refs_object_count = 6698`
+- `legacy_key_count = 2399`
+- `referenced_legacy_row_count = 0`
+- `referenced_legacy_key_count = 0`
+- `unreferenced_legacy_key_count = 2399`
+- `canonicalizable_referenced_row_count = 0`
+- `canonicalizable_referenced_key_count = 0`
 
-- `.png = 1,575`
-- `.jpg = 792`
-- `.jpeg = 27`
+provider artifact ad-hoc check：
+
+- scanned `authenticated_notice_portal/**/provider/bundle-import-v1/attachment-observations.jsonl`
+- `provider_artifact_count = 6698`
+- `provider_legacy_artifact_count = 0`
+- `provider_legacy_row_count = 0`
+
+cleanup evidence：
+
+- evidence dir：`.tmp/authenticated-notice-attachment-key-cleanup-20260410-154556`
+- `inventory_row_count = 2399`
+- `candidate_count = 2399`
+- `deleted_count = 2399`
+- `already_absent_count = 0`
+
+post-cleanup fresh local audit：
+
+- evidence dir：`.tmp/authenticated-notice-attachment-key-audit-20260410-154556-post-cleanup`
+- `legacy_key_count = 0`
+- `referenced_legacy_row_count = 0`
+- `referenced_legacy_key_count = 0`
+- `unreferenced_legacy_key_count = 0`
+- `canonicalizable_referenced_row_count = 0`
+- `canonicalizable_referenced_key_count = 0`
 
 这说明：
 
 - 问题是 attachment source object contract 被 donor key 污染
+- source-truth / provider observation 的 legacy 引用已经在 cleanup 前归零
+- 当前 source bucket 中的 legacy attachment objects 也已在 cleanup 后归零
 - 问题不是 bucket 设计错误
 - 问题也不是 derived bucket 需要重做
 
 ## Root Cause
 
-当前污染来自 historical donor/import path：
+历史污染来自 historical donor/import path：
 
 - donor bundle 在 attachment observation 中保留了原始 `attachment.object_key`
 - source-truth 生成时把这个 donor blob key 透传进了 `attachment-refs.jsonl`
 - 后续 attachment backfill 继续按这个 legacy key 上传 bytes
 
-因此历史 source-truth 虽然已经 repo-owned，但 attachment byte locator 仍不是 repo-owned。
+因此历史 source-truth 虽然已经 repo-owned，但 attachment byte locator 一度仍不是 repo-owned。
 
 ## 目标
 
@@ -131,6 +156,8 @@ legacy 附件以图片为主：
 
 修复生成 attachment refs / provider observation / backfill object key 的代码路径，使新 source-truth 不再写 donor key。
 
+当前状态：已完成。
+
 这一步之后：
 
 - 新 source-truth 只写 canonical attachment key
@@ -138,7 +165,7 @@ legacy 附件以图片为主：
 
 ### Phase 3：复制仍被引用的 legacy objects
 
-只处理当前仍被引用的 `270` 个 legacy objects：
+只处理当前仍被 source-truth 引用的 legacy objects：
 
 - 从 legacy key copy 到 canonical key
 - 校验 byte size / content sha256 一致
@@ -156,6 +183,8 @@ legacy 附件以图片为主：
 
 这一步不删除 legacy object。
 
+当前状态：fresh local pre-cleanup audit 已经确认 `referenced_legacy_row_count = 0`，因此本轮不再需要执行 copy。
+
 ### Phase 4：重写 refs
 
 在 canonical 副本就绪后，重写 source-truth / provider observation 中的 attachment object key 引用，使 replay 只依赖 canonical key。
@@ -169,6 +198,8 @@ legacy 附件以图片为主：
 - `rewritten-attachment-refs-artifacts.jsonl`
 - `rewritten-provider-artifacts.jsonl`
 - `summary.json`
+
+当前状态：已完成。fresh local pre-cleanup audit 与 provider artifact 检查都已确认不再存在 legacy 引用。
 
 ### Phase 5：复核 replay / projection
 
@@ -184,9 +215,23 @@ legacy 附件以图片为主：
 - `referenced_legacy_key_count = 0`
 - `canonicalizable_referenced_row_count = 0`
 
+当前状态：已完成，见 `.tmp/authenticated-notice-attachment-key-audit-20260410-153039/summary.json`。
+
 ### Phase 6：清理未引用 legacy objects
 
-仅在前几步全部通过后，才删除 `2,140` 个未引用 legacy objects。
+仅在前几步全部通过后，才删除未引用 legacy objects。
+
+当前 repo 已提供 cleanup runner：
+
+- `uv run --package campus-ingestion-worker python -m campus_ingestion_worker.cleanup_authenticated_notice_source_attachment_keys --unreferenced-inventory-path <unreferenced-legacy-keys.jsonl> --output-dir <cleanup-evidence-dir>`
+
+本地 evidence 目录固定产出：
+
+- `deleted-objects.jsonl`
+- `already-absent-objects.jsonl`
+- `summary.json`
+
+当前状态：已完成。2026-04-10 本地真实 cleanup 已删除 `2399` 个 legacy objects，且 post-cleanup audit 已确认 `legacy_key_count = 0`。
 
 固定禁止：
 
@@ -204,6 +249,8 @@ legacy 附件以图片为主：
 4. source-truth / provider observation 已能回链 canonical key
 5. replay / projection 不再因为 donor key 消失而失败
 6. 未引用 legacy objects 有完整 inventory 和删除证据
+
+当前状态：以上 6 条均已满足。
 
 ## 非目标
 

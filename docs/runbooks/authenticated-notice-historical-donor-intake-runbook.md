@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-09
-updated: 2026-04-09
+updated: 2026-04-10
 ---
 
 # Authenticated Notice Historical Donor Intake Runbook
@@ -101,7 +101,7 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.analy
 - notice families：`operational_procedure` + `other`
 - strategy：`manual_curated_attachment_routing_probe_for_second_historical_intake`
 - size：`4`
-- target coverage：`text_extractable` / `ocr_required` / `reference_only`
+- target coverage：`text_extractable` / `manual_review_required` / `reference_only`
 
 当前第三批固定使用：
 
@@ -208,6 +208,7 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.smoke
 uv run --package campus-ingestion-worker python -m campus_ingestion_worker.smoke_authenticated_notice_bootstrap_local \
   --bundle-path .tmp/historical-intake/run14-attachment-routing-probe/normalized/notices-bundle.normalized.json \
   --manifest-path .tmp/historical-intake/run14-attachment-routing-probe/normalized/export-manifest.normalized.json \
+  --attachment-blob-root /home/reptilian/code/rag-data/muc-notice-collector/runtime/blob-store \
   --site-id muc_internal_portal \
   --source-home-url https://my.muc.edu.cn \
   --local-output-dir .tmp/historical-intake/run14-attachment-routing-probe/local-smoke \
@@ -227,6 +228,11 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.smoke
   --summary-output-path .tmp/historical-intake/run14-policy-regulation-expanded/local-smoke-summary.json \
   --expect-notice-count 16
 ```
+
+补充约束：
+
+- 当 normalized manifest 标记 `attachment_storage_mode = blob_store_reference` 且 batch 内存在 object-backed attachment 时，local smoke/import 必须显式传入 `--attachment-blob-root`
+- 不允许再依赖“attachment bytes 缺失时先跑通 importer，routing truth 另看 donor 分析”的旧例外
 
 ## Acceptance Gate
 
@@ -258,13 +264,17 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.smoke
 
 - `notice_count = 4`
 - `attachment_ref_total = 7`
-- `attachment_document_total = 1`
-- `text_extractable_count = 1`
-- `ocr_required_count = 5`
-- `reference_only_count = 1`
-- `manual_review_required_count = 0`
-- `body_with_text_attachments = 3`
-- `body_with_reference_only_attachments = 1`
+- donor byte-aware routing analysis 与 local smoke inventory：
+  - `attachment_document_total = 1`
+  - `text_extractable_count = 1`
+  - `ocr_required_count = 0`
+  - `reference_only_count = 1`
+  - `manual_review_required_count = 5`
+  - `body_with_text_attachments = 1`
+  - `body_with_reference_only_attachments = 1`
+  - `body_with_spatial_attachments = 2`
+  - local smoke command 必须显式带 `--attachment-blob-root /home/reptilian/code/rag-data/muc-notice-collector/runtime/blob-store`
+  - `.tmp/historical-intake/run14-attachment-routing-probe/local-smoke/registry/source-truth-inventory.json` 现在就是 repo 当前 attachment routing truth
 
 对当前第三批 `run14-policy-regulation-expanded-v1`，额外预期固定为：
 
@@ -296,8 +306,8 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.smoke
 
 - 第一批 `run14-policy-regulation-core-v1` 只证明 parent-only notice 的 donor normalization/import seam 稳定
 - 第三批 `run14-policy-regulation-expanded-v1` 把 `policy_regulation` 扩到更大范围，但 source shape 仍然混合，不能把全部 notice 直接视为“正文即 canonical 制度文本”
-- 第二批 `run14-attachment-routing-probe-v1` 只证明在 donor intake seam 上已经拿到 `text_extractable` / `ocr_required` / `reference_only` 的小批量样本和本地 import evidence
-- 第二批如需判断 byte-aware inline-image override，应结合 `.tmp/historical-intake/run14-attachment-routing-probe/donor-attachment-routing-analysis.json`
+- 第二批 `run14-attachment-routing-probe-v1` 现在证明 donor intake seam 在显式补齐 attachment blob 后，local smoke inventory 已能稳定覆盖 `text_extractable` / `manual_review_required` / `reference_only`
+- 第二批 donor byte-aware routing analysis 仍保留为交叉校验，但不再高于 local smoke inventory truth
 - 第三批如需优先做“制度正文处理”，应先从 `body_is_policy_text` 和 `body_contains_substantial_policy_text` 子集进入下一步
 - 第二批与第三批仍不代表 OCR 执行、child document materialization、chunk preparation 或 release gate 已通过
 

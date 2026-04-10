@@ -149,6 +149,10 @@ class S3ObjectStoreWriter:
                 if callable(close):
                     close()
 
+    def get_bytes(self, *, bucket: str, key: str) -> bytes:
+        response = self._client.get_object(Bucket=bucket, Key=key)
+        return response["Body"].read()
+
     def _one_shot_client_for_zero_byte_payload(self):
         # Local MinIO can stall on the next reused connection after a zero-byte put_object.
         # Isolating empty writes to a throwaway client keeps the shared client pool healthy.

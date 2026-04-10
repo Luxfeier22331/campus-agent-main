@@ -10,9 +10,11 @@
   - `APP_API_MANAGEMENT_DATABASE_URL`
 - `apps/app-api/.dev.vars` 已改为 `APP_API_DATABASE_SSLMODE=disable`，`db:bootstrap` 与 `db:reconcile-shared-drift` 均已通过
 - authenticated-notice accepted donor truth 已以单次 `replace_scope` 语义导入本地 Postgres + 本地 MinIO
-- 本地 `internal_notice` current scope 已恢复到 `20` 条 notice，并完成一条 bounded Wave D proof：
-  - `closeout_run_id=local-postgres-wave-d-355119`
-  - `preparation_run_id=prep-local-postgres-wave-d-355119`
+- 本地 `internal_notice` current scope 已恢复到 `20` 条 notice，并完成 full current-scope Wave D replay + preparation：
+  - `closeout_run_id=local-postgres-wave-d-full-20260410-141615`
+  - `preparation_run_id=prep-local-postgres-wave-d-full-20260410-141615`
+  - `manual_review_required_attachment_count=5`
+  - `materialized_ocr_attachment_document_count=0`
 
 ## Key Decisions
 
@@ -20,7 +22,8 @@
 - 当前 WSL 无法无交互安装/管理 native Postgres，因此执行面改为本机 Docker Postgres
 - authenticated-notice bootstrap import 不是 append，而是 `scope_refresh -> replace_scope`
 - 因此三批 accepted normalized batch 不能顺序 delta import；必须先合并成一个 union bundle，再单次导入
-- 原 quick plan 里的 `241275` 不在这次本地 accepted union 里，所以 bounded proof 改用本地真实存在且已 accepted 的 `355119`
+- 原 quick plan 里的 `241275` 不在这次本地 accepted union 里，因此先用 `355119` 做 bounded proof，再继续把 full current-scope replay / preparation 跑到 `verified`
+- 选课通知里的操作指引类 inline image 不应进入 OCR；当前它们已按 `manual_review_required` 收口
 
 ## Executed Facts
 
@@ -56,7 +59,11 @@
   - `notice_count = 20`
   - `expected_document_count = 21`
   - `expected_attachment_document_count = 1`
-  - `expected_ocr_candidate_count = 5`
+  - `expected_ocr_candidate_count = 0`
+  - `notice_risk_counts.body_only = 16`
+  - `notice_risk_counts.body_with_reference_only_attachments = 1`
+  - `notice_risk_counts.body_with_spatial_attachments = 2`
+  - `notice_risk_counts.body_with_text_attachments = 1`
 
 ## Artifacts
 

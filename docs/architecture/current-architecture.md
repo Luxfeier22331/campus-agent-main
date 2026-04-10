@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-03
+updated: 2026-04-10
 ---
 
 # 当前架构
@@ -51,6 +51,8 @@ updated: 2026-04-03
 
 当前非默认公开查询面：
 
+- `campus_notices/internal_notice`
+  restricted source-channel triage collection；当前 posture 仍是 `offline_preparation`，wrapper notices 继续留在这里，而不是直接进入 `regulations/*`
 - `curriculum/course_facts`
   specialist internal retrieval surface；`retrieval_enabled=true`，`query_enabled_by_default=false`
 - `campus_services/*`

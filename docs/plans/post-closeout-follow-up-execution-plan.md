@@ -265,12 +265,12 @@ updated: 2026-04-10
 现在就可以做：
 
 - Wave C truth / context / evaluator 诊断
-- Wave D 的 offline release 与 post-closeout consumption
+- Wave D 的 post-closeout docs/state 收口，以及在显式批准后的 offline release / post-closeout consumption
 - Wave E 的 contract / source-truth / seed 设计
 
 外部阻塞：
 
-- Wave D 的 full current-scope refresh 当前受 operator env truth 阻塞：在可用的 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`（真实 direct DSN，而不是 session pooler）到位前，不能继续 replay / prepare / release
+- Wave D 的 local current-scope replay / preparation 已在 local Postgres 上验证通过；shared Supabase direct-DSN 只在改回 shared-path operator 执行面时才构成阻塞，不再阻塞当前 local dev path
 - Wave D 的 live portal scheduling 与 authenticated control plane 依赖后续执行窗口与外部数据面配合
 
 ## External Posture

@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-03-28
-updated: 2026-04-06
+updated: 2026-04-10
 ---
 
 # Runtime Serving And Index Terms
@@ -40,6 +40,22 @@ updated: 2026-04-06
 - `official_web` 作为 source channel，不表示它只能有一个 mixed collection
 - `official_web` 未来应拆成独立 serving scope，例如 `official_web/stable_reference`、`official_web/fresh_news`、`official_web/news_archive`
 - 正式规章与正式培养方案若已有更强语义 owner，应继续进入与 `official_web` 并列的 `regulations/*`、`curriculum/*`
+
+### Source-Triage Collection / Semantic-Owner Collection
+
+定义：
+
+- `source-triage collection`
+  - 主要承接某个 source channel 的 replay、wrapper document、attachment outcome、manual-review truth 与 provenance
+- `semantic-owner collection`
+  - 只承接某个知识域下可独立消费的 canonical 文档正文
+
+说明：
+
+- 这两个角色可以都存在于同一个 data plane，但它们不是同一层
+- `campus_notices/internal_notice` 属于 source-triage collection
+- `regulations/*`、`curriculum/*` 属于 semantic-owner collection
+- 某条 notice 可以成为 semantic-owner collection 的 provenance，但 notice 包装文本本身不应因此自动成为 regulation member
 
 ### Query-Enabled Scope
 
@@ -224,6 +240,7 @@ updated: 2026-04-06
 
 - runtime profile 声明 serving alias、collection prefix 和 vector binding
 - source channel、corpus、collection、serving surface 是不同层；命名相近不表示必须一一对应
+- source-triage collection 与 semantic-owner collection 也是不同层；不得把 wrapper notice collection 冒充成 regulation corpus
 - physical collection 由 index release 生成，不由 env 或手写固定 collection 名直接指定
 - 已进入 release-managed lifecycle 的 collection 不论当前是 `query_serving` 还是 `offline_preparation`，都应使用稳定 alias + versioned physical collection
 - preparation-gated scope 必须先拿到 verified chunk preparation，再进入 index release

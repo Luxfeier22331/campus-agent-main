@@ -138,6 +138,43 @@ class AuthenticatedNoticeAttachmentObjectBackfillTest(unittest.TestCase):
                     max_concurrency=1,
                 )
 
+    def test_backfill_treats_filesystem_missing_object_error_as_uploadable(self) -> None:
+        class _FilesystemLikeMissingObjectStore(_FakeObjectStore):
+            def get_bytes(self, *, bucket: str, key: str) -> bytes:
+                if (bucket, key) not in self.objects:
+                    raise FileNotFoundError(key)
+                return super().get_bytes(bucket=bucket, key=key)
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            blob_root = root / "blob-store"
+            bundle_path = root / "bundle.json"
+            attachment_bytes = b"authenticated notice attachment"
+            bundle, legacy_object_key, canonical_key = _bundle_with_attachment_payload(
+                attachment_bytes=attachment_bytes
+            )
+            local_blob_path = blob_root / legacy_object_key
+            local_blob_path.parent.mkdir(parents=True, exist_ok=True)
+            local_blob_path.write_bytes(attachment_bytes)
+            _write_json(bundle_path, bundle)
+            object_store = _FilesystemLikeMissingObjectStore()
+
+            summary = backfill_authenticated_notice_attachment_objects(
+                request=AuthenticatedNoticeAttachmentObjectBackfillRequest(
+                    bundle_path=bundle_path,
+                    blob_root=blob_root,
+                ),
+                env=_object_store_env(),
+                object_store=object_store,
+                max_concurrency=1,
+            )
+
+        self.assertEqual(summary["uploaded_count"], 1)
+        self.assertEqual(
+            object_store.get_bytes(bucket="campus-rag-source", key=canonical_key),
+            attachment_bytes,
+        )
+
     def test_cli_renders_backfill_summary(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

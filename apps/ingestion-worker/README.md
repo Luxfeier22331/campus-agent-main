@@ -649,6 +649,7 @@ Required CLI args:
 Optional CLI args:
 
 - `--manifest-path`
+- `--attachment-blob-root`
 - `--corpus`
 - `--collection`
 - `--entitlement-group`
@@ -659,6 +660,7 @@ Optional CLI args:
 Behavior:
 
 - Reuses the authenticated notice importer but injects a local filesystem object store and in-memory registries.
+- When donor attachments are still referenced by legacy blob-store keys, `--attachment-blob-root` materializes canonical attachment capture objects before inventory routing is evaluated.
 - Materializes source-bucket and derived-bucket artifacts under `--local-output-dir` only.
 - Persists local `documents.json`, `raw-assets.json`, `source-truth-inventory.json`, and `uploads.json` for inspection.
 - Produces a smoke summary with notice/document/raw-asset outcome counts.

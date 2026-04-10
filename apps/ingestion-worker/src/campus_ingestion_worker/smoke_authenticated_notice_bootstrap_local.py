@@ -62,6 +62,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--bundle-path", required=True)
     parser.add_argument("--manifest-path")
+    parser.add_argument("--attachment-blob-root")
     parser.add_argument("--site-id", required=True)
     parser.add_argument("--source-home-url", required=True)
     parser.add_argument("--corpus", default="campus_notices")
@@ -83,6 +84,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     request = AuthenticatedNoticeImportRequest(
         bundle_path=Path(args.bundle_path),
         export_manifest_path=(Path(args.manifest_path) if args.manifest_path else None),
+        attachment_blob_root=(Path(args.attachment_blob_root) if args.attachment_blob_root else None),
         site_id=args.site_id,
         source_home_url=args.source_home_url,
         corpus=args.corpus,
@@ -131,6 +133,11 @@ def main(argv: Sequence[str] | None = None) -> None:
             "manifest_path": (
                 str(request.export_manifest_path)
                 if request.export_manifest_path is not None
+                else None
+            ),
+            "attachment_blob_root": (
+                str(request.attachment_blob_root)
+                if request.attachment_blob_root is not None
                 else None
             ),
             "site_id": request.site_id,

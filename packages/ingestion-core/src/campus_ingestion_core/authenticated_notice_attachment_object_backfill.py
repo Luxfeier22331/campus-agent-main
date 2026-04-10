@@ -408,7 +408,7 @@ def _normalize_scalar_text(value: object) -> str | None:
 
 
 def _is_missing_object_error(exc: Exception) -> bool:
-    if isinstance(exc, KeyError):
+    if isinstance(exc, (FileNotFoundError, KeyError)):
         return True
     response = getattr(exc, "response", None)
     if not isinstance(response, dict):

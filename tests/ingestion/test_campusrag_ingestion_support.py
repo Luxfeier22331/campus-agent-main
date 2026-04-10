@@ -203,10 +203,32 @@ class _FakeS3Client:
     def __init__(self, name: str) -> None:
         self.name = name
         self.put_calls: list[dict[str, object]] = []
+        self.get_calls: list[dict[str, object]] = []
         self.closed = False
+        self.objects: dict[tuple[str, str], bytes] = {}
 
     def put_object(self, **kwargs: object) -> None:
         self.put_calls.append(kwargs)
+        bucket = str(kwargs["Bucket"])
+        key = str(kwargs["Key"])
+        body = kwargs["Body"]
+        assert isinstance(body, bytes)
+        self.objects[(bucket, key)] = body
+
+    def get_object(self, **kwargs: object) -> dict[str, object]:
+        self.get_calls.append(kwargs)
+        bucket = str(kwargs["Bucket"])
+        key = str(kwargs["Key"])
+        payload = self.objects[(bucket, key)]
+
+        class _Body:
+            def __init__(self, data: bytes) -> None:
+                self._data = data
+
+            def read(self) -> bytes:
+                return self._data
+
+        return {"Body": _Body(payload)}
 
     def close(self) -> None:
         self.closed = True
@@ -260,6 +282,25 @@ class CampusragIngestionSupportTest(unittest.TestCase):
         )
         self.assertEqual([call["Key"] for call in created_clients[1].put_calls], ["empty.jsonl"])
         self.assertTrue(created_clients[1].closed)
+
+    def test_s3_object_store_writer_supports_get_bytes(self) -> None:
+        class _Factory:
+            def __init__(self, settings: ObjectStoreSettings) -> None:
+                self.settings = settings
+
+            def create(self) -> _FakeS3Client:
+                client = _FakeS3Client(name="reader")
+                client.objects[("campus-rag-source", "source-truth/test.json")] = b'{"ok": 1}'
+                return client
+
+        with patch("campus_ingestion_core.object_store.S3ObjectStoreClientFactory", _Factory):
+            writer = S3ObjectStoreWriter(self.object_store)
+            payload = writer.get_bytes(
+                bucket="campus-rag-source",
+                key="source-truth/test.json",
+            )
+
+        self.assertEqual(payload, b'{"ok": 1}')
 
     def test_collect_import_document_stats_batches_incremental_upserts_after_single_prefetch(self) -> None:
         doc_a = _document_input(

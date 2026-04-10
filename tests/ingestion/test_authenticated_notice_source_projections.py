@@ -14,6 +14,9 @@ from campus_ingestion_core.authenticated_notice_import import (
     AuthenticatedNoticeImportRequest,
     import_authenticated_notice_export,
 )
+from campus_ingestion_core.authenticated_notice_source_truth import (
+    build_authenticated_notice_attachment_capture_key,
+)
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import build_indexable_chunks_from_jsonl
 from campus_ingestion_core.raw_ingestion import OnlineOcrProviderResult
@@ -551,7 +554,11 @@ def _build_table_like_png_bytes() -> bytes:
 
 
 def _attachment_object_key(content_sha256: str, filename: str) -> str:
-    return f"attachments/{content_sha256[:2]}/{content_sha256}/{filename}"
+    return build_authenticated_notice_attachment_capture_key(
+        content_sha256=content_sha256,
+        filename=filename,
+        year="2026",
+    )
 
 
 def _sample_notice_bundle(*, docx_bytes: bytes, png_bytes: bytes) -> list[dict[str, object]]:
