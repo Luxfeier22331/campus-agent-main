@@ -9,9 +9,7 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 import { useSWRConfig } from "swr";
-import { unstable_serialize } from "swr/infinite";
 import {
-  getChatHistoryPaginationKey,
   SidebarHistory,
 } from "@/components/chat/sidebar-history";
 import { SidebarUserNav } from "@/components/chat/sidebar-user-nav";
@@ -29,6 +27,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { getClearChatHistoryMutation } from "@platform/chat/history-cache";
 import { AppLink, useAppRouter } from "@platform/router";
 import type { ShellChatUser } from "@platform/chat/types";
 import {
@@ -52,9 +51,8 @@ export function AppSidebar({ user }: { user: ShellChatUser | undefined }) {
   const handleDeleteAll = () => {
     setShowDeleteAllDialog(false);
     void router.replace("/chat");
-    mutate(unstable_serialize(getChatHistoryPaginationKey), [], {
-      revalidate: false,
-    });
+    const { data, key, options } = getClearChatHistoryMutation();
+    mutate(key, data, options);
 
     fetch(`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/history`, {
       method: "DELETE",

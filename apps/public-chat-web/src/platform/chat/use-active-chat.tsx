@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useSWRConfig } from "swr";
 
 import { toast } from "@/components/chat/toast";
 import type { VisibilityType } from "@/components/chat/visibility-selector";
@@ -18,6 +19,7 @@ import type { ChatMessage } from "@/lib/types";
 import { useAppRouter, useConversationRouteId } from "@platform/router";
 import { UnauthorizedError } from "./api";
 import { getShellConversationDetail } from "./conversations";
+import { getSerializedChatHistoryKey } from "./history-cache";
 import { submitShellChatRequest } from "./transport";
 import { useChatbotShellRuntime } from "./runtime";
 import type { ShellConversationDetail, ShellMessage } from "./types";
@@ -101,7 +103,8 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
   const tempChatIdRef = useRef(generateUUID());
   const draftConversationIdRef = useRef<string | null>(null);
   const previousConversationIdRef = useRef<string | undefined>(conversationId);
-  const { setSessionUnauthenticated, upsertConversationSummary } = useChatbotShellRuntime();
+  const { mutate } = useSWRConfig();
+  const { setSessionUnauthenticated } = useChatbotShellRuntime();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState<ChatStatus>("ready");
   const [input, setInput] = useState("");
@@ -212,7 +215,7 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
       setMessages(mapShellConversationMessages(outcome.conversation));
       setStatus("ready");
       setInput("");
-      upsertConversationSummary(outcome.conversation);
+      mutate(getSerializedChatHistoryKey());
     } catch (error) {
       if (error instanceof UnauthorizedError) {
         setSessionUnauthenticated();
@@ -302,7 +305,7 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
       threadError,
       router,
       setSessionUnauthenticated,
-      upsertConversationSummary,
+      mutate,
     ],
   );
 

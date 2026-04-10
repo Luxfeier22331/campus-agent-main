@@ -63,7 +63,8 @@ UI behavior:
 - `/login` provides email/password sign-in and sign-up against shared Better Auth endpoints
 - `/chat` is the first-turn chat surface and conversation history view
 - `/chat/:conversationId` continues an existing owned conversation
-- the left rail uses conversation summaries from `GET /api/chat/conversations`
+- the left rail uses donor-style paginated history from `GET /api/history`
+- a successful first-turn `POST /api/chat/requests` must revalidate that donor history key so the sidebar updates without a manual reload
 
 Canonical references:
 
