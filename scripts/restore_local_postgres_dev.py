@@ -498,8 +498,12 @@ def _write_json(path: Path, payload: Any) -> None:
 
 
 def _parse_command_json(*, label: str, raw_stdout: str) -> dict[str, Any]:
+    first_brace = raw_stdout.find("{")
+    last_brace = raw_stdout.rfind("}")
+    if first_brace == -1 or last_brace == -1 or first_brace > last_brace:
+        raise ValueError(f"{label} did not return a JSON object payload")
     try:
-        payload = json.loads(raw_stdout)
+        payload = json.loads(raw_stdout[first_brace : last_brace + 1])
     except json.JSONDecodeError as exc:
         raise ValueError(f"{label} did not return valid JSON") from exc
     if not isinstance(payload, dict):
@@ -508,9 +512,10 @@ def _parse_command_json(*, label: str, raw_stdout: str) -> dict[str, Any]:
 
 
 def _validate_reconcile_report(payload: dict[str, Any]) -> None:
-    if payload.get("driftDetected"):
+    plan = dict(payload.get("plan") or payload)
+    if plan.get("driftDetected"):
         raise ValueError("app-api shared drift reconcile reported driftDetected=true")
-    blocked_reasons = list(payload.get("blockedReasons") or ())
+    blocked_reasons = list(plan.get("blockedReasons") or ())
     if blocked_reasons:
         raise ValueError(
             "app-api shared drift reconcile reported blockedReasons: "

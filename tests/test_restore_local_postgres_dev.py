@@ -315,11 +315,19 @@ class RestoreLocalPostgresDevTest(unittest.TestCase):
                     return subprocess.CompletedProcess(
                         argv,
                         0,
-                        stdout=json.dumps(
-                            {
-                                "driftDetected": False,
-                                "blockedReasons": [],
-                            }
+                        stdout=(
+                            "> app-api@0.1.0 db:reconcile-shared-drift /tmp/campus-agent/apps/app-api\n"
+                            "> node ./scripts/run-with-local-env.mjs node ./scripts/reconcile-shared-db-drift.mjs -- --json\n\n"
+                            + json.dumps(
+                                {
+                                    "applied": False,
+                                    "backupPath": None,
+                                    "plan": {
+                                        "driftDetected": False,
+                                        "blockedReasons": [],
+                                    },
+                                }
+                            )
                         ),
                         stderr="",
                     )
