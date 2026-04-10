@@ -688,6 +688,86 @@ class RunCasesTest(unittest.TestCase):
             ("大学英语(四)", "中国近代边疆民族史料研读"),
         )
 
+    def test_curriculum_course_fact_cases_use_internal_reference_context_ids(self) -> None:
+        release_cases = {case.case_id: case for case in curriculum_release_gate_cases()}
+        regression_cases = {case.case_id: case for case in curriculum_regression_locked_cases()}
+
+        self.assertEqual(
+            release_cases["curriculum-release-gate-course-family-membership"].reference_context_ids,
+            ("course_facts:family-membership",),
+        )
+        self.assertEqual(
+            release_cases["curriculum-release-gate-course-family-audience-short-alias"].reference_context_ids,
+            ("course_facts:family-audience",),
+        )
+        self.assertEqual(
+            release_cases["curriculum-release-gate-course-single-schedule"].reference_context_ids,
+            ("course_facts:muc.xigai-semester",),
+        )
+        self.assertEqual(
+            release_cases["curriculum-release-gate-course-single-schedule-alias-variant"].reference_context_ids,
+            ("course_facts:muc.xigai-semester",),
+        )
+
+        self.assertEqual(
+            regression_cases["curriculum-regression-course-family-membership"].reference_context_ids,
+            ("course_facts:family-membership",),
+        )
+        self.assertEqual(
+            regression_cases["curriculum-regression-course-family-membership-sixiuke"].reference_context_ids,
+            ("course_facts:family-membership",),
+        )
+        self.assertEqual(
+            regression_cases["curriculum-regression-course-family-membership-sizhengkecheng"].reference_context_ids,
+            ("course_facts:family-membership",),
+        )
+        self.assertEqual(
+            regression_cases["curriculum-regression-course-family-audience"].reference_context_ids,
+            ("course_facts:family-audience",),
+        )
+        self.assertEqual(
+            regression_cases["curriculum-regression-course-family-partial-answer"].reference_context_ids,
+            ("course_facts:family-audience",),
+        )
+        self.assertEqual(
+            regression_cases["curriculum-regression-course-single-audience"].reference_context_ids,
+            ("course_facts:muc.xigai-audience",),
+        )
+        self.assertEqual(
+            regression_cases["curriculum-regression-course-single-schedule-partial-answer"].reference_context_ids,
+            ("course_facts:muc.xigai-semester",),
+        )
+
+        expected_family_schedule_reference_context_ids = (
+            "course_facts:muc.marxist_basic_principles-semester",
+            "course_facts:muc.modern_chinese_history_outline-semester",
+            "course_facts:muc.mao_zedong_thought_and_theoretical_system-semester",
+            "course_facts:muc.xigai-semester",
+            "course_facts:muc.ideological_morality_and_rule_of_law-semester",
+            "course_facts:muc.situation_and_policy-semester",
+            "course_facts:muc.community_for_chinese_nation-semester",
+        )
+        self.assertEqual(
+            regression_cases["curriculum-regression-course-family-schedule"].reference_context_ids,
+            expected_family_schedule_reference_context_ids,
+        )
+        self.assertEqual(
+            regression_cases["curriculum-regression-course-family-schedule-short-alias"].reference_context_ids,
+            expected_family_schedule_reference_context_ids,
+        )
+        self.assertEqual(
+            regression_cases["curriculum-regression-course-family-schedule-alias-variant"].reference_context_ids,
+            expected_family_schedule_reference_context_ids,
+        )
+        self.assertEqual(
+            regression_cases["curriculum-regression-course-family-schedule-sixiuke"].reference_context_ids,
+            expected_family_schedule_reference_context_ids,
+        )
+        self.assertEqual(
+            regression_cases["curriculum-regression-course-family-schedule-partial-answer"].reference_context_ids,
+            expected_family_schedule_reference_context_ids,
+        )
+
     def test_curriculum_smoke_cases_cover_stable_terminal_statuses(self) -> None:
         cases = curriculum_smoke_cases()
 

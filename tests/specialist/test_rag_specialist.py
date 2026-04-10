@@ -2923,8 +2923,10 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertEqual(response.status, "completed")
         self.assertEqual(retriever_call["corpus"], "curriculum")
         self.assertEqual(retriever_call["collection"], "course_facts")
+        self.assertEqual(retriever_call["target_document_ids"], ("course_facts:muc.xigai-audience",))
         self.assertEqual(retriever_call["canonical_course_ids"], ("course:muc.xigai",))
         self.assertEqual(retriever_call["canonical_course_family_ids"], ())
+        self.assertEqual(response.answer_text, "习近平新时代中国特色社会主义思想概论面向所有本预科学生。")
         self.assertIn("所有本预科学生", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
@@ -2989,11 +2991,14 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertEqual(retriever_call["collection"], "course_facts")
+        self.assertEqual(retriever_call["target_document_ids"], ("course_facts:family-membership",))
         self.assertEqual(retriever_call["canonical_course_ids"], ())
         self.assertEqual(
             retriever_call["canonical_course_family_ids"],
             ("course_family:muc.ideological_political_theory",),
         )
+        self.assertTrue(response.answer_text.startswith("思想政治理论课包括"))
+        self.assertNotIn("根据培养方案和课程教学计划", response.answer_text)
         self.assertIn("习近平新时代中国特色社会主义思想概论", response.answer_text)
         self.assertIn("中华民族共同体概论", response.answer_text)
         self.assertEqual(
@@ -3056,6 +3061,8 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertEqual(retriever_call["collection"], "course_facts")
+        self.assertEqual(retriever_call["target_document_ids"], ("course_facts:family-audience",))
+        self.assertNotIn("根据培养方案和课程教学计划", response.answer_text)
         self.assertIn("所有本预科学生", response.answer_text)
         self.assertIn("当前还不能稳定确认开课学院", response.answer_text)
         self.assertEqual(
@@ -3120,6 +3127,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertEqual(retriever_call["collection"], "course_facts")
+        self.assertEqual(retriever_call["target_document_ids"], ("course_facts:muc.xigai-semester",))
         self.assertEqual(retriever_call["canonical_course_ids"], ("course:muc.xigai",))
         self.assertEqual(retriever_call["canonical_course_family_ids"], ())
         self.assertIn("第1学期(理工/艺体)", response.answer_text)
@@ -3184,6 +3192,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertEqual(retriever_call["collection"], "course_facts")
+        self.assertEqual(retriever_call["target_document_ids"], ("course_facts:muc.xigai-semester",))
         self.assertIn("习近平新时代中国特色社会主义思想概论开设学期：第1学期(理工/艺体)；第2学期(文科)", response.answer_text)
         self.assertIn("当前还不能稳定确认开课学院", response.answer_text)
         self.assertEqual(
@@ -3240,6 +3249,11 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         )
 
         self.assertEqual(response.status, "completed")
+        self.assertEqual(
+            response.answer_text,
+            "习近平新时代中国特色社会主义思想概论开设学期：第1学期(理工/艺体)；第2学期(文科)。",
+        )
+        self.assertNotIn("根据培养方案和课程教学计划", response.answer_text)
         self.assertNotIn("当前已采集的课程事实", response.answer_text)
         self.assertNotIn("课程事实", response.answer_text)
 
@@ -3472,6 +3486,18 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertEqual(retriever_call["collection"], "course_facts")
+        self.assertEqual(
+            retriever_call["target_document_ids"],
+            (
+                "course_facts:muc.marxist_basic_principles-semester",
+                "course_facts:muc.modern_chinese_history_outline-semester",
+                "course_facts:muc.mao_zedong_thought_and_theoretical_system-semester",
+                "course_facts:muc.xigai-semester",
+                "course_facts:muc.ideological_morality_and_rule_of_law-semester",
+                "course_facts:muc.situation_and_policy-semester",
+                "course_facts:muc.community_for_chinese_nation-semester",
+            ),
+        )
         self.assertEqual(retriever_call["canonical_course_ids"], ())
         self.assertEqual(
             retriever_call["canonical_course_family_ids"],
@@ -4847,7 +4873,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertIn("6月1日至9月30日", draft.supporting_contexts[0])
         self.assertNotIn("文号：", draft.supporting_contexts[0])
 
-    def test_curriculum_completed_answer_uses_curriculum_specific_prefix(self) -> None:
+    def test_curriculum_completed_answer_uses_direct_fact_sentence_without_curriculum_prefix(self) -> None:
         evidence = EvidenceBundle(
             query_text="民族学本科人才培养方案",
             corpus="curriculum",
@@ -4896,7 +4922,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         )
 
         self.assertEqual(response.status, "completed")
-        self.assertIn("根据培养方案相关内容", response.answer_text)
+        self.assertNotIn("根据培养方案相关内容", response.answer_text)
+        self.assertIn("学制", response.answer_text)
+        self.assertIn("两年", response.answer_text)
         self.assertNotIn("学生手册", response.answer_text)
 
     def test_curriculum_table_semester_query_accepts_numeric_semester_columns(self) -> None:
@@ -5508,6 +5536,7 @@ class RagSpecialistCurriculumSemesterSelectionTest(unittest.TestCase):
         self.assertEqual(response.confidence, "medium")
         self.assertIn("155学分", response.answer_text)
         self.assertNotIn("法学本科人才培养方案", response.answer_text)
+        self.assertNotIn("根据培养方案相关内容", response.answer_text)
 
     def test_curriculum_named_document_query_with_low_title_score_still_completes(self) -> None:
         evidence = EvidenceBundle(
@@ -5773,7 +5802,9 @@ class RagSpecialistCurriculumSemesterSelectionTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertEqual(response.confidence, "medium")
-        self.assertIn("学分", response.answer_text)
+        self.assertIn("159", response.answer_text)
+        self.assertNotIn("26 学分", response.answer_text)
+        self.assertNotIn("根据培养方案相关内容", response.answer_text)
 
     def test_handbook_missing_policy_object_clarifies_before_retrieval(self) -> None:
         retriever_called = False

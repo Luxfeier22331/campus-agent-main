@@ -566,6 +566,19 @@ def _course_family_member_titles() -> dict[str, tuple[str, ...]]:
 
 
 @lru_cache(maxsize=1)
+def _course_family_member_ids() -> dict[str, tuple[str, ...]]:
+    if "course_family:muc.ideological_political_theory" not in {
+        entity.canonical_id for entity in _course_family_entities()
+    }:
+        return {}
+    return {
+        "course_family:muc.ideological_political_theory": tuple(
+            entity.canonical_id for entity in _course_entities()
+        )
+    }
+
+
+@lru_cache(maxsize=1)
 def _load_course_alias_entities() -> tuple[CurriculumCourseEntity, ...]:
     config_path = (
         Path(__file__).resolve().parents[4]
@@ -664,10 +677,15 @@ def course_family_member_titles(canonical_course_family_id: str) -> tuple[str, .
     return _course_family_member_titles().get(canonical_course_family_id, ())
 
 
+def course_family_member_ids(canonical_course_family_id: str) -> tuple[str, ...]:
+    return _course_family_member_ids().get(canonical_course_family_id, ())
+
+
 __all__ = [
     "CurriculumCourseQueryPlan",
     "CurriculumProgramFamilyQueryPlan",
     "CurriculumQueryPlan",
+    "course_family_member_ids",
     "course_family_member_titles",
     "plan_curriculum_course_query",
     "plan_curriculum_program_family_query",

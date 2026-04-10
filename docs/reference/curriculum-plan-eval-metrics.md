@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-03-28
-updated: 2026-04-03
+updated: 2026-04-10
 ---
 
 # Curriculum Plan Eval Metrics
@@ -171,7 +171,38 @@ case-level context diagnostics：
 
 ## Current Status
 
-截至 2026-04-03：
+截至 2026-04-10：
+
+- 当前 latest completed curriculum live accept artifact 仍是 [`.tmp/evals/curriculum-plan-live-gate-accept-20260404T200443Z/final-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-accept-20260404T200443Z/final-summary.json)：
+  - `deterministic_verdict = pass`
+  - `supplemental_verdict = warn`
+  - `final_overall_verdict = warn`
+  - deterministic 继续稳定为 `run_pass_counts = [19, 19, 19]`
+- 2026-04-09 Wave C 已完成 repo-head 级诊断与实现修复，结论明确分成两层：
+  - `packages/evals/src/campus_evals/scenarios.py` 中 `course_facts` 相关 release/regression case 的 `reference_context_ids` 之前仍停留在旧 raw `curriculum:*` truth；现已改为 internal `course_facts:*` doc ids
+  - `packages/rag-specialist/src/campus_rag_specialist/service.py` 现对 `course_facts` query 使用 exact `target_document_ids`，不再只靠 family/course filter 宽松命中
+  - `packages/rag-specialist/src/campus_rag_specialist/service.py` 的课程 family/member/audience/schedule answer 现直接输出事实句，不再追加“根据培养方案和课程教学计划”这类 lead
+  - `packages/rag-specialist/src/campus_rag_specialist/agent.py` 的 raw `curriculum_plan` 短事实问句现优先走 direct fact shaping；`学制` / `总学分` 不再默认落回通用前缀和同文档低相关拼接
+- 2026-04-09 用 repo-head 重新回放 `context_diagnostics` 后，可见 historical `20260404T200443Z` artifact 里的 `course_facts` warn 具有双重历史性：
+  - 原来的 raw `reference_context_ids` truth 已被修正
+  - 但该 artifact 自身的 `supporting_sources` 仍保留修复前的宽松 course-facts 取证形状，因此 family membership / audience case 在重放时仍会看到 extra retrieved ids；这是旧 artifact 事实，不再代表当前 repo-head
+- 2026-04-09 fresh repo-head verification：
+  - `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.evals.test_golden_cases tests.evals.test_context_diagnostics tests.specialist.test_rag_specialist tests.evals.test_curriculum_live_benchmark tests.evals.test_ragas_runtime`
+    - `235 tests`，`OK`
+- 2026-04-10 已尝试执行 fresh curriculum live accept，以替换历史 `20260404T200443Z` warn artifact：
+  - 命令：
+    - `set -a && source .env && set +a && env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m campus_evals.curriculum_live_benchmark accept --reruns 3 --verbose --log-jsonl .tmp/evals/curriculum-runtime-events-20260410-wave-c.jsonl --output-dir .tmp/evals/curriculum-plan-live-gate-accept-20260410-wave-c`
+  - 当前 rerun 未进入 benchmark case 执行，而是在 `run/supplemental-preflight.json` 直接 fast-fail：
+    - artifact：[`.tmp/evals/curriculum-plan-live-gate-accept-20260410-wave-c/run/supplemental-preflight.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-accept-20260410-wave-c/run/supplemental-preflight.json)
+    - failure：`ragas` 的 `/responses` preflight 命中 `non_retryable_request`
+    - failure reasons：`preflight_failed` + `provider_contract_violation`
+    - 根因：当前 supplemental LLM provider `https://www.su8.codes/codex/v1` 对 text / json-schema probe 都返回 `status='completed'` 但 `output=[]`；这不是 curriculum truth 或 parser coverage 的剩余缺口，而是 provider 对 OpenAI-compatible Responses output contract 的回归
+  - repo-head 现已把这类返回收口为显式 `provider_contract_violation` fast-fail；因此不会再把它误归因为 supplemental 低分或 curriculum case truth 漂移
+- 因此当前结论应区分为：
+  - `repo-head Wave C remediation = landed and verified`
+  - `historical live accept warn artifact replacement = blocked by current supplemental provider contract regression`
+
+截至 2026-04-03（historical context）：
 
 - curriculum 的 repo-tracked qrels / hybrid / golden / error-gate baseline 已存在并由测试覆盖
 - 2026-04-02 已完成 curriculum-only canonical 扩样：

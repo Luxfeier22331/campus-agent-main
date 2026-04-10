@@ -59,6 +59,12 @@ _NON_RETRYABLE_REASON_MARKERS = {
         "model not found",
     ),
 }
+_PROVIDER_CONTRACT_REASON_MARKERS = {
+    "provider_contract_violation": (
+        "responses contract violation",
+        "payload did not contain output text",
+    ),
+}
 _TIMEOUT_ERROR_MARKERS = (
     "timeout",
     "timed out",
@@ -1233,7 +1239,7 @@ def _extract_output_text(payload: dict[str, t.Any]) -> str:
                 texts.append(text)
     if texts:
         return "\n".join(texts)
-    raise ValueError("responses payload did not contain output text")
+    raise ValueError(_describe_missing_responses_output(payload, expected="output text"))
 
 
 def _extract_structured_output_model(
@@ -1368,6 +1374,10 @@ def classify_runtime_failure(
         if any(marker in combined for marker in markers):
             reasons.append(reason)
             non_retryable = True
+    for reason, markers in _PROVIDER_CONTRACT_REASON_MARKERS.items():
+        if any(marker in combined for marker in markers):
+            reasons.append(reason)
+            non_retryable = True
     if "circuit_open" in combined:
         reasons.append("circuit_open")
         return RuntimeFailureClassification(
@@ -1411,12 +1421,38 @@ def _classify_preflight_exception(exc: Exception) -> RuntimeFailureClassificatio
             disposition="non_retryable_request",
             reasons=("structured_output_invalid",),
         )
-    if isinstance(exc, ValueError) and "responses payload did not contain output text" not in str(exc):
+    if isinstance(exc, ValueError):
+        classification = classify_runtime_failure(str(exc), error_type=type(exc).__name__)
+        if "provider_contract_violation" in classification.reasons:
+            return classification
         return RuntimeFailureClassification(
             disposition="non_retryable_request",
             reasons=("structured_output_invalid",),
         )
     return classify_runtime_failure(str(exc), error_type=type(exc).__name__)
+
+
+def _describe_missing_responses_output(
+    payload: dict[str, t.Any],
+    *,
+    expected: str,
+) -> str:
+    response_status = payload.get("status")
+    response_id = payload.get("id")
+    raw_output = payload.get("output")
+    output_items = len(raw_output) if isinstance(raw_output, list) else "non_list"
+    usage = payload.get("usage")
+    output_tokens: int | None = None
+    if isinstance(usage, dict):
+        raw_output_tokens = usage.get("output_tokens")
+        if isinstance(raw_output_tokens, int):
+            output_tokens = raw_output_tokens
+    return (
+        "responses contract violation: "
+        f"status={response_status!r}, response_id={response_id!r}, "
+        f"output_items={output_items}, output_tokens={output_tokens!r}; "
+        f"payload did not contain {expected}"
+    )
 
 
 def get_request_pacer(

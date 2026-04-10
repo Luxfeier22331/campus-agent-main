@@ -665,7 +665,7 @@ def curriculum_release_gate_cases() -> tuple[GoldenCase, ...]:
             scope=scope,
             expected_status="completed",
             required_facts=("习近平新时代中国特色社会主义思想概论", "中华民族共同体概论"),
-            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            reference_context_ids=_reference_context_ids("course_facts:family-membership"),
             forbidden_claims=("只包括习近平新时代中国特色社会主义思想概论",),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -684,7 +684,7 @@ def curriculum_release_gate_cases() -> tuple[GoldenCase, ...]:
             scope=scope,
             expected_status="completed",
             required_facts=("所有本预科学生",),
-            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            reference_context_ids=_reference_context_ids("course_facts:family-audience"),
             forbidden_claims=("只限法学专业",),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -703,7 +703,7 @@ def curriculum_release_gate_cases() -> tuple[GoldenCase, ...]:
             scope=scope,
             expected_status="completed",
             required_facts=("第1学期(理工/艺体)", "第2学期(文科)"),
-            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            reference_context_ids=_reference_context_ids("course_facts:muc.xigai-semester"),
             forbidden_claims=("只在一个学期开设",),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -722,7 +722,7 @@ def curriculum_release_gate_cases() -> tuple[GoldenCase, ...]:
             scope=scope,
             expected_status="completed",
             required_facts=("第1学期(理工/艺体)", "第2学期(文科)"),
-            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            reference_context_ids=_reference_context_ids("course_facts:muc.xigai-semester"),
             forbidden_claims=("只在一个学期开设", "课程事实"),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -1247,7 +1247,7 @@ def curriculum_regression_locked_cases() -> tuple[GoldenCase, ...]:
             scope=scope,
             expected_status="completed",
             required_facts=("习近平新时代中国特色社会主义思想概论", "中华民族共同体概论"),
-            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            reference_context_ids=_reference_context_ids("course_facts:family-membership"),
             forbidden_claims=("只包括习近平新时代中国特色社会主义思想概论",),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -1266,7 +1266,7 @@ def curriculum_regression_locked_cases() -> tuple[GoldenCase, ...]:
             scope=scope,
             expected_status="completed",
             required_facts=("习近平新时代中国特色社会主义思想概论", "中华民族共同体概论"),
-            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            reference_context_ids=_reference_context_ids("course_facts:family-membership"),
             forbidden_claims=("只包括习近平新时代中国特色社会主义思想概论",),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -1285,7 +1285,7 @@ def curriculum_regression_locked_cases() -> tuple[GoldenCase, ...]:
             scope=scope,
             expected_status="completed",
             required_facts=("习近平新时代中国特色社会主义思想概论", "中华民族共同体概论"),
-            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            reference_context_ids=_reference_context_ids("course_facts:family-membership"),
             forbidden_claims=("只包括习近平新时代中国特色社会主义思想概论",),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -1304,7 +1304,7 @@ def curriculum_regression_locked_cases() -> tuple[GoldenCase, ...]:
             scope=scope,
             expected_status="completed",
             required_facts=("所有本预科学生",),
-            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            reference_context_ids=_reference_context_ids("course_facts:family-audience"),
             forbidden_claims=("只限法学专业",),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -1323,7 +1323,15 @@ def curriculum_regression_locked_cases() -> tuple[GoldenCase, ...]:
             scope=scope,
             expected_status="completed",
             required_facts=("中国近现代史纲要", "马克思主义基本原理", "习近平新时代中国特色社会主义思想概论"),
-            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            reference_context_ids=_reference_context_ids(
+                "course_facts:muc.marxist_basic_principles-semester",
+                "course_facts:muc.modern_chinese_history_outline-semester",
+                "course_facts:muc.mao_zedong_thought_and_theoretical_system-semester",
+                "course_facts:muc.xigai-semester",
+                "course_facts:muc.ideological_morality_and_rule_of_law-semester",
+                "course_facts:muc.situation_and_policy-semester",
+                "course_facts:muc.community_for_chinese_nation-semester",
+            ),
             forbidden_claims=("所有思政课都在同一个学期开设",),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -1342,7 +1350,15 @@ def curriculum_regression_locked_cases() -> tuple[GoldenCase, ...]:
             scope=scope,
             expected_status="completed",
             required_facts=("马克思主义基本原理", "习近平新时代中国特色社会主义思想概论"),
-            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            reference_context_ids=_reference_context_ids(
+                "course_facts:muc.marxist_basic_principles-semester",
+                "course_facts:muc.modern_chinese_history_outline-semester",
+                "course_facts:muc.mao_zedong_thought_and_theoretical_system-semester",
+                "course_facts:muc.xigai-semester",
+                "course_facts:muc.ideological_morality_and_rule_of_law-semester",
+                "course_facts:muc.situation_and_policy-semester",
+                "course_facts:muc.community_for_chinese_nation-semester",
+            ),
             forbidden_claims=("所有思政课都在同一个学期开设", "课程事实"),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -1361,7 +1377,15 @@ def curriculum_regression_locked_cases() -> tuple[GoldenCase, ...]:
             scope=scope,
             expected_status="completed",
             required_facts=("马克思主义基本原理", "习近平新时代中国特色社会主义思想概论"),
-            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            reference_context_ids=_reference_context_ids(
+                "course_facts:muc.marxist_basic_principles-semester",
+                "course_facts:muc.modern_chinese_history_outline-semester",
+                "course_facts:muc.mao_zedong_thought_and_theoretical_system-semester",
+                "course_facts:muc.xigai-semester",
+                "course_facts:muc.ideological_morality_and_rule_of_law-semester",
+                "course_facts:muc.situation_and_policy-semester",
+                "course_facts:muc.community_for_chinese_nation-semester",
+            ),
             forbidden_claims=("所有思政课都在同一个学期开设", "课程事实"),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -1380,7 +1404,15 @@ def curriculum_regression_locked_cases() -> tuple[GoldenCase, ...]:
             scope=scope,
             expected_status="completed",
             required_facts=("马克思主义基本原理", "习近平新时代中国特色社会主义思想概论"),
-            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            reference_context_ids=_reference_context_ids(
+                "course_facts:muc.marxist_basic_principles-semester",
+                "course_facts:muc.modern_chinese_history_outline-semester",
+                "course_facts:muc.mao_zedong_thought_and_theoretical_system-semester",
+                "course_facts:muc.xigai-semester",
+                "course_facts:muc.ideological_morality_and_rule_of_law-semester",
+                "course_facts:muc.situation_and_policy-semester",
+                "course_facts:muc.community_for_chinese_nation-semester",
+            ),
             forbidden_claims=("所有思政课都在同一个学期开设", "课程事实"),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -1399,7 +1431,7 @@ def curriculum_regression_locked_cases() -> tuple[GoldenCase, ...]:
             scope=scope,
             expected_status="completed",
             required_facts=("所有本预科学生", "当前还不能稳定确认开课学院"),
-            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            reference_context_ids=_reference_context_ids("course_facts:family-audience"),
             forbidden_claims=("不得猜测开课学院",),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -1418,7 +1450,15 @@ def curriculum_regression_locked_cases() -> tuple[GoldenCase, ...]:
             scope=scope,
             expected_status="completed",
             required_facts=("马克思主义基本原理", "习近平新时代中国特色社会主义思想概论", "当前还不能稳定确认开课学院"),
-            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            reference_context_ids=_reference_context_ids(
+                "course_facts:muc.marxist_basic_principles-semester",
+                "course_facts:muc.modern_chinese_history_outline-semester",
+                "course_facts:muc.mao_zedong_thought_and_theoretical_system-semester",
+                "course_facts:muc.xigai-semester",
+                "course_facts:muc.ideological_morality_and_rule_of_law-semester",
+                "course_facts:muc.situation_and_policy-semester",
+                "course_facts:muc.community_for_chinese_nation-semester",
+            ),
             forbidden_claims=("不得猜测开课学院", "所有思政课都在同一个学期开设"),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -1437,7 +1477,7 @@ def curriculum_regression_locked_cases() -> tuple[GoldenCase, ...]:
             scope=scope,
             expected_status="completed",
             required_facts=("第1学期(理工/艺体)", "第2学期(文科)", "当前还不能稳定确认开课学院"),
-            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            reference_context_ids=_reference_context_ids("course_facts:muc.xigai-semester"),
             forbidden_claims=("不得猜测开课学院", "课程事实"),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
@@ -1456,7 +1496,7 @@ def curriculum_regression_locked_cases() -> tuple[GoldenCase, ...]:
             scope=scope,
             expected_status="completed",
             required_facts=("所有本预科学生",),
-            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            reference_context_ids=_reference_context_ids("course_facts:muc.xigai-audience"),
             forbidden_claims=("只限少数专业",),
             trace_expectation=TraceExpectation(
                 selected_scope=scope,

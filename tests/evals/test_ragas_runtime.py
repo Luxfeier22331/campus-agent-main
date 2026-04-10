@@ -925,6 +925,48 @@ class RagasHttpTransportTest(unittest.TestCase):
         self.assertEqual(len(captured_payloads), 1)
         self.assertNotEqual(((captured_payloads[0].get("text") or {}).get("format") or {}).get("type"), "json_schema")
 
+    def test_build_http_ragas_llm_preflight_fast_fails_when_completed_response_has_no_output_items(self) -> None:
+        attempts = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal attempts
+            attempts += 1
+            return httpx.Response(
+                200,
+                request=request,
+                json={
+                    "id": "resp_contract_violation",
+                    "status": "completed",
+                    "usage": {"output_tokens": 5},
+                    "output": [],
+                },
+            )
+
+        settings = RagasSettings.from_env(
+            {
+                "LLM_BASE_URL": "https://llm.example/v1",
+                "LLM_API_KEY": "llm-key",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS": "1",
+            }
+        )
+        sync_client = httpx.Client(
+            base_url="https://llm.example/v1",
+            transport=httpx.MockTransport(handler),
+        )
+        llm = build_http_ragas_llm(settings, sync_client=sync_client)
+
+        with self.assertRaises(SupplementalPreflightFailedError) as raised:
+            llm.preflight_sync()
+
+        sync_client.close()
+        self.assertEqual(attempts, 1)
+        self.assertEqual(raised.exception.disposition, "non_retryable_request")
+        self.assertIn("provider_contract_violation", raised.exception.reasons)
+        self.assertIn("responses contract violation", str(raised.exception))
+
     def test_openai_compatible_responses_llm_preflight_supports_providers_requiring_closed_json_schema(self) -> None:
         def handler(request: httpx.Request) -> httpx.Response:
             payload = json.loads(request.content.decode("utf-8"))
@@ -986,6 +1028,54 @@ class RagasHttpTransportTest(unittest.TestCase):
         sync_client.close()
         self.assertEqual(result["status"], "passed")
         self.assertEqual(result["structured_output"], {"status": "ok"})
+
+    def test_openai_compatible_responses_llm_preflight_fast_fails_when_completed_response_has_no_output_items(self) -> None:
+        attempts = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal attempts
+            attempts += 1
+            return httpx.Response(
+                200,
+                request=request,
+                json={
+                    "id": "resp_structured_contract_violation",
+                    "status": "completed",
+                    "usage": {"output_tokens": 13},
+                    "output": [],
+                },
+            )
+
+        settings = RagasSettings.from_env(
+            {
+                "LLM_BASE_URL": "https://llm.example/v1",
+                "LLM_API_KEY": "llm-key",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS": "1",
+            }
+        )
+        sync_client = httpx.Client(
+            base_url="https://llm.example/v1",
+            transport=httpx.MockTransport(handler),
+        )
+        llm = OpenAICompatibleResponsesLLM(
+            base_url="https://llm.example/v1",
+            api_key="llm-key",
+            model="gpt-5.4",
+            http_settings=settings.http_settings,
+            sync_client=sync_client,
+        )
+
+        with self.assertRaises(SupplementalPreflightFailedError) as raised:
+            llm.preflight_sync()
+
+        sync_client.close()
+        self.assertEqual(attempts, 1)
+        self.assertEqual(raised.exception.disposition, "non_retryable_request")
+        self.assertIn("provider_contract_violation", raised.exception.reasons)
+        self.assertIn("responses contract violation", str(raised.exception))
 
     def test_build_http_ragas_llm_preflight_retries_retryable_failure_without_tripping_breaker(self) -> None:
         attempts = 0
