@@ -53,6 +53,28 @@ class PersistentPostgresRuntimeTest(unittest.TestCase):
                 SESSION_POOLER_URL.replace("?sslmode=require", "")
             )
 
+    def test_validate_management_url_rejects_supabase_session_pooler(self) -> None:
+        runtime = importlib.import_module("campus_ingestion_core.postgres_runtime")
+
+        with self.assertRaisesRegex(ValueError, "direct connection"):
+            runtime.validate_management_postgres_url(SESSION_POOLER_URL)
+
+    def test_validate_management_url_accepts_supabase_direct_connection(self) -> None:
+        runtime = importlib.import_module("campus_ingestion_core.postgres_runtime")
+
+        self.assertEqual(
+            runtime.validate_management_postgres_url(DIRECT_SUPABASE_URL),
+            DIRECT_SUPABASE_URL,
+        )
+
+    def test_build_management_connection_url_marks_direct_mode(self) -> None:
+        runtime = importlib.import_module("campus_ingestion_core.postgres_runtime")
+
+        self.assertEqual(
+            runtime.build_management_postgres_connection_url(DIRECT_SUPABASE_URL),
+            DIRECT_SUPABASE_URL + "&__campus_connection_mode=management_direct",
+        )
+
     def test_pooled_connection_reuses_same_pool_for_same_url_and_autocommit(self) -> None:
         runtime = importlib.import_module("campus_ingestion_core.postgres_runtime")
 

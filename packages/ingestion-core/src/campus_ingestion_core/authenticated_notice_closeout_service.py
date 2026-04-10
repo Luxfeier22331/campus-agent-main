@@ -142,13 +142,23 @@ class AuthenticatedNoticeCloseoutService:
         source = env if env is not None else dict(os.environ)
         settings = ObjectStoreSettings.from_env(source)
         return cls(
-            closeout_store=build_authenticated_notice_closeout_store_from_env(source),
+            closeout_store=build_authenticated_notice_closeout_store_from_env(
+                source,
+                prefer_management=True,
+            ),
             object_store=CloseoutS3ObjectStore(settings),
             object_store_settings=settings,
-            document_registry=build_document_registry_from_env(source),
-            raw_asset_registry=build_raw_asset_registry_from_env(source),
+            document_registry=build_document_registry_from_env(
+                source,
+                prefer_management=True,
+            ),
+            raw_asset_registry=build_raw_asset_registry_from_env(
+                source,
+                prefer_management=True,
+            ),
             source_truth_inventory_store=build_authenticated_notice_source_truth_inventory_store_from_env(
-                source
+                source,
+                prefer_management=True,
             ),
             planner=planner,
         )

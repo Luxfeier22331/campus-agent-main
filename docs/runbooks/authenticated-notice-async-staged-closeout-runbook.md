@@ -106,8 +106,8 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.promo
 
 - `OBJECT_STORE_*` 已配置
 - `DOCUMENT_REGISTRY_DATABASE_URL` / `RAW_ASSET_REGISTRY_DATABASE_URL` 已配置
-- `AUTHENTICATED_NOTICE_CLOSEOUT_DATABASE_URL` 已配置；如未单独配置，则当前实现回退到 `CAMPUS_SHARED_POSTGRES_URL`，再回退到 `DOCUMENT_REGISTRY_DATABASE_URL`
-- 当这些 URL 指向 Supabase 时，当前 accepted posture 固定为 IPv4 runtime + `session pooler`；不得把 `db.<project-ref>.supabase.co` 或 transaction pooler 用作长驻 worker 主链路
+- offline operator shell 必须显式提供 management direct DSN：`AUTHENTICATED_NOTICE_CLOSEOUT_MANAGEMENT_DATABASE_URL` 或 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`
+- 当共享库由 Supabase 承载时，management URL 必须是 `db.<project-ref>.supabase.co:5432` 这类 direct DSN；helper 不再在 `prefer_management=True` 时回退到 `CAMPUS_SHARED_POSTGRES_URL`
 - 当前目标 collection 仍是 `campus_notices/internal_notice`
 - posture 仍是 `restricted + offline_preparation`
 

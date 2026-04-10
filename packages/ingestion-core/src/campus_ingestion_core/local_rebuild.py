@@ -677,6 +677,7 @@ def _resolve_runtime_collection_config(
             if source_projections_override
             else base.source_projections_path
         ),
+        notice_family_config_path=base.notice_family_config_path,
     )
 
 

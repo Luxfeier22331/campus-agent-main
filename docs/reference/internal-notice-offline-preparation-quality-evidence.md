@@ -2,17 +2,18 @@
 doc_type: reference
 status: active
 created: 2026-04-06
-updated: 2026-04-09
+updated: 2026-04-10
 ---
 
 # Internal Notice Offline Preparation Quality Evidence
 
 ## 文档边界
 
-本文记录 `campus_notices/internal_notice` 的两次真实离线质量验收证据：
+本文记录 `campus_notices/internal_notice` 的三次真实离线质量验收证据：
 
 - 2026-04-06 的 current-scope 失败证据
 - 2026-04-09 的 verified replay pilot staged 通过证据
+- 2026-04-10 的 repo-head bounded replay 修复证明与 current-scope 仍未刷新结论
 
 它回答的是：
 
@@ -146,6 +147,104 @@ lane 分布：
 - `notice-body` 样本保持结构完整，没有因为 attachment outlier 被整体缩小
 - `attachment-text` 样本标题已缩成 `附件 1 / 中央民族大学拔尖创新人才培养&nbsp;“证书项目”报名表`
 - `attachment-ocr` 样本标题已缩成 `附件 4`，正文 chunk 现在不再被超长 header 压住
+
+## 2026-04-10 Repo-Head Bounded Replay Proof
+
+### Current-Scope Rerun 仍失败
+
+2026-04-10 对当前 `internal_notice` scope 再跑了一次 fresh validator：
+
+```bash
+uv run --package campus-ingestion-worker python -m campus_ingestion_worker.validate_internal_notice_chunking \
+  --sample-dir .tmp/internal_notice_chunk_samples_wave_d_current_scope_20260410
+```
+
+结果仍是：
+
+- `passed=false`
+- `registry_record_count=6962`
+- `selected_record_count=6962`
+- `validated_document_count=6961`
+- `chunk_failures=1`
+- `notice_body_fragmentation_count=5`
+- `markup_leak_chunk_count=724`
+- `header_dominant_ocr_chunk_count=130`
+- `noisy_ocr_chunk_count=31`
+
+这说明当前 promoted/current scope 还不能写成：
+
+- `offline preparation accepted`
+- `可以直接执行 release_registry_scope`
+
+### Repo-Head 修复与 Bounded Probe
+
+同日对 repo-head 做了两项结构性修复，并用单 notice bounded replay 验证：
+
+- `authenticated_notice_source_truth_replay.py` 现在显式向 `_project_parent_source_truth(...)` 透传 `ocr_provider_response_cache`，修复了 source-truth replay worker 在 parent projection 阶段的真实崩溃
+- `chunking.py` 的 token-guardrail tail handling 不再只做“能合并就合并”；当尾段过短且直接合并会超 `max_chunk_size` 时，现改为向前扩最后一段的起点，重平衡 overlap，而不是留下短尾碎片
+
+bounded replay probe 证据：
+
+- `run_id=internal-notice-wave-d-241275-20260410-03`
+- `selected_notice_ids=["241275"]`
+- `state=verified`
+- `staged_notice_count=1`
+- `staged_raw_asset_count=1`
+- `staged_document_count=1`
+
+对应只读 validator 结果：
+
+- `selection_mode=verified_closeout_run`
+- `closeout_run_id=internal-notice-wave-d-241275-20260410-03`
+- `sample_dir=.tmp/internal_notice_chunk_samples_wave_d_241275_probe_20260410`
+- `passed=true`
+- `validated_document_count=1`
+- `notice_body_fragmentation_count=0`
+- `markup_leak_chunk_count=0`
+- `header_dominant_ocr_chunk_count=0`
+- `noisy_ocr_chunk_count=0`
+
+### 结论
+
+2026-04-10 的新证据必须拆开解释：
+
+- current scope 仍然失败，这个 verdict 还没有被推翻
+- 但 `241275` 的 `notice_body` 短尾 fragmentation 已在 repo-head 修复并经真实 bounded replay 证明
+- 2026-04-10 current-scope 失败里的大量 markup/OCR 噪声，更像是陈旧 promoted truth，而不是当前 repo-head replay 产物
+
+因此当前 Wave D 的 canonical 下一步不是直接 release，而是：
+
+1. 先对 `campus_notices/internal_notice` 发起新的 full async source-truth replay 刷新 current scope truth
+2. replay verified 后再执行 current-scope `prepare_registry_scope_chunks`
+3. preparation validator 通过后才允许 `release_registry_scope --no-publish-alias`
+
+### 2026-04-10 执行阻塞
+
+同日直接执行 full current-scope refresh 时，又遇到一条新的 runtime blocker：
+
+- repo 先完成了离线 ingestion builder/path 的 structural remediation：
+  - `authenticated_notice` full refresh / validation / chunk preparation / release 相关 builder 现已支持 `prefer_management=True`
+  - shared management env 现已冻结为 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`
+  - management helper 现已 fast-fail 拒绝把 `*.pooler.supabase.com` 冒充成 direct management DSN
+- 随后再次执行：
+  - `uv run --package campus-ingestion-worker python -m campus_ingestion_worker.rebuild_authenticated_notice_source_truth_inventory --corpus campus_notices --collection internal_notice`
+- 这次已经越过此前的 `psycopg_pool.PoolTimeout` 代码路径，但在真正 connect 时暴露出新的 env-truth blocker：
+  - 当前本地 `APP_API_MANAGEMENT_DATABASE_URL` / 导出的 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` 仍指向 Supabase session pooler，而不是真实 direct DSN
+  - direct connect fast-fail 返回：
+    - `FATAL: MaxClientsInSessionMode: max clients reached - in Session mode max clients are limited to pool_size`
+- 按 Supabase 官方 direct DSN 规则，把现有 pooler URL 派生为 `db.<project-ref>.supabase.co` 之后再次做 `select 1` probe，当前本地 shell 又返回：
+  - `OperationalError: failed to resolve host 'db.<project-ref>.supabase.co': [Errno -5] No address associated with hostname`
+  - `getent ahosts` 只看到 AAAA 记录，说明当前本地执行环境并不具备可用的 direct reachability
+
+这意味着：
+
+- 当前 Wave D 的 repo code blocker 已关闭，但 operator env blocker 仍在：
+  - 本地 / 运维环境必须补齐真实的 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`
+  - 它必须指向 `db.<project-ref>.supabase.co:5432` 之类的 direct management DSN，而不是 `*.pooler.supabase.com`
+  - 执行 shell 还必须真的能连通这条 direct host；当前 WSL shell 不满足这个前提
+- 2026-04-10 这次 full current-scope refresh 仍没有真正启动
+- 当前 `internal_notice` current scope truth 仍保持 2026-04-10 rerun 看到的失败状态
+- Wave D 不能继续进入 `prepare_registry_scope_chunks` / `release_registry_scope`
 
 ## 2026-04-06 Current Scope Failure
 

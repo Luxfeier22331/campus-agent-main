@@ -21,10 +21,13 @@ from campus_ingestion_core.object_store import is_source_object_key
 from campus_ingestion_core.raw_ingestion import S3ObjectStoreClient
 from campus_ingestion_core.registry import (
     DOCUMENT_REGISTRY_ENV_KEY,
+    DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY,
     DEFAULT_DOCUMENT_REGISTRY_TABLE,
     DEFAULT_RAW_ASSET_REGISTRY_TABLE,
     RAW_ASSET_REGISTRY_ENV_KEY,
+    RAW_ASSET_REGISTRY_MANAGEMENT_ENV_KEY,
     SHARED_POSTGRES_ENV_KEY,
+    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     DocumentRegistry,
     PostgresDocumentRegistry,
     PostgresRawAssetRegistry,
@@ -39,6 +42,10 @@ from campus_ingestion_core.registry import (
     build_document_registry_from_env,
     build_raw_asset_registry_from_env,
 )
+from campus_ingestion_core.postgres_runtime import (
+    build_management_postgres_connection_url,
+    normalize_postgres_connection_url,
+)
 from campus_ingestion_core.settings import ObjectStoreSettings
 
 
@@ -47,6 +54,9 @@ DEFAULT_SOURCE_TRUTH_INVENTORY_TABLE = (
     f"{DEFAULT_SOURCE_TRUTH_INVENTORY_SCHEMA}.authenticated_notice_source_truth_inventory"
 )
 DEFAULT_SOURCE_TRUTH_INVENTORY_ENV_KEY = "AUTHENTICATED_NOTICE_SOURCE_TRUTH_INVENTORY_DATABASE_URL"
+DEFAULT_SOURCE_TRUTH_INVENTORY_MANAGEMENT_ENV_KEY = (
+    "AUTHENTICATED_NOTICE_SOURCE_TRUTH_INVENTORY_MANAGEMENT_DATABASE_URL"
+)
 AUTHENTICATED_NOTICE_SOURCE_TRUTH_BASE_WEIGHT = 1
 AUTHENTICATED_NOTICE_SOURCE_TRUTH_TEXT_ATTACHMENT_WEIGHT = 1
 AUTHENTICATED_NOTICE_SOURCE_TRUTH_OCR_ATTACHMENT_WEIGHT = 3
@@ -207,7 +217,7 @@ class PostgresAuthenticatedNoticeSourceTruthInventoryStore:
         *,
         table_name: str = DEFAULT_SOURCE_TRUTH_INVENTORY_TABLE,
     ) -> None:
-        self.database_url = database_url
+        self.database_url = normalize_postgres_connection_url(database_url)
         if not self.database_url:
             raise ValueError("source-truth inventory database url is required")
         self.table_name = table_name
@@ -482,8 +492,31 @@ class PostgresAuthenticatedNoticeSourceTruthInventoryStore:
 
 def build_authenticated_notice_source_truth_inventory_store_from_env(
     env: dict[str, str] | None = None,
+    *,
+    prefer_management: bool = False,
 ) -> PostgresAuthenticatedNoticeSourceTruthInventoryStore:
     source = env if env is not None else dict(os.environ)
+    if prefer_management:
+        management_database_url = (
+            source.get(DEFAULT_SOURCE_TRUTH_INVENTORY_MANAGEMENT_ENV_KEY)
+            or source.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY)
+            or source.get(DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY)
+            or source.get(RAW_ASSET_REGISTRY_MANAGEMENT_ENV_KEY)
+            or ""
+        ).strip()
+        if not management_database_url:
+            raise ValueError(
+                f"{DEFAULT_SOURCE_TRUTH_INVENTORY_MANAGEMENT_ENV_KEY} or "
+                f"{SHARED_POSTGRES_MANAGEMENT_ENV_KEY} or "
+                f"{DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY} or "
+                f"{RAW_ASSET_REGISTRY_MANAGEMENT_ENV_KEY} is required when "
+                "prefer_management=True"
+            )
+        return PostgresAuthenticatedNoticeSourceTruthInventoryStore(
+            database_url=build_management_postgres_connection_url(
+                management_database_url
+            )
+        )
     database_url = (
         source.get(DEFAULT_SOURCE_TRUTH_INVENTORY_ENV_KEY)
         or source.get(SHARED_POSTGRES_ENV_KEY)
@@ -594,11 +627,18 @@ def rebuild_authenticated_notice_source_truth_inventory(
 ) -> dict[str, Any]:
     source = env if env is not None else dict(os.environ)
     runtime_object_store_settings = object_store_settings or ObjectStoreSettings.from_env(source)
-    runtime_document_registry = document_registry or build_document_registry_from_env(source)
-    runtime_raw_asset_registry = raw_asset_registry or build_raw_asset_registry_from_env(source)
+    runtime_document_registry = document_registry or build_document_registry_from_env(
+        source,
+        prefer_management=True,
+    )
+    runtime_raw_asset_registry = raw_asset_registry or build_raw_asset_registry_from_env(
+        source,
+        prefer_management=True,
+    )
     runtime_object_store = object_store or S3ObjectStoreClient(runtime_object_store_settings)
     runtime_inventory_store = inventory_store or build_authenticated_notice_source_truth_inventory_store_from_env(
-        source
+        source,
+        prefer_management=True,
     )
     entries = build_authenticated_notice_source_truth_inventory_entries(
         corpus=request.corpus,

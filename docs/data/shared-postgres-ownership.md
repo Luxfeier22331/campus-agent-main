@@ -29,9 +29,13 @@ updated: 2026-04-05
 
 repo 当前接受一份共享 Supabase Postgres，作为多个 runtime/data-plane owner 共用的关系型存储底座。
 
-repo root `.env` 的 canonical key 固定为：
+repo root `.env` 的 canonical runtime key 固定为：
 
 - `CAMPUS_SHARED_POSTGRES_URL`
+
+同时允许一个只服务于 offline operator / migration / DBA 路径的 companion key：
+
+- `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`
 
 这表示：
 
@@ -47,6 +51,7 @@ repo root `.env` 的 canonical key 固定为：
 
 - repo-owned persistent runtime 默认按 `IPv4-only` 处理
 - `CAMPUS_SHARED_POSTGRES_URL` 在 Supabase-backed runtime 下默认指向 `session pooler`
+- `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` 在需要 direct management posture 的 one-off/operator 环境下指向真实 direct DSN
 - runtime 主链路不在 `direct connection` 与 `session pooler` 之间做自动切换
 - 长驻 Python / Node runtime 必须使用 application-side pooling，而不是每次数据库操作新建连接
 
@@ -72,7 +77,7 @@ repo root `.env` 的 canonical key 固定为：
 ## Env Ownership Rules
 
 - repo root `.env` / `.env.example`
-  持有 `CAMPUS_SHARED_POSTGRES_URL`
+  持有 `CAMPUS_SHARED_POSTGRES_URL`，以及需要本地 migration / offline operator 时的 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`
 - app-local env
   只持有当前 app runtime 直接消费的 database URL，例如：
   - `apps/app-api/.env` -> `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB` / `APP_API_MANAGEMENT_DATABASE_URL`
@@ -92,7 +97,7 @@ repo root `.env` 的 canonical key 固定为：
 - `apps/app-api`
   负责 shared-product bootstrap 下的 `app_auth.*` / `chat.*`，并拥有 `runtime.*` / `operator.*` / `official_web.*` 的 Drizzle migration ownership；`drizzle.app_api_migrations` 不接管 `app_auth.*` / `chat.*`
 - `packages/ingestion-core`
-  不接管 `app-api` 的 Drizzle migration journal；registry table 仍由自身代码路径负责 schema ensure
+  不接管 `app-api` 的 Drizzle migration journal；registry table 仍由自身代码路径负责 schema ensure。需要 full current-scope replay / chunk-prep / release 这类 offline operator 操作时，显式消费 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`，并 fast-fail 拒绝把 session pooler 冒充为 management direct DSN
 
 ## Journal Ownership
 

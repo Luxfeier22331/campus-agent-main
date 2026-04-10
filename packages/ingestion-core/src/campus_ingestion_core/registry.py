@@ -9,7 +9,10 @@ from typing import Protocol
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef, SourceObservation
 from campus_ingestion_core.postgres_runtime import (
-    pooled_postgres_connection,
+    build_management_postgres_connection_url,
+    normalize_postgres_connection_url,
+    open_postgres_connection,
+    validate_management_postgres_url,
     validate_persistent_postgres_runtime_url,
 )
 
@@ -23,12 +26,17 @@ DEFAULT_DOCUMENT_REGISTRY_TABLE = (
 DEFAULT_RAW_ASSET_REGISTRY_TABLE = (
     f"{DEFAULT_REGISTRY_SCHEMA}.{DEFAULT_RAW_ASSET_REGISTRY_BASENAME}"
 )
+DEFAULT_DOCUMENT_REGISTRY_SCAN_PAGE_SIZE = 256
+DEFAULT_RAW_ASSET_REGISTRY_SCAN_PAGE_SIZE = 256
 _INITIALIZED_DOCUMENT_TABLES: set[tuple[str, str]] = set()
 _INITIALIZED_RAW_ASSET_TABLES: set[tuple[str, str]] = set()
 _SCHEMA_BOOTSTRAP_LOCK_KEY = 174901
 SHARED_POSTGRES_ENV_KEY = "CAMPUS_SHARED_POSTGRES_URL"
+SHARED_POSTGRES_MANAGEMENT_ENV_KEY = "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL"
 DOCUMENT_REGISTRY_ENV_KEY = "DOCUMENT_REGISTRY_DATABASE_URL"
+DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY = "DOCUMENT_REGISTRY_MANAGEMENT_DATABASE_URL"
 RAW_ASSET_REGISTRY_ENV_KEY = "RAW_ASSET_REGISTRY_DATABASE_URL"
+RAW_ASSET_REGISTRY_MANAGEMENT_ENV_KEY = "RAW_ASSET_REGISTRY_MANAGEMENT_DATABASE_URL"
 _IDENTIFIER = "abcdefghijklmnopqrstuvwxyz_0123456789"
 
 
@@ -164,7 +172,7 @@ class PostgresDocumentRegistry:
         *,
         table_name: str = DEFAULT_DOCUMENT_REGISTRY_TABLE,
     ) -> None:
-        self.database_url = validate_persistent_postgres_runtime_url(database_url)
+        self.database_url = normalize_postgres_connection_url(database_url)
         self.table_name = table_name
         if not self.database_url:
             raise ValueError("DOCUMENT_REGISTRY_DATABASE_URL is required")
@@ -204,19 +212,7 @@ class PostgresDocumentRegistry:
         corpus: str,
         collection: str | None = None,
     ) -> tuple[DocumentRegistryRecord, ...]:
-        if collection is None:
-            query = (
-                f"select record from {self.table_name} "
-                "where corpus = %s order by document_id asc, revision_track asc, version_id asc"
-            )
-            params: tuple[object, ...] = (corpus,)
-        else:
-            query = (
-                f"select record from {self.table_name} "
-                "where corpus = %s and collection = %s order by document_id asc, revision_track asc, version_id asc"
-            )
-            params = (corpus, collection)
-        rows = self._fetchall(query, params)
+        rows = self._scan_scope_record_rows(corpus=corpus, collection=collection)
         return tuple(_document_record_from_persisted_payload(_coerce_json_payload(row[0])) for row in rows)
 
     def list_processed_object_keys_by_scope(
@@ -224,19 +220,7 @@ class PostgresDocumentRegistry:
         corpus: str,
         collection: str | None = None,
     ) -> tuple[str, ...]:
-        if collection is None:
-            query = (
-                f"select record from {self.table_name} "
-                "where corpus = %s order by document_id asc, revision_track asc, version_id asc"
-            )
-            params: tuple[object, ...] = (corpus,)
-        else:
-            query = (
-                f"select record from {self.table_name} "
-                "where corpus = %s and collection = %s order by document_id asc, revision_track asc, version_id asc"
-            )
-            params = (corpus, collection)
-        rows = self._fetchall(query, params)
+        rows = self._scan_scope_record_rows(corpus=corpus, collection=collection)
         keys: list[str] = []
         for row in rows:
             raw = _coerce_json_payload(row[0])
@@ -248,19 +232,7 @@ class PostgresDocumentRegistry:
         corpus: str,
         collection: str | None = None,
     ) -> tuple[DocumentRegistryRecord, ...]:
-        if collection is None:
-            query = (
-                f"select record from {self.table_name} "
-                "where corpus = %s order by document_id asc, revision_track asc, version_id asc"
-            )
-            params: tuple[object, ...] = (corpus,)
-        else:
-            query = (
-                f"select record from {self.table_name} "
-                "where corpus = %s and collection = %s order by document_id asc, revision_track asc, version_id asc"
-            )
-            params = (corpus, collection)
-        rows = self._fetchall(query, params)
+        rows = self._scan_scope_record_rows(corpus=corpus, collection=collection)
         records: list[DocumentRegistryRecord] = []
         for row in rows:
             raw = _coerce_json_payload(row[0])
@@ -427,6 +399,37 @@ class PostgresDocumentRegistry:
                 rows = cursor.fetchall()
         return tuple(tuple(row) for row in rows)
 
+    def _scan_scope_record_rows(
+        self,
+        *,
+        corpus: str,
+        collection: str | None,
+    ) -> tuple[tuple[object, ...], ...]:
+        rows: list[tuple[object, ...]] = []
+        last_key: tuple[str, str, str] | None = None
+        while True:
+            query = (
+                f"select record from {self.table_name} "
+                "where corpus = %s "
+            )
+            params: list[object] = [corpus]
+            if collection is not None:
+                query += "and collection = %s "
+                params.append(collection)
+            if last_key is not None:
+                query += "and (document_id, revision_track, version_id) > (%s, %s, %s) "
+                params.extend(last_key)
+            query += "order by document_id asc, revision_track asc, version_id asc limit %s"
+            params.append(DEFAULT_DOCUMENT_REGISTRY_SCAN_PAGE_SIZE)
+            page_rows = self._fetchall(query, tuple(params))
+            if not page_rows:
+                break
+            rows.extend(page_rows)
+            last_key = _document_registry_scope_scan_key(page_rows[-1][0])
+            if len(page_rows) < DEFAULT_DOCUMENT_REGISTRY_SCAN_PAGE_SIZE:
+                break
+        return tuple(rows)
+
     def _upsert_query(self) -> str:
         return (
             f"insert into {self.table_name} "
@@ -522,7 +525,7 @@ class PostgresRawAssetRegistry:
         *,
         table_name: str = DEFAULT_RAW_ASSET_REGISTRY_TABLE,
     ) -> None:
-        self.database_url = validate_persistent_postgres_runtime_url(database_url)
+        self.database_url = normalize_postgres_connection_url(database_url)
         self.table_name = table_name
         if not self.database_url:
             raise ValueError("DOCUMENT_REGISTRY_DATABASE_URL is required")
@@ -559,19 +562,7 @@ class PostgresRawAssetRegistry:
         corpus: str,
         collection: str | None = None,
     ) -> tuple[RawAssetRecord, ...]:
-        if collection is None:
-            query = (
-                f"select record from {self.table_name} "
-                "where corpus = %s order by raw_asset_id asc, raw_version_id asc"
-            )
-            params: tuple[object, ...] = (corpus,)
-        else:
-            query = (
-                f"select record from {self.table_name} "
-                "where corpus = %s and collection = %s order by raw_asset_id asc, raw_version_id asc"
-            )
-            params = (corpus, collection)
-        rows = self._fetchall(query, params)
+        rows = self._scan_scope_record_rows(corpus=corpus, collection=collection)
         return tuple(_raw_asset_record_from_dict(_coerce_json_payload(row[0])) for row in rows)
 
     def delete_by_corpus(self, corpus: str) -> None:
@@ -675,6 +666,37 @@ class PostgresRawAssetRegistry:
                 rows = cursor.fetchall()
         return tuple(tuple(row) for row in rows)
 
+    def _scan_scope_record_rows(
+        self,
+        *,
+        corpus: str,
+        collection: str | None,
+    ) -> tuple[tuple[object, ...], ...]:
+        rows: list[tuple[object, ...]] = []
+        last_key: tuple[str, str] | None = None
+        while True:
+            query = (
+                f"select record from {self.table_name} "
+                "where corpus = %s "
+            )
+            params: list[object] = [corpus]
+            if collection is not None:
+                query += "and collection = %s "
+                params.append(collection)
+            if last_key is not None:
+                query += "and (raw_asset_id, raw_version_id) > (%s, %s) "
+                params.extend(last_key)
+            query += "order by raw_asset_id asc, raw_version_id asc limit %s"
+            params.append(DEFAULT_RAW_ASSET_REGISTRY_SCAN_PAGE_SIZE)
+            page_rows = self._fetchall(query, tuple(params))
+            if not page_rows:
+                break
+            rows.extend(page_rows)
+            last_key = _raw_asset_registry_scope_scan_key(page_rows[-1][0])
+            if len(page_rows) < DEFAULT_RAW_ASSET_REGISTRY_SCAN_PAGE_SIZE:
+                break
+        return tuple(rows)
+
     def _bulk_upsert_query(self) -> str:
         table_sql = _qualified_table_sql(self.table_name)
         return f"""
@@ -734,13 +756,33 @@ class PostgresRawAssetRegistry:
         return json.dumps(payload, ensure_ascii=False)
 
 
-def build_document_registry_from_env(env: dict[str, str] | None = None) -> DocumentRegistry:
+def build_document_registry_from_env(
+    env: dict[str, str] | None = None,
+    *,
+    prefer_management: bool = False,
+) -> DocumentRegistry:
     source = env if env is not None else os.environ
+    if prefer_management:
+        return PostgresDocumentRegistry(
+            build_management_postgres_connection_url(
+                _required_document_registry_management_database_url(source)
+            )
+        )
     return PostgresDocumentRegistry(_required_document_registry_database_url(source))
 
 
-def build_raw_asset_registry_from_env(env: dict[str, str] | None = None) -> RawAssetRegistry:
+def build_raw_asset_registry_from_env(
+    env: dict[str, str] | None = None,
+    *,
+    prefer_management: bool = False,
+) -> RawAssetRegistry:
     source = env if env is not None else os.environ
+    if prefer_management:
+        return PostgresRawAssetRegistry(
+            build_management_postgres_connection_url(
+                _required_raw_asset_registry_management_database_url(source)
+            )
+        )
     return PostgresRawAssetRegistry(_required_raw_asset_registry_database_url(source))
 
 
@@ -770,8 +812,50 @@ def _required_raw_asset_registry_database_url(source: dict[str, str]) -> str:
     return validate_persistent_postgres_runtime_url(database_url)
 
 
+def _optional_document_registry_management_database_url(source: dict[str, str]) -> str:
+    database_url = (
+        (source.get(DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY) or "").strip()
+        or (source.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY) or "").strip()
+    )
+    if not database_url:
+        return ""
+    return validate_management_postgres_url(database_url)
+
+
+def _required_document_registry_management_database_url(source: dict[str, str]) -> str:
+    database_url = _optional_document_registry_management_database_url(source)
+    if not database_url:
+        raise ValueError(
+            f"{DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY} or "
+            f"{SHARED_POSTGRES_MANAGEMENT_ENV_KEY} is required when prefer_management=True"
+        )
+    return database_url
+
+
+def _optional_raw_asset_registry_management_database_url(source: dict[str, str]) -> str:
+    database_url = (
+        (source.get(RAW_ASSET_REGISTRY_MANAGEMENT_ENV_KEY) or "").strip()
+        or (source.get(DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY) or "").strip()
+        or (source.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY) or "").strip()
+    )
+    if not database_url:
+        return ""
+    return validate_management_postgres_url(database_url)
+
+
+def _required_raw_asset_registry_management_database_url(source: dict[str, str]) -> str:
+    database_url = _optional_raw_asset_registry_management_database_url(source)
+    if not database_url:
+        raise ValueError(
+            f"{RAW_ASSET_REGISTRY_MANAGEMENT_ENV_KEY} or "
+            f"{DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY} or "
+            f"{SHARED_POSTGRES_MANAGEMENT_ENV_KEY} is required when prefer_management=True"
+        )
+    return database_url
+
+
 def _postgres_connection(database_url: str, *, autocommit: bool = True):
-    return pooled_postgres_connection(database_url, autocommit=autocommit)
+    return open_postgres_connection(database_url, autocommit=autocommit)
 
 
 def _parse_timestamp(value: str) -> datetime:
@@ -788,6 +872,15 @@ def _coerce_json_payload(value: object) -> dict[str, object]:
 
 def _document_record_from_persisted_payload(raw: dict[str, object]) -> DocumentRegistryRecord:
     return _document_record_from_dict(_canonicalize_persisted_authorization_projection_payload(raw))
+
+
+def _document_registry_scope_scan_key(payload: object) -> tuple[str, str, str]:
+    raw = _coerce_json_payload(payload)
+    return (
+        str(raw.get("document_id") or ""),
+        str(raw.get("revision_track") or ""),
+        str(raw.get("version_id") or ""),
+    )
 
 
 def _canonicalize_persisted_authorization_projection_payload(raw: dict[str, object]) -> dict[str, object]:
@@ -898,6 +991,16 @@ def _raw_asset_record_from_dict(raw: dict[str, object]) -> RawAssetRecord:
         ingestion_timestamp=str(raw["ingestion_timestamp"]),
         import_source=str(raw["import_source"]),
     )
+
+
+def _raw_asset_registry_scope_scan_key(payload: object) -> tuple[str, str]:
+    raw = _coerce_json_payload(payload)
+    return (
+        str(raw.get("raw_asset_id") or ""),
+        str(raw.get("raw_version_id") or ""),
+    )
+
+
 def _raw_asset_ref_from_dict(raw: dict[str, object]) -> RawAssetRef:
     return RawAssetRef(
         raw_asset_id=str(raw["raw_asset_id"]),

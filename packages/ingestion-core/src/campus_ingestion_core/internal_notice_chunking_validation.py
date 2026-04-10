@@ -468,7 +468,10 @@ def _build_validation_inputs(
         )
         resolved_closeout_run_id = manifest_closeout_run_id
     elif closeout_run_id:
-        runtime_closeout_store = closeout_store or build_authenticated_notice_closeout_store_from_env(source)
+        runtime_closeout_store = closeout_store or build_authenticated_notice_closeout_store_from_env(
+            source,
+            prefer_management=True,
+        )
         selected_records = tuple(
             pair.staged_record
             for pair in load_verified_closeout_run_document_record_pairs(
@@ -483,7 +486,10 @@ def _build_validation_inputs(
         selection_mode = "verified_closeout_run"
         resolved_closeout_run_id = closeout_run_id
     else:
-        runtime_registry = runtime_registry or build_document_registry_from_env(source)
+        runtime_registry = runtime_registry or build_document_registry_from_env(
+            source,
+            prefer_management=True,
+        )
         records = tuple(runtime_registry.list_by_scope(corpus, collection))
         selected_records = _select_current_source_faithful_records(records)
         missing_manifest_records = ()
@@ -543,7 +549,10 @@ def _select_manifest_records(
                 "closeout-backed preparation manifest is missing closeout_run_id: "
                 f"{preparation_run_id}"
             )
-        runtime_closeout_store = closeout_store or build_authenticated_notice_closeout_store_from_env(source)
+        runtime_closeout_store = closeout_store or build_authenticated_notice_closeout_store_from_env(
+            source,
+            prefer_management=True,
+        )
         pairs = load_verified_closeout_run_document_record_pairs(
             run_id=manifest.closeout_run_id,
             closeout_store=runtime_closeout_store,
@@ -570,7 +579,10 @@ def _select_manifest_records(
         )
     selected_records: list[DocumentRegistryRecord] = []
     missing_manifest_records: list[str] = []
-    runtime_registry = registry or build_document_registry_from_env(source)
+    runtime_registry = registry or build_document_registry_from_env(
+        source,
+        prefer_management=True,
+    )
     for document in manifest.documents:
         record = runtime_registry.get(document.document_id, document.revision_track, document.version_id)
         if record is None:
@@ -881,7 +893,10 @@ def _resolve_notice_risk_context(
     if not notice_ids:
         return {}, {}, 0
     if closeout_run_id:
-        runtime_closeout_store = closeout_store or build_authenticated_notice_closeout_store_from_env(source)
+        runtime_closeout_store = closeout_store or build_authenticated_notice_closeout_store_from_env(
+            source,
+            prefer_management=True,
+        )
         run = runtime_closeout_store.get_run(closeout_run_id)
         if run is not None and str(getattr(run, "source_truth_inventory_object_key", "") or "").strip():
             profiles = _load_notice_risk_profiles_from_closeout_run(
@@ -896,7 +911,10 @@ def _resolve_notice_risk_context(
     runtime_inventory_store = source_truth_inventory_store
     if runtime_inventory_store is None:
         try:
-            runtime_inventory_store = build_authenticated_notice_source_truth_inventory_store_from_env(source)
+            runtime_inventory_store = build_authenticated_notice_source_truth_inventory_store_from_env(
+                source,
+                prefer_management=True,
+            )
         except ValueError:
             runtime_inventory_store = None
     if runtime_inventory_store is None:

@@ -48,6 +48,7 @@ updated: 2026-04-09
 
 对 authenticated notice historical replay，OCR 失败的 operator 判定顺序固定为：
 
+- 对规章制度 / 手册类 `pdf`，默认先把它当作 `ocr_required`，不要先切本地 native PDF 路径再决定是否送 OCR
 - 先检查失败 attachment 的真实图片内容
 - 再结合该图片在 notice 正文里的上下文判断，它是否本来就应该进入 `ocr_required`
 - 对二维码、示例证书、宣传海报、正文已完整给出说明的冗余教程截图，先修 projection routing 到 `reference_only` 或 `manual_review_required`
@@ -303,6 +304,10 @@ projection replay 之后，parent 与 child document 都进入 repo-owned cleanu
 - `release_registry_scope` 只负责 verified chunk preparation 之后的 `embedding -> indexing -> optional alias publish`
 - `campus_notices/internal_notice` 现在要求 release 显式提供成功的 `preparation_run_id`；不能再直接跳过 chunk admission 进入 embedding
 - pilot 当前仍以 verified chunk preparation 为停点；没有显式批准前，不继续 release
+- 执行 full current-scope refresh / preparation / release 之前，必须先确认 offline operator shell 已显式提供 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`
+- 当共享库由 Supabase 承载时，这个 management URL 必须是 `db.<project-ref>.supabase.co:5432` 这类 direct DSN；如果仍是 `*.pooler.supabase.com`，当前 helper 会 fast-fail
+- readiness 判定是 management direct DSN 能完成实际 `psycopg.connect(...)` + `select 1`；只有 TCP `:5432` 可达或 session pooler 可连都不算 ready
+- 如果 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` 在 connect 阶段返回 `PoolTimeout` / `ConnectionTimeout` / `MaxClientsInSessionMode`，本轮 stop，不写 current scope
 
 因此 chunking / embedding / index release 仍然可以发生，但必须分阶段发生，而且不代表该 collection 已经进入 query-serving。
 
@@ -384,6 +389,7 @@ attachment extraction lane 固定按类型分流：
 - `text_extractable`
   - 走确定性 native text extraction
   - 当前至少覆盖 `docx`
+  - 不把 `pdf` 当作这条 lane 的默认 canonical 输入
 - `manual_review_required`
   - 当前用于校园导览图、位置图、楼宇分区图等空间关系主导的 inline image
   - 不进入当前 OCR / chunk pipeline
@@ -392,7 +398,10 @@ attachment extraction lane 固定按类型分流：
   - 走 PaddleOCR-VL async jobs endpoint
   - authenticated notice historical replay 的 operator 环境必须显式设置 `OCR_PROVIDER_MODE=paddleocr_async_jobs`
   - 对 `state=done` 但 `resultUrl.jsonUrl` 持续不可读的情况，只有在 attachment 已确认属于有效 OCR candidate，且已结合 notice 正文上下文排除错误分流后，才视为 provider contract breach
-  - 当前只覆盖 text-dominant image corpus：`png`、`jpg`、`jpeg`、`bmp`、`gif`
+  - 当前默认覆盖两类输入：
+    - policy / handbook / procedure 等文档型 `pdf`
+    - text-dominant image corpus：`png`、`jpg`、`jpeg`、`bmp`、`gif`
+  - native PDF extraction 最多只作为 diagnostics / probe，不作为 canonical success path
   - lane outcome 固定分成两类：
     - `materialized_document`：OCR 产出非空标准化文本，生成 child document
     - `no_extractable_text`：OCR 成功返回但没有可提取正文，不生成 child document

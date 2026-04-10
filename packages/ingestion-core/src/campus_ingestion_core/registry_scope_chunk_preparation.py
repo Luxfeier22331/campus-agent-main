@@ -395,7 +395,10 @@ def _select_preparation_records(
     str | None,
 ]:
     if closeout_run_id:
-        runtime_closeout_store = closeout_store or build_authenticated_notice_closeout_store_from_env(source)
+        runtime_closeout_store = closeout_store or build_authenticated_notice_closeout_store_from_env(
+            source,
+            prefer_management=True,
+        )
         pairs = load_verified_closeout_run_document_record_pairs(
             run_id=closeout_run_id,
             closeout_store=runtime_closeout_store,
@@ -415,7 +418,10 @@ def _select_preparation_records(
             closeout_run_id,
         )
     records = select_releasable_registry_records(
-        records=(runtime_registry or build_document_registry_from_env(source)).list_by_scope(corpus, collection),
+        records=(
+            runtime_registry
+            or build_document_registry_from_env(source, prefer_management=True)
+        ).list_by_scope(corpus, collection),
         runtime_profile=runtime_profile,
     )
     return records, records, "current_scope", None
