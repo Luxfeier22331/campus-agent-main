@@ -45,6 +45,25 @@ class CollectionTruthConfigTest(unittest.TestCase):
         self.assertTrue(config.source_projections_path.exists())
         self.assertTrue(config.notice_family_config_path.exists())
 
+    def test_resolve_institutional_regulations_collection_truth_uses_repo_tracked_paths(self) -> None:
+        config = resolve_collection_truth_config("regulations", "institutional_regulations")
+
+        self.assertEqual(config.corpus, "regulations")
+        self.assertEqual(config.collection, "institutional_regulations")
+        self.assertEqual(
+            config.config_root,
+            Path("configs/ingestion/regulations/institutional_regulations").resolve(),
+        )
+        self.assertEqual(config.runtime_profile_path, config.config_root / "runtime-profile.json")
+        self.assertEqual(config.canonical_profile_path, config.config_root / "canonical-profile.json")
+        self.assertEqual(config.chunk_profile_path, config.config_root / "chunk-profile.json")
+        self.assertEqual(config.source_projections_path, config.config_root / "source-projections.v1.json")
+        self.assertIsNone(config.notice_family_config_path)
+        self.assertTrue(config.runtime_profile_path.exists())
+        self.assertTrue(config.canonical_profile_path.exists())
+        self.assertTrue(config.chunk_profile_path.exists())
+        self.assertTrue(config.source_projections_path.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

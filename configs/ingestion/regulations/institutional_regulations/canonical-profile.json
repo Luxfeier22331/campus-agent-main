@@ -1,0 +1,14 @@
+{
+  "corpus": "regulations",
+  "collection": "institutional_regulations",
+  "canonical_profile_version": "institutional_regulations_canonical_v1",
+  "doc_id_strategy": "regulation_title_issuing_org_semantic_scope_hash",
+  "version_id_strategy": "content_hash_effective_date_revision_signal",
+  "primary_input": "promotion_candidate_manifest",
+  "structured_source": "promoted_document_units_jsonl",
+  "notes": [
+    "This collection stores canonical regulation text only, not source-channel wrapper notices.",
+    "Provenance must preserve source_notice_ids, source_parent_document_id, and source_attachment_ref_id when promotion originates from internal_notice.",
+    "The target collection is source-channel-agnostic: future canonical regulation sources may promote into the same collection."
+  ]
+}
