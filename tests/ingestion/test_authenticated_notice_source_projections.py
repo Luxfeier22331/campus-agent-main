@@ -2506,6 +2506,55 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
 
         self.assertEqual(result.classification, "manual_review_required")
 
+    def test_classify_attachment_ref_keeps_scoring_table_inline_images_in_ocr_lane(
+        self,
+    ) -> None:
+        png_bytes = _build_table_like_png_bytes()
+        config = load_authenticated_notice_source_projections_config(
+            Path(__file__).resolve().parents[2]
+            / "configs/ingestion/campus_notices/internal_notice/source-projections.v1.json"
+        )
+        settings = ObjectStoreSettings.from_env(_env())
+        object_store = _FakeObjectStore()
+        object_key = (
+            "authenticated_notice_portal/attachment-scoring-table/2026/sha256/"
+            f"{hashlib.sha256(png_bytes).hexdigest()}/capture/notice.png"
+        )
+        object_store.put_bytes(
+            bucket=settings.bucket_source,
+            key=object_key,
+            data=png_bytes,
+            content_type="image/png",
+        )
+
+        result = _classify_attachment_ref(
+            attachment_ref={
+                "attachment_ref_id": "attachment-0002",
+                "source_url": "https://portal.example.edu/files/notice.png",
+                "normalized_source_url": "https://portal.example.edu/files/notice.png",
+                "final_url": "https://portal.example.edu/files/notice.png",
+                "anchor_text": "1769304903305.png",
+                "resource_role": "inline_image",
+                "object_key": object_key,
+                "content_sha256": hashlib.sha256(png_bytes).hexdigest(),
+                "mime_type": "image/png",
+                "byte_size": len(png_bytes),
+            },
+            config=config,
+            object_store=object_store,
+            object_store_settings=settings,
+            attachment_context_by_ref_id={
+                "attachment-0002": (
+                    "关于开放2025年度拔尖创新人才“证书项目”第二轮报名的通知 "
+                    "5.评分标准 "
+                    "综合评价其语言表达能力，具体维度如下： "
+                    "评审将围绕发音准确性、语调自然度、用词恰当性以及整体表现力等方面进行综合评价。"
+                )
+            },
+        )
+
+        self.assertEqual(result.classification, "ocr_required")
+
     def test_rebuild_authenticated_notice_source_projections_surfaces_attachment_context_when_ocr_fails(self) -> None:
         docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
         png_bytes = _build_minimal_png_bytes()
