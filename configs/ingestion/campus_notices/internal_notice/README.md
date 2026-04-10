@@ -18,7 +18,7 @@ This directory holds the repo-tracked config scaffolding for the
 - `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`: collection-specific quality acceptance criteria before any index release
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`: freeze that `internal_notice` remains source/triage and canonical regulation text must cross a separate promotion boundary
 - `docs/plans/internal-notice-policy-regulation-consumption-implementation.md`: forward implementation plan for promoting `policy_regulation` notice content from `internal_notice` into a dedicated `regulations/*` target without rewriting current merged truth
-- `docs/plans/authenticated-notice-source-attachment-key-reorganization.md`: source bucket attachment key cleanup/reorganization plan for removing donor blob-key pollution without changing the two-bucket architecture
+- `.planning/archive-docs/docs/plans/authenticated-notice-source-attachment-key-reorganization.md`: 已完成的 source bucket attachment key cleanup 历史方案
 
 Current runtime truth:
 

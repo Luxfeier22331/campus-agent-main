@@ -81,6 +81,7 @@ class DocsStructureTest(unittest.TestCase):
         historical_plan_names = {
             "agentic-rag-foundation.md",
             "app-api-initial-execution-plan.md",
+            "authenticated-notice-source-attachment-key-reorganization.md",
             "domain-bounded-answering-and-refusal-foundation.md",
             "env-bootstrap-and-provider-configuration-governance.md",
             "app-api-worker-foundation.md",

@@ -84,7 +84,7 @@ updated: 2026-04-10
 - 已导入 authenticated notice 历史数据消费：`runbooks/authenticated-notice-source-truth-replay-runbook.md`
 - authenticated notice 到 regulations 的提升边界：`decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
 - authenticated notice 规章制度消费与后续 `regulations/*` 提升实施：`plans/internal-notice-policy-regulation-consumption-implementation.md`
-- authenticated notice source attachment key 重组：`plans/authenticated-notice-source-attachment-key-reorganization.md`
+- authenticated notice source attachment key cleanup 已完成，历史方案归档：`.planning/archive-docs/docs/plans/authenticated-notice-source-attachment-key-reorganization.md`
 - authenticated notice source-truth bounded pilot：`runbooks/authenticated-notice-source-truth-replay-pilot-runbook.md`
 - 本地 Docker Postgres 开发生命周期：`runbooks/local-postgres-dev-recovery-runbook.md`
 - internal_notice preparation 质量验收：`reference/internal-notice-offline-preparation-quality-acceptance.md`
@@ -174,7 +174,6 @@ updated: 2026-04-10
 - `decisions/adr-0033-internal-notice-pdf-cloud-ocr-default.md`
 - `decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
 - `decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
-- `plans/authenticated-notice-source-attachment-key-reorganization.md`
 - `plans/authenticated-notice-source-foundation.md`
 - `plans/internal-notice-policy-regulation-consumption-implementation.md`
 - `plans/campus-place-finding-foundation.md`
