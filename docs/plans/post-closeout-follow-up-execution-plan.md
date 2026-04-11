@@ -1,8 +1,8 @@
 ---
 doc_type: plan
-status: active
+status: deferred
 created: 2026-04-06
-updated: 2026-04-11
+updated: 2026-04-12
 ---
 
 # Post-Closeout Follow-Up Execution Plan
@@ -12,6 +12,8 @@ updated: 2026-04-11
 **Architecture:** 当前 merged truth 继续以 `docs/architecture/current-architecture.md`、`docs/decisions/adr-0028-campus-navigation-basemap-and-provider-strategy.md`、`docs/decisions/adr-0030-institution-scoped-product-path-and-explicit-open-domain-admission.md` 为准；本文只负责当前 worktree 的后续执行顺序、依赖和交付边界。
 
 **Current Scope:** `official-web` / Phase 10 由其他 worktree 处理，不进入本计划。
+
+**Lifecycle:** 截至 2026-04-12，Wave A/B/D/E 的主体 closeout 已完成，当前 repo 默认 active execution lane 已切到 Phase 15 `grounded-generation`。本文转为 `deferred` reference，只保留尚未重开的外部 blocker 与后置 follow-up。
 
 ---
 

@@ -1,8 +1,8 @@
 ---
 doc_type: runbook
-status: active
+status: historical
 created: 2026-04-04
-updated: 2026-04-04
+updated: 2026-04-12
 ---
 
 # Authenticated Notice Historical Backfill Closeout Runbook
@@ -17,6 +17,12 @@ updated: 2026-04-04
 - `docs/runbooks/authenticated-notice-async-staged-closeout-runbook.md` 的 canonical async staged closeout
 - live collector runbook
 - control-plane/operator runbook
+
+当前补充说明：
+
+- 这份 runbook 已不再对应一个待执行的默认 closeout lane
+- repo 当前真实 closeout truth 以 `authenticated-notice-replay-20260406-024405` 和后续 local-Postgres current-scope 链路为准
+- 如无明确历史对照需求，不应再默认重跑这条 legacy cumulative-prefix runner
 
 ## 适用前提
 

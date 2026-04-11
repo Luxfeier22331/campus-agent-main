@@ -21,7 +21,7 @@ updated: 2026-04-04
 - 长期边界：`docs/architecture/authenticated-notice-source-architecture.md`
 - source-truth contract：`docs/architecture/authenticated-notice-source-truth-contract.md`
 - release-managed rebuild / alias publish：`docs/runbooks/index-release-runbook.md`
-- 当前实施 handoff：`docs/plans/authenticated-notice-source-foundation.md`
+- 当前项目执行真相：`.planning/PROJECT.md`
 
 ## 当前 smoke 形态
 
@@ -205,4 +205,4 @@ smoke 输出 JSON summary，至少要求以下 checks 都为 `passed`：
 ## 后续动作
 
 - smoke 通过后，如果目标是继续做 preview rebuild / chunk / index，下一步转到 `docs/runbooks/index-release-runbook.md`
-- 如果目标是 collector 迁入 repo，下一步转到 `docs/plans/authenticated-notice-source-foundation.md` 的 Wave 4
+- 如果目标是重开 collector repo migration 或 authenticated control plane，先在 `.planning/PROJECT.md` / `.planning/STATE.md` 里显式创建新的执行面，再以 `docs/architecture/authenticated-notice-source-architecture.md` 作为边界约束

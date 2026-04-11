@@ -1,8 +1,8 @@
 ---
 doc_type: reference
-status: active
+status: historical
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-04-12
 ---
 
 # Official Web MUC Public Host Survey
@@ -13,8 +13,8 @@ updated: 2026-03-28
 
 当本文与以下文档冲突时：
 
-- 长期 source-channel 边界以 `docs/architecture/official-web-source-channel.md` 为准
-- crawl policy 以 `docs/architecture/official-web-crawl-policy.md` 为准
+- 长期 source-channel 边界以 `docs/architecture/official-web-architecture.md` 为准
+- crawl policy 以 `docs/policies/official-web-crawl-policy.md` 为准
 - source-truth contract 以 `docs/architecture/official-web-source-truth-contract.md` 为准
 
 ## 调查时间

@@ -22,8 +22,8 @@ updated: 2026-04-02
 
 它不重复：
 
-- source channel 边界：`docs/architecture/official-web-source-channel.md`
-- crawl policy：`docs/architecture/official-web-crawl-policy.md`
+- source channel 边界：`docs/architecture/official-web-architecture.md`
+- crawl policy：`docs/policies/official-web-crawl-policy.md`
 - freshness / 增量采集：`docs/architecture/official-web-freshness-and-incremental-crawling.md`
 - source-truth contract：`docs/architecture/official-web-source-truth-contract.md`
 - control-plane / app-api 契约：`docs/contracts/app-api-official-web-http.md`

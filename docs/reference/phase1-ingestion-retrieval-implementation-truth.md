@@ -1,8 +1,8 @@
 ---
 doc_type: reference
-status: active
+status: historical
 created: 2026-03-27
-updated: 2026-03-29
+updated: 2026-04-12
 ---
 
 # Phase-1 Ingestion / Retrieval 实现真相快照

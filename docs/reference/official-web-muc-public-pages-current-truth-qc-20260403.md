@@ -1,8 +1,8 @@
 ---
 doc_type: reference
-status: active
+status: historical
 created: 2026-04-03
-updated: 2026-04-05
+updated: 2026-04-12
 ---
 
 # Official Web MUC Public Pages Current Truth QC (2026-04-03)

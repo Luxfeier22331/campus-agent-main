@@ -1,8 +1,8 @@
 ---
 doc_type: plan
-status: active
+status: completed
 created: 2026-04-05
-updated: 2026-04-11
+updated: 2026-04-12
 ---
 
 # Campus Place Finding Foundation
@@ -72,6 +72,12 @@ updated: 2026-04-11
 - entrance selection
 - accessibility routing
 - “离我最近”这类强依赖当前位置或距离排序的问句
+
+因此本文当前状态固定为 `completed`：
+
+- 首发 foundation 所要求的 code truth 已完成
+- 后续工作不再是这份 foundation plan 的继续执行
+- 下一步应转向 seed 扩面、真实 staging smoke / 人工验收，以及明确后置的路线规划 phase
 
 ## 已冻结默认值
 

@@ -1,8 +1,8 @@
 ---
 doc_type: reference
-status: active
+status: historical
 created: 2026-04-02
-updated: 2026-04-02
+updated: 2026-04-12
 ---
 
 # official_web muc_public_pages Release Evidence (2026-04-02)

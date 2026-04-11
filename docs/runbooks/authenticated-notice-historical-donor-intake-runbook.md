@@ -1,8 +1,8 @@
 ---
 doc_type: runbook
-status: active
+status: historical
 created: 2026-04-09
-updated: 2026-04-11
+updated: 2026-04-12
 ---
 
 # Authenticated Notice Historical Donor Intake Runbook

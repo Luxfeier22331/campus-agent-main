@@ -1,11 +1,21 @@
 ---
 doc_type: plan
-status: active
+status: deferred
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-04-12
 ---
 
 # Versioned History Query Foundation
+
+## 当前状态
+
+本文状态固定为 `deferred`。
+
+原因：
+
+- 显式 `current / historical / as_of / compare` 仍然属于 target architecture
+- 但当前 repo 没有 active execution wave 在推进这条能力
+- 当前真相应优先看 `docs/architecture/retrieval-serving-architecture.md` 与 `docs/decisions/adr-0014-versioned-document-serving-and-history-query.md`
 
 ## 目标
 

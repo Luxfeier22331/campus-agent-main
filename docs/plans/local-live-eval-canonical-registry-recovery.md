@@ -1,11 +1,21 @@
 ---
 doc_type: plan
-status: active
+status: historical
 created: 2026-04-03
-updated: 2026-04-10
+updated: 2026-04-12
 ---
 
 # Local Live Eval Canonical Registry Recovery
+
+## 当前状态
+
+本文状态固定为 `historical`。
+
+原因：
+
+- 它记录的是一次 repo-local canonical registry recovery / closeout 过程
+- 当前 live eval 的可消费真相应优先看 runbooks、reference 与 `.planning/` 中的最新状态
+- 本文保留 incident diagnosis、修复路径与 closeout 证据，不再作为默认前向执行入口
 
 ## 文档边界
 
