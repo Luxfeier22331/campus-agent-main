@@ -118,6 +118,7 @@ execution path 的最终 prompt stack 也固定为：
 补充约束：
 
 - `apps/supervisor-api` 与后续 product runtime 只负责装配与执行，不拥有新的 monolithic mega system prompt
+- 当前 repo-default runtime assembly seam 已收口到 `apps/supervisor-api/src/campus_supervisor_api/prompt_stack.py`；它必须把 trusted developer/task layers 与 untrusted user/evidence layers 分开表达
 - `packages/retrieval-core` 继续只提供 evidence serialization helper，不拥有 top-level prompt truth
 - `system prompt` 这个词在 repo 里只保留为沟通简称；真正运行时应以 developer prompt + typed packets 表达
 

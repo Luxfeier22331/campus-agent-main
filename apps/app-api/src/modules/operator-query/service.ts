@@ -1,5 +1,8 @@
 import { AppApiRouteError } from "../../http";
-import type { RequestDiagnosticsSummary } from "../request-diagnostics";
+import type {
+  RequestClaimSupportSummary,
+  RequestDiagnosticsSummary,
+} from "../request-diagnostics";
 import type { ResolvedAppPrincipal } from "../auth";
 import type { RequestExecutionStatus } from "../runtime-command";
 
@@ -145,9 +148,19 @@ export interface OperatorRequestObservabilityRecord {
     aclDecision: string | null;
     aclAnomalyCode: string | null;
     failClosed: boolean | null;
+    retrievalAdequacyVerdict: string | null;
+    retrievalAdequacyReason: string | null;
+    claimSupportSummary: RequestClaimSupportSummary | null;
     model: {
       provider: string | null;
       name: string | null;
+    };
+    prompt: {
+      id: string | null;
+      version: string | null;
+      templateSha256: string | null;
+      runtimeState: string | null;
+      runtimeDetail: string | null;
     };
     inputTokens: number | null;
     outputTokens: number | null;

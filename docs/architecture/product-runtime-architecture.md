@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-03
+updated: 2026-04-12
 ---
 
 # Product Runtime Architecture
@@ -32,6 +32,21 @@ updated: 2026-04-03
 - `apps/app-api` 是 shared product/control-plane backend
 - `apps/supervisor-api` 是 internal execution engine
 - panel 不读数据库、不读 telemetry sink、不绕过 `app-api`
+
+## Current Accepted Surface Posture
+
+当前 merged truth 下，产品/runtime 形态已经明确到以下粒度：
+
+- `public-chat-web`
+  - 已是公开产品入口，不再以旧 `public-consumer-chat` 为 forward truth
+- `protected-panel-web`
+  - 当前只承接 app-owned operator domains；`Requests` 与 `Official Web` 已是 accepted shape
+  - `Jobs`、`Operations`、更完整 `Audit` 仍属于后续 rollout，不应被写成当前 merged truth
+- `apps/app-api`
+  - 已同时承担 product backend 与 selected operator control-plane backend
+  - `official_web` control plane 已是 accepted runtime domain，不再是旁路后台
+
+部署命名、Cloudflare Access 配置与 staging 细节不写在本文，统一看 runbooks。
 
 ## Surface Responsibilities
 

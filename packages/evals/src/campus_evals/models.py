@@ -87,6 +87,10 @@ class GoldenCase:
     expected_semantic_outcome: str = ""
     expected_scope_class: str = ""
     expected_policy_reason: str = ""
+    expected_retrieval_adequacy_verdict: str = ""
+    expected_retrieval_adequacy_reason: str = ""
+    expected_grounding_verdict: str = ""
+    expected_unsupported_fields: tuple[str, ...] = field(default_factory=tuple)
     generator_name: str = ""
     generator_version: str = ""
     generation_recipe: str = ""
@@ -113,6 +117,8 @@ class GoldenCase:
         ]
         if invalid_metric_keys:
             raise ValueError("supplemental_metric_overrides must map non-empty metric names to bool values")
+        if any(not str(field_name).strip() for field_name in self.expected_unsupported_fields):
+            raise ValueError("expected_unsupported_fields must not contain empty items")
 
 
 @dataclass(frozen=True, slots=True)

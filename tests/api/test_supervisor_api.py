@@ -1092,6 +1092,8 @@ class SupervisorApiTest(unittest.TestCase):
             settings=ApiSettings(
                 app_name="campus-agent-v2",
                 runtime_provider="mock-runtime",
+                agno_supervisor_model="gpt-supervisor",
+                agno_specialist_model="gpt-specialist",
             )
         )
 
@@ -1103,6 +1105,41 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(app.name, "campus-agent-v2")
         self.assertEqual(app.runtime.provider, "mock-runtime")
         self.assertEqual(ready.json_body["runtime_provider"], "mock-runtime")
+        self.assertEqual(ready.json_body["prompt_runtime"]["provider"], "mock-runtime")
+        self.assertEqual(
+            ready.json_body["prompt_runtime"]["developer_invariants_id"],
+            "repo_global_developer_invariants_v1",
+        )
+        self.assertEqual(
+            ready.json_body["prompt_runtime"]["developer_invariants_version"],
+            "v1",
+        )
+        self.assertTrue(ready.json_body["prompt_runtime"]["strict_structured_outputs"])
+        self.assertEqual(ready.json_body["prompt_runtime"]["transport"], "responses")
+        self.assertEqual(ready.json_body["prompt_runtime"]["supervisor_model"], "gpt-supervisor")
+        self.assertEqual(ready.json_body["prompt_runtime"]["specialist_model"], "gpt-specialist")
+        self.assertFalse(ready.json_body["prompt_runtime"]["admitted"])
+        self.assertEqual(
+            ready.json_body["prompt_runtime"]["admission_reason"],
+            "api_key_not_configured",
+        )
+
+    def test_ready_route_reports_prompt_runtime_admission_when_provider_binding_is_complete(self) -> None:
+        app = create_app(
+            settings=ApiSettings(
+                runtime_provider="openai-responses",
+                agno_supervisor_model="gpt-supervisor",
+                agno_specialist_model="gpt-specialist",
+                prompt_runtime_provider="openai-responses",
+                prompt_runtime_api_key="test-key",
+                prompt_runtime_base_url="https://api.openai.com/v1",
+            )
+        )
+
+        ready = app.handle("GET", "/readyz")
+
+        self.assertTrue(ready.json_body["prompt_runtime"]["admitted"])
+        self.assertEqual(ready.json_body["prompt_runtime"]["admission_reason"], "")
 
     def test_api_settings_from_env_reads_api_boundary_defaults(self) -> None:
         env = {
@@ -1115,6 +1152,8 @@ class SupervisorApiTest(unittest.TestCase):
             "API_DEFAULT_ACTOR_ROLES": "student",
             "AGNO_SUPERVISOR_MODEL": "gpt-supervisor",
             "AGNO_SPECIALIST_MODEL": "gpt-specialist",
+            "PROMPT_RUNTIME_PROVIDER": "openai-responses",
+            "PROMPT_STRICT_STRUCTURED_OUTPUTS": "false",
             "AUDIT_LOG_PATH": "./var/log/custom-audit.log",
         }
 
@@ -1130,6 +1169,8 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(settings.default_actor_roles, ("student",))
         self.assertEqual(settings.agno_supervisor_model, "gpt-supervisor")
         self.assertEqual(settings.agno_specialist_model, "gpt-specialist")
+        self.assertEqual(settings.prompt_runtime_provider, "openai-responses")
+        self.assertFalse(settings.prompt_strict_structured_outputs)
         self.assertEqual(str(settings.audit_log_path), "var/log/custom-audit.log")
 
     def test_answer_route_rejects_missing_bearer_actor_identity_configuration(self) -> None:

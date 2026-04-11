@@ -625,6 +625,13 @@ export function createPgOperatorQueryStore(
             name: fact?.modelName ?? null,
             provider: fact?.modelProvider ?? null,
           },
+          prompt: {
+            id: fact?.promptId ?? null,
+            runtimeDetail: fact?.promptRuntimeDetail ?? null,
+            runtimeState: fact?.promptRuntimeState ?? null,
+            templateSha256: fact?.templateSha256 ?? null,
+            version: fact?.promptVersion ?? null,
+          },
           outputTokens: fact?.outputTokens ?? null,
           projectionLagMs: fact?.projectionLagMs ?? null,
           refusalClass: fact?.refusalClass ?? null,

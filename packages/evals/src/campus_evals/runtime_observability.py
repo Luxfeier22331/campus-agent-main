@@ -126,13 +126,18 @@ def summarize_provider_events(path: str | Path, *, session_id: str | None = None
                 "preflight_success_count": 0,
                 "http_5xx_count": 0,
                 "timeout_count": 0,
+                "content_filter_count": 0,
                 "circuit_open_count": 0,
                 "failure_disposition_counts": {},
+                "prompt_runtime_state_counts": {},
+                "prompt_runtime_detail_counts": {},
             },
         )
         event_type = str(record.get("event_type") or "")
         failure_reasons = [str(item) for item in record.get("failure_reasons") or ()]
         failure_disposition = str(record.get("failure_disposition") or "")
+        prompt_runtime_state = str(record.get("prompt_runtime_state") or "")
+        prompt_runtime_detail = str(record.get("prompt_runtime_detail") or "")
         if event_type in {"supplemental_request_succeeded", "supplemental_request_failed"}:
             bucket["request_count"] = int(bucket["request_count"]) + 1
             if bool(record.get("preflight")):
@@ -147,10 +152,20 @@ def summarize_provider_events(path: str | Path, *, session_id: str | None = None
                 bucket["http_5xx_count"] = int(bucket["http_5xx_count"]) + 1
             if "timeout" in failure_reasons:
                 bucket["timeout_count"] = int(bucket["timeout_count"]) + 1
+            if "content_filter" in failure_reasons or prompt_runtime_state == "content_filter":
+                bucket["content_filter_count"] = int(bucket["content_filter_count"]) + 1
             if failure_disposition:
                 counts = dict(bucket["failure_disposition_counts"])
                 counts[failure_disposition] = int(counts.get(failure_disposition, 0)) + 1
                 bucket["failure_disposition_counts"] = counts
+            if prompt_runtime_state:
+                counts = dict(bucket["prompt_runtime_state_counts"])
+                counts[prompt_runtime_state] = int(counts.get(prompt_runtime_state, 0)) + 1
+                bucket["prompt_runtime_state_counts"] = counts
+            if prompt_runtime_detail:
+                counts = dict(bucket["prompt_runtime_detail_counts"])
+                counts[prompt_runtime_detail] = int(counts.get(prompt_runtime_detail, 0)) + 1
+                bucket["prompt_runtime_detail_counts"] = counts
         if event_type in {"supplemental_breaker_opened", "supplemental_breaker_fast_failed"}:
             bucket["circuit_open_count"] = int(bucket["circuit_open_count"]) + 1
 
@@ -163,6 +178,65 @@ def summarize_provider_events(path: str | Path, *, session_id: str | None = None
         "session_id": session_id,
         "provider_count": len(providers),
         "providers": providers,
+    }
+
+
+def summarize_phase15_request_truth(
+    records: list[dict[str, object]] | tuple[dict[str, object], ...],
+) -> dict[str, object]:
+    retrieval_adequacy_verdict_counts: dict[str, int] = {}
+    retrieval_adequacy_reason_counts: dict[str, int] = {}
+    grounding_verdict_counts: dict[str, int] = {}
+    unsupported_claim_type_counts: dict[str, int] = {}
+    unsupported_field_counts: dict[str, int] = {}
+
+    for record in records:
+        retrieval_adequacy_verdict = str(record.get("retrieval_adequacy_verdict") or "").strip()
+        if retrieval_adequacy_verdict:
+            retrieval_adequacy_verdict_counts[retrieval_adequacy_verdict] = (
+                retrieval_adequacy_verdict_counts.get(retrieval_adequacy_verdict, 0) + 1
+            )
+
+        retrieval_adequacy_reason = str(record.get("retrieval_adequacy_reason") or "").strip()
+        if retrieval_adequacy_reason:
+            retrieval_adequacy_reason_counts[retrieval_adequacy_reason] = (
+                retrieval_adequacy_reason_counts.get(retrieval_adequacy_reason, 0) + 1
+            )
+
+        grounding_verdict = str(record.get("grounding_verdict") or "").strip()
+        if grounding_verdict:
+            grounding_verdict_counts[grounding_verdict] = (
+                grounding_verdict_counts.get(grounding_verdict, 0) + 1
+            )
+
+        claim_support_summary = record.get("claim_support_summary")
+        if not isinstance(claim_support_summary, dict):
+            continue
+
+        for claim_type in claim_support_summary.get("unsupported_claim_types") or ():
+            normalized_claim_type = str(claim_type or "").strip()
+            if not normalized_claim_type:
+                continue
+            unsupported_claim_type_counts[normalized_claim_type] = (
+                unsupported_claim_type_counts.get(normalized_claim_type, 0) + 1
+            )
+
+        for field_name in claim_support_summary.get("unsupported_fields") or ():
+            normalized_field_name = str(field_name or "").strip()
+            if not normalized_field_name:
+                continue
+            unsupported_field_counts[normalized_field_name] = (
+                unsupported_field_counts.get(normalized_field_name, 0) + 1
+            )
+
+    return {
+        "schema_version": 1,
+        "request_count": len(records),
+        "retrieval_adequacy_verdict_counts": dict(sorted(retrieval_adequacy_verdict_counts.items())),
+        "retrieval_adequacy_reason_counts": dict(sorted(retrieval_adequacy_reason_counts.items())),
+        "grounding_verdict_counts": dict(sorted(grounding_verdict_counts.items())),
+        "unsupported_claim_type_counts": dict(sorted(unsupported_claim_type_counts.items())),
+        "unsupported_field_counts": dict(sorted(unsupported_field_counts.items())),
     }
 
 

@@ -9,7 +9,10 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
-import type { RequestDiagnosticsSummary } from "../../modules/request-diagnostics";
+import type {
+  RequestClaimSupportSummary,
+  RequestDiagnosticsSummary,
+} from "../../modules/request-diagnostics";
 
 const runtime = pgSchema("runtime");
 
@@ -127,10 +130,18 @@ export const requestObservabilityFact = runtime.table(
     failClosed: boolean("fail_closed"),
     modelProvider: text("model_provider"),
     modelName: text("model_name"),
+    promptId: text("prompt_id"),
+    promptVersion: text("prompt_version"),
+    templateSha256: text("template_sha256"),
+    promptRuntimeState: text("prompt_runtime_state"),
+    promptRuntimeDetail: text("prompt_runtime_detail"),
     inputTokens: integer("input_tokens"),
     outputTokens: integer("output_tokens"),
     cachedInputTokens: integer("cached_input_tokens"),
     estimatedCostMicrousd: integer("estimated_cost_microusd"),
+    retrievalAdequacyVerdict: text("retrieval_adequacy_verdict"),
+    retrievalAdequacyReason: text("retrieval_adequacy_reason"),
+    claimSupportSummaryJson: jsonb("claim_support_summary_json").$type<RequestClaimSupportSummary | null>(),
     traceAvailable: boolean("trace_available").notNull().default(false),
     projectionLagMs: integer("projection_lag_ms"),
     measuredAt: timestamp("measured_at", { withTimezone: true }).notNull(),

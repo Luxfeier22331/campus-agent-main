@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-03
+updated: 2026-04-12
 ---
 
 # Operator Observability Architecture
@@ -119,6 +119,17 @@ updated: 2026-04-03
 - `request-scoped observability fact` 属于 app-owned runtime fact family，不等于 panel list/detail read model
 
 这些 family 都必须由 `app-api` 或其继任 shared app boundary 拥有；panel 不得通过 raw sink、数据库直连或 runtime-internal package import 拼装它们。
+
+## Current Accepted Baseline
+
+当前 merged truth 已经接受以下 observability baseline：
+
+- panel `Requests` 继续只读 `app-api` projection / observability APIs
+- `Sentry` 与 `Axiom` 只作为 sink、deep link 与分析面参与，不成为 panel canonical truth
+- request-scoped observability fact 已经是 app-owned runtime fact family，而不是 sink query 的别名
+- prompt identity 与 typed runtime branch 现已进入 observability-safe summary seam，但 raw prompt 仍禁止出现在 panel/read-model
+
+当前尚未全部落成 merged truth 的，是更完整的 `Quality`、`Safety/Authz`、`Cost`、`Audit` operator product surface；这属于 rollout 进度问题，不是 ownership 未定。
 
 ## Monitoring Taxonomy
 
@@ -357,11 +368,11 @@ redaction、sampling、字段裁剪与 sink fan-out 优先放在这条 seam，�
 - `docs/contracts/app-api-http.md`
 - `docs/contracts/app-api-operator-observability-http.md`
 - `docs/data/app-api-schema.md`
+- `docs/domains/operator-observability.md`
 - `docs/decisions/adr-0010-observability-and-telemetry-stack.md`
 - `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - `docs/decisions/adr-0023-operator-observability-control-plane-and-sink-participation.md`
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
-- `docs/plans/operator-observability-control-plane-foundation.md`
 
 ## 外部参考
 

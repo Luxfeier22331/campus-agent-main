@@ -8,6 +8,7 @@ from string import Formatter
 import httpx
 
 from campus_contracts import (
+    ClaimSupport,
     ErrorInfo,
     EvidenceBundle,
     EvidenceSource,
@@ -530,6 +531,18 @@ def _parse_supervisor_observability(value: object) -> SupervisorObservability | 
             else record.get("resolved_scope_collection")
         )
         or "",
+        prompt_runtime_state=_optional_string(
+            record.get("promptRuntimeState")
+            if "promptRuntimeState" in record
+            else record.get("prompt_runtime_state")
+        )
+        or "",
+        prompt_runtime_detail=_optional_string(
+            record.get("promptRuntimeDetail")
+            if "promptRuntimeDetail" in record
+            else record.get("prompt_runtime_detail")
+        )
+        or "",
         prompt_trace=_parse_prompt_trace(
             record.get("promptTrace") if "promptTrace" in record else record.get("prompt_trace")
         ),
@@ -580,6 +593,18 @@ def _parse_rag_result_diagnostics(value: object) -> RagResultDiagnostics | None:
         or "",
         semantic_outcome=_optional_string(
             record.get("semantic_outcome") if "semantic_outcome" in record else record.get("semanticOutcome")
+        )
+        or "",
+        retrieval_adequacy_verdict=_optional_string(
+            record.get("retrieval_adequacy_verdict")
+            if "retrieval_adequacy_verdict" in record
+            else record.get("retrievalAdequacyVerdict")
+        )
+        or "",
+        retrieval_adequacy_reason=_optional_string(
+            record.get("retrieval_adequacy_reason")
+            if "retrieval_adequacy_reason" in record
+            else record.get("retrievalAdequacyReason")
         )
         or "",
         grounding_verdict=_optional_string(
@@ -690,6 +715,19 @@ def _parse_rag_result_diagnostics(value: object) -> RagResultDiagnostics | None:
             else record.get("sessionSemester")
         )
         or "",
+        claim_supports=tuple(
+            _parse_claim_support(
+                item,
+                field=f"supervisor.result.diagnostics.claim_supports[{index}]",
+            )
+            for index, item in enumerate(
+                _optional_list(
+                    record.get("claim_supports")
+                    if "claim_supports" in record
+                    else record.get("claimSupports")
+                )
+            )
+        ),
         unsupported_fields=_string_tuple(
             record.get("unsupported_fields")
             if "unsupported_fields" in record
@@ -699,6 +737,18 @@ def _parse_rag_result_diagnostics(value: object) -> RagResultDiagnostics | None:
             record.get("partial_answer") if "partial_answer" in record else record.get("partialAnswer")
         )
         or False,
+        prompt_runtime_state=_optional_string(
+            record.get("prompt_runtime_state")
+            if "prompt_runtime_state" in record
+            else record.get("promptRuntimeState")
+        )
+        or "",
+        prompt_runtime_detail=_optional_string(
+            record.get("prompt_runtime_detail")
+            if "prompt_runtime_detail" in record
+            else record.get("promptRuntimeDetail")
+        )
+        or "",
         prompt_trace=_parse_prompt_trace(
             record.get("prompt_trace") if "prompt_trace" in record else record.get("promptTrace")
         ),
@@ -737,6 +787,35 @@ def _parse_prompt_trace(value: object) -> PromptTrace | None:
         )
         or "",
         model_name=_optional_string(record.get("model_name") if "model_name" in record else record.get("modelName"))
+        or "",
+    )
+
+
+def _parse_claim_support(value: object, *, field: str) -> ClaimSupport:
+    record = _optional_record(value)
+    if record is None:
+        raise ValueError(f"{field} must be an object")
+    return ClaimSupport(
+        claim_type=_required_string(
+            record.get("claim_type") if "claim_type" in record else record.get("claimType"),
+            f"{field}.claim_type",
+        ),
+        claim_text=_required_string(
+            record.get("claim_text") if "claim_text" in record else record.get("claimText"),
+            f"{field}.claim_text",
+        ),
+        supported=bool(record.get("supported")),
+        support_source_doc_id=_optional_string(
+            record.get("support_source_doc_id")
+            if "support_source_doc_id" in record
+            else record.get("supportSourceDocId")
+        )
+        or "",
+        support_snippet=_optional_string(
+            record.get("support_snippet")
+            if "support_snippet" in record
+            else record.get("supportSnippet")
+        )
         or "",
     )
 

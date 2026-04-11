@@ -6,6 +6,8 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
   "campus-contracts",
+  "httpx>=0.28.1",
+  "pydantic>=2.0",
 ]
 
 [tool.uv]

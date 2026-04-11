@@ -67,12 +67,24 @@ describe("request observability", () => {
       completedAt: "2026-04-05T08:00:01.000Z",
       conversationId: "conv_01HQ",
       diagnostics: {
+        claimSupportSummary: {
+          supportedClaims: 0,
+          totalClaims: 2,
+          unsupportedClaimTypes: [
+            "material_requirement",
+            "time_or_deadline",
+          ],
+          unsupportedClaims: 2,
+          unsupportedFields: ["requirement_claims", "time_claims"],
+        },
         clarificationReason: null,
         freshnessFailClosed: null,
         groundingDowngraded: null,
         groundingVerdict: null,
         noAnswerReason: "resolved_policy_clause_not_found",
         policyReason: null,
+        retrievalAdequacyReason: "resolved_policy_clause_not_found",
+        retrievalAdequacyVerdict: "insufficient",
         resolvedEntityType: null,
         resolvedPolicyDocumentId: "handbook:scholarship",
         resolvedPolicyTitle: "中央民族大学本科学生国家奖学金评审办法",
@@ -84,6 +96,7 @@ describe("request observability", () => {
         sessionProgram: null,
         sessionProgramFamily: null,
         sessionSemester: null,
+        unsupportedFields: ["requirement_claims", "time_claims"],
       },
       durationMs: 1200,
       errorCode: null,
@@ -107,7 +120,16 @@ describe("request observability", () => {
     });
 
     expect(fact).toMatchObject({
+      claimSupportSummary: {
+        supportedClaims: 0,
+        totalClaims: 2,
+        unsupportedClaimTypes: ["material_requirement", "time_or_deadline"],
+        unsupportedClaims: 2,
+        unsupportedFields: ["requirement_claims", "time_claims"],
+      },
       policyReason: null,
+      retrievalAdequacyReason: "resolved_policy_clause_not_found",
+      retrievalAdequacyVerdict: "insufficient",
       refusalClass: "no_answer",
       scopeClass: "in_scope",
       semanticOutcome: "unsupported_by_evidence",
@@ -163,17 +185,93 @@ describe("request observability", () => {
     });
   });
 
+  it("projects prompt metadata and prompt runtime state from supervisor observability", () => {
+    const fact = buildFinalizedRequestObservabilityFact({
+      completedAt: "2026-04-12T08:00:01.000Z",
+      conversationId: "conv_01HQ",
+      diagnostics: null,
+      durationMs: 420,
+      errorCode: "prompt_runtime_failed",
+      principal: createPrincipal(),
+      requestId: "req_01HQ",
+      requestedCapability: "knowledge",
+      requestedScope: {
+        collection: "curriculum_plan",
+        corpus: "curriculum",
+      },
+      resolvedScope: {
+        collection: "curriculum_plan",
+        corpus: "curriculum",
+      },
+      response: createResponse({
+        observability: {
+          aclAnomalyCode: null,
+          aclDecision: "allowed",
+          cachedInputTokens: null,
+          candidateCount: 0,
+          citationCount: 0,
+          citationExpected: false,
+          citationMissing: false,
+          estimatedCostMicrousd: 1200,
+          failClosed: true,
+          inputTokens: 128,
+          modelName: "gpt-5.2-mini",
+          modelProvider: "openai-responses",
+          outputTokens: 0,
+          policyReason: null,
+          promptRuntimeDetail: "content_filter",
+          promptRuntimeState: "content_filter",
+          promptTrace: {
+            modelName: "gpt-5.2-mini",
+            modelProvider: "openai-responses",
+            outputSchemaVersion: "v1",
+            promptId: "rag_answer_v1",
+            promptVersion: "v1",
+            templateSha256:
+              "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            variablesSchemaVersion: "v1",
+          },
+          refusalClass: "no_answer",
+          retrievedSourceCount: 0,
+          retrievalAttempted: true,
+          scopeClass: "in_scope",
+          semanticOutcome: "unsupported_by_evidence",
+        },
+      }),
+      sourceDocIds: [],
+      startedAt: "2026-04-12T08:00:00.000Z",
+      status: "no_answer",
+      surface: "public_chat_web",
+      traceId: "trace_01HQ",
+    });
+
+    expect(fact).toMatchObject({
+      modelName: "gpt-5.2-mini",
+      modelProvider: "openai-responses",
+      promptId: "rag_answer_v1",
+      promptRuntimeDetail: "content_filter",
+      promptRuntimeState: "content_filter",
+      promptVersion: "v1",
+      semanticOutcome: "unsupported_by_evidence",
+      templateSha256:
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    });
+  });
+
   it("derives out-of-scope supervisor stop semantics from diagnostics when observability is absent", () => {
     const fact = buildFinalizedRequestObservabilityFact({
       completedAt: "2026-04-11T09:00:01.000Z",
       conversationId: "conv_01HQ",
       diagnostics: {
+        claimSupportSummary: null,
         clarificationReason: null,
         freshnessFailClosed: null,
         groundingDowngraded: null,
         groundingVerdict: null,
         noAnswerReason: "out_of_scope",
         policyReason: "product_scope_boundary",
+        retrievalAdequacyReason: null,
+        retrievalAdequacyVerdict: null,
         resolvedEntityType: null,
         resolvedPolicyDocumentId: null,
         resolvedPolicyTitle: null,
@@ -185,6 +283,7 @@ describe("request observability", () => {
         sessionProgram: null,
         sessionProgramFamily: null,
         sessionSemester: null,
+        unsupportedFields: [],
       },
       durationMs: 200,
       errorCode: null,
@@ -218,12 +317,24 @@ describe("request observability", () => {
       completedAt: "2026-04-11T09:00:01.000Z",
       conversationId: "conv_01HQ",
       diagnostics: {
+        claimSupportSummary: {
+          supportedClaims: 0,
+          totalClaims: 2,
+          unsupportedClaimTypes: [
+            "audience_or_major_or_program_or_class_family",
+            "offering_unit_or_owning_school",
+          ],
+          unsupportedClaims: 2,
+          unsupportedFields: ["audience_claims", "offering_unit_claims"],
+        },
         clarificationReason: null,
         freshnessFailClosed: null,
         groundingDowngraded: true,
         groundingVerdict: "unsupported",
         noAnswerReason: null,
         policyReason: null,
+        retrievalAdequacyReason: "sufficient",
+        retrievalAdequacyVerdict: "sufficient",
         resolvedEntityType: null,
         resolvedPolicyDocumentId: null,
         resolvedPolicyTitle: null,
@@ -235,6 +346,7 @@ describe("request observability", () => {
         sessionProgram: null,
         sessionProgramFamily: null,
         sessionSemester: null,
+        unsupportedFields: ["audience_claims", "offering_unit_claims"],
       },
       durationMs: 300,
       errorCode: null,
@@ -258,7 +370,19 @@ describe("request observability", () => {
     });
 
     expect(fact).toMatchObject({
+      claimSupportSummary: {
+        supportedClaims: 0,
+        totalClaims: 2,
+        unsupportedClaimTypes: [
+          "audience_or_major_or_program_or_class_family",
+          "offering_unit_or_owning_school",
+        ],
+        unsupportedClaims: 2,
+        unsupportedFields: ["audience_claims", "offering_unit_claims"],
+      },
       failClosed: true,
+      retrievalAdequacyReason: "sufficient",
+      retrievalAdequacyVerdict: "sufficient",
       refusalClass: "no_answer",
       scopeClass: "in_scope",
       semanticOutcome: "unsupported_by_evidence",

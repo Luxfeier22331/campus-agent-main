@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-04-11
+updated: 2026-04-12
 ---
 
 # App API Supervisor Execution Contract
@@ -151,7 +151,18 @@ JSON 命名保持 `snake_case`，原因如下：
     "resolved_scope_collection": "student_handbook",
     "refusal_class": "",
     "acl_decision": "allowed",
-    "fail_closed": false
+    "fail_closed": false,
+    "prompt_runtime_state": "",
+    "prompt_runtime_detail": "",
+    "prompt_trace": {
+      "prompt_id": "rag_answer_v1",
+      "prompt_version": "v1",
+      "template_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "variables_schema_version": "v1",
+      "output_schema_version": "v1",
+      "model_provider": "openai-responses",
+      "model_name": "gpt-5.2-mini"
+    }
   },
   "trace_id": "trace_01HQ..."
 }
@@ -190,6 +201,8 @@ JSON 命名保持 `snake_case`，原因如下：
 - 当前 `app-api` 会把已完成的 `navigation-specialist` `place_card` 归一化成 assistant `structuredParts` 并落到 `chat.messages.structured_parts_json`，而不是把上游 `snake_case` payload 原样暴露给 browser
 - `observability` 是 execution-side typed summary seam，用于 `runtime.request_observability_fact` 的 seed / finalize；字段继续保持 Python-side `snake_case`
 - 当 execution side 解析了最终 serving surface 时，`observability.resolved_scope_*` 必须显式回传给 `app-api`
+- `observability.prompt_trace` 只返回 observability-safe prompt identity，不返回 raw prompt text
+- `observability.prompt_runtime_state` / `observability.prompt_runtime_detail` 用于区分 `provider_refusal`、`provider_incomplete`、`content_filter` 等 fail-close branch
 - `observability` 不返回 raw prompt、raw answer、raw transcript、raw retrieval payload 或 raw auth material
 - token / model / cost 字段如果出现，必须来自 execution-side typed telemetry seam，而不是 panel-side 或 sink-side 反推
 

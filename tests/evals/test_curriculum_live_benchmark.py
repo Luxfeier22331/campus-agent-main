@@ -6,7 +6,14 @@ from unittest.mock import patch
 
 import httpx
 
-from campus_contracts import ActorContext, EvidenceBundle, EvidenceSource, KnowledgeScope, RagResultPayload
+from campus_contracts import (
+    ActorContext,
+    ClaimSupport,
+    EvidenceBundle,
+    EvidenceSource,
+    KnowledgeScope,
+    RagResultPayload,
+)
 from campus_evals import ExecutionResult, GoldenCase, TraceExpectation, build_default_ragas_metric_names
 from campus_evals.curriculum_live_benchmark import (
     AppApiEvalClientSettings,
@@ -636,6 +643,19 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
                                 "resolved_scope_collection": "curriculum_plan",
                                 "no_answer_reason": "",
                                 "semantic_outcome": "unsupported_by_evidence",
+                                "retrieval_adequacy_verdict": "sufficient",
+                                "retrieval_adequacy_reason": "sufficient",
+                                "grounding_verdict": "unsupported",
+                                "claim_supports": [
+                                    {
+                                        "claim_type": "offering_unit_or_owning_school",
+                                        "claim_text": "马克思主义学院",
+                                        "supported": False,
+                                        "support_source_doc_id": "",
+                                        "support_snippet": "",
+                                    }
+                                ],
+                                "unsupported_fields": ["offering_unit_claims"],
                                 "resolution_mode": "",
                                 "retrieved_title_summary": [],
                             },
@@ -654,6 +674,17 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
                             "policyReason": "",
                             "resolvedScopeCorpus": "curriculum",
                             "resolvedScopeCollection": "curriculum_plan",
+                            "promptRuntimeState": "content_filter",
+                            "promptRuntimeDetail": "content_filter",
+                            "promptTrace": {
+                                "promptId": "rag_unsupported_v1",
+                                "promptVersion": "v1",
+                                "templateSha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                                "variablesSchemaVersion": "v1",
+                                "outputSchemaVersion": "v1",
+                                "modelProvider": "openai-responses",
+                                "modelName": "gpt-5.2-mini",
+                            },
                         },
                         "error": None,
                     },
@@ -701,6 +732,22 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
         self.assertIsNotNone(result.response.result)
         self.assertIsNotNone(result.response.result.diagnostics)
         self.assertEqual(result.response.result.diagnostics.semantic_outcome, "unsupported_by_evidence")
+        self.assertEqual(result.response.result.diagnostics.retrieval_adequacy_verdict, "sufficient")
+        self.assertEqual(result.response.result.diagnostics.retrieval_adequacy_reason, "sufficient")
+        self.assertEqual(result.response.result.diagnostics.grounding_verdict, "unsupported")
+        self.assertEqual(result.response.result.diagnostics.unsupported_fields, ("offering_unit_claims",))
+        self.assertEqual(
+            result.response.result.diagnostics.claim_supports,
+            (
+                ClaimSupport(
+                    claim_type="offering_unit_or_owning_school",
+                    claim_text="马克思主义学院",
+                    supported=False,
+                    support_source_doc_id="",
+                    support_snippet="",
+                ),
+            ),
+        )
         self.assertEqual(result.response.result.diagnostics.resolved_scope_collection, "curriculum_plan")
         self.assertIsNotNone(result.response.observability)
         self.assertEqual(result.response.observability.semantic_outcome, "unsupported_by_evidence")
@@ -708,6 +755,10 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
         self.assertEqual(result.response.observability.resolved_scope_corpus, "curriculum")
         self.assertEqual(result.response.observability.resolved_scope_collection, "curriculum_plan")
         self.assertTrue(result.response.observability.fail_closed)
+        self.assertEqual(result.response.observability.prompt_runtime_state, "content_filter")
+        self.assertEqual(result.response.observability.prompt_runtime_detail, "content_filter")
+        self.assertIsNotNone(result.response.observability.prompt_trace)
+        self.assertEqual(result.response.observability.prompt_trace.prompt_id, "rag_unsupported_v1")
 
     def test_build_legacy_curriculum_live_executor_injects_retrieval_backend_failure_case(self) -> None:
         executor = build_legacy_curriculum_live_executor(

@@ -9,6 +9,7 @@ from campus_contracts import (
     AuthorizationProjection,
     AvailabilityCheckPayload,
     AvailabilityObservation,
+    ClaimSupport,
     ContextProjection,
     CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
     CURRICULUM_PROGRAM_SLOT_NAME,
@@ -249,6 +250,15 @@ class ContractModelsTest(unittest.TestCase):
             resolved_course_title="习近平新时代中国特色社会主义思想概论",
             resolved_course_family_id="course_family:muc.ideological_political_theory",
             resolved_course_family_title="思想政治理论课",
+            claim_supports=(
+                ClaimSupport(
+                    claim_type="offering_unit_or_owning_school",
+                    claim_text="马克思主义学院",
+                    supported=False,
+                    support_source_doc_id="",
+                    support_snippet="",
+                ),
+            ),
             unsupported_fields=("offering_unit",),
             partial_answer=True,
         )
@@ -264,6 +274,8 @@ class ContractModelsTest(unittest.TestCase):
                 "clarification_reason": "",
                 "no_answer_reason": "",
                 "semantic_outcome": "",
+                "retrieval_adequacy_verdict": "",
+                "retrieval_adequacy_reason": "",
                 "grounding_verdict": "",
                 "grounding_downgraded": False,
                 "freshness_fail_closed": False,
@@ -284,8 +296,19 @@ class ContractModelsTest(unittest.TestCase):
                 "session_program_family": "",
                 "session_program": "",
                 "session_semester": "",
+                "claim_supports": (
+                    {
+                        "claim_type": "offering_unit_or_owning_school",
+                        "claim_text": "马克思主义学院",
+                        "supported": False,
+                        "support_source_doc_id": "",
+                        "support_snippet": "",
+                    },
+                ),
                 "unsupported_fields": ("offering_unit",),
                 "partial_answer": True,
+                "prompt_runtime_state": "",
+                "prompt_runtime_detail": "",
                 "prompt_trace": None,
             },
         )
@@ -298,12 +321,17 @@ class ContractModelsTest(unittest.TestCase):
         self.assertIn("session_program_family", field_names)
         self.assertIn("session_program", field_names)
         self.assertIn("session_semester", field_names)
+        self.assertIn("claim_supports", field_names)
         self.assertIn("candidate_title_summary", field_names)
         self.assertIn("used_verified_identity", field_names)
         self.assertIn("used_soft_preference", field_names)
+        self.assertIn("retrieval_adequacy_verdict", field_names)
+        self.assertIn("retrieval_adequacy_reason", field_names)
         self.assertIn("grounding_verdict", field_names)
         self.assertIn("grounding_downgraded", field_names)
         self.assertIn("freshness_fail_closed", field_names)
+        self.assertIn("prompt_runtime_state", field_names)
+        self.assertIn("prompt_runtime_detail", field_names)
     def test_specialist_request_requires_explicit_payload(self) -> None:
         request = SpecialistRequest(
             target="rag-specialist",

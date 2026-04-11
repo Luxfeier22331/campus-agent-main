@@ -60,6 +60,8 @@ def _supervisor_prompt_trace(prompt_id: str) -> PromptTrace:
         template_sha256=spec.template_sha256,
         variables_schema_version=spec.variables_schema_version,
         output_schema_version=spec.output_schema_version,
+        model_provider="openai-responses",
+        model_name="gpt-5.2",
     )
 
 

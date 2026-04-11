@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-04-03
-updated: 2026-04-03
+updated: 2026-04-12
 ---
 
 # App API Operator Observability HTTP Contract
@@ -18,7 +18,8 @@ updated: 2026-04-03
 - product/control-plane ownership：`docs/architecture/product-runtime-architecture.md`
 - operator observability supporting architecture：`docs/architecture/operator-observability-architecture.md`
 - ownership / sink participation 决策：`docs/decisions/adr-0023-operator-observability-control-plane-and-sink-participation.md`
-- 当前实施 handoff：`docs/plans/operator-observability-control-plane-foundation.md`
+- 相关 follow-up plan：`docs/plans/operator-observability-control-plane-foundation.md`
+- 当前项目级 active lane：`.planning/PROJECT.md`
 - 当前 merged-truth schema：`docs/data/app-api-schema.md`
 
 这份文档不冻结：
@@ -308,11 +309,16 @@ list endpoints 额外支持：
       "provider": "openai",
       "name": "gpt-5.2-mini"
     },
-    "tokenUsage": {
-      "inputTokens": 812,
-      "outputTokens": 229,
-      "cachedInputTokens": 0
+    "prompt": {
+      "id": "rag_answer_v1",
+      "version": "v1",
+      "templateSha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "runtimeState": null,
+      "runtimeDetail": null
     },
+    "inputTokens": 812,
+    "outputTokens": 229,
+    "cachedInputTokens": 0,
     "estimatedCost": {
       "microusd": 3810,
       "currency": "USD"
@@ -340,6 +346,7 @@ list endpoints 额外支持：
 - `requestedScope` 反映 accept 时上游是否显式约束 scope，可为 `null`
 - `resolvedScope` 反映 execution side 最终命中的 serving surface，是 panel 侧 quality / collection 归因的真相源
 - `retrievalAttempted`、`citationExpected`、`aclDecision` 必须来自 typed execution seam 或 app-owned runtime fact family
+- `observability.prompt.*` 只暴露 prompt identity 与 typed runtime branch，不返回 raw prompt
 - token / model 字段必须来自 execution-side typed telemetry seam，不从 sink query 反推
 - `links.*` 必须来自 app-owned backlink projection，而不是 route-time sink query
 

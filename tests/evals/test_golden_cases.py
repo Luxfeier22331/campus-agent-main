@@ -9,6 +9,7 @@ from campus_contracts import (
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
+    RagResultDiagnostics,
     RagResultPayload,
     SpecialistResponse,
     SupervisorObservability,
@@ -77,6 +78,7 @@ def _response(
     corpus: str = "regulations",
     collection: str = "student_handbook",
     sources: tuple[EvidenceSource, ...] = (),
+    diagnostics: RagResultDiagnostics | None = None,
 ) -> SpecialistResponse:
     return SpecialistResponse(
         target="rag-specialist",
@@ -89,7 +91,8 @@ def _response(
                 corpus=corpus,
                 collection=collection,
                 sources=sources,
-            )
+            ),
+            diagnostics=diagnostics,
         ),
     )
 
@@ -711,6 +714,138 @@ class RunCasesTest(unittest.TestCase):
                 expected_handoff="rag-specialist",
             ),
         )
+        self.assertIn(
+            "citation_required_answer",
+            cases_by_id["policy-risk-release-gate-campus-political-course-audience"].tags,
+        )
+        self.assertEqual(
+            cases_by_id["policy-risk-release-gate-campus-political-course-audience"].expected_retrieval_adequacy_verdict,
+            "sufficient",
+        )
+        self.assertEqual(
+            cases_by_id["policy-risk-release-gate-campus-political-course-audience"].expected_grounding_verdict,
+            "grounded",
+        )
+
+        handbook_release_cases = {case.case_id: case for case in handbook_release_gate_cases()}
+        clarification_case = handbook_release_cases["release-gate-needs-clarification"]
+        self.assertIn("clarification_instead_of_guess", clarification_case.tags)
+        self.assertEqual(clarification_case.expected_retrieval_adequacy_verdict, "ambiguous")
+        self.assertEqual(clarification_case.expected_retrieval_adequacy_reason, "policy_object_missing")
+
+    def test_run_cases_grades_phase15_retrieval_adequacy_and_grounding_truth(self) -> None:
+        clarification_case = GoldenCase(
+            case_id="case-clarification-instead-of-guess",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="奖学金怎么申请？",
+            actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
+            expected_status="needs_clarification",
+            expected_retrieval_adequacy_verdict="ambiguous",
+            expected_retrieval_adequacy_reason="policy_object_missing",
+            trace_expectation=TraceExpectation(
+                selected_scope=HANDBOOK_SCOPE,
+                retrieval_called=False,
+                clarification_expected=True,
+                error_expected=False,
+            ),
+            tags=("clarification_instead_of_guess",),
+        )
+        citation_required_case = GoldenCase(
+            case_id="case-citation-required-answer",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="思想政治理论课有哪些要求",
+            actor=ActorContext(),
+            scope=CURRICULUM_SCOPE,
+            expected_status="no_answer",
+            expected_semantic_outcome="unsupported_by_evidence",
+            expected_scope_class="in_scope",
+            expected_retrieval_adequacy_verdict="sufficient",
+            expected_retrieval_adequacy_reason="sufficient",
+            expected_grounding_verdict="unsupported",
+            expected_unsupported_fields=(
+                "offering_unit_claims",
+                "audience_claims",
+            ),
+            trace_expectation=TraceExpectation(
+                selected_scope=CURRICULUM_SCOPE,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+                fail_closed_expected=True,
+            ),
+            tags=("citation_required_answer",),
+        )
+
+        def executor(case: GoldenCase) -> ExecutionResult:
+            if case.case_id == "case-clarification-instead-of-guess":
+                return ExecutionResult(
+                    response=SpecialistResponse(
+                        target="rag-specialist",
+                        status="needs_clarification",
+                        answer_text="你想问的是哪一类奖学金评审办法？",
+                        follow_up_question="你想问的是哪一类奖学金评审办法？",
+                        confidence="low",
+                        result=RagResultPayload(
+                            evidence=EvidenceBundle(
+                                query_text=case.user_goal,
+                                corpus="regulations",
+                                collection="student_handbook",
+                                sources=(),
+                            ),
+                            diagnostics=RagResultDiagnostics(
+                                clarification_reason="policy_object_missing",
+                                retrieval_adequacy_verdict="ambiguous",
+                                retrieval_adequacy_reason="policy_object_missing",
+                            ),
+                        ),
+                    ),
+                    observed_trace=ObservedTrace(
+                        selected_scope=HANDBOOK_SCOPE,
+                        retrieval_called=False,
+                        clarification_emitted=True,
+                        error_path=False,
+                    ),
+                )
+            return ExecutionResult(
+                response=SpecialistResponse(
+                    target="rag-specialist",
+                    status="no_answer",
+                    answer_text="当前检索结果不足以支持开课单位和适用专业，请以原文为准。",
+                    confidence="low",
+                    result=RagResultPayload(
+                        evidence=EvidenceBundle(
+                            query_text=case.user_goal,
+                            corpus="curriculum",
+                            collection="curriculum_plan",
+                            sources=(),
+                        ),
+                        diagnostics=RagResultDiagnostics(
+                            semantic_outcome="unsupported_by_evidence",
+                            scope_class="in_scope",
+                            retrieval_adequacy_verdict="sufficient",
+                            retrieval_adequacy_reason="sufficient",
+                            grounding_verdict="unsupported",
+                            grounding_downgraded=True,
+                            unsupported_fields=("offering_unit_claims", "audience_claims"),
+                        ),
+                    ),
+                ),
+                observed_trace=ObservedTrace(
+                    selected_scope=CURRICULUM_SCOPE,
+                    retrieval_called=True,
+                    clarification_emitted=False,
+                    error_path=False,
+                ),
+            )
+
+        report = run_cases((clarification_case, citation_required_case), executor=executor)
+
+        self.assertTrue(report.results[0].metric_results["retrieval_adequacy_accuracy"].passed)
+        self.assertTrue(report.results[1].metric_results["retrieval_adequacy_accuracy"].passed)
+        self.assertTrue(report.results[1].metric_results["grounding_claim_accuracy"].passed)
 
     def test_policy_risk_and_grounding_release_gate_cases_grade_supervisor_stop_and_specialist_paths(
         self,
@@ -730,6 +865,12 @@ class RunCasesTest(unittest.TestCase):
                                 collection="course_facts",
                                 snippet="思想政治理论课为全校性公共必修课，所有本预科学生应认真完成上述7门课程设置的各教学环节。",
                             ),
+                        ),
+                        diagnostics=RagResultDiagnostics(
+                            semantic_outcome="grounded_answer",
+                            retrieval_adequacy_verdict="sufficient",
+                            retrieval_adequacy_reason="sufficient",
+                            grounding_verdict="grounded",
                         ),
                     ),
                     observed_trace=ObservedTrace(

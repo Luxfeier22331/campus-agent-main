@@ -1,8 +1,8 @@
 ---
 doc_type: plan
-status: active
+status: completed
 created: 2026-04-06
-updated: 2026-04-11
+updated: 2026-04-12
 ---
 
 # Prompt Grounding And Hallucination Hardening Plan
@@ -17,6 +17,11 @@ updated: 2026-04-11
 - `supervisor_clarify_v1`、`supervisor_approval_required_v1`、`supervisor_reject_v1`、`supervisor_out_of_scope_v1`
 - `rag_answer_v1`、`rag_clarify_v1`、`rag_no_answer_v1`、`rag_unsupported_v1`
 - prompt packet / typed output / prompt trace strict validation seam
+- `apps/supervisor-api` product-path provider-backed strict structured-output executor
+- product-path `PromptTrace` metadata capture：`prompt_id` / `prompt_version` / `template_sha256` / `model_provider` / `model_name`
+- provider `refusal` / `incomplete` / request failure 的 fail-close runtime path
+- `apps/app-api` / operator / eval runtime 已收口 repo-default prompt metadata sink
+- `provider_refusal` / `provider_incomplete` / `content_filter` 已收口成 observability-safe typed product state
 - prompt-generated completed answer 的 claim-level grounding validator 与 `unsupported_by_evidence` downgrade
 - `out_of_scope`、`policy_refusal`、`restricted_access_denied`、`unsupported_by_evidence`、`freshness_fail_close` 的 failure-class eval coverage
 - `semantic_outcome`、`grounding_verdict`、`grounding_downgraded`、`freshness_fail_closed` 的 diagnostics / projection substrate
@@ -24,10 +29,18 @@ updated: 2026-04-11
 
 **Residual Gap:** 当前剩余 gap 已收敛为：
 
-- repo-default product-path prompt stack 还没有把 `repo-global invariants -> package-owned role prompt -> typed task/evidence packet -> strict output contract` 作为默认运行时真相落地
-- provider-backed strict structured output runtime 还不是默认 product-path capability
-- repo-default prompt metadata sink 还没有把 `prompt_version` / `template_sha256` / `model` 端到端落进产品主链路
-- grounding validator 仍是最小可用强度，尚未覆盖更广的 claim 类型与 provider-agnostic grounded-generation runtime
+- grounding validator 仍是首版覆盖范围，尚未覆盖更广的 claim 类型与 provider-agnostic grounded-generation runtime
+- prompt-family live gate artifact 仍受 supplemental eval provider `/responses` regression 阻塞
+
+**Execution Vehicle (2026-04-12):** 后续实现现已提升为独立 Phase 15；repo-level 目标设计见 `docs/plans/hallucination-governance-and-grounded-generation-execution-plan.md`，当前 phase context 见 `.planning/phases/15-grounded-generation/15-CONTEXT.md`。
+
+**External Alignment Snapshot (2026-04-12):** 当前 repo 的 prompt runtime 形态继续对齐 OpenAI 官方建议的四条主线：Responses API 作为新的文本主链路、developer/instructions 持有应用规则、strict structured outputs 作为跨节点 contract、prompt rollout 绑定持续 eval。
+
+## 当前生命周期状态
+
+- 本文对应的 prompt stack 与 grounding baseline 已在 Phase 14 及 Phase 15 前两波完成收口，不再作为默认 active execution 入口
+- 当前 repo 的默认 active lane 已切到 `docs/plans/hallucination-governance-and-grounded-generation-execution-plan.md`
+- 如需判断当前 pending work，以 `.planning/PROJECT.md`、`.planning/STATE.md` 与 `.planning/phases/15-grounded-generation/` 为准，而不是继续把本文视为未完成计划
 
 ## Desired End State
 
@@ -52,7 +65,7 @@ updated: 2026-04-11
 
 ## Workstream 0: Final Prompt Stack Freeze
 
-状态：`not_started`
+状态：`closed_in_phase_14`
 
 目标：
 
@@ -75,9 +88,17 @@ updated: 2026-04-11
 - 让 `apps/supervisor-api` / product runtime 在接入 provider-backed executor 时统一消费同一套 prompt stack，而不是各自拼 prompt
 - 不把 routing / authz / serving truth 倒灌回 prompt 文案
 
+当前执行入口：
+
+- `.planning/phases/14-prompt-stack-system-prompt-runtime/14-CONTEXT.md`
+- `.planning/phases/14-prompt-stack-system-prompt-runtime/14-RESEARCH.md`
+- `.planning/phases/14-prompt-stack-system-prompt-runtime/14-01-PLAN.md`
+- `.planning/phases/14-prompt-stack-system-prompt-runtime/14-02-PLAN.md`
+- `.planning/phases/14-prompt-stack-system-prompt-runtime/14-03-PLAN.md`
+
 ## Workstream 1: Strict Structured Output Runtime
 
-状态：`partial`
+状态：`landed_product_path_baseline`
 
 目标：
 
@@ -97,6 +118,7 @@ updated: 2026-04-11
 - provider 输出必须经过 strict schema validation
 - schema mismatch 不得 silently coerce 成“看起来能用”的自由文本
 - 失败时应显式落成 `error` 或降级到 deterministic fallback，而不是放行脏结果
+- 当前产品路径已补齐 provider-backed strict executor、validated `PromptTrace` metadata，以及 provider `refusal` / `incomplete` / request error 的 fail-close
 
 ## Workstream 2: Claim-Level Grounding Validator
 
@@ -163,7 +185,7 @@ updated: 2026-04-11
 
 ## Workstream 4: Observability And Prompt Metadata
 
-状态：`partial`
+状态：`landed_baseline`
 
 目标：
 
@@ -194,12 +216,27 @@ updated: 2026-04-11
 - `grounding_downgraded`
 - `freshness_fail_closed`
 - `prompt_trace` diagnostics seam
+- `prompt_id` / `prompt_version` / `template_sha256` / `model_provider` / `model_name`
+- `prompt_runtime_state` / `prompt_runtime_detail`
+- `apps/app-api` runtime fact、operator observability detail 与 eval runtime parser 的 repo-default sink
 
 当前主要剩余项：
 
-- `prompt_version`
-- `template_sha256`
-- `model`
+- 更强的 provider-agnostic grounded-generation runtime
+- 更广的 claim taxonomy 与 live gate artifact retention
+
+已记录的后续任务：
+
+1. 将当前 grounding validator 从首版启发式校验升级为 provider-agnostic runtime，使 answer-to-evidence verdict 不依赖单一 provider 返回形态。
+2. 把 claim taxonomy 从当前的 `title / time / requirement` 扩展到校园高频断言类型，至少覆盖：
+   - `quantity / credit / score requirement`
+   - `semester / grade / term placement`
+   - `audience / major / program / class-family applicability`
+   - `offering unit / owning school`
+   - `procedure step / material / deadline / eligibility`
+   - `freshness-sensitive status`
+3. 为扩展后的 claim taxonomy 增加独立 regression/eval coverage，避免只校验整段回答而漏掉关键 claim。
+4. 补齐 prompt-family regression artifact retention，使 prompt rollout 后的 groundedness / refusal / downgrade 结果可以留档比对。
 
 ## Workstream 5: Eval Lanes For Hallucination Classes
 
@@ -264,18 +301,15 @@ updated: 2026-04-11
 
 剩余工作建议顺序：
 
-1. 冻结并落地 repo-default product-path prompt stack
-2. 接受 product-owned provider-backed prompt runtime boundary
-3. 补齐 repo-default prompt metadata sink
-4. 强化 claim-level grounding validator
-5. 补齐剩余 prompt-family regression / quality evidence
+1. 强化 claim-level grounding validator
+2. 评估 provider-agnostic grounded-generation runtime
+3. 扩展 claim taxonomy 与对应回归集
+4. 补齐剩余 prompt-family regression / quality evidence
 
 原因：
 
-- product-path prompt stack 未冻结前，不应把“system prompt”继续当作模糊术语写进运行时或 operator 预期
-- provider runtime boundary 未冻结前，不应把 eval-side execution 偶然性倒灌进产品主路径
-- metadata sink 不补齐，后续 prompt release 无法形成稳定 operator truth
 - grounding validator 需要继续增强，但不应推翻已经落地的 deterministic protected paths
+- prompt metadata sink 与 typed runtime state 已经落地，后续重点不再是补字段，而是继续扩大 grounded generation 的可信覆盖面
 
 ## Verification
 
@@ -284,6 +318,7 @@ updated: 2026-04-11
 - prompt stack assembly / trusted-vs-untrusted zoning tests
 - provider-backed prompt runtime schema tests
 - grounding validator 扩展回归 tests
+- claim taxonomy 扩展后的 per-claim support / downgrade tests
 - prompt metadata sink contract tests
 - prompt-family regression evals with artifact retention
 
@@ -291,8 +326,6 @@ updated: 2026-04-11
 
 当前剩余交付物：
 
-- 一套 repo-default product-path prompt stack
-- 一套 repo-accepted product-owned prompt runtime boundary
-- 一组 repo-default prompt metadata sink 字段
 - 一套更强的 grounding validator / grounded-generation runtime
+- 一套扩展后的 claim taxonomy 与 per-claim verification rules
 - 一组扩展后的 prompt-family regression artifacts

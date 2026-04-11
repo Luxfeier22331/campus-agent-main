@@ -352,6 +352,11 @@ updated: 2026-04-11
 - `fail_closed` nullable
 - `model_provider` nullable
 - `model_name` nullable
+- `prompt_id` nullable
+- `prompt_version` nullable
+- `template_sha256` nullable
+- `prompt_runtime_state` nullable
+- `prompt_runtime_detail` nullable
 - `input_tokens` nullable
 - `output_tokens` nullable
 - `cached_input_tokens` nullable
@@ -379,6 +384,7 @@ updated: 2026-04-11
 - `finalized` 阶段的 `collection` 必须按 `resolved_scope_summary` 对应的最终 collection 回填，不能继续拿 `requested_scope_summary` 充当真实执行 collection
 - `projection materialization` 负责更新 `projection_lag_ms`、`measured_at` 与 projection health summary，不回写 `runtime.request_execution`
 - 这是 app-owned summary fact family，不保存 raw prompt、raw answer、raw transcript、raw retrieval payload、raw auth material
+- prompt 相关列只保存 observability-safe identity 与 typed runtime state，不保存 raw prompt 或 provider refusal 文本
 - token / model / cost 字段只能来自 execution-side typed telemetry seam，不从 panel 或 sink query 反推
 - panel 和 aggregate APIs 只能读 app-owned projection/fact family，不得直连 `Sentry` / `Axiom` 原始 sink
 

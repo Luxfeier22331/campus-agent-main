@@ -264,6 +264,21 @@ class RagRequestPayload:
 
 
 @dataclass(frozen=True, slots=True)
+class ClaimSupport:
+    claim_type: str
+    claim_text: str
+    supported: bool
+    support_source_doc_id: str = ""
+    support_snippet: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.claim_type.strip():
+            raise ValueError("claim_type must not be empty")
+        if not self.claim_text.strip():
+            raise ValueError("claim_text must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
 class RagResultDiagnostics:
     resolved_scope_corpus: AllowedCorpus | None = None
     resolved_scope_collection: str = ""
@@ -273,6 +288,8 @@ class RagResultDiagnostics:
     clarification_reason: str = ""
     no_answer_reason: str = ""
     semantic_outcome: str = ""
+    retrieval_adequacy_verdict: str = ""
+    retrieval_adequacy_reason: str = ""
     grounding_verdict: str = ""
     grounding_downgraded: bool = False
     freshness_fail_closed: bool = False
@@ -293,8 +310,11 @@ class RagResultDiagnostics:
     session_program_family: str = ""
     session_program: str = ""
     session_semester: str = ""
+    claim_supports: tuple[ClaimSupport, ...] = field(default_factory=tuple)
     unsupported_fields: tuple[str, ...] = field(default_factory=tuple)
     partial_answer: bool = False
+    prompt_runtime_state: str = ""
+    prompt_runtime_detail: str = ""
     prompt_trace: PromptTrace | None = None
 
 
@@ -426,6 +446,8 @@ class SupervisorObservability:
     estimated_cost_microusd: int | None = None
     resolved_scope_corpus: AllowedCorpus | None = None
     resolved_scope_collection: str = ""
+    prompt_runtime_state: str = ""
+    prompt_runtime_detail: str = ""
     prompt_trace: PromptTrace | None = None
 
 

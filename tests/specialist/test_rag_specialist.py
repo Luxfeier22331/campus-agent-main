@@ -6,6 +6,7 @@ from campus_contracts import (
     ActorContext,
     AuthorizedRetrievalFilter,
     AuthorizationProjection,
+    ClaimSupport,
     ContextProjection,
     CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
     CURRICULUM_PROGRAM_SLOT_NAME,
@@ -48,6 +49,7 @@ from campus_rag_specialist.query_planning import (
     plan_curriculum_program_family_query,
     plan_curriculum_query,
 )
+from campus_shared import PromptRuntimeValidationError
 from campus_ingestion_core.curriculum_program_semester_facts_projection import (
     build_curriculum_program_semester_fact_document_id,
 )
@@ -61,6 +63,8 @@ def _rag_prompt_trace(prompt_id: str) -> PromptTrace:
         template_sha256=spec.template_sha256,
         variables_schema_version=spec.variables_schema_version,
         output_schema_version=spec.output_schema_version,
+        model_provider="openai-responses",
+        model_name="gpt-5.2-mini",
     )
 
 
@@ -221,6 +225,21 @@ def _resolved_scope_diagnostics(
     collection: str,
     **kwargs: object,
 ) -> RagResultDiagnostics:
+    clarification_reason = kwargs.get("clarification_reason", "")
+    no_answer_reason = kwargs.get("no_answer_reason", "")
+    semantic_outcome = kwargs.get("semantic_outcome", "")
+    if "retrieval_adequacy_verdict" not in kwargs:
+        if isinstance(clarification_reason, str) and clarification_reason:
+            kwargs["retrieval_adequacy_verdict"] = "ambiguous"
+            kwargs["retrieval_adequacy_reason"] = clarification_reason
+        elif semantic_outcome in {"unsupported_by_evidence", "freshness_fail_close"}:
+            kwargs["retrieval_adequacy_verdict"] = "insufficient"
+            if no_answer_reason == "resolved_policy_clause_not_found":
+                kwargs["retrieval_adequacy_reason"] = "resolved_policy_clause_not_found"
+            elif no_answer_reason == "freshness_fail_close":
+                kwargs["retrieval_adequacy_reason"] = "freshness_fail_close"
+            else:
+                kwargs["retrieval_adequacy_reason"] = "no_supporting_sources"
     return RagResultDiagnostics(
         resolved_scope_corpus=corpus,
         resolved_scope_collection=collection,
@@ -580,8 +599,29 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.result.diagnostics.semantic_outcome, "unsupported_by_evidence")
         self.assertEqual(response.result.diagnostics.grounding_verdict, "unsupported")
         self.assertTrue(response.result.diagnostics.grounding_downgraded)
+        self.assertEqual(response.result.diagnostics.retrieval_adequacy_verdict, "sufficient")
         self.assertIn("requirement_claims", response.result.diagnostics.unsupported_fields)
         self.assertIn("time_claims", response.result.diagnostics.unsupported_fields)
+        self.assertIn(
+            ClaimSupport(
+                claim_type="material_requirement",
+                claim_text="身份证原件",
+                supported=False,
+                support_source_doc_id="",
+                support_snippet="",
+            ),
+            response.result.diagnostics.claim_supports,
+        )
+        self.assertIn(
+            ClaimSupport(
+                claim_type="time_or_deadline",
+                claim_text="3个工作日",
+                supported=False,
+                support_source_doc_id="",
+                support_snippet="",
+            ),
+            response.result.diagnostics.claim_supports,
+        )
         self.assertEqual(response.result.diagnostics.prompt_trace.prompt_id, "rag_unsupported_v1")
 
     def test_prompt_answer_with_supported_claims_keeps_completed_status(self) -> None:
@@ -644,9 +684,12 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.confidence, "high")
         self.assertIsInstance(response.result, RagResultPayload)
         self.assertEqual(response.result.diagnostics.semantic_outcome, "grounded_answer")
+        self.assertEqual(response.result.diagnostics.retrieval_adequacy_verdict, "sufficient")
         self.assertEqual(response.result.diagnostics.grounding_verdict, "grounded")
         self.assertFalse(response.result.diagnostics.grounding_downgraded)
         self.assertEqual(response.result.diagnostics.unsupported_fields, ())
+        self.assertTrue(response.result.diagnostics.claim_supports)
+        self.assertTrue(all(claim.supported for claim in response.result.diagnostics.claim_supports))
         self.assertEqual(response.result.diagnostics.prompt_trace.prompt_id, "rag_answer_v1")
 
     def test_validate_prompt_answer_grounding_detects_unsupported_offering_unit_and_audience_claims(
@@ -681,13 +724,88 @@ class RagSpecialistTest(unittest.TestCase):
         )
 
         result = validate_prompt_answer_grounding(
-            answer_text="根据教学计划，这门课由马克思主义学院开设，法学专业和历史学专业要上。",
+            answer_text="根据教学计划，这门课由马克思主义学院开设，法学专业和历史学专业要上，安排在第四学期，共3学分。",
             evidence=evidence,
         )
 
         self.assertEqual(result.verdict, "unsupported")
         self.assertIn("offering_unit_claims", result.unsupported_fields)
         self.assertIn("audience_claims", result.unsupported_fields)
+        self.assertIn("semester_or_grade_or_term_placement_claims", result.unsupported_fields)
+        self.assertIn("quantity_or_credit_or_score_requirement_claims", result.unsupported_fields)
+        self.assertIn(
+            ClaimSupport(
+                claim_type="offering_unit_or_owning_school",
+                claim_text="马克思主义学院",
+                supported=False,
+                support_source_doc_id="",
+                support_snippet="",
+            ),
+            result.claim_supports,
+        )
+        self.assertIn(
+            ClaimSupport(
+                claim_type="audience_or_major_or_program_or_class_family",
+                claim_text="法学专业",
+                supported=False,
+                support_source_doc_id="",
+                support_snippet="",
+            ),
+            result.claim_supports,
+        )
+        self.assertIn(
+            ClaimSupport(
+                claim_type="semester_or_grade_or_term_placement",
+                claim_text="第四学期",
+                supported=False,
+                support_source_doc_id="",
+                support_snippet="",
+            ),
+            result.claim_supports,
+        )
+        self.assertIn(
+            ClaimSupport(
+                claim_type="quantity_or_credit_or_score_requirement",
+                claim_text="3学分",
+                supported=False,
+                support_source_doc_id="",
+                support_snippet="",
+            ),
+            result.claim_supports,
+        )
+
+    def test_validate_prompt_answer_grounding_accepts_provider_grounding_supports(self) -> None:
+        result = validate_prompt_answer_grounding(
+            answer_text="培养方案把这门课安排在第四学期。",
+            evidence=EvidenceBundle(
+                query_text="法学民族班培养方案里大二下有什么课",
+                corpus="curriculum",
+                collection="curriculum_plan",
+                sources=(),
+            ),
+            provider_grounding_supports={
+                "supports": [
+                    {
+                        "claimText": "第四学期",
+                        "docId": "curriculum:law-ethnic-experimental",
+                        "snippet": "第四学期开设习近平新时代中国特色社会主义思想概论。",
+                    }
+                ]
+            },
+        )
+
+        self.assertEqual(result.verdict, "grounded")
+        self.assertEqual(result.unsupported_fields, ())
+        self.assertIn(
+            ClaimSupport(
+                claim_type="semester_or_grade_or_term_placement",
+                claim_text="第四学期",
+                supported=True,
+                support_source_doc_id="curriculum:law-ethnic-experimental",
+                support_snippet="第四学期开设习近平新时代中国特色社会主义思想概论。",
+            ),
+            result.claim_supports,
+        )
 
     def test_prompt_answer_with_unsupported_offering_unit_and_audience_downgrades_to_no_answer(
         self,
@@ -714,7 +832,7 @@ class RagSpecialistTest(unittest.TestCase):
             def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
                 return RagPromptExecutionResult(
                     output=RagAnswerPromptOutput(
-                        answer_text="根据教学计划，这门课由马克思主义学院开设，法学专业和历史学专业要上。"
+                        answer_text="根据教学计划，这门课由马克思主义学院开设，法学专业和历史学专业要上，安排在第四学期，共3学分。"
                     ),
                     prompt_trace=_rag_prompt_trace("rag_answer_v1"),
                 )
@@ -749,6 +867,28 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertTrue(response.result.diagnostics.grounding_downgraded)
         self.assertIn("offering_unit_claims", response.result.diagnostics.unsupported_fields)
         self.assertIn("audience_claims", response.result.diagnostics.unsupported_fields)
+        self.assertIn("semester_or_grade_or_term_placement_claims", response.result.diagnostics.unsupported_fields)
+        self.assertIn("quantity_or_credit_or_score_requirement_claims", response.result.diagnostics.unsupported_fields)
+        self.assertIn(
+            ClaimSupport(
+                claim_type="semester_or_grade_or_term_placement",
+                claim_text="第四学期",
+                supported=False,
+                support_source_doc_id="",
+                support_snippet="",
+            ),
+            response.result.diagnostics.claim_supports,
+        )
+        self.assertIn(
+            ClaimSupport(
+                claim_type="quantity_or_credit_or_score_requirement",
+                claim_text="3学分",
+                supported=False,
+                support_source_doc_id="",
+                support_snippet="",
+            ),
+            response.result.diagnostics.claim_supports,
+        )
         self.assertEqual(response.result.diagnostics.prompt_trace.prompt_id, "rag_unsupported_v1")
 
     def test_invalid_answer_prompt_trace_falls_back_to_deterministic_answer(self) -> None:
@@ -812,6 +952,69 @@ class RagSpecialistTest(unittest.TestCase):
         if diagnostics is not None:
             self.assertEqual(diagnostics.semantic_outcome, "")
             self.assertEqual(diagnostics.grounding_verdict, "")
+            self.assertIsNone(diagnostics.prompt_trace)
+
+    def test_prompt_runtime_failure_projects_typed_runtime_state_while_falling_back(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="学生证补办要求是什么",
+            corpus="regulations",
+            collection="student_handbook",
+            sources=(
+                _make_handbook_source(
+                    doc_id="handbook:student-card",
+                    title="学生证管理办法",
+                    snippet="补办学生证需要先提交书面申请，再到学院审核。",
+                    score=0.93,
+                    chunk_id_suffix="student-card-runtime-0101",
+                    detail_label="补办流程",
+                    content_role="procedure",
+                    is_answer_bearing=True,
+                ),
+                _make_handbook_source(
+                    doc_id="handbook:student-card",
+                    title="学生证管理办法",
+                    snippet="如学生证遗失，应及时办理挂失。",
+                    score=0.88,
+                    chunk_id_suffix="student-card-runtime-0102",
+                    detail_label="挂失要求",
+                    content_role="procedure",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+        expected_answer = RagSpecialistAgent().compose_answer(evidence)
+
+        class FakePromptExecutor:
+            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                raise PromptRuntimeValidationError(
+                    prompt_id="rag_answer_v1",
+                    reason="provider_incomplete: content_filter",
+                )
+
+            def compose_no_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                raise AssertionError("no-answer prompt should not be used")
+
+            def compose_clarify(self, packet: object) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
+                raise AssertionError("clarify prompt should not be used")
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="学生证补办要求是什么",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(response.answer_text, expected_answer)
+        diagnostics = response.result.diagnostics
+        if diagnostics is not None:
+            self.assertEqual(diagnostics.prompt_runtime_state, "content_filter")
+            self.assertEqual(diagnostics.prompt_runtime_detail, "content_filter")
             self.assertIsNone(diagnostics.prompt_trace)
 
     def test_handbook_materials_answer_keeps_deterministic_copy_even_with_prompt_executor(self) -> None:
@@ -2048,7 +2251,18 @@ class RagSpecialistTest(unittest.TestCase):
 
         self.assertEqual(response.status, "needs_clarification")
         self.assertIn("民族实验班", response.follow_up_question)
-        self.assertEqual(response.result, RagResultPayload(evidence=evidence))
+        self.assertEqual(response.result.evidence, evidence)
+        self.assertIsNotNone(response.result.diagnostics)
+        self.assertEqual(response.result.diagnostics.retrieval_adequacy_verdict, "ambiguous")
+        self.assertEqual(response.result.diagnostics.retrieval_adequacy_reason, "multi_candidate_title")
+        self.assertEqual(
+            response.result.diagnostics.retrieved_title_summary,
+            (
+                "法学（民族实验班）本科人才培养方案",
+                "信息与计算科学（民族实验班）本科人才培养方案",
+                "计算机科学与技术（民族实验班）本科人才培养方案",
+            ),
+        )
 
     def test_curriculum_semester_course_query_normalizes_alias_and_avoids_cross_doc_contamination(self) -> None:
         evidence = EvidenceBundle(
@@ -2686,6 +2900,8 @@ class RagSpecialistTest(unittest.TestCase):
 
         self.assertEqual(response.status, "needs_clarification")
         self.assertEqual(response.result.diagnostics.clarification_reason, "curriculum_program_family_alias")
+        self.assertEqual(response.result.diagnostics.retrieval_adequacy_verdict, "ambiguous")
+        self.assertEqual(response.result.diagnostics.retrieval_adequacy_reason, "curriculum_program_family_alias")
         self.assertEqual(response.result.diagnostics.resolution_mode, "needs_clarification")
         self.assertFalse(response.result.diagnostics.used_verified_identity)
         self.assertTrue(response.result.diagnostics.used_soft_preference)
@@ -6103,6 +6319,8 @@ class RagSpecialistCurriculumSemesterSelectionTest(unittest.TestCase):
         self.assertEqual(response.result.evidence.sources, ())
         self.assertEqual(response.result.diagnostics.no_answer_reason, "resolved_policy_clause_not_found")
         self.assertEqual(response.result.diagnostics.semantic_outcome, "unsupported_by_evidence")
+        self.assertEqual(response.result.diagnostics.retrieval_adequacy_verdict, "insufficient")
+        self.assertEqual(response.result.diagnostics.retrieval_adequacy_reason, "resolved_policy_clause_not_found")
 
     def test_restricted_access_denied_for_anonymous_user_does_not_leak_resolved_policy_title(self) -> None:
         target_title = "中央民族大学本科学生国家奖学金评审办法"

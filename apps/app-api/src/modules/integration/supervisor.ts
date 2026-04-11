@@ -16,6 +16,16 @@ export interface RequestedScope {
   collection: string;
 }
 
+export interface SupervisorPromptTrace {
+  modelName: string | null;
+  modelProvider: string | null;
+  outputSchemaVersion: string | null;
+  promptId: string | null;
+  promptVersion: string | null;
+  templateSha256: string | null;
+  variablesSchemaVersion: string | null;
+}
+
 export interface SupervisorProfileMemoryItem {
   itemId: string;
   key: string;
@@ -76,6 +86,9 @@ export interface SupervisorExecutionObservability {
   modelProvider: string | null;
   outputTokens: number | null;
   policyReason?: string | null;
+  promptRuntimeDetail?: string | null;
+  promptRuntimeState?: string | null;
+  promptTrace?: SupervisorPromptTrace | null;
   resolvedScopeCollection?: string | null;
   resolvedScopeCorpus?: string | null;
   refusalClass: string | null;
@@ -299,6 +312,29 @@ function normalizeNullableString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
 }
 
+function parsePromptTrace(value: unknown): SupervisorPromptTrace | null {
+  const record = getRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const parsed: SupervisorPromptTrace = {
+    modelName: normalizeNullableString(record.model_name),
+    modelProvider: normalizeNullableString(record.model_provider),
+    outputSchemaVersion: normalizeNullableString(record.output_schema_version),
+    promptId: normalizeNullableString(record.prompt_id),
+    promptVersion: normalizeNullableString(record.prompt_version),
+    templateSha256: normalizeNullableString(record.template_sha256),
+    variablesSchemaVersion: normalizeNullableString(record.variables_schema_version),
+  };
+
+  if (Object.values(parsed).every((item) => item === null)) {
+    return null;
+  }
+
+  return parsed;
+}
+
 function parseExecutionObservability(
   value: unknown,
 ): SupervisorExecutionObservability | null {
@@ -324,6 +360,9 @@ function parseExecutionObservability(
     modelProvider: normalizeNullableString(record.model_provider),
     outputTokens: normalizeNullableNumber(record.output_tokens),
     policyReason: normalizeNullableString(record.policy_reason),
+    promptRuntimeDetail: normalizeNullableString(record.prompt_runtime_detail),
+    promptRuntimeState: normalizeNullableString(record.prompt_runtime_state),
+    promptTrace: parsePromptTrace(record.prompt_trace),
     refusalClass: normalizeNullableString(record.refusal_class),
     retrievedSourceCount: normalizeNullableNumber(record.retrieved_source_count),
     retrievalAttempted: normalizeNullableBoolean(record.retrieval_attempted),

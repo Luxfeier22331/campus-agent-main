@@ -88,10 +88,13 @@ def build_supervisor_observability_from_specialist_response(
         scope_class=_scope_class_from_specialist_response(response.target),
         acl_decision="denied" if denied else "allowed",
         fail_closed=True if denied or _is_freshness_fail_closed(diagnostics) else False,
+        prompt_runtime_state=diagnostics.prompt_runtime_state if diagnostics is not None else "",
+        prompt_runtime_detail=diagnostics.prompt_runtime_detail if diagnostics is not None else "",
         resolved_scope_corpus=diagnostics.resolved_scope_corpus if diagnostics is not None else None,
         resolved_scope_collection=(
             diagnostics.resolved_scope_collection if diagnostics is not None else ""
         ),
+        prompt_trace=diagnostics.prompt_trace if diagnostics is not None else None,
     )
 
 

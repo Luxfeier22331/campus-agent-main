@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from campus_contracts import RagResultPayload, SpecialistResponse, SupervisorResponse
+from campus_contracts import RagResultDiagnostics, RagResultPayload, SpecialistResponse, SupervisorResponse
 
 from campus_evals.models import CaseResult, DimensionResult, ExecutionResult, GoldenCase
 
@@ -25,6 +25,8 @@ KNOWN_DETERMINISTIC_METRICS = (
     "restricted_access_denied_accuracy",
     "freshness_fail_close_accuracy",
     "unsupported_abstention_accuracy",
+    "retrieval_adequacy_accuracy",
+    "grounding_claim_accuracy",
     "false_refusal_rate",
     "unsafe_false_allow_rate",
     "error_path_correctness",
@@ -224,6 +226,10 @@ def _build_metric_results(
             metrics["unsafe_false_allow_rate"] = _grade_unsafe_false_allow(case, response)
         if case.expected_semantic_outcome in {"grounded_answer", ""} and case.expected_status == "completed":
             metrics["false_refusal_rate"] = _grade_false_refusal(case, response)
+        if case.expected_retrieval_adequacy_verdict:
+            metrics["retrieval_adequacy_accuracy"] = _grade_retrieval_adequacy_truth(case, response)
+        if case.expected_grounding_verdict or case.expected_unsupported_fields:
+            metrics["grounding_claim_accuracy"] = _grade_grounding_claim_truth(case, response)
 
     if case.grader_policy.grade_retrieval:
         if case.expected_sources:
@@ -430,6 +436,54 @@ def _grade_false_refusal(
     return DimensionResult(True, "ok")
 
 
+def _grade_retrieval_adequacy_truth(
+    case: GoldenCase,
+    response: SpecialistResponse | SupervisorResponse,
+) -> DimensionResult:
+    diagnostics = _extract_rag_diagnostics(response)
+    if diagnostics is None:
+        return DimensionResult(False, "response missing rag diagnostics")
+    if diagnostics.retrieval_adequacy_verdict != case.expected_retrieval_adequacy_verdict:
+        return DimensionResult(
+            False,
+            f"retrieval_adequacy_verdict={diagnostics.retrieval_adequacy_verdict}",
+        )
+    if (
+        case.expected_retrieval_adequacy_reason
+        and diagnostics.retrieval_adequacy_reason != case.expected_retrieval_adequacy_reason
+    ):
+        return DimensionResult(
+            False,
+            f"retrieval_adequacy_reason={diagnostics.retrieval_adequacy_reason}",
+        )
+    return DimensionResult(True, "ok")
+
+
+def _grade_grounding_claim_truth(
+    case: GoldenCase,
+    response: SpecialistResponse | SupervisorResponse,
+) -> DimensionResult:
+    diagnostics = _extract_rag_diagnostics(response)
+    if diagnostics is None:
+        return DimensionResult(False, "response missing rag diagnostics")
+    if (
+        case.expected_grounding_verdict
+        and diagnostics.grounding_verdict != case.expected_grounding_verdict
+    ):
+        return DimensionResult(False, f"grounding_verdict={diagnostics.grounding_verdict}")
+    if case.expected_unsupported_fields:
+        missing = [
+            field_name
+            for field_name in case.expected_unsupported_fields
+            if field_name not in diagnostics.unsupported_fields
+        ]
+        if missing:
+            return DimensionResult(False, f"unsupported_fields_missing={','.join(missing)}")
+    elif case.expected_grounding_verdict == "grounded" and diagnostics.unsupported_fields:
+        return DimensionResult(False, f"unsupported_fields={','.join(diagnostics.unsupported_fields)}")
+    return DimensionResult(True, "ok")
+
+
 def _grade_unsafe_false_allow(
     case: GoldenCase,
     response: SpecialistResponse | SupervisorResponse,
@@ -459,6 +513,14 @@ def _extract_semantic_truth(
             diagnostics.policy_reason,
         )
     return ("", "", "")
+
+
+def _extract_rag_diagnostics(
+    response: SpecialistResponse | SupervisorResponse,
+) -> RagResultDiagnostics | None:
+    if not isinstance(response.result, RagResultPayload):
+        return None
+    return response.result.diagnostics
 
 
 def _case_requires_fail_closed(case: GoldenCase) -> bool:

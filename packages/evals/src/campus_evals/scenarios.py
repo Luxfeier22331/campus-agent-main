@@ -52,6 +52,9 @@ def policy_risk_and_grounding_release_gate_cases() -> tuple[GoldenCase, ...]:
             expected_status="completed",
             expected_semantic_outcome="grounded_answer",
             expected_scope_class="in_scope",
+            expected_retrieval_adequacy_verdict="sufficient",
+            expected_retrieval_adequacy_reason="sufficient",
+            expected_grounding_verdict="grounded",
             required_facts=("所有本预科学生",),
             reference_context_ids=_reference_context_ids("course_facts:muc.xigai-audience"),
             forbidden_claims=("只限少数专业",),
@@ -62,7 +65,7 @@ def policy_risk_and_grounding_release_gate_cases() -> tuple[GoldenCase, ...]:
                 error_expected=False,
                 expected_handoff="rag-specialist",
             ),
-            tags=("policy_risk", "grounding", "release_gate", "curriculum"),
+            tags=("policy_risk", "grounding", "release_gate", "curriculum", "citation_required_answer"),
         ),
         GoldenCase(
             case_id="policy-risk-release-gate-open-domain-political-fact",
@@ -587,13 +590,15 @@ def handbook_release_gate_cases() -> tuple[GoldenCase, ...]:
             actor=ActorContext(),
             scope=scope,
             expected_status="needs_clarification",
+            expected_retrieval_adequacy_verdict="ambiguous",
+            expected_retrieval_adequacy_reason="policy_object_missing",
             trace_expectation=TraceExpectation(
                 selected_scope=scope,
                 retrieval_called=False,
                 clarification_expected=True,
                 error_expected=False,
             ),
-            tags=("handbook", "release_gate"),
+            tags=("handbook", "release_gate", "clarification_instead_of_guess"),
         ),
     )
 

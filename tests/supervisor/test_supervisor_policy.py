@@ -18,6 +18,7 @@ from campus_supervisor_core.intent import IntentFrame
 from campus_supervisor_core.policy import finalize_routing_decision, finalize_specialist_response
 from campus_supervisor_core.prompts.registry import get_supervisor_prompt_spec
 from campus_supervisor_core.routing import RoutingDecision
+from campus_shared import PromptRuntimeValidationError
 
 
 def _supervisor_prompt_trace(prompt_id: str) -> PromptTrace:
@@ -28,6 +29,8 @@ def _supervisor_prompt_trace(prompt_id: str) -> PromptTrace:
         template_sha256=spec.template_sha256,
         variables_schema_version=spec.variables_schema_version,
         output_schema_version=spec.output_schema_version,
+        model_provider="openai-responses",
+        model_name="gpt-5.2",
     )
 
 
@@ -221,6 +224,47 @@ class SupervisorPolicyTest(unittest.TestCase):
             finalized.answer_text,
             "当前仅支持中央民族大学校园范围内且已开放能力面的问答，这个问题不在当前支持范围内。",
         )
+        self.assertIsNone(finalized.observability.prompt_trace)
+
+    def test_finalize_out_of_scope_projects_prompt_runtime_failure_state(self) -> None:
+        class FakePromptExecutor:
+            def compose_out_of_scope(self, packet: object):
+                raise PromptRuntimeValidationError(
+                    prompt_id="supervisor_out_of_scope_v1",
+                    reason="provider_incomplete: content_filter",
+                )
+
+        finalized = finalize_routing_decision(
+            SupervisorRequestContext.from_request(
+                SupervisorRequest(
+                    user_goal="MIT的校长是谁",
+                    requested_capability="knowledge",
+                )
+            ),
+            RoutingDecision(
+                target=None,
+                primary_corpus=None,
+                primary_collection=None,
+                intent_frame=IntentFrame(
+                    capability="knowledge",
+                    task_kind="knowledge_lookup",
+                    domain_candidates=("knowledge",),
+                    missing_slots=(),
+                    risk_level="low",
+                    needs_clarification=False,
+                    suggested_next_action="out_of_scope",
+                    personalization_mode="generic",
+                    scope_class="out_of_scope",
+                    policy_reason="product_scope_boundary",
+                ),
+            ),
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(finalized.status, "no_answer")
+        self.assertIsNotNone(finalized.observability)
+        self.assertEqual(finalized.observability.prompt_runtime_state, "content_filter")
+        self.assertEqual(finalized.observability.prompt_runtime_detail, "content_filter")
         self.assertIsNone(finalized.observability.prompt_trace)
 
     def test_finalize_rejected_with_invalid_prompt_output_falls_back_to_default_copy(self) -> None:
