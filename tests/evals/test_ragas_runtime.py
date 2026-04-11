@@ -27,6 +27,7 @@ from campus_evals.faithfulness_runtime import bind_faithfulness_artifact_context
 from campus_evals.ragas_adapter import build_default_ragas_metrics
 from campus_evals.settings import SupplementalHTTPSettings
 from campus_evals.supplemental_http import (
+    OpenAICompatibleChatCompletionsLLM,
     OpenAICompatibleResponsesLLM,
     SupplementalPreflightFailedError,
     _retry_delay_seconds,
@@ -193,6 +194,51 @@ class RagasSettingsTest(unittest.TestCase):
         self.assertEqual(settings.embedding_base_url, "https://eval-embed.example/v1")
         self.assertEqual(settings.embedding_api_key, "eval-embed-key")
         self.assertEqual(settings.embedding_model, "text-embedding-3-large")
+
+    def test_from_env_reads_eval_llm_transport_with_surface_override(self) -> None:
+        default_settings = RagasSettings.from_env(
+            {
+                "LLM_API_KEY": "llm-key",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+            }
+        )
+        shared_override = RagasSettings.from_env(
+            {
+                "LLM_API_KEY": "llm-key",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "EVAL_LLM_TRANSPORT": "chat_completions",
+            }
+        )
+        surface_override = RagasSettings.from_env(
+            {
+                "LLM_API_KEY": "llm-key",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "EVAL_LLM_TRANSPORT": "responses",
+                "EVAL_RAGAS_LLM_TRANSPORT": "chat_completions",
+            }
+        )
+
+        self.assertEqual(default_settings.llm_transport, "responses")
+        self.assertEqual(shared_override.llm_transport, "chat_completions")
+        self.assertEqual(surface_override.llm_transport, "chat_completions")
+
+    def test_from_env_rejects_unknown_eval_llm_transport(self) -> None:
+        with self.assertRaisesRegex(ValueError, "EVAL_LLM_TRANSPORT must be one of"):
+            RagasSettings.from_env(
+                {
+                    "LLM_API_KEY": "llm-key",
+                    "EVAL_RAGAS_MODEL": "gpt-5.4",
+                    "EMBEDDING_API_KEY": "embed-key",
+                    "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                    "EVAL_LLM_TRANSPORT": "legacy_sdk",
+                }
+            )
 
     def test_from_env_accepts_repo_tracked_http_settings_override(self) -> None:
         settings = RagasSettings.from_env(
@@ -967,6 +1013,107 @@ class RagasHttpTransportTest(unittest.TestCase):
         self.assertIn("provider_contract_violation", raised.exception.reasons)
         self.assertIn("responses contract violation", str(raised.exception))
 
+    def test_build_http_ragas_llm_posts_chat_completions_payload_when_transport_selected(self) -> None:
+        captured: dict[str, object] = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured["url"] = str(request.url)
+            captured["body"] = json.loads(request.content.decode("utf-8"))
+            return httpx.Response(
+                200,
+                request=request,
+                json={
+                    "choices": [
+                        {
+                            "index": 0,
+                            "finish_reason": "stop",
+                            "message": {
+                                "role": "assistant",
+                                "content": "OK",
+                            },
+                        }
+                    ]
+                },
+            )
+
+        settings = RagasSettings.from_env(
+            {
+                "LLM_BASE_URL": "https://llm.example/v1",
+                "LLM_API_KEY": "llm-key",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_LLM_TRANSPORT": "chat_completions",
+                "RAGAS_REASONING_EFFORT": "none",
+                "RAGAS_TEXT_VERBOSITY": "low",
+                "RAGAS_MAX_OUTPUT_TOKENS": "128",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+            }
+        )
+        async_client = httpx.AsyncClient(
+            base_url="https://llm.example/v1",
+            transport=httpx.MockTransport(handler),
+        )
+        llm = build_http_ragas_llm(settings, async_client=async_client)
+
+        result = asyncio.run(llm.agenerate_text(StringPromptValue(text="只回复 OK")))
+
+        asyncio.run(async_client.aclose())
+        self.assertEqual(result.generations[0][0].text, "OK")
+        self.assertEqual(captured["url"], "https://llm.example/v1/chat/completions")
+        self.assertEqual(
+            captured["body"],
+            {
+                "model": "gpt-5.4",
+                "messages": [{"role": "user", "content": "只回复 OK"}],
+                "temperature": 0.01,
+                "reasoning_effort": "none",
+                "verbosity": "low",
+                "max_completion_tokens": 128,
+            },
+        )
+
+    def test_build_http_ragas_llm_preflight_fast_fails_when_chat_completions_has_no_message_content(self) -> None:
+        attempts = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal attempts
+            attempts += 1
+            return httpx.Response(
+                200,
+                request=request,
+                json={
+                    "id": "chatcmpl_contract_violation",
+                    "usage": {"completion_tokens": 5},
+                    "choices": [],
+                },
+            )
+
+        settings = RagasSettings.from_env(
+            {
+                "LLM_BASE_URL": "https://llm.example/v1",
+                "LLM_API_KEY": "llm-key",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_LLM_TRANSPORT": "chat_completions",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS": "1",
+            }
+        )
+        sync_client = httpx.Client(
+            base_url="https://llm.example/v1",
+            transport=httpx.MockTransport(handler),
+        )
+        llm = build_http_ragas_llm(settings, sync_client=sync_client)
+
+        with self.assertRaises(SupplementalPreflightFailedError) as raised:
+            llm.preflight_sync()
+
+        sync_client.close()
+        self.assertEqual(attempts, 1)
+        self.assertEqual(raised.exception.disposition, "non_retryable_request")
+        self.assertIn("provider_contract_violation", raised.exception.reasons)
+        self.assertIn("chat completions contract violation", str(raised.exception))
+
     def test_openai_compatible_responses_llm_preflight_supports_providers_requiring_closed_json_schema(self) -> None:
         def handler(request: httpx.Request) -> httpx.Response:
             payload = json.loads(request.content.decode("utf-8"))
@@ -1076,6 +1223,71 @@ class RagasHttpTransportTest(unittest.TestCase):
         self.assertEqual(raised.exception.disposition, "non_retryable_request")
         self.assertIn("provider_contract_violation", raised.exception.reasons)
         self.assertIn("responses contract violation", str(raised.exception))
+
+    def test_openai_compatible_chat_completions_llm_preflight_supports_json_schema_response_format(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            payload = json.loads(request.content.decode("utf-8"))
+            response_format = payload.get("response_format") or {}
+            json_schema = response_format.get("json_schema") or {}
+            schema = json_schema.get("schema") or {}
+            if schema.get("additionalProperties") is not False:
+                return httpx.Response(
+                    400,
+                    request=request,
+                    json={
+                        "error": {
+                            "message": "Invalid schema: additionalProperties is required to be false",
+                            "type": "invalid_request_error",
+                            "param": "response_format.json_schema.schema",
+                            "code": "invalid_json_schema",
+                        }
+                    },
+                )
+            return httpx.Response(
+                200,
+                request=request,
+                json={
+                    "choices": [
+                        {
+                            "index": 0,
+                            "finish_reason": "stop",
+                            "message": {
+                                "role": "assistant",
+                                "content": "{\"status\":\"ok\"}",
+                            },
+                        }
+                    ]
+                },
+            )
+
+        settings = RagasSettings.from_env(
+            {
+                "LLM_BASE_URL": "https://llm.example/v1",
+                "LLM_API_KEY": "llm-key",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
+                "EVAL_RAGAS_LLM_TRANSPORT": "chat_completions",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS": "0",
+            }
+        )
+        sync_client = httpx.Client(
+            base_url="https://llm.example/v1",
+            transport=httpx.MockTransport(handler),
+        )
+        llm = OpenAICompatibleChatCompletionsLLM(
+            base_url="https://llm.example/v1",
+            api_key="llm-key",
+            model="gpt-5.4",
+            http_settings=settings.http_settings,
+            sync_client=sync_client,
+        )
+
+        result = llm.preflight_sync()
+
+        sync_client.close()
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["structured_output"], {"status": "ok"})
 
     def test_build_http_ragas_llm_preflight_retries_retryable_failure_without_tripping_breaker(self) -> None:
         attempts = 0

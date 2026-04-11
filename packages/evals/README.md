@@ -79,7 +79,8 @@ ragas runtime：
 - low-level helper 仍保留 `SupplementalHTTPSettings.from_env(...)`，仅用于显式本地实验或测试，不再作为长期 benchmark ownership
 - ragas model 现在只接受 `EVAL_RAGAS_MODEL`
 - judge model 现在只接受 `EVAL_JUDGE_MODEL`，未单独配置时回退到 `EVAL_RAGAS_MODEL`
-- 默认运行面走 `build_http_ragas_llm()` + `build_http_ragas_embeddings()`，直接对 OpenAI-compatible `/responses` 与 `/embeddings` 发原生 HTTP 请求；其中 ragas LLM 固定走 text-first `/responses`，rubric judge 才保留 structured `/responses`，实现边界固定在 `campus_evals.supplemental_http`
+- eval LLM transport 现在显式由 `EVAL_LLM_TRANSPORT` 持有，并允许 `EVAL_RAGAS_LLM_TRANSPORT` / `EVAL_JUDGE_LLM_TRANSPORT` 做 surface override；允许值固定为 `responses` 或 `chat_completions`
+- 默认运行面仍走 `build_http_ragas_llm()` + `build_http_ragas_embeddings()`；LLM transport 会按当前 env 对 OpenAI-compatible `/responses` 或 `/chat/completions` 发原生 HTTP 请求，embeddings 固定走 `/embeddings`，实现边界固定在 `campus_evals.supplemental_http`
 - `BenchmarkProfile.http_settings` 现在统一控制 ragas + rubric judge 共享的 supplemental provider runtime，包括 connect/read/write/pool timeout、单层 retry、provider runtime circuit breaker、preflight timeout、request pacing 与 keep-alive
 - pacing / breaker 的共享粒度已经收口到 `provider origin + api key`，避免不同 credential 互相污染 rate budget
 - 若需要针对某类 benchmark profile 单独调整 pacing，应修改 repo-tracked profile config，而不是再向 root `.env` 添加新键
@@ -87,9 +88,9 @@ ragas runtime：
 - preflight 现在承担 run-level availability gate：
   - `transient_retryable` / `hard_unavailable` 会把对应 supplemental adapter 标成 `skip_adapter`
   - `non_retryable_request` 会在写出 `supplemental-preflight.json` 后直接中止 benchmark，避免继续生成误导性 0 分 artifact
-- ragas preflight 只探测 text `/responses` + `/embeddings` 可用性，不再把 structured `json_schema` 探针失败误判成 ragas runtime 整体不可用
+- ragas preflight 只探测当前选中 LLM transport 的 text endpoint 加 `/embeddings` 可用性，不再把 structured `json_schema` 探针失败误判成 ragas runtime 整体不可用
 - preflight 失败现在会写出 `failure_disposition` 与 `run_action`，并同步把 runtime breaker / preflight cache 置入 fast-fail 状态
-- Responses judge payload 支持独立低延迟 profile：`RAGAS_REASONING_EFFORT`、`RAGAS_TEXT_VERBOSITY`、`RAGAS_MAX_OUTPUT_TOKENS`
+- judge/ragas LLM payload 都支持独立低延迟 profile：`RAGAS_REASONING_EFFORT`、`RAGAS_TEXT_VERBOSITY`、`RAGAS_MAX_OUTPUT_TOKENS`
 - `n>1` 的 ragas judge 调用现在会在同一 async transport 上并发发出，不再串行放大单 metric 延迟
 - `Qwen3-Embedding-4B` 未显式配置 `EMBEDDING_DIMENSIONS` 时，eval 侧默认补成 `2560`
 - pinned `ragas==0.4.3` 当前通过 `ragas.evaluate(...)` + legacy metric objects 执行真实评分；默认 scorer 现在直接接 `BaseRagasLLM` / `BaseRagasEmbeddings` 的原生 HTTP 实现

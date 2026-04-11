@@ -12,6 +12,8 @@ from campus_contracts import (
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
+    PromptTrace,
+    RagResultDiagnostics,
     RagResultPayload,
     SupervisorObservability,
     SupervisorResponse,
@@ -70,10 +72,12 @@ class AppApiEvalClientSettings:
     def from_env(
         cls,
         env: dict[str, str] | None = None,
+        *,
+        default_timeout_seconds: float = 15.0,
     ) -> "AppApiEvalClientSettings":
         source = env if env is not None else os.environ
         timeout_raw = str(source.get("APP_API_EVAL_HTTP_TIMEOUT_SECONDS") or "").strip()
-        timeout_seconds = float(timeout_raw) if timeout_raw else 15.0
+        timeout_seconds = float(timeout_raw) if timeout_raw else default_timeout_seconds
         return cls(
             app_api_base_url=str(source.get("APP_API_BASE_URL") or "").strip(),
             internal_shared_secret=str(source.get("APP_API_INTERNAL_SHARED_SECRET") or "").strip(),
@@ -419,7 +423,8 @@ def _parse_supervisor_result(value: object) -> RagResultPayload | None:
                 _parse_evidence_source(item, field=f"supervisor.result.evidence.sources[{index}]")
                 for index, item in enumerate(_optional_list(evidence_record.get("sources")))
             ),
-        )
+        ),
+        diagnostics=_parse_rag_result_diagnostics(record.get("diagnostics")),
     )
 
 
@@ -473,6 +478,18 @@ def _parse_supervisor_observability(value: object) -> SupervisorObservability | 
             record.get("refusalClass") if "refusalClass" in record else record.get("refusal_class")
         )
         or "",
+        semantic_outcome=_optional_string(
+            record.get("semanticOutcome") if "semanticOutcome" in record else record.get("semantic_outcome")
+        )
+        or "",
+        scope_class=_optional_string(
+            record.get("scopeClass") if "scopeClass" in record else record.get("scope_class")
+        )
+        or "",
+        policy_reason=_optional_string(
+            record.get("policyReason") if "policyReason" in record else record.get("policy_reason")
+        )
+        or "",
         acl_decision=_optional_string(
             record.get("aclDecision") if "aclDecision" in record else record.get("acl_decision")
         )
@@ -502,6 +519,225 @@ def _parse_supervisor_observability(value: object) -> SupervisorObservability | 
             if "estimatedCostMicrousd" in record
             else record.get("estimated_cost_microusd")
         ),
+        resolved_scope_corpus=_optional_string(
+            record.get("resolvedScopeCorpus")
+            if "resolvedScopeCorpus" in record
+            else record.get("resolved_scope_corpus")
+        ),
+        resolved_scope_collection=_optional_string(
+            record.get("resolvedScopeCollection")
+            if "resolvedScopeCollection" in record
+            else record.get("resolved_scope_collection")
+        )
+        or "",
+        prompt_trace=_parse_prompt_trace(
+            record.get("promptTrace") if "promptTrace" in record else record.get("prompt_trace")
+        ),
+    )
+
+
+def _parse_rag_result_diagnostics(value: object) -> RagResultDiagnostics | None:
+    record = _optional_record(value)
+    if record is None:
+        return None
+    return RagResultDiagnostics(
+        resolved_scope_corpus=_optional_string(
+            record.get("resolved_scope_corpus")
+            if "resolved_scope_corpus" in record
+            else record.get("resolvedScopeCorpus")
+        ),
+        resolved_scope_collection=_optional_string(
+            record.get("resolved_scope_collection")
+            if "resolved_scope_collection" in record
+            else record.get("resolvedScopeCollection")
+        )
+        or "",
+        resolved_policy_document_id=_optional_string(
+            record.get("resolved_policy_document_id")
+            if "resolved_policy_document_id" in record
+            else record.get("resolvedPolicyDocumentId")
+        )
+        or "",
+        resolved_policy_title=_optional_string(
+            record.get("resolved_policy_title")
+            if "resolved_policy_title" in record
+            else record.get("resolvedPolicyTitle")
+        )
+        or "",
+        rewritten_query=_optional_string(
+            record.get("rewritten_query") if "rewritten_query" in record else record.get("rewrittenQuery")
+        )
+        or "",
+        clarification_reason=_optional_string(
+            record.get("clarification_reason")
+            if "clarification_reason" in record
+            else record.get("clarificationReason")
+        )
+        or "",
+        no_answer_reason=_optional_string(
+            record.get("no_answer_reason") if "no_answer_reason" in record else record.get("noAnswerReason")
+        )
+        or "",
+        semantic_outcome=_optional_string(
+            record.get("semantic_outcome") if "semantic_outcome" in record else record.get("semanticOutcome")
+        )
+        or "",
+        grounding_verdict=_optional_string(
+            record.get("grounding_verdict")
+            if "grounding_verdict" in record
+            else record.get("groundingVerdict")
+        )
+        or "",
+        grounding_downgraded=_optional_bool(
+            record.get("grounding_downgraded")
+            if "grounding_downgraded" in record
+            else record.get("groundingDowngraded")
+        )
+        or False,
+        freshness_fail_closed=_optional_bool(
+            record.get("freshness_fail_closed")
+            if "freshness_fail_closed" in record
+            else record.get("freshnessFailClosed")
+        )
+        or False,
+        scope_class=_optional_string(
+            record.get("scope_class") if "scope_class" in record else record.get("scopeClass")
+        )
+        or "",
+        policy_reason=_optional_string(
+            record.get("policy_reason") if "policy_reason" in record else record.get("policyReason")
+        )
+        or "",
+        retrieved_title_summary=_string_tuple(
+            record.get("retrieved_title_summary")
+            if "retrieved_title_summary" in record
+            else record.get("retrievedTitleSummary")
+        ),
+        candidate_title_summary=_string_tuple(
+            record.get("candidate_title_summary")
+            if "candidate_title_summary" in record
+            else record.get("candidateTitleSummary")
+        ),
+        resolution_mode=_optional_string(
+            record.get("resolution_mode") if "resolution_mode" in record else record.get("resolutionMode")
+        )
+        or "",
+        used_verified_identity=_optional_bool(
+            record.get("used_verified_identity")
+            if "used_verified_identity" in record
+            else record.get("usedVerifiedIdentity")
+        )
+        or False,
+        used_soft_preference=_optional_bool(
+            record.get("used_soft_preference")
+            if "used_soft_preference" in record
+            else record.get("usedSoftPreference")
+        )
+        or False,
+        resolved_entity_type=_optional_string(
+            record.get("resolved_entity_type")
+            if "resolved_entity_type" in record
+            else record.get("resolvedEntityType")
+        )
+        or "",
+        resolved_course_id=_optional_string(
+            record.get("resolved_course_id") if "resolved_course_id" in record else record.get("resolvedCourseId")
+        )
+        or "",
+        resolved_course_title=_optional_string(
+            record.get("resolved_course_title")
+            if "resolved_course_title" in record
+            else record.get("resolvedCourseTitle")
+        )
+        or "",
+        resolved_course_family_id=_optional_string(
+            record.get("resolved_course_family_id")
+            if "resolved_course_family_id" in record
+            else record.get("resolvedCourseFamilyId")
+        )
+        or "",
+        resolved_course_family_title=_optional_string(
+            record.get("resolved_course_family_title")
+            if "resolved_course_family_title" in record
+            else record.get("resolvedCourseFamilyTitle")
+        )
+        or "",
+        resolved_program_family_id=_optional_string(
+            record.get("resolved_program_family_id")
+            if "resolved_program_family_id" in record
+            else record.get("resolvedProgramFamilyId")
+        )
+        or "",
+        resolved_program_family_title=_optional_string(
+            record.get("resolved_program_family_title")
+            if "resolved_program_family_title" in record
+            else record.get("resolvedProgramFamilyTitle")
+        )
+        or "",
+        session_program_family=_optional_string(
+            record.get("session_program_family")
+            if "session_program_family" in record
+            else record.get("sessionProgramFamily")
+        )
+        or "",
+        session_program=_optional_string(
+            record.get("session_program") if "session_program" in record else record.get("sessionProgram")
+        )
+        or "",
+        session_semester=_optional_string(
+            record.get("session_semester")
+            if "session_semester" in record
+            else record.get("sessionSemester")
+        )
+        or "",
+        unsupported_fields=_string_tuple(
+            record.get("unsupported_fields")
+            if "unsupported_fields" in record
+            else record.get("unsupportedFields")
+        ),
+        partial_answer=_optional_bool(
+            record.get("partial_answer") if "partial_answer" in record else record.get("partialAnswer")
+        )
+        or False,
+        prompt_trace=_parse_prompt_trace(
+            record.get("prompt_trace") if "prompt_trace" in record else record.get("promptTrace")
+        ),
+    )
+
+
+def _parse_prompt_trace(value: object) -> PromptTrace | None:
+    record = _optional_record(value)
+    if record is None:
+        return None
+    return PromptTrace(
+        prompt_id=_optional_string(record.get("prompt_id") if "prompt_id" in record else record.get("promptId"))
+        or "",
+        prompt_version=_optional_string(
+            record.get("prompt_version") if "prompt_version" in record else record.get("promptVersion")
+        )
+        or "",
+        template_sha256=_optional_string(
+            record.get("template_sha256") if "template_sha256" in record else record.get("templateSha256")
+        )
+        or "",
+        variables_schema_version=_optional_string(
+            record.get("variables_schema_version")
+            if "variables_schema_version" in record
+            else record.get("variablesSchemaVersion")
+        )
+        or "",
+        output_schema_version=_optional_string(
+            record.get("output_schema_version")
+            if "output_schema_version" in record
+            else record.get("outputSchemaVersion")
+        )
+        or "",
+        model_provider=_optional_string(
+            record.get("model_provider") if "model_provider" in record else record.get("modelProvider")
+        )
+        or "",
+        model_name=_optional_string(record.get("model_name") if "model_name" in record else record.get("modelName"))
+        or "",
     )
 
 
@@ -542,6 +778,14 @@ def _optional_record(value: object) -> dict[str, object] | None:
 
 def _optional_list(value: object) -> list[object]:
     return list(value) if isinstance(value, list) else []
+
+
+def _string_tuple(value: object) -> tuple[str, ...]:
+    return tuple(
+        item
+        for item in (_optional_string(item) for item in _optional_list(value))
+        if item is not None
+    )
 
 
 def _optional_bool(value: object) -> bool | None:

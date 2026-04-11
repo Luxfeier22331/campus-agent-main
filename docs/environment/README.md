@@ -93,15 +93,21 @@ updated: 2026-04-10
 - eval 长期保留的链路级键包括：
   - `EVAL_RAGAS_MODEL`
   - `EVAL_JUDGE_MODEL`
+  - `EVAL_LLM_TRANSPORT`
+  - `EVAL_RAGAS_LLM_TRANSPORT`
+  - `EVAL_JUDGE_LLM_TRANSPORT`
 - 只有在 eval 需要独立 provider、独立预算或独立限流时，才使用：
   - `EVAL_LLM_*`
   - `EVAL_EMBEDDING_*`
+- eval LLM transport 当前允许值固定为 `responses` 或 `chat_completions`；
+  `EVAL_LLM_TRANSPORT` 是 shared default，`EVAL_RAGAS_LLM_TRANSPORT` / `EVAL_JUDGE_LLM_TRANSPORT` 只在某个 surface 需要单独切 transport 时覆盖
 - `packages/evals` settings 仍只读取进程环境；repo-shipped Python CLI entrypoint 只会在本地自动 bootstrap 当前 worktree `.env`
 - 当前实现与测试都不接受 silent fallback 到根 worktree `.env`
 - ad-hoc `uv run ... python - <<'PY'` / REPL 默认不会自动 bootstrap `.env`；这类临时脚本必须先显式注入环境，或显式调用 `campus_shared.load_repo_env()`
 - 如果要判断当前 worktree 的 provider/env 是否真的对 eval surface 可见，优先使用
   `uv run --all-packages python -m scripts.doctor_env evals --json`
 - eval 的 HTTP timeout / retry / pacing / keep-alive / connection-pool 一类 runtime tuning 由 repo-tracked live benchmark profile config 持有，不再放在 root `.env.example`
+- `APP_API_EVAL_HTTP_TIMEOUT_SECONDS` 现在只保留为本地 eval ingress 的显式 override；如果未设置，handbook / curriculum live benchmark 会默认继承各自 profile 的 repo-tracked timeout budget
 - 代码层仍保留 `SupplementalHTTPSettings.from_env(...)` 作为低层 helper，但这不再是长期 ownership 入口
 - 这条链路的当前 canonical truth 以本文和 [`docs/runbooks/provider-secret-governance.md`](../runbooks/provider-secret-governance.md) 为准；已完成的历史实施计划已归档到 `.planning/archive-docs/`
 

@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-03-29
-updated: 2026-04-01
+updated: 2026-04-11
 ---
 
 # Forward Worker Surface Smoke Runbook
@@ -40,6 +40,7 @@ updated: 2026-04-01
 - 本地可执行 `pnpm`
 - 运行 Worker 测试时允许本地监听端口
 - 为避免 `wrangler` 写入默认家目录日志，命令使用 repo-local `XDG_CONFIG_HOME=./.wrangler-home`
+- 做 `public-chat-web` local browser smoke 前，如果本地 Postgres 可能落后于 `apps/app-api/db/shared-product-migrations/*`，先执行 `pnpm --dir apps/app-api db:bootstrap`
 
 ## 标准命令
 
@@ -99,6 +100,8 @@ pnpm --dir apps/public-chat-web dev:live-smoke
 - 它通过 Cloudflare Vite plugin 的 `auxiliaryWorkers` 带起 shared `apps/app-api`
 - `app-api` 使用 [wrangler.local-smoke.toml](/home/reptilian/code/campus-agent/apps/app-api/wrangler.local-smoke.toml) 注册为本地 `app-api` Worker，保证 `public-chat-web` 的 same-site `/api/*` service binding 能命中真实 Worker runtime
 - 不要再把 `pnpm --dir apps/public-chat-web dev` 和 `pnpm --dir apps/app-api dev` 作为本地 browser smoke 的前提；分开会话适合单 app 调试，但不是 canonical browser smoke 拓扑
+- 如需真实登录与发问链路，先用 `pnpm --dir apps/app-api smoke-identity:provision` 预置 smoke identity
+- `db:reconcile-shared-drift` 不能替代 `db:bootstrap`：前者只覆盖 drizzle shared-db adoption truth，不覆盖 `chat.*` 的 shared-product bootstrap migration
 
 ## 这组 smoke 证明什么
 

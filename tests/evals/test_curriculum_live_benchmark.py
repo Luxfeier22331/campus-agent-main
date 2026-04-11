@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 import httpx
 
@@ -592,6 +593,122 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
             "curriculum:历史学（强基计划）本科人才培养方案",
         )
 
+    def test_build_app_api_curriculum_live_executor_preserves_supervisor_diagnostics_and_observability(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                request=request,
+                headers={
+                    "x-request-id": "req_curriculum_eval_no_answer_01HQ",
+                    "x-trace-id": "trace_curriculum_eval_no_answer_01HQ",
+                },
+                json={
+                    "answer": {
+                        "conversation": {
+                            "id": "conv_curriculum_eval_no_answer_01HQ",
+                            "title": "火星校区飞船停靠规则",
+                            "createdAt": "2026-04-03T00:00:00.000Z",
+                            "updatedAt": "2026-04-03T00:00:01.000Z",
+                            "messages": [],
+                        },
+                        "result": {
+                            "kind": "no_answer",
+                            "text": "当前未检索到足够依据支持回答这个培养方案问题，请补充更具体的培养方案名称、学位要求或课程表名称。",
+                            "requestId": "req_curriculum_eval_no_answer_01HQ",
+                            "traceId": "trace_curriculum_eval_no_answer_01HQ",
+                        },
+                    },
+                    "supervisor": {
+                        "answerText": "当前未检索到足够依据支持回答这个培养方案问题，请补充更具体的培养方案名称、学位要求或课程表名称。",
+                        "followUpQuestion": "",
+                        "selectedTarget": "rag-specialist",
+                        "status": "no_answer",
+                        "traceId": "trace_curriculum_eval_no_answer_01HQ",
+                        "result": {
+                            "evidence": {
+                                "query_text": "火星校区飞船停靠规则",
+                                "corpus": "curriculum",
+                                "collection": "curriculum_plan",
+                                "sources": [],
+                            },
+                            "diagnostics": {
+                                "resolved_scope_corpus": "curriculum",
+                                "resolved_scope_collection": "curriculum_plan",
+                                "no_answer_reason": "",
+                                "semantic_outcome": "unsupported_by_evidence",
+                                "resolution_mode": "",
+                                "retrieved_title_summary": [],
+                            },
+                        },
+                        "observability": {
+                            "candidateCount": 0,
+                            "retrievedSourceCount": 0,
+                            "retrievalAttempted": True,
+                            "citationExpected": False,
+                            "citationCount": 0,
+                            "citationMissing": False,
+                            "failClosed": True,
+                            "refusalClass": "no_answer",
+                            "semanticOutcome": "unsupported_by_evidence",
+                            "scopeClass": "in_scope",
+                            "policyReason": "",
+                            "resolvedScopeCorpus": "curriculum",
+                            "resolvedScopeCollection": "curriculum_plan",
+                        },
+                        "error": None,
+                    },
+                },
+            )
+
+        settings = AppApiEvalClientSettings(
+            app_api_base_url="https://app-api.internal",
+            internal_shared_secret="trusted-secret",
+            eval_user_email="eval-benchmark@example.edu",
+            eval_user_id="eval_user_01HQ",
+            eval_user_name="Eval Benchmark",
+        )
+        transport = httpx.MockTransport(handler)
+        client = httpx.Client(base_url="https://app-api.internal", transport=transport)
+
+        try:
+            executor = build_app_api_curriculum_live_executor(
+                settings=settings,
+                client=client,
+            )
+            result = executor(
+                GoldenCase(
+                    case_id="curriculum-release-gate-no-answer",
+                    split="release_gate",
+                    source_type="expert_authored",
+                    user_goal="火星校区飞船停靠规则",
+                    actor=ActorContext(),
+                    scope=CURRICULUM_SCOPE,
+                    expected_status="no_answer",
+                    expected_semantic_outcome="unsupported_by_evidence",
+                    trace_expectation=TraceExpectation(
+                        selected_scope=CURRICULUM_SCOPE,
+                        retrieval_called=True,
+                        clarification_expected=False,
+                        error_expected=False,
+                        fail_closed_expected=True,
+                    ),
+                )
+            )
+        finally:
+            client.close()
+
+        self.assertEqual(result.response.status, "no_answer")
+        self.assertIsNotNone(result.response.result)
+        self.assertIsNotNone(result.response.result.diagnostics)
+        self.assertEqual(result.response.result.diagnostics.semantic_outcome, "unsupported_by_evidence")
+        self.assertEqual(result.response.result.diagnostics.resolved_scope_collection, "curriculum_plan")
+        self.assertIsNotNone(result.response.observability)
+        self.assertEqual(result.response.observability.semantic_outcome, "unsupported_by_evidence")
+        self.assertEqual(result.response.observability.scope_class, "in_scope")
+        self.assertEqual(result.response.observability.resolved_scope_corpus, "curriculum")
+        self.assertEqual(result.response.observability.resolved_scope_collection, "curriculum_plan")
+        self.assertTrue(result.response.observability.fail_closed)
+
     def test_build_legacy_curriculum_live_executor_injects_retrieval_backend_failure_case(self) -> None:
         executor = build_legacy_curriculum_live_executor(
             retriever=lambda *args, **kwargs: EvidenceBundle(
@@ -650,6 +767,33 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
         self.assertEqual(result.observed_trace.supporting_sources, ())
 
 
+class AppApiEvalClientSettingsTest(unittest.TestCase):
+    def test_from_env_uses_profile_default_timeout_when_env_override_is_absent(self) -> None:
+        settings = AppApiEvalClientSettings.from_env(
+            {
+                "APP_API_BASE_URL": "https://app-api.internal",
+                "APP_API_INTERNAL_SHARED_SECRET": "trusted-secret",
+                "APP_API_EVAL_USER_EMAIL": "eval-benchmark@example.edu",
+            },
+            default_timeout_seconds=180.0,
+        )
+
+        self.assertEqual(settings.timeout_seconds, 180.0)
+
+    def test_from_env_prefers_explicit_env_timeout_over_profile_default(self) -> None:
+        settings = AppApiEvalClientSettings.from_env(
+            {
+                "APP_API_BASE_URL": "https://app-api.internal",
+                "APP_API_INTERNAL_SHARED_SECRET": "trusted-secret",
+                "APP_API_EVAL_USER_EMAIL": "eval-benchmark@example.edu",
+                "APP_API_EVAL_HTTP_TIMEOUT_SECONDS": "45",
+            },
+            default_timeout_seconds=180.0,
+        )
+
+        self.assertEqual(settings.timeout_seconds, 45.0)
+
+
 class CurriculumLiveProfileTest(unittest.TestCase):
     def test_build_curriculum_live_profile_uses_curriculum_policy_and_metric_named_ragas_adapter(self) -> None:
         profile = build_curriculum_live_profile(
@@ -685,6 +829,28 @@ class CurriculumLiveProfileTest(unittest.TestCase):
 
         self.assertEqual(profile.http_settings.read_timeout_seconds, 180.0)
         self.assertEqual(profile.http_settings.request_min_interval_seconds, 1.0)
+
+    def test_build_curriculum_live_profile_aligns_app_api_eval_timeout_with_profile_http_settings(self) -> None:
+        profile = build_curriculum_live_profile(
+            env={
+                "APP_API_BASE_URL": "https://app-api.internal",
+                "APP_API_INTERNAL_SHARED_SECRET": "trusted-secret",
+                "APP_API_EVAL_USER_EMAIL": "eval-benchmark@example.edu",
+                "EVAL_LLM_API_KEY": "llm-key",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
+                "EVAL_EMBEDDING_API_KEY": "embed-key",
+                "EVAL_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+            }
+        )
+
+        with patch("campus_evals.curriculum_live_benchmark.build_curriculum_live_executor", return_value="executor") as build_executor:
+            executor = profile.executor_factory()
+
+        self.assertEqual(executor, "executor")
+        self.assertEqual(
+            build_executor.call_args.kwargs["default_timeout_seconds"],
+            profile.http_settings.read_timeout_seconds,
+        )
 
 
 if __name__ == "__main__":

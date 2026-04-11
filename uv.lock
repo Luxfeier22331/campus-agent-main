@@ -23,6 +23,7 @@ members = [
     "campus-evals",
     "campus-ingestion-core",
     "campus-ingestion-worker",
+    "campus-navigation-specialist",
     "campus-official-web-collector",
     "campus-official-web-core",
     "campus-protected-panel-web",
@@ -365,6 +366,17 @@ requires-dist = [
 ]
 
 [[package]]
+name = "campus-navigation-specialist"
+version = "0.1.0"
+source = { editable = "packages/navigation-specialist" }
+dependencies = [
+    { name = "campus-contracts" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "campus-contracts", editable = "packages/contracts" }]
+
+[[package]]
 name = "campus-official-web-collector"
 version = "0.1.0"
 source = { virtual = "apps/official-web-collector" }
@@ -465,6 +477,7 @@ source = { editable = "packages/supervisor-core" }
 dependencies = [
     { name = "campus-availability-specialist" },
     { name = "campus-contracts" },
+    { name = "campus-navigation-specialist" },
     { name = "campus-rag-specialist" },
     { name = "campus-shared" },
 ]
@@ -473,6 +486,7 @@ dependencies = [
 requires-dist = [
     { name = "campus-availability-specialist", editable = "packages/availability-specialist" },
     { name = "campus-contracts", editable = "packages/contracts" },
+    { name = "campus-navigation-specialist", editable = "packages/navigation-specialist" },
     { name = "campus-rag-specialist", editable = "packages/rag-specialist" },
     { name = "campus-shared", editable = "packages/shared" },
 ]

@@ -42,10 +42,15 @@ def build_handbook_live_executor(
     *,
     settings: AppApiEvalClientSettings | None = None,
     env: dict[str, str] | None = None,
+    default_timeout_seconds: float | None = None,
     client: httpx.Client | None = None,
 ) -> Callable[[GoldenCase], ExecutionResult]:
     return build_app_api_handbook_live_executor(
-        settings=settings or AppApiEvalClientSettings.from_env(env),
+        settings=settings
+        or AppApiEvalClientSettings.from_env(
+            env,
+            default_timeout_seconds=default_timeout_seconds or 15.0,
+        ),
         client=client,
     )
 
@@ -122,7 +127,10 @@ def build_handbook_live_profile(env: dict[str, str] | None = None) -> BenchmarkP
         policy_path=STUDENT_HANDBOOK_JUDGE_GATE_POLICY_PATH,
         http_settings=http_settings,
         cases_factory=lambda: handbook_release_gate_cases(),
-        executor_factory=lambda: build_handbook_live_executor(env=env),
+        executor_factory=lambda: build_handbook_live_executor(
+            env=env,
+            default_timeout_seconds=http_settings.read_timeout_seconds,
+        ),
         supplemental_adapters_factory=lambda: build_default_handbook_supplemental_adapters_from_env(
             env,
             http_settings=http_settings,
