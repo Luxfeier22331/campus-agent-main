@@ -674,6 +674,52 @@ class CampusragIngestionSupportTest(unittest.TestCase):
         self.assertIn((self.object_store.bucket_derived, expected_key), writer.puts)
         self.assertEqual(len(registry.upsert_many_calls), 1)
 
+    def test_collect_import_document_stats_rewrites_changed_processed_artifacts_for_matching_content(self) -> None:
+        document = _document_input(
+            document_id="handbook:doc-b",
+            version_id="v1:doc-b",
+            body='{"type":"paragraph","text":"new"}\n',
+        )
+        document.metadata["semantic_content_hash"] = "semantic-doc-b"
+        existing = _record(
+            document_id="handbook:doc-b",
+            version_id="v1:doc-b",
+            content_hash="semantic-doc-b",
+        )
+        registry = _SpyDocumentRegistry(records=(existing,))
+        expected_key = (
+            "regulations/documents/student_handbook/doc-b--doc-b/"
+            "source-faithful/2026/document-units.jsonl"
+        )
+        writer = _FakeWriter(
+            existing_objects=((self.object_store.bucket_derived, expected_key),)
+        )
+        writer.objects[(self.object_store.bucket_derived, expected_key)] = (
+            '{"type":"paragraph","text":"old"}\n'.encode("utf-8")
+        )
+
+        stats = collect_import_document_stats(
+            documents=[document],
+            registry=registry,
+            raw_asset_registry=_FakeRawAssetRegistry(),
+            writer=writer,
+            object_store=self.object_store,
+            parser_version="campusrag-import-v1",
+            embedding_model="Qwen3-Embedding-4B",
+            cleaning_policy_version="student_handbook_cleaning_v1",
+            default_visibility_scope=None,
+        )
+
+        self.assertEqual(stats.success_count, 0)
+        self.assertEqual(stats.skipped_count, 1)
+        self.assertEqual(stats.skipped_document_ids, ("handbook:doc-b",))
+        self.assertIn((self.object_store.bucket_derived, expected_key), writer.puts)
+        self.assertEqual(
+            writer.objects[(self.object_store.bucket_derived, expected_key)],
+            document.document_units_bytes,
+        )
+        self.assertEqual(len(registry.upsert_many_calls), 1)
+
     def test_persist_import_documents_forwards_scope_refresh_to_collect_stats(self) -> None:
         document = _document_input(
             document_id="handbook:doc-a",

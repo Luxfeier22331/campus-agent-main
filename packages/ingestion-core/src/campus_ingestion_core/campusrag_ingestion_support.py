@@ -713,9 +713,13 @@ def collect_import_document_stats(
                 )
                 if artifact_refresh_supported and _registry_record_needs_refresh(
                     existing=matching_content_record,
+                    document_units_bytes=document_units_bytes,
                     document_units_key=document_units_key,
+                    provider_response_bytes=document.provider_response_bytes,
                     provider_response_key=provider_response_key,
+                    layout_elements_bytes=document.layout_elements_bytes,
                     layout_elements_key=layout_elements_key,
+                    canonical_markdown_bytes=document.canonical_markdown_bytes,
                     canonical_markdown_key=canonical_markdown_key,
                     processed_object_keys=processed_object_keys,
                     writer=writer,
@@ -1233,9 +1237,13 @@ def _resolve_registry_raw_asset_ref(
 def _registry_record_needs_refresh(
     *,
     existing: DocumentRegistryRecord,
+    document_units_bytes: bytes,
     document_units_key: str,
+    provider_response_bytes: bytes | None,
     provider_response_key: str | None,
+    layout_elements_bytes: bytes | None,
     layout_elements_key: str | None,
+    canonical_markdown_bytes: bytes | None,
     canonical_markdown_key: str | None,
     processed_object_keys: tuple[str, ...],
     writer: ObjectStoreWriter,
@@ -1251,10 +1259,38 @@ def _registry_record_needs_refresh(
         return True
     if tuple(existing.processed_object_keys) != processed_object_keys:
         return True
-    return _missing_processed_object_keys(
+    if _missing_processed_object_keys(
         writer=writer,
         object_store=object_store,
         object_keys=processed_object_keys,
+    ):
+        return True
+    if _stored_artifact_payload_differs(
+        writer=writer,
+        object_store=object_store,
+        key=document_units_key,
+        expected_bytes=document_units_bytes,
+    ):
+        return True
+    if _stored_artifact_payload_differs(
+        writer=writer,
+        object_store=object_store,
+        key=provider_response_key,
+        expected_bytes=provider_response_bytes,
+    ):
+        return True
+    if _stored_artifact_payload_differs(
+        writer=writer,
+        object_store=object_store,
+        key=layout_elements_key,
+        expected_bytes=layout_elements_bytes,
+    ):
+        return True
+    return _stored_artifact_payload_differs(
+        writer=writer,
+        object_store=object_store,
+        key=canonical_markdown_key,
+        expected_bytes=canonical_markdown_bytes,
     )
 
 
@@ -1273,6 +1309,28 @@ def _missing_processed_object_keys(
         except Exception:
             return True
     return False
+
+
+def _stored_artifact_payload_differs(
+    *,
+    writer: ObjectStoreWriter,
+    object_store: ObjectStoreSettings,
+    key: str | None,
+    expected_bytes: bytes | None,
+) -> bool:
+    if key is None or expected_bytes is None:
+        return False
+    get_bytes = getattr(writer, "get_bytes", None)
+    if not callable(get_bytes):
+        return False
+    try:
+        stored_bytes = get_bytes(
+            bucket=_artifact_bucket_for_key(object_store=object_store, key=key),
+            key=key,
+        )
+    except Exception:
+        return True
+    return stored_bytes != expected_bytes
 
 
 def _artifact_bucket_for_key(*, object_store: ObjectStoreSettings, key: str) -> str:

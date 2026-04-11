@@ -303,6 +303,24 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.qdrant_index_binding.alias_name, "institutional_regulations")
         self.assertEqual(profile.qdrant_index_binding.collection_prefix, "institutional_regulations")
 
+    def test_load_scoped_rules_runtime_profile(self) -> None:
+        profile = load_runtime_profile("regulations", "scoped_rules")
+
+        self.assertEqual(profile.corpus, "regulations")
+        self.assertEqual(profile.collection, "scoped_rules")
+        self.assertEqual(profile.serving_stage, "offline_preparation")
+        self.assertEqual(profile.allowed_artifact_modes, ("normalized", "source_truth_only"))
+        self.assertFalse(profile.split_manifest_required)
+        self.assertFalse(profile.retrieval_enabled)
+        self.assertFalse(profile.query_enabled_by_default)
+        self.assertFalse(profile.current_only)
+        self.assertEqual(profile.serving_revision_tracks, ("current-effective", "source-faithful"))
+        self.assertEqual(profile.retrieval_top_k, 3)
+        self.assertEqual(profile.cleaning_policy_version, "scoped_rules_cleaning_v1")
+        self.assertEqual(profile.chunk_profile_version, "scoped_rules_semantic_v1")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "scoped_rules")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "scoped_rules")
+
     def test_default_query_scopes_include_all_query_enabled_profiles(self) -> None:
         self.assertEqual(
             default_query_scopes(),

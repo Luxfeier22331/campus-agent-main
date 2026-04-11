@@ -450,7 +450,7 @@ def _resolve_internal_notice_lane(*, record: DocumentRegistryRecord, unit: Struc
     )
 
 
-def _build_internal_notice_lane_chunk_profile(
+def _build_collection_lane_chunk_profile(
     *,
     record: DocumentRegistryRecord,
     lane: str,
@@ -498,9 +498,35 @@ def _resolve_internal_notice_unit_chunk_profile(
         return runtime_profile
     if record.collection != "internal_notice":
         return runtime_profile
-    return _build_internal_notice_lane_chunk_profile(
+    return _build_collection_lane_chunk_profile(
         record=record,
         lane=_resolve_internal_notice_lane(record=record, unit=unit),
+    )
+
+
+def _resolve_scoped_rule_lane(*, record: DocumentRegistryRecord, unit: StructuredUnit) -> str:
+    document_nature = str(unit.metadata.get("document_nature") or "").strip()
+    if document_nature:
+        return document_nature
+    raise ValueError(
+        "scoped_rules unit requires document_nature for lane resolution: "
+        f"{record.document_id}#{unit.source_chunk_id or unit.root_unit_id}"
+    )
+
+
+def _resolve_scoped_rule_unit_chunk_profile(
+    record: DocumentRegistryRecord,
+    runtime_profile: ChunkProfile,
+    unit: StructuredUnit,
+    use_collection_unit_profiles: bool,
+) -> ChunkProfile:
+    if not use_collection_unit_profiles:
+        return runtime_profile
+    if (record.corpus, record.collection) != ("regulations", "scoped_rules"):
+        return runtime_profile
+    return _build_collection_lane_chunk_profile(
+        record=record,
+        lane=_resolve_scoped_rule_lane(record=record, unit=unit),
     )
 
 
@@ -582,7 +608,7 @@ def _postprocess_internal_notice_chunk_candidates(
             merged.extend(
                 _merge_adjacent_short_textual_candidates(
                     chunk_candidates=tuple(current_group),
-                    chunk_profile=_build_internal_notice_lane_chunk_profile(
+                    chunk_profile=_build_collection_lane_chunk_profile(
                         record=record,
                         lane=current_lane,
                     ),
@@ -595,7 +621,57 @@ def _postprocess_internal_notice_chunk_candidates(
         merged.extend(
             _merge_adjacent_short_textual_candidates(
                 chunk_candidates=tuple(current_group),
-                chunk_profile=_build_internal_notice_lane_chunk_profile(
+                chunk_profile=_build_collection_lane_chunk_profile(
+                    record=record,
+                    lane=current_lane,
+                ),
+            )
+        )
+    return tuple(merged)
+
+
+def _postprocess_scoped_rule_chunk_candidates(
+    chunk_candidates: Sequence[_ChunkCandidate],
+    record: DocumentRegistryRecord,
+    runtime_profile: ChunkProfile,
+    use_collection_unit_profiles: bool,
+) -> tuple[_ChunkCandidate, ...]:
+    if not chunk_candidates:
+        return ()
+    if not use_collection_unit_profiles:
+        return _merge_adjacent_short_textual_candidates(
+            chunk_candidates=chunk_candidates,
+            chunk_profile=runtime_profile,
+        )
+    merged: list[_ChunkCandidate] = []
+    current_lane: str | None = None
+    current_group: list[_ChunkCandidate] = []
+    for candidate in chunk_candidates:
+        candidate_lane = str(candidate.metadata.get("document_nature") or "").strip()
+        if not candidate_lane:
+            raise ValueError(
+                f"scoped_rules chunk candidate missing document_nature metadata: {record.document_id}"
+            )
+        if current_lane is None:
+            current_lane = candidate_lane
+        if candidate_lane != current_lane:
+            merged.extend(
+                _merge_adjacent_short_textual_candidates(
+                    chunk_candidates=tuple(current_group),
+                    chunk_profile=_build_collection_lane_chunk_profile(
+                        record=record,
+                        lane=current_lane,
+                    ),
+                )
+            )
+            current_group = []
+            current_lane = candidate_lane
+        current_group.append(candidate)
+    if current_group and current_lane is not None:
+        merged.extend(
+            _merge_adjacent_short_textual_candidates(
+                chunk_candidates=tuple(current_group),
+                chunk_profile=_build_collection_lane_chunk_profile(
                     record=record,
                     lane=current_lane,
                 ),
@@ -645,6 +721,14 @@ _COLLECTION_CHUNK_STRATEGIES: dict[tuple[str, str], _CollectionChunkStrategy] = 
         resolve_unit_chunk_profile=_resolve_internal_notice_unit_chunk_profile,
         should_skip_unit=_should_skip_internal_notice_unit,
         postprocess_candidates=_postprocess_internal_notice_chunk_candidates,
+    ),
+    ("regulations", "scoped_rules"): _CollectionChunkStrategy(
+        build_chunk_profile=_build_generic_runtime_chunk_profile,
+        load_structured_units=_load_default_structured_units,
+        build_unit_pieces=_build_default_unit_pieces,
+        resolve_unit_chunk_profile=_resolve_scoped_rule_unit_chunk_profile,
+        should_skip_unit=_should_skip_generic_unit,
+        postprocess_candidates=_postprocess_scoped_rule_chunk_candidates,
     ),
 }
 

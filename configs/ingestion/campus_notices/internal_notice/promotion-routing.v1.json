@@ -100,6 +100,7 @@
     "source_attachment_ref_id and source_attachment_sha256 are attachment-derived provenance fields; parent-body candidates may keep them null.",
     "Document age is not a standalone exclusion or downgrade signal for campus regulations.",
     "暂行 or 试行 is not by itself a draft, expired, or manual-review signal.",
-    "Exclude from institutional_regulations only when the body shows annual-cycle/program specificity, wrapper semantics, or explicit temporary/sunset operations."
+    "Exclude from institutional_regulations only when the body shows annual-cycle/program specificity, wrapper semantics, or explicit temporary/sunset operations.",
+    "Annual-cycle and time-bound operational documents remain in campus_notices/internal_notice until a dedicated semantic-owner surface is explicitly opened."
   ]
 }

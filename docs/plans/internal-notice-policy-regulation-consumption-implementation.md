@@ -31,6 +31,8 @@ updated: 2026-04-11
 - `docs/decisions/adr-0032-internal-notice-notice-family-stratified-admission.md`
 - `docs/decisions/adr-0033-internal-notice-pdf-cloud-ocr-default.md`
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
+- `docs/decisions/adr-0036-notice-derived-non-regulation-rule-boundary.md`
+- `docs/decisions/adr-0037-unified-scoped-rules-holding-collection.md`
 
 ## 当前 Merged Truth
 
@@ -308,6 +310,35 @@ Azure AI Search 官方文档把 freshness 建模为 scoring profile 中的可选
 - 它们更像 restricted operational context，而不是长期稳定制度正文
 - 这可以避免把 notice corpus 里的“年度流程性文件”过早混进正式 regulation corpus
 
+### 第二层补充：哪些 manual-review 是“当前 owner 未开放”，而不是“文本不清楚”
+
+当前已完成裁决的 `manual_review_required`，要再细分成两类语义明确的 downstream bucket：
+
+- `annual_cycle_rule`
+  - 年度/项目制招生、推免、硕博连读、英才计划实施细则
+- `time_bound_operational_rule`
+  - 暑假/寒假等时间窗口运营规则
+  - 正文带显式过渡 / sunset 语义的临时运营规则
+
+固定结论：
+
+- 这两类当前不进入 `regulations/institutional_regulations`
+- 但它们也不是“语义不明文档”
+- 当前正确去向改为：
+  - 导入统一 holding collection `regulations/scoped_rules`
+  - 保持 `offline_preparation + query_disabled`
+
+这一点已由：
+
+- `docs/decisions/adr-0036-notice-derived-non-regulation-rule-boundary.md`
+- `docs/reference/internal-notice-manual-review-collection-strategy.md`
+- `docs/reference/internal-notice-manual-review-future-query-contract.md`
+
+共同冻结；其中 ADR-0037 进一步明确：
+
+- 详细 query semantics 不是当前 import gate
+- 当前首要目标是先把 canonical scoped rule text 导入统一下游 collection
+
 ### 当前 read-only promotion guardrails
 
 在当前 repo-tracked 的 promotion manifest builder 中，第一版 guardrail 固定为：
@@ -326,6 +357,39 @@ Azure AI Search 官方文档把 freshness 建模为 scoring profile 中的可选
 - 把 donor body 中的 wrapper 摘要误升为 formal regulation
 - 因为文档老旧或标题含 `暂行/试行` 就把真实仍在生效的校内制度错误排除
 - 在输入快照不完整时给出看似确定的 hold/candidate 结论
+
+### 为什么现在改为新增统一 holding collection
+
+当前 repo 改为新增 `regulations/scoped_rules` 的 repo-tracked collection scaffold。
+
+原因固定为：
+
+- 当前 source-side adjudication 已足够支撑 import-first 导入
+- 当前目标是尽快把 canonical 文本从 `internal_notice` 继续推进到 semantic-owner collection
+- `scoped_rules` 仍保持 `offline_preparation + query_disabled`，不会误写成已开放 query-serving
+
+因此当前正确动作是：
+
+- 先导入统一 holding collection
+- 先补 materialization / local-only chunk acceptance
+- 把详细 query semantics 后置到 query-serving reopen
+
+当前这条线的 repo-local 现状已经推进到：
+
+- `materialize_internal_notice_scoped_rules` 已落地
+- `prepare_scoped_rule_chunks` 已落地
+- Cohort A 的 local-only acceptance 已在 isolated snapshot root 上通过：
+  - `scoped_rule_candidate_count = 10`
+  - `materialized_document_count = 9`
+  - `prepared_document_count = 9`
+  - `total_chunk_count = 305`
+  - hard gate 全部通过
+  - `short_body_chunk_count = 29` 暂记为 soft observation
+
+这里新增一条 operator 约束：
+
+- 不直接把历史 `local-smoke/object-store` 根目录当作 scoped-rules acceptance 输出根
+- local-only acceptance 应复制 source snapshot 后在 isolated root 中写入 target-side preview artifacts
 
 ## 附件与文件类型策略
 

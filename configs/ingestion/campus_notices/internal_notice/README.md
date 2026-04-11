@@ -17,9 +17,12 @@ This directory holds the repo-tracked config scaffolding for the
 - `docs/reference/internal-notice-offline-preparation-strategy.md`: collection-specific offline preparation and lane strategy
 - `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`: collection-specific quality acceptance criteria before any index release
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`: freeze that `internal_notice` remains source/triage and canonical regulation text must cross a separate promotion boundary
+- `docs/reference/internal-notice-manual-review-future-query-contract.md`: freeze the future query-serving reopen contract for `annual_cycle_rule` / `time_bound_operational_rule`; this is no longer the current import gate
+- `docs/decisions/adr-0037-unified-scoped-rules-holding-collection.md`: freeze the unified `regulations/scoped_rules` holding collection for import-first consumption of adjudicated scoped rules
 - `docs/plans/internal-notice-policy-regulation-consumption-implementation.md`: forward implementation plan for promoting `policy_regulation` notice content from `internal_notice` into a dedicated `regulations/*` target without rewriting current merged truth
 - `uv run --package campus-ingestion-worker python -m campus_ingestion_worker.build_internal_notice_regulation_promotion_manifest ...`: read-only promotion manifest builder for `candidate / hold / manual_review_required` stratification before any target-collection writes; supports repo-local snapshot mode via `--documents-json --source-truth-inventory-json --object-store-root`
 - `uv run --package campus-ingestion-worker python -m campus_ingestion_worker.materialize_internal_notice_regulation_candidates ...`: repo-owned post-release consumption worker that materializes `promote_candidate` rows into `regulations/institutional_regulations` via scope refresh; also supports repo-local snapshot mode via `--documents-json --source-truth-inventory-json --object-store-root`
+- `uv run --package campus-ingestion-worker python -m campus_ingestion_worker.materialize_internal_notice_scoped_rules ...`: repo-owned post-adjudication worker that materializes scoped-rule rows into `regulations/scoped_rules` via scope refresh; also supports repo-local snapshot mode via `--documents-json --source-truth-inventory-json --object-store-root`
 - `.planning/archive-docs/docs/plans/authenticated-notice-source-attachment-key-reorganization.md`: 已完成的 source bucket attachment key cleanup 历史方案
 
 Current runtime truth:
@@ -85,16 +88,24 @@ Accepted attachment-consumption design:
 Current promotion-manifest guardrails:
 
 - `notice_body` parent rows may only become promotion candidates when the body itself has standalone regulation structure; wrapper summaries stay in `internal_notice`
-- time-bound or campaign-specific body text such as `暂行`、假期期间规定、招生/推免/硕博连读实施细则 currently degrades to `manual_review_required`, even if the body is structurally clean
+- document age is not a standalone exclusion signal for campus regulations
+- `暂行/试行` does not by itself degrade a document to `manual_review_required`
+- annual-cycle/program-specific rules such as 招生/推免/硕博连读/英才计划实施细则 currently still route to `manual_review_required` in the read-only manifest path
+- body text with explicit temporary or sunset semantics such as 假期期间规定、正式运营前、临时医疗点 currently still route to `manual_review_required` in the read-only manifest path
 - if inventory expects attachment child docs but the current snapshot does not contain them, the manifest must emit `manual_review_required` rather than a business hold/candidate result
 - attachment provenance fields remain mandatory for attachment-derived candidates, but stay nullable for parent-body candidates
+- repo-level downstream target for these adjudicated scoped rules is now `regulations/scoped_rules`, governed by `docs/decisions/adr-0037-unified-scoped-rules-holding-collection.md`
+- source-side read-only manifest output still remains `manual_review_required` for these scoped-rule classes; downstream consumption now happens through the dedicated `materialize_internal_notice_scoped_rules` worker instead of rewriting `campus_notices/internal_notice`
 
 Current post-release consumption truth:
 
 - `internal_notice` 当前已经具备 repo-owned target-collection consumption path：
   - `build_internal_notice_regulation_promotion_manifest`
   - `materialize_internal_notice_regulation_candidates`
+  - `materialize_internal_notice_scoped_rules`
 - 这条路径只会刷新 `regulations/institutional_regulations` 的 registry/object-store truth
+- `materialize_internal_notice_scoped_rules` 只会刷新 `regulations/scoped_rules` 的 registry/object-store truth
+- 当 target document 的 semantic content hash / version id 不变，但 provenance metadata 扩展时，这条路径也必须重写 target `document-units/chunks`，不能复用旧 artifact
 - 它不会改写 `campus_notices/internal_notice`
 - 它不会自动执行 chunk preparation、embedding、Qdrant write、release 或 alias publish
 
