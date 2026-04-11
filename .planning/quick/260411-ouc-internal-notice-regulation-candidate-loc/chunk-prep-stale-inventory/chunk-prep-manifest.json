@@ -1,0 +1,19 @@
+{
+  "schema_version": "internal_notice_regulation_candidate_chunk_prep_v1",
+  "prepared_at": "2026-04-11T10:20:03.079936+00:00",
+  "target_corpus": "regulations",
+  "target_collection": "institutional_regulations",
+  "prepared_candidate_count": 1,
+  "total_unit_count": 16,
+  "total_chunk_count": 16,
+  "documents": [
+    {
+      "candidate_id": "cef3d1b5b85aefca",
+      "source_document_id": "notice:muc_internal_portal:187233",
+      "target_document_id": "institutional_regulation:muc:中央民族大学采购工作管理办法:a2f1da036a48",
+      "regulation_title_normalized": "中央民族大学采购工作管理办法",
+      "document_units_path": "prepared-candidates/中央民族大学采购工作管理办法--cef3d1b5b85aefca/document-units.jsonl",
+      "chunk_catalog_path": "prepared-candidates/中央民族大学采购工作管理办法--cef3d1b5b85aefca/chunks.jsonl"
+    }
+  ]
+}

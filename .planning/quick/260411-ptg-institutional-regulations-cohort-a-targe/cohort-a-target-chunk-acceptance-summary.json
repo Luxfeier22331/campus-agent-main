@@ -1,0 +1,183 @@
+{
+  "schema_version": "institutional_regulations_cohort_a_target_chunk_acceptance_v1",
+  "batch_id": "run14-policy-regulation-expanded-v1",
+  "cohort": "A",
+  "cohort_label": "body_text_quality_pilot",
+  "local_only": true,
+  "writes_postgres": false,
+  "writes_qdrant": false,
+  "writes_embeddings": false,
+  "writes_release_manifests": false,
+  "writes_aliases": false,
+  "cohort_notice_count": 11,
+  "cohort_notice_ids": [
+    "354006",
+    "353963",
+    "351907",
+    "196411",
+    "191705",
+    "191177",
+    "191176",
+    "187233",
+    "187004",
+    "186977",
+    "186957"
+  ],
+  "rebuilt_inventory_notice_count": 11,
+  "promotion_candidate_count": 1,
+  "promotion_manual_review_count": 10,
+  "promotion_hold_count": 0,
+  "promotion_action_counts": {
+    "manual_review_required": 10,
+    "promote_candidate": 1
+  },
+  "candidate_exported_count": 1,
+  "prepared_candidate_count": 1,
+  "quality_posture": "needs_short_fragment_tuning_review",
+  "short_body_chunk_count": 7,
+  "failed_candidate_ids": [],
+  "short_body_by_candidate_id": {
+    "0425aed278c86fda": 7
+  },
+  "short_body_by_notice_id": {
+    "187233": 7
+  },
+  "manual_review_notices": [
+    {
+      "notice_id": "186957",
+      "promotion_class": "manual_promotion_review",
+      "missing_required_metadata": [
+        "revision_signal"
+      ],
+      "reasons": [
+        "draft_or_operational_signal_detected"
+      ]
+    },
+    {
+      "notice_id": "186977",
+      "promotion_class": "manual_promotion_review",
+      "missing_required_metadata": [
+        "revision_signal"
+      ],
+      "reasons": [
+        "draft_or_operational_signal_detected"
+      ]
+    },
+    {
+      "notice_id": "187004",
+      "promotion_class": "manual_promotion_review",
+      "missing_required_metadata": [
+        "revision_signal"
+      ],
+      "reasons": [
+        "draft_or_operational_signal_detected"
+      ]
+    },
+    {
+      "notice_id": "191176",
+      "promotion_class": "manual_promotion_review",
+      "missing_required_metadata": [
+        "issuing_org",
+        "revision_signal"
+      ],
+      "reasons": [
+        "wrapper_semantics_still_present",
+        "time_bound_or_operational_signal_detected"
+      ]
+    },
+    {
+      "notice_id": "191177",
+      "promotion_class": "manual_promotion_review",
+      "missing_required_metadata": [
+        "issuing_org",
+        "revision_signal"
+      ],
+      "reasons": [
+        "wrapper_semantics_still_present",
+        "time_bound_or_operational_signal_detected"
+      ]
+    },
+    {
+      "notice_id": "191705",
+      "promotion_class": "manual_promotion_review",
+      "missing_required_metadata": [
+        "effective_date",
+        "revision_signal"
+      ],
+      "reasons": [
+        "time_bound_or_operational_signal_detected"
+      ]
+    },
+    {
+      "notice_id": "196411",
+      "promotion_class": "manual_promotion_review",
+      "missing_required_metadata": [
+        "effective_date",
+        "revision_signal"
+      ],
+      "reasons": [
+        "draft_or_operational_signal_detected"
+      ]
+    },
+    {
+      "notice_id": "351907",
+      "promotion_class": "manual_promotion_review",
+      "missing_required_metadata": [
+        "effective_date",
+        "revision_signal"
+      ],
+      "reasons": [
+        "time_bound_or_operational_signal_detected"
+      ]
+    },
+    {
+      "notice_id": "353963",
+      "promotion_class": "manual_promotion_review",
+      "missing_required_metadata": [
+        "revision_signal"
+      ],
+      "reasons": [
+        "time_bound_or_operational_signal_detected"
+      ]
+    },
+    {
+      "notice_id": "354006",
+      "promotion_class": "manual_promotion_review",
+      "missing_required_metadata": [
+        "revision_signal"
+      ],
+      "reasons": [
+        "time_bound_or_operational_signal_detected"
+      ]
+    }
+  ],
+  "rebuilt_inventory_path": ".planning/quick/260411-ptg-institutional-regulations-cohort-a-targe/cohort-a-rebuilt-source-truth-inventory.json",
+  "candidate_manifest_path": ".planning/quick/260411-ptg-institutional-regulations-cohort-a-targe/cohort-a-candidate-export-rebuilt/promotion-candidate-manifest.json",
+  "candidate_documents_path": ".planning/quick/260411-ptg-institutional-regulations-cohort-a-targe/cohort-a-candidate-export-rebuilt/candidate-documents.jsonl",
+  "chunk_prep_manifest_path": ".planning/quick/260411-ptg-institutional-regulations-cohort-a-targe/cohort-a-chunk-prep-rebuilt/chunk-prep-manifest.json",
+  "chunk_prep_validation_summary_path": ".planning/quick/260411-ptg-institutional-regulations-cohort-a-targe/cohort-a-chunk-prep-rebuilt/validation-summary.json",
+  "chunk_prep_document_reports_path": ".planning/quick/260411-ptg-institutional-regulations-cohort-a-targe/cohort-a-chunk-prep-rebuilt/document-reports.jsonl",
+  "validation_summary": {
+    "schema_version": "internal_notice_regulation_candidate_chunk_prep_v1",
+    "passed": true,
+    "prepared_candidate_count": 1,
+    "total_unit_count": 16,
+    "total_chunk_count": 16,
+    "unit_type_counts": {
+      "institutional_regulation_block": 15,
+      "institutional_regulation_heading": 1
+    },
+    "split_reason_counts": {},
+    "header_mode_counts": {
+      "compact_identity": 14,
+      "full_path": 2
+    },
+    "missing_title_chunk_count": 0,
+    "missing_contextualization_count": 0,
+    "missing_projection_metadata_count": 0,
+    "wrapper_notice_leak_chunk_count": 0,
+    "front_matter_leak_chunk_count": 0,
+    "short_body_chunk_count": 7,
+    "failed_candidate_ids": []
+  }
+}

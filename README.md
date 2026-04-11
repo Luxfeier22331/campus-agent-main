@@ -14,7 +14,9 @@
 - `app-api` 产品层 contract：`docs/contracts/app-api-http.md`
 - `app-api` operator observability contract：`docs/contracts/app-api-operator-observability-http.md`
 - `app-api -> supervisor-api` 执行契约：`docs/contracts/app-api-supervisor-execution.md`
+- place-finding contract：`docs/contracts/navigation-place-finding-contract.md`
 - `app-api` 数据模型：`docs/data/app-api-schema.md`
+- place catalog 数据真相：`docs/data/campus-navigation-place-catalog.md`
 - identity / memory / personalization 边界：`docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - request projection ownership：`docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - supervisor internal execution admission：`docs/decisions/adr-0017-supervisor-internal-execution-admission.md`

@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-03-22
-updated: 2026-04-10
+updated: 2026-04-11
 ---
 
 # Docs
@@ -74,6 +74,7 @@ updated: 2026-04-10
 - 目标架构：`architecture/target-architecture.md`
 - supporting architecture：`architecture/product-runtime-architecture.md`、`architecture/execution-and-specialists-architecture.md`、`architecture/prompt-and-instruction-architecture.md`、`architecture/identity-and-authorization-architecture.md`、`architecture/retrieval-serving-architecture.md`、`architecture/data-plane-architecture.md`、`architecture/navigation-and-wayfinding-architecture.md`、`architecture/official-web-architecture.md`、`architecture/authenticated-notice-source-architecture.md`、`architecture/operator-observability-architecture.md`
 - 导航长期边界与底图策略：`architecture/navigation-and-wayfinding-architecture.md`、`decisions/adr-0027-navigation-specialist-and-spatial-truth.md`、`decisions/adr-0028-campus-navigation-basemap-and-provider-strategy.md`
+- 地点寻找 contract / data truth：`contracts/navigation-place-finding-contract.md`、`data/campus-navigation-place-catalog.md`
 - institution-scoped 产品路径与开放域能力准入：`architecture/product-positioning.md`、`architecture/target-architecture.md`、`decisions/adr-0030-institution-scoped-product-path-and-explicit-open-domain-admission.md`
 - 共享 Postgres 连接与 IPv4 session-pooler 姿态：`data/shared-postgres-ownership.md`、`decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md`
 - 当前 phase 状态与 pending work：`.planning/PROJECT.md`、`.planning/STATE.md`
@@ -92,7 +93,8 @@ updated: 2026-04-10
 - authenticated-notice 历史 closeout 当前证据：`reference/authenticated-notice-historical-closeout-evidence.md`
 - 地点寻找一期实施：`plans/campus-place-finding-foundation.md`
 - 当前 closeout 之后的执行优先级：`plans/post-closeout-follow-up-execution-plan.md`
-- `public-chat-web` 当前 strict donor parity closeout truth：`reference/public-chat-web-donor-diff-whitelist.md`、`reference/public-chat-web-strict-donor-parity-gap-inventory.md`、`reference/public-chat-web-route-state-parity-inventory.md`、`reference/public-chat-web-donor-parity-review-checklist.md`、`reference/public-chat-web-chatbot-donor-baseline.md`
+- `public-chat-web` 当前 strict donor parity closeout truth：`reference/public-chat-web-donor-diff-classification.md`、`reference/public-chat-web-donor-diff-whitelist.md`、`reference/public-chat-web-strict-donor-parity-gap-inventory.md`、`reference/public-chat-web-route-state-parity-inventory.md`、`reference/public-chat-web-donor-parity-review-checklist.md`、`reference/public-chat-web-chatbot-donor-baseline.md`
+- `public-chat-web` 当前 donor 技术债收口计划：`plans/public-chat-web-vendor-tech-debt-convergence.md`
 - 首个真实 Worker 部署准备：`runbooks/staging-worker-deploy-runbook.md`
 - 当前 `dev-backed supervisor` staging 验收：`runbooks/dev-backed-supervisor-staging-smoke-runbook.md`
 - 已完成且退出默认入口的历史 plan/reference 已归档到 `.planning/archive-docs/`
@@ -138,8 +140,10 @@ updated: 2026-04-10
 - `contracts/app-api-official-web-run-lifecycle.md`
 - `contracts/app-api-request-lifecycle.md`
 - `contracts/app-api-supervisor-execution.md`
+- `contracts/navigation-place-finding-contract.md`
 - `data/app-api-official-web-schema.md`
 - `data/app-api-schema.md`
+- `data/campus-navigation-place-catalog.md`
 - `data/shared-postgres-ownership.md`
 - `environment/README.md`
 - `decisions/adr-0002-local-minio-conventions.md`
@@ -185,6 +189,7 @@ updated: 2026-04-10
 - `plans/operator-observability-control-plane-foundation.md`
 - `plans/prompt-grounding-and-hallucination-hardening-plan.md`
 - `plans/post-closeout-follow-up-execution-plan.md`
+- `plans/public-chat-web-vendor-tech-debt-convergence.md`
 - `plans/restricted-document-rollout-and-verification.md`
 - `plans/supervisor-current-design-implementation.md`
 - `plans/versioned-history-query-foundation.md`
@@ -215,6 +220,7 @@ updated: 2026-04-10
 - `reference/internal-notice-offline-preparation-quality-acceptance.md`
 - `reference/phase1-ingestion-retrieval-implementation-truth.md`
 - `reference/public-chat-web-chatbot-donor-baseline.md`
+- `reference/public-chat-web-donor-diff-classification.md`
 - `reference/public-chat-web-donor-diff-whitelist.md`
 - `reference/public-chat-web-donor-parity-review-checklist.md`
 - `reference/public-chat-web-route-state-parity-inventory.md`

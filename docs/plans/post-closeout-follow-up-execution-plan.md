@@ -2,7 +2,7 @@
 doc_type: plan
 status: active
 created: 2026-04-06
-updated: 2026-04-10
+updated: 2026-04-11
 ---
 
 # Post-Closeout Follow-Up Execution Plan
@@ -46,7 +46,8 @@ updated: 2026-04-10
 
 当前仍未关闭的事实：
 
-- authenticated-notice historical closeout 已通过真实 run `authenticated-notice-replay-20260406-024405` 收口，verification / promotion 均完成；但 2026-04-10 fresh current-scope validator 仍显示陈旧 promoted truth 未过质量门，因此下一条可执行动作先是 `campus_notices/internal_notice` 的 full current-scope `source_truth_replay` refresh，再进入 chunk preparation / guarded registry release
+- authenticated-notice historical closeout 已通过真实 run `authenticated-notice-replay-20260406-024405` 收口，verification / promotion 均完成；与此同时，local Postgres 路径上的 full current-scope replay `local-postgres-wave-d-full-20260410-141615`、preparation `prep-local-postgres-wave-d-full-20260410-141615`、promote `promotion-0001` 与 unpublished release `r20260411_090101` 也已闭环，`internal_notice__r20260411_090101` 当前存在于 Qdrant Cloud 且 alias 仍未发布
+- post-release consumption 的第一条 repo-local target-collection materialization 也已落地：`internal_notice` 现在可以通过 `build_internal_notice_regulation_promotion_manifest` + `materialize_internal_notice_regulation_candidates` 把 `promote_candidate` canonical text scope-refresh 到 `regulations/institutional_regulations`，同时继续保持 `offline_preparation`
 - live portal scheduling 与 authenticated control plane 仍是后续 deferred work
 
 ## Current Execution Status
@@ -58,6 +59,12 @@ updated: 2026-04-10
 - Wave B 已于 2026-04-09 完成真实 staging closeout；同日 Workstream 2A 也已完成 `public-chat-web` Wave 6 strict parity closeout，Wave D 已从“closeout 本身”前进到“closeout 之后的 current-scope refresh / offline release / retrieval-prep consumption”
 - 2026-04-10 Wave D 已完成离线 ingestion management/direct posture 的 repo-level 修复：full refresh / validation / preparation / release 相关 builder 现已切到 `prefer_management=True`，并新增 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` + fast-fail guardrail，不再接受把 session pooler 冒充成 management DSN
 - 同日再次执行 full current-scope refresh 时，repo 已越过原先的 `psycopg_pool.PoolTimeout` 代码路径；新的 active blocker 已收敛为 operator env truth：当前本地 `APP_API_MANAGEMENT_DATABASE_URL` 仍指向 `*.pooler.supabase.com`，被 direct connect 以 `MaxClientsInSessionMode` 明确拒绝，因此 current-scope refresh 仍待真实 direct management DSN 到位
+- 2026-04-11 Wave D 已在 local Postgres 路径上完成剩余闭环：`local-postgres-wave-d-full-20260410-141615` 已 promote 为 `promotion-0001`，随后 `release_registry_scope --no-publish-alias` 成功生成 unpublished release `r20260411_090101`、physical collection `internal_notice__r20260411_090101`、`document_count=21`、`point_count=213`、`validation_status=passed`；当前 alias `internal_notice` 仍保持未发布
+- 同日已补齐 operator 约束：当前 WSL shell 访问 Qdrant Cloud 时会被宿主机代理值拖慢到超时，`release_registry_scope` 和 collection/alias 检查必须显式清空大小写代理变量，而不能只做 `env -u HTTP_PROXY ...`
+- 2026-04-11 当前 worktree 进一步完成了 Wave D 的 post-release consumption materialization：repo 新增 `campus_ingestion_core.internal_notice_regulation_materialization` 与 `campus_ingestion_worker.materialize_internal_notice_regulation_candidates`，把 `promote_candidate` canonical text 物化到 `regulations/institutional_regulations`；当前 materialization 保留 semantic target identity、duplicate provenance aggregation 与 full target-scope refresh，但仍明确停在 `offline_preparation`
+- 2026-04-11 historical donor local-smoke routing mismatch 已在 donor-import seam 单独收口：当 normalized manifest 标记 `collector.attachment_storage_mode=blob_store_reference` 且选中 batch 含 object-backed attachments 时，`import_authenticated_notice_export` / local smoke 现在会对缺失的 `attachment_blob_root` preflight fast-fail；local smoke inventory 继续是 attachment routing truth，donor byte-aware routing analysis 只保留为诊断性交叉校验
+- 2026-04-11 已补齐 `institutional_regulations` Cohort A 的 local-only target-side batch acceptance 与 structure-aware rerun：`11` 条 Cohort A notice 已完成 rebuilt inventory，当前 promotion routing 仍只把 `187233` 产出为 `promote_candidate`，其余 `10` 条仍落在 `manual_promotion_review`；但 `187233` 的 target chunk prep 已从 `short_body_chunk_count=7` 收口到 `short_body_chunk_count=0`，当前 quality posture 为 `ready_for_target_materialization`。因此下一条 repo-local authenticated-notice 动作已进一步收敛为“promotion admission/routing review”，而不是继续讨论 target chunk tuning 或直接讨论 release posture；同时已明确修正文档立场：校内制度文本不因发布时间老旧或标题含 `暂行/试行` 就自动降格或排除，真正的分流依据应是正文里的年度/项目制边界、wrapper 语义和显式临时/过渡语义
+- 2026-04-11 Wave E 已完成当前 worktree 的 foundation closeout：repo 已补齐 `campus_navigation/place_catalog` seed/runtime profile、`packages/navigation-specialist`、`place_lookup` contract/routing、`apps/app-api` `place_card` structured parts，以及 `apps/public-chat-web` 中文地点卡片渲染；定向 Python/Vitest/TypeScript 验证已 fresh 通过
 
 ## Workstreams
 
@@ -228,16 +235,17 @@ updated: 2026-04-10
 - 2026-04-10 fresh current-scope validator 仍返回 `passed=false`：`chunk_failures=1`、`notice_body_fragmentation_count=5`、`markup_leak_chunk_count=724`、`header_dominant_ocr_chunk_count=130`、`noisy_ocr_chunk_count=31`
 - 同日 repo-head 已修两项真实缺口：`source_truth_replay` parent projection 缺失 `ocr_provider_response_cache` 的 worker crash，以及 `notice_body` token-guardrail short-tail fragmentation；bounded probe `internal-notice-wave-d-241275-20260410-03` 已验证 `241275` 的 `notice_body_fragmentation_count=0`
 - 因此第一条 canonical 动作不再是直接 `prepare_registry_scope_chunks`，而是新的 full async `source_truth_replay` 来刷新 current scope truth
-- 当前这条 refresh 又额外受 shared Postgres session-pooler connectivity 阻塞；在 worker runtime 能重新完成实际 Postgres connect 之前，不能宣称 Wave D 已进入 replay / prepare / release
-- 只有 refresh 后的 verified replay 当前 scope 重新通过 quality validator，才允许执行 `prepare_registry_scope_chunks --corpus campus_notices --collection internal_notice --preparation-run-id <prep_id>`
-- 只有 verified chunk preparation 成功后，才允许执行 `release_registry_scope --corpus campus_notices --collection internal_notice --preparation-run-id <prep_id> --no-publish-alias`
-- release 成功后记录 preparation manifest、release manifest、validation summary、physical collection 与未发布 alias 的事实
+- local Postgres 路径上的 current-scope refresh、verified chunk preparation、single promote 与 unpublished release 现已全部完成：`local-postgres-wave-d-full-20260410-141615` / `prep-local-postgres-wave-d-full-20260410-141615` / `promotion-0001` / `r20260411_090101`
+- verified closeout run 生成的 `preparation_run_id` 不能直接跨过 promote 进入 release gate；当前这条链路已实证要求先把 verified run promote 到 current scope，才能让 preparation manifest hash 与 current registry scope 对齐
+- 当前 collection 的 release evidence 已补齐 preparation manifest、release manifest、validation summary、physical collection 与未发布 alias 事实；后续不再重复把“是否能 release”当成 Wave D blocker
+- 当前 WSL 环境执行 Qdrant Cloud release / inspection 还需要一条固定 operator rule：显式清空大小写代理变量，否则会在 Qdrant API 层超时
+- 当前 Wave D 的 next repo-local authenticated-notice action 已进一步收窄为：`institutional_regulations` target collection 的 chunk preparation / validation acceptance，以及后续 release posture decision；不再是 promotion materialization 本身
 - live portal scheduling 与 authenticated control plane 仍后置
 - 不能把 `offline_preparation` collection 的离线 release 写成 query-serving 开放
 
 交付物：
 
-- full current-scope source-truth refresh 执行结果
+- full current-scope source-truth refresh / promote 执行结果
 - chunk preparation 与 offline release 执行结果
 - 对应 docs/runbook/reference/verification
 - post-closeout consumption 的新 execution order
@@ -260,13 +268,32 @@ updated: 2026-04-10
 - navigation-specialist 首发 contract
 - chat answer + location card 最小闭环
 
+当前结果（2026-04-11）：
+
+- repo 已补齐 `configs/ingestion/campus_navigation/place_catalog/{seed.v1.json,runtime-profile.json}`
+- `packages/contracts`、`packages/supervisor-core` 与 `packages/navigation-specialist` 已接通 `place_lookup -> navigation-specialist`
+- `apps/app-api` 已把 `navigation-specialist` 的 `snake_case place_card` 结果归一化为 assistant `structuredParts`，并持久化到 `chat.messages.structured_parts_json`
+- `apps/public-chat-web` 已把 `place_card` 映射为中文地点卡片渲染
+- 当前 targeted verification 已通过：
+  - `uv run --all-packages python -m unittest tests.contracts.test_models tests.supervisor.test_supervisor_validation tests.supervisor.test_supervisor_routing tests.specialist.test_navigation_specialist tests.test_workspace_layout`
+  - `pnpm --dir apps/app-api exec vitest run test/chat-command.service.test.ts test/chat-structured-parts.test.ts test/shared-product-bootstrap.contract.test.ts`
+  - `pnpm --dir apps/public-chat-web exec vitest run test/platform-chat-mappers.test.ts test/platform-chat-message-parts.test.ts test/vendor-chat-message.test.ts`
+  - `pnpm --dir apps/app-api exec tsc -p tsconfig.json --noEmit`
+  - `pnpm --dir apps/public-chat-web exec tsc -p tsconfig.json --noEmit`
+
+当前剩余 follow-up：
+
+- 扩充 `place_catalog` seed 覆盖面与 `verification_state`
+- 在真实 staging 上补 place-finding smoke / 人工验收证据
+- 继续把 `route_graph` / `route_planning` 明确留在后续 phase，不回卷进本波
+
 ## Blocked Vs Ready
 
 现在就可以做：
 
 - Wave C truth / context / evaluator 诊断
-- Wave D 的 post-closeout docs/state 收口，以及在显式批准后的 offline release / post-closeout consumption
-- Wave E 的 contract / source-truth / seed 设计
+- Wave D 的 post-closeout docs/state 收口，以及 release 之后的 retrieval-prep consumption / downstream follow-up
+- Wave E 的 code truth 已关闭；后续只剩 seed 扩面与 staging/UAT 验收，而不是 foundation 设计
 
 外部阻塞：
 
