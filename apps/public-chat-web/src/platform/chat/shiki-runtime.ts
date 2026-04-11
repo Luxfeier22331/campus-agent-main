@@ -90,6 +90,8 @@ export type CampusCodeHighlightResult = Pick<
   "bg" | "fg" | "rootStyle" | "tokens"
 >;
 
+type CampusLoadedHighlighter = ReturnType<typeof createHighlighterCore>;
+
 type HighlightCallback = (result: CampusCodeHighlightResult) => void;
 type HighlighterOptions = {
   code: string;
@@ -205,6 +207,18 @@ const getHighlighter = async (
 
   highlighterCache.set(cacheKey, highlighterPromise);
   return highlighterPromise;
+};
+
+export const getCampusHighlighter = async (
+  language: string,
+  themes?: readonly [string, string],
+): Promise<CampusLoadedHighlighter | null> => {
+  const resolvedLanguage = resolveShikiLanguage(language);
+  if (!resolvedLanguage) {
+    return null;
+  }
+
+  return getHighlighter(resolvedLanguage, normalizeShikiThemes(themes));
 };
 
 export const highlightCampusCode = (

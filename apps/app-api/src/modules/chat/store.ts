@@ -3,7 +3,13 @@ import { and, asc, desc, eq, gte } from "drizzle-orm";
 import type { Env } from "../../config";
 import { createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
 import { conversations, messages, sessionSlots } from "../../db/schema";
-import type { ChatConversation, ChatConversationSummary, ChatMessage, ChatSessionSlot } from "./model";
+import {
+  normalizeChatStructuredParts,
+  type ChatConversation,
+  type ChatConversationSummary,
+  type ChatMessage,
+  type ChatSessionSlot,
+} from "./model";
 
 type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 
@@ -52,6 +58,7 @@ function toChatMessage(row: typeof messages.$inferSelect): ChatMessage {
     createdAt: toIsoString(row.createdAt),
     requestId: row.requestId ?? null,
     retryable: row.retryable ?? null,
+    structuredParts: normalizeChatStructuredParts(row.structuredPartsJson),
   };
 }
 

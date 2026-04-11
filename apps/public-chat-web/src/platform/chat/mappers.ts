@@ -42,6 +42,7 @@ export function mapChatMessage(message: ChatMessage): ShellMessage {
     requestId: message.requestId,
     retryable: Boolean(message.retryable),
     role: message.role,
+    ...(message.structuredParts?.length ? { structuredParts: message.structuredParts } : {}),
     text: message.text,
   };
 }

@@ -18,7 +18,9 @@ Implementation status:
 - the first runtime cutover record is retained in `docs/plans/public-chat-web-chatbot-replatform.md` as a historical plan, not the current implementation source of truth
 - the donor-first reset record is retained in `docs/plans/public-chat-web-donor-first-reset.md` as historical closeout context
 - the strict parity closeout record is tracked in `docs/plans/public-chat-web-vendor-runtime-full-transplant.md`; `2026-04-09` fresh local gate + authenticated staging smoke have closed the strict donor parity release gate, with the authoritative evidence pack fixed at `.tmp/staging-smoke/20260409T232000+0800-public-chat-wave6-closeout-2/`
+- the donor tech-debt convergence closeout is tracked in `docs/plans/public-chat-web-vendor-tech-debt-convergence.md`; Wave 5 local verification is now closed with evidence at `.tmp/local-smoke/20260411T163903+0800-public-chat-wave5-closeout/`, and further work should move to repo-level post-closeout follow-up instead of reopening donor convergence
 - the current shell parity inventory lives in `docs/reference/public-chat-web-route-state-parity-inventory.md`
+- the current donor diff classification inventory lives in `docs/reference/public-chat-web-donor-diff-classification.md`
 - the accepted donor diff whitelist lives in `docs/reference/public-chat-web-donor-diff-whitelist.md`
 - the historical donor drift inventory for the retired transitional shell lives in `docs/reference/public-chat-web-donor-drift-inventory.md` and is no longer an active blocker list
 - the current strict donor parity gap inventory lives in `docs/reference/public-chat-web-strict-donor-parity-gap-inventory.md`
@@ -73,7 +75,9 @@ Canonical references:
 - `docs/contracts/app-api-http.md`
 - `docs/contracts/app-api-request-lifecycle.md`
 - `docs/plans/public-chat-web-vendor-runtime-full-transplant.md`
+- `docs/plans/public-chat-web-vendor-tech-debt-convergence.md`
 - `docs/reference/public-chat-web-chatbot-donor-baseline.md`
+- `docs/reference/public-chat-web-donor-diff-classification.md`
 - `docs/reference/public-chat-web-donor-diff-whitelist.md`
 - `docs/reference/public-chat-web-donor-parity-review-checklist.md`
 - `docs/reference/public-chat-web-route-state-parity-inventory.md`
@@ -127,3 +131,4 @@ Local dev notes:
 
 - `pnpm dev` keeps the SPA shell isolated to `public-chat-web`; it is useful for frontend-only iteration, but it is not the canonical browser smoke path for the `APP_API` service binding.
 - `pnpm dev:live-smoke` is the canonical local browser smoke entry. It boots `public-chat-web` on `http://127.0.0.1:5173` and brings up `apps/app-api` as a Cloudflare Vite auxiliary Worker from `../app-api/wrangler.local-smoke.toml`, so same-site `/api/*` requests resolve through the real Worker service binding instead of depending on two separate `pnpm dev` sessions finding each other.
+- before `pnpm dev:live-smoke`, run `pnpm --dir apps/app-api db:bootstrap` whenever local Postgres may lag `apps/app-api/db/shared-product-migrations/*` after a pull or schema change. The local `chat.*` bootstrap migrations are not covered by `db:reconcile-shared-drift`; if they lag, `POST /api/chat/requests` can fail even when the chat shell itself is healthy.

@@ -1,6 +1,9 @@
 "use client";
 
 import { ChevronUp } from "lucide-react";
+import { useRouter } from "next/navigation";
+import type { User } from "next-auth";
+import { signOut, useSession } from "next-auth/react";
 import { useTheme } from "next-themes";
 import {
   DropdownMenu,
@@ -15,10 +18,6 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { guestRegex } from "@/lib/constants";
-import { signOutChatSession } from "@platform/auth/client";
-import { useChatbotShellRuntime } from "@platform/chat/runtime";
-import { useAppRouter } from "@platform/router";
-import type { ShellChatUser } from "@platform/chat/types";
 import { LoaderIcon } from "./icons";
 import { toast } from "./toast";
 
@@ -30,18 +29,12 @@ function emailToHue(email: string): number {
   return Math.abs(hash) % 360;
 }
 
-export function SidebarUserNav({ user }: { user: ShellChatUser }) {
-  const router = useAppRouter();
-  const { session } = useChatbotShellRuntime();
+export function SidebarUserNav({ user }: { user: User }) {
+  const router = useRouter();
+  const { data, status } = useSession();
   const { setTheme, resolvedTheme } = useTheme();
-  const status =
-    session.kind === "loading"
-      ? "loading"
-      : session.kind === "authenticated"
-        ? "authenticated"
-        : "unauthenticated";
 
-  const isGuest = guestRegex.test(user.email ?? "");
+  const isGuest = guestRegex.test(data?.user?.email ?? "");
 
   return (
     <SidebarMenu>
@@ -108,9 +101,11 @@ export function SidebarUserNav({ user }: { user: ShellChatUser }) {
                   }
 
                   if (isGuest) {
-                    void router.push("/login");
+                    router.push("/login");
                   } else {
-                    void signOutChatSession({ redirectTo: "/login" });
+                    signOut({
+                      redirectTo: "/login",
+                    });
                   }
                 }}
                 type="button"

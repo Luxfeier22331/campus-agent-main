@@ -14,7 +14,7 @@ describe("vendor chat chrome", () => {
   it("keeps the active header chrome in the vendor shell while leaving sharing off the launch path", () => {
     expect(chatHeaderSource).toContain("Toggle sidebar");
     expect(chatHeaderSource).toContain("VercelIcon");
-    expect(chatHeaderSource).toContain("AppLink");
+    expect(chatHeaderSource).toContain('from "next/link"');
     expect(chatHeaderSource).toContain("Deploy with Vercel");
     expect(chatHeaderSource).not.toContain("VisibilitySelector");
     expect(chatHeaderSource).not.toContain("Same-site Worker shell");

@@ -10,7 +10,12 @@ import {
   requestObservabilityFact,
   sessionSlots,
 } from "../../db/schema";
-import type { ChatConversation, ChatMessage, ChatSessionSlot } from "../chat";
+import {
+  normalizeChatStructuredParts,
+  type ChatConversation,
+  type ChatMessage,
+  type ChatSessionSlot,
+} from "../chat";
 import type { RequestedScope } from "../integration";
 import type { RequestDiagnosticsSummary } from "../request-diagnostics";
 import type { ChatCommandResponse } from "./service";
@@ -173,6 +178,7 @@ function toChatMessage(row: typeof messages.$inferSelect): ChatMessage {
     createdAt: toIsoString(row.createdAt),
     requestId: row.requestId ?? null,
     retryable: row.retryable ?? null,
+    structuredParts: normalizeChatStructuredParts(row.structuredPartsJson),
   };
 }
 
@@ -346,6 +352,7 @@ export function createPgChatCommandStore(
             role: input.userMessage.role,
             kind: null,
             text: input.userMessage.text,
+            structuredPartsJson: input.userMessage.structuredParts,
             createdAt: new Date(input.userMessage.createdAt),
             requestId: null,
             retryable: null,
@@ -477,6 +484,7 @@ export function createPgChatCommandStore(
             role: input.assistantMessage.role,
             kind: input.assistantMessage.kind,
             text: input.assistantMessage.text,
+            structuredPartsJson: input.assistantMessage.structuredParts,
             createdAt: new Date(input.assistantMessage.createdAt),
             requestId: input.assistantMessage.requestId,
             retryable: input.assistantMessage.retryable,

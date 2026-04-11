@@ -41,6 +41,7 @@ describe("app-api shared product bootstrap contracts", () => {
       "db/shared-product-migrations/0001_chat_schema.sql",
       "db/shared-product-migrations/0002_message_retryable.sql",
       "db/shared-product-migrations/0003_chat_session_slots.sql",
+      "db/shared-product-migrations/0004_chat_message_structured_parts.sql",
       "scripts/bootstrap-shared-product-database.mjs",
       "scripts/ensure-app-auth-role-search-path.mjs",
       "scripts/print-shared-product-auth-migration.mjs",

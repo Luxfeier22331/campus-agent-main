@@ -6,20 +6,20 @@ import vendorReasoningSource from "../vendor/vercel-ai-chatbot/components/ai-ele
 import vendorTextEditorSource from "../vendor/vercel-ai-chatbot/components/chat/text-editor.tsx?raw";
 
 describe("chat code splitting", () => {
-  it("routes markdown highlighting through a platform-owned streamdown code plugin", () => {
-    expect(vendorMessageSource).toContain("@platform/chat/streamdown-code-plugin");
-    expect(vendorMessageSource).not.toContain('@streamdown/code');
+  it("keeps markdown highlighting on the donor streamdown/code specifier", () => {
+    expect(vendorMessageSource).toContain("@streamdown/code");
+    expect(vendorMessageSource).not.toContain("@platform/chat/streamdown-code-plugin");
     expect(vendorReasoningSource).toContain(
-      "@platform/chat/streamdown-code-plugin",
+      "@streamdown/code",
     );
-    expect(vendorReasoningSource).not.toContain('@streamdown/code');
+    expect(vendorReasoningSource).not.toContain("@platform/chat/streamdown-code-plugin");
   });
 
-  it("keeps donor code blocks off the full shiki bundle entrypoint", () => {
-    expect(vendorCodeBlockSource).toContain("@platform/chat/shiki-runtime");
-    expect(vendorCodeBlockSource).not.toContain(
-      'import { createHighlighter } from "shiki"',
+  it("keeps donor code blocks on the shiki entrypoint while runtime ownership moves behind compat seams", () => {
+    expect(vendorCodeBlockSource).toContain(
+      'import { createHighlighter } from "shiki";',
     );
+    expect(vendorCodeBlockSource).not.toContain("@platform/chat/shiki-runtime");
   });
 
   it("keeps the text editor on the donor direct import path instead of a repo-local runtime loader", () => {

@@ -18,7 +18,7 @@ export type AppHref =
       query?: Record<string, boolean | number | string | null | undefined>;
     };
 
-type AppLinkProps = AnchorHTMLAttributes<HTMLAnchorElement> & {
+type AppLinkProps = Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href"> & {
   children: ReactNode;
   href: AppHref;
   replace?: boolean;

@@ -20,9 +20,10 @@ import { useAppRouter, useConversationRouteId } from "@platform/router";
 import { UnauthorizedError } from "./api";
 import { getShellConversationDetail } from "./conversations";
 import { getSerializedChatHistoryKey } from "./history-cache";
+import { mapShellConversationMessages } from "./message-parts";
 import { submitShellChatRequest } from "./transport";
 import { useChatbotShellRuntime } from "./runtime";
-import type { ShellConversationDetail, ShellMessage } from "./types";
+import type { ShellConversationDetail } from "./types";
 
 export type ChatStatus = UseChatHelpers<ChatMessage>["status"];
 
@@ -54,24 +55,6 @@ type ActiveChatContextValue = {
 };
 
 const ActiveChatContext = createContext<ActiveChatContextValue | null>(null);
-
-function mapShellMessage(message: ShellMessage): ChatMessage {
-  return {
-    id: message.id,
-    kind: message.kind,
-    metadata: {
-      createdAt: message.createdAt,
-    },
-    parts: [{ text: message.text, type: "text" }],
-    requestId: message.requestId,
-    retryable: message.retryable,
-    role: message.role,
-  };
-}
-
-function mapShellConversationMessages(conversation: ShellConversationDetail | null) {
-  return conversation ? conversation.messages.map(mapShellMessage) : [];
-}
 
 function extractPromptText(message: SendMessageInput): string {
   if (!message) {

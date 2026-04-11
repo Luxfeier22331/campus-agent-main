@@ -1,10 +1,10 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
 import { memo } from "react";
 import { suggestions } from "@/lib/constants";
 import type { ChatMessage } from "@/lib/types";
-import { useAppRouter } from "@platform/router";
 import { Suggestion } from "../ai-elements/suggestion";
 import type { VisibilityType } from "./visibility-selector";
 
@@ -20,7 +20,7 @@ function PureSuggestedActions({
   prepareConversationRoute,
   sendMessage,
 }: SuggestedActionsProps) {
-  const router = useAppRouter();
+  const router = useRouter();
 
   return (
     <div

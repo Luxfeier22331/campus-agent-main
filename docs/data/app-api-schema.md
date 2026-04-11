@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-03-28
-updated: 2026-04-03
+updated: 2026-04-11
 ---
 
 # App API Schema
@@ -148,6 +148,7 @@ updated: 2026-04-03
 - `created_at`
 - `request_id` nullable
 - `retryable` nullable
+- `structured_parts_json` nullable
 
 最小索引：
 
@@ -166,6 +167,9 @@ updated: 2026-04-03
 - `role=user` 的消息不写 `kind`
 - `request_id` 只在 assistant-side message 上出现
 - `trace_id` 不强制冗余写进 `chat.messages`
+- `structured_parts_json` 用于持久化 typed assistant structured parts；当前首个已接受类型是 `place_card`
+- `structured_parts_json` 由 `app-api` 负责把 execution-side `snake_case` payload 归一化成 browser-facing `camelCase` shape；它不保存 provider response blob 或 provider-specific IDs
+- 当前 `role=user` message 仍写空 structured parts；首发 structured payload 只来自 assistant finalized turn
 
 ## `chat.session_slots`
 

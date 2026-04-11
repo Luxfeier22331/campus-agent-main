@@ -2,11 +2,20 @@ import { describe, expect, it } from "vitest";
 
 import appShellSource from "../src/platform/chat/app-shell.tsx?raw";
 import packageManifestRaw from "../package.json?raw";
+import compatModelsSource from "../src/platform/vendor-compat/lib/ai/models.ts?raw";
+import compatConstantsSource from "../src/platform/vendor-compat/lib/constants.ts?raw";
+import compatSchemaSource from "../src/platform/vendor-compat/lib/db/schema.ts?raw";
+import compatTypesSource from "../src/platform/vendor-compat/lib/types.ts?raw";
+import compatUtilsSource from "../src/platform/vendor-compat/lib/utils.ts?raw";
 import viteConfigSource from "../vite.config.ts?raw";
+import vendorAiMessageSource from "../vendor/vercel-ai-chatbot/components/ai-elements/message.tsx?raw";
+import vendorAiReasoningSource from "../vendor/vercel-ai-chatbot/components/ai-elements/reasoning.tsx?raw";
+import vendorAppSidebarSource from "../vendor/vercel-ai-chatbot/components/chat/app-sidebar.tsx?raw";
 import vendorChatHeaderSource from "../vendor/vercel-ai-chatbot/components/chat/chat-header.tsx?raw";
 import vendorMessageSource from "../vendor/vercel-ai-chatbot/components/chat/message.tsx?raw";
 import vendorMessageEditorSource from "../vendor/vercel-ai-chatbot/components/chat/message-editor.tsx?raw";
 import vendorMessagesSource from "../vendor/vercel-ai-chatbot/components/chat/messages.tsx?raw";
+import vendorSidebarUserNavSource from "../vendor/vercel-ai-chatbot/components/chat/sidebar-user-nav.tsx?raw";
 import tsconfigSource from "../tsconfig.json?raw";
 import vendorGreetingSource from "../vendor/vercel-ai-chatbot/components/chat/greeting.tsx?raw";
 import vendorArtifactActionsSource from "../vendor/vercel-ai-chatbot/artifacts/actions.ts?raw";
@@ -15,7 +24,11 @@ import vendorMultimodalInputSource from "../vendor/vercel-ai-chatbot/components/
 import vendorPreviewAttachmentSource from "../vendor/vercel-ai-chatbot/components/chat/preview-attachment.tsx?raw";
 import vendorSuggestedActionsSource from "../vendor/vercel-ai-chatbot/components/chat/suggested-actions.tsx?raw";
 import vendorShellSource from "../vendor/vercel-ai-chatbot/components/chat/shell.tsx?raw";
+import vendorModelsSource from "../vendor/vercel-ai-chatbot/lib/ai/models.ts?raw";
 import vendorConstantsSource from "../vendor/vercel-ai-chatbot/lib/constants.ts?raw";
+import vendorSchemaSource from "../vendor/vercel-ai-chatbot/lib/db/schema.ts?raw";
+import vendorTypesSource from "../vendor/vercel-ai-chatbot/lib/types.ts?raw";
+import vendorUtilsSource from "../vendor/vercel-ai-chatbot/lib/utils.ts?raw";
 
 const packageManifest = JSON.parse(packageManifestRaw) as {
   scripts?: Record<string, string | undefined>;
@@ -23,8 +36,26 @@ const packageManifest = JSON.parse(packageManifestRaw) as {
 
 describe("chatbot vendor runtime parity", () => {
   it("binds the default @ alias to the vendor tree and exposes a dedicated @platform seam", () => {
-    expect(viteConfigSource).toContain('"@": path.resolve(__dirname, "vendor/vercel-ai-chatbot")');
-    expect(viteConfigSource).toContain('"@platform": path.resolve(__dirname, "src/platform")');
+    expect(viteConfigSource).toContain('find: /^@\\/hooks\\/use-active-chat$/');
+    expect(viteConfigSource).toContain('find: /^next\\/image$/');
+    expect(viteConfigSource).toContain("vendor-compat-resolver");
+    expect(viteConfigSource).toContain("src/platform/vendor-compat/shiki.ts");
+    expect(viteConfigSource).toContain("src/platform/vendor-compat/lib/db/queries.ts");
+    expect(viteConfigSource).toContain("src/platform/vendor-compat/lib/ai/models.ts");
+    expect(viteConfigSource).toContain("src/platform/vendor-compat/lib/constants.ts");
+    expect(viteConfigSource).toContain("src/platform/vendor-compat/lib/db/schema.ts");
+    expect(viteConfigSource).toContain("src/platform/vendor-compat/lib/editor/diff.ts");
+    expect(viteConfigSource).toContain("src/platform/vendor-compat/lib/types.ts");
+    expect(viteConfigSource).toContain("src/platform/vendor-compat/lib/utils.ts");
+    expect(viteConfigSource).toContain('"vendor/vercel-ai-chatbot"');
+    expect(viteConfigSource).toContain('"src/platform"');
+    expect(tsconfigSource).toContain('"@/lib/ai/models": ["src/platform/vendor-compat/lib/ai/models.ts"]');
+    expect(tsconfigSource).toContain('"@/lib/constants": ["src/platform/vendor-compat/lib/constants.ts"]');
+    expect(tsconfigSource).toContain('"@/lib/db/schema": ["src/platform/vendor-compat/lib/db/schema.ts"]');
+    expect(tsconfigSource).toContain('"@/lib/db/queries": ["src/platform/vendor-compat/lib/db/queries.ts"]');
+    expect(tsconfigSource).toContain('"@/lib/editor/diff": ["src/platform/vendor-compat/lib/editor/diff.ts"]');
+    expect(tsconfigSource).toContain('"@/lib/types": ["src/platform/vendor-compat/lib/types.ts"]');
+    expect(tsconfigSource).toContain('"@/lib/utils": ["src/platform/vendor-compat/lib/utils.ts"]');
     expect(tsconfigSource).toContain('"@/*": ["vendor/vercel-ai-chatbot/*"]');
     expect(tsconfigSource).toContain('"@platform/*": ["src/platform/*"]');
   });
@@ -50,9 +81,14 @@ describe("chatbot vendor runtime parity", () => {
     expect(viteConfigSource).toContain("../app-api/.env");
   });
 
-  it("patches the vendor shell to consume platform-owned chat state instead of local donor hooks", () => {
-    expect(vendorShellSource).toContain("@platform/chat/use-active-chat");
-    expect(vendorShellSource).not.toContain("@/hooks/use-active-chat");
+  it("keeps runtime vendor imports on donor specifiers and resolves them through exact compat seams", () => {
+    expect(vendorShellSource).toContain("@/hooks/use-active-chat");
+    expect(vendorShellSource).not.toContain("@platform/chat/use-active-chat");
+    expect(vendorPreviewAttachmentSource).toContain('from "next/image"');
+    expect(vendorPreviewAttachmentSource).not.toContain("@platform/ui/app-image");
+    expect(vendorAppSidebarSource).toContain('from "next/link"');
+    expect(vendorAppSidebarSource).toContain('from "next/navigation"');
+    expect(vendorSidebarUserNavSource).toContain('from "next-auth/react"');
   });
 
   it("moves campus-domain greeting copy into the vendor greeting component", () => {
@@ -66,15 +102,17 @@ describe("chatbot vendor runtime parity", () => {
     );
   });
 
-  it("moves campus-domain suggested actions into the vendor-owned suggestion sources", () => {
+  it("moves campus-domain suggested actions into the constants compat seam", () => {
     expect(vendorSuggestedActionsSource).toContain("suggestions");
-    expect(vendorConstantsSource).toContain("法学民族班培养方案里大二下有什么课");
-    expect(vendorConstantsSource).toContain("哪些专业要上习概");
+    expect(compatConstantsSource).toContain("法学民族班培养方案里大二下有什么课");
+    expect(compatConstantsSource).toContain("哪些专业要上习概");
+    expect(vendorConstantsSource).not.toContain("法学民族班培养方案里大二下有什么课");
+    expect(vendorConstantsSource).not.toContain("哪些专业要上习概");
   });
 
   it("keeps the donor chat header chrome while taking unsupported sharing controls off the launch path", () => {
     expect(vendorChatHeaderSource).toContain("VercelIcon");
-    expect(vendorChatHeaderSource).toContain("AppLink");
+    expect(vendorChatHeaderSource).toContain('from "next/link"');
     expect(vendorChatHeaderSource).toContain("Deploy with Vercel");
     expect(vendorChatHeaderSource).not.toContain("VisibilitySelector");
     expect(vendorChatHeaderSource).not.toContain("conversationTitle");
@@ -118,14 +156,14 @@ describe("chatbot vendor runtime parity", () => {
   });
 
   it("routes donor message editing through a platform seam instead of reintroducing Next server actions", () => {
-    expect(vendorMessageEditorSource).toContain("@platform/chat/message-edits");
-    expect(vendorMessageEditorSource).not.toContain('@/app/(chat)/actions');
+    expect(vendorMessageEditorSource).toContain('@/app/(chat)/actions');
+    expect(vendorMessageEditorSource).not.toContain("@platform/chat/message-edits");
     expect(vendorMessageEditorSource).toContain("deleteTrailingMessages");
   });
 
-  it("routes donor artifact suggestion loading through a platform seam instead of server-only db actions", () => {
-    expect(vendorArtifactActionsSource).toContain("@platform/artifacts/suggestions");
-    expect(vendorArtifactActionsSource).not.toContain("@/lib/db/queries");
+  it("keeps donor artifact suggestion imports on db queries while runtime ownership moves behind an exact compat seam", () => {
+    expect(vendorArtifactActionsSource).toContain("@/lib/db/queries");
+    expect(vendorArtifactActionsSource).not.toContain("@platform/artifacts/suggestions");
     expect(vendorArtifactActionsSource).not.toContain('"use server"');
   });
 
@@ -135,8 +173,39 @@ describe("chatbot vendor runtime parity", () => {
     expect(vendorDataStreamHandlerSource).not.toContain("applyArtifactStreamPart");
   });
 
-  it("routes donor attachment previews through a platform image seam instead of next/image", () => {
-    expect(vendorPreviewAttachmentSource).toContain("@platform/ui/app-image");
-    expect(vendorPreviewAttachmentSource).not.toContain('from "next/image"');
+  it("keeps donor attachment preview imports on next/image so image runtime stays behind exact compat seams", () => {
+    expect(vendorPreviewAttachmentSource).toContain('from "next/image"');
+  });
+
+  it("keeps router ownership behind next/navigation compat instead of direct platform imports", () => {
+    expect(vendorMultimodalInputSource).toContain('from "next/navigation"');
+    expect(vendorMultimodalInputSource).not.toContain("@platform/router");
+    expect(vendorSuggestedActionsSource).toContain('from "next/navigation"');
+    expect(vendorSuggestedActionsSource).not.toContain("@platform/router");
+  });
+
+  it("keeps streamdown code plugin ownership behind an exact compat seam", () => {
+    expect(vendorAiMessageSource).toContain('from "@streamdown/code"');
+    expect(vendorAiMessageSource).not.toContain("@platform/chat/streamdown-code-plugin");
+    expect(vendorAiReasoningSource).toContain('from "@streamdown/code"');
+    expect(vendorAiReasoningSource).not.toContain("@platform/chat/streamdown-code-plugin");
+  });
+
+  it("moves vendor lib runtime truth behind exact compat seams while restoring donor lib sources", () => {
+    expect(vendorModelsSource).toContain("next: { revalidate: 86_400 }");
+    expect(compatModelsSource).toContain('cache: "force-cache"');
+
+    expect(vendorSchemaSource).toContain('from "drizzle-orm/pg-core"');
+    expect(compatSchemaSource).toContain('export type Chat = {');
+    expect(compatSchemaSource).not.toContain("pgTable");
+
+    expect(vendorTypesSource).toContain("InferUITool");
+    expect(vendorTypesSource).not.toContain("requestId?: string | null");
+    expect(compatTypesSource).toContain("requestId?: string | null");
+    expect(compatTypesSource).toContain('kind?: "answer" | "clarification" | "error" | "no_answer" | "user"');
+
+    expect(vendorUtilsSource).toContain("const response = await fetch(url);");
+    expect(vendorUtilsSource).not.toContain('credentials: "same-origin"');
+    expect(compatUtilsSource).toContain('credentials: "same-origin"');
   });
 });

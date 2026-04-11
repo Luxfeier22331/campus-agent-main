@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-04-03
+updated: 2026-04-11
 ---
 
 # App API Supervisor Execution Contract
@@ -121,9 +121,9 @@ JSON 命名保持 `snake_case`，原因如下：
 - `context`
   由 `app-api` 显式投影的最小 `ContextProjection`；当前至少包含 `actor`、`authorization.retrieval_filter`、空的 `profile_memory.items` 与 `session.confirmed_slots`，以及 turn count 摘要
 - `requested_capability`
-  当前允许 `knowledge` 或 `availability`
+  当前允许 `knowledge`、`availability` 或 `place_lookup`
 - `requested_scope`
-  可选；如果上游已经显式约束 serving surface，则传入这个字段。若缺失，execution path 必须允许 specialist 自主解析最终 serving surface，而不是由 `app-api` 或 `supervisor-core` 伪造默认 collection
+  可选；如果上游已经显式约束 serving surface，则传入这个字段。若缺失，execution path 必须允许 specialist 自主解析最终 serving surface，而不是由 `app-api` 或 `supervisor-core` 伪造默认 collection。当前 Wave E 的 `place_lookup` request 不传 `requested_scope`，因为 `place_catalog` 仍是 `navigation-specialist` 消费的 internal spatial truth，而不是默认公开 query-serving surface
 - `availability_target_id` / `follow_redirects`
   仅在 availability execution 时出现
 
@@ -180,7 +180,14 @@ JSON 命名保持 `snake_case`，原因如下：
 其中：
 
 - `result` 仍由 specialist / shared contract 拥有，不在这里完整重定义
+- 当 `selected_target = navigation-specialist` 时，当前 `result` 使用 `PlaceLookupResult` 的 Python-side `snake_case` 形态：
+  - `query_text`
+  - `matched_alias`
+  - `resolved_place.{place_id, entity_type, display_name, campus_scope, campus_area}`
+  - `place_card.{place, location_description, landmark_hint, access_note, opening_note, service_tags, point_geometry, coordinate_reference_system, source_refs}`
+  - `candidate_places[].{place, clarification_hint}`
 - `app-api` 可以从 `result` 中提取 source identifiers 进入 projection，但不得把 specialist payload 直接当 browser contract 暴露
+- 当前 `app-api` 会把已完成的 `navigation-specialist` `place_card` 归一化成 assistant `structuredParts` 并落到 `chat.messages.structured_parts_json`，而不是把上游 `snake_case` payload 原样暴露给 browser
 - `observability` 是 execution-side typed summary seam，用于 `runtime.request_observability_fact` 的 seed / finalize；字段继续保持 Python-side `snake_case`
 - 当 execution side 解析了最终 serving surface 时，`observability.resolved_scope_*` 必须显式回传给 `app-api`
 - `observability` 不返回 raw prompt、raw answer、raw transcript、raw retrieval payload 或 raw auth material

@@ -2,6 +2,8 @@
 
 import { isToday, isYesterday, subMonths, subWeeks } from "date-fns";
 import { motion } from "framer-motion";
+import { usePathname, useRouter } from "next/navigation";
+import type { User } from "next-auth";
 import { useState } from "react";
 import { toast } from "sonner";
 import useSWRInfinite from "swr/infinite";
@@ -22,8 +24,6 @@ import {
   SidebarMenu,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { useAppPathname, useAppRouter, useConversationRouteId } from "@platform/router";
-import type { ShellChatUser } from "@platform/chat/types";
 import type { Chat } from "@/lib/db/schema";
 import { fetcher } from "@/lib/utils";
 import { LoaderIcon } from "./icons";
@@ -98,10 +98,10 @@ export function getChatHistoryPaginationKey(
   return `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/history?ending_before=${firstChatFromPage.id}&limit=${PAGE_SIZE}`;
 }
 
-export function SidebarHistory({ user }: { user: ShellChatUser | undefined }) {
+export function SidebarHistory({ user }: { user: User | undefined }) {
   const { setOpenMobile } = useSidebar();
-  const pathname = useAppPathname();
-  const activeChatId = useConversationRouteId();
+  const pathname = usePathname();
+  const activeChatId = pathname?.startsWith("/chat/") ? pathname.split("/")[2] : null;
 
   const {
     data: paginatedChatHistories,
@@ -115,7 +115,7 @@ export function SidebarHistory({ user }: { user: ShellChatUser | undefined }) {
     { fallbackData: [], revalidateOnFocus: false }
   );
 
-  const router = useAppRouter();
+  const router = useRouter();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
@@ -134,7 +134,7 @@ export function SidebarHistory({ user }: { user: ShellChatUser | undefined }) {
     setShowDeleteDialog(false);
 
     if (isCurrentChat) {
-      void router.replace("/chat");
+      router.replace("/");
     }
 
     mutate((chatHistories) => {

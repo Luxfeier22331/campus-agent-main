@@ -1,8 +1,7 @@
 "use client";
-
 import type { UseChatHelpers } from "@ai-sdk/react";
 import type { Vote } from "@/lib/db/schema";
-import type { ChatMessage } from "@/lib/types";
+import type { ChatMessage, ChatMessagePart, PlaceCardData } from "@/lib/types";
 import { cn, sanitizeText } from "@/lib/utils";
 import { MessageContent, MessageResponse } from "../ai-elements/message";
 import { Shimmer } from "../ai-elements/shimmer";
@@ -21,6 +20,157 @@ import { MessageActions } from "./message-actions";
 import { MessageReasoning } from "./message-reasoning";
 import { PreviewAttachment } from "./preview-attachment";
 import { Weather } from "./weather";
+
+function entityTypeLabel(entityType: PlaceCardData["entityType"]): string {
+  switch (entityType) {
+    case "building":
+      return "楼宇";
+    case "service_point":
+      return "服务点";
+    case "office":
+      return "办事点";
+    case "gate":
+      return "校门";
+    case "stop":
+      return "站点";
+  }
+}
+
+function formatCoordinate(value: number): string {
+  return value.toFixed(5);
+}
+
+function getPointCoordinates(card: PlaceCardData): { latitude: string; longitude: string } | null {
+  const coordinates = card.pointGeometry?.coordinates;
+
+  if (
+    card.pointGeometry?.type !== "Point" ||
+    !Array.isArray(coordinates) ||
+    coordinates.length !== 2 ||
+    !Number.isFinite(coordinates[0]) ||
+    !Number.isFinite(coordinates[1])
+  ) {
+    return null;
+  }
+
+  const [longitude, latitude] = coordinates;
+  return {
+    latitude: formatCoordinate(latitude),
+    longitude: formatCoordinate(longitude),
+  };
+}
+
+function PlaceCardBlock({
+  part,
+}: {
+  part: Extract<ChatMessagePart, { type: "data-place-card" }>;
+}) {
+  const card = part.data;
+  const coordinates = getPointCoordinates(card);
+
+  return (
+    <div
+      className="w-full max-w-[min(100%,32rem)] overflow-hidden rounded-[1.25rem] border border-emerald-200/70 bg-gradient-to-br from-emerald-50 via-white to-teal-50 shadow-[0_18px_45px_-28px_rgba(6,95,70,0.45)]"
+      data-testid="place-card"
+    >
+      <div className="flex items-start justify-between gap-3 border-b border-emerald-200/70 px-4 py-3">
+        <div className="min-w-0">
+          <div className="text-[15px] font-semibold text-slate-900">{card.displayName}</div>
+          <div className="mt-1 text-[12px] text-slate-600">
+            {card.campusScope
+              ? `${card.campusScope}${card.campusArea ? ` · ${card.campusArea}` : ""}`
+              : card.campusArea
+                ? `区域：${card.campusArea}`
+                : "校内地点"}
+          </div>
+        </div>
+        <span className="shrink-0 rounded-full bg-emerald-700 px-2.5 py-1 text-[11px] font-medium text-white">
+          {entityTypeLabel(card.entityType)}
+        </span>
+      </div>
+      <div className="space-y-3 px-4 py-3 text-[13px] leading-[1.65] text-slate-700">
+        <div className="grid gap-2 rounded-2xl border border-emerald-200/80 bg-white/80 p-3">
+          {card.campusScope ? (
+            <div className="flex items-start gap-2">
+              <span className="shrink-0 font-semibold text-slate-900">校区范围</span>
+              <span className="text-slate-700">{card.campusScope}</span>
+            </div>
+          ) : null}
+          {card.campusArea ? (
+            <div className="flex items-start gap-2">
+              <span className="shrink-0 font-semibold text-slate-900">区域</span>
+              <span className="text-slate-700">{card.campusArea}</span>
+            </div>
+          ) : null}
+          <div className="flex items-start gap-2">
+            <span className="shrink-0 font-semibold text-slate-900">地点编码</span>
+            <span className="break-all font-mono text-[12px] text-slate-600">{card.placeId}</span>
+          </div>
+        </div>
+        <div>
+          <div className="mb-1 text-[11px] font-semibold tracking-[0.08em] text-emerald-800">
+            位置说明
+          </div>
+          <div>{card.locationDescription}</div>
+        </div>
+        {card.landmarkHint ? (
+          <div>
+            <div className="mb-1 text-[11px] font-semibold tracking-[0.08em] text-emerald-800">
+              地标提示
+            </div>
+            <div>{card.landmarkHint}</div>
+          </div>
+        ) : null}
+        {card.accessNote ? (
+          <div>
+            <div className="mb-1 text-[11px] font-semibold tracking-[0.08em] text-emerald-800">
+              通行提示
+            </div>
+            <div>{card.accessNote}</div>
+          </div>
+        ) : null}
+        {card.openingNote ? (
+          <div>
+            <div className="mb-1 text-[11px] font-semibold tracking-[0.08em] text-emerald-800">
+              开放说明
+            </div>
+            <div>{card.openingNote}</div>
+          </div>
+        ) : null}
+        {card.serviceTags?.length ? (
+          <div className="flex flex-wrap gap-2">
+            {card.serviceTags.map((tag) => (
+              <span
+                className="rounded-full border border-emerald-200 bg-emerald-100/70 px-2.5 py-1 text-[11px] font-medium text-emerald-900"
+                key={tag}
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        ) : null}
+        {coordinates ? (
+          <div className="rounded-xl bg-slate-900 px-3 py-2 text-[12px] text-slate-100">
+            坐标：纬度 {coordinates.latitude}，经度 {coordinates.longitude}
+            {card.coordinateReferenceSystem ? ` · ${card.coordinateReferenceSystem}` : ""}
+          </div>
+        ) : null}
+        {card.sourceRefs?.length ? (
+          <div>
+            <div className="mb-1 text-[11px] font-semibold tracking-[0.08em] text-emerald-800">
+              信息来源
+            </div>
+            <ul className="list-disc space-y-1 pl-5 text-[12px] text-slate-600">
+              {card.sourceRefs.map((sourceRef) => (
+                <li key={sourceRef}>{sourceRef}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 const PurePreviewMessage = ({
   addToolApprovalResponse,
@@ -45,7 +195,9 @@ const PurePreviewMessage = ({
   requiresScrollPadding: boolean;
   onEdit?: (message: ChatMessage) => void;
 }) => {
-  const attachmentsFromMessage = message.parts.filter((part) => part.type === "file");
+  const attachmentsFromMessage = message.parts.filter(
+    (part) => part.type === "file"
+  );
 
   useDataStream();
 
@@ -55,13 +207,18 @@ const PurePreviewMessage = ({
   const hasAnyContent = message.parts?.some(
     (part) =>
       (part.type === "text" && part.text?.trim().length > 0) ||
-      (part.type === "reasoning" && "text" in part && part.text?.trim().length > 0) ||
-      part.type.startsWith("tool-"),
+      (part.type === "reasoning" &&
+        "text" in part &&
+        part.text?.trim().length > 0) ||
+      part.type.startsWith("tool-")
   );
   const isThinking = isAssistant && isLoading && !hasAnyContent;
 
   const attachments = attachmentsFromMessage.length > 0 && (
-    <div className="flex flex-row justify-end gap-2" data-testid={"message-attachments"}>
+    <div
+      className="flex flex-row justify-end gap-2"
+      data-testid={"message-attachments"}
+    >
       {attachmentsFromMessage.map((attachment) => (
         <PreviewAttachment
           attachment={{
@@ -75,20 +232,19 @@ const PurePreviewMessage = ({
     </div>
   );
 
-  const mergedReasoning =
-    message.parts?.reduce(
-      (acc, part) => {
-        if (part.type === "reasoning" && part.text?.trim().length > 0) {
-          return {
-            text: acc.text ? `${acc.text}\n\n${part.text}` : part.text,
-            isStreaming: "state" in part ? part.state === "streaming" : false,
-            rendered: false,
-          };
-        }
-        return acc;
-      },
-      { text: "", isStreaming: false, rendered: false },
-    ) ?? { text: "", isStreaming: false, rendered: false };
+  const mergedReasoning = message.parts?.reduce(
+    (acc, part) => {
+      if (part.type === "reasoning" && part.text?.trim().length > 0) {
+        return {
+          text: acc.text ? `${acc.text}\n\n${part.text}` : part.text,
+          isStreaming: "state" in part ? part.state === "streaming" : false,
+          rendered: false,
+        };
+      }
+      return acc;
+    },
+    { text: "", isStreaming: false, rendered: false }
+  ) ?? { text: "", isStreaming: false, rendered: false };
 
   const parts = message.parts?.map((part, index) => {
     const { type } = part;
@@ -123,13 +279,18 @@ const PurePreviewMessage = ({
       );
     }
 
+    if (type === "data-place-card") {
+      return <PlaceCardBlock key={key} part={part} />;
+    }
+
     if (type === "tool-getWeather") {
       const { toolCallId, state } = part;
       const approvalId = (part as { approval?: { id: string } }).approval?.id;
       const isDenied =
         state === "output-denied" ||
         (state === "approval-responded" &&
-          (part as { approval?: { approved?: boolean } }).approval?.approved === false);
+          (part as { approval?: { approved?: boolean } }).approval?.approved ===
+            false);
       const widthClass = "w-[min(100%,450px)]";
 
       if (state === "output-available") {
@@ -146,7 +307,9 @@ const PurePreviewMessage = ({
             <Tool className="w-full" defaultOpen={true}>
               <ToolHeader state="output-denied" type="tool-getWeather" />
               <ToolContent>
-                <div className="px-4 py-3 text-muted-foreground text-sm">Weather lookup was denied.</div>
+                <div className="px-4 py-3 text-muted-foreground text-sm">
+                  Weather lookup was denied.
+                </div>
               </ToolContent>
             </Tool>
           </div>
@@ -171,7 +334,8 @@ const PurePreviewMessage = ({
           <Tool className="w-full" defaultOpen={true}>
             <ToolHeader state={state} type="tool-getWeather" />
             <ToolContent>
-              {(state === "input-available" || state === "approval-requested") && (
+              {(state === "input-available" ||
+                state === "approval-requested") && (
                 <ToolInput input={part.input} />
               )}
               {state === "approval-requested" && approvalId && (
@@ -261,7 +425,11 @@ const PurePreviewMessage = ({
       const { toolCallId, state } = part;
 
       return (
-        <Tool className="w-[min(100%,450px)]" defaultOpen={true} key={toolCallId}>
+        <Tool
+          className="w-[min(100%,450px)]"
+          defaultOpen={true}
+          key={toolCallId}
+        >
           <ToolHeader state={state} type="tool-requestSuggestions" />
           <ToolContent>
             {state === "input-available" && <ToolInput input={part.input} />}
@@ -318,11 +486,18 @@ const PurePreviewMessage = ({
 
   return (
     <div
-      className={cn("group/message w-full", !isAssistant && "animate-[fade-up_0.25s_cubic-bezier(0.22,1,0.36,1)]")}
+      className={cn(
+        "group/message w-full",
+        !isAssistant && "animate-[fade-up_0.25s_cubic-bezier(0.22,1,0.36,1)]"
+      )}
       data-role={message.role}
       data-testid={`message-${message.role}`}
     >
-      <div className={cn(isUser ? "flex flex-col items-end gap-2" : "flex items-start gap-3")}>
+      <div
+        className={cn(
+          isUser ? "flex flex-col items-end gap-2" : "flex items-start gap-3"
+        )}
+      >
         {isAssistant && (
           <div className="flex h-[calc(13px*1.65)] shrink-0 items-center">
             <div className="flex size-7 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground ring-1 ring-border/50">
@@ -330,7 +505,11 @@ const PurePreviewMessage = ({
             </div>
           </div>
         )}
-        {isAssistant ? <div className="flex min-w-0 flex-1 flex-col gap-2">{content}</div> : content}
+        {isAssistant ? (
+          <div className="flex min-w-0 flex-1 flex-col gap-2">{content}</div>
+        ) : (
+          content
+        )}
       </div>
     </div>
   );
@@ -340,7 +519,11 @@ export const PreviewMessage = PurePreviewMessage;
 
 export const ThinkingMessage = () => {
   return (
-    <div className="group/message w-full" data-role="assistant" data-testid="message-assistant-loading">
+    <div
+      className="group/message w-full"
+      data-role="assistant"
+      data-testid="message-assistant-loading"
+    >
       <div className="flex items-start gap-3">
         <div className="flex h-[calc(13px*1.65)] shrink-0 items-center">
           <div className="flex size-7 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground ring-1 ring-border/50">

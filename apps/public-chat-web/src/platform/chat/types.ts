@@ -1,4 +1,4 @@
-import type { ChatMessageKind } from "./api-types";
+import type { ChatMessageKind, ChatStructuredPart } from "./api-types";
 
 export interface ShellChatUser {
   email: string | null;
@@ -27,6 +27,7 @@ export interface ShellMessage {
   requestId: string | null;
   retryable: boolean;
   role: "assistant" | "user";
+  structuredParts?: ChatStructuredPart[];
   text: string;
 }
 

@@ -8,8 +8,8 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import { code } from "@platform/chat/streamdown-code-plugin";
 import { cjk } from "@streamdown/cjk";
+import { code } from "@streamdown/code";
 import { math } from "@streamdown/math";
 import { mermaid } from "@streamdown/mermaid";
 import { ChevronDownIcon } from "lucide-react";

@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-09
-updated: 2026-04-09
+updated: 2026-04-11
 ---
 
 # Public Chat Web Strict Donor Parity Gap Inventory
@@ -61,14 +61,17 @@ updated: 2026-04-09
 
 ## Accepted Non-Blocking Diffs
 
-以下差异当前属于 whitelist 或已接受 seam，不计入 blocker：
+以下差异当前属于 whitelist 或已接受 seam，不计入 blocker；path-level inventory 固定看 [public-chat-web-donor-diff-classification.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-classification.md)：
 
 | Area | 当前说明 | 当前文件 |
 |---|---|---|
-| header seam | `Link -> AppLink` 与 router seam 映射属于 allowlisted diff，不视为 donor-visible blocker | [chat-header.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/chat-header.tsx) [public-chat-web-donor-diff-whitelist.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-whitelist.md) |
-| attachment preview/image seam | `next/image` 已替换为 Worker-compatible `AppImage`，属于 allowlisted image seam | [preview-attachment.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/preview-attachment.tsx) [app-image.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/platform/ui/app-image.tsx) |
-| artifact suggestions seam | document suggestions 通过 same-site `/api/suggestions` 接入，属于 allowlisted platform seam | [suggestions.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/src/platform/artifacts/suggestions.ts) [actions.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/artifacts/actions.ts) |
+| header seam | vendor header 已恢复 donor `next/link` import，当前通过 exact router compat seam 映射到 repo runtime，不视为 donor-visible blocker | [chat-header.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/chat-header.tsx) [link.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/platform/vendor-compat/next/link.tsx) [public-chat-web-donor-diff-whitelist.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-whitelist.md) |
+| attachment preview/image seam | vendor attachment preview 已恢复 donor `next/image` import，当前通过 exact image compat seam 映射到 Worker-compatible image runtime，属于 allowlisted image seam | [preview-attachment.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/preview-attachment.tsx) [image.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/platform/vendor-compat/next/image.tsx) [app-image.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/platform/ui/app-image.tsx) |
+| artifact query compat seam | donor `artifacts/actions.ts` 已恢复 `@/lib/db/queries` import，当前只在该 importer 上经由 exact compat resolver 映射到 same-site `/api/suggestions` fetch seam | [vite.config.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/vite.config.ts) [queries.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/src/platform/vendor-compat/lib/db/queries.ts) [actions.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/artifacts/actions.ts) |
+| shiki compat seam | donor `code-block.tsx` 已恢复 `shiki` import，当前只在该 importer 上经由 exact compat resolver 映射到 Worker-compatible Shiki runtime | [vite.config.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/vite.config.ts) [shiki.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/src/platform/vendor-compat/shiki.ts) [code-block.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/ai-elements/code-block.tsx) |
+| vendor lib compat seam | donor `vendor/vercel-ai-chatbot/lib/*` 当前已恢复 donor source；`@/lib/ai/models`、`@/lib/constants`、`@/lib/db/schema`、`@/lib/editor/diff`、`@/lib/types`、`@/lib/utils` 通过 exact compat seam 映射到 repo-owned runtime truth | [vite.config.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/vite.config.ts) [models.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/src/platform/vendor-compat/lib/ai/models.ts) [constants.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/src/platform/vendor-compat/lib/constants.ts) [schema.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/src/platform/vendor-compat/lib/db/schema.ts) [diff.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/src/platform/vendor-compat/lib/editor/diff.ts) [types.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/src/platform/vendor-compat/lib/types.ts) [utils.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/src/platform/vendor-compat/lib/utils.ts) |
 | message edit seam | donor message edit 改由 same-site conversation API 承载，属于 allowlisted platform seam | [message-edits.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/src/platform/chat/message-edits.ts) [message-editor.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/message-editor.tsx) |
+| historical debt inventory | donor-visible historical debt 当前已清零；剩余 vendor diff 只允许落在 accepted product diff 或 runtime compatibility diff | [public-chat-web-donor-diff-classification.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-classification.md) [public-chat-donor-diff-classification.test.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/test/public-chat-donor-diff-classification.test.ts) |
 
 ## Non-Blocking Or Out-Of-Scope
 
@@ -83,3 +86,4 @@ updated: 2026-04-09
 - [public-chat-web-donor-parity-review-checklist.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-parity-review-checklist.md)
 - [public-chat-web-route-state-parity-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-route-state-parity-inventory.md)
 - [public-chat-web-chatbot-donor-baseline.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-chatbot-donor-baseline.md)
+- [public-chat-web-donor-diff-classification.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-classification.md)

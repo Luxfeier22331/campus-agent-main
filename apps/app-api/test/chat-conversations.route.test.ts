@@ -69,6 +69,7 @@ function createConversationService() {
         requestId: null,
         retryable: null,
         role: "user",
+        structuredParts: [],
         text: "图书馆开放到几点？",
       },
     ],

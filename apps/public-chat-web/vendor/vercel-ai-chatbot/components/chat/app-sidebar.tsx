@@ -6,10 +6,15 @@ import {
   PenSquareIcon,
   TrashIcon,
 } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import type { User } from "next-auth";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useSWRConfig } from "swr";
+import { unstable_serialize } from "swr/infinite";
 import {
+  getChatHistoryPaginationKey,
   SidebarHistory,
 } from "@/components/chat/sidebar-history";
 import { SidebarUserNav } from "@/components/chat/sidebar-user-nav";
@@ -27,9 +32,6 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { getClearChatHistoryMutation } from "@platform/chat/history-cache";
-import { AppLink, useAppRouter } from "@platform/router";
-import type { ShellChatUser } from "@platform/chat/types";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,17 +44,18 @@ import {
 } from "../ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
-export function AppSidebar({ user }: { user: ShellChatUser | undefined }) {
-  const router = useAppRouter();
+export function AppSidebar({ user }: { user: User | undefined }) {
+  const router = useRouter();
   const { setOpenMobile, toggleSidebar } = useSidebar();
   const { mutate } = useSWRConfig();
   const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false);
 
   const handleDeleteAll = () => {
     setShowDeleteAllDialog(false);
-    void router.replace("/chat");
-    const { data, key, options } = getClearChatHistoryMutation();
-    mutate(key, data, options);
+    router.replace("/");
+    mutate(unstable_serialize(getChatHistoryPaginationKey), [], {
+      revalidate: false,
+    });
 
     fetch(`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/history`, {
       method: "DELETE",
@@ -73,9 +76,9 @@ export function AppSidebar({ user }: { user: ShellChatUser | undefined }) {
                   className="size-8 !px-0 items-center justify-center group-data-[collapsible=icon]:group-hover/logo:opacity-0"
                   tooltip="Chatbot"
                 >
-                  <AppLink href="/chat" onClick={() => setOpenMobile(false)}>
+                  <Link href="/" onClick={() => setOpenMobile(false)}>
                     <MessageSquareIcon className="size-4 text-sidebar-foreground/50" />
-                  </AppLink>
+                  </Link>
                 </SidebarMenuButton>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -106,7 +109,7 @@ export function AppSidebar({ user }: { user: ShellChatUser | undefined }) {
                     className="h-8 rounded-lg border border-sidebar-border text-[13px] text-sidebar-foreground/70 transition-colors duration-150 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                     onClick={() => {
                       setOpenMobile(false);
-                      void router.push("/chat");
+                      router.push("/");
                     }}
                     tooltip="New Chat"
                   >

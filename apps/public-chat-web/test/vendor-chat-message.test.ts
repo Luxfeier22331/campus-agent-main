@@ -9,6 +9,15 @@ describe("vendor chat messages", () => {
     expect(messageSource).toContain("MessageReasoning");
     expect(messageSource).toContain("ToolHeader");
     expect(messageSource).toContain("DocumentPreview");
+    expect(messageSource).toContain('type === "data-place-card"');
+    expect(messageSource).toContain("校区范围");
+    expect(messageSource).toContain("位置说明");
+    expect(messageSource).toContain("地标提示");
+    expect(messageSource).toContain("通行提示");
+    expect(messageSource).toContain("开放说明");
+    expect(messageSource).toContain("信息来源");
+    expect(messageSource).toContain("serviceTags");
+    expect(messageSource).toContain("pointGeometry");
     expect(messageSource).not.toContain("Clarification needed");
     expect(messageSource).not.toContain("Needs more detail before answering.");
     expect(messageSource).not.toContain("The current evidence does not support a grounded answer yet.");

@@ -1,3 +1,5 @@
+import { generateDummyPassword } from "./db/utils";
+
 export const isProductionEnvironment = process.env.NODE_ENV === "production";
 export const isDevelopmentEnvironment = process.env.NODE_ENV === "development";
 export const isTestEnvironment = Boolean(
@@ -8,11 +10,11 @@ export const isTestEnvironment = Boolean(
 
 export const guestRegex = /^guest-\d+$/;
 
-export const DUMMY_PASSWORD = "campus-agent-disabled-auth";
+export const DUMMY_PASSWORD = generateDummyPassword();
 
 export const suggestions = [
-  "法学民族班培养方案里大二下有什么课",
-  "哪些专业要上习概",
-  "民族实验班有哪些",
-  "基地班有哪些",
+  "What are the advantages of using Next.js?",
+  "Write code to demonstrate Dijkstra's algorithm",
+  "Help me write an essay about Silicon Valley",
+  "What is the weather in San Francisco?",
 ];

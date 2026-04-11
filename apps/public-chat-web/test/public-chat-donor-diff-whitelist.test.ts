@@ -21,17 +21,17 @@ describe("public chat donor diff whitelist", () => {
   });
 
   it("limits donor-visible diffs to accepted platform seams", () => {
-    expect(chatHeaderSource).toContain("@platform/router");
-    expect(chatHeaderSource).toContain("AppLink");
+    expect(chatHeaderSource).toContain('from "next/link"');
+    expect(chatHeaderSource).not.toContain("VisibilitySelector");
 
-    expect(previewAttachmentSource).toContain("@platform/ui/app-image");
-    expect(previewAttachmentSource).not.toContain('from "next/image"');
+    expect(previewAttachmentSource).toContain('from "next/image"');
+    expect(previewAttachmentSource).not.toContain("@platform/ui/app-image");
 
-    expect(artifactsActionsSource).toContain("@platform/artifacts/suggestions");
-    expect(artifactsActionsSource).not.toContain("@/lib/db/queries");
+    expect(artifactsActionsSource).toContain("@/lib/db/queries");
+    expect(artifactsActionsSource).not.toContain("@platform/artifacts/suggestions");
     expect(artifactsActionsSource).not.toContain('"use server"');
 
-    expect(messageEditorSource).toContain("@platform/chat/message-edits");
-    expect(messageEditorSource).not.toContain('@/app/(chat)/actions');
+    expect(messageEditorSource).toContain('@/app/(chat)/actions');
+    expect(messageEditorSource).not.toContain("@platform/chat/message-edits");
   });
 });

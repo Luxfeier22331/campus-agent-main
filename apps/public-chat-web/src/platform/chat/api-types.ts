@@ -17,12 +17,39 @@ export interface SessionPrincipal {
 
 export type ChatMessageKind = "answer" | "clarification" | "no_answer" | "error";
 
+export interface PointGeometry {
+  coordinates: [number, number];
+  type: "Point";
+}
+
+export interface PlaceCardPayload {
+  accessNote?: string;
+  campusScope?: string;
+  campusArea?: string;
+  coordinateReferenceSystem?: string;
+  displayName: string;
+  entityType: "building" | "service_point" | "office" | "gate" | "stop";
+  landmarkHint?: string;
+  locationDescription: string;
+  openingNote?: string;
+  placeId: string;
+  pointGeometry?: PointGeometry;
+  serviceTags?: string[];
+  sourceRefs?: string[];
+}
+
+export type ChatStructuredPart = {
+  placeCard: PlaceCardPayload;
+  type: "place_card";
+};
+
 export interface ChatMessage {
   id: string;
   conversationId: string;
   role: "user" | "assistant";
   kind: ChatMessageKind | null;
   text: string;
+  structuredParts?: ChatStructuredPart[];
   createdAt: string;
   requestId: string | null;
   retryable: boolean | null;

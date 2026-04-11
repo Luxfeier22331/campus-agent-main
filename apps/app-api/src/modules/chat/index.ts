@@ -4,6 +4,10 @@ export type {
   ChatConversationResponse,
   ChatConversationSummary,
   ChatConversationSummaryResponse,
+  ChatMessageStructuredPart,
+  ChatPlaceCard,
+  ChatPlaceCardStructuredPart,
+  ChatPlacePointGeometry,
   ChatMessage,
   ChatMessageRole,
   ChatSessionSlot,
@@ -12,6 +16,7 @@ export type {
 } from "./model";
 export {
   DRAFT_CONVERSATION_TITLE,
+  normalizeChatStructuredParts,
   toConversationResponse,
   toConversationSummaryResponse,
   toVendorChatHistoryItemResponse,

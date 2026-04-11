@@ -3,6 +3,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { ResolvedAppPrincipal } from "../src/modules/auth";
+import type { ChatMessage } from "../src/modules/chat";
 import {
   AppApiRouteError,
   buildChatCommandService,
@@ -78,16 +79,7 @@ function createConversation() {
       updatedAt: string;
       value: string;
     }>,
-    messages: [] as Array<{
-      id: string;
-      conversationId: string;
-      role: "user" | "assistant";
-      kind: "answer" | "clarification" | "no_answer" | "error" | null;
-      text: string;
-      createdAt: string;
-      requestId: string | null;
-      retryable: boolean | null;
-    }>,
+    messages: [] as ChatMessage[],
   };
 }
 
@@ -149,6 +141,7 @@ function createCommandStore(input?: {
         kind: null,
         requestId: null,
         retryable: null,
+        structuredParts: [],
       });
     }),
     finalizeRequest: vi.fn(async (input: FinalizeRequestWrite) => {
@@ -387,6 +380,96 @@ describe("chat command service", () => {
       }),
     );
     expect(telemetry.recordRequestTransportError).not.toHaveBeenCalled();
+  });
+
+  it("persists navigation place cards into assistant structured parts", async () => {
+    const { store, finalWrites } = createCommandStore();
+    const { store: conversationStore } = createConversationStore();
+    const supervisor: SupervisorExecutionClient = {
+      execute: vi.fn().mockResolvedValue({
+        answerText: "图书馆在海淀校区主教学区西侧，靠近校医院。",
+        error: null,
+        followUpQuestion: "",
+        result: {
+          matched_alias: "图书馆",
+          place_card: {
+            access_note: "访客请先完成入校登记。",
+            campus_area: "主教学区西侧",
+            coordinate_reference_system: "EPSG:4326",
+            location_description: "海淀校区主教学区西侧，靠近校医院。",
+            place: {
+              campus_area: "主教学区西侧",
+              campus_scope: "haidian",
+              display_name: "图书馆",
+              entity_type: "building",
+              place_id: "muc.haidian.library",
+            },
+            point_geometry: {
+              latitude: 39.96162,
+              longitude: 116.31551,
+            },
+            source_refs: ["seed:campus_navigation/place_catalog.v1"],
+          },
+          query_text: "图书馆在哪里",
+          resolved_place: {
+            campus_area: "主教学区西侧",
+            campus_scope: "haidian",
+            display_name: "图书馆",
+            entity_type: "building",
+            place_id: "muc.haidian.library",
+          },
+        },
+        selectedTarget: "navigation-specialist",
+        status: "completed",
+        traceId: "trace_0002",
+      }),
+    };
+
+    const service = buildChatCommandService({
+      generateId: createDeterministicIdGenerator(),
+      now: () => new Date("2026-04-11T09:00:00.000Z"),
+      conversationStore,
+      store,
+      supervisor,
+    });
+
+    const response = await service.submit({
+      payload: {
+        conversationId: "conv_01HQ",
+        prompt: "图书馆在哪里",
+      },
+      principal: createPrincipal(),
+      surface: "public_chat_web",
+    });
+
+    expect(finalWrites[0]).toMatchObject({
+      assistantMessage: {
+        kind: "answer",
+        structuredParts: [
+          {
+            placeCard: {
+              coordinateReferenceSystem: "EPSG:4326",
+              displayName: "图书馆",
+              entityType: "building",
+              placeId: "muc.haidian.library",
+            },
+            type: "place_card",
+          },
+        ],
+      },
+    });
+    expect(response.answer.conversation.messages.at(-1)).toMatchObject({
+      structuredParts: [
+        {
+          placeCard: {
+            displayName: "图书馆",
+            entityType: "building",
+            placeId: "muc.haidian.library",
+          },
+          type: "place_card",
+        },
+      ],
+    });
   });
 
   it("normalizes supervisor traceId in finalized responses when upstream payload omits it", async () => {
@@ -1324,6 +1407,7 @@ describe("chat command service", () => {
         requestId: null,
         retryable: null,
         role: "user",
+        structuredParts: [],
         text: "图书馆开放到几点？",
       },
       {
@@ -1334,6 +1418,7 @@ describe("chat command service", () => {
         requestId: "req_prev",
         retryable: null,
         role: "assistant",
+        structuredParts: [],
         text: "图书馆开放到 22:00。",
       },
     );

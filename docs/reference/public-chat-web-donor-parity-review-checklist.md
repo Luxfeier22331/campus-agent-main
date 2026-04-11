@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-09
-updated: 2026-04-09
+updated: 2026-04-11
 ---
 
 # Public Chat Web Donor Parity Review Checklist
@@ -61,6 +61,7 @@ updated: 2026-04-09
 
 - Wave 1-5 的 code-level donor drift 已全部关闭
 - Wave 6 新发现的 `share / visibility on launch path` blocker 已关闭，并被 whitelist test 固定为回归门禁
+- Wave 4 已把 remaining donor diff inventory 与 exact seam owner inventory 固定成 machine-check gate，当前 historical debt 路径数为 `0`
 - fresh local gate 已通过：
   - `pnpm --dir apps/public-chat-web test:worker`
   - `pnpm --dir apps/public-chat-web typecheck`
@@ -74,8 +75,26 @@ updated: 2026-04-09
   - `POST /api/chat/requests` 返回 `200`
 - 本轮 staging 未观测到 artifact pane 在 launch path 打开；根据 [public-chat-web-route-state-parity-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-route-state-parity-inventory.md)，`artifact/document open behavior` 只在 launch path 仍暴露该 affordance 时进入本轮 gate，因此不构成额外 blocker
 
+## 2026-04-11 Post-Closeout Local Evidence
+
+这份 checklist 的 strict parity 判定仍以 `2026-04-09` staging gate 为准；但 donor tech-debt convergence 的 Wave 5 local closeout 已另外补齐一轮 fresh browser evidence：
+
+- [SUMMARY.md](/home/reptilian/code/campus-agent/.tmp/local-smoke/20260411T163903+0800-public-chat-wave5-closeout/SUMMARY.md)
+- [network-summary.md](/home/reptilian/code/campus-agent/.tmp/local-smoke/20260411T163903+0800-public-chat-wave5-closeout/network-summary.md)
+- [chat-response.png](/home/reptilian/code/campus-agent/.tmp/local-smoke/20260411T163903+0800-public-chat-wave5-closeout/screenshots/chat-response.png)
+- [chat-reload.png](/home/reptilian/code/campus-agent/.tmp/local-smoke/20260411T163903+0800-public-chat-wave5-closeout/screenshots/chat-reload.png)
+
+这轮 local evidence 额外确认：
+
+- local `POST /api/chat/requests` 已从 earlier `500` 恢复到 `200`
+- real browser session 下 `GET /api/models`、`GET /api/history?limit=20`、`POST /api/chat/requests` 都走 same-site `/api/*`
+- sidebar history 在 first send 后无需手动 reload 即出现新会话；reload 后仍保留同一 `conversationId`
+- 本轮 typed outcome 为 handled `execution_timeout`，不是 same-site seam 退化或 donor shell blocker
+- earlier local `500` 的根因是本地 `chat.messages.structured_parts_json` 漏跑 shared-product bootstrap migration；closeout 采用 `pnpm --dir apps/app-api db:bootstrap` 修复，而不是在 runtime shell 上加兼容补丁
+
 ## 相关文件
 
+- [public-chat-web-donor-diff-classification.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-classification.md)
 - [public-chat-web-donor-diff-whitelist.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-whitelist.md)
 - [public-chat-web-strict-donor-parity-gap-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-strict-donor-parity-gap-inventory.md)
 - [public-chat-web-route-state-parity-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-route-state-parity-inventory.md)

@@ -1,128 +1,55 @@
-import type { UIMessage } from "ai";
+import type { InferUITool, UIMessage } from "ai";
+import { z } from "zod";
+import type { ArtifactKind } from "@/components/chat/artifact";
+import type { createDocument } from "./ai/tools/create-document";
+import type { getWeather } from "./ai/tools/get-weather";
+import type { requestSuggestions } from "./ai/tools/request-suggestions";
+import type { updateDocument } from "./ai/tools/update-document";
+import type { Suggestion } from "./db/schema";
 
-export type ArtifactKind = "code" | "image" | "sheet" | "text";
+export const messageMetadataSchema = z.object({
+  createdAt: z.string(),
+});
 
-export type MessageMetadata = {
-  createdAt: string;
-};
+export type MessageMetadata = z.infer<typeof messageMetadataSchema>;
 
-export type SuggestionRecord = {
-  createdAt: Date | string;
-  description?: string | null;
-  documentCreatedAt: Date | string;
-  documentId: string;
-  id: string;
-  isResolved: boolean;
-  originalText: string;
-  suggestedText: string;
-  userId: string;
-};
+type weatherTool = InferUITool<typeof getWeather>;
+type createDocumentTool = InferUITool<ReturnType<typeof createDocument>>;
+type updateDocumentTool = InferUITool<ReturnType<typeof updateDocument>>;
+type requestSuggestionsTool = InferUITool<
+  ReturnType<typeof requestSuggestions>
+>;
 
-type WeatherToolOutput = {
-  latitude: number;
-  longitude: number;
-  generationtime_ms: number;
-  utc_offset_seconds: number;
-  timezone: string;
-  timezone_abbreviation: string;
-  elevation: number;
-  cityName?: string;
-  current_units: {
-    time: string;
-    interval: string;
-    temperature_2m: string;
-  };
-  current: {
-    time: string;
-    interval: number;
-    temperature_2m: number;
-  };
-  hourly_units: {
-    time: string;
-    temperature_2m: string;
-  };
-  hourly: {
-    time: string[];
-    temperature_2m: number[];
-  };
-  daily_units: {
-    time: string;
-    sunrise: string;
-    sunset: string;
-  };
-  daily: {
-    time: string[];
-    sunrise: string[];
-    sunset: string[];
-  };
-};
-
-type DocumentToolResultRecord = {
-  content?: string;
-  id: string;
-  kind: ArtifactKind;
-  title: string;
-};
-
-type DocumentToolError = {
-  error: unknown;
-};
-
-type SuggestionToolResultRecord = {
-  id: string;
-  kind: ArtifactKind;
-  message: string;
-  title: string;
+export type ChatTools = {
+  getWeather: weatherTool;
+  createDocument: createDocumentTool;
+  updateDocument: updateDocumentTool;
+  requestSuggestions: requestSuggestionsTool;
 };
 
 export type CustomUIDataTypes = {
-  "chat-title": string;
-  appendMessage: string;
-  clear: null;
-  codeDelta: string;
-  finish: null;
-  id: string;
-  imageDelta: string;
-  kind: ArtifactKind;
-  sheetDelta: string;
-  suggestion: SuggestionRecord;
   textDelta: string;
+  imageDelta: string;
+  sheetDelta: string;
+  codeDelta: string;
+  suggestion: Suggestion;
+  appendMessage: string;
+  id: string;
   title: string;
+  kind: ArtifactKind;
+  clear: null;
+  finish: null;
+  "chat-title": string;
 };
 
-export type ChatTools = {
-  createDocument: {
-    input: { kind: ArtifactKind; title: string };
-    output: DocumentToolError | DocumentToolResultRecord;
-  };
-  getWeather: {
-    input:
-      | { city: string; latitude?: number; longitude?: number }
-      | { city?: string; latitude: number; longitude: number };
-    output: WeatherToolOutput;
-  };
-  requestSuggestions: {
-    input: { documentId: string };
-    output: DocumentToolError | SuggestionToolResultRecord;
-  };
-  updateDocument: {
-    input: { description: string; id: string };
-    output: DocumentToolError | DocumentToolResultRecord;
-  };
-};
-
-type BaseChatMessage = UIMessage<MessageMetadata, CustomUIDataTypes, ChatTools>;
-
-export type ChatMessage = BaseChatMessage & {
-  kind?: "answer" | "clarification" | "error" | "no_answer" | "user";
-  requestId?: string | null;
-  retryable?: boolean;
-};
-
-export type ChatMessagePart = ChatMessage["parts"][number];
+export type ChatMessage = UIMessage<
+  MessageMetadata,
+  CustomUIDataTypes,
+  ChatTools
+>;
 
 export type Attachment = {
-  contentType: string;
   name: string;
   url: string;
+  contentType: string;
 };

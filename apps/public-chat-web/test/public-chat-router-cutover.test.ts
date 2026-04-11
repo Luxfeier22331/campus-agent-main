@@ -28,31 +28,43 @@ describe("public chat router cutover", () => {
   });
 
   it("binds chat runtime navigation and session to repo-owned platform seams rather than next shims", () => {
-    expect(appSidebarSource).toContain("@platform/router");
-    expect(appSidebarSource).not.toContain('from "next/link"');
-    expect(appSidebarSource).not.toContain('from "next/navigation"');
+    expect(appSidebarSource).toContain('from "next/link"');
+    expect(appSidebarSource).toContain('from "next/navigation"');
+    expect(appSidebarSource).toContain('from "next-auth"');
+    expect(appSidebarSource).not.toContain("@platform/router");
 
-    expect(sidebarHistorySource).toContain("@platform/router");
-    expect(sidebarHistorySource).not.toContain('from "next/navigation"');
+    expect(sidebarHistorySource).toContain('from "next/navigation"');
+    expect(sidebarHistorySource).toContain('from "next-auth"');
+    expect(sidebarHistorySource).not.toContain("@platform/router");
 
-    expect(sidebarHistoryItemSource).toContain("@platform/router");
-    expect(sidebarHistoryItemSource).not.toContain('from "next/link"');
+    expect(sidebarHistoryItemSource).toContain('from "next/link"');
 
-    expect(sidebarUserNavSource).toContain("@platform/router");
-    expect(sidebarUserNavSource).toContain("@platform/auth/client");
-    expect(sidebarUserNavSource).not.toContain('from "next/navigation"');
-    expect(sidebarUserNavSource).not.toContain('from "next-auth/react"');
+    expect(sidebarUserNavSource).toContain('from "next/navigation"');
+    expect(sidebarUserNavSource).toContain('from "next-auth"');
+    expect(sidebarUserNavSource).toContain('from "next-auth/react"');
+    expect(sidebarUserNavSource).not.toContain("@platform/router");
+    expect(sidebarUserNavSource).not.toContain("@platform/auth/client");
   });
 
-  it("removes runtime alias ownership for next navigation/auth shims", () => {
-    expect(viteConfigSource).not.toContain('"next-auth/react"');
-    expect(viteConfigSource).not.toContain('"next-auth"');
-    expect(viteConfigSource).not.toContain('"next/link"');
-    expect(viteConfigSource).not.toContain('"next/navigation"');
+  it("constrains runtime alias ownership to exact donor-compat specifiers", () => {
+    expect(viteConfigSource).toContain('find: /^next\\/link$/');
+    expect(viteConfigSource).toContain('find: /^next\\/navigation$/');
+    expect(viteConfigSource).toContain('find: /^next\\/image$/');
+    expect(viteConfigSource).toContain('find: /^next-auth\\/react$/');
+    expect(viteConfigSource).toContain('find: /^next-auth$/');
+    expect(viteConfigSource).toContain('find: /^@streamdown\\/code$/');
+    expect(viteConfigSource).toContain('find: /^@\\/app\\/\\(chat\\)\\/actions$/');
+    expect(viteConfigSource).toContain('find: /^@\\/hooks\\/use-active-chat$/');
+    expect(viteConfigSource).toContain('find: /^@\\/hooks\\/use-chat-visibility$/');
 
-    expect(tsconfigSource).not.toContain('"next-auth/react"');
-    expect(tsconfigSource).not.toContain('"next-auth"');
-    expect(tsconfigSource).not.toContain('"next/link"');
-    expect(tsconfigSource).not.toContain('"next/navigation"');
+    expect(tsconfigSource).toContain('"next/link"');
+    expect(tsconfigSource).toContain('"next/navigation"');
+    expect(tsconfigSource).toContain('"next/image"');
+    expect(tsconfigSource).toContain('"next-auth/react"');
+    expect(tsconfigSource).toContain('"next-auth"');
+    expect(tsconfigSource).toContain('"@streamdown/code"');
+    expect(tsconfigSource).toContain('"@/app/(chat)/actions"');
+    expect(tsconfigSource).toContain('"@/hooks/use-active-chat"');
+    expect(tsconfigSource).toContain('"@/hooks/use-chat-visibility"');
   });
 });

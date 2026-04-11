@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import authClientSource from "../src/platform/auth/client.ts?raw";
+import nextAuthCompatSource from "../src/platform/vendor-compat/next-auth/react.tsx?raw";
 import appSidebarSource from "../vendor/vercel-ai-chatbot/components/chat/app-sidebar.tsx?raw";
 import sidebarHistorySource from "../vendor/vercel-ai-chatbot/components/chat/sidebar-history.tsx?raw";
 import sidebarHistoryItemSource from "../vendor/vercel-ai-chatbot/components/chat/sidebar-history-item.tsx?raw";
@@ -8,19 +9,24 @@ import sidebarUserNavSource from "../vendor/vercel-ai-chatbot/components/chat/si
 
 describe("public chat sidebar parity", () => {
   it("keeps logo, new-chat, and delete-current navigation anchored to the repo chat home route", () => {
-    expect(appSidebarSource).toContain('<AppLink href="/chat"');
-    expect(appSidebarSource).toContain('void router.push("/chat")');
-    expect(appSidebarSource).toContain('void router.replace("/chat")');
+    expect(appSidebarSource).toContain('<Link href="/"');
+    expect(appSidebarSource).toContain('router.push("/")');
+    expect(appSidebarSource).toContain('router.replace("/")');
 
-    expect(sidebarHistorySource).toContain('const activeChatId = useConversationRouteId()');
-    expect(sidebarHistorySource).toContain('void router.replace("/chat")');
-    expect(sidebarHistoryItemSource).toContain('<AppLink href={`/chat/${chat.id}`}');
+    expect(sidebarHistorySource).toContain('const activeChatId = pathname?.startsWith("/chat/") ? pathname.split("/")[2] : null;');
+    expect(sidebarHistorySource).toContain('router.replace("/")');
+    expect(sidebarHistoryItemSource).toContain('<Link href={`/chat/${chat.id}`}');
   });
 
-  it("delegates authenticated sign-out redirect to the platform auth seam instead of mutating session locally", () => {
-    expect(sidebarUserNavSource).toContain('void signOutChatSession({ redirectTo: "/login" })');
+  it("delegates authenticated sign-out through the next-auth compat seam instead of mutating session locally", () => {
+    expect(sidebarUserNavSource).toContain("useSession()");
+    expect(sidebarUserNavSource).toContain('signOut({');
+    expect(sidebarUserNavSource).toContain('redirectTo: "/login"');
     expect(sidebarUserNavSource).not.toContain("setSessionUnauthenticated()");
     expect(sidebarUserNavSource).not.toContain('await router.replace("/login")');
+
+    expect(nextAuthCompatSource).toContain("signOutChatSession");
+    expect(nextAuthCompatSource).toContain("refreshSession");
 
     expect(authClientSource).toContain("redirectTo?: string");
     expect(authClientSource).toContain("authClient.signOut({");

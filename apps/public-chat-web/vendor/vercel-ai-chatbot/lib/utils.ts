@@ -1,140 +1,87 @@
-import { type ClassValue, clsx } from "clsx";
-import { formatISO } from "date-fns";
-import { twMerge } from "tailwind-merge";
-
-import { ChatbotError, type ErrorCode } from "./errors";
-import type { ChatMessage } from "./types";
-import type { DBMessage, Document } from "./db/schema";
+import type {
+  UIMessage,
+  UIMessagePart,
+} from 'ai';
+import { type ClassValue, clsx } from 'clsx';
+import { formatISO } from 'date-fns';
+import { twMerge } from 'tailwind-merge';
+import type { DBMessage, Document } from '@/lib/db/schema';
+import { ChatbotError, type ErrorCode } from './errors';
+import type { ChatMessage, ChatTools, CustomUIDataTypes } from './types';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function generateUUID() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (character) => {
-    const random = (Math.random() * 16) | 0;
-    const value = character === "x" ? random : (random & 0x3) | 0x8;
-    return value.toString(16);
-  });
-}
-
-export function sanitizeText(text: string) {
-  return text.replace("<has_function_call>", "");
-}
-
-function parseErrorCode(payload: unknown): ErrorCode | null {
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "code" in payload &&
-    typeof payload.code === "string" &&
-    payload.code.includes(":")
-  ) {
-    return payload.code as ErrorCode;
-  }
-
-  return null;
-}
-
-function parseErrorMessage(payload: unknown, fallback: string) {
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "error" in payload &&
-    payload.error &&
-    typeof payload.error === "object" &&
-    "message" in payload.error &&
-    typeof payload.error.message === "string"
-  ) {
-    return payload.error.message;
-  }
-
-  if (payload && typeof payload === "object" && "cause" in payload && typeof payload.cause === "string") {
-    return payload.cause;
-  }
-
-  return fallback;
-}
-
-export const fetcher = async <T>(url: string): Promise<T> => {
-  const response = await fetch(url, {
-    credentials: "same-origin",
-  });
-
-  const payload = await response.json().catch(() => undefined);
+export const fetcher = async (url: string) => {
+  const response = await fetch(url);
 
   if (!response.ok) {
-    const errorCode = parseErrorCode(payload);
-    if (errorCode) {
-      throw new ChatbotError(errorCode, parseErrorMessage(payload, response.statusText || "Request failed."));
-    }
-
-    throw new Error(parseErrorMessage(payload, response.statusText || "Request failed."));
+    const { code, cause } = await response.json();
+    throw new ChatbotError(code as ErrorCode, cause);
   }
 
-  return payload as T;
+  return response.json();
 };
 
-export async function fetchWithErrorHandlers(input: RequestInfo | URL, init?: RequestInit) {
+export async function fetchWithErrorHandlers(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+) {
   try {
-    const response = await fetch(input, {
-      credentials: "same-origin",
-      ...init,
-    });
-    const payload = await response.json().catch(() => undefined);
+    const response = await fetch(input, init);
 
     if (!response.ok) {
-      const errorCode = parseErrorCode(payload);
-      if (errorCode) {
-        throw new ChatbotError(errorCode, parseErrorMessage(payload, response.statusText || "Request failed."));
-      }
-
-      throw new Error(parseErrorMessage(payload, response.statusText || "Request failed."));
+      const { code, cause } = await response.json();
+      throw new ChatbotError(code as ErrorCode, cause);
     }
 
-    return new Response(JSON.stringify(payload), {
-      headers: response.headers,
-      status: response.status,
-      statusText: response.statusText,
-    });
-  } catch (error) {
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      throw new ChatbotError("offline:chat");
+    return response;
+  } catch (error: unknown) {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      throw new ChatbotError('offline:chat');
     }
 
     throw error;
   }
 }
 
-export function getDocumentTimestampByIndex(documents: Document[], index: number) {
-  if (!documents.length || index >= documents.length) {
-    return new Date();
-  }
+export function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
 
-  return documents[index]?.createdAt ?? new Date();
+export function getDocumentTimestampByIndex(
+  documents: Document[],
+  index: number,
+) {
+  if (!documents) { return new Date(); }
+  if (index > documents.length) { return new Date(); }
+
+  return documents[index].createdAt;
+}
+
+export function sanitizeText(text: string) {
+  return text.replace('<has_function_call>', '');
 }
 
 export function convertToUIMessages(messages: DBMessage[]): ChatMessage[] {
   return messages.map((message) => ({
     id: message.id,
+    role: message.role as 'user' | 'assistant' | 'system',
+    parts: message.parts as UIMessagePart<CustomUIDataTypes, ChatTools>[],
     metadata: {
       createdAt: formatISO(message.createdAt),
     },
-    parts: Array.isArray(message.parts) ? (message.parts as ChatMessage["parts"]) : [],
-    role:
-      message.role === "assistant" || message.role === "system" || message.role === "user"
-        ? message.role
-        : "assistant",
   }));
 }
 
-export function getTextFromMessage(message: ChatMessage) {
+export function getTextFromMessage(message: ChatMessage | UIMessage): string {
   return message.parts
-    .filter((part): part is Extract<ChatMessage["parts"][number], { type: "text" }> => part.type === "text")
-    .map((part) => part.text)
-    .join("");
+    .filter((part) => part.type === 'text')
+    .map((part) => (part as { type: 'text'; text: string}).text)
+    .join('');
 }

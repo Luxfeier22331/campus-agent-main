@@ -10,6 +10,7 @@ import {
   LockIcon,
   WrenchIcon,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
   type ChangeEvent,
@@ -43,7 +44,6 @@ import {
 } from "@/lib/ai/models";
 import type { Attachment, ChatMessage } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { useAppRouter } from "@platform/router";
 import {
   PromptInput,
   PromptInputFooter,
@@ -206,7 +206,7 @@ function PureMultimodalInput({
   onCancelEdit?: () => void;
   isLoading?: boolean;
 }) {
-  const router = useAppRouter();
+  const router = useRouter();
   const { setTheme, resolvedTheme } = useTheme();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { width } = useWindowSize();

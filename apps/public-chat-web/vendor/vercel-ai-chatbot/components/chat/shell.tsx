@@ -11,7 +11,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useActiveChat } from "@platform/chat/use-active-chat";
+import { useActiveChat } from "@/hooks/use-active-chat";
 import {
   initialArtifactData,
   useArtifact,
