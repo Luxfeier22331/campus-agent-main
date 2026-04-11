@@ -8,7 +8,8 @@ Env bootstrap rule:
 - Worker CLI does not fall back to another worktree's `.env`; missing local env should be fixed explicitly in the current worktree.
 - Do not introduce local mock backends or file-registry compatibility paths just because a feature worktree is missing `.env`.
 - current worktree `.env` owns the runtime config consumed by local worker commands.
-- Per-command override examples live under `env/commands/*.env.example`.
+- Current operator override examples live under `env/commands/*.env.example`.
+- Retained historical recovery examples live under `env/commands/historical/*.env.example`.
 
 ## Commands
 
@@ -138,6 +139,8 @@ Behavior:
 
 Backfills missing historical `official_web` run artifacts from recoverable local collector output into the source bucket.
 
+This is a historical recovery shell, not part of the default operator path.
+
 Required env:
 
 - `OBJECT_STORE_ENDPOINT`
@@ -155,6 +158,10 @@ Optional CLI args:
 - `--limit`
 - `--local-output-glob`
 - `--dry-run`
+
+Command override example:
+
+- `env/commands/historical/official-web-history-backfill.env.example`
 
 Behavior:
 
@@ -536,6 +543,8 @@ Current known downstream families include:
 
 Worker shell for the handbook source-faithful migration.
 
+This is a narrow legacy migration shell retained for handbook canonical-rename recovery, not part of the default operator path.
+
 Required CLI args:
 
 - `--raw-version-id`
@@ -561,7 +570,7 @@ Optional env:
 
 Command override example:
 
-- `env/commands/migrate-student-handbook.env.example`
+- `env/commands/historical/migrate-student-handbook.env.example`
 
 Behavior:
 

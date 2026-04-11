@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-03-29
-updated: 2026-04-10
+updated: 2026-04-12
 ---
 
 # Environment
@@ -16,7 +16,7 @@ updated: 2026-04-10
 - app-local env template
   每个 app 在自己的 runtime boundary 下维护自己的本地模板，不再由 repo root `.env.example` 代管
 - command-scoped override template
-  一次性 rebuild / migration / replay 的 override 放在 `env/commands/*.env.example`
+  当前默认 operator override 放在 `env/commands/*.env.example`；只为历史 closeout / narrow recovery 保留的模板迁到 `env/commands/historical/*.env.example`
 
 ## 归属约束
 
@@ -26,7 +26,7 @@ updated: 2026-04-10
 - 不要把 root `.env.example` 当作所有 app 的统一配置入口
 - Worker 本地 secrets 应留在 app 目录下的 `.dev.vars` 或 `.env`，不要提交真实值
 
-## 当前 Ownership
+## 当前 Ownership（默认协作面）
 
 - repo root [`.env.example`](../../.env.example)
   supervisor-api shared auth/audit、shared LLM/embedding provider、shared Supabase Postgres、retrieval/embedding/Qdrant、object store、OCR/raw registry、eval live benchmark model selection、本地 Python eval runner 连接 `app-api` 的 ingress 参数、`CAMPUS_AGENT_HTTP_HOST` / `CAMPUS_AGENT_HTTP_PORT`
@@ -44,16 +44,24 @@ updated: 2026-04-10
   `process_raw_ingestion_job` 的一次性 override
 - command-scoped [`env/commands/rebuild-local-data.env.example`](../../env/commands/rebuild-local-data.env.example)
   `rebuild_local_data` 的一次性 override
-- command-scoped [`env/commands/migrate-student-handbook.env.example`](../../env/commands/migrate-student-handbook.env.example)
-  `migrate_student_handbook_source_faithful` 的一次性 override
 - command-scoped [`env/commands/official-web-handoff-receiver.env.example`](../../env/commands/official-web-handoff-receiver.env.example)
   本地 `official_web` handoff receiver 的一次性 override
 - command-scoped [`env/commands/official-web-handoff-consumer.env.example`](../../env/commands/official-web-handoff-consumer.env.example)
   本地 `official_web` handoff consumer 的一次性 override
-- command-scoped [`env/commands/official-web-history-backfill.env.example`](../../env/commands/official-web-history-backfill.env.example)
-  历史 `official_web` source-bucket 回补的命令级 override
 - command-scoped [`env/commands/release-registry-scope.env.example`](../../env/commands/release-registry-scope.env.example)
   registry-backed index release 的命令级 override
+
+## 历史 / 窄用途保留模板
+
+- command-scoped historical [`env/commands/historical/migrate-student-handbook.env.example`](../../env/commands/historical/migrate-student-handbook.env.example)
+  `migrate_student_handbook_source_faithful` 的窄迁移 override；保留给 handbook canonical rename / replay recovery，不再属于默认 operator 入口
+- command-scoped historical [`env/commands/historical/official-web-history-backfill.env.example`](../../env/commands/historical/official-web-history-backfill.env.example)
+  `official_web` 历史 source-bucket 回补的 closeout/recovery override；命令仍保留，但不再作为默认协作面
+
+## 非 repo-owned 模板
+
+- vendor [`apps/public-chat-web/vendor/vercel-ai-chatbot/.env.example`](../../apps/public-chat-web/vendor/vercel-ai-chatbot/.env.example)
+  vendor artifact，不属于 `campus-agent` 当前 env ownership，也不应参与 repo 默认 env inventory
 
 ## 当前状态
 
@@ -185,7 +193,8 @@ updated: 2026-04-10
 
 ## 命令级 Override 约束
 
-- `env/commands/*.env.example` 只放 override，不重复 shared runtime secrets
+- `env/commands/*.env.example` 只放当前默认 operator override，不重复 shared runtime secrets
+- `env/commands/historical/*.env.example` 只承接保留中的 closeout / recovery 模板；这些文件不再代表当前默认协作入口
 - OCR provider mode 在 operator / replay 命令里应显式写成 `OCR_PROVIDER_MODE=paddleocr_vl_service`；不要依赖 `OCR_BASE_URL` 推断 provider
 - `RAW_ASSET_ID`、`RAW_VERSION_ID`、`REPLAY_SOURCE_PDF`、`--corpus`、`--collection` 这类任务输入优先走 CLI args
 - `INGESTION_SPLIT_MANIFEST_PATH`、`HANDBOOK_SOURCE_PROJECTIONS_PATH` 只在偏离 repo-tracked truth 时作为显式 override 使用
