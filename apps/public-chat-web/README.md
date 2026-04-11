@@ -6,7 +6,7 @@ This app is the forward canonical public browser surface in front of shared `app
 
 Implementation status:
 
-- `/login` now runs from the repo-owned route tree in `src/routes/app-router.tsx` + `src/login/page.tsx`
+- `/login` and `/register` now run from the repo-owned route tree in `src/routes/app-router.tsx`, but the visible auth shell is the vendored donor auth shell with repo-owned Better Auth action adapters in `src/login/`
 - the default `/chat` + `/chat/:conversationId` routes now render the vendor chat runtime through `src/platform/chat/app-shell.tsx`
 - the vendored donor source of truth now lives in `vendor/vercel-ai-chatbot/`
 - the runtime chat shell now resolves `@/*` into the vendored donor tree; vendor-owned `ChatShell` and `AppSidebar` are the active chat UI source of truth
@@ -14,7 +14,7 @@ Implementation status:
 - the former `src/chatbot-donor/` compatibility layer and its Next/Auth shims have been removed from the runtime path
 - the former `src/chatbot-shell/` transitional shell and duplicate `src/public-chat/auth.ts` client have been retired from the app source tree
 - the remaining `src/public-chat` API/types transition files have been merged into `src/platform/chat/`; the app source tree no longer keeps a separate `public-chat` directory
-- the former hand-written `ChatHomePage` / `ChatThreadPage` route implementation has been removed from the runtime path; `src/styles.css` now only serves the login surface and boot fallback
+- the former hand-written `ChatHomePage` / `ChatThreadPage` route implementation has been removed from the runtime path; `src/styles.css` now only serves the boot fallback
 - the first runtime cutover record is retained in `docs/plans/public-chat-web-chatbot-replatform.md` as a historical plan, not the current implementation source of truth
 - the donor-first reset record is retained in `docs/plans/public-chat-web-donor-first-reset.md` as historical closeout context
 - the strict parity closeout record is tracked in `docs/plans/public-chat-web-vendor-runtime-full-transplant.md`; `2026-04-09` fresh local gate + authenticated staging smoke have closed the strict donor parity release gate, with the authoritative evidence pack fixed at `.tmp/staging-smoke/20260409T232000+0800-public-chat-wave6-closeout-2/`
@@ -47,6 +47,7 @@ Current route scope:
 - `GET /healthz`
 - `GET /readyz`
 - `GET /login`
+- `GET /register`
 - `GET /chat`
 - `GET /chat/:conversationId`
 - `ALL /api/*`
@@ -62,7 +63,8 @@ Current chat contract assumptions:
 
 UI behavior:
 
-- `/login` provides email/password sign-in and sign-up against shared Better Auth endpoints
+- `/login` renders the donor sign-in shell against shared Better Auth endpoints
+- `/register` renders the donor register shell against shared Better Auth endpoints
 - `/chat` is the first-turn chat surface and conversation history view
 - `/chat/:conversationId` continues an existing owned conversation
 - the left rail uses donor-style paginated history from `GET /api/history`

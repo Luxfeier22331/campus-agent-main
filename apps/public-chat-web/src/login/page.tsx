@@ -1,151 +1,80 @@
-import { useEffect, useState } from "react";
+"use client";
 
-import {
-  submitEmailPasswordAuth,
-  type AuthFormState,
-  type AuthMode,
-} from "@platform/auth/client";
-import { useChatbotShellRuntime } from "@platform/chat/runtime";
-import { useAppRouter } from "@platform/router";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { useActionState, useEffect, useState } from "react";
+
+import AuthLayout from "@/app/(auth)/layout";
+import { AuthForm } from "@/components/chat/auth-form";
+import { SubmitButton } from "@/components/chat/submit-button";
+import { toast } from "@/components/chat/toast";
+
+import { type LoginActionState, login } from "./actions";
 
 export function LoginPage() {
-  const router = useAppRouter();
-  const { refreshSession, session } = useChatbotShellRuntime();
-  const [mode, setMode] = useState<AuthMode>("sign-in");
-  const [form, setForm] = useState<AuthFormState>({
-    email: "",
-    name: "",
-    password: "",
-  });
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [isSuccessful, setIsSuccessful] = useState(false);
+  const [state, formAction] = useActionState<LoginActionState, FormData>(
+    login,
+    { status: "idle" },
+  );
+  const { status, update: updateSession } = useSession();
 
   useEffect(() => {
-    if (session.kind === "authenticated" && session.principal.canChat) {
+    if (status === "authenticated") {
       void router.replace("/chat");
     }
-  }, [router, session]);
+  }, [router, status]);
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setPending(true);
-    setError(null);
-
-    try {
-      await submitEmailPasswordAuth(mode, form);
-      await refreshSession();
-      await router.replace("/chat");
-    } catch (submitError) {
-      setError(
-        submitError instanceof Error ? submitError.message : "We could not complete that request.",
-      );
-    } finally {
-      setPending(false);
+  useEffect(() => {
+    if (state.status === "failed") {
+      toast({ type: "error", description: "Invalid credentials!" });
+      return;
     }
+
+    if (state.status === "invalid_data") {
+      toast({
+        type: "error",
+        description: "Failed validating your submission!",
+      });
+      return;
+    }
+
+    if (state.status === "success") {
+      setIsSuccessful(true);
+      void (async () => {
+        await updateSession();
+        await router.replace("/chat");
+      })();
+    }
+  }, [router, state.status, updateSession]);
+
+  const handleSubmit = (formData: FormData) => {
+    setIsSuccessful(false);
+    setEmail(String(formData.get("email") ?? ""));
+    formAction(formData);
   };
 
   return (
-    <main className="login-layout">
-      <section className="login-panel">
-        <div className="login-badge">Campus Agent</div>
-        <div className="login-copy">
-          <h1>{mode === "sign-in" ? "Public campus chat" : "Create your chat account"}</h1>
-          <p>
-            This Worker-hosted surface stays on the shared app-api contract for auth,
-            conversation history, and answer execution.
-          </p>
-        </div>
-
-        <div aria-label="Authentication mode" className="login-mode-switch" role="tablist">
-          <button
-            aria-selected={mode === "sign-in"}
-            className="login-mode-button"
-            onClick={() => setMode("sign-in")}
-            role="tab"
-            type="button"
-          >
-            Sign in
-          </button>
-          <button
-            aria-selected={mode === "sign-up"}
-            className="login-mode-button"
-            onClick={() => setMode("sign-up")}
-            role="tab"
-            type="button"
+    <AuthLayout>
+      <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
+      <p className="text-sm text-muted-foreground">
+        Sign in to your account to continue
+      </p>
+      <AuthForm action={handleSubmit} defaultEmail={email}>
+        <SubmitButton isSuccessful={isSuccessful}>Sign in</SubmitButton>
+        <p className="text-center text-[13px] text-muted-foreground">
+          {"No account? "}
+          <Link
+            className="text-foreground underline-offset-4 hover:underline"
+            href="/register"
           >
             Sign up
-          </button>
-        </div>
-
-        <form className="login-form" onSubmit={handleSubmit}>
-          <label className="field" htmlFor="login-email">
-            <span>Email</span>
-            <input
-              autoComplete="email"
-              id="login-email"
-              name="email"
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  email: event.target.value,
-                }))
-              }
-              required
-              type="email"
-              value={form.email}
-            />
-          </label>
-
-          {mode === "sign-up" ? (
-            <label className="field" htmlFor="login-name">
-              <span>Name</span>
-              <input
-                autoComplete="name"
-                id="login-name"
-                name="name"
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    name: event.target.value,
-                  }))
-                }
-                required
-                type="text"
-                value={form.name}
-              />
-            </label>
-          ) : null}
-
-          <label className="field" htmlFor="login-password">
-            <span>Password</span>
-            <input
-              autoComplete={mode === "sign-in" ? "current-password" : "new-password"}
-              id="login-password"
-              minLength={8}
-              name="password"
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  password: event.target.value,
-                }))
-              }
-              required
-              type="password"
-              value={form.password}
-            />
-          </label>
-
-          {error ? <p className="field-error">{error}</p> : null}
-
-          <button className="login-submit" disabled={pending} type="submit">
-            {pending
-              ? "Working..."
-              : mode === "sign-in"
-                ? "Sign in to chat"
-                : "Create account and continue"}
-          </button>
-        </form>
-      </section>
-    </main>
+          </Link>
+        </p>
+      </AuthForm>
+    </AuthLayout>
   );
 }

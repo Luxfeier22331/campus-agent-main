@@ -118,7 +118,7 @@ updated: 2026-04-11
 执行边界：
 
 - 不改动 `public-chat-web -> app-api -> supervisor-api` accepted topology
-- `/login` 继续 repo-owned，不进入 donor parity 本身
+- `/login` 与 `/register` 虽已切回 donor auth shell，但仍不进入 strict donor parity release gate；repo-owned差异只允许保留在 Better Auth action adapter 与 route bootstrap
 - 当前 cutover、same-site `/api/*`、staging hostname 与 preview seam removal 证据继续保留，但不得再被解释成 strict parity 已关闭
 - Wave 1-5 的 code-level correction 已完成，不再把 route status card、patched composer navigation、repo-local message/tool fallback、artifact/document runtime patch 留在工作树里
 - 当前剩余工作只允许是 donor diff whitelist、desktop/mobile browser parity smoke、staging parity evidence 与 checklist closeout

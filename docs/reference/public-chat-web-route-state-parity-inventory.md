@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-08
-updated: 2026-04-09
+updated: 2026-04-11
 ---
 
 # Public Chat Web Route State Parity Inventory
@@ -42,6 +42,7 @@ updated: 2026-04-09
 不进入 donor parity gate，但必须保持边界正确的范围：
 
 - `/login`
+- `/register`
 - Worker shell redirects
 - same-site `/api/*`
 - auth/session bootstrap truth as a data boundary
@@ -51,7 +52,8 @@ updated: 2026-04-09
 | Route / State | 当前 owner | 当前运行职责 | donor parity 级别 | 必须保留的本地边界 |
 |---|---|---|---|---|
 | `/` | `src/routes/app-router.tsx` | redirect 到 `/chat` | `none` | Worker/browser route bootstrap |
-| `/login` | `src/routes/app-router.tsx` + `src/login/page.tsx` | repo-owned 登录页、sign-in/sign-up、成功后跳 `/chat` | `out-of-scope` | repo-owned auth/session UX |
+| `/login` | `src/routes/app-router.tsx` + `src/login/page.tsx` + donor auth shell | donor sign-in shell、same-site Better Auth action adapter、成功后跳 `/chat` | `out-of-scope` | app-api auth/session truth、repo-owned route bootstrap |
+| `/register` | `src/routes/app-router.tsx` + `src/login/register-page.tsx` + donor auth shell | donor register shell、same-site Better Auth action adapter、成功后跳 `/chat` | `out-of-scope` | app-api auth/session truth、repo-owned route bootstrap |
 | `/chat` | `src/routes/app-router.tsx` -> `src/platform/chat/app-shell.tsx` | 默认 chat 主壳、empty thread、首轮发送 | `critical` | same-site `/api/*`、platform seam |
 | `/chat/:conversationId` | `src/routes/app-router.tsx` -> `src/platform/chat/app-shell.tsx` | 已有会话、thread detail、继续追问 | `critical` | same-site `/api/*`、platform seam |
 | wildcard `*` | `src/routes/app-router.tsx` | redirect 到 `/chat` | `none` | route canonicalization |
@@ -63,20 +65,44 @@ updated: 2026-04-09
 当前状态：
 
 - `sign-in`
-- `sign-up`
 - `pending`
-- `inline-error`
+- `toast error`
 - `authenticated redirect to /chat`
 
 当前 owner：
 
 - [app-router.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/routes/app-router.tsx)
 - [page.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/login/page.tsx)
+- [layout.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/app/(auth)/layout.tsx)
+- [auth-form.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/auth-form.tsx)
+- [actions.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/src/login/actions.ts)
 
 Parity 规则：
 
-- 不要求对齐 donor
-- 只要求不破坏后续 chat shell 入口
+- 不进入 strict donor parity gate
+- 但当前可见 auth shell 已切回 donor 结构；repo-owned 部分只允许停留在 action adapter、route bootstrap 与 compat seam
+
+### `/register`
+
+当前状态：
+
+- `sign-up`
+- `pending`
+- `toast error`
+- `authenticated redirect to /chat`
+
+当前 owner：
+
+- [app-router.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/routes/app-router.tsx)
+- [register-page.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/src/login/register-page.tsx)
+- [layout.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/app/(auth)/layout.tsx)
+- [auth-form.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/auth-form.tsx)
+- [actions.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/src/login/actions.ts)
+
+Parity 规则：
+
+- 不进入 strict donor parity gate
+- 但当前可见 auth shell 已切回 donor 结构；repo-owned 部分只允许停留在 action adapter、route bootstrap 与 compat seam
 
 ### `/chat`
 
@@ -177,7 +203,8 @@ Parity 规则：
 ## Route Ownership Notes
 
 - `src/routes/` 与 `src/login/` 当前拥有：
-  - login
+  - auth route entry
+  - Better Auth action adapter
   - session bootstrap
   - route gating
   - non-visible route bootstrap
@@ -187,6 +214,7 @@ Parity 规则：
   - runtime adapters
 - `vendor/vercel-ai-chatbot/` 当前拥有：
   - sidebar / thread / composer / empty-state presentation
+  - auth layout / auth form presentation
   - the visible donor shell contract that launch path must converge to
 
 默认判断固定为：

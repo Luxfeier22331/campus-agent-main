@@ -22,7 +22,7 @@ updated: 2026-04-11
 
 - 替代原始 `diff --no-index` 结果
 - 改写 `public-chat-web -> app-api -> supervisor-api` accepted topology
-- 把 `/login` 纳入 donor parity 范围
+- 把 `/login` 与 `/register` 纳入 strict donor parity release gate
 
 ## 结论
 
@@ -75,7 +75,7 @@ updated: 2026-04-11
 
 ## Non-Blocking Or Out-Of-Scope
 
-- `/login` 仍是 repo-owned surface，不进入 donor parity 本身。
+- `/login` 与 `/register` 当前虽已切回 donor auth shell，但仍不进入 strict donor parity release gate；repo-owned差异只允许停留在 Better Auth action adapter、route bootstrap 与 compat seam。
 - same-site `/api/*` seam 继续是 accepted boundary，不视为 donor drift。
 - `app-api` 继续拥有 auth/session/conversation/request truth，不因 strict parity 回退。
 - artifact/document open behavior 只在 launch path 仍暴露该 affordance 时进入本轮 gate；本轮 fresh staging smoke 未观测到该 affordance 打开。

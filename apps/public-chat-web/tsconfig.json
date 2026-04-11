@@ -10,6 +10,7 @@
     "paths": {
       "next/link": ["src/platform/vendor-compat/next/link.tsx"],
       "next/navigation": ["src/platform/vendor-compat/next/navigation.ts"],
+      "next/form": ["src/platform/vendor-compat/next/form.tsx"],
       "next/image": ["src/platform/vendor-compat/next/image.tsx"],
       "next-auth/react": ["src/platform/vendor-compat/next-auth/react.tsx"],
       "next-auth": ["src/platform/vendor-compat/next-auth/index.ts"],

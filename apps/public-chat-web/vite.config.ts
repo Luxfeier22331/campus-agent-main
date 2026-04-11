@@ -122,6 +122,10 @@ export default defineConfig({
         replacement: path.resolve(__dirname, "src/platform/vendor-compat/next/navigation.ts"),
       },
       {
+        find: /^next\/form$/,
+        replacement: path.resolve(__dirname, "src/platform/vendor-compat/next/form.tsx"),
+      },
+      {
         find: /^next\/image$/,
         replacement: path.resolve(__dirname, "src/platform/vendor-compat/next/image.tsx"),
       },

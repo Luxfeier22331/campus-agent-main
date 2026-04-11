@@ -9,6 +9,7 @@ import {
 import { lazy, Suspense } from "react";
 
 import { LoginPage } from "../login/page";
+import { RegisterPage } from "../login/register-page";
 import { ChatbotShellRuntimeProvider, useChatbotShellRuntime } from "@platform/chat/runtime";
 
 const ChatAppShell = lazy(async () => {
@@ -78,6 +79,12 @@ const loginRoute = createRoute({
   path: "/login",
 });
 
+const registerRoute = createRoute({
+  component: RegisterPage,
+  getParentRoute: () => rootRoute,
+  path: "/register",
+});
+
 const authenticatedRoute = createRoute({
   component: AuthenticatedChatRoute,
   getParentRoute: () => rootRoute,
@@ -99,6 +106,7 @@ const chatConversationRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
+  registerRoute,
   authenticatedRoute.addChildren([chatIndexRoute, chatConversationRoute]),
 ]);
 

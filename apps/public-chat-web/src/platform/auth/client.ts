@@ -4,11 +4,13 @@ const authClient = createAuthClient();
 
 export type AuthMode = "sign-in" | "sign-up";
 
-export type AuthFormState = {
+export type AuthFormSubmission = {
   email: string;
   name: string;
   password: string;
 };
+
+export type AuthSubmissionErrorCode = "failed" | "invalid_data" | "user_exists";
 
 export type SignOutChatSessionOptions = {
   redirectTo?: string;
@@ -20,14 +22,43 @@ type ClientAuthResponse = {
   } | null;
 };
 
+export class AuthSubmissionError extends Error {
+  constructor(
+    readonly code: AuthSubmissionErrorCode,
+    message: string,
+  ) {
+    super(message);
+    this.name = "AuthSubmissionError";
+  }
+}
+
 function readAuthErrorMessage(response: ClientAuthResponse | undefined, fallback: string): string {
   const message = response?.error?.message?.trim();
   return message || fallback;
 }
 
+function classifyAuthSubmissionError(
+  mode: AuthMode,
+  message: string,
+): AuthSubmissionErrorCode {
+  if (mode === "sign-up" && /already exists|user exists|account exists/i.test(message)) {
+    return "user_exists";
+  }
+
+  if (
+    /invalid submission|validation|must be at least|required|invalid email|password must|too short/i.test(
+      message,
+    )
+  ) {
+    return "invalid_data";
+  }
+
+  return "failed";
+}
+
 export async function submitEmailPasswordAuth(
   mode: AuthMode,
-  values: AuthFormState,
+  values: AuthFormSubmission,
 ): Promise<void> {
   const response =
     mode === "sign-up"
@@ -45,7 +76,8 @@ export async function submitEmailPasswordAuth(
         });
 
   if (response?.error) {
-    throw new Error(readAuthErrorMessage(response, "Authentication request failed."));
+    const message = readAuthErrorMessage(response, "Authentication request failed.");
+    throw new AuthSubmissionError(classifyAuthSubmissionError(mode, message), message);
   }
 }
 
