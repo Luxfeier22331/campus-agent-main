@@ -215,6 +215,11 @@ operator / eval 投影至少保留：
 - `citation_required_answer` eval lane
 - claim-level regression cases
 - prompt-family artifact retention contract
+- Wave C 已完成的第三批 release-gate / observability truth：
+  - `packages/evals` 新增 `retrieval_adequacy_accuracy` 与 `grounding_claim_accuracy`
+  - `clarification_instead_of_guess` / `citation_required_answer` 成为 deterministic eval lane
+  - `app-api` 将 `retrieval_adequacy_verdict` / `retrieval_adequacy_reason` / `claim_support_summary` 写入 operator-safe runtime fact
+  - operator detail 只暴露 compact summary，不暴露 raw `claim_supports`、support snippet 或 provider-native citation blob
 
 建议落点：
 
