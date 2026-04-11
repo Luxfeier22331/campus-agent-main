@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-05
-updated: 2026-04-06
+updated: 2026-04-11
 ---
 
 # Prompt And Instruction Architecture
@@ -306,6 +306,35 @@ Return only schema-compliant output. Code-side finalization is authoritative.
 - claim-level grounding judgement
 
 这些仍然必须留在 code side。
+
+## Final Runtime Shape
+
+当产品方说“system prompt”时，repo 内允许把它当作一个便于沟通的简称。
+
+但长期实现真相固定为：
+
+`repo-global developer invariants -> package-owned role developer prompt -> typed trusted task packet -> typed untrusted evidence/user packet -> strict structured output + code-side finalization`
+
+补充约束：
+
+- 对 OpenAI-compatible runtime，repo-global 那一层应优先实现为 `developer message`，而不是继续膨胀成 monolithic mega system prompt
+- `system prompt` 这个词只保留为产品沟通 shorthand，不得反向诱导实现把 role、task、evidence、schema 全堆回单块字符串
+- user text、retrieved snippets、external observations、free-text memory 一律视为 `untrusted content`，不得进入 developer / trusted instruction zone
+- package-owned role prompt 可以继续使用 markdown template 资产，但进入 provider runtime 时必须按 trusted / untrusted zone 显式拼装
+- product-path 最终必须能稳定落下 `prompt_id`、`prompt_version`、`template_sha256`、`model_provider`、`model_name`
+
+因此，repo 最终不追求：
+
+- 一份更长的总 system prompt
+- 把 routing / authz / serving truth 写成 prompt 文案
+- 把 prompt 当作 agent graph 的唯一真相源
+
+repo 最终追求的是：
+
+- 一个极薄、稳定、可版本化的 repo-global invariants block
+- 按 supervisor / specialist / mode 拆分的 package-owned prompt family
+- 明确的 trusted task packet 与 untrusted evidence packet 分区
+- strict structured outputs、grounding validator 与 code-owned finalization
 
 ## Package-Owned Prompt Shape
 
@@ -645,24 +674,28 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 
 ## Current Gap To Best Practice
 
-当前 repo 方向已经基本正确，但与长期最佳实践相比仍有三个明确缺口：
+当前 repo 方向已经基本正确，但与长期最佳实践相比仍有四个明确缺口：
 
-1. provider-level strict structured outputs 还没有成为默认产品运行时能力
+1. repo-default product-path prompt stack 还没有完全落地
+- 当前架构已经明确区分 repo-global invariants、package-owned prompt family、typed packet 与 code-side finalization
+- 但产品主链路还没有把这套分层稳定接成默认 runtime truth；“system prompt”在产品实现里仍更像设计意图，而不是已冻结的 runtime stack
+
+2. provider-level strict structured outputs 还没有成为默认产品运行时能力
 - 目前有 prompt packet / typed output seam
 - 但产品主路径默认仍以 deterministic fallback 为主，尚未形成 repo-default strict output runtime
 
-2. claim-level grounding validator 已落地，但仍是最小可用强度
+3. claim-level grounding validator 已落地，但仍是最小可用强度
 - 当前已对 prompt-generated completed answer 执行 answer-to-evidence 校验，并对 title / time / requirement claim 做最小提取
 - 但还没有覆盖更广的 claim 类型，也还不是完整的 cross-provider grounded generation runtime
 
-3. repo-default prompt metadata sink 还没有端到端补齐
+4. repo-default prompt metadata sink 还没有端到端补齐
 - 当前已有 `semantic_outcome`、`grounding_verdict`、`grounding_downgraded`、`freshness_fail_closed` 与 `prompt_trace` diagnostics seam
 - 但 `prompt_version`、`template_sha256`、`model` 这类 metadata 还没有形成统一的 product-path 默认 sink
 
 补充说明：
 
 - hallucination failure-class eval lane 已经显式拆开，不再是当前主要 gap
-- 当前剩余 gap 主要集中在 provider runtime 接线、metadata sink 和 grounding validator 深化
+- 当前剩余 gap 主要集中在 product-path prompt stack 落地、provider runtime 接线、metadata sink 和 grounding validator 深化
 
 ## First-Rollout Strategy
 
@@ -721,6 +754,7 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 
 当前仍未默认开启的部分是：
 
+- repo-default product-path prompt stack
 - provider-backed prompt executor
 - prompt metadata 的 repo-default runtime sink
 - 更强的 provider-agnostic grounding runtime
@@ -735,6 +769,7 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 因此当前 accepted 状态是：
 
 - 代码已经允许按 package 边界注入 prompt executor，并把 prompt trace 挂到现有 diagnostics / observability
+- repo-level 最终形态已经明确为薄 `developer invariants` + package-owned role prompt + typed task/evidence packet，而不是 monolithic mega prompt
 - 在产品运行时侧 shared `Responses` executor boundary 被接受之前，默认实现继续保持 deterministic fallback，不把 provider 调用写死进当前主路径
 - `curriculum` 高结构答案、`handbook procedure/materials/deadline/time` 高精度 path 与 restricted deny final semantics 继续保持 deterministic-first protected path，不被 prompt rollout 覆盖
 
@@ -744,6 +779,7 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
   - 从 `packages/evals` 抽出 product-owned shared `Responses` runtime，并冻结为非 eval 专用能力边界
   - 或者新增独立的 product-side prompt execution package，并完成 provider config、schema validation、metadata sink 的 repo 级接线
 - 满足上述条件后，下一轮可以完整执行：
+  - 把 repo-global invariants 真正落成 product-path developer message / prompt stack
   - 默认启用 provider-backed supervisor prompt executor
   - 默认启用 rag clarify / no-answer / generic answer prompt executor
   - 在不触碰 deterministic protected paths 的前提下补齐 live gate / quality gate evidence

@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-02
+updated: 2026-04-11
 ---
 
 # Execution And Specialists Architecture
@@ -110,6 +110,16 @@ execution path 的 prompt / instruction 继续遵循 package-owned ownership：
   不拥有长期 prompt truth；只负责 request packaging 与 execution admission
 
 prompt 不能替代 code-owned routing、authz、serving filter 或 fail-close terminal semantics。
+
+execution path 的最终 prompt stack 也固定为：
+
+`repo-global developer invariants -> package-owned role prompt -> typed task/evidence packet -> code-side finalization`
+
+补充约束：
+
+- `apps/supervisor-api` 与后续 product runtime 只负责装配与执行，不拥有新的 monolithic mega system prompt
+- `packages/retrieval-core` 继续只提供 evidence serialization helper，不拥有 top-level prompt truth
+- `system prompt` 这个词在 repo 里只保留为沟通简称；真正运行时应以 developer prompt + typed packets 表达
 
 ## Forbidden Shapes
 

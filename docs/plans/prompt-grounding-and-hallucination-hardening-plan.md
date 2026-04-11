@@ -2,7 +2,7 @@
 doc_type: plan
 status: active
 created: 2026-04-06
-updated: 2026-04-06
+updated: 2026-04-11
 ---
 
 # Prompt Grounding And Hallucination Hardening Plan
@@ -24,6 +24,7 @@ updated: 2026-04-06
 
 **Residual Gap:** 当前剩余 gap 已收敛为：
 
+- repo-default product-path prompt stack 还没有把 `repo-global invariants -> package-owned role prompt -> typed task/evidence packet -> strict output contract` 作为默认运行时真相落地
 - provider-backed strict structured output runtime 还不是默认 product-path capability
 - repo-default prompt metadata sink 还没有把 `prompt_version` / `template_sha256` / `model` 端到端落进产品主链路
 - grounding validator 仍是最小可用强度，尚未覆盖更广的 claim 类型与 provider-agnostic grounded-generation runtime
@@ -33,10 +34,11 @@ updated: 2026-04-06
 完成后必须同时成立：
 
 1. repo-global system invariants 保持极薄，不再朝 monolithic mega prompt 演化
-2. `supervisor` / `rag-specialist` 的 prompt family 继续按 mode 拆分，不把 routing / authz / serving truth 推回 prompt
-3. provider-backed prompt execution 能返回 strict typed outputs，不依赖 prompt-only 格式约束
-4. `completed` 回答在出站前经过 claim-level grounding validator；不满足则自动降级为 `unsupported_by_evidence`
-5. `out_of_scope`、`policy_refusal`、`restricted_access_denied`、`unsupported_by_evidence`、`freshness fail-close` 各自有独立 eval coverage
+2. 产品主链路默认采用 `repo-global developer invariants + package-owned role prompt + typed trusted/untrusted packets + code-side finalization`，而不是回退到单块 mega system prompt
+3. `supervisor` / `rag-specialist` 的 prompt family 继续按 mode 拆分，不把 routing / authz / serving truth 推回 prompt
+4. provider-backed prompt execution 能返回 strict typed outputs，不依赖 prompt-only 格式约束
+5. `completed` 回答在出站前经过 claim-level grounding validator；不满足则自动降级为 `unsupported_by_evidence`
+6. `out_of_scope`、`policy_refusal`、`restricted_access_denied`、`unsupported_by_evidence`、`freshness fail-close` 各自有独立 eval coverage
 
 ## Non-Goals
 
@@ -47,6 +49,31 @@ updated: 2026-04-06
 - 用 LLM 替代 deterministic curriculum / handbook 高结构答案
 - 把 external world knowledge fallback 打进 campus path
 - 用“更长的 prompt”代替 grounding / ACL / scope code gate
+
+## Workstream 0: Final Prompt Stack Freeze
+
+状态：`not_started`
+
+目标：
+
+- 把“system prompt”的最终产品形态正式冻结为 repo-global thin invariants + package-owned role prompt + typed task/evidence packet + code-side finalization
+
+建议文件：
+
+- `docs/architecture/prompt-and-instruction-architecture.md`
+- `docs/architecture/execution-and-specialists-architecture.md`
+- `apps/supervisor-api`
+- `apps/app-api`
+- `packages/supervisor-core/src/campus_supervisor_core/prompts/`
+- `packages/rag-specialist/src/campus_rag_specialist/prompts/`
+
+实现要点：
+
+- 对 OpenAI-compatible runtime，把 repo-global 一层实现为稳定的 `developer message`，而不是 monolithic mega system prompt
+- 明确 `trusted task packet` 与 `untrusted evidence/user packet` 的装配边界，不允许 untrusted content 进入 developer instruction zone
+- 明确 `system prompt` 在仓库里的语义只是产品沟通 shorthand，不再等于真正的 runtime assembly shape
+- 让 `apps/supervisor-api` / product runtime 在接入 provider-backed executor 时统一消费同一套 prompt stack，而不是各自拼 prompt
+- 不把 routing / authz / serving truth 倒灌回 prompt 文案
 
 ## Workstream 1: Strict Structured Output Runtime
 
@@ -237,13 +264,15 @@ updated: 2026-04-06
 
 剩余工作建议顺序：
 
-1. 接受 product-owned provider-backed prompt runtime boundary
-2. 补齐 repo-default prompt metadata sink
-3. 强化 claim-level grounding validator
-4. 补齐剩余 prompt-family regression / quality evidence
+1. 冻结并落地 repo-default product-path prompt stack
+2. 接受 product-owned provider-backed prompt runtime boundary
+3. 补齐 repo-default prompt metadata sink
+4. 强化 claim-level grounding validator
+5. 补齐剩余 prompt-family regression / quality evidence
 
 原因：
 
+- product-path prompt stack 未冻结前，不应把“system prompt”继续当作模糊术语写进运行时或 operator 预期
 - provider runtime boundary 未冻结前，不应把 eval-side execution 偶然性倒灌进产品主路径
 - metadata sink 不补齐，后续 prompt release 无法形成稳定 operator truth
 - grounding validator 需要继续增强，但不应推翻已经落地的 deterministic protected paths
@@ -252,6 +281,7 @@ updated: 2026-04-06
 
 当前应继续补强以下验证：
 
+- prompt stack assembly / trusted-vs-untrusted zoning tests
 - provider-backed prompt runtime schema tests
 - grounding validator 扩展回归 tests
 - prompt metadata sink contract tests
@@ -261,6 +291,7 @@ updated: 2026-04-06
 
 当前剩余交付物：
 
+- 一套 repo-default product-path prompt stack
 - 一套 repo-accepted product-owned prompt runtime boundary
 - 一组 repo-default prompt metadata sink 字段
 - 一套更强的 grounding validator / grounded-generation runtime
