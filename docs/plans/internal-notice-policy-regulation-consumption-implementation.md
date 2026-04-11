@@ -2,7 +2,7 @@
 doc_type: plan
 status: active
 created: 2026-04-10
-updated: 2026-04-10
+updated: 2026-04-11
 ---
 
 # Internal Notice 规章制度消费实施文档
@@ -82,6 +82,20 @@ updated: 2026-04-10
 - 当前 repo 对 Office 文本附件的稳定原生支持只冻结到 `docx`
 - 当前 repo 还没有把 `.doc` / `.xls` / `.xlsx` 这类在 `policy_regulation` 样本里真实存在的附件类型纳入稳定消费契约
 
+### 已新增的 repo-native 辅助能力
+
+- `packages/ingestion-core/src/campus_ingestion_core/internal_notice_regulation_promotion.py`
+  - 已提供只读 promotion manifest 生成器
+  - 输入固定为 `internal_notice` canonical document + source-truth inventory
+  - 输出固定为 `promote_candidate / hold_in_internal_notice / manual_review_required`
+  - 当前只做分类、去重、metadata 缺口报告，不做 target collection 写入
+  - 现已额外提供 local-only `candidate artifact` 导出能力
+  - candidate artifact 会把 cleaned regulation body、promotion metadata 与 source provenance 固化成独立本地导出物，供后续 chunk-prep / review 消费
+- `apps/ingestion-worker/src/campus_ingestion_worker/build_internal_notice_regulation_promotion_manifest.py`
+  - 已提供 worker CLI，用于导出 `promotion-manifest.json` 与 `document-reports.jsonl`
+- `apps/ingestion-worker/src/campus_ingestion_worker/export_internal_notice_regulation_candidate_artifacts.py`
+  - 已提供 worker CLI，用于导出 local-only `promotion-candidate-manifest.json`、`candidate-documents.jsonl` 与每个 candidate 的 `canonical.md`
+
 这几个缺口决定了：
 
 - 下一步不能假装“`policy_regulation` replay 完就等于 regulation corpus 已经成立”
@@ -131,6 +145,19 @@ Azure AI Search 官方 chunking 文档明确建议优先按标题、章节、段
 - 当前 `220/320/32/32` 只能继续当 admission baseline
 - `notice_body`、`attachment_text_extractable`、`attachment_ocr_required` 必须长期走 lane-specific semantic chunking
 - 不应该为了附件 outlier 反向全局压缩 parent notice body
+
+### 2.5 文档新旧更适合作为 metadata / ranking 信号，而不是 validity truth
+
+Azure AI Search 官方文档把 freshness 建模为 scoring profile 中的可选打分函数，并把 filterable fields 作为显式索引字段能力，而不是把日期直接等同于“是否有效”：
+
+- https://learn.microsoft.com/en-us/azure/search/index-add-scoring-profiles
+- https://learn.microsoft.com/en-us/azure/search/search-how-to-create-search-index
+
+对本项目的直接含义是：
+
+- `published_date`、`effective_date`、`revision_signal`、`supersession_evidence` 应是明确 metadata
+- 校内规章制度不能因为“发布时间老”就默认降权成仅参考文本
+- `暂行/试行` 也不能单独当作“失效”或“草案”判断；只有在正文出现明确的临时/过渡/失效语义时，才应排除出长期制度 collection
 
 ### 3. PaddleOCR 官方同时提供同步 layout parsing 和异步 jobs，两者应分工而不是互相替代
 
@@ -261,9 +288,9 @@ Azure AI Search 官方 chunking 文档明确建议优先按标题、章节、段
 - `wrapper_notice_only`
   - 主要价值在“发布/印发/修订通知”本身，正文只是 wrapper，制度正文在附件里
 - `draft_or_consultation`
-  - 征求意见稿、试行稿、讨论稿
+  - 征求意见稿、草案、讨论稿
 - `annual_or_operational_scheme`
-  - 强年限、强批次、强场景绑定的工作方案、实施方案、年度细则
+  - 强年限、强批次、强场景绑定的工作方案、实施方案、招生/推免/硕博连读类年度细则
 
 当前第一阶段 promotion 建议只开放：
 
@@ -280,6 +307,25 @@ Azure AI Search 官方 chunking 文档明确建议优先按标题、章节、段
 
 - 它们更像 restricted operational context，而不是长期稳定制度正文
 - 这可以避免把 notice corpus 里的“年度流程性文件”过早混进正式 regulation corpus
+
+### 当前 read-only promotion guardrails
+
+在当前 repo-tracked 的 promotion manifest builder 中，第一版 guardrail 固定为：
+
+- `notice_body` 只有在正文本体具备独立制度结构时，才允许进入 `promote_candidate`
+- `关于发布/印发/实施...的通知` 这类 wrapper 标题，如果正文只是摘要、施行说明或附件指向，即使出现制度名，也继续保留在 `internal_notice`
+- 文档发布时间老旧，不构成 standalone exclusion signal
+- `暂行/试行` 不单独触发 `manual_review_required`
+- 招生/推免/硕博连读/英才计划这类年度或项目制规则，当前继续落到 `manual_review_required`
+- 假期规定、正式运营前、临时医疗点等正文内出现明确临时/过渡语义的运营规则，当前继续落到 `manual_review_required`
+- source-truth inventory 已声明存在 attachment projection，但当前 scope snapshot 缺少对应 child document 时，结果必须是 `manual_review_required`
+- parent-body 候选继续保留 `source_parent_document_id` 和 `source_notice_ids` provenance；`source_attachment_ref_id/source_attachment_sha256` 只对 attachment-derived 候选强制要求
+
+这组 guardrail 的目的不是完成最终 promotion contract，而是先防止两类已确认的错误：
+
+- 把 donor body 中的 wrapper 摘要误升为 formal regulation
+- 因为文档老旧或标题含 `暂行/试行` 就把真实仍在生效的校内制度错误排除
+- 在输入快照不完整时给出看似确定的 hold/candidate 结论
 
 ## 附件与文件类型策略
 
@@ -370,6 +416,123 @@ Azure AI Search 官方 chunking 文档明确建议优先按标题、章节、段
 - `is_draft`
 - `revision_signal`
 - `supersedes_candidate_keys`
+
+### Local-Only Candidate Artifact Contract
+
+在真正允许写入 `regulations/*` 之前，repo 现在先固定一层 local-only candidate artifact contract。
+
+这层的职责是：
+
+- 把 `promote_candidate` 从“manifest 里的一个判断结果”提升成可审阅、可复用的本地候选件
+- 把 parent notice promotion-side cleanup 之后的制度正文固化下来，不再让后续 chunk-prep 继续直接读取 source-triage notice 正文
+- 在不触发 Postgres / release / embedding / Qdrant side effect 的前提下，给后续 chunk-prep 和人工验收提供稳定输入
+
+第一版 contract 固定导出：
+
+- `promotion-candidate-manifest.json`
+  - summary、scope、selected ids、candidate refs
+- `candidate-documents.jsonl`
+  - 每个 candidate 的 promotion metadata、provenance、quality gates、body hash
+  - 额外保留后续 local-only target-side chunk prep 必需的 runtime 元数据：
+    - `source_uri`
+    - `entitlement_groups`
+    - `visibility_scope`
+    - `visibility_level`
+    - `embedding_model`
+    - `is_current`
+- `candidates/<slug>--<candidate_id>/canonical.md`
+  - local-only canonical candidate markdown
+  - front matter 保留：
+    - `candidate_id`
+    - `source_document_id`
+    - `source_kind`
+    - `promotion_class`
+    - `source_notice_release_time`
+    - `source_parent_document_id`
+    - `source_attachment_ref_id`
+    - `source_attachment_sha256`
+    - `issuing_org`
+    - `effective_date`
+    - `revision_signal`
+  - 正文固定为：
+    - `# regulation_title_normalized`
+    - promotion-side cleaned regulation body
+
+这层明确不是：
+
+- final regulation `document_id/version_id`
+- target collection write
+- object-store publish contract
+- release candidate
+
+之所以要先落这一层，是因为外部官方实践都强调“父级 metadata/provenance 要显式映射到后续消费单元”，而不是在后置阶段再猜：
+
+- Azure AI Search index projections：
+  - <https://learn.microsoft.com/en-us/azure/search/search-how-to-define-index-projections>
+- Azure AI Search structure-aware chunking：
+  - <https://learn.microsoft.com/en-us/azure/search/vector-search-how-to-chunk-documents>
+- Google Cloud Document AI custom splitter：
+  - <https://cloud.google.com/document-ai/docs/custom-splitter>
+
+对本项目的直接含义是：
+
+- source-truth provenance 必须先显式保留到 candidate artifact
+- cleaned body 必须先固化，再进入后续 chunk-prep
+- regulation promotion 不能把“分类判断”“正文清洗”“chunk 输入”混成一次性内存结果
+
+### Local-Only Candidate Chunk Prep Contract
+
+在 candidate artifact 之后，repo 现在再固定一层 local-only target-side `chunk prep / quality` contract。
+
+这层的职责是：
+
+- 把 candidate artifact 投影成 `regulations/institutional_regulations` 语义下的 target-side `document-units.jsonl`
+- 使用目标 collection 的 `chunk-profile.json` 生成本地 `chunks.jsonl` 预览
+- 产出不带任何 release/index side effect 的 machine-readable validation summary
+
+第一版 local-only chunk-prep 固定导出：
+
+- `chunk-prep-manifest.json`
+- `validation-summary.json`
+- `document-reports.jsonl`
+- `prepared-candidates/<slug>--<candidate_id>/document-units.jsonl`
+- `prepared-candidates/<slug>--<candidate_id>/chunks.jsonl`
+
+这层明确不是：
+
+- target collection write
+- release candidate
+- serving alias publish
+- embedding/index publish
+
+当前真实样本 `187233 / 中央民族大学采购工作管理办法` 的 rebuilt local-only chunk prep 与后续 structure-aware rerun 已确认：
+
+- hard gate 全部通过：
+  - `missing_title_chunk_count = 0`
+  - `missing_contextualization_count = 0`
+  - `missing_projection_metadata_count = 0`
+  - `wrapper_notice_leak_chunk_count = 0`
+  - `front_matter_leak_chunk_count = 0`
+- structure-aware rerun 现已把 target-side short fragment 收口到：
+  - `total_unit_count = 16`
+  - `total_chunk_count = 6`
+  - `short_body_chunk_count = 0`
+  - `quality_posture = ready_for_target_materialization`
+
+这里的直接设计含义是：
+
+- local-only chunk prep 现在可以作为 promotion 之后、materialization 之前的固定验收层
+- `institutional_regulations` 当前对已通过 promotion gate 的 candidate，已经具备可接受的 target-side chunk quality
+- 剩余前向工作不再是 target chunk tuning，而是 promotion admission/routing review，尤其是 Cohort A 中仍停在 `manual_review_required` 的 `10` 条 notice
+
+### Rebuilt Inventory Caveat
+
+真实样本还确认了一条 operator 级事实：
+
+- `local-smoke` 目录里的历史 `source-truth-inventory.json` 可能仍保留旧 metadata
+- 对 `187233`，旧 inventory 会让 `source_notice_release_time = null`
+- 当前 local-only candidate chunk-prep 已把 `source_notice_release_time` 提升为 hard gate；旧 inventory 导出的 candidate 会在 validation summary 中被显式卡住
+- 因此，后续若继续使用历史 local-smoke 快照做 bounded replay / candidate export，必须优先消费 rebuilt inventory entry，而不是默认信任旧 inventory dump
 
 ### Identity And Version
 
@@ -653,6 +816,12 @@ promotion gate 必须额外验证：
 - wrapper notice / draft / annual-only 文档继续停留在 `internal_notice`
 - 不覆盖 `student_handbook`
 
+当前 repo 结果（2026-04-11）：
+
+- config scaffold、promotion routing 与 target collection contract 已落地
+- source-side read-only manifest builder 已可稳定产出 `candidate / hold / manual_review_required`
+- target-side materialization contract 也已进入 repo-owned code truth，但仍未进入 chunk preparation / release
+
 ### Phase 12.8：Bounded Promotion Pilot
 
 目标：
@@ -671,6 +840,13 @@ promotion gate 必须额外验证：
 - 同一制度正文跨多个 notice 只形成一个 promoted canonical document
 - promoted document 保留完整 source provenance
 - 在用户未授权前，仍不进入 embedding / Qdrant / alias publish
+
+当前 repo 结果（2026-04-11）：
+
+- bounded target materialization 已落地到 `regulations/institutional_regulations`
+- target `document_id` 现由 `regulation_title_normalized + issuing_org + semantic scope` 派生，而不是 `notice_id`
+- duplicate notice provenance 已在 target metadata 中聚合
+- current implementation 仍显式停在 `offline_preparation`：没有 target chunk prep、embedding、Qdrant write、release 或 alias publish
 
 ## Stop/Go Gates
 

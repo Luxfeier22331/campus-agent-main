@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-02
+updated: 2026-04-10
 ---
 
 # Retrieval Serving Architecture
@@ -30,6 +30,10 @@ updated: 2026-04-02
 
 - `curriculum/course_facts`
   internal specialist retrieval surface
+- `curriculum/program_family_facts`
+  internal specialist retrieval surface
+- `curriculum/program_semester_facts`
+  internal specialist retrieval surface
 
 当前 accepted retrieval baseline 是：
 
@@ -37,6 +41,7 @@ updated: 2026-04-02
 - registry-backed evidence
 - metadata pre-filter
 - evidence bundle 回链
+- specialist 可以在 `curriculum_plan` 选中 scope 下内部切到 `course_facts`、`program_family_facts`、`program_semester_facts`；selected scope 不因此漂移
 
 ## Retrieval Pipeline
 
@@ -110,6 +115,23 @@ serving truth 不写死在 supervisor、API shell 或 env 默认值里。
 
 - specialist internal retrieval surface
 - 用于课程 / 课程族实体与 alias governance
+- 不自动提升成默认公开 query-serving collection
+
+## Program Family Facts Internal Surface
+
+`curriculum/program_family_facts` 的长期定位保持为：
+
+- specialist internal retrieval surface
+- 用于培养方案家族 membership / alias resolution
+- 不自动提升成默认公开 query-serving collection
+
+## Program Semester Facts Internal Surface
+
+`curriculum/program_semester_facts` 的长期定位保持为：
+
+- specialist internal retrieval surface
+- 用于 resolved single-program + single-semester 课程清单问句
+- 上游 truth 来自 canonical `curriculum_plan document-units` 的派生物化，而不是 raw/source bucket replay
 - 不自动提升成默认公开 query-serving collection
 
 ## Forbidden Shapes

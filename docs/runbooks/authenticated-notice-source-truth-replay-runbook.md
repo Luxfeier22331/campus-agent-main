@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-05
-updated: 2026-04-10
+updated: 2026-04-11
 ---
 
 # Authenticated Notice Source-Truth Replay Runbook
@@ -37,10 +37,11 @@ updated: 2026-04-10
 
 - source projection / attachment routing 规则有变化时，先做 bounded pilot 或 targeted routing test
 - routing 规则一旦变化，进入 full replay planning 前必须先重建 source-truth inventory
-- 当前 repo 已经在 local Postgres + local MinIO 上证明：full current-scope replay -> staged validation -> chunk preparation -> preparation validation 这条链路可完整跑通
-- verified chunk preparation 是当前默认停点；没有显式批准前，不继续 release / index / alias publish
-- 不继续 embedding / Qdrant，除非用户明确授权
+- 当前 repo 已经在 local Postgres + local MinIO 上证明：full current-scope replay -> staged validation -> chunk preparation -> preparation validation -> promote -> unpublished release 这条链路可完整跑通
+- 对新的 replay/preparation run，verified chunk preparation 仍是显式决策点；如需继续 release，下一步固定是 `release_registry_scope --no-publish-alias`，而不是直接 publish alias
+- `internal_notice` 当前最新 release truth 是 local guarded release：`promotion-0001` -> `r20260411_090101` -> `internal_notice__r20260411_090101`，alias `internal_notice` 仍未发布
 - operator 环境必须显式设置 `OCR_PROVIDER_MODE=paddleocr_async_jobs`，不依赖 `OCR_BASE_URL` 推断 provider
+- 当前 WSL shell 对 Qdrant Cloud 是 proxy-sensitive 的：release / collection / alias 检查都必须显式清空大小写代理变量；单纯 `env -u HTTP_PROXY ...` 不足以阻止 repo env bootstrap 把坏代理值重新注回进程
 
 因此本文下面涉及的 chunk / release 内容，已经有 repo-supported 执行路径，但当前 operator stop 仍是 verified chunk preparation，不代表现在就应继续执行 release。
 
@@ -324,10 +325,11 @@ projection replay 之后，parent 与 child document 都进入 repo-owned cleanu
 - 当共享库由 Supabase 承载时，这个 management URL 必须是 `db.<project-ref>.supabase.co:5432` 这类 direct DSN；如果仍是 `*.pooler.supabase.com`，当前 helper 会 fast-fail
 - shared-path readiness 判定是 management direct DSN 能完成实际 `psycopg.connect(...)` + `select 1`；只有 TCP `:5432` 可达或 session pooler 可连都不算 ready
 - 如果 shared-path `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` 在 connect 阶段返回 `PoolTimeout` / `ConnectionTimeout` / `MaxClientsInSessionMode`，本轮 stop，不写 current scope
+- 如果当前 shell 继承了宿主机代理值，`release_registry_scope`、`curl "$QDRANT_URL/collections"` 与 `QdrantClient.get_aliases()` 都可能对 Qdrant Cloud 超时；此时必须显式把 `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` 及其小写形式置空，并把 `NO_PROXY` / `no_proxy` 设为 `*`
 
 因此 chunking / embedding / index release 仍然可以发生，但必须分阶段发生，而且不代表该 collection 已经进入 query-serving。
 
-对“先消费已导入历史数据”的 operator 目标，verified chunk preparation 是自然停点；是否继续执行 release，必须作为单独决策处理，不能由 replay / preparation 自动推导。
+对“先消费已导入历史数据”的 operator 目标，verified chunk preparation 仍是自然决策点；是否继续执行 release，必须作为单独决策处理，不能由 replay / preparation 自动推导。当前 repo 已经拿到一条经批准执行的 unpublished release 样本，但这不改变 `internal_notice` 仍保持 alias 未发布、query-serving 未开放的事实。
 
 ### 4.1 Typed Stage Columns & Bulk Commit
 

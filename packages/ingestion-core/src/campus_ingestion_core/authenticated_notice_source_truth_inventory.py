@@ -940,6 +940,9 @@ def build_authenticated_notice_source_truth_parent_snapshot_from_payloads(
             or notice_manifest.get("notice_title_raw")
         )
         or record.document_id,
+        "notice_release_time": _normalize_non_empty_text(
+            notice_manifest.get("notice_release_time")
+        ),
         "notice_type_names": _normalize_notice_type_names(
             notice_manifest.get("notice_type_names")
         ),

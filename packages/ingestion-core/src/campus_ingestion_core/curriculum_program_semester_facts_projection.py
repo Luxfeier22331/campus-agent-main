@@ -1,19 +1,37 @@
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 from dataclasses import dataclass
+from datetime import datetime, timezone
 import hashlib
 import json
+import os
 import re
-from typing import Mapping, Sequence
+from typing import Protocol
 
 from campus_ingestion_core.campusrag_ingestion_support import (
     DocumentImportInput,
     apply_authorization_projection_metadata,
+    collect_import_document_stats,
     load_metadata_from_bytes,
 )
+from campus_ingestion_core.artifacts import DOCUMENT_UNITS_FILENAME
+from campus_ingestion_core.collection_config import resolve_collection_truth_config
 from campus_ingestion_core.models import RawAssetRecord
-from campus_ingestion_core.split_manifest import SplitManifestDocument
+from campus_ingestion_core.object_store import (
+    build_raw_asset_key,
+    infer_year_label,
+)
+from campus_ingestion_core.corpus_profiles import load_runtime_profile
+from campus_ingestion_core.registry import (
+    DocumentRegistry,
+    RawAssetRegistry,
+    build_document_registry_from_env,
+    build_raw_asset_registry_from_env,
+)
+from campus_ingestion_core.settings import ObjectStoreSettings
+from campus_ingestion_core.split_manifest import SplitManifestDocument, load_split_manifest
 
 
 _SEMESTER_LABEL_TO_INDEX = {
@@ -35,6 +53,22 @@ _HTML_BREAK_RE = re.compile(r"<br\\s*/?>", re.IGNORECASE)
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
 _WHITESPACE_RE = re.compile(r"\\s+")
 _EMPTY_TABLE_CELLS = frozenset({"", "-", "—", "/", "／", "0"})
+_DEFAULT_CANONICAL_PARSER_VERSION = "paddleocr-vl-1.5"
+
+
+class ProgramSemesterFactsMaterializationObjectStore(Protocol):
+    def list_keys(self, *, bucket: str, prefix: str) -> tuple[str, ...]: ...
+
+    def get_bytes(self, *, bucket: str, key: str) -> bytes: ...
+
+    def put_bytes(
+        self,
+        *,
+        bucket: str,
+        key: str,
+        data: bytes,
+        content_type: str,
+    ) -> None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +84,17 @@ class _ProgramSemesterProjection:
     course_titles: tuple[str, ...]
     page_start: int
     page_end: int
+
+
+@dataclass(frozen=True, slots=True)
+class CurriculumProgramSemesterFactsMaterializationReport:
+    source_document_count: int
+    materialized_document_count: int
+    created_document_ids: tuple[str, ...]
+    updated_document_ids: tuple[str, ...]
+    raw_asset_id: str
+    raw_version_id: str
+    source_pdf: str
 
 
 def build_curriculum_program_semester_fact_document_id(
@@ -69,8 +114,8 @@ def build_curriculum_program_semester_facts_scope_refresh_documents(
     source_pdf: str,
     split_manifest_documents: Sequence[SplitManifestDocument],
     structured_rows: Sequence[Mapping[str, object]],
-    provider_response_key: str,
-    layout_elements_key: str,
+    provider_response_key: str | None,
+    layout_elements_key: str | None,
     corpus: str = "curriculum",
     collection: str = "program_semester_facts",
     import_source: str = "provider_response_replay",
@@ -110,7 +155,11 @@ def build_curriculum_program_semester_facts_scope_refresh_documents(
             metadata["status"] = source_document.status
             documents.append(
                 DocumentImportInput(
-                    source_label=f"{provider_response_key}#{document_id}",
+                    source_label=_projection_source_label(
+                        provider_response_key=provider_response_key,
+                        raw_asset_record=raw_asset_record,
+                        document_id=document_id,
+                    ),
                     document_units_bytes=document_units_bytes,
                     provider_response_bytes=None,
                     canonical_markdown_bytes=None,
@@ -128,12 +177,84 @@ def build_curriculum_program_semester_facts_scope_refresh_documents(
                     raw_asset_id=raw_asset_record.raw_asset_id,
                     raw_version_id=raw_asset_record.raw_version_id,
                     provider_response_object_key=provider_response_key,
-                    additional_processed_object_keys=(layout_elements_key,),
+                    additional_processed_object_keys=tuple(
+                        key for key in (layout_elements_key,) if key is not None
+                    ),
                     title=_projection_title(projection),
                     year=None,
                 )
             )
     return documents
+
+
+def materialize_curriculum_program_semester_facts_from_canonical_scope(
+    *,
+    env: Mapping[str, str] | None = None,
+    object_store: ProgramSemesterFactsMaterializationObjectStore | None = None,
+    registry: DocumentRegistry | None = None,
+    raw_asset_registry: RawAssetRegistry | None = None,
+    split_manifest_documents: Sequence[SplitManifestDocument] | None = None,
+    raw_asset_record: RawAssetRecord | None = None,
+    source_document_units_keys: Mapping[str, str] | None = None,
+) -> CurriculumProgramSemesterFactsMaterializationReport:
+    source = dict(env if env is not None else os.environ)
+    object_store_settings = ObjectStoreSettings.from_env(source)
+    runtime_object_store = object_store or _build_materialization_object_store(object_store_settings)
+    runtime_registry = registry or build_document_registry_from_env(source)
+    runtime_raw_asset_registry = raw_asset_registry or build_raw_asset_registry_from_env(source)
+    runtime_split_manifest_documents, split_manifest_raw_asset_id = _resolve_split_manifest_documents(
+        split_manifest_documents=split_manifest_documents,
+    )
+    runtime_source_document_units_keys = (
+        dict(source_document_units_keys)
+        if source_document_units_keys is not None
+        else _resolve_curriculum_plan_document_units_keys(
+            object_store=runtime_object_store,
+            bucket=object_store_settings.bucket_derived,
+        )
+    )
+    all_rows, canonical_source_pdf, canonical_raw_asset_record = _load_canonical_curriculum_plan_rows(
+        object_store=runtime_object_store,
+        bucket=object_store_settings.bucket_derived,
+        split_manifest_documents=runtime_split_manifest_documents,
+        source_document_units_keys=runtime_source_document_units_keys,
+        raw_asset_record=raw_asset_record,
+        split_manifest_raw_asset_id=split_manifest_raw_asset_id,
+    )
+    runtime_raw_asset_registry.upsert(canonical_raw_asset_record)
+    documents = build_curriculum_program_semester_facts_scope_refresh_documents(
+        raw_asset_record=canonical_raw_asset_record,
+        source_pdf=canonical_source_pdf,
+        split_manifest_documents=runtime_split_manifest_documents,
+        structured_rows=all_rows,
+        provider_response_key=None,
+        layout_elements_key=None,
+        import_source="canonical_document_units_materialization",
+    )
+    stats = collect_import_document_stats(
+        documents=documents,
+        registry=runtime_registry,
+        raw_asset_registry=runtime_raw_asset_registry,
+        writer=runtime_object_store,
+        object_store=object_store_settings,
+        parser_version=_DEFAULT_CANONICAL_PARSER_VERSION,
+        embedding_model=_read_embedding_model_name(source),
+        cleaning_policy_version=load_runtime_profile(
+            "curriculum",
+            "program_semester_facts",
+        ).cleaning_policy_version,
+        default_visibility_scope=None,
+        scope_refresh=("curriculum", "program_semester_facts"),
+    )
+    return CurriculumProgramSemesterFactsMaterializationReport(
+        source_document_count=len(runtime_split_manifest_documents),
+        materialized_document_count=len(documents),
+        created_document_ids=stats.created_document_ids,
+        updated_document_ids=stats.updated_document_ids,
+        raw_asset_id=canonical_raw_asset_record.raw_asset_id,
+        raw_version_id=canonical_raw_asset_record.raw_version_id,
+        source_pdf=canonical_source_pdf,
+    )
 
 
 def _build_program_semester_projections(
@@ -350,6 +471,17 @@ def _projection_title(projection: _ProgramSemesterProjection) -> str:
     return f"{projection.source_document.title} {projection.semester_label}课程事实"
 
 
+def _projection_source_label(
+    *,
+    provider_response_key: str | None,
+    raw_asset_record: RawAssetRecord,
+    document_id: str,
+) -> str:
+    if provider_response_key is not None:
+        return f"{provider_response_key}#{document_id}"
+    return f"{raw_asset_record.raw_source_uri}#{document_id}"
+
+
 def _projection_snippet(projection: _ProgramSemesterProjection) -> str:
     return (
         f"按当前已采集的《{projection.source_document.title}》，"
@@ -417,3 +549,154 @@ def _strip_html(text: str) -> str:
 
 def _normalize_text(text: str) -> str:
     return _WHITESPACE_RE.sub(" ", text).strip()
+
+
+def _build_materialization_object_store(
+    settings: ObjectStoreSettings,
+) -> ProgramSemesterFactsMaterializationObjectStore:
+    from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
+
+    return S3ObjectStoreAdmin(settings)
+
+
+def _resolve_split_manifest_documents(
+    *,
+    split_manifest_documents: Sequence[SplitManifestDocument] | None,
+) -> tuple[tuple[SplitManifestDocument, ...], str]:
+    collection_config = resolve_collection_truth_config("curriculum", "curriculum_plan")
+    split_manifest = load_split_manifest(
+        collection_config.split_manifest_path,
+        expected_corpus="curriculum",
+        expected_collection="curriculum_plan",
+    )
+    if split_manifest_documents is not None:
+        return tuple(split_manifest_documents), split_manifest.raw_asset_id
+    return split_manifest.documents, split_manifest.raw_asset_id
+
+
+def _resolve_curriculum_plan_document_units_keys(
+    *,
+    object_store: ProgramSemesterFactsMaterializationObjectStore,
+    bucket: str,
+) -> dict[str, str]:
+    keys = object_store.list_keys(
+        bucket=bucket,
+        prefix="curriculum/documents/curriculum_plan/",
+    )
+    return {
+        _parse_doc_id_from_document_units_rows(
+            object_store.get_bytes(bucket=bucket, key=key)
+        ): key
+        for key in keys
+        if key.endswith(f"/{DOCUMENT_UNITS_FILENAME}")
+    }
+
+
+def _load_canonical_curriculum_plan_rows(
+    *,
+    object_store: ProgramSemesterFactsMaterializationObjectStore,
+    bucket: str,
+    split_manifest_documents: Sequence[SplitManifestDocument],
+    source_document_units_keys: Mapping[str, str],
+    raw_asset_record: RawAssetRecord | None,
+    split_manifest_raw_asset_id: str,
+) -> tuple[list[dict[str, object]], str, RawAssetRecord]:
+    all_rows: list[dict[str, object]] = []
+    first_row: dict[str, object] | None = None
+    for document in split_manifest_documents:
+        if document.status != "active":
+            continue
+        source_key = source_document_units_keys.get(document.document_id)
+        if source_key is None:
+            raise ValueError(
+                f"missing curriculum_plan document-units key for {document.document_id}"
+            )
+        rows = _load_document_unit_rows(
+            object_store.get_bytes(bucket=bucket, key=source_key)
+        )
+        if not rows:
+            raise ValueError(f"curriculum_plan document-units is empty: {source_key}")
+        if first_row is None:
+            first_row = rows[0]
+        all_rows.extend(rows)
+    if first_row is None:
+        raise ValueError("no active curriculum_plan split manifest documents were provided")
+    source_pdf = str(first_row.get("source_pdf") or "").strip()
+    if not source_pdf:
+        raise ValueError("source_pdf is required in canonical curriculum_plan document-units")
+    runtime_raw_asset_record = raw_asset_record or _build_raw_asset_record_from_canonical_row(
+        first_row=first_row,
+        split_manifest_raw_asset_id=split_manifest_raw_asset_id,
+        source_pdf=source_pdf,
+    )
+    return all_rows, source_pdf, runtime_raw_asset_record
+
+
+def _build_raw_asset_record_from_canonical_row(
+    *,
+    first_row: Mapping[str, object],
+    split_manifest_raw_asset_id: str,
+    source_pdf: str,
+) -> RawAssetRecord:
+    source = first_row.get("source")
+    source_url = str(
+        first_row.get("source_url")
+        or (source.get("id") if isinstance(source, Mapping) else "")
+        or ""
+    ).strip()
+    if not source_url:
+        raise ValueError("source_url is required in canonical curriculum_plan document-units")
+    raw_version_id = _extract_raw_version_id_from_source_url(source_url)
+    return RawAssetRecord(
+        raw_asset_id=split_manifest_raw_asset_id,
+        raw_version_id=raw_version_id,
+        corpus="curriculum",
+        collection="curriculum_plan",
+        raw_source_uri=f"campusrag://source/curriculum/{split_manifest_raw_asset_id}/{raw_version_id}",
+        content_hash=raw_version_id.removeprefix("sha256:"),
+        source_filename=source_pdf,
+        object_key=build_raw_asset_key(
+            corpus="curriculum",
+            raw_asset_id=split_manifest_raw_asset_id,
+            raw_version_id=raw_version_id,
+            filename=source_pdf,
+            year=infer_year_label(source_pdf),
+        ),
+        ingestion_timestamp=datetime.now(timezone.utc).isoformat(),
+        import_source="canonical_document_units_materialization",
+    )
+
+
+def _extract_raw_version_id_from_source_url(source_url: str) -> str:
+    match = re.search(r"/sha256/([0-9a-f]{64})(?:/|$)", source_url)
+    if match is None:
+        raise ValueError(f"unable to derive raw_version_id from source_url: {source_url}")
+    return f"sha256:{match.group(1)}"
+
+
+def _parse_doc_id_from_document_units_rows(document_units_bytes: bytes) -> str:
+    rows = _load_document_unit_rows(document_units_bytes)
+    if not rows:
+        raise ValueError("document-units payload is empty")
+    document_id = str(rows[0].get("doc_id") or "").strip()
+    if not document_id:
+        raise ValueError("doc_id is required in canonical document-units")
+    return document_id
+
+
+def _load_document_unit_rows(document_units_bytes: bytes) -> list[dict[str, object]]:
+    return [
+        json.loads(line)
+        for line in document_units_bytes.decode("utf-8").splitlines()
+        if line.strip()
+    ]
+
+
+def _read_embedding_model_name(source: Mapping[str, str]) -> str:
+    model = (
+        str(source.get("INGESTION_EMBEDDING_MODEL") or source.get("EMBEDDING_MODEL") or "")
+        .strip()
+    )
+    if not model:
+        raise ValueError("INGESTION_EMBEDDING_MODEL or EMBEDDING_MODEL is required")
+    return model

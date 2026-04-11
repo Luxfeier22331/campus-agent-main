@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-09
-updated: 2026-04-10
+updated: 2026-04-11
 ---
 
 # Authenticated Notice Historical Donor Intake Evidence
@@ -263,6 +263,7 @@ machine-readable outputs：
 - 这份 local smoke 现在同时证明 donor normalization/import seam 与 attachment blob materialization seam 已闭合
 - 第二批 attachment route 的 repo 当前 truth 已可直接使用 `.tmp/historical-intake/run14-attachment-routing-probe/local-smoke/registry/source-truth-inventory.json`
 - `.tmp/historical-intake/run14-attachment-routing-probe/donor-attachment-routing-analysis.json` 仍保留为交叉校验样本，不再高于 local smoke inventory
+- 2026-04-11 起，repo import/local-smoke seam 已把 `attachment_storage_mode = blob_store_reference + object-backed attachments` 的 `attachment_blob_root` 依赖收成 fast-fail contract；缺少这个参数应直接报错，不再允许产生“import 成功但 routing truth 另看 donor 分析”的双真相
 
 ### Batch 3 Policy Analysis Evidence
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import unittest
 
+import campus_ingestion_core.curriculum_program_semester_facts_projection as semester_projection
 from campus_ingestion_core.curriculum_program_semester_facts_projection import (
     build_curriculum_program_semester_fact_document_id,
     build_curriculum_program_semester_facts_scope_refresh_documents,
@@ -24,6 +25,48 @@ def _document_row(document: object) -> dict[str, object]:
 
 
 class CurriculumProgramSemesterFactsProjectionTest(unittest.TestCase):
+    def test_build_scope_refresh_documents_supports_canonical_materialization_without_source_artifact_keys(self) -> None:
+        documents = build_curriculum_program_semester_facts_scope_refresh_documents(
+            raw_asset_record=RawAssetRecord(
+                raw_asset_id="asset:curriculum-plan-master-pdf",
+                raw_version_id="sha256:program-semester-facts-000",
+                corpus="curriculum",
+                collection="curriculum_plan",
+                raw_source_uri="campusrag://source/curriculum/curriculum-plan.pdf",
+                content_hash="program-semester-facts-000",
+                source_filename="curriculum-plan.pdf",
+                object_key="official_pdf/curriculum-plan-master/provider-response.jsonl",
+                ingestion_timestamp="2026-04-06T00:00:00+00:00",
+                import_source="provider_response_replay",
+            ),
+            source_pdf="curriculum-plan.pdf",
+            split_manifest_documents=(
+                SplitManifestDocument(
+                    document_id="curriculum:法学（民族实验班）本科人才培养方案",
+                    title="法学（民族实验班）本科人才培养方案",
+                    page_start=1,
+                    page_end=1,
+                ),
+            ),
+            structured_rows=(
+                _row(
+                    (
+                        "<table><tr><td>课程名称</td><td>修读学期</td></tr>"
+                        "<tr><td>习近平法治思想概论</td><td>1</td></tr></table>"
+                    ),
+                    page_start=1,
+                ),
+            ),
+            provider_response_key=None,
+            layout_elements_key=None,
+        )
+
+        self.assertEqual(len(documents), 1)
+        document = documents[0]
+        self.assertIsNone(document.provider_response_object_key)
+        self.assertEqual(document.additional_processed_object_keys, ())
+        self.assertNotIn("None#", document.source_label)
+
     def test_build_scope_refresh_documents_emits_program_semester_projection_rows(self) -> None:
         documents = build_curriculum_program_semester_facts_scope_refresh_documents(
             raw_asset_record=RawAssetRecord(
@@ -172,6 +215,14 @@ class CurriculumProgramSemesterFactsProjectionTest(unittest.TestCase):
             _document_row(fourth_semester)["metadata"]["course_titles"],
             ["民族学人类学经典导读"],
         )
+
+    def test_projection_module_exposes_canonical_scope_materialization_entrypoint(self) -> None:
+        materialize = getattr(
+            semester_projection,
+            "materialize_curriculum_program_semester_facts_from_canonical_scope",
+            None,
+        )
+        self.assertIsNotNone(materialize)
 
 
 if __name__ == "__main__":

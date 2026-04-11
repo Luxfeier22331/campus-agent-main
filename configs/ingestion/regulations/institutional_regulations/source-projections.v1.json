@@ -22,18 +22,24 @@
     "projection_name",
     "derived_from",
     "derived_from_document_id",
+    "derived_from_document_ids",
     "derived_from_raw_asset_id",
     "derived_from_raw_version_id",
     "parent_document_id",
     "promotion_class",
     "promotion_source_collection",
     "source_notice_ids",
+    "source_document_ids",
     "source_attachment_ref_id",
+    "source_attachment_ref_ids",
     "source_attachment_sha256",
+    "source_attachment_sha256s",
+    "source_parent_document_ids",
     "regulation_title_normalized",
     "issuing_org",
     "effective_date",
-    "revision_signal"
+    "revision_signal",
+    "duplicate_source_document_ids"
   ],
   "projections": [
     {

@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-03-28
-updated: 2026-04-02
+updated: 2026-04-11
 ---
 
 # Index Release Runbook
@@ -45,6 +45,50 @@ updated: 2026-04-02
 ```bash
 uv run --all-packages python -m unittest tests.ingestion.test_corpus_runtime_profile tests.ingestion.test_rebuild_local_data tests.ingestion.test_provider_result_replay_rebuild tests.ingestion.test_registry_scope_release tests.retrieval.test_backend_qdrant
 ```
+
+## Qdrant Cloud Proxy Rule
+
+当前 WSL operator shell 对 Qdrant Cloud 有一个已验证的固定约束：
+
+- 如果进程继承了宿主机代理值，`curl "$QDRANT_URL/collections"`、`QdrantClient.get_collections()` 和 `get_aliases()` 都可能直接超时
+- 对 `release_registry_scope`、Qdrant 健康检查和 alias 检查，不能只做 `env -u HTTP_PROXY ...`
+- 原因是 repo bootstrap 会从 `.env` 回填缺失 env；仅仅 unset 变量，坏代理值仍可能被重新注入当前进程
+
+当前推荐前缀是显式清空大小写代理变量：
+
+```bash
+HTTP_PROXY='' HTTPS_PROXY='' ALL_PROXY='' NO_PROXY='*' \
+http_proxy='' https_proxy='' all_proxy='' no_proxy='*'
+```
+
+例如：
+
+```bash
+HTTP_PROXY='' HTTPS_PROXY='' ALL_PROXY='' NO_PROXY='*' \
+http_proxy='' https_proxy='' all_proxy='' no_proxy='*' \
+uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
+  --corpus <corpus> \
+  --collection <collection> \
+  --preparation-run-id <prep_id> \
+  --no-publish-alias
+```
+
+如果 operator shell 需要临时绕过 `.env` 里的失效代理，固定规则是：
+
+- 不要只用 `env -u HTTP_PROXY ...`
+- 需要显式把大小写代理变量都置空，例如：
+
+```bash
+HTTP_PROXY='' HTTPS_PROXY='' ALL_PROXY='' NO_PROXY='*' \
+http_proxy='' https_proxy='' all_proxy='' no_proxy='*' \
+uv run --package campus-ingestion-worker python -m campus_ingestion_worker.release_registry_scope ...
+```
+
+原因：
+
+- `apps/ingestion-worker` 启动时会调用 `load_repo_env()`
+- 这个 bootstrap 只补缺失键，不覆盖已存在环境变量
+- 因此如果只是 `unset`，`.env` 里的旧代理值会被重新注回 release 进程
 
 ## 标准入口
 
@@ -91,6 +135,26 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
 - `DocumentRegistry.list_by_scope(...)`
 - runtime-profile-governed serving/current selection
 - `document_units_object_key -> chunking -> embedding -> indexing -> optional alias publish`
+
+对上游已经是 canonical `document-units` 的派生 collection，先执行 collection-specific materialization，再走同一个 release shell。当前实例是 `curriculum/program_semester_facts`：
+
+```bash
+uv run --all-packages python -m campus_ingestion_worker.materialize_curriculum_program_semester_facts
+
+uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
+  --corpus curriculum \
+  --collection program_semester_facts \
+  --no-publish-alias
+```
+
+通过后再执行：
+
+```bash
+uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
+  --corpus curriculum \
+  --collection program_semester_facts \
+  --publish-alias
+```
 
 补充说明：
 
@@ -163,6 +227,7 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
 - release 输入来自 registry + derived bucket，不回到 raw/crawl 输出
 - collection selection 仍由 `runtime-profile.json` 控制
 - `offline_preparation` scope 也应使用稳定 alias + versioned physical collection
+- 如果某个派生 collection 的输入来自另一条 canonical document scope，先做 materialization，再做 `release_registry_scope`
 
 ## 发布后检查
 

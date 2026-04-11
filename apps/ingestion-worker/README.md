@@ -369,6 +369,21 @@ Behavior:
 - Only switches the serving alias when `--publish-alias` is enabled.
 - This is the current operator entry for `official_web/muc_public_pages` after handoff replay/import has already populated registry truth.
 
+### `campus-ingestion-materialize-curriculum-program-semester-facts`
+
+Operator-facing shell for rebuilding `curriculum/program_semester_facts` from canonical `curriculum_plan document-units`.
+
+Required CLI args:
+
+- none
+
+Behavior:
+
+- Loads the worker env and reads canonical `curriculum_plan` document-units from the derived bucket
+- Materializes `program_semester_facts` canonical document artifacts plus registry truth
+- Does not publish a Qdrant alias by itself; the follow-up release step remains `campus-ingestion-release-registry-scope`
+- Exists specifically to avoid routing this recovery path back through raw/source bucket replay
+
 ### `project_official_web_source_truth`
 
 Local replay shell for the current `official_web` source-truth QC batches.

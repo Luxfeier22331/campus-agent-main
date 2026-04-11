@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-06
+updated: 2026-04-10
 ---
 
 # Data Plane Architecture
@@ -49,6 +49,18 @@ source truth 的长期硬约束：
   notice-level source truth，详见 `docs/architecture/authenticated-notice-source-truth-contract.md`
 
 这不表示它们都已进入当前 merged truth；当前已落地范围仍以下文 `Current Scope` 为准。
+
+## Derived Collection Rebuild
+
+当某个 collection 的上游已经不是 raw/source-truth，而是另一条 canonical document scope 的 `document-units` 时，固定规则为：
+
+- materialization / rebuild 从 canonical `document-units` 开始，不返回 raw source bucket 或 provider replay
+- 派生 collection 仍要把自己的 canonical document artifacts、registry rows 与 release manifest 独立落盘
+- 派生 collection 的 indexing / alias publish 继续走 release-managed registry scope 流程
+
+当前已接受实例：
+
+- `curriculum/curriculum_plan -> curriculum/program_semester_facts`
 
 ## Layer Ownership
 
@@ -136,6 +148,8 @@ registry / control-plane database 与对象存储长期分层。
 - `regulations/student_handbook`
 - `curriculum/curriculum_plan`
 - `curriculum/course_facts`
+- `curriculum/program_family_facts`
+- `curriculum/program_semester_facts`
 - `official_web` source channel 的 control-plane / source-truth path
 
 ## Authenticated Notice Async Staged Closeout

@@ -46,6 +46,34 @@
       "reason": "Use when the document may be regulation-like but title/body/provenance/version signals are still ambiguous."
     }
   },
+  "document_nature_taxonomy": {
+    "institutional_regulation": {
+      "description": "Stable institutional regulation or normative handbook text that can stand on its own in regulations/institutional_regulations."
+    },
+    "annual_cycle_rule": {
+      "description": "Year-scoped, batch-scoped, or program-scoped rules such as admissions, recommendation, or selection procedures. These stay out of institutional_regulations even if the text is well-structured."
+    },
+    "time_bound_operational_rule": {
+      "description": "Operational rules tied to seasonal, transitional, or explicitly temporary operating conditions. Provisional wording alone is insufficient; the body must carry temporary or sunset semantics."
+    },
+    "wrapper_notice": {
+      "description": "Publication wrapper or forwarding notice that points at a regulation body but is not itself the canonical regulation text."
+    }
+  },
+  "force_status_taxonomy": {
+    "current_effective": {
+      "description": "No supersession evidence was found and the text behaves like an in-force institutional rule."
+    },
+    "provisional_in_force": {
+      "description": "The title/body uses 暂行 or 试行, but there is no body-level sunset or replacement evidence yet."
+    },
+    "superseded_or_expired": {
+      "description": "There is explicit repeal, replacement, or time-bound sunset evidence."
+    },
+    "unknown": {
+      "description": "Currentness cannot be safely inferred from available source-truth artifacts."
+    }
+  },
   "required_promotion_metadata": [
     "promotion_class",
     "promotion_source_collection",
@@ -68,6 +96,10 @@
   "notes": [
     "This file is a repo-tracked scaffold for the regulation-promotion boundary only; it is not yet consumed by execution code.",
     "Promotion never deletes or rewrites the source-triage notice row in campus_notices/internal_notice.",
-    "Only canonical regulation text may cross into regulations/institutional_regulations."
+    "Only canonical regulation text may cross into regulations/institutional_regulations.",
+    "source_attachment_ref_id and source_attachment_sha256 are attachment-derived provenance fields; parent-body candidates may keep them null.",
+    "Document age is not a standalone exclusion or downgrade signal for campus regulations.",
+    "暂行 or 试行 is not by itself a draft, expired, or manual-review signal.",
+    "Exclude from institutional_regulations only when the body shows annual-cycle/program specificity, wrapper semantics, or explicit temporary/sunset operations."
   ]
 }

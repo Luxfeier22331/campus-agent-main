@@ -2,7 +2,7 @@
 doc_type: plan
 status: active
 created: 2026-04-03
-updated: 2026-04-05
+updated: 2026-04-10
 ---
 
 # Local Live Eval Canonical Registry Recovery
@@ -28,6 +28,45 @@ updated: 2026-04-05
 - `docs/runbooks/index-release-runbook.md`
 - `docs/runbooks/curriculum-plan-hybrid-rebuild-checklist.md`
 - `docs/runbooks/student-handbook-hybrid-rebuild-checklist.md`
+
+## 2026-04-10 补充收口
+
+本轮新增收口结论：
+
+- 新的 curriculum follow-up replay 失效根因已经确认不是 session slot 或 recent-goal 逻辑，而是 cloud Qdrant 当前 alias 下缺失 `curriculum/program_semester_facts`
+- `program_semester_facts` 的正确恢复入口不是回到 raw/source bucket 重做 `provider_response_replay`，而是从 canonical `curriculum_plan document-units` 重新物化 derived scope
+- repo 现已具备正式 operator 入口：
+
+```bash
+uv run --all-packages python -m campus_ingestion_worker.materialize_curriculum_program_semester_facts
+uv run --all-packages python -m campus_ingestion_worker.release_registry_scope --corpus curriculum --collection program_semester_facts --no-publish-alias
+uv run --all-packages python -m campus_ingestion_worker.release_registry_scope --corpus curriculum --collection program_semester_facts --publish-alias
+```
+
+这轮真实证据：
+
+- canonical scope materialization：
+  - `source_document_count=69`
+  - `materialized_document_count=380`
+  - `raw_asset_id=asset:curriculum-plan-2022`
+  - `raw_version_id=sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67`
+  - `source_pdf=curriculum-plan-2022.pdf`
+- preview release：
+  - `release_id=r20260410_130216`
+  - `physical_collection_name=program_semester_facts__r20260410_130216`
+  - `point_count=392`
+  - `validation_status=passed`
+- publish release：
+  - `release_id=r20260410_131101`
+  - `physical_collection_name=program_semester_facts__r20260410_131101`
+  - `point_count=392`
+  - `validation_status=passed`
+  - `published_at=2026-04-10T13:12:30.926053+00:00`
+- current alias：
+  - `program_semester_facts -> program_semester_facts__r20260410_131101`
+- live specialist replay：
+  - `法学 / 历史学` 两组 program-fragment 与 semester-fragment follow-up 都已直接命中 `program_semester_facts`
+  - direct retrieval 与 `delegate_to_rag_agent(...)` 两层验证均返回 `semester-4` 目标 doc，law/history answer 已恢复
 
 ## 触发背景
 

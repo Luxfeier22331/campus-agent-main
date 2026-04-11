@@ -53,8 +53,14 @@ updated: 2026-04-10
 
 - `campus_notices/internal_notice`
   restricted source-channel triage collection；当前 posture 仍是 `offline_preparation`，wrapper notices 继续留在这里，而不是直接进入 `regulations/*`
+- `regulations/institutional_regulations`
+  notice-derived canonical regulation target collection；当前 posture 仍是 `offline_preparation`，只承接经 `internal_notice` promotion/materialization 后的正式制度正文，不直接开放 query-serving
 - `curriculum/course_facts`
   specialist internal retrieval surface；`retrieval_enabled=true`，`query_enabled_by_default=false`
+- `curriculum/program_family_facts`
+  specialist internal retrieval surface；用于培养方案家族成员关系与别名治理，`retrieval_enabled=true`，`query_enabled_by_default=false`
+- `curriculum/program_semester_facts`
+  specialist internal retrieval surface；用于 single-program + single-semester 课程事实检索，`retrieval_enabled=true`，`query_enabled_by_default=false`
 - `campus_services/*`
   当前仍保持 `offline_preparation`
 

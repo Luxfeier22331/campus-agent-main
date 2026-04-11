@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-09
-updated: 2026-04-10
+updated: 2026-04-11
 ---
 
 # Authenticated Notice Historical Donor Intake Runbook
@@ -233,6 +233,7 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.smoke
 
 - 当 normalized manifest 标记 `attachment_storage_mode = blob_store_reference` 且 batch 内存在 object-backed attachment 时，local smoke/import 必须显式传入 `--attachment-blob-root`
 - 不允许再依赖“attachment bytes 缺失时先跑通 importer，routing truth 另看 donor 分析”的旧例外
+- 2026-04-11 起 repo import seam 已把这条前置条件收成代码真相：缺少 `attachment_blob_root` 会在 import preflight 直接报错，不再允许进入产物落盘阶段
 
 ## Acceptance Gate
 
@@ -308,6 +309,7 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.smoke
 - 第三批 `run14-policy-regulation-expanded-v1` 把 `policy_regulation` 扩到更大范围，但 source shape 仍然混合，不能把全部 notice 直接视为“正文即 canonical 制度文本”
 - 第二批 `run14-attachment-routing-probe-v1` 现在证明 donor intake seam 在显式补齐 attachment blob 后，local smoke inventory 已能稳定覆盖 `text_extractable` / `manual_review_required` / `reference_only`
 - 第二批 donor byte-aware routing analysis 仍保留为交叉校验，但不再高于 local smoke inventory truth
+- 第二批如果省略 `--attachment-blob-root`，现在应视为 execution error，而不是 historical tolerated mode
 - 第三批如需优先做“制度正文处理”，应先从 `body_is_policy_text` 和 `body_contains_substantial_policy_text` 子集进入下一步
 - 第二批与第三批仍不代表 OCR 执行、child document materialization、chunk preparation 或 release gate 已通过
 

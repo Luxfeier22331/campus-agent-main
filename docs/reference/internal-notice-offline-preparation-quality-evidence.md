@@ -2,22 +2,24 @@
 doc_type: reference
 status: active
 created: 2026-04-06
-updated: 2026-04-10
+updated: 2026-04-11
 ---
 
 # Internal Notice Offline Preparation Quality Evidence
 
 ## 文档边界
 
-本文记录 `campus_notices/internal_notice` 的三次真实离线质量验收证据：
+本文记录 `campus_notices/internal_notice` 的四次真实离线质量验收证据：
 
 - 2026-04-06 的 current-scope 失败证据
 - 2026-04-09 的 verified replay pilot staged 通过证据
 - 2026-04-10 的 local Postgres full current-scope replay + preparation 通过证据
+- 2026-04-11 的 local Postgres promote + unpublished release 通过证据
 
 它回答的是：
 
 - 当前 repo-owned `internal_notice` scope 是否已经通过 preparation quality acceptance
+- 当前是否已经完成 guarded unpublished release
 - 当前失败主要集中在哪些 lane 和失败类型
 - 哪些问题是结构性 blocker，哪些问题只是观察指标
 
@@ -263,8 +265,93 @@ inventory refresh 结果为：
 2026-04-10 的这轮 evidence 现在固定说明：
 
 1. local Postgres current-scope replay + preparation 已经跑通并通过 validator。
-2. Wave D 当前 stop 已从“等待 current-scope refresh”前进到“verified chunk preparation，等待是否继续 release 的单独批准”。
+2. 截至 2026-04-10 当天，Wave D 的 canonical stop 已从“等待 current-scope refresh”前进到“verified chunk preparation，等待是否继续 release 的单独批准”。
 3. 选课通知里的 `5` 个操作指引类 inline image 现在已正确落到 `manual_review_required`，而不是 OCR lane。
+
+## 2026-04-11 Local Promote And Unpublished Release
+
+### 执行路径
+
+在 2026-04-10 的 verified replay + preparation 基础上，2026-04-11 继续执行了真正的 promote / release 消费链路：
+
+- closeout show：
+  - `uv run --package campus-ingestion-worker python -m campus_ingestion_worker.show_authenticated_notice_closeout --run-id local-postgres-wave-d-full-20260410-141615`
+- 第一次 release 尝试：
+  - `uv run --package campus-ingestion-worker python -m campus_ingestion_worker.release_registry_scope --corpus campus_notices --collection internal_notice --preparation-run-id prep-local-postgres-wave-d-full-20260410-141615 --no-publish-alias`
+- promote：
+  - `uv run --package campus-ingestion-worker python -m campus_ingestion_worker.promote_authenticated_notice_closeout --run-id local-postgres-wave-d-full-20260410-141615`
+- 正式 unpublished release：
+  - `HTTP_PROXY='' HTTPS_PROXY='' ALL_PROXY='' NO_PROXY='*' http_proxy='' https_proxy='' all_proxy='' no_proxy='*' uv run --package campus-ingestion-worker python -m campus_ingestion_worker.release_registry_scope --corpus campus_notices --collection internal_notice --preparation-run-id prep-local-postgres-wave-d-full-20260410-141615 --no-publish-alias`
+
+固定结论：
+
+- 第一次 release 失败并不是 chunking / embedding / Qdrant 回归，而是 `preparation manifest` 对应的 document scope 还没有 promote 到 current scope，因而触发 `document scope hash does not match current registry scope`
+- 当前 repo 的 `load_repo_env()` 只会补充缺失环境变量；如果 `.env` 里保留了坏的宿主机代理值（本次为 `172.31.176.1:10808`），单纯 `env -u HTTP_PROXY ...` 会让 bootstrap 把它重新注回进程
+- 对需要直连 `ai.gitee.com` 与 Qdrant Cloud 的 release 命令，正确覆盖方式是“显式把大小写代理变量置空”，而不是 unset
+- 2026-04-11 的只读复核已确认：继承代理时 `curl --max-time 10 "$QDRANT_URL/collections"` 超时并返回 `000`；显式绕过代理后，同一路径返回 `200`，`QdrantClient.get_collection(...)` 与 `get_aliases()` 也都成功
+
+### Promote Verdict
+
+`promote_authenticated_notice_closeout` 对 `local-postgres-wave-d-full-20260410-141615` 的结果为：
+
+- `state = done`
+- `promotion_id = promotion-0001`
+- `copy_batch_count = 1`
+- `copied_document_count = 21`
+- `copied_object_count = 43`
+- `raw_asset_synced_count = 20`
+- `replaced_scope_record_count = 21`
+
+因此这条链路现在可以明确写成：
+
+- `verified current-scope replay promoted to canonical registry scope`
+
+### Release Verdict
+
+显式禁用坏代理后的 `release_registry_scope` 结果为：
+
+- `release_id = r20260411_090101`
+- `physical_collection_name = internal_notice__r20260411_090101`
+- `previous_physical_collection_name = null`
+- `validation_status = passed`
+- `document_count = 21`
+- `point_count = 213`
+- `published_at = null`
+
+对应 object storage manifest 关键字段为：
+
+- `manifest_object_key = campus_notices/releases/internal_notice/r20260411_090101/index-release.json`
+- `validation_summary_object_key = campus_notices/releases/internal_notice/r20260411_090101/validation-summary.json`
+- `document_version_ids_hash = 802433b2948c9240c19f27fc076a9637fb7dc3fb817008608cd27a7f0d95feb2`
+- `document_units_keys_hash = 814252c2c1560f96c98cacdfffaa8214a0fba84361362bb81749795f14e7bde6`
+
+### Qdrant And Artifact Verification
+
+release 后又做了两层只读核验：
+
+- Qdrant：
+  - `collection_exists(internal_notice__r20260411_090101) = true`
+  - `points_count = 213`
+  - `indexed_vectors_count = 213`
+  - `status = green`
+  - `resolve_alias_target('internal_notice') = null`
+- Derived bucket：
+  - `campus_notices/releases/internal_notice/r20260411_090101/index-release.json`
+  - `campus_notices/releases/internal_notice/r20260411_090101/validation-summary.json`
+
+因此当前 local Postgres 路径现在可以明确写成：
+
+- `local current-scope replay accepted`
+- `local current-scope preparation accepted`
+- `local current-scope promoted`
+- `internal_notice unpublished offline release completed`
+- `Qdrant Cloud inspection/release on this WSL shell is proxy-sensitive and must blank both uppercase/lowercase proxy vars`
+
+仍然不能写成：
+
+- `internal_notice query-serving opened`
+- `internal_notice alias published`
+- `authenticated notice control plane completed`
 
 ## 2026-04-06 Current Scope Failure
 

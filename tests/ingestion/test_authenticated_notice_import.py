@@ -153,6 +153,19 @@ def _sample_export_manifest() -> dict[str, object]:
     }
 
 
+def _sample_normalized_blob_store_manifest() -> dict[str, object]:
+    manifest = _sample_export_manifest()
+    manifest["schema_version"] = "authenticated_notice_legacy_bootstrap_normalized_v1"
+    manifest["collector"] = {
+        "runtime_shell": "legacy_external_collector",
+        "export_contract_version": "legacy_authenticated_notice_export_v3",
+        "link_collection_mode": "legacy_bundle_preserved",
+        "attachment_collection_mode": "legacy_bundle_preserved",
+        "attachment_storage_mode": "blob_store_reference",
+    }
+    return manifest
+
+
 def _sample_inline_image_notice_bundle(*, attachment_bytes: bytes) -> list[dict[str, object]]:
     attachment_sha256 = hashlib.sha256(attachment_bytes).hexdigest()
     legacy_object_key = f"{attachment_sha256[:2]}/{attachment_sha256}/schedule.png"
@@ -512,6 +525,7 @@ class AuthenticatedNoticeImportTest(unittest.TestCase):
         self.assertTrue(entry.notice_manifest_key.endswith("/source-truth/notice-manifest.json"))
         self.assertTrue(entry.content_blocks_key.endswith("/source-truth/content-blocks.jsonl"))
         self.assertTrue(entry.attachment_refs_key.endswith("/source-truth/attachment-refs.jsonl"))
+        self.assertEqual(entry.parent_snapshot["notice_release_time"], "2026-04-02 18:49")
 
     def test_import_authenticated_notice_export_with_attachment_blob_root_materializes_attachment_objects_for_inventory_routing(self) -> None:
         attachment_bytes = b"fake-inline-image-bytes-for-routing"
@@ -573,6 +587,88 @@ class AuthenticatedNoticeImportTest(unittest.TestCase):
         self.assertEqual(entry.manual_review_required_count, 1)
         self.assertEqual(entry.ocr_required_count, 0)
         self.assertTrue(entry.has_spatial_attachment)
+
+    def test_import_authenticated_notice_export_requires_attachment_blob_root_for_blob_store_reference_batches(self) -> None:
+        attachment_bytes = b"fake-inline-image-bytes-for-routing"
+        bundle = _sample_inline_image_notice_bundle(attachment_bytes=attachment_bytes)
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_normalized_blob_store_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+            env = {
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+            }
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "attachment_blob_root",
+            ):
+                import_authenticated_notice_export(
+                    request=AuthenticatedNoticeImportRequest(
+                        bundle_path=bundle_path,
+                        export_manifest_path=manifest_path,
+                        site_id="muc_internal_portal",
+                        source_home_url="https://portal.example.edu/home",
+                    ),
+                    env=env,
+                    object_store=object_store,
+                    document_registry=document_registry,
+                    raw_asset_registry=raw_asset_registry,
+                    source_truth_inventory_store=inventory_store,
+                )
+
+    def test_import_authenticated_notice_export_allows_blob_store_reference_manifest_for_body_only_batches(self) -> None:
+        bundle = _sample_notice_bundle()
+        bundle[0]["links"] = []
+        bundle[0]["notice_attachments"] = []
+        bundle[0]["attachments"] = []
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_normalized_blob_store_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+            env = {
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+            }
+
+            report = import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=env,
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                source_truth_inventory_store=inventory_store,
+            )
+
+        self.assertEqual(report["errors"], [])
+        self.assertNotIn("attachment_object_backfill", report)
+        entries = inventory_store.list_by_scope("campus_notices", "internal_notice")
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0].attachment_document_count, 0)
 
     def test_import_authenticated_notice_bundle_prefers_collector_export_contract_version(self) -> None:
         manifest = _sample_export_manifest()

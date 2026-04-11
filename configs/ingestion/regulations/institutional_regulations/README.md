@@ -27,5 +27,15 @@ Collection boundary:
 
 Current scaffold note:
 
-- this directory freezes the target collection shape only
-- it does not yet enable promotion execution, chunk preparation, embedding, Qdrant write, or alias publish
+- this directory no longer only freezes shape: repo now includes a scope-refresh materialization path from `campus_notices/internal_notice` into `regulations/institutional_regulations`
+- materialization is currently implemented by:
+  - `packages/ingestion-core/src/campus_ingestion_core/internal_notice_regulation_materialization.py`
+  - `apps/ingestion-worker/src/campus_ingestion_worker/materialize_internal_notice_regulation_candidates.py`
+- the current materialization boundary is still `offline_preparation` only
+- it still does not enable chunk preparation, embedding, Qdrant write, release, or alias publish
+
+Current materialization truth:
+
+- target `document_id` is derived from `regulation_title_normalized + issuing_org + semantic scope`, not from `notice_id`
+- duplicate wrapper/attachment notices that resolve to the same canonical regulation keep one promoted target document while aggregating duplicate provenance in metadata
+- scope refresh replaces the full `regulations/institutional_regulations` registry scope on each materialization run

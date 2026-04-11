@@ -164,6 +164,7 @@ _SHORT_TEXTUAL_DISPLAY_TOKEN_THRESHOLD = 72
 _SHORT_TEXTUAL_HEADER_RATIO_THRESHOLD = 0.4
 _SHORT_TEXTUAL_TARGET_DISPLAY_TOKENS = 120
 _SHORT_TEXTUAL_MAX_MEMBER_COUNT = 4
+_SHORT_TEXTUAL_MERGE_UNIT_TYPES = frozenset((*TEXTUAL_UNIT_TYPES, "institutional_regulation_block"))
 _OFFICIAL_WEB_SKIPPED_CONTENT_ROLES = frozenset({"source_attribution", "boilerplate", "media_caption"})
 
 
@@ -1209,7 +1210,15 @@ def _try_merge_short_textual_candidates(
         return None
 
     members = (*current.members, *incoming.members)
-    aggregated_anchor = _build_aggregated_anchor(members)
+    aggregated_anchor = (
+        _build_institutional_regulation_aggregated_anchor(
+            current=current,
+            incoming=incoming,
+            members=members,
+        )
+        if current.unit_type == "institutional_regulation_block"
+        else _build_aggregated_anchor(members)
+    )
     aggregated_metadata = _build_aggregated_metadata(current=current, members=members)
     aggregated_display_text = _build_aggregated_display_text(members)
     chunk_assembly = assemble_chunk_text(
@@ -1247,7 +1256,13 @@ def _short_textual_candidates_are_compatible(
         return False
     if current.unit_type == "policy_page" and _policy_page_label_shape_conflicts(current=current, incoming=incoming):
         return False
-    if not _short_textual_section_paths_are_compatible(current=current, incoming=incoming):
+    if current.unit_type == "institutional_regulation_block":
+        if not _institutional_regulation_block_section_paths_are_compatible(
+            current=current,
+            incoming=incoming,
+        ):
+            return False
+    elif not _short_textual_section_paths_are_compatible(current=current, incoming=incoming):
         return False
     for field_name in ("title", "policy_doc_no"):
         if current.metadata.get(field_name) != incoming.metadata.get(field_name):
@@ -1325,8 +1340,26 @@ def _policy_page_section_paths_are_compatible(
     return current_parent == incoming_parent
 
 
+def _institutional_regulation_block_section_paths_are_compatible(
+    *,
+    current: _ChunkCandidate,
+    incoming: _ChunkCandidate,
+) -> bool:
+    current_path = _normalize_section_path(current.anchor)
+    incoming_path = _normalize_section_path(incoming.anchor)
+    if current_path == incoming_path:
+        return True
+    if not current_path or not incoming_path:
+        return False
+    if incoming_path[: len(current_path)] == current_path:
+        return True
+    if current_path[: len(incoming_path)] == incoming_path:
+        return True
+    return False
+
+
 def _is_short_textual_merge_eligible(candidate: _ChunkCandidate) -> bool:
-    if candidate.unit_type not in TEXTUAL_UNIT_TYPES:
+    if candidate.unit_type not in _SHORT_TEXTUAL_MERGE_UNIT_TYPES:
         return False
     if candidate.piece.split_reason is not None:
         return False
@@ -1436,6 +1469,29 @@ def _build_aggregated_anchor(members: Sequence[_ChunkMember]) -> dict[str, objec
         aggregated_anchor["provision_label"] = _collapse_label_range(provision_labels)
     else:
         aggregated_anchor.pop("provision_label", None)
+    return aggregated_anchor
+
+
+def _build_institutional_regulation_aggregated_anchor(
+    *,
+    current: _ChunkCandidate,
+    incoming: _ChunkCandidate,
+    members: Sequence[_ChunkMember],
+) -> dict[str, object]:
+    aggregated_anchor = _build_aggregated_anchor(members)
+    current_path = _normalize_section_path(current.anchor)
+    incoming_path = _normalize_section_path(incoming.anchor)
+    resolved_path: tuple[str, ...] = ()
+    if current_path == incoming_path:
+        resolved_path = current_path
+    elif current_path and incoming_path and incoming_path[: len(current_path)] == current_path:
+        resolved_path = incoming_path if _institutional_regulation_candidate_is_heading_only(current) else current_path
+    elif current_path and incoming_path and current_path[: len(incoming_path)] == incoming_path:
+        resolved_path = current_path if _institutional_regulation_candidate_is_heading_only(incoming) else incoming_path
+    if resolved_path:
+        aggregated_anchor["section_path"] = list(resolved_path)
+    aggregated_anchor.pop("article_label", None)
+    aggregated_anchor.pop("provision_label", None)
     return aggregated_anchor
 
 
@@ -1621,6 +1677,18 @@ def _curriculum_candidate_is_heading_only(candidate: _ChunkCandidate) -> bool:
     if not lines:
         return False
     return len(_leading_curriculum_heading_lines(lines)) == len(lines)
+
+
+def _institutional_regulation_candidate_is_heading_only(candidate: _ChunkCandidate) -> bool:
+    if candidate.unit_type != "institutional_regulation_block":
+        return False
+    section_path = _normalize_section_path(candidate.anchor)
+    if not section_path:
+        return False
+    lines = [line.strip() for line in candidate.piece.text.splitlines() if line.strip()]
+    if len(lines) != 1:
+        return False
+    return lines[0] == section_path[-1]
 
 
 def _curriculum_candidate_is_title_only(candidate: _ChunkCandidate) -> bool:
