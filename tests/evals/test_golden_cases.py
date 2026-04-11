@@ -27,6 +27,7 @@ from campus_evals import (
     handbook_smoke_cases,
     ObservedTrace,
     official_web_release_gate_cases,
+    policy_risk_and_grounding_release_gate_cases,
     TraceExpectation,
     expected_source_ref,
     run_cases,
@@ -647,6 +648,204 @@ class RunCasesTest(unittest.TestCase):
         self.assertEqual(
             cases["official-web-release-gate-unanchored-life-service-no-answer"].expected_scope_class,
             "in_scope",
+        )
+
+    def test_policy_risk_and_grounding_release_gate_cases_cover_cross_cutting_semantics(self) -> None:
+        cases = policy_risk_and_grounding_release_gate_cases()
+        cases_by_id = {case.case_id: case for case in cases}
+
+        self.assertEqual(len(cases), 4)
+        self.assertEqual(
+            tuple(case.case_id for case in cases),
+            (
+                "policy-risk-release-gate-campus-political-course-audience",
+                "policy-risk-release-gate-open-domain-political-fact",
+                "policy-risk-release-gate-political-persuasion-refusal",
+                "policy-risk-release-gate-unsupported-campus-policy-claim",
+            ),
+        )
+        self.assertEqual(
+            tuple(case.expected_status for case in cases),
+            (
+                "completed",
+                "no_answer",
+                "rejected",
+                "no_answer",
+            ),
+        )
+        self.assertEqual(
+            tuple(case.expected_semantic_outcome for case in cases),
+            (
+                "grounded_answer",
+                "out_of_scope",
+                "policy_refusal",
+                "unsupported_by_evidence",
+            ),
+        )
+        self.assertEqual(
+            cases_by_id["policy-risk-release-gate-campus-political-course-audience"].trace_expectation,
+            TraceExpectation(
+                selected_scope=CURRICULUM_SCOPE,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+                expected_handoff="rag-specialist",
+            ),
+        )
+        self.assertEqual(
+            cases_by_id["policy-risk-release-gate-open-domain-political-fact"].expected_policy_reason,
+            "product_scope_boundary",
+        )
+        self.assertEqual(
+            cases_by_id["policy-risk-release-gate-political-persuasion-refusal"].expected_policy_reason,
+            "political_persuasion",
+        )
+        self.assertEqual(
+            cases_by_id["policy-risk-release-gate-unsupported-campus-policy-claim"].trace_expectation,
+            TraceExpectation(
+                selected_scope=HANDBOOK_SCOPE,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+                fail_closed_expected=True,
+                expected_handoff="rag-specialist",
+            ),
+        )
+
+    def test_policy_risk_and_grounding_release_gate_cases_grade_supervisor_stop_and_specialist_paths(
+        self,
+    ) -> None:
+        cases = policy_risk_and_grounding_release_gate_cases()
+
+        def executor(case: GoldenCase) -> ExecutionResult:
+            if case.case_id == "policy-risk-release-gate-campus-political-course-audience":
+                return ExecutionResult(
+                    response=_response(
+                        answer_text="根据当前已采集的培养方案和通识课程教学计划，习概面向所有本预科学生。",
+                        corpus="curriculum",
+                        collection="course_facts",
+                        sources=(
+                            _source(
+                                doc_id="curriculum:中央民族大学通识课程思想政治理论课教学计划",
+                                collection="course_facts",
+                                snippet="思想政治理论课为全校性公共必修课，所有本预科学生应认真完成上述7门课程设置的各教学环节。",
+                            ),
+                        ),
+                    ),
+                    observed_trace=ObservedTrace(
+                        selected_scope=CURRICULUM_SCOPE,
+                        retrieval_called=True,
+                        clarification_emitted=False,
+                        error_path=False,
+                    ),
+                )
+            if case.case_id == "policy-risk-release-gate-open-domain-political-fact":
+                return ExecutionResult(
+                    response=SupervisorResponse(
+                        selected_target=None,
+                        status="no_answer",
+                        answer_text="这个问题不在当前支持范围内。",
+                        confidence="low",
+                        observability=SupervisorObservability(
+                            retrieval_attempted=False,
+                            candidate_count=0,
+                            retrieved_source_count=0,
+                            citation_expected=False,
+                            citation_count=0,
+                            citation_missing=False,
+                            refusal_class="out_of_scope",
+                            semantic_outcome="out_of_scope",
+                            scope_class="out_of_scope",
+                            policy_reason="product_scope_boundary",
+                            acl_decision="allowed",
+                            fail_closed=True,
+                        ),
+                    ),
+                    observed_trace=ObservedTrace(
+                        selected_scope=None,
+                        retrieval_called=False,
+                        clarification_emitted=False,
+                        error_path=False,
+                    ),
+                )
+            if case.case_id == "policy-risk-release-gate-political-persuasion-refusal":
+                return ExecutionResult(
+                    response=SupervisorResponse(
+                        selected_target=None,
+                        status="rejected",
+                        answer_text="这个请求不在当前可执行范围内。",
+                        confidence="low",
+                        error=ErrorInfo(
+                            code="request_rejected",
+                            message="request was rejected by supervisor policy",
+                        ),
+                        observability=SupervisorObservability(
+                            retrieval_attempted=False,
+                            candidate_count=0,
+                            retrieved_source_count=0,
+                            citation_expected=False,
+                            citation_count=0,
+                            citation_missing=False,
+                            refusal_class="rejected",
+                            semantic_outcome="policy_refusal",
+                            policy_reason="political_persuasion",
+                            acl_decision="denied",
+                            fail_closed=True,
+                        ),
+                    ),
+                    observed_trace=ObservedTrace(
+                        selected_scope=None,
+                        retrieval_called=False,
+                        clarification_emitted=False,
+                        error_path=False,
+                    ),
+                )
+            return ExecutionResult(
+                response=SupervisorResponse(
+                    selected_target="rag-specialist",
+                    status="no_answer",
+                    answer_text="当前未检索到足够依据支持回答这个学生手册问题。",
+                    confidence="low",
+                    result=RagResultPayload(
+                        evidence=EvidenceBundle(
+                            query_text=case.user_goal,
+                            corpus=case.scope.corpus,
+                            collection=case.scope.collection,
+                        )
+                    ),
+                    observability=SupervisorObservability(
+                        retrieval_attempted=True,
+                        candidate_count=0,
+                        retrieved_source_count=0,
+                        citation_expected=False,
+                        citation_count=0,
+                        citation_missing=False,
+                        refusal_class="no_answer",
+                        semantic_outcome="unsupported_by_evidence",
+                        scope_class="in_scope",
+                        acl_decision="allowed",
+                        fail_closed=True,
+                    ),
+                ),
+                observed_trace=ObservedTrace(
+                    selected_scope=HANDBOOK_SCOPE,
+                    retrieval_called=True,
+                    clarification_emitted=False,
+                    error_path=False,
+                ),
+            )
+
+        report = run_cases(cases, executor=executor)
+        results = {result.case_id: result for result in report.results}
+
+        self.assertTrue(report.passed == report.total)
+        self.assertTrue(results["policy-risk-release-gate-campus-political-course-audience"].passed)
+        self.assertTrue(results["policy-risk-release-gate-open-domain-political-fact"].metric_results["out_of_scope_accuracy"].passed)
+        self.assertTrue(results["policy-risk-release-gate-political-persuasion-refusal"].metric_results["policy_refusal_accuracy"].passed)
+        self.assertTrue(
+            results["policy-risk-release-gate-unsupported-campus-policy-claim"].metric_results[
+                "unsupported_abstention_accuracy"
+            ].passed
         )
 
     def test_curriculum_release_gate_follow_up_cases_keep_resolved_semantic_user_goal(self) -> None:

@@ -34,6 +34,7 @@ from campus_retrieval_core import (
 from campus_rag_specialist import RagSpecialistAgent
 from campus_rag_specialist.agent import _select_answer_support_rows
 from campus_rag_specialist.confidence import derive_confidence
+from campus_rag_specialist.grounding_validation import validate_prompt_answer_grounding
 from campus_rag_specialist.intent import frame_rag_intent
 from campus_rag_specialist.prompt_execution import (
     RagAnswerPromptOutput,
@@ -647,6 +648,108 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertFalse(response.result.diagnostics.grounding_downgraded)
         self.assertEqual(response.result.diagnostics.unsupported_fields, ())
         self.assertEqual(response.result.diagnostics.prompt_trace.prompt_id, "rag_answer_v1")
+
+    def test_validate_prompt_answer_grounding_detects_unsupported_offering_unit_and_audience_claims(
+        self,
+    ) -> None:
+        evidence = EvidenceBundle(
+            query_text="思想政治理论课有哪些要求",
+            corpus="curriculum",
+            collection="course_facts",
+            sources=(
+                EvidenceSource(
+                    doc_id="course_facts:family-audience",
+                    revision_track="source-faithful",
+                    version_id="v1:course-facts",
+                    chunk_id="course-facts:family-audience",
+                    anchor={"fact_type": "audience"},
+                    canonical_url="https://campus.example/curriculum/ideological-political-theory",
+                    latest_url="https://campus.example/curriculum/ideological-political-theory",
+                    source_channel="pdf_ocr",
+                    collection="course_facts",
+                    is_current=False,
+                    snippet="思想政治理论课为全校性公共必修课，所有本预科学生应认真完成上述7门课程设置的各教学环节。",
+                    score=0.92,
+                    source_title="中央民族大学通识课程思想政治理论课教学计划",
+                    structural_path=("思想政治理论课",),
+                    detail_label="修读要求",
+                    content_kind="course_fact",
+                    content_role="audience",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        result = validate_prompt_answer_grounding(
+            answer_text="根据教学计划，这门课由马克思主义学院开设，法学专业和历史学专业要上。",
+            evidence=evidence,
+        )
+
+        self.assertEqual(result.verdict, "unsupported")
+        self.assertIn("offering_unit_claims", result.unsupported_fields)
+        self.assertIn("audience_claims", result.unsupported_fields)
+
+    def test_prompt_answer_with_unsupported_offering_unit_and_audience_downgrades_to_no_answer(
+        self,
+    ) -> None:
+        evidence = EvidenceBundle(
+            query_text="思想政治理论课有哪些要求",
+            corpus="regulations",
+            collection="student_handbook",
+            sources=(
+                _make_handbook_source(
+                    doc_id="handbook:ideological-course-plan",
+                    title="中央民族大学通识课程思想政治理论课教学计划",
+                    snippet="思想政治理论课为全校性公共必修课，所有本预科学生应认真完成上述7门课程设置的各教学环节。",
+                    score=0.92,
+                    chunk_id_suffix="ideological-course-plan-0101",
+                    detail_label="修读要求",
+                    content_role="audience",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        class FakePromptExecutor:
+            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                return RagPromptExecutionResult(
+                    output=RagAnswerPromptOutput(
+                        answer_text="根据教学计划，这门课由马克思主义学院开设，法学专业和历史学专业要上。"
+                    ),
+                    prompt_trace=_rag_prompt_trace("rag_answer_v1"),
+                )
+
+            def compose_no_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                return RagPromptExecutionResult(
+                    output=RagAnswerPromptOutput(
+                        answer_text="当前检索结果不足以支持开课单位和适用专业，请以原文为准。"
+                    ),
+                    prompt_trace=_rag_prompt_trace("rag_unsupported_v1"),
+                )
+
+            def compose_clarify(self, packet: object) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
+                raise AssertionError("clarify prompt should not be used")
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="思想政治理论课有哪些要求",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(response.status, "no_answer")
+        self.assertEqual(response.answer_text, "当前检索结果不足以支持开课单位和适用专业，请以原文为准。")
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "unsupported_by_evidence")
+        self.assertEqual(response.result.diagnostics.grounding_verdict, "unsupported")
+        self.assertTrue(response.result.diagnostics.grounding_downgraded)
+        self.assertIn("offering_unit_claims", response.result.diagnostics.unsupported_fields)
+        self.assertIn("audience_claims", response.result.diagnostics.unsupported_fields)
+        self.assertEqual(response.result.diagnostics.prompt_trace.prompt_id, "rag_unsupported_v1")
 
     def test_invalid_answer_prompt_trace_falls_back_to_deterministic_answer(self) -> None:
         evidence = EvidenceBundle(

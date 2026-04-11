@@ -41,6 +41,33 @@ _REQUIREMENT_CLAIM_PATTERNS = (
     ),
     re.compile(r"(?:办理|及时)?([\u4e00-\u9fffA-Za-z0-9（）()]{1,8}挂失)"),
 )
+_OFFERING_UNIT_CLAIM_PATTERNS = (
+    re.compile(
+        r"(?:由|是)?"
+        r"([\u4e00-\u9fffA-Za-z0-9（）()]{1,20}(?:学院|系|部|中心|教研室|研究院))"
+        r"(?:负责)?(?:开设|开课|开的)"
+    ),
+    re.compile(
+        r"(?:开设单位|开课单位|开课学院|负责单位)[：:\s]*"
+        r"([\u4e00-\u9fffA-Za-z0-9（）()]{1,20}(?:学院|系|部|中心|教研室|研究院))"
+    ),
+)
+_AUDIENCE_CLAIM_PATTERNS = (
+    re.compile(
+        r"([\u4e00-\u9fffA-Za-z0-9、，,和及以及/（）()]{1,40}专业)"
+        r"(?:要上|应修|需要修读|需要上|需修|为必修|应当修读|必须修读)"
+    ),
+    re.compile(
+        r"((?:所有|全体)?[\u4e00-\u9fffA-Za-z0-9、，,和及以及/（）()]{0,24}"
+        r"(?:本预科学生|本科生|研究生|学生))"
+        r"(?:要上|应修|需要修读|需要上|需修|为必修|应当修读|应认真完成)"
+    ),
+    re.compile(
+        r"(?:面向|适用于|适用对象为|针对)"
+        r"([\u4e00-\u9fffA-Za-z0-9、，,和及以及/（）()]{1,40}"
+        r"(?:专业|本预科学生|本科生|研究生|学生))"
+    ),
+)
 _LOW_SIGNAL_REQUIREMENT_PHRASES = frozenset(
     {
         "需要",
@@ -56,6 +83,7 @@ _LOW_SIGNAL_REQUIREMENT_PHRASES = frozenset(
         "审核",
     }
 )
+_AUDIENCE_SPLIT_RE = re.compile(r"(?:、|，|,|/|以及|及|和)")
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,18 +105,17 @@ def validate_prompt_answer_grounding(
         )
 
     unsupported_fields: list[str] = []
-
-    title_claims = _extract_title_claims(answer_text)
-    if title_claims and any(not _claim_supported(claim, support_text) for claim in title_claims):
-        unsupported_fields.append("title_claims")
-
-    time_claims = _extract_time_claims(answer_text)
-    if time_claims and any(not _claim_supported(claim, support_text) for claim in time_claims):
-        unsupported_fields.append("time_claims")
-
-    requirement_claims = _extract_requirement_claims(answer_text)
-    if requirement_claims and any(not _claim_supported(claim, support_text) for claim in requirement_claims):
-        unsupported_fields.append("requirement_claims")
+    claim_extractors = (
+        ("title_claims", _extract_title_claims),
+        ("time_claims", _extract_time_claims),
+        ("requirement_claims", _extract_requirement_claims),
+        ("offering_unit_claims", _extract_offering_unit_claims),
+        ("audience_claims", _extract_audience_claims),
+    )
+    for field_name, extractor in claim_extractors:
+        claims = extractor(answer_text)
+        if claims and any(not _claim_supported(claim, support_text) for claim in claims):
+            unsupported_fields.append(field_name)
 
     if unsupported_fields:
         return GroundingValidationResult(
@@ -139,6 +166,34 @@ def _extract_requirement_claims(answer_text: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(claims))
 
 
+def _extract_offering_unit_claims(answer_text: str) -> tuple[str, ...]:
+    claims: list[str] = []
+    sanitized = _sanitize_answer_text(answer_text)
+    for clause in _CLAUSE_SPLIT_RE.split(sanitized):
+        normalized_clause = _normalize_text(clause)
+        if not normalized_clause:
+            continue
+        for pattern in _OFFERING_UNIT_CLAIM_PATTERNS:
+            for match in pattern.finditer(normalized_clause):
+                claim = match.group(1).strip("，,；;：:。 ")
+                if claim:
+                    claims.append(claim)
+    return tuple(dict.fromkeys(claims))
+
+
+def _extract_audience_claims(answer_text: str) -> tuple[str, ...]:
+    claims: list[str] = []
+    sanitized = _sanitize_answer_text(answer_text)
+    for clause in _CLAUSE_SPLIT_RE.split(sanitized):
+        normalized_clause = _normalize_text(clause)
+        if not normalized_clause:
+            continue
+        for pattern in _AUDIENCE_CLAIM_PATTERNS:
+            for match in pattern.finditer(normalized_clause):
+                claims.extend(_expand_audience_claim(match.group(1)))
+    return tuple(dict.fromkeys(claims))
+
+
 def _normalize_requirement_claim(claim: str) -> str:
     normalized = claim.strip("，,；;：:。 ")
     normalized = re.sub(r"^(?:并|再|后|先|及时)", "", normalized)
@@ -151,6 +206,39 @@ def _normalize_requirement_claim(claim: str) -> str:
     if normalized.endswith("并到学院审核"):
         return "学院审核"
     return normalized
+
+
+def _expand_audience_claim(raw_claim: str) -> tuple[str, ...]:
+    normalized = raw_claim.strip("，,；;：:。 ")
+    normalized = re.sub(r"等(?=(?:专业|本预科学生|本科生|研究生|学生)$)", "", normalized)
+    if not normalized:
+        return ()
+
+    suffix = _resolve_audience_suffix(normalized)
+    parts = [
+        part.strip("，,；;：:。 ")
+        for part in _AUDIENCE_SPLIT_RE.split(normalized)
+        if part.strip("，,；;：:。 ")
+    ]
+    if len(parts) <= 1:
+        return (normalized,)
+
+    expanded: list[str] = []
+    for part in parts:
+        cleaned = re.sub(r"^(?:面向|适用于|适用对象为|针对)", "", part).strip("，,；;：:。 ")
+        cleaned = re.sub(r"等(?=(?:专业|本预科学生|本科生|研究生|学生)$)", "", cleaned)
+        if suffix and not cleaned.endswith(suffix):
+            cleaned = f"{cleaned}{suffix}"
+        if cleaned:
+            expanded.append(cleaned)
+    return tuple(dict.fromkeys(expanded))
+
+
+def _resolve_audience_suffix(claim: str) -> str:
+    for suffix in ("本预科学生", "本科生", "研究生", "学生", "专业"):
+        if claim.endswith(suffix):
+            return suffix
+    return ""
 
 
 def _sanitize_answer_text(answer_text: str) -> str:

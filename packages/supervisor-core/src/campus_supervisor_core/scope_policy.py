@@ -38,6 +38,8 @@ _CAMPUS_SCOPE_SIGNALS = (
     "转专业",
     "毕业",
     "习概",
+    "习近平新时代中国特色社会主义思想概论",
+    "习近平法治思想概论",
     "马原",
     "毛概",
     "史纲",
@@ -69,6 +71,26 @@ _GENERAL_WORLD_SIGNALS = (
     "比特币",
     "世界杯",
     "nba",
+)
+_GEOPOLITICAL_ENTITY_SIGNALS = (
+    "中国",
+    "美国",
+    "英国",
+    "法国",
+    "德国",
+    "日本",
+    "俄罗斯",
+    "欧盟",
+    "联合国",
+)
+_POLITICAL_OFFICE_SIGNALS = (
+    "国家主席",
+    "主席是谁",
+    "总统",
+    "总理",
+    "首相",
+    "外交部长",
+    "领导人是谁",
 )
 
 
@@ -111,6 +133,14 @@ def evaluate_knowledge_scope(context: SupervisorRequestContext) -> ScopeDecision
             matched_signal=world_signal,
         )
 
+    political_fact_signal = _match_open_domain_political_fact(normalized_goal)
+    if political_fact_signal is not None:
+        return ScopeDecision(
+            scope_class="out_of_scope",
+            reason="product_scope_boundary",
+            matched_signal=political_fact_signal,
+        )
+
     return ScopeDecision(scope_class="in_scope", reason="scope_undetermined_delegate")
 
 
@@ -124,6 +154,17 @@ def _first_match(normalized_goal: str, signals: tuple[str, ...]) -> str | None:
         if normalized_signal and normalized_signal in normalized_goal:
             return signal
     return None
+
+
+def _match_open_domain_political_fact(normalized_goal: str) -> str | None:
+    entity_signal = _first_match(normalized_goal, _GEOPOLITICAL_ENTITY_SIGNALS)
+    if entity_signal is None:
+        return None
+
+    office_signal = _first_match(normalized_goal, _POLITICAL_OFFICE_SIGNALS)
+    if office_signal is None:
+        return None
+    return office_signal
 
 
 __all__ = ["ScopeDecision", "ScopeClass", "evaluate_knowledge_scope"]

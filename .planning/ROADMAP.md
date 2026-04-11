@@ -39,6 +39,11 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 9: Curriculum Ambiguous Program Query Hardening** - Harden ambiguous `curriculum_plan` program-family queries with alias-tier governance, family-aware membership truth, and fail-closed deictic/doc resolution. (completed 2026-04-02)
 - [x] **Phase 09.1: Env Bootstrap And Provider Configuration Governance** - Freeze and implement explicit local/deploy env bootstrap, provider precedence, and fail-fast diagnostics so provider credentials no longer depend on implicit shell state. (INSERTED) (completed 2026-04-02)
 - [ ] **Phase 10: Official Web Repo Hardening And Expansion** - Expand and harden the `official_web` repo-level source channel, control plane, and operator workflow after the current curriculum hardening wave.
+- [x] **Phase 11: Campus Identity, Authorization, Memory, And Restricted Document Foundation** - Freeze and implement the canonical principal/projection seam, restricted-document retrieval fail-close, and non-authorizing memory/personalization truth. (completed 2026-04-05)
+- [x] **Phase 12: Authenticated Notice Source Foundation** - Formalize the repo-native authenticated notice source channel and historical export replay foundation without opening query-serving. (completed 2026-04-06)
+- [ ] **Phase 12.1: Authenticated Notice Historical Backfill Closeout** - Close the historical backfill execution truth and final evidence package for `campus_notices/internal_notice`.
+- [x] **Phase 12.2: Authenticated Notice Async Staged Closeout** - Rebuild historical closeout into an async staged pipeline with single-promoter deterministic promotion. (completed 2026-04-08)
+- [x] **Phase 13: 政治风险判定与幻觉控制硬化** - Harden product-path policy risk, out-of-scope classification, and evidence-grounded abstention semantics. (completed 2026-04-11)
 
 ## Phase Details
 
@@ -635,6 +640,23 @@ Plans:
 Plans:
 - [x] 12.2-01-PLAN.md — Research async staged closeout data-plane model, operations prefix, staging schema, single promoter, verification requirements, and codify the new architecture/ADR/runbook language.
 - [x] 12.2-02-PLAN.md — Execute the async staged pipeline: design ops directories + staging tables, implement planner/executor/promoter, add CLI status/promote commands, and lock in verification/summary artifacts.
+
+### Phase 13: 政治风险判定与幻觉控制硬化
+
+**Goal:** Freeze and implement the product-path policy-risk, scope, and grounding architecture so politically risky requests, open-domain asks, and evidence-unsupported campus asks are explicitly separated in runtime behavior, evals, and observability.
+**Requirements**: []
+**Depends on:** Phase 12.2
+**Success Criteria** (what must be TRUE):
+  1. `policy_refusal`、`out_of_scope`、`unsupported_by_evidence`、`restricted_access_denied` no longer collapse into topic-keyword heuristics; final classification is explicit and code-owned.
+  2. Campus factual political questions that are in-scope and grounded can be answered, while targeted political persuasion / campaigning / lobbying requests fail closed as `policy_refusal`.
+  3. Prompt-generated answers on promptified branches pass stricter grounding / citation / deny-path validation and downgrade to `unsupported_by_evidence` when unsupported.
+  4. The repo gains dedicated eval and observability coverage for policy-risk detection and hallucination-control outcomes instead of relying on generic `no_answer` metrics.
+**Plans:** 3/3 plans complete
+
+Plans:
+- [x] 13-01-PLAN.md — Harden supervisor-owned policy/scope verdicts for political factual, political persuasion, and open-domain asks.
+- [x] 13-02-PLAN.md — Expand rag grounding validation and fail-closed unsupported downgrade on promptified answer paths.
+- [x] 13-03-PLAN.md — Add dedicated eval, observability, and release-gate coverage for Phase 13 semantic outcomes.
 
 ## Backlog
 

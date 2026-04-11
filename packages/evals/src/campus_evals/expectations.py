@@ -155,6 +155,7 @@ def _grade_trace(case: GoldenCase, execution: ExecutionResult) -> DimensionResul
 
     observed = execution.observed_trace
     expected = case.trace_expectation
+    response = _require_supported_response(execution)
     if expected.selected_scope is not None and observed.selected_scope != expected.selected_scope:
         selected_scope = (
             None
@@ -164,6 +165,11 @@ def _grade_trace(case: GoldenCase, execution: ExecutionResult) -> DimensionResul
         return DimensionResult(False, f"selected_scope={selected_scope}")
     if expected.retrieval_called is not None and observed.retrieval_called != expected.retrieval_called:
         return DimensionResult(False, f"retrieval_called={observed.retrieval_called}")
+    if expected.expected_handoff is not None:
+        actual_handoff_value = response.selected_target if isinstance(response, SupervisorResponse) else response.target
+        actual_handoff = "none" if actual_handoff_value in (None, "") else actual_handoff_value
+        if actual_handoff != expected.expected_handoff:
+            return DimensionResult(False, f"selected_target={actual_handoff}")
     if (
         expected.clarification_expected is not None
         and observed.clarification_emitted != expected.clarification_expected

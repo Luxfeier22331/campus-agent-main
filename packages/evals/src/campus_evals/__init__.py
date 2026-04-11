@@ -127,6 +127,7 @@ from campus_evals.scenarios import (
     official_web_release_gate_cases,
     official_web_stable_reference_release_gate_cases,
     official_web_stable_reference_scope,
+    policy_risk_and_grounding_release_gate_cases,
 )
 from campus_evals.settings import JudgeLLMSettings, RagasSettings, SupplementalHTTPSettings
 
@@ -306,6 +307,7 @@ __all__ = [
     "official_web_release_gate_cases",
     "official_web_stable_reference_release_gate_cases",
     "official_web_stable_reference_scope",
+    "policy_risk_and_grounding_release_gate_cases",
     "official_web_inventory_only_doc_ids_by_disposition",
     "official_web_release_gate_doc_ids",
     "summarize_retrieval_metrics",

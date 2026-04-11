@@ -157,7 +157,7 @@ def finalize_routing_decision(
             citation_missing=False,
             refusal_class="rejected",
             semantic_outcome="policy_refusal",
-            policy_reason="request_rejected",
+            policy_reason=decision.intent_frame.policy_reason or "request_rejected",
             acl_decision="denied",
             fail_closed=True,
             prompt_trace=prompt_trace,

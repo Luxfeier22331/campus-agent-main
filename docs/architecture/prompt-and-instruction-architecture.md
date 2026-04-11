@@ -741,14 +741,16 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 
 ## Current Rollout Status
 
-截至 `2026-04-06`，当前 repo 的 prompt / hallucination rollout 已经落到以下状态：
+截至 `2026-04-11`，当前 repo 的 prompt / hallucination rollout 已经落到以下状态：
 
 - 已完成 package-owned prompt registry / prompt packet substrate
 - 已完成 `supervisor_clarify_v1`、`supervisor_approval_required_v1`、`supervisor_reject_v1`、`supervisor_out_of_scope_v1`
 - 已完成 `rag_clarify_v1`、`rag_no_answer_v1`、`rag_answer_v1`、`rag_unsupported_v1`
 - 已完成 package-local prompt executor protocol，以及 prompt packet / output / trace 的 strict validation seam
 - 已完成 supervisor terminal branch 与 rag clarify / no-answer / generic answer branch 的 injected runtime seam
+- 已完成 supervisor-owned `policy gate + scope gate` 第一轮硬化：targeted political persuasion 会在 supervisor 侧 fail-close 为 `policy_refusal`，open-domain political office facts 会在 supervisor 侧稳定落为 `out_of_scope`
 - 已完成 prompt-generated completed answer 的 claim-level grounding validator，并在 unsupported 时自动降级为 `unsupported_by_evidence`
+- 已将 grounding claim taxonomy 扩展到 `title / time / requirement / offering_unit / audience` 五类高信号 claim，prompt answer inventing 开课单位或适用专业时会 fail-close downgrade
 - 已完成 `out_of_scope`、`policy_refusal`、`restricted_access_denied`、`unsupported_by_evidence`、`freshness_fail_close` 的 failure-class eval coverage
 - 已完成 `semantic_outcome`、`grounding_verdict`、`grounding_downgraded`、`freshness_fail_closed` 的 diagnostics / projection substrate
 
@@ -758,6 +760,7 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 - provider-backed prompt executor
 - prompt metadata 的 repo-default runtime sink
 - 更强的 provider-agnostic grounding runtime
+- 超出当前五类高信号 claim 的更细 grounded claim taxonomy 与 specialist-side unsupported diagnostics
 
 原因固定为：
 

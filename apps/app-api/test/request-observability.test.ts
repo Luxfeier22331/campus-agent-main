@@ -162,4 +162,107 @@ describe("request observability", () => {
       semanticOutcome: "out_of_scope",
     });
   });
+
+  it("derives out-of-scope supervisor stop semantics from diagnostics when observability is absent", () => {
+    const fact = buildFinalizedRequestObservabilityFact({
+      completedAt: "2026-04-11T09:00:01.000Z",
+      conversationId: "conv_01HQ",
+      diagnostics: {
+        clarificationReason: null,
+        freshnessFailClosed: null,
+        groundingDowngraded: null,
+        groundingVerdict: null,
+        noAnswerReason: "out_of_scope",
+        policyReason: "product_scope_boundary",
+        resolvedEntityType: null,
+        resolvedPolicyDocumentId: null,
+        resolvedPolicyTitle: null,
+        resolvedProgramFamilyTitle: null,
+        retrievedTitleSummary: [],
+        rewrittenQuery: null,
+        scopeClass: "out_of_scope",
+        semanticOutcome: null,
+        sessionProgram: null,
+        sessionProgramFamily: null,
+        sessionSemester: null,
+      },
+      durationMs: 200,
+      errorCode: null,
+      principal: createPrincipal(),
+      requestId: "req_01HQ",
+      requestedCapability: "knowledge",
+      requestedScope: null,
+      resolvedScope: null,
+      response: createResponse({
+        selectedTarget: null,
+      }),
+      sourceDocIds: [],
+      startedAt: "2026-04-11T09:00:00.000Z",
+      status: "no_answer",
+      surface: "public_chat_web",
+      traceId: "trace_01HQ",
+    });
+
+    expect(fact).toMatchObject({
+      failClosed: true,
+      policyReason: "product_scope_boundary",
+      refusalClass: "out_of_scope",
+      scopeClass: "out_of_scope",
+      semanticOutcome: "out_of_scope",
+      selectedTarget: null,
+    });
+  });
+
+  it("derives specialist grounding downgrade semantics from diagnostics when observability is absent", () => {
+    const fact = buildFinalizedRequestObservabilityFact({
+      completedAt: "2026-04-11T09:00:01.000Z",
+      conversationId: "conv_01HQ",
+      diagnostics: {
+        clarificationReason: null,
+        freshnessFailClosed: null,
+        groundingDowngraded: true,
+        groundingVerdict: "unsupported",
+        noAnswerReason: null,
+        policyReason: null,
+        resolvedEntityType: null,
+        resolvedPolicyDocumentId: null,
+        resolvedPolicyTitle: null,
+        resolvedProgramFamilyTitle: null,
+        retrievedTitleSummary: ["习近平新时代中国特色社会主义思想概论"],
+        rewrittenQuery: null,
+        scopeClass: "in_scope",
+        semanticOutcome: null,
+        sessionProgram: null,
+        sessionProgramFamily: null,
+        sessionSemester: null,
+      },
+      durationMs: 300,
+      errorCode: null,
+      principal: createPrincipal(),
+      requestId: "req_01HQ",
+      requestedCapability: "knowledge",
+      requestedScope: {
+        collection: "curriculum_plan",
+        corpus: "curriculum",
+      },
+      resolvedScope: {
+        collection: "curriculum_plan",
+        corpus: "curriculum",
+      },
+      response: createResponse(),
+      sourceDocIds: [],
+      startedAt: "2026-04-11T09:00:00.000Z",
+      status: "no_answer",
+      surface: "public_chat_web",
+      traceId: "trace_01HQ",
+    });
+
+    expect(fact).toMatchObject({
+      failClosed: true,
+      refusalClass: "no_answer",
+      scopeClass: "in_scope",
+      semanticOutcome: "unsupported_by_evidence",
+      selectedTarget: "rag-specialist",
+    });
+  });
 });

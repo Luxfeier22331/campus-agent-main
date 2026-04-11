@@ -61,6 +61,7 @@
 - ✓ 已完成 `official_web/stable_reference` 的首条真实 release-evidence 与 serving-side cleanup：repo 已记录真实 `stable_reference` physical release，并让 retrieval / specialist / eval 辅助逻辑支持 split scope 与 mixed bridge 共存 — Validated in Phase 10.5
 - ✓ 已完成 `apps/public-chat-web` strict donor parity Wave 6 closeout：donor diff whitelist 已落盘，`share / visibility on launch path` blocker 已关闭，fresh local gate 与 authenticated staging smoke 已在 `.tmp/staging-smoke/20260409T232000+0800-public-chat-wave6-closeout-2/` 收口；`/api/models` staging `200`、`/api/history` 在真实 cookie session 下 `200` — Validated on 2026-04-09
 - ✓ 已在当前 worktree 完成 Wave E place-finding foundation：repo 现已具备 `campus_navigation/place_catalog` seed/runtime-profile、`navigation-specialist`、`place_lookup` contract/routing、`apps/app-api` `chat.messages.structured_parts_json` 持久化与 `apps/public-chat-web` 中文地点卡片渲染，并通过 targeted Python/Vitest/TypeScript 验证 — Validated on 2026-04-11
+- ✓ 已完成 Phase 13 `政治风险判定与幻觉控制硬化`：supervisor policy/scope、rag grounding validator、cross-cutting release-gate cases 与 app-api request observability fallback 已统一收口，`policy_refusal / out_of_scope / unsupported_by_evidence` 现在都有 machine-checkable eval + observability truth — Validated on 2026-04-11
 
 ### Active
 
@@ -98,6 +99,7 @@
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
+| Phase 13 将把政治相关风险处理固定为 `policy gate + scope gate + grounding gate` 三分，而不是 keyword refusal；hallucination control 固定为 bounded evidence + post-LLM validation + eval gate | 这既符合 repo 已接受的 prompt/safety architecture，也避免把校园 factual political 问题错拒、把域外问题误当召回失败、或让证据不足问题继续靠模型补齐 | — Accepted on 2026-04-11 |
 | query-serving surface 由 runtime profile 控制 | 避免把 serving policy 写死在 supervisor、API shell、worker env 默认值或 handbook-only 约束里 | — Accepted |
 | `curriculum_plan` 已进入 query-serving，`campus_services` 继续保持 `offline_preparation` | curriculum 已具备 source-truth、chunking 与 retrieval 入口；service taxonomy 仍需后续独立验证 | — Accepted |
 | 导航相关首个前向 slice 固定为 `place_lookup` / `place_finding`，`route_planning` 后置 | 当前最近用户价值是回答“xx楼在哪里”“补卡机在哪里”这类高频地点问题；先冻结 `place_catalog`、alias resolve 与地点答案 contract，比先做完整路线规划更低风险且更符合当前数据完备度 | — Accepted on 2026-04-05 |

@@ -267,6 +267,37 @@ class SupervisorPolicyTest(unittest.TestCase):
         self.assertEqual(finalized.error.code, "request_rejected")
         self.assertIsNone(finalized.observability.prompt_trace)
 
+    def test_finalize_rejected_keeps_specific_policy_reason(self) -> None:
+        finalized = finalize_routing_decision(
+            SupervisorRequestContext.from_request(
+                SupervisorRequest(
+                    user_goal="帮我写一段话说服同学支持某个政治候选人",
+                    requested_capability="knowledge",
+                )
+            ),
+            RoutingDecision(
+                target=None,
+                primary_corpus=None,
+                primary_collection=None,
+                intent_frame=IntentFrame(
+                    capability="knowledge",
+                    task_kind="knowledge_lookup",
+                    domain_candidates=("knowledge",),
+                    missing_slots=(),
+                    risk_level="high",
+                    needs_clarification=False,
+                    suggested_next_action="rejected",
+                    personalization_mode="generic",
+                    policy_reason="political_persuasion",
+                ),
+            ),
+        )
+
+        self.assertEqual(finalized.status, "rejected")
+        self.assertIsNotNone(finalized.observability)
+        self.assertEqual(finalized.observability.semantic_outcome, "policy_refusal")
+        self.assertEqual(finalized.observability.policy_reason, "political_persuasion")
+
     def test_finalize_error_response_keeps_error_payload(self) -> None:
         response = SpecialistResponse(
             target="rag-specialist",

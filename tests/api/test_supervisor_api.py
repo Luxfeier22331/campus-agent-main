@@ -1064,7 +1064,7 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.json_body["error"]["code"], "disallowed_knowledge_scope")
 
-    def test_answer_route_returns_400_for_missing_routing_input(self) -> None:
+    def test_answer_route_clarifies_generic_knowledge_request_without_explicit_scope(self) -> None:
         app = create_app(
             settings=ApiSettings(
                 auth_mode="bearer",
@@ -1080,8 +1080,12 @@ class SupervisorApiTest(unittest.TestCase):
             json_body={"user_goal": "test"},
         )
 
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.json_body["error"]["code"], "missing_routing_input")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json_body["status"], "needs_clarification")
+        self.assertEqual(
+            response.json_body["follow_up_question"],
+            "请先说明你想查询的校内知识范围或资料集合。",
+        )
 
     def test_health_and_ready_routes_exist(self) -> None:
         app = create_app(

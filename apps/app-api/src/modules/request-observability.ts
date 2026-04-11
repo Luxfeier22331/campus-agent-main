@@ -46,7 +46,13 @@ function normalizeFailClosed(input: {
   if (input.status === "approval_required" || input.status === "rejected") {
     return true;
   }
-  if (input.diagnostics?.noAnswerReason === "restricted_access_denied") {
+  const semanticOutcome = normalizeSemanticOutcome(input);
+  if (
+    semanticOutcome === "restricted_access_denied" ||
+    semanticOutcome === "out_of_scope" ||
+    semanticOutcome === "unsupported_by_evidence" ||
+    semanticOutcome === "freshness_fail_close"
+  ) {
     return true;
   }
 
@@ -54,11 +60,18 @@ function normalizeFailClosed(input: {
 }
 
 function normalizeRefusalClass(
+  diagnostics: RequestDiagnosticsSummary | null,
   response: SupervisorExecutionResponse,
   status: RequestExecutionStatus,
 ): string | null {
   if (response.observability?.refusalClass) {
     return response.observability.refusalClass;
+  }
+  if (diagnostics?.semanticOutcome === "out_of_scope" || diagnostics?.scopeClass === "out_of_scope") {
+    return "out_of_scope";
+  }
+  if (diagnostics?.noAnswerReason === "out_of_scope") {
+    return "out_of_scope";
   }
   if (
     status === "needs_clarification" ||
@@ -72,6 +85,28 @@ function normalizeRefusalClass(
   return null;
 }
 
+function deriveSemanticOutcomeFromDiagnostics(
+  diagnostics: RequestDiagnosticsSummary | null,
+): string | null {
+  if (!diagnostics) {
+    return null;
+  }
+  if (diagnostics.semanticOutcome) {
+    return diagnostics.semanticOutcome;
+  }
+  if (diagnostics.scopeClass === "out_of_scope" || diagnostics.noAnswerReason === "out_of_scope") {
+    return "out_of_scope";
+  }
+  if (diagnostics.noAnswerReason === "restricted_access_denied") {
+    return "restricted_access_denied";
+  }
+  if (diagnostics.groundingDowngraded === true) {
+    return "unsupported_by_evidence";
+  }
+
+  return null;
+}
+
 function normalizeSemanticOutcome(input: {
   diagnostics: RequestDiagnosticsSummary | null;
   response: SupervisorExecutionResponse;
@@ -80,8 +115,9 @@ function normalizeSemanticOutcome(input: {
   if (input.response.observability?.semanticOutcome) {
     return input.response.observability.semanticOutcome;
   }
-  if (input.diagnostics?.semanticOutcome) {
-    return input.diagnostics.semanticOutcome;
+  const diagnosticsSemanticOutcome = deriveSemanticOutcomeFromDiagnostics(input.diagnostics);
+  if (diagnosticsSemanticOutcome) {
+    return diagnosticsSemanticOutcome;
   }
   if (input.status === "completed") {
     return "grounded_answer";
@@ -289,7 +325,7 @@ export function buildFinalizedRequestObservabilityFact(input: {
     requestedCapability: input.requestedCapability,
     requestedScopeSummary: toScopeSummary(input.requestedScope),
     resolvedScopeSummary: toScopeSummary(input.resolvedScope),
-    refusalClass: normalizeRefusalClass(input.response, input.status),
+    refusalClass: normalizeRefusalClass(input.diagnostics, input.response, input.status),
     scopeClass: normalizeScopeClass({
       diagnostics: input.diagnostics,
       requestedScope: input.requestedScope,

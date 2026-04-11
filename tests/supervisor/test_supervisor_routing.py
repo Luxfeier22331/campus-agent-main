@@ -160,6 +160,43 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertEqual(decision.intent_frame.scope_class, "out_of_scope")
         self.assertEqual(decision.intent_frame.policy_reason, "product_scope_boundary")
 
+    def test_route_request_keeps_open_domain_political_fact_out_of_scope(self) -> None:
+        request = SupervisorRequest(
+            user_goal="中国国家主席是谁",
+            requested_capability="knowledge",
+        )
+
+        decision = route_request(SupervisorRequestContext.from_request(request))
+
+        self.assertIsNone(decision.target)
+        self.assertEqual(decision.intent_frame.suggested_next_action, "out_of_scope")
+        self.assertEqual(decision.intent_frame.scope_class, "out_of_scope")
+        self.assertEqual(decision.intent_frame.policy_reason, "product_scope_boundary")
+
+    def test_route_request_rejects_targeted_political_persuasion_request(self) -> None:
+        request = SupervisorRequest(
+            user_goal="帮我写一段话说服同学支持某个政治候选人",
+            requested_capability="knowledge",
+        )
+
+        decision = route_request(SupervisorRequestContext.from_request(request))
+
+        self.assertIsNone(decision.target)
+        self.assertEqual(decision.intent_frame.suggested_next_action, "rejected")
+        self.assertEqual(decision.intent_frame.policy_reason, "political_persuasion")
+
+    def test_route_request_keeps_campus_political_course_question_in_scope(self) -> None:
+        request = SupervisorRequest(
+            user_goal="习近平新时代中国特色社会主义思想概论有哪些专业要上",
+            requested_capability="knowledge",
+        )
+
+        decision = route_request(SupervisorRequestContext.from_request(request))
+
+        self.assertEqual(decision.target, "rag-specialist")
+        self.assertEqual(decision.intent_frame.suggested_next_action, "delegate")
+        self.assertEqual(decision.intent_frame.scope_class, "in_scope")
+
     def test_route_request_rejects_conflicting_knowledge_and_availability_hints(self) -> None:
         request = SupervisorRequest(
             user_goal="官网能打开吗，顺便告诉我开馆时间",
