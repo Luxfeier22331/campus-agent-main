@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: 2026-04-12 已完成 Phase 15-02：provider-agnostic grounding runtime、canonical claim-support schema 与 expanded claim taxonomy
-last_updated: "2026-04-12T03:01:17+08:00"
+stopped_at: 2026-04-12 已完成 Phase 15-03：eval gating、operator-safe adequacy / claim-support observability 与 app-api runtime projection
+last_updated: "2026-04-12T03:46:00+08:00"
 progress:
   total_phases: 27
   completed_phases: 26
   total_plans: 73
-  completed_plans: 71
+  completed_plans: 72
 ---
 
 # Project State
@@ -29,7 +29,7 @@ See: `.planning/PROJECT.md` (updated 2026-04-12)
 
 **Core value:** 以已冻结的 supervisor-led multi-agent 架构和已落盘 serving/eval truth 为基础，完成验收收口、上线前硬化与真实产品面一致性，而不是继续把仓库当作地基期实验场
 **Now:**
-- 当前默认 active phase 已切到 Phase 15 `幻觉治理与 Grounded Generation 二次硬化`；`15-01`、`15-02` 已完成，`15-03` 到 `15-04` 仍待执行
+- 当前默认 active phase 已切到 Phase 15 `幻觉治理与 Grounded Generation 二次硬化`；`15-01`、`15-02`、`15-03` 已完成，当前只剩 `15-04`
 - Phase 14 `Prompt Stack / System Prompt Runtime` closeout 已在当前 worktree 完成；staging closeout、`public-chat-web` strict donor parity 与 Wave E place-finding foundation 都已退出当前主动实现主线
 - authenticated-notice Wave D 已完成 local Postgres current-scope refresh、preparation、promote 与 unpublished release；当前剩余是 post-release downstream consumption 和后置的 live portal / authenticated control-plane
 **External blockers:**
@@ -40,7 +40,7 @@ See: `.planning/PROJECT.md` (updated 2026-04-12)
 
 Phase: Acceptance-closeout and launch-hardening — IN PROGRESS
 Plan: `docs/plans/post-closeout-follow-up-execution-plan.md` 已转为 deferred reference：Wave B/D/E 主体已关闭，Wave C 只剩 provider-blocked historical artifact replacement。当前默认 active implementation lane 是 `15-grounded-generation`；`.planning/phases/999.1-smoke-evidence-deferred-backlog/README.md` 目前仍无 active items
-Next active workstream: Phase 15 `幻觉治理与 Grounded Generation 二次硬化` 当前已完成 `15-01`、`15-02`。Wave B 现已把 `ClaimSupport` / `claim_supports` 冻结为 canonical grounding truth，并让 `rag-specialist` 对 completed / downgrade 两条 prompt-answer 路径显式记录 per-claim support verdict 与 expanded taxonomy。下一执行入口是 `15-03`：扩展 eval、artifact retention 与 observability summary，让 adequacy / claim-support 成为 release-gate evidence。并行的外部 blocker 保持不变：replacing the historical curriculum `warn` artifact 仍取决于 supplemental eval LLM runtime 恢复 `/responses` accepted contract；authenticated-notice 后续只剩 deferred 的 live portal / authenticated control-plane 工作。
+Next active workstream: Phase 15 `幻觉治理与 Grounded Generation 二次硬化` 当前已完成 `15-01`、`15-02`、`15-03`。Wave C 已把 retrieval adequacy / grounding claim truth 接入 deterministic eval、`runtime.request_observability_fact`、operator detail 和 schema/contract 文档，因此 release gate 已能显式区分 retrieval base 不足与 generation 后 grounding downgrade。下一执行入口是 `15-04`：做 focused verification、phase closeout 与 blocker-aware acceptance 记录。并行的外部 blocker 保持不变：replacing the historical curriculum `warn` artifact 仍取决于 supplemental eval LLM runtime 恢复 `/responses` accepted contract；authenticated-notice 后续只剩 deferred 的 live portal / authenticated control-plane 工作。
 
 ## Performance Metrics
 
@@ -82,8 +82,8 @@ Next active workstream: Phase 15 `幻觉治理与 Grounded Generation 二次硬�
 
 **Recent Trend:**
 
-- Last completed plans: 13-01, 13-02, 13-03, 14-01, 14-02, 14-03
-- Trend: 当前主线已从 `political-risk + fail-close baseline` 和 `prompt runtime closeout` 切换到 Phase 15 的 grounded-generation 二次硬化。下一步不再是追加 prompt 规则，而是把 retrieval adequacy、claim support、eval gating 与 operator observability 收口成 repo-default truth。
+- Last completed plans: 14-01, 14-02, 14-03, 15-01, 15-02, 15-03
+- Trend: 当前主线仍是 Phase 15 的 grounded-generation 二次硬化，但 Wave C 已经完成从 specialist-local diagnostics 到 eval/operator/runtime truth 的收口。下一步不再是扩字段，而是做 focused acceptance closeout 与 blocker-aware phase completion。
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
@@ -227,6 +227,10 @@ Decision history now lives in `PROJECT.md` Key Decisions。
 
 ## Recent Verification
 
+- `pnpm --dir apps/app-api exec vitest run test/request-diagnostics.test.ts test/request-observability.test.ts test/operator-query.route.test.ts test/operator-query.service.test.ts test/supervisor-adapter.test.ts`
+- `pnpm --dir apps/app-api exec vitest run test/projection.service.test.ts`
+- `pnpm --dir apps/app-api exec tsc -p tsconfig.json --noEmit`
+- `uv run --all-packages --no-sync python -m unittest tests.evals.test_golden_cases tests.evals.test_runtime_observability tests.evals.test_curriculum_live_benchmark`
 - `pnpm --dir apps/app-api exec vitest run test/request-observability.test.ts test/supervisor-adapter.test.ts test/operator-query.route.test.ts test/chat-command.service.test.ts test/chat-requests.route.test.ts test/operator-query.service.test.ts test/shared-database-adoption.test.ts`
 - `pnpm --dir apps/app-api exec tsc --noEmit`
 - `uv run --all-packages --no-sync python -m unittest tests.contracts.test_models tests.evals.test_runtime_observability tests.evals.test_curriculum_live_benchmark tests.supervisor.test_supervisor_core tests.supervisor.test_supervisor_policy tests.specialist.test_rag_specialist tests.api.test_supervisor_api tests.api.test_supervisor_api_prompt_stack`

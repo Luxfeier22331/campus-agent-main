@@ -45,7 +45,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 12.2: Authenticated Notice Async Staged Closeout** - Rebuild historical closeout into an async staged pipeline with single-promoter deterministic promotion. (completed 2026-04-08)
 - [x] **Phase 13: 政治风险判定与幻觉控制硬化** - Harden product-path policy risk, out-of-scope classification, and evidence-grounded abstention semantics. (completed 2026-04-11)
 - [x] **Phase 14: 产品主链路 Prompt Stack 与 System Prompt Runtime 收口** - Freeze the repo-default prompt stack, provider-backed strict output runtime, prompt metadata sink, and deterministic protected-path regression truth. (completed 2026-04-12)
-- [ ] **Phase 15: 幻觉治理与 Grounded Generation 二次硬化** - Upgrade the current fail-closed baseline into a repo-default grounded-generation system with retrieval adequacy gating, provider-agnostic grounding runtime, expanded claim taxonomy, and release-gated artifact retention.
+- [ ] **Phase 15: 幻觉治理与 Grounded Generation 二次硬化** - Upgrade the current fail-closed baseline into a repo-default grounded-generation system with retrieval adequacy gating, provider-agnostic grounding runtime, expanded claim taxonomy, and release-gated artifact retention. (`15-01` to `15-03` completed; `15-04` pending)
 
 ## Phase Details
 
@@ -692,12 +692,12 @@ Plans:
   2. Prompt answer grounding no longer depends on a single provider shape; the runtime owns a provider-agnostic claim-support contract and can normalize provider-native citations/support into repo truth.
   3. Claim taxonomy expands beyond `title / time / requirement` to cover campus high-frequency assertions such as quantity/credit, semester placement, audience/major/program applicability, offering unit, procedure/material/deadline/eligibility, freshness, and authorization-sensitive claims.
   4. Eval, observability, and release-gate evidence can distinguish retrieval inadequacy, unsupported claims, clarification-required ambiguity, false refusal, and false allow regressions without relying on manual answer review.
-**Plans:** 2/4 plans complete; repo-level context is captured in `.planning/phases/15-grounded-generation/15-CONTEXT.md` and `.planning/phases/15-grounded-generation/15-RESEARCH.md`
+**Plans:** 3/4 plans complete; repo-level context is captured in `.planning/phases/15-grounded-generation/15-CONTEXT.md` and `.planning/phases/15-grounded-generation/15-RESEARCH.md`
 
 Plans:
 - [x] 15-01: Freeze retrieval adequacy contract, typed adequacy diagnostics, and clarification-instead-of-guess baseline.
 - [x] 15-02: Implement provider-agnostic grounding runtime, canonical claim-support schema, and expanded claim taxonomy.
-- [ ] 15-03: Extend eval, artifact retention, and app-api/operator observability for adequacy and claim-support summaries.
+- [x] 15-03: Extend eval, artifact retention, and app-api/operator observability for adequacy and claim-support summaries.
 - [ ] 15-04: Run focused verification, update planning truth, and close the phase with explicit blocker-aware acceptance notes.
 
 ## Backlog
