@@ -33,9 +33,9 @@ updated: 2026-04-12
 - `apps/supervisor-api` 是 internal execution engine
 - panel 不读数据库、不读 telemetry sink、不绕过 `app-api`
 
-## Current Accepted Surface Posture
+## Accepted Surface Shape
 
-当前 merged truth 下，产品/runtime 形态已经明确到以下粒度：
+产品/runtime supporting architecture 当前已经冻结到以下粒度：
 
 - `public-chat-web`
   - 已是公开产品入口，不再以旧 `public-consumer-chat` 为 forward truth
@@ -46,7 +46,10 @@ updated: 2026-04-12
   - 已同时承担 product backend 与 selected operator control-plane backend
   - `official_web` control plane 已是 accepted runtime domain，不再是旁路后台
 
-部署命名、Cloudflare Access 配置与 staging 细节不写在本文，统一看 runbooks。
+补充约束：
+
+- 当前 merged truth 以 `docs/architecture/current-architecture.md` 为准
+- 部署命名、Cloudflare Access 配置、staging 细节与 rollout closeout 证据不写在本文，统一看 runbooks 与 `.planning/`
 
 ## Surface Responsibilities
 
@@ -100,6 +103,8 @@ future operator-facing observability 域也遵循同一 ownership rule：
 - audit / quality / safety / cost surface 仍由 `apps/app-api` 物化与提供
 - panel 只能读取 runtime-owned projection / aggregate APIs
 - `Sentry`、`Axiom` 与其他 sink 继续只是 debugging / analysis / grading surface，不反向成为 canonical panel read model
+
+更完整的 operator observability supporting architecture 不在本文展开，统一看 `docs/architecture/operator-observability-architecture.md`。
 
 ## Protected Surface And Operator Access
 

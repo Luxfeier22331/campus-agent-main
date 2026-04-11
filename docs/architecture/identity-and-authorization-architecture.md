@@ -32,15 +32,15 @@ updated: 2026-04-12
 - 前四层由 `apps/app-api` 拥有 canonical truth
 - `institutional knowledge` 由 document / retrieval / evidence stack 拥有 canonical truth
 
-## Current Rollout Posture
+## Accepted Ownership Posture
 
-当前 merged truth 已经明确：
+identity / authz / memory supporting architecture 当前已经明确：
 
 - `apps/app-api` 是唯一 product-layer auth / session / principal owner
 - execution path 只消费 typed actor/context projection
 - retrieval path 只消费 authz projection carrier，不拥有最终 entitlement resolution
 
-当前仍未关闭、但已经有明确 owner 的工作包括：
+当前仍存在、但 owner 已明确的后续工作包括：
 
 - restricted document rollout
 - memory / personalization productization
@@ -52,6 +52,7 @@ updated: 2026-04-12
 
 - identity / restricted foundation 本身已在 Phase 11 收口
 - 当前若继续推进这条域，默认应把 rollout / sunset 看作 deferred follow-up，而不是重新打开 foundation ownership 讨论
+- 当前 active/deferred lifecycle 与 pending work 统一看 `docs/domains/identity-authz-memory.md`、`.planning/PROJECT.md` 与 `.planning/STATE.md`
 
 ## Ownership Model
 
@@ -133,5 +134,6 @@ operator access 也属于 authz truth 的一部分，但 protected surface 的 r
 
 ## 相关稳定文档
 
+- `docs/domains/identity-authz-memory.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`

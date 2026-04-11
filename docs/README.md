@@ -87,6 +87,17 @@ updated: 2026-04-12
 - 判断某件事如何操作，看 `runbooks/`
 - 判断某份计划是否仍然有效，看 `plans/README.md`
 
+重复控制规则：
+
+- `architecture/current-architecture.md`
+  - 只回答“当前 merged truth 是什么”
+- 其他 supporting architecture
+  - 只解释边界、ownership 与长期形态，不重复维护 phase 状态或 closeout 证据
+- `contracts/`、`data/`
+  - 只维护接口、schema 与 ownership reference，不承担当前执行状态说明
+- `.planning/PROJECT.md`、`.planning/STATE.md`
+  - 只维护当前 active lane、pending work 与 worktree-local continuity
+
 ## 状态语义
 
 YAML front matter 统一保留，但不同文档类型使用不同状态集。
