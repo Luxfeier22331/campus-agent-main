@@ -41,11 +41,25 @@ updated: 2026-04-11
 当前聚合字段：
 
 - `source_notice_ids`
+- `source_notice_document_ids`
 - `source_document_ids`
 - `source_parent_document_ids`
+- `source_attachment_document_ids`
 - `source_attachment_ref_ids`
 - `source_attachment_sha256s`
+- `semantic_owner_document_ids`
 - `duplicate_source_document_ids`
+
+### 2.5 provenance 必须显式区分 notice 层和 owner 文档层
+
+固定要求：
+
+- `notice` 只作为来源层，不得冒充 `regulation` 的正文 owner
+- promoted regulation metadata 必须显式保留：
+  - `source_notice_document_id`
+  - `semantic_owner_document_id`
+- attachment-backed regulation 中，这两个字段不得相同
+- notice-body regulation 中，`semantic_owner_document_id` 可以等于 `source_notice_document_id`
 
 ### 3. Target materialization 当前必须 stop 在 `offline_preparation`
 

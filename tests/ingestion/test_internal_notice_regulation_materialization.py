@@ -449,17 +449,46 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
             ],
         )
         self.assertEqual(first_guidance_metadata["promotion_source_collection"], "campus_notices/internal_notice")
+        self.assertEqual(
+            first_guidance_metadata["source_notice_document_id"],
+            "notice:muc_internal_portal:100001",
+        )
+        self.assertEqual(
+            first_guidance_metadata["source_notice_document_ids"],
+            [
+                "notice:muc_internal_portal:100001",
+                "notice:muc_internal_portal:100002",
+            ],
+        )
+        self.assertEqual(
+            first_guidance_metadata["source_attachment_document_id"],
+            "notice_attachment:muc_internal_portal:100001:attachment-0001",
+        )
+        self.assertEqual(
+            first_guidance_metadata["semantic_owner_document_id"],
+            "notice_attachment:muc_internal_portal:100001:attachment-0001",
+        )
         self.assertEqual(first_guidance_metadata["source_attachment_ref_id"], "attachment-0001")
         self.assertEqual(first_guidance_metadata["source_attachment_ref_ids"], ["attachment-0001"])
+        self.assertEqual(first_guidance_metadata["semantic_owner_kind"], "attachment_document")
         self.assertTrue(guidance_record.is_current)
 
         regulation_rows = _document_rows(uploads_by_key[regulation_record.document_units_object_key or ""])
         regulation_metadata = regulation_rows[0]["metadata"]
         self.assertEqual(regulation_metadata["source_notice_ids"], ["100003"])
         self.assertEqual(
+            regulation_metadata["source_notice_document_id"],
+            "notice:muc_internal_portal:100003",
+        )
+        self.assertEqual(
             regulation_metadata["source_parent_document_id"],
             "notice:muc_internal_portal:100003",
         )
+        self.assertEqual(
+            regulation_metadata["semantic_owner_document_id"],
+            "notice:muc_internal_portal:100003",
+        )
+        self.assertEqual(regulation_metadata["semantic_owner_kind"], "notice_body")
         self.assertEqual(regulation_metadata["effective_date"], "2026年2月1日")
         self.assertEqual(regulation_metadata["revision_signal"], "修订")
         self.assertTrue(regulation_record.is_current)
@@ -478,6 +507,140 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
         self.assertTrue(regulation_markdown.startswith("# 中央民族大学实验室安全管理规定"))
         self.assertNotIn("特此通知", regulation_markdown)
         self.assertIn("第一条 为加强实验室安全管理", regulation_markdown)
+
+    def test_materialize_from_internal_notice_scope_preserves_document_nature_for_contextual_regulations(self) -> None:
+        materialize = getattr(
+            regulation_materialization,
+            "materialize_institutional_regulations_from_internal_notice_scope",
+            None,
+        )
+        self.assertIsNotNone(materialize)
+        if materialize is None:
+            return
+
+        annual_parent = _record(
+            document_id="notice:muc_internal_portal:200005",
+            source_uri="https://portal.example.edu/notices/200005",
+            canonical_key="campus_notices/documents/internal_notice/200005/canonical.md",
+            units_key="campus_notices/documents/internal_notice/200005/document-units.jsonl",
+            content_hash="sha256:parent-200005",
+            is_current=True,
+        )
+        temporary_parent = _record(
+            document_id="notice:muc_internal_portal:200003",
+            source_uri="https://portal.example.edu/notices/200003",
+            canonical_key="campus_notices/documents/internal_notice/200003/canonical.md",
+            units_key="campus_notices/documents/internal_notice/200003/document-units.jsonl",
+            content_hash="sha256:parent-200003",
+            is_current=True,
+        )
+        registry = InMemoryDocumentRegistry((annual_parent, temporary_parent))
+        raw_asset_registry = InMemoryRawAssetRegistry(())
+        inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+        inventory_store.upsert_many(
+            (
+                _inventory_entry(
+                    notice_id="200005",
+                    notice_title="中央民族大学2026年“英才计划”硕博连读研究生招生实施细则",
+                    published_date="2025-12-16",
+                ),
+                _inventory_entry(
+                    notice_id="200003",
+                    notice_title="中央民族大学丰台校区就医管理办法（暂行）",
+                    published_date="2021-09-01",
+                ),
+            )
+        )
+        object_store = _FakeObjectStore(
+            objects={
+                ("campus-rag-derived", annual_parent.canonical_markdown_object_key): _canonical_markdown(
+                    "# 中央民族大学2026年“英才计划”硕博连读研究生招生实施细则\n\n"
+                    "第一条 为规范2026年“英才计划”硕博连读研究生招生工作，制定本细则。\n"
+                    "第二条 报名时间为2025年12月10日至2026年1月10日。\n"
+                ),
+                ("campus-rag-derived", temporary_parent.canonical_markdown_object_key): _canonical_markdown(
+                    "# 中央民族大学丰台校区就医管理办法（暂行）\n\n"
+                    "第一条 为规范丰台校区就医管理，制定本办法。\n"
+                    "第二条 正式运营前由临时医疗点负责首诊，正式运营后取消本过渡安排。\n"
+                ),
+                ("campus-rag-derived", annual_parent.document_units_object_key): _document_units(
+                    [
+                        {
+                            "doc_id": annual_parent.document_id,
+                            "version_id": annual_parent.version_id,
+                            "chunk_id": "row-0001",
+                            "clean_text": "中央民族大学2026年“英才计划”硕博连读研究生招生实施细则",
+                            "source_url": annual_parent.source_uri,
+                            "page_start": 1,
+                            "page_end": 2,
+                            "entitlement_groups": ["campus_members"],
+                            "visibility_scope": "campus",
+                            "visibility_level": "restricted",
+                            "policy_projection_version": "phase1-authorization-projection-v1",
+                            "metadata": {"title": "中央民族大学2026年“英才计划”硕博连读研究生招生实施细则"},
+                        }
+                    ]
+                ),
+                ("campus-rag-derived", temporary_parent.document_units_object_key): _document_units(
+                    [
+                        {
+                            "doc_id": temporary_parent.document_id,
+                            "version_id": temporary_parent.version_id,
+                            "chunk_id": "row-0001",
+                            "clean_text": "中央民族大学丰台校区就医管理办法（暂行）",
+                            "source_url": temporary_parent.source_uri,
+                            "page_start": 3,
+                            "page_end": 4,
+                            "entitlement_groups": ["campus_members"],
+                            "visibility_scope": "campus",
+                            "visibility_level": "restricted",
+                            "policy_projection_version": "phase1-authorization-projection-v1",
+                            "metadata": {"title": "中央民族大学丰台校区就医管理办法（暂行）"},
+                        }
+                    ]
+                ),
+            }
+        )
+
+        report = materialize(
+            env={
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                "OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source",
+                "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                "EMBEDDING_PROVIDER": "mock",
+                "EMBEDDING_MODEL": "mock-embedding-8d",
+                "SPARSE_PROVIDER": "mock",
+            },
+            object_store=object_store,
+            registry=registry,
+            raw_asset_registry=raw_asset_registry,
+            source_truth_inventory_store=inventory_store,
+        )
+
+        self.assertEqual(report.promotion_candidate_count, 2)
+        self.assertEqual(report.materialized_document_count, 2)
+        target_records = registry.list_by_scope("regulations", "institutional_regulations")
+        self.assertEqual(len(target_records), 2)
+
+        uploads_by_key = {
+            str(upload["key"]): upload for upload in object_store.uploads if str(upload["key"]).endswith(".jsonl")
+        }
+        metadata_by_title = {}
+        for record in target_records:
+            rows = _document_rows(uploads_by_key[record.document_units_object_key or ""])
+            metadata_by_title[rows[0]["metadata"]["title"]] = rows[0]["metadata"]
+
+        annual_metadata = metadata_by_title["中央民族大学2026年“英才计划”硕博连读研究生招生实施细则"]
+        self.assertEqual(annual_metadata["document_nature"], "annual_cycle_rule")
+        self.assertEqual(annual_metadata["promotion_class"], "formal_regulation")
+        self.assertEqual(annual_metadata["source_notice_ids"], ["200005"])
+
+        temporary_metadata = metadata_by_title["中央民族大学丰台校区就医管理办法（暂行）"]
+        self.assertEqual(temporary_metadata["document_nature"], "time_bound_operational_rule")
+        self.assertEqual(temporary_metadata["promotion_class"], "formal_regulation")
+        self.assertEqual(temporary_metadata["source_notice_ids"], ["200003"])
 
 
 if __name__ == "__main__":

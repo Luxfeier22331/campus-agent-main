@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-03
-updated: 2026-04-10
+updated: 2026-04-12
 ---
 
 # Authenticated Notice Source Architecture
@@ -172,11 +172,60 @@ collector runtime 的第一 owner 固定为 repo 内独立 `apps/*` runtime shel
 
 - `regulations/institutional_regulations`
 
-但这条命名与边界目前仍是 architecture truth，不表示当前 merged truth 已经存在对应 collection scaffold 或 release path。
+对当前 internal notice 派生制度导入批次，固定补充规则为：
+
+- `document_nature=institutional_regulation / annual_cycle_rule / time_bound_operational_rule` 都可以进入同一个 `regulations/institutional_regulations`
+- `annual_cycle_rule` 与 `time_bound_operational_rule` 只作为 metadata 区分，不再因为时间范围或项目范围而被分流到另一条主导入 collection
+- 真正继续留在 `campus_notices/internal_notice` 的，仍然是 `wrapper_notice_only`、draft/consultation、明确非制度 owner 的 source-triage 结果
+
+这条 promotion boundary 不要求把当前批次再拆成多个 regulation collection；原始 notice 继续作为 canonical upstream provenance 保留。
 
 对应决策见：
 
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
+
+## Semantic Owner Resolution
+
+对当前 `internal_notice -> regulations/institutional_regulations` 导入批次，固定再补一层 `semantic owner` 解析。
+
+这层回答的不是：
+
+- 这条 notice 现在值不值得优先处理
+- 这份附件应该走哪条 extraction lane
+
+它只回答：
+
+- 当前可独立消费的制度正文，究竟来自哪一层对象
+
+第一版固定 owner 类型：
+
+- `notice_body`
+  - parent notice 正文自身已经是完整制度正文
+- `attachment_document`
+  - 制度正文在 notice 附件 child document 中
+- `file_release_document`
+  - notice 只是发布/实施说明，真实正文在门户文件发布页或等价外部 owner
+
+固定规则：
+
+- `notice family` 只控制处理优先级，不决定 semantic owner
+- `attachment typed routing` 只控制提取路径，不决定 semantic owner
+- 只有 owner 已恢复出的 canonical 正文，才允许进入 `regulations/institutional_regulations`
+- wrapper notice 永远继续保留在 `campus_notices/internal_notice`
+
+当前批次固定采用 fail-close：
+
+- 如果 parent notice 正文明确出现 `附件：`、`参见《…》附件`、`信息门户-文件发布`、`自行下载参照执行` 一类 owner 指向信号
+- 但 source-truth / child document 还没有恢复出对应 attachment owner 或 file-release owner
+- 则结果必须是 `manual_review_required`
+- 不得把这类 parent notice body 直接 promote 成 regulation 正文
+
+这层解析结果必须作为显式 metadata 落盘，而不是在后置阶段重新猜测。当前第一版固定字段为：
+
+- `semantic_owner_kind`
+- `owner_source_missing_reason`
+
+如果 source-truth import 当下还没有恢复出真实 `attachment_ref` / `file_release` relation，但正文已经明确给出 `附件：...`、`见信息门户-文件发布` 一类 owner 指向信号，则必须先把这类信号保留为 source-level `owner_expectations` extension fields，再由 promotion boundary fail-close。它们不是 attachment truth，也不能替代 child document；它们只是 upstream owner recovery contract，避免 source-truth 在 relation 缺失时把“应当存在的制度 owner”完全丢掉。
 
 ## Offline Attachment Consumption
 
@@ -301,6 +350,7 @@ Phase 12.2 已把 authenticated notice historical closeout 重构为 async stage
 - 不让 collector 直接写 document registry、chunk 或 index
 - 不让 restricted rollout 依赖 prompt-only 软约束
 - 不把 wrapper notice 或 source-channel triage rows 直接写进 `regulations/*`
+- 不把“正文提到附件/文件发布，但 owner source 缺失”的 notice body 误当成 regulation canonical text
 
 ## 相关稳定文档
 

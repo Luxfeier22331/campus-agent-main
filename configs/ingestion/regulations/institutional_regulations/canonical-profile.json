@@ -8,7 +8,7 @@
   "structured_source": "promoted_document_units_jsonl",
   "notes": [
     "This collection stores canonical regulation text only, not source-channel wrapper notices.",
-    "Provenance must preserve source_notice_ids, source_parent_document_id, and source_attachment_ref_id when promotion originates from internal_notice.",
+    "Provenance must preserve source_notice_ids and explicitly separate source_notice_document_id from semantic_owner_document_id when promotion originates from internal_notice.",
     "The target collection is source-channel-agnostic: future canonical regulation sources may promote into the same collection."
   ]
 }

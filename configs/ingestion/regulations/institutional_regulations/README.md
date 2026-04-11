@@ -21,9 +21,10 @@ Current runtime truth:
 
 Collection boundary:
 
-- this collection only accepts canonical regulation text or stable normative handbook text
+- this collection accepts regulation-owned canonical text promoted from source-triage layers
+- promoted documents may still carry `document_nature` such as `institutional_regulation`, `annual_cycle_rule`, or `time_bound_operational_rule`
 - wrapper notices remain in `campus_notices/internal_notice`
-- promotion must preserve provenance back to source notice ids and attachment refs
+- promotion must preserve provenance back to source notice ids while explicitly separating `source_notice_document_id` from `semantic_owner_document_id`
 
 Current scaffold note:
 
@@ -39,3 +40,4 @@ Current materialization truth:
 - target `document_id` is derived from `regulation_title_normalized + issuing_org + semantic scope`, not from `notice_id`
 - duplicate wrapper/attachment notices that resolve to the same canonical regulation keep one promoted target document while aggregating duplicate provenance in metadata
 - scope refresh replaces the full `regulations/institutional_regulations` registry scope on each materialization run
+- current internal-notice batch does not split regulation-like text into a second main collection purely because it is annual-cycle or time-bound; those distinctions stay in metadata

@@ -22,6 +22,8 @@ def _candidate_document() -> InternalNoticeRegulationCandidateArtifactDocument:
         revision_track="source-faithful",
         version_id="sha256:28f8bcec3c1c38b9cec0304beb4de9c6c63424be4b3990c577a1c7ea5dcd7719",
         promotion_class="formal_regulation",
+        document_nature="institutional_regulation",
+        semantic_owner_kind="notice_body",
         target_corpus="regulations",
         target_collection="institutional_regulations",
         regulation_title_normalized="中央民族大学采购工作管理办法",
@@ -97,6 +99,15 @@ class InternalNoticeRegulationProjectionTest(unittest.TestCase):
             ["二、采购注意事项", "（一）采购意向公示要求"],
         )
         self.assertEqual(rows[7]["anchor"]["provision_label"], "1.")
+        self.assertEqual(rows[0]["metadata"]["semantic_owner_kind"], "notice_body")
+        self.assertEqual(
+            rows[0]["metadata"]["source_notice_document_id"],
+            "notice:muc_internal_portal:187233",
+        )
+        self.assertEqual(
+            rows[0]["metadata"]["semantic_owner_document_id"],
+            "notice:muc_internal_portal:187233",
+        )
 
 
 if __name__ == "__main__":

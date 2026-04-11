@@ -19,6 +19,17 @@ AUTHENTICATED_NOTICE_SOURCE_CHANNEL = "authenticated_notice_portal"
 AUTHENTICATED_NOTICE_MANIFEST_SCHEMA = "authenticated_notice_manifest_v1"
 AUTHENTICATED_NOTICE_BLOCK_SCHEMA = "authenticated_notice_block_v1"
 AUTHENTICATED_NOTICE_ATTACHMENT_REF_SCHEMA = "authenticated_notice_attachment_ref_v1"
+_ATTACHMENT_REFERENCE_KEYWORDS = ("附件：", "附件:", "见附件", "详见附件", "参见附件")
+_FILE_RELEASE_REFERENCE_KEYWORDS = (
+    "信息门户-文件发布",
+    "文件发布",
+    "自行下载",
+    "下载参照执行",
+    "下载后参照执行",
+)
+_WRAPPER_NOTICE_PREFIXES = ("关于发布", "关于印发", "关于修订", "关于转发", "关于公布")
+_WRAPPER_NOTICE_KEYWORDS = ("通知", "现将", "予以发布", "予以印发", "请遵照执行", "转发")
+_QUOTE_TITLE_RE = re.compile(r"《([^》]{2,200})》")
 
 _HTML_BLOCK_RE = re.compile(r"<(h[1-6]|p|li|table)\b[^>]*>(.*?)</\1>", re.IGNORECASE | re.DOTALL)
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
@@ -321,6 +332,11 @@ def _build_source_truth_artifacts(
     attachment_refs: tuple[dict[str, Any], ...],
 ) -> dict[str, bytes]:
     category_pairs = _category_pairs(notice)
+    owner_expectations = _build_owner_expectations(
+        title=title,
+        content_blocks=content_blocks,
+        attachment_refs=attachment_refs,
+    )
     notice_manifest = {
         "schema_version": AUTHENTICATED_NOTICE_MANIFEST_SCHEMA,
         "source_channel": AUTHENTICATED_NOTICE_SOURCE_CHANNEL,
@@ -354,6 +370,8 @@ def _build_source_truth_artifacts(
         "block_count": len(content_blocks),
         "link_count": sum(1 for row in content_blocks if row.get("block_role") == "link"),
         "attachment_ref_count": len(attachment_refs),
+        "owner_expectation_count": len(owner_expectations),
+        "owner_expectations": [dict(item) for item in owner_expectations],
     }
     return {
         "source-truth/notice-manifest.json": _json_bytes(notice_manifest),
@@ -489,6 +507,135 @@ def _build_attachment_refs(
             }
         )
     return tuple(rows)
+
+
+def _build_owner_expectations(
+    *,
+    title: str,
+    content_blocks: tuple[dict[str, Any], ...],
+    attachment_refs: tuple[dict[str, Any], ...],
+) -> tuple[dict[str, Any], ...]:
+    if attachment_refs:
+        return ()
+    title_hint = _extract_quoted_title(title)
+    body_lines = _body_lines_for_owner_expectations(content_blocks)
+    combined_body = "\n".join(body_lines)
+    wrapper_like = _looks_like_wrapper_notice(title=title, body=combined_body)
+    rows: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str, str]] = set()
+
+    def append_expectation(
+        *,
+        owner_kind: str,
+        relation_type: str,
+        evidence_reason: str,
+        owner_title_hint: str | None,
+        evidence_text: str,
+    ) -> None:
+        normalized_title_hint = _optional_text(owner_title_hint) or ""
+        normalized_evidence_text = _optional_text(evidence_text) or ""
+        dedupe_key = (
+            owner_kind,
+            relation_type,
+            normalized_title_hint,
+            normalized_evidence_text,
+        )
+        if dedupe_key in seen:
+            return
+        seen.add(dedupe_key)
+        rows.append(
+            {
+                "owner_expectation_id": f"owner-expectation-{len(rows) + 1:04d}",
+                "owner_kind": owner_kind,
+                "relation_type": relation_type,
+                "evidence_reason": evidence_reason,
+                "owner_title_hint": _optional_text(owner_title_hint),
+                "evidence_text": normalized_evidence_text,
+            }
+        )
+
+    for line in body_lines:
+        if _looks_like_attachment_owner_signal(line):
+            append_expectation(
+                owner_kind="attachment_document",
+                relation_type="attachment_ref",
+                evidence_reason="attachment_anchor_detected",
+                owner_title_hint=_extract_owner_title_hint(line) or title_hint,
+                evidence_text=line,
+            )
+            continue
+        if _looks_like_file_release_reference(line) and (wrapper_like or title_hint):
+            append_expectation(
+                owner_kind="file_release_document",
+                relation_type="file_release_ref",
+                evidence_reason="file_release_reference_detected",
+                owner_title_hint=_extract_owner_title_hint(line) or title_hint,
+                evidence_text=line,
+            )
+
+    return tuple(rows)
+
+
+def _body_lines_for_owner_expectations(
+    content_blocks: tuple[dict[str, Any], ...],
+) -> tuple[str, ...]:
+    lines: list[str] = []
+    for block in content_blocks:
+        if str(block.get("block_role") or "") == "title":
+            continue
+        text = str(block.get("text_raw") or block.get("text_normalized") or "").strip()
+        if not text:
+            continue
+        for line in text.splitlines():
+            normalized_line = _optional_text(line)
+            if normalized_line is not None:
+                lines.append(normalized_line)
+    return tuple(lines)
+
+
+def _looks_like_attachment_owner_signal(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped or "附件" not in stripped:
+        return False
+    return stripped.startswith("附件") or any(
+        keyword in stripped for keyword in _ATTACHMENT_REFERENCE_KEYWORDS
+    )
+
+
+def _looks_like_file_release_reference(line: str) -> bool:
+    stripped = line.strip()
+    return bool(stripped) and any(
+        keyword in stripped for keyword in _FILE_RELEASE_REFERENCE_KEYWORDS
+    )
+
+
+def _looks_like_wrapper_notice(*, title: str, body: str) -> bool:
+    combined = "\n".join(item for item in (title, body) if item)
+    if any(title.startswith(prefix) for prefix in _WRAPPER_NOTICE_PREFIXES):
+        return True
+    return any(keyword in combined for keyword in _WRAPPER_NOTICE_KEYWORDS)
+
+
+def _extract_owner_title_hint(value: str) -> str | None:
+    quoted_title = _extract_quoted_title(value)
+    if quoted_title is not None:
+        return quoted_title
+    stripped = value.strip()
+    if not stripped.startswith("附件"):
+        return None
+    remainder = re.sub(r"^附件\s*\d*\s*[:：]?\s*", "", stripped).strip()
+    remainder = remainder.strip("：:。；;，, ")
+    return _optional_text(remainder)
+
+
+def _extract_quoted_title(value: str | None) -> str | None:
+    text = _optional_text(value)
+    if text is None:
+        return None
+    match = _QUOTE_TITLE_RE.search(text)
+    if match is None:
+        return None
+    return _optional_text(match.group(1))
 
 
 def _build_canonical_markdown(

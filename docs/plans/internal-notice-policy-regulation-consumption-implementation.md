@@ -240,6 +240,35 @@ Azure AI Search 官方文档把 freshness 建模为 scoring profile 中的可选
 
 - 从已经通过 replay / extraction / quality gate 的 `internal_notice` canonical documents 中，筛出真正应该提升为正式制度正文的文档
 
+这一层固定先做 `semantic owner` 解析，再做 promotion 判定。
+
+第一版 owner 类型固定为：
+
+- `notice_body`
+  - parent notice 正文自身就是完整制度正文
+- `attachment_document`
+  - 制度正文在 attachment child document 中
+- `file_release_document`
+  - notice 只是发布/实施说明，真实正文在门户文件发布页或等价 owner 中
+
+第一版显式 metadata 字段固定为：
+
+- `semantic_owner_kind`
+- `owner_source_missing_reason`
+
+为避免 source-truth/import 在 attachment relation 缺失时把 owner 信号直接丢失，当前实现再固定补一层 source-level extension：
+
+- `owner_expectation_count`
+- `owner_expectations`
+
+它们只保留“制度 owner 应存在但 relation 尚未恢复”的证据，不伪造 attachment rows；promotion 层优先消费这层显式 owner expectation，再决定是否进入 `manual_review_required`。
+
+固定禁止：
+
+- 用 `policy_regulation` family 直接替代 owner 判断
+- 用 attachment lane 直接替代 owner 判断
+- 在 owner 缺失时，把 wrapper notice body 直接 promote 成 regulation
+
 这层的 architecture boundary 已由 ADR-0035 冻结；当前 repo-tracked implementation 仍待补齐。
 
 ### Layer 4: Regulations Collection
@@ -310,9 +339,9 @@ Azure AI Search 官方文档把 freshness 建模为 scoring profile 中的可选
 - 它们更像 restricted operational context，而不是长期稳定制度正文
 - 这可以避免把 notice corpus 里的“年度流程性文件”过早混进正式 regulation corpus
 
-### 第二层补充：哪些 manual-review 是“当前 owner 未开放”，而不是“文本不清楚”
+### 第二层补充：哪些 regulation-like 文本需要 metadata 区分，而不是改走另一条 collection
 
-当前已完成裁决的 `manual_review_required`，要再细分成两类语义明确的 downstream bucket：
+当前已完成裁决的 regulation-like 文本，需要额外区分两类 `document_nature`：
 
 - `annual_cycle_rule`
   - 年度/项目制招生、推免、硕博连读、英才计划实施细则
@@ -322,22 +351,12 @@ Azure AI Search 官方文档把 freshness 建模为 scoring profile 中的可选
 
 固定结论：
 
-- 这两类当前不进入 `regulations/institutional_regulations`
-- 但它们也不是“语义不明文档”
-- 当前正确去向改为：
-  - 导入统一 holding collection `regulations/scoped_rules`
+- 这两类不再因为“年度 / 过渡 / 时段性”就被排除出 `regulations/institutional_regulations`
+- 它们仍然是规章制度正文，只是需要在 target-side metadata 中显式保留 `document_nature`
+- 当前批次的导入目标固定统一为：
+  - `regulations/institutional_regulations`
   - 保持 `offline_preparation + query_disabled`
-
-这一点已由：
-
-- `docs/decisions/adr-0036-notice-derived-non-regulation-rule-boundary.md`
-- `docs/reference/internal-notice-manual-review-collection-strategy.md`
-- `docs/reference/internal-notice-manual-review-future-query-contract.md`
-
-共同冻结；其中 ADR-0037 进一步明确：
-
-- 详细 query semantics 不是当前 import gate
-- 当前首要目标是先把 canonical scoped rule text 导入统一下游 collection
+- 后续如果真的要做更细的 retrieval / answering 策略，应基于 `document_nature`、`published_date`、`effective_date` 等 metadata 做 query-time/ranking-time 处理，而不是在 import gate 先拆 collection
 
 ### 当前 read-only promotion guardrails
 
@@ -345,12 +364,14 @@ Azure AI Search 官方文档把 freshness 建模为 scoring profile 中的可选
 
 - `notice_body` 只有在正文本体具备独立制度结构时，才允许进入 `promote_candidate`
 - `关于发布/印发/实施...的通知` 这类 wrapper 标题，如果正文只是摘要、施行说明或附件指向，即使出现制度名，也继续保留在 `internal_notice`
+- parent notice 正文如果明确出现 `附件：`、`参见《…》附件`、`信息门户-文件发布`、`自行下载参照执行` 一类 owner 指向信号，但当前 source-truth / child document 里还没有恢复出对应 owner source，则必须 fail-close 为 `manual_review_required`
 - 文档发布时间老旧，不构成 standalone exclusion signal
 - `暂行/试行` 不单独触发 `manual_review_required`
-- 招生/推免/硕博连读/英才计划这类年度或项目制规则，当前继续落到 `manual_review_required`
-- 假期规定、正式运营前、临时医疗点等正文内出现明确临时/过渡语义的运营规则，当前继续落到 `manual_review_required`
+- 招生/推免/硕博连读/英才计划这类年度或项目制规则，当前可以进入 `promote_candidate`，但 target-side 必须带 `document_nature=annual_cycle_rule`
+- 假期规定、正式运营前、临时医疗点等正文内出现明确临时/过渡语义的运营规则，当前可以进入 `promote_candidate`，但 target-side 必须带 `document_nature=time_bound_operational_rule`
 - source-truth inventory 已声明存在 attachment projection，但当前 scope snapshot 缺少对应 child document 时，结果必须是 `manual_review_required`
-- parent-body 候选继续保留 `source_parent_document_id` 和 `source_notice_ids` provenance；`source_attachment_ref_id/source_attachment_sha256` 只对 attachment-derived 候选强制要求
+- parent-body 候选继续保留 `source_parent_document_id` 和 `source_notice_ids` provenance；同时 target-side provenance 需要显式区分 `source_notice_document_id` 与 `semantic_owner_document_id`
+- `source_attachment_ref_id/source_attachment_sha256` 只对 attachment-derived 候选强制要求
 
 这组 guardrail 的目的不是完成最终 promotion contract，而是先防止两类已确认的错误：
 
@@ -358,37 +379,19 @@ Azure AI Search 官方文档把 freshness 建模为 scoring profile 中的可选
 - 因为文档老旧或标题含 `暂行/试行` 就把真实仍在生效的校内制度错误排除
 - 在输入快照不完整时给出看似确定的 hold/candidate 结论
 
-### 为什么现在改为新增统一 holding collection
+### 为什么当前批次收口到单一 regulation collection
 
-当前 repo 改为新增 `regulations/scoped_rules` 的 repo-tracked collection scaffold。
-
-原因固定为：
-
-- 当前 source-side adjudication 已足够支撑 import-first 导入
-- 当前目标是尽快把 canonical 文本从 `internal_notice` 继续推进到 semantic-owner collection
-- `scoped_rules` 仍保持 `offline_preparation + query_disabled`，不会误写成已开放 query-serving
+当前 repo 对 internal notice 派生制度的首要目标，是尽快把“已经能作为制度正文消费”的文本从 source-triage 层提升到 regulation owner 层。
 
 因此当前正确动作是：
 
-- 先导入统一 holding collection
-- 先补 materialization / local-only chunk acceptance
-- 把详细 query semantics 后置到 query-serving reopen
-
-当前这条线的 repo-local 现状已经推进到：
-
-- `materialize_internal_notice_scoped_rules` 已落地
-- `prepare_scoped_rule_chunks` 已落地
-- Cohort A 的 local-only acceptance 已在 isolated snapshot root 上通过：
-  - `scoped_rule_candidate_count = 10`
-  - `materialized_document_count = 9`
-  - `prepared_document_count = 9`
-  - `total_chunk_count = 305`
-  - hard gate 全部通过
-  - `short_body_chunk_count = 29` 暂记为 soft observation
+- 统一 materialize 到 `regulations/institutional_regulations`
+- 用 `document_nature` 标记 `institutional_regulation / annual_cycle_rule / time_bound_operational_rule`
+- 把 query-time 的细粒度分流、比较、时效性判断后置，不在当前 import gate 过早拆 collection
 
 这里新增一条 operator 约束：
 
-- 不直接把历史 `local-smoke/object-store` 根目录当作 scoped-rules acceptance 输出根
+- 不直接把历史 `local-smoke/object-store` 根目录当作 acceptance 输出根
 - local-only acceptance 应复制 source snapshot 后在 isolated root 中写入 target-side preview artifacts
 
 ## 附件与文件类型策略
@@ -470,9 +473,12 @@ Azure AI Search 官方文档把 freshness 建模为 scoring profile 中的可选
 - `promotion_class`
 - `promotion_source_collection=campus_notices/internal_notice`
 - `source_notice_ids`
+- `source_notice_document_id`
 - `source_parent_document_id`
+- `source_attachment_document_id`
 - `source_attachment_ref_id`
 - `source_attachment_sha256`
+- `semantic_owner_document_id`
 - `source_notice_release_time`
 - `regulation_title_normalized`
 - `issuing_org`
@@ -512,9 +518,12 @@ Azure AI Search 官方文档把 freshness 建模为 scoring profile 中的可选
     - `source_kind`
     - `promotion_class`
     - `source_notice_release_time`
+    - `source_notice_document_id`
     - `source_parent_document_id`
+    - `source_attachment_document_id`
     - `source_attachment_ref_id`
     - `source_attachment_sha256`
+    - `semantic_owner_document_id`
     - `issuing_org`
     - `effective_date`
     - `revision_signal`
@@ -543,6 +552,7 @@ Azure AI Search 官方文档把 freshness 建模为 scoring profile 中的可选
 - source-truth provenance 必须先显式保留到 candidate artifact
 - cleaned body 必须先固化，再进入后续 chunk-prep
 - regulation promotion 不能把“分类判断”“正文清洗”“chunk 输入”混成一次性内存结果
+- parent notice / attachment child / promoted regulation 必须继续保留为三层不同对象；notice provenance 只下沉为 metadata，不回混成 regulation 正文
 
 ### Local-Only Candidate Chunk Prep Contract
 

@@ -466,6 +466,7 @@ def _build_projection_metadata(
         "semantic_content_hash": semantic_content_hash,
         "content_kind": "institutional_regulation",
         "content_role": aggregation.primary_candidate.promotion_class,
+        "semantic_owner_kind": aggregation.primary_candidate.semantic_owner_kind,
         "is_answer_bearing": True,
         "projection_name": "internal_notice_regulation_promotion",
         "derived_from": "internal_notice_canonical_document",

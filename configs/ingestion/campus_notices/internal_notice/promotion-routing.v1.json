@@ -51,10 +51,10 @@
       "description": "Stable institutional regulation or normative handbook text that can stand on its own in regulations/institutional_regulations."
     },
     "annual_cycle_rule": {
-      "description": "Year-scoped, batch-scoped, or program-scoped rules such as admissions, recommendation, or selection procedures. These stay out of institutional_regulations even if the text is well-structured."
+      "description": "Year-scoped, batch-scoped, or program-scoped regulation text such as admissions, recommendation, or selection procedures. These still import into regulations/institutional_regulations for the current batch, but must keep document_nature metadata for downstream handling."
     },
     "time_bound_operational_rule": {
-      "description": "Operational rules tied to seasonal, transitional, or explicitly temporary operating conditions. Provisional wording alone is insufficient; the body must carry temporary or sunset semantics."
+      "description": "Operational rules tied to seasonal, transitional, or explicitly temporary operating conditions. These still import into regulations/institutional_regulations for the current batch, but must keep document_nature metadata for downstream handling. Provisional wording alone is insufficient; the body must carry temporary or sunset semantics."
     },
     "wrapper_notice": {
       "description": "Publication wrapper or forwarding notice that points at a regulation body but is not itself the canonical regulation text."
@@ -77,6 +77,7 @@
   "required_promotion_metadata": [
     "promotion_class",
     "promotion_source_collection",
+    "semantic_owner_kind",
     "source_notice_ids",
     "source_parent_document_id",
     "source_attachment_ref_id",
@@ -100,7 +101,7 @@
     "source_attachment_ref_id and source_attachment_sha256 are attachment-derived provenance fields; parent-body candidates may keep them null.",
     "Document age is not a standalone exclusion or downgrade signal for campus regulations.",
     "暂行 or 试行 is not by itself a draft, expired, or manual-review signal.",
-    "Exclude from institutional_regulations only when the body shows annual-cycle/program specificity, wrapper semantics, or explicit temporary/sunset operations.",
-    "Annual-cycle and time-bound operational documents remain in campus_notices/internal_notice until a dedicated semantic-owner surface is explicitly opened."
+    "Exclude from institutional_regulations only when the body remains wrapper-only, draft/consultation, operational-scheme-like, or otherwise lacks promotable canonical regulation text.",
+    "Annual-cycle and time-bound operational documents currently import into the same institutional_regulations collection and are distinguished by document_nature metadata rather than a separate main collection."
   ]
 }

@@ -40,6 +40,14 @@ _NORMATIVE_HANDBOOK_KEYWORDS = ("手册", "应知应会", "工作手册")
 _WRAPPER_NOTICE_PREFIXES = ("关于发布", "关于印发", "关于修订", "关于转发", "关于公布")
 _WRAPPER_NOTICE_KEYWORDS = ("通知", "现将", "予以发布", "予以印发", "请遵照执行", "转发")
 _WRAPPER_BODY_KEYWORDS = ("现将", "予以发布", "予以印发", "请遵照执行", "转发")
+_ATTACHMENT_REFERENCE_KEYWORDS = ("附件：", "附件:", "见附件", "详见附件", "参见附件")
+_FILE_RELEASE_REFERENCE_KEYWORDS = (
+    "信息门户-文件发布",
+    "文件发布",
+    "自行下载",
+    "下载参照执行",
+    "下载后参照执行",
+)
 _DRAFT_KEYWORDS = ("征求意见稿", "草案", "讨论稿")
 _OPERATIONAL_SCHEME_KEYWORDS = ("工作方案", "实施方案", "专项方案")
 _ANNUAL_CYCLE_OR_PROGRAM_RULE_KEYWORDS = (
@@ -76,6 +84,7 @@ _QUOTE_TITLE_RE = re.compile(r"《([^》]{2,200})》")
 _DATE_RE = re.compile(r"(20\d{2}[-/年\.]\d{1,2}[-/月\.]\d{1,2}日?)")
 _REVISION_SIGNAL_RE = re.compile(r"(修订|修正|最新版|更新版|20\d{2}版)")
 _ISSUING_ORG_RE = re.compile(r"(中央民族大学)")
+_TEXT_MATCH_NORMALIZE_RE = re.compile(r"[\s《》“”\"'‘’()（）【】\[\]：:、，,。.;；·\-—_<>]")
 _ARTICLE_MARKER_RE = re.compile(r"(^|\n)\s*第[一二三四五六七八九十百千万0-9]+条", re.MULTILINE)
 _SECTION_MARKER_RE = re.compile(r"(^|\n)\s*[一二三四五六七八九十]+[、.]", re.MULTILINE)
 _SUBSECTION_MARKER_RE = re.compile(r"(^|\n)\s*[（(][一二三四五六七八九十0-9]+[)）]", re.MULTILINE)
@@ -154,6 +163,8 @@ class InternalNoticeRegulationPromotionDocumentReport:
     version_id: str
     action: str
     promotion_class: str
+    document_nature: str
+    semantic_owner_kind: str
     target_corpus: str
     target_collection: str
     regulation_title_normalized: str | None
@@ -170,6 +181,7 @@ class InternalNoticeRegulationPromotionDocumentReport:
     missing_required_metadata: tuple[str, ...]
     reasons: tuple[str, ...]
     artifact_key: str | None
+    owner_source_missing_reason: str | None = None
     read_failure: str | None = None
 
 
@@ -212,6 +224,8 @@ class InternalNoticeRegulationCandidateArtifactDocument:
     revision_track: str
     version_id: str
     promotion_class: str
+    document_nature: str
+    semantic_owner_kind: str
     target_corpus: str
     target_collection: str
     regulation_title_normalized: str
@@ -233,6 +247,9 @@ class InternalNoticeRegulationCandidateArtifactDocument:
     promotion_body: str
     artifact_markdown_path: str
     artifact_body_sha256: str
+    source_notice_document_id: str | None = None
+    source_attachment_document_id: str | None = None
+    semantic_owner_document_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -304,6 +321,7 @@ def build_internal_notice_regulation_promotion_manifest(
         for record in selected_records
     )
     reports = _apply_duplicate_resolution(reports)
+    reports = _apply_required_quality_gate_enforcement(reports, routing=routing)
 
     promotion_class_counts: Counter[str] = Counter()
     action_counts: Counter[str] = Counter()
@@ -583,6 +601,11 @@ def _scan_document(
             version_id=record.version_id,
             action="manual_review_required",
             promotion_class="manual_promotion_review",
+            document_nature="institutional_regulation",
+            semantic_owner_kind=_determine_semantic_owner_kind(
+                source_kind=source_kind,
+                missing_owner_reason=None,
+            ),
             target_corpus=routing.target_corpus,
             target_collection=routing.target_collection,
             regulation_title_normalized=None,
@@ -599,6 +622,7 @@ def _scan_document(
             missing_required_metadata=tuple(routing.required_promotion_metadata),
             reasons=tuple(reasons),
             artifact_key=record.canonical_markdown_object_key,
+            owner_source_missing_reason=None,
             read_failure=str(exc),
         )
 
@@ -632,6 +656,12 @@ def _scan_document(
     revision_signal = _extract_revision_signal(combined_text)
     duplicate_group_key = source_attachment_sha256 or record.content_hash
     quality_gates: list[str] = []
+    document_nature = _detect_document_nature(
+        source_kind=source_kind,
+        source_title=source_title,
+        body=promotion_body,
+        inventory_entry=inventory_entry,
+    )
 
     if _has_substantive_text(promotion_body):
         quality_gates.append("canonical_text_available")
@@ -672,7 +702,17 @@ def _scan_document(
     else:
         reasons.append("provenance_incomplete")
 
-    if source_kind == "parent_notice" and missing_materialized_attachment_refs:
+    missing_parent_owner_reason = _detect_missing_parent_owner_reason(
+        source_kind=source_kind,
+        source_title=source_title,
+        original_body=body,
+        inventory_entry=inventory_entry,
+        regulation_title_normalized=regulation_title_normalized,
+    )
+    if source_kind == "parent_notice" and missing_parent_owner_reason is not None:
+        reasons.append(missing_parent_owner_reason)
+        promotion_class, action = ("manual_promotion_review", "manual_review_required")
+    elif source_kind == "parent_notice" and missing_materialized_attachment_refs:
         reasons.append("input_incomplete_missing_attachment_docs")
         promotion_class, action = ("manual_promotion_review", "manual_review_required")
     else:
@@ -697,9 +737,14 @@ def _scan_document(
             action = "manual_review_required"
             promotion_class = "manual_promotion_review"
 
+    semantic_owner_kind = _determine_semantic_owner_kind(
+        source_kind=source_kind,
+        missing_owner_reason=missing_parent_owner_reason,
+    )
     metadata_fields = {
         "promotion_class": promotion_class,
         "promotion_source_collection": f"{routing.source_corpus}/{routing.source_collection}",
+        "semantic_owner_kind": semantic_owner_kind,
         "source_notice_ids": [notice_id],
         "source_parent_document_id": source_parent_document_id,
         "source_attachment_ref_id": attachment_ref_id,
@@ -731,6 +776,8 @@ def _scan_document(
         version_id=record.version_id,
         action=action,
         promotion_class=promotion_class,
+        document_nature=document_nature,
+        semantic_owner_kind=semantic_owner_kind,
         target_corpus=routing.target_corpus,
         target_collection=routing.target_collection,
         regulation_title_normalized=regulation_title_normalized,
@@ -747,6 +794,7 @@ def _scan_document(
         missing_required_metadata=missing_required_metadata,
         reasons=tuple(dict.fromkeys(reasons)),
         artifact_key=record.canonical_markdown_object_key,
+        owner_source_missing_reason=missing_parent_owner_reason,
     )
 
 
@@ -782,6 +830,46 @@ def _apply_duplicate_resolution(
             )
 
     return tuple(rewritten[report.document_id] for report in reports)
+
+
+def _apply_required_quality_gate_enforcement(
+    reports: tuple[InternalNoticeRegulationPromotionDocumentReport, ...],
+    *,
+    routing: InternalNoticePromotionRoutingConfig,
+) -> tuple[InternalNoticeRegulationPromotionDocumentReport, ...]:
+    rewritten: list[InternalNoticeRegulationPromotionDocumentReport] = []
+    for report in reports:
+        if report.action != "promote_candidate":
+            rewritten.append(report)
+            continue
+        class_config = routing.promotion_classes.get(report.promotion_class)
+        if class_config is None or not class_config.required_quality_gates:
+            rewritten.append(report)
+            continue
+        missing_quality_gates = tuple(
+            gate
+            for gate in class_config.required_quality_gates
+            if gate not in report.quality_gates_passed
+        )
+        if not missing_quality_gates:
+            rewritten.append(report)
+            continue
+        rewritten.append(
+            _replace_document_report(
+                report,
+                action="manual_review_required",
+                promotion_class="manual_promotion_review",
+                reasons=tuple(
+                    dict.fromkeys(
+                        (
+                            *report.reasons,
+                            *(f"missing_quality_gate:{gate}" for gate in missing_quality_gates),
+                        )
+                    )
+                ),
+            )
+        )
+    return tuple(rewritten)
 
 
 def _replace_document_report(
@@ -1001,12 +1089,16 @@ def _normalize_regulation_title(
     body: str,
     inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry | None,
 ) -> str | None:
+    heading_title = _extract_heading_title(body)
+    notice_title = _extract_notice_title(inventory_entry)
     for candidate in (
         _extract_quoted_title(source_title),
+        _extract_standalone_title_candidate(source_title),
+        _extract_standalone_title_candidate(heading_title),
+        _extract_quoted_title(heading_title),
         _extract_quoted_title(body),
-        source_title,
-        _extract_heading_title(body),
-        _extract_notice_title(inventory_entry),
+        _extract_quoted_title(notice_title),
+        _extract_standalone_title_candidate(notice_title),
     ):
         normalized = _clean_title_label(candidate)
         if normalized:
@@ -1021,6 +1113,15 @@ def _extract_heading_title(body: str) -> str | None:
             continue
         return _HEADING_RE.sub("", stripped).strip() or None
     return None
+
+
+def _extract_standalone_title_candidate(value: str | None) -> str | None:
+    normalized = _clean_title_label(value)
+    if normalized is None:
+        return None
+    if _looks_like_wrapper_notice(source_title=normalized, body=""):
+        return None
+    return normalized
 
 
 def _build_candidate_artifact_document(
@@ -1068,6 +1169,8 @@ def _build_candidate_artifact_document(
         revision_track=report.revision_track,
         version_id=report.version_id,
         promotion_class=report.promotion_class,
+        document_nature=report.document_nature,
+        semantic_owner_kind=report.semantic_owner_kind,
         target_corpus=report.target_corpus,
         target_collection=report.target_collection,
         regulation_title_normalized=regulation_title,
@@ -1089,7 +1192,38 @@ def _build_candidate_artifact_document(
         promotion_body=promotion_body,
         artifact_markdown_path=artifact_markdown_path,
         artifact_body_sha256=hashlib.sha256(promotion_body.encode("utf-8")).hexdigest(),
+        source_notice_document_id=_resolve_source_notice_document_id(report),
+        source_attachment_document_id=_resolve_source_attachment_document_id(report),
+        semantic_owner_document_id=_resolve_semantic_owner_document_id(report),
     )
+
+
+def _resolve_source_notice_document_id(
+    report: InternalNoticeRegulationPromotionDocumentReport,
+) -> str | None:
+    if report.source_parent_document_id:
+        return report.source_parent_document_id
+    if report.source_kind == "parent_notice":
+        return report.document_id
+    return None
+
+
+def _resolve_source_attachment_document_id(
+    report: InternalNoticeRegulationPromotionDocumentReport,
+) -> str | None:
+    if report.source_kind == "attachment_document":
+        return report.document_id
+    return None
+
+
+def _resolve_semantic_owner_document_id(
+    report: InternalNoticeRegulationPromotionDocumentReport,
+) -> str | None:
+    if report.semantic_owner_kind == "attachment_document":
+        return _resolve_source_attachment_document_id(report)
+    if report.semantic_owner_kind == "notice_body":
+        return _resolve_source_notice_document_id(report)
+    return None
 
 
 def _extract_candidate_promotion_body(
@@ -1161,6 +1295,13 @@ def _slugify_path_component(value: str) -> str:
 def _render_candidate_artifact_markdown(
     document: InternalNoticeRegulationCandidateArtifactDocument,
 ) -> str:
+    source_notice_document_id = document.source_notice_document_id or document.source_parent_document_id
+    source_attachment_document_id = document.source_attachment_document_id
+    semantic_owner_document_id = (
+        document.semantic_owner_document_id
+        or source_attachment_document_id
+        or source_notice_document_id
+    )
     lines = [
         _FRONT_MATTER_DELIMITER,
         "schema_version: internal_notice_promotion_candidate_artifact_v1",
@@ -1169,12 +1310,16 @@ def _render_candidate_artifact_markdown(
         f"source_kind: {document.source_kind}",
         f"input_lane: {document.input_lane}",
         f"promotion_class: {document.promotion_class}",
+        f"semantic_owner_kind: {document.semantic_owner_kind}",
         f"target_corpus: {document.target_corpus}",
         f"target_collection: {document.target_collection}",
         f"source_notice_release_time: {document.source_notice_release_time or ''}",
+        f"source_notice_document_id: {source_notice_document_id or ''}",
         f"source_parent_document_id: {document.source_parent_document_id or ''}",
+        f"source_attachment_document_id: {source_attachment_document_id or ''}",
         f"source_attachment_ref_id: {document.source_attachment_ref_id or ''}",
         f"source_attachment_sha256: {document.source_attachment_sha256 or ''}",
+        f"semantic_owner_document_id: {semantic_owner_document_id or ''}",
         f"issuing_org: {document.issuing_org or ''}",
         f"effective_date: {document.effective_date or ''}",
         f"revision_signal: {document.revision_signal or ''}",
@@ -1331,28 +1476,25 @@ def _classify_document(
             return ("manual_promotion_review", "manual_review_required")
         if _looks_like_annual_cycle_or_program_rule(combined_text):
             reasons.append("annual_cycle_or_program_rule_detected")
-            return ("manual_promotion_review", "manual_review_required")
         if _looks_like_operational_scheme(combined_text):
             reasons.append("operational_scheme_signal_detected")
             return ("manual_promotion_review", "manual_review_required")
         if _looks_like_time_bound_operational_rule(combined_text):
             reasons.append("time_bound_operational_rule_detected")
-            return ("manual_promotion_review", "manual_review_required")
         has_promotable_attachment = (
             inventory_entry is not None and inventory_entry.attachment_document_count > 0
         )
         body_is_standalone = _has_standalone_body_quality(body)
         body_has_regulation_structure = _has_regulation_body_structure(body)
-        if body_is_standalone and body_has_regulation_structure and _looks_like_formal_regulation(
-            combined_text
-        ):
+        body_is_promotable_parent_regulation = body_has_regulation_structure and _has_substantive_text(
+            body
+        )
+        if body_is_promotable_parent_regulation and _looks_like_formal_regulation(combined_text):
             if has_promotable_attachment:
                 reasons.append("wrapper_notice_retained_in_internal_notice")
                 return ("wrapper_notice_only", routing.default_action)
             return ("formal_regulation", "promote_candidate")
-        if body_is_standalone and body_has_regulation_structure and _looks_like_normative_handbook(
-            combined_text
-        ):
+        if body_is_promotable_parent_regulation and _looks_like_normative_handbook(combined_text):
             if has_promotable_attachment:
                 reasons.append("wrapper_notice_retained_in_internal_notice")
                 return ("wrapper_notice_only", routing.default_action)
@@ -1372,13 +1514,11 @@ def _classify_document(
         return ("manual_promotion_review", "manual_review_required")
     if _looks_like_annual_cycle_or_program_rule(combined_text):
         reasons.append("annual_cycle_or_program_rule_detected")
-        return ("manual_promotion_review", "manual_review_required")
     if _looks_like_operational_scheme(combined_text):
         reasons.append("operational_scheme_signal_detected")
         return ("manual_promotion_review", "manual_review_required")
     if _looks_like_time_bound_operational_rule(combined_text):
         reasons.append("time_bound_operational_rule_detected")
-        return ("manual_promotion_review", "manual_review_required")
     if _looks_like_formal_regulation(combined_text):
         return ("formal_regulation", "promote_candidate")
     if _looks_like_normative_handbook(combined_text):
@@ -1410,8 +1550,145 @@ def _looks_like_wrapper_body(body: str) -> bool:
     return any(keyword in body for keyword in _WRAPPER_BODY_KEYWORDS)
 
 
+def _determine_semantic_owner_kind(
+    *,
+    source_kind: str,
+    missing_owner_reason: str | None,
+) -> str:
+    if missing_owner_reason == "attachment_backed_regulation_body_missing":
+        return "attachment_document"
+    if missing_owner_reason == "file_release_backed_regulation_body_missing":
+        return "file_release_document"
+    if source_kind == "attachment_document":
+        return "attachment_document"
+    return "notice_body"
+
+
+def _detect_missing_parent_owner_reason(
+    *,
+    source_kind: str,
+    source_title: str,
+    original_body: str,
+    inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry | None,
+    regulation_title_normalized: str | None,
+) -> str | None:
+    if source_kind != "parent_notice":
+        return None
+    if inventory_entry is not None and (
+        inventory_entry.attachment_ref_count > 0 or inventory_entry.attachment_document_count > 0
+    ):
+        return None
+    expectation_reason = _detect_missing_parent_owner_reason_from_expectations(
+        parent_snapshot=None if inventory_entry is None else inventory_entry.parent_snapshot,
+        regulation_title_normalized=regulation_title_normalized,
+    )
+    if expectation_reason is not None:
+        return expectation_reason
+    if _body_references_regulation_attachment(
+        body=original_body,
+        regulation_title_normalized=regulation_title_normalized,
+    ):
+        return "attachment_backed_regulation_body_missing"
+    if _looks_like_wrapper_notice(source_title=source_title, body=original_body) and (
+        _looks_like_file_release_reference(original_body)
+    ):
+        return "file_release_backed_regulation_body_missing"
+    return None
+
+
+def _detect_missing_parent_owner_reason_from_expectations(
+    *,
+    parent_snapshot: dict[str, Any] | None,
+    regulation_title_normalized: str | None,
+) -> str | None:
+    attachment_expected = False
+    file_release_expected = False
+    normalized_regulation_title = _normalize_text_match(regulation_title_normalized)
+    for raw_expectation in (parent_snapshot or {}).get("owner_expectations") or ():
+        if not isinstance(raw_expectation, dict):
+            continue
+        owner_kind = _optional_text(raw_expectation.get("owner_kind"))
+        if owner_kind not in {"attachment_document", "file_release_document"}:
+            continue
+        owner_title_hint = _optional_text(raw_expectation.get("owner_title_hint"))
+        normalized_owner_title_hint = _normalize_text_match(owner_title_hint)
+        if (
+            normalized_regulation_title
+            and normalized_owner_title_hint
+            and normalized_regulation_title not in normalized_owner_title_hint
+            and normalized_owner_title_hint not in normalized_regulation_title
+        ):
+            continue
+        if owner_kind == "attachment_document":
+            attachment_expected = True
+            continue
+        if owner_kind == "file_release_document":
+            file_release_expected = True
+    if attachment_expected:
+        return "attachment_backed_regulation_body_missing"
+    if file_release_expected:
+        return "file_release_backed_regulation_body_missing"
+    return None
+
+
+def _body_references_regulation_attachment(
+    *,
+    body: str,
+    regulation_title_normalized: str | None,
+) -> bool:
+    normalized_title = _normalize_text_match(regulation_title_normalized)
+    if not normalized_title:
+        return False
+    for line in body.splitlines():
+        stripped = line.strip()
+        if not stripped or "附件" not in stripped:
+            continue
+        if not any(keyword in stripped for keyword in _ATTACHMENT_REFERENCE_KEYWORDS):
+            continue
+        if normalized_title in _normalize_text_match(stripped):
+            return True
+    return False
+
+
+def _looks_like_file_release_reference(body: str) -> bool:
+    return any(keyword in body for keyword in _FILE_RELEASE_REFERENCE_KEYWORDS)
+
+
+def _normalize_text_match(value: str | None) -> str:
+    if value is None:
+        return ""
+    return _TEXT_MATCH_NORMALIZE_RE.sub("", value)
+
+
 def _looks_like_draft_document(text: str) -> bool:
     return any(keyword in text for keyword in _DRAFT_KEYWORDS)
+
+
+def _detect_document_nature(
+    *,
+    source_kind: str,
+    source_title: str,
+    body: str,
+    inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry | None,
+) -> str:
+    combined_text = "\n".join(item for item in (source_title, body) if item)
+    has_promotable_attachment = (
+        source_kind == "parent_notice"
+        and inventory_entry is not None
+        and inventory_entry.attachment_document_count > 0
+    )
+    body_is_standalone_parent_regulation = _has_regulation_body_structure(body) and _has_substantive_text(
+        body
+    )
+    if has_promotable_attachment:
+        return "wrapper_notice"
+    if _looks_like_wrapper_notice(source_title=source_title, body=body) and not body_is_standalone_parent_regulation:
+        return "wrapper_notice"
+    if _looks_like_annual_cycle_or_program_rule(combined_text):
+        return "annual_cycle_rule"
+    if _looks_like_time_bound_operational_rule(combined_text):
+        return "time_bound_operational_rule"
+    return "institutional_regulation"
 
 
 def _looks_like_operational_scheme(text: str) -> bool:

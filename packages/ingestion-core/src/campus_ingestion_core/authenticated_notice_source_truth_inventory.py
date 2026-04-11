@@ -857,6 +857,11 @@ def build_authenticated_notice_source_truth_parent_snapshot_from_payloads(
 ) -> dict[str, Any]:
     site_id, notice_id = str(record.document_id).split(":")[1:3]
     attachment_ref_count = len(tuple(attachment_refs))
+    owner_expectations = [
+        dict(item)
+        for item in (notice_manifest.get("owner_expectations") or ())
+        if isinstance(item, dict)
+    ]
     reference_only_count = 0
     text_extractable_count = 0
     ocr_required_count = 0
@@ -931,6 +936,10 @@ def build_authenticated_notice_source_truth_parent_snapshot_from_payloads(
         "expected_attachment_documents": expected_attachment_documents,
         "attachment_document_count": len(expected_attachment_documents),
         "attachment_ref_count": attachment_ref_count,
+        "owner_expectation_count": int(
+            notice_manifest.get("owner_expectation_count") or len(owner_expectations)
+        ),
+        "owner_expectations": owner_expectations,
         "text_extractable_count": text_extractable_count,
         "ocr_required_count": ocr_required_count,
         "reference_only_count": reference_only_count,

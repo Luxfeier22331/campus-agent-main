@@ -39,7 +39,8 @@ _REQUIRED_PROJECTION_METADATA_FIELDS = (
     "promotion_class",
     "regulation_title_normalized",
     "source_notice_ids",
-    "source_notice_release_time",
+    "source_notice_document_id",
+    "semantic_owner_document_id",
     "promotion_source_collection",
 )
 _SHORT_BODY_TOKEN_THRESHOLD = 40

@@ -26,6 +26,8 @@ def _candidate_document() -> InternalNoticeRegulationCandidateArtifactDocument:
         revision_track="source-faithful",
         version_id="sha256:28f8bcec3c1c38b9cec0304beb4de9c6c63424be4b3990c577a1c7ea5dcd7719",
         promotion_class="formal_regulation",
+        document_nature="institutional_regulation",
+        semantic_owner_kind="notice_body",
         target_corpus="regulations",
         target_collection="institutional_regulations",
         regulation_title_normalized="中央民族大学采购工作管理办法",
@@ -115,6 +117,14 @@ class InternalNoticeRegulationCandidateChunkPrepTest(unittest.TestCase):
             ]
             self.assertEqual(rows[0]["metadata"]["content_role"], "regulation_title")
             self.assertEqual(rows[0]["metadata"]["source_notice_ids"], ["187233"])
+            self.assertEqual(
+                rows[0]["metadata"]["source_notice_document_id"],
+                "notice:muc_internal_portal:187233",
+            )
+            self.assertEqual(
+                rows[0]["metadata"]["semantic_owner_document_id"],
+                "notice:muc_internal_portal:187233",
+            )
 
             chunks_path = output_dir / document_report["chunk_catalog_path"]
             chunks = [
@@ -165,7 +175,7 @@ class InternalNoticeRegulationCandidateChunkPrepTest(unittest.TestCase):
             self.assertEqual(loaded[0].entitlement_groups, ("campus_members",))
             self.assertEqual(loaded[0].quality_gates_passed[0], "canonical_text_available")
 
-    def test_prepare_candidate_chunks_flags_missing_source_notice_release_time(self) -> None:
+    def test_prepare_candidate_chunks_allows_missing_source_notice_release_time(self) -> None:
         candidate = _candidate_document()
         candidate = InternalNoticeRegulationCandidateArtifactDocument(
             **{
@@ -178,10 +188,10 @@ class InternalNoticeRegulationCandidateChunkPrepTest(unittest.TestCase):
                 documents=(candidate,),
                 output_dir=Path(temp_dir),
             )
-            self.assertFalse(report.passed)
+            self.assertTrue(report.passed)
             validation = json.loads(Path(report.validation_summary_path).read_text(encoding="utf-8"))
-            self.assertGreater(validation["missing_projection_metadata_count"], 0)
-            self.assertEqual(validation["failed_candidate_ids"], ["0425aed278c86fda"])
+            self.assertEqual(validation["missing_projection_metadata_count"], 0)
+            self.assertEqual(validation["failed_candidate_ids"], [])
 
 
 if __name__ == "__main__":

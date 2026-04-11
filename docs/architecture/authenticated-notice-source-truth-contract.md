@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-03
-updated: 2026-04-06
+updated: 2026-04-12
 ---
 
 # Authenticated Notice Source-Truth Contract
@@ -269,6 +269,27 @@ notice source asset 的 identity 固定为“稳定 notice 资源”，而不是
 - 不能污染 core schema
 - 不能引入 document/chunk 或 serving 语义
 - 必须在 collection-specific README 或 strategy doc 中显式记录
+
+当前 `internal_notice -> regulations/institutional_regulations` promotion 边界固定补充以下 source-level extension fields，用于在 attachment relation 缺失时保留“semantic owner 应存在”的上游证据：
+
+- `owner_expectation_count`
+- `owner_expectations`
+
+`owner_expectations[*]` 第一版字段固定为：
+
+- `owner_expectation_id`
+- `owner_kind`
+- `relation_type`
+- `evidence_reason`
+- `owner_title_hint`
+- `evidence_text`
+
+约束：
+
+- 它们只表达“notice 正文明确声明存在 attachment/file-release owner，但当前 source-truth relation 尚未恢复出来”
+- 它们不替代真实的 `attachment-refs.jsonl`
+- 不得伪造 `object_key`、`content_sha256`、`byte_size` 等 attachment identity 字段
+- 下游只能把它们用于 fail-close、manual review 和 owner recovery，不得把它们当作真实 attachment document 已存在
 
 ## 明确禁止的字段
 

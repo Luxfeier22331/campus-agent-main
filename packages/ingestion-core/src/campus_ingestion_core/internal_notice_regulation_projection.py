@@ -198,11 +198,60 @@ def build_internal_notice_regulation_projection_metadata(
             }
         )
     )
+    source_notice_document_id = _resolve_source_notice_document_id(candidate_document)
+    source_notice_document_ids = tuple(
+        sorted(
+            {
+                document_id
+                for document_id in (
+                    *(source_parent_document_ids or ()),
+                    source_notice_document_id,
+                )
+                if document_id
+            }
+        )
+    )
+    source_attachment_document_id = _resolve_source_attachment_document_id(candidate_document)
+    source_attachment_document_ids = tuple(
+        sorted(
+            {
+                document_id
+                for document_id in (
+                    *(
+                        source_document_ids
+                        if candidate_document.semantic_owner_kind == "attachment_document"
+                        else ()
+                    ),
+                    source_attachment_document_id,
+                )
+                if document_id
+            }
+        )
+    )
+    semantic_owner_document_id = _resolve_semantic_owner_document_id(candidate_document)
+    semantic_owner_document_ids = tuple(
+        sorted(
+            {
+                document_id
+                for document_id in (
+                    *(
+                        source_attachment_document_ids
+                        if candidate_document.semantic_owner_kind == "attachment_document"
+                        else source_notice_document_ids
+                    ),
+                    semantic_owner_document_id,
+                )
+                if document_id
+            }
+        )
+    )
     metadata: dict[str, object] = {
         "title": candidate_document.regulation_title_normalized,
         "semantic_content_hash": semantic_content_hash,
         "content_kind": "institutional_regulation",
         "content_role": candidate_document.promotion_class,
+        "document_nature": candidate_document.document_nature,
+        "semantic_owner_kind": candidate_document.semantic_owner_kind,
         "is_answer_bearing": True,
         "projection_name": "internal_notice_regulation_promotion",
         "derived_from": "internal_notice_canonical_document",
@@ -214,13 +263,19 @@ def build_internal_notice_regulation_projection_metadata(
         "promotion_class": candidate_document.promotion_class,
         "promotion_source_collection": "campus_notices/internal_notice",
         "source_notice_ids": list(source_notice_ids),
+        "source_notice_document_id": source_notice_document_id,
+        "source_notice_document_ids": list(source_notice_document_ids),
         "source_document_ids": list(source_document_ids),
         "source_parent_document_id": candidate_document.source_parent_document_id,
         "source_parent_document_ids": list(source_parent_document_ids),
+        "source_attachment_document_id": source_attachment_document_id,
+        "source_attachment_document_ids": list(source_attachment_document_ids),
         "source_attachment_ref_id": candidate_document.source_attachment_ref_id,
         "source_attachment_ref_ids": list(source_attachment_ref_ids),
         "source_attachment_sha256": candidate_document.source_attachment_sha256,
         "source_attachment_sha256s": list(source_attachment_sha256s),
+        "semantic_owner_document_id": semantic_owner_document_id,
+        "semantic_owner_document_ids": list(semantic_owner_document_ids),
         "source_notice_release_time": candidate_document.source_notice_release_time,
         "regulation_title_normalized": candidate_document.regulation_title_normalized,
         "issuing_org": candidate_document.issuing_org,
@@ -236,6 +291,40 @@ def build_internal_notice_regulation_projection_metadata(
         ),
     }
     return {key: value for key, value in metadata.items() if value is not None}
+
+
+def _resolve_source_notice_document_id(
+    candidate_document: InternalNoticeRegulationCandidateArtifactDocument,
+) -> str | None:
+    if candidate_document.source_notice_document_id:
+        return candidate_document.source_notice_document_id
+    if candidate_document.source_parent_document_id:
+        return candidate_document.source_parent_document_id
+    if candidate_document.source_kind == "parent_notice":
+        return candidate_document.source_document_id
+    return None
+
+
+def _resolve_source_attachment_document_id(
+    candidate_document: InternalNoticeRegulationCandidateArtifactDocument,
+) -> str | None:
+    if candidate_document.source_attachment_document_id:
+        return candidate_document.source_attachment_document_id
+    if candidate_document.source_kind == "attachment_document":
+        return candidate_document.source_document_id
+    return None
+
+
+def _resolve_semantic_owner_document_id(
+    candidate_document: InternalNoticeRegulationCandidateArtifactDocument,
+) -> str | None:
+    if candidate_document.semantic_owner_document_id:
+        return candidate_document.semantic_owner_document_id
+    if candidate_document.semantic_owner_kind == "attachment_document":
+        return _resolve_source_attachment_document_id(candidate_document)
+    if candidate_document.semantic_owner_kind == "notice_body":
+        return _resolve_source_notice_document_id(candidate_document)
+    return None
 
 
 def serialize_internal_notice_regulation_projection_rows(

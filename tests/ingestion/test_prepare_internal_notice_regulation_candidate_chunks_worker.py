@@ -30,6 +30,8 @@ def _candidate_document() -> InternalNoticeRegulationCandidateArtifactDocument:
         revision_track="source-faithful",
         version_id="sha256:300101:source-faithful",
         promotion_class="formal_regulation",
+        document_nature="institutional_regulation",
+        semantic_owner_kind="attachment_document",
         target_corpus="regulations",
         target_collection="institutional_regulations",
         regulation_title_normalized="中央民族大学实验室安全管理规定",
