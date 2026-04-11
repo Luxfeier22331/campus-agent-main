@@ -218,3 +218,4 @@ updated: 2026-04-11
 - `docs/contracts/app-api-supervisor-execution.md`
 - `docs/data/campus-navigation-place-catalog.md`
 - `docs/plans/campus-place-finding-foundation.md`
+  - 已完成 foundation closeout；当前 pending work 应以 `.planning/PROJECT.md` / `.planning/STATE.md` 为准

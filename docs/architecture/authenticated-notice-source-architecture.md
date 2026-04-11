@@ -366,3 +366,4 @@ Phase 12.2 已把 authenticated notice historical closeout 重构为 async stage
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
 - `docs/decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md`
 - `docs/plans/restricted-document-rollout-and-verification.md`
+  - deferred rollout follow-up；当前执行真相以 `.planning/PROJECT.md` / `.planning/STATE.md` 为准

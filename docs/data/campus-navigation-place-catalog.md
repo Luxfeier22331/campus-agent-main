@@ -158,3 +158,4 @@ updated: 2026-04-11
 - `docs/decisions/adr-0027-navigation-specialist-and-spatial-truth.md`
 - `docs/decisions/adr-0028-campus-navigation-basemap-and-provider-strategy.md`
 - `docs/plans/campus-place-finding-foundation.md`
+  - 已完成 foundation closeout；当前 pending work 应以 `.planning/PROJECT.md` / `.planning/STATE.md` 为准
