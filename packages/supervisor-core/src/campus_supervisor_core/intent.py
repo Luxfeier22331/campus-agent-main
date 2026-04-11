@@ -9,7 +9,7 @@ from campus_supervisor_core.context import SupervisorRequestContext
 from campus_supervisor_core.scope_policy import evaluate_knowledge_scope
 
 
-IntentTaskKind = Literal["knowledge_lookup", "availability_check", "unknown"]
+IntentTaskKind = Literal["knowledge_lookup", "availability_check", "place_lookup", "unknown"]
 IntentRiskLevel = Literal["low", "medium", "high"]
 IntentNextAction = Literal["delegate", "clarify", "rejected", "approval_required", "out_of_scope"]
 IntentPersonalizationMode = Literal["generic", "cohort_grounded", "user_grounded"]
@@ -62,6 +62,34 @@ def frame_intent(
             needs_clarification=bool(missing_slots),
             suggested_next_action="clarify" if missing_slots else "delegate",
             personalization_mode=personalization_mode,
+        )
+
+    if capability == "place_lookup":
+        scope_decision = evaluate_knowledge_scope(context)
+        if scope_decision.scope_class == "out_of_scope":
+            return IntentFrame(
+                capability="place_lookup",
+                task_kind="place_lookup",
+                domain_candidates=("out_of_scope",),
+                missing_slots=(),
+                risk_level="low",
+                needs_clarification=False,
+                suggested_next_action="out_of_scope",
+                personalization_mode=personalization_mode,
+                scope_class="out_of_scope",
+                policy_reason=scope_decision.reason,
+            )
+
+        return IntentFrame(
+            capability="place_lookup",
+            task_kind="place_lookup",
+            domain_candidates=("navigation",),
+            missing_slots=(),
+            risk_level="low",
+            needs_clarification=False,
+            suggested_next_action="delegate",
+            personalization_mode=personalization_mode,
+            scope_class="in_scope",
         )
 
     if any(pattern in normalized_goal for pattern in _HIGH_RISK_PATTERNS):

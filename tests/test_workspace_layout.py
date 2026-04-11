@@ -18,6 +18,7 @@ EXPECTED_WORKSPACES = {
     "packages/contracts",
     "packages/evals",
     "packages/ingestion-core",
+    "packages/navigation-specialist",
     "packages/rag-specialist",
     "packages/retrieval-core",
     "packages/shared",

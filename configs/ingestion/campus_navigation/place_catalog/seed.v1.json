@@ -1,0 +1,146 @@
+{
+  "version": "v1",
+  "coordinate_reference_system": "EPSG:4326",
+  "places": [
+    {
+      "place_id": "muc.haidian.library",
+      "entity_type": "building",
+      "display_name": "图书馆",
+      "aliases": ["海淀图书馆", "校图书馆", "逸夫图书馆"],
+      "campus_scope": "haidian",
+      "campus_area": "主教学区西侧",
+      "location_description": "海淀校区主教学区西侧，靠近校医院。",
+      "landmark_hint": "从知行广场向西步行约 3 分钟可到达。",
+      "access_note": "校外访客请先完成入校登记。",
+      "opening_note": "以图书馆当日公告为准。",
+      "service_tags": ["自习", "借阅", "打印"],
+      "point_geometry": {
+        "longitude": 116.31551,
+        "latitude": 39.96162
+      },
+      "coordinate_reference_system": "EPSG:4326",
+      "source_refs": ["seed:campus_navigation/place_catalog.v1"],
+      "verification_state": "manual_seed_reviewed"
+    },
+    {
+      "place_id": "muc.haidian.student_service_center",
+      "entity_type": "service_point",
+      "display_name": "学生服务中心补卡机",
+      "aliases": ["补卡机", "一卡通补卡机", "校园卡补卡机"],
+      "campus_scope": "haidian",
+      "campus_area": "学生服务中心一层",
+      "location_description": "海淀校区学生服务中心一层大厅东侧。",
+      "landmark_hint": "进入学生服务中心正门后向右即可看到。",
+      "access_note": "如设备离线，请到人工窗口办理。",
+      "opening_note": "工作时间受学生服务中心开放时间影响。",
+      "service_tags": ["一卡通", "补卡", "缴费"],
+      "point_geometry": {
+        "longitude": 116.31608,
+        "latitude": 39.96098
+      },
+      "coordinate_reference_system": "EPSG:4326",
+      "source_refs": ["seed:campus_navigation/place_catalog.v1"],
+      "verification_state": "manual_seed_reviewed"
+    },
+    {
+      "place_id": "muc.haidian.academic_affairs_office",
+      "entity_type": "office",
+      "display_name": "教务处",
+      "aliases": ["教务办公室", "本科教务处"],
+      "campus_scope": "haidian",
+      "campus_area": "行政办公楼二层",
+      "location_description": "海淀校区行政办公楼二层东侧。",
+      "landmark_hint": "从行政楼北门进入后上二层右转。",
+      "access_note": "办理业务前建议先查看当天窗口安排。",
+      "opening_note": "节假日可能暂停现场办理。",
+      "service_tags": ["教务", "办事窗口"],
+      "point_geometry": {
+        "longitude": 116.3152,
+        "latitude": 39.96045
+      },
+      "coordinate_reference_system": "EPSG:4326",
+      "source_refs": ["seed:campus_navigation/place_catalog.v1"],
+      "verification_state": "manual_seed_reviewed"
+    },
+    {
+      "place_id": "muc.haidian.south_gate",
+      "entity_type": "gate",
+      "display_name": "海淀校区南门",
+      "aliases": ["南门", "海淀南门"],
+      "campus_scope": "haidian",
+      "campus_area": "海淀校区南侧主出入口",
+      "location_description": "海淀校区南侧主出入口，靠近中关村南大街。",
+      "landmark_hint": "校门外就是中关村南大街辅路。",
+      "access_note": "高峰时段可能实行人车分流。",
+      "opening_note": "",
+      "service_tags": ["校门", "出入口"],
+      "point_geometry": {
+        "longitude": 116.31474,
+        "latitude": 39.95936
+      },
+      "coordinate_reference_system": "EPSG:4326",
+      "source_refs": ["seed:campus_navigation/place_catalog.v1"],
+      "verification_state": "manual_seed_reviewed"
+    },
+    {
+      "place_id": "muc.fengtai.south_gate",
+      "entity_type": "gate",
+      "display_name": "丰台校区南门",
+      "aliases": ["南门", "丰台南门"],
+      "campus_scope": "fengtai",
+      "campus_area": "丰台校区南侧主出入口",
+      "location_description": "丰台校区南侧主出入口，靠近校园主干道南端。",
+      "landmark_hint": "从校园生活区向南直行可到达。",
+      "access_note": "校内摆渡车在高峰期会停靠附近。",
+      "opening_note": "",
+      "service_tags": ["校门", "出入口"],
+      "point_geometry": {
+        "longitude": 116.28764,
+        "latitude": 39.86487
+      },
+      "coordinate_reference_system": "EPSG:4326",
+      "source_refs": ["seed:campus_navigation/place_catalog.v1"],
+      "verification_state": "manual_seed_pending_field_check"
+    },
+    {
+      "place_id": "muc.haidian.north_gate",
+      "entity_type": "gate",
+      "display_name": "海淀校区北门",
+      "aliases": ["北门", "海淀北门"],
+      "campus_scope": "haidian",
+      "campus_area": "海淀校区北侧出入口",
+      "location_description": "海淀校区北侧出入口，靠近魏公村路一侧。",
+      "landmark_hint": "出门后步行可接驳魏公村地铁方向。",
+      "access_note": "晚间请留意门禁安排。",
+      "opening_note": "",
+      "service_tags": ["校门", "出入口"],
+      "point_geometry": {
+        "longitude": 116.31495,
+        "latitude": 39.96249
+      },
+      "coordinate_reference_system": "EPSG:4326",
+      "source_refs": ["seed:campus_navigation/place_catalog.v1"],
+      "verification_state": "manual_seed_reviewed"
+    },
+    {
+      "place_id": "muc.haidian.weigongcun_subway",
+      "entity_type": "stop",
+      "display_name": "魏公村地铁站",
+      "aliases": ["魏公村站", "地铁魏公村站"],
+      "campus_scope": "haidian",
+      "campus_area": "海淀校区东侧周边",
+      "location_description": "海淀校区东侧周边，可从北门或东侧道路步行前往。",
+      "landmark_hint": "适合作为校外来访或返校的关键接驳点。",
+      "access_note": "站口可能因施工或安检调整临时改线。",
+      "opening_note": "",
+      "service_tags": ["地铁", "接驳"],
+      "point_geometry": {
+        "longitude": 116.32324,
+        "latitude": 39.95792
+      },
+      "coordinate_reference_system": "EPSG:4326",
+      "source_refs": ["seed:campus_navigation/place_catalog.v1"],
+      "verification_state": "manual_seed_reviewed"
+    }
+  ]
+}

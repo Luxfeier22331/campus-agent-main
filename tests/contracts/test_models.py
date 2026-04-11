@@ -18,7 +18,13 @@ from campus_contracts import (
     ErrorInfo,
     EvidenceBundle,
     EvidenceSource,
+    GeoPoint,
     KnowledgeScope,
+    PlaceCandidate,
+    PlaceCard,
+    PlaceLookupPayload,
+    PlaceLookupResult,
+    PlaceRef,
     ProfileMemoryItem,
     ProfileMemorySummary,
     RagResultDiagnostics,
@@ -459,6 +465,105 @@ class ContractModelsTest(unittest.TestCase):
         self.assertEqual(payload["target"], "availability-specialist")
         self.assertEqual(payload["result"]["observed_status"], "timeout")
         self.assertEqual(payload["result"]["failure_classification"], "timeout")
+
+    def test_response_serializes_place_lookup_result_shape(self) -> None:
+        response = SpecialistResponse(
+            target="navigation-specialist",
+            status="completed",
+            answer_text="图书馆在海淀校区主教学区西侧，靠近校医院。",
+            confidence="high",
+            result=PlaceLookupResult(
+                query_text="图书馆在哪里",
+                matched_alias="图书馆",
+                resolved_place=PlaceRef(
+                    place_id="muc.haidian.library",
+                    entity_type="building",
+                    display_name="图书馆",
+                    campus_scope="haidian",
+                    campus_area="主教学区西侧",
+                ),
+                place_card=PlaceCard(
+                    place=PlaceRef(
+                        place_id="muc.haidian.library",
+                        entity_type="building",
+                        display_name="图书馆",
+                        campus_scope="haidian",
+                        campus_area="主教学区西侧",
+                    ),
+                    location_description="海淀校区主教学区西侧，靠近校医院。",
+                    landmark_hint="从知行广场向西步行约 3 分钟可到达。",
+                    access_note="校外访客请先完成入校登记。",
+                    service_tags=("自习", "借阅", "打印"),
+                    coordinate_reference_system="EPSG:4326",
+                    point_geometry=GeoPoint(
+                        longitude=116.31551,
+                        latitude=39.96162,
+                    ),
+                    source_refs=("seed:campus_navigation/place_catalog.v1",),
+                ),
+            ),
+        )
+
+        payload = asdict(response)
+
+        self.assertEqual(payload["target"], "navigation-specialist")
+        self.assertEqual(payload["result"]["query_text"], "图书馆在哪里")
+        self.assertEqual(payload["result"]["matched_alias"], "图书馆")
+        self.assertEqual(payload["result"]["resolved_place"]["place_id"], "muc.haidian.library")
+        self.assertEqual(payload["result"]["place_card"]["place"]["entity_type"], "building")
+        self.assertEqual(payload["result"]["place_card"]["point_geometry"]["longitude"], 116.31551)
+        self.assertEqual(payload["result"]["place_card"]["coordinate_reference_system"], "EPSG:4326")
+        self.assertEqual(
+            tuple(payload["result"]["place_card"]["service_tags"]),
+            ("自习", "借阅", "打印"),
+        )
+
+    def test_response_serializes_place_lookup_clarification_candidates(self) -> None:
+        response = SpecialistResponse(
+            target="navigation-specialist",
+            status="needs_clarification",
+            follow_up_question="你要找海淀校区图书馆，还是丰台校区图书馆？",
+            confidence="medium",
+            result=PlaceLookupResult(
+                query_text="图书馆在哪里",
+                matched_alias="图书馆",
+                candidate_places=(
+                    PlaceCandidate(
+                        place=PlaceRef(
+                            place_id="muc.haidian.library",
+                            entity_type="building",
+                            display_name="海淀校区图书馆",
+                            campus_scope="haidian",
+                            campus_area="主教学区西侧",
+                        ),
+                        clarification_hint="海淀校区主教学区西侧",
+                    ),
+                    PlaceCandidate(
+                        place=PlaceRef(
+                            place_id="muc.fengtai.library",
+                            entity_type="building",
+                            display_name="丰台校区图书馆",
+                            campus_scope="fengtai",
+                            campus_area="学生活动区北侧",
+                        ),
+                        clarification_hint="丰台校区学生活动区北侧",
+                    ),
+                ),
+            ),
+        )
+
+        payload = asdict(response)
+
+        self.assertEqual(payload["target"], "navigation-specialist")
+        self.assertEqual(len(payload["result"]["candidate_places"]), 2)
+        self.assertEqual(
+            payload["result"]["candidate_places"][1]["place"]["display_name"],
+            "丰台校区图书馆",
+        )
+
+    def test_place_lookup_payload_requires_non_empty_query(self) -> None:
+        with self.assertRaisesRegex(ValueError, "query_text must not be empty"):
+            PlaceLookupPayload(query_text=" ")
 
     def test_response_serializes_rag_result_diagnostics_shape(self) -> None:
         response = SpecialistResponse(

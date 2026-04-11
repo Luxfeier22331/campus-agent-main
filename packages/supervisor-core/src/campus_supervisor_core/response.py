@@ -128,6 +128,6 @@ def _semantic_outcome_from_specialist_response(
 
 
 def _scope_class_from_specialist_response(target: str) -> str:
-    if target == "rag-specialist":
+    if target in {"rag-specialist", "navigation-specialist"}:
         return "in_scope"
     return ""

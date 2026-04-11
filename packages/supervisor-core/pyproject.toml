@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
   "campus-availability-specialist",
   "campus-contracts",
+  "campus-navigation-specialist",
   "campus-rag-specialist",
   "campus-shared",
 ]
@@ -17,6 +18,7 @@ package = true
 [tool.uv.sources]
 campus-availability-specialist = { workspace = true }
 campus-contracts = { workspace = true }
+campus-navigation-specialist = { workspace = true }
 campus-rag-specialist = { workspace = true }
 campus-shared = { workspace = true }
 
