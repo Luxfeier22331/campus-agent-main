@@ -41,9 +41,11 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 10: Official Web Repo Hardening And Expansion** - Expand and harden the `official_web` repo-level source channel, control plane, and operator workflow after the current curriculum hardening wave.
 - [x] **Phase 11: Campus Identity, Authorization, Memory, And Restricted Document Foundation** - Freeze and implement the canonical principal/projection seam, restricted-document retrieval fail-close, and non-authorizing memory/personalization truth. (completed 2026-04-05)
 - [x] **Phase 12: Authenticated Notice Source Foundation** - Formalize the repo-native authenticated notice source channel and historical export replay foundation without opening query-serving. (completed 2026-04-06)
-- [ ] **Phase 12.1: Authenticated Notice Historical Backfill Closeout** - Close the historical backfill execution truth and final evidence package for `campus_notices/internal_notice`.
+- [x] **Phase 12.1: Authenticated Notice Historical Backfill Closeout** - Close the historical backfill execution truth and final evidence package for `campus_notices/internal_notice`. (completed 2026-04-11; legacy cumulative-prefix path superseded by Phase 12.2 + recorded closeout evidence)
 - [x] **Phase 12.2: Authenticated Notice Async Staged Closeout** - Rebuild historical closeout into an async staged pipeline with single-promoter deterministic promotion. (completed 2026-04-08)
 - [x] **Phase 13: 政治风险判定与幻觉控制硬化** - Harden product-path policy risk, out-of-scope classification, and evidence-grounded abstention semantics. (completed 2026-04-11)
+- [x] **Phase 14: 产品主链路 Prompt Stack 与 System Prompt Runtime 收口** - Freeze the repo-default prompt stack, provider-backed strict output runtime, prompt metadata sink, and deterministic protected-path regression truth. (completed 2026-04-12)
+- [ ] **Phase 15: 幻觉治理与 Grounded Generation 二次硬化** - Upgrade the current fail-closed baseline into a repo-default grounded-generation system with retrieval adequacy gating, provider-agnostic grounding runtime, expanded claim taxonomy, and release-gated artifact retention.
 
 ## Phase Details
 
@@ -350,8 +352,11 @@ Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 03.2 → 4 → 04.1 
 | 10.5. Official Web Stable Reference Release Evidence And Serving Surface Cleanup | 2/2 | Complete | 2026-04-05 |
 | 11. Campus Identity, Authorization, Memory, And Restricted Document Foundation | 5/5 | Complete |  |
 | 12. Authenticated Notice Source Foundation | 4/4 | Complete |  |
-| 12.1. Authenticated Notice Historical Backfill Closeout | 1/2 | In progress |  |
+| 12.1. Authenticated Notice Historical Backfill Closeout | 2/2 | Complete | 2026-04-11 |
 | 12.2. Authenticated Notice Async Staged Closeout | 2/2 | Complete |  |
+| 13. 政治风险判定与幻觉控制硬化 | 3/3 | Complete | 2026-04-11 |
+| 14. 产品主链路 Prompt Stack 与 System Prompt Runtime 收口 | 3/3 | Complete | 2026-04-12 |
+| 15. 幻觉治理与 Grounded Generation 二次硬化 | 1/4 | In Progress | 2026-04-12 |
 
 ### Phase 8: Student Handbook Ambiguous Policy Query Hardening
 
@@ -620,11 +625,13 @@ Plans:
   1. The closeout runner freezes the exact bundle/manifest/count/checkpoints and staged replay uses cumulative prefix slices only.
   2. Historical closeout produces persisted `frozen-input`, checkpoint summaries, optional final rerun summary, and a closeout reconciliation artifact for `campus_notices/internal_notice`.
   3. Expected document identity closes exactly at scope level, expected raw asset identity closes at coverage level, and `internal_notice` remains `restricted + offline_preparation`.
-**Plans:** 1/2 plans complete
+**Plans:** 2/2 plans complete
+
+**Completion Note:** The original full legacy cumulative-prefix replay is no longer an active execution gap. Phase `12.2` established the canonical async staged closeout path, and the repo now already carries both the real historical closeout run `authenticated-notice-replay-20260406-024405` and the later local-Postgres current-scope chain through unpublished release `r20260411_090101`. `12.1` therefore closes as historical planning truth rather than as a request to re-run the superseded runner again.
 
 Plans:
 - [x] 12.1-01-PLAN.md — Land the repo-owned closeout runner, runbook, planning docs, and focused verification.
-- [ ] 12.1-02-PLAN.md — Execute the frozen full historical closeout and freeze the final evidence package.
+- [x] 12.1-02-PLAN.md — Close the legacy full-closeout plan as superseded by Phase `12.2` plus the already recorded real closeout evidence package.
 
 ### Phase 12.2: Authenticated Notice Async Staged Closeout
 
@@ -657,6 +664,41 @@ Plans:
 - [x] 13-01-PLAN.md — Harden supervisor-owned policy/scope verdicts for political factual, political persuasion, and open-domain asks.
 - [x] 13-02-PLAN.md — Expand rag grounding validation and fail-closed unsupported downgrade on promptified answer paths.
 - [x] 13-03-PLAN.md — Add dedicated eval, observability, and release-gate coverage for Phase 13 semantic outcomes.
+
+### Phase 14: 产品主链路 Prompt Stack 与 System Prompt Runtime 收口
+
+**Goal:** Freeze and implement the repo-default product-path prompt stack so runtime prompt assembly follows `repo-global developer invariants -> package-owned role prompt -> typed trusted/untrusted packets -> strict structured outputs -> code-side finalization`, instead of drifting into ad hoc mega prompts or app-owned prompt seams.
+**Requirements**: []
+**Depends on:** Phase 13
+**Success Criteria** (what must be TRUE):
+  1. `apps/supervisor-api` and the product runtime own prompt assembly only; they no longer leave “system prompt” as an implicit or app-local concept.
+  2. supervisor and `rag-specialist` prompt families execute through a shared provider-backed strict-output seam that preserves trusted vs untrusted zoning and emits validated `PromptTrace` metadata.
+  3. `prompt_id`、`prompt_version`、`template_sha256`、`model_provider`、`model_name` become product-path truth in observability-safe projections and regression tests.
+  4. deterministic protected paths remain deterministic-first and are not silently replaced by prompt-first generation.
+**Plans:** 3/3 plans complete
+
+Plans:
+- [x] 14-01-PLAN.md — Freeze repo-default prompt stack assembly, runtime ownership, and trusted-vs-untrusted zoning.
+- [x] 14-02-PLAN.md — Implement provider-backed supervisor/rag prompt executors with strict structured outputs and metadata capture.
+- [x] 14-03-PLAN.md — Add prompt stack regression, observability, and deterministic-path protection verification.
+
+### Phase 15: 幻觉治理与 Grounded Generation 二次硬化
+
+**Goal:** Upgrade the current fail-closed baseline into a repo-default grounded-generation system so campus answers are admitted only when retrieval adequacy, claim support, source-trust tier, and post-generation grounding verdict all align; otherwise the runtime must deterministically clarify, abstain, or refuse.
+**Requirements**: []
+**Depends on:** Phase 14
+**Success Criteria** (what must be TRUE):
+  1. Retrieval adequacy becomes an explicit gate before grounded generation, so in-scope questions with weak, conflicting, or alias-ambiguous evidence do not silently proceed into answer synthesis.
+  2. Prompt answer grounding no longer depends on a single provider shape; the runtime owns a provider-agnostic claim-support contract and can normalize provider-native citations/support into repo truth.
+  3. Claim taxonomy expands beyond `title / time / requirement` to cover campus high-frequency assertions such as quantity/credit, semester placement, audience/major/program applicability, offering unit, procedure/material/deadline/eligibility, freshness, and authorization-sensitive claims.
+  4. Eval, observability, and release-gate evidence can distinguish retrieval inadequacy, unsupported claims, clarification-required ambiguity, false refusal, and false allow regressions without relying on manual answer review.
+**Plans:** 2/4 plans complete; repo-level context is captured in `.planning/phases/15-grounded-generation/15-CONTEXT.md` and `.planning/phases/15-grounded-generation/15-RESEARCH.md`
+
+Plans:
+- [x] 15-01: Freeze retrieval adequacy contract, typed adequacy diagnostics, and clarification-instead-of-guess baseline.
+- [x] 15-02: Implement provider-agnostic grounding runtime, canonical claim-support schema, and expanded claim taxonomy.
+- [ ] 15-03: Extend eval, artifact retention, and app-api/operator observability for adequacy and claim-support summaries.
+- [ ] 15-04: Run focused verification, update planning truth, and close the phase with explicit blocker-aware acceptance notes.
 
 ## Backlog
 

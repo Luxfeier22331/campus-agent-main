@@ -1,8 +1,8 @@
 ---
 doc_type: plan
-status: active
+status: deferred
 created: 2026-04-02
-updated: 2026-04-03
+updated: 2026-04-12
 ---
 
 # Operator Observability Control-Plane Foundation
@@ -16,6 +16,12 @@ updated: 2026-04-03
 - 替代 `docs/architecture/operator-observability-architecture.md` 的长期边界
 - 替代 `ADR-0023` 的 ownership / sink participation 决策
 - 固定某个 dashboard 的视觉细节
+
+## 当前生命周期状态
+
+- 本文仍代表被接受的 operator observability productization 方向，但当前没有独立 active execution wave 按本文整包推进
+- 当前 repo 的默认 active lane 是 Phase 15；其中与 observability expansion 直接相关的工作，应以 `docs/plans/hallucination-governance-and-grounded-generation-execution-plan.md` 与 `.planning/phases/15-grounded-generation/` 为准
+- 如需恢复完整 control-plane 扩面，应在 `.planning/PROJECT.md` / `.planning/STATE.md` 中显式重开执行面，而不是把本文误读成当前 handoff
 
 ## 目标
 

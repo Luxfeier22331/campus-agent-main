@@ -1,8 +1,8 @@
 ---
 doc_type: plan
-status: active
+status: deferred
 created: 2026-04-06
-updated: 2026-04-06
+updated: 2026-04-12
 ---
 
 # Protected Panel Requests Triage Table Redesign
@@ -16,6 +16,12 @@ updated: 2026-04-06
 - 修改 `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md` 已冻结的数据 ownership
 - 把 panel 变成 log viewer、telemetry viewer、trace console
 - 直接替代 `Requests` detail 页承担的深度排障职责
+
+## 当前生命周期状态
+
+- 本文仍是受控 panel `Requests` 分诊台重构的 accepted follow-up 方向，但当前没有独立 active execution wave
+- 当前 repo 的默认 active lane 仍是 Phase 15 grounded-generation hardening；该 redesign 不应被误写成当前项目主线
+- 如需恢复该重构，应在 `.planning/PROJECT.md` / `.planning/STATE.md` 中显式建新执行面，而不是继续把本文保留在默认 active 入口
 
 ## 现状问题
 
@@ -233,4 +239,3 @@ MCP 证据：
 - 默认列能在一屏内清晰读到问题摘要、状态、主体与结果信号
 - 详情页继续保留深度观测信息，不发生职责倒灌
 - 不破坏 `app-api` request projection ownership 边界
-

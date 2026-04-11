@@ -1,8 +1,8 @@
 ---
 doc_type: plan
-status: active
+status: completed
 created: 2026-04-02
-updated: 2026-04-02
+updated: 2026-04-12
 ---
 
 # Campus Identity And Restricted Document Foundation
@@ -27,6 +27,16 @@ updated: 2026-04-02
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
 - `docs/plans/legacy-acl-carrier-compatibility-sunset.md`
 
+## 成文时执行起点
+
+本文状态固定为 `completed`。
+
+原因：
+
+- `.planning/ROADMAP.md` Phase 11 已完成，principal taxonomy、authorization projection、restricted retrieval fail-close 与基础 allow/deny 闭环已经进入 repo truth
+- 当前 remaining gap 不再是 identity / restricted foundation 本身，而是后续 restricted rollout 与 legacy ACL compatibility sunset
+- 因此本文保留为 foundation closeout 记录，不再作为默认 active plan 入口
+
 ## 目标
 
 把“校内身份”和“restricted institutional document”从当前 phase-1 ACL 过渡态推进到可长期扩展的最小闭环。
@@ -41,7 +51,9 @@ updated: 2026-04-02
 
 ## 当前状态
 
-当前 merged truth 已经具备：
+以下内容记录的是本文成文时的执行起点；它保留 closeout 价值，但不再代表当前默认实施入口。
+
+当前 merged truth 当时已经具备：
 
 - `app-api` 是 canonical identity / authz owner 的架构方向
 - `ContextProjection` / `AuthorizationProjection` shared seam

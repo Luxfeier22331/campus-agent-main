@@ -4,6 +4,15 @@
 
 `campus-agent` 是一个面向学生、教职工和潜在考生的 multi-agent 校园问答助理仓库，长期形态是以 `supervisor` 作为唯一入口、`specialist agent` 作为能力边界的 supervisor-led orchestration system。当前 v1 的重点不是一次性做全量校园知识问答，而是在新架构下把 `supervisor -> rag-specialist -> retrieval` 主路径稳定成立，并让 serving surface 由 runtime profile 显式控制。当前 query-enabled surface 是 `student_handbook` 与 `curriculum_plan`；`campus_services` 仍保持 offline preparation。与此同时，若存在长期稳定、可复用、非 handbook-RAG 的能力边界，例如官网探活 / 外部站点可达性核验，也允许以独立 specialist 的形式作为当前里程碑中的显式 inserted phase 落地，而不是被降级成 supervisor 内联 tool。旧仓库 `../campusRAG` 只作为迁移参考，不再作为继续扩展的主实现。
 
+## Planning File Contract
+
+- `PROJECT.md`
+  - 项目级真相：产品范围、validated/active/out-of-scope、关键决策，以及会影响执行优先级的当前 truth
+- `STATE.md`
+  - 当前 worktree 的 `now / next / blockers / recent verification`；只做摘要，不重复完整决策史
+- `ROADMAP.md`
+  - phase 顺序、插入记录与完成历史
+
 ## Current Truth
 
 - 当前 serving surface 由 collection runtime profile 控制，不再由早期 `phase-1` 路由文案单独定义
@@ -31,6 +40,8 @@
 - `official_web/fresh_news` 当前也已补齐 repo-tracked split manifest、retrieval qrels 与 deterministic live-gate seed baseline；2026-04-05 本地 `8` 文档 seed import/release 生成 `official_web_fresh_news__r20260404_222909`，retrieval `8/8 hit@1`、live gate `8/8 pass`，但 runtime truth 仍保持 `offline_preparation`
 - `campus_notices/internal_notice` 已在 local Postgres + local MinIO + cloud Qdrant 路径上完成 current-scope replay -> verified preparation -> single promote -> unpublished release：`promotion_id=promotion-0001`、`release_id=r20260411_090101`、physical collection `internal_notice__r20260411_090101`、`document_count=21`、`point_count=213`、`validation_status=passed`，且 serving alias `internal_notice` 仍未发布；runtime truth 继续保持 `restricted + offline_preparation`
 - 当前 worktree 已完成 Wave E place-finding foundation：repo-owned `campus_navigation/place_catalog` seed/runtime-profile、`packages/navigation-specialist`、`place_lookup` supervisor routing、`apps/app-api` assistant `place_card` structured parts 与 `apps/public-chat-web` 中文地点卡片渲染都已落地；在合入 `develop` 前，这仍属于 worktree-local progress，而不是 merged truth
+- 当前 worktree 已完成 Phase 14 `产品主链路 Prompt Stack 与 System Prompt Runtime 收口`：`apps/supervisor-api`、`packages/supervisor-core`、`packages/rag-specialist`、`apps/app-api` 与 `packages/evals` 现已统一收口 prompt metadata sink、typed prompt runtime state 与 deterministic-path regression coverage；在合入 `develop` 前，这仍属于 worktree-local progress，而不是 merged truth
+- 当前 repo 的默认下一条 active implementation lane 已切到 Phase 15 `幻觉治理与 Grounded Generation 二次硬化`；目标设计位于 `docs/plans/hallucination-governance-and-grounded-generation-execution-plan.md`，执行上下文位于 `.planning/phases/15-grounded-generation/`
 - 早期 roadmap / phase 文档主要承担历史排期与讨论存档，不应覆盖这里的当前 truth
 
 ## Core Value
@@ -71,6 +82,7 @@
 - [ ] authenticated-notice Wave D 的 local Postgres 路径已完成 full current-scope replay、verified chunk preparation、single promote 与 unpublished release：`local-postgres-wave-d-full-20260410-141615` 已在 2026-04-11 promote 成 `promotion-0001`，随后 `release_registry_scope --no-publish-alias` 生成 `r20260411_090101` 与 physical collection `internal_notice__r20260411_090101`；Qdrant `points_count=213` / `status=green`，manifest 与 validation summary 也已落盘，alias `internal_notice` 仍保持未发布。这条线当前不再阻塞在 refresh / preparation / release，本地下一步转为 post-release retrieval-prep consumption、规章制度 promotion target collection 落地，以及仍然明确后置的 live portal scheduling / authenticated control-plane work
 - [ ] `official_web/fresh_news` / `official_web/news_archive` 的 runtime opening criteria 仍未冻结；这条工作继续留在独立 official-web worktree，不在当前 follow-up 分支直接推进 query-serving 开放
 - [ ] Wave E 的 code truth 已在当前 worktree 收口：repo 已具备 `place_lookup` / `place_finding` 首发闭环，包括 repo-owned `campus_navigation/place_catalog` seed、`navigation-specialist`、`packages/contracts` / `packages/supervisor-core` 路由、`apps/app-api` 的 `chat.messages.structured_parts_json` 持久化，以及 `apps/public-chat-web` 的中文地点卡片渲染。当前剩余导航 follow-up 不再是 place-finding foundation 本身，而是 seed 扩面、真实 staging smoke / 人工验收，以及明确后置的 `route_graph` / `route_planning`
+- [ ] 当前默认 active phase 已切到 Phase 15 `幻觉治理与 Grounded Generation 二次硬化`：四个执行 wave `15-01` 至 `15-04` 已落盘，后续 repo-default 质量治理将围绕 retrieval adequacy、provider-agnostic grounding runtime、claim support taxonomy、artifact/observability 扩展与 verification closeout 推进
 
 ### Out of Scope
 
@@ -163,4 +175,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state (users, feedback, metrics)
 
 ---
-*Last updated: 2026-04-11 after completing Wave D unpublished release and syncing planning truth*
+*Last updated: 2026-04-12 after clarifying documentation file contract, Phase 14 closeout, and Phase 15 as the default active lane*

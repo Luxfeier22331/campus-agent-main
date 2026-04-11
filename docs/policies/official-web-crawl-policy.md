@@ -27,7 +27,7 @@ updated: 2026-04-10
 
 对应文档：
 
-- source channel 边界：`docs/architecture/official-web-source-channel.md`
+- source channel 边界：`docs/architecture/official-web-architecture.md`
 - freshness / 增量采集：`docs/architecture/official-web-freshness-and-incremental-crawling.md`
 - source-truth schema：`docs/architecture/official-web-source-truth-contract.md`
 

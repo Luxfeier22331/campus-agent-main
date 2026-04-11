@@ -1,8 +1,8 @@
 ---
 doc_type: plan
-status: active
+status: deferred
 created: 2026-04-02
-updated: 2026-04-02
+updated: 2026-04-12
 ---
 
 # Legacy ACL Carrier Compatibility Sunset
@@ -24,6 +24,21 @@ updated: 2026-04-02
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
 - `docs/plans/campus-identity-and-restricted-document-foundation.md`
 
+## 成文时收口进度
+
+本文状态固定为 `deferred`。
+
+原因：
+
+- Phase 11 已把 runtime canonical vocabulary、restricted fail-close 与 shared seam 的主路径收口；legacy carrier 不再是主线 blocker
+- 但 shared contract、persisted-row canonicalization、fixture/docs vocabulary 与少量兼容入口仍保留 legacy residue，因此本文不能标成 `completed`
+- 当前没有专门 active wave 持续清空这部分技术债，所以它属于 accepted but not currently executing 的 follow-up
+
+补充说明：
+
+- 这里说的 legacy `campus_scope` 指 authz / ACL 过渡 carrier，不包括 navigation / place catalog 里作为地理语义存在的同名字段
+- 后续若重开这条线，应先按本文 Wave 1-5 重新建立显式 execution lane，再做 repo-wide 删除
+
 ## 目标
 
 把 legacy ACL carrier 从“产品路径上的兼容载体”收缩成“离线迁移入口适配”，最终从 shared contract、runtime query path、fixture vocabulary 与 data-plane payload 中退出。
@@ -37,7 +52,7 @@ updated: 2026-04-02
 
 ## 当前状态
 
-当前仓库已经完成的部分：
+当前仓库当时已经完成的部分：
 
 - `retrieval-core` 主查询路径已按 canonical `visibility_* + entitlement_*` 执行 pre-filter
 - `RetrievalRequest` 顶层 legacy fallback 已退出主路径
@@ -151,7 +166,7 @@ updated: 2026-04-02
 - `packages/evals/*`
 - `tests/evals/*`
 - `docs/runbooks/*`
-- `packages/evals/README.md`
+- `docs/reference/testing-and-verification-lanes.md`
 
 完成定义：
 
@@ -209,7 +224,7 @@ updated: 2026-04-02
 
 ## 当前建议的先手
 
-先执行 Wave 1。
+如果后续重开这条线，先执行 Wave 1。
 
 原因：
 

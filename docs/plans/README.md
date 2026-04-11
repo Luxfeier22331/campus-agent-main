@@ -12,27 +12,26 @@ updated: 2026-04-12
 
 ## Active
 
-### Product hardening / operator plane
+### Current implementation lane
 
-- `prompt-grounding-and-hallucination-hardening-plan.md`
 - `hallucination-governance-and-grounded-generation-execution-plan.md`
-- `operator-observability-control-plane-foundation.md`
-- `protected-panel-requests-triage-table-redesign.md`
-
-### Identity / authz / restricted access
-
-- `intent-memory-acl-foundation.md`
-- `campus-identity-and-restricted-document-foundation.md`
-- `restricted-document-rollout-and-verification.md`
-- `legacy-acl-carrier-compatibility-sunset.md`
 
 ### Data plane / quality / source channels
 
 - `internal-notice-policy-regulation-consumption-implementation.md`
-- `golden-dataset-execution-plan.md`
 
 ## Deferred
 
+- `operator-observability-control-plane-foundation.md`
+  - operator observability control plane 的长期方向已接受，但当前没有独立 active execution wave；与 observability expansion 相关的当前工作以 Phase 15 与项目级 planning 为准
+- `protected-panel-requests-triage-table-redesign.md`
+  - panel `Requests` 分诊台重构仍保留为 follow-up 计划，但当前未进入默认 active lane
+- `golden-dataset-execution-plan.md`
+  - eval / golden dataset 的后续扩样与治理仍有价值，但当前没有独立 active execution wave
+- `restricted-document-rollout-and-verification.md`
+  - restricted rollout 方向仍被接受，但当前 restricted collections 默认仍处于 `offline_preparation`，没有独立 active execution wave
+- `legacy-acl-carrier-compatibility-sunset.md`
+  - canonical vocabulary 主路径已收口，但 shared contract / persisted payload canonicalization / fixture vocabulary 仍有 residue；当前没有单独 active wave 持续清债
 - `post-closeout-follow-up-execution-plan.md`
   - Wave A/B/D/E 主体收口已完成；当前只保留 provider-blocked 或后置 reopen follow-up
 - `versioned-history-query-foundation.md`
@@ -40,6 +39,12 @@ updated: 2026-04-12
 
 ## Completed
 
+- `prompt-grounding-and-hallucination-hardening-plan.md`
+  - prompt stack / grounding baseline 已收口完成；当前默认 active lane 已切到 Phase 15 grounded-generation follow-up
+- `intent-memory-acl-foundation.md`
+  - identity / memory / authz foundation 已在 Phase 11 收口；后续如果重开 memory productization，应新建 follow-up lane
+- `campus-identity-and-restricted-document-foundation.md`
+  - principal taxonomy、authorization projection 与 restricted foundation 已关闭；剩余工作转向 deferred rollout / sunset follow-up
 - `authenticated-notice-source-foundation.md`
   - source-channel foundation phase 已关闭；后续 source-triage / promotion 前向工作转到 `internal_notice` consumption plan 与对应 runbooks
 - `public-chat-web-vendor-tech-debt-convergence.md`

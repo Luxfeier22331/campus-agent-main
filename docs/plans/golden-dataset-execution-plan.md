@@ -1,8 +1,8 @@
 ---
 doc_type: plan
-status: active
+status: deferred
 created: 2026-03-29
-updated: 2026-04-01
+updated: 2026-04-12
 ---
 
 # Golden Dataset Execution Plan
@@ -48,6 +48,12 @@ updated: 2026-04-01
 - handbook / curriculum 的 `smoke` 与 `regression_locked` workflow 固定 case 已成形，但后续仍需继续补高风险 lane
 - answer truth 仍需按“适用 case 才计分”的原则继续扩充 `required_facts`、`forbidden_claims` 与 citation 约束
 - synthetic expansion 的晋升路径还未和现有固定 case 体系形成明确分层
+
+## 当前生命周期状态
+
+- 本文仍代表 golden dataset 的 accepted follow-up 执行方向，但当前没有独立 active execution wave 按本文持续推进
+- 当前 repo 的默认 active lane 已切到 Phase 15 grounded-generation hardening；golden dataset 后续工作应在项目级 planning 中显式重开，而不是继续把本文列作默认 active 入口
+- `.planning/phases/07-verification-and-release-gate/` 中对本文的引用只代表历史 phase 上下文，不代表当前 worktree 正在执行本文
 
 ## Current Post-Closeout Follow-Up Priorities
 

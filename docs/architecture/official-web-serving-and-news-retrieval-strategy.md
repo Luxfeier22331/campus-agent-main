@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-05
+updated: 2026-04-12
 ---
 
 # Official Web Serving And News Retrieval Strategy
@@ -28,11 +28,11 @@ updated: 2026-04-05
 
 对应文档：
 
-- source channel 总边界：`docs/architecture/official-web-source-channel.md`
+- source channel 总边界：`docs/architecture/official-web-architecture.md`
 - freshness / 增量采集：`docs/architecture/official-web-freshness-and-incremental-crawling.md`
-- phase-1 数据平面不变量：`docs/architecture/phase1-ingestion-and-storage-architecture.md`
-- retrieval runtime baseline：`docs/architecture/retrieval-query-strategy.md`
-- 长期版本化 serving / 历史查询目标：`docs/architecture/versioned-document-serving-and-history-query.md`
+- 数据平面不变量：`docs/architecture/data-plane-architecture.md`
+- retrieval runtime baseline：`docs/architecture/retrieval-serving-architecture.md`
+- 长期版本化 serving / 历史查询目标：`docs/decisions/adr-0014-versioned-document-serving-and-history-query.md`
 - current-scope cleaning / chunking 规则：`docs/policies/official-web-cleaning-and-chunking-policy.md`
 - 当前 handoff 真相：`docs/reference/official-web-fresh-news-surface-handoff.md`
 
@@ -321,11 +321,11 @@ updated: 2026-04-05
 
 ## 与现有文档关系
 
-- `official_web-source-channel.md`
+- `official-web-architecture.md`
   冻结 source-channel 边界，不负责 serving 分层
 - `official_web-freshness-and-incremental-crawling.md`
   冻结 crawl freshness 与增量采集，不负责 query 路由
-- `phase1-ingestion-and-storage-architecture.md`
+- `data-plane-architecture.md`
   冻结跨 collection 数据平面不变量，不负责 `official_web` 的 collection-specific serving policy
-- `retrieval-query-strategy.md`
+- `retrieval-serving-architecture.md`
   冻结 retrieval baseline，不复制 `official_web` 新闻语义细节

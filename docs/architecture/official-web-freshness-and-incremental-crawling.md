@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-30
-updated: 2026-04-04
+updated: 2026-04-12
 ---
 
 # Official Web Freshness And Incremental Crawling
@@ -27,15 +27,15 @@ updated: 2026-04-04
 
 对应文档：
 
-- source channel 总边界：`docs/architecture/official-web-source-channel.md`
-- crawl 规则：`docs/architecture/official-web-crawl-policy.md`
+- source channel 总边界：`docs/architecture/official-web-architecture.md`
+- crawl 规则：`docs/policies/official-web-crawl-policy.md`
 - source-truth contract：`docs/architecture/official-web-source-truth-contract.md`
-- control-plane ownership：`docs/architecture/official-web-control-plane-on-app-api.md`
+- control-plane ownership：`docs/architecture/official-web-architecture.md`
 - serving / news retrieval 策略：`docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
 - 当前 news handoff truth：`docs/reference/official-web-fresh-news-surface-handoff.md`
 - app-api HTTP seam：`docs/contracts/app-api-official-web-http.md`
 - app-api run lifecycle：`docs/contracts/app-api-official-web-run-lifecycle.md`
-- phase-1 数据平面不变量：`docs/architecture/phase1-ingestion-and-storage-architecture.md`
+- 数据平面不变量：`docs/architecture/data-plane-architecture.md`
 
 ## 目标
 
