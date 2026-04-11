@@ -291,7 +291,11 @@ class QdrantRetrievalBackend:
         )
         expanded_sources = (
             tuple(ranked_sources)
-            if not self._should_expand_named_document_support(request=request, profile=profile)
+            if not self._should_expand_named_document_support(
+                request=request,
+                profile=profile,
+                sources=ranked_sources,
+            )
             else self._expand_named_document_support(
                 request=request,
                 profile=profile,
@@ -487,8 +491,14 @@ class QdrantRetrievalBackend:
         *,
         request: RetrievalRequest,
         profile: CollectionRuntimeProfile,
+        sources: Sequence[EvidenceSource],
     ) -> bool:
-        return not self._should_use_targeted_document_overfetch(request=request, profile=profile)
+        if not self._should_use_targeted_document_overfetch(request=request, profile=profile):
+            return True
+        return self._should_expand_narrow_curriculum_targeted_support(
+            request=request,
+            sources=sources,
+        )
 
     def _should_use_targeted_document_overfetch(
         self,
@@ -499,6 +509,37 @@ class QdrantRetrievalBackend:
         if profile.document_support_strategy != "targeted_overfetch":
             return False
         return bool(request.target_document_ids) and len(frozenset(request.target_document_ids)) == 1
+
+    def _should_expand_narrow_curriculum_targeted_support(
+        self,
+        *,
+        request: RetrievalRequest,
+        sources: Sequence[EvidenceSource],
+    ) -> bool:
+        if request.corpus != "curriculum" or request.collection != "curriculum_plan":
+            return False
+        target_source = next(
+            (
+                source
+                for source in sources
+                if query_targets_source_title(query_text=request.query_text, source=source)
+            ),
+            None,
+        )
+        if target_source is None:
+            return False
+        support_query_text = _build_document_support_query_text(
+            query_text=request.query_text,
+            source=target_source,
+        )
+        if _normalize_low_signal_query(support_query_text) == _normalize_low_signal_query(request.query_text):
+            return False
+        section_keys = {
+            _curriculum_support_section_key(source)
+            for source in sources
+            if source.doc_id == target_source.doc_id
+        }
+        return len(section_keys) < 2
 
     def _expand_named_document_support(
         self,
@@ -895,6 +936,16 @@ def _order_curriculum_semester_course_list_sources(
 def _curriculum_course_list_section_key(source: EvidenceSource) -> str:
     if source.structural_path:
         return source.structural_path[-1].strip() or source.chunk_id
+    return source.chunk_id
+
+
+def _curriculum_support_section_key(source: EvidenceSource) -> str:
+    if source.structural_path:
+        normalized_path = tuple(part.strip() for part in source.structural_path if part.strip())
+        if normalized_path:
+            return " > ".join(normalized_path)
+    if source.detail_label.strip():
+        return source.detail_label.strip()
     return source.chunk_id
 
 
