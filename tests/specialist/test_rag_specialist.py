@@ -2114,6 +2114,8 @@ class RagSpecialistTest(unittest.TestCase):
                 ),
             ),
         )
+        self.assertIn("根据培养方案相关内容", response.answer_text)
+        self.assertNotIn("根据学生手册相关规定", response.answer_text)
         self.assertIn("侵权责任法", response.answer_text)
         self.assertIn("公司法", response.answer_text)
         self.assertEqual(

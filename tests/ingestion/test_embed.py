@@ -3,6 +3,8 @@ from __future__ import annotations
 import unittest
 from unittest.mock import Mock, patch
 
+import httpx
+
 from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
 
 
@@ -47,7 +49,14 @@ class EmbeddingProviderAliasTest(unittest.TestCase):
             timeout=15.0,
             embed_batch_size=32,
             model_name="Qwen3-Embedding-4B",
+            http_client=unittest.mock.ANY,
+            async_http_client=unittest.mock.ANY,
         )
+        _, kwargs = openai_embedding.call_args
+        self.assertIsInstance(kwargs["http_client"], httpx.Client)
+        self.assertFalse(kwargs["http_client"]._trust_env)
+        self.assertIsInstance(kwargs["async_http_client"], httpx.AsyncClient)
+        self.assertFalse(kwargs["async_http_client"]._trust_env)
 
     @patch("campus_ingestion_core.embed.OpenAI")
     @patch("campus_ingestion_core.embed.AsyncOpenAI")
@@ -81,7 +90,21 @@ class EmbeddingProviderAliasTest(unittest.TestCase):
             base_url="https://example.invalid/v1",
             timeout=15.0,
             max_retries=10,
+            http_client=unittest.mock.ANY,
         )
+        async_openai.assert_called_once_with(
+            api_key="test-key",
+            base_url="https://example.invalid/v1",
+            timeout=15.0,
+            max_retries=10,
+            http_client=unittest.mock.ANY,
+        )
+        _, sync_kwargs = openai_client.call_args
+        self.assertIsInstance(sync_kwargs["http_client"], httpx.Client)
+        self.assertFalse(sync_kwargs["http_client"]._trust_env)
+        _, async_kwargs = async_openai.call_args
+        self.assertIsInstance(async_kwargs["http_client"], httpx.AsyncClient)
+        self.assertFalse(async_kwargs["http_client"]._trust_env)
         self.assertEqual(sync_client.embeddings.create.call_count, 2)
         self.assertEqual(
             sync_client.embeddings.create.call_args_list[0].kwargs,

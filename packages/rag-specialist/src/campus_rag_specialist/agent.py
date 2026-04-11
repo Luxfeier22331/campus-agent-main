@@ -1894,11 +1894,11 @@ def _arabic_number_to_chinese(value: str) -> str:
 
 
 def _answer_prefix(evidence: EvidenceBundle) -> str:
-    if evidence.corpus == "curriculum" and evidence.collection == "curriculum_plan":
-        return "根据培养方案相关内容"
     if (
         evidence.corpus == "official_web"
         and is_official_web_stable_reference_like_collection(evidence.collection)
     ):
         return "根据官网页面内容"
+    if evidence.corpus == "curriculum":
+        return "根据培养方案相关内容"
     return "根据学生手册相关规定"
