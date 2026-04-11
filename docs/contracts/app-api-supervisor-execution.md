@@ -197,13 +197,21 @@ JSON 命名保持 `snake_case`，原因如下：
   - `resolved_place.{place_id, entity_type, display_name, campus_scope, campus_area}`
   - `place_card.{place, location_description, landmark_hint, access_note, opening_note, service_tags, point_geometry, coordinate_reference_system, source_refs}`
   - `candidate_places[].{place, clarification_hint}`
+- 当 `selected_target = rag-specialist` 且 `result.diagnostics` 存在时，`app-api` 当前会消费其中的 summary truth：
+  - `retrieval_adequacy_verdict`
+  - `retrieval_adequacy_reason`
+  - `grounding_verdict`
+  - `claim_supports`
+  - `unsupported_fields`
+- 上述 `result.diagnostics.*` 只用于 app-owned summary projection；它不是 panel 或 browser 的 raw specialist dump contract
 - `app-api` 可以从 `result` 中提取 source identifiers 进入 projection，但不得把 specialist payload 直接当 browser contract 暴露
 - 当前 `app-api` 会把已完成的 `navigation-specialist` `place_card` 归一化成 assistant `structuredParts` 并落到 `chat.messages.structured_parts_json`，而不是把上游 `snake_case` payload 原样暴露给 browser
 - `observability` 是 execution-side typed summary seam，用于 `runtime.request_observability_fact` 的 seed / finalize；字段继续保持 Python-side `snake_case`
 - 当 execution side 解析了最终 serving surface 时，`observability.resolved_scope_*` 必须显式回传给 `app-api`
 - `observability.prompt_trace` 只返回 observability-safe prompt identity，不返回 raw prompt text
 - `observability.prompt_runtime_state` / `observability.prompt_runtime_detail` 用于区分 `provider_refusal`、`provider_incomplete`、`content_filter` 等 fail-close branch
-- `observability` 不返回 raw prompt、raw answer、raw transcript、raw retrieval payload 或 raw auth material
+- `observability` 不返回 raw prompt、raw answer、raw transcript、raw retrieval payload、raw provider citation blob 或 raw auth material
+- `result.diagnostics` 也不应携带 provider-native citation blob、raw support snippet dump 或其他 operator 不可见的 vendor payload；operator-facing query path 只保留 compact summary
 - token / model / cost 字段如果出现，必须来自 execution-side typed telemetry seam，而不是 panel-side 或 sink-side 反推
 
 ## HTTP Status Rule

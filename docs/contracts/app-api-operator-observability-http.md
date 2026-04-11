@@ -305,6 +305,21 @@ list endpoints 额外支持：
     "aclDecision": "allowed",
     "aclAnomalyCode": null,
     "failClosed": false,
+    "retrievalAdequacyVerdict": "sufficient",
+    "retrievalAdequacyReason": "sufficient",
+    "claimSupportSummary": {
+      "totalClaims": 3,
+      "supportedClaims": 1,
+      "unsupportedClaims": 2,
+      "unsupportedClaimTypes": [
+        "audience_or_major_or_program_or_class_family",
+        "offering_unit_or_owning_school"
+      ],
+      "unsupportedFields": [
+        "audience_claims",
+        "offering_unit_claims"
+      ]
+    },
     "model": {
       "provider": "openai",
       "name": "gpt-5.2-mini"
@@ -346,6 +361,8 @@ list endpoints 额外支持：
 - `requestedScope` 反映 accept 时上游是否显式约束 scope，可为 `null`
 - `resolvedScope` 反映 execution side 最终命中的 serving surface，是 panel 侧 quality / collection 归因的真相源
 - `retrievalAttempted`、`citationExpected`、`aclDecision` 必须来自 typed execution seam 或 app-owned runtime fact family
+- `retrievalAdequacyVerdict` / `retrievalAdequacyReason` 用于区分 retrieval base 不足与 post-generation grounding downgrade
+- `claimSupportSummary` 只返回 compact claim-level聚合：总 claim 数、unsupported claim type、unsupported field；不返回 raw `claim_supports`、support snippet 或 provider-native citation/support blob
 - `observability.prompt.*` 只暴露 prompt identity 与 typed runtime branch，不返回 raw prompt
 - token / model 字段必须来自 execution-side typed telemetry seam，不从 sink query 反推
 - `links.*` 必须来自 app-owned backlink projection，而不是 route-time sink query

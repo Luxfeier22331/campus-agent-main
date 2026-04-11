@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-03-28
-updated: 2026-04-11
+updated: 2026-04-12
 ---
 
 # App API Schema
@@ -329,6 +329,7 @@ updated: 2026-04-11
 - `principal_type`
 - `entitlement_snapshot_id` nullable
 - `policy_projection_version` nullable
+- `policy_reason` nullable
 - `requested_capability` nullable
 - `requested_scope_summary` nullable
 - `resolved_scope_summary` nullable
@@ -347,6 +348,8 @@ updated: 2026-04-11
 - `citation_count` nullable
 - `citation_missing` nullable
 - `refusal_class` nullable
+- `semantic_outcome` nullable
+- `scope_class` nullable
 - `acl_decision` nullable
 - `acl_anomaly_code` nullable
 - `fail_closed` nullable
@@ -361,6 +364,9 @@ updated: 2026-04-11
 - `output_tokens` nullable
 - `cached_input_tokens` nullable
 - `estimated_cost_microusd` nullable
+- `retrieval_adequacy_verdict` nullable
+- `retrieval_adequacy_reason` nullable
+- `claim_support_summary_json` nullable
 - `trace_available`
 - `projection_lag_ms` nullable
 - `measured_at`
@@ -382,6 +388,8 @@ updated: 2026-04-11
 - `accepted` 阶段必须先 seed 这张表；`finalized` 阶段必须 upsert typed execution outcome
 - `accepted` 阶段的 `resolved_scope_summary` 与 `collection` 必须保持 `null`
 - `finalized` 阶段的 `collection` 必须按 `resolved_scope_summary` 对应的最终 collection 回填，不能继续拿 `requested_scope_summary` 充当真实执行 collection
+- `retrieval_adequacy_verdict` / `retrieval_adequacy_reason` 表示 retrieval base 是否足以支撑回答；它们与 `grounding` 结果不是同一维度
+- `claim_support_summary_json` 只保存 operator-safe 聚合摘要，不保存 raw `claim_supports`、support snippet 或 provider-native citation/support blob
 - `projection materialization` 负责更新 `projection_lag_ms`、`measured_at` 与 projection health summary，不回写 `runtime.request_execution`
 - 这是 app-owned summary fact family，不保存 raw prompt、raw answer、raw transcript、raw retrieval payload、raw auth material
 - prompt 相关列只保存 observability-safe identity 与 typed runtime state，不保存 raw prompt 或 provider refusal 文本
