@@ -13,6 +13,7 @@ import type {
   RequestClaimSupportSummary,
   RequestDiagnosticsSummary,
 } from "../../modules/request-diagnostics";
+import type { ObservedSourceTraceEntry } from "../../modules/source-trace";
 
 const runtime = pgSchema("runtime");
 
@@ -118,6 +119,8 @@ export const requestObservabilityFact = runtime.table(
     retrievalAttempted: boolean("retrieval_attempted"),
     candidateCount: integer("candidate_count"),
     retrievedSourceCount: integer("retrieved_source_count"),
+    retrievedSourcesJson: jsonb("retrieved_sources_json").$type<ObservedSourceTraceEntry[]>().notNull().default([]),
+    supportingSourcesJson: jsonb("supporting_sources_json").$type<ObservedSourceTraceEntry[]>().notNull().default([]),
     emptyRecall: boolean("empty_recall"),
     citationExpected: boolean("citation_expected"),
     citationCount: integer("citation_count"),

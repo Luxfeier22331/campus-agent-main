@@ -595,7 +595,14 @@ export function createPgOperatorQueryStore(
         .where(eq(traceBacklinkProjection.requestId, requestId))
         .limit(1);
       const backlink = backlinkRows[0] ?? null;
-      const sourceDocIds = projection.sourceDocIdsJson ?? [];
+      const retrievedSources = fact?.retrievedSourcesJson ?? [];
+      const supportingSources = fact?.supportingSourcesJson ?? [];
+      const retrievalAttempted = fact?.retrievalAttempted ?? null;
+      const retrievedSourceCount =
+        fact?.retrievedSourceCount ??
+        (retrievalAttempted === true || retrievedSources.length > 0
+          ? retrievedSources.length
+          : null);
 
       return {
         auditSummary: {
@@ -610,7 +617,7 @@ export function createPgOperatorQueryStore(
           cachedInputTokens: fact?.cachedInputTokens ?? null,
           candidateCount: fact?.candidateCount ?? null,
           claimSupportSummary: fact?.claimSupportSummaryJson ?? null,
-          citationCount: fact?.citationCount ?? sourceDocIds.length,
+          citationCount: fact?.citationCount ?? supportingSources.length,
           citationExpected: fact?.citationExpected ?? null,
           citationMissing: fact?.citationMissing ?? null,
           durationMs: fact?.durationMs ?? projection.durationMs ?? null,
@@ -618,6 +625,10 @@ export function createPgOperatorQueryStore(
           estimatedCost: {
             currency: "USD",
             microusd: fact?.estimatedCostMicrousd ?? null,
+          },
+          sourceTrace: {
+            retrieved: retrievedSources,
+            supporting: supportingSources,
           },
           failClosed: fact?.failClosed ?? null,
           inputTokens: fact?.inputTokens ?? null,
@@ -636,10 +647,10 @@ export function createPgOperatorQueryStore(
           outputTokens: fact?.outputTokens ?? null,
           projectionLagMs: fact?.projectionLagMs ?? null,
           refusalClass: fact?.refusalClass ?? null,
-          retrievedSourceCount: fact?.retrievedSourceCount ?? sourceDocIds.length,
+          retrievedSourceCount,
           retrievalAdequacyReason: fact?.retrievalAdequacyReason ?? null,
           retrievalAdequacyVerdict: fact?.retrievalAdequacyVerdict ?? null,
-          retrievalAttempted: fact?.retrievalAttempted ?? null,
+          retrievalAttempted,
           traceAvailable: fact?.traceAvailable ?? Boolean(projection.traceId),
         },
         request: {

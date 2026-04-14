@@ -4,6 +4,9 @@ import type {
   RequestClaimSupportSummary,
   RequestDiagnosticsSummary,
 } from "./request-diagnostics";
+import {
+  extractObservedSourcesFromResult,
+} from "./source-trace";
 import type { RequestExecutionStatus, RequestObservabilityFactWrite } from "./runtime-command/store";
 
 function toScopeSummary(scope: RequestedScope | null | undefined): string | null {
@@ -227,6 +230,8 @@ export function buildAcceptedRequestObservabilityFact(input: {
     cachedInputTokens: null,
     candidateCount: null,
     claimSupportSummary: null,
+    retrievedSources: [],
+    supportingSources: [],
     citationCount: null,
     citationExpected: null,
     citationMissing: null,
@@ -294,16 +299,21 @@ export function buildFinalizedRequestObservabilityFact(input: {
   conversationId: string;
 }): RequestObservabilityFactWrite {
   const observability = input.response.observability;
-  const retrievedSourceCount = observability?.retrievedSourceCount ?? input.sourceDocIds.length;
-  const citationCount = observability?.citationCount ?? input.sourceDocIds.length;
+  const supportingSources = extractObservedSourcesFromResult(input.response.result);
+  const retrievedSources = observability?.retrievedSources ?? [];
   const retrievalAttempted =
     typeof observability?.retrievalAttempted === "boolean"
       ? observability.retrievalAttempted
       : null;
+  const retrievedSourceCount =
+    observability?.retrievedSourceCount ??
+    (retrievalAttempted === true || retrievedSources.length > 0 ? retrievedSources.length : null);
   const citationExpected =
     typeof observability?.citationExpected === "boolean"
       ? observability.citationExpected
       : null;
+  const citationCount =
+    observability?.citationCount ?? (citationExpected === true ? supportingSources.length : 0);
 
   return {
     aclAnomalyCode: observability?.aclAnomalyCode ?? null,
@@ -315,6 +325,8 @@ export function buildFinalizedRequestObservabilityFact(input: {
     cachedInputTokens: observability?.cachedInputTokens ?? null,
     candidateCount: observability?.candidateCount ?? null,
     claimSupportSummary: normalizeClaimSupportSummary(input.diagnostics),
+    retrievedSources,
+    supportingSources,
     citationCount,
     citationExpected,
     citationMissing:

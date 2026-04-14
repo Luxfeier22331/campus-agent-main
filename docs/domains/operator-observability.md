@@ -26,11 +26,11 @@ updated: 2026-04-12
 - `../contracts/app-api-http.md`
 - `../data/app-api-schema.md`
 
-## 当前执行说明
+## 当前阅读顺序
 
-- 当前 merged truth 已接受：panel 只读 `app-api` owned request projection、observability detail 与后续 aggregate read model；`Sentry`、`Axiom`、grader 只作为 sink 或输入来源
+- 当前 merged truth 以 `../architecture/current-architecture.md`、`../architecture/operator-observability-architecture.md` 与 contract/data 文档为准
+- 当前与本域直接相关的 active project work 主要是 Phase 15 中的 observability summary / artifact retention 扩展
 - operator observability control plane 扩面与 `Requests` triage table 重构仍是 accepted follow-up，但当前没有独立 active execution wave
-- 当前与 observability 直接相关的默认 active lane 位于 Phase 15，重点是 grounded-generation 的 eval、artifact retention 与 observability summary 扩展
 
 ## Active Plan
 

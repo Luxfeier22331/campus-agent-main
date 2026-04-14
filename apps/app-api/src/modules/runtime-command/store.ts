@@ -21,6 +21,7 @@ import type {
   RequestClaimSupportSummary,
   RequestDiagnosticsSummary,
 } from "../request-diagnostics";
+import type { ObservedSourceTraceEntry } from "../source-trace";
 import type { ChatCommandResponse } from "./service";
 
 type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
@@ -104,6 +105,8 @@ export interface RequestObservabilityFactWrite {
   retrievalAttempted: boolean | null;
   candidateCount: number | null;
   retrievedSourceCount: number | null;
+  retrievedSources: ObservedSourceTraceEntry[];
+  supportingSources: ObservedSourceTraceEntry[];
   emptyRecall: boolean | null;
   citationExpected: boolean | null;
   citationCount: number | null;
@@ -429,6 +432,8 @@ export function createPgChatCommandStore(
           cachedInputTokens: input.requestObservabilityFact.cachedInputTokens,
           candidateCount: input.requestObservabilityFact.candidateCount,
           claimSupportSummaryJson: input.requestObservabilityFact.claimSupportSummary,
+          retrievedSourcesJson: input.requestObservabilityFact.retrievedSources,
+          supportingSourcesJson: input.requestObservabilityFact.supportingSources,
           citationCount: input.requestObservabilityFact.citationCount,
           citationExpected: input.requestObservabilityFact.citationExpected,
           citationMissing: input.requestObservabilityFact.citationMissing,
@@ -553,6 +558,8 @@ export function createPgChatCommandStore(
             cachedInputTokens: input.requestObservabilityFact.cachedInputTokens,
             candidateCount: input.requestObservabilityFact.candidateCount,
             claimSupportSummaryJson: input.requestObservabilityFact.claimSupportSummary,
+            retrievedSourcesJson: input.requestObservabilityFact.retrievedSources,
+            supportingSourcesJson: input.requestObservabilityFact.supportingSources,
             citationCount: input.requestObservabilityFact.citationCount,
             citationExpected: input.requestObservabilityFact.citationExpected,
             citationMissing: input.requestObservabilityFact.citationMissing,
@@ -607,6 +614,8 @@ export function createPgChatCommandStore(
               cachedInputTokens: input.requestObservabilityFact.cachedInputTokens,
               candidateCount: input.requestObservabilityFact.candidateCount,
               claimSupportSummaryJson: input.requestObservabilityFact.claimSupportSummary,
+              retrievedSourcesJson: input.requestObservabilityFact.retrievedSources,
+              supportingSourcesJson: input.requestObservabilityFact.supportingSources,
               citationCount: input.requestObservabilityFact.citationCount,
               citationExpected: input.requestObservabilityFact.citationExpected,
               citationMissing: input.requestObservabilityFact.citationMissing,

@@ -10,6 +10,10 @@ import {
   resolveTracePropagationHeaders,
   type TracePropagationHeaders,
 } from "../telemetry/trace";
+import {
+  summarizeObservedSources,
+  type ObservedSourceTraceEntry,
+} from "../source-trace";
 
 export interface RequestedScope {
   corpus: string;
@@ -93,6 +97,7 @@ export interface SupervisorExecutionObservability {
   resolvedScopeCorpus?: string | null;
   refusalClass: string | null;
   retrievedSourceCount: number | null;
+  retrievedSources?: ObservedSourceTraceEntry[] | null;
   retrievalAttempted: boolean | null;
   scopeClass?: string | null;
   semanticOutcome?: string | null;
@@ -345,6 +350,15 @@ function parseExecutionObservability(
 
   const resolvedScopeCollection = normalizeNullableString(record.resolved_scope_collection);
   const resolvedScopeCorpus = normalizeNullableString(record.resolved_scope_corpus);
+  const rawRetrievedSources =
+    "retrieved_sources" in record ? record.retrieved_sources : record.retrievedSources;
+  const hasRetrievedSourcesTrace = Array.isArray(rawRetrievedSources);
+  const retrievedSources = summarizeObservedSources(rawRetrievedSources);
+  const retrievalAttempted = normalizeNullableBoolean(record.retrieval_attempted);
+  const explicitRetrievedSourceCount = normalizeNullableNumber(record.retrieved_source_count);
+  const retrievedSourceCount =
+    explicitRetrievedSourceCount ??
+    (retrievalAttempted === true && hasRetrievedSourcesTrace ? retrievedSources.length : null);
   const parsed: SupervisorExecutionObservability = {
     aclAnomalyCode: normalizeNullableString(record.acl_anomaly_code),
     aclDecision: normalizeNullableString(record.acl_decision),
@@ -364,8 +378,9 @@ function parseExecutionObservability(
     promptRuntimeState: normalizeNullableString(record.prompt_runtime_state),
     promptTrace: parsePromptTrace(record.prompt_trace),
     refusalClass: normalizeNullableString(record.refusal_class),
-    retrievedSourceCount: normalizeNullableNumber(record.retrieved_source_count),
-    retrievalAttempted: normalizeNullableBoolean(record.retrieval_attempted),
+    retrievedSourceCount,
+    ...(hasRetrievedSourcesTrace ? { retrievedSources } : {}),
+    retrievalAttempted,
     scopeClass: normalizeNullableString(record.scope_class),
     semanticOutcome: normalizeNullableString(record.semantic_outcome),
     ...(resolvedScopeCollection ? { resolvedScopeCollection } : {}),

@@ -3,6 +3,7 @@ import type {
   RequestClaimSupportSummary,
   RequestDiagnosticsSummary,
 } from "../request-diagnostics";
+import type { ObservedSourceTraceEntry } from "../source-trace";
 import type { ResolvedAppPrincipal } from "../auth";
 import type { RequestExecutionStatus } from "../runtime-command";
 
@@ -168,6 +169,10 @@ export interface OperatorRequestObservabilityRecord {
     estimatedCost: {
       microusd: number | null;
       currency: "USD";
+    };
+    sourceTrace: {
+      retrieved: ObservedSourceTraceEntry[];
+      supporting: ObservedSourceTraceEntry[];
     };
     traceAvailable: boolean;
     projectionLagMs: number | null;

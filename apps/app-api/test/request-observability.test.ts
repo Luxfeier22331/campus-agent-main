@@ -389,4 +389,206 @@ describe("request observability", () => {
       selectedTarget: "rag-specialist",
     });
   });
+
+  it("stores retrieved and supporting source traces separately", () => {
+    const fact = buildFinalizedRequestObservabilityFact({
+      completedAt: "2026-04-12T10:00:01.000Z",
+      conversationId: "conv_trace",
+      diagnostics: null,
+      durationMs: 510,
+      errorCode: null,
+      principal: createPrincipal(),
+      requestId: "req_trace",
+      requestedCapability: "knowledge",
+      requestedScope: {
+        collection: "curriculum_plan",
+        corpus: "curriculum",
+      },
+      resolvedScope: {
+        collection: "curriculum_plan",
+        corpus: "curriculum",
+      },
+      response: createResponse({
+        answerText: "第四学期开设侵权责任法。",
+        observability: {
+          aclAnomalyCode: null,
+          aclDecision: "allowed",
+          cachedInputTokens: null,
+          candidateCount: 2,
+          citationCount: 1,
+          citationExpected: true,
+          citationMissing: false,
+          estimatedCostMicrousd: null,
+          failClosed: false,
+          inputTokens: null,
+          modelName: null,
+          modelProvider: null,
+          outputTokens: null,
+          refusalClass: null,
+          retrievedSourceCount: 2,
+          retrievedSources: [
+            {
+              canonicalSourceId: null,
+              canonicalSourceTitle: null,
+              chunkId: "chunk-raw-1",
+              collection: "curriculum_plan",
+              docId: "curriculum:法学（民族实验班）本科人才培养方案",
+              score: 0.94,
+              sourceTitle: "法学（民族实验班）本科人才培养方案",
+              sourceUnitKey: null,
+              sourceUnitKind: null,
+            },
+            {
+              canonicalSourceId: null,
+              canonicalSourceTitle: null,
+              chunkId: "chunk-raw-2",
+              collection: "curriculum_plan",
+              docId: "curriculum:培养方案说明",
+              score: 0.71,
+              sourceTitle: "培养方案说明",
+              sourceUnitKey: null,
+              sourceUnitKind: null,
+            },
+          ],
+          retrievalAttempted: true,
+          scopeClass: "in_scope",
+          semanticOutcome: "grounded_answer",
+        },
+        result: {
+          evidence: {
+            sources: [
+              {
+                chunk_id: "chunk-support-1",
+                collection: "program_semester_facts",
+                doc_id: "program_semester_facts:law:semester-4",
+                score: 0.97,
+                canonical_source_id: "curriculum:法学（民族实验班）本科人才培养方案",
+                source_title: "法学（民族实验班）本科人才培养方案 第四学期课程事实",
+                source_unit_kind: "semester_course_list",
+                source_unit_key: "semester-4",
+              },
+            ],
+          },
+        },
+        status: "completed",
+      }),
+      sourceDocIds: [],
+      startedAt: "2026-04-12T10:00:00.000Z",
+      status: "completed",
+      surface: "public_chat_web",
+      traceId: "trace_trace",
+    });
+
+    expect(fact.retrievedSourceCount).toBe(2);
+    expect(fact.retrievedSources).toMatchObject([
+      {
+        chunkId: "chunk-raw-1",
+        collection: "curriculum_plan",
+        docId: "curriculum:法学（民族实验班）本科人才培养方案",
+        score: 0.94,
+        sourceTitle: "法学（民族实验班）本科人才培养方案",
+      },
+      {
+        chunkId: "chunk-raw-2",
+        collection: "curriculum_plan",
+        docId: "curriculum:培养方案说明",
+        score: 0.71,
+        sourceTitle: "培养方案说明",
+      },
+    ]);
+    expect(fact.supportingSources).toMatchObject([
+      {
+        chunkId: "chunk-support-1",
+        collection: "program_semester_facts",
+        docId: "program_semester_facts:law:semester-4",
+        score: 0.97,
+        sourceTitle: "法学（民族实验班）本科人才培养方案 第四学期课程事实",
+        canonicalSourceId: "curriculum:法学（民族实验班）本科人才培养方案",
+        sourceUnitKind: "semester_course_list",
+        sourceUnitKey: "semester-4",
+      },
+    ]);
+  });
+
+  it("treats missing retrieved trace as empty recall when retrieval was attempted", () => {
+    const fact = buildFinalizedRequestObservabilityFact({
+      completedAt: "2026-04-12T11:00:01.000Z",
+      conversationId: "conv_empty_recall",
+      diagnostics: null,
+      durationMs: 460,
+      errorCode: null,
+      principal: createPrincipal(),
+      requestId: "req_empty_recall",
+      requestedCapability: "knowledge",
+      requestedScope: {
+        collection: "curriculum_plan",
+        corpus: "curriculum",
+      },
+      resolvedScope: {
+        collection: "curriculum_plan",
+        corpus: "curriculum",
+      },
+      response: createResponse({
+        answerText: "第四学期开设侵权责任法。",
+        observability: {
+          aclAnomalyCode: null,
+          aclDecision: "allowed",
+          cachedInputTokens: null,
+          candidateCount: 2,
+          citationCount: 1,
+          citationExpected: true,
+          citationMissing: false,
+          estimatedCostMicrousd: null,
+          failClosed: false,
+          inputTokens: null,
+          modelName: null,
+          modelProvider: null,
+          outputTokens: null,
+          refusalClass: null,
+          retrievedSourceCount: null,
+          retrievedSources: [],
+          retrievalAttempted: true,
+          scopeClass: "in_scope",
+          semanticOutcome: "grounded_answer",
+        },
+        result: {
+          evidence: {
+            sources: [
+              {
+                chunk_id: "chunk-support-1",
+                collection: "program_semester_facts",
+                doc_id: "program_semester_facts:law:semester-4",
+                score: 0.97,
+                canonical_source_id: "curriculum:法学（民族实验班）本科人才培养方案",
+                source_title: "法学（民族实验班）本科人才培养方案 第四学期课程事实",
+                source_unit_kind: "semester_course_list",
+                source_unit_key: "semester-4",
+              },
+            ],
+          },
+        },
+        status: "completed",
+      }),
+      sourceDocIds: [],
+      startedAt: "2026-04-12T11:00:00.000Z",
+      status: "completed",
+      surface: "public_chat_web",
+      traceId: "trace_empty_recall",
+    });
+
+    expect(fact.retrievalAttempted).toBe(true);
+    expect(fact.retrievedSourceCount).toBe(0);
+    expect(fact.emptyRecall).toBe(true);
+    expect(fact.retrievedSources).toEqual([]);
+    expect(fact.supportingSources).toMatchObject([
+      {
+        chunkId: "chunk-support-1",
+        collection: "program_semester_facts",
+        docId: "program_semester_facts:law:semester-4",
+        canonicalSourceId: "curriculum:法学（民族实验班）本科人才培养方案",
+        sourceUnitKind: "semester_course_list",
+        sourceUnitKey: "semester-4",
+      },
+    ]);
+  });
 });

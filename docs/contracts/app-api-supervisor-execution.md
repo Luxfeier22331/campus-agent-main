@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-04-12
+updated: 2026-04-14
 ---
 
 # App API Supervisor Execution Contract
@@ -124,6 +124,11 @@ JSON 命名保持 `snake_case`，原因如下：
   当前允许 `knowledge`、`availability` 或 `place_lookup`
 - `requested_scope`
   可选；如果上游已经显式约束 serving surface，则传入这个字段。若缺失，execution path 必须允许 specialist 自主解析最终 serving surface，而不是由 `app-api` 或 `supervisor-core` 伪造默认 collection。当前 Wave E 的 `place_lookup` request 不传 `requested_scope`，因为 `place_catalog` 仍是 `navigation-specialist` 消费的 internal spatial truth，而不是默认公开 query-serving surface
+
+补充说明：
+
+- `place_lookup` contract 仍保留在 internal execution seam
+- 但当前产品路径已对校内导航 fail-close，不把它当成已开放 browser capability
 - `availability_target_id` / `follow_redirects`
   仅在 availability execution 时出现
 
@@ -144,6 +149,14 @@ JSON 命名保持 `snake_case`，原因如下：
     "retrieval_attempted": true,
     "candidate_count": 2,
     "retrieved_source_count": 2,
+    "retrieved_sources": [
+      {
+        "doc_id": "curriculum:法学（民族实验班）本科人才培养方案",
+        "chunk_id": "chunk-0007",
+        "score": 0.94,
+        "source_title": "法学（民族实验班）本科人才培养方案"
+      }
+    ],
     "citation_expected": true,
     "citation_count": 2,
     "citation_missing": false,
@@ -191,7 +204,7 @@ JSON 命名保持 `snake_case`，原因如下：
 其中：
 
 - `result` 仍由 specialist / shared contract 拥有，不在这里完整重定义
-- 当 `selected_target = navigation-specialist` 时，当前 `result` 使用 `PlaceLookupResult` 的 Python-side `snake_case` 形态：
+- 当 `selected_target = navigation-specialist` 时，`result` 使用 `PlaceLookupResult` 的 Python-side `snake_case` 形态：
   - `query_text`
   - `matched_alias`
   - `resolved_place.{place_id, entity_type, display_name, campus_scope, campus_area}`
@@ -205,12 +218,14 @@ JSON 命名保持 `snake_case`，原因如下：
   - `unsupported_fields`
 - 上述 `result.diagnostics.*` 只用于 app-owned summary projection；它不是 panel 或 browser 的 raw specialist dump contract
 - `app-api` 可以从 `result` 中提取 source identifiers 进入 projection，但不得把 specialist payload 直接当 browser contract 暴露
-- 当前 `app-api` 会把已完成的 `navigation-specialist` `place_card` 归一化成 assistant `structuredParts` 并落到 `chat.messages.structured_parts_json`，而不是把上游 `snake_case` payload 原样暴露给 browser
+- 当前这份 `place_card` normalization shape 继续保留为 future navigation rollout seam；但由于 supervisor 已在产品路径上 fail-close `place_lookup`，浏览器当前不会收到这类 payload
 - `observability` 是 execution-side typed summary seam，用于 `runtime.request_observability_fact` 的 seed / finalize；字段继续保持 Python-side `snake_case`
+- `observability.retrieved_sources` 表示 execution side 原始 retrieval candidate trace；它与最终 `result.evidence.sources` 不是同一层 truth
 - 当 execution side 解析了最终 serving surface 时，`observability.resolved_scope_*` 必须显式回传给 `app-api`
 - `observability.prompt_trace` 只返回 observability-safe prompt identity，不返回 raw prompt text
 - `observability.prompt_runtime_state` / `observability.prompt_runtime_detail` 用于区分 `provider_refusal`、`provider_incomplete`、`content_filter` 等 fail-close branch
 - `observability` 不返回 raw prompt、raw answer、raw transcript、raw retrieval payload、raw provider citation blob 或 raw auth material
+- `app-api` 必须把 `observability.retrieved_sources` 归一化成 operator-safe、bounded source trace，再与最终 supporting evidence 分开持久化；不得把 raw `EvidenceSource` snippet dump 直接暴露给 panel
 - `result.diagnostics` 也不应携带 provider-native citation blob、raw support snippet dump 或其他 operator 不可见的 vendor payload；operator-facing query path 只保留 compact summary
 - token / model / cost 字段如果出现，必须来自 execution-side typed telemetry seam，而不是 panel-side 或 sink-side 反推
 

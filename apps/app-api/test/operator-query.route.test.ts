@@ -585,6 +585,34 @@ describe("GET /api/operator/requests/:requestId/observability", () => {
           retrievalAdequacyReason: "sufficient",
           retrievalAdequacyVerdict: "sufficient",
           retrievalAttempted: true,
+          sourceTrace: {
+            retrieved: [
+              {
+                chunkId: "chunk-raw-1",
+                collection: "curriculum_plan",
+                docId: "curriculum:法学（民族实验班）本科人才培养方案",
+                score: 0.94,
+                sourceTitle: "法学（民族实验班）本科人才培养方案",
+                canonicalSourceId: null,
+                canonicalSourceTitle: null,
+                sourceUnitKind: null,
+                sourceUnitKey: null,
+              },
+            ],
+            supporting: [
+              {
+                chunkId: "chunk-support-1",
+                collection: "program_semester_facts",
+                docId: "program_semester_facts:law:semester-4",
+                score: 0.97,
+                sourceTitle: "法学（民族实验班）本科人才培养方案 第四学期课程事实",
+                canonicalSourceId: "curriculum:法学（民族实验班）本科人才培养方案",
+                canonicalSourceTitle: null,
+                sourceUnitKind: "semester_course_list",
+                sourceUnitKey: "semester-4",
+              },
+            ],
+          },
           traceAvailable: true,
         },
         request: {
@@ -674,6 +702,34 @@ describe("GET /api/operator/requests/:requestId/observability", () => {
         retrievalAdequacyReason: "sufficient",
         retrievalAdequacyVerdict: "sufficient",
         retrievalAttempted: true,
+        sourceTrace: {
+          retrieved: [
+            {
+              chunkId: "chunk-raw-1",
+              collection: "curriculum_plan",
+              docId: "curriculum:法学（民族实验班）本科人才培养方案",
+              score: 0.94,
+              sourceTitle: "法学（民族实验班）本科人才培养方案",
+              canonicalSourceId: null,
+              canonicalSourceTitle: null,
+              sourceUnitKind: null,
+              sourceUnitKey: null,
+            },
+          ],
+          supporting: [
+            {
+              chunkId: "chunk-support-1",
+              collection: "program_semester_facts",
+              docId: "program_semester_facts:law:semester-4",
+              score: 0.97,
+              sourceTitle: "法学（民族实验班）本科人才培养方案 第四学期课程事实",
+              canonicalSourceId: "curriculum:法学（民族实验班）本科人才培养方案",
+              canonicalSourceTitle: null,
+              sourceUnitKind: "semester_course_list",
+              sourceUnitKey: "semester-4",
+            },
+          ],
+        },
         traceAvailable: true,
       },
       request: {
@@ -695,6 +751,129 @@ describe("GET /api/operator/requests/:requestId/observability", () => {
     expect(service.getObservabilityById).toHaveBeenCalledWith({
       principal,
       requestId: "req_01HQ",
+    });
+  });
+
+  it("returns empty retrieved trace without mirroring supporting evidence", async () => {
+    const service = {
+      getById: vi.fn(),
+      getAuditById: vi.fn(),
+      getObservabilityById: vi.fn().mockResolvedValue({
+        auditSummary: {
+          auditEventCount: 0,
+          latestTerminalCode: "completed",
+        },
+        links: {
+          issueFingerprint: null,
+          issueLink: null,
+          traceLink: "https://sentry.example/traces/trace_02HQ",
+        },
+        observability: {
+          aclAnomalyCode: null,
+          aclDecision: "allowed",
+          cachedInputTokens: 0,
+          candidateCount: 2,
+          claimSupportSummary: null,
+          citationCount: 1,
+          citationExpected: true,
+          citationMissing: false,
+          durationMs: 460,
+          emptyRecall: true,
+          estimatedCost: {
+            currency: "USD",
+            microusd: 1200,
+          },
+          failClosed: false,
+          inputTokens: 320,
+          measuredAt: "2026-03-28T08:00:01.000Z",
+          model: {
+            name: "gpt-5.2-mini",
+            provider: "openai",
+          },
+          outputTokens: 80,
+          prompt: {
+            id: "rag_answer_v1",
+            runtimeDetail: null,
+            runtimeState: null,
+            templateSha256: null,
+            version: "v1",
+          },
+          projectionLagMs: 410,
+          refusalClass: null,
+          retrievedSourceCount: 0,
+          retrievalAdequacyReason: "sufficient",
+          retrievalAdequacyVerdict: "sufficient",
+          retrievalAttempted: true,
+          sourceTrace: {
+            retrieved: [],
+            supporting: [
+              {
+                chunkId: "chunk-support-1",
+                collection: "program_semester_facts",
+                docId: "program_semester_facts:law:semester-4",
+                score: 0.97,
+                sourceTitle: "法学（民族实验班）本科人才培养方案 第四学期课程事实",
+                canonicalSourceId: "curriculum:法学（民族实验班）本科人才培养方案",
+                canonicalSourceTitle: null,
+                sourceUnitKind: "semester_course_list",
+                sourceUnitKey: "semester-4",
+              },
+            ],
+          },
+          traceAvailable: true,
+        },
+        request: {
+          completedAt: "2026-03-28T08:00:01.000Z",
+          conversationId: "conv_02HQ",
+          requestId: "req_02HQ",
+          requestedCapability: "knowledge",
+          requestedScope: {
+            collection: "curriculum_plan",
+            corpus: "curriculum",
+          },
+          resolvedScope: {
+            collection: "curriculum_plan",
+            corpus: "curriculum",
+          },
+          selectedTarget: "rag-specialist",
+          startedAt: "2026-03-28T08:00:00.000Z",
+          status: "completed",
+          surface: "public_chat_web",
+          traceId: "trace_02HQ",
+        },
+      }),
+      getOverview: vi.fn(),
+      listAudit: vi.fn(),
+      list: vi.fn(),
+    } as unknown as OperatorQueryService;
+    const app = createApp(env, {
+      getPrincipal: vi.fn().mockResolvedValue(createOperatorPrincipal()),
+      operatorQueryService: service,
+    });
+
+    const response = await app.fetch(
+      new Request("https://app-api.internal/api/operator/requests/req_02HQ/observability"),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      observability: {
+        emptyRecall: true,
+        retrievedSourceCount: 0,
+        retrievalAttempted: true,
+        sourceTrace: {
+          retrieved: [],
+          supporting: [
+            {
+              canonicalSourceId: "curriculum:法学（民族实验班）本科人才培养方案",
+              chunkId: "chunk-support-1",
+              collection: "program_semester_facts",
+              docId: "program_semester_facts:law:semester-4",
+              sourceUnitKey: "semester-4",
+            },
+          ],
+        },
+      },
     });
   });
 });
