@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-02
-updated: 2026-04-10
+updated: 2026-04-12
 ---
 
 # Provider Secret Governance
@@ -23,7 +23,7 @@ updated: 2026-04-10
 
 ### Rule 1: local `.env` is not deploy truth
 
-repo root `.env` 只用于当前 worktree 本地开发。
+repo root `.env` 只用于本地工作区开发。
 
 它不是：
 
@@ -74,7 +74,7 @@ repo root `.env` 只用于当前 worktree 本地开发。
 ### dev
 
 - 目标：本地开发、受控 smoke、低风险 bench
-- key owner：开发环境 secret store 或当前 worktree 本地 `.env`
+- key owner：开发环境 secret store 或本地工作区 `.env`
 - 预算：最低
 - 允许使用独立 eval override：视需要
 
@@ -103,27 +103,29 @@ repo root `.env` 只用于当前 worktree 本地开发。
 
 ### Verify local environment
 
-本地只验证当前 worktree：
+本地只验证当前工作区：
 
-1. 确认 `.env` 在当前 worktree
+1. 确认 `.env` 在当前工作区
 2. 运行：
    `uv run --all-packages python -m scripts.doctor_env evals --json`
 3. 检查：
    - `bootstrap.file_found=true`
-   - `bootstrap.loaded_path` 指向当前 worktree `.env`
+   - `bootstrap.loaded_path` 指向当前工作区 `.env`
    - provider `checked_keys` 顺序符合预期
    - `resolved_key` 符合当前期望
 4. 不要通过打印 raw env value 来做验证
 
 ### Verify deploy environment
 
-1. 在 deploy 平台确认对应 secret key 已下发
-2. 通过受控 smoke / acceptance 入口验证 provider 可用
-3. 只记录：
+1. 先运行：
+   `uv run --all-packages python -m scripts.check_worker_secret_presence --env staging --json`
+2. 确认输出里每个 Worker app 都是 `ready=true`，且没有 `missing_secrets`
+3. 再通过受控 smoke / acceptance 入口验证 provider 可用
+4. 只记录：
    - secret 是否存在
    - 命中了哪类 key owner
    - 请求是否成功
-4. 不要在日志、截图、artifact 中记录 raw key
+5. 不要在日志、截图、artifact 中记录 raw key
 
 ## Rotate Procedure
 

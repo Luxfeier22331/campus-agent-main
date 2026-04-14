@@ -1,9 +1,9 @@
 import { spawnSync } from "node:child_process";
+import { buildWranglerCommandEnv } from "../../../scripts/run-wrangler-command.mjs";
+import { resolveStagingSentryRelease } from "../../../scripts/staging-release.mjs";
 
 const PLACEHOLDER_ACCESS_POLICY_AUD = "panel-audience";
 const PLACEHOLDER_ACCESS_TEAM_DOMAIN = "https://team.cloudflareaccess.com";
-const STAGING_RELEASE_PREFIX = "protected-panel-web@staging-";
-
 function fail(message) {
   console.error(message);
   process.exit(1);
@@ -52,32 +52,9 @@ function normalizeAccessPolicyAud(value) {
   return trimmed;
 }
 
-function resolveSentryRelease(override) {
-  const trimmedOverride = override?.trim();
-  if (trimmedOverride) {
-    return trimmedOverride;
-  }
-
-  const result = spawnSync("git", ["rev-parse", "--short", "HEAD"], {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "inherit"],
-  });
-
-  if (result.status !== 0) {
-    fail("Unable to derive SENTRY_RELEASE from git rev-parse --short HEAD.");
-  }
-
-  const commitSha = result.stdout?.trim();
-  if (!commitSha) {
-    fail("Unable to derive SENTRY_RELEASE because git returned an empty commit SHA.");
-  }
-
-  return `${STAGING_RELEASE_PREFIX}${commitSha}`;
-}
-
 const accessTeamDomain = normalizeAccessTeamDomain(process.env.STAGING_ACCESS_TEAM_DOMAIN);
 const accessPolicyAud = normalizeAccessPolicyAud(process.env.STAGING_ACCESS_POLICY_AUD);
-const sentryRelease = resolveSentryRelease(process.env.STAGING_SENTRY_RELEASE);
+const sentryRelease = resolveStagingSentryRelease("protected-panel-web");
 
 const result = spawnSync(
   "wrangler",
@@ -93,7 +70,7 @@ const result = spawnSync(
     `SENTRY_RELEASE:${sentryRelease}`,
   ],
   {
-    env: process.env,
+    env: buildWranglerCommandEnv(process.env),
     stdio: "inherit",
   },
 );

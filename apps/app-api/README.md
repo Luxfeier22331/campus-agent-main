@@ -155,6 +155,7 @@ Local development:
 - for `official_web` live control-plane smoke,
   `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` must be non-empty and must match
   `apps/official-web-collector/.env` `OFFICIAL_WEB_SERVICE_TOKEN`
+- if current staging only targets `app-api + public-chat-web + protected-panel-web`, and does not yet enable official-web live control-plane, `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` is optional for that rollout
 
 Deployment minimum gate:
 

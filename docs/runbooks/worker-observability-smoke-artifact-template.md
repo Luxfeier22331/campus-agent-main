@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-02
-updated: 2026-04-08
+updated: 2026-04-14
 ---
 
 # Worker Observability Smoke Artifact Template
@@ -16,9 +16,10 @@ updated: 2026-04-08
 
 建议在每轮执行时新建：
 
-- `.tmp/observability-smoke/<timestamp>/SUMMARY.md`
-- `.tmp/observability-smoke/<timestamp>/sentry-trace-notes.md`
-- `.tmp/observability-smoke/<timestamp>/axiom-runtime-events.md`
+- `.tmp/observability-smoke/<timestamp>-<environment>-<release>/SUMMARY.md`
+- `.tmp/observability-smoke/<timestamp>-<environment>-<release>/chat-trace.md`
+- `.tmp/observability-smoke/<timestamp>-<environment>-<release>/panel-trace.md`
+- `.tmp/observability-smoke/<timestamp>-<environment>-<release>/app-api-runtime-event.md`
 
 如果当前还没有真实部署环境，也照样落 `SUMMARY.md`，并把最终状态写成 `post-deploy verification pending`。
 
@@ -64,7 +65,9 @@ updated: 2026-04-08
 ## Evidence
 
 - Sentry notes:
-- Axiom notes:
+- `public-chat-web -> app-api` trace file:
+- `protected-panel-web -> app-api` trace file:
+- `app-api` runtime event file:
 - Trace IDs:
 
 ## Final Verdict
@@ -74,10 +77,10 @@ updated: 2026-04-08
 - Next unblocker:
 ```
 
-## `sentry-trace-notes.md` 模板
+## `chat-trace.md` 模板
 
 ```md
-# Sentry Trace Notes
+# Public Chat To App API Trace
 
 ## Run Metadata
 
@@ -85,36 +88,61 @@ updated: 2026-04-08
 - Environment:
 - Worker release:
 
-## Event Links / Screenshots
+## Request
 
-- `public-chat-web`:
-- `protected-panel-web`:
-- `app-api`:
+- Request path:
+- HTTP status:
+- `x-trace-id`:
 
-## Trace Propagation Checks
+## Trace Evidence
 
+- `public-chat-web` event link / screenshot:
+- `app-api` event link / screenshot:
 - Shared trace observed:
 - `surface=public-chat-web` observed:
-- `surface=protected-panel-web` observed:
 - `surface=app_api` observed:
-
-## Error Hygiene
-
-- Controlled error captured:
-- Raw `cookie` absent:
-- Raw `authorization` absent:
-- Raw `prompt` absent:
-- Raw `answer` absent:
 
 ## Notes
 
 -
 ```
 
-## `axiom-runtime-events.md` 模板
+## `panel-trace.md` 模板
 
 ```md
-# Axiom Runtime Events
+# Protected Panel To App API Trace
+
+## Run Metadata
+
+- Timestamp:
+- Environment:
+- Worker release:
+
+## Request
+
+- Request path:
+- HTTP status:
+- `x-trace-id`:
+
+## Trace Evidence
+
+- `protected-panel-web` event link / screenshot:
+- `app-api` event link / screenshot:
+- Shared trace observed:
+- `surface=protected-panel-web` observed:
+- `surface=app_api` observed:
+
+## Notes
+
+- operator identity:
+- route / query:
+- Access envelope state:
+```
+
+## `app-api-runtime-event.md` 模板
+
+```md
+# App API Runtime Event
 
 ## Run Metadata
 
@@ -123,14 +151,17 @@ updated: 2026-04-08
 - Dataset:
 - Worker release:
 
-## Query Inputs
+## Trigger
 
-- Query / filter:
+- Event type:
+- Trigger path / scheduler:
 - Time window:
 
-## Expected Runtime Events
+## Evidence
 
-- `event_type=projection.drain`:
+- Axiom query / filter:
+- Event link / screenshot:
+- `event_type=projection.drain` or equivalent:
 - `surface=app_api` or `surface=official_web`:
 - `processed_count`:
 - `failed_count`:

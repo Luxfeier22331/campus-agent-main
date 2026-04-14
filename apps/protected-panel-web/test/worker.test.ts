@@ -57,13 +57,19 @@ describe("protected panel web worker shell", () => {
     expect(wranglerConfig).toContain('SENTRY_ENVIRONMENT = "staging"');
     expect(wranglerConfig).not.toContain("SENTRY_RELEASE = ");
     expect(deployStagingSource).toContain("SENTRY_RELEASE:");
-    expect(deployStagingSource).toContain("git");
-    expect(deployStagingSource).toContain("rev-parse");
+    expect(deployStagingSource).toContain("resolveStagingSentryRelease");
     expect(packageManifest.scripts?.["build:staging"]).toContain("CLOUDFLARE_ENV=staging");
     expect(packageManifest.scripts?.deploy).not.toContain("XDG_CONFIG_HOME=./.wrangler-home");
+    expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.mjs");
     expect(packageManifest.scripts?.["deploy:staging"]).toContain("deploy-staging.mjs");
-    expect(packageManifest.scripts?.["deploy:staging"]).toContain("pnpm build:staging");
-    expect(packageManifest.scripts?.["deploy:staging"]).toContain("pnpm deploy:verify-config:staging");
+    expect(packageManifest.scripts?.["deploy:staging"]).toContain("pnpm deploy:preflight:staging");
+    expect(packageManifest.scripts?.["deploy:preflight:staging"]).toContain(
+      "run-worker-staging-preflight.mjs",
+    );
+    expect(packageManifest.scripts?.["deploy:check-secrets:staging"]).toContain(
+      "check_worker_secret_presence.py",
+    );
+    expect(deployStagingSource).toContain("buildWranglerCommandEnv");
     expect(packageManifest.scripts?.["deploy:staging"]).not.toContain(
       "XDG_CONFIG_HOME=./.wrangler-home",
     );
@@ -74,8 +80,22 @@ describe("protected panel web worker shell", () => {
       "dist/protected_panel_web/wrangler.json",
     );
     expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
-      "APP_API=app-api-staging",
+      "SERVICE:APP_API=app-api-staging",
     );
+    expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
+      "VAR_ABSENT:SENTRY_RELEASE",
+    );
+    expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
+      "ROUTE:campus-panel-staging.ayafeed.com",
+    );
+  });
+
+  it("declares required secrets for local and staging worker environments", () => {
+    expect(wranglerConfig).toContain("[secrets]");
+    expect(wranglerConfig).toContain('required = ["PANEL_APP_API_SHARED_SECRET"]');
+    expect(wranglerConfig).toContain("[env.staging.secrets]");
+    expect(wranglerConfig).toContain('"PANEL_APP_API_SHARED_SECRET"');
+    expect(wranglerConfig).toContain('"SENTRY_DSN"');
   });
 
   it("serves healthz and readyz from the worker shell", async () => {

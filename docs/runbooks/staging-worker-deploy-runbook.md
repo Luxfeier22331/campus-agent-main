@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-04
-updated: 2026-04-06
+updated: 2026-04-14
 ---
 
 # Staging Worker Deploy Runbook
@@ -45,7 +45,9 @@ updated: 2026-04-06
   - `env.staging.vars.PUBLIC_CHAT_WEB_ORIGIN=https://campus-chat-staging.ayafeed.com`
 - `apps/app-api/package.json`
   - `pnpm deploy:staging` 要求显式注入 `STAGING_SUPERVISOR_API_BASE_URL`
+  - `pnpm deploy:preflight:staging` 是 canonical preflight：固定执行 `doctor_env worker-staging-app-api`、Cloudflare secret presence、repo-owned staging config verification 与 `db:reconcile-shared-drift:staging`
   - deploy 时通过 `--var SUPERVISOR_API_BASE_URL:<url>` 注入当前 dev-backed supervisor upstream
+  - `pnpm deploy:staging` 会在 publish 时自动注入 `SENTRY_RELEASE=app-api@staging-<sha>`；只有需要固定 release 名时才覆写 `STAGING_SENTRY_RELEASE`
   - 真实 deploy 直接使用当前 shell 的 `wrangler` 登录态；repo-local `.wrangler-home` 只保留给 dev/test
 - `apps/public-chat-web/wrangler.toml`
   - `env.staging` 应收敛到 `campus-chat-staging.ayafeed.com`
@@ -53,7 +55,8 @@ updated: 2026-04-06
   - `env.staging.vars.APP_API_BASE_URL=https://campus-api-staging.ayafeed.com`
 - `apps/public-chat-web/package.json`
   - `pnpm build:staging` 使用 `CLOUDFLARE_ENV=staging`
-  - `pnpm deploy:staging` 发布 staging build artifact
+  - `pnpm deploy:preflight:staging` 是 canonical preflight：固定执行 `doctor_env worker-staging-public-chat-web`、Cloudflare secret presence、staging build 与 built config verification
+  - `pnpm deploy:staging` 发布 staging build artifact，并在 publish 时自动注入 `SENTRY_RELEASE=public-chat-web@staging-<sha>`
   - deploy 使用当前 shell 的 `wrangler` 登录态，不再强绑 repo-local `.wrangler-home`
 - `apps/protected-panel-web/wrangler.toml`
   - `env.staging` 应收敛到 `campus-panel-staging.ayafeed.com`
@@ -62,6 +65,7 @@ updated: 2026-04-06
   - `env.staging.vars` 只保留 non-secret runtime truth；`ACCESS_TEAM_DOMAIN` / `ACCESS_POLICY_AUD` 不再硬编码在 repo
 - `apps/protected-panel-web/package.json`
   - `pnpm build:staging` 使用 `CLOUDFLARE_ENV=staging`
+  - `pnpm deploy:preflight:staging` 是 canonical preflight：固定执行 `doctor_env worker-staging-protected-panel-web`、Cloudflare secret presence、staging build 与 built config verification
   - `pnpm deploy:staging` 通过 `scripts/deploy-staging.mjs` 发布 staging build artifact
   - deploy 时必须显式注入 `STAGING_ACCESS_TEAM_DOMAIN` 与 `STAGING_ACCESS_POLICY_AUD`
   - deploy 脚本会自动把当前 git commit 注入 runtime `SENTRY_RELEASE=protected-panel-web@staging-<sha>`；仅在需要覆写时才显式传入 `STAGING_SENTRY_RELEASE`
@@ -132,13 +136,18 @@ wrangler secret put SENTRY_DSN --env staging
 wrangler secret put AXIOM_TOKEN --env staging
 ```
 
+只有当当前 staging 同时启用 `official-web-collector -> app-api` live control-plane seam 时，才额外下发：
+
+```bash
+wrangler secret put APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN --env staging
+```
+
 还需要在 Cloudflare env vars / secret store 中补齐：
 
 - `APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST=muc.edu.cn`
 - `APP_API_END_USER_EMAIL_ALLOWLIST=help_bot@outlook.com`
 - `APP_API_OPERATOR_EMAIL_ALLOWLIST`
 - `SENTRY_ENVIRONMENT=staging`
-- `SENTRY_RELEASE=<release>`
 - `AXIOM_ENDPOINT`
 - `AXIOM_DATASET`
 
@@ -152,7 +161,9 @@ deploy shell 还需要可用的 staging shared DB 管理连接：
 
 - `APP_API_OPERATOR_EMAIL_ALLOWLIST` 必须显式包含当前 panel smoke / operator Access 身份；当前 staging 至少需要 `help_bot@outlook.com`
 - 如果该 allowlist miss，`/api/operator/*` 会返回 `403 operator_identity_not_admitted`，这是 operator admission 配置问题，不是 Access session 失效
+- `SENTRY_RELEASE` 不作为 dashboard 静态 var 保存；`pnpm deploy:staging` 会在 publish 时自动注入 `app-api@staging-<sha>`，只有需要固定 release 名时才用 `STAGING_SENTRY_RELEASE`
 - `APP_API_SMOKE_IDENTITY_PASSWORD` 只作为 shell / secret store 输入供 `pnpm --dir apps/app-api smoke-identity:provision:staging` 使用；不要把它写入 repo、runbook 产物或浏览器抓包摘要
+- `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` 不属于当前最小 staging chat/panel/app-api 闭环的必填项；它只在你准备同时验收 official-web live control-plane 时才应视为当前环境 gate
 
 ### `apps/public-chat-web`
 
@@ -165,7 +176,7 @@ wrangler secret put SENTRY_DSN --env staging
 并补齐：
 
 - `SENTRY_ENVIRONMENT=staging`
-- `SENTRY_RELEASE=<release>`
+- `SENTRY_RELEASE` 不作为 dashboard 静态 var 保存；`pnpm --dir apps/public-chat-web deploy:staging` 会在 publish 时自动注入 `public-chat-web@staging-<sha>`，只有需要固定 release 名时才用 `STAGING_SENTRY_RELEASE`
 
 ### `apps/protected-panel-web`
 
@@ -179,7 +190,7 @@ wrangler secret put SENTRY_DSN --env staging
 并补齐：
 
 - `SENTRY_ENVIRONMENT=staging`
-- `SENTRY_RELEASE=<release>`
+- `SENTRY_RELEASE` 不作为 dashboard 静态 var 保存；`pnpm --dir apps/protected-panel-web deploy:staging` 会在 publish 时自动注入 `protected-panel-web@staging-<sha>`，只有需要固定 release 名时才用 `STAGING_SENTRY_RELEASE`
 
 说明：
 
@@ -221,15 +232,14 @@ pnpm --dir apps/app-api smoke-identity:provision:staging -- --email help_bot@out
 
 ```bash
 pnpm --dir apps/app-api test:worker -- --reporter=verbose test/worker.test.ts
-pnpm --dir apps/public-chat-web test:worker -- --reporter=verbose test/worker.test.ts
-pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose test/worker.test.ts
+pnpm --dir apps/public-chat-web exec vitest run test/worker.test.ts --reporter=verbose
+pnpm --dir apps/protected-panel-web exec vitest run test/worker.test.ts --reporter=verbose
 ```
 
 ```bash
-pnpm --dir apps/public-chat-web build:staging
-pnpm --dir apps/public-chat-web deploy:verify-config:staging
-pnpm --dir apps/protected-panel-web build:staging
-pnpm --dir apps/protected-panel-web deploy:verify-config:staging
+pnpm --dir apps/app-api deploy:preflight:staging
+pnpm --dir apps/public-chat-web deploy:preflight:staging
+pnpm --dir apps/protected-panel-web deploy:preflight:staging
 ```
 
 可选的本地 readiness 复核：
@@ -244,8 +254,12 @@ pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "smokes
 真实 deploy 前先确认当前 shell 的 Cloudflare 身份可用：
 
 ```bash
-pnpm --dir apps/app-api exec wrangler whoami
+node scripts/run-wrangler-command.mjs --cwd apps/app-api whoami
 ```
+
+三个 Worker 的 canonical `pnpm deploy:staging` 入口都会先执行 `deploy:preflight:staging`。
+如果 `doctor_env`、`scripts.check_worker_secret_presence`、built config verification 或 `app-api` shared DB drift gate 失败，发布会在真正 `wrangler deploy` 前失败。
+repo-owned Wrangler 入口默认会剥离继承来的代理 env，再直连 Cloudflare API；如果本机存在全局 WSL/Windows 代理，这一步不是可选优化，而是 staging deploy gate 的一部分。
 
 ## Deploy Order
 

@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-03-31
-updated: 2026-04-09
+updated: 2026-04-14
 ---
 
 # Worker Observability Smoke Runbook
@@ -29,7 +29,7 @@ updated: 2026-04-09
 
 ## 闭环模型
 
-这条 runbook 现在明确分成两个阶段：
+这条 runbook 明确分成两个阶段：
 
 1. `Pre-Deploy Readiness`
 2. `Post-Deploy Verification`
@@ -39,7 +39,7 @@ updated: 2026-04-09
 1. 在未部署前，本地 env/preflight 与 Worker smoke 可以重复通过
 2. 在首次真实部署后，真实 Worker surface、真实 release 和真实 sink 都能留下可追溯证据
 
-截至 2026-04-02，当前 root worktree 已再次完成 `Pre-Deploy Readiness` 复核，并新增 repo-tracked artifact template：`docs/runbooks/worker-observability-smoke-artifact-template.md`；`Post-Deploy Verification` 仍只在真实部署环境存在后执行。
+`Pre-Deploy Readiness` 可以在真实部署前重复执行；`Post-Deploy Verification` 只在真实部署环境存在后执行。
 
 ## Pre-Deploy Readiness
 
@@ -82,13 +82,13 @@ pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "smokes
 建议在每轮 readiness 复核后保留：
 
 - 执行日期
-- 当前 worktree / branch
+- 执行 worktree / branch
 - `check_worker_observability_env` 输出摘要
 - 三个 Worker smoke 的通过摘要
 
-当前推荐落盘位置：
+推荐落盘位置：
 
-- `.tmp/observability-smoke/<timestamp>/`
+- `.tmp/observability-smoke/<timestamp>-<environment>-<release>/`
 
 建议直接从模板起手：
 
@@ -109,7 +109,8 @@ pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "smokes
 
 - `wrangler` 远程检查可以作为辅助手段，但不是唯一 gate
 - 真正的 closure 以真实请求、真实 trace 和真实 runtime event 是否进入 sink 为准
-- `AXIOM_TOKEN` 可以只是 deploy-side ingest token；如果 query API 返回 `403 token does not have required permissions`，应改用独立的 read/query token。当前 repo root worktree 用 `AXIOM_SMOKE` 完成 query closure
+- release identity 默认由三端 deploy 脚本按 `<app>@staging-<sha>` 自动生成；artifact 目录必须复用同一 release 标识，不要另起名
+- `AXIOM_TOKEN` 可以只是 deploy-side ingest token；如果 query API 返回 `403 token does not have required permissions`，应改用独立的 read/query token
 - `SENTRY_DSN` 只证明 deploy-side sink 配置存在；真正的 sink-side verification 仍需要 Sentry UI 或 repo-local `SENTRY_API_TOKEN`
 - `SENTRY_API_TOKEN` 是 repo-local lookup credential，不应 fan out 到任何 Worker `.dev.vars` 或 deploy secret store
 - 建议先执行：
@@ -207,25 +208,27 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.query_sen
 - 目标环境
 - Worker release 标识
 - 使用的 dataset 名称
-- 至少一个 `Sentry` trace 链路截图或事件链接
-- 至少一个 `Axiom` 查询结果截图或事件字段摘要
+- `public-chat-web -> app-api` trace 说明
+- `protected-panel-web -> app-api` trace 说明
+- `app-api` runtime event 说明
 - 失败时的 `x-trace-id`
 
 建议存放位置：
 
-- `.tmp/observability-smoke/<timestamp>/`
+- `.tmp/observability-smoke/<timestamp>-<environment>-<release>/`
 
-建议文件：
+最小文件集合：
 
 - `SUMMARY.md`
-- `sentry-trace-notes.md`
-- `axiom-runtime-events.md`
+- `chat-trace.md`
+- `panel-trace.md`
+- `app-api-runtime-event.md`
 
 建议直接复制的骨架：
 
 - `docs/runbooks/worker-observability-smoke-artifact-template.md`
 
-## 当前判定规则
+## 判定规则
 
 - `Pre-Deploy Readiness` 关闭条件：
   root `.env` 与 app-local `.dev.vars` 对齐，且三个 Worker surface 的本地 smoke 全部通过
@@ -234,35 +237,3 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.query_sen
 - `Post-Deploy Verification` 关闭条件：
   `public-chat-web`、`protected-panel-web`、`app-api` 三端至少各完成一轮真实 smoke，`Axiom` 收到 `projection.drain` 或等价 runtime event，并且 `Sentry` 至少保留一条 trace-linked 或 controlled-error event evidence
 - 在没有真实部署环境时，这条 follow-up 的正确状态是 `post-deploy verification pending`，不是“本地工程阻塞”
-
-## 2026-04-06 Staging Checkpoint
-
-当前 staging 的真实 checkpoint 已经前进到：
-
-- `public-chat-web -> app-api`: closed。真实请求 `req_3f493161ae6c4c669304c4ca439dfe4a` / `trace_f3d3792b021f4118ac90a06041f9b03f` 已返回 `answer`
-- `app-api` scheduled / projection drain: closed。`Axiom` 已查到最新 `event_type=projection.drain`、`projector_name=request_projection`、`surface=app_api`、`processed_count=2`、`failed_count=0`
-- `protected-panel-web -> app-api`: closed。`.tmp/staging-smoke/20260406T115658-panel-requests-fix/SUMMARY.md` 已确认 `help_bot@outlook.com` 完成 Cloudflare Access 登录，`GET /api/overview`、`GET /api/requests?limit=20`、`GET /api/requests/:id`、`GET /api/requests/:id/observability` 全部返回 `200`
-- `Sentry` sink-side verification: lookup ready, event evidence pending。repo-local `SENTRY_API_TOKEN` 已可读取 org `linear27` 及 `campus-agent-api` / `campus-agent-chat` / `campus-agent-panel` 三个项目，但这轮 artifact 仍未追加 event-level trace / controlled-error 证据
-
-当前 checkpoint artifact：
-
-- `.tmp/staging-smoke/20260406T032941-wave-b-closure/`
-- `.tmp/staging-smoke/20260406T115658-panel-requests-fix/`
-- `.tmp/observability-smoke/20260406T032941-staging-wave-b/`
-
-## 2026-04-09 Staging Closure
-
-这轮真实 staging 收口已经把 Wave B 的最后一项 `Sentry` blocker 关闭：
-
-- `campus-api-staging.ayafeed.com/readyz`: `200`
-- `campus-chat-staging.ayafeed.com/readyz`: `200`
-- `campus-panel-staging.ayafeed.com/readyz`: `302 -> Cloudflare Access login`，符合 protected surface 预期
-- `SENTRY_API_TOKEN` lookup 继续可读取 org `linear27` 与三条 `campus-agent-*` 项目
-- `Sentry` sink-side event evidence: closed。`.tmp/observability-smoke/20260409T204915-staging-wave-b-sentry-closure/` 已记录：
-  - `trace=aa87e040f4a74358aa74b62fa06b87b8` 在 `campus-agent-chat` 与 `campus-agent-api` 中同时出现，`span.description=POST /api/chat/requests`
-  - `trace=cd55de711b3244eba5b2ca5f7c496ebe` 在 `campus-agent-panel` 与 `campus-agent-api` 中同时出现，分别对应 `GET /api/requests` 与 `GET /api/operator/requests`
-- 当前 token 直接列 `issues` 仍可能返回 `403`，但这不再阻塞 closure；repo 现以 Explore `spans` event rows 作为默认 event-level evidence
-
-当前 closure artifact：
-
-- `.tmp/observability-smoke/20260409T204915-staging-wave-b-sentry-closure/`
