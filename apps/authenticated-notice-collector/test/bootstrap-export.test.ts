@@ -283,6 +283,13 @@ describe("authenticated notice collector bootstrap export", () => {
         dispose: async () => {
           disposed = true;
         },
+        get: async () => ({
+          body: async () => Buffer.from(""),
+          json: async () => ({}),
+          ok: () => true,
+          status: () => 200,
+          statusText: () => "OK",
+        }),
         post: async () => {
           throw new Error("unexpected post");
         },
@@ -359,6 +366,7 @@ describe("authenticated notice collector bootstrap export", () => {
     expect(detailCalls).toEqual([355119, 355120]);
     expect(disposed).toBe(true);
     expect(result.stats).toEqual({
+      attachmentObjectsUploaded: 0,
       detailFetched: 2,
       noticesCollected: 2,
       pagesFetched: 2,
@@ -419,6 +427,334 @@ describe("authenticated notice collector bootstrap export", () => {
       link_collection_mode: "html_reference_only",
       runtime_shell: "repo_local_node",
     });
+  });
+
+  it("materializes internal attachments into object-backed bundle rows when an artifact store is configured", async () => {
+    const storedObjects: Array<{
+      key: string;
+      contentType: string;
+      data: string;
+      metadata: Record<string, string> | undefined;
+    }> = [];
+    const result = await collectBootstrapBundle({
+      attachmentArtifactStore: {
+        storageProvider: "object_store",
+        putObject: async ({ objectKey, data, contentType, metadata }) => {
+          storedObjects.push({
+            key: objectKey,
+            contentType,
+            data: Buffer.from(data).toString("utf-8"),
+            metadata,
+          });
+          return {
+            bucket: "campus-rag-source",
+            objectKey,
+            contentSha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+            byteSize: data.byteLength,
+            etag: "\"etag-1\"",
+            versionId: null,
+          };
+        },
+      },
+      createApiContext: async () => ({
+        dispose: async () => {},
+        get: async () => ({
+          body: async () => Buffer.from("hello"),
+          headers: () => ({
+            "content-disposition": "attachment; filename*=UTF-8''application.docx",
+            "content-type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          }),
+          json: async () => ({}),
+          ok: () => true,
+          status: () => 200,
+          statusText: () => "OK",
+        }),
+        post: async () => {
+          throw new Error("unexpected post");
+        },
+      }),
+      exportedAt: "2026-04-04T01:23:45.000Z",
+      fetchNoticeDetail: async ({ noticeId }) => ({
+        datas: {
+          notice_info: {
+            home_url: "https://portal.example.edu/home",
+            notice_annext: [
+              {
+                notice_annex_id: "annex-1",
+                notice_annex_name: "application.docx",
+              },
+            ],
+            notice_content: "<p>正文</p>",
+            notice_id: noticeId,
+            notice_release_time: "2026-04-02 18:49",
+          },
+        },
+        state: true,
+      }),
+      fetchNoticePage: async () => ({
+        datas: {
+          page: {
+            totalCounts: 1,
+          },
+          tables: [
+            {
+              notice_id: 355119,
+              notice_title: "通知 A",
+              notice_type: "5",
+              notice_type_name: "办公通知",
+            },
+          ],
+        },
+        state: true,
+      }),
+      noticeTypes: [
+        {
+          type: "5",
+          name: "办公通知",
+          enabled: true,
+          incrementalPages: 1,
+          incrementalPageSize: 1,
+          backfillPages: 1,
+          backfillPageSize: 20,
+        },
+      ],
+      requestBackoffBaseMs: 1,
+      requestMaxRetries: 1,
+      siteId: "muc_internal_portal",
+      sourceHomeUrl: "https://portal.example.edu/home",
+    });
+
+    expect(result.stats.attachmentObjectsUploaded).toBe(1);
+    expect(result.exportManifest.collector).toEqual({
+      attachment_collection_mode: "detail_api_and_html_materialized",
+      attachment_storage_mode: "object_store_write",
+      export_contract_version: "authenticated_notice_collector_export_v2",
+      link_collection_mode: "html_reference_only",
+      runtime_shell: "repo_local_node",
+    });
+    expect(result.bundleRecords[0]?.attachments[0]).toMatchObject({
+      bucket: "campus-rag-source",
+      byte_size: 5,
+      ingest_status: "uploaded",
+      mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      object_key:
+        "authenticated_notice_portal/attachment-2cf24dba5fb0/2026/sha256/2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824/capture/application.docx",
+      original_filename: "application.docx",
+      provenance_status: "collected_internal",
+      sha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+      storage_provider: "object_store",
+    });
+    expect(storedObjects).toEqual([
+      {
+        key:
+          "authenticated_notice_portal/attachment-2cf24dba5fb0/2026/sha256/2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824/capture/application.docx",
+        contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        data: "hello",
+        metadata: {
+          "content-sha256": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+        },
+      },
+    ]);
+  });
+
+  it("prefers detail attachment names and infers MIME when download headers are mojibake and generic", async () => {
+    const storedObjects: Array<{
+      key: string;
+      contentType: string;
+      metadata: Record<string, string> | undefined;
+    }> = [];
+    const result = await collectBootstrapBundle({
+      attachmentArtifactStore: {
+        storageProvider: "object_store",
+        putObject: async ({ objectKey, contentType, metadata }) => {
+          storedObjects.push({
+            key: objectKey,
+            contentType,
+            metadata,
+          });
+          return {
+            bucket: "campus-rag-source",
+            objectKey,
+            contentSha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+            byteSize: 5,
+            etag: "\"etag-1\"",
+            versionId: null,
+          };
+        },
+      },
+      createApiContext: async () => ({
+        dispose: async () => {},
+        get: async () => ({
+          body: async () => Buffer.from("hello"),
+          headers: () => ({
+            "content-disposition": 'attachment;filename="çº¿ä¸éç¹å®£ä¼ æè²æ´»å¨ååä¸æ¹å¼.docx"',
+            "content-type": "application/octet-stream;charset=utf-8",
+          }),
+          json: async () => ({}),
+          ok: () => true,
+          status: () => 200,
+          statusText: () => "OK",
+        }),
+        post: async () => {
+          throw new Error("unexpected post");
+        },
+      }),
+      exportedAt: "2026-04-04T01:23:45.000Z",
+      fetchNoticeDetail: async ({ noticeId }) => ({
+        datas: {
+          notice_info: {
+            home_url: "https://portal.example.edu/home",
+            notice_annext: [
+              {
+                notice_annex_id: "annex-1",
+                notice_annex_name: "线上重点宣传教育活动及参与方式.docx",
+              },
+            ],
+            notice_content: "<p>正文</p>",
+            notice_id: noticeId,
+            notice_release_time: "2026-04-02 18:49",
+          },
+        },
+        state: true,
+      }),
+      fetchNoticePage: async () => ({
+        datas: {
+          page: {
+            totalCounts: 1,
+          },
+          tables: [
+            {
+              notice_id: 355491,
+              notice_title: "通知 A",
+              notice_type: "5",
+              notice_type_name: "办公通知",
+            },
+          ],
+        },
+        state: true,
+      }),
+      noticeTypes: [
+        {
+          type: "5",
+          name: "办公通知",
+          enabled: true,
+          incrementalPages: 1,
+          incrementalPageSize: 1,
+          backfillPages: 1,
+          backfillPageSize: 20,
+        },
+      ],
+      requestBackoffBaseMs: 1,
+      requestMaxRetries: 1,
+      siteId: "muc_internal_portal",
+      sourceHomeUrl: "https://portal.example.edu/home",
+    });
+
+    expect(result.bundleRecords[0]?.attachments[0]).toMatchObject({
+      mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      original_filename: "线上重点宣传教育活动及参与方式.docx",
+      object_key:
+        "authenticated_notice_portal/attachment-2cf24dba5fb0/2026/sha256/2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824/capture/线上重点宣传教育活动及参与方式.docx",
+    });
+    expect(storedObjects).toEqual([
+      {
+        key:
+          "authenticated_notice_portal/attachment-2cf24dba5fb0/2026/sha256/2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824/capture/线上重点宣传教育活动及参与方式.docx",
+        contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        metadata: {
+          "content-sha256": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+        },
+      },
+    ]);
+  });
+
+  it("keeps the batch running when a single attachment download fails", async () => {
+    const result = await collectBootstrapBundle({
+      attachmentArtifactStore: {
+        storageProvider: "object_store",
+        putObject: async () => {
+          throw new Error("unexpected upload");
+        },
+      },
+      createApiContext: async () => ({
+        dispose: async () => {},
+        get: async () => ({
+          body: async () => {
+            throw new Error("You did not provide the number of bytes specified by the Content-Length HTTP header.");
+          },
+          headers: () => ({
+            "content-disposition": "attachment; filename*=UTF-8''broken.pdf",
+            "content-type": "application/pdf",
+          }),
+          json: async () => ({}),
+          ok: () => true,
+          status: () => 200,
+          statusText: () => "OK",
+        }),
+        post: async () => {
+          throw new Error("unexpected post");
+        },
+      }),
+      exportedAt: "2026-04-04T01:23:45.000Z",
+      fetchNoticeDetail: async ({ noticeId }) => ({
+        datas: {
+          notice_info: {
+            home_url: "https://portal.example.edu/home",
+            notice_annext: [
+              {
+                notice_annex_id: "annex-1",
+                notice_annex_name: "broken.pdf",
+              },
+            ],
+            notice_content: "<p>正文</p>",
+            notice_id: noticeId,
+            notice_release_time: "2026-04-02 18:49",
+          },
+        },
+        state: true,
+      }),
+      fetchNoticePage: async () => ({
+        datas: {
+          page: {
+            totalCounts: 1,
+          },
+          tables: [
+            {
+              notice_id: 355600,
+              notice_title: "通知 A",
+              notice_type: "5",
+              notice_type_name: "办公通知",
+            },
+          ],
+        },
+        state: true,
+      }),
+      noticeTypes: [
+        {
+          type: "5",
+          name: "办公通知",
+          enabled: true,
+          incrementalPages: 1,
+          incrementalPageSize: 1,
+          backfillPages: 1,
+          backfillPageSize: 20,
+        },
+      ],
+      requestBackoffBaseMs: 1,
+      requestMaxRetries: 1,
+      siteId: "muc_internal_portal",
+      sourceHomeUrl: "https://portal.example.edu/home",
+    });
+
+    expect(result.stats.attachmentObjectsUploaded).toBe(0);
+    expect(result.bundleRecords[0]?.attachments[0]).toMatchObject({
+      storage_provider: "reference_only",
+      object_key: null,
+      original_filename: "broken.pdf",
+      last_error: "You did not provide the number of bytes specified by the Content-Length HTTP header.",
+      ingest_status: "reference_only",
+    });
+    expect(result.bundleRecords[0]?.links).toEqual([]);
   });
 
   it("writes notices bundle and export manifest under the configured exports directory", () => {

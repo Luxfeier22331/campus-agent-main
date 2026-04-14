@@ -1,3 +1,5 @@
+import fs from "node:fs";
+
 import {
   chromium,
   request,
@@ -10,6 +12,7 @@ import { ensureRuntimeDirs, resolveCollectorConfig, type CollectorConfig } from 
 import type { ApiRequestContextLike, DisposableApiContextLike } from "./types";
 
 type PortalStorageState = Awaited<ReturnType<BrowserContext["storageState"]>>;
+const PORTAL_BOOTSTRAP_TIMEOUT_MS = 12_000;
 
 export interface BrowserLike {
   close(): Promise<void>;
@@ -23,7 +26,7 @@ export interface BrowserContextLike {
 
 export interface PageLike {
   close?(): Promise<void>;
-  goto(url: string, input: { waitUntil: "domcontentloaded" }): Promise<unknown>;
+  goto(url: string, input: { timeout?: number; waitUntil: "domcontentloaded" }): Promise<unknown>;
 }
 
 export interface CreateApiContextFromStorageStateDependencies {
@@ -57,16 +60,41 @@ export async function createApiContextFromStorageState(
   dependencies: CreateApiContextFromStorageStateDependencies = {},
 ): Promise<ApiRequestContextLike & DisposableApiContextLike> {
   ensureRuntimeDirs(config);
-  const { browserContext, close } = await launchContextWithStoredAuth(
-    config,
-    dependencies.launchBrowser,
-  );
+  let launchedContext: Awaited<ReturnType<typeof launchContextWithStoredAuth>> | null = null;
+  try {
+    launchedContext = await launchContextWithStoredAuth(
+      config,
+      dependencies.launchBrowser,
+    );
+  } catch (error) {
+    if (!isRecoverablePortalBootstrapError(error)) {
+      throw error;
+    }
+    return await (dependencies.createRequestContext ?? defaultCreateRequestContext)({
+      baseURL: config.portalBaseUrl,
+      extraHTTPHeaders: buildPortalApiHeaders(config),
+      storageState: readStoredAuthStorageState(config.authStorageStatePath),
+    });
+  }
+
+  const { browserContext, close } = launchedContext;
   try {
     const page = await browserContext.newPage();
     try {
-      // Visiting the portal once refreshes the host-scoped session cookie that
-      // the notice API rejects when we reuse storage state directly.
-      await page.goto(config.portalPageUrl, { waitUntil: "domcontentloaded" });
+      // Visiting the portal once often refreshes the host-scoped session cookie
+      // that the notice API expects. The portal route is also known to hang in
+      // headless mode, so we fall back to the stored session when the refresh
+      // attempt times out and let the subsequent API request prove validity.
+      try {
+        await page.goto(config.portalPageUrl, {
+          timeout: PORTAL_BOOTSTRAP_TIMEOUT_MS,
+          waitUntil: "domcontentloaded",
+        });
+      } catch (error) {
+        if (!isRecoverablePortalBootstrapError(error)) {
+          throw error;
+        }
+      }
       const storageState = await browserContext.storageState({
         path: config.authStorageStatePath,
       });
@@ -87,6 +115,7 @@ function defaultLaunchBrowser(): Promise<Browser> {
   return chromium.launch({
     headless: true,
     channel: "chrome",
+    timeout: PORTAL_BOOTSTRAP_TIMEOUT_MS,
   });
 }
 
@@ -98,6 +127,15 @@ function defaultCreateRequestContext(input: {
   return request.newContext(input);
 }
 
+function readStoredAuthStorageState(storageStatePath: string): PortalStorageState {
+  const raw = fs.readFileSync(storageStatePath, "utf-8");
+  const parsed = JSON.parse(raw) as PortalStorageState;
+  if (!Array.isArray(parsed.cookies) || !Array.isArray(parsed.origins)) {
+    throw new Error(`invalid storage state: ${storageStatePath}`);
+  }
+  return parsed;
+}
+
 function buildPortalApiHeaders(config: CollectorConfig): Record<string, string> {
   return {
     "x-requested-with": "XMLHttpRequest",
@@ -105,4 +143,13 @@ function buildPortalApiHeaders(config: CollectorConfig): Record<string, string> 
     "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
     referer: config.portalPageUrl.replace(/#.*$/, ""),
   };
+}
+
+function isRecoverablePortalBootstrapError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes("net::ERR_TIMED_OUT") ||
+    message.includes("Timeout") ||
+    message.includes("timed out")
+  );
 }

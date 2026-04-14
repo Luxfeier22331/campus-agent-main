@@ -142,7 +142,7 @@ export interface BundleAttachmentObservation {
   mime_type: string | null;
   byte_size: number | null;
   sha256: string | null;
-  storage_provider: "reference_only";
+  storage_provider: "reference_only" | "object_store" | "local";
   bucket: string | null;
   object_key: string | null;
   etag: string | null;
@@ -150,8 +150,8 @@ export interface BundleAttachmentObservation {
   origin_url_scheme: string | null;
   origin_host: string | null;
   origin_scope: "internal" | "external" | "unsupported";
-  provenance_status: "reference_only";
-  ingest_status: "reference_only";
+  provenance_status: "reference_only" | "collected_internal";
+  ingest_status: "reference_only" | "downloaded" | "uploaded";
   local_path: string | null;
   downloaded_at: string | null;
   uploaded_at: string | null;
@@ -191,8 +191,164 @@ export interface CollectorExportMetadata {
   runtime_shell: "repo_local_node";
   export_contract_version: "authenticated_notice_collector_export_v2";
   link_collection_mode: "html_reference_only";
-  attachment_collection_mode: "detail_api_and_html_reference_only";
-  attachment_storage_mode: "reference_only";
+  attachment_collection_mode:
+    | "detail_api_and_html_reference_only"
+    | "detail_api_and_html_materialized";
+  attachment_storage_mode: "reference_only" | "object_store_write";
+}
+
+export interface FileReleaseDepartmentRecord {
+  filedepartment?: string | null;
+}
+
+export interface FileReleaseListItem {
+  id?: number | string | null;
+  filename?: string | null;
+  filecode?: string | null;
+  filetime?: string | null;
+  filedepartment?: string | null;
+  typename?: string | null;
+  user_name?: string | null;
+  explainDept?: string | null;
+  fileurl?: string | null;
+}
+
+export interface FileReleasePageResponse {
+  state?: boolean;
+  sync?: boolean;
+  size?: number;
+  dws?: FileReleaseDepartmentRecord[];
+  data?: FileReleaseListItem[];
+}
+
+export interface FileReleaseDetailResponse {
+  id?: number | string | null;
+  filename?: string | null;
+  filecode?: string | null;
+  fileurl?: string | null;
+  filetime?: string | null;
+  state?: number | boolean | null;
+  filedepartment?: string | null;
+  gh?: string | null;
+  filetypeid?: number | string | null;
+  upfilename?: string | null;
+  important?: number | null;
+  detImportant?: number | null;
+  needSync?: number | null;
+  explainDept?: string | null;
+  role?: number | null;
+}
+
+export interface FileReleaseDownloadUrlResponse {
+  state?: boolean;
+  url?: string | null;
+}
+
+export interface FileReleaseTypeRecord {
+  id?: number | string | null;
+  typename?: string | null;
+  sort?: number | string | null;
+}
+
+export interface FileReleaseTypeListResponse {
+  state?: boolean;
+  data?: FileReleaseTypeRecord[];
+}
+
+export interface BundleReleasedFileObservation {
+  source_url: string;
+  normalized_source_url: string;
+  final_url: string | null;
+  original_filename: string | null;
+  mime_type: string | null;
+  byte_size: number | null;
+  sha256: string | null;
+  storage_provider: "reference_only" | "object_store" | "local";
+  bucket: string | null;
+  object_key: string | null;
+  etag: string | null;
+  version_id: string | null;
+  origin_url_scheme: string | null;
+  origin_host: string | null;
+  origin_scope: "internal" | "external" | "unsupported";
+  provenance_status: "reference_only" | "collected_internal";
+  ingest_status: "reference_only" | "downloaded" | "uploaded";
+  local_path: string | null;
+  downloaded_at: string | null;
+  uploaded_at: string | null;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BundleFileReleasePayload {
+  source_surface: "file_release";
+  filename: string;
+  filecode: string | null;
+  filetime: string | null;
+  filedepartment: string | null;
+  explain_department: string | null;
+  publisher_user_name: string | null;
+  file_type_id: number | null;
+  file_type_name: string | null;
+  original_portal_file_url: string | null;
+  resolved_download_url: string | null;
+  upfilename: string | null;
+  important: number | null;
+  det_important: number | null;
+  role: number | null;
+  last_seen_at: string;
+  enrich_attempted_at: string;
+}
+
+export interface BundleFileReleaseRecord {
+  file_release_id: number;
+  file_release: BundleFileReleasePayload;
+  released_file: BundleReleasedFileObservation;
+}
+
+export interface CollectorFileReleaseExportMetadata {
+  runtime_shell: "repo_local_node";
+  export_contract_version: "authenticated_notice_file_release_export_v1";
+  file_release_collection_mode:
+    | "prompt_portlet_reference_only"
+    | "prompt_portlet_materialized";
+  file_storage_mode: "reference_only" | "object_store_write";
+}
+
+export interface FileReleaseExportManifest {
+  schema_version: "authenticated_notice_file_release_export_v1";
+  exported_at: string;
+  export_date: string;
+  export_scope: string;
+  source_channel: "authenticated_notice_portal";
+  source_surface: "file_release";
+  site_id: string;
+  source_home_url: string;
+  collector: CollectorFileReleaseExportMetadata;
+  filters: {
+    page_size: number;
+    max_pages: number | null;
+    max_file_releases: number | null;
+  };
+  observed_file_types: Array<{
+    id: number;
+    typename: string;
+    sort: number | null;
+  }>;
+  observed_departments: string[];
+  run: {
+    mode: "file_release_export";
+    status: "success";
+    started_at: string;
+    finished_at: string;
+    pages_fetched: number;
+    items_seen: number;
+    items_inserted: number;
+    detail_fetched: number;
+    file_urls_resolved: number;
+    errors: number;
+  };
 }
 
 export interface BootstrapExportManifest {
@@ -223,6 +379,8 @@ export interface BootstrapExportManifest {
 }
 
 export interface ApiResponseLike {
+  body?(): Promise<Buffer>;
+  headers?(): Record<string, string>;
   json(): Promise<unknown>;
   ok(): boolean;
   status(): number;
@@ -231,6 +389,9 @@ export interface ApiResponseLike {
 }
 
 export interface ApiRequestContextLike {
+  get(
+    path: string,
+  ): Promise<ApiResponseLike>;
   post(
     path: string,
     input: {

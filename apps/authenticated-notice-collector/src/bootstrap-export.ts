@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { materializeBundleAttachments } from "./attachment-materialization";
+import { createAuthenticatedNoticeArtifactStoreFromEnv, type AuthenticatedNoticeArtifactStore } from "./artifact-store";
 import { fetchNoticeDetail, fetchNoticePage } from "./api";
 import { ensureRuntimeDirs, loadCollectorEnv, resolveCollectorConfig } from "./config";
 import { buildNoticeTypePolicySnapshot, getEnabledNoticeTypes, loadNoticeTypes } from "./notice-types";
@@ -26,13 +28,6 @@ import type {
 
 const AUTHENTICATED_NOTICE_SOURCE_CHANNEL = "authenticated_notice_portal";
 const EXPORT_SCHEMA_VERSION = "authenticated_notice_collector_export_v2";
-const COLLECTOR_EXPORT_METADATA: CollectorExportMetadata = {
-  runtime_shell: "repo_local_node",
-  export_contract_version: EXPORT_SCHEMA_VERSION,
-  link_collection_mode: "html_reference_only",
-  attachment_collection_mode: "detail_api_and_html_reference_only",
-  attachment_storage_mode: "reference_only",
-};
 const HTML_ANCHOR_RE = /<a\b[^>]*href\s*=\s*(["'])(.*?)\1[^>]*>(.*?)<\/a>/gis;
 const HTML_TAG_RE = /<[^>]+>/g;
 const WHITESPACE_RE = /\s+/g;
@@ -56,6 +51,7 @@ const ATTACHMENT_FILE_EXTENSIONS = new Set([
 ]);
 
 export interface CollectBootstrapBundleInput {
+  attachmentArtifactStore?: AuthenticatedNoticeArtifactStore;
   createApiContext?: () => Promise<ApiRequestContextLike & DisposableApiContextLike>;
   exportedAt: string;
   fetchNoticeDetail?: (input: {
@@ -81,6 +77,7 @@ export interface CollectBootstrapBundleResult {
   bundleRecords: BundleNoticeRecord[];
   exportManifest: BootstrapExportManifest;
   stats: {
+    attachmentObjectsUploaded: number;
     detailFetched: number;
     noticesCollected: number;
     pagesFetched: number;
@@ -172,6 +169,11 @@ export async function collectBootstrapBundle(
   let detailFetched = 0;
   let itemsSeen = 0;
   let pagesFetched = 0;
+  let materialized = {
+    bundleRecords: [] as BundleNoticeRecord[],
+    downloadedAttachmentCount: 0,
+    uploadedAttachmentCount: 0,
+  };
 
   try {
     for (const noticeType of input.noticeTypes) {
@@ -231,17 +233,34 @@ export async function collectBootstrapBundle(
         break;
       }
     }
+    const bundleRecords = [...bundleMap.values()];
+    materialized =
+      input.attachmentArtifactStore === undefined
+        ? {
+            bundleRecords,
+            downloadedAttachmentCount: 0,
+            uploadedAttachmentCount: 0,
+          }
+        : await materializeBundleAttachments({
+            apiContext,
+            artifactStore: input.attachmentArtifactStore,
+            bundleRecords,
+            observedAt: input.exportedAt,
+            requestBackoffBaseMs: input.requestBackoffBaseMs,
+            requestMaxRetries: input.requestMaxRetries,
+          });
   } finally {
     await apiContext.dispose();
   }
 
-  const bundleRecords = [...bundleMap.values()];
   return {
-    bundleRecords,
+    bundleRecords: materialized.bundleRecords,
     exportManifest: buildExportManifest({
+      attachmentStorageMode:
+        input.attachmentArtifactStore === undefined ? "reference_only" : "object_store_write",
       detailFetched,
       exportedAt: input.exportedAt,
-      itemsInserted: bundleRecords.length,
+      itemsInserted: materialized.bundleRecords.length,
       itemsSeen,
       maxNotices: input.maxNotices ?? null,
       noticeTypes: input.noticeTypes,
@@ -250,8 +269,9 @@ export async function collectBootstrapBundle(
       sourceHomeUrl: input.sourceHomeUrl,
     }),
     stats: {
+      attachmentObjectsUploaded: materialized.uploadedAttachmentCount,
       detailFetched,
-      noticesCollected: bundleRecords.length,
+      noticesCollected: materialized.bundleRecords.length,
       pagesFetched,
     },
   };
@@ -273,6 +293,7 @@ export function writeBootstrapArtifacts(input: WriteBootstrapArtifactsInput): Wr
 }
 
 function buildExportManifest(input: {
+  attachmentStorageMode: CollectorExportMetadata["attachment_storage_mode"];
   detailFetched: number;
   exportedAt: string;
   itemsInserted: number;
@@ -292,7 +313,16 @@ function buildExportManifest(input: {
     source_channel: AUTHENTICATED_NOTICE_SOURCE_CHANNEL,
     site_id: input.siteId,
     source_home_url: input.sourceHomeUrl,
-    collector: COLLECTOR_EXPORT_METADATA,
+    collector: {
+      runtime_shell: "repo_local_node",
+      export_contract_version: EXPORT_SCHEMA_VERSION,
+      link_collection_mode: "html_reference_only",
+      attachment_collection_mode:
+        input.attachmentStorageMode === "reference_only"
+          ? "detail_api_and_html_reference_only"
+          : "detail_api_and_html_materialized",
+      attachment_storage_mode: input.attachmentStorageMode,
+    },
     filters: {
       max_notices: input.maxNotices,
       notice_types: input.noticeTypes.map((item) => item.type),
@@ -759,7 +789,9 @@ export async function main(): Promise<void> {
   ensureRuntimeDirs(config);
   const noticeTypes = getEnabledNoticeTypes(loadNoticeTypes(config.noticeTypesPath));
   const exportedAt = new Date().toISOString();
+  const attachmentArtifactStore = createAuthenticatedNoticeArtifactStoreFromEnv(process.env);
   const result = await collectBootstrapBundle({
+    attachmentArtifactStore,
     exportedAt,
     noticeTypes,
     requestBackoffBaseMs: config.requestBackoffBaseMs,

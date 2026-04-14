@@ -141,6 +141,12 @@ class AuthenticatedNoticeSourceProjectionRequest:
     collection: str = DEFAULT_AUTHENTICATED_NOTICE_COLLECTION
     source_projections_path: Path | None = None
     default_visibility_scope: str | None = None
+    notice_ids: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.source_projections_path is not None:
+            object.__setattr__(self, "source_projections_path", Path(self.source_projections_path))
+        object.__setattr__(self, "notice_ids", _normalize_notice_ids(self.notice_ids))
 
 
 @dataclass(frozen=True, slots=True)
@@ -312,7 +318,21 @@ def rebuild_authenticated_notice_source_projections(
         object_store_settings=object_store_settings,
         corpus=request.corpus,
         collection=request.collection,
+        notice_ids=request.notice_ids,
     )
+    if request.notice_ids:
+        found_notice_ids = {
+            _parse_notice_document_id(parent_source_truth.record.document_id)[1]
+            for parent_source_truth in parent_source_truths
+        }
+        missing_notice_ids = tuple(
+            notice_id for notice_id in request.notice_ids if notice_id not in found_notice_ids
+        )
+        if missing_notice_ids:
+            raise ValueError(
+                "authenticated notice source projection notice_ids not found in source-truth parents: "
+                + ", ".join(missing_notice_ids)
+            )
     if not parent_source_truths:
         raise ValueError(f"no authenticated notice source-truth parents found for {request.corpus}/{request.collection}")
 
@@ -365,7 +385,7 @@ def rebuild_authenticated_notice_source_projections(
         embedding_model=_resolve_embedding_model(parent_source_truths),
         cleaning_policy_version=runtime_profile.cleaning_policy_version,
         default_visibility_scope=request.default_visibility_scope,
-        scope_refresh=(request.corpus, request.collection),
+        scope_refresh=None if request.notice_ids else (request.corpus, request.collection),
     )
     return AuthenticatedNoticeSourceProjectionReport(
         corpus=request.corpus,
@@ -475,7 +495,9 @@ def _load_parent_source_truths(
     object_store_settings: ObjectStoreSettings,
     corpus: str,
     collection: str,
+    notice_ids: tuple[str, ...] = (),
 ) -> tuple[_AuthenticatedNoticeParentSourceTruth, ...]:
+    selected_notice_ids = set(notice_ids)
     records = tuple(
         sorted(
             registry.list_by_scope(corpus, collection),
@@ -486,10 +508,15 @@ def _load_parent_source_truths(
     for record in records:
         if record.source_channel != "authenticated_notice_portal":
             continue
+        if not str(record.document_id).startswith("notice:"):
+            continue
         notice_manifest_key = _find_processed_key(record, "source-truth/notice-manifest.json")
         content_blocks_key = _find_processed_key(record, "source-truth/content-blocks.jsonl")
         attachment_refs_key = _find_processed_key(record, "source-truth/attachment-refs.jsonl")
         if notice_manifest_key is None or content_blocks_key is None or attachment_refs_key is None:
+            continue
+        _site_id, notice_id = _parse_notice_document_id(record.document_id)
+        if selected_notice_ids and notice_id not in selected_notice_ids:
             continue
         manifest = _load_json_payload(
             object_store.get_bytes(bucket=object_store_settings.bucket_source, key=notice_manifest_key)
@@ -1398,6 +1425,11 @@ def build_authenticated_notice_attachment_projection_plans(
             "document_id": f"notice_attachment:{site_id}:{notice_id}:{attachment_ref_id}",
             "materialization_policy": _materialization_policy_for_classification(classification),
         }
+        attachment_content_sha256 = _normalize_optional_text(
+            attachment_ref.get("content_sha256")
+        )
+        if attachment_content_sha256 is not None:
+            plan["attachment_content_sha256"] = attachment_content_sha256
         if classification_result.review_reason is not None:
             plan["review_reason"] = classification_result.review_reason
         plans.append(plan)
@@ -1738,6 +1770,10 @@ def _normalize_optional_text(value: object) -> str | None:
         return None
     normalized = str(value).strip()
     return normalized or None
+
+
+def _normalize_notice_ids(values: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(sorted({str(item).strip() for item in values if str(item).strip()}))
 
 
 def _jsonl_bytes(rows: list[dict[str, Any]]) -> bytes:

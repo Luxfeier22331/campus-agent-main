@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-05
-updated: 2026-04-11
+updated: 2026-04-12
 ---
 
 # Authenticated Notice Source-Truth Replay Runbook
@@ -31,19 +31,18 @@ updated: 2026-04-11
 - `docs/runbooks/authenticated-notice-async-staged-closeout-runbook.md` 的 run lifecycle / show / watch / promote 操作面
 - live collector / control-plane runbook
 
-## 当前执行模式
+## Canonical Execution Model
 
-当前 authenticated notice historical replay 的活动执行面固定为：
+authenticated notice historical replay 的 canonical 执行模型固定为：
 
 - source projection / attachment routing 规则有变化时，先做 bounded pilot 或 targeted routing test
 - routing 规则一旦变化，进入 full replay planning 前必须先重建 source-truth inventory
-- 当前 repo 已经在 local Postgres + local MinIO 上证明：full current-scope replay -> staged validation -> chunk preparation -> preparation validation -> promote -> unpublished release 这条链路可完整跑通
+- full replay -> staged validation -> chunk preparation -> preparation validation -> promote -> unpublished release 已经有 repo-supported 执行路径
 - 对新的 replay/preparation run，verified chunk preparation 仍是显式决策点；如需继续 release，下一步固定是 `release_registry_scope --no-publish-alias`，而不是直接 publish alias
-- `internal_notice` 当前最新 release truth 是 local guarded release：`promotion-0001` -> `r20260411_090101` -> `internal_notice__r20260411_090101`，alias `internal_notice` 仍未发布
 - operator 环境必须显式设置 `OCR_PROVIDER_MODE=paddleocr_async_jobs`，不依赖 `OCR_BASE_URL` 推断 provider
-- 当前 WSL shell 对 Qdrant Cloud 是 proxy-sensitive 的：release / collection / alias 检查都必须显式清空大小写代理变量；单纯 `env -u HTTP_PROXY ...` 不足以阻止 repo env bootstrap 把坏代理值重新注回进程
+- 如果操作环境会把坏代理值重新注入进程，release / collection / alias 检查都必须显式清空大小写代理变量；单纯 `env -u HTTP_PROXY ...` 不足以阻止 repo env bootstrap 把坏代理值重新注回进程
 
-因此本文下面涉及的 chunk / release 内容，已经有 repo-supported 执行路径，但当前 operator stop 仍是 verified chunk preparation，不代表现在就应继续执行 release。
+本文下面只描述 repo-supported execution path；是否在当前项目阶段继续 release，由 `.planning/PROJECT.md` 与 `.planning/STATE.md` 决定。
 
 ## OCR 失败判定顺序
 
@@ -239,7 +238,7 @@ planning 必须按 notice scope 生成 batch。
 - attachment refs 留在 source-truth relation 层
 - 已下载附件 materialize 为 repo-owned child documents
 
-当前 repo 已落盘的 bounded replay 入口是：
+repo-supported 的 bounded replay 入口是：
 
 ```bash
 uv run --package campus-ingestion-worker python -m campus_ingestion_worker.rebuild_authenticated_notice_source_projections \
@@ -329,7 +328,7 @@ projection replay 之后，parent 与 child document 都进入 repo-owned cleanu
 
 因此 chunking / embedding / index release 仍然可以发生，但必须分阶段发生，而且不代表该 collection 已经进入 query-serving。
 
-对“先消费已导入历史数据”的 operator 目标，verified chunk preparation 仍是自然决策点；是否继续执行 release，必须作为单独决策处理，不能由 replay / preparation 自动推导。当前 repo 已经拿到一条经批准执行的 unpublished release 样本，但这不改变 `internal_notice` 仍保持 alias 未发布、query-serving 未开放的事实。
+对“先消费已导入历史数据”的 operator 目标，verified chunk preparation 仍是自然决策点；是否继续执行 release，必须作为单独决策处理，不能由 replay / preparation 自动推导。即使某次 operator 执行已经留下 unpublished release 样本，也不改变 `internal_notice` 仍保持 alias 未发布、query-serving 未开放的事实。
 
 ### 4.1 Typed Stage Columns & Bulk Commit
 
@@ -463,7 +462,7 @@ full historical replay 推荐的起步姿态：
 - per-worker object-store 并发：`32-64`
 - per-worker OCR 并发：`2-4`
 
-这些值是基于当前 repo 结构与真实 historical corpus 形态的 operator 建议，不是 contract 常量。
+这些值是基于 repo 当前结构与真实 historical corpus 形态的 operator 建议，不是 contract 常量。
 
 ### Object Storage
 
@@ -506,15 +505,15 @@ OCR 并发必须与 object-store 并发分离控制。
 - 不让 OCR concurrency 直接等于 object-store concurrency
 - 不让单个 notice 持有无限 attachment OCR 并发
 
-## 当前可执行边界
+## 可执行边界
 
-当前 repo 内已经具备：
+repo 内已经具备：
 
 - bootstrap import
 - source-truth replay 的 bounded projection runner
 - async staged closeout 的 planning / worker / verify / promote 生命周期
 
-因此当前正确的执行分工是：
+因此正确的执行分工是：
 
 - bounded correctness replay：使用 `rebuild_authenticated_notice_source_projections`
 - full historical consumption：沿用 async staged closeout 的 batch-leased execution model

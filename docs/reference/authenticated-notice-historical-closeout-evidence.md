@@ -9,13 +9,13 @@ updated: 2026-04-12
 
 ## 文档边界
 
-这份文档只记录 `campus_notices/internal_notice` 历史 closeout 的当前 repo-tracked 证据。
+这份文档只记录 `campus_notices/internal_notice` 历史 closeout 的 repo-tracked 证据。
 
 它不负责：
 
 - 重复 async staged closeout 的操作步骤
 - 宣布 `internal_notice` 已开放 query-serving
-- 取代 `.planning/STATE.md` 的当前执行顺序
+- 取代 `.planning/STATE.md` 的执行顺序
 
 ## Final Run
 
@@ -63,7 +63,7 @@ updated: 2026-04-12
 - `run_authenticated_notice_closeout_worker --parallel-workers` 的 accepted shape 现为父进程编排 + 子进程 worker，而不是单进程线程池
 - repair 现可识别 stale completed batch，清空旧 stage rows、重开 batch 并补齐 `attachment_outcomes`
 
-## Current Posture
+## Historical Posture
 
 - historical closeout 已经完成，canonical source-truth scope 与 promotion scope 均已闭合
 - `campus_notices/internal_notice` 仍保持 `restricted + offline_preparation`

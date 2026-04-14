@@ -27,6 +27,7 @@ from campus_ingestion_core.authenticated_notice_source_projections import (
     AuthenticatedNoticeSourceProjectionRequest,
     _classify_attachment_ref,
     _build_attachment_title,
+    build_authenticated_notice_attachment_projection_plans,
     load_authenticated_notice_source_projections_config,
     rebuild_authenticated_notice_source_projections,
 )
@@ -234,6 +235,47 @@ class AuthenticatedNoticeAttachmentClassificationTest(unittest.TestCase):
         )
 
         self.assertEqual(result.classification, "text_extractable")
+
+    def test_attachment_projection_plan_carries_attachment_content_sha256(self) -> None:
+        config = load_authenticated_notice_source_projections_config(
+            Path(__file__).resolve().parents[2]
+            / "configs/ingestion/campus_notices/internal_notice/source-projections.v1.json"
+        )
+        plans = build_authenticated_notice_attachment_projection_plans(
+            parent_document_id="notice:muc_internal_portal:355282",
+            attachment_refs=(
+                {
+                    "attachment_ref_id": "attachment-0001",
+                    "final_url": (
+                        "https://my.muc.edu.cn/comsys-portal-notice-web/download"
+                        "?id=c46da95c-464c-4faf-8415-11974c33d3a4&notice_id=355282"
+                    ),
+                    "source_url": (
+                        "https://my.muc.edu.cn/comsys-portal-notice-web/download"
+                        "?id=c46da95c-464c-4faf-8415-11974c33d3a4&notice_id=355282"
+                    ),
+                    "normalized_source_url": (
+                        "https://my.muc.edu.cn/comsys-portal-notice-web/download"
+                        "?id=c46da95c-464c-4faf-8415-11974c33d3a4&notice_id=355282"
+                    ),
+                    "anchor_text": "附件：中央民族大学关于学生使用人工智能的指导意见（2026版）.docx",
+                    "object_key": (
+                        "attachments/1d/1df2ea505dc7e5db04474fa3de2c44726de158e6fb215b55ce86ed375b508735/"
+                        "附件：中央民族大学关于学生使用人工智能的指导意见（2026版）.docx"
+                    ),
+                    "content_sha256": "1df2ea505dc7e5db04474fa3de2c44726de158e6fb215b55ce86ed375b508735",
+                    "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "byte_size": 331494,
+                },
+            ),
+            config=config,
+        )
+
+        self.assertEqual(len(plans), 1)
+        self.assertEqual(
+            plans[0]["attachment_content_sha256"],
+            "1df2ea505dc7e5db04474fa3de2c44726de158e6fb215b55ce86ed375b508735",
+        )
 
 
 def _write_json(path: Path, payload: object) -> None:
@@ -1112,6 +1154,105 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             key=str(image_child.canonical_markdown_object_key),
         ).decode("utf-8")
         self.assertIn("图片附件 OCR 正文 第一行", image_markdown)
+
+    def test_rebuild_authenticated_notice_source_projections_notice_id_filter_keeps_unselected_scope_rows(
+        self,
+    ) -> None:
+        pdf_bytes = _build_minimal_pdf_bytes()
+        bundle = _sample_notice_bundle_pair_with_shared_downloaded_pdf_attachment(pdf_bytes=pdf_bytes)
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            uploaded_keys: set[str] = set()
+            for record in bundle:
+                for attachment in record["attachments"]:
+                    key = str(attachment["object_key"])
+                    if key in uploaded_keys:
+                        continue
+                    uploaded_keys.add(key)
+                    filename = str(attachment["original_filename"])
+                    if filename.endswith(".docx"):
+                        data = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
+                        content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    elif filename.endswith(".png"):
+                        data = _build_minimal_png_bytes()
+                        content_type = "image/png"
+                    else:
+                        data = pdf_bytes
+                        content_type = "application/pdf"
+                    object_store.put_bytes(
+                        bucket=SOURCE_BUCKET,
+                        key=key,
+                        data=data,
+                        content_type=content_type,
+                    )
+
+            rebuild_authenticated_notice_source_projections(
+                request=AuthenticatedNoticeSourceProjectionRequest(
+                    corpus="campus_notices",
+                    collection="internal_notice",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                ocr_client=_FakeAttachmentOcrClient(),
+            )
+            filtered_report = rebuild_authenticated_notice_source_projections(
+                request=AuthenticatedNoticeSourceProjectionRequest(
+                    corpus="campus_notices",
+                    collection="internal_notice",
+                    notice_ids=("355119",),
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                ocr_client=_FakeAttachmentOcrClient(),
+            )
+
+        self.assertEqual(filtered_report.parent_notice_count, 1)
+        self.assertEqual(filtered_report.attachment_ref_count, 3)
+        self.assertEqual(filtered_report.projected_attachment_count, 3)
+        self.assertEqual(filtered_report.text_extractable_attachment_count, 1)
+        self.assertEqual(filtered_report.ocr_attachment_count, 2)
+        self.assertEqual(filtered_report.reference_only_attachment_count, 0)
+
+        self.assertEqual(
+            {
+                record.document_id
+                for record in document_registry.list_by_scope("campus_notices", "internal_notice")
+            },
+            {
+                "notice:muc_internal_portal:355119",
+                "notice:muc_internal_portal:355120",
+                "notice_attachment:muc_internal_portal:355119:attachment-0001",
+                "notice_attachment:muc_internal_portal:355119:attachment-0002",
+                "notice_attachment:muc_internal_portal:355119:attachment-0003",
+                "notice_attachment:muc_internal_portal:355120:attachment-0001",
+            },
+        )
 
     def test_rebuild_authenticated_notice_source_projections_rejects_sync_provider_on_replay_path(
         self,

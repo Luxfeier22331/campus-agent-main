@@ -66,6 +66,9 @@ importers:
 
   apps/authenticated-notice-collector:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.913.0
+        version: 3.1022.0
       dotenv:
         specifier: ^16.6.1
         version: 16.6.1

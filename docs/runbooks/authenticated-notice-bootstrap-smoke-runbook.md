@@ -2,14 +2,14 @@
 doc_type: runbook
 status: active
 created: 2026-04-04
-updated: 2026-04-04
+updated: 2026-04-12
 ---
 
 # Authenticated Notice Bootstrap Smoke Runbook
 
 ## 文档边界
 
-这份 runbook 只记录 `authenticated_notice_portal` 当前 bootstrap import seam 的最小 smoke 闭环：
+这份 runbook 只记录 `authenticated_notice_portal` bootstrap import seam 的最小 smoke 闭环：
 
 - 一份 collector export bundle 如何导入 repo
 - smoke 至少检查哪些结果
@@ -23,9 +23,9 @@ updated: 2026-04-04
 - release-managed rebuild / alias publish：`docs/runbooks/index-release-runbook.md`
 - 当前项目执行真相：`.planning/PROJECT.md`
 
-## 当前 smoke 形态
+## Canonical Smoke 入口
 
-当前 canonical smoke 入口是：
+canonical smoke 入口是：
 
 ```bash
 uv run --package campus-ingestion-worker python -m campus_ingestion_worker.smoke_authenticated_notice_bootstrap \
@@ -97,7 +97,7 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.smoke
 
 ## 推荐 staged replay 顺序
 
-当前 live portal 不可用时，推荐把真实 historical export 回放固定为以下顺序：
+当 live portal 不可用、需要回放 historical export 时，推荐把样本按以下顺序逐步放大：
 
 1. `1`
 2. `50`
@@ -110,14 +110,11 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.smoke
 - 中间批次通过后，再跑完整 `240` 条
 - 只有在 `240` 的 object store / registry / summary 结果稳定时，才考虑 `6694`
 
-当前 worktree 已验证的真实 slice：
+说明：
 
-- `2` 条：`.tmp/authenticated-notice-smoke/20260404T131900-2-timed/summary.json`
-- `10` 条：`.tmp/authenticated-notice-smoke/20260404T131350-10/summary.json`
-- `50` 条：`.tmp/authenticated-notice-smoke/20260404T131544-50/summary.json`
-- `240` 条：`.tmp/authenticated-notice-smoke/20260404T152745-240/summary.json`
-
-这些证据已经足够说明 bounded replay lane 可用；`6694` 及更大 backfill 仍应作为单独执行决策，而不是被误读为本 phase 已经完成。
+- active runbook 只保留样本放大顺序与判定规则
+- 某一轮 `2/10/50/240` sample 的 summary 路径属于历史 smoke evidence，不再作为默认入口长期维护
+- `6694` 及更大 backfill 仍应作为单独执行决策，而不是被误读为 bootstrap smoke 的默认目标
 
 以 `run-2` 为例，可以先切片：
 
@@ -201,6 +198,11 @@ smoke 输出 JSON summary，至少要求以下 checks 都为 `passed`：
 建议存放位置：
 
 - `.tmp/authenticated-notice-smoke/<timestamp>/`
+
+说明：
+
+- 每轮只保留本轮 smoke 的 summary 和必要摘录
+- 历史 smoke sample 的具体 `.tmp` 路径不回写到 active runbook；如需长期保留，应单独收成 historical evidence
 
 ## 后续动作
 

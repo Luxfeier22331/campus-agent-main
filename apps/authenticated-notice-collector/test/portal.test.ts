@@ -31,6 +31,9 @@ describe("authenticated notice collector portal bootstrap", () => {
           dispose: async () => {
             disposed = true;
           },
+          get: async () => {
+            throw new Error("unexpected get");
+          },
           post: async () => {
             throw new Error("unexpected post");
           },
@@ -115,6 +118,120 @@ describe("authenticated notice collector portal bootstrap", () => {
 
     expect(closed).toBe(true);
   });
+
+  it("falls back to stored auth when the portal route times out", async () => {
+    const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "collector-portal-bootstrap-timeout-"));
+    tempDirs.push(runtimeDir);
+    const calls: string[] = [];
+
+    const config = buildConfig(runtimeDir);
+    const apiContext = await createApiContextFromStorageState(config, {
+      createRequestContext: async (input) => {
+        calls.push(`request.newContext:${input.storageState.cookies[0]?.value ?? "missing"}`);
+        return {
+          dispose: async () => {},
+          get: async () => {
+            throw new Error("unexpected get");
+          },
+          post: async () => {
+            throw new Error("unexpected post");
+          },
+        };
+      },
+      launchBrowser: async () => ({
+        close: async () => {
+          calls.push("browser.close");
+        },
+        newContext: async () => ({
+          newPage: async () => ({
+            close: async () => {
+              calls.push("page.close");
+            },
+            goto: async () => {
+              throw new Error("page.goto: net::ERR_TIMED_OUT at https://portal.example.edu/page/11#/");
+            },
+          }),
+          storageState: async (input) => {
+            calls.push(`storageState:${input?.path ?? "none"}`);
+            return {
+              cookies: [
+                {
+                  domain: "portal.example.edu",
+                  expires: -1,
+                  httpOnly: true,
+                  name: "JSESSIONID",
+                  path: "/",
+                  sameSite: "Lax",
+                  secure: false,
+                  value: "fallback-session",
+                },
+              ],
+              origins: [],
+            };
+          },
+        }),
+      }),
+    });
+
+    expect(calls).toEqual([
+      `storageState:${config.authStorageStatePath}`,
+      "request.newContext:fallback-session",
+      "page.close",
+      "browser.close",
+    ]);
+
+    await apiContext.dispose();
+  });
+
+  it("falls back to stored auth when browser launch times out before bootstrap", async () => {
+    const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "collector-portal-launch-timeout-"));
+    tempDirs.push(runtimeDir);
+    const calls: string[] = [];
+
+    const config = buildConfig(runtimeDir);
+    fs.mkdirSync(path.dirname(config.authStorageStatePath), { recursive: true });
+    fs.writeFileSync(
+      config.authStorageStatePath,
+      JSON.stringify({
+        cookies: [
+          {
+            domain: "portal.example.edu",
+            expires: -1,
+            httpOnly: true,
+            name: "JSESSIONID",
+            path: "/",
+            sameSite: "Lax",
+            secure: false,
+            value: "stored-session",
+          },
+        ],
+        origins: [],
+      }),
+      "utf-8",
+    );
+
+    const apiContext = await createApiContextFromStorageState(config, {
+      createRequestContext: async (input) => {
+        calls.push(`request.newContext:${input.storageState.cookies[0]?.value ?? "missing"}`);
+        return {
+          dispose: async () => {},
+          get: async () => {
+            throw new Error("unexpected get");
+          },
+          post: async () => {
+            throw new Error("unexpected post");
+          },
+        };
+      },
+      launchBrowser: async () => {
+        throw new Error("browserType.launch: Timeout 180000ms exceeded.");
+      },
+    });
+
+    expect(calls).toEqual(["request.newContext:stored-session"]);
+
+    await apiContext.dispose();
+  });
 });
 
 function buildConfig(runtimeDir: string): CollectorConfig {
@@ -125,6 +242,7 @@ function buildConfig(runtimeDir: string): CollectorConfig {
     exportsDir: path.join(runtimeDir, "exports"),
     noticeTypesPath: path.join(runtimeDir, "notice-types.json"),
     packageRoot: runtimeDir,
+    repoRoot: runtimeDir,
     portalBaseUrl: "https://portal.example.edu",
     portalPageUrl: "https://portal.example.edu/page/11#/",
     requestBackoffBaseMs: 1,

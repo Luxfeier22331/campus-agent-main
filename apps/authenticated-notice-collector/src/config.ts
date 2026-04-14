@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = path.resolve(packageRoot, "../..");
 const REQUIRED_NO_PROXY_HOSTS = [
   "muc.edu.cn",
   ".muc.edu.cn",
@@ -13,6 +14,7 @@ const REQUIRED_NO_PROXY_HOSTS = [
 
 export interface CollectorConfig {
   packageRoot: string;
+  repoRoot: string;
   runtimeDir: string;
   authStorageStatePath: string;
   exportsDir: string;
@@ -28,7 +30,8 @@ export interface CollectorConfig {
 }
 
 export function loadCollectorEnv(): void {
-  dotenv.config({ path: path.join(packageRoot, ".env") });
+  dotenv.config({ path: path.join(repoRoot, ".env") });
+  dotenv.config({ path: path.join(packageRoot, ".env"), override: true });
   applyCollectorNoProxyEnv(process.env);
 }
 
@@ -45,6 +48,7 @@ export function resolveCollectorConfig(source: NodeJS.ProcessEnv | Record<string
   const portalBaseUrl = String(source.AUTHENTICATED_NOTICE_BASE_URL || "https://my.muc.edu.cn").trim();
   return {
     packageRoot,
+    repoRoot,
     runtimeDir,
     authStorageStatePath: path.join(runtimeDir, "auth", "storageState.json"),
     exportsDir: path.join(runtimeDir, "exports"),
