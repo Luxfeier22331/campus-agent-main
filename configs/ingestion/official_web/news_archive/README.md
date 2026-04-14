@@ -15,6 +15,12 @@ Current runtime truth:
 - query enabled: `false`
 - freshness-sensitive queries supported: `false`
 - live-search fallback allowed: `false`
+- required metadata fields: `published_at`, `crawled_at`, `last_seen_at`,
+  `host`, `page_family`, `section`, `news_kind`
+- primary evidence page families: `article_detail`
+- listing-page role: `discovery_only`
+- explicit historical intent required before any future opening: `true`
+- duplicate collapse required before any future opening: `true`
 - serving alias: `official_web_news_archive`
 - collection prefix: `official_web_news_archive`
 
@@ -23,5 +29,10 @@ Boundary notes:
 - this collection is reserved for historical news that should not share the
   default answer contract of `fresh_news`
 - it is not the default online official-web answer surface
+- it must not silently backfill recent-news asks or freshness failures
+- listing pages remain discovery/fallback hints only; they are not archive
+  primary evidence
 - declaring this profile does not mean archive routing, retention policy, or
   archive-specific retrieval behavior has already been implemented
+- opening acceptance and handoff now follow
+  `docs/reference/official-web-news-surface-opening-checklist.md`

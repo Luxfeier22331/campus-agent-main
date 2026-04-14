@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-29
-updated: 2026-03-30
+updated: 2026-04-12
 ---
 
 # App API Official Web HTTP Contract
@@ -15,6 +15,7 @@ updated: 2026-03-30
 
 - `official_web` control-plane 形态：`docs/architecture/official-web-architecture.md`
 - source-channel 总边界：`docs/architecture/official-web-architecture.md`
+- 领域导航：`docs/domains/official-web.md`
 - run lifecycle：`docs/contracts/app-api-official-web-run-lifecycle.md`
 - logical schema：`docs/data/app-api-official-web-schema.md`
 - browser/product HTTP contract：`docs/contracts/app-api-http.md`
@@ -25,6 +26,16 @@ updated: 2026-03-30
 - collector Docker 的镜像构建与部署 YAML
 - panel Worker-local BFF 的具体 route mounting
 - ingestion worker 的消费实现细节
+- `fresh_news` / `news_archive` 的当前开放状态或独立 worktree 执行进度
+
+## Contract 与实现范围说明
+
+这份文档冻结的是 forward HTTP seam，不表示 `develop` 已完整实现文中所有 endpoint。
+
+判断当前已实现子集时：
+
+- 当前已落地能力以 `docs/architecture/current-architecture.md`、`docs/domains/official-web.md` 和代码为准
+- 当前 accepted direction 与长期边界以本文、supporting architecture、schema 与相关 ADR 为准
 
 ## 适用范围
 

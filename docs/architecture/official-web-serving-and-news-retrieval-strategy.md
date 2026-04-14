@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-12
+updated: 2026-04-14
 ---
 
 # Official Web Serving And News Retrieval Strategy
@@ -185,6 +185,29 @@ updated: 2026-04-12
 
 在默认回答路径里，`news_archive` 不应与 `fresh_news` 混为一体。
 
+## Opening Posture And Criteria
+
+长期上，`fresh_news` / `news_archive` 的 opening posture 固定遵循“默认关闭，满足条件后按窄 intent 开放”。
+
+`fresh_news` 只有在以下条件同时成立时，才允许进入真实 query-serving runtime：
+
+- `article_detail` 已成为新闻问答主 evidence，而不是继续依赖 `listing_page`
+- `published_at`、`crawled_at`、`last_seen_at` 等时间元数据覆盖达到可路由、可排序、可判 stale 的程度
+- cross-host duplicate news 已在逻辑 document/version 层归并，不再把同一条新闻扩成多份 competing evidence
+- query routing 已能把“校园新闻/近期活动/讲座/通知”和“稳定说明类问题”显式分流
+- freshness gate 已接到 runtime；当 freshness 不足时，系统会 live search 或 fail-close，而不是继续回答旧索引
+
+`news_archive` 的 opening 条件更严格：
+
+- 默认不进入公开默认回答面
+- 只在显式历史查询、operator 回溯、评测或分析场景下开放
+- 不与 `fresh_news` 共用一个“最近新闻” surface，也不参与默认 RAG 混检
+
+因此：
+
+- `fresh_news` 的 seed baseline、local import/release、离线 qrels 或 eval 命中率，不自动等于 runtime opening approval
+- `news_archive` 的存在只证明 repo 已保留历史语义，不证明当前产品应默认消费它
+
 ## Document Family 语义
 
 长期上，`official_web` document family 在 retrieval 中的角色固定如下：
@@ -242,6 +265,12 @@ updated: 2026-04-12
 - “今天 / 最新 / 刚刚 / 最近”
   - 先检查 freshness gate
   - 不满足时转 live search 或 fail-closed
+
+默认不接受的消费方式：
+
+- 把 `fresh_news` 与 `stable_reference` 混成单一默认 institutional surface
+- 把 `news_archive` 作为 fresh-news 的回填库，在用户未显式要求历史信息时一并召回
+- 因为语料质量波动，就让 `listing_page` 或 inventory-only 页面顶替 `article_detail` 成为主 evidence
 
 这里冻结的关键规则是：
 
@@ -303,11 +332,47 @@ updated: 2026-04-12
 - surface 类型：`stable_reference` / `fresh_news` / `news_archive`
 - `current_only`
 - `serving_revision_tracks`
-- 时间过滤窗口
-- stale / fail-closed 阈值
+- `required_metadata_fields`
+- `primary_evidence_page_families`
+- `listing_page_role`
+- `requires_freshness_gate`
+- `requires_explicit_history_intent`
+- `duplicate_collapse_required`
+- 时间过滤窗口 / stale 阈值
 - 是否允许 live-search fallback
 
-这些字段的具体 JSON 形状属于后续实现工作，不在本文冻结。
+当前 repo 已把这些 shape 固定进 `runtime-profile.json`：
+
+- `configs/ingestion/official_web/stable_reference/runtime-profile.json`
+- `configs/ingestion/official_web/fresh_news/runtime-profile.json`
+- `configs/ingestion/official_web/news_archive/runtime-profile.json`
+
+固定解释：
+
+- `fresh_news` 的 profile 即使仍是 `offline_preparation`，也必须先表达
+  detail-only 主证据、必需时间元数据、duplicate collapse 与 freshness gate
+- `news_archive` 的 profile 必须先表达
+  detail-only 主证据、必需时间元数据与 explicit-history gate
+- `stable_reference` 的 profile 保持默认 query-enabled，但不携带新闻面
+  freshness / history 语义
+
+## Independent Worktree Opening Contract
+
+当前分支只冻结长期 policy truth，不直接把 `fresh_news` / `news_archive`
+打开成 query-serving surface。
+
+真正的 opening execution 仍留在独立 official-web worktree，且必须满足
+统一 handoff contract：
+
+- opening criteria checklist
+- metadata coverage summary
+- duplicate-collapse posture
+- recent / stale / historical / archive-no-backfill eval artifact
+- promote prerequisites
+
+统一口径见：
+
+- `docs/reference/official-web-news-surface-opening-checklist.md`
 
 ## 当前不做
 
@@ -329,3 +394,16 @@ updated: 2026-04-12
   冻结跨 collection 数据平面不变量，不负责 `official_web` 的 collection-specific serving policy
 - `retrieval-serving-architecture.md`
   冻结 retrieval baseline，不复制 `official_web` 新闻语义细节
+
+## External References
+
+- Google Cloud Vertex AI Search website metadata / filtering / boosting:
+  <https://cloud.google.com/generative-ai-app-builder/docs/add-website-metadata>
+  <https://cloud.google.com/generative-ai-app-builder/docs/filter-website-search>
+  <https://cloud.google.com/generative-ai-app-builder/docs/boost-search-results>
+- Azure AI Search scoring profiles with freshness:
+  <https://learn.microsoft.com/en-us/azure/search/index-add-scoring-profiles>
+- Elasticsearch date-aware ranking:
+  <https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-distance-feature-query.html>
+- Haystack metadata routing:
+  <https://docs.haystack.deepset.ai/docs/metadatarouter>

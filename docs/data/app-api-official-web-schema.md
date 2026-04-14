@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-03-29
-updated: 2026-03-30
+updated: 2026-04-12
 ---
 
 # App API Official Web Schema
@@ -15,6 +15,7 @@ updated: 2026-03-30
 
 - `app-api` 基础 schema：`docs/data/app-api-schema.md`
 - `official_web` control-plane 架构：`docs/architecture/official-web-architecture.md`
+- 领域导航：`docs/domains/official-web.md`
 - `official_web` HTTP contract：`docs/contracts/app-api-official-web-http.md`
 - run lifecycle：`docs/contracts/app-api-official-web-run-lifecycle.md`
 
@@ -24,6 +25,16 @@ updated: 2026-03-30
 - 具体托管商
 - 对象存储 bucket 细节
 - ingestion worker 内部 job schema
+- `fresh_news` / `news_archive` 的 rollout/opening posture
+
+## Schema 与实现范围说明
+
+这份文档冻结的是 `official_web` control-plane 的逻辑 schema、ownership 与最小表形态。
+
+判断当前已实现子集时：
+
+- 当前已落地表族与 read-model 以代码、`docs/architecture/current-architecture.md` 与 `docs/domains/official-web.md` 为准
+- 当前项目执行状态、独立 worktree 进度与 closeout 证据不在本文维护
 
 ## Storage Conclusion
 

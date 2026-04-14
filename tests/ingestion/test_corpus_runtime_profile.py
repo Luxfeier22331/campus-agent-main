@@ -207,6 +207,12 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertFalse(profile.supports_freshness_sensitive_queries)
         self.assertIsNone(profile.freshness_max_age_hours)
         self.assertFalse(profile.live_search_fallback_allowed)
+        self.assertEqual(profile.required_metadata_fields, ())
+        self.assertEqual(profile.primary_evidence_page_families, ())
+        self.assertIsNone(profile.listing_page_role)
+        self.assertFalse(profile.requires_freshness_gate)
+        self.assertFalse(profile.requires_explicit_history_intent)
+        self.assertFalse(profile.duplicate_collapse_required)
         self.assertTrue(profile.current_only)
         self.assertEqual(profile.serving_revision_tracks, ("source-faithful",))
         self.assertEqual(profile.cleaning_policy_version, "official_web_cleaning_v2")
@@ -221,13 +227,30 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.collection, "fresh_news")
         self.assertEqual(profile.serving_stage, "offline_preparation")
         self.assertEqual(profile.allowed_artifact_modes, ("normalized", "source_truth_only"))
-        self.assertFalse(profile.split_manifest_required)
+        self.assertTrue(profile.split_manifest_required)
         self.assertFalse(profile.retrieval_enabled)
         self.assertFalse(profile.query_enabled_by_default)
         self.assertEqual(profile.serving_surface, "fresh_news")
         self.assertFalse(profile.supports_freshness_sensitive_queries)
         self.assertIsNone(profile.freshness_max_age_hours)
         self.assertFalse(profile.live_search_fallback_allowed)
+        self.assertEqual(
+            profile.required_metadata_fields,
+            (
+                "published_at",
+                "crawled_at",
+                "last_seen_at",
+                "host",
+                "page_family",
+                "section",
+                "news_kind",
+            ),
+        )
+        self.assertEqual(profile.primary_evidence_page_families, ("article_detail",))
+        self.assertEqual(profile.listing_page_role, "discovery_only")
+        self.assertTrue(profile.requires_freshness_gate)
+        self.assertFalse(profile.requires_explicit_history_intent)
+        self.assertTrue(profile.duplicate_collapse_required)
         self.assertEqual(profile.cleaning_policy_version, "official_web_cleaning_v2")
         self.assertEqual(profile.chunk_profile_version, "official_web_semantic_v2")
         self.assertEqual(profile.qdrant_index_binding.alias_name, "official_web_fresh_news")
@@ -247,6 +270,23 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertFalse(profile.supports_freshness_sensitive_queries)
         self.assertIsNone(profile.freshness_max_age_hours)
         self.assertFalse(profile.live_search_fallback_allowed)
+        self.assertEqual(
+            profile.required_metadata_fields,
+            (
+                "published_at",
+                "crawled_at",
+                "last_seen_at",
+                "host",
+                "page_family",
+                "section",
+                "news_kind",
+            ),
+        )
+        self.assertEqual(profile.primary_evidence_page_families, ("article_detail",))
+        self.assertEqual(profile.listing_page_role, "discovery_only")
+        self.assertFalse(profile.requires_freshness_gate)
+        self.assertTrue(profile.requires_explicit_history_intent)
+        self.assertTrue(profile.duplicate_collapse_required)
         self.assertEqual(profile.cleaning_policy_version, "official_web_cleaning_v2")
         self.assertEqual(profile.chunk_profile_version, "official_web_semantic_v2")
         self.assertEqual(profile.qdrant_index_binding.alias_name, "official_web_news_archive")

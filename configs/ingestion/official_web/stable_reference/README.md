@@ -15,6 +15,9 @@ Current runtime truth:
 - query enabled: `true`
 - freshness-sensitive queries supported: `false`
 - live-search fallback allowed: `false`
+- required metadata fields: `none`
+- primary evidence page families: `repo policy decides by stable-reference semantics; not restricted to news-only detail pages`
+- listing-page role: `n/a`
 - serving alias: `official_web_stable_reference`
 - collection prefix: `official_web_stable_reference`
 - repo-tracked split manifest:
@@ -29,6 +32,8 @@ Boundary notes:
   content
 - it is now the first query-enabled `official_web/*` surface and should be
   consumed through the published alias `official_web_stable_reference`
+- it is the only default query-enabled official-web surface; `fresh_news` and
+  `news_archive` remain explicitly out of the default online answer path
 - it is not a mirror for formal regulations or formal curriculum documents;
   those continue to belong to `regulations/*` and `curriculum/*`
 - `official_web/muc_public_pages` remains the mixed bridge for replay, QC,

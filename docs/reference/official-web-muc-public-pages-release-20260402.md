@@ -5,166 +5,65 @@ created: 2026-04-02
 updated: 2026-04-12
 ---
 
-# official_web muc_public_pages Release Evidence (2026-04-02)
+# Official Web `muc_public_pages` First Release Snapshot (Historical)
 
-## Scope
+## 文档边界
 
-This note records the first registry-backed Qdrant release lifecycle execution
-for the currently imported `official_web/muc_public_pages` dataset.
+本文只保留 `2026-04-02` 首次 `official_web/muc_public_pages` registry-backed release 的历史快照。
 
-It is evidence for:
+本文回答的是：
 
-- `offline_preparation` collection alias lifecycle closure
-- manifest / validation-summary persistence
-- current imported dataset quality sampling
+- 首次 mixed-bridge release 当时闭合了什么
+- 当时 release 出来的 collection 质量大致处于什么水平
+- 为什么这份记录现在只能算历史背景，而不是 active baseline
 
-It is not evidence for:
+本文不负责：
 
-- `official_web/muc_public_pages` retrieval readiness
-- opening `official_web` as a query-serving surface
-- scheduler / hot-lane promotion
+- 充当当前 `official_web` 活动基线
+- 充当当前 release runbook
+- 证明 `muc_public_pages` 已开放 retrieval / query serving
 
-## Runtime Truth At Execution Time
+当前应优先阅读：
 
-- runtime profile: `configs/ingestion/official_web/muc_public_pages/runtime-profile.json`
-- serving stage: `offline_preparation`
-- retrieval enabled: `false`
-- serving alias: `muc_public_pages`
-- root env loaded from: `/home/reptilian/code/campus-agent/.env`
-- registry scope count at execution time: `1`
-- releasable record count at execution time: `1 active + is_current=true`
+- `official-web-stable-reference-eval-baseline-20260405.md`
+- `official-web-fresh-news-surface-handoff.md`
+- `docs/runbooks/official-web-source-truth-projection-replay.md`
 
-Current releasable registry record:
+## Historical Snapshot
 
-- `official_web:muc_public:generic_content_page:8d3531930a02365b3ad77364f3ad436f1b9af1b6`
-- `official_web/documents/muc_public_pages/中央民族大学新闻网--8d353193/source-faithful/undated/document-units.jsonl`
+当时执行的 runtime truth：
 
-## Verification Before Release
+- runtime profile：`configs/ingestion/official_web/muc_public_pages/runtime-profile.json`
+- serving stage：`offline_preparation`
+- retrieval enabled：`false`
+- serving alias：`muc_public_pages`
 
-Executed:
+当时闭合的 release 结果：
 
-```bash
-uv run --all-packages python -m unittest \
-  tests.ingestion.test_registry_scope_release \
-  tests.ingestion.test_release_registry_scope_worker \
-  tests.ingestion.test_corpus_runtime_profile \
-  tests.retrieval.test_backend_qdrant
-```
+- preflight release：`r20260402_152018`
+- published release：`r20260402_152206`
+- published physical collection：`muc_public_pages__r20260402_152206`
+- validation status：`passed`
+- document count：`1`
+- point count：`42`
 
-Result:
+## Historical Quality Interpretation
 
-- `66` tests passed
+这次 release 虽然证明了 release plumbing 已经跑通，但当时导入的数据仍明显偏向 listing/news 聚合页，而不是稳定说明型正文页。
 
-## Preflight Release
+历史特征固定为：
 
-Executed:
+- 只有 `1` 条逻辑文档进入 release truth
+- chunk 数为 `42`
+- 样本内容以新闻聚合页前缀和 listing 片段为主
 
-```bash
-uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
-  --corpus official_web \
-  --collection muc_public_pages \
-  --no-publish-alias
-```
+因此，这轮 release 的历史意义是：
 
-Result:
+- mixed-bridge collection 的 alias / validation / release lifecycle 已经在工程上跑通
+- 但真正的问题仍在内容质量，而不是 release plumbing
 
-- release id: `r20260402_152018`
-- physical collection: `muc_public_pages__r20260402_152018`
-- previous alias target: `muc_public_pages__r20260402_082328`
-- validation status: `passed`
-- document count: `1`
-- point count: `42`
-- `published_at`: `null`
+## 历史结论
 
-Artifacts:
-
-- `official_web/releases/muc_public_pages/r20260402_152018/index-release.json`
-- `official_web/releases/muc_public_pages/r20260402_152018/validation-summary.json`
-
-## Published Release
-
-Executed:
-
-```bash
-uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
-  --corpus official_web \
-  --collection muc_public_pages \
-  --publish-alias
-```
-
-Result:
-
-- release id: `r20260402_152206`
-- physical collection: `muc_public_pages__r20260402_152206`
-- previous alias target: `muc_public_pages__r20260402_082328`
-- alias target after publish: `muc_public_pages__r20260402_152206`
-- validation status: `passed`
-- document count: `1`
-- point count: `42`
-- published at: `2026-04-02T15:22:17.607410+00:00`
-
-Artifacts:
-
-- `official_web/releases/muc_public_pages/r20260402_152206/index-release.json`
-- `official_web/releases/muc_public_pages/r20260402_152206/validation-summary.json`
-
-Validation summary payload:
-
-```json
-{
-  "chunk_count": 42,
-  "unit_type_counts": {
-    "section_text": 42
-  },
-  "token_summary": {
-    "min": 50,
-    "max": 265,
-    "avg": 73.86
-  }
-}
-```
-
-## Quality Sampling
-
-Release validation passed, but sampled chunk content shows the current imported
-dataset is still dominated by a listing/news aggregation page rather than a
-high-value detail正文 page.
-
-Observed sample properties:
-
-- chunk count: `42`
-- character length: `min=55`, `max=272`, `avg=79.2`
-- repeated title prefix: `中央民族大学新闻网 / 校长强世功接受“统战新语”专访 解读民族团结进步促进法`
-- many chunks are stacked headline/listing fragments rather than standalone正文
-
-Representative samples:
-
-```text
-中央民族大学新闻网 / 校长强世功接受“统战新语”专访 解读民族团结进步促进法
-从北京到边疆，从课堂到田野，一场关于“铸牢”教育的系统探索，正在中央民族大学稳步开展。
-```
-
-```text
-中央民族大学新闻网 / 校长强世功接受“统战新语”专访 解读民族团结进步促进法
-校领导拜会北京市委组织部领导交流高质量就业工作
-```
-
-```text
-中央民族大学新闻网 / 校长强世功接受“统战新语”专访 解读民族团结进步促进法
-中央民族大学党委举办树立和践行正确政绩观学习教育读书班
-教学科研
-校园经纬
-全球合作
-```
-
-## Conclusion
-
-Current truth after this execution:
-
-- `official_web/muc_public_pages` has now closed the registry-backed release and
-  alias lifecycle for the current imported dataset
-- the collection remains `offline_preparation`
-- retrieval/query-surface discussion remains closed
-- the next work item is not more release plumbing; it is improving current
-  imported dataset quality and reducing listing-heavy noise before broader
-  import or any retrieval-opening discussion
+- `official_web/muc_public_pages` 的首条 registry-backed release 路径已经在 `2026-04-02` 跑通
+- 这并不代表 mixed bridge 已具备 retrieval readiness
+- 后续工作的重点随后转向 fixed-scope clean/chunking、stable-reference split 和 fresh-news handoff；相关口径已迁移到 active reference，不再维护在这里

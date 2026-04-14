@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-30
-updated: 2026-04-12
+updated: 2026-04-14
 ---
 
 # Official Web Freshness And Incremental Crawling
@@ -58,6 +58,7 @@ updated: 2026-04-12
 - 当前 `docs/reference/official-web-fresh-news-surface-handoff.md` 里那 `8` 条 `future_fresh_news_surface` 文档应被视为后续 hot-lane / fresh-news work 的 seed set，而不是当前 `muc_public_pages` release gate 的继续治理对象。
 - `fetch_failed` 是 repair lane 的一等输入，但不是下游 ingestion 的变化触发条件。
 - 动态壳页应走独立 browser-capable provider lane；不得为了少量动态页面污染主 HTML/cheerio crawl 路径。
+- hot lane / metadata coverage readiness 只是 `fresh_news` opening 的必要条件，不是充分条件；真正 opening 仍要同时满足 routing、detail-evidence、duplicate collapse 与独立 eval artifact，统一看 `docs/reference/official-web-news-surface-opening-checklist.md`
 
 ## 长期运行形态
 

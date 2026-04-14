@@ -21,6 +21,7 @@ ALLOWED_SERVING_SURFACES = ("mixed", "stable_reference", "fresh_news", "news_arc
 OFFICIAL_WEB_STABLE_REFERENCE_LIKE_COLLECTIONS = frozenset({"muc_public_pages", "stable_reference"})
 OFFICIAL_WEB_STABLE_REFERENCE_LIKE_SURFACES = frozenset({"mixed", "stable_reference"})
 ALLOWED_ARTIFACT_MODES = ("normalized", "source_truth_only")
+ALLOWED_LISTING_PAGE_ROLES = ("discovery_only", "navigation_fallback", "primary_evidence")
 DEFAULT_DENSE_PREFETCH_LIMIT = 20
 DEFAULT_SPARSE_PREFETCH_LIMIT = 20
 DEFAULT_RRF_K = 60
@@ -55,6 +56,12 @@ class CollectionRuntimeProfile:
     retrieval_top_k: int = 3
     current_only: bool = False
     serving_revision_tracks: tuple[str, ...] = ()
+    required_metadata_fields: tuple[str, ...] = ()
+    primary_evidence_page_families: tuple[str, ...] = ()
+    listing_page_role: str | None = None
+    requires_freshness_gate: bool = False
+    requires_explicit_history_intent: bool = False
+    duplicate_collapse_required: bool = False
     dense_prefetch_limit: int = DEFAULT_DENSE_PREFETCH_LIMIT
     sparse_prefetch_limit: int = DEFAULT_SPARSE_PREFETCH_LIMIT
     rrf_k: int = DEFAULT_RRF_K
@@ -108,6 +115,14 @@ class CollectionRuntimeProfile:
         for revision_track in self.serving_revision_tracks:
             if revision_track not in ALLOWED_REVISION_TRACKS:
                 raise ValueError(f"unsupported serving_revision_track: {revision_track}")
+        for field_name in self.required_metadata_fields:
+            if not field_name.strip():
+                raise ValueError("required_metadata_fields must not contain empty values")
+        for page_family in self.primary_evidence_page_families:
+            if not page_family.strip():
+                raise ValueError("primary_evidence_page_families must not contain empty values")
+        if self.listing_page_role is not None and self.listing_page_role not in ALLOWED_LISTING_PAGE_ROLES:
+            raise ValueError(f"unsupported listing_page_role: {self.listing_page_role}")
         if self.no_hit_min_top_score is not None and not 0.0 <= self.no_hit_min_top_score <= 1.0:
             raise ValueError("no_hit_min_top_score must be between zero and one")
         if self.no_hit_min_score_gap is not None and not 0.0 <= self.no_hit_min_score_gap <= 1.0:
@@ -196,6 +211,18 @@ def load_runtime_profile(
         retrieval_top_k=int(payload.get("retrieval_top_k") or 3),
         current_only=bool(payload.get("current_only", False)),
         serving_revision_tracks=tuple(str(item) for item in list(payload.get("serving_revision_tracks") or [])),
+        required_metadata_fields=tuple(
+            str(item) for item in list(payload.get("required_metadata_fields") or [])
+        ),
+        primary_evidence_page_families=tuple(
+            str(item) for item in list(payload.get("primary_evidence_page_families") or [])
+        ),
+        listing_page_role=_optional_text(payload.get("listing_page_role")),
+        requires_freshness_gate=bool(payload.get("requires_freshness_gate", False)),
+        requires_explicit_history_intent=bool(
+            payload.get("requires_explicit_history_intent", False)
+        ),
+        duplicate_collapse_required=bool(payload.get("duplicate_collapse_required", False)),
         dense_prefetch_limit=int(payload.get("dense_prefetch_limit") or DEFAULT_DENSE_PREFETCH_LIMIT),
         sparse_prefetch_limit=int(payload.get("sparse_prefetch_limit") or DEFAULT_SPARSE_PREFETCH_LIMIT),
         rrf_k=int(payload.get("rrf_k") or DEFAULT_RRF_K),

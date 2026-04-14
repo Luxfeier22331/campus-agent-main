@@ -518,6 +518,13 @@ class OfficialWebLiveProfileTest(unittest.TestCase):
         )
         self.assertTrue(all(case.scope == OFFICIAL_WEB_FRESH_NEWS_SCOPE for case in cases))
         self.assertEqual(expected_doc_ids, official_web_future_fresh_news_doc_ids())
+        self.assertTrue(
+            all(
+                source.doc_id.split(":")[2] == "article_detail"
+                for case in cases
+                for source in case.expected_sources
+            )
+        )
 
     def test_build_official_web_live_profile_supports_fresh_news_scope(self) -> None:
         profile = build_official_web_live_profile(
