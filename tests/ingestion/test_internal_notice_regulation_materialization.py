@@ -471,6 +471,27 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
         self.assertEqual(first_guidance_metadata["source_attachment_ref_id"], "attachment-0001")
         self.assertEqual(first_guidance_metadata["source_attachment_ref_ids"], ["attachment-0001"])
         self.assertEqual(first_guidance_metadata["semantic_owner_kind"], "attachment_document")
+        self.assertEqual(
+            first_guidance_metadata["regulation_title_normalized"],
+            "中央民族大学关于学生使用人工智能的指导意见（2026版）",
+        )
+        self.assertEqual(
+            first_guidance_metadata["regulation_work_title"],
+            "中央民族大学关于学生使用人工智能的指导意见",
+        )
+        self.assertEqual(first_guidance_metadata["regulation_edition_label"], "2026版")
+        self.assertEqual(
+            first_guidance_metadata["regulation_display_title"],
+            "中央民族大学关于学生使用人工智能的指导意见 / 2026版",
+        )
+        self.assertEqual(
+            first_guidance_metadata["source_title_literal"],
+            "中央民族大学关于学生使用人工智能的指导意见（2026版）",
+        )
+        self.assertEqual(
+            first_guidance_metadata["title"],
+            "中央民族大学关于学生使用人工智能的指导意见 / 2026版",
+        )
         self.assertTrue(guidance_record.is_current)
 
         regulation_rows = _document_rows(uploads_by_key[regulation_record.document_units_object_key or ""])
@@ -489,6 +510,19 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
             "notice:muc_internal_portal:100003",
         )
         self.assertEqual(regulation_metadata["semantic_owner_kind"], "notice_body")
+        self.assertEqual(
+            regulation_metadata["regulation_work_title"],
+            "中央民族大学实验室安全管理规定",
+        )
+        self.assertEqual(regulation_metadata["regulation_edition_label"], "2026年修订")
+        self.assertEqual(
+            regulation_metadata["regulation_display_title"],
+            "中央民族大学实验室安全管理规定 / 2026年修订",
+        )
+        self.assertEqual(
+            regulation_metadata["title"],
+            "中央民族大学实验室安全管理规定 / 2026年修订",
+        )
         self.assertEqual(regulation_metadata["effective_date"], "2026年2月1日")
         self.assertEqual(regulation_metadata["revision_signal"], "修订")
         self.assertTrue(regulation_record.is_current)

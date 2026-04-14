@@ -11,6 +11,12 @@ updated: 2026-04-12
 
 本文冻结 `authenticated_notice_portal` source channel 的 canonical source-truth contract。
 
+当前作用域只覆盖 `notice` surface，不覆盖同一 portal 下的 `file_release` surface。`file_release` 当前仍停留在 collector-owned typed export / source capture 阶段，不能反向改写本文的 notice source-truth contract。
+
+`file_release` 当前 export contract 另见：
+
+- `docs/reference/authenticated-notice-file-release-export-contract.md`
+
 它回答的是：
 
 - notice source 在 `capture/`、`provider/`、`source-truth/` 三层分别保留什么
@@ -28,6 +34,7 @@ updated: 2026-04-12
 对应文档：
 
 - source-channel 运行边界：`docs/architecture/authenticated-notice-source-architecture.md`
+- `file_release` collector-owned export contract：`docs/reference/authenticated-notice-file-release-export-contract.md`
 - shared replay / rebuild boundary：`docs/architecture/data-plane-architecture.md`
 - `internal_notice` collection-specific offline preparation strategy：`docs/reference/internal-notice-offline-preparation-strategy.md`
 - restricted rollout：`docs/architecture/identity-and-authorization-architecture.md`

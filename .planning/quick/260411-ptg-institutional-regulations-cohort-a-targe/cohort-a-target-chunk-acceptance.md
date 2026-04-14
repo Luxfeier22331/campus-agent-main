@@ -2,32 +2,32 @@
 
 ## Verdict
 
-- quality posture: `needs_short_fragment_tuning_review`
+- quality posture: `ready_for_target_materialization`
 - cohort notice count: `11`
 - rebuilt inventory notice count: `11`
-- promotion candidate count: `1`
-- promotion manual review count: `10`
-- exported candidate count: `1`
-- prepared candidate count: `1`
-- short body chunk count: `7`
+- promotion candidate count: `9`
+- promotion manual review count: `2`
+- exported candidate count: `9`
+- prepared candidate count: `9`
+- short body chunk count: `0`
 - failed candidate ids: `[]`
 
 ## Targeted Observations
 
-- `187233` short_body_chunk_count = `7`
+- `186957` short_body_chunk_count = `0`
+- `186977` short_body_chunk_count = `0`
+- `187004` short_body_chunk_count = `0`
+- `187233` short_body_chunk_count = `0`
+- `191705` short_body_chunk_count = `0`
+- `196411` short_body_chunk_count = `0`
+- `351907` short_body_chunk_count = `0`
+- `353963` short_body_chunk_count = `0`
+- `354006` short_body_chunk_count = `0`
 
 ## Manual Review Notices
 
-- `186957` -> `manual_promotion_review` | missing=`revision_signal` | reasons=`draft_or_operational_signal_detected`
-- `186977` -> `manual_promotion_review` | missing=`revision_signal` | reasons=`draft_or_operational_signal_detected`
-- `187004` -> `manual_promotion_review` | missing=`revision_signal` | reasons=`draft_or_operational_signal_detected`
-- `191176` -> `manual_promotion_review` | missing=`issuing_org,revision_signal` | reasons=`wrapper_semantics_still_present,time_bound_or_operational_signal_detected`
-- `191177` -> `manual_promotion_review` | missing=`issuing_org,revision_signal` | reasons=`wrapper_semantics_still_present,time_bound_or_operational_signal_detected`
-- `191705` -> `manual_promotion_review` | missing=`effective_date,revision_signal` | reasons=`time_bound_or_operational_signal_detected`
-- `196411` -> `manual_promotion_review` | missing=`effective_date,revision_signal` | reasons=`draft_or_operational_signal_detected`
-- `351907` -> `manual_promotion_review` | missing=`effective_date,revision_signal` | reasons=`time_bound_or_operational_signal_detected`
-- `353963` -> `manual_promotion_review` | missing=`revision_signal` | reasons=`time_bound_or_operational_signal_detected`
-- `354006` -> `manual_promotion_review` | missing=`revision_signal` | reasons=`time_bound_or_operational_signal_detected`
+- `191176` -> `manual_promotion_review` | missing=`issuing_org,revision_signal` | reasons=`wrapper_semantics_still_present,time_bound_operational_rule_detected,missing_quality_gate:wrapper_semantics_removed`
+- `191177` -> `manual_promotion_review` | missing=`issuing_org,revision_signal` | reasons=`wrapper_semantics_still_present,time_bound_operational_rule_detected,missing_quality_gate:wrapper_semantics_removed`
 
 ## Boundary
 

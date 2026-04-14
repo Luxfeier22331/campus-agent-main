@@ -1,23 +1,24 @@
 {
   "schema_version": "internal_notice_regulation_candidate_chunk_prep_v1",
   "passed": true,
-  "prepared_candidate_count": 1,
-  "total_unit_count": 16,
-  "total_chunk_count": 16,
+  "prepared_candidate_count": 9,
+  "total_unit_count": 311,
+  "total_chunk_count": 177,
   "unit_type_counts": {
-    "institutional_regulation_block": 15,
-    "institutional_regulation_heading": 1
+    "institutional_regulation_block": 302,
+    "institutional_regulation_heading": 9
   },
   "split_reason_counts": {},
   "header_mode_counts": {
-    "compact_identity": 14,
-    "full_path": 2
+    "compact_identity": 152,
+    "full_path": 22,
+    "title_only": 3
   },
   "missing_title_chunk_count": 0,
   "missing_contextualization_count": 0,
   "missing_projection_metadata_count": 0,
   "wrapper_notice_leak_chunk_count": 0,
   "front_matter_leak_chunk_count": 0,
-  "short_body_chunk_count": 7,
+  "short_body_chunk_count": 0,
   "failed_candidate_ids": []
 }

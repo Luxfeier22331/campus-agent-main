@@ -5,12 +5,16 @@ source_document_id: notice:muc_internal_portal:187233
 source_kind: parent_notice
 input_lane: notice_body
 promotion_class: formal_regulation
+semantic_owner_kind: notice_body
 target_corpus: regulations
 target_collection: institutional_regulations
 source_notice_release_time: 2021-02-28 16:09
+source_notice_document_id: notice:muc_internal_portal:187233
 source_parent_document_id: notice:muc_internal_portal:187233
+source_attachment_document_id: 
 source_attachment_ref_id: 
 source_attachment_sha256: 
+semantic_owner_document_id: notice:muc_internal_portal:187233
 issuing_org: 中央民族大学
 effective_date: 2021年3月1日
 revision_signal: 修订

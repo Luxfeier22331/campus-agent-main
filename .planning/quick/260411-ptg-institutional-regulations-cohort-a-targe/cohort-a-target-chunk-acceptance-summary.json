@@ -24,55 +24,41 @@
     "186957"
   ],
   "rebuilt_inventory_notice_count": 11,
-  "promotion_candidate_count": 1,
-  "promotion_manual_review_count": 10,
+  "promotion_candidate_count": 9,
+  "promotion_manual_review_count": 2,
   "promotion_hold_count": 0,
   "promotion_action_counts": {
-    "manual_review_required": 10,
-    "promote_candidate": 1
+    "manual_review_required": 2,
+    "promote_candidate": 9
   },
-  "candidate_exported_count": 1,
-  "prepared_candidate_count": 1,
-  "quality_posture": "needs_short_fragment_tuning_review",
-  "short_body_chunk_count": 7,
+  "candidate_exported_count": 9,
+  "prepared_candidate_count": 9,
+  "quality_posture": "ready_for_target_materialization",
+  "short_body_chunk_count": 0,
   "failed_candidate_ids": [],
   "short_body_by_candidate_id": {
-    "0425aed278c86fda": 7
+    "949a87352fa79038": 0,
+    "116d3f13533327d1": 0,
+    "4a1bd1e147f4a9da": 0,
+    "0425aed278c86fda": 0,
+    "37cd181975cc4060": 0,
+    "0cce13020d53dab7": 0,
+    "71bad52a7f7e9c74": 0,
+    "c823e8b00ed17b22": 0,
+    "7decc4f54e3b3baf": 0
   },
   "short_body_by_notice_id": {
-    "187233": 7
+    "186957": 0,
+    "186977": 0,
+    "187004": 0,
+    "187233": 0,
+    "191705": 0,
+    "196411": 0,
+    "351907": 0,
+    "353963": 0,
+    "354006": 0
   },
   "manual_review_notices": [
-    {
-      "notice_id": "186957",
-      "promotion_class": "manual_promotion_review",
-      "missing_required_metadata": [
-        "revision_signal"
-      ],
-      "reasons": [
-        "draft_or_operational_signal_detected"
-      ]
-    },
-    {
-      "notice_id": "186977",
-      "promotion_class": "manual_promotion_review",
-      "missing_required_metadata": [
-        "revision_signal"
-      ],
-      "reasons": [
-        "draft_or_operational_signal_detected"
-      ]
-    },
-    {
-      "notice_id": "187004",
-      "promotion_class": "manual_promotion_review",
-      "missing_required_metadata": [
-        "revision_signal"
-      ],
-      "reasons": [
-        "draft_or_operational_signal_detected"
-      ]
-    },
     {
       "notice_id": "191176",
       "promotion_class": "manual_promotion_review",
@@ -82,7 +68,8 @@
       ],
       "reasons": [
         "wrapper_semantics_still_present",
-        "time_bound_or_operational_signal_detected"
+        "time_bound_operational_rule_detected",
+        "missing_quality_gate:wrapper_semantics_removed"
       ]
     },
     {
@@ -94,60 +81,8 @@
       ],
       "reasons": [
         "wrapper_semantics_still_present",
-        "time_bound_or_operational_signal_detected"
-      ]
-    },
-    {
-      "notice_id": "191705",
-      "promotion_class": "manual_promotion_review",
-      "missing_required_metadata": [
-        "effective_date",
-        "revision_signal"
-      ],
-      "reasons": [
-        "time_bound_or_operational_signal_detected"
-      ]
-    },
-    {
-      "notice_id": "196411",
-      "promotion_class": "manual_promotion_review",
-      "missing_required_metadata": [
-        "effective_date",
-        "revision_signal"
-      ],
-      "reasons": [
-        "draft_or_operational_signal_detected"
-      ]
-    },
-    {
-      "notice_id": "351907",
-      "promotion_class": "manual_promotion_review",
-      "missing_required_metadata": [
-        "effective_date",
-        "revision_signal"
-      ],
-      "reasons": [
-        "time_bound_or_operational_signal_detected"
-      ]
-    },
-    {
-      "notice_id": "353963",
-      "promotion_class": "manual_promotion_review",
-      "missing_required_metadata": [
-        "revision_signal"
-      ],
-      "reasons": [
-        "time_bound_or_operational_signal_detected"
-      ]
-    },
-    {
-      "notice_id": "354006",
-      "promotion_class": "manual_promotion_review",
-      "missing_required_metadata": [
-        "revision_signal"
-      ],
-      "reasons": [
-        "time_bound_or_operational_signal_detected"
+        "time_bound_operational_rule_detected",
+        "missing_quality_gate:wrapper_semantics_removed"
       ]
     }
   ],
@@ -160,24 +95,25 @@
   "validation_summary": {
     "schema_version": "internal_notice_regulation_candidate_chunk_prep_v1",
     "passed": true,
-    "prepared_candidate_count": 1,
-    "total_unit_count": 16,
-    "total_chunk_count": 16,
+    "prepared_candidate_count": 9,
+    "total_unit_count": 311,
+    "total_chunk_count": 177,
     "unit_type_counts": {
-      "institutional_regulation_block": 15,
-      "institutional_regulation_heading": 1
+      "institutional_regulation_block": 302,
+      "institutional_regulation_heading": 9
     },
     "split_reason_counts": {},
     "header_mode_counts": {
-      "compact_identity": 14,
-      "full_path": 2
+      "compact_identity": 152,
+      "full_path": 22,
+      "title_only": 3
     },
     "missing_title_chunk_count": 0,
     "missing_contextualization_count": 0,
     "missing_projection_metadata_count": 0,
     "wrapper_notice_leak_chunk_count": 0,
     "front_matter_leak_chunk_count": 0,
-    "short_body_chunk_count": 7,
+    "short_body_chunk_count": 0,
     "failed_candidate_ids": []
   }
 }

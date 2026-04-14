@@ -37,7 +37,23 @@ Current scaffold note:
 
 Current materialization truth:
 
-- target `document_id` is derived from `regulation_title_normalized + issuing_org + semantic scope`, not from `notice_id`
+- target `document_id` is derived from `regulation_work_title + issuing_org + semantic scope`, not from `notice_id`
+- projected/materialized `title` now uses `regulation_display_title` when available
+- current execution preserves these regulation title/version metadata fields:
+  - `regulation_work_title`
+  - `regulation_edition_label`
+  - `regulation_display_title`
+  - `source_title_literal`
+- `regulation_title_normalized` remains as normalized source-facing title metadata
 - duplicate wrapper/attachment notices that resolve to the same canonical regulation keep one promoted target document while aggregating duplicate provenance in metadata
 - scope refresh replaces the full `regulations/institutional_regulations` registry scope on each materialization run
 - current internal-notice batch does not split regulation-like text into a second main collection purely because it is annual-cycle or time-bound; those distinctions stay in metadata
+
+Display convention note:
+
+- ADR-0040 freezes the long-term split between `regulation_work_title`, `regulation_edition_label`, and `regulation_display_title`
+- the slash form `<work title> / <edition label>` is a repo-local display convention inferred from work/version separation needs; it is not presented as a literal external metadata standard
+- `regulation_display_title` keeps the full `edition_label` semantics instead of collapsing to a bare year
+  - `... / 2026版` and `... / 2026年修订` are valid current forms
+  - `... / 2026` is not the current accepted display-title format
+- year-bearing but non-edition signals such as `2026届`, status qualifiers such as `暂行/试行`, and file-number signals such as `民大校发〔2025〕104号` must not be reclassified as `regulation_edition_label`

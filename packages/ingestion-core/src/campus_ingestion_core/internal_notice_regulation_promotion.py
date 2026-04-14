@@ -84,12 +84,25 @@ _QUOTE_TITLE_RE = re.compile(r"《([^》]{2,200})》")
 _DATE_RE = re.compile(r"(20\d{2}[-/年\.]\d{1,2}[-/月\.]\d{1,2}日?)")
 _REVISION_SIGNAL_RE = re.compile(r"(修订|修正|最新版|更新版|20\d{2}版)")
 _ISSUING_ORG_RE = re.compile(r"(中央民族大学)")
+_DOCUMENT_NUMBER_RE = re.compile(r"^[^\n]{0,40}[〔【\[]\d{4}[〕】\]][^\n]{0,20}号$")
 _TEXT_MATCH_NORMALIZE_RE = re.compile(r"[\s《》“”\"'‘’()（）【】\[\]：:、，,。.;；·\-—_<>]")
+_TRAILING_PARENTHETICAL_RE = re.compile(r"^(?P<work>.+?)\s*[（(](?P<label>[^()（）]{1,40})[)）]\s*$")
+_TRAILING_BARE_EDITION_RE = re.compile(
+    r"^(?P<work>.+?)\s+(?P<label>(?:20\d{2}\s*版|20\d{2}年(?:修订|修正版|更新版)|第?\d+版|最新版|修订版|修正版|更新版))\s*$"
+)
 _ARTICLE_MARKER_RE = re.compile(r"(^|\n)\s*第[一二三四五六七八九十百千万0-9]+条", re.MULTILINE)
 _SECTION_MARKER_RE = re.compile(r"(^|\n)\s*[一二三四五六七八九十]+[、.]", re.MULTILINE)
 _SUBSECTION_MARKER_RE = re.compile(r"(^|\n)\s*[（(][一二三四五六七八九十0-9]+[)）]", re.MULTILINE)
 _NUMERIC_LIST_MARKER_RE = re.compile(r"(^|\n)\s*[0-9]{1,2}[、.]", re.MULTILINE)
 _CIRCLED_LIST_MARKER_RE = re.compile(r"(^|\n)\s*[①②③④⑤⑥⑦⑧⑨⑩]", re.MULTILINE)
+_SECTION_HEADING_TITLE_RE = re.compile(
+    r"^(?:"
+    r"[一二三四五六七八九十百]+[、.．]"
+    r"|第[一二三四五六七八九十百千万0-9]+[章节条款项]"
+    r"|\d{1,2}[、.．)]"
+    r"|[（(][一二三四五六七八九十0-9]+[)）]"
+    r")"
+)
 
 
 class InternalNoticePromotionObjectStore(Protocol):
@@ -183,6 +196,10 @@ class InternalNoticeRegulationPromotionDocumentReport:
     artifact_key: str | None
     owner_source_missing_reason: str | None = None
     read_failure: str | None = None
+    regulation_work_title: str | None = None
+    regulation_edition_label: str | None = None
+    regulation_display_title: str | None = None
+    source_title_literal: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -247,6 +264,10 @@ class InternalNoticeRegulationCandidateArtifactDocument:
     promotion_body: str
     artifact_markdown_path: str
     artifact_body_sha256: str
+    regulation_work_title: str | None = None
+    regulation_edition_label: str | None = None
+    regulation_display_title: str | None = None
+    source_title_literal: str | None = None
     source_notice_document_id: str | None = None
     source_attachment_document_id: str | None = None
     semantic_owner_document_id: str | None = None
@@ -289,7 +310,7 @@ def build_internal_notice_regulation_promotion_manifest(
         request.promotion_routing_path or read_internal_notice_promotion_routing_path(source)
     )
     target_profile = load_runtime_profile(routing.target_corpus, routing.target_collection)
-    bucket_derived = resolve_object_store_bucket_names(source)[1]
+    bucket_source, bucket_derived = resolve_object_store_bucket_names(source)
     scope_records = _select_latest_scope_records(
         runtime_registry.list_by_scope(request.corpus, request.collection)
     )
@@ -316,6 +337,7 @@ def build_internal_notice_regulation_promotion_manifest(
             routing=routing,
             inventory_entry=inventory_by_notice.get(_extract_notice_id(record.document_id)),
             attachment_plan_by_ref=attachment_plan_by_ref,
+            bucket_source=bucket_source,
             materialized_attachment_refs_by_notice=materialized_attachment_refs_by_notice,
         )
         for record in selected_records
@@ -558,6 +580,7 @@ def _scan_document(
     routing: InternalNoticePromotionRoutingConfig,
     inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry | None,
     attachment_plan_by_ref: dict[tuple[str, str], dict[str, Any]],
+    bucket_source: str,
     materialized_attachment_refs_by_notice: dict[str, frozenset[str]],
 ) -> InternalNoticeRegulationPromotionDocumentReport:
     site_id, notice_id, source_kind, attachment_ref_id = _parse_document_lineage(record.document_id)
@@ -570,8 +593,13 @@ def _scan_document(
     source_parent_document_id = (
         f"notice:{site_id}:{notice_id}" if source_kind == "attachment_document" else record.document_id
     )
-    source_attachment_sha256 = _optional_text(
-        None if attachment_plan is None else attachment_plan.get("attachment_content_sha256")
+    source_attachment_sha256 = _resolve_source_attachment_sha256(
+        notice_id=notice_id,
+        attachment_ref_id=attachment_ref_id,
+        attachment_plan=attachment_plan,
+        inventory_entry=inventory_entry,
+        object_store=object_store,
+        bucket_source=bucket_source,
     )
     source_notice_release_time = _extract_source_notice_release_time(inventory_entry, record)
     missing_materialized_attachment_refs = _missing_materialized_attachment_refs(
@@ -651,10 +679,21 @@ def _scan_document(
         body=promotion_body,
         inventory_entry=inventory_entry,
     )
+    (
+        regulation_work_title,
+        regulation_edition_label,
+        regulation_display_title,
+        source_title_literal,
+    ) = _split_regulation_title_fields(regulation_title_normalized)
     issuing_org = _extract_issuing_org(combined_text)
     effective_date = _optional_text(record.effective_date) or _extract_effective_date(promotion_body)
     revision_signal = _extract_revision_signal(combined_text)
-    duplicate_group_key = source_attachment_sha256 or record.content_hash
+    duplicate_group_key = _build_duplicate_group_key(
+        source_attachment_sha256=source_attachment_sha256,
+        regulation_title_normalized=regulation_title_normalized,
+        promotion_body=promotion_body,
+        fallback_content_hash=record.content_hash,
+    )
     quality_gates: list[str] = []
     document_nature = _detect_document_nature(
         source_kind=source_kind,
@@ -751,6 +790,10 @@ def _scan_document(
         "source_attachment_sha256": source_attachment_sha256,
         "source_notice_release_time": source_notice_release_time,
         "regulation_title_normalized": regulation_title_normalized,
+        "regulation_work_title": regulation_work_title,
+        "regulation_edition_label": regulation_edition_label,
+        "regulation_display_title": regulation_display_title,
+        "source_title_literal": source_title_literal,
         "issuing_org": issuing_org,
         "effective_date": effective_date,
         "revision_signal": revision_signal,
@@ -795,6 +838,10 @@ def _scan_document(
         reasons=tuple(dict.fromkeys(reasons)),
         artifact_key=record.canonical_markdown_object_key,
         owner_source_missing_reason=missing_parent_owner_reason,
+        regulation_work_title=regulation_work_title,
+        regulation_edition_label=regulation_edition_label,
+        regulation_display_title=regulation_display_title,
+        source_title_literal=source_title_literal,
     )
 
 
@@ -895,6 +942,25 @@ def _candidate_sort_key(report: InternalNoticeRegulationPromotionDocumentReport)
     return (lane_rank, revision_rank, report.document_id)
 
 
+def _build_duplicate_group_key(
+    *,
+    source_attachment_sha256: str | None,
+    regulation_title_normalized: str | None,
+    promotion_body: str,
+    fallback_content_hash: str,
+) -> str | None:
+    if source_attachment_sha256:
+        return source_attachment_sha256
+    substantive_body = promotion_body.strip()
+    if not substantive_body:
+        return fallback_content_hash
+    title = (regulation_title_normalized or "").strip()
+    digest = hashlib.sha256(
+        "\n".join((title, substantive_body)).encode("utf-8")
+    ).hexdigest()
+    return f"semantic:{digest}"
+
+
 def _select_latest_scope_records(
     records: Sequence[DocumentRegistryRecord],
 ) -> tuple[DocumentRegistryRecord, ...]:
@@ -948,6 +1014,51 @@ def _build_attachment_plan_index(
                 continue
             index[(entry.notice_id, attachment_ref_id)] = plan
     return index
+
+
+def _resolve_source_attachment_sha256(
+    *,
+    notice_id: str,
+    attachment_ref_id: str | None,
+    attachment_plan: dict[str, Any] | None,
+    inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry | None,
+    object_store: InternalNoticePromotionObjectStore,
+    bucket_source: str,
+) -> str | None:
+    if attachment_ref_id is None:
+        return None
+    for value in (
+        None if attachment_plan is None else attachment_plan.get("attachment_content_sha256"),
+        None if attachment_plan is None else attachment_plan.get("content_sha256"),
+    ):
+        normalized = _optional_text(value)
+        if normalized is not None:
+            return normalized
+    if inventory_entry is None or not inventory_entry.attachment_refs_key:
+        return None
+    try:
+        payload = object_store.get_bytes(
+            bucket=bucket_source,
+            key=inventory_entry.attachment_refs_key,
+        ).decode("utf-8")
+    except Exception:
+        return None
+    for line in payload.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            row = json.loads(stripped)
+        except json.JSONDecodeError:
+            continue
+        if _optional_text(row.get("notice_id")) != notice_id:
+            continue
+        if _optional_text(row.get("attachment_ref_id")) != attachment_ref_id:
+            continue
+        normalized = _optional_text(row.get("content_sha256"))
+        if normalized is not None:
+            return normalized
+    return None
 
 
 def _build_materialized_attachment_ref_index(
@@ -1121,7 +1232,52 @@ def _extract_standalone_title_candidate(value: str | None) -> str | None:
         return None
     if _looks_like_wrapper_notice(source_title=normalized, body=""):
         return None
+    if _looks_like_section_heading_title(normalized):
+        return None
     return normalized
+
+
+def _looks_like_section_heading_title(value: str) -> bool:
+    return _SECTION_HEADING_TITLE_RE.match(value.strip()) is not None
+
+
+def _split_regulation_title_fields(
+    title: str | None,
+) -> tuple[str | None, str | None, str | None, str | None]:
+    source_title_literal = _optional_text(title)
+    if source_title_literal is None:
+        return (None, None, None, None)
+    work_title = source_title_literal
+    edition_label: str | None = None
+    parenthetical_match = _TRAILING_PARENTHETICAL_RE.match(source_title_literal)
+    if parenthetical_match is not None:
+        candidate_label = parenthetical_match.group("label").strip()
+        candidate_work_title = _optional_text(parenthetical_match.group("work"))
+        if candidate_work_title is not None and _looks_like_edition_label(candidate_label):
+            work_title = candidate_work_title
+            edition_label = candidate_label
+    if edition_label is None:
+        bare_match = _TRAILING_BARE_EDITION_RE.match(source_title_literal)
+        if bare_match is not None:
+            candidate_label = bare_match.group("label").strip()
+            candidate_work_title = _optional_text(bare_match.group("work"))
+            if candidate_work_title is not None:
+                work_title = candidate_work_title
+                edition_label = candidate_label
+    display_title = work_title if edition_label is None else f"{work_title} / {edition_label}"
+    return (work_title, edition_label, display_title, source_title_literal)
+
+
+def _looks_like_edition_label(value: str) -> bool:
+    normalized = value.strip()
+    if not normalized:
+        return False
+    return bool(
+        re.fullmatch(r"20\d{2}\s*版", normalized)
+        or re.fullmatch(r"20\d{2}年(?:修订|修正版|更新版)", normalized)
+        or re.fullmatch(r"第?\d+版", normalized)
+        or normalized in {"最新版", "修订版", "修正版", "更新版"}
+    )
 
 
 def _build_candidate_artifact_document(
@@ -1192,6 +1348,10 @@ def _build_candidate_artifact_document(
         promotion_body=promotion_body,
         artifact_markdown_path=artifact_markdown_path,
         artifact_body_sha256=hashlib.sha256(promotion_body.encode("utf-8")).hexdigest(),
+        regulation_work_title=report.regulation_work_title,
+        regulation_edition_label=report.regulation_edition_label,
+        regulation_display_title=report.regulation_display_title,
+        source_title_literal=report.source_title_literal,
         source_notice_document_id=_resolve_source_notice_document_id(report),
         source_attachment_document_id=_resolve_source_attachment_document_id(report),
         semantic_owner_document_id=_resolve_semantic_owner_document_id(report),
@@ -1320,6 +1480,10 @@ def _render_candidate_artifact_markdown(
         f"source_attachment_ref_id: {document.source_attachment_ref_id or ''}",
         f"source_attachment_sha256: {document.source_attachment_sha256 or ''}",
         f"semantic_owner_document_id: {semantic_owner_document_id or ''}",
+        f"regulation_work_title: {document.regulation_work_title or ''}",
+        f"regulation_edition_label: {document.regulation_edition_label or ''}",
+        f"regulation_display_title: {document.regulation_display_title or ''}",
+        f"source_title_literal: {document.source_title_literal or ''}",
         f"issuing_org: {document.issuing_org or ''}",
         f"effective_date: {document.effective_date or ''}",
         f"revision_signal: {document.revision_signal or ''}",
@@ -1396,6 +1560,12 @@ def extract_internal_notice_parent_regulation_body_preview(
     while lines and _is_wrapper_leading_line(lines[0], regulation_title_normalized=regulation_title_normalized):
         removed_leading_lines.append(lines.pop(0))
 
+    while lines and _is_document_number_line(lines[0]):
+        removed_leading_lines.append(lines.pop(0))
+
+    while lines and _is_wrapper_leading_line(lines[0], regulation_title_normalized=regulation_title_normalized):
+        removed_leading_lines.append(lines.pop(0))
+
     while lines and _is_wrapper_trailing_line(lines[-1]):
         removed_trailing_lines.insert(0, lines.pop())
 
@@ -1458,6 +1628,13 @@ def _is_wrapper_trailing_line(line: str) -> bool:
     return False
 
 
+def _is_document_number_line(line: str) -> bool:
+    normalized = line.strip()
+    if not normalized:
+        return False
+    return _DOCUMENT_NUMBER_RE.fullmatch(normalized) is not None
+
+
 def _classify_document(
     *,
     source_kind: str,
@@ -1471,6 +1648,14 @@ def _classify_document(
 ) -> tuple[str, str]:
     combined_text = "\n".join(item for item in (source_title, body) if item)
     if source_kind == "parent_notice":
+        title_signal_text = "\n".join(
+            item
+            for item in (
+                source_title,
+                _extract_notice_title(inventory_entry),
+            )
+            if item
+        )
         if _looks_like_draft_document(combined_text):
             reasons.append("draft_signal_detected")
             return ("manual_promotion_review", "manual_review_required")
@@ -1489,19 +1674,23 @@ def _classify_document(
         body_is_promotable_parent_regulation = body_has_regulation_structure and _has_substantive_text(
             body
         )
-        if body_is_promotable_parent_regulation and _looks_like_formal_regulation(combined_text):
+        if body_is_promotable_parent_regulation and _looks_like_formal_regulation(title_signal_text):
             if has_promotable_attachment:
                 reasons.append("wrapper_notice_retained_in_internal_notice")
                 return ("wrapper_notice_only", routing.default_action)
             return ("formal_regulation", "promote_candidate")
-        if body_is_promotable_parent_regulation and _looks_like_normative_handbook(combined_text):
+        if body_is_promotable_parent_regulation and _looks_like_normative_handbook(
+            title_signal_text
+        ):
             if has_promotable_attachment:
                 reasons.append("wrapper_notice_retained_in_internal_notice")
                 return ("wrapper_notice_only", routing.default_action)
             return ("normative_handbook", "promote_candidate")
         if _looks_like_wrapper_notice(source_title=source_title, body=body) or has_promotable_attachment:
             return ("wrapper_notice_only", routing.default_action)
-        if _looks_like_formal_regulation(combined_text) or _looks_like_normative_handbook(combined_text):
+        if _looks_like_formal_regulation(title_signal_text) or _looks_like_normative_handbook(
+            title_signal_text
+        ):
             reasons.append("regulation_like_parent_body_needs_review")
             return ("manual_promotion_review", "manual_review_required")
         return ("wrapper_notice_only", routing.default_action)

@@ -66,6 +66,55 @@ def _candidate_document() -> InternalNoticeRegulationCandidateArtifactDocument:
         ),
         artifact_markdown_path="candidates/中央民族大学采购工作管理办法--0425aed278c86fda/canonical.md",
         artifact_body_sha256="ba2650d0594638552323b13693d065765ac9746a4229cf4ca47b959c61843ef4",
+        regulation_work_title="中央民族大学采购工作管理办法",
+        regulation_edition_label=None,
+        regulation_display_title="中央民族大学采购工作管理办法",
+        source_title_literal="中央民族大学采购工作管理办法",
+    )
+
+
+def _versioned_candidate_document() -> InternalNoticeRegulationCandidateArtifactDocument:
+    return InternalNoticeRegulationCandidateArtifactDocument(
+        candidate_id="7c2f1e6f9d6aa381",
+        source_document_id="notice_attachment:muc_internal_portal:355282:attachment-0001",
+        notice_id="355282",
+        site_id="muc_internal_portal",
+        source_kind="attachment_document",
+        input_lane="attachment_document",
+        revision_track="source-faithful",
+        version_id="sha256:7c2f1e6f9d6aa381",
+        promotion_class="formal_regulation",
+        document_nature="institutional_regulation",
+        semantic_owner_kind="attachment_document",
+        target_corpus="regulations",
+        target_collection="institutional_regulations",
+        regulation_title_normalized="中央民族大学关于学生使用人工智能的指导意见（2026版）",
+        issuing_org="中央民族大学",
+        effective_date=None,
+        revision_signal=None,
+        source_notice_release_time="2026-03-27 15:15",
+        source_parent_document_id="notice:muc_internal_portal:355282",
+        source_attachment_ref_id="attachment-0001",
+        source_attachment_sha256="sha256-guideline",
+        source_uri="https://portal.example.edu/files/355282.docx",
+        entitlement_groups=("campus_members",),
+        visibility_scope="campus",
+        visibility_level="restricted",
+        embedding_model="Qwen3-Embedding-4B",
+        is_current=True,
+        quality_gates_passed=(
+            "canonical_text_available",
+            "duplicate_check_passed",
+            "provenance_complete",
+        ),
+        reasons=(),
+        promotion_body="第一条 为规范学生使用人工智能，制定本指导意见。",
+        artifact_markdown_path="candidates/中央民族大学关于学生使用人工智能的指导意见（2026版）--7c2f1e6f9d6aa381/canonical.md",
+        artifact_body_sha256="7c2f1e6f9d6aa381",
+        regulation_work_title="中央民族大学关于学生使用人工智能的指导意见",
+        regulation_edition_label="2026版",
+        regulation_display_title="中央民族大学关于学生使用人工智能的指导意见 / 2026版",
+        source_title_literal="中央民族大学关于学生使用人工智能的指导意见（2026版）",
     )
 
 
@@ -100,6 +149,8 @@ class InternalNoticeRegulationProjectionTest(unittest.TestCase):
         )
         self.assertEqual(rows[7]["anchor"]["provision_label"], "1.")
         self.assertEqual(rows[0]["metadata"]["semantic_owner_kind"], "notice_body")
+        self.assertEqual(rows[0]["metadata"]["regulation_work_title"], "中央民族大学采购工作管理办法")
+        self.assertEqual(rows[0]["metadata"]["regulation_display_title"], "中央民族大学采购工作管理办法")
         self.assertEqual(
             rows[0]["metadata"]["source_notice_document_id"],
             "notice:muc_internal_portal:187233",
@@ -107,6 +158,28 @@ class InternalNoticeRegulationProjectionTest(unittest.TestCase):
         self.assertEqual(
             rows[0]["metadata"]["semantic_owner_document_id"],
             "notice:muc_internal_portal:187233",
+        )
+
+    def test_projected_document_uses_work_title_for_identity_and_display_title_for_title(self) -> None:
+        projected = build_internal_notice_regulation_projected_document(
+            candidate_document=_versioned_candidate_document()
+        )
+
+        self.assertEqual(
+            projected.title,
+            "中央民族大学关于学生使用人工智能的指导意见 / 2026版",
+        )
+        self.assertEqual(
+            projected.metadata["title"],
+            "中央民族大学关于学生使用人工智能的指导意见 / 2026版",
+        )
+        self.assertIn(
+            "institutional_regulation:muc:中央民族大学关于学生使用人工智能的指导意见:",
+            projected.document_id,
+        )
+        self.assertEqual(
+            projected.canonical_markdown.splitlines()[0],
+            "# 中央民族大学关于学生使用人工智能的指导意见（2026版）",
         )
 
 

@@ -331,11 +331,13 @@ def build_institutional_regulation_scope_refresh_documents(
 def build_institutional_regulation_document_id(
     *,
     regulation_title_normalized: str,
+    regulation_work_title: str | None = None,
     issuing_org: str,
     semantic_scope: str = "regulations/institutional_regulations",
 ) -> str:
     return _build_institutional_regulation_document_id(
         regulation_title_normalized=regulation_title_normalized,
+        regulation_work_title=regulation_work_title,
         issuing_org=issuing_org,
         semantic_scope=semantic_scope,
     )

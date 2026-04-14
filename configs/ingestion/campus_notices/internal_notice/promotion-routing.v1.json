@@ -85,12 +85,11 @@
     "source_notice_release_time",
     "regulation_title_normalized",
     "issuing_org",
-    "effective_date",
     "revision_signal",
     "supersedes_candidate_keys"
   ],
   "identity_rules": {
-    "document_id_strategy": "regulation_title_issuing_org_semantic_scope_hash",
+    "document_id_strategy": "regulation_work_title_issuing_org_semantic_scope_hash",
     "version_id_strategy": "content_hash_effective_date_revision_signal",
     "forbidden_identity_inputs": ["notice_id"]
   },
@@ -99,6 +98,9 @@
     "Promotion never deletes or rewrites the source-triage notice row in campus_notices/internal_notice.",
     "Only canonical regulation text may cross into regulations/institutional_regulations.",
     "source_attachment_ref_id and source_attachment_sha256 are attachment-derived provenance fields; parent-body candidates may keep them null.",
+    "effective_date is preserved when the owner text explicitly states it, but it is not a promotion hard gate.",
+    "source_notice_release_time is notice-issued provenance metadata and must not be silently rewritten into effective_date.",
+    "Current execution identity now uses regulation_work_title; current projected/materialized title uses regulation_display_title when present, while regulation_title_normalized and source_title_literal remain source-facing title metadata.",
     "Document age is not a standalone exclusion or downgrade signal for campus regulations.",
     "暂行 or 试行 is not by itself a draft, expired, or manual-review signal.",
     "Exclude from institutional_regulations only when the body remains wrapper-only, draft/consultation, operational-scheme-like, or otherwise lacks promotable canonical regulation text.",

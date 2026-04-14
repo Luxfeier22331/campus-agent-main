@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-03
-updated: 2026-04-12
+updated: 2026-04-14
 ---
 
 # Authenticated Notice Source Architecture
@@ -29,6 +29,13 @@ updated: 2026-04-12
 
 `external scheduler -> authenticated notice collector -> object storage + typed bootstrap artifacts -> ingestion-worker -> document/chunk/index`
 
+其中 `authenticated notice collector` 当前允许承接两条 authenticated portal surface：
+
+- `notice`
+  - `/comsys-portal-notice-web/*`
+- `file_release`
+  - `/comsys-prompt-portlet-web/*`
+
 关键边界：
 
 - collector 负责登录态复用、list/detail 抓取、正文/链接/附件增强、对象上传与 typed artifact 输出
@@ -53,7 +60,22 @@ updated: 2026-04-12
 
 ## Source Unit
 
-这条 source channel 的 canonical source unit 固定为：
+这条 source channel 当前包含两个不同的 source surface：
+
+- `notice`
+- `file_release`
+
+其中当前已经冻结 canonical source-truth contract 的 source unit 只有：
+
+- `notice`
+
+`file_release` 当前仍是 collector-owned typed export slice。它必须和 `notice` 分开采集、分开导出，不能把文件发布记录伪装成 notice，也不能把 notice 正文里“见信息门户-文件发布”的提示误当作 notice 自身正文。
+
+当前 collector-owned export shape、bundle/manifest 字段，以及 `reference_only` / `object_store_write` 的含义，固定记录在：
+
+- `docs/reference/authenticated-notice-file-release-export-contract.md`
+
+对 `notice` surface，canonical source unit 仍固定为：
 
 - `notice`
 
@@ -73,8 +95,10 @@ updated: 2026-04-12
 
 - source-channel 运行边界：本文
 - source-truth schema：`docs/architecture/authenticated-notice-source-truth-contract.md`
+- `file_release` collector-owned export contract：`docs/reference/authenticated-notice-file-release-export-contract.md`
 - shared data-plane 不变量：`docs/architecture/data-plane-architecture.md`
 - `internal_notice` collection-specific offline preparation strategy：`docs/reference/internal-notice-offline-preparation-strategy.md`
+- authenticated document center / regulation 分层决策：`docs/decisions/adr-0041-authenticated-document-center-and-regulation-layer-split.md`
 - restricted document authorization：`docs/architecture/identity-and-authorization-architecture.md`
 
 ## Collector Runtime Ownership
@@ -89,6 +113,7 @@ collector runtime 的第一 owner 固定为 repo 内独立 `apps/*` runtime shel
 
 - 登录态 bootstrap / refresh
 - source-specific list/detail fetch
+- `file_release` list/detail/file-url fetch
 - notice-level normalize / enrich
 - 附件对象上传
 - typed artifact 输出
@@ -149,6 +174,28 @@ collector runtime 的第一 owner 固定为 repo 内独立 `apps/*` runtime shel
 - 优先独立 restricted collection
 - document / chunk projection 以 `visibility_* + entitlement_*` 为主
 
+## Downstream Consumption Opening Posture
+
+`campus_notices/internal_notice` 的 source-triage 与 restricted preparation 完成，不自动等于下游制度 collection 已可稳定消费。
+
+长期固定规则：
+
+- `internal_notice` 继续先承担 source-triage、provenance、wrapper notice 与 relation truth
+- downstream consumption 只有在 source current scope、promotion boundary 与 target collection semantics 都稳定后才允许推进
+- live portal scheduling 与 authenticated control-plane 不是 downstream consumption 的前置实现要求，但它们也不属于当前默认 rollout
+
+对 `internal_notice -> regulations/*` 的后续 opening，至少需要同时满足：
+
+- source-truth current scope 已稳定，不再处于大规模 owner recovery / relation recovery 波动期
+- promotion boundary 已能稳定区分 `wrapper_notice_only`、`manual_review_required` 与可独立消费正文
+- target collection 的 owner semantics、materialization contract 与 release posture 已冻结
+- retrieval-prep 不会反向改写 source-triage truth，也不会把未稳定 source current scope 伪装成正式制度语义面
+
+因此：
+
+- downstream consumption 是后置的语义收口阶段，不是 source channel foundation 的默认延伸
+- 在 source current scope 仍持续采集和修整时，正确姿态是继续保持 `offline_preparation` / promotion-prep，而不是抢先开放 query-serving
+
 ## Source-Triage Collection And Regulation Owner Boundary
 
 对 authenticated notice source channel，`campus_notices/internal_notice` 的角色固定为：
@@ -172,6 +219,43 @@ collector runtime 的第一 owner 固定为 repo 内独立 `apps/*` runtime shel
 
 - `regulations/institutional_regulations`
 
+## Restricted Document Center And Original Resource Boundary
+
+对 authenticated notice / file release 这类登录态来源，repo 级长期形态允许再存在一层独立的 restricted product surface，用于承接：
+
+- 原始附件对象
+- `file_release` released originals
+- 模板、表格、操作手册、FAQ、外部转发 PDF 等原件资源
+- 这些原件的 metadata / provenance / download truth
+
+这层推荐语义固定为：
+
+- authenticated document center
+
+它与 `regulations/*` 的边界固定如下：
+
+- `regulations/*` 继续只承接 semantic-owner canonical text
+- document center 承接 originals catalog / attachment library / released originals access
+- `campus_notices/internal_notice` 继续持有 source-triage truth、wrapper notice 与 relation truth
+
+因此：
+
+- “对已认证用户有价值”不再自动等于“应进入 regulation collection”
+- research notice / operational notice 中的大量附件，可以进入 document center 或后续 owner-specific collection，而不是污染 `regulations/institutional_regulations`
+- regulation / retrieval 只能消费 document center 或 source-triage 层投影出来的 owner text 与 metadata，不能反向充当原始附件下载真相层
+
+这层如果未来面向已认证用户开放，固定继续受：
+
+- `app-api` canonical authz truth
+- fail-close restricted rollout
+- per-resource authorization projection
+
+约束；不允许把“登录成功”偷换成“全部原件默认可见可下载”。
+
+对应决策见：
+
+- `docs/decisions/adr-0041-authenticated-document-center-and-regulation-layer-split.md`
+
 对当前 internal notice 派生制度导入批次，固定补充规则为：
 
 - `document_nature=institutional_regulation / annual_cycle_rule / time_bound_operational_rule` 都可以进入同一个 `regulations/institutional_regulations`
@@ -179,6 +263,18 @@ collector runtime 的第一 owner 固定为 repo 内独立 `apps/*` runtime shel
 - 真正继续留在 `campus_notices/internal_notice` 的，仍然是 `wrapper_notice_only`、draft/consultation、明确非制度 owner 的 source-triage 结果
 
 这条 promotion boundary 不要求把当前批次再拆成多个 regulation collection；原始 notice 继续作为 canonical upstream provenance 保留。
+
+对 regulation document 的标题与版本语义，已批准的下一步 contract 另见：
+
+- `docs/decisions/adr-0040-regulation-work-title-and-edition-separation.md`
+
+固定解释：
+
+- 这是 approved migration target，不是当前 materialization code 已经生效的 execution truth
+- 当前 execution 已使用 `regulation_work_title` 作为 target identity 输入
+- 当前 execution 已使用 `regulation_display_title` 作为 projected/materialized title
+- `regulation_title_normalized` 与 `source_title_literal` 继续作为 source-facing title metadata 保留
+- 长期正确语义应收口到 `work title + edition label + display title`
 
 对应决策见：
 
@@ -364,6 +460,7 @@ Phase 12.2 已把 authenticated notice historical closeout 重构为 async stage
 - `docs/decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spatial-review-boundary.md`
 - `docs/decisions/adr-0033-internal-notice-pdf-cloud-ocr-default.md`
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
+- `docs/decisions/adr-0040-regulation-work-title-and-edition-separation.md`
 - `docs/decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md`
 - `docs/plans/restricted-document-rollout-and-verification.md`
   - deferred rollout follow-up；当前执行真相以 `.planning/PROJECT.md` / `.planning/STATE.md` 为准

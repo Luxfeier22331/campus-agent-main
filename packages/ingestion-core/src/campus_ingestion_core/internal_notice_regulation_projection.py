@@ -68,11 +68,15 @@ def build_internal_notice_regulation_projected_document(
     context: InternalNoticeRegulationProjectionContext | None = None,
 ) -> InternalNoticeRegulationProjectedDocument:
     runtime_context = context or InternalNoticeRegulationProjectionContext()
-    title = candidate_document.regulation_title_normalized
+    title = (
+        candidate_document.regulation_display_title
+        or candidate_document.regulation_title_normalized
+    )
     canonical_markdown = render_internal_notice_regulation_canonical_markdown(candidate_document)
     semantic_content_hash = hashlib.sha256(canonical_markdown.encode("utf-8")).hexdigest()
     document_id = build_institutional_regulation_document_id(
         regulation_title_normalized=title,
+        regulation_work_title=candidate_document.regulation_work_title,
         issuing_org=candidate_document.issuing_org or "中央民族大学",
     )
     version_id = build_institutional_regulation_version_id(
@@ -117,14 +121,16 @@ def build_internal_notice_regulation_projected_document(
 def build_institutional_regulation_document_id(
     *,
     regulation_title_normalized: str,
+    regulation_work_title: str | None = None,
     issuing_org: str,
     semantic_scope: str = "regulations/institutional_regulations",
 ) -> str:
-    title_slug = _slugify_identifier(regulation_title_normalized)
+    work_title = (regulation_work_title or regulation_title_normalized).strip()
+    title_slug = _slugify_identifier(work_title)
     digest = hashlib.sha256(
         "\n".join(
             (
-                regulation_title_normalized.strip(),
+                work_title,
                 issuing_org.strip(),
                 semantic_scope,
             )
@@ -158,6 +164,10 @@ def build_internal_notice_regulation_projection_metadata(
     semantic_content_hash: str,
     context: InternalNoticeRegulationProjectionContext,
 ) -> dict[str, object]:
+    title = (
+        candidate_document.regulation_display_title
+        or candidate_document.regulation_title_normalized
+    )
     source_notice_ids = tuple(sorted(set(context.source_notice_ids or (candidate_document.notice_id,))))
     source_document_ids = tuple(
         sorted(set(context.source_document_ids or (candidate_document.source_document_id,)))
@@ -246,7 +256,7 @@ def build_internal_notice_regulation_projection_metadata(
         )
     )
     metadata: dict[str, object] = {
-        "title": candidate_document.regulation_title_normalized,
+        "title": title,
         "semantic_content_hash": semantic_content_hash,
         "content_kind": "institutional_regulation",
         "content_role": candidate_document.promotion_class,
@@ -278,6 +288,10 @@ def build_internal_notice_regulation_projection_metadata(
         "semantic_owner_document_ids": list(semantic_owner_document_ids),
         "source_notice_release_time": candidate_document.source_notice_release_time,
         "regulation_title_normalized": candidate_document.regulation_title_normalized,
+        "regulation_work_title": candidate_document.regulation_work_title,
+        "regulation_edition_label": candidate_document.regulation_edition_label,
+        "regulation_display_title": candidate_document.regulation_display_title,
+        "source_title_literal": candidate_document.source_title_literal,
         "issuing_org": candidate_document.issuing_org,
         "effective_date": candidate_document.effective_date,
         "revision_signal": candidate_document.revision_signal,

@@ -918,7 +918,7 @@ promotion gate 必须额外验证：
 当前 repo 结果（2026-04-11）：
 
 - bounded target materialization 已落地到 `regulations/institutional_regulations`
-- target `document_id` 现由 `regulation_title_normalized + issuing_org + semantic scope` 派生，而不是 `notice_id`
+- target `document_id` 现由 `regulation_work_title + issuing_org + semantic scope` 派生，而不是 `notice_id`
 - duplicate notice provenance 已在 target metadata 中聚合
 - current implementation 仍显式停在 `offline_preparation`：没有 target chunk prep、embedding、Qdrant write、release 或 alias publish
 

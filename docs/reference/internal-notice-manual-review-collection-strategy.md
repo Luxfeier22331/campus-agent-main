@@ -2,39 +2,39 @@
 doc_type: reference
 status: active
 created: 2026-04-11
-updated: 2026-04-11
+updated: 2026-04-14
 ---
 
 # Internal Notice Manual-Review Collection Strategy
 
 ## 文档边界
 
-本文记录 `campus_notices/internal_notice` 当前 `manual_review_required` 中、已完成语义裁决的两类文档：
-
-- `annual_cycle_rule`
-- `time_bound_operational_rule`
+本文记录 `campus_notices/internal_notice -> regulations/institutional_regulations` 这条线在 2026-04-12 local-only acceptance rerun 之后，原先 residual `manual_review_required` boundary 的关闭方式。
 
 它回答的是：
 
-- 为什么这些文档当前不能进入 `regulations/institutional_regulations`
-- 为什么当前改为先进入统一 holding collection `regulations/scoped_rules`
-- 哪些 query 语义明确后置，不再作为当前 import gate
+- 为什么 `191176 / 191177` 不再停在 `manual_review_required`
+- 为什么 `annual_cycle_rule` / `time_bound_operational_rule` 信号本身不再是当前这条线的硬排除条件
+- 当前 duplicate hold 与 regulation target 的分界是什么
 
 它不回答：
 
-- `scoped_rules` 何时进入 query-serving
-- 未来 admissions / operations 产品入口何时开放
+- 未来是否要为 residual notice 另建 holding lane
 - query-serving reopen 之后的完整 query-planning 细节
+- auth-dependent live portal 后续采集
 
 ## 当前冻结结论
 
-### Bucket A: `annual_cycle_rule`
+### 1. 已通过 `institutional_regulations` local-only acceptance 的 10 条标题
 
-当前 Cohort A 中属于这类的文档：
+当前已通过 local-only materialization acceptance、并实际物化进隔离 snapshot root 的标题为：
 
 - `186957 / 中央民族大学民族学与社会学学院2021年硕博连读博士研究生招生实施细则`
 - `186977 / 药学院2021年硕博连读博士研究生招生实施细则`
 - `187004 / 历史文化学院2021年硕博连读博士研究生 招生实施细则`
+- `187233 / 中央民族大学采购工作管理办法`
+- `191176 / 生命与环境科学学院关于2021年暑假期间实验室安全管理规定`
+- `191705 / 中央民族大学丰台校区就医管理办法（暂行）`
 - `196411 / 中央民族大学民族学与社会学学院2022年硕博连读博士研究生招生实施细则`
 - `351907 / 新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则`
 - `353963 / 中央民族大学新闻与传播学院 2026年“英才计划”硕博连读研究生招生实施细则`
@@ -42,96 +42,71 @@ updated: 2026-04-11
 
 固定判断：
 
-- 这些文档是可消费文本，但不是长期 institution-wide regulation
-- 它们的主要 retrieval 维度是：
-  - year
-  - program
-  - school unit
-- 因此当前不能直接放进 `regulations/institutional_regulations`
+- 当前这条导入线不再把 `annual_cycle_rule` 或 `time_bound_operational_rule` 当作自动排除条件
+- 这些 distinction 继续保留在 target metadata 中，例如 `document_nature`
+- 当前是否允许进入 `institutional_regulations`，主要看：
+  - wrapper 语义是否已去除
+  - canonical regulation body 是否独立成立
+  - required metadata / provenance 是否齐备
 
-当前默认 query policy：
+### 2. 当前 residual manual-review 已清零
 
-- `explicit_year_only`
+当前 Cohort A 已没有 `manual_review_required` notice 留在这条 regulation promotion 线上。
 
-### Bucket B: `time_bound_operational_rule`
+这条 family 的当前处理结果是：
 
-当前 Cohort A 中属于这类的文档：
-
-- `191176 / 生命与环境科学学院关于2021年暑假期间实验室安全管理规定`
-- `191177 / 生命与环境科学学院关于2021年暑假期间实验室安全管理规定`
-- `191705 / 重要通知--中央民族大学丰台校区就医管理办法（暂行）`
+- `191176`：通过 document-number stripping + wrapper-leading 清洗后，恢复出可独立成立的 regulation body，已进入 `institutional_regulations`
+- `191177`：由于 promotion body 与 `191176` 语义一致，当前作为 duplicate hold 保留在 `internal_notice`，不再生成第二份 regulation target
 
 固定判断：
 
-- 这类文档不是稳定正式规章 owner
-- 它们的核心 retrieval 维度是：
-  - effective window
-  - campus/site
-  - transition state
-
-其中 `191705` 的关键点是：
-
-- 继续排除，不是因为标题含 `暂行`
-- 真正决定性信号来自正文：
-  - `临时医疗点`
-  - `校医院正式运营前`
-  - `正式运营后取消`
-
-当前默认 query policy：
-
-- `include_with_warning`
-
-## 为什么现在改成新增统一 holding collection
-
-当前 repo 改为新增统一 holding collection `regulations/scoped_rules`，原因有三条：
-
-1. 这批文本已经完成 source-side adjudication，不应继续停在 `manual_review_required`。
-2. 当前目标是尽快 import canonical text，而不是立即开放 query-serving。
-3. 一个统一 holding collection 比继续拆成多个 bucket-specific collection 更符合当前阶段。
-
-## 外部资料如何影响这个判断
-
-### Azure AI Search
-
-官方文档把 freshness 建模为 ranking function，而不是 validity truth：
-
-- https://learn.microsoft.com/en-us/azure/search/index-add-scoring-profiles
-
-官方文档还要求 filterable fields 显式进入 schema：
-
-- https://learn.microsoft.com/en-us/azure/search/search-how-to-create-search-index
-
-对本项目的直接含义：
-
-- `year`
-- `program`
-- `effective_date`
-- `campus_site`
-- `force_status`
-
-这些都应先被视作 future surface 的 metadata/query-policy 约束，而不是先倒推出“应该建哪个 collection”。
-
-### Qdrant
-
-Qdrant 官方文档建议：
-
-- 大多数情况下优先单 collection + payload partitioning
-- 只有确实需要隔离时再拆多 collection
-
-参考：
-
-- https://qdrant.tech/documentation/guides/multitenancy/
-
-对本项目的直接含义：
-
-- 当前阶段先用一个统一 `scoped_rules` holding collection 承接 canonical text，比继续细分多个下游 collection 更稳
+- 当前关键修复不是重新分类 `time_bound_operational_rule`，而是：
+  - 文号行剥离后继续执行 wrapper-leading 清洗
+  - 对 parent notice 采用语义正文去重，而不是继续依赖原始 `content_hash`
+- `time_bound_operational_rule` 信号继续只是 target metadata，不构成 admission 排除条件
 
 ## 当前可执行结论
 
-- `institutional_regulations` 继续只收稳定正式规章正文
-- `annual_cycle_rule` 与 `time_bound_operational_rule` 现在应进入 `regulations/scoped_rules`
-- `scoped_rules` 当前固定保持 `offline_preparation + query_disabled`
-- 后续如果要开放 query-serving，再单独冻结：
-  - query policy
-  - product entry
-  - metadata fields
+- 当前 regulation 导入线已经可以把这 `10` 条 accepted canonical text 视为 `institutional_regulations` 真相
+- `191177` 继续保留在 `internal_notice` 层作为 duplicate hold source truth，不单独升格为第二份 regulation
+- 如果未来要为 duplicate hold notice 增加单独 review lane，那是后续新增决策，不能回写成当前已经冻结的导入真相
+
+## 当前 current-scope residual frontier（2026-04-14）
+
+- fresh current-scope manifest 已确认：除了上面这 `10` 条 accepted title 之外，没有新的健康 direct parent-body regulation candidate。
+- 以下 notice 当前明确留在 `internal_notice`，不能再误升格进 `institutional_regulations`：
+  - `351118 / 关于2025-2026学年第一学期本科生网上选课的通知`
+  - `354192 / 关于2025-2026学年第二学期本科生网上选课的通知`
+  - `354862 / 关于组织开展2026年春季学期研究生毕业资格审核工作的通知`
+
+固定判断：
+
+- 上述三条的正文虽然引用制度或包含章节结构，但它们本身仍是 wrapper / operational notice
+- parent notice 的 body citation 与 body heading 不能充当 formal-regulation admission evidence
+
+当前仍值得继续推进的 regulation manual-review frontier 已收缩为 file-release owner 缺失的一条：
+
+- `351119 / 关于《<中央民族大学差旅费管理办法>（民大校发〔2025〕104号）》发布实施的通知`
+  - 当前不是 promotion heuristic 问题
+  - 当前 repo 已具备一条 bounded `file_release` readiness consumer：
+    - 可读 export bundle / manifest
+    - 可判定 `ready / missing_capture / missing_source_bytes / ambiguous_match`
+  - 当前仍缺的是：
+    - repo-local `file_release` capture artifact
+    - 以及真正恢复 owner body 的 downstream consumer
+  - 在这两层补齐前，必须继续停在 `manual_review_required`
+
+新增冻结真相：
+
+- `355282 / 关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知`
+  - 已通过 owner recovery pilot 脱离 residual manual-review frontier
+  - 当前正确语义是：
+    - parent notice 继续留在 `internal_notice`
+    - attachment child 才是可 promote 的 regulation owner body
+  - 真正修复点是 attachment provenance 补齐，不是放宽 promotion 分类
+
+其余 current-scope manual-review 文档目前不属于 `institutional_regulations` 直接导入目标：
+
+- `351699 / 关于发布《中央民族大学新一轮本科教育教学审核评估应知应会手册》的通知`
+- `351704 / 关于发布《中央民族大学新一轮本科教育教学审核评估应知应会手册》的通知`
+- `355119 / 附件 1 / 中央民族大学拔尖创新人才培养 “证书项目”报名表`

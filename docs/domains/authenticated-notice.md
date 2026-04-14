@@ -23,12 +23,12 @@ updated: 2026-04-12
 - `../decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spatial-review-boundary.md`
 - `../decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
 
-## 当前执行说明
+## 当前阅读顺序
 
-- `authenticated_notice_portal` source foundation 已在 Phase 12 收口；默认不要再把 foundation 文档当当前 active phase 入口
-- 当前前向工作重点是 `internal_notice` 的 triage、promotion、`institutional_regulations` / `scoped_rules` downstream consumption
+- `authenticated_notice_portal` source foundation 已关闭；默认不要再把 foundation 文档当当前 active 入口
+- 当前前向工作默认从 `internal_notice` triage / promotion / downstream consumption 相关 active plan、runbook 与 quality reference 进入
 - `campus_notices/internal_notice`、`regulations/institutional_regulations`、`regulations/scoped_rules` 当前都仍是 `offline_preparation`，不得写成已开放 query-serving
-- live portal scheduling、authenticated control plane、collector repo migration 如需重开，应在 `.planning/PROJECT.md` / `.planning/STATE.md` 中显式建新执行面，而不是继续沿用已完成 foundation plan
+- live portal scheduling、authenticated control plane、collector repo migration 如需重开，应以 `.planning/PROJECT.md` / `.planning/STATE.md` 建新执行面，而不是继续沿用已完成 foundation plan
 
 ## Active Plan
 
@@ -47,10 +47,8 @@ updated: 2026-04-12
 
 ## Active Reference / Quality / Strategy
 
-- `../reference/authenticated-notice-portal-live-observations.md`
 - `../reference/internal-notice-offline-preparation-strategy.md`
 - `../reference/internal-notice-offline-preparation-quality-acceptance.md`
-- `../reference/internal-notice-offline-preparation-quality-evidence.md`
 - `../reference/institutional-regulations-promotion-quality-acceptance.md`
 - `../reference/internal-notice-manual-review-collection-strategy.md`
 - `../reference/internal-notice-manual-review-future-query-contract.md`
@@ -68,5 +66,7 @@ updated: 2026-04-12
 
 ## Historical Evidence / Archive
 
+- `../reference/authenticated-notice-portal-live-observations.md`
 - `../reference/authenticated-notice-historical-closeout-evidence.md`
 - `../reference/authenticated-notice-historical-donor-intake-evidence.md`
+- `../reference/internal-notice-offline-preparation-quality-evidence.md`
